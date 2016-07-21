@@ -96,7 +96,7 @@ struct memory: public primitive  {
         primitive_t result;
         if (memory_create(&result, &adesc.data, input) != success)
             throw std::runtime_error("Could not create a memory primitive");
-        data.reset(result);
+        data.reset(result, primitive_destroy);
     }
 };
 
