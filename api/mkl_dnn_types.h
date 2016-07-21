@@ -160,8 +160,9 @@ static const const_primitive_t primitive_self = ((const_primitive_t)-1);
 
 /** stream section */
 
-typedef void *stream_t;
-typedef const void *const_stream_t;
+struct stream;
+typedef struct stream *stream_t;
+typedef const struct stream *const_stream_t;
 
 #ifdef __cplusplus
 }
