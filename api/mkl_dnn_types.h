@@ -159,6 +159,11 @@ struct dnn_primitive;
 typedef struct dnn_primitive *dnn_primitive_t;
 typedef const struct dnn_primitive *const_dnn_primitive_t;
 
+typedef struct {
+    const_dnn_primitive_t primitive;
+    size_t output_index;
+} dnn_primitive_at_t;
+
 static const const_dnn_primitive_t primitive_self = ((const_dnn_primitive_t)-1);
 
 /** stream section */

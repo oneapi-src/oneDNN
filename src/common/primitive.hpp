@@ -74,12 +74,19 @@ typedef status_t (*primitive_desc_init_f)(primitive_desc_t *primitive_desc,
         const_op_desc_t op_desc, const dnn_engine& engine);
 typedef status_t (*primitive_create_f)(dnn_primitive **primitive,
         ::const_primitive_desc_t primitive_desc,
-        const dnn_primitive *inputs[], const dnn_primitive *outputs[]);
+        const dnn_primitive_at_t inputs[], const dnn_primitive *outputs[]);
 
 struct primitive_impl /* : public c_compatible */ {
     const primitive_desc_init_f primitive_desc_init;
     const primitive_create_f primitive_create;
 };
+
+status_t inline check_inputs_array(size_t n, const dnn_primitive_at_t inputs[]) {
+    for (size_t i = 0; i < n; i++)
+        if (inputs[i].primitive->output_count() <= inputs[i].output_index)
+            return invalid_arguments;
+    return success;
+}
 
 struct memory: public dnn_primitive { };
 

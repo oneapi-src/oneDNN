@@ -77,8 +77,8 @@ status_t memory_create(dnn_primitive_t *memory,
         const memory_primitive_desc_t *memory_primitive_desc,
         const void *data_ptr) {
     // XXX: is this ok?
-    const_dnn_primitive_t inputs[] = {
-        static_cast<const_dnn_primitive_t>(data_ptr) };
+    dnn_primitive_at_t inputs[] = {
+        { static_cast<const_dnn_primitive_t>(data_ptr), 0 } };
     const_dnn_primitive_t outputs[] = {
         static_cast<const_dnn_primitive_t>(data_ptr) };
     return primitive_create(memory, memory_primitive_desc, inputs, outputs);

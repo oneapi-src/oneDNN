@@ -2,8 +2,8 @@
 #include "engine.hpp"
 
 status_t primitive_create(dnn_primitive_t *primitive,
-        const_primitive_desc_t primitive_desc, const_dnn_primitive_t *inputs,
-        const_dnn_primitive_t *outputs) {
+        const_primitive_desc_t primitive_desc,
+        const dnn_primitive_at_t *inputs, const_dnn_primitive_t *outputs) {
     if (mkl_dnn::impl::any_null(primitive, primitive_desc, inputs, outputs))
         return invalid_arguments;
 
@@ -18,4 +18,10 @@ status_t primitive_create(dnn_primitive_t *primitive,
 status_t primitive_destroy(dnn_primitive_t primitive) {
     if (primitive != NULL) delete primitive;
     return success;
+}
+
+dnn_primitive_at_t primitive_at(const_dnn_primitive_t primitive,
+        size_t output_index) {
+    dnn_primitive_at_t result = {primitive, output_index};
+    return result;
 }

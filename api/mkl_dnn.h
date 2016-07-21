@@ -76,13 +76,21 @@ status_t convolution_primitive_desc_init(
 /** Creates a \param primitive by given \param primitive descriptor and array
  *  of \param inputs and \param outputs */
 status_t primitive_create(dnn_primitive_t *primitive,
-        const_primitive_desc_t primitive_desc, const_dnn_primitive_t *inputs,
-        const_dnn_primitive_t *outputs);
+        const_primitive_desc_t primitive_desc,
+        const dnn_primitive_at_t *inputs, const_dnn_primitive_t *outputs);
 
 /** Deletes \param primitive. Also deallocates internally allocated memory if
  *  primitive represents memory, previously created via
  *  memory_create(&primitive, ..., NULL) */
 status_t primitive_destroy(dnn_primitive_t primitive);
+
+/** Creates a dnn_primitive_at structure out of a \param primitive and a \param
+ * output_index. Note that this function only fills in the data structure
+ * without checking whether parameters are correct. The actual error checking
+ * is done when the resulting dnn_primitive_at structure is passed to a primitive
+ * creation function. */
+dnn_primitive_at_t primitive_at(const_dnn_primitive_t primitive,
+        size_t output_index);
 
 /** Returns the number of engines of a particular \param kind */
 size_t engine_get_count(engine_kind_t kind);

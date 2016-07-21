@@ -67,7 +67,11 @@ int doit() {
     CHECK(memory_desc_init(&c3_output_md, &c3_output_tz, memory_format_nchw_f32));
     CHECK(memory_primitive_desc_init(&c3_output_pd, &c3_output_md, engine));
 
-    const_dnn_primitive_t c3_inputs[] = {c3_input, c3_weights, c3_bias};
+    dnn_primitive_at_t c3_inputs[] = {
+        primitive_at(c3_input, 0),
+        primitive_at(c3_weights, 0),
+        primitive_at(c3_bias, 0)
+    };
     const_dnn_primitive_t c3_outputs[1];
 
     const int conv_with_own_memory = 1;
