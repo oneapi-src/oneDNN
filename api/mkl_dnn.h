@@ -22,7 +22,7 @@ status_t memory_desc_init(memory_desc_t *memory_desc,
  *  cannot be uncertain, i.e. initialized with memory_format_any */
 status_t memory_primitive_desc_init(
         memory_primitive_desc_t *memory_primitive_desc,
-        const memory_desc_t *memory_desc, const_engine_t engine);
+        const memory_desc_t *memory_desc, const_dnn_engine_t engine);
 
 /** Compares two memory primitive descriptors. \return 1 if the memory
  *  primitives descriptors are the same, \return 0 otherwise. Use this function
@@ -67,7 +67,7 @@ status_t convolution_desc_init(convolution_desc_t *convolution_desc,
  *  convolution_desc and \param engine */
 status_t convolution_primitive_desc_init(
         convolution_primitive_desc_t *convolution_primitive_desc,
-        const convolution_desc_t *convolution_desc, const_engine_t engine);
+        const convolution_desc_t *convolution_desc, const_dnn_engine_t engine);
 
 /* TODO: add convolution_forward_primitive_desc_init for given
  * memory_primitive_desc_t input, weights, ... so that user has more
@@ -88,10 +88,10 @@ status_t primitive_destroy(primitive_t primitive);
 size_t engine_get_count(engine_kind_t kind);
 
 /** Creates an \param engine of particular \param kind and \param index */
-status_t engine_create(engine_t *engine, engine_kind_t kind, size_t index);
+status_t engine_create(dnn_engine_t *engine, engine_kind_t kind, size_t index);
 
 /** Destroys an \param engine */
-status_t engine_destroy(engine_t engine);
+status_t engine_destroy(dnn_engine_t engine);
 
 /** Creates an execution \param stream */
 status_t stream_create(dnn_stream_t *stream);

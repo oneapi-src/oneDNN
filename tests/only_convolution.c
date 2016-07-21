@@ -38,7 +38,7 @@ int doit() {
         13 + 2*padding[1] - 2,
         13 + 2*padding[0] - 2};
 
-    engine_t engine;
+    dnn_engine_t engine;
     CHECK(engine_create(&engine, engine_kind_cpu, 0 /* idx */));
 
     /* first describe user data and create data descriptors for future

@@ -41,18 +41,16 @@ status_t convolution_desc_init(convolution_desc_t *convolution_desc,
 
 status_t convolution_primitive_desc_init(
         convolution_primitive_desc_t *convolution_primitive_desc,
-        const convolution_desc_t *convolution_desc, const_engine_t engine)
+        const convolution_desc_t *convolution_desc, const_dnn_engine_t engine)
 {
     if (mkl_dnn::impl::any_null(convolution_primitive_desc, convolution_desc,
                 engine)) return invalid_arguments;
 
-    auto e = static_cast<const mkl_dnn::impl::engine*>(engine);
-
-    for (auto i = e->get_convolution_inits(); *i; ++i) {
+    for (auto i = engine->get_convolution_inits(); *i; ++i) {
         using mkl_dnn::impl::const_op_desc_t;
         status_t status = (*i)(
                 reinterpret_cast<primitive_desc_t*>(convolution_primitive_desc),
-                static_cast<const_op_desc_t>(convolution_desc), *e);
+                static_cast<const_op_desc_t>(convolution_desc), *engine);
         if (status == success) return success;
     }
 

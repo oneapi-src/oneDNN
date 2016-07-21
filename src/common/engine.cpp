@@ -26,26 +26,29 @@ static inline engine_factory *get_engine_factory(engine_kind_t kind)
     return NULL;
 }
 
+}}
+
 namespace {
-    primitive_desc_init_f empty_list[] = { nullptr };
+    mkl_dnn::impl::primitive_desc_init_f empty_list[] = { nullptr };
 }
 
-primitive_desc_init_f *engine::get_memory_inits() const { return empty_list; }
-primitive_desc_init_f *engine::get_reorder_inits() const { return empty_list; }
-primitive_desc_init_f *engine::get_convolution_inits() const {
+mkl_dnn::impl::primitive_desc_init_f *dnn_engine::get_memory_inits() const {
+    return empty_list;
+}
+mkl_dnn::impl::primitive_desc_init_f *dnn_engine::get_reorder_inits() const {
+    return empty_list;
+}
+mkl_dnn::impl::primitive_desc_init_f *dnn_engine::get_convolution_inits() const
+{
     return empty_list;
 }
 
-}}
-
-size_t engine_get_count(engine_kind_t kind)
-{
+size_t engine_get_count(engine_kind_t kind) {
     mkl_dnn::impl::engine_factory *ef = mkl_dnn::impl::get_engine_factory(kind);
     return ef != NULL ? ef->count() : 0;
 }
 
-status_t engine_create(engine_t *engine, engine_kind_t kind, size_t index)
-{
+status_t engine_create(dnn_engine_t *engine, engine_kind_t kind, size_t index) {
     if (engine == NULL)
         return invalid_arguments;
 
@@ -53,12 +56,9 @@ status_t engine_create(engine_t *engine, engine_kind_t kind, size_t index)
     if (ef == NULL || index >= ef->count())
         return invalid_arguments;
 
-    return ef->engine_create(
-            reinterpret_cast<mkl_dnn::impl::engine**>(engine), index);
+    return ef->engine_create(engine, index);
 }
 
-status_t engine_destroy(engine_t engine)
-{
-    mkl_dnn::impl::engine *e = static_cast<mkl_dnn::impl::engine*>(engine);
-    delete e;
+status_t engine_destroy(dnn_engine_t engine) {
+    delete engine;
 }

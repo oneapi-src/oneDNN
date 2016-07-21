@@ -9,7 +9,7 @@
 
 namespace mkl_dnn { namespace impl { namespace cpu {
 
-class cpu_engine: public engine {
+class cpu_engine: public dnn_engine {
 private:
     bool _lazy;
 public:
@@ -42,7 +42,7 @@ public:
     virtual size_t count() { return 1; }
     virtual engine_kind_t kind()
     { return _lazy ? engine_kind_cpu_lazy : engine_kind_cpu; }
-    virtual status_t engine_create(engine **engine, size_t index) {
+    virtual status_t engine_create(dnn_engine **engine, size_t index) {
         assert(index == 0);
         *engine = new cpu_engine(_lazy);
         return success;

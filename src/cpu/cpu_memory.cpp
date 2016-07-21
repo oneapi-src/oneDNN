@@ -15,8 +15,8 @@ protected:
 
 public:
     cpu_memory(const memory_primitive_desc_t &mpd, char* ptr):
-        primitive(const_cast<impl::engine*>(static_cast<const impl::engine*>(
-                        mpd.base.engine)), primitive_kind_memory),
+        primitive(const_cast<dnn_engine*>(mpd.base.engine),
+                primitive_kind_memory),
         _memory_buffer(ptr) {
         _input.push_back(this);
         _output.push_back(this);
@@ -32,7 +32,7 @@ public:
 
     /* static magic */
     static status_t memory_desc_init(primitive_desc_t *primitive_desc,
-            const_op_desc_t op_desc, const impl::engine& engine) {
+            const_op_desc_t op_desc, const dnn_engine& engine) {
         auto memory_primitive_desc =
             reinterpret_cast<memory_primitive_desc_t*>(primitive_desc);
         auto memory_desc = static_cast<const memory_desc_t*>(op_desc);
@@ -40,7 +40,7 @@ public:
         memory_primitive_desc_t mpd = {
             .base = {
                 .primitive_kind = primitive_kind_memory,
-                .engine = static_cast<const_engine_t>(&engine),
+                .engine = &engine,
                 .implementation =
                     reinterpret_cast<const void*>(&memory_implementation),
             },

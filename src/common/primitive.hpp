@@ -19,21 +19,21 @@ struct primitive: public c_compatible {
 private:
     // TODO: copy, equality and assignment -- all must be banned...
 protected:
-    impl::engine *_engine;
+    dnn_engine *_engine;
     ::primitive_kind_t _kind;
     nstl::vector<primitive*> _input;
     nstl::vector<primitive*> _output;
 
     virtual status_t execute_impl() = 0;
 
-    primitive(impl::engine *engine, ::primitive_kind_t kind)
+    primitive(dnn_engine *engine, ::primitive_kind_t kind)
         : _engine(engine)
         , _kind(kind) {}
 public:
     virtual ~primitive() {}
 
     ::primitive_kind_t kind() const { return _kind; }
-    impl::engine *engine() const { return _engine; }
+    dnn_engine *engine() const { return _engine; }
 
     virtual bool own_memory() const { return false; }
 
@@ -71,7 +71,7 @@ public:
 
 typedef const void* const_op_desc_t;
 typedef status_t (*primitive_desc_init_f)(primitive_desc_t *primitive_desc,
-        const_op_desc_t op_desc, const impl::engine& engine);
+        const_op_desc_t op_desc, const dnn_engine& engine);
 typedef status_t (*primitive_create_f)(impl::primitive **primitive,
         ::const_primitive_desc_t primitive_desc,
         const impl::primitive *inputs[], const impl::primitive *outputs[]);

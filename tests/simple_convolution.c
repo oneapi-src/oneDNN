@@ -29,7 +29,7 @@ static void init_engine(engine_t *engine) {
 static void init_data_desc(memory_primitive_desc_t *user_prim_desc,
         memory_desc_t *prim_md, uint32_t ndims_batch, uint32_t ndims_channels,
         uint32_t ndims_spatial, uint32_t *dims, memory_format_t user_fmt,
-        const_engine_t engine)
+        const_dnn_engine_t engine)
 {
     memory_desc_t user_md;
     tensor_desc_t tensor;
@@ -98,7 +98,7 @@ int doit() {
     uint32_t strides[] = {4, 4};
     uint32_t padding[] = {0, 0};
 
-    engine_t engine;
+    dnn_engine_t engine;
     init_engine(&engine);
 
     /* first describe user data and create data descriptors for future

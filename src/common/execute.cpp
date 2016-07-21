@@ -21,7 +21,7 @@ private:
             mkl_dnn::impl::primitive **error_primitive) {
         assert(start_idx < _queue.size());
         assert(error_primitive);
-        mkl_dnn::impl::engine *engine = _queue[start_idx]->engine();
+        dnn_engine *engine = _queue[start_idx]->engine();
         size_t base_idx = start_idx;
         for (size_t i = start_idx; i < _queue.size(); i++)
             if (engine != _queue[i]->engine() || i == _queue.size() - 1) {

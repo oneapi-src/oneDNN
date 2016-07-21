@@ -111,8 +111,9 @@ typedef enum {
     engine_kind_last = 3,
 } engine_kind_t;
 
-typedef void *engine_t;
-typedef const void *const_engine_t;
+struct dnn_engine;
+typedef struct dnn_engine *dnn_engine_t;
+typedef const struct dnn_engine *const_dnn_engine_t;
 
 /** primitive descriptor section */
 
@@ -125,7 +126,7 @@ typedef enum {
 
 typedef struct {
     primitive_kind_t primitive_kind;
-    const_engine_t engine;
+    const_dnn_engine_t engine;
     const void *implementation;
 } primitive_base_desc_t;
 

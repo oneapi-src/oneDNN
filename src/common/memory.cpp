@@ -51,18 +51,17 @@ status_t memory_desc_init(memory_desc_t *memory_desc,
 
 status_t memory_primitive_desc_init(
         memory_primitive_desc_t *memory_primitive_desc,
-        const memory_desc_t *memory_desc, const_engine_t engine) {
+        const memory_desc_t *memory_desc, const_dnn_engine_t engine) {
     if (mkl_dnn::impl::any_null(memory_primitive_desc, memory_desc, engine))
         return invalid_arguments;
-    auto e = static_cast<const mkl_dnn::impl::engine*>(engine);
-    if (memory_desc->format == memory_format_any || !e->is_ok())
+    if (memory_desc->format == memory_format_any || !engine->is_ok())
         return invalid_arguments;
 
-    for (auto init = e->get_memory_inits(); *init; ++init) {
+    for (auto init = engine->get_memory_inits(); *init; ++init) {
         using mkl_dnn::impl::const_op_desc_t;
         status_t status = (*init)(
                 reinterpret_cast<primitive_desc_t*>(memory_primitive_desc),
-                static_cast<const_op_desc_t>(memory_desc), *e);
+                static_cast<const_op_desc_t>(memory_desc), *engine);
         if (status == success) return success;
     }
 

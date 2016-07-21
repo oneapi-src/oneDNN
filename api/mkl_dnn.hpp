@@ -14,14 +14,14 @@ namespace mkl_dnn {
 // TODO: do we need a special exception class to encapsulate a status as well?
 
 struct primitive {
-    typedef std::remove_pointer<engine_t>::type primitive_val_t;
+    typedef std::remove_pointer<primitive_t>::type primitive_val_t;
     std::shared_ptr<primitive_val_t> data;
     primitive(primitive_t aprimitive = nullptr): data(aprimitive, primitive_destroy) {}
     // TODO: other manupulation functions and operators
 };
 
 struct engine {
-    typedef std::remove_pointer<engine_t>::type engine_val_t;
+    typedef std::remove_pointer<dnn_engine_t>::type engine_val_t;
     std::shared_ptr<engine_val_t> data;
     enum kind {
         any = engine_kind_any,
@@ -38,7 +38,7 @@ struct engine {
     }
     engine(const engine &other): data(other.data) {}
     explicit engine(kind akind, size_t index) {
-        engine_t anengine;
+        dnn_engine_t anengine;
         if (engine_create(&anengine, convert_to_c(akind), index) != success)
             throw std::runtime_error("Could not create engine");
         data = std::shared_ptr<engine_val_t>(anengine, engine_destroy);
