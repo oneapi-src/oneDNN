@@ -12,7 +12,7 @@
 //  - engines are responsible for tracking the dependencies: they cannot
 //    schedule a primitive for execution unless all its unputs are ready
 
-struct stream: public mkl_dnn::impl::c_compatible {
+struct dnn_stream: public mkl_dnn::impl::c_compatible {
 private:
     int _is_lazy;
     mkl_dnn::impl::nstl::vector<mkl_dnn::impl::primitive*> _queue;
@@ -35,7 +35,8 @@ private:
         return success;
     }
 
-    status_t wait_queue(bool block, mkl_dnn::impl::primitive **error_primitive) {
+    status_t wait_queue(bool block, mkl_dnn::impl::primitive **error_primitive)
+    {
         assert(error_primitive);
         // This assumes that the engines start execution as soon as primitives
         // are submitted and do not need any additional notification about
@@ -66,7 +67,7 @@ private:
     }
 
 public:
-    stream(): _is_lazy(-1) {}
+    dnn_stream(): _is_lazy(-1) {}
 
     status_t submit(size_t n, mkl_dnn::impl::primitive *primitives[],
             mkl_dnn::impl::primitive **error_primitive)
@@ -105,25 +106,26 @@ public:
 
 };
 
-status_t stream_create(stream_t *stream)
+status_t stream_create(dnn_stream_t *stream)
 {
-    *stream = new ::stream;
+    *stream = new dnn_stream;
     return stream ? success : out_of_memory;
 }
 
-status_t stream_submit(stream_t stream,
-        size_t n, primitive_t primitives[], primitive_t *error_primitive) {
+status_t stream_submit(dnn_stream_t stream, size_t n, primitive_t primitives[],
+        primitive_t *error_primitive) {
     return stream->submit(n,
             reinterpret_cast<mkl_dnn::impl::primitive**>(primitives),
             reinterpret_cast<mkl_dnn::impl::primitive**>(error_primitive));
 }
 
-status_t stream_wait(stream_t stream, int block, primitive_t *error_primitive) {
+status_t stream_wait(dnn_stream_t stream, int block,
+        primitive_t *error_primitive) {
     return stream->wait(!!block,
             reinterpret_cast<mkl_dnn::impl::primitive**>(error_primitive));
 }
 
-status_t stream_destroy(stream_t stream) {
+status_t stream_destroy(dnn_stream_t stream) {
     delete stream;
 }
 

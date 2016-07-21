@@ -172,7 +172,7 @@ int doit() {
                 (c1_output_memory ? c1_output_memory : user_c1_output_memory)));
 
     /* let us build a net */
-    stream_t stream;
+    dnn_stream_t stream;
     CHECK(stream_create(&stream));
     primitive_t net[10], error_primitive;
     size_t n = 0;

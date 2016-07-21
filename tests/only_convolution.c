@@ -97,7 +97,7 @@ int doit() {
     assert(memory_primitive_desc_equal(&c3_pd.output_primitive_desc, &c3_output_pd));
 
     /* let us build a net */
-    stream_t stream;
+    dnn_stream_t stream;
     CHECK(stream_create(&stream));
     CHECK(stream_submit(stream, 1, &c3, NULL));
     CHECK(stream_wait(stream, 1, NULL));

@@ -94,21 +94,22 @@ status_t engine_create(engine_t *engine, engine_kind_t kind, size_t index);
 status_t engine_destroy(engine_t engine);
 
 /** Creates an execution \param stream */
-status_t stream_create(stream_t *stream);
+status_t stream_create(dnn_stream_t *stream);
 
 /** Submits \param n \param primitives to execution \param stream.  All or none
  * of the primitives must be lazy. In case of an error, may return offending
  * \param error_primitive if it is not NULL. */
-status_t stream_submit(stream_t stream, size_t n, primitive_t primitives[],
+status_t stream_submit(dnn_stream_t stream, size_t n, primitive_t primitives[],
         primitive_t *error_primitive);
 
 /** Waits for all primitives in the execution \param stream to finish. Returns
  * immediately with a status if \param block is 0. In case of error, may return
  * offending \param error_primitive if it is not NULL. */
-status_t stream_wait(stream_t stream, int block, primitive_t *error_primitive);
+status_t stream_wait(dnn_stream_t stream, int block,
+        primitive_t *error_primitive);
 
 /** Destroys an execution \param stream */
-status_t stream_destroy(stream_t stream);
+status_t stream_destroy(dnn_stream_t stream);
 
 /** Destroys a \param primitive */
 status_t primitive_destroy(primitive_t primitive);
