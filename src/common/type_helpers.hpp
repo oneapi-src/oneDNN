@@ -78,7 +78,7 @@ inline bool blocking_desc_is_equal(const blocking_desc_t &lhs,
         && array_cmp(lhs.strides[1], rhs.strides[1], ndims);
 }
 
-inline bool operator==(const memory_desc_t &lhs, const memory_desc &rhs) {
+inline bool operator==(const memory_desc_t &lhs, const memory_desc_t &rhs) {
     if (lhs.tensor_desc != rhs.tensor_desc || lhs.format != rhs.format)
         return false;
     if (lhs.format == memory_format_blocked_f32)
@@ -87,7 +87,7 @@ inline bool operator==(const memory_desc_t &lhs, const memory_desc &rhs) {
     return true;
 }
 
-inline bool operator!=(const memory_desc_t &lhs, const memory_desc &rhs) {
+inline bool operator!=(const memory_desc_t &lhs, const memory_desc_t &rhs) {
     return !operator==(lhs, rhs);
 }
 
