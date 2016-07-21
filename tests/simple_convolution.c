@@ -44,11 +44,11 @@ static void init_data_desc(memory_primitive_desc_t *user_prim_desc,
 
 /* create reorder if required */
 status_t prepare_reorder(
-        const_primitive_t user_memory, /** in */
+        const_dnn_primitive_t user_memory, /** in */
         memory_primitive_desc_t *prim_memory_pd, /** in */
         int dir_is_user_to_prim, /** in: user -> prim or prim -> user */
-        primitive_t *prim_memory, /** out: memory primitive created */
-        primitive_t *reorder /** out: reorder primitive created */
+        dnn_primitive_t *prim_memory, /** out: memory primitive created */
+        dnn_primitive_t *reorder /** out: reorder primitive created */
         )
 {
     memory_primitive_desc_t user_memory_pd;
@@ -118,7 +118,7 @@ int doit() {
             c1_output_sizes, memory_format_nchw_f32, engine);
 
     /* create memory for user data */
-    primitive_t user_c1_input_memory, user_c1_weights_memory,
+    dnn_primitive_t user_c1_input_memory, user_c1_weights_memory,
                 user_c1_bias_memory, user_c1_output_memory;
     CHECK(memory_create(&user_c1_input_memory, &user_c1_input_prim_desc,
                 input));
@@ -153,8 +153,8 @@ int doit() {
 
     /* create reorder primitives between user data and convolution inputs and
      * outputs if required */
-    primitive_t reorder_c1_input, reorder_c1_weights, reorder_c1_output;
-    primitive_t c1_input_memory, c1_weights_memory, c1_output_memory;
+    dnn_primitive_t reorder_c1_input, reorder_c1_weights, reorder_c1_output;
+    dnn_primitive_t c1_input_memory, c1_weights_memory, c1_output_memory;
 
     CHECK(prepare_reorder(user_c1_input_memory, &c1_pd.input_primitive_desc,
                 1, &c1_input_memory, &reorder_c1_input));
@@ -164,7 +164,7 @@ int doit() {
                 0, &c1_output_memory, &reorder_c1_output));
 
     /* finally create a convolution primitive */
-    primitive_t c1;
+    dnn_primitive_t c1;
     CHECK(convolution_forward_create(&c1, &c1_pd,
                 (c1_input_memory ? c1_input_memory : user_c1_input_memory),
                 (c1_weights_memory ? c1_weights_memory : user_c1_weights_memory),
@@ -174,7 +174,7 @@ int doit() {
     /* let us build a net */
     dnn_stream_t stream;
     CHECK(stream_create(&stream));
-    primitive_t net[10], error_primitive;
+    dnn_primitive_t net[10], error_primitive;
     size_t n = 0;
     {
         if (reorder_c1_input) net[n++] = reorder_c1_input;

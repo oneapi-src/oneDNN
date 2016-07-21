@@ -11,8 +11,8 @@ class dnn_engine: public mkl_dnn::impl::c_compatible {
 public:
     virtual bool is_lazy() const = 0;
     virtual bool is_ok() const = 0;
-    virtual status_t submit(size_t n, mkl_dnn::impl::primitive *primitives[],
-            mkl_dnn::impl::primitive **error_primitive) = 0;
+    virtual status_t submit(size_t n, dnn_primitive *primitives[],
+            dnn_primitive **error_primitive) = 0;
 
     /* primitives' descriptor initializators
      * the default one guarantees to return at least an empty list,

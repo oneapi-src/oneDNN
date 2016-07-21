@@ -14,9 +14,10 @@ namespace mkl_dnn {
 // TODO: do we need a special exception class to encapsulate a status as well?
 
 struct primitive {
-    typedef std::remove_pointer<primitive_t>::type primitive_val_t;
+    typedef std::remove_pointer<dnn_primitive_t>::type primitive_val_t;
     std::shared_ptr<primitive_val_t> data;
-    primitive(primitive_t aprimitive = nullptr): data(aprimitive, primitive_destroy) {}
+    primitive(dnn_primitive_t aprimitive = nullptr):
+        data(aprimitive, primitive_destroy) {}
     // TODO: other manupulation functions and operators
 };
 
@@ -93,7 +94,7 @@ struct memory: public primitive  {
     };
 
     memory(const primitive_desc &adesc, void *input = nullptr) {
-        primitive_t result;
+        dnn_primitive_t result;
         if (memory_create(&result, &adesc.data, input) != success)
             throw std::runtime_error("Could not create a memory primitive");
         data.reset(result, primitive_destroy);

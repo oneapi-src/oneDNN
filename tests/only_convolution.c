@@ -46,7 +46,7 @@ int doit() {
     tensor_desc_t c3_input_tz, c3_weights_tz, c3_bias_tz, c3_output_tz;
     memory_desc_t c3_input_md, c3_weights_md, c3_bias_md, c3_output_md;
     memory_primitive_desc_t c3_input_pd, c3_weights_pd, c3_bias_pd, c3_output_pd;
-    primitive_t c3_input, c3_weights, c3_bias, c3_output;
+    dnn_primitive_t c3_input, c3_weights, c3_bias, c3_output;
 
     CHECK(tensor_desc_init(&c3_input_tz, 1, 1, 2, c3_input_sizes));
     CHECK(memory_desc_init(&c3_input_md, &c3_input_tz, memory_format_nchw_f32));
@@ -67,8 +67,8 @@ int doit() {
     CHECK(memory_desc_init(&c3_output_md, &c3_output_tz, memory_format_nchw_f32));
     CHECK(memory_primitive_desc_init(&c3_output_pd, &c3_output_md, engine));
 
-    const_primitive_t c3_inputs[] = {c3_input, c3_weights, c3_bias};
-    const_primitive_t c3_outputs[1];
+    const_dnn_primitive_t c3_inputs[] = {c3_input, c3_weights, c3_bias};
+    const_dnn_primitive_t c3_outputs[1];
 
     const int conv_with_own_memory = 1;
     if (conv_with_own_memory) { /* primitive has its own memory */
@@ -83,7 +83,7 @@ int doit() {
     /* create a convolution */
     convolution_desc_t c3_desc;
     convolution_primitive_desc_t c3_pd;
-    primitive_t c3;
+    dnn_primitive_t c3;
 
     CHECK(convolution_desc_init(&c3_desc, forward, convolution_direct,
                 &c3_input_md, &c3_weights_md, &c3_bias_md, &c3_output_md,

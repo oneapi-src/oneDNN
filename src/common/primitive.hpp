@@ -5,34 +5,31 @@
 
 #include "nstl.hpp"
 
-namespace mkl_dnn { namespace impl {
-
-class engine;
-class memory;
+namespace mkl_dnn { namespace impl { struct memory; }}
 
 // TODO: consider using smart pointers for storing primitives. External handles
 // then would have to be cast to smart pointers. This would ensure that
 // accedentally deleting a primitive that is a dependency for another one does
 // not cause a segfault.
 
-struct primitive: public c_compatible {
+struct dnn_primitive: public mkl_dnn::impl::c_compatible {
 private:
     // TODO: copy, equality and assignment -- all must be banned...
 protected:
     dnn_engine *_engine;
-    ::primitive_kind_t _kind;
-    nstl::vector<primitive*> _input;
-    nstl::vector<primitive*> _output;
+    primitive_kind_t _kind;
+    mkl_dnn::impl::nstl::vector<dnn_primitive*> _input;
+    mkl_dnn::impl::nstl::vector<dnn_primitive*> _output;
 
     virtual status_t execute_impl() = 0;
 
-    primitive(dnn_engine *engine, ::primitive_kind_t kind)
+    dnn_primitive(dnn_engine *engine, primitive_kind_t kind)
         : _engine(engine)
         , _kind(kind) {}
 public:
-    virtual ~primitive() {}
+    virtual ~dnn_primitive() {}
 
-    ::primitive_kind_t kind() const { return _kind; }
+    primitive_kind_t kind() const { return _kind; }
     dnn_engine *engine() const { return _engine; }
 
     virtual bool own_memory() const { return false; }
@@ -52,36 +49,39 @@ public:
     }
 
     size_t input_count() const { return _input.size(); }
-    nstl::vector<primitive*> &input() { return _input; };
+    mkl_dnn::impl::nstl::vector<dnn_primitive*> &input() { return _input; }
 
     size_t output_count() const { return _output.size(); }
-    nstl::vector<primitive*> &output() { return _output; };
+    mkl_dnn::impl::nstl::vector<dnn_primitive*> &output() { return _output; }
 
     // XXX: memory -> primitive?
-    virtual const impl::memory *output_memory_const(size_t at = 0) const {
+    virtual const mkl_dnn::impl::memory *output_memory_const(
+            size_t at = 0) const {
         return _output[at]->memory_const();
     }
-    virtual impl::memory *output_memory(size_t at = 0) const {
+    virtual mkl_dnn::impl::memory *output_memory(size_t at = 0) const {
         return _output[at]->memory();
     }
 
-    virtual impl::memory *memory() { return 0; }
-    virtual impl::memory *memory_const() { return 0; }
+    virtual mkl_dnn::impl::memory *memory() { return 0; }
+    virtual mkl_dnn::impl::memory *memory_const() { return 0; }
 };
+
+namespace mkl_dnn { namespace impl {
 
 typedef const void* const_op_desc_t;
 typedef status_t (*primitive_desc_init_f)(primitive_desc_t *primitive_desc,
         const_op_desc_t op_desc, const dnn_engine& engine);
-typedef status_t (*primitive_create_f)(impl::primitive **primitive,
+typedef status_t (*primitive_create_f)(dnn_primitive **primitive,
         ::const_primitive_desc_t primitive_desc,
-        const impl::primitive *inputs[], const impl::primitive *outputs[]);
+        const dnn_primitive *inputs[], const dnn_primitive *outputs[]);
 
 struct primitive_impl /* : public c_compatible */ {
     const primitive_desc_init_f primitive_desc_init;
     const primitive_create_f primitive_create;
 };
 
-struct memory: public primitive { };
+struct memory: public dnn_primitive { };
 
 }}
 

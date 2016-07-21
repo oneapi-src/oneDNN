@@ -35,13 +35,13 @@ int memory_primitive_desc_equal(const memory_primitive_desc_t *lhs,
  *  data_ptr. If \param data_ptr is NULL \param memory would be initialized
  *  with internally allocated memory. primitive_destroy() will takes care on
  *  allocated memory then */
-status_t memory_create(primitive_t *memory,
+status_t memory_create(dnn_primitive_t *memory,
         const memory_primitive_desc_t *memory_primitive_desc,
         const void *data_ptr);
 
 /** For given \param memory primitive fills in coresponding \param
  *  memory_primitive_desc */
-status_t memory_get_primitive_desc(const_primitive_t memory,
+status_t memory_get_primitive_desc(const_dnn_primitive_t memory,
         memory_primitive_desc_t *memory_primitive_desc);
 
 /** Initializes a \param reorder_primitive_desc by given \param input and \param
@@ -75,14 +75,14 @@ status_t convolution_primitive_desc_init(
 
 /** Creates a \param primitive by given \param primitive descriptor and array
  *  of \param inputs and \param outputs */
-status_t primitive_create(primitive_t *primitive,
-        const_primitive_desc_t primitive_desc, const_primitive_t *inputs,
-        const_primitive_t *outputs);
+status_t primitive_create(dnn_primitive_t *primitive,
+        const_primitive_desc_t primitive_desc, const_dnn_primitive_t *inputs,
+        const_dnn_primitive_t *outputs);
 
 /** Deletes \param primitive. Also deallocates internally allocated memory if
  *  primitive represents memory, previously created via
  *  memory_create(&primitive, ..., NULL) */
-status_t primitive_destroy(primitive_t primitive);
+status_t primitive_destroy(dnn_primitive_t primitive);
 
 /** Returns the number of engines of a particular \param kind */
 size_t engine_get_count(engine_kind_t kind);
@@ -99,21 +99,17 @@ status_t stream_create(dnn_stream_t *stream);
 /** Submits \param n \param primitives to execution \param stream.  All or none
  * of the primitives must be lazy. In case of an error, may return offending
  * \param error_primitive if it is not NULL. */
-status_t stream_submit(dnn_stream_t stream, size_t n, primitive_t primitives[],
-        primitive_t *error_primitive);
+status_t stream_submit(dnn_stream_t stream, size_t n,
+        dnn_primitive_t primitives[], dnn_primitive_t *error_primitive);
 
 /** Waits for all primitives in the execution \param stream to finish. Returns
  * immediately with a status if \param block is 0. In case of error, may return
  * offending \param error_primitive if it is not NULL. */
 status_t stream_wait(dnn_stream_t stream, int block,
-        primitive_t *error_primitive);
+        dnn_primitive_t *error_primitive);
 
 /** Destroys an execution \param stream */
 status_t stream_destroy(dnn_stream_t stream);
-
-/** Destroys a \param primitive */
-status_t primitive_destroy(primitive_t primitive);
-
 
 #ifdef __cplusplus
 }

@@ -73,11 +73,13 @@ int memory_primitive_desc_equal(const memory_primitive_desc_t *lhs,
     return mkl_dnn::impl::types::operator==(*lhs, *rhs);
 }
 
-status_t memory_create(primitive_t *memory,
+status_t memory_create(dnn_primitive_t *memory,
         const memory_primitive_desc_t *memory_primitive_desc,
         const void *data_ptr) {
     // XXX: is this ok?
-    const_primitive_t inputs[] = { static_cast<const_primitive_t>(data_ptr) };
-    const_primitive_t outputs[] = { static_cast<const_primitive_t>(data_ptr) };
+    const_dnn_primitive_t inputs[] = {
+        static_cast<const_dnn_primitive_t>(data_ptr) };
+    const_dnn_primitive_t outputs[] = {
+        static_cast<const_dnn_primitive_t>(data_ptr) };
     return primitive_create(memory, memory_primitive_desc, inputs, outputs);
 }

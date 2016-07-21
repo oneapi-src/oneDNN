@@ -15,10 +15,9 @@
 struct dnn_stream: public mkl_dnn::impl::c_compatible {
 private:
     int _is_lazy;
-    mkl_dnn::impl::nstl::vector<mkl_dnn::impl::primitive*> _queue;
+    mkl_dnn::impl::nstl::vector<dnn_primitive*> _queue;
 
-    status_t submit_queue(size_t start_idx,
-            mkl_dnn::impl::primitive **error_primitive) {
+    status_t submit_queue(size_t start_idx, dnn_primitive **error_primitive) {
         assert(start_idx < _queue.size());
         assert(error_primitive);
         dnn_engine *engine = _queue[start_idx]->engine();
@@ -35,7 +34,7 @@ private:
         return success;
     }
 
-    status_t wait_queue(bool block, mkl_dnn::impl::primitive **error_primitive)
+    status_t wait_queue(bool block, dnn_primitive **error_primitive)
     {
         assert(error_primitive);
         // This assumes that the engines start execution as soon as primitives
@@ -48,10 +47,10 @@ private:
                 auto p = _queue[i];
                 auto s = p->get_exec_state();
                 switch (s) {
-                    case mkl_dnn::impl::primitive::exec_state::busy:
+                    case dnn_primitive::exec_state::busy:
                     all_done = false;
                     break;
-                case mkl_dnn::impl::primitive::exec_state::done:
+                case dnn_primitive::exec_state::done:
                     break;
                 default:
                     *error_primitive = p;
@@ -69,10 +68,10 @@ private:
 public:
     dnn_stream(): _is_lazy(-1) {}
 
-    status_t submit(size_t n, mkl_dnn::impl::primitive *primitives[],
-            mkl_dnn::impl::primitive **error_primitive)
+    status_t submit(size_t n, dnn_primitive *primitives[],
+            dnn_primitive **error_primitive)
     {
-        mkl_dnn::impl::primitive *p;
+        dnn_primitive *p;
         if (!error_primitive) error_primitive = &p;
         *error_primitive = 0;
 
@@ -95,7 +94,7 @@ public:
         return success;
     }
 
-    status_t wait(bool block, mkl_dnn::impl::primitive **error_primitive) {
+    status_t wait(bool block, dnn_primitive **error_primitive) {
         if (_is_lazy) {
             status_t rc = submit_queue(0, error_primitive);
             if (rc != success)
@@ -103,26 +102,21 @@ public:
         }
         return wait_queue(block, error_primitive);
     }
-
 };
 
-status_t stream_create(dnn_stream_t *stream)
-{
+status_t stream_create(dnn_stream_t *stream) {
     *stream = new dnn_stream;
     return stream ? success : out_of_memory;
 }
 
-status_t stream_submit(dnn_stream_t stream, size_t n, primitive_t primitives[],
-        primitive_t *error_primitive) {
-    return stream->submit(n,
-            reinterpret_cast<mkl_dnn::impl::primitive**>(primitives),
-            reinterpret_cast<mkl_dnn::impl::primitive**>(error_primitive));
+status_t stream_submit(dnn_stream_t stream, size_t n,
+        dnn_primitive_t primitives[], dnn_primitive_t *error_primitive) {
+    return stream->submit(n, primitives, error_primitive);
 }
 
 status_t stream_wait(dnn_stream_t stream, int block,
-        primitive_t *error_primitive) {
-    return stream->wait(!!block,
-            reinterpret_cast<mkl_dnn::impl::primitive**>(error_primitive));
+        dnn_primitive_t *error_primitive) {
+    return stream->wait(!!block, error_primitive);
 }
 
 status_t stream_destroy(dnn_stream_t stream) {

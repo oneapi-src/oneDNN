@@ -6,7 +6,7 @@
 
 namespace mkl_dnn { namespace impl { namespace cpu {
 
-class cpu_memory: public primitive {
+class cpu_memory: public dnn_primitive {
 private:
     char *_memory_buffer;
 
@@ -15,7 +15,7 @@ protected:
 
 public:
     cpu_memory(const memory_primitive_desc_t &mpd, char* ptr):
-        primitive(const_cast<dnn_engine*>(mpd.base.engine),
+        dnn_primitive(const_cast<dnn_engine*>(mpd.base.engine),
                 primitive_kind_memory),
         _memory_buffer(ptr) {
         _input.push_back(this);
@@ -52,9 +52,9 @@ public:
         return success;
     }
 
-    static status_t memory_create(impl::primitive **primitive,
+    static status_t memory_create(dnn_primitive **primitive,
             const_primitive_desc_t primitive_desc,
-            const impl::primitive *inputs[], const impl::primitive *outputs[]) {
+            const dnn_primitive *inputs[], const dnn_primitive *outputs[]) {
         auto& mpd = *static_cast<const memory_primitive_desc_t*>(primitive_desc);
         assert(mpd.base.primitive_kind == primitive_kind_memory);
         assert(inputs[0] == outputs[0]);

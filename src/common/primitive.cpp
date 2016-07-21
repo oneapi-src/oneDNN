@@ -1,9 +1,9 @@
 #include "primitive.hpp"
 #include "engine.hpp"
 
-status_t primitive_create(primitive_t *primitive,
-        const_primitive_desc_t primitive_desc, const_primitive_t *inputs,
-        const_primitive_t *outputs) {
+status_t primitive_create(dnn_primitive_t *primitive,
+        const_primitive_desc_t primitive_desc, const_dnn_primitive_t *inputs,
+        const_dnn_primitive_t *outputs) {
     if (mkl_dnn::impl::any_null(primitive, primitive_desc, inputs, outputs))
         return invalid_arguments;
 
@@ -12,15 +12,10 @@ status_t primitive_create(primitive_t *primitive,
 
     typedef const mkl_dnn::impl::primitive_impl *impl;
     return reinterpret_cast<impl>(base_pd->implementation)->primitive_create(
-            reinterpret_cast<mkl_dnn::impl::primitive**>(primitive),
-            primitive_desc,
-            reinterpret_cast<const mkl_dnn::impl::primitive**>(inputs),
-            reinterpret_cast<const mkl_dnn::impl::primitive**>(outputs));
+            primitive, primitive_desc, inputs, outputs);
 }
 
-status_t primitive_destroy(primitive_t primitive)
-{
-    if (primitive != NULL)
-        delete static_cast<mkl_dnn::impl::primitive*>(primitive);
+status_t primitive_destroy(dnn_primitive_t primitive) {
+    if (primitive != NULL) delete primitive;
     return success;
 }

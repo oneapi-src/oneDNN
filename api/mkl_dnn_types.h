@@ -154,10 +154,12 @@ typedef struct {
 
 typedef void *primitive_desc_t;
 typedef const void *const_primitive_desc_t;
-typedef void *primitive_t;
-typedef const void *const_primitive_t;
 
-static const const_primitive_t primitive_self = ((const_primitive_t)-1);
+struct dnn_primitive;
+typedef struct dnn_primitive *dnn_primitive_t;
+typedef const struct dnn_primitive *const_dnn_primitive_t;
+
+static const const_dnn_primitive_t primitive_self = ((const_dnn_primitive_t)-1);
 
 /** stream section */
 
