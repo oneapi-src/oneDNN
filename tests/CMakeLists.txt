@@ -18,7 +18,7 @@ add_executable(only_convolution-cxx only_convolution.cpp)
 set_property(TARGET only_convolution-cxx PROPERTY CXX_STANDARD 11)
 set_property(TARGET only_convolution-cxx PROPERTY CXX_STANDARD_REQUIRED ON)
 target_link_libraries(only_convolution-cxx ${LIB_NAME})
-add_test(only_convolution-cxx only_convolution-cpp)
+add_test(only_convolution-cxx only_convolution-cxx)
 
 add_executable(api_check-cxx api_check.cpp)
 set_property(TARGET api_check-cxx PROPERTY CXX_STANDARD 11)
