@@ -46,9 +46,9 @@ status_t convolution_primitive_desc_init(
     if (mkl_dnn::impl::any_null(convolution_primitive_desc, convolution_desc,
                 engine)) return invalid_arguments;
 
-    for (auto i = engine->get_convolution_inits(); *i; ++i) {
+    for (auto init = engine->get_convolution_inits(); *init; ++init) {
         using mkl_dnn::impl::const_op_desc_t;
-        status_t status = (*i)(
+        status_t status = (*init)(
                 reinterpret_cast<primitive_desc_t*>(convolution_primitive_desc),
                 static_cast<const_op_desc_t>(convolution_desc), *engine);
         if (status == success) return success;

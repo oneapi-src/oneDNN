@@ -9,6 +9,7 @@ namespace mkl_dnn { namespace impl { namespace cpu {
 class cpu_memory: public dnn_primitive {
 private:
     char *_memory_buffer;
+    const bool _owns_memory;
 
 protected:
     status_t execute_impl() { return success; }
@@ -17,7 +18,7 @@ public:
     cpu_memory(const memory_primitive_desc_t &mpd, char* ptr):
         dnn_primitive(const_cast<dnn_engine*>(mpd.base.engine),
                 primitive_kind_memory),
-        _memory_buffer(ptr) {
+        _memory_buffer(ptr), _owns_memory(ptr == nullptr) {
         _input.push_back(this);
         _output.push_back(this);
         if (_memory_buffer == nullptr) {
@@ -25,7 +26,7 @@ public:
             _memory_buffer = new char[size];
         }
     }
-    ~cpu_memory() { if (_memory_buffer) delete [] _memory_buffer; }
+    ~cpu_memory() { if (_owns_memory) delete [] _memory_buffer; }
 
     bool owns_memory() const { return _memory_buffer != NULL; }
     exec_state get_exec_state() const { return done; }

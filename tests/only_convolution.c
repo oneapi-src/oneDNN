@@ -51,7 +51,7 @@ int doit() {
     CHECK(tensor_desc_init(&c3_input_tz, 1, 1, 2, c3_input_sizes));
     CHECK(memory_desc_init(&c3_input_md, &c3_input_tz, memory_format_nchw_f32));
     CHECK(memory_primitive_desc_init(&c3_input_pd, &c3_input_md, engine));
-    CHECK(memory_create(&c3_input, &c3_input_pd, NULL/*input*/));
+    CHECK(memory_create(&c3_input, &c3_input_pd, NULL /*input*/));
 
     CHECK(tensor_desc_init(&c3_weights_tz, 0, 2, 2, c3_weights_sizes));
     CHECK(memory_desc_init(&c3_weights_md, &c3_weights_tz, memory_format_oihw_f32));
@@ -74,7 +74,7 @@ int doit() {
     };
     const_dnn_primitive_t c3_outputs[1];
 
-    const int conv_with_own_memory = 1;
+    const int conv_with_own_memory = 0;
     if (conv_with_own_memory) { /* primitive has its own memory */
         c3_outputs[0] = primitive_self;
         /* XXX: not finished yet: what to do with this `output` then?

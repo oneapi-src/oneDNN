@@ -40,16 +40,15 @@ inline void mkl_dnn_free(void* p) { ::free(p); }
 
 struct c_compatible {
     enum { default_alignment = 64 };
-    static void* operator new(size_t sz)
-    { return mkl_dnn_malloc(sz, default_alignment); }
-    static void* operator new(size_t sz, void* p)
-    { UNUSED(sz); return p; }
-    static void* operator new[](size_t sz)
-    { return mkl_dnn_malloc(sz, default_alignment); }
-    static void operator delete(void* p)
-    { mkl_dnn_free(p); }
-    static void operator delete[](void* p)
-    { mkl_dnn_free(p); }
+    static void* operator new(size_t sz) {
+        return mkl_dnn_malloc(sz, default_alignment);
+    }
+    static void* operator new(size_t sz, void* p) { UNUSED(sz); return p; }
+    static void* operator new[](size_t sz) {
+        return mkl_dnn_malloc(sz, default_alignment);
+    }
+    static void operator delete(void* p) { mkl_dnn_free(p); }
+    static void operator delete[](void* p) { mkl_dnn_free(p); }
 };
 
 inline void mkl_dnn_yield_thread() { }

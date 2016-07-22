@@ -36,7 +36,7 @@ private:
 
     status_t wait_queue(bool block, dnn_primitive **error_primitive)
     {
-        assert(error_primitive);
+        //assert(error_primitive);
         // This assumes that the engines start execution as soon as primitives
         // are submitted and do not need any additional notification about
         // wait()
@@ -60,6 +60,7 @@ private:
                     break;
                 }
             }
+            if (all_done) break;
         } while (block);
         if (all_done) _queue.clear();
         return all_done ? success : try_again;
@@ -121,6 +122,7 @@ status_t stream_wait(dnn_stream_t stream, int block,
 
 status_t stream_destroy(dnn_stream_t stream) {
     delete stream;
+    return success;
 }
 
 // vim: et ts=4 sw=4

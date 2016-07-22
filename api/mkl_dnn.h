@@ -73,6 +73,13 @@ status_t convolution_primitive_desc_init(
  * memory_primitive_desc_t input, weights, ... so that user has more
  * flexibility */
 
+/* XXX: think on this: either add "forward" in function name or put all inputs
+ * and outputs in-to arrays, otherwise it is unclear how to create bwd filt */
+status_t convolution_create(dnn_primitive_t *convolution,
+        const convolution_primitive_desc_t *convolution_primitive_desc,
+        const dnn_primitive_at_t input, const dnn_primitive_t weights,
+        const dnn_primitive_at_t bias, dnn_primitive_t output);
+
 /** Creates a \param primitive by given \param primitive descriptor and array
  *  of \param inputs and \param outputs */
 status_t primitive_create(dnn_primitive_t *primitive,
