@@ -1,0 +1,18 @@
+================================================================================
+= check list
+================================================================================
+
+==  API section:
+
+        1. const engine_t -- to be or not to be a const...
+
+        2. primitive_desc_t -- to be void* or to be a forward declared type?
+
+        3. input/output vs. src/dst -- what to use and when
+
+
+==  C++ section:
+
+        1.  nullptr is a type of std::nullptr_t. does this mean nullptr
+        requires STL?
+
