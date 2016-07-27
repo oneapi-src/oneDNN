@@ -111,4 +111,4 @@ struct memory: public mkl_dnn_primitive { };
 
 #endif
 
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0
+// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

@@ -95,4 +95,4 @@ status_t mkl_dnn_memory_create(primitive **memory,
             outputs);
 }
 
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0
+// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

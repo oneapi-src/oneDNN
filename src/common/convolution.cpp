@@ -65,4 +65,4 @@ status_t mkl_dnn_convolution_primitive_desc_init(
     return unimplemented;
 }
 
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0
+// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

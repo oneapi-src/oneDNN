@@ -32,4 +32,4 @@ primitive_at_t mkl_dnn_primitive_at(const primitive *aprimitive,
     return result;
 }
 
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0
+// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

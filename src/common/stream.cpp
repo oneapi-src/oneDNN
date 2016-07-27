@@ -132,4 +132,4 @@ status_t mkl_dnn_stream_destroy(stream *astream) {
     return success;
 }
 
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0
+// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

@@ -89,6 +89,4 @@ status_t compute_blocking(memory_desc_t &memory_desc) {
 }
 }
 
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0
-
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0
+// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

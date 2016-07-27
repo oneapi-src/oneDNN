@@ -17,3 +17,5 @@ primitive_desc_init_f *cpu_engine::get_convolution_inits() const {
 }
 
 }}}
+
+// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
