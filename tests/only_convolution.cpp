@@ -6,6 +6,9 @@
 
 #include "mkl_dnn.hpp"
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
+
 int doit() {
     using namespace mkl_dnn;
 
@@ -20,9 +23,6 @@ int doit() {
 
     // TODO: make tensor desc optional and default to N C X1 .. XN
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
-
     auto c3_input_tensor_desc = memory::tensor_desc(1, 1, 2, {256, 256, 13, 13});
     auto c3_input_memory_desc = memory::desc({1, 1, 2, {256, 256, 13, 13}}, memory::format::nchw_f32);
     auto c3_input_primitive_desc = memory::primitive_desc({{1, 1, 2, {256, 256, 13, 13}}, memory::format::nchw_f32}, cpu_engine);
@@ -32,14 +32,14 @@ int doit() {
     auto c3_bias = memory({{{0, 0, 1, {384}}, memory::format::n_f32}, cpu_engine});
     auto c3_output = memory({{{1, 1, 2, {256, 384, 13, 13}}, memory::format::nchw_f32}, cpu_engine});
 
-#pragma GCC diagnostic pop
-
     // auto c3 = convolution::create({propagation::forward, algorithm::direct, {0, 0, 1, 1}, {0, 0, 1, 1}, padding::zero}, {input, weights, bias}, {output});
 
     // stream::create().submit({c3}).wait();
 
     return 0;
 }
+
+#pragma GCC diagnostic pop
 
 int main(int argc, char **argv) {
     int rc = doit();
