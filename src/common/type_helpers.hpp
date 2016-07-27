@@ -2,7 +2,6 @@
 #define TYPE_HELPERS_HPP
 
 #include <assert.h>
-#include "mkl_dnn_types.h"
 
 #include "c_types_map.hpp"
 #include "nstl.hpp"

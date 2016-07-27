@@ -32,26 +32,26 @@ inline void array_set(T *arr, const U& val, size_t size) {
     for (size_t i = 0; i < size; ++i) arr[i] = val;
 }
 
-inline void* mkl_dnn_malloc(size_t size, int alignment) {
+inline void* malloc(size_t size, int alignment) {
     UNUSED(alignment);
     return ::malloc(size);
 }
-inline void mkl_dnn_free(void* p) { ::free(p); }
+inline void free(void* p) { ::free(p); }
 
 struct c_compatible {
     enum { default_alignment = 64 };
     static void* operator new(size_t sz) {
-        return mkl_dnn_malloc(sz, default_alignment);
+        return malloc(sz, default_alignment);
     }
     static void* operator new(size_t sz, void* p) { UNUSED(sz); return p; }
     static void* operator new[](size_t sz) {
-        return mkl_dnn_malloc(sz, default_alignment);
+        return malloc(sz, default_alignment);
     }
-    static void operator delete(void* p) { mkl_dnn_free(p); }
-    static void operator delete[](void* p) { mkl_dnn_free(p); }
+    static void operator delete(void* p) { free(p); }
+    static void operator delete[](void* p) { free(p); }
 };
 
-inline void mkl_dnn_yield_thread() { }
+inline void yield_thread() { }
 
 }}
 

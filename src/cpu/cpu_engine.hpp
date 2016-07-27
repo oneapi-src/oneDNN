@@ -10,6 +10,8 @@
 
 namespace mkl_dnn { namespace impl { namespace cpu {
 
+using namespace mkl_dnn::impl::status;
+
 class cpu_engine: public engine {
 private:
     bool _lazy;
@@ -24,12 +26,12 @@ public:
         *error_primitive = 0;
         for (size_t i = 0; i < n; i++) {
             status_t rc = primitives[i]->execute();
-            if (rc != mkl_dnn_success) {
+            if (rc != success) {
                 *error_primitive = primitives[i];
                 return rc;
             }
         }
-        return mkl_dnn_success;
+        return success;
     }
 
     virtual primitive_desc_init_f *get_memory_inits() const;
@@ -43,11 +45,11 @@ public:
     cpu_engine_factory(bool lazy): _lazy(lazy) {}
     virtual size_t count() { return 1; }
     virtual engine_kind_t kind()
-    { return _lazy ? mkl_dnn_cpu_lazy : mkl_dnn_cpu; }
+    { return _lazy ? engine_kind::cpu_lazy : engine_kind::cpu; }
     virtual status_t engine_create(engine **aengine, size_t index) {
         assert(index == 0);
         *aengine = new cpu_engine(_lazy);
-        return mkl_dnn_success;
+        return success;
     };
 };
 

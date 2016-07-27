@@ -49,7 +49,7 @@ public:
     }
     mkl_dnn::impl::status_t execute() {
         if (!inputs_ready())
-            return mkl_dnn_not_ready;
+            return mkl_dnn::impl::status::not_ready;
         return execute_impl();
     }
 

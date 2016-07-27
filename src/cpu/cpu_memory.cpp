@@ -8,6 +8,7 @@
 namespace mkl_dnn { namespace impl { namespace cpu {
 
 using namespace mkl_dnn::impl;
+using namespace mkl_dnn::impl::status;
 
 class cpu_memory: public primitive {
 private:
@@ -15,12 +16,12 @@ private:
     const bool _owns_memory;
 
 protected:
-    status_t execute_impl() { return mkl_dnn_success; }
+    status_t execute_impl() { return success; }
 
 public:
     cpu_memory(const memory_primitive_desc_t &mpd, char* ptr):
-        primitive(const_cast<mkl_dnn_engine*>(mpd.base.engine),
-                mkl_dnn_memory),
+        primitive(const_cast<mkl_dnn::impl::engine*>(mpd.base.engine),
+                primitive_kind::memory),
         _memory_buffer(ptr), _owns_memory(ptr == nullptr) {
         primitive_at_t input_at = { this, 0 };
         _input.push_back(input_at);
@@ -40,15 +41,15 @@ public:
 
     /* static magic */
     static status_t memory_desc_init(primitive_desc_t *primitive_desc,
-            const_op_desc_t op_desc, const mkl_dnn_engine &engine) {
+            const_op_desc_t op_desc, const mkl_dnn::impl::engine &aengine) {
         auto memory_primitive_desc =
             reinterpret_cast<memory_primitive_desc_t*>(primitive_desc);
         auto memory_desc = static_cast<const memory_desc_t*>(op_desc);
 
         memory_primitive_desc_t mpd = {
             .base = {
-                .primitive_kind = mkl_dnn_memory,
-                .engine = &engine,
+                .primitive_kind = primitive_kind::memory,
+                .engine = &aengine,
                 .implementation =
                     reinterpret_cast<const void*>(&memory_implementation),
             },
@@ -57,21 +58,22 @@ public:
         // if (!memory_primitive_desc_is_ok(mpd)) return invalid; // ???
         *memory_primitive_desc = mpd;
 
-        return mkl_dnn_success;
+        return success;
     }
 
-    static status_t memory_create(mkl_dnn_primitive **primitive,
+    static status_t memory_create(primitive **primitive,
             const_primitive_desc_t primitive_desc,
-            const primitive_at_t inputs[], mkl_dnn_primitive *outputs[]) {
+            const primitive_at_t inputs[],
+            mkl_dnn::impl::primitive *outputs[]) {
         auto& mpd = *static_cast<const memory_primitive_desc_t*>(primitive_desc);
-        assert(mpd.base.primitive_kind == mkl_dnn_memory);
+        assert(mpd.base.primitive_kind == primitive_kind::memory);
         assert(inputs[0].primitive == outputs[0]);
         char* ptr = reinterpret_cast<char*>(outputs[0]);
 
         *primitive = new cpu_memory(mpd, ptr);
         if (primitive)
-			return mkl_dnn_success;
-        return mkl_dnn_out_of_memory;
+			return success;
+        return out_of_memory;
     }
 
     static const primitive_impl memory_implementation;

@@ -8,6 +8,7 @@
 #include "utils.hpp"
 
 using namespace mkl_dnn::impl;
+using namespace mkl_dnn::impl::status;
 
 // TODO: thread-safety
 
@@ -29,12 +30,12 @@ private:
             if (engine != _queue[i]->engine() || i == _queue.size() - 1) {
                 status_t s = engine->submit(i - base_idx + 1,
                         &_queue[base_idx], error_primitive);
-                if (s != mkl_dnn_success)
+                if (s != success)
                     return s;
                 engine = _queue[i]->engine();
                 base_idx = i;
             }
-        return mkl_dnn_success;
+        return success;
     }
 
     status_t wait_queue(bool block, primitive **error_primitive)
@@ -59,7 +60,7 @@ private:
                     *error_primitive = p;
                 }
                 if (!all_done) {
-                    mkl_dnn_yield_thread();
+                    yield_thread();
                     break;
                 }
             }
@@ -67,7 +68,7 @@ private:
         } while (block);
         if (all_done)
             _queue.clear();
-        return all_done ? mkl_dnn_success : mkl_dnn_try_again;
+        return all_done ? success : try_again;
     }
 
 public:
@@ -87,48 +88,48 @@ public:
         for (size_t i = 0; i < n; i++)
             if (primitives[i]->engine()->is_lazy() != _is_lazy) {
                 _is_lazy = old_is_lazy;
-                return mkl_dnn_invalid;
+                return invalid;
             }
 
         // XXX: start_idx should be returned by _queue.insert()
         int start_idx = _queue.size();
         if (_queue.insert(_queue.end(), primitives, primitives + n)
                 != mkl_dnn::impl::nstl::success)
-            return mkl_dnn_out_of_memory;
+            return out_of_memory;
         if (!_is_lazy)
             return submit_queue(start_idx, error_primitive);
-        return mkl_dnn_success;
+        return success;
     }
 
     status_t wait(bool block, primitive **error_primitive) {
         if (_is_lazy) {
             status_t rc = submit_queue(0, error_primitive);
-            if (rc != mkl_dnn_success)
+            if (rc != success)
                 return rc;
         }
         return wait_queue(block, error_primitive);
     }
 };
 
-mkl_dnn_status_t mkl_dnn_stream_create(mkl_dnn_stream_t *stream) {
-    *stream = new mkl_dnn_stream;
-    return stream ? mkl_dnn_success : mkl_dnn_out_of_memory;
+status_t mkl_dnn_stream_create(stream **astream) {
+    *astream = new stream;
+    return astream ? success : out_of_memory;
 }
 
-status_t mkl_dnn_stream_submit(mkl_dnn_stream_t stream, size_t n,
-        mkl_dnn_primitive_t primitives[],
-        mkl_dnn_primitive_t *error_primitive) {
-    return stream->submit(n, primitives, error_primitive);
+status_t mkl_dnn_stream_submit(stream *astream, size_t n,
+        primitive *primitives[],
+        primitive **error_primitive) {
+    return astream->submit(n, primitives, error_primitive);
 }
 
-status_t mkl_dnn_stream_wait(mkl_dnn_stream_t stream, int block,
-        mkl_dnn_primitive_t *error_primitive) {
-    return stream->wait(!!block, error_primitive);
+status_t mkl_dnn_stream_wait(stream *astream, int block,
+        primitive **error_primitive) {
+    return astream->wait(!!block, error_primitive);
 }
 
-status_t mkl_dnn_stream_destroy(mkl_dnn_stream_t stream) {
-    delete stream;
-    return mkl_dnn_success;
+status_t mkl_dnn_stream_destroy(stream *astream) {
+    delete astream;
+    return success;
 }
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0

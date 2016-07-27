@@ -1,32 +1,34 @@
+#include "c_types_map.hpp"
 #include "primitive.hpp"
 #include "engine.hpp"
 
 using namespace mkl_dnn::impl;
+using namespace mkl_dnn::impl::status;
 
-mkl_dnn_status_t mkl_dnn_primitive_create(mkl_dnn_primitive_t *primitive,
-        const_mkl_dnn_primitive_desc_t primitive_desc,
-        const mkl_dnn_primitive_at_t *inputs, mkl_dnn_primitive_t *outputs) {
-    if (any_null(primitive, primitive_desc, inputs, outputs))
-        return mkl_dnn_invalid_arguments;
+status_t mkl_dnn_primitive_create(primitive **aprimitive,
+        const_primitive_desc_t primitive_desc,
+        const primitive_at_t *inputs, primitive **outputs) {
+    if (any_null(aprimitive, primitive_desc, inputs, outputs))
+        return invalid_arguments;
 
     auto base_pd = static_cast<const primitive_base_desc_t*>(primitive_desc);
     if (!base_pd->engine->is_ok())
-        return mkl_dnn_invalid_arguments;
+        return invalid_arguments;
 
     typedef const primitive_impl *impl;
     return reinterpret_cast<impl>(base_pd->implementation)->primitive_create(
-            primitive, primitive_desc, inputs, outputs);
+            aprimitive, primitive_desc, inputs, outputs);
 }
 
-status_t mkl_dnn_primitive_destroy(mkl_dnn_primitive_t primitive) {
-    if (primitive != NULL)
-        delete primitive;
-    return mkl_dnn_success;
+status_t mkl_dnn_primitive_destroy(primitive *aprimitive) {
+    if (aprimitive != NULL)
+        delete aprimitive;
+    return success;
 }
 
-mkl_dnn_primitive_at_t mkl_dnn_primitive_at(const_mkl_dnn_primitive_t primitive,
+primitive_at_t mkl_dnn_primitive_at(const primitive *aprimitive,
         size_t output_index) {
-    mkl_dnn_primitive_at_t result = {primitive, output_index};
+    primitive_at_t result = {aprimitive, output_index};
     return result;
 }
 
