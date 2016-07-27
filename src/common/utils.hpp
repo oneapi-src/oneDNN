@@ -32,6 +32,29 @@ inline void array_set(T *arr, const U& val, size_t size) {
     for (size_t i = 0; i < size; ++i) arr[i] = val;
 }
 
+namespace product_impl {
+template<size_t> struct int2type{};
+
+template <typename T>
+constexpr int product_impl(const T* arr, int2type<0>) { return arr[0]; }
+
+template <typename T, size_t num>
+inline T product_impl(const T* arr, int2type<num>) {
+    return arr[0]*product_impl(arr+1, int2type<num-1>()); }
+};
+
+template <size_t num, typename T>
+inline T array_product(const T* arr) {
+    return product_impl::product_impl(arr, product_impl::int2type<num>());
+}
+
+template<typename T>
+inline T array_product(const T *arr, size_t size) {
+    T prod = 1;
+    for (size_t i = 0; i < size; ++i) prod *= arr[i];
+    return prod;
+}
+
 inline void* malloc(size_t size, int alignment) {
     UNUSED(alignment);
     return ::malloc(size);

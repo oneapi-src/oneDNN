@@ -109,6 +109,32 @@ struct memory_desc_wrapper: public c_compatible {
     memory_desc_wrapper(const memory_desc_t &md): _md(md) {
         assert(_md.format != any_f32);
     }
+
+    uint32_t ndims() const { return types::ndims(_md.tensor_desc); }
+    const dims_t &dims() const { return _md.tensor_desc.dims; }
+    const memory_format_t format() const { return _md.format; }
+
+    size_t off_v(const dims_t pos) const {
+        return 0;
+    }
+
+    template<typename T>
+    inline size_t off(size_t logical_offset) {
+        // format specific
+        return logical_offset;
+    }
+
+    template<typename... Args>
+    inline int off(Args... args) { return off(logical_offset(args...)); }
+
+    template<typename T>
+    inline size_t logical_offset(T x0) { return (size_t)x0; }
+
+    template<typename T, typename... Args>
+    inline size_t logical_offset(T xn, Args... args) {
+        return ((size_t)xn)*array_product<sizeof...(Args)>(dims()+1) +
+            get_logical_offset(args...);
+    }
 };
 
 }
