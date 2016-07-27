@@ -32,6 +32,7 @@ namespace {
 }
 
 using namespace mkl_dnn::impl;
+using namespace mkl_dnn::impl::status;
 
 primitive_desc_init_f *engine::get_memory_inits() const {
     return empty_list;
@@ -49,21 +50,21 @@ size_t mkl_dnn_engine_get_count(engine_kind_t kind) {
     return ef != NULL ? ef->count() : 0;
 }
 
-status_t mkl_dnn_engine_create(mkl_dnn_engine_t *engine,
-		mkl_dnn_engine_kind_t kind, size_t index) {
+status_t mkl_dnn_engine_create(engine **engine,
+		engine_kind_t kind, size_t index) {
     if (engine == NULL)
-        return mkl_dnn_invalid_arguments;
+        return invalid_arguments;
 
     engine_factory *ef = get_engine_factory(kind);
     if (ef == NULL || index >= ef->count())
-        return mkl_dnn_invalid_arguments;
+        return invalid_arguments;
 
     return ef->engine_create(engine, index);
 }
 
-status_t mkl_dnn_engine_destroy(mkl_dnn_engine_t engine) {
+status_t mkl_dnn_engine_destroy(engine *engine) {
     delete engine;
-	return mkl_dnn_success;
+	return success;
 }
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0

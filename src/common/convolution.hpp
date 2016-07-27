@@ -1,7 +1,12 @@
 #ifndef CONVOLUTION_HPP
 #define CONVOLUTION_HPP
 
-// Hello darkness and vainnes my old friend
+// Hello darkness my old friend
+// I've come to talk with you again
+// Because a vision softly creeping
+// And the vision that was planted in my brain
+// Still remains
+// Within the sound of silence
 
 #endif
 
