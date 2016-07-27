@@ -52,7 +52,7 @@ public:
             const_op_desc_t op_desc, const mkl_dnn_engine &engine);
     static status_t create(primitive **primitive,
         const_primitive_desc_t primitive_desc,
-        const primitive_at_t inputs[], const mkl_dnn_primitive *outputs[]);
+        const primitive_at_t inputs[], mkl_dnn_primitive *outputs[]);
     static const primitive_impl implementation;
 };
 

@@ -82,14 +82,14 @@ int mkl_dnn_memory_primitive_desc_equal(const mkl_dnn_memory_primitive_desc_t *l
 
 mkl_dnn_status_t mkl_dnn_memory_create(mkl_dnn_primitive_t *memory,
         const mkl_dnn_memory_primitive_desc_t *memory_primitive_desc,
-        const void *data_ptr) {
+        void *data_ptr) {
     // XXX: is this ok?
     mkl_dnn_primitive_at_t inputs[] = {
         { static_cast<const_mkl_dnn_primitive_t>(data_ptr), 0 } };
-    const_mkl_dnn_primitive_t outputs[] = {
-        static_cast<const_mkl_dnn_primitive_t>(data_ptr) };
-    return mkl_dnn_primitive_create(memory,
-            memory_primitive_desc, inputs, outputs);
+    mkl_dnn_primitive_t outputs[] = {
+        static_cast<mkl_dnn_primitive_t>(data_ptr) };
+    return mkl_dnn_primitive_create(memory, memory_primitive_desc, inputs,
+            outputs);
 }
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0

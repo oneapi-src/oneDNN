@@ -87,7 +87,7 @@ status_t reference_convolution::primitive_desc_init(
 
 status_t reference_convolution::create(primitive **primitive,
         const_primitive_desc_t primitive_desc,
-        const primitive_at_t inputs[], const mkl_dnn_primitive *outputs[]) {
+        const primitive_at_t inputs[], mkl_dnn_primitive *outputs[]) {
     auto& cpd =
         *static_cast<const convolution_primitive_desc_t*>(primitive_desc);
     assert(cpd.base.primitive_kind == mkl_dnn_convolution);

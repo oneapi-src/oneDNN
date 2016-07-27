@@ -39,7 +39,7 @@ int mkl_dnn_memory_primitive_desc_equal(const mkl_dnn_memory_primitive_desc_t *l
  * allocated memory then */
 mkl_dnn_status_t mkl_dnn_memory_create(mkl_dnn_primitive_t *memory,
         const mkl_dnn_memory_primitive_desc_t *memory_primitive_desc,
-        const void *data_ptr);
+        void *data_ptr);
 
 /** For given \param memory primitive fills in coresponding \param
  * memory_primitive_desc */
@@ -91,8 +91,7 @@ mkl_dnn_status_t mkl_dnn_convolution_create(mkl_dnn_primitive_t *convolution,
  * of \param inputs and \param outputs */
 mkl_dnn_status_t mkl_dnn_primitive_create(mkl_dnn_primitive_t *primitive,
         const_mkl_dnn_primitive_desc_t primitive_desc,
-        const mkl_dnn_primitive_at_t *inputs,
-		const_mkl_dnn_primitive_t *outputs);
+        const mkl_dnn_primitive_at_t *inputs, mkl_dnn_primitive_t *outputs);
 
 /** Deletes \param primitive. Also deallocates internally allocated memory if
  * primitive represents memory, previously created via

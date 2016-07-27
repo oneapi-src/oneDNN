@@ -25,7 +25,7 @@ protected:
     virtual mkl_dnn::impl::status_t execute_impl() = 0;
 
     mkl_dnn_primitive(mkl_dnn::impl::engine *engine,
-			mkl_dnn::impl::primitive_kind_t kind)
+            mkl_dnn::impl::primitive_kind_t kind)
         : _engine(engine)
         , _kind(kind) {}
 public:
@@ -52,11 +52,11 @@ public:
 
     size_t input_count() const { return _input.size(); }
     mkl_dnn::impl::nstl::vector<mkl_dnn::impl::primitive*> &input()
-	{ return _input; }
+    { return _input; }
 
     size_t output_count() const { return _output.size(); }
     mkl_dnn::impl::nstl::vector<mkl_dnn::impl::primitive*> &output()
-	{ return _output; }
+    { return _output; }
 
     // XXX: memory -> primitive?
     virtual const mkl_dnn::impl::memory *output_memory_const(
@@ -75,14 +75,11 @@ namespace mkl_dnn { namespace impl {
 
 typedef const void* const_op_desc_t;
 typedef mkl_dnn_status_t (*primitive_desc_init_f)(
-		primitive_desc_t *primitive_desc,
-        const_op_desc_t op_desc,
-		const engine &aengine);
-typedef mkl_dnn_status_t (*primitive_create_f)(
-		primitive **aprimitive,
-        const_primitive_desc_t primitive_desc,
-        const primitive_at_t inputs[],
-		const primitive *outputs[]);
+        primitive_desc_t *primitive_desc, const_op_desc_t op_desc,
+        const engine &aengine);
+typedef mkl_dnn_status_t (*primitive_create_f)(primitive **aprimitive,
+        const_primitive_desc_t primitive_desc, const primitive_at_t inputs[],
+        primitive *outputs[]);
 
 struct primitive_impl /* : public c_compatible */ {
     const primitive_desc_init_f primitive_desc_init;
@@ -90,7 +87,7 @@ struct primitive_impl /* : public c_compatible */ {
 };
 
 mkl_dnn_status_t inline check_inputs_array(size_t n,
-		const mkl_dnn_primitive_at_t inputs[]) {
+        const mkl_dnn_primitive_at_t inputs[]) {
     for (size_t i = 0; i < n; i++)
         if (inputs[i].primitive->output_count() <= inputs[i].output_index)
             return mkl_dnn_invalid_arguments;

@@ -58,11 +58,11 @@ public:
 
     static status_t memory_create(mkl_dnn_primitive **primitive,
             const_primitive_desc_t primitive_desc,
-            const primitive_at_t inputs[], const mkl_dnn_primitive *outputs[]) {
+            const primitive_at_t inputs[], mkl_dnn_primitive *outputs[]) {
         auto& mpd = *static_cast<const memory_primitive_desc_t*>(primitive_desc);
         assert(mpd.base.primitive_kind == mkl_dnn_memory);
         assert(inputs[0].primitive == outputs[0]);
-        char* ptr = const_cast<char*>(reinterpret_cast<const char*>(outputs[0]));
+        char* ptr = reinterpret_cast<char*>(outputs[0]);
 
         *primitive = new cpu_memory(mpd, ptr);
         if (primitive)

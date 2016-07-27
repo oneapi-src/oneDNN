@@ -72,7 +72,8 @@ int doit() {
         mkl_dnn_primitive_at(c3_weights, 0),
         mkl_dnn_primitive_at(c3_bias, 0)
     };
-    const_mkl_dnn_primitive_t c3_outputs[1];
+
+    mkl_dnn_primitive_t c3_outputs[1];
 	CHECK(mkl_dnn_memory_create(&c3_output, &c3_output_pd, output));
 	c3_outputs[0] = c3_output;
 
