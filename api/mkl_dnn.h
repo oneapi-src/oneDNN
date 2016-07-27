@@ -10,8 +10,8 @@ extern "C" {
 /** Initializes a \param tensor_desc by given \param ndims_batch, \param
  * ndims_channels, \param ndims_spatial, and array \param dims */
 mkl_dnn_status_t mkl_dnn_tensor_desc_init(mkl_dnn_tensor_desc_t *tensor_desc,
-		uint32_t ndims_batch, uint32_t ndims_channels, uint32_t ndims_spatial,
-		const mkl_dnn_dims_t dims);
+        uint32_t ndims_batch, uint32_t ndims_channels, uint32_t ndims_spatial,
+        const mkl_dnn_dims_t dims);
 
 /** Initializes a \param memory_desc memory descriptor by given \param tensor
  * and \param format. \param format is allowed to be memory_format_any */
@@ -24,7 +24,7 @@ mkl_dnn_status_t mkl_dnn_memory_desc_init(mkl_dnn_memory_desc_t *memory_desc,
 mkl_dnn_status_t mkl_dnn_memory_primitive_desc_init(
         mkl_dnn_memory_primitive_desc_t *memory_primitive_desc,
         const mkl_dnn_memory_desc_t *memory_desc,
-		const_mkl_dnn_engine_t engine);
+        const_mkl_dnn_engine_t engine);
 
 /** Compares two memory primitive descriptors. \return 1 if the memory
  * primitives descriptors are the same, \return 0 otherwise. Use this function
@@ -44,7 +44,7 @@ mkl_dnn_status_t mkl_dnn_memory_create(mkl_dnn_primitive_t *memory,
 /** For given \param memory primitive fills in coresponding \param
  * memory_primitive_desc */
 mkl_dnn_status_t mkl_dnn_memory_get_primitive_desc(
-		const_mkl_dnn_primitive_t memory,
+        const_mkl_dnn_primitive_t memory,
         mkl_dnn_memory_primitive_desc_t *memory_primitive_desc);
 
 /** Initializes a \param reorder_primitive_desc by given \param input and
@@ -60,12 +60,12 @@ mkl_dnn_status_t mkl_dnn_reorder_primitive_desc_init(
  * format_kind_any format_kind. In this case convolution_primitive_desc_init()
  * will choose the best convolution possible in terms of performance */
 mkl_dnn_status_t mkl_dnn_convolution_desc_init(
-		mkl_dnn_convolution_desc_t *convolution_desc,
+        mkl_dnn_convolution_desc_t *convolution_desc,
         mkl_dnn_prop_kind_t prop_kind, mkl_dnn_alg_kind_t alg_kind,
         const mkl_dnn_memory_desc_t *input_desc,
-		const mkl_dnn_memory_desc_t *weights_desc,
+        const mkl_dnn_memory_desc_t *weights_desc,
         const mkl_dnn_memory_desc_t *bias_desc,
-		const mkl_dnn_memory_desc_t *output_desc,
+        const mkl_dnn_memory_desc_t *output_desc,
         const mkl_dnn_dims_t strides, const mkl_dnn_nd_pos_t padding,
         mkl_dnn_padding_kind_t padding_kind);
 
@@ -74,7 +74,7 @@ mkl_dnn_status_t mkl_dnn_convolution_desc_init(
 mkl_dnn_status_t mkl_dnn_convolution_primitive_desc_init(
         mkl_dnn_convolution_primitive_desc_t *convolution_primitive_desc,
         const mkl_dnn_convolution_desc_t *convolution_desc,
-		const_mkl_dnn_engine_t engine);
+        const_mkl_dnn_engine_t engine);
 
 /* TODO: add convolution_forward_primitive_desc_init for given
  * mkl_dnn_memory_primitive_desc_t input, weights, ... so that user has more
@@ -104,7 +104,7 @@ mkl_dnn_status_t mkl_dnn_primitive_destroy(mkl_dnn_primitive_t primitive);
  * is done when the resulting dnn_primitive_at structure is passed to a
  * primitive creation function. */
 mkl_dnn_primitive_at_t mkl_dnn_primitive_at(
-		const_mkl_dnn_primitive_t primitive,
+        const_mkl_dnn_primitive_t primitive,
         size_t output_index);
 
 /** Returns the number of engines of a particular \param kind */
@@ -112,7 +112,7 @@ size_t mkl_dnn_engine_get_count(mkl_dnn_engine_kind_t kind);
 
 /** Creates an \param engine of particular \param kind and \param index */
 mkl_dnn_status_t mkl_dnn_engine_create(mkl_dnn_engine_t *engine,
-		mkl_dnn_engine_kind_t kind, size_t index);
+        mkl_dnn_engine_kind_t kind, size_t index);
 
 /** Destroys an \param engine */
 mkl_dnn_status_t mkl_dnn_engine_destroy(mkl_dnn_engine_t engine);
@@ -125,7 +125,7 @@ mkl_dnn_status_t mkl_dnn_stream_create(mkl_dnn_stream_t *stream);
  * \param error_primitive if it is not NULL. */
 mkl_dnn_status_t mkl_dnn_stream_submit(mkl_dnn_stream_t stream, size_t n,
         mkl_dnn_primitive_t primitives[],
-		mkl_dnn_primitive_t *error_primitive);
+        mkl_dnn_primitive_t *error_primitive);
 
 /** Waits for all primitives in the execution \param stream to finish. Returns
  * immediately with a status if \param block is 0. In case of error, may return

@@ -39,7 +39,7 @@ struct engine {
     explicit engine(kind akind, size_t index) {
         mkl_dnn_engine_t anengine;
         if (mkl_dnn_engine_create(&anengine, convert_to_c(akind), index)
-				!= mkl_dnn_success)
+                != mkl_dnn_success)
             throw std::runtime_error("Could not create engine");
         data = std::shared_ptr<engine_val_t>(anengine, mkl_dnn_engine_destroy);
     }

@@ -15,16 +15,16 @@ using namespace mkl_dnn::impl::memory_format;
 
 status_t mkl_dnn_tensor_desc_init(tensor_desc_t *tensor_desc,
         uint32_t ndims_batch, uint32_t ndims_channels, uint32_t ndims_spatial,
-		const dims_t dims) {
+        const dims_t dims) {
     if (any_null(tensor_desc, dims))
-		return invalid_arguments;
+        return invalid_arguments;
     tensor_desc_t td = {
         .ndims_batch = ndims_batch,
         .ndims_channels = ndims_channels,
         .ndims_spatial = ndims_spatial};
     const uint32_t ndims = types::ndims(td);
     if (ndims > TENSOR_MAX_DIMS)
-		return invalid_arguments;
+        return invalid_arguments;
     array_copy(td.dims, dims, ndims);
     *tensor_desc = td;
     return success;
@@ -32,8 +32,8 @@ status_t mkl_dnn_tensor_desc_init(tensor_desc_t *tensor_desc,
 
 status_t mkl_dnn_memory_desc_init(memory_desc_t *memory_desc,
         const tensor_desc_t *tensor, memory_format_t format) {
-	if (any_null(memory_desc, tensor))
-		return invalid_arguments;
+    if (any_null(memory_desc, tensor))
+        return invalid_arguments;
     memory_desc_t md = {
         .tensor_desc = *tensor,
         .format = format };

@@ -51,7 +51,7 @@ size_t mkl_dnn_engine_get_count(engine_kind_t kind) {
 }
 
 status_t mkl_dnn_engine_create(engine **engine,
-		engine_kind_t kind, size_t index) {
+        engine_kind_t kind, size_t index) {
     if (engine == NULL)
         return invalid_arguments;
 
@@ -64,7 +64,7 @@ status_t mkl_dnn_engine_create(engine **engine,
 
 status_t mkl_dnn_engine_destroy(engine *engine) {
     delete engine;
-	return success;
+    return success;
 }
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0

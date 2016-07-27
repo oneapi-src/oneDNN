@@ -25,7 +25,7 @@ status_t mkl_dnn_convolution_desc_init(convolution_desc_t *convolution_desc,
                 backward_weights, backward_bias)
         && one_of(alg_kind, convolution_direct);
     if (!args_ok)
-		return invalid_arguments;
+        return invalid_arguments;
 
     convolution_desc_t cd;
     cd.prop_kind = prop_kind;
@@ -41,7 +41,7 @@ status_t mkl_dnn_convolution_desc_init(convolution_desc_t *convolution_desc,
 
     status_t status = types::convolution_desc_is_ok(cd);
     if (status == success)
-		*convolution_desc = cd;
+        *convolution_desc = cd;
 
     return status;
 }
@@ -49,17 +49,17 @@ status_t mkl_dnn_convolution_desc_init(convolution_desc_t *convolution_desc,
 status_t mkl_dnn_convolution_primitive_desc_init(
         convolution_primitive_desc_t *convolution_primitive_desc,
         const convolution_desc_t *convolution_desc,
-		const engine *engine)
+        const engine *engine)
 {
     if (any_null(convolution_primitive_desc, convolution_desc, engine))
-		return invalid_arguments;
+        return invalid_arguments;
 
     for (auto init = engine->get_convolution_inits(); *init; ++init) {
         status_t status = (*init)(
                 reinterpret_cast<primitive_desc_t*>(convolution_primitive_desc),
                 static_cast<const_op_desc_t>(convolution_desc), *engine);
         if (status == success)
-			return success;
+            return success;
     }
 
     return unimplemented;

@@ -42,9 +42,9 @@ status_t reference_convolution::primitive_desc_init(
 
     // TODO: f32 ?
     if (conv_d.prop_kind != forward)
-		return unimplemented;
+        return unimplemented;
     if (conv_d.alg_kind != convolution_direct)
-		return unimplemented;
+        return unimplemented;
 
     /* memory descriptors check and fill-in */
     if (conv_d.input_desc.format == any_f32)
@@ -55,7 +55,7 @@ status_t reference_convolution::primitive_desc_init(
                 &conv_d.weights_desc.tensor_desc, oihw_f32));
     if (conv_d.bias_desc.format == any_f32)
         CHECK(mkl_dnn_memory_desc_init(&conv_d.bias_desc,
-					&conv_d.bias_desc.tensor_desc, n_f32));
+                    &conv_d.bias_desc.tensor_desc, n_f32));
     if (conv_d.output_desc.format == any_f32)
         CHECK(mkl_dnn_memory_desc_init(&conv_d.output_desc,
                     &conv_d.output_desc.tensor_desc, nchw_f32));
@@ -63,13 +63,13 @@ status_t reference_convolution::primitive_desc_init(
     /* memory primitive descriptors check */
     memory_primitive_desc_t input_pd, weights_pd, bias_pd, output_pd;
     CHECK(mkl_dnn_memory_primitive_desc_init(&input_pd,
-				&conv_d.input_desc, &engine));
+                &conv_d.input_desc, &engine));
     CHECK(mkl_dnn_memory_primitive_desc_init(&weights_pd,
-				&conv_d.weights_desc, &engine));
+                &conv_d.weights_desc, &engine));
     CHECK(mkl_dnn_memory_primitive_desc_init(&bias_pd,
-				&conv_d.bias_desc, &engine));
+                &conv_d.bias_desc, &engine));
     CHECK(mkl_dnn_memory_primitive_desc_init(&output_pd,
-				&conv_d.output_desc, &engine));
+                &conv_d.output_desc, &engine));
 
     /* final stage */
     convolution_primitive_desc_t cpd = {

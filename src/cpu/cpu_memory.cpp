@@ -72,7 +72,7 @@ public:
 
         *primitive = new cpu_memory(mpd, ptr);
         if (primitive)
-			return success;
+            return success;
         return out_of_memory;
     }
 
