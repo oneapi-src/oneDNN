@@ -7,12 +7,13 @@
 #include "primitive.hpp"
 #include "convolution.hpp"
 
-class dnn_engine: public mkl_dnn::impl::c_compatible {
+class mkl_dnn_engine: public mkl_dnn::impl::c_compatible {
 public:
     virtual bool is_lazy() const = 0;
     virtual bool is_ok() const = 0;
-    virtual status_t submit(size_t n, dnn_primitive *primitives[],
-            dnn_primitive **error_primitive) = 0;
+    virtual mkl_dnn_status_t submit(size_t n, mkl_dnn_primitive *primitives[],
+            mkl_dnn_primitive **error_primitive) = 0;
+	virtual ~mkl_dnn_engine() { };
 
     /* primitives' descriptor initializators
      * the default one guarantees to return at least an empty list,
@@ -27,10 +28,12 @@ namespace mkl_dnn { namespace impl {
 class engine_factory: public c_compatible {
 public:
     virtual size_t count() = 0;
-    virtual engine_kind_t kind() = 0;
-    virtual status_t engine_create(dnn_engine **engine, size_t index) = 0;
+    virtual mkl_dnn_engine_kind_t kind() = 0;
+    virtual mkl_dnn_status_t engine_create(mkl_dnn_engine **engine, size_t index) = 0;
 };
 
 }}
 
 #endif
+
+// vim: et ts=4 sw=4 cindent cino^=l0,\:0

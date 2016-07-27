@@ -4,6 +4,7 @@
 #include <assert.h>
 #include "mkl_dnn_types.h"
 
+#include "c_types_map.hpp"
 #include "nstl.hpp"
 #include "utils.hpp"
 
@@ -12,26 +13,27 @@ namespace impl {
 // XXX: is this the only namespace we have?
 namespace types {
 
-inline uint32_t ndims(const tensor_desc_t &tensor) {
+inline uint32_t ndims(const mkl_dnn_tensor_desc_t &tensor) {
     uint32_t ndims = tensor.ndims_batch + tensor.ndims_channels +
         tensor.ndims_spatial;
     assert(ndims <= TENSOR_MAX_DIMS);
     return ndims;
 }
 
-inline bool operator==(const tensor_desc_t &lhs, const tensor_desc_t &rhs) {
-    return lhs.ndims_batch == rhs.ndims_batch
-        && lhs.ndims_channels == rhs.ndims_channels
-        && lhs.ndims_spatial == rhs.ndims_spatial
-        && mkl_dnn::impl::array_cmp(lhs.dims, rhs.dims, ndims(lhs));
+inline bool operator==(const mkl_dnn_tensor_desc_t &lhs,
+		const mkl_dnn_tensor_desc_t &rhs) {
+	return lhs.ndims_batch == rhs.ndims_batch
+		&& lhs.ndims_channels == rhs.ndims_channels
+		&& lhs.ndims_spatial == rhs.ndims_spatial
+		&& mkl_dnn::impl::array_cmp(lhs.dims, rhs.dims, ndims(lhs));
 }
 
 inline bool operator!=(const tensor_desc_t &lhs, const tensor_desc_t &rhs) {
-    return !operator==(lhs, rhs);
+	return !operator==(lhs, rhs);
 }
 
 inline status_t tensor_is_ok(const tensor_desc_t &tensor) {
-    return ndims(tensor) <= TENSOR_MAX_DIMS ? success : invalid;
+    return ndims(tensor) <= TENSOR_MAX_DIMS ? mkl_dnn_success : mkl_dnn_invalid;
 }
 
 inline uint32_t ndims(const memory_desc_t &memory_desc) {
@@ -39,11 +41,10 @@ inline uint32_t ndims(const memory_desc_t &memory_desc) {
 }
 
 inline size_t get_size(const memory_desc_t &memory_desc) {
-    if (memory_desc.format == memory_format_any) return 0;
+    if (memory_desc.format == mkl_dnn_any_f32) return 0;
 
-    assert(one_of(memory_desc.format, memory_format_n_f32,
-                memory_format_nchw_f32, memory_format_nhwc_f32,
-                memory_format_blocked_f32));
+    assert(one_of(memory_desc.format, mkl_dnn_n_f32, mkl_dnn_nchw_f32,
+				mkl_dnn_nhwc_f32, mkl_dnn_blocked_f32));
 
     size_t max_size = 0;
     auto dims = memory_desc.tensor_desc.dims;
@@ -81,7 +82,7 @@ inline bool blocking_desc_is_equal(const blocking_desc_t &lhs,
 inline bool operator==(const memory_desc_t &lhs, const memory_desc_t &rhs) {
     if (lhs.tensor_desc != rhs.tensor_desc || lhs.format != rhs.format)
         return false;
-    if (lhs.format == memory_format_blocked_f32)
+    if (lhs.format == mkl_dnn_blocked_f32)
         return blocking_desc_is_equal(lhs.blocking_desc, rhs.blocking_desc,
             ndims(lhs.tensor_desc));
     return true;
@@ -100,7 +101,7 @@ inline bool operator==(const memory_primitive_desc_t &lhs,
 inline status_t convolution_desc_is_ok(
         const convolution_desc_t &convolution_desc) {
     // XXX: fill-in
-    return success;
+    return mkl_dnn_success;
 }
 
 }
@@ -108,3 +109,5 @@ inline status_t convolution_desc_is_ok(
 }
 
 #endif
+
+// vim: et ts=4 sw=4 cindent cino^=l0,\:0

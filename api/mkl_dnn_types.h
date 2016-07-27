@@ -11,166 +11,158 @@ extern "C" {
 /** generic types section */
 
 typedef enum {
-    success = 0,
-    invalid = 1,
-    out_of_memory = 2,
-    try_again = 3,
-    invalid_arguments = 4,
-    not_ready = 5, /* XXX: should be same as try_again? */
-    unimplemented = 6,
-} status_t;
+    mkl_dnn_success = 0,
+    mkl_dnn_invalid = 1,
+    mkl_dnn_out_of_memory = 2,
+    mkl_dnn_try_again = 3,
+    mkl_dnn_invalid_arguments = 4,
+    mkl_dnn_not_ready = 5,
+    mkl_dnn_unimplemented = 6,
+} mkl_dnn_status_t;
 
 typedef enum {
-    forward = 1,
-    backward_data = 2,
-    backward_weights = 3,
-    backward_bias = 4,
-} prop_kind_t;
+    mkl_dnn_forward = 1,
+    mkl_dnn_backward_data = 2,
+    mkl_dnn_backward_weights = 3,
+    mkl_dnn_backward_bias = 4,
+} mkl_dnn_prop_kind_t;
 
 typedef enum {
-    convolution_direct = 1,
-} alg_kind_t;
+    mkl_dnn_convolution_direct = 1,
+} mkl_dnn_alg_kind_t;
 
 /** memory descriptor section */
 
 #define TENSOR_MAX_DIMS 12U
 
-// FIXME: asap!
-typedef uint32_t nd_offset_t[TENSOR_MAX_DIMS];
-typedef uint32_t nd_pos_t[TENSOR_MAX_DIMS];
-typedef uint32_t dims_t[TENSOR_MAX_DIMS];
+/* FIXME asap! */
+typedef uint32_t mkl_dnn_nd_offset_t[TENSOR_MAX_DIMS];
+typedef uint32_t mkl_dnn_nd_pos_t[TENSOR_MAX_DIMS];
+typedef uint32_t mkl_dnn_dims_t[TENSOR_MAX_DIMS];
 
 typedef struct {
     uint32_t ndims_batch;
     uint32_t ndims_channels;
     uint32_t ndims_spatial;
-    dims_t dims; // { N, C1, ..., Cn, Xi, ..., Xm }
-} tensor_desc_t;
+    mkl_dnn_dims_t dims; // { N, C1, ..., Cn, Xi, ..., Xm }
+} mkl_dnn_tensor_desc_t;
 
 typedef enum {
-    /* XXX: do we really want to keep precision in format??? */
-    memory_format_any = 0,
-    memory_format_automatic = memory_format_any,
-    memory_format_n_f32,
-    memory_format_nchw_f32,
-    memory_format_oihw_f32 = memory_format_nchw_f32,
-    memory_format_nhwc_f32,
-    memory_format_nChw8_f32,
-    memory_format_IOhw88_f32,
-    memory_format_nChw16_f32,
-    memory_format_IOhw1616_f32,
-    memory_format_blocked_f32,
-} memory_format_t;
+    mkl_dnn_any_f32,
+    mkl_dnn_n_f32,
+    mkl_dnn_nchw_f32,
+    mkl_dnn_oihw_f32 = mkl_dnn_nchw_f32,
+    mkl_dnn_nhwc_f32,
+    mkl_dnn_nChw8_f32,
+    mkl_dnn_IOhw88_f32,
+    mkl_dnn_nChw16_f32,
+    mkl_dnn_IOhw1616_f32,
+    mkl_dnn_blocked_f32,
+} mkl_dnn_memory_format_t;
 
 typedef enum {
-    padding_kind_zero = 0,
-} padding_kind_t;
+    mkl_dnn_padding_zero,
+} mkl_dnn_padding_kind_t;
 
 typedef struct {
     size_t offset_padding;
     size_t offset_padding_to_data;
-    dims_t padding_dims;
-    dims_t block_dims;
-    dims_t strides[2];
+    mkl_dnn_dims_t padding_dims;
+    mkl_dnn_dims_t block_dims;
+    mkl_dnn_dims_t strides[2];
     /** strides[0] -- block-to-block strides,
      *  strides[1] -- strides within blocks */
-} blocking_desc_t;
+} mkl_dnn_blocking_desc_t;
 
 typedef struct {
-    tensor_desc_t tensor_desc;
-    memory_format_t format; // includes information about type size
+    mkl_dnn_tensor_desc_t tensor_desc;
+    mkl_dnn_memory_format_t format; // includes information about type size
     union {
-        blocking_desc_t blocking_desc;
+        mkl_dnn_blocking_desc_t blocking_desc;
         // other descriptions possible
     };
-} memory_desc_t;
+} mkl_dnn_memory_desc_t;
 
 /** descriptor sections */
 
 typedef struct {
-    prop_kind_t prop_kind;
-    alg_kind_t alg_kind;
-    memory_desc_t input_desc;
-    memory_desc_t weights_desc;
-    memory_desc_t bias_desc;
-    memory_desc_t output_desc;
-    nd_offset_t padding;
-    nd_pos_t strides;
-    padding_kind_t padding_kind;
-} convolution_desc_t;
+    mkl_dnn_prop_kind_t prop_kind;
+    mkl_dnn_alg_kind_t alg_kind;
+    mkl_dnn_memory_desc_t input_desc;
+    mkl_dnn_memory_desc_t weights_desc;
+    mkl_dnn_memory_desc_t bias_desc;
+    mkl_dnn_memory_desc_t output_desc;
+    mkl_dnn_nd_offset_t padding;
+    mkl_dnn_nd_pos_t strides;
+    mkl_dnn_padding_kind_t padding_kind;
+} mkl_dnn_convolution_desc_t;
 
 /** engine section */
 
-/* XXX: probably engine_kind_any should be (-1), and engine_kind_cpu should
- * be 0, so that engine_kind cpu is the value by default for C++/C... where? */
 typedef enum {
-    engine_kind_any = 0,
-    engine_kind_automatic = engine_kind_any,
-    engine_kind_cpu = 1,
-    engine_kind_cpu_lazy = 2,
-    engine_kind_last = 3,
-} engine_kind_t;
+    mkl_dnn_any_engine,
+    mkl_dnn_cpu,
+    mkl_dnn_cpu_lazy,
+} mkl_dnn_engine_kind_t;
 
-struct dnn_engine;
-typedef struct dnn_engine *dnn_engine_t;
-typedef const struct dnn_engine *const_dnn_engine_t;
+struct mkl_dnn_engine;
+typedef struct mkl_dnn_engine *mkl_dnn_engine_t;
+typedef const struct mkl_dnn_engine *const_mkl_dnn_engine_t;
 
 /** primitive descriptor section */
 
 typedef enum {
-    primitive_kind_undef = 0,
-    primitive_kind_memory = 1,
-    primitive_kind_reorder = 2,
-    primitive_kind_convolution = 3,
-} primitive_kind_t;
+    mkl_dnn_undefined_primitive,
+    mkl_dnn_memory,
+    mkl_dnn_reorder,
+    mkl_dnn_convolution,
+} mkl_dnn_primitive_kind_t;
 
 typedef struct {
-    primitive_kind_t primitive_kind;
-    const_dnn_engine_t engine;
+    mkl_dnn_primitive_kind_t primitive_kind;
+    const_mkl_dnn_engine_t engine;
     const void *implementation;
-} primitive_base_desc_t;
+} mkl_dnn_primitive_base_desc_t;
 
 typedef struct {
-    primitive_base_desc_t base;
-    memory_desc_t memory_desc;
-} memory_primitive_desc_t;
+    mkl_dnn_primitive_base_desc_t base;
+    mkl_dnn_memory_desc_t memory_desc;
+} mkl_dnn_memory_primitive_desc_t;
 
 typedef struct {
-    primitive_base_desc_t base;
-    memory_primitive_desc_t input;
-    memory_primitive_desc_t output;
-} reorder_primitive_desc_t;
+    mkl_dnn_primitive_base_desc_t base;
+    mkl_dnn_memory_primitive_desc_t input;
+    mkl_dnn_memory_primitive_desc_t output;
+} mkl_dnn_reorder_primitive_desc_t;
 
 typedef struct {
-    primitive_base_desc_t base;
-    convolution_desc_t convolution_desc;
-    memory_primitive_desc_t input_primitive_desc;
-    memory_primitive_desc_t weights_primitive_desc;
-    memory_primitive_desc_t bias_primitive_desc;
-    memory_primitive_desc_t output_primitive_desc;
-} convolution_primitive_desc_t;
+    mkl_dnn_primitive_base_desc_t base;
+    mkl_dnn_convolution_desc_t convolution_desc;
+    mkl_dnn_memory_primitive_desc_t input_primitive_desc;
+    mkl_dnn_memory_primitive_desc_t weights_primitive_desc;
+    mkl_dnn_memory_primitive_desc_t bias_primitive_desc;
+    mkl_dnn_memory_primitive_desc_t output_primitive_desc;
+} mkl_dnn_convolution_primitive_desc_t;
 
 /** primitive section */
 
-typedef void *primitive_desc_t;
-typedef const void *const_primitive_desc_t;
+typedef void *mkl_dnn_primitive_desc_t;
+typedef const void *const_mkl_dnn_primitive_desc_t;
 
-struct dnn_primitive;
-typedef struct dnn_primitive *dnn_primitive_t;
-typedef const struct dnn_primitive *const_dnn_primitive_t;
+struct mkl_dnn_primitive;
+typedef struct mkl_dnn_primitive *mkl_dnn_primitive_t;
+typedef const struct mkl_dnn_primitive *const_mkl_dnn_primitive_t;
 
 typedef struct {
-    const_dnn_primitive_t primitive;
+    const_mkl_dnn_primitive_t primitive;
     size_t output_index;
-} dnn_primitive_at_t;
-
-static const const_dnn_primitive_t primitive_self = ((const_dnn_primitive_t)-1);
+} mkl_dnn_primitive_at_t;
 
 /** stream section */
 
-struct dnn_stream;
-typedef struct dnn_stream *dnn_stream_t;
-typedef const struct dnn_stream *const_dnn_stream_t;
+struct mkl_dnn_stream;
+typedef struct mkl_dnn_stream *mkl_dnn_stream_t;
+typedef const struct mkl_dnn_stream *const_mkl_dnn_stream_t;
 
 #ifdef __cplusplus
 }

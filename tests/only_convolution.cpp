@@ -15,10 +15,13 @@ int doit() {
      * strides: {1, 1}
      */
 
-    printf("There are %d CPU engines\n", engine::get_count(engine::cpu));
+    printf("There are %zu CPU engines\n", engine::get_count(engine::cpu));
     auto cpu_engine = engine(engine::cpu, 0);
 
     // TODO: make tensor desc optional and default to N C X1 .. XN
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
 
     auto c3_input_tensor_desc = memory::tensor_desc(1, 1, 2, {256, 256, 13, 13});
     auto c3_input_memory_desc = memory::desc({1, 1, 2, {256, 256, 13, 13}}, memory::format::nchw_f32);
@@ -28,6 +31,8 @@ int doit() {
     auto c3_weights = memory({{{0, 2, 2, {384, 256, 3, 3}}, memory::format::oihw_f32}, cpu_engine});
     auto c3_bias = memory({{{0, 0, 1, {384}}, memory::format::n_f32}, cpu_engine});
     auto c3_output = memory({{{1, 1, 2, {256, 384, 13, 13}}, memory::format::nchw_f32}, cpu_engine});
+
+#pragma GCC diagnostic pop
 
     // auto c3 = convolution::create({propagation::forward, algorithm::direct, {0, 0, 1, 1}, {0, 0, 1, 1}, padding::zero}, {input, weights, bias}, {output});
 
