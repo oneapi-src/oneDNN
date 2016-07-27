@@ -22,7 +22,8 @@ public:
         primitive(const_cast<mkl_dnn_engine*>(mpd.base.engine),
                 mkl_dnn_memory),
         _memory_buffer(ptr), _owns_memory(ptr == nullptr) {
-        _input.push_back(this);
+        primitive_at_t input_at = { this, 0 };
+        _input.push_back(input_at);
         _output.push_back(this);
         if (_memory_buffer == nullptr) {
             const size_t size = types::get_size(mpd);
@@ -33,6 +34,9 @@ public:
 
     bool owns_memory() const { return _memory_buffer != NULL; }
     exec_state get_exec_state() const { return done; }
+
+    virtual char* memory() { return _memory_buffer; }
+    virtual const char* memory_const() { return _memory_buffer; }
 
     /* static magic */
     static status_t memory_desc_init(primitive_desc_t *primitive_desc,

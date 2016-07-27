@@ -19,7 +19,7 @@ private:
 protected:
     mkl_dnn::impl::engine *_engine;
     mkl_dnn::impl::primitive_kind_t _kind;
-    mkl_dnn::impl::nstl::vector<mkl_dnn::impl::primitive*> _input;
+    mkl_dnn::impl::nstl::vector<mkl_dnn::impl::primitive_at_t> _input;
     mkl_dnn::impl::nstl::vector<mkl_dnn::impl::primitive*> _output;
 
     virtual mkl_dnn::impl::status_t execute_impl() = 0;
@@ -38,9 +38,10 @@ public:
 
     enum exec_state { done, busy, not_ready, error };
     virtual exec_state get_exec_state() const = 0;
-    bool inputs_ready() {
+    bool inputs_ready() const {
         for (auto i = 0UL; i < _input.size(); i++)
-            if (_input[i]->get_exec_state() != done)
+            if (_input[i].primitive->get_exec_state() != done)
+
                 return false;
         return true;
     }
@@ -51,13 +52,15 @@ public:
     }
 
     size_t input_count() const { return _input.size(); }
-    mkl_dnn::impl::nstl::vector<mkl_dnn::impl::primitive*> &input()
-    { return _input; }
+    mkl_dnn::impl::nstl::vector<mkl_dnn::impl::primitive_at_t> &input() {
+        return _input;
+    }
 
     size_t output_count() const { return _output.size(); }
-    mkl_dnn::impl::nstl::vector<mkl_dnn::impl::primitive*> &output()
+    const mkl_dnn::impl::nstl::vector<mkl_dnn::impl::primitive*> &output() const
     { return _output; }
 
+#if 0
     // XXX: memory -> primitive?
     virtual const mkl_dnn::impl::memory *output_memory_const(
             size_t at = 0) const {
@@ -66,9 +69,11 @@ public:
     virtual mkl_dnn::impl::memory *output_memory(size_t at = 0) const {
         return _output[at]->memory();
     }
-
-    virtual mkl_dnn::impl::memory *memory() { return 0; }
-    virtual mkl_dnn::impl::memory *memory_const() { return 0; }
+#endif
+//    virtual mkl_dnn::impl::memory *memory() { return 0; }
+//    virtual mkl_dnn::impl::memory *memory_const() { return 0; }
+    virtual char* memory() { return output()[0]->memory(); }
+    virtual const char* memory_const() { return output()[0]->memory_const(); }
 };
 
 namespace mkl_dnn { namespace impl {

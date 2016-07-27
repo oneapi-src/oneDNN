@@ -11,8 +11,8 @@ namespace mkl_dnn { namespace impl { namespace cpu {
 
 class reference_convolution: public primitive {
 private:
+    const impl::convolution_primitive_desc_t &_cpd;
     exec_state _exec_state;
-    const convolution_primitive_desc_t &_cpd;
 
     // TODO: implement in cpp.
     status_t execute_forward();
@@ -36,12 +36,16 @@ protected:
     }
 
 public:
-    reference_convolution(const convolution_primitive_desc_t &cpd):
-            primitive(const_cast<mkl_dnn_engine*>(cpd.base.engine),
-                mkl_dnn_convolution),
-            _exec_state(not_ready),
-            _cpd(cpd) {
-        // TODO: implement
+    reference_convolution(const convolution_primitive_desc_t &cpd,
+            const primitive_at_t *inputs, primitive *outputs[])
+        : primitive(const_cast<impl::engine*>(cpd.base.engine),
+                mkl_dnn_convolution)
+          , _cpd(cpd)
+          , _exec_state(not_ready)
+    {
+        for (int i = 0; i < 3; ++i)
+            _input.push_back(inputs[i]);
+        _output.push_back(outputs[0]);
     }
     ~reference_convolution() {}
 

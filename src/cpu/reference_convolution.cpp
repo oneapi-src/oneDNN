@@ -94,9 +94,8 @@ status_t reference_convolution::create(primitive **primitive,
 
     // TODO: some checks here.
 
-    *primitive = new reference_convolution(cpd);
-    if (primitive)
-		return mkl_dnn_success;
+    *primitive = new reference_convolution(cpd, inputs, outputs);
+    if (primitive) return mkl_dnn_success;
     return mkl_dnn_out_of_memory;
 }
 
