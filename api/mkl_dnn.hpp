@@ -8,15 +8,16 @@
 
 namespace mkl_dnn {
 
-template <typename T> class handle_destroy {};
-template <typename T, typename T_destructor=handle_destroy<T>> class handle {
+template <typename T> class handle_traits {};
+template <typename T, typename traits=handle_traits<T>> class handle {
 private:
     std::shared_ptr<typename std::remove_pointer<T>::type> _data;
     handle(const handle &&) {}
+    handle &operator=(const handle &&other) {}
 protected:
     void reset(T t, bool own = true) {
-        auto dummy_destructor = [](T) { return decltype(T_destructor::func(0))(0); };
-        _data.reset(t, own ? T_destructor::func : dummy_destructor);
+        auto dummy_destructor = [](T) { return decltype(traits::destructor(0))(0); };
+        _data.reset(t, own ? traits::destructor : dummy_destructor);
     }
     handle(T t = 0, bool own = true): _data(0) { reset(t, own); }
 
@@ -39,8 +40,8 @@ namespace c_api {
 #include "mkl_dnn.h"
 }
 
-template <> struct handle_destroy<c_api::mkl_dnn_primitive_t> {
-    static constexpr auto func = &c_api::mkl_dnn_primitive_destroy;
+template <> struct handle_traits<c_api::mkl_dnn_primitive_t> {
+    static constexpr auto destructor = &c_api::mkl_dnn_primitive_destroy;
 };
 
 class primitive: public handle<c_api::mkl_dnn_primitive_t> {
@@ -52,7 +53,7 @@ public:
     struct at {
         c_api::mkl_dnn_primitive_at_t data;
         at(const primitive &aprimitive, size_t at = 0)
-            : data(c_api::mkl_dnn_primitive_at(aprimitive.get(), at)) { }
+            : data(c_api::mkl_dnn_primitive_at(aprimitive.get(), at)) {}
     };
 };
 
@@ -78,8 +79,8 @@ struct error {
     }
 };
 
-template <> struct handle_destroy<c_api::mkl_dnn_engine_t> {
-    static constexpr auto func = &c_api::mkl_dnn_engine_destroy;
+template <> struct handle_traits<c_api::mkl_dnn_engine_t> {
+    static constexpr auto destructor = &c_api::mkl_dnn_engine_destroy;
 };
 
 struct engine: public handle<c_api::mkl_dnn_engine_t> {
@@ -259,8 +260,8 @@ struct convolution: public primitive {
     }
 };
 
-template <> struct handle_destroy<c_api::mkl_dnn_stream_t> {
-    static constexpr auto func = &c_api::mkl_dnn_stream_destroy;
+template <> struct handle_traits<c_api::mkl_dnn_stream_t> {
+    static constexpr auto destructor = &c_api::mkl_dnn_stream_destroy;
 };
 
 struct stream: public handle<c_api::mkl_dnn_stream_t> {
