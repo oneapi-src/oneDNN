@@ -8,23 +8,51 @@
 
 namespace mkl_dnn {
 
+template <typename T> class handle_destroy {};
+template <typename T, typename T_destructor=handle_destroy<T>> class handle {
+private:
+    std::shared_ptr<typename std::remove_pointer<T>::type> _data;
+    handle(const handle &&) {}
+protected:
+    void reset(T t, bool own = true) {
+        auto dummy_destructor = [](T) { return decltype(T_destructor::func(0))(0); };
+        _data.reset(t, own ? T_destructor::func : dummy_destructor);
+    }
+    handle(T t = 0, bool own = true): _data(0) { reset(t, own); }
+
+    bool operator==(const T other) const { return other == _data.get(); }
+    bool operator!=(const T other) const { return !(*this != other); }
+public:
+    handle(const handle &other): _data(other._data) {}
+    handle &operator=(const handle &other) {
+        _data = other._data;
+        return *this;
+    }
+
+    T get() const { return _data.get(); }
+
+    bool operator==(const handle &other) const { return other._data.get() == _data.get(); }
+    bool operator!=(const handle &other) const { return !(*this != other); }
+};
+
 namespace c_api {
 #include "mkl_dnn.h"
 }
 
-struct primitive {
-    typedef std::remove_pointer<c_api::mkl_dnn_primitive_t>::type
-        primitive_val_t;
-    std::shared_ptr<primitive_val_t> data;
-    void set_data(c_api::mkl_dnn_primitive_t aprimitive)
-    { data.reset(aprimitive, c_api::mkl_dnn_primitive_destroy); }
-    primitive(c_api::mkl_dnn_primitive_t aprimitive = nullptr)
-    { set_data(aprimitive); }
-    // TODO: other manupulation functions and operators
+template <> struct handle_destroy<c_api::mkl_dnn_primitive_t> {
+    static constexpr auto func = c_api::mkl_dnn_primitive_destroy;
+};
+
+class primitive: public handle<c_api::mkl_dnn_primitive_t> {
+    friend struct error;
+    friend struct stream;
+    friend class primitive_at;
+    using handle::handle;
+public:
     struct at {
         c_api::mkl_dnn_primitive_at_t data;
         at(const primitive &aprimitive, size_t at = 0)
-            : data(c_api::mkl_dnn_primitive_at(aprimitive.data.get(), at)) { }
+            : data(c_api::mkl_dnn_primitive_at(aprimitive.get(), at)) { }
     };
 };
 
@@ -32,40 +60,53 @@ struct error {
     c_api::mkl_dnn_status_t status;
     std::string message;
     primitive error_primitive;
+
     error(c_api::mkl_dnn_status_t astatus, std::string amessage,
-            primitive aerror_primitive = nullptr)
+            c_api::mkl_dnn_primitive_t aerror_primitive = 0)
         : status(astatus)
         , message(amessage)
-        , error_primitive(aerror_primitive) {}
+        , error_primitive(aerror_primitive, false)
+    {}
+
     static void wrap_c_api(c_api::mkl_dnn_status_t status,
-            std::string message, primitive aerror_primitive = nullptr) {
+            std::string message,
+            c_api::mkl_dnn_primitive_t *error_primitive = 0)
+    {
+        // XXX: do we really need this ^ pointer ?
         if (status != c_api::mkl_dnn_success)
-            throw error(status, message, aerror_primitive);
+            throw error(status, message, *error_primitive);
     }
 };
 
-struct engine {
-    typedef std::remove_pointer<c_api::mkl_dnn_engine_t>::type engine_val_t;
-    std::shared_ptr<engine_val_t> data;
+template <> struct handle_destroy<c_api::mkl_dnn_engine_t> {
+    static constexpr auto func = c_api::mkl_dnn_engine_destroy;
+};
+
+struct engine: public handle<c_api::mkl_dnn_engine_t> {
+    friend class primitive;
+    using handle::handle;
+
     enum kind {
         any = c_api::mkl_dnn_any_engine,
         cpu = c_api::mkl_dnn_cpu,
         cpu_lazy = c_api::mkl_dnn_cpu_lazy,
     };
+
     static c_api::mkl_dnn_engine_kind_t convert_to_c(kind akind) {
         return static_cast<c_api::mkl_dnn_engine_kind_t>(akind);
     }
+
     static size_t get_count(kind akind) {
         return c_api::mkl_dnn_engine_get_count(convert_to_c(akind));
     }
-    engine(const engine &other): data(other.data) {}
+
     explicit engine(kind akind, size_t index) {
         c_api::mkl_dnn_engine_t aengine;
         error::wrap_c_api(
                 c_api::mkl_dnn_engine_create(&aengine,
                     convert_to_c(akind), index),
-                "could not create engine");
-        data.reset(aengine, c_api::mkl_dnn_engine_destroy);
+                "could not create an engine");
+        reset(aengine);
     }
 };
 
@@ -123,7 +164,7 @@ struct memory: public primitive  {
         primitive_desc(const desc &adesc, const engine &aengine) {
             error::wrap_c_api(
                     c_api::mkl_dnn_memory_primitive_desc_init(&data,
-                        &adesc.data, aengine.data.get()),
+                        &adesc.data, aengine.get()),
                     "could not inittialize a memory primitive descriptor");
         }
         bool operator==(const primitive_desc &other) {
@@ -136,14 +177,14 @@ struct memory: public primitive  {
         error::wrap_c_api(
                 c_api::mkl_dnn_memory_create(&result, &adesc.data, input),
                 "could not create a memory primitive");
-        set_data(result);
+        reset(result);
     }
     primitive_desc get_primitive_desc() {
-        primitive_desc desc;
-        error::wrap_c_api(c_api::mkl_dnn_memory_get_primitive_desc(data.get(),
-                    &desc.data),
+        primitive_desc adesc;
+        error::wrap_c_api(c_api::mkl_dnn_memory_get_primitive_desc(get(),
+                    &adesc.data),
                 "could not get primitive descriptor from a memory primitive");
-        return desc;
+        return adesc;
     }
 };
 
@@ -195,7 +236,7 @@ struct convolution: public primitive {
         c_api::mkl_dnn_convolution_primitive_desc_t data;
         primitive_desc(const desc &adesc, const engine &aengine) {
             error::wrap_c_api(c_api::mkl_dnn_convolution_primitive_desc_init(
-                        &data, &adesc.data, aengine.data.get()),
+                        &data, &adesc.data, aengine.get()),
                     "could not create a convolution primitive descriptor");
         }
     };
@@ -207,51 +248,51 @@ struct convolution: public primitive {
         c_api::mkl_dnn_primitive_t result;
         error::wrap_c_api(c_api::mkl_dnn_convolution_create(&result,
                     &aprimitive_desc.data, input.data, weights.data,
-                    bias.data, output.data.get()),
+                    bias.data, output.get()),
                 "could not create a convolution primitive");
-        set_data(result);
+        reset(result);
     }
 };
 
-struct stream {
-    typedef std::remove_pointer<c_api::mkl_dnn_stream_t>::type stream_val_t;
-    std::shared_ptr<stream_val_t> data;
-    stream() {
+template <> struct handle_destroy<c_api::mkl_dnn_stream_t> {
+    static constexpr auto func = c_api::mkl_dnn_stream_destroy;
+};
+
+struct stream: public handle<c_api::mkl_dnn_stream_t> {
+    using handle::handle;
+
+    explicit stream() {
         c_api::mkl_dnn_stream_t astream;
         error::wrap_c_api(c_api::mkl_dnn_stream_create(&astream),
                 "could not create a stream");
-        data.reset(astream, c_api::mkl_dnn_stream_destroy);
+        reset(astream);
     }
-    stream &submit(std::vector<primitive> primitives) {
-        c_api::mkl_dnn_primitive_t c_api_error_primitive;
 
+    stream &submit(std::vector<primitive> primitives) {
         // TODO: find a proper way to convert vector<primitive> to
         // vector<c_api::mkl_dnn_primitive_t>
         std::vector<c_api::mkl_dnn_primitive_t> c_api_primitives;
         c_api_primitives.reserve(primitives.size());
+        auto convert_to_c = [](primitive p) { return p.get(); };
         std::transform(primitives.begin(), primitives.end(),
-                std::back_inserter(c_api_primitives),
-                [](primitive p) { return p.data.get(); });
-        c_api::mkl_dnn_status_t status = c_api::mkl_dnn_stream_submit(
-                data.get(), c_api_primitives.size(), &c_api_primitives[0],
+                std::back_inserter(c_api_primitives), convert_to_c);
+
+        c_api::mkl_dnn_primitive_t c_api_error_primitive;
+        error::wrap_c_api(
+                c_api::mkl_dnn_stream_submit(get(),
+                    c_api_primitives.size(), &c_api_primitives[0],
+                    &c_api_error_primitive),
+                "could not submit primitives to a stream",
                 &c_api_error_primitive);
 
-        if (status != c_api::mkl_dnn_success) {
-            auto error_primitive_it
-                = std::find_if(primitives.begin(), primitives.end(),
-                        [=](primitive p)
-                        { return p.data.get() == c_api_error_primitive; });
-            assert(error_primitive_it != primitives.end());
-            throw error(status, "could not submit primitives to a stream",
-                    *error_primitive_it);
-        }
         return *this;
     }
+
     stream &wait(bool block = true) {
-        c_api::mkl_dnn_primitive_t error_primitive;
-        error::wrap_c_api(c_api::mkl_dnn_stream_wait(data.get(),
-                    block, &error_primitive),
-                "could not wait on a stream");
+        c_api::mkl_dnn_primitive_t c_api_error_primitive;
+        error::wrap_c_api(c_api::mkl_dnn_stream_wait(get(), block,
+                    &c_api_error_primitive), "could not wait on a stream",
+                &c_api_error_primitive);
         return *this;
     }
 };
@@ -259,3 +300,5 @@ struct stream {
 }
 
 #endif
+
+// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s,g0
