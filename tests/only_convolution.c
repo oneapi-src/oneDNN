@@ -30,7 +30,7 @@ int doit() {
      */
 
     const uint32_t mb = 2;
-    uint32_t c3_input_sizes[4] = {mb, 2, 13, 13};
+    uint32_t c3_input_sizes[4] = {mb, 256, 13, 13};
     uint32_t c3_weights_sizes[4] = {384, 256, 3, 3};
     uint32_t c3_bias_sizes[1] = {384};
     uint32_t padding[] = {0, 0}; // set proper values
