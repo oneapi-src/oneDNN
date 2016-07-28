@@ -209,6 +209,7 @@ struct convolution: public primitive {
                     &aprimitive_desc.data, input.data, weights.data,
                     bias.data, output.data.get()),
                 "could not create a convolution primitive");
+        set_data(result);
     }
 };
 
