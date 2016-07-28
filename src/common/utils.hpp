@@ -45,7 +45,7 @@ inline T product_impl(const T* arr, int2type<num>) {
 
 template <size_t num, typename T>
 inline T array_product(const T* arr) {
-    return product_impl::product_impl(arr, product_impl::int2type<num>());
+    return product_impl::product_impl(arr, product_impl::int2type<num-1>());
 }
 
 template<typename T>

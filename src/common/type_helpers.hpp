@@ -118,22 +118,27 @@ struct memory_desc_wrapper: public c_compatible {
         return 0;
     }
 
-    template<typename T>
-    inline size_t off(size_t logical_offset) {
+    inline size_t off(size_t l_offset) const {
+        if (one_of(_md.format, nchw_f32, oihw_f32, n_f32))
+            return l_offset; // tentative
+        assert(false);
         // format specific
-        return logical_offset;
+        return l_offset;
     }
 
-    template<typename... Args>
-    inline int off(Args... args) { return off(logical_offset(args...)); }
+    template<typename T, typename... Args>
+    inline size_t off(T xn, Args... args) const {
+        return off(logical_offset(xn, args...));
+    }
 
     template<typename T>
-    inline size_t logical_offset(T x0) { return (size_t)x0; }
+    inline size_t logical_offset(T x0) const { return (size_t)x0; }
 
     template<typename T, typename... Args>
-    inline size_t logical_offset(T xn, Args... args) {
-        return ((size_t)xn)*array_product<sizeof...(Args)>(dims()+1) +
-            get_logical_offset(args...);
+    inline size_t logical_offset(T xn, Args... args) const {
+        const size_t n_args = sizeof...(Args);
+        return ((size_t)xn)*array_product<n_args>(&dims()[ndims() - n_args])
+            + logical_offset(args...);
     }
 };
 
