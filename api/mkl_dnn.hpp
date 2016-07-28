@@ -21,7 +21,7 @@ protected:
     handle(T t = 0, bool own = true): _data(0) { reset(t, own); }
 
     bool operator==(const T other) const { return other == _data.get(); }
-    bool operator!=(const T other) const { return !(*this != other); }
+    bool operator!=(const T other) const { return !(*this == other); }
 public:
     handle(const handle &other): _data(other._data) {}
     handle &operator=(const handle &other) {
@@ -32,7 +32,7 @@ public:
     T get() const { return _data.get(); }
 
     bool operator==(const handle &other) const { return other._data.get() == _data.get(); }
-    bool operator!=(const handle &other) const { return !(*this != other); }
+    bool operator!=(const handle &other) const { return !(*this == other); }
 };
 
 namespace c_api {
