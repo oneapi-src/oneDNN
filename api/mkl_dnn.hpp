@@ -21,6 +21,11 @@ struct primitive {
     primitive(c_api::mkl_dnn_primitive_t aprimitive = nullptr)
     { set_data(aprimitive); }
     // TODO: other manupulation functions and operators
+    struct at {
+        c_api::mkl_dnn_primitive_at_t data;
+        at(const primitive &aprimitive, size_t at = 0)
+            : data(c_api::mkl_dnn_primitive_at(aprimitive.data.get(), at)) { }
+    };
 };
 
 struct error {
@@ -139,6 +144,71 @@ struct memory: public primitive  {
                     &desc.data),
                 "could not get primitive descriptor from a memory primitive");
         return desc;
+    }
+};
+
+enum padding_kind {
+    zero = c_api::mkl_dnn_padding_zero,
+};
+inline c_api::mkl_dnn_padding_kind_t convert_to_c(padding_kind kind) {
+    return static_cast<c_api::mkl_dnn_padding_kind_t>(kind);
+}
+
+enum prop_kind {
+    forward = c_api::mkl_dnn_forward,
+    backward_data = c_api::mkl_dnn_backward_data,
+    backward_weights,g = c_api::mkl_dnn_backward_bias,
+    backward_bias = c_api::mkl_dnn_backward_bias,
+};
+inline c_api::mkl_dnn_prop_kind_t convert_to_c(prop_kind kind) {
+    return static_cast<c_api::mkl_dnn_prop_kind_t>(kind);
+}
+
+struct convolution: public primitive {
+    enum algorithm { direct = c_api::mkl_dnn_convolution_direct };
+    static c_api::mkl_dnn_alg_kind_t convert_to_c(algorithm aalgorithm) {
+        return static_cast<c_api::mkl_dnn_alg_kind_t>(aalgorithm);
+    }
+    struct desc {
+        c_api::mkl_dnn_convolution_desc_t data;
+        // XXX: convolution w/o bias
+        desc(prop_kind aprop_kind, algorithm aalgorithm,
+                const memory::desc &input_desc,
+                const memory::desc &weights_desc,
+                const memory::desc &bias_desc,
+                const memory::desc &output_desc,
+                const tensor::dims strides,
+                const tensor::nd_pos padding,
+                const padding_kind apadding_kind)
+        {
+            // TODO: check vector lengths
+            error::wrap_c_api(c_api::mkl_dnn_convolution_desc_init(&data,
+                        mkl_dnn::convert_to_c(aprop_kind), convert_to_c(aalgorithm),
+                        &input_desc.data, &weights_desc.data, &bias_desc.data,
+                        &output_desc.data, &strides[0], &padding[0],
+                        mkl_dnn::convert_to_c(apadding_kind)),
+                    "could not create a convolution descriptor");
+        }
+    };
+
+    struct primitive_desc {
+        c_api::mkl_dnn_convolution_primitive_desc_t data;
+        primitive_desc(const desc &adesc, const engine &aengine) {
+            error::wrap_c_api(c_api::mkl_dnn_convolution_primitive_desc_init(
+                        &data, &adesc.data, aengine.data.get()),
+                    "could not create a convolution primitive descriptor");
+        }
+    };
+
+    // XXX: convolution w/o bias
+    convolution(const primitive_desc &aprimitive_desc,
+            const primitive::at &input, const primitive::at &weights,
+            const primitive::at &bias, const memory &output) {
+        c_api::mkl_dnn_primitive_t result;
+        error::wrap_c_api(c_api::mkl_dnn_convolution_create(&result,
+                    &aprimitive_desc.data, input.data, weights.data,
+                    bias.data, output.data.get()),
+                "could not create a convolution primitive");
     }
 };
 
