@@ -2,7 +2,6 @@
 #define MKL_DNN_HPP
 
 #include <memory>
-#include <stdexcept>
 #include <vector>
 
 namespace mkl_dnn {
