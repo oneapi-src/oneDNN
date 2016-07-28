@@ -61,6 +61,27 @@ struct engine {
     }
 };
 
+struct tensor {
+    typedef std::vector<std::remove_extent<c_api::mkl_dnn_dims_t>::type> dims;
+    typedef std::vector<std::remove_extent<c_api::mkl_dnn_nd_pos_t>::type> nd_pos;
+    typedef std::vector<std::remove_extent<c_api::mkl_dnn_nd_offset_t>::type> nd_offset;
+    template <typename T> static bool validate_len(std::vector<T> v)
+    { return v.size() <= TENSOR_MAX_DIMS; } // TODO: throw from here?
+    struct desc {
+        c_api::mkl_dnn_tensor_desc_t data;
+        // TODO: convenience overloads
+        desc(uint32_t batch, uint32_t channels,
+                uint32_t spatial, dims adims) {
+            // TODO: check dims.size() via validate_len()
+            error::wrap_c_api(
+                    c_api::mkl_dnn_tensor_desc_init(&data,
+                        batch, channels, spatial, &adims[0]),
+                    "could not initialize a tensor descriptor");
+        }
+    };
+
+};
+
 struct memory: public primitive  {
     enum format {
         any = c_api::mkl_dnn_any_f32,
@@ -78,21 +99,9 @@ struct memory: public primitive  {
         return static_cast<c_api::mkl_dnn_memory_format_t>(aformat);
     }
 
-    struct tensor_desc {
-        c_api::mkl_dnn_tensor_desc_t data;
-        // TODO: convenience overloads
-        tensor_desc(uint32_t batch, uint32_t channels,
-                uint32_t spatial, std::vector<uint32_t> dims) {
-            error::wrap_c_api(
-                    c_api::mkl_dnn_tensor_desc_init(&data,
-                        batch, channels, spatial, &dims[0]),
-                    "could not initialize a tensor descriptor");
-        }
-    };
-
     struct desc {
         c_api::mkl_dnn_memory_desc_t data;
-        desc(const tensor_desc &atensor_desc, format aformat) {
+        desc(const tensor::desc &atensor_desc, format aformat) {
             error::wrap_c_api(
                     c_api::mkl_dnn_memory_desc_init(&data,
                         &atensor_desc.data, convert_to_c(aformat)),

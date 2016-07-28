@@ -23,7 +23,7 @@ int doit() {
 
     // TODO: make tensor desc optional and default to N C X1 .. XN
 
-    auto c3_input_tensor_desc = memory::tensor_desc(1, 1, 2, {256, 256, 13, 13});
+    auto c3_input_tensor_desc = tensor::desc(1, 1, 2, {256, 256, 13, 13});
     auto c3_input_memory_desc = memory::desc({1, 1, 2, {256, 256, 13, 13}}, memory::format::nchw_f32);
     auto c3_input_primitive_desc = memory::primitive_desc({{1, 1, 2, {256, 256, 13, 13}}, memory::format::nchw_f32}, cpu_engine);
 
