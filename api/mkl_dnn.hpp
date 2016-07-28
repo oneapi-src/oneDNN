@@ -114,19 +114,24 @@ struct tensor {
     typedef std::vector<std::remove_extent<c_api::mkl_dnn_dims_t>::type> dims;
     typedef std::vector<std::remove_extent<c_api::mkl_dnn_nd_pos_t>::type> nd_pos;
     typedef std::vector<std::remove_extent<c_api::mkl_dnn_nd_offset_t>::type> nd_offset;
-    template <typename T> static bool validate_len(std::vector<T> v)
-    { return v.size() <= TENSOR_MAX_DIMS; } // TODO: throw from here?
+
+    template <typename T> static void validate_dims(std::vector<T> v) {
+        if (v.size() > TENSOR_MAX_DIMS)
+            throw error(c_api::mkl_dnn_invalid_arguments,
+                    "invalid dimensions");
+    }
+
     struct desc {
         c_api::mkl_dnn_tensor_desc_t data;
-        // TODO: convenience overloads
         desc(uint32_t batch, uint32_t channels,
                 uint32_t spatial, dims adims) {
-            // TODO: check dims.size() via validate_len()
+            validate_dims(adims);
             error::wrap_c_api(
                     c_api::mkl_dnn_tensor_desc_init(&data,
                         batch, channels, spatial, &adims[0]),
                     "could not initialize a tensor descriptor");
         }
+        // TODO: convenience overloads
     };
 
 };
@@ -212,7 +217,6 @@ struct convolution: public primitive {
     }
     struct desc {
         c_api::mkl_dnn_convolution_desc_t data;
-        // XXX: convolution w/o bias
         desc(prop_kind aprop_kind, algorithm aalgorithm,
                 const memory::desc &input_desc,
                 const memory::desc &weights_desc,
@@ -222,7 +226,8 @@ struct convolution: public primitive {
                 const tensor::nd_pos padding,
                 const padding_kind apadding_kind)
         {
-            // TODO: check vector lengths
+            tensor::validate_dims(strides);
+            tensor::validate_dims(padding);
             error::wrap_c_api(c_api::mkl_dnn_convolution_desc_init(&data,
                         mkl_dnn::convert_to_c(aprop_kind), convert_to_c(aalgorithm),
                         &input_desc.data, &weights_desc.data, &bias_desc.data,
