@@ -3,25 +3,13 @@
 
 #include <memory>
 #include <vector>
+#include <algorithm>
 
 namespace mkl_dnn {
 
 namespace c_api {
 #include "mkl_dnn.h"
 }
-
-struct error {
-    c_api::mkl_dnn_status_t status;
-    std::string message;
-    error(c_api::mkl_dnn_status_t astatus, std::string amessage)
-        : status(astatus)
-        , message(amessage) {}
-    static void wrap_c_api(c_api::mkl_dnn_status_t status,
-            std::string message) {
-        if (status != c_api::mkl_dnn_success)
-            throw error(status, message);
-    }
-};
 
 
 struct primitive {
@@ -33,6 +21,22 @@ struct primitive {
     primitive(c_api::mkl_dnn_primitive_t aprimitive = nullptr)
     { set_data(aprimitive); }
     // TODO: other manupulation functions and operators
+};
+
+struct error {
+    c_api::mkl_dnn_status_t status;
+    std::string message;
+    primitive error_primitive;
+    error(c_api::mkl_dnn_status_t astatus, std::string amessage,
+            primitive aerror_primitive = nullptr)
+        : status(astatus)
+        , message(amessage)
+        , error_primitive(aerror_primitive) {}
+    static void wrap_c_api(c_api::mkl_dnn_status_t status,
+            std::string message, primitive aerror_primitive = nullptr) {
+        if (status != c_api::mkl_dnn_success)
+            throw error(status, message, aerror_primitive);
+    }
 };
 
 struct engine {
@@ -138,5 +142,40 @@ struct memory: public primitive  {
     }
 };
 
+struct stream {
+    typedef std::remove_pointer<c_api::mkl_dnn_stream_t>::type stream_val_t;
+    std::shared_ptr<stream_val_t> data;
+    stream() {
+        c_api::mkl_dnn_stream_t astream;
+        error::wrap_c_api(c_api::mkl_dnn_stream_create(&astream),
+                "could not create a stream");
+        data.reset(astream, c_api::mkl_dnn_stream_destroy);
+    }
+    stream &submit(std::vector<primitive> primitives) {
+        c_api::mkl_dnn_primitive_t error_primitive;
+        // TODO: find a proper way to convert vector<primitive> to
+        // vector<c_api::mkl_dnn_primitive_t>
+        std::vector<c_api::mkl_dnn_primitive_t> c_api_primitives;
+        c_api_primitives.reserve(primitives.size());
+        std::transform(primitives.begin(), primitives.end(),
+                std::back_inserter(c_api_primitives),
+                [](primitive p) { return p.data.get(); });
+        error::wrap_c_api(c_api::mkl_dnn_stream_submit(data.get(),
+                    c_api_primitives.size(), &c_api_primitives[0],
+                    &error_primitive),
+                "could not submit primitives to a stream",
+                error_primitive);
+        return *this;
+    }
+    stream &wait(bool block = true) {
+        c_api::mkl_dnn_primitive_t error_primitive;
+        error::wrap_c_api(c_api::mkl_dnn_stream_wait(data.get(),
+                    block, &error_primitive),
+                "could not wait on a stream");
+        return *this;
+    }
+};
+
 }
+
 #endif
