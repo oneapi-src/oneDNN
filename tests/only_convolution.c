@@ -16,27 +16,34 @@ typedef float real_t;
     } \
 } while(0)
 
-int doit() {
-    uint32_t enough = 128*1024*1024;
-    real_t *input = (real_t*)malloc(sizeof(real_t)*enough);
-    real_t *weights = (real_t*)malloc(sizeof(real_t)*enough);
-    real_t *bias = (real_t*)malloc(sizeof(real_t)*1024);
-    real_t *output = (real_t*)malloc(sizeof(real_t)*enough);
+static size_t product(uint32_t *arr, size_t size) {
+    size_t prod = 1;
+    for (size_t i = 0; i < size; ++i) prod *= arr[i];
+    return prod;
+}
 
+int doit() {
     /* AlexNet: c3
      * {256, 256, 13, 13} (x) {384, 256, 3, 3} -> {256, 384, 13, 13}
      * pad: {1, 1}
      * strides: {1, 1}
      */
 
-    uint32_t c3_input_sizes[4] = {256, 256, 13, 13};
+    const uint32_t mb = 2;
+    uint32_t c3_input_sizes[4] = {mb, 256, 13, 13};
     uint32_t c3_weights_sizes[4] = {384, 256, 3, 3};
     uint32_t c3_bias_sizes[1] = {384};
     uint32_t padding[] = {0, 0}; // set proper values
     uint32_t strides[] = {1, 1};
-    uint32_t c3_output_sizes[4] = {256, 384,
-        13 + 2*padding[1] - 2,
-        13 + 2*padding[0] - 2};
+    uint32_t c3_output_sizes[4] = {mb, 384,
+        (c3_input_sizes[2] + 2*padding[0] - c3_weights_sizes[2])/strides[0] + 1,
+        (c3_input_sizes[3] + 2*padding[1] - c3_weights_sizes[3])/strides[1] + 1
+    };
+
+    real_t *input = (real_t*)malloc(sizeof(real_t)*product(c3_input_sizes, 4));
+    real_t *weights = (real_t*)malloc(sizeof(real_t)*product(c3_weights_sizes, 4));
+    real_t *bias = (real_t*)malloc(sizeof(real_t)*product(c3_bias_sizes, 1));
+    real_t *output = (real_t*)malloc(sizeof(real_t)*product(c3_output_sizes, 4));
 
     mkl_dnn_engine_t engine;
     CHECK(mkl_dnn_engine_create(&engine, mkl_dnn_cpu, 0 /* idx */));
