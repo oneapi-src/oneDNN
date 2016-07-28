@@ -13,7 +13,7 @@ int doit() {
     using namespace mkl_dnn;
 
     /* AlexNet: c3
-     * {256, 256, 13, 13} (x) {384, 256, 3, 3} -> {256, 384, 13, 13}
+     * {2, 256, 13, 13} (x) {384, 256, 3, 3} -> {2, 384, 13, 13}
      * pad: {1, 1}
      * strides: {1, 1}
      */
@@ -25,20 +25,20 @@ int doit() {
 
     // XXX: descs for memory should be not necessary!
 
-    auto c3_input_desc = memory::desc({1, 1, 2, {256, 256, 13, 13}}, memory::format::nchw_f32);
+    auto c3_input_desc = memory::desc({1, 1, 2, {2, 256, 13, 13}}, memory::format::nchw_f32);
     auto c3_input = memory({c3_input_desc, cpu_engine});
     auto c3_weights_desc = memory::desc({0, 2, 2, {384, 256, 3, 3}}, memory::format::oihw_f32);
     auto c3_weights = memory({c3_weights_desc, cpu_engine});
     auto c3_bias_desc = memory::desc({0, 0, 1, {384}}, memory::format::n_f32);
     auto c3_bias = memory({c3_bias_desc, cpu_engine});
-    auto c3_output_desc = memory::desc({1, 1, 2, {256, 384, 13, 13}}, memory::format::nchw_f32);
+    auto c3_output_desc = memory::desc({1, 1, 2, {2, 384, 13, 13}}, memory::format::nchw_f32);
     auto c3_output = memory({c3_output_desc, cpu_engine});
 
 #if 0
-    auto c3_input = memory({{{1, 1, 2, {256, 256, 13, 13}}, memory::format::nchw_f32}, cpu_engine});
+    auto c3_input = memory({{{1, 1, 2, {2, 256, 13, 13}}, memory::format::nchw_f32}, cpu_engine});
     auto c3_weights = memory({{{0, 2, 2, {384, 256, 3, 3}}, memory::format::oihw_f32}, cpu_engine});
     auto c3_bias = memory({{{0, 0, 1, {384}}, memory::format::n_f32}, cpu_engine});
-    auto c3_output = memory({{{1, 1, 2, {256, 384, 13, 13}}, memory::format::nchw_f32}, cpu_engine});
+    auto c3_output = memory({{{1, 1, 2, {2, 384, 13, 13}}, memory::format::nchw_f32}, cpu_engine});
 
     auto c3_desc = convolution::desc(prop_kind::forward, convolution::direct,
             c3_input, c3_weights, c3_bias, c3_output,
