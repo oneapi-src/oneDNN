@@ -110,11 +110,15 @@ struct memory: public primitive  {
 
     struct primitive_desc {
         c_api::mkl_dnn_memory_primitive_desc_t data;
+        primitive_desc() {} // XXX: should be private? should take C type?
         primitive_desc(const desc &adesc, const engine &aengine) {
             error::wrap_c_api(
                     c_api::mkl_dnn_memory_primitive_desc_init(&data,
                         &adesc.data, aengine.data.get()),
                     "could not inittialize a memory primitive descriptor");
+        }
+        bool operator==(const primitive_desc &other) {
+            return mkl_dnn_memory_primitive_desc_equal(&data, &other.data);
         }
     };
 
@@ -124,6 +128,13 @@ struct memory: public primitive  {
                 c_api::mkl_dnn_memory_create(&result, &adesc.data, input),
                 "could not create a memory primitive");
         set_data(result);
+    }
+    primitive_desc get_primitive_desc() {
+        primitive_desc desc;
+        error::wrap_c_api(c_api::mkl_dnn_memory_get_primitive_desc(data.get(),
+                    &desc.data),
+                "could not get primitive descriptor from a memory primitive");
+        return desc;
     }
 };
 
