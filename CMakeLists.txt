@@ -7,8 +7,9 @@ set(LIB_NAME mkl_dnn)
 
 project(${PROJECT_NAME} C CXX)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -Wall -Werror")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -std=c++11 -Wall -Werror")
+set(CMAKE_CCXX_FLAGS "-g -fopenmp -Wall -Werror")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CMAKE_CCXX_FLAGS}")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_CCXX_FLAGS} -std=c++11")
 
 enable_testing()
 
