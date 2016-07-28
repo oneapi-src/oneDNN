@@ -1,6 +1,7 @@
 #ifndef MKL_DNN_HPP
 #define MKL_DNN_HPP
 
+#include <assert.h>
 #include <memory>
 #include <vector>
 #include <algorithm>
@@ -10,7 +11,6 @@ namespace mkl_dnn {
 namespace c_api {
 #include "mkl_dnn.h"
 }
-
 
 struct primitive {
     typedef std::remove_pointer<c_api::mkl_dnn_primitive_t>::type
@@ -223,7 +223,8 @@ struct stream {
         data.reset(astream, c_api::mkl_dnn_stream_destroy);
     }
     stream &submit(std::vector<primitive> primitives) {
-        c_api::mkl_dnn_primitive_t error_primitive;
+        c_api::mkl_dnn_primitive_t c_api_error_primitive;
+
         // TODO: find a proper way to convert vector<primitive> to
         // vector<c_api::mkl_dnn_primitive_t>
         std::vector<c_api::mkl_dnn_primitive_t> c_api_primitives;
@@ -231,11 +232,19 @@ struct stream {
         std::transform(primitives.begin(), primitives.end(),
                 std::back_inserter(c_api_primitives),
                 [](primitive p) { return p.data.get(); });
-        error::wrap_c_api(c_api::mkl_dnn_stream_submit(data.get(),
-                    c_api_primitives.size(), &c_api_primitives[0],
-                    &error_primitive),
-                "could not submit primitives to a stream",
-                error_primitive);
+        c_api::mkl_dnn_status_t status = c_api::mkl_dnn_stream_submit(
+                data.get(), c_api_primitives.size(), &c_api_primitives[0],
+                &c_api_error_primitive);
+
+        if (status != c_api::mkl_dnn_success) {
+            auto error_primitive_it
+                = std::find_if(primitives.begin(), primitives.end(),
+                        [=](primitive p)
+                        { return p.data.get() == c_api_error_primitive; });
+            assert(error_primitive_it != primitives.end());
+            throw error(status, "could not submit primitives to a stream",
+                    *error_primitive_it);
+        }
         return *this;
     }
     stream &wait(bool block = true) {
