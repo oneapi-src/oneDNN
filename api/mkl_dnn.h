@@ -84,7 +84,7 @@ mkl_dnn_status_t mkl_dnn_convolution_primitive_desc_init(
  * and outputs in-to arrays, otherwise it is unclear how to create bwd filt */
 mkl_dnn_status_t mkl_dnn_convolution_create(mkl_dnn_primitive_t *convolution,
         const mkl_dnn_convolution_primitive_desc_t *convolution_primitive_desc,
-        const mkl_dnn_primitive_at_t input, const mkl_dnn_primitive_t weights,
+        const mkl_dnn_primitive_at_t input, const mkl_dnn_primitive_at_t weights,
         const mkl_dnn_primitive_at_t bias, mkl_dnn_primitive_t output);
 
 /** Creates a \param primitive by given \param primitive descriptor and array
