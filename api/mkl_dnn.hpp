@@ -40,7 +40,7 @@ namespace c_api {
 }
 
 template <> struct handle_destroy<c_api::mkl_dnn_primitive_t> {
-    static constexpr auto func = c_api::mkl_dnn_primitive_destroy;
+    static constexpr auto func = &c_api::mkl_dnn_primitive_destroy;
 };
 
 class primitive: public handle<c_api::mkl_dnn_primitive_t> {
@@ -79,7 +79,7 @@ struct error {
 };
 
 template <> struct handle_destroy<c_api::mkl_dnn_engine_t> {
-    static constexpr auto func = c_api::mkl_dnn_engine_destroy;
+    static constexpr auto func = &c_api::mkl_dnn_engine_destroy;
 };
 
 struct engine: public handle<c_api::mkl_dnn_engine_t> {
@@ -260,7 +260,7 @@ struct convolution: public primitive {
 };
 
 template <> struct handle_destroy<c_api::mkl_dnn_stream_t> {
-    static constexpr auto func = c_api::mkl_dnn_stream_destroy;
+    static constexpr auto func = &c_api::mkl_dnn_stream_destroy;
 };
 
 struct stream: public handle<c_api::mkl_dnn_stream_t> {
