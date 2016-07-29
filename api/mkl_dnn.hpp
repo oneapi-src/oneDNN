@@ -138,17 +138,23 @@ struct tensor {
 };
 
 struct memory: public primitive  {
+    enum precision {
+        f32 = c_api::mkl_dnn_f32
+    };
+    static c_api::mkl_dnn_precision_t convert_to_c(precision aprecision) {
+        return static_cast<c_api::mkl_dnn_precision_t>(aprecision);
+    }
     enum format {
-        any = c_api::mkl_dnn_any_f32,
-        n_f32 = c_api::mkl_dnn_n_f32,
-        nchw_f32 = c_api::mkl_dnn_nchw_f32,
-        oihw_f32 = c_api::mkl_dnn_oihw_f32,
-        nhwc_f32 = c_api::mkl_dnn_nhwc_f32,
-        nChw8_f32 = c_api::mkl_dnn_nChw8_f32,
-        IOhw88_f32 = c_api::mkl_dnn_IOhw88_f32,
-        nChw16_f32 = c_api::mkl_dnn_nChw16_f32,
-        IOhw1616_f32 = c_api::mkl_dnn_IOhw1616_f32,
-        blocked_f32 = c_api::mkl_dnn_blocked_f32,
+        any = c_api::mkl_dnn_any,
+        n = c_api::mkl_dnn_n,
+        nchw = c_api::mkl_dnn_nchw,
+        oihw = c_api::mkl_dnn_oihw,
+        nhwc = c_api::mkl_dnn_nhwc,
+        nChw8 = c_api::mkl_dnn_nChw8,
+        IOhw88 = c_api::mkl_dnn_IOhw88,
+        nChw16 = c_api::mkl_dnn_nChw16,
+        IOhw1616 = c_api::mkl_dnn_IOhw1616,
+        blocked = c_api::mkl_dnn_blocked,
     };
     static c_api::mkl_dnn_memory_format_t convert_to_c(format aformat) {
         return static_cast<c_api::mkl_dnn_memory_format_t>(aformat);
@@ -156,10 +162,12 @@ struct memory: public primitive  {
 
     struct desc {
         c_api::mkl_dnn_memory_desc_t data;
-        desc(const tensor::desc &atensor_desc, format aformat) {
+        desc(const tensor::desc &atensor_desc, precision aprecision,
+                format aformat) {
             error::wrap_c_api(
                     c_api::mkl_dnn_memory_desc_init(&data,
-                        &atensor_desc.data, convert_to_c(aformat)),
+                        &atensor_desc.data, convert_to_c(aprecision),
+                        convert_to_c(aformat)),
                     "could not initialize a memory descriptor");
         }
     };

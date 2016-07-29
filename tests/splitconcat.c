@@ -10,7 +10,7 @@ int main(int argc, char **argv)
     primitive_t mem_in, mem_out;
 
     tensor_desc_init(&td, 1, 1, 2, full_buffer_sizes);
-    memory_desc_init(&md, &td, memory_format_nchw_f32);
+    memory_desc_init(&md, &td, memory_format_nchw);
     memory_primitive_desc_init(&mpd, &md, cpu_engine);
     memory_create(&mem_in, &mpd, NULL);
     memory_create(&mem_out, &mpd, NULL);

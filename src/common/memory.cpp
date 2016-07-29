@@ -31,25 +31,27 @@ status_t mkl_dnn_tensor_desc_init(tensor_desc_t *tensor_desc,
 }
 
 status_t mkl_dnn_memory_desc_init(memory_desc_t *memory_desc,
-        const tensor_desc_t *tensor, memory_format_t format) {
+        const tensor_desc_t *tensor, precision_t precision,
+        memory_format_t format) {
     if (any_null(memory_desc, tensor))
         return invalid_arguments;
     memory_desc_t md = {
         .tensor_desc = *tensor,
+        .precision = precision,
         .format = format };
 
     status_t status = success;
     switch (format) {
-    case any_f32:
+    case any:
         break;
     /* semidefined blocked format */
-    case n_f32:
-    case nchw_f32:
-    case nhwc_f32:
+    case n:
+    case nchw:
+    case nhwc:
         status = types::compute_blocking(md);
         break;
     /* no enough information */
-    case blocked_f32:
+    case blocked:
     default:
         return invalid_arguments;
     }
@@ -64,7 +66,7 @@ status_t mkl_dnn_memory_primitive_desc_init(
         const memory_desc_t *memory_desc, const engine *engine) {
     if (any_null(memory_primitive_desc, memory_desc, engine))
         return invalid_arguments;
-    if (memory_desc->format == any_f32 || !engine->is_ok())
+    if (memory_desc->format == any || !engine->is_ok())
         return invalid_arguments;
 
     for (auto init = engine->get_memory_inits(); *init; ++init) {

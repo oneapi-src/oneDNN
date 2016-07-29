@@ -13,10 +13,12 @@ mkl_dnn_status_t mkl_dnn_tensor_desc_init(mkl_dnn_tensor_desc_t *tensor_desc,
         uint32_t ndims_batch, uint32_t ndims_channels, uint32_t ndims_spatial,
         const mkl_dnn_dims_t dims);
 
-/** Initializes a \param memory_desc memory descriptor by given \param tensor
- * and \param format. \param format is allowed to be memory_format_any */
+/** Initializes a \param memory_desc memory descriptor by given \param tensor,
+ * data \param precision and \param format. \param format is allowed to be
+ * memory_format_any, which means do not specify any specific data layout */
 mkl_dnn_status_t mkl_dnn_memory_desc_init(mkl_dnn_memory_desc_t *memory_desc,
-        const mkl_dnn_tensor_desc_t *tensor, mkl_dnn_memory_format_t format);
+        const mkl_dnn_tensor_desc_t *tensor,mkl_dnn_precision_t precision,
+        mkl_dnn_memory_format_t format);
 
 /** Initializes a \param memory_primtive_desc memory primitive descriptor by
  * given \param memory_desc and \param engine. Note that \param memory_desc

@@ -13,6 +13,7 @@ namespace impl {
 namespace types {
 
 using namespace mkl_dnn::impl::status;
+using namespace mkl_dnn::impl::precision;
 using namespace mkl_dnn::impl::memory_format;
 
 inline uint32_t ndims(const tensor_desc_t &tensor) {
@@ -42,9 +43,9 @@ inline uint32_t ndims(const memory_desc_t &memory_desc) {
 }
 
 inline size_t get_size(const memory_desc_t &memory_desc) {
-    if (memory_desc.format == any_f32) return 0;
+    if (memory_desc.format == any) return 0;
 
-    assert(one_of(memory_desc.format, n_f32, nchw_f32, nhwc_f32, blocked_f32));
+    assert(one_of(memory_desc.format, n, nchw, nhwc, blocked));
 
     size_t max_size = 0;
     auto dims = memory_desc.tensor_desc.dims;
@@ -82,7 +83,7 @@ inline bool blocking_desc_is_equal(const blocking_desc_t &lhs,
 inline bool operator==(const memory_desc_t &lhs, const memory_desc_t &rhs) {
     if (lhs.tensor_desc != rhs.tensor_desc || lhs.format != rhs.format)
         return false;
-    if (lhs.format == blocked_f32)
+    if (lhs.format == blocked)
         return blocking_desc_is_equal(lhs.blocking_desc, rhs.blocking_desc,
             ndims(lhs.tensor_desc));
     return true;
@@ -107,7 +108,7 @@ inline status_t convolution_desc_is_ok(
 struct memory_desc_wrapper: public c_compatible {
     const memory_desc_t &_md;
     memory_desc_wrapper(const memory_desc_t &md): _md(md) {
-        assert(_md.format != any_f32);
+        assert(_md.format != any);
     }
 
     uint32_t ndims() const { return types::ndims(_md.tensor_desc); }
@@ -119,7 +120,7 @@ struct memory_desc_wrapper: public c_compatible {
     }
 
     inline size_t off(size_t l_offset) const {
-        if (one_of(_md.format, nchw_f32, oihw_f32, n_f32))
+        if (one_of(_md.format, nchw, oihw, n))
             return l_offset; // tentative
         assert(false);
         // format specific

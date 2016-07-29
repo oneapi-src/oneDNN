@@ -109,13 +109,13 @@ int doit() {
                   c1_output_any_md;
 
     init_data_desc(&user_c1_input_prim_desc, &c1_input_any_md, 1, 1, 2,
-            c1_input_sizes, memory_format_nchw_f32, engine);
+            c1_input_sizes, memory_format_nchw, engine);
     init_data_desc(&user_c1_weights_prim_desc, &c1_weights_any_md, 0, 2, 2,
-            c1_weights_sizes, memory_format_oihw_f32, engine);
+            c1_weights_sizes, memory_format_oihw, engine);
     init_data_desc(&user_c1_bias_prim_desc, &c1_bias_any_md, 1, 0, 0,
-            c1_bias_sizes, memory_format_n_f32, engine);
+            c1_bias_sizes, memory_format_n, engine);
     init_data_desc(&user_c1_output_prim_desc, &c1_output_any_md, 1, 1, 2,
-            c1_output_sizes, memory_format_nchw_f32, engine);
+            c1_output_sizes, memory_format_nchw, engine);
 
     /* create memory for user data */
     dnn_primitive_t user_c1_input_memory, user_c1_weights_memory,

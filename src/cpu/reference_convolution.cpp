@@ -14,6 +14,7 @@ namespace mkl_dnn { namespace impl { namespace cpu {
 using namespace mkl_dnn::impl::status;
 using namespace mkl_dnn::impl::prop_kind;
 using namespace mkl_dnn::impl::alg_kind;
+using namespace mkl_dnn::impl::precision;
 using namespace mkl_dnn::impl::memory_format;
 using namespace mkl_dnn::impl::primitive_kind;
 
@@ -116,18 +117,18 @@ status_t reference_convolution::primitive_desc_init(
         return unimplemented;
 
     /* memory descriptors check and fill-in */
-    if (conv_d.input_desc.format == any_f32)
+    if (conv_d.input_desc.format == any)
         CHECK(mkl_dnn_memory_desc_init(&conv_d.input_desc,
-                    &conv_d.input_desc.tensor_desc, nchw_f32));
-    if (conv_d.weights_desc.format == any_f32)
+                    &conv_d.input_desc.tensor_desc, f32, nchw));
+    if (conv_d.weights_desc.format == any)
         CHECK(mkl_dnn_memory_desc_init(&conv_d.weights_desc,
-                &conv_d.weights_desc.tensor_desc, oihw_f32));
-    if (conv_d.bias_desc.format == any_f32)
+                &conv_d.weights_desc.tensor_desc, f32, oihw));
+    if (conv_d.bias_desc.format == any)
         CHECK(mkl_dnn_memory_desc_init(&conv_d.bias_desc,
-                    &conv_d.bias_desc.tensor_desc, n_f32));
-    if (conv_d.output_desc.format == any_f32)
+                    &conv_d.bias_desc.tensor_desc, f32, n));
+    if (conv_d.output_desc.format == any)
         CHECK(mkl_dnn_memory_desc_init(&conv_d.output_desc,
-                    &conv_d.output_desc.tensor_desc, nchw_f32));
+                    &conv_d.output_desc.tensor_desc, f32, nchw));
 
     /* memory primitive descriptors check */
     memory_primitive_desc_t input_pd, weights_pd, bias_pd, output_pd;

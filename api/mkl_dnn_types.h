@@ -21,6 +21,27 @@ typedef enum {
 } mkl_dnn_status_t;
 
 typedef enum {
+    mkl_dnn_f32 = 1,
+} mkl_dnn_precision_t;
+
+typedef enum {
+    mkl_dnn_any,
+    mkl_dnn_n,
+    mkl_dnn_nchw,
+    mkl_dnn_oihw = mkl_dnn_nchw,
+    mkl_dnn_nhwc,
+    mkl_dnn_nChw8,
+    mkl_dnn_IOhw88,
+    mkl_dnn_nChw16,
+    mkl_dnn_IOhw1616,
+    mkl_dnn_blocked,
+} mkl_dnn_memory_format_t;
+
+typedef enum {
+    mkl_dnn_padding_zero,
+} mkl_dnn_padding_kind_t;
+
+typedef enum {
     mkl_dnn_forward = 1,
     mkl_dnn_backward_data = 2,
     mkl_dnn_backward_weights = 3,
@@ -47,23 +68,6 @@ typedef struct {
     mkl_dnn_dims_t dims; // { N, C1, ..., Cn, Xi, ..., Xm }
 } mkl_dnn_tensor_desc_t;
 
-typedef enum {
-    mkl_dnn_any_f32,
-    mkl_dnn_n_f32,
-    mkl_dnn_nchw_f32,
-    mkl_dnn_oihw_f32 = mkl_dnn_nchw_f32,
-    mkl_dnn_nhwc_f32,
-    mkl_dnn_nChw8_f32,
-    mkl_dnn_IOhw88_f32,
-    mkl_dnn_nChw16_f32,
-    mkl_dnn_IOhw1616_f32,
-    mkl_dnn_blocked_f32,
-} mkl_dnn_memory_format_t;
-
-typedef enum {
-    mkl_dnn_padding_zero,
-} mkl_dnn_padding_kind_t;
-
 typedef struct {
     size_t offset_padding;
     size_t offset_padding_to_data;
@@ -76,7 +80,8 @@ typedef struct {
 
 typedef struct {
     mkl_dnn_tensor_desc_t tensor_desc;
-    mkl_dnn_memory_format_t format; // includes information about type size
+    mkl_dnn_precision_t precision;
+    mkl_dnn_memory_format_t format;
     union {
         mkl_dnn_blocking_desc_t blocking_desc;
         // other descriptions possible

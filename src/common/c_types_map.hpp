@@ -37,18 +37,23 @@ namespace alg_kind {
 
 using tensor_desc_t = mkl_dnn_tensor_desc_t;
 
+using precision_t = mkl_dnn_precision_t;
+namespace precision {
+    const precision_t f32 = mkl_dnn_f32;
+}
+
 using memory_format_t = mkl_dnn_memory_format_t;
 namespace memory_format {
-    const memory_format_t any_f32 = mkl_dnn_any_f32;
-    const memory_format_t n_f32 = mkl_dnn_n_f32;
-    const memory_format_t nchw_f32 = mkl_dnn_nchw_f32;
-    const memory_format_t oihw_f32 = mkl_dnn_oihw_f32;
-    const memory_format_t nhwc_f32 = mkl_dnn_nhwc_f32;
-    const memory_format_t nChw8_f32 = mkl_dnn_nChw8_f32;
-    const memory_format_t IOhw88_f32 = mkl_dnn_IOhw88_f32;
-    const memory_format_t nChw16_f32 = mkl_dnn_nChw16_f32;
-    const memory_format_t IOhw1616_f32 = mkl_dnn_IOhw1616_f32;
-    const memory_format_t blocked_f32 = mkl_dnn_blocked_f32;
+    const memory_format_t any = mkl_dnn_any;
+    const memory_format_t n = mkl_dnn_n;
+    const memory_format_t nchw = mkl_dnn_nchw;
+    const memory_format_t oihw = mkl_dnn_oihw;
+    const memory_format_t nhwc = mkl_dnn_nhwc;
+    const memory_format_t nChw8 = mkl_dnn_nChw8;
+    const memory_format_t IOhw88 = mkl_dnn_IOhw88;
+    const memory_format_t nChw16 = mkl_dnn_nChw16;
+    const memory_format_t IOhw1616 = mkl_dnn_IOhw1616;
+    const memory_format_t blocked = mkl_dnn_blocked;
 }
 
 using padding_kind_t = mkl_dnn_padding_kind_t;

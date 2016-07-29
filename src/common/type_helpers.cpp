@@ -78,9 +78,9 @@ status_t compute_blocking(memory_desc_t &memory_desc) {
     const tensor_desc_t &tensor = memory_desc.tensor_desc;
     blocking_desc_t &blk = memory_desc.blocking_desc;
     switch (memory_desc.format) {
-    case n_f32: return fill_n(blk, tensor);
-    case nchw_f32: return fill_nchw(blk, tensor);
-    case nhwc_f32: return fill_nhwc(blk, tensor);
+    case n: return fill_n(blk, tensor);
+    case nchw: return fill_nchw(blk, tensor);
+    case nhwc: return fill_nhwc(blk, tensor);
     default: return invalid;
     }
 }
