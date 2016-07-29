@@ -15,22 +15,25 @@ struct mkl_dnn_primitive: public mkl_dnn::impl::c_compatible {
 private:
     // TODO: copy, equality and assignment -- all must be banned...
 protected:
+    const mkl_dnn::impl::primitive_desc_t _primitive_desc;
     mkl_dnn::impl::engine *_engine;
-    mkl_dnn::impl::primitive_kind_t _kind;
     mkl_dnn::impl::nstl::vector<mkl_dnn::impl::primitive_at_t> _input;
     mkl_dnn::impl::nstl::vector<mkl_dnn::impl::primitive*> _output;
 
     virtual mkl_dnn::impl::status_t execute_impl() = 0;
 
-    mkl_dnn_primitive(mkl_dnn::impl::engine *engine,
-            mkl_dnn::impl::primitive_kind_t kind)
-        : _engine(engine)
-        , _kind(kind) {}
+    mkl_dnn_primitive(const mkl_dnn::impl::primitive_desc_t& primitive_desc,
+            mkl_dnn::impl::engine *engine)
+        : _primitive_desc(primitive_desc)
+        , _engine(engine) {}
 public:
     virtual ~mkl_dnn_primitive() {}
 
-    mkl_dnn::impl::primitive_kind_t kind() const { return _kind; }
+    mkl_dnn::impl::primitive_desc_t primitive_desc() const
+    { return _primitive_desc; }
     mkl_dnn::impl::engine *engine() const { return _engine; }
+    mkl_dnn::impl::primitive_kind_t kind() const
+    { return _primitive_desc.base.primitive_kind; }
 
     virtual bool own_memory() const { return false; }
 
@@ -69,7 +72,7 @@ typedef const void* const_op_desc_t;
 typedef status_t (*primitive_desc_init_f)(primitive_desc_t *primitive_desc,
         const_op_desc_t op_desc, const engine &aengine);
 typedef status_t (*primitive_create_f)(primitive **aprimitive,
-        const_primitive_desc_t primitive_desc, const primitive_at_t inputs[],
+        const primitive_desc_t *primitive_desc, const primitive_at_t inputs[],
         primitive *outputs[]);
 
 struct primitive_impl /* : public c_compatible */ {

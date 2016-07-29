@@ -104,6 +104,28 @@ mkl_dnn_status_t mkl_dnn_primitive_create(mkl_dnn_primitive_t *primitive,
         const_mkl_dnn_primitive_desc_t primitive_desc,
         const mkl_dnn_primitive_at_t *inputs, mkl_dnn_primitive_t *outputs);
 
+/** For given \param primitive fills in coresponding \param primitive_desc */
+mkl_dnn_status_t mkl_dnn_primitive_get_primitive_desc(
+        const_mkl_dnn_primitive_t primitive,
+        mkl_dnn_primitive_desc_t *primitive_desc);
+
+/** For given \param primitive returns \param input at \param index position */
+mkl_dnn_status_t mkl_dnn_primitive_get_input_at(
+        const_mkl_dnn_primitive_t primitive, size_t index,
+        const mkl_dnn_primitive_at_t *input);
+
+/** For given \param primitive returns \param output at \param index position */
+mkl_dnn_status_t mkl_dnn_primitive_get_output(
+        const_mkl_dnn_primitive_t primitive, size_t index,
+        mkl_dnn_primitive_t *output);
+
+// XXX: do we need this?
+/** For given \param primitive returns constant primitive \param output at
+ * \param index position */
+mkl_dnn_status_t mkl_dnn_primitive_get_const_output(
+        const_mkl_dnn_primitive_t primitive, size_t index,
+        const_mkl_dnn_primitive_t *output);
+
 /** Deletes \param primitive. Also deallocates internally allocated memory if
  * primitive represents memory, previously created via
  * memory_create(&primitive, ..., NULL) */

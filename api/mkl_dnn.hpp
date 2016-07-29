@@ -54,7 +54,10 @@ public:
         c_api::mkl_dnn_primitive_at_t data;
         at(const primitive &aprimitive, size_t at = 0)
             : data(c_api::mkl_dnn_primitive_at(aprimitive.get(), at)) {}
+        inline operator primitive() const;
     };
+
+    inline c_api::mkl_dnn_primitive_desc_t get_primitive_desc() const;
 };
 
 struct error {
@@ -79,6 +82,22 @@ struct error {
     }
 };
 
+// XXX: reorder me with struct error :(
+inline primitive::at::operator primitive() const {
+    c_api::mkl_dnn_primitive_t output;
+    error::wrap_c_api(
+            c_api::mkl_dnn_primitive_get_output(data.primitive,
+                data.output_index, &output),
+            "couldn't get an output primitive");
+    return primitive(output, false);
+}
+inline c_api::mkl_dnn_primitive_desc_t primitive::get_primitive_desc() const {
+    c_api::mkl_dnn_primitive_desc_t pd;
+    error::wrap_c_api(mkl_dnn_primitive_get_primitive_desc(get(), &pd),
+            "coundn't get primive descriptor by primitive");
+    return pd;
+}
+
 template <> struct handle_traits<c_api::mkl_dnn_engine_t> {
     static constexpr auto destructor = &c_api::mkl_dnn_engine_destroy;
 };
@@ -101,6 +120,10 @@ struct engine: public handle<c_api::mkl_dnn_engine_t> {
         return c_api::mkl_dnn_engine_get_count(convert_to_c(akind));
     }
 
+    explicit engine(const c_api::mkl_dnn_engine_t& aengine)
+        : handle(aengine, false) {}
+    explicit engine(const c_api::const_mkl_dnn_engine_t& aengine)
+        : handle(const_cast<const c_api::mkl_dnn_engine_t>(aengine), false) {} // XXX: cast Roma
     explicit engine(kind akind, size_t index) {
         c_api::mkl_dnn_engine_t aengine;
         error::wrap_c_api(
@@ -161,6 +184,7 @@ struct memory: public primitive  {
 
     struct desc {
         c_api::mkl_dnn_memory_desc_t data;
+        desc(c_api::mkl_dnn_memory_desc_t adata): data(adata) {} // XXX: cast Roma
         desc(const tensor::desc &atensor_desc, precision aprecision,
                 format aformat) {
             error::wrap_c_api(
@@ -174,17 +198,21 @@ struct memory: public primitive  {
     struct primitive_desc {
         c_api::mkl_dnn_memory_primitive_desc_t data;
         primitive_desc() {} // XXX: should be private? should take C type?
+        primitive_desc(c_api::mkl_dnn_memory_primitive_desc_t adata)
+            : data(adata) {} // XXX: cast Roma
         primitive_desc(const desc &adesc, const engine &aengine) {
             error::wrap_c_api(
                     c_api::mkl_dnn_memory_primitive_desc_init(&data,
                         &adesc.data, aengine.get()),
                     "could not inittialize a memory primitive descriptor");
         }
+        memory::desc desc() const { return memory::desc(data.memory_desc); } // XXX: cast Roma
         bool operator==(const primitive_desc &other) {
             return mkl_dnn_memory_primitive_desc_equal(&data, &other.data);
         }
     };
 
+    memory(const primitive &aprimitive): primitive(aprimitive) {} // XXX: cast Roma
     memory(const primitive_desc &adesc, void *input = nullptr) {
         c_api::mkl_dnn_primitive_t result;
         error::wrap_c_api(
@@ -192,7 +220,7 @@ struct memory: public primitive  {
                 "could not create a memory primitive");
         reset(result);
     }
-    primitive_desc get_primitive_desc() {
+    primitive_desc get_primitive_desc() const {
         primitive_desc adesc;
         error::wrap_c_api(c_api::mkl_dnn_memory_get_primitive_desc(get(),
                     &adesc.data),
@@ -264,6 +292,34 @@ struct convolution: public primitive {
                     bias.data, output.get()),
                 "could not create a convolution primitive");
         reset(result);
+    }
+
+    convolution(prop_kind aprop_kind, algorithm aalgorithm,
+            const primitive::at &input, const primitive::at &weights,
+            const primitive::at &bias, const memory &output,
+            const tensor::dims strides, const tensor::nd_offset padding,
+            const padding_kind apadding_kind) {
+        auto input_md = memory(input).get_primitive_desc();
+        auto weights_md = memory(weights).get_primitive_desc();
+        auto bias_md = memory(bias).get_primitive_desc();
+        auto output_md = output.get_primitive_desc();
+
+        auto conv_d = desc(aprop_kind, aalgorithm, input_md.desc(),
+                weights_md.desc(), bias_md.desc(), output_md.desc(),
+                strides, padding, apadding_kind);
+        auto conv_pd = primitive_desc(conv_d,
+                engine(input_md.data.base.engine));
+#if 0
+        // WHY I CANNOT CALL THIS??????!!!!
+        convolution(conv_pd, input, weights, bias, output);
+#else
+        c_api::mkl_dnn_primitive_t result;
+        error::wrap_c_api(c_api::mkl_dnn_convolution_create(&result,
+                    &conv_pd.data, input.data, weights.data,
+                    bias.data, output.get()),
+                "could not create a convolution primitive");
+        reset(result);
+#endif
     }
 };
 

@@ -71,7 +71,7 @@ status_t mkl_dnn_memory_primitive_desc_init(
 
     for (auto init = engine->get_memory_inits(); *init; ++init) {
         status_t status = (*init)(
-                reinterpret_cast<primitive_desc_t*>(memory_primitive_desc),
+                primitive_desc_t::convert_from_c(memory_primitive_desc),
                 static_cast<const_op_desc_t>(memory_desc), *engine);
         if (status == success)
             return success;
@@ -95,6 +95,15 @@ status_t mkl_dnn_memory_create(primitive **memory,
         static_cast<primitive*>(data_ptr) };
     return mkl_dnn_primitive_create(memory, memory_primitive_desc, inputs,
             outputs);
+}
+
+mkl_dnn_status_t mkl_dnn_memory_get_primitive_desc(const primitive *memory,
+        memory_primitive_desc_t *memory_primitive_desc) {
+    if (any_null(memory, memory_primitive_desc)
+            || memory->kind() != mkl_dnn::impl::primitive_kind::memory)
+        return invalid_arguments;
+    *memory_primitive_desc = memory->primitive_desc().memory;
+    return success;
 }
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

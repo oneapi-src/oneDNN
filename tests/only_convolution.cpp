@@ -49,12 +49,18 @@ int doit() {
             c3_input, c3_weights, c3_bias, c3_output);
 #endif
 
+#if 0
     auto c3_desc = convolution::desc(prop_kind::forward, convolution::direct,
             c3_input_desc, c3_weights_desc, c3_bias_desc, c3_output_desc,
             {0, 0, 1, 1}, {0, 0, 1, 1}, padding_kind::zero);
     auto c3_primitive_desc = convolution::primitive_desc(c3_desc, cpu_engine);
     auto c3 = convolution(c3_primitive_desc,
             c3_input, c3_weights, c3_bias, c3_output);
+#else
+    auto c3 = convolution(prop_kind::forward, convolution::direct,
+            c3_input, c3_weights, c3_bias, c3_output,
+            {1, 1}, {1, 1}, padding_kind::zero);
+#endif
 
     stream().submit({c3}).wait();
 

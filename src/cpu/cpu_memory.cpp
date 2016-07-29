@@ -19,10 +19,9 @@ protected:
     status_t execute_impl() { return success; }
 
 public:
-    cpu_memory(const memory_primitive_desc_t &mpd, char* ptr):
-        primitive(const_cast<mkl_dnn::impl::engine*>(mpd.base.engine),
-                primitive_kind::memory),
-        _memory_buffer(ptr), _owns_memory(ptr == nullptr) {
+    cpu_memory(const memory_primitive_desc_t &mpd, char* ptr)
+        : primitive(mpd, const_cast<mkl_dnn::impl::engine*>(mpd.base.engine))
+        , _memory_buffer(ptr), _owns_memory(ptr == nullptr) {
         primitive_at_t input_at = { this, 0 };
         _input.push_back(input_at);
         _output.push_back(this);
@@ -42,8 +41,6 @@ public:
     /* static magic */
     static status_t memory_desc_init(primitive_desc_t *primitive_desc,
             const_op_desc_t op_desc, const mkl_dnn::impl::engine &aengine) {
-        auto memory_primitive_desc =
-            reinterpret_cast<memory_primitive_desc_t*>(primitive_desc);
         auto memory_desc = static_cast<const memory_desc_t*>(op_desc);
 
         memory_primitive_desc_t mpd = {
@@ -56,24 +53,21 @@ public:
             .memory_desc = *memory_desc
         };
         // if (!memory_primitive_desc_is_ok(mpd)) return invalid; // ???
-        *memory_primitive_desc = mpd;
+        primitive_desc->memory = mpd;
 
         return success;
     }
 
     static status_t memory_create(primitive **primitive,
-            const_primitive_desc_t primitive_desc,
+            const primitive_desc_t *primitive_desc,
             const primitive_at_t inputs[],
             mkl_dnn::impl::primitive *outputs[]) {
-        auto& mpd = *static_cast<const memory_primitive_desc_t*>(primitive_desc);
-        assert(mpd.base.primitive_kind == primitive_kind::memory);
+        assert(primitive_desc->base.primitive_kind == primitive_kind::memory);
         assert(inputs[0].primitive == outputs[0]);
-        char* ptr = reinterpret_cast<char*>(outputs[0]);
 
-        *primitive = new cpu_memory(mpd, ptr);
-        if (primitive)
-            return success;
-        return out_of_memory;
+        char* ptr = reinterpret_cast<char*>(outputs[0]);
+        *primitive = new cpu_memory(primitive_desc->memory, ptr);
+        return primitive ? success : out_of_memory;
     }
 
     static const primitive_impl memory_implementation;

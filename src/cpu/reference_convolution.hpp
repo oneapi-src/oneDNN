@@ -47,10 +47,9 @@ public:
 
     reference_convolution(const convolution_primitive_desc_t &cpd,
             const primitive_at_t *inputs, primitive *outputs[])
-        : primitive(const_cast<impl::engine*>(cpd.base.engine),
-                convolution)
-          , _cpd(cpd)
-          , _exec_state(not_ready)
+        : primitive(cpd, const_cast<impl::engine*>(cpd.base.engine))
+        , _cpd(_primitive_desc.convolution)
+        , _exec_state(not_ready)
     {
         for (int i = 0; i < 3; ++i)
             _input.push_back(inputs[i]);
@@ -64,7 +63,7 @@ public:
     static status_t primitive_desc_init(primitive_desc_t *primitive_desc,
             const_op_desc_t op_desc, const mkl_dnn::impl::engine &aengine);
     static status_t create(primitive **aprimitive,
-        const_primitive_desc_t primitive_desc,
+        const primitive_desc_t *primitive_desc,
         const primitive_at_t inputs[], primitive *outputs[]);
     static const primitive_impl implementation;
 };

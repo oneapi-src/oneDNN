@@ -85,8 +85,30 @@ using primitive_base_desc_t = mkl_dnn_primitive_base_desc_t;
 using memory_primitive_desc_t = mkl_dnn_memory_primitive_desc_t;
 using reorder_primitive_desc_t = mkl_dnn_reorder_primitive_desc_t;
 using convolution_primitive_desc_t = mkl_dnn_convolution_primitive_desc_t;
+#if 0
 using primitive_desc_t = mkl_dnn_primitive_desc_t;
 using const_primitive_desc_t = const_mkl_dnn_primitive_desc_t;
+#else
+union primitive_desc_t {
+    primitive_base_desc_t base;
+    memory_primitive_desc_t memory;
+    reorder_primitive_desc_t reorder;
+    convolution_primitive_desc_t convolution;
+#   define DECL_CTOR_AND_CONVERTERS(c_type, name) \
+    primitive_desc_t(const c_type &_): name(_) {} \
+    static primitive_desc_t *convert_from_c(c_type *_) \
+    { return reinterpret_cast<primitive_desc_t*>(_); } \
+    static const primitive_desc_t *convert_from_c(const c_type *_) \
+    { return reinterpret_cast<const primitive_desc_t*>(_); }
+
+    DECL_CTOR_AND_CONVERTERS(primitive_base_desc_t, base);
+    DECL_CTOR_AND_CONVERTERS(memory_primitive_desc_t, memory);
+    DECL_CTOR_AND_CONVERTERS(reorder_primitive_desc_t, reorder);
+    DECL_CTOR_AND_CONVERTERS(convolution_primitive_desc_t, convolution);
+
+#   undef DECL_CTOR_AND_CONVERTERS
+};
+#endif
 
 using primitive = mkl_dnn_primitive;
 
