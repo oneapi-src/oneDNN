@@ -22,13 +22,13 @@ template <impl::precision_t prec>
 status_t reference_convolution<prec>::execute_forward() {
     auto obtain_ptr = [this](uint32_t idx) {
         const size_t oi = this->input()[idx].output_index;
-        return reinterpret_cast<const real_t*>(
+        return reinterpret_cast<const data_t*>(
                 this->input()[idx].primitive->output()[oi]->memory_const());
     };
-    const real_t *src = obtain_ptr(0);
-    const real_t *weights = obtain_ptr(1);
-    const real_t *bias = obtain_ptr(2);
-    real_t *dst = reinterpret_cast<real_t*>(this->output()[0]->memory());
+    const data_t *src = obtain_ptr(0);
+    const data_t *weights = obtain_ptr(1);
+    const data_t *bias = obtain_ptr(2);
+    data_t *dst = reinterpret_cast<data_t*>(this->output()[0]->memory());
 
     const types::memory_desc_wrapper
         src_d(this->_cpd.input_primitive_desc.memory_desc),
@@ -52,7 +52,7 @@ status_t reference_convolution<prec>::execute_forward() {
     const uint32_t padH = this->_cpd.convolution_desc.padding[0];
     const uint32_t padW = this->_cpd.convolution_desc.padding[1];
 
-    auto ker = [=](real_t *d, uint32_t mb, uint32_t oc, uint32_t oh,
+    auto ker = [=](data_t *d, uint32_t mb, uint32_t oc, uint32_t oh,
             uint32_t ow)
     {
         for (uint32_t ic = 0; ic < IC; ++ic) {
@@ -79,7 +79,7 @@ status_t reference_convolution<prec>::execute_forward() {
         for (uint32_t oc = 0; oc < OC; ++oc) {
             for (uint32_t oh = 0; oh < OH; ++oh) {
                 for (uint32_t ow = 0; ow < OW; ++ow) {
-                    real_t *d = &dst[dst_d.off(mb, oc, oh, ow)];
+                    data_t *d = &dst[dst_d.off(mb, oc, oh, ow)];
                     *d = bias[bias_d.off(oc)];
                     ker(d, mb, oc, oh, ow);
                 }
