@@ -7,7 +7,7 @@ namespace mkl_dnn { namespace impl { namespace cpu {
 
 namespace {
 primitive_desc_init_f convolution_inits[] = {
-    reference_convolution::primitive_desc_init,
+    reference_convolution<impl::precision::f32>::primitive_desc_init,
     NULL,
 };
 }

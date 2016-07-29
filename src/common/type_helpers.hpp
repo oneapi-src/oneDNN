@@ -7,6 +7,10 @@
 #include "nstl.hpp"
 #include "utils.hpp"
 
+template <mkl_dnn::impl::precision_t> struct precision2type {};
+template <>
+struct precision2type<mkl_dnn::impl::precision::f32> { typedef float type; };
+
 namespace mkl_dnn {
 namespace impl {
 // XXX: is this the only namespace we have?

@@ -3,6 +3,7 @@
 
 #include <assert.h>
 
+#include "c_types_map.hpp"
 #include "type_helpers.hpp"
 #include "primitive.hpp"
 #include "cpu_engine.hpp"
@@ -10,9 +11,11 @@
 namespace mkl_dnn { namespace impl { namespace cpu {
 
 using namespace mkl_dnn::impl::status;
+using namespace mkl_dnn::impl::precision;
 using namespace mkl_dnn::impl::prop_kind;
 using namespace mkl_dnn::impl::primitive_kind;
 
+template <impl::precision_t prec>
 class reference_convolution: public primitive {
 private:
     const impl::convolution_primitive_desc_t &_cpd;
@@ -40,6 +43,8 @@ protected:
     }
 
 public:
+    typedef typename precision2type<prec>::type real_t;
+
     reference_convolution(const convolution_primitive_desc_t &cpd,
             const primitive_at_t *inputs, primitive *outputs[])
         : primitive(const_cast<impl::engine*>(cpd.base.engine),

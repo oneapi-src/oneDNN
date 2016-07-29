@@ -18,9 +18,8 @@ using namespace mkl_dnn::impl::precision;
 using namespace mkl_dnn::impl::memory_format;
 using namespace mkl_dnn::impl::primitive_kind;
 
-typedef float real_t;
-
-status_t reference_convolution::execute_forward() {
+template <impl::precision_t prec>
+status_t reference_convolution<prec>::execute_forward() {
     auto obtain_ptr = [this](uint32_t idx) {
         const size_t oi = this->input()[idx].output_index;
         return reinterpret_cast<const real_t*>(
@@ -91,19 +90,23 @@ status_t reference_convolution::execute_forward() {
     return success;
 }
 
-status_t reference_convolution::execute_backward_data() {
+template <impl::precision_t prec>
+status_t reference_convolution<prec>::execute_backward_data() {
     return unimplemented;
 }
 
-status_t reference_convolution::execute_backward_weights() {
+template <impl::precision_t prec>
+status_t reference_convolution<prec>::execute_backward_weights() {
     return unimplemented;
 }
 
-status_t reference_convolution::execute_backward_bias() {
+template <impl::precision_t prec>
+status_t reference_convolution<prec>::execute_backward_bias() {
     return unimplemented;
 }
 
-status_t reference_convolution::primitive_desc_init(
+template <impl::precision_t prec>
+status_t reference_convolution<prec>::primitive_desc_init(
         primitive_desc_t *primitive_desc, const_op_desc_t op_desc,
         const mkl_dnn::impl::engine &engine) {
     auto conv_pd =
@@ -162,7 +165,8 @@ status_t reference_convolution::primitive_desc_init(
     return success;
 }
 
-status_t reference_convolution::create(primitive **primitive,
+template <impl::precision_t prec>
+status_t reference_convolution<prec>::create(primitive **primitive,
         const_primitive_desc_t primitive_desc,
         const primitive_at_t inputs[], mkl_dnn::impl::primitive *outputs[]) {
     auto& cpd =
@@ -176,10 +180,13 @@ status_t reference_convolution::create(primitive **primitive,
     return out_of_memory;
 }
 
-const primitive_impl reference_convolution::implementation = {
+template <impl::precision_t prec>
+const primitive_impl reference_convolution<prec>::implementation = {
     .primitive_desc_init = reference_convolution::primitive_desc_init,
     .primitive_create = reference_convolution::create,
 };
+
+template class reference_convolution<f32>;
 
 }}}
 
