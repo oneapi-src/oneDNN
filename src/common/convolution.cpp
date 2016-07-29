@@ -16,7 +16,7 @@ status_t mkl_dnn_convolution_desc_init(convolution_desc_t *convolution_desc,
         prop_kind_t prop_kind, alg_kind_t alg_kind,
         const memory_desc_t *input_desc, const memory_desc_t *weights_desc,
         const memory_desc_t *bias_desc, const memory_desc_t *output_desc,
-        const dims_t strides, const nd_pos_t padding,
+        const dims_t strides, const nd_offset_t padding,
         padding_kind_t padding_kind)
 {
     const bool args_ok = !any_null(convolution_desc,

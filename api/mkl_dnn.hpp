@@ -113,7 +113,6 @@ struct engine: public handle<c_api::mkl_dnn_engine_t> {
 
 struct tensor {
     typedef std::vector<std::remove_extent<c_api::mkl_dnn_dims_t>::type> dims;
-    typedef std::vector<std::remove_extent<c_api::mkl_dnn_nd_pos_t>::type> nd_pos;
     typedef std::vector<std::remove_extent<c_api::mkl_dnn_nd_offset_t>::type> nd_offset;
 
     template <typename T> static void validate_dims(std::vector<T> v) {
@@ -232,7 +231,7 @@ struct convolution: public primitive {
                 const memory::desc &bias_desc,
                 const memory::desc &output_desc,
                 const tensor::dims strides,
-                const tensor::nd_pos padding,
+                const tensor::nd_offset padding,
                 const padding_kind apadding_kind)
         {
             tensor::validate_dims(strides);

@@ -56,10 +56,8 @@ typedef enum {
 
 #define TENSOR_MAX_DIMS 12U
 
-/* FIXME asap! */
-typedef uint32_t mkl_dnn_nd_offset_t[TENSOR_MAX_DIMS];
-typedef uint32_t mkl_dnn_nd_pos_t[TENSOR_MAX_DIMS];
 typedef uint32_t mkl_dnn_dims_t[TENSOR_MAX_DIMS];
+typedef int32_t mkl_dnn_nd_offset_t[TENSOR_MAX_DIMS];
 
 typedef struct {
     uint32_t ndims_batch;
@@ -97,8 +95,8 @@ typedef struct {
     mkl_dnn_memory_desc_t weights_desc;
     mkl_dnn_memory_desc_t bias_desc;
     mkl_dnn_memory_desc_t output_desc;
+    mkl_dnn_dims_t strides;
     mkl_dnn_nd_offset_t padding;
-    mkl_dnn_nd_pos_t strides;
     mkl_dnn_padding_kind_t padding_kind;
 } mkl_dnn_convolution_desc_t;
 

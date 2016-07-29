@@ -33,8 +33,8 @@ int doit() {
     uint32_t c3_input_sizes[4] = {mb, 256, 13, 13};
     uint32_t c3_weights_sizes[4] = {384, 256, 3, 3};
     uint32_t c3_bias_sizes[1] = {384};
-    uint32_t padding[] = {0, 0}; // set proper values
     uint32_t strides[] = {1, 1};
+    int32_t  padding[] = {0, 0}; // set proper values
     uint32_t c3_output_sizes[4] = {mb, 384,
         (c3_input_sizes[2] + 2*padding[0] - c3_weights_sizes[2])/strides[0] + 1,
         (c3_input_sizes[3] + 2*padding[1] - c3_weights_sizes[3])/strides[1] + 1

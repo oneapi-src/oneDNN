@@ -8,7 +8,6 @@ namespace mkl_dnn { namespace impl {
 // TODO: autogenerate this
 
 using nd_offset_t = mkl_dnn_nd_offset_t;
-using nd_pos_t = mkl_dnn_nd_pos_t;
 using dims_t = mkl_dnn_dims_t;
 
 using status_t = mkl_dnn_status_t;

@@ -68,7 +68,7 @@ mkl_dnn_status_t mkl_dnn_convolution_desc_init(
         const mkl_dnn_memory_desc_t *weights_desc,
         const mkl_dnn_memory_desc_t *bias_desc,
         const mkl_dnn_memory_desc_t *output_desc,
-        const mkl_dnn_dims_t strides, const mkl_dnn_nd_pos_t padding,
+        const mkl_dnn_dims_t strides, const mkl_dnn_nd_offset_t padding,
         mkl_dnn_padding_kind_t padding_kind);
 
 /** Initializes a \param convolution_primitve_desc by given \param
