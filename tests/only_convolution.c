@@ -40,10 +40,12 @@ int doit() {
         (c3_input_sizes[3] + 2*padding[1] - c3_weights_sizes[3])/strides[1] + 1
     };
 
-    real_t *input = (real_t*)malloc(sizeof(real_t)*product(c3_input_sizes, 4));
-    real_t *weights = (real_t*)malloc(sizeof(real_t)*product(c3_weights_sizes, 4));
-    real_t *bias = (real_t*)malloc(sizeof(real_t)*product(c3_bias_sizes, 1));
-    real_t *output = (real_t*)malloc(sizeof(real_t)*product(c3_output_sizes, 4));
+    real_t *input = (real_t*)calloc(product(c3_input_sizes, 4), sizeof(real_t));
+    real_t *weights = (real_t*)calloc(product(c3_weights_sizes, 4), sizeof(real_t));
+    real_t *bias = (real_t*)calloc(product(c3_bias_sizes, 1), sizeof(real_t));
+    real_t *output = (real_t*)calloc(product(c3_output_sizes, 4), sizeof(real_t));
+
+    for (uint32_t i = 0; i < c3_bias_sizes[0]; ++i) bias[i] = i;
 
     mkl_dnn_engine_t engine;
     CHECK(mkl_dnn_engine_create(&engine, mkl_dnn_cpu, 0 /* idx */));
@@ -58,7 +60,7 @@ int doit() {
     CHECK(mkl_dnn_tensor_desc_init(&c3_input_tz, 1, 1, 2, c3_input_sizes));
     CHECK(mkl_dnn_memory_desc_init(&c3_input_md, &c3_input_tz, mkl_dnn_nchw_f32));
     CHECK(mkl_dnn_memory_primitive_desc_init(&c3_input_pd, &c3_input_md, engine));
-    CHECK(mkl_dnn_memory_create(&c3_input, &c3_input_pd, NULL /*input*/));
+    CHECK(mkl_dnn_memory_create(&c3_input, &c3_input_pd, 0 ? NULL : input));
 
     CHECK(mkl_dnn_tensor_desc_init(&c3_weights_tz, 0, 2, 2, c3_weights_sizes));
     CHECK(mkl_dnn_memory_desc_init(&c3_weights_md, &c3_weights_tz, mkl_dnn_oihw_f32));
@@ -115,12 +117,24 @@ int doit() {
     mkl_dnn_primitive_destroy(c3_output);
     mkl_dnn_engine_destroy(engine);
 
+    int rc = 0;
+    const uint32_t N = c3_output_sizes[0], C = c3_output_sizes[1],
+          H = c3_output_sizes[2], W = c3_output_sizes[3];
+    for (uint32_t n = 0; n < N; ++n)
+    for (uint32_t c = 0; c < C; ++c)
+    for (uint32_t h = 0; h < H; ++h)
+    for (uint32_t w = 0; w < W; ++w)
+    {
+        size_t off = ((n*C + c)*H + h)*W + w;
+        if (output[off] != bias[c]) rc = 1;
+    }
+
     free(input);
     free(weights);
     free(bias);
     free(output);
 
-    return 0;
+    return rc;
 }
 
 int main(int argc, char **argv) {
