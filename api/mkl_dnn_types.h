@@ -122,7 +122,7 @@ typedef enum {
 } mkl_dnn_primitive_kind_t;
 
 typedef struct {
-    mkl_dnn_primitive_kind_t primitive_kind;
+    mkl_dnn_primitive_kind_t primitive_kind; // TODO: rename to just kind
     const_mkl_dnn_engine_t engine;
     const void *implementation;
 } mkl_dnn_primitive_base_desc_t;

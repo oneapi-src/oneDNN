@@ -17,7 +17,7 @@ mkl_dnn_status_t mkl_dnn_tensor_desc_init(mkl_dnn_tensor_desc_t *tensor_desc,
  * data \param precision and \param format. \param format is allowed to be
  * memory_format_any, which means do not specify any specific data layout */
 mkl_dnn_status_t mkl_dnn_memory_desc_init(mkl_dnn_memory_desc_t *memory_desc,
-        const mkl_dnn_tensor_desc_t *tensor,mkl_dnn_precision_t precision,
+        const mkl_dnn_tensor_desc_t *tensor, mkl_dnn_precision_t precision,
         mkl_dnn_memory_format_t format);
 
 /** Initializes a \param memory_primtive_desc memory primitive descriptor by
@@ -32,8 +32,12 @@ mkl_dnn_status_t mkl_dnn_memory_primitive_desc_init(
  * primitives descriptors are the same, \return 0 otherwise. Use this function
  * in order to identify whether reorder between two memory primitives is
  * required */
-int mkl_dnn_memory_primitive_desc_equal(const mkl_dnn_memory_primitive_desc_t *lhs,
+int mkl_dnn_memory_primitive_desc_equal(
+        const mkl_dnn_memory_primitive_desc_t *lhs,
         const mkl_dnn_memory_primitive_desc_t *rhs);
+
+/* XXX: consider mkl_dnn_memory_create_by_ptr (user set ptr or NULL) and
+ * mkl_dnn_memory_create_by_memory (required for split/concat) */
 
 /** Creates a \param memory by given \param memory_primitive_desc and \param
  * data_ptr. If \param data_ptr is NULL \param memory would be initialized with
@@ -85,9 +89,9 @@ mkl_dnn_status_t mkl_dnn_convolution_primitive_desc_init(
 /* XXX: think on this: either add "forward" in function name or put all inputs
  * and outputs in-to arrays, otherwise it is unclear how to create bwd filt */
 
-/** Creates a \param convolution primitive by given \param
- * convolution_primitive_desc descriptor, input primitive_ats \param src, \param
- * weights, \param bias and output primitive \param dst */
+/** Creates a \param convolution primitive by given descriptor \param
+ * convolution_primitive_desc, input primitive_ats \param src, \param weights,
+ * \param bias and output primitive \param dst */
 mkl_dnn_status_t mkl_dnn_convolution_create(mkl_dnn_primitive_t *convolution,
         const mkl_dnn_convolution_primitive_desc_t *convolution_primitive_desc,
         const mkl_dnn_primitive_at_t src, const mkl_dnn_primitive_at_t weights,
@@ -110,8 +114,7 @@ mkl_dnn_status_t mkl_dnn_primitive_destroy(mkl_dnn_primitive_t primitive);
  * without checking whether parameters are correct. The actual error checking
  * is done when the resulting dnn_primitive_at structure is passed to a
  * primitive creation function. */
-mkl_dnn_primitive_at_t mkl_dnn_primitive_at(
-        const_mkl_dnn_primitive_t primitive,
+mkl_dnn_primitive_at_t mkl_dnn_primitive_at(const_mkl_dnn_primitive_t primitive,
         size_t output_index);
 
 /** Returns the number of engines of a particular \param kind */
