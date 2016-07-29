@@ -20,6 +20,13 @@ existing primitive from the `C` land
        void *const *primitive_desc)` as a user-visible function?
 
 
+API soon changes
+----------------
+
+1. data type is a part of tensor, not memory format
+
+
+
 C++
 ---
 
