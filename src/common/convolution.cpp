@@ -78,5 +78,4 @@ mkl_dnn_status_t mkl_dnn_convolution_create(mkl_dnn_primitive_t *convolution,
     return mkl_dnn_primitive_create(convolution, cpd, inputs, outputs);
 }
 
-
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
