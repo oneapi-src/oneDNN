@@ -88,13 +88,14 @@ inline primitive::at::operator primitive() const {
     error::wrap_c_api(
             c_api::mkl_dnn_primitive_get_output(data.primitive,
                 data.output_index, &output),
-            "couldn't get an output primitive");
+            "could not get an output primitive");
     return primitive(output, false);
 }
+
 inline c_api::mkl_dnn_primitive_desc_t primitive::get_primitive_desc() const {
     c_api::mkl_dnn_primitive_desc_t pd;
     error::wrap_c_api(mkl_dnn_primitive_get_primitive_desc(get(), &pd),
-            "coundn't get primive descriptor by primitive");
+            "could not get primive descriptor by primitive");
     return pd;
 }
 
