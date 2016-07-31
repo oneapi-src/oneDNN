@@ -7,22 +7,22 @@
 extern "C" {
 #endif
 
-/** Initializes a \param tensor_desc by given \param ndims_batch, \param
+/** Initializes a \param tensor_desc using \param ndims_batch, \param
  * ndims_channels, \param ndims_spatial, and array \param dims */
 mkl_dnn_status_t mkl_dnn_tensor_desc_init(mkl_dnn_tensor_desc_t *tensor_desc,
         uint32_t ndims_batch, uint32_t ndims_channels, uint32_t ndims_spatial,
         const mkl_dnn_dims_t dims);
 
-/** Initializes a \param memory_desc memory descriptor by given \param tensor,
+/** Initializes a \param memory_desc memory descriptor using \param tensor,
  * data \param precision and \param format. \param format is allowed to be
  * memory_format_any, which means do not specify any specific data layout */
 mkl_dnn_status_t mkl_dnn_memory_desc_init(mkl_dnn_memory_desc_t *memory_desc,
         const mkl_dnn_tensor_desc_t *tensor, mkl_dnn_precision_t precision,
         mkl_dnn_memory_format_t format);
 
-/** Initializes a \param memory_primtive_desc memory primitive descriptor by
- * given \param memory_desc and \param engine. Note that \param memory_desc
- * cannot be uncertain, i.e. initialized with memory_format_any */
+/** Initializes a \param memory_primtive_desc memory primitive descriptor using
+ * \param memory_desc and \param engine. Note that \param memory_desc cannot be
+ * uncertain, i.e. initialized with memory_format_any */
 mkl_dnn_status_t mkl_dnn_memory_primitive_desc_init(
         mkl_dnn_memory_primitive_desc_t *memory_primitive_desc,
         const mkl_dnn_memory_desc_t *memory_desc,
@@ -39,7 +39,7 @@ int mkl_dnn_memory_primitive_desc_equal(
 /* XXX: consider mkl_dnn_memory_create_by_ptr (user set ptr or NULL) and
  * mkl_dnn_memory_create_by_memory (required for split/concat) */
 
-/** Creates a \param memory by given \param memory_primitive_desc and \param
+/** Creates a \param memory with a \param memory_primitive_desc and \param
  * data_ptr. If \param data_ptr is NULL \param memory would be initialized with
  * internally allocated memory. primitive_destroy() will takes care on
  * allocated memory then */
@@ -47,20 +47,20 @@ mkl_dnn_status_t mkl_dnn_memory_create(mkl_dnn_primitive_t *memory,
         const mkl_dnn_memory_primitive_desc_t *memory_primitive_desc,
         void *data_ptr);
 
-/** For given \param memory primitive fills in coresponding \param
- * memory_primitive_desc */
+/** Retrieves the \param memory_primitive_desc associated with a \param memory
+ * primitive */
 mkl_dnn_status_t mkl_dnn_memory_get_primitive_desc(
         const_mkl_dnn_primitive_t memory,
         mkl_dnn_memory_primitive_desc_t *memory_primitive_desc);
 
-/** Initializes a \param reorder_primitive_desc by given \param input and
- * \param output memory primitive descriptors */
+/** Initializes a \param reorder_primitive_desc using \param input and \param
+ * output memory primitive descriptors */
 mkl_dnn_status_t mkl_dnn_reorder_primitive_desc_init(
         mkl_dnn_reorder_primitive_desc_t *reorder_primitive_desc,
         const mkl_dnn_memory_primitive_desc_t *input,
         const mkl_dnn_memory_primitive_desc_t *output);
 
-/** Initializes a \param convolution_desc by given \param prop_kind, \param
+/** Initializes a \param convolution_desc using \param prop_kind, \param
  * alg_kind, memory descriptors, \param strides, \param padding and \param
  * padding_kind. Please note that memory descriptors may be initialized with
  * format_kind_any format_kind. In this case convolution_primitive_desc_init()
@@ -75,7 +75,7 @@ mkl_dnn_status_t mkl_dnn_convolution_desc_init(
         const mkl_dnn_dims_t strides, const mkl_dnn_nd_offset_t padding,
         mkl_dnn_padding_kind_t padding_kind);
 
-/** Initializes a \param convolution_primitve_desc by given \param
+/** Initializes a \param convolution_primitve_desc by with \param
  * convolution_desc and \param engine */
 mkl_dnn_status_t mkl_dnn_convolution_primitive_desc_init(
         mkl_dnn_convolution_primitive_desc_t *convolution_primitive_desc,
@@ -89,7 +89,7 @@ mkl_dnn_status_t mkl_dnn_convolution_primitive_desc_init(
 /* XXX: think on this: either add "forward" in function name or put all inputs
  * and outputs in-to arrays, otherwise it is unclear how to create bwd filt */
 
-/** Creates a \param convolution primitive by given descriptor \param
+/** Creates a \param convolution primitive using descriptor \param
  * convolution_primitive_desc, input primitive_ats \param src, \param weights,
  * \param bias and output primitive \param dst */
 mkl_dnn_status_t mkl_dnn_convolution_create(mkl_dnn_primitive_t *convolution,
@@ -98,30 +98,30 @@ mkl_dnn_status_t mkl_dnn_convolution_create(mkl_dnn_primitive_t *convolution,
         const mkl_dnn_primitive_at_t bias, mkl_dnn_primitive_t dst);
 
 /* XXX: is this even usable by user? */
-/** Creates a \param primitive by given \param primitive descriptor and array
- * of \param inputs and \param outputs */
+/** Creates a \param primitive using a \param primitive descriptor and array of
+ * \param inputs and \param outputs */
 mkl_dnn_status_t mkl_dnn_primitive_create(mkl_dnn_primitive_t *primitive,
         const_mkl_dnn_primitive_desc_t primitive_desc,
         const mkl_dnn_primitive_at_t *inputs, mkl_dnn_primitive_t *outputs);
 
-/** For given \param primitive fills in coresponding \param primitive_desc */
+/** Retrieves \param primitive_desc of a \param primitive */
 mkl_dnn_status_t mkl_dnn_primitive_get_primitive_desc(
         const_mkl_dnn_primitive_t primitive,
         mkl_dnn_primitive_desc_t *primitive_desc);
 
-/** For given \param primitive returns \param input at \param index position */
+/** For a \param primitive returns \param input at \param index position */
 mkl_dnn_status_t mkl_dnn_primitive_get_input_at(
         const_mkl_dnn_primitive_t primitive, size_t index,
         const mkl_dnn_primitive_at_t *input);
 
-/** For given \param primitive returns \param output at \param index position */
+/** For a \param primitive returns \param output at \param index position */
 mkl_dnn_status_t mkl_dnn_primitive_get_output(
         const_mkl_dnn_primitive_t primitive, size_t index,
         mkl_dnn_primitive_t *output);
 
 // XXX: do we need this?
-/** For given \param primitive returns constant primitive \param output at
- * \param index position */
+/** For a \param primitive returns constant primitive \param output at \param
+ * index position */
 mkl_dnn_status_t mkl_dnn_primitive_get_const_output(
         const_mkl_dnn_primitive_t primitive, size_t index,
         const_mkl_dnn_primitive_t *output);
