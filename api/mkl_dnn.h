@@ -126,6 +126,10 @@ mkl_dnn_status_t mkl_dnn_primitive_get_const_output(
         const_mkl_dnn_primitive_t primitive, size_t index,
         const_mkl_dnn_primitive_t *output);
 
+/** Returns the \param engine used by a \primitive */
+mkl_dnn_status_t mkl_dnn_primitive_get_engine(
+        const_mkl_dnn_primitive_t primitive, const_mkl_dnn_engine_t *engine);
+
 /** Deletes \param primitive. Also deallocates internally allocated memory if
  * primitive represents memory, previously created via
  * memory_create(&primitive, ..., NULL) */
@@ -145,6 +149,14 @@ size_t mkl_dnn_engine_get_count(mkl_dnn_engine_kind_t kind);
 /** Creates an \param engine of particular \param kind and \param index */
 mkl_dnn_status_t mkl_dnn_engine_create(mkl_dnn_engine_t *engine,
         mkl_dnn_engine_kind_t kind, size_t index);
+
+/** Sets a \param specific \param parameter of an \param engine */
+mkl_dnn_status_t mkl_dnn_engine_set_specific(mkl_dnn_engine_t *engine,
+        mkl_dnn_engine_specific_t specific, const void *parameter);
+
+/** Retrieves a \param specific \param parameter of an \param engine */
+mkl_dnn_status_t mkl_dnn_engine_get_specific(const_mkl_dnn_engine_t *engine,
+        mkl_dnn_engine_specific_t specific, void *parameter);
 
 /** Destroys an \param engine */
 mkl_dnn_status_t mkl_dnn_engine_destroy(mkl_dnn_engine_t engine);

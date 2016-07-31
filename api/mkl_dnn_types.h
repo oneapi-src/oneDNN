@@ -112,6 +112,10 @@ struct mkl_dnn_engine;
 typedef struct mkl_dnn_engine *mkl_dnn_engine_t;
 typedef const struct mkl_dnn_engine *const_mkl_dnn_engine_t;
 
+typedef enum {
+    mkl_dnn_dummy,
+} mkl_dnn_engine_specific_t;
+
 /** primitive descriptor section */
 
 typedef enum {

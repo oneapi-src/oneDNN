@@ -73,6 +73,8 @@ namespace engine_kind {
 
 using engine = mkl_dnn_engine;
 
+using engine_specific_t = mkl_dnn_engine_specific_t;
+
 using primitive_kind_t = mkl_dnn_primitive_kind_t;
 namespace primitive_kind {
     const primitive_kind_t undefined = mkl_dnn_undefined_primitive;

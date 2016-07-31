@@ -17,6 +17,15 @@ public:
             mkl_dnn::impl::primitive **error_primitive) = 0;
     virtual ~mkl_dnn_engine() { };
 
+    virtual mkl_dnn::impl::status_t set_specific(
+            mkl_dnn::impl::engine_specific_t specific,
+            const void *parameter)
+    { return mkl_dnn::impl::status::unimplemented; }
+    virtual mkl_dnn::impl::status_t get_specific(
+            mkl_dnn::impl::engine_specific_t specific,
+            void *parameter) const
+    { return mkl_dnn::impl::status::unimplemented; }
+
     /* primitives' descriptor initializators
      * the default one guarantees to return at least an empty list,
      * so no need to check the return value on NULL */
