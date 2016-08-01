@@ -62,16 +62,6 @@ status_t mkl_dnn_engine_create(engine **engine,
     return ef->engine_create(engine, index);
 }
 
-status_t mkl_dnn_engine_set_specific(engine *engine,
-        engine_specific_t specific, const void *parameter) {
-    return engine->set_specific(specific, parameter);
-}
-
-status_t mkl_dnn_engine_get_specific(const engine *engine,
-        engine_specific_t specific, void *parameter) {
-    return engine->get_specific(specific, parameter);
-}
-
 status_t mkl_dnn_engine_destroy(engine *engine) {
     delete engine;
     return success;
