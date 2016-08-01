@@ -22,7 +22,7 @@ static size_t product(uint32_t *arr, size_t size) {
     return prod;
 }
 
-int doit() {
+int doit(int lazy) {
     /* AlexNet: c3
      * {2, 256, 13, 13} (x) {384, 256, 3, 3} -> {2, 384, 13, 13}
      * pad: {1, 1}
@@ -48,7 +48,7 @@ int doit() {
     for (uint32_t i = 0; i < c3_bias_sizes[0]; ++i) bias[i] = i;
 
     mkl_dnn_engine_t engine;
-    CHECK(mkl_dnn_engine_create(&engine, mkl_dnn_cpu, 0 /* idx */));
+    CHECK(mkl_dnn_engine_create(&engine, lazy ? mkl_dnn_cpu_lazy : mkl_dnn_cpu, 0 /* idx */));
 
     /* first describe user data and create data descriptors for future
      * convolution w/ the specified format -- we do not want to do a reorder */
@@ -138,7 +138,9 @@ int doit() {
 }
 
 int main(int argc, char **argv) {
-    int rc = doit();
-    printf("%s\n", rc ? "failed" : "passed");
+    int rc = doit(0);
+    printf("eager: %s\n", rc ? "failed" : "passed");
+    rc = doit(1);
+    printf("lazy:  %s\n", rc ? "failed" : "passed");
     return rc;
 }

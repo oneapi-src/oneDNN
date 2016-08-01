@@ -9,7 +9,7 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-but-set-variable"
 
-int doit() {
+int doit(bool lazy) {
     using namespace mkl_dnn;
 
     /* AlexNet: c3
@@ -19,7 +19,7 @@ int doit() {
      */
 
     printf("There are %zu CPU engines\n", engine::get_count(engine::cpu));
-    auto cpu_engine = engine(engine::cpu, 0);
+    auto cpu_engine = engine(lazy ? engine::cpu_lazy : engine::cpu, 0);
 
     // TODO: make tensor desc optional and default to N C X1 .. XN
 
@@ -70,7 +70,9 @@ int doit() {
 #pragma GCC diagnostic pop
 
 int main(int argc, char **argv) {
-    int rc = doit();
-    printf("%s\n", rc ? "failed" : "passed");
+    int rc = doit(false);
+    printf("eager: %s\n", rc ? "failed" : "passed");
+    rc = doit(true);
+    printf("lazy: %s\n", rc ? "failed" : "passed");
     return rc;
 }
