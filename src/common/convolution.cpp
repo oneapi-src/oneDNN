@@ -1,5 +1,6 @@
 #include "nstl.hpp"
 
+#include "c_types_map.hpp"
 #include "type_helpers.hpp"
 #include "engine.hpp"
 #include "primitive.hpp"
@@ -67,14 +68,14 @@ status_t mkl_dnn_convolution_primitive_desc_init(
 
 mkl_dnn_status_t mkl_dnn_convolution_create(mkl_dnn_primitive_t *convolution,
         const mkl_dnn_convolution_primitive_desc_t *convolution_primitive_desc,
-        const mkl_dnn_primitive_at_t input, const mkl_dnn_primitive_at_t weights,
-        const mkl_dnn_primitive_at_t bias, mkl_dnn_primitive_t output) {
+        const mkl_dnn_primitive_at_t src, const mkl_dnn_primitive_at_t weights,
+        const mkl_dnn_primitive_at_t bias, mkl_dnn_primitive_t dst) {
     const mkl_dnn_primitive_desc_t *cpd =
         reinterpret_cast<const mkl_dnn_primitive_desc_t *>(
                 convolution_primitive_desc);
-    const mkl_dnn_primitive_at_t inputs[] = {input, weights, bias};
-    mkl_dnn_primitive_t outputs[] = {output};
-
+    // XXX: must check that shapes of in/out memory match what's in the desc (?)
+    const mkl_dnn_primitive_at_t inputs[] = {src, weights, bias};
+    mkl_dnn_primitive_t outputs[] = {dst};
     return mkl_dnn_primitive_create(convolution, cpd, inputs, outputs);
 }
 

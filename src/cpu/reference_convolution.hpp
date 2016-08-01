@@ -36,7 +36,7 @@ protected:
         case backward_data: status = execute_backward_data(); break;
         case backward_weights: status = execute_backward_weights(); break;
         case backward_bias: status = execute_backward_bias(); break;
-        default: _exec_state = error; return unimplemented;
+        default: assert(0 && "invalid prop_kind"); // should never happen
         }
         _exec_state = done;
         return status;
