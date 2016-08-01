@@ -40,10 +40,11 @@ private:
 
     status_t wait_queue(bool block, primitive **error_primitive)
     {
-        //assert(error_primitive);
         // This assumes that the engines start execution as soon as primitives
         // are submitted and do not need any additional notification about
         // wait()
+
+        assert(error_primitive);
         bool all_done;
         do {
             all_done = true;
@@ -77,10 +78,9 @@ public:
     status_t submit(size_t n, primitive *primitives[],
             primitive **error_primitive)
     {
-        primitive *p;
+        primitive *p = 0;
         if (!error_primitive)
             error_primitive = &p;
-        *error_primitive = 0;
 
         // Check all primitives have the same laziness
         int old_is_lazy = _is_lazy;
@@ -102,6 +102,10 @@ public:
     }
 
     status_t wait(bool block, primitive **error_primitive) {
+        primitive *p = 0;
+        if (!error_primitive)
+            error_primitive = &p;
+
         if (_is_lazy) {
             status_t rc = submit_queue(0, error_primitive);
             if (rc != success)

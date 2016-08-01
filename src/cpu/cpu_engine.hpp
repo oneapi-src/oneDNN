@@ -21,8 +21,7 @@ public:
     virtual bool is_ok() const { return true; }
     virtual status_t submit(size_t n, primitive *primitives[],
             primitive **error_primitive) {
-        primitive *p;
-        if (!error_primitive) error_primitive = &p;
+        assert(error_primitive);
         *error_primitive = 0;
         for (size_t i = 0; i < n; i++) {
             status_t rc = primitives[i]->execute();
