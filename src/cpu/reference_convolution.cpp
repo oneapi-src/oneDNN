@@ -64,7 +64,7 @@ status_t reference_convolution<prec>::execute_forward() {
                     if (ow*KSW + kw < padW) continue;
 
                     if (oh*KSH + kh >= IH + padH) continue;
-                    if (oh*KSW + kw >= IW + padW) continue;
+                    if (ow*KSW + kw >= IW + padW) continue;
 
                     const uint32_t ih = oh * KSH - padH + kh;
                     const uint32_t iw = ow * KSW - padW + kw;
