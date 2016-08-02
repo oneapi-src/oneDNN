@@ -6,6 +6,7 @@
 #include "c_types_map.hpp"
 #include "nstl.hpp"
 #include "utils.hpp"
+#include "memory_desc_wrapper.hpp"
 
 template <mkl_dnn::impl::precision_t> struct precision2type {};
 template <>
@@ -114,45 +115,6 @@ inline status_t pooling_desc_is_ok(
     // XXX: fill-in
     return success;
 }
-
-struct memory_desc_wrapper: public c_compatible {
-    const memory_desc_t &_md;
-    memory_desc_wrapper(const memory_desc_t &md): _md(md) {
-        assert(_md.format != any);
-    }
-
-    const tensor_desc_t &tensor() const { return _md.tensor_desc; }
-    uint32_t ndims() const { return types::ndims(_md.tensor_desc); }
-    const dims_t &dims() const { return _md.tensor_desc.dims; }
-    const memory_format_t format() const { return _md.format; }
-
-    size_t off_v(const dims_t pos) const {
-        return 0;
-    }
-
-    inline size_t off(size_t l_offset) const {
-        if (one_of(_md.format, n, nchw, oihw, goihw))
-            return l_offset; // tentative
-        assert(false);
-        // format specific
-        return l_offset;
-    }
-
-    template<typename T, typename... Args>
-    inline size_t off(T xn, Args... args) const {
-        return off(logical_offset(xn, args...));
-    }
-
-    template<typename T>
-    inline size_t logical_offset(T x0) const { return (size_t)x0; }
-
-    template<typename T, typename... Args>
-    inline size_t logical_offset(T xn, Args... args) const {
-        const size_t n_args = sizeof...(Args);
-        return ((size_t)xn)*array_product<n_args>(&dims()[ndims() - n_args])
-            + logical_offset(args...);
-    }
-};
 
 }
 }
