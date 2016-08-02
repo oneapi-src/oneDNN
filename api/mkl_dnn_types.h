@@ -26,14 +26,18 @@ typedef enum {
 
 typedef enum {
     mkl_dnn_any,
+    /* data formats */
     mkl_dnn_n,
     mkl_dnn_nchw,
-    mkl_dnn_oihw = mkl_dnn_nchw,
     mkl_dnn_nhwc,
     mkl_dnn_nChw8,
-    mkl_dnn_IOhw88,
     mkl_dnn_nChw16,
+    /* weights formats */
+    mkl_dnn_oihw,
+    mkl_dnn_goihw,
+    mkl_dnn_IOhw88,
     mkl_dnn_IOhw1616,
+    /* generic format */
     mkl_dnn_blocked,
 } mkl_dnn_memory_format_t;
 
