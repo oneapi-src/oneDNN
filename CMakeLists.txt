@@ -7,8 +7,10 @@ set(LIB_NAME mkl_dnn)
 
 project(${PROJECT_NAME} C CXX)
 
+# XXX: this must go away: openmp is only needed when building the lib...
+# XXX: we also need to start requiring cmake 3.0
 set(CMAKE_CCXX_FLAGS "-g -fopenmp -Wall -Werror")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CMAKE_CCXX_FLAGS}")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CMAKE_CCXX_FLAGS} -std=c99")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_CCXX_FLAGS} -std=c++11")
 
 enable_testing()
