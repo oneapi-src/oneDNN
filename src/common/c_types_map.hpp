@@ -46,11 +46,12 @@ namespace memory_format {
     const memory_format_t any = mkl_dnn_any;
     const memory_format_t n = mkl_dnn_n;
     const memory_format_t nchw = mkl_dnn_nchw;
-    const memory_format_t oihw = mkl_dnn_oihw;
     const memory_format_t nhwc = mkl_dnn_nhwc;
     const memory_format_t nChw8 = mkl_dnn_nChw8;
-    const memory_format_t IOhw88 = mkl_dnn_IOhw88;
     const memory_format_t nChw16 = mkl_dnn_nChw16;
+    const memory_format_t oihw = mkl_dnn_oihw;
+    const memory_format_t goihw = mkl_dnn_goihw;
+    const memory_format_t IOhw88 = mkl_dnn_IOhw88;
     const memory_format_t IOhw1616 = mkl_dnn_IOhw1616;
     const memory_format_t blocked = mkl_dnn_blocked;
 }

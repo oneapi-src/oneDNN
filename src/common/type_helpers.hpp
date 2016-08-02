@@ -49,7 +49,7 @@ inline uint32_t ndims(const memory_desc_t &memory_desc) {
 inline size_t get_size(const memory_desc_t &memory_desc) {
     if (memory_desc.format == any) return 0;
 
-    assert(one_of(memory_desc.format, n, nchw, nhwc, blocked));
+    assert(one_of(memory_desc.format, n, nchw, nhwc, oihw, goihw, blocked));
 
     size_t max_size = 0;
     auto dims = memory_desc.tensor_desc.dims;
@@ -115,6 +115,7 @@ struct memory_desc_wrapper: public c_compatible {
         assert(_md.format != any);
     }
 
+    const tensor_desc_t &tensor() const { return _md.tensor_desc; }
     uint32_t ndims() const { return types::ndims(_md.tensor_desc); }
     const dims_t &dims() const { return _md.tensor_desc.dims; }
     const memory_format_t format() const { return _md.format; }
@@ -124,7 +125,7 @@ struct memory_desc_wrapper: public c_compatible {
     }
 
     inline size_t off(size_t l_offset) const {
-        if (one_of(_md.format, nchw, oihw, n))
+        if (one_of(_md.format, n, nchw, oihw, goihw))
             return l_offset; // tentative
         assert(false);
         // format specific

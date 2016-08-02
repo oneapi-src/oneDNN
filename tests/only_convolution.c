@@ -30,18 +30,19 @@ int doit(int lazy) {
      */
 
     const uint32_t mb = 2;
+    const uint32_t groups = 2;
     uint32_t c3_input_sizes[4] = {mb, 256, 13, 13};
-    uint32_t c3_weights_sizes[4] = {384, 256, 3, 3};
+    uint32_t c3_weights_sizes[] = {groups, 384/groups, 256/groups, 3, 3};
     uint32_t c3_bias_sizes[1] = {384};
     uint32_t strides[] = {1, 1};
     int32_t  padding[] = {0, 0}; // set proper values
     uint32_t c3_output_sizes[4] = {mb, 384,
-        (c3_input_sizes[2] + 2*padding[0] - c3_weights_sizes[2])/strides[0] + 1,
-        (c3_input_sizes[3] + 2*padding[1] - c3_weights_sizes[3])/strides[1] + 1
+        (c3_input_sizes[2] + 2*padding[0] - c3_weights_sizes[3])/strides[0] + 1,
+        (c3_input_sizes[3] + 2*padding[1] - c3_weights_sizes[4])/strides[1] + 1
     };
 
     real_t *input = (real_t*)calloc(product(c3_input_sizes, 4), sizeof(real_t));
-    real_t *weights = (real_t*)calloc(product(c3_weights_sizes, 4), sizeof(real_t));
+    real_t *weights = (real_t*)calloc(product(c3_weights_sizes, 5), sizeof(real_t));
     real_t *bias = (real_t*)calloc(product(c3_bias_sizes, 1), sizeof(real_t));
     real_t *output = (real_t*)calloc(product(c3_output_sizes, 4), sizeof(real_t));
 
@@ -62,8 +63,13 @@ int doit(int lazy) {
     CHECK(mkl_dnn_memory_primitive_desc_init(&c3_input_pd, &c3_input_md, engine));
     CHECK(mkl_dnn_memory_create(&c3_input, &c3_input_pd, 0 ? NULL : input));
 
-    CHECK(mkl_dnn_tensor_desc_init(&c3_weights_tz, 0, 2, 2, c3_weights_sizes));
-    CHECK(mkl_dnn_memory_desc_init(&c3_weights_md, &c3_weights_tz, mkl_dnn_f32, mkl_dnn_oihw));
+    if (groups == 1) {
+        CHECK(mkl_dnn_tensor_desc_init(&c3_weights_tz, 0, 2, 2, c3_weights_sizes + 1));
+        CHECK(mkl_dnn_memory_desc_init(&c3_weights_md, &c3_weights_tz, mkl_dnn_f32, mkl_dnn_oihw));
+    } else {
+        CHECK(mkl_dnn_tensor_desc_init(&c3_weights_tz, 1, 2, 2, c3_weights_sizes));
+        CHECK(mkl_dnn_memory_desc_init(&c3_weights_md, &c3_weights_tz, mkl_dnn_f32, mkl_dnn_goihw));
+    }
     CHECK(mkl_dnn_memory_primitive_desc_init(&c3_weights_pd, &c3_weights_md, engine));
     CHECK(mkl_dnn_memory_create(&c3_weights, &c3_weights_pd, weights));
 
