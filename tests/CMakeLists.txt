@@ -1,11 +1,42 @@
 add_subdirectory (gtest)
 
-include_directories({CMAKE_SOURCE_DIR}/api)
-include_directories({CMAKE_SOURCE_DIR}/test/gtest)
+set (APP_NAME "tests_gtest")
+# Sources for test files
 
-add_executable(api-check-c api_check.c)
-target_link_libraries(api-check-c ${LIB_NAME})
-add_test(api-check-c api-check-c)
+file (GLOB API_TEST_CASES_SRC
+      api_tests/*.cpp)
+
+# Main source file
+set  (MAIN_SRC_GTEST
+      main.cpp
+      )
+
+include_directories(${CMAKE_SOURCE_DIR}/api
+                    ${CMAKE_SOURCE_DIR}/tests/)
+
+# Create named folders for the sources within the .vcproj
+# Empty name lists them directly under the .vcproj
+source_group("" FILES ${MAIN_SRC_GTEST})
+source_group("test caseses" FILES ${API_TEST_CASES_SRC})
+
+# Create exe file from sources.
+add_executable(${APP_NAME}
+               ${MAIN_SRC_GTEST}
+               ${API_TEST_CASES_SRC}
+              )
+
+add_custom_command(TARGET ${APP_NAME}
+                   POST_BUILD
+                   WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+                   COMMAND ${APP_NAME} )
+
+# Set library dependencies
+target_link_libraries(${APP_NAME} mkl_dnn gtest)
+add_test(${APP_NAME} ${APP_NAME})
+
+#add_executable(api-check-c api_check.c)
+#target_link_libraries(api-check-c ${LIB_NAME})
+#add_test(api-check-c api-check-c)
 
 # add_executable(simple_convolution-c simple_convolution.c)
 # set_property(TARGET simple_convolution-c PROPERTY C_STANDARD 99)
@@ -23,9 +54,9 @@ set_property(TARGET only_convolution-cxx PROPERTY CXX_STANDARD_REQUIRED ON)
 target_link_libraries(only_convolution-cxx ${LIB_NAME})
 add_test(only_convolution-cxx only_convolution-cxx)
 
-add_executable(api_check-cxx api_check.cpp)
-set_property(TARGET api_check-cxx PROPERTY CXX_STANDARD 11)
-set_property(TARGET api_check-cxx PROPERTY CXX_STANDARD_REQUIRED ON)
-target_link_libraries(api_check-cxx ${LIB_NAME})
-add_test(api_check-cxx api_check-cxx)
+#add_executable(api_check-cxx api_check.cpp)
+#set_property(TARGET api_check-cxx PROPERTY CXX_STANDARD 11)
+#set_property(TARGET api_check-cxx PROPERTY CXX_STANDARD_REQUIRED ON)
+#target_link_libraries(api_check-cxx ${LIB_NAME})
+#add_test(api_check-cxx api_check-cxx)
 
