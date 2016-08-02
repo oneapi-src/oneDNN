@@ -43,7 +43,6 @@ status_t reference_convolution<prec>::execute_forward() {
     const uint32_t OC = weights_d.dims()[w_idx_base + 0];
     const uint32_t OH = dst_d.dims()[2];
     const uint32_t OW = dst_d.dims()[3];
-    printf("G = %d, OC = %d\n", (int)G, (int)OC);
 
     auto ker = [=](data_t *d, uint32_t g, uint32_t mb, uint32_t oc, uint32_t oh,
             uint32_t ow)
