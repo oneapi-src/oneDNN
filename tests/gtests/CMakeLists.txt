@@ -5,11 +5,14 @@ set(MAIN_SRC_GTEST main.cpp)
 include_directories(${CMAKE_SOURCE_DIR}/api)
 include_directories(${CMAKE_SOURCE_DIR}/tests/gtests
                     ${CMAKE_SOURCE_DIR}/tests/gtests/gtest
-                    ${CMAKE_SOURCE_DIR}/tests/gtests/api_tests
-)
+                    )
 file(GLOB API_TEST_CASES_SRC api_tests/*.cpp)
-file(GLOB TESTS_GTEST *.cpp)
-add_executable(${APP_NAME} ${MAIN_SRC_GTEST} ${API_TEST_CASES_SRC} ${TESTS_GTEST})
+file(GLOB PRIM_TEST_CASES_SRC test_*.cpp)
+add_executable(${APP_NAME}
+    ${MAIN_SRC_GTEST}
+    ${API_TEST_CASES_SRC}
+    ${PRIM_TEST_CASES_SRC}
+    )
 target_link_libraries(${APP_NAME} mkl_dnn gtest)
 add_test(${APP_NAME} ${APP_NAME})
 

@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <assert.h>
+#include <math.h>
 
 #include "gtest/gtest.h"
 #include "mkl_dnn.hpp"
