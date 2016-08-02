@@ -113,6 +113,11 @@ inline status_t pooling_desc_is_ok(
     // XXX: fill-in
     return success;
 }
+inline status_t relu_desc_is_ok(
+        const relu_desc_t &relu_desc) {
+    // XXX: fill-in
+    return success;
+}
 
 }
 }

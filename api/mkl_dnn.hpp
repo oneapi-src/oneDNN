@@ -420,6 +420,39 @@ struct reorder: public primitive {
     }
 };
 
+struct relu: public primitive {
+    struct desc {
+        c_api::mkl_dnn_relu_desc_t data;
+        template <typename T>
+        desc(prop_kind aprop_kind, T negative_slope,
+                const memory::desc &src_desc,
+                const memory::desc &dst_desc)
+        {
+            error::wrap_c_api(c_api::mkl_dnn_relu_desc_init(&data,
+                        mkl_dnn::convert_to_c(aprop_kind),
+                        static_cast<double>(negative_slope),
+                        &src_desc.data, &dst_desc.data),
+                    "could not create a relu descriptor");
+        }
+    };
+    struct primitive_desc {
+        c_api::mkl_dnn_relu_primitive_desc_t data;
+        primitive_desc(const desc &adesc, const engine &aengine) {
+            error::wrap_c_api(c_api::mkl_dnn_relu_primitive_desc_init(&data,
+                        &adesc.data, aengine.get()),
+                    "could not create a relu primitive descriptor");
+        }
+    };
+    relu(const primitive_desc &aprimitive_desc,
+            const primitive::at &src, const memory &dst) {
+        c_api::mkl_dnn_primitive_t result;
+        error::wrap_c_api(c_api::mkl_dnn_relu_create(&result,
+                    &aprimitive_desc.data, src.data, dst.get()),
+                "could not create a relu primitive");
+        reset(result);
+    }
+};
+
 template <> struct handle_traits<c_api::mkl_dnn_stream_t> {
     static constexpr auto destructor = &c_api::mkl_dnn_stream_destroy;
 };

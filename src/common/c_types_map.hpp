@@ -77,12 +77,14 @@ namespace primitive_kind {
     const primitive_kind_t reorder = mkl_dnn_reorder;
     const primitive_kind_t convolution = mkl_dnn_convolution;
     const primitive_kind_t pooling = mkl_dnn_pooling;
+    const primitive_kind_t relu = mkl_dnn_relu;
 }
 
 using blocking_desc_t = mkl_dnn_blocking_desc_t;
 using memory_desc_t = mkl_dnn_memory_desc_t;
 using convolution_desc_t = mkl_dnn_convolution_desc_t;
 using pooling_desc_t = mkl_dnn_pooling_desc_t;
+using relu_desc_t = mkl_dnn_relu_desc_t;
 
 struct op_desc_t {
     primitive_kind_t _kind;
@@ -90,6 +92,7 @@ struct op_desc_t {
         memory_desc_t memory;
         convolution_desc_t convolution;
         pooling_desc_t pooling;
+        relu_desc_t relu;
     };
 
 #   define DECL_CTOR_AND_CONVERTERS(c_type, name) \
@@ -102,6 +105,7 @@ struct op_desc_t {
     DECL_CTOR_AND_CONVERTERS(memory_desc_t, memory);
     DECL_CTOR_AND_CONVERTERS(convolution_desc_t, convolution);
     DECL_CTOR_AND_CONVERTERS(pooling_desc_t, pooling);
+    DECL_CTOR_AND_CONVERTERS(relu_desc_t, relu);
 
 #   undef DECL_CTOR_AND_CONVERTERS
 };
@@ -111,6 +115,7 @@ using memory_primitive_desc_t = mkl_dnn_memory_primitive_desc_t;
 using reorder_primitive_desc_t = mkl_dnn_reorder_primitive_desc_t;
 using convolution_primitive_desc_t = mkl_dnn_convolution_primitive_desc_t;
 using pooling_primitive_desc_t = mkl_dnn_pooling_primitive_desc_t;
+using relu_primitive_desc_t = mkl_dnn_relu_primitive_desc_t;
 #if 0
 using primitive_desc_t = mkl_dnn_primitive_desc_t;
 using const_primitive_desc_t = const_mkl_dnn_primitive_desc_t;
@@ -121,6 +126,7 @@ union primitive_desc_t {
     reorder_primitive_desc_t reorder;
     convolution_primitive_desc_t convolution;
     pooling_primitive_desc_t pooling;
+    relu_primitive_desc_t relu;
 #   define DECL_CTOR_AND_CONVERTERS(c_type, name) \
     primitive_desc_t(const c_type &_): name(_) {} \
     static primitive_desc_t *convert_from_c(c_type *_) \
@@ -133,6 +139,7 @@ union primitive_desc_t {
     DECL_CTOR_AND_CONVERTERS(reorder_primitive_desc_t, reorder);
     DECL_CTOR_AND_CONVERTERS(convolution_primitive_desc_t, convolution);
     DECL_CTOR_AND_CONVERTERS(pooling_primitive_desc_t, pooling);
+    DECL_CTOR_AND_CONVERTERS(relu_primitive_desc_t, relu);
 
 #   undef DECL_CTOR_AND_CONVERTERS
 };

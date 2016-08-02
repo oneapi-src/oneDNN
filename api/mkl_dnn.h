@@ -90,12 +90,25 @@ mkl_dnn_status_t mkl_dnn_pooling_desc_init(
         const mkl_dnn_nd_offset_t padding,
         mkl_dnn_padding_kind_t padding_kind);
 
+/** Initialized a \param relu_desc using \param negative_slope, and memory
+ * descriptors \param src_desc and \param dst_desc */
+mkl_dnn_status_t mkl_dnn_relu_desc_init(
+        mkl_dnn_relu_desc_t *relu_desc, mkl_dnn_prop_kind_t prop_kind,
+        double negative_slope, const mkl_dnn_memory_desc_t *src_desc,
+        const mkl_dnn_memory_desc_t *dst_desc);
+
 /** Initializes a \param convolution_primitve_desc with \param convolution_desc
  * and \param engine */
 mkl_dnn_status_t mkl_dnn_convolution_primitive_desc_init(
         mkl_dnn_convolution_primitive_desc_t *convolution_primitive_desc,
         const mkl_dnn_convolution_desc_t *convolution_desc,
         const_mkl_dnn_engine_t engine);
+
+/** Initializes a \param relu_primitive_desc using \param relu_desc and \param
+ * engine */
+mkl_dnn_status_t mkl_dnn_relu_primitive_desc_init(
+        mkl_dnn_relu_primitive_desc_t *relu_primitive_desc,
+        const mkl_dnn_relu_desc_t *relu_desc, const_mkl_dnn_engine_t engine);
 
 /* TODO: add convolution_forward_primitive_desc_init for given
  * mkl_dnn_memory_primitive_desc_t input, weights, ... so that user has more
@@ -133,6 +146,12 @@ mkl_dnn_status_t mkl_dnn_pooling_create(mkl_dnn_primitive_t *pooling,
         const mkl_dnn_pooling_primitive_desc_t *pooling_primitive_desc,
         const mkl_dnn_primitive_at_t src, const mkl_dnn_primitive_at_t indices,
         mkl_dnn_primitive_t dst);
+
+/** Creates a \param relu primitive using descrptor \param relu_primitive_desc,
+ * input \param src and output \param dst */
+mkl_dnn_status_t mkl_dnn_relu_create(mkl_dnn_primitive_t *relu,
+        const mkl_dnn_relu_primitive_desc_t *relu_primitive_desc,
+        const mkl_dnn_primitive_at_t src, mkl_dnn_primitive_t dst);
 
 /* XXX: is this even usable by user? */
 /** Creates a \param primitive using a \param primitive descriptor and array of
