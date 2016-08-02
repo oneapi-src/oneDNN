@@ -32,6 +32,7 @@ namespace prop_kind {
 using alg_kind_t = mkl_dnn_alg_kind_t;
 namespace alg_kind {
     const alg_kind_t convolution_direct = mkl_dnn_convolution_direct;
+    const alg_kind_t pooling_max = mkl_dnn_pooling_max;
 }
 
 using tensor_desc_t = mkl_dnn_tensor_desc_t;
@@ -64,6 +65,7 @@ namespace padding_kind {
 using blocking_desc_t = mkl_dnn_blocking_desc_t;
 using memory_desc_t = mkl_dnn_memory_desc_t;
 using convolution_desc_t = mkl_dnn_convolution_desc_t;
+using pooling_desc_t = mkl_dnn_pooling_desc_t;
 
 using engine_kind_t = mkl_dnn_engine_kind_t;
 namespace engine_kind {
@@ -80,12 +82,14 @@ namespace primitive_kind {
     const primitive_kind_t memory = mkl_dnn_memory;
     const primitive_kind_t reorder = mkl_dnn_reorder;
     const primitive_kind_t convolution = mkl_dnn_convolution;
+    const primitive_kind_t pooling = mkl_dnn_pooling;
 }
 
 using primitive_base_desc_t = mkl_dnn_primitive_base_desc_t;
 using memory_primitive_desc_t = mkl_dnn_memory_primitive_desc_t;
 using reorder_primitive_desc_t = mkl_dnn_reorder_primitive_desc_t;
 using convolution_primitive_desc_t = mkl_dnn_convolution_primitive_desc_t;
+using pooling_primitive_desc_t = mkl_dnn_pooling_primitive_desc_t;
 #if 0
 using primitive_desc_t = mkl_dnn_primitive_desc_t;
 using const_primitive_desc_t = const_mkl_dnn_primitive_desc_t;
@@ -95,6 +99,7 @@ union primitive_desc_t {
     memory_primitive_desc_t memory;
     reorder_primitive_desc_t reorder;
     convolution_primitive_desc_t convolution;
+    pooling_primitive_desc_t pooling;
 #   define DECL_CTOR_AND_CONVERTERS(c_type, name) \
     primitive_desc_t(const c_type &_): name(_) {} \
     static primitive_desc_t *convert_from_c(c_type *_) \
@@ -106,6 +111,7 @@ union primitive_desc_t {
     DECL_CTOR_AND_CONVERTERS(memory_primitive_desc_t, memory);
     DECL_CTOR_AND_CONVERTERS(reorder_primitive_desc_t, reorder);
     DECL_CTOR_AND_CONVERTERS(convolution_primitive_desc_t, convolution);
+    DECL_CTOR_AND_CONVERTERS(pooling_primitive_desc_t, pooling);
 
 #   undef DECL_CTOR_AND_CONVERTERS
 };

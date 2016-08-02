@@ -44,6 +44,10 @@ primitive_desc_init_f *engine::get_convolution_inits() const
 {
     return empty_list;
 }
+primitive_desc_init_f *engine::get_pooling_inits() const
+{
+    return empty_list;
+}
 
 size_t mkl_dnn_engine_get_count(engine_kind_t kind) {
     engine_factory *ef = get_engine_factory(kind);

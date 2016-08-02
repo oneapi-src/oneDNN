@@ -75,7 +75,7 @@ mkl_dnn_status_t mkl_dnn_convolution_desc_init(
         const mkl_dnn_dims_t strides, const mkl_dnn_nd_offset_t padding,
         mkl_dnn_padding_kind_t padding_kind);
 
-/** Initializes a \param convolution_primitve_desc by with \param
+/** Initializes a \param convolution_primitve_desc with \param
  * convolution_desc and \param engine */
 mkl_dnn_status_t mkl_dnn_convolution_primitive_desc_init(
         mkl_dnn_convolution_primitive_desc_t *convolution_primitive_desc,
@@ -96,6 +96,42 @@ mkl_dnn_status_t mkl_dnn_convolution_create(mkl_dnn_primitive_t *convolution,
         const mkl_dnn_convolution_primitive_desc_t *convolution_primitive_desc,
         const mkl_dnn_primitive_at_t src, const mkl_dnn_primitive_at_t weights,
         const mkl_dnn_primitive_at_t bias, mkl_dnn_primitive_t dst);
+
+/** Initializes a \param pooling_desc using \param prop_kind, \param
+ * alg_kind, memory descriptors, \param strides, \param padding and \param
+ * padding_kind. Please note that memory descriptors may be initialized with
+ * format_kind_any format_kind. In this case pooling_primitive_desc_init()
+ * will choose the best pooling possible in terms of performance */
+mkl_dnn_status_t mkl_dnn_pooling_desc_init(
+        mkl_dnn_pooling_desc_t *pooling_desc,
+        mkl_dnn_prop_kind_t prop_kind, mkl_dnn_alg_kind_t alg_kind,
+        const mkl_dnn_memory_desc_t *input_desc,
+        const mkl_dnn_memory_desc_t *indices_desc,
+        const mkl_dnn_memory_desc_t *output_desc,
+        const mkl_dnn_dims_t strides, const mkl_dnn_dims_t kernel, const mkl_dnn_nd_offset_t padding,
+        mkl_dnn_padding_kind_t padding_kind);
+
+/** Initializes a \param pooling_primitve_desc using \param
+ * pooling_desc and \param engine */
+mkl_dnn_status_t mkl_dnn_pooling_primitive_desc_init(
+        mkl_dnn_pooling_primitive_desc_t *pooling_primitive_desc,
+        const mkl_dnn_pooling_desc_t *pooling_desc,
+        const_mkl_dnn_engine_t engine);
+
+/* TODO: add pooling_forward_primitive_desc_init for given
+ * mkl_dnn_memory_primitive_desc_t input, indices, ... so that user has more
+ * flexibility */
+
+/* XXX: think on this: either add "forward" in function name or put all inputs
+ * and outputs in-to arrays, otherwise it is unclear how to create bwd filt */
+
+/** Creates a \param pooling primitive using descriptor \param
+ * pooling_primitive_desc, input primitive_ats \param src, \param indices,
+ * and output primitive \param dst */
+mkl_dnn_status_t mkl_dnn_pooling_create(mkl_dnn_primitive_t *pooling,
+        const mkl_dnn_pooling_primitive_desc_t *pooling_primitive_desc,
+        const mkl_dnn_primitive_at_t src, const mkl_dnn_primitive_at_t indices,
+        mkl_dnn_primitive_t dst);
 
 /* XXX: is this even usable by user? */
 /** Creates a \param primitive using a \param primitive descriptor and array of

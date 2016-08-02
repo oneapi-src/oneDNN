@@ -54,6 +54,7 @@ typedef enum {
 
 typedef enum {
     mkl_dnn_convolution_direct = 1,
+    mkl_dnn_pooling_max = 101,
 } mkl_dnn_alg_kind_t;
 
 /** memory descriptor section */
@@ -104,6 +105,18 @@ typedef struct {
     mkl_dnn_padding_kind_t padding_kind;
 } mkl_dnn_convolution_desc_t;
 
+typedef struct {
+    mkl_dnn_prop_kind_t prop_kind;
+    mkl_dnn_alg_kind_t alg_kind;
+    mkl_dnn_memory_desc_t input_desc;
+    mkl_dnn_memory_desc_t indices_desc;
+    mkl_dnn_memory_desc_t output_desc;
+    mkl_dnn_dims_t strides;
+    mkl_dnn_dims_t kernel;
+    mkl_dnn_nd_offset_t padding;
+    mkl_dnn_padding_kind_t padding_kind;
+} mkl_dnn_pooling_desc_t;
+
 /** engine section */
 
 typedef enum {
@@ -123,6 +136,7 @@ typedef enum {
     mkl_dnn_memory,
     mkl_dnn_reorder,
     mkl_dnn_convolution,
+    mkl_dnn_pooling,
 } mkl_dnn_primitive_kind_t;
 
 typedef struct {
@@ -150,6 +164,14 @@ typedef struct {
     mkl_dnn_memory_primitive_desc_t bias_primitive_desc;
     mkl_dnn_memory_primitive_desc_t output_primitive_desc;
 } mkl_dnn_convolution_primitive_desc_t;
+
+typedef struct {
+    mkl_dnn_primitive_base_desc_t base;
+    mkl_dnn_pooling_desc_t pooling_desc;
+    mkl_dnn_memory_primitive_desc_t input_primitive_desc;
+    mkl_dnn_memory_primitive_desc_t indices_primitive_desc;
+    mkl_dnn_memory_primitive_desc_t output_primitive_desc;
+} mkl_dnn_pooling_primitive_desc_t;
 
 /** primitive section */
 

@@ -23,6 +23,7 @@ public:
     virtual mkl_dnn::impl::primitive_desc_init_f *get_memory_inits() const;
     virtual mkl_dnn::impl::primitive_desc_init_f *get_reorder_inits() const;
     virtual mkl_dnn::impl::primitive_desc_init_f *get_convolution_inits() const;
+    virtual mkl_dnn::impl::primitive_desc_init_f *get_pooling_inits() const;
 };
 
 namespace mkl_dnn { namespace impl {

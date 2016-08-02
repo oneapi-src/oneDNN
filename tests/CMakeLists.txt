@@ -60,3 +60,8 @@ add_test(only_convolution-cxx only_convolution-cxx)
 #target_link_libraries(api_check-cxx ${LIB_NAME})
 #add_test(api_check-cxx api_check-cxx)
 
+add_executable(only_pooling-c only_pooling.c)
+set_property(TARGET only_pooling-c PROPERTY C_STANDARD 99)
+target_link_libraries(only_pooling-c ${LIB_NAME})
+add_test(only_pooling-c only_pooling-c)
+
