@@ -1,4 +1,7 @@
+add_subdirectory (gtest)
+
 include_directories({CMAKE_SOURCE_DIR}/api)
+include_directories({CMAKE_SOURCE_DIR}/test/gtest)
 
 add_executable(api-check-c api_check.c)
 target_link_libraries(api-check-c ${LIB_NAME})
@@ -25,3 +28,4 @@ set_property(TARGET api_check-cxx PROPERTY CXX_STANDARD 11)
 set_property(TARGET api_check-cxx PROPERTY CXX_STANDARD_REQUIRED ON)
 target_link_libraries(api_check-cxx ${LIB_NAME})
 add_test(api_check-cxx api_check-cxx)
+
