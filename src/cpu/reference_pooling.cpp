@@ -22,8 +22,8 @@ using namespace mkl_dnn::impl::primitive_kind;
 
 template <impl::precision_t prec>
 status_t reference_pooling<prec>::execute_forward() {
-    const data_t *src = reinterpret_cast<typeof(src)>(this->input()[0].primitive->output()[this->input()[0].output_index]->memory_const());
-    uint32_t *indices = reinterpret_cast<typeof(indices)>(this->input()[1].primitive->output()[this->input()[1].output_index]->memory());
+    const data_t *src = reinterpret_cast<const data_t *>(this->input()[0].primitive->output()[this->input()[0].output_index]->memory_const());
+    uint32_t *indices = reinterpret_cast<uint32_t*>(this->input()[1].primitive->output()[this->input()[1].output_index]->memory());
     data_t *dst = reinterpret_cast<data_t*>(this->output()[0]->memory());
 
     const types::memory_desc_wrapper
