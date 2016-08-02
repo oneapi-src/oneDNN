@@ -115,7 +115,7 @@ inline status_t pooling_desc_is_ok(
     return success;
 }
 
-struct memory_desc_wrapper : public c_compatible {
+struct memory_desc_wrapper: public c_compatible {
     const memory_desc_t &_md;
     memory_desc_wrapper(const memory_desc_t &md): _md(md) {
         assert(_md.format != any);
