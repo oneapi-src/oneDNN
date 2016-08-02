@@ -255,10 +255,10 @@ struct convolution: public primitive {
     struct desc {
         c_api::mkl_dnn_convolution_desc_t data;
         desc(prop_kind aprop_kind, algorithm aalgorithm,
-                const memory::desc &input_desc,
+                const memory::desc &src_desc,
                 const memory::desc &weights_desc,
                 const memory::desc &bias_desc,
-                const memory::desc &output_desc,
+                const memory::desc &dst_desc,
                 const tensor::dims strides,
                 const tensor::nd_offset padding,
                 const padding_kind apadding_kind)
@@ -267,8 +267,8 @@ struct convolution: public primitive {
             tensor::validate_dims(padding);
             error::wrap_c_api(c_api::mkl_dnn_convolution_desc_init(&data,
                         mkl_dnn::convert_to_c(aprop_kind), convert_to_c(aalgorithm),
-                        &input_desc.data, &weights_desc.data, &bias_desc.data,
-                        &output_desc.data, &strides[0], &padding[0],
+                        &src_desc.data, &weights_desc.data, &bias_desc.data,
+                        &dst_desc.data, &strides[0], &padding[0],
                         mkl_dnn::convert_to_c(apadding_kind)),
                     "could not create a convolution descriptor");
         }
@@ -285,39 +285,39 @@ struct convolution: public primitive {
 
     // XXX: convolution w/o bias
     convolution(const primitive_desc &aprimitive_desc,
-            const primitive::at &input, const primitive::at &weights,
-            const primitive::at &bias, const memory &output) {
+            const primitive::at &src, const primitive::at &weights,
+            const primitive::at &bias, const memory &dst) {
         c_api::mkl_dnn_primitive_t result;
         error::wrap_c_api(c_api::mkl_dnn_convolution_create(&result,
-                    &aprimitive_desc.data, input.data, weights.data,
-                    bias.data, output.get()),
+                    &aprimitive_desc.data, src.data, weights.data,
+                    bias.data, dst.get()),
                 "could not create a convolution primitive");
         reset(result);
     }
 
     convolution(prop_kind aprop_kind, algorithm aalgorithm,
-            const primitive::at &input, const primitive::at &weights,
-            const primitive::at &bias, const memory &output,
+            const primitive::at &src, const primitive::at &weights,
+            const primitive::at &bias, const memory &dst,
             const tensor::dims strides, const tensor::nd_offset padding,
             const padding_kind apadding_kind) {
-        auto input_md = memory(input).get_primitive_desc();
+        auto src_md = memory(src).get_primitive_desc();
         auto weights_md = memory(weights).get_primitive_desc();
         auto bias_md = memory(bias).get_primitive_desc();
-        auto output_md = output.get_primitive_desc();
+        auto dst_md = dst.get_primitive_desc();
 
-        auto conv_d = desc(aprop_kind, aalgorithm, input_md.desc(),
-                weights_md.desc(), bias_md.desc(), output_md.desc(),
+        auto conv_d = desc(aprop_kind, aalgorithm, src_md.desc(),
+                weights_md.desc(), bias_md.desc(), dst_md.desc(),
                 strides, padding, apadding_kind);
         auto conv_pd = primitive_desc(conv_d,
-                engine(input_md.data.base.engine));
+                engine(src_md.data.base.engine));
 #if 0
         // WHY I CANNOT CALL THIS??????!!!!
-        convolution(conv_pd, input, weights, bias, output);
+        convolution(conv_pd, src, weights, bias, dst);
 #else
         c_api::mkl_dnn_primitive_t result;
         error::wrap_c_api(c_api::mkl_dnn_convolution_create(&result,
-                    &conv_pd.data, input.data, weights.data,
-                    bias.data, output.get()),
+                    &conv_pd.data, src.data, weights.data,
+                    bias.data, dst.get()),
                 "could not create a convolution primitive");
         reset(result);
 #endif
