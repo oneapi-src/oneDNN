@@ -16,7 +16,9 @@ class cpu_engine: public engine {
 private:
     bool _lazy;
 public:
-    cpu_engine(bool lazy): _lazy(lazy) {}
+    cpu_engine(bool lazy)
+        : engine(lazy ? engine_kind::cpu_lazy : engine_kind::cpu)
+        , _lazy(lazy) {}
     virtual bool is_lazy() const { return _lazy; }
     virtual bool is_ok() const { return true; }
     virtual status_t submit(size_t n, primitive *primitives[],

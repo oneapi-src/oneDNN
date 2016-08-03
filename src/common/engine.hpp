@@ -9,13 +9,20 @@
 #include "convolution.hpp"
 
 class mkl_dnn_engine: public mkl_dnn::impl::c_compatible {
+protected:
+    mkl_dnn::impl::engine_kind_t _kind;
 public:
+    mkl_dnn_engine(): _kind(mkl_dnn::impl::engine_kind::any_engine) {}
+    mkl_dnn_engine(mkl_dnn::impl::engine_kind_t kind): _kind(kind) {}
+    virtual ~mkl_dnn_engine() {}
+
     virtual bool is_lazy() const = 0;
     virtual bool is_ok() const = 0;
+    mkl_dnn::impl::engine_kind_t kind() const { return _kind; }
+
     virtual mkl_dnn::impl::status_t submit(size_t n,
             mkl_dnn::impl::primitive *primitives[],
             mkl_dnn::impl::primitive **error_primitive) = 0;
-    virtual ~mkl_dnn_engine() { };
 
     /* primitives' descriptor initializators
      * the default one guarantees to return at least an empty list,
