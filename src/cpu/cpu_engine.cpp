@@ -6,6 +6,8 @@
 #include "cpu/reference_convolution.hpp"
 #include "cpu/reference_pooling.hpp"
 
+#include "cpu/reference_reorder.hpp"
+
 namespace mkl_dnn {
 namespace impl {
 namespace cpu {
@@ -14,17 +16,28 @@ cpu_engine_factory engine_factory(false);
 cpu_engine_factory engine_factory_lazy(true);
 
 namespace {
-primitive_desc_init_f memory_inits[] = {
+using namespace mkl_dnn::impl::precision;
+
+primitive_desc_init_f primitive_inits[] = {
     cpu_memory::memory_desc_init,
-    reference_convolution<impl::precision::f32>::primitive_desc_init,
-    reference_pooling<impl::precision::f32>::primitive_desc_init,
+    reference_convolution<f32>::primitive_desc_init,
+    reference_pooling<f32>::primitive_desc_init,
+    NULL,
+};
+
+reorder_primitive_desc_init_f reorder_inits[] = {
+    reference_reorder<f32, f32>::reorder_primitive_desc_init,
     NULL,
 };
 }
 
 
 primitive_desc_init_f *cpu_engine::get_primitive_inits() const {
-    return memory_inits;
+    return primitive_inits;
+}
+
+reorder_primitive_desc_init_f *cpu_engine::get_reorder_inits() const {
+    return reorder_inits;
 }
 
 }
