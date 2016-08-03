@@ -35,7 +35,7 @@ public:
     }
     ~cpu_memory() { if (_owns_memory) delete [] _memory_buffer; }
 
-    bool owns_memory() const { return _memory_buffer != NULL; }
+    bool owns_memory() const { return _owns_memory; }
 
     virtual char* memory() { return _memory_buffer; }
     virtual const char* memory_const() { return _memory_buffer; }
