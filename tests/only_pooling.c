@@ -32,6 +32,20 @@ void init_input(uint32_t dim[4], real_t *x)
         x[w + W*h + c*W*H + n*W*H*C] = c*n;
 }
 
+int check_output(uint32_t dim[4], const real_t *x)
+{
+    int n_errors = 0;
+    uint32_t N = dim[0], C = dim[1], H = dim[2], W = dim[3];
+    for (uint32_t n = 0; n < N; ++n)
+    for (uint32_t c = 0; c < C; ++c)
+    for (uint32_t h = 0; h < H; ++h)
+    for (uint32_t w = 0; w < W; ++w)
+    {
+        if (x[w + W*h + c*W*H + n*W*H*C] != c*n) n_errors += 1;
+    }
+    return n_errors;
+}
+
 int doit() {
     /* AlexNet: p1
      * {16, 96, 55, 55} -> {16, 96, 27, 27}
@@ -114,16 +128,7 @@ int doit() {
     mkl_dnn_primitive_destroy(p1_output);
     mkl_dnn_engine_destroy(engine);
 
-    int n_errors = 0;
-    const uint32_t N = p1_output_sizes[0], C = p1_output_sizes[1],
-          H = p1_output_sizes[2], W = p1_output_sizes[3];
-    for (uint32_t n = 0; n < N; ++n)
-    for (uint32_t c = 0; c < C; ++c)
-    for (uint32_t h = 0; h < H; ++h)
-    for (uint32_t w = 0; w < W; ++w)
-    {
-        if (output[w + W*h + c*W*H + n*W*H*C] != c*n) n_errors += 1;
-    }
+    int n_errors = check_output(p1_output_sizes, output);
 
     free(input);
     free(indices);

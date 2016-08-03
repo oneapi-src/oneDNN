@@ -326,16 +326,16 @@ struct convolution: public primitive {
 };
 
 struct pooling : public primitive {
-    enum algorithm { direct = c_api::mkl_dnn_pooling_max };
+    enum algorithm { max = c_api::mkl_dnn_pooling_max };
     static c_api::mkl_dnn_alg_kind_t convert_to_c(algorithm aalgorithm) {
         return static_cast<c_api::mkl_dnn_alg_kind_t>(aalgorithm);
     }
     struct desc {
         c_api::mkl_dnn_pooling_desc_t data;
         desc(prop_kind aprop_kind, algorithm aalgorithm,
-            const memory::desc &input_desc,
+            const memory::desc &src_desc,
             const memory::desc &indices_desc,
-            const memory::desc &output_desc,
+            const memory::desc &dst_desc,
             const tensor::dims strides,
             const tensor::dims kernel,
             const tensor::nd_offset padding,
@@ -346,8 +346,8 @@ struct pooling : public primitive {
             tensor::validate_dims(padding);
             error::wrap_c_api(c_api::mkl_dnn_pooling_desc_init(&data,
                 mkl_dnn::convert_to_c(aprop_kind), convert_to_c(aalgorithm),
-                &input_desc.data, &indices_desc.data,
-                &output_desc.data, &strides[0], &kernel[0], &padding[0],
+                &src_desc.data, &indices_desc.data,
+                &dst_desc.data, &strides[0], &kernel[0], &padding[0],
                 mkl_dnn::convert_to_c(apadding_kind)),
                 "could not create a pooling descriptor");
         }
@@ -363,35 +363,35 @@ struct pooling : public primitive {
     };
 
     pooling(const primitive_desc &aprimitive_desc,
-        const primitive::at &input, const primitive::at &indices,
-        const memory &output) {
+        const primitive::at &src, const primitive::at &indices,
+        const memory &dst) {
         c_api::mkl_dnn_primitive_t result;
         error::wrap_c_api(c_api::mkl_dnn_pooling_create(&result,
-            &aprimitive_desc.data, input.data, indices.data,
-            output.get()),
+            &aprimitive_desc.data, src.data, indices.data,
+            dst.get()),
             "could not create a pooling primitive");
         reset(result);
     }
 
     pooling(prop_kind aprop_kind, algorithm aalgorithm,
-        const primitive::at &input, const primitive::at &indices,
-        const memory &output,
+        const primitive::at &src, const primitive::at &indices,
+        const memory &dst,
         const tensor::dims strides, const tensor::dims kernel, const tensor::nd_offset padding,
         const padding_kind apadding_kind) {
-        auto input_md = memory(input).get_primitive_desc();
+        auto src_md = memory(src).get_primitive_desc();
         auto indices_md = memory(indices).get_primitive_desc();
-        auto output_md = output.get_primitive_desc();
+        auto dst_md = dst.get_primitive_desc();
 
-        auto pool_d = desc(aprop_kind, aalgorithm, input_md.desc(),
-            indices_md.desc(), output_md.desc(),
+        auto pool_d = desc(aprop_kind, aalgorithm, src_md.desc(),
+            indices_md.desc(), dst_md.desc(),
             strides, kernel, padding, apadding_kind);
         auto pool_pd = primitive_desc(pool_d,
-            engine(input_md.data.base.engine));
+            engine(src_md.data.base.engine));
 
         c_api::mkl_dnn_primitive_t result;
         error::wrap_c_api(c_api::mkl_dnn_pooling_create(&result,
-            &pool_pd.data, input.data, indices.data,
-            output.get()),
+            &pool_pd.data, src.data, indices.data,
+            dst.get()),
             "could not create a convolution primitive");
         reset(result);
     }

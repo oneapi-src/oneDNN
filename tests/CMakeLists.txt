@@ -31,4 +31,10 @@ set_property(TARGET only_pooling-c PROPERTY C_STANDARD 99)
 target_link_libraries(only_pooling-c ${LIB_NAME})
 add_test(only_pooling-c only_pooling-c)
 
+add_executable(only_pooling-cxx only_pooling.cpp)
+set_property(TARGET only_pooling-cxx PROPERTY CXX_STANDARD 11)
+set_property(TARGET only_pooling-cxx PROPERTY CXX_STANDARD_REQUIRED ON)
+target_link_libraries(only_pooling-cxx ${LIB_NAME})
+add_test(only_pooling-cxx only_pooling-cxx)
+
 add_subdirectory(gtests)
