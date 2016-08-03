@@ -85,7 +85,6 @@ typedef status_t (*primitive_create_f)(primitive **aprimitive,
         primitive *outputs[]);
 
 struct primitive_impl /* : public c_compatible */ {
-    const primitive_desc_init_f primitive_desc_init;
     const primitive_create_f primitive_create;
 };
 

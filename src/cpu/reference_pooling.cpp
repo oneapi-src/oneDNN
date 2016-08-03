@@ -157,7 +157,6 @@ status_t reference_pooling<prec>::create(primitive **primitive,
 
 template <impl::precision_t prec>
 const primitive_impl reference_pooling<prec>::implementation = {
-    .primitive_desc_init = reference_pooling::primitive_desc_init,
     .primitive_create = reference_pooling::create,
 };
 

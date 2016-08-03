@@ -47,7 +47,6 @@ status_t cpu_memory::memory_create(primitive **primitive,
 }
 
 const primitive_impl cpu_memory::memory_implementation = {
-    .primitive_desc_init = cpu_memory::memory_desc_init,
     .primitive_create = cpu_memory::memory_create
 };
 

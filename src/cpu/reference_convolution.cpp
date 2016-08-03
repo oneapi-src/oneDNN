@@ -189,7 +189,6 @@ status_t reference_convolution<prec>::create(primitive **primitive,
 
 template <impl::precision_t prec>
 const primitive_impl reference_convolution<prec>::implementation = {
-    .primitive_desc_init = reference_convolution::primitive_desc_init,
     .primitive_create = reference_convolution::create,
 };
 

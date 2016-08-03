@@ -64,7 +64,6 @@ status_t reference_reorder<prec_i, prec_o>::create(primitive **primitive,
 
 template <precision_t prec_i, precision_t prec_o>
 const primitive_impl reference_reorder<prec_i, prec_o>::implementation = {
-    .primitive_desc_init = nullptr,
     .primitive_create = reference_reorder::create,
 };
 
