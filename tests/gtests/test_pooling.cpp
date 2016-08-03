@@ -72,7 +72,9 @@ int doit(bool lazy) {
     auto p1_indices_desc = memory::desc({1, 1, 2, {16, 96, 27, 27}}, memory::precision::f32, memory::format::nchw);
     auto p1_output_desc  = memory::desc({1, 1, 2, {16, 96, 27, 27}}, memory::precision::f32, memory::format::nchw);
 
-    real_t *input   = new real_t[tensor_volume({ 16, 96, 55, 55 })];
+    size_t input_sz = tensor_volume({ 16, 96, 55, 55 });
+    real_t *input   = new real_t[input_sz];
+    for (size_t i = 0; i < input_sz; ++i) input[i] = 0;
     real_t *indices = new real_t[tensor_volume({ 16, 96, 27, 27 })];
     real_t *output  = new real_t[tensor_volume({ 16, 96, 27, 27 })];
 
