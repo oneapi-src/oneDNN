@@ -26,7 +26,7 @@ status_t reference_pooling<prec>::execute_forward() {
     uint32_t *indices = reinterpret_cast<uint32_t*>(this->input()[1].primitive->output()[this->input()[1].output_index]->memory());
     data_t *dst = reinterpret_cast<data_t*>(this->output()[0]->memory());
 
-    const types::memory_desc_wrapper
+    const memory_desc_wrapper
         src_d(this->_cpd.input_primitive_desc.memory_desc),
         indices_d(this->_cpd.indices_primitive_desc.memory_desc),
         dst_d(this->_cpd.output_primitive_desc.memory_desc);

@@ -50,7 +50,7 @@ status_t mkl_dnn_memory_desc_init(memory_desc_t *memory_desc,
     case nhwc:
     case oihw:
     case goihw:
-        status = types::compute_blocking(md);
+        status = memory_desc_wrapper::compute_blocking(md);
         break;
     /* no enough information */
     case blocked:

@@ -2,12 +2,11 @@
 #include "mkl_dnn_types.h"
 
 #include "c_types_map.hpp"
+#include "memory_desc_wrapper.hpp"
 #include "type_helpers.hpp"
 
 namespace mkl_dnn {
 namespace impl {
-// XXX: is this the only namespace we have?
-namespace types {
 
 namespace {
 using mkl_dnn::impl::array_set;
@@ -25,7 +24,7 @@ status_t fill_n(blocking_desc_t& blk, const tensor_desc_t& tensor) {
     return success;
 }
 
-/* TODO: improve me maybe... */
+/* TODO: improve me maybe... and put this to utils */
 inline void set_default_strides(dims_t strides, const dims_t sizes,
         uint32_t ndims, const uint32_t *perm = NULL) {
     uint32_t id_perm[ndims];
@@ -92,22 +91,26 @@ status_t fill_goihw(blocking_desc_t& blk, const tensor_desc_t& tensor) {
 
 }
 
-status_t compute_blocking(memory_desc_t &memory_desc) {
-    if (ndims(memory_desc) == 0)
+status_t memory_desc_wrapper::compute_blocking(memory_desc_t &memory_desc)
+{
+    if (types::ndims(memory_desc.tensor_desc) == 0)
         return invalid_arguments;
+
     const tensor_desc_t &tensor = memory_desc.tensor_desc;
     blocking_desc_t &blk = memory_desc.blocking_desc;
+
     switch (memory_desc.format) {
     case n: return fill_n(blk, tensor);
     case nchw: return fill_nchw(blk, tensor);
     case nhwc: return fill_nhwc(blk, tensor);
     case oihw: return fill_oihw(blk, tensor);
     case goihw: return fill_goihw(blk, tensor);
-    default: return invalid;
+    default: break;
     }
+
+    return invalid;
 }
 
-}
 }
 }
 

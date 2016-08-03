@@ -30,7 +30,7 @@ status_t reference_convolution<prec>::execute_forward() {
     const data_t *bias = obtain_ptr(2);
     data_t *dst = reinterpret_cast<data_t*>(this->output()[0]->memory());
 
-    const types::memory_desc_wrapper
+    const memory_desc_wrapper
         src_d(this->_cpd.input_primitive_desc.memory_desc),
         weights_d(this->_cpd.weights_primitive_desc.memory_desc),
         bias_d(this->_cpd.bias_primitive_desc.memory_desc),

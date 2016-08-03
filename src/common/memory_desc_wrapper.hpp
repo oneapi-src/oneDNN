@@ -9,7 +9,6 @@
 
 namespace mkl_dnn {
 namespace impl {
-namespace types {
 
 using namespace mkl_dnn::impl::status;
 using namespace mkl_dnn::impl::precision;
@@ -77,6 +76,8 @@ struct memory_desc_wrapper: public c_compatible {
         return off_v(pos);
     }
 
+    static status_t compute_blocking(memory_desc_t &memory_desc);
+
 private:
     /* TODO: put logical_offset in utils */
     template<typename T>
@@ -90,7 +91,6 @@ private:
     }
 };
 
-}
 }
 }
 

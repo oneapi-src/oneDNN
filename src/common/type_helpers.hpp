@@ -72,8 +72,6 @@ inline size_t get_size(const memory_primitive_desc_t &memory_prim_desc) {
     return get_size(memory_prim_desc.memory_desc);
 }
 
-status_t compute_blocking(memory_desc_t &memory_desc);
-
 inline bool blocking_desc_is_equal(const blocking_desc_t &lhs,
         const blocking_desc_t &rhs, uint32_t ndims = TENSOR_MAX_DIMS) {
     using mkl_dnn::impl::array_cmp;
