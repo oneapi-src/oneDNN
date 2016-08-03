@@ -183,6 +183,13 @@ size_t mkl_dnn_engine_get_count(mkl_dnn_engine_kind_t kind);
 mkl_dnn_status_t mkl_dnn_engine_create(mkl_dnn_engine_t *engine,
         mkl_dnn_engine_kind_t kind, size_t index);
 
+/** Returns the kind of an \param engine */
+mkl_dnn_status_t mkl_dnn_engine_get_kind(mkl_dnn_engine_t engine,
+        mkl_dnn_engine_kind_t *kind);
+
+/** Returns whether an \param engine is lazy */
+mkl_dnn_status_t mkl_dnn_engine_get_is_lazy(mkl_dnn_engine_t engine, int is_lazy);
+
 /** Destroys an \param engine */
 mkl_dnn_status_t mkl_dnn_engine_destroy(mkl_dnn_engine_t engine);
 
