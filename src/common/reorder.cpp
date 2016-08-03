@@ -45,13 +45,13 @@ mkl_dnn_status_t mkl_dnn_reorder_primitive_desc_init(
 
 mkl_dnn_status_t mkl_dnn_reorder_create(mkl_dnn_primitive_t *reorder,
         const mkl_dnn_reorder_primitive_desc_t *reorder_primitive_desc,
-        const mkl_dnn_primitive_at_t from, mkl_dnn_primitive_t to) {
+        const mkl_dnn_primitive_at_t input, mkl_dnn_primitive_t output) {
     const mkl_dnn_primitive_desc_t *rpd =
         reinterpret_cast<const mkl_dnn_primitive_desc_t *>(
                 reorder_primitive_desc);
     // XXX: must check that shapes of in/out memory match what's in the desc (?)
-    const mkl_dnn_primitive_at_t inputs[] = {from};
-    mkl_dnn_primitive_t outputs[] = {to};
+    const mkl_dnn_primitive_at_t inputs[] = {input};
+    mkl_dnn_primitive_t outputs[] = {output};
     return mkl_dnn_primitive_create(reorder, rpd, inputs, outputs);
 }
 
