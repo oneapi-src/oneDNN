@@ -31,7 +31,7 @@ protected:
         switch (_ppd.pooling_desc.prop_kind) {
         case forward: status = execute_forward(); break;
         case backward_data: status = execute_backward_data(); break;
-        default: _exec_state = error; return unimplemented;
+        default:  assert(0 && "invalid prop_kind"); // should never happen
         }
         _exec_state = done;
         return status;
