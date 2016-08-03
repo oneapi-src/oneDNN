@@ -31,10 +31,10 @@ status_t reference_convolution<prec>::execute_forward() {
     data_t *dst = reinterpret_cast<data_t*>(this->output()[0]->memory());
 
     const memory_desc_wrapper
-        src_d(this->_cpd.input_primitive_desc.memory_desc),
+        src_d(this->_cpd.src_primitive_desc.memory_desc),
         weights_d(this->_cpd.weights_primitive_desc.memory_desc),
         bias_d(this->_cpd.bias_primitive_desc.memory_desc),
-        dst_d(this->_cpd.output_primitive_desc.memory_desc);
+        dst_d(this->_cpd.dst_primitive_desc.memory_desc);
 
     const bool w_groups = weights_d.tensor().ndims_batch == 1;
     const uint32_t w_idx_base = w_groups ? 1 : 0;
@@ -128,9 +128,9 @@ status_t reference_convolution<prec>::primitive_desc_init(
         return unimplemented;
 
     /* memory descriptors check and fill-in */
-    if (conv_d.input_desc.format == any)
-        CHECK(mkl_dnn_memory_desc_init(&conv_d.input_desc,
-                    &conv_d.input_desc.tensor_desc, f32, nchw));
+    if (conv_d.src_desc.format == any)
+        CHECK(mkl_dnn_memory_desc_init(&conv_d.src_desc,
+                    &conv_d.src_desc.tensor_desc, f32, nchw));
     const bool groups = conv_d.weights_desc.tensor_desc.ndims_batch != 0;
     if (conv_d.weights_desc.format == any)
         CHECK(mkl_dnn_memory_desc_init(&conv_d.weights_desc,
@@ -138,20 +138,20 @@ status_t reference_convolution<prec>::primitive_desc_init(
     if (conv_d.bias_desc.format == any)
         CHECK(mkl_dnn_memory_desc_init(&conv_d.bias_desc,
                     &conv_d.bias_desc.tensor_desc, f32, n));
-    if (conv_d.output_desc.format == any)
-        CHECK(mkl_dnn_memory_desc_init(&conv_d.output_desc,
-                    &conv_d.output_desc.tensor_desc, f32, nchw));
+    if (conv_d.dst_desc.format == any)
+        CHECK(mkl_dnn_memory_desc_init(&conv_d.dst_desc,
+                    &conv_d.dst_desc.tensor_desc, f32, nchw));
 
     /* memory primitive descriptors check */
-    memory_primitive_desc_t input_pd, weights_pd, bias_pd, output_pd;
-    CHECK(mkl_dnn_memory_primitive_desc_init(&input_pd,
-                &conv_d.input_desc, &engine));
+    memory_primitive_desc_t src_pd, weights_pd, bias_pd, dst_pd;
+    CHECK(mkl_dnn_memory_primitive_desc_init(&src_pd,
+                &conv_d.src_desc, &engine));
     CHECK(mkl_dnn_memory_primitive_desc_init(&weights_pd,
                 &conv_d.weights_desc, &engine));
     CHECK(mkl_dnn_memory_primitive_desc_init(&bias_pd,
                 &conv_d.bias_desc, &engine));
-    CHECK(mkl_dnn_memory_primitive_desc_init(&output_pd,
-                &conv_d.output_desc, &engine));
+    CHECK(mkl_dnn_memory_primitive_desc_init(&dst_pd,
+                &conv_d.dst_desc, &engine));
 
     /* final stage */
     convolution_primitive_desc_t cpd = {
@@ -161,10 +161,10 @@ status_t reference_convolution<prec>::primitive_desc_init(
             .implementation = reinterpret_cast<const void*>(&implementation),
         },
         .convolution_desc = conv_d,
-        .input_primitive_desc = input_pd,
+        .src_primitive_desc = src_pd,
         .weights_primitive_desc = weights_pd,
         .bias_primitive_desc = bias_pd,
-        .output_primitive_desc = output_pd,
+        .dst_primitive_desc = dst_pd,
     };
 
     // if (!convolution_primitive_desc_is_ok(cpd)) return invalid; // ???

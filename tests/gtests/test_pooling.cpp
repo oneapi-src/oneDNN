@@ -4,8 +4,8 @@
 #include "mkl_dnn.hpp"
 
 typedef float real_t;
-void init_input(const mkl_dnn::tensor::dims &dim, real_t *x);
-int check_output(const mkl_dnn::tensor::dims &dim, const real_t *x);
+void init_src(const mkl_dnn::tensor::dims &dim, real_t *x);
+int check_dst(const mkl_dnn::tensor::dims &dim, const real_t *x);
 uint32_t tensor_volume(const mkl_dnn::tensor::dims &t);
 int doit(bool lazy);
 
@@ -24,7 +24,7 @@ TEST(pooling_tests, pooling_check_cxx) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-but-set-variable"
 
-void init_input(const mkl_dnn::tensor::dims &dim, real_t *x)
+void init_src(const mkl_dnn::tensor::dims &dim, real_t *x)
 {
     uint32_t N = dim[0], C = dim[1], H = dim[2], W = dim[3];
     for (uint32_t n = 0; n < N; n += 1)
@@ -34,7 +34,7 @@ void init_input(const mkl_dnn::tensor::dims &dim, real_t *x)
         x[w + W*h + c*W*H + n*W*H*C] = c*n;
 }
 
-int check_output(const mkl_dnn::tensor::dims &dim, const real_t *x)
+int check_dst(const mkl_dnn::tensor::dims &dim, const real_t *x)
 {
     int n_errors = 0;
     uint32_t N = dim[0], C = dim[1], H = dim[2], W = dim[3];
@@ -68,30 +68,30 @@ int doit(bool lazy) {
     printf("There are %zu CPU engines\n", engine::get_count(engine::cpu));
     auto cpu_engine = engine(lazy ? engine::cpu_lazy : engine::cpu, 0);
 
-    auto p1_input_desc   = memory::desc({1, 1, 2, {16, 96, 55, 55}}, memory::precision::f32, memory::format::nchw);
+    auto p1_src_desc   = memory::desc({1, 1, 2, {16, 96, 55, 55}}, memory::precision::f32, memory::format::nchw);
     auto p1_indices_desc = memory::desc({1, 1, 2, {16, 96, 27, 27}}, memory::precision::f32, memory::format::nchw);
-    auto p1_output_desc  = memory::desc({1, 1, 2, {16, 96, 27, 27}}, memory::precision::f32, memory::format::nchw);
+    auto p1_dst_desc  = memory::desc({1, 1, 2, {16, 96, 27, 27}}, memory::precision::f32, memory::format::nchw);
 
-    size_t input_sz = tensor_volume({ 16, 96, 55, 55 });
-    real_t *input   = new real_t[input_sz];
-    for (size_t i = 0; i < input_sz; ++i) input[i] = 0;
+    size_t src_sz = tensor_volume({ 16, 96, 55, 55 });
+    real_t *src   = new real_t[src_sz];
+    for (size_t i = 0; i < src_sz; ++i) src[i] = 0;
     real_t *indices = new real_t[tensor_volume({ 16, 96, 27, 27 })];
-    real_t *output  = new real_t[tensor_volume({ 16, 96, 27, 27 })];
+    real_t *dst  = new real_t[tensor_volume({ 16, 96, 27, 27 })];
 
-    auto p1_input   = memory({ p1_input_desc , cpu_engine}, input  );
+    auto p1_src   = memory({ p1_src_desc , cpu_engine}, src  );
     auto p1_indices = memory({p1_indices_desc, cpu_engine}, indices);
-    auto p1_output  = memory({p1_output_desc , cpu_engine}, output );
+    auto p1_dst  = memory({p1_dst_desc , cpu_engine}, dst );
 
-    auto p1 = pooling(prop_kind::forward, pooling::max, p1_input, p1_indices, p1_output,
+    auto p1 = pooling(prop_kind::forward, pooling::max, p1_src, p1_indices, p1_dst,
         {2, 2}, {3, 3}, {0, 0}, padding_kind::zero);
 
-    init_input({16, 96, 55, 55}, input);
+    init_src({16, 96, 55, 55}, src);
     stream().submit({p1}).wait();
-    int n_errors = check_output({ 16, 96, 27, 27 }, output);
+    int n_errors = check_dst({ 16, 96, 27, 27 }, dst);
 
-    delete[] input;
+    delete[] src;
     delete[] indices;
-    delete[] output;
+    delete[] dst;
 
     return n_errors;
 }

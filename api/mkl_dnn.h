@@ -68,10 +68,10 @@ mkl_dnn_status_t mkl_dnn_reorder_primitive_desc_init(
 mkl_dnn_status_t mkl_dnn_convolution_desc_init(
         mkl_dnn_convolution_desc_t *convolution_desc,
         mkl_dnn_prop_kind_t prop_kind, mkl_dnn_alg_kind_t alg_kind,
-        const mkl_dnn_memory_desc_t *input_desc,
+        const mkl_dnn_memory_desc_t *src_desc,
         const mkl_dnn_memory_desc_t *weights_desc,
         const mkl_dnn_memory_desc_t *bias_desc,
-        const mkl_dnn_memory_desc_t *output_desc,
+        const mkl_dnn_memory_desc_t *dst_desc,
         const mkl_dnn_dims_t strides, const mkl_dnn_nd_offset_t padding,
         mkl_dnn_padding_kind_t padding_kind);
 
@@ -83,9 +83,9 @@ mkl_dnn_status_t mkl_dnn_convolution_desc_init(
 mkl_dnn_status_t mkl_dnn_pooling_desc_init(
         mkl_dnn_pooling_desc_t *pooling_desc,
         mkl_dnn_prop_kind_t prop_kind, mkl_dnn_alg_kind_t alg_kind,
-        const mkl_dnn_memory_desc_t *input_desc,
+        const mkl_dnn_memory_desc_t *src_desc,
         const mkl_dnn_memory_desc_t *indices_desc,
-        const mkl_dnn_memory_desc_t *output_desc,
+        const mkl_dnn_memory_desc_t *dst_desc,
         const mkl_dnn_dims_t strides, const mkl_dnn_dims_t kernel,
         const mkl_dnn_nd_offset_t padding,
         mkl_dnn_padding_kind_t padding_kind);

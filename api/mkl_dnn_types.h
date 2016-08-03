@@ -96,10 +96,10 @@ typedef struct {
 typedef struct {
     mkl_dnn_prop_kind_t prop_kind;
     mkl_dnn_alg_kind_t alg_kind;
-    mkl_dnn_memory_desc_t input_desc;
+    mkl_dnn_memory_desc_t src_desc;
     mkl_dnn_memory_desc_t weights_desc;
     mkl_dnn_memory_desc_t bias_desc;
-    mkl_dnn_memory_desc_t output_desc;
+    mkl_dnn_memory_desc_t dst_desc;
     mkl_dnn_dims_t strides;
     mkl_dnn_nd_offset_t padding;
     mkl_dnn_padding_kind_t padding_kind;
@@ -108,9 +108,9 @@ typedef struct {
 typedef struct {
     mkl_dnn_prop_kind_t prop_kind;
     mkl_dnn_alg_kind_t alg_kind;
-    mkl_dnn_memory_desc_t input_desc;
+    mkl_dnn_memory_desc_t src_desc;
     mkl_dnn_memory_desc_t indices_desc;
-    mkl_dnn_memory_desc_t output_desc;
+    mkl_dnn_memory_desc_t dst_desc;
     mkl_dnn_dims_t strides;
     mkl_dnn_dims_t kernel;
     mkl_dnn_nd_offset_t padding;
@@ -152,25 +152,25 @@ typedef struct {
 
 typedef struct {
     mkl_dnn_primitive_base_desc_t base;
-    mkl_dnn_memory_primitive_desc_t input;
+    mkl_dnn_memory_primitive_desc_t src;
     mkl_dnn_memory_primitive_desc_t output;
 } mkl_dnn_reorder_primitive_desc_t;
 
 typedef struct {
     mkl_dnn_primitive_base_desc_t base;
     mkl_dnn_convolution_desc_t convolution_desc;
-    mkl_dnn_memory_primitive_desc_t input_primitive_desc;
+    mkl_dnn_memory_primitive_desc_t src_primitive_desc;
     mkl_dnn_memory_primitive_desc_t weights_primitive_desc;
     mkl_dnn_memory_primitive_desc_t bias_primitive_desc;
-    mkl_dnn_memory_primitive_desc_t output_primitive_desc;
+    mkl_dnn_memory_primitive_desc_t dst_primitive_desc;
 } mkl_dnn_convolution_primitive_desc_t;
 
 typedef struct {
     mkl_dnn_primitive_base_desc_t base;
     mkl_dnn_pooling_desc_t pooling_desc;
-    mkl_dnn_memory_primitive_desc_t input_primitive_desc;
+    mkl_dnn_memory_primitive_desc_t src_primitive_desc;
     mkl_dnn_memory_primitive_desc_t indices_primitive_desc;
-    mkl_dnn_memory_primitive_desc_t output_primitive_desc;
+    mkl_dnn_memory_primitive_desc_t dst_primitive_desc;
 } mkl_dnn_pooling_primitive_desc_t;
 
 /** primitive section */

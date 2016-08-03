@@ -15,13 +15,13 @@ using namespace mkl_dnn::impl::alg_kind;
 
 status_t mkl_dnn_convolution_desc_init(convolution_desc_t *convolution_desc,
         prop_kind_t prop_kind, alg_kind_t alg_kind,
-        const memory_desc_t *input_desc, const memory_desc_t *weights_desc,
-        const memory_desc_t *bias_desc, const memory_desc_t *output_desc,
+        const memory_desc_t *src_desc, const memory_desc_t *weights_desc,
+        const memory_desc_t *bias_desc, const memory_desc_t *dst_desc,
         const dims_t strides, const nd_offset_t padding,
         padding_kind_t padding_kind)
 {
     const bool args_ok = !any_null(convolution_desc,
-            input_desc, weights_desc, bias_desc, output_desc, strides, padding)
+            src_desc, weights_desc, bias_desc, dst_desc, strides, padding)
         && one_of(prop_kind, forward, backward_data,
                 backward_weights, backward_bias)
         && one_of(alg_kind, convolution_direct);
@@ -31,12 +31,12 @@ status_t mkl_dnn_convolution_desc_init(convolution_desc_t *convolution_desc,
     convolution_desc_t cd;
     cd.prop_kind = prop_kind;
     cd.alg_kind = alg_kind;
-    cd.input_desc = *input_desc;
+    cd.src_desc = *src_desc;
     cd.weights_desc = *weights_desc;
     cd.bias_desc = *bias_desc;
-    cd.output_desc = *output_desc;
+    cd.dst_desc = *dst_desc;
     cd.padding_kind = padding_kind;
-    const uint32_t ndims_spatial = input_desc->tensor_desc.ndims_spatial;
+    const uint32_t ndims_spatial = src_desc->tensor_desc.ndims_spatial;
     array_copy(cd.strides, strides, ndims_spatial);
     array_copy(cd.padding, padding, ndims_spatial);
 

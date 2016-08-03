@@ -22,7 +22,7 @@ static size_t product(uint32_t *arr, size_t size) {
     return prod;
 }
 
-void init_input(uint32_t dim[4], real_t *x)
+void init_src(uint32_t dim[4], real_t *x)
 {
     uint32_t N = dim[0], C = dim[1], H = dim[2], W = dim[3];
     for (uint32_t n = 0; n < N; n += 1)
@@ -32,7 +32,7 @@ void init_input(uint32_t dim[4], real_t *x)
         x[w + W*h + c*W*H + n*W*H*C] = c*n;
 }
 
-int check_output(uint32_t dim[4], const real_t *x)
+int check_dst(uint32_t dim[4], const real_t *x)
 {
     int n_errors = 0;
     uint32_t N = dim[0], C = dim[1], H = dim[2], W = dim[3];
@@ -54,48 +54,48 @@ int doit() {
      * kernel: {3, 3}
      */
 
-    uint32_t p1_input_sizes[4] = {16, 96, 55, 55};
+    uint32_t p1_src_sizes[4] = {16, 96, 55, 55};
     uint32_t p1_indices_sizes[4] = {16, 96, 27, 27};
-    uint32_t p1_output_sizes[4] = {16, 96, 27, 27};
+    uint32_t p1_dst_sizes[4] = {16, 96, 27, 27};
     uint32_t strides[] = {2, 2};
     uint32_t kernel[] = { 3, 3 };
     int32_t  padding[] = { 0, 0 }; // set proper values
 
-    real_t *input = (real_t*)calloc(product(p1_input_sizes, 4), sizeof(real_t));
+    real_t *src = (real_t*)calloc(product(p1_src_sizes, 4), sizeof(real_t));
     real_t *indices = (real_t*)calloc(product(p1_indices_sizes, 4), sizeof(real_t));
-    real_t *output = (real_t*)calloc(product(p1_output_sizes, 4), sizeof(real_t));
+    real_t *dst = (real_t*)calloc(product(p1_dst_sizes, 4), sizeof(real_t));
 
     mkl_dnn_engine_t engine;
     CHECK(mkl_dnn_engine_create(&engine, mkl_dnn_cpu, 0 /* idx */));
 
     /* first describe user data and create data descriptors for future
      * pooling w/ the specified format -- we do not want to do a reorder */
-    mkl_dnn_tensor_desc_t p1_input_tz, p1_indices_tz, p1_output_tz;
-    mkl_dnn_memory_desc_t p1_input_md, p1_indices_md, p1_output_md;
-    mkl_dnn_memory_primitive_desc_t p1_input_pd, p1_indices_pd, p1_output_pd;
-    mkl_dnn_primitive_t p1_input, p1_indices, p1_output;
+    mkl_dnn_tensor_desc_t p1_src_tz, p1_indices_tz, p1_dst_tz;
+    mkl_dnn_memory_desc_t p1_src_md, p1_indices_md, p1_dst_md;
+    mkl_dnn_memory_primitive_desc_t p1_src_pd, p1_indices_pd, p1_dst_pd;
+    mkl_dnn_primitive_t p1_src, p1_indices, p1_dst;
 
-    CHECK(mkl_dnn_tensor_desc_init(&p1_input_tz, 1, 1, 2, p1_input_sizes));
-    CHECK(mkl_dnn_memory_desc_init(&p1_input_md, &p1_input_tz, mkl_dnn_f32, mkl_dnn_nchw));
-    CHECK(mkl_dnn_memory_primitive_desc_init(&p1_input_pd, &p1_input_md, engine));
-    CHECK(mkl_dnn_memory_create(&p1_input, &p1_input_pd, 0 ? NULL : input));
+    CHECK(mkl_dnn_tensor_desc_init(&p1_src_tz, 1, 1, 2, p1_src_sizes));
+    CHECK(mkl_dnn_memory_desc_init(&p1_src_md, &p1_src_tz, mkl_dnn_f32, mkl_dnn_nchw));
+    CHECK(mkl_dnn_memory_primitive_desc_init(&p1_src_pd, &p1_src_md, engine));
+    CHECK(mkl_dnn_memory_create(&p1_src, &p1_src_pd, 0 ? NULL : src));
 
     CHECK(mkl_dnn_tensor_desc_init(&p1_indices_tz, 1, 1, 2, p1_indices_sizes));
     CHECK(mkl_dnn_memory_desc_init(&p1_indices_md, &p1_indices_tz, mkl_dnn_f32, mkl_dnn_nchw));
     CHECK(mkl_dnn_memory_primitive_desc_init(&p1_indices_pd, &p1_indices_md, engine));
     CHECK(mkl_dnn_memory_create(&p1_indices, &p1_indices_pd, indices));
 
-    CHECK(mkl_dnn_tensor_desc_init(&p1_output_tz, 1, 1, 2, p1_output_sizes));
-    CHECK(mkl_dnn_memory_desc_init(&p1_output_md, &p1_output_tz, mkl_dnn_f32, mkl_dnn_nchw));
-    CHECK(mkl_dnn_memory_primitive_desc_init(&p1_output_pd, &p1_output_md, engine));
-    CHECK(mkl_dnn_memory_create(&p1_output, &p1_output_pd, output));
+    CHECK(mkl_dnn_tensor_desc_init(&p1_dst_tz, 1, 1, 2, p1_dst_sizes));
+    CHECK(mkl_dnn_memory_desc_init(&p1_dst_md, &p1_dst_tz, mkl_dnn_f32, mkl_dnn_nchw));
+    CHECK(mkl_dnn_memory_primitive_desc_init(&p1_dst_pd, &p1_dst_md, engine));
+    CHECK(mkl_dnn_memory_create(&p1_dst, &p1_dst_pd, dst));
 
-    mkl_dnn_primitive_at_t p1_inputs[] = {
-        mkl_dnn_primitive_at(p1_input, 0),
+    mkl_dnn_primitive_at_t p1_srcs[] = {
+        mkl_dnn_primitive_at(p1_src, 0),
         mkl_dnn_primitive_at(p1_indices, 0)
     };
 
-    mkl_dnn_primitive_t p1_outputs[] = { p1_output };
+    mkl_dnn_primitive_t p1_dsts[] = { p1_dst };
 
     /* create a pooling */
     mkl_dnn_pooling_desc_t p1_desc;
@@ -103,16 +103,16 @@ int doit() {
     mkl_dnn_primitive_t p1;
 
     CHECK(mkl_dnn_pooling_desc_init(&p1_desc, mkl_dnn_forward, mkl_dnn_pooling_max,
-                &p1_input_md, &p1_indices_md, &p1_output_md,
+                &p1_src_md, &p1_indices_md, &p1_dst_md,
                 strides, kernel, padding, mkl_dnn_padding_zero));
     CHECK(mkl_dnn_pooling_primitive_desc_init(&p1_pd, &p1_desc, engine));
-    CHECK(mkl_dnn_primitive_create(&p1, &p1_pd, p1_inputs, p1_outputs));
+    CHECK(mkl_dnn_primitive_create(&p1, &p1_pd, p1_srcs, p1_dsts));
 
-    assert(mkl_dnn_memory_primitive_desc_equal(&p1_pd.input_primitive_desc, &p1_input_pd));
+    assert(mkl_dnn_memory_primitive_desc_equal(&p1_pd.src_primitive_desc, &p1_src_pd));
     assert(mkl_dnn_memory_primitive_desc_equal(&p1_pd.indices_primitive_desc, &p1_indices_pd));
-    assert(mkl_dnn_memory_primitive_desc_equal(&p1_pd.output_primitive_desc, &p1_output_pd));
+    assert(mkl_dnn_memory_primitive_desc_equal(&p1_pd.dst_primitive_desc, &p1_dst_pd));
 
-    init_input(p1_input_sizes, input);
+    init_src(p1_src_sizes, src);
 
     /* let us build a net */
     mkl_dnn_stream_t stream;
@@ -123,16 +123,16 @@ int doit() {
     /* clean-up */
     CHECK(mkl_dnn_stream_destroy(stream));
     mkl_dnn_primitive_destroy(p1);
-    mkl_dnn_primitive_destroy(p1_input);
+    mkl_dnn_primitive_destroy(p1_src);
     mkl_dnn_primitive_destroy(p1_indices);
-    mkl_dnn_primitive_destroy(p1_output);
+    mkl_dnn_primitive_destroy(p1_dst);
     mkl_dnn_engine_destroy(engine);
 
-    int n_errors = check_output(p1_output_sizes, output);
+    int n_errors = check_dst(p1_dst_sizes, dst);
 
-    free(input);
+    free(src);
     free(indices);
-    free(output);
+    free(dst);
 
     return n_errors;
 }
