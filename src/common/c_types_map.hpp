@@ -62,11 +62,6 @@ namespace padding_kind {
     const padding_kind_t padding_zero = mkl_dnn_padding_zero;
 }
 
-using blocking_desc_t = mkl_dnn_blocking_desc_t;
-using memory_desc_t = mkl_dnn_memory_desc_t;
-using convolution_desc_t = mkl_dnn_convolution_desc_t;
-using pooling_desc_t = mkl_dnn_pooling_desc_t;
-
 using engine_kind_t = mkl_dnn_engine_kind_t;
 namespace engine_kind {
     const engine_kind_t any_engine = mkl_dnn_any_engine;
@@ -84,6 +79,33 @@ namespace primitive_kind {
     const primitive_kind_t convolution = mkl_dnn_convolution;
     const primitive_kind_t pooling = mkl_dnn_pooling;
 }
+
+using blocking_desc_t = mkl_dnn_blocking_desc_t;
+using memory_desc_t = mkl_dnn_memory_desc_t;
+using convolution_desc_t = mkl_dnn_convolution_desc_t;
+using pooling_desc_t = mkl_dnn_pooling_desc_t;
+
+struct op_desc_t {
+    primitive_kind_t _kind;
+    union {
+        memory_desc_t memory;
+        convolution_desc_t convolution;
+        pooling_desc_t pooling;
+    };
+
+#   define DECL_CTOR_AND_CONVERTERS(c_type, name) \
+    op_desc_t(const c_type &_): _kind(primitive_kind::name), name(_) {} \
+    static op_desc_t *convert_from_c(c_type *_) \
+    { return reinterpret_cast<op_desc_t*>(_); } \
+    static const op_desc_t *convert_from_c(const c_type *_) \
+    { return reinterpret_cast<const op_desc_t*>(_); }
+
+    DECL_CTOR_AND_CONVERTERS(memory_desc_t, memory);
+    DECL_CTOR_AND_CONVERTERS(convolution_desc_t, convolution);
+    DECL_CTOR_AND_CONVERTERS(pooling_desc_t, pooling);
+
+#   undef DECL_CTOR_AND_CONVERTERS
+};
 
 using primitive_base_desc_t = mkl_dnn_primitive_base_desc_t;
 using memory_primitive_desc_t = mkl_dnn_memory_primitive_desc_t;
