@@ -30,13 +30,13 @@ typedef enum {
     mkl_dnn_n,
     mkl_dnn_nchw,
     mkl_dnn_nhwc,
-    mkl_dnn_nChw8,
-    mkl_dnn_nChw16,
+    mkl_dnn_nChw8c,
     /* weights formats */
     mkl_dnn_oihw,
+    mkl_dnn_OIhw8i8o,
+    /* weights formats w/ groups */
     mkl_dnn_goihw,
-    mkl_dnn_IOhw88,
-    mkl_dnn_IOhw1616,
+    mkl_dnn_gOIhw8i8o,
     /* generic format */
     mkl_dnn_blocked,
 } mkl_dnn_memory_format_t;
