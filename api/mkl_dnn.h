@@ -111,6 +111,13 @@ mkl_dnn_status_t mkl_dnn_pooling_primitive_desc_init(
         const mkl_dnn_pooling_desc_t *pooling_desc,
         const_mkl_dnn_engine_t engine);
 
+/** Creates a \param reorder primitive using descriptor \param
+ * reorder_primitive_desc, input primitive_ats \param from, and output primitive
+ * \param to */
+mkl_dnn_status_t mkl_dnn_reorder_create(mkl_dnn_primitive_t *reorder,
+        const mkl_dnn_reorder_primitive_desc_t *reorder_primitive_desc,
+        const mkl_dnn_primitive_at_t from, mkl_dnn_primitive_t to);
+
 /** Creates a \param convolution primitive using descriptor \param
  * convolution_primitive_desc, input primitive_ats \param src, \param weights,
  * \param bias and output primitive \param dst */

@@ -18,6 +18,8 @@ inline bool one_of(T val, P item, Args... item_others) {
 template <typename... Args>
 inline bool any_null(Args... ptrs) { return one_of(nullptr, ptrs...); }
 
+inline bool implication(bool cause, bool effect) { return !cause || effect; }
+
 template<typename T>
 inline void array_copy(T *dst, const T *src, size_t size) {
     for (size_t i = 0; i < size; ++i) dst[i] = src[i];

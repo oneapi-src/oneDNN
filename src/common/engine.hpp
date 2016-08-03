@@ -6,7 +6,7 @@
 #include "c_types_map.hpp"
 #include "utils.hpp"
 #include "primitive.hpp"
-#include "convolution.hpp"
+#include "reorder.hpp"
 
 class mkl_dnn_engine: public mkl_dnn::impl::c_compatible {
 protected:
@@ -28,9 +28,10 @@ public:
      * the default one guarantees to return at least an empty list,
      * so no need to check the return value on NULL */
     virtual mkl_dnn::impl::primitive_desc_init_f *get_memory_inits() const;
-    virtual mkl_dnn::impl::primitive_desc_init_f *get_reorder_inits() const;
     virtual mkl_dnn::impl::primitive_desc_init_f *get_convolution_inits() const;
     virtual mkl_dnn::impl::primitive_desc_init_f *get_pooling_inits() const;
+
+    virtual mkl_dnn::impl::reorder_primitive_desc_init_f *get_reorder_inits() const;
 };
 
 namespace mkl_dnn { namespace impl {

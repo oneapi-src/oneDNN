@@ -38,6 +38,7 @@ public:
     virtual primitive_desc_init_f *get_memory_inits() const;
     virtual primitive_desc_init_f *get_convolution_inits() const;
     virtual primitive_desc_init_f *get_pooling_inits() const;
+    virtual reorder_primitive_desc_init_f *get_reorder_inits() const;
 };
 
 class cpu_engine_factory: public engine_factory {
