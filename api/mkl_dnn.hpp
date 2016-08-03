@@ -171,12 +171,13 @@ struct memory: public primitive  {
         any = c_api::mkl_dnn_any,
         n = c_api::mkl_dnn_n,
         nchw = c_api::mkl_dnn_nchw,
-        oihw = c_api::mkl_dnn_oihw,
         nhwc = c_api::mkl_dnn_nhwc,
         nChw8 = c_api::mkl_dnn_nChw8,
-        IOhw88 = c_api::mkl_dnn_IOhw88,
         nChw16 = c_api::mkl_dnn_nChw16,
+        oihw = c_api::mkl_dnn_oihw,
+        goihw = c_api::mkl_dnn_goihw,
         IOhw1616 = c_api::mkl_dnn_IOhw1616,
+        IOhw88 = c_api::mkl_dnn_IOhw88,
         blocked = c_api::mkl_dnn_blocked,
     };
     static c_api::mkl_dnn_memory_format_t convert_to_c(format aformat) {
