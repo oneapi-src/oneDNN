@@ -397,6 +397,26 @@ struct pooling : public primitive {
     }
 };
 
+struct reorder: public primitive {
+    struct primitive_desc {
+        c_api::mkl_dnn_reorder_primitive_desc_t data;
+        primitive_desc(const memory::primitive_desc &ainput, const memory::primitive_desc &aoutput) {
+            error::wrap_c_api(c_api::mkl_dnn_reorder_primitive_desc_init(
+                        &data, &ainput.data, &aoutput.data),
+                    "could not create a reorder primitive descriptor");
+        }
+    };
+
+    reorder(const primitive_desc &aprimitive_desc,
+            const primitive::at &input, const memory &output) {
+        c_api::mkl_dnn_primitive_t result;
+        error::wrap_c_api(c_api::mkl_dnn_reorder_create(&result,
+                    &aprimitive_desc.data, input.data, output.get()),
+                "could not create a reorder primitive");
+        reset(result);
+    }
+};
+
 template <> struct handle_traits<c_api::mkl_dnn_stream_t> {
     static constexpr auto destructor = &c_api::mkl_dnn_stream_destroy;
 };
