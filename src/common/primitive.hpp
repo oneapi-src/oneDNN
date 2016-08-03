@@ -42,7 +42,6 @@ public:
     bool inputs_ready() const {
         for (auto i = 0UL; i < _input.size(); i++)
             if (_input[i].primitive->get_exec_state() != done)
-
                 return false;
         return true;
     }

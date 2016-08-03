@@ -21,7 +21,6 @@ private:
     const impl::convolution_primitive_desc_t &_cpd;
     exec_state _exec_state;
 
-    // TODO: implement in cpp.
     status_t execute_forward();
     status_t execute_backward_data();
     status_t execute_backward_weights();
