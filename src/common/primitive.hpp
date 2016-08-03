@@ -67,10 +67,8 @@ public:
 
 namespace mkl_dnn { namespace impl {
 
-typedef const void* const_op_desc_t;
-
 typedef status_t (*primitive_desc_init_f)(primitive_desc_t *primitive_desc,
-        const_op_desc_t op_desc, const engine &aengine);
+        const op_desc_t &op_desc, const engine &aengine);
 typedef status_t (*primitive_create_f)(primitive **aprimitive,
         const primitive_desc_t *primitive_desc, const primitive_at_t inputs[],
         primitive *outputs[]);
@@ -79,6 +77,9 @@ struct primitive_impl /* : public c_compatible */ {
     const primitive_desc_init_f primitive_desc_init;
     const primitive_create_f primitive_create;
 };
+
+status_t primitive_desc_init(primitive_desc_t *primitive_desc,
+        const op_desc_t &op_desc, const engine &aengine);
 
 status_t inline check_inputs_array(size_t n, const primitive_at_t inputs[]) {
     for (size_t i = 0; i < n; i++)

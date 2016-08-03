@@ -1,3 +1,4 @@
+#if 0
 #include <assert.h>
 
 #include "cpu_engine.hpp"
@@ -20,5 +21,5 @@ primitive_desc_init_f *cpu_engine::get_pooling_inits() const {
 }
 }
 }
-
+#endif
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

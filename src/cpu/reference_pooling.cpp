@@ -90,11 +90,11 @@ status_t reference_pooling<prec>::execute_backward_data() {
 
 template <impl::precision_t prec>
 status_t reference_pooling<prec>::primitive_desc_init(
-        primitive_desc_t *primitive_desc, const_op_desc_t op_desc,
+        primitive_desc_t *primitive_desc, const op_desc_t &op_desc,
         const mkl_dnn::impl::engine &engine) {
-    auto pool_pd =
-        reinterpret_cast<pooling_primitive_desc_t*>(primitive_desc);
-    auto pool_d = *static_cast<const pooling_desc_t*>(op_desc);
+    if (op_desc._kind != primitive_kind::pooling)
+        return invalid;
+    auto pool_d = op_desc.pooling;
 
     // TODO: f32 ?
     if (pool_d.prop_kind != forward)
@@ -123,7 +123,7 @@ status_t reference_pooling<prec>::primitive_desc_init(
         &pool_d.output_desc, &engine));
 
     /* final stage */
-    pooling_primitive_desc_t cpd = {
+    pooling_primitive_desc_t ppd = {
         .base = {
             .primitive_kind = pooling,
             .engine = &engine,
@@ -135,9 +135,9 @@ status_t reference_pooling<prec>::primitive_desc_init(
         .output_primitive_desc  = output_pd,
     };
 
-    // if (!pooling_primitive_desc_is_ok(cpd)) return invalid; // ???
+    // if (!pooling_primitive_desc_is_ok(ppd)) return invalid; // ???
 
-    *pool_pd = cpd;
+    primitive_desc->pooling = ppd;
 
     return success;
 }

@@ -27,29 +27,16 @@ static inline engine_factory *get_engine_factory(engine_kind_t kind)
 
 }}
 
-namespace {
-    mkl_dnn::impl::primitive_desc_init_f empty_list[] = { nullptr };
-    mkl_dnn::impl::reorder_primitive_desc_init_f reorder_empty_list[] = {
-        nullptr
-    };
-}
-
 using namespace mkl_dnn::impl;
 using namespace mkl_dnn::impl::status;
 
-primitive_desc_init_f *engine::get_memory_inits() const {
-    return empty_list;
-}
-primitive_desc_init_f *engine::get_convolution_inits() const
-{
-    return empty_list;
-}
-primitive_desc_init_f *engine::get_pooling_inits() const
-{
+primitive_desc_init_f *engine::get_primitive_inits() const {
+    static primitive_desc_init_f empty_list[] = { nullptr };
     return empty_list;
 }
 
 reorder_primitive_desc_init_f *engine::get_reorder_inits() const {
+    static reorder_primitive_desc_init_f reorder_empty_list[] = { nullptr };
     return reorder_empty_list;
 }
 

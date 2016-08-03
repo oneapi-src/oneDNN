@@ -51,7 +51,6 @@ mkl_dnn_status_t mkl_dnn_primitive_get_output(
     return success;
 }
 
-
 status_t mkl_dnn_primitive_destroy(primitive *aprimitive) {
     if (aprimitive != NULL)
         delete aprimitive;
@@ -62,6 +61,25 @@ primitive_at_t mkl_dnn_primitive_at(const primitive *aprimitive,
         size_t output_index) {
     primitive_at_t result = {aprimitive, output_index};
     return result;
+}
+
+namespace mkl_dnn {
+namespace impl {
+
+status_t primitive_desc_init(primitive_desc_t *primitive_desc,
+        const op_desc_t &op_desc, const engine &aengine) {
+    if (op_desc._kind == primitive_kind::reorder)
+        return invalid_arguments;
+    for (auto init = aengine.get_primitive_inits(); *init; ++init) {
+        status_t status = (*init)(primitive_desc, op_desc, aengine);
+        if (status == success)
+            return success;
+    }
+
+    return status::unimplemented;
+}
+
+}
 }
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

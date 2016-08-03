@@ -116,11 +116,11 @@ status_t reference_convolution<prec>::execute_backward_bias() {
 
 template <impl::precision_t prec>
 status_t reference_convolution<prec>::primitive_desc_init(
-        primitive_desc_t *primitive_desc, const_op_desc_t op_desc,
+        primitive_desc_t *primitive_desc, const op_desc_t &op_desc,
         const mkl_dnn::impl::engine &engine) {
-    auto conv_pd =
-        reinterpret_cast<convolution_primitive_desc_t*>(primitive_desc);
-    auto conv_d = *static_cast<const convolution_desc_t*>(op_desc);
+    if (op_desc._kind != primitive_kind::convolution)
+        return invalid;
+    auto conv_d = op_desc.convolution;
 
     if (conv_d.prop_kind != forward)
         return unimplemented;
@@ -169,7 +169,7 @@ status_t reference_convolution<prec>::primitive_desc_init(
 
     // if (!convolution_primitive_desc_is_ok(cpd)) return invalid; // ???
 
-    *conv_pd = cpd;
+    primitive_desc->convolution = cpd;
 
     return success;
 }

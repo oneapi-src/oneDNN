@@ -61,7 +61,7 @@ public:
 
     /* static magic */
     static status_t primitive_desc_init(primitive_desc_t *primitive_desc,
-            const_op_desc_t op_desc, const mkl_dnn::impl::engine &aengine);
+            const op_desc_t &op_desc, const mkl_dnn::impl::engine &aengine);
     static status_t create(primitive **aprimitive,
         const primitive_desc_t *primitive_desc,
         const primitive_at_t inputs[], primitive *outputs[]);

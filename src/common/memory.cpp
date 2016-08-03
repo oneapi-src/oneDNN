@@ -71,15 +71,9 @@ status_t mkl_dnn_memory_primitive_desc_init(
     if (memory_desc->format == any || !engine->is_ok())
         return invalid_arguments;
 
-    for (auto init = engine->get_memory_inits(); *init; ++init) {
-        status_t status = (*init)(
-                primitive_desc_t::convert_from_c(memory_primitive_desc),
-                static_cast<const_op_desc_t>(memory_desc), *engine);
-        if (status == success)
-            return success;
-    }
-
-    return unimplemented;
+    return primitive_desc_init(
+            primitive_desc_t::convert_from_c(memory_primitive_desc),
+            *memory_desc, *engine);
 }
 
 int mkl_dnn_memory_primitive_desc_equal(const memory_primitive_desc_t *lhs,

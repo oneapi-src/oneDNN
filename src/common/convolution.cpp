@@ -55,15 +55,9 @@ status_t mkl_dnn_convolution_primitive_desc_init(
     if (any_null(convolution_primitive_desc, convolution_desc, engine))
         return invalid_arguments;
 
-    for (auto init = engine->get_convolution_inits(); *init; ++init) {
-        status_t status = (*init)(
-                reinterpret_cast<primitive_desc_t*>(convolution_primitive_desc),
-                static_cast<const_op_desc_t>(convolution_desc), *engine);
-        if (status == success)
-            return success;
-    }
-
-    return unimplemented;
+    return primitive_desc_init(
+            primitive_desc_t::convert_from_c(convolution_primitive_desc),
+            *convolution_desc, *engine);
 }
 
 mkl_dnn_status_t mkl_dnn_convolution_create(mkl_dnn_primitive_t *convolution,

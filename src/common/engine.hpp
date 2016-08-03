@@ -27,10 +27,7 @@ public:
     /* primitives' descriptor initializators
      * the default one guarantees to return at least an empty list,
      * so no need to check the return value on NULL */
-    virtual mkl_dnn::impl::primitive_desc_init_f *get_memory_inits() const;
-    virtual mkl_dnn::impl::primitive_desc_init_f *get_convolution_inits() const;
-    virtual mkl_dnn::impl::primitive_desc_init_f *get_pooling_inits() const;
-
+    virtual mkl_dnn::impl::primitive_desc_init_f *get_primitive_inits() const;
     virtual mkl_dnn::impl::reorder_primitive_desc_init_f *get_reorder_inits() const;
 };
 
