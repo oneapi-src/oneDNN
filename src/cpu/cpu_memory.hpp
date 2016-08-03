@@ -23,7 +23,7 @@ protected:
 
 public:
     cpu_memory(const memory_primitive_desc_t &mpd, char* ptr)
-        : primitive(mpd, const_cast<mkl_dnn::impl::engine*>(mpd.base.engine))
+        : primitive(mpd, const_cast<impl::engine*>(mpd.base.engine), done)
         , _memory_buffer(ptr), _owns_memory(ptr == nullptr) {
         primitive_at_t input_at = { this, 0 };
         _input.push_back(input_at);
@@ -36,7 +36,6 @@ public:
     ~cpu_memory() { if (_owns_memory) delete [] _memory_buffer; }
 
     bool owns_memory() const { return _memory_buffer != NULL; }
-    exec_state get_exec_state() const { return done; }
 
     virtual char* memory() { return _memory_buffer; }
     virtual const char* memory_const() { return _memory_buffer; }

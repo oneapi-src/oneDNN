@@ -19,7 +19,6 @@ template <impl::precision_t prec>
 class reference_pooling: public primitive {
 private:
     const impl::pooling_primitive_desc_t &_cpd;
-    exec_state _exec_state;
 
     // TODO: implement in cpp.
     status_t execute_forward();
@@ -45,15 +44,12 @@ public:
             const primitive_at_t *inputs, primitive *outputs[])
         : primitive(cpd, const_cast<impl::engine*>(cpd.base.engine))
         , _cpd(_primitive_desc.pooling)
-        , _exec_state(not_ready)
     {
         _input.push_back(inputs[0]);
         _input.push_back(inputs[1]);
         _output.push_back(outputs[0]);
     }
     ~reference_pooling() {}
-
-    exec_state get_exec_state() const { return _exec_state; } // TODO: put this in common?
 
     /* static magic */
     static status_t primitive_desc_init(primitive_desc_t *primitive_desc,

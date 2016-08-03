@@ -12,20 +12,27 @@
 // not cause a segfault.
 
 struct mkl_dnn_primitive: public mkl_dnn::impl::c_compatible {
+public:
+    enum exec_state { done, busy, not_ready, error };
+
 private:
     // TODO: copy, equality and assignment -- all must be banned...
+
 protected:
     const mkl_dnn::impl::primitive_desc_t _primitive_desc;
     mkl_dnn::impl::engine *_engine;
+    exec_state _exec_state;
     mkl_dnn::impl::nstl::vector<mkl_dnn::impl::primitive_at_t> _input;
     mkl_dnn::impl::nstl::vector<mkl_dnn::impl::primitive*> _output;
 
     virtual mkl_dnn::impl::status_t execute_impl() = 0;
 
     mkl_dnn_primitive(const mkl_dnn::impl::primitive_desc_t& primitive_desc,
-            mkl_dnn::impl::engine *engine)
+            mkl_dnn::impl::engine *engine, exec_state state = not_ready)
         : _primitive_desc(primitive_desc)
-        , _engine(engine) {}
+        , _engine(engine)
+        , _exec_state(state) {}
+
 public:
     virtual ~mkl_dnn_primitive() {}
 
@@ -37,8 +44,13 @@ public:
 
     virtual bool own_memory() const { return false; }
 
-    enum exec_state { done, busy, not_ready, error };
-    virtual exec_state get_exec_state() const = 0;
+    virtual exec_state get_exec_state() const { return _exec_state; }
+    virtual mkl_dnn::impl::status_t reset_exec_state(exec_state state) {
+        // TODO: some checks here?
+        _exec_state = state;
+        return mkl_dnn::impl::status::success;
+    }
+
     bool inputs_ready() const {
         for (auto i = 0UL; i < _input.size(); i++)
             if (_input[i].primitive->get_exec_state() != done)
