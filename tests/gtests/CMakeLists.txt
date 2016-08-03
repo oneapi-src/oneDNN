@@ -8,7 +8,8 @@ include_directories(${CMAKE_SOURCE_DIR}/tests/gtests
                     ${CMAKE_SOURCE_DIR}/tests/gtests/api_tests
 )
 file(GLOB API_TEST_CASES_SRC api_tests/*.cpp)
-add_executable(${APP_NAME} ${MAIN_SRC_GTEST} ${API_TEST_CASES_SRC} pooling_check_cxx.cpp)
+file(GLOB TESTS_GTEST *.cpp)
+add_executable(${APP_NAME} ${MAIN_SRC_GTEST} ${API_TEST_CASES_SRC} ${TESTS_GTEST})
 target_link_libraries(${APP_NAME} mkl_dnn gtest)
 add_test(${APP_NAME} ${APP_NAME})
 
