@@ -399,7 +399,8 @@ struct pooling : public primitive {
 struct reorder: public primitive {
     struct primitive_desc {
         c_api::mkl_dnn_reorder_primitive_desc_t data;
-        primitive_desc(const memory::primitive_desc &ainput, const memory::primitive_desc &aoutput) {
+        primitive_desc(const memory::primitive_desc &ainput,
+                const memory::primitive_desc &aoutput) {
             error::wrap_c_api(c_api::mkl_dnn_reorder_primitive_desc_init(
                         &data, &ainput.data, &aoutput.data),
                     "could not create a reorder primitive descriptor");
