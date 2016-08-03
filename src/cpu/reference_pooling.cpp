@@ -27,18 +27,18 @@ status_t reference_pooling<prec>::execute_forward() {
     data_t *dst = reinterpret_cast<data_t*>(this->output()[0]->memory());
 
     const memory_desc_wrapper
-        src_d(this->_cpd.input_primitive_desc.memory_desc),
-        indices_d(this->_cpd.indices_primitive_desc.memory_desc),
-        dst_d(this->_cpd.output_primitive_desc.memory_desc);
+        src_d(this->_ppd.input_primitive_desc.memory_desc),
+        indices_d(this->_ppd.indices_primitive_desc.memory_desc),
+        dst_d(this->_ppd.output_primitive_desc.memory_desc);
 
     const uint32_t IH = src_d.dims()[2];
     const uint32_t IW = src_d.dims()[3];
-    const uint32_t KH = this->_cpd.pooling_desc.kernel[0];
-    const uint32_t KW = this->_cpd.pooling_desc.kernel[1];
-    const uint32_t SH = this->_cpd.pooling_desc.strides[0];
-    const uint32_t SW = this->_cpd.pooling_desc.strides[1];
-    const uint32_t PH = this->_cpd.pooling_desc.padding[0];
-    const uint32_t PW = this->_cpd.pooling_desc.padding[1];
+    const uint32_t KH = this->_ppd.pooling_desc.kernel[0];
+    const uint32_t KW = this->_ppd.pooling_desc.kernel[1];
+    const uint32_t SH = this->_ppd.pooling_desc.strides[0];
+    const uint32_t SW = this->_ppd.pooling_desc.strides[1];
+    const uint32_t PH = this->_ppd.pooling_desc.padding[0];
+    const uint32_t PW = this->_ppd.pooling_desc.padding[1];
 
     auto ker = [=](data_t *d, uint32_t mb, uint32_t oc, uint32_t oh,
             uint32_t ow)

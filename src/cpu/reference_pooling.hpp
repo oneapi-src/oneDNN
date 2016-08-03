@@ -18,7 +18,7 @@ using namespace mkl_dnn::impl::primitive_kind;
 template <impl::precision_t prec>
 class reference_pooling: public primitive {
 private:
-    const impl::pooling_primitive_desc_t &_cpd;
+    const impl::pooling_primitive_desc_t &_ppd;
 
     // TODO: implement in cpp.
     status_t execute_forward();
@@ -28,7 +28,7 @@ protected:
     status_t execute_impl() {
         status_t status = success;
         _exec_state = busy;
-        switch (_cpd.pooling_desc.prop_kind) {
+        switch (_ppd.pooling_desc.prop_kind) {
         case forward: status = execute_forward(); break;
         case backward_data: status = execute_backward_data(); break;
         default: _exec_state = error; return unimplemented;
@@ -40,10 +40,10 @@ protected:
 public:
     typedef typename precision2type<prec>::type data_t;
 
-    reference_pooling(const pooling_primitive_desc_t &cpd,
+    reference_pooling(const pooling_primitive_desc_t &ppd,
             const primitive_at_t *inputs, primitive *outputs[])
-        : primitive(cpd, const_cast<impl::engine*>(cpd.base.engine))
-        , _cpd(_primitive_desc.pooling)
+        : primitive(ppd, const_cast<impl::engine*>(ppd.base.engine), not_ready)
+        , _ppd(_primitive_desc.pooling)
     {
         _input.push_back(inputs[0]);
         _input.push_back(inputs[1]);
