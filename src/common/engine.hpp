@@ -8,7 +8,7 @@
 #include "primitive.hpp"
 #include "reorder.hpp"
 
-class mkl_dnn_engine: public mkl_dnn::impl::c_compatible {
+struct mkl_dnn_engine: public mkl_dnn::impl::c_compatible {
 protected:
     mkl_dnn::impl::engine_kind_t _kind;
 public:
