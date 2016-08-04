@@ -3,12 +3,9 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <assert.h>
-#include <math.h>
 
 #include "gtest/gtest.h"
 #include "mkl_dnn.hpp"
-
-typedef float data_t;
 
 struct test_convolution_descr_t {
    uint32_t mb;
@@ -27,6 +24,7 @@ static uint32_t doFill(size_t index, double sparsity) {
     return in_group == ((group % 1637) % group_size);
 }
 
+template <typename data_t>
 static void fillData(const uint32_t size, data_t* data, double sparsity = 1.) {
 #   pragma omp parallel for
     for (uint32_t n = 0; n < size; n++){
@@ -34,7 +32,9 @@ static void fillData(const uint32_t size, data_t* data, double sparsity = 1.) {
     }
 }
 
-void compute_ref_conv_fwd(test_convolution_descr_t c, data_t *in, data_t *filt, data_t *bias, data_t *out)
+template <typename data_t>
+void computeRefConvFwd(test_convolution_descr_t c, data_t *in, data_t *filt,
+                       data_t *bias, data_t *out)
 {
 #pragma omp parallel for collapse(5)
   for (uint32_t n = 0; n < c.mb; n++) {
@@ -54,9 +54,10 @@ void compute_ref_conv_fwd(test_convolution_descr_t c, data_t *in, data_t *filt, 
                       ih < 0 || ih >= (int32_t)c.ih)
                     continue;
                   uint32_t iidx = n*c.ic*c.ih*c.iw + g*c.ic/c.ng*c.ih*c.iw +
-                              ic*c.ih*c.ow + ih*c.iw + iw;
-                  uint32_t fidx = g*c.oc/c.ng*c.ic/c.ng*c.kh*c.kw + oc*c.ic/c.ng*c.kh*c.kw +
-                         ic*c.kh*c.kw + kh*c.kw + kw;
+                                  ic*c.ih*c.ow + ih*c.iw + iw;
+                  uint32_t fidx = g*c.oc/c.ng*c.ic/c.ng*c.kh*c.kw +
+                                  oc*c.ic/c.ng*c.kh*c.kw +
+                                  ic*c.kh*c.kw + kh*c.kw + kw;
 
                   out[oidx] += in[iidx] * filt[fidx];
                 }
@@ -69,29 +70,32 @@ void compute_ref_conv_fwd(test_convolution_descr_t c, data_t *in, data_t *filt, 
   }
 }
 
-int doit_nchw(test_convolution_descr_t cd, bool lazy) {
+template <typename data_t>
+int doitNCHW(test_convolution_descr_t cd, bool lazy) {
     using namespace mkl_dnn;
 
     printf("There are %zu CPU engines\n", engine::get_count(engine::cpu));
     auto cpu_engine = engine(lazy ? engine::cpu_lazy : engine::cpu, 0);
+    EXPECT_EQ(sizeof(data_t), 4);
+    memory::precision testPrecision = memory::precision::f32;
 
-    data_t *src_data = (data_t*)calloc(cd.mb*cd.ic*cd.ih*cd.iw, sizeof(data_t));
-    fillData(cd.mb*cd.ic*cd.ih*cd.iw, src_data);
-    data_t *weights_data = (data_t*)calloc(cd.ng*(cd.oc/cd.ng)*(cd.ic/cd.ng)*cd.kh*cd.kw, sizeof(data_t));
+    data_t *src_data = new data_t[cd.mb*cd.ic*cd.ih*cd.iw];
+    fillData(cd.mb*cd.ic*cd.ih*cd.iw, input_data);
+    data_t *weights_data = new data_t[cd.ng*(cd.oc/cd.ng)*(cd.ic/cd.ng)*cd.kh*cd.kw];
     fillData(cd.ng*(cd.oc/cd.ng)*(cd.ic/cd.ng)*cd.kh*cd.kw, weights_data);
-    data_t *bias_data = (data_t*)calloc(cd.oc, sizeof(data_t));
-    //fillData(cd.ng*(cd.oc, bias_data);
-    data_t *dst_data = (data_t*)calloc(cd.mb*cd.oc*cd.oh*cd.ow, sizeof(data_t));
-    //fillData(cd.mb*cd.oc*cd.oh*cd.ow, dst_data);
-    data_t *dst_ref_data = (data_t*)calloc(cd.mb*cd.oc*cd.oh*cd.ow, sizeof(data_t));
-    //fillData(cd.mb*cd.oc*cd.oh*cd.ow, dst_ref_data);
+    data_t *bias_data = new data_t[cd.oc];
+    fillData(cd.oc, bias_data);
+    data_t *dst_data = new data_t[cd.mb*cd.oc*cd.oh*cd.ow];
+    //fillData(cd.mb*cd.oc*cd.oh*cd.ow, output_data);
+    data_t *dst_ref_data = new data_t[cd.mb*cd.oc*cd.oh*cd.ow];
+    //fillData(cd.mb*cd.oc*cd.oh*cd.ow, output_ref_data);
 
-    auto c_src_desc = memory::desc({1, 1, 2, {cd.mb, cd.ic, cd.ih, cd.iw}}, memory::precision::f32, memory::format::nchw);
+    auto c_src_desc = memory::desc({1, 1, 2, {cd.mb, cd.ic, cd.ih, cd.iw}}, testPrecision, memory::format::nchw);
     auto c_weights_desc = cd.ng > 1 ?
-         memory::desc({1, 2, 2, {cd.ng, cd.oc/cd.ng, cd.ic/cd.ng, cd.kh, cd.kw}}, memory::precision::f32, memory::format::goihw) :
-         memory::desc({0, 2, 2, {cd.oc, cd.ic, cd.kh, cd.kw}}, memory::precision::f32, memory::format::oihw);
-    auto c_bias_desc = memory::desc({0, 0, 1, {cd.oc}}, memory::precision::f32, memory::format::n);
-    auto c_dst_desc = memory::desc({1, 1, 2, {cd.mb, cd.oc, cd.oh, cd.ow}}, memory::precision::f32, memory::format::nchw);
+         memory::desc({1, 2, 2, {cd.ng, cd.oc/cd.ng, cd.ic/cd.ng, cd.kh, cd.kw}}, testPrecision, memory::format::goihw) :
+         memory::desc({0, 2, 2, {cd.oc, cd.ic, cd.kh, cd.kw}}, testPrecision, memory::format::oihw);
+    auto c_bias_desc = memory::desc({0, 0, 1, {cd.oc}}, testPrecision, memory::format::n);
+    auto c_dst_desc = memory::desc({1, 1, 2, {cd.mb, cd.oc, cd.oh, cd.ow}}, testPrecision, memory::format::nchw);
 
     auto c_src = memory({c_src_desc, cpu_engine}, src_data);
     auto c_weights = memory({c_weights_desc, cpu_engine}, weights_data);
@@ -104,32 +108,42 @@ int doit_nchw(test_convolution_descr_t cd, bool lazy) {
 
     stream().submit({c}).wait();
 
-    compute_ref_conv_fwd(cd, src_data, weights_data, bias_data, dst_ref_data);
+    computeRefConvFwd(cd, src_data, weights_data, bias_data, dst_ref_data);
 
 #pragma omp parallel for
     for (uint32_t i = 0; i < cd.mb*cd.oc*cd.oh*cd.ow; ++i) {
         EXPECT_NEAR(dst_data[i], dst_ref_data[i], 1e-4);
     }
 
-    free(src_data);
-    free(dst_data);
-    free(weights_data);
-    free(bias_data);
-    free(dst_ref_data);
+    delete[] src_data;
+    delete[] dst_data;
+    delete[] weights_data;
+    delete[] bias_data;
+    delete[] dst_ref_data;
     return 0;
 }
+typedef ::testing::Types<float> testDataTypes;
 
-TEST(convolution_test, simple_test) {
-    doit_nchw({2, 1, 4, 4, 4, 6, 4, 4, 3, 3, 1, 1, 1, 1}, 1);
+template <typename data_t>
+class convolutionTest: public ::testing::Test {
+ public:
+ protected:
+  convolutionTest() {}
+  virtual ~convolutionTest() {}
+};
 
+TYPED_TEST_CASE(convolutionTest, testDataTypes);
+
+TYPED_TEST(convolutionTest, simpleTest) {
+    doitNCHW<TypeParam>({2, 1, 4, 4, 4, 6, 4, 4, 3, 3, 1, 1, 1, 1}, 1);
 }
 
-TEST(convolution_test, AlexNet_test) {
+TYPED_TEST(convolutionTest, AlexNetTest) {
     uint32_t mb = 2;
 //    doit_nchw({mb, 1, 3, 227, 227, 96, 55, 55, 11, 11, 4, 4, 1, 1}, 1);
     //         mb  g    ic ih  iw   oc  oh  ow  kh  kw  padh  padw  strh  strw
-    doit_nchw({mb, 2, 96 , 27, 27, 256, 27, 27,  5,  5,    2,   2,     1,    1}, 1);
-    doit_nchw({mb, 1, 256, 13, 13, 384, 13, 13,  3,  3,    1,   1,     1,    1}, 1);
-    doit_nchw({mb, 2, 384, 13, 13, 384, 13, 13,  3,  3,    1,   1,     1,    1}, 1);
-    doit_nchw({mb, 2, 384, 13, 13, 256, 13, 13,  3,  3,    1,   1,     1,    1}, 1);
+    doitNCHW<TypeParam>({mb, 2, 96 , 27, 27, 256, 27, 27,  5,  5,    2,   2,     1,    1}, 1);
+    doitNCHW<TypeParam>({mb, 1, 256, 13, 13, 384, 13, 13,  3,  3,    1,   1,     1,    1}, 1);
+    doitNCHW<TypeParam>({mb, 2, 384, 13, 13, 384, 13, 13,  3,  3,    1,   1,     1,    1}, 1);
+    doitNCHW<TypeParam>({mb, 2, 384, 13, 13, 256, 13, 13,  3,  3,    1,   1,     1,    1}, 1);
 }
