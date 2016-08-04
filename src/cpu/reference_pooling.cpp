@@ -148,10 +148,10 @@ status_t reference_pooling<prec>::create(primitive **primitive,
         const primitive_at_t inputs[], mkl_dnn::impl::primitive *outputs[]) {
     assert(primitive_desc->base.primitive_kind == pooling);
 
-    auto& cpd = primitive_desc->pooling;
+    auto& ppd = primitive_desc->pooling;
     // TODO: some checks here.
 
-    *primitive = new reference_pooling(cpd, inputs, outputs);
+    *primitive = new reference_pooling(ppd, inputs, outputs);
     return primitive ? success : out_of_memory;
 }
 
