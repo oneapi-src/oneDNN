@@ -17,8 +17,8 @@ void check_relu(prop_kind aprop_kind,
     ASSERT_EQ(md.data.tensor_desc.ndims_batch, 1);
     ASSERT_EQ(md.data.tensor_desc.ndims_channels, 1);
     ASSERT_EQ(md.data.tensor_desc.ndims_spatial, 2);
-    ASSERT_EQ(md.data.format, memory::format::nchw);
-    ASSERT_EQ(md.data.precision, memory::precision::f32); // TODO: type assert
+    ASSERT_EQ(md.data.format, memory::convert_to_c(memory::format::nchw));
+    ASSERT_EQ(md.data.precision, memory::convert_to_c(memory::precision::f32)); // TODO: type assert
 
     size_t N = md.data.tensor_desc.dims[0];
     size_t C = md.data.tensor_desc.dims[1];
@@ -114,4 +114,3 @@ INSTANTIATE_TEST_CASE_P(TestReLUForward, relu_test_float,
             memory::format::nchw, {10, 10, 10, 10}}));
 
 }
-
