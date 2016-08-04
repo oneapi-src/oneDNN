@@ -97,6 +97,21 @@ mkl_dnn_status_t mkl_dnn_relu_desc_init(
         double negative_slope, const mkl_dnn_memory_desc_t *src_desc,
         const mkl_dnn_memory_desc_t *dst_desc);
 
+/** Initializes a \param lrn_desc using \param prop_kind, \param alg_kind,
+* memory descriptors, \param strides, \param padding and \param padding_kind.
+* Please note that memory descriptors may be initialized with format_kind_any
+* format_kind. In this case lrn_primitive_desc_init() will choose the best
+* implementation possible in terms of performance */
+mkl_dnn_status_t mkl_dnn_lrn_desc_init(
+    mkl_dnn_lrn_desc_t *lrn_desc,
+    mkl_dnn_prop_kind_t prop_kind, mkl_dnn_alg_kind_t alg_kind,
+    const mkl_dnn_memory_desc_t *src_desc,
+    const mkl_dnn_memory_desc_t *scratch_desc,
+    const mkl_dnn_memory_desc_t *dst_desc,
+    double alpha,
+    double beta,
+    uint32_t local_size);
+
 /** Initializes a \param convolution_primitve_desc with \param convolution_desc
  * and \param engine */
 mkl_dnn_status_t mkl_dnn_convolution_primitive_desc_init(
@@ -123,6 +138,13 @@ mkl_dnn_status_t mkl_dnn_pooling_primitive_desc_init(
         mkl_dnn_pooling_primitive_desc_t *pooling_primitive_desc,
         const mkl_dnn_pooling_desc_t *pooling_desc,
         const_mkl_dnn_engine_t engine);
+
+/** Initializes a \param lrn_primitve_desc using \param lrn_desc and
+* \param engine */
+mkl_dnn_status_t mkl_dnn_lrn_primitive_desc_init(
+    mkl_dnn_lrn_primitive_desc_t *lrn_primitive_desc,
+    const mkl_dnn_lrn_desc_t *lrn_desc,
+    const_mkl_dnn_engine_t engine);
 
 /** Creates a \param reorder primitive using descriptor \param
  * reorder_primitive_desc, input primitive_ats \param input, and output
@@ -152,6 +174,14 @@ mkl_dnn_status_t mkl_dnn_pooling_create(mkl_dnn_primitive_t *pooling,
 mkl_dnn_status_t mkl_dnn_relu_create(mkl_dnn_primitive_t *relu,
         const mkl_dnn_relu_primitive_desc_t *relu_primitive_desc,
         const mkl_dnn_primitive_at_t src, mkl_dnn_primitive_t dst);
+
+/** Creates a \param lrn primitive using descriptor \param
+* lrn_primitive_desc, input primitive_at \param src
+* and output primitive \param dst */
+mkl_dnn_status_t mkl_dnn_lrn_create(mkl_dnn_primitive_t *lrn,
+    const mkl_dnn_lrn_primitive_desc_t *lrn_primitive_desc,
+    const mkl_dnn_primitive_at_t src, const mkl_dnn_primitive_at_t scratch,
+    mkl_dnn_primitive_t dst);
 
 /* XXX: is this even usable by user? */
 /** Creates a \param primitive using a \param primitive descriptor and array of

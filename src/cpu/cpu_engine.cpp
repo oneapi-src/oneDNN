@@ -6,6 +6,7 @@
 #include "cpu/reference_convolution.hpp"
 #include "cpu/reference_pooling.hpp"
 #include "cpu/reference_relu.hpp"
+#include "cpu/reference_lrn.hpp"
 
 #include "cpu/reference_reorder.hpp"
 
@@ -24,6 +25,7 @@ primitive_desc_init_f primitive_inits[] = {
     reference_convolution<f32>::primitive_desc_init,
     reference_pooling<f32>::primitive_desc_init,
     reference_relu<f32>::primitive_desc_init,
+    reference_lrn<f32>::primitive_desc_init,
     NULL,
 };
 

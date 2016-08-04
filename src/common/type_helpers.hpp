@@ -119,6 +119,12 @@ inline status_t relu_desc_is_ok(
     return success;
 }
 
+inline status_t lrn_desc_is_ok(
+    const lrn_desc_t &lrn_desc) {
+    // XXX: fill-in
+    return success;
+}
+
 }
 }
 }

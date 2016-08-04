@@ -55,6 +55,8 @@ typedef enum {
 typedef enum {
     mkl_dnn_convolution_direct = 1,
     mkl_dnn_pooling_max = 101,
+    mkl_dnn_lrn_across_channels = 201,
+    mkl_dnn_lrn_within_channel = 202,
 } mkl_dnn_alg_kind_t;
 
 /** memory descriptor section */
@@ -124,6 +126,17 @@ typedef struct {
     mkl_dnn_memory_desc_t dst_desc;
 } mkl_dnn_relu_desc_t;
 
+typedef struct {
+    mkl_dnn_prop_kind_t prop_kind;
+    mkl_dnn_alg_kind_t alg_kind;
+    mkl_dnn_memory_desc_t src_desc;
+    mkl_dnn_memory_desc_t scratch_desc;
+    mkl_dnn_memory_desc_t dst_desc;
+    double alpha;
+    double beta;
+    uint32_t local_size;
+} mkl_dnn_lrn_desc_t;
+
 /** engine section */
 
 typedef enum {
@@ -145,6 +158,7 @@ typedef enum {
     mkl_dnn_convolution,
     mkl_dnn_pooling,
     mkl_dnn_relu,
+    mkl_dnn_lrn,
 } mkl_dnn_primitive_kind_t;
 
 typedef struct {
@@ -187,6 +201,14 @@ typedef struct {
     mkl_dnn_memory_primitive_desc_t src_primitive_desc;
     mkl_dnn_memory_primitive_desc_t dst_primitive_desc;
 } mkl_dnn_relu_primitive_desc_t;
+
+typedef struct {
+    mkl_dnn_primitive_base_desc_t base;
+    mkl_dnn_lrn_desc_t lrn_desc;
+    mkl_dnn_memory_primitive_desc_t src_primitive_desc;
+    mkl_dnn_memory_primitive_desc_t scratch_primitive_desc;
+    mkl_dnn_memory_primitive_desc_t dst_primitive_desc;
+} mkl_dnn_lrn_primitive_desc_t;
 
 /** primitive section */
 

@@ -33,6 +33,8 @@ using alg_kind_t = mkl_dnn_alg_kind_t;
 namespace alg_kind {
     const alg_kind_t convolution_direct = mkl_dnn_convolution_direct;
     const alg_kind_t pooling_max = mkl_dnn_pooling_max;
+    const alg_kind_t lrn_across_channels = mkl_dnn_lrn_across_channels;
+    const alg_kind_t lrn_within_channel = mkl_dnn_lrn_within_channel;
 }
 
 using tensor_desc_t = mkl_dnn_tensor_desc_t;
@@ -78,6 +80,7 @@ namespace primitive_kind {
     const primitive_kind_t convolution = mkl_dnn_convolution;
     const primitive_kind_t pooling = mkl_dnn_pooling;
     const primitive_kind_t relu = mkl_dnn_relu;
+    const primitive_kind_t lrn = mkl_dnn_lrn;
 }
 
 using blocking_desc_t = mkl_dnn_blocking_desc_t;
@@ -85,6 +88,7 @@ using memory_desc_t = mkl_dnn_memory_desc_t;
 using convolution_desc_t = mkl_dnn_convolution_desc_t;
 using pooling_desc_t = mkl_dnn_pooling_desc_t;
 using relu_desc_t = mkl_dnn_relu_desc_t;
+using lrn_desc_t = mkl_dnn_lrn_desc_t;
 
 struct op_desc_t {
     primitive_kind_t _kind;
@@ -93,6 +97,7 @@ struct op_desc_t {
         convolution_desc_t convolution;
         pooling_desc_t pooling;
         relu_desc_t relu;
+        lrn_desc_t lrn;
     };
 
 #   define DECL_CTOR_AND_CONVERTERS(c_type, name) \
@@ -106,6 +111,7 @@ struct op_desc_t {
     DECL_CTOR_AND_CONVERTERS(convolution_desc_t, convolution);
     DECL_CTOR_AND_CONVERTERS(pooling_desc_t, pooling);
     DECL_CTOR_AND_CONVERTERS(relu_desc_t, relu);
+    DECL_CTOR_AND_CONVERTERS(lrn_desc_t, lrn);
 
 #   undef DECL_CTOR_AND_CONVERTERS
 };
@@ -116,6 +122,7 @@ using reorder_primitive_desc_t = mkl_dnn_reorder_primitive_desc_t;
 using convolution_primitive_desc_t = mkl_dnn_convolution_primitive_desc_t;
 using pooling_primitive_desc_t = mkl_dnn_pooling_primitive_desc_t;
 using relu_primitive_desc_t = mkl_dnn_relu_primitive_desc_t;
+using lrn_primitive_desc_t = mkl_dnn_lrn_primitive_desc_t;
 #if 0
 using primitive_desc_t = mkl_dnn_primitive_desc_t;
 using const_primitive_desc_t = const_mkl_dnn_primitive_desc_t;
@@ -127,6 +134,7 @@ union primitive_desc_t {
     convolution_primitive_desc_t convolution;
     pooling_primitive_desc_t pooling;
     relu_primitive_desc_t relu;
+    lrn_primitive_desc_t lrn;
 #   define DECL_CTOR_AND_CONVERTERS(c_type, name) \
     primitive_desc_t(const c_type &_): name(_) {} \
     static primitive_desc_t *convert_from_c(c_type *_) \
@@ -140,6 +148,7 @@ union primitive_desc_t {
     DECL_CTOR_AND_CONVERTERS(convolution_primitive_desc_t, convolution);
     DECL_CTOR_AND_CONVERTERS(pooling_primitive_desc_t, pooling);
     DECL_CTOR_AND_CONVERTERS(relu_primitive_desc_t, relu);
+    DECL_CTOR_AND_CONVERTERS(lrn_primitive_desc_t, lrn);
 
 #   undef DECL_CTOR_AND_CONVERTERS
 };
