@@ -75,7 +75,7 @@ int doit(bool lazy) {
 #else
     auto c3 = convolution(prop_kind::forward, convolution::direct,
             c3_src, c3_weights, c3_bias, c3_dst,
-            {1, 1}, {0, 0}, padding_kind::zero);
+            strides, padding, padding_kind::zero);
 #endif
 
     stream().submit({c3}).wait();
