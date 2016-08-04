@@ -8,9 +8,9 @@ set(LIB_NAME mkl_dnn)
 project(${PROJECT_NAME} C CXX)
 
 if("${CLANG_CXX_COMPILER_ID}" STREQUAL "Clang")
-    set(OPENMP_FLAGS, "-fopenmp=libgomp")
+    set(OPENMP_FLAGS "-fopenmp=libgomp")
 else()
-    set(OPENMP_FLAGS, "-fopenmp")
+    set(OPENMP_FLAGS "-fopenmp")
 endif()
 
 # XXX: this must go away: openmp is only needed when building the lib...
