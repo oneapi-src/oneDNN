@@ -72,8 +72,9 @@ public:
     const mkl_dnn::impl::nstl::vector<mkl_dnn::impl::primitive*> &output() const
     { return _output; }
 
-    virtual char* memory() { return output()[0]->memory(); }
-    virtual const char* memory_const() { return output()[0]->memory_const(); }
+    virtual char* memory() const { return output()[0]->memory(); }
+    virtual const char* memory_const() const
+    { return output()[0]->memory_const(); }
 };
 
 namespace mkl_dnn { namespace impl {

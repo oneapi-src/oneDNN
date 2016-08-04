@@ -102,4 +102,12 @@ mkl_dnn_status_t mkl_dnn_memory_get_primitive_desc(const primitive *memory,
     return success;
 }
 
+mkl_dnn_status_t mkl_dnn_memory_get_data_handle(
+        const_mkl_dnn_primitive_t memory, void **handle) {
+    if (memory->kind() != mkl_dnn::impl::primitive_kind::memory)
+        return invalid_arguments;
+    *handle = static_cast<void*>(memory->memory());
+    return success;
+}
+
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
