@@ -37,8 +37,10 @@ public:
 
     bool owns_memory() const { return _owns_memory; }
 
-    virtual char* memory() const { return _memory_buffer; }
-    virtual const char* memory_const() const { return _memory_buffer; }
+    virtual char* memory(size_t index = 0) const
+    { assert(index == 0); return _memory_buffer; }
+    virtual const char* memory_const(size_t index = 0) const
+    { assert(index == 0); return _memory_buffer; }
 
     /* static magic */
     static status_t memory_desc_init(primitive_desc_t *primitive_desc,
