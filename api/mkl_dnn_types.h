@@ -152,7 +152,7 @@ typedef struct {
 
 typedef struct {
     mkl_dnn_primitive_base_desc_t base;
-    mkl_dnn_memory_primitive_desc_t src;
+    mkl_dnn_memory_primitive_desc_t input;
     mkl_dnn_memory_primitive_desc_t output;
 } mkl_dnn_reorder_primitive_desc_t;
 
