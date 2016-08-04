@@ -80,7 +80,7 @@ int doitNCHW(test_convolution_descr_t cd, bool lazy) {
     memory::precision testPrecision = memory::precision::f32;
 
     data_t *src_data = new data_t[cd.mb*cd.ic*cd.ih*cd.iw];
-    fillData(cd.mb*cd.ic*cd.ih*cd.iw, input_data);
+    fillData(cd.mb*cd.ic*cd.ih*cd.iw, src_data);
     data_t *weights_data = new data_t[cd.ng*(cd.oc/cd.ng)*(cd.ic/cd.ng)*cd.kh*cd.kw];
     fillData(cd.ng*(cd.oc/cd.ng)*(cd.ic/cd.ng)*cd.kh*cd.kw, weights_data);
     data_t *bias_data = new data_t[cd.oc];
