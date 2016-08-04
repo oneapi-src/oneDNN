@@ -14,6 +14,7 @@ typedef float real_t;
 void init_src(const mkl_dnn::tensor::dims &dim, real_t *x)
 {
     uint32_t N = dim[0], C = dim[1], H = dim[2], W = dim[3];
+#   pragma omp parallel for collapse(2)
     for (uint32_t n = 0; n < N; n += 1)
     for (uint32_t c = 0; c < C; c += 1)
     for (uint32_t h = 2; h+2 <= H; h += 2)
@@ -25,21 +26,17 @@ int check_dst(const mkl_dnn::tensor::dims &dim, const real_t *x)
 {
     int n_errors = 0;
     uint32_t N = dim[0], C = dim[1], H = dim[2], W = dim[3];
+#   pragma omp parallel for collapse(4)
     for (uint32_t n = 0; n < N; ++n)
     for (uint32_t c = 0; c < C; ++c)
     for (uint32_t h = 0; h < H; ++h)
     for (uint32_t w = 0; w < W; ++w)
     {
-        if (x[w + W*h + c*W*H + n*W*H*C] != c*n) n_errors += 1;
+        if (x[w + W*h + c*W*H + n*W*H*C] != c*n)
+#           pragma omp atomic
+            n_errors += 1;
     }
     return n_errors;
-}
-
-uint32_t tensor_volume(const mkl_dnn::tensor::dims &t)
-{
-    uint32_t x = 1;
-    for (uint32_t i = 0; i < t.size(); ++i) x *= t[i];
-    return x;
 }
 
 int doit(bool lazy) {
@@ -47,9 +44,9 @@ int doit(bool lazy) {
 
     /* AlexNet: p1
      * {16, 96, 55, 55} -> {16, 96, 27, 27}
-     * pad: {0, 0}
      * strides: {2, 2}
-     * kernel: {3, 3}
+     * kernel : {3, 3}
+     * padding: {0, 0}
      */
 
     printf("There are %zu CPU engines\n", engine::get_count(engine::cpu));
@@ -59,13 +56,13 @@ int doit(bool lazy) {
     auto p1_indices_desc = memory::desc({1, 1, 2, {16, 96, 27, 27}}, memory::precision::f32, memory::format::nchw);
     auto p1_dst_desc  = memory::desc({1, 1, 2, {16, 96, 27, 27}}, memory::precision::f32, memory::format::nchw);
 
-    real_t *src   = new real_t[tensor_volume({ 16, 96, 55, 55 })];
-    real_t *indices = new real_t[tensor_volume({ 16, 96, 27, 27 })];
-    real_t *dst  = new real_t[tensor_volume({ 16, 96, 27, 27 })];
+    real_t *input   = new real_t[16*96*55*55]();
+    real_t *indices = new real_t[16*96*27*27]();
+    real_t *output  = new real_t[16*96*27*27]();
 
-    auto p1_src   = memory({ p1_src_desc , cpu_engine}, src  );
+    auto p1_src     = memory({p1_src_desc    , cpu_engine}, src    );
     auto p1_indices = memory({p1_indices_desc, cpu_engine}, indices);
-    auto p1_dst  = memory({p1_dst_desc , cpu_engine}, dst );
+    auto p1_dst     = memory({p1_dst_desc    , cpu_engine}, dst    );
 
     auto p1 = pooling(prop_kind::forward, pooling::max, p1_src, p1_indices, p1_dst,
         {2, 2}, {3, 3}, {0, 0}, padding_kind::zero);
