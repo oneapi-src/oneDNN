@@ -37,6 +37,9 @@ struct memory_desc_wrapper: public c_compatible {
     const blocking_desc_t &blocking_desc() const { return _md.blocking_desc; }
     inline uint32_t ndims() const { return _ndims; }
 
+    /** returns the number of elements (meaningful) */
+    size_t nelems() const { return array_product(dims(), ndims()); }
+
     /** returns physical offset by logical one
      * logical offset is represented by an array \param pos */
     inline size_t off_v(const dims_t pos) const {

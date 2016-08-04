@@ -18,7 +18,21 @@ using namespace mkl_dnn::impl::primitive_kind;
 
 template <precision_t prec_i, precision_t prec_o>
 status_t reference_reorder<prec_i, prec_o>::execute() {
-    return unimplemented;
+    const size_t oi = this->input()[0].output_index;
+    const data_i_t *input = reinterpret_cast<const data_i_t*>(
+                this->input()[0].primitive->output()[oi]->memory_const());
+    data_o_t *output = reinterpret_cast<data_o_t*>(this->output()[0]->memory());
+
+    const memory_desc_wrapper input_d(this->_rpd.input.memory_desc);
+    const memory_desc_wrapper output_d(this->_rpd.output.memory_desc);
+
+#   pragma omp parallel for
+    for (size_t i = 0; i < input_d.nelems(); ++i) {
+        output[output_d.off_l(i)] =
+            static_cast<data_o_t>(input[input_d.off_l(i)]);
+    }
+
+    return success;
 }
 
 template <precision_t prec_i, precision_t prec_o>
@@ -43,7 +57,7 @@ status_t reference_reorder<prec_i, prec_o>::reorder_primitive_desc_init(
         .output = *output,
     };
 
-    // if (!reorder_primitive_desc_is_ok(cpd)) return invalid; // ???
+    // if (!reorder_primitive_desc_is_ok(rpd)) return invalid; // ???
     primitive_desc->reorder = rpd;
 
     return success;
