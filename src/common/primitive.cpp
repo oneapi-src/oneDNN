@@ -51,6 +51,16 @@ mkl_dnn_status_t mkl_dnn_primitive_get_output(
     return success;
 }
 
+mkl_dnn_status_t mkl_dnn_primitive_get_native_handle(
+        const_mkl_dnn_primitive_t primitive, size_t index,
+        void **handle) {
+    if (index >= primitive->output_count())
+        return invalid_arguments;
+
+    *handle = static_cast<void*>(primitive->output()[index]->memory());
+    return success;
+}
+
 status_t mkl_dnn_primitive_destroy(primitive *aprimitive) {
     if (aprimitive != NULL)
         delete aprimitive;

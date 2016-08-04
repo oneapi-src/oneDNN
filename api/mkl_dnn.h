@@ -175,6 +175,12 @@ mkl_dnn_status_t mkl_dnn_primitive_get_output(
         const_mkl_dnn_primitive_t primitive, size_t index,
         mkl_dnn_primitive_t *output);
 
+/** For a \param primitive returns native handle \param handle at \param index
+ * position. For cpu engine native handle is a pointer to the actual data */
+mkl_dnn_status_t mkl_dnn_primitive_get_native_handle(
+        const_mkl_dnn_primitive_t primitive, size_t index,
+        void **handle);
+
 // XXX: do we need this?
 /** For a \param primitive returns constant primitive \param output at \param
  * index position */

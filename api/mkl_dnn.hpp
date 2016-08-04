@@ -58,6 +58,7 @@ public:
     };
 
     inline c_api::mkl_dnn_primitive_desc_t get_primitive_desc() const;
+    inline void *get_native_handle(size_t index = 0) const;
 };
 
 struct error {
@@ -95,8 +96,16 @@ inline primitive::at::operator primitive() const {
 inline c_api::mkl_dnn_primitive_desc_t primitive::get_primitive_desc() const {
     c_api::mkl_dnn_primitive_desc_t pd;
     error::wrap_c_api(mkl_dnn_primitive_get_primitive_desc(get(), &pd),
-            "could not get primive descriptor by primitive");
+            "could not get primitive descriptor by primitive");
     return pd;
+}
+
+inline void *primitive::get_native_handle(size_t index) const {
+    void *handle;
+    error::wrap_c_api(
+            mkl_dnn_primitive_get_native_handle(get(), index, &handle),
+            "could not get native handle");
+    return handle;
 }
 
 template <> struct handle_traits<c_api::mkl_dnn_engine_t> {
