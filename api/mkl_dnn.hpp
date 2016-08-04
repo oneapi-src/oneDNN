@@ -211,6 +211,9 @@ struct memory: public primitive  {
         bool operator==(const primitive_desc &other) {
             return mkl_dnn_memory_primitive_desc_equal(&data, &other.data);
         }
+        bool operator!=(const primitive_desc &other) {
+            return (mkl_dnn_memory_primitive_desc_equal(&data, &other.data) == 0);
+        }
     };
 
     memory(const primitive &aprimitive): primitive(aprimitive) {} // XXX: cast Roma
