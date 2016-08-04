@@ -8,7 +8,7 @@ int doit(bool lazy);
 using std::ptrdiff_t;
 #include "gtest/gtest.h"
 
-TEST(pooling_tests, pooling_check_cxx) {
+TEST(pooling_tests, AlexNet_p1) {
     int n_errors = 0;
 
     printf("Eager engine\n");
@@ -25,7 +25,7 @@ TEST(pooling_tests, pooling_check_cxx) {
 
 typedef float real_t;
 
-void init_input(const mkl_dnn::tensor::dims &dim, real_t *x)
+void init_src(const mkl_dnn::tensor::dims &dim, real_t *x)
 {
     uint32_t N = dim[0], C = dim[1], H = dim[2], W = dim[3];
 #   pragma omp parallel for collapse(2)
@@ -70,9 +70,9 @@ int doit(bool lazy) {
     auto p1_indices_desc = memory::desc({1, 1, 2, {16, 96, 27, 27}}, memory::precision::f32, memory::format::nchw);
     auto p1_dst_desc     = memory::desc({1, 1, 2, {16, 96, 27, 27}}, memory::precision::f32, memory::format::nchw);
 
-    real_t *input   = new real_t[16*96*55*55]();
+    real_t *src     = new real_t[16*96*55*55]();
     real_t *indices = new real_t[16*96*27*27]();
-    real_t *output  = new real_t[16*96*27*27]();
+    real_t *dst     = new real_t[16*96*27*27]();
 
     auto p1_src     = memory({p1_src_desc    , cpu_engine}, src    );
     auto p1_indices = memory({p1_indices_desc, cpu_engine}, indices);

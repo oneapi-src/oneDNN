@@ -56,9 +56,9 @@ int doit(bool lazy) {
     auto p1_indices_desc = memory::desc({1, 1, 2, {16, 96, 27, 27}}, memory::precision::f32, memory::format::nchw);
     auto p1_dst_desc  = memory::desc({1, 1, 2, {16, 96, 27, 27}}, memory::precision::f32, memory::format::nchw);
 
-    real_t *input   = new real_t[16*96*55*55]();
+    real_t *src     = new real_t[16*96*55*55]();
     real_t *indices = new real_t[16*96*27*27]();
-    real_t *output  = new real_t[16*96*27*27]();
+    real_t *dst     = new real_t[16*96*27*27]();
 
     auto p1_src     = memory({p1_src_desc    , cpu_engine}, src    );
     auto p1_indices = memory({p1_indices_desc, cpu_engine}, indices);
