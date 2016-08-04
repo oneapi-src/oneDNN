@@ -3,7 +3,7 @@
 
 #include "mkl_dnn.hpp"
 
-int doit(bool lazy);
+static int doit(bool lazy);
 
 using std::ptrdiff_t;
 #include "gtest/gtest.h"
@@ -25,7 +25,7 @@ TEST(pooling_tests, AlexNet_p1) {
 
 typedef float real_t;
 
-void init_src(const mkl_dnn::tensor::dims &dim, real_t *x)
+static void init_src(const mkl_dnn::tensor::dims &dim, real_t *x)
 {
     uint32_t N = dim[0], C = dim[1], H = dim[2], W = dim[3];
 #   pragma omp parallel for collapse(2)
@@ -36,7 +36,7 @@ void init_src(const mkl_dnn::tensor::dims &dim, real_t *x)
         x[w + W*h + c*W*H + n*W*H*C] = c*n;
 }
 
-int check_dst(const mkl_dnn::tensor::dims &dim, const real_t *x)
+static int check_dst(const mkl_dnn::tensor::dims &dim, const real_t *x)
 {
     int n_errors = 0;
     uint32_t N = dim[0], C = dim[1], H = dim[2], W = dim[3];
@@ -53,7 +53,7 @@ int check_dst(const mkl_dnn::tensor::dims &dim, const real_t *x)
     return n_errors;
 }
 
-int doit(bool lazy) {
+static int doit(bool lazy) {
     using namespace mkl_dnn;
 
     /* AlexNet: p1
