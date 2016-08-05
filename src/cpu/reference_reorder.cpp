@@ -69,7 +69,7 @@ status_t reference_reorder<prec_i, prec_o>::create(primitive **primitive,
         const primitive_at_t inputs[], mkl_dnn::impl::primitive *outputs[]) {
     assert(primitive_desc->base.primitive_kind == reorder);
 
-    auto& rpd = primitive_desc->reorder;
+    auto &rpd = primitive_desc->reorder;
     // TODO: some checks here.
 
     *primitive = new reference_reorder(rpd, inputs, outputs);

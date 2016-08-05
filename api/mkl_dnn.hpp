@@ -487,6 +487,19 @@ struct reorder : public primitive {
                 "could not create a reorder primitive");
         reset(result);
     }
+
+    reorder(const primitive::at &input, const memory &output) {
+        auto input_md = memory(input).get_primitive_desc();
+        auto output_md = output.get_primitive_desc();
+
+        auto reorder_d = primitive_desc(input_md, output_md);
+
+        c_api::mkl_dnn_primitive_t result;
+        error::wrap_c_api(c_api::mkl_dnn_reorder_create(&result,
+                    &reorder_d.data, input.data, output.get()),
+                "could not create a reorder primitive");
+        reset(result);
+    }
 };
 
 struct relu: public primitive {
