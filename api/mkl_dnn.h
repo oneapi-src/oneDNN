@@ -105,6 +105,7 @@ mkl_dnn_status_t mkl_dnn_lrn_desc_init(
     mkl_dnn_lrn_desc_t *lrn_desc,
     mkl_dnn_prop_kind_t prop_kind, mkl_dnn_alg_kind_t alg_kind,
     const mkl_dnn_memory_desc_t *src_desc,
+    const mkl_dnn_memory_desc_t *scratch_desc,
     const mkl_dnn_memory_desc_t *dst_desc,
     double alpha,
     double beta,
@@ -177,7 +178,7 @@ mkl_dnn_status_t mkl_dnn_relu_create(mkl_dnn_primitive_t *relu,
 * and output primitive \param dst */
 mkl_dnn_status_t mkl_dnn_lrn_create(mkl_dnn_primitive_t *lrn,
     const mkl_dnn_lrn_primitive_desc_t *lrn_primitive_desc,
-    const mkl_dnn_primitive_at_t src,
+    const mkl_dnn_primitive_at_t src, const mkl_dnn_primitive_at_t scratch,
     mkl_dnn_primitive_t dst);
 
 /* XXX: is this even usable by user? */

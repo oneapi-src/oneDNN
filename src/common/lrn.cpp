@@ -15,10 +15,11 @@ using namespace mkl_dnn::impl::alg_kind;
 status_t mkl_dnn_lrn_desc_init(lrn_desc_t *lrn_desc,
         prop_kind_t prop_kind, alg_kind_t alg_kind,
         const memory_desc_t *src_desc,
+        const memory_desc_t *scratch_desc,
         const memory_desc_t *dst_desc,
         double alpha, double beta, uint32_t local_size)
 {
-    bool args_ok = !any_null(lrn_desc, src_desc, dst_desc)
+    bool args_ok = !any_null(lrn_desc, src_desc, scratch_desc, dst_desc)
         && one_of(prop_kind, forward, backward_data)
         && one_of(alg_kind, lrn_across_channels, lrn_within_channel);
     if (!args_ok) return invalid_arguments;
@@ -27,6 +28,7 @@ status_t mkl_dnn_lrn_desc_init(lrn_desc_t *lrn_desc,
     cd.prop_kind    = prop_kind;
     cd.alg_kind     = alg_kind;
     cd.src_desc     = *src_desc;
+    cd.scratch_desc = *scratch_desc;
     cd.dst_desc     = *dst_desc;
     cd.alpha        = alpha;
     cd.beta         = beta;
@@ -53,12 +55,12 @@ status_t mkl_dnn_lrn_primitive_desc_init(
 
 mkl_dnn_status_t mkl_dnn_lrn_create(mkl_dnn_primitive_t *lrn,
         const mkl_dnn_lrn_primitive_desc_t *lrn_primitive_desc,
-        const mkl_dnn_primitive_at_t src, mkl_dnn_primitive_t dst)
+        const mkl_dnn_primitive_at_t src, const mkl_dnn_primitive_at_t scratch, mkl_dnn_primitive_t dst)
 {
     const mkl_dnn_primitive_desc_t *cpd =
         reinterpret_cast<const mkl_dnn_primitive_desc_t *>(
                 lrn_primitive_desc);
-    const mkl_dnn_primitive_at_t inputs[] = { src };
+    const mkl_dnn_primitive_at_t inputs[] = { src, scratch };
     mkl_dnn_primitive_t outputs[] = { dst };
 
     return mkl_dnn_primitive_create(lrn, cpd, inputs, outputs);

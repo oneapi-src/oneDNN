@@ -24,8 +24,6 @@ private:
     status_t execute_forward();
     status_t execute_backward_data();
 
-    typename precision2type<prec>::type *scratch_ptr;
-
 protected:
     status_t execute_impl() {
         status_t status = success;
@@ -46,15 +44,12 @@ public:
             const primitive_at_t *inputs, primitive *outputs[])
         : primitive(ppd, const_cast<impl::engine*>(ppd.base.engine), not_ready)
         , _ppd(_primitive_desc.lrn)
-        , scratch_ptr(new data_t[
-            array_product(ppd.dst_primitive_desc.memory_desc.tensor_desc.dims,
-                mkl_dnn::impl::types::ndims(ppd.dst_primitive_desc.memory_desc.tensor_desc))
-        ])
     {
         _input.push_back(inputs[0]);
+        _input.push_back(inputs[1]);
         _output.push_back(outputs[0]);
     }
-    ~reference_lrn() { delete[] scratch_ptr; }
+    ~reference_lrn() {}
 
     /* static magic */
     static status_t primitive_desc_init(primitive_desc_t *primitive_desc,

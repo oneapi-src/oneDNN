@@ -69,21 +69,25 @@ static int doit(bool lazy) {
     auto cpu_engine = engine(lazy ? engine::cpu_lazy : engine::cpu, 0);
 
     auto n1_src_desc     = memory::desc({1, 1, 2, {16, 96, 55, 55}}, memory::precision::f32, memory::format::nchw);
+    auto n1_scratch_desc = memory::desc({1, 1, 2, {16, 96, 55, 55}}, memory::precision::f32, memory::format::nchw);
     auto n1_dst_desc     = memory::desc({1, 1, 2, {16, 96, 55, 55}}, memory::precision::f32, memory::format::nchw);
 
     real_t *src     = new real_t[16*96*55*55]();
+    real_t *scratch = new real_t[16*96*55*55]();
     real_t *dst     = new real_t[16*96*55*55]();
 
     auto n1_src     = memory({n1_src_desc    , cpu_engine}, src    );
+    auto n1_scratch = memory({n1_scratch_desc, cpu_engine}, scratch);
     auto n1_dst     = memory({n1_dst_desc    , cpu_engine}, dst    );
 
-    auto n1 = lrn(prop_kind::forward, lrn::across_channels, n1_src, n1_dst, 0.0001, 0.75, 5);
+    auto n1 = lrn(prop_kind::forward, lrn::across_channels, n1_src, n1_scratch, n1_dst, 0.0001, 0.75, 5);
 
     init_src({16, 96, 55, 55}, src);
     stream().submit({n1}).wait();
     int n_errors = check_dst({ 16, 96, 55, 55 }, 0.0001, 0.75, 5, dst);
 
     delete[] src;
+    delete[] scratch;
     delete[] dst;
 
     return n_errors;

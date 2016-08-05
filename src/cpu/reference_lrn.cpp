@@ -23,11 +23,14 @@ template <impl::precision_t prec>
 status_t reference_lrn<prec>::execute_forward() {
     const data_t *src =
         reinterpret_cast<const data_t *>(this->input()[0].primitive->output()[this->input()[0].output_index]->memory_const());
+    data_t *scratch =
+        reinterpret_cast<data_t *>(this->input()[1].primitive->output()[this->input()[1].output_index]->memory());
     data_t *dst =
         reinterpret_cast<data_t *>(this->output()[0]->memory());
 
     const memory_desc_wrapper
         src_d(this->_ppd.src_primitive_desc.memory_desc),
+        scratch_d(this->_ppd.scratch_primitive_desc.memory_desc),
         dst_d(this->_ppd.dst_primitive_desc.memory_desc);
 
     const uint32_t C = src_d.dims()[1];
@@ -61,7 +64,7 @@ status_t reference_lrn<prec>::execute_forward() {
             }
         }
         d[0] = pow(1 + alpha * sum / summands, beta);
-        scratch_ptr[dst_d.off(n, oc, oh, ow)] = d[0] / (1 + alpha * sum / summands); // for back prop
+        scratch[scratch_d.off(n, oc, oh, ow)] = d[0] / (1 + alpha * sum / summands); // for back prop
     };
 
     const uint32_t N = src_d.dims()[0];
@@ -91,25 +94,31 @@ status_t reference_lrn<prec>::primitive_desc_init(
         const mkl_dnn::impl::engine &engine) {
     if (op_desc._kind != primitive_kind::lrn)
         return invalid;
-    auto lrn_d = op_desc.lrn;
+    auto pool_d = op_desc.lrn;
 
     // TODO: f32 ?
-    if (lrn_d.prop_kind != forward) return unimplemented;
+    if (pool_d.prop_kind != forward)
+        return unimplemented;
 
     /* memory descriptors check and fill-in */
-    if (lrn_d.src_desc.format == any)
-        CHECK(mkl_dnn_memory_desc_init(&lrn_d.src_desc,
-        &lrn_d.src_desc.tensor_desc, f32, nchw));
-    if (lrn_d.dst_desc.format == any)
-        CHECK(mkl_dnn_memory_desc_init(&lrn_d.dst_desc,
-        &lrn_d.dst_desc.tensor_desc, f32, nchw));
+    if (pool_d.src_desc.format == any)
+        CHECK(mkl_dnn_memory_desc_init(&pool_d.src_desc,
+        &pool_d.src_desc.tensor_desc, f32, nchw));
+    if (pool_d.scratch_desc.format == any)
+        CHECK(mkl_dnn_memory_desc_init(&pool_d.scratch_desc,
+        &pool_d.scratch_desc.tensor_desc, f32,nchw));
+    if (pool_d.dst_desc.format == any)
+        CHECK(mkl_dnn_memory_desc_init(&pool_d.dst_desc,
+        &pool_d.dst_desc.tensor_desc, f32, nchw));
 
     /* memory primitive descriptors check */
-    memory_primitive_desc_t src_pd, dst_pd;
+    memory_primitive_desc_t src_pd, scratch_pd, dst_pd;
     CHECK(mkl_dnn_memory_primitive_desc_init(&src_pd,
-        &lrn_d.src_desc, &engine));
+        &pool_d.src_desc, &engine));
+    CHECK(mkl_dnn_memory_primitive_desc_init(&scratch_pd,
+        &pool_d.scratch_desc, &engine));
     CHECK(mkl_dnn_memory_primitive_desc_init(&dst_pd,
-        &lrn_d.dst_desc, &engine));
+        &pool_d.dst_desc, &engine));
 
     /* final stage */
     lrn_primitive_desc_t ppd = {
@@ -118,8 +127,9 @@ status_t reference_lrn<prec>::primitive_desc_init(
             .engine = &engine,
             .implementation = reinterpret_cast<const void*>(&implementation),
         },
-        .lrn_desc = lrn_d,
+        .lrn_desc = pool_d,
         .src_primitive_desc   = src_pd,
+        .scratch_primitive_desc = scratch_pd,
         .dst_primitive_desc  = dst_pd,
     };
 
