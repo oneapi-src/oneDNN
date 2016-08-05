@@ -31,18 +31,18 @@ status_t reference_pooling<prec>::execute_forward() {
         indices_d(this->_ppd.indices_primitive_desc.memory_desc),
         dst_d(this->_ppd.dst_primitive_desc.memory_desc);
 
-    const uint32_t IH = src_d.dims()[2];
-    const uint32_t IW = src_d.dims()[3];
-    const uint32_t KH = this->_ppd.pooling_desc.kernel[0];
-    const uint32_t KW = this->_ppd.pooling_desc.kernel[1];
-    const uint32_t SH = this->_ppd.pooling_desc.strides[0];
-    const uint32_t SW = this->_ppd.pooling_desc.strides[1];
-    const uint32_t PH = this->_ppd.pooling_desc.padding[0];
-    const uint32_t PW = this->_ppd.pooling_desc.padding[1];
-
     auto ker = [=](data_t *d, uint32_t mb, uint32_t oc, uint32_t oh,
             uint32_t ow)
     {
+        const uint32_t IH = src_d.dims()[2];
+        const uint32_t IW = src_d.dims()[3];
+        const uint32_t KH = this->_ppd.pooling_desc.kernel[0];
+        const uint32_t KW = this->_ppd.pooling_desc.kernel[1];
+        const uint32_t SH = this->_ppd.pooling_desc.strides[0];
+        const uint32_t SW = this->_ppd.pooling_desc.strides[1];
+        const uint32_t PH = this->_ppd.pooling_desc.padding[0];
+        const uint32_t PW = this->_ppd.pooling_desc.padding[1];
+
         for (uint32_t kh = 0; kh < KH; ++kh) {
             for (uint32_t kw = 0; kw < KW; ++kw) {
                 if (oh*SH + kh < PH) continue;
@@ -54,8 +54,9 @@ status_t reference_pooling<prec>::execute_forward() {
                 const uint32_t ih = oh * SH - PH + kh;
                 const uint32_t iw = ow * SW - PW + kw;
 
-                if (src[src_d.off(mb, oc, ih, iw)] > d[0]) {
-                    d[0] = src[src_d.off(mb, oc, ih, iw)];
+                const size_t src_off = src_d.off(mb, oc, ih, iw);
+                if (src[src_off] > d[0]) {
+                    d[0] = src[src_off];
                     indices[indices_d.off(mb, oc, oh, ow)] = kh*KW + kw;
                 }
             }
