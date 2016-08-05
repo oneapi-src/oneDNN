@@ -62,7 +62,7 @@ static int doit(test_inner_product_descr_t ipd, bool lazy)
     using namespace mkl_dnn;
 
     auto cpu_engine = engine(lazy ? engine::cpu_lazy : engine::cpu, 0);
-    EXPECT_EQ(sizeof(data_t), 4);
+    EXPECT_EQ(sizeof(data_t), 4U);
     memory::precision testPrecision = memory::precision::f32;
 
     data_t *src_data = new data_t[ipd.mb * ipd.ic * ipd.kh * ipd.kw];
