@@ -61,7 +61,6 @@ static int doit(bool lazy) {
      * padding: {0, 0}
      */
 
-    printf("There are %zu CPU engines\n", engine::get_count(engine::cpu));
     auto cpu_engine = engine(lazy ? engine::cpu_lazy : engine::cpu, 0);
 
     auto p1_src_desc     = memory::desc({1, 1, 2, {16, 96, 55, 55}}, memory::precision::f32, memory::format::nchw);

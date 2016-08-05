@@ -140,6 +140,5 @@ static int doit() {
 
 int main(int argc, char **argv) {
     int rc = doit();
-    printf("%s\n", rc ? "failed" : "passed");
     return rc;
 }
