@@ -84,7 +84,6 @@ mkl_dnn_status_t mkl_dnn_pooling_desc_init(
         mkl_dnn_pooling_desc_t *pooling_desc,
         mkl_dnn_prop_kind_t prop_kind, mkl_dnn_alg_kind_t alg_kind,
         const mkl_dnn_memory_desc_t *src_desc,
-        const mkl_dnn_memory_desc_t *indices_desc,
         const mkl_dnn_memory_desc_t *dst_desc,
         const mkl_dnn_dims_t strides, const mkl_dnn_dims_t kernel,
         const mkl_dnn_nd_offset_t padding,
@@ -166,8 +165,7 @@ mkl_dnn_status_t mkl_dnn_convolution_create(mkl_dnn_primitive_t *convolution,
  * and output primitive \param dst */
 mkl_dnn_status_t mkl_dnn_pooling_create(mkl_dnn_primitive_t *pooling,
         const mkl_dnn_pooling_primitive_desc_t *pooling_primitive_desc,
-        const mkl_dnn_primitive_at_t src, const mkl_dnn_primitive_at_t indices,
-        mkl_dnn_primitive_t dst);
+        const mkl_dnn_primitive_at_t src, mkl_dnn_primitive_t dst);
 
 /** Creates a \param relu primitive using descrptor \param relu_primitive_desc,
  * input \param src and output \param dst */

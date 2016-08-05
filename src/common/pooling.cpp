@@ -14,23 +14,20 @@ using namespace mkl_dnn::impl::alg_kind;
 
 status_t mkl_dnn_pooling_desc_init(pooling_desc_t *pooling_desc,
         prop_kind_t prop_kind, alg_kind_t alg_kind,
-        const memory_desc_t *src_desc, const memory_desc_t *indices_desc,
-        const memory_desc_t *dst_desc,
+        const memory_desc_t *src_desc, const memory_desc_t *dst_desc,
         const dims_t strides, const dims_t kernel, const nd_offset_t padding,
         padding_kind_t padding_kind)
 {
     const bool args_ok = !any_null(pooling_desc,
-            src_desc, indices_desc, dst_desc, strides, padding)
+            src_desc, dst_desc, strides, padding)
         && one_of(prop_kind, forward, backward_data)
         && one_of(alg_kind, pooling_max);
-    if (!args_ok)
-        return invalid_arguments;
+    if (!args_ok) return invalid_arguments;
 
     pooling_desc_t cd;
     cd.prop_kind = prop_kind;
     cd.alg_kind = alg_kind;
     cd.src_desc = *src_desc;
-    cd.indices_desc = *indices_desc;
     cd.dst_desc = *dst_desc;
     cd.padding_kind = padding_kind;
     const uint32_t ndims_spatial = src_desc->tensor_desc.ndims_spatial;
@@ -60,12 +57,12 @@ status_t mkl_dnn_pooling_primitive_desc_init(
 
 mkl_dnn_status_t mkl_dnn_pooling_create(mkl_dnn_primitive_t *pooling,
         const mkl_dnn_pooling_primitive_desc_t *pooling_primitive_desc,
-        const mkl_dnn_primitive_at_t src, const mkl_dnn_primitive_at_t indices,
-        mkl_dnn_primitive_t dst) {
+        const mkl_dnn_primitive_at_t src, mkl_dnn_primitive_t dst) {
     const mkl_dnn_primitive_desc_t *cpd =
         reinterpret_cast<const mkl_dnn_primitive_desc_t *>(
                 pooling_primitive_desc);
-    const mkl_dnn_primitive_at_t inputs[] = { src, indices };
+
+    const mkl_dnn_primitive_at_t inputs[] = { src };
     mkl_dnn_primitive_t outputs[] = { dst };
 
     return mkl_dnn_primitive_create(pooling, cpd, inputs, outputs);
