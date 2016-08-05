@@ -42,7 +42,6 @@ status_t reference_inner_product<prec>::execute_forward() {
         const uint32_t IC = weights_d.dims()[1];
         const uint32_t KH = weights_d.dims()[2];
         const uint32_t KW = weights_d.dims()[3];
-
         for (uint32_t ic = 0; ic < IC; ++ic) {
             for (uint32_t kh = 0; kh < KH; ++kh) {
                 for (uint32_t kw = 0; kw < KW; ++kw) {
@@ -56,18 +55,17 @@ status_t reference_inner_product<prec>::execute_forward() {
     auto ker_no_spatial = [=](data_t *d, uint32_t mb, uint32_t oc)
     {
         const uint32_t IC = weights_d.dims()[1];
-
         for (uint32_t ic = 0; ic < IC; ++ic) {
             *d += src[src_d.off(mb, ic)] *
                 weights[weights_d.off(oc, ic)];
         }
     };
 
-
 #   pragma omp parallel for collapse(2)
     for (uint32_t mb = 0; mb < MB; ++mb) {
         for (uint32_t oc = 0; oc < OC; ++oc) {
             data_t *d = &dst[dst_d.off(mb, oc)];
+            *d = (data_t)0;
             if (src_has_spatial) {
                 ker_has_spatial(d, mb, oc);
             } else {
