@@ -81,9 +81,8 @@ int doitNCHW(test_convolution_descr_t cd, bool lazy)
 {
     using namespace mkl_dnn;
 
-    printf("There are %zu CPU engines\n", engine::get_count(engine::cpu));
     auto cpu_engine = engine(lazy ? engine::cpu_lazy : engine::cpu, 0);
-    EXPECT_EQ(sizeof(data_t), 4);
+    EXPECT_EQ(sizeof(data_t), 4U);
     memory::precision testPrecision = memory::precision::f32;
 
     data_t *src_data = new data_t[cd.mb * cd.ic * cd.ih * cd.iw];

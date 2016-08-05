@@ -14,9 +14,9 @@ void check_relu(prop_kind aprop_kind,
 {
     ASSERT_EQ(aprop_kind, prop_kind::forward);
 
-    ASSERT_EQ(md.data.tensor_desc.ndims_batch, 1);
-    ASSERT_EQ(md.data.tensor_desc.ndims_channels, 1);
-    ASSERT_EQ(md.data.tensor_desc.ndims_spatial, 2);
+    ASSERT_EQ(md.data.tensor_desc.ndims_batch, 1U);
+    ASSERT_EQ(md.data.tensor_desc.ndims_channels, 1U);
+    ASSERT_EQ(md.data.tensor_desc.ndims_spatial, 2U);
     ASSERT_EQ(md.data.format, memory::convert_to_c(memory::format::nchw));
     ASSERT_EQ(md.data.precision, memory::convert_to_c(memory::precision::f32)); // TODO: type assert
 
@@ -59,7 +59,7 @@ protected:
                 engine::kind::cpu_lazy);
         auto eng = engine(p.engine_kind, 0);
 
-        ASSERT_EQ(p.dims.size(), 4);
+        ASSERT_EQ(p.dims.size(), 4U);
         size_t size = p.dims[0] * p.dims[1] * p.dims[2] * p.dims[3];
         auto src_nchw_data = new data_t[size];
         // TODO: random fill src_nchw_data

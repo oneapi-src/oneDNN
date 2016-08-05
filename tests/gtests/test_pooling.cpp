@@ -11,11 +11,9 @@ using std::ptrdiff_t;
 TEST(pooling_tests, AlexNet_p1) {
     int n_errors = 0;
 
-    printf("Eager engine\n");
     n_errors = doit(false);
     EXPECT_EQ(n_errors, 0);
 
-    printf("Lazy engine\n");
     n_errors = doit(true);
     EXPECT_EQ(n_errors, 0);
 }
