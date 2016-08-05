@@ -23,10 +23,12 @@ using namespace mkl_dnn::impl::primitive_kind;
 template <impl::precision_t prec>
 status_t reference_pooling<prec>::execute_forward() {
     const data_t *src = reinterpret_cast<const data_t *>(this->input()[0].primitive->output()[this->input()[0].output_index]->memory_const());
+    uint32_t *indices = reinterpret_cast<uint32_t*>(this->input()[1].primitive->output()[this->input()[1].output_index]->memory());
     data_t *dst = reinterpret_cast<data_t*>(this->output()[0]->memory());
 
     const memory_desc_wrapper
         src_d(this->_ppd.src_primitive_desc.memory_desc),
+        indices_d(this->_ppd.indices_primitive_desc.memory_desc),
         dst_d(this->_ppd.dst_primitive_desc.memory_desc);
 
     auto ker = [=](data_t *d, uint32_t mb, uint32_t oc, uint32_t oh,
@@ -55,7 +57,7 @@ status_t reference_pooling<prec>::execute_forward() {
                 const size_t src_off = src_d.off(mb, oc, ih, iw);
                 if (src[src_off] > d[0]) {
                     d[0] = src[src_off];
-                    indices_ptr[dst_d.off(mb, oc, oh, ow)] = kh*KW + kw;
+                    indices[indices_d.off(mb, oc, oh, ow)] = kh*KW + kw;
                 }
             }
         }
@@ -105,14 +107,19 @@ status_t reference_pooling<prec>::primitive_desc_init(
     if (pool_d.src_desc.format == any)
         CHECK(mkl_dnn_memory_desc_init(&pool_d.src_desc,
         &pool_d.src_desc.tensor_desc, f32, nchw));
+    if (pool_d.indices_desc.format == any)
+        CHECK(mkl_dnn_memory_desc_init(&pool_d.indices_desc,
+        &pool_d.indices_desc.tensor_desc, f32,nchw));
     if (pool_d.dst_desc.format == any)
         CHECK(mkl_dnn_memory_desc_init(&pool_d.dst_desc,
         &pool_d.dst_desc.tensor_desc, f32, nchw));
 
     /* memory primitive descriptors check */
-    memory_primitive_desc_t src_pd, dst_pd;
+    memory_primitive_desc_t src_pd, indices_pd, dst_pd;
     CHECK(mkl_dnn_memory_primitive_desc_init(&src_pd,
         &pool_d.src_desc, &engine));
+    CHECK(mkl_dnn_memory_primitive_desc_init(&indices_pd,
+        &pool_d.indices_desc, &engine));
     CHECK(mkl_dnn_memory_primitive_desc_init(&dst_pd,
         &pool_d.dst_desc, &engine));
 
@@ -125,6 +132,7 @@ status_t reference_pooling<prec>::primitive_desc_init(
         },
         .pooling_desc = pool_d,
         .src_primitive_desc   = src_pd,
+        .indices_primitive_desc = indices_pd,
         .dst_primitive_desc  = dst_pd,
     };
 

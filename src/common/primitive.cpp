@@ -34,9 +34,6 @@ status_t mkl_dnn_primitive_get_primitive_desc(
     CASE(memory);
     CASE(reorder);
     CASE(convolution);
-    CASE(pooling);
-    CASE(relu);
-    CASE(lrn);
 #   undef CASE
     default: assert(!"unregistered primitive_desc");
     }
