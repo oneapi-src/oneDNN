@@ -22,7 +22,7 @@ static size_t product(uint32_t *arr, size_t size) {
     return prod;
 }
 
-void init_src(uint32_t dim[4], real_t *x)
+static void init_src(uint32_t dim[4], real_t *x)
 {
     uint32_t N = dim[0], C = dim[1], H = dim[2], W = dim[3];
     for (uint32_t n = 0; n < N; n += 1)
@@ -32,7 +32,7 @@ void init_src(uint32_t dim[4], real_t *x)
         x[w + W*h + c*W*H + n*W*H*C] = c*n;
 }
 
-int check_dst(uint32_t dim[4], const real_t *x)
+static int check_dst(uint32_t dim[4], const real_t *x)
 {
     int n_errors = 0;
     uint32_t N = dim[0], C = dim[1], H = dim[2], W = dim[3];
@@ -46,7 +46,7 @@ int check_dst(uint32_t dim[4], const real_t *x)
     return n_errors;
 }
 
-int doit() {
+static int doit() {
     /* AlexNet: p1
      * {16, 96, 55, 55} -> {16, 96, 27, 27}
      * pad: {0, 0}
@@ -55,14 +55,12 @@ int doit() {
      */
 
     uint32_t p1_src_sizes[4] = {16, 96, 55, 55};
-    uint32_t p1_indices_sizes[4] = {16, 96, 27, 27};
     uint32_t p1_dst_sizes[4] = {16, 96, 27, 27};
     uint32_t strides[] = {2, 2};
     uint32_t kernel[] = { 3, 3 };
     int32_t  padding[] = { 0, 0 }; // set proper values
 
     real_t *src = (real_t*)calloc(product(p1_src_sizes, 4), sizeof(real_t));
-    real_t *indices = (real_t*)calloc(product(p1_indices_sizes, 4), sizeof(real_t));
     real_t *dst = (real_t*)calloc(product(p1_dst_sizes, 4), sizeof(real_t));
 
     mkl_dnn_engine_t engine;
@@ -70,30 +68,22 @@ int doit() {
 
     /* first describe user data and create data descriptors for future
      * pooling w/ the specified format -- we do not want to do a reorder */
-    mkl_dnn_tensor_desc_t p1_src_tz, p1_indices_tz, p1_dst_tz;
-    mkl_dnn_memory_desc_t p1_src_md, p1_indices_md, p1_dst_md;
-    mkl_dnn_memory_primitive_desc_t p1_src_pd, p1_indices_pd, p1_dst_pd;
-    mkl_dnn_primitive_t p1_src, p1_indices, p1_dst;
+    mkl_dnn_tensor_desc_t p1_src_tz, p1_dst_tz;
+    mkl_dnn_memory_desc_t p1_src_md, p1_dst_md;
+    mkl_dnn_memory_primitive_desc_t p1_src_pd, p1_dst_pd;
+    mkl_dnn_primitive_t p1_src, p1_dst;
 
     CHECK(mkl_dnn_tensor_desc_init(&p1_src_tz, 1, 1, 2, p1_src_sizes));
     CHECK(mkl_dnn_memory_desc_init(&p1_src_md, &p1_src_tz, mkl_dnn_f32, mkl_dnn_nchw));
     CHECK(mkl_dnn_memory_primitive_desc_init(&p1_src_pd, &p1_src_md, engine));
     CHECK(mkl_dnn_memory_create(&p1_src, &p1_src_pd, 0 ? NULL : src));
 
-    CHECK(mkl_dnn_tensor_desc_init(&p1_indices_tz, 1, 1, 2, p1_indices_sizes));
-    CHECK(mkl_dnn_memory_desc_init(&p1_indices_md, &p1_indices_tz, mkl_dnn_f32, mkl_dnn_nchw));
-    CHECK(mkl_dnn_memory_primitive_desc_init(&p1_indices_pd, &p1_indices_md, engine));
-    CHECK(mkl_dnn_memory_create(&p1_indices, &p1_indices_pd, indices));
-
     CHECK(mkl_dnn_tensor_desc_init(&p1_dst_tz, 1, 1, 2, p1_dst_sizes));
     CHECK(mkl_dnn_memory_desc_init(&p1_dst_md, &p1_dst_tz, mkl_dnn_f32, mkl_dnn_nchw));
     CHECK(mkl_dnn_memory_primitive_desc_init(&p1_dst_pd, &p1_dst_md, engine));
     CHECK(mkl_dnn_memory_create(&p1_dst, &p1_dst_pd, dst));
 
-    mkl_dnn_primitive_at_t p1_srcs[] = {
-        mkl_dnn_primitive_at(p1_src, 0),
-        mkl_dnn_primitive_at(p1_indices, 0)
-    };
+    mkl_dnn_primitive_at_t p1_srcs[] = { mkl_dnn_primitive_at(p1_src, 0) };
 
     mkl_dnn_primitive_t p1_dsts[] = { p1_dst };
 
@@ -103,13 +93,12 @@ int doit() {
     mkl_dnn_primitive_t p1;
 
     CHECK(mkl_dnn_pooling_desc_init(&p1_desc, mkl_dnn_forward, mkl_dnn_pooling_max,
-                &p1_src_md, &p1_indices_md, &p1_dst_md,
+                &p1_src_md, &p1_dst_md,
                 strides, kernel, padding, mkl_dnn_padding_zero));
     CHECK(mkl_dnn_pooling_primitive_desc_init(&p1_pd, &p1_desc, engine));
     CHECK(mkl_dnn_primitive_create(&p1, &p1_pd, p1_srcs, p1_dsts));
 
     assert(mkl_dnn_memory_primitive_desc_equal(&p1_pd.src_primitive_desc, &p1_src_pd));
-    assert(mkl_dnn_memory_primitive_desc_equal(&p1_pd.indices_primitive_desc, &p1_indices_pd));
     assert(mkl_dnn_memory_primitive_desc_equal(&p1_pd.dst_primitive_desc, &p1_dst_pd));
 
     init_src(p1_src_sizes, src);
@@ -124,14 +113,12 @@ int doit() {
     CHECK(mkl_dnn_stream_destroy(stream));
     mkl_dnn_primitive_destroy(p1);
     mkl_dnn_primitive_destroy(p1_src);
-    mkl_dnn_primitive_destroy(p1_indices);
     mkl_dnn_primitive_destroy(p1_dst);
     mkl_dnn_engine_destroy(engine);
 
     int n_errors = check_dst(p1_dst_sizes, dst);
 
     free(src);
-    free(indices);
     free(dst);
 
     return n_errors;
