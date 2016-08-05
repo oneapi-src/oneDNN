@@ -344,7 +344,6 @@ struct pooling : public primitive {
         c_api::mkl_dnn_pooling_desc_t data;
         desc(prop_kind aprop_kind, algorithm aalgorithm,
             const memory::desc &src_desc,
-            const memory::desc &indices_desc,
             const memory::desc &dst_desc,
             const tensor::dims strides,
             const tensor::dims kernel,
@@ -356,7 +355,7 @@ struct pooling : public primitive {
             tensor::validate_dims(padding);
             error::wrap_c_api(c_api::mkl_dnn_pooling_desc_init(&data,
                 mkl_dnn::convert_to_c(aprop_kind), convert_to_c(aalgorithm),
-                &src_desc.data, &indices_desc.data,
+                &src_desc.data,
                 &dst_desc.data, &strides[0], &kernel[0], &padding[0],
                 mkl_dnn::convert_to_c(apadding_kind)),
                 "could not create a pooling descriptor");
@@ -389,12 +388,10 @@ struct pooling : public primitive {
         const tensor::dims strides, const tensor::dims kernel, const tensor::nd_offset padding,
         const padding_kind apadding_kind) {
         auto src_md = memory(src).get_primitive_desc();
-        auto indices_md = memory(indices).get_primitive_desc();
         auto dst_md = dst.get_primitive_desc();
 
         auto pool_d = desc(aprop_kind, aalgorithm, src_md.desc(),
-            indices_md.desc(), dst_md.desc(),
-            strides, kernel, padding, apadding_kind);
+            dst_md.desc(), strides, kernel, padding, apadding_kind);
         auto pool_pd = primitive_desc(pool_d,
             engine(src_md.data.base.engine));
 
