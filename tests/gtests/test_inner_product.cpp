@@ -1,9 +1,9 @@
 #include <assert.h>
+#include <math.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
 
 #include "mkl_dnn.hpp"
 #include "gtest/gtest.h"
@@ -33,8 +33,8 @@ static void fillData(const uint32_t size, data_t *data, double sparsity = 1.)
 }
 
 template <typename data_t>
-static void computeRefInnerProductFwd(test_inner_product_descr_t ipd, data_t *in,
-        data_t *filt, data_t *out)
+static void computeRefInnerProductFwd(
+        test_inner_product_descr_t ipd, data_t *in, data_t *filt, data_t *out)
 {
 #pragma omp parallel for collapse(2)
     for (uint32_t n = 0; n < ipd.mb; n++) {
@@ -45,9 +45,9 @@ static void computeRefInnerProductFwd(test_inner_product_descr_t ipd, data_t *in
                 for (uint32_t kh = 0; kh < ipd.kh; kh++) {
                     for (uint32_t kw = 0; kw < ipd.kw; kw++) {
                         uint32_t iidx = n * ipd.ic * ipd.kh * ipd.kw
-                                      + ic * ipd.kh * ipd.kw + kh * ipd.kw + kw;
+                                + ic * ipd.kh * ipd.kw + kh * ipd.kw + kw;
                         uint32_t fidx = oc * ipd.ic * ipd.kh * ipd.kw
-                                      + ic * ipd.kh * ipd.kw + kh * ipd.kw + kw;
+                                + ic * ipd.kh * ipd.kw + kh * ipd.kw + kw;
                         out[oidx] += in[iidx] * filt[fidx];
                     }
                 }
@@ -72,27 +72,26 @@ static int doit(test_inner_product_descr_t ipd, bool lazy)
     data_t *dst_data = new data_t[ipd.mb * ipd.oc];
     data_t *dst_ref_data = new data_t[ipd.mb * ipd.oc];
 
-    auto c_src_desc = ipd.kh > 1 || ipd.kw > 1 ? 
+    auto c_src_desc = ipd.kh > 1 || ipd.kw > 1 ?
             memory::desc({ 1, 1, 2, { ipd.mb, ipd.ic, ipd.kh, ipd.kw } },
-            testPrecision, memory::format::nchw) :
-            memory::desc({ 1, 1, 0, { ipd.mb, ipd.ic } },
-            testPrecision, memory::format::nc) ;
+                    testPrecision, memory::format::nchw) :
+            memory::desc({ 1, 1, 0, { ipd.mb, ipd.ic } }, testPrecision,
+                    memory::format::nc);
 
-    auto c_weights_desc = ipd.kh > 1 || ipd.kw > 1 ? 
+    auto c_weights_desc = ipd.kh > 1 || ipd.kw > 1 ?
             memory::desc({ 0, 2, 2, { ipd.oc, ipd.ic, ipd.kh, ipd.kw } },
-            testPrecision, memory::format::oihw) :
-            memory::desc({ 0, 2, 0, { ipd.oc, ipd.ic } },
-            testPrecision, memory::format::oi);
+                    testPrecision, memory::format::oihw) :
+            memory::desc({ 0, 2, 0, { ipd.oc, ipd.ic } }, testPrecision,
+                    memory::format::oi);
 
-    auto c_dst_desc = memory::desc({ 1, 1, 0, { ipd.mb, ipd.oc} },
-            testPrecision, memory::format::nc);
+    auto c_dst_desc = memory::desc(
+            { 1, 1, 0, { ipd.mb, ipd.oc } }, testPrecision, memory::format::nc);
 
     auto c_src = memory({ c_src_desc, cpu_engine }, src_data);
     auto c_weights = memory({ c_weights_desc, cpu_engine }, weights_data);
     auto c_dst = memory({ c_dst_desc, cpu_engine }, dst_data);
 
-    auto ip = inner_product(prop_kind::forward, c_src,
-            c_weights, c_dst);
+    auto ip = inner_product(prop_kind::forward, c_src, c_weights, c_dst);
 
     stream().submit({ ip }).wait();
 
@@ -123,6 +122,6 @@ TYPED_TEST_CASE(innerProductTest, testDataTypes);
 
 TYPED_TEST(innerProductTest, simpleTest)
 {
-    doit<TypeParam>({ 2, 32, 48, 6, 6}, 1);
-    doit<TypeParam>({ 2, 2, 4, 1, 1}, 1);
+    doit<TypeParam>({ 2, 32, 48, 6, 6 }, 1);
+    doit<TypeParam>({ 2, 2, 4, 1, 1 }, 1);
 }
