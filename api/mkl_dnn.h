@@ -105,7 +105,6 @@ mkl_dnn_status_t mkl_dnn_lrn_desc_init(
     mkl_dnn_lrn_desc_t *lrn_desc,
     mkl_dnn_prop_kind_t prop_kind, mkl_dnn_alg_kind_t alg_kind,
     const mkl_dnn_memory_desc_t *src_desc,
-    const mkl_dnn_memory_desc_t *scratch_desc,
     const mkl_dnn_memory_desc_t *dst_desc,
     double alpha,
     double beta,

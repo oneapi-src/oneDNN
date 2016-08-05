@@ -15,11 +15,10 @@ using namespace mkl_dnn::impl::alg_kind;
 status_t mkl_dnn_lrn_desc_init(lrn_desc_t *lrn_desc,
         prop_kind_t prop_kind, alg_kind_t alg_kind,
         const memory_desc_t *src_desc,
-        const memory_desc_t *scratch_desc,
         const memory_desc_t *dst_desc,
         double alpha, double beta, uint32_t local_size)
 {
-    bool args_ok = !any_null(lrn_desc, src_desc, scratch_desc, dst_desc)
+    bool args_ok = !any_null(lrn_desc, src_desc, dst_desc)
         && one_of(prop_kind, forward, backward_data)
         && one_of(alg_kind, lrn_across_channels, lrn_within_channel);
     if (!args_ok) return invalid_arguments;
@@ -28,7 +27,7 @@ status_t mkl_dnn_lrn_desc_init(lrn_desc_t *lrn_desc,
     cd.prop_kind    = prop_kind;
     cd.alg_kind     = alg_kind;
     cd.src_desc     = *src_desc;
-    cd.scratch_desc = *scratch_desc;
+    cd.scratch_desc = *dst_desc;
     cd.dst_desc     = *dst_desc;
     cd.alpha        = alpha;
     cd.beta         = beta;
