@@ -39,24 +39,27 @@ status_t reference_convolution<prec>::execute_forward() {
     const bool w_groups = weights_d.tensor().ndims_batch == 1;
     const uint32_t w_idx_base = w_groups ? 1 : 0;
     const uint32_t G = w_groups ? weights_d.dims()[0] : 1;
+
     const uint32_t MB = src_d.dims()[0];
-    const uint32_t OC = weights_d.dims()[w_idx_base + 0];
     const uint32_t OH = dst_d.dims()[2];
     const uint32_t OW = dst_d.dims()[3];
+    const uint32_t IH = src_d.dims()[2];
+    const uint32_t IW = src_d.dims()[3];
+
+    const uint32_t OC = weights_d.dims()[w_idx_base + 0];
+    const uint32_t IC = weights_d.dims()[w_idx_base + 1];
+    const uint32_t KH = weights_d.dims()[w_idx_base + 2];
+    const uint32_t KW = weights_d.dims()[w_idx_base + 3];
+
+    const uint32_t KSH = this->_cpd.convolution_desc.strides[0];
+    const uint32_t KSW = this->_cpd.convolution_desc.strides[1];
+
+    const uint32_t padH = this->_cpd.convolution_desc.padding[0];
+    const uint32_t padW = this->_cpd.convolution_desc.padding[1];
 
     auto ker = [=](data_t *d, uint32_t g, uint32_t mb, uint32_t oc, uint32_t oh,
             uint32_t ow)
     {
-        const uint32_t IH = src_d.dims()[2];
-        const uint32_t IW = src_d.dims()[3];
-        const uint32_t IC = weights_d.dims()[w_idx_base + 1];
-        const uint32_t KH = weights_d.dims()[w_idx_base + 2];
-        const uint32_t KW = weights_d.dims()[w_idx_base + 3];
-        const uint32_t KSH = this->_cpd.convolution_desc.strides[0];
-        const uint32_t KSW = this->_cpd.convolution_desc.strides[1];
-        const uint32_t padH = this->_cpd.convolution_desc.padding[0];
-        const uint32_t padW = this->_cpd.convolution_desc.padding[1];
-
         for (uint32_t ic = 0; ic < IC; ++ic) {
             for (uint32_t kh = 0; kh < KH; ++kh) {
                 for (uint32_t kw = 0; kw < KW; ++kw) {
