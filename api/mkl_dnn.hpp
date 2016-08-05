@@ -412,14 +412,12 @@ struct lrn : public primitive {
         c_api::mkl_dnn_lrn_desc_t data;
         desc(prop_kind aprop_kind, algorithm aalgorithm,
             const memory::desc &src_desc,
-            const memory::desc &scratch_desc,
             const memory::desc &dst_desc,
             double alpha, double beta, uint32_t local_size)
         {
             error::wrap_c_api(c_api::mkl_dnn_lrn_desc_init(&data,
                 mkl_dnn::convert_to_c(aprop_kind), convert_to_c(aalgorithm),
-                &src_desc.data, &scratch_desc.data,
-                &dst_desc.data, alpha, beta, local_size),
+                &src_desc.data, &dst_desc.data, alpha, beta, local_size),
                 "could not create a lrn descriptor");
         }
     };
@@ -438,30 +436,25 @@ struct lrn : public primitive {
         const memory &dst) {
         c_api::mkl_dnn_primitive_t result;
         error::wrap_c_api(c_api::mkl_dnn_lrn_create(&result,
-            &aprimitive_desc.data, src.data, scratch.data,
-            dst.get()),
+            &aprimitive_desc.data, src.data, dst.get()),
             "could not create a lrn primitive");
         reset(result);
     }
 
     lrn(prop_kind aprop_kind, algorithm aalgorithm,
-        const primitive::at &src, const primitive::at &scratch,
-        const memory &dst,
+        const primitive::at &src, const memory &dst,
         double alpha, double beta, uint32_t local_size) {
         auto src_md = memory(src).get_primitive_desc();
-        auto scratch_md = memory(scratch).get_primitive_desc();
         auto dst_md = dst.get_primitive_desc();
 
         auto lrn_d = desc(aprop_kind, aalgorithm, src_md.desc(),
-            scratch_md.desc(), dst_md.desc(),
-            alpha, beta, local_size);
+            dst_md.desc(), alpha, beta, local_size);
         auto lrn_pd = primitive_desc(lrn_d,
             engine(src_md.data.base.engine));
 
         c_api::mkl_dnn_primitive_t result;
         error::wrap_c_api(c_api::mkl_dnn_lrn_create(&result,
-            &lrn_pd.data, src.data, scratch.data,
-            dst.get()),
+            &lrn_pd.data, src.data, dst.get()),
             "could not create a lrn primitive");
         reset(result);
     }
