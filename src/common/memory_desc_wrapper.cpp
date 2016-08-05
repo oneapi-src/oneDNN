@@ -49,6 +49,19 @@ status_t fill_nonblocked(blocking_desc_t& blk, const tensor_desc_t& tensor,
     return success;
 }
 
+status_t fill_nc(blocking_desc_t& blk, const tensor_desc_t& tensor) {
+    const uint32_t ndims = types::ndims(tensor);
+    if (ndims != 2)
+        return invalid_arguments;
+    const uint32_t perm[2] = {0, 1};
+    const auto constraint = [](const tensor_desc_t &t) {
+        return t.ndims_batch == 1
+            && t.ndims_channels == 1
+            && t.ndims_spatial == 0;
+    };
+    return fill_nonblocked(blk, tensor, constraint, perm);
+}
+
 status_t fill_nchw(blocking_desc_t& blk, const tensor_desc_t& tensor) {
     const uint32_t perm[4] = {0, 1, 2, 3};
     const auto constraint = [](const tensor_desc_t &t) {
@@ -65,6 +78,16 @@ status_t fill_nhwc(blocking_desc_t& blk, const tensor_desc_t& tensor) {
         return t.ndims_batch == 1
             && t.ndims_channels == 1
             && t.ndims_spatial == 2;
+    };
+    return fill_nonblocked(blk, tensor, constraint, perm);
+}
+
+status_t fill_oi(blocking_desc_t& blk, const tensor_desc_t& tensor) {
+    const uint32_t perm[2] = {0, 1};
+    auto constraint = [](const tensor_desc_t &t) {
+        return t.ndims_batch == 0
+            && t.ndims_channels == 2
+            && t.ndims_spatial == 0;
     };
     return fill_nonblocked(blk, tensor, constraint, perm);
 }
@@ -101,8 +124,10 @@ status_t memory_desc_wrapper::compute_blocking(memory_desc_t &memory_desc)
 
     switch (memory_desc.format) {
     case n: return fill_n(blk, tensor);
+    case nc: return fill_nc(blk, tensor);
     case nchw: return fill_nchw(blk, tensor);
     case nhwc: return fill_nhwc(blk, tensor);
+    case oi: return fill_oi(blk, tensor);
     case oihw: return fill_oihw(blk, tensor);
     case goihw: return fill_goihw(blk, tensor);
     default: break;

@@ -170,9 +170,11 @@ struct memory: public primitive  {
     enum format {
         any = c_api::mkl_dnn_any,
         n = c_api::mkl_dnn_n,
+        nc = c_api::mkl_dnn_nc,
         nchw = c_api::mkl_dnn_nchw,
         nhwc = c_api::mkl_dnn_nhwc,
         nChw8c = c_api::mkl_dnn_nChw8c,
+        oi = c_api::mkl_dnn_oi,
         oihw = c_api::mkl_dnn_oihw,
         OIhw8i8o = c_api::mkl_dnn_OIhw8i8o,
         goihw = c_api::mkl_dnn_goihw,

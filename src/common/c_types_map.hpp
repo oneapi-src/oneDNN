@@ -48,9 +48,11 @@ using memory_format_t = mkl_dnn_memory_format_t;
 namespace memory_format {
     const memory_format_t any = mkl_dnn_any;
     const memory_format_t n = mkl_dnn_n;
+    const memory_format_t nc = mkl_dnn_nc;
     const memory_format_t nchw = mkl_dnn_nchw;
     const memory_format_t nhwc = mkl_dnn_nhwc;
     const memory_format_t nChw8c = mkl_dnn_nChw8c;
+    const memory_format_t oi = mkl_dnn_oi;
     const memory_format_t oihw = mkl_dnn_oihw;
     const memory_format_t OIhw8i8o = mkl_dnn_OIhw8i8o;
     const memory_format_t goihw = mkl_dnn_goihw;

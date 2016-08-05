@@ -46,8 +46,10 @@ status_t mkl_dnn_memory_desc_init(memory_desc_t *memory_desc,
         break;
     /* semidefined blocked format */
     case n:
+    case nc:
     case nchw:
     case nhwc:
+    case oi:
     case oihw:
     case goihw:
         status = memory_desc_wrapper::compute_blocking(md);

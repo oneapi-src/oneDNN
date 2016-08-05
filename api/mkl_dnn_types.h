@@ -28,10 +28,12 @@ typedef enum {
     mkl_dnn_any,
     /* data formats */
     mkl_dnn_n,
+    mkl_dnn_nc,
     mkl_dnn_nchw,
     mkl_dnn_nhwc,
     mkl_dnn_nChw8c,
     /* weights formats */
+    mkl_dnn_oi,
     mkl_dnn_oihw,
     mkl_dnn_OIhw8i8o,
     /* weights formats w/ groups */
