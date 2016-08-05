@@ -21,7 +21,7 @@ using namespace mkl_dnn::impl::primitive_kind;
 
 template <impl::precision_t prec>
 status_t reference_lrn<prec>::execute_forward() {
-    const data_t *src = 
+    const data_t *src =
         reinterpret_cast<const data_t *>(this->input()[0].primitive->output()[this->input()[0].output_index]->memory_const());
     data_t *scratch =
         reinterpret_cast<data_t *>(this->input()[1].primitive->output()[this->input()[1].output_index]->memory());
@@ -33,19 +33,19 @@ status_t reference_lrn<prec>::execute_forward() {
         scratch_d(this->_ppd.scratch_primitive_desc.memory_desc),
         dst_d(this->_ppd.dst_primitive_desc.memory_desc);
 
-    double alpha = this->_ppd.lrn_desc.alpha;
-    double beta = this->_ppd.lrn_desc.beta;
-
-    uint32_t size = this->_ppd.lrn_desc.local_size;
-    uint32_t CSIZE = this->_ppd.lrn_desc.alg_kind == lrn_across_channels ? size : 1;
-    uint32_t HWSIZE = size + 1 - CSIZE;
-
-    uint32_t C = src_d.dims()[1];
-    uint32_t H = src_d.dims()[2];
-    uint32_t W = src_d.dims()[3];
+    const uint32_t C = src_d.dims()[1];
+    const uint32_t H = src_d.dims()[2];
+    const uint32_t W = src_d.dims()[3];
 
     auto ker = [=](data_t *d, uint32_t n, uint32_t oc, uint32_t oh, uint32_t ow)
     {
+        const double alpha = this->_ppd.lrn_desc.alpha;
+        const double beta = this->_ppd.lrn_desc.beta;
+
+        const uint32_t size = this->_ppd.lrn_desc.local_size;
+        const uint32_t CSIZE = this->_ppd.lrn_desc.alg_kind == lrn_across_channels ? size : 1;
+        const uint32_t HWSIZE = size + 1 - CSIZE;
+
         data_t sum = 0.0;
         uint32_t summands = 0;
         for (uint32_t c = oc; c < oc + CSIZE; ++c) {
@@ -67,7 +67,7 @@ status_t reference_lrn<prec>::execute_forward() {
         scratch[scratch_d.off(n, oc, oh, ow)] = d[0] / (1 + alpha * sum / summands); // for back prop
     };
 
-    uint32_t N = src_d.dims()[0];
+    const uint32_t N = src_d.dims()[0];
 
 #   pragma omp parallel for collapse(4)
     for (uint32_t n = 0; n < N; ++n) {
