@@ -125,6 +125,12 @@ inline status_t lrn_desc_is_ok(
     return success;
 }
 
+inline status_t inner_product_desc_is_ok(
+        const inner_product_desc_t &inner_product_desc) {
+    // XXX: fill-in
+    return success;
+}
+
 }
 }
 }

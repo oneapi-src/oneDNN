@@ -522,6 +522,48 @@ struct relu: public primitive {
     }
 };
 
+struct inner_product: public primitive {
+    struct desc {
+        c_api::mkl_dnn_inner_product_desc_t data;
+        desc(prop_kind aprop_kind, const memory::desc &src_desc,
+             const memory::desc &weights_desc, const memory::desc &dst_desc)
+        {
+            error::wrap_c_api(c_api::mkl_dnn_inner_product_desc_init(&data,
+                        mkl_dnn::convert_to_c(aprop_kind),
+                        &src_desc.data, &weights_desc.data,
+                        &dst_desc.data),
+                    "could not create a inner product descriptor");
+        }
+    };
+
+    struct primitive_desc {
+        c_api::mkl_dnn_inner_product_primitive_desc_t data;
+        primitive_desc(const desc &adesc, const engine &aengine) {
+            error::wrap_c_api(c_api::mkl_dnn_inner_product_primitive_desc_init(
+                        &data, &adesc.data, aengine.get()),
+                    "could not create a inner product primitive descriptor");
+        }
+    };
+
+    inner_product(prop_kind aprop_kind,
+            const primitive::at &src, const primitive::at &weights,
+            const memory &dst) {
+        auto src_md = memory(src).get_primitive_desc();
+        auto weights_md = memory(weights).get_primitive_desc();
+        auto dst_md = dst.get_primitive_desc();
+
+        auto ip_d = desc(aprop_kind, src_md.desc(),
+                weights_md.desc(), dst_md.desc());
+        auto ip_pd = primitive_desc(ip_d,
+                engine(src_md.data.base.engine));
+        c_api::mkl_dnn_primitive_t result;
+        error::wrap_c_api(c_api::mkl_dnn_inner_product_create(&result,
+                    &ip_pd.data, src.data, weights.data, dst.get()),
+                "could not create a inner product primitive");
+        reset(result);
+    }
+};
+
 template <> struct handle_traits<c_api::mkl_dnn_stream_t> {
     static constexpr auto destructor = &c_api::mkl_dnn_stream_destroy;
 };

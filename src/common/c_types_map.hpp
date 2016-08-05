@@ -83,6 +83,7 @@ namespace primitive_kind {
     const primitive_kind_t pooling = mkl_dnn_pooling;
     const primitive_kind_t relu = mkl_dnn_relu;
     const primitive_kind_t lrn = mkl_dnn_lrn;
+    const primitive_kind_t inner_product = mkl_dnn_inner_product;
 }
 
 using blocking_desc_t = mkl_dnn_blocking_desc_t;
@@ -91,6 +92,7 @@ using convolution_desc_t = mkl_dnn_convolution_desc_t;
 using pooling_desc_t = mkl_dnn_pooling_desc_t;
 using relu_desc_t = mkl_dnn_relu_desc_t;
 using lrn_desc_t = mkl_dnn_lrn_desc_t;
+using inner_product_desc_t = mkl_dnn_inner_product_desc_t;
 
 struct op_desc_t {
     primitive_kind_t _kind;
@@ -100,6 +102,7 @@ struct op_desc_t {
         pooling_desc_t pooling;
         relu_desc_t relu;
         lrn_desc_t lrn;
+        inner_product_desc_t inner_product;
     };
 
 #   define DECL_CTOR_AND_CONVERTERS(c_type, name) \
@@ -114,6 +117,7 @@ struct op_desc_t {
     DECL_CTOR_AND_CONVERTERS(pooling_desc_t, pooling);
     DECL_CTOR_AND_CONVERTERS(relu_desc_t, relu);
     DECL_CTOR_AND_CONVERTERS(lrn_desc_t, lrn);
+    DECL_CTOR_AND_CONVERTERS(inner_product_desc_t, inner_product);
 
 #   undef DECL_CTOR_AND_CONVERTERS
 };
@@ -125,6 +129,7 @@ using convolution_primitive_desc_t = mkl_dnn_convolution_primitive_desc_t;
 using pooling_primitive_desc_t = mkl_dnn_pooling_primitive_desc_t;
 using relu_primitive_desc_t = mkl_dnn_relu_primitive_desc_t;
 using lrn_primitive_desc_t = mkl_dnn_lrn_primitive_desc_t;
+using inner_product_primitive_desc_t = mkl_dnn_inner_product_primitive_desc_t;
 #if 0
 using primitive_desc_t = mkl_dnn_primitive_desc_t;
 using const_primitive_desc_t = const_mkl_dnn_primitive_desc_t;
@@ -137,6 +142,7 @@ union primitive_desc_t {
     pooling_primitive_desc_t pooling;
     relu_primitive_desc_t relu;
     lrn_primitive_desc_t lrn;
+    inner_product_primitive_desc_t inner_product;
 #   define DECL_CTOR_AND_CONVERTERS(c_type, name) \
     primitive_desc_t(const c_type &_): name(_) {} \
     static primitive_desc_t *convert_from_c(c_type *_) \
@@ -151,6 +157,7 @@ union primitive_desc_t {
     DECL_CTOR_AND_CONVERTERS(pooling_primitive_desc_t, pooling);
     DECL_CTOR_AND_CONVERTERS(relu_primitive_desc_t, relu);
     DECL_CTOR_AND_CONVERTERS(lrn_primitive_desc_t, lrn);
+    DECL_CTOR_AND_CONVERTERS(inner_product_primitive_desc_t, inner_product);
 
 #   undef DECL_CTOR_AND_CONVERTERS
 };

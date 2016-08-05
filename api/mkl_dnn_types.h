@@ -139,6 +139,13 @@ typedef struct {
     uint32_t local_size;
 } mkl_dnn_lrn_desc_t;
 
+typedef struct {
+    mkl_dnn_prop_kind_t prop_kind;
+    mkl_dnn_memory_desc_t src_desc;
+    mkl_dnn_memory_desc_t weights_desc;
+    mkl_dnn_memory_desc_t dst_desc;
+} mkl_dnn_inner_product_desc_t;
+
 /** engine section */
 
 typedef enum {
@@ -161,6 +168,7 @@ typedef enum {
     mkl_dnn_pooling,
     mkl_dnn_relu,
     mkl_dnn_lrn,
+    mkl_dnn_inner_product,
 } mkl_dnn_primitive_kind_t;
 
 typedef struct {
@@ -211,6 +219,14 @@ typedef struct {
     mkl_dnn_memory_primitive_desc_t scratch_primitive_desc;
     mkl_dnn_memory_primitive_desc_t dst_primitive_desc;
 } mkl_dnn_lrn_primitive_desc_t;
+
+typedef struct {
+    mkl_dnn_primitive_base_desc_t base;
+    mkl_dnn_inner_product_desc_t inner_product_desc;
+    mkl_dnn_memory_primitive_desc_t src_primitive_desc;
+    mkl_dnn_memory_primitive_desc_t weights_primitive_desc;
+    mkl_dnn_memory_primitive_desc_t dst_primitive_desc;
+} mkl_dnn_inner_product_primitive_desc_t;
 
 /** primitive section */
 
