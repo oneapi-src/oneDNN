@@ -7,7 +7,7 @@ set(LIB_NAME mkl_dnn)
 
 project(${PROJECT_NAME} C CXX)
 
-if("${CLANG_CXX_COMPILER_ID}" STREQUAL "Clang")
+if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
     set(OPENMP_FLAGS "-fopenmp=libgomp")
 else()
     set(OPENMP_FLAGS "-fopenmp")
