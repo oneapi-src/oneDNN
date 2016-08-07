@@ -1,4 +1,4 @@
-# Intel® Math Kernel Library for Deep Neural Networks (Intel® MKL-DNN)
+# Intel® Math Kernel Library for Deep Neural Networks (Intel® MKL-DNN) {#mainpage}
 [![Apache 2.0](https://img.shields.io/badge/license-Apache_2.0-green.svg)](LICENSE)
 ![Technical Preview](https://img.shields.io/badge/version-technical_preview-orange.svg)
 Intel MKL-DNN is open source performance library for Deep Learning applications. The library is intended to support community DL frameworks optimization for Intel® Architecture

@@ -1,10 +1,15 @@
 #ifndef MKL_DNN_HPP
 #define MKL_DNN_HPP
 
+#ifndef DOXYGEN_SHOULD_SKIP_THIS
 #include <assert.h>
 #include <memory>
 #include <vector>
 #include <algorithm>
+#endif
+
+/** @addtogroup cpp_api C++ API
+ *  @{ */
 
 namespace mkl_dnn {
 
@@ -36,9 +41,11 @@ public:
     bool operator!=(const handle &other) const { return !(*this == other); }
 };
 
+#ifndef DOXYGEN_SHOULD_SKIP_THIS
 namespace c_api {
 #include "mkl_dnn.h"
 }
+#endif
 
 template <> struct handle_traits<c_api::mkl_dnn_primitive_t> {
     static constexpr auto destructor = &c_api::mkl_dnn_primitive_destroy;
@@ -634,6 +641,8 @@ struct stream: public handle<c_api::mkl_dnn_stream_t> {
 };
 
 }
+
+/* @} */
 
 #endif
 
