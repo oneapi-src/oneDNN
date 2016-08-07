@@ -60,7 +60,7 @@ public:
     inline c_api::mkl_dnn_primitive_desc_t get_primitive_desc() const;
 };
 
-struct error {
+struct error: public std::exception {
     c_api::mkl_dnn_status_t status;
     std::string message;
     primitive error_primitive;
