@@ -101,11 +101,11 @@ mkl_dnn_status_t mkl_dnn_relu_desc_init(
         double negative_slope, const mkl_dnn_memory_desc_t *src_desc,
         const mkl_dnn_memory_desc_t *dst_desc);
 
-/** Initializes a @p lrn_desc using @p prop_kind, @p alg_kind,
-* memory descriptors, @p strides, @p padding and @p padding_kind.
-* Please note that memory descriptors may be initialized with format_kind_any
-* format_kind. In this case lrn_primitive_desc_init() will choose the best
-* implementation possible in terms of performance. */
+/** Initializes a @p lrn_desc using @p prop_kind, @p alg_kind, memory
+ * descriptors, @p strides, @p padding and @p padding_kind.  Please note that
+ * memory descriptors may be initialized with format_kind_any format_kind. In
+ * this case lrn_primitive_desc_init() will choose the best implementation
+ * possible in terms of performance. */
 mkl_dnn_status_t mkl_dnn_lrn_desc_init(
     mkl_dnn_lrn_desc_t *lrn_desc,
     mkl_dnn_prop_kind_t prop_kind, mkl_dnn_alg_kind_t alg_kind,
@@ -153,16 +153,14 @@ mkl_dnn_status_t mkl_dnn_pooling_primitive_desc_init(
         const mkl_dnn_pooling_desc_t *pooling_desc,
         const_mkl_dnn_engine_t engine);
 
-/** Initializes a @p lrn_primitve_desc using @p lrn_desc and
-* @p engine. */
+/** Initializes a @p lrn_primitve_desc using @p lrn_desc and @p engine. */
 mkl_dnn_status_t mkl_dnn_lrn_primitive_desc_init(
     mkl_dnn_lrn_primitive_desc_t *lrn_primitive_desc,
     const mkl_dnn_lrn_desc_t *lrn_desc,
     const_mkl_dnn_engine_t engine);
 
-/** Creates a @p reorder primitive using descriptor @p
- * reorder_primitive_desc, input primitive_ats @p input, and output
- * primitive @p output. */
+/** Creates a @p reorder primitive using descriptor @p reorder_primitive_desc,
+ * input primitive_ats @p input, and output primitive @p output. */
 mkl_dnn_status_t mkl_dnn_reorder_create(mkl_dnn_primitive_t *reorder,
         const mkl_dnn_reorder_primitive_desc_t *reorder_primitive_desc,
         const mkl_dnn_primitive_at_t input, const_mkl_dnn_primitive_t output);
