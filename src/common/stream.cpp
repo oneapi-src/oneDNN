@@ -88,7 +88,7 @@ public:
         for (size_t i = 0; i < n; i++)
             if (primitives[i]->engine()->is_lazy() != _is_lazy) {
                 _is_lazy = old_is_lazy;
-                return invalid;
+                return invalid_arguments;
             }
 
         // XXX: start_idx should be returned by _queue.insert()

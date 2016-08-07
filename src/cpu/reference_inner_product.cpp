@@ -96,7 +96,7 @@ status_t reference_inner_product<prec>::primitive_desc_init(
         const mkl_dnn::impl::engine &engine)
 {
     if (op_desc._kind != primitive_kind::inner_product)
-        return invalid;
+        return invalid_arguments;
     auto ip_d = op_desc.inner_product;
 
     if (ip_d.prop_kind != forward)
@@ -146,7 +146,7 @@ status_t reference_inner_product<prec>::primitive_desc_init(
         .dst_primitive_desc = dst_pd,
     };
 
-    // if (!inner_product_primitive_desc_is_ok(ippd)) return invalid; // ???
+    // if (!inner_product_primitive_desc_is_ok(ippd)) return invalid_arguments; // ???
 
     primitive_desc->inner_product = ippd;
 

@@ -197,7 +197,7 @@ status_t memory_desc_wrapper::compute_blocking(memory_desc_t &memory_desc)
     default: break;
     }
 
-    return invalid;
+    return invalid_arguments;
 }
 
 }

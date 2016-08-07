@@ -57,7 +57,7 @@ status_t reference_reorder<prec_i, prec_o>::reorder_primitive_desc_init(
         .output = *output,
     };
 
-    // if (!reorder_primitive_desc_is_ok(rpd)) return invalid; // ???
+    // if (!reorder_primitive_desc_is_ok(rpd)) return invalid_arguments; // ???
     primitive_desc->reorder = rpd;
 
     return success;

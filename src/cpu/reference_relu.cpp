@@ -61,7 +61,7 @@ status_t reference_relu<prec>::primitive_desc_init(
         primitive_desc_t *primitive_desc, const op_desc_t &op_desc,
         const mkl_dnn::impl::engine &engine) {
     if (op_desc._kind != primitive_kind::relu)
-        return invalid;
+        return invalid_arguments;
     auto relu_d = op_desc.relu;
 
     // TODO: f32 ?

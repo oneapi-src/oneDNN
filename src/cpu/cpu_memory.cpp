@@ -16,7 +16,7 @@ using namespace mkl_dnn::impl::memory_format;
 status_t cpu_memory::memory_desc_init(primitive_desc_t *primitive_desc,
         const op_desc_t &op_desc, const mkl_dnn::impl::engine &aengine) {
     if (op_desc._kind != primitive_kind::memory)
-        return invalid;
+        return invalid_arguments;
     auto memory_desc = op_desc.memory;
 
     memory_primitive_desc_t mpd = {
@@ -29,7 +29,7 @@ status_t cpu_memory::memory_desc_init(primitive_desc_t *primitive_desc,
         .memory_desc = memory_desc
     };
 
-    // if (!memory_primitive_desc_is_ok(mpd)) return invalid; // ???
+    // if (!memory_primitive_desc_is_ok(mpd)) return invalid_arguments; // ???
     primitive_desc->memory = mpd;
 
     return success;

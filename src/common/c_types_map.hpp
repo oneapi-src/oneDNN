@@ -13,7 +13,6 @@ using dims_t = mkl_dnn_dims_t;
 using status_t = mkl_dnn_status_t;
 namespace status {
     const status_t success = mkl_dnn_success;
-    const status_t invalid = mkl_dnn_invalid;
     const status_t out_of_memory = mkl_dnn_out_of_memory;
     const status_t try_again = mkl_dnn_try_again;
     const status_t invalid_arguments = mkl_dnn_invalid_arguments;

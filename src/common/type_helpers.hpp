@@ -42,7 +42,7 @@ inline bool operator!=(const tensor_desc_t &lhs, const tensor_desc_t &rhs) {
 }
 
 inline status_t tensor_is_ok(const tensor_desc_t &tensor) {
-    return ndims(tensor) <= TENSOR_MAX_DIMS ? success : invalid;
+    return ndims(tensor) <= TENSOR_MAX_DIMS ? success : invalid_arguments;
 }
 
 inline uint32_t ndims(const memory_desc_t &memory_desc) {

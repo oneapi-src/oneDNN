@@ -93,7 +93,7 @@ status_t reference_lrn<prec>::primitive_desc_init(
         primitive_desc_t *primitive_desc, const op_desc_t &op_desc,
         const mkl_dnn::impl::engine &engine) {
     if (op_desc._kind != primitive_kind::lrn)
-        return invalid;
+        return invalid_arguments;
     auto pool_d = op_desc.lrn;
 
     // TODO: f32 ?
@@ -133,7 +133,7 @@ status_t reference_lrn<prec>::primitive_desc_init(
         .dst_primitive_desc  = dst_pd,
     };
 
-    // if (!lrn_primitive_desc_is_ok(ppd)) return invalid; // ???
+    // if (!lrn_primitive_desc_is_ok(ppd)) return invalid_arguments; // ???
 
     primitive_desc->lrn = ppd;
 

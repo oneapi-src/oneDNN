@@ -12,12 +12,11 @@ extern "C" {
 
 typedef enum {
     mkl_dnn_success = 0,
-    mkl_dnn_invalid = 1,
-    mkl_dnn_out_of_memory = 2,
-    mkl_dnn_try_again = 3,
-    mkl_dnn_invalid_arguments = 4,
-    mkl_dnn_not_ready = 5,
-    mkl_dnn_unimplemented = 6,
+    mkl_dnn_out_of_memory = 1,
+    mkl_dnn_try_again = 2,
+    mkl_dnn_invalid_arguments = 3,
+    mkl_dnn_not_ready = 4,
+    mkl_dnn_unimplemented = 5,
 } mkl_dnn_status_t;
 
 typedef enum {

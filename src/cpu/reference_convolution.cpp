@@ -122,7 +122,7 @@ status_t reference_convolution<prec>::primitive_desc_init(
         primitive_desc_t *primitive_desc, const op_desc_t &op_desc,
         const mkl_dnn::impl::engine &engine) {
     if (op_desc._kind != primitive_kind::convolution)
-        return invalid;
+        return invalid_arguments;
     auto conv_d = op_desc.convolution;
 
     if (conv_d.prop_kind != forward)
@@ -170,7 +170,7 @@ status_t reference_convolution<prec>::primitive_desc_init(
         .dst_primitive_desc = dst_pd,
     };
 
-    // if (!convolution_primitive_desc_is_ok(cpd)) return invalid; // ???
+    // if (!convolution_primitive_desc_is_ok(cpd)) return invalid_arguments; // ???
 
     primitive_desc->convolution = cpd;
 
