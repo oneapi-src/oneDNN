@@ -24,11 +24,11 @@ inline size_t map_index(const mkl_dnn::memory::desc &md, size_t index) {
     const uint32_t ndims = md.data.tensor_desc.ndims_batch +
         md.data.tensor_desc.ndims_channels + md.data.tensor_desc.ndims_spatial;
     const uint32_t *dims = md.data.tensor_desc.dims;
-    const uint32_t *pdims = md.data.blocking_desc.padding_dims;
-    const uint32_t *optd = md.data.blocking_desc.offset_padding_to_data;
+    const uint32_t *pdims = md.data.layout_desc.blocking.padding_dims;
+    const uint32_t *optd = md.data.layout_desc.blocking.offset_padding_to_data;
 
-    const uint32_t *strides_block = md.data.blocking_desc.strides[0];
-    const uint32_t *strides_within_block = md.data.blocking_desc.strides[1];
+    const uint32_t *strides_block = md.data.layout_desc.blocking.strides[0];
+    const uint32_t *strides_within_block = md.data.layout_desc.blocking.strides[1];
 
     size_t ph_index = 0;
 
@@ -38,7 +38,7 @@ inline size_t map_index(const mkl_dnn::memory::desc &md, size_t index) {
         EXPECT_LE(dims[d], pdims[d]);
 
         uint32_t cur_dim = dims[d];
-        uint32_t cur_block = md.data.blocking_desc.block_dims[d];
+        uint32_t cur_block = md.data.layout_desc.blocking.block_dims[d];
 
         uint32_t cur_pos = optd[d] + (index % cur_dim);
         uint32_t cur_pos_block = cur_pos / cur_block;
@@ -50,7 +50,7 @@ inline size_t map_index(const mkl_dnn::memory::desc &md, size_t index) {
         index /= cur_dim;
     }
 
-    ph_index += md.data.blocking_desc.offset_padding;
+    ph_index += md.data.layout_desc.blocking.offset_padding;
 
     return ph_index;
 }

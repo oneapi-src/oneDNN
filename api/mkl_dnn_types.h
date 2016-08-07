@@ -193,9 +193,9 @@ typedef struct {
     mkl_dnn_memory_format_t format;
     union {
         /** Data layout description for memory formats that use blocking */
-        mkl_dnn_blocking_desc_t blocking_desc;
+        mkl_dnn_blocking_desc_t blocking;
         /* ... other descriptions possible */
-    };
+    } layout_desc;
 } mkl_dnn_memory_desc_t;
 
 /* @} */

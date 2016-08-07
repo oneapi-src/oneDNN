@@ -72,8 +72,8 @@ inline bool operator==(const memory_desc_t &lhs, const memory_desc_t &rhs) {
     if (lhs.tensor_desc != rhs.tensor_desc || lhs.format != rhs.format)
         return false;
     if (lhs.format == blocked)
-        return blocking_desc_is_equal(lhs.blocking_desc, rhs.blocking_desc,
-            ndims(lhs.tensor_desc));
+        return blocking_desc_is_equal(lhs.layout_desc.blocking,
+                rhs.layout_desc.blocking, ndims(lhs.tensor_desc));
     return true;
 }
 

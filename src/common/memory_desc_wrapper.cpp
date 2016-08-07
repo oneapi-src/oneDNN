@@ -187,7 +187,7 @@ status_t memory_desc_wrapper::compute_blocking(memory_desc_t &memory_desc)
         return invalid_arguments;
 
     const tensor_desc_t &tensor = memory_desc.tensor_desc;
-    blocking_desc_t &blk = memory_desc.blocking_desc;
+    blocking_desc_t &blk = memory_desc.layout_desc.blocking;
 
     switch (memory_desc.format) {
     case x: return fill_x(blk, tensor);

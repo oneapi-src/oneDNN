@@ -39,7 +39,9 @@ struct memory_desc_wrapper: public c_compatible {
     const tensor_desc_t &tensor() const { return _md.tensor_desc; }
     precision_t precision() const { return _md.precision; }
     memory_format_t format() const { return _md.format; }
-    const blocking_desc_t &blocking_desc() const { return _md.blocking_desc; }
+    const blocking_desc_t &blocking_desc() const {
+        return _md.layout_desc.blocking;
+    }
     inline uint32_t ndims() const { return _ndims; }
 
     /** returns the number of elements including padding if \param with_padding
