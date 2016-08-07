@@ -28,7 +28,7 @@ status_t fill_x(blocking_desc_t &blk, const tensor_desc_t &tensor) {
 /* TODO: improve me maybe... and put this to utils */
 inline void set_default_strides(dims_t strides, const dims_t sizes,
         uint32_t ndims, const uint32_t *perm = NULL) {
-    uint32_t id_perm[ndims];
+    uint32_t id_perm[TENSOR_MAX_DIMS];
     for (uint32_t i = 0; i < ndims; ++i)
         id_perm[i] = i;
     if (perm == NULL)
@@ -64,8 +64,8 @@ status_t fill_contiguous_blocked(blocking_desc_t &blk,
     const uint32_t ndims = types::ndims(tensor);
     array_copy(blk.block_dims, block_dims, ndims);
 
-    uint32_t unrolled_dims[2*ndims];
-    uint32_t unrolled_strides[2*ndims];
+    uint32_t unrolled_dims[2*TENSOR_MAX_DIMS];
+    uint32_t unrolled_strides[2*TENSOR_MAX_DIMS];
     for (uint32_t d = 0; d < ndims; ++d) {
         unrolled_dims[d] = tensor.dims[d] / block_dims[d];
         unrolled_dims[ndims + d] = block_dims[d];
