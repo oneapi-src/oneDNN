@@ -1,3 +1,4 @@
+#include <utility>
 #include <numeric>
 
 #include "gtest/gtest.h"
@@ -45,8 +46,8 @@ class reorder_simple_test:
 {
 protected:
     virtual void SetUp() {
-        using data_i_t = typename reorder_types::data_i_t;
-        using data_o_t = typename reorder_types::data_o_t;
+        using data_i_t = typename reorder_types::first_type;
+        using data_o_t = typename reorder_types::second_type;
 
         test_simple_params<reorder_types> p
             = ::testing::TestWithParam<decltype(p)>::GetParam();
@@ -87,7 +88,7 @@ protected:
     }
 };
 
-using f32_f32 = two_types<float, float>;
+using f32_f32 = std::pair<float, float>;
 using reorder_simple_test_f32_f32 = reorder_simple_test<f32_f32>;
 using test_simple_params_f32_f32 = test_simple_params<f32_f32>;
 
