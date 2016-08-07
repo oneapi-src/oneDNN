@@ -19,15 +19,12 @@ status_t cpu_memory::memory_desc_init(primitive_desc_t *primitive_desc,
         return invalid_arguments;
     auto memory_desc = op_desc.memory;
 
-    memory_primitive_desc_t mpd = {
-        .base = {
-            .primitive_kind = primitive_kind::memory,
-            .engine = &aengine,
-            .implementation =
-                reinterpret_cast<const void*>(&memory_implementation),
-        },
-        .memory_desc = memory_desc
-    };
+    memory_primitive_desc_t mpd;
+    mpd.base.primitive_kind = primitive_kind::memory;
+    mpd.base.engine = &aengine;
+    mpd.base.implementation
+        = reinterpret_cast<const void*>(&memory_implementation);
+    mpd.memory_desc = memory_desc;
 
     // if (!memory_primitive_desc_is_ok(mpd)) return invalid_arguments; // ???
     primitive_desc->memory = mpd;
@@ -48,9 +45,7 @@ status_t memory_create(primitive **aprimitive,
 }
 }
 
-const primitive_impl cpu_memory::memory_implementation = {
-    .primitive_create = memory_create
-};
+const primitive_impl cpu_memory::memory_implementation = { memory_create };
 
 }
 }

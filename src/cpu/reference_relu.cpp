@@ -86,16 +86,13 @@ status_t reference_relu<prec>::primitive_desc_init(
                 &relu_d.dst_desc, &engine));
 
     /* final stage */
-    relu_primitive_desc_t rpd = {
-        .base = {
-            .primitive_kind = relu,
-            .engine = &engine,
-            .implementation = reinterpret_cast<const void*>(&implementation),
-        },
-        .relu_desc = relu_d,
-        .src_primitive_desc   = src_pd,
-        .dst_primitive_desc  = dst_pd,
-    };
+    relu_primitive_desc_t rpd;
+    rpd.base.primitive_kind = relu;
+    rpd.base.engine = &engine;
+    rpd.base.implementation = reinterpret_cast<const void*>(&implementation);
+    rpd.relu_desc = relu_d;
+    rpd.src_primitive_desc   = src_pd;
+    rpd.dst_primitive_desc  = dst_pd;
 
     primitive_desc->relu = rpd;
 
@@ -122,9 +119,7 @@ status_t create(primitive **aprimitive, const primitive_desc_t *primitive_desc,
 }
 
 template <impl::precision_t prec>
-const primitive_impl reference_relu<prec>::implementation = {
-    .primitive_create = create<prec>,
-};
+const primitive_impl reference_relu<prec>::implementation = { create<prec> };
 
 template class reference_relu<f32>;
 

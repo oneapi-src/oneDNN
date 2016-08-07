@@ -47,15 +47,12 @@ status_t reference_reorder<prec_i, prec_o>::reorder_primitive_desc_init(
     if (!args_ok)
         return invalid_arguments;
 
-    reorder_primitive_desc_t rpd = {
-        .base = {
-            .primitive_kind = reorder,
-            .engine = input->base.engine,
-            .implementation = reinterpret_cast<const void*>(&implementation),
-        },
-        .input = *input,
-        .output = *output,
-    };
+    reorder_primitive_desc_t rpd;
+    rpd.base.primitive_kind = reorder;
+    rpd.base.engine = input->base.engine;
+    rpd.base.implementation = reinterpret_cast<const void*>(&implementation);
+    rpd.input = *input;
+    rpd.output = *output;
 
     // if (!reorder_primitive_desc_is_ok(rpd)) return invalid_arguments; // ???
     primitive_desc->reorder = rpd;
@@ -79,7 +76,7 @@ status_t create(primitive **aprimitive, const primitive_desc_t *primitive_desc,
 
 template <precision_t prec_i, precision_t prec_o>
 const primitive_impl reference_reorder<prec_i, prec_o>::implementation = {
-    .primitive_create = create<prec_i, prec_o>,
+    create<prec_i, prec_o>,
 };
 
 template class reference_reorder<f32, f32>;

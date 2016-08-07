@@ -157,18 +157,15 @@ status_t reference_convolution<prec>::primitive_desc_init(
                 &conv_d.dst_desc, &engine));
 
     /* final stage */
-    convolution_primitive_desc_t cpd = {
-        .base = {
-            .primitive_kind = convolution,
-            .engine = &engine,
-            .implementation = reinterpret_cast<const void*>(&implementation),
-        },
-        .convolution_desc = conv_d,
-        .src_primitive_desc = src_pd,
-        .weights_primitive_desc = weights_pd,
-        .bias_primitive_desc = bias_pd,
-        .dst_primitive_desc = dst_pd,
-    };
+    convolution_primitive_desc_t cpd;
+    cpd.base.primitive_kind = convolution;
+    cpd.base.engine = &engine;
+    cpd.base.implementation = reinterpret_cast<const void*>(&implementation);
+    cpd.convolution_desc = conv_d;
+    cpd.src_primitive_desc = src_pd;
+    cpd.weights_primitive_desc = weights_pd;
+    cpd.bias_primitive_desc = bias_pd;
+    cpd.dst_primitive_desc = dst_pd;
 
     // if (!convolution_primitive_desc_is_ok(cpd)) return invalid_arguments; // ???
 
@@ -193,7 +190,7 @@ status_t create(primitive **aprimitive, const primitive_desc_t *primitive_desc,
 
 template <impl::precision_t prec>
 const primitive_impl reference_convolution<prec>::implementation = {
-    .primitive_create = create<prec>,
+    create<prec>
 };
 
 template class reference_convolution<f32>;

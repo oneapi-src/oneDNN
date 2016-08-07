@@ -19,10 +19,10 @@ status_t mkl_dnn_tensor_desc_init(tensor_desc_t *tensor_desc,
         const dims_t dims) {
     if (any_null(tensor_desc, dims))
         return invalid_arguments;
-    tensor_desc_t td = {
-        .ndims_batch = ndims_batch,
-        .ndims_channels = ndims_channels,
-        .ndims_spatial = ndims_spatial};
+    tensor_desc_t td;
+    td.ndims_batch = ndims_batch;
+    td.ndims_channels = ndims_channels;
+    td.ndims_spatial = ndims_spatial;
     const uint32_t ndims = types::ndims(td);
     if (ndims > TENSOR_MAX_DIMS)
         return invalid_arguments;
@@ -39,10 +39,10 @@ status_t mkl_dnn_memory_desc_init(memory_desc_t *memory_desc,
     if (!args_ok)
         return invalid_arguments;
 
-    memory_desc_t md = {
-        .tensor_desc = *tensor,
-        .precision = precision,
-        .format = format };
+    memory_desc_t md;
+    md.tensor_desc = *tensor;
+    md.precision = precision;
+    md.format = format;
 
     status_t status = success;
     switch (format) {

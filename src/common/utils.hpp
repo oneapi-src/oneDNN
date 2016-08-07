@@ -43,7 +43,7 @@ constexpr int product_impl(const T* arr, int2type<0>) { return arr[0]; }
 template <typename T, size_t num>
 inline T product_impl(const T* arr, int2type<num>) {
     return arr[0]*product_impl(arr+1, int2type<num-1>()); }
-};
+}
 
 template <size_t num, typename T>
 inline T array_product(const T* arr) {

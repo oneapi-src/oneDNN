@@ -122,21 +122,18 @@ status_t reference_lrn<prec>::primitive_desc_init(
         &scratch_desc, &engine));
 
     /* final stage */
-    lrn_primitive_desc_t ppd = {
-        .base = {
-            .primitive_kind = lrn,
-            .engine = &engine,
-            .implementation = reinterpret_cast<const void*>(&implementation),
-        },
-        .lrn_desc = lrn_d,
-        .src_primitive_desc   = src_pd,
-        .scratch_primitive_desc = scratch_pd,
-        .dst_primitive_desc  = dst_pd,
-    };
+    lrn_primitive_desc_t lpd;
+    lpd.base.primitive_kind = lrn;
+    lpd.base.engine = &engine;
+    lpd.base.implementation = reinterpret_cast<const void*>(&implementation);
+    lpd.lrn_desc = lrn_d;
+    lpd.src_primitive_desc   = src_pd;
+    lpd.scratch_primitive_desc = scratch_pd;
+    lpd.dst_primitive_desc  = dst_pd;
 
-    // if (!lrn_primitive_desc_is_ok(ppd)) return invalid_arguments; // ???
+    // if (!lrn_primitive_desc_is_ok(lpd)) return invalid_arguments; // ???
 
-    primitive_desc->lrn = ppd;
+    primitive_desc->lrn = lpd;
 
     return success;
 }
@@ -156,9 +153,7 @@ status_t create(primitive **aprimitive, const primitive_desc_t *primitive_desc,
 }
 
 template <impl::precision_t prec>
-const primitive_impl reference_lrn<prec>::implementation = {
-    .primitive_create = create<prec>,
-};
+const primitive_impl reference_lrn<prec>::implementation = { create<prec> };
 
 template class reference_lrn<f32>;
 

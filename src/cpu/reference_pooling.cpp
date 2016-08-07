@@ -124,17 +124,14 @@ status_t reference_pooling<prec>::primitive_desc_init(
         &indices_desc, &engine));
 
     /* final stage */
-    pooling_primitive_desc_t ppd = {
-        .base = {
-            .primitive_kind = pooling,
-            .engine = &engine,
-            .implementation = reinterpret_cast<const void*>(&implementation),
-        },
-        .pooling_desc = pool_d,
-        .src_primitive_desc   = src_pd,
-        .indices_primitive_desc = indices_pd,
-        .dst_primitive_desc  = dst_pd,
-    };
+    pooling_primitive_desc_t ppd;
+    ppd.base.primitive_kind = pooling;
+    ppd.base.engine = &engine;
+    ppd.base.implementation = reinterpret_cast<const void*>(&implementation);
+    ppd.pooling_desc = pool_d;
+    ppd.src_primitive_desc   = src_pd;
+    ppd.indices_primitive_desc = indices_pd;
+        ppd.dst_primitive_desc  = dst_pd;
 
     // if (!pooling_primitive_desc_is_ok(ppd)) return invalid_arguments; // ???
 
@@ -159,7 +156,7 @@ status_t create(primitive **aprimitive, const primitive_desc_t *primitive_desc,
 
 template <impl::precision_t prec>
 const primitive_impl reference_pooling<prec>::implementation = {
-    .primitive_create = create<prec>,
+    create<prec>
 };
 
 template class reference_pooling<f32>;

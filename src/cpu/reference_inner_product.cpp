@@ -134,17 +134,14 @@ status_t reference_inner_product<prec>::primitive_desc_init(
     CHECK(mkl_dnn_memory_primitive_desc_init(&dst_pd, &ip_d.dst_desc, &engine));
 
     /* final stage */
-    inner_product_primitive_desc_t ippd = {
-        .base = {
-            .primitive_kind = inner_product,
-            .engine = &engine,
-            .implementation = reinterpret_cast<const void*>(&implementation),
-        },
-        .inner_product_desc = ip_d,
-        .src_primitive_desc = src_pd,
-        .weights_primitive_desc = weights_pd,
-        .dst_primitive_desc = dst_pd,
-    };
+    inner_product_primitive_desc_t ippd;
+    ippd.base.primitive_kind = inner_product;
+    ippd.base.engine = &engine;
+    ippd.base.implementation = reinterpret_cast<const void*>(&implementation);
+    ippd.inner_product_desc = ip_d;
+    ippd.src_primitive_desc = src_pd;
+    ippd.weights_primitive_desc = weights_pd;
+    ippd.dst_primitive_desc = dst_pd;
 
     // if (!inner_product_primitive_desc_is_ok(ippd)) return invalid_arguments; // ???
 
@@ -171,7 +168,7 @@ status_t create(primitive **aprimitive,
 
 template <impl::precision_t prec>
 const primitive_impl reference_inner_product<prec>::implementation = {
-    .primitive_create = create<prec>,
+    create<prec>
 };
 
 template class reference_inner_product<f32>;
