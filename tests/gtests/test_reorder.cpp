@@ -8,11 +8,6 @@
 
 namespace mkl_dnn {
 
-template <typename A, typename B> struct two_types {
-    typedef A data_i_t;
-    typedef B data_o_t;
-};
-
 template <typename data_i_t, typename data_o_t>
 inline void check_reorder(memory::desc md_i, memory::desc md_o,
         const data_i_t *src, const data_o_t *dst)
