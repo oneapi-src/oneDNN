@@ -52,7 +52,8 @@ inline uint32_t ndims(const memory_desc_t &memory_desc) {
 inline size_t get_size(const memory_desc_t &memory_desc) {
     if (memory_desc.format == any) return 0;
 
-    assert(one_of(memory_desc.format, n, nc, nchw, nhwc, oi, oihw, goihw, blocked));
+    assert(one_of(memory_desc.format, n, nc, nchw, nhwc, nChw8c, oi, oihw,
+                OIhw8i8o, goihw, gOIhw8i8o, blocked));
 
     size_t max_size = 0;
     auto dims = memory_desc.tensor_desc.dims;
