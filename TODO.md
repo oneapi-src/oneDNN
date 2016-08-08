@@ -11,7 +11,7 @@ API
 
 2. stream dependency tracking
 
-3. memory get native handle
+3. DONE -- memory get native handle
 
 4. mixing lazy + non-lazy engines
 
@@ -23,6 +23,12 @@ API
    primitive_get_primitive_desc(). the same for primive_create
 
 8. rename memory::format::n to memory::format::x
+
+9. add primitive/memory consistency checks
+
+10. l-r, t-b padding in convolution, pooling
+
+11. tensor flow padding consistency
 
 [ ww39 ]
 
