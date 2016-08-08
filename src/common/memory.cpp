@@ -12,6 +12,7 @@
 using namespace mkl_dnn::impl;
 using namespace mkl_dnn::impl::status;
 using namespace mkl_dnn::impl::memory_format;
+using namespace mkl_dnn::impl::precision;
 
 status_t mkl_dnn_tensor_desc_init(tensor_desc_t *tensor_desc,
         uint32_t ndims_batch, uint32_t ndims_channels, uint32_t ndims_spatial,
@@ -34,7 +35,7 @@ status_t mkl_dnn_memory_desc_init(memory_desc_t *memory_desc,
         const tensor_desc_t *tensor, precision_t precision,
         memory_format_t format) {
     bool args_ok = !any_null(memory_desc, tensor)
-        && one_of(precision, mkl_dnn_f32, mkl_dnn_u32);
+        && one_of(precision, f32, u32);
     if (!args_ok)
         return invalid_arguments;
 
@@ -101,18 +102,18 @@ status_t mkl_dnn_memory_create(primitive **memory,
             outputs);
 }
 
-mkl_dnn_status_t mkl_dnn_memory_get_primitive_desc(const primitive *memory,
+status_t mkl_dnn_memory_get_primitive_desc(const primitive *memory,
         memory_primitive_desc_t *memory_primitive_desc) {
     if (any_null(memory, memory_primitive_desc)
-            || memory->kind() != mkl_dnn::impl::primitive_kind::memory)
+            || memory->kind() != primitive_kind::memory)
         return invalid_arguments;
     *memory_primitive_desc = memory->primitive_desc().memory;
     return success;
 }
 
-mkl_dnn_status_t mkl_dnn_memory_get_data_handle(
-        const_mkl_dnn_primitive_t memory, void **handle) {
-    if (memory->kind() != mkl_dnn::impl::primitive_kind::memory)
+status_t mkl_dnn_memory_get_data_handle(const primitive *memory, void **handle)
+{
+    if (memory->kind() != primitive_kind::memory)
         return invalid_arguments;
     *handle = static_cast<void*>(memory->memory());
     return success;

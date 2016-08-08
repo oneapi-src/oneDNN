@@ -131,10 +131,7 @@ using pooling_primitive_desc_t = mkl_dnn_pooling_primitive_desc_t;
 using relu_primitive_desc_t = mkl_dnn_relu_primitive_desc_t;
 using lrn_primitive_desc_t = mkl_dnn_lrn_primitive_desc_t;
 using inner_product_primitive_desc_t = mkl_dnn_inner_product_primitive_desc_t;
-#if 0
-using primitive_desc_t = mkl_dnn_primitive_desc_t;
-using const_primitive_desc_t = const_mkl_dnn_primitive_desc_t;
-#else
+
 union primitive_desc_t {
     primitive_base_desc_t base;
     memory_primitive_desc_t memory;
@@ -149,7 +146,7 @@ union primitive_desc_t {
     static primitive_desc_t *convert_from_c(c_type *_) \
     { return reinterpret_cast<primitive_desc_t*>(_); } \
     static const primitive_desc_t *convert_from_c(const c_type *_) \
-    { return reinterpret_cast<const primitive_desc_t*>(_); }
+    { return reinterpret_cast<const primitive_desc_t*>(_); } \
 
     DECL_CTOR_AND_CONVERTERS(primitive_base_desc_t, base);
     DECL_CTOR_AND_CONVERTERS(memory_primitive_desc_t, memory);
@@ -162,7 +159,6 @@ union primitive_desc_t {
 
 #   undef DECL_CTOR_AND_CONVERTERS
 };
-#endif
 
 using primitive = mkl_dnn_primitive;
 

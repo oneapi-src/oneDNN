@@ -10,12 +10,11 @@ using namespace mkl_dnn::impl::primitive_kind;
 
 status_t mkl_dnn_primitive_create(primitive **aprimitive,
         const_mkl_dnn_primitive_desc_t primitive_desc,
-        const primitive_at_t *inputs, primitive **outputs) {
+        const primitive_at_t inputs[], primitive *outputs[]) {
     if (any_null(aprimitive, primitive_desc, inputs, outputs))
         return invalid_arguments;
 
-    auto &pd =
-        *static_cast<const mkl_dnn::impl::primitive_desc_t*>(primitive_desc);
+    auto &pd = *static_cast<const primitive_desc_t*>(primitive_desc);
 
     if (!pd.base.engine->is_ok())
         return invalid_arguments;
@@ -24,15 +23,16 @@ status_t mkl_dnn_primitive_create(primitive **aprimitive,
     return impl->primitive_create(aprimitive, &pd, inputs, outputs);
 }
 
-status_t mkl_dnn_primitive_get_primitive_desc(
-        const_mkl_dnn_primitive_t primitive,
+status_t mkl_dnn_primitive_get_primitive_desc(const primitive *primitive,
         mkl_dnn_primitive_desc_t *primitive_desc) {
     auto &pd = *reinterpret_cast<primitive_desc_t*>(primitive_desc);
 
     switch (pd.base.primitive_kind) {
 #   define CASE(x) case x: pd.x = primitive->primitive_desc().x; break
+    CASE(lrn);
     CASE(memory);
     CASE(reorder);
+    CASE(pooling);
     CASE(convolution);
     CASE(inner_product);
 #   undef CASE
@@ -42,13 +42,12 @@ status_t mkl_dnn_primitive_get_primitive_desc(
     return success;
 }
 
-mkl_dnn_status_t mkl_dnn_primitive_get_output(
-        const_mkl_dnn_primitive_t primitive, size_t index,
-        mkl_dnn_primitive_t *output) {
-    if (index >= primitive->output_count())
+status_t mkl_dnn_primitive_get_output(const primitive *aprimitive, size_t index,
+        primitive **output) {
+    if (index >= aprimitive->output_count())
         return invalid_arguments;
 
-    *output = primitive->output()[index];
+    *output = aprimitive->output()[index];
     return success;
 }
 

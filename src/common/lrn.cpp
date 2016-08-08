@@ -11,11 +11,10 @@ using namespace mkl_dnn::impl::status;
 using namespace mkl_dnn::impl::prop_kind;
 using namespace mkl_dnn::impl::alg_kind;
 
-status_t mkl_dnn_lrn_desc_init(lrn_desc_t *lrn_desc,
-        prop_kind_t prop_kind, alg_kind_t alg_kind,
-        const memory_desc_t *src_desc,
-        const memory_desc_t *dst_desc,
-        double alpha, double beta, uint32_t local_size)
+status_t mkl_dnn_lrn_desc_init(lrn_desc_t *lrn_desc, prop_kind_t prop_kind,
+        alg_kind_t alg_kind, const memory_desc_t *src_desc,
+        const memory_desc_t *dst_desc, double alpha, double beta,
+        uint32_t local_size)
 {
     bool args_ok = !any_null(lrn_desc, src_desc, dst_desc)
         && one_of(prop_kind, forward, backward_data)
@@ -51,17 +50,15 @@ status_t mkl_dnn_lrn_primitive_desc_init(
             *lrn_desc, *engine);
 }
 
-mkl_dnn_status_t mkl_dnn_lrn_create(mkl_dnn_primitive_t *lrn,
-        const mkl_dnn_lrn_primitive_desc_t *lrn_primitive_desc,
-        const mkl_dnn_primitive_at_t src, const mkl_dnn_primitive_at_t scratch, mkl_dnn_primitive_t dst)
+status_t mkl_dnn_lrn_create(primitive **lrn,
+        const lrn_primitive_desc_t *lrn_primitive_desc,
+        const primitive_at_t src, const primitive_at_t scratch, primitive *dst)
 {
-    const mkl_dnn_primitive_desc_t *cpd =
-        reinterpret_cast<const mkl_dnn_primitive_desc_t *>(
-                lrn_primitive_desc);
-    const mkl_dnn_primitive_at_t inputs[] = { src, scratch };
-    mkl_dnn_primitive_t outputs[] = { dst };
-
-    return mkl_dnn_primitive_create(lrn, cpd, inputs, outputs);
+    auto *lpd = reinterpret_cast<const mkl_dnn_primitive_desc_t *>(
+            lrn_primitive_desc);
+    const primitive_at_t inputs[] = {src, scratch};
+    primitive *outputs[] = {dst};
+    return mkl_dnn_primitive_create(lrn, lpd, inputs, outputs);
 }
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

@@ -47,19 +47,15 @@ status_t mkl_dnn_inner_product_primitive_desc_init(
             *inner_product_desc, *engine);
 }
 
-mkl_dnn_status_t mkl_dnn_inner_product_create(
-        mkl_dnn_primitive_t *inner_product,
-        const mkl_dnn_inner_product_primitive_desc_t
-                *inner_product_primitive_desc,
-        const mkl_dnn_primitive_at_t src, const mkl_dnn_primitive_at_t weights,
-        mkl_dnn_primitive_t dst)
+status_t mkl_dnn_inner_product_create(primitive **inner_product,
+        const inner_product_primitive_desc_t *inner_product_primitive_desc,
+        const primitive_at_t src, const primitive_at_t weights, primitive *dst)
 {
-    const mkl_dnn_primitive_desc_t *ippd
-            = reinterpret_cast<const mkl_dnn_primitive_desc_t *>(
-                    inner_product_primitive_desc);
+    auto ippd = reinterpret_cast<const mkl_dnn_primitive_desc_t *>(
+            inner_product_primitive_desc);
     // XXX: must check that shapes of in/out memory match what's in the desc (?)
-    const mkl_dnn_primitive_at_t inputs[] = { src, weights };
-    mkl_dnn_primitive_t outputs[] = { dst };
+    const primitive_at_t inputs[] = {src, weights};
+    primitive *outputs[] = {dst};
     return mkl_dnn_primitive_create(inner_product, ippd, inputs, outputs);
 }
 

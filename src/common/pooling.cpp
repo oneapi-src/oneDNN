@@ -56,17 +56,15 @@ status_t mkl_dnn_pooling_primitive_desc_init(
             *pooling_desc, *engine);
 }
 
-mkl_dnn_status_t mkl_dnn_pooling_create(mkl_dnn_primitive_t *pooling,
-        const mkl_dnn_pooling_primitive_desc_t *pooling_primitive_desc,
-        const mkl_dnn_primitive_at_t src, const mkl_dnn_primitive_at_t indices,
-        mkl_dnn_primitive_t dst) {
-    const mkl_dnn_primitive_desc_t *cpd =
-        reinterpret_cast<const mkl_dnn_primitive_desc_t *>(
-                pooling_primitive_desc);
-    const mkl_dnn_primitive_at_t inputs[] = { src, indices };
-    mkl_dnn_primitive_t outputs[] = { dst };
-
-    return mkl_dnn_primitive_create(pooling, cpd, inputs, outputs);
+status_t mkl_dnn_pooling_create(primitive **pooling,
+        const pooling_primitive_desc_t *pooling_primitive_desc,
+        const primitive_at_t src, const primitive_at_t indices, primitive *dst)
+{
+    auto ppd = reinterpret_cast<const mkl_dnn_primitive_desc_t *>(
+            pooling_primitive_desc);
+    const primitive_at_t inputs[] = {src, indices};
+    primitive *outputs[] = {dst};
+    return mkl_dnn_primitive_create(pooling, ppd, inputs, outputs);
 }
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

@@ -12,10 +12,10 @@ using namespace mkl_dnn::impl;
 using namespace mkl_dnn::impl::status;
 using namespace mkl_dnn::impl::engine_kind;
 
-mkl_dnn_status_t mkl_dnn_reorder_primitive_desc_init(
-        mkl_dnn_reorder_primitive_desc_t *reorder_primitive_desc,
-        const mkl_dnn_memory_primitive_desc_t *input,
-        const mkl_dnn_memory_primitive_desc_t *output)
+status_t mkl_dnn_reorder_primitive_desc_init(
+        reorder_primitive_desc_t *reorder_primitive_desc,
+        const memory_primitive_desc_t *input,
+        const memory_primitive_desc_t *output)
 {
     if (any_null(reorder_primitive_desc, input, output))
         return invalid_arguments;
@@ -43,15 +43,14 @@ mkl_dnn_status_t mkl_dnn_reorder_primitive_desc_init(
     return unimplemented;
 }
 
-mkl_dnn_status_t mkl_dnn_reorder_create(mkl_dnn_primitive_t *reorder,
-        const mkl_dnn_reorder_primitive_desc_t *reorder_primitive_desc,
-        const mkl_dnn_primitive_at_t input, mkl_dnn_primitive_t output) {
-    const mkl_dnn_primitive_desc_t *rpd =
-        reinterpret_cast<const mkl_dnn_primitive_desc_t *>(
-                reorder_primitive_desc);
+status_t mkl_dnn_reorder_create(primitive **reorder,
+        const reorder_primitive_desc_t *reorder_primitive_desc,
+        const primitive_at_t input, primitive *output) {
+    auto rpd = reinterpret_cast<const mkl_dnn_primitive_desc_t *>(
+            reorder_primitive_desc);
     // XXX: must check that shapes of in/out memory match what's in the desc (?)
-    const mkl_dnn_primitive_at_t inputs[] = {input};
-    mkl_dnn_primitive_t outputs[] = {output};
+    const primitive_at_t inputs[] = {input};
+    primitive *outputs[] = {output};
     return mkl_dnn_primitive_create(reorder, rpd, inputs, outputs);
 }
 
