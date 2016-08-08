@@ -4,7 +4,6 @@
 #include "engine.hpp"
 #include "primitive.hpp"
 
-#include "pooling.hpp"
 #include "utils.hpp"
 
 using namespace mkl_dnn::impl;

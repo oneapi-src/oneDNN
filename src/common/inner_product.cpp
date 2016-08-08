@@ -5,7 +5,6 @@
 #include "primitive.hpp"
 #include "type_helpers.hpp"
 
-#include "inner_product.hpp"
 #include "utils.hpp"
 
 using namespace mkl_dnn::impl;

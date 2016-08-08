@@ -5,7 +5,6 @@
 #include "engine.hpp"
 #include "primitive.hpp"
 
-#include "convolution.hpp"
 #include "utils.hpp"
 
 using namespace mkl_dnn::impl;
