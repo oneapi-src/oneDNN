@@ -13,7 +13,7 @@ using mkl_dnn::impl::array_set;
 using namespace mkl_dnn::impl::status;
 using namespace mkl_dnn::impl::memory_format;
 
-status_t fill_n(blocking_desc_t& blk, const tensor_desc_t& tensor) {
+status_t fill_n(blocking_desc_t &blk, const tensor_desc_t &tensor) {
     const uint32_t ndims = types::ndims(tensor);
     if (ndims != 1) return invalid_arguments;
     array_set(blk.padding_dims, 0, ndims);
@@ -37,7 +37,7 @@ inline void set_default_strides(dims_t strides, const dims_t sizes,
             strides[perm[ndims - d]] * sizes[perm[ndims - d]];
 }
 
-status_t fill_nonblocked(blocking_desc_t& blk, const tensor_desc_t& tensor,
+status_t fill_nonblocked(blocking_desc_t &blk, const tensor_desc_t &tensor,
         const uint32_t perm[]) {
     const uint32_t ndims = types::ndims(tensor);
     array_set(blk.padding_dims, 0, ndims);
@@ -47,7 +47,7 @@ status_t fill_nonblocked(blocking_desc_t& blk, const tensor_desc_t& tensor,
     return success;
 }
 
-status_t fill_nc(blocking_desc_t& blk, const tensor_desc_t& tensor) {
+status_t fill_nc(blocking_desc_t &blk, const tensor_desc_t &tensor) {
     bool args_ok = tensor.ndims_batch == 1
             && tensor.ndims_channels == 1
             && tensor.ndims_spatial == 0;
@@ -57,7 +57,7 @@ status_t fill_nc(blocking_desc_t& blk, const tensor_desc_t& tensor) {
     return fill_nonblocked(blk, tensor, perm);
 }
 
-status_t fill_nchw(blocking_desc_t& blk, const tensor_desc_t& tensor) {
+status_t fill_nchw(blocking_desc_t &blk, const tensor_desc_t &tensor) {
     bool args_ok = tensor.ndims_batch == 1
             && tensor.ndims_channels == 1
             && tensor.ndims_spatial == 2;
@@ -67,7 +67,7 @@ status_t fill_nchw(blocking_desc_t& blk, const tensor_desc_t& tensor) {
     return fill_nonblocked(blk, tensor, perm);
 }
 
-status_t fill_nhwc(blocking_desc_t& blk, const tensor_desc_t& tensor) {
+status_t fill_nhwc(blocking_desc_t &blk, const tensor_desc_t &tensor) {
     bool args_ok = tensor.ndims_batch == 1
             && tensor.ndims_channels == 1
             && tensor.ndims_spatial == 2;
@@ -77,7 +77,7 @@ status_t fill_nhwc(blocking_desc_t& blk, const tensor_desc_t& tensor) {
     return fill_nonblocked(blk, tensor, perm);
 }
 
-status_t fill_oi(blocking_desc_t& blk, const tensor_desc_t& tensor) {
+status_t fill_oi(blocking_desc_t &blk, const tensor_desc_t &tensor) {
     bool args_ok = tensor.ndims_batch == 0
             && tensor.ndims_channels == 2
             && tensor.ndims_spatial == 0;
@@ -87,7 +87,7 @@ status_t fill_oi(blocking_desc_t& blk, const tensor_desc_t& tensor) {
     return fill_nonblocked(blk, tensor, perm);
 }
 
-status_t fill_oihw(blocking_desc_t& blk, const tensor_desc_t& tensor) {
+status_t fill_oihw(blocking_desc_t &blk, const tensor_desc_t &tensor) {
     bool args_ok = tensor.ndims_batch == 0
             && tensor.ndims_channels == 2
             && tensor.ndims_spatial == 2;
@@ -97,7 +97,7 @@ status_t fill_oihw(blocking_desc_t& blk, const tensor_desc_t& tensor) {
     return fill_nonblocked(blk, tensor, perm);
 }
 
-status_t fill_goihw(blocking_desc_t& blk, const tensor_desc_t& tensor) {
+status_t fill_goihw(blocking_desc_t &blk, const tensor_desc_t &tensor) {
     bool args_ok = tensor.ndims_batch == 1
             && tensor.ndims_channels == 2
             && tensor.ndims_spatial == 2;
