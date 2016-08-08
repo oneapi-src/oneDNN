@@ -102,11 +102,11 @@ status_t reference_relu<prec>::primitive_desc_init(
     return success;
 }
 
+namespace {
 template <impl::precision_t prec>
-status_t reference_relu<prec>::create(primitive **primitive,
-        const primitive_desc_t *primitive_desc,
-        const primitive_at_t inputs[], mkl_dnn::impl::primitive *outputs[]) {
-    assert(primitive);
+status_t create(primitive **aprimitive, const primitive_desc_t *primitive_desc,
+        const primitive_at_t inputs[], primitive *outputs[]) {
+    assert(aprimitive);
     assert(inputs);
     assert(outputs);
     assert(primitive_desc);
@@ -116,13 +116,14 @@ status_t reference_relu<prec>::create(primitive **primitive,
     // TODO: some checks here (asserts: all the error checks must have been
     // done in the upper layers)
 
-    *primitive = new reference_relu(rpd, inputs, outputs);
-    return primitive ? success : out_of_memory;
+    *aprimitive = new reference_relu<prec>(rpd, inputs, outputs);
+    return aprimitive ? success : out_of_memory;
+}
 }
 
 template <impl::precision_t prec>
 const primitive_impl reference_relu<prec>::implementation = {
-    .primitive_create = reference_relu::create,
+    .primitive_create = create<prec>,
 };
 
 template class reference_relu<f32>;
@@ -130,4 +131,3 @@ template class reference_relu<f32>;
 }}}
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
-

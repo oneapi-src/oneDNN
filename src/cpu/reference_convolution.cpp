@@ -177,22 +177,23 @@ status_t reference_convolution<prec>::primitive_desc_init(
     return success;
 }
 
+namespace {
 template <impl::precision_t prec>
-status_t reference_convolution<prec>::create(primitive **primitive,
-        const primitive_desc_t *primitive_desc,
-        const primitive_at_t inputs[], mkl_dnn::impl::primitive *outputs[]) {
+status_t create(primitive **aprimitive, const primitive_desc_t *primitive_desc,
+        const primitive_at_t inputs[], primitive *outputs[]) {
     assert(primitive_desc->base.primitive_kind == convolution);
 
     auto& cpd = primitive_desc->convolution;
     // TODO: some checks here.
 
-    *primitive = new reference_convolution(cpd, inputs, outputs);
-    return primitive ? success : out_of_memory;
+    *aprimitive = new reference_convolution<prec>(cpd, inputs, outputs);
+    return aprimitive ? success : out_of_memory;
+}
 }
 
 template <impl::precision_t prec>
 const primitive_impl reference_convolution<prec>::implementation = {
-    .primitive_create = reference_convolution::create,
+    .primitive_create = create<prec>,
 };
 
 template class reference_convolution<f32>;

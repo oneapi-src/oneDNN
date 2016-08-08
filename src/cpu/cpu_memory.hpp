@@ -45,12 +45,6 @@ public:
     /* static magic */
     static status_t memory_desc_init(primitive_desc_t *primitive_desc,
             const op_desc_t &op_desc, const mkl_dnn::impl::engine &aengine);
-
-    static status_t memory_create(primitive **primitive,
-            const primitive_desc_t *primitive_desc,
-            const primitive_at_t inputs[],
-            mkl_dnn::impl::primitive *outputs[]);
-
     static const primitive_impl memory_implementation;
 };
 

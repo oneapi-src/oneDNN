@@ -48,9 +48,6 @@ public:
             primitive_desc_t *primitive_desc,
             const memory_primitive_desc_t *input,
             const memory_primitive_desc_t *output);
-    static status_t create(primitive **aprimitive,
-            const primitive_desc_t *primitive_desc,
-            const primitive_at_t inputs[], primitive *outputs[]);
     static const primitive_impl implementation;
 };
 

@@ -63,22 +63,23 @@ status_t reference_reorder<prec_i, prec_o>::reorder_primitive_desc_init(
     return success;
 }
 
+namespace {
 template <precision_t prec_i, precision_t prec_o>
-status_t reference_reorder<prec_i, prec_o>::create(primitive **primitive,
-        const primitive_desc_t *primitive_desc,
-        const primitive_at_t inputs[], mkl_dnn::impl::primitive *outputs[]) {
+status_t create(primitive **aprimitive, const primitive_desc_t *primitive_desc,
+        const primitive_at_t inputs[], primitive *outputs[]) {
     assert(primitive_desc->base.primitive_kind == reorder);
 
     auto &rpd = primitive_desc->reorder;
     // TODO: some checks here.
 
-    *primitive = new reference_reorder(rpd, inputs, outputs);
-    return primitive ? success : out_of_memory;
+    *aprimitive = new reference_reorder<prec_i, prec_o>(rpd, inputs, outputs);
+    return aprimitive ? success : out_of_memory;
+}
 }
 
 template <precision_t prec_i, precision_t prec_o>
 const primitive_impl reference_reorder<prec_i, prec_o>::implementation = {
-    .primitive_create = reference_reorder::create,
+    .primitive_create = create<prec_i, prec_o>,
 };
 
 template class reference_reorder<f32, f32>;

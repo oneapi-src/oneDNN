@@ -142,22 +142,23 @@ status_t reference_pooling<prec>::primitive_desc_init(
     return success;
 }
 
+namespace {
 template <impl::precision_t prec>
-status_t reference_pooling<prec>::create(primitive **primitive,
-        const primitive_desc_t *primitive_desc,
-        const primitive_at_t inputs[], mkl_dnn::impl::primitive *outputs[]) {
+status_t create(primitive **aprimitive, const primitive_desc_t *primitive_desc,
+        const primitive_at_t inputs[], primitive *outputs[]) {
     assert(primitive_desc->base.primitive_kind == pooling);
 
     auto& ppd = primitive_desc->pooling;
     // TODO: some checks here.
 
-    *primitive = new reference_pooling(ppd, inputs, outputs);
-    return primitive ? success : out_of_memory;
+    *aprimitive = new reference_pooling<prec>(ppd, inputs, outputs);
+    return aprimitive ? success : out_of_memory;
+}
 }
 
 template <impl::precision_t prec>
 const primitive_impl reference_pooling<prec>::implementation = {
-    .primitive_create = reference_pooling::create,
+    .primitive_create = create<prec>,
 };
 
 template class reference_pooling<f32>;

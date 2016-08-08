@@ -153,23 +153,25 @@ status_t reference_inner_product<prec>::primitive_desc_init(
     return success;
 }
 
+namespace {
 template <impl::precision_t prec>
-status_t reference_inner_product<prec>::create(primitive **primitive,
+status_t create(primitive **aprimitive,
         const primitive_desc_t *primitive_desc, const primitive_at_t inputs[],
-        mkl_dnn::impl::primitive *outputs[])
+        primitive *outputs[])
 {
     assert(primitive_desc->base.primitive_kind == inner_product);
 
     auto &ippd = primitive_desc->inner_product;
     // TODO: some checks here.
 
-    *primitive = new reference_inner_product(ippd, inputs, outputs);
-    return primitive ? success : out_of_memory;
+    *aprimitive = new reference_inner_product<prec>(ippd, inputs, outputs);
+    return aprimitive ? success : out_of_memory;
+}
 }
 
 template <impl::precision_t prec>
 const primitive_impl reference_inner_product<prec>::implementation = {
-    .primitive_create = reference_inner_product::create,
+    .primitive_create = create<prec>,
 };
 
 template class reference_inner_product<f32>;

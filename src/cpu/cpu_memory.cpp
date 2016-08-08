@@ -35,19 +35,21 @@ status_t cpu_memory::memory_desc_init(primitive_desc_t *primitive_desc,
     return success;
 }
 
-status_t cpu_memory::memory_create(primitive **primitive,
+namespace {
+status_t memory_create(primitive **aprimitive,
         const primitive_desc_t *primitive_desc, const primitive_at_t inputs[],
-        mkl_dnn::impl::primitive *outputs[]) {
+        primitive *outputs[]) {
     assert(primitive_desc->base.primitive_kind == primitive_kind::memory);
     assert(inputs[0].primitive == outputs[0]);
 
     char* ptr = reinterpret_cast<char*>(outputs[0]);
-    *primitive = new cpu_memory(primitive_desc->memory, ptr);
-    return primitive ? success : out_of_memory;
+    *aprimitive = new cpu_memory(primitive_desc->memory, ptr);
+    return aprimitive ? success : out_of_memory;
+}
 }
 
 const primitive_impl cpu_memory::memory_implementation = {
-    .primitive_create = cpu_memory::memory_create
+    .primitive_create = memory_create
 };
 
 }
