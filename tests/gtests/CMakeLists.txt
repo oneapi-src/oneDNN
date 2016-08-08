@@ -8,7 +8,6 @@ include_directories(${CMAKE_SOURCE_DIR}/tests/gtests
                     )
 file(GLOB API_TEST_CASES_SRC api_tests/*.cpp)
 file(GLOB PRIM_TEST_CASES_SRC test_*.cpp)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${NO_PEDANTIC_FLAGS}")
 add_executable(${APP_NAME}
     ${MAIN_SRC_GTEST}
     ${API_TEST_CASES_SRC}
