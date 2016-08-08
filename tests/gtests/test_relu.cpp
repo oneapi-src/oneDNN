@@ -1,4 +1,5 @@
 #include "gtest/gtest.h"
+#include "mkl_dnn_test_common.hpp"
 
 #include "mkl_dnn.hpp"
 
@@ -29,14 +30,6 @@ void check_relu(prop_kind aprop_kind,
         assert_eq(dst[i], s >= 0 ? s : s * negative_slope);
     }
 }
-
-template <typename data_t>
-struct data_traits { };
-
-template <>
-struct data_traits<float> {
-    static const memory::precision prec = memory::precision::f32;
-};
 
 template <typename data_t>
 struct test_params {
