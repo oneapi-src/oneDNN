@@ -155,6 +155,17 @@ struct tensor {
                         batch, channels, spatial, &adims[0]),
                     "could not initialize a tensor descriptor");
         }
+
+        desc(std::vector<uint32_t> dims_spec, dims adims) {
+            if (dims_spec.size() != 3)
+                throw error(c_api::mkl_dnn_invalid_arguments,
+                        "invalid tensor spec");
+            validate_dims(adims);
+            error::wrap_c_api(
+                    c_api::mkl_dnn_tensor_desc_init(&data, dims_spec[0],
+                        dims_spec[1], dims_spec[2], &adims[0]),
+                    "could not initialize a tensor descriptor");
+        }
         // TODO: convenience overloads
     };
 
