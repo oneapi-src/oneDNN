@@ -15,8 +15,7 @@ using namespace mkl_dnn::impl::memory_format;
 
 status_t fill_n(blocking_desc_t& blk, const tensor_desc_t& tensor) {
     const uint32_t ndims = types::ndims(tensor);
-    if (ndims != 1)
-        return invalid_arguments;
+    if (ndims != 1) return invalid_arguments;
     array_set(blk.padding_dims, 0, ndims);
     array_set(blk.block_dims, 1, ndims);
     array_set(blk.strides[1], 1, ndims);
@@ -39,9 +38,8 @@ inline void set_default_strides(dims_t strides, const dims_t sizes,
 }
 
 status_t fill_nonblocked(blocking_desc_t& blk, const tensor_desc_t& tensor,
-        bool (*constraint)(const tensor_desc_t &), const uint32_t perm[]) {
+        const uint32_t perm[]) {
     const uint32_t ndims = types::ndims(tensor);
-    if (constraint && !constraint(tensor)) return invalid_arguments;
     array_set(blk.padding_dims, 0, ndims);
     array_set(blk.block_dims, 1, ndims);
     array_set(blk.strides[1], 1, ndims);
@@ -50,66 +48,63 @@ status_t fill_nonblocked(blocking_desc_t& blk, const tensor_desc_t& tensor,
 }
 
 status_t fill_nc(blocking_desc_t& blk, const tensor_desc_t& tensor) {
-    const uint32_t ndims = types::ndims(tensor);
-    if (ndims != 2)
-        return invalid_arguments;
+    bool args_ok = tensor.ndims_batch == 1
+            && tensor.ndims_channels == 1
+            && tensor.ndims_spatial == 0;
+    if (!args_ok) return invalid_arguments;
+
     const uint32_t perm[2] = {0, 1};
-    const auto constraint = [](const tensor_desc_t &t) {
-        return t.ndims_batch == 1
-            && t.ndims_channels == 1
-            && t.ndims_spatial == 0;
-    };
-    return fill_nonblocked(blk, tensor, constraint, perm);
+    return fill_nonblocked(blk, tensor, perm);
 }
 
 status_t fill_nchw(blocking_desc_t& blk, const tensor_desc_t& tensor) {
+    bool args_ok = tensor.ndims_batch == 1
+            && tensor.ndims_channels == 1
+            && tensor.ndims_spatial == 2;
+    if (!args_ok) return invalid_arguments;
+
     const uint32_t perm[4] = {0, 1, 2, 3};
-    const auto constraint = [](const tensor_desc_t &t) {
-        return t.ndims_batch == 1
-            && t.ndims_channels == 1
-            && t.ndims_spatial == 2;
-    };
-    return fill_nonblocked(blk, tensor, constraint, perm);
+    return fill_nonblocked(blk, tensor, perm);
 }
 
 status_t fill_nhwc(blocking_desc_t& blk, const tensor_desc_t& tensor) {
+    bool args_ok = tensor.ndims_batch == 1
+            && tensor.ndims_channels == 1
+            && tensor.ndims_spatial == 2;
+    if (!args_ok) return invalid_arguments;
+
     const uint32_t perm[4] = {0, 2, 3, 1};
-    auto constraint = [](const tensor_desc_t &t) {
-        return t.ndims_batch == 1
-            && t.ndims_channels == 1
-            && t.ndims_spatial == 2;
-    };
-    return fill_nonblocked(blk, tensor, constraint, perm);
+    return fill_nonblocked(blk, tensor, perm);
 }
 
 status_t fill_oi(blocking_desc_t& blk, const tensor_desc_t& tensor) {
+    bool args_ok = tensor.ndims_batch == 0
+            && tensor.ndims_channels == 2
+            && tensor.ndims_spatial == 0;
+    if (!args_ok) return invalid_arguments;
+
     const uint32_t perm[2] = {0, 1};
-    auto constraint = [](const tensor_desc_t &t) {
-        return t.ndims_batch == 0
-            && t.ndims_channels == 2
-            && t.ndims_spatial == 0;
-    };
-    return fill_nonblocked(blk, tensor, constraint, perm);
+    return fill_nonblocked(blk, tensor, perm);
 }
 
 status_t fill_oihw(blocking_desc_t& blk, const tensor_desc_t& tensor) {
+    bool args_ok = tensor.ndims_batch == 0
+            && tensor.ndims_channels == 2
+            && tensor.ndims_spatial == 2;
+    if (!args_ok) return invalid_arguments;
+
     const uint32_t perm[4] = {0, 1, 2, 3};
-    auto constraint = [](const tensor_desc_t &t) {
-        return t.ndims_batch == 0
-            && t.ndims_channels == 2
-            && t.ndims_spatial == 2;
-    };
-    return fill_nonblocked(blk, tensor, constraint, perm);
+    return fill_nonblocked(blk, tensor, perm);
 }
 
 status_t fill_goihw(blocking_desc_t& blk, const tensor_desc_t& tensor) {
+    bool args_ok = tensor.ndims_batch == 1
+            && tensor.ndims_channels == 2
+            && tensor.ndims_spatial == 2;
+    if (!args_ok) return invalid_arguments;
+
     const uint32_t perm[5] = {0, 1, 2, 3, 4};
-    auto constraint = [](const tensor_desc_t &t) {
-        return t.ndims_batch == 1
-            && t.ndims_channels == 2
-            && t.ndims_spatial == 2;
-    };
-    return fill_nonblocked(blk, tensor, constraint, perm);
+    return fill_nonblocked(blk, tensor, perm);
 }
 
 }
