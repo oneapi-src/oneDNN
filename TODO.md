@@ -32,6 +32,8 @@ API
 
 12. copy primitive (i.e. create new one) -- w/ new inputs/outputs
 
+13. current c++ api does not propagate const in opaque types
+
 [ ww39 ]
 
 1. split/concat api
