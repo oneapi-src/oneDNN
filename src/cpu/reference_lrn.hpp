@@ -41,7 +41,7 @@ public:
     typedef typename precision2type<prec>::type data_t;
 
     reference_lrn(const lrn_primitive_desc_t &ppd,
-            const primitive_at_t *inputs, primitive *outputs[])
+            const primitive_at_t *inputs, const primitive *outputs[])
         : primitive(ppd, const_cast<impl::engine*>(ppd.base.engine), not_ready)
         , _ppd(_primitive_desc.lrn)
     {

@@ -46,7 +46,7 @@ public:
     typedef typename precision2type<prec>::type data_t;
 
     reference_inner_product(const inner_product_primitive_desc_t &ippd,
-            const primitive_at_t *inputs, primitive *outputs[])
+            const primitive_at_t *inputs, const primitive *outputs[])
         : primitive(
                   ippd, const_cast<impl::engine *>(ippd.base.engine), not_ready)
         , _ippd(_primitive_desc.inner_product)

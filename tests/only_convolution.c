@@ -88,7 +88,7 @@ int doit(int lazy) {
         mkl_dnn_primitive_at(c3_bias, 0)
     };
 
-    mkl_dnn_primitive_t c3_dsts[1];
+    const_mkl_dnn_primitive_t c3_dsts[1];
 	CHECK(mkl_dnn_memory_create(&c3_dst, &c3_dst_pd, dst));
 	c3_dsts[0] = c3_dst;
 

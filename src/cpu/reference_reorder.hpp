@@ -34,7 +34,7 @@ public:
     typedef typename precision2type<prec_o>::type data_o_t;
 
     reference_reorder(const reorder_primitive_desc_t &rpd,
-            const primitive_at_t *inputs, primitive *outputs[])
+            const primitive_at_t *inputs, const primitive *outputs[])
         : primitive(rpd, const_cast<impl::engine*>(rpd.base.engine), not_ready)
         , _rpd(_primitive_desc.reorder)
     {

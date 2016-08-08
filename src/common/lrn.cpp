@@ -52,12 +52,13 @@ status_t mkl_dnn_lrn_primitive_desc_init(
 
 status_t mkl_dnn_lrn_create(primitive **lrn,
         const lrn_primitive_desc_t *lrn_primitive_desc,
-        const primitive_at_t src, const primitive_at_t scratch, primitive *dst)
+        const primitive_at_t src, const primitive_at_t scratch,
+        const primitive *dst)
 {
     auto *lpd = reinterpret_cast<const mkl_dnn_primitive_desc_t *>(
             lrn_primitive_desc);
     const primitive_at_t inputs[] = {src, scratch};
-    primitive *outputs[] = {dst};
+    const primitive *outputs[] = {dst};
     return mkl_dnn_primitive_create(lrn, lpd, inputs, outputs);
 }
 

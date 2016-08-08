@@ -62,12 +62,12 @@ status_t mkl_dnn_convolution_primitive_desc_init(
 status_t mkl_dnn_convolution_create(primitive **convolution,
         const convolution_primitive_desc_t *convolution_primitive_desc,
         const primitive_at_t src, const primitive_at_t weights,
-        const primitive_at_t bias, primitive *dst) {
+        const primitive_at_t bias, const primitive *dst) {
     auto cpd = reinterpret_cast<const mkl_dnn_primitive_desc_t *>(
             convolution_primitive_desc);
     // XXX: must check that shapes of in/out memory match what's in the desc (?)
     const primitive_at_t inputs[] = {src, weights, bias};
-    primitive *outputs[] = {dst};
+    const primitive *outputs[] = {dst};
     return mkl_dnn_primitive_create(convolution, cpd, inputs, outputs);
 }
 

@@ -160,7 +160,7 @@ mkl_dnn_status_t mkl_dnn_lrn_primitive_desc_init(
  * primitive \param output */
 mkl_dnn_status_t mkl_dnn_reorder_create(mkl_dnn_primitive_t *reorder,
         const mkl_dnn_reorder_primitive_desc_t *reorder_primitive_desc,
-        const mkl_dnn_primitive_at_t input, mkl_dnn_primitive_t output);
+        const mkl_dnn_primitive_at_t input, const_mkl_dnn_primitive_t output);
 
 /** Initializes a \param inner_product_primitve_desc with \param
  * inner_product_desc and \param engine */
@@ -175,7 +175,7 @@ mkl_dnn_status_t mkl_dnn_inner_product_primitive_desc_init(
 mkl_dnn_status_t mkl_dnn_convolution_create(mkl_dnn_primitive_t *convolution,
         const mkl_dnn_convolution_primitive_desc_t *convolution_primitive_desc,
         const mkl_dnn_primitive_at_t src, const mkl_dnn_primitive_at_t weights,
-        const mkl_dnn_primitive_at_t bias, mkl_dnn_primitive_t dst);
+        const mkl_dnn_primitive_at_t bias, const_mkl_dnn_primitive_t dst);
 
 /** Creates a \param pooling primitive using descriptor \param
  * pooling_primitive_desc, input primitive_ats \param src, \param indices,
@@ -183,13 +183,13 @@ mkl_dnn_status_t mkl_dnn_convolution_create(mkl_dnn_primitive_t *convolution,
 mkl_dnn_status_t mkl_dnn_pooling_create(mkl_dnn_primitive_t *pooling,
         const mkl_dnn_pooling_primitive_desc_t *pooling_primitive_desc,
         const mkl_dnn_primitive_at_t src, const mkl_dnn_primitive_at_t indices,
-        mkl_dnn_primitive_t dst);
+        const_mkl_dnn_primitive_t dst);
 
 /** Creates a \param relu primitive using descrptor \param relu_primitive_desc,
  * input \param src and output \param dst */
 mkl_dnn_status_t mkl_dnn_relu_create(mkl_dnn_primitive_t *relu,
         const mkl_dnn_relu_primitive_desc_t *relu_primitive_desc,
-        const mkl_dnn_primitive_at_t src, mkl_dnn_primitive_t dst);
+        const mkl_dnn_primitive_at_t src, const_mkl_dnn_primitive_t dst);
 
 /** Creates a \param lrn primitive using descriptor \param
 * lrn_primitive_desc, input primitive_at \param src
@@ -197,7 +197,7 @@ mkl_dnn_status_t mkl_dnn_relu_create(mkl_dnn_primitive_t *relu,
 mkl_dnn_status_t mkl_dnn_lrn_create(mkl_dnn_primitive_t *lrn,
     const mkl_dnn_lrn_primitive_desc_t *lrn_primitive_desc,
     const mkl_dnn_primitive_at_t src, const mkl_dnn_primitive_at_t scratch,
-    mkl_dnn_primitive_t dst);
+    const_mkl_dnn_primitive_t dst);
 
 /** Creates a \param inner product primitive using descriptor \param
  * inner_product_primitive_desc, input primitive_ats \param src, \param weights
@@ -205,14 +205,15 @@ mkl_dnn_status_t mkl_dnn_lrn_create(mkl_dnn_primitive_t *lrn,
 mkl_dnn_status_t mkl_dnn_inner_product_create(mkl_dnn_primitive_t *inner_product,
         const mkl_dnn_inner_product_primitive_desc_t *inner_product_primitive_desc,
         const mkl_dnn_primitive_at_t src, const mkl_dnn_primitive_at_t weights,
-        mkl_dnn_primitive_t dst);
+        const_mkl_dnn_primitive_t dst);
 
 /* XXX: is this even usable by user? */
 /** Creates a \param primitive using a \param primitive descriptor and array of
  * \param inputs and \param outputs */
 mkl_dnn_status_t mkl_dnn_primitive_create(mkl_dnn_primitive_t *primitive,
         const_mkl_dnn_primitive_desc_t primitive_desc,
-        const mkl_dnn_primitive_at_t *inputs, mkl_dnn_primitive_t *outputs);
+        const mkl_dnn_primitive_at_t *inputs,
+        const_mkl_dnn_primitive_t *outputs);
 
 /** Retrieves \param primitive_desc of a \param primitive */
 mkl_dnn_status_t mkl_dnn_primitive_get_primitive_desc(
@@ -227,7 +228,7 @@ mkl_dnn_status_t mkl_dnn_primitive_get_input_at(
 /** For a \param primitive returns \param output at \param index position */
 mkl_dnn_status_t mkl_dnn_primitive_get_output(
         const_mkl_dnn_primitive_t primitive, size_t index,
-        mkl_dnn_primitive_t *output);
+        const_mkl_dnn_primitive_t *output);
 
 /** For a primitive \param memory returns data \param handle. For cpu engine
  * data handle is a pointer to the actual data */

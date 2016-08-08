@@ -38,11 +38,11 @@ status_t cpu_memory::memory_desc_init(primitive_desc_t *primitive_desc,
 namespace {
 status_t memory_create(primitive **aprimitive,
         const primitive_desc_t *primitive_desc, const primitive_at_t inputs[],
-        primitive *outputs[]) {
+        const primitive *outputs[]) {
     assert(primitive_desc->base.primitive_kind == primitive_kind::memory);
     assert(inputs[0].primitive == outputs[0]);
 
-    char* ptr = reinterpret_cast<char*>(outputs[0]);
+    char* ptr = const_cast<char *>(reinterpret_cast<const char*>(outputs[0]));
     *aprimitive = new cpu_memory(primitive_desc->memory, ptr);
     return aprimitive ? success : out_of_memory;
 }

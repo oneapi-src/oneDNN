@@ -66,7 +66,7 @@ status_t reference_reorder<prec_i, prec_o>::reorder_primitive_desc_init(
 namespace {
 template <precision_t prec_i, precision_t prec_o>
 status_t create(primitive **aprimitive, const primitive_desc_t *primitive_desc,
-        const primitive_at_t inputs[], primitive *outputs[]) {
+        const primitive_at_t inputs[], const primitive *outputs[]) {
     assert(primitive_desc->base.primitive_kind == reorder);
 
     auto &rpd = primitive_desc->reorder;

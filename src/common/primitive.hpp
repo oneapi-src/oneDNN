@@ -23,7 +23,7 @@ protected:
     mkl_dnn::impl::engine *_engine;
     exec_state _exec_state;
     mkl_dnn::impl::nstl::vector<mkl_dnn::impl::primitive_at_t> _input;
-    mkl_dnn::impl::nstl::vector<mkl_dnn::impl::primitive*> _output;
+    mkl_dnn::impl::nstl::vector<const mkl_dnn::impl::primitive*> _output;
 
     virtual mkl_dnn::impl::status_t execute_impl() = 0;
 
@@ -64,13 +64,10 @@ public:
     }
 
     size_t input_count() const { return _input.size(); }
-    mkl_dnn::impl::nstl::vector<mkl_dnn::impl::primitive_at_t> &input() {
-        return _input;
-    }
+    const decltype(_input) &input() const { return _input; }
 
     size_t output_count() const { return _output.size(); }
-    const mkl_dnn::impl::nstl::vector<mkl_dnn::impl::primitive*> &output() const
-    { return _output; }
+    const decltype(_output) &output() const { return _output; }
 
     virtual char* memory(size_t index = 0) const
     { return output()[index]->memory(); }
@@ -84,7 +81,7 @@ typedef status_t (*primitive_desc_init_f)(primitive_desc_t *primitive_desc,
         const op_desc_t &op_desc, const engine &aengine);
 typedef status_t (*primitive_create_f)(primitive **aprimitive,
         const primitive_desc_t *primitive_desc, const primitive_at_t inputs[],
-        primitive *outputs[]);
+        const primitive *outputs[]);
 
 struct primitive_impl /* : public c_compatible */ {
     const primitive_create_f primitive_create;

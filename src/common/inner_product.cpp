@@ -49,13 +49,14 @@ status_t mkl_dnn_inner_product_primitive_desc_init(
 
 status_t mkl_dnn_inner_product_create(primitive **inner_product,
         const inner_product_primitive_desc_t *inner_product_primitive_desc,
-        const primitive_at_t src, const primitive_at_t weights, primitive *dst)
+        const primitive_at_t src, const primitive_at_t weights,
+        const primitive *dst)
 {
     auto ippd = reinterpret_cast<const mkl_dnn_primitive_desc_t *>(
             inner_product_primitive_desc);
     // XXX: must check that shapes of in/out memory match what's in the desc (?)
     const primitive_at_t inputs[] = {src, weights};
-    primitive *outputs[] = {dst};
+    const primitive *outputs[] = {dst};
     return mkl_dnn_primitive_create(inner_product, ippd, inputs, outputs);
 }
 

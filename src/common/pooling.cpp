@@ -58,12 +58,13 @@ status_t mkl_dnn_pooling_primitive_desc_init(
 
 status_t mkl_dnn_pooling_create(primitive **pooling,
         const pooling_primitive_desc_t *pooling_primitive_desc,
-        const primitive_at_t src, const primitive_at_t indices, primitive *dst)
+        const primitive_at_t src, const primitive_at_t indices,
+        const primitive *dst)
 {
     auto ppd = reinterpret_cast<const mkl_dnn_primitive_desc_t *>(
             pooling_primitive_desc);
     const primitive_at_t inputs[] = {src, indices};
-    primitive *outputs[] = {dst};
+    const primitive *outputs[] = {dst};
     return mkl_dnn_primitive_create(pooling, ppd, inputs, outputs);
 }
 

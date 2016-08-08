@@ -157,7 +157,7 @@ namespace {
 template <impl::precision_t prec>
 status_t create(primitive **aprimitive,
         const primitive_desc_t *primitive_desc, const primitive_at_t inputs[],
-        primitive *outputs[])
+        const primitive *outputs[])
 {
     assert(primitive_desc->base.primitive_kind == inner_product);
 

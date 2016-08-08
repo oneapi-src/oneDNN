@@ -105,7 +105,7 @@ static int doit() {
         mkl_dnn_primitive_at(p1_src, 0),
         mkl_dnn_primitive_at(p1_indices, 0)
     };
-    mkl_dnn_primitive_t p1_dsts[] = { p1_dst };
+    const_mkl_dnn_primitive_t p1_dsts[] = { p1_dst };
 
     CHECK(mkl_dnn_primitive_create(&p1, &p1_pd, p1_srcs, p1_dsts));
 

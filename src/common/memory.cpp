@@ -94,10 +94,8 @@ status_t mkl_dnn_memory_create(primitive **memory,
         const memory_primitive_desc_t *memory_primitive_desc,
         void *data_ptr) {
     // XXX: is this ok?
-    primitive_at_t inputs[] = {
-        { static_cast<const primitive*>(data_ptr), 0 } };
-    primitive *outputs[] = {
-        static_cast<primitive*>(data_ptr) };
+    primitive_at_t inputs[] = { {static_cast<const primitive*>(data_ptr), 0} };
+    const primitive *outputs[] = {static_cast<const primitive*>(data_ptr)};
     return mkl_dnn_primitive_create(memory, memory_primitive_desc, inputs,
             outputs);
 }

@@ -10,7 +10,7 @@ using namespace mkl_dnn::impl::primitive_kind;
 
 status_t mkl_dnn_primitive_create(primitive **aprimitive,
         const_mkl_dnn_primitive_desc_t primitive_desc,
-        const primitive_at_t inputs[], primitive *outputs[]) {
+        const primitive_at_t inputs[], const primitive *outputs[]) {
     if (any_null(aprimitive, primitive_desc, inputs, outputs))
         return invalid_arguments;
 
@@ -43,7 +43,7 @@ status_t mkl_dnn_primitive_get_primitive_desc(const primitive *primitive,
 }
 
 status_t mkl_dnn_primitive_get_output(const primitive *aprimitive, size_t index,
-        primitive **output) {
+        const primitive **output) {
     if (index >= aprimitive->output_count())
         return invalid_arguments;
 

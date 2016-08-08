@@ -44,7 +44,7 @@ public:
     typedef typename precision2type<prec>::type data_t;
 
     reference_convolution(const convolution_primitive_desc_t &cpd,
-            const primitive_at_t *inputs, primitive *outputs[])
+            const primitive_at_t *inputs, const primitive *outputs[])
         : primitive(cpd, const_cast<impl::engine*>(cpd.base.engine), not_ready)
         , _cpd(_primitive_desc.convolution)
     {

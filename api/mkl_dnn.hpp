@@ -84,12 +84,13 @@ struct error: public std::exception {
 
 // XXX: reorder me with struct error :(
 inline primitive::at::operator primitive() const {
-    c_api::mkl_dnn_primitive_t output;
+    c_api::const_mkl_dnn_primitive_t output;
     error::wrap_c_api(
             c_api::mkl_dnn_primitive_get_output(data.primitive,
                 data.output_index, &output),
             "could not get an output primitive");
-    return primitive(output, false);
+    // XXX: fix me
+    return primitive(const_cast<c_api::mkl_dnn_primitive_t>(output), false);
 }
 
 inline c_api::mkl_dnn_primitive_desc_t primitive::get_primitive_desc() const {

@@ -105,7 +105,7 @@ status_t reference_relu<prec>::primitive_desc_init(
 namespace {
 template <impl::precision_t prec>
 status_t create(primitive **aprimitive, const primitive_desc_t *primitive_desc,
-        const primitive_at_t inputs[], primitive *outputs[]) {
+        const primitive_at_t inputs[], const primitive *outputs[]) {
     assert(aprimitive);
     assert(inputs);
     assert(outputs);
