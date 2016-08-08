@@ -22,6 +22,7 @@ typedef enum {
 
 typedef enum {
     mkl_dnn_f32 = 1,
+    mkl_dnn_u32 = 2,
 } mkl_dnn_precision_t;
 
 typedef enum {

@@ -11,6 +11,8 @@
 template <mkl_dnn::impl::precision_t> struct precision2type {};
 template <>
 struct precision2type<mkl_dnn::impl::precision::f32> { typedef float type; };
+template <>
+struct precision2type<mkl_dnn::impl::precision::u32> { typedef uint32_t type; };
 
 namespace mkl_dnn {
 namespace impl {

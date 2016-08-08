@@ -33,8 +33,11 @@ status_t mkl_dnn_tensor_desc_init(tensor_desc_t *tensor_desc,
 status_t mkl_dnn_memory_desc_init(memory_desc_t *memory_desc,
         const tensor_desc_t *tensor, precision_t precision,
         memory_format_t format) {
-    if (any_null(memory_desc, tensor))
+    bool args_ok = !any_null(memory_desc, tensor)
+        && one_of(precision, mkl_dnn_f32, mkl_dnn_u32);
+    if (!args_ok)
         return invalid_arguments;
+
     memory_desc_t md = {
         .tensor_desc = *tensor,
         .precision = precision,

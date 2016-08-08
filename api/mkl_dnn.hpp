@@ -173,7 +173,8 @@ struct tensor {
 
 struct memory: public primitive  {
     enum precision {
-        f32 = c_api::mkl_dnn_f32
+        f32 = c_api::mkl_dnn_f32,
+        u32 = c_api::mkl_dnn_u32,
     };
     static c_api::mkl_dnn_precision_t convert_to_c(precision aprecision) {
         return static_cast<c_api::mkl_dnn_precision_t>(aprecision);

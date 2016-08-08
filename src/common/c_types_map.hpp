@@ -42,6 +42,7 @@ using tensor_desc_t = mkl_dnn_tensor_desc_t;
 using precision_t = mkl_dnn_precision_t;
 namespace precision {
     const precision_t f32 = mkl_dnn_f32;
+    const precision_t u32 = mkl_dnn_u32;
 }
 
 using memory_format_t = mkl_dnn_memory_format_t;

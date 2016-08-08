@@ -96,7 +96,7 @@ static int doit() {
     mkl_dnn_memory_primitive_desc_t p1_indices_pd;
     mkl_dnn_primitive_t p1_indices;
     CHECK(mkl_dnn_memory_primitive_desc_init(&p1_indices_pd, p1_indices_md, engine));
-    real_t *indices = (real_t*)calloc(tensor_size(&p1_indices_md->tensor_desc), sizeof(real_t));
+    uint32_t *indices = (uint32_t*)calloc(tensor_size(&p1_indices_md->tensor_desc), sizeof(uint32_t));
     CHECK(mkl_dnn_memory_create(&p1_indices, &p1_indices_pd, indices));
 
     /* create a pooling */
