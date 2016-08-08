@@ -41,7 +41,7 @@ set(test_c_symbols "${CMAKE_CURRENT_BINARY_DIR}/test_c_symbols.c")
 add_executable(test_c_symbols-c ${test_c_symbols})
 add_custom_command(
     OUTPUT ${test_c_symbols}
-    COMMAND /bin/sh ${CMAKE_CURRENT_SOURCE_DIR}/gather_c_symbols.sh
+    COMMAND /bin/sh ${CMAKE_CURRENT_SOURCE_DIR}/generate_c_symbols_refs.sh
     ${CMAKE_SOURCE_DIR} ${test_c_symbols}
 )
 target_link_libraries(test_c_symbols-c ${LIB_NAME})
