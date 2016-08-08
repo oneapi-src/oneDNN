@@ -30,6 +30,8 @@ API
 
 11. tensor flow padding consistency
 
+12. copy primitive (i.e. create new one) -- w/ new inputs/outputs
+
 [ ww39 ]
 
 1. split/concat api
