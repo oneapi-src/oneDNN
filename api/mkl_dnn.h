@@ -52,6 +52,7 @@ mkl_dnn_primitive_at_t mkl_dnn_primitive_at(const_mkl_dnn_primitive_t primitive,
         size_t output_index);
 
 /** @addtogroup c_api_memory Memory
+ * A primitive to describe data.
  * @{ */
 
 /** Initializes a @p tensor_desc using @p ndims_batch, @p ndims_channels, @p
@@ -72,17 +73,17 @@ mkl_dnn_status_t mkl_dnn_memory_desc_init(mkl_dnn_memory_desc_t *memory_desc,
  * including the padding, otherwise returns the number of elements including
  * the padding. If @p memory_desc describes null tensor, or format is not fully
  * specified (e.g. memory_desc->format == any), or @p memory_desc is
- * incosistent the function returns 0. */
+ * inconsistent the function returns 0. */
 size_t mkl_dnn_memory_desc_get_number_of_elements(
         const mkl_dnn_memory_desc_t *memory_desc, int with_padding);
 
 /** Returns the size (in bytes) that required for memory described by @p
  * memory_desc. If @p memory_desc describes null tensor, or format is not fully
  * specified (e.g. memory_desc->format == any), or @p memory_desc is
- * incosistent the function returns 0. */
+ * inconsistent the function returns 0. */
 size_t mkl_dnn_memory_desc_get_size(const mkl_dnn_memory_desc_t *memory_desc);
 
-/** Initializes a @p memory_primtive_desc memory primitive descriptor using @p
+/** Initializes a @p memory_primitive_desc memory primitive descriptor using @p
  * memory_desc and @p engine. Note that @p memory_desc cannot be uncertain,
  * i.e. initialized with memory_format_any. */
 mkl_dnn_status_t mkl_dnn_memory_primitive_desc_init(
@@ -114,7 +115,7 @@ mkl_dnn_status_t mkl_dnn_memory_get_primitive_desc(
         const_mkl_dnn_primitive_t memory,
         mkl_dnn_memory_primitive_desc_t *memory_primitive_desc);
 
-/** For a primitive @p memory returns data @p handle. For cpu engine data
+/** For a primitive @p memory returns data @p handle. For the CPU engine data
  * handle is a pointer to the actual data. */
 mkl_dnn_status_t mkl_dnn_memory_get_data_handle(
         const_mkl_dnn_primitive_t memory, void **handle);
@@ -122,6 +123,7 @@ mkl_dnn_status_t mkl_dnn_memory_get_data_handle(
 /* @} */
 
 /** @addtogroup c_api_reorder Reorder
+ * A primitive to copy data between memory formats.
  * @{ */
 
 /** Initializes a @p reorder_primitive_desc using @p input and @p output memory
@@ -132,7 +134,7 @@ mkl_dnn_status_t mkl_dnn_reorder_primitive_desc_init(
         const mkl_dnn_memory_primitive_desc_t *output);
 
 /** Creates a @p reorder primitive using descriptor @p reorder_primitive_desc,
- * input primitive_ats @p input, and output primitive @p output. */
+ * input primitive_at-s @p input, and output primitive @p output. */
 mkl_dnn_status_t mkl_dnn_reorder_create(mkl_dnn_primitive_t *reorder,
         const mkl_dnn_reorder_primitive_desc_t *reorder_primitive_desc,
         const mkl_dnn_primitive_at_t input, const_mkl_dnn_primitive_t output);
@@ -146,6 +148,7 @@ mkl_dnn_status_t mkl_dnn_reorder_get_primitive_desc(
 /* @} */
 
 /** @addtogroup c_api_convolution Convolution
+ * A primitive to compute convolution using a number of different algorithms.
  * @{ */
 
 /** Initializes a @p convolution_desc using @p prop_kind, @p alg_kind, memory
@@ -163,7 +166,7 @@ mkl_dnn_status_t mkl_dnn_convolution_desc_init(
         const mkl_dnn_dims_t strides, const mkl_dnn_nd_offset_t padding,
         mkl_dnn_padding_kind_t padding_kind);
 
-/** Initializes a @p convolution_primitve_desc with @p convolution_desc and @p
+/** Initializes a @p convolution_primitive_desc with @p convolution_desc and @p
  * engine. */
 mkl_dnn_status_t mkl_dnn_convolution_primitive_desc_init(
         mkl_dnn_convolution_primitive_desc_t *convolution_primitive_desc,
@@ -171,7 +174,7 @@ mkl_dnn_status_t mkl_dnn_convolution_primitive_desc_init(
         const_mkl_dnn_engine_t engine);
 
 /** Creates a @p convolution primitive using descriptor @p
- * convolution_primitive_desc, input primitive_ats @p src, @p weights, @p bias
+ * convolution_primitive_desc, input primitive_at-s @p src, @p weights, @p bias
  * and output primitive @p dst. */
 mkl_dnn_status_t mkl_dnn_convolution_create(mkl_dnn_primitive_t *convolution,
         const mkl_dnn_convolution_primitive_desc_t *convolution_primitive_desc,
@@ -191,6 +194,7 @@ mkl_dnn_status_t mkl_dnn_convolution_get_primitive_desc(
 /* @} */
 
 /** @addtogroup c_api_relu ReLU
+ * A primitive for computing parametric rectifier linear unit.
  * @{ */
 
 /** Initialized a @p relu_desc using @p negative_slope, and memory descriptors
@@ -205,7 +209,7 @@ mkl_dnn_status_t mkl_dnn_relu_primitive_desc_init(
         mkl_dnn_relu_primitive_desc_t *relu_primitive_desc,
         const mkl_dnn_relu_desc_t *relu_desc, const_mkl_dnn_engine_t engine);
 
-/** Creates a @p relu primitive using descrptor @p relu_primitive_desc, input
+/** Creates a @p relu primitive using descriptor @p relu_primitive_desc, input
  * @p src and output @p dst. */
 mkl_dnn_status_t mkl_dnn_relu_create(mkl_dnn_primitive_t *relu,
         const mkl_dnn_relu_primitive_desc_t *relu_primitive_desc,
@@ -220,6 +224,7 @@ mkl_dnn_status_t mkl_dnn_relu_get_primitive_desc(
 /* @} */
 
 /** @addtogroup c_api_pooling Pooling
+ * A primitive to compute max, min, and average pooling.
  * @{ */
 
 /** Initializes a @p pooling_desc using @p prop_kind, @p alg_kind, memory
@@ -236,7 +241,7 @@ mkl_dnn_status_t mkl_dnn_pooling_desc_init(
         const mkl_dnn_nd_offset_t padding,
         mkl_dnn_padding_kind_t padding_kind);
 
-/** Initializes a @p pooling_primitve_desc using @p pooling_desc and @p engine.
+/** Initializes a @p pooling_primitive_desc using @p pooling_desc and @p engine.
  */
 mkl_dnn_status_t mkl_dnn_pooling_primitive_desc_init(
         mkl_dnn_pooling_primitive_desc_t *pooling_primitive_desc,
@@ -244,7 +249,7 @@ mkl_dnn_status_t mkl_dnn_pooling_primitive_desc_init(
         const_mkl_dnn_engine_t engine);
 
 /** Creates a @p pooling primitive using descriptor @p pooling_primitive_desc,
- * input primitive_ats @p src, @p indices, and output primitive @p dst. */
+ * input primitive_at-s @p src, @p indices, and output primitive @p dst. */
 mkl_dnn_status_t mkl_dnn_pooling_create(mkl_dnn_primitive_t *pooling,
         const mkl_dnn_pooling_primitive_desc_t *pooling_primitive_desc,
         const mkl_dnn_primitive_at_t src, const mkl_dnn_primitive_at_t indices,
@@ -259,6 +264,8 @@ mkl_dnn_status_t mkl_dnn_pooling_get_primitive_desc(
 /* @} */
 
 /** @addtogroup c_api_lrn LRN
+ * A primitive to compute local response normalization across or within
+ * channels.
  * @{ */
 
 /** Initializes a @p lrn_desc using @p prop_kind, @p alg_kind, memory
@@ -272,7 +279,7 @@ mkl_dnn_status_t mkl_dnn_lrn_desc_init(mkl_dnn_lrn_desc_t *lrn_desc,
         const mkl_dnn_memory_desc_t *dst_desc, double alpha, double beta,
         uint32_t local_size);
 
-/** Initializes a @p lrn_primitve_desc using @p lrn_desc and @p engine. */
+/** Initializes a @p lrn_primitive_desc using @p lrn_desc and @p engine. */
 mkl_dnn_status_t mkl_dnn_lrn_primitive_desc_init(
         mkl_dnn_lrn_primitive_desc_t *lrn_primitive_desc,
         const mkl_dnn_lrn_desc_t *lrn_desc, const_mkl_dnn_engine_t engine);
@@ -291,7 +298,7 @@ mkl_dnn_status_t mkl_dnn_lrn_get_primitive_desc(const_mkl_dnn_primitive_t lrn,
 /* @} */
 
 /** @addtogroup c_api_inner_product Inner product
- * Aka fully connected
+ * Also known as fully connected layer
  * @{ */
 
 /** Initializes a @p inner_product_desc using @p prop_kind and memory
@@ -305,7 +312,7 @@ mkl_dnn_status_t mkl_dnn_inner_product_desc_init(
         const mkl_dnn_memory_desc_t *weights_desc,
         const mkl_dnn_memory_desc_t *dst_desc);
 
-/** Initializes a @p inner_product_primitve_desc with @p inner_product_desc and
+/** Initializes a @p inner_product_primitive_desc with @p inner_product_desc and
  * @p engine. */
 mkl_dnn_status_t mkl_dnn_inner_product_primitive_desc_init(
         mkl_dnn_inner_product_primitive_desc_t *inner_product_primitive_desc,
@@ -313,7 +320,7 @@ mkl_dnn_status_t mkl_dnn_inner_product_primitive_desc_init(
         const_mkl_dnn_engine_t engine);
 
 /** Creates a @p inner product primitive using descriptor @p
- * inner_product_primitive_desc, input primitive_ats @p src, @p weights and
+ * inner_product_primitive_desc, input primitive_at-s @p src, @p weights and
  * output primitive @p dst. */
 mkl_dnn_status_t mkl_dnn_inner_product_create(
         mkl_dnn_primitive_t *inner_product,

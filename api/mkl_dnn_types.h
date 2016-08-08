@@ -21,17 +21,17 @@ extern "C" {
 
 /** Status values returned by MKL-DNN functions */
 typedef enum {
-    /** an operation was successful */
+    /** An operation was successful */
     mkl_dnn_success = 0,
-    /** an operation failed due to an out-of-memory condition */
+    /** An operation failed due to an out-of-memory condition */
     mkl_dnn_out_of_memory = 1,
-    /** an operation failed and should be retried */
+    /** An operation failed and should be retried */
     mkl_dnn_try_again = 2,
-    /** an operation failed because function arguments were incorrect */
+    /** An operation failed because function arguments were incorrect */
     mkl_dnn_invalid_arguments = 3,
-    /** an operation failed because a primitive was not ready for execution */
+    /** An operation failed because a primitive was not ready for execution */
     mkl_dnn_not_ready = 4,
-    /** an operation failed because requested functionality is not implemented
+    /** An operation failed because requested functionality is not implemented
      */
     mkl_dnn_unimplemented = 5,
 } mkl_dnn_status_t;
@@ -52,17 +52,17 @@ typedef enum {
  * dimension; when there are multiple channel dimensions (e.g. in convolution
  * weights tensor), letters 'i' and 'o' are used to denote input and output
  * channels dimensions; 'h' and 'w' are used for spatial width and height.
- * MKL-DNN uses upper-case letters to indicate that data is layed out in blocks
+ * MKL-DNN uses upper-case letters to indicate that data is laid out in blocks
  * for a particular dimension. In this case, a format name contains both upper-
- * and lower-case letter for such a dimension with lower-case letter preceeded
+ * and lower-case letter for such a dimension with lower-case letter preceded
  * by the block size. For example, 'mkl_dnn_nChw8c' describes a format where
  * the outermost dimension is minibatch, followed by channel block number,
  * followed by spatial height and width, and then followed by 8-element channel
  * blocks. Note that channel designations are a convention. Thus both the
- * 'mkl_dnn_nc' and 'mkl_dnn_oo' formats can be used to describe any 2D tensor.
+ * 'mkl_dnn_nc' and 'mkl_dnn_io' formats can be used to describe any 2D tensor.
  */
 typedef enum {
-    /** unspecified format; use this to let a primitive to select a format
+    /** Unspecified format; use this to let a primitive to select a format
      * automatically */
     mkl_dnn_any,
     /** 1D data tensor */
@@ -96,7 +96,7 @@ typedef enum {
 
 /** Padding kind -- how to interpret the data in the padding regions */
 typedef enum {
-    /** assume that the data in padding regions is zero */
+    /** Assume that the data in padding regions is zero */
     mkl_dnn_padding_zero,
 } mkl_dnn_padding_kind_t;
 
@@ -127,7 +127,7 @@ typedef enum {
     mkl_dnn_convolution_direct = 1,
     /** Max pooling */
     mkl_dnn_pooling_max = 101,
-    /** LRN across multiple channels */
+    /** Local response normalization across multiple channels */
     mkl_dnn_lrn_across_channels = 201,
     /** LRN within a single channel */
     mkl_dnn_lrn_within_channel = 202,
@@ -136,7 +136,7 @@ typedef enum {
 /** @} */
 
 /** @addtogroup c_api_types_memory Memory description
- *  @{*/
+ *  @{ */
 
 /** Max number of dimensions a tensor can have. Note that this only restricts
  * the amount of space used for tensor description. Individual computational
@@ -166,17 +166,17 @@ typedef struct {
 
 /** Generic blocked data layout description for most of the memory formats. */
 typedef struct {
-    /** block size for each of the dimensions */
+    /** Block size for each of the dimensions */
     mkl_dnn_dims_t block_dims;
     /** strides[0]: stride between the first elements of adjacent blocks;
      * strides[1]: strides between elements in the same block */
     mkl_dnn_dims_t strides[2];
-    /** size of the data including padding in each dimension */
+    /** Size of the data including padding in each dimension */
     mkl_dnn_dims_t padding_dims;
-    /** per-dimension offset from the padding to actual data; the top-level
+    /** Per-dimension offset from the padding to actual data; the top-level
      * tensor with offsets applied must lie within the padding area */
     mkl_dnn_dims_t offset_padding_to_data;
-    /** offset from memory origin to the current block; non-zero only when
+    /** Offset from memory origin to the current block; non-zero only when
      * describing a memory sub-block */
     size_t offset_padding;
 } mkl_dnn_blocking_desc_t;
@@ -200,6 +200,9 @@ typedef struct {
 
 /* @} */
 
+/** @addtogroup c_api_types_op_descs Operations descriptors
+ *  @{*/
+
 /** A descriptor of a convolution operation. */
 typedef struct {
     /** propagation kind; valid values are: #mkl_dnn_forward,
@@ -207,141 +210,254 @@ typedef struct {
      * #mkl_dnn_backward_bias */
     mkl_dnn_prop_kind_t prop_kind;
     /** convolution algorithm kind; valid values are:
-     * #mkl_dnn_convolution_primitive_desc_t */
+     * #mkl_dnn_convolution_direct */
     mkl_dnn_alg_kind_t alg_kind;
+    /** source memory descriptor */
     mkl_dnn_memory_desc_t src_desc;
+    /** weights memory descriptor */
     mkl_dnn_memory_desc_t weights_desc;
+    /** (optional) bias memory descriptor */
     mkl_dnn_memory_desc_t bias_desc;
+    /** destination memory descriptor */
     mkl_dnn_memory_desc_t dst_desc;
+    /** convolution strides in each spatial dimension */
     mkl_dnn_dims_t strides;
+    /** padding in each spatial dimension (only symmetric padding is currently
+     * supported) */
     mkl_dnn_nd_offset_t padding;
+    /** what kind of padding to use */
     mkl_dnn_padding_kind_t padding_kind;
 } mkl_dnn_convolution_desc_t;
 
+/** A descriptor of a pooling operation */
 typedef struct {
+    /** propagation kind; valid values are: #mkl_dnn_forward,
+     * #mkl_dnn_backward_data */
     mkl_dnn_prop_kind_t prop_kind;
+    /** pooling algorithm kind; valid values are:
+     * #mkl_dnn_pooling_max, #mkl_dnn_pooling_min, #mkl_dnn_pooling_avg */
     mkl_dnn_alg_kind_t alg_kind;
+    /** source memory descriptor */
     mkl_dnn_memory_desc_t src_desc;
+    /** destination memory descriptor */
     mkl_dnn_memory_desc_t dst_desc;
+    /** pooling kernel strides for spatial dimensions*/
     mkl_dnn_dims_t strides;
+    /** pooling kenrel spatial dimensions */
     mkl_dnn_dims_t kernel;
+    /** padding in each spatial dimension (only symmetric padding is currently
+     * supported) */
     mkl_dnn_nd_offset_t padding;
+    /** what kind of padding to use */
     mkl_dnn_padding_kind_t padding_kind;
 } mkl_dnn_pooling_desc_t;
 
+/** A descriptor of a rectifier linear unit (ReLU) operation */
 typedef struct {
+    /** propagation kind; valid values are: #mkl_dnn_forward,
+     * #mkl_dnn_backward_data */
     mkl_dnn_prop_kind_t prop_kind;
-    double negative_slope; // XXX: real precision obtained from the memory
+    /** scaling factor for negative values; stored as double-precision but
+     * interpreted in data type-specific way in each of the implementations */
+    double negative_slope;
+    /** source memory descriptor */
     mkl_dnn_memory_desc_t src_desc;
+    /** destination memory descriptor */
     mkl_dnn_memory_desc_t dst_desc;
 } mkl_dnn_relu_desc_t;
 
+/** A descriptor of a Local Response Normalization (LRN) operation */
 typedef struct {
+    /** propagation kind; valid values are: #mkl_dnn_forward,
+     * #mkl_dnn_backward_data */
     mkl_dnn_prop_kind_t prop_kind;
+    /** LRN algorithm: #mkl_dnn_lrn_within_channel,
+     * #mkl_dnn_lrn_across_channels */
     mkl_dnn_alg_kind_t alg_kind;
+    /** destination memory descriptor */
     mkl_dnn_memory_desc_t src_desc;
+    /** destination memory descriptor */
     mkl_dnn_memory_desc_t dst_desc;
+    /** LRN alpha parameter */
     double alpha;
+    /** LRN beta parameter */
     double beta;
+    /** the number of channels to sum over (for cross channel LRN) or the side
+     * length of the square region to sum over (for within channel LRN) */
     uint32_t local_size;
 } mkl_dnn_lrn_desc_t;
 
+/** A descriptor of a inner product operation */
 typedef struct {
+    /** propagation kind; valid values are: #mkl_dnn_forward,
+     * #mkl_dnn_backward_data, #mkl_dnn_backward_weights */
     mkl_dnn_prop_kind_t prop_kind;
+    /** source memory descriptor */
     mkl_dnn_memory_desc_t src_desc;
+    /** weights memory descriptor */
     mkl_dnn_memory_desc_t weights_desc;
+    /** destination memory descriptor */
     mkl_dnn_memory_desc_t dst_desc;
 } mkl_dnn_inner_product_desc_t;
 
-/** engine section */
+/* @} */
 
+/** @addtogroup c_api_engine_types Engine
+ * @{ */
+
+/** @brief Engine kinds. */
 typedef enum {
+    /** an unspecified engine */
     mkl_dnn_any_engine,
+    /** CPU engine */
     mkl_dnn_cpu,
+    /** CPU engine in a lazy execution mode */
     mkl_dnn_cpu_lazy,
 } mkl_dnn_engine_kind_t;
 
+/** @struct mkl_dnn_engine
+ * @brief An opaque structure describing an engine. */
 struct mkl_dnn_engine;
+/** @brief An engine handle. */
 typedef struct mkl_dnn_engine *mkl_dnn_engine_t;
+/** @brief A constant engine handle. */
 typedef const struct mkl_dnn_engine *const_mkl_dnn_engine_t;
 
-/** primitive descriptor section */
+/* @} */
 
+/** @addtogroup c_api_primitive_descs Primitive descriptors
+ * @{ */
+
+/** A primitive kind. Used to implement a way to extend the library with new
+ * primitives without changing the ABI. */
 typedef enum {
+    /** undefined primitive (XXX: why do we have it?) */
     mkl_dnn_undefined_primitive,
+    /** a memory primitive */
     mkl_dnn_memory,
+    /** a reorder primitive */
     mkl_dnn_reorder,
+    /** a convolution primitive */
     mkl_dnn_convolution,
+    /** a pooling primitive */
     mkl_dnn_pooling,
+    /** a ReLU primitive */
     mkl_dnn_relu,
+    /** an LRN primitive */
     mkl_dnn_lrn,
+    /** an inner product primitive */
     mkl_dnn_inner_product,
 } mkl_dnn_primitive_kind_t;
 
+/** Basic primitive descriptor. It is the first member of all
+ * primitive-specific descriptor which make it possible to use its data to
+ * correctly interpret a #mkl_dnn_primitive_desc_t pointer. */
 typedef struct {
+    /** kind of the primitive being described */
     mkl_dnn_primitive_kind_t primitive_kind; // TODO: rename to just kind
+    /** engine used by the primitive */
     const_mkl_dnn_engine_t engine;
+    /** pointer to a library-internal structure */
     const void *implementation;
 } mkl_dnn_primitive_base_desc_t;
 
+/** Memory primitive descriptor */
 typedef struct {
+    /** basic primitive descriptor */
     mkl_dnn_primitive_base_desc_t base;
+    /** underlying memory descriptor */
     mkl_dnn_memory_desc_t memory_desc;
 } mkl_dnn_memory_primitive_desc_t;
 
+/** Reorder primitive descriptor */
 typedef struct {
+    /** basic primitive descriptor */
     mkl_dnn_primitive_base_desc_t base;
+    /** input memory primitive descriptor */
     mkl_dnn_memory_primitive_desc_t input;
+    /** ouput memory primitive descriptor */
     mkl_dnn_memory_primitive_desc_t output;
 } mkl_dnn_reorder_primitive_desc_t;
 
+/** Convolution primitive descriptor */
 typedef struct {
+    /** basic primitive descriptor */
     mkl_dnn_primitive_base_desc_t base;
+    /** underlying convolution operation descriptor */
     mkl_dnn_convolution_desc_t convolution_desc;
+    /** source memory primitive descriptor */
     mkl_dnn_memory_primitive_desc_t src_primitive_desc;
+    /** weights memory primitive descriptor */
     mkl_dnn_memory_primitive_desc_t weights_primitive_desc;
+    /** bias memory primitive descriptor */
     mkl_dnn_memory_primitive_desc_t bias_primitive_desc;
+    /** destination memory primitive descriptor */
     mkl_dnn_memory_primitive_desc_t dst_primitive_desc;
 } mkl_dnn_convolution_primitive_desc_t;
 
 typedef struct {
+    /** basic primitive descriptor */
     mkl_dnn_primitive_base_desc_t base;
+    /** underlying pooling operation descriptor */
     mkl_dnn_pooling_desc_t pooling_desc;
+    /** source memory primitive descriptor */
     mkl_dnn_memory_primitive_desc_t src_primitive_desc;
+    /** indices memory primitive descriptor */
     mkl_dnn_memory_primitive_desc_t indices_primitive_desc;
+    /** destination memory primitive descriptor */
     mkl_dnn_memory_primitive_desc_t dst_primitive_desc;
 } mkl_dnn_pooling_primitive_desc_t;
 
 typedef struct {
+    /** basic primitive descriptor */
     mkl_dnn_primitive_base_desc_t base;
     mkl_dnn_relu_desc_t relu_desc;
+    /** source memory primitive descriptor */
     mkl_dnn_memory_primitive_desc_t src_primitive_desc;
+    /** destination memory primitive descriptor */
     mkl_dnn_memory_primitive_desc_t dst_primitive_desc;
 } mkl_dnn_relu_primitive_desc_t;
 
 typedef struct {
+    /** basic primitive descriptor */
     mkl_dnn_primitive_base_desc_t base;
     mkl_dnn_lrn_desc_t lrn_desc;
+    /** source memory primitive descriptor */
     mkl_dnn_memory_primitive_desc_t src_primitive_desc;
+    /** scratch/workspace memory primitive descriptor */
     mkl_dnn_memory_primitive_desc_t scratch_primitive_desc;
+    /** destination memory primitive descriptor */
     mkl_dnn_memory_primitive_desc_t dst_primitive_desc;
 } mkl_dnn_lrn_primitive_desc_t;
 
 typedef struct {
+    /** basic primitive descriptor */
     mkl_dnn_primitive_base_desc_t base;
     mkl_dnn_inner_product_desc_t inner_product_desc;
+    /** source memory primitive descriptor */
     mkl_dnn_memory_primitive_desc_t src_primitive_desc;
+    /** weights memory primitive descriptor */
     mkl_dnn_memory_primitive_desc_t weights_primitive_desc;
+    /** destination memory primitive descriptor */
     mkl_dnn_memory_primitive_desc_t dst_primitive_desc;
 } mkl_dnn_inner_product_primitive_desc_t;
 
-/** primitive section */
-
+/** A pointer to any of the primitive descriptors. */
 typedef void *mkl_dnn_primitive_desc_t;
+/** A pointer to any of the primitive descriptors (constant variant) */
 typedef const void *const_mkl_dnn_primitive_desc_t;
 
+/* @} */
+
+/** @addtogroup c_api_types_primitive Primitive
+ * @{ */
+
+/** @struct mkl_dnn_primitive
+ * An opaque structure describing a primitive. */
 struct mkl_dnn_primitive;
+/** A primitive handle */
 typedef struct mkl_dnn_primitive *mkl_dnn_primitive_t;
+/** A constant primitive handle */
 typedef const struct mkl_dnn_primitive *const_mkl_dnn_primitive_t;
 
 typedef struct {
@@ -349,11 +465,20 @@ typedef struct {
     size_t output_index;
 } mkl_dnn_primitive_at_t;
 
-/** stream section */
+/** @} */
 
+/** @addtogroup c_api_types_stream Execution stream
+ * @{ */
+
+/** @struct mkl_dnn_stream
+ * An opaque structure describing an execution stream. */
 struct mkl_dnn_stream;
+/** An execution stream handle */
 typedef struct mkl_dnn_stream *mkl_dnn_stream_t;
+/** A constant execution stream handle */
 typedef const struct mkl_dnn_stream *const_mkl_dnn_stream_t;
+
+/** @} */
 
 #ifdef __cplusplus
 }
