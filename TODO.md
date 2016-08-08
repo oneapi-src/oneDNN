@@ -22,6 +22,8 @@ API
 7. memory_get_primitive_desc(), reorder_get_primitive_desc(), etc... vs.
    primitive_get_primitive_desc(). the same for primive_create
 
+8. rename memory::format::n to memory::format::x
+
 [ ww39 ]
 
 1. split/concat api
