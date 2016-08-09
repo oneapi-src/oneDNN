@@ -71,4 +71,14 @@ status_t mkl_dnn_convolution_create(primitive **convolution,
     return mkl_dnn_primitive_create(convolution, cpd, inputs, outputs);
 }
 
+status_t mkl_dnn_convolution_get_primitive_desc(const primitive *convolution,
+        convolution_primitive_desc_t *convolution_primitive_desc)
+{
+    if (any_null(convolution, convolution_primitive_desc)
+            || convolution->kind() != primitive_kind::convolution)
+        return invalid_arguments;
+    *convolution_primitive_desc = convolution->primitive_desc().convolution;
+    return success;
+}
+
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

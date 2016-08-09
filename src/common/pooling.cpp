@@ -67,4 +67,14 @@ status_t mkl_dnn_pooling_create(primitive **pooling,
     return mkl_dnn_primitive_create(pooling, ppd, inputs, outputs);
 }
 
+status_t mkl_dnn_pooling_get_primitive_desc(const primitive *pooling,
+        pooling_primitive_desc_t *pooling_primitive_desc)
+{
+    if (any_null(pooling, pooling_primitive_desc)
+            || pooling->kind() != primitive_kind::pooling)
+        return invalid_arguments;
+    *pooling_primitive_desc = pooling->primitive_desc().pooling;
+    return success;
+}
+
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

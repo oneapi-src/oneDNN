@@ -54,4 +54,14 @@ status_t mkl_dnn_reorder_create(primitive **reorder,
     return mkl_dnn_primitive_create(reorder, rpd, inputs, outputs);
 }
 
+status_t mkl_dnn_reorder_get_primitive_desc(const primitive *reorder,
+        reorder_primitive_desc_t *reorder_primitive_desc)
+{
+    if (any_null(reorder, reorder_primitive_desc)
+            || reorder->kind() != primitive_kind::reorder)
+        return invalid_arguments;
+    *reorder_primitive_desc = reorder->primitive_desc().reorder;
+    return success;
+}
+
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

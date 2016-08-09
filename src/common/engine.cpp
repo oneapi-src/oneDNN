@@ -57,6 +57,20 @@ status_t mkl_dnn_engine_create(engine **engine,
     return ef->engine_create(engine, index);
 }
 
+status_t mkl_dnn_engine_get_kind(engine *engine, engine_kind_t *kind) {
+    if (engine == NULL || !engine->is_ok())
+        return invalid_arguments;
+    *kind = engine->kind();
+    return success;
+}
+
+status_t mkl_dnn_engine_get_is_lazy(engine *engine, int *is_lazy) {
+    if (engine == NULL || !engine->is_ok())
+        return invalid_arguments;
+    *is_lazy = engine->is_lazy();
+    return success;
+}
+
 status_t mkl_dnn_engine_destroy(engine *engine) {
     delete engine;
     return success;

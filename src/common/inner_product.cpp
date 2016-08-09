@@ -60,4 +60,16 @@ status_t mkl_dnn_inner_product_create(primitive **inner_product,
     return mkl_dnn_primitive_create(inner_product, ippd, inputs, outputs);
 }
 
+status_t mkl_dnn_inner_product_get_primitive_desc(
+        const primitive *inner_product,
+        inner_product_primitive_desc_t *inner_product_primitive_desc)
+{
+    if (any_null(inner_product, inner_product_primitive_desc)
+            || inner_product->kind() != primitive_kind::inner_product)
+        return invalid_arguments;
+    *inner_product_primitive_desc =
+        inner_product->primitive_desc().inner_product;
+    return success;
+}
+
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

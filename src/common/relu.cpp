@@ -58,4 +58,14 @@ status_t mkl_dnn_relu_create(primitive **relu,
     return mkl_dnn_primitive_create(relu, rpd, inputs, outputs);
 }
 
+status_t mkl_dnn_relu_get_primitive_desc(const primitive *relu,
+        relu_primitive_desc_t *relu_primitive_desc)
+{
+    if (any_null(relu, relu_primitive_desc)
+            || relu->kind() != primitive_kind::relu)
+        return invalid_arguments;
+    *relu_primitive_desc = relu->primitive_desc().relu;
+    return success;
+}
+
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

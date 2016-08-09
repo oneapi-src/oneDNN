@@ -42,6 +42,16 @@ status_t mkl_dnn_primitive_get_primitive_desc(const primitive *primitive,
     return success;
 }
 
+mkl_dnn_status_t mkl_dnn_primitive_get_input_at(const primitive *aprimitive,
+        size_t index, primitive_at_t *input)
+{
+    if (index >= aprimitive->input_count())
+        return invalid_arguments;
+
+    *input = aprimitive->input()[index];
+    return success;
+}
+
 status_t mkl_dnn_primitive_get_output(const primitive *aprimitive, size_t index,
         const primitive **output) {
     if (index >= aprimitive->output_count())

@@ -61,4 +61,14 @@ status_t mkl_dnn_lrn_create(primitive **lrn,
     return mkl_dnn_primitive_create(lrn, lpd, inputs, outputs);
 }
 
+status_t mkl_dnn_lrn_get_primitive_desc(const primitive *lrn,
+        lrn_primitive_desc_t *lrn_primitive_desc)
+{
+    if (any_null(lrn, lrn_primitive_desc)
+            || lrn->kind() != primitive_kind::lrn)
+        return invalid_arguments;
+    *lrn_primitive_desc = lrn->primitive_desc().lrn;
+    return success;
+}
+
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

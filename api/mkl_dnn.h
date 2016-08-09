@@ -31,17 +31,10 @@ mkl_dnn_status_t mkl_dnn_primitive_get_primitive_desc(
 /** For a @p primitive returns @p input at @p index position. */
 mkl_dnn_status_t mkl_dnn_primitive_get_input_at(
         const_mkl_dnn_primitive_t primitive, size_t index,
-        const mkl_dnn_primitive_at_t *input);
+        mkl_dnn_primitive_at_t *input);
 
 /** For a @p primitive returns @p output at @p index position. */
 mkl_dnn_status_t mkl_dnn_primitive_get_output(
-        const_mkl_dnn_primitive_t primitive, size_t index,
-        const_mkl_dnn_primitive_t *output);
-
-// XXX: do we need this?
-/** For a @p primitive returns constant primitive @p output at @p
- * index position */
-mkl_dnn_status_t mkl_dnn_primitive_get_const_output(
         const_mkl_dnn_primitive_t primitive, size_t index,
         const_mkl_dnn_primitive_t *output);
 
@@ -145,6 +138,12 @@ mkl_dnn_status_t mkl_dnn_reorder_create(mkl_dnn_primitive_t *reorder,
         const mkl_dnn_reorder_primitive_desc_t *reorder_primitive_desc,
         const mkl_dnn_primitive_at_t input, const_mkl_dnn_primitive_t output);
 
+/** Retrieves the @p reorder_primitive_desc associated with a @p reorder
+ * primitive. */
+mkl_dnn_status_t mkl_dnn_reorder_get_primitive_desc(
+        const_mkl_dnn_primitive_t reorder,
+        mkl_dnn_reorder_primitive_desc_t *reorder_primitive_desc);
+
 /* @} */
 
 /** @addtogroup c_api_convolution Convolution
@@ -180,6 +179,12 @@ mkl_dnn_status_t mkl_dnn_convolution_create(mkl_dnn_primitive_t *convolution,
         const mkl_dnn_primitive_at_t src, const mkl_dnn_primitive_at_t weights,
         const mkl_dnn_primitive_at_t bias, const_mkl_dnn_primitive_t dst);
 
+/** Retrieves the @p convolution_primitive_desc associated with a @p convolution
+ * primitive. */
+mkl_dnn_status_t mkl_dnn_convolution_get_primitive_desc(
+        const_mkl_dnn_primitive_t convolution,
+        mkl_dnn_convolution_primitive_desc_t *convolution_primitive_desc);
+
 /* TODO: add convolution_forward_primitive_desc_init for given
  * mkl_dnn_memory_primitive_desc_t input, weights, ... so that user has more
  * flexibility. */
@@ -196,8 +201,7 @@ mkl_dnn_status_t mkl_dnn_relu_desc_init(
         double negative_slope, const mkl_dnn_memory_desc_t *src_desc,
         const mkl_dnn_memory_desc_t *dst_desc);
 
-/** Initializes a @p relu_primitive_desc using @p relu_desc and @p
- * engine. */
+/** Initializes a @p relu_primitive_desc using @p relu_desc and @p engine. */
 mkl_dnn_status_t mkl_dnn_relu_primitive_desc_init(
         mkl_dnn_relu_primitive_desc_t *relu_primitive_desc,
         const mkl_dnn_relu_desc_t *relu_desc, const_mkl_dnn_engine_t engine);
@@ -207,6 +211,12 @@ mkl_dnn_status_t mkl_dnn_relu_primitive_desc_init(
 mkl_dnn_status_t mkl_dnn_relu_create(mkl_dnn_primitive_t *relu,
         const mkl_dnn_relu_primitive_desc_t *relu_primitive_desc,
         const mkl_dnn_primitive_at_t src, const_mkl_dnn_primitive_t dst);
+
+/** Retrieves the @p reorder_primitive_desc associated with a @p reorder
+ * primitive. */
+mkl_dnn_status_t mkl_dnn_relu_get_primitive_desc(
+        const_mkl_dnn_primitive_t relu,
+        mkl_dnn_relu_primitive_desc_t *relu_primitive_desc);
 
 /* @} */
 
@@ -242,6 +252,12 @@ mkl_dnn_status_t mkl_dnn_pooling_create(mkl_dnn_primitive_t *pooling,
         const mkl_dnn_primitive_at_t src, const mkl_dnn_primitive_at_t indices,
         const_mkl_dnn_primitive_t dst);
 
+/** Retrieves the @p pooling_primitive_desc associated with a @p pooling
+ * primitive. */
+mkl_dnn_status_t mkl_dnn_pooling_get_primitive_desc(
+        const_mkl_dnn_primitive_t pooling,
+        mkl_dnn_pooling_primitive_desc_t *pooling_primitive_desc);
+
 /* @} */
 
 /** @addtogroup c_api_lrn LRN
@@ -270,6 +286,10 @@ mkl_dnn_status_t mkl_dnn_lrn_create(mkl_dnn_primitive_t *lrn,
     const mkl_dnn_lrn_primitive_desc_t *lrn_primitive_desc,
     const mkl_dnn_primitive_at_t src, const mkl_dnn_primitive_at_t scratch,
     const_mkl_dnn_primitive_t dst);
+
+/** Retrieves the @p lrn_primitive_desc associated with a @p lrn primitive. */
+mkl_dnn_status_t mkl_dnn_lrn_get_primitive_desc(const_mkl_dnn_primitive_t lrn,
+        mkl_dnn_lrn_primitive_desc_t *lrn_primitive_desc);
 
 /* @} */
 
@@ -303,6 +323,12 @@ mkl_dnn_status_t mkl_dnn_inner_product_create(mkl_dnn_primitive_t *inner_product
         const mkl_dnn_primitive_at_t src, const mkl_dnn_primitive_at_t weights,
         const_mkl_dnn_primitive_t dst);
 
+/** Retrieves the @p inner_product_primitive_desc associated with a @p
+ * inner_product primitive. */
+mkl_dnn_status_t mkl_dnn_inner_product_get_primitive_desc(
+        const_mkl_dnn_primitive_t inner_product,
+        mkl_dnn_inner_product_primitive_desc_t *inner_product_primitive_desc);
+
 /* @} */
 
 /* @} */
@@ -322,7 +348,8 @@ mkl_dnn_status_t mkl_dnn_engine_get_kind(mkl_dnn_engine_t engine,
         mkl_dnn_engine_kind_t *kind);
 
 /** Returns whether an @p engine is lazy. */
-mkl_dnn_status_t mkl_dnn_engine_get_is_lazy(mkl_dnn_engine_t engine, int is_lazy);
+mkl_dnn_status_t mkl_dnn_engine_get_is_lazy(mkl_dnn_engine_t engine,
+        int *is_lazy);
 
 /** Destroys an @p engine. */
 mkl_dnn_status_t mkl_dnn_engine_destroy(mkl_dnn_engine_t engine);
