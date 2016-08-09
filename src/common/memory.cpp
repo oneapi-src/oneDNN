@@ -72,6 +72,15 @@ status_t mkl_dnn_memory_desc_init(memory_desc_t *memory_desc,
     return status;
 }
 
+size_t mkl_dnn_memory_desc_get_number_of_elements(
+        const memory_desc_t *memory_desc, int with_padding) {
+    return memory_desc_wrapper(*memory_desc).nelems(with_padding);
+}
+
+size_t mkl_dnn_memory_desc_get_size(const memory_desc_t *memory_desc) {
+    return memory_desc_wrapper(*memory_desc).size();
+}
+
 status_t mkl_dnn_memory_primitive_desc_init(
         memory_primitive_desc_t *memory_primitive_desc,
         const memory_desc_t *memory_desc, const engine *engine) {

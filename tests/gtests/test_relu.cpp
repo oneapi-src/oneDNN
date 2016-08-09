@@ -32,7 +32,7 @@ void check_relu(prop_kind aprop_kind,
 }
 
 template <typename data_t>
-struct test_params {
+struct relu_test_params {
     data_t negative_slope;
     prop_kind aprop_kind;
     engine::kind engine_kind;
@@ -41,11 +41,11 @@ struct test_params {
 };
 
 template <typename data_t>
-class relu_test : public ::testing::TestWithParam<test_params<data_t>> {
+class relu_test : public ::testing::TestWithParam<relu_test_params<data_t>> {
 protected:
     virtual void SetUp() {
-        test_params<data_t> p
-            = ::testing::TestWithParam<test_params<data_t>>::GetParam();
+        relu_test_params<data_t> p
+            = ::testing::TestWithParam<relu_test_params<data_t>>::GetParam();
 
         ASSERT_EQ(p.memory_format, memory::format::nchw);
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu || p.engine_kind ==
@@ -77,6 +77,8 @@ protected:
                 relu_prim_desc.data.src_primitive_desc.memory_desc.format);
         if (src_format != memory::format::nchw)
             src = memory({{td, prec, src_format}, eng});
+        fill_data<data_t>(src.get_primitive_desc().get_number_of_elements(),
+                (data_t *)src.get_data_handle());
 
         auto dst_format = static_cast<memory::format>(
                 relu_prim_desc.data.dst_primitive_desc.memory_desc.format);
@@ -98,12 +100,12 @@ protected:
 };
 
 using relu_test_float = relu_test<float>;
-using test_params_float = test_params<float>;
+using relu_test_params_float = relu_test_params<float>;
 
 TEST_P(relu_test_float, TestsReLU) { }
 INSTANTIATE_TEST_CASE_P(TestReLUForward, relu_test_float,
         ::testing::Values(
-            test_params_float{0, prop_kind::forward, engine::kind::cpu,
+            relu_test_params_float{0, prop_kind::forward, engine::kind::cpu,
             memory::format::nchw, {10, 10, 10, 10}}));
 
 }

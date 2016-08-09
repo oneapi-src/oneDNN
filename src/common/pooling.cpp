@@ -28,7 +28,6 @@ status_t mkl_dnn_pooling_desc_init(pooling_desc_t *pooling_desc,
     cd.prop_kind = prop_kind;
     cd.alg_kind = alg_kind;
     cd.src_desc = *src_desc;
-    cd.indices_desc = *dst_desc;
     cd.dst_desc = *dst_desc;
     cd.padding_kind = padding_kind;
     const uint32_t ndims_spatial = src_desc->tensor_desc.ndims_spatial;

@@ -92,12 +92,8 @@ static int doit() {
         &p1_src_md, &p1_dst_md, strides, kernel, padding, mkl_dnn_padding_zero));
     CHECK(mkl_dnn_pooling_primitive_desc_init(&p1_pd, &p1_desc, engine));
 
-    const mkl_dnn_memory_desc_t *p1_indices_md = &p1_pd.pooling_desc.indices_desc;
-    mkl_dnn_memory_primitive_desc_t p1_indices_pd;
     mkl_dnn_primitive_t p1_indices;
-    CHECK(mkl_dnn_memory_primitive_desc_init(&p1_indices_pd, p1_indices_md, engine));
-    uint32_t *indices = (uint32_t*)calloc(tensor_size(&p1_indices_md->tensor_desc), sizeof(uint32_t));
-    CHECK(mkl_dnn_memory_create(&p1_indices, &p1_indices_pd, indices));
+    CHECK(mkl_dnn_memory_create(&p1_indices, &p1_pd.indices_primitive_desc, NULL));
 
     /* create a pooling */
     mkl_dnn_primitive_t p1;
@@ -110,7 +106,6 @@ static int doit() {
     CHECK(mkl_dnn_primitive_create(&p1, &p1_pd, p1_srcs, p1_dsts));
 
     assert(mkl_dnn_memory_primitive_desc_equal(&p1_pd.src_primitive_desc, &p1_src_pd));
-    assert(mkl_dnn_memory_primitive_desc_equal(&p1_pd.indices_primitive_desc, &p1_indices_pd));
     assert(mkl_dnn_memory_primitive_desc_equal(&p1_pd.dst_primitive_desc, &p1_dst_pd));
 
     init_src(p1_src_sizes, src);
@@ -132,7 +127,6 @@ static int doit() {
     int n_errors = check_dst(p1_dst_sizes, dst);
 
     free(src);
-    free(indices);
     free(dst);
 
     return n_errors;

@@ -25,7 +25,6 @@ status_t mkl_dnn_lrn_desc_init(lrn_desc_t *lrn_desc, prop_kind_t prop_kind,
     cd.prop_kind    = prop_kind;
     cd.alg_kind     = alg_kind;
     cd.src_desc     = *src_desc;
-    cd.scratch_desc = *dst_desc;
     cd.dst_desc     = *dst_desc;
     cd.alpha        = alpha;
     cd.beta         = beta;
