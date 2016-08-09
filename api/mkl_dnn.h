@@ -244,7 +244,7 @@ mkl_dnn_status_t mkl_dnn_pooling_create(mkl_dnn_primitive_t *pooling,
 
 /* @} */
 
-/** @addtogroup c_api_lrn LRN operations
+/** @addtogroup c_api_lrn LRN
  * @{ */
 
 /** Initializes a @p lrn_desc using @p prop_kind, @p alg_kind, memory
