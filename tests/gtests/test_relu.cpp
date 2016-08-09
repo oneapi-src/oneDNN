@@ -77,6 +77,8 @@ protected:
                 relu_prim_desc.data.src_primitive_desc.memory_desc.format);
         if (src_format != memory::format::nchw)
             src = memory({{td, prec, src_format}, eng});
+        fill_data<data_t>(src.get_primitive_desc().get_number_of_elements(),
+                (data_t *)src.get_data_handle());
 
         auto dst_format = static_cast<memory::format>(
                 relu_prim_desc.data.dst_primitive_desc.memory_desc.format);
