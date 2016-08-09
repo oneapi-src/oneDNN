@@ -20,19 +20,11 @@ API
 6. alpha & beta for op_desc
 
 7. memory_get_primitive_desc(), reorder_get_primitive_desc(), etc... vs.
-   primitive_get_primitive_desc(). the same for primive_create
+   primitive_get_primitive_desc(). the same for primive_create [use this]
 
-8. rename memory::format::n to memory::format::x
+8. rename memory::format::n to memory::format::x [use this]
 
 9. add primitive/memory consistency checks
-
-10. l-r, t-b padding in convolution, pooling
-
-11. tensor flow padding consistency
-
-12. copy primitive (i.e. create new one) -- w/ new inputs/outputs
-
-13. current c++ api does not propagate const in opaque types
 
 [ ww39 ]
 
@@ -48,6 +40,17 @@ API
 
 6. prop_kind == forward_only
 
+8. diluted kernels for conv
+
+9. api iface tests
+
+10. l-r, t-b padding in convolution, pooling
+
+11. tensor flow padding consistency
+
+12. clone primitive (i.e. create new one) -- w/ new inputs/outputs
+
+13. current c++ api does not propagate const in opaque types
 
 [ ww?? ]
 
