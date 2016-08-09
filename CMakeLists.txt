@@ -13,9 +13,15 @@ else()
     set(OPENMP_FLAGS "-fopenmp")
 endif()
 
+if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang"
+        OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+    set(PEDANTIC_FLAGS "-Wpedantic")
+    set(NO_PEDANTIC_FLAGS "-Wno-pedantic")
+endif()
+
 # XXX: this must go away: openmp is only needed when building the lib...
 # XXX: we also need to start requiring cmake 3.0
-set(CMAKE_CCXX_FLAGS "-g ${OPENMP_FLAGS} -Wall -Werror -Wno-unknown-pragmas -Wpedantic")
+set(CMAKE_CCXX_FLAGS "-g ${OPENMP_FLAGS} -Wall -Werror -Wno-unknown-pragmas ${PEDANTIC_FLAGS}")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CMAKE_CCXX_FLAGS} -std=c99")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_CCXX_FLAGS} -std=c++11")
 

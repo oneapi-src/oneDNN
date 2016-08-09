@@ -26,8 +26,9 @@ inline size_t precision_size(precision_t prec) {
     switch (prec) {
     case f32: return sizeof(precision2type<f32>::type);
     case u32: return sizeof(precision2type<u32>::type);
-    default: assert(!"unknown precision");
     }
+    assert(!"unknown precision");
+    return 0; // not supposed to be reachable
 }
 
 inline uint32_t ndims(const tensor_desc_t &tensor) {
