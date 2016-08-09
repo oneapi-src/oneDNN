@@ -3,6 +3,7 @@
 
 #include <numeric>
 #include <vector>
+#include <cmath>
 
 #include "gtest/gtest.h"
 
@@ -79,6 +80,39 @@ inline mkl_dnn::memory::desc create_md(mkl_dnn::tensor::dims dims,
     EXPECT_EQ(dims.size(), ndims) << "dims and format are inconsistent";
 
     return mkl_dnn::memory::desc({dspec, dims}, prec, fmt);
+}
+
+template <typename data_t>
+static inline data_t set_value(size_t index, double sparsity)
+{
+    if (data_traits<data_t>::prec == mkl_dnn::memory::precision::f32) {
+        const size_t group_size = (size_t)(1. / sparsity);
+        const size_t group = index / group_size;
+        const size_t in_group = index % group_size;
+        return in_group == ((group % 1637) % group_size) ?
+                1. + 2e-1 * sin((data_t)(index % 37)) :
+                0;
+    } else {
+        return (data_t)0;
+    }
+}
+
+template <typename data_t>
+static void fill_data(const uint32_t size, data_t *data, double sparsity = 1.)
+{
+#pragma omp parallel for
+    for (uint32_t n = 0; n < size; n++) {
+        data[n] = set_value<data_t>(n, sparsity);
+    }
+}
+
+template <typename data_t>
+static void compare_data(data_t *ref, data_t *dst, uint32_t num)
+{
+#pragma omp parallel for
+    for (uint32_t i = 0; i < num; ++i) {
+        EXPECT_NEAR(dst[i], ref[i], 1e-4);
+    }
 }
 
 #endif

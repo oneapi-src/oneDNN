@@ -1,12 +1,9 @@
-#include <assert.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <math.h>
+#include "mkl_dnn_test_common.hpp"
+#include "gtest/gtest.h"
 
 #include "mkl_dnn.hpp"
-#include "gtest/gtest.h"
+
+namespace mkl_dnn {
 
 struct test_convolution_descr_t {
     uint32_t mb;
@@ -18,26 +15,9 @@ struct test_convolution_descr_t {
     uint32_t strh, strw;
 };
 
-static uint32_t doFill(size_t index, double sparsity)
-{
-    const size_t group_size = (size_t)(1. / sparsity);
-    const size_t group = index / group_size;
-    const size_t in_group = index % group_size;
-    return in_group == ((group % 1637) % group_size);
-}
-
 template <typename data_t>
-static void fillData(const uint32_t size, data_t *data, double sparsity = 1.)
-{
-#pragma omp parallel for
-    for (uint32_t n = 0; n < size; n++) {
-        data[n] = doFill(n, sparsity) ? 1. + 2e-1 * sin(n % 37) : 0;
-    }
-}
-
-template <typename data_t>
-void computeRefConvFwd(test_convolution_descr_t c, data_t *in, data_t *filt,
-        data_t *bias, data_t *out)
+void compute_ref_conv_fwd_nchw(test_convolution_descr_t c, data_t *in,
+        data_t *filt, data_t *bias, data_t *out)
 {
 #pragma omp parallel for collapse(5)
     for (uint32_t n = 0; n < c.mb; n++) {
@@ -76,94 +56,121 @@ void computeRefConvFwd(test_convolution_descr_t c, data_t *in, data_t *filt,
     }
 }
 
-template <typename data_t>
-int doitNCHW(test_convolution_descr_t cd, bool lazy)
-{
-    using namespace mkl_dnn;
-
-    auto cpu_engine = engine(lazy ? engine::cpu_lazy : engine::cpu, 0);
-    EXPECT_EQ(sizeof(data_t), 4U);
-    memory::precision testPrecision = memory::precision::f32;
-
-    data_t *src_data = new data_t[cd.mb * cd.ic * cd.ih * cd.iw];
-    fillData(cd.mb * cd.ic * cd.ih * cd.iw, src_data);
-    data_t *weights_data = new data_t[cd.ng * (cd.oc / cd.ng) * (cd.ic / cd.ng)
-            * cd.kh * cd.kw];
-    fillData(cd.ng * (cd.oc / cd.ng) * (cd.ic / cd.ng) * cd.kh * cd.kw,
-            weights_data);
-    data_t *bias_data = new data_t[cd.oc];
-    fillData(cd.oc, bias_data);
-    data_t *dst_data = new data_t[cd.mb * cd.oc * cd.oh * cd.ow];
-    // fillData(cd.mb*cd.oc*cd.oh*cd.ow, output_data);
-    data_t *dst_ref_data = new data_t[cd.mb * cd.oc * cd.oh * cd.ow];
-    // fillData(cd.mb*cd.oc*cd.oh*cd.ow, output_ref_data);
-
-    auto c_src_desc = memory::desc({ 1, 1, 2, { cd.mb, cd.ic, cd.ih, cd.iw } },
-            testPrecision, memory::format::nchw);
-    auto c_weights_desc = cd.ng > 1 ?
-            memory::desc({ 1, 2, 2, { cd.ng, cd.oc / cd.ng, cd.ic / cd.ng,
-                                            cd.kh, cd.kw } },
-                    testPrecision, memory::format::goihw) :
-            memory::desc({ 0, 2, 2, { cd.oc, cd.ic, cd.kh, cd.kw } },
-                    testPrecision, memory::format::oihw);
-    auto c_bias_desc = memory::desc(
-            { 0, 0, 1, { cd.oc } }, testPrecision, memory::format::x);
-    auto c_dst_desc = memory::desc({ 1, 1, 2, { cd.mb, cd.oc, cd.oh, cd.ow } },
-            testPrecision, memory::format::nchw);
-
-    auto c_src = memory({ c_src_desc, cpu_engine }, src_data);
-    auto c_weights = memory({ c_weights_desc, cpu_engine }, weights_data);
-    auto c_bias = memory({ c_bias_desc, cpu_engine }, bias_data);
-    auto c_dst = memory({ c_dst_desc, cpu_engine }, dst_data);
-
-    auto c = convolution(prop_kind::forward, convolution::direct, c_src,
-            c_weights, c_bias, c_dst, { cd.strh, cd.strw },
-            { cd.padh, cd.padw }, padding_kind::zero);
-
-    stream().submit({ c }).wait();
-
-    computeRefConvFwd(cd, src_data, weights_data, bias_data, dst_ref_data);
-
-#pragma omp parallel for
-    for (uint32_t i = 0; i < cd.mb * cd.oc * cd.oh * cd.ow; ++i) {
-        EXPECT_NEAR(dst_data[i], dst_ref_data[i], 1e-4);
-    }
-
-    delete[] src_data;
-    delete[] dst_data;
-    delete[] weights_data;
-    delete[] bias_data;
-    delete[] dst_ref_data;
-    return 0;
-}
-typedef ::testing::Types<float> testDataTypes;
-
-template <typename data_t>
-class convolutionTest : public ::testing::Test {
-public:
-protected:
-    convolutionTest() {}
-    virtual ~convolutionTest() {}
+struct conv_test_params {
+    prop_kind aprop_kind;
+    const engine::kind engine_kind;
+    convolution::algorithm aalgorithm;
+    memory::format src_format;
+    memory::format weights_format;
+    memory::format bias_format;
+    memory::format dst_format;
+    test_convolution_descr_t test_cd;
 };
 
-TYPED_TEST_CASE(convolutionTest, testDataTypes);
+template <typename data_t>
+class convolution_test : public ::testing::TestWithParam<conv_test_params> {
+protected:
+    virtual void SetUp()
+    {
+        conv_test_params p
+                = ::testing::TestWithParam<conv_test_params>::GetParam();
 
-TYPED_TEST(convolutionTest, simpleTest)
+        ASSERT_EQ(p.src_format, memory::format::nchw);
+        ASSERT_TRUE(
+                (p.weights_format == memory::format::oihw && p.test_cd.ng == 1)
+                || (p.weights_format == memory::format::goihw
+                           && p.test_cd.ng > 1));
+        ASSERT_EQ(p.bias_format, memory::format::x);
+        ASSERT_EQ(p.dst_format, memory::format::nchw);
+        ASSERT_TRUE(p.engine_kind == engine::kind::cpu
+                || p.engine_kind == engine::kind::cpu_lazy);
+        ASSERT_EQ(p.aprop_kind, prop_kind::forward);
+        ASSERT_EQ(p.aalgorithm, convolution::direct);
+        auto eng = engine(p.engine_kind, 0);
+        memory::precision prec = data_traits<data_t>::prec;
+        ASSERT_EQ(prec, mkl_dnn::memory::precision::f32);
+
+        test_convolution_descr_t cd = p.test_cd;
+        size_t src_size = cd.mb * cd.ic * cd.ih * cd.iw;
+        data_t *src_data = new data_t[src_size];
+        fill_data(src_size, src_data);
+        size_t weights_size
+                = cd.ng * (cd.oc / cd.ng) * (cd.ic / cd.ng) * cd.kh * cd.kw;
+        data_t *weights_data = new data_t[weights_size];
+        fill_data(weights_size, weights_data);
+        size_t bias_size = cd.oc;
+        data_t *bias_data = new data_t[bias_size];
+        fill_data(bias_size, bias_data);
+        size_t dst_size = cd.mb * cd.oc * cd.oh * cd.ow;
+        data_t *dst_data = new data_t[dst_size];
+        // fillData(dst_size, output_data);
+        data_t *dst_ref_data = new data_t[dst_size];
+        // fillData(dst_size, output_ref_data);
+
+        auto c_src_desc
+                = create_md({ cd.mb, cd.ic, cd.ih, cd.iw }, prec, p.src_format);
+        auto c_weights_desc = cd.ng > 1 ?
+                create_md({ cd.ng, cd.oc / cd.ng, cd.ic / cd.ng, cd.kh, cd.kw },
+                        prec, p.weights_format) :
+                create_md(
+                        { cd.oc, cd.ic, cd.kh, cd.kw }, prec, p.weights_format);
+        auto c_bias_desc = create_md({ cd.oc }, prec, p.bias_format);
+        auto c_dst_desc
+                = create_md({ cd.mb, cd.oc, cd.oh, cd.ow }, prec, p.dst_format);
+
+        auto c_src = memory(
+                memory::primitive_desc(c_src_desc, eng), (void *)src_data);
+        auto c_weights = memory(memory::primitive_desc(c_weights_desc, eng),
+                (void *)weights_data);
+        auto c_bias = memory(
+                memory::primitive_desc(c_bias_desc, eng), (void *)bias_data);
+        auto c_dst = memory(
+                memory::primitive_desc(c_dst_desc, eng), (void *)dst_data);
+
+        auto c = convolution(p.aprop_kind, p.aalgorithm, c_src, c_weights,
+                c_bias, c_dst, { cd.strh, cd.strw }, { cd.padh, cd.padw },
+                padding_kind::zero);
+
+        stream().submit({ c }).wait();
+
+        compute_ref_conv_fwd_nchw(
+                cd, src_data, weights_data, bias_data, dst_ref_data);
+        compare_data(dst_ref_data, dst_data, dst_size);
+    }
+};
+
+using convolution_test_float = convolution_test<float>;
+using conv_test_params_float = conv_test_params;
+
+TEST_P(convolution_test_float, TestsConvolution)
 {
-    doitNCHW<TypeParam>({ 2, 1, 4, 4, 4, 6, 4, 4, 3, 3, 1, 1, 1, 1 }, 1);
 }
-
-TYPED_TEST(convolutionTest, AlexNetTest)
-{
-    uint32_t mb = 2;
-    //    doit_nchw({mb, 1, 3, 227, 227, 96, 55, 55, 11, 11, 4, 4, 1, 1}, 1);
-    //         mb  g    ic ih  iw   oc  oh  ow  kh  kw  padh  padw  strh  strw
-    doitNCHW<TypeParam>(
-            { mb, 2, 96, 27, 27, 256, 27, 27, 5, 5, 2, 2, 1, 1 }, 1);
-    doitNCHW<TypeParam>(
-            { mb, 1, 256, 13, 13, 384, 13, 13, 3, 3, 1, 1, 1, 1 }, 1);
-    doitNCHW<TypeParam>(
-            { mb, 2, 384, 13, 13, 384, 13, 13, 3, 3, 1, 1, 1, 1 }, 1);
-    doitNCHW<TypeParam>(
-            { mb, 2, 384, 13, 13, 256, 13, 13, 3, 3, 1, 1, 1, 1 }, 1);
+INSTANTIATE_TEST_CASE_P(TestConvolutionForward, convolution_test_float,
+        ::testing::Values(conv_test_params_float{ prop_kind::forward,
+                engine::kind::cpu, convolution::direct, memory::format::nchw,
+                memory::format::oihw, memory::format::x, memory::format::nchw,
+                { 2, 1, 4, 4, 4, 6, 4, 4, 3, 3, 1, 1, 1, 1 } }));
+INSTANTIATE_TEST_CASE_P(
+        TestConvolutionAlexnetForward, convolution_test_float,
+        ::testing::Values(
+                conv_test_params_float{ prop_kind::forward, engine::kind::cpu,
+                        convolution::direct, memory::format::nchw,
+                        memory::format::goihw, memory::format::x,
+                        memory::format::nchw,
+                        { 2, 2, 96, 27, 27, 256, 27, 27, 5, 5, 2, 2, 1, 1 } },
+                conv_test_params_float{ prop_kind::forward, engine::kind::cpu,
+                        convolution::direct, memory::format::nchw,
+                        memory::format::oihw, memory::format::x,
+                        memory::format::nchw,
+                        { 2, 1, 256, 13, 13, 384, 13, 13, 3, 3, 1, 1, 1, 1 } },
+                conv_test_params_float{ prop_kind::forward, engine::kind::cpu,
+                        convolution::direct, memory::format::nchw,
+                        memory::format::goihw, memory::format::x,
+                        memory::format::nchw,
+                        { 2, 2, 384, 13, 13, 384, 13, 13, 3, 3, 1, 1, 1, 1 } },
+                conv_test_params_float{ prop_kind::forward, engine::kind::cpu,
+                        convolution::direct, memory::format::nchw,
+                        memory::format::goihw, memory::format::x,
+                        memory::format::nchw, { 2, 2, 384, 13, 13, 256, 13, 13,
+                                                      3, 3, 1, 1, 1, 1 } }));
 }

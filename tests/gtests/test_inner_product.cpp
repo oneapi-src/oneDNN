@@ -1,12 +1,9 @@
-#include <assert.h>
-#include <math.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include "mkl_dnn_test_common.hpp"
+#include "gtest/gtest.h"
 
 #include "mkl_dnn.hpp"
-#include "gtest/gtest.h"
+
+namespace mkl_dnn {
 
 struct test_inner_product_descr_t {
     uint32_t mb;
@@ -15,25 +12,8 @@ struct test_inner_product_descr_t {
     uint32_t kh, kw;
 };
 
-static uint32_t doFill(size_t index, double sparsity)
-{
-    const size_t group_size = (size_t)(1. / sparsity);
-    const size_t group = index / group_size;
-    const size_t in_group = index % group_size;
-    return in_group == ((group % 1637) % group_size);
-}
-
 template <typename data_t>
-static void fillData(const uint32_t size, data_t *data, double sparsity = 1.)
-{
-#pragma omp parallel for
-    for (uint32_t n = 0; n < size; n++) {
-        data[n] = doFill(n, sparsity) ? 1. + 2e-1 * sin(n % 37) : 0;
-    }
-}
-
-template <typename data_t>
-static void computeRefInnerProductFwd(
+void compute_ref_inner_product_fwd_nchw(
         test_inner_product_descr_t ipd, data_t *in, data_t *filt, data_t *out)
 {
 #pragma omp parallel for collapse(2)
@@ -56,72 +36,90 @@ static void computeRefInnerProductFwd(
     }
 }
 
-template <typename data_t>
-static int doit(test_inner_product_descr_t ipd, bool lazy)
-{
-    using namespace mkl_dnn;
-
-    auto cpu_engine = engine(lazy ? engine::cpu_lazy : engine::cpu, 0);
-    EXPECT_EQ(sizeof(data_t), 4U);
-    memory::precision testPrecision = memory::precision::f32;
-
-    data_t *src_data = new data_t[ipd.mb * ipd.ic * ipd.kh * ipd.kw];
-    fillData(ipd.mb * ipd.ic * ipd.kh * ipd.kw, src_data);
-    data_t *weights_data = new data_t[ipd.oc * ipd.ic * ipd.kh * ipd.kw];
-    fillData(ipd.oc * ipd.ic * ipd.kh * ipd.kw, weights_data);
-    data_t *dst_data = new data_t[ipd.mb * ipd.oc];
-    data_t *dst_ref_data = new data_t[ipd.mb * ipd.oc];
-
-    auto c_src_desc = ipd.kh > 1 || ipd.kw > 1 ?
-            memory::desc({ 1, 1, 2, { ipd.mb, ipd.ic, ipd.kh, ipd.kw } },
-                    testPrecision, memory::format::nchw) :
-            memory::desc({ 1, 1, 0, { ipd.mb, ipd.ic } }, testPrecision,
-                    memory::format::nc);
-
-    auto c_weights_desc = ipd.kh > 1 || ipd.kw > 1 ?
-            memory::desc({ 0, 2, 2, { ipd.oc, ipd.ic, ipd.kh, ipd.kw } },
-                    testPrecision, memory::format::oihw) :
-            memory::desc({ 0, 2, 0, { ipd.oc, ipd.ic } }, testPrecision,
-                    memory::format::oi);
-
-    auto c_dst_desc = memory::desc(
-            { 1, 1, 0, { ipd.mb, ipd.oc } }, testPrecision, memory::format::nc);
-
-    auto c_src = memory({ c_src_desc, cpu_engine }, src_data);
-    auto c_weights = memory({ c_weights_desc, cpu_engine }, weights_data);
-    auto c_dst = memory({ c_dst_desc, cpu_engine }, dst_data);
-
-    auto ip = inner_product(prop_kind::forward, c_src, c_weights, c_dst);
-
-    stream().submit({ ip }).wait();
-
-    computeRefInnerProductFwd(ipd, src_data, weights_data, dst_ref_data);
-
-#pragma omp parallel for
-    for (uint32_t i = 0; i < ipd.mb * ipd.oc; ++i) {
-        EXPECT_NEAR(dst_data[i], dst_ref_data[i], 1e-4);
-    }
-
-    delete[] src_data;
-    delete[] dst_data;
-    delete[] weights_data;
-    delete[] dst_ref_data;
-    return 0;
-}
-typedef ::testing::Types<float> testDataTypes;
-
-template <typename data_t>
-class innerProductTest : public ::testing::Test {
-public:
-protected:
-    innerProductTest() {}
-    virtual ~innerProductTest() {}
+struct inprod_test_params {
+    prop_kind aprop_kind;
+    const engine::kind engine_kind;
+    memory::format src_format;
+    memory::format weights_format;
+    memory::format dst_format;
+    test_inner_product_descr_t test_ipd;
 };
 
-TYPED_TEST_CASE(innerProductTest, testDataTypes);
+template <typename data_t>
+class inner_product_test : public ::testing::TestWithParam<inprod_test_params> {
+protected:
+    virtual void SetUp()
+    {
+        inprod_test_params p
+                = ::testing::TestWithParam<inprod_test_params>::GetParam();
+        test_inner_product_descr_t ipd = p.test_ipd;
+        bool has_spatial = ipd.kh > 1 && ipd.kw > 1;
+        ASSERT_TRUE(p.src_format == memory::format::nchw
+                || (p.src_format == memory::format::nc && !has_spatial));
+        ASSERT_TRUE(p.weights_format == memory::format::oihw
+                || (p.weights_format == memory::format::oi && !has_spatial));
+        ASSERT_EQ(p.dst_format, memory::format::nc);
+        ASSERT_TRUE(p.engine_kind == engine::kind::cpu
+                || p.engine_kind == engine::kind::cpu_lazy);
+        ASSERT_EQ(p.aprop_kind, prop_kind::forward);
+        auto eng = engine(p.engine_kind, 0);
+        memory::precision prec = data_traits<data_t>::prec;
+        ASSERT_EQ(prec, mkl_dnn::memory::precision::f32);
 
-TYPED_TEST(innerProductTest, simpleTest)
+        size_t src_size = has_spatial ? ipd.mb * ipd.ic * ipd.kh * ipd.kw :
+                                        ipd.mb * ipd.ic;
+        data_t *src_data = new data_t[src_size];
+        fill_data(src_size, src_data);
+        size_t weights_size = has_spatial ? ipd.oc * ipd.ic * ipd.kh * ipd.kw :
+                                            ipd.oc * ipd.ic;
+        data_t *weights_data = new data_t[weights_size];
+        fill_data(weights_size, weights_data);
+        size_t dst_size = ipd.mb * ipd.oc;
+        data_t *dst_data = new data_t[dst_size];
+        // fillData(dst_size, output_data);
+        data_t *dst_ref_data = new data_t[dst_size];
+        // fillData(dst_size, output_ref_data);
+
+        auto c_src_desc = has_spatial ?
+                create_md({ ipd.mb, ipd.ic, ipd.kh, ipd.kw }, prec,
+                        p.src_format) :
+                create_md({ ipd.mb, ipd.ic }, prec, p.src_format);
+        auto c_weights_desc = has_spatial ?
+                create_md({ ipd.oc, ipd.ic, ipd.kh, ipd.kw }, prec,
+                        p.weights_format) :
+                create_md({ ipd.oc, ipd.ic }, prec, p.weights_format);
+        auto c_dst_desc = create_md({ ipd.mb, ipd.oc }, prec, p.dst_format);
+
+        auto c_src = memory(
+                memory::primitive_desc(c_src_desc, eng), (void *)src_data);
+        auto c_weights = memory(memory::primitive_desc(c_weights_desc, eng),
+                (void *)weights_data);
+        auto c_dst = memory(
+                memory::primitive_desc(c_dst_desc, eng), (void *)dst_data);
+
+        auto ip = inner_product(p.aprop_kind, c_src, c_weights, c_dst);
+
+        stream().submit({ ip }).wait();
+
+        compute_ref_inner_product_fwd_nchw(
+                ipd, src_data, weights_data, dst_ref_data);
+        compare_data(dst_ref_data, dst_data, dst_size);
+    }
+};
+
+using inner_product_test_float = inner_product_test<float>;
+using inprod_test_params_float = inprod_test_params;
+
+TEST_P(inner_product_test_float, TestsInnerProduct)
 {
-    doit<TypeParam>({ 2, 32, 48, 6, 6 }, 1);
-    doit<TypeParam>({ 2, 2, 4, 1, 1 }, 1);
+}
+INSTANTIATE_TEST_CASE_P(
+        TestInnerProductForward, inner_product_test_float,
+        ::testing::Values(
+                inprod_test_params_float{ prop_kind::forward, engine::kind::cpu,
+                        memory::format::nchw, memory::format::oihw,
+                        memory::format::nc, { 2, 32, 48, 6, 6 } },
+                inprod_test_params_float{ prop_kind::forward, engine::kind::cpu,
+                        memory::format::nc, memory::format::oi,
+                        memory::format::nc, { 2, 2, 4, 1, 1 } }));
 }
