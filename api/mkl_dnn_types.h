@@ -31,7 +31,8 @@ typedef enum {
     mkl_dnn_invalid_arguments = 3,
     /** an operation failed because a primitive was not ready for execution */
     mkl_dnn_not_ready = 4,
-    /** an operation failed because requested functionality is not implemented */
+    /** an operation failed because requested functionality is not implemented
+     */
     mkl_dnn_unimplemented = 5,
 } mkl_dnn_status_t;
 
@@ -59,7 +60,7 @@ typedef enum {
  * followed by spatial height and width, and then followed by 8-element channel
  * blocks. Note that channel designations are a convention. Thus both the
  * 'mkl_dnn_nc' and 'mkl_dnn_oo' formats can be used to describe any 2D tensor.
- * */
+ */
 typedef enum {
     /** unspecified format; use this to let a primitive to select a format
      * automatically */
