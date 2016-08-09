@@ -59,7 +59,7 @@ inline mkl_dnn::memory::desc create_md(mkl_dnn::tensor::dims dims,
     using f = mkl_dnn::memory::format;
     std::vector<uint32_t> dspec;
     switch (fmt) {
-    case f::n: dspec.insert(dspec.end(), {0, 0, 1}); break;
+    case f::x: dspec.insert(dspec.end(), {0, 0, 1}); break;
     case f::nc: dspec.insert(dspec.end(), {1, 1, 0}); break;
     case f::oi: dspec.insert(dspec.end(), {0, 2, 0}); break;
     case f::nchw:

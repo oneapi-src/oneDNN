@@ -74,7 +74,7 @@ int doit(int lazy) {
     CHECK(mkl_dnn_memory_create(&c3_weights, &c3_weights_pd, weights));
 
     CHECK(mkl_dnn_tensor_desc_init(&c3_bias_tz, 0, 0, 1, c3_bias_sizes));
-    CHECK(mkl_dnn_memory_desc_init(&c3_bias_md, &c3_bias_tz, mkl_dnn_f32, mkl_dnn_n));
+    CHECK(mkl_dnn_memory_desc_init(&c3_bias_md, &c3_bias_tz, mkl_dnn_f32, mkl_dnn_x));
     CHECK(mkl_dnn_memory_primitive_desc_init(&c3_bias_pd, &c3_bias_md, engine));
     CHECK(mkl_dnn_memory_create(&c3_bias, &c3_bias_pd, bias));
 

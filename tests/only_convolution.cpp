@@ -57,7 +57,7 @@ int doit(bool lazy) {
     /* mkl-dnn starts here */
     auto c3_src_desc = memory::desc({1, 1, 2, input_tz}, memory::precision::f32, memory::format::nchw);
     auto c3_weights_desc = memory::desc({1, 2, 2, weights_tz}, memory::precision::f32, memory::format::goihw);
-    auto c3_bias_desc = memory::desc({0, 0, 1, bias_tz}, memory::precision::f32, memory::format::n);
+    auto c3_bias_desc = memory::desc({0, 0, 1, bias_tz}, memory::precision::f32, memory::format::x);
     auto c3_dst_desc = memory::desc({1, 1, 2, output_tz}, memory::precision::f32, memory::format::nchw);
 
     auto c3_src = memory({c3_src_desc, cpu_engine}, input);

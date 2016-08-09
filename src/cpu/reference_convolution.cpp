@@ -140,7 +140,7 @@ status_t reference_convolution<prec>::primitive_desc_init(
                 &conv_d.weights_desc.tensor_desc, f32, groups ? goihw : oihw));
     if (conv_d.bias_desc.format == any)
         CHECK(mkl_dnn_memory_desc_init(&conv_d.bias_desc,
-                    &conv_d.bias_desc.tensor_desc, f32, n));
+                    &conv_d.bias_desc.tensor_desc, f32, x));
     if (conv_d.dst_desc.format == any)
         CHECK(mkl_dnn_memory_desc_init(&conv_d.dst_desc,
                     &conv_d.dst_desc.tensor_desc, f32, nchw));

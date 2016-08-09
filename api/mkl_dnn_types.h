@@ -27,7 +27,7 @@ typedef enum {
 typedef enum {
     mkl_dnn_any,
     /* data formats */
-    mkl_dnn_n,
+    mkl_dnn_x,
     mkl_dnn_nc,
     mkl_dnn_nchw,
     mkl_dnn_nhwc,
@@ -76,7 +76,7 @@ typedef struct {
 } mkl_dnn_tensor_desc_t;
 
 /** \brief \struct mkl_dnn_blocking_desc_t is a generic blocked data layout
- * description. all \var mkl_dnn_n, \var mkl_dnn_goihw memory formats are
+ * description. all \var mkl_dnn_x, \var mkl_dnn_goihw memory formats are
  * reprsented using this description.
  * details:
  *

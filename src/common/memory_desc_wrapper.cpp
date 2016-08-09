@@ -13,7 +13,7 @@ using mkl_dnn::impl::array_set;
 using namespace mkl_dnn::impl::status;
 using namespace mkl_dnn::impl::memory_format;
 
-status_t fill_n(blocking_desc_t &blk, const tensor_desc_t &tensor) {
+status_t fill_x(blocking_desc_t &blk, const tensor_desc_t &tensor) {
     const uint32_t ndims = types::ndims(tensor);
     if (ndims != 1) return invalid_arguments;
     array_set(blk.block_dims, 1, ndims);
@@ -190,7 +190,7 @@ status_t memory_desc_wrapper::compute_blocking(memory_desc_t &memory_desc)
     blocking_desc_t &blk = memory_desc.blocking_desc;
 
     switch (memory_desc.format) {
-    case n: return fill_n(blk, tensor);
+    case x: return fill_x(blk, tensor);
     case nc: return fill_nc(blk, tensor);
     case nchw: return fill_nchw(blk, tensor);
     case nhwc: return fill_nhwc(blk, tensor);

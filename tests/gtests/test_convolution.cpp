@@ -107,7 +107,7 @@ int doitNCHW(test_convolution_descr_t cd, bool lazy)
             memory::desc({ 0, 2, 2, { cd.oc, cd.ic, cd.kh, cd.kw } },
                     testPrecision, memory::format::oihw);
     auto c_bias_desc = memory::desc(
-            { 0, 0, 1, { cd.oc } }, testPrecision, memory::format::n);
+            { 0, 0, 1, { cd.oc } }, testPrecision, memory::format::x);
     auto c_dst_desc = memory::desc({ 1, 1, 2, { cd.mb, cd.oc, cd.oh, cd.ow } },
             testPrecision, memory::format::nchw);
 

@@ -47,7 +47,7 @@ namespace precision {
 using memory_format_t = mkl_dnn_memory_format_t;
 namespace memory_format {
     const memory_format_t any = mkl_dnn_any;
-    const memory_format_t n = mkl_dnn_n;
+    const memory_format_t x = mkl_dnn_x;
     const memory_format_t nc = mkl_dnn_nc;
     const memory_format_t nchw = mkl_dnn_nchw;
     const memory_format_t nhwc = mkl_dnn_nhwc;

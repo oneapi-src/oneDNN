@@ -52,7 +52,7 @@ struct memory_desc_wrapper: public c_compatible {
     /** returns the size required to store described memory */
     size_t size() const {
         if (format() == any) return 0;
-        assert(one_of(format(), n, nc, nchw, nhwc, nChw8c, oi, oihw, OIhw8i8o,
+        assert(one_of(format(), x, nc, nchw, nhwc, nChw8c, oi, oihw, OIhw8i8o,
                     goihw, gOIhw8i8o, blocked));
 
         const auto &block_dims = blocking_desc().block_dims;

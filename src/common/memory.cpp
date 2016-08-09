@@ -49,7 +49,7 @@ status_t mkl_dnn_memory_desc_init(memory_desc_t *memory_desc,
     case any:
         break;
     /* semidefined blocked format */
-    case n:
+    case x:
     case nc:
     case nchw:
     case nhwc:
