@@ -20,7 +20,7 @@ template <> inline void assert_eq<float>(float a, float b) {
     ASSERT_FLOAT_EQ(a, b);
 }
 
-inline size_t map_index(mkl_dnn::memory::desc md, size_t index) {
+inline size_t map_index(const mkl_dnn::memory::desc &md, size_t index) {
     const uint32_t ndims = md.data.tensor_desc.ndims_batch +
         md.data.tensor_desc.ndims_channels + md.data.tensor_desc.ndims_spatial;
     const uint32_t *dims = md.data.tensor_desc.dims;
@@ -107,11 +107,14 @@ static void fill_data(const uint32_t size, data_t *data, double sparsity = 1.)
 }
 
 template <typename data_t>
-static void compare_data(data_t *ref, data_t *dst, uint32_t num)
+static void compare_data(mkl_dnn::memory& ref, mkl_dnn::memory& dst)
 {
+uint32_t num = ref.get_primitive_desc().get_number_of_elements();
+data_t *ref_data = (data_t *)ref.get_data_handle();
+data_t *dst_data = (data_t *)dst.get_data_handle();
 #pragma omp parallel for
     for (uint32_t i = 0; i < num; ++i) {
-        EXPECT_NEAR(dst[i], ref[i], 1e-4);
+        EXPECT_NEAR(dst_data[i], ref_data[i], 1e-4);
     }
 }
 

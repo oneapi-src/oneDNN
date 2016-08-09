@@ -13,22 +13,32 @@ struct test_inner_product_descr_t {
 };
 
 template <typename data_t>
-void compute_ref_inner_product_fwd_nchw(
-        test_inner_product_descr_t ipd, data_t *in, data_t *filt, data_t *out)
+void compute_ref_inner_product_fwd(test_inner_product_descr_t ipd, memory &src,
+        memory &weights, memory &dst)
 {
+    data_t *src_data = (data_t *)src.get_data_handle();
+    data_t *weights_data = (data_t *)weights.get_data_handle();
+    data_t *dst_data = (data_t *)dst.get_data_handle();
+
+    const memory::desc src_d = src.get_primitive_desc().desc();
+    const memory::desc weights_d = weights.get_primitive_desc().desc();
+    const memory::desc dst_d = dst.get_primitive_desc().desc();
+
 #pragma omp parallel for collapse(2)
     for (uint32_t n = 0; n < ipd.mb; n++) {
         for (uint32_t oc = 0; oc < ipd.oc; oc++) {
             uint32_t oidx = n * ipd.oc + oc;
-            out[oidx] = 0.0;
+            dst_data[map_index(dst_d, oidx)] = 0.0;
             for (uint32_t ic = 0; ic < ipd.ic; ic++) {
                 for (uint32_t kh = 0; kh < ipd.kh; kh++) {
                     for (uint32_t kw = 0; kw < ipd.kw; kw++) {
                         uint32_t iidx = n * ipd.ic * ipd.kh * ipd.kw
                                 + ic * ipd.kh * ipd.kw + kh * ipd.kw + kw;
-                        uint32_t fidx = oc * ipd.ic * ipd.kh * ipd.kw
+                        uint32_t widx = oc * ipd.ic * ipd.kh * ipd.kw
                                 + ic * ipd.kh * ipd.kw + kh * ipd.kw + kw;
-                        out[oidx] += in[iidx] * filt[fidx];
+                        dst_data[map_index(dst_d, oidx)]
+                                += src_data[map_index(src_d, iidx)]
+                                * weights_data[map_index(weights_d, widx)];
                     }
                 }
             }
@@ -54,11 +64,7 @@ protected:
                 = ::testing::TestWithParam<inprod_test_params>::GetParam();
         test_inner_product_descr_t ipd = p.test_ipd;
         bool has_spatial = ipd.kh > 1 && ipd.kw > 1;
-        ASSERT_TRUE(p.src_format == memory::format::nchw
-                || (p.src_format == memory::format::nc && !has_spatial));
-        ASSERT_TRUE(p.weights_format == memory::format::oihw
-                || (p.weights_format == memory::format::oi && !has_spatial));
-        ASSERT_EQ(p.dst_format, memory::format::nc);
+
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu
                 || p.engine_kind == engine::kind::cpu_lazy);
         ASSERT_EQ(p.aprop_kind, prop_kind::forward);
@@ -66,44 +72,36 @@ protected:
         memory::precision prec = data_traits<data_t>::prec;
         ASSERT_EQ(prec, mkl_dnn::memory::precision::f32);
 
-        size_t src_size = has_spatial ? ipd.mb * ipd.ic * ipd.kh * ipd.kw :
-                                        ipd.mb * ipd.ic;
-        data_t *src_data = new data_t[src_size];
-        fill_data(src_size, src_data);
-        size_t weights_size = has_spatial ? ipd.oc * ipd.ic * ipd.kh * ipd.kw :
-                                            ipd.oc * ipd.ic;
-        data_t *weights_data = new data_t[weights_size];
-        fill_data(weights_size, weights_data);
-        size_t dst_size = ipd.mb * ipd.oc;
-        data_t *dst_data = new data_t[dst_size];
-        // fillData(dst_size, output_data);
-        data_t *dst_ref_data = new data_t[dst_size];
-        // fillData(dst_size, output_ref_data);
-
-        auto c_src_desc = has_spatial ?
+        auto ip_src_desc = has_spatial ?
                 create_md({ ipd.mb, ipd.ic, ipd.kh, ipd.kw }, prec,
                         p.src_format) :
                 create_md({ ipd.mb, ipd.ic }, prec, p.src_format);
-        auto c_weights_desc = has_spatial ?
+        auto ip_weights_desc = has_spatial ?
                 create_md({ ipd.oc, ipd.ic, ipd.kh, ipd.kw }, prec,
                         p.weights_format) :
                 create_md({ ipd.oc, ipd.ic }, prec, p.weights_format);
-        auto c_dst_desc = create_md({ ipd.mb, ipd.oc }, prec, p.dst_format);
+        auto ip_dst_desc = create_md({ ipd.mb, ipd.oc }, prec, p.dst_format);
 
-        auto c_src = memory(
-                memory::primitive_desc(c_src_desc, eng), (void *)src_data);
-        auto c_weights = memory(memory::primitive_desc(c_weights_desc, eng),
-                (void *)weights_data);
-        auto c_dst = memory(
-                memory::primitive_desc(c_dst_desc, eng), (void *)dst_data);
+        auto ip_src = memory(memory::primitive_desc(ip_src_desc, eng));
+        auto ip_weights = memory(memory::primitive_desc(ip_weights_desc, eng));
+        auto ip_dst = memory(memory::primitive_desc(ip_dst_desc, eng));
+        auto dst_ref = memory(memory::primitive_desc(ip_dst_desc, eng));
 
-        auto ip = inner_product(p.aprop_kind, c_src, c_weights, c_dst);
+        fill_data<data_t>(ip_src.get_primitive_desc().get_number_of_elements(),
+                (data_t *)ip_src.get_data_handle());
+        fill_data<data_t>(
+                ip_weights.get_primitive_desc().get_number_of_elements(),
+                (data_t *)ip_weights.get_data_handle());
 
-        stream().submit({ ip }).wait();
+        auto ip = inner_product(p.aprop_kind, ip_src, ip_weights, ip_dst);
 
-        compute_ref_inner_product_fwd_nchw(
-                ipd, src_data, weights_data, dst_ref_data);
-        compare_data(dst_ref_data, dst_data, dst_size);
+        std::vector<primitive> pipeline;
+        pipeline.push_back(ip);
+
+        stream().submit(pipeline).wait();
+
+        compute_ref_inner_product_fwd<data_t>(ipd, ip_src, ip_weights, dst_ref);
+        compare_data<data_t>(dst_ref, ip_dst);
     }
 };
 
