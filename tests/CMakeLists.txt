@@ -37,4 +37,14 @@ set_property(TARGET only_pooling-cxx PROPERTY CXX_STANDARD_REQUIRED ON)
 target_link_libraries(only_pooling-cxx ${LIB_NAME})
 add_test(only_pooling-cxx only_pooling-cxx)
 
+set(test_c_symbols "${CMAKE_CURRENT_BINARY_DIR}/test_c_symbols.c")
+add_executable(test_c_symbols-c ${test_c_symbols})
+add_custom_command(
+    OUTPUT ${test_c_symbols}
+    COMMAND /bin/sh ${CMAKE_CURRENT_SOURCE_DIR}/gather_c_symbols.sh
+    ${CMAKE_SOURCE_DIR} ${test_c_symbols}
+)
+target_link_libraries(test_c_symbols-c ${LIB_NAME})
+add_test(test_c_symbols-c test_c_symbols-c)
+
 add_subdirectory(gtests)
