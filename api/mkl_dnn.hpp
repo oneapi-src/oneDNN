@@ -38,18 +38,17 @@ private:
 protected:
     /// Resets the C handle value.
     /// @param t the new C handle value
-    /// @param set_destructor whether to destroy @p t when reference count
-    ///                       reaches zero
-    void reset(T t, bool set_destructor = true) {
+    /// @param weak whether to destroy @p t when reference count reaches zero
+    void reset(T t, bool weak = false) {
         auto dummy_destructor = [](T) { return decltype(traits::destructor(0))(0); };
-        _data.reset(t, set_destructor ? traits::destructor : dummy_destructor);
+        _data.reset(t, weak ? dummy_destructor: traits::destructor);
     }
     /// Constructs a C handle wrapper.
     /// @param t the C handle to wrap
     /// @param set_destructor whether to destroy @p t when reference count
     ///                       reaches zero
-    handle(T t = 0, bool set_destructor = true): _data(0) {
-        reset(t, set_destructor);
+    handle(T t = 0, bool weak = false): _data(0) {
+        reset(t, weak);
     }
 
     bool operator==(const T other) const { return other == _data.get(); }
@@ -124,7 +123,7 @@ struct error: public std::exception {
             c_api::mkl_dnn_primitive_t aerror_primitive = 0)
         : status(astatus)
         , message(amessage)
-        , error_primitive(aerror_primitive, false)
+        , error_primitive(aerror_primitive, true)
     {}
 
     /// A convenience function to wrapping calls to the C API. Checks for
@@ -149,7 +148,7 @@ inline primitive::at::operator primitive() const {
             c_api::mkl_dnn_primitive_get_output(data.primitive,
                 data.output_index, &output),
             "could not get an output primitive");
-    return primitive(const_cast<c_api::mkl_dnn_primitive_t>(output), false);
+    return primitive(const_cast<c_api::mkl_dnn_primitive_t>(output), true);
 }
 
 inline c_api::mkl_dnn_primitive_desc_t primitive::get_primitive_desc() const {
@@ -207,10 +206,10 @@ struct engine: public handle<c_api::mkl_dnn_engine_t> {
     }
 
     explicit engine(const c_api::mkl_dnn_engine_t& aengine)
-        : handle(aengine, false) {}
+        : handle(aengine, true) {}
 
     explicit engine(const c_api::const_mkl_dnn_engine_t& aengine)
-        : handle(const_cast<const c_api::mkl_dnn_engine_t>(aengine), false) {}
+        : handle(const_cast<const c_api::mkl_dnn_engine_t>(aengine), true) {}
 
 private:
     static c_api::mkl_dnn_engine_kind_t convert_to_c(kind akind) {
