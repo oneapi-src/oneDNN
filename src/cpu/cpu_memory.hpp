@@ -29,7 +29,7 @@ public:
         _input.push_back(input_at);
         _output.push_back(this);
         if (_memory_buffer == nullptr) {
-            const size_t size = types::get_size(mpd);
+            const size_t size = memory_desc_wrapper(mpd).size();
             _memory_buffer = new char[size];
         }
     }

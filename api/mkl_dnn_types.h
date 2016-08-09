@@ -75,14 +75,39 @@ typedef struct {
     mkl_dnn_dims_t dims; // { N, C1, ..., Cn, Xi, ..., Xm }
 } mkl_dnn_tensor_desc_t;
 
+/** \brief \struct mkl_dnn_blocking_desc_t is a generic blocked data layout
+ * description. all \var mkl_dnn_n, \var mkl_dnn_goihw memory formats are
+ * reprsented using this description.
+ * details:
+ *
+ * for dimension \var d \var block_dims[\var d] is a blocking of the current
+ * dimension. if blocking is no required \var block_dims[\var d] = 1.
+ *
+ * for dimension \var d \var strides[1][d] is a stride between elements within
+ * one block, while \var strides[0][d] is a stride between first elements of
+ * neighbour blocks.
+ *
+ * for dimension \var d \var padding_dims[\var d] is a size of the dimension
+ * with padding. if padding is not required \var padding_dims[\var d] = \var
+ * dims[d]. if padding is presented reorder will fill the padding with zeros
+ *
+ * for dimension \var d \var offset_padding_to_data[\var d] is an offset to the
+ * actual data in padded region. the following inequality must be hold:
+ * for each \var d
+ *         \var offset_padding_to_data[\var d] + \var dims[\var d] <=
+ *                                       <= \var padding_dims[\var d]
+ *
+ * \var offset_padding_to_data is a physical offset to padded region. typically
+ * \var offset_padding_to_data is equal to 0, and might be non-zero in case if
+ * \struct mkl_dnn_blocking_desc_t describes a subregion */
 typedef struct {
-    size_t offset_padding;
-    size_t offset_padding_to_data;
-    mkl_dnn_dims_t padding_dims;
     mkl_dnn_dims_t block_dims;
     mkl_dnn_dims_t strides[2];
     /** strides[0] -- block-to-block strides,
      *  strides[1] -- strides within blocks */
+    mkl_dnn_dims_t padding_dims;
+    mkl_dnn_dims_t offset_padding_to_data;
+    size_t offset_padding;
 } mkl_dnn_blocking_desc_t;
 
 typedef struct {

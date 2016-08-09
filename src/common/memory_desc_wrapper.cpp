@@ -16,10 +16,12 @@ using namespace mkl_dnn::impl::memory_format;
 status_t fill_n(blocking_desc_t &blk, const tensor_desc_t &tensor) {
     const uint32_t ndims = types::ndims(tensor);
     if (ndims != 1) return invalid_arguments;
-    array_set(blk.padding_dims, 0, ndims);
     array_set(blk.block_dims, 1, ndims);
     array_set(blk.strides[1], 1, ndims);
     blk.strides[0][0] = 1;
+    array_copy(blk.padding_dims, tensor.dims, ndims);
+    array_set(blk.offset_padding_to_data, 0, ndims);
+    blk.offset_padding = 0;
     return success;
 }
 
@@ -46,10 +48,12 @@ inline void set_default_strides(dims_t strides, const dims_t sizes,
 status_t fill_nonblocked(blocking_desc_t &blk, const tensor_desc_t &tensor,
         const uint32_t perm[]) {
     const uint32_t ndims = types::ndims(tensor);
-    array_set(blk.padding_dims, 0, ndims);
     array_set(blk.block_dims, 1, ndims);
     array_set(blk.strides[1], 1, ndims);
     set_default_strides(blk.strides[0], tensor.dims, ndims, perm);
+    array_copy(blk.padding_dims, tensor.dims, ndims);
+    array_set(blk.offset_padding_to_data, 0, ndims);
+    blk.offset_padding = 0;
     return success;
 }
 
@@ -58,7 +62,6 @@ status_t fill_contiguous_blocked(blocking_desc_t &blk,
         const uint32_t perm[]) {
     /* TODO: check for dims[d] % block_dims[d] != 0 */
     const uint32_t ndims = types::ndims(tensor);
-    array_set(blk.padding_dims, 0, ndims);
     array_copy(blk.block_dims, block_dims, ndims);
 
     uint32_t unrolled_dims[2*ndims];
@@ -71,6 +74,9 @@ status_t fill_contiguous_blocked(blocking_desc_t &blk,
     set_default_strides(unrolled_strides, unrolled_dims, 2*ndims, perm);
     array_copy(blk.strides[0], &unrolled_strides[0], ndims);
     array_copy(blk.strides[1], &unrolled_strides[ndims], ndims);
+    array_copy(blk.padding_dims, tensor.dims, ndims);
+    array_set(blk.offset_padding_to_data, 0, ndims);
+    blk.offset_padding = 0;
     return success;
 }
 

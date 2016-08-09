@@ -6,7 +6,6 @@
 #include "c_types_map.hpp"
 #include "nstl.hpp"
 #include "utils.hpp"
-#include "memory_desc_wrapper.hpp"
 
 template <mkl_dnn::impl::precision_t> struct precision2type {};
 template <>
@@ -22,6 +21,14 @@ namespace types {
 using namespace mkl_dnn::impl::status;
 using namespace mkl_dnn::impl::precision;
 using namespace mkl_dnn::impl::memory_format;
+
+inline size_t precision_size(precision_t prec) {
+    switch (prec) {
+    case f32: return sizeof(precision2type<f32>::type);
+    case u32: return sizeof(precision2type<u32>::type);
+    default: assert(!"unknown precision");
+    }
+}
 
 inline uint32_t ndims(const tensor_desc_t &tensor) {
     uint32_t ndims = tensor.ndims_batch + tensor.ndims_channels +
@@ -49,41 +56,16 @@ inline uint32_t ndims(const memory_desc_t &memory_desc) {
     return ndims(memory_desc.tensor_desc);
 }
 
-inline size_t get_size(const memory_desc_t &memory_desc) {
-    if (memory_desc.format == any) return 0;
-
-    assert(one_of(memory_desc.format, n, nc, nchw, nhwc, nChw8c, oi, oihw,
-                OIhw8i8o, goihw, gOIhw8i8o, blocked));
-
-    size_t max_size = 0;
-    auto dims = memory_desc.tensor_desc.dims;
-    auto blocks = memory_desc.blocking_desc.block_dims;
-    auto strides = memory_desc.blocking_desc.strides;
-
-    /* FIXME: write the correct formula */
-    for (uint32_t d = 0; d < ndims(memory_desc); ++d) {
-        using mkl_dnn::impl::nstl::max;
-        max_size = max<size_t>(max_size, (dims[d]/blocks[d])*strides[0][d]);
-        if (blocks[d] != 1)
-            max_size = max<size_t>(max_size, blocks[d]*strides[1][d]);
-    }
-
-    return max_size*sizeof(float);
-}
-
-inline size_t get_size(const memory_primitive_desc_t &memory_prim_desc) {
-    return get_size(memory_prim_desc.memory_desc);
-}
-
 inline bool blocking_desc_is_equal(const blocking_desc_t &lhs,
         const blocking_desc_t &rhs, uint32_t ndims = TENSOR_MAX_DIMS) {
     using mkl_dnn::impl::array_cmp;
     return lhs.offset_padding == rhs.offset_padding
-        && lhs.offset_padding_to_data == rhs.offset_padding_to_data
-        && array_cmp(lhs.padding_dims, rhs.padding_dims, ndims)
         && array_cmp(lhs.block_dims, rhs.block_dims, ndims)
         && array_cmp(lhs.strides[0], rhs.strides[0], ndims)
-        && array_cmp(lhs.strides[1], rhs.strides[1], ndims);
+        && array_cmp(lhs.strides[1], rhs.strides[1], ndims)
+        && array_cmp(lhs.padding_dims, rhs.padding_dims, ndims)
+        && array_cmp(lhs.offset_padding_to_data, rhs.offset_padding_to_data,
+                ndims);
 }
 
 inline bool operator==(const memory_desc_t &lhs, const memory_desc_t &rhs) {
@@ -137,6 +119,8 @@ inline status_t inner_product_desc_is_ok(
 }
 }
 }
+
+#include "memory_desc_wrapper.hpp"
 
 #endif
 
