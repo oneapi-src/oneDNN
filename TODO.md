@@ -11,18 +11,11 @@ API
 
 2. stream dependency tracking
 
-3. DONE -- memory get native handle
-
 4. mixing lazy + non-lazy engines
 
 5. conv w/o bias
 
 6. alpha & beta for op_desc
-
-7. memory_get_primitive_desc(), reorder_get_primitive_desc(), etc... vs.
-   primitive_get_primitive_desc(). the same for primive_create [use this]
-
-8. rename memory::format::n to memory::format::x [use this]
 
 9. add primitive/memory consistency checks
 
