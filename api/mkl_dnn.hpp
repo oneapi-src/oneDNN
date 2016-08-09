@@ -216,6 +216,13 @@ struct memory: public primitive  {
                         convert_to_c(aformat)),
                     "could not initialize a memory descriptor");
         }
+        size_t get_number_of_elements(bool with_padding = false) const {
+            return c_api::mkl_dnn_memory_desc_get_number_of_elements(&data,
+                    static_cast<int>(with_padding));
+        }
+        size_t get_size() const {
+            return c_api::mkl_dnn_memory_desc_get_size(&data);
+        }
     };
 
     struct primitive_desc {
@@ -230,6 +237,10 @@ struct memory: public primitive  {
                     "could not inittialize a memory primitive descriptor");
         }
         memory::desc desc() const { return memory::desc(data.memory_desc); } // XXX: cast Roma
+        size_t get_number_of_elements(bool with_padding = false) const {
+            return desc().get_number_of_elements(with_padding);
+        }
+        size_t get_size() const { return desc().get_size(); }
         bool operator==(const primitive_desc &other) const {
             return mkl_dnn_memory_primitive_desc_equal(&data, &other.data);
         }

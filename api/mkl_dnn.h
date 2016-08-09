@@ -25,6 +25,21 @@ mkl_dnn_status_t mkl_dnn_memory_desc_init(mkl_dnn_memory_desc_t *memory_desc,
         const mkl_dnn_tensor_desc_t *tensor, mkl_dnn_precision_t precision,
         mkl_dnn_memory_format_t format);
 
+/** Returns the number of elements in @p memory_desc memory descriptor. If @p
+ * with_padding is zero the function returns the number of elements not
+ * including the padding, otherwise returns the number of elements including
+ * the padding. If @p memory_desc describes null tensor, or format is not fully
+ * specified (e.g. memory_desc->format == any), or @p memory_desc is
+ * incosistent the function returns 0 */
+size_t mkl_dnn_memory_desc_get_number_of_elements(
+        const mkl_dnn_memory_desc_t *memory_desc, int with_padding);
+
+/** Returns the size (in bytes) that required for memory described by @p
+ * memory_desc. If @p memory_desc describes null tensor, or format is not fully
+ * specified (e.g. memory_desc->format == any), or @p memory_desc is
+ * incosistent the function returns 0 */
+size_t mkl_dnn_memory_desc_get_size(const mkl_dnn_memory_desc_t *memory_desc);
+
 /** Initializes a @p memory_primtive_desc memory primitive descriptor using
  * @p memory_desc and @p engine. Note that @p memory_desc cannot be
  * uncertain, i.e. initialized with memory_format_any. */
