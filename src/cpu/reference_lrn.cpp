@@ -94,31 +94,32 @@ status_t reference_lrn<prec>::primitive_desc_init(
         const mkl_dnn::impl::engine &engine) {
     if (op_desc._kind != primitive_kind::lrn)
         return invalid_arguments;
-    auto pool_d = op_desc.lrn;
+    auto lrn_d = op_desc.lrn;
 
     // TODO: f32 ?
-    if (pool_d.prop_kind != forward)
+    if (lrn_d.prop_kind != forward)
         return unimplemented;
 
     /* memory descriptors check and fill-in */
-    if (pool_d.src_desc.format == any)
-        CHECK(mkl_dnn_memory_desc_init(&pool_d.src_desc,
-        &pool_d.src_desc.tensor_desc, f32, nchw));
-    if (pool_d.scratch_desc.format == any)
-        CHECK(mkl_dnn_memory_desc_init(&pool_d.scratch_desc,
-        &pool_d.scratch_desc.tensor_desc, f32,nchw));
-    if (pool_d.dst_desc.format == any)
-        CHECK(mkl_dnn_memory_desc_init(&pool_d.dst_desc,
-        &pool_d.dst_desc.tensor_desc, f32, nchw));
+    if (lrn_d.src_desc.format == any)
+        CHECK(mkl_dnn_memory_desc_init(&lrn_d.src_desc,
+        &lrn_d.src_desc.tensor_desc, f32, nchw));
+    if (lrn_d.dst_desc.format == any)
+        CHECK(mkl_dnn_memory_desc_init(&lrn_d.dst_desc,
+        &lrn_d.dst_desc.tensor_desc, f32, nchw));
+
+    memory_desc_t scratch_desc;
+    CHECK(mkl_dnn_memory_desc_init(&scratch_desc,
+        &lrn_d.dst_desc.tensor_desc, f32, lrn_d.dst_desc.format));
 
     /* memory primitive descriptors check */
     memory_primitive_desc_t src_pd, scratch_pd, dst_pd;
     CHECK(mkl_dnn_memory_primitive_desc_init(&src_pd,
-        &pool_d.src_desc, &engine));
-    CHECK(mkl_dnn_memory_primitive_desc_init(&scratch_pd,
-        &pool_d.scratch_desc, &engine));
+        &lrn_d.src_desc, &engine));
     CHECK(mkl_dnn_memory_primitive_desc_init(&dst_pd,
-        &pool_d.dst_desc, &engine));
+        &lrn_d.dst_desc, &engine));
+    CHECK(mkl_dnn_memory_primitive_desc_init(&scratch_pd,
+        &scratch_desc, &engine));
 
     /* final stage */
     lrn_primitive_desc_t ppd = {
@@ -127,7 +128,7 @@ status_t reference_lrn<prec>::primitive_desc_init(
             .engine = &engine,
             .implementation = reinterpret_cast<const void*>(&implementation),
         },
-        .lrn_desc = pool_d,
+        .lrn_desc = lrn_d,
         .src_primitive_desc   = src_pd,
         .scratch_primitive_desc = scratch_pd,
         .dst_primitive_desc  = dst_pd,

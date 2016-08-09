@@ -221,7 +221,6 @@ typedef struct {
     mkl_dnn_prop_kind_t prop_kind;
     mkl_dnn_alg_kind_t alg_kind;
     mkl_dnn_memory_desc_t src_desc;
-    mkl_dnn_memory_desc_t indices_desc;
     mkl_dnn_memory_desc_t dst_desc;
     mkl_dnn_dims_t strides;
     mkl_dnn_dims_t kernel;
@@ -240,7 +239,6 @@ typedef struct {
     mkl_dnn_prop_kind_t prop_kind;
     mkl_dnn_alg_kind_t alg_kind;
     mkl_dnn_memory_desc_t src_desc;
-    mkl_dnn_memory_desc_t scratch_desc;
     mkl_dnn_memory_desc_t dst_desc;
     double alpha;
     double beta;

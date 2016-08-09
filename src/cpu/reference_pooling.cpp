@@ -106,21 +106,22 @@ status_t reference_pooling<prec>::primitive_desc_init(
     if (pool_d.src_desc.format == any)
         CHECK(mkl_dnn_memory_desc_init(&pool_d.src_desc,
         &pool_d.src_desc.tensor_desc, f32, nchw));
-    if (pool_d.indices_desc.format == any)
-        CHECK(mkl_dnn_memory_desc_init(&pool_d.indices_desc,
-        &pool_d.indices_desc.tensor_desc, u32, nchw));
     if (pool_d.dst_desc.format == any)
         CHECK(mkl_dnn_memory_desc_init(&pool_d.dst_desc,
         &pool_d.dst_desc.tensor_desc, f32, nchw));
+
+    memory_desc_t indices_desc;
+    CHECK(mkl_dnn_memory_desc_init(&indices_desc,
+        &pool_d.dst_desc.tensor_desc, u32, pool_d.dst_desc.format));
 
     /* memory primitive descriptors check */
     memory_primitive_desc_t src_pd, indices_pd, dst_pd;
     CHECK(mkl_dnn_memory_primitive_desc_init(&src_pd,
         &pool_d.src_desc, &engine));
-    CHECK(mkl_dnn_memory_primitive_desc_init(&indices_pd,
-        &pool_d.indices_desc, &engine));
     CHECK(mkl_dnn_memory_primitive_desc_init(&dst_pd,
         &pool_d.dst_desc, &engine));
+    CHECK(mkl_dnn_memory_primitive_desc_init(&indices_pd,
+        &indices_desc, &engine));
 
     /* final stage */
     pooling_primitive_desc_t ppd = {
