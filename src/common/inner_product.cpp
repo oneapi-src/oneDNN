@@ -14,11 +14,13 @@ using namespace mkl_dnn::impl::prop_kind;
 status_t mkl_dnn_inner_product_desc_init(
         inner_product_desc_t *inner_product_desc, prop_kind_t prop_kind,
         const memory_desc_t *src_desc, const memory_desc_t *weights_desc,
-        const memory_desc_t *dst_desc)
+        const memory_desc_t *bias_desc, const memory_desc_t *dst_desc)
 {
     const bool args_ok
-            = !any_null(inner_product_desc, src_desc, weights_desc, dst_desc)
-            && one_of(prop_kind, forward, backward_data, backward_weights);
+            = !any_null(inner_product_desc,
+                    src_desc, weights_desc, bias_desc, dst_desc)
+            && one_of(prop_kind, forward,
+                    backward_data, backward_weights, backward_bias);
     if (!args_ok)
         return invalid_arguments;
 
@@ -26,6 +28,7 @@ status_t mkl_dnn_inner_product_desc_init(
     ipd.prop_kind = prop_kind;
     ipd.src_desc = *src_desc;
     ipd.weights_desc = *weights_desc;
+    ipd.bias_desc = *bias_desc;
     ipd.dst_desc = *dst_desc;
 
     status_t status = types::inner_product_desc_is_ok(ipd);
@@ -50,12 +53,12 @@ status_t mkl_dnn_inner_product_primitive_desc_init(
 status_t mkl_dnn_inner_product_create(primitive **inner_product,
         const inner_product_primitive_desc_t *inner_product_primitive_desc,
         const primitive_at_t src, const primitive_at_t weights,
-        const primitive *dst)
+        const primitive_at_t bias, const primitive *dst)
 {
     auto ippd = reinterpret_cast<const mkl_dnn_primitive_desc_t *>(
             inner_product_primitive_desc);
     // XXX: must check that shapes of in/out memory match what's in the desc (?)
-    const primitive_at_t inputs[] = {src, weights};
+    const primitive_at_t inputs[] = {src, weights, bias};
     const primitive *outputs[] = {dst};
     return mkl_dnn_primitive_create(inner_product, ippd, inputs, outputs);
 }

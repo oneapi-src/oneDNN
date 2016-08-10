@@ -31,10 +31,12 @@ status_t reference_inner_product<prec>::execute_forward()
     };
     const data_t *src = obtain_ptr(0);
     const data_t *weights = obtain_ptr(1);
+    const data_t *bias = obtain_ptr(2);
     data_t *dst = reinterpret_cast<data_t *>(this->output()[0]->memory());
 
     const memory_desc_wrapper src_d(this->_ippd.src_primitive_desc.memory_desc),
             weights_d(this->_ippd.weights_primitive_desc.memory_desc),
+            bias_d(this->_ippd.bias_primitive_desc.memory_desc),
             dst_d(this->_ippd.dst_primitive_desc.memory_desc);
 
     const uint32_t MB = src_d.dims()[0];
@@ -66,7 +68,7 @@ status_t reference_inner_product<prec>::execute_forward()
     for (uint32_t mb = 0; mb < MB; ++mb) {
         for (uint32_t oc = 0; oc < OC; ++oc) {
             data_t *d = &dst[dst_d.off(mb, oc)];
-            *d = (data_t)0;
+            *d = bias[bias_d.off(oc)];
             if (src_has_spatial) {
                 ker_has_spatial(d, mb, oc);
             } else {
@@ -86,6 +88,12 @@ status_t reference_inner_product<prec>::execute_backward_data()
 
 template <impl::precision_t prec>
 status_t reference_inner_product<prec>::execute_backward_weights()
+{
+    return unimplemented;
+}
+
+template <impl::precision_t prec>
+status_t reference_inner_product<prec>::execute_backward_bias()
 {
     return unimplemented;
 }
@@ -121,16 +129,20 @@ status_t reference_inner_product<prec>::primitive_desc_init(
                     &ip_d.weights_desc.tensor_desc, f32, oi));
         }
     }
-
+    if (ip_d.bias_desc.format == any)
+        CHECK(mkl_dnn_memory_desc_init(&ip_d.bias_desc,
+                    &ip_d.bias_desc.tensor_desc, f32, x));
     if (ip_d.dst_desc.format == any)
         CHECK(mkl_dnn_memory_desc_init(
                 &ip_d.dst_desc, &ip_d.dst_desc.tensor_desc, f32, nc));
 
     /* memory primitive descriptors check */
-    memory_primitive_desc_t src_pd, weights_pd, dst_pd;
+    memory_primitive_desc_t src_pd, weights_pd, bias_pd, dst_pd;
     CHECK(mkl_dnn_memory_primitive_desc_init(&src_pd, &ip_d.src_desc, &engine));
     CHECK(mkl_dnn_memory_primitive_desc_init(
             &weights_pd, &ip_d.weights_desc, &engine));
+    CHECK(mkl_dnn_memory_primitive_desc_init(
+            &bias_pd, &ip_d.bias_desc, &engine));
     CHECK(mkl_dnn_memory_primitive_desc_init(&dst_pd, &ip_d.dst_desc, &engine));
 
     /* final stage */
@@ -141,6 +153,7 @@ status_t reference_inner_product<prec>::primitive_desc_init(
     ippd.inner_product_desc = ip_d;
     ippd.src_primitive_desc = src_pd;
     ippd.weights_primitive_desc = weights_pd;
+    ippd.bias_primitive_desc = bias_pd;
     ippd.dst_primitive_desc = dst_pd;
 
     // if (!inner_product_primitive_desc_is_ok(ippd)) return invalid_arguments; // ???

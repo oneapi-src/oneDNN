@@ -296,6 +296,8 @@ typedef struct {
     mkl_dnn_memory_desc_t src_desc;
     /** weights memory descriptor */
     mkl_dnn_memory_desc_t weights_desc;
+    /** bias memory descriptor */
+    mkl_dnn_memory_desc_t bias_desc;
     /** destination memory descriptor */
     mkl_dnn_memory_desc_t dst_desc;
 } mkl_dnn_inner_product_desc_t;
@@ -438,6 +440,8 @@ typedef struct {
     mkl_dnn_memory_primitive_desc_t src_primitive_desc;
     /** weights memory primitive descriptor */
     mkl_dnn_memory_primitive_desc_t weights_primitive_desc;
+    /** bias memory primitive descriptor */
+    mkl_dnn_memory_primitive_desc_t bias_primitive_desc;
     /** destination memory primitive descriptor */
     mkl_dnn_memory_primitive_desc_t dst_primitive_desc;
 } mkl_dnn_inner_product_primitive_desc_t;

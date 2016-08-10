@@ -310,6 +310,7 @@ mkl_dnn_status_t mkl_dnn_inner_product_desc_init(
         mkl_dnn_inner_product_desc_t *inner_product_desc,
         mkl_dnn_prop_kind_t prop_kind, const mkl_dnn_memory_desc_t *src_desc,
         const mkl_dnn_memory_desc_t *weights_desc,
+        const mkl_dnn_memory_desc_t *bias_desc,
         const mkl_dnn_memory_desc_t *dst_desc);
 
 /** Initializes a @p inner_product_primitive_desc with @p inner_product_desc and
@@ -320,13 +321,13 @@ mkl_dnn_status_t mkl_dnn_inner_product_primitive_desc_init(
         const_mkl_dnn_engine_t engine);
 
 /** Creates a @p inner product primitive using descriptor @p
- * inner_product_primitive_desc, input primitive_at-s @p src, @p weights and
- * output primitive @p dst. */
+ * inner_product_primitive_desc, input primitive_at-s @p src, @p weights,
+ * @p bias and output primitive @p dst. */
 mkl_dnn_status_t mkl_dnn_inner_product_create(
         mkl_dnn_primitive_t *inner_product,
         const mkl_dnn_inner_product_primitive_desc_t *inner_product_primitive_desc,
         const mkl_dnn_primitive_at_t src, const mkl_dnn_primitive_at_t weights,
-        const_mkl_dnn_primitive_t dst);
+        const mkl_dnn_primitive_at_t bias, const_mkl_dnn_primitive_t dst);
 
 /** Retrieves the @p inner_product_primitive_desc associated with a @p
  * inner_product primitive. */

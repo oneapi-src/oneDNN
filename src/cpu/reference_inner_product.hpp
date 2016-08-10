@@ -25,6 +25,7 @@ private:
     status_t execute_forward();
     status_t execute_backward_data();
     status_t execute_backward_weights();
+    status_t execute_backward_bias();
 
 protected:
     status_t execute_impl()
@@ -35,6 +36,7 @@ protected:
         case forward: status = execute_forward(); break;
         case backward_data: status = execute_backward_data(); break;
         case backward_weights: status = execute_backward_weights(); break;
+        case backward_bias: status = execute_backward_bias(); break;
         default:
             assert(0 && "invalid prop_kind"); // should never happen
         }
@@ -51,7 +53,7 @@ public:
                   ippd, const_cast<impl::engine *>(ippd.base.engine), not_ready)
         , _ippd(_primitive_desc.inner_product)
     {
-        for (int i = 0; i < 2; ++i)
+        for (int i = 0; i < 3; ++i)
             _input.push_back(inputs[i]);
         _output.push_back(outputs[0]);
     }
