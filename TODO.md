@@ -13,8 +13,6 @@ API
 
 4. mixing lazy + non-lazy engines
 
-5. conv w/o bias
-
 6. alpha & beta for op_desc
 
 9. add primitive/memory consistency checks
