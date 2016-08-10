@@ -58,23 +58,23 @@ inline size_t map_index(const mkl_dnn::memory::desc &md, size_t index) {
 inline mkl_dnn::memory::desc create_md(mkl_dnn::tensor::dims dims,
         mkl_dnn::memory::precision prec, mkl_dnn::memory::format fmt) {
     using f = mkl_dnn::memory::format;
-    std::vector<uint32_t> dspec;
+    std::array<uint32_t, 3> dspec;
     switch (fmt) {
-    case f::x: dspec.insert(dspec.end(), {0, 0, 1}); break;
-    case f::nc: dspec.insert(dspec.end(), {1, 1, 0}); break;
-    case f::oi: dspec.insert(dspec.end(), {0, 2, 0}); break;
+    case f::x: dspec = {0, 0, 1}; break;
+    case f::nc: dspec = {1, 1, 0}; break;
+    case f::oi: dspec = {0, 2, 0}; break;
     case f::nchw:
     case f::nhwc:
     case f::nChw8c:
-                dspec.insert(dspec.end(), {1, 1, 2}); break;
+                dspec = {1, 1, 2}; break;
     case f::oihw:
     case f::OIhw8i8o:
-                dspec.insert(dspec.end(), {0, 2, 2}); break;
+                dspec = {0, 2, 2}; break;
     case f::goihw:
     case f::gOIhw8i8o:
-                dspec.insert(dspec.end(), {1, 2, 2}); break;
+                dspec = {1, 2, 2}; break;
     case f::format_undef:
-                dspec.insert(dspec.end(), {0, 0, 0}); break;
+                dspec = {0, 0, 0}; break;
     default: EXPECT_TRUE(false) << "test does not support format: " << int(fmt);
     }
 

@@ -164,10 +164,7 @@ struct tensor {
                     "could not initialize a tensor descriptor");
         }
 
-        desc(std::vector<uint32_t> dims_spec, dims adims) {
-            if (dims_spec.size() != 3)
-                throw error(c_api::mkl_dnn_invalid_arguments,
-                        "invalid tensor spec");
+        desc(std::array<uint32_t, 3> dims_spec, dims adims) {
             validate_dims(adims);
             error::wrap_c_api(
                     c_api::mkl_dnn_tensor_desc_init(&data, dims_spec[0],
