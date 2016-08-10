@@ -62,12 +62,12 @@ status_t reference_lrn<prec>::execute_forward() {
                 }
             }
         }
-        d[0] = pow(1 + alpha * sum / summands, beta);
-        scratch[scratch_d.off(n, oc, oh, ow)] = d[0] / (1 + alpha * sum / summands); // for back prop
+        data_t k = pow(1 + alpha * sum / summands, beta);
+        d[0] = src[src_d.off(n, oc, oh, ow)] / k;
+        scratch[scratch_d.off(n, oc, oh, ow)] = 1 / (k * (1 + alpha * sum / summands)); // for back prop
     };
 
     const uint32_t N = src_d.dims()[0];
-
 #   pragma omp parallel for collapse(4)
     for (uint32_t n = 0; n < N; ++n) {
         for (uint32_t c = 0; c < C; ++c) {

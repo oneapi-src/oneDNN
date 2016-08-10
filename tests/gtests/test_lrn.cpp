@@ -47,20 +47,20 @@ static int check_dst(const mkl_dnn::tensor::dims &dim, double a, double b, doubl
     {
         if (c == 0 || c == C - 1)
         {
-            if (std::abs(x[w + W*h + c*W*H + n*W*H*C] - std::pow(1 + a*0.6, b)) >= 1e-7)
-#           pragma omp atomic
+            if (std::abs(x[w + W*h + c*W*H + n*W*H*C] - 1/std::pow(1 + a*0.6, b)) >= 1e-7)
+#               pragma omp atomic
                 n_errors += 1;
         }
         else if (c == 1 || c == C - 2)
         {
-            if (std::abs(x[w + W*h + c*W*H + n*W*H*C] - std::pow(1 + a*0.8, b)) >= 1e-7)
-#           pragma omp atomic
+            if (std::abs(x[w + W*h + c*W*H + n*W*H*C] - 1/std::pow(1 + a*0.8, b)) >= 1e-7)
+#               pragma omp atomic
                 n_errors += 1;
         }
         else
         {
-            if (std::abs(x[w + W*h + c*W*H + n*W*H*C] - std::pow(1 + a, b)) >= 1e-7)
-#           pragma omp atomic
+            if (std::abs(x[w + W*h + c*W*H + n*W*H*C] - 1/std::pow(1 + a, b)) >= 1e-7)
+#               pragma omp atomic
                 n_errors += 1;
         }
     }
