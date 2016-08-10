@@ -37,8 +37,8 @@ status_t reference_pooling<prec>::execute_forward() {
     const uint32_t KW = this->_ppd.pooling_desc.kernel[1];
     const uint32_t SH = this->_ppd.pooling_desc.strides[0];
     const uint32_t SW = this->_ppd.pooling_desc.strides[1];
-    const uint32_t PH = this->_ppd.pooling_desc.padding[0];
-    const uint32_t PW = this->_ppd.pooling_desc.padding[1];
+    const int32_t PH = this->_ppd.pooling_desc.padding[0];
+    const int32_t PW = this->_ppd.pooling_desc.padding[1];
 
     auto ker = [=](data_t *d, uint32_t mb, uint32_t oc, uint32_t oh,
             uint32_t ow)
