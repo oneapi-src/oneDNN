@@ -16,11 +16,11 @@ status_t mkl_dnn_inner_product_desc_init(
         const memory_desc_t *src_desc, const memory_desc_t *weights_desc,
         const memory_desc_t *bias_desc, const memory_desc_t *dst_desc)
 {
-    const bool args_ok
-            = !any_null(inner_product_desc,
-                    src_desc, weights_desc, bias_desc, dst_desc)
-            && one_of(prop_kind, forward,
-                    backward_data, backward_weights, backward_bias);
+    const bool args_ok = !any_null(inner_product_desc, src_desc, weights_desc,
+            dst_desc)
+        && one_of(prop_kind, forward, backward_data, backward_weights,
+                backward_bias)
+        && implication(prop_kind == backward_bias, !any_null(bias_desc));
     if (!args_ok)
         return invalid_arguments;
 
@@ -28,7 +28,7 @@ status_t mkl_dnn_inner_product_desc_init(
     ipd.prop_kind = prop_kind;
     ipd.src_desc = *src_desc;
     ipd.weights_desc = *weights_desc;
-    ipd.bias_desc = *bias_desc;
+    ipd.bias_desc = bias_desc ? *bias_desc : types::zero<memory_desc_t>();
     ipd.dst_desc = *dst_desc;
 
     status_t status = types::inner_product_desc_is_ok(ipd);

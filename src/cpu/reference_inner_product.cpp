@@ -31,7 +31,7 @@ status_t reference_inner_product<prec>::execute_forward()
     };
     const data_t *src = obtain_ptr(0);
     const data_t *weights = obtain_ptr(1);
-    const data_t *bias = obtain_ptr(2);
+    const data_t *bias = _with_bias ? obtain_ptr(2) : nullptr;
     data_t *dst = reinterpret_cast<data_t *>(this->output()[0]->memory());
 
     const memory_desc_wrapper src_d(this->_ippd.src_primitive_desc.memory_desc),
@@ -41,34 +41,33 @@ status_t reference_inner_product<prec>::execute_forward()
 
     const uint32_t MB = src_d.dims()[0];
     const uint32_t OC = weights_d.dims()[0];
+    const uint32_t IC = weights_d.dims()[1];
 
     const bool src_has_spatial = src_d.ndims() == 4;
     auto ker_has_spatial = [=](data_t *d, uint32_t mb, uint32_t oc) {
-        const uint32_t IC = weights_d.dims()[1];
         const uint32_t KH = weights_d.dims()[2];
         const uint32_t KW = weights_d.dims()[3];
         for (uint32_t ic = 0; ic < IC; ++ic) {
             for (uint32_t kh = 0; kh < KH; ++kh) {
                 for (uint32_t kw = 0; kw < KW; ++kw) {
                     *d += src[src_d.off(mb, ic, kh, kw)]
-                            * weights[weights_d.off(oc, ic, kh, kw)];
+                        * weights[weights_d.off(oc, ic, kh, kw)];
                 }
             }
         }
     };
 
     auto ker_no_spatial = [=](data_t *d, uint32_t mb, uint32_t oc) {
-        const uint32_t IC = weights_d.dims()[1];
         for (uint32_t ic = 0; ic < IC; ++ic) {
             *d += src[src_d.off(mb, ic)] * weights[weights_d.off(oc, ic)];
         }
     };
 
-#pragma omp parallel for collapse(2)
+#   pragma omp parallel for collapse(2)
     for (uint32_t mb = 0; mb < MB; ++mb) {
         for (uint32_t oc = 0; oc < OC; ++oc) {
             data_t *d = &dst[dst_d.off(mb, oc)];
-            *d = bias[bias_d.off(oc)];
+            *d = bias ? bias[bias_d.off(oc)] : data_t(0);
             if (src_has_spatial) {
                 ker_has_spatial(d, mb, oc);
             } else {
@@ -129,7 +128,8 @@ status_t reference_inner_product<prec>::primitive_desc_init(
                     &ip_d.weights_desc.tensor_desc, f32, oi));
         }
     }
-    if (ip_d.bias_desc.format == any)
+    const bool with_bias = !memory_desc_wrapper(ip_d.bias_desc).is_zero();
+    if (with_bias && ip_d.bias_desc.format == any)
         CHECK(mkl_dnn_memory_desc_init(&ip_d.bias_desc,
                     &ip_d.bias_desc.tensor_desc, f32, x));
     if (ip_d.dst_desc.format == any)

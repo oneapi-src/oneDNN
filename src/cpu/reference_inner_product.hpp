@@ -21,6 +21,7 @@ template <impl::precision_t prec>
 class reference_inner_product : public primitive {
 private:
     const impl::inner_product_primitive_desc_t &_ippd;
+    const bool _with_bias;
 
     status_t execute_forward();
     status_t execute_backward_data();
@@ -49,11 +50,12 @@ public:
 
     reference_inner_product(const inner_product_primitive_desc_t &ippd,
             const primitive_at_t *inputs, const primitive *outputs[])
-        : primitive(
-                  ippd, const_cast<impl::engine *>(ippd.base.engine), not_ready)
+        : primitive(ippd, const_cast<impl::engine *>(ippd.base.engine),
+                not_ready)
         , _ippd(_primitive_desc.inner_product)
+        , _with_bias(!memory_desc_wrapper(_ippd.bias_primitive_desc).is_zero())
     {
-        for (int i = 0; i < 3; ++i)
+        for (int i = 0; i < 2 + _with_bias; ++i)
             _input.push_back(inputs[i]);
         _output.push_back(outputs[0]);
     }
