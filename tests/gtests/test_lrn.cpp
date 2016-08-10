@@ -79,9 +79,9 @@ static int doit(bool lazy) {
 
     auto cpu_engine = engine(lazy ? engine::cpu_lazy : engine::cpu, 0);
 
-    auto n1_src_desc     = memory::desc({1, 1, 2, {16, 96, 55, 55}}, memory::precision::f32, memory::format::nchw);
-    auto n1_scratch_desc = memory::desc({1, 1, 2, {16, 96, 55, 55}}, memory::precision::f32, memory::format::nchw);
-    auto n1_dst_desc     = memory::desc({1, 1, 2, {16, 96, 55, 55}}, memory::precision::f32, memory::format::nchw);
+    auto n1_src_desc     = memory::desc({{16, 96, 55, 55}}, memory::precision::f32, memory::format::nchw);
+    auto n1_scratch_desc = memory::desc({{16, 96, 55, 55}}, memory::precision::f32, memory::format::nchw);
+    auto n1_dst_desc     = memory::desc({{16, 96, 55, 55}}, memory::precision::f32, memory::format::nchw);
 
     real_t *src     = new real_t[16*96*55*55]();
     real_t *scratch = new real_t[16*96*55*55]();

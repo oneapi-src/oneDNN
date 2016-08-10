@@ -19,7 +19,7 @@ typedef float real_t;
 static size_t tensor_size(const mkl_dnn_tensor_desc_t *t)
 {
     size_t size = 1;
-    for (size_t i = 0; i < t->ndims_batch + t->ndims_channels + t->ndims_spatial; ++i)
+    for (size_t i = 0; i < t->ndims; ++i)
         size *= t->dims[i];
     return size;
 }
@@ -66,7 +66,7 @@ static int doit() {
     mkl_dnn_memory_desc_t p1_src_md;
     mkl_dnn_memory_primitive_desc_t p1_src_pd;
     mkl_dnn_primitive_t p1_src;
-    CHECK(mkl_dnn_tensor_desc_init(&p1_src_tz, 1, 1, 2, p1_src_sizes));
+    CHECK(mkl_dnn_tensor_desc_init(&p1_src_tz, 4, p1_src_sizes));
     CHECK(mkl_dnn_memory_desc_init(&p1_src_md, &p1_src_tz, mkl_dnn_f32, mkl_dnn_nchw));
     CHECK(mkl_dnn_memory_primitive_desc_init(&p1_src_pd, &p1_src_md, engine));
     real_t *src = (real_t*)calloc(tensor_size(&p1_src_md.tensor_desc), sizeof(real_t));
@@ -77,7 +77,7 @@ static int doit() {
     mkl_dnn_memory_desc_t p1_dst_md;
     mkl_dnn_memory_primitive_desc_t p1_dst_pd;
     mkl_dnn_primitive_t p1_dst;
-    CHECK(mkl_dnn_tensor_desc_init(&p1_dst_tz, 1, 1, 2, p1_dst_sizes));
+    CHECK(mkl_dnn_tensor_desc_init(&p1_dst_tz, 4, p1_dst_sizes));
     CHECK(mkl_dnn_memory_desc_init(&p1_dst_md, &p1_dst_tz, mkl_dnn_f32, mkl_dnn_nchw));
     CHECK(mkl_dnn_memory_primitive_desc_init(&p1_dst_pd, &p1_dst_md, engine));
     real_t *dst = (real_t*)calloc(tensor_size(&p1_dst_md.tensor_desc), sizeof(real_t));

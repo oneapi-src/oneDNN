@@ -51,9 +51,9 @@ static int doit(bool lazy) {
 
     auto cpu_engine = engine(lazy ? engine::cpu_lazy : engine::cpu, 0);
 
-    auto p1_src_desc     = memory::desc({1, 1, 2, {16, 96, 55, 55}}, memory::precision::f32, memory::format::nchw);
-    auto p1_indices_desc = memory::desc({1, 1, 2, {16, 96, 27, 27}}, memory::precision::u32, memory::format::nchw);
-    auto p1_dst_desc     = memory::desc({1, 1, 2, {16, 96, 27, 27}}, memory::precision::f32, memory::format::nchw);
+    auto p1_src_desc     = memory::desc({{16, 96, 55, 55}}, memory::precision::f32, memory::format::nchw);
+    auto p1_indices_desc = memory::desc({{16, 96, 27, 27}}, memory::precision::u32, memory::format::nchw);
+    auto p1_dst_desc     = memory::desc({{16, 96, 27, 27}}, memory::precision::f32, memory::format::nchw);
 
     real_t *src = new real_t[16*96*55*55]();
     real_t *dst = new real_t[16*96*27*27]();

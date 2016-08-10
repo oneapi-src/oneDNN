@@ -55,10 +55,10 @@ int doit(bool lazy) {
     for (size_t i = 0; i < tensor_volume(output_tz); ++i) output[i] = 0;
 
     /* mkl-dnn starts here */
-    auto c3_src_desc = memory::desc({1, 1, 2, input_tz}, memory::precision::f32, memory::format::nchw);
-    auto c3_weights_desc = memory::desc({1, 2, 2, weights_tz}, memory::precision::f32, memory::format::goihw);
-    auto c3_bias_desc = memory::desc({0, 0, 1, bias_tz}, memory::precision::f32, memory::format::x);
-    auto c3_dst_desc = memory::desc({1, 1, 2, output_tz}, memory::precision::f32, memory::format::nchw);
+    auto c3_src_desc = memory::desc({input_tz}, memory::precision::f32, memory::format::nchw);
+    auto c3_weights_desc = memory::desc({weights_tz}, memory::precision::f32, memory::format::goihw);
+    auto c3_bias_desc = memory::desc({bias_tz}, memory::precision::f32, memory::format::x);
+    auto c3_dst_desc = memory::desc({output_tz}, memory::precision::f32, memory::format::nchw);
 
     auto c3_src = memory({c3_src_desc, cpu_engine}, input);
     auto c3_weights = memory({c3_weights_desc, cpu_engine}, weights);

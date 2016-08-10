@@ -20,16 +20,10 @@ using namespace mkl_dnn::impl::memory_format;
  * manipulations with underlying C structure, which is taken by refernce */
 struct memory_desc_wrapper: public c_compatible {
     const memory_desc_t &_md;
-    const uint32_t _ndims;
 
     /** constructor which takes a reference to a constant underlying C memory
      * descriptor \param md */
-    memory_desc_wrapper(const memory_desc_t &md)
-        : _md(md)
-        , _ndims(_md.tensor_desc.ndims_batch
-                + _md.tensor_desc.ndims_channels
-                + _md.tensor_desc.ndims_spatial)
-    {}
+    memory_desc_wrapper(const memory_desc_t &md) : _md(md) {}
 
     memory_desc_wrapper(const memory_primitive_desc_t &mpd)
         : memory_desc_wrapper(mpd.memory_desc) {}
@@ -42,7 +36,7 @@ struct memory_desc_wrapper: public c_compatible {
     const blocking_desc_t &blocking_desc() const {
         return _md.layout_desc.blocking;
     }
-    inline uint32_t ndims() const { return _ndims; }
+    inline uint32_t ndims() const { return _md.tensor_desc.ndims; }
 
     /** returns the number of elements including padding if \param with_padding
      * is true, and the number of data elements otherwise */

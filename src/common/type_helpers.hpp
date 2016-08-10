@@ -32,18 +32,9 @@ inline size_t precision_size(precision_t prec) {
     return 0; // not supposed to be reachable
 }
 
-inline uint32_t ndims(const tensor_desc_t &tensor) {
-    uint32_t ndims = tensor.ndims_batch + tensor.ndims_channels +
-        tensor.ndims_spatial;
-    assert(ndims <= TENSOR_MAX_DIMS);
-    return ndims;
-}
-
 inline bool operator==(const tensor_desc_t &lhs, const tensor_desc_t &rhs) {
-    return lhs.ndims_batch == rhs.ndims_batch
-        && lhs.ndims_channels == rhs.ndims_channels
-        && lhs.ndims_spatial == rhs.ndims_spatial
-        && mkl_dnn::impl::array_cmp(lhs.dims, rhs.dims, ndims(lhs));
+    return lhs.ndims == rhs.ndims
+        && mkl_dnn::impl::array_cmp(lhs.dims, rhs.dims, lhs.ndims);
 }
 
 inline bool operator!=(const tensor_desc_t &lhs, const tensor_desc_t &rhs) {
@@ -51,11 +42,7 @@ inline bool operator!=(const tensor_desc_t &lhs, const tensor_desc_t &rhs) {
 }
 
 inline status_t tensor_is_ok(const tensor_desc_t &tensor) {
-    return ndims(tensor) <= TENSOR_MAX_DIMS ? success : invalid_arguments;
-}
-
-inline uint32_t ndims(const memory_desc_t &memory_desc) {
-    return ndims(memory_desc.tensor_desc);
+    return tensor.ndims <= TENSOR_MAX_DIMS ? success : invalid_arguments;
 }
 
 inline bool blocking_desc_is_equal(const blocking_desc_t &lhs,
@@ -75,7 +62,7 @@ inline bool operator==(const memory_desc_t &lhs, const memory_desc_t &rhs) {
         return false;
     if (lhs.format == blocked)
         return blocking_desc_is_equal(lhs.layout_desc.blocking,
-                rhs.layout_desc.blocking, ndims(lhs.tensor_desc));
+                rhs.layout_desc.blocking, lhs.tensor_desc.ndims);
     return true;
 }
 

@@ -14,7 +14,7 @@ using namespace mkl_dnn::impl::status;
 using namespace mkl_dnn::impl::memory_format;
 
 status_t fill_x(blocking_desc_t &blk, const tensor_desc_t &tensor) {
-    const uint32_t ndims = types::ndims(tensor);
+    const uint32_t ndims = tensor.ndims;
     if (ndims != 1) return invalid_arguments;
     array_set(blk.block_dims, 1, ndims);
     array_set(blk.strides[1], 1, ndims);
@@ -47,7 +47,7 @@ inline void set_default_strides(dims_t strides, const dims_t sizes,
 
 status_t fill_nonblocked(blocking_desc_t &blk, const tensor_desc_t &tensor,
         const uint32_t perm[]) {
-    const uint32_t ndims = types::ndims(tensor);
+    const uint32_t ndims = tensor.ndims;
     array_set(blk.block_dims, 1, ndims);
     array_set(blk.strides[1], 1, ndims);
     set_default_strides(blk.strides[0], tensor.dims, ndims, perm);
@@ -61,7 +61,7 @@ status_t fill_contiguous_blocked(blocking_desc_t &blk,
         const tensor_desc_t &tensor, const uint32_t block_dims[],
         const uint32_t perm[]) {
     /* TODO: check for dims[d] % block_dims[d] != 0 */
-    const uint32_t ndims = types::ndims(tensor);
+    const uint32_t ndims = tensor.ndims;
     array_copy(blk.block_dims, block_dims, ndims);
 
     uint32_t unrolled_dims[2*TENSOR_MAX_DIMS];
@@ -81,40 +81,28 @@ status_t fill_contiguous_blocked(blocking_desc_t &blk,
 }
 
 status_t fill_nc(blocking_desc_t &blk, const tensor_desc_t &tensor) {
-    bool args_ok = tensor.ndims_batch == 1
-            && tensor.ndims_channels == 1
-            && tensor.ndims_spatial == 0;
-    if (!args_ok) return invalid_arguments;
+    if (tensor.ndims != 2) return invalid_arguments;
 
     const uint32_t perm[2] = {0, 1};
     return fill_nonblocked(blk, tensor, perm);
 }
 
 status_t fill_nchw(blocking_desc_t &blk, const tensor_desc_t &tensor) {
-    bool args_ok = tensor.ndims_batch == 1
-            && tensor.ndims_channels == 1
-            && tensor.ndims_spatial == 2;
-    if (!args_ok) return invalid_arguments;
+    if (tensor.ndims != 4) return invalid_arguments;
 
     const uint32_t perm[4] = {0, 1, 2, 3};
     return fill_nonblocked(blk, tensor, perm);
 }
 
 status_t fill_nhwc(blocking_desc_t &blk, const tensor_desc_t &tensor) {
-    bool args_ok = tensor.ndims_batch == 1
-            && tensor.ndims_channels == 1
-            && tensor.ndims_spatial == 2;
-    if (!args_ok) return invalid_arguments;
+    if (tensor.ndims != 4) return invalid_arguments;
 
     const uint32_t perm[4] = {0, 2, 3, 1};
     return fill_nonblocked(blk, tensor, perm);
 }
 
 status_t fill_nChw8c(blocking_desc_t &blk, const tensor_desc_t &tensor) {
-    bool args_ok = tensor.ndims_batch == 1
-            && tensor.ndims_channels == 1
-            && tensor.ndims_spatial == 2;
-    if (!args_ok) return invalid_arguments;
+    if (tensor.ndims != 4) return invalid_arguments;
 
     const uint32_t block_dims[] = {1, 8, 1, 1};
     const uint32_t perm[] = {
@@ -124,30 +112,21 @@ status_t fill_nChw8c(blocking_desc_t &blk, const tensor_desc_t &tensor) {
 }
 
 status_t fill_oi(blocking_desc_t &blk, const tensor_desc_t &tensor) {
-    bool args_ok = tensor.ndims_batch == 0
-            && tensor.ndims_channels == 2
-            && tensor.ndims_spatial == 0;
-    if (!args_ok) return invalid_arguments;
+    if (tensor.ndims != 2) return invalid_arguments;
 
     const uint32_t perm[2] = {0, 1};
     return fill_nonblocked(blk, tensor, perm);
 }
 
 status_t fill_oihw(blocking_desc_t &blk, const tensor_desc_t &tensor) {
-    bool args_ok = tensor.ndims_batch == 0
-            && tensor.ndims_channels == 2
-            && tensor.ndims_spatial == 2;
-    if (!args_ok) return invalid_arguments;
+    if (tensor.ndims != 4) return invalid_arguments;
 
     const uint32_t perm[4] = {0, 1, 2, 3};
     return fill_nonblocked(blk, tensor, perm);
 }
 
 status_t fill_OIhw8i8o(blocking_desc_t &blk, const tensor_desc_t &tensor) {
-    bool args_ok = tensor.ndims_batch == 0
-            && tensor.ndims_channels == 2
-            && tensor.ndims_spatial == 2;
-    if (!args_ok) return invalid_arguments;
+    if (tensor.ndims != 4) return invalid_arguments;
 
     const uint32_t block_dims[] = {8, 8, 1, 1};
     const uint32_t perm[] = {
@@ -157,20 +136,14 @@ status_t fill_OIhw8i8o(blocking_desc_t &blk, const tensor_desc_t &tensor) {
 }
 
 status_t fill_goihw(blocking_desc_t &blk, const tensor_desc_t &tensor) {
-    bool args_ok = tensor.ndims_batch == 1
-            && tensor.ndims_channels == 2
-            && tensor.ndims_spatial == 2;
-    if (!args_ok) return invalid_arguments;
+    if (tensor.ndims != 5) return invalid_arguments;
 
     const uint32_t perm[5] = {0, 1, 2, 3, 4};
     return fill_nonblocked(blk, tensor, perm);
 }
 
 status_t fill_gOIhw8i8o(blocking_desc_t &blk, const tensor_desc_t &tensor) {
-    bool args_ok = tensor.ndims_batch == 1
-            && tensor.ndims_channels == 2
-            && tensor.ndims_spatial == 2;
-    if (!args_ok) return invalid_arguments;
+    if (tensor.ndims != 5) return invalid_arguments;
 
     const uint32_t block_dims[] = {1, 8, 8, 1, 1};
     const uint32_t perm[] = {
@@ -183,7 +156,7 @@ status_t fill_gOIhw8i8o(blocking_desc_t &blk, const tensor_desc_t &tensor) {
 
 status_t memory_desc_wrapper::compute_blocking(memory_desc_t &memory_desc)
 {
-    if (types::ndims(memory_desc.tensor_desc) == 0)
+    if (memory_desc.tensor_desc.ndims == 0)
         return invalid_arguments;
 
     const tensor_desc_t &tensor = memory_desc.tensor_desc;

@@ -257,32 +257,16 @@ struct tensor {
 
         /** Constructs a tensor descriptor.
          *
-         * @param batch the number of minibatch dimensions
-         * @param channels the number of channel dimensions
-         * @param spatial the number of spatial dimensions
          * @param adims the tensor dimensions
          */
-        desc(uint32_t batch, uint32_t channels,
-                uint32_t spatial, dims adims) {
+        desc(dims adims) {
             validate_dims(adims);
             error::wrap_c_api(
-                    c_api::mkl_dnn_tensor_desc_init(&data,
-                        batch, channels, spatial, &adims[0]),
+                    c_api::mkl_dnn_tensor_desc_init(&data, adims.size(),
+                        &adims[0]),
                     "could not initialize a tensor descriptor");
         }
 
-        /** Constructs a tensor descriptor.
-         *
-         * @param dims_spec the (batch, channels, spatial) triplet
-         * @param adims the tensor dimensions
-         */
-        desc(std::array<uint32_t, 3> dims_spec, dims adims) {
-            validate_dims(adims);
-            error::wrap_c_api(
-                    c_api::mkl_dnn_tensor_desc_init(&data, dims_spec[0],
-                        dims_spec[1], dims_spec[2], &adims[0]),
-                    "could not initialize a tensor descriptor");
-        }
         // TODO: convenience overloads
     };
 
@@ -493,15 +477,14 @@ struct convolution: public primitive {
         auto dst_md = dst.get_primitive_desc();
 
         auto conv_d = desc(aprop_kind, aalgorithm, src_md.desc(),
-                weights_md.desc(), bias_md.desc(), dst_md.desc(),
-                strides, padding, apadding_kind);
-        auto conv_pd = primitive_desc(conv_d,
-                engine(src_md.data.base.engine));
+                weights_md.desc(), bias_md.desc(), dst_md.desc(), strides,
+                padding, apadding_kind);
+        auto conv_pd = primitive_desc(conv_d, engine(src_md.data.base.engine));
 
         c_api::mkl_dnn_primitive_t result;
         error::wrap_c_api(c_api::mkl_dnn_convolution_create(&result,
-                    &conv_pd.data, src.data, weights.data,
-                    bias.data, dst.get()),
+                    &conv_pd.data, src.data, weights.data, bias.data,
+                    dst.get()),
                 "could not create a convolution primitive");
         reset(result);
     }
@@ -517,13 +500,12 @@ struct convolution: public primitive {
         auto conv_d = desc(aprop_kind, aalgorithm, src_md.desc(),
                 weights_md.desc(), dst_md.desc(), strides, padding,
                 apadding_kind);
-        auto conv_pd = primitive_desc(conv_d,
-                engine(src_md.data.base.engine));
+        auto conv_pd = primitive_desc(conv_d, engine(src_md.data.base.engine));
 
         c_api::mkl_dnn_primitive_t result;
         error::wrap_c_api(c_api::mkl_dnn_convolution_create(&result,
-                    &conv_pd.data, src.data, weights.data,
-                    {nullptr, 0}, dst.get()),
+                    &conv_pd.data, src.data, weights.data, {nullptr, 0},
+                    dst.get()),
                 "could not create a convolution primitive");
         reset(result);
     }

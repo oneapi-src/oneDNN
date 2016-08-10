@@ -58,27 +58,27 @@ int doit(int lazy) {
     mkl_dnn_memory_primitive_desc_t c3_src_pd, c3_weights_pd, c3_bias_pd, c3_dst_pd;
     mkl_dnn_primitive_t c3_src, c3_weights, c3_bias, c3_dst;
 
-    CHECK(mkl_dnn_tensor_desc_init(&c3_src_tz, 1, 1, 2, c3_src_sizes));
+    CHECK(mkl_dnn_tensor_desc_init(&c3_src_tz, 4, c3_src_sizes));
     CHECK(mkl_dnn_memory_desc_init(&c3_src_md, &c3_src_tz, mkl_dnn_f32, mkl_dnn_nchw));
     CHECK(mkl_dnn_memory_primitive_desc_init(&c3_src_pd, &c3_src_md, engine));
     CHECK(mkl_dnn_memory_create(&c3_src, &c3_src_pd, 0 ? NULL : src));
 
     if (groups == 1) {
-        CHECK(mkl_dnn_tensor_desc_init(&c3_weights_tz, 0, 2, 2, c3_weights_sizes + 1));
+        CHECK(mkl_dnn_tensor_desc_init(&c3_weights_tz, 4, c3_weights_sizes + 1));
         CHECK(mkl_dnn_memory_desc_init(&c3_weights_md, &c3_weights_tz, mkl_dnn_f32, mkl_dnn_oihw));
     } else {
-        CHECK(mkl_dnn_tensor_desc_init(&c3_weights_tz, 1, 2, 2, c3_weights_sizes));
+        CHECK(mkl_dnn_tensor_desc_init(&c3_weights_tz, 5, c3_weights_sizes));
         CHECK(mkl_dnn_memory_desc_init(&c3_weights_md, &c3_weights_tz, mkl_dnn_f32, mkl_dnn_goihw));
     }
     CHECK(mkl_dnn_memory_primitive_desc_init(&c3_weights_pd, &c3_weights_md, engine));
     CHECK(mkl_dnn_memory_create(&c3_weights, &c3_weights_pd, weights));
 
-    CHECK(mkl_dnn_tensor_desc_init(&c3_bias_tz, 0, 0, 1, c3_bias_sizes));
+    CHECK(mkl_dnn_tensor_desc_init(&c3_bias_tz, 1, c3_bias_sizes));
     CHECK(mkl_dnn_memory_desc_init(&c3_bias_md, &c3_bias_tz, mkl_dnn_f32, mkl_dnn_x));
     CHECK(mkl_dnn_memory_primitive_desc_init(&c3_bias_pd, &c3_bias_md, engine));
     CHECK(mkl_dnn_memory_create(&c3_bias, &c3_bias_pd, bias));
 
-    CHECK(mkl_dnn_tensor_desc_init(&c3_dst_tz, 1, 1, 2, c3_dst_sizes));
+    CHECK(mkl_dnn_tensor_desc_init(&c3_dst_tz, 4, c3_dst_sizes));
     CHECK(mkl_dnn_memory_desc_init(&c3_dst_md, &c3_dst_tz, mkl_dnn_f32, mkl_dnn_nchw));
     CHECK(mkl_dnn_memory_primitive_desc_init(&c3_dst_pd, &c3_dst_md, engine));
 

@@ -157,12 +157,8 @@ typedef int32_t mkl_dnn_nd_offset_t[TENSOR_MAX_DIMS];
  * channel/feature map, and spatial kind. MKL-DNN uses this type when a
  * mathematical description of data is required. */
 typedef struct {
-    /** Number of minibatch dimensions */
-    uint32_t ndims_batch;
-    /** Number of channel dimensions */
-    uint32_t ndims_channels;
-    /** Number of spatial dimensions */
-    uint32_t ndims_spatial;
+    /** Number dimensions */
+    uint32_t ndims;
     /** Tensor dimensions in the following order: minibatch, channel, spatial.
      * For example: {N, C, H, W}. */
     mkl_dnn_dims_t dims;

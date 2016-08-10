@@ -55,11 +55,9 @@ mkl_dnn_primitive_at_t mkl_dnn_primitive_at(const_mkl_dnn_primitive_t primitive,
  * A primitive to describe data.
  * @{ */
 
-/** Initializes a @p tensor_desc using @p ndims_batch, @p ndims_channels, @p
- * ndims_spatial, and array @p dims. */
+/** Initializes a @p tensor_desc using @p ndims, and array @p dims. */
 mkl_dnn_status_t mkl_dnn_tensor_desc_init(mkl_dnn_tensor_desc_t *tensor_desc,
-        uint32_t ndims_batch, uint32_t ndims_channels, uint32_t ndims_spatial,
-        const mkl_dnn_dims_t dims);
+        uint32_t ndims, const mkl_dnn_dims_t dims);
 
 /** Initializes a @p memory_desc memory descriptor using @p tensor, data @p
  * precision and @p format. @p format is allowed to be memory_format_any, which
