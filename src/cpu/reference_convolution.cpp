@@ -63,8 +63,8 @@ status_t reference_convolution<prec>::execute_forward() {
         for (uint32_t ic = 0; ic < IC; ++ic) {
             for (uint32_t kh = 0; kh < KH; ++kh) {
                 for (uint32_t kw = 0; kw < KW; ++kw) {
-                    if (oh*KSH + kh < padH) continue;
-                    if (ow*KSW + kw < padW) continue;
+                    if (oh*KSH + kh < (uint32_t)nstl::max(0, padH)) continue;
+                    if (ow*KSW + kw < (uint32_t)nstl::max(0, padW)) continue;
 
                     if (oh*KSH + kh >= IH + padH) continue;
                     if (ow*KSW + kw >= IW + padW) continue;

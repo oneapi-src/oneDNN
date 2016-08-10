@@ -45,8 +45,8 @@ status_t reference_pooling<prec>::execute_forward() {
     {
         for (uint32_t kh = 0; kh < KH; ++kh) {
             for (uint32_t kw = 0; kw < KW; ++kw) {
-                if (oh*SH + kh < PH) continue;
-                if (ow*SW + kw < PW) continue;
+                if (oh*SH + kh < (uint32_t)nstl::max(0, PH)) continue;
+                if (ow*SW + kw < (uint32_t)nstl::max(0, PW)) continue;
 
                 if (oh*SH + kh >= IH + PH) continue;
                 if (ow*SW + kw >= IW + PW) continue;
