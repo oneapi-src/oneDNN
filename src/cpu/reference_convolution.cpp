@@ -36,7 +36,7 @@ status_t reference_convolution<prec>::execute_forward() {
         bias_d(this->_cpd.bias_primitive_desc.memory_desc),
         dst_d(this->_cpd.dst_primitive_desc.memory_desc);
 
-    const bool w_groups = weights_d.tensor().ndims_batch == 1;
+    const bool w_groups = weights_d.ndims() == (src_d.ndims() + 1);
     const uint32_t w_idx_base = w_groups ? 1 : 0;
     const uint32_t G = w_groups ? weights_d.dims()[0] : 1;
 
@@ -134,7 +134,8 @@ status_t reference_convolution<prec>::primitive_desc_init(
     if (conv_d.src_desc.format == any)
         CHECK(mkl_dnn_memory_desc_init(&conv_d.src_desc,
                     &conv_d.src_desc.tensor_desc, f32, nchw));
-    const bool groups = conv_d.weights_desc.tensor_desc.ndims_batch != 0;
+    const bool groups = conv_d.weights_desc.tensor_desc.ndims
+        == (conv_d.src_desc.tensor_desc.ndims + 1);
     if (conv_d.weights_desc.format == any)
         CHECK(mkl_dnn_memory_desc_init(&conv_d.weights_desc,
                 &conv_d.weights_desc.tensor_desc, f32, groups ? goihw : oihw));

@@ -21,8 +21,7 @@ template <> inline void assert_eq<float>(float a, float b) {
 }
 
 inline size_t map_index(const mkl_dnn::memory::desc &md, size_t index) {
-    const uint32_t ndims = md.data.tensor_desc.ndims_batch +
-        md.data.tensor_desc.ndims_channels + md.data.tensor_desc.ndims_spatial;
+    const uint32_t ndims = md.data.tensor_desc.ndims;
     const uint32_t *dims = md.data.tensor_desc.dims;
     const uint32_t *pdims = md.data.layout_desc.blocking.padding_dims;
     const uint32_t *optd = md.data.layout_desc.blocking.offset_padding_to_data;
@@ -58,30 +57,31 @@ inline size_t map_index(const mkl_dnn::memory::desc &md, size_t index) {
 inline mkl_dnn::memory::desc create_md(mkl_dnn::tensor::dims dims,
         mkl_dnn::memory::precision prec, mkl_dnn::memory::format fmt) {
     using f = mkl_dnn::memory::format;
-    std::vector<uint32_t> dspec;
+    uint32_t ndims;
+
     switch (fmt) {
-    case f::x: dspec.insert(dspec.end(), {0, 0, 1}); break;
-    case f::nc: dspec.insert(dspec.end(), {1, 1, 0}); break;
-    case f::oi: dspec.insert(dspec.end(), {0, 2, 0}); break;
+    case f::x:
+        ndims = 1; break;
+    case f::nc:
+    case f::oi:
+        ndims = 2; break;
     case f::nchw:
     case f::nhwc:
     case f::nChw8c:
-                dspec.insert(dspec.end(), {1, 1, 2}); break;
     case f::oihw:
     case f::OIhw8i8o:
-                dspec.insert(dspec.end(), {0, 2, 2}); break;
+        ndims = 4; break;
     case f::goihw:
     case f::gOIhw8i8o:
-                dspec.insert(dspec.end(), {1, 2, 2}); break;
+        ndims = 5; break;
     case f::format_undef:
-                dspec.insert(dspec.end(), {0, 0, 0}); break;
+        ndims = 0; break;
     default: EXPECT_TRUE(false) << "test does not support format: " << int(fmt);
     }
 
-    const size_t ndims = std::accumulate(dspec.begin(), dspec.end(), size_t(0));
     EXPECT_EQ(dims.size(), ndims) << "dims and format are inconsistent";
 
-    return mkl_dnn::memory::desc({dspec, dims}, prec, fmt);
+    return mkl_dnn::memory::desc({dims}, prec, fmt);
 }
 
 template <typename data_t>

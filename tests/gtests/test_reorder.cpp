@@ -12,9 +12,7 @@ template <typename data_i_t, typename data_o_t>
 inline void check_reorder(memory::desc md_i, memory::desc md_o,
         const data_i_t *src, const data_o_t *dst)
 {
-    const uint32_t ndims = md_i.data.tensor_desc.ndims_batch
-        + md_i.data.tensor_desc.ndims_channels
-        + md_i.data.tensor_desc.ndims_spatial;
+    const uint32_t ndims = md_i.data.tensor_desc.ndims;
     const uint32_t *dims = md_i.data.tensor_desc.dims;
     const size_t nelems = std::accumulate(
             dims, dims + ndims, size_t(1), std::multiplies<size_t>());

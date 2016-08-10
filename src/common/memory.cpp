@@ -14,15 +14,11 @@ using namespace mkl_dnn::impl::status;
 using namespace mkl_dnn::impl::memory_format;
 using namespace mkl_dnn::impl::precision;
 
-status_t mkl_dnn_tensor_desc_init(tensor_desc_t *tensor_desc,
-        uint32_t ndims_batch, uint32_t ndims_channels, uint32_t ndims_spatial,
+status_t mkl_dnn_tensor_desc_init(tensor_desc_t *tensor_desc, uint32_t ndims,
         const dims_t dims) {
     if (any_null(tensor_desc)) return invalid_arguments;
     tensor_desc_t td;
-    td.ndims_batch = ndims_batch;
-    td.ndims_channels = ndims_channels;
-    td.ndims_spatial = ndims_spatial;
-    const uint32_t ndims = types::ndims(td);
+    td.ndims= ndims;
     if (ndims == 0) {
         array_set(td.dims, 0, TENSOR_MAX_DIMS);
     } else {
@@ -38,7 +34,7 @@ status_t mkl_dnn_memory_desc_init(memory_desc_t *memory_desc,
         const tensor_desc_t *tensor, precision_t precision,
         memory_format_t format) {
     /* quick return for memory desc == 0 */
-    if (tensor == nullptr || types::ndims(*tensor) == 0) {
+    if (tensor == nullptr || tensor->ndims == 0) {
         *memory_desc = types::zero<memory_desc_t>();
         return success;
     }

@@ -36,7 +36,7 @@ status_t mkl_dnn_convolution_desc_init(convolution_desc_t *convolution_desc,
     cd.bias_desc = bias_desc ? *bias_desc : types::zero<memory_desc_t>();
     cd.dst_desc = *dst_desc;
     cd.padding_kind = padding_kind;
-    const uint32_t ndims_spatial = src_desc->tensor_desc.ndims_spatial;
+    const uint32_t ndims_spatial = src_desc->tensor_desc.ndims - 2;
     array_copy(cd.strides, strides, ndims_spatial);
     array_copy(cd.padding, padding, ndims_spatial);
 

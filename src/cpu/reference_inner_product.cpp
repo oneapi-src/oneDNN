@@ -109,23 +109,31 @@ status_t reference_inner_product<prec>::primitive_desc_init(
     if (ip_d.prop_kind != forward)
         return unimplemented;
 
+    if (ip_d.weights_desc.tensor_desc.ndims !=
+            ip_d.weights_desc.tensor_desc.ndims)
+        return invalid_arguments;
+
     /* memory descriptors check and fill-in */
     if (ip_d.src_desc.format == any) {
-        if (ip_d.src_desc.tensor_desc.ndims_spatial == 2) {
+        if (ip_d.src_desc.tensor_desc.ndims == 4) {
             CHECK(mkl_dnn_memory_desc_init(
                     &ip_d.src_desc, &ip_d.src_desc.tensor_desc, f32, nchw));
-        } else {
+        } else if (ip_d.src_desc.tensor_desc.ndims == 2) {
             CHECK(mkl_dnn_memory_desc_init(
                     &ip_d.src_desc, &ip_d.src_desc.tensor_desc, f32, nc));
+        } else {
+            return unimplemented;
         }
     }
     if (ip_d.weights_desc.format == any) {
-        if (ip_d.weights_desc.tensor_desc.ndims_spatial == 2) {
+        if (ip_d.weights_desc.tensor_desc.ndims == 4) {
             CHECK(mkl_dnn_memory_desc_init(&ip_d.weights_desc,
                     &ip_d.weights_desc.tensor_desc, f32, oihw));
-        } else {
+        } else if (ip_d.src_desc.tensor_desc.ndims == 2) {
             CHECK(mkl_dnn_memory_desc_init(&ip_d.weights_desc,
                     &ip_d.weights_desc.tensor_desc, f32, oi));
+        } else {
+            return unimplemented;
         }
     }
     const bool with_bias = !memory_desc_wrapper(ip_d.bias_desc).is_zero();

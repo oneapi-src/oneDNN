@@ -1,107 +1,153 @@
-#include <cstddef>
-#include <cstdio>
+#include <cmath>
+
+#include "mkl_dnn_test_common.hpp"
+#include "gtest/gtest.h"
 
 #include "mkl_dnn.hpp"
 
-static int doit(bool lazy);
+namespace mkl_dnn {
 
-using std::ptrdiff_t;
-#include "gtest/gtest.h"
-#include <cmath>
+struct test_lrn_desc_t {
+    uint32_t mb, c;
+    uint32_t h, w;
+    double alpha, beta;
+    uint32_t local_size;
+};
 
-TEST(normalization_tests, AlexNet_n1) {
-    int n_errors = 0;
-
-    n_errors = doit(false);
-    EXPECT_EQ(n_errors, 0);
-
-    n_errors = doit(true);
-    EXPECT_EQ(n_errors, 0);
-}
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
-
-typedef float real_t;
-
-static void init_src(const mkl_dnn::tensor::dims &dim, real_t *x)
+template <typename data_t>
+void check_lrn_ac_fwd(test_lrn_desc_t ld, memory &src, memory &dst)
 {
-    uint32_t N = dim[0], C = dim[1], H = dim[2], W = dim[3];
-#   pragma omp parallel for collapse(2)
-    for (uint32_t n = 0; n < N; n += 1)
-    for (uint32_t c = 0; c < C; c += 1)
-    for (uint32_t h = 0; h < H; h += 1)
-    for (uint32_t w = 0; w < W; w += 1)
-        x[w + W*h + c*W*H + n*W*H*C] = 1;
-}
 
-static int check_dst(const mkl_dnn::tensor::dims &dim, double a, double b, double n, const real_t *x)
-{
-    uint32_t N = dim[0], C = dim[1], H = dim[2], W = dim[3];
-    int n_errors = 0;
-#   pragma omp parallel for collapse(4)
-    for (uint32_t n = 0; n < N; ++n)
-    for (uint32_t c = 0; c < C; ++c)
-    for (uint32_t h = 0; h < H; ++h)
-    for (uint32_t w = 0; w < W; ++w)
-    {
-        if (c == 0 || c == C - 1)
-        {
-            if (std::abs(x[w + W*h + c*W*H + n*W*H*C] - 1/std::pow(1 + a*0.6, b)) >= 1e-7)
-#               pragma omp atomic
-                n_errors += 1;
-        }
-        else if (c == 1 || c == C - 2)
-        {
-            if (std::abs(x[w + W*h + c*W*H + n*W*H*C] - 1/std::pow(1 + a*0.8, b)) >= 1e-7)
-#               pragma omp atomic
-                n_errors += 1;
-        }
-        else
-        {
-            if (std::abs(x[w + W*h + c*W*H + n*W*H*C] - 1/std::pow(1 + a, b)) >= 1e-7)
-#               pragma omp atomic
-                n_errors += 1;
+    data_t *src_data = (data_t *)src.get_data_handle();
+    data_t *dst_data = (data_t *)dst.get_data_handle();
+
+    const memory::desc src_d = src.get_primitive_desc().desc();
+    const memory::desc dst_d = dst.get_primitive_desc().desc();
+
+#pragma omp parallel for collapse(4)
+    for (uint32_t n = 0; n < ld.mb; n++) {
+        for (uint32_t c = 0; c < ld.c; c++) {
+            for (uint32_t h = 0; h < ld.h; h++) {
+                for (uint32_t w = 0; w < ld.w; w++) {
+                    uint32_t oidx = n * ld.c * ld.h * ld.w + c * ld.h * ld.w
+                            + h * ld.w + w;
+                    data_t out = dst_data[map_index(dst_d, oidx)];
+                    uint32_t sz = ld.local_size;
+                    int32_t c_start = c - sz / 2;
+                    int32_t c_end = c_start + sz;
+                    if (c_start < 0)
+                        c_start = 0;
+                    if (c_end > ld.c)
+                        c_end = ld.c;
+                    data_t sum = 0.0;
+                    for (int32_t c1 = c_start; c1 < c_end; c1++) {
+                        uint32_t idx = n * ld.c * ld.h * ld.w + c1 * ld.h * ld.w
+                                + h * ld.w + w;
+                        data_t s = src_data[map_index(src_d, idx)];
+
+                        sum += s * s;
+                    }
+                    data_t norm_coef = powf(1. + ld.alpha * sum / sz, -ld.beta);
+                    data_t eps = 1.e-6;
+                    data_t norm_max = std::max(fabs(out),
+                            fabs(norm_coef * src_data[map_index(src_d, oidx)]));
+                    if (norm_max < eps)
+                        norm_max = 1.;
+                    EXPECT_NEAR(
+                            (out - norm_coef * src_data[map_index(src_d, oidx)])
+                                    / norm_max,
+                            0., eps);
+                }
+            }
         }
     }
-    return n_errors;
 }
 
-static int doit(bool lazy) {
-    using namespace mkl_dnn;
+struct lrn_test_params {
+    prop_kind aprop_kind;
+    const engine::kind engine_kind;
+    lrn::algorithm aalgorithm;
+    memory::format src_format;
+    memory::format dst_format;
+    test_lrn_desc_t test_ld;
+};
 
-    /* AlexNet: n1
-     * {16, 96, 55, 55} -> {16, 96, 55, 55}
-     * alpha: 0.0001
-     * beta : 0.75
-     * size : 5
-     */
+template <typename data_t>
+class lrn_test : public ::testing::TestWithParam<lrn_test_params> {
+protected:
+    virtual void SetUp()
+    {
+        lrn_test_params p
+                = ::testing::TestWithParam<lrn_test_params>::GetParam();
 
-    auto cpu_engine = engine(lazy ? engine::cpu_lazy : engine::cpu, 0);
+        ASSERT_TRUE(p.engine_kind == engine::kind::cpu
+                || p.engine_kind == engine::kind::cpu_lazy);
+        ASSERT_EQ(p.aprop_kind, prop_kind::forward);
+        ASSERT_EQ(p.aalgorithm, lrn::across_channels);
+        auto eng = engine(p.engine_kind, 0);
+        memory::precision prec = data_traits<data_t>::prec;
+        ASSERT_EQ(prec, mkl_dnn::memory::precision::f32);
 
-    auto n1_src_desc     = memory::desc({1, 1, 2, {16, 96, 55, 55}}, memory::precision::f32, memory::format::nchw);
-    auto n1_scratch_desc = memory::desc({1, 1, 2, {16, 96, 55, 55}}, memory::precision::f32, memory::format::nchw);
-    auto n1_dst_desc     = memory::desc({1, 1, 2, {16, 96, 55, 55}}, memory::precision::f32, memory::format::nchw);
+        test_lrn_desc_t ld = p.test_ld;
 
-    real_t *src     = new real_t[16*96*55*55]();
-    real_t *scratch = new real_t[16*96*55*55]();
-    real_t *dst     = new real_t[16*96*55*55]();
+        auto l_src_desc
+                = create_md({ ld.mb, ld.c, ld.h, ld.w }, prec, p.src_format);
+        auto l_dst_desc
+                = create_md({ ld.mb, ld.c, ld.h, ld.w }, prec, p.dst_format);
 
-    auto n1_src     = memory({n1_src_desc    , cpu_engine}, src    );
-    auto n1_scratch = memory({n1_scratch_desc, cpu_engine}, scratch);
-    auto n1_dst     = memory({n1_dst_desc    , cpu_engine}, dst    );
+        auto lrn_desc = lrn::desc(p.aprop_kind, p.aalgorithm, l_src_desc,
+                l_dst_desc, ld.alpha, ld.beta, ld.local_size);
 
-    auto n1 = lrn(prop_kind::forward, lrn::across_channels, n1_src, n1_scratch, n1_dst, 0.0001, 0.75, 5);
+        auto lrn_prim_desc = lrn::primitive_desc(lrn_desc, eng);
 
-    init_src({16, 96, 55, 55}, src);
-    stream().submit({n1}).wait();
-    int n_errors = check_dst({ 16, 96, 55, 55 }, 0.0001, 0.75, 5, dst);
+        auto l_scr_desc = lrn_prim_desc.data.scratch_primitive_desc;
+        auto l_src = memory(memory::primitive_desc(l_src_desc, eng));
+        auto l_scr = memory(memory::primitive_desc(l_scr_desc));
+        auto l_dst = memory(memory::primitive_desc(l_dst_desc, eng));
 
-    delete[] src;
-    delete[] scratch;
-    delete[] dst;
+        fill_data<data_t>(l_src.get_primitive_desc().get_number_of_elements(),
+                (data_t *)l_src.get_data_handle());
 
-    return n_errors;
+        auto l = lrn(lrn_prim_desc, l_src, l_scr, l_dst);
+
+        std::vector<primitive> pipeline;
+        pipeline.push_back(l);
+
+        stream().submit(pipeline).wait();
+
+        check_lrn_ac_fwd<data_t>(ld, l_src, l_dst);
+    }
+};
+
+using lrn_test_float = lrn_test<float>;
+using lrn_test_params_float = lrn_test_params;
+
+TEST_P(lrn_test_float, TestsLRN)
+{
 }
+INSTANTIATE_TEST_CASE_P(TestLRNForward, lrn_test_float,
+        ::testing::Values(lrn_test_params_float{ prop_kind::forward,
+                engine::kind::cpu, lrn::across_channels, memory::format::nchw,
+                memory::format::nchw, { 2, 10, 4, 4, 1.0e-4, 0.75, 5 } }));
 
-#pragma GCC diagnostic pop
+INSTANTIATE_TEST_CASE_P(TestLRNForwardNHWC, lrn_test_float,
+        ::testing::Values(lrn_test_params_float{ prop_kind::forward,
+                engine::kind::cpu, lrn::across_channels, memory::format::nhwc,
+                memory::format::nhwc, { 2, 10, 4, 4, 1.0e-4, 0.75, 5 } }));
+INSTANTIATE_TEST_CASE_P(TestLRNForwardBlocked, lrn_test_float,
+        ::testing::Values(lrn_test_params_float{ prop_kind::forward,
+                engine::kind::cpu, lrn::across_channels, memory::format::nChw8c,
+                memory::format::nChw8c, { 2, 16, 4, 4, 1.0e-4, 0.75, 5 } }));
+
+INSTANTIATE_TEST_CASE_P(
+        TestLRNAlexnetForwardNCHW, lrn_test_float,
+        ::testing::Values(lrn_test_params_float{ prop_kind::forward,
+                                  engine::kind::cpu, lrn::across_channels,
+                                  memory::format::nchw, memory::format::nchw,
+                                  { 2, 96, 55, 55, 1.0e-4, 0.75, 5 } },
+                lrn_test_params_float{ prop_kind::forward, engine::kind::cpu,
+                        lrn::across_channels, memory::format::nchw,
+                        memory::format::nchw,
+                        { 2, 256, 27, 27, 1.0e-4, 0.75, 5 } }));
+
+}
