@@ -14,21 +14,24 @@ struct test_inner_product_descr_t {
 
 template <typename data_t>
 void compute_ref_inner_product_fwd(test_inner_product_descr_t ipd, memory &src,
-        memory &weights, memory &dst)
+        memory &weights, memory &bias, memory &dst)
 {
     data_t *src_data = (data_t *)src.get_data_handle();
     data_t *weights_data = (data_t *)weights.get_data_handle();
+    data_t *bias_data = (data_t *)bias.get_data_handle();
     data_t *dst_data = (data_t *)dst.get_data_handle();
 
     const memory::desc src_d = src.get_primitive_desc().desc();
     const memory::desc weights_d = weights.get_primitive_desc().desc();
+    const memory::desc bias_d = bias.get_primitive_desc().desc();
     const memory::desc dst_d = dst.get_primitive_desc().desc();
 
 #pragma omp parallel for collapse(2)
     for (uint32_t n = 0; n < ipd.mb; n++) {
         for (uint32_t oc = 0; oc < ipd.oc; oc++) {
             uint32_t oidx = n * ipd.oc + oc;
-            dst_data[map_index(dst_d, oidx)] = 0.0;
+            dst_data[map_index(dst_d, oidx)] = bias_data ?
+                    bias_data[map_index(bias_d, oc)] : 0.0;
             for (uint32_t ic = 0; ic < ipd.ic; ic++) {
                 for (uint32_t kh = 0; kh < ipd.kh; kh++) {
                     for (uint32_t kw = 0; kw < ipd.kw; kw++) {
@@ -51,6 +54,7 @@ struct inprod_test_params {
     const engine::kind engine_kind;
     memory::format src_format;
     memory::format weights_format;
+    memory::format bias_format;
     memory::format dst_format;
     test_inner_product_descr_t test_ipd;
 };
@@ -80,10 +84,12 @@ protected:
                 create_md({ ipd.oc, ipd.ic, ipd.kh, ipd.kw }, prec,
                         p.weights_format) :
                 create_md({ ipd.oc, ipd.ic }, prec, p.weights_format);
+        auto ip_bias_desc = create_md({ ipd.oc }, prec, p.bias_format);
         auto ip_dst_desc = create_md({ ipd.mb, ipd.oc }, prec, p.dst_format);
 
         auto ip_src = memory(memory::primitive_desc(ip_src_desc, eng));
         auto ip_weights = memory(memory::primitive_desc(ip_weights_desc, eng));
+        auto ip_bias = memory(memory::primitive_desc(ip_bias_desc, eng));
         auto ip_dst = memory(memory::primitive_desc(ip_dst_desc, eng));
         auto dst_ref = memory(memory::primitive_desc(ip_dst_desc, eng));
 
@@ -92,15 +98,19 @@ protected:
         fill_data<data_t>(
                 ip_weights.get_primitive_desc().get_number_of_elements(),
                 (data_t *)ip_weights.get_data_handle());
+        fill_data<data_t>(ip_bias.get_primitive_desc().get_number_of_elements(),
+                (data_t *)ip_bias.get_data_handle());
 
-        auto ip = inner_product(p.aprop_kind, ip_src, ip_weights, ip_dst);
+        auto ip = inner_product(p.aprop_kind, ip_src, ip_weights, ip_bias,
+                ip_dst);
 
         std::vector<primitive> pipeline;
         pipeline.push_back(ip);
 
         stream().submit(pipeline).wait();
 
-        compute_ref_inner_product_fwd<data_t>(ipd, ip_src, ip_weights, dst_ref);
+        compute_ref_inner_product_fwd<data_t>(ipd, ip_src, ip_weights, ip_bias,
+                dst_ref);
         compare_data<data_t>(dst_ref, ip_dst);
     }
 };
@@ -116,8 +126,10 @@ INSTANTIATE_TEST_CASE_P(
         ::testing::Values(
                 inprod_test_params_float{ prop_kind::forward, engine::kind::cpu,
                         memory::format::nchw, memory::format::oihw,
-                        memory::format::nc, { 2, 32, 48, 6, 6 } },
+                        memory::format::x, memory::format::nc,
+                        { 2, 32, 48, 6, 6 } },
                 inprod_test_params_float{ prop_kind::forward, engine::kind::cpu,
                         memory::format::nc, memory::format::oi,
-                        memory::format::nc, { 2, 2, 4, 1, 1 } }));
+                        memory::format::x, memory::format::nc,
+                        { 2, 2, 4, 1, 1 } }));
 }
