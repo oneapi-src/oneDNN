@@ -12,6 +12,7 @@ file(GLOB_RECURSE SOURCES
 include_directories(
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/src/common
+    ${CMAKE_SOURCE_DIR}/src/cpu/xbyak
     )
 add_library(${TARGET_NAME} SHARED ${HEADERS} ${SOURCES})
 set_property(TARGET ${TARGET_NAME} PROPERTY CXX_STANDARD 11)

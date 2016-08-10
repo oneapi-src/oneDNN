@@ -8,6 +8,7 @@
 #include "cpu/reference_pooling.hpp"
 #include "cpu/reference_relu.hpp"
 #include "cpu/reference_lrn.hpp"
+#include "cpu/jit_avx2_lrn.hpp"
 #include "cpu/reference_inner_product.hpp"
 
 #include "cpu/reference_reorder.hpp"
@@ -28,6 +29,7 @@ primitive_desc_init_f primitive_inits[] = {
     reference_convolution<f32>::primitive_desc_init,
     reference_pooling<f32>::primitive_desc_init,
     reference_relu<f32>::primitive_desc_init,
+    jit_avx2_lrn<f32>::primitive_desc_init,
     reference_lrn<f32>::primitive_desc_init,
     reference_inner_product<f32>::primitive_desc_init,
     NULL,
