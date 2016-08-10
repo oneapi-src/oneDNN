@@ -35,10 +35,8 @@ void check_lrn_ac_fwd(test_lrn_desc_t ld, memory &src, memory &dst)
                     uint32_t sz = ld.local_size;
                     int32_t c_start = c - sz / 2;
                     int32_t c_end = c_start + sz;
-                    if (c_start < 0)
-                        c_start = 0;
-                    if (c_end > ld.c)
-                        c_end = ld.c;
+                    if (c_start < 0) c_start = 0;
+                    if (c_end > (int32_t)ld.c) c_end = ld.c;
                     data_t sum = 0.0;
                     for (int32_t c1 = c_start; c1 < c_end; c1++) {
                         uint32_t idx = n * ld.c * ld.h * ld.w + c1 * ld.h * ld.w
