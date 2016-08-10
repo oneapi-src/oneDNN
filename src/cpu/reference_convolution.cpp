@@ -27,7 +27,7 @@ status_t reference_convolution<prec>::execute_forward() {
     };
     const data_t *src = obtain_ptr(0);
     const data_t *weights = obtain_ptr(1);
-    const data_t *bias = obtain_ptr(2);
+    const data_t *bias = _with_bias ? obtain_ptr(2) : nullptr;
     data_t *dst = reinterpret_cast<data_t*>(this->output()[0]->memory());
 
     const memory_desc_wrapper
@@ -91,7 +91,7 @@ status_t reference_convolution<prec>::execute_forward() {
                 for (uint32_t oh = 0; oh < OH; ++oh) {
                     for (uint32_t ow = 0; ow < OW; ++ow) {
                         data_t *d = &dst[dst_d.off(mb, g*OC + oc, oh, ow)];
-                        *d = bias[bias_d.off(g*OC + oc)];
+                        *d = bias ? bias[bias_d.off(g*OC + oc)] : (data_t)0;
                         ker(d, g, mb, oc, oh, ow);
                     }
                 }
@@ -138,7 +138,8 @@ status_t reference_convolution<prec>::primitive_desc_init(
     if (conv_d.weights_desc.format == any)
         CHECK(mkl_dnn_memory_desc_init(&conv_d.weights_desc,
                 &conv_d.weights_desc.tensor_desc, f32, groups ? goihw : oihw));
-    if (conv_d.bias_desc.format == any)
+    const bool with_bias = !memory_desc_wrapper(conv_d.bias_desc).is_zero();
+    if (with_bias && conv_d.bias_desc.format == any)
         CHECK(mkl_dnn_memory_desc_init(&conv_d.bias_desc,
                     &conv_d.bias_desc.tensor_desc, f32, x));
     if (conv_d.dst_desc.format == any)
@@ -147,14 +148,14 @@ status_t reference_convolution<prec>::primitive_desc_init(
 
     /* memory primitive descriptors check */
     memory_primitive_desc_t src_pd, weights_pd, bias_pd, dst_pd;
-    CHECK(mkl_dnn_memory_primitive_desc_init(&src_pd,
-                &conv_d.src_desc, &engine));
-    CHECK(mkl_dnn_memory_primitive_desc_init(&weights_pd,
-                &conv_d.weights_desc, &engine));
-    CHECK(mkl_dnn_memory_primitive_desc_init(&bias_pd,
-                &conv_d.bias_desc, &engine));
-    CHECK(mkl_dnn_memory_primitive_desc_init(&dst_pd,
-                &conv_d.dst_desc, &engine));
+    CHECK(mkl_dnn_memory_primitive_desc_init(&src_pd, &conv_d.src_desc,
+                &engine));
+    CHECK(mkl_dnn_memory_primitive_desc_init(&weights_pd, &conv_d.weights_desc,
+                &engine));
+    CHECK(mkl_dnn_memory_primitive_desc_init(&bias_pd, &conv_d.bias_desc,
+                &engine));
+    CHECK(mkl_dnn_memory_primitive_desc_init(&dst_pd, &conv_d.dst_desc,
+                &engine));
 
     /* final stage */
     convolution_primitive_desc_t cpd;

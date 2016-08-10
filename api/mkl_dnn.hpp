@@ -181,6 +181,7 @@ struct tensor {
 
 struct memory: public primitive  {
     enum precision {
+        precision_undef = c_api::mkl_dnn_precision_undef,
         f32 = c_api::mkl_dnn_f32,
         u32 = c_api::mkl_dnn_u32,
     };
@@ -188,7 +189,9 @@ struct memory: public primitive  {
         return static_cast<c_api::mkl_dnn_precision_t>(aprecision);
     }
     enum format {
+        format_undef = c_api::mkl_dnn_format_undef,
         any = c_api::mkl_dnn_any,
+        blocked = c_api::mkl_dnn_blocked,
         x = c_api::mkl_dnn_x,
         nc = c_api::mkl_dnn_nc,
         nchw = c_api::mkl_dnn_nchw,
@@ -199,7 +202,6 @@ struct memory: public primitive  {
         OIhw8i8o = c_api::mkl_dnn_OIhw8i8o,
         goihw = c_api::mkl_dnn_goihw,
         gOIhw8i8o = c_api::mkl_dnn_gOIhw8i8o,
-        blocked = c_api::mkl_dnn_blocked,
     };
     static c_api::mkl_dnn_memory_format_t convert_to_c(format aformat) {
         return static_cast<c_api::mkl_dnn_memory_format_t>(aformat);
@@ -314,6 +316,24 @@ struct convolution: public primitive {
                         mkl_dnn::convert_to_c(apadding_kind)),
                     "could not create a convolution descriptor");
         }
+
+        desc(prop_kind aprop_kind, algorithm aalgorithm,
+                const memory::desc &src_desc,
+                const memory::desc &weights_desc,
+                const memory::desc &dst_desc,
+                const tensor::dims strides,
+                const tensor::nd_offset padding,
+                const padding_kind apadding_kind)
+        {
+            tensor::validate_dims(strides);
+            tensor::validate_dims(padding);
+            error::wrap_c_api(c_api::mkl_dnn_convolution_desc_init(&data,
+                        mkl_dnn::convert_to_c(aprop_kind), convert_to_c(aalgorithm),
+                        &src_desc.data, &weights_desc.data, nullptr,
+                        &dst_desc.data, &strides[0], &padding[0],
+                        mkl_dnn::convert_to_c(apadding_kind)),
+                    "could not create a convolution descriptor");
+        }
     };
 
     struct primitive_desc {
@@ -337,6 +357,17 @@ struct convolution: public primitive {
         reset(result);
     }
 
+    convolution(const primitive_desc &aprimitive_desc,
+            const primitive::at &src, const primitive::at &weights,
+            const memory &dst) {
+        c_api::mkl_dnn_primitive_t result;
+        error::wrap_c_api(c_api::mkl_dnn_convolution_create(&result,
+                    &aprimitive_desc.data, src.data, weights.data,
+                    {nullptr, 0}, dst.get()),
+                "could not create a convolution primitive");
+        reset(result);
+    }
+
     convolution(prop_kind aprop_kind, algorithm aalgorithm,
             const primitive::at &src, const primitive::at &weights,
             const primitive::at &bias, const memory &dst,
@@ -352,17 +383,35 @@ struct convolution: public primitive {
                 strides, padding, apadding_kind);
         auto conv_pd = primitive_desc(conv_d,
                 engine(src_md.data.base.engine));
-#if 0
-        // WHY I CANNOT CALL THIS??????!!!!
-        convolution(conv_pd, src, weights, bias, dst);
-#else
+
         c_api::mkl_dnn_primitive_t result;
         error::wrap_c_api(c_api::mkl_dnn_convolution_create(&result,
                     &conv_pd.data, src.data, weights.data,
                     bias.data, dst.get()),
                 "could not create a convolution primitive");
         reset(result);
-#endif
+    }
+
+    convolution(prop_kind aprop_kind, algorithm aalgorithm,
+            const primitive::at &src, const primitive::at &weights,
+            const memory &dst, const tensor::dims strides,
+            const tensor::nd_offset padding, const padding_kind apadding_kind) {
+        auto src_md = memory(src).get_primitive_desc();
+        auto weights_md = memory(weights).get_primitive_desc();
+        auto dst_md = dst.get_primitive_desc();
+
+        auto conv_d = desc(aprop_kind, aalgorithm, src_md.desc(),
+                weights_md.desc(), dst_md.desc(), strides, padding,
+                apadding_kind);
+        auto conv_pd = primitive_desc(conv_d,
+                engine(src_md.data.base.engine));
+
+        c_api::mkl_dnn_primitive_t result;
+        error::wrap_c_api(c_api::mkl_dnn_convolution_create(&result,
+                    &conv_pd.data, src.data, weights.data,
+                    {nullptr, 0}, dst.get()),
+                "could not create a convolution primitive");
+        reset(result);
     }
 };
 

@@ -3,6 +3,7 @@
 #include "c_types_map.hpp"
 #include "primitive.hpp"
 #include "engine.hpp"
+#include "type_helpers.hpp"
 
 using namespace mkl_dnn::impl;
 using namespace mkl_dnn::impl::status;
@@ -16,6 +17,13 @@ status_t mkl_dnn_primitive_create(primitive **aprimitive,
 
     auto &pd = *static_cast<const primitive_desc_t*>(primitive_desc);
 
+    /* FIXME: singularity :( */
+    if (pd.base.primitive_kind == memory
+            && memory_desc_wrapper(pd.memory.memory_desc).is_zero()) {
+        *aprimitive = nullptr;
+        return success;
+    }
+
     if (!pd.base.engine->is_ok())
         return invalid_arguments;
 
@@ -25,6 +33,9 @@ status_t mkl_dnn_primitive_create(primitive **aprimitive,
 
 status_t mkl_dnn_primitive_get_primitive_desc(const primitive *primitive,
         mkl_dnn_primitive_desc_t *primitive_desc) {
+    if (any_null(primitive, primitive_desc))
+        return invalid_arguments;
+
     auto &pd = *reinterpret_cast<primitive_desc_t*>(primitive_desc);
 
     switch (pd.base.primitive_kind) {

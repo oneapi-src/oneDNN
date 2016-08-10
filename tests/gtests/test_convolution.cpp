@@ -16,17 +16,16 @@ struct test_convolution_descr_t {
 };
 
 template <typename data_t>
-void compute_ref_conv_fwd(test_convolution_descr_t c, memory &src,
-        memory &weights, memory &bias, memory &dst)
+void compute_ref_conv_fwd(test_convolution_descr_t c, memory src,
+        memory weights, memory bias, memory dst)
 {
     data_t *src_data = (data_t *)src.get_data_handle();
     data_t *weights_data = (data_t *)weights.get_data_handle();
-    data_t *bias_data = (data_t *)bias.get_data_handle();
+    data_t *bias_data = (data_t *)(bias.get() ? bias.get_data_handle() : nullptr);
     data_t *dst_data = (data_t *)dst.get_data_handle();
 
     const memory::desc src_d = src.get_primitive_desc().desc();
     const memory::desc weights_d = weights.get_primitive_desc().desc();
-    const memory::desc bias_d = bias.get_primitive_desc().desc();
     const memory::desc dst_d = dst.get_primitive_desc().desc();
 
 #pragma omp parallel for collapse(5)
@@ -40,7 +39,8 @@ void compute_ref_conv_fwd(test_convolution_descr_t c, memory &src,
                                 + oc * c.oh * c.ow + oh * c.ow + ow;
                         dst_data[map_index(dst_d, oidx)] = bias_data ?
                                 bias_data[map_index(
-                                        bias_d, g * c.oc / c.ng + oc)] :
+                                        bias.get_primitive_desc().desc(),
+                                        g * c.oc / c.ng + oc)] :
                                 0.0;
                         for (uint32_t ic = 0; ic < c.ic / c.ng; ic++) {
                             for (uint32_t kh = 0; kh < c.kh; kh++) {
@@ -108,13 +108,11 @@ protected:
                         prec, p.weights_format) :
                 create_md(
                         { cd.oc, cd.ic, cd.kh, cd.kw }, prec, p.weights_format);
-        auto c_bias_desc = create_md({ cd.oc }, prec, p.bias_format);
         auto c_dst_desc
                 = create_md({ cd.mb, cd.oc, cd.oh, cd.ow }, prec, p.dst_format);
 
         auto c_src = memory(memory::primitive_desc(c_src_desc, eng));
         auto c_weights = memory(memory::primitive_desc(c_weights_desc, eng));
-        auto c_bias = memory(memory::primitive_desc(c_bias_desc, eng));
         auto c_dst = memory(memory::primitive_desc(c_dst_desc, eng));
 
         auto dst_ref = memory(memory::primitive_desc(c_dst_desc, eng));
@@ -126,12 +124,24 @@ protected:
                 c_weights.get_primitive_desc().get_number_of_elements(),
                 (data_t *)c_weights.get_data_handle());
 
-        fill_data<data_t>(c_bias.get_primitive_desc().get_number_of_elements(),
-                (data_t *)c_bias.get_data_handle());
+        bool with_bias = p.bias_format != memory::format::format_undef;
+        auto c_bias_desc = with_bias
+            ? create_md({cd.oc}, prec, p.bias_format)
+            : create_md({}, prec, p.bias_format);
+        auto c_bias = memory(memory::primitive_desc(c_bias_desc, eng));
+        if (with_bias) {
+            fill_data<data_t>(
+                    c_bias.get_primitive_desc().get_number_of_elements(),
+                    (data_t *)c_bias.get_data_handle());
+        }
 
-        auto c = convolution(p.aprop_kind, p.aalgorithm, c_src, c_weights,
-                c_bias, c_dst, { cd.strh, cd.strw }, { cd.padh, cd.padw },
-                padding_kind::zero);
+        auto c = with_bias
+            ? convolution(p.aprop_kind, p.aalgorithm, c_src, c_weights, c_bias,
+                    c_dst, { cd.strh, cd.strw }, { cd.padh, cd.padw },
+                    padding_kind::zero)
+            : convolution(p.aprop_kind, p.aalgorithm, c_src, c_weights, c_dst,
+                    { cd.strh, cd.strw }, { cd.padh, cd.padw },
+                    padding_kind::zero);
 
         std::vector<primitive> pipeline;
         pipeline.push_back(c);
@@ -162,6 +172,21 @@ INSTANTIATE_TEST_CASE_P(
                         memory::format::oihw, memory::format::x,
                         memory::format::nchw,
                         { 2, 1, 4, 4, 4, 6, 2, 2, 3, 3, 0, 0, 1, 1 } }));
+
+INSTANTIATE_TEST_CASE_P(
+        TestConvolutionForwardNoBias, convolution_test_float,
+        ::testing::Values(
+                conv_test_params_float{ prop_kind::forward, engine::kind::cpu,
+                        convolution::direct, memory::format::nchw,
+                        memory::format::oihw, memory::format::format_undef,
+                        memory::format::nchw,
+                        { 2, 1, 4, 4, 4, 6, 4, 4, 3, 3, 1, 1, 1, 1 } },
+                conv_test_params_float{ prop_kind::forward, engine::kind::cpu,
+                        convolution::direct, memory::format::nchw,
+                        memory::format::oihw, memory::format::format_undef,
+                        memory::format::nchw,
+                        { 2, 1, 4, 4, 4, 6, 2, 2, 3, 3, 0, 0, 1, 1 } }));
+
 INSTANTIATE_TEST_CASE_P(
         TestConvolutionForwardNHWC, convolution_test_float,
         ::testing::Values(

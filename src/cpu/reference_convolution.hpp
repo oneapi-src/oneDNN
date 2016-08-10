@@ -19,6 +19,7 @@ template <impl::precision_t prec>
 class reference_convolution: public primitive {
 private:
     const impl::convolution_primitive_desc_t &_cpd;
+    const bool _with_bias;
 
     status_t execute_forward();
     status_t execute_backward_data();
@@ -47,8 +48,9 @@ public:
             const primitive_at_t *inputs, const primitive *outputs[])
         : primitive(cpd, const_cast<impl::engine*>(cpd.base.engine), not_ready)
         , _cpd(_primitive_desc.convolution)
+        , _with_bias(!memory_desc_wrapper(_cpd.bias_primitive_desc).is_zero())
     {
-        for (int i = 0; i < 3; ++i)
+        for (int i = 0; i < 2 + _with_bias; ++i)
             _input.push_back(inputs[i]);
         _output.push_back(outputs[0]);
     }

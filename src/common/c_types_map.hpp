@@ -40,13 +40,16 @@ using tensor_desc_t = mkl_dnn_tensor_desc_t;
 
 using precision_t = mkl_dnn_precision_t;
 namespace precision {
+    const precision_t undef = mkl_dnn_precision_undef;
     const precision_t f32 = mkl_dnn_f32;
     const precision_t u32 = mkl_dnn_u32;
 }
 
 using memory_format_t = mkl_dnn_memory_format_t;
 namespace memory_format {
+    const memory_format_t undef = mkl_dnn_format_undef;
     const memory_format_t any = mkl_dnn_any;
+    const memory_format_t blocked = mkl_dnn_blocked;
     const memory_format_t x = mkl_dnn_x;
     const memory_format_t nc = mkl_dnn_nc;
     const memory_format_t nchw = mkl_dnn_nchw;
@@ -57,7 +60,6 @@ namespace memory_format {
     const memory_format_t OIhw8i8o = mkl_dnn_OIhw8i8o;
     const memory_format_t goihw = mkl_dnn_goihw;
     const memory_format_t gOIhw8i8o = mkl_dnn_gOIhw8i8o;
-    const memory_format_t blocked = mkl_dnn_blocked;
 }
 
 using padding_kind_t = mkl_dnn_padding_kind_t;

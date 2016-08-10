@@ -47,13 +47,17 @@ struct memory_desc_wrapper: public c_compatible {
     /** returns the number of elements including padding if \param with_padding
      * is true, and the number of data elements otherwise */
     size_t nelems(bool with_padding = false) const {
+        if (is_zero()) return 0;
         return array_product(with_padding
                 ? blocking_desc().padding_dims : dims(), ndims());
     }
 
+    /** returns true if memory descriptor is zero */
+    bool is_zero() const { return ndims() == 0; }
+
     /** returns the size required to store described memory */
     size_t size() const {
-        if (format() == any) return 0;
+        if (is_zero() || format() == any) return 0;
         assert(one_of(format(), x, nc, nchw, nhwc, nChw8c, oi, oihw, OIhw8i8o,
                     goihw, gOIhw8i8o, blocked));
 

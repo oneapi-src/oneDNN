@@ -26,8 +26,9 @@ inline size_t precision_size(precision_t prec) {
     switch (prec) {
     case f32: return sizeof(precision2type<f32>::type);
     case u32: return sizeof(precision2type<u32>::type);
+    case precision::undef:
+    default: assert(!"unknown precision");
     }
-    assert(!"unknown precision");
     return 0; // not supposed to be reachable
 }
 
@@ -87,6 +88,9 @@ inline bool operator==(const memory_primitive_desc_t &lhs,
     return lhs.base.engine == rhs.base.engine // XXX: is it true?
         && lhs.memory_desc == rhs.memory_desc;
 }
+
+template <typename T>
+inline T zero() { T zero = T(); return zero; }
 
 inline status_t convolution_desc_is_ok(
         const convolution_desc_t &convolution_desc) {

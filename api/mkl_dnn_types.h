@@ -39,6 +39,8 @@ typedef enum {
 /* TODO: rename to mkl_dnn_data_type_t */
 /** Data type specification */
 typedef enum {
+    /** undefined precision; used for empty memory descriptors */
+    mkl_dnn_precision_undef = 0,
     /** 32-bit/single-precision floating point */
     mkl_dnn_f32 = 1,
     /** 32-bit unsigned integer */
@@ -62,9 +64,14 @@ typedef enum {
  * 'mkl_dnn_nc' and 'mkl_dnn_io' formats can be used to describe any 2D tensor.
  */
 typedef enum {
+    /** Undefined memory format; used for empty memory descriptors */
+    mkl_dnn_format_undef = 0,
     /** Unspecified format; use this to let a primitive to select a format
      * automatically */
     mkl_dnn_any,
+    /** A tensor in a generic format described by stride and blocking values in
+     * each dimension. See #mkl_dnn_blocking_desc_t for more information. */
+    mkl_dnn_blocked,
     /** 1D data tensor */
     mkl_dnn_x,
     /** 2D data tensor */
@@ -89,9 +96,6 @@ typedef enum {
     /** 5D weights tensor in the blocked version of goihw format with both
      * input and output channels blocked by 8 */
     mkl_dnn_gOIhw8i8o,
-    /** A tensor in a generic format described by stride and blocking values in
-     * each dimension. See #mkl_dnn_blocking_desc_t for more information. */
-    mkl_dnn_blocked,
 } mkl_dnn_memory_format_t;
 
 /** Padding kind -- how to interpret the data in the padding regions */

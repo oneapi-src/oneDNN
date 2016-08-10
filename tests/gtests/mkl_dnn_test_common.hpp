@@ -73,6 +73,8 @@ inline mkl_dnn::memory::desc create_md(mkl_dnn::tensor::dims dims,
     case f::goihw:
     case f::gOIhw8i8o:
                 dspec.insert(dspec.end(), {1, 2, 2}); break;
+    case f::format_undef:
+                dspec.insert(dspec.end(), {0, 0, 0}); break;
     default: EXPECT_TRUE(false) << "test does not support format: " << int(fmt);
     }
 
