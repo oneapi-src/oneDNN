@@ -21,8 +21,9 @@ status_t mkl_dnn_convolution_desc_init(convolution_desc_t *convolution_desc,
 {
     const bool args_ok = !any_null(convolution_desc, src_desc, weights_desc,
             dst_desc, strides, padding)
-        && one_of(prop_kind, forward, backward_data,
-                backward_weights, backward_bias)
+        && one_of(prop_kind, forward, backward_data, backward_weights,
+                backward_bias)
+        && implication(prop_kind == backward_bias, !any_null(bias_desc))
         && one_of(alg_kind, convolution_direct);
     if (!args_ok)
         return invalid_arguments;
@@ -32,8 +33,7 @@ status_t mkl_dnn_convolution_desc_init(convolution_desc_t *convolution_desc,
     cd.alg_kind = alg_kind;
     cd.src_desc = *src_desc;
     cd.weights_desc = *weights_desc;
-    cd.bias_desc = bias_desc ? *bias_desc
-        : types::zero<decltype(cd.bias_desc)>();
+    cd.bias_desc = bias_desc ? *bias_desc : types::zero<memory_desc_t>();
     cd.dst_desc = *dst_desc;
     cd.padding_kind = padding_kind;
     const uint32_t ndims_spatial = src_desc->tensor_desc.ndims_spatial;

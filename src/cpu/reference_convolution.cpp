@@ -91,7 +91,7 @@ status_t reference_convolution<prec>::execute_forward() {
                 for (uint32_t oh = 0; oh < OH; ++oh) {
                     for (uint32_t ow = 0; ow < OW; ++ow) {
                         data_t *d = &dst[dst_d.off(mb, g*OC + oc, oh, ow)];
-                        *d = bias ? bias[bias_d.off(g*OC + oc)] : (data_t)0;
+                        *d = bias ? bias[bias_d.off(g*OC + oc)] : data_t(0);
                         ker(d, g, mb, oc, oh, ow);
                     }
                 }
