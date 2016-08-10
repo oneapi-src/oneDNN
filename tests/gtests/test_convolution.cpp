@@ -52,7 +52,7 @@ void compute_ref_conv_fwd(test_convolution_descr_t c, memory &src,
                                         continue;
                                     uint32_t iidx = n * c.ic * c.ih * c.iw
                                             + g * c.ic / c.ng * c.ih * c.iw
-                                            + ic * c.ih * c.ow + ih * c.iw + iw;
+                                            + ic * c.ih * c.iw + ih * c.iw + iw;
                                     uint32_t widx = g * c.oc / c.ng * c.ic
                                                     / c.ng * c.kh * c.kw
                                             + oc * c.ic / c.ng * c.kh * c.kw
@@ -149,22 +149,45 @@ using conv_test_params_float = conv_test_params;
 TEST_P(convolution_test_float, TestsConvolution)
 {
 }
-INSTANTIATE_TEST_CASE_P(TestConvolutionForward, convolution_test_float,
-        ::testing::Values(conv_test_params_float{ prop_kind::forward,
-                engine::kind::cpu, convolution::direct, memory::format::nchw,
-                memory::format::oihw, memory::format::x, memory::format::nchw,
-                { 2, 1, 4, 4, 4, 6, 4, 4, 3, 3, 1, 1, 1, 1 } }));
-INSTANTIATE_TEST_CASE_P(TestConvolutionForwardNHWC, convolution_test_float,
-        ::testing::Values(conv_test_params_float{ prop_kind::forward,
-                engine::kind::cpu, convolution::direct, memory::format::nhwc,
-                memory::format::oihw, memory::format::x, memory::format::nhwc,
-                { 2, 1, 4, 4, 4, 6, 4, 4, 3, 3, 1, 1, 1, 1 } }));
-INSTANTIATE_TEST_CASE_P(TestConvolutionForwardBlocked, convolution_test_float,
-        ::testing::Values(conv_test_params_float{ prop_kind::forward,
-                engine::kind::cpu, convolution::direct, memory::format::nChw8c,
-                memory::format::OIhw8i8o, memory::format::x,
-                memory::format::nChw8c,
-                { 2, 1, 32, 13, 13, 48, 13, 13, 3, 3, 1, 1, 1, 1 } }));
+INSTANTIATE_TEST_CASE_P(
+        TestConvolutionForward, convolution_test_float,
+        ::testing::Values(
+                conv_test_params_float{ prop_kind::forward, engine::kind::cpu,
+                        convolution::direct, memory::format::nchw,
+                        memory::format::oihw, memory::format::x,
+                        memory::format::nchw,
+                        { 2, 1, 4, 4, 4, 6, 4, 4, 3, 3, 1, 1, 1, 1 } },
+                conv_test_params_float{ prop_kind::forward, engine::kind::cpu,
+                        convolution::direct, memory::format::nchw,
+                        memory::format::oihw, memory::format::x,
+                        memory::format::nchw,
+                        { 2, 1, 4, 4, 4, 6, 2, 2, 3, 3, 0, 0, 1, 1 } }));
+INSTANTIATE_TEST_CASE_P(
+        TestConvolutionForwardNHWC, convolution_test_float,
+        ::testing::Values(
+                conv_test_params_float{ prop_kind::forward, engine::kind::cpu,
+                        convolution::direct, memory::format::nhwc,
+                        memory::format::oihw, memory::format::x,
+                        memory::format::nhwc,
+                        { 2, 1, 4, 4, 4, 6, 4, 4, 3, 3, 1, 1, 1, 1 } },
+                conv_test_params_float{ prop_kind::forward, engine::kind::cpu,
+                        convolution::direct, memory::format::nhwc,
+                        memory::format::oihw, memory::format::x,
+                        memory::format::nhwc,
+                        { 2, 1, 4, 4, 4, 6, 2, 2, 3, 3, 0, 0, 1, 1 } }));
+INSTANTIATE_TEST_CASE_P(
+        TestConvolutionForwardBlocked, convolution_test_float,
+        ::testing::Values(
+                conv_test_params_float{ prop_kind::forward, engine::kind::cpu,
+                        convolution::direct, memory::format::nChw8c,
+                        memory::format::OIhw8i8o, memory::format::x,
+                        memory::format::nChw8c,
+                        { 2, 1, 32, 13, 13, 48, 13, 13, 3, 3, 1, 1, 1, 1 } },
+                conv_test_params_float{ prop_kind::forward, engine::kind::cpu,
+                        convolution::direct, memory::format::nChw8c,
+                        memory::format::OIhw8i8o, memory::format::x,
+                        memory::format::nChw8c,
+                        { 2, 1, 32, 13, 13, 48, 11, 11, 3, 3, 0, 0, 1, 1 } }));
 
 INSTANTIATE_TEST_CASE_P(
         TestConvolutionAlexnetForwardNCHW, convolution_test_float,
