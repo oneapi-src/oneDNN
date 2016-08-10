@@ -8,23 +8,49 @@
 #include <algorithm>
 #endif
 
-/** @addtogroup cpp_api C++ API
- *  @{ */
-
 namespace mkl_dnn {
 
+/** @addtogroup cpp_api C++ API
+ * @{ */
+
+/** @addtogroup cpp_api_utils Utils
+ * @{ */
+
+/** A traits class that provides the destructor for an MKL-DNN C handle */
 template <typename T> class handle_traits {};
+
+/** A class for wrapping an MKL-DNN handle. It is used as the base for
+ * primitive (#mkl_dnn_primitive_t), engine (#mkl_dnn_engine_t) and stream
+ * (#mkl_dnn_stream_t) handles. An object of the #mkl_dnn::handle class can be
+ * passed by value. This class allows wrapping both newly constructed and
+ * pre-existing handles returned by the MKL-DNN C API (for example, via
+ * #mkl_dnn_primitive_get_output()). In the first case, the constructed handle
+ * uses reference counting provided by @p std::shared_ptr with a proper deleter
+ * function specified via the @p handle_traits class. In the second case, an
+ * MKL-DNN C API handle is wrapped without a deleter because it is assume that
+ * the handle wrapper for the original object will delete the handle (this
+ * model is similar to @p std::weak_ptr) */
 template <typename T, typename traits=handle_traits<T>> class handle {
 private:
     std::shared_ptr<typename std::remove_pointer<T>::type> _data;
     handle(const handle &&) {}
     handle &operator=(const handle &&other) {}
 protected:
-    void reset(T t, bool own = true) {
+    /** Resets the C handle value.
+     * @param t the new C handle value
+     * @param set_destructor whether to destroy @p t when reference count
+     *                       reaches zero */
+    void reset(T t, bool set_destructor = true) {
         auto dummy_destructor = [](T) { return decltype(traits::destructor(0))(0); };
-        _data.reset(t, own ? traits::destructor : dummy_destructor);
+        _data.reset(t, set_destructor ? traits::destructor : dummy_destructor);
     }
-    handle(T t = 0, bool own = true): _data(0) { reset(t, own); }
+    /** Constructs a C handle wrapper.
+     * @param t the C handle to wrap
+     * @param set_destructor whether to destroy @p t when reference count
+     *                       reaches zero */
+    handle(T t = 0, bool set_destructor = true): _data(0) {
+        reset(t, set_destructor);
+    }
 
     bool operator==(const T other) const { return other == _data.get(); }
     bool operator!=(const T other) const { return !(*this == other); }
@@ -35,6 +61,7 @@ public:
         return *this;
     }
 
+    /** Returns the underlayng C handle value */
     T get() const { return _data.get(); }
 
     bool operator==(const handle &other) const { return other._data.get() == _data.get(); }
@@ -51,27 +78,53 @@ template <> struct handle_traits<c_api::mkl_dnn_primitive_t> {
     static constexpr auto destructor = &c_api::mkl_dnn_primitive_destroy;
 };
 
+/** Base class for all computational primitives */
 class primitive: public handle<c_api::mkl_dnn_primitive_t> {
     friend struct error;
     friend struct stream;
     friend class primitive_at;
     using handle::handle;
 public:
+    /** A wrapper structure to addess a specific output of a primitive. */
     struct at {
+        /** The underlying C API structure */
         c_api::mkl_dnn_primitive_at_t data;
+        /** Constructs a wrapper specifying @p aprimitive output with index @p
+         * at.
+         *
+         * @param aprimitive the target primitive
+         * @param at the output index
+         */
         at(const primitive &aprimitive, size_t at = 0)
             : data(c_api::mkl_dnn_primitive_at(aprimitive.get(), at)) {}
+        /** Returns the primitive addressed by this instance. */
         inline operator primitive() const;
     };
 
+
+
+    /** Returns the underlying C API primitive descriptor */
     inline c_api::mkl_dnn_primitive_desc_t get_primitive_desc() const;
+    /* TODO: use the C++ API wrapper structure. */
 };
 
+/** MKL-DNN exception class.
+ *
+ * This class captures a status returned by the failed C API function, an error
+ * message, and, in some cases, the handle of the primitive that caused the
+ * error. */
 struct error: public std::exception {
     c_api::mkl_dnn_status_t status;
     std::string message;
     primitive error_primitive;
 
+    /** Constructs an error instance.
+     *
+     * @param astatus the error status returned by the C API
+     * @param amessage the error message
+     * @param aerror_primitive (optional) the C handle of primitive a that
+     *                         caused the error
+     */
     error(c_api::mkl_dnn_status_t astatus, std::string amessage,
             c_api::mkl_dnn_primitive_t aerror_primitive = 0)
         : status(astatus)
@@ -79,24 +132,29 @@ struct error: public std::exception {
         , error_primitive(aerror_primitive, false)
     {}
 
+    /** A convenience function to wrapping calls to the C API. Checks for
+     * return status and throws an #error in case of failure.
+     *
+     * @param status the error status returned by the C API
+     * @param message the error message
+     * @param error_primitive (optional) the C handle of primitive a that
+     *                         caused the error
+     */
     static void wrap_c_api(c_api::mkl_dnn_status_t status,
             std::string message,
             c_api::mkl_dnn_primitive_t *error_primitive = 0)
     {
-        // XXX: do we really need this ^ pointer ?
         if (status != c_api::mkl_dnn_success)
             throw error(status, message, *error_primitive);
     }
 };
 
-// XXX: reorder me with struct error :(
 inline primitive::at::operator primitive() const {
     c_api::const_mkl_dnn_primitive_t output;
     error::wrap_c_api(
             c_api::mkl_dnn_primitive_get_output(data.primitive,
                 data.output_index, &output),
             "could not get an output primitive");
-    // XXX: fix me
     return primitive(const_cast<c_api::mkl_dnn_primitive_t>(output), false);
 }
 
@@ -107,33 +165,47 @@ inline c_api::mkl_dnn_primitive_desc_t primitive::get_primitive_desc() const {
     return pd;
 }
 
+/** @} */
+
+/** @addtogroup cpp_api_engine Engine
+ * @{ */
+
+#ifndef DOXYGEN_SHOULD_SKIP_THIS
 template <> struct handle_traits<c_api::mkl_dnn_engine_t> {
     static constexpr auto destructor = &c_api::mkl_dnn_engine_destroy;
 };
+#endif
 
+/** An execution engine. */
 struct engine: public handle<c_api::mkl_dnn_engine_t> {
     friend class primitive;
     using handle::handle;
 
+    /** Engine kind */
     enum kind {
+        /** An unspecified engine */
         any = c_api::mkl_dnn_any_engine,
+        /** CPU engine */
         cpu = c_api::mkl_dnn_cpu,
+        /** CPU engine in a lazy execution mode */
         cpu_lazy = c_api::mkl_dnn_cpu_lazy,
     };
 
-    static c_api::mkl_dnn_engine_kind_t convert_to_c(kind akind) {
-        return static_cast<c_api::mkl_dnn_engine_kind_t>(akind);
-    }
-
+    /** Returns the number of engines of a certain kind.
+     *
+     * @param akind kind of engines to count
+     */
     static size_t get_count(kind akind) {
         return c_api::mkl_dnn_engine_get_count(convert_to_c(akind));
     }
 
-    explicit engine(const c_api::mkl_dnn_engine_t& aengine)
-        : handle(aengine, false) {}
-    explicit engine(const c_api::const_mkl_dnn_engine_t& aengine)
-        : handle(const_cast<const c_api::mkl_dnn_engine_t>(aengine), false) {} // XXX: cast Roma
-    explicit engine(kind akind, size_t index) {
+    /** Constructs an engine.
+     *
+     * @param akind the kind of engine to construct
+     * @param index the index of the engine; must be less than the value
+     *              returned by #get_count() for this particular engine kind
+     */
+    engine(kind akind, size_t index) {
         c_api::mkl_dnn_engine_t aengine;
         error::wrap_c_api(
                 c_api::mkl_dnn_engine_create(&aengine,
@@ -141,20 +213,55 @@ struct engine: public handle<c_api::mkl_dnn_engine_t> {
                 "could not create an engine");
         reset(aengine);
     }
+
+    explicit engine(const c_api::mkl_dnn_engine_t& aengine)
+        : handle(aengine, false) {}
+
+    explicit engine(const c_api::const_mkl_dnn_engine_t& aengine)
+        : handle(const_cast<const c_api::mkl_dnn_engine_t>(aengine), false) {}
+
+private:
+    static c_api::mkl_dnn_engine_kind_t convert_to_c(kind akind) {
+        return static_cast<c_api::mkl_dnn_engine_kind_t>(akind);
+    }
 };
 
+/** @} */
+
+/** @addtogroup cpp_api_memory Memory
+ * @{ */
+
+/** Tensor. Incapsulates a tensor description. The description is not tied to
+ * any memory format, but allows describing tensor dimensions as belonging to
+ * minibatch, channel/feature map, and spatial kind. MKL-DNN uses this type
+ * when a mathematical description of data is required. */
 struct tensor {
     typedef std::vector<std::remove_extent<c_api::mkl_dnn_dims_t>::type> dims;
     typedef std::vector<std::remove_extent<c_api::mkl_dnn_nd_offset_t>::type> nd_offset;
 
+    /** Checks that a vector specifying tensor dimensions is valid.
+     *
+     * @param v the vector to check
+     * @returns nothing; throws an #mkl_dnn::error exception if v is not valid
+     */
     template <typename T> static void validate_dims(std::vector<T> v) {
         if (v.size() > TENSOR_MAX_DIMS)
             throw error(c_api::mkl_dnn_invalid_arguments,
                     "invalid dimensions");
     }
 
+    /** A tensor descriptor. */
     struct desc {
+        /** The underlying C API data structure */
         c_api::mkl_dnn_tensor_desc_t data;
+
+        /** Constructs a tensor descriptor.
+         *
+         * @param batch the number of minibatch dimensions
+         * @param channels the number of channel dimensions
+         * @param spatial the number of spatial dimensions
+         * @param adims the tensor dimensions
+         */
         desc(uint32_t batch, uint32_t channels,
                 uint32_t spatial, dims adims) {
             validate_dims(adims);
@@ -164,6 +271,11 @@ struct tensor {
                     "could not initialize a tensor descriptor");
         }
 
+        /** Constructs a tensor descriptor.
+         *
+         * @param dims_spec the (batch, channels, spatial) triplet
+         * @param adims the tensor dimensions
+         */
         desc(std::array<uint32_t, 3> dims_spec, dims adims) {
             validate_dims(adims);
             error::wrap_c_api(
@@ -270,6 +382,11 @@ struct memory: public primitive  {
         return handle;
     }
 };
+
+/** @} */
+
+/** @addtogroup cpp_api_primitives Primitives
+ * @{ */
 
 enum padding_kind {
     zero = c_api::mkl_dnn_padding_zero,
@@ -683,20 +800,33 @@ struct inner_product: public primitive {
     }
 };
 
+/** @} */
+
+/** @addtogroup cpp_api_stream Stream
+ * @{ */
+
+#ifndef DOXYGEN_SHOULD_SKIP_THIS
 template <> struct handle_traits<c_api::mkl_dnn_stream_t> {
     static constexpr auto destructor = &c_api::mkl_dnn_stream_destroy;
 };
+#endif
 
 struct stream: public handle<c_api::mkl_dnn_stream_t> {
     using handle::handle;
 
-    explicit stream() {
+    /** Constructs a stream */
+    stream() {
         c_api::mkl_dnn_stream_t astream;
         error::wrap_c_api(c_api::mkl_dnn_stream_create(&astream),
                 "could not create a stream");
         reset(astream);
     }
 
+    /** Submits a vector of primitives to a stream for computations.
+     *
+     * @param primitives the vector of primitives to submit
+     * @returns the stream itself
+     */
     stream &submit(std::vector<primitive> primitives) {
         // TODO: find a proper way to convert vector<primitive> to
         // vector<c_api::mkl_dnn_primitive_t>
@@ -717,18 +847,30 @@ struct stream: public handle<c_api::mkl_dnn_stream_t> {
         return *this;
     }
 
-    stream &wait(bool block = true) {
+    /** Waits for all computations submited to the stream to complete.
+     *
+     * @param block whether the operation should wait indefinetly or return
+     *              immediately.
+     * @returns true if all compuptaions have completed, false otherwise
+     */
+    bool wait(bool block = true) {
         c_api::mkl_dnn_primitive_t c_api_error_primitive;
-        error::wrap_c_api(c_api::mkl_dnn_stream_wait(get(), block,
-                    &c_api_error_primitive), "could not wait on a stream",
-                &c_api_error_primitive);
-        return *this;
+        c_api::mkl_dnn_status_t status = c_api::mkl_dnn_stream_wait(get(),
+                block, &c_api_error_primitive);
+        if (status != c_api::mkl_dnn_success
+                && status != c_api::mkl_dnn_try_again)
+            error::wrap_c_api(status, "could not wait on a stream",
+                    &c_api_error_primitive);
+        return (status == c_api::mkl_dnn_success);
     }
 };
 
+/** @} */
+
+/** @} */
+
 }
 
-/* @} */
 
 #endif
 

@@ -120,7 +120,7 @@ mkl_dnn_status_t mkl_dnn_memory_get_primitive_desc(
 mkl_dnn_status_t mkl_dnn_memory_get_data_handle(
         const_mkl_dnn_primitive_t memory, void **handle);
 
-/* @} */
+/** @} */
 
 /** @addtogroup c_api_reorder Reorder
  * A primitive to copy data between memory formats.
@@ -145,7 +145,7 @@ mkl_dnn_status_t mkl_dnn_reorder_get_primitive_desc(
         const_mkl_dnn_primitive_t reorder,
         mkl_dnn_reorder_primitive_desc_t *reorder_primitive_desc);
 
-/* @} */
+/** @} */
 
 /** @addtogroup c_api_convolution Convolution
  * A primitive to compute convolution using a number of different algorithms.
@@ -191,7 +191,7 @@ mkl_dnn_status_t mkl_dnn_convolution_get_primitive_desc(
  * mkl_dnn_memory_primitive_desc_t input, weights, ... so that user has more
  * flexibility. */
 
-/* @} */
+/** @} */
 
 /** @addtogroup c_api_relu ReLU
  * A primitive for computing parametric rectifier linear unit.
@@ -221,7 +221,7 @@ mkl_dnn_status_t mkl_dnn_relu_get_primitive_desc(
         const_mkl_dnn_primitive_t relu,
         mkl_dnn_relu_primitive_desc_t *relu_primitive_desc);
 
-/* @} */
+/** @} */
 
 /** @addtogroup c_api_pooling Pooling
  * A primitive to compute max, min, and average pooling.
@@ -261,7 +261,7 @@ mkl_dnn_status_t mkl_dnn_pooling_get_primitive_desc(
         const_mkl_dnn_primitive_t pooling,
         mkl_dnn_pooling_primitive_desc_t *pooling_primitive_desc);
 
-/* @} */
+/** @} */
 
 /** @addtogroup c_api_lrn LRN
  * A primitive to compute local response normalization across or within
@@ -295,7 +295,7 @@ mkl_dnn_status_t mkl_dnn_lrn_create(mkl_dnn_primitive_t *lrn,
 mkl_dnn_status_t mkl_dnn_lrn_get_primitive_desc(const_mkl_dnn_primitive_t lrn,
         mkl_dnn_lrn_primitive_desc_t *lrn_primitive_desc);
 
-/* @} */
+/** @} */
 
 /** @addtogroup c_api_inner_product Inner product
  * Also known as fully connected layer
@@ -335,9 +335,9 @@ mkl_dnn_status_t mkl_dnn_inner_product_get_primitive_desc(
         const_mkl_dnn_primitive_t inner_product,
         mkl_dnn_inner_product_primitive_desc_t *inner_product_primitive_desc);
 
-/* @} */
+/** @} */
 
-/* @} */
+/** @} */
 
 /** @addtogroup c_api_engine Engine operations
  * @{ */
@@ -360,7 +360,7 @@ mkl_dnn_status_t mkl_dnn_engine_get_is_lazy(mkl_dnn_engine_t engine,
 /** Destroys an @p engine. */
 mkl_dnn_status_t mkl_dnn_engine_destroy(mkl_dnn_engine_t engine);
 
-/* @} */
+/** @} */
 
 /** @addtogroup c_api_stream Execution stream operations
  * @{ */
@@ -384,9 +384,9 @@ mkl_dnn_status_t mkl_dnn_stream_wait(mkl_dnn_stream_t stream, int block,
 /** Destroys an execution @p stream. */
 mkl_dnn_status_t mkl_dnn_stream_destroy(mkl_dnn_stream_t stream);
 
-/* @} */
+/** @} */
 
-/* @} */
+/** @} */
 
 #ifdef __cplusplus
 }
