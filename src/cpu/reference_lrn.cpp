@@ -47,7 +47,7 @@ status_t reference_lrn<prec>::execute_forward() {
         const uint32_t HWSIZE = size + 1 - CSIZE;
 
         data_t sum = 0.0;
-        uint32_t summands = 0;
+        uint32_t summands = this->_ppd.lrn_desc.alg_kind == lrn_across_channels ? size : size*size;
         for (uint32_t c = oc; c < oc + CSIZE; ++c) {
             if (c < (CSIZE - 1) / 2) continue;
             if (c >= C + (CSIZE - 1) / 2) continue;
@@ -59,7 +59,6 @@ status_t reference_lrn<prec>::execute_forward() {
                     if (w >= W + (HWSIZE - 1) / 2) continue;
                     data_t s = src[src_d.off(n, c - (CSIZE - 1) / 2, h - (HWSIZE - 1) / 2, w - (HWSIZE - 1) / 2)];
                     sum += s * s;
-                    summands += 1;
                 }
             }
         }

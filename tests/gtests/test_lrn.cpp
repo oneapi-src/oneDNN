@@ -45,9 +45,24 @@ static int check_dst(const mkl_dnn::tensor::dims &dim, double a, double b, doubl
     for (uint32_t h = 0; h < H; ++h)
     for (uint32_t w = 0; w < W; ++w)
     {
-        if (std::abs(x[w + W*h + c*W*H + n*W*H*C] - std::pow(1 + a, b)) >= 1e-7)
+        if (c == 0 || c == C - 1)
+        {
+            if (std::abs(x[w + W*h + c*W*H + n*W*H*C] - std::pow(1 + a*0.6, b)) >= 1e-7)
 #           pragma omp atomic
-            n_errors += 1;
+                n_errors += 1;
+        }
+        else if (c == 1 || c == C - 2)
+        {
+            if (std::abs(x[w + W*h + c*W*H + n*W*H*C] - std::pow(1 + a*0.8, b)) >= 1e-7)
+#           pragma omp atomic
+                n_errors += 1;
+        }
+        else
+        {
+            if (std::abs(x[w + W*h + c*W*H + n*W*H*C] - std::pow(1 + a, b)) >= 1e-7)
+#           pragma omp atomic
+                n_errors += 1;
+        }
     }
     return n_errors;
 }
