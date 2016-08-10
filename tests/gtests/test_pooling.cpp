@@ -1,92 +1,162 @@
-#include <cstddef>
-#include <cstdio>
+#include "mkl_dnn_test_common.hpp"
+#include "gtest/gtest.h"
 
 #include "mkl_dnn.hpp"
 
-static int doit(bool lazy);
+namespace mkl_dnn {
 
-using std::ptrdiff_t;
-#include "gtest/gtest.h"
+struct test_pool_desc_t {
+    uint32_t mb, c;
+    uint32_t ih, iw;
+    uint32_t oh, ow;
+    uint32_t kh, kw;
+    int32_t padh, padw;
+    uint32_t strh, strw;
+};
 
-TEST(pooling_tests, AlexNet_p1) {
-    int n_errors = 0;
-
-    n_errors = doit(false);
-    EXPECT_EQ(n_errors, 0);
-
-    n_errors = doit(true);
-    EXPECT_EQ(n_errors, 0);
-}
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
-
-typedef float real_t;
-
-static void init_src(const mkl_dnn::tensor::dims &dim, real_t *x)
+template <typename data_t>
+void check_pool_max_fwd(test_pool_desc_t pd, memory &src, memory &dst)
 {
-    uint32_t N = dim[0], C = dim[1], H = dim[2], W = dim[3];
-#   pragma omp parallel for collapse(2)
-    for (uint32_t n = 0; n < N; n += 1)
-    for (uint32_t c = 0; c < C; c += 1)
-    for (uint32_t h = 2; h+2 <= H; h += 2)
-    for (uint32_t w = 2; w+2 <= W; w += 2)
-        x[w + W*h + c*W*H + n*W*H*C] = c*n;
-}
+    data_t *src_data = (data_t *)src.get_data_handle();
+    data_t *dst_data = (data_t *)dst.get_data_handle();
 
-static int check_dst(const mkl_dnn::tensor::dims &dim, const real_t *x)
-{
-    int n_errors = 0;
-    uint32_t N = dim[0], C = dim[1], H = dim[2], W = dim[3];
-#   pragma omp parallel for collapse(4)
-    for (uint32_t n = 0; n < N; ++n)
-    for (uint32_t c = 0; c < C; ++c)
-    for (uint32_t h = 0; h < H; ++h)
-    for (uint32_t w = 0; w < W; ++w)
-    {
-        if (x[w + W*h + c*W*H + n*W*H*C] != c*n)
-#           pragma omp atomic
-            n_errors += 1;
+    const memory::desc src_d = src.get_primitive_desc().desc();
+    const memory::desc dst_d = dst.get_primitive_desc().desc();
+
+#pragma omp parallel for collapse(4)
+    for (uint32_t n = 0; n < pd.mb; n++) {
+        for (uint32_t c = 0; c < pd.c; c++) {
+            for (uint32_t oh = 0; oh < pd.oh; oh++) {
+                for (uint32_t ow = 0; ow < pd.ow; ow++) {
+                    uint32_t oidx = n * pd.c * pd.oh * pd.ow + c * pd.oh * pd.ow
+                            + oh * pd.ow + ow;
+                    data_t out = dst_data[map_index(dst_d, oidx)];
+                    data_t out_ref;
+                    bool is_initialized = false;
+                    for (uint32_t kh = 0; kh < pd.kh; kh++) {
+                        for (uint32_t kw = 0; kw < pd.kw; kw++) {
+                            int32_t iw = ow * pd.strw - pd.padw + kw;
+                            int32_t ih = oh * pd.strh - pd.padh + kh;
+                            if (iw < 0 || iw >= (int32_t)pd.iw || ih < 0
+                                    || ih >= (int32_t)pd.ih)
+                                continue;
+                            uint32_t iidx = n * pd.c * pd.ih * pd.iw
+                                    + c * pd.ih * pd.iw + ih * pd.iw + iw;
+
+                            data_t d = src_data[map_index(src_d, iidx)];
+                            if (!is_initialized) {
+                                out_ref = d;
+                                is_initialized = true;
+                            } else {
+                                if (out_ref < d)
+                                    out_ref = d;
+                            }
+                        }
+                    }
+                    EXPECT_NEAR(out, out_ref, 1e-6);
+                }
+            }
+        }
     }
-    return n_errors;
 }
 
-static int doit(bool lazy) {
-    using namespace mkl_dnn;
+struct pool_test_params {
+    prop_kind aprop_kind;
+    const engine::kind engine_kind;
+    pooling::algorithm aalgorithm;
+    memory::format src_format;
+    memory::format dst_format;
+    test_pool_desc_t test_pd;
+};
 
-    /* AlexNet: p1
-     * {16, 96, 55, 55} -> {16, 96, 27, 27}
-     * strides: {2, 2}
-     * kernel : {3, 3}
-     * padding: {0, 0}
-     */
+template <typename data_t>
+class pooling_test : public ::testing::TestWithParam<pool_test_params> {
+protected:
+    virtual void SetUp()
+    {
+        pool_test_params p
+                = ::testing::TestWithParam<pool_test_params>::GetParam();
 
-    auto cpu_engine = engine(lazy ? engine::cpu_lazy : engine::cpu, 0);
+        ASSERT_TRUE(p.engine_kind == engine::kind::cpu
+                || p.engine_kind == engine::kind::cpu_lazy);
+        ASSERT_EQ(p.aprop_kind, prop_kind::forward);
+        ASSERT_EQ(p.aalgorithm, pooling::max);
+        auto eng = engine(p.engine_kind, 0);
+        memory::precision prec = data_traits<data_t>::prec;
+        ASSERT_EQ(prec, mkl_dnn::memory::precision::f32);
 
-    auto p1_src_desc     = memory::desc({1, 1, 2, {16, 96, 55, 55}}, memory::precision::f32, memory::format::nchw);
-    auto p1_indices_desc = memory::desc({1, 1, 2, {16, 96, 27, 27}}, memory::precision::u32, memory::format::nchw);
-    auto p1_dst_desc     = memory::desc({1, 1, 2, {16, 96, 27, 27}}, memory::precision::f32, memory::format::nchw);
+        test_pool_desc_t pd = p.test_pd;
 
-    real_t *src = new real_t[16*96*55*55]();
-    real_t *dst = new real_t[16*96*27*27]();
-    uint32_t *indices = new uint32_t[16*96*27*27]();
+        auto p_src_desc
+                = create_md({ pd.mb, pd.c, pd.ih, pd.iw }, prec, p.src_format);
+        auto p_dst_desc
+                = create_md({ pd.mb, pd.c, pd.oh, pd.ow }, prec, p.dst_format);
 
-    auto p1_src     = memory({p1_src_desc    , cpu_engine}, src    );
-    auto p1_indices = memory({p1_indices_desc, cpu_engine}, indices);
-    auto p1_dst     = memory({p1_dst_desc    , cpu_engine}, dst    );
+        auto pool_desc = pooling::desc(p.aprop_kind, p.aalgorithm, p_src_desc,
+                p_dst_desc, { pd.strh, pd.strw }, { pd.kh, pd.kw },
+                { pd.padh, pd.padw }, padding_kind::zero);
 
-    auto p1 = pooling(prop_kind::forward, pooling::max, p1_src, p1_indices, p1_dst,
-        {2, 2}, {3, 3}, {0, 0}, padding_kind::zero);
+        auto pool_prim_desc = pooling::primitive_desc(pool_desc, eng);
 
-    init_src({16, 96, 55, 55}, src);
-    stream().submit({p1}).wait();
-    int n_errors = check_dst({ 16, 96, 27, 27 }, dst);
+        auto p_idx_desc = pool_prim_desc.data.indices_primitive_desc;
+        auto p_src = memory(memory::primitive_desc(p_src_desc, eng));
+        auto p_idx = memory(memory::primitive_desc(p_idx_desc));
+        auto p_dst = memory(memory::primitive_desc(p_dst_desc, eng));
 
-    delete[] src;
-    delete[] indices;
-    delete[] dst;
+        fill_data<data_t>(p_src.get_primitive_desc().get_number_of_elements(),
+                (data_t *)p_src.get_data_handle());
 
-    return n_errors;
+        auto pool = pooling(pool_prim_desc, p_src, p_idx, p_dst);
+
+        std::vector<primitive> pipeline;
+        pipeline.push_back(pool);
+
+        stream().submit(pipeline).wait();
+
+        check_pool_max_fwd<data_t>(pd, p_src, p_dst);
+    }
+};
+
+using pooling_test_float = pooling_test<float>;
+using pool_test_params_float = pool_test_params;
+
+TEST_P(pooling_test_float, TestsPooling)
+{
 }
+INSTANTIATE_TEST_CASE_P(
+        TestPoolingForward, pooling_test_float,
+        ::testing::Values(pool_test_params_float{ prop_kind::forward,
+                                  engine::kind::cpu, pooling::max,
+                                  memory::format::nchw, memory::format::nchw,
+                                  { 2, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1 } },
+                pool_test_params_float{ prop_kind::forward, engine::kind::cpu,
+                        pooling::max, memory::format::nchw,
+                        memory::format::nchw,
+                        { 2, 4, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1 } }));
 
-#pragma GCC diagnostic pop
+INSTANTIATE_TEST_CASE_P(TestPoolingForwardNHWC, pooling_test_float,
+        ::testing::Values(pool_test_params_float{ prop_kind::forward,
+                engine::kind::cpu, pooling::max, memory::format::nhwc,
+                memory::format::nhwc,
+                { 2, 4, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1 } }));
+INSTANTIATE_TEST_CASE_P(TestPoolingForwardBlocked, pooling_test_float,
+        ::testing::Values(pool_test_params_float{ prop_kind::forward,
+                engine::kind::cpu, pooling::max, memory::format::nChw8c,
+                memory::format::nChw8c,
+                { 2, 32, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1 } }));
+
+INSTANTIATE_TEST_CASE_P(
+        TestPoolingAlexnetForwardNCHW, pooling_test_float,
+        ::testing::Values(pool_test_params_float{ prop_kind::forward,
+                                  engine::kind::cpu, pooling::max,
+                                  memory::format::nchw, memory::format::nchw,
+                                  { 2, 16, 55, 55, 27, 27, 3, 3, 0, 0, 1, 1 } },
+                pool_test_params_float{ prop_kind::forward, engine::kind::cpu,
+                        pooling::max, memory::format::nchw,
+                        memory::format::nchw,
+                        { 2, 16, 27, 27, 13, 13, 3, 3, 0, 0, 1, 1 } },
+                pool_test_params_float{ prop_kind::forward, engine::kind::cpu,
+                        pooling::max, memory::format::nchw,
+                        memory::format::nchw,
+                        { 2, 16, 13, 13, 6, 6, 3, 3, 0, 0, 1, 1 } }));
+}
