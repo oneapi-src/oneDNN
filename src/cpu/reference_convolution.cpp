@@ -143,7 +143,7 @@ status_t reference_convolution<prec>::primitive_desc_init(
                     &conv_d.bias_desc.tensor_desc, f32, x));
     if (conv_d.dst_desc.format == any)
         CHECK(mkl_dnn_memory_desc_init(&conv_d.dst_desc,
-                    &conv_d.dst_desc.tensor_desc, f32, nchw));
+                    &conv_d.dst_desc.tensor_desc, f32, conv_d.src_desc.format));
 
     /* memory primitive descriptors check */
     memory_primitive_desc_t src_pd, weights_pd, bias_pd, dst_pd;

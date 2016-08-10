@@ -108,7 +108,7 @@ status_t reference_pooling<prec>::primitive_desc_init(
         &pool_d.src_desc.tensor_desc, f32, nchw));
     if (pool_d.dst_desc.format == any)
         CHECK(mkl_dnn_memory_desc_init(&pool_d.dst_desc,
-        &pool_d.dst_desc.tensor_desc, f32, nchw));
+        &pool_d.dst_desc.tensor_desc, f32, pool_d.src_desc.format));
 
     memory_desc_t indices_desc;
     CHECK(mkl_dnn_memory_desc_init(&indices_desc,

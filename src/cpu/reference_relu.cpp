@@ -75,7 +75,7 @@ status_t reference_relu<prec>::primitive_desc_init(
                     &relu_d.src_desc.tensor_desc, f32, nchw));
     if (relu_d.dst_desc.format == any)
         CHECK(mkl_dnn_memory_desc_init(&relu_d.dst_desc,
-                    &relu_d.dst_desc.tensor_desc, f32, nchw));
+                    &relu_d.dst_desc.tensor_desc, f32, relu_d.src_desc.format));
 
     /* memory primitive descriptors check */
     /* XXX: code duplication */

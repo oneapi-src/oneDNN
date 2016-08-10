@@ -106,7 +106,7 @@ status_t reference_lrn<prec>::primitive_desc_init(
         &lrn_d.src_desc.tensor_desc, f32, nchw));
     if (lrn_d.dst_desc.format == any)
         CHECK(mkl_dnn_memory_desc_init(&lrn_d.dst_desc,
-        &lrn_d.dst_desc.tensor_desc, f32, nchw));
+        &lrn_d.dst_desc.tensor_desc, f32, lrn_d.src_desc.format));
 
     memory_desc_t scratch_desc;
     CHECK(mkl_dnn_memory_desc_init(&scratch_desc,
