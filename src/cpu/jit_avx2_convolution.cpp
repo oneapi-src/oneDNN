@@ -52,9 +52,9 @@ status_t jit_avx2_convolution<prec>::execute_forward()
                     for (uint32_t oj = 0; oj < jcp.ohp; ++oj) {
                         uint32_t _n, _c, _w, _h;
                         uint32_t _C, _O, _I;
-                        if (ic == 0)
-                            for (uint32_t oi = 0; oi <  jcp.owp; ++oi)
-                                if (bias != nullptr)
+                        if (ic == 0) {
+                            for (uint32_t oi = 0; oi <  jcp.owp; ++oi) {
+                                if (bias != nullptr) {
                                     for (uint32_t b = 0; b < jcp.nb_oc_blocking; ++b) {
                                         _n = n;
                                         _c = g*jcp.oc + (jcp.nb_oc_blocking*oc + b)*jcp.oc_block ;
@@ -65,7 +65,7 @@ status_t jit_avx2_convolution<prec>::execute_forward()
                                         for (uint32_t i = 0; i < jcp.oc_block; ++i)
                                             __tmp_dst[i] = __tmp_bias[i];
                                      }
-                                else
+                                } else {
                                     for (uint32_t b = 0; b < jcp.nb_oc_blocking; ++b){
                                         _n = n;
                                         _c = g*jcp.oc + (jcp.nb_oc_blocking*oc + b)*jcp.oc_block ;
@@ -76,6 +76,9 @@ status_t jit_avx2_convolution<prec>::execute_forward()
                                         for (uint32_t i = 0; i < jcp.oc_block; ++i)
                                             __tmp_dst[i] = __tmp_bias[i];
                                     }
+                                }
+                            }
+                        }
 
                         hnk_conv_kernel_t par_conv;
 
