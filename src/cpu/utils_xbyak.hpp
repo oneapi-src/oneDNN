@@ -28,9 +28,9 @@ typedef struct {
     uint32_t ur_w_tail;
     uint32_t ngroups;
     int SIMD_W;
-} hnk_conv_param_t;
+} jit_convolution_param_t;
 
-typedef struct __attribute__ ((__packed__)) hnk_conv_kernel_s {
+typedef struct __attribute__ ((__packed__)) jit_convolution_kernel_s {
     float *src;
     float *dst;
     float *filt;
@@ -40,7 +40,7 @@ typedef struct __attribute__ ((__packed__)) hnk_conv_kernel_s {
     size_t kh_padding;
     size_t kh_padding_prf;
     size_t kw_padding;
-}  hnk_conv_kernel_t;
+}  jit_convolution_kernel_t;
 
 #ifdef XBYAK64
 namespace Xbyak { namespace util {

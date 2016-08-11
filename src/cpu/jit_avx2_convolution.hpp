@@ -22,7 +22,7 @@ private:
     const impl::convolution_primitive_desc_t &_cpd;
     const bool _with_bias;
 
-    hnk_conv_param_t jcp;
+    jit_convolution_param_t jcp;
     jit_avx2_generator* generator;
     void (*jit_ker)(void*);
 

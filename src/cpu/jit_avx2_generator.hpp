@@ -25,7 +25,7 @@ private:
     Xbyak::Reg64 oi_iter = r11;
     Xbyak::Reg64 reg_kh  = rcx;
 
-    inline void hsw_iter(hnk_conv_param_t *params, int ur_w , int pad_l, int pad_r, const char* kh_lable)
+    inline void hsw_iter(jit_convolution_param_t *params, int ur_w , int pad_l, int pad_r, const char* kh_lable)
     {
         using Xbyak::Ymm;
 
@@ -95,7 +95,7 @@ public:
     }
 
     jit_avx2_generator(
-        hnk_conv_param_t *params,
+        jit_convolution_param_t *params,
         void* code_ptr = nullptr,
         size_t code_size = 8 * Xbyak::DEFAULT_MAX_CODE_SIZE
         ) : Xbyak::CodeGenerator(code_size, code_ptr)

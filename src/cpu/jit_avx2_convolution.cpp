@@ -60,8 +60,8 @@ status_t jit_avx2_convolution<prec>::execute_forward()
                                         _c = g*jcp.oc + (jcp.nb_oc_blocking*oc + b)*jcp.oc_block ;
                                         _h = oj;
                                         _w = oi;
-                                        float *__tmp_dst  = (float*)&dst[dst_d.off(_n, _c, _h, _w)];
-                                        float *__tmp_bias = (float*)&bias[bias_d.off(_c)];
+                                        data_t *__tmp_dst  = (data_t*)&dst[dst_d.off(_n, _c, _h, _w)];
+                                        data_t *__tmp_bias = (data_t*)&bias[bias_d.off(_c)];
                                         for (uint32_t i = 0; i < jcp.oc_block; ++i)
                                             __tmp_dst[i] = __tmp_bias[i];
                                      }
@@ -71,17 +71,14 @@ status_t jit_avx2_convolution<prec>::execute_forward()
                                         _c = g*jcp.oc + (jcp.nb_oc_blocking*oc + b)*jcp.oc_block ;
                                         _h = oj;
                                         _w = oi;
-                                        float *__tmp_dst  = (float*)&dst[dst_d.off(_n, _c, _h, _w)];
-                                        float *__tmp_bias = (float*)&bias[bias_d.off(_c)];
+                                        data_t *__tmp_dst  = (data_t*)&dst[dst_d.off(_n, _c, _h, _w)];
                                         for (uint32_t i = 0; i < jcp.oc_block; ++i)
-                                            __tmp_dst[i] = __tmp_bias[i];
+                                            __tmp_dst[i] = 0.0;
                                     }
                                 }
                             }
                         }
-
-                        hnk_conv_kernel_t par_conv;
-
+                        jit_convolution_kernel_t par_conv;
                         uint32_t ij = oj * jcp.stride_h;
                         uint32_t i_t_overflow = nstl::max(0, (int)(jcp.t_pad - ij));
                         uint32_t i_b_overflow = nstl::max((int)(ij + jcp.kh - jcp.t_pad), (int)jcp.ih) - jcp.ih;
