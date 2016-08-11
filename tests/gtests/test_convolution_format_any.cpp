@@ -4,19 +4,20 @@
 #include "mkl_dnn.hpp"
 
 namespace mkl_dnn {
+using fmt = memory::format;
 
 struct conv_any_fmt_test_params {
     prop_kind aprop_kind;
     const engine::kind engine_kind;
     convolution::algorithm aalgorithm;
-    memory::format src_fmt_in;
-    memory::format src_fmt_exp;
-    memory::format weights_fmt_in;
-    memory::format weights_fmt_exp;
-    memory::format bias_fmt_in;
-    memory::format bias_fmt_exp;
-    memory::format dst_fmt_in;
-    memory::format dst_fmt_exp;
+    fmt src_fmt_in;
+    fmt src_fmt_exp;
+    fmt weights_fmt_in;
+    fmt weights_fmt_exp;
+    fmt bias_fmt_in;
+    fmt bias_fmt_exp;
+    fmt dst_fmt_in;
+    fmt dst_fmt_exp;
     test_convolution_descr_t test_cd;
 };
 
@@ -36,18 +37,18 @@ protected:
         auto eng = engine(p.engine_kind, 0);
         memory::precision prec = data_traits<data_t>::prec;
         ASSERT_EQ(prec, mkl_dnn::memory::precision::f32);
-        const memory::format any_fmt = memory::format::any;
 
         // Some format chekers
-        ASSERT_NE(p.src_fmt_exp, any_fmt);
-        ASSERT_NE(p.weights_fmt_exp, any_fmt);
-        ASSERT_NE(p.bias_fmt_exp, any_fmt);
-        ASSERT_NE(p.dst_fmt_exp, any_fmt);
-        ASSERT_TRUE(p.src_fmt_in == any_fmt || p.src_fmt_in == p.src_fmt_exp);
+        ASSERT_NE(p.src_fmt_exp, fmt::any);
+        ASSERT_NE(p.weights_fmt_exp, fmt::any);
+        ASSERT_NE(p.bias_fmt_exp, fmt::any);
+        ASSERT_NE(p.dst_fmt_exp, fmt::any);
+        ASSERT_TRUE(p.src_fmt_in == fmt::any || p.src_fmt_in == p.src_fmt_exp);
+        ASSERT_TRUE(p.weights_fmt_in == fmt::any
+                || p.weights_fmt_in == p.weights_fmt_exp);
         ASSERT_TRUE(
-                p.weights_fmt_in == any_fmt || p.src_fmt_in == p.src_fmt_exp);
-        ASSERT_TRUE(p.bias_fmt_in == any_fmt || p.src_fmt_in == p.src_fmt_exp);
-        ASSERT_TRUE(p.dst_fmt_in == any_fmt || p.src_fmt_in == p.src_fmt_exp);
+                p.bias_fmt_in == fmt::any || p.bias_fmt_in == p.bias_fmt_exp);
+        ASSERT_TRUE(p.dst_fmt_in == fmt::any || p.dst_fmt_in == p.dst_fmt_exp);
 
         test_convolution_descr_t cd = p.test_cd;
 
@@ -61,7 +62,7 @@ protected:
         auto c_dst_desc
                 = create_md({ cd.mb, cd.oc, cd.oh, cd.ow }, prec, p.dst_fmt_in);
 
-        bool with_bias = p.bias_fmt_in != memory::format::format_undef;
+        bool with_bias = p.bias_fmt_in != fmt::format_undef;
         auto c_bias_desc = with_bias ?
                 create_md({ cd.oc }, prec, p.bias_fmt_in) :
                 create_md({}, prec, p.bias_fmt_in);
@@ -97,42 +98,31 @@ TEST_P(conv_any_fmt_test_float, TestsConvolutionAnyFmt)
 }
 INSTANTIATE_TEST_CASE_P(TestConvolutionAnyFmtForward, conv_any_fmt_test_float,
         ::testing::Values(conv_any_fmt_test_params_float{ prop_kind::forward,
-                engine::kind::cpu, convolution::direct, memory::format::any,
-                memory::format::nchw, memory::format::any, memory::format::oihw,
-                memory::format::any, memory::format::x, memory::format::any,
-                memory::format::nchw,
+                engine::kind::cpu, convolution::direct, fmt::any, fmt::nchw,
+                fmt::any, fmt::oihw, fmt::any, fmt::x, fmt::any, fmt::nchw,
                 { 2, 1, 4, 4, 4, 6, 4, 4, 3, 3, 1, 1, 1, 1 } }));
 
 INSTANTIATE_TEST_CASE_P(
         TestConvolutionAlexnetAnyFmtForwardBlocked, conv_any_fmt_test_float,
         ::testing::Values(
                 conv_any_fmt_test_params_float{ prop_kind::forward,
-                        engine::kind::cpu, convolution::direct,
-                        memory::format::any, memory::format::nChw8c,
-                        memory::format::any, memory::format::gOIhw8i8o,
-                        memory::format::any, memory::format::x,
-                        memory::format::any, memory::format::nChw8c,
+                        engine::kind::cpu, convolution::direct, fmt::any,
+                        fmt::nChw8c, fmt::any, fmt::gOIhw8i8o, fmt::any, fmt::x,
+                        fmt::any, fmt::nChw8c,
                         { 2, 2, 96, 27, 27, 256, 27, 27, 5, 5, 2, 2, 1, 1 } },
                 conv_any_fmt_test_params_float{ prop_kind::forward,
-                        engine::kind::cpu, convolution::direct,
-                        memory::format::any, memory::format::nChw8c,
-                        memory::format::any, memory::format::OIhw8i8o,
-                        memory::format::any, memory::format::x,
-                        memory::format::any, memory::format::nChw8c,
+                        engine::kind::cpu, convolution::direct, fmt::any,
+                        fmt::nChw8c, fmt::any, fmt::OIhw8i8o, fmt::any, fmt::x,
+                        fmt::any, fmt::nChw8c,
                         { 2, 1, 256, 13, 13, 384, 13, 13, 3, 3, 1, 1, 1, 1 } },
                 conv_any_fmt_test_params_float{ prop_kind::forward,
-                        engine::kind::cpu, convolution::direct,
-                        memory::format::any, memory::format::nChw8c,
-                        memory::format::any, memory::format::gOIhw8i8o,
-                        memory::format::any, memory::format::x,
-                        memory::format::any, memory::format::nChw8c,
+                        engine::kind::cpu, convolution::direct, fmt::any,
+                        fmt::nChw8c, fmt::any, fmt::gOIhw8i8o, fmt::any, fmt::x,
+                        fmt::any, fmt::nChw8c,
                         { 2, 2, 384, 13, 13, 384, 13, 13, 3, 3, 1, 1, 1, 1 } },
                 conv_any_fmt_test_params_float{ prop_kind::forward,
-                        engine::kind::cpu, convolution::direct,
-                        memory::format::any, memory::format::nChw8c,
-                        memory::format::any, memory::format::gOIhw8i8o,
-                        memory::format::any, memory::format::x,
-                        memory::format::any, memory::format::nChw8c,
-                        { 2, 2, 384, 13, 13, 256, 13, 13, 3, 3, 1, 1, 1,
-                                1 } }));
+                        engine::kind::cpu, convolution::direct, fmt::any,
+                        fmt::nChw8c, fmt::any, fmt::gOIhw8i8o, fmt::any, fmt::x,
+                        fmt::any, fmt::nChw8c, { 2, 2, 384, 13, 13, 256, 13, 13,
+                                                       3, 3, 1, 1, 1, 1 } }));
 }

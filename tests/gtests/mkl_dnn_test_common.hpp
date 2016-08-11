@@ -59,9 +59,6 @@ inline mkl_dnn::memory::desc create_md(mkl_dnn::tensor::dims dims,
     using f = mkl_dnn::memory::format;
     uint32_t ndims;
 
-    if (fmt == f::any)
-       return mkl_dnn::memory::desc({dims}, prec, fmt);
-
     switch (fmt) {
     case f::x:
         ndims = 1; break;
@@ -79,6 +76,8 @@ inline mkl_dnn::memory::desc create_md(mkl_dnn::tensor::dims dims,
         ndims = 5; break;
     case f::format_undef:
         ndims = 0; break;
+    case f::any:
+        return mkl_dnn::memory::desc({dims}, prec, fmt);
     default: EXPECT_TRUE(false) << "test does not support format: " << int(fmt);
     }
 
