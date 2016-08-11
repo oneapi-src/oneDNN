@@ -213,7 +213,6 @@ INSTANTIATE_TEST_CASE_P(
                         memory::format::OIhw8i8o, memory::format::x,
                         memory::format::nChw8c,
                         { 2, 1, 32, 13, 13, 48, 11, 11, 3, 3, 0, 0, 1, 1 } }));
-
 INSTANTIATE_TEST_CASE_P(
         TestConvolutionAlexnetForwardNCHW, convolution_test_float,
         ::testing::Values(
@@ -236,5 +235,28 @@ INSTANTIATE_TEST_CASE_P(
                         convolution::direct, memory::format::nchw,
                         memory::format::goihw, memory::format::x,
                         memory::format::nchw, { 2, 2, 384, 13, 13, 256, 13, 13,
+                                                      3, 3, 1, 1, 1, 1 } }));
+INSTANTIATE_TEST_CASE_P(
+        TestConvolutionAlexnetForwardBlocked, convolution_test_float,
+        ::testing::Values(
+                conv_test_params_float{ prop_kind::forward, engine::kind::cpu,
+                        convolution::direct, memory::format::nChw8c,
+                        memory::format::gOIhw8i8o, memory::format::x,
+                        memory::format::nChw8c,
+                        { 2, 2, 96, 27, 27, 256, 27, 27, 5, 5, 2, 2, 1, 1 } },
+                conv_test_params_float{ prop_kind::forward, engine::kind::cpu,
+                        convolution::direct, memory::format::nChw8c,
+                        memory::format::OIhw8i8o, memory::format::format_undef,
+                        memory::format::nChw8c,
+                        { 2, 1, 256, 13, 13, 384, 13, 13, 3, 3, 1, 1, 1, 1 } },
+                conv_test_params_float{ prop_kind::forward, engine::kind::cpu,
+                        convolution::direct, memory::format::nChw8c,
+                        memory::format::gOIhw8i8o, memory::format::format_undef,
+                        memory::format::nChw8c,
+                        { 2, 2, 384, 13, 13, 384, 13, 13, 3, 3, 1, 1, 1, 1 } },
+                conv_test_params_float{ prop_kind::forward, engine::kind::cpu,
+                        convolution::direct, memory::format::nChw8c,
+                        memory::format::gOIhw8i8o, memory::format::format_undef,
+                        memory::format::nChw8c, { 2, 2, 384, 13, 13, 256, 13, 13,
                                                       3, 3, 1, 1, 1, 1 } }));
 }

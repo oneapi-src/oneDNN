@@ -14,27 +14,33 @@
 #endif
 
 typedef struct {
-	int ic, oc, mb;
-	int ih, iw, oh, ow;
-	int ihp, iwp, ohp, owp;
-	int l_pad, t_pad;
-	int kh, kw;
-	int stride_h, stride_w;
-	int nb_ic, ic_block;
-	int nb_oc, oc_block;
-	int nb_ic_blocking, nb_oc_blocking; // blocking of nb_ic and nb_ic 
-	int ur_h, ur_w;
-	int ur_w_tail;
-	int ngroups;
-	int SIMD_W;
-} hnk_conv_param_t;	
+    int ic, oc;
+    uint32_t mb;
+    uint32_t ih, iw, oh, ow;
+    uint32_t ihp, iwp, ohp, owp;
+    int l_pad, t_pad;
+    int kh, kw;
+    int stride_h, stride_w;
+    uint32_t nb_ic, ic_block;
+    uint32_t nb_oc, oc_block;
+    uint32_t nb_ic_blocking, nb_oc_blocking; // blocking of nb_ic and nb_ic
+    uint32_t ur_h, ur_w;
+    uint32_t ur_w_tail;
+    uint32_t ngroups;
+    int SIMD_W;
+} hnk_conv_param_t;
 
-typedef struct hnk_conv_kernel_s {
-    float *src, *dst, *filt;
-    float *src_prf, *dst_prf, *filt_prf;
-    size_t kh_padding, kh_padding_prf;
+typedef struct __attribute__ ((__packed__)) hnk_conv_kernel_s {
+    float *src;
+    float *dst;
+    float *filt;
+    float *src_prf;
+    float *dst_prf;
+    float *filt_prf;
+    size_t kh_padding;
+    size_t kh_padding_prf;
     size_t kw_padding;
-} hnk_conv_kernel_t;
+}  hnk_conv_kernel_t;
 
 #ifdef XBYAK64
 namespace Xbyak { namespace util {

@@ -116,7 +116,8 @@ data_t *ref_data = (data_t *)ref.get_data_handle();
 data_t *dst_data = (data_t *)dst.get_data_handle();
 #pragma omp parallel for
     for (uint32_t i = 0; i < num; ++i) {
-        EXPECT_NEAR(dst_data[i], ref_data[i], 1e-4);
+        float _t = (std::abs(ref_data[i]) > 1e-4) ? (dst_data[i] - ref_data[i]) / ref_data[i] : (dst_data[i] - ref_data[i]);
+        EXPECT_NEAR(_t, 0.0, 1e-4);
     }
 }
 
