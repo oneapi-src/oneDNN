@@ -59,6 +59,9 @@ inline mkl_dnn::memory::desc create_md(mkl_dnn::tensor::dims dims,
     using f = mkl_dnn::memory::format;
     uint32_t ndims;
 
+    if (fmt == f::any)
+       return mkl_dnn::memory::desc({dims}, prec, fmt);
+
     switch (fmt) {
     case f::x:
         ndims = 1; break;
@@ -120,5 +123,15 @@ data_t *dst_data = (data_t *)dst.get_data_handle();
         EXPECT_NEAR(_t, 0.0, 1e-4);
     }
 }
+
+struct test_convolution_descr_t {
+    uint32_t mb;
+    uint32_t ng;
+    uint32_t ic, ih, iw;
+    uint32_t oc, oh, ow;
+    uint32_t kh, kw;
+    int32_t padh, padw;
+    uint32_t strh, strw;
+};
 
 #endif

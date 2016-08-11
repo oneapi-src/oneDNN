@@ -5,23 +5,14 @@
 
 namespace mkl_dnn {
 
-struct test_convolution_descr_t {
-    uint32_t mb;
-    uint32_t ng;
-    uint32_t ic, ih, iw;
-    uint32_t oc, oh, ow;
-    uint32_t kh, kw;
-    int32_t padh, padw;
-    uint32_t strh, strw;
-};
-
 template <typename data_t>
 void compute_ref_conv_fwd(test_convolution_descr_t c, memory src,
         memory weights, memory bias, memory dst)
 {
     data_t *src_data = (data_t *)src.get_data_handle();
     data_t *weights_data = (data_t *)weights.get_data_handle();
-    data_t *bias_data = (data_t *)(bias.get() ? bias.get_data_handle() : nullptr);
+    data_t *bias_data
+            = (data_t *)(bias.get() ? bias.get_data_handle() : nullptr);
     data_t *dst_data = (data_t *)dst.get_data_handle();
 
     const memory::desc src_d = src.get_primitive_desc().desc();
@@ -125,9 +116,9 @@ protected:
                 (data_t *)c_weights.get_data_handle());
 
         bool with_bias = p.bias_format != memory::format::format_undef;
-        auto c_bias_desc = with_bias
-            ? create_md({cd.oc}, prec, p.bias_format)
-            : create_md({}, prec, p.bias_format);
+        auto c_bias_desc = with_bias ?
+                create_md({ cd.oc }, prec, p.bias_format) :
+                create_md({}, prec, p.bias_format);
         auto c_bias = memory(memory::primitive_desc(c_bias_desc, eng));
         if (with_bias) {
             fill_data<data_t>(
@@ -135,13 +126,13 @@ protected:
                     (data_t *)c_bias.get_data_handle());
         }
 
-        auto c = with_bias
-            ? convolution(p.aprop_kind, p.aalgorithm, c_src, c_weights, c_bias,
-                    c_dst, { cd.strh, cd.strw }, { cd.padh, cd.padw },
-                    padding_kind::zero)
-            : convolution(p.aprop_kind, p.aalgorithm, c_src, c_weights, c_dst,
-                    { cd.strh, cd.strw }, { cd.padh, cd.padw },
-                    padding_kind::zero);
+        auto c = with_bias ?
+                convolution(p.aprop_kind, p.aalgorithm, c_src, c_weights,
+                        c_bias, c_dst, { cd.strh, cd.strw },
+                        { cd.padh, cd.padw }, padding_kind::zero) :
+                convolution(p.aprop_kind, p.aalgorithm, c_src, c_weights, c_dst,
+                        { cd.strh, cd.strw }, { cd.padh, cd.padw },
+                        padding_kind::zero);
 
         std::vector<primitive> pipeline;
         pipeline.push_back(c);
@@ -200,6 +191,7 @@ INSTANTIATE_TEST_CASE_P(
                         memory::format::oihw, memory::format::x,
                         memory::format::nhwc,
                         { 2, 1, 4, 4, 4, 6, 2, 2, 3, 3, 0, 0, 1, 1 } }));
+
 INSTANTIATE_TEST_CASE_P(
         TestConvolutionForwardBlocked, convolution_test_float,
         ::testing::Values(
@@ -213,6 +205,7 @@ INSTANTIATE_TEST_CASE_P(
                         memory::format::OIhw8i8o, memory::format::x,
                         memory::format::nChw8c,
                         { 2, 1, 32, 13, 13, 48, 11, 11, 3, 3, 0, 0, 1, 1 } }));
+
 INSTANTIATE_TEST_CASE_P(
         TestConvolutionAlexnetForwardNCHW, convolution_test_float,
         ::testing::Values(
@@ -236,6 +229,7 @@ INSTANTIATE_TEST_CASE_P(
                         memory::format::goihw, memory::format::x,
                         memory::format::nchw, { 2, 2, 384, 13, 13, 256, 13, 13,
                                                       3, 3, 1, 1, 1, 1 } }));
+
 INSTANTIATE_TEST_CASE_P(
         TestConvolutionAlexnetForwardBlocked, convolution_test_float,
         ::testing::Values(
@@ -257,6 +251,7 @@ INSTANTIATE_TEST_CASE_P(
                 conv_test_params_float{ prop_kind::forward, engine::kind::cpu,
                         convolution::direct, memory::format::nChw8c,
                         memory::format::gOIhw8i8o, memory::format::format_undef,
-                        memory::format::nChw8c, { 2, 2, 384, 13, 13, 256, 13, 13,
-                                                      3, 3, 1, 1, 1, 1 } }));
+                        memory::format::nChw8c,
+                        { 2, 2, 384, 13, 13, 256, 13, 13, 3, 3, 1, 1, 1,
+                                1 } }));
 }
