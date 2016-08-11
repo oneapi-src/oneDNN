@@ -7,6 +7,7 @@ static int doit(bool lazy);
 
 using std::ptrdiff_t;
 #include "gtest/gtest.h"
+#include "mkl_dnn_test_common.hpp"
 #include <cmath>
 
 TEST(normalization_tests, AlexNet_n1_jit_avx2) {
@@ -71,13 +72,13 @@ static int doit(bool lazy) {
 
     auto cpu_engine = engine(lazy ? engine::cpu_lazy : engine::cpu, 0);
 
-    auto n1_src_desc     = memory::desc({1, 1, 2, {16, 96, 55, 55}}, memory::precision::f32, memory::format::nChw8c);
-    auto n1_scratch_desc = memory::desc({1, 1, 2, {16, 96, 55, 55}}, memory::precision::f32, memory::format::nChw8c);
-    auto n1_dst_desc     = memory::desc({1, 1, 2, {16, 96, 55, 55}}, memory::precision::f32, memory::format::nChw8c);
+    auto n1_src_desc     = create_md({ 2, 16, 4, 4 }, memory::precision::f32, memory::format::nChw8c);
+    auto n1_scratch_desc = create_md({ 2, 16, 4, 4 }, memory::precision::f32, memory::format::nChw8c);
+    auto n1_dst_desc     = create_md({ 2, 16, 4, 4 }, memory::precision::f32, memory::format::nChw8c);
 
-    real_t *src     = new real_t[16*96*55*55]();
-    real_t *scratch = new real_t[16*96*55*55]();
-    real_t *dst     = new real_t[16*96*55*55]();
+    real_t *src     = new real_t[2*16*4*4]();
+    real_t *scratch = new real_t[2*16*4*4]();
+    real_t *dst     = new real_t[2*16*4*4]();
 
     auto n1_src     = memory({n1_src_desc    , cpu_engine}, src    );
     auto n1_scratch = memory({n1_scratch_desc, cpu_engine}, scratch);
@@ -85,9 +86,9 @@ static int doit(bool lazy) {
 
     auto n1 = lrn(prop_kind::forward, lrn::across_channels, n1_src, n1_scratch, n1_dst, 0.0001, 0.75, 5);
 
-    init_src({16, 96, 55, 55}, src);
+    init_src({ 2, 16, 4, 4 }, src);
     stream().submit({n1}).wait();
-    int n_errors = check_dst({ 16, 96, 55, 55 }, 0.0001, 0.75, dst);
+    int n_errors = check_dst({ 2, 16, 4, 4 }, 0.0001, 0.75, dst);
 
     delete[] src;
     delete[] scratch;
