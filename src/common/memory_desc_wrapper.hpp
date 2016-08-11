@@ -126,6 +126,13 @@ struct memory_desc_wrapper: public c_compatible {
         return off_v(pos, true);
     }
 
+    /** returns physical offset by logical one. Logical offset is represented by
+     * a tuple of block indeces (\param bn, ..., \param b1, \param b0). It is a
+     * user responsibility to adjust the result to get offset within blocks */
+    template<typename ...Args> inline size_t blk_off(Args... args) const {
+        return _blk_off<Args...>(args...);
+    }
+
     /* static functions section */
     /* TODO: replace with non-static, once _md becomes non-const ref */
 
@@ -141,6 +148,15 @@ private:
         const size_t n_args = sizeof...(args);
         return ((size_t)xn)*array_product<n_args>(&dims()[ndims() - n_args])
             + logical_offset(args...);
+    }
+
+    template<typename ...Void>
+    inline size_t _blk_off() const { return blocking_desc().offset_padding; }
+
+    template<typename T, typename ...Args>
+    inline size_t _blk_off(Args ...args, T xn) const {
+        return size_t(xn)*blocking_desc().strides[0][sizeof...(args)] +
+            _blk_off<Args...>(args...);
     }
 };
 

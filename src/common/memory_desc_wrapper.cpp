@@ -28,7 +28,7 @@ status_t fill_x(blocking_desc_t &blk, const tensor_desc_t &tensor) {
 /* TODO: improve me maybe... and put this to utils */
 inline void set_default_strides(dims_t strides, const dims_t sizes,
         uint32_t ndims, const uint32_t *perm = NULL) {
-    uint32_t id_perm[TENSOR_MAX_DIMS];
+    uint32_t id_perm[TENSOR_MAX_DIMS] = {0};
     for (uint32_t i = 0; i < ndims; ++i)
         id_perm[i] = i;
     if (perm == NULL)
