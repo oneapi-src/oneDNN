@@ -56,23 +56,25 @@ status_t jit_avx2_convolution<prec>::execute_forward()
                             for (uint32_t oi = 0; oi <  jcp.owp; ++oi)
                                 if (bias != nullptr)
                                     for (uint32_t b = 0; b < jcp.nb_oc_blocking; ++b) {
-                                        for (uint32_t i = 0; i < jcp.oc_block; ++i) {
-                                            _n = n;
-                                            _c = g*jcp.oc + (jcp.nb_oc_blocking*oc + b)*jcp.oc_block + i;
-                                            _h = oj;
-                                            _w = oi;
-                                            dst[dst_d.off(_n, _c, _h, _w)] = bias[bias_d.off(_c)];
-                                        }
+                                        _n = n;
+                                        _c = g*jcp.oc + (jcp.nb_oc_blocking*oc + b)*jcp.oc_block ;
+                                        _h = oj;
+                                        _w = oi;
+                                        float *__tmp_dst  = (float*)&dst[dst_d.off(_n, _c, _h, _w)];
+                                        float *__tmp_bias = (float*)&bias[bias_d.off(_c)];
+                                        for (uint32_t i = 0; i < jcp.oc_block; ++i)
+                                            __tmp_dst[i] = __tmp_bias[i];
                                      }
                                 else
                                     for (uint32_t b = 0; b < jcp.nb_oc_blocking; ++b){
-                                        for (uint32_t i = 0; i < jcp.oc_block; ++i) {
-                                            _n = n;
-                                            _c = g*jcp.oc + (jcp.nb_oc_blocking*oc + b)*jcp.oc_block + i;
-                                            _h = oj;
-                                            _w = oi;
-                                            dst[dst_d.off(_n, _c, _h, _w)] = 0.0;
-                                        }
+                                        _n = n;
+                                        _c = g*jcp.oc + (jcp.nb_oc_blocking*oc + b)*jcp.oc_block ;
+                                        _h = oj;
+                                        _w = oi;
+                                        float *__tmp_dst  = (float*)&dst[dst_d.off(_n, _c, _h, _w)];
+                                        float *__tmp_bias = (float*)&bias[bias_d.off(_c)];
+                                        for (uint32_t i = 0; i < jcp.oc_block; ++i)
+                                            __tmp_dst[i] = __tmp_bias[i];
                                     }
 
                         hnk_conv_kernel_t par_conv;
