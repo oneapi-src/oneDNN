@@ -209,13 +209,7 @@ status_t jit_avx2_lrn<prec>::primitive_desc_init(
     if (lrn_d.alg_kind != lrn_across_channels)
         return unimplemented;
 
-    if (lrn_d.src_desc.tensor_desc.ndims_batch != 1)
-        return unimplemented;
-
-    if (lrn_d.src_desc.tensor_desc.ndims_channels != 1)
-        return unimplemented;
-
-    if (lrn_d.src_desc.tensor_desc.ndims_spatial != 2)
+    if (lrn_d.src_desc.tensor_desc.ndims != 4)
         return unimplemented;
 
     // 0 is mini-batch, 1 is channel, 2 is height, 3 is width
