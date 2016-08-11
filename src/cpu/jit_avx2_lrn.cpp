@@ -233,12 +233,18 @@ status_t jit_avx2_lrn<prec>::primitive_desc_init(
     CHECK(lrn_d.src_desc.format == nChw8c ? mkl_dnn_success : mkl_dnn_try_again);
     CHECK(lrn_d.dst_desc.format == nChw8c ? mkl_dnn_success : mkl_dnn_try_again);
 
+    memory_desc_t scratch_desc;
+    CHECK(mkl_dnn_memory_desc_init(&scratch_desc,
+        &lrn_d.dst_desc.tensor_desc, f32, lrn_d.dst_desc.format));
+
     /* memory primitive descriptors check */
     memory_primitive_desc_t src_pd, scratch_pd, dst_pd;
     CHECK(mkl_dnn_memory_primitive_desc_init(&src_pd,
         &lrn_d.src_desc, &engine));
     CHECK(mkl_dnn_memory_primitive_desc_init(&dst_pd,
         &lrn_d.dst_desc, &engine));
+    CHECK(mkl_dnn_memory_primitive_desc_init(&scratch_pd,
+        &scratch_desc, &engine));
 
     /* final stage */
     lrn_primitive_desc_t ppd;
