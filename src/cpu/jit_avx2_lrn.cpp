@@ -165,9 +165,6 @@ status_t jit_avx2_lrn<prec>::execute_forward() {
 
     const uint32_t C = src_d.dims()[1];
     const uint32_t HW = src_d.dims()[2]*src_d.dims()[3];
-    const double alpha = this->_ppd.lrn_desc.alpha;
-    const double beta = this->_ppd.lrn_desc.beta;
-    const uint32_t size = this->_ppd.lrn_desc.local_size;
 
     const uint32_t N = src_d.dims()[0];
 #   pragma omp parallel for collapse(2)
