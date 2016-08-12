@@ -1,0 +1,15 @@
+/** @mainpage Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN) Developer Reference
+ *    
+ *
+ *
+ *
+ *
+ *
+ * <br>
+ * <br>
+ * <p><i>September 2016</i></p><br>
+ * <br>
+ * @subpage legal_information "Legal Information"<br>
+ * <br>
+*/
+
