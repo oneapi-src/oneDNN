@@ -2,11 +2,11 @@
 [![Apache License Version 2.0](https://img.shields.io/badge/license-Apache_2.0-green.svg)](LICENSE)
 ![Technical Preview](https://img.shields.io/badge/version-technical_preview-orange.svg)
 
-Intel® Math Kernel Library for Deep Neural Networks (Intel® MKL-DNN) is an open source performance library for Deep Learning (DL) applications intended for acceleration of DL frameworks on Intel® Architecture. Intel MKL-DNN includes highly vectorized and threaded building blocks for implementation of convolutional neural networks (CNN) with C and C++ interfaces. We created this project to help DL community innovate on Intel processors.
+Intel® Math Kernel Library for Deep Neural Networks (Intel® MKL-DNN) is an open source performance library for Deep Learning (DL) applications intended for acceleration of DL frameworks on Intel® architecture. Intel MKL-DNN includes highly vectorized and threaded building blocks for implementation of convolutional neural networks (CNN) with C and C++ interfaces. We created this project to help DL community innovate on Intel® processors.
 
 Intel MKL-DNN functionality shares implementation with [Intel® Math Kernel Library (Intel® MKL)](https://software.intel.com/en-us/intel-mkl), but is not API compatible with Intel MKL 2017. We will be looking into ways to converge API in future releases of Intel MKL.
 
-This release is a technical preview with functionality limited to AlexNet and VGG topologies forward path. While this library is in technical preview phase it's API may change without considerations of backward compatibility.
+This release is a technical preview with functionality limited to AlexNet and Visual Geometry Group (VGG) topologies forward path. While this library is in technical preview phase, its API may change without considerations of backward compatibility.
 
 ## License
 Intel MKL-DNN is licensed under [Apache License Version 2.0](http://www.apache.org/licenses/LICENSE-2.0).
@@ -28,7 +28,7 @@ Intel MKL-DNN supports Intel® 64 architecture processors and is optimized for
 * Intel® Xeon® processor E5-xxxx v3 (codename Haswell)
 * Intel® Xeon® processor E5-xxxx v4 (codename Broadwell)
 
-Other processors and IA-32 code will run unoptimized reference implementation.
+Other processors and IA-32 architecture systems will run an unoptimized reference implementation.
 
 Software dependencies:
 * [Cmake](https://cmake.org/download/) 2.8.0 or later
@@ -38,10 +38,10 @@ Software dependencies:
 The software was validated on RedHat* Enterprise Linux 7 with
 * GNU* Compiler Collection 4.8
 * GNU* Compiler Collection 6.1
-* Clang 3.8.0
+* Clang* 3.8.0
 * [Intel® C/C++ Compiler](https://software.intel.com/en-us/intel-parallel-studio-xe) 16.0 or later
 
-The implementation relies on OpenMP SIMD extensions and we recommend using Intel compiler for the best performance results.
+The implementation relies on OpenMP* SIMD extensions, and we recommend using Intel compiler for the best performance results.
 
 ## Installation
 Download [Intel MKL-DNN source code](https://github.com/01org/mkl-dnn/archive/master.zip) or clone the repository to your system
@@ -54,7 +54,7 @@ Before the installation make sure that all the dependencies are available and ha
 	mkdir –p build && cd build && cmake .. && make
 ```
 
-Intel MKL-DNN includes unit tests implmeneted using googletest framework. To validate the build run
+Intel MKL-DNN includes unit tests implemented using the googletest framework. To validate the build, run:
 ```
 	make test
 ```
