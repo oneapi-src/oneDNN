@@ -148,4 +148,15 @@ INSTANTIATE_TEST_CASE_P(
                         memory::format::nchw,
                         { 2, 256, 27, 27, 1.0e-4, 0.75, 5 } }));
 
+INSTANTIATE_TEST_CASE_P(
+        TestLRNAlexnetForwardBlocked, lrn_test_float,
+        ::testing::Values(lrn_test_params_float{ prop_kind::forward,
+                                  engine::kind::cpu, lrn::across_channels,
+                                  memory::format::nChw8c, memory::format::nChw8c,
+                                  { 2, 96, 55, 55, 1.0e-4, 0.75, 5 } },
+                lrn_test_params_float{ prop_kind::forward, engine::kind::cpu,
+                        lrn::across_channels, memory::format::nChw8c,
+                        memory::format::nChw8c,
+                        { 2, 256, 27, 27, 1.0e-4, 0.75, 5 } }));
+
 }
