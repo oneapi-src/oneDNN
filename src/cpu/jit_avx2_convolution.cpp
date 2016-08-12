@@ -24,9 +24,9 @@ template <impl::precision_t prec>
 status_t jit_avx2_convolution<prec>::execute_forward()
 {
     auto obtain_ptr = [this](uint32_t idx) {
-        const size_t oi = this->input()[idx].output_index;
+        const size_t ow = this->input()[idx].output_index;
         return reinterpret_cast<const data_t*>(
-                this->input()[idx].primitive->output()[oi]->memory_const());
+                this->input()[idx].primitive->output()[ow]->memory_const());
     };
     const data_t *src = obtain_ptr(0);
     const data_t *weights = obtain_ptr(1);
@@ -43,72 +43,56 @@ status_t jit_avx2_convolution<prec>::execute_forward()
     const bool w_groups = weights_d.ndims() == (src_d.ndims() + 1);
     const uint32_t w_idx_base = w_groups ? 1 : 0;
 
-
 #   pragma omp parallel for collapse(3)
     for (uint32_t g = 0; g < jcp.ngroups; ++g) {
         for (uint32_t n = 0; n < jcp.mb; ++n) {
             for (uint32_t oc = 0; oc < (jcp.nb_oc/jcp.nb_oc_blocking); ++oc) {
                 for (uint32_t ic = 0; ic < jcp.nb_ic; ++ic) {
-                    for (uint32_t oj = 0; oj < jcp.ohp; ++oj) {
-                        uint32_t _n, _c, _w, _h;
-                        uint32_t _C, _O, _I;
+                    for (uint32_t oh = 0; oh < jcp.ohp; ++oh) {
                         if (ic == 0) {
-                            for (uint32_t oi = 0; oi <  jcp.owp; ++oi) {
-                                if (bias != nullptr) {
-                                    for (uint32_t b = 0; b < jcp.nb_oc_blocking; ++b) {
-                                        _n = n;
-                                        _c = g*jcp.oc + (jcp.nb_oc_blocking*oc + b)*jcp.oc_block ;
-                                        _h = oj;
-                                        _w = oi;
-                                        data_t *__tmp_dst  = (data_t*)&dst[dst_d.off(_n, _c, _h, _w)];
-                                        data_t *__tmp_bias = (data_t*)&bias[bias_d.off(_c)];
-                                        for (uint32_t i = 0; i < jcp.oc_block; ++i)
-                                            __tmp_dst[i] = __tmp_bias[i];
-                                     }
-                                } else {
-                                    for (uint32_t b = 0; b < jcp.nb_oc_blocking; ++b){
-                                        _n = n;
-                                        _c = g*jcp.oc + (jcp.nb_oc_blocking*oc + b)*jcp.oc_block ;
-                                        _h = oj;
-                                        _w = oi;
-                                        data_t *__tmp_dst  = (data_t*)&dst[dst_d.off(_n, _c, _h, _w)];
-                                        for (uint32_t i = 0; i < jcp.oc_block; ++i)
-                                            __tmp_dst[i] = 0.0;
+                            for (auto ow = 0; ow < jcp.owp; ++ow) {
+                                for (auto b = 0; b < jcp.nb_oc_blocking; ++b) {
+                                    const uint32_t _c = g*jcp.nb_oc +
+                                        jcp.nb_oc_blocking*oc + b;
+
+                                    data_t *__tmp_dst  = &dst[dst_d.blk_off(
+                                            n, _c, oh, ow)];
+                                    const data_t *__tmp_bias = &bias[
+                                        bias_d.blk_off(_c*jcp.oc_block)];
+
+                                    for (auto i = 0; i < jcp.oc_block; ++i) {
+                                        __tmp_dst[i] = bias ? __tmp_bias[i] : 0;
                                     }
                                 }
                             }
                         }
+
                         jit_convolution_kernel_t par_conv;
-                        uint32_t ij = oj * jcp.stride_h;
-                        uint32_t i_t_overflow = nstl::max(0, (int)(jcp.t_pad - ij));
-                        uint32_t i_b_overflow = nstl::max((int)(ij + jcp.kh - jcp.t_pad), (int)jcp.ih) - jcp.ih;
+                        const int ij = oh * jcp.stride_h;
+                        const int i_t_overflow = nstl::max(0, jcp.t_pad - ij);
+                        const int i_b_overflow = nstl::max(jcp.ih,
+                                ij + jcp.kh - jcp.t_pad) - jcp.ih;
 
-                        _n = n;
-                        _C = g*jcp.ic + ic*jcp.ic_block;
-                        _h = (uint32_t)((int)ij-jcp.t_pad+(int)i_t_overflow);
-                        _w = 0u;
-                        par_conv.src  = (data_t*)&(src[src_d.off(_n, _C, _h, _w)]);
+                        const uint32_t ih = nstl::max(ij - jcp.t_pad, 0);
+                        par_conv.src = const_cast<data_t *>(&src[src_d.blk_off(
+                                    n, g*jcp.nb_ic + ic, ih, 0)]);
 
-                        _n = n;
-                        _C = g*jcp.oc + jcp.nb_oc_blocking*oc*jcp.oc_block;
-                        _h = oj;
-                        _w = 0u;
-                        par_conv.dst  = (data_t*)&(dst[dst_d.off(_n, _C, _h, _w)]);
+                        par_conv.dst = &dst[dst_d.blk_off(
+                                n, g*jcp.nb_oc + oc*jcp.nb_oc_blocking, oh, 0)];
 
-                        _O = jcp.nb_oc_blocking*oc*jcp.oc_block;
-                        _I = ic*jcp.ic_block;
-                        _h = i_t_overflow;
-                        _w = 0u;
-                        if (w_idx_base)
-                            par_conv.filt = (data_t*)&(weights[weights_d.off(g, _O, _I, _h, _w)]);
-                        else
-                            par_conv.filt = (data_t*)&(weights[weights_d.off(_O, _I, _h, _w)]);
+                        const uint32_t wcb = jcp.nb_oc_blocking*oc;
+                        const uint32_t wh = i_t_overflow;
+                        par_conv.filt = const_cast<data_t *>(&weights[ w_groups
+                                ? weights_d.blk_off(g, wcb, ic, wh, 0u)
+                                : weights_d.blk_off(wcb, ic, wh, 0u)
+                                ]);
 
                         par_conv.src_prf  = NULL;
                         par_conv.dst_prf  = NULL;
                         par_conv.filt_prf = NULL;
 
-                        par_conv.kh_padding = jcp.kh - i_t_overflow - i_b_overflow;
+                        par_conv.kh_padding = jcp.kh - i_t_overflow
+                            - i_b_overflow;
                         par_conv.kw_padding = 0;
                         this->jit_ker((void*)&par_conv);
                     }
@@ -116,6 +100,7 @@ status_t jit_avx2_convolution<prec>::execute_forward()
             }
         }
     }
+
     return success;
 }
 

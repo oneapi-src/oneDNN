@@ -19,8 +19,8 @@ typedef struct {
     uint32_t ih, iw, oh, ow;
     uint32_t ihp, iwp, ohp, owp;
     int l_pad, t_pad;
-    int kh, kw;
-    int stride_h, stride_w;
+    uint32_t kh, kw;
+    uint32_t stride_h, stride_w;
     uint32_t nb_ic, ic_block;
     uint32_t nb_oc, oc_block;
     uint32_t nb_ic_blocking, nb_oc_blocking; // blocking of nb_ic and nb_ic
