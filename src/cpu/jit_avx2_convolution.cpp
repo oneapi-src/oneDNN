@@ -24,9 +24,9 @@ template <impl::precision_t prec>
 status_t jit_avx2_convolution<prec>::execute_forward()
 {
     auto obtain_ptr = [this](uint32_t idx) {
-        const size_t ow = this->input()[idx].output_index;
+        const size_t oi = this->input()[idx].output_index;
         return reinterpret_cast<const data_t*>(
-                this->input()[idx].primitive->output()[ow]->memory_const());
+                this->input()[idx].primitive->output()[oi]->memory_const());
     };
     const data_t *src = obtain_ptr(0);
     const data_t *weights = obtain_ptr(1);
