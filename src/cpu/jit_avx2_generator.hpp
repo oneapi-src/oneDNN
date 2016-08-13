@@ -41,34 +41,35 @@ private:
     Xbyak::Reg64 oi_iter = r11;
     Xbyak::Reg64 reg_kh  = rcx;
 
-    inline void hsw_iter(jit_convolution_param_t *params, int ur_w , int pad_l, int pad_r, const char* kh_lable)
+    inline void hsw_iter(jit_convolution_param_t *params, uint32_t ur_w,
+                         int pad_l, int pad_r, const char* kh_lable)
     {
         using Xbyak::Ymm;
 
-        int iw    = params->iw;
-        int kw    = params->kw;
-        int kh    = params->kh;
-        int owp   = params->owp;
-        int ohp   = params->ohp;
+        uint32_t iw    = params->iw;
+        uint32_t kw    = params->kw;
+        uint32_t kh    = params->kh;
+        uint32_t ow    = params->ow;
+        uint32_t oh    = params->oh;
         uint32_t nb_ic = params->nb_ic;
 
-        int stride_w = params->stride_w;
+        uint32_t stride_w = params->stride_w;
         uint32_t nb_oc_block = params->nb_oc_blocking;
 
         for (uint32_t ii = 0; ii < nb_oc_block; ii++)
-            for (int jj = 0; jj  < ur_w; jj++)
-                vmovups(Ymm(ur_w*ii+jj), YWORD [ reg_output + sizeof(float)*(ii*ohp*owp+jj)*params->oc_block ]);
+            for (uint32_t jj = 0; jj  < ur_w; jj++)
+                vmovups(Ymm(ur_w*ii+jj), YWORD[reg_output + sizeof(float)*(ii*oh*ow+jj)*params->oc_block]);
 
         mov(aux_reg_input , reg_input );
         mov(aux_reg_kernel, reg_kernel);
 
         mov(kj, reg_kh);
         L(kh_lable); {
-            for (int ki = 0; ki < kw; ki++) {
-                int jj_start = nstl::max(0, pad_l-ki);
-                int jj_end = ur_w - nstl::max(0, ki+pad_r - (kw-1));
+            for (uint32_t ki = 0; ki < kw; ki++) {
+                uint32_t jj_start = (uint32_t)nstl::max(0, pad_l-(int)ki);
+                uint32_t jj_end = ur_w - (uint32_t)nstl::max(0, (int)ki+pad_r - (int)(kw-1));
                 for (uint32_t ifm2 = 0; ifm2 < params->ic_block; ifm2++) {
-                    for (int jj =jj_start ; jj < jj_end; jj++) {
+                    for (uint32_t jj =jj_start ; jj < jj_end; jj++) {
                         int aux_input_offset = (ki+jj*stride_w-pad_l)*params->ic_block + ifm2;
                         vbroadcastss(Ymm(nb_oc_block*ur_w+jj), ptr [ aux_reg_input + sizeof(float)*aux_input_offset ]);
                     }
@@ -76,7 +77,7 @@ private:
                         int aux_kernel_offset = ii*nb_ic*kh*kw*params->ic_block*params->oc_block +
                                                  ki*params->ic_block*params->oc_block+ ifm2*params->oc_block;
                         vmovups(ymm15, ptr [ aux_reg_kernel +  sizeof(float)*aux_kernel_offset ]);
-                        for (int jj = jj_start; jj  < jj_end; jj++)
+                        for (uint32_t jj = jj_start; jj  < jj_end; jj++)
                             vfmadd231ps(Ymm(ur_w*ii+jj), Ymm(nb_oc_block*ur_w+jj), ymm15);
                     }
                 }
@@ -90,8 +91,8 @@ private:
         }
 
         for (uint32_t ii = 0; ii < nb_oc_block; ii++)
-            for (int jj = 0; jj  < ur_w; jj++)
-                vmovups(YWORD [ reg_output + sizeof(float)*(ii*ohp*owp+jj)*params->oc_block ], Ymm(ur_w*ii+jj));
+            for (uint32_t jj = 0; jj  < ur_w; jj++)
+                vmovups(YWORD [ reg_output + sizeof(float)*(ii*oh*ow+jj)*params->oc_block ], Ymm(ur_w*ii+jj));
     }
 
 public:
@@ -125,7 +126,7 @@ public:
         mov(reg_kh    , ptr [ param + 48]);
 
         // NB: works only for params->ur_w == 3 && params->nb_oc % 4 == 0
-        int n_oi = params->ow / params->ur_w;
+        uint32_t n_oi = params->ow / params->ur_w;
         xor_(oi_iter, oi_iter);
         int l_pad = params->l_pad;
         int r_pad = nstl::max(0, (int)((params->ow-1)*params->stride_w + params->kw - 1 - (params->iw + params->l_pad - 1 )));

@@ -105,11 +105,6 @@ public:
         jcp.stride_h = _cpd.convolution_desc.strides[0];
         jcp.stride_w = _cpd.convolution_desc.strides[1];
 
-        jcp.ihp = jcp.ih + 2*jcp.t_pad;
-        jcp.iwp = jcp.iw + 2*jcp.l_pad;
-        jcp.ohp = jcp.oh;
-        jcp.owp = jcp.ow;
-
         jcp.ic_block = (jcp.ic % jcp.SIMD_W) ? 1 : jcp.SIMD_W;
         jcp.nb_ic = jcp.ic / jcp.ic_block;
 

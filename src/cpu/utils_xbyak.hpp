@@ -46,7 +46,8 @@ typedef struct {
     int SIMD_W;
 } jit_convolution_param_t;
 
-typedef struct __attribute__ ((__packed__)) jit_convolution_kernel_s {
+typedef struct __attribute__ ((__packed__))
+jit_convolution_kernel_s {
     float *src;
     float *dst;
     float *filt;
@@ -68,9 +69,11 @@ static const Operand::Code reg_to_preserve[] = {
 #endif
 };
 #ifdef _WIN
-static const Reg64 cdecl_param1(Operand::RCX), cdecl_param2(Operand::RDX), cdecl_param3(Operand::R8), cdecl_param4(Operand::R9);
+static const Reg64 cdecl_param1(Operand::RCX), cdecl_param2(Operand::RDX),
+                                cdecl_param3(Operand::R8), cdecl_param4(Operand::R9);
 #else
-static const Reg64 cdecl_param1(Operand::RDI), cdecl_param2(Operand::RSI), cdecl_param3(Operand::RDX), cdecl_param4(Operand::RCX);
+static const Reg64 cdecl_param1(Operand::RDI), cdecl_param2(Operand::RSI),
+                                cdecl_param3(Operand::RDX), cdecl_param4(Operand::RCX);
 #endif
 }}
 #endif

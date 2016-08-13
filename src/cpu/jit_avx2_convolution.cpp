@@ -63,19 +63,17 @@ status_t jit_avx2_convolution<prec>::execute_forward()
         for (uint32_t n = 0; n < jcp.mb; ++n) {
             for (uint32_t oc = 0; oc < (jcp.nb_oc/jcp.nb_oc_blocking); ++oc) {
                 for (uint32_t ic = 0; ic < jcp.nb_ic; ++ic) {
-                    for (uint32_t oh = 0; oh < jcp.ohp; ++oh) {
+                    for (uint32_t oh = 0; oh < jcp.oh; ++oh) {
                         if (ic == 0) {
-                            for (auto ow = 0u; ow < jcp.owp; ++ow) {
-                                for (auto b = 0u; b < jcp.nb_oc_blocking; ++b) {
+                            for (uint32_t ow = 0; ow < jcp.ow; ++ow) {
+                                for (uint32_t b = 0; b < jcp.nb_oc_blocking; ++b) {
                                     const uint32_t _c = g*jcp.nb_oc +
                                         jcp.nb_oc_blocking*oc + b;
-
                                     data_t *__tmp_dst  = &dst[dst_d.blk_off(
                                             n, _c, oh, ow)];
                                     const data_t *__tmp_bias = &bias[
                                         bias_d.blk_off(_c*jcp.oc_block)];
-
-                                    for (auto i = 0u; i < jcp.oc_block; ++i) {
+                                    for (uint32_t i = 0; i < jcp.oc_block; ++i) {
                                         __tmp_dst[i] = bias ? __tmp_bias[i] : 0;
                                     }
                                 }
@@ -208,10 +206,10 @@ status_t jit_avx2_convolution<prec>::primitive_desc_init(
     auto stride_w = conv_d.strides[1];
 
     if (stride_w != stride_h) {
-        return unimplemented;
+        return mkl_dnn_unimplemented;
     }
     if (stride_w > 1 || stride_h > 1) {
-        return unimplemented;
+        return mkl_dnn_unimplemented;
     }
 
     if ((ic % 8) || (oc % 8)) {
