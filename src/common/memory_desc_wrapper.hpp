@@ -25,12 +25,12 @@
 
 #include "type_helpers.hpp"
 
-namespace mkl_dnn {
+namespace mkldnn {
 namespace impl {
 
-using namespace mkl_dnn::impl::status;
-using namespace mkl_dnn::impl::precision;
-using namespace mkl_dnn::impl::memory_format;
+using namespace mkldnn::impl::status;
+using namespace mkldnn::impl::precision;
+using namespace mkldnn::impl::memory_format;
 
 /** thin wrapper class over \struct memory_desc_t which allows easy
  * manipulations with underlying C structure, which is taken by refernce */

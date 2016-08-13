@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkl_dnn_types.h"
+#include "mkldnn_types.h"
 
 #include "c_types_map.hpp"
 #include "reference_inner_product.hpp"
@@ -27,15 +27,15 @@
             return status;     \
     } while (0)
 
-namespace mkl_dnn {
+namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-using namespace mkl_dnn::impl::status;
-using namespace mkl_dnn::impl::prop_kind;
-using namespace mkl_dnn::impl::precision;
-using namespace mkl_dnn::impl::memory_format;
-using namespace mkl_dnn::impl::primitive_kind;
+using namespace mkldnn::impl::status;
+using namespace mkldnn::impl::prop_kind;
+using namespace mkldnn::impl::precision;
+using namespace mkldnn::impl::memory_format;
+using namespace mkldnn::impl::primitive_kind;
 
 template <impl::precision_t prec>
 status_t reference_inner_product<prec>::execute_forward()
@@ -116,7 +116,7 @@ status_t reference_inner_product<prec>::execute_backward_bias()
 template <impl::precision_t prec>
 status_t reference_inner_product<prec>::primitive_desc_init(
         primitive_desc_t *primitive_desc, const op_desc_t &op_desc,
-        const mkl_dnn::impl::engine &engine)
+        const mkldnn::impl::engine &engine)
 {
     if (op_desc._kind != primitive_kind::inner_product)
         return invalid_arguments;
@@ -132,10 +132,10 @@ status_t reference_inner_product<prec>::primitive_desc_init(
     /* memory descriptors check and fill-in */
     if (ip_d.src_desc.format == any) {
         if (ip_d.src_desc.tensor_desc.ndims == 4) {
-            CHECK(mkl_dnn_memory_desc_init(
+            CHECK(mkldnn_memory_desc_init(
                     &ip_d.src_desc, &ip_d.src_desc.tensor_desc, f32, nchw));
         } else if (ip_d.src_desc.tensor_desc.ndims == 2) {
-            CHECK(mkl_dnn_memory_desc_init(
+            CHECK(mkldnn_memory_desc_init(
                     &ip_d.src_desc, &ip_d.src_desc.tensor_desc, f32, nc));
         } else {
             return unimplemented;
@@ -143,10 +143,10 @@ status_t reference_inner_product<prec>::primitive_desc_init(
     }
     if (ip_d.weights_desc.format == any) {
         if (ip_d.weights_desc.tensor_desc.ndims == 4) {
-            CHECK(mkl_dnn_memory_desc_init(&ip_d.weights_desc,
+            CHECK(mkldnn_memory_desc_init(&ip_d.weights_desc,
                     &ip_d.weights_desc.tensor_desc, f32, oihw));
         } else if (ip_d.src_desc.tensor_desc.ndims == 2) {
-            CHECK(mkl_dnn_memory_desc_init(&ip_d.weights_desc,
+            CHECK(mkldnn_memory_desc_init(&ip_d.weights_desc,
                     &ip_d.weights_desc.tensor_desc, f32, oi));
         } else {
             return unimplemented;
@@ -154,20 +154,20 @@ status_t reference_inner_product<prec>::primitive_desc_init(
     }
     const bool with_bias = !memory_desc_wrapper(ip_d.bias_desc).is_zero();
     if (with_bias && ip_d.bias_desc.format == any)
-        CHECK(mkl_dnn_memory_desc_init(&ip_d.bias_desc,
+        CHECK(mkldnn_memory_desc_init(&ip_d.bias_desc,
                     &ip_d.bias_desc.tensor_desc, f32, x));
     if (ip_d.dst_desc.format == any)
-        CHECK(mkl_dnn_memory_desc_init(
+        CHECK(mkldnn_memory_desc_init(
                 &ip_d.dst_desc, &ip_d.dst_desc.tensor_desc, f32, nc));
 
     /* memory primitive descriptors check */
     memory_primitive_desc_t src_pd, weights_pd, bias_pd, dst_pd;
-    CHECK(mkl_dnn_memory_primitive_desc_init(&src_pd, &ip_d.src_desc, &engine));
-    CHECK(mkl_dnn_memory_primitive_desc_init(
+    CHECK(mkldnn_memory_primitive_desc_init(&src_pd, &ip_d.src_desc, &engine));
+    CHECK(mkldnn_memory_primitive_desc_init(
             &weights_pd, &ip_d.weights_desc, &engine));
-    CHECK(mkl_dnn_memory_primitive_desc_init(
+    CHECK(mkldnn_memory_primitive_desc_init(
             &bias_pd, &ip_d.bias_desc, &engine));
-    CHECK(mkl_dnn_memory_primitive_desc_init(&dst_pd, &ip_d.dst_desc, &engine));
+    CHECK(mkldnn_memory_primitive_desc_init(&dst_pd, &ip_d.dst_desc, &engine));
 
     /* final stage */
     inner_product_primitive_desc_t ippd;

@@ -23,12 +23,12 @@
 
 #include "utils.hpp"
 
-using namespace mkl_dnn::impl;
-using namespace mkl_dnn::impl::status;
-using namespace mkl_dnn::impl::prop_kind;
-using namespace mkl_dnn::impl::alg_kind;
+using namespace mkldnn::impl;
+using namespace mkldnn::impl::status;
+using namespace mkldnn::impl::prop_kind;
+using namespace mkldnn::impl::alg_kind;
 
-status_t mkl_dnn_convolution_desc_init(convolution_desc_t *convolution_desc,
+status_t mkldnn_convolution_desc_init(convolution_desc_t *convolution_desc,
         prop_kind_t prop_kind, alg_kind_t alg_kind,
         const memory_desc_t *src_desc, const memory_desc_t *weights_desc,
         const memory_desc_t *bias_desc, const memory_desc_t *dst_desc,
@@ -63,7 +63,7 @@ status_t mkl_dnn_convolution_desc_init(convolution_desc_t *convolution_desc,
     return status;
 }
 
-status_t mkl_dnn_convolution_primitive_desc_init(
+status_t mkldnn_convolution_primitive_desc_init(
         convolution_primitive_desc_t *convolution_primitive_desc,
         const convolution_desc_t *convolution_desc,
         const engine *engine)
@@ -76,19 +76,19 @@ status_t mkl_dnn_convolution_primitive_desc_init(
             *convolution_desc, *engine);
 }
 
-status_t mkl_dnn_convolution_create(primitive **convolution,
+status_t mkldnn_convolution_create(primitive **convolution,
         const convolution_primitive_desc_t *convolution_primitive_desc,
         const primitive_at_t src, const primitive_at_t weights,
         const primitive_at_t bias, const primitive *dst) {
-    auto cpd = reinterpret_cast<const mkl_dnn_primitive_desc_t *>(
+    auto cpd = reinterpret_cast<const mkldnn_primitive_desc_t *>(
             convolution_primitive_desc);
     // XXX: must check that shapes of in/out memory match what's in the desc (?)
     const primitive_at_t inputs[] = {src, weights, bias};
     const primitive *outputs[] = {dst};
-    return mkl_dnn_primitive_create(convolution, cpd, inputs, outputs);
+    return mkldnn_primitive_create(convolution, cpd, inputs, outputs);
 }
 
-status_t mkl_dnn_convolution_get_primitive_desc(const primitive *convolution,
+status_t mkldnn_convolution_get_primitive_desc(const primitive *convolution,
         convolution_primitive_desc_t *convolution_primitive_desc)
 {
     if (any_null(convolution, convolution_primitive_desc)

@@ -21,11 +21,11 @@
 #include "xbyak/xbyak.h"
 #include "utils_xbyak.hpp"
 
-namespace mkl_dnn { namespace impl { namespace cpu {
+namespace mkldnn { namespace impl { namespace cpu {
 
-using namespace mkl_dnn::impl::status;
-using namespace mkl_dnn::impl::prop_kind;
-using namespace mkl_dnn::impl::primitive_kind;
+using namespace mkldnn::impl::status;
+using namespace mkldnn::impl::prop_kind;
+using namespace mkldnn::impl::primitive_kind;
 
 class jit_avx2_generator : public Xbyak::CodeGenerator
 {

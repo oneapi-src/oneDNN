@@ -14,12 +14,12 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkl_dnn_test_common.hpp"
+#include "mkldnn_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "mkl_dnn.hpp"
+#include "mkldnn.hpp"
 
-namespace mkl_dnn {
+namespace mkldnn {
 
 struct test_inner_product_descr_t {
     uint32_t mb;
@@ -90,7 +90,7 @@ protected:
         ASSERT_EQ(p.aprop_kind, prop_kind::forward);
         auto eng = engine(p.engine_kind, 0);
         memory::precision prec = data_traits<data_t>::prec;
-        ASSERT_EQ(prec, mkl_dnn::memory::precision::f32);
+        ASSERT_EQ(prec, mkldnn::memory::precision::f32);
 
         auto ip_src_desc = has_spatial ?
                 create_md({ ipd.mb, ipd.ic, ipd.kh, ipd.kw }, prec,

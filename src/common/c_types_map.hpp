@@ -17,101 +17,101 @@
 #ifndef TYPE_MAPPING_HPP
 #define TYPE_MAPPING_HPP
 
-#include "mkl_dnn_types.h"
+#include "mkldnn_types.h"
 
-namespace mkl_dnn { namespace impl {
+namespace mkldnn { namespace impl {
 
 // TODO: autogenerate this
 
-using nd_offset_t = mkl_dnn_nd_offset_t;
-using dims_t = mkl_dnn_dims_t;
+using nd_offset_t = mkldnn_nd_offset_t;
+using dims_t = mkldnn_dims_t;
 
-using status_t = mkl_dnn_status_t;
+using status_t = mkldnn_status_t;
 namespace status {
-    const status_t success = mkl_dnn_success;
-    const status_t out_of_memory = mkl_dnn_out_of_memory;
-    const status_t try_again = mkl_dnn_try_again;
-    const status_t invalid_arguments = mkl_dnn_invalid_arguments;
-    const status_t not_ready = mkl_dnn_not_ready;
-    const status_t unimplemented = mkl_dnn_unimplemented;
+    const status_t success = mkldnn_success;
+    const status_t out_of_memory = mkldnn_out_of_memory;
+    const status_t try_again = mkldnn_try_again;
+    const status_t invalid_arguments = mkldnn_invalid_arguments;
+    const status_t not_ready = mkldnn_not_ready;
+    const status_t unimplemented = mkldnn_unimplemented;
 }
 
-using prop_kind_t = mkl_dnn_prop_kind_t;
+using prop_kind_t = mkldnn_prop_kind_t;
 namespace prop_kind {
-    const prop_kind_t forward = mkl_dnn_forward;
-    const prop_kind_t backward_data = mkl_dnn_backward_data;
-    const prop_kind_t backward_weights = mkl_dnn_backward_weights;
-    const prop_kind_t backward_bias = mkl_dnn_backward_bias;
+    const prop_kind_t forward = mkldnn_forward;
+    const prop_kind_t backward_data = mkldnn_backward_data;
+    const prop_kind_t backward_weights = mkldnn_backward_weights;
+    const prop_kind_t backward_bias = mkldnn_backward_bias;
 }
 
-using alg_kind_t = mkl_dnn_alg_kind_t;
+using alg_kind_t = mkldnn_alg_kind_t;
 namespace alg_kind {
-    const alg_kind_t convolution_direct = mkl_dnn_convolution_direct;
-    const alg_kind_t pooling_max = mkl_dnn_pooling_max;
-    const alg_kind_t lrn_across_channels = mkl_dnn_lrn_across_channels;
-    const alg_kind_t lrn_within_channel = mkl_dnn_lrn_within_channel;
+    const alg_kind_t convolution_direct = mkldnn_convolution_direct;
+    const alg_kind_t pooling_max = mkldnn_pooling_max;
+    const alg_kind_t lrn_across_channels = mkldnn_lrn_across_channels;
+    const alg_kind_t lrn_within_channel = mkldnn_lrn_within_channel;
 }
 
-using tensor_desc_t = mkl_dnn_tensor_desc_t;
+using tensor_desc_t = mkldnn_tensor_desc_t;
 
-using precision_t = mkl_dnn_precision_t;
+using precision_t = mkldnn_precision_t;
 namespace precision {
-    const precision_t undef = mkl_dnn_precision_undef;
-    const precision_t f32 = mkl_dnn_f32;
-    const precision_t u32 = mkl_dnn_u32;
+    const precision_t undef = mkldnn_precision_undef;
+    const precision_t f32 = mkldnn_f32;
+    const precision_t u32 = mkldnn_u32;
 }
 
-using memory_format_t = mkl_dnn_memory_format_t;
+using memory_format_t = mkldnn_memory_format_t;
 namespace memory_format {
-    const memory_format_t undef = mkl_dnn_format_undef;
-    const memory_format_t any = mkl_dnn_any;
-    const memory_format_t blocked = mkl_dnn_blocked;
-    const memory_format_t x = mkl_dnn_x;
-    const memory_format_t nc = mkl_dnn_nc;
-    const memory_format_t nchw = mkl_dnn_nchw;
-    const memory_format_t nhwc = mkl_dnn_nhwc;
-    const memory_format_t nChw8c = mkl_dnn_nChw8c;
-    const memory_format_t oi = mkl_dnn_oi;
-    const memory_format_t oihw = mkl_dnn_oihw;
-    const memory_format_t OIhw8i8o = mkl_dnn_OIhw8i8o;
-    const memory_format_t Ohwi8o = mkl_dnn_Ohwi8o;
-    const memory_format_t goihw = mkl_dnn_goihw;
-    const memory_format_t gOIhw8i8o = mkl_dnn_gOIhw8i8o;
+    const memory_format_t undef = mkldnn_format_undef;
+    const memory_format_t any = mkldnn_any;
+    const memory_format_t blocked = mkldnn_blocked;
+    const memory_format_t x = mkldnn_x;
+    const memory_format_t nc = mkldnn_nc;
+    const memory_format_t nchw = mkldnn_nchw;
+    const memory_format_t nhwc = mkldnn_nhwc;
+    const memory_format_t nChw8c = mkldnn_nChw8c;
+    const memory_format_t oi = mkldnn_oi;
+    const memory_format_t oihw = mkldnn_oihw;
+    const memory_format_t OIhw8i8o = mkldnn_OIhw8i8o;
+    const memory_format_t Ohwi8o = mkldnn_Ohwi8o;
+    const memory_format_t goihw = mkldnn_goihw;
+    const memory_format_t gOIhw8i8o = mkldnn_gOIhw8i8o;
 }
 
-using padding_kind_t = mkl_dnn_padding_kind_t;
+using padding_kind_t = mkldnn_padding_kind_t;
 namespace padding_kind {
-    const padding_kind_t padding_zero = mkl_dnn_padding_zero;
+    const padding_kind_t padding_zero = mkldnn_padding_zero;
 }
 
-using engine_kind_t = mkl_dnn_engine_kind_t;
+using engine_kind_t = mkldnn_engine_kind_t;
 namespace engine_kind {
-    const engine_kind_t any_engine = mkl_dnn_any_engine;
-    const engine_kind_t cpu = mkl_dnn_cpu;
-    const engine_kind_t cpu_lazy = mkl_dnn_cpu_lazy;
+    const engine_kind_t any_engine = mkldnn_any_engine;
+    const engine_kind_t cpu = mkldnn_cpu;
+    const engine_kind_t cpu_lazy = mkldnn_cpu_lazy;
 }
 
-using engine = mkl_dnn_engine;
+using engine = mkldnn_engine;
 
-using primitive_kind_t = mkl_dnn_primitive_kind_t;
+using primitive_kind_t = mkldnn_primitive_kind_t;
 namespace primitive_kind {
-    const primitive_kind_t undefined = mkl_dnn_undefined_primitive;
-    const primitive_kind_t memory = mkl_dnn_memory;
-    const primitive_kind_t reorder = mkl_dnn_reorder;
-    const primitive_kind_t convolution = mkl_dnn_convolution;
-    const primitive_kind_t pooling = mkl_dnn_pooling;
-    const primitive_kind_t relu = mkl_dnn_relu;
-    const primitive_kind_t lrn = mkl_dnn_lrn;
-    const primitive_kind_t inner_product = mkl_dnn_inner_product;
+    const primitive_kind_t undefined = mkldnn_undefined_primitive;
+    const primitive_kind_t memory = mkldnn_memory;
+    const primitive_kind_t reorder = mkldnn_reorder;
+    const primitive_kind_t convolution = mkldnn_convolution;
+    const primitive_kind_t pooling = mkldnn_pooling;
+    const primitive_kind_t relu = mkldnn_relu;
+    const primitive_kind_t lrn = mkldnn_lrn;
+    const primitive_kind_t inner_product = mkldnn_inner_product;
 }
 
-using blocking_desc_t = mkl_dnn_blocking_desc_t;
-using memory_desc_t = mkl_dnn_memory_desc_t;
-using convolution_desc_t = mkl_dnn_convolution_desc_t;
-using pooling_desc_t = mkl_dnn_pooling_desc_t;
-using relu_desc_t = mkl_dnn_relu_desc_t;
-using lrn_desc_t = mkl_dnn_lrn_desc_t;
-using inner_product_desc_t = mkl_dnn_inner_product_desc_t;
+using blocking_desc_t = mkldnn_blocking_desc_t;
+using memory_desc_t = mkldnn_memory_desc_t;
+using convolution_desc_t = mkldnn_convolution_desc_t;
+using pooling_desc_t = mkldnn_pooling_desc_t;
+using relu_desc_t = mkldnn_relu_desc_t;
+using lrn_desc_t = mkldnn_lrn_desc_t;
+using inner_product_desc_t = mkldnn_inner_product_desc_t;
 
 struct op_desc_t {
     primitive_kind_t _kind;
@@ -141,14 +141,14 @@ struct op_desc_t {
 #   undef DECL_CTOR_AND_CONVERTERS
 };
 
-using primitive_base_desc_t = mkl_dnn_primitive_base_desc_t;
-using memory_primitive_desc_t = mkl_dnn_memory_primitive_desc_t;
-using reorder_primitive_desc_t = mkl_dnn_reorder_primitive_desc_t;
-using convolution_primitive_desc_t = mkl_dnn_convolution_primitive_desc_t;
-using pooling_primitive_desc_t = mkl_dnn_pooling_primitive_desc_t;
-using relu_primitive_desc_t = mkl_dnn_relu_primitive_desc_t;
-using lrn_primitive_desc_t = mkl_dnn_lrn_primitive_desc_t;
-using inner_product_primitive_desc_t = mkl_dnn_inner_product_primitive_desc_t;
+using primitive_base_desc_t = mkldnn_primitive_base_desc_t;
+using memory_primitive_desc_t = mkldnn_memory_primitive_desc_t;
+using reorder_primitive_desc_t = mkldnn_reorder_primitive_desc_t;
+using convolution_primitive_desc_t = mkldnn_convolution_primitive_desc_t;
+using pooling_primitive_desc_t = mkldnn_pooling_primitive_desc_t;
+using relu_primitive_desc_t = mkldnn_relu_primitive_desc_t;
+using lrn_primitive_desc_t = mkldnn_lrn_primitive_desc_t;
+using inner_product_primitive_desc_t = mkldnn_inner_product_primitive_desc_t;
 
 union primitive_desc_t {
     primitive_base_desc_t base;
@@ -178,11 +178,11 @@ union primitive_desc_t {
 #   undef DECL_CTOR_AND_CONVERTERS
 };
 
-using primitive = mkl_dnn_primitive;
+using primitive = mkldnn_primitive;
 
-using primitive_at_t = mkl_dnn_primitive_at_t;
+using primitive_at_t = mkldnn_primitive_at_t;
 
-using stream = mkl_dnn_stream;
+using stream = mkldnn_stream;
 
 }}
 

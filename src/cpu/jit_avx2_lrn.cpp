@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkl_dnn_types.h"
+#include "mkldnn_types.h"
 
 #include "c_types_map.hpp"
 #include "jit_avx2_lrn.hpp"
@@ -150,14 +150,14 @@ public:
     if (status != success) return status; \
 } while(0)
 
-namespace mkl_dnn { namespace impl { namespace cpu {
+namespace mkldnn { namespace impl { namespace cpu {
 
-using namespace mkl_dnn::impl::status;
-using namespace mkl_dnn::impl::prop_kind;
-using namespace mkl_dnn::impl::alg_kind;
-using namespace mkl_dnn::impl::precision;
-using namespace mkl_dnn::impl::memory_format;
-using namespace mkl_dnn::impl::primitive_kind;
+using namespace mkldnn::impl::status;
+using namespace mkldnn::impl::prop_kind;
+using namespace mkldnn::impl::alg_kind;
+using namespace mkldnn::impl::precision;
+using namespace mkldnn::impl::memory_format;
+using namespace mkldnn::impl::primitive_kind;
 
 enum { VECTOR_LENGTH = 8 };
 typedef struct {
@@ -210,7 +210,7 @@ status_t jit_avx2_lrn<prec>::execute_backward_data() {
 template <impl::precision_t prec>
 status_t jit_avx2_lrn<prec>::primitive_desc_init(
         primitive_desc_t *primitive_desc, const op_desc_t &op_desc,
-        const mkl_dnn::impl::engine &engine) {
+        const mkldnn::impl::engine &engine) {
     if (op_desc._kind != primitive_kind::lrn)
         return invalid_arguments;
     auto lrn_d = op_desc.lrn;
@@ -240,26 +240,26 @@ status_t jit_avx2_lrn<prec>::primitive_desc_init(
 
     /* memory descriptors check and fill-in */
     if (lrn_d.src_desc.format == any)
-        CHECK(mkl_dnn_memory_desc_init(&lrn_d.src_desc,
+        CHECK(mkldnn_memory_desc_init(&lrn_d.src_desc,
         &lrn_d.src_desc.tensor_desc, f32, nChw8c));
     if (lrn_d.dst_desc.format == any)
-        CHECK(mkl_dnn_memory_desc_init(&lrn_d.dst_desc,
+        CHECK(mkldnn_memory_desc_init(&lrn_d.dst_desc,
         &lrn_d.dst_desc.tensor_desc, f32, nChw8c));
 
-    CHECK(lrn_d.src_desc.format == nChw8c ? mkl_dnn_success : mkl_dnn_try_again);
-    CHECK(lrn_d.dst_desc.format == nChw8c ? mkl_dnn_success : mkl_dnn_try_again);
+    CHECK(lrn_d.src_desc.format == nChw8c ? mkldnn_success : mkldnn_try_again);
+    CHECK(lrn_d.dst_desc.format == nChw8c ? mkldnn_success : mkldnn_try_again);
 
     memory_desc_t scratch_desc;
-    CHECK(mkl_dnn_memory_desc_init(&scratch_desc,
+    CHECK(mkldnn_memory_desc_init(&scratch_desc,
         &lrn_d.dst_desc.tensor_desc, f32, lrn_d.dst_desc.format));
 
     /* memory primitive descriptors check */
     memory_primitive_desc_t src_pd, scratch_pd, dst_pd;
-    CHECK(mkl_dnn_memory_primitive_desc_init(&src_pd,
+    CHECK(mkldnn_memory_primitive_desc_init(&src_pd,
         &lrn_d.src_desc, &engine));
-    CHECK(mkl_dnn_memory_primitive_desc_init(&dst_pd,
+    CHECK(mkldnn_memory_primitive_desc_init(&dst_pd,
         &lrn_d.dst_desc, &engine));
-    CHECK(mkl_dnn_memory_primitive_desc_init(&scratch_pd,
+    CHECK(mkldnn_memory_primitive_desc_init(&scratch_pd,
         &scratch_desc, &engine));
 
     /* final stage */
@@ -283,7 +283,7 @@ status_t jit_avx2_lrn<prec>::primitive_desc_init(
 template <impl::precision_t prec>
 status_t jit_avx2_lrn<prec>::create(primitive **primitive,
         const primitive_desc_t *primitive_desc,
-        const primitive_at_t inputs[], const mkl_dnn::impl::primitive *outputs[]) {
+        const primitive_at_t inputs[], const mkldnn::impl::primitive *outputs[]) {
     assert(primitive_desc->base.primitive_kind == lrn);
 
     auto& ppd = primitive_desc->lrn;

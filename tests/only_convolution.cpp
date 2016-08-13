@@ -20,12 +20,12 @@
 #include <stddef.h>
 #include <assert.h>
 
-#include "mkl_dnn.hpp"
+#include "mkldnn.hpp"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-but-set-variable"
 
-uint32_t tensor_volume(const mkl_dnn::tensor::dims &t)
+uint32_t tensor_volume(const mkldnn::tensor::dims &t)
 {
     uint32_t x = 1;
     for (uint32_t i = 0; i < t.size(); ++i) x *= t[i];
@@ -33,7 +33,7 @@ uint32_t tensor_volume(const mkl_dnn::tensor::dims &t)
 }
 
 int doit(bool lazy) {
-    using namespace mkl_dnn;
+    using namespace mkldnn;
 
     /* AlexNet: c3
      * {2, 256, 13, 13} (x) {384, 256, 3, 3} -> {2, 384, 13, 13}

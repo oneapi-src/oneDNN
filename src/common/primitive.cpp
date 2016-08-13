@@ -21,12 +21,12 @@
 #include "engine.hpp"
 #include "type_helpers.hpp"
 
-using namespace mkl_dnn::impl;
-using namespace mkl_dnn::impl::status;
-using namespace mkl_dnn::impl::primitive_kind;
+using namespace mkldnn::impl;
+using namespace mkldnn::impl::status;
+using namespace mkldnn::impl::primitive_kind;
 
-status_t mkl_dnn_primitive_create(primitive **aprimitive,
-        const_mkl_dnn_primitive_desc_t primitive_desc,
+status_t mkldnn_primitive_create(primitive **aprimitive,
+        const_mkldnn_primitive_desc_t primitive_desc,
         const primitive_at_t inputs[], const primitive *outputs[]) {
     if (any_null(aprimitive, primitive_desc, inputs, outputs))
         return invalid_arguments;
@@ -47,8 +47,8 @@ status_t mkl_dnn_primitive_create(primitive **aprimitive,
     return impl->primitive_create(aprimitive, &pd, inputs, outputs);
 }
 
-status_t mkl_dnn_primitive_get_primitive_desc(const primitive *primitive,
-        mkl_dnn_primitive_desc_t *primitive_desc) {
+status_t mkldnn_primitive_get_primitive_desc(const primitive *primitive,
+        mkldnn_primitive_desc_t *primitive_desc) {
     if (any_null(primitive, primitive_desc))
         return invalid_arguments;
 
@@ -69,7 +69,7 @@ status_t mkl_dnn_primitive_get_primitive_desc(const primitive *primitive,
     return success;
 }
 
-mkl_dnn_status_t mkl_dnn_primitive_get_input_at(const primitive *aprimitive,
+mkldnn_status_t mkldnn_primitive_get_input_at(const primitive *aprimitive,
         size_t index, primitive_at_t *input)
 {
     if (index >= aprimitive->input_count())
@@ -79,7 +79,7 @@ mkl_dnn_status_t mkl_dnn_primitive_get_input_at(const primitive *aprimitive,
     return success;
 }
 
-status_t mkl_dnn_primitive_get_output(const primitive *aprimitive, size_t index,
+status_t mkldnn_primitive_get_output(const primitive *aprimitive, size_t index,
         const primitive **output) {
     if (index >= aprimitive->output_count())
         return invalid_arguments;
@@ -88,19 +88,19 @@ status_t mkl_dnn_primitive_get_output(const primitive *aprimitive, size_t index,
     return success;
 }
 
-status_t mkl_dnn_primitive_destroy(primitive *aprimitive) {
+status_t mkldnn_primitive_destroy(primitive *aprimitive) {
     if (aprimitive != NULL)
         delete aprimitive;
     return success;
 }
 
-primitive_at_t mkl_dnn_primitive_at(const primitive *aprimitive,
+primitive_at_t mkldnn_primitive_at(const primitive *aprimitive,
         size_t output_index) {
     primitive_at_t result = {aprimitive, output_index};
     return result;
 }
 
-namespace mkl_dnn {
+namespace mkldnn {
 namespace impl {
 
 status_t primitive_desc_init(primitive_desc_t *primitive_desc,

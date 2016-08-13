@@ -24,11 +24,11 @@
 
 #include "utils.hpp"
 
-using namespace mkl_dnn::impl;
-using namespace mkl_dnn::impl::status;
-using namespace mkl_dnn::impl::engine_kind;
+using namespace mkldnn::impl;
+using namespace mkldnn::impl::status;
+using namespace mkldnn::impl::engine_kind;
 
-status_t mkl_dnn_reorder_primitive_desc_init(
+status_t mkldnn_reorder_primitive_desc_init(
         reorder_primitive_desc_t *reorder_primitive_desc,
         const memory_primitive_desc_t *input,
         const memory_primitive_desc_t *output)
@@ -59,18 +59,18 @@ status_t mkl_dnn_reorder_primitive_desc_init(
     return unimplemented;
 }
 
-status_t mkl_dnn_reorder_create(primitive **reorder,
+status_t mkldnn_reorder_create(primitive **reorder,
         const reorder_primitive_desc_t *reorder_primitive_desc,
         const primitive_at_t input, const primitive *output) {
-    auto rpd = reinterpret_cast<const mkl_dnn_primitive_desc_t *>(
+    auto rpd = reinterpret_cast<const mkldnn_primitive_desc_t *>(
             reorder_primitive_desc);
     // XXX: must check that shapes of in/out memory match what's in the desc (?)
     const primitive_at_t inputs[] = {input};
     const primitive *outputs[] = {output};
-    return mkl_dnn_primitive_create(reorder, rpd, inputs, outputs);
+    return mkldnn_primitive_create(reorder, rpd, inputs, outputs);
 }
 
-status_t mkl_dnn_reorder_get_primitive_desc(const primitive *reorder,
+status_t mkldnn_reorder_get_primitive_desc(const primitive *reorder,
         reorder_primitive_desc_t *reorder_primitive_desc)
 {
     if (any_null(reorder, reorder_primitive_desc)

@@ -24,14 +24,14 @@
 #include "primitive.hpp"
 #include "type_helpers.hpp"
 
-namespace mkl_dnn {
+namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-using namespace mkl_dnn::impl::status;
-using namespace mkl_dnn::impl::precision;
-using namespace mkl_dnn::impl::prop_kind;
-using namespace mkl_dnn::impl::primitive_kind;
+using namespace mkldnn::impl::status;
+using namespace mkldnn::impl::precision;
+using namespace mkldnn::impl::prop_kind;
+using namespace mkldnn::impl::primitive_kind;
 
 template <impl::precision_t prec>
 class reference_inner_product : public primitive {
@@ -79,7 +79,7 @@ public:
 
     /* static magic */
     static status_t primitive_desc_init(primitive_desc_t *primitive_desc,
-            const op_desc_t &op_desc, const mkl_dnn::impl::engine &aengine);
+            const op_desc_t &op_desc, const mkldnn::impl::engine &aengine);
     static const primitive_impl implementation;
 };
 }

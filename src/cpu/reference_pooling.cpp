@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkl_dnn_types.h"
+#include "mkldnn_types.h"
 
 #include "c_types_map.hpp"
 #include "reference_pooling.hpp"
@@ -27,14 +27,14 @@
     if (status != success) return status; \
 } while(0)
 
-namespace mkl_dnn { namespace impl { namespace cpu {
+namespace mkldnn { namespace impl { namespace cpu {
 
-using namespace mkl_dnn::impl::status;
-using namespace mkl_dnn::impl::prop_kind;
-using namespace mkl_dnn::impl::alg_kind;
-using namespace mkl_dnn::impl::precision;
-using namespace mkl_dnn::impl::memory_format;
-using namespace mkl_dnn::impl::primitive_kind;
+using namespace mkldnn::impl::status;
+using namespace mkldnn::impl::prop_kind;
+using namespace mkldnn::impl::alg_kind;
+using namespace mkldnn::impl::precision;
+using namespace mkldnn::impl::memory_format;
+using namespace mkldnn::impl::primitive_kind;
 
 template <impl::precision_t prec>
 status_t reference_pooling<prec>::execute_forward() {
@@ -107,7 +107,7 @@ status_t reference_pooling<prec>::execute_backward_data() {
 template <impl::precision_t prec>
 status_t reference_pooling<prec>::primitive_desc_init(
         primitive_desc_t *primitive_desc, const op_desc_t &op_desc,
-        const mkl_dnn::impl::engine &engine) {
+        const mkldnn::impl::engine &engine) {
     if (op_desc._kind != primitive_kind::pooling)
         return invalid_arguments;
     auto pool_d = op_desc.pooling;
@@ -120,23 +120,23 @@ status_t reference_pooling<prec>::primitive_desc_init(
 
     /* memory descriptors check and fill-in */
     if (pool_d.src_desc.format == any)
-        CHECK(mkl_dnn_memory_desc_init(&pool_d.src_desc,
+        CHECK(mkldnn_memory_desc_init(&pool_d.src_desc,
         &pool_d.src_desc.tensor_desc, f32, nchw));
     if (pool_d.dst_desc.format == any)
-        CHECK(mkl_dnn_memory_desc_init(&pool_d.dst_desc,
+        CHECK(mkldnn_memory_desc_init(&pool_d.dst_desc,
         &pool_d.dst_desc.tensor_desc, f32, pool_d.src_desc.format));
 
     memory_desc_t indices_desc;
-    CHECK(mkl_dnn_memory_desc_init(&indices_desc,
+    CHECK(mkldnn_memory_desc_init(&indices_desc,
         &pool_d.dst_desc.tensor_desc, u32, pool_d.dst_desc.format));
 
     /* memory primitive descriptors check */
     memory_primitive_desc_t src_pd, indices_pd, dst_pd;
-    CHECK(mkl_dnn_memory_primitive_desc_init(&src_pd,
+    CHECK(mkldnn_memory_primitive_desc_init(&src_pd,
         &pool_d.src_desc, &engine));
-    CHECK(mkl_dnn_memory_primitive_desc_init(&dst_pd,
+    CHECK(mkldnn_memory_primitive_desc_init(&dst_pd,
         &pool_d.dst_desc, &engine));
-    CHECK(mkl_dnn_memory_primitive_desc_init(&indices_pd,
+    CHECK(mkldnn_memory_primitive_desc_init(&indices_pd,
         &indices_desc, &engine));
 
     /* final stage */

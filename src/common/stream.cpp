@@ -16,15 +16,15 @@
 
 #include <cassert>
 
-#include "mkl_dnn.h"
+#include "mkldnn.h"
 
 #include "c_types_map.hpp"
 #include "engine.hpp"
 #include "nstl.hpp"
 #include "utils.hpp"
 
-using namespace mkl_dnn::impl;
-using namespace mkl_dnn::impl::status;
+using namespace mkldnn::impl;
+using namespace mkldnn::impl::status;
 
 // TODO: thread-safety
 
@@ -32,7 +32,7 @@ using namespace mkl_dnn::impl::status;
 //  - engines are responsible for tracking the dependencies: they cannot
 //    schedule a primitive for execution unless all its unputs are ready
 
-struct mkl_dnn_stream: public c_compatible {
+struct mkldnn_stream: public c_compatible {
 private:
     int _is_lazy;
     nstl::vector<primitive*> _queue;
@@ -89,7 +89,7 @@ private:
     }
 
 public:
-    mkl_dnn_stream(): _is_lazy(-1) {}
+    mkldnn_stream(): _is_lazy(-1) {}
 
     status_t submit(size_t n, primitive *primitives[],
             primitive **error_primitive)
@@ -110,7 +110,7 @@ public:
         // XXX: start_idx should be returned by _queue.insert()
         int start_idx = _queue.size();
         if (_queue.insert(_queue.end(), primitives, primitives + n)
-                != mkl_dnn::impl::nstl::success)
+                != mkldnn::impl::nstl::success)
             return out_of_memory;
         if (!_is_lazy)
             return submit_queue(start_idx, error_primitive);
@@ -131,23 +131,23 @@ public:
     }
 };
 
-status_t mkl_dnn_stream_create(stream **astream) {
+status_t mkldnn_stream_create(stream **astream) {
     *astream = new stream;
     return astream ? success : out_of_memory;
 }
 
-status_t mkl_dnn_stream_submit(stream *astream, size_t n,
+status_t mkldnn_stream_submit(stream *astream, size_t n,
         primitive *primitives[],
         primitive **error_primitive) {
     return astream->submit(n, primitives, error_primitive);
 }
 
-status_t mkl_dnn_stream_wait(stream *astream, int block,
+status_t mkldnn_stream_wait(stream *astream, int block,
         primitive **error_primitive) {
     return astream->wait(!!block, error_primitive);
 }
 
-status_t mkl_dnn_stream_destroy(stream *astream) {
+status_t mkldnn_stream_destroy(stream *astream) {
     delete astream;
     return success;
 }

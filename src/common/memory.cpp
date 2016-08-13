@@ -18,19 +18,19 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "mkl_dnn.h"
+#include "mkldnn.h"
 
 #include "c_types_map.hpp"
 #include "engine.hpp"
 #include "utils.hpp"
 #include "type_helpers.hpp"
 
-using namespace mkl_dnn::impl;
-using namespace mkl_dnn::impl::status;
-using namespace mkl_dnn::impl::memory_format;
-using namespace mkl_dnn::impl::precision;
+using namespace mkldnn::impl;
+using namespace mkldnn::impl::status;
+using namespace mkldnn::impl::memory_format;
+using namespace mkldnn::impl::precision;
 
-status_t mkl_dnn_tensor_desc_init(tensor_desc_t *tensor_desc, uint32_t ndims,
+status_t mkldnn_tensor_desc_init(tensor_desc_t *tensor_desc, uint32_t ndims,
         const dims_t dims) {
     if (any_null(tensor_desc)) return invalid_arguments;
     tensor_desc_t td;
@@ -46,7 +46,7 @@ status_t mkl_dnn_tensor_desc_init(tensor_desc_t *tensor_desc, uint32_t ndims,
     return success;
 }
 
-status_t mkl_dnn_memory_desc_init(memory_desc_t *memory_desc,
+status_t mkldnn_memory_desc_init(memory_desc_t *memory_desc,
         const tensor_desc_t *tensor, precision_t precision,
         memory_format_t format) {
     /* quick return for memory desc == 0 */
@@ -95,18 +95,18 @@ status_t mkl_dnn_memory_desc_init(memory_desc_t *memory_desc,
     return status;
 }
 
-size_t mkl_dnn_memory_desc_get_number_of_elements(
+size_t mkldnn_memory_desc_get_number_of_elements(
         const memory_desc_t *memory_desc, int with_padding) {
     return memory_desc
         ? memory_desc_wrapper(*memory_desc).nelems(with_padding)
         : 0;
 }
 
-size_t mkl_dnn_memory_desc_get_size(const memory_desc_t *memory_desc) {
+size_t mkldnn_memory_desc_get_size(const memory_desc_t *memory_desc) {
     return memory_desc ? memory_desc_wrapper(*memory_desc).size() : 0;
 }
 
-status_t mkl_dnn_memory_primitive_desc_init(
+status_t mkldnn_memory_primitive_desc_init(
         memory_primitive_desc_t *memory_primitive_desc,
         const memory_desc_t *memory_desc, const engine *engine) {
     /* quick return for memory primitive descriptor == 0 */
@@ -126,23 +126,23 @@ status_t mkl_dnn_memory_primitive_desc_init(
             *memory_desc, *engine);
 }
 
-int mkl_dnn_memory_primitive_desc_equal(const memory_primitive_desc_t *lhs,
+int mkldnn_memory_primitive_desc_equal(const memory_primitive_desc_t *lhs,
         const memory_primitive_desc_t *rhs) {
     if (any_null(lhs, rhs)) return 0;
     return types::operator==(*lhs, *rhs);
 }
 
-status_t mkl_dnn_memory_create(primitive **memory,
+status_t mkldnn_memory_create(primitive **memory,
         const memory_primitive_desc_t *memory_primitive_desc,
         void *data_ptr) {
     // XXX: is this ok?
     primitive_at_t inputs[] = { {static_cast<const primitive*>(data_ptr), 0} };
     const primitive *outputs[] = {static_cast<const primitive*>(data_ptr)};
-    return mkl_dnn_primitive_create(memory, memory_primitive_desc, inputs,
+    return mkldnn_primitive_create(memory, memory_primitive_desc, inputs,
             outputs);
 }
 
-status_t mkl_dnn_memory_get_primitive_desc(const primitive *memory,
+status_t mkldnn_memory_get_primitive_desc(const primitive *memory,
         memory_primitive_desc_t *memory_primitive_desc) {
     if (any_null(memory_primitive_desc))
         return invalid_arguments;
@@ -158,7 +158,7 @@ status_t mkl_dnn_memory_get_primitive_desc(const primitive *memory,
     return success;
 }
 
-status_t mkl_dnn_memory_get_data_handle(const primitive *memory, void **handle)
+status_t mkldnn_memory_get_data_handle(const primitive *memory, void **handle)
 {
     if (any_null(handle))
         return invalid_arguments;

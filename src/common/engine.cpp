@@ -14,14 +14,14 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkl_dnn.h"
+#include "mkldnn.h"
 #include "engine.hpp"
 #include "nstl.hpp"
 
 #include "c_types_map.hpp"
 #include "../cpu/cpu_engine.hpp"
 
-namespace mkl_dnn { namespace impl {
+namespace mkldnn { namespace impl {
 
 // TODO: we need some caching+refcounting mechanism so that an engine could not
 // be created twice and is only destroyed when the refcount is 0
@@ -43,8 +43,8 @@ static inline engine_factory *get_engine_factory(engine_kind_t kind)
 
 }}
 
-using namespace mkl_dnn::impl;
-using namespace mkl_dnn::impl::status;
+using namespace mkldnn::impl;
+using namespace mkldnn::impl::status;
 
 primitive_desc_init_f *engine::get_primitive_inits() const {
     static primitive_desc_init_f empty_list[] = { nullptr };
@@ -56,12 +56,12 @@ reorder_primitive_desc_init_f *engine::get_reorder_inits() const {
     return reorder_empty_list;
 }
 
-size_t mkl_dnn_engine_get_count(engine_kind_t kind) {
+size_t mkldnn_engine_get_count(engine_kind_t kind) {
     engine_factory *ef = get_engine_factory(kind);
     return ef != NULL ? ef->count() : 0;
 }
 
-status_t mkl_dnn_engine_create(engine **engine,
+status_t mkldnn_engine_create(engine **engine,
         engine_kind_t kind, size_t index) {
     if (engine == NULL)
         return invalid_arguments;
@@ -73,21 +73,21 @@ status_t mkl_dnn_engine_create(engine **engine,
     return ef->engine_create(engine, index);
 }
 
-status_t mkl_dnn_engine_get_kind(engine *engine, engine_kind_t *kind) {
+status_t mkldnn_engine_get_kind(engine *engine, engine_kind_t *kind) {
     if (engine == NULL || !engine->is_ok())
         return invalid_arguments;
     *kind = engine->kind();
     return success;
 }
 
-status_t mkl_dnn_engine_get_is_lazy(engine *engine, int *is_lazy) {
+status_t mkldnn_engine_get_is_lazy(engine *engine, int *is_lazy) {
     if (engine == NULL || !engine->is_ok())
         return invalid_arguments;
     *is_lazy = engine->is_lazy();
     return success;
 }
 
-status_t mkl_dnn_engine_destroy(engine *engine) {
+status_t mkldnn_engine_destroy(engine *engine) {
     delete engine;
     return success;
 }

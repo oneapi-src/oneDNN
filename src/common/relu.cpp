@@ -23,11 +23,11 @@
 
 #include "utils.hpp"
 
-using namespace mkl_dnn::impl;
-using namespace mkl_dnn::impl::status;
-using namespace mkl_dnn::impl::prop_kind;
+using namespace mkldnn::impl;
+using namespace mkldnn::impl::status;
+using namespace mkldnn::impl::prop_kind;
 
-status_t mkl_dnn_relu_desc_init(relu_desc_t *relu_desc,
+status_t mkldnn_relu_desc_init(relu_desc_t *relu_desc,
         prop_kind_t prop_kind, double negative_slope,
         const memory_desc_t *src_desc, const memory_desc_t *dst_desc)
 {
@@ -50,7 +50,7 @@ status_t mkl_dnn_relu_desc_init(relu_desc_t *relu_desc,
     return status;
 }
 
-status_t mkl_dnn_relu_primitive_desc_init(
+status_t mkldnn_relu_primitive_desc_init(
         relu_primitive_desc_t *relu_primitive_desc,
         const relu_desc_t *relu_desc, const engine *engine)
 {
@@ -62,19 +62,19 @@ status_t mkl_dnn_relu_primitive_desc_init(
             *relu_desc, *engine);
 }
 
-status_t mkl_dnn_relu_create(primitive **relu,
+status_t mkldnn_relu_create(primitive **relu,
         const relu_primitive_desc_t *relu_primitive_desc,
         const primitive_at_t src, const primitive *dst)
 {
-    auto *rpd = reinterpret_cast<const mkl_dnn_primitive_desc_t *>(
+    auto *rpd = reinterpret_cast<const mkldnn_primitive_desc_t *>(
             relu_primitive_desc);
     // XXX: must check that shapes of in/out memory match what's in the desc (?)
     const primitive_at_t inputs[] = {src};
     const primitive *outputs[] = {dst};
-    return mkl_dnn_primitive_create(relu, rpd, inputs, outputs);
+    return mkldnn_primitive_create(relu, rpd, inputs, outputs);
 }
 
-status_t mkl_dnn_relu_get_primitive_desc(const primitive *relu,
+status_t mkldnn_relu_get_primitive_desc(const primitive *relu,
         relu_primitive_desc_t *relu_primitive_desc)
 {
     if (any_null(relu, relu_primitive_desc)

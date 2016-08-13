@@ -17,7 +17,7 @@
 #ifndef PRIMITIVE_HPP
 #define PRIMITIVE_HPP
 
-#include "mkl_dnn.h"
+#include "mkldnn.h"
 
 #include "c_types_map.hpp"
 #include "nstl.hpp"
@@ -27,7 +27,7 @@
 // accedentally deleting a primitive that is a dependency for another one does
 // not cause a segfault.
 
-struct mkl_dnn_primitive: public mkl_dnn::impl::c_compatible {
+struct mkldnn_primitive: public mkldnn::impl::c_compatible {
 public:
     enum exec_state { done, busy, not_ready, error };
 
@@ -35,36 +35,36 @@ private:
     // TODO: copy, equality and assignment -- all must be banned...
 
 protected:
-    const mkl_dnn::impl::primitive_desc_t _primitive_desc;
-    mkl_dnn::impl::engine *_engine;
+    const mkldnn::impl::primitive_desc_t _primitive_desc;
+    mkldnn::impl::engine *_engine;
     exec_state _exec_state;
-    mkl_dnn::impl::nstl::vector<mkl_dnn::impl::primitive_at_t> _input;
-    mkl_dnn::impl::nstl::vector<const mkl_dnn::impl::primitive*> _output;
+    mkldnn::impl::nstl::vector<mkldnn::impl::primitive_at_t> _input;
+    mkldnn::impl::nstl::vector<const mkldnn::impl::primitive*> _output;
 
-    virtual mkl_dnn::impl::status_t execute_impl() = 0;
+    virtual mkldnn::impl::status_t execute_impl() = 0;
 
-    mkl_dnn_primitive(const mkl_dnn::impl::primitive_desc_t& primitive_desc,
-            mkl_dnn::impl::engine *engine, exec_state state = not_ready)
+    mkldnn_primitive(const mkldnn::impl::primitive_desc_t& primitive_desc,
+            mkldnn::impl::engine *engine, exec_state state = not_ready)
         : _primitive_desc(primitive_desc)
         , _engine(engine)
         , _exec_state(state) {}
 
 public:
-    virtual ~mkl_dnn_primitive() {}
+    virtual ~mkldnn_primitive() {}
 
-    mkl_dnn::impl::primitive_desc_t primitive_desc() const
+    mkldnn::impl::primitive_desc_t primitive_desc() const
     { return _primitive_desc; }
-    mkl_dnn::impl::engine *engine() const { return _engine; }
-    mkl_dnn::impl::primitive_kind_t kind() const
+    mkldnn::impl::engine *engine() const { return _engine; }
+    mkldnn::impl::primitive_kind_t kind() const
     { return _primitive_desc.base.primitive_kind; }
 
     virtual bool own_memory() const { return false; }
 
     virtual exec_state get_exec_state() const { return _exec_state; }
-    virtual mkl_dnn::impl::status_t reset_exec_state(exec_state state) {
+    virtual mkldnn::impl::status_t reset_exec_state(exec_state state) {
         // TODO: some checks here?
         _exec_state = state;
-        return mkl_dnn::impl::status::success;
+        return mkldnn::impl::status::success;
     }
 
     bool inputs_ready() const {
@@ -73,9 +73,9 @@ public:
                 return false;
         return true;
     }
-    mkl_dnn::impl::status_t execute() {
+    mkldnn::impl::status_t execute() {
         if (!inputs_ready())
-            return mkl_dnn::impl::status::not_ready;
+            return mkldnn::impl::status::not_ready;
         return execute_impl();
     }
 
@@ -91,7 +91,7 @@ public:
     { return output()[index]->memory_const(); }
 };
 
-namespace mkl_dnn { namespace impl {
+namespace mkldnn { namespace impl {
 
 typedef status_t (*primitive_desc_init_f)(primitive_desc_t *primitive_desc,
         const op_desc_t &op_desc, const engine &aengine);

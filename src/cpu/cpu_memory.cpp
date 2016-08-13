@@ -16,21 +16,21 @@
 
 #include <assert.h>
 
-#include "mkl_dnn_types.h"
+#include "mkldnn_types.h"
 
 #include "c_types_map.hpp"
 #include "cpu/cpu_memory.hpp"
 
-namespace mkl_dnn {
+namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-using namespace mkl_dnn::impl::status;
-using namespace mkl_dnn::impl::precision;
-using namespace mkl_dnn::impl::memory_format;
+using namespace mkldnn::impl::status;
+using namespace mkldnn::impl::precision;
+using namespace mkldnn::impl::memory_format;
 
 status_t cpu_memory::memory_desc_init(primitive_desc_t *primitive_desc,
-        const op_desc_t &op_desc, const mkl_dnn::impl::engine &aengine) {
+        const op_desc_t &op_desc, const mkldnn::impl::engine &aengine) {
     if (op_desc._kind != primitive_kind::memory)
         return invalid_arguments;
     auto memory_desc = op_desc.memory;

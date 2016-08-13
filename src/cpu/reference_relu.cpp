@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkl_dnn_types.h"
+#include "mkldnn_types.h"
 
 #include "c_types_map.hpp"
 #include "reference_relu.hpp"
@@ -26,13 +26,13 @@
     if (status != success) return status; \
 } while(0)
 
-namespace mkl_dnn { namespace impl { namespace cpu {
+namespace mkldnn { namespace impl { namespace cpu {
 
-using namespace mkl_dnn::impl::status;
-using namespace mkl_dnn::impl::prop_kind;
-using namespace mkl_dnn::impl::precision;
-using namespace mkl_dnn::impl::memory_format;
-using namespace mkl_dnn::impl::primitive_kind;
+using namespace mkldnn::impl::status;
+using namespace mkldnn::impl::prop_kind;
+using namespace mkldnn::impl::precision;
+using namespace mkldnn::impl::memory_format;
+using namespace mkldnn::impl::primitive_kind;
 
 template <impl::precision_t prec>
 status_t reference_relu<prec>::execute_forward_general() {
@@ -102,7 +102,7 @@ status_t reference_relu<prec>::execute_backward_data() {
 template <impl::precision_t prec>
 status_t reference_relu<prec>::primitive_desc_init(
         primitive_desc_t *primitive_desc, const op_desc_t &op_desc,
-        const mkl_dnn::impl::engine &engine) {
+        const mkldnn::impl::engine &engine) {
     if (op_desc._kind != primitive_kind::relu)
         return invalid_arguments;
     auto relu_d = op_desc.relu;
@@ -114,18 +114,18 @@ status_t reference_relu<prec>::primitive_desc_init(
     /* memory descriptors check and fill-in */
     /* XXX: code duplication */
     if (relu_d.src_desc.format == any)
-        CHECK(mkl_dnn_memory_desc_init(&relu_d.src_desc,
+        CHECK(mkldnn_memory_desc_init(&relu_d.src_desc,
                     &relu_d.src_desc.tensor_desc, f32, nchw));
     if (relu_d.dst_desc.format == any)
-        CHECK(mkl_dnn_memory_desc_init(&relu_d.dst_desc,
+        CHECK(mkldnn_memory_desc_init(&relu_d.dst_desc,
                     &relu_d.dst_desc.tensor_desc, f32, relu_d.src_desc.format));
 
     /* memory primitive descriptors check */
     /* XXX: code duplication */
     memory_primitive_desc_t src_pd, dst_pd;
-    CHECK(mkl_dnn_memory_primitive_desc_init(&src_pd,
+    CHECK(mkldnn_memory_primitive_desc_init(&src_pd,
                 &relu_d.src_desc, &engine));
-    CHECK(mkl_dnn_memory_primitive_desc_init(&dst_pd,
+    CHECK(mkldnn_memory_primitive_desc_init(&dst_pd,
                 &relu_d.dst_desc, &engine));
 
     /* final stage */

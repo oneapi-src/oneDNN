@@ -24,11 +24,11 @@
 #include "primitive.hpp"
 #include "cpu_engine.hpp"
 
-namespace mkl_dnn { namespace impl { namespace cpu {
+namespace mkldnn { namespace impl { namespace cpu {
 
-using namespace mkl_dnn::impl::status;
-using namespace mkl_dnn::impl::precision;
-using namespace mkl_dnn::impl::primitive_kind;
+using namespace mkldnn::impl::status;
+using namespace mkldnn::impl::precision;
+using namespace mkldnn::impl::primitive_kind;
 
 template <impl::precision_t prec_i, impl::precision_t prec_o>
 class reference_reorder: public primitive {

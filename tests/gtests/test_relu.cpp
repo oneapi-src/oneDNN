@@ -15,11 +15,11 @@
 *******************************************************************************/
 
 #include "gtest/gtest.h"
-#include "mkl_dnn_test_common.hpp"
+#include "mkldnn_test_common.hpp"
 
-#include "mkl_dnn.hpp"
+#include "mkldnn.hpp"
 
-namespace mkl_dnn {
+namespace mkldnn {
 
 template <typename T> void assert_eq(T a, T b);
 template <> void assert_eq<float>(float a, float b) { ASSERT_FLOAT_EQ(a, b); }

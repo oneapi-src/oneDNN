@@ -29,7 +29,7 @@
 
 #include "cpu/reference_reorder.hpp"
 
-namespace mkl_dnn {
+namespace mkldnn {
 namespace impl {
 namespace cpu {
 
@@ -37,7 +37,7 @@ cpu_engine_factory engine_factory(false);
 cpu_engine_factory engine_factory_lazy(true);
 
 namespace {
-using namespace mkl_dnn::impl::precision;
+using namespace mkldnn::impl::precision;
 
 primitive_desc_init_f primitive_inits[] = {
     cpu_memory::memory_desc_init,

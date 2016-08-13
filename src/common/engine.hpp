@@ -17,37 +17,37 @@
 #ifndef ENGINE_HPP
 #define ENGINE_HPP
 
-#include "mkl_dnn.h"
+#include "mkldnn.h"
 
 #include "c_types_map.hpp"
 #include "utils.hpp"
 #include "primitive.hpp"
 #include "reorder.hpp"
 
-struct mkl_dnn_engine: public mkl_dnn::impl::c_compatible {
+struct mkldnn_engine: public mkldnn::impl::c_compatible {
 protected:
-    mkl_dnn::impl::engine_kind_t _kind;
+    mkldnn::impl::engine_kind_t _kind;
 public:
-    mkl_dnn_engine(): _kind(mkl_dnn::impl::engine_kind::any_engine) {}
-    mkl_dnn_engine(mkl_dnn::impl::engine_kind_t kind): _kind(kind) {}
-    virtual ~mkl_dnn_engine() {}
+    mkldnn_engine(): _kind(mkldnn::impl::engine_kind::any_engine) {}
+    mkldnn_engine(mkldnn::impl::engine_kind_t kind): _kind(kind) {}
+    virtual ~mkldnn_engine() {}
 
     virtual bool is_lazy() const = 0;
     virtual bool is_ok() const = 0;
-    mkl_dnn::impl::engine_kind_t kind() const { return _kind; }
+    mkldnn::impl::engine_kind_t kind() const { return _kind; }
 
-    virtual mkl_dnn::impl::status_t submit(size_t n,
-            mkl_dnn::impl::primitive *primitives[],
-            mkl_dnn::impl::primitive **error_primitive) = 0;
+    virtual mkldnn::impl::status_t submit(size_t n,
+            mkldnn::impl::primitive *primitives[],
+            mkldnn::impl::primitive **error_primitive) = 0;
 
     /* primitives' descriptor initializators
      * the default one guarantees to return at least an empty list,
      * so no need to check the return value on NULL */
-    virtual mkl_dnn::impl::primitive_desc_init_f *get_primitive_inits() const;
-    virtual mkl_dnn::impl::reorder_primitive_desc_init_f *get_reorder_inits() const;
+    virtual mkldnn::impl::primitive_desc_init_f *get_primitive_inits() const;
+    virtual mkldnn::impl::reorder_primitive_desc_init_f *get_reorder_inits() const;
 };
 
-namespace mkl_dnn { namespace impl {
+namespace mkldnn { namespace impl {
 
 class engine_factory: public c_compatible {
 public:

@@ -21,7 +21,7 @@
 
 #include "utils.hpp"
 
-namespace mkl_dnn { namespace impl { namespace nstl {
+namespace mkldnn { namespace impl { namespace nstl {
 
 template<typename T>
 inline const T& max(const T& a, const T& b) {

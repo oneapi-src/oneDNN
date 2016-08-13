@@ -23,11 +23,11 @@
 
 #include "utils.hpp"
 
-using namespace mkl_dnn::impl;
-using namespace mkl_dnn::impl::status;
-using namespace mkl_dnn::impl::prop_kind;
+using namespace mkldnn::impl;
+using namespace mkldnn::impl::status;
+using namespace mkldnn::impl::prop_kind;
 
-status_t mkl_dnn_inner_product_desc_init(
+status_t mkldnn_inner_product_desc_init(
         inner_product_desc_t *inner_product_desc, prop_kind_t prop_kind,
         const memory_desc_t *src_desc, const memory_desc_t *weights_desc,
         const memory_desc_t *bias_desc, const memory_desc_t *dst_desc)
@@ -54,7 +54,7 @@ status_t mkl_dnn_inner_product_desc_init(
     return status;
 }
 
-status_t mkl_dnn_inner_product_primitive_desc_init(
+status_t mkldnn_inner_product_primitive_desc_init(
         inner_product_primitive_desc_t *inner_product_primitive_desc,
         const inner_product_desc_t *inner_product_desc, const engine *engine)
 {
@@ -66,20 +66,20 @@ status_t mkl_dnn_inner_product_primitive_desc_init(
             *inner_product_desc, *engine);
 }
 
-status_t mkl_dnn_inner_product_create(primitive **inner_product,
+status_t mkldnn_inner_product_create(primitive **inner_product,
         const inner_product_primitive_desc_t *inner_product_primitive_desc,
         const primitive_at_t src, const primitive_at_t weights,
         const primitive_at_t bias, const primitive *dst)
 {
-    auto ippd = reinterpret_cast<const mkl_dnn_primitive_desc_t *>(
+    auto ippd = reinterpret_cast<const mkldnn_primitive_desc_t *>(
             inner_product_primitive_desc);
     // XXX: must check that shapes of in/out memory match what's in the desc (?)
     const primitive_at_t inputs[] = {src, weights, bias};
     const primitive *outputs[] = {dst};
-    return mkl_dnn_primitive_create(inner_product, ippd, inputs, outputs);
+    return mkldnn_primitive_create(inner_product, ippd, inputs, outputs);
 }
 
-status_t mkl_dnn_inner_product_get_primitive_desc(
+status_t mkldnn_inner_product_get_primitive_desc(
         const primitive *inner_product,
         inner_product_primitive_desc_t *inner_product_primitive_desc)
 {

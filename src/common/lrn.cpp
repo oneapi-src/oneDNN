@@ -22,12 +22,12 @@
 
 #include "utils.hpp"
 
-using namespace mkl_dnn::impl;
-using namespace mkl_dnn::impl::status;
-using namespace mkl_dnn::impl::prop_kind;
-using namespace mkl_dnn::impl::alg_kind;
+using namespace mkldnn::impl;
+using namespace mkldnn::impl::status;
+using namespace mkldnn::impl::prop_kind;
+using namespace mkldnn::impl::alg_kind;
 
-status_t mkl_dnn_lrn_desc_init(lrn_desc_t *lrn_desc, prop_kind_t prop_kind,
+status_t mkldnn_lrn_desc_init(lrn_desc_t *lrn_desc, prop_kind_t prop_kind,
         alg_kind_t alg_kind, const memory_desc_t *src_desc,
         const memory_desc_t *dst_desc, double alpha, double beta,
         uint32_t local_size)
@@ -52,7 +52,7 @@ status_t mkl_dnn_lrn_desc_init(lrn_desc_t *lrn_desc, prop_kind_t prop_kind,
     return status;
 }
 
-status_t mkl_dnn_lrn_primitive_desc_init(
+status_t mkldnn_lrn_primitive_desc_init(
         lrn_primitive_desc_t *lrn_primitive_desc,
         const lrn_desc_t *lrn_desc,
         const engine *engine)
@@ -65,19 +65,19 @@ status_t mkl_dnn_lrn_primitive_desc_init(
             *lrn_desc, *engine);
 }
 
-status_t mkl_dnn_lrn_create(primitive **lrn,
+status_t mkldnn_lrn_create(primitive **lrn,
         const lrn_primitive_desc_t *lrn_primitive_desc,
         const primitive_at_t src, const primitive_at_t scratch,
         const primitive *dst)
 {
-    auto *lpd = reinterpret_cast<const mkl_dnn_primitive_desc_t *>(
+    auto *lpd = reinterpret_cast<const mkldnn_primitive_desc_t *>(
             lrn_primitive_desc);
     const primitive_at_t inputs[] = {src, scratch};
     const primitive *outputs[] = {dst};
-    return mkl_dnn_primitive_create(lrn, lpd, inputs, outputs);
+    return mkldnn_primitive_create(lrn, lpd, inputs, outputs);
 }
 
-status_t mkl_dnn_lrn_get_primitive_desc(const primitive *lrn,
+status_t mkldnn_lrn_get_primitive_desc(const primitive *lrn,
         lrn_primitive_desc_t *lrn_primitive_desc)
 {
     if (any_null(lrn, lrn_primitive_desc)

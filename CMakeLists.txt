@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 2.8)
 set(PROJECT_NAME "MKL-DNN")
 set(PROJECT_VERSION, "0.0.0.1")
 
-set(LIB_NAME mkl_dnn)
+set(LIB_NAME mkldnn)
 
 project(${PROJECT_NAME} C CXX)
 

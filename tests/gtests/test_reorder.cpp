@@ -18,11 +18,11 @@
 #include <numeric>
 
 #include "gtest/gtest.h"
-#include "mkl_dnn_test_common.hpp"
+#include "mkldnn_test_common.hpp"
 
-#include "mkl_dnn.hpp"
+#include "mkldnn.hpp"
 
-namespace mkl_dnn {
+namespace mkldnn {
 
 template <typename data_i_t, typename data_o_t>
 inline void check_reorder(memory::desc md_i, memory::desc md_o,

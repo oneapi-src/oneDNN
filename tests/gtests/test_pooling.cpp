@@ -14,12 +14,12 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkl_dnn_test_common.hpp"
+#include "mkldnn_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "mkl_dnn.hpp"
+#include "mkldnn.hpp"
 
-namespace mkl_dnn {
+namespace mkldnn {
 
 struct test_pool_desc_t {
     uint32_t mb, c;
@@ -99,7 +99,7 @@ protected:
         ASSERT_EQ(p.aalgorithm, pooling::max);
         auto eng = engine(p.engine_kind, 0);
         memory::precision prec = data_traits<data_t>::prec;
-        ASSERT_EQ(prec, mkl_dnn::memory::precision::f32);
+        ASSERT_EQ(prec, mkldnn::memory::precision::f32);
 
         test_pool_desc_t pd = p.test_pd;
 

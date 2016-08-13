@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef _MKL_DNN_TEST_COMMON_HPP
-#define _MKL_DNN_TEST_COMMON_HPP
+#ifndef MKLDNN_TEST_COMMON_HPP
+#define MKLDNN_TEST_COMMON_HPP
 
 #include <numeric>
 #include <vector>
@@ -23,11 +23,11 @@
 
 #include "gtest/gtest.h"
 
-#include "mkl_dnn.hpp"
+#include "mkldnn.hpp"
 
 template <typename data_t> struct data_traits { };
 template <> struct data_traits<float> {
-    using precision = mkl_dnn::memory::precision;
+    using precision = mkldnn::memory::precision;
     static const precision prec = precision::f32;
 };
 
@@ -36,7 +36,7 @@ template <> inline void assert_eq<float>(float a, float b) {
     ASSERT_FLOAT_EQ(a, b);
 }
 
-inline size_t map_index(const mkl_dnn::memory::desc &md, size_t index) {
+inline size_t map_index(const mkldnn::memory::desc &md, size_t index) {
     const uint32_t ndims = md.data.tensor_desc.ndims;
     const uint32_t *dims = md.data.tensor_desc.dims;
     const uint32_t *pdims = md.data.layout_desc.blocking.padding_dims;
@@ -70,9 +70,9 @@ inline size_t map_index(const mkl_dnn::memory::desc &md, size_t index) {
     return ph_index;
 }
 
-inline mkl_dnn::memory::desc create_md(mkl_dnn::tensor::dims dims,
-        mkl_dnn::memory::precision prec, mkl_dnn::memory::format fmt) {
-    using f = mkl_dnn::memory::format;
+inline mkldnn::memory::desc create_md(mkldnn::tensor::dims dims,
+        mkldnn::memory::precision prec, mkldnn::memory::format fmt) {
+    using f = mkldnn::memory::format;
     uint32_t ndims;
 
     switch (fmt) {
@@ -94,19 +94,19 @@ inline mkl_dnn::memory::desc create_md(mkl_dnn::tensor::dims dims,
     case f::format_undef:
         ndims = 0; break;
     case f::any:
-        return mkl_dnn::memory::desc({dims}, prec, fmt);
+        return mkldnn::memory::desc({dims}, prec, fmt);
     default: EXPECT_TRUE(false) << "test does not support format: " << int(fmt);
     }
 
     EXPECT_EQ(dims.size(), ndims) << "dims and format are inconsistent";
 
-    return mkl_dnn::memory::desc({dims}, prec, fmt);
+    return mkldnn::memory::desc({dims}, prec, fmt);
 }
 
 template <typename data_t>
 static inline data_t set_value(size_t index, double sparsity)
 {
-    if (data_traits<data_t>::prec == mkl_dnn::memory::precision::f32) {
+    if (data_traits<data_t>::prec == mkldnn::memory::precision::f32) {
         const size_t group_size = (size_t)(1. / sparsity);
         const size_t group = index / group_size;
         const size_t in_group = index % group_size;
@@ -128,7 +128,7 @@ static void fill_data(const uint32_t size, data_t *data, double sparsity = 1.)
 }
 
 template <typename data_t>
-static void compare_data(mkl_dnn::memory& ref, mkl_dnn::memory& dst)
+static void compare_data(mkldnn::memory& ref, mkldnn::memory& dst)
 {
 uint32_t num = ref.get_primitive_desc().get_number_of_elements();
 data_t *ref_data = (data_t *)ref.get_data_handle();

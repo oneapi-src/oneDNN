@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef __XBYAK_UTILS_FOR_MKL_DNN
-#define __XBYAK_UTILS_FOR_MKL_DNN
+#ifndef XBYAK_UTILS_FOR_MKLDNN
+#define XBYAK_UTILS_FOR_MKLDNN
 
 #define XBYAK_VERSION 0x5000
 

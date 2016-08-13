@@ -15,19 +15,19 @@
 *******************************************************************************/
 
 #include <assert.h>
-#include "mkl_dnn_types.h"
+#include "mkldnn_types.h"
 
 #include "c_types_map.hpp"
 #include "memory_desc_wrapper.hpp"
 #include "type_helpers.hpp"
 
-namespace mkl_dnn {
+namespace mkldnn {
 namespace impl {
 
 namespace {
-using mkl_dnn::impl::array_set;
-using namespace mkl_dnn::impl::status;
-using namespace mkl_dnn::impl::memory_format;
+using mkldnn::impl::array_set;
+using namespace mkldnn::impl::status;
+using namespace mkldnn::impl::memory_format;
 
 status_t fill_x(blocking_desc_t &blk, const tensor_desc_t &tensor) {
     const uint32_t ndims = tensor.ndims;

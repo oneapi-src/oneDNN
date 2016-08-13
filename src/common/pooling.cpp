@@ -22,12 +22,12 @@
 
 #include "utils.hpp"
 
-using namespace mkl_dnn::impl;
-using namespace mkl_dnn::impl::status;
-using namespace mkl_dnn::impl::prop_kind;
-using namespace mkl_dnn::impl::alg_kind;
+using namespace mkldnn::impl;
+using namespace mkldnn::impl::status;
+using namespace mkldnn::impl::prop_kind;
+using namespace mkldnn::impl::alg_kind;
 
-status_t mkl_dnn_pooling_desc_init(pooling_desc_t *pooling_desc,
+status_t mkldnn_pooling_desc_init(pooling_desc_t *pooling_desc,
         prop_kind_t prop_kind, alg_kind_t alg_kind,
         const memory_desc_t *src_desc, const memory_desc_t *dst_desc,
         const dims_t strides, const dims_t kernel, const nd_offset_t padding,
@@ -58,7 +58,7 @@ status_t mkl_dnn_pooling_desc_init(pooling_desc_t *pooling_desc,
     return status;
 }
 
-status_t mkl_dnn_pooling_primitive_desc_init(
+status_t mkldnn_pooling_primitive_desc_init(
         pooling_primitive_desc_t *pooling_primitive_desc,
         const pooling_desc_t *pooling_desc,
         const engine *engine)
@@ -71,19 +71,19 @@ status_t mkl_dnn_pooling_primitive_desc_init(
             *pooling_desc, *engine);
 }
 
-status_t mkl_dnn_pooling_create(primitive **pooling,
+status_t mkldnn_pooling_create(primitive **pooling,
         const pooling_primitive_desc_t *pooling_primitive_desc,
         const primitive_at_t src, const primitive_at_t indices,
         const primitive *dst)
 {
-    auto ppd = reinterpret_cast<const mkl_dnn_primitive_desc_t *>(
+    auto ppd = reinterpret_cast<const mkldnn_primitive_desc_t *>(
             pooling_primitive_desc);
     const primitive_at_t inputs[] = {src, indices};
     const primitive *outputs[] = {dst};
-    return mkl_dnn_primitive_create(pooling, ppd, inputs, outputs);
+    return mkldnn_primitive_create(pooling, ppd, inputs, outputs);
 }
 
-status_t mkl_dnn_pooling_get_primitive_desc(const primitive *pooling,
+status_t mkldnn_pooling_get_primitive_desc(const primitive *pooling,
         pooling_primitive_desc_t *pooling_primitive_desc)
 {
     if (any_null(pooling, pooling_primitive_desc)

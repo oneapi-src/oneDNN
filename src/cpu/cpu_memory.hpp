@@ -24,10 +24,10 @@
 #include "primitive.hpp"
 #include "cpu_engine.hpp"
 
-namespace mkl_dnn { namespace impl { namespace cpu {
+namespace mkldnn { namespace impl { namespace cpu {
 
-using namespace mkl_dnn::impl;
-using namespace mkl_dnn::impl::status;
+using namespace mkldnn::impl;
+using namespace mkldnn::impl::status;
 
 class cpu_memory: public primitive {
 private:
@@ -60,7 +60,7 @@ public:
 
     /* static magic */
     static status_t memory_desc_init(primitive_desc_t *primitive_desc,
-            const op_desc_t &op_desc, const mkl_dnn::impl::engine &aengine);
+            const op_desc_t &op_desc, const mkldnn::impl::engine &aengine);
     static const primitive_impl memory_implementation;
 };
 

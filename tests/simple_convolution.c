@@ -20,7 +20,7 @@
 #include <stddef.h>
 #include <assert.h>
 
-#include "mkl_dnn.h"
+#include "mkldnn.h"
 
 typedef float real_t;
 

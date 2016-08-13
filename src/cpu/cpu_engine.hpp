@@ -19,14 +19,14 @@
 
 #include <assert.h>
 
-#include "mkl_dnn.h"
+#include "mkldnn.h"
 
 #include "c_types_map.hpp"
 #include "../common/engine.hpp"
 
-namespace mkl_dnn { namespace impl { namespace cpu {
+namespace mkldnn { namespace impl { namespace cpu {
 
-using namespace mkl_dnn::impl::status;
+using namespace mkldnn::impl::status;
 
 class cpu_engine: public engine {
 private:

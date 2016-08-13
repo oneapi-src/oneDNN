@@ -20,7 +20,7 @@
 #include <stddef.h>
 #include <malloc.h>
 
-namespace mkl_dnn { namespace impl {
+namespace mkldnn { namespace impl {
 
 #define UNUSED(x) ((void)x)
 

@@ -14,12 +14,12 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkl_dnn_test_common.hpp"
+#include "mkldnn_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "mkl_dnn.hpp"
+#include "mkldnn.hpp"
 
-namespace mkl_dnn {
+namespace mkldnn {
 
 template <typename data_t>
 void compute_ref_conv_fwd(test_convolution_descr_t c, memory src,
@@ -104,7 +104,7 @@ protected:
         ASSERT_EQ(p.aalgorithm, convolution::direct);
         auto eng = engine(p.engine_kind, 0);
         memory::precision prec = data_traits<data_t>::prec;
-        ASSERT_EQ(prec, mkl_dnn::memory::precision::f32);
+        ASSERT_EQ(prec, mkldnn::memory::precision::f32);
 
         test_convolution_descr_t cd = p.test_cd;
 

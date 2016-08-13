@@ -20,14 +20,14 @@
 #include <stddef.h>
 #include <assert.h>
 
-#include "mkl_dnn.hpp"
+#include "mkldnn.hpp"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-but-set-variable"
 
 typedef float real_t;
 
-static void init_src(const mkl_dnn::tensor::dims &dim, real_t *x)
+static void init_src(const mkldnn::tensor::dims &dim, real_t *x)
 {
     uint32_t N = dim[0], C = dim[1], H = dim[2], W = dim[3];
 #   pragma omp parallel for collapse(2)
@@ -38,7 +38,7 @@ static void init_src(const mkl_dnn::tensor::dims &dim, real_t *x)
         x[w + W*h + c*W*H + n*W*H*C] = c*n;
 }
 
-static int check_dst(const mkl_dnn::tensor::dims &dim, const real_t *x)
+static int check_dst(const mkldnn::tensor::dims &dim, const real_t *x)
 {
     int n_errors = 0;
     uint32_t N = dim[0], C = dim[1], H = dim[2], W = dim[3];
@@ -56,7 +56,7 @@ static int check_dst(const mkl_dnn::tensor::dims &dim, const real_t *x)
 }
 
 static int doit(bool lazy) {
-    using namespace mkl_dnn;
+    using namespace mkldnn;
 
     /* AlexNet: p1
      * {16, 96, 55, 55} -> {16, 96, 27, 27}

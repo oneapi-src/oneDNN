@@ -23,20 +23,20 @@
 #include "nstl.hpp"
 #include "utils.hpp"
 
-template <mkl_dnn::impl::precision_t> struct precision2type {};
+template <mkldnn::impl::precision_t> struct precision2type {};
 template <>
-struct precision2type<mkl_dnn::impl::precision::f32> { typedef float type; };
+struct precision2type<mkldnn::impl::precision::f32> { typedef float type; };
 template <>
-struct precision2type<mkl_dnn::impl::precision::u32> { typedef uint32_t type; };
+struct precision2type<mkldnn::impl::precision::u32> { typedef uint32_t type; };
 
-namespace mkl_dnn {
+namespace mkldnn {
 namespace impl {
 // XXX: is this the only namespace we have?
 namespace types {
 
-using namespace mkl_dnn::impl::status;
-using namespace mkl_dnn::impl::precision;
-using namespace mkl_dnn::impl::memory_format;
+using namespace mkldnn::impl::status;
+using namespace mkldnn::impl::precision;
+using namespace mkldnn::impl::memory_format;
 
 inline size_t precision_size(precision_t prec) {
     switch (prec) {
@@ -56,7 +56,7 @@ inline memory_format_t format_normalize(const memory_format_t fmt) {
 
 inline bool operator==(const tensor_desc_t &lhs, const tensor_desc_t &rhs) {
     return lhs.ndims == rhs.ndims
-        && mkl_dnn::impl::array_cmp(lhs.dims, rhs.dims, lhs.ndims);
+        && mkldnn::impl::array_cmp(lhs.dims, rhs.dims, lhs.ndims);
 }
 
 inline bool operator!=(const tensor_desc_t &lhs, const tensor_desc_t &rhs) {
@@ -69,7 +69,7 @@ inline status_t tensor_is_ok(const tensor_desc_t &tensor) {
 
 inline bool blocking_desc_is_equal(const blocking_desc_t &lhs,
         const blocking_desc_t &rhs, uint32_t ndims = TENSOR_MAX_DIMS) {
-    using mkl_dnn::impl::array_cmp;
+    using mkldnn::impl::array_cmp;
     return lhs.offset_padding == rhs.offset_padding
         && array_cmp(lhs.block_dims, rhs.block_dims, ndims)
         && array_cmp(lhs.strides[0], rhs.strides[0], ndims)

@@ -13,7 +13,7 @@ add_executable(${APP_NAME}
     ${API_TEST_CASES_SRC}
     ${PRIM_TEST_CASES_SRC}
     )
-target_link_libraries(${APP_NAME} mkl_dnn gtest)
+target_link_libraries(${APP_NAME} mkldnn gtest)
 add_test(${APP_NAME} ${APP_NAME})
 
 # we need to have either this or the add_test above; disabling for now...

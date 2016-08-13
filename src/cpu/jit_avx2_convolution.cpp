@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkl_dnn_types.h"
+#include "mkldnn_types.h"
 
 #include "c_types_map.hpp"
 #include "jit_avx2_convolution.hpp"
@@ -27,14 +27,14 @@
     if (status != success) return status; \
 } while(0)
 
-namespace mkl_dnn { namespace impl { namespace cpu {
+namespace mkldnn { namespace impl { namespace cpu {
 
-using namespace mkl_dnn::impl::status;
-using namespace mkl_dnn::impl::prop_kind;
-using namespace mkl_dnn::impl::alg_kind;
-using namespace mkl_dnn::impl::precision;
-using namespace mkl_dnn::impl::memory_format;
-using namespace mkl_dnn::impl::primitive_kind;
+using namespace mkldnn::impl::status;
+using namespace mkldnn::impl::prop_kind;
+using namespace mkldnn::impl::alg_kind;
+using namespace mkldnn::impl::precision;
+using namespace mkldnn::impl::memory_format;
+using namespace mkldnn::impl::primitive_kind;
 
 template <impl::precision_t prec>
 status_t jit_avx2_convolution<prec>::execute_forward()
@@ -135,9 +135,9 @@ status_t jit_avx2_convolution<prec>::execute_backward_bias() {
 template <impl::precision_t prec>
 status_t jit_avx2_convolution<prec>::primitive_desc_init(
         primitive_desc_t *primitive_desc, const op_desc_t &op_desc,
-        const mkl_dnn::impl::engine &engine) {
+        const mkldnn::impl::engine &engine) {
     if (op_desc._kind != primitive_kind::convolution)
-        return mkl_dnn_invalid_arguments;
+        return mkldnn_invalid_arguments;
     auto conv_d = op_desc.convolution;
 
     if (conv_d.prop_kind != forward)
@@ -147,47 +147,47 @@ status_t jit_avx2_convolution<prec>::primitive_desc_init(
 
     /* memory descriptors check and fill-in */
     if (conv_d.src_desc.format == any)
-        CHECK(mkl_dnn_memory_desc_init(&conv_d.src_desc,
+        CHECK(mkldnn_memory_desc_init(&conv_d.src_desc,
                 &conv_d.src_desc.tensor_desc, f32, nChw8c));
-    else if (conv_d.src_desc.format != mkl_dnn_nChw8c)
-        return mkl_dnn_invalid_arguments;
+    else if (conv_d.src_desc.format != mkldnn_nChw8c)
+        return mkldnn_invalid_arguments;
 
     const bool groups = conv_d.weights_desc.tensor_desc.ndims
         == (conv_d.src_desc.tensor_desc.ndims + 1);
     if (conv_d.weights_desc.format == any)
-        CHECK(mkl_dnn_memory_desc_init(&conv_d.weights_desc,
+        CHECK(mkldnn_memory_desc_init(&conv_d.weights_desc,
                 &conv_d.weights_desc.tensor_desc, f32, groups ? gOIhw8i8o : OIhw8i8o));
     else {
         if (groups) {
-            if (conv_d.weights_desc.format != mkl_dnn_gOIhw8i8o)
-                return mkl_dnn_invalid_arguments;
+            if (conv_d.weights_desc.format != mkldnn_gOIhw8i8o)
+                return mkldnn_invalid_arguments;
         } else {
-            if (conv_d.weights_desc.format != mkl_dnn_OIhw8i8o)
-                return mkl_dnn_invalid_arguments;
+            if (conv_d.weights_desc.format != mkldnn_OIhw8i8o)
+                return mkldnn_invalid_arguments;
         }
     }
 
     if (conv_d.bias_desc.format == any)
-        CHECK(mkl_dnn_memory_desc_init(&conv_d.bias_desc,
+        CHECK(mkldnn_memory_desc_init(&conv_d.bias_desc,
                     &conv_d.bias_desc.tensor_desc, f32, x));
-    else if (conv_d.bias_desc.format != mkl_dnn_x)
-        return mkl_dnn_invalid_arguments;
+    else if (conv_d.bias_desc.format != mkldnn_x)
+        return mkldnn_invalid_arguments;
 
     if (conv_d.dst_desc.format == any)
-        CHECK(mkl_dnn_memory_desc_init(&conv_d.dst_desc,
+        CHECK(mkldnn_memory_desc_init(&conv_d.dst_desc,
                 &conv_d.dst_desc.tensor_desc, f32, nChw8c));
-    else if (conv_d.dst_desc.format != mkl_dnn_nChw8c)
-        return mkl_dnn_invalid_arguments;
+    else if (conv_d.dst_desc.format != mkldnn_nChw8c)
+        return mkldnn_invalid_arguments;
 
     /* memory primitive descriptors check */
     memory_primitive_desc_t src_pd, weights_pd, bias_pd, dst_pd;
-    CHECK(mkl_dnn_memory_primitive_desc_init(&src_pd,
+    CHECK(mkldnn_memory_primitive_desc_init(&src_pd,
                 &conv_d.src_desc, &engine));
-    CHECK(mkl_dnn_memory_primitive_desc_init(&weights_pd,
+    CHECK(mkldnn_memory_primitive_desc_init(&weights_pd,
                 &conv_d.weights_desc, &engine));
-    CHECK(mkl_dnn_memory_primitive_desc_init(&bias_pd,
+    CHECK(mkldnn_memory_primitive_desc_init(&bias_pd,
                 &conv_d.bias_desc, &engine));
-    CHECK(mkl_dnn_memory_primitive_desc_init(&dst_pd,
+    CHECK(mkldnn_memory_primitive_desc_init(&dst_pd,
                 &conv_d.dst_desc, &engine));
 
     /* Check input parameters */

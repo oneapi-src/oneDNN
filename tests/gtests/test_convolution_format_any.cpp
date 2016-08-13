@@ -14,12 +14,12 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkl_dnn_test_common.hpp"
+#include "mkldnn_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "mkl_dnn.hpp"
+#include "mkldnn.hpp"
 
-namespace mkl_dnn {
+namespace mkldnn {
 using fmt = memory::format;
 
 struct conv_any_fmt_test_params {
@@ -52,7 +52,7 @@ protected:
         ASSERT_EQ(p.aalgorithm, convolution::direct);
         auto eng = engine(p.engine_kind, 0);
         memory::precision prec = data_traits<data_t>::prec;
-        ASSERT_EQ(prec, mkl_dnn::memory::precision::f32);
+        ASSERT_EQ(prec, mkldnn::memory::precision::f32);
 
         // Some format chekers
         ASSERT_NE(p.src_fmt_exp, fmt::any);
