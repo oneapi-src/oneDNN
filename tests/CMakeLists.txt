@@ -1,3 +1,7 @@
+if(POLICY CMP0065)
+    cmake_policy(SET CMP0065 NEW)
+endif()
+
 include_directories(${CMAKE_SOURCE_DIR}/api)
 
 #add_executable(api-check-c api_check.c)

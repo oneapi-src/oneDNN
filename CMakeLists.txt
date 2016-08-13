@@ -7,14 +7,14 @@ set(LIB_NAME mkldnn)
 
 project(${PROJECT_NAME} C CXX)
 
+include("cmake/MKL.cmake")
+
 if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
     set(OPENMP_FLAGS "-fopenmp=libgomp")
 else()
     set(OPENMP_FLAGS "-fopenmp")
 endif()
 
-# XXX: this must go away: openmp is only needed when building the lib...
-# XXX: we also need to start requiring cmake 3.0
 set(CMAKE_CCXX_FLAGS "-g ${OPENMP_FLAGS} -Wall -Werror -Wno-unknown-pragmas")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CMAKE_CCXX_FLAGS} -std=c99")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_CCXX_FLAGS} -std=c++11")
@@ -26,7 +26,6 @@ include_directories(api)
 add_subdirectory(src)
 add_subdirectory(tests)
 
-# documentation
 find_package(Doxygen)
 if(DOXYGEN_FOUND)
     configure_file(
