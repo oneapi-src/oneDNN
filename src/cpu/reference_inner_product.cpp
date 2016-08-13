@@ -133,10 +133,10 @@ status_t reference_inner_product<prec>::primitive_desc_init(
     if (ip_d.src_desc.format == any) {
         if (ip_d.src_desc.tensor_desc.ndims == 4) {
             CHECK(mkldnn_memory_desc_init(
-                    &ip_d.src_desc, &ip_d.src_desc.tensor_desc, f32, nchw));
+                    &ip_d.src_desc, &ip_d.src_desc.tensor_desc, prec, nchw));
         } else if (ip_d.src_desc.tensor_desc.ndims == 2) {
             CHECK(mkldnn_memory_desc_init(
-                    &ip_d.src_desc, &ip_d.src_desc.tensor_desc, f32, nc));
+                    &ip_d.src_desc, &ip_d.src_desc.tensor_desc, prec, nc));
         } else {
             return unimplemented;
         }
@@ -144,10 +144,10 @@ status_t reference_inner_product<prec>::primitive_desc_init(
     if (ip_d.weights_desc.format == any) {
         if (ip_d.weights_desc.tensor_desc.ndims == 4) {
             CHECK(mkldnn_memory_desc_init(&ip_d.weights_desc,
-                    &ip_d.weights_desc.tensor_desc, f32, oihw));
+                    &ip_d.weights_desc.tensor_desc, prec, oihw));
         } else if (ip_d.src_desc.tensor_desc.ndims == 2) {
             CHECK(mkldnn_memory_desc_init(&ip_d.weights_desc,
-                    &ip_d.weights_desc.tensor_desc, f32, oi));
+                    &ip_d.weights_desc.tensor_desc, prec, oi));
         } else {
             return unimplemented;
         }
@@ -155,10 +155,10 @@ status_t reference_inner_product<prec>::primitive_desc_init(
     const bool with_bias = !memory_desc_wrapper(ip_d.bias_desc).is_zero();
     if (with_bias && ip_d.bias_desc.format == any)
         CHECK(mkldnn_memory_desc_init(&ip_d.bias_desc,
-                    &ip_d.bias_desc.tensor_desc, f32, x));
+                    &ip_d.bias_desc.tensor_desc, prec, x));
     if (ip_d.dst_desc.format == any)
         CHECK(mkldnn_memory_desc_init(
-                &ip_d.dst_desc, &ip_d.dst_desc.tensor_desc, f32, nc));
+                &ip_d.dst_desc, &ip_d.dst_desc.tensor_desc, prec, nc));
 
     /* memory primitive descriptors check */
     memory_primitive_desc_t src_pd, weights_pd, bias_pd, dst_pd;

@@ -112,7 +112,6 @@ status_t reference_pooling<prec>::primitive_desc_init(
         return invalid_arguments;
     auto pool_d = op_desc.pooling;
 
-    // TODO: f32 ?
     if (pool_d.prop_kind != forward)
         return unimplemented;
     if (pool_d.alg_kind != pooling_max)
@@ -121,10 +120,10 @@ status_t reference_pooling<prec>::primitive_desc_init(
     /* memory descriptors check and fill-in */
     if (pool_d.src_desc.format == any)
         CHECK(mkldnn_memory_desc_init(&pool_d.src_desc,
-        &pool_d.src_desc.tensor_desc, f32, nchw));
+        &pool_d.src_desc.tensor_desc, prec, nchw));
     if (pool_d.dst_desc.format == any)
         CHECK(mkldnn_memory_desc_init(&pool_d.dst_desc,
-        &pool_d.dst_desc.tensor_desc, f32, pool_d.src_desc.format));
+        &pool_d.dst_desc.tensor_desc, prec, pool_d.src_desc.format));
 
     memory_desc_t indices_desc;
     CHECK(mkldnn_memory_desc_init(&indices_desc,

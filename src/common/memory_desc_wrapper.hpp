@@ -91,7 +91,7 @@ struct memory_desc_wrapper: public c_compatible {
         return max_size * types::precision_size(precision());
     }
 
-    /** returns true if data located in dense form */
+    /** returns true if data is dense in memory */
     bool is_dense(bool with_padding = false) const;
 
     /* comparison section */

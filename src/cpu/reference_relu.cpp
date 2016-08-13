@@ -107,7 +107,6 @@ status_t reference_relu<prec>::primitive_desc_init(
         return invalid_arguments;
     auto relu_d = op_desc.relu;
 
-    // TODO: f32 ?
     if (relu_d.prop_kind != forward)
         return unimplemented;
 
@@ -115,10 +114,10 @@ status_t reference_relu<prec>::primitive_desc_init(
     /* XXX: code duplication */
     if (relu_d.src_desc.format == any)
         CHECK(mkldnn_memory_desc_init(&relu_d.src_desc,
-                    &relu_d.src_desc.tensor_desc, f32, nchw));
+                    &relu_d.src_desc.tensor_desc, prec, nchw));
     if (relu_d.dst_desc.format == any)
         CHECK(mkldnn_memory_desc_init(&relu_d.dst_desc,
-                    &relu_d.dst_desc.tensor_desc, f32, relu_d.src_desc.format));
+                    &relu_d.dst_desc.tensor_desc, prec, relu_d.src_desc.format));
 
     /* memory primitive descriptors check */
     /* XXX: code duplication */

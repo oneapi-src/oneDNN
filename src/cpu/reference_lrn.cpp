@@ -111,21 +111,20 @@ status_t reference_lrn<prec>::primitive_desc_init(
         return invalid_arguments;
     auto lrn_d = op_desc.lrn;
 
-    // TODO: f32 ?
     if (lrn_d.prop_kind != forward)
         return unimplemented;
 
     /* memory descriptors check and fill-in */
     if (lrn_d.src_desc.format == any)
         CHECK(mkldnn_memory_desc_init(&lrn_d.src_desc,
-        &lrn_d.src_desc.tensor_desc, f32, nchw));
+        &lrn_d.src_desc.tensor_desc, prec, nchw));
     if (lrn_d.dst_desc.format == any)
         CHECK(mkldnn_memory_desc_init(&lrn_d.dst_desc,
-        &lrn_d.dst_desc.tensor_desc, f32, lrn_d.src_desc.format));
+        &lrn_d.dst_desc.tensor_desc, prec, lrn_d.src_desc.format));
 
     memory_desc_t scratch_desc;
     CHECK(mkldnn_memory_desc_init(&scratch_desc,
-        &lrn_d.dst_desc.tensor_desc, f32, lrn_d.dst_desc.format));
+        &lrn_d.dst_desc.tensor_desc, prec, lrn_d.dst_desc.format));
 
     /* memory primitive descriptors check */
     memory_primitive_desc_t src_pd, scratch_pd, dst_pd;

@@ -149,19 +149,19 @@ status_t reference_convolution<prec>::primitive_desc_init(
     /* memory descriptors check and fill-in */
     if (conv_d.src_desc.format == any)
         CHECK(mkldnn_memory_desc_init(&conv_d.src_desc,
-                    &conv_d.src_desc.tensor_desc, f32, nchw));
+                    &conv_d.src_desc.tensor_desc, prec, nchw));
     const bool groups = conv_d.weights_desc.tensor_desc.ndims
         == (conv_d.src_desc.tensor_desc.ndims + 1);
     if (conv_d.weights_desc.format == any)
         CHECK(mkldnn_memory_desc_init(&conv_d.weights_desc,
-                &conv_d.weights_desc.tensor_desc, f32, groups ? goihw : oihw));
+                &conv_d.weights_desc.tensor_desc, prec, groups ? goihw : oihw));
     const bool with_bias = !memory_desc_wrapper(conv_d.bias_desc).is_zero();
     if (with_bias && conv_d.bias_desc.format == any)
         CHECK(mkldnn_memory_desc_init(&conv_d.bias_desc,
-                    &conv_d.bias_desc.tensor_desc, f32, x));
+                    &conv_d.bias_desc.tensor_desc, prec, x));
     if (conv_d.dst_desc.format == any)
         CHECK(mkldnn_memory_desc_init(&conv_d.dst_desc,
-                    &conv_d.dst_desc.tensor_desc, f32, conv_d.src_desc.format));
+                    &conv_d.dst_desc.tensor_desc, prec, conv_d.src_desc.format));
 
     /* memory primitive descriptors check */
     memory_primitive_desc_t src_pd, weights_pd, bias_pd, dst_pd;
