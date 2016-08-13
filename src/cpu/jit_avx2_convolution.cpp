@@ -49,8 +49,8 @@ status_t jit_avx2_convolution<prec>::execute_forward()
                 for (uint32_t ic = 0; ic < jcp.nb_ic; ++ic) {
                     for (uint32_t oh = 0; oh < jcp.ohp; ++oh) {
                         if (ic == 0) {
-                            for (auto ow = 0; ow < jcp.owp; ++ow) {
-                                for (auto b = 0; b < jcp.nb_oc_blocking; ++b) {
+                            for (auto ow = 0u; ow < jcp.owp; ++ow) {
+                                for (auto b = 0u; b < jcp.nb_oc_blocking; ++b) {
                                     const uint32_t _c = g*jcp.nb_oc +
                                         jcp.nb_oc_blocking*oc + b;
 
@@ -59,7 +59,7 @@ status_t jit_avx2_convolution<prec>::execute_forward()
                                     const data_t *__tmp_bias = &bias[
                                         bias_d.blk_off(_c*jcp.oc_block)];
 
-                                    for (auto i = 0; i < jcp.oc_block; ++i) {
+                                    for (auto i = 0u; i < jcp.oc_block; ++i) {
                                         __tmp_dst[i] = bias ? __tmp_bias[i] : 0;
                                     }
                                 }
