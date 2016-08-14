@@ -22,84 +22,99 @@
 #include "c_types_map.hpp"
 #include "nstl.hpp"
 
-// TODO: consider using smart pointers for storing primitives. External handles
-// then would have to be cast to smart pointers. This would ensure that
-// accedentally deleting a primitive that is a dependency for another one does
-// not cause a segfault.
-
 struct mkldnn_primitive: public mkldnn::impl::c_compatible {
 public:
-    enum exec_state { done, busy, not_ready, error };
+    enum exec_state { ready, not_ready, error };
 
-private:
-    // TODO: copy, equality and assignment -- all must be banned...
+    typedef mkldnn::impl::nstl::vector<mkldnn::impl::primitive_at_t>
+        input_vector;
+
+    typedef mkldnn::impl::nstl::vector<const mkldnn::impl::primitive *>
+        output_vector;
+
+    mkldnn::impl::primitive_desc_t primitive_desc() const {
+        return _primitive_desc;
+    }
+
+    mkldnn::impl::engine *engine() const { return _engine; }
+
+    mkldnn::impl::primitive_kind_t kind() const {
+        return _primitive_desc.base.primitive_kind;
+    }
+
+    virtual exec_state get_exec_state() const {
+        return _exec_state;
+    }
+
+    bool inputs_ready() const {
+        for (auto i = 0UL; i < _input.size(); i++)
+            if (_input[i].primitive->get_exec_state() != ready)
+                return false;
+        return true;
+    }
+
+    mkldnn::impl::status_t execute() {
+        if (!inputs_ready())
+            return mkldnn::impl::status::not_ready;
+        _exec_state = not_ready;
+        mkldnn::impl::status_t status = execute_impl();
+        _exec_state = (status == mkldnn::impl::status::success)
+            ? ready : error;
+        return status;
+    }
+
+    size_t input_count() const { return _input.size(); }
+    const input_vector &input() const { return _input; }
+
+    size_t output_count() const { return _output.size(); }
+    const output_vector &output() const { return _output; }
+
+    virtual char* memory(size_t index = 0) const {
+        return output()[index]->memory();
+    }
+    virtual const char* memory_const(size_t index = 0) const {
+        return output()[index]->memory_const();
+    }
+
+    virtual ~mkldnn_primitive() {}
 
 protected:
-    const mkldnn::impl::primitive_desc_t _primitive_desc;
-    mkldnn::impl::engine *_engine;
     exec_state _exec_state;
-    mkldnn::impl::nstl::vector<mkldnn::impl::primitive_at_t> _input;
-    mkldnn::impl::nstl::vector<const mkldnn::impl::primitive*> _output;
+
+    mkldnn::impl::engine *_engine;
+
+    const mkldnn::impl::primitive_desc_t _primitive_desc;
+
+    input_vector _input;
+    output_vector _output;
 
     virtual mkldnn::impl::status_t execute_impl() = 0;
 
     mkldnn_primitive(const mkldnn::impl::primitive_desc_t& primitive_desc,
             mkldnn::impl::engine *engine, exec_state state = not_ready)
-        : _primitive_desc(primitive_desc)
+        : _exec_state(state)
         , _engine(engine)
-        , _exec_state(state) {}
+        , _primitive_desc(primitive_desc)
+    {}
 
-public:
-    virtual ~mkldnn_primitive() {}
-
-    mkldnn::impl::primitive_desc_t primitive_desc() const
-    { return _primitive_desc; }
-    mkldnn::impl::engine *engine() const { return _engine; }
-    mkldnn::impl::primitive_kind_t kind() const
-    { return _primitive_desc.base.primitive_kind; }
-
-    virtual bool own_memory() const { return false; }
-
-    virtual exec_state get_exec_state() const { return _exec_state; }
-    virtual mkldnn::impl::status_t reset_exec_state(exec_state state) {
-        // TODO: some checks here?
-        _exec_state = state;
-        return mkldnn::impl::status::success;
-    }
-
-    bool inputs_ready() const {
-        for (auto i = 0UL; i < _input.size(); i++)
-            if (_input[i].primitive->get_exec_state() != done)
-                return false;
-        return true;
-    }
-    mkldnn::impl::status_t execute() {
-        if (!inputs_ready())
-            return mkldnn::impl::status::not_ready;
-        return execute_impl();
-    }
-
-    size_t input_count() const { return _input.size(); }
-    const decltype(_input) &input() const { return _input; }
-
-    size_t output_count() const { return _output.size(); }
-    const decltype(_output) &output() const { return _output; }
-
-    virtual char* memory(size_t index = 0) const
-    { return output()[index]->memory(); }
-    virtual const char* memory_const(size_t index = 0) const
-    { return output()[index]->memory_const(); }
+private:
+    mkldnn_primitive() = delete;
+    mkldnn_primitive(const mkldnn_primitive &) = delete;
+    mkldnn_primitive(mkldnn_primitive &&) = delete;
+    mkldnn_primitive &operator=(const mkldnn_primitive &) = delete;
+    mkldnn_primitive &operator=(mkldnn_primitive &&) = delete;
 };
 
 namespace mkldnn { namespace impl {
 
 typedef status_t (*primitive_desc_init_f)(primitive_desc_t *primitive_desc,
         const op_desc_t &op_desc, const engine &aengine);
+
 typedef status_t (*primitive_create_f)(primitive **aprimitive,
         const primitive_desc_t *primitive_desc, const primitive_at_t inputs[],
         const primitive *outputs[]);
 
-struct primitive_impl /* : public c_compatible */ {
+struct primitive_impl {
     const primitive_create_f primitive_create;
 };
 

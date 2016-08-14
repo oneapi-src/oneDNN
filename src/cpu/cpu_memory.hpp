@@ -39,8 +39,9 @@ protected:
 
 public:
     cpu_memory(const memory_primitive_desc_t &mpd, char* ptr)
-        : primitive(mpd, const_cast<impl::engine*>(mpd.base.engine), done)
-        , _memory_buffer(ptr), _owns_memory(ptr == nullptr) {
+        : primitive(mpd, const_cast<impl::engine*>(mpd.base.engine), ready)
+        , _memory_buffer(ptr)
+        , _owns_memory(ptr == nullptr) {
         primitive_at_t input_at = { this, 0 };
         _input.push_back(input_at);
         _output.push_back(this);

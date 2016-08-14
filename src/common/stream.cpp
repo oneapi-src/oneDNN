@@ -61,31 +61,31 @@ private:
         // wait()
 
         assert(error_primitive);
-        bool all_done;
+        bool all_ready;
         do {
-            all_done = true;
+            all_ready = true;
             for (auto i = 0UL; i < _queue.size(); i++) {
                 auto p = _queue[i];
                 auto s = p->get_exec_state();
                 switch (s) {
-                    case primitive::exec_state::busy:
-                    all_done = false;
+                    case primitive::exec_state::not_ready:
+                    all_ready = false;
                     break;
-                case primitive::exec_state::done:
+                case primitive::exec_state::ready:
                     break;
                 default:
                     *error_primitive = p;
                 }
-                if (!all_done) {
+                if (!all_ready) {
                     yield_thread();
                     break;
                 }
             }
-            if (all_done) break;
+            if (all_ready) break;
         } while (block);
-        if (all_done)
+        if (all_ready)
             _queue.clear();
-        return all_done ? success : try_again;
+        return all_ready ? success : try_again;
     }
 
 public:

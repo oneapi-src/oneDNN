@@ -39,10 +39,7 @@ private:
 
 protected:
     status_t execute_impl() {
-        _exec_state = busy;
-        status_t status = execute();
-        _exec_state = done;
-        return status;
+        return execute();
     }
 
 public:

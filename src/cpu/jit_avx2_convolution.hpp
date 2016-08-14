@@ -47,7 +47,6 @@ private:
     inline int offset_src(int img, int ch, int ih, int iw, int bl);
     inline int offset_dst(int img, int ch, int ih, int iw, int bl);
 
-    // TODO: implement in cpp.
     status_t execute_forward();
     status_t execute_backward_data();
     status_t execute_backward_weights();
@@ -55,17 +54,13 @@ private:
 
 protected:
     status_t execute_impl() {
-        status_t status = success;
-        _exec_state = busy;
         switch (_cpd.convolution_desc.prop_kind) {
-        case forward: status = execute_forward(); break;
-        case backward_data: status = execute_backward_data(); break;
-        case backward_weights: status = execute_backward_weights(); break;
-        case backward_bias: status = execute_backward_bias(); break;
+        case forward: return execute_forward(); break;
+        case backward_data: return execute_backward_data(); break;
+        case backward_weights: return execute_backward_weights(); break;
+        case backward_bias: return execute_backward_bias(); break;
         default: assert(0 && "invalid prop_kind"); // should never happen
         }
-        _exec_state = done;
-        return status;
     }
 
 public:

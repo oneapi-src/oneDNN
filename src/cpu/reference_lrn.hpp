@@ -36,21 +36,16 @@ class reference_lrn: public primitive {
 private:
     const impl::lrn_primitive_desc_t &_ppd;
 
-    // TODO: implement in cpp.
     status_t execute_forward();
     status_t execute_backward_data();
 
 protected:
     status_t execute_impl() {
-        status_t status = success;
-        _exec_state = busy;
         switch (_ppd.lrn_desc.prop_kind) {
-        case forward: status = execute_forward(); break;
-        case backward_data: status = execute_backward_data(); break;
+        case forward: return execute_forward(); break;
+        case backward_data: return execute_backward_data(); break;
         default:  assert(0 && "invalid prop_kind"); // should never happen
         }
-        _exec_state = done;
-        return status;
     }
 
 public:
