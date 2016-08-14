@@ -60,7 +60,7 @@ status_t memory_create(primitive **aprimitive,
 
     char* ptr = const_cast<char *>(reinterpret_cast<const char*>(outputs[0]));
     *aprimitive = new cpu_memory(primitive_desc->memory, ptr);
-    return aprimitive ? success : out_of_memory;
+    return *aprimitive ? success : out_of_memory;
 }
 }
 
