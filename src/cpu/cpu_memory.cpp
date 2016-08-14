@@ -52,6 +52,9 @@ namespace {
 status_t memory_create(primitive **aprimitive,
         const primitive_desc_t *primitive_desc, const primitive_at_t inputs[],
         const primitive *outputs[]) {
+    if (any_null(aprimitive, primitive_desc, inputs, outputs))
+        return invalid_arguments;
+
     assert(primitive_desc->base.primitive_kind == primitive_kind::memory);
     assert(inputs[0].primitive == outputs[0]);
 

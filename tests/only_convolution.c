@@ -61,6 +61,13 @@ int doit(int lazy) {
     real_t *weights = (real_t*)calloc(product(c3_weights_sizes, 5), sizeof(real_t));
     real_t *bias = (real_t*)calloc(product(c3_bias_sizes, 1), sizeof(real_t));
     real_t *dst = (real_t*)calloc(product(c3_dst_sizes, 4), sizeof(real_t));
+    if (src == NULL || weights == NULL || bias == NULL || dst == NULL) {
+        free(src);
+        free(weights);
+        free(bias);
+        free(dst);
+        return -1;
+    }
 
     for (uint32_t i = 0; i < c3_bias_sizes[0]; ++i) bias[i] = i;
 
@@ -131,7 +138,7 @@ int doit(int lazy) {
     CHECK(mkldnn_stream_wait(stream, 1, NULL));
 
     /* clean-up */
-    CHECK(mkldnn_stream_destroy(stream));
+    mkldnn_stream_destroy(stream);
     mkldnn_primitive_destroy(c3);
     mkldnn_primitive_destroy(c3_src);
     mkldnn_primitive_destroy(c3_weights);
