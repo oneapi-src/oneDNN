@@ -35,6 +35,7 @@ public:
     Xbyak::Reg64 scratch = rdx;
     Xbyak::Reg64 hw = r9;
     Xbyak::Reg64 t = rsp;
+    Xbyak::Reg64 imm_addr64 = rbx;
 
     Xbyak::Ymm yalpha = ymm0;
     Xbyak::Ymm ysrc_prev = ymm1;
@@ -86,8 +87,10 @@ public:
             mov(dst, ptr[args + 8]);
             mov(scratch, ptr[args + 16]);
             sub(t, 96);
-            vbroadcastss(yalpha, ptr[run_time_ptr_alpha]);
-            vbroadcastss(yone, ptr[run_time_ptr_one]);
+            mov(imm_addr64, reinterpret_cast<size_t>(run_time_ptr_alpha));
+            vbroadcastss(yalpha, ptr[imm_addr64]);
+            mov(imm_addr64, reinterpret_cast<size_t>(run_time_ptr_one));
+            vbroadcastss(yone, ptr[imm_addr64]);
             if (version == -1)
             {
                 vxorps(ysrc_prev, ysrc_prev, ysrc_prev);
