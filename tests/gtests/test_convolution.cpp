@@ -227,6 +227,11 @@ INSTANTIATE_TEST_CASE_P(
         ::testing::Values(
                 conv_test_params_float{ prop_kind::forward, engine::kind::cpu,
                         convolution::direct, memory::format::nchw,
+                        memory::format::oihw, memory::format::x,
+                        memory::format::nchw,
+                        { 2, 1, 3, 227, 227, 96, 55, 55, 11, 11, 0, 0, 4, 4 } },
+                conv_test_params_float{ prop_kind::forward, engine::kind::cpu,
+                        convolution::direct, memory::format::nchw,
                         memory::format::goihw, memory::format::x,
                         memory::format::nchw,
                         { 2, 2, 96, 27, 27, 256, 27, 27, 5, 5, 2, 2, 1, 1 } },
