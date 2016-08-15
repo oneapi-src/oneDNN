@@ -32,7 +32,7 @@ else()
 endif()
 
 if("${CMAKE_BUILD_TYPE}" STREQUAL "")
-    message(WARNING "CMAKE_BUILD_TYPE is unset, use Debug by default")
+    message(STATUS "CMAKE_BUILD_TYPE is unset, defaulting to Debug")
     set(CMAKE_BUILD_TYPE "Debug")
 endif()
 
