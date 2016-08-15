@@ -105,12 +105,11 @@ public:
         jcp.stride_h = _cpd.convolution_desc.strides[0];
         jcp.stride_w = _cpd.convolution_desc.strides[1];
 
-        jcp.ic_block = (jcp.ic % jcp.SIMD_W) ? 1 : jcp.SIMD_W;
+        jcp.ic_block = (jcp.ic % jcp.SIMD_W != 0) ? jcp.ic : jcp.SIMD_W;
         jcp.nb_ic = jcp.ic / jcp.ic_block;
 
         jcp.oc_block = jcp.SIMD_W;
         jcp.nb_oc = jcp.oc / jcp.oc_block;
-
         jcp.ur_h = 1; /* no code-unrolling by h so far */
         jcp.ur_w = 3;
         jcp.nb_ic_blocking =  jcp.nb_oc_blocking = 1;
@@ -119,7 +118,7 @@ public:
                 jcp.nb_oc_blocking = b;
                 break;
             }
-        jcp.ur_w_tail =jcp.ow % jcp.ur_w;
+        jcp.ur_w_tail = jcp.ow % jcp.ur_w;
 
         generator = new jit_avx2_generator(&jcp);
 //TODO: if(generator == nullptr) return nullptr;
@@ -127,7 +126,6 @@ public:
 //TODO: if(jit_ker == nullptr) return nullptr;
     }
     ~jit_avx2_convolution() {}
-
 
     /* static magic */
     static status_t primitive_desc_init(primitive_desc_t *primitive_desc,

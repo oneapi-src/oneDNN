@@ -88,20 +88,23 @@ status_t jit_avx2_convolution<prec>::execute_forward()
 
                         const uint32_t ih = nstl::max(ij - jcp.t_pad, 0);
                         par_conv.src = const_cast<data_t *>(&src[src_d.blk_off(
-                                    n, g*jcp.nb_ic + ic, ih, 0)]);
+                                n, jcp.ic == 3 ? 0 : g * jcp.nb_ic + ic, ih,
+                                0)]);
 
-                        par_conv.dst = &dst[dst_d.blk_off(
-                                n, g*jcp.nb_oc + oc*jcp.nb_oc_blocking, oh, 0)];
+                        par_conv.dst = &dst[dst_d.blk_off(n,
+                                g * jcp.nb_oc + oc * jcp.nb_oc_blocking, oh,
+                                0)];
 
                         const uint32_t wcb = jcp.nb_oc_blocking*oc;
                         const uint32_t wh = i_t_overflow;
-                        par_conv.filt = const_cast<data_t *>(&weights[ w_groups
-                                ? weights_d.blk_off(g, wcb, ic, wh, 0u)
-                                : weights_d.blk_off(wcb, ic, wh, 0u)
-                                ]);
+                        par_conv.filt = const_cast<data_t *>(&weights[w_groups ?
+                                        weights_d.blk_off(g, wcb,
+                                                jcp.ic == 3 ? 0 : ic, wh, 0u) :
+                                        weights_d.blk_off(wcb,
+                                                jcp.ic == 3 ? 0 : ic, wh, 0u)]);
 
-                        par_conv.src_prf  = NULL;
-                        par_conv.dst_prf  = NULL;
+                        par_conv.src_prf = NULL;
+                        par_conv.dst_prf = NULL;
                         par_conv.filt_prf = NULL;
 
                         par_conv.kh_padding = jcp.kh - i_t_overflow
@@ -146,24 +149,28 @@ status_t jit_avx2_convolution<prec>::primitive_desc_init(
         return unimplemented;
 
     /* memory descriptors check and fill-in */
-    if (conv_d.src_desc.format == any)
-        CHECK(mkldnn_memory_desc_init(&conv_d.src_desc,
-                &conv_d.src_desc.tensor_desc, f32, nChw8c));
-    else if (conv_d.src_desc.format != mkldnn_nChw8c)
-        return mkldnn_invalid_arguments;
+    if (conv_d.src_desc.format == any) {
+        if (conv_d.src_desc.tensor_desc.dims[1] == 3) {
+            // maybe 1st convolution
+            CHECK(mkldnn_memory_desc_init(
+                    &conv_d.src_desc, &conv_d.src_desc.tensor_desc, f32, nhwc));
+        } else {
+            CHECK(mkldnn_memory_desc_init(&conv_d.src_desc,
+                    &conv_d.src_desc.tensor_desc, f32, nChw8c));
+        }
+    }
 
     const bool groups = conv_d.weights_desc.tensor_desc.ndims
-        == (conv_d.src_desc.tensor_desc.ndims + 1);
-    if (conv_d.weights_desc.format == any)
-        CHECK(mkldnn_memory_desc_init(&conv_d.weights_desc,
-                &conv_d.weights_desc.tensor_desc, f32, groups ? gOIhw8i8o : OIhw8i8o));
-    else {
-        if (groups) {
-            if (conv_d.weights_desc.format != mkldnn_gOIhw8i8o)
-                return mkldnn_invalid_arguments;
+            == (conv_d.src_desc.tensor_desc.ndims + 1);
+    if (conv_d.weights_desc.format == any) {
+        if (!groups && conv_d.weights_desc.tensor_desc.dims[1] == 3) {
+            // maybe 1st convolution
+            CHECK(mkldnn_memory_desc_init(&conv_d.weights_desc,
+                    &conv_d.weights_desc.tensor_desc, f32, Ohwi8o));
         } else {
-            if (conv_d.weights_desc.format != mkldnn_OIhw8i8o)
-                return mkldnn_invalid_arguments;
+            CHECK(mkldnn_memory_desc_init(&conv_d.weights_desc,
+                    &conv_d.weights_desc.tensor_desc, f32,
+                    groups ? gOIhw8i8o : OIhw8i8o));
         }
     }
 
@@ -177,6 +184,18 @@ status_t jit_avx2_convolution<prec>::primitive_desc_init(
         CHECK(mkldnn_memory_desc_init(&conv_d.dst_desc,
                 &conv_d.dst_desc.tensor_desc, f32, nChw8c));
     else if (conv_d.dst_desc.format != mkldnn_nChw8c)
+        return mkldnn_invalid_arguments;
+
+    const bool optimize_1st_conv = conv_d.src_desc.format == mkldnn_nhwc
+            && !groups && conv_d.weights_desc.format == mkldnn_Ohwi8o;
+    const bool optimize_iochannels_blocked_conv
+            = conv_d.src_desc.format == mkldnn_nChw8c
+            && ((!groups && conv_d.weights_desc.format == mkldnn_OIhw8i8o)
+                       || (groups
+                                  && conv_d.weights_desc.format
+                                          == mkldnn_gOIhw8i8o));
+
+    if (!optimize_1st_conv && !optimize_iochannels_blocked_conv)
         return mkldnn_invalid_arguments;
 
     /* memory primitive descriptors check */
@@ -200,6 +219,7 @@ status_t jit_avx2_convolution<prec>::primitive_desc_init(
     auto      iw = src_d.dims()[3];
     auto      ow = dst_d.dims()[3];
 
+    auto t_pad = conv_d.padding[0];
     auto l_pad = conv_d.padding[1];
     auto    kw = weights_d.dims()[w_idx_base + 3];
     auto stride_h = conv_d.strides[0];
@@ -208,34 +228,41 @@ status_t jit_avx2_convolution<prec>::primitive_desc_init(
     if (stride_w != stride_h) {
         return unimplemented;
     }
-    if (stride_w > 1 || stride_h > 1) {
+    if (optimize_iochannels_blocked_conv && (stride_w > 1 || stride_h > 1)) {
         return unimplemented;
     }
 
-    if ((ic % 8) || (oc % 8)) {
+    if ((optimize_iochannels_blocked_conv && ic % 8 != 0) || (oc % 8 != 0)) {
         return unimplemented;
     }
 
     auto ur_w = 3;
     auto ur_w_tail = ow % ur_w;
 
-    if (l_pad > (int)ur_w) { // maximum 1 step with l_pad so far
-       return unimplemented;
-    }
-
-    int r_pad_step0 = nstl::max(0,
-                          (int)(((ow == ur_w_tail ? ur_w_tail : ur_w)-1) +
-                                  kw - 1 - (iw + l_pad - 1 )));
-    if (l_pad > 0 && r_pad_step0 > 0) {// no steps with both left and right padding so far
+    if (optimize_1st_conv && (t_pad > 0 || l_pad > 0)) {
         return unimplemented;
     }
 
-    int r_pad_no_tail = nstl::max(0,
-                            (int)((ow - ur_w_tail-1) + kw - 1 - (iw + l_pad - 1 )));
-    if (r_pad_no_tail > (int)ur_w) { // maximum 1 ur_w block with r_pad so far
-        return unimplemented;
-    }
+    if (optimize_iochannels_blocked_conv) {
+        if (l_pad > (int)ur_w) { // maximum 1 step with l_pad so far
+            return unimplemented;
+        }
 
+        int r_pad_step0
+                = nstl::max(0, (int)(((ow == ur_w_tail ? ur_w_tail : ur_w) - 1)
+                                       + kw - 1 - (iw + l_pad - 1)));
+        if (l_pad > 0 && r_pad_step0 > 0) { // no steps with both left and right
+                                            // padding so far
+            return unimplemented;
+        }
+
+        int r_pad_no_tail = nstl::max(
+                0, (int)((ow - ur_w_tail - 1) + kw - 1 - (iw + l_pad - 1)));
+        if (r_pad_no_tail
+                > (int)ur_w) { // maximum 1 ur_w block with r_pad so far
+            return unimplemented;
+        }
+    }
 
     /* final stage */
     convolution_primitive_desc_t cpd;
