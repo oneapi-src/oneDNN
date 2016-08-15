@@ -24,6 +24,12 @@ namespace mkldnn { namespace impl {
 
 #define UNUSED(x) ((void)x)
 
+#define CHECK(f) do { \
+    status_t status = f; \
+    if (status != success) \
+    return status; \
+} while (0)
+
 namespace utils {
 
 /* SFINAE helper -- anoluge to std::enable_if */

@@ -67,13 +67,6 @@ inline void cblas_axpy<mkldnn::impl::precision::f32>(cblas_int N,
 }
 #endif
 
-#define CHECK(f)               \
-    do {                       \
-        status_t status = f;   \
-        if (status != success) \
-            return status;     \
-    } while (0)
-
 namespace mkldnn {
 namespace impl {
 namespace cpu {

@@ -20,13 +20,6 @@
 #include "reference_inner_product.hpp"
 #include "type_helpers.hpp"
 
-#define CHECK(f)               \
-    do {                       \
-        status_t status = f;   \
-        if (status != success) \
-            return status;     \
-    } while (0)
-
 namespace mkldnn {
 namespace impl {
 namespace cpu {
