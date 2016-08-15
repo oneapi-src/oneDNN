@@ -41,7 +41,6 @@ status_t jit_avx2_convolution<prec>::execute_forward()
         dst_d(this->_cpd.dst_primitive_desc.memory_desc);
 
     const bool w_groups = weights_d.ndims() == (src_d.ndims() + 1);
-    const uint32_t w_idx_base = w_groups ? 1 : 0;
 
 #   pragma omp parallel for collapse(3)
     for (uint32_t g = 0; g < jcp.ngroups; ++g) {
