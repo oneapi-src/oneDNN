@@ -31,6 +31,8 @@ endfunction()
 detect_mkl("libmklml_intel.so")
 detect_mkl("libmkl_rt.so")
 
+set(FAIL_WITHOUT_MKL)
+
 if(HAVE_MKL)
     add_definitions(-DUSE_MKL -DUSE_BLAS)
     include_directories(AFTER ${MKLINC})
