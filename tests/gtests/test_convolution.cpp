@@ -255,6 +255,11 @@ INSTANTIATE_TEST_CASE_P(
         TestConvolutionAlexnetForwardBlocked, convolution_test_float,
         ::testing::Values(
                 conv_test_params_float{ prop_kind::forward, engine::kind::cpu,
+                        convolution::direct, memory::format::nhwc,
+                        memory::format::Ohwi8o, memory::format::x,
+                        memory::format::nChw8c,
+                        { 2, 1, 3, 227, 227, 96, 55, 55, 11, 11, 0, 0, 4, 4 } },
+                conv_test_params_float{ prop_kind::forward, engine::kind::cpu,
                         convolution::direct, memory::format::nChw8c,
                         memory::format::gOIhw8i8o, memory::format::x,
                         memory::format::nChw8c,
