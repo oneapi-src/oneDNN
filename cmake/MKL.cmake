@@ -34,7 +34,7 @@ detect_mkl("libmkl_rt.so")
 set(FAIL_WITHOUT_MKL)
 
 if(HAVE_MKL)
-    add_definitions(-DUSE_MKL -DUSE_BLAS)
+    add_definitions(-DUSE_MKL -DUSE_CBLAS)
     include_directories(AFTER ${MKLINC})
     list(APPEND mkldnn_LINKER_LIBS ${MKLLIB})
     message(STATUS "MKL found: include ${MKLINC}, lib ${MKLLIB}")
