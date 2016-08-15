@@ -20,9 +20,12 @@ class reference_relu: public primitive {
 private:
     const impl::relu_primitive_desc_t &_rpd;
     exec_state _exec_state;
+    bool _use_dense;
 
-    // TODO: implement in cpp.
-    status_t execute_forward();
+    status_t execute_forward_general();
+    status_t execute_forward_dense();
+    inline status_t execute_forward()
+    { return _use_dense ? execute_forward_dense() : execute_forward_general(); }
     status_t execute_backward_data();
 
 protected:
@@ -49,6 +52,10 @@ public:
     {
         _input.push_back(inputs[0]);
         _output.push_back(outputs[0]);
+
+        const auto &src_d = memory_desc_wrapper(_rpd.src_primitive_desc);
+        const auto &dst_d = memory_desc_wrapper(_rpd.dst_primitive_desc);
+        _use_dense = src_d.similar_to(dst_d) && src_d.is_dense();
     }
     ~reference_relu() {}
 

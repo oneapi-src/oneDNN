@@ -19,7 +19,7 @@ using namespace mkl_dnn::impl::memory_format;
 using namespace mkl_dnn::impl::primitive_kind;
 
 template <impl::precision_t prec>
-status_t reference_relu<prec>::execute_forward() {
+status_t reference_relu<prec>::execute_forward_general() {
     auto obtain_ptr = [this](uint32_t idx) {
         const size_t oi = this->input()[idx].output_index;
         return reinterpret_cast<const data_t*>(
@@ -46,6 +46,33 @@ status_t reference_relu<prec>::execute_forward() {
                 }
             }
         }
+    }
+
+    return success;
+}
+
+template <impl::precision_t prec>
+status_t reference_relu<prec>::execute_forward_dense() {
+    auto obtain_ptr = [this](uint32_t idx) {
+        const size_t oi = this->input()[idx].output_index;
+        return reinterpret_cast<const data_t*>(
+                this->input()[idx].primitive->output()[oi]->memory_const());
+    };
+    const data_t *src = obtain_ptr(0);
+    data_t *dst = reinterpret_cast<data_t*>(this->output()[0]->memory());
+
+    const double negative_slope = _rpd.relu_desc.negative_slope;
+    const memory_desc_wrapper src_d(_rpd.src_primitive_desc.memory_desc);
+    const memory_desc_wrapper dst_d(_rpd.dst_primitive_desc.memory_desc);
+
+    const size_t nelems = src_d.nelems();
+
+    src += src_d.blocking_desc().offset_padding;
+    dst += dst_d.blocking_desc().offset_padding;
+
+#   pragma omp parallel for
+    for (size_t e = 0; e < nelems; ++e) {
+        dst[e] = src[e] * ((src[e] > 0) ? 1. : negative_slope);
     }
 
     return success;
