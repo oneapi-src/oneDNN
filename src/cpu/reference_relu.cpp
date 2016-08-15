@@ -35,7 +35,7 @@ using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::primitive_kind;
 
 template <impl::precision_t prec>
-status_t reference_relu<prec>::execute_forward_general() {
+status_t reference_relu<prec>::execute_forward_generic() {
     auto obtain_ptr = [this](uint32_t idx) {
         const size_t oi = this->input()[idx].output_index;
         return reinterpret_cast<const data_t*>(

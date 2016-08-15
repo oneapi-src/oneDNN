@@ -38,10 +38,10 @@ private:
     exec_state _exec_state;
     bool _use_dense;
 
-    status_t execute_forward_general();
+    status_t execute_forward_generic();
     status_t execute_forward_dense();
     inline status_t execute_forward()
-    { return _use_dense ? execute_forward_dense() : execute_forward_general(); }
+    { return _use_dense ? execute_forward_dense() : execute_forward_generic(); }
     status_t execute_backward_data();
 
 protected:
