@@ -73,6 +73,7 @@ namespace memory_format {
     const memory_format_t nChw8c = mkldnn_nChw8c;
     const memory_format_t oi = mkldnn_oi;
     const memory_format_t oihw = mkldnn_oihw;
+    const memory_format_t oIhw8i = mkldnn_oIhw8i;
     const memory_format_t OIhw8i8o = mkldnn_OIhw8i8o;
     const memory_format_t Ohwi8o = mkldnn_Ohwi8o;
     const memory_format_t goihw = mkldnn_goihw;

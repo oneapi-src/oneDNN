@@ -117,6 +117,8 @@ typedef enum {
     /** 5D weights tensor in the blocked version of goihw format with both
      * input and output channels data organized in blocks by 8 elements */
     mkldnn_gOIhw8i8o,
+    /** 4D weights tensor in the oihw format with input channels data organized in blocks by 8 elements */
+    mkldnn_oIhw8i = mkldnn_nChw8c,
 } mkldnn_memory_format_t;
 
 /** Kinds of padding, define how to interpret the data in padding regions */
