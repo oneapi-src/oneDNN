@@ -206,34 +206,34 @@ status_t jit_avx2_convolution<prec>::primitive_desc_init(
     auto stride_w = conv_d.strides[1];
 
     if (stride_w != stride_h) {
-        return mkl_dnn_unimplemented;
+        return unimplemented;
     }
     if (stride_w > 1 || stride_h > 1) {
-        return mkl_dnn_unimplemented;
+        return unimplemented;
     }
 
     if ((ic % 8) || (oc % 8)) {
-        return mkl_dnn_unimplemented;
+        return unimplemented;
     }
 
     auto ur_w = 3;
     auto ur_w_tail = ow % ur_w;
 
     if (l_pad > (int)ur_w) { // maximum 1 step with l_pad so far
-       return mkl_dnn_unimplemented;
+       return unimplemented;
     }
 
     int r_pad_step0 = nstl::max(0,
                           (int)(((ow == ur_w_tail ? ur_w_tail : ur_w)-1) +
                                   kw - 1 - (iw + l_pad - 1 )));
     if (l_pad > 0 && r_pad_step0 > 0) {// no steps with both left and right padding so far
-        return mkl_dnn_unimplemented;
+        return unimplemented;
     }
 
     int r_pad_no_tail = nstl::max(0,
                             (int)((ow - ur_w_tail-1) + kw - 1 - (iw + l_pad - 1 )));
     if (r_pad_no_tail > (int)ur_w) { // maximum 1 ur_w block with r_pad so far
-        return mkl_dnn_unimplemented;
+        return unimplemented;
     }
 
 
