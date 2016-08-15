@@ -38,6 +38,8 @@ struct memory_desc_wrapper: public c_compatible {
     }
     inline uint32_t ndims() const { return _md.tensor_desc.ndims; }
 
+    /* some useful function */
+
     /** returns the number of elements including padding if \param with_padding
      * is true, and the number of data elements otherwise */
     size_t nelems(bool with_padding = false) const {
@@ -72,6 +74,29 @@ struct memory_desc_wrapper: public c_compatible {
         }
         return max_size * types::precision_size(precision());
     }
+
+    /** returns true if data located in dense form */
+    bool is_dense(bool with_padding = false) const;
+
+    /* comparison section */
+
+    inline bool operator==(const memory_desc_wrapper &rhs) const;
+    inline bool operator!=(const memory_desc_wrapper &rhs) const
+    { return !operator==(rhs); }
+    inline bool operator==(const memory_desc_t &rhs) const
+    { return operator==(memory_desc_wrapper(rhs)); }
+    inline bool operator!=(const memory_desc_t &rhs) const
+    { return !operator==(rhs); }
+
+    /** returns true if data (w/o padding if with_padding == false and w/
+     * padding otherwise) have the same dimension, strides, and blocked
+     * structure. depending on with_precision flag precision is taken or not
+     * taken into account.
+     * CAUTION: format any and undef are not similiar to whatever, hence the
+     * followign statement might be true: lhs == rhs && !lhs.similar_to(rhs) */
+    /* TODO: revise */
+    inline bool similar_to(const memory_desc_wrapper &rhs,
+            bool with_padding = true, bool with_precision = true) const;
 
     /* offset section */
 
@@ -162,6 +187,45 @@ private:
             _blk_off<Args...>(args...);
     }
 };
+
+inline bool memory_desc_wrapper::is_dense(bool with_padding) const {
+    if (one_of(format(), memory_format::undef, any))
+        return false;
+    return nelems(with_padding)*types::precision_size(precision()) == size();
+}
+
+inline bool memory_desc_wrapper::operator==(const memory_desc_wrapper &rhs)
+    const
+{
+    using namespace impl::types;
+    return tensor() == rhs.tensor()
+        && format() == rhs.format()
+        && precision() == rhs.precision()
+        && implication(!one_of(format(), any, memory_format::undef),
+                blocking_desc_is_equal(blocking_desc(), rhs.blocking_desc(),
+                    ndims()));
+}
+
+inline bool memory_desc_wrapper::similar_to(const memory_desc_wrapper &rhs,
+        bool with_padding, bool with_precision) const {
+    using namespace impl::types;
+    if (one_of(format(), memory_format::undef, any))
+        return false;
+
+    const auto &blk = blocking_desc();
+    const auto &r_blk = rhs.blocking_desc();
+
+    return tensor() == rhs.tensor()
+        && format_normalize(format()) == format_normalize(rhs.format())
+        && implication(with_precision, precision() == rhs.precision())
+        && array_cmp(blk.block_dims, r_blk.block_dims, ndims())
+        && array_cmp(blk.strides[0], r_blk.strides[0], ndims())
+        && array_cmp(blk.strides[1], r_blk.strides[1], ndims())
+        && implication(with_padding,
+                array_cmp(blk.padding_dims, r_blk.padding_dims, ndims())
+                && array_cmp(blk.offset_padding_to_data,
+                    r_blk.offset_padding_to_data, ndims()));
+}
 
 }
 }

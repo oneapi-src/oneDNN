@@ -32,6 +32,12 @@ inline size_t precision_size(precision_t prec) {
     return 0; // not supposed to be reachable
 }
 
+inline memory_format_t format_normalize(const memory_format_t fmt) {
+    if (one_of(fmt, x, nc, nchw, nhwc, nChw8c, oi, oihw, OIhw8i8o, Ohwi8o,
+                goihw, gOIhw8i8o)) return blocked;
+    return fmt;
+}
+
 inline bool operator==(const tensor_desc_t &lhs, const tensor_desc_t &rhs) {
     return lhs.ndims == rhs.ndims
         && mkl_dnn::impl::array_cmp(lhs.dims, rhs.dims, lhs.ndims);
