@@ -93,8 +93,6 @@ status_t gemm_inner_product<prec>::execute_forward()
     data_t *dst = reinterpret_cast<data_t *>(this->output()[0]->memory());
 
     const memory_desc_wrapper src_d(this->_ippd.src_primitive_desc.memory_desc),
-            weights_d(this->_ippd.weights_primitive_desc.memory_desc),
-            bias_d(this->_ippd.bias_primitive_desc.memory_desc),
             dst_d(this->_ippd.dst_primitive_desc.memory_desc);
 
     // TODO: consistency checks
