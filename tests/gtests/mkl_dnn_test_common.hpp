@@ -70,6 +70,7 @@ inline mkl_dnn::memory::desc create_md(mkl_dnn::tensor::dims dims,
     case f::nChw8c:
     case f::oihw:
     case f::OIhw8i8o:
+    case f::Ohwi8o:
         ndims = 4; break;
     case f::goihw:
     case f::gOIhw8i8o:

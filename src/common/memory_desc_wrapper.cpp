@@ -135,6 +135,16 @@ status_t fill_OIhw8i8o(blocking_desc_t &blk, const tensor_desc_t &tensor) {
     return fill_contiguous_blocked(blk, tensor, block_dims, perm);
 }
 
+status_t fill_Ohwi8o(blocking_desc_t &blk, const tensor_desc_t &tensor) {
+    if (tensor.ndims != 4) return invalid_arguments;
+
+    const uint32_t block_dims[] = {8, 1, 1, 1};
+    const uint32_t perm[] = {
+        0, 2, 3, 1,
+        4, 5, 6, 7};
+    return fill_contiguous_blocked(blk, tensor, block_dims, perm);
+}
+
 status_t fill_goihw(blocking_desc_t &blk, const tensor_desc_t &tensor) {
     if (tensor.ndims != 5) return invalid_arguments;
 
@@ -171,6 +181,7 @@ status_t memory_desc_wrapper::compute_blocking(memory_desc_t &memory_desc)
     case oi: return fill_oi(blk, tensor);
     case oihw: return fill_oihw(blk, tensor);
     case OIhw8i8o: return fill_OIhw8i8o(blk, tensor);
+    case Ohwi8o: return fill_Ohwi8o(blk, tensor);
     case goihw: return fill_goihw(blk, tensor);
     case gOIhw8i8o: return fill_gOIhw8i8o(blk, tensor);
     default: break;

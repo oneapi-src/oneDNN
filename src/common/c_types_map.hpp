@@ -58,6 +58,7 @@ namespace memory_format {
     const memory_format_t oi = mkl_dnn_oi;
     const memory_format_t oihw = mkl_dnn_oihw;
     const memory_format_t OIhw8i8o = mkl_dnn_OIhw8i8o;
+    const memory_format_t Ohwi8o = mkl_dnn_Ohwi8o;
     const memory_format_t goihw = mkl_dnn_goihw;
     const memory_format_t gOIhw8i8o = mkl_dnn_gOIhw8i8o;
 }

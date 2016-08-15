@@ -53,7 +53,7 @@ struct memory_desc_wrapper: public c_compatible {
     size_t size() const {
         if (is_zero() || format() == any) return 0;
         assert(one_of(format(), x, nc, nchw, nhwc, nChw8c, oi, oihw, OIhw8i8o,
-                    goihw, gOIhw8i8o, blocked));
+                    Ohwi8o, goihw, gOIhw8i8o, blocked));
 
         const auto &block_dims = blocking_desc().block_dims;
         const auto &strides = blocking_desc().strides;

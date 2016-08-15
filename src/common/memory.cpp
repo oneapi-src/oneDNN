@@ -62,6 +62,7 @@ status_t mkl_dnn_memory_desc_init(memory_desc_t *memory_desc,
     case oi:
     case oihw:
     case OIhw8i8o:
+    case Ohwi8o:
     case goihw:
     case gOIhw8i8o:
         status = memory_desc_wrapper::compute_blocking(md);
