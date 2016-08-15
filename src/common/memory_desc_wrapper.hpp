@@ -49,11 +49,14 @@ struct memory_desc_wrapper: public c_compatible {
     /** returns true if memory descriptor is zero */
     bool is_zero() const { return ndims() == 0; }
 
-    /** returns the size required to store described memory */
+    /** returns the size required to store described memory
+     * note: if offset_padding != 0 returns 0 (need to specify the behavior) */
     size_t size() const {
         if (is_zero() || format() == any) return 0;
         assert(one_of(format(), x, nc, nchw, nhwc, nChw8c, oi, oihw, OIhw8i8o,
                     Ohwi8o, goihw, gOIhw8i8o, blocked));
+
+        if (blocking_desc().offset_padding != 0) return 0;
 
         const auto &block_dims = blocking_desc().block_dims;
         const auto &strides = blocking_desc().strides;
