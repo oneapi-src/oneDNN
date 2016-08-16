@@ -28,6 +28,7 @@
 #include "cpu/reference_inner_product.hpp"
 
 #include "cpu/reference_reorder.hpp"
+#include "cpu/simple_reorder.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -38,6 +39,7 @@ cpu_engine_factory engine_factory_lazy(true);
 
 namespace {
 using namespace mkldnn::impl::precision;
+using namespace mkldnn::impl::memory_format;
 
 primitive_desc_init_f primitive_inits[] = {
     cpu_memory::memory_desc_init,
@@ -52,6 +54,12 @@ primitive_desc_init_f primitive_inits[] = {
 };
 
 reorder_primitive_desc_init_f reorder_inits[] = {
+    simple_reorder<f32, nchw, f32, nChw8c, true>::reorder_primitive_desc_init,
+    simple_reorder<f32, nchw, f32, nChw8c, false>::reorder_primitive_desc_init,
+    simple_reorder<f32, oihw, f32, OIhw8i8o, true>::reorder_primitive_desc_init,
+    simple_reorder<f32, oihw, f32, OIhw8i8o, false>::reorder_primitive_desc_init,
+    simple_reorder<f32, goihw, f32, gOIhw8i8o, true>::reorder_primitive_desc_init,
+    simple_reorder<f32, goihw, f32, gOIhw8i8o, false>::reorder_primitive_desc_init,
     reference_reorder<f32, f32>::reorder_primitive_desc_init,
     NULL,
 };
