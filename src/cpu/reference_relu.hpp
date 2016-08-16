@@ -35,7 +35,6 @@ template <impl::precision_t prec>
 class reference_relu: public primitive {
 private:
     const impl::relu_primitive_desc_t &_rpd;
-    exec_state _exec_state;
     bool _use_dense;
 
     status_t execute_forward_generic();
@@ -58,9 +57,8 @@ public:
 
     reference_relu(const relu_primitive_desc_t &rpd,
             const primitive_at_t *inputs, const primitive *outputs[])
-        : primitive(rpd, const_cast<impl::engine*>(rpd.base.engine))
+        : primitive(rpd, const_cast<impl::engine*>(rpd.base.engine), not_ready)
         , _rpd(_primitive_desc.relu)
-        , _exec_state(not_ready)
     {
         _input.push_back(inputs[0]);
         _output.push_back(outputs[0]);
@@ -70,8 +68,6 @@ public:
         _use_dense = src_d.similar_to(dst_d) && src_d.is_dense();
     }
     ~reference_relu() {}
-
-    exec_state get_exec_state() const { return _exec_state; } // TODO: put this in common?
 
     /* static magic */
     static status_t primitive_desc_init(primitive_desc_t *primitive_desc,
