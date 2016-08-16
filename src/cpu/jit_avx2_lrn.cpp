@@ -177,10 +177,8 @@ status_t jit_avx2_lrn<prec>::execute_forward() {
     data_t *dst =
         reinterpret_cast<data_t *>(this->output()[0]->memory());
 
-    const memory_desc_wrapper
-        src_d(this->_ppd.src_primitive_desc.memory_desc),
-        scratch_d(this->_ppd.scratch_primitive_desc.memory_desc),
-        dst_d(this->_ppd.dst_primitive_desc.memory_desc);
+    const memory_desc_wrapper 
+        src_d(this->_ppd.src_primitive_desc.memory_desc);
 
     const uint32_t C = src_d.dims()[1];
     const uint32_t HW = src_d.dims()[2]*src_d.dims()[3];
@@ -317,7 +315,7 @@ jit_avx2_lrn<prec>::jit_avx2_lrn(const lrn_primitive_desc_t &ppd,
     uint32_t H = ppd.src_primitive_desc.memory_desc.tensor_desc.dims[2];
     uint32_t W = ppd.src_primitive_desc.memory_desc.tensor_desc.dims[3];
 
-    typedef void(*kernel_t)(const void*);
+    typedef void(*const kernel_t)(const void*);
     this->jit_lrn = new xbyak_lrn(&this->jit_alpha, &this->jit_one, H*W, 0);
     this->ker_hw8 = reinterpret_cast<kernel_t>(this->jit_lrn->getCode());
 
