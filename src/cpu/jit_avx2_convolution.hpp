@@ -59,8 +59,9 @@ protected:
         case backward_data: return execute_backward_data(); break;
         case backward_weights: return execute_backward_weights(); break;
         case backward_bias: return execute_backward_bias(); break;
-        default: assert(0 && "invalid prop_kind"); // should never happen
         }
+        assert(0 && "invalid prop_kind");
+        return unimplemented;
     }
 
 public:
