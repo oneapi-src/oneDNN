@@ -315,15 +315,15 @@ jit_avx2_lrn<prec>::jit_avx2_lrn(const lrn_primitive_desc_t &ppd,
     uint32_t H = ppd.src_primitive_desc.memory_desc.tensor_desc.dims[2];
     uint32_t W = ppd.src_primitive_desc.memory_desc.tensor_desc.dims[3];
 
-    typedef void(*const kernel_t)(const void*);
+    typedef void(*kernel_t)(const void*);
     this->jit_lrn = new xbyak_lrn(&this->jit_alpha, &this->jit_one, H*W, 0);
-    this->ker_hw8 = reinterpret_cast<kernel_t>(this->jit_lrn->getCode());
+    this->ker_hw8 = reinterpret_cast<kernel_t>(const_cast<uint8_t*>(this->jit_lrn->getCode()));
 
     this->jit_lrn_first = new xbyak_lrn(&this->jit_alpha, &this->jit_one, H*W, -1);
-    this->ker_hw8_first = reinterpret_cast<kernel_t>(this->jit_lrn_first->getCode());
+    this->ker_hw8_first = reinterpret_cast<kernel_t>(const_cast<uint8_t*>(this->jit_lrn_first->getCode()));
 
     this->jit_lrn_last = new xbyak_lrn(&this->jit_alpha, &this->jit_one, H*W, +1);
-    this->ker_hw8_last = reinterpret_cast<kernel_t>(this->jit_lrn_last->getCode());
+    this->ker_hw8_last = reinterpret_cast<kernel_t>(const_cast<uint8_t*>(this->jit_lrn_last->getCode()));
 }
 
 template <impl::precision_t prec>
