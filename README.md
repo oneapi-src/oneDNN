@@ -35,13 +35,13 @@ Software dependencies:
 * [Doxygen](http://www.stack.nl/~dimitri/doxygen/download.html#srcbin) 1.8.5 or later
 * C++ compiler with C++11 standard support
 
-The software was validated on RedHat* Enterprise Linux 7 with
-* GNU* Compiler Collection 4.8
-* GNU* Compiler Collection 6.1
-* Clang* 3.8.0
+The software was validated on RedHat\* Enterprise Linux 7 with
+* GNU\* Compiler Collection 4.8
+* GNU\* Compiler Collection 6.1
+* Clang\* 3.8.0
 * [Intel® C/C++ Compiler](https://software.intel.com/en-us/intel-parallel-studio-xe) 16.0 or later
 
-The implementation relies on OpenMP* SIMD extensions, and we recommend using Intel compiler for the best performance results.
+The implementation relies on OpenMP\* SIMD extensions, and we recommend using Intel compiler for the best performance results.
 
 ## Installation
 Download [Intel MKL-DNN source code](https://github.com/01org/mkl-dnn/archive/master.zip) or clone the repository to your system
