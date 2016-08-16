@@ -44,8 +44,8 @@ protected:
         switch (_ppd.lrn_desc.prop_kind) {
         case forward: return execute_forward(); break;
         case backward_data: return execute_backward_data(); break;
+        default: assert(0 && "invalid prop_kind");
         }
-        assert(0 && "invalid prop_kind");
         return unimplemented;
     }
 
