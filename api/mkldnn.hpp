@@ -324,7 +324,7 @@ struct memory: public primitive  {
 
     /** A memory descriptor. */
     struct desc {
-        friend class memory;
+        friend struct memory;
 
         /** The underlying C API data structure */
         c_api::mkldnn_memory_desc_t data;
@@ -371,7 +371,7 @@ struct memory: public primitive  {
 
     /** A memory primitive descriptor. */
     struct primitive_desc {
-        friend class memory;
+        friend struct memory;
         /** The underlying C API data structure */
         c_api::mkldnn_memory_primitive_desc_t data;
 
