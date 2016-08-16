@@ -49,9 +49,16 @@ Download [Intel MKL-DNN source code](https://github.com/01org/mkl-dnn/archive/ma
 	git clone https://github.com/01org/mkl-dnn.git
 ```
 
-Before the installation make sure that all the dependencies are available and have correct versions. Intel MKL-DNN uses CMake-based build system
+Before the installation make sure that all the dependencies are available and have correct versions. Intel MKL-DNN uses optimized matrix-matrix multiplication (GEMM) routine from Intel MKL. Dynamic library with this functionality is included with Intel MKL-DNN release. Before building the project download the library using provided script
 ```
-	mkdir –p build && cd build && cmake .. && make
+	cd scripts && ./prepare_mkl.sh && cd ..
+```
+
+or download manually and unpack to `external` directory in the repository root.
+
+Intel MKL-DNN uses CMake-based build system
+```
+	mkdir -p build && cd build && cmake .. && make
 ```
 
 Intel MKL-DNN includes unit tests implemented using the googletest framework. To validate the build, run:
