@@ -32,6 +32,12 @@ using namespace mkldnn::impl::precision;
 template<impl::precision_t prec>
     using data_t = typename precision2type<prec>::type;
 
+namespace fmt_order {
+    const bool keep = true;
+    const bool reverse = false;
+    const bool any = keep;
+}
+
 namespace spec {
 struct direct_copy {};
 struct reference {};
@@ -39,9 +45,9 @@ struct reference {};
 
 #define SIMPLE_REORDER_TEMPL_DECL \
     impl::precision_t prec_i, impl::memory_format_t fmt_i, \
-    impl::precision_t prec_o, impl::memory_format_t fmt_o, bool swap_format
+    impl::precision_t prec_o, impl::memory_format_t fmt_o, bool order_keep
 #define SIMPLE_REORDER_TEMPL_CALL \
-    prec_i, fmt_i, prec_o, fmt_o, swap_format
+    prec_i, fmt_i, prec_o, fmt_o, order_keep
 
 /* specific reorders: common template */
 template <SIMPLE_REORDER_TEMPL_DECL, typename spec = void>
@@ -55,14 +61,14 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 {
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d) {
-        return input_d.format() == (swap_format ? fmt_o : fmt_i)
-            && output_d.format() == (swap_format ? fmt_i : fmt_o);
+        return input_d.format() == (order_keep ? fmt_i : fmt_o)
+            && output_d.format() == (order_keep ? fmt_o : fmt_i);
     }
 
     static status_t exec(const memory_desc_wrapper &input_d,
         const memory_desc_wrapper &output_d, const data_t<prec_i> *input,
         data_t<prec_o> *output) {
-        const auto &nchw_d = swap_format ? output_d : input_d;
+        const auto &nchw_d = order_keep ? input_d : output_d;
         const auto &dims = input_d.dims();
 
         auto ker = [&](const data_t<prec_i> *i, data_t<prec_o> *o) {
@@ -70,10 +76,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 for (uint32_t c = 0; c < 8; ++c) {
                     const auto nchw_off =
                         c*nchw_d.blocking_desc().strides[0][1] + w;
-                    if (swap_format) {
-                        o[nchw_off] = data_t<prec_o>(i[w*8 + c]);
-                    } else {
+                    if (order_keep) {
                         o[w*8 + c] = data_t<prec_o>(i[nchw_off]);
+                    } else {
+                        o[nchw_off] = data_t<prec_o>(i[w*8 + c]);
                     }
                 }
             }
@@ -83,8 +89,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         for (uint32_t n = 0; n < dims[0]; ++n) {
             for (uint32_t C = 0; C < dims[1]/8; ++C) {
                 for (uint32_t h = 0; h < dims[2]; ++h) {
-                    const uint32_t i_c_mult = swap_format ? 1 : 8;
-                    const uint32_t o_c_mult = swap_format ? 8 : 1;
+                    constexpr uint32_t i_c_mult = order_keep ? 8 : 1;
+                    constexpr uint32_t o_c_mult = order_keep ? 1 : 8;
                     auto i = &input[input_d.blk_off(n, i_c_mult * C, h)];
                     auto o = &output[output_d.blk_off(n, o_c_mult * C, h)];
                     ker(i, o);
@@ -102,8 +108,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 {
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d) {
-        return input_d.format() == (swap_format ? fmt_o : fmt_i)
-            && output_d.format() == (swap_format ? fmt_i : fmt_o);
+        return input_d.format() == (order_keep ? fmt_i : fmt_o)
+            && output_d.format() == (order_keep ? fmt_o : fmt_i);
     }
 
     static status_t exec(const memory_desc_wrapper &input_d,
@@ -116,10 +122,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 for (uint32_t c = 0; c < dims[1]; ++c) {
                     const auto &is = input_d.blocking_desc().strides[0];
                     const auto &os = output_d.blocking_desc().strides[0];
-                    if (swap_format) {
-                        o[c * os[1] + w] = data_t<prec_o>(i[w * is[3] + c]);
-                    } else {
+                    if (order_keep) {
                         o[w * os[3] + c] = data_t<prec_o>(i[c * is[1] + w]);
+                    } else {
+                        o[c * os[1] + w] = data_t<prec_o>(i[w * is[3] + c]);
                     }
                 }
             }
@@ -147,8 +153,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 {
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d) {
-        return input_d.format() == (swap_format ? fmt_o : fmt_i)
-            && output_d.format() == (swap_format ? fmt_i : fmt_o);
+        return input_d.format() == (order_keep ? fmt_i : fmt_o)
+            && output_d.format() == (order_keep ? fmt_o : fmt_i);
     }
 
     static status_t exec(const memory_desc_wrapper &input_d,
@@ -156,7 +162,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         data_t<prec_o> *output) {
         constexpr bool w_groups = fmt_i == goihw;
 
-        const auto &_g_oihw_d = swap_format ? output_d : input_d;
+        const auto &_g_oihw_d = order_keep ? input_d : output_d;
         const auto &dims = input_d.dims();
 
         auto ker = [&](const data_t<prec_i> *i, data_t<prec_o> *o) {
@@ -165,10 +171,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                     const auto _g_oihw_off =
                         oc*_g_oihw_d.blocking_desc().strides[0][w_groups + 0]
                         + ic*_g_oihw_d.blocking_desc().strides[0][w_groups + 1];
-                    if (swap_format) {
-                        o[_g_oihw_off] = data_t<prec_o>(i[ic*8 + oc]);
-                    } else {
+                    if (order_keep) {
                         o[ic*8 + oc] = data_t<prec_o>(i[_g_oihw_off]);
+                    } else {
+                        o[_g_oihw_off] = data_t<prec_o>(i[ic*8 + oc]);
                     }
                 }
             }
@@ -182,8 +188,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 for (uint32_t I = 0; I < dims[w_groups + 1]/8; ++I) {
                     for (uint32_t h = 0; h < dims[w_groups + 2]; ++h) {
                         for (uint32_t w = 0; w < dims[w_groups + 3]; ++w) {
-                            constexpr uint32_t i_mult = swap_format ? 1 : 8;
-                            constexpr uint32_t o_mult = swap_format ? 8 : 1;
+                            constexpr uint32_t i_mult = order_keep ? 8 : 1;
+                            constexpr uint32_t o_mult = order_keep ? 1 : 8;
                             auto i = &input[input_d.blk_off<!w_groups>(g,
                                     i_mult * O, i_mult * I, h, w)];
                             auto o = &output[output_d.blk_off<!w_groups>(
@@ -202,7 +208,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     typename utils::enable_if<
-        fmt_i == any && fmt_o == any && swap_format == false,
+        fmt_i == any && fmt_o == any && order_keep == fmt_order::any,
     spec::direct_copy>::type>
 {
     static bool is_applicable(const memory_desc_wrapper &input_d,
@@ -232,7 +238,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     typename utils::enable_if<
-        fmt_i == any && fmt_o == any && swap_format == false,
+        fmt_i == any && fmt_o == any && order_keep == fmt_order::any,
     spec::reference>::type>
 {
     static bool is_applicable(const memory_desc_wrapper &input_d,

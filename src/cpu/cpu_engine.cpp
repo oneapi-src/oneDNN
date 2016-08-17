@@ -55,16 +55,16 @@ primitive_desc_init_f primitive_inits[] = {
 };
 
 reorder_primitive_desc_init_f reorder_inits[] = {
-    simple_reorder<f32, any, f32, any, false, spec::direct_copy>::reorder_primitive_desc_init,
-    simple_reorder<f32, nchw, f32, nChw8c, true>::reorder_primitive_desc_init,
-    simple_reorder<f32, nchw, f32, nChw8c, false>::reorder_primitive_desc_init,
-    simple_reorder<f32, nchw, f32, nhwc, true>::reorder_primitive_desc_init,
-    simple_reorder<f32, nchw, f32, nhwc, false>::reorder_primitive_desc_init,
-    simple_reorder<f32, oihw, f32, OIhw8i8o, true>::reorder_primitive_desc_init,
-    simple_reorder<f32, oihw, f32, OIhw8i8o, false>::reorder_primitive_desc_init,
-    simple_reorder<f32, goihw, f32, gOIhw8i8o, true>::reorder_primitive_desc_init,
-    simple_reorder<f32, goihw, f32, gOIhw8i8o, false>::reorder_primitive_desc_init,
-    simple_reorder<f32, any, f32, any, false, spec::reference>::reorder_primitive_desc_init,
+    simple_reorder<f32, any, f32, any, fmt_order::any, spec::direct_copy>::reorder_primitive_desc_init,
+    simple_reorder<f32, nchw, f32, nChw8c, fmt_order::keep>::reorder_primitive_desc_init,
+    simple_reorder<f32, nchw, f32, nChw8c, fmt_order::reverse>::reorder_primitive_desc_init,
+    simple_reorder<f32, nchw, f32, nhwc, fmt_order::keep>::reorder_primitive_desc_init,
+    simple_reorder<f32, nchw, f32, nhwc, fmt_order::reverse>::reorder_primitive_desc_init,
+    simple_reorder<f32, oihw, f32, OIhw8i8o, fmt_order::keep>::reorder_primitive_desc_init,
+    simple_reorder<f32, oihw, f32, OIhw8i8o, fmt_order::reverse>::reorder_primitive_desc_init,
+    simple_reorder<f32, goihw, f32, gOIhw8i8o, fmt_order::keep>::reorder_primitive_desc_init,
+    simple_reorder<f32, goihw, f32, gOIhw8i8o, fmt_order::reverse>::reorder_primitive_desc_init,
+    simple_reorder<f32, any, f32, any, fmt_order::any, spec::reference>::reorder_primitive_desc_init,
     NULL,
 };
 }
