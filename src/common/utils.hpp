@@ -24,6 +24,14 @@ namespace mkldnn { namespace impl {
 
 #define UNUSED(x) ((void)x)
 
+namespace utils {
+
+/* SFINAE helper -- anoluge to std::enable_if */
+template<bool expr, class T = void> struct enable_if {};
+template<class T> struct enable_if<true, T> { typedef T type; };
+
+}
+
 template <typename T, typename P>
 inline bool one_of(T val, P item) { return val == item; }
 template <typename T, typename P, typename... Args>
