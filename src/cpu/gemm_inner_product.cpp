@@ -87,6 +87,7 @@ using namespace mkldnn::impl::primitive_kind;
 template <impl::precision_t prec>
 status_t gemm_inner_product<prec>::execute_forward()
 {
+#ifdef USE_CBLAS
     auto obtain_ptr = [this](uint32_t idx) {
         const size_t oi = this->input()[idx].output_index;
         return reinterpret_cast<const data_t *>(
@@ -109,16 +110,17 @@ status_t gemm_inner_product<prec>::execute_forward()
     const cblas_int K = array_product(&src_d.dims()[1], src_d.ndims() - 1);
     const cblas_int N = dst_d.dims()[1];
 
-#ifdef USE_CBLAS
     cblas_gemm<prec>(CblasRowMajor, CblasNoTrans, CblasTrans,
             M, N, K, 1.0, src, K, weights, K, 0.0, dst, N);
     if (bias)
 #pragma omp parallel for
         for (cblas_int mb = 0; mb < M; mb++)
             cblas_axpy<prec>(N, 1.0, bias, 1, dst + dst_d.blk_off(mb), 1);
-#endif
 
     return success;
+#else
+    return unimplemented;
+#endif
 }
 
 template <impl::precision_t prec>
@@ -152,10 +154,7 @@ status_t gemm_inner_product<prec>::primitive_desc_init(
         primitive_desc_t *primitive_desc, const op_desc_t &op_desc,
         const mkldnn::impl::engine &engine)
 {
-#ifndef USE_CBLAS
-    return unimplemented;
-#endif
-
+#ifdef USE_CBLAS
     if (op_desc._kind != primitive_kind::inner_product)
         return invalid_arguments;
 
@@ -224,6 +223,9 @@ status_t gemm_inner_product<prec>::primitive_desc_init(
     primitive_desc->inner_product = ippd;
 
     return success;
+#else
+    return unimplemented;
+#endif
 }
 
 namespace {
