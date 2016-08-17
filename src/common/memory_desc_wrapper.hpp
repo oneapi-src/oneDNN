@@ -177,6 +177,13 @@ struct memory_desc_wrapper: public c_compatible {
         return _blk_off<Args...>(args...);
     }
 
+    template<bool skip_first, typename T, typename ...Args>
+    inline size_t blk_off(T xn, Args... args) const {
+        return skip_first
+            ? _blk_off<Args...>(args...)
+            : _blk_off<T, Args...>(xn, args...);
+    }
+
     /* static functions section */
     /* TODO: replace with non-static, once _md becomes non-const ref */
 
