@@ -1,4 +1,4 @@
-# Intel® Math Kernel Library for Deep Neural Networks (Intel® MKL-DNN)[]({#mainpage})
+# Intel® Math Kernel Library for Deep Neural Networks (Intel® MKL-DNN)
 [![Apache License Version 2.0](https://img.shields.io/badge/license-Apache_2.0-green.svg)](LICENSE)
 ![Technical Preview](https://img.shields.io/badge/version-technical_preview-orange.svg)
 

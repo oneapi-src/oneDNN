@@ -48,13 +48,13 @@ DOXYFILE_ENCODING      = UTF-8
 # title of most generated pages and in a few other places.
 # The default value is: My Project.
 
-PROJECT_NAME           = @PROJECT_NAME@
+PROJECT_NAME           = "@PROJECT_NAME@"
 
 # The PROJECT_NUMBER tag can be used to enter a project or revision number. This
 # could be handy for archiving the generated documentation or if some version
 # control system is used.
 
-PROJECT_NUMBER         = @PROJECT_VERSION@
+PROJECT_NUMBER         = "@PROJECT_VERSION@"
 
 # Using the PROJECT_BRIEF tag one can provide an optional one line description
 # for a project that appears at the top of each page and should give viewer a
@@ -775,7 +775,7 @@ INPUT_ENCODING         = UTF-8
 
 FILE_PATTERNS          = *.h \
                          *.hpp \
-                         *.txt
+                         *.md
 
 # The RECURSIVE tag can be used to specify whether or not subdirectories should
 # be searched for input files as well.
