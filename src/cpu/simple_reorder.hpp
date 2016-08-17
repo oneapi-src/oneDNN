@@ -46,7 +46,7 @@ struct simple_reorder_impl {};
 
 template <impl::precision_t prec_i, impl::precision_t prec_o, bool swap_format>
 struct simple_reorder_impl<prec_i, nchw, prec_o, nChw8c, swap_format> {
-    static bool can_do(const memory_desc_wrapper &input_d,
+    static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d) {
         return input_d.format() == (swap_format ? nChw8c : nchw)
             && output_d.format() == (swap_format ? nchw : nChw8c);
@@ -96,7 +96,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         || (fmt_i == oihw && fmt_o == OIhw8i8o)
     >::type>
 {
-    static bool can_do(const memory_desc_wrapper &input_d,
+    static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d) {
         return input_d.format() == (swap_format ? fmt_o : fmt_i)
             && output_d.format() == (swap_format ? fmt_i : fmt_o);
@@ -193,7 +193,7 @@ public:
             && input->memory_desc.precision == prec_i
             && output->memory_desc.precision == prec_o
             && input->base.engine == output->base.engine
-            && simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL>::can_do(
+            && simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL>::is_applicable(
                     input->memory_desc, output->memory_desc);
         if (!args_ok)
             return invalid_arguments;
