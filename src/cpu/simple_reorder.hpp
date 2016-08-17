@@ -39,17 +39,19 @@ template<impl::precision_t prec>
     prec_i, fmt_i, prec_o, fmt_o, swap_format
 
 /* specific reorders: common template */
-template <SIMPLE_REORDER_TEMPL_DECL, typename = void>
+template <SIMPLE_REORDER_TEMPL_DECL, typename spec = void>
 struct simple_reorder_impl {};
 
 /* specific reorders: implementation */
 
-template <impl::precision_t prec_i, impl::precision_t prec_o, bool swap_format>
-struct simple_reorder_impl<prec_i, nchw, prec_o, nChw8c, swap_format> {
+template <SIMPLE_REORDER_TEMPL_DECL>
+struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
+    typename utils::enable_if<fmt_i == nchw && fmt_o == nChw8c>::type>
+{
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d) {
-        return input_d.format() == (swap_format ? nChw8c : nchw)
-            && output_d.format() == (swap_format ? nchw : nChw8c);
+        return input_d.format() == (swap_format ? fmt_o : fmt_i)
+            && output_d.format() == (swap_format ? fmt_i : fmt_o);
     }
 
     static status_t exec(const memory_desc_wrapper &input_d,
@@ -153,7 +155,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
 /* high level class declaration */
 
-template <SIMPLE_REORDER_TEMPL_DECL>
+template <SIMPLE_REORDER_TEMPL_DECL, typename spec = void>
 class simple_reorder: public primitive {
 private:
     const impl::reorder_primitive_desc_t &_rpd;
@@ -165,7 +167,7 @@ private:
         auto *output = reinterpret_cast<data_t<prec_o>*>(
                 this->output()[0]->memory());
 
-        return simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL>::exec(
+        return simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL, spec>::exec(
                 this->_rpd.input.memory_desc, this->_rpd.output.memory_desc,
                 input, output);
     }
@@ -193,8 +195,8 @@ public:
             && input->memory_desc.precision == prec_i
             && output->memory_desc.precision == prec_o
             && input->base.engine == output->base.engine
-            && simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL>::is_applicable(
-                    input->memory_desc, output->memory_desc);
+            && simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL, spec>::
+                    is_applicable(input->memory_desc, output->memory_desc);
         if (!args_ok)
             return invalid_arguments;
 
@@ -223,9 +225,9 @@ private:
 };
 
 /* XXX: awful style */
-template <SIMPLE_REORDER_TEMPL_DECL> const primitive_impl
-simple_reorder<SIMPLE_REORDER_TEMPL_CALL>::implementation = {
-    simple_reorder<SIMPLE_REORDER_TEMPL_CALL>::create,
+template <SIMPLE_REORDER_TEMPL_DECL, typename spec> const primitive_impl
+simple_reorder<SIMPLE_REORDER_TEMPL_CALL, spec>::implementation = {
+    simple_reorder<SIMPLE_REORDER_TEMPL_CALL, spec>::create,
 };
 
 #undef SIMPLE_REORDER_TEMPL_DECL
