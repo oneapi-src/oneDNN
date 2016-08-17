@@ -31,9 +31,20 @@ else()
     set(OPENMP_FLAGS "-fopenmp")
 endif()
 
-set(CMAKE_CCXX_FLAGS "-g ${OPENMP_FLAGS} -Wall -Werror -Wno-unknown-pragmas -DMKLDNN_DLL -DMKLDNN_DLL_EXPORTS -fvisibility=internal")
+if("${CMAKE_BUILD_TYPE}" STREQUAL "")
+    message(WARNING "CMAKE_BUILD_TYPE is unset, use Debug by default")
+    set(CMAKE_BUILD_TYPE "Debug")
+endif()
+
+set(CCXX_WARN_FLAGS "-Wall -Werror -Wno-unknown-pragmas")
+set(CMAKE_CCXX_FLAGS "${OPENMP_FLAGS} ${CCXX_WARN_FLAGS} -DMKLDNN_DLL -DMKLDNN_DLL_EXPORTS -fvisibility=internal")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CMAKE_CCXX_FLAGS} -std=c99")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_CCXX_FLAGS} -std=c++11 -fvisibility-inlines-hidden")
+
+if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -xHOST")
+endif()
+# set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -D_FORTIFY_SOURCE=2")
 
 enable_testing()
 
