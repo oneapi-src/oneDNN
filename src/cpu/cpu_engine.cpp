@@ -28,7 +28,6 @@
 #include "cpu/reference_inner_product.hpp"
 #include "cpu/gemm_inner_product.hpp"
 
-#include "cpu/reference_reorder.hpp"
 #include "cpu/simple_reorder.hpp"
 
 namespace mkldnn {
@@ -63,7 +62,7 @@ reorder_primitive_desc_init_f reorder_inits[] = {
     simple_reorder<f32, oihw, f32, OIhw8i8o, false>::reorder_primitive_desc_init,
     simple_reorder<f32, goihw, f32, gOIhw8i8o, true>::reorder_primitive_desc_init,
     simple_reorder<f32, goihw, f32, gOIhw8i8o, false>::reorder_primitive_desc_init,
-    reference_reorder<f32, f32>::reorder_primitive_desc_init,
+    simple_reorder<f32, any, f32, any, false, spec::reference>::reorder_primitive_desc_init,
     NULL,
 };
 }

@@ -34,6 +34,7 @@ template<impl::precision_t prec>
 
 namespace spec {
 struct direct_copy {};
+struct reference {};
 }
 
 #define SIMPLE_REORDER_TEMPL_DECL \
@@ -180,6 +181,32 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 #       pragma omp parallel for
         for (size_t e = 0; e < nelems; ++e) {
             output[e] = data_t<prec_o>(input[e]);
+        }
+
+        return success;
+    }
+};
+
+template <SIMPLE_REORDER_TEMPL_DECL>
+struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
+    typename utils::enable_if<
+        fmt_i == any && fmt_o == any && swap_format == false,
+    spec::reference>::type>
+{
+    static bool is_applicable(const memory_desc_wrapper &input_d,
+            const memory_desc_wrapper &output_d) {
+        return true;
+    }
+
+    static status_t exec(const memory_desc_wrapper &input_d,
+        const memory_desc_wrapper &output_d, const data_t<prec_i> *input,
+        data_t<prec_o> *output) {
+        const size_t nelems = input_d.nelems();
+
+#       pragma omp parallel for
+        for (size_t e = 0; e < nelems; ++e) {
+            output[output_d.off_l(e)] =
+                data_t<prec_o>(input[input_d.off_l(e)]);
         }
 
         return success;
