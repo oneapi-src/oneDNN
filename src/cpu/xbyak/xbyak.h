@@ -1083,19 +1083,6 @@ public:
 	Label& operator=(const Label& rhs);
 	~Label();
 	int getId() const { return id; }
-
-	// backward compatibility
-	static inline std::string toStr(int num)
-	{
-		char buf[16];
-#ifdef _MSC_VER
-		_snprintf_s
-#else
-		snprintf
-#endif
-		(buf, sizeof(buf), ".%08x", num);
-		return buf;
-	}
 };
 
 class LabelManager {
