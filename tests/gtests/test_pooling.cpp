@@ -47,7 +47,7 @@ void check_pool_max_fwd(test_pool_desc_t pd, memory &src, memory &dst)
                     uint32_t oidx = n * pd.c * pd.oh * pd.ow + c * pd.oh * pd.ow
                             + oh * pd.ow + ow;
                     data_t out = dst_data[map_index(dst_d, oidx)];
-                    data_t out_ref;
+                    data_t out_ref = data_t(0);
                     bool is_initialized = false;
                     for (uint32_t kh = 0; kh < pd.kh; kh++) {
                         for (uint32_t kw = 0; kw < pd.kw; kw++) {
