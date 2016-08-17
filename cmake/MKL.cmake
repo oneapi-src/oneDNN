@@ -1,5 +1,5 @@
 ##############################################################################
-# Locate MKL installation using MKLROOT or look in
+# Locate Intel(R) MKL installation using MKLROOT or look in
 # ${CMAKE_CURRENT_SOURCE_DIR}/external
 #
 function(detect_mkl LIBNAME)
@@ -37,14 +37,14 @@ if(HAVE_MKL)
     add_definitions(-DUSE_MKL -DUSE_CBLAS)
     include_directories(AFTER ${MKLINC})
     list(APPEND mkldnn_LINKER_LIBS ${MKLLIB})
-    message(STATUS "MKL found: include ${MKLINC}, lib ${MKLLIB}")
+    message(STATUS "Intel(R) MKL found: include ${MKLINC}, lib ${MKLLIB}")
 else()
     if(DEFINED ENV{FAIL_WITHOUT_MKL} OR DEFINED FAIL_WITHOUT_MKL)
         set(SEVERITY "FATAL_ERROR")
     else()
         set(SEVERITY "WARNING")
     endif()
-    message(${SEVERITY} "MKL not found. Some performance features may not be "
+    message(${SEVERITY} "Intel(R) MKL not found. Some performance features may not be "
         "available. Please run scripts/prepare_mkl.sh to download a minimal "
         "set of libraries or get a full version from "
         "https://software.intel.com/en-us/intel-mkl")
