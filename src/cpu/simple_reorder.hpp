@@ -98,6 +98,48 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
+    typename utils::enable_if<fmt_i == nchw && fmt_o == nhwc>::type>
+{
+    static bool is_applicable(const memory_desc_wrapper &input_d,
+            const memory_desc_wrapper &output_d) {
+        return input_d.format() == (swap_format ? fmt_o : fmt_i)
+            && output_d.format() == (swap_format ? fmt_i : fmt_o);
+    }
+
+    static status_t exec(const memory_desc_wrapper &input_d,
+        const memory_desc_wrapper &output_d, const data_t<prec_i> *input,
+        data_t<prec_o> *output) {
+        const auto &dims = input_d.dims();
+
+        auto ker = [&](const data_t<prec_i> *i, data_t<prec_o> *o) {
+            for (uint32_t w = 0; w < dims[3]; ++w) {
+                for (uint32_t c = 0; c < dims[1]; ++c) {
+                    const auto &is = input_d.blocking_desc().strides[0];
+                    const auto &os = output_d.blocking_desc().strides[0];
+                    if (swap_format) {
+                        o[c * os[1] + w] = data_t<prec_o>(i[w * is[3] + c]);
+                    } else {
+                        o[w * os[3] + c] = data_t<prec_o>(i[c * is[1] + w]);
+                    }
+                }
+            }
+        };
+
+#       pragma omp parallel for collapse(2)
+        for (uint32_t n = 0; n < dims[0]; ++n) {
+            for (uint32_t h = 0; h < dims[2]; ++h) {
+                auto i = &input[input_d.blk_off(n, 0, h)];
+                auto o = &output[output_d.blk_off(n, 0, h)];
+                ker(i, o);
+            }
+        }
+
+        return success;
+    }
+};
+
+template <SIMPLE_REORDER_TEMPL_DECL>
+struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     typename utils::enable_if<
         (fmt_i == goihw && fmt_o == gOIhw8i8o)
         || (fmt_i == oihw && fmt_o == OIhw8i8o)
