@@ -217,6 +217,9 @@ status_t jit_avx2_lrn<prec>::primitive_desc_init(
     auto lrn_d = op_desc.lrn;
 
     // TODO: f32 ?
+    if (prec != f32)
+        return unimplemented;
+
     if (lrn_d.prop_kind != forward)
         return unimplemented;
 
