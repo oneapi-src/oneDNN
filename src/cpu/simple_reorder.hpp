@@ -39,7 +39,8 @@ template<impl::precision_t prec>
     prec_i, fmt_i, prec_o, fmt_o, swap_format
 
 /* specific reorders: common template */
-template <SIMPLE_REORDER_TEMPL_DECL> struct simple_reorder_impl {};
+template <SIMPLE_REORDER_TEMPL_DECL, typename = void>
+struct simple_reorder_impl {};
 
 /* specific reorders: implementation */
 
@@ -88,96 +89,55 @@ struct simple_reorder_impl<prec_i, nchw, prec_o, nChw8c, swap_format> {
     }
 };
 
-template <impl::precision_t prec_i, impl::precision_t prec_o, bool swap_format>
-struct simple_reorder_impl<prec_i, oihw, prec_o, OIhw8i8o, swap_format> {
+template <SIMPLE_REORDER_TEMPL_DECL>
+struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
+    typename utils::enable_if<
+        (fmt_i == goihw && fmt_o == gOIhw8i8o)
+        || (fmt_i == oihw && fmt_o == OIhw8i8o)
+    >::type>
+{
     static bool can_do(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d) {
-        return input_d.format() == (swap_format ? OIhw8i8o : oihw)
-            && output_d.format() == (swap_format ? oihw : OIhw8i8o);
+        return input_d.format() == (swap_format ? fmt_o : fmt_i)
+            && output_d.format() == (swap_format ? fmt_i : fmt_o);
     }
 
     static status_t exec(const memory_desc_wrapper &input_d,
         const memory_desc_wrapper &output_d, const data_t<prec_i> *input,
         data_t<prec_o> *output) {
-        const auto &oihw_d = swap_format ? output_d : input_d;
+        constexpr bool w_groups = fmt_i == goihw;
+
+        const auto &_g_oihw_d = swap_format ? output_d : input_d;
         const auto &dims = input_d.dims();
 
         auto ker = [&](const data_t<prec_i> *i, data_t<prec_o> *o) {
             for (uint32_t ic = 0; ic < 8; ++ic) {
                 for (uint32_t oc = 0; oc < 8; ++oc) {
-                    const auto oihw_off =
-                        oc*oihw_d.blocking_desc().strides[0][0]
-                        + ic*oihw_d.blocking_desc().strides[0][1];
+                    const auto _g_oihw_off =
+                        oc*_g_oihw_d.blocking_desc().strides[0][w_groups + 0]
+                        + ic*_g_oihw_d.blocking_desc().strides[0][w_groups + 1];
                     if (swap_format) {
-                        o[oihw_off] = data_t<prec_o>(i[ic*8 + oc]);
+                        o[_g_oihw_off] = data_t<prec_o>(i[ic*8 + oc]);
                     } else {
-                        o[ic*8 + oc] = data_t<prec_o>(i[oihw_off]);
+                        o[ic*8 + oc] = data_t<prec_o>(i[_g_oihw_off]);
                     }
                 }
             }
         };
 
-#       pragma omp parallel for collapse(4)
-        for (uint32_t O = 0; O < dims[0]/8; ++O) {
-            for (uint32_t I = 0; I < dims[1]/8; ++I) {
-                for (uint32_t h = 0; h < dims[2]; ++h) {
-                    for (uint32_t w = 0; w < dims[3]; ++w) {
-                        const uint32_t i_mult = swap_format ? 1 : 8;
-                        const uint32_t o_mult = swap_format ? 8 : 1;
-                        auto i = &input[input_d.blk_off(
-                                i_mult * O, i_mult * I, h, w)];
-                        auto o = &output[output_d.blk_off(
-                                o_mult * O, o_mult * I, h, w)];
-                        ker(i, o);
-                    }
-                }
-            }
-        }
-
-        return success;
-    }
-};
-
-template <impl::precision_t prec_i, impl::precision_t prec_o, bool swap_format>
-struct simple_reorder_impl<prec_i, goihw, prec_o, gOIhw8i8o, swap_format> {
-    static bool can_do(const memory_desc_wrapper &input_d,
-            const memory_desc_wrapper &output_d) {
-        return input_d.format() == (swap_format ? gOIhw8i8o : goihw)
-            && output_d.format() == (swap_format ? goihw : gOIhw8i8o);
-    }
-
-    static status_t exec(const memory_desc_wrapper &input_d,
-        const memory_desc_wrapper &output_d, const data_t<prec_i> *input,
-        data_t<prec_o> *output) {
-        const auto &goihw_d = swap_format ? output_d : input_d;
-        const auto &dims = input_d.dims();
-
-        auto ker = [&](const data_t<prec_i> *i, data_t<prec_o> *o) {
-            for (uint32_t ic = 0; ic < 8; ++ic) {
-                for (uint32_t oc = 0; oc < 8; ++oc) {
-                    const auto oihw_off =
-                        oc*goihw_d.blocking_desc().strides[0][1]
-                        + ic*goihw_d.blocking_desc().strides[0][2];
-                    if (swap_format) {
-                        o[oihw_off] = data_t<prec_o>(i[ic*8 + oc]);
-                    } else {
-                        o[ic*8 + oc] = data_t<prec_o>(i[oihw_off]);
-                    }
-                }
-            }
-        };
+        const uint32_t _G = w_groups ? dims[0] : 1u;
 
 #       pragma omp parallel for collapse(5)
-        for (uint32_t g = 0; g < dims[0]; ++g) {
-            for (uint32_t O = 0; O < dims[1]/8; ++O) {
-                for (uint32_t I = 0; I < dims[2]/8; ++I) {
-                    for (uint32_t h = 0; h < dims[3]; ++h) {
-                        for (uint32_t w = 0; w < dims[4]; ++w) {
-                            const uint32_t i_mult = swap_format ? 1 : 8;
-                            const uint32_t o_mult = swap_format ? 8 : 1;
-                            auto i = &input[input_d.blk_off(
-                                    g, i_mult * O, i_mult * I, h, w)];
-                            auto o = &output[output_d.blk_off(
+        for (uint32_t g = 0; g < _G; ++g) {
+            for (uint32_t O = 0; O < dims[w_groups + 0]/8; ++O) {
+                for (uint32_t I = 0; I < dims[w_groups + 1]/8; ++I) {
+                    for (uint32_t h = 0; h < dims[w_groups + 2]; ++h) {
+                        for (uint32_t w = 0; w < dims[w_groups + 3]; ++w) {
+                            constexpr uint32_t i_mult = swap_format ? 1 : 8;
+                            constexpr uint32_t o_mult = swap_format ? 8 : 1;
+                            auto i = &input[input_d.blk_off<!w_groups>(g,
+                                    i_mult * O, i_mult * I, h, w)];
+                            auto o = &output[output_d.blk_off<!w_groups>(
                                     g, o_mult * O, o_mult * I, h, w)];
                             ker(i, o);
                         }
