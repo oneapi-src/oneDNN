@@ -806,6 +806,20 @@ struct relu: public primitive {
                 "could not create a relu primitive");
         reset(result);
     }
+    relu(prop_kind aprop_kind, double negative_slope,
+            const primitive::at &src, const memory &dst) {
+        auto src_md = memory(src).get_primitive_desc();
+        auto dst_md = memory(dst).get_primitive_desc();
+
+        auto relu_d = desc(aprop_kind, negative_slope, src_md.desc(),
+                dst_md.desc());
+        auto relu_pd = primitive_desc(relu_d, engine(src_md.data.base.engine));
+        c_api::mkldnn_primitive_t result;
+        error::wrap_c_api(c_api::mkldnn_relu_create(&result,
+                    &relu_pd.data, src.data, dst.get()),
+                "could not create a relu primitive");
+        reset(result);
+    }
 };
 
 struct inner_product: public primitive {
