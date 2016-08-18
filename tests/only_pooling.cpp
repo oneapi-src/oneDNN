@@ -71,24 +71,20 @@ static int doit(bool lazy) {
     auto p1_indices_desc = memory::desc({{16, 96, 27, 27}}, memory::precision::u32, memory::format::nchw);
     auto p1_dst_desc     = memory::desc({{16, 96, 27, 27}}, memory::precision::f32, memory::format::nchw);
 
-    real_t *src = new real_t[16*96*55*55]();
-    real_t *dst = new real_t[16*96*27*27]();
-    uint32_t *indices = new uint32_t[16*96*27*27]();
+    std::vector<real_t> src(16*96*55*55);
+    std::vector<real_t> dst(16*96*27*27);
+    std::vector<uint32_t> indices(16*96*27*27);
 
-    auto p1_src     = memory({p1_src_desc    , cpu_engine}, src    );
-    auto p1_indices = memory({p1_indices_desc, cpu_engine}, indices);
-    auto p1_dst     = memory({p1_dst_desc    , cpu_engine}, dst    );
+    auto p1_src     = memory({p1_src_desc    , cpu_engine}, src.data()    );
+    auto p1_indices = memory({p1_indices_desc, cpu_engine}, indices.data());
+    auto p1_dst     = memory({p1_dst_desc    , cpu_engine}, dst.data()    );
 
     auto p1 = pooling(prop_kind::forward, pooling::max, p1_src, p1_indices, p1_dst,
         {2, 2}, {3, 3}, {0, 0}, padding_kind::zero);
 
-    init_src({16, 96, 55, 55}, src);
+    init_src({16, 96, 55, 55}, src.data());
     stream().submit({p1}).wait();
-    int n_errors = check_dst({ 16, 96, 27, 27 }, dst);
-
-    delete[] src;
-    delete[] indices;
-    delete[] dst;
+    int n_errors = check_dst({ 16, 96, 27, 27 }, dst.data());
 
     return n_errors;
 }
@@ -97,6 +93,8 @@ static int doit(bool lazy) {
 
 int main(int argc, char **argv) {
     int rc = doit(false);
+    printf("eager: %s\n", rc ? "failed" : "passed");
     rc = doit(true);
+    printf("lazy: %s\n", rc ? "failed" : "passed");
     return rc;
 }

@@ -61,14 +61,10 @@ int doit(bool lazy) {
     };
 
     /* prepare actual data */
-    float *input = new float[tensor_volume(input_tz)];
-    for (size_t i = 0; i < tensor_volume(input_tz); ++i) input[i] = 0;
-    float *weights = new float[tensor_volume(weights_tz)];
-    for (size_t i = 0; i < tensor_volume(weights_tz); ++i) weights[i] = 0;
-    float *bias = new float[tensor_volume(bias_tz)];
-    for (size_t i = 0; i < tensor_volume(bias_tz); ++i) bias[i] = i;
-    float *output = new float[tensor_volume(output_tz)];
-    for (size_t i = 0; i < tensor_volume(output_tz); ++i) output[i] = 0;
+    std::vector<float> input(tensor_volume(input_tz), .0f);
+    std::vector<float> weights(tensor_volume(weights_tz), .0f);
+    std::vector<float> bias(tensor_volume(bias_tz), .0f);
+    std::vector<float> output(tensor_volume(output_tz), .0f);
 
     /* mkl-dnn starts here */
     auto c3_src_desc = memory::desc({input_tz}, memory::precision::f32, memory::format::nchw);
@@ -76,10 +72,10 @@ int doit(bool lazy) {
     auto c3_bias_desc = memory::desc({bias_tz}, memory::precision::f32, memory::format::x);
     auto c3_dst_desc = memory::desc({output_tz}, memory::precision::f32, memory::format::nchw);
 
-    auto c3_src = memory({c3_src_desc, cpu_engine}, input);
-    auto c3_weights = memory({c3_weights_desc, cpu_engine}, weights);
-    auto c3_bias = memory({c3_bias_desc, cpu_engine});
-    auto c3_dst = memory({c3_dst_desc, cpu_engine});
+    auto c3_src = memory({c3_src_desc, cpu_engine}, input.data());
+    auto c3_weights = memory({c3_weights_desc, cpu_engine}, weights.data());
+    auto c3_bias = memory({c3_bias_desc, cpu_engine}, bias.data());
+    auto c3_dst = memory({c3_dst_desc, cpu_engine}, output.data());
 
 #if 0
     auto c3_desc = convolution::desc(prop_kind::forward, convolution::direct,
