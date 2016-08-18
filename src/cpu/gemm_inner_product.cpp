@@ -20,8 +20,11 @@
 #include "gemm_inner_product.hpp"
 #include "type_helpers.hpp"
 
-// TODO: move BLAS wrappers to a separate header?
+namespace mkldnn {
+namespace impl {
+namespace cpu {
 
+// TODO: move BLAS wrappers to a separate header?
 #ifdef USE_MKL
 #include "mkl_cblas.h"
 typedef MKL_INT cblas_int;
@@ -66,10 +69,6 @@ inline void cblas_axpy<mkldnn::impl::precision::f32>(cblas_int N,
 
 }
 #endif
-
-namespace mkldnn {
-namespace impl {
-namespace cpu {
 
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::prop_kind;
