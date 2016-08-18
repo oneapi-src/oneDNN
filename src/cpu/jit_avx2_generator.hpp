@@ -48,6 +48,7 @@ private:
         using Xbyak::Ymm;
 
         uint32_t iw    = params->iw;
+        uint32_t ih    = params->ih;
         uint32_t kw    = params->kw;
         uint32_t kh    = params->kh;
         uint32_t ow    = params->ow;
@@ -73,7 +74,11 @@ private:
                     uint32_t jj_end = ur_w - (uint32_t)nstl::max(0, (int)ki+pad_r - (int)(kw-1));
                     for (uint32_t ifm2 = 0; ifm2 < params->ic_block; ifm2++) {
                         for (uint32_t jj =jj_start ; jj < jj_end; jj++) {
-                            int aux_input_offset = (ki+jj*stride_w-pad_l)*params->ic_block + ifm2;
+                            int aux_input_offset;
+                            if (params->src_fmt == mkldnn_nchw)
+                                aux_input_offset = ifm2*ih*iw + (jj*stride_w-pad_l);
+                            else
+                                aux_input_offset = (ki+jj*stride_w-pad_l)*params->ic_block + ifm2;
                             vbroadcastss(Ymm(nb_oc_block*ur_w+jj), ptr [ aux_reg_input + sizeof(float)*aux_input_offset ]);
                         }
                         for (uint32_t ii = 0; ii < nb_oc_block; ii++) {
@@ -86,7 +91,10 @@ private:
                     }
                 }
                 add(aux_reg_kernel, sizeof(float)*kw *params->oc_block*params->ic_block);
-                add(aux_reg_input,  sizeof(float)*iw*params->ic_block);
+                if (params->src_fmt == mkldnn_nchw)
+                    add(aux_reg_input,  sizeof(float)*iw);
+                else
+                    add(aux_reg_input,  sizeof(float)*iw*params->ic_block);
             } else {
                 xor_(ki_iter, ki_iter);
                 L(kw_lable); {
@@ -94,7 +102,11 @@ private:
                     uint32_t jj_end = ur_w;
                     for (uint32_t ifm2 = 0; ifm2 < params->ic_block; ifm2++) {
                         for (uint32_t jj =jj_start ; jj < jj_end; jj++) {
-                            int aux_input_offset = (jj*stride_w-pad_l)*params->ic_block + ifm2;
+                            int aux_input_offset;
+                            if (params->src_fmt == mkldnn_nchw)
+                                aux_input_offset = ifm2*ih*iw + (jj*stride_w-pad_l);
+                            else
+                                aux_input_offset = (jj*stride_w-pad_l)*params->ic_block + ifm2;
                             vbroadcastss(Ymm(nb_oc_block*ur_w+jj), ptr [ aux_reg_input + sizeof(float)*aux_input_offset ]);
                         }
                         for (uint32_t ii = 0; ii < nb_oc_block; ii++) {
@@ -106,14 +118,22 @@ private:
                         }
                     }
                     add(aux_reg_kernel, sizeof(float)*params->oc_block*params->ic_block);
-                    add(aux_reg_input,  sizeof(float)*params->ic_block);
+                    if (params->src_fmt == mkldnn_nchw)
+                        add(aux_reg_input,  sizeof(float));
+                    else
+                        add(aux_reg_input,  sizeof(float)*params->ic_block);
 
                     inc(ki_iter);
                     cmp(ki_iter, kw);
                     jl(kw_lable, T_NEAR);
                 }
-                sub(aux_reg_input,  sizeof(float)*kw*params->ic_block);
-                add(aux_reg_input,  sizeof(float)*iw*params->ic_block);
+                if (params->src_fmt == mkldnn_nchw) {
+                    sub(aux_reg_input,  sizeof(float)*kw);
+                    add(aux_reg_input,  sizeof(float)*iw);
+                } else {
+                    sub(aux_reg_input,  sizeof(float)*kw*params->ic_block);
+                    add(aux_reg_input,  sizeof(float)*iw*params->ic_block);
+                }
             }
 
             dec(kj);
@@ -164,7 +184,10 @@ public:
         int r_pad1 = 0;
         if (l_pad > 0) {
             hsw_iter(params, params->ur_w, params->l_pad, 0, ".kh_loop_oimain_padwl", ".kw_loop_oimain_padwl");
-            add(reg_input,  sizeof(float)*(params->ur_w*params->stride_w-params->l_pad)*params->ic_block);
+            if (params->src_fmt == mkldnn_nchw)
+                add(reg_input,  sizeof(float)*(params->ur_w*params->stride_w-params->l_pad));
+            else
+                add(reg_input,  sizeof(float)*(params->ur_w*params->stride_w-params->l_pad)*params->ic_block);
             add(reg_output,  sizeof(float)*params->ur_w*params->oc_block);
             inc(oi_iter);
 
@@ -177,7 +200,10 @@ public:
           ||(l_pad >  0 && n_oi > 1)) {
             L(".ow_loop"); {
                 hsw_iter(params, params->ur_w, 0, 0, ".kh_loop_oimain", ".kw_loop_oimain");
-                add(reg_input,  sizeof(float)*params->ur_w*params->stride_w*params->ic_block);
+                if (params->src_fmt == mkldnn_nchw)
+                    add(reg_input,  sizeof(float)*params->ur_w*params->stride_w);
+                else
+                    add(reg_input,  sizeof(float)*params->ur_w*params->stride_w*params->ic_block);
                 add(reg_output,  sizeof(float)*params->ur_w*params->oc_block);
 
                 inc(oi_iter);
@@ -187,7 +213,10 @@ public:
 
         if (r_pad1 > 0 ) {
             hsw_iter(params, params->ur_w, 0, r_pad1, ".kh_loop_oimain_padwr", ".kw_loop_oimain_padwr");
-            add(reg_input,  sizeof(float)*params->ur_w*params->stride_w*params->ic_block);
+            if (params->src_fmt == mkldnn_nchw)
+                add(reg_input,  sizeof(float)*params->ur_w*params->stride_w);
+            else
+                add(reg_input,  sizeof(float)*params->ur_w*params->stride_w*params->ic_block);
             add(reg_output,  sizeof(float)*params->ur_w*params->oc_block);
         }
 

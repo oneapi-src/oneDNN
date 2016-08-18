@@ -17,6 +17,8 @@
 #ifndef XBYAK_UTILS_FOR_MKLDNN
 #define XBYAK_UTILS_FOR_MKLDNN
 
+#include "mkldnn_types.h"
+
 #define XBYAK_VERSION 0x5000
 
 #if XBYAK_VERSION >= 0x5000
@@ -44,6 +46,7 @@ typedef struct {
     uint32_t ur_w_tail;
     uint32_t ngroups;
     int SIMD_W;
+    mkldnn_memory_format_t src_fmt;
 } jit_convolution_param_t;
 
 typedef struct __attribute__ ((__packed__))

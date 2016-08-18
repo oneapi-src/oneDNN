@@ -84,6 +84,7 @@ public:
             bias_d(cpd.bias_primitive_desc.memory_desc),
             dst_d(cpd.dst_primitive_desc.memory_desc);
 
+        jcp.src_fmt = cpd.src_primitive_desc.memory_desc.format;
         const bool w_groups = weights_d.ndims() == (src_d.ndims() + 1);
         const uint32_t w_idx_base = w_groups ? 1 : 0;
         jcp.ngroups = w_groups ? weights_d.dims()[0] : 1;

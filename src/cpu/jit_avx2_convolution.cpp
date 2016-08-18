@@ -181,7 +181,8 @@ status_t jit_avx2_convolution<prec>::primitive_desc_init(
     else if (conv_d.dst_desc.format != mkldnn_nChw8c)
         return mkldnn_invalid_arguments;
 
-    const bool optimize_1st_conv = conv_d.src_desc.format == mkldnn_nhwc
+    const bool optimize_1st_conv = (conv_d.src_desc.format == mkldnn_nhwc
+            || conv_d.src_desc.format == mkldnn_nchw)
             && !groups && conv_d.weights_desc.format == mkldnn_Ohwi8o;
     const bool optimize_iochannels_blocked_conv
             = conv_d.src_desc.format == mkldnn_nChw8c
@@ -234,7 +235,7 @@ status_t jit_avx2_convolution<prec>::primitive_desc_init(
     auto ur_w = 3;
     auto ur_w_tail = ow % ur_w;
 
-    if (optimize_1st_conv && (t_pad > 0 || l_pad > 0)) {
+    if (optimize_1st_conv && (ic != 3 || t_pad > 0 || l_pad > 0)) {
         return unimplemented;
     }
 
