@@ -25,7 +25,7 @@
 namespace mkldnn {
 
 template <typename data_i_t, typename data_o_t>
-inline void check_reorder(memory::desc md_i, memory::desc md_o,
+inline void check_reorder(const memory::desc &md_i, const memory::desc &md_o,
         const data_i_t *src, const data_o_t *dst)
 {
     const uint32_t ndims = md_i.data.tensor_desc.ndims;
