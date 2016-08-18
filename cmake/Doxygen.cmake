@@ -26,9 +26,16 @@ if(DOXYGEN_FOUND)
         ${CMAKE_CURRENT_SOURCE_DIR}/doc/header.html.in
         ${CMAKE_CURRENT_BINARY_DIR}/header.html
         @ONLY)
+    file(GLOB_RECURSE HEADERS
+        ${CMAKE_SOURCE_DIR}/include/*.h
+        ${CMAKE_SOURCE_DIR}/include/*.hpp
+        )
+    file(GLOB_RECURSE DOX
+        ${CMAKE_SOURCE_DIR}/doc/*
+        )
     add_custom_command(
         OUTPUT ${DOXYGEN_STAMP_FILE}
-        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/doc/Doxyfile.in
+        DEPENDS ${HEADERS} ${DOX}
         COMMAND ${DOXYGEN_EXECUTABLE} Doxyfile
         COMMAND cmake -E touch ${DOXYGEN_STAMP_FILE}
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
