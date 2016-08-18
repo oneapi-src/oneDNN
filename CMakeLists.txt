@@ -24,12 +24,13 @@ set(LIB_NAME mkldnn)
 
 project(${PROJECT_NAME} C CXX)
 
-include("cmake/MKL.cmake")
-
 if("${CMAKE_BUILD_TYPE}" STREQUAL "")
     message(STATUS "CMAKE_BUILD_TYPE is unset, defaulting to Debug")
     set(CMAKE_BUILD_TYPE "Debug")
 endif()
+
+include("cmake/MKL.cmake")
+include("cmake/Doxygen.cmake")
 
 # sdl options
 if(UNIX OR APPLE)
@@ -73,18 +74,4 @@ include_directories(api)
 add_subdirectory(src)
 add_subdirectory(tests)
 
-find_package(Doxygen)
-if(DOXYGEN_FOUND)
-    configure_file(
-        ${CMAKE_CURRENT_SOURCE_DIR}/doc/Doxyfile.in
-        ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
-        @ONLY)
-    configure_file(
-        ${CMAKE_CURRENT_SOURCE_DIR}/doc/header.html.in
-        ${CMAKE_CURRENT_BINARY_DIR}/header.html
-        @ONLY)
-    add_custom_target(doc
-        ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
-        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-        COMMENT "Generating API documentation with Doxygen" VERBATIM)
-endif(DOXYGEN_FOUND)
+install(FILES LICENSE DESTINATION share/doc/${LIB_NAME})
