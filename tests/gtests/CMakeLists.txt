@@ -18,7 +18,7 @@ add_subdirectory (gtest)
 
 set(APP_NAME "tests_gtest")
 set(MAIN_SRC_GTEST main.cpp)
-include_directories(${CMAKE_SOURCE_DIR}/api)
+include_directories(${CMAKE_SOURCE_DIR}/include)
 include_directories(${CMAKE_SOURCE_DIR}/tests/gtests
                     ${CMAKE_SOURCE_DIR}/tests/gtests/gtest
                     )

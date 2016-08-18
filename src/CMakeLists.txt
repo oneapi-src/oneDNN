@@ -16,8 +16,8 @@
 
 set(TARGET_NAME ${LIB_NAME})
 file(GLOB_RECURSE HEADERS
-    ${CMAKE_SOURCE_DIR}/api/*.h
-    ${CMAKE_SOURCE_DIR}/api/*.hpp
+    ${CMAKE_SOURCE_DIR}/include/*.h
+    ${CMAKE_SOURCE_DIR}/include/*.hpp
     )
 file(GLOB_RECURSE SOURCES
     ${CMAKE_SOURCE_DIR}/src/*.c
