@@ -107,4 +107,4 @@ Doxygen:
 	make doc
 ```
 
-Documentation will be created in `build/html` folder.
+Documentation will be created in `build/reference/html` folder.
