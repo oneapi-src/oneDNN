@@ -22,14 +22,14 @@
 
 #if 1
 #define XBYAK64 1
-#define XBYAK_NO_OP_NAMES 1
+#define XBYAK_NO_OP_NAMES
 #include "xbyak.h"
 #include "utils_xbyak.hpp"
+#include "jit_avx2_generator.hpp"
 
-class xbyak_lrn : public Xbyak::CodeGenerator
+class xbyak_lrn : public mkldnn::impl::cpu::jit_avx2_generator
 {
 public:
-    Xbyak::Reg64 args = Xbyak::util::cdecl_param1;
     Xbyak::Reg64 src = rax;
     Xbyak::Reg64 dst = r8;
     Xbyak::Reg64 scratch = rdx;
@@ -52,20 +52,6 @@ public:
     Xbyak::Ymm ydst = ymm11;
     Xbyak::Ymm ybase = ymm12;
 
-    void preamble()
-    {
-        using Xbyak::util::reg_to_preserve;
-        size_t nregs = sizeof(reg_to_preserve) / sizeof(reg_to_preserve[0]);
-        for (size_t i = 0; i < nregs; ++i) push(Xbyak::Reg64(reg_to_preserve[i]));
-    }
-    void postamble()
-    {
-        using Xbyak::util::reg_to_preserve;
-        size_t nregs = sizeof(reg_to_preserve) / sizeof(reg_to_preserve[0]);
-        for (size_t i = 0; i < nregs; ++i) pop(Xbyak::Reg64(reg_to_preserve[nregs - 1 - i]));
-        ret();
-    }
-
     xbyak_lrn(
         float *run_time_ptr_alpha,
         float *run_time_ptr_one,
@@ -74,18 +60,18 @@ public:
         void* code_ptr = nullptr,
         size_t code_size = 1 * Xbyak::DEFAULT_MAX_CODE_SIZE)
         :
-        Xbyak::CodeGenerator(code_size, code_ptr)
+        jit_avx2_generator(code_ptr, code_size)
     {
             if (compile_time_HW == 0)
             {
                 ret();
                 return;
             }
-            preamble();
+            this->preamble();
 
-            mov(src, ptr[args + 0]);
-            mov(dst, ptr[args + 8]);
-            mov(scratch, ptr[args + 16]);
+            mov(src, ptr[this->param1 + 0]);
+            mov(dst, ptr[this->param1 + 8]);
+            mov(scratch, ptr[this->param1+ 16]);
             sub(t, 96);
             mov(imm_addr64, reinterpret_cast<size_t>(run_time_ptr_alpha));
             vbroadcastss(yalpha, ptr[imm_addr64]);
@@ -142,7 +128,7 @@ public:
             jne(".lrn_loop", T_NEAR);
 
             add(t, 96);
-            postamble();
+            this->postamble();
             return;
         }
 };

@@ -23,7 +23,7 @@
 #include "type_helpers.hpp"
 #include "primitive.hpp"
 #include "cpu_engine.hpp"
-#include "jit_avx2_generator.hpp"
+#include "jit_avx2_conv_generator_f32.hpp"
 
 namespace mkldnn { namespace impl { namespace cpu {
 
@@ -39,7 +39,7 @@ private:
     const bool _with_bias;
 
     jit_convolution_param_t jcp;
-    jit_avx2_generator* generator;
+    jit_avx2_conv_generator_f32* generator;
     void (*jit_ker)(void*);
 
     inline int offset_w(int gr, int oc, int ic, int iw, int ih, int bo, int bi);
@@ -117,7 +117,7 @@ public:
             }
         jcp.ur_w_tail = jcp.ow % jcp.ur_w;
 
-        generator = new jit_avx2_generator(&jcp);
+        generator = new jit_avx2_conv_generator_f32(&jcp);
 //TODO: if(generator == nullptr) return nullptr;
         jit_ker = (void (*)(void*))generator->getCode();
 //TODO: if(jit_ker == nullptr) return nullptr;
