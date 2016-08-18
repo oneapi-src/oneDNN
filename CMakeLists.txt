@@ -26,12 +26,6 @@ project(${PROJECT_NAME} C CXX)
 
 include("cmake/MKL.cmake")
 
-if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-    set(OPENMP_FLAGS "-fopenmp=libgomp")
-else()
-    set(OPENMP_FLAGS "-fopenmp")
-endif()
-
 if("${CMAKE_BUILD_TYPE}" STREQUAL "")
     message(STATUS "CMAKE_BUILD_TYPE is unset, defaulting to Debug")
     set(CMAKE_BUILD_TYPE "Debug")
@@ -62,6 +56,7 @@ if(UNIX OR APPLE)
     endif()
 endif()
 
+set(OPENMP_FLAGS "-fopenmp")
 set(CCXX_WARN_FLAGS "-Wall -Werror -Wno-unknown-pragmas")
 set(CMAKE_CCXX_FLAGS "${CMAKE_CCXX_FLAGS} ${OPENMP_FLAGS} ${CCXX_WARN_FLAGS} -DMKLDNN_DLL -DMKLDNN_DLL_EXPORTS -fvisibility=internal")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CMAKE_CCXX_FLAGS} -std=c99")
