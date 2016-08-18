@@ -129,7 +129,7 @@ public:
         uint32_t n_oi = params->ow / params->ur_w;
         xor_(oi_iter, oi_iter);
         int l_pad = params->l_pad;
-        int r_pad = nstl::max(0, (int)((params->ow-1)*params->stride_w + params->kw - 1 - (params->iw + params->l_pad - 1 )));
+        int r_pad = nstl::max(0, (int)(((int)params->ow-1)*params->stride_w + (int)params->kw - 1 - ((int)params->iw + (int)params->l_pad - 1 )));
         int r_pad1 = 0;
         if (l_pad > 0) {
             hsw_iter(params, params->ur_w, params->l_pad, 0, ".kh_loop_oimain_padwl");
@@ -137,7 +137,7 @@ public:
             add(reg_output,  sizeof(float)*params->ur_w*params->oc_block);
             inc(oi_iter);
 
-            r_pad1 = (params->ur_w*n_oi - 1)*params->stride_w + params->kw -1 - (params->iw + params->l_pad - 1);
+            r_pad1 = ((int)params->ur_w*n_oi - 1)*params->stride_w + (int)params->kw -1 - ((int)params->iw + (int)params->l_pad - 1);
             if (r_pad1 > 0)
                n_oi--;
         }
