@@ -167,6 +167,7 @@ status_t gemm_inner_product<prec>::primitive_desc_init(
             CHECK(set_default_format<prec>(ip_d.weights_desc, oihw));
         else if (ip_d.src_desc.tensor_desc.ndims == 2)
             CHECK(set_default_format<prec>(ip_d.weights_desc, oi));
+        else
             return unimplemented;
     }
 
