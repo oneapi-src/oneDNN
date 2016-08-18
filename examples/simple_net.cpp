@@ -22,19 +22,19 @@ using namespace mkldnn;
 void simple_net(){
     auto cpu_engine = engine(engine::cpu, 0);
 
-    const uint32_t mb = 256;
+    const uint32_t batch = 256;
 
-    std::vector<float> net_src(mb*3*227*227);
-    std::vector<float> net_dst(mb*96*27*27);
+    std::vector<float> net_src(batch * 3 * 227 * 227);
+    std::vector<float> net_dst(batch * 96 * 27 * 27);
 
     /* AlexNet: conv
-     * {mb, 3, 227, 227} (x) {96, 3, 11, 11} -> {mb, 96, 55, 55}
+     * {batch, 3, 227, 227} (x) {96, 3, 11, 11} -> {batch, 96, 55, 55}
      * strides: {4, 4}
      */
-    tensor::dims conv_src_tz = {mb, 3, 227, 227};
+    tensor::dims conv_src_tz = {batch, 3, 227, 227};
     tensor::dims conv_weights_tz = {96, 3, 11, 11};
     tensor::dims conv_bias_tz = {96};
-    tensor::dims conv_dst_tz = {mb, 96, 55, 55};
+    tensor::dims conv_dst_tz = {batch, 96, 55, 55};
     tensor::dims conv_strides = {4, 4};
     tensor::nd_offset conv_padding = {0, 0};
 
@@ -86,7 +86,7 @@ void simple_net(){
         conv_weights_memory = memory(conv_pd.data.src_primitive_desc);
         net.push_back(reorder(conv_user_weights_memory, conv_weights_memory));
     }
-    
+
     auto conv_dst_memory = memory(conv_pd.data.dst_primitive_desc);
 
     /* create convolution primitive and add it to net */
@@ -94,7 +94,7 @@ void simple_net(){
         conv_user_bias_memory, conv_dst_memory));
 
     /* AlexNet: relu
-     * {mb, 96, 55, 55} -> {mb, 96, 55, 55}
+     * {batch, 96, 55, 55} -> {batch, 96, 55, 55}
      */
     const double negative_slope = 1.0;
 
@@ -102,10 +102,10 @@ void simple_net(){
 
     /* create relu primitive and add it to net */
     net.push_back(relu(prop_kind::forward, negative_slope, conv_dst_memory,
-        relu_dst_memory)); 
+        relu_dst_memory));
 
     /* AlexNet: lrn
-     * {mb, 96, 55, 55} -> {mb, 96, 55, 55}
+     * {batch, 96, 55, 55} -> {batch, 96, 55, 55}
      * local size: 5
      * alpha: 0.0001
      * beta: 0.75
@@ -125,11 +125,11 @@ void simple_net(){
         alpha, beta, local_size));
 
     /* AlexNet: pool
-     * {mb, 96, 55, 55} -> {md, 96, 27, 27}
+     * {batch, 96, 55, 55} -> {batch, 96, 27, 27}
      * kernel: {3, 3}
      * strides: {2, 2}
      */
-    tensor::dims pool_dst_tz = {mb, 96, 27, 27};
+    tensor::dims pool_dst_tz = {batch, 96, 27, 27};
     tensor::dims pool_kernel = {3, 3};
     tensor::dims pool_strides = {2, 2};
     tensor::nd_offset pool_padding = {0, 0};

@@ -17,7 +17,7 @@
 #include <stdio.h>
 #include "mkldnn.h"
 
-#define MB 256
+#define BATCH 256
 
 #define CHECK(f) do { \
     mkldnn_status_t s = f; \
@@ -83,21 +83,21 @@ mkldnn_status_t simple_net(){
     mkldnn_engine_t engine;
     CHECK(mkldnn_engine_create(&engine, mkldnn_cpu, 0 /* idx */));
 
-    float *net_src = (float*)calloc(MB*3*227*227, sizeof(float));
-    float *net_dst = (float*)calloc(MB*96*27*27, sizeof(float));
+    float *net_src = (float*)calloc(BATCH*3*227*227, sizeof(float));
+    float *net_dst = (float*)calloc(BATCH*96*27*27, sizeof(float));
 
     /* AlexNet: conv
-     * {MB, 3, 227, 227} (x) {96, 3, 11, 11} -> {MB, 96, 55, 55}
+     * {BATCH, 3, 227, 227} (x) {96, 3, 11, 11} -> {BATCH, 96, 55, 55}
      * strides: {4, 4}
      */
     float *conv_src = net_src;
     float *conv_weights = (float*)calloc(96*3*11*11, sizeof(float));
     float *conv_bias = (float*)calloc(96, sizeof(float));
 
-    uint32_t conv_src_sizes[4] = {MB, 3, 227, 227};
+    uint32_t conv_src_sizes[4] = {BATCH, 3, 227, 227};
     uint32_t conv_weights_sizes[4] = {96, 3, 11, 11};
     uint32_t conv_bias_sizes[4] = {96};
-    uint32_t conv_dst_sizes[4] = {MB, 96, 55, 55};
+    uint32_t conv_dst_sizes[4] = {BATCH, 96, 55, 55};
     uint32_t conv_strides[2] = {4, 4};
     int32_t  conv_padding[2] = {0, 0};
 
@@ -178,7 +178,7 @@ mkldnn_status_t simple_net(){
     CHECK(mkldnn_primitive_create(&conv, &conv_pd, conv_srcs, conv_dsts));
 
     /* AlexNet: relu
-     * {MB, 96, 55, 55} -> {MB, 96, 55, 55}
+     * {BATCH, 96, 55, 55} -> {BATCH, 96, 55, 55}
      */
     double negative_slope = 1.0;
 
@@ -195,7 +195,8 @@ mkldnn_status_t simple_net(){
     CHECK(mkldnn_relu_primitive_desc_init(&relu_pd, &relu_desc, engine));
 
     mkldnn_primitive_t relu_dst_memory;
-    CHECK(mkldnn_memory_create(&relu_dst_memory, &relu_pd.dst_primitive_desc, NULL));
+    CHECK(mkldnn_memory_create(&relu_dst_memory,
+                &relu_pd.dst_primitive_desc, NULL));
 
     /* finally create a relu primitive */
     mkldnn_primitive_t relu;
@@ -203,9 +204,9 @@ mkldnn_status_t simple_net(){
     const_mkldnn_primitive_t relu_dsts[] = { relu_dst_memory };
 
     CHECK(mkldnn_primitive_create(&relu, &relu_pd, relu_srcs, relu_dsts));
-    
+
     /* AlexNet: lrn
-     * {MB, 96, 55, 55} -> {MB, 96, 55, 55}
+     * {BATCH, 96, 55, 55} -> {BATCH, 96, 55, 55}
      * local size: 5
      * alpha: 0.0001
      * beta: 0.75
@@ -245,15 +246,15 @@ mkldnn_status_t simple_net(){
     CHECK(mkldnn_primitive_create(&lrn, &lrn_pd, lrn_srcs, lrn_dsts));
 
     /* AlexNet: pool
-     * {MB, 96, 55, 55} -> {MB, 96, 27, 27}
+     * {BATCH, 96, 55, 55} -> {BATCH, 96, 27, 27}
      * kernel: {3, 3}
      * strides: {2, 2}
      */
-    uint32_t pool_dst_sizes[4] = {MB, 96, 27, 27};
+    uint32_t pool_dst_sizes[4] = {BATCH, 96, 27, 27};
     uint32_t pool_kernel[2] = {3, 3};
     uint32_t pool_strides[2] = {2, 2};
     int32_t pool_padding[2] = {0, 0};
-    
+
     /* create pooling memory descriptor on dst descriptor
      *  from previos primitive */
     mkldnn_memory_desc_t pool_src_md = lrn_pd.dst_primitive_desc.memory_desc;
@@ -269,7 +270,7 @@ mkldnn_status_t simple_net(){
     mkldnn_primitive_t pool_user_dst_memory;
     init_data_memory(4, pool_dst_sizes, mkldnn_nchw, mkldnn_f32, engine,
         net_dst, &pool_user_dst_memory);
-    
+
     /* create a pooling */
     mkldnn_pooling_desc_t pool_desc;
     CHECK(mkldnn_pooling_desc_init(&pool_desc, mkldnn_forward,
@@ -324,7 +325,7 @@ mkldnn_status_t simple_net(){
     CHECK(mkldnn_stream_create(&stream));
     CHECK(mkldnn_stream_submit(stream, n, net, NULL));
     CHECK(mkldnn_stream_wait(stream, n, NULL));
-    
+
     /* clean-up */
     mkldnn_stream_destroy(stream);
 
