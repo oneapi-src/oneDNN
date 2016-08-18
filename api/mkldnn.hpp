@@ -353,7 +353,7 @@ struct memory: public primitive  {
          *
          * @param adata a C API #mkldnn_memory_desc_t structure
 		 */
-        desc(c_api::mkldnn_memory_desc_t adata): data(adata) {}
+        desc(const c_api::mkldnn_memory_desc_t &adata): data(adata) {}
         // TODO: make private
 
         /** @returns the number of data elements in the memory described.
@@ -382,7 +382,7 @@ struct memory: public primitive  {
 
         // TODO: make private
         primitive_desc() {}
-        primitive_desc(c_api::mkldnn_memory_primitive_desc_t adata)
+        primitive_desc(const c_api::mkldnn_memory_primitive_desc_t &adata)
                 : data(adata) {}
 
         /** Constructs a memory primitive descriptor. */
