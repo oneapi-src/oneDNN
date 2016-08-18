@@ -30,7 +30,7 @@ using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::precision;
 
 template<impl::precision_t prec>
-    using data_t = typename precision2type<prec>::type;
+    using data_t = typename prec_trait<prec>::type;
 
 namespace fmt_order {
     const bool keep = true;

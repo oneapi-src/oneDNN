@@ -47,7 +47,7 @@ private:
     void(*ker_hw8_last )(const void *);
     void(*ker_hw8      )(const void *);
 
-    typename precision2type<prec>::type jit_alpha, jit_one;
+    typename prec_trait<prec>::type jit_alpha, jit_one;
     typename ::xbyak_lrn *jit_lrn, *jit_lrn_first, *jit_lrn_last;
 
 protected:
@@ -61,7 +61,7 @@ protected:
     }
 
 public:
-    typedef typename precision2type<prec>::type data_t;
+    typedef typename prec_trait<prec>::type data_t;
 
     jit_avx2_lrn(const lrn_primitive_desc_t &ppd,
         const primitive_at_t *inputs, const primitive *outputs[]);

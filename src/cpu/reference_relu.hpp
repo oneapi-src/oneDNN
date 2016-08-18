@@ -54,7 +54,7 @@ protected:
     }
 
 public:
-    typedef typename precision2type<prec>::type data_t;
+    typedef typename prec_trait<prec>::type data_t;
 
     reference_relu(const relu_primitive_desc_t &rpd,
             const primitive_at_t *inputs, const primitive *outputs[])

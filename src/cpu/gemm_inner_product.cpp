@@ -31,7 +31,7 @@ typedef MKL_INT cblas_int;
 namespace {
 
 template <mkldnn::impl::precision_t prec>
-using data_t = typename precision2type<prec>::type;
+using data_t = typename prec_trait<prec>::type;
 
 template <mkldnn::impl::precision_t prec>
 inline void cblas_gemm(CBLAS_LAYOUT layout,

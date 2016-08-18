@@ -23,15 +23,19 @@
 #include "nstl.hpp"
 #include "utils.hpp"
 
-template <mkldnn::impl::precision_t> struct precision2type {};
-template <>
-struct precision2type<mkldnn::impl::precision::f32> { typedef float type; };
-template <>
-struct precision2type<mkldnn::impl::precision::u32> { typedef uint32_t type; };
-
 namespace mkldnn {
 namespace impl {
-// XXX: is this the only namespace we have?
+
+template <precision_t> struct prec_trait {};
+template <> struct prec_trait<precision::f32> { typedef float type; };
+template <> struct prec_trait<precision::u32> { typedef uint32_t type; };
+
+template <typename T> struct data_trait {};
+template <> struct data_trait<float>
+{ static constexpr precision_t prec = precision::f32; };
+template <> struct data_trait<uint32_t>
+{ static constexpr precision_t prec = precision::u32; };
+
 namespace types {
 
 using namespace mkldnn::impl::status;
@@ -40,8 +44,8 @@ using namespace mkldnn::impl::memory_format;
 
 inline size_t precision_size(precision_t prec) {
     switch (prec) {
-    case f32: return sizeof(precision2type<f32>::type);
-    case u32: return sizeof(precision2type<u32>::type);
+    case f32: return sizeof(prec_trait<f32>::type);
+    case u32: return sizeof(prec_trait<u32>::type);
     case precision::undef:
     default: assert(!"unknown precision");
     }

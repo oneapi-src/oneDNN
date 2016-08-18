@@ -58,7 +58,7 @@ protected:
     }
 
 public:
-    typedef typename precision2type<prec>::type data_t;
+    typedef typename prec_trait<prec>::type data_t;
 
     reference_inner_product(const inner_product_primitive_desc_t &ippd,
             const primitive_at_t *inputs, const primitive *outputs[])

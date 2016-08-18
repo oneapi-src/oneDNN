@@ -51,7 +51,7 @@ protected:
     }
 
 public:
-    typedef typename precision2type<prec>::type data_t;
+    typedef typename prec_trait<prec>::type data_t;
 
     reference_pooling(const pooling_primitive_desc_t &ppd,
             const primitive_at_t *inputs, const primitive *outputs[])
