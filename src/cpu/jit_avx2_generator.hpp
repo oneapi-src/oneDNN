@@ -17,9 +17,7 @@
 #ifndef CPU_JIT_AVX2_GENERATOR_HPP
 #define CPU_JIT_AVX2_GENERATOR_HPP
 
-#define XBYAK_NO_OP_NAMES
-#include "xbyak/xbyak.h"
-#include "utils_xbyak.hpp"
+#include "xbyak_proxy.hpp"
 
 namespace mkldnn { namespace impl { namespace cpu {
 

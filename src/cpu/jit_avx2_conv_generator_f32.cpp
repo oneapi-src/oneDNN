@@ -16,8 +16,7 @@
 
 #include "mkldnn_types.h"
 
-#define XBYAK_NO_OP_NAMES
-#include "utils_xbyak.hpp"
+#include "xbyak_proxy.hpp"
 #include "jit_avx2_conv_generator_f32.hpp"
 #include "nstl.hpp"
 

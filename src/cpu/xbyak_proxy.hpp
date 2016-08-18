@@ -17,6 +17,8 @@
 #ifndef XBYAK_UTILS_FOR_MKLDNN
 #define XBYAK_UTILS_FOR_MKLDNN
 
+#define XBYAK64
+#define XBYAK_NO_OP_NAMES
 #include "xbyak/xbyak.h"
 
 #define XBYAK_VERSION 0x5000

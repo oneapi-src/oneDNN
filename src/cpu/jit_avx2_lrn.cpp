@@ -21,10 +21,7 @@
 #include "type_helpers.hpp"
 
 #if 1
-#define XBYAK64 1
-#define XBYAK_NO_OP_NAMES
-#include "xbyak.h"
-#include "utils_xbyak.hpp"
+#include "xbyak_proxy.hpp"
 #include "jit_avx2_generator.hpp"
 
 class xbyak_lrn : public mkldnn::impl::cpu::jit_avx2_generator
