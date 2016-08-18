@@ -162,7 +162,7 @@ struct error: public std::exception {
             std::string message,
             c_api::mkldnn_primitive_t *error_primitive = 0)
     {
-        if (status == c_api::mkldnn_success) {
+        if (status != c_api::mkldnn_success) {
             if (nullptr != error_primitive)
                 throw error(status, message, *error_primitive);
             else
