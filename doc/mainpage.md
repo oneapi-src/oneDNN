@@ -1,5 +1,5 @@
-<-- @mainpage -->
-# Developer Manual
+# Developer Manual {#mainpage}
+
 Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN) is an
 open source performance library for Deep Learning (DL) applications intended
 for acceleration of DL frameworks on Intel(R) architecture. Intel MKL-DNN
@@ -98,94 +98,92 @@ The repository contains an example how to build a block of neural network
 topology consisting of convolution, relu, lrn and pooling. Let's go through it
 step by step.
 
-0. Initialize CPU engine. The last parameter stands for index of the engine.
-    ```c++
-   auto cpu_engine = engine(engine::cpu, 0);
-    ```
 
-1. Define a vector of primitives, which will represent the net.
-    ```c++
-    std::vector<primitive> net;
-    ```
+1. Initialize CPU engine. The last parameter stands for index of the engine.
+```cpp
+auto cpu_engine = engine(engine::cpu, 0);
+```
 
-2. Define input data and tensor describes it.
-    ```c++
-    std::vector<float> src(2*3*227*227);
-    tensor::dims conv_src_dims = {2, 3, 227, 227};
-    ```
+2. Define a vector of primitives, which will represent the net.
+```cpp
+std::vector<primitive> net;
+```
 
-3. Create two memory desciptors: one describes data in users' format (in this
+3. Define input data and tensor describes it.
+```cpp
+std::vector<float> src(2 * 3 * 227 * 227);
+tensor::dims conv_src_dims = {2, 3, 227, 227};
+```
+
+4. Create two memory desciptors: one describes data in users' format (in this
     example `nchw` is used which stands for natural order of the data:
     minibatch-channels-height-width). The second memory descriptor contain a
-    wildcard `any`, which means that convolution will define the layout it
-    wants to use to achieve the best performance for this particular case (
+    wildcard `any`, which means that convolution will define the layout it wants
+    to use to achieve the best performance for this particular case (
     convolutional kernel sizes, strides, padding and so on). In case a
     convolution will choose the layout other then users' one, the reorder is
     required from users' data to convolution input.
-    ```c++
-    auto user_src_md = memory::desc({conv_src_dims}, memory::precision::f32, memory::format::nchw);
-    auto conv_src_md = memory::desc({conv_src_dims}, memory::precision::f32, memory::format::any);
-    ```
+```cpp
+auto user_src_md = memory::desc({conv_src_dims}, memory::precision::f32, memory::format::nchw);
+auto conv_src_md = memory::desc({conv_src_dims}, memory::precision::f32, memory::format::any);
+```
 
-4. Create a convolution descriptor, by specifing defining an algorithm, a
+5. Create a convolution descriptor, by specifing defining an algorithm, a
     propagation kind, input/weights/bias/output shapes, strides, padding and
     padding policy.
-    ```c++
-    auto conv_desc = convolution::desc(
-        prop_kind::forward, convolution::direct,
-        conv_src_md, /* format::any used here to let convolution decide which layout to use */
-        conv_weights_md, conv_bias_md, conv_dst_md,
-        {1, 1}, {0, 0}, padding_kind::zero);
-    ```
+```cpp
+auto conv_desc = convolution::desc(
+    prop_kind::forward, convolution::direct,
+    conv_src_md, /* format::any used here to let convolution decide which layout to use */
+    conv_weights_md, conv_bias_md, conv_dst_md,
+    {1, 1}, {0, 0}, padding_kind::zero);
+```
 
-5. Create a convolution primitive descriptor. Once created all semi-defined
+6. Create a convolution primitive descriptor. Once created all semi-defined
     structures like a layout for the source are defined now.
+```cpp
+auto conv_pd = convolution::primitive_desc(conv_desc, cpu_engine);
+```
 
-    ```c++
-    auto conv_pd = convolution::primitive_desc(conv_desc, cpu_engine);
-    ```
-
-6. Create a memory primitive which represents user's data. Also check where
+7. Create a memory primitive which represents user's data. Also check where
     users' data format differs from what convolution expects. In case memory
     formats differ create a reorder between those two and put it to the net.
+```cpp
+auto user_src_memory_descriptor = memory::primitive_desc(user_src_md, engine);
 
-    ```c++
-    auto user_src_memory_descriptor = memory::primitive_desc(user_src_md, engine);
+auto user_src_memory = memory(user_src_memory_descriptor, src);
+auto conv_input = user_src_memory; /* let's hope we won't need a reorder here */
 
-    auto user_src_memory = memory(user_src_memory_descriptor, src);
-    auto conv_input = user_src_memory; /* let's hope we won't need a reorder here */
+if (memory::primitive_desc(conv_pd.data.src_primitive_desc) != user_src_memory_descriptor) {
+    /* unfortunately, we need */
 
-    if (memory::primitive_desc(conv_pd.data.src_primitive_desc) != user_src_memory_descriptor) {
-        /* unfortunately, we need */
+    /* convolution primitive descriptor contains memory primitive
+     * descriptor it expects as it's input. since we don't put a
+     * pointer here, MKL-DNN will allocate memory automatically */
+    auto conv_src_memory = memory(conv_pd.data.src_primitive_desc);
 
-        /* convolution primitive descriptor contains memory primitive
-           descriptor it expects as it's input. since we don't put a
-           pointer here, MKL-DNN will allocate memory automatically */
-        auto conv_src_memory = memory(conv_pd.data.src_primitive_desc);
+    /* create a reorder between data, make it an input for a convolution */
+    conv_input = reorder(user_src_memory, conv_src_memory)
 
-        /* create a reorder between data, make it an input for a convolution */
-        conv_input = reorder(user_src_memory, conv_src_memory)
+    /* put the reorder in the net */
+    net.push_back(conv_input);
+}
+```
 
-        /* put the reorder in the net */
-        net.push_back(conv_input);
-    }
-    ```
+8. Create a convolution primitive and add it to the net.
+```cpp
+/* note, that conv_input (whether it is memory or reorder) becomes a
+ * dependency for the convolution, so stream won't execute the convolution
+ * before this conv_input */
+auto conv = convolution(conv_pd, conv_input, conv_weights_memory, conv_user_bias_memory, conv_dst_memory);
+net.push_back(conv);
+```
 
-7. Create a convolution primitive and add it to the net.
-
-    ```c++
-    /* note, that conv_input (whether it is memory or reorder) becomes a
-       dependency for the convolution, so stream won't execute the convolution
-       before this conv_input */
-    auto conv = convolution(conv_pd, conv_input, conv_weights_memory, conv_user_bias_memory, conv_dst_memory);
-    net.push_back(conv);
-    ```
-
-8. Finally create a stream, push all the primitives in it and wait for it to
+9. Finally create a stream, push all the primitives in it and wait for it to
     be done.
+```cpp
+stream().submit(net).wait();
+```
 
-    ```c++
-    stream().submit(net).wait();
-    ```
+@subpage legal_information
 
-@subpage legal_information.md "Legal Information"
