@@ -89,8 +89,8 @@ inline T array_product(const T *arr, size_t size) {
 
 inline void* malloc(size_t size, int alignment) {
     void *ptr;
-    ::posix_memalign(&ptr, alignment, size);
-    return ptr;
+    int rc = ::posix_memalign(&ptr, alignment, size);
+    return (rc == 0) ? ptr : 0;
 }
 inline void free(void* p) { ::free(p); }
 

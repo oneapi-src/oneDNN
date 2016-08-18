@@ -73,7 +73,7 @@ inline size_t map_index(const mkldnn::memory::desc &md, size_t index) {
 inline mkldnn::memory::desc create_md(mkldnn::tensor::dims dims,
         mkldnn::memory::precision prec, mkldnn::memory::format fmt) {
     using f = mkldnn::memory::format;
-    uint32_t ndims;
+    uint32_t ndims = 0;
 
     switch (fmt) {
     case f::x:
