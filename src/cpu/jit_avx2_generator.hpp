@@ -39,10 +39,11 @@ private:
 
     Xbyak::Reg64 kj      = r10;
     Xbyak::Reg64 oi_iter = r11;
+    Xbyak::Reg64 ki_iter = r12;
     Xbyak::Reg64 reg_kh  = rcx;
 
     inline void hsw_iter(jit_convolution_param_t *params, uint32_t ur_w,
-                         int pad_l, int pad_r, const char* kh_lable)
+                         int pad_l, int pad_r, const char* kh_lable, const char* kw_lable)
     {
         using Xbyak::Ymm;
 
@@ -65,25 +66,55 @@ private:
 
         mov(kj, reg_kh);
         L(kh_lable); {
-            for (uint32_t ki = 0; ki < kw; ki++) {
-                uint32_t jj_start = (uint32_t)nstl::max(0, pad_l-(int)ki);
-                uint32_t jj_end = ur_w - (uint32_t)nstl::max(0, (int)ki+pad_r - (int)(kw-1));
-                for (uint32_t ifm2 = 0; ifm2 < params->ic_block; ifm2++) {
-                    for (uint32_t jj =jj_start ; jj < jj_end; jj++) {
-                        int aux_input_offset = (ki+jj*stride_w-pad_l)*params->ic_block + ifm2;
-                        vbroadcastss(Ymm(nb_oc_block*ur_w+jj), ptr [ aux_reg_input + sizeof(float)*aux_input_offset ]);
-                    }
-                    for (uint32_t ii = 0; ii < nb_oc_block; ii++) {
-                        int aux_kernel_offset = ii*nb_ic*kh*kw*params->ic_block*params->oc_block +
-                                                 ki*params->ic_block*params->oc_block+ ifm2*params->oc_block;
-                        vmovups(ymm15, ptr [ aux_reg_kernel +  sizeof(float)*aux_kernel_offset ]);
-                        for (uint32_t jj = jj_start; jj  < jj_end; jj++)
-                            vfmadd231ps(Ymm(ur_w*ii+jj), Ymm(nb_oc_block*ur_w+jj), ymm15);
+            if (params->kw <= 5 || pad_l > 0 || pad_r > 0)
+            {
+                for (uint32_t ki = 0; ki < kw; ki++) {
+                    uint32_t jj_start = (uint32_t)nstl::max(0, pad_l-(int)ki);
+                    uint32_t jj_end = ur_w - (uint32_t)nstl::max(0, (int)ki+pad_r - (int)(kw-1));
+                    for (uint32_t ifm2 = 0; ifm2 < params->ic_block; ifm2++) {
+                        for (uint32_t jj =jj_start ; jj < jj_end; jj++) {
+                            int aux_input_offset = (ki+jj*stride_w-pad_l)*params->ic_block + ifm2;
+                            vbroadcastss(Ymm(nb_oc_block*ur_w+jj), ptr [ aux_reg_input + sizeof(float)*aux_input_offset ]);
+                        }
+                        for (uint32_t ii = 0; ii < nb_oc_block; ii++) {
+                            int aux_kernel_offset = ii*nb_ic*kh*kw*params->ic_block*params->oc_block +
+                                                     ki*params->ic_block*params->oc_block+ ifm2*params->oc_block;
+                            vmovups(ymm15, ptr [ aux_reg_kernel +  sizeof(float)*aux_kernel_offset ]);
+                            for (uint32_t jj = jj_start; jj  < jj_end; jj++)
+                                vfmadd231ps(Ymm(ur_w*ii+jj), Ymm(nb_oc_block*ur_w+jj), ymm15);
+                        }
                     }
                 }
+                add(aux_reg_kernel, sizeof(float)*kw *params->oc_block*params->ic_block);
+                add(aux_reg_input,  sizeof(float)*iw*params->ic_block);
+            } else {
+                xor_(ki_iter, ki_iter);
+                L(kw_lable); {
+                    uint32_t jj_start = 0;
+                    uint32_t jj_end = ur_w;
+                    for (uint32_t ifm2 = 0; ifm2 < params->ic_block; ifm2++) {
+                        for (uint32_t jj =jj_start ; jj < jj_end; jj++) {
+                            int aux_input_offset = (jj*stride_w-pad_l)*params->ic_block + ifm2;
+                            vbroadcastss(Ymm(nb_oc_block*ur_w+jj), ptr [ aux_reg_input + sizeof(float)*aux_input_offset ]);
+                        }
+                        for (uint32_t ii = 0; ii < nb_oc_block; ii++) {
+                            int aux_kernel_offset = ii*nb_ic*kh*kw*params->ic_block*params->oc_block +
+                                                     ifm2*params->oc_block;
+                            vmovups(ymm15, ptr [ aux_reg_kernel +  sizeof(float)*aux_kernel_offset ]);
+                            for (uint32_t jj = jj_start; jj  < jj_end; jj++)
+                                vfmadd231ps(Ymm(ur_w*ii+jj), Ymm(nb_oc_block*ur_w+jj), ymm15);
+                        }
+                    }
+                    add(aux_reg_kernel, sizeof(float)*params->oc_block*params->ic_block);
+                    add(aux_reg_input,  sizeof(float)*params->ic_block);
+
+                    inc(ki_iter);
+                    cmp(ki_iter, kw);
+                    jl(kw_lable, T_NEAR);
+                }
+                sub(aux_reg_input,  sizeof(float)*kw*params->ic_block);
+                add(aux_reg_input,  sizeof(float)*iw*params->ic_block);
             }
-            add(aux_reg_kernel, sizeof(float)*kw *params->oc_block*params->ic_block);
-            add(aux_reg_input,  sizeof(float)*iw*params->ic_block);
 
             dec(kj);
             cmp(kj, 0);
@@ -132,7 +163,7 @@ public:
         int r_pad = nstl::max(0, (int)(((int)params->ow-1)*params->stride_w + (int)params->kw - 1 - ((int)params->iw + (int)params->l_pad - 1 )));
         int r_pad1 = 0;
         if (l_pad > 0) {
-            hsw_iter(params, params->ur_w, params->l_pad, 0, ".kh_loop_oimain_padwl");
+            hsw_iter(params, params->ur_w, params->l_pad, 0, ".kh_loop_oimain_padwl", ".kw_loop_oimain_padwl");
             add(reg_input,  sizeof(float)*(params->ur_w*params->stride_w-params->l_pad)*params->ic_block);
             add(reg_output,  sizeof(float)*params->ur_w*params->oc_block);
             inc(oi_iter);
@@ -145,7 +176,7 @@ public:
         if ((l_pad <= 0 && n_oi > 0)
           ||(l_pad >  0 && n_oi > 1)) {
             L(".ow_loop"); {
-                hsw_iter(params, params->ur_w, 0, 0, ".kh_loop_oimain");
+                hsw_iter(params, params->ur_w, 0, 0, ".kh_loop_oimain", ".kw_loop_oimain");
                 add(reg_input,  sizeof(float)*params->ur_w*params->stride_w*params->ic_block);
                 add(reg_output,  sizeof(float)*params->ur_w*params->oc_block);
 
@@ -155,13 +186,13 @@ public:
         }
 
         if (r_pad1 > 0 ) {
-            hsw_iter(params, params->ur_w, 0, r_pad1, ".kh_loop_oimain_padwr");
+            hsw_iter(params, params->ur_w, 0, r_pad1, ".kh_loop_oimain_padwr", ".kw_loop_oimain_padwr");
             add(reg_input,  sizeof(float)*params->ur_w*params->stride_w*params->ic_block);
             add(reg_output,  sizeof(float)*params->ur_w*params->oc_block);
         }
 
         if (params->ur_w_tail != 0)
-            hsw_iter(params, params->ur_w_tail, 0, r_pad, ".kh_loop_oitail");
+            hsw_iter(params, params->ur_w_tail, 0, r_pad, ".kh_loop_oitail", ".kw_loop_oitail");
 
         postamble();
         return;
