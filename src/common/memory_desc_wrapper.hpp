@@ -192,12 +192,12 @@ struct memory_desc_wrapper: public c_compatible {
 private:
     /* TODO: put logical_offset in utils */
     template<typename T>
-    inline size_t logical_offset(T x0) const { return (size_t)x0; }
+    inline size_t logical_offset(T x0) const { return size_t(x0); }
 
     template<typename T, typename... Args>
     inline size_t logical_offset(T xn, Args... args) const {
         const size_t n_args = sizeof...(args);
-        return ((size_t)xn)*array_product<n_args>(&dims()[ndims() - n_args])
+        return size_t(xn)*array_product<n_args>(&dims()[ndims() - n_args])
             + logical_offset(args...);
     }
 
