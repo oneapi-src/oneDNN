@@ -123,7 +123,7 @@ INSTANTIATE_TEST_CASE_P(
         ::testing::Values(
                 conv_any_fmt_test_params_float{ prop_kind::forward,
                         engine::kind::cpu, convolution::direct, fmt::any,
-                        fmt::nhwc, fmt::any, fmt::Ohwi8o, fmt::any, fmt::x,
+                        fmt::nchw, fmt::any, fmt::Ohwi8o, fmt::any, fmt::x,
                         fmt::any, fmt::nChw8c,
                         { 2, 1, 3, 227, 227, 96, 55, 55, 11, 11, 0, 0, 4, 4 } },
                 conv_any_fmt_test_params_float{ prop_kind::forward,

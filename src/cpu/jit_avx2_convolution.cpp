@@ -148,7 +148,7 @@ status_t jit_avx2_convolution<prec>::primitive_desc_init(
         if (conv_d.src_desc.tensor_desc.dims[1] == 3) {
             // maybe 1st convolution
             CHECK(mkldnn_memory_desc_init(
-                    &conv_d.src_desc, &conv_d.src_desc.tensor_desc, f32, nhwc));
+                    &conv_d.src_desc, &conv_d.src_desc.tensor_desc, f32, nchw));
         } else {
             CHECK(mkldnn_memory_desc_init(&conv_d.src_desc,
                     &conv_d.src_desc.tensor_desc, f32, nChw8c));
