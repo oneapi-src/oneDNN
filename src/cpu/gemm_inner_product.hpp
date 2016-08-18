@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_gemm_INNER_PRODUCT_HPP
-#define CPU_gemm_INNER_PRODUCT_HPP
+#ifndef CPU_GEMM_INNER_PRODUCT_HPP
+#define CPU_GEMM_INNER_PRODUCT_HPP
 
 #include <assert.h>
 
