@@ -65,7 +65,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             && output_d.format() == (order_keep ? fmt_o : fmt_i);
     }
 
-    static status_t exec(const memory_desc_wrapper &input_d,
+    static status_t execute(const memory_desc_wrapper &input_d,
         const memory_desc_wrapper &output_d, const data_t<prec_i> *input,
         data_t<prec_o> *output) {
         const auto &nchw_d = order_keep ? input_d : output_d;
@@ -112,7 +112,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             && output_d.format() == (order_keep ? fmt_o : fmt_i);
     }
 
-    static status_t exec(const memory_desc_wrapper &input_d,
+    static status_t execute(const memory_desc_wrapper &input_d,
         const memory_desc_wrapper &output_d, const data_t<prec_i> *input,
         data_t<prec_o> *output) {
         const auto &dims = input_d.dims();
@@ -157,7 +157,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             && output_d.format() == (order_keep ? fmt_o : fmt_i);
     }
 
-    static status_t exec(const memory_desc_wrapper &input_d,
+    static status_t execute(const memory_desc_wrapper &input_d,
         const memory_desc_wrapper &output_d, const data_t<prec_i> *input,
         data_t<prec_o> *output) {
         constexpr bool w_groups = fmt_i == goihw;
@@ -216,7 +216,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         return input_d.format() == output_d.format() && input_d.is_dense();
     }
 
-    static status_t exec(const memory_desc_wrapper &input_d,
+    static status_t execute(const memory_desc_wrapper &input_d,
         const memory_desc_wrapper &output_d, const data_t<prec_i> *input,
         data_t<prec_o> *output) {
         assert(input_d.is_dense());
@@ -246,7 +246,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         return true;
     }
 
-    static status_t exec(const memory_desc_wrapper &input_d,
+    static status_t execute(const memory_desc_wrapper &input_d,
         const memory_desc_wrapper &output_d, const data_t<prec_i> *input,
         data_t<prec_o> *output) {
         const size_t nelems = input_d.nelems();
@@ -276,7 +276,7 @@ private:
         auto *output = reinterpret_cast<data_t<prec_o>*>(
                 this->output()[0]->memory());
 
-        return simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL, spec>::exec(
+        return simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL, spec>::execute(
                 this->_rpd.input.memory_desc, this->_rpd.output.memory_desc,
                 input, output);
     }
