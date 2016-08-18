@@ -18,7 +18,7 @@
 #define UTILS_HPP
 
 #include <stddef.h>
-#include <malloc.h>
+#include <stdlib.h>
 
 namespace mkldnn { namespace impl {
 
@@ -88,8 +88,9 @@ inline T array_product(const T *arr, size_t size) {
 }
 
 inline void* malloc(size_t size, int alignment) {
-    UNUSED(alignment);
-    return ::malloc(size);
+    void *ptr;
+    ::posix_memalign(&ptr, alignment, size);
+    return ptr;
 }
 inline void free(void* p) { ::free(p); }
 

@@ -23,6 +23,7 @@
 #include "type_helpers.hpp"
 #include "primitive.hpp"
 #include "cpu_engine.hpp"
+#include "utils.hpp"
 
 namespace mkldnn { namespace impl { namespace cpu {
 
@@ -47,10 +48,11 @@ public:
         _output.push_back(this);
         if (_memory_buffer == nullptr) {
             const size_t size = memory_desc_wrapper(mpd).size();
-            _memory_buffer = new char[size];
+            _memory_buffer = static_cast<char *>(
+                    mkldnn::impl::malloc(size, default_alignment));
         }
     }
-    ~cpu_memory() { if (_owns_memory) delete [] _memory_buffer; }
+    ~cpu_memory() { if (_owns_memory) mkldnn::impl::free(_memory_buffer); }
 
     bool owns_memory() const { return _owns_memory; }
 
