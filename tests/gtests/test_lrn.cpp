@@ -85,7 +85,7 @@ struct lrn_test_params {
     memory::format dst_format;
     test_lrn_desc_t test_ld;
 };
-
+#include <omp.h>
 template <typename data_t>
 class lrn_test : public ::testing::TestWithParam<lrn_test_params> {
 protected:
@@ -126,8 +126,9 @@ protected:
 
         std::vector<primitive> pipeline;
         pipeline.push_back(l);
-
+double T = -omp_get_wtime();
         stream().submit(pipeline).wait();
+::printf("elapsed time: %f s\n",T+omp_get_wtime());
 
         check_lrn_ac_fwd<data_t>(ld, l_src, l_dst);
     }

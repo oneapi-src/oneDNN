@@ -27,8 +27,8 @@ namespace impl {
 namespace cpu {
 
 template <impl::precision_t prec>
-class jit_avx2_lrn:
-    public lrn<jit_avx2_lrn<prec>> {
+class jit_avx2_lrn : public lrn<jit_avx2_lrn<prec>>
+{
 public:
     typedef typename prec_trait<prec>::type data_t;
     using lrn<jit_avx2_lrn<prec>>::lrn;
@@ -47,7 +47,6 @@ private:
     void(*ker_hw8_last)(const void *);
     void(*ker_hw8)(const void *);
 
-    data_t jit_alpha, jit_one;
     struct xbyak_lrn;
     xbyak_lrn *jit_lrn, *jit_lrn_first, *jit_lrn_last;
 
