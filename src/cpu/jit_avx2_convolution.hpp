@@ -42,11 +42,6 @@ private:
     jit_avx2_conv_generator_f32* generator;
     void (*jit_ker)(void*);
 
-    inline int offset_w(int gr, int oc, int ic, int iw, int ih, int bo, int bi);
-    inline int offset_b(int ch, int bl);
-    inline int offset_src(int img, int ch, int ih, int iw, int bl);
-    inline int offset_dst(int img, int ch, int ih, int iw, int bl);
-
     status_t execute_forward();
     status_t execute_backward_data();
     status_t execute_backward_weights();

@@ -20,8 +20,6 @@
 #include "jit_avx2_convolution.hpp"
 #include "type_helpers.hpp"
 
-#include <stdio.h>
-
 namespace mkldnn { namespace impl { namespace cpu {
 
 using namespace mkldnn::impl::status;
