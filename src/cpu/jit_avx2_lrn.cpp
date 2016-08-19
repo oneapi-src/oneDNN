@@ -146,16 +146,48 @@ typedef struct {
 } jit_args_t;
 
 template <impl::precision_t prec>
-status_t jit_avx2_lrn<prec>::execute_forward() {
-    const data_t *src =
-        reinterpret_cast<const data_t *>(this->input()[0].primitive->output()[this->input()[0].output_index]->memory_const());
-    data_t *scratch =
-        reinterpret_cast<data_t *>(this->input()[1].primitive->output()[this->input()[1].output_index]->memory());
-    data_t *dst =
-        reinterpret_cast<data_t *>(this->output()[0]->memory());
+jit_avx2_lrn<prec>::jit_avx2_lrn(const lrn_primitive_desc_t &lpd,
+    const primitive_at_t *inputs, const primitive *outputs[])
+    : lrn<jit_avx2_lrn<prec>>(lpd, inputs, outputs)
+    , jit_alpha(lpd.lrn_desc.alpha/lpd.lrn_desc.local_size)
+    , jit_one(1.0) {
+    uint32_t H = this->_lpd.src_primitive_desc.memory_desc.tensor_desc.dims[2];
+    uint32_t W = this->_lpd.src_primitive_desc.memory_desc.tensor_desc.dims[3];
 
-    const memory_desc_wrapper 
-        src_d(this->_ppd.src_primitive_desc.memory_desc);
+    typedef void (*kernel_t)(const void *);
+    this->jit_lrn = new xbyak_lrn(&this->jit_alpha, &this->jit_one, H*W, 0);
+    this->ker_hw8 = reinterpret_cast<kernel_t>(
+            const_cast<uint8_t*>(this->jit_lrn->getCode()));
+
+    this->jit_lrn_first =
+        new xbyak_lrn(&this->jit_alpha, &this->jit_one, H*W, -1);
+    this->ker_hw8_first = reinterpret_cast<kernel_t>(
+            const_cast<uint8_t*>(this->jit_lrn_first->getCode()));
+
+    this->jit_lrn_last =
+        new xbyak_lrn(&this->jit_alpha, &this->jit_one, H*W, +1);
+    this->ker_hw8_last = reinterpret_cast<kernel_t>(
+            const_cast<uint8_t*>(this->jit_lrn_last->getCode()));
+}
+
+template <impl::precision_t prec>
+jit_avx2_lrn<prec>::~jit_avx2_lrn() {
+    delete this->jit_lrn;
+    delete this->jit_lrn_first;
+    delete this->jit_lrn_last;
+}
+
+template <impl::precision_t prec>
+status_t jit_avx2_lrn<prec>::execute_forward() {
+    auto src = reinterpret_cast<const data_t *>(
+            this->input()[0].primitive->output()[
+            this->input()[0].output_index]->memory_const());
+    auto scratch = reinterpret_cast<data_t *>(
+            this->input()[1].primitive->output()[
+            this->input()[1].output_index]->memory());
+    auto dst = reinterpret_cast<data_t *>(this->output()[0]->memory());
+
+    const memory_desc_wrapper src_d(this->_lpd.src_primitive_desc.memory_desc);
 
     const uint32_t C = src_d.dims()[1];
     const uint32_t HW = src_d.dims()[2]*src_d.dims()[3];
@@ -181,140 +213,40 @@ status_t jit_avx2_lrn<prec>::execute_forward() {
 }
 
 template <impl::precision_t prec>
-status_t jit_avx2_lrn<prec>::execute_backward_data() {
-    return unimplemented;
-}
-
-template <impl::precision_t prec>
-status_t jit_avx2_lrn<prec>::primitive_desc_init(
-        primitive_desc_t *primitive_desc, const op_desc_t &op_desc,
-        const mkldnn::impl::engine &engine) {
-    if (op_desc._kind != primitive_kind::lrn)
-        return invalid_arguments;
-    auto lrn_d = op_desc.lrn;
-
-    // TODO: f32 ?
-    if (prec != f32)
-        return unimplemented;
-
-    if (lrn_d.prop_kind != forward)
-        return unimplemented;
-
-    if (lrn_d.alg_kind != lrn_across_channels)
-        return unimplemented;
-
-    if (lrn_d.src_desc.tensor_desc.ndims != 4)
-        return unimplemented;
-
-    // 0 is mini-batch, 1 is channel, 2 is height, 3 is width
-    if (lrn_d.src_desc.tensor_desc.dims[1] % VECTOR_LENGTH != 0)
-        return unimplemented;
-
-    if (lrn_d.src_desc.tensor_desc.dims[1] < 2*VECTOR_LENGTH)
-        return unimplemented;
-
-    if (lrn_d.beta != 0.75)
-        return unimplemented;
-
-    if (lrn_d.local_size != 5)
-        return unimplemented;
-
-    /* memory descriptors check and fill-in */
+status_t jit_avx2_lrn<prec>::set_default_parameters(lrn_desc_t &lrn_d) {
     if (lrn_d.src_desc.format == any)
-        CHECK(mkldnn_memory_desc_init(&lrn_d.src_desc,
-        &lrn_d.src_desc.tensor_desc, f32, nChw8c));
+        CHECK(lrn_set_default_format<prec>(lrn_d.src_desc, nChw8c));
     if (lrn_d.dst_desc.format == any)
-        CHECK(mkldnn_memory_desc_init(&lrn_d.dst_desc,
-        &lrn_d.dst_desc.tensor_desc, f32, nChw8c));
-
-    CHECK(lrn_d.src_desc.format == nChw8c ? mkldnn_success : mkldnn_try_again);
-    CHECK(lrn_d.dst_desc.format == nChw8c ? mkldnn_success : mkldnn_try_again);
-
-    memory_desc_t scratch_desc;
-    CHECK(mkldnn_memory_desc_init(&scratch_desc,
-        &lrn_d.dst_desc.tensor_desc, f32, lrn_d.dst_desc.format));
-
-    /* memory primitive descriptors check */
-    memory_primitive_desc_t src_pd, scratch_pd, dst_pd;
-    CHECK(mkldnn_memory_primitive_desc_init(&src_pd,
-        &lrn_d.src_desc, &engine));
-    CHECK(mkldnn_memory_primitive_desc_init(&dst_pd,
-        &lrn_d.dst_desc, &engine));
-    CHECK(mkldnn_memory_primitive_desc_init(&scratch_pd,
-        &scratch_desc, &engine));
-
-    /* final stage */
-    lrn_primitive_desc_t ppd;
-    for (size_t x = 0; x < sizeof(ppd); ++x) reinterpret_cast<char*>(&ppd)[x] = '\0';
-    ppd.base.primitive_kind = lrn;
-    ppd.base.engine = &engine;
-    ppd.base.implementation = reinterpret_cast<const void*>(&implementation);
-    ppd.lrn_desc = lrn_d;
-    ppd.src_primitive_desc = src_pd;
-    ppd.scratch_primitive_desc = scratch_pd;
-    ppd.dst_primitive_desc = dst_pd;
-
-    // if (!lrn_primitive_desc_is_ok(ppd)) return invalid; // ???
-
-    primitive_desc->lrn = ppd;
-
-    return success;
+        CHECK(lrn_set_default_format<prec>(lrn_d.dst_desc, nChw8c));
+    return status::success;
 }
 
 template <impl::precision_t prec>
-status_t jit_avx2_lrn<prec>::create(primitive **primitive,
-        const primitive_desc_t *primitive_desc,
-        const primitive_at_t inputs[], const mkldnn::impl::primitive *outputs[]) {
-    assert(primitive_desc->base.primitive_kind == lrn);
+status_t jit_avx2_lrn<prec>::constraint(const lrn_desc_t &lrn_d) {
+    const memory_desc_wrapper src_d(lrn_d.src_desc);
 
-    auto& ppd = primitive_desc->lrn;
-    // TODO: some checks here.
+    bool args_ok = true
+        && lrn_d.alg_kind == lrn_across_channels
+        && src_d.ndims() == 4
+        && src_d.dims()[1] % VECTOR_LENGTH == 0
+        && src_d.dims()[1] >= 2*VECTOR_LENGTH
+        && lrn_d.beta == 0.75
+        && lrn_d.local_size == 5
+        && src_d.format() == nChw8c
+        && lrn_d.dst_desc.format == nChw8c;
 
-    *primitive = new jit_avx2_lrn(ppd, inputs, outputs);
-    return primitive ? success : out_of_memory;
+    return args_ok ? success : unimplemented;
 }
 
 template <impl::precision_t prec>
 const primitive_impl jit_avx2_lrn<prec>::implementation = {
-    jit_avx2_lrn::create, /* .primitive_create */
+    jit_avx2_lrn<prec>::create
 };
 
-template class jit_avx2_lrn<f32>;
+template class jit_avx2_lrn<precision::f32>;
 
-template <impl::precision_t prec>
-jit_avx2_lrn<prec>::jit_avx2_lrn(const lrn_primitive_desc_t &ppd,
-    const primitive_at_t *inputs, const primitive *outputs[])
-    : primitive(ppd, const_cast<impl::engine*>(ppd.base.engine), not_ready)
-    , _ppd(_primitive_desc.lrn)
-    , jit_alpha(ppd.lrn_desc.alpha/ppd.lrn_desc.local_size)
-    , jit_one(1.0)
-{
-    _input.push_back(inputs[0]);
-    _input.push_back(inputs[1]);
-    _output.push_back(outputs[0]);
-    uint32_t H = ppd.src_primitive_desc.memory_desc.tensor_desc.dims[2];
-    uint32_t W = ppd.src_primitive_desc.memory_desc.tensor_desc.dims[3];
-
-    typedef void(*kernel_t)(const void*);
-    this->jit_lrn = new xbyak_lrn(&this->jit_alpha, &this->jit_one, H*W, 0);
-    this->ker_hw8 = reinterpret_cast<kernel_t>(const_cast<uint8_t*>(this->jit_lrn->getCode()));
-
-    this->jit_lrn_first = new xbyak_lrn(&this->jit_alpha, &this->jit_one, H*W, -1);
-    this->ker_hw8_first = reinterpret_cast<kernel_t>(const_cast<uint8_t*>(this->jit_lrn_first->getCode()));
-
-    this->jit_lrn_last = new xbyak_lrn(&this->jit_alpha, &this->jit_one, H*W, +1);
-    this->ker_hw8_last = reinterpret_cast<kernel_t>(const_cast<uint8_t*>(this->jit_lrn_last->getCode()));
 }
-
-template <impl::precision_t prec>
-jit_avx2_lrn<prec>::~jit_avx2_lrn()
-{
-    delete this->jit_lrn;
-    delete this->jit_lrn_first;
-    delete this->jit_lrn_last;
 }
-
-
-}}}
+}
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

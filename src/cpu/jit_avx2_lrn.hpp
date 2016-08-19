@@ -20,64 +20,44 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
-#include "type_helpers.hpp"
-#include "primitive.hpp"
-#include "cpu_engine.hpp"
+#include "lrn.hpp"
 
 class xbyak_lrn;
 
-namespace mkldnn { namespace impl { namespace cpu {
-
-using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::precision;
-using namespace mkldnn::impl::prop_kind;
-using namespace mkldnn::impl::primitive_kind;
+namespace mkldnn {
+namespace impl {
+namespace cpu {
 
 template <impl::precision_t prec>
-class jit_avx2_lrn: public primitive {
-private:
-    const impl::lrn_primitive_desc_t &_ppd;
-
-    // TODO: implement in cpp.
-    status_t execute_forward();
-    status_t execute_backward_data();
-
-    // Computes output h (x) w (x) 8
-    void(*ker_hw8_first)(const void *);
-    void(*ker_hw8_last )(const void *);
-    void(*ker_hw8      )(const void *);
-
-    typename prec_trait<prec>::type jit_alpha, jit_one;
-    typename ::xbyak_lrn *jit_lrn, *jit_lrn_first, *jit_lrn_last;
-
-protected:
-    status_t execute_impl() {
-        switch (_ppd.lrn_desc.prop_kind) {
-        case forward: return execute_forward(); break;
-        case backward_data: return execute_backward_data(); break;
-        default: assert(0 && "invalid prop_kind");
-        }
-        return unimplemented;
-    }
-
+class jit_avx2_lrn:
+    public lrn<jit_avx2_lrn<prec>> {
 public:
     typedef typename prec_trait<prec>::type data_t;
+    using lrn<jit_avx2_lrn<prec>>::lrn;
 
-    jit_avx2_lrn(const lrn_primitive_desc_t &ppd,
-        const primitive_at_t *inputs, const primitive *outputs[]);
-
+    jit_avx2_lrn(const lrn_primitive_desc_t &lpd, const primitive_at_t *inputs,
+            const primitive *outputs[]);
     ~jit_avx2_lrn();
 
-    /* static magic */
-    static status_t primitive_desc_init(primitive_desc_t *primitive_desc,
-            const op_desc_t &op_desc, const mkldnn::impl::engine &aengine);
-    static status_t create(primitive **aprimitive,
-            const primitive_desc_t *primitive_desc,
-            const primitive_at_t inputs[], const primitive *outputs[]);
+    static status_t set_default_parameters(lrn_desc_t &lrn_d);
+    static status_t constraint(const lrn_desc_t &lrn_d);
+
     static const primitive_impl implementation;
+private:
+    /* Computes output h (x) w (x) 8 */
+    void(*ker_hw8_first)(const void *);
+    void(*ker_hw8_last)(const void *);
+    void(*ker_hw8)(const void *);
+
+    data_t jit_alpha, jit_one;
+    typename ::xbyak_lrn *jit_lrn, *jit_lrn_first, *jit_lrn_last;
+
+    status_t execute_forward();
 };
 
-}}}
+}
+}
+}
 
 #endif
 
