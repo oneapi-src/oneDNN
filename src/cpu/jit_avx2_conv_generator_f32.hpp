@@ -21,7 +21,9 @@
 
 #include "jit_generator.hpp"
 
-namespace mkldnn { namespace impl { namespace cpu {
+namespace mkldnn {
+namespace impl {
+namespace cpu {
 
 typedef struct {
     int ic, oc;
@@ -40,8 +42,7 @@ typedef struct {
     mkldnn_memory_format_t src_fmt;
 } jit_convolution_param_t;
 
-typedef struct __attribute__ ((__packed__))
-jit_convolution_kernel_s {
+typedef struct __attribute__((__packed__)) jit_convolution_kernel_s {
     const float *src; /* hack, non-const for backward_data */
     const float *dst; /* hack, non-const for forward */
     const float *filt; /* hack, non-const for backward_weights */
@@ -51,34 +52,36 @@ jit_convolution_kernel_s {
     size_t kh_padding;
     size_t kh_padding_prf;
     size_t kw_padding;
-}  jit_convolution_kernel_t;
+} jit_convolution_kernel_t;
 
-class jit_avx2_conv_generator_f32 : public jit_generator
-{
+class jit_avx2_conv_generator_f32 : public jit_generator {
 private:
-    Xbyak::Reg64 reg_input      = rax;
-    Xbyak::Reg64 aux_reg_input  = r8;
-    Xbyak::Reg64 reg_kernel     = rdx;
+    Xbyak::Reg64 reg_input = rax;
+    Xbyak::Reg64 aux_reg_input = r8;
+    Xbyak::Reg64 reg_kernel = rdx;
     Xbyak::Reg64 aux_reg_kernel = r9;
-    Xbyak::Reg64 reg_output     = rsi;
+    Xbyak::Reg64 reg_output = rsi;
 
-    Xbyak::Reg64 kj      = r10;
+    Xbyak::Reg64 kj = r10;
     Xbyak::Reg64 oi_iter = r11;
     Xbyak::Reg64 ki_iter = r12;
-    Xbyak::Reg64 reg_kh  = rcx;
+    Xbyak::Reg64 reg_kh = rcx;
+    inline void oh_step_unroll(jit_convolution_param_t *params, uint32_t ur_w,
+            int pad_l, int pad_r);
 
-    inline void hsw_iter(jit_convolution_param_t *params, uint32_t ur_w,
-                         int pad_l, int pad_r, const char* kh_lable, const char* kw_lable);
+    inline void oh_step_nopad(jit_convolution_param_t *params, uint32_t ur_w,
+            int pad_l, int pad_r, const char *kw_lable);
+
+    inline void width_blk_step(jit_convolution_param_t *params, uint32_t ur_w,
+            int pad_l, int pad_r, const char *kh_lable, const char *kw_lable);
 
 public:
-
-    jit_avx2_conv_generator_f32(
-        jit_convolution_param_t *params,
-        void* code_ptr = nullptr,
-        size_t code_size = 8 * Xbyak::DEFAULT_MAX_CODE_SIZE
-        );
+    jit_avx2_conv_generator_f32(jit_convolution_param_t *params,
+            void *code_ptr = nullptr,
+            size_t code_size = 8 * Xbyak::DEFAULT_MAX_CODE_SIZE);
 };
-
-}}}
+}
+}
+}
 
 #endif
