@@ -80,7 +80,6 @@ protected:
     }
 
 private:
-    /* every inner product has to provide data_t and index_t types */
     template <typename Impl = pooling_impl>
     using data_t = typename Impl::data_t;
     template <typename Impl = pooling_impl>

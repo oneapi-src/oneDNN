@@ -22,6 +22,7 @@
 #include "c_types_map.hpp"
 #include "primitive.hpp"
 #include "type_helpers.hpp"
+#include "utils.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -77,7 +78,6 @@ protected:
     { return success; }
 
 private:
-    /* every inner product has to provide data_t type */
     template <typename Impl = inner_product_impl>
     using data_t = typename Impl::data_t;
 

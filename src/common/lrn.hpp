@@ -77,7 +77,6 @@ protected:
     { return lrn_d.dst_desc; }
 
 private:
-    /* every inner product has to provide data_t type */
     template <typename Impl = lrn_impl>
     using data_t = typename Impl::data_t;
 

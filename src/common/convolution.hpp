@@ -81,7 +81,6 @@ protected:
     { return success; }
 
 private:
-    /* every inner product has to provide data_t type */
     template <typename Impl = convolution_impl>
     using data_t = typename Impl::data_t;
 
