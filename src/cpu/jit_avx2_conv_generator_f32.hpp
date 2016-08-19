@@ -17,8 +17,7 @@
 #ifndef CPU_JIT_AVX2_CONV_GENERATOR_F32_HPP
 #define CPU_JIT_AVX2_CONV_GENERATOR_F32_HPP
 
-#include "mkldnn_types.h"
-
+#include "c_types_map.hpp"
 #include "jit_generator.hpp"
 
 namespace mkldnn {
@@ -39,7 +38,7 @@ typedef struct {
     uint32_t ur_h, ur_w;
     uint32_t ur_w_tail;
     uint32_t ngroups;
-    mkldnn_memory_format_t src_fmt;
+    memory_format_t src_fmt;
 } jit_convolution_param_t;
 
 typedef struct __attribute__((__packed__)) jit_convolution_kernel_s {
@@ -56,23 +55,27 @@ typedef struct __attribute__((__packed__)) jit_convolution_kernel_s {
 
 class jit_avx2_conv_generator_f32 : public jit_generator {
 private:
-    Xbyak::Reg64 reg_input = rax;
-    Xbyak::Reg64 aux_reg_input = r8;
-    Xbyak::Reg64 reg_kernel = rdx;
-    Xbyak::Reg64 aux_reg_kernel = r9;
-    Xbyak::Reg64 reg_output = rsi;
+    using reg64_t = const Xbyak::Reg64;
+    reg64_t reg_input = rax;
+    reg64_t aux_reg_input = r8;
+    reg64_t reg_kernel = rdx;
+    reg64_t aux_reg_kernel = r9;
+    reg64_t reg_output = rsi;
 
-    Xbyak::Reg64 kj = r10;
-    Xbyak::Reg64 oi_iter = r11;
-    Xbyak::Reg64 ki_iter = r12;
-    Xbyak::Reg64 reg_kh = rcx;
-    inline void oh_step_unroll(jit_convolution_param_t *params, uint32_t ur_w,
+    reg64_t kj = r10;
+    reg64_t oi_iter = r11;
+    reg64_t ki_iter = r12;
+    reg64_t reg_kh = rcx;
+
+    const bool _src_in_nchw;
+
+    inline void oh_step_unroll(jit_convolution_param_t *params, int ur_w,
             int pad_l, int pad_r);
 
-    inline void oh_step_nopad(jit_convolution_param_t *params, uint32_t ur_w,
+    inline void oh_step_nopad(jit_convolution_param_t *params, int ur_w,
             int pad_l, int pad_r, const char *kw_lable);
 
-    inline void width_blk_step(jit_convolution_param_t *params, uint32_t ur_w,
+    inline void width_blk_step(jit_convolution_param_t *params, int ur_w,
             int pad_l, int pad_r, const char *kh_lable, const char *kw_lable);
 
 public:
