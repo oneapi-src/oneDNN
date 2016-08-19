@@ -14,25 +14,17 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_types.h"
-
 #include "c_types_map.hpp"
-#include "reference_inner_product.hpp"
 #include "type_helpers.hpp"
+
+#include "reference_inner_product.hpp"
 
 namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::prop_kind;
-using namespace mkldnn::impl::precision;
-using namespace mkldnn::impl::memory_format;
-using namespace mkldnn::impl::primitive_kind;
-
 template <impl::precision_t prec>
-status_t reference_inner_product<prec>::execute_forward()
-{
+status_t reference_inner_product<prec>::execute_forward() {
     auto obtain_ptr = [this](uint32_t idx) {
         const size_t oi = this->input()[idx].output_index;
         return reinterpret_cast<const data_t *>(
@@ -40,7 +32,7 @@ status_t reference_inner_product<prec>::execute_forward()
     };
     const data_t *src = obtain_ptr(0);
     const data_t *weights = obtain_ptr(1);
-    const data_t *bias = _with_bias ? obtain_ptr(2) : nullptr;
+    const data_t *bias = this->_with_bias ? obtain_ptr(2) : nullptr;
     data_t *dst = reinterpret_cast<data_t *>(this->output()[0]->memory());
 
     const memory_desc_wrapper src_d(this->_ippd.src_primitive_desc.memory_desc),
@@ -85,123 +77,24 @@ status_t reference_inner_product<prec>::execute_forward()
         }
     }
 
-    return success;
+    return status::success;
 }
 
 template <impl::precision_t prec>
-status_t reference_inner_product<prec>::execute_backward_data()
-{
-    return unimplemented;
+status_t reference_inner_product<prec>::constraint(
+        const inner_product_desc_t &ip_d) {
+    bool args_ok = ip_d.prop_kind == prop_kind::forward;
+    return args_ok ? success : unimplemented;
 }
 
-template <impl::precision_t prec>
-status_t reference_inner_product<prec>::execute_backward_weights()
-{
-    return unimplemented;
-}
-
-template <impl::precision_t prec>
-status_t reference_inner_product<prec>::execute_backward_bias()
-{
-    return unimplemented;
-}
-
-template <impl::precision_t prec>
-status_t reference_inner_product<prec>::primitive_desc_init(
-        primitive_desc_t *primitive_desc, const op_desc_t &op_desc,
-        const mkldnn::impl::engine &engine)
-{
-    if (op_desc._kind != primitive_kind::inner_product)
-        return invalid_arguments;
-    auto ip_d = op_desc.inner_product;
-
-    if (ip_d.prop_kind != forward)
-        return unimplemented;
-
-    if (ip_d.weights_desc.tensor_desc.ndims !=
-            ip_d.weights_desc.tensor_desc.ndims)
-        return invalid_arguments;
-
-    /* memory descriptors check and fill-in */
-    if (ip_d.src_desc.format == any) {
-        if (ip_d.src_desc.tensor_desc.ndims == 4) {
-            CHECK(mkldnn_memory_desc_init(
-                    &ip_d.src_desc, &ip_d.src_desc.tensor_desc, prec, nchw));
-        } else if (ip_d.src_desc.tensor_desc.ndims == 2) {
-            CHECK(mkldnn_memory_desc_init(
-                    &ip_d.src_desc, &ip_d.src_desc.tensor_desc, prec, nc));
-        } else {
-            return unimplemented;
-        }
-    }
-    if (ip_d.weights_desc.format == any) {
-        if (ip_d.weights_desc.tensor_desc.ndims == 4) {
-            CHECK(mkldnn_memory_desc_init(&ip_d.weights_desc,
-                    &ip_d.weights_desc.tensor_desc, prec, oihw));
-        } else if (ip_d.src_desc.tensor_desc.ndims == 2) {
-            CHECK(mkldnn_memory_desc_init(&ip_d.weights_desc,
-                    &ip_d.weights_desc.tensor_desc, prec, oi));
-        } else {
-            return unimplemented;
-        }
-    }
-    const bool with_bias = !memory_desc_wrapper(ip_d.bias_desc).is_zero();
-    if (with_bias && ip_d.bias_desc.format == any)
-        CHECK(mkldnn_memory_desc_init(&ip_d.bias_desc,
-                    &ip_d.bias_desc.tensor_desc, prec, x));
-    if (ip_d.dst_desc.format == any)
-        CHECK(mkldnn_memory_desc_init(
-                &ip_d.dst_desc, &ip_d.dst_desc.tensor_desc, prec, nc));
-
-    /* memory primitive descriptors check */
-    memory_primitive_desc_t src_pd, weights_pd, bias_pd, dst_pd;
-    CHECK(mkldnn_memory_primitive_desc_init(&src_pd, &ip_d.src_desc, &engine));
-    CHECK(mkldnn_memory_primitive_desc_init(
-            &weights_pd, &ip_d.weights_desc, &engine));
-    CHECK(mkldnn_memory_primitive_desc_init(
-            &bias_pd, &ip_d.bias_desc, &engine));
-    CHECK(mkldnn_memory_primitive_desc_init(&dst_pd, &ip_d.dst_desc, &engine));
-
-    /* final stage */
-    inner_product_primitive_desc_t ippd;
-    ippd.base.primitive_kind = inner_product;
-    ippd.base.engine = &engine;
-    ippd.base.implementation = reinterpret_cast<const void*>(&implementation);
-    ippd.inner_product_desc = ip_d;
-    ippd.src_primitive_desc = src_pd;
-    ippd.weights_primitive_desc = weights_pd;
-    ippd.bias_primitive_desc = bias_pd;
-    ippd.dst_primitive_desc = dst_pd;
-
-    // if (!inner_product_primitive_desc_is_ok(ippd)) return invalid_arguments; // ???
-
-    primitive_desc->inner_product = ippd;
-
-    return success;
-}
-
-namespace {
-template <impl::precision_t prec>
-status_t create(primitive **aprimitive,
-        const primitive_desc_t *primitive_desc, const primitive_at_t inputs[],
-        const primitive *outputs[])
-{
-    assert(primitive_desc->base.primitive_kind == inner_product);
-
-    auto &ippd = primitive_desc->inner_product;
-    // TODO: some checks here.
-
-    *aprimitive = new reference_inner_product<prec>(ippd, inputs, outputs);
-    return aprimitive ? success : out_of_memory;
-}
-}
 
 template <impl::precision_t prec>
 const primitive_impl reference_inner_product<prec>::implementation = {
-    create<prec>
+    reference_inner_product<prec>::create
 };
 
-template class reference_inner_product<f32>;
+template class reference_inner_product<precision::f32>;
+
 }
 }
 }
