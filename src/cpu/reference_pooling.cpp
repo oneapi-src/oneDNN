@@ -22,20 +22,21 @@
 
 #include <limits>
 
-namespace mkldnn { namespace impl { namespace cpu {
+namespace mkldnn {
+namespace impl {
+namespace cpu {
 
 using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::prop_kind;
-using namespace mkldnn::impl::alg_kind;
-using namespace mkldnn::impl::precision;
-using namespace mkldnn::impl::memory_format;
-using namespace mkldnn::impl::primitive_kind;
 
 template <impl::precision_t prec>
 status_t reference_pooling<prec>::execute_forward() {
-    const data_t *src = reinterpret_cast<const data_t *>(this->input()[0].primitive->output()[this->input()[0].output_index]->memory_const());
-    uint32_t *indices = reinterpret_cast<uint32_t*>(this->input()[1].primitive->output()[this->input()[1].output_index]->memory());
-    data_t *dst = reinterpret_cast<data_t*>(this->output()[0]->memory());
+    auto src = reinterpret_cast<const data_t *>(
+            this->input()[0].primitive->output()[
+            this->input()[0].output_index]->memory_const());
+    auto indices = reinterpret_cast<index_t*>(
+            this->input()[1].primitive->output()[
+            this->input()[1].output_index]->memory());
+    auto dst = reinterpret_cast<data_t*>(this->output()[0]->memory());
 
     const memory_desc_wrapper
         src_d(this->_ppd.src_primitive_desc.memory_desc),
@@ -95,81 +96,19 @@ status_t reference_pooling<prec>::execute_forward() {
 }
 
 template <impl::precision_t prec>
-status_t reference_pooling<prec>::execute_backward_data() {
-    return unimplemented;
-}
-
-template <impl::precision_t prec>
-status_t reference_pooling<prec>::primitive_desc_init(
-        primitive_desc_t *primitive_desc, const op_desc_t &op_desc,
-        const mkldnn::impl::engine &engine) {
-    if (op_desc._kind != primitive_kind::pooling)
-        return invalid_arguments;
-    auto pool_d = op_desc.pooling;
-
-    if (pool_d.prop_kind != forward)
-        return unimplemented;
-    if (pool_d.alg_kind != pooling_max)
-        return unimplemented;
-
-    /* memory descriptors check and fill-in */
-    if (pool_d.src_desc.format == any)
-        CHECK(mkldnn_memory_desc_init(&pool_d.src_desc,
-        &pool_d.src_desc.tensor_desc, prec, nchw));
-    if (pool_d.dst_desc.format == any)
-        CHECK(mkldnn_memory_desc_init(&pool_d.dst_desc,
-        &pool_d.dst_desc.tensor_desc, prec, pool_d.src_desc.format));
-
-    memory_desc_t indices_desc;
-    CHECK(mkldnn_memory_desc_init(&indices_desc,
-        &pool_d.dst_desc.tensor_desc, u32, pool_d.dst_desc.format));
-
-    /* memory primitive descriptors check */
-    memory_primitive_desc_t src_pd, indices_pd, dst_pd;
-    CHECK(mkldnn_memory_primitive_desc_init(&src_pd,
-        &pool_d.src_desc, &engine));
-    CHECK(mkldnn_memory_primitive_desc_init(&dst_pd,
-        &pool_d.dst_desc, &engine));
-    CHECK(mkldnn_memory_primitive_desc_init(&indices_pd,
-        &indices_desc, &engine));
-
-    /* final stage */
-    pooling_primitive_desc_t ppd;
-    ppd.base.primitive_kind = pooling;
-    ppd.base.engine = &engine;
-    ppd.base.implementation = reinterpret_cast<const void*>(&implementation);
-    ppd.pooling_desc = pool_d;
-    ppd.src_primitive_desc   = src_pd;
-    ppd.indices_primitive_desc = indices_pd;
-        ppd.dst_primitive_desc  = dst_pd;
-
-    // if (!pooling_primitive_desc_is_ok(ppd)) return invalid_arguments; // ???
-
-    primitive_desc->pooling = ppd;
-
-    return success;
-}
-
-namespace {
-template <impl::precision_t prec>
-status_t create(primitive **aprimitive, const primitive_desc_t *primitive_desc,
-        const primitive_at_t inputs[], const primitive *outputs[]) {
-    assert(primitive_desc->base.primitive_kind == pooling);
-
-    auto& ppd = primitive_desc->pooling;
-    // TODO: some checks here.
-
-    *aprimitive = new reference_pooling<prec>(ppd, inputs, outputs);
-    return aprimitive ? success : out_of_memory;
-}
+status_t reference_pooling<prec>::constraint(const pooling_desc_t &pool_d) {
+    bool args_ok = true
+        && pool_d.prop_kind == prop_kind::forward
+        && pool_d.alg_kind == alg_kind::pooling_max;
+    return args_ok ? success : unimplemented;
 }
 
 template <impl::precision_t prec>
 const primitive_impl reference_pooling<prec>::implementation = {
-    create<prec>
+    reference_pooling<prec>::create
 };
 
-template class reference_pooling<f32>;
+template class reference_pooling<precision::f32>;
 
 }}}
 
