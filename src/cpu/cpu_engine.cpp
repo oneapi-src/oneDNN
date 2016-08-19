@@ -22,6 +22,7 @@
 #include "cpu/reference_convolution.hpp"
 #include "cpu/jit_avx2_convolution.hpp"
 #include "cpu/reference_pooling.hpp"
+#include "cpu/jit_avx2_pooling.hpp"
 #include "cpu/reference_relu.hpp"
 #include "cpu/reference_lrn.hpp"
 #include "cpu/jit_avx2_lrn.hpp"
@@ -45,6 +46,7 @@ primitive_desc_init_f primitive_inits[] = {
     cpu_memory::memory_desc_init,
     jit_avx2_convolution<f32>::primitive_desc_init,
     reference_convolution<f32>::primitive_desc_init,
+    jit_avx2_pooling<f32>::primitive_desc_init,
     reference_pooling<f32>::primitive_desc_init,
     reference_relu<f32>::primitive_desc_init,
     jit_avx2_lrn<f32>::primitive_desc_init,
