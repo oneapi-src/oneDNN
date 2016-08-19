@@ -39,6 +39,13 @@ template<class T> struct enable_if<true, T> { typedef T type; };
 }
 
 template <typename T, typename P>
+inline bool everyone_is(T val, P item) { return val == item; }
+template <typename T, typename P, typename... Args>
+inline bool everyone_is(T val, P item, Args... item_others) {
+    return val == item && everyone_is(val, item_others...);
+}
+
+template <typename T, typename P>
 inline bool one_of(T val, P item) { return val == item; }
 template <typename T, typename P, typename... Args>
 inline bool one_of(T val, P item, Args... item_others) {
