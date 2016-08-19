@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef XBYAK_UTILS_FOR_MKLDNN
-#define XBYAK_UTILS_FOR_MKLDNN
+#ifndef CPU_JIT_AVX2_GENERATOR_HPP
+#define CPU_JIT_AVX2_GENERATOR_HPP
 
 #define XBYAK64
 #define XBYAK_NO_OP_NAMES
@@ -33,8 +33,13 @@
     #define YWORD ymmword
 #endif
 
+namespace mkldnn {
+namespace impl {
+namespace cpu {
+
+namespace {
+using namespace Xbyak;
 #ifdef XBYAK64
-namespace Xbyak { namespace util {
 static const Operand::Code reg_to_preserve[] = {
     Operand::RBX, Operand::RSP, Operand::RBP,
     Operand::R12, Operand::R13, Operand::R14, Operand::R15,
@@ -44,12 +49,41 @@ static const Operand::Code reg_to_preserve[] = {
 };
 #ifdef _WIN
 static const Reg64 cdecl_param1(Operand::RCX), cdecl_param2(Operand::RDX),
-                                cdecl_param3(Operand::R8), cdecl_param4(Operand::R9);
+             cdecl_param3(Operand::R8), cdecl_param4(Operand::R9);
 #else
 static const Reg64 cdecl_param1(Operand::RDI), cdecl_param2(Operand::RSI),
-                                cdecl_param3(Operand::RDX), cdecl_param4(Operand::RCX);
+             cdecl_param3(Operand::RDX), cdecl_param4(Operand::RCX);
 #endif
-}}
 #endif
+}
+
+class jit_generator : public Xbyak::CodeGenerator
+{
+protected:
+    Xbyak::Reg64 param1 = cdecl_param1;
+    void preamble() {
+        const size_t nregs = sizeof(reg_to_preserve)/sizeof(reg_to_preserve[0]);
+        for (size_t i = 0; i < nregs; ++i)
+            push(Xbyak::Reg64(reg_to_preserve[i]));
+    }
+    void postamble() {
+        const size_t nregs = sizeof(reg_to_preserve)/sizeof(reg_to_preserve[0]);
+        for (size_t i = 0; i < nregs; ++i)
+            pop(Xbyak::Reg64(reg_to_preserve[nregs - 1 - i]));
+        ret();
+    }
+
+public:
+    jit_generator(
+        void* code_ptr = nullptr,
+        size_t code_size = 8 * Xbyak::DEFAULT_MAX_CODE_SIZE
+        ) : Xbyak::CodeGenerator(code_size, code_ptr)
+    {
+    }
+};
+
+}
+}
+}
 
 #endif

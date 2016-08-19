@@ -21,10 +21,9 @@
 #include "type_helpers.hpp"
 
 #if 1
-#include "xbyak_proxy.hpp"
-#include "jit_avx2_generator.hpp"
+#include "jit_generator.hpp"
 
-class xbyak_lrn : public mkldnn::impl::cpu::jit_avx2_generator
+class xbyak_lrn : public mkldnn::impl::cpu::jit_generator
 {
 public:
     Xbyak::Reg64 src = rax;
@@ -57,7 +56,7 @@ public:
         void* code_ptr = nullptr,
         size_t code_size = 1 * Xbyak::DEFAULT_MAX_CODE_SIZE)
         :
-        jit_avx2_generator(code_ptr, code_size)
+        jit_generator(code_ptr, code_size)
     {
             if (compile_time_HW == 0)
             {

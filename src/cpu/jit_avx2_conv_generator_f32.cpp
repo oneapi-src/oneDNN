@@ -16,7 +16,6 @@
 
 #include "mkldnn_types.h"
 
-#include "xbyak_proxy.hpp"
 #include "jit_avx2_conv_generator_f32.hpp"
 #include "nstl.hpp"
 
@@ -130,7 +129,7 @@ jit_avx2_conv_generator_f32::jit_avx2_conv_generator_f32(
     jit_convolution_param_t *params,
     void* code_ptr,
     size_t code_size
-    ) : jit_avx2_generator(code_ptr, code_size)
+    ) : jit_generator(code_ptr, code_size)
 {
     using Xbyak::Ymm;
     this->preamble();

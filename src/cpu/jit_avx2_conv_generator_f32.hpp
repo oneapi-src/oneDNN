@@ -19,8 +19,7 @@
 
 #include "mkldnn_types.h"
 
-#include "xbyak_proxy.hpp"
-#include "jit_avx2_generator.hpp"
+#include "jit_generator.hpp"
 
 namespace mkldnn { namespace impl { namespace cpu {
 
@@ -54,7 +53,7 @@ jit_convolution_kernel_s {
     size_t kw_padding;
 }  jit_convolution_kernel_t;
 
-class jit_avx2_conv_generator_f32 : public jit_avx2_generator
+class jit_avx2_conv_generator_f32 : public jit_generator
 {
 private:
     Xbyak::Reg64 reg_input      = rax;
