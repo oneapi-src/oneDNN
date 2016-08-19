@@ -94,7 +94,7 @@ private:
             decltype(&Impl::constraint))
     { return Impl::constraint(lrn_d); }
     template <typename Impl>
-    static void /*memory_desc_t*/ get_scratch(const lrn_desc_t &lrn_d,
+    static memory_desc_t get_scratch(const lrn_desc_t &lrn_d,
             decltype(&Impl::get_scratch))
     { return Impl::get_scratch(lrn_d); }
 };
