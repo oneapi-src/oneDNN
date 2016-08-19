@@ -57,8 +57,8 @@ protected:
         case prop_kind::backward_data: return execute_backward_data();
         case prop_kind::backward_weights: return execute_backward_weights();
         case prop_kind::backward_bias: return execute_backward_bias();
+        default: assert(!"invalid prop_kind");
         }
-        assert(!"invalid prop_kind");
         return unimplemented;
     }
 
@@ -125,7 +125,7 @@ status_t inner_product<inner_product_impl>::primitive_desc_init(
     if (status != success) return status;
 
     /* final stage */
-    inner_product_primitive_desc_t ippd;
+    inner_product_primitive_desc_t ippd = {};
     ippd.base.primitive_kind = primitive_kind::inner_product;
     ippd.base.engine = &aengine;
     ippd.base.implementation = reinterpret_cast<const void*>(
