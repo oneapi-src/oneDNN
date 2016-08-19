@@ -159,13 +159,6 @@ status_t convolution<convolution_impl>::create(
     return aprimitive ? success : out_of_memory;
 }
 
-template <impl::precision_t prec>
-inline status_t conv_set_default_format(memory_desc_t &memory_desc,
-        memory_format_t memory_format) {
-    return mkldnn_memory_desc_init(&memory_desc, &memory_desc.tensor_desc,
-            prec, memory_format);
-}
-
 template <typename convolution_impl> template <typename Impl>
 status_t convolution<convolution_impl>::set_default_parameters(
         convolution_desc_t &conv_d, ... ) {
@@ -175,14 +168,14 @@ status_t convolution<convolution_impl>::set_default_parameters(
         == (conv_d.src_desc.tensor_desc.ndims + 1);
 
     if (conv_d.src_desc.format == any)
-        CHECK(conv_set_default_format<prec>(conv_d.src_desc, nchw));
+        CHECK(types::set_default_format<prec>(conv_d.src_desc, nchw));
     if (conv_d.weights_desc.format == any)
-        CHECK(conv_set_default_format<prec>(conv_d.weights_desc,
+        CHECK(types::set_default_format<prec>(conv_d.weights_desc,
                     with_groups ? goihw : oihw));
     if (with_bias && conv_d.bias_desc.format == any)
-        CHECK(conv_set_default_format<prec>(conv_d.bias_desc, x));
+        CHECK(types::set_default_format<prec>(conv_d.bias_desc, x));
     if (conv_d.dst_desc.format == any)
-        CHECK(conv_set_default_format<prec>(conv_d.dst_desc,
+        CHECK(types::set_default_format<prec>(conv_d.dst_desc,
                     conv_d.src_desc.format));
 
     return success;

@@ -167,15 +167,15 @@ status_t jit_avx2_convolution<prec>::set_default_parameters(
             == (conv_d.src_desc.tensor_desc.ndims + 1);
 
     if (conv_d.src_desc.format == any) {
-        CHECK(conv_set_default_format<prec>(conv_d.src_desc,
+        CHECK(types::set_default_format<prec>(conv_d.src_desc,
                     flat ? nchw : nChw8c));
     }
     if (conv_d.weights_desc.format == any) {
-        CHECK(conv_set_default_format<prec>(conv_d.weights_desc,
+        CHECK(types::set_default_format<prec>(conv_d.weights_desc,
                     with_groups ? gOIhw8i8o : (flat ? Ohwi8o : OIhw8i8o)));
     }
     if (conv_d.dst_desc.format == any) {
-        CHECK(conv_set_default_format<prec>(conv_d.dst_desc, nChw8c));
+        CHECK(types::set_default_format<prec>(conv_d.dst_desc, nChw8c));
     }
 
     return convolution<jit_avx2_convolution<prec>>::template

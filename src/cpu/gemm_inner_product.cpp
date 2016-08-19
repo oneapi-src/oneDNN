@@ -116,11 +116,11 @@ status_t gemm_inner_product<prec>::set_default_parameters(
         inner_product_desc_t &ip_d) {
     if (ip_d.src_desc.format == any) {
         if (ip_d.src_desc.tensor_desc.ndims == 4)
-            CHECK(ip_set_default_format<prec>(ip_d.src_desc, nChw8c));
+            CHECK(types::set_default_format<prec>(ip_d.src_desc, nChw8c));
     }
     if (ip_d.weights_desc.format == any) {
         if (ip_d.weights_desc.tensor_desc.ndims == 4)
-            CHECK(ip_set_default_format<prec>(ip_d.weights_desc, oIhw8i));
+            CHECK(types::set_default_format<prec>(ip_d.weights_desc, oIhw8i));
     }
 
     return inner_product<gemm_inner_product<prec>>::template

@@ -204,9 +204,9 @@ status_t jit_avx2_lrn<prec>::execute_forward() {
 template <impl::precision_t prec>
 status_t jit_avx2_lrn<prec>::set_default_parameters(lrn_desc_t &lrn_d) {
     if (lrn_d.src_desc.format == any)
-        CHECK(lrn_set_default_format<prec>(lrn_d.src_desc, nChw8c));
+        CHECK(types::set_default_format<prec>(lrn_d.src_desc, nChw8c));
     if (lrn_d.dst_desc.format == any)
-        CHECK(lrn_set_default_format<prec>(lrn_d.dst_desc, nChw8c));
+        CHECK(types::set_default_format<prec>(lrn_d.dst_desc, nChw8c));
     return status::success;
 }
 

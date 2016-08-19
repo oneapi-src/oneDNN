@@ -155,13 +155,6 @@ status_t inner_product<inner_product_impl>::create(
     return aprimitive ? success : out_of_memory;
 }
 
-template <impl::precision_t prec>
-inline status_t ip_set_default_format(memory_desc_t &memory_desc,
-        memory_format_t memory_format) {
-    return mkldnn_memory_desc_init(&memory_desc, &memory_desc.tensor_desc,
-            prec, memory_format);
-}
-
 template <typename inner_product_impl> template <typename Impl>
 status_t inner_product<inner_product_impl>::set_default_parameters(
         inner_product_desc_t &ip_d, ... ) {
@@ -170,24 +163,24 @@ status_t inner_product<inner_product_impl>::set_default_parameters(
 
     if (ip_d.src_desc.format == any) {
         if (ip_d.src_desc.tensor_desc.ndims == 4)
-            CHECK(ip_set_default_format<prec>(ip_d.src_desc, nchw));
+            CHECK(types::set_default_format<prec>(ip_d.src_desc, nchw));
         else if (ip_d.src_desc.tensor_desc.ndims == 2)
-            CHECK(ip_set_default_format<prec>(ip_d.src_desc, nc));
+            CHECK(types::set_default_format<prec>(ip_d.src_desc, nc));
         else
             return unimplemented;
     }
     if (ip_d.weights_desc.format == any) {
         if (ip_d.weights_desc.tensor_desc.ndims == 4)
-            CHECK(ip_set_default_format<prec>(ip_d.weights_desc, oihw));
+            CHECK(types::set_default_format<prec>(ip_d.weights_desc, oihw));
         else if (ip_d.src_desc.tensor_desc.ndims == 2)
-            CHECK(ip_set_default_format<prec>(ip_d.weights_desc, oi));
+            CHECK(types::set_default_format<prec>(ip_d.weights_desc, oi));
         else
             return unimplemented;
     }
     if (with_bias && ip_d.bias_desc.format == any)
-        CHECK(ip_set_default_format<prec>(ip_d.bias_desc, x));
+        CHECK(types::set_default_format<prec>(ip_d.bias_desc, x));
     if (ip_d.dst_desc.format == any)
-        CHECK(ip_set_default_format<prec>(ip_d.dst_desc, nc));
+        CHECK(types::set_default_format<prec>(ip_d.dst_desc, nc));
 
     return success;
 }

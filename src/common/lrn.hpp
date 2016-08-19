@@ -153,22 +153,15 @@ status_t lrn<lrn_impl>::create(
     return aprimitive ? success : out_of_memory;
 }
 
-template <impl::precision_t prec>
-inline status_t lrn_set_default_format(memory_desc_t &memory_desc,
-        memory_format_t memory_format) {
-    return mkldnn_memory_desc_init(&memory_desc, &memory_desc.tensor_desc,
-            prec, memory_format);
-}
-
 template <typename lrn_impl> template <typename Impl>
 status_t lrn<lrn_impl>::set_default_parameters(
         lrn_desc_t &lrn_d, ... ) {
     constexpr precision_t prec = data_trait<data_t<>>::prec;
 
     if (lrn_d.src_desc.format == any)
-        CHECK(lrn_set_default_format<prec>(lrn_d.src_desc, nchw));
+        CHECK(types::set_default_format<prec>(lrn_d.src_desc, nchw));
     if (lrn_d.dst_desc.format == any)
-        CHECK(lrn_set_default_format<prec>(lrn_d.dst_desc,
+        CHECK(types::set_default_format<prec>(lrn_d.dst_desc,
                     lrn_d.src_desc.format));
 
     return success;

@@ -19,6 +19,7 @@
 
 #include <assert.h>
 
+#include "mkldnn.h"
 #include "c_types_map.hpp"
 #include "nstl.hpp"
 #include "utils.hpp"
@@ -100,6 +101,11 @@ inline bool operator==(const memory_primitive_desc_t &lhs,
         const memory_primitive_desc_t &rhs) {
     return lhs.base.engine == rhs.base.engine // XXX: is it true?
         && lhs.memory_desc == rhs.memory_desc;
+}
+
+template <impl::precision_t prec>
+inline status_t set_default_format(memory_desc_t &md, memory_format_t fmt) {
+    return mkldnn_memory_desc_init(&md, &md.tensor_desc, prec, fmt);
 }
 
 template <typename T>
