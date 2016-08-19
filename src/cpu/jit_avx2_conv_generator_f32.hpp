@@ -38,18 +38,17 @@ typedef struct {
     uint32_t ur_h, ur_w;
     uint32_t ur_w_tail;
     uint32_t ngroups;
-    int SIMD_W;
     mkldnn_memory_format_t src_fmt;
 } jit_convolution_param_t;
 
 typedef struct __attribute__ ((__packed__))
 jit_convolution_kernel_s {
-    float *src;
-    float *dst;
-    float *filt;
-    float *src_prf;
-    float *dst_prf;
-    float *filt_prf;
+    const float *src; /* hack, non-const for backward_data */
+    const float *dst; /* hack, non-const for forward */
+    const float *filt; /* hack, non-const for backward_weights */
+    const float *src_prf;
+    const float *dst_prf;
+    const float *filt_prf;
     size_t kh_padding;
     size_t kh_padding_prf;
     size_t kw_padding;
