@@ -18,14 +18,24 @@
 
 #include "c_types_map.hpp"
 #include "jit_avx2_lrn.hpp"
+#include "jit_generator.hpp"
 #include "type_helpers.hpp"
 
-#if 1
-#include "jit_generator.hpp"
+namespace mkldnn {
+namespace impl {
+namespace cpu {
 
-class xbyak_lrn : public mkldnn::impl::cpu::jit_generator
-{
-public:
+using namespace mkldnn::impl::status;
+using namespace mkldnn::impl::memory_format;
+
+enum { VECTOR_LENGTH = 8 };
+typedef struct {
+    const float *src;
+    float *dst, *scratch;
+} jit_args_t;
+
+template <impl::precision_t prec>
+struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
     Xbyak::Reg64 src = rax;
     Xbyak::Reg64 dst = r8;
     Xbyak::Reg64 scratch = rdx;
@@ -53,97 +63,76 @@ public:
         float *run_time_ptr_one,
         uint32_t compile_time_HW,
         int version, // -1 channels 0..7, 1 channels C-8 .. C-1, 0 -- other channels
-        void* code_ptr = nullptr,
+        void *code_ptr = nullptr,
         size_t code_size = 1 * Xbyak::DEFAULT_MAX_CODE_SIZE)
-        :
-        jit_generator(code_ptr, code_size)
+        : jit_generator(code_ptr, code_size)
     {
-            if (compile_time_HW == 0)
-            {
-                ret();
-                return;
-            }
-            this->preamble();
-
-            mov(src, ptr[this->param1 + 0]);
-            mov(dst, ptr[this->param1 + 8]);
-            mov(scratch, ptr[this->param1+ 16]);
-            sub(t, 96);
-            mov(imm_addr64, reinterpret_cast<size_t>(run_time_ptr_alpha));
-            vbroadcastss(yalpha, ptr[imm_addr64]);
-            mov(imm_addr64, reinterpret_cast<size_t>(run_time_ptr_one));
-            vbroadcastss(yone, ptr[imm_addr64]);
-            if (version == -1)
-            {
-                vxorps(ysrc_prev, ysrc_prev, ysrc_prev);
-                vmovups(ptr[t + 0], ysrc_prev);
-            }
-            if (version == +1)
-            {
-                vxorps(ysrc_next, ysrc_next, ysrc_next);
-                vmovups(ptr[t + 64], ysrc_next);
-            }
-
-            mov(hw, compile_time_HW);
-            L(".lrn_loop");
-
-            if (version != -1) vmovups(ysrc_prev, ptr[src - compile_time_HW * 32]);
-            vmovups(ysrc, ptr[src]);
-            if (version != +1) vmovups(ysrc_next, ptr[src + compile_time_HW * 32]);
-
-            if (version != -1) vmovups(ptr[t + 0], ysrc_prev);
-            vmovups(ptr[t + 32], ysrc);
-            if (version != +1) vmovups(ptr[t + 64], ysrc_next);
-
-            vmovups(ya, ptr[t + 32 - 8]);
-            vmovups(yb, ptr[t + 32 - 4]);
-            vmovups(yd, ptr[t + 32 + 4]);
-            vmovups(ye, ptr[t + 32 + 8]);
-            vmulps(ysum, yc, yc);
-            vfmadd231ps(ysum, ya, ya); // ysum <- ysum + ya*ya
-            vfmadd231ps(ysum, yb, yb);
-            vfmadd231ps(ysum, yd, yd);
-            vfmadd231ps(ysum, ye, ye);
-
-            vfmadd132ps(ysum, yone, yalpha); // ysum <- ysum*yalpha+yone
-            vmovaps(ybase, ysum);
-            vmulps(ysum2, ysum, ysum);
-            vmulps(ysum, ysum, ysum2); // ysum = ybase^3;
-            vsqrtps(ysum, ysum);
-            vsqrtps(ysum, ysum); // ysum = ybase^0.75
-            vdivps(ydst, ysrc, ysum); // ydst = ysrc / ysum
-            vmulps(ysum, ysum, ybase); // ysum = ybase ^ 1.75 -- for back prop
-            vmovups(ptr[dst], ydst);
-            vmovups(ptr[scratch], ysum);
-
-            add(src, 32);
-            add(dst, 32);
-            add(scratch, 32);
-            dec(hw);
-            cmp(hw, 0);
-            jne(".lrn_loop", T_NEAR);
-
-            add(t, 96);
-            this->postamble();
+        if (compile_time_HW == 0) {
+            ret();
             return;
         }
+        this->preamble();
+
+        mov(src, ptr[this->param1 + 0]);
+        mov(dst, ptr[this->param1 + 8]);
+        mov(scratch, ptr[this->param1+ 16]);
+        sub(t, 96);
+        mov(imm_addr64, reinterpret_cast<size_t>(run_time_ptr_alpha));
+        vbroadcastss(yalpha, ptr[imm_addr64]);
+        mov(imm_addr64, reinterpret_cast<size_t>(run_time_ptr_one));
+        vbroadcastss(yone, ptr[imm_addr64]);
+        if (version == -1) {
+            vxorps(ysrc_prev, ysrc_prev, ysrc_prev);
+            vmovups(ptr[t + 0], ysrc_prev);
+        }
+        if (version == +1) {
+            vxorps(ysrc_next, ysrc_next, ysrc_next);
+            vmovups(ptr[t + 64], ysrc_next);
+        }
+
+        mov(hw, compile_time_HW);
+        L(".lrn_loop");
+
+        if (version != -1) vmovups(ysrc_prev, ptr[src - compile_time_HW * 32]);
+        vmovups(ysrc, ptr[src]);
+        if (version != +1) vmovups(ysrc_next, ptr[src + compile_time_HW * 32]);
+
+        if (version != -1) vmovups(ptr[t + 0], ysrc_prev);
+        vmovups(ptr[t + 32], ysrc);
+        if (version != +1) vmovups(ptr[t + 64], ysrc_next);
+
+        vmovups(ya, ptr[t + 32 - 8]);
+        vmovups(yb, ptr[t + 32 - 4]);
+        vmovups(yd, ptr[t + 32 + 4]);
+        vmovups(ye, ptr[t + 32 + 8]);
+        vmulps(ysum, yc, yc);
+        vfmadd231ps(ysum, ya, ya); // ysum <- ysum + ya*ya
+        vfmadd231ps(ysum, yb, yb);
+        vfmadd231ps(ysum, yd, yd);
+        vfmadd231ps(ysum, ye, ye);
+
+        vfmadd132ps(ysum, yone, yalpha); // ysum <- ysum*yalpha+yone
+        vmovaps(ybase, ysum);
+        vmulps(ysum2, ysum, ysum);
+        vmulps(ysum, ysum, ysum2); // ysum = ybase^3;
+        vsqrtps(ysum, ysum);
+        vsqrtps(ysum, ysum); // ysum = ybase^0.75
+        vdivps(ydst, ysrc, ysum); // ydst = ysrc / ysum
+        vmulps(ysum, ysum, ybase); // ysum = ybase ^ 1.75 -- for back prop
+        vmovups(ptr[dst], ydst);
+        vmovups(ptr[scratch], ysum);
+
+        add(src, 32);
+        add(dst, 32);
+        add(scratch, 32);
+        dec(hw);
+        cmp(hw, 0);
+        jne(".lrn_loop", T_NEAR);
+
+        add(t, 96);
+        this->postamble();
+    }
 };
-#endif
-
-namespace mkldnn { namespace impl { namespace cpu {
-
-using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::prop_kind;
-using namespace mkldnn::impl::alg_kind;
-using namespace mkldnn::impl::precision;
-using namespace mkldnn::impl::memory_format;
-using namespace mkldnn::impl::primitive_kind;
-
-enum { VECTOR_LENGTH = 8 };
-typedef struct {
-    const float *src;
-    float *dst, *scratch;
-} jit_args_t;
 
 template <impl::precision_t prec>
 jit_avx2_lrn<prec>::jit_avx2_lrn(const lrn_primitive_desc_t &lpd,
@@ -226,7 +215,8 @@ status_t jit_avx2_lrn<prec>::constraint(const lrn_desc_t &lrn_d) {
     const memory_desc_wrapper src_d(lrn_d.src_desc);
 
     bool args_ok = true
-        && lrn_d.alg_kind == lrn_across_channels
+        && lrn_d.prop_kind == prop_kind::forward
+        && lrn_d.alg_kind == alg_kind::lrn_across_channels
         && src_d.ndims() == 4
         && src_d.dims()[1] % VECTOR_LENGTH == 0
         && src_d.dims()[1] >= 2*VECTOR_LENGTH

@@ -22,8 +22,6 @@
 #include "c_types_map.hpp"
 #include "lrn.hpp"
 
-class xbyak_lrn;
-
 namespace mkldnn {
 namespace impl {
 namespace cpu {
@@ -50,7 +48,8 @@ private:
     void(*ker_hw8)(const void *);
 
     data_t jit_alpha, jit_one;
-    typename ::xbyak_lrn *jit_lrn, *jit_lrn_first, *jit_lrn_last;
+    class xbyak_lrn;
+    xbyak_lrn *jit_lrn, *jit_lrn_first, *jit_lrn_last;
 
     status_t execute_forward();
 };
