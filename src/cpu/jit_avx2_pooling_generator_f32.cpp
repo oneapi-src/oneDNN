@@ -39,8 +39,8 @@ inline void jit_avx2_pooling_generator_f32::oh_step(
     // Init output
     for (uint32_t jj = 0; jj < ur_w; jj++) {
         mov(tmp_gpr, _flt_min);
-        movq(xmm15, tmp_gpr);
-        vbroadcastss(Ymm(jj), xmm15);         // output
+        movq(Xmm(jj), tmp_gpr);
+        vbroadcastss(Ymm(jj), Xmm(jj));         // output
         vpxor(Ymm(ur_w+jj), Ymm(ur_w+jj)); // index
         vpxor(Ymm(2*ur_w+jj), Ymm(2*ur_w+jj)); // store-mask
     }
@@ -50,23 +50,29 @@ inline void jit_avx2_pooling_generator_f32::oh_step(
     L(kh_lable); {
         mov(tmp_gpr, kj);
         mov(tmp_gpr2,IW*params->c_block);
-        imul(tmp_gpr, tmp_gpr2);
+        movq(xmm14, tmp_gpr);
+        vpbroadcastd(ymm14, xmm14);
+        vpaddd(ymm14, ymm14, ymm15);
         for (uint32_t ki = 0; ki < KW; ki++) {
             uint32_t jj_start = (uint32_t)nstl::max(0, pad_l-(int)ki);
             uint32_t jj_end   = ur_w -
                 (uint32_t)nstl::max(0, (int)ki+pad_r - (int)(KW-1));
 
+	    int base_input_offset = (ki - pad_l) * params->c_block;
+	    mov(tmp_gpr, base_input_offset);
+	    movq(xmm12, tmp_gpr);
+	    vpbroadcastd(ymm12, xmm12);
+            vpaddd(ymm14, ymm14, ymm12);
+
             for (uint32_t jj = jj_start; jj  < jj_end; jj++) {
-                int aux_input_offset=(ki+jj*stride_w-pad_l)*params->c_block;
+                int aux_input_offset = base_input_offset + jj* stride_w * params->c_block;
+
                 if (aux_input_offset > (int)IW*(int)params->c_block)
                     continue;
                 vmovups(Ymm(3*ur_w+jj),
                     ptr [ aux_reg_input + sizeof(float)*aux_input_offset ]);
 
-                add(tmp_gpr,  aux_input_offset);
-                movq(xmm15, tmp_gpr);
-                vpbroadcastd(ymm14, xmm15);
-                vpaddd(ymm14, ymm14, ymm15);
+                vpaddd(ymm14, ymm14, ymm12);
                 vcmpps(Ymm(2*ur_w+jj), Ymm(jj), Ymm(3*ur_w+jj), _cmp);
                 vblendvps(Ymm(jj), Ymm(jj), Ymm(3*ur_w+jj), Ymm(2*ur_w+jj));
                 vblendvps(Ymm(ur_w+jj), Ymm(ur_w+jj), ymm14,Ymm(2*ur_w+jj));
@@ -101,6 +107,11 @@ jit_avx2_pooling_generator_f32::jit_avx2_pooling_generator_f32(
     mov(reg_arr_init, ptr [ this->param1 + 80]);
 
     vmovdqu(ymm15, ptr [ reg_arr_init ]); // array init
+
+    mov(tmp_gpr, params->stride_w*params->c_block);
+    movq(xmm13, tmp_gpr);
+    vpbroadcastd(ymm13, xmm13);
+
 
     int r_pad  = nstl::max(0, (int)((params->ow-1)*params->stride_w) +
         (int)params->kw - 1 - (int)(params->iw + params->l_pad - 1 ));
