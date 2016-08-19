@@ -14,11 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_types.h"
-
 #include "c_types_map.hpp"
-#include "gemm_inner_product.hpp"
 #include "type_helpers.hpp"
+
+#include "gemm_inner_product.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -77,8 +76,7 @@ using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::primitive_kind;
 
 template <impl::precision_t prec>
-status_t gemm_inner_product<prec>::execute_forward()
-{
+status_t gemm_inner_product<prec>::execute_forward() {
 #ifdef USE_CBLAS
     auto obtain_ptr = [this](uint32_t idx) {
         const size_t oi = this->input()[idx].output_index;
@@ -88,7 +86,7 @@ status_t gemm_inner_product<prec>::execute_forward()
 
     const data_t *src = obtain_ptr(0);
     const data_t *weights = obtain_ptr(1);
-    const data_t *bias = _with_bias ? obtain_ptr(2) : nullptr;
+    const data_t *bias = this->_with_bias ? obtain_ptr(2) : nullptr;
     data_t *dst = reinterpret_cast<data_t *>(this->output()[0]->memory());
 
     const memory_desc_wrapper src_d(this->_ippd.src_primitive_desc.memory_desc),
@@ -114,68 +112,27 @@ status_t gemm_inner_product<prec>::execute_forward()
 }
 
 template <impl::precision_t prec>
-status_t gemm_inner_product<prec>::execute_backward_data()
-{
-    return unimplemented;
-}
-
-template <impl::precision_t prec>
-status_t gemm_inner_product<prec>::execute_backward_weights()
-{
-    return unimplemented;
-}
-
-template <impl::precision_t prec>
-status_t gemm_inner_product<prec>::execute_backward_bias()
-{
-    return unimplemented;
-}
-
-template <impl::precision_t prec>
-status_t set_default_format(memory_desc_t &memory_desc,
-        memory_format_t memory_format)
-{
-    return mkldnn_memory_desc_init(&memory_desc,
-            &memory_desc.tensor_desc, prec, memory_format);
-}
-
-template <impl::precision_t prec>
-status_t gemm_inner_product<prec>::primitive_desc_init(
-        primitive_desc_t *primitive_desc, const op_desc_t &op_desc,
-        const mkldnn::impl::engine &engine)
-{
-#ifdef USE_CBLAS
-    if (op_desc._kind != primitive_kind::inner_product)
-        return invalid_arguments;
-
-    auto ip_d = op_desc.inner_product;
-    if (ip_d.prop_kind != forward)
-        return unimplemented;
-
-    /* memory descriptors check and fill-in */
+status_t gemm_inner_product<prec>::set_default_parameters(
+        inner_product_desc_t &ip_d) {
     if (ip_d.src_desc.format == any) {
         if (ip_d.src_desc.tensor_desc.ndims == 4)
-            CHECK(set_default_format<prec>(ip_d.src_desc, nChw8c));
-        else if (ip_d.src_desc.tensor_desc.ndims == 2)
-            CHECK(set_default_format<prec>(ip_d.src_desc, nc));
-        else
-            return unimplemented;
+            CHECK(ip_set_default_format<prec>(ip_d.src_desc, nChw8c));
     }
-
     if (ip_d.weights_desc.format == any) {
         if (ip_d.weights_desc.tensor_desc.ndims == 4)
-            CHECK(set_default_format<prec>(ip_d.weights_desc, oihw));
-        else if (ip_d.src_desc.tensor_desc.ndims == 2)
-            CHECK(set_default_format<prec>(ip_d.weights_desc, oi));
-        else
-            return unimplemented;
+            CHECK(ip_set_default_format<prec>(ip_d.weights_desc, oIhw8i));
     }
 
-    const bool with_bias = !memory_desc_wrapper(ip_d.bias_desc).is_zero();
-    if (with_bias && ip_d.bias_desc.format == any)
-        CHECK(set_default_format<prec>(ip_d.bias_desc, x));
-    if (ip_d.dst_desc.format == any)
-        CHECK(set_default_format<prec>(ip_d.dst_desc, nc));
+    return inner_product<gemm_inner_product<prec>>::template
+        set_default_parameters<void>(ip_d);
+}
+
+template <impl::precision_t prec>
+status_t gemm_inner_product<prec>::constraint(const inner_product_desc_t &ip_d)
+{
+#ifdef USE_CBLAS
+    bool args_ok = ip_d.prop_kind == prop_kind::forward;
+    if (!args_ok) return unimplemented;
 
     const bool dense_src = memory_desc_wrapper(ip_d.src_desc).is_dense();
     const bool dense_weights = memory_desc_wrapper(ip_d.weights_desc).is_dense();
@@ -189,58 +146,19 @@ status_t gemm_inner_product<prec>::primitive_desc_init(
     if (!dense_src || !dense_weights || !dense_bias || !dense_dst)
         return unimplemented;
 
-    /* memory primitive descriptors check */
-    memory_primitive_desc_t src_pd, weights_pd, bias_pd, dst_pd;
-    CHECK(mkldnn_memory_primitive_desc_init(&src_pd, &ip_d.src_desc, &engine));
-    CHECK(mkldnn_memory_primitive_desc_init(
-            &weights_pd, &ip_d.weights_desc, &engine));
-    CHECK(mkldnn_memory_primitive_desc_init(
-            &bias_pd, &ip_d.bias_desc, &engine));
-    CHECK(mkldnn_memory_primitive_desc_init(&dst_pd, &ip_d.dst_desc, &engine));
-
-    /* final stage */
-    inner_product_primitive_desc_t ippd;
-    ippd.base.primitive_kind = inner_product;
-    ippd.base.engine = &engine;
-    ippd.base.implementation = reinterpret_cast<const void*>(&implementation);
-    ippd.inner_product_desc = ip_d;
-    ippd.src_primitive_desc = src_pd;
-    ippd.weights_primitive_desc = weights_pd;
-    ippd.bias_primitive_desc = bias_pd;
-    ippd.dst_primitive_desc = dst_pd;
-
-    // if (!inner_product_primitive_desc_is_ok(ippd)) return invalid_arguments; // ???
-
-    primitive_desc->inner_product = ippd;
-
     return success;
 #else
     return unimplemented;
 #endif
 }
 
-namespace {
-template <impl::precision_t prec>
-status_t create(primitive **aprimitive,
-        const primitive_desc_t *primitive_desc, const primitive_at_t inputs[],
-        const primitive *outputs[])
-{
-    assert(primitive_desc->base.primitive_kind == inner_product);
-
-    auto &ippd = primitive_desc->inner_product;
-    // TODO: some checks here.
-
-    *aprimitive = new gemm_inner_product<prec>(ippd, inputs, outputs);
-    return aprimitive ? success : out_of_memory;
-}
-}
-
 template <impl::precision_t prec>
 const primitive_impl gemm_inner_product<prec>::implementation = {
-    create<prec>
+    gemm_inner_product<prec>::create
 };
 
 template class gemm_inner_product<f32>;
+
 }
 }
 }
