@@ -20,56 +20,27 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
-#include "type_helpers.hpp"
-#include "primitive.hpp"
-#include "cpu_engine.hpp"
+#include "lrn.hpp"
 
-namespace mkldnn { namespace impl { namespace cpu {
-
-using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::precision;
-using namespace mkldnn::impl::prop_kind;
-using namespace mkldnn::impl::primitive_kind;
+namespace mkldnn {
+namespace impl {
+namespace cpu {
 
 template <impl::precision_t prec>
-class reference_lrn: public primitive {
-private:
-    const impl::lrn_primitive_desc_t &_ppd;
-
-    status_t execute_forward();
-    status_t execute_backward_data();
-
-protected:
-    status_t execute_impl() {
-        switch (_ppd.lrn_desc.prop_kind) {
-        case forward: return execute_forward(); break;
-        case backward_data: return execute_backward_data(); break;
-        default: assert(0 && "invalid prop_kind");
-        }
-        return unimplemented;
-    }
-
+class reference_lrn:
+    public lrn<reference_lrn<prec>> {
 public:
     typedef typename prec_trait<prec>::type data_t;
+    using lrn<reference_lrn<prec>>::lrn;
 
-    reference_lrn(const lrn_primitive_desc_t &ppd,
-            const primitive_at_t *inputs, const primitive *outputs[])
-        : primitive(ppd, const_cast<impl::engine*>(ppd.base.engine), not_ready)
-        , _ppd(_primitive_desc.lrn)
-    {
-        _input.push_back(inputs[0]);
-        _input.push_back(inputs[1]);
-        _output.push_back(outputs[0]);
-    }
-    ~reference_lrn() {}
-
-    /* static magic */
-    static status_t primitive_desc_init(primitive_desc_t *primitive_desc,
-            const op_desc_t &op_desc, const mkldnn::impl::engine &aengine);
     static const primitive_impl implementation;
+private:
+    status_t execute_forward();
 };
 
-}}}
+}
+}
+}
 
 #endif
 

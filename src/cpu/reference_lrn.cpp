@@ -14,51 +14,51 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_types.h"
+#include <math.h>
 
 #include "c_types_map.hpp"
-#include "reference_lrn.hpp"
 #include "type_helpers.hpp"
-#include <cmath>
 
-namespace mkldnn { namespace impl { namespace cpu {
+#include "reference_lrn.hpp"
+
+namespace mkldnn {
+namespace impl {
+namespace cpu {
 
 using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::prop_kind;
-using namespace mkldnn::impl::alg_kind;
-using namespace mkldnn::impl::precision;
-using namespace mkldnn::impl::memory_format;
-using namespace mkldnn::impl::primitive_kind;
 
 template <impl::precision_t prec>
 status_t reference_lrn<prec>::execute_forward() {
-    const data_t *src =
-        reinterpret_cast<const data_t *>(this->input()[0].primitive->output()[this->input()[0].output_index]->memory_const());
-    data_t *scratch =
-        reinterpret_cast<data_t *>(this->input()[1].primitive->output()[this->input()[1].output_index]->memory());
-    data_t *dst =
-        reinterpret_cast<data_t *>(this->output()[0]->memory());
+    auto src = reinterpret_cast<const data_t *>(
+            this->input()[0].primitive->output()[
+            this->input()[0].output_index]->memory_const());
+    auto scratch = reinterpret_cast<data_t *>(
+            this->input()[1].primitive->output()[
+            this->input()[1].output_index]->memory());
+    auto dst = reinterpret_cast<data_t *>(this->output()[0]->memory());
 
     const memory_desc_wrapper
-        src_d(this->_ppd.src_primitive_desc.memory_desc),
-        scratch_d(this->_ppd.scratch_primitive_desc.memory_desc),
-        dst_d(this->_ppd.dst_primitive_desc.memory_desc);
+        src_d(this->_lpd.src_primitive_desc.memory_desc),
+        scratch_d(this->_lpd.scratch_primitive_desc.memory_desc),
+        dst_d(this->_lpd.dst_primitive_desc.memory_desc);
 
     const uint32_t C = src_d.dims()[1];
     const uint32_t H = src_d.dims()[2];
     const uint32_t W = src_d.dims()[3];
+    const bool across_channels =
+        this->_lpd.lrn_desc.alg_kind == alg_kind::lrn_across_channels;
 
     auto ker = [=](data_t *d, uint32_t n, uint32_t oc, uint32_t oh, uint32_t ow)
     {
-        const double alpha = this->_ppd.lrn_desc.alpha;
-        const double beta = this->_ppd.lrn_desc.beta;
+        const double alpha = this->_lpd.lrn_desc.alpha;
+        const double beta = this->_lpd.lrn_desc.beta;
 
-        const uint32_t size = this->_ppd.lrn_desc.local_size;
-        const uint32_t CSIZE = this->_ppd.lrn_desc.alg_kind == lrn_across_channels ? size : 1;
+        const uint32_t size = this->_lpd.lrn_desc.local_size;
+        const uint32_t CSIZE = across_channels ? size : 1;
         const uint32_t HWSIZE = size + 1 - CSIZE;
 
         data_t sum = 0.0;
-        uint32_t summands = this->_ppd.lrn_desc.alg_kind == lrn_across_channels ? size : size*size;
+        uint32_t summands = across_channels ? size : size*size;
         for (uint32_t c = oc; c < oc + CSIZE; ++c) {
             if (c < (CSIZE - 1) / 2) continue;
             if (c >= C + (CSIZE - 1) / 2) continue;
@@ -94,78 +94,14 @@ status_t reference_lrn<prec>::execute_forward() {
 }
 
 template <impl::precision_t prec>
-status_t reference_lrn<prec>::execute_backward_data() {
-    return unimplemented;
-}
+const primitive_impl reference_lrn<prec>::implementation = {
+    reference_lrn<prec>::create
+};
 
-template <impl::precision_t prec>
-status_t reference_lrn<prec>::primitive_desc_init(
-        primitive_desc_t *primitive_desc, const op_desc_t &op_desc,
-        const mkldnn::impl::engine &engine) {
-    if (op_desc._kind != primitive_kind::lrn)
-        return invalid_arguments;
-    auto lrn_d = op_desc.lrn;
+template class reference_lrn<precision::f32>;
 
-    if (lrn_d.prop_kind != forward)
-        return unimplemented;
-
-    /* memory descriptors check and fill-in */
-    if (lrn_d.src_desc.format == any)
-        CHECK(mkldnn_memory_desc_init(&lrn_d.src_desc,
-        &lrn_d.src_desc.tensor_desc, prec, nchw));
-    if (lrn_d.dst_desc.format == any)
-        CHECK(mkldnn_memory_desc_init(&lrn_d.dst_desc,
-        &lrn_d.dst_desc.tensor_desc, prec, lrn_d.src_desc.format));
-
-    memory_desc_t scratch_desc;
-    CHECK(mkldnn_memory_desc_init(&scratch_desc,
-        &lrn_d.dst_desc.tensor_desc, prec, lrn_d.dst_desc.format));
-
-    /* memory primitive descriptors check */
-    memory_primitive_desc_t src_pd, scratch_pd, dst_pd;
-    CHECK(mkldnn_memory_primitive_desc_init(&src_pd,
-        &lrn_d.src_desc, &engine));
-    CHECK(mkldnn_memory_primitive_desc_init(&dst_pd,
-        &lrn_d.dst_desc, &engine));
-    CHECK(mkldnn_memory_primitive_desc_init(&scratch_pd,
-        &scratch_desc, &engine));
-
-    /* final stage */
-    lrn_primitive_desc_t lpd;
-    lpd.base.primitive_kind = lrn;
-    lpd.base.engine = &engine;
-    lpd.base.implementation = reinterpret_cast<const void*>(&implementation);
-    lpd.lrn_desc = lrn_d;
-    lpd.src_primitive_desc   = src_pd;
-    lpd.scratch_primitive_desc = scratch_pd;
-    lpd.dst_primitive_desc  = dst_pd;
-
-    // if (!lrn_primitive_desc_is_ok(lpd)) return invalid_arguments; // ???
-
-    primitive_desc->lrn = lpd;
-
-    return success;
-}
-
-namespace {
-template <impl::precision_t prec>
-status_t create(primitive **aprimitive, const primitive_desc_t *primitive_desc,
-        const primitive_at_t inputs[], const primitive *outputs[]) {
-    assert(primitive_desc->base.primitive_kind == lrn);
-
-    auto& ppd = primitive_desc->lrn;
-    // TODO: some checks here.
-
-    *aprimitive = new reference_lrn<prec>(ppd, inputs, outputs);
-    return aprimitive ? success : out_of_memory;
 }
 }
-
-template <impl::precision_t prec>
-const primitive_impl reference_lrn<prec>::implementation = { create<prec> };
-
-template class reference_lrn<f32>;
-
-}}}
+}
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
