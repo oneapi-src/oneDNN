@@ -135,7 +135,7 @@ status_t mkldnn_stream_create(stream **astream) {
     if (!astream)
         return invalid_arguments;
     *astream = new stream;
-    return astream ? success : out_of_memory;
+    return *astream ? success : out_of_memory;
 }
 
 status_t mkldnn_stream_submit(stream *astream, size_t n,
