@@ -20,62 +20,29 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
-#include "type_helpers.hpp"
-#include "primitive.hpp"
-#include "cpu_engine.hpp"
+#include "convolution.hpp"
 
-namespace mkldnn { namespace impl { namespace cpu {
-
-using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::precision;
-using namespace mkldnn::impl::prop_kind;
-using namespace mkldnn::impl::primitive_kind;
+namespace mkldnn {
+namespace impl {
+namespace cpu {
 
 template <impl::precision_t prec>
-class reference_convolution: public primitive {
-private:
-    const impl::convolution_primitive_desc_t &_cpd;
-    const bool _with_bias;
-
-    status_t execute_forward();
-    status_t execute_backward_data();
-    status_t execute_backward_weights();
-    status_t execute_backward_bias();
-
-protected:
-    status_t execute_impl() {
-        switch (_cpd.convolution_desc.prop_kind) {
-        case forward: return execute_forward(); break;
-        case backward_data: return execute_backward_data(); break;
-        case backward_weights: return execute_backward_weights(); break;
-        case backward_bias: return execute_backward_bias(); break;
-        }
-        assert(0 && "invalid prop_kind");
-        return unimplemented;
-    }
-
+class reference_convolution:
+    public convolution<reference_convolution<prec>> {
 public:
     typedef typename prec_trait<prec>::type data_t;
+    using convolution<reference_convolution<prec>>::convolution;
 
-    reference_convolution(const convolution_primitive_desc_t &cpd,
-            const primitive_at_t *inputs, const primitive *outputs[])
-        : primitive(cpd, const_cast<impl::engine*>(cpd.base.engine), not_ready)
-        , _cpd(_primitive_desc.convolution)
-        , _with_bias(!memory_desc_wrapper(_cpd.bias_primitive_desc).is_zero())
-    {
-        for (int i = 0; i < 2 + _with_bias; ++i)
-            _input.push_back(inputs[i]);
-        _output.push_back(outputs[0]);
-    }
-    ~reference_convolution() {}
+    static status_t constraint(const convolution_desc_t &conv_d);
 
-    /* static magic */
-    static status_t primitive_desc_init(primitive_desc_t *primitive_desc,
-            const op_desc_t &op_desc, const mkldnn::impl::engine &aengine);
     static const primitive_impl implementation;
+private:
+    status_t execute_forward();
 };
 
-}}}
+}
+}
+}
 
 #endif
 

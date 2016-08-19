@@ -14,20 +14,12 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_types.h"
-
 #include "c_types_map.hpp"
-#include "reference_convolution.hpp"
 #include "type_helpers.hpp"
 
-namespace mkldnn { namespace impl { namespace cpu {
+#include "reference_convolution.hpp"
 
-using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::prop_kind;
-using namespace mkldnn::impl::alg_kind;
-using namespace mkldnn::impl::precision;
-using namespace mkldnn::impl::memory_format;
-using namespace mkldnn::impl::primitive_kind;
+namespace mkldnn { namespace impl { namespace cpu {
 
 template <impl::precision_t prec>
 status_t reference_convolution<prec>::execute_forward() {
@@ -38,7 +30,7 @@ status_t reference_convolution<prec>::execute_forward() {
     };
     const data_t *src = obtain_ptr(0);
     const data_t *weights = obtain_ptr(1);
-    const data_t *bias = _with_bias ? obtain_ptr(2) : nullptr;
+    const data_t *bias = this->_with_bias ? obtain_ptr(2) : nullptr;
     data_t *dst = reinterpret_cast<data_t*>(this->output()[0]->memory());
 
     const memory_desc_wrapper
@@ -47,9 +39,8 @@ status_t reference_convolution<prec>::execute_forward() {
         bias_d(this->_cpd.bias_primitive_desc.memory_desc),
         dst_d(this->_cpd.dst_primitive_desc.memory_desc);
 
-    const bool w_groups = weights_d.ndims() == (src_d.ndims() + 1);
-    const uint32_t w_idx_base = w_groups ? 1 : 0;
-    const uint32_t G = w_groups ? weights_d.dims()[0] : 1;
+    const uint32_t w_idx_base = this->_with_groups ? 1 : 0;
+    const uint32_t G = this->_with_groups ? weights_d.dims()[0] : 1;
 
     const uint32_t MB = src_d.dims()[0];
     const uint32_t OH = dst_d.dims()[2];
@@ -83,7 +74,7 @@ status_t reference_convolution<prec>::execute_forward() {
                     const uint32_t ih = oh * KSH - padH + kh;
                     const uint32_t iw = ow * KSW - padW + kw;
 
-                    if (w_groups) {
+                    if (this->_with_groups) {
                         *d += src[src_d.off(mb, g*IC + ic, ih, iw)] *
                             weights[weights_d.off(g, oc, ic, kh, kw)];
                     } else {
@@ -110,104 +101,27 @@ status_t reference_convolution<prec>::execute_forward() {
         }
     }
 
-    return success;
+    return status::success;
 }
 
 template <impl::precision_t prec>
-status_t reference_convolution<prec>::execute_backward_data() {
-    return unimplemented;
-}
-
-template <impl::precision_t prec>
-status_t reference_convolution<prec>::execute_backward_weights() {
-    return unimplemented;
-}
-
-template <impl::precision_t prec>
-status_t reference_convolution<prec>::execute_backward_bias() {
-    return unimplemented;
-}
-
-template <impl::precision_t prec>
-status_t reference_convolution<prec>::primitive_desc_init(
-        primitive_desc_t *primitive_desc, const op_desc_t &op_desc,
-        const mkldnn::impl::engine &engine) {
-    if (op_desc._kind != primitive_kind::convolution)
-        return invalid_arguments;
-    auto conv_d = op_desc.convolution;
-
-    if (conv_d.prop_kind != forward)
-        return unimplemented;
-    if (conv_d.alg_kind != convolution_direct)
-        return unimplemented;
-
-    /* memory descriptors check and fill-in */
-    if (conv_d.src_desc.format == any)
-        CHECK(mkldnn_memory_desc_init(&conv_d.src_desc,
-                    &conv_d.src_desc.tensor_desc, prec, nchw));
-    const bool groups = conv_d.weights_desc.tensor_desc.ndims
-        == (conv_d.src_desc.tensor_desc.ndims + 1);
-    if (conv_d.weights_desc.format == any)
-        CHECK(mkldnn_memory_desc_init(&conv_d.weights_desc,
-                &conv_d.weights_desc.tensor_desc, prec, groups ? goihw : oihw));
-    const bool with_bias = !memory_desc_wrapper(conv_d.bias_desc).is_zero();
-    if (with_bias && conv_d.bias_desc.format == any)
-        CHECK(mkldnn_memory_desc_init(&conv_d.bias_desc,
-                    &conv_d.bias_desc.tensor_desc, prec, x));
-    if (conv_d.dst_desc.format == any)
-        CHECK(mkldnn_memory_desc_init(&conv_d.dst_desc,
-                    &conv_d.dst_desc.tensor_desc, prec, conv_d.src_desc.format));
-
-    /* memory primitive descriptors check */
-    memory_primitive_desc_t src_pd, weights_pd, bias_pd, dst_pd;
-    CHECK(mkldnn_memory_primitive_desc_init(&src_pd, &conv_d.src_desc,
-                &engine));
-    CHECK(mkldnn_memory_primitive_desc_init(&weights_pd, &conv_d.weights_desc,
-                &engine));
-    CHECK(mkldnn_memory_primitive_desc_init(&bias_pd, &conv_d.bias_desc,
-                &engine));
-    CHECK(mkldnn_memory_primitive_desc_init(&dst_pd, &conv_d.dst_desc,
-                &engine));
-
-    /* final stage */
-    convolution_primitive_desc_t cpd;
-    cpd.base.primitive_kind = convolution;
-    cpd.base.engine = &engine;
-    cpd.base.implementation = reinterpret_cast<const void*>(&implementation);
-    cpd.convolution_desc = conv_d;
-    cpd.src_primitive_desc = src_pd;
-    cpd.weights_primitive_desc = weights_pd;
-    cpd.bias_primitive_desc = bias_pd;
-    cpd.dst_primitive_desc = dst_pd;
-
-    // if (!convolution_primitive_desc_is_ok(cpd)) return invalid_arguments; // ???
-
-    primitive_desc->convolution = cpd;
-
-    return success;
-}
-
-namespace {
-template <impl::precision_t prec>
-status_t create(primitive **aprimitive, const primitive_desc_t *primitive_desc,
-        const primitive_at_t inputs[], const primitive *outputs[]) {
-    assert(primitive_desc->base.primitive_kind == convolution);
-
-    auto& cpd = primitive_desc->convolution;
-    // TODO: some checks here.
-
-    *aprimitive = new reference_convolution<prec>(cpd, inputs, outputs);
-    return aprimitive ? success : out_of_memory;
-}
+status_t reference_convolution<prec>::constraint(
+        const convolution_desc_t &conv_d) {
+    bool args_ok = true
+        && conv_d.prop_kind == prop_kind::forward
+        && conv_d.alg_kind == alg_kind::convolution_direct;
+    return args_ok ? success : unimplemented;
 }
 
 template <impl::precision_t prec>
 const primitive_impl reference_convolution<prec>::implementation = {
-    create<prec>
+    reference_convolution<prec>::create
 };
 
-template class reference_convolution<f32>;
+template class reference_convolution<precision::f32>;
 
-}}}
+}
+}
+}
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
