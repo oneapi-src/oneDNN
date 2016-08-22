@@ -40,7 +40,7 @@ public:
         , _lpd(_primitive_desc.lrn)
         , _is_training(_lpd.lrn_desc.prop_kind == prop_kind::forward_training)
     {
-        for (int i = 0; i < 2; ++i)
+        for (int i = 0; i < 1 + _is_training; ++i)
             _input.push_back(inputs[i]);
         _output.push_back(outputs[0]);
     }
@@ -77,8 +77,10 @@ protected:
     static status_t constraint(const lrn_desc_t &lrn_d, ...)
     { return success; }
     template <typename Impl>
-    static memory_desc_t get_scratch(const lrn_desc_t &lrn_d, ...)
-    { return lrn_d.dst_desc; }
+    static memory_desc_t get_scratch(const lrn_desc_t &lrn_d, ...) {
+        return lrn_d.prop_kind == prop_kind::forward_scoring
+            ? types::zero<memory_desc_t>() : lrn_d.dst_desc;
+    }
 
 private:
     template <typename Impl = lrn_impl>

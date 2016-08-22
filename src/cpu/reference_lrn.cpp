@@ -32,9 +32,10 @@ status_t reference_lrn<prec>::execute_forward() {
     auto src = reinterpret_cast<const data_t *>(
             this->input()[0].primitive->output()[
             this->input()[0].output_index]->memory_const());
-    auto scratch = reinterpret_cast<data_t *>(
-            this->input()[1].primitive->output()[
-            this->input()[1].output_index]->memory());
+    data_t *scratch = this->_is_training
+        ? reinterpret_cast<data_t *>(this->input()[1].primitive->output()[
+                this->input()[1].output_index]->memory())
+        : nullptr;
     auto dst = reinterpret_cast<data_t *>(this->output()[0]->memory());
 
     const memory_desc_wrapper
@@ -75,7 +76,9 @@ status_t reference_lrn<prec>::execute_forward() {
         }
         data_t k = pow(1 + alpha * sum / summands, beta);
         d[0] = src[src_d.off(n, oc, oh, ow)] / k;
-        scratch[scratch_d.off(n, oc, oh, ow)] = 1 / (k * (1 + alpha * sum / summands)); // for back prop
+        if (this->_is_training)
+            scratch[scratch_d.off(n, oc, oh, ow)] =
+                1 / (k * (1 + alpha * sum / summands)); // for back prop
     };
 
     const uint32_t N = src_d.dims()[0];

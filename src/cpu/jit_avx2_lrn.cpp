@@ -41,21 +41,24 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
     Xbyak::Reg64 scratch = rdx;
     Xbyak::Reg64 imm_addr64 = rbx;
 
-
     Xbyak::Ymm yalpha = ymm0;
     Xbyak::Ymm yone = ymm1;
 
     static const float one;
     float alpha;
 
+    const bool _is_training;
+
     xbyak_lrn(
         float A,
         uint32_t compile_time_HW,
         int version, // -1 channels 0..7, 1 channels C-8 .. C-1, 0 -- other channels
+        bool is_training,
         void *code_ptr = nullptr,
         size_t code_size = 1 * Xbyak::DEFAULT_MAX_CODE_SIZE)
         : jit_generator(code_ptr, code_size)
         , alpha(A)
+        , _is_training(is_training)
     {
         Xbyak::Reg64 t = rsp;
         Xbyak::Reg64 hw = r9;
@@ -81,7 +84,8 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
 
         mov(src, ptr[this->param1 + 0]);
         mov(dst, ptr[this->param1 + 8]);
-        mov(scratch, ptr[this->param1 + 16]);
+        if (this->_is_training)
+            mov(scratch, ptr[this->param1 + 16]);
         sub(t, 64);
         mov(imm_addr64, reinterpret_cast<size_t>(&this->alpha));
         vbroadcastss(yalpha, ptr[imm_addr64]);
@@ -126,13 +130,16 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
         vsqrtps(ysum, ysum);
         vsqrtps(ysum, ysum); // ysum = ybase^0.75
         vdivps(ydst, ysrc, ysum); // ydst = ysrc / ysum
-        vmulps(ysum, ysum, ybase); // ysum = ybase ^ 1.75 -- for back prop
+        if (this->_is_training)
+            vmulps(ysum, ysum, ybase); // ysum = ybase ^ 1.75 -- for back prop
         vmovups(ptr[dst], ydst);
-        vmovups(ptr[scratch], ysum);
+        if (this->_is_training)
+            vmovups(ptr[scratch], ysum);
 
         add(src, 32);
         add(dst, 32);
-        add(scratch, 32);
+        if (this->_is_training)
+            add(scratch, 32);
         dec(hw);
         cmp(hw, 0);
         jne(".lrn_loop", T_NEAR);
@@ -166,14 +173,13 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
         vmulps(ybase, ydst, ybase); // ybase = (ysum*yalpha+yone) ^ 1.75 -- for back prop
         vdivps(ydst, yc, ydst); // ydst = ysrc / (ysum*yalpha+yone)^0.75
 
-        if (tail != 0)
-            vmaskmovps(ptr[dst], ymask, ydst);
-        else
-            vmovups(ptr[dst], ydst);
-        if (tail != 0)
-            vmaskmovps(ptr[scratch], ymask, ybase);
-        else
-            vmovups(ptr[scratch], ybase);
+        if (tail != 0) vmaskmovps(ptr[dst], ymask, ydst);
+        else vmovups(ptr[dst], ydst);
+
+        if (this->_is_training) {
+            if (tail != 0) vmaskmovps(ptr[scratch], ymask, ybase);
+            else vmovups(ptr[scratch], ybase);
+        }
 
         vfnmadd231ps(ysum, ya, ya);
         vmovups(ya, yb);
@@ -187,11 +193,12 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
         uint32_t compile_time_C,
         uint32_t compile_time_HW,
         int tail, // 0 -- no tail, 1 .. 7 -- read/write only that many elements in ymm's
+        bool is_training,
         void* code_ptr = nullptr,
         size_t code_size = 2 * Xbyak::DEFAULT_MAX_CODE_SIZE)
-        :
-        jit_generator(code_ptr, code_size)
+        : jit_generator(code_ptr, code_size)
         , alpha(A)
+        , _is_training(is_training)
     {
             assert(compile_time_C >= 16);
             static const uint32_t mask[] = {
@@ -221,7 +228,8 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
 
             mov(src, ptr[this->param1 + 0]);
             mov(dst, ptr[this->param1 + 8]);
-            mov(scratch, ptr[this->param1 + 16]);
+            if (this->_is_training)
+                mov(scratch, ptr[this->param1 + 16]);
 
             vxorps(ya, ya, ya);
             vxorps(yb, yb, yb);
@@ -250,7 +258,8 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
 
             add(src, compile_time_HW * 4);
             add(dst, compile_time_HW * 4);
-            add(scratch, compile_time_HW * 4);
+            if (this->_is_training)
+                add(scratch, compile_time_HW * 4);
             dec(c);
             cmp(c, 0);
             jne(".lrn_loop", T_NEAR);
@@ -260,13 +269,13 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
             nchw_body(tail, compile_time_HW, ymask, ya, yb, yc, yd, ye, ysum);
             add(src, compile_time_HW * 4);
             add(dst, compile_time_HW * 4);
-            add(scratch, compile_time_HW * 4);
+            if (this->_is_training)
+                add(scratch, compile_time_HW * 4);
 
             nchw_body(tail, compile_time_HW, ymask, ya, yb, yc, yd, ye, ysum);
 
             this->postamble();
         }
-
 };
 
 template <impl::precision_t prec>
@@ -284,9 +293,10 @@ status_t jit_avx2_lrn<prec>::execute_forward() {
     auto src = reinterpret_cast<const data_t *>(
             this->input()[0].primitive->output()[
             this->input()[0].output_index]->memory_const());
-    auto scratch = reinterpret_cast<data_t *>(
-            this->input()[1].primitive->output()[
-            this->input()[1].output_index]->memory());
+    data_t *scratch = this->_is_training
+        ? reinterpret_cast<data_t *>(this->input()[1].primitive->output()[
+                this->input()[1].output_index]->memory())
+        : nullptr;
     auto dst = reinterpret_cast<data_t *>(this->output()[0]->memory());
 
     const memory_desc_wrapper src_d(this->_lpd.src_primitive_desc.memory_desc);
@@ -377,24 +387,23 @@ jit_avx2_lrn<prec>::jit_avx2_lrn(const lrn_primitive_desc_t &ppd,
     uint32_t W = ppd.src_primitive_desc.memory_desc.tensor_desc.dims[3];
     float A = ppd.lrn_desc.alpha / ppd.lrn_desc.local_size;
 
-    if (ppd.src_primitive_desc.memory_desc.format == nChw8c)
-    {
-        this->jit_lrn = new xbyak_lrn(A, H*W, 0);
-        this->jit_lrn_first = new xbyak_lrn(A, H*W, -1);
-        this->jit_lrn_last = new xbyak_lrn(A, H*W, +1);
-    }
-    else
-    {
+    if (ppd.src_primitive_desc.memory_desc.format == nChw8c) {
+        this->jit_lrn = new xbyak_lrn(A, H*W, 0, this->_is_training);
+        this->jit_lrn_first = new xbyak_lrn(A, H*W, -1, this->_is_training);
+        this->jit_lrn_last = new xbyak_lrn(A, H*W, +1, this->_is_training);
+    } else {
         uint32_t C = ppd.src_primitive_desc.memory_desc.tensor_desc.dims[1];
-        this->jit_lrn = new xbyak_lrn(A, C, H*W, 0);
+        this->jit_lrn = new xbyak_lrn(A, C, H*W, 0, this->_is_training);
         this->jit_lrn_first = nullptr;
-        this->jit_lrn_last = new xbyak_lrn(A, C, H*W, (H*W) % VECTOR_LENGTH);
+        this->jit_lrn_last = new xbyak_lrn(A, C, H*W, (H*W) % VECTOR_LENGTH,
+                this->_is_training);
     }
     typedef void(*kernel_t)(const void*);
     this->ker_hw8 = this->jit_lrn == nullptr ? nullptr : reinterpret_cast<kernel_t>(const_cast<uint8_t*>(this->jit_lrn->getCode()));
     this->ker_hw8_first = this->jit_lrn_first == nullptr ? nullptr : reinterpret_cast<kernel_t>(const_cast<uint8_t*>(this->jit_lrn_first->getCode()));
     this->ker_hw8_last = this->jit_lrn_last == nullptr ? nullptr : reinterpret_cast<kernel_t>(const_cast<uint8_t*>(this->jit_lrn_last->getCode()));
 }
+
 }
 }
 }
