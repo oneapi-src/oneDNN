@@ -8,5 +8,5 @@ mkdir -p $DST
 wget --no-check-certificate -P $DST $MKLURL
 tar -xzf $DST/mklml_lnx*.tgz -C $DST
 
-echo "Downloaded and unpacked MKL libraries for machine learning to $DST"
+echo "Downloaded and unpacked Intel(R) MKL libraries for machine learning to $DST"
 
