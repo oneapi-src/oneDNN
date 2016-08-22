@@ -15,7 +15,7 @@ API compatible with Intel MKL 2017. We will be looking into ways to converge
 API in future releases of Intel MKL.
 
 This release is a technical preview with functionality limited to AlexNet and
-Visual Geometry Group (VGG) topologies forward path. While this library is in
+VGG topologies forward path. While this library is in
 technical preview phase, its API may change without considerations of backward
 compatibility.
 
@@ -48,9 +48,8 @@ request will be merged into our internal and GitHub repositories.
 Intel MKL-DNN supports Intel(R) 64 architecture processors and is optimized for
 * Intel(R) Xeon(R) processor E5-xxxx v3 (codename Haswell)
 * Intel(R) Xeon(R) processor E5-xxxx v4 (codename Broadwell)
-
-Other processors and IA-32 architecture systems will run an unoptimized
-reference implementation.
+Processors without Intel(R) Advanced Vector Instructions (Intel(R) AVX2) are not
+supported in this release.
 
 Software dependencies:
 * [Cmake](https://cmake.org/download/) 2.8.0 or later
