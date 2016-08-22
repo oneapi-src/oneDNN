@@ -174,7 +174,8 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
 
         mov(src, ptr[this->param1 + 0]);
         mov(dst, ptr[this->param1 + 8]);
-        mov(scratch, ptr[this->param1 + 16]);
+        if (pk != prop_kind::forward_scoring)
+            mov(scratch, ptr[this->param1 + 16]);
         mov(imm_addr64, reinterpret_cast<size_t>(&this->alpha));
         vbroadcastss(yalpha, ptr[imm_addr64]);
         mov(imm_addr64, reinterpret_cast<size_t>(&this->one));
@@ -211,7 +212,8 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
         vsqrtps(ydst, ydst);
         vsqrtps(ydst, ydst); // ydst = (ysum*yalpha+yone)^0.75
         vmulps(ybase, ydst, ybase); // ybase = (ysum*yalpha+yone) ^ 1.75 -- for back prop
-        vmovups(ptr[scratch], ybase);
+        if (pk != prop_kind::forward_scoring)
+            vmovups(ptr[scratch], ybase);
 
         vdivps(ydst, yc, ydst); // ydst = ysrc / (ysum*yalpha+yone)^0.75
         vmovups(ptr[dst], ydst);
@@ -220,7 +222,8 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
 
         add(src, 32);
         add(dst, 32);
-        add(scratch, 32);
+        if (pk != prop_kind::forward_scoring)
+            add(scratch, 32);
 
         vmovups(ya, ptr[src - 8]);
         vfmadd231ps(ysum, ya, ya);
@@ -256,7 +259,8 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
         vdivps(ydst, yc, ydst); // ydst = ysrc / (ysum*yalpha+yone)^0.75
 
         vmovups(ptr[dst], ydst);
-        vmovups(ptr[scratch], ybase);
+        if (pk != prop_kind::forward_scoring)
+            vmovups(ptr[scratch], ybase);
 
         this->postamble();
     }
