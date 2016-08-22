@@ -83,7 +83,8 @@ status_t reference_inner_product<prec>::execute_forward() {
 template <impl::precision_t prec>
 status_t reference_inner_product<prec>::constraint(
         const inner_product_desc_t &ip_d) {
-    bool args_ok = ip_d.prop_kind == prop_kind::forward;
+    bool args_ok = one_of(ip_d.prop_kind, prop_kind::forward_training,
+            prop_kind::forward_scoring);
     return args_ok ? success : unimplemented;
 }
 

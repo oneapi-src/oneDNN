@@ -121,7 +121,8 @@ status_t jit_avx2_pooling<prec>::set_default_parameters(
 template <impl::precision_t prec>
 status_t jit_avx2_pooling<prec>::constraint(const pooling_desc_t &pool_d) {
     bool args_ok = true
-        && pool_d.prop_kind == prop_kind::forward
+        && one_of(pool_d.prop_kind, prop_kind::forward_training,
+                prop_kind::forward_scoring)
         && pool_d.alg_kind == alg_kind::pooling_max
         && pool_d.src_desc.format == nChw8c
         && pool_d.dst_desc.format == pool_d.src_desc.format

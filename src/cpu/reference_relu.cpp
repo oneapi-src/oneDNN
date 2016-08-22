@@ -97,12 +97,11 @@ template <impl::precision_t prec>
 status_t reference_relu<prec>::primitive_desc_init(
         primitive_desc_t *primitive_desc, const op_desc_t &op_desc,
         const mkldnn::impl::engine &engine) {
-    if (op_desc._kind != primitive_kind::relu)
-        return invalid_arguments;
     auto relu_d = op_desc.relu;
 
-    if (relu_d.prop_kind != forward)
-        return unimplemented;
+    bool args_ok = op_desc._kind == primitive_kind::relu
+        && one_of(relu_d.prop_kind, forward_training, forward_scoring);
+    if (!args_ok) return unimplemented;
 
     /* memory descriptors check and fill-in */
     /* XXX: code duplication */

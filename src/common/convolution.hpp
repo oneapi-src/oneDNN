@@ -38,6 +38,8 @@ public:
             const primitive_at_t *inputs, const primitive *outputs[])
         : primitive(pd, const_cast<impl::engine *>(pd.base.engine), not_ready)
         , _cpd(_primitive_desc.convolution)
+        , _is_training(_cpd.convolution_desc.prop_kind
+                == prop_kind::forward_training)
         , _with_bias(!memory_desc_wrapper(_cpd.bias_primitive_desc).is_zero())
         , _with_groups(memory_desc_wrapper(_cpd.weights_primitive_desc).ndims()
                 == (memory_desc_wrapper(_cpd.src_primitive_desc).ndims() + 1))
@@ -52,12 +54,15 @@ public:
 
 protected:
     const impl::convolution_primitive_desc_t &_cpd;
+    const bool _is_training;
     const bool _with_bias;
     const bool _with_groups;
 
     virtual status_t execute_impl() {
         switch (_cpd.convolution_desc.prop_kind) {
-        case prop_kind::forward: return execute_forward();
+        case prop_kind::forward_training:
+        case prop_kind::forward_scoring:
+            return execute_forward();
         case prop_kind::backward_data: return execute_backward_data();
         case prop_kind::backward_weights: return execute_backward_weights();
         case prop_kind::backward_bias: return execute_backward_bias();
@@ -116,8 +121,8 @@ status_t convolution<convolution_impl>::primitive_desc_init(
             conv_d.bias_desc.format == memory_format::undef ? prec
             : conv_d.bias_desc.precision, conv_d.dst_desc.precision)
         && op_desc._kind == primitive_kind::convolution
-        && one_of(conv_d.prop_kind, forward, backward_data, backward_weights,
-                backward_bias);
+        && one_of(conv_d.prop_kind, forward_training, forward_scoring,
+                backward_data, backward_weights, backward_bias);
     if (!args_ok) return invalid_arguments;
 
     status_t status;

@@ -31,10 +31,9 @@ status_t mkldnn_relu_desc_init(relu_desc_t *relu_desc,
         prop_kind_t prop_kind, double negative_slope,
         const memory_desc_t *src_desc, const memory_desc_t *dst_desc)
 {
-    if (any_null(relu_desc, src_desc, dst_desc)
-            || !one_of(prop_kind,
-                forward, backward_data, backward_weights, backward_bias))
-        return invalid_arguments;
+    bool args_ok = !any_null(relu_desc, src_desc, dst_desc)
+        && one_of(prop_kind, forward_training, forward_scoring, backward_data);
+    if (!args_ok) return invalid_arguments;
 
     relu_desc_t rd;
     rd.prop_kind = prop_kind;

@@ -38,6 +38,8 @@ public:
             const primitive_at_t *inputs, const primitive *outputs[])
         : primitive(pd, const_cast<impl::engine *>(pd.base.engine), not_ready)
         , _ippd(_primitive_desc.inner_product)
+        , _is_training(_ippd.inner_product_desc.prop_kind
+                == prop_kind::forward_training)
         , _with_bias(!memory_desc_wrapper(_ippd.bias_primitive_desc).is_zero())
     {
         for (int i = 0; i < 2 + _with_bias; ++i)
@@ -50,11 +52,14 @@ public:
 
 protected:
     const impl::inner_product_primitive_desc_t &_ippd;
+    const bool _is_training;
     const bool _with_bias;
 
     virtual status_t execute_impl() {
         switch (_ippd.inner_product_desc.prop_kind) {
-        case prop_kind::forward: return execute_forward();
+        case prop_kind::forward_training:
+        case prop_kind::forward_scoring:
+            return execute_forward();
         case prop_kind::backward_data: return execute_backward_data();
         case prop_kind::backward_weights: return execute_backward_weights();
         case prop_kind::backward_bias: return execute_backward_bias();
@@ -113,8 +118,8 @@ status_t inner_product<inner_product_impl>::primitive_desc_init(
             ip_d.bias_desc.format == memory_format::undef ? prec
             : ip_d.bias_desc.precision, ip_d.dst_desc.precision)
         && op_desc._kind == primitive_kind::inner_product
-        && one_of(ip_d.prop_kind, forward, backward_data, backward_weights,
-                backward_bias);
+        && one_of(ip_d.prop_kind, forward_training, forward_scoring,
+                backward_data, backward_weights, backward_bias);
     if (!args_ok) return invalid_arguments;
 
     status_t status;

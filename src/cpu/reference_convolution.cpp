@@ -108,7 +108,8 @@ template <impl::precision_t prec>
 status_t reference_convolution<prec>::constraint(
         const convolution_desc_t &conv_d) {
     bool args_ok = true
-        && conv_d.prop_kind == prop_kind::forward
+        && one_of(conv_d.prop_kind, prop_kind::forward_training,
+                prop_kind::forward_scoring)
         && conv_d.alg_kind == alg_kind::convolution_direct;
     return args_ok ? success : unimplemented;
 }

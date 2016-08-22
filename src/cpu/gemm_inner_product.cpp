@@ -131,7 +131,8 @@ template <impl::precision_t prec>
 status_t gemm_inner_product<prec>::constraint(const inner_product_desc_t &ip_d)
 {
 #ifdef USE_CBLAS
-    bool args_ok = ip_d.prop_kind == prop_kind::forward;
+    bool args_ok = one_of(ip_d.prop_kind, prop_kind::forward_training,
+            prop_kind::forward_scoring);
     if (!args_ok) return unimplemented;
 
     const bool dense_src = memory_desc_wrapper(ip_d.src_desc).is_dense();

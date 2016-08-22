@@ -98,7 +98,8 @@ status_t reference_pooling<prec>::execute_forward() {
 template <impl::precision_t prec>
 status_t reference_pooling<prec>::constraint(const pooling_desc_t &pool_d) {
     bool args_ok = true
-        && pool_d.prop_kind == prop_kind::forward
+        && one_of(pool_d.prop_kind, prop_kind::forward_training,
+                prop_kind::forward_scoring)
         && pool_d.alg_kind == alg_kind::pooling_max;
     return args_ok ? success : unimplemented;
 }

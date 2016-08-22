@@ -347,7 +347,8 @@ status_t jit_avx2_lrn<prec>::constraint(const lrn_desc_t &lrn_d) {
     const memory_desc_wrapper src_d(lrn_d.src_desc);
 
     bool args_ok = true
-        && lrn_d.prop_kind == prop_kind::forward
+        && one_of(lrn_d.prop_kind, prop_kind::forward_training,
+                prop_kind::forward_scoring)
         && lrn_d.alg_kind == alg_kind::lrn_across_channels
         && src_d.ndims() == 4
         && src_d.dims()[1] % VECTOR_LENGTH == 0

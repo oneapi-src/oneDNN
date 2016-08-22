@@ -38,6 +38,7 @@ public:
             const primitive_at_t *inputs, const primitive *outputs[])
         : primitive(pd, const_cast<impl::engine *>(pd.base.engine), not_ready)
         , _lpd(_primitive_desc.lrn)
+        , _is_training(_lpd.lrn_desc.prop_kind == prop_kind::forward_training)
     {
         for (int i = 0; i < 2; ++i)
             _input.push_back(inputs[i]);
@@ -49,10 +50,13 @@ public:
 
 protected:
     const impl::lrn_primitive_desc_t &_lpd;
+    const bool _is_training;
 
     virtual status_t execute_impl() {
         switch (_lpd.lrn_desc.prop_kind) {
-        case prop_kind::forward: return execute_forward();
+        case prop_kind::forward_training:
+        case prop_kind::forward_scoring:
+            return execute_forward();
         case prop_kind::backward_data: return execute_backward_data();
         default: assert(!"invalid prop_kind");
         }
@@ -112,7 +116,8 @@ status_t lrn<lrn_impl>::primitive_desc_init(
     bool args_ok = everyone_is(prec, lrn_d.src_desc.precision,
             lrn_d.dst_desc.precision)
         && op_desc._kind == primitive_kind::lrn
-        && one_of(lrn_d.prop_kind, forward, backward_data);
+        && one_of(lrn_d.prop_kind, forward_training, forward_scoring,
+                backward_data);
     if (!args_ok) return invalid_arguments;
 
     status_t status;

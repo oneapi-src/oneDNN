@@ -34,8 +34,8 @@ status_t mkldnn_inner_product_desc_init(
 {
     const bool args_ok = !any_null(inner_product_desc, src_desc, weights_desc,
             dst_desc)
-        && one_of(prop_kind, forward, backward_data, backward_weights,
-                backward_bias)
+        && one_of(prop_kind, forward_training, forward_scoring, backward_data,
+                backward_weights, backward_bias)
         && implication(prop_kind == backward_bias, !any_null(bias_desc));
     if (!args_ok)
         return invalid_arguments;

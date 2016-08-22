@@ -33,7 +33,7 @@ status_t mkldnn_lrn_desc_init(lrn_desc_t *lrn_desc, prop_kind_t prop_kind,
         uint32_t local_size)
 {
     bool args_ok = !any_null(lrn_desc, src_desc, dst_desc)
-        && one_of(prop_kind, forward, backward_data)
+        && one_of(prop_kind, forward_training, forward_scoring, backward_data)
         && one_of(alg_kind, lrn_across_channels, lrn_within_channel);
     if (!args_ok) return invalid_arguments;
 

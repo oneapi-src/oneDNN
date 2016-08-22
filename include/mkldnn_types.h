@@ -129,23 +129,22 @@ typedef enum {
 
 /** Kinds of propagation  */
 typedef enum {
+    /* TODO: suggest renames */
     /** Forward data propagation (training mode). In this mode primitives
      * perform computations necessary for subsequent backward propagation. */
-    mkldnn_forward = 1,
-#if 0
-    /* TODO: suggest renames */
     mkldnn_forward_training = 1,
+    /** Alias for @p mkldnn_forward_training */
+    mkldnn_forward = 1,
     /** Forward data propagation (scoring mode). In this mode primitives only
      * perform computations that are necessary for scoring and omit
      * computations that are only necessary for backward propagation. */
-    mkldnn_forward_scoring = 1,
-#endif
+    mkldnn_forward_scoring = 2,
     /** Backward data propagation */
-    mkldnn_backward_data = 2,
+    mkldnn_backward_data = 3,
     /** Backward weights propagation */
-    mkldnn_backward_weights = 3,
+    mkldnn_backward_weights = 4,
     /** Backward bias propagation */
-    mkldnn_backward_bias = 4,
+    mkldnn_backward_bias = 5,
 } mkldnn_prop_kind_t;
 
 /** Kinds of algorithms  */

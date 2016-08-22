@@ -193,7 +193,8 @@ status_t jit_avx2_convolution<prec>::constraint(
     const bool with_groups = weights_d.ndims() == (src_d.ndims() + 1);
 
     bool args_ok = true
-        && conv_d.prop_kind == prop_kind::forward
+        && one_of(conv_d.prop_kind, prop_kind::forward_training,
+                prop_kind::forward_scoring)
         && conv_d.alg_kind == alg_kind::convolution_direct
         && implication(flat, one_of(src_d.format(), nchw, nhwc))
         && implication(mimo, src_d.format() == nChw8c)
