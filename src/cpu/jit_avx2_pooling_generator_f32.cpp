@@ -18,8 +18,25 @@
 
 #include "jit_avx2_pooling_generator_f32.hpp"
 
-namespace mkldnn { 
-namespace impl { 
+#define ymm_store_mask Ymm(15)
+#define ymm_input      Ymm(14)
+
+#define ymm_index      Ymm(13)
+#define xmm_index      Xmm(13)
+#define ymm_iw_simd    Ymm(12)
+#define xmm_iw_simd    Xmm(12)
+#define ymm_simd       Ymm(11)
+#define xmm_simd       Xmm(11)
+#define ymm_stride_w   Ymm(10)
+#define xmm_stride_w   Xmm(10)
+
+#define ymm_tmp        Ymm(9)
+#define xmm_tmp        Xmm(9)
+#define ymm_init_reg   Ymm(8)
+#define xmm_init_reg   Xmm(8)
+
+namespace mkldnn {
+namespace impl {
 namespace cpu {
 
 inline void jit_avx2_pooling_generator_f32::oh_step(
@@ -27,7 +44,8 @@ inline void jit_avx2_pooling_generator_f32::oh_step(
     int pad_l, int pad_r, const char* kh_lable)
 {
     using Xbyak::Ymm;
-    
+    using Xbyak::Xmm;
+
     unsigned char _cmp = 1;
     float _flt_min = -FLT_MIN;
 
@@ -35,47 +53,35 @@ inline void jit_avx2_pooling_generator_f32::oh_step(
     uint32_t KW = params->kw;
     uint32_t stride_w = params->stride_w;
 
-    vpxor(ymm13, ymm13);
+    vpxor(ymm_store_mask, ymm_store_mask);
     // Init output
-    for (uint32_t jj = 0; jj < ur_w; jj++) {
-        mov(tmp_gpr, _flt_min);
-        movq(Xmm(jj), tmp_gpr);
-        vbroadcastss(Ymm(jj), Xmm(jj));         // output
-        vpxor(Ymm(ur_w+jj), Ymm(ur_w+jj)); // index
-        vpxor(Ymm(2*ur_w+jj), Ymm(2*ur_w+jj)); // store-mask
-    }
-    mov(aux_reg_input , reg_input);
+    mov(tmp_gpr, _flt_min);
+    movq(xmm_init_reg, tmp_gpr);
+    vbroadcastss(ymm_init_reg, xmm_init_reg);    // output
 
+    for (uint32_t jj = 0; jj < ur_w; jj++)
+        vmovaps(Ymm(jj), ymm_init_reg);
+
+    mov(aux_reg_input , reg_input);
     xor_(kj, kj);
     L(kh_lable); {
-        mov(tmp_gpr, kj);
-        mov(tmp_gpr2,IW*params->c_block);
-        movq(xmm14, tmp_gpr);
-        vpbroadcastd(ymm14, xmm14);
-        vpaddd(ymm14, ymm14, ymm15);
+        vpaddd(ymm_index, ymm_index, ymm_iw_simd);
         for (uint32_t ki = 0; ki < KW; ki++) {
             uint32_t jj_start = (uint32_t)nstl::max(0, pad_l-(int)ki);
             uint32_t jj_end   = ur_w -
                 (uint32_t)nstl::max(0, (int)ki+pad_r - (int)(KW-1));
-
-	    int base_input_offset = (ki - pad_l) * params->c_block;
-	    mov(tmp_gpr, base_input_offset);
-	    movq(xmm12, tmp_gpr);
-	    vpbroadcastd(ymm12, xmm12);
-            vpaddd(ymm14, ymm14, ymm12);
-
+            vpaddd(ymm_index, ymm_index, ymm_simd);
             for (uint32_t jj = jj_start; jj  < jj_end; jj++) {
-                int aux_input_offset = base_input_offset + jj* stride_w * params->c_block;
-
+                int aux_input_offset = (ki+jj*stride_w-pad_l)*params->c_block;
                 if (aux_input_offset > (int)IW*(int)params->c_block)
                     continue;
-                vmovups(Ymm(3*ur_w+jj),
+                vmovups(ymm_input,
                     ptr [ aux_reg_input + sizeof(float)*aux_input_offset ]);
+                vpaddd(ymm_index, ymm_index, ymm_tmp);
+                vcmpps(ymm_store_mask, Ymm(jj), ymm_input, _cmp);
+                vblendvps(Ymm(jj), Ymm(jj), ymm_input, ymm_store_mask);
+                vblendvps(Ymm(ur_w+jj), Ymm(ur_w+jj), ymm_index, ymm_store_mask);
 
-                vpaddd(ymm14, ymm14, ymm12);
-                vcmpps(Ymm(2*ur_w+jj), Ymm(jj), Ymm(3*ur_w+jj), _cmp);
-                vblendvps(Ymm(jj), Ymm(jj), Ymm(3*ur_w+jj), Ymm(2*ur_w+jj));
-                vblendvps(Ymm(ur_w+jj), Ymm(ur_w+jj), ymm14,Ymm(2*ur_w+jj));
             }
         }
         add(aux_reg_input,  sizeof(float)*IW*params->c_block);
@@ -106,12 +112,29 @@ jit_avx2_pooling_generator_f32::jit_avx2_pooling_generator_f32(
     mov(reg_kh    , ptr [ this->param1 + 48]);
     mov(reg_arr_init, ptr [ this->param1 + 80]);
 
-    vmovdqu(ymm15, ptr [ reg_arr_init ]); // array init
+    vmovdqu(ymm_index, ptr [ reg_arr_init ]); // array init
 
-    mov(tmp_gpr, params->stride_w*params->c_block);
-    movq(xmm13, tmp_gpr);
-    vpbroadcastd(ymm13, xmm13);
+    if (params->l_pad > 0) {
+        mov(tmp_gpr,(params->l_pad*params->c_block));
+        movq(xmm_tmp, tmp_gpr);
+        vpbroadcastd(ymm_tmp, xmm_tmp);
+        vpsubd(ymm_index, ymm_index, ymm_tmp);
+    } else {
+        vpxor(ymm_index, ymm_index);
+    }
+    mov(tmp_gpr,(params->iw*params->c_block));
+    movq(xmm_iw_simd, tmp_gpr);
+    vpbroadcastd(ymm_iw_simd, xmm_iw_simd);
 
+    mov(tmp_gpr,(params->c_block));
+    movq(xmm_simd, tmp_gpr);
+    vpbroadcastd(ymm_simd, xmm_simd);
+
+    mov(tmp_gpr,(params->stride_w));
+    movq(xmm_stride_w, tmp_gpr);
+    vpbroadcastd(ymm_stride_w, xmm_stride_w);
+
+    vpmuldq(ymm_tmp, ymm_stride_w, ymm_simd);
 
     int r_pad  = nstl::max(0, (int)((params->ow-1)*params->stride_w) +
         (int)params->kw - 1 - (int)(params->iw + params->l_pad - 1 ));
@@ -165,3 +188,20 @@ jit_avx2_pooling_generator_f32::jit_avx2_pooling_generator_f32(
 }
 }
 }
+
+#undef ymm_store_mask
+#undef ymm_input
+
+#undef ymm_index
+#undef xmm_index
+#undef ymm_iw_simd
+#undef xmm_iw_simd
+#undef ymm_simd
+#undef xmm_simd
+#undef ymm_stride_w
+#undef xmm_stride_w
+
+#undef ymm_tmp
+#undef xmm_tmp
+#undef ymm_init_reg
+#undef xmm_init_reg
