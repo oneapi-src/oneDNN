@@ -59,7 +59,7 @@ jit_avx2_pooling<prec>::jit_avx2_pooling(const pooling_primitive_desc_t &ppd,
     jpp.nb_c = jpp.c / jpp.c_block;
 
     jpp.ur_h = 1; /* no code-unrolling by h so far */
-    jpp.ur_w = (this->_is_training) ? 4 : 8;
+    jpp.ur_w = (this->_is_training) ? 3 : 8;
     if (jpp.ow < jpp.ur_w) jpp.ur_w = jpp.ow;
     jpp.ur_w_tail = jpp.ow % jpp.ur_w;
 
