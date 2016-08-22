@@ -47,18 +47,15 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
     static const float one;
     float alpha;
 
-    const bool _is_training;
-
     xbyak_lrn(
         float A,
-        uint32_t compile_time_HW,
+        uint32_t HW,
         int version, // -1 channels 0..7, 1 channels C-8 .. C-1, 0 -- other channels
-        bool is_training,
+        prop_kind_t pk,
         void *code_ptr = nullptr,
         size_t code_size = 1 * Xbyak::DEFAULT_MAX_CODE_SIZE)
         : jit_generator(code_ptr, code_size)
         , alpha(A)
-        , _is_training(is_training)
     {
         Xbyak::Reg64 t = rsp;
         Xbyak::Reg64 hw = r9;
@@ -75,7 +72,7 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
         Xbyak::Ymm ydst = ymm11;
         Xbyak::Ymm ybase = ymm12;
 
-        if (compile_time_HW == 0)
+        if (HW == 0)
         {
             ret();
             return;
@@ -84,7 +81,7 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
 
         mov(src, ptr[this->param1 + 0]);
         mov(dst, ptr[this->param1 + 8]);
-        if (this->_is_training)
+        if (pk != prop_kind::forward_scoring)
             mov(scratch, ptr[this->param1 + 16]);
         sub(t, 64);
         mov(imm_addr64, reinterpret_cast<size_t>(&this->alpha));
@@ -102,12 +99,12 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
             vmovups(ptr[t + 48], xsrc_next);
         }
 
-        mov(hw, compile_time_HW);
+        mov(hw, HW);
         L(".lrn_loop");
 
-        if (version != -1) vmovups(xsrc_prev, ptr[src - compile_time_HW * 32+16]);
+        if (version != -1) vmovups(xsrc_prev, ptr[src - HW * 32+16]);
         vmovups(ysrc, ptr[src]);
-        if (version != +1) vmovups(xsrc_next, ptr[src + compile_time_HW * 32]);
+        if (version != +1) vmovups(xsrc_next, ptr[src + HW * 32]);
 
         if (version != -1) vmovups(ptr[t + 0], xsrc_prev);
         vmovups(ptr[t + 16], ysrc);
@@ -130,15 +127,15 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
         vsqrtps(ysum, ysum);
         vsqrtps(ysum, ysum); // ysum = ybase^0.75
         vdivps(ydst, ysrc, ysum); // ydst = ysrc / ysum
-        if (this->_is_training)
+        if (pk != prop_kind::forward_scoring)
             vmulps(ysum, ysum, ybase); // ysum = ybase ^ 1.75 -- for back prop
         vmovups(ptr[dst], ydst);
-        if (this->_is_training)
+        if (pk != prop_kind::forward_scoring)
             vmovups(ptr[scratch], ysum);
 
         add(src, 32);
         add(dst, 32);
-        if (this->_is_training)
+        if (pk != prop_kind::forward_scoring)
             add(scratch, 32);
         dec(hw);
         cmp(hw, 0);
@@ -150,13 +147,14 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
 
     xbyak_lrn(
         float A,
-        uint32_t compile_time_C,
+        uint32_t C,
+        prop_kind_t pk,
         void *code_ptr = nullptr,
         size_t code_size = 1 * Xbyak::DEFAULT_MAX_CODE_SIZE)
         : jit_generator(code_ptr, code_size)
         , alpha(A)
     {
-        assert(compile_time_C >= 16 && compile_time_C % 8 == 0);
+        assert(C >= 16 && C % 8 == 0);
         static const uint32_t mask[] = {
             0, 0, 0x80000000, 0x80000000, 0x80000000, 0x80000000, 0x80000000, 0x80000000, 0x80000000, 0, 0
         };
@@ -194,7 +192,7 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
         vmaskmovps(yb, ymask, ptr[src - 4]);
         vfmadd231ps(ysum, yb, yb);
 
-        mov(c, compile_time_C/8-1);
+        mov(c, C/8-1);
         L(".lrn_loop");
 
         vmovups(yc, ptr[src]);
@@ -263,7 +261,7 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
         this->postamble();
     }
 
-    void nchw_body(int tail, uint32_t compile_time_HW,
+    void nchw_body(int tail, uint32_t HW, prop_kind_t pk,
         Xbyak::Ymm ymask,
         Xbyak::Ymm ya,
         Xbyak::Ymm yb,
@@ -288,12 +286,17 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
         vmulps(ybase, ydst, ybase); // ybase = (ysum*yalpha+yone) ^ 1.75 -- for back prop
         vdivps(ydst, yc, ydst); // ydst = ysrc / (ysum*yalpha+yone)^0.75
 
-        if (tail != 0) vmaskmovps(ptr[dst], ymask, ydst);
-        else vmovups(ptr[dst], ydst);
+        if (tail != 0)
+            vmaskmovps(ptr[dst], ymask, ydst);
+        else
+            vmovups(ptr[dst], ydst);
 
-        if (this->_is_training) {
-            if (tail != 0) vmaskmovps(ptr[scratch], ymask, ybase);
-            else vmovups(ptr[scratch], ybase);
+        if (pk != prop_kind::forward_scoring)
+        {
+            if (tail != 0)
+                vmaskmovps(ptr[scratch], ymask, ybase);
+            else
+                vmovups(ptr[scratch], ybase);
         }
 
         vfnmadd231ps(ysum, ya, ya);
@@ -305,17 +308,16 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
 
     xbyak_lrn(
         float A,
-        uint32_t compile_time_C,
-        uint32_t compile_time_HW,
+        uint32_t C,
+        uint32_t HW,
         int tail, // 0 -- no tail, 1 .. 7 -- read/write only that many elements in ymm's
-        bool is_training,
+        prop_kind_t pk,
         void* code_ptr = nullptr,
         size_t code_size = 2 * Xbyak::DEFAULT_MAX_CODE_SIZE)
         : jit_generator(code_ptr, code_size)
         , alpha(A)
-        , _is_training(is_training)
     {
-            assert(compile_time_C >= 16);
+            assert(C >= 16);
             static const uint32_t mask[] = {
                 0x80000000, 0x80000000, 0x80000000, 0x80000000, 0x80000000, 0x80000000, 0x80000000,
                 0, 0, 0, 0, 0, 0, 0
@@ -343,51 +345,51 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
 
             mov(src, ptr[this->param1 + 0]);
             mov(dst, ptr[this->param1 + 8]);
-            if (this->_is_training)
+            if (pk != prop_kind::forward_scoring)
                 mov(scratch, ptr[this->param1 + 16]);
 
             vxorps(ya, ya, ya);
             vxorps(yb, yb, yb);
             if (tail != 0)
-                vmaskmovps(yc, ymask, ptr[src + compile_time_HW * 0]);
+                vmaskmovps(yc, ymask, ptr[src + HW * 0]);
             else
-                vmovups(yc, ptr[src + compile_time_HW * 0]);
+                vmovups(yc, ptr[src + HW * 0]);
             if (tail != 0)
-                vmaskmovps(yd, ymask, ptr[src + compile_time_HW * 4]);
+                vmaskmovps(yd, ymask, ptr[src + HW * 4]);
             else
-                vmovups(yd, ptr[src + compile_time_HW * 4]);
+                vmovups(yd, ptr[src + HW * 4]);
 
             vxorps(ysum, ysum, ysum);
             vfmadd231ps(ysum, yc, yc); // ysum <- ysum + ya^2+yb^2+yc^2+yd^2+ye^2
             vfmadd231ps(ysum, yd, yd);
 
-            mov(c, compile_time_C - 2);
+            mov(c, C - 2);
             L(".lrn_loop");
 
             if (tail != 0)
-                vmaskmovps(ye, ymask, ptr[src + compile_time_HW * 8]);
+                vmaskmovps(ye, ymask, ptr[src + HW * 8]);
             else
-                vmovups(ye, ptr[src + compile_time_HW * 8]);
+                vmovups(ye, ptr[src + HW * 8]);
 
-            nchw_body(tail, compile_time_HW, ymask, ya, yb, yc, yd, ye, ysum);
+            nchw_body(tail, HW, pk, ymask, ya, yb, yc, yd, ye, ysum);
 
-            add(src, compile_time_HW * 4);
-            add(dst, compile_time_HW * 4);
-            if (this->_is_training)
-                add(scratch, compile_time_HW * 4);
+            add(src, HW * 4);
+            add(dst, HW * 4);
+            if (pk != prop_kind::forward_scoring)
+                add(scratch, HW * 4);
             dec(c);
             cmp(c, 0);
             jne(".lrn_loop", T_NEAR);
 
             vxorps(ye, ye, ye);
 
-            nchw_body(tail, compile_time_HW, ymask, ya, yb, yc, yd, ye, ysum);
-            add(src, compile_time_HW * 4);
-            add(dst, compile_time_HW * 4);
-            if (this->_is_training)
-                add(scratch, compile_time_HW * 4);
+            nchw_body(tail, HW, pk, ymask, ya, yb, yc, yd, ye, ysum);
+            add(src, HW * 4);
+            add(dst, HW * 4);
+            if (pk != prop_kind::forward_scoring)
+                add(scratch, HW * 4);
 
-            nchw_body(tail, compile_time_HW, ymask, ya, yb, yc, yd, ye, ysum);
+            nchw_body(tail, HW, pk, ymask, ya, yb, yc, yd, ye, ysum);
 
             this->postamble();
         }
@@ -518,26 +520,19 @@ jit_avx2_lrn<prec>::jit_avx2_lrn(const lrn_primitive_desc_t &ppd,
 
     if (ppd.src_primitive_desc.memory_desc.format == nChw8c)
     {
-        this->jit_lrn = new xbyak_lrn(A, H*W, 0);
-        this->jit_lrn_first = new xbyak_lrn(A, H*W, -1);
-        this->jit_lrn_last = new xbyak_lrn(A, H*W, +1);
+        this->jit_lrn = new xbyak_lrn(A, H*W, 0, ppd.lrn_desc.prop_kind);
+        this->jit_lrn_first = new xbyak_lrn(A, H*W, -1, ppd.lrn_desc.prop_kind);
+        this->jit_lrn_last = new xbyak_lrn(A, H*W, +1, ppd.lrn_desc.prop_kind);
     }
     else if (ppd.src_primitive_desc.memory_desc.format == nchw)
     {
-        this->jit_lrn = new xbyak_lrn(A, C, H*W, 0);
+        this->jit_lrn = new xbyak_lrn(A, C, H*W, 0, ppd.lrn_desc.prop_kind);
         this->jit_lrn_first = nullptr;
-        this->jit_lrn_last = new xbyak_lrn(A, C, H*W, (H*W) % VECTOR_LENGTH,
-                this->_is_training);
+        this->jit_lrn_last = new xbyak_lrn(A, C, H*W, (H*W) % VECTOR_LENGTH, ppd.lrn_desc.prop_kind);
     }
-    else if (ppd.src_primitive_desc.memory_desc.format == nhwc)
+    else // nhwc
     {
-        this->jit_lrn = new xbyak_lrn(A, C);
-        this->jit_lrn_first = nullptr;
-        this->jit_lrn_last = nullptr;
-    }
-    else
-    {
-        this->jit_lrn = new xbyak_lrn(A, C);
+        this->jit_lrn = new xbyak_lrn(A, C, ppd.lrn_desc.prop_kind);
         this->jit_lrn_first = nullptr;
         this->jit_lrn_last = nullptr;
     }
