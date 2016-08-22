@@ -95,7 +95,8 @@ protected:
 
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu
                 || p.engine_kind == engine::kind::cpu_lazy);
-        ASSERT_EQ(p.aprop_kind, prop_kind::forward);
+        ASSERT_TRUE(p.aprop_kind == prop_kind::forward_training
+                || p.aprop_kind == prop_kind::forward_scoring);
         ASSERT_EQ(p.aalgorithm, pooling::max);
         auto eng = engine(p.engine_kind, 0);
         memory::precision prec = data_traits<data_t>::prec;
@@ -140,69 +141,97 @@ TEST_P(pooling_test_float, TestsPooling)
 {
 }
 INSTANTIATE_TEST_CASE_P(
-        TestPoolingForward, pooling_test_float,
-        ::testing::Values(pool_test_params_float{ prop_kind::forward,
-                                  engine::kind::cpu, pooling::max,
-                                  memory::format::nchw, memory::format::nchw,
-                                  { 2, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1 } },
-                pool_test_params_float{ prop_kind::forward, engine::kind::cpu,
-                        pooling::max, memory::format::nchw,
-                        memory::format::nchw,
-                        { 2, 4, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1 } }));
-
-INSTANTIATE_TEST_CASE_P(TestPoolingForwardNHWC, pooling_test_float,
-        ::testing::Values(pool_test_params_float{ prop_kind::forward,
-                engine::kind::cpu, pooling::max, memory::format::nhwc,
-                memory::format::nhwc,
-                { 2, 4, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1 } }));
-INSTANTIATE_TEST_CASE_P(TestPoolingForwardBlocked, pooling_test_float,
-        ::testing::Values(pool_test_params_float{ prop_kind::forward,
-                engine::kind::cpu, pooling::max, memory::format::nChw8c,
-                memory::format::nChw8c,
-                { 2, 32, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1 } }));
+        TestPoolingForward, pooling_test_float, ::testing::Values(
+            pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, pooling::max, memory::format::nchw,
+            memory::format::nchw, { 2, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1 } },
+            pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, pooling::max, memory::format::nchw,
+            memory::format::nchw, { 2, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1 } },
+            pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, pooling::max, memory::format::nchw,
+            memory::format::nchw, { 2, 4, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1 } },
+            pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, pooling::max, memory::format::nchw,
+            memory::format::nchw, { 2, 4, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1 } }
+            ));
 
 INSTANTIATE_TEST_CASE_P(
-        TestPoolingAlexnetForwardNCHW, pooling_test_float,
-        ::testing::Values(pool_test_params_float{ prop_kind::forward,
-                                  engine::kind::cpu, pooling::max,
-                                  memory::format::nchw, memory::format::nchw,
-                                  { 2, 16, 55, 55, 27, 27, 3, 3, 0, 0, 2, 2 } },
-                pool_test_params_float{ prop_kind::forward, engine::kind::cpu,
-                        pooling::max, memory::format::nchw,
-                        memory::format::nchw,
-                        { 2, 16, 27, 27, 13, 13, 3, 3, 0, 0, 2, 2 } },
-                pool_test_params_float{ prop_kind::forward, engine::kind::cpu,
-                        pooling::max, memory::format::nchw,
-                        memory::format::nchw,
-                        { 2, 16, 13, 13, 6, 6, 3, 3, 0, 0, 2, 2 } }));
+        TestPoolingForwardNHWC, pooling_test_float, ::testing::Values(
+            pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, pooling::max, memory::format::nhwc,
+            memory::format::nhwc, { 2, 4, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1 } }));
 
 INSTANTIATE_TEST_CASE_P(
-        TestPoolingAlexnetForwardBlocked, pooling_test_float,
-        ::testing::Values(pool_test_params_float{ prop_kind::forward,
-                                  engine::kind::cpu, pooling::max,
-                                  memory::format::nChw8c, memory::format::nChw8c,
-                                  { 2, 16, 55, 55, 27, 27, 3, 3, 0, 0, 2, 2 } },
-                pool_test_params_float{ prop_kind::forward, engine::kind::cpu,
-                        pooling::max, memory::format::nChw8c,
-                        memory::format::nChw8c,
-                        { 2, 16, 27, 27, 13, 13, 3, 3, 0, 0, 2, 2 } },
-                pool_test_params_float{ prop_kind::forward, engine::kind::cpu,
-                        pooling::max, memory::format::nChw8c,
-                        memory::format::nChw8c,
-                        { 2, 16, 13, 13, 6, 6, 3, 3, 0, 0, 2, 2 } }));
+        TestPoolingForwardBlocked, pooling_test_float, ::testing::Values(
+            pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, pooling::max, memory::format::nChw8c,
+            memory::format::nChw8c, { 2, 32, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1 } }
+            ));
 
 INSTANTIATE_TEST_CASE_P(
-        TestPoolingBlockedStride1, pooling_test_float,
-        ::testing::Values(pool_test_params_float{ prop_kind::forward,
-                                  engine::kind::cpu, pooling::max,
-                                  memory::format::nChw8c, memory::format::nChw8c,
-                                  { 2, 16, 55, 55, 53, 53, 3, 3, 0, 0, 1, 1 } },
-                pool_test_params_float{ prop_kind::forward, engine::kind::cpu,
-                        pooling::max, memory::format::nChw8c,
-                        memory::format::nChw8c,
-                        { 2, 16, 27, 27, 25, 25, 3, 3, 0, 0, 1, 1 } },
-                pool_test_params_float{ prop_kind::forward, engine::kind::cpu,
-                        pooling::max, memory::format::nChw8c,
-                        memory::format::nChw8c,
-                        { 2, 16, 13, 13, 11, 11, 3, 3, 0, 0, 1, 1 } }));
+        TestPoolingAlexnetForwardNCHW, pooling_test_float, ::testing::Values(
+            pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, pooling::max, memory::format::nchw,
+            memory::format::nchw, { 2, 16, 55, 55, 27, 27, 3, 3, 0, 0, 2, 2 } },
+            pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, pooling::max, memory::format::nchw,
+            memory::format::nchw, { 2, 16, 55, 55, 27, 27, 3, 3, 0, 0, 2, 2 } },
+            pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, pooling::max, memory::format::nchw,
+            memory::format::nchw, { 2, 16, 27, 27, 13, 13, 3, 3, 0, 0, 2, 2 } },
+            pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, pooling::max, memory::format::nchw,
+            memory::format::nchw, { 2, 16, 27, 27, 13, 13, 3, 3, 0, 0, 2, 2 } },
+            pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, pooling::max, memory::format::nchw,
+            memory::format::nchw, { 2, 16, 13, 13, 6, 6, 3, 3, 0, 0, 2, 2 } },
+            pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, pooling::max, memory::format::nchw,
+            memory::format::nchw, { 2, 16, 13, 13, 6, 6, 3, 3, 0, 0, 2, 2 } }
+            ));
+
+INSTANTIATE_TEST_CASE_P(
+        TestPoolingAlexnetForwardBlocked, pooling_test_float, ::testing::Values(
+            pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, pooling::max, memory::format::nChw8c,
+            memory::format::nChw8c, { 2, 16, 55, 55, 27, 27, 3, 3, 0, 0, 2, 2 } },
+            pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, pooling::max, memory::format::nChw8c,
+            memory::format::nChw8c, { 2, 16, 55, 55, 27, 27, 3, 3, 0, 0, 2, 2 } },
+            pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, pooling::max, memory::format::nChw8c,
+            memory::format::nChw8c, { 2, 16, 27, 27, 13, 13, 3, 3, 0, 0, 2, 2 } },
+            pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, pooling::max, memory::format::nChw8c,
+            memory::format::nChw8c, { 2, 16, 27, 27, 13, 13, 3, 3, 0, 0, 2, 2 } },
+            pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, pooling::max, memory::format::nChw8c,
+            memory::format::nChw8c, { 2, 16, 13, 13, 6, 6, 3, 3, 0, 0, 2, 2 } },
+            pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, pooling::max, memory::format::nChw8c,
+            memory::format::nChw8c, { 2, 16, 13, 13, 6, 6, 3, 3, 0, 0, 2, 2 } }
+            ));
+
+INSTANTIATE_TEST_CASE_P(
+        TestPoolingBlockedStride1, pooling_test_float, ::testing::Values(
+            pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, pooling::max, memory::format::nChw8c,
+            memory::format::nChw8c, { 2, 16, 55, 55, 53, 53, 3, 3, 0, 0, 1, 1 } },
+            pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, pooling::max, memory::format::nChw8c,
+            memory::format::nChw8c, { 2, 16, 55, 55, 53, 53, 3, 3, 0, 0, 1, 1 } },
+            pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, pooling::max, memory::format::nChw8c,
+            memory::format::nChw8c, { 2, 16, 27, 27, 25, 25, 3, 3, 0, 0, 1, 1 } },
+            pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, pooling::max, memory::format::nChw8c,
+            memory::format::nChw8c, { 2, 16, 27, 27, 25, 25, 3, 3, 0, 0, 1, 1 } },
+            pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, pooling::max, memory::format::nChw8c,
+            memory::format::nChw8c, { 2, 16, 13, 13, 11, 11, 3, 3, 0, 0, 1, 1 } },
+            pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, pooling::max, memory::format::nChw8c,
+            memory::format::nChw8c, { 2, 16, 13, 13, 11, 11, 3, 3, 0, 0, 1, 1 } }
+            ));
 }
