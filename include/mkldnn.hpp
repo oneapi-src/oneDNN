@@ -468,8 +468,8 @@ inline c_api::mkldnn_padding_kind_t convert_to_c(padding_kind kind) {
 
 enum prop_kind {
     forward_training = c_api::mkldnn_forward_training,
-    forward = c_api::mkldnn_forward,
     forward_scoring = c_api::mkldnn_forward_scoring,
+    forward = c_api::mkldnn_forward,
     backward_data = c_api::mkldnn_backward_data,
     backward_weights,g = c_api::mkldnn_backward_bias,
     backward_bias = c_api::mkldnn_backward_bias,

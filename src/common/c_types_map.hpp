@@ -39,8 +39,8 @@ namespace status {
 using prop_kind_t = mkldnn_prop_kind_t;
 namespace prop_kind {
     const prop_kind_t forward_training = mkldnn_forward_training;
-    const prop_kind_t forward = mkldnn_forward;
     const prop_kind_t forward_scoring = mkldnn_forward_scoring;
+    const prop_kind_t forward = mkldnn_forward;
     const prop_kind_t backward_data = mkldnn_backward_data;
     const prop_kind_t backward_weights = mkldnn_backward_weights;
     const prop_kind_t backward_bias = mkldnn_backward_bias;
