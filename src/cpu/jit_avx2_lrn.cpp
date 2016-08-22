@@ -148,6 +148,121 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
         this->postamble();
     }
 
+    xbyak_lrn(
+        float A,
+        uint32_t compile_time_C,
+        void *code_ptr = nullptr,
+        size_t code_size = 1 * Xbyak::DEFAULT_MAX_CODE_SIZE)
+        : jit_generator(code_ptr, code_size)
+        , alpha(A)
+    {
+        assert(compile_time_C >= 16 && compile_time_C % 8 == 0);
+        static const uint32_t mask[] = {
+            0, 0, 0x80000000, 0x80000000, 0x80000000, 0x80000000, 0x80000000, 0x80000000, 0x80000000, 0, 0
+        };
+
+        Xbyak::Reg64 c = r9;
+        Xbyak::Ymm ya = ymm2;
+        Xbyak::Ymm yb = ymm3;
+        Xbyak::Ymm yc = ymm4;
+        Xbyak::Ymm yd = ymm5;
+        Xbyak::Ymm ye = ymm6;
+        Xbyak::Ymm ysum = ymm7;
+        Xbyak::Ymm ydst = ymm8;
+        Xbyak::Ymm ybase = ymm9;
+        Xbyak::Ymm ymask = ymm10;
+
+        this->preamble();
+
+        mov(src, ptr[this->param1 + 0]);
+        mov(dst, ptr[this->param1 + 8]);
+        mov(scratch, ptr[this->param1 + 16]);
+        mov(imm_addr64, reinterpret_cast<size_t>(&this->alpha));
+        vbroadcastss(yalpha, ptr[imm_addr64]);
+        mov(imm_addr64, reinterpret_cast<size_t>(&this->one));
+        vbroadcastss(yone, ptr[imm_addr64]);
+
+        vxorps(ysum, ysum, ysum);
+
+        mov(imm_addr64, reinterpret_cast<size_t>(&mask[0]));
+        vmovups(ymask, ptr[imm_addr64]);
+        vmaskmovps(ya, ymask, ptr[src - 8]);
+        vfmadd231ps(ysum, ya, ya); // ysum <- ysum + ya^2+yb^2+yc^2+yd^2+ye^2
+
+        mov(imm_addr64, reinterpret_cast<size_t>(&mask[1]));
+        vmovups(ymask, ptr[imm_addr64]);
+        vmaskmovps(yb, ymask, ptr[src - 4]);
+        vfmadd231ps(ysum, yb, yb);
+
+        mov(c, compile_time_C/8-1);
+        L(".lrn_loop");
+
+        vmovups(yc, ptr[src]);
+        vmovups(yd, ptr[src + 4]);
+        vmovups(ye, ptr[src + 8]);
+        vfmadd231ps(ysum, yc, yc);
+        vfmadd231ps(ysum, yd, yd);
+        vfmadd231ps(ysum, ye, ye);
+
+        vmovups(ydst, ysum);
+        vfmadd132ps(ydst, yone, yalpha); // ydst <- ysum*yalpha+yone
+
+        vmovaps(ybase, ydst);
+        vmulps(ydst, ydst, ydst);
+        vmulps(ydst, ydst, ybase); // ydst = (ysum*yalpha+yone)^3;
+        vsqrtps(ydst, ydst);
+        vsqrtps(ydst, ydst); // ydst = (ysum*yalpha+yone)^0.75
+        vmulps(ybase, ydst, ybase); // ybase = (ysum*yalpha+yone) ^ 1.75 -- for back prop
+        vmovups(ptr[scratch], ybase);
+
+        vdivps(ydst, yc, ydst); // ydst = ysrc / (ysum*yalpha+yone)^0.75
+        vmovups(ptr[dst], ydst);
+
+        vxorps(ysum, ysum, ysum);
+
+        add(src, 32);
+        add(dst, 32);
+        add(scratch, 32);
+
+        vmovups(ya, ptr[src - 8]);
+        vfmadd231ps(ysum, ya, ya);
+        vmovups(yb, ptr[src - 4]);
+        vfmadd231ps(ysum, yb, yb);
+
+        dec(c);
+        cmp(c, 0);
+        jne(".lrn_loop", T_NEAR);
+
+        vmovups(yc, ptr[src]);
+        vfmadd231ps(ysum, yc, yc);
+
+        mov(imm_addr64, reinterpret_cast<size_t>(&mask[2]));
+        vmovups(ymask, ptr[imm_addr64]);
+        vmaskmovps(yd, ymask, ptr[src + 4]);
+        vfmadd231ps(ysum, yd, yd); // ysum <- ysum + ya^2+yb^2+yc^2+yd^2+ye^2
+
+        mov(imm_addr64, reinterpret_cast<size_t>(&mask[3]));
+        vmovups(ymask, ptr[imm_addr64]);
+        vmaskmovps(ye, ymask, ptr[src + 8]);
+        vfmadd231ps(ysum, ye, ye);
+
+        vmovups(ydst, ysum);
+        vfmadd132ps(ydst, yone, yalpha); // ydst <- ysum*yalpha+yone
+
+        vmovaps(ybase, ydst);
+        vmulps(ydst, ydst, ydst);
+        vmulps(ydst, ydst, ybase); // ydst = (ysum*yalpha+yone)^3;
+        vsqrtps(ydst, ydst);
+        vsqrtps(ydst, ydst); // ydst = (ysum*yalpha+yone)^0.75
+        vmulps(ybase, ydst, ybase); // ybase = (ysum*yalpha+yone) ^ 1.75 -- for back prop
+        vdivps(ydst, yc, ydst); // ydst = ysrc / (ysum*yalpha+yone)^0.75
+
+        vmovups(ptr[dst], ydst);
+        vmovups(ptr[scratch], ybase);
+
+        this->postamble();
+    }
+
     void nchw_body(int tail, uint32_t compile_time_HW,
         Xbyak::Ymm ymask,
         Xbyak::Ymm ya,
@@ -323,7 +438,7 @@ status_t jit_avx2_lrn<prec>::execute_forward() {
             }
         }
     }
-    else
+    else if (this->_lpd.dst_primitive_desc.memory_desc.format == nchw)
     {
 #       pragma omp parallel for collapse(2)
         for (uint32_t n = 0; n < N; ++n) {
@@ -336,6 +451,19 @@ status_t jit_avx2_lrn<prec>::execute_forward() {
                     ker_hw8_last(&args);
                 else
                     ker_hw8(&args);
+            }
+        }
+    }
+    else // nhwc
+    {
+#       pragma omp parallel for collapse(2)
+        for (uint32_t n = 0; n < N; ++n) {
+            for (uint32_t hw = 0; hw < HW; ++hw) {
+                jit_args_t args;
+                args.src = &src[n*HW*C + hw * C];
+                args.dst = &dst[n*HW*C + hw * C];
+                args.scratch = &scratch[n*HW*C + hw * C];
+                ker_hw8(&args);
             }
         }
     }
@@ -365,7 +493,7 @@ status_t jit_avx2_lrn<prec>::constraint(const lrn_desc_t &lrn_d) {
         && src_d.dims()[1] >= 2*VECTOR_LENGTH
         && lrn_d.beta == 0.75
         && lrn_d.local_size == 5
-        && one_of(src_d.format(), nChw8c, nchw)
+        && one_of(src_d.format(), nChw8c, nchw, nhwc)
         && lrn_d.dst_desc.format == src_d.format();
 
     return args_ok ? success : unimplemented;
@@ -385,18 +513,33 @@ jit_avx2_lrn<prec>::jit_avx2_lrn(const lrn_primitive_desc_t &ppd,
 {
     uint32_t H = ppd.src_primitive_desc.memory_desc.tensor_desc.dims[2];
     uint32_t W = ppd.src_primitive_desc.memory_desc.tensor_desc.dims[3];
+    uint32_t C = ppd.src_primitive_desc.memory_desc.tensor_desc.dims[1];
     float A = ppd.lrn_desc.alpha / ppd.lrn_desc.local_size;
 
-    if (ppd.src_primitive_desc.memory_desc.format == nChw8c) {
-        this->jit_lrn = new xbyak_lrn(A, H*W, 0, this->_is_training);
-        this->jit_lrn_first = new xbyak_lrn(A, H*W, -1, this->_is_training);
-        this->jit_lrn_last = new xbyak_lrn(A, H*W, +1, this->_is_training);
-    } else {
-        uint32_t C = ppd.src_primitive_desc.memory_desc.tensor_desc.dims[1];
-        this->jit_lrn = new xbyak_lrn(A, C, H*W, 0, this->_is_training);
+    if (ppd.src_primitive_desc.memory_desc.format == nChw8c)
+    {
+        this->jit_lrn = new xbyak_lrn(A, H*W, 0);
+        this->jit_lrn_first = new xbyak_lrn(A, H*W, -1);
+        this->jit_lrn_last = new xbyak_lrn(A, H*W, +1);
+    }
+    else if (ppd.src_primitive_desc.memory_desc.format == nchw)
+    {
+        this->jit_lrn = new xbyak_lrn(A, C, H*W, 0);
         this->jit_lrn_first = nullptr;
         this->jit_lrn_last = new xbyak_lrn(A, C, H*W, (H*W) % VECTOR_LENGTH,
                 this->_is_training);
+    }
+    else if (ppd.src_primitive_desc.memory_desc.format == nhwc)
+    {
+        this->jit_lrn = new xbyak_lrn(A, C);
+        this->jit_lrn_first = nullptr;
+        this->jit_lrn_last = nullptr;
+    }
+    else
+    {
+        this->jit_lrn = new xbyak_lrn(A, C);
+        this->jit_lrn_first = nullptr;
+        this->jit_lrn_last = nullptr;
     }
     typedef void(*kernel_t)(const void*);
     this->ker_hw8 = this->jit_lrn == nullptr ? nullptr : reinterpret_cast<kernel_t>(const_cast<uint8_t*>(this->jit_lrn->getCode()));
