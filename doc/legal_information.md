@@ -1,4 +1,5 @@
-# Legal Information {#legal_information}
+Legal Information {#legal_information}
+=================
 
 <p>No license (express or implied, by estoppel or otherwise) to any intellectual property rights is granted by this document.</p> 
 <p>Intel disclaims all express and implied warranties, including without limitation, the implied warranties of merchantability, fitness for a particular purpose, and non-infringement, as well as any warranty arising from course of performance, course of dealing, or usage in trade.</p>

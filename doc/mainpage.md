@@ -1,4 +1,5 @@
-# Developer Manual {#mainpage}
+Developer Manual {#mainpage}
+================
 
 Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN) is an
 open source performance library for Deep Learning (DL) applications intended
@@ -102,20 +103,20 @@ step by step.
 
 1. Initialize a CPU engine. The last parameter stands for the index of the
    engine.
-```cpp
+~~~cpp
 auto cpu_engine = mkldnn::engine(mkldnn::engine::cpu, 0);
-```
+~~~
 
 2. Create a vector of primitives which will represent the net.
-```cpp
+~~~cpp
 std::vector<mkldnn::primitive> net;
-```
+~~~
 
 3. Allocate input data and create a tensor structure that describes it.
-```cpp
+~~~cpp
 std::vector<float> src(2 * 3 * 227 * 227);
 mkldnn::tensor::dims conv_src_dims = {2, 3, 227, 227};
-```
+~~~
 
 4. Create two memory descriptors: one for data in users' format, and one for
    the convolution input. We use `nchw` (minibatch-channels-height-width)
@@ -125,36 +126,36 @@ mkldnn::tensor::dims conv_src_dims = {2, 3, 227, 227};
    sizes, strides, padding and so on). If the resulting format is different
    from `nchw`, user data will have to be transformed to the format expected by
    convolution.
-```cpp
+~~~cpp
 auto user_src_md = mkldnn::memory::desc({conv_src_dims},
     mkldnn::memory::precision::f32, mkldnn::memory::format::nchw);
 auto conv_src_md = mkldnn::memory::desc({conv_src_dims},
     mkldnn::memory::precision::f32, mkldnn::memory::format::any);
-```
+~~~
 
 5. Create a convolution descriptor by specifying the algorithm, the propagation
    kind, shapes of input, weights, bias and output, convolution strides,
    padding and padding kind.
-```cpp
+~~~cpp
 auto conv_desc = mkldnn::convolution::desc(
     mkldnn::prop_kind::forward, mkldnn::convolution::direct,
     conv_src_md, /* format::any used here to let convolution choose a format */
     conv_weights_md, conv_bias_md, conv_dst_md,
     {1, 1}, {0, 0}, mkldnn::padding_kind::zero);
-```
+~~~
 
 6. Create a convolution primitive descriptor. Once created, the descriptor will
    have specific formats in place of any wildcard formats that were specified
    in the convolution descriptor.
-```cpp
+~~~cpp
 auto conv_pd = mkldnn::convolution::primitive_desc(conv_desc, cpu_engine);
-```
+~~~
 
 7. Create a memory primitive containing user's data and check whether user data
    format differs from what convolution expects. If yes, create a reorder
    primitive that transforms user data to the convolution format and add it to
    the net.
-```cpp
+~~~cpp
 auto user_src_memory_descriptor
     = mkldnn::memory::primitive_desc(user_src_md, engine);
 
@@ -177,23 +178,23 @@ if (mkldnn::memory::primitive_desc(conv_pd.data.src_primitive_desc)
     /* put the reorder in the net */
     net.push_back(conv_input);
 }
-```
+~~~
 
 8. Create a convolution primitive and add it to the net.
-```cpp
+~~~cpp
 /* Note that the conv_input primitive (whether it is a memory or a reorder)
  * is an input dependency for the convolution primitive which means that the
  * convolution primitive won't be executed before the data is ready. */
 auto conv = mkldnn::convolution(conv_pd, conv_input, conv_weights_memory,
         conv_user_bias_memory, conv_dst_memory);
 net.push_back(conv);
-```
+~~~
 
 9. Finally, create a stream, submit all the primitives, and wait for
     completion.
-```cpp
+~~~cpp
 mkldnn::stream().submit(net).wait();
-```
+~~~
 
 @subpage legal_information
 
