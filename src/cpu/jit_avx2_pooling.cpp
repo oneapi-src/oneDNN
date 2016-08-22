@@ -59,7 +59,7 @@ jit_avx2_pooling<prec>::jit_avx2_pooling(const pooling_primitive_desc_t &ppd,
     jpp.nb_c = jpp.c / jpp.c_block;
 
     jpp.ur_h = 1; /* no code-unrolling by h so far */
-    jpp.ur_w = 3;
+    jpp.ur_w = (this->_is_training) ? 4 : 8;
     if (jpp.ow < jpp.ur_w) jpp.ur_w = jpp.ow;
     jpp.ur_w_tail = jpp.ow % jpp.ur_w;
 
@@ -86,7 +86,7 @@ status_t jit_avx2_pooling<prec>::execute_forward() {
         dst_d(this->_ppd.dst_primitive_desc.memory_desc);
 
     uint32_t arr_init[8] = {0, 1, 2, 3, 4, 5, 6, 7};
-#   pragma omp parallel for collapse(2)
+#   pragma omp parallel for collapse(3)
     for (uint32_t n = 0; n < jpp.mb; ++n) {
         for (uint32_t c = 0; c < jpp.nb_c; ++c) {
             for (uint32_t oh = 0; oh < jpp.oh; ++oh) {
