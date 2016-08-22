@@ -68,11 +68,14 @@ private:
     reg64_t tmp_gpr = rcx;
     reg64_t tmp_gpr2 = rdx;
 
+    const bool _is_training;
+
     inline void oh_step(jit_pooling_param_t *params, uint32_t ur_w,
                          int pad_l, int pad_r, const char* kh_lable);
 public:
     jit_avx2_pooling_generator_f32(
         jit_pooling_param_t *params,
+        bool is_training,
         void* code_ptr = nullptr,
         size_t code_size = 8 * Xbyak::DEFAULT_MAX_CODE_SIZE);
 };

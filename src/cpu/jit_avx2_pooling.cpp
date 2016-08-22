@@ -63,7 +63,7 @@ jit_avx2_pooling<prec>::jit_avx2_pooling(const pooling_primitive_desc_t &ppd,
     if (jpp.ow < jpp.ur_w) jpp.ur_w = jpp.ow;
     jpp.ur_w_tail = jpp.ow % jpp.ur_w;
 
-    generator = new jit_avx2_pooling_generator_f32(&jpp);
+    generator = new jit_avx2_pooling_generator_f32(&jpp, this->_is_training);
 //TODO: if(generator == nullptr) return nullptr;
     jit_ker = (void (*)(void*))generator->getCode();
 //TODO: if(jit_ker == nullptr) return nullptr;
@@ -74,9 +74,10 @@ status_t jit_avx2_pooling<prec>::execute_forward() {
     const data_t *src = reinterpret_cast<const data_t *>
         (this->input()[0].primitive->output()[
             this->input()[0].output_index]->memory_const());
-    uint32_t *indices = reinterpret_cast<uint32_t*>
-        (this->input()[1].primitive->output()[
-            this->input()[1].output_index]->memory());
+    uint32_t *indices = this->_is_training
+        ? reinterpret_cast<uint32_t*>(this->input()[1].primitive->output()[
+                this->input()[1].output_index]->memory())
+        : nullptr;
     data_t *dst = reinterpret_cast<data_t*>(this->output()[0]->memory());
 
     const memory_desc_wrapper

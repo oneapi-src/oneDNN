@@ -33,9 +33,10 @@ status_t reference_pooling<prec>::execute_forward() {
     auto src = reinterpret_cast<const data_t *>(
             this->input()[0].primitive->output()[
             this->input()[0].output_index]->memory_const());
-    auto indices = reinterpret_cast<index_t*>(
-            this->input()[1].primitive->output()[
-            this->input()[1].output_index]->memory());
+    index_t *indices = this->_is_training
+        ? reinterpret_cast<index_t*>(this->input()[1].primitive->output()[
+                this->input()[1].output_index]->memory())
+        : nullptr;
     auto dst = reinterpret_cast<data_t*>(this->output()[0]->memory());
 
     const memory_desc_wrapper
@@ -68,7 +69,8 @@ status_t reference_pooling<prec>::execute_forward() {
 
                 if (src[src_d.off(mb, oc, ih, iw)] > d[0]) {
                     d[0] = src[src_d.off(mb, oc, ih, iw)];
-                    indices[indices_d.off(mb, oc, oh, ow)] = kh*KW + kw;
+                    if (this->_is_training)
+                        indices[indices_d.off(mb, oc, oh, ow)] = kh*KW + kw;
                 }
             }
         }
