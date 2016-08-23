@@ -376,6 +376,42 @@ mkldnn_status_t MKLDNN_API mkldnn_inner_product_get_primitive_desc(
 
 /** @} */
 
+/** @addtogroup c_api_convolution_relu Convolution followed by ReLU
+ * A primitive to compute convolution followed by relu using different
+ * algorithms.
+ * @{ */
+
+/** Initializes a @p convolution_relu_desc descriptor using @p convolution_desc
+ * descriptor and @p negative slope */
+mkldnn_status_t MKLDNN_API mkldnn_convolution_relu_desc_init(
+        mkldnn_convolution_relu_desc_t *convolution_relu_desc,
+        const mkldnn_convolution_desc_t *convolution_desc,
+        double negative_slope);
+
+/** Initializes a @p convolution_primitive_desc with @p convolution_desc and @p
+ * engine. */
+mkldnn_status_t MKLDNN_API mkldnn_convolution_relu_primitive_desc_init(
+        mkldnn_convolution_relu_primitive_desc_t *conv_relu_primitive_desc,
+        const mkldnn_convolution_relu_desc_t *convolution_relu_desc,
+        const_mkldnn_engine_t engine);
+
+/** Creates a @p convolution primitive using a @p convolution_primitive_desc
+ * descriptor, input primitive_at-s @p src, @p weights, @p bias,
+ * and output primitive @p dst. */
+mkldnn_status_t MKLDNN_API mkldnn_convolution_relu_create(
+        mkldnn_primitive_t *convolution_relu,
+        const mkldnn_convolution_relu_primitive_desc_t *conv_relu_primitive_desc,
+        const mkldnn_primitive_at_t src, const mkldnn_primitive_at_t weights,
+        const mkldnn_primitive_at_t bias, const_mkldnn_primitive_t dst);
+
+/** Retrieves the @p convolution_primitive_desc descriptor associated with a @p
+ * convolution primitive. */
+mkldnn_status_t MKLDNN_API mkldnn_convolution_relu_get_primitive_desc(
+        const_mkldnn_primitive_t convolution_relu,
+        mkldnn_convolution_relu_primitive_desc_t *conv_relu_primitive_desc);
+
+/** @} */
+
 /** @} */
 
 /** @addtogroup c_api_engine Engine operations

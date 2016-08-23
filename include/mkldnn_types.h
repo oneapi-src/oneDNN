@@ -325,6 +325,15 @@ typedef struct {
     mkldnn_memory_desc_t dst_desc;
 } mkldnn_inner_product_desc_t;
 
+/** A descriptor of a convolution followed by relu operation. */
+typedef struct {
+    /** A descriptor of a convolution operation. */
+    mkldnn_convolution_desc_t convolution_desc;
+    /** Scaling factor for negative values, stored as double-precision but
+     * interpreted in a way specific to the data type in each implementation */
+    double negative_slope;
+} mkldnn_convolution_relu_desc_t;
+
 /** @} */
 
 /** @addtogroup c_api_engine_types Engine
@@ -372,6 +381,8 @@ typedef enum {
     mkldnn_lrn,
     /** An inner product primitive */
     mkldnn_inner_product,
+    /** A convolution primitive merged with relu */
+    mkldnn_convolution_relu,
 } mkldnn_primitive_kind_t;
 
 /** Basic primitive descriptor. It is the first member of all
@@ -468,6 +479,22 @@ typedef struct {
     /** Descriptor of the destination memory primitive */
     mkldnn_memory_primitive_desc_t dst_primitive_desc;
 } mkldnn_inner_product_primitive_desc_t;
+
+/** Descriptor of a convolution followed by relu primitive */
+typedef struct {
+    /** Basic primitive descriptor */
+    mkldnn_primitive_base_desc_t base;
+    /** Descriptor of the underlying convolution followed by relu operation */
+    mkldnn_convolution_relu_desc_t convolution_relu_desc;
+    /** Descriptor of the source memory primitive */
+    mkldnn_memory_primitive_desc_t src_primitive_desc;
+    /** Descriptor of the weights memory primitive */
+    mkldnn_memory_primitive_desc_t weights_primitive_desc;
+    /** Descriptor of the bias memory primitive */
+    mkldnn_memory_primitive_desc_t bias_primitive_desc;
+    /** Descriptor of the destination memory primitive */
+    mkldnn_memory_primitive_desc_t dst_primitive_desc;
+} mkldnn_convolution_relu_primitive_desc_t;
 
 /** A pointer to any of the primitive descriptors. */
 typedef void *mkldnn_primitive_desc_t;

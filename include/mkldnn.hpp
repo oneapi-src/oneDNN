@@ -884,6 +884,100 @@ struct inner_product: public primitive {
     }
 };
 
+struct convolution_relu: public primitive {
+    using algorithm = convolution::algorithm;
+
+    struct desc {
+        c_api::mkldnn_convolution_relu_desc_t data;
+        desc(const convolution::desc conv_desc,
+                const double negative_slope)
+        {
+            error::wrap_c_api(c_api::mkldnn_convolution_relu_desc_init(&data,
+                        &conv_desc.data, negative_slope),
+                    "could not create a convolution_relu descriptor");
+        }
+    };
+
+    struct primitive_desc {
+        c_api::mkldnn_convolution_relu_primitive_desc_t data;
+        primitive_desc(const desc &adesc, const engine &aengine) {
+            error::wrap_c_api(
+                    c_api::mkldnn_convolution_relu_primitive_desc_init(
+                        &data, &adesc.data, aengine.get()),
+                    "could not create a convolution_relu primitive descriptor");
+        }
+    };
+
+    convolution_relu(const primitive_desc &aprimitive_desc,
+            const primitive::at &src, const primitive::at &weights,
+            const primitive::at &bias, const memory &dst) {
+        c_api::mkldnn_primitive_t result;
+        error::wrap_c_api(c_api::mkldnn_convolution_relu_create(&result,
+                    &aprimitive_desc.data, src.data, weights.data,
+                    bias.data, dst.get()),
+                "could not create a convolution_relu primitive");
+        reset(result);
+    }
+
+    convolution_relu(const primitive_desc &aprimitive_desc,
+            const primitive::at &src, const primitive::at &weights,
+            const memory &dst) {
+        c_api::mkldnn_primitive_t result;
+        error::wrap_c_api(c_api::mkldnn_convolution_relu_create(&result,
+                    &aprimitive_desc.data, src.data, weights.data,
+                    {nullptr, 0}, dst.get()),
+                "could not create a convolution_relu primitive");
+        reset(result);
+    }
+
+    convolution_relu(prop_kind aprop_kind, algorithm aalgorithm,
+            const primitive::at &src, const primitive::at &weights,
+            const primitive::at &bias, const memory &dst,
+            const tensor::dims strides, const tensor::nd_offset padding,
+            const padding_kind apadding_kind, const double negative_slope) {
+        auto src_md = memory(src).get_primitive_desc();
+        auto weights_md = memory(weights).get_primitive_desc();
+        auto bias_md = memory(bias).get_primitive_desc();
+        auto dst_md = dst.get_primitive_desc();
+
+        auto conv_relu_d = desc({aprop_kind, aalgorithm, src_md.desc(),
+                weights_md.desc(), bias_md.desc(), dst_md.desc(), strides,
+                padding, apadding_kind}, negative_slope);
+        auto conv_relu_pd = primitive_desc(conv_relu_d,
+                engine(src_md.data.base.engine));
+
+        c_api::mkldnn_primitive_t result;
+        error::wrap_c_api(c_api::mkldnn_convolution_relu_create(&result,
+                    &conv_relu_pd.data, src.data, weights.data, bias.data,
+                    dst.get()),
+                "could not create a convolution_relu primitive");
+        reset(result);
+    }
+
+    convolution_relu(prop_kind aprop_kind, algorithm aalgorithm,
+            const primitive::at &src, const primitive::at &weights,
+            const memory &dst, const tensor::dims strides,
+            const tensor::nd_offset padding, const padding_kind apadding_kind,
+            const double negative_slope) {
+        auto src_md = memory(src).get_primitive_desc();
+        auto weights_md = memory(weights).get_primitive_desc();
+        auto dst_md = dst.get_primitive_desc();
+
+        auto conv_relu_d = desc({aprop_kind, aalgorithm, src_md.desc(),
+                weights_md.desc(), dst_md.desc(), strides, padding,
+                apadding_kind}, negative_slope);
+        auto conv_relu_pd = primitive_desc(conv_relu_d,
+                engine(src_md.data.base.engine));
+
+        c_api::mkldnn_primitive_t result;
+        error::wrap_c_api(c_api::mkldnn_convolution_relu_create(&result,
+                    &conv_relu_pd.data, src.data, weights.data, {nullptr, 0},
+                    dst.get()),
+                "could not create a convolution_relu primitive");
+        reset(result);
+    }
+};
+
 /// @}
 
 /// @addtogroup cpp_api_stream Stream
