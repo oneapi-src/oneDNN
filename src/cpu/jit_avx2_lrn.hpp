@@ -43,12 +43,12 @@ public:
     static const primitive_impl implementation;
 private:
     /* Computes output h (x) w (x) 8 */
-    void(*ker_hw8_first)(const void *);
-    void(*ker_hw8_last)(const void *);
-    void(*ker_hw8)(const void *);
+    void(*ker_first)(const void *);
+    void(*ker_last)(const void *);
+    void(*ker)(const void *);
 
     struct xbyak_lrn;
-    xbyak_lrn *jit_lrn, *jit_lrn_first, *jit_lrn_last;
+    xbyak_lrn *jit, *jit_first, *jit_last;
 
     status_t execute_forward();
 };

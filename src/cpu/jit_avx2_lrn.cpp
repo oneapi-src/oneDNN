@@ -404,9 +404,9 @@ const float jit_avx2_lrn<prec>::xbyak_lrn::one = 1.0f;
 
 template <impl::precision_t prec>
 jit_avx2_lrn<prec>::~jit_avx2_lrn() {
-    delete this->jit_lrn;
-    delete this->jit_lrn_first;
-    delete this->jit_lrn_last;
+    delete this->jit;
+    delete this->jit_first;
+    delete this->jit_last;
 }
 
 template <impl::precision_t prec>
@@ -436,11 +436,11 @@ status_t jit_avx2_lrn<prec>::execute_forward() {
                 args.dst = &dst[n*HW*C + c8 * HW * VECTOR_LENGTH];
                 args.scratch = &scratch[n*HW*C + c8 * HW * VECTOR_LENGTH];
                 if (c8 == 0)
-                    ker_hw8_first(&args);
+                    ker_first(&args);
                 else if (c8 == C / VECTOR_LENGTH - 1)
-                    ker_hw8_last(&args);
+                    ker_last(&args);
                 else
-                    ker_hw8(&args);
+                    ker(&args);
             }
         }
     }
@@ -454,9 +454,9 @@ status_t jit_avx2_lrn<prec>::execute_forward() {
                 args.dst = &dst[n*HW*C + hw8 * VECTOR_LENGTH];
                 args.scratch = &scratch[n*HW*C + hw8 * VECTOR_LENGTH];
                 if ((hw8+1)*VECTOR_LENGTH > HW)
-                    ker_hw8_last(&args);
+                    ker_last(&args);
                 else
-                    ker_hw8(&args);
+                    ker(&args);
             }
         }
     }
@@ -469,7 +469,7 @@ status_t jit_avx2_lrn<prec>::execute_forward() {
                 args.src = &src[n*HW*C + hw * C];
                 args.dst = &dst[n*HW*C + hw * C];
                 args.scratch = &scratch[n*HW*C + hw * C];
-                ker_hw8(&args);
+                ker(&args);
             }
         }
     }
@@ -524,26 +524,26 @@ jit_avx2_lrn<prec>::jit_avx2_lrn(const lrn_primitive_desc_t &ppd,
 
     if (ppd.src_primitive_desc.memory_desc.format == nChw8c)
     {
-        this->jit_lrn = new xbyak_lrn(A, H*W, 0, ppd.lrn_desc.prop_kind);
-        this->jit_lrn_first = new xbyak_lrn(A, H*W, -1, ppd.lrn_desc.prop_kind);
-        this->jit_lrn_last = new xbyak_lrn(A, H*W, +1, ppd.lrn_desc.prop_kind);
+        this->jit = new xbyak_lrn(A, H*W, 0, ppd.lrn_desc.prop_kind);
+        this->jit_first = new xbyak_lrn(A, H*W, -1, ppd.lrn_desc.prop_kind);
+        this->jit_last = new xbyak_lrn(A, H*W, +1, ppd.lrn_desc.prop_kind);
     }
     else if (ppd.src_primitive_desc.memory_desc.format == nchw)
     {
-        this->jit_lrn = new xbyak_lrn(A, C, H*W, 0, ppd.lrn_desc.prop_kind);
-        this->jit_lrn_first = nullptr;
-        this->jit_lrn_last = new xbyak_lrn(A, C, H*W, (H*W) % VECTOR_LENGTH, ppd.lrn_desc.prop_kind);
+        this->jit = new xbyak_lrn(A, C, H*W, 0, ppd.lrn_desc.prop_kind);
+        this->jit_first = nullptr;
+        this->jit_last = new xbyak_lrn(A, C, H*W, (H*W) % VECTOR_LENGTH, ppd.lrn_desc.prop_kind);
     }
     else // nhwc
     {
-        this->jit_lrn = new xbyak_lrn(A, C, ppd.lrn_desc.prop_kind);
-        this->jit_lrn_first = nullptr;
-        this->jit_lrn_last = nullptr;
+        this->jit = new xbyak_lrn(A, C, ppd.lrn_desc.prop_kind);
+        this->jit_first = nullptr;
+        this->jit_last = nullptr;
     }
     typedef void(*kernel_t)(const void*);
-    this->ker_hw8 = this->jit_lrn == nullptr ? nullptr : reinterpret_cast<kernel_t>(const_cast<uint8_t*>(this->jit_lrn->getCode()));
-    this->ker_hw8_first = this->jit_lrn_first == nullptr ? nullptr : reinterpret_cast<kernel_t>(const_cast<uint8_t*>(this->jit_lrn_first->getCode()));
-    this->ker_hw8_last = this->jit_lrn_last == nullptr ? nullptr : reinterpret_cast<kernel_t>(const_cast<uint8_t*>(this->jit_lrn_last->getCode()));
+    this->ker = this->jit == nullptr ? nullptr : reinterpret_cast<kernel_t>(const_cast<uint8_t*>(this->jit->getCode()));
+    this->ker_first = this->jit_first == nullptr ? nullptr : reinterpret_cast<kernel_t>(const_cast<uint8_t*>(this->jit_first->getCode()));
+    this->ker_last = this->jit_last == nullptr ? nullptr : reinterpret_cast<kernel_t>(const_cast<uint8_t*>(this->jit_last->getCode()));
 }
 
 }
