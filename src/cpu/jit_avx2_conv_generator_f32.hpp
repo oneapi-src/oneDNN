@@ -78,7 +78,10 @@ private:
     inline void width_blk_step(jit_convolution_param_t *params, int ur_w,
             int pad_l, int pad_r, const char *kh_lable, const char *kw_lable);
 
-    inline void init_jit_params(const convolution_primitive_desc_t &cpd);
+    inline void init_jit_params(const convolution_desc_t &cd,
+            const memory_desc_wrapper &src_d,
+            const memory_desc_wrapper &weights_d,
+            const memory_desc_wrapper &dst_d);
     inline void generate();
 public:
     jit_avx2_conv_generator_f32(const convolution_primitive_desc_t &cpd,

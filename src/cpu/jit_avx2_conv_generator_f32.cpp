@@ -232,12 +232,9 @@ void jit_avx2_conv_generator_f32::generate() {
 }
 
 void jit_avx2_conv_generator_f32::init_jit_params(
-        const convolution_primitive_desc_t &cpd) {
-    const memory_desc_wrapper
-        src_d(cpd.src_primitive_desc),
-        weights_d(cpd.weights_primitive_desc),
-        dst_d(cpd.dst_primitive_desc);
-
+        const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
+        const memory_desc_wrapper &weights_d, const memory_desc_wrapper &dst_d)
+{
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
     const uint32_t w_idx_base = with_groups ? 1 : 0;
     jcp.ngroups = with_groups ? weights_d.dims()[0] : 1;
@@ -248,12 +245,12 @@ void jit_avx2_conv_generator_f32::init_jit_params(
     jcp.ih = src_d.dims()[2]; jcp.iw = src_d.dims()[3];
     jcp.oh = dst_d.dims()[2]; jcp.ow = dst_d.dims()[3];
 
-    jcp.t_pad = cpd.convolution_desc.padding[0];
-    jcp.l_pad = cpd.convolution_desc.padding[1];
+    jcp.t_pad = cd.padding[0];
+    jcp.l_pad = cd.padding[1];
     jcp.kh = weights_d.dims()[w_idx_base + 2];
     jcp.kw = weights_d.dims()[w_idx_base + 3];
-    jcp.stride_h = cpd.convolution_desc.strides[0];
-    jcp.stride_w = cpd.convolution_desc.strides[1];
+    jcp.stride_h = cd.strides[0];
+    jcp.stride_w = cd.strides[1];
 
     const uint32_t simd_w = 8;
     jcp.ic_block = (jcp.ic % simd_w != 0) ? jcp.ic : simd_w;
@@ -279,7 +276,8 @@ jit_avx2_conv_generator_f32::jit_avx2_conv_generator_f32(
     : jit_generator(code_ptr, code_size)
     , _src_in_nchw(cpd.src_primitive_desc.memory_desc.format == nchw)
 {
-    this->init_jit_params(cpd);
+    this->init_jit_params(cpd.convolution_desc, cpd.src_primitive_desc,
+            cpd.weights_primitive_desc, cpd.dst_primitive_desc);
     this->generate();
     jit_ker = (void (*)(void*))this->getCode();
     //TODO: if(jit_ker == nullptr) return nullptr;
