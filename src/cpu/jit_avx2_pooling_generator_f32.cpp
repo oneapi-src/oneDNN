@@ -47,7 +47,7 @@ inline void jit_avx2_pooling_generator_f32::oh_step(
     using Xbyak::Xmm;
 
     unsigned char _cmp = 1;
-    float _flt_min = -FLT_MIN;
+    float _flt_max = -FLT_MAX;
 
     uint32_t IW = params->iw;
     uint32_t KW = params->kw;
@@ -55,7 +55,7 @@ inline void jit_avx2_pooling_generator_f32::oh_step(
 
     vpxor(ymm_store_mask, ymm_store_mask);
     // Init output
-    mov(tmp_gpr, _flt_min);
+    mov(tmp_gpr, _flt_max);
     movq(xmm_init_reg, tmp_gpr);
     vbroadcastss(ymm_init_reg, xmm_init_reg);    // output
 
