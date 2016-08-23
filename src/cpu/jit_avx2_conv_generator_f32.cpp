@@ -69,9 +69,11 @@ inline void jit_avx2_conv_generator_f32::oh_step_unroll(
 
 inline void jit_avx2_conv_generator_f32::oh_step_nopad(
         jit_convolution_param_t *params, int ur_w, int pad_l, int pad_r,
-        const char *kw_lable)
+        char pad_label)
 {
     using Xbyak::Ymm;
+    char kw_label[4] = ".wP";
+    kw_label[2] = pad_label;
 
     int iw = params->iw;
     int ih = params->ih;
@@ -84,7 +86,7 @@ inline void jit_avx2_conv_generator_f32::oh_step_nopad(
     int oc_blk = params->oc_block;
 
     xor_(ki_iter, ki_iter);
-    L(kw_lable);
+    L(kw_label);
     {
         int jj_start = 0;
         int jj_end = ur_w;
@@ -113,15 +115,17 @@ inline void jit_avx2_conv_generator_f32::oh_step_nopad(
 
         inc(ki_iter);
         cmp(ki_iter, kw);
-        jl(kw_lable, T_NEAR);
+        jl(kw_label, T_NEAR);
     }
 }
 
 inline void jit_avx2_conv_generator_f32::width_blk_step(
         jit_convolution_param_t *params, int ur_w, int pad_l, int pad_r,
-        const char *kh_lable, const char *kw_lable)
+        char pad_label)
 {
     using Xbyak::Ymm;
+    char kh_label[4] = ".hP";
+    kh_label[2] = pad_label;
 
     int iw = params->iw;
     int kw = params->kw;
@@ -141,28 +145,54 @@ inline void jit_avx2_conv_generator_f32::width_blk_step(
     mov(aux_reg_kernel, reg_kernel);
 
     mov(kj, reg_kh);
-    L(kh_lable);
+    L(kh_label);
     {
         if (params->kw < 5 || pad_l > 0 || pad_r > 0) {
             oh_step_unroll(params, ur_w, pad_l, pad_r);
             add(aux_reg_kernel, sizeof(float) * kw * oc_blk * ic_blk);
             add(aux_reg_input, sizeof(float) * iw * inp_mult);
         } else {
-            oh_step_nopad(params, ur_w, pad_l, pad_r, kw_lable);
+            oh_step_nopad(params, ur_w, pad_l, pad_r, pad_label);
             sub(aux_reg_input, sizeof(float) * kw * inp_mult);
             add(aux_reg_input, sizeof(float) * iw * inp_mult);
         }
 
         dec(kj);
         cmp(kj, 0);
-        jg(kh_lable, T_NEAR);
+        jg(kh_label, T_NEAR);
     }
 
-    for (int ii = 0; ii < nb_oc_block; ii++)
-        for (int jj = 0; jj < ur_w; jj++)
-            vmovups(YWORD[reg_output
-                    + sizeof(float) * (ii * oh * ow + jj) * oc_blk],
-                    Ymm(ur_w * ii + jj));
+    char done_label[4] = {'.', 'd', pad_label, '\0'};
+    char regular_store_label[4] = {'.', 's', pad_label, '\0'};
+    if (this->jcp.with_relu) {
+        assert(nb_oc_block*ur_w < 15);
+        bt(reg_ci_flag, IC_FLAG_LAST);
+        jnc(regular_store_label, T_NEAR);
+
+        Ymm yzero = ymm15, ymask = ymm14;
+        vxorps(yzero, yzero, yzero);
+        for (int ii = 0; ii < nb_oc_block; ii++) {
+            for (int jj = 0; jj < ur_w; jj++) {
+                const size_t o_off = (ii * oh * ow + jj) * oc_blk;
+                Ymm reg_out = Ymm(ur_w * ii + jj);
+
+                vcmpgtps(ymask, reg_out, yzero);
+                vblendvps(reg_out, yzero, reg_out, ymask);
+                vmovups(YWORD[reg_output + sizeof(float) * o_off], reg_out);
+            }
+        }
+
+        jmp(done_label);
+        L(regular_store_label);
+    }
+    for (int ii = 0; ii < nb_oc_block; ii++) {
+        for (int jj = 0; jj < ur_w; jj++) {
+            const size_t o_off = (ii * oh * ow + jj) * oc_blk;
+            Ymm reg_out = Ymm(ur_w * ii + jj);
+            vmovups(YWORD[reg_output + sizeof(float) * o_off], reg_out);
+        }
+    }
+    L(done_label);
 }
 
 void jit_avx2_conv_generator_f32::generate() {
@@ -174,6 +204,9 @@ void jit_avx2_conv_generator_f32::generate() {
     mov(reg_output, ptr[this->param1 + 8]);
     mov(reg_kernel, ptr[this->param1 + 16]);
     mov(reg_kh, ptr[this->param1 + 48]);
+    if (this->jcp.with_relu)
+        mov(reg_ci_flag, ptr[
+                this->param1 + offsetof(jit_convolution_kernel_t, ic_flag)]);
 
     // NB: works only for params->ur_w == 3 && params->nb_oc % 4 == 0
     int ur_w = params->ur_w;
@@ -192,8 +225,7 @@ void jit_avx2_conv_generator_f32::generate() {
             - (iw + l_pad - 1));
     int r_pad1 = 0;
     if (l_pad > 0) {
-        width_blk_step(params, ur_w, l_pad, 0, ".kh_loop_oimain_padwl",
-                ".kw_loop_oimain_padwl");
+        width_blk_step(params, ur_w, l_pad, 0, 'l'); // "lpad"
         add(reg_input, sizeof(float) * (ur_w * str_w - l_pad) * inp_mult);
         add(reg_output, sizeof(float) * ur_w * oc_blk);
         inc(oi_iter);
@@ -205,28 +237,23 @@ void jit_avx2_conv_generator_f32::generate() {
     if ((l_pad <= 0 && n_oi > 0) || (l_pad > 0 && n_oi > 1)) {
         L(".ow_loop");
 
-        width_blk_step(params, ur_w, 0, 0, ".kh_loop_oimain",
-                ".kw_loop_oimain");
+        width_blk_step(params, ur_w, 0, 0, 'm'); // "middle"
         add(reg_input, sizeof(float) * ur_w * str_w * inp_mult);
         add(reg_output, sizeof(float) * ur_w * oc_blk);
 
         inc(oi_iter);
         cmp(oi_iter, n_oi);
         jl(".ow_loop", T_NEAR);
-
-        L(".ow_loop_end");
     }
 
     if (r_pad1 > 0) {
-        width_blk_step(params, ur_w, 0, r_pad1, ".kh_loop_oimain_padwr",
-                ".kw_loop_oimain_padwr");
+        width_blk_step(params, ur_w, 0, r_pad1, 'r'); // "rpad"
         add(reg_input, sizeof(float) * ur_w * str_w * inp_mult);
         add(reg_output, sizeof(float) * ur_w * oc_blk);
     }
 
     if (ur_w_tail != 0)
-        width_blk_step(params, ur_w_tail, 0, r_pad, ".kh_loop_oitail",
-                ".kw_loop_oitail");
+        width_blk_step(params, ur_w_tail, 0, r_pad, 't'); // "tail"
 
     this->postamble();
 }
@@ -275,9 +302,27 @@ jit_avx2_conv_generator_f32::jit_avx2_conv_generator_f32(
         size_t code_size)
     : jit_generator(code_ptr, code_size)
     , _src_in_nchw(cpd.src_primitive_desc.memory_desc.format == nchw)
+    , jcp({})
 {
     this->init_jit_params(cpd.convolution_desc, cpd.src_primitive_desc,
             cpd.weights_primitive_desc, cpd.dst_primitive_desc);
+    this->generate();
+    jit_ker = (void (*)(void*))this->getCode();
+    //TODO: if(jit_ker == nullptr) return nullptr;
+}
+
+jit_avx2_conv_generator_f32::jit_avx2_conv_generator_f32(
+        const convolution_relu_primitive_desc_t &crpd, void *code_ptr,
+        size_t code_size)
+    : jit_generator(code_ptr, code_size)
+    , _src_in_nchw(crpd.src_primitive_desc.memory_desc.format == nchw)
+    , jcp({})
+{
+    this->init_jit_params(crpd.convolution_relu_desc.convolution_desc,
+            crpd.src_primitive_desc, crpd.weights_primitive_desc,
+            crpd.dst_primitive_desc);
+    jcp.with_relu = true;
+    jcp.relu_negative_slope = crpd.convolution_relu_desc.negative_slope;
     this->generate();
     jit_ker = (void (*)(void*))this->getCode();
     //TODO: if(jit_ker == nullptr) return nullptr;
@@ -343,6 +388,12 @@ bool jit_avx2_conv_generator_f32::is_applicable(
     }
 
     return true;
+}
+
+bool jit_avx2_conv_generator_f32::is_applicable(
+        const convolution_relu_desc_t &conv_relu_d) {
+    return conv_relu_d.negative_slope == 0
+        && is_applicable(conv_relu_d.convolution_desc);
 }
 
 }

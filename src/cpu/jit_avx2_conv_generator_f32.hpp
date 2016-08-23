@@ -24,7 +24,7 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-typedef struct {
+struct jit_convolution_param_t {
     int ic, oc;
     uint32_t mb;
     uint32_t ih, iw, oh, ow;
@@ -39,7 +39,9 @@ typedef struct {
     uint32_t ur_w_tail;
     uint32_t ngroups;
     memory_format_t src_fmt;
-} jit_convolution_param_t;
+    bool with_relu;
+    double relu_negative_slope;
+};
 
 typedef struct __attribute__((__packed__)) jit_convolution_kernel_s {
     const float *src; /* hack, non-const for backward_data */
@@ -51,6 +53,7 @@ typedef struct __attribute__((__packed__)) jit_convolution_kernel_s {
     size_t kh_padding;
     size_t kh_padding_prf;
     size_t kw_padding;
+    int32_t ic_flag;
 } jit_convolution_kernel_t;
 
 class jit_avx2_conv_generator_f32 : public jit_generator {
@@ -66,6 +69,7 @@ private:
     reg64_t oi_iter = r11;
     reg64_t ki_iter = r12;
     reg64_t reg_kh = rcx;
+    Xbyak::Reg32 reg_ci_flag = r13d;
 
     const bool _src_in_nchw;
 
@@ -73,10 +77,10 @@ private:
             int pad_l, int pad_r);
 
     inline void oh_step_nopad(jit_convolution_param_t *params, int ur_w,
-            int pad_l, int pad_r, const char *kw_lable);
+            int pad_l, int pad_r, char pad_label);
 
     inline void width_blk_step(jit_convolution_param_t *params, int ur_w,
-            int pad_l, int pad_r, const char *kh_lable, const char *kw_lable);
+            int pad_l, int pad_r, char pad_label);
 
     inline void init_jit_params(const convolution_desc_t &cd,
             const memory_desc_wrapper &src_d,
@@ -84,7 +88,12 @@ private:
             const memory_desc_wrapper &dst_d);
     inline void generate();
 public:
+    enum { IC_FLAG_FIRST = 1, IC_FLAG_LAST = 2 };
     jit_avx2_conv_generator_f32(const convolution_primitive_desc_t &cpd,
+            void *code_ptr = nullptr,
+            size_t code_size = 8 * Xbyak::DEFAULT_MAX_CODE_SIZE);
+    jit_avx2_conv_generator_f32(
+            const convolution_relu_primitive_desc_t &crpd,
             void *code_ptr = nullptr,
             size_t code_size = 8 * Xbyak::DEFAULT_MAX_CODE_SIZE);
 
@@ -92,6 +101,7 @@ public:
     void (*jit_ker)(void *);
 
     static bool is_applicable(const convolution_desc_t &conv_d);
+    static bool is_applicable(const convolution_relu_desc_t &conv_relu_d);
 };
 }
 }
