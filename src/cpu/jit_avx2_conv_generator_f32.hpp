@@ -78,10 +78,17 @@ private:
     inline void width_blk_step(jit_convolution_param_t *params, int ur_w,
             int pad_l, int pad_r, const char *kh_lable, const char *kw_lable);
 
+    inline void init_jit_params(const convolution_primitive_desc_t &cpd);
+    inline void generate();
 public:
-    jit_avx2_conv_generator_f32(jit_convolution_param_t *params,
+    jit_avx2_conv_generator_f32(const convolution_primitive_desc_t &cpd,
             void *code_ptr = nullptr,
             size_t code_size = 8 * Xbyak::DEFAULT_MAX_CODE_SIZE);
+
+    jit_convolution_param_t jcp;
+    void (*jit_ker)(void *);
+
+    static bool is_applicable(const convolution_desc_t &conv_d);
 };
 }
 }

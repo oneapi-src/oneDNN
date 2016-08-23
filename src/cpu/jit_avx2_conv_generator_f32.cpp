@@ -16,6 +16,7 @@
 
 #include "c_types_map.hpp"
 #include "nstl.hpp"
+#include "type_helpers.hpp"
 
 #include "jit_avx2_conv_generator_f32.hpp"
 
@@ -164,12 +165,8 @@ inline void jit_avx2_conv_generator_f32::width_blk_step(
                     Ymm(ur_w * ii + jj));
 }
 
-jit_avx2_conv_generator_f32::jit_avx2_conv_generator_f32(
-        jit_convolution_param_t *params, void *code_ptr, size_t code_size)
-    : jit_generator(code_ptr, code_size)
-    , _src_in_nchw(params->src_fmt == nchw)
-
-{
+void jit_avx2_conv_generator_f32::generate() {
+    auto params = &this->jcp;
     using Xbyak::Ymm;
     this->preamble();
 
@@ -232,6 +229,122 @@ jit_avx2_conv_generator_f32::jit_avx2_conv_generator_f32(
                 ".kw_loop_oitail");
 
     this->postamble();
+}
+
+void jit_avx2_conv_generator_f32::init_jit_params(
+        const convolution_primitive_desc_t &cpd) {
+    const memory_desc_wrapper
+        src_d(cpd.src_primitive_desc),
+        weights_d(cpd.weights_primitive_desc),
+        dst_d(cpd.dst_primitive_desc);
+
+    const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
+    const uint32_t w_idx_base = with_groups ? 1 : 0;
+    jcp.ngroups = with_groups ? weights_d.dims()[0] : 1;
+    jcp.mb = src_d.dims()[0];
+    jcp.ic = weights_d.dims()[w_idx_base + 1];
+    jcp.oc = weights_d.dims()[w_idx_base + 0];
+
+    jcp.ih = src_d.dims()[2]; jcp.iw = src_d.dims()[3];
+    jcp.oh = dst_d.dims()[2]; jcp.ow = dst_d.dims()[3];
+
+    jcp.t_pad = cpd.convolution_desc.padding[0];
+    jcp.l_pad = cpd.convolution_desc.padding[1];
+    jcp.kh = weights_d.dims()[w_idx_base + 2];
+    jcp.kw = weights_d.dims()[w_idx_base + 3];
+    jcp.stride_h = cpd.convolution_desc.strides[0];
+    jcp.stride_w = cpd.convolution_desc.strides[1];
+
+    const uint32_t simd_w = 8;
+    jcp.ic_block = (jcp.ic % simd_w != 0) ? jcp.ic : simd_w;
+    jcp.nb_ic = jcp.ic / jcp.ic_block;
+
+    jcp.oc_block = simd_w;
+    jcp.nb_oc = jcp.oc / jcp.oc_block;
+    jcp.ur_h = 1; /* no code-unrolling by h so far */
+    jcp.ur_w = 3;
+    jcp.nb_ic_blocking =  jcp.nb_oc_blocking = 1;
+    for (int b = 4; b > 1; b--)
+        if (jcp.nb_oc % b == 0) {
+            jcp.nb_oc_blocking = b;
+            break;
+        }
+    jcp.ur_w_tail = jcp.ow % jcp.ur_w;
+    jcp.src_fmt = src_d.format();
+}
+
+jit_avx2_conv_generator_f32::jit_avx2_conv_generator_f32(
+        const convolution_primitive_desc_t &cpd, void *code_ptr,
+        size_t code_size)
+    : jit_generator(code_ptr, code_size)
+    , _src_in_nchw(cpd.src_primitive_desc.memory_desc.format == nchw)
+{
+    this->init_jit_params(cpd);
+    this->generate();
+    jit_ker = (void (*)(void*))this->getCode();
+    //TODO: if(jit_ker == nullptr) return nullptr;
+}
+
+bool jit_avx2_conv_generator_f32::is_applicable(
+        const convolution_desc_t &conv_d)
+{
+    const memory_desc_wrapper src_d(conv_d.src_desc),
+          weights_d(conv_d.weights_desc), dst_d(conv_d.dst_desc);
+
+    const bool flat = src_d.dims()[1] == 3;
+    const bool mimo = !flat;
+    const bool with_groups = weights_d.ndims() == (src_d.ndims() + 1);
+
+    bool args_ok = true
+        && implication(flat, one_of(src_d.format(), nchw, nhwc))
+        && implication(mimo, src_d.format() == nChw8c)
+        && weights_d.format() ==
+                (with_groups ? gOIhw8i8o : (flat ? Ohwi8o : OIhw8i8o))
+        && one_of(conv_d.bias_desc.format, memory_format::undef, x)
+        && dst_d.format() == nChw8c;
+    if (!args_ok) return false;
+
+    const uint32_t w_idx_base = with_groups ? 1 : 0;
+    int ic = weights_d.dims()[w_idx_base + 1];
+    int oc = weights_d.dims()[w_idx_base + 0];
+    int iw = src_d.dims()[3];
+    int ow = dst_d.dims()[3];
+
+    int t_pad = conv_d.padding[0];
+    int l_pad = conv_d.padding[1];
+    int kw = weights_d.dims()[w_idx_base + 3];
+    uint32_t stride_h = conv_d.strides[0];
+    uint32_t stride_w = conv_d.strides[1];
+
+    int ur_w = 3;
+    int ur_w_tail = ow % ur_w;
+
+    const uint32_t simd_w = 8;
+
+    args_ok = true
+        && stride_w == stride_h
+        && implication(mimo, true
+                && stride_w == 1 && stride_h == 1
+                && ic % simd_w == 0 && oc % simd_w == 0
+                && l_pad <= ur_w)
+        && implication(flat, t_pad == 0 && l_pad == 0);
+    if (!args_ok) return false;
+
+    if (mimo) {
+        int r_pad_step0 = nstl::max(0,
+                ((ow == ur_w_tail ? ur_w_tail : ur_w) - 1)
+                + (kw - 1) - (iw + l_pad - 1));
+        int r_pad_no_tail = nstl::max(0, (ow - ur_w_tail - 1)
+                + (kw - 1) - (iw + l_pad - 1));
+
+        /* no steps with both left and right padding so far */
+        if (l_pad > 0 && r_pad_step0 > 0) return false;
+
+        /* maximum 1 ur_w block with r_pad so far */
+        if (r_pad_no_tail > ur_w) return false;
+    }
+
+    return true;
 }
 
 }

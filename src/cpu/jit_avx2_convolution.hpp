@@ -33,15 +33,14 @@ public:
     using convolution<jit_avx2_convolution<prec>>::convolution;
     jit_avx2_convolution(const convolution_primitive_desc_t &cpd,
             const primitive_at_t *inputs, const primitive *outputs[]);
+    ~jit_avx2_convolution() { delete generator; }
 
     static status_t set_default_parameters(convolution_desc_t &conv_d);
     static status_t constraint(const convolution_desc_t &conv_d);
 
     static const primitive_impl implementation;
 private:
-    jit_convolution_param_t jcp;
     jit_avx2_conv_generator_f32 *generator;
-    void (*jit_ker)(void *);
 
     status_t execute_forward();
 };
