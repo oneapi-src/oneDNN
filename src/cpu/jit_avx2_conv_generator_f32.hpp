@@ -39,6 +39,7 @@ struct jit_convolution_param_t {
     uint32_t ur_w_tail;
     uint32_t ngroups;
     memory_format_t src_fmt;
+    bool with_bias;
     bool with_relu;
     double relu_negative_slope;
 };
@@ -47,6 +48,7 @@ typedef struct __attribute__((__packed__)) jit_convolution_kernel_s {
     const float *src; /* hack, non-const for backward_data */
     const float *dst; /* hack, non-const for forward */
     const float *filt; /* hack, non-const for backward_weights */
+    const float *bias; /* hack, non-const for backward_bias */
     const float *src_prf;
     const float *dst_prf;
     const float *filt_prf;
@@ -64,6 +66,7 @@ private:
     reg64_t reg_kernel = rdx;
     reg64_t aux_reg_kernel = r9;
     reg64_t reg_output = rsi;
+    reg64_t reg_bias = rbx;
 
     reg64_t kj = r10;
     reg64_t oi_iter = r11;

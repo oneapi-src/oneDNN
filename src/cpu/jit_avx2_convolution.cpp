@@ -57,26 +57,8 @@ status_t jit_avx2_convolution<prec>::execute_forward() {
 
     auto ker = [&](uint32_t g, uint32_t n, uint32_t oc, uint32_t ic,
             uint32_t oh) {
+        jit_convolution_kernel_t par_conv = {};
 
-        if (ic == 0) {
-            for (uint32_t ow = 0; ow < jcp.ow; ++ow) {
-                for (uint32_t b = 0; b < jcp.nb_oc_blocking; ++b) {
-                    const uint32_t _c = g*jcp.nb_oc + jcp.nb_oc_blocking*oc + b;
-                    data_t *__tmp_dst = &dst[dst_d.blk_off(n, _c, oh, ow)];
-                    if (bias) {
-                        const data_t *__tmp_bias = &bias[bias_d.blk_off(
-                                _c*jcp.oc_block)];
-                        for (uint32_t i = 0; i < jcp.oc_block; ++i)
-                            __tmp_dst[i] = __tmp_bias[i];
-                    } else {
-                        for (uint32_t i = 0; i < jcp.oc_block; ++i)
-                        __tmp_dst[i] = 0;
-                    }
-                }
-            }
-        }
-
-        jit_convolution_kernel_t par_conv;
         const int ij = oh * jcp.stride_h;
         const int i_t_overflow = nstl::max(0, jcp.t_pad - ij);
         const int i_b_overflow = nstl::max(jcp.ih, ij + jcp.kh - jcp.t_pad)
@@ -95,12 +77,17 @@ status_t jit_avx2_convolution<prec>::execute_forward() {
             ? weights_d.blk_off(g, wcb, jcp.ic == 3 ? 0 : ic, wh, 0u)
             : weights_d.blk_off(wcb, jcp.ic == 3 ? 0 : ic, wh, 0u)];
 
-        par_conv.src_prf = NULL;
-        par_conv.dst_prf = NULL;
-        par_conv.filt_prf = NULL;
+        if (ic == 0) {
+            if (bias) {
+                const size_t _c = g*jcp.nb_oc + jcp.nb_oc_blocking*oc;
+                par_conv.bias = &bias[bias_d.blk_off(_c*jcp.oc_block)];
+            }
+            par_conv.ic_flag |= jit_avx2_conv_generator_f32::IC_FLAG_FIRST;
+        }
 
         par_conv.kh_padding = jcp.kh - i_t_overflow - i_b_overflow;
         par_conv.kw_padding = 0;
+
         this->generator->jit_ker((void*)&par_conv);
     };
 

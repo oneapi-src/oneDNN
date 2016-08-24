@@ -124,8 +124,6 @@ inline void jit_avx2_conv_generator_f32::width_blk_step(
         char pad_label)
 {
     using Xbyak::Ymm;
-    char kh_label[4] = ".hP";
-    kh_label[2] = pad_label;
 
     int iw = params->iw;
     int kw = params->kw;
@@ -136,15 +134,37 @@ inline void jit_avx2_conv_generator_f32::width_blk_step(
     int oc_blk = params->oc_block;
     const int inp_mult = _src_in_nchw ? 1 : ic_blk;
 
+    char init_done_label[4] = {'.', 'i', pad_label, '\0'};
+    char init_first_label[4] = {'.', 'f', pad_label, '\0'};
+
+    test(reg_ci_flag, IC_FLAG_FIRST);
+    jne(init_first_label, T_NEAR);
+
     for (int ii = 0; ii < nb_oc_block; ii++)
         for (int jj = 0; jj < ur_w; jj++)
             vmovups(Ymm(ur_w * ii + jj), YWORD[reg_output
                     + sizeof(float) * (ii * oh * ow + jj) * oc_blk]);
+    jmp(init_done_label);
+
+    L(init_first_label);
+    if (this->jcp.with_bias) {
+        for (int ii = 0; ii < nb_oc_block; ii++)
+            for (int jj = 0; jj < ur_w; jj++)
+                vmovups(Ymm(ur_w * ii + jj),
+                        YWORD[reg_bias + sizeof(float)*ii*oc_blk]);
+    } else {
+        for (int ii = 0; ii < nb_oc_block; ii++)
+            for (int jj = 0; jj < ur_w; jj++)
+                vpxor(Ymm(ur_w * ii + jj), Ymm(ur_w * ii + jj));
+    }
+
+    L(init_done_label);
 
     mov(aux_reg_input, reg_input);
     mov(aux_reg_kernel, reg_kernel);
 
     mov(kj, reg_kh);
+    char kh_label[4] = {'.', 'h', pad_label, '\0'};
     L(kh_label);
     {
         if (params->kw < 5 || pad_l > 0 || pad_r > 0) {
@@ -166,8 +186,8 @@ inline void jit_avx2_conv_generator_f32::width_blk_step(
     char regular_store_label[4] = {'.', 's', pad_label, '\0'};
     if (this->jcp.with_relu) {
         assert(nb_oc_block*ur_w < 15);
-        bt(reg_ci_flag, IC_FLAG_LAST);
-        jnc(regular_store_label, T_NEAR);
+        test(reg_ci_flag, IC_FLAG_LAST);
+        je(regular_store_label, T_NEAR);
 
         Ymm yzero = ymm15, ymask = ymm14;
         vxorps(yzero, yzero, yzero);
@@ -200,13 +220,15 @@ void jit_avx2_conv_generator_f32::generate() {
     using Xbyak::Ymm;
     this->preamble();
 
-    mov(reg_input, ptr[this->param1]);
-    mov(reg_output, ptr[this->param1 + 8]);
-    mov(reg_kernel, ptr[this->param1 + 16]);
-    mov(reg_kh, ptr[this->param1 + 48]);
-    if (this->jcp.with_relu)
-        mov(reg_ci_flag, ptr[
-                this->param1 + offsetof(jit_convolution_kernel_t, ic_flag)]);
+#   define GET_OFF(field) offsetof(jit_convolution_kernel_t, field)
+    mov(reg_input, ptr[this->param1 + GET_OFF(src)]);
+    mov(reg_output, ptr[this->param1 + GET_OFF(dst)]);
+    mov(reg_kernel, ptr[this->param1 + GET_OFF(filt)]);
+    if (this->jcp.with_bias)
+        mov(reg_bias, ptr[this->param1 + GET_OFF(bias)]);
+    mov(reg_kh, ptr[this->param1 + GET_OFF(kh_padding)]);
+    mov(reg_ci_flag, ptr[this->param1 + GET_OFF(ic_flag)]);
+#   undef GET_OFF
 
     // NB: works only for params->ur_w == 3 && params->nb_oc % 4 == 0
     int ur_w = params->ur_w;
@@ -295,6 +317,8 @@ void jit_avx2_conv_generator_f32::init_jit_params(
         }
     jcp.ur_w_tail = jcp.ow % jcp.ur_w;
     jcp.src_fmt = src_d.format();
+
+    jcp.with_bias = cd.bias_desc.format != memory_format::undef;
 }
 
 jit_avx2_conv_generator_f32::jit_avx2_conv_generator_f32(
