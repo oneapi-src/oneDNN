@@ -39,7 +39,7 @@ void check_relu(prop_kind aprop_kind,
     size_t C = md.data.tensor_desc.dims[1];
     size_t H = md.data.tensor_desc.dims[2];
     size_t W = md.data.tensor_desc.dims[3];
-    for (size_t i = 0; i < N * C *H * W; ++i) {
+    for (size_t i = 0; i < N * C * H * W; ++i) {
         data_t s = src[i];
         assert_eq(dst[i], s >= 0 ? s : s * negative_slope);
     }
@@ -69,7 +69,6 @@ protected:
         ASSERT_EQ(p.dims.size(), 4U);
         size_t size = p.dims[0] * p.dims[1] * p.dims[2] * p.dims[3];
         auto src_nchw_data = new data_t[size];
-        // TODO: random fill src_nchw_data
         auto dst_nchw_data = new data_t[size];
 
         memory::precision prec = data_traits<data_t>::prec;
@@ -79,6 +78,8 @@ protected:
         auto nchw_mem_prim_desc = memory::primitive_desc(nchw_mem_desc, eng);
         auto src_nchw = memory(nchw_mem_prim_desc, src_nchw_data);
         auto dst_nchw = memory(nchw_mem_prim_desc, dst_nchw_data);
+        fill_data<data_t>(src_nchw.get_primitive_desc().get_number_of_elements(),
+                (data_t *)src_nchw.get_data_handle());
 
         auto test_desc = memory::desc(td, prec, p.memory_format);
         auto relu_prim_desc = relu::primitive_desc(
@@ -120,6 +121,11 @@ TEST_P(relu_test_float, TestsReLU) { }
 INSTANTIATE_TEST_CASE_P(TestReLUForward, relu_test_float,
         ::testing::Values(
             relu_test_params_float{0, prop_kind::forward, engine::kind::cpu,
-            memory::format::nchw, {10, 10, 10, 10}}));
-
+            memory::format::nchw, {10, 10, 10, 10}},
+            relu_test_params_float{.1f, prop_kind::forward, engine::kind::cpu,
+            memory::format::nchw, {256, 64, 8, 16}},
+            relu_test_params_float{.1f, prop_kind::forward, engine::kind::cpu,
+            memory::format::nchw, {1, 1, 1, 1}},
+            relu_test_params_float{.1f, prop_kind::forward, engine::kind::cpu,
+            memory::format::nchw, {3, 5, 7, 11}}));
 }
