@@ -28,7 +28,7 @@ function(detect_mkl LIBNAME)
         get_filename_component(MKLLIBPATH "${MKLLIB}" PATH)
         string(FIND "${MKLLIBPATH}" ${CMAKE_CURRENT_SOURCE_DIR}/external __idx)
         if(${__idx} EQUAL 0)
-            install(FILES ${MKLLIB} ${MKLLIBPATH}/libiomp5.so
+            install(PROGRAMS ${MKLLIB} ${MKLLIBPATH}/libiomp5.so
                     DESTINATION lib)
         endif()
     endif()
