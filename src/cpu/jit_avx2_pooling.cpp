@@ -86,24 +86,31 @@ status_t jit_avx2_pooling<prec>::execute_forward() {
         dst_d(this->_ppd.dst_primitive_desc.memory_desc);
 
     uint32_t arr_init[8] = {0, 1, 2, 3, 4, 5, 6, 7};
+
+    auto ker = [&](uint32_t n, uint32_t c, uint32_t oh) {
+        jit_pooling_kernel_t  par_pool = {};
+
+        const int ij = oh * jpp.stride_h;
+        const int i_t_overflow = nstl::max(0, jpp.t_pad-ij);
+        const int i_b_overflow = nstl::max(jpp.ih,
+                                        ij+jpp.kh-jpp.t_pad)-jpp.ih;
+        const uint32_t ih = nstl::max(ij - jpp.t_pad, 0);
+        par_pool.src = const_cast<data_t *>
+                                 (&src[src_d.blk_off(n, c, ih, 0)]);
+        par_pool.dst = &dst[dst_d.blk_off(n, c, oh, 0)];
+        par_pool.indices = &indices[indices_d.blk_off(n, c, oh, 0)];
+        par_pool.kh_padding = jpp.kh - i_t_overflow - i_b_overflow;
+        par_pool.kw_padding = 0;
+        par_pool.init_array = arr_init;
+
+        this->jit_ker((void*)&par_pool);
+    };
+
 #   pragma omp parallel for collapse(3)
     for (uint32_t n = 0; n < jpp.mb; ++n) {
         for (uint32_t c = 0; c < jpp.nb_c; ++c) {
             for (uint32_t oh = 0; oh < jpp.oh; ++oh) {
-                jit_pooling_kernel_t par_conv;
-                const int ij = oh * jpp.stride_h;
-                const int i_t_overflow = nstl::max(0, jpp.t_pad-ij);
-                const int i_b_overflow = nstl::max(jpp.ih,
-                                                ij+jpp.kh-jpp.t_pad)-jpp.ih;
-                const uint32_t ih = nstl::max(ij - jpp.t_pad, 0);
-                par_conv.src = const_cast<data_t *>
-                                         (&src[src_d.blk_off(n, c, ih, 0)]);
-                par_conv.dst = &dst[dst_d.blk_off(n, c, oh, 0)];
-                par_conv.indices = &indices[indices_d.blk_off(n, c, oh, 0)];
-                par_conv.kh_padding = jpp.kh - i_t_overflow - i_b_overflow;
-                par_conv.kw_padding = 0;
-                par_conv.init_array = arr_init;
-                this->jit_ker((void*)&par_conv);
+                ker (n, c, oh);
             }
         }
     }
