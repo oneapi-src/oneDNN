@@ -25,8 +25,8 @@ set(LIB_NAME mkldnn)
 project(${PROJECT_NAME} C CXX)
 
 if("${CMAKE_BUILD_TYPE}" STREQUAL "")
-    message(STATUS "CMAKE_BUILD_TYPE is unset, defaulting to Debug")
-    set(CMAKE_BUILD_TYPE "Debug")
+    message(STATUS "CMAKE_BUILD_TYPE is unset, defaulting to Release")
+    set(CMAKE_BUILD_TYPE "Release")
 endif()
 
 include("cmake/MKL.cmake")
