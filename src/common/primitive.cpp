@@ -56,6 +56,7 @@ status_t mkldnn_primitive_get_primitive_desc(const primitive *primitive,
 
     switch (pd.base.primitive_kind) {
 #   define CASE(x) case x: pd.x = primitive->primitive_desc().x; break
+    CASE(relu);
     CASE(lrn);
     CASE(memory);
     CASE(reorder);
