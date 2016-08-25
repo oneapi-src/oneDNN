@@ -107,3 +107,11 @@ Doxygen:
 ```
 
 Documentation will be created in `build/reference/html` folder.
+
+Finnally,
+```
+	make install
+```
+will put header files, libraries and documentation to `/usr/local`. To change
+installation path use the option `-DCMAKE_INSTALL_PREFIX=<prefix>` when invoking
+CMake.
