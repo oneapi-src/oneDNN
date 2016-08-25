@@ -72,12 +72,12 @@ inline void jit_avx2_pooling_generator_f32::oh_step(
         if (this->_is_training)
             vpaddd(ymm_index, ymm_index, ymm_iw_simd);
         for (uint32_t ki = 0; ki < KW; ki++) {
-            uint32_t jj_start = (uint32_t)nstl::max(0, pad_l-(int)ki);
-            uint32_t jj_end   = ur_w -
-                (uint32_t)nstl::max(0, (int)ki+pad_r - (int)(KW-1));
+            int jj_start = nstl::max(0, pad_l-(int)ki);
+            int jj_end   = (int)ur_w -
+                nstl::max(0, (int)ki+pad_r - (int)(KW-1));
             if (this->_is_training)
                 vpaddd(ymm_index, ymm_index, ymm_simd);
-            for (uint32_t jj = jj_start; jj  < jj_end; jj++) {
+            for (int jj = jj_start; jj  < jj_end; jj++) {
                 int aux_input_offset = (ki+jj*stride_w-pad_l)*params->c_block;
                 if (aux_input_offset > (int)IW*(int)params->c_block)
                     continue;
@@ -114,7 +114,7 @@ jit_avx2_pooling_generator_f32::jit_avx2_pooling_generator_f32(
     using Xbyak::Ymm;
     this->preamble();
 
-    uint32_t n_oi = params->ow / params->ur_w;
+    int n_oi = params->ow / params->ur_w;
 
     mov(reg_input , ptr [ this->param1 ]);
     mov(reg_output, ptr [ this->param1 + 8]);
@@ -152,27 +152,29 @@ jit_avx2_pooling_generator_f32::jit_avx2_pooling_generator_f32(
 
     int r_pad  = nstl::max(0, (int)((params->ow-1)*params->stride_w) +
         (int)params->kw - 1 - (int)(params->iw + params->l_pad - 1 ));
-    int r_pad1 = 0;
+    int r_pad1 = (int)(params->ur_w*n_oi - 1)*params->stride_w +
+        params->kw - 1 - (params->iw + params->l_pad - 1);
+    if (r_pad1 > 0) n_oi--;
 
-    xor_(oi_iter, oi_iter);
     if (params->l_pad > 0) {
-        oh_step(params, params->ur_w, params->l_pad, 0,
+        n_oi--;
+        if (n_oi < 0 && r_pad1 > 0) {
+            oh_step(params, params->ur_w, params->l_pad, r_pad1,
                   ".kh_loop_oimain_padwl");
+        } else  {
+            oh_step(params, params->ur_w, params->l_pad, 0,
+                  ".kh_loop_oimain_padwl");
+        }
 
         add(reg_input,  sizeof(float)*(params->ur_w*params->stride_w -
                                params->l_pad)*params->c_block);
         add(reg_output,  sizeof(float)*params->ur_w*params->c_block);
         if (this->_is_training)
             add(reg_index, sizeof(uint32_t)*params->ur_w*params->c_block);
-        inc(oi_iter);
-
-        r_pad1 = (params->ur_w*n_oi - 1)*params->stride_w +
-            params->kw - 1 - (params->iw + params->l_pad - 1);
-        if (r_pad1 > 0) n_oi--;
     }
 
-    if ((params->l_pad <= 0 && n_oi > 0)
-      ||(params->l_pad >  0 && n_oi > 1)) {
+    xor_(oi_iter, oi_iter);
+    if (n_oi > 0) {
         L(".ow_loop"); {
             oh_step(params, params->ur_w, 0, 0, ".kh_loop_oimain");
             add(reg_input,
@@ -186,7 +188,7 @@ jit_avx2_pooling_generator_f32::jit_avx2_pooling_generator_f32(
         } L(".ow_loop_end");
     }
 
-    if (r_pad1 > 0 ) {
+    if (r_pad1 > 0 && n_oi >= 0) {
         oh_step(params, params->ur_w, 0, r_pad1, ".kh_loop_oimain_padwr");
         add(reg_input,
                sizeof(float)*params->ur_w*params->stride_w*params->c_block);
