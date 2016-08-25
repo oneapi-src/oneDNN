@@ -241,22 +241,25 @@ void jit_avx2_conv_generator_f32::generate() {
     int str_w = params->stride_w;
     const int inp_mult = _src_in_nchw ? 1 : ic_blk;
 
-    xor_(oi_iter, oi_iter);
     int l_pad = params->l_pad;
     int r_pad = nstl::max(0, (int(params->ow) - 1) * str_w + kw - 1
             - (iw + l_pad - 1));
-    int r_pad1 = 0;
+    int r_pad1 = (ur_w * n_oi - 1) * str_w + kw - 1 - (iw + l_pad - 1);
+    if (r_pad1 > 0) n_oi--;
+
     if (l_pad > 0) {
-        width_blk_step(params, ur_w, l_pad, 0, 'l'); // "lpad"
+        n_oi--;
+        if (n_oi < 0 && r_pad1 > 0) {
+            width_blk_step(params, ur_w, l_pad, r_pad1, 'l'); // "lrpad"
+        } else {
+            width_blk_step(params, ur_w, l_pad, 0, 'l'); // "lpad"
+        }
         add(reg_input, sizeof(float) * (ur_w * str_w - l_pad) * inp_mult);
         add(reg_output, sizeof(float) * ur_w * oc_blk);
-        inc(oi_iter);
-
-        r_pad1 = (ur_w * n_oi - 1) * str_w + kw - 1 - (iw + l_pad - 1);
-        if (r_pad1 > 0) n_oi--;
     }
 
-    if ((l_pad <= 0 && n_oi > 0) || (l_pad > 0 && n_oi > 1)) {
+    xor_(oi_iter, oi_iter);
+    if (n_oi > 0) {
         L(".ow_loop");
 
         width_blk_step(params, ur_w, 0, 0, 'm'); // "middle"
@@ -268,7 +271,7 @@ void jit_avx2_conv_generator_f32::generate() {
         jl(".ow_loop", T_NEAR);
     }
 
-    if (r_pad1 > 0) {
+    if (r_pad1 > 0 && n_oi >=0) {
         width_blk_step(params, ur_w, 0, r_pad1, 'r'); // "rpad"
         add(reg_input, sizeof(float) * ur_w * str_w * inp_mult);
         add(reg_output, sizeof(float) * ur_w * oc_blk);
@@ -309,6 +312,7 @@ void jit_avx2_conv_generator_f32::init_jit_params(
     jcp.nb_oc = jcp.oc / jcp.oc_block;
     jcp.ur_h = 1; /* no code-unrolling by h so far */
     jcp.ur_w = 3;
+    if (jcp.ow < jcp.ur_w) jcp.ur_w = jcp.ow;
     jcp.nb_ic_blocking =  jcp.nb_oc_blocking = 1;
     for (int b = 4; b > 1; b--)
         if (jcp.nb_oc % b == 0) {
@@ -398,14 +402,8 @@ bool jit_avx2_conv_generator_f32::is_applicable(
     if (!args_ok) return false;
 
     if (mimo) {
-        int r_pad_step0 = nstl::max(0,
-                ((ow == ur_w_tail ? ur_w_tail : ur_w) - 1)
-                + (kw - 1) - (iw + l_pad - 1));
         int r_pad_no_tail = nstl::max(0, (ow - ur_w_tail - 1)
                 + (kw - 1) - (iw + l_pad - 1));
-
-        /* no steps with both left and right padding so far */
-        if (l_pad > 0 && r_pad_step0 > 0) return false;
 
         /* maximum 1 ur_w block with r_pad so far */
         if (r_pad_no_tail > ur_w) return false;
