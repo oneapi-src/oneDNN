@@ -85,7 +85,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             }
         };
 
-#       pragma omp parallel for collapse(3)
+#       pragma omp parallel for collapse(3) schedule(static)
         for (uint32_t n = 0; n < dims[0]; ++n) {
             for (uint32_t C = 0; C < dims[1]/8; ++C) {
                 for (uint32_t h = 0; h < dims[2]; ++h) {
@@ -131,7 +131,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             }
         };
 
-#       pragma omp parallel for collapse(2)
+#       pragma omp parallel for collapse(2) schedule(static)
         for (uint32_t n = 0; n < dims[0]; ++n) {
             for (uint32_t h = 0; h < dims[2]; ++h) {
                 auto i = &input[input_d.blk_off(n, 0, h)];
@@ -182,7 +182,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         const uint32_t _G = w_groups ? dims[0] : 1u;
 
-#       pragma omp parallel for collapse(5)
+#       pragma omp parallel for collapse(5) schedule(static)
         for (uint32_t g = 0; g < _G; ++g) {
             for (uint32_t O = 0; O < dims[w_groups + 0]/8; ++O) {
                 for (uint32_t I = 0; I < dims[w_groups + 1]/8; ++I) {
@@ -226,7 +226,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         const size_t nelems = input_d.nelems();
 
-#       pragma omp parallel for
+#       pragma omp parallel for schedule(static)
         for (size_t e = 0; e < nelems; ++e) {
             output[e] = data_t<prec_o>(input[e]);
         }
@@ -251,7 +251,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         data_t<prec_o> *output) {
         const size_t nelems = input_d.nelems();
 
-#       pragma omp parallel for
+#       pragma omp parallel for schedule(static)
         for (size_t e = 0; e < nelems; ++e) {
             output[output_d.off_l(e)] =
                 data_t<prec_o>(input[input_d.off_l(e)]);

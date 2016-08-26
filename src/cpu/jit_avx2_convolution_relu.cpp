@@ -94,7 +94,7 @@ status_t jit_avx2_convolution_relu<prec>::execute_forward() {
         this->generator->jit_ker((void*)&par_conv);
     };
 
-#   pragma omp parallel for collapse(3)
+#   pragma omp parallel for collapse(3) schedule(static)
     for (uint32_t g = 0; g < jcp.ngroups; ++g) {
         for (uint32_t n = 0; n < jcp.mb; ++n) {
             for (uint32_t oc = 0; oc < (jcp.nb_oc/jcp.nb_oc_blocking); ++oc) {

@@ -82,7 +82,7 @@ status_t reference_lrn<prec>::execute_forward() {
     };
 
     const uint32_t N = src_d.dims()[0];
-#   pragma omp parallel for collapse(4)
+#   pragma omp parallel for collapse(4) schedule(static)
     for (uint32_t n = 0; n < N; ++n) {
         for (uint32_t c = 0; c < C; ++c) {
             for (uint32_t h = 0; h < H; ++h) {

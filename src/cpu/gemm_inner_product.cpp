@@ -101,7 +101,7 @@ status_t gemm_inner_product<prec>::execute_forward() {
     cblas_gemm<prec>(CblasRowMajor, CblasNoTrans, CblasTrans,
             M, N, K, 1.0, src, K, weights, K, 0.0, dst, N);
     if (bias)
-#pragma omp parallel for
+#pragma omp parallel for schedule(static)
         for (cblas_int mb = 0; mb < M; mb++)
             cblas_axpy<prec>(N, 1.0, bias, 1, dst + dst_d.blk_off(mb), 1);
 

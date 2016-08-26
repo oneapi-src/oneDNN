@@ -45,7 +45,7 @@ status_t reference_relu<prec>::execute_forward_generic() {
     const uint32_t W = src_d.dims()[3];
     const double negative_slope = this->_rpd.relu_desc.negative_slope;
 
-#   pragma omp parallel for collapse(4)
+#   pragma omp parallel for collapse(4) schedule(static)
     for (uint32_t n = 0; n < N; ++n) {
         for (uint32_t c = 0; c < C; ++c) {
             for (uint32_t h = 0; h < H; ++h) {
@@ -80,7 +80,7 @@ status_t reference_relu<prec>::execute_forward_dense() {
     src += src_d.blocking_desc().offset_padding;
     dst += dst_d.blocking_desc().offset_padding;
 
-#   pragma omp parallel for
+#   pragma omp parallel for schedule(static)
     for (size_t e = 0; e < nelems; ++e) {
         dst[e] = src[e] * ((src[e] > 0) ? 1. : negative_slope);
     }

@@ -428,7 +428,7 @@ status_t jit_avx2_lrn<prec>::execute_forward() {
     const uint32_t N = src_d.dims()[0];
     if (this->_lpd.dst_primitive_desc.memory_desc.format == nChw8c)
     {
-#       pragma omp parallel for collapse(2)
+#       pragma omp parallel for collapse(2) schedule(static)
         for (uint32_t n = 0; n < N; ++n) {
             for (uint32_t c8 = 0; c8 < C / VECTOR_LENGTH; ++c8) {
                 jit_args_t args;
@@ -446,7 +446,7 @@ status_t jit_avx2_lrn<prec>::execute_forward() {
     }
     else if (this->_lpd.dst_primitive_desc.memory_desc.format == nchw)
     {
-#       pragma omp parallel for collapse(2)
+#       pragma omp parallel for collapse(2) schedule(static)
         for (uint32_t n = 0; n < N; ++n) {
             for (uint32_t hw8 = 0; hw8 < (HW + VECTOR_LENGTH - 1) / VECTOR_LENGTH; ++hw8) {
                 jit_args_t args;
@@ -462,7 +462,7 @@ status_t jit_avx2_lrn<prec>::execute_forward() {
     }
     else // nhwc
     {
-#       pragma omp parallel for collapse(2)
+#       pragma omp parallel for collapse(2) schedule(static)
         for (uint32_t n = 0; n < N; ++n) {
             for (uint32_t hw = 0; hw < HW; ++hw) {
                 jit_args_t args;

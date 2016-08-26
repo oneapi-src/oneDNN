@@ -86,7 +86,7 @@ status_t reference_convolution<prec>::execute_forward() {
         }
     };
 
-#   pragma omp parallel for collapse(5)
+#   pragma omp parallel for collapse(5) schedule(static)
     for (uint32_t g = 0; g < G; ++g) {
         for (uint32_t mb = 0; mb < MB; ++mb) {
             for (uint32_t oc = 0; oc < OC; ++oc) {

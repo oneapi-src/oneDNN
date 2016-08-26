@@ -81,7 +81,7 @@ status_t reference_pooling<prec>::execute_forward() {
     const uint32_t OH = dst_d.dims()[2];
     const uint32_t OW = dst_d.dims()[3];
 
-#   pragma omp parallel for collapse(4)
+#   pragma omp parallel for collapse(4) schedule(static)
     for (uint32_t mb = 0; mb < MB; ++mb) {
         for (uint32_t oc = 0; oc < OC; ++oc) {
             for (uint32_t oh = 0; oh < OH; ++oh) {

@@ -106,7 +106,7 @@ status_t jit_avx2_pooling<prec>::execute_forward() {
         this->jit_ker((void*)&par_pool);
     };
 
-#   pragma omp parallel for collapse(3)
+#   pragma omp parallel for collapse(3) schedule(static)
     for (uint32_t n = 0; n < jpp.mb; ++n) {
         for (uint32_t c = 0; c < jpp.nb_c; ++c) {
             for (uint32_t oh = 0; oh < jpp.oh; ++oh) {

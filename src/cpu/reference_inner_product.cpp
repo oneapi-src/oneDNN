@@ -64,7 +64,7 @@ status_t reference_inner_product<prec>::execute_forward() {
         }
     };
 
-#   pragma omp parallel for collapse(2)
+#   pragma omp parallel for collapse(2) schedule(static)
     for (uint32_t mb = 0; mb < MB; ++mb) {
         for (uint32_t oc = 0; oc < OC; ++oc) {
             data_t *d = &dst[dst_d.off(mb, oc)];
