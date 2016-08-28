@@ -70,7 +70,7 @@ private:
 
     const bool _is_training;
 
-    inline void oh_step(jit_pooling_param_t *params, uint32_t ur_w,
+    inline void oh_step(jit_pooling_param_t *params, int ur_w,
                          int pad_l, int pad_r, const char* kh_lable);
 public:
     jit_avx2_pooling_generator_f32(
