@@ -310,4 +310,13 @@ INSTANTIATE_TEST_CASE_P(
                         memory::format::nChw8c,
                         { 2, 2, 384, 13, 13, 256, 13, 13, 3, 3, 1, 1, 1,
                                 1 } }));
+
+INSTANTIATE_TEST_CASE_P(
+        TestConvolutionCifar10ForwardBlocked, convolution_test_float,
+        ::testing::Values(
+                conv_test_params_float{ prop_kind::forward, engine::kind::cpu,
+                        convolution::direct, memory::format::nchw,
+                        memory::format::Ohwi8o, memory::format::x,
+                        memory::format::nChw8c,
+                        { 2, 1, 3, 32, 32, 32, 32, 32, 5, 5, 2, 2, 1, 1 } }));
 }

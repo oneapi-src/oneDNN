@@ -398,7 +398,10 @@ bool jit_avx2_conv_generator_f32::is_applicable(
                 && stride_w == 1 && stride_h == 1
                 && ic % simd_w == 0 && oc % simd_w == 0
                 && l_pad <= ur_w)
-        && implication(flat, t_pad == 0 && l_pad == 0);
+        && implication(flat, true
+                && ((t_pad == 0 && l_pad == 0)
+                    || (stride_w == 1 && stride_h == 1))
+                && oc % simd_w == 0);
     if (!args_ok) return false;
 
     if (mimo) {
