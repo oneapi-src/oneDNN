@@ -23,6 +23,9 @@ compatibility.
 Intel MKL-DNN is licensed under
 [Apache License Version 2.0](http://www.apache.org/licenses/LICENSE-2.0).
 
+## Documentation
+You can find the latest Intel MKL-DNN documentation at [GitHub pages](http://01org.github.io/mkl-dnn/).
+
 ## Support
 Please report issues and suggestions via
 [GitHub issues](https://github.com/01org/mkl-dnn/issues) or start a topic on
@@ -48,6 +51,7 @@ request will be merged into our internal and GitHub repositories.
 Intel MKL-DNN supports Intel(R) 64 architecture processors and is optimized for
 * Intel(R) Xeon(R) processor E5-xxxx v3 (codename Haswell)
 * Intel(R) Xeon(R) processor E5-xxxx v4 (codename Broadwell)
+
 Processors without Intel(R) Advanced Vector Extensions 2 (Intel(R) AVX2) are not
 supported in this release.
 
