@@ -15,7 +15,7 @@
 # limitations under the License.
 #===============================================================================
 
-MKLURL="https://github.com/intelcaffe/caffe/releases/download/self_contained_BU1/mklml_lnx_2017.0.b1.20160513.1.tgz"
+MKLURL="https://github.com/01org/mkl-dnn/releases/download/v0.1/mklml_lnx_2017.0.0.20160801.tgz"
 
 DST=`dirname $0`/../external
 DST=`readlink -f $DST`
