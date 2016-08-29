@@ -49,7 +49,7 @@ inline void jit_avx2_conv_generator_f32::oh_step_unroll(
             for (int jj = jj_start; jj < jj_end; jj++) {
                 int inp_off;
                 if (_src_in_nchw)
-                    inp_off = ifm2 * ih * iw + (jj * stride_w - pad_l);
+                    inp_off = ifm2 * ih * iw + (ki + jj * stride_w - pad_l);
                 else
                     inp_off = (ki + jj * stride_w - pad_l) * ic_blk + ifm2;
                 vbroadcastss(Ymm(nb_oc_block * ur_w + jj),
