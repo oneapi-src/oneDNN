@@ -600,7 +600,7 @@ struct convolution: public primitive {
 };
 
 struct pooling : public primitive {
-    enum algorithm { max = c_api::mkldnn_pooling_max };
+    enum algorithm { max = c_api::mkldnn_pooling_max, avg = c_api::mkldnn_pooling_avg };
     static c_api::mkldnn_alg_kind_t convert_to_c(algorithm aalgorithm) {
         return static_cast<c_api::mkldnn_alg_kind_t>(aalgorithm);
     }

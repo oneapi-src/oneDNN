@@ -53,7 +53,7 @@ status_t reference_pooling<prec>::execute_forward() {
     const int32_t PH = this->_ppd.pooling_desc.padding[0];
     const int32_t PW = this->_ppd.pooling_desc.padding[1];
 
-    auto ker = [=](data_t *d, uint32_t mb, uint32_t oc, uint32_t oh,
+    auto ker_max = [=](data_t *d, uint32_t mb, uint32_t oc, uint32_t oh,
             uint32_t ow)
     {
         for (uint32_t kh = 0; kh < KH; ++kh) {
@@ -76,19 +76,57 @@ status_t reference_pooling<prec>::execute_forward() {
         }
     };
 
+    auto ker_avg = [=](data_t *d, uint32_t mb, uint32_t oc, uint32_t oh,
+        uint32_t ow)
+    {
+        for (uint32_t kh = 0; kh < KH; ++kh) {
+            for (uint32_t kw = 0; kw < KW; ++kw) {
+                if (oh*SH + kh < (uint32_t)nstl::max(0, PH)) continue;
+                if (ow*SW + kw < (uint32_t)nstl::max(0, PW)) continue;
+
+                if (oh*SH + kh >= IH + PH) continue;
+                if (ow*SW + kw >= IW + PW) continue;
+
+                const uint32_t ih = oh * SH - PH + kh;
+                const uint32_t iw = ow * SW - PW + kw;
+
+                d[0] += src[src_d.off(mb, oc, ih, iw)];
+            }
+        }
+    };
+
     const uint32_t MB = src_d.dims()[0];
     const uint32_t OC = dst_d.dims()[1];
     const uint32_t OH = dst_d.dims()[2];
     const uint32_t OW = dst_d.dims()[3];
 
+    if (this->_ppd.pooling_desc.alg_kind == mkldnn_pooling_max)
+    {
 #   pragma omp parallel for collapse(4) schedule(static)
-    for (uint32_t mb = 0; mb < MB; ++mb) {
-        for (uint32_t oc = 0; oc < OC; ++oc) {
-            for (uint32_t oh = 0; oh < OH; ++oh) {
-                for (uint32_t ow = 0; ow < OW; ++ow) {
-                    data_t *d = &dst[dst_d.off(mb, oc, oh, ow)];
-                    d[0] = -std::numeric_limits<data_t>::infinity();
-                    ker(d, mb, oc, oh, ow);
+        for (uint32_t mb = 0; mb < MB; ++mb) {
+            for (uint32_t oc = 0; oc < OC; ++oc) {
+                for (uint32_t oh = 0; oh < OH; ++oh) {
+                    for (uint32_t ow = 0; ow < OW; ++ow) {
+                        data_t *d = &dst[dst_d.off(mb, oc, oh, ow)];
+                        d[0] = -std::numeric_limits<data_t>::infinity();
+                        ker_max(d, mb, oc, oh, ow);
+                    }
+                }
+            }
+        }
+    }
+    else
+    {
+#   pragma omp parallel for collapse(4) schedule(static)
+        for (uint32_t mb = 0; mb < MB; ++mb) {
+            for (uint32_t oc = 0; oc < OC; ++oc) {
+                for (uint32_t oh = 0; oh < OH; ++oh) {
+                    for (uint32_t ow = 0; ow < OW; ++ow) {
+                        data_t *d = &dst[dst_d.off(mb, oc, oh, ow)];
+                        d[0] = 0;
+                        ker_avg(d, mb, oc, oh, ow);
+                        d[0] /= this->_ppd.pooling_desc.kernel[0] * this->_ppd.pooling_desc.kernel[1];
+                    }
                 }
             }
         }
@@ -102,7 +140,8 @@ status_t reference_pooling<prec>::constraint(const pooling_desc_t &pool_d) {
     bool args_ok = true
         && one_of(pool_d.prop_kind, prop_kind::forward_training,
                 prop_kind::forward_scoring)
-        && pool_d.alg_kind == alg_kind::pooling_max;
+        && one_of(pool_d.alg_kind, alg_kind::pooling_max,
+                alg_kind::pooling_avg);
     return args_ok ? success : unimplemented;
 }
 

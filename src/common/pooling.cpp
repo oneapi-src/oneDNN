@@ -36,7 +36,7 @@ status_t mkldnn_pooling_desc_init(pooling_desc_t *pooling_desc,
     const bool args_ok = !any_null(pooling_desc,
             src_desc, dst_desc, strides, padding)
         && one_of(prop_kind, forward_training, forward_scoring, backward_data)
-        && one_of(alg_kind, pooling_max);
+        && one_of(alg_kind, pooling_max, pooling_avg);
     if (!args_ok)
         return invalid_arguments;
 
