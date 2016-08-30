@@ -471,7 +471,7 @@ enum prop_kind {
     forward_scoring = c_api::mkldnn_forward_scoring,
     forward = c_api::mkldnn_forward,
     backward_data = c_api::mkldnn_backward_data,
-    backward_weights,g = c_api::mkldnn_backward_bias,
+    backward_weights = c_api::mkldnn_backward_weights,
     backward_bias = c_api::mkldnn_backward_bias,
 };
 inline c_api::mkldnn_prop_kind_t convert_to_c(prop_kind kind) {
