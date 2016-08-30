@@ -78,8 +78,9 @@ protected:
         auto nchw_mem_prim_desc = memory::primitive_desc(nchw_mem_desc, eng);
         auto src_nchw = memory(nchw_mem_prim_desc, src_nchw_data);
         auto dst_nchw = memory(nchw_mem_prim_desc, dst_nchw_data);
-        fill_data<data_t>(src_nchw.get_primitive_desc().get_number_of_elements(),
-                (data_t *)src_nchw.get_data_handle());
+        fill_data<data_t>(
+                src_nchw.get_primitive_desc().get_number_of_elements(),
+                (data_t *)src_nchw.get_data_handle(), data_t(0), data_t(1));
 
         auto test_desc = memory::desc(td, prec, p.memory_format);
         auto relu_prim_desc = relu::primitive_desc(
@@ -93,7 +94,7 @@ protected:
         if (src_format != memory::format::nchw)
             src = memory({{td, prec, src_format}, eng});
         fill_data<data_t>(src.get_primitive_desc().get_number_of_elements(),
-                (data_t *)src.get_data_handle());
+                (data_t *)src.get_data_handle(), data_t(0), data_t(1));
 
         auto dst_format = static_cast<memory::format>(
                 relu_prim_desc.data.dst_primitive_desc.memory_desc.format);
