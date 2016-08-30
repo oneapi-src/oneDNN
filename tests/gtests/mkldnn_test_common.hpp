@@ -104,39 +104,52 @@ inline mkldnn::memory::desc create_md(mkldnn::tensor::dims dims,
 }
 
 template <typename data_t>
-static inline data_t set_value(size_t index, double sparsity)
+static inline data_t set_value(size_t index, data_t mean, data_t deviation,
+        double sparsity)
 {
     if (data_traits<data_t>::prec == mkldnn::memory::precision::f32) {
         const size_t group_size = (size_t)(1. / sparsity);
         const size_t group = index / group_size;
         const size_t in_group = index % group_size;
-        return in_group == ((group % 1637) % group_size) ?
-                1. + 2e-1 * sin((data_t)(index % 37)) :
-                0;
+        const bool fill = in_group == ((group % 1637) % group_size);
+        return fill ? mean + deviation * sin(data_t(index % 37)) : 0;
     } else {
-        return (data_t)0;
+        return data_t(0);
+    }
+}
+
+template <typename data_t>
+static void fill_data(const uint32_t size, data_t *data, data_t mean,
+        data_t deviation, double sparsity = 1.)
+{
+#   pragma omp parallel for
+    for (uint32_t n = 0; n < size; n++) {
+        data[n] = set_value<data_t>(n, mean, deviation, sparsity);
     }
 }
 
 template <typename data_t>
 static void fill_data(const uint32_t size, data_t *data, double sparsity = 1.)
 {
-#pragma omp parallel for
+#   pragma omp parallel for
     for (uint32_t n = 0; n < size; n++) {
-        data[n] = set_value<data_t>(n, sparsity);
+        data[n] = set_value<data_t>(n, data_t(1), data_t(2e-1), sparsity);
     }
 }
 
 template <typename data_t>
 static void compare_data(mkldnn::memory& ref, mkldnn::memory& dst)
 {
-uint32_t num = ref.get_primitive_desc().get_number_of_elements();
-data_t *ref_data = (data_t *)ref.get_data_handle();
-data_t *dst_data = (data_t *)dst.get_data_handle();
-#pragma omp parallel for
+    size_t num = ref.get_primitive_desc().get_number_of_elements();
+    data_t *ref_data = (data_t *)ref.get_data_handle();
+    data_t *dst_data = (data_t *)dst.get_data_handle();
+#   pragma omp parallel for
     for (uint32_t i = 0; i < num; ++i) {
-        float _t = (std::abs(ref_data[i]) > 1e-4) ? (dst_data[i] - ref_data[i]) / ref_data[i] : (dst_data[i] - ref_data[i]);
-        EXPECT_NEAR(_t, 0.0, 1e-4);
+        data_t ref = ref_data[i];
+        data_t got = dst_data[i];
+        data_t diff = got - ref;
+        data_t e = std::abs(ref) > 1e-4 ? diff / ref : diff;
+        EXPECT_NEAR(e, 0.0, 1e-4);
     }
 }
 
