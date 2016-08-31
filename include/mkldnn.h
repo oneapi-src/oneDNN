@@ -348,9 +348,12 @@ mkldnn_status_t MKLDNN_API mkldnn_lrn_get_primitive_desc(const_mkldnn_primitive_
 
 /** Initializes an @p batch_normalization_desc using @p prop_kind, memory
  * descriptors, @p strides, @p padding, and @p padding_kind.
- * If memory descriptors are initialized with #mkldnn_any value of
+ * If source and destination memory descriptors are initialized with #mkldnn_any value of
  * @p format_kind, mkldnn_batch_normalization_primitive_desc_init() chooses the best possible
- * implementation in terms of performance. */
+ * implementation in terms of performance. 
+ * Scaleshift memory descriptor requires 2D #mkldnn_nc format[2,Channels]. 1-st dimension contains 
+ * gamma parameter, 2-nd dimension contains beta parameter.
+ */
 mkldnn_status_t MKLDNN_API mkldnn_batch_normalization_desc_init(mkldnn_batch_normalization_desc_t *batch_normalization_desc,
         mkldnn_prop_kind_t prop_kind,
         const mkldnn_memory_desc_t *src_desc,

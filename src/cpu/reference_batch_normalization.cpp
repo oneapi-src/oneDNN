@@ -52,8 +52,6 @@ status_t reference_batch_normalization<prec>::execute_forward() {
     const int H = src_d.dims()[2];
     const int W = src_d.dims()[3];
 
-    data_t *param_gamma = &scaleshift[0];
-    data_t *param_beta  = &scaleshift[C];
     data_t *mean, *variance;
     data_t v_mean, v_variance;
     if (this->_is_training) {
