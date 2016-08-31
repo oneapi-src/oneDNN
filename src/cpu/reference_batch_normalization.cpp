@@ -54,7 +54,6 @@ status_t reference_batch_normalization<prec>::execute_forward() {
 
     data_t *mean = nullptr, 
            *variance = nullptr;
-    data_t v_mean, v_variance;
     if (this->_is_training) {
         mean        = &workspace[0];
         variance    = &workspace[C];
@@ -63,6 +62,8 @@ status_t reference_batch_normalization<prec>::execute_forward() {
 #   pragma omp parallel for schedule(static)
     for (uint32_t c = 0; c < C; ++c)
     {
+        data_t v_mean = 0.0, 
+               v_variance = 0.0;
         data_t *_l_mean = this->_is_training ? &mean[c] : &v_mean;
         data_t *_l_variance = this->_is_training ? &variance[c] : &v_variance;
 
