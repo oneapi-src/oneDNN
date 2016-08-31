@@ -47,12 +47,12 @@ status_t reference_batch_normalization<prec>::execute_forward() {
         dst_d(this->_bnpd.dst_primitive_desc.memory_desc),
         scaleshift_d(this->_bnpd.scaleshift_primitive_desc.memory_desc);
 
-    const int N = src_d.dims()[0];
-    const int C = src_d.dims()[1];
-    const int H = src_d.dims()[2];
-    const int W = src_d.dims()[3];
+    const uint32_t N = src_d.dims()[0];
+    const uint32_t C = src_d.dims()[1];
+    const uint32_t H = src_d.dims()[2];
+    const uint32_t W = src_d.dims()[3];
 
-    data_t *mean = nullptr, 
+    data_t *mean = nullptr,
            *variance = nullptr;
     if (this->_is_training) {
         mean        = &workspace[0];
@@ -62,7 +62,7 @@ status_t reference_batch_normalization<prec>::execute_forward() {
 #   pragma omp parallel for schedule(static)
     for (uint32_t c = 0; c < C; ++c)
     {
-        data_t v_mean = 0.0, 
+        data_t v_mean = 0.0,
                v_variance = 0.0;
         data_t *_l_mean = this->_is_training ? &mean[c] : &v_mean;
         data_t *_l_variance = this->_is_training ? &variance[c] : &v_variance;

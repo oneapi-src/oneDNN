@@ -78,7 +78,7 @@ protected:
             return types::zero<memory_desc_t>();
         } else {
             memory_desc_t _desc;
-            tensor_desc_t _tensor = { 1, bnd.dst_desc.tensor_desc.dims[1] * 4 };
+            tensor_desc_t _tensor = {1, {bnd.dst_desc.tensor_desc.dims[1]*4}};
             mkldnn_memory_desc_init(&_desc, &_tensor,
                 bnd.dst_desc.precision, mkldnn::impl::memory_format::x);
             return _desc;
