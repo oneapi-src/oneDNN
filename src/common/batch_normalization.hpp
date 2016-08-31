@@ -184,8 +184,6 @@ status_t batch_normalization<batch_normalization_impl>::set_default_parameters(
 template <typename batch_normalization_impl> template <typename Impl>
 status_t batch_normalization<batch_normalization_impl>::constraints(
         batch_normalization_desc_t &bnd, ... ) {
-    constexpr precision_t prec = data_trait<data_t<>>::prec;
-
     if (bnd.scaleshift_desc.format !=  mkldnn_nc)
         return mkldnn_invalid_arguments;
     else

@@ -52,7 +52,8 @@ status_t reference_batch_normalization<prec>::execute_forward() {
     const int H = src_d.dims()[2];
     const int W = src_d.dims()[3];
 
-    data_t *mean, *variance;
+    data_t *mean = nullptr, 
+           *variance = nullptr;
     data_t v_mean, v_variance;
     if (this->_is_training) {
         mean        = &workspace[0];
@@ -60,24 +61,24 @@ status_t reference_batch_normalization<prec>::execute_forward() {
     }
 
 #   pragma omp parallel for schedule(static)
-    for (int c = 0; c < C; ++c)
+    for (uint32_t c = 0; c < C; ++c)
     {
         data_t *_l_mean = this->_is_training ? &mean[c] : &v_mean;
         data_t *_l_variance = this->_is_training ? &variance[c] : &v_variance;
 
         *_l_mean = 0.0;
-        for (int n = 0; n < N; ++n)
-        for (int h = 0; h < H; ++h)
-        for (int w = 0; w < W; ++w)
+        for (uint32_t n = 0; n < N; ++n)
+        for (uint32_t h = 0; h < H; ++h)
+        for (uint32_t w = 0; w < W; ++w)
         {
             *_l_mean += src[src_d.off(n,c,h,w)];
         }
         *_l_mean /= W * N * H;
 
         *_l_variance = 0.0;
-        for (int n = 0; n < N; ++n)
-        for (int h = 0; h < H; ++h)
-        for (int w = 0; w < W; ++w) {
+        for (uint32_t n = 0; n < N; ++n)
+        for (uint32_t h = 0; h < H; ++h)
+        for (uint32_t w = 0; w < W; ++w) {
             data_t _tmp = src[src_d.off(n,c,h,w)] - *_l_mean;
             *_l_variance += _tmp * _tmp;
         }
@@ -85,12 +86,12 @@ status_t reference_batch_normalization<prec>::execute_forward() {
                         this->_bnpd.batch_normalization_desc.epsilon;
         *_l_variance = (data_t)1.0/std::sqrt(*_l_variance);
 
-        for (int n = 0; n < N; ++n)
-        for (int h = 0; h < H; ++h)
-        for (int w = 0; w < W; ++w)
-            dst[dst_d.off(n,c,h,w)] = scaleshift[scaleshift_d.off(0,c)] *
+        for (uint32_t n = 0; n < N; ++n)
+        for (uint32_t h = 0; h < H; ++h)
+        for (uint32_t w = 0; w < W; ++w)
+            dst[dst_d.off(n,c,h,w)] = scaleshift[scaleshift_d.off(0u,c)] *
               (src[src_d.off(n,c,h,w)] - *_l_mean)*(*_l_variance) +
-                scaleshift[scaleshift_d.off(1,c)];
+                scaleshift[scaleshift_d.off(1u,c)];
     }
 
     return success;
