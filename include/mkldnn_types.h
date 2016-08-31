@@ -65,7 +65,7 @@ typedef enum {
 
 /** Memory format specification.
  *
- * Intel(R) MKL-DNN uses the following notation for memory format names: 
+ * Intel(R) MKL-DNN uses the following notation for memory format names:
  *  - @c 'n' denotes the mini-batch dimension
  *  - @c 'c' denotes a channels dimension
  *  - When there are multiple channel dimensions (for example, in convolution
@@ -78,7 +78,6 @@ typedef enum {
  *    the outermost dimension is mini-batch, followed by the channel block number,
  *    followed by the spatial height and width, and finally followed by 8-element
  *    channel blocks.
- * 
  * Note that channel designations can be different. For example:
  * both the @c 'mkldnn_nc' and @c 'mkldnn_io' formats can be used to describe a 2D tensor.
  */
@@ -314,6 +313,23 @@ typedef struct {
     uint32_t local_size;
 } mkldnn_lrn_desc_t;
 
+
+/** A descriptor of a Batch Normalization operation. */
+typedef struct {
+    /** The kind of propagation. Possible values: #mkldnn_forward
+     * and #mkldnn_backward_data. */
+    mkldnn_prop_kind_t prop_kind;
+    /** Source memory descriptor. */
+    mkldnn_memory_desc_t src_desc;
+    /** Destination memory descriptor. */
+    mkldnn_memory_desc_t dst_desc;
+    /** Workspace memory descriptor. */
+    mkldnn_memory_desc_t workspace_desc;
+    /** Scale and Shift  memory descriptor. */
+    mkldnn_memory_desc_t scaleshift_desc;
+    double epsilon;
+} mkldnn_batch_normalization_desc_t;
+
 /** A descriptor of an inner product operation. */
 typedef struct {
     /** The kind of propagation. Possible values: #mkldnn_forward,
@@ -383,6 +399,8 @@ typedef enum {
     mkldnn_relu,
     /** An LRN primitive. */
     mkldnn_lrn,
+    /** An batch normalization primitive. */
+    mkldnn_batch_normalization,
     /** An inner product primitive. */
     mkldnn_inner_product,
     /** A convolution primitive merged with relu */
@@ -469,6 +487,20 @@ typedef struct {
     /** Descriptor of the destination memory primitive. */
     mkldnn_memory_primitive_desc_t dst_primitive_desc;
 } mkldnn_lrn_primitive_desc_t;
+
+typedef struct {
+    /** Basic primitive descriptor. */
+    mkldnn_primitive_base_desc_t base;
+    mkldnn_batch_normalization_desc_t batch_normalization_desc;
+    /** Descriptor of the source memory primitive. */
+    mkldnn_memory_primitive_desc_t src_primitive_desc;
+    /** Descriptor of the workspace memory primitive. */
+    mkldnn_memory_primitive_desc_t workspace_primitive_desc;
+    /** Descriptor of the scale and shift memory primitive. */
+    mkldnn_memory_primitive_desc_t scaleshift_primitive_desc;
+    /** Descriptor of the destination memory primitive. */
+    mkldnn_memory_primitive_desc_t dst_primitive_desc;
+} mkldnn_batch_normalization_primitive_desc_t;
 
 typedef struct {
     /** Basic primitive descriptor. */

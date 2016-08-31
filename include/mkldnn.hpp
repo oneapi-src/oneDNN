@@ -732,6 +732,62 @@ struct lrn : public primitive {
     }
 };
 
+struct batch_normalization : public primitive {
+    struct desc {
+        c_api::mkldnn_batch_normalization_desc_t data;
+        desc(prop_kind aprop_kind,
+            const memory::desc &src_desc, const memory::desc &dst_desc,
+            const memory::desc &scaleshift_desc, double epsilon)
+        {
+            error::wrap_c_api(c_api::mkldnn_batch_normalization_desc_init(&data,
+                mkldnn::convert_to_c(aprop_kind),
+                &src_desc.data, &dst_desc.data, &scaleshift_desc.data, epsilon),
+                "could not create a batch normalization descriptor");
+        }
+    };
+
+    struct primitive_desc {
+        c_api::mkldnn_batch_normalization_primitive_desc_t data;
+        primitive_desc(const desc &adesc, const engine &aengine) {
+            error::wrap_c_api(c_api::mkldnn_batch_normalization_primitive_desc_init(
+                &data, &adesc.data, aengine.get()),
+                "could not create a batch normalization primitive descriptor");
+        }
+    };
+
+    batch_normalization(const primitive_desc &aprimitive_desc,
+        const primitive::at &src, const memory &dst,
+        const primitive::at &scaleshift, const primitive::at &workspace) {
+        c_api::mkldnn_primitive_t result;
+        error::wrap_c_api(c_api::mkldnn_batch_normalization_create(&result,
+            &aprimitive_desc.data, src.data, dst.get(), scaleshift.data,
+            workspace.data),
+            "could not create a batch normalization primitive");
+        reset(result);
+    }
+
+    batch_normalization(prop_kind aprop_kind,
+        const primitive::at &src, const memory &dst,
+        const primitive::at &scaleshift, const primitive::at &workspace,
+        double epsilon) {
+        auto src_md = memory(src).get_primitive_desc();
+        auto dst_md = dst.get_primitive_desc();
+        auto scaleshift_md = memory(scaleshift).get_primitive_desc();
+
+        auto batch_normalization_d = desc(aprop_kind,
+            src_md.desc(), dst_md.desc(), scaleshift_md.desc(), epsilon);
+        auto batch_normalization_pd = primitive_desc(batch_normalization_d,
+            engine(src_md.data.base.engine));
+
+        c_api::mkldnn_primitive_t result;
+        error::wrap_c_api(c_api::mkldnn_batch_normalization_create(&result,
+            &batch_normalization_pd.data, src.data, dst.get(), scaleshift.data,
+            workspace.data),
+            "could not create a batch normalization primitive");
+        reset(result);
+    }
+};
+
 struct reorder : public primitive {
     struct primitive_desc {
         c_api::mkldnn_reorder_primitive_desc_t data;

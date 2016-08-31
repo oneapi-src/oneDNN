@@ -112,7 +112,6 @@ mkldnn_status_t MKLDNN_API mkldnn_memory_desc_init(mkldnn_memory_desc_t *memory_
  *    include the padding.
  *  - If @p with_padding is non-zero, the number returned
  *    includes the padding.
- * 
  * If @p memory_desc describes a @c NULL tensor, format is not fully
  * specified (for example: @c memory_desc->format == @c any), or
  * @p memory_desc is inconsistent, the function returns zero. */
@@ -343,8 +342,45 @@ mkldnn_status_t MKLDNN_API mkldnn_lrn_get_primitive_desc(const_mkldnn_primitive_
 
 /** @} */
 
+/** @addtogroup c_api_batch_normalization Batch Normalization
+ * A primitive to perform batch normalization
+ * @{ */
+
+/** Initializes an @p batch_normalization_desc using @p prop_kind, memory
+ * descriptors, @p strides, @p padding, and @p padding_kind.
+ * If memory descriptors are initialized with #mkldnn_any value of
+ * @p format_kind, mkldnn_batch_normalization_primitive_desc_init() chooses the best possible
+ * implementation in terms of performance. */
+mkldnn_status_t MKLDNN_API mkldnn_batch_normalization_desc_init(mkldnn_batch_normalization_desc_t *batch_normalization_desc,
+        mkldnn_prop_kind_t prop_kind,
+        const mkldnn_memory_desc_t *src_desc,
+        const mkldnn_memory_desc_t *dst_des,
+        const mkldnn_memory_desc_t *scaleshift_des,
+        double epsilon);
+
+/** Initializes an @p batch_normalization_primitive_desc using @p batch_normalization_desc and @p engine. */
+mkldnn_status_t MKLDNN_API mkldnn_batch_normalization_primitive_desc_init(
+        mkldnn_batch_normalization_primitive_desc_t *batch_normalization_primitive_desc,
+        const mkldnn_batch_normalization_desc_t *batch_normalization_desc, const_mkldnn_engine_t engine);
+
+/** Creates an @p batch_normalization primitive using an @p batch_normalization_primitive_desc descriptor, input
+ * parameter @p src of type #mkldnn_primitive_at_t, and output primitive @p dst. */
+mkldnn_status_t MKLDNN_API mkldnn_batch_normalization_create(mkldnn_primitive_t *batch_normalization,
+        const mkldnn_batch_normalization_primitive_desc_t *batch_normalization_primitive_desc,
+        const mkldnn_primitive_at_t src,
+        const_mkldnn_primitive_t dst,
+        const mkldnn_primitive_at_t scaleshift,
+        const mkldnn_primitive_at_t workspace);
+
+/** Retrieves the @p batch_normalization_primitive_desc descriptor associated with an @p batch_normalization primitive. */
+mkldnn_status_t MKLDNN_API mkldnn_batch_normalization_get_primitive_desc(const_mkldnn_primitive_t batch_normalization,
+        mkldnn_batch_normalization_primitive_desc_t *batch_normalization_primitive_desc);
+
+/** @} */
+
+
 /** @addtogroup c_api_inner_product Inner product
- * A primitive to compute an inner product. 
+ * A primitive to compute an inner product.
  * Inner product layer is also known as fully connected layer.
  * @{ */
 

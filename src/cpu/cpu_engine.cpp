@@ -31,6 +31,7 @@
 #include "cpu/gemm_inner_product.hpp"
 #include "cpu/reference_convolution_relu.hpp"
 #include "cpu/jit_avx2_convolution_relu.hpp"
+#include "cpu/reference_batch_normalization.hpp"
 
 #include "cpu/simple_reorder.hpp"
 
@@ -59,6 +60,7 @@ primitive_desc_init_f primitive_inits[] = {
     reference_inner_product<f32>::primitive_desc_init,
     jit_avx2_convolution_relu<f32>::primitive_desc_init,
     reference_convolution_relu<f32>::primitive_desc_init,
+    reference_batch_normalization<f32>::primitive_desc_init,
     NULL,
 };
 

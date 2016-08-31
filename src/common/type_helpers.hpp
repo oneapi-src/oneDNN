@@ -134,6 +134,12 @@ inline status_t lrn_desc_is_ok(
     return success;
 }
 
+inline status_t batch_normalization_desc_is_ok(
+    const batch_normalization_desc_t &batch_normalization_desc) {
+    // XXX: fill-in
+    return success;
+}
+
 inline status_t inner_product_desc_is_ok(
         const inner_product_desc_t &inner_product_desc) {
     // XXX: fill-in
