@@ -112,7 +112,7 @@ Doxygen:
 
 Documentation will be created in `build/reference/html` folder.
 
-Finnally,
+Finally,
 ```
 	make install
 ```
