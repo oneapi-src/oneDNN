@@ -35,23 +35,23 @@ typedef struct {
 } jit_args_t;
 
 struct nchw8c_across {
-    int32_t HW, version; // -1 channels 0..7, 1 channels C-8 .. C-1, 0 -- other channels
-    nchw8c_across(int32_t hw, int32_t v) : HW(hw), version(v) {}
+    int HW, version; // -1 channels 0..7, 1 channels C-8 .. C-1, 0 -- other channels
+    nchw8c_across(int hw, int v) : HW(hw), version(v) {}
 };
 
 struct nchw8c_within {
-    int32_t H, W, size;
-    nchw8c_within(int32_t h, int32_t w, int32_t s) : H(h), W(w), size(s) {}
+    int H, W, size;
+    nchw8c_within(int h, int w, int s) : H(h), W(w), size(s) {}
 };
 
 struct nchw_across {
-    int32_t C, HW, tail;
-    nchw_across(int32_t c, int32_t hw, int32_t t) : C(c), HW(hw), tail(t) {}
+    int C, HW, tail;
+    nchw_across(int c, int hw, int t) : C(c), HW(hw), tail(t) {}
 };
 
 struct nhwc_across {
-    int32_t C;
-    nhwc_across(int32_t c) : C(c) {}
+    int C;
+    nhwc_across(int c) : C(c) {}
 };
 
 template <impl::precision_t prec>
@@ -68,14 +68,14 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
     float alpha;
 
     void within_body(
-        int32_t hoff, int32_t Hoff, int32_t woff, int32_t Woff, int32_t stride,
+        int hoff, int Hoff, int woff, int Woff, int stride,
         Xbyak::Ymm ysum, Xbyak::Ymm ydst, Xbyak::Ymm ytmp, Xbyak::Ymm ysum2,
         prop_kind_t pk)
     {
         vxorps(ysum, ysum, ysum);
-        for (int32_t i = hoff; i <= Hoff; ++i)
+        for (int i = hoff; i <= Hoff; ++i)
         {
-            for (int32_t j = woff; j <= Woff; ++j)
+            for (int j = woff; j <= Woff; ++j)
             {
                 if (i == 0 && j == 0)
                 {
@@ -141,13 +141,13 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
         mov(imm_addr64, reinterpret_cast<size_t>(&this->one));
         vbroadcastss(yone, ptr[imm_addr64]);
 
-        int32_t s2 = (J.size - 1) / 2, S2 = J.size - s2 - 1;
+        int s2 = (J.size - 1) / 2, S2 = J.size - s2 - 1;
         const char **label_t = &label[0];
         const char **label_b = &label[s2];
 
-        for (int32_t i = 0; i < s2; ++i)
+        for (int i = 0; i < s2; ++i)
         {
-            for (int32_t j = 0; j < s2; ++j)
+            for (int j = 0; j < s2; ++j)
                 within_body(-i, S2, -j, S2, J.W, ysum, ydst, ytmp, ysum2, pk);
             mov(w, J.W - J.size + 1);
             L(label_t[i]);
@@ -155,13 +155,13 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
             dec(w);
             cmp(w, 0);
             jne(label_t[i], T_NEAR);
-            for (int32_t j = J.W - S2; j < J.W; ++j)
+            for (int j = J.W - S2; j < J.W; ++j)
                 within_body(-i, S2, -s2, J.W - 1 - j, J.W, ysum, ydst, ytmp, ysum2, pk);
         }
 
         mov(h, J.H - J.size + 1);
         L(".lrn_loop_h");
-        for (int32_t j = 0; j < s2; ++j)
+        for (int j = 0; j < s2; ++j)
             within_body(-s2, S2, -j, S2, J.W, ysum, ydst, ytmp, ysum2, pk);
         mov(w, J.W - J.size + 1);
         L(".lrn_loop_w");
@@ -169,15 +169,15 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
         dec(w);
         cmp(w, 0);
         jne(".lrn_loop_w", T_NEAR);
-        for (int32_t j = J.W - S2; j < J.W; ++j)
+        for (int j = J.W - S2; j < J.W; ++j)
             within_body(-s2, S2, -s2, J.W - 1 - j, J.W, ysum, ydst, ytmp, ysum2, pk);
         dec(h);
         cmp(h, 0);
         jne(".lrn_loop_h", T_NEAR);
 
-        for (int32_t i = J.H - S2; i < J.H; ++i)
+        for (int i = J.H - S2; i < J.H; ++i)
         {
-            for (int32_t j = 0; j < s2; ++j)
+            for (int j = 0; j < s2; ++j)
                 within_body(-s2, J.H - 1 - i, -j, S2, J.W, ysum, ydst, ytmp, ysum2, pk);
             mov(w, J.W - J.size + 1);
             L(label_b[i - (J.H - S2)]);
@@ -185,7 +185,7 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
             dec(w);
             cmp(w, 0);
             jne(label_b[i - (J.H - S2)], T_NEAR);
-            for (int32_t j = J.W - S2; j < J.W; ++j)
+            for (int j = J.W - S2; j < J.W; ++j)
                 within_body(-s2, J.H - 1 - i, -s2, J.W - 1 - j, J.W, ysum, ydst, ytmp, ysum2, pk);
         }
 
@@ -403,7 +403,7 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
         this->postamble();
     }
 
-    void nchw_body(int tail, uint32_t HW, prop_kind_t pk,
+    void nchw_body(int tail, int HW, prop_kind_t pk,
         Xbyak::Ymm ymask,
         Xbyak::Ymm ya,
         Xbyak::Ymm yb,
@@ -557,17 +557,17 @@ status_t jit_avx2_lrn<prec>::execute_forward() {
 
     const memory_desc_wrapper src_d(this->_lpd.src_primitive_desc.memory_desc);
 
-    const uint32_t N = src_d.dims()[0];
-    const uint32_t C = src_d.dims()[1];
-    const uint32_t HW = src_d.dims()[2]*src_d.dims()[3];
+    const int N = src_d.dims()[0];
+    const int C = src_d.dims()[1];
+    const int HW = src_d.dims()[2]*src_d.dims()[3];
 
     if (this->_lpd.dst_primitive_desc.memory_desc.format == nChw8c
         && this->_lpd.lrn_desc.alg_kind == mkldnn_lrn_across_channels
         && this->_lpd.lrn_desc.local_size == 5)
     {
 #       pragma omp parallel for collapse(2) schedule(static)
-        for (uint32_t n = 0; n < N; ++n) {
-            for (uint32_t c8 = 0; c8 < C / VECTOR_LENGTH; ++c8) {
+        for (int n = 0; n < N; ++n) {
+            for (int c8 = 0; c8 < C / VECTOR_LENGTH; ++c8) {
                 jit_args_t args;
                 args.src = &src[n*HW*C + c8 * HW * VECTOR_LENGTH];
                 args.dst = &dst[n*HW*C + c8 * HW * VECTOR_LENGTH];
@@ -585,8 +585,8 @@ status_t jit_avx2_lrn<prec>::execute_forward() {
         && this->_lpd.lrn_desc.alg_kind == mkldnn_lrn_within_channel)
     {
 #       pragma omp parallel for collapse(2) schedule(static)
-        for (uint32_t n = 0; n < N; ++n) {
-            for (uint32_t c8 = 0; c8 < C / VECTOR_LENGTH; ++c8) {
+        for (int n = 0; n < N; ++n) {
+            for (int c8 = 0; c8 < C / VECTOR_LENGTH; ++c8) {
                 jit_args_t args;
                 args.src = &src[n*HW*C + c8 * HW * VECTOR_LENGTH];
                 args.dst = &dst[n*HW*C + c8 * HW * VECTOR_LENGTH];
@@ -600,8 +600,8 @@ status_t jit_avx2_lrn<prec>::execute_forward() {
         && this->_lpd.lrn_desc.local_size == 5)
     {
 #       pragma omp parallel for collapse(2) schedule(static)
-        for (uint32_t n = 0; n < N; ++n) {
-            for (uint32_t hw8 = 0; hw8 < (HW + VECTOR_LENGTH - 1) / VECTOR_LENGTH; ++hw8) {
+        for (int n = 0; n < N; ++n) {
+            for (int hw8 = 0; hw8 < (HW + VECTOR_LENGTH - 1) / VECTOR_LENGTH; ++hw8) {
                 jit_args_t args;
                 args.src = &src[n*HW*C + hw8 * VECTOR_LENGTH];
                 args.dst = &dst[n*HW*C + hw8 * VECTOR_LENGTH];
@@ -616,8 +616,8 @@ status_t jit_avx2_lrn<prec>::execute_forward() {
     else // nhwc
     {
 #       pragma omp parallel for collapse(2) schedule(static)
-        for (uint32_t n = 0; n < N; ++n) {
-            for (uint32_t hw = 0; hw < HW; ++hw) {
+        for (int n = 0; n < N; ++n) {
+            for (int hw = 0; hw < HW; ++hw) {
                 jit_args_t args;
                 args.src = &src[n*HW*C + hw * C];
                 args.dst = &dst[n*HW*C + hw * C];
@@ -680,9 +680,9 @@ jit_avx2_lrn<prec>::jit_avx2_lrn(const lrn_primitive_desc_t &ppd,
     const primitive_at_t *inputs, const primitive *outputs[])
     : lrn<jit_avx2_lrn<prec>>(ppd, inputs, outputs)
 {
-    uint32_t C = ppd.src_primitive_desc.memory_desc.tensor_desc.dims[1];
-    uint32_t H = ppd.src_primitive_desc.memory_desc.tensor_desc.dims[2];
-    uint32_t W = ppd.src_primitive_desc.memory_desc.tensor_desc.dims[3];
+    int C = ppd.src_primitive_desc.memory_desc.tensor_desc.dims[1];
+    int H = ppd.src_primitive_desc.memory_desc.tensor_desc.dims[2];
+    int W = ppd.src_primitive_desc.memory_desc.tensor_desc.dims[3];
     double A = ppd.lrn_desc.alpha / ppd.lrn_desc.local_size;
     mkldnn_prop_kind_t pk = ppd.lrn_desc.prop_kind;
     mkldnn_alg_kind_t ak = ppd.lrn_desc.alg_kind;

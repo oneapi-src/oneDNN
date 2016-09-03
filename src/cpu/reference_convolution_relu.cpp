@@ -23,7 +23,7 @@ namespace mkldnn { namespace impl { namespace cpu {
 
 template <impl::precision_t prec>
 status_t reference_convolution_relu<prec>::execute_forward() {
-    auto obtain_ptr = [this](uint32_t idx) {
+    auto obtain_ptr = [this](int idx) {
         const size_t oi = this->input()[idx].output_index;
         return reinterpret_cast<const data_t*>(
                 this->input()[idx].primitive->output()[oi]->memory_const());
@@ -39,44 +39,44 @@ status_t reference_convolution_relu<prec>::execute_forward() {
         bias_d(this->_crpd.bias_primitive_desc.memory_desc),
         dst_d(this->_crpd.dst_primitive_desc.memory_desc);
 
-    const uint32_t w_idx_base = this->_with_groups ? 1 : 0;
-    const uint32_t G = this->_with_groups ? weights_d.dims()[0] : 1;
+    const int w_idx_base = this->_with_groups ? 1 : 0;
+    const int G = this->_with_groups ? weights_d.dims()[0] : 1;
 
-    const uint32_t MB = src_d.dims()[0];
-    const uint32_t OH = dst_d.dims()[2];
-    const uint32_t OW = dst_d.dims()[3];
-    const uint32_t IH = src_d.dims()[2];
-    const uint32_t IW = src_d.dims()[3];
+    const int MB = src_d.dims()[0];
+    const int OH = dst_d.dims()[2];
+    const int OW = dst_d.dims()[3];
+    const int IH = src_d.dims()[2];
+    const int IW = src_d.dims()[3];
 
-    const uint32_t OC = weights_d.dims()[w_idx_base + 0];
-    const uint32_t IC = weights_d.dims()[w_idx_base + 1];
-    const uint32_t KH = weights_d.dims()[w_idx_base + 2];
-    const uint32_t KW = weights_d.dims()[w_idx_base + 3];
+    const int OC = weights_d.dims()[w_idx_base + 0];
+    const int IC = weights_d.dims()[w_idx_base + 1];
+    const int KH = weights_d.dims()[w_idx_base + 2];
+    const int KW = weights_d.dims()[w_idx_base + 3];
 
     const auto &conv_d = this->_crpd.convolution_relu_desc.convolution_desc;
-    const uint32_t KSH = conv_d.strides[0];
-    const uint32_t KSW = conv_d.strides[1];
+    const int KSH = conv_d.strides[0];
+    const int KSW = conv_d.strides[1];
 
-    const int32_t padH = conv_d.padding[0];
-    const int32_t padW = conv_d.padding[1];
+    const int padH = conv_d.padding[0];
+    const int padW = conv_d.padding[1];
 
     const double negative_slope =
         this->_crpd.convolution_relu_desc.negative_slope;
 
-    auto ker = [=](data_t *d, uint32_t g, uint32_t mb, uint32_t oc, uint32_t oh,
-            uint32_t ow)
+    auto ker = [=](data_t *d, int g, int mb, int oc, int oh,
+            int ow)
     {
-        for (uint32_t ic = 0; ic < IC; ++ic) {
-            for (uint32_t kh = 0; kh < KH; ++kh) {
-                for (uint32_t kw = 0; kw < KW; ++kw) {
-                    if (oh*KSH + kh < (uint32_t)nstl::max(0, padH)) continue;
-                    if (ow*KSW + kw < (uint32_t)nstl::max(0, padW)) continue;
+        for (int ic = 0; ic < IC; ++ic) {
+            for (int kh = 0; kh < KH; ++kh) {
+                for (int kw = 0; kw < KW; ++kw) {
+                    if (oh*KSH + kh < nstl::max(0, padH)) continue;
+                    if (ow*KSW + kw < nstl::max(0, padW)) continue;
 
                     if (oh*KSH + kh >= IH + padH) continue;
                     if (ow*KSW + kw >= IW + padW) continue;
 
-                    const uint32_t ih = oh * KSH - padH + kh;
-                    const uint32_t iw = ow * KSW - padW + kw;
+                    const int ih = oh * KSH - padH + kh;
+                    const int iw = ow * KSW - padW + kw;
 
                     if (this->_with_groups) {
                         *d += src[src_d.off(mb, g*IC + ic, ih, iw)] *
@@ -92,11 +92,11 @@ status_t reference_convolution_relu<prec>::execute_forward() {
     };
 
 #   pragma omp parallel for collapse(5) schedule(static)
-    for (uint32_t g = 0; g < G; ++g) {
-        for (uint32_t mb = 0; mb < MB; ++mb) {
-            for (uint32_t oc = 0; oc < OC; ++oc) {
-                for (uint32_t oh = 0; oh < OH; ++oh) {
-                    for (uint32_t ow = 0; ow < OW; ++ow) {
+    for (int g = 0; g < G; ++g) {
+        for (int mb = 0; mb < MB; ++mb) {
+            for (int oc = 0; oc < OC; ++oc) {
+                for (int oh = 0; oh < OH; ++oh) {
+                    for (int ow = 0; ow < OW; ++ow) {
                         data_t *d = &dst[dst_d.off(mb, g*OC + oc, oh, ow)];
                         *d = bias ? bias[bias_d.off(g*OC + oc)] : data_t(0);
                         ker(d, g, mb, oc, oh, ow);

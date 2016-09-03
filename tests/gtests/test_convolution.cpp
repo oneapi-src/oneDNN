@@ -36,12 +36,12 @@ void compute_ref_conv_fwd(test_convolution_descr_t c, memory src,
     const memory::desc dst_d = dst.get_primitive_desc().desc();
 
 #pragma omp parallel for collapse(5)
-    for (uint32_t n = 0; n < c.mb; n++) {
-        for (uint32_t g = 0; g < c.ng; g++) {
-            for (uint32_t oc = 0; oc < c.oc / c.ng; oc++) {
-                for (uint32_t oh = 0; oh < c.oh; oh++) {
-                    for (uint32_t ow = 0; ow < c.ow; ow++) {
-                        uint32_t oidx = n * c.oc * c.oh * c.ow
+    for (int n = 0; n < c.mb; n++) {
+        for (int g = 0; g < c.ng; g++) {
+            for (int oc = 0; oc < c.oc / c.ng; oc++) {
+                for (int oh = 0; oh < c.oh; oh++) {
+                    for (int ow = 0; ow < c.ow; ow++) {
+                        int oidx = n * c.oc * c.oh * c.ow
                                 + g * c.oc / c.ng * c.oh * c.ow
                                 + oc * c.oh * c.ow + oh * c.ow + ow;
                         dst_data[map_index(dst_d, oidx)] = bias_data ?
@@ -49,18 +49,17 @@ void compute_ref_conv_fwd(test_convolution_descr_t c, memory src,
                                         bias.get_primitive_desc().desc(),
                                         g * c.oc / c.ng + oc)] :
                                 0.0;
-                        for (uint32_t ic = 0; ic < c.ic / c.ng; ic++) {
-                            for (uint32_t kh = 0; kh < c.kh; kh++) {
-                                for (uint32_t kw = 0; kw < c.kw; kw++) {
-                                    int32_t iw = ow * c.strw - c.padw + kw;
-                                    int32_t ih = oh * c.strh - c.padh + kh;
-                                    if (iw < 0 || iw >= (int32_t)c.iw || ih < 0
-                                            || ih >= (int32_t)c.ih)
-                                        continue;
-                                    uint32_t iidx = n * c.ic * c.ih * c.iw
+                        for (int ic = 0; ic < c.ic / c.ng; ic++) {
+                            for (int kh = 0; kh < c.kh; kh++) {
+                                for (int kw = 0; kw < c.kw; kw++) {
+                                    int iw = ow * c.strw - c.padw + kw;
+                                    int ih = oh * c.strh - c.padh + kh;
+                                    if (iw < 0 || iw >= c.iw) continue;
+                                    if (ih < 0 || ih >= c.ih) continue;
+                                    int iidx = n * c.ic * c.ih * c.iw
                                             + g * c.ic / c.ng * c.ih * c.iw
                                             + ic * c.ih * c.iw + ih * c.iw + iw;
-                                    uint32_t widx = g * c.oc / c.ng * c.ic
+                                    int widx = g * c.oc / c.ng * c.ic
                                                     / c.ng * c.kh * c.kw
                                             + oc * c.ic / c.ng * c.kh * c.kw
                                             + ic * c.kh * c.kw + kh * c.kw + kw;

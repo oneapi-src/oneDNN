@@ -98,7 +98,7 @@ mkldnn_primitive_at_t MKLDNN_API mkldnn_primitive_at(const_mkldnn_primitive_t pr
 
 /** Initializes a @p tensor_desc using @p ndims and array @p dims. */
 mkldnn_status_t MKLDNN_API mkldnn_tensor_desc_init(mkldnn_tensor_desc_t *tensor_desc,
-        uint32_t ndims, const mkldnn_dims_t dims);
+        int ndims, const mkldnn_dims_t dims);
 
 /** Initializes a @p memory_desc memory descriptor using @p tensor, data @p
  * precision, and data @p format. @p format can only be #mkldnn_any, which
@@ -207,7 +207,7 @@ mkldnn_status_t MKLDNN_API mkldnn_convolution_desc_init(
         const mkldnn_memory_desc_t *weights_desc,
         const mkldnn_memory_desc_t *bias_desc,
         const mkldnn_memory_desc_t *dst_desc,
-        const mkldnn_dims_t strides, const mkldnn_nd_offset_t padding,
+        const mkldnn_dims_t strides, const mkldnn_dims_t padding,
         mkldnn_padding_kind_t padding_kind);
 
 /** Initializes a @p convolution_primitive_desc with @p convolution_desc and @p
@@ -282,8 +282,7 @@ mkldnn_status_t MKLDNN_API mkldnn_pooling_desc_init(
         const mkldnn_memory_desc_t *src_desc,
         const mkldnn_memory_desc_t *dst_desc,
         const mkldnn_dims_t strides, const mkldnn_dims_t kernel,
-        const mkldnn_nd_offset_t padding,
-        mkldnn_padding_kind_t padding_kind);
+        const mkldnn_dims_t padding, mkldnn_padding_kind_t padding_kind);
 
 /** Initializes a @p pooling_primitive_desc using @p pooling_desc and @p engine.
  */
@@ -322,7 +321,7 @@ mkldnn_status_t MKLDNN_API mkldnn_lrn_desc_init(mkldnn_lrn_desc_t *lrn_desc,
         mkldnn_prop_kind_t prop_kind, mkldnn_alg_kind_t alg_kind,
         const mkldnn_memory_desc_t *src_desc,
         const mkldnn_memory_desc_t *dst_desc, double alpha, double beta,
-        uint32_t local_size);
+        int local_size);
 
 /** Initializes an @p lrn_primitive_desc using @p lrn_desc and @p engine. */
 mkldnn_status_t MKLDNN_API mkldnn_lrn_primitive_desc_init(

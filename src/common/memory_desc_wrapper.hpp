@@ -52,7 +52,7 @@ struct memory_desc_wrapper: public c_compatible {
     const blocking_desc_t &blocking_desc() const {
         return _md.layout_desc.blocking;
     }
-    inline uint32_t ndims() const { return _md.tensor_desc.ndims; }
+    inline int ndims() const { return _md.tensor_desc.ndims; }
 
     /* some useful function */
 
@@ -81,7 +81,7 @@ struct memory_desc_wrapper: public c_compatible {
         const auto &padding_dims = blocking_desc().padding_dims;
 
         size_t max_size = 0;
-        for (uint32_t d = 0; d < ndims(); ++d) {
+        for (int d = 0; d < ndims(); ++d) {
             auto block = block_dims[d];
             max_size = nstl::max(max_size,
                     size_t(padding_dims[d]/block)*strides[0][d]);
@@ -125,12 +125,12 @@ struct memory_desc_wrapper: public c_compatible {
         const dims_t &optd = blk.offset_padding_to_data;
 
         size_t phys_offset = blk.offset_padding;
-        for (uint32_t d = 0; d < ndims(); ++d) {
-            const uint32_t block = blk.block_dims[d];
+        for (int d = 0; d < ndims(); ++d) {
+            const int block = blk.block_dims[d];
 
-            const uint32_t p = pos[d] + (is_pos_padded ? 0 : optd[d]);
-            const uint32_t pos_within_block = p % block;
-            const uint32_t pos_block = p / block;
+            const int p = pos[d] + (is_pos_padded ? 0 : optd[d]);
+            const int pos_within_block = p % block;
+            const int pos_block = p / block;
 
             phys_offset += pos_block * blk.strides[0][d];
             phys_offset += pos_within_block * blk.strides[1][d];
@@ -144,9 +144,9 @@ struct memory_desc_wrapper: public c_compatible {
     inline size_t off_l(size_t l_offset, bool is_pos_padded = false) const {
         const dims_t &padding_dims = blocking_desc().padding_dims;
         dims_t pos;
-        for (uint32_t rd = 0; rd < ndims(); ++rd) {
-            const uint32_t d = ndims() - 1 - rd;
-            const uint32_t cur_dim = is_pos_padded ? padding_dims[d] : dims()[d];
+        for (int rd = 0; rd < ndims(); ++rd) {
+            const int d = ndims() - 1 - rd;
+            const int cur_dim = is_pos_padded ? padding_dims[d] : dims()[d];
             pos[d] = l_offset % cur_dim;
             l_offset /= cur_dim;
         }

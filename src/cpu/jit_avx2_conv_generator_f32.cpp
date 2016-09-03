@@ -43,8 +43,7 @@ inline void jit_avx2_conv_generator_f32::oh_step_unroll(
 
     for (int ki = 0; ki < kw; ki++) {
         int jj_start = nstl::max(0, pad_l - ki);
-        int jj_end = ur_w
-                - (int)nstl::max(0, (int)ki + pad_r - (int)(kw - 1));
+        int jj_end = ur_w - nstl::max(0, ki + pad_r - (kw - 1));
         for (int ifm2 = 0; ifm2 < ic_blk; ifm2++) {
             for (int jj = jj_start; jj < jj_end; jj++) {
                 int inp_off;
@@ -288,7 +287,7 @@ void jit_avx2_conv_generator_f32::init_jit_params(
         const memory_desc_wrapper &weights_d, const memory_desc_wrapper &dst_d)
 {
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
-    const uint32_t w_idx_base = with_groups ? 1 : 0;
+    const int w_idx_base = with_groups ? 1 : 0;
     jcp.ngroups = with_groups ? weights_d.dims()[0] : 1;
     jcp.mb = src_d.dims()[0];
     jcp.ic = weights_d.dims()[w_idx_base + 1];
@@ -304,7 +303,7 @@ void jit_avx2_conv_generator_f32::init_jit_params(
     jcp.stride_h = cd.strides[0];
     jcp.stride_w = cd.strides[1];
 
-    const uint32_t simd_w = 8;
+    const int simd_w = 8;
     jcp.ic_block = (jcp.ic % simd_w != 0) ? jcp.ic : simd_w;
     jcp.nb_ic = jcp.ic / jcp.ic_block;
 
@@ -375,7 +374,7 @@ bool jit_avx2_conv_generator_f32::is_applicable(
         && dst_d.format() == nChw8c;
     if (!args_ok) return false;
 
-    const uint32_t w_idx_base = with_groups ? 1 : 0;
+    const int w_idx_base = with_groups ? 1 : 0;
     int ic = weights_d.dims()[w_idx_base + 1];
     int oc = weights_d.dims()[w_idx_base + 0];
     int iw = src_d.dims()[3];
@@ -384,13 +383,13 @@ bool jit_avx2_conv_generator_f32::is_applicable(
     int t_pad = conv_d.padding[0];
     int l_pad = conv_d.padding[1];
     int kw = weights_d.dims()[w_idx_base + 3];
-    uint32_t stride_h = conv_d.strides[0];
-    uint32_t stride_w = conv_d.strides[1];
+    int stride_h = conv_d.strides[0];
+    int stride_w = conv_d.strides[1];
 
     int ur_w = 3;
     int ur_w_tail = ow % ur_w;
 
-    const uint32_t simd_w = 8;
+    const int simd_w = 8;
 
     args_ok = true
         && stride_w == stride_h

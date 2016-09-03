@@ -47,10 +47,10 @@ status_t reference_batch_normalization<prec>::execute_forward() {
         dst_d(this->_bnpd.dst_primitive_desc.memory_desc),
         scaleshift_d(this->_bnpd.scaleshift_primitive_desc.memory_desc);
 
-    const uint32_t N = src_d.dims()[0];
-    const uint32_t C = src_d.dims()[1];
-    const uint32_t H = src_d.dims()[2];
-    const uint32_t W = src_d.dims()[3];
+    const int N = src_d.dims()[0];
+    const int C = src_d.dims()[1];
+    const int H = src_d.dims()[2];
+    const int W = src_d.dims()[3];
 
     data_t *mean = nullptr,
            *variance = nullptr;
@@ -60,7 +60,7 @@ status_t reference_batch_normalization<prec>::execute_forward() {
     }
 
 #   pragma omp parallel for schedule(static)
-    for (uint32_t c = 0; c < C; ++c)
+    for (int c = 0; c < C; ++c)
     {
         data_t v_mean = 0.0,
                v_variance = 0.0;
@@ -68,18 +68,18 @@ status_t reference_batch_normalization<prec>::execute_forward() {
         data_t *_l_variance = this->_is_training ? &variance[c] : &v_variance;
 
         *_l_mean = 0.0;
-        for (uint32_t n = 0; n < N; ++n)
-        for (uint32_t h = 0; h < H; ++h)
-        for (uint32_t w = 0; w < W; ++w)
+        for (int n = 0; n < N; ++n)
+        for (int h = 0; h < H; ++h)
+        for (int w = 0; w < W; ++w)
         {
             *_l_mean += src[src_d.off(n,c,h,w)];
         }
         *_l_mean /= W * N * H;
 
         *_l_variance = 0.0;
-        for (uint32_t n = 0; n < N; ++n)
-        for (uint32_t h = 0; h < H; ++h)
-        for (uint32_t w = 0; w < W; ++w) {
+        for (int n = 0; n < N; ++n)
+        for (int h = 0; h < H; ++h)
+        for (int w = 0; w < W; ++w) {
             data_t _tmp = src[src_d.off(n,c,h,w)] - *_l_mean;
             *_l_variance += _tmp * _tmp;
         }
@@ -87,12 +87,12 @@ status_t reference_batch_normalization<prec>::execute_forward() {
                         this->_bnpd.batch_normalization_desc.epsilon;
         *_l_variance = (data_t)1.0/std::sqrt(*_l_variance);
 
-        for (uint32_t n = 0; n < N; ++n)
-        for (uint32_t h = 0; h < H; ++h)
-        for (uint32_t w = 0; w < W; ++w)
-            dst[dst_d.off(n,c,h,w)] = scaleshift[scaleshift_d.off(0u,c)] *
+        for (int n = 0; n < N; ++n)
+        for (int h = 0; h < H; ++h)
+        for (int w = 0; w < W; ++w)
+            dst[dst_d.off(n,c,h,w)] = scaleshift[scaleshift_d.off(0, c)] *
               (src[src_d.off(n,c,h,w)] - *_l_mean)*(*_l_variance) +
-                scaleshift[scaleshift_d.off(1u,c)];
+                scaleshift[scaleshift_d.off(1, c)];
     }
 
     return success;

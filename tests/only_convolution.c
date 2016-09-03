@@ -32,7 +32,7 @@ typedef float real_t;
     } \
 } while(0)
 
-static size_t product(uint32_t *arr, size_t size) {
+static size_t product(int *arr, size_t size) {
     size_t prod = 1;
     for (size_t i = 0; i < size; ++i) prod *= arr[i];
     return prod;
@@ -45,14 +45,14 @@ int doit(int lazy) {
      * strides: {1, 1}
      */
 
-    const uint32_t mb = 2;
-    const uint32_t groups = 2;
-    uint32_t c3_src_sizes[4] = {mb, 256, 13, 13};
-    uint32_t c3_weights_sizes[] = {groups, 384/groups, 256/groups, 3, 3};
-    uint32_t c3_bias_sizes[1] = {384};
-    uint32_t strides[] = {1, 1};
+    const int mb = 2;
+    const int groups = 2;
+    int c3_src_sizes[4] = {mb, 256, 13, 13};
+    int c3_weights_sizes[] = {groups, 384/groups, 256/groups, 3, 3};
+    int c3_bias_sizes[1] = {384};
+    int strides[] = {1, 1};
     int32_t  padding[] = {0, 0}; // set proper values
-    uint32_t c3_dst_sizes[4] = {mb, 384,
+    int c3_dst_sizes[4] = {mb, 384,
         (c3_src_sizes[2] + 2*padding[0] - c3_weights_sizes[3])/strides[0] + 1,
         (c3_src_sizes[3] + 2*padding[1] - c3_weights_sizes[4])/strides[1] + 1
     };
@@ -69,7 +69,7 @@ int doit(int lazy) {
         return -1;
     }
 
-    for (uint32_t i = 0; i < c3_bias_sizes[0]; ++i) bias[i] = i;
+    for (int i = 0; i < c3_bias_sizes[0]; ++i) bias[i] = i;
 
     mkldnn_engine_t engine;
     CHECK(mkldnn_engine_create(&engine, lazy ? mkldnn_cpu_lazy : mkldnn_cpu, 0 /* idx */));
@@ -147,12 +147,12 @@ int doit(int lazy) {
     mkldnn_engine_destroy(engine);
 
     int rc = 0;
-    const uint32_t N = c3_dst_sizes[0], C = c3_dst_sizes[1],
+    const int N = c3_dst_sizes[0], C = c3_dst_sizes[1],
           H = c3_dst_sizes[2], W = c3_dst_sizes[3];
-    for (uint32_t n = 0; n < N; ++n)
-    for (uint32_t c = 0; c < C; ++c)
-    for (uint32_t h = 0; h < H; ++h)
-    for (uint32_t w = 0; w < W; ++w)
+    for (int n = 0; n < N; ++n)
+    for (int c = 0; c < C; ++c)
+    for (int h = 0; h < H; ++h)
+    for (int w = 0; w < W; ++w)
     {
         size_t off = ((n*C + c)*H + h)*W + w;
         if (dst[off] != bias[c]) rc = 1;

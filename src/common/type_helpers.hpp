@@ -29,12 +29,12 @@ namespace impl {
 
 template <precision_t> struct prec_trait {};
 template <> struct prec_trait<precision::f32> { typedef float type; };
-template <> struct prec_trait<precision::u32> { typedef uint32_t type; };
+template <> struct prec_trait<precision::u32> { typedef int type; };
 
 template <typename T> struct data_trait {};
 template <> struct data_trait<float>
 { static constexpr precision_t prec = precision::f32; };
-template <> struct data_trait<uint32_t>
+template <> struct data_trait<int>
 { static constexpr precision_t prec = precision::u32; };
 
 namespace types {
@@ -73,7 +73,7 @@ inline status_t tensor_is_ok(const tensor_desc_t &tensor) {
 }
 
 inline bool blocking_desc_is_equal(const blocking_desc_t &lhs,
-        const blocking_desc_t &rhs, uint32_t ndims = TENSOR_MAX_DIMS) {
+        const blocking_desc_t &rhs, int ndims = TENSOR_MAX_DIMS) {
     using mkldnn::impl::array_cmp;
     return lhs.offset_padding == rhs.offset_padding
         && array_cmp(lhs.block_dims, rhs.block_dims, ndims)

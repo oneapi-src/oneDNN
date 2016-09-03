@@ -26,11 +26,11 @@ namespace mkldnn {
 enum {ACROSS=0,WITHIN=1};
 
 struct test_lrn_desc_t {
-    uint32_t mb, c;
-    uint32_t h, w;
+    int mb, c;
+    int h, w;
     double alpha, beta;
-    uint32_t local_size;
-    int32_t kind; // 0 ac, 1 wc
+    int local_size;
+    int kind; // 0 ac, 1 wc
 };
 
 template <typename data_t>
@@ -42,29 +42,29 @@ void check_lrn_fwd(test_lrn_desc_t ld, memory &src, memory &dst)
     const memory::desc src_d = src.get_primitive_desc().desc();
     const memory::desc dst_d = dst.get_primitive_desc().desc();
 
-    const uint32_t C = ld.c;
-    const uint32_t H = ld.h;
-    const uint32_t W = ld.w;
-    const uint32_t size = ld.local_size;
-    const uint32_t CSIZE = ld.kind == ACROSS ? size : 1;
-    const uint32_t HWSIZE = size + 1 - CSIZE;
-    const uint32_t summands = ld.kind == ACROSS ? size : size*size;
+    const int C = ld.c;
+    const int H = ld.h;
+    const int W = ld.w;
+    const int size = ld.local_size;
+    const int CSIZE = ld.kind == ACROSS ? size : 1;
+    const int HWSIZE = size + 1 - CSIZE;
+    const int summands = ld.kind == ACROSS ? size : size*size;
 
-    auto off = [=](uint32_t n, uint32_t c, uint32_t h, uint32_t w)
+    auto off = [=](int n, int c, int h, int w)
     {
         return ((n * ld.c + c) * ld.h + h) * ld.w + w;
     };
 
-    auto ker = [=](data_t *d, uint32_t n, uint32_t oc, uint32_t oh, uint32_t ow)
+    auto ker = [=](data_t *d, int n, int oc, int oh, int ow)
     {
         data_t sum = 0.0;
-        for (uint32_t c = oc; c < oc + CSIZE; ++c) {
+        for (int c = oc; c < oc + CSIZE; ++c) {
             if (c < (CSIZE - 1) / 2) continue;
             if (c >= C + (CSIZE - 1) / 2) continue;
-            for (uint32_t h = oh; h < oh + HWSIZE; ++h) {
+            for (int h = oh; h < oh + HWSIZE; ++h) {
                 if (h < (HWSIZE - 1) / 2) continue;
                 if (h >= H + (HWSIZE - 1) / 2) continue;
-                for (uint32_t w = ow; w < ow + HWSIZE; ++w) {
+                for (int w = ow; w < ow + HWSIZE; ++w) {
                     if (w < (HWSIZE - 1) / 2) continue;
                     if (w >= W + (HWSIZE - 1) / 2) continue;
                     data_t s = src_ptr[map_index(src_d,off(n, c - (CSIZE - 1) / 2, h - (HWSIZE - 1) / 2, w - (HWSIZE - 1) / 2))];
@@ -81,12 +81,12 @@ void check_lrn_fwd(test_lrn_desc_t ld, memory &src, memory &dst)
         EXPECT_NEAR(out, ref_out, eps*norm_max);
     };
 
-    const uint32_t N = ld.mb;
+    const int N = ld.mb;
 #   pragma omp parallel for collapse(4)
-    for (uint32_t n = 0; n < N; ++n) {
-        for (uint32_t c = 0; c < C; ++c) {
-            for (uint32_t h = 0; h < H; ++h) {
-                for (uint32_t w = 0; w < W; ++w) {
+    for (int n = 0; n < N; ++n) {
+        for (int c = 0; c < C; ++c) {
+            for (int h = 0; h < H; ++h) {
+                for (int w = 0; w < W; ++w) {
                     ker(&dst_ptr[map_index(dst_d,off(n, c, h, w))], n, c, h, w);
                 }
             }

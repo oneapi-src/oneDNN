@@ -32,9 +32,9 @@ typedef float real_t;
     } \
 } while(0)
 
-static uint32_t product(uint32_t dims, uint32_t *arr) {
-    uint32_t res = 1;
-    for (uint32_t d = 0; d < dims; ++d) res *= arr[d];
+static int product(int dims, int *arr) {
+    int res = 1;
+    for (int d = 0; d < dims; ++d) res *= arr[d];
     return res;
 }
 
@@ -43,8 +43,8 @@ static void init_engine(engine_t *engine) {
 }
 
 static void init_data_desc(memory_primitive_desc_t *user_prim_desc,
-        memory_desc_t *prim_md, uint32_t ndims_batch, uint32_t ndims_channels,
-        uint32_t ndims_spatial, uint32_t *dims, memory_format_t user_fmt,
+        memory_desc_t *prim_md, int ndims_batch, int ndims_channels,
+        int ndims_spatial, int *dims, memory_format_t user_fmt,
         const_dnn_engine_t engine)
 {
     memory_desc_t user_md;
@@ -96,7 +96,7 @@ status_t prepare_reorder(
 }
 
 int doit() {
-    uint32_t enough = 8*1024*1024;
+    int enough = 8*1024*1024;
     real_t *src = (real_t*)malloc(sizeof(real_t)*enough);
     real_t *weights = (real_t*)malloc(sizeof(real_t)*enough);
     real_t *bias = (real_t*)malloc(sizeof(real_t)*1024);
@@ -107,12 +107,12 @@ int doit() {
      * strides: {4, 4}
      */
 
-    uint32_t c1_src_sizes[4] = {256, 3, 227, 227};
-    uint32_t c1_weights_sizes[4] = {96, 3, 11, 11};
-    uint32_t c1_bias_sizes[1] = {96};
-    uint32_t c1_dst_sizes[4] = {256, 96, 55, 55};
-    uint32_t strides[] = {4, 4};
-    uint32_t padding[] = {0, 0};
+    int c1_src_sizes[4] = {256, 3, 227, 227};
+    int c1_weights_sizes[4] = {96, 3, 11, 11};
+    int c1_bias_sizes[1] = {96};
+    int c1_dst_sizes[4] = {256, 96, 55, 55};
+    int strides[] = {4, 4};
+    int padding[] = {0, 0};
 
     dnn_engine_t engine;
     init_engine(&engine);

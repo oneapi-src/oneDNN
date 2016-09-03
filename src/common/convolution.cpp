@@ -32,7 +32,7 @@ status_t mkldnn_convolution_desc_init(convolution_desc_t *convolution_desc,
         prop_kind_t prop_kind, alg_kind_t alg_kind,
         const memory_desc_t *src_desc, const memory_desc_t *weights_desc,
         const memory_desc_t *bias_desc, const memory_desc_t *dst_desc,
-        const dims_t strides, const nd_offset_t padding,
+        const dims_t strides, const dims_t padding,
         padding_kind_t padding_kind)
 {
     const bool args_ok = !any_null(convolution_desc, src_desc, weights_desc,
@@ -52,7 +52,7 @@ status_t mkldnn_convolution_desc_init(convolution_desc_t *convolution_desc,
     cd.bias_desc = bias_desc ? *bias_desc : types::zero<memory_desc_t>();
     cd.dst_desc = *dst_desc;
     cd.padding_kind = padding_kind;
-    const uint32_t ndims_spatial = src_desc->tensor_desc.ndims - 2;
+    const int ndims_spatial = src_desc->tensor_desc.ndims - 2;
     array_copy(cd.strides, strides, ndims_spatial);
     array_copy(cd.padding, padding, ndims_spatial);
 

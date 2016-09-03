@@ -22,10 +22,10 @@
 namespace mkldnn {
 
 struct test_inner_product_descr_t {
-    uint32_t mb;
-    uint32_t ic;
-    uint32_t oc;
-    uint32_t kh, kw;
+    int mb;
+    int ic;
+    int oc;
+    int kh, kw;
 };
 
 template <typename data_t>
@@ -43,17 +43,17 @@ void compute_ref_inner_product_fwd(test_inner_product_descr_t ipd, memory &src,
     const memory::desc dst_d = dst.get_primitive_desc().desc();
 
 #pragma omp parallel for collapse(2)
-    for (uint32_t n = 0; n < ipd.mb; n++) {
-        for (uint32_t oc = 0; oc < ipd.oc; oc++) {
-            uint32_t oidx = n * ipd.oc + oc;
+    for (int n = 0; n < ipd.mb; n++) {
+        for (int oc = 0; oc < ipd.oc; oc++) {
+            int oidx = n * ipd.oc + oc;
             dst_data[map_index(dst_d, oidx)] = bias_data ?
                     bias_data[map_index(bias_d, oc)] : 0.0;
-            for (uint32_t ic = 0; ic < ipd.ic; ic++) {
-                for (uint32_t kh = 0; kh < ipd.kh; kh++) {
-                    for (uint32_t kw = 0; kw < ipd.kw; kw++) {
-                        uint32_t iidx = n * ipd.ic * ipd.kh * ipd.kw
+            for (int ic = 0; ic < ipd.ic; ic++) {
+                for (int kh = 0; kh < ipd.kh; kh++) {
+                    for (int kw = 0; kw < ipd.kw; kw++) {
+                        int iidx = n * ipd.ic * ipd.kh * ipd.kw
                                 + ic * ipd.kh * ipd.kw + kh * ipd.kw + kw;
-                        uint32_t widx = oc * ipd.ic * ipd.kh * ipd.kw
+                        int widx = oc * ipd.ic * ipd.kh * ipd.kw
                                 + ic * ipd.kh * ipd.kw + kh * ipd.kw + kw;
                         dst_data[map_index(dst_d, oidx)]
                                 += src_data[map_index(src_d, iidx)]

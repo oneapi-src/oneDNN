@@ -31,7 +31,7 @@ void check_relu(prop_kind aprop_kind,
 {
     ASSERT_EQ(aprop_kind, prop_kind::forward);
 
-    ASSERT_EQ(md.data.tensor_desc.ndims, 4U);
+    ASSERT_EQ(md.data.tensor_desc.ndims, 4);
     ASSERT_EQ(md.data.format, memory::convert_to_c(memory::format::nchw));
     ASSERT_EQ(md.data.precision, memory::convert_to_c(memory::precision::f32)); // TODO: type assert
 

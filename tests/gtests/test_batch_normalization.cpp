@@ -24,8 +24,8 @@
 namespace mkldnn {
 
 struct test_bnorm_desc_t {
-    uint32_t mb, c;
-    uint32_t h, w;
+    int mb, c;
+    int h, w;
     float eps;
 };
 
@@ -44,35 +44,35 @@ void check_bnorm_fwd(test_bnorm_desc_t bnd, memory &src, memory &dst, memory &sc
     const memory::desc ss_d = scaleshift.get_primitive_desc().desc();
 
 #pragma omp parallel for
-    for (uint32_t c = 0; c < bnd.c; c++)
+    for (int c = 0; c < bnd.c; c++)
     {
         ws_data[map_index(ws_d, c)] = 0.0;
-        for (uint32_t n = 0; n < bnd.mb; n++)
-        for (uint32_t h = 0; h < bnd.h; h++)
-        for (uint32_t w = 0; w < bnd.w; w++)
+        for (int n = 0; n < bnd.mb; n++)
+        for (int h = 0; h < bnd.h; h++)
+        for (int w = 0; w < bnd.w; w++)
         {
-             uint32_t sidx = n*bnd.c*bnd.h*bnd.w + c*bnd.h*bnd.w + h*bnd.w + w;
+             int sidx = n*bnd.c*bnd.h*bnd.w + c*bnd.h*bnd.w + h*bnd.w + w;
              ws_data[map_index(ws_d, c)] += src_data[map_index(src_d, sidx)];
         }
         ws_data[map_index(ws_d, c)] /= bnd.mb*bnd.h*bnd.w;
 
         ws_data[map_index(ws_d, bnd.c + c)] = 0.0;
-        for (uint32_t n = 0; n < bnd.mb; n++)
-        for (uint32_t h = 0; h < bnd.h; h++)
-        for (uint32_t w = 0; w < bnd.w; w++)
+        for (int n = 0; n < bnd.mb; n++)
+        for (int h = 0; h < bnd.h; h++)
+        for (int w = 0; w < bnd.w; w++)
         {
-             uint32_t sidx = n*bnd.c*bnd.h*bnd.w + c*bnd.h*bnd.w + h*bnd.w + w;
+             int sidx = n*bnd.c*bnd.h*bnd.w + c*bnd.h*bnd.w + h*bnd.w + w;
              data_t tmp = src_data[map_index(src_d, sidx)] - ws_data[map_index(ws_d, c)];
              ws_data[map_index(ws_d, bnd.c + c)] += tmp*tmp;
         }
         ws_data[map_index(ws_d, bnd.c + c)] = ws_data[map_index(ws_d, bnd.c + c)]/(bnd.mb*bnd.h*bnd.w) + bnd.eps;
         ws_data[map_index(ws_d, bnd.c + c)] = (data_t)1.0/sqrt(ws_data[map_index(ws_d, bnd.c + c)]);
 
-        for (uint32_t n = 0; n < bnd.mb; n++)
-        for (uint32_t h = 0; h < bnd.h; h++)
-        for (uint32_t w = 0; w < bnd.w; w++)
+        for (int n = 0; n < bnd.mb; n++)
+        for (int h = 0; h < bnd.h; h++)
+        for (int w = 0; w < bnd.w; w++)
         {
-             uint32_t sdidx = n*bnd.c*bnd.h*bnd.w + c*bnd.h*bnd.w + h*bnd.w + w;
+             int sdidx = n*bnd.c*bnd.h*bnd.w + c*bnd.h*bnd.w + h*bnd.w + w;
              data_t ref_dst = ss_data[map_index(ss_d, c)] * (src_data[map_index(src_d, sdidx)] - ws_data[map_index(ws_d, c)]) * ws_data[map_index(ws_d, bnd.c + c)] + ss_data[map_index(ss_d, bnd.c + c)];
              data_t out = dst_data[map_index(dst_d, sdidx)];
              data_t eps = 1.e-6*bnd.mb*bnd.h*bnd.w;

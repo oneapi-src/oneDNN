@@ -27,29 +27,29 @@ namespace cpu {
 
 typedef struct {
     int c;
-    uint32_t mb;
-    uint32_t ih, iw, oh, ow;
+    int mb;
+    int ih, iw, oh, ow;
     int l_pad, t_pad;
-    uint32_t kh, kw;
-    uint32_t stride_h, stride_w;
-    uint32_t nb_c, c_block;
-    uint32_t ur_h, ur_w;
-    uint32_t ur_w_tail;
+    int kh, kw;
+    int stride_h, stride_w;
+    int nb_c, c_block;
+    int ur_h, ur_w;
+    int ur_w_tail;
 } jit_pooling_param_t;
 
 typedef struct __attribute__ ((__packed__))
 jit_pooling_kernel_s {
     float *src;
     float *dst;
-    uint32_t *indices;
+    int *indices;
     float *src_prf;
     float *dst_prf;
-    uint32_t *indices_prf;
+    int *indices_prf;
     size_t kh_padding;
     size_t kh_padding_prf;
     size_t kw_padding;
     float* init_value;
-    uint32_t* init_array;
+    int* init_array;
 }  jit_pooling_kernel_t;
 
 class jit_avx2_pooling_generator_f32 : public jit_generator {

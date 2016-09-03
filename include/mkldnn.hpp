@@ -256,7 +256,7 @@ private:
 /// this type when a mathematical description of data is required.
 struct tensor {
     typedef std::vector<std::remove_extent<c_api::mkldnn_dims_t>::type> dims;
-    typedef std::vector<std::remove_extent<c_api::mkldnn_nd_offset_t>::type> nd_offset;
+    typedef std::vector<std::remove_extent<c_api::mkldnn_strides_t>::type> strides;
 
     /// Checks that a vector specifying tensor dimensions is valid.
     ///
@@ -491,7 +491,7 @@ struct convolution: public primitive {
                 const memory::desc &bias_desc,
                 const memory::desc &dst_desc,
                 const tensor::dims strides,
-                const tensor::nd_offset padding,
+                const tensor::dims padding,
                 const padding_kind apadding_kind)
         {
             tensor::validate_dims(strides);
@@ -509,7 +509,7 @@ struct convolution: public primitive {
                 const memory::desc &weights_desc,
                 const memory::desc &dst_desc,
                 const tensor::dims strides,
-                const tensor::nd_offset padding,
+                const tensor::dims padding,
                 const padding_kind apadding_kind)
         {
             tensor::validate_dims(strides);
@@ -557,7 +557,7 @@ struct convolution: public primitive {
     convolution(prop_kind aprop_kind, algorithm aalgorithm,
             const primitive::at &src, const primitive::at &weights,
             const primitive::at &bias, const memory &dst,
-            const tensor::dims strides, const tensor::nd_offset padding,
+            const tensor::dims strides, const tensor::dims padding,
             const padding_kind apadding_kind) {
         auto src_md = memory(src).get_primitive_desc();
         auto weights_md = memory(weights).get_primitive_desc();
@@ -580,7 +580,7 @@ struct convolution: public primitive {
     convolution(prop_kind aprop_kind, algorithm aalgorithm,
             const primitive::at &src, const primitive::at &weights,
             const memory &dst, const tensor::dims strides,
-            const tensor::nd_offset padding, const padding_kind apadding_kind) {
+            const tensor::dims padding, const padding_kind apadding_kind) {
         auto src_md = memory(src).get_primitive_desc();
         auto weights_md = memory(weights).get_primitive_desc();
         auto dst_md = dst.get_primitive_desc();
@@ -611,7 +611,7 @@ struct pooling : public primitive {
             const memory::desc &dst_desc,
             const tensor::dims strides,
             const tensor::dims kernel,
-            const tensor::nd_offset padding,
+            const tensor::dims padding,
             const padding_kind apadding_kind)
         {
             tensor::validate_dims(strides);
@@ -649,7 +649,7 @@ struct pooling : public primitive {
     pooling(prop_kind aprop_kind, algorithm aalgorithm,
         const primitive::at &src, const primitive::at &indices,
         const memory &dst,
-        const tensor::dims strides, const tensor::dims kernel, const tensor::nd_offset padding,
+        const tensor::dims strides, const tensor::dims kernel, const tensor::dims padding,
         const padding_kind apadding_kind) {
         auto src_md = memory(src).get_primitive_desc();
         auto dst_md = dst.get_primitive_desc();
@@ -681,7 +681,7 @@ struct lrn : public primitive {
         desc(prop_kind aprop_kind, algorithm aalgorithm,
             const memory::desc &src_desc,
             const memory::desc &dst_desc,
-            double alpha, double beta, uint32_t local_size)
+            double alpha, double beta, int local_size)
         {
             error::wrap_c_api(c_api::mkldnn_lrn_desc_init(&data,
                 mkldnn::convert_to_c(aprop_kind), convert_to_c(aalgorithm),
@@ -713,7 +713,7 @@ struct lrn : public primitive {
     lrn(prop_kind aprop_kind, algorithm aalgorithm,
         const primitive::at &src, const primitive::at &scratch,
         const memory &dst,
-        double alpha, double beta, uint32_t local_size) {
+        double alpha, double beta, int local_size) {
         auto src_md = memory(src).get_primitive_desc();
         auto dst_md = dst.get_primitive_desc();
 
@@ -989,7 +989,7 @@ struct convolution_relu: public primitive {
     convolution_relu(prop_kind aprop_kind, algorithm aalgorithm,
             const primitive::at &src, const primitive::at &weights,
             const primitive::at &bias, const memory &dst,
-            const tensor::dims strides, const tensor::nd_offset padding,
+            const tensor::dims strides, const tensor::dims padding,
             const padding_kind apadding_kind, const double negative_slope) {
         auto src_md = memory(src).get_primitive_desc();
         auto weights_md = memory(weights).get_primitive_desc();
@@ -1013,7 +1013,7 @@ struct convolution_relu: public primitive {
     convolution_relu(prop_kind aprop_kind, algorithm aalgorithm,
             const primitive::at &src, const primitive::at &weights,
             const memory &dst, const tensor::dims strides,
-            const tensor::nd_offset padding, const padding_kind apadding_kind,
+            const tensor::dims padding, const padding_kind apadding_kind,
             const double negative_slope) {
         auto src_md = memory(src).get_primitive_desc();
         auto weights_md = memory(weights).get_primitive_desc();

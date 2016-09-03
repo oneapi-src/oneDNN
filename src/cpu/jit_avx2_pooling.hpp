@@ -36,7 +36,7 @@ class jit_avx2_pooling:
     public pooling<jit_avx2_pooling<prec>> {
 public:
     typedef typename prec_trait<prec>::type data_t;
-    typedef uint32_t index_t;
+    typedef int index_t;
     using pooling<jit_avx2_pooling<prec>>::pooling;
     jit_avx2_pooling(const pooling_primitive_desc_t &ppd,
             const primitive_at_t *inputs, const primitive *outputs[]);

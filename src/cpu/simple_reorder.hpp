@@ -72,8 +72,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const auto &dims = input_d.dims();
 
         auto ker = [&](const data_t<prec_i> *i, data_t<prec_o> *o) {
-            for (uint32_t w = 0; w < dims[3]; ++w) {
-                for (uint32_t c = 0; c < 8; ++c) {
+            for (int w = 0; w < dims[3]; ++w) {
+                for (int c = 0; c < 8; ++c) {
                     const auto nchw_off =
                         c*nchw_d.blocking_desc().strides[0][1] + w;
                     if (order_keep) {
@@ -86,11 +86,11 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         };
 
 #       pragma omp parallel for collapse(3) schedule(static)
-        for (uint32_t n = 0; n < dims[0]; ++n) {
-            for (uint32_t C = 0; C < dims[1]/8; ++C) {
-                for (uint32_t h = 0; h < dims[2]; ++h) {
-                    constexpr uint32_t i_c_mult = order_keep ? 8 : 1;
-                    constexpr uint32_t o_c_mult = order_keep ? 1 : 8;
+        for (int n = 0; n < dims[0]; ++n) {
+            for (int C = 0; C < dims[1]/8; ++C) {
+                for (int h = 0; h < dims[2]; ++h) {
+                    constexpr int i_c_mult = order_keep ? 8 : 1;
+                    constexpr int o_c_mult = order_keep ? 1 : 8;
                     auto i = &input[input_d.blk_off(n, i_c_mult * C, h)];
                     auto o = &output[output_d.blk_off(n, o_c_mult * C, h)];
                     ker(i, o);
@@ -118,8 +118,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const auto &dims = input_d.dims();
 
         auto ker = [&](const data_t<prec_i> *i, data_t<prec_o> *o) {
-            for (uint32_t w = 0; w < dims[3]; ++w) {
-                for (uint32_t c = 0; c < dims[1]; ++c) {
+            for (int w = 0; w < dims[3]; ++w) {
+                for (int c = 0; c < dims[1]; ++c) {
                     const auto &is = input_d.blocking_desc().strides[0];
                     const auto &os = output_d.blocking_desc().strides[0];
                     if (order_keep) {
@@ -132,8 +132,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         };
 
 #       pragma omp parallel for collapse(2) schedule(static)
-        for (uint32_t n = 0; n < dims[0]; ++n) {
-            for (uint32_t h = 0; h < dims[2]; ++h) {
+        for (int n = 0; n < dims[0]; ++n) {
+            for (int h = 0; h < dims[2]; ++h) {
                 auto i = &input[input_d.blk_off(n, 0, h)];
                 auto o = &output[output_d.blk_off(n, 0, h)];
                 ker(i, o);
@@ -166,8 +166,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const auto &dims = input_d.dims();
 
         auto ker = [&](const data_t<prec_i> *i, data_t<prec_o> *o) {
-            for (uint32_t ic = 0; ic < 8; ++ic) {
-                for (uint32_t oc = 0; oc < 8; ++oc) {
+            for (int ic = 0; ic < 8; ++ic) {
+                for (int oc = 0; oc < 8; ++oc) {
                     const auto _g_oihw_off =
                         oc*_g_oihw_d.blocking_desc().strides[0][w_groups + 0]
                         + ic*_g_oihw_d.blocking_desc().strides[0][w_groups + 1];
@@ -180,16 +180,16 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             }
         };
 
-        const uint32_t _G = w_groups ? dims[0] : 1u;
+        const int _G = w_groups ? dims[0] : 1;
 
 #       pragma omp parallel for collapse(5) schedule(static)
-        for (uint32_t g = 0; g < _G; ++g) {
-            for (uint32_t O = 0; O < dims[w_groups + 0]/8; ++O) {
-                for (uint32_t I = 0; I < dims[w_groups + 1]/8; ++I) {
-                    for (uint32_t h = 0; h < dims[w_groups + 2]; ++h) {
-                        for (uint32_t w = 0; w < dims[w_groups + 3]; ++w) {
-                            constexpr uint32_t i_mult = order_keep ? 8 : 1;
-                            constexpr uint32_t o_mult = order_keep ? 1 : 8;
+        for (int g = 0; g < _G; ++g) {
+            for (int O = 0; O < dims[w_groups + 0]/8; ++O) {
+                for (int I = 0; I < dims[w_groups + 1]/8; ++I) {
+                    for (int h = 0; h < dims[w_groups + 2]; ++h) {
+                        for (int w = 0; w < dims[w_groups + 3]; ++w) {
+                            constexpr int i_mult = order_keep ? 8 : 1;
+                            constexpr int o_mult = order_keep ? 1 : 8;
                             auto i = &input[input_d.blk_off<!w_groups>(g,
                                     i_mult * O, i_mult * I, h, w)];
                             auto o = &output[output_d.blk_off<!w_groups>(

@@ -30,7 +30,7 @@ using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::precision;
 
-status_t mkldnn_tensor_desc_init(tensor_desc_t *tensor_desc, uint32_t ndims,
+status_t mkldnn_tensor_desc_init(tensor_desc_t *tensor_desc, int ndims,
         const dims_t dims) {
     if (any_null(tensor_desc)) return invalid_arguments;
     tensor_desc_t td;

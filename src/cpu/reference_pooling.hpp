@@ -31,7 +31,7 @@ class reference_pooling:
     public pooling<reference_pooling<prec>> {
 public:
     typedef typename prec_trait<prec>::type data_t;
-    typedef uint32_t index_t;
+    typedef int index_t;
     using pooling<reference_pooling<prec>>::pooling;
 
     static status_t constraint(const pooling_desc_t &pool_d);

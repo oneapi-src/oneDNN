@@ -26,18 +26,18 @@ namespace cpu {
 
 struct jit_convolution_param_t {
     int ic, oc;
-    uint32_t mb;
-    uint32_t ih, iw, oh, ow;
-    uint32_t ihp, iwp, ohp, owp;
+    int mb;
+    int ih, iw, oh, ow;
+    int ihp, iwp, ohp, owp;
     int l_pad, t_pad;
-    uint32_t kh, kw;
-    uint32_t stride_h, stride_w;
-    uint32_t nb_ic, ic_block;
-    uint32_t nb_oc, oc_block;
-    uint32_t nb_ic_blocking, nb_oc_blocking; // blocking of nb_ic and nb_ic
-    uint32_t ur_h, ur_w;
-    uint32_t ur_w_tail;
-    uint32_t ngroups;
+    int kh, kw;
+    int stride_h, stride_w;
+    int nb_ic, ic_block;
+    int nb_oc, oc_block;
+    int nb_ic_blocking, nb_oc_blocking; // blocking of nb_ic and nb_ic
+    int ur_h, ur_w;
+    int ur_w_tail;
+    int ngroups;
     memory_format_t src_fmt;
     bool with_bias;
     bool with_relu;
@@ -55,7 +55,7 @@ typedef struct __attribute__((__packed__)) jit_convolution_kernel_s {
     size_t kh_padding;
     size_t kh_padding_prf;
     size_t kw_padding;
-    int32_t ic_flag;
+    int ic_flag;
 } jit_convolution_kernel_t;
 
 class jit_avx2_conv_generator_f32 : public jit_generator {

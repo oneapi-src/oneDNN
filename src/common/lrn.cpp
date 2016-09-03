@@ -30,7 +30,7 @@ using namespace mkldnn::impl::alg_kind;
 status_t mkldnn_lrn_desc_init(lrn_desc_t *lrn_desc, prop_kind_t prop_kind,
         alg_kind_t alg_kind, const memory_desc_t *src_desc,
         const memory_desc_t *dst_desc, double alpha, double beta,
-        uint32_t local_size)
+        int local_size)
 {
     bool args_ok = !any_null(lrn_desc, src_desc, dst_desc)
         && one_of(prop_kind, forward_training, forward_scoring, backward_data)

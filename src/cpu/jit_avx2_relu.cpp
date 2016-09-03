@@ -52,7 +52,7 @@ struct jit_avx2_relu<prec>::xbyak_relu : public jit_generator {
 
     xbyak_relu(
         float *run_time_ptr_negative_slope,
-        uint32_t compile_time_main_loop_iterations,
+        int compile_time_main_loop_iterations,
         size_t compile_time_reminder,
         void *code_ptr = nullptr,
         size_t code_size = 1 * Xbyak::DEFAULT_MAX_CODE_SIZE)

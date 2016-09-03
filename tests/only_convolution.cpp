@@ -25,10 +25,10 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-but-set-variable"
 
-uint32_t tensor_volume(const mkldnn::tensor::dims &t)
+int tensor_volume(const mkldnn::tensor::dims &t)
 {
-    uint32_t x = 1;
-    for (uint32_t i = 0; i < t.size(); ++i) x *= t[i];
+    int x = 1;
+    for (size_t i = 0; i < t.size(); ++i) x *= t[i];
     return x;
 }
 
@@ -48,13 +48,13 @@ int doit(bool lazy) {
 
     // XXX: descs for memory should be not necessary!
 
-    const uint32_t mb = 2;
-    const uint32_t groups = 2;
+    const int mb = 2;
+    const int groups = 2;
     tensor::dims input_tz = {mb, 256, 13, 13};
     tensor::dims weights_tz = {groups, 384/groups, 256/groups, 3, 3};
     tensor::dims bias_tz = {384};
     tensor::dims strides = {1, 1};
-    tensor::nd_offset padding = {0, 0};
+    tensor::dims padding = {0, 0};
     tensor::dims output_tz = {mb, 384,
         (input_tz[2] + 2*padding[0] - weights_tz[3])/strides[0] + 1,
         (input_tz[3] + 2*padding[1] - weights_tz[4])/strides[1] + 1,

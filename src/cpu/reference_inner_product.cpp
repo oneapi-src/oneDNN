@@ -25,7 +25,7 @@ namespace cpu {
 
 template <impl::precision_t prec>
 status_t reference_inner_product<prec>::execute_forward() {
-    auto obtain_ptr = [this](uint32_t idx) {
+    auto obtain_ptr = [this](int idx) {
         const size_t oi = this->input()[idx].output_index;
         return reinterpret_cast<const data_t *>(
                 this->input()[idx].primitive->output()[oi]->memory_const());
@@ -40,17 +40,17 @@ status_t reference_inner_product<prec>::execute_forward() {
             bias_d(this->_ippd.bias_primitive_desc.memory_desc),
             dst_d(this->_ippd.dst_primitive_desc.memory_desc);
 
-    const uint32_t MB = src_d.dims()[0];
-    const uint32_t OC = weights_d.dims()[0];
-    const uint32_t IC = weights_d.dims()[1];
+    const int MB = src_d.dims()[0];
+    const int OC = weights_d.dims()[0];
+    const int IC = weights_d.dims()[1];
 
     const bool src_has_spatial = src_d.ndims() == 4;
-    auto ker_has_spatial = [=](data_t *d, uint32_t mb, uint32_t oc) {
-        const uint32_t KH = weights_d.dims()[2];
-        const uint32_t KW = weights_d.dims()[3];
-        for (uint32_t ic = 0; ic < IC; ++ic) {
-            for (uint32_t kh = 0; kh < KH; ++kh) {
-                for (uint32_t kw = 0; kw < KW; ++kw) {
+    auto ker_has_spatial = [=](data_t *d, int mb, int oc) {
+        const int KH = weights_d.dims()[2];
+        const int KW = weights_d.dims()[3];
+        for (int ic = 0; ic < IC; ++ic) {
+            for (int kh = 0; kh < KH; ++kh) {
+                for (int kw = 0; kw < KW; ++kw) {
                     *d += src[src_d.off(mb, ic, kh, kw)]
                         * weights[weights_d.off(oc, ic, kh, kw)];
                 }
@@ -58,15 +58,15 @@ status_t reference_inner_product<prec>::execute_forward() {
         }
     };
 
-    auto ker_no_spatial = [=](data_t *d, uint32_t mb, uint32_t oc) {
-        for (uint32_t ic = 0; ic < IC; ++ic) {
+    auto ker_no_spatial = [=](data_t *d, int mb, int oc) {
+        for (int ic = 0; ic < IC; ++ic) {
             *d += src[src_d.off(mb, ic)] * weights[weights_d.off(oc, ic)];
         }
     };
 
 #   pragma omp parallel for collapse(2) schedule(static)
-    for (uint32_t mb = 0; mb < MB; ++mb) {
-        for (uint32_t oc = 0; oc < OC; ++oc) {
+    for (int mb = 0; mb < MB; ++mb) {
+        for (int oc = 0; oc < OC; ++oc) {
             data_t *d = &dst[dst_d.off(mb, oc)];
             *d = bias ? bias[bias_d.off(oc)] : data_t(0);
             if (src_has_spatial) {

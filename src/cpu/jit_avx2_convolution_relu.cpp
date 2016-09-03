@@ -36,7 +36,7 @@ jit_avx2_convolution_relu<prec>::jit_avx2_convolution_relu(
 
 template <impl::precision_t prec>
 status_t jit_avx2_convolution_relu<prec>::execute_forward() {
-    auto obtain_ptr = [this](uint32_t idx) {
+    auto obtain_ptr = [this](int idx) {
         const size_t oi = this->input()[idx].output_index;
         return reinterpret_cast<const data_t*>(
                 this->input()[idx].primitive->output()[oi]->memory_const());
@@ -55,8 +55,8 @@ status_t jit_avx2_convolution_relu<prec>::execute_forward() {
 
     const auto &jcp = this->generator->jcp;
 
-    auto ker = [&](uint32_t g, uint32_t n, uint32_t oc, uint32_t ic,
-            uint32_t oh) {
+    auto ker = [&](int g, int n, int oc, int ic,
+            int oh) {
         jit_convolution_kernel_t par_conv = {};
 
         const int ij = oh * jcp.stride_h;
@@ -64,18 +64,18 @@ status_t jit_avx2_convolution_relu<prec>::execute_forward() {
         const int i_b_overflow = nstl::max(jcp.ih, ij + jcp.kh - jcp.t_pad)
             - jcp.ih;
 
-        const uint32_t ih = nstl::max(ij - jcp.t_pad, 0);
+        const int ih = nstl::max(ij - jcp.t_pad, 0);
         par_conv.src = const_cast<data_t *>(&src[src_d.blk_off(n,
                     jcp.ic == 3 ? 0 : g * jcp.nb_ic + ic, ih, 0)]);
 
         par_conv.dst = &dst[dst_d.blk_off(n,
                 g * jcp.nb_oc + oc * jcp.nb_oc_blocking, oh, 0)];
 
-        const uint32_t wcb = jcp.nb_oc_blocking*oc;
-        const uint32_t wh = i_t_overflow;
+        const int wcb = jcp.nb_oc_blocking*oc;
+        const int wh = i_t_overflow;
         par_conv.filt = &weights[this->_with_groups
-            ? weights_d.blk_off(g, wcb, jcp.ic == 3 ? 0 : ic, wh, 0u)
-            : weights_d.blk_off(wcb, jcp.ic == 3 ? 0 : ic, wh, 0u)];
+            ? weights_d.blk_off(g, wcb, jcp.ic == 3 ? 0 : ic, wh, 0)
+            : weights_d.blk_off(wcb, jcp.ic == 3 ? 0 : ic, wh, 0)];
 
         if (ic == 0) {
             if (bias) {
@@ -95,11 +95,11 @@ status_t jit_avx2_convolution_relu<prec>::execute_forward() {
     };
 
 #   pragma omp parallel for collapse(3) schedule(static)
-    for (uint32_t g = 0; g < jcp.ngroups; ++g) {
-        for (uint32_t n = 0; n < jcp.mb; ++n) {
-            for (uint32_t oc = 0; oc < (jcp.nb_oc/jcp.nb_oc_blocking); ++oc) {
-                for (uint32_t ic = 0; ic < jcp.nb_ic; ++ic) {
-                    for (uint32_t oh = 0; oh < jcp.oh; ++oh) {
+    for (int g = 0; g < jcp.ngroups; ++g) {
+        for (int n = 0; n < jcp.mb; ++n) {
+            for (int oc = 0; oc < (jcp.nb_oc/jcp.nb_oc_blocking); ++oc) {
+                for (int ic = 0; ic < jcp.nb_ic; ++ic) {
+                    for (int oh = 0; oh < jcp.oh; ++oh) {
                         ker(g, n, oc, ic, oh);
                     }
                 }

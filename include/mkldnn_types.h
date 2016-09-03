@@ -172,12 +172,12 @@ typedef enum {
 /** Maximum number of dimensions a tensor can have. Only restricts
  * the amount of space used for the tensor description. Individual computational
  * primitives may support only tensors of certain dimensions. */
-#define TENSOR_MAX_DIMS 12U
+#define TENSOR_MAX_DIMS 12
 
 /** A type to describe tensor dimensions. */
-typedef uint32_t mkldnn_dims_t[TENSOR_MAX_DIMS];
-/** A type to describe offsets within a tensor. */
-typedef int32_t mkldnn_nd_offset_t[TENSOR_MAX_DIMS];
+typedef int mkldnn_dims_t[TENSOR_MAX_DIMS];
+/** A type to describe strides within a tensor. */
+typedef ptrdiff_t mkldnn_strides_t[TENSOR_MAX_DIMS];
 
 /** A tensor descriptor. The description is not tied to any memory format, but
  * enables describing tensor dimensions as belonging to mini-batch,
@@ -185,7 +185,7 @@ typedef int32_t mkldnn_nd_offset_t[TENSOR_MAX_DIMS];
  * mathematical description of data is required. */
 typedef struct {
     /** Number dimensions */
-    uint32_t ndims;
+    int ndims;
     /** Tensor dimensions in the following order: mini-batch, channel, spatial.
      * For example: <code>{N, C, H, W}</code>. */
     mkldnn_dims_t dims;
@@ -251,7 +251,7 @@ typedef struct {
     mkldnn_dims_t strides;
     /** Padding in each spatial dimension (only symmetric padding is currently
      * supported). */
-    mkldnn_nd_offset_t padding;
+    mkldnn_dims_t padding;
     /** The kind of padding to use. */
     mkldnn_padding_kind_t padding_kind;
 } mkldnn_convolution_desc_t;
@@ -274,7 +274,7 @@ typedef struct {
     mkldnn_dims_t kernel;
     /** Padding in each spatial dimension (only symmetric padding is currently
      * supported). */
-    mkldnn_nd_offset_t padding;
+    mkldnn_dims_t padding;
     /** The kind of padding to use. */
     mkldnn_padding_kind_t padding_kind;
 } mkldnn_pooling_desc_t;
@@ -311,7 +311,7 @@ typedef struct {
     double beta;
     /** The number of channels to sum over (for cross-channel LRN) or the side
      * length of the square region to sum over (for within-channel LRN). */
-    uint32_t local_size;
+    int local_size;
 } mkldnn_lrn_desc_t;
 
 

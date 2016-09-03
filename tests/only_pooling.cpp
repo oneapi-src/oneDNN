@@ -29,24 +29,24 @@ typedef float real_t;
 
 static void init_src(const mkldnn::tensor::dims &dim, real_t *x)
 {
-    uint32_t N = dim[0], C = dim[1], H = dim[2], W = dim[3];
+    int N = dim[0], C = dim[1], H = dim[2], W = dim[3];
 #   pragma omp parallel for collapse(2)
-    for (uint32_t n = 0; n < N; n += 1)
-    for (uint32_t c = 0; c < C; c += 1)
-    for (uint32_t h = 2; h+2 <= H; h += 2)
-    for (uint32_t w = 2; w+2 <= W; w += 2)
+    for (int n = 0; n < N; n += 1)
+    for (int c = 0; c < C; c += 1)
+    for (int h = 2; h+2 <= H; h += 2)
+    for (int w = 2; w+2 <= W; w += 2)
         x[w + W*h + c*W*H + n*W*H*C] = c*n;
 }
 
 static int check_dst(const mkldnn::tensor::dims &dim, const real_t *x)
 {
     int n_errors = 0;
-    uint32_t N = dim[0], C = dim[1], H = dim[2], W = dim[3];
+    int N = dim[0], C = dim[1], H = dim[2], W = dim[3];
 #   pragma omp parallel for collapse(4)
-    for (uint32_t n = 0; n < N; ++n)
-    for (uint32_t c = 0; c < C; ++c)
-    for (uint32_t h = 0; h < H; ++h)
-    for (uint32_t w = 0; w < W; ++w)
+    for (int n = 0; n < N; ++n)
+    for (int c = 0; c < C; ++c)
+    for (int h = 0; h < H; ++h)
+    for (int w = 0; w < W; ++w)
     {
         if (x[w + W*h + c*W*H + n*W*H*C] != c*n)
 #           pragma omp atomic
@@ -73,7 +73,7 @@ static int doit(bool lazy) {
 
     std::vector<real_t> src(16*96*55*55);
     std::vector<real_t> dst(16*96*27*27);
-    std::vector<uint32_t> indices(16*96*27*27);
+    std::vector<int> indices(16*96*27*27);
 
     auto p1_src     = memory({p1_src_desc    , cpu_engine}, src.data()    );
     auto p1_indices = memory({p1_indices_desc, cpu_engine}, indices.data());

@@ -22,12 +22,12 @@
 namespace mkldnn {
 
 struct test_pool_desc_t {
-    uint32_t mb, c;
-    uint32_t ih, iw;
-    uint32_t oh, ow;
-    uint32_t kh, kw;
-    int32_t padh, padw;
-    uint32_t strh, strw;
+    int mb, c;
+    int ih, iw;
+    int oh, ow;
+    int kh, kw;
+    int padh, padw;
+    int strh, strw;
 };
 
 template <typename data_t>
@@ -40,23 +40,22 @@ void check_pool_max_fwd(test_pool_desc_t pd, memory &src, memory &dst)
     const memory::desc dst_d = dst.get_primitive_desc().desc();
 
 #pragma omp parallel for collapse(4)
-    for (uint32_t n = 0; n < pd.mb; n++) {
-        for (uint32_t c = 0; c < pd.c; c++) {
-            for (uint32_t oh = 0; oh < pd.oh; oh++) {
-                for (uint32_t ow = 0; ow < pd.ow; ow++) {
-                    uint32_t oidx = n * pd.c * pd.oh * pd.ow + c * pd.oh * pd.ow
+    for (int n = 0; n < pd.mb; n++) {
+        for (int c = 0; c < pd.c; c++) {
+            for (int oh = 0; oh < pd.oh; oh++) {
+                for (int ow = 0; ow < pd.ow; ow++) {
+                    int oidx = n * pd.c * pd.oh * pd.ow + c * pd.oh * pd.ow
                             + oh * pd.ow + ow;
                     data_t out = dst_data[map_index(dst_d, oidx)];
                     data_t out_ref = data_t(0);
                     bool is_initialized = false;
-                    for (uint32_t kh = 0; kh < pd.kh; kh++) {
-                        for (uint32_t kw = 0; kw < pd.kw; kw++) {
-                            int32_t iw = ow * pd.strw - pd.padw + kw;
-                            int32_t ih = oh * pd.strh - pd.padh + kh;
-                            if (iw < 0 || iw >= (int32_t)pd.iw || ih < 0
-                                    || ih >= (int32_t)pd.ih)
-                                continue;
-                            uint32_t iidx = n * pd.c * pd.ih * pd.iw
+                    for (int kh = 0; kh < pd.kh; kh++) {
+                        for (int kw = 0; kw < pd.kw; kw++) {
+                            int iw = ow * pd.strw - pd.padw + kw;
+                            int ih = oh * pd.strh - pd.padh + kh;
+                            if (iw < 0 || iw >= pd.iw) continue;
+                            if (ih < 0 || ih >= pd.ih) continue;
+                            int iidx = n * pd.c * pd.ih * pd.iw
                                     + c * pd.ih * pd.iw + ih * pd.iw + iw;
 
                             data_t d = src_data[map_index(src_d, iidx)];

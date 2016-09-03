@@ -78,7 +78,7 @@ using namespace mkldnn::impl::primitive_kind;
 template <impl::precision_t prec>
 status_t gemm_inner_product<prec>::execute_forward() {
 #ifdef USE_CBLAS
-    auto obtain_ptr = [this](uint32_t idx) {
+    auto obtain_ptr = [this](int idx) {
         const size_t oi = this->input()[idx].output_index;
         return reinterpret_cast<const data_t *>(
                 this->input()[idx].primitive->output()[oi]->memory_const());

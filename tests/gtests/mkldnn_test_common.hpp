@@ -37,27 +37,27 @@ template <> inline void assert_eq<float>(float a, float b) {
 }
 
 inline size_t map_index(const mkldnn::memory::desc &md, size_t index) {
-    const uint32_t ndims = md.data.tensor_desc.ndims;
-    const uint32_t *dims = md.data.tensor_desc.dims;
-    const uint32_t *pdims = md.data.layout_desc.blocking.padding_dims;
-    const uint32_t *optd = md.data.layout_desc.blocking.offset_padding_to_data;
+    const int ndims = md.data.tensor_desc.ndims;
+    const int *dims = md.data.tensor_desc.dims;
+    const int *pdims = md.data.layout_desc.blocking.padding_dims;
+    const int *optd = md.data.layout_desc.blocking.offset_padding_to_data;
 
-    const uint32_t *strides_block = md.data.layout_desc.blocking.strides[0];
-    const uint32_t *strides_within_block = md.data.layout_desc.blocking.strides[1];
+    const int *strides_block = md.data.layout_desc.blocking.strides[0];
+    const int *strides_within_block = md.data.layout_desc.blocking.strides[1];
 
     size_t ph_index = 0;
 
-    for (uint32_t rd = 0; rd < ndims; ++rd) {
-        uint32_t d = ndims - rd - 1;
+    for (int rd = 0; rd < ndims; ++rd) {
+        int d = ndims - rd - 1;
 
         EXPECT_LE(dims[d], pdims[d]);
 
-        uint32_t cur_dim = dims[d];
-        uint32_t cur_block = md.data.layout_desc.blocking.block_dims[d];
+        int cur_dim = dims[d];
+        int cur_block = md.data.layout_desc.blocking.block_dims[d];
 
-        uint32_t cur_pos = optd[d] + (index % cur_dim);
-        uint32_t cur_pos_block = cur_pos / cur_block;
-        uint32_t cur_pos_within_block = cur_pos % cur_block;
+        int cur_pos = optd[d] + (index % cur_dim);
+        int cur_pos_block = cur_pos / cur_block;
+        int cur_pos_within_block = cur_pos % cur_block;
 
         ph_index += cur_pos_block*strides_block[d];
         ph_index += cur_pos_within_block*strides_within_block[d];
@@ -73,7 +73,7 @@ inline size_t map_index(const mkldnn::memory::desc &md, size_t index) {
 inline mkldnn::memory::desc create_md(mkldnn::tensor::dims dims,
         mkldnn::memory::precision prec, mkldnn::memory::format fmt) {
     using f = mkldnn::memory::format;
-    uint32_t ndims = 0;
+    size_t ndims = 0;
 
     switch (fmt) {
     case f::x:
@@ -119,20 +119,20 @@ static inline data_t set_value(size_t index, data_t mean, data_t deviation,
 }
 
 template <typename data_t>
-static void fill_data(const uint32_t size, data_t *data, data_t mean,
+static void fill_data(const int size, data_t *data, data_t mean,
         data_t deviation, double sparsity = 1.)
 {
 #   pragma omp parallel for
-    for (uint32_t n = 0; n < size; n++) {
+    for (int n = 0; n < size; n++) {
         data[n] = set_value<data_t>(n, mean, deviation, sparsity);
     }
 }
 
 template <typename data_t>
-static void fill_data(const uint32_t size, data_t *data, double sparsity = 1.)
+static void fill_data(const int size, data_t *data, double sparsity = 1.)
 {
 #   pragma omp parallel for
-    for (uint32_t n = 0; n < size; n++) {
+    for (int n = 0; n < size; n++) {
         data[n] = set_value<data_t>(n, data_t(1), data_t(2e-1), sparsity);
     }
 }
@@ -144,7 +144,7 @@ static void compare_data(mkldnn::memory& ref, mkldnn::memory& dst)
     data_t *ref_data = (data_t *)ref.get_data_handle();
     data_t *dst_data = (data_t *)dst.get_data_handle();
 #   pragma omp parallel for
-    for (uint32_t i = 0; i < num; ++i) {
+    for (size_t i = 0; i < num; ++i) {
         data_t ref = ref_data[i];
         data_t got = dst_data[i];
         data_t diff = got - ref;
@@ -154,13 +154,13 @@ static void compare_data(mkldnn::memory& ref, mkldnn::memory& dst)
 }
 
 struct test_convolution_descr_t {
-    uint32_t mb;
-    uint32_t ng;
-    uint32_t ic, ih, iw;
-    uint32_t oc, oh, ow;
-    uint32_t kh, kw;
-    int32_t padh, padw;
-    uint32_t strh, strw;
+    int mb;
+    int ng;
+    int ic, ih, iw;
+    int oc, oh, ow;
+    int kh, kw;
+    int padh, padw;
+    int strh, strw;
 };
 
 #endif

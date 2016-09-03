@@ -23,8 +23,8 @@ namespace mkldnn { namespace impl {
 
 // TODO: autogenerate this
 
-using nd_offset_t = mkldnn_nd_offset_t;
 using dims_t = mkldnn_dims_t;
+using strides_t = mkldnn_strides_t;
 
 using status_t = mkldnn_status_t;
 namespace status {

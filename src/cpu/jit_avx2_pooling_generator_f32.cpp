@@ -49,7 +49,7 @@ inline void jit_avx2_pooling_generator_f32::oh_step(
     unsigned char _cmp = 1;
     union {
         float _flt_max;
-        int32_t _flt_max_int;
+        int _flt_max_int;
     } cvt;
     cvt._flt_max = -FLT_MAX;
 
@@ -74,8 +74,7 @@ inline void jit_avx2_pooling_generator_f32::oh_step(
         }
         for (int ki = 0; ki < kw; ki++) {
             int jj_start = nstl::max(0, pad_l - ki);
-            int jj_end   = (int)ur_w -
-                nstl::max(0, ki + pad_r - (kw-1));
+            int jj_end = ur_w - nstl::max(0, ki + pad_r - (kw-1));
             if (this->_is_training) {
                 vmovaps(ymm_index, ymm_ki_offset);
                 vmovaps(ymm_ji_offset, ymm_offset_base);

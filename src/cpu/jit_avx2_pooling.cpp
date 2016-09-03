@@ -36,7 +36,7 @@ jit_avx2_pooling<prec>::jit_avx2_pooling(const pooling_primitive_desc_t &ppd,
             src_d(ppd.src_primitive_desc.memory_desc),
             dst_d(ppd.dst_primitive_desc.memory_desc);
 
-    const uint32_t simd_w = 8;
+    const int simd_w = 8;
     jpp.mb = src_d.dims()[0];
     jpp.c = dst_d.dims()[1];
 
@@ -74,8 +74,8 @@ status_t jit_avx2_pooling<prec>::execute_forward() {
     const data_t *src = reinterpret_cast<const data_t *>
         (this->input()[0].primitive->output()[
             this->input()[0].output_index]->memory_const());
-    uint32_t *indices = this->_is_training
-        ? reinterpret_cast<uint32_t*>(this->input()[1].primitive->output()[
+    int *indices = this->_is_training
+        ? reinterpret_cast<int*>(this->input()[1].primitive->output()[
                 this->input()[1].output_index]->memory())
         : nullptr;
     data_t *dst = reinterpret_cast<data_t*>(this->output()[0]->memory());
@@ -85,16 +85,16 @@ status_t jit_avx2_pooling<prec>::execute_forward() {
         indices_d(this->_ppd.indices_primitive_desc.memory_desc),
         dst_d(this->_ppd.dst_primitive_desc.memory_desc);
 
-    uint32_t arr_init[8] = {0, 1, 2, 3, 4, 5, 6, 7};
+    int arr_init[8] = {0, 1, 2, 3, 4, 5, 6, 7};
 
-    auto ker = [&](uint32_t n, uint32_t c, uint32_t oh) {
+    auto ker = [&](int n, int c, int oh) {
         jit_pooling_kernel_t  par_pool = {};
 
         const int ij = oh * jpp.stride_h;
         const int i_t_overflow = nstl::max(0, jpp.t_pad-ij);
         const int i_b_overflow = nstl::max(jpp.ih,
                                         ij+jpp.kh-jpp.t_pad)-jpp.ih;
-        const uint32_t ih = nstl::max(ij - jpp.t_pad, 0);
+        const int ih = nstl::max(ij - jpp.t_pad, 0);
         par_pool.src = const_cast<data_t *>
                                  (&src[src_d.blk_off(n, c, ih, 0)]);
         par_pool.dst = &dst[dst_d.blk_off(n, c, oh, 0)];
@@ -107,9 +107,9 @@ status_t jit_avx2_pooling<prec>::execute_forward() {
     };
 
 #   pragma omp parallel for collapse(3) schedule(static)
-    for (uint32_t n = 0; n < jpp.mb; ++n) {
-        for (uint32_t c = 0; c < jpp.nb_c; ++c) {
-            for (uint32_t oh = 0; oh < jpp.oh; ++oh) {
+    for (int n = 0; n < jpp.mb; ++n) {
+        for (int c = 0; c < jpp.nb_c; ++c) {
+            for (int oh = 0; oh < jpp.oh; ++oh) {
                 ker (n, c, oh);
             }
         }

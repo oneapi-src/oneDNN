@@ -43,30 +43,30 @@ status_t reference_lrn<prec>::execute_forward() {
         scratch_d(this->_lpd.scratch_primitive_desc.memory_desc),
         dst_d(this->_lpd.dst_primitive_desc.memory_desc);
 
-    const uint32_t C = src_d.dims()[1];
-    const uint32_t H = src_d.dims()[2];
-    const uint32_t W = src_d.dims()[3];
+    const int C = src_d.dims()[1];
+    const int H = src_d.dims()[2];
+    const int W = src_d.dims()[3];
     const bool across_channels =
         this->_lpd.lrn_desc.alg_kind == alg_kind::lrn_across_channels;
 
-    auto ker = [=](data_t *d, uint32_t n, uint32_t oc, uint32_t oh, uint32_t ow)
+    auto ker = [=](data_t *d, int n, int oc, int oh, int ow)
     {
         const double alpha = this->_lpd.lrn_desc.alpha;
         const double beta = this->_lpd.lrn_desc.beta;
 
-        const uint32_t size = this->_lpd.lrn_desc.local_size;
-        const uint32_t CSIZE = across_channels ? size : 1;
-        const uint32_t HWSIZE = size + 1 - CSIZE;
+        const int size = this->_lpd.lrn_desc.local_size;
+        const int CSIZE = across_channels ? size : 1;
+        const int HWSIZE = size + 1 - CSIZE;
 
         data_t sum = 0.0;
-        uint32_t summands = across_channels ? size : size*size;
-        for (uint32_t c = oc; c < oc + CSIZE; ++c) {
+        int summands = across_channels ? size : size*size;
+        for (int c = oc; c < oc + CSIZE; ++c) {
             if (c < (CSIZE - 1) / 2) continue;
             if (c >= C + (CSIZE - 1) / 2) continue;
-            for (uint32_t h = oh; h < oh + HWSIZE; ++h) {
+            for (int h = oh; h < oh + HWSIZE; ++h) {
                 if (h < (HWSIZE - 1) / 2) continue;
                 if (h >= H + (HWSIZE - 1) / 2) continue;
-                for (uint32_t w = ow; w < ow + HWSIZE; ++w) {
+                for (int w = ow; w < ow + HWSIZE; ++w) {
                     if (w < (HWSIZE - 1) / 2) continue;
                     if (w >= W + (HWSIZE - 1) / 2) continue;
                     data_t s = src[src_d.off(n, c - (CSIZE - 1) / 2, h - (HWSIZE - 1) / 2, w - (HWSIZE - 1) / 2)];
@@ -81,12 +81,12 @@ status_t reference_lrn<prec>::execute_forward() {
                 1 / (k * (1 + alpha * sum / summands)); // for back prop
     };
 
-    const uint32_t N = src_d.dims()[0];
+    const int N = src_d.dims()[0];
 #   pragma omp parallel for collapse(4) schedule(static)
-    for (uint32_t n = 0; n < N; ++n) {
-        for (uint32_t c = 0; c < C; ++c) {
-            for (uint32_t h = 0; h < H; ++h) {
-                for (uint32_t w = 0; w < W; ++w) {
+    for (int n = 0; n < N; ++n) {
+        for (int c = 0; c < C; ++c) {
+            for (int h = 0; h < H; ++h) {
+                for (int w = 0; w < W; ++w) {
                     ker(&dst[dst_d.off(n, c, h, w)], n, c, h, w);
                 }
             }

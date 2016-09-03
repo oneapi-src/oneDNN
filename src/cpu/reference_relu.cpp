@@ -30,7 +30,7 @@ using namespace mkldnn::impl::primitive_kind;
 
 template <impl::precision_t prec>
 status_t reference_relu<prec>::execute_forward_generic() {
-    auto obtain_ptr = [this](uint32_t idx) {
+    auto obtain_ptr = [this](int idx) {
         const size_t oi = this->input()[idx].output_index;
         return reinterpret_cast<const data_t*>(
                 this->input()[idx].primitive->output()[oi]->memory_const());
@@ -39,17 +39,17 @@ status_t reference_relu<prec>::execute_forward_generic() {
     data_t *dst = reinterpret_cast<data_t*>(this->output()[0]->memory());
 
     const memory_desc_wrapper src_d(this->_rpd.src_primitive_desc.memory_desc);
-    const uint32_t N = src_d.dims()[0];
-    const uint32_t C = src_d.dims()[1];
-    const uint32_t H = src_d.dims()[2];
-    const uint32_t W = src_d.dims()[3];
+    const int N = src_d.dims()[0];
+    const int C = src_d.dims()[1];
+    const int H = src_d.dims()[2];
+    const int W = src_d.dims()[3];
     const double negative_slope = this->_rpd.relu_desc.negative_slope;
 
 #   pragma omp parallel for collapse(4) schedule(static)
-    for (uint32_t n = 0; n < N; ++n) {
-        for (uint32_t c = 0; c < C; ++c) {
-            for (uint32_t h = 0; h < H; ++h) {
-                for (uint32_t w = 0; w < W; ++w) {
+    for (int n = 0; n < N; ++n) {
+        for (int c = 0; c < C; ++c) {
+            for (int h = 0; h < H; ++h) {
+                for (int w = 0; w < W; ++w) {
                     data_t s = src[src_d.off(n, c, h, w)];
                     data_t &d = dst[src_d.off(n, c, h, w)];
                     d = (s > 0) ? s : s * negative_slope; // alpha, beta, etc ?
@@ -63,7 +63,7 @@ status_t reference_relu<prec>::execute_forward_generic() {
 
 template <impl::precision_t prec>
 status_t reference_relu<prec>::execute_forward_dense() {
-    auto obtain_ptr = [this](uint32_t idx) {
+    auto obtain_ptr = [this](int idx) {
         const size_t oi = this->input()[idx].output_index;
         return reinterpret_cast<const data_t*>(
                 this->input()[idx].primitive->output()[oi]->memory_const());
