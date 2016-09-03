@@ -156,6 +156,7 @@ typedef enum {
     mkldnn_convolution_direct = 1,
     /** Max pooling */
     mkldnn_pooling_max = 101,
+    /** Average pooling */
     mkldnn_pooling_avg = 102,
     /** Local (LRN) response normalization across multiple channels */
     mkldnn_lrn_across_channels = 201,
