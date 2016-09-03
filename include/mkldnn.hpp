@@ -1063,6 +1063,7 @@ struct stream: public handle<c_api::mkldnn_stream_t> {
     stream &submit(std::vector<primitive> primitives) {
         // TODO: find a proper way to convert vector<primitive> to
         // vector<c_api::mkldnn_primitive_t>
+        if (primitives.size() == 0) return *this;
         std::vector<c_api::mkldnn_primitive_t> c_api_primitives;
         c_api_primitives.reserve(primitives.size());
         auto convert_to_c = [](primitive p) { return p.get(); };

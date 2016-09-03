@@ -94,6 +94,9 @@ public:
     status_t submit(size_t n, primitive *primitives[],
             primitive **error_primitive)
     {
+        if (n == 0)
+            return success;
+
         primitive *p = 0;
         if (!error_primitive)
             error_primitive = &p;
@@ -118,6 +121,9 @@ public:
     }
 
     status_t wait(bool block, primitive **error_primitive) {
+        if (_queue.size() == 0)
+            return success;
+
         primitive *p = 0;
         if (!error_primitive)
             error_primitive = &p;
