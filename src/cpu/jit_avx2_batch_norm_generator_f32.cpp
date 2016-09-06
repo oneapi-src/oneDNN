@@ -43,7 +43,6 @@ inline void jit_avx2_batch_norm_generator_f32::mean_compute(int block_size,
     }
 }
 
-
 inline void jit_avx2_batch_norm_generator_f32::variance_compute(int block_size,
     jit_batch_normalization_param_t *params)
 {
@@ -94,7 +93,6 @@ inline void jit_avx2_batch_norm_generator_f32::dst_compute(int block_size,
             ((block_8 * 8) + j) * params->c_block * sizeof(float)], Ymm(j));
     }
 }
-
 
 void jit_avx2_batch_norm_generator_f32::generate() {
     auto params = &this->jbnp;
@@ -240,7 +238,8 @@ void jit_avx2_batch_norm_generator_f32::generate() {
 
 void jit_avx2_batch_norm_generator_f32::init_jit_params(
     const batch_normalization_desc_t &bnd, const memory_desc_wrapper &src_d,
-    const memory_desc_wrapper &scaleshift_d, const memory_desc_wrapper &dst_d)
+    const memory_desc_wrapper &scaleshift_d, const memory_desc_wrapper &dst_d,
+    const bool _is_training)
 {
     jbnp.mb = src_d.dims()[0];
     jbnp.c = src_d.dims()[1];
@@ -254,16 +253,18 @@ void jit_avx2_batch_norm_generator_f32::init_jit_params(
     int spatial_size = jbnp.h*jbnp.w;
     jbnp.wh_block_tail = spatial_size % jbnp.wh_block;
     jbnp.eps = bnd.epsilon;
+    jbnp._is_training = _is_training;
 }
 
 jit_avx2_batch_norm_generator_f32::jit_avx2_batch_norm_generator_f32(
-    const batch_normalization_primitive_desc_t &bnpd, void *code_ptr,
-    size_t code_size)
+    const batch_normalization_primitive_desc_t &bnpd,
+    const bool _is_training, void *code_ptr, size_t code_size)
     : jit_generator(code_ptr, code_size)
     , jbnp({})
 {
     this->init_jit_params(bnpd.batch_normalization_desc,bnpd.src_primitive_desc,
-            bnpd.scaleshift_primitive_desc, bnpd.dst_primitive_desc);
+            bnpd.scaleshift_primitive_desc, bnpd.dst_primitive_desc,
+            _is_training);
     this->generate();
     jit_ker = (void (*)(void*))this->getCode();
 //TODO: if(jit_ker == nullptr) return nullptr;

@@ -36,7 +36,8 @@ jit_avx2_batch_normalization<prec>::jit_avx2_batch_normalization(
         const primitive *outputs[])
     : batch_normalization<
         jit_avx2_batch_normalization<prec>>(bnpd, inputs, outputs)
-    , generator(new jit_avx2_batch_norm_generator_f32(bnpd)) {}
+    , generator(new jit_avx2_batch_norm_generator_f32(bnpd, this->_is_training))
+    {}
 
 template <impl::precision_t prec>
 status_t jit_avx2_batch_normalization<prec>::execute_forward() {

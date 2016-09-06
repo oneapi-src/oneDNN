@@ -77,7 +77,8 @@ private:
     inline void init_jit_params(const batch_normalization_desc_t &bnd,
             const memory_desc_wrapper &src_d,
             const memory_desc_wrapper &scaleshift_d,
-            const memory_desc_wrapper &dst_d);
+            const memory_desc_wrapper &dst_d,
+            const bool _is_training);
     inline void mean_compute(int block_size,
         jit_batch_normalization_param_t *params);
     inline void variance_compute(int block_size,
@@ -89,6 +90,7 @@ private:
 public:
     jit_avx2_batch_norm_generator_f32(
         const batch_normalization_primitive_desc_t &bnpd,
+        const bool _is_training,
         void *code_ptr = nullptr,
         size_t code_size = 8 * Xbyak::DEFAULT_MAX_CODE_SIZE);
 
