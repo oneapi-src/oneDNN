@@ -57,8 +57,7 @@ status_t jit_avx2_batch_normalization<prec>::execute_forward() {
     const memory_desc_wrapper
         src_d(this->_bnpd.src_primitive_desc),
         scaleshift_d(this->_bnpd.scaleshift_primitive_desc),
-        dst_d(this->_bnpd.dst_primitive_desc),
-        workspace_d(this->_bnpd.workspace_primitive_desc);
+        dst_d(this->_bnpd.dst_primitive_desc);
 
     const auto &jbnp = this->generator->jbnp;
 
