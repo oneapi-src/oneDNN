@@ -69,7 +69,8 @@ protected:
     template <typename Impl>
     static status_t set_default_parameters(batch_normalization_desc_t &bnd,...);
     template <typename Impl>
-    static status_t constraints(batch_normalization_desc_t &bnd,...);
+    static status_t constraint(const batch_normalization_desc_t &bnd,...)
+    { return success; }
 
     template <typename Impl>
     static memory_desc_t get_workspace(
@@ -96,10 +97,12 @@ private:
     static status_t set_default_parameters(batch_normalization_desc_t &bnd,
             decltype(&Impl::set_default_parameters) _ = 0)
     { return Impl::set_default_parameters(bnd); }
+
     template <typename Impl>
-    static status_t constraints(batch_normalization_desc_t &bnd,
-            decltype(&Impl::constraints) _ = 0)
-    { return Impl::constraints(bnd); }
+    static status_t constraint(batch_normalization_desc_t &bnd,
+            decltype(&Impl::constraint))
+    { return Impl::constraint(bnd); }
+
     template <typename Impl>
     static memory_desc_t get_workspace(const batch_normalization_desc_t &bnd,
             decltype(&Impl::get_workspace))
@@ -128,7 +131,7 @@ status_t batch_normalization<batch_normalization_impl>::primitive_desc_init(
     status = set_default_parameters<batch_normalization_impl>(bnd, 0);
     if (status != success) return status;
 
-    status = constraints<batch_normalization_impl>(bnd, 0);
+    status = constraint<batch_normalization_impl>(bnd, 0);
     if (status != success) return status;
 
     memory_desc_t workspace_desc = get_workspace<
@@ -179,15 +182,6 @@ status_t batch_normalization<batch_normalization_impl>::set_default_parameters(
         CHECK(types::set_default_format<prec>(bnd.src_desc, mkldnn_nc));
 
     return success;
-}
-
-template <typename batch_normalization_impl> template <typename Impl>
-status_t batch_normalization<batch_normalization_impl>::constraints(
-        batch_normalization_desc_t &bnd, ... ) {
-    if (bnd.scaleshift_desc.format !=  mkldnn_nc)
-        return mkldnn_invalid_arguments;
-    else
-        return success;
 }
 
 }

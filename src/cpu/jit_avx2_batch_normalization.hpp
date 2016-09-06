@@ -14,30 +14,36 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_BATCH_NORMALIZATION_HPP
-#define CPU_BATCH_NORMALIZATION_HPP
-
-#include <assert.h>
+#ifndef CPU_JIT_BATCH_NORMALIZATION_HPP
+#define CPU_JIT_BATCH_NORMALIZATION_HPP
 
 #include "c_types_map.hpp"
 #include "batch_normalization.hpp"
+#include "jit_avx2_batch_norm_generator_f32.hpp"
 
 namespace mkldnn {
 namespace impl {
 namespace cpu {
 
 template <impl::precision_t prec>
-class reference_batch_normalization:
-    public batch_normalization<reference_batch_normalization<prec>> {
+class jit_avx2_batch_normalization:
+    public batch_normalization<jit_avx2_batch_normalization<prec>> {
 public:
     typedef typename prec_trait<prec>::type data_t;
-    using batch_normalization<
-        reference_batch_normalization<prec>>::batch_normalization;
+    using batch_normalization
+        <jit_avx2_batch_normalization<prec>>::batch_normalization;
+    jit_avx2_batch_normalization(
+        const batch_normalization_primitive_desc_t &bnpd,
+        const primitive_at_t *inputs, const primitive *outputs[]);
+    ~jit_avx2_batch_normalization() { delete generator; }
 
-    static status_t constraint(const batch_normalization_desc_t &bnd);
+    static status_t set_default_parameters(batch_normalization_desc_t &bnorm_d);
+    static status_t constraint(const batch_normalization_desc_t &bnorm_d);
 
     static const primitive_impl implementation;
 private:
+    jit_avx2_batch_norm_generator_f32 *generator;
+
     status_t execute_forward();
 };
 

@@ -99,6 +99,15 @@ status_t reference_batch_normalization<prec>::execute_forward() {
 }
 
 template <impl::precision_t prec>
+status_t reference_batch_normalization<prec>::constraint(
+        const batch_normalization_desc_t &bnd) {
+    if (bnd.scaleshift_desc.format !=  mkldnn_nc)
+        return mkldnn_invalid_arguments;
+    else
+        return success;
+}
+
+template <impl::precision_t prec>
 const primitive_impl reference_batch_normalization<prec>::implementation = {
     reference_batch_normalization<prec>::create
 };
