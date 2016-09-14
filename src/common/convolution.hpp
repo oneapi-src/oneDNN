@@ -42,7 +42,9 @@ public:
                 _cpd.convolution_desc.prop_kind
                     == prop_kind::forward_training
                 || _cpd.convolution_desc.prop_kind
-                    == prop_kind::backward_data)
+                    == prop_kind::backward_data
+                || _cpd.convolution_desc.prop_kind
+                    == prop_kind::backward_weights)
         , _with_bias(!memory_desc_wrapper(_cpd.bias_primitive_desc).is_zero())
         , _with_groups(memory_desc_wrapper(_cpd.weights_primitive_desc).ndims()
                 == (memory_desc_wrapper(_cpd.src_primitive_desc).ndims() + 1))
@@ -54,6 +56,7 @@ public:
             inputs_size = 2 + _with_bias;
             break;
         case prop_kind::backward_data:
+        case prop_kind::backward_weights:
             inputs_size = 2;
             break;
         default:
