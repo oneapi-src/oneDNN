@@ -46,6 +46,8 @@ status_t mkldnn_convolution_desc_init(convolution_desc_t *convolution_desc,
                 !any_null(src_desc, weights_desc))
         && implication(prop_kind == backward_weights,
                 !any_null(src_desc, weights_desc))
+        && implication(prop_kind == backward_bias,
+                !any_null(bias_desc))
         && one_of(alg_kind, convolution_direct);
     if (!args_ok)
         return invalid_arguments;
@@ -115,6 +117,17 @@ status_t mkldnn_convolution_create_backward_weights(primitive **convolution,
     // XXX: must check that shapes of in/out memory match what's in the desc (?)
     const primitive_at_t inputs[] = {src, dst};
     const primitive *outputs[] = {weights};
+    return mkldnn_primitive_create(convolution, cpd, inputs, outputs);
+}
+
+status_t mkldnn_convolution_create_backward_bias(primitive **convolution,
+        const convolution_primitive_desc_t *convolution_primitive_desc,
+        const primitive *bias, const primitive_at_t dst) {
+    auto cpd = reinterpret_cast<const mkldnn_primitive_desc_t *>(
+            convolution_primitive_desc);
+    // XXX: must check that shapes of in/out memory match what's in the desc (?)
+    const primitive_at_t inputs[] = {dst};
+    const primitive *outputs[] = {bias};
     return mkldnn_primitive_create(convolution, cpd, inputs, outputs);
 }
 

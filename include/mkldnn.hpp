@@ -521,6 +521,23 @@ struct convolution: public primitive {
                         mkldnn::convert_to_c(apadding_kind)),
                     "could not create a convolution descriptor");
         }
+
+        desc(prop_kind aprop_kind, algorithm aalgorithm,
+                const memory::desc &bias_desc,
+                const memory::desc &dst_desc,
+                const tensor::dims strides,
+                const tensor::dims padding,
+                const padding_kind apadding_kind)
+        {
+            tensor::validate_dims(strides);
+            tensor::validate_dims(padding);
+            error::wrap_c_api(c_api::mkldnn_convolution_desc_init(&data,
+                        mkldnn::convert_to_c(aprop_kind), convert_to_c(aalgorithm),
+                        nullptr, nullptr, &bias_desc.data, &dst_desc.data,
+                        &strides[0], &padding[0],
+                        mkldnn::convert_to_c(apadding_kind)),
+                    "could not create a convolution descriptor");
+        }
     };
 
     struct primitive_desc {
@@ -611,6 +628,25 @@ struct convolution: public primitive {
             break;
         default:
             throw error(c_api::mkldnn_status_t::mkldnn_invalid_arguments,
+                    "could not create a convolution primitive");
+        }
+        reset(result);
+    }
+
+    convolution(prop_kind aprop_kind, algorithm aalgorithm,
+            const memory &bias, const primitive::at &dst,
+            const tensor::dims strides, const tensor::dims padding,
+            const padding_kind apadding_kind) {
+        auto bias_md = bias.get_primitive_desc();
+        auto dst_md = memory(dst).get_primitive_desc();
+
+        auto conv_d = desc(aprop_kind, aalgorithm, bias_md.desc(),
+                dst_md.desc(), strides, padding, apadding_kind);
+        auto conv_pd = primitive_desc(conv_d, engine(dst_md.data.base.engine));
+
+        c_api::mkldnn_primitive_t result;
+        error::wrap_c_api(c_api::mkldnn_convolution_create_backward_bias(
+                    &result, &conv_pd.data, bias.get(), dst.data),
                 "could not create a convolution primitive");
         reset(result);
     }

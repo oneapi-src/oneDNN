@@ -40,6 +40,7 @@ private:
     status_t execute_forward();
     status_t execute_backward_data();
     status_t execute_backward_weights();
+    status_t execute_backward_bias();
 };
 
 }

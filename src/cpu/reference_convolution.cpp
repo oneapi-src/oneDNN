@@ -254,13 +254,59 @@ status_t reference_convolution<prec>::execute_backward_weights() {
 
     return status::success;
 }
+
+template <impl::precision_t prec>
+status_t reference_convolution<prec>::execute_backward_bias() {
+    auto obtain_ptr = [this](int idx) {
+        const size_t oi = this->input()[idx].output_index;
+        return reinterpret_cast<const data_t*>(
+                this->input()[idx].primitive->output()[oi]->memory_const());
+    };
+    const data_t *dst = obtain_ptr(0);
+    data_t *bias = reinterpret_cast<data_t*>(this->output()[0]->memory());
+
+    const memory_desc_wrapper
+        src_d(this->_cpd.src_primitive_desc.memory_desc),
+        weights_d(this->_cpd.weights_primitive_desc.memory_desc),
+        bias_d(this->_cpd.bias_primitive_desc.memory_desc),
+        dst_d(this->_cpd.dst_primitive_desc.memory_desc);
+
+    const int G = this->_with_groups ? weights_d.dims()[0] : 1;
+
+    const int MB = dst_d.dims()[0];
+    const int OC = dst_d.dims()[1];
+    const int OH = dst_d.dims()[2];
+    const int OW = dst_d.dims()[3];
+
+    auto ker = [=](data_t *d, int g, int oc) {
+        for (int mb = 0; mb < MB; ++mb) {
+            for (int oh = 0; oh < OH; ++oh) {
+                for (int ow = 0; ow < OW; ++ow) {
+                    *d += dst[dst_d.off(mb, g*OC + oc, oh, ow)];
+                }
+            }
+        }
+    };
+
+#   pragma omp parallel for collapse(2) schedule(static)
+    for (int g = 0; g < G; ++g) {
+        for (int oc = 0; oc < OC; ++oc) {
+            data_t *d = &bias[bias_d.off(g*OC + oc)];
+            *d = data_t(0);
+            ker(d, g, oc);
+        }
+    }
+
+    return status::success;
+}
+
 template <impl::precision_t prec>
 status_t reference_convolution<prec>::constraint(
         const convolution_desc_t &conv_d) {
     bool args_ok = true
         && one_of(conv_d.prop_kind, prop_kind::forward_training,
                 prop_kind::forward_scoring, prop_kind::backward_data,
-                prop_kind::backward_weights)
+                prop_kind::backward_weights, prop_kind::backward_bias)
         && conv_d.alg_kind == alg_kind::convolution_direct;
     return args_ok ? success : unimplemented;
 }
