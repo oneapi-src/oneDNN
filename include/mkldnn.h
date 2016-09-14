@@ -226,6 +226,15 @@ mkldnn_status_t MKLDNN_API mkldnn_convolution_create_forward(
         const mkldnn_primitive_at_t src, const mkldnn_primitive_at_t weights,
         const mkldnn_primitive_at_t bias, const_mkldnn_primitive_t dst);
 
+/** Creates a @p convolution backward data primitive using a
+ * @p convolution_primitive_desc descriptor, input parameters @p dst and
+ * @p weights of type #mkldnn_primitive_at_t, and output primitive @p src. */
+mkldnn_status_t MKLDNN_API mkldnn_convolution_create_backward_data(
+        mkldnn_primitive_t *convolution,
+        const mkldnn_convolution_primitive_desc_t *convolution_primitive_desc,
+        const_mkldnn_primitive_t src, const mkldnn_primitive_at_t weights,
+        const mkldnn_primitive_at_t dst);
+
 /** Retrieves the @p convolution_primitive_desc descriptor associated with a @p
  * convolution primitive. */
 mkldnn_status_t MKLDNN_API mkldnn_convolution_get_primitive_desc(

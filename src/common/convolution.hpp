@@ -38,13 +38,28 @@ public:
             const primitive_at_t *inputs, const primitive *outputs[])
         : primitive(pd, const_cast<impl::engine *>(pd.base.engine), not_ready)
         , _cpd(_primitive_desc.convolution)
-        , _is_training(_cpd.convolution_desc.prop_kind
-                == prop_kind::forward_training)
+        , _is_training(
+                _cpd.convolution_desc.prop_kind
+                    == prop_kind::forward_training
+                || _cpd.convolution_desc.prop_kind
+                    == prop_kind::backward_data)
         , _with_bias(!memory_desc_wrapper(_cpd.bias_primitive_desc).is_zero())
         , _with_groups(memory_desc_wrapper(_cpd.weights_primitive_desc).ndims()
                 == (memory_desc_wrapper(_cpd.src_primitive_desc).ndims() + 1))
     {
-        for (int i = 0; i < 2 + _with_bias; ++i)
+        int inputs_size;
+        switch (_cpd.convolution_desc.prop_kind) {
+        case prop_kind::forward_training:
+        case prop_kind::forward_scoring:
+            inputs_size = 2 + _with_bias;
+            break;
+        case prop_kind::backward_data:
+            inputs_size = 2;
+            break;
+        default:
+            inputs_size = 0;
+        }
+        for (int i = 0; i < inputs_size; ++i)
             _input.push_back(inputs[i]);
         _output.push_back(outputs[0]);
     }
@@ -116,13 +131,16 @@ status_t convolution<convolution_impl>::primitive_desc_init(
 
     auto conv_d = op_desc.convolution;
 
-    bool args_ok = everyone_is(prec, conv_d.src_desc.precision,
-            conv_d.weights_desc.precision,
-            conv_d.bias_desc.format == memory_format::undef ? prec
-            : conv_d.bias_desc.precision, conv_d.dst_desc.precision)
-        && op_desc._kind == primitive_kind::convolution
+    bool args_ok = op_desc._kind == primitive_kind::convolution
         && one_of(conv_d.prop_kind, forward_training, forward_scoring,
-                backward_data, backward_weights, backward_bias);
+                backward_data, backward_weights, backward_bias)
+        && everyone_is(prec, conv_d.dst_desc.precision,
+            conv_d.src_desc.format == memory_format::undef ? prec
+            : conv_d.src_desc.precision,
+            conv_d.weights_desc.format == memory_format::undef ? prec
+            : conv_d.weights_desc.precision,
+            conv_d.bias_desc.format == memory_format::undef ? prec
+            : conv_d.bias_desc.precision);
     if (!args_ok) return invalid_arguments;
 
     status_t status;

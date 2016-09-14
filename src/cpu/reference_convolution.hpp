@@ -38,6 +38,7 @@ public:
     static const primitive_impl implementation;
 private:
     status_t execute_forward();
+    status_t execute_backward_data();
 };
 
 }

@@ -599,6 +599,11 @@ struct convolution: public primitive {
                     dst.data.primitive),
                 "could not create a convolution primitive");
             break;
+        case prop_kind::backward_data:
+            error::wrap_c_api(c_api::mkldnn_convolution_create_backward_data(
+                    &result, &conv_pd.data, src.data.primitive, weights.data, dst.data),
+                "could not create a convolution primitive");
+            break;
         default:
             throw error(c_api::mkldnn_status_t::mkldnn_invalid_arguments,
                 "could not create a convolution primitive");
