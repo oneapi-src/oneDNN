@@ -115,7 +115,6 @@ status_t reference_convolution<prec>::execute_backward_data() {
     const memory_desc_wrapper
         src_d(this->_cpd.src_primitive_desc.memory_desc),
         weights_d(this->_cpd.weights_primitive_desc.memory_desc),
-        bias_d(this->_cpd.bias_primitive_desc.memory_desc),
         dst_d(this->_cpd.dst_primitive_desc.memory_desc);
 
     const int w_idx_base = this->_with_groups ? 1 : 0;
@@ -195,7 +194,6 @@ status_t reference_convolution<prec>::execute_backward_weights() {
     const memory_desc_wrapper
         src_d(this->_cpd.src_primitive_desc.memory_desc),
         weights_d(this->_cpd.weights_primitive_desc.memory_desc),
-        bias_d(this->_cpd.bias_primitive_desc.memory_desc),
         dst_d(this->_cpd.dst_primitive_desc.memory_desc);
 
     const int w_idx_base = this->_with_groups ? 1 : 0;
@@ -266,7 +264,6 @@ status_t reference_convolution<prec>::execute_backward_bias() {
     data_t *bias = reinterpret_cast<data_t*>(this->output()[0]->memory());
 
     const memory_desc_wrapper
-        src_d(this->_cpd.src_primitive_desc.memory_desc),
         weights_d(this->_cpd.weights_primitive_desc.memory_desc),
         bias_d(this->_cpd.bias_primitive_desc.memory_desc),
         dst_d(this->_cpd.dst_primitive_desc.memory_desc);
