@@ -536,7 +536,7 @@ struct convolution: public primitive {
             const primitive::at &src, const primitive::at &weights,
             const primitive::at &bias, const memory &dst) {
         c_api::mkldnn_primitive_t result;
-        error::wrap_c_api(c_api::mkldnn_convolution_create(&result,
+        error::wrap_c_api(c_api::mkldnn_convolution_create_forward(&result,
                     &aprimitive_desc.data, src.data, weights.data,
                     bias.data, dst.get()),
                 "could not create a convolution primitive");
@@ -547,7 +547,7 @@ struct convolution: public primitive {
             const primitive::at &src, const primitive::at &weights,
             const memory &dst) {
         c_api::mkldnn_primitive_t result;
-        error::wrap_c_api(c_api::mkldnn_convolution_create(&result,
+        error::wrap_c_api(c_api::mkldnn_convolution_create_forward(&result,
                     &aprimitive_desc.data, src.data, weights.data,
                     {nullptr, 0}, dst.get()),
                 "could not create a convolution primitive");
@@ -570,20 +570,20 @@ struct convolution: public primitive {
         auto conv_pd = primitive_desc(conv_d, engine(src_md.data.base.engine));
 
         c_api::mkldnn_primitive_t result;
-        error::wrap_c_api(c_api::mkldnn_convolution_create(&result,
-                    &conv_pd.data, src.data, weights.data, bias.data,
-                    dst.get()),
-                "could not create a convolution primitive");
+        error::wrap_c_api(c_api::mkldnn_convolution_create_forward(&result,
+                &conv_pd.data, src.data, weights.data, bias.data,
+                dst.get()),
+            "could not create a convolution primitive");
         reset(result);
     }
 
     convolution(prop_kind aprop_kind, algorithm aalgorithm,
             const primitive::at &src, const primitive::at &weights,
-            const memory &dst, const tensor::dims strides,
+            const primitive::at &dst, const tensor::dims strides,
             const tensor::dims padding, const padding_kind apadding_kind) {
         auto src_md = memory(src).get_primitive_desc();
         auto weights_md = memory(weights).get_primitive_desc();
-        auto dst_md = dst.get_primitive_desc();
+        auto dst_md = memory(dst).get_primitive_desc();
 
         auto conv_d = desc(aprop_kind, aalgorithm, src_md.desc(),
                 weights_md.desc(), dst_md.desc(), strides, padding,
@@ -591,9 +591,16 @@ struct convolution: public primitive {
         auto conv_pd = primitive_desc(conv_d, engine(src_md.data.base.engine));
 
         c_api::mkldnn_primitive_t result;
-        error::wrap_c_api(c_api::mkldnn_convolution_create(&result,
+        switch (aprop_kind) {
+        case prop_kind::forward:
+        case prop_kind::forward_scoring:
+            error::wrap_c_api(c_api::mkldnn_convolution_create_forward(&result,
                     &conv_pd.data, src.data, weights.data, {nullptr, 0},
-                    dst.get()),
+                    dst.data.primitive),
+                "could not create a convolution primitive");
+            break;
+        default:
+            throw error(c_api::mkldnn_status_t::mkldnn_invalid_arguments,
                 "could not create a convolution primitive");
         reset(result);
     }

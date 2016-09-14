@@ -217,10 +217,11 @@ mkldnn_status_t MKLDNN_API mkldnn_convolution_primitive_desc_init(
         const mkldnn_convolution_desc_t *convolution_desc,
         const_mkldnn_engine_t engine);
 
-/** Creates a @p convolution primitive using a @p convolution_primitive_desc
+/** Creates a @p convolution forward primitive using a @p convolution_primitive_desc
  * descriptor, input parameters @p src, @p weights, and @p bias of type
  * #mkldnn_primitive_at_t, and output primitive @p dst. */
-mkldnn_status_t MKLDNN_API mkldnn_convolution_create(mkldnn_primitive_t *convolution,
+mkldnn_status_t MKLDNN_API mkldnn_convolution_create_forward(
+        mkldnn_primitive_t *convolution,
         const mkldnn_convolution_primitive_desc_t *convolution_primitive_desc,
         const mkldnn_primitive_at_t src, const mkldnn_primitive_at_t weights,
         const mkldnn_primitive_at_t bias, const_mkldnn_primitive_t dst);

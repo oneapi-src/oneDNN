@@ -76,7 +76,7 @@ status_t mkldnn_convolution_primitive_desc_init(
             *convolution_desc, *engine);
 }
 
-status_t mkldnn_convolution_create(primitive **convolution,
+status_t mkldnn_convolution_create_forward(primitive **convolution,
         const convolution_primitive_desc_t *convolution_primitive_desc,
         const primitive_at_t src, const primitive_at_t weights,
         const primitive_at_t bias, const primitive *dst) {
