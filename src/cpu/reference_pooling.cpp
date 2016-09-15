@@ -33,7 +33,8 @@ status_t reference_pooling<prec>::execute_forward() {
     auto src = reinterpret_cast<const data_t *>(
             this->input()[0].primitive->output()[
             this->input()[0].output_index]->memory_const());
-    index_t *indices = this->_is_training
+    index_t *indices = (this->_is_training
+        && (this->_ppd.pooling_desc.alg_kind != alg_kind::pooling_avg))
         ? reinterpret_cast<index_t*>(this->input()[1].primitive->output()[
                 this->input()[1].output_index]->memory())
         : nullptr;
@@ -115,7 +116,7 @@ status_t reference_pooling<prec>::execute_forward() {
             }
         }
     }
-    else
+    else if (this->_ppd.pooling_desc.alg_kind == mkldnn_pooling_avg)
     {
 #   pragma omp parallel for collapse(4) schedule(static)
         for (int mb = 0; mb < MB; ++mb) {

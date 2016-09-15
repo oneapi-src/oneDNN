@@ -63,7 +63,8 @@ jit_avx2_pooling<prec>::jit_avx2_pooling(const pooling_primitive_desc_t &ppd,
     if (jpp.ow < jpp.ur_w) jpp.ur_w = jpp.ow;
     jpp.ur_w_tail = jpp.ow % jpp.ur_w;
 
-    generator = new jit_avx2_pooling_generator_f32(&jpp, this->_is_training);
+    generator = new jit_avx2_pooling_generator_f32(&jpp,
+            this->_ppd.pooling_desc.alg_kind, this->_is_training);
 //TODO: if(generator == nullptr) return nullptr;
     jit_ker = (void (*)(void*))generator->getCode();
 //TODO: if(jit_ker == nullptr) return nullptr;
@@ -74,7 +75,8 @@ status_t jit_avx2_pooling<prec>::execute_forward() {
     const data_t *src = reinterpret_cast<const data_t *>
         (this->input()[0].primitive->output()[
             this->input()[0].output_index]->memory_const());
-    int *indices = this->_is_training
+    int *indices = (this->_is_training
+        && (this->_ppd.pooling_desc.alg_kind != alg_kind::pooling_avg))
         ? reinterpret_cast<int*>(this->input()[1].primitive->output()[
                 this->input()[1].output_index]->memory())
         : nullptr;
@@ -131,7 +133,8 @@ status_t jit_avx2_pooling<prec>::constraint(const pooling_desc_t &pool_d) {
     bool args_ok = true
         && one_of(pool_d.prop_kind, prop_kind::forward_training,
                 prop_kind::forward_scoring)
-        && pool_d.alg_kind == alg_kind::pooling_max
+        && one_of(pool_d.alg_kind, alg_kind::pooling_max,
+                alg_kind::pooling_avg)
         && pool_d.src_desc.format == nChw8c
         && pool_d.dst_desc.format == pool_d.src_desc.format
         && pool_d.kernel[0] == pool_d.kernel[1];

@@ -43,6 +43,70 @@ inline void jit_avx2_pooling_generator_f32::oh_step(
     jit_pooling_param_t *params, int ur_w,
     int pad_l, int pad_r, const char* kh_lable)
 {
+    switch (this->_algorithm) {
+    case mkldnn_pooling_max: max_oh_step(params, ur_w, pad_l, pad_r, kh_lable); break;
+    case mkldnn_pooling_avg: avg_oh_step(params, ur_w, pad_l, pad_r, kh_lable); break;
+    default: break;
+    }
+}
+
+inline void jit_avx2_pooling_generator_f32::avg_oh_step(
+    jit_pooling_param_t *params, int ur_w,
+    int pad_l, int pad_r, const char* kh_lable)
+{
+    using Xbyak::Ymm;
+    using Xbyak::Xmm;
+
+    int iw = params->iw;
+    int kw = params->kw;
+    int kh = params->kh;
+    int stride_w = params->stride_w;
+    int c_block = params->c_block;
+
+    union {
+        float _devider;
+        int _devider_int;
+    } cvt;
+    cvt._devider = kw*kh;
+
+    mov(tmp_gpr, cvt._devider_int);
+    movq(xmm_tmp, tmp_gpr);
+    vbroadcastss(ymm_tmp, xmm_tmp);
+
+    for (int jj = 0; jj < ur_w; jj++)
+        vpxor(Ymm(jj), Ymm(jj));
+
+    mov(aux_reg_input , reg_input);
+    xor_(kj, kj);
+    L(kh_lable); {
+        for (int ki = 0; ki < kw; ki++) {
+            int jj_start = nstl::max(0, pad_l - ki);
+            int jj_end = ur_w - nstl::max(0, ki + pad_r - (kw-1));
+            for (int jj = jj_start; jj  < jj_end; jj++) {
+                int aux_input_offset = (ki+jj*stride_w-pad_l)* c_block;
+                if (aux_input_offset > iw * c_block)
+                    continue;
+                vmovups(ymm_input,
+                    ptr [ aux_reg_input + sizeof(float)*aux_input_offset ]);
+                vaddps(Ymm(jj), Ymm(jj), ymm_input);
+            }
+        }
+        add(aux_reg_input,  sizeof(float) * iw * c_block);
+        inc(kj);
+        cmp(kj, reg_kh);
+        jl(kh_lable, T_NEAR);
+    }
+
+    for (int jj = 0; jj < ur_w; jj++) {
+        vdivps(Ymm(jj), Ymm(jj), ymm_tmp);
+        vmovups(YWORD[reg_output + sizeof(float)*jj*c_block], Ymm(jj));
+    }
+}
+
+inline void jit_avx2_pooling_generator_f32::max_oh_step(
+    jit_pooling_param_t *params, int ur_w,
+    int pad_l, int pad_r, const char* kh_lable)
+{
     using Xbyak::Ymm;
     using Xbyak::Xmm;
 
@@ -120,9 +184,10 @@ inline void jit_avx2_pooling_generator_f32::oh_step(
 }
 
 jit_avx2_pooling_generator_f32::jit_avx2_pooling_generator_f32(
-        jit_pooling_param_t *params, bool is_training, void* code_ptr,
-        size_t code_size)
+        jit_pooling_param_t *params, mkldnn_alg_kind_t algorithm, bool is_training,
+        void* code_ptr, size_t code_size)
     : jit_generator(code_ptr, code_size)
+    , _algorithm(algorithm)
     , _is_training(is_training)
 {
     using Xbyak::Ymm;
@@ -141,13 +206,13 @@ jit_avx2_pooling_generator_f32::jit_avx2_pooling_generator_f32(
 
     mov(reg_input , ptr [ this->param1 ]);
     mov(reg_output, ptr [ this->param1 + 8]);
-    if (this->_is_training)
+    if (this->_algorithm == mkldnn_pooling_max && this->_is_training)
         mov(reg_index , ptr [ this->param1 + 16]);
     mov(reg_kh    , ptr [ this->param1 + 48]);
-    if (this->_is_training)
+    if (this->_algorithm == mkldnn_pooling_max && this->_is_training)
         mov(reg_arr_init, ptr [ this->param1 + 80]);
 
-    if (this->_is_training) {
+    if (this->_algorithm == mkldnn_pooling_max && this->_is_training) {
         mov(tmp_gpr,c_block);
         movq(xmm_c_block, tmp_gpr);
         vpbroadcastd(ymm_c_block, xmm_c_block);
@@ -179,7 +244,7 @@ jit_avx2_pooling_generator_f32::jit_avx2_pooling_generator_f32(
 
         add(reg_input,  sizeof(float)*(ur_w*stride_w - l_pad)*c_block);
         add(reg_output,  sizeof(float)*ur_w*c_block);
-        if (this->_is_training)
+        if (this->_algorithm == mkldnn_pooling_max && this->_is_training)
             add(reg_index, sizeof(int)*ur_w*c_block);
     }
 
@@ -189,7 +254,7 @@ jit_avx2_pooling_generator_f32::jit_avx2_pooling_generator_f32(
             oh_step(params, ur_w, 0, 0, ".kh_loop_oimain");
             add(reg_input, sizeof(float)*ur_w*stride_w*c_block);
             add(reg_output, sizeof(float)*ur_w*c_block);
-            if (this->_is_training)
+            if (this->_algorithm == mkldnn_pooling_max && this->_is_training)
                 add(reg_index, sizeof(int)*ur_w*c_block);
 
             inc(oi_iter);
@@ -201,7 +266,7 @@ jit_avx2_pooling_generator_f32::jit_avx2_pooling_generator_f32(
         oh_step(params, ur_w, 0, r_pad1, ".kh_loop_oimain_padwr");
         add(reg_input, sizeof(float)*ur_w*stride_w*c_block);
         add(reg_output, sizeof(float)*ur_w*c_block);
-        if (this->_is_training)
+        if (this->_algorithm == mkldnn_pooling_max && this->_is_training)
             add(reg_index, sizeof(int) * ur_w * c_block);
     }
 

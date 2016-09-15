@@ -18,6 +18,8 @@
 
 #include <cfloat>
 
+#include "mkldnn_types.h"
+
 #include "c_types_map.hpp"
 #include "jit_generator.hpp"
 
@@ -68,13 +70,19 @@ private:
     reg64_t tmp_gpr = rcx;
     reg64_t tmp_gpr2 = rdx;
 
+    mkldnn_alg_kind_t _algorithm;
     const bool _is_training;
 
     inline void oh_step(jit_pooling_param_t *params, int ur_w,
                          int pad_l, int pad_r, const char* kh_lable);
+    inline void max_oh_step(jit_pooling_param_t *params, int ur_w,
+                         int pad_l, int pad_r, const char* kh_lable);
+    inline void avg_oh_step(jit_pooling_param_t *params, int ur_w,
+                         int pad_l, int pad_r, const char* kh_lable);
 public:
     jit_avx2_pooling_generator_f32(
         jit_pooling_param_t *params,
+        mkldnn_alg_kind_t algorithm,
         bool is_training,
         void* code_ptr = nullptr,
         size_t code_size = 8 * Xbyak::DEFAULT_MAX_CODE_SIZE);

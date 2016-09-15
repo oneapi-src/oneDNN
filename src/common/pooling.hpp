@@ -41,7 +41,9 @@ public:
         , _is_training(_ppd.pooling_desc.prop_kind
                 == prop_kind::forward_training)
     {
-        for (int i = 0; i < 1 + _is_training; ++i)
+        int num_srcs = 1 + (_is_training
+            && (_ppd.pooling_desc.alg_kind != alg_kind::pooling_avg));
+        for (int i = 0; i < num_srcs; ++i)
             _input.push_back(inputs[i]);
         _output.push_back(outputs[0]);
     }
@@ -79,7 +81,8 @@ protected:
     { return success; }
     template <typename Impl>
     static memory_desc_t get_indices_desc(const pooling_desc_t &pool_d, ...) {
-        if (pool_d.prop_kind == prop_kind::forward_scoring)
+        if (pool_d.prop_kind == prop_kind::forward_scoring
+            || pool_d.alg_kind == alg_kind::pooling_avg)
             return types::zero<memory_desc_t>();
         auto indices_desc = pool_d.dst_desc;
         indices_desc.precision = data_trait<index_t<>>::prec;
