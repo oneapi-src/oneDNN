@@ -26,7 +26,7 @@ namespace cpu {
 
 using namespace mkldnn::impl::memory_format;
 
-inline void jit_avx2_conv_generator_f32::oh_step_unroll(
+inline void jit_avx2_conv_generator_f32::oh_step_unroll_kw(
         jit_convolution_param_t *params, int ur_w, int pad_l, int pad_r)
 {
     using Xbyak::Ymm;
@@ -42,8 +42,8 @@ inline void jit_avx2_conv_generator_f32::oh_step_unroll(
     int oc_blk = params->oc_block;
 
     for (int ki = 0; ki < kw; ki++) {
-        int jj_start = nstl::max(0, pad_l - ki);
-        int jj_end = ur_w - nstl::max(0, ki + pad_r - (kw - 1));
+        int jj_start = nstl::max(0, (pad_l - ki + stride_w - 1)/stride_w);
+        int jj_end = ur_w - nstl::max(0, (ki + pad_r - (kw - 1) + stride_w - 1)/stride_w);
         for (int ifm2 = 0; ifm2 < ic_blk; ifm2++) {
             for (int jj = jj_start; jj < jj_end; jj++) {
                 int inp_off;
@@ -166,13 +166,13 @@ inline void jit_avx2_conv_generator_f32::width_blk_step(
     char kh_label[4] = {'.', 'h', pad_label, '\0'};
     L(kh_label);
     {
-        if (params->kw < 5 || pad_l > 0 || pad_r > 0) {
-            oh_step_unroll(params, ur_w, pad_l, pad_r);
-            add(aux_reg_kernel, sizeof(float) * kw * oc_blk * ic_blk);
-            add(aux_reg_input, sizeof(float) * iw * inp_mult);
-        } else {
+        if (params->kw >= 5 && pad_l == 0 && pad_r == 0) {
             oh_step_nopad(params, ur_w, pad_l, pad_r, pad_label);
             sub(aux_reg_input, sizeof(float) * kw * inp_mult);
+            add(aux_reg_input, sizeof(float) * iw * inp_mult);
+        } else {
+            oh_step_unroll_kw(params, ur_w, pad_l, pad_r);
+            add(aux_reg_kernel, sizeof(float) * kw * oc_blk * ic_blk);
             add(aux_reg_input, sizeof(float) * iw * inp_mult);
         }
 

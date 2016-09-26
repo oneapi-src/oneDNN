@@ -76,7 +76,7 @@ private:
 
     const bool _src_in_nchw;
 
-    inline void oh_step_unroll(jit_convolution_param_t *params, int ur_w,
+    inline void oh_step_unroll_kw(jit_convolution_param_t *params, int ur_w,
             int pad_l, int pad_r);
 
     inline void oh_step_nopad(jit_convolution_param_t *params, int ur_w,
