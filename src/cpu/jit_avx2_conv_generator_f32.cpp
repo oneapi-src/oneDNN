@@ -392,24 +392,21 @@ bool jit_avx2_conv_generator_f32::is_applicable(
     const int simd_w = 8;
 
     args_ok = true
-        && stride_w == stride_h
+        && oc % simd_w == 0
+        && l_pad <= ur_w
+        && ( ( kw <= 7 || (t_pad == 0 && l_pad == 0))
+                       || (stride_w == 1 && stride_h == 1))
         && implication(mimo, true
-                && stride_w == 1 && stride_h == 1
-                && ic % simd_w == 0 && oc % simd_w == 0
-                && l_pad <= ur_w)
-        && implication(flat, true
-                && ((t_pad == 0 && l_pad == 0)
-                    || (stride_w == 1 && stride_h == 1))
-                && oc % simd_w == 0);
+                && ic % simd_w == 0)
+        && implication(flat, true);
     if (!args_ok) return false;
 
-    if (mimo) {
-        int r_pad_no_tail = nstl::max(0, (ow - ur_w_tail - 1)
-                + (kw - 1) - (iw + l_pad - 1));
+    int r_pad_no_tail = nstl::max(0, (ow - ur_w_tail - 1) * stride_w
+            + (kw - 1) - (iw + l_pad - 1));
 
-        /* maximum 1 ur_w block with r_pad so far */
-        if (r_pad_no_tail > ur_w) return false;
-    }
+    /* maximum 1 ur_w block with r_pad so far */
+    if (r_pad_no_tail > ur_w) return false;
+
 
     return true;
 }
