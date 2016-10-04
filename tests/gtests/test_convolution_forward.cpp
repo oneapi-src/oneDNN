@@ -32,10 +32,11 @@ void compute_ref_conv_fwd(test_convolution_descr_t c,
         memory bias,
         memory dst)
 {
+    const bool w_bias = memory::convert_to_c(memory::format::format_undef)
+        != bias_d.data.format;
     data_t *src_data = (data_t *)src.get_data_handle();
     data_t *weights_data = (data_t *)weights.get_data_handle();
-    data_t *bias_data
-            = (data_t *)(bias.get() ? bias.get_data_handle() : nullptr);
+    data_t *bias_data = w_bias ? (data_t *)bias.get_data_handle() : nullptr;
     data_t *dst_data = (data_t *)dst.get_data_handle();
 
 #pragma omp parallel for collapse(5)
