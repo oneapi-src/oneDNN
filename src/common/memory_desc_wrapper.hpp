@@ -28,31 +28,25 @@
 namespace mkldnn {
 namespace impl {
 
-using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::precision;
-using namespace mkldnn::impl::memory_format;
-
 /** thin wrapper class over \struct memory_desc_t which allows easy
- * manipulations with underlying C structure, which is taken by refernce */
+ * manipulatings with underlying C structure, which is taken by refernce */
 struct memory_desc_wrapper: public c_compatible {
-    const memory_desc_t &_md;
+    const memory_desc_t *_md;
 
     /** constructor which takes a reference to a constant underlying C memory
      * descriptor \param md */
-    memory_desc_wrapper(const memory_desc_t &md) : _md(md) {}
-
-    memory_desc_wrapper(const memory_primitive_desc_t &mpd)
-        : memory_desc_wrapper(mpd.memory_desc) {}
+    memory_desc_wrapper(const memory_desc_t &md) : _md(&md) {}
+    memory_desc_wrapper(const memory_desc_t *md) : _md(md) {}
+    memory_desc_wrapper(const memory_pd_t *m_pd);
 
     /* implementing attrubutes */
-    const dims_t &dims() const { return _md.tensor_desc.dims; }
-    const tensor_desc_t &tensor() const { return _md.tensor_desc; }
-    precision_t precision() const { return _md.precision; }
-    memory_format_t format() const { return _md.format; }
+    inline int ndims() const { return _md->ndims; }
+    const dims_t &dims() const { return _md->dims; }
+    data_type_t data_type() const { return _md->data_type; }
+    memory_format_t format() const { return _md->format; }
     const blocking_desc_t &blocking_desc() const {
-        return _md.layout_desc.blocking;
+        return _md->layout_desc.blocking;
     }
-    inline int ndims() const { return _md.tensor_desc.ndims; }
 
     /* some useful function */
 
@@ -60,7 +54,7 @@ struct memory_desc_wrapper: public c_compatible {
      * is true, and the number of data elements otherwise */
     size_t nelems(bool with_padding = false) const {
         if (is_zero()) return 0;
-        return array_product(with_padding
+        return utils::array_product(with_padding
                 ? blocking_desc().padding_dims : dims(), ndims());
     }
 
@@ -70,9 +64,10 @@ struct memory_desc_wrapper: public c_compatible {
     /** returns the size required to store described memory
      * note: if offset_padding != 0 returns 0 (need to specify the behavior) */
     size_t size() const {
-        if (is_zero() || format() == any) return 0;
-        assert(one_of(format(), x, nc, nchw, nhwc, nChw8c, oi, oihw, OIhw8i8o,
-                    Ohwi8o, goihw, gOIhw8i8o, blocked));
+        using namespace mkldnn::impl::memory_format;
+        if (is_zero() || format() == memory_format::any) return 0;
+        assert(utils::one_of(format(), x, nc, nchw, nhwc, nChw8c, oi, oihw,
+                    OIhw8i8o, Ohwi8o, goihw, gOIhw8i8o, blocked));
 
         if (blocking_desc().offset_padding != 0) return 0;
 
@@ -88,11 +83,14 @@ struct memory_desc_wrapper: public c_compatible {
             if (block > 1)
                 max_size = nstl::max(max_size, size_t(block*strides[1][d]));
         }
-        return max_size * types::precision_size(precision());
+        return max_size * types::data_type_size(data_type());
     }
 
     /** returns true if data is dense in memory */
     bool is_dense(bool with_padding = false) const;
+
+    /** returns true if memory desc is fully defined */
+    bool is_defined() const { return format() != memory_format::any; }
 
     /* comparison section */
 
@@ -106,13 +104,13 @@ struct memory_desc_wrapper: public c_compatible {
 
     /** returns true if data (w/o padding if with_padding == false and w/
      * padding otherwise) have the same dimension, strides, and blocked
-     * structure. depending on with_precision flag precision is taken or not
+     * structure. depending on with_data_type flag data_type is taken or not
      * taken into account.
      * CAUTION: format any and undef are not similiar to whatever, hence the
      * followign statement might be true: lhs == rhs && !lhs.similar_to(rhs) */
     /* TODO: revise */
     inline bool similar_to(const memory_desc_wrapper &rhs,
-            bool with_padding = true, bool with_precision = true) const;
+            bool with_padding = true, bool with_data_type = true) const;
 
     /* offset section */
 
@@ -120,7 +118,7 @@ struct memory_desc_wrapper: public c_compatible {
      * an array \param pos. if \param is_pos_padded is true \param pos
      * represents the position in already padded area */
     inline size_t off_v(const dims_t pos, bool is_pos_padded = false) const {
-        assert(format() != any);
+        assert(format() != memory_format::any);
         const blocking_desc_t &blk = blocking_desc();
         const dims_t &optd = blk.offset_padding_to_data;
 
@@ -197,8 +195,8 @@ private:
     template<typename T, typename... Args>
     inline size_t logical_offset(T xn, Args... args) const {
         const size_t n_args = sizeof...(args);
-        return size_t(xn)*array_product<n_args>(&dims()[ndims() - n_args])
-            + logical_offset(args...);
+        return size_t(xn)*utils::array_product<n_args>(
+                &dims()[ndims() - n_args]) + logical_offset(args...);
     }
 
     template<typename ...Void>
@@ -212,35 +210,37 @@ private:
 };
 
 inline bool memory_desc_wrapper::is_dense(bool with_padding) const {
-    if (one_of(format(), memory_format::undef, any))
+    if (utils::one_of(format(), memory_format::undef, memory_format::any))
         return false;
-    return nelems(with_padding)*types::precision_size(precision()) == size();
+    return nelems(with_padding)*types::data_type_size(data_type()) == size();
 }
 
 inline bool memory_desc_wrapper::operator==(const memory_desc_wrapper &rhs)
     const
 {
     using namespace impl::types;
-    return tensor() == rhs.tensor()
-        && format() == rhs.format()
-        && precision() == rhs.precision()
-        && implication(!one_of(format(), any, memory_format::undef),
-                blocking_desc_is_equal(blocking_desc(), rhs.blocking_desc(),
-                    ndims()));
+    return ndims() == rhs.ndims()
+        && utils::array_cmp(dims(), rhs.dims(), ndims())
+        && data_type() == rhs.data_type()
+        && utils::implication(!utils::one_of(format(), memory_format::any,
+                    memory_format::undef), blocking_desc_is_equal(
+                        blocking_desc(), rhs.blocking_desc(), ndims()));
 }
 
 inline bool memory_desc_wrapper::similar_to(const memory_desc_wrapper &rhs,
-        bool with_padding, bool with_precision) const {
+        bool with_padding, bool with_data_type) const {
     using namespace impl::types;
-    if (one_of(format(), memory_format::undef, any))
+    using namespace utils;
+    if (utils::one_of(format(), memory_format::undef, memory_format::any))
         return false;
 
     const auto &blk = blocking_desc();
     const auto &r_blk = rhs.blocking_desc();
 
-    return tensor() == rhs.tensor()
+    return ndims() == rhs.ndims()
+        && array_cmp(dims(), rhs.dims(), ndims())
         && format_normalize(format()) == format_normalize(rhs.format())
-        && implication(with_precision, precision() == rhs.precision())
+        && implication(with_data_type, data_type() == rhs.data_type())
         && array_cmp(blk.block_dims, r_blk.block_dims, ndims())
         && array_cmp(blk.strides[0], r_blk.strides[0], ndims())
         && array_cmp(blk.strides[1], r_blk.strides[1], ndims())

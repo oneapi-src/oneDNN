@@ -27,37 +27,22 @@ namespace cpu {
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::memory_format;
 
-template <impl::precision_t prec>
-jit_avx2_convolution<prec>::jit_avx2_convolution(
-        const convolution_primitive_desc_t &cpd, const primitive_at_t *inputs,
-        const primitive *outputs[])
-    : convolution<jit_avx2_convolution<prec>>(cpd, inputs, outputs)
-    , generator(new jit_avx2_conv_generator_f32(cpd)) {}
+template <bool with_relu>
+void _jit_avx2_convolution_t<with_relu>::execute_forward() {
+    auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
+    auto weights = reinterpret_cast<const data_t *>(this->input_memory(1));
+    auto bias = reinterpret_cast<const data_t *>(this->input_memory(2));
+    auto dst = reinterpret_cast<data_t*>(this->memory());
 
-template <impl::precision_t prec>
-status_t jit_avx2_convolution<prec>::execute_forward() {
-    auto obtain_ptr = [this](int idx) {
-        const size_t oi = this->input()[idx].output_index;
-        return reinterpret_cast<const data_t*>(
-                this->input()[idx].primitive->output()[oi]->memory_const());
-    };
-    const data_t *src = obtain_ptr(0);
-    const data_t *weights = obtain_ptr(1);
-    const data_t *bias = this->_with_bias ? obtain_ptr(2) : nullptr;
+    const memory_desc_wrapper src_d(conf_.src_pd());
+    const memory_desc_wrapper dst_d(conf_.dst_pd());
+    const memory_desc_wrapper weights_d(conf_.weights_pd(0));
+    const memory_desc_wrapper bias_d(conf_.weights_pd(1));
 
-    data_t *dst = reinterpret_cast<data_t*>(this->output()[0]->memory());
+    const auto &jcp = kernel_->jcp;
 
-    const memory_desc_wrapper
-        src_d(this->_cpd.src_primitive_desc),
-        weights_d(this->_cpd.weights_primitive_desc),
-        bias_d(this->_cpd.bias_primitive_desc),
-        dst_d(this->_cpd.dst_primitive_desc);
-
-    const auto &jcp = this->generator->jcp;
-
-    auto ker = [&](int g, int n, int oc, int ic,
-            int oh) {
-        jit_convolution_kernel_t par_conv = {};
+    auto ker = [&](int g, int n, int oc, int ic, int oh) {
+        jit_conv_call_s par_conv = {};
 
         const int ij = oh * jcp.stride_h;
         const int i_t_overflow = nstl::max(0, jcp.t_pad - ij);
@@ -73,7 +58,7 @@ status_t jit_avx2_convolution<prec>::execute_forward() {
 
         const int wcb = jcp.nb_oc_blocking*oc;
         const int wh = i_t_overflow;
-        par_conv.filt = &weights[this->_with_groups
+        par_conv.filt = &weights[conf_.with_groups()
             ? weights_d.blk_off(g, wcb, jcp.ic == 3 ? 0 : ic, wh, 0)
             : weights_d.blk_off(wcb, jcp.ic == 3 ? 0 : ic, wh, 0)];
 
@@ -82,13 +67,17 @@ status_t jit_avx2_convolution<prec>::execute_forward() {
                 const size_t _c = g*jcp.nb_oc + jcp.nb_oc_blocking*oc;
                 par_conv.bias = &bias[bias_d.blk_off(_c*jcp.oc_block)];
             }
-            par_conv.ic_flag |= jit_avx2_conv_generator_f32::IC_FLAG_FIRST;
+            par_conv.ic_flag |= jit_avx2_conv_kernel_f32::IC_FLAG_FIRST;
+        }
+
+        if (with_relu && ic + 1 == jcp.nb_ic) {
+            par_conv.ic_flag |= jit_avx2_conv_kernel_f32::IC_FLAG_LAST;
         }
 
         par_conv.kh_padding = jcp.kh - i_t_overflow - i_b_overflow;
         par_conv.kw_padding = 0;
 
-        this->generator->jit_ker((void*)&par_conv);
+        kernel_->jit_ker(&par_conv);
     };
 
 #   pragma omp parallel for collapse(3) schedule(static)
@@ -103,50 +92,10 @@ status_t jit_avx2_convolution<prec>::execute_forward() {
             }
         }
     }
-
-    return success;
 }
 
-template <impl::precision_t prec>
-status_t jit_avx2_convolution<prec>::set_default_parameters(
-        convolution_desc_t &conv_d) {
-    const bool flat = conv_d.src_desc.tensor_desc.dims[1] == 3;
-    const bool with_groups = conv_d.weights_desc.tensor_desc.ndims
-            == (conv_d.src_desc.tensor_desc.ndims + 1);
-
-    if (conv_d.src_desc.format == any) {
-        CHECK(types::set_default_format<prec>(conv_d.src_desc,
-                    flat ? nchw : nChw8c));
-    }
-    if (conv_d.weights_desc.format == any) {
-        CHECK(types::set_default_format<prec>(conv_d.weights_desc,
-                    with_groups ? gOIhw8i8o : (flat ? Ohwi8o : OIhw8i8o)));
-    }
-    if (conv_d.dst_desc.format == any) {
-        CHECK(types::set_default_format<prec>(conv_d.dst_desc, nChw8c));
-    }
-
-    return convolution<jit_avx2_convolution<prec>>::template
-        set_default_parameters<void>(conv_d);
-}
-
-template <impl::precision_t prec>
-status_t jit_avx2_convolution<prec>::constraint(
-        const convolution_desc_t &conv_d) {
-    bool args_ok = true
-        && one_of(conv_d.prop_kind, prop_kind::forward_training,
-                prop_kind::forward_scoring)
-        && conv_d.alg_kind == alg_kind::convolution_direct
-        && jit_avx2_conv_generator_f32::is_applicable(conv_d);
-    return args_ok ? success : unimplemented;
-}
-
-template <impl::precision_t prec>
-const primitive_impl jit_avx2_convolution<prec>::implementation = {
-    jit_avx2_convolution<prec>::create
-};
-
-template class jit_avx2_convolution<precision::f32>;
+template void _jit_avx2_convolution_t<true>::execute_forward();
+template void _jit_avx2_convolution_t<false>::execute_forward();
 
 }
 }

@@ -20,8 +20,6 @@
 #include "jit_avx2_batch_normalization.hpp"
 #include "type_helpers.hpp"
 
-#include <cmath>
-
 namespace mkldnn {
 namespace impl {
 namespace cpu {
@@ -29,89 +27,38 @@ namespace cpu {
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::memory_format;
 
-template <impl::precision_t prec>
-jit_avx2_batch_normalization<prec>::jit_avx2_batch_normalization(
-        const batch_normalization_primitive_desc_t &bnpd,
-        const primitive_at_t *inputs,
-        const primitive *outputs[])
-    : batch_normalization<
-        jit_avx2_batch_normalization<prec>>(bnpd, inputs, outputs)
-    , generator(new jit_avx2_batch_norm_generator_f32(bnpd, this->_is_training))
-    {}
+void jit_avx2_batch_normalization_fwd_t::execute_forward() {
+    auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
+    auto scaleshift = reinterpret_cast<const data_t *>(this->input_memory(1));
+    auto dst = reinterpret_cast<data_t*>(this->memory(0));
+    auto ws = reinterpret_cast<data_t*>(this->memory(1));
 
-template <impl::precision_t prec>
-status_t jit_avx2_batch_normalization<prec>::execute_forward() {
-    auto src = reinterpret_cast<const data_t *>(
-            this->input()[0].primitive->output()[
-            this->input()[0].output_index]->memory_const());
-    auto scaleshift = reinterpret_cast<data_t *>(
-            this->input()[1].primitive->output()[
-            this->input()[1].output_index]->memory());
-    auto workspace = this->_is_training
-        ? reinterpret_cast<data_t *>(
-            this->input()[2].primitive->output()[
-            this->input()[2].output_index]->memory())
-        : nullptr;
-    auto dst = reinterpret_cast<data_t*>(this->output()[0]->memory());
+    const memory_desc_wrapper data_d(conf_.src_pd());
+    const memory_desc_wrapper scaleshift_d(conf_.weights_pd());
 
-    const memory_desc_wrapper
-        src_d(this->_bnpd.src_primitive_desc),
-        scaleshift_d(this->_bnpd.scaleshift_primitive_desc),
-        dst_d(this->_bnpd.dst_primitive_desc);
+    const auto &jbp = kernel_->jbp;
+    /* FIXME: check this */
+    const int b_c_mult = data_d.format() == memory_format::nChw8c
+        ? 1 : data_d.dims()[2] * data_d.dims()[3];
 
-    const auto &jbnp = this->generator->jbnp;
+    auto ker = [&](int b_c) {
+        jit_bnrm_call_s arg = {};
 
-    auto ker = [&](int c) {
-        jit_batch_normalization_kernel_t par_bn = {};
+        const int c = b_c * jbp.c_block;
+        const size_t d_off = data_d.blk_off(0, b_c * b_c_mult, 0, 0);
+        arg.src = &src[d_off];
+        arg.dst = &dst[d_off];
+        arg.scaleshift = &scaleshift[scaleshift_d.off(0, c)];
+        arg.workspace = &ws[c];
 
-        par_bn.src = &src[src_d.blk_off(0, c, 0, 0)];
-        par_bn.dst = &dst[dst_d.blk_off(0, c, 0, 0)];
-        par_bn.scaleshift = &scaleshift[scaleshift_d.off(0, jbnp.c_block*c)];
-        par_bn.workspace = &workspace[jbnp.c_block*c];
-
-        this->generator->jit_ker((void*)&par_bn);
+        (*kernel_)(&arg);
     };
 
 #   pragma omp parallel for schedule(static)
-    for (int c = 0; c < jbnp.nb_c; ++c) {
-        ker(c);
+    for (int b_c = 0; b_c < jbp.nb_c; ++b_c) {
+        ker(b_c);
     }
-    return success;
 }
-
-template <impl::precision_t prec>
-status_t jit_avx2_batch_normalization<prec>::set_default_parameters(
-        batch_normalization_desc_t &batch_norm_d) {
-    if (batch_norm_d.src_desc.format == any) {
-        CHECK(types::set_default_format<prec>(batch_norm_d.src_desc, nChw8c));
-    }
-    if (batch_norm_d.scaleshift_desc.format == any) {
-        CHECK(types::set_default_format<prec>(batch_norm_d.scaleshift_desc,
-                    nc));
-    }
-    if (batch_norm_d.dst_desc.format == any) {
-        CHECK(types::set_default_format<prec>(batch_norm_d.dst_desc, nChw8c));
-    }
-    return batch_normalization<jit_avx2_batch_normalization<prec>>::template
-        set_default_parameters<void>(batch_norm_d);
-}
-
-template <impl::precision_t prec>
-status_t jit_avx2_batch_normalization<prec>::constraint(
-        const batch_normalization_desc_t &batch_norm_d) {
-    bool args_ok = true
-        && one_of(batch_norm_d.prop_kind, prop_kind::forward_training,
-                prop_kind::forward_scoring)
-        && jit_avx2_batch_norm_generator_f32::is_applicable(batch_norm_d);
-    return args_ok ? success : unimplemented;
-}
-
-template <impl::precision_t prec>
-const primitive_impl jit_avx2_batch_normalization<prec>::implementation = {
-    jit_avx2_batch_normalization<prec>::create
-};
-
-template class jit_avx2_batch_normalization<precision::f32>;
 
 }
 }

@@ -14,74 +14,75 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "nstl.hpp"
+#include <assert.h>
+#include "mkldnn.h"
 
-#include "type_helpers.hpp"
-#include "engine.hpp"
-#include "primitive.hpp"
-
+#include "c_types_map.hpp"
 #include "utils.hpp"
 
 using namespace mkldnn::impl;
+using namespace mkldnn::impl::utils;
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::prop_kind;
+using namespace mkldnn::impl::alg_kind;
 
-status_t mkldnn_batch_normalization_desc_init(batch_normalization_desc_t *bnd,
-        prop_kind_t prop_kind, const memory_desc_t *src_desc,
-        const memory_desc_t *dst_desc, const memory_desc_t *scaleshift_desc,
-        double epsilon)
-{
-    bool args_ok = !any_null(bnd, src_desc, dst_desc)
-        && one_of(prop_kind, forward_training, forward_scoring, backward_data);
+namespace {
+status_t bnrm_desc_init(batch_normalization_desc_t *bnrm_desc,
+        prop_kind_t prop_kind, const memory_desc_t *data_desc,
+        const memory_desc_t *diff_data_desc, double epsilon) {
+    bool args_ok = true
+        && !any_null(bnrm_desc, data_desc)
+        && one_of(prop_kind, forward_training, forward_inference,
+                backward_data, backward)
+        && implication(prop_kind & backward, diff_data_desc != nullptr);
     if (!args_ok) return invalid_arguments;
 
-    batch_normalization_desc_t cd;
-    cd.prop_kind = prop_kind;
-    cd.src_desc = *src_desc;
-    cd.dst_desc = *dst_desc;
-    cd.scaleshift_desc = *scaleshift_desc;
-    cd.epsilon = epsilon;
+    batch_normalization_desc_t bd = {};
+    bd.primitive_kind = primitive_kind::batch_normalization;
+    bd.prop_kind = prop_kind;
 
-    status_t status = types::batch_normalization_desc_is_ok(cd);
-    if (status == success) *bnd = cd;
+    bd.data_desc = *data_desc;
+    if (bd.prop_kind == backward_data)
+        bd.diff_data_desc = *diff_data_desc;
 
-    return status;
-}
+    dims_t scale_shift_dims = { 2, data_desc->dims[1] };
+    mkldnn_memory_desc_init(&bd.data_diff_scaleshift_desc, 2, scale_shift_dims,
+            data_desc->data_type, mkldnn_nc);
 
-status_t mkldnn_batch_normalization_primitive_desc_init(
-        batch_normalization_primitive_desc_t *bnpd,
-        const batch_normalization_desc_t *bnd,
-        const engine *engine)
-{
-    if (any_null(bnpd, bnd, engine))
-        return invalid_arguments;
+    bd.batch_norm_epsilon = epsilon;
 
-    return primitive_desc_init(
-            primitive_desc_t::convert_from_c(bnpd),
-            *bnd, *engine);
-}
+    bool consistency = true
+        && bd.data_desc.ndims == 4;
+    if (bd.prop_kind == backward_data)
+        consistency = consistency
+            && bd.diff_data_desc.ndims == 4
+            && array_cmp(bd.diff_data_desc.dims, bd.data_desc.dims, 4);
+    if (!consistency) return invalid_arguments;
 
-status_t mkldnn_batch_normalization_create(primitive **batch_normalization,
-        const batch_normalization_primitive_desc_t *bnpd,
-        const primitive_at_t src, const primitive *dst,
-        const primitive_at_t scaleshift, const primitive_at_t workspace)
-{
-    auto *pd = reinterpret_cast<const mkldnn_primitive_desc_t *>(bnpd);
-    const primitive_at_t inputs[] = {src, scaleshift, workspace};
-    const primitive *outputs[] = {dst};
-
-    return mkldnn_primitive_create(batch_normalization, pd, inputs, outputs);
-}
-
-status_t mkldnn_batch_normalization_get_primitive_desc(
-        const primitive *batch_normalization,
-        batch_normalization_primitive_desc_t *bnpd)
-{
-    if (any_null(batch_normalization, bnpd)
-            || batch_normalization->kind() != primitive_kind::batch_normalization)
-        return invalid_arguments;
-    *bnpd = batch_normalization->primitive_desc().batch_normalization;
+    *bnrm_desc = bd;
     return success;
+}
+}
+
+status_t mkldnn_batch_normalization_forward_desc_init(
+        batch_normalization_desc_t *bnrm_desc, prop_kind_t prop_kind,
+        const memory_desc_t *data_desc, double epsilon) {
+    if (!one_of(prop_kind, forward_training, forward_inference))
+        return invalid_arguments;
+    return bnrm_desc_init(bnrm_desc, prop_kind, data_desc, nullptr, epsilon);
+}
+
+status_t mkldnn_batch_normalization_backward_data_desc_init(
+        batch_normalization_desc_t *bnrm_desc,
+        const memory_desc_t *diff_data_desc, const memory_desc_t *data_desc) {
+    return bnrm_desc_init(bnrm_desc, backward_data, data_desc, diff_data_desc,
+            0);
+}
+
+status_t mkldnn_batch_normalization_backward_desc_init(
+        batch_normalization_desc_t *bnrm_desc,
+        const memory_desc_t *diff_data_desc, const memory_desc_t *data_desc) {
+    return bnrm_desc_init(bnrm_desc, backward, data_desc, diff_data_desc, 0);
 }
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

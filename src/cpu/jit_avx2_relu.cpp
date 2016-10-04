@@ -14,48 +14,31 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_types.h"
+#include <assert.h>
+#include <math.h>
 
 #include "c_types_map.hpp"
+#include "type_helpers.hpp"
+#include "utils.hpp"
+
 #include "jit_avx2_relu.hpp"
 #include "jit_generator.hpp"
-#include "type_helpers.hpp"
 
 namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::memory_format;
-
 enum { VECTOR_LENGTH = 8, UNROLLING_FACTOR = 4, JIT_N_RUNS = 1024 };
-typedef struct {
+struct jit_args_t {
     const float *src;
-    float *dst;
-} jit_args_t;
+    const float *dst;
+};
 
-template <impl::precision_t prec>
-struct jit_avx2_relu<prec>::xbyak_relu : public jit_generator {
-    Xbyak::Reg64 src = rax;
-    Xbyak::Reg64 dst = r8;
-    Xbyak::Reg64 main_loop_iterator = r9;
-    Xbyak::Reg64 imm_addr64 = rbx;
-
-    Xbyak::Ymm yns = ymm15;
-    Xbyak::Ymm yzero = ymm14;
-    Xbyak::Ymm ysrc = ymm0;
-    Xbyak::Ymm ydst = ymm1;
-    Xbyak::Ymm ymask = ymm2;
-
-    Xbyak::Xmm xsrc = xmm0;
-    Xbyak::Xmm xdst = xmm1;
-
-    xbyak_relu(
-        float *run_time_ptr_negative_slope,
-        int compile_time_main_loop_iterations,
-        size_t compile_time_reminder,
-        void *code_ptr = nullptr,
-        size_t code_size = 1 * Xbyak::DEFAULT_MAX_CODE_SIZE)
+struct jit_avx2_relu_fwd_t::xbyak_relu: public jit_generator {
+    xbyak_relu(float *run_time_ptr_negative_slope,
+            int compile_time_main_loop_iterations,
+            size_t compile_time_reminder, void *code_ptr = nullptr,
+            size_t code_size = 1 * Xbyak::DEFAULT_MAX_CODE_SIZE)
         : jit_generator(code_ptr, code_size)
     {
         this->preamble();
@@ -87,9 +70,9 @@ struct jit_avx2_relu<prec>::xbyak_relu : public jit_generator {
             }
         };
 
-        const size_t vector_shift = VECTOR_LENGTH * sizeof(prec);
+        const size_t vector_shift = VECTOR_LENGTH * sizeof(float);
         if (compile_time_main_loop_iterations != 0) {
-            mov(main_loop_iterator, compile_time_main_loop_iterations); 
+            mov(main_loop_iterator, compile_time_main_loop_iterations);
 
             L(".relu_main_loop");
             for (size_t uf = 0; uf < UNROLLING_FACTOR; uf++) {
@@ -110,110 +93,85 @@ struct jit_avx2_relu<prec>::xbyak_relu : public jit_generator {
         add(src, reminder_vectors * vector_shift);
         add(dst, reminder_vectors * vector_shift);
         for (size_t uf = 0; uf < compile_time_reminder % VECTOR_LENGTH; uf++) {
-            ker(false, uf * sizeof(prec));
+            ker(false, uf * sizeof(float));
         }
 
         this->postamble();
+
+        ker_ = reinterpret_cast<decltype(ker_)>(const_cast<uint8_t*>(
+                    this->getCode()));
     }
+
+    void operator()(const jit_args_t *args) { (*ker_)(args); }
+
+private:
+    Xbyak::Reg64 src = rax;
+    Xbyak::Reg64 dst = r8;
+    Xbyak::Reg64 main_loop_iterator = r9;
+    Xbyak::Reg64 imm_addr64 = rbx;
+
+    Xbyak::Ymm yns = ymm15;
+    Xbyak::Ymm yzero = ymm14;
+    Xbyak::Ymm ysrc = ymm0;
+    Xbyak::Ymm ydst = ymm1;
+    Xbyak::Ymm ymask = ymm2;
+
+    Xbyak::Xmm xsrc = xmm0;
+    Xbyak::Xmm xdst = xmm1;
+
+    void (*ker_)(const jit_args_t *args);
 };
 
-template <impl::precision_t prec>
-jit_avx2_relu<prec>::jit_avx2_relu(const relu_primitive_desc_t &rpd,
-    const primitive_at_t *inputs, const primitive *outputs[])
-    : relu<jit_avx2_relu<prec>>(rpd, inputs, outputs)
-    , jit_negative_slope(rpd.relu_desc.negative_slope) {
+jit_avx2_relu_fwd_t::jit_avx2_relu_fwd_t(const pd_t *pd,
+        const input_vector &inputs, const output_vector &outputs)
+    : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {
+    const memory_desc_wrapper data_d(conf_.src_pd());
+    n_elems_ = data_d.nelems();
 
-    const memory_desc_wrapper src_d(this->_rpd.src_primitive_desc.memory_desc);
+    const size_t step = VECTOR_LENGTH * UNROLLING_FACTOR;
+    const size_t jit_iters = nstl::max<size_t>(1,
+            n_elems_ / (step * JIT_N_RUNS));
 
-    const size_t n_elems = src_d.nelems();
+    chunk_size_ = step * jit_iters;
 
-    size_t jit_iterations =
-        n_elems / UNROLLING_FACTOR / VECTOR_LENGTH / JIT_N_RUNS;
-    jit_iterations = jit_iterations < 1 ? 1 : jit_iterations;
+    const size_t n_rem_elems = n_elems_ % chunk_size_;
+    const size_t rem_loop_iters = n_rem_elems / step;
+    const size_t jit_reminder = n_rem_elems - rem_loop_iters * step;
 
-    chunk_size = VECTOR_LENGTH * UNROLLING_FACTOR * jit_iterations;
-    n_chunks = n_elems / chunk_size;
-    n_reminder_elems = n_elems % chunk_size;
-
-    const size_t reminder_loop_iterations =
-        n_reminder_elems / VECTOR_LENGTH / UNROLLING_FACTOR;
-    const size_t jit_reminder = n_reminder_elems -
-        reminder_loop_iterations * VECTOR_LENGTH * UNROLLING_FACTOR;
-
-    typedef void (*kernel_t)(const void *);
-    this->jit_relu = new xbyak_relu(&this->jit_negative_slope,
-            jit_iterations, 0);
-    this->ker_main = reinterpret_cast<kernel_t>(
-            const_cast<uint8_t*>(this->jit_relu->getCode()));
-
-    this->jit_relu_reminder = new xbyak_relu(&this->jit_negative_slope,
-            reminder_loop_iterations, jit_reminder);
-    this->ker_reminder = reinterpret_cast<kernel_t>(
-            const_cast<uint8_t*>(this->jit_relu_reminder->getCode()));
+    negative_slope_ = conf_.desc()->negative_slope;
+    ker_ = new xbyak_relu(&negative_slope_, jit_iters, 0);
+    ker_rem_ = new xbyak_relu(&negative_slope_, rem_loop_iters, jit_reminder);
 }
 
-template <impl::precision_t prec>
-jit_avx2_relu<prec>::~jit_avx2_relu() {
-    delete this->jit_relu;
-    delete this->jit_relu_reminder;
+jit_avx2_relu_fwd_t::~jit_avx2_relu_fwd_t() {
+    delete ker_;
+    if (ker_rem_) delete ker_rem_;
 }
 
-template <impl::precision_t prec>
-status_t jit_avx2_relu<prec>::execute_forward() {
-    auto src = reinterpret_cast<const data_t *>(
-            this->input()[0].primitive->output()[
-            this->input()[0].output_index]->memory_const());
-    auto dst = reinterpret_cast<data_t *>(this->output()[0]->memory());
+void jit_avx2_relu_fwd_t::execute_forward() {
+    auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
+    auto dst = reinterpret_cast<data_t*>(this->memory(0));
 
-    const memory_desc_wrapper src_d(this->_rpd.src_primitive_desc.memory_desc);
-    const memory_desc_wrapper dst_d(this->_rpd.dst_primitive_desc.memory_desc);
+    const memory_desc_wrapper data_d(conf_.src_pd());
 
-    src += src_d.blocking_desc().offset_padding;
-    dst += dst_d.blocking_desc().offset_padding;
+    src += data_d.blocking_desc().offset_padding;
+    dst += data_d.blocking_desc().offset_padding;
 
-#   pragma omp parallel for
-    for (size_t c = 0; c < n_chunks + 1; ++c) {
+    const int n_chunks = n_elems_ / chunk_size_;
+    const int n_reminder_elems = n_elems_ % chunk_size_;
+
+#   pragma omp parallel for schedule(static)
+    for (int n = 0; n < n_chunks + 1; ++n) {
         jit_args_t args;
-        args.src = &src[c * chunk_size];
-        args.dst = &dst[c * chunk_size];
-        if (c != n_chunks) {
-            ker_main(&args);
+        args.src = &src[n * chunk_size_];
+        args.dst = &dst[n * chunk_size_];
+        if (n != n_chunks) {
+            (*ker_)(&args);
         } else if (n_reminder_elems != 0) {
-            ker_reminder(&args);
+            (*ker_rem_)(&args);
         }
     }
-
-    return success;
 }
-
-template <impl::precision_t prec>
-status_t jit_avx2_relu<prec>::set_default_parameters(relu_desc_t &relu_d) {
-    if (relu_d.src_desc.format == any)
-        CHECK(types::set_default_format<prec>(relu_d.src_desc, nChw8c));
-    if (relu_d.dst_desc.format == any)
-        CHECK(types::set_default_format<prec>(relu_d.dst_desc, nChw8c));
-    return status::success;
-}
-
-template <impl::precision_t prec>
-status_t jit_avx2_relu<prec>::constraint(const relu_desc_t &relu_d) {
-    const memory_desc_wrapper src_d(relu_d.src_desc);
-    const memory_desc_wrapper dst_d(relu_d.dst_desc);
-
-    bool args_ok = true
-        && relu_d.prop_kind == prop_kind::forward
-        && src_d.similar_to(dst_d)
-        && src_d.is_dense();
-
-    return args_ok ? success : unimplemented;
-}
-
-template <impl::precision_t prec>
-const primitive_impl jit_avx2_relu<prec>::implementation = {
-    jit_avx2_relu<prec>::create
-};
-
-template class jit_avx2_relu<precision::f32>;
 
 }
 }

@@ -14,130 +14,140 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "nstl.hpp"
+#include <assert.h>
+#include "mkldnn.h"
 
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"
-#include "engine.hpp"
-#include "primitive.hpp"
-
 #include "utils.hpp"
 
 using namespace mkldnn::impl;
+using namespace mkldnn::impl::utils;
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::prop_kind;
 using namespace mkldnn::impl::alg_kind;
 
-status_t mkldnn_convolution_desc_init(convolution_desc_t *convolution_desc,
+namespace {
+status_t conv_desc_init(convolution_desc_t *conv_desc,
         prop_kind_t prop_kind, alg_kind_t alg_kind,
         const memory_desc_t *src_desc, const memory_desc_t *weights_desc,
         const memory_desc_t *bias_desc, const memory_desc_t *dst_desc,
-        const dims_t strides, const dims_t padding,
-        padding_kind_t padding_kind)
-{
-    const bool args_ok = !any_null(convolution_desc, strides, padding, dst_desc)
-        && one_of(prop_kind, forward_training, forward_scoring, backward_data,
-                backward_weights, backward_bias)
-        && implication(prop_kind == forward_training,
-                !any_null(src_desc, weights_desc))
-        && implication(prop_kind == forward_scoring,
-                !any_null(src_desc, weights_desc))
-        && implication(prop_kind == backward_data,
-                !any_null(src_desc, weights_desc))
-        && implication(prop_kind == backward_weights,
-                !any_null(src_desc, weights_desc))
-        && implication(prop_kind == backward_bias,
-                !any_null(bias_desc))
-        && one_of(alg_kind, convolution_direct);
-    if (!args_ok)
-        return invalid_arguments;
+        const dims_t strides, const dims_t padding_l, const dims_t padding_r,
+        padding_kind_t padding_kind) {
+    bool args_ok = true
+        && !any_null(conv_desc, src_desc, weights_desc, dst_desc, strides,
+                padding_l)
+        && one_of(alg_kind, convolution_direct)
+        && one_of(padding_kind, padding_kind::padding_zero);
+    if (!args_ok) return invalid_arguments;
 
-    convolution_desc_t cd;
+    if (padding_r == nullptr) padding_r = padding_l;
+
+    convolution_desc_t cd = {};
+    cd.primitive_kind = primitive_kind::convolution;
     cd.prop_kind = prop_kind;
     cd.alg_kind = alg_kind;
-    cd.src_desc = src_desc ? *src_desc : types::zero<memory_desc_t>();
-    cd.weights_desc = weights_desc ? *weights_desc : types::zero<memory_desc_t>();
-    cd.bias_desc = bias_desc ? *bias_desc : types::zero<memory_desc_t>();
-    cd.dst_desc = dst_desc ? *dst_desc : types::zero<memory_desc_t>();
+
+    const bool is_fwd = one_of(prop_kind, forward_training, forward_inference);
+    const bool with_bias = bias_desc && bias_desc->format != memory_format::undef;
+    const bool with_groups = weights_desc->ndims == src_desc->ndims + 1;
+
+    (is_fwd ? cd.src_desc : cd.diff_src_desc) = *src_desc;
+    (prop_kind == backward_weights ? cd.diff_weights_desc : cd.weights_desc) =
+        *weights_desc;
+    if (with_bias) cd.bias_desc = *bias_desc;
+    else if (is_fwd) cd.bias_desc = types::zero_md();
+    (prop_kind == backward_data ? cd.diff_dst_desc : cd.dst_desc)  = *dst_desc;
+
+    int sp_dims = cd.src_desc.ndims - 2;
+    utils::array_copy(cd.strides, strides, sp_dims);
+    utils::array_copy(cd.padding[0], padding_l, sp_dims);
+    utils::array_copy(cd.padding[1], padding_r, sp_dims);
+
     cd.padding_kind = padding_kind;
-    const int ndims_spatial = dst_desc->tensor_desc.ndims - 2;
-    array_copy(cd.strides, strides, ndims_spatial);
-    array_copy(cd.padding, padding, ndims_spatial);
 
-    status_t status = types::convolution_desc_is_ok(cd);
-    if (status == success)
-        *convolution_desc = cd;
+    const int g = with_groups ? weights_desc->dims[0] : 1;
 
-    return status;
+    bool consistency = true
+        && src_desc->ndims == 4
+        && dst_desc->ndims == 4
+        && utils::one_of(weights_desc->ndims, 4, 5)
+        && (with_bias ? bias_desc->ndims == 1 : true)
+        && (with_bias ? bias_desc->dims[0] == dst_desc->dims[1] : true)
+        && src_desc->dims[0] == dst_desc->dims[0]
+        && src_desc->dims[1] == g * weights_desc->dims[with_groups + 1]
+        && dst_desc->dims[1] == g * weights_desc->dims[with_groups + 0];
+    for (int i = 2; i <= 3; ++i)
+        consistency = consistency && (
+                (src_desc->dims[i] - weights_desc->dims[with_groups + i]
+                 + padding_l[i - 2] + padding_r[i - 2]) / strides[i - 2] + 1
+                == dst_desc->dims[i]);
+    if (!consistency) return invalid_arguments;
+
+    *conv_desc = cd;
+    return success;
+}
 }
 
-status_t mkldnn_convolution_primitive_desc_init(
-        convolution_primitive_desc_t *convolution_primitive_desc,
-        const convolution_desc_t *convolution_desc,
-        const engine *engine)
-{
-    if (any_null(convolution_primitive_desc, convolution_desc, engine))
+status_t mkldnn_convolution_forward_desc_init(convolution_desc_t *conv_desc,
+        prop_kind_t prop_kind, alg_kind_t alg_kind,
+        const memory_desc_t *src_desc, const memory_desc_t *weights_desc,
+        const memory_desc_t *bias_desc, const memory_desc_t *dst_desc,
+        const dims_t strides, const dims_t padding_l, const dims_t padding_r,
+        padding_kind_t padding_kind) {
+    if (!one_of(prop_kind, forward_training, forward_inference))
         return invalid_arguments;
-
-    return primitive_desc_init(
-            primitive_desc_t::convert_from_c(convolution_primitive_desc),
-            *convolution_desc, *engine);
+    return conv_desc_init(conv_desc, prop_kind, alg_kind, src_desc,
+            weights_desc, bias_desc, dst_desc, strides, padding_l, padding_r,
+            padding_kind);
 }
 
-status_t mkldnn_convolution_create_forward(primitive **convolution,
-        const convolution_primitive_desc_t *convolution_primitive_desc,
-        const primitive_at_t src, const primitive_at_t weights,
-        const primitive_at_t bias, const primitive *dst) {
-    auto cpd = reinterpret_cast<const mkldnn_primitive_desc_t *>(
-            convolution_primitive_desc);
-    // XXX: must check that shapes of in/out memory match what's in the desc (?)
-    const primitive_at_t inputs[] = {src, weights, bias};
-    const primitive *outputs[] = {dst};
-    return mkldnn_primitive_create(convolution, cpd, inputs, outputs);
+status_t mkldnn_convolution_backward_data_desc_init(
+        convolution_desc_t *conv_desc, alg_kind_t alg_kind,
+        const memory_desc_t *diff_src_desc, const memory_desc_t *weights_desc,
+        const memory_desc_t *diff_dst_desc, const dims_t strides,
+        const dims_t padding_l, const dims_t padding_r,
+        padding_kind_t padding_kind) {
+    return conv_desc_init(conv_desc, backward_data, alg_kind, diff_src_desc,
+            weights_desc, nullptr, diff_dst_desc, strides, padding_l,
+            padding_r, padding_kind);
 }
 
-status_t mkldnn_convolution_create_backward_data(primitive **convolution,
-        const convolution_primitive_desc_t *convolution_primitive_desc,
-        const primitive *src, const primitive_at_t weights,
-        const primitive_at_t dst) {
-    auto cpd = reinterpret_cast<const mkldnn_primitive_desc_t *>(
-            convolution_primitive_desc);
-    // XXX: must check that shapes of in/out memory match what's in the desc (?)
-    const primitive_at_t inputs[] = {weights, dst};
-    const primitive *outputs[] = {src};
-    return mkldnn_primitive_create(convolution, cpd, inputs, outputs);
+status_t mkldnn_convolution_backward_weights_desc_init(
+        convolution_desc_t *conv_desc, alg_kind_t alg_kind,
+        const memory_desc_t *src_desc, const memory_desc_t *diff_weights_desc,
+        const memory_desc_t *diff_dst_desc, const dims_t strides,
+        const dims_t padding_l, const dims_t padding_r,
+        padding_kind_t padding_kind) {
+    return conv_desc_init(conv_desc, backward_weights, alg_kind, src_desc,
+            diff_weights_desc, nullptr, diff_dst_desc, strides, padding_l,
+            padding_r, padding_kind);
 }
 
-status_t mkldnn_convolution_create_backward_weights(primitive **convolution,
-        const convolution_primitive_desc_t *convolution_primitive_desc,
-        const primitive_at_t src, const primitive *weights,
-        const primitive_at_t dst) {
-    auto cpd = reinterpret_cast<const mkldnn_primitive_desc_t *>(
-            convolution_primitive_desc);
-    // XXX: must check that shapes of in/out memory match what's in the desc (?)
-    const primitive_at_t inputs[] = {src, dst};
-    const primitive *outputs[] = {weights};
-    return mkldnn_primitive_create(convolution, cpd, inputs, outputs);
-}
+status_t mkldnn_convolution_backward_bias_desc_init(
+        convolution_desc_t *conv_desc, alg_kind_t alg_kind,
+        const memory_desc_t *diff_bias_desc,
+        const memory_desc_t *diff_dst_desc) {
+    bool args_ok = true
+        && !any_null(conv_desc, diff_bias_desc, diff_dst_desc)
+        && one_of(alg_kind, convolution_direct);
+    if (!args_ok) return invalid_arguments;
 
-status_t mkldnn_convolution_create_backward_bias(primitive **convolution,
-        const convolution_primitive_desc_t *convolution_primitive_desc,
-        const primitive *bias, const primitive_at_t dst) {
-    auto cpd = reinterpret_cast<const mkldnn_primitive_desc_t *>(
-            convolution_primitive_desc);
-    // XXX: must check that shapes of in/out memory match what's in the desc (?)
-    const primitive_at_t inputs[] = {dst};
-    const primitive *outputs[] = {bias};
-    return mkldnn_primitive_create(convolution, cpd, inputs, outputs);
-}
+    convolution_desc_t cd = {};
+    cd.primitive_kind = primitive_kind::convolution;
+    cd.prop_kind = backward_bias;
+    cd.alg_kind = alg_kind;
 
-status_t mkldnn_convolution_get_primitive_desc(const primitive *convolution,
-        convolution_primitive_desc_t *convolution_primitive_desc)
-{
-    if (any_null(convolution, convolution_primitive_desc)
-            || convolution->kind() != primitive_kind::convolution)
-        return invalid_arguments;
-    *convolution_primitive_desc = convolution->primitive_desc().convolution;
+    cd.diff_bias_desc = *diff_bias_desc;
+    cd.diff_dst_desc = *diff_dst_desc;
+
+    bool consistency = true
+        && diff_dst_desc->ndims == 4
+        && diff_bias_desc->ndims == 1
+        && diff_bias_desc->dims[0] == diff_dst_desc->dims[1];
+    if (!consistency) return invalid_arguments;
+
+    *conv_desc = cd;
     return success;
 }
 

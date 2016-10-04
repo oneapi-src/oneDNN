@@ -20,6 +20,7 @@
 #include "jit_avx2_lrn.hpp"
 #include "jit_generator.hpp"
 #include "type_helpers.hpp"
+#include "utils.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -54,8 +55,7 @@ struct nhwc_across {
     nhwc_across(int c) : C(c) {}
 };
 
-template <impl::precision_t prec>
-struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
+struct jit_avx2_lrn_fwd_t::xbyak_lrn: public jit_generator {
     Xbyak::Reg64 src = rax;
     Xbyak::Reg64 dst = r8;
     Xbyak::Reg64 scratch = rdx;
@@ -66,6 +66,9 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
 
     static const float one;
     float alpha;
+
+    void (*ker)(jit_args_t *);
+    void operator()(jit_args_t *arg) { ker(arg); }
 
     void within_body(
         int hoff, int Hoff, int woff, int Woff, int stride,
@@ -96,14 +99,14 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
         vsqrtps(ysum, ysum);
         vsqrtps(ysum, ysum); // ysum = (ysum*yalpha+yone)^0.75
         vdivps(ydst, ydst, ysum); // ydst <- ydst / ysum
-        if (pk != prop_kind::forward_scoring)
+        if (pk != prop_kind::forward_inference)
             vmulps(ysum, ysum, ytmp); // ysum = (ysum*yalpha+yone) ^ 1.75 -- for back prop
         vmovups(ptr[dst], ydst);
-        if (pk != prop_kind::forward_scoring)
+        if (pk != prop_kind::forward_inference)
             vmovups(ptr[scratch], ysum);
         add(src, 32);
         add(dst, 32);
-        if (pk != prop_kind::forward_scoring)
+        if (pk != prop_kind::forward_inference)
             add(scratch, 32);
     }
 
@@ -134,7 +137,7 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
 
         mov(src, ptr[this->param1 + 0]);
         mov(dst, ptr[this->param1 + 8]);
-        if (pk != prop_kind::forward_scoring)
+        if (pk != prop_kind::forward_inference)
             mov(scratch, ptr[this->param1 + 16]);
         mov(imm_addr64, reinterpret_cast<size_t>(&this->alpha));
         vbroadcastss(yalpha, ptr[imm_addr64]);
@@ -190,6 +193,9 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
         }
 
         this->postamble();
+
+        ker = reinterpret_cast<decltype(ker)>(const_cast<uint8_t*>(
+                    this->getCode()));
     }
 
     xbyak_lrn(
@@ -220,7 +226,7 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
 
         mov(src, ptr[this->param1 + 0]);
         mov(dst, ptr[this->param1 + 8]);
-        if (pk != prop_kind::forward_scoring)
+        if (pk != prop_kind::forward_inference)
             mov(scratch, ptr[this->param1 + 16]);
         sub(t, 64);
         mov(imm_addr64, reinterpret_cast<size_t>(&this->alpha));
@@ -266,15 +272,15 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
         vsqrtps(ysum, ysum);
         vsqrtps(ysum, ysum); // ysum = ybase^0.75
         vdivps(ydst, ysrc, ysum); // ydst = ysrc / ysum
-        if (pk != prop_kind::forward_scoring)
+        if (pk != prop_kind::forward_inference)
             vmulps(ysum, ysum, ybase); // ysum = ybase ^ 1.75 -- for back prop
         vmovups(ptr[dst], ydst);
-        if (pk != prop_kind::forward_scoring)
+        if (pk != prop_kind::forward_inference)
             vmovups(ptr[scratch], ysum);
 
         add(src, 32);
         add(dst, 32);
-        if (pk != prop_kind::forward_scoring)
+        if (pk != prop_kind::forward_inference)
             add(scratch, 32);
         dec(hw);
         cmp(hw, 0);
@@ -282,6 +288,9 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
 
         add(t, 64);
         this->postamble();
+
+        ker = reinterpret_cast<decltype(ker)>(const_cast<uint8_t*>(
+                    this->getCode()));
     }
 
     xbyak_lrn(
@@ -312,7 +321,7 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
 
         mov(src, ptr[this->param1 + 0]);
         mov(dst, ptr[this->param1 + 8]);
-        if (pk != prop_kind::forward_scoring)
+        if (pk != prop_kind::forward_inference)
             mov(scratch, ptr[this->param1 + 16]);
         mov(imm_addr64, reinterpret_cast<size_t>(&this->alpha));
         vbroadcastss(yalpha, ptr[imm_addr64]);
@@ -350,7 +359,7 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
         vsqrtps(ydst, ydst);
         vsqrtps(ydst, ydst); // ydst = (ysum*yalpha+yone)^0.75
         vmulps(ybase, ydst, ybase); // ybase = (ysum*yalpha+yone) ^ 1.75 -- for back prop
-        if (pk != prop_kind::forward_scoring)
+        if (pk != prop_kind::forward_inference)
             vmovups(ptr[scratch], ybase);
 
         vdivps(ydst, yc, ydst); // ydst = ysrc / (ysum*yalpha+yone)^0.75
@@ -360,7 +369,7 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
 
         add(src, 32);
         add(dst, 32);
-        if (pk != prop_kind::forward_scoring)
+        if (pk != prop_kind::forward_inference)
             add(scratch, 32);
 
         vmovups(ya, ptr[src - 8]);
@@ -397,10 +406,13 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
         vdivps(ydst, yc, ydst); // ydst = ysrc / (ysum*yalpha+yone)^0.75
 
         vmovups(ptr[dst], ydst);
-        if (pk != prop_kind::forward_scoring)
+        if (pk != prop_kind::forward_inference)
             vmovups(ptr[scratch], ybase);
 
         this->postamble();
+
+        ker = reinterpret_cast<decltype(ker)>(const_cast<uint8_t*>(
+                    this->getCode()));
     }
 
     void nchw_body(int tail, int HW, prop_kind_t pk,
@@ -433,7 +445,7 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
         else
             vmovups(ptr[dst], ydst);
 
-        if (pk != prop_kind::forward_scoring)
+        if (pk != prop_kind::forward_inference)
         {
             if (tail != 0)
                 vmaskmovps(ptr[scratch], ymask, ybase);
@@ -484,7 +496,7 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
 
         mov(src, ptr[this->param1 + 0]);
         mov(dst, ptr[this->param1 + 8]);
-        if (pk != prop_kind::forward_scoring)
+        if (pk != prop_kind::forward_inference)
             mov(scratch, ptr[this->param1 + 16]);
 
         vxorps(ya, ya, ya);
@@ -514,7 +526,7 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
 
         add(src, J.HW * 4);
         add(dst, J.HW * 4);
-        if (pk != prop_kind::forward_scoring)
+        if (pk != prop_kind::forward_inference)
             add(scratch, J.HW * 4);
         dec(c);
         cmp(c, 0);
@@ -525,197 +537,159 @@ struct jit_avx2_lrn<prec>::xbyak_lrn : public jit_generator {
         nchw_body(J.tail, J.HW, pk, ymask, ya, yb, yc, yd, ye, ysum);
         add(src, J.HW * 4);
         add(dst, J.HW * 4);
-        if (pk != prop_kind::forward_scoring)
+        if (pk != prop_kind::forward_inference)
             add(scratch, J.HW * 4);
 
         nchw_body(J.tail, J.HW, pk, ymask, ya, yb, yc, yd, ye, ysum);
 
         this->postamble();
+
+        ker = reinterpret_cast<decltype(ker)>(const_cast<uint8_t*>(
+                    this->getCode()));
     }
 };
 
-template <impl::precision_t prec>
-const float jit_avx2_lrn<prec>::xbyak_lrn::one = 1.0f;
+const float jit_avx2_lrn_fwd_t::xbyak_lrn::one = 1.0f;
 
-template <impl::precision_t prec>
-jit_avx2_lrn<prec>::~jit_avx2_lrn() {
-    delete this->jit;
-    delete this->jit_first;
-    delete this->jit_last;
+status_t jit_avx2_lrn_fwd_t::pd_t::init() {
+    using namespace prop_kind;
+    using namespace alg_kind;
+
+    assert(engine()->kind() == engine_kind::cpu);
+
+    const memory_desc_wrapper data_d(data_pd_.desc());
+    bool ok = true
+        && utils::one_of(desc()->prop_kind, forward_training, forward_inference)
+        && utils::everyone_is(data_type::f32, desc()->data_desc.data_type)
+        && data_d.ndims() == 4
+        && data_d.dims()[1] % VECTOR_LENGTH == 0
+        && data_d.dims()[1] >= 2 * VECTOR_LENGTH
+        && desc()->lrn_beta == 0.75;
+    if (!ok) return unimplemented;
+
+    if (desc_.prop_kind == forward_training) { ws_pd_ = data_pd_; }
+
+    bool args_ok_across = true
+        && desc()->alg_kind == lrn_across_channels
+        && desc()->local_size == 5
+        && utils::one_of(data_d.format(), nChw8c, nchw, nhwc);
+
+    bool args_ok_within = true
+        && desc()->alg_kind == lrn_within_channel
+        && desc()->local_size <= MAX_LOCAL_SIZE
+        && data_d.dims()[2] >= desc()->local_size
+        && data_d.dims()[3] >= desc()->local_size
+        && utils::one_of(data_d.format(), nChw8c);
+
+    return args_ok_across || args_ok_within ? success : unimplemented;
 }
 
-template <impl::precision_t prec>
-status_t jit_avx2_lrn<prec>::execute_forward() {
-    auto src = reinterpret_cast<const data_t *>(
-            this->input()[0].primitive->output()[
-            this->input()[0].output_index]->memory_const());
-    data_t *scratch = this->_is_training
-        ? reinterpret_cast<data_t *>(this->input()[1].primitive->output()[
-                this->input()[1].output_index]->memory())
-        : nullptr;
-    auto dst = reinterpret_cast<data_t *>(this->output()[0]->memory());
+jit_avx2_lrn_fwd_t::jit_avx2_lrn_fwd_t(const pd_t *pd,
+        const input_vector &inputs, const output_vector &outputs)
+    : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd), ker_(nullptr)
+    , ker_first_(nullptr), ker_last_(nullptr) {
+    using namespace alg_kind;
 
-    const memory_desc_wrapper src_d(this->_lpd.src_primitive_desc.memory_desc);
+    const int C = conf_.C();
+    const int H = conf_.H();
+    const int W = conf_.W();
+    const int ls = conf_.desc()->local_size;
+    double A = conf_.desc()->lrn_alpha / ls;
 
-    const int N = src_d.dims()[0];
-    const int C = src_d.dims()[1];
-    const int HW = src_d.dims()[2]*src_d.dims()[3];
+    auto pk = conf_.desc()->prop_kind;
+    auto ak = conf_.desc()->alg_kind;
+    auto dfmt = conf_.src_pd()->desc()->format;
 
-    if (this->_lpd.dst_primitive_desc.memory_desc.format == nChw8c
-        && this->_lpd.lrn_desc.alg_kind == mkldnn_lrn_across_channels
-        && this->_lpd.lrn_desc.local_size == 5)
-    {
+    if (dfmt == nChw8c && ls == 5 && ak == lrn_across_channels) {
+        ker_ = new xbyak_lrn(nchw8c_across(H*W, 0), A, pk);
+        ker_first_ = new xbyak_lrn(nchw8c_across(H*W, -1), A, pk);
+        ker_last_ = new xbyak_lrn(nchw8c_across(H*W, +1), A, pk);
+    } else if (dfmt == nChw8c && ak == lrn_within_channel) {
+        /* within channel, local_size (x) local_size */
+        A /= ls; /* XXX: why? */
+        ker_ = new xbyak_lrn(nchw8c_within(H, W, ls), A, pk);
+    } else if (dfmt == nchw && ls == 5 && ak == lrn_across_channels) {
+        ker_ = new xbyak_lrn(nchw_across(C, H*W, 0), A, pk);
+        int remind = (H*W) % VECTOR_LENGTH;
+        if (remind != 0) {
+            ker_last_ = new xbyak_lrn(nchw_across(C, H*W, remind), A, pk);
+        }
+    } else if (true /* XXX: why */) {
+        ker_ = new xbyak_lrn(nhwc_across(C), A, pk);
+    }
+}
+
+jit_avx2_lrn_fwd_t::~jit_avx2_lrn_fwd_t()
+{ delete ker_; delete ker_first_; delete ker_last_; }
+
+void jit_avx2_lrn_fwd_t::execute_forward() {
+    using namespace alg_kind;
+
+    auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
+    auto dst = reinterpret_cast<data_t*>(this->memory(0));
+    auto ws = reinterpret_cast<data_t*>(this->memory(1));
+
+    const int N = conf_.MB();
+    const int C = conf_.C();
+    const int HW = conf_.H() * conf_.W();
+    const int ls = conf_.desc()->local_size;
+
+    auto ak = conf_.desc()->alg_kind;
+    auto dfmt = conf_.src_pd()->desc()->format;
+
+    if (dfmt == nChw8c && ls == 5 && ak == lrn_across_channels) {
 #       pragma omp parallel for collapse(2) schedule(static)
         for (int n = 0; n < N; ++n) {
             for (int c8 = 0; c8 < C / VECTOR_LENGTH; ++c8) {
                 jit_args_t args;
                 args.src = &src[n*HW*C + c8 * HW * VECTOR_LENGTH];
                 args.dst = &dst[n*HW*C + c8 * HW * VECTOR_LENGTH];
-                args.scratch = &scratch[n*HW*C + c8 * HW * VECTOR_LENGTH];
+                args.scratch = &ws[n*HW*C + c8 * HW * VECTOR_LENGTH];
                 if (c8 == 0)
-                    ker_first(&args);
+                    (*ker_first_)(&args);
                 else if (c8 == C / VECTOR_LENGTH - 1)
-                    ker_last(&args);
+                    (*ker_last_)(&args);
                 else
-                    ker(&args);
+                    (*ker_)(&args);
             }
         }
-    }
-    else if (this->_lpd.dst_primitive_desc.memory_desc.format == nChw8c
-        && this->_lpd.lrn_desc.alg_kind == mkldnn_lrn_within_channel)
-    {
+    } else if (dfmt == nChw8c && ak == lrn_within_channel) {
 #       pragma omp parallel for collapse(2) schedule(static)
         for (int n = 0; n < N; ++n) {
             for (int c8 = 0; c8 < C / VECTOR_LENGTH; ++c8) {
                 jit_args_t args;
                 args.src = &src[n*HW*C + c8 * HW * VECTOR_LENGTH];
                 args.dst = &dst[n*HW*C + c8 * HW * VECTOR_LENGTH];
-                args.scratch = &scratch[n*HW*C + c8 * HW * VECTOR_LENGTH];
-                ker(&args);
+                args.scratch = &ws[n*HW*C + c8 * HW * VECTOR_LENGTH];
+                (*ker_)(&args);
             }
         }
-    }
-    else if (this->_lpd.dst_primitive_desc.memory_desc.format == nchw
-        && this->_lpd.lrn_desc.alg_kind == mkldnn_lrn_across_channels
-        && this->_lpd.lrn_desc.local_size == 5)
-    {
+    } else if (dfmt == nchw && ls == 5 && ak == lrn_across_channels) {
 #       pragma omp parallel for collapse(2) schedule(static)
         for (int n = 0; n < N; ++n) {
             for (int hw8 = 0; hw8 < (HW + VECTOR_LENGTH - 1) / VECTOR_LENGTH; ++hw8) {
                 jit_args_t args;
                 args.src = &src[n*HW*C + hw8 * VECTOR_LENGTH];
                 args.dst = &dst[n*HW*C + hw8 * VECTOR_LENGTH];
-                args.scratch = &scratch[n*HW*C + hw8 * VECTOR_LENGTH];
+                args.scratch = &ws[n*HW*C + hw8 * VECTOR_LENGTH];
                 if ((hw8+1)*VECTOR_LENGTH > HW)
-                    ker_last(&args);
+                    (*ker_last_)(&args);
                 else
-                    ker(&args);
+                (*ker_)(&args);
             }
         }
-    }
-    else // nhwc
-    {
+    } else { // nhwc
 #       pragma omp parallel for collapse(2) schedule(static)
         for (int n = 0; n < N; ++n) {
             for (int hw = 0; hw < HW; ++hw) {
                 jit_args_t args;
                 args.src = &src[n*HW*C + hw * C];
                 args.dst = &dst[n*HW*C + hw * C];
-                args.scratch = &scratch[n*HW*C + hw * C];
-                ker(&args);
+                args.scratch = &ws[n*HW*C + hw * C];
+                (*ker_)(&args);
             }
         }
     }
-
-    return success;
-}
-
-template <impl::precision_t prec>
-status_t jit_avx2_lrn<prec>::set_default_parameters(lrn_desc_t &lrn_d) {
-    if (lrn_d.src_desc.format == any)
-        CHECK(types::set_default_format<prec>(lrn_d.src_desc, nChw8c));
-    if (lrn_d.dst_desc.format == any)
-        CHECK(types::set_default_format<prec>(lrn_d.dst_desc, nChw8c));
-    return status::success;
-}
-
-template <impl::precision_t prec>
-status_t jit_avx2_lrn<prec>::constraint(const lrn_desc_t &lrn_d) {
-    const memory_desc_wrapper src_d(lrn_d.src_desc);
-
-    bool args_ok_common = true
-        && one_of(lrn_d.prop_kind, prop_kind::forward_training,
-        prop_kind::forward_scoring)
-        && src_d.ndims() == 4
-        && src_d.dims()[1] % VECTOR_LENGTH == 0
-        && src_d.dims()[1] >= 2 * VECTOR_LENGTH
-        && lrn_d.beta == 0.75
-        && lrn_d.dst_desc.format == src_d.format();
-    if (!args_ok_common) return unimplemented;
-
-    bool args_ok_across = true
-        && lrn_d.alg_kind == alg_kind::lrn_across_channels
-        && lrn_d.local_size == 5
-        && one_of(src_d.format(), nChw8c, nchw, nhwc);
-
-    bool args_ok_within = true
-        && lrn_d.alg_kind == alg_kind::lrn_within_channel
-        && lrn_d.local_size <= MAX_LOCAL_SIZE
-        && src_d.dims()[2] >= lrn_d.local_size
-        && src_d.dims()[3] >= lrn_d.local_size
-        && one_of(src_d.format(), nChw8c);
-
-    return args_ok_across || args_ok_within ? success : unimplemented;
-}
-
-template <impl::precision_t prec>
-const primitive_impl jit_avx2_lrn<prec>::implementation = {
-    jit_avx2_lrn<prec>::create
-};
-
-template class jit_avx2_lrn<precision::f32>;
-
-template <impl::precision_t prec>
-jit_avx2_lrn<prec>::jit_avx2_lrn(const lrn_primitive_desc_t &ppd,
-    const primitive_at_t *inputs, const primitive *outputs[])
-    : lrn<jit_avx2_lrn<prec>>(ppd, inputs, outputs)
-{
-    int C = ppd.src_primitive_desc.memory_desc.tensor_desc.dims[1];
-    int H = ppd.src_primitive_desc.memory_desc.tensor_desc.dims[2];
-    int W = ppd.src_primitive_desc.memory_desc.tensor_desc.dims[3];
-    double A = ppd.lrn_desc.alpha / ppd.lrn_desc.local_size;
-    mkldnn_prop_kind_t pk = ppd.lrn_desc.prop_kind;
-    mkldnn_alg_kind_t ak = ppd.lrn_desc.alg_kind;
-
-    if (ppd.src_primitive_desc.memory_desc.format == nChw8c && ppd.lrn_desc.local_size == 5 && ak == mkldnn_lrn_across_channels)
-    {
-        this->jit = new xbyak_lrn(nchw8c_across(H*W, 0), A, pk);
-        this->jit_first = new xbyak_lrn(nchw8c_across(H*W, -1), A, pk);
-        this->jit_last = new xbyak_lrn(nchw8c_across(H*W, +1), A, pk);
-    }
-    else if (ppd.src_primitive_desc.memory_desc.format == nChw8c && ak == mkldnn_lrn_within_channel) // RCNN case
-    {
-        A /= ppd.lrn_desc.local_size; // within channel, local_size (x) local_size
-        this->jit = new xbyak_lrn(nchw8c_within(H, W, ppd.lrn_desc.local_size), A, pk);
-        this->jit_first = nullptr;
-        this->jit_last = nullptr;
-    }
-    else if (ppd.src_primitive_desc.memory_desc.format == nchw && ak == mkldnn_lrn_across_channels)
-    {
-        this->jit = new xbyak_lrn(nchw_across(C, H*W, 0), A, pk);
-        this->jit_first = nullptr;
-        this->jit_last = (H*W) % VECTOR_LENGTH == 0 ? nullptr : new xbyak_lrn(nchw_across(C, H*W, (H*W) % VECTOR_LENGTH), A, pk);
-    }
-    else // nhwc
-    {
-        this->jit = new xbyak_lrn(nhwc_across(C), A, pk);
-        this->jit_first = nullptr;
-        this->jit_last = nullptr;
-    }
-    typedef void(*kernel_t)(const void*);
-    this->ker = this->jit == nullptr ? nullptr : reinterpret_cast<kernel_t>(const_cast<uint8_t*>(this->jit->getCode()));
-    this->ker_first = this->jit_first == nullptr ? nullptr : reinterpret_cast<kernel_t>(const_cast<uint8_t*>(this->jit_first->getCode()));
-    this->ker_last = this->jit_last == nullptr ? nullptr : reinterpret_cast<kernel_t>(const_cast<uint8_t*>(this->jit_last->getCode()));
 }
 
 }

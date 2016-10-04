@@ -25,7 +25,7 @@ using fmt = memory::format;
 struct conv_any_fmt_test_params {
     prop_kind aprop_kind;
     const engine::kind engine_kind;
-    convolution::algorithm aalgorithm;
+    convolution_forward::algorithm aalgorithm;
     fmt src_fmt_in;
     fmt src_fmt_exp;
     fmt weights_fmt_in;
@@ -46,13 +46,12 @@ protected:
         conv_any_fmt_test_params p = ::testing::
                 TestWithParam<conv_any_fmt_test_params>::GetParam();
 
-        ASSERT_TRUE(p.engine_kind == engine::kind::cpu
-                || p.engine_kind == engine::kind::cpu_lazy);
+        ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         ASSERT_EQ(p.aprop_kind, prop_kind::forward);
-        ASSERT_EQ(p.aalgorithm, convolution::direct);
+        ASSERT_EQ(p.aalgorithm, convolution_forward::direct);
         auto eng = engine(p.engine_kind, 0);
-        memory::precision prec = data_traits<data_t>::prec;
-        ASSERT_EQ(prec, mkldnn::memory::precision::f32);
+        memory::data_type data_type = data_traits<data_t>::data_type;
+        ASSERT_EQ(data_type, mkldnn::memory::data_type::f32);
 
         // Some format chekers
         ASSERT_NE(p.src_fmt_exp, fmt::any);
@@ -69,39 +68,39 @@ protected:
         test_convolution_descr_t cd = p.test_cd;
 
         auto c_src_desc
-                = create_md({ cd.mb, cd.ic, cd.ih, cd.iw }, prec, p.src_fmt_in);
+                = create_md({ cd.mb, cd.ic, cd.ih, cd.iw }, data_type, p.src_fmt_in);
         auto c_weights_desc = cd.ng > 1 ?
                 create_md({ cd.ng, cd.oc / cd.ng, cd.ic / cd.ng, cd.kh, cd.kw },
-                        prec, p.weights_fmt_in) :
+                        data_type, p.weights_fmt_in) :
                 create_md(
-                        { cd.oc, cd.ic, cd.kh, cd.kw }, prec, p.weights_fmt_in);
+                        { cd.oc, cd.ic, cd.kh, cd.kw }, data_type, p.weights_fmt_in);
         auto c_dst_desc
-                = create_md({ cd.mb, cd.oc, cd.oh, cd.ow }, prec, p.dst_fmt_in);
+                = create_md({ cd.mb, cd.oc, cd.oh, cd.ow }, data_type, p.dst_fmt_in);
 
         bool with_bias = p.bias_fmt_in != fmt::format_undef;
         auto c_bias_desc = with_bias ?
-                create_md({ cd.oc }, prec, p.bias_fmt_in) :
-                create_md({}, prec, p.bias_fmt_in);
+                create_md({ cd.oc }, data_type, p.bias_fmt_in) :
+                create_md({}, data_type, p.bias_fmt_in);
 
         auto conv_desc = with_bias ?
-                convolution::desc(p.aprop_kind, p.aalgorithm, c_src_desc,
+                convolution_forward::desc(p.aprop_kind, p.aalgorithm, c_src_desc,
                         c_weights_desc, c_bias_desc, c_dst_desc,
-                        { cd.strh, cd.strw }, { cd.padh, cd.padw },
+                        { cd.strh, cd.strw }, { cd.padh, cd.padw }, { cd.padh, cd.padw },
                         padding_kind::zero) :
-                convolution::desc(p.aprop_kind, p.aalgorithm, c_src_desc,
-                        c_weights_desc, c_dst_desc, { cd.strh, cd.strw },
+                convolution_forward::desc(p.aprop_kind, p.aalgorithm, c_src_desc,
+                        c_weights_desc, c_dst_desc, { cd.strh, cd.strw }, { cd.strh, cd.strw },
                         { cd.padh, cd.padw }, padding_kind::zero);
 
-        auto conv_prim_desc = convolution::primitive_desc(conv_desc, eng);
-        ASSERT_EQ(conv_prim_desc.data.src_primitive_desc.memory_desc.format,
+        auto conv_prim_desc = convolution_forward::primitive_desc(conv_desc, eng);
+        ASSERT_EQ(conv_prim_desc.src_primitive_desc().desc().data.format,
                 memory::convert_to_c(p.src_fmt_exp));
-        ASSERT_EQ(conv_prim_desc.data.weights_primitive_desc.memory_desc.format,
+        ASSERT_EQ(conv_prim_desc.weights_primitive_desc().desc().data.format,
                 memory::convert_to_c(p.weights_fmt_exp));
         if (with_bias)
             ASSERT_EQ(
-                    conv_prim_desc.data.bias_primitive_desc.memory_desc.format,
+                    conv_prim_desc.bias_primitive_desc().desc().data.format,
                     memory::convert_to_c(p.bias_fmt_exp));
-        ASSERT_EQ(conv_prim_desc.data.dst_primitive_desc.memory_desc.format,
+        ASSERT_EQ(conv_prim_desc.dst_primitive_desc().desc().data.format,
                 memory::convert_to_c(p.dst_fmt_exp));
     }
 };
@@ -114,7 +113,7 @@ TEST_P(conv_any_fmt_test_float, TestsConvolutionAnyFmt)
 }
 INSTANTIATE_TEST_CASE_P(TestConvolutionAnyFmtForward, conv_any_fmt_test_float,
         ::testing::Values(conv_any_fmt_test_params_float{ prop_kind::forward,
-                engine::kind::cpu, convolution::direct, fmt::any, fmt::nchw,
+                engine::kind::cpu, convolution_forward::direct, fmt::any, fmt::nchw,
                 fmt::any, fmt::oihw, fmt::any, fmt::x, fmt::any, fmt::nchw,
                 { 2, 1, 4, 4, 4, 6, 4, 4, 3, 3, 1, 1, 1, 1 } }));
 
@@ -122,27 +121,27 @@ INSTANTIATE_TEST_CASE_P(
         TestConvolutionAlexnetAnyFmtForwardBlocked, conv_any_fmt_test_float,
         ::testing::Values(
                 conv_any_fmt_test_params_float{ prop_kind::forward,
-                        engine::kind::cpu, convolution::direct, fmt::any,
+                        engine::kind::cpu, convolution_forward::direct, fmt::any,
                         fmt::nchw, fmt::any, fmt::Ohwi8o, fmt::any, fmt::x,
                         fmt::any, fmt::nChw8c,
                         { 2, 1, 3, 227, 227, 96, 55, 55, 11, 11, 0, 0, 4, 4 } },
                 conv_any_fmt_test_params_float{ prop_kind::forward,
-                        engine::kind::cpu, convolution::direct, fmt::any,
+                        engine::kind::cpu, convolution_forward::direct, fmt::any,
                         fmt::nChw8c, fmt::any, fmt::gOIhw8i8o, fmt::any, fmt::x,
                         fmt::any, fmt::nChw8c,
                         { 2, 2, 96, 27, 27, 256, 27, 27, 5, 5, 2, 2, 1, 1 } },
                 conv_any_fmt_test_params_float{ prop_kind::forward,
-                        engine::kind::cpu, convolution::direct, fmt::any,
+                        engine::kind::cpu, convolution_forward::direct, fmt::any,
                         fmt::nChw8c, fmt::any, fmt::OIhw8i8o, fmt::any, fmt::x,
                         fmt::any, fmt::nChw8c,
                         { 2, 1, 256, 13, 13, 384, 13, 13, 3, 3, 1, 1, 1, 1 } },
                 conv_any_fmt_test_params_float{ prop_kind::forward,
-                        engine::kind::cpu, convolution::direct, fmt::any,
+                        engine::kind::cpu, convolution_forward::direct, fmt::any,
                         fmt::nChw8c, fmt::any, fmt::gOIhw8i8o, fmt::any, fmt::x,
                         fmt::any, fmt::nChw8c,
                         { 2, 2, 384, 13, 13, 384, 13, 13, 3, 3, 1, 1, 1, 1 } },
                 conv_any_fmt_test_params_float{ prop_kind::forward,
-                        engine::kind::cpu, convolution::direct, fmt::any,
+                        engine::kind::cpu, convolution_forward::direct, fmt::any,
                         fmt::nChw8c, fmt::any, fmt::gOIhw8i8o, fmt::any, fmt::x,
                         fmt::any, fmt::nChw8c, { 2, 2, 384, 13, 13, 256, 13, 13,
                                                        3, 3, 1, 1, 1, 1 } }));

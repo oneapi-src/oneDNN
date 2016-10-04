@@ -19,30 +19,36 @@
 
 #include "c_types_map.hpp"
 #include "memory_desc_wrapper.hpp"
+#include "memory_pd.hpp"
 #include "type_helpers.hpp"
+#include "utils.hpp"
 
 namespace mkldnn {
 namespace impl {
 
+memory_desc_wrapper::memory_desc_wrapper(const memory_pd_t *m_pd)
+    : _md(m_pd == nullptr ? nullptr : m_pd->desc()) {}
+
 namespace {
-using mkldnn::impl::array_set;
+using namespace mkldnn::impl::utils;
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::memory_format;
 
-status_t fill_x(blocking_desc_t &blk, const tensor_desc_t &tensor) {
-    const int ndims = tensor.ndims;
+status_t fill_x(memory_desc_t &md) {
+    const int ndims = md.ndims;
     if (ndims != 1) return invalid_arguments;
+    blocking_desc_t &blk = md.layout_desc.blocking;
     array_set(blk.block_dims, 1, ndims);
     array_set(blk.strides[1], 1, ndims);
     blk.strides[0][0] = 1;
-    array_copy(blk.padding_dims, tensor.dims, ndims);
+    array_copy(blk.padding_dims, md.dims, ndims);
     array_set(blk.offset_padding_to_data, 0, ndims);
     blk.offset_padding = 0;
     return success;
 }
 
 /* TODO: improve me maybe... and put this to utils */
-inline void set_default_strides(dims_t strides, const dims_t sizes,
+inline void set_default_strides(strides_t strides, const dims_t dims,
         int ndims, const int *perm = NULL) {
     int id_perm[TENSOR_MAX_DIMS] = {0};
     for (int i = 0; i < ndims; ++i)
@@ -55,151 +61,147 @@ inline void set_default_strides(dims_t strides, const dims_t sizes,
         const int prev_idx = perm[ndims - d];
         const int curr_idx = perm[ndims - 1 - d];
 
-        strides[curr_idx] = sizes[curr_idx] == 0
+        strides[curr_idx] = dims[curr_idx] == 0
             ? 1
-            : strides[prev_idx] * nstl::max(1, sizes[prev_idx]);
+            : strides[prev_idx] * nstl::max(1, dims[prev_idx]);
     }
 }
 
-status_t fill_nonblocked(blocking_desc_t &blk, const tensor_desc_t &tensor,
-        const int perm[]) {
-    const int ndims = tensor.ndims;
+status_t fill_nonblocked(memory_desc_t &md, const int perm[]) {
+    const int ndims = md.ndims;
+    blocking_desc_t &blk = md.layout_desc.blocking;
     array_set(blk.block_dims, 1, ndims);
     array_set(blk.strides[1], 1, ndims);
-    set_default_strides(blk.strides[0], tensor.dims, ndims, perm);
-    array_copy(blk.padding_dims, tensor.dims, ndims);
+    set_default_strides(blk.strides[0], md.dims, ndims, perm);
+    array_copy(blk.padding_dims, md.dims, ndims);
     array_set(blk.offset_padding_to_data, 0, ndims);
     blk.offset_padding = 0;
     return success;
 }
 
-status_t fill_contiguous_blocked(blocking_desc_t &blk,
-        const tensor_desc_t &tensor, const int block_dims[],
+status_t fill_contiguous_blocked(memory_desc_t &md, const dims_t block_dims,
         const int perm[]) {
     /* TODO: check for dims[d] % block_dims[d] != 0 */
-    const int ndims = tensor.ndims;
+    const int ndims = md.ndims;
+    blocking_desc_t &blk = md.layout_desc.blocking;
     array_copy(blk.block_dims, block_dims, ndims);
 
-    int unrolled_dims[2*TENSOR_MAX_DIMS];
-    int unrolled_strides[2*TENSOR_MAX_DIMS];
+    dim_t unrolled_dims[2*TENSOR_MAX_DIMS];
+    stride_t unrolled_strides[2*TENSOR_MAX_DIMS];
     for (int d = 0; d < ndims; ++d) {
-        unrolled_dims[d] = tensor.dims[d] / block_dims[d];
+        unrolled_dims[d] = md.dims[d] / block_dims[d];
         unrolled_dims[ndims + d] = block_dims[d];
     }
 
     set_default_strides(unrolled_strides, unrolled_dims, 2*ndims, perm);
     array_copy(blk.strides[0], &unrolled_strides[0], ndims);
     array_copy(blk.strides[1], &unrolled_strides[ndims], ndims);
-    array_copy(blk.padding_dims, tensor.dims, ndims);
+    array_copy(blk.padding_dims, md.dims, ndims);
     array_set(blk.offset_padding_to_data, 0, ndims);
     blk.offset_padding = 0;
     return success;
 }
 
-status_t fill_nc(blocking_desc_t &blk, const tensor_desc_t &tensor) {
-    if (tensor.ndims != 2) return invalid_arguments;
+status_t fill_nc(memory_desc_t &md) {
+    if (md.ndims != 2) return invalid_arguments;
 
     const int perm[2] = {0, 1};
-    return fill_nonblocked(blk, tensor, perm);
+    return fill_nonblocked(md, perm);
 }
 
-status_t fill_nchw(blocking_desc_t &blk, const tensor_desc_t &tensor) {
-    if (tensor.ndims != 4) return invalid_arguments;
+status_t fill_nchw(memory_desc_t &md) {
+    if (md.ndims != 4) return invalid_arguments;
 
     const int perm[4] = {0, 1, 2, 3};
-    return fill_nonblocked(blk, tensor, perm);
+    return fill_nonblocked(md, perm);
 }
 
-status_t fill_nhwc(blocking_desc_t &blk, const tensor_desc_t &tensor) {
-    if (tensor.ndims != 4) return invalid_arguments;
+status_t fill_nhwc(memory_desc_t &md) {
+    if (md.ndims != 4) return invalid_arguments;
 
     const int perm[4] = {0, 2, 3, 1};
-    return fill_nonblocked(blk, tensor, perm);
+    return fill_nonblocked(md, perm);
 }
 
-status_t fill_nChw8c(blocking_desc_t &blk, const tensor_desc_t &tensor) {
-    if (tensor.ndims != 4) return invalid_arguments;
+status_t fill_nChw8c(memory_desc_t &md) {
+    if (md.ndims != 4) return invalid_arguments;
 
-    const int block_dims[] = {1, 8, 1, 1};
+    const dims_t block_dims = {1, 8, 1, 1};
     const int perm[] = {
         0, 1, 2, 3,
         4, 5, 6, 7};
-    return fill_contiguous_blocked(blk, tensor, block_dims, perm);
+    return fill_contiguous_blocked(md, block_dims, perm);
 }
 
-status_t fill_oi(blocking_desc_t &blk, const tensor_desc_t &tensor) {
-    if (tensor.ndims != 2) return invalid_arguments;
+status_t fill_oi(memory_desc_t &md) {
+    if (md.ndims != 2) return invalid_arguments;
 
     const int perm[2] = {0, 1};
-    return fill_nonblocked(blk, tensor, perm);
+    return fill_nonblocked(md, perm);
 }
 
-status_t fill_oihw(blocking_desc_t &blk, const tensor_desc_t &tensor) {
-    if (tensor.ndims != 4) return invalid_arguments;
+status_t fill_oihw(memory_desc_t &md) {
+    if (md.ndims != 4) return invalid_arguments;
 
     const int perm[4] = {0, 1, 2, 3};
-    return fill_nonblocked(blk, tensor, perm);
+    return fill_nonblocked(md, perm);
 }
 
-status_t fill_OIhw8i8o(blocking_desc_t &blk, const tensor_desc_t &tensor) {
-    if (tensor.ndims != 4) return invalid_arguments;
+status_t fill_OIhw8i8o(memory_desc_t &md) {
+    if (md.ndims != 4) return invalid_arguments;
 
-    const int block_dims[] = {8, 8, 1, 1};
+    const dims_t block_dims = {8, 8, 1, 1};
     const int perm[] = {
         0, 1, 2, 3,
         5, 4, 6, 7};
-    return fill_contiguous_blocked(blk, tensor, block_dims, perm);
+    return fill_contiguous_blocked(md, block_dims, perm);
 }
 
-status_t fill_Ohwi8o(blocking_desc_t &blk, const tensor_desc_t &tensor) {
-    if (tensor.ndims != 4) return invalid_arguments;
+status_t fill_Ohwi8o(memory_desc_t &md) {
+    if (md.ndims != 4) return invalid_arguments;
 
-    const int block_dims[] = {8, 1, 1, 1};
+    const dims_t block_dims = {8, 1, 1, 1};
     const int perm[] = {
         0, 2, 3, 1,
         4, 5, 6, 7};
-    return fill_contiguous_blocked(blk, tensor, block_dims, perm);
+    return fill_contiguous_blocked(md, block_dims, perm);
 }
 
-status_t fill_goihw(blocking_desc_t &blk, const tensor_desc_t &tensor) {
-    if (tensor.ndims != 5) return invalid_arguments;
+status_t fill_goihw(memory_desc_t &md) {
+    if (md.ndims != 5) return invalid_arguments;
 
     const int perm[5] = {0, 1, 2, 3, 4};
-    return fill_nonblocked(blk, tensor, perm);
+    return fill_nonblocked(md, perm);
 }
 
-status_t fill_gOIhw8i8o(blocking_desc_t &blk, const tensor_desc_t &tensor) {
-    if (tensor.ndims != 5) return invalid_arguments;
+status_t fill_gOIhw8i8o(memory_desc_t &md) {
+    if (md.ndims != 5) return invalid_arguments;
 
-    const int block_dims[] = {1, 8, 8, 1, 1};
+    const dims_t block_dims = {1, 8, 8, 1, 1};
     const int perm[] = {
         0, 1, 2, 3, 4,
         5, 7, 6, 8, 9};
-    return fill_contiguous_blocked(blk, tensor, block_dims, perm);
+    return fill_contiguous_blocked(md, block_dims, perm);
 }
 
 }
 
 status_t memory_desc_wrapper::compute_blocking(memory_desc_t &memory_desc)
 {
-    if (memory_desc.tensor_desc.ndims == 0)
-        return invalid_arguments;
-
-    const tensor_desc_t &tensor = memory_desc.tensor_desc;
-    blocking_desc_t &blk = memory_desc.layout_desc.blocking;
+    if (memory_desc.ndims == 0) return invalid_arguments;
 
     switch (memory_desc.format) {
-    case x: return fill_x(blk, tensor);
-    case nc: return fill_nc(blk, tensor);
-    case nchw: return fill_nchw(blk, tensor);
-    case nhwc: return fill_nhwc(blk, tensor);
-    case nChw8c: return fill_nChw8c(blk, tensor);
-    case oi: return fill_oi(blk, tensor);
-    case oihw: return fill_oihw(blk, tensor);
-    case OIhw8i8o: return fill_OIhw8i8o(blk, tensor);
-    case Ohwi8o: return fill_Ohwi8o(blk, tensor);
-    case goihw: return fill_goihw(blk, tensor);
-    case gOIhw8i8o: return fill_gOIhw8i8o(blk, tensor);
+    case x: return fill_x(memory_desc);
+    case nc: return fill_nc(memory_desc);
+    case nchw: return fill_nchw(memory_desc);
+    case nhwc: return fill_nhwc(memory_desc);
+    case nChw8c: return fill_nChw8c(memory_desc);
+    case oi: return fill_oi(memory_desc);
+    case oihw: return fill_oihw(memory_desc);
+    case OIhw8i8o: return fill_OIhw8i8o(memory_desc);
+    case Ohwi8o: return fill_Ohwi8o(memory_desc);
+    case goihw: return fill_goihw(memory_desc);
+    case gOIhw8i8o: return fill_gOIhw8i8o(memory_desc);
     default: break;
     }
 

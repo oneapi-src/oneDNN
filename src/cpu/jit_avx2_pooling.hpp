@@ -14,44 +14,72 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_AVX2_POOLING_HPP
-#define CPU_JIT_AVX2_POOLING_HPP
+#ifndef CPU_JIT_AVX2_POOLING_FWD_HPP
+#define CPU_JIT_AVX2_POOLING_FWD_HPP
 
 #include <assert.h>
 
 #include "c_types_map.hpp"
-#include "type_helpers.hpp"
-#include "primitive.hpp"
+#include "cpu_pooling_pd.hpp"
 #include "cpu_engine.hpp"
-
-#include "pooling.hpp"
-#include "jit_avx2_pooling_generator_f32.hpp"
+#include "jit_avx2_pool_kernel_f32.hpp"
+#include "type_helpers.hpp"
+#include "utils.hpp"
 
 namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-template <impl::precision_t prec>
-class jit_avx2_pooling:
-    public pooling<jit_avx2_pooling<prec>> {
-public:
-    typedef typename prec_trait<prec>::type data_t;
-    typedef int index_t;
-    using pooling<jit_avx2_pooling<prec>>::pooling;
-    jit_avx2_pooling(const pooling_primitive_desc_t &ppd,
-            const primitive_at_t *inputs, const primitive *outputs[]);
-    ~jit_avx2_pooling();
+struct jit_avx2_pooling_fwd_t: public cpu_primitive_t {
+    struct pd_t: public cpu_pooling_fwd_pd_t {
+        pd_t(engine_t *engine, const pooling_desc_t *adesc,
+                const pooling_fwd_pd_t *hint_fwd_pd)
+            : cpu_pooling_fwd_pd_t(engine, adesc, hint_fwd_pd) {}
 
-    static status_t set_default_parameters(pooling_desc_t &pool_d);
-    static status_t constraint(const pooling_desc_t &pool_d);
+        DECLARE_COMMON_PD_T(jit_avx2_pooling_fwd_t);
 
-    static const primitive_impl implementation;
+        virtual status_t init() override {
+            using namespace prop_kind;
+            using namespace alg_kind;
+            using namespace utils;
+            assert(engine()->kind() == engine_kind::cpu);
+            bool ok = true
+                && one_of(desc()->prop_kind, forward_training,
+                        forward_inference)
+                && one_of(desc()->alg_kind, pooling_max, pooling_avg)
+                && everyone_is(data_type::f32, src_pd()->desc()->data_type,
+                        dst_pd()->desc()->data_type);
+            if (!ok) return status::unimplemented;
+
+            bool is_training = desc_.prop_kind == forward_training;
+            if (desc()->alg_kind == pooling_max && is_training) {
+                auto indices_desc = *dst_pd()->desc();
+                indices_desc.data_type = data_type::s32;
+                ws_pd_ = cpu_memory_t::pd_t(engine_, &indices_desc);
+            }
+
+            return jit_avx2_pool_kernel_f32::init_conf(jpp_, desc_,
+                    src_pd_.desc(), dst_pd_.desc(), is_training);
+        }
+
+        jit_pool_conf_t jpp_;
+    };
+
+    jit_avx2_pooling_fwd_t(const pd_t *pd, const input_vector &inputs,
+            const output_vector &outputs)
+        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
+    { kernel_ = new jit_avx2_pool_kernel_f32(conf_.jpp_); }
+    typedef typename prec_trait<data_type::f32>::type data_t;
+
+    virtual void execute(event_t *e) {
+        execute_forward();
+        e->set_state(event_t::ready);
+    }
+
 private:
-    jit_pooling_param_t jpp;
-    jit_avx2_pooling_generator_f32 *generator;
-    void (*jit_ker)(void*);
-
-    status_t execute_forward();
+    void execute_forward();
+    pd_t conf_;
+    jit_avx2_pool_kernel_f32 *kernel_;
 };
 
 }
@@ -61,3 +89,4 @@ private:
 #endif
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
+

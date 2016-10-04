@@ -18,8 +18,8 @@
 #define MKLDNN_H
 
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
-// All symbols shall be internal unless marked as MKLDNN_API
 
+/* All symbols shall be internal unless marked as MKLDNN_API */
 #if defined _WIN32 || defined __CYGWIN__
 #   define MKLDNN_HELPER_DLL_IMPORT __declspec(dllimport)
 #   define MKLDNN_HELPER_DLL_EXPORT __declspec(dllexport)
@@ -41,10 +41,10 @@
 #   endif
 #else
 #   define MKLDNN_API
-#endif // MKLDNN_DLL
+#endif
 
 #include "mkldnn_types.h"
-#endif
+#endif /* DOXYGEN_SHOULD_SKIP_THIS */
 
 /** @addtogroup c_api C API
  *  @{ */
@@ -56,18 +56,97 @@ extern "C" {
 /** @addtogroup c_api_primitive Primitive operations
  * @{ */
 
-/* XXX: is this even usable by user? */
-/** Creates a @p primitive using a @p primitive_desc descriptor and arrays of @p
- * inputs and @p outputs. */
-mkldnn_status_t MKLDNN_API mkldnn_primitive_create(mkldnn_primitive_t *primitive,
+/** @addtogroup c_api_primitive_common Common primitive operations
+ * @{ */
+
+/** Creates a primitive descriptor @p iterator for given @p op_desc, @p engine,
+ * and optionally a hint primitive descriptor from forward propagation
+ * (required for backward propagation). Pass @c NULL for forward propagation.
+ */
+mkldnn_status_t MKLDNN_API mkldnn_primitive_desc_iterator_create(
+        mkldnn_primitive_desc_iterator_t *iterator,
+        const_mkldnn_op_desc_t op_desc, mkldnn_engine_t engine,
+        const_mkldnn_primitive_desc_t hint_forward_primitive_desc);
+
+/** Iterates over primitive descriptors. Returns #mkldnn_iterator_ends if no
+ * more primitive descriptors are available */
+mkldnn_status_t MKLDNN_API mkldnn_primitive_desc_iterator_next(
+        mkldnn_primitive_desc_iterator_t iterator);
+
+/** Fetches current primitive descriptor.
+ *
+ * @note
+ *     fetched primitive descriptor should be deleted by user using
+ *     mkldnn_primitive_desc_destroy() once becomes unneeded */
+mkldnn_primitive_desc_t MKLDNN_API mkldnn_primitive_desc_iterator_fetch(
+        const_mkldnn_primitive_desc_iterator_t iterator);
+
+/** Deletes a primitive descriptor @p iterator */
+mkldnn_status_t MKLDNN_API mkldnn_primitive_desc_iterator_destroy(
+        mkldnn_primitive_desc_iterator_t iterator);
+
+/** Creates a @p primitive_desc using @p op_desc, @p engine, and optionally a
+ * hint primitive descriptor from forward propagation. The call is equivalent
+ * to create a primitive descriptor iterator, instantly fetch a primitive_desc
+ * and destroy the iterator. */
+mkldnn_status_t MKLDNN_API mkldnn_primitive_desc_create(
+        mkldnn_primitive_desc_t *primitive_desc,
+        const_mkldnn_op_desc_t op_desc, mkldnn_engine_t engine,
+        const_mkldnn_primitive_desc_t hint_forward_primitive_desc);
+
+/** Makes a copy of a @p primitive_desc. */
+mkldnn_status_t MKLDNN_API mkldnn_primitive_desc_clone(
+        mkldnn_primitive_desc_t *primitive_desc,
+        const_mkldnn_primitive_desc_t existing_primitive_desc);
+
+/** Deletes a @p primitive_desc. */
+mkldnn_status_t MKLDNN_API mkldnn_primitive_desc_destroy(
+        mkldnn_primitive_desc_t primitive_desc);
+
+/** Queries primitive descriptor
+ *
+ * @sa mkldnn_query_t */
+mkldnn_status_t MKLDNN_API mkldnn_primitive_desc_query(
+        const_mkldnn_primitive_desc_t primitive_desc, mkldnn_query_t what,
+        int index, void *result);
+
+/** Queries primitive descriptor for memory descriptor
+ *
+ * @returns NULL in case of any error */
+const mkldnn_memory_desc_t MKLDNN_API *mkldnn_primitive_desc_query_memory_d(
+        const_mkldnn_primitive_desc_t primitive_desc);
+
+/** Queries primitive descriptor for primitive descriptor
+ *
+ * @returns NULL in case of any error */
+const_mkldnn_primitive_desc_t MKLDNN_API mkldnn_primitive_desc_query_pd(
+        const_mkldnn_primitive_desc_t primitive_desc, mkldnn_query_t what,
+        int index);
+
+/** Queries primitive descriptor for signed 32bit int
+ *
+ * @returns 0 in case of any error */
+int MKLDNN_API mkldnn_primitive_desc_query_s32(
+        const_mkldnn_primitive_desc_t primitive_desc, mkldnn_query_t what,
+        int index);
+
+/** Creates a @p primitive using a @p primitive_desc descriptor and arrays of
+ * @p inputs and @p outputs. */
+mkldnn_status_t MKLDNN_API mkldnn_primitive_create(
+        mkldnn_primitive_t *primitive,
         const_mkldnn_primitive_desc_t primitive_desc,
         const mkldnn_primitive_at_t *inputs,
         const_mkldnn_primitive_t *outputs);
 
-/** Retrieves the @p primitive_desc descriptor of a @p primitive. */
+/** Retrieves a reference to the @p primitive_desc descriptor of given @p
+ * primitive.
+ *
+ * @warning
+ *     Returned object must not be destroyed by user. 'const' qualifier of the
+ *     returned object prevents such attempts. */
 mkldnn_status_t MKLDNN_API mkldnn_primitive_get_primitive_desc(
         const_mkldnn_primitive_t primitive,
-        mkldnn_primitive_desc_t *primitive_desc);
+        const_mkldnn_primitive_desc_t *primitive_desc);
 
 /** For a @p primitive, returns @p input at the @p index position. */
 mkldnn_status_t MKLDNN_API mkldnn_primitive_get_input_at(
@@ -79,89 +158,72 @@ mkldnn_status_t MKLDNN_API mkldnn_primitive_get_output(
         const_mkldnn_primitive_t primitive, size_t index,
         const_mkldnn_primitive_t *output);
 
-/** Deletes a @p primitive. Also deallocates internally allocated memory if the
- * primitive represents memory previously created by
- * ::mkldnn_memory_create (@p &primitive, ..., @c NULL). */
-mkldnn_status_t MKLDNN_API mkldnn_primitive_destroy(mkldnn_primitive_t primitive);
+/** Deletes a @p primitive. */
+mkldnn_status_t MKLDNN_API mkldnn_primitive_destroy(
+        mkldnn_primitive_t primitive);
 
 /** Creates an #mkldnn_primitive_at_t structure from a @p primitive and @p
  * output_index. This function only fills in the data structure
  * and does not check whether parameters are correct. The actual error checking
  * is done when the resulting #mkldnn_primitive_at structure is passed to a
  * primitive creation function. */
-mkldnn_primitive_at_t MKLDNN_API mkldnn_primitive_at(const_mkldnn_primitive_t primitive,
-        size_t output_index);
+mkldnn_primitive_at_t MKLDNN_API mkldnn_primitive_at(
+        const_mkldnn_primitive_t primitive, size_t output_index);
+
+/** @} */
 
 /** @addtogroup c_api_memory Memory
  * A primitive to describe data.
  * @{ */
 
-/** Initializes a @p tensor_desc using @p ndims and array @p dims. */
-mkldnn_status_t MKLDNN_API mkldnn_tensor_desc_init(mkldnn_tensor_desc_t *tensor_desc,
-        int ndims, const mkldnn_dims_t dims);
+/** Initializes a @p memory_desc memory descriptor using @p ndims, @p dims, @p
+ * data_type, and data @p format. @p format can be #mkldnn_any, which means
+ * that specific data layouts are not permitted. */
+mkldnn_status_t MKLDNN_API mkldnn_memory_desc_init(
+        mkldnn_memory_desc_t *memory_desc, int ndims, const mkldnn_dims_t dims,
+        mkldnn_data_type_t data_type, mkldnn_memory_format_t format);
 
-/** Initializes a @p memory_desc memory descriptor using @p tensor, data @p
- * precision, and data @p format. @p format can only be #mkldnn_any, which
- * means that specific data layouts are not permitted. */
-mkldnn_status_t MKLDNN_API mkldnn_memory_desc_init(mkldnn_memory_desc_t *memory_desc,
-        const mkldnn_tensor_desc_t *tensor, mkldnn_precision_t precision,
-        mkldnn_memory_format_t format);
+/** Creates a @p memory_primitive_desc memory primitive descriptor using @p
+ * memory_desc and @p engine. @p memory_desc cannot be uncertain, that is,
+ * initialized with #mkldnn_any. */
+mkldnn_status_t MKLDNN_API mkldnn_memory_primitive_desc_create(
+        mkldnn_primitive_desc_t *memory_primitive_desc,
+        const mkldnn_memory_desc_t *memory_desc, mkldnn_engine_t engine);
 
-/** Returns the number of elements in @p memory_desc memory descriptor:
- *  - If @p with_padding is zero, the number returned does not
- *    include the padding.
- *  - If @p with_padding is non-zero, the number returned
- *    includes the padding.
- * If @p memory_desc describes a @c NULL tensor, format is not fully
- * specified (for example: @c memory_desc->format == @c any), or
- * @p memory_desc is inconsistent, the function returns zero. */
-size_t MKLDNN_API mkldnn_memory_desc_get_number_of_elements(
-        const mkldnn_memory_desc_t *memory_desc, int with_padding);
-
-/** Returns the size (in bytes) that is required for the memory described by @p
- * memory_desc. If @p memory_desc describes a @c NULL tensor, format is not fully
- * specified (for example: @c memory_desc->format == @c any), or @p memory_desc is
- * inconsistent, the function returns zero. */
-size_t MKLDNN_API mkldnn_memory_desc_get_size(const mkldnn_memory_desc_t *memory_desc);
-
-/** Initializes a @p memory_primitive_desc memory primitive descriptor using @p
- * memory_desc and @p engine. @p memory_desc cannot be uncertain,
- * that is, initialized with #mkldnn_any. */
-mkldnn_status_t MKLDNN_API mkldnn_memory_primitive_desc_init(
-        mkldnn_memory_primitive_desc_t *memory_primitive_desc,
-        const mkldnn_memory_desc_t *memory_desc,
-        const_mkldnn_engine_t engine);
+/** Creates a @p view_primitive_desc for a given @p memory_primitive_desc, with
+ * @p dims sizes and @p offset offsets. May fail if layout used does not allow
+ * obtain desired view. In this case consider using extract primitive */
+mkldnn_status_t MKLDNN_API mkldnn_view_primitive_desc_create(
+        mkldnn_primitive_desc_t *view_primitive_desc,
+        const_mkldnn_primitive_desc_t memory_primitive_desc,
+        const mkldnn_dims_t dims, const mkldnn_dims_t offsets);
 
 /** Compares two descriptors of memory primitives.
  * @return 1 if the descriptors are the same.
  * @return 0 if the descriptors are different.
  *
- * Use this function to identify whether a reorder
- * is required for the memory primitives. */
+ * Use this function to identify whether a reorder is required for the memory
+ * primitives. @p lhs and @p rhs must be either memory or view primitive
+ * descriptors. */
 int MKLDNN_API mkldnn_memory_primitive_desc_equal(
-        const mkldnn_memory_primitive_desc_t *lhs,
-        const mkldnn_memory_primitive_desc_t *rhs);
+        const_mkldnn_primitive_desc_t lhs,
+        const_mkldnn_primitive_desc_t rhs);
 
-/* XXX: consider mkldnn_memory_create_by_ptr (user set ptr or NULL) and
- * mkldnn_memory_create_by_memory (required for split/concat). */
-
-/** Creates a @p memory primitive with a @p memory_primitive_desc and @p data_ptr.
- * If @p data_ptr is @c NULL, @p memory is initialized with internally allocated
- * memory. mkldnn_primitive_destroy() function takes care of the allocated memory. */
-mkldnn_status_t MKLDNN_API mkldnn_memory_create(mkldnn_primitive_t *memory,
-        const mkldnn_memory_primitive_desc_t *memory_primitive_desc,
-        void *data_ptr);
-
-/** Retrieves the @p memory_primitive_desc descriptor associated with a @p memory
- * primitive. */
-mkldnn_status_t MKLDNN_API mkldnn_memory_get_primitive_desc(
-        const_mkldnn_primitive_t memory,
-        mkldnn_memory_primitive_desc_t *memory_primitive_desc);
+/** Returns the size (in bytes) that is required for given @p
+ * memory_primitive_desc */
+/* XXX: view? */
+size_t MKLDNN_API mkldnn_memory_primitive_desc_get_size(
+        const_mkldnn_primitive_desc_t memory_primitive_desc);
 
 /** For a @p memory primitive, returns the data @p handle. For the CPU engine,
  * the data handle is a pointer to the actual data. */
+/* XXX: view? */
 mkldnn_status_t MKLDNN_API mkldnn_memory_get_data_handle(
         const_mkldnn_primitive_t memory, void **handle);
+
+/** For a @p memory primitive, sets the data @p handle. */
+mkldnn_status_t MKLDNN_API mkldnn_memory_set_data_handle(
+        mkldnn_primitive_t memory, void *handle);
 
 /** @} */
 
@@ -171,23 +233,55 @@ mkldnn_status_t MKLDNN_API mkldnn_memory_get_data_handle(
 
 /** Initializes a @p reorder_primitive_desc using descriptors of @p input and
  * @p output memory primitives. */
-mkldnn_status_t MKLDNN_API mkldnn_reorder_primitive_desc_init(
-        mkldnn_reorder_primitive_desc_t *reorder_primitive_desc,
-        const mkldnn_memory_primitive_desc_t *input,
-        const mkldnn_memory_primitive_desc_t *output);
+mkldnn_status_t MKLDNN_API mkldnn_reorder_primitive_desc_create(
+        mkldnn_primitive_desc_t *reorder_primitive_desc,
+        const_mkldnn_primitive_desc_t input,
+        const_mkldnn_primitive_desc_t output);
 
-/** Creates a @p reorder primitive using a @p reorder_primitive_desc descriptor,
- * input parameter @p input of type #mkldnn_primitive_at_t, and output primitive
- * @p output. */
-mkldnn_status_t MKLDNN_API mkldnn_reorder_create(mkldnn_primitive_t *reorder,
-        const mkldnn_reorder_primitive_desc_t *reorder_primitive_desc,
-        const mkldnn_primitive_at_t input, const_mkldnn_primitive_t output);
+/** @} */
 
-/** Retrieves the @p reorder_primitive_desc descriptor associated with a @p reorder
- * primitive. */
-mkldnn_status_t MKLDNN_API mkldnn_reorder_get_primitive_desc(
-        const_mkldnn_primitive_t reorder,
-        mkldnn_reorder_primitive_desc_t *reorder_primitive_desc);
+/** @addtogroup c_api_concat Concat
+ * A primitive to concatenate data by arbitrary dimension
+ * @{ */
+
+/** Creates out-of-place @p concat_primitive_desc for concatenation of @p n
+ * inputs by @p concat_dimension with resulting @p output_desc memory
+ * descriptor. @p output_desc can be NULL or be specified with #mkldnn_any
+ * format -- in this case appropriate memory format would be chosen
+ * automatically. */
+mkldnn_status_t MKLDNN_API mkldnn_concat_primitive_desc_create(
+        mkldnn_primitive_desc_t *concat_primitive_desc,
+        const mkldnn_memory_desc_t *output_desc, int n, int concat_dimension,
+        const_mkldnn_primitive_desc_t *input_pds);
+
+#if 0
+/** Creates in-place @p concat_primitive_desc for given @p n @p inputs memory
+ * primitive descriptors along @p concat_dimension. All inputs must have the
+ * same memory format. Output memory format would be the same. Likewise
+ * view_primitive_desc_create the call may fail, if memory format of inputs do
+ * not allow inplace concatenation for given sizes.
+ *
+ * @note this primitive is more like a synchronization stub for concatenation,
+ * since concat_inplace does no operation during execution.
+ *
+ * @note since not operation happens user must ensure that input */
+mkldnn_status_t MKLDNN_API mkldnn_concat_inplace_by_input_primitive_desc_create(
+        mkldnn_primitive_desc_t *concat_primitive_desc,
+        int n, int concat_dimension, const_mkldnn_primitive_desc_t *inputs);
+
+/** Creates in-place @p concat_primitive_desc for given @p output memory
+ * descriptor and @n inputs with @p sizes sizes along @p concat_dimension. As
+ * opposed to out-of-place concatenation @p output must be fully defined here.
+ * Likewise view_primitive_desc_create the call may fail, because given memory
+ * format does not allow inplace concatenation for given sizes.
+ *
+ * @note this primitive is more like a synchronization stub for concatenation,
+ * since concat_inplace does no operation during execution. */
+mkldnn_status_t MKLDNN_API mkldnn_concat_inplace_by_output_primitive_desc_create(
+        mkldnn_primitive_desc_t *concat_primitive_desc,
+        const mkldnn_primitive_desc_t output, int n, int concat_dimension,
+        int *sizes);
+#endif
 
 /** @} */
 
@@ -195,72 +289,64 @@ mkldnn_status_t MKLDNN_API mkldnn_reorder_get_primitive_desc(
  * A primitive to compute convolution using different algorithms.
  * @{ */
 
-/** Initializes a @p convolution_desc descriptor using @p prop_kind, @p alg_kind,
- * memory descriptors, @p strides, @p padding, and @p padding_kind.
- * If memory descriptors are initialized with #mkldnn_any value of
- * @p format_kind, mkldnn_convolution_primitive_desc_init() chooses the best possible
- * convolution in terms of performance. */
-mkldnn_status_t MKLDNN_API mkldnn_convolution_desc_init(
-        mkldnn_convolution_desc_t *convolution_desc,
-        mkldnn_prop_kind_t prop_kind, mkldnn_alg_kind_t alg_kind,
-        const mkldnn_memory_desc_t *src_desc,
+/** Initializes a convolution descriptor @p conv_desc for forward propagation
+ * using @p prop_kind (possible values are #mkldnn_forward_training or
+ * #mkldnn_forward_inference), @p alg_kind, memory descriptors, @p strides, @p
+ * padding_l, @p padding_r, and @p padding_kind. In order to create a
+ * convolution without bias, @p bias_desc should be either @c NULL or point to
+ * a descriptor with memory format equals to #mkldnn_format_undef.
+ *
+ * @note if @p padding_r is @c NULL, the padding is supposed to be symmetric
+ *
+ * @note memory descriptors are allowed to be initialized with #mkldnn_any
+ * value of @p format_kind. */
+mkldnn_status_t MKLDNN_API mkldnn_convolution_forward_desc_init(
+        mkldnn_convolution_desc_t *conv_desc, mkldnn_prop_kind_t prop_kind,
+        mkldnn_alg_kind_t alg_kind, const mkldnn_memory_desc_t *src_desc,
         const mkldnn_memory_desc_t *weights_desc,
         const mkldnn_memory_desc_t *bias_desc,
-        const mkldnn_memory_desc_t *dst_desc,
-        const mkldnn_dims_t strides, const mkldnn_dims_t padding,
+        const mkldnn_memory_desc_t *dst_desc, const mkldnn_dims_t strides,
+        const mkldnn_dims_t padding_l, const mkldnn_dims_t padding_r,
         mkldnn_padding_kind_t padding_kind);
 
-/** Initializes a @p convolution_primitive_desc with @p convolution_desc and @p
- * engine. */
-mkldnn_status_t MKLDNN_API mkldnn_convolution_primitive_desc_init(
-        mkldnn_convolution_primitive_desc_t *convolution_primitive_desc,
-        const mkldnn_convolution_desc_t *convolution_desc,
-        const_mkldnn_engine_t engine);
+/** Initializes a convolution descriptor @p conv_desc for backward propagation
+ * with respect to data using @p alg_kind, memory descriptors, @p strides, @p
+ * padding_l, @p padding_r, and @p padding_kind.
+ *
+ * @note memory descriptors are allowed to be initialized with #mkldnn_any
+ * value of @p format_kind. */
+mkldnn_status_t MKLDNN_API mkldnn_convolution_backward_data_desc_init(
+        mkldnn_convolution_desc_t *conv_desc, mkldnn_alg_kind_t alg_kind,
+        const mkldnn_memory_desc_t *diff_src_desc,
+        const mkldnn_memory_desc_t *weights_desc,
+        const mkldnn_memory_desc_t *diff_dst_desc, const mkldnn_dims_t strides,
+        const mkldnn_dims_t padding_l, const mkldnn_dims_t padding_r,
+        mkldnn_padding_kind_t padding_kind);
 
-/** Creates a @p convolution forward primitive using a @p convolution_primitive_desc
- * descriptor, input parameters @p src, @p weights, and @p bias of type
- * #mkldnn_primitive_at_t, and output primitive @p dst. */
-mkldnn_status_t MKLDNN_API mkldnn_convolution_create_forward(
-        mkldnn_primitive_t *convolution,
-        const mkldnn_convolution_primitive_desc_t *convolution_primitive_desc,
-        const mkldnn_primitive_at_t src, const mkldnn_primitive_at_t weights,
-        const mkldnn_primitive_at_t bias, const_mkldnn_primitive_t dst);
+/** Initializes a convolution descriptor @p conv_desc for backward propagation
+ * with respect to weights using @p alg_kind, memory descriptors, @p strides,
+ * @p padding_l, @p padding_r, and @p padding_kind.
+ *
+ * @note memory descriptors are allowed to be initialized with #mkldnn_any
+ * value of @p format_kind. */
+mkldnn_status_t MKLDNN_API mkldnn_convolution_backward_weights_desc_init(
+        mkldnn_convolution_desc_t *conv_desc, mkldnn_alg_kind_t alg_kind,
+        const mkldnn_memory_desc_t *src_desc,
+        const mkldnn_memory_desc_t *diff_weights_desc,
+        const mkldnn_memory_desc_t *diff_dst_desc, const mkldnn_dims_t strides,
+        const mkldnn_dims_t padding_l, const mkldnn_dims_t padding_r,
+        mkldnn_padding_kind_t padding_kind);
 
-/** Creates a @p convolution backward data primitive using a
- * @p convolution_primitive_desc descriptor, input parameters @p dst and
- * @p weights of type #mkldnn_primitive_at_t, and output primitive @p src. */
-mkldnn_status_t MKLDNN_API mkldnn_convolution_create_backward_data(
-        mkldnn_primitive_t *convolution,
-        const mkldnn_convolution_primitive_desc_t *convolution_primitive_desc,
-        const_mkldnn_primitive_t src, const mkldnn_primitive_at_t weights,
-        const mkldnn_primitive_at_t dst);
-
-/** Creates a @p convolution backward weights primitive using a
- * @p convolution_primitive_desc descriptor, input parameters @p src,
- * @p dst of type #mkldnn_primitive_at_t, and output primitive @p weights. */
-mkldnn_status_t MKLDNN_API mkldnn_convolution_create_backward_weights(
-        mkldnn_primitive_t *convolution,
-        const mkldnn_convolution_primitive_desc_t *convolution_primitive_desc,
-        const mkldnn_primitive_at_t src, const_mkldnn_primitive_t weights,
-        const mkldnn_primitive_at_t dst);
-
-/** Creates a @p convolution backward bias primitive using a
- * @p convolution_primitive_desc descriptor, input parameter @p dst
- * and output primitive @p bias. */
-mkldnn_status_t MKLDNN_API mkldnn_convolution_create_backward_bias(
-        mkldnn_primitive_t *convolution,
-        const mkldnn_convolution_primitive_desc_t *convolution_primitive_desc,
-        const_mkldnn_primitive_t bias, const mkldnn_primitive_at_t dst);
-
-/** Retrieves the @p convolution_primitive_desc descriptor associated with a @p
- * convolution primitive. */
-mkldnn_status_t MKLDNN_API mkldnn_convolution_get_primitive_desc(
-        const_mkldnn_primitive_t convolution,
-        mkldnn_convolution_primitive_desc_t *convolution_primitive_desc);
-
-/* TODO: add convolution_forward_primitive_desc_init for given
- * mkldnn_memory_primitive_desc_t input, weights, ... so that user has more
- * flexibility. */
+/** Initializes a convolution descriptor @p conv_desc for backward propagation
+ * with respect to bias using @p alg_kind, memory descriptors, @p strides, @p
+ * padding, and @p padding_kind.
+ *
+ * @note memory descriptors are allowed to be initialized with #mkldnn_any
+ * value of @p format_kind. */
+mkldnn_status_t MKLDNN_API mkldnn_convolution_backward_bias_desc_init(
+        mkldnn_convolution_desc_t *conv_desc, mkldnn_alg_kind_t alg_kind,
+        const mkldnn_memory_desc_t *diff_bias_desc,
+        const mkldnn_memory_desc_t *diff_dst_desc);
 
 /** @} */
 
@@ -268,29 +354,19 @@ mkldnn_status_t MKLDNN_API mkldnn_convolution_get_primitive_desc(
  * A primitive to compute a parametric rectifier linear unit (ReLU).
  * @{ */
 
-/** Initializes a @p relu_desc using @p negative_slope and memory descriptors
- * @p src_desc and @p dst_desc. */
-mkldnn_status_t MKLDNN_API mkldnn_relu_desc_init(mkldnn_relu_desc_t *relu_desc,
-        mkldnn_prop_kind_t prop_kind, double negative_slope,
-        const mkldnn_memory_desc_t *src_desc,
-        const mkldnn_memory_desc_t *dst_desc);
+/** Initializes a @p relu_desc for forward propagation using @p prop_kind
+ * (possible values are #mkldnn_forward_training or #mkldnn_forward_inference),
+ * @p negative_slope and memory descriptor @p data_desc. */
+mkldnn_status_t MKLDNN_API mkldnn_relu_forward_desc_init(
+        mkldnn_relu_desc_t *relu_desc, mkldnn_prop_kind_t prop_kind,
+        const mkldnn_memory_desc_t *data_desc, double negative_slope);
 
-/** Initializes a @p relu_primitive_desc using a @p relu_desc and @p engine. */
-mkldnn_status_t MKLDNN_API mkldnn_relu_primitive_desc_init(
-        mkldnn_relu_primitive_desc_t *relu_primitive_desc,
-        const mkldnn_relu_desc_t *relu_desc, const_mkldnn_engine_t engine);
-
-/** Creates a @p relu primitive using a @p relu_primitive_desc descriptor, input
- * @p src, and output @p dst. */
-mkldnn_status_t MKLDNN_API mkldnn_relu_create(mkldnn_primitive_t *relu,
-        const mkldnn_relu_primitive_desc_t *relu_primitive_desc,
-        const mkldnn_primitive_at_t src, const_mkldnn_primitive_t dst);
-
-/** Retrieves the @p reorder_primitive_desc descriptor associated with a @p reorder
- * primitive. */
-mkldnn_status_t MKLDNN_API mkldnn_relu_get_primitive_desc(
-        const_mkldnn_primitive_t relu,
-        mkldnn_relu_primitive_desc_t *relu_primitive_desc);
+/** Initializes a @p relu_desc for backward propagation using @p negative_slope
+ * and memory descriptors @p diff_data_desc and @p data_desc. */
+mkldnn_status_t MKLDNN_API mkldnn_relu_backward_desc_init(
+        mkldnn_relu_desc_t *relu_desc,
+        const mkldnn_memory_desc_t *diff_data_desc,
+        const mkldnn_memory_desc_t *data_desc, double negative_slope);
 
 /** @} */
 
@@ -298,39 +374,34 @@ mkldnn_status_t MKLDNN_API mkldnn_relu_get_primitive_desc(
  * A primitive to perform max, min, or average pooling.
  * @{ */
 
-/** Initializes a @p pooling_desc using @p prop_kind, @p alg_kind, memory
- * descriptors, @p strides, @p padding, and @p padding_kind.
- * If memory descriptors are initialized with #mkldnn_any value of
- * @p format_kind, mkldnn_pooling_primitive_desc_init() chooses the best possible
- * pooling in terms of performance. */
-mkldnn_status_t MKLDNN_API mkldnn_pooling_desc_init(
-        mkldnn_pooling_desc_t *pooling_desc,
-        mkldnn_prop_kind_t prop_kind, mkldnn_alg_kind_t alg_kind,
-        const mkldnn_memory_desc_t *src_desc,
-        const mkldnn_memory_desc_t *dst_desc,
-        const mkldnn_dims_t strides, const mkldnn_dims_t kernel,
-        const mkldnn_dims_t padding, mkldnn_padding_kind_t padding_kind);
+/** Initializes a pooling descriptor @p pool_desc for forward propagation using
+ * @p prop_kind (possible values are #mkldnn_forward_training or
+ * #mkldnn_forward_inference), @p alg_kind, memory descriptors, and pooling
+ * parameters in spatial domain: @p strides, @p kernel sizes, @p padding_l, @p
+ * padding_r, and @p padding_kind.
+ *
+ * @note if @p padding_r is @c NULL, the padding is supposed to be symmetric
+ *
+ * @todo clarify! */
+mkldnn_status_t MKLDNN_API mkldnn_pooling_forward_desc_init(
+        mkldnn_pooling_desc_t *pool_desc, mkldnn_prop_kind_t prop_kind,
+        mkldnn_alg_kind_t alg_kind, const mkldnn_memory_desc_t *src_desc,
+        const mkldnn_memory_desc_t *dst_desc, const mkldnn_dims_t strides,
+        const mkldnn_dims_t kernel, const mkldnn_dims_t padding_l,
+        const mkldnn_dims_t padding_r, mkldnn_padding_kind_t padding_kind);
 
-/** Initializes a @p pooling_primitive_desc using @p pooling_desc and @p engine.
- */
-mkldnn_status_t MKLDNN_API mkldnn_pooling_primitive_desc_init(
-        mkldnn_pooling_primitive_desc_t *pooling_primitive_desc,
-        const mkldnn_pooling_desc_t *pooling_desc,
-        const_mkldnn_engine_t engine);
-
-/** Creates a @p pooling primitive using @p pooling_primitive_desc descriptor,
- * input parameters @p src and @p indices of type #mkldnn_primitive_at_t, and output
- * primitive @p dst. */
-mkldnn_status_t MKLDNN_API mkldnn_pooling_create(mkldnn_primitive_t *pooling,
-        const mkldnn_pooling_primitive_desc_t *pooling_primitive_desc,
-        const mkldnn_primitive_at_t src, const mkldnn_primitive_at_t indices,
-        const_mkldnn_primitive_t dst);
-
-/** Retrieves the @p pooling_primitive_desc descriptor associated with a @p pooling
- * primitive. */
-mkldnn_status_t MKLDNN_API mkldnn_pooling_get_primitive_desc(
-        const_mkldnn_primitive_t pooling,
-        mkldnn_pooling_primitive_desc_t *pooling_primitive_desc);
+/** Initializes a pooling descriptor @p pool_desc for backward propagation
+ * using @p alg_kind, memory descriptors, and pooling parameters in spatial
+ * domain: @p strides, @p kernel sizes, @p padding_l, @p padding_r, and @p
+ * padding_kind.
+ *
+ * @todo clarify! */
+mkldnn_status_t MKLDNN_API mkldnn_pooling_backward_desc_init(
+        mkldnn_pooling_desc_t *pool_desc, mkldnn_alg_kind_t alg_kind,
+        const mkldnn_memory_desc_t *diff_src_desc,
+        const mkldnn_memory_desc_t *diff_dst_desc, const mkldnn_dims_t strides,
+        const mkldnn_dims_t kernel, const mkldnn_dims_t padding_l,
+        const mkldnn_dims_t padding_r, mkldnn_padding_kind_t padding_kind);
 
 /** @} */
 
@@ -339,32 +410,23 @@ mkldnn_status_t MKLDNN_API mkldnn_pooling_get_primitive_desc(
  * channels.
  * @{ */
 
-/** Initializes an @p lrn_desc using @p prop_kind, @p alg_kind, memory
- * descriptors, @p strides, @p padding, and @p padding_kind.
- * If memory descriptors are initialized with #mkldnn_any value of
- * @p format_kind, mkldnn_lrn_primitive_desc_init() chooses the best possible
- * implementation in terms of performance. */
-mkldnn_status_t MKLDNN_API mkldnn_lrn_desc_init(mkldnn_lrn_desc_t *lrn_desc,
-        mkldnn_prop_kind_t prop_kind, mkldnn_alg_kind_t alg_kind,
-        const mkldnn_memory_desc_t *src_desc,
-        const mkldnn_memory_desc_t *dst_desc, double alpha, double beta,
-        int local_size);
+/** Initializes an @p lrn_desc for forward propagation using @p prop_kind
+ * (possible values are #mkldnn_forward_training or #mkldnn_forward_inference),
+ * @p alg_kind, memory descriptor @p data_desc, and regularization
+ * parameters @p local_size, @p alpha, and @p beta. */
+mkldnn_status_t MKLDNN_API mkldnn_lrn_forward_desc_init(
+        mkldnn_lrn_desc_t *lrn_desc, mkldnn_prop_kind_t prop_kind,
+        mkldnn_alg_kind_t alg_kind, const mkldnn_memory_desc_t *data_desc,
+        int local_size, double alpha, double beta);
 
-/** Initializes an @p lrn_primitive_desc using @p lrn_desc and @p engine. */
-mkldnn_status_t MKLDNN_API mkldnn_lrn_primitive_desc_init(
-        mkldnn_lrn_primitive_desc_t *lrn_primitive_desc,
-        const mkldnn_lrn_desc_t *lrn_desc, const_mkldnn_engine_t engine);
-
-/** Creates an @p lrn primitive using an @p lrn_primitive_desc descriptor, input
- * parameter @p src of type #mkldnn_primitive_at_t, and output primitive @p dst. */
-mkldnn_status_t MKLDNN_API mkldnn_lrn_create(mkldnn_primitive_t *lrn,
-        const mkldnn_lrn_primitive_desc_t *lrn_primitive_desc,
-        const mkldnn_primitive_at_t src, const mkldnn_primitive_at_t scratch,
-        const_mkldnn_primitive_t dst);
-
-/** Retrieves the @p lrn_primitive_desc descriptor associated with an @p lrn primitive. */
-mkldnn_status_t MKLDNN_API mkldnn_lrn_get_primitive_desc(const_mkldnn_primitive_t lrn,
-        mkldnn_lrn_primitive_desc_t *lrn_primitive_desc);
+/** Initializes an @p lrn_desc for backward propagation using @p alg_kind,
+ * memory descriptors @p data_desc, and @p diff_data_desc, and regularization
+ * parameters @p local_size, @p alpha, and @p beta. */
+mkldnn_status_t MKLDNN_API mkldnn_lrn_backward_desc_init(
+        mkldnn_lrn_desc_t *lrn_desc, mkldnn_alg_kind_t alg_kind,
+        const mkldnn_memory_desc_t *diff_data_desc,
+        const mkldnn_memory_desc_t *data_desc, int local_size, double alpha,
+        double beta);
 
 /** @} */
 
@@ -372,115 +434,108 @@ mkldnn_status_t MKLDNN_API mkldnn_lrn_get_primitive_desc(const_mkldnn_primitive_
  * A primitive to perform batch normalization
  * @{ */
 
-/** Initializes an @p batch_normalization_desc using @p prop_kind, memory
- * descriptors, @p strides, @p padding, and @p padding_kind.
- * If source and destination memory descriptors are initialized with #mkldnn_any value of
- * @p format_kind, mkldnn_batch_normalization_primitive_desc_init() chooses the best possible
- * implementation in terms of performance. 
- * Scaleshift memory descriptor requires 2D #mkldnn_nc format[2,Channels]. 1-st dimension contains 
- * gamma parameter, 2-nd dimension contains beta parameter.
- */
-mkldnn_status_t MKLDNN_API mkldnn_batch_normalization_desc_init(mkldnn_batch_normalization_desc_t *batch_normalization_desc,
-        mkldnn_prop_kind_t prop_kind,
-        const mkldnn_memory_desc_t *src_desc,
-        const mkldnn_memory_desc_t *dst_des,
-        const mkldnn_memory_desc_t *scaleshift_des,
+/** Initializes a batch normalization descriptor @p bnrm_desc for forward
+ * propagation using @p prop_kind, (possible values are
+ * #mkldnn_forward_training or #mkldnn_forward_inference), memory descriptor
+ * @p data_desc and normalization parameter @p epsilon.
+ *
+ * @sa mkldnn_batch_normalization_desc_t */
+mkldnn_status_t MKLDNN_API mkldnn_batch_normalization_forward_desc_init(
+        mkldnn_batch_normalization_desc_t *bnrm_desc,
+        mkldnn_prop_kind_t prop_kind, const mkldnn_memory_desc_t *data_desc,
         double epsilon);
 
-/** Initializes an @p batch_normalization_primitive_desc using @p batch_normalization_desc and @p engine. */
-mkldnn_status_t MKLDNN_API mkldnn_batch_normalization_primitive_desc_init(
-        mkldnn_batch_normalization_primitive_desc_t *batch_normalization_primitive_desc,
-        const mkldnn_batch_normalization_desc_t *batch_normalization_desc, const_mkldnn_engine_t engine);
+/** Initializes a batch normalization descriptor @p bnrm_desc for backward
+ * propagation with respect to data using memory descriptors @p data_desc and
+ * @p diff_data_desc, and normalization parameter @p epsilon.
+ *
+ * @sa mkldnn_batch_normalization_desc_t */
+mkldnn_status_t MKLDNN_API mkldnn_batch_normalization_backward_data_desc_init(
+        mkldnn_batch_normalization_desc_t *bnrm_desc,
+        const mkldnn_memory_desc_t *diff_data_desc,
+        const mkldnn_memory_desc_t *data_desc);
 
-/** Creates an @p batch_normalization primitive using an @p batch_normalization_primitive_desc descriptor, input
- * parameter @p src of type #mkldnn_primitive_at_t, and output primitive @p dst. */
-mkldnn_status_t MKLDNN_API mkldnn_batch_normalization_create(mkldnn_primitive_t *batch_normalization,
-        const mkldnn_batch_normalization_primitive_desc_t *batch_normalization_primitive_desc,
-        const mkldnn_primitive_at_t src,
-        const_mkldnn_primitive_t dst,
-        const mkldnn_primitive_at_t scaleshift,
-        const mkldnn_primitive_at_t workspace);
-
-/** Retrieves the @p batch_normalization_primitive_desc descriptor associated with an @p batch_normalization primitive. */
-mkldnn_status_t MKLDNN_API mkldnn_batch_normalization_get_primitive_desc(const_mkldnn_primitive_t batch_normalization,
-        mkldnn_batch_normalization_primitive_desc_t *batch_normalization_primitive_desc);
+/** Initializes a batch normalization descriptor @p bnrm_desc for backward
+ * propagation with respect to data and scale-shift parameters using memory
+ * descriptors @p data_desc and @p diff_data_desc, and normalization parameter
+ * @p epsilon.
+ *
+ * @sa mkldnn_batch_normalization_desc_t */
+mkldnn_status_t MKLDNN_API mkldnn_batch_normalization_backward_desc_init(
+        mkldnn_batch_normalization_desc_t *bnrm_desc,
+        const mkldnn_memory_desc_t *diff_data_desc,
+        const mkldnn_memory_desc_t *data_desc);
 
 /** @} */
-
 
 /** @addtogroup c_api_inner_product Inner product
  * A primitive to compute an inner product.
  * Inner product layer is also known as fully connected layer.
  * @{ */
 
-/** Initializes an @p inner_product_desc using @p prop_kind and memory
- * descriptors. If memory descriptors are initialized with #mkldnn_any value of
- * @p format_kind, mkldnn_inner_product_primitive_desc_init() chooses the best possible inner
- * product in terms of performance. */
-mkldnn_status_t MKLDNN_API mkldnn_inner_product_desc_init(
-        mkldnn_inner_product_desc_t *inner_product_desc,
-        mkldnn_prop_kind_t prop_kind, const mkldnn_memory_desc_t *src_desc,
+/** Initializes an inner product descriptor @p ip_desc for forward propagation
+ * using @p prop_kind (possible values are #mkldnn_forward_training or
+ * #mkldnn_forward_inference) and memory descriptors. In order to create an
+ * inner product without bias, @p bias_desc should be either @c NULL or a
+ * pointer to descriptor with memory format equals to #mkldnn_format_undef.
+ *
+ * @note
+ *     memory descriptors are allowed to be initialized with #mkldnn_any value
+ *     of @p format_kind. */
+mkldnn_status_t MKLDNN_API mkldnn_inner_product_forward_desc_init(
+        mkldnn_inner_product_desc_t *ip_desc, mkldnn_prop_kind_t prop_kind,
+        const mkldnn_memory_desc_t *src_desc,
         const mkldnn_memory_desc_t *weights_desc,
         const mkldnn_memory_desc_t *bias_desc,
         const mkldnn_memory_desc_t *dst_desc);
 
-/** Initializes an @p inner_product_primitive_desc with @p inner_product_desc and
- * @p engine. */
-mkldnn_status_t MKLDNN_API mkldnn_inner_product_primitive_desc_init(
-        mkldnn_inner_product_primitive_desc_t *inner_product_primitive_desc,
-        const mkldnn_inner_product_desc_t *inner_product_desc,
-        const_mkldnn_engine_t engine);
+/** Initializes an inner product descriptor @p ip_desc for backward propagation
+ * with respect to data using memory descriptors.
+ *
+ * @note
+ *     memory descriptors are allowed to be initialized with #mkldnn_any value
+ *     of @p format_kind. */
+mkldnn_status_t MKLDNN_API mkldnn_inner_product_backward_data_desc_init(
+        mkldnn_inner_product_desc_t *ip_desc,
+        const mkldnn_memory_desc_t *diff_src_desc,
+        const mkldnn_memory_desc_t *weights_desc,
+        const mkldnn_memory_desc_t *diff_dst_desc);
 
-/** Creates an @p inner_product primitive using a @p inner_product_primitive_desc
- * descriptor, input parameters @p src, @p weights, and @p bias of type #mkldnn_primitive_at_t,
- * and output primitive @p dst. */
-mkldnn_status_t MKLDNN_API mkldnn_inner_product_create(
-        mkldnn_primitive_t *inner_product,
-        const mkldnn_inner_product_primitive_desc_t *inner_product_primitive_desc,
-        const mkldnn_primitive_at_t src, const mkldnn_primitive_at_t weights,
-        const mkldnn_primitive_at_t bias, const_mkldnn_primitive_t dst);
+/** Initializes an inner product descriptor @p ip_desc for backward propagation
+ * with respect to weights using memory descriptors.
+ *
+ * @note
+ *     memory descriptors are allowed to be initialized with #mkldnn_any value
+ *     of @p format_kind. */
+mkldnn_status_t MKLDNN_API mkldnn_inner_product_backward_weights_desc_init(
+        mkldnn_inner_product_desc_t *ip_desc,
+        const mkldnn_memory_desc_t *src_desc,
+        const mkldnn_memory_desc_t *diff_weights_desc,
+        const mkldnn_memory_desc_t *diff_dst_desc);
 
-/** Retrieves the @p inner_product_primitive_desc descriptor associated with an @p
- * inner_product primitive. */
-mkldnn_status_t MKLDNN_API mkldnn_inner_product_get_primitive_desc(
-        const_mkldnn_primitive_t inner_product,
-        mkldnn_inner_product_primitive_desc_t *inner_product_primitive_desc);
+/** Initializes an inner product descriptor @p ip_desc for backward propagation
+ * with respect to bias using memory descriptors.
+ *
+ * @note
+ *     memory descriptors are allowed to be initialized with #mkldnn_any value
+ *     of @p format_kind. */
+mkldnn_status_t MKLDNN_API mkldnn_inner_product_backward_bias_desc_init(
+        mkldnn_inner_product_desc_t *ip_desc,
+        const mkldnn_memory_desc_t *diff_bias_desc,
+        const mkldnn_memory_desc_t *diff_dst_desc);
 
 /** @} */
 
 /** @addtogroup c_api_convolution_relu Convolution followed by ReLU
- * A primitive to compute convolution followed by relu using different
- * algorithms.
+ * A merged primitive to compute a convolution followed by relu.
  * @{ */
 
-/** Initializes a @p convolution_relu_desc descriptor using @p convolution_desc
- * descriptor and @p negative slope */
+/** Initializes a merged convolution-relu descriptor @p conv_relu_desc for
+ * forward propagation (supported inference mode only) using convolution
+ * descriptor @p conv_desc and ReLU parameter @p negative slope. */
 mkldnn_status_t MKLDNN_API mkldnn_convolution_relu_desc_init(
-        mkldnn_convolution_relu_desc_t *convolution_relu_desc,
-        const mkldnn_convolution_desc_t *convolution_desc,
-        double negative_slope);
-
-/** Initializes a @p convolution_primitive_desc with @p convolution_desc and @p
- * engine. */
-mkldnn_status_t MKLDNN_API mkldnn_convolution_relu_primitive_desc_init(
-        mkldnn_convolution_relu_primitive_desc_t *conv_relu_primitive_desc,
-        const mkldnn_convolution_relu_desc_t *convolution_relu_desc,
-        const_mkldnn_engine_t engine);
-
-/** Creates a @p convolution primitive using a @p convolution_primitive_desc
- * descriptor, input primitive_at-s @p src, @p weights, @p bias,
- * and output primitive @p dst. */
-mkldnn_status_t MKLDNN_API mkldnn_convolution_relu_create(
-        mkldnn_primitive_t *convolution_relu,
-        const mkldnn_convolution_relu_primitive_desc_t *conv_relu_primitive_desc,
-        const mkldnn_primitive_at_t src, const mkldnn_primitive_at_t weights,
-        const mkldnn_primitive_at_t bias, const_mkldnn_primitive_t dst);
-
-/** Retrieves the @p convolution_primitive_desc descriptor associated with a @p
- * convolution primitive. */
-mkldnn_status_t MKLDNN_API mkldnn_convolution_relu_get_primitive_desc(
-        const_mkldnn_primitive_t convolution_relu,
-        mkldnn_convolution_relu_primitive_desc_t *conv_relu_primitive_desc);
+        mkldnn_convolution_relu_desc_t *conv_relu_desc,
+        const mkldnn_convolution_desc_t *conv_desc, double negative_slope);
 
 /** @} */
 
@@ -500,10 +555,6 @@ mkldnn_status_t MKLDNN_API mkldnn_engine_create(mkldnn_engine_t *engine,
 mkldnn_status_t MKLDNN_API mkldnn_engine_get_kind(mkldnn_engine_t engine,
         mkldnn_engine_kind_t *kind);
 
-/** Checks whether an @p engine is lazy. */
-mkldnn_status_t MKLDNN_API mkldnn_engine_get_is_lazy(mkldnn_engine_t engine,
-        int *is_lazy);
-
 /** Destroys an @p engine. */
 mkldnn_status_t MKLDNN_API mkldnn_engine_destroy(mkldnn_engine_t engine);
 
@@ -512,21 +563,22 @@ mkldnn_status_t MKLDNN_API mkldnn_engine_destroy(mkldnn_engine_t engine);
 /** @addtogroup c_api_stream Execution stream operations
  * @{ */
 
-/** Creates an execution @p stream. */
-mkldnn_status_t MKLDNN_API mkldnn_stream_create(mkldnn_stream_t *stream);
+/** Creates an execution @p stream of @p stream_kind. */
+mkldnn_status_t MKLDNN_API mkldnn_stream_create(mkldnn_stream_t *stream,
+        mkldnn_stream_kind_t stream_kind);
 
-/** Submits @p primitives to an execution @p stream. The number of primitives is @p n.
- * All or none of the primitives can be lazy. In case of an error, returns
- * the offending @p error_primitive if it is not @c NULL. */
-mkldnn_status_t MKLDNN_API mkldnn_stream_submit(mkldnn_stream_t stream, size_t n,
-        mkldnn_primitive_t primitives[],
+/** Submits @p primitives to an execution @p stream. The number of primitives
+ * is @p n.  All or none of the primitives can be lazy. In case of an error,
+ * returns the offending @p error_primitive if it is not @c NULL. */
+mkldnn_status_t MKLDNN_API mkldnn_stream_submit(mkldnn_stream_t stream,
+        size_t n, mkldnn_primitive_t primitives[],
         mkldnn_primitive_t *error_primitive);
 
 /** Waits for all primitives in the execution @p stream to finish. Returns
  * immediately if @p block is zero. In case of an error, returns
  * the offending @p error_primitive if it is not @c NULL. */
-mkldnn_status_t MKLDNN_API mkldnn_stream_wait(mkldnn_stream_t stream, int block,
-        mkldnn_primitive_t *error_primitive);
+mkldnn_status_t MKLDNN_API mkldnn_stream_wait(mkldnn_stream_t stream,
+        int block, mkldnn_primitive_t *error_primitive);
 
 /** Destroys an execution @p stream. */
 mkldnn_status_t MKLDNN_API mkldnn_stream_destroy(mkldnn_stream_t stream);

@@ -24,56 +24,49 @@
 #include "c_types_map.hpp"
 #include "../common/engine.hpp"
 
-namespace mkldnn { namespace impl { namespace cpu {
+namespace mkldnn {
+namespace impl {
+namespace cpu {
 
-using namespace mkldnn::impl::status;
-
-class cpu_engine: public engine {
-private:
-    bool _lazy;
+class cpu_engine_t: public engine_t {
 public:
-    cpu_engine(bool lazy)
-        : engine(lazy ? engine_kind::cpu_lazy : engine_kind::cpu)
-        , _lazy(lazy) {}
-    virtual bool is_lazy() const { return _lazy; }
-    virtual bool is_ok() const { return true; }
-    virtual status_t submit(size_t n, primitive *primitives[],
-            primitive **error_primitive) {
-        assert(error_primitive);
-        *error_primitive = 0;
-        for (size_t i = 0; i < n; i++) {
-            status_t rc = primitives[i]->execute();
-            if (rc != success) {
-                *error_primitive = primitives[i];
-                return rc;
-            }
-        }
-        return success;
-    }
+    cpu_engine_t(): engine_t(engine_kind::cpu) {}
 
-    virtual primitive_desc_init_f *get_primitive_inits() const;
-    virtual reorder_primitive_desc_init_f *get_reorder_inits() const;
+    virtual status_t submit(primitive_t *p, event_t *e,
+            event_vector &prerequisites);
+
+    /* implementation part */
+
+    virtual status_t memory_primitive_desc_create(memory_pd_t **memory_pd,
+            const memory_desc_t *memory_d);
+    virtual status_t view_primitive_desc_create(view_pd_t **view_pd,
+            const memory_pd_t *memory_pd, const dims_t dims,
+            const dims_t offsets);
+    virtual status_t concat_primitive_desc_create(concat_pd_t **concat_pd,
+            const memory_desc_t *output_d, int n, int concat_dim,
+            const memory_pd_t **input_pds);
+
+    virtual const reorder_primitive_desc_create_f*
+        get_reorder_implementation_list() const;
+    virtual const primitive_desc_create_f* get_implementation_list() const;
 };
 
-class cpu_engine_factory: public engine_factory {
-private:
-    bool _lazy;
+class cpu_engine_factory_t: public engine_factory_t {
 public:
-    cpu_engine_factory(bool lazy): _lazy(lazy) {}
-    virtual size_t count() { return 1; }
-    virtual engine_kind_t kind()
-    { return _lazy ? engine_kind::cpu_lazy : engine_kind::cpu; }
-    virtual status_t engine_create(engine **aengine, size_t index) {
+    virtual size_t count() const { return 1; }
+    virtual engine_kind_t kind() const { return engine_kind::cpu; }
+    virtual status_t engine_create(engine_t **engine, size_t index) const {
         assert(index == 0);
-        *aengine = new cpu_engine(_lazy);
-        return success;
+        *engine = new cpu_engine_t();
+        return status::success;
     };
 };
 
-extern cpu_engine_factory engine_factory;
-extern cpu_engine_factory engine_factory_lazy;
+extern cpu_engine_factory_t engine_factory;
 
-}}}
+}
+}
+}
 
 #endif
 

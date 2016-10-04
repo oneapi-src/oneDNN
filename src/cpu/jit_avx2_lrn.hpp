@@ -14,43 +14,45 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_LRN_HPP
-#define CPU_JIT_LRN_HPP
-
-#include <assert.h>
+#ifndef CPU_JIT_AVX2_LRN_FWD_HPP
+#define CPU_JIT_AVX2_LRN_FWD_HPP
 
 #include "c_types_map.hpp"
-#include "lrn.hpp"
+#include "cpu_lrn_pd.hpp"
+#include "cpu_engine.hpp"
 
 namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-template <impl::precision_t prec>
-class jit_avx2_lrn : public lrn<jit_avx2_lrn<prec>>
-{
-public:
-    typedef typename prec_trait<prec>::type data_t;
-    using lrn<jit_avx2_lrn<prec>>::lrn;
+struct jit_avx2_lrn_fwd_t: public cpu_primitive_t {
+    struct pd_t: public cpu_lrn_fwd_pd_t {
+        pd_t(engine_t *engine, const lrn_desc_t *adesc,
+                const lrn_fwd_pd_t *hint_fwd_pd)
+            : cpu_lrn_fwd_pd_t(engine, adesc, hint_fwd_pd) {}
 
-    jit_avx2_lrn(const lrn_primitive_desc_t &lpd, const primitive_at_t *inputs,
-            const primitive *outputs[]);
-    ~jit_avx2_lrn();
+        DECLARE_COMMON_PD_T(jit_avx2_lrn_fwd_t);
 
-    static status_t set_default_parameters(lrn_desc_t &lrn_d);
-    static status_t constraint(const lrn_desc_t &lrn_d);
+        virtual status_t init() override;
+    };
 
-    static const primitive_impl implementation;
+    jit_avx2_lrn_fwd_t(const pd_t *pd, const input_vector &inputs,
+            const output_vector &outputs);
+    ~jit_avx2_lrn_fwd_t();
+
+    typedef typename prec_trait<data_type::f32>::type data_t;
+
+    virtual void execute(event_t *e) {
+        execute_forward();
+        e->set_state(event_t::ready);
+    }
+
 private:
-    /* Computes output h (x) w (x) 8 */
-    void(*ker_first)(const void *);
-    void(*ker_last)(const void *);
-    void(*ker)(const void *);
+    void execute_forward();
+    pd_t conf_;
 
     struct xbyak_lrn;
-    xbyak_lrn *jit, *jit_first, *jit_last;
-
-    status_t execute_forward();
+    xbyak_lrn *ker_, *ker_first_, *ker_last_;
 };
 
 }

@@ -20,13 +20,14 @@
 #include <stddef.h>
 #include <stdlib.h>
 
-namespace mkldnn { namespace impl {
+namespace mkldnn {
+namespace impl {
 
 #define UNUSED(x) ((void)x)
 
 #define CHECK(f) do { \
     status_t status = f; \
-    if (status != success) \
+    if (status != status::success) \
     return status; \
 } while (0)
 
@@ -36,7 +37,21 @@ namespace utils {
 template<bool expr, class T = void> struct enable_if {};
 template<class T> struct enable_if<true, T> { typedef T type; };
 
-}
+/* anlogue std::conditional */
+template <bool, typename, typename> struct conditional {};
+template <typename T, typename F> struct conditional<true, T, F>
+{ typedef T type; };
+template <typename T, typename F> struct conditional<false, T, F>
+{ typedef F type; };
+
+template <bool, typename U, U, U> struct conditional_v {};
+template <typename U, U t, U f> struct conditional_v<true, U, t, f>
+{ static constexpr U value = t; };
+template <typename U, U t, U f> struct conditional_v<false, U, t, f>
+{ static constexpr U value = f; };
+
+template <typename T>
+inline T zero() { T zero = T(); return zero; }
 
 template <typename T, typename P>
 inline bool everyone_is(T val, P item) { return val == item; }
@@ -94,6 +109,8 @@ inline T array_product(const T *arr, size_t size) {
     return prod;
 }
 
+}
+
 inline void* malloc(size_t size, int alignment) {
     void *ptr;
     int rc = ::posix_memalign(&ptr, alignment, size);
@@ -116,7 +133,8 @@ struct c_compatible {
 
 inline void yield_thread() { }
 
-}}
+}
+}
 
 #endif
 

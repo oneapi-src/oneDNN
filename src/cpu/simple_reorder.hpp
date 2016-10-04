@@ -20,17 +20,21 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
+#include "cpu_reorder_pd.hpp"
 #include "type_helpers.hpp"
-#include "primitive.hpp"
+#include "cpu_primitive.hpp"
 #include "cpu_engine.hpp"
 
-namespace mkldnn { namespace impl { namespace cpu {
+namespace mkldnn {
+namespace impl {
+namespace cpu {
 
 using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::precision;
+using namespace mkldnn::impl::memory_format;
+using namespace mkldnn::impl::data_type;
 
-template<impl::precision_t prec>
-    using data_t = typename prec_trait<prec>::type;
+template<impl::data_type_t type>
+using data_t = typename prec_trait<type>::type;
 
 namespace fmt_order {
     const bool keep = true;
@@ -40,14 +44,15 @@ namespace fmt_order {
 
 namespace spec {
 struct direct_copy {};
+struct direct_copy_except_dim_0 {};
 struct reference {};
 }
 
 #define SIMPLE_REORDER_TEMPL_DECL \
-    impl::precision_t prec_i, impl::memory_format_t fmt_i, \
-    impl::precision_t prec_o, impl::memory_format_t fmt_o, bool order_keep
+    impl::data_type_t type_i, impl::memory_format_t fmt_i, \
+    impl::data_type_t type_o, impl::memory_format_t fmt_o, bool order_keep
 #define SIMPLE_REORDER_TEMPL_CALL \
-    prec_i, fmt_i, prec_o, fmt_o, order_keep
+    type_i, fmt_i, type_o, fmt_o, order_keep
 
 /* specific reorders: common template */
 template <SIMPLE_REORDER_TEMPL_DECL, typename spec = void>
@@ -66,20 +71,20 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     }
 
     static status_t execute(const memory_desc_wrapper &input_d,
-        const memory_desc_wrapper &output_d, const data_t<prec_i> *input,
-        data_t<prec_o> *output) {
+        const memory_desc_wrapper &output_d, const data_t<type_i> *input,
+        data_t<type_o> *output) {
         const auto &nchw_d = order_keep ? input_d : output_d;
         const auto &dims = input_d.dims();
 
-        auto ker = [&](const data_t<prec_i> *i, data_t<prec_o> *o) {
+        auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o) {
             for (int w = 0; w < dims[3]; ++w) {
                 for (int c = 0; c < 8; ++c) {
                     const auto nchw_off =
                         c*nchw_d.blocking_desc().strides[0][1] + w;
                     if (order_keep) {
-                        o[w*8 + c] = data_t<prec_o>(i[nchw_off]);
+                        o[w*8 + c] = data_t<type_o>(i[nchw_off]);
                     } else {
-                        o[nchw_off] = data_t<prec_o>(i[w*8 + c]);
+                        o[nchw_off] = data_t<type_o>(i[w*8 + c]);
                     }
                 }
             }
@@ -113,19 +118,19 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     }
 
     static status_t execute(const memory_desc_wrapper &input_d,
-        const memory_desc_wrapper &output_d, const data_t<prec_i> *input,
-        data_t<prec_o> *output) {
+        const memory_desc_wrapper &output_d, const data_t<type_i> *input,
+        data_t<type_o> *output) {
         const auto &dims = input_d.dims();
 
-        auto ker = [&](const data_t<prec_i> *i, data_t<prec_o> *o) {
+        auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o) {
             for (int w = 0; w < dims[3]; ++w) {
                 for (int c = 0; c < dims[1]; ++c) {
                     const auto &is = input_d.blocking_desc().strides[0];
                     const auto &os = output_d.blocking_desc().strides[0];
                     if (order_keep) {
-                        o[w * os[3] + c] = data_t<prec_o>(i[c * is[1] + w]);
+                        o[w * os[3] + c] = data_t<type_o>(i[c * is[1] + w]);
                     } else {
-                        o[c * os[1] + w] = data_t<prec_o>(i[w * is[3] + c]);
+                        o[c * os[1] + w] = data_t<type_o>(i[w * is[3] + c]);
                     }
                 }
             }
@@ -158,23 +163,23 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     }
 
     static status_t execute(const memory_desc_wrapper &input_d,
-        const memory_desc_wrapper &output_d, const data_t<prec_i> *input,
-        data_t<prec_o> *output) {
+        const memory_desc_wrapper &output_d, const data_t<type_i> *input,
+        data_t<type_o> *output) {
         constexpr bool w_groups = fmt_i == goihw;
 
         const auto &_g_oihw_d = order_keep ? input_d : output_d;
         const auto &dims = input_d.dims();
 
-        auto ker = [&](const data_t<prec_i> *i, data_t<prec_o> *o) {
+        auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o) {
             for (int ic = 0; ic < 8; ++ic) {
                 for (int oc = 0; oc < 8; ++oc) {
                     const auto _g_oihw_off =
                         oc*_g_oihw_d.blocking_desc().strides[0][w_groups + 0]
                         + ic*_g_oihw_d.blocking_desc().strides[0][w_groups + 1];
                     if (order_keep) {
-                        o[ic*8 + oc] = data_t<prec_o>(i[_g_oihw_off]);
+                        o[ic*8 + oc] = data_t<type_o>(i[_g_oihw_off]);
                     } else {
-                        o[_g_oihw_off] = data_t<prec_o>(i[ic*8 + oc]);
+                        o[_g_oihw_off] = data_t<type_o>(i[ic*8 + oc]);
                     }
                 }
             }
@@ -213,12 +218,14 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 {
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d) {
-        return input_d.format() == output_d.format() && input_d.is_dense();
+        /* FIXME: is the formule correct? */
+        return input_d.format() == output_d.format() && input_d.is_dense()
+            && output_d.is_dense();
     }
 
     static status_t execute(const memory_desc_wrapper &input_d,
-        const memory_desc_wrapper &output_d, const data_t<prec_i> *input,
-        data_t<prec_o> *output) {
+        const memory_desc_wrapper &output_d, const data_t<type_i> *input,
+        data_t<type_o> *output) {
         assert(input_d.is_dense());
 
         input += input_d.blk_off(0);
@@ -228,12 +235,73 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
 #       pragma omp parallel for schedule(static)
         for (size_t e = 0; e < nelems; ++e) {
-            output[e] = data_t<prec_o>(input[e]);
+            output[e] = data_t<type_o>(input[e]);
         }
 
         return success;
     }
 };
+
+template <SIMPLE_REORDER_TEMPL_DECL>
+struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
+    typename utils::enable_if<
+        fmt_i == any && fmt_o == any && order_keep == fmt_order::any,
+    spec::direct_copy_except_dim_0>::type>
+{
+    static bool is_applicable(const memory_desc_wrapper &input_d,
+            const memory_desc_wrapper &output_d) {
+        auto is_dense_no_0 = [](const memory_desc_wrapper &data_d) {
+            return nelems_no_dim_0(data_d) == _size_no_dim_0(data_d);
+        };
+        /* FIXME: is the formula correct? */
+        return input_d.format() == output_d.format() && is_dense_no_0(input_d)
+            && is_dense_no_0(output_d);
+    }
+
+    static status_t execute(const memory_desc_wrapper &input_d,
+        const memory_desc_wrapper &output_d, const data_t<type_i> *input,
+        data_t<type_o> *output) {
+
+        input += input_d.blk_off(0);
+        output += output_d.blk_off(0);
+
+        const int N = input_d.dims()[0];
+        const size_t is = input_d.blocking_desc().strides[0][0];
+        const size_t os = output_d.blocking_desc().strides[0][0];
+        const size_t nelems_no_d0 = nelems_no_dim_0(input_d);
+
+#       pragma omp parallel for collapse(2) schedule(static)
+        for (int n = 0; n < N; ++n) {
+            for (size_t e = 0; e < nelems_no_d0; ++e) {
+                output[os*n + e] = data_t<type_o>(input[is*n + e]);
+            }
+        }
+
+        return success;
+    }
+
+private:
+    static size_t nelems_no_dim_0(const memory_desc_wrapper &data_d) {
+        const int ndims = data_d.ndims();
+        if (ndims <= 1) return 1;
+        return utils::array_product(data_d.dims() + 1, data_d.ndims() - 1);
+    }
+
+    static size_t _size_no_dim_0(const memory_desc_wrapper &data_d) {
+        size_t max_size = 0;
+        auto &blk = data_d.blocking_desc();
+        for (int d = 1; d < data_d.ndims(); ++d) {
+            auto block = blk.block_dims[d];
+            max_size = nstl::max(max_size,
+                    size_t(blk.padding_dims[d]/block)*blk.strides[0][d]);
+            if (block > 1)
+                max_size = nstl::max(max_size,
+                        size_t(block*blk.strides[1][d]));
+        }
+        return max_size;
+    }
+};
+
 
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
@@ -247,102 +315,74 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     }
 
     static status_t execute(const memory_desc_wrapper &input_d,
-        const memory_desc_wrapper &output_d, const data_t<prec_i> *input,
-        data_t<prec_o> *output) {
+        const memory_desc_wrapper &output_d, const data_t<type_i> *input,
+        data_t<type_o> *output) {
         const size_t nelems = input_d.nelems();
 
 #       pragma omp parallel for schedule(static)
         for (size_t e = 0; e < nelems; ++e) {
             output[output_d.off_l(e)] =
-                data_t<prec_o>(input[input_d.off_l(e)]);
+                data_t<type_o>(input[input_d.off_l(e)]);
         }
 
         return success;
     }
 };
 
-
 /* high level class declaration */
 
 template <SIMPLE_REORDER_TEMPL_DECL, typename spec = void>
-class simple_reorder: public primitive {
-private:
-    const impl::reorder_primitive_desc_t &_rpd;
+struct simple_reorder_t: public cpu_primitive_t {
+    struct pd_t: public cpu_reorder_pd_t {
+        pd_t(const cpu_memory_pd_t *input_pd, const cpu_memory_pd_t *output_pd)
+            : cpu_reorder_pd_t(input_pd, output_pd) {}
 
-    status_t _execute() {
-        const size_t oi = this->input()[0].output_index;
-        auto *input = reinterpret_cast<const data_t<prec_i>*>(
-                this->input()[0].primitive->output()[oi]->memory_const());
-        auto *output = reinterpret_cast<data_t<prec_o>*>(
-                this->output()[0]->memory());
+        DECLARE_COMMON_PD_T(simple_reorder_t);
 
-        return simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL, spec>::execute(
-                this->_rpd.input.memory_desc, this->_rpd.output.memory_desc,
+        static status_t create(
+                reorder_pd_t **reorder_pd,
+                const memory_pd_t *input_pd,
+                const memory_pd_t *output_pd) {
+            assert(input_pd->engine()->kind() == engine_kind::cpu);
+            assert(output_pd->engine()->kind() == engine_kind::cpu);
+            bool args_ok = true
+                && input_pd->desc()->data_type == type_i
+                && output_pd->desc()->data_type == type_o
+                && simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL, spec>::
+                is_applicable(input_pd->desc(), output_pd->desc());
+            if (!args_ok)
+                return invalid_arguments;
+
+            auto _pd = new pd_t((const cpu_memory_pd_t *)input_pd,
+                    (const cpu_memory_pd_t *)output_pd);
+            return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
+        }
+    };
+
+    simple_reorder_t(const pd_t *pd, const input_vector &inputs,
+            const output_vector &outputs)
+        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {}
+
+    virtual void execute(event_t *e) {
+        auto input = reinterpret_cast<const data_t<type_i> *>(
+                this->input_memory(0));
+        auto output = reinterpret_cast<data_t<type_o> *>(this->memory());
+        simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL, spec>::execute(
+                conf_.input_pd()->desc(), conf_.output_pd()->desc(),
                 input, output);
-    }
-
-protected:
-    status_t execute_impl() { return _execute(); }
-
-public:
-    simple_reorder(const reorder_primitive_desc_t &rpd,
-            const primitive_at_t *inputs, const primitive *outputs[])
-        : primitive(rpd, const_cast<impl::engine*>(rpd.base.engine), not_ready)
-        , _rpd(_primitive_desc.reorder)
-    {
-        _input.push_back(inputs[0]);
-        _output.push_back(outputs[0]);
-    }
-
-    /* static magic */
-    static status_t reorder_primitive_desc_init(
-            primitive_desc_t *primitive_desc,
-            const memory_primitive_desc_t *input,
-            const memory_primitive_desc_t *output)
-    {
-        bool args_ok = true
-            && input->memory_desc.precision == prec_i
-            && output->memory_desc.precision == prec_o
-            && input->base.engine == output->base.engine
-            && simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL, spec>::
-                    is_applicable(input->memory_desc, output->memory_desc);
-        if (!args_ok)
-            return invalid_arguments;
-
-        reorder_primitive_desc_t rpd;
-        rpd.base.primitive_kind = reorder;
-        rpd.base.engine = input->base.engine;
-        rpd.base.implementation = reinterpret_cast<const void*>(&implementation);
-        rpd.input = *input;
-        rpd.output = *output;
-        primitive_desc->reorder = rpd;
-
-        return success;
+        e->set_state(event_t::ready);
     }
 
 private:
-    static status_t create(primitive **aprimitive,
-            const primitive_desc_t *primitive_desc,
-            const primitive_at_t inputs[], const primitive *outputs[])
-    {
-        assert(primitive_desc->base.primitive_kind == reorder);
-        auto &rpd = primitive_desc->reorder;
-        *aprimitive = new simple_reorder(rpd, inputs, outputs);
-        return aprimitive ? success : out_of_memory;
-    }
-    static const primitive_impl implementation;
-};
-
-/* XXX: awful style */
-template <SIMPLE_REORDER_TEMPL_DECL, typename spec> const primitive_impl
-simple_reorder<SIMPLE_REORDER_TEMPL_CALL, spec>::implementation = {
-    simple_reorder<SIMPLE_REORDER_TEMPL_CALL, spec>::create,
+    pd_t conf_;
 };
 
 #undef SIMPLE_REORDER_TEMPL_DECL
 #undef SIMPLE_REORDER_TEMPL_CALL
 
-}}}
+}
+}
+}
 
 #endif
 

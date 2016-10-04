@@ -32,19 +32,19 @@ typedef MKL_INT cblas_int;
 #ifdef USE_CBLAS
 namespace {
 
-template <mkldnn::impl::precision_t prec>
-using data_t = typename prec_trait<prec>::type;
+template <data_type_t data_type>
+using data_t = typename prec_trait<data_type>::type;
 
-template <mkldnn::impl::precision_t prec>
+template <data_type_t data_type>
 inline void cblas_gemm(CBLAS_LAYOUT layout,
         CBLAS_TRANSPOSE transa, CBLAS_TRANSPOSE transb,
         cblas_int M, cblas_int N, cblas_int K,
-        data_t<prec> alpha, const data_t<prec> *A, cblas_int lda,
-        const data_t<prec> *B, cblas_int ldb,
-        data_t<prec> beta, data_t<prec> *C, cblas_int ldc);
+        data_t<data_type> alpha, const data_t<data_type> *A, cblas_int lda,
+        const data_t<data_type> *B, cblas_int ldb,
+        data_t<data_type> beta, data_t<data_type> *C, cblas_int ldc);
 
 template <>
-inline void cblas_gemm<mkldnn::impl::precision::f32>(CBLAS_LAYOUT layout,
+inline void cblas_gemm<data_type::f32>(CBLAS_LAYOUT layout,
         CBLAS_TRANSPOSE transa, CBLAS_TRANSPOSE transb,
         cblas_int M, cblas_int N, cblas_int K,
         float alpha, const float *A, cblas_int lda,
@@ -54,13 +54,13 @@ inline void cblas_gemm<mkldnn::impl::precision::f32>(CBLAS_LAYOUT layout,
             M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
 }
 
-template <mkldnn::impl::precision_t prec>
+template <data_type_t data_type>
 inline void cblas_axpy(cblas_int N,
-        data_t<prec> alpha, const data_t<prec> *X, cblas_int incx,
-        data_t<prec> *Y, cblas_int incy);
+        data_t<data_type> alpha, const data_t<data_type> *X, cblas_int incx,
+        data_t<data_type> *Y, cblas_int incy);
 
 template <>
-inline void cblas_axpy<mkldnn::impl::precision::f32>(cblas_int N,
+inline void cblas_axpy<data_type::f32>(cblas_int N,
         float alpha, const float *X, cblas_int incx,
         float *Y, cblas_int incy) {
     cblas_saxpy(N, alpha, X, incx, Y, incy);
@@ -71,94 +71,35 @@ inline void cblas_axpy<mkldnn::impl::precision::f32>(cblas_int N,
 
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::prop_kind;
-using namespace mkldnn::impl::precision;
+using namespace mkldnn::impl::data_type;
 using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::primitive_kind;
 
-template <impl::precision_t prec>
-status_t gemm_inner_product<prec>::execute_forward() {
+template <impl::data_type_t data_type>
+void gemm_inner_product_fwd_t<data_type>::execute_forward() {
 #ifdef USE_CBLAS
-    auto obtain_ptr = [this](int idx) {
-        const size_t oi = this->input()[idx].output_index;
-        return reinterpret_cast<const data_t *>(
-                this->input()[idx].primitive->output()[oi]->memory_const());
-    };
+    auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
+    auto weights = reinterpret_cast<const data_t *>(this->input_memory(1));
+    auto bias = reinterpret_cast<const data_t *>(this->input_memory(2));
+    auto dst = reinterpret_cast<data_t*>(this->memory());
 
-    const data_t *src = obtain_ptr(0);
-    const data_t *weights = obtain_ptr(1);
-    const data_t *bias = this->_with_bias ? obtain_ptr(2) : nullptr;
-    data_t *dst = reinterpret_cast<data_t *>(this->output()[0]->memory());
-
-    const memory_desc_wrapper src_d(this->_ippd.src_primitive_desc.memory_desc),
-            dst_d(this->_ippd.dst_primitive_desc.memory_desc);
+    const memory_desc_wrapper dst_d(conf_.dst_pd());
 
     // TODO: consistency checks
-    // XXX: need to switch to signed ints everywhere
-    const cblas_int M = src_d.dims()[0];
-    const cblas_int K = array_product(&src_d.dims()[1], src_d.ndims() - 1);
-    const cblas_int N = dst_d.dims()[1];
+    const cblas_int M = conf_.MB();
+    const cblas_int N = conf_.OC();
+    const cblas_int K = conf_.IC_total();
 
-    cblas_gemm<prec>(CblasRowMajor, CblasNoTrans, CblasTrans,
-            M, N, K, 1.0, src, K, weights, K, 0.0, dst, N);
+    cblas_gemm<data_type>(CblasRowMajor, CblasNoTrans, CblasTrans, M, N, K,
+            1.0, src, K, weights, K, 0.0, dst, N);
     if (bias)
-#pragma omp parallel for schedule(static)
+#       pragma omp parallel for schedule(static)
         for (cblas_int mb = 0; mb < M; mb++)
-            cblas_axpy<prec>(N, 1.0, bias, 1, dst + dst_d.blk_off(mb), 1);
-
-    return success;
-#else
-    return unimplemented;
+            cblas_axpy<data_type>(N, 1.0, bias, 1, dst + dst_d.blk_off(mb), 1);
 #endif
 }
 
-template <impl::precision_t prec>
-status_t gemm_inner_product<prec>::set_default_parameters(
-        inner_product_desc_t &ip_d) {
-    if (ip_d.src_desc.format == any) {
-        if (ip_d.src_desc.tensor_desc.ndims == 4)
-            CHECK(types::set_default_format<prec>(ip_d.src_desc, nChw8c));
-    }
-    if (ip_d.weights_desc.format == any) {
-        if (ip_d.weights_desc.tensor_desc.ndims == 4)
-            CHECK(types::set_default_format<prec>(ip_d.weights_desc, oIhw8i));
-    }
-
-    return inner_product<gemm_inner_product<prec>>::template
-        set_default_parameters<void>(ip_d);
-}
-
-template <impl::precision_t prec>
-status_t gemm_inner_product<prec>::constraint(const inner_product_desc_t &ip_d)
-{
-#ifdef USE_CBLAS
-    bool args_ok = one_of(ip_d.prop_kind, prop_kind::forward_training,
-            prop_kind::forward_scoring);
-    if (!args_ok) return unimplemented;
-
-    const bool dense_src = memory_desc_wrapper(ip_d.src_desc).is_dense();
-    const bool dense_weights = memory_desc_wrapper(ip_d.weights_desc).is_dense();
-    const bool dense_bias = memory_desc_wrapper(ip_d.bias_desc).is_dense();
-    const bool dense_dst = memory_desc_wrapper(ip_d.dst_desc).is_dense();
-
-    // TODO: need a proper check for blocked formats: orders and numbers of
-    // spatial and channel dimensions in src and weights must agree one with
-    // another.
-
-    if (!dense_src || !dense_weights || !dense_bias || !dense_dst)
-        return unimplemented;
-
-    return success;
-#else
-    return unimplemented;
-#endif
-}
-
-template <impl::precision_t prec>
-const primitive_impl gemm_inner_product<prec>::implementation = {
-    gemm_inner_product<prec>::create
-};
-
-template class gemm_inner_product<f32>;
+template struct gemm_inner_product_fwd_t<data_type::f32>;
 
 }
 }

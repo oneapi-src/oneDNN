@@ -11,31 +11,21 @@ API
 
 2. stream dependency tracking
 
-4. mixing lazy + non-lazy engines
-
 6. alpha & beta for op_desc
-
-9. add primitive/memory consistency checks
 
 [ ww39 ]
 
-1. split/concat api
-
 2. stream caching
 
-3. c++ api: object life time managment
+3. c++ api: object life time management
 
 4. c++ api: c structure in c++
 
 5. workspaces
 
-6. prop_kind == forward_only
-
 8. diluted kernels for conv
 
 9. api iface tests
-
-10. l-r, t-b padding in convolution, pooling
 
 11. tensor flow padding consistency
 
@@ -45,8 +35,8 @@ API
 
 [ ww?? ]
 
-1. c++ api: `shared_ptr` breaks when recieving a new pointer to an
-existing primitive from the `C` land
+1. c++ api: `shared_ptr` breaks when receiving a new pointer to an
+    existing primitive from the `C` land
 
 2. c++ api: `memory` needs to be able to act as a `memory_desc` and as
    `memory_primitive_desc`
@@ -54,6 +44,11 @@ existing primitive from the `C` land
     1. do we need `mkl_dnn_primitive_get_primitive_desc(mkl_dnn_primitive_t p,
        void *const *primitive_desc)` as a user-visible function?
 
+3. c api: relu has only one (common) data descriptor. how to deal with the case
+    when src_desc ~= dst_desc with the only difference in offset_padding. I.e.
+    how to deal with view?
+
+4. review arguments order for backward primitives
 
 Internals
 ---------

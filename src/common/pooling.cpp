@@ -14,83 +14,86 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "nstl.hpp"
+#include <assert.h>
+#include "mkldnn.h"
 
-#include "type_helpers.hpp"
-#include "engine.hpp"
-#include "primitive.hpp"
-
+#include "c_types_map.hpp"
 #include "utils.hpp"
 
 using namespace mkldnn::impl;
+using namespace mkldnn::impl::utils;
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::prop_kind;
 using namespace mkldnn::impl::alg_kind;
 
-status_t mkldnn_pooling_desc_init(pooling_desc_t *pooling_desc,
+namespace {
+status_t pooling_desc_init(pooling_desc_t *pool_desc,
         prop_kind_t prop_kind, alg_kind_t alg_kind,
         const memory_desc_t *src_desc, const memory_desc_t *dst_desc,
-        const dims_t strides, const dims_t kernel, const dims_t padding,
-        padding_kind_t padding_kind)
-{
-    const bool args_ok = !any_null(pooling_desc,
-            src_desc, dst_desc, strides, padding)
-        && one_of(prop_kind, forward_training, forward_scoring, backward_data)
-        && one_of(alg_kind, pooling_max, pooling_avg);
-    if (!args_ok)
-        return invalid_arguments;
+        const dims_t strides, const dims_t kernel, const dims_t padding_l,
+        const dims_t padding_r, padding_kind_t padding_kind) {
+    bool args_ok = true
+        && !any_null(pool_desc, src_desc, dst_desc, strides, kernel, padding_l)
+        && one_of(alg_kind, pooling_max, pooling_avg)
+        && one_of(padding_kind, padding_kind::padding_zero);
+    if (!args_ok) return invalid_arguments;
 
-    pooling_desc_t cd;
-    cd.prop_kind = prop_kind;
-    cd.alg_kind = alg_kind;
-    cd.src_desc = *src_desc;
-    cd.dst_desc = *dst_desc;
-    cd.padding_kind = padding_kind;
-    const int ndims_spatial = src_desc->tensor_desc.ndims - 2;
-    array_copy(cd.strides, strides, ndims_spatial);
-    array_copy(cd.kernel, kernel, ndims_spatial);
-    array_copy(cd.padding, padding, ndims_spatial);
+    if (padding_r == nullptr) padding_r = padding_l;
 
-    status_t status = types::pooling_desc_is_ok(cd);
-    if (status == success)
-        *pooling_desc = cd;
+    pooling_desc_t pd = {};
+    pd.primitive_kind = primitive_kind::pooling;
+    pd.prop_kind = prop_kind;
+    pd.alg_kind = alg_kind;
 
-    return status;
-}
+    const bool is_fwd = one_of(prop_kind, forward_training, forward_inference);
 
-status_t mkldnn_pooling_primitive_desc_init(
-        pooling_primitive_desc_t *pooling_primitive_desc,
-        const pooling_desc_t *pooling_desc,
-        const engine *engine)
-{
-    if (any_null(pooling_primitive_desc, pooling_desc, engine))
-        return invalid_arguments;
+    (is_fwd ? pd.src_desc : pd.diff_src_desc) = *src_desc;
+    (is_fwd ? pd.dst_desc : pd.diff_dst_desc) = *dst_desc;
 
-    return primitive_desc_init(
-            primitive_desc_t::convert_from_c(pooling_primitive_desc),
-            *pooling_desc, *engine);
-}
+    int sp_dims = pd.src_desc.ndims - 2;
+    utils::array_copy(pd.strides, strides, sp_dims);
+    utils::array_copy(pd.kernel, kernel, sp_dims);
+    utils::array_copy(pd.padding[0], padding_l, sp_dims);
+    utils::array_copy(pd.padding[1], padding_r, sp_dims);
 
-status_t mkldnn_pooling_create(primitive **pooling,
-        const pooling_primitive_desc_t *pooling_primitive_desc,
-        const primitive_at_t src, const primitive_at_t indices,
-        const primitive *dst)
-{
-    auto ppd = reinterpret_cast<const mkldnn_primitive_desc_t *>(
-            pooling_primitive_desc);
-    const primitive_at_t inputs[] = {src, indices};
-    const primitive *outputs[] = {dst};
-    return mkldnn_primitive_create(pooling, ppd, inputs, outputs);
-}
+    pd.padding_kind = padding_kind;
 
-status_t mkldnn_pooling_get_primitive_desc(const primitive *pooling,
-        pooling_primitive_desc_t *pooling_primitive_desc)
-{
-    if (any_null(pooling, pooling_primitive_desc)
-            || pooling->kind() != primitive_kind::pooling)
-        return invalid_arguments;
-    *pooling_primitive_desc = pooling->primitive_desc().pooling;
+    bool consistency = true
+        && src_desc->ndims == 4
+        && dst_desc->ndims == 4
+        && src_desc->dims[0] == dst_desc->dims[0]
+        && src_desc->dims[1] == dst_desc->dims[1];
+    for (int i = 2; i <= 3; ++i)
+        consistency = consistency && (
+                (src_desc->dims[i] - kernel[i - 2] + strides[i - 2] - 1
+                 + padding_l[i - 2] + padding_r[i - 2]) / strides[i - 2] + 1
+                == dst_desc->dims[i]);
+    if (!consistency) return invalid_arguments;
+
+    *pool_desc = pd;
     return success;
+}
+}
+
+status_t mkldnn_pooling_forward_desc_init(pooling_desc_t *pool_desc,
+        prop_kind_t prop_kind, alg_kind_t alg_kind,
+        const memory_desc_t *src_desc, const memory_desc_t *dst_desc,
+        const dims_t strides, const dims_t kernel, const dims_t padding_l,
+        const dims_t padding_r, padding_kind_t padding_kind) {
+    if (!one_of(prop_kind, forward_training, forward_inference))
+        return invalid_arguments;
+    return pooling_desc_init(pool_desc, prop_kind, alg_kind, src_desc,
+            dst_desc, strides, kernel, padding_l, padding_r, padding_kind);
+}
+
+status_t mkldnn_pooling_backward_desc_init(pooling_desc_t *pool_desc,
+        alg_kind_t alg_kind, const memory_desc_t *diff_src_desc,
+        const memory_desc_t *diff_dst_desc, const dims_t strides,
+        const dims_t kernel, const dims_t padding_l, const dims_t padding_r,
+        padding_kind_t padding_kind) {
+    return pooling_desc_init(pool_desc, prop_kind::backward_data, alg_kind,
+            diff_src_desc, diff_dst_desc, strides, kernel, padding_l,
+            padding_r, padding_kind);
 }
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

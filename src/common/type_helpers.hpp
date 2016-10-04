@@ -20,61 +20,45 @@
 #include <assert.h>
 
 #include "mkldnn.h"
+
 #include "c_types_map.hpp"
+#include "mkldnn_traits.hpp"
 #include "nstl.hpp"
 #include "utils.hpp"
 
 namespace mkldnn {
 namespace impl {
 
-template <precision_t> struct prec_trait {};
-template <> struct prec_trait<precision::f32> { typedef float type; };
-template <> struct prec_trait<precision::u32> { typedef int type; };
-
-template <typename T> struct data_trait {};
-template <> struct data_trait<float>
-{ static constexpr precision_t prec = precision::f32; };
-template <> struct data_trait<int>
-{ static constexpr precision_t prec = precision::u32; };
+template <typename T>
+status_t safe_ptr_assign(T * &lhs, T* rhs) {
+    if (rhs == nullptr) return status::out_of_memory;
+    lhs = rhs;
+    return status::success;
+}
 
 namespace types {
 
-using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::precision;
-using namespace mkldnn::impl::memory_format;
-
-inline size_t precision_size(precision_t prec) {
-    switch (prec) {
+inline size_t data_type_size(data_type_t data_type) {
+    using namespace data_type;
+    switch (data_type) {
     case f32: return sizeof(prec_trait<f32>::type);
-    case u32: return sizeof(prec_trait<u32>::type);
-    case precision::undef:
-    default: assert(!"unknown precision");
+    case s32: return sizeof(prec_trait<s32>::type);
+    case data_type::undef:
+    default: assert(!"unknown data_type");
     }
-    return 0; // not supposed to be reachable
+    return 0; /* not supposed to be reachable */
 }
 
 inline memory_format_t format_normalize(const memory_format_t fmt) {
-    if (one_of(fmt, x, nc, nchw, nhwc, nChw8c, oi, oihw, OIhw8i8o, Ohwi8o,
-                goihw, gOIhw8i8o)) return blocked;
+    using namespace memory_format;
+    if (utils::one_of(fmt, x, nc, nchw, nhwc, nChw8c, oi, oihw, OIhw8i8o,
+                Ohwi8o, goihw, gOIhw8i8o)) return blocked;
     return fmt;
-}
-
-inline bool operator==(const tensor_desc_t &lhs, const tensor_desc_t &rhs) {
-    return lhs.ndims == rhs.ndims
-        && mkldnn::impl::array_cmp(lhs.dims, rhs.dims, lhs.ndims);
-}
-
-inline bool operator!=(const tensor_desc_t &lhs, const tensor_desc_t &rhs) {
-    return !operator==(lhs, rhs);
-}
-
-inline status_t tensor_is_ok(const tensor_desc_t &tensor) {
-    return tensor.ndims <= TENSOR_MAX_DIMS ? success : invalid_arguments;
 }
 
 inline bool blocking_desc_is_equal(const blocking_desc_t &lhs,
         const blocking_desc_t &rhs, int ndims = TENSOR_MAX_DIMS) {
-    using mkldnn::impl::array_cmp;
+    using mkldnn::impl::utils::array_cmp;
     return lhs.offset_padding == rhs.offset_padding
         && array_cmp(lhs.block_dims, rhs.block_dims, ndims)
         && array_cmp(lhs.strides[0], rhs.strides[0], ndims)
@@ -85,11 +69,17 @@ inline bool blocking_desc_is_equal(const blocking_desc_t &lhs,
 }
 
 inline bool operator==(const memory_desc_t &lhs, const memory_desc_t &rhs) {
-    if (lhs.tensor_desc != rhs.tensor_desc || lhs.format != rhs.format)
-        return false;
-    if (lhs.format == blocked)
+    assert(lhs.primitive_kind == mkldnn::impl::primitive_kind::memory);
+    assert(rhs.primitive_kind == mkldnn::impl::primitive_kind::memory);
+    bool base_equal = true
+        && lhs.ndims == rhs.ndims
+        && mkldnn::impl::utils::array_cmp(lhs.dims, rhs.dims, lhs.ndims)
+        && lhs.data_type == rhs.data_type
+        && lhs.format == rhs.format; /* FIXME: normalize format? */
+    if (!base_equal) return false;
+    if (lhs.format == memory_format::blocked)
         return blocking_desc_is_equal(lhs.layout_desc.blocking,
-                rhs.layout_desc.blocking, lhs.tensor_desc.ndims);
+                rhs.layout_desc.blocking, lhs.ndims);
     return true;
 }
 
@@ -97,53 +87,14 @@ inline bool operator!=(const memory_desc_t &lhs, const memory_desc_t &rhs) {
     return !operator==(lhs, rhs);
 }
 
-inline bool operator==(const memory_primitive_desc_t &lhs,
-        const memory_primitive_desc_t &rhs) {
-    return lhs.base.engine == rhs.base.engine // XXX: is it true?
-        && lhs.memory_desc == rhs.memory_desc;
+inline memory_desc_t zero_md() {
+    memory_desc_t zero({});
+    zero.primitive_kind = primitive_kind::memory;
+    return zero;
 }
 
-template <impl::precision_t prec>
 inline status_t set_default_format(memory_desc_t &md, memory_format_t fmt) {
-    return mkldnn_memory_desc_init(&md, &md.tensor_desc, prec, fmt);
-}
-
-template <typename T>
-inline T zero() { T zero = T(); return zero; }
-
-inline status_t convolution_desc_is_ok(
-        const convolution_desc_t &convolution_desc) {
-    // XXX: fill-in
-    return success;
-}
-
-inline status_t pooling_desc_is_ok(
-    const pooling_desc_t &pooling_desc) {
-    // XXX: fill-in
-    return success;
-}
-inline status_t relu_desc_is_ok(
-        const relu_desc_t &relu_desc) {
-    // XXX: fill-in
-    return success;
-}
-
-inline status_t lrn_desc_is_ok(
-    const lrn_desc_t &lrn_desc) {
-    // XXX: fill-in
-    return success;
-}
-
-inline status_t batch_normalization_desc_is_ok(
-    const batch_normalization_desc_t &batch_normalization_desc) {
-    // XXX: fill-in
-    return success;
-}
-
-inline status_t inner_product_desc_is_ok(
-        const inner_product_desc_t &inner_product_desc) {
-    // XXX: fill-in
-    return success;
+    return mkldnn_memory_desc_init(&md, md.ndims, md.dims, md.data_type, fmt);
 }
 
 }

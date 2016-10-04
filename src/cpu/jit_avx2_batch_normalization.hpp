@@ -14,37 +14,73 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_BATCH_NORMALIZATION_HPP
-#define CPU_JIT_BATCH_NORMALIZATION_HPP
+#ifndef CPU_JIT_AVX2_BATCH_NORMALIZATION_FWD_HPP
+#define CPU_JIT_AVX2_BATCH_NORMALIZATION_FWD_HPP
+
+#include <assert.h>
 
 #include "c_types_map.hpp"
-#include "batch_normalization.hpp"
-#include "jit_avx2_batch_norm_generator_f32.hpp"
+#include "cpu_batch_normalization_pd.hpp"
+#include "jit_avx2_bnrm_kernel_f32.hpp"
+#include "cpu_engine.hpp"
+#include "type_helpers.hpp"
+#include "utils.hpp"
 
 namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-template <impl::precision_t prec>
-class jit_avx2_batch_normalization:
-    public batch_normalization<jit_avx2_batch_normalization<prec>> {
-public:
-    typedef typename prec_trait<prec>::type data_t;
-    using batch_normalization
-        <jit_avx2_batch_normalization<prec>>::batch_normalization;
-    jit_avx2_batch_normalization(
-        const batch_normalization_primitive_desc_t &bnpd,
-        const primitive_at_t *inputs, const primitive *outputs[]);
-    ~jit_avx2_batch_normalization() { delete generator; }
+struct jit_avx2_batch_normalization_fwd_t: public cpu_primitive_t {
+    struct pd_t: public cpu_batch_normalization_fwd_pd_t {
+        pd_t(engine_t *engine, const batch_normalization_desc_t *adesc,
+                const batch_normalization_fwd_pd_t *hint_fwd_pd)
+            : cpu_batch_normalization_fwd_pd_t(engine, adesc, hint_fwd_pd)
+            , jbp_({}) {}
 
-    static status_t set_default_parameters(batch_normalization_desc_t &bnorm_d);
-    static status_t constraint(const batch_normalization_desc_t &bnorm_d);
+        DECLARE_COMMON_PD_T(jit_avx2_batch_normalization_fwd_t);
 
-    static const primitive_impl implementation;
+        virtual status_t init() override {
+            using namespace prop_kind;
+            assert(engine()->kind() == engine_kind::cpu);
+            bool ok = true
+                && utils::one_of(desc()->prop_kind, forward_training,
+                        forward_inference)
+                && utils::everyone_is(data_type::f32,
+                        desc()->data_desc.data_type,
+                        desc()->data_diff_scaleshift_desc.data_type);
+            if (!ok) return status::unimplemented;
+
+            bool is_training = desc_.prop_kind == forward_training;
+            if (is_training) {
+                memory_desc_t ws_d;
+                dims_t ws_dims = { C() * 2 };
+                mkldnn_memory_desc_init(&ws_d, 1, ws_dims, data_type::f32,
+                        memory_format::x);
+                ws_pd_ = cpu_memory_t::pd_t(engine_, &ws_d);
+            }
+
+            return jit_avx2_bnrm_kernel_f32::init_conf(jbp_, desc_,
+                    data_pd_.desc(), scaleshift_pd_.desc(), is_training);
+        }
+
+        jit_bnrm_conf_t jbp_;
+    };
+
+    jit_avx2_batch_normalization_fwd_t(const pd_t *pd,
+            const input_vector &inputs, const output_vector &outputs)
+        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
+    { kernel_ = new jit_avx2_bnrm_kernel_f32(conf_.jbp_); }
+    typedef typename prec_trait<data_type::f32>::type data_t;
+
+    virtual void execute(event_t *e) {
+        execute_forward();
+        e->set_state(event_t::ready);
+    }
+
 private:
-    jit_avx2_batch_norm_generator_f32 *generator;
-
-    status_t execute_forward();
+    void execute_forward();
+    pd_t conf_;
+    jit_avx2_bnrm_kernel_f32 *kernel_;
 };
 
 }

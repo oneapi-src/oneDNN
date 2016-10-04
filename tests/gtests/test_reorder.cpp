@@ -28,8 +28,8 @@ template <typename data_i_t, typename data_o_t>
 inline void check_reorder(const memory::desc &md_i, const memory::desc &md_o,
         const data_i_t *src, const data_o_t *dst)
 {
-    const int ndims = md_i.data.tensor_desc.ndims;
-    const int *dims = md_i.data.tensor_desc.dims;
+    const int ndims = md_i.data.ndims;
+    const int *dims = md_i.data.dims;
     const size_t nelems = std::accumulate(
             dims, dims + ndims, size_t(1), std::multiplies<size_t>());
 
@@ -46,7 +46,7 @@ struct test_simple_params {
     engine::kind engine_kind;
     memory::format fmt_i;
     memory::format fmt_o;
-    tensor::dims dims;
+    memory::dims dims;
 };
 
 template <typename reorder_types>
@@ -61,8 +61,7 @@ protected:
         test_simple_params<reorder_types> p
             = ::testing::TestWithParam<decltype(p)>::GetParam();
 
-        ASSERT_TRUE(p.engine_kind == engine::kind::cpu || p.engine_kind ==
-                engine::kind::cpu_lazy);
+        ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         auto eng = engine(p.engine_kind, 0);
 
         const size_t nelems_i = std::accumulate(p.dims.begin(), p.dims.end(),
@@ -74,11 +73,11 @@ protected:
         auto src_data = new data_i_t[nelems_i];
         auto dst_data = new data_o_t[nelems_o];
 
-        memory::precision prec_i = data_traits<data_i_t>::prec;
-        memory::precision prec_o = data_traits<data_o_t>::prec;
-        auto mpd_i = memory::primitive_desc(create_md(p.dims, prec_i, p.fmt_i),
+        memory::data_type prec_i = data_traits<data_i_t>::data_type;
+        memory::data_type prec_o = data_traits<data_o_t>::data_type;
+        auto mpd_i = memory::primitive_desc({p.dims, prec_i, p.fmt_i},
                 eng);
-        auto mpd_o = memory::primitive_desc(create_md(p.dims, prec_o, p.fmt_o),
+        auto mpd_o = memory::primitive_desc({p.dims, prec_o, p.fmt_o},
                 eng);
 
         /* initialize input data */
@@ -88,7 +87,7 @@ protected:
         auto src = memory(mpd_i, src_data);
         auto dst = memory(mpd_o, dst_data);
         auto r = reorder(src, dst);
-        stream().submit({r}).wait();
+        stream(stream::kind::lazy).submit({r}).wait();
 
         check_reorder(mpd_i.desc(), mpd_o.desc(), src_data, dst_data);
 

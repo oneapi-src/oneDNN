@@ -21,73 +21,67 @@
 #include "c_types_map.hpp"
 #include "../cpu/cpu_engine.hpp"
 
-namespace mkldnn { namespace impl {
+namespace mkldnn {
+namespace impl {
 
-// TODO: we need some caching+refcounting mechanism so that an engine could not
-// be created twice and is only destroyed when the refcount is 0
-
-// With STL we would've used vector. Alas, we cannot use STL..
-engine_factory *engine_factories[] = {
+engine_factory_t *engine_factories[] = {
     &cpu::engine_factory,
-    &cpu::engine_factory_lazy,
-    NULL,
+    nullptr,
 };
 
-static inline engine_factory *get_engine_factory(engine_kind_t kind)
-{
-    for (engine_factory **ef = engine_factories; *ef; ef++)
+static inline engine_factory_t *get_engine_factory(engine_kind_t kind) {
+    for (engine_factory_t **ef = engine_factories; *ef; ef++)
         if ((*ef)->kind() == kind)
             return *ef;
-    return NULL;
+    return nullptr;
 }
 
-}}
+}
+}
+
+using rpd_create_f = mkldnn::impl::engine_t::reorder_primitive_desc_create_f;
+using pd_create_f = mkldnn::impl::engine_t::primitive_desc_create_f;
+
+namespace {
+static const rpd_create_f reorder_empty_impl_list[] = { nullptr };
+static const pd_create_f empty_impl_list[] = { nullptr };
+}
+
+const rpd_create_f* mkldnn::impl::engine_t::get_reorder_implementation_list()
+    const
+{ return reorder_empty_impl_list; }
+const pd_create_f* mkldnn::impl::engine_t::get_implementation_list() const
+{ return empty_impl_list; }
 
 using namespace mkldnn::impl;
 using namespace mkldnn::impl::status;
 
-primitive_desc_init_f *engine::get_primitive_inits() const {
-    static primitive_desc_init_f empty_list[] = { nullptr };
-    return empty_list;
-}
-
-reorder_primitive_desc_init_f *engine::get_reorder_inits() const {
-    static reorder_primitive_desc_init_f reorder_empty_list[] = { nullptr };
-    return reorder_empty_list;
-}
-
 size_t mkldnn_engine_get_count(engine_kind_t kind) {
-    engine_factory *ef = get_engine_factory(kind);
-    return ef != NULL ? ef->count() : 0;
+    engine_factory_t *ef = get_engine_factory(kind);
+    return ef != nullptr ? ef->count() : 0;
 }
 
-status_t mkldnn_engine_create(engine **engine,
+status_t mkldnn_engine_create(engine_t **engine,
         engine_kind_t kind, size_t index) {
-    if (engine == NULL)
+    if (engine == nullptr)
         return invalid_arguments;
 
-    engine_factory *ef = get_engine_factory(kind);
-    if (ef == NULL || index >= ef->count())
+    engine_factory_t *ef = get_engine_factory(kind);
+    if (ef == nullptr || index >= ef->count())
         return invalid_arguments;
 
     return ef->engine_create(engine, index);
 }
 
-status_t mkldnn_engine_get_kind(engine *engine, engine_kind_t *kind) {
-    if (engine == NULL || !engine->is_ok())
+status_t mkldnn_engine_get_kind(engine_t *engine, engine_kind_t *kind) {
+    if (engine == nullptr)
         return invalid_arguments;
     *kind = engine->kind();
     return success;
 }
 
-status_t mkldnn_engine_get_is_lazy(engine *engine, int *is_lazy) {
-    if (engine == NULL || !engine->is_ok())
-        return invalid_arguments;
-    *is_lazy = engine->is_lazy();
-    return success;
-}
-
-status_t mkldnn_engine_destroy(engine *engine) {
+status_t mkldnn_engine_destroy(engine_t *engine) {
+    /* TODO: engine->dec_ref_count(); */
     delete engine;
     return success;
 }

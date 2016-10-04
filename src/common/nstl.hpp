@@ -18,15 +18,19 @@
 #define NSTL_HPP
 
 #include <vector>
+#include <map>
 
 #include "utils.hpp"
 
-namespace mkldnn { namespace impl { namespace nstl {
+namespace mkldnn {
+namespace impl {
+namespace nstl {
 
 template<typename T>
 inline const T& max(const T& a, const T& b) {
     return a > b ? a : b;
 }
+
 template<typename T>
 inline const T& min(const T& a, const T& b) {
     return a < b ? a : b;
@@ -59,14 +63,21 @@ private:
     std::vector<T> _impl;
 public:
     typedef typename std::vector<T>::iterator iterator;
+    typedef typename std::vector<T>::const_iterator const_iterator;
     typedef typename std::vector<T>::size_type size_type;
     vector() {}
+    vector(size_type n): _impl(n) {}
+    vector(size_type n, const T &value): _impl(n, value) {}
+    template <typename input_iterator>
+    vector(input_iterator first, input_iterator last): _impl(first, last) {}
     ~vector() {}
     size_type size() const { return _impl.size(); }
     T& operator[] (size_type i) { return _impl[i]; }
     const T& operator[] (size_type i) const { return _impl[i]; }
     iterator begin() { return _impl.begin(); }
+    const_iterator begin() const { return _impl.begin(); }
     iterator end() { return _impl.end(); }
+    const_iterator end() const { return _impl.end(); }
     template <typename input_iterator>
     nstl_status_t insert(iterator pos, input_iterator begin, input_iterator end)
     {
@@ -75,9 +86,33 @@ public:
     }
     void clear() { _impl.clear(); }
     void push_back(const T& t) { _impl.push_back(t); }
+    void resize(size_type count) { _impl.resize(count); }
+    void reserve(size_type count) { _impl.reserve(count); }
 };
 
-}}}
+template <typename Key, typename T> class map: public c_compatible {
+private:
+    std::map<Key, T> _impl;
+public:
+    typedef typename std::map<Key, T>::iterator iterator;
+    typedef typename std::map<Key, T>::const_iterator const_iterator;
+    typedef typename std::map<Key, T>::size_type size_type;
+    map() {}
+    ~map() {}
+    size_type size() const { return _impl.size(); }
+    T& operator[](const Key &k) { return _impl[k]; }
+    const T& operator[](const Key &k) const { return _impl[k]; }
+    iterator begin() { return _impl.begin(); }
+    const_iterator begin() const { return _impl.begin(); }
+    iterator end() { return _impl.end(); }
+    const_iterator end() const { return _impl.end(); }
+    template <typename input_iterator>
+    void clear() { _impl.clear(); }
+};
+
+}
+}
+}
 
 #endif
 

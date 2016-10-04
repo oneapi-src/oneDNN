@@ -27,8 +27,7 @@
 
 template <typename data_t> struct data_traits { };
 template <> struct data_traits<float> {
-    using precision = mkldnn::memory::precision;
-    static const precision prec = precision::f32;
+    static const auto data_type = mkldnn::memory::data_type::f32;
 };
 
 template <typename T> inline void assert_eq(T a, T b);
@@ -37,13 +36,13 @@ template <> inline void assert_eq<float>(float a, float b) {
 }
 
 inline size_t map_index(const mkldnn::memory::desc &md, size_t index) {
-    const int ndims = md.data.tensor_desc.ndims;
-    const int *dims = md.data.tensor_desc.dims;
+    const int ndims = md.data.ndims;
+    const int *dims = md.data.dims;
     const int *pdims = md.data.layout_desc.blocking.padding_dims;
     const int *optd = md.data.layout_desc.blocking.offset_padding_to_data;
 
-    const int *strides_block = md.data.layout_desc.blocking.strides[0];
-    const int *strides_within_block = md.data.layout_desc.blocking.strides[1];
+    auto *strides_block = md.data.layout_desc.blocking.strides[0];
+    auto *strides_within_block = md.data.layout_desc.blocking.strides[1];
 
     size_t ph_index = 0;
 
@@ -70,8 +69,8 @@ inline size_t map_index(const mkldnn::memory::desc &md, size_t index) {
     return ph_index;
 }
 
-inline mkldnn::memory::desc create_md(mkldnn::tensor::dims dims,
-        mkldnn::memory::precision prec, mkldnn::memory::format fmt) {
+inline mkldnn::memory::desc create_md(mkldnn::memory::dims dims,
+        mkldnn::memory::data_type data_type, mkldnn::memory::format fmt) {
     using f = mkldnn::memory::format;
     size_t ndims = 0;
 
@@ -94,20 +93,20 @@ inline mkldnn::memory::desc create_md(mkldnn::tensor::dims dims,
     case f::format_undef:
         ndims = 0; break;
     case f::any:
-        return mkldnn::memory::desc({dims}, prec, fmt);
+        return mkldnn::memory::desc(dims, data_type, fmt);
     default: EXPECT_TRUE(false) << "test does not support format: " << int(fmt);
     }
 
     EXPECT_EQ(dims.size(), ndims) << "dims and format are inconsistent";
 
-    return mkldnn::memory::desc({dims}, prec, fmt);
+    return mkldnn::memory::desc(dims, data_type, fmt);
 }
 
 template <typename data_t>
 static inline data_t set_value(size_t index, data_t mean, data_t deviation,
         double sparsity)
 {
-    if (data_traits<data_t>::prec == mkldnn::memory::precision::f32) {
+    if (data_traits<data_t>::data_type == mkldnn::memory::data_type::f32) {
         const size_t group_size = (size_t)(1. / sparsity);
         const size_t group = index / group_size;
         const size_t in_group = index % group_size;
@@ -140,7 +139,8 @@ static void fill_data(const int size, data_t *data, double sparsity = 1.)
 template <typename data_t>
 static void compare_data(mkldnn::memory& ref, mkldnn::memory& dst)
 {
-    size_t num = ref.get_primitive_desc().get_number_of_elements();
+    // Only true for dense format
+    size_t num = ref.get_primitive_desc().get_size() / sizeof(data_t);
     data_t *ref_data = (data_t *)ref.get_data_handle();
     data_t *dst_data = (data_t *)dst.get_data_handle();
 #   pragma omp parallel for

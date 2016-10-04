@@ -14,149 +14,106 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <cassert>
-
+#include <assert.h>
 #include "mkldnn.h"
 
 #include "c_types_map.hpp"
 #include "engine.hpp"
 #include "nstl.hpp"
+#include "stream.hpp"
+#include "type_helpers.hpp"
 #include "utils.hpp"
 
 using namespace mkldnn::impl;
 using namespace mkldnn::impl::status;
 
-// TODO: thread-safety
+status_t stream_t::submit(const nstl::vector<primitive_t *> &prims,
+        primitive_t **error_prim) {
+    if (!modifiable_) return invalid_arguments;
 
-// Note on async engines:
-//  - engines are responsible for tracking the dependencies: they cannot
-//    schedule a primitive for execution unless all its unputs are ready
+    primitive_t *error_primitive_stub;
+    if (error_prim == nullptr) error_prim = &error_primitive_stub;
 
-struct mkldnn_stream: public c_compatible {
-private:
-    int _is_lazy;
-    nstl::vector<primitive*> _queue;
-
-    status_t submit_queue(size_t start_idx, primitive **error_primitive) {
-        assert(start_idx < _queue.size());
-        assert(error_primitive);
-        engine *engine = _queue[start_idx]->engine();
-        size_t base_idx = start_idx;
-        for (size_t i = start_idx; i < _queue.size(); i++)
-            if (engine != _queue[i]->engine() || i == _queue.size() - 1) {
-                status_t s = engine->submit(i - base_idx + 1,
-                        &_queue[base_idx], error_primitive);
-                if (s != success)
-                    return s;
-                engine = _queue[i]->engine();
-                base_idx = i;
-            }
-        return success;
-    }
-
-    status_t wait_queue(bool block, primitive **error_primitive)
-    {
-        // This assumes that the engines start execution as soon as primitives
-        // are submitted and do not need any additional notification about
-        // wait()
-
-        assert(error_primitive);
-        bool all_ready;
-        do {
-            all_ready = true;
-            for (auto i = 0UL; i < _queue.size(); i++) {
-                auto p = _queue[i];
-                auto s = p->get_exec_state();
-                switch (s) {
-                    case primitive::exec_state::not_ready:
-                    all_ready = false;
-                    break;
-                case primitive::exec_state::ready:
-                    break;
-                default:
-                    *error_primitive = p;
-                }
-                if (!all_ready) {
-                    yield_thread();
-                    break;
-                }
-            }
-            if (all_ready) break;
-        } while (block);
-        if (all_ready)
-            _queue.clear();
-        return all_ready ? success : try_again;
-    }
-
-public:
-    mkldnn_stream(): _is_lazy(-1) {}
-
-    status_t submit(size_t n, primitive *primitives[],
-            primitive **error_primitive)
-    {
-        if (n == 0)
-            return success;
-
-        primitive *p = 0;
-        if (!error_primitive)
-            error_primitive = &p;
-
-        // Check all primitives have the same laziness
-        int old_is_lazy = _is_lazy;
-        if (_is_lazy == -1) _is_lazy = primitives[0]->engine()->is_lazy();
-        for (size_t i = 0; i < n; i++)
-            if (primitives[i]->engine()->is_lazy() != _is_lazy) {
-                _is_lazy = old_is_lazy;
-                return invalid_arguments;
-            }
-
-        // XXX: start_idx should be returned by _queue.insert()
-        int start_idx = _queue.size();
-        if (_queue.insert(_queue.end(), primitives, primitives + n)
-                != mkldnn::impl::nstl::success)
-            return out_of_memory;
-        if (!_is_lazy)
-            return submit_queue(start_idx, error_primitive);
-        return success;
-    }
-
-    status_t wait(bool block, primitive **error_primitive) {
-        if (_queue.size() == 0)
-            return success;
-
-        primitive *p = 0;
-        if (!error_primitive)
-            error_primitive = &p;
-
-        if (_is_lazy) {
-            status_t rc = submit_queue(0, error_primitive);
-            if (rc != success)
-                return rc;
+    /* check whether adding each new primitive stream is always closed */
+    nstl::vector<primitive_t *> tmp;
+    for (size_t i = 0; i < prims.size(); ++i) {
+        tmp.push_back(prims[i]);
+        if (!closed(tmp)) {
+            *error_prim = prims[i];
+            return invalid_arguments;
         }
-        return wait_queue(block, error_primitive);
     }
-};
 
-status_t mkldnn_stream_create(stream **astream) {
-    if (!astream)
+    const size_t start = stream_.size();
+    stream_.insert(stream_.end(), prims.begin(), prims.end());
+    return submit_impl(start, stream_.size(), error_prim);
+}
+
+bool stream_t::closed() const { return true; }
+
+bool stream_t::closed(const primitive_vector &prims) const { return true; }
+
+status_t stream_t::wait(primitive_t **error_prim) {
+    if (!closed()) return invalid_arguments; /* XXX: redundant? */
+
+    primitive_t *error_primitive_stub;
+    if (error_prim == nullptr) error_prim = &error_primitive_stub;
+
+    modifiable_ = false;
+    state_ = stream_t::waiting;
+    status_t status = wait_impl(error_prim);
+    state_ = stream_t::stopped;
+    return status;
+}
+
+status_t stream_t::rerun(primitive_t **error_prim) {
+    if (state() != stream_t::stopped) return invalid_arguments;
+
+    primitive_t *error_primitive_stub;
+    if (error_prim == nullptr) error_prim = &error_primitive_stub;
+
+    state_ = stream_t::running;
+    return rerun_impl(error_prim);
+}
+
+/* API */
+
+status_t mkldnn_stream_create(stream_t **stream, stream_kind_t stream_kind) {
+    bool args_ok = stream != nullptr && utils::one_of(stream_kind,
+            stream_kind::eager, stream_kind::lazy);
+    if (!args_ok)
         return invalid_arguments;
-    *astream = new stream;
-    return *astream ? success : out_of_memory;
+
+    stream_t *s;
+    if (stream_kind == stream_kind::eager)
+        s = new stream_eager_t;
+    else
+        s = new stream_lazy_t;
+    return safe_ptr_assign<stream_t>(*stream, s);
 }
 
-status_t mkldnn_stream_submit(stream *astream, size_t n,
-        primitive *primitives[],
-        primitive **error_primitive) {
-    return astream->submit(n, primitives, error_primitive);
+status_t mkldnn_stream_submit(stream_t *stream, size_t n,
+        primitive_t *primitives[], primitive_t **error_primitive) {
+    bool args_ok = !utils::any_null(stream, primitives);
+    if (!args_ok) return invalid_arguments;
+
+    nstl::vector<primitive_t *> prims;
+    for (size_t i = 0; i < n; ++i) {
+        if (primitives[i] == nullptr) return invalid_arguments;
+        prims.push_back(primitives[i]);
+    }
+    return stream->submit(prims, error_primitive);
 }
 
-status_t mkldnn_stream_wait(stream *astream, int block,
-        primitive **error_primitive) {
-    return astream->wait(!!block, error_primitive);
+status_t mkldnn_stream_wait(stream_t *stream, int block,
+        primitive_t **error_primitive) {
+    UNUSED(block);
+    if (stream == nullptr) return invalid_arguments;
+    return stream->wait(error_primitive);
 }
 
-status_t mkldnn_stream_destroy(stream *astream) {
-    delete astream;
+status_t mkldnn_stream_destroy(stream_t *stream) {
+    if (stream) delete stream;
     return success;
 }
 

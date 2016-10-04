@@ -14,70 +14,42 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "nstl.hpp"
+#include <assert.h>
+#include "mkldnn.h"
 
 #include "c_types_map.hpp"
-#include "type_helpers.hpp"
 #include "engine.hpp"
-#include "primitive.hpp"
-#include "reorder.hpp"
-
+#include "memory_pd.hpp"
+#include "primitive_desc.hpp"
 #include "utils.hpp"
 
 using namespace mkldnn::impl;
+using namespace mkldnn::impl::utils;
 using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::engine_kind;
 
-status_t mkldnn_reorder_primitive_desc_init(
-        reorder_primitive_desc_t *reorder_primitive_desc,
-        const memory_primitive_desc_t *input,
-        const memory_primitive_desc_t *output)
-{
-    if (any_null(reorder_primitive_desc, input, output))
+status_t mkldnn_reorder_primitive_desc_create(
+        primitive_desc_t **reorder_primitive_desc,
+        const primitive_desc_t *input, const primitive_desc_t *output) {
+    bool args_ok = true
+        && !any_null(reorder_primitive_desc, input, output)
+        && everyone_is(primitive_kind::memory, input->kind(), output->kind());
+    if (!args_ok) return invalid_arguments;
+
+    auto i_ek = input->engine()->kind();
+    auto o_ek = output->engine()->kind();
+    if (!implication(i_ek != o_ek, one_of(engine_kind::cpu, i_ek, o_ek)))
         return invalid_arguments;
 
-    /* XXX: assumptions:
-     * 1. reorders between different engines are possible only via cpu
-     * 2. reorder from/to non-cpu engine to/from cpu should be implemented in
-     *    non-cpu engine */
-    const bool possible_engine_mismatch = implication(
-            input->base.engine != output->base.engine,
-            one_of(input->base.engine->kind(), cpu, cpu_lazy)
-            || one_of(output->base.engine->kind(), cpu, cpu_lazy));
-    if (!possible_engine_mismatch) return invalid_arguments;
-    auto engine = one_of(input->base.engine->kind(), cpu, cpu_lazy)
-        ? input->base.engine : output->base.engine;
-
-    for (auto init = engine->get_reorder_inits(); *init; ++init) {
-        status_t status = (*init)(
-                primitive_desc_t::convert_from_c(reorder_primitive_desc), input,
-                output);
-        if (status == success)
-            return success;
-    }
-
-    return unimplemented;
-}
-
-status_t mkldnn_reorder_create(primitive **reorder,
-        const reorder_primitive_desc_t *reorder_primitive_desc,
-        const primitive_at_t input, const primitive *output) {
-    auto rpd = reinterpret_cast<const mkldnn_primitive_desc_t *>(
+    auto r_pd = reinterpret_cast<reorder_pd_t **>(
             reorder_primitive_desc);
-    // XXX: must check that shapes of in/out memory match what's in the desc (?)
-    const primitive_at_t inputs[] = {input};
-    const primitive *outputs[] = {output};
-    return mkldnn_primitive_create(reorder, rpd, inputs, outputs);
-}
+    auto i_mpd = reinterpret_cast<const memory_pd_t*>(input);
+    auto o_mpd = reinterpret_cast<const memory_pd_t*>(output);
+    auto e = (i_ek != engine_kind::cpu) ? input->engine() : output->engine();
 
-status_t mkldnn_reorder_get_primitive_desc(const primitive *reorder,
-        reorder_primitive_desc_t *reorder_primitive_desc)
-{
-    if (any_null(reorder, reorder_primitive_desc)
-            || reorder->kind() != primitive_kind::reorder)
-        return invalid_arguments;
-    *reorder_primitive_desc = reorder->primitive_desc().reorder;
-    return success;
+    for (auto r = e->get_reorder_implementation_list(); *r; ++r) {
+        if ((*r)(r_pd, i_mpd, o_mpd) == success) return success;
+    }
+    return unimplemented;
 }
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

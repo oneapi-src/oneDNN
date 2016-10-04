@@ -17,85 +17,87 @@
 #ifndef PRIMITIVE_HPP
 #define PRIMITIVE_HPP
 
+#include <assert.h>
+
 #include "mkldnn.h"
 
 #include "c_types_map.hpp"
+#include "event.hpp"
 #include "nstl.hpp"
+#include "primitive_desc.hpp"
 
+/** \brief A pure virtual primitive class
+ *
+ * Primitive contains links to its inputs & outputs, though it does not track
+ * their readiness on execution step.
+ *
+ * @remark @b Rational.
+ *   Dependencies are essential through-out the whole MKL-DNN library, so it
+ *   makes sense to include them on the very low level. On the other hand,
+ *   tracking them should be a task for corresponding essence, like scheduler,
+ *   stream or whatever. Primitive itself should know nothing about the
+ *   environment it is running in.
+ *
+ * @note
+ *   To make user experience better we should provide API which allows
+ *   achieving the best (or good enough) performance when creating primitives
+ *   in natural order: i.e. from bottom to top for forward pass and from top to
+ *   bottom for backward pass. Please consider restriction [1] in Level 0.
+ */
 struct mkldnn_primitive: public mkldnn::impl::c_compatible {
-public:
-    enum exec_state { ready, not_ready, error };
-
     typedef mkldnn::impl::nstl::vector<mkldnn::impl::primitive_at_t>
         input_vector;
-
-    typedef mkldnn::impl::nstl::vector<const mkldnn::impl::primitive *>
+    typedef mkldnn::impl::nstl::vector<const mkldnn::impl::primitive_t *>
         output_vector;
 
-    mkldnn::impl::primitive_desc_t primitive_desc() const {
-        return _primitive_desc;
-    }
-
-    mkldnn::impl::engine *engine() const { return _engine; }
-
-    mkldnn::impl::primitive_kind_t kind() const {
-        return _primitive_desc.base.primitive_kind;
-    }
-
-    virtual exec_state get_exec_state() const {
-        return _exec_state;
-    }
-
-    bool inputs_ready() const {
-        for (auto i = 0UL; i < _input.size(); i++)
-            if (_input[i].primitive->get_exec_state() != ready)
-                return false;
-        return true;
-    }
-
-    mkldnn::impl::status_t execute() {
-        if (!inputs_ready())
-            return mkldnn::impl::status::not_ready;
-        _exec_state = not_ready;
-        mkldnn::impl::status_t status = execute_impl();
-        _exec_state = (status == mkldnn::impl::status::success)
-            ? ready : error;
-        return status;
-    }
-
-    size_t input_count() const { return _input.size(); }
-    const input_vector &input() const { return _input; }
-
-    size_t output_count() const { return _output.size(); }
-    const output_vector &output() const { return _output; }
-
-    virtual char* memory(size_t index = 0) const {
-        return output()[index]->memory();
-    }
-    virtual const char* memory_const(size_t index = 0) const {
-        return output()[index]->memory_const();
-    }
-
+    mkldnn_primitive(const mkldnn::impl::primitive_desc_t *pd,
+            const input_vector &inputs, const output_vector &outputs)
+        : pd_(pd)
+        , inputs_(inputs)
+        , outputs_(outputs)
+    {}
     virtual ~mkldnn_primitive() {}
 
+    /** returns primitive's engine */
+    mkldnn::impl::engine_t *engine() const { return pd_->engine(); }
+    /** returns primitive's inputs */
+    const input_vector &inputs() const { return inputs_; }
+    /** returns primitive's outputs */
+    const output_vector &outputs() const { return outputs_; }
+    /** returns primitive's primitive desc */
+    const mkldnn::impl::primitive_desc_t *pd() const { return pd_; }
+    /** returns primitive's kind */
+    mkldnn::impl::primitive_kind_t kind() const { return pd_->kind(); }
+
+    /** executes primitive with resulting event @p e
+     *
+     * @p e (output)
+     *   a resulting event. It is primitive responsibility to set @p e state
+     *   after actual computations are done
+     *
+     * @remark @b Rational.
+     *   Suppose engine has a task pool and for some reasons submission failed.
+     *   In this case primitive will set @p e's state to event::error
+     */
+    virtual void execute(mkldnn::impl::event_t *e) = 0;
+
+    /** returns data handle. Applicable for memory primitives only. */
+    virtual mkldnn::impl::status_t get_data_handle(void **handle) const {
+        UNUSED(handle);
+        assert(this->kind() == mkldnn::impl::primitive_kind::memory);
+        return mkldnn::impl::status::invalid_arguments;
+    }
+    /** sets data handle. Applicable for memory primitives only. */
+    virtual mkldnn::impl::status_t set_data_handle(void *handle) {
+        UNUSED(handle);
+        assert(this->kind() == mkldnn::impl::primitive_kind::memory);
+        return mkldnn::impl::status::invalid_arguments;
+    }
+
 protected:
-    exec_state _exec_state;
-
-    mkldnn::impl::engine *_engine;
-
-    const mkldnn::impl::primitive_desc_t _primitive_desc;
-
-    input_vector _input;
-    output_vector _output;
-
-    virtual mkldnn::impl::status_t execute_impl() = 0;
-
-    mkldnn_primitive(const mkldnn::impl::primitive_desc_t& primitive_desc,
-            mkldnn::impl::engine *engine, exec_state state = not_ready)
-        : _exec_state(state)
-        , _engine(engine)
-        , _primitive_desc(primitive_desc)
-    {}
+    const mkldnn::impl::primitive_desc_t *pd_;
+    input_vector inputs_;
+    output_vector outputs_;
 
 private:
     mkldnn_primitive() = delete;
@@ -104,31 +106,6 @@ private:
     mkldnn_primitive &operator=(const mkldnn_primitive &) = delete;
     mkldnn_primitive &operator=(mkldnn_primitive &&) = delete;
 };
-
-namespace mkldnn { namespace impl {
-
-typedef status_t (*primitive_desc_init_f)(primitive_desc_t *primitive_desc,
-        const op_desc_t &op_desc, const engine &aengine);
-
-typedef status_t (*primitive_create_f)(primitive **aprimitive,
-        const primitive_desc_t *primitive_desc, const primitive_at_t inputs[],
-        const primitive *outputs[]);
-
-struct primitive_impl {
-    const primitive_create_f primitive_create;
-};
-
-status_t primitive_desc_init(primitive_desc_t *primitive_desc,
-        const op_desc_t &op_desc, const engine &aengine);
-
-status_t inline check_inputs_array(size_t n, const primitive_at_t inputs[]) {
-    for (size_t i = 0; i < n; i++)
-        if (inputs[i].primitive->output_count() <= inputs[i].output_index)
-            return status::invalid_arguments;
-    return status::success;
-}
-
-}}
 
 #endif
 

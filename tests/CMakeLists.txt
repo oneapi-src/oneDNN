@@ -29,33 +29,10 @@ include_directories(${CMAKE_SOURCE_DIR}/include)
 # target_link_libraries(simple_convolution-c ${LIB_NAME})
 # add_test(simple_convolution-c simple_convolution-c)
 
-add_executable(only_convolution-c only_convolution.c)
-set_property(TARGET only_convolution-c PROPERTY C_STANDARD 99)
-target_link_libraries(only_convolution-c ${LIB_NAME})
-add_test(only_convolution-c only_convolution-c)
-
-add_executable(only_convolution-cpp only_convolution.cpp)
-set_property(TARGET only_convolution-cpp PROPERTY CXX_STANDARD 11)
-set_property(TARGET only_convolution-cpp PROPERTY CXX_STANDARD_REQUIRED ON)
-target_link_libraries(only_convolution-cpp ${LIB_NAME})
-add_test(only_convolution-cpp only_convolution-cpp)
-
-#add_executable(api_check-cpp api_check.cpp)
-#set_property(TARGET api_check-cpp PROPERTY CXX_STANDARD 11)
-#set_property(TARGET api_check-cpp PROPERTY CXX_STANDARD_REQUIRED ON)
-#target_link_libraries(api_check-cpp ${LIB_NAME})
-#add_test(api_check-cpp api_check-cpp)
-
-add_executable(only_pooling-c only_pooling.c)
-set_property(TARGET only_pooling-c PROPERTY C_STANDARD 99)
-target_link_libraries(only_pooling-c ${LIB_NAME})
-add_test(only_pooling-c only_pooling-c)
-
-add_executable(only_pooling-cpp only_pooling.cpp)
-set_property(TARGET only_pooling-cpp PROPERTY CXX_STANDARD 11)
-set_property(TARGET only_pooling-cpp PROPERTY CXX_STANDARD_REQUIRED ON)
-target_link_libraries(only_pooling-cpp ${LIB_NAME})
-add_test(only_pooling-cpp only_pooling-cpp)
+add_executable(api-c api.c)
+set_property(TARGET api-c PROPERTY C_STANDARD 99)
+target_link_libraries(api-c ${LIB_NAME})
+add_test(api-c api-c)
 
 set(test_c_symbols "${CMAKE_CURRENT_BINARY_DIR}/test_c_symbols.c")
 add_executable(test_c_symbols-c ${test_c_symbols})
@@ -65,6 +42,9 @@ add_custom_command(
     ${CMAKE_SOURCE_DIR} ${test_c_symbols}
 )
 target_link_libraries(test_c_symbols-c ${LIB_NAME})
+
 add_test(test_c_symbols-c test_c_symbols-c)
+
+
 
 add_subdirectory(gtests)

@@ -84,24 +84,24 @@ protected:
                 = ::testing::TestWithParam<inprod_test_params>::GetParam();
         test_inner_product_descr_t ipd = p.test_ipd;
         bool has_spatial = ipd.kh > 1 && ipd.kw > 1;
+        bool with_bias = p.bias_format != memory::format::format_undef;
 
-        ASSERT_TRUE(p.engine_kind == engine::kind::cpu
-                || p.engine_kind == engine::kind::cpu_lazy);
+        ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         ASSERT_EQ(p.aprop_kind, prop_kind::forward);
         auto eng = engine(p.engine_kind, 0);
-        memory::precision prec = data_traits<data_t>::prec;
-        ASSERT_EQ(prec, mkldnn::memory::precision::f32);
+        memory::data_type data_type = data_traits<data_t>::data_type;
+        ASSERT_EQ(data_type, mkldnn::memory::data_type::f32);
 
         auto ip_src_desc = has_spatial ?
-                create_md({ ipd.mb, ipd.ic, ipd.kh, ipd.kw }, prec,
+                create_md({ ipd.mb, ipd.ic, ipd.kh, ipd.kw }, data_type,
                         p.src_format) :
-                create_md({ ipd.mb, ipd.ic }, prec, p.src_format);
+                create_md({ ipd.mb, ipd.ic }, data_type, p.src_format);
         auto ip_weights_desc = has_spatial ?
-                create_md({ ipd.oc, ipd.ic, ipd.kh, ipd.kw }, prec,
+                create_md({ ipd.oc, ipd.ic, ipd.kh, ipd.kw }, data_type,
                         p.weights_format) :
-                create_md({ ipd.oc, ipd.ic }, prec, p.weights_format);
-        auto ip_bias_desc = create_md({ ipd.oc }, prec, p.bias_format);
-        auto ip_dst_desc = create_md({ ipd.mb, ipd.oc }, prec, p.dst_format);
+                create_md({ ipd.oc, ipd.ic }, data_type, p.weights_format);
+        auto ip_bias_desc = create_md({ ipd.oc }, data_type, p.bias_format);
+        auto ip_dst_desc = create_md({ ipd.mb, ipd.oc }, data_type, p.dst_format);
 
         auto ip_src = memory(memory::primitive_desc(ip_src_desc, eng));
         auto ip_weights = memory(memory::primitive_desc(ip_weights_desc, eng));
@@ -109,21 +109,33 @@ protected:
         auto ip_dst = memory(memory::primitive_desc(ip_dst_desc, eng));
         auto dst_ref = memory(memory::primitive_desc(ip_dst_desc, eng));
 
-        fill_data<data_t>(ip_src.get_primitive_desc().get_number_of_elements(),
+        fill_data<data_t>(ip_src.get_primitive_desc().get_size() / sizeof(data_t),
                 (data_t *)ip_src.get_data_handle());
         fill_data<data_t>(
-                ip_weights.get_primitive_desc().get_number_of_elements(),
+                ip_weights.get_primitive_desc().get_size() / sizeof(data_t),
                 (data_t *)ip_weights.get_data_handle());
-        fill_data<data_t>(ip_bias.get_primitive_desc().get_number_of_elements(),
+        fill_data<data_t>(ip_bias.get_primitive_desc().get_size() / sizeof(data_t),
                 (data_t *)ip_bias.get_data_handle());
 
-        auto ip = inner_product(p.aprop_kind, ip_src, ip_weights, ip_bias,
-                ip_dst);
+        auto ip_desc = with_bias ?
+            inner_product_forward::desc(p.aprop_kind,
+                ip_src_desc, ip_weights_desc, ip_bias_desc, ip_dst_desc) :
+            inner_product_forward::desc(p.aprop_kind,
+                ip_src_desc, ip_weights_desc, ip_dst_desc);
+
+        auto ip_primitive_desc = inner_product_forward::primitive_desc(
+                ip_desc, eng);
+
+        auto ip = with_bias ?
+            inner_product_forward(ip_primitive_desc,
+                    ip_src, ip_weights, ip_bias, ip_dst) :
+            inner_product_forward(ip_primitive_desc,
+                    ip_src, ip_weights, ip_dst);
 
         std::vector<primitive> pipeline;
         pipeline.push_back(ip);
 
-        stream().submit(pipeline).wait();
+        stream(stream::kind::lazy).submit(pipeline).wait();
 
         compute_ref_inner_product_fwd<data_t>(ipd, ip_src, ip_weights, ip_bias,
                 dst_ref);

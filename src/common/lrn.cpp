@@ -14,77 +14,71 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "nstl.hpp"
+#include <assert.h>
+#include "mkldnn.h"
 
-#include "type_helpers.hpp"
-#include "engine.hpp"
-#include "primitive.hpp"
-
+#include "c_types_map.hpp"
 #include "utils.hpp"
 
 using namespace mkldnn::impl;
+using namespace mkldnn::impl::utils;
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::prop_kind;
 using namespace mkldnn::impl::alg_kind;
 
-status_t mkldnn_lrn_desc_init(lrn_desc_t *lrn_desc, prop_kind_t prop_kind,
-        alg_kind_t alg_kind, const memory_desc_t *src_desc,
-        const memory_desc_t *dst_desc, double alpha, double beta,
-        int local_size)
-{
-    bool args_ok = !any_null(lrn_desc, src_desc, dst_desc)
-        && one_of(prop_kind, forward_training, forward_scoring, backward_data)
-        && one_of(alg_kind, lrn_across_channels, lrn_within_channel);
+namespace {
+status_t lrn_desc_init(lrn_desc_t *lrn_desc,
+        prop_kind_t prop_kind, alg_kind_t alg_kind,
+        const memory_desc_t *data_desc, const memory_desc_t *diff_data_desc,
+        int local_size, double alpha, double beta) {
+    bool args_ok = true
+        && !any_null(lrn_desc, data_desc)
+        && one_of(alg_kind, lrn_within_channel, lrn_across_channels)
+        && one_of(prop_kind, forward_training, forward_inference, backward_data)
+        && implication(prop_kind == backward_data, diff_data_desc != nullptr);
     if (!args_ok) return invalid_arguments;
 
-    lrn_desc_t cd;
-    cd.prop_kind    = prop_kind;
-    cd.alg_kind     = alg_kind;
-    cd.src_desc     = *src_desc;
-    cd.dst_desc     = *dst_desc;
-    cd.alpha        = alpha;
-    cd.beta         = beta;
-    cd.local_size   = local_size;
+    lrn_desc_t ld = {};
+    ld.primitive_kind = primitive_kind::lrn;
+    ld.prop_kind = prop_kind;
+    ld.alg_kind = alg_kind;
 
-    status_t status = types::lrn_desc_is_ok(cd);
-    if (status == success) *lrn_desc = cd;
+    ld.data_desc = *data_desc;
+    if (ld.prop_kind == backward_data)
+        ld.diff_data_desc = *diff_data_desc;
+    ld.local_size = local_size;
+    ld.lrn_alpha = alpha;
+    ld.lrn_beta = beta;
 
-    return status;
-}
+    bool consistency = true
+        && ld.data_desc.ndims == 4;
+    if (ld.prop_kind == backward_data)
+        consistency = consistency
+            && ld.diff_data_desc.ndims == 4
+            && array_cmp(ld.diff_data_desc.dims, ld.data_desc.dims, 4);
+    if (!consistency) return invalid_arguments;
 
-status_t mkldnn_lrn_primitive_desc_init(
-        lrn_primitive_desc_t *lrn_primitive_desc,
-        const lrn_desc_t *lrn_desc,
-        const engine *engine)
-{
-    if (any_null(lrn_primitive_desc, lrn_desc, engine))
-        return invalid_arguments;
-
-    return primitive_desc_init(
-            primitive_desc_t::convert_from_c(lrn_primitive_desc),
-            *lrn_desc, *engine);
-}
-
-status_t mkldnn_lrn_create(primitive **lrn,
-        const lrn_primitive_desc_t *lrn_primitive_desc,
-        const primitive_at_t src, const primitive_at_t scratch,
-        const primitive *dst)
-{
-    auto *lpd = reinterpret_cast<const mkldnn_primitive_desc_t *>(
-            lrn_primitive_desc);
-    const primitive_at_t inputs[] = {src, scratch};
-    const primitive *outputs[] = {dst};
-    return mkldnn_primitive_create(lrn, lpd, inputs, outputs);
-}
-
-status_t mkldnn_lrn_get_primitive_desc(const primitive *lrn,
-        lrn_primitive_desc_t *lrn_primitive_desc)
-{
-    if (any_null(lrn, lrn_primitive_desc)
-            || lrn->kind() != primitive_kind::lrn)
-        return invalid_arguments;
-    *lrn_primitive_desc = lrn->primitive_desc().lrn;
+    *lrn_desc = ld;
     return success;
+}
+}
+
+status_t mkldnn_lrn_forward_desc_init(lrn_desc_t *lrn_desc,
+        prop_kind_t prop_kind, alg_kind_t alg_kind,
+        const memory_desc_t *data_desc, int local_size, double alpha,
+        double beta) {
+    if (!one_of(prop_kind, forward_training, forward_inference))
+        return invalid_arguments;
+    return lrn_desc_init(lrn_desc, prop_kind, alg_kind, data_desc, nullptr,
+            local_size, alpha, beta);
+}
+
+status_t mkldnn_lrn_backward_desc_init(lrn_desc_t *lrn_desc,
+        alg_kind_t alg_kind, const memory_desc_t *diff_data_desc,
+        const memory_desc_t *data_desc, int local_size, double alpha,
+        double beta) {
+    return lrn_desc_init(lrn_desc, backward_data, alg_kind, data_desc,
+            diff_data_desc, local_size, alpha, beta);
 }
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
