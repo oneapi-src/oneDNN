@@ -252,7 +252,6 @@ template <> struct handle_traits<c_api::mkldnn_primitive_desc_t> {
 /// Memory primitive that describes the data.
 struct memory: public primitive  {
     private:
-// TODO: check me please
     std::shared_ptr<char> _handle;
 
     public:
@@ -487,6 +486,17 @@ inline c_api::mkldnn_prop_kind_t convert_to_c(prop_kind kind) {
     return static_cast<c_api::mkldnn_prop_kind_t>(kind);
 }
 
+enum algorithm {
+    convolution_direct = c_api::mkldnn_convolution_direct,
+    lrn_across_channels = c_api::mkldnn_lrn_across_channels,
+    lrn_within_channel  = c_api::mkldnn_lrn_within_channel,
+    pooling_max = c_api::mkldnn_pooling_max,
+    pooling_avg = c_api::mkldnn_pooling_avg
+};
+static c_api::mkldnn_alg_kind_t convert_to_c(algorithm aalgorithm) {
+    return static_cast<c_api::mkldnn_alg_kind_t>(aalgorithm);
+}
+
 struct reorder : public primitive {
     struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t>{
         primitive_desc(const memory::primitive_desc &input,
@@ -697,10 +707,6 @@ struct stream: public handle<c_api::mkldnn_stream_t> {
 };
 
 struct convolution_forward: public primitive {
-    enum algorithm { direct = c_api::mkldnn_convolution_direct };
-    static c_api::mkldnn_alg_kind_t convert_to_c(algorithm aalgorithm) {
-        return static_cast<c_api::mkldnn_alg_kind_t>(aalgorithm);
-    }
     struct desc {
         c_api::mkldnn_convolution_desc_t data;
         desc(prop_kind aprop_kind, algorithm aalgorithm,
@@ -741,7 +747,6 @@ struct convolution_forward: public primitive {
                     "could not create a convolution forward descriptor");
         }
     };
-// TODO: replace nullptr -> hint
     struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t>{
         primitive_desc(const desc &adesc, const engine &aengine) {
             c_api::mkldnn_primitive_desc_t result;
@@ -827,10 +832,6 @@ struct convolution_forward: public primitive {
 };
 
 struct convolution_backward_data : public primitive {
-    enum algorithm { direct = c_api::mkldnn_convolution_direct };
-    static c_api::mkldnn_alg_kind_t convert_to_c(algorithm aalgorithm) {
-        return static_cast<c_api::mkldnn_alg_kind_t>(aalgorithm);
-    }
     struct desc {
         c_api::mkldnn_convolution_desc_t data;
         desc(algorithm aalgorithm,
@@ -877,10 +878,6 @@ struct convolution_backward_data : public primitive {
 };
 
 struct convolution_backward_weights : public primitive {
-    enum algorithm { direct = c_api::mkldnn_convolution_direct };
-    static c_api::mkldnn_alg_kind_t convert_to_c(algorithm aalgorithm) {
-        return static_cast<c_api::mkldnn_alg_kind_t>(aalgorithm);
-    }
     struct desc {
         c_api::mkldnn_convolution_desc_t data;
         desc(algorithm aalgorithm,
@@ -927,10 +924,6 @@ struct convolution_backward_weights : public primitive {
 };
 
 struct convolution_backward_bias : public primitive {
-    enum algorithm { direct = c_api::mkldnn_convolution_direct };
-    static c_api::mkldnn_alg_kind_t convert_to_c(algorithm aalgorithm) {
-        return static_cast<c_api::mkldnn_alg_kind_t>(aalgorithm);
-    }
     struct desc {
         c_api::mkldnn_convolution_desc_t data;
         desc(algorithm aalgorithm,
@@ -966,13 +959,6 @@ struct convolution_backward_bias : public primitive {
 };
 
 struct lrn_forward : public primitive {
-    enum algorithm {
-        across_channels = c_api::mkldnn_lrn_across_channels,
-        within_channel  = c_api::mkldnn_lrn_within_channel,
-    };
-    static c_api::mkldnn_alg_kind_t convert_to_c(algorithm aalgorithm) {
-        return static_cast<c_api::mkldnn_alg_kind_t>(aalgorithm);
-    }
     struct desc {
         c_api::mkldnn_lrn_desc_t data;
         desc(prop_kind aprop_kind, algorithm aalgorithm,
@@ -1056,13 +1042,6 @@ struct lrn_forward : public primitive {
 };
 
 struct pooling_forward : public primitive {
-    enum algorithm {
-        max = c_api::mkldnn_pooling_max,
-        avg = c_api::mkldnn_pooling_avg
-    };
-    static c_api::mkldnn_alg_kind_t convert_to_c(algorithm aalgorithm) {
-        return static_cast<c_api::mkldnn_alg_kind_t>(aalgorithm);
-    }
     struct desc {
         c_api::mkldnn_pooling_desc_t data;
         desc(prop_kind aprop_kind, algorithm aalgorithm,

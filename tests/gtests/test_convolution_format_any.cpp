@@ -25,7 +25,7 @@ using fmt = memory::format;
 struct conv_any_fmt_test_params {
     prop_kind aprop_kind;
     const engine::kind engine_kind;
-    convolution_forward::algorithm aalgorithm;
+    algorithm aalgorithm;
     fmt src_fmt_in;
     fmt src_fmt_exp;
     fmt weights_fmt_in;
@@ -48,7 +48,7 @@ protected:
 
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         ASSERT_EQ(p.aprop_kind, prop_kind::forward);
-        ASSERT_EQ(p.aalgorithm, convolution_forward::direct);
+        ASSERT_EQ(p.aalgorithm, algorithm::convolution_direct);
         auto eng = engine(p.engine_kind, 0);
         memory::data_type data_type = data_traits<data_t>::data_type;
         ASSERT_EQ(data_type, mkldnn::memory::data_type::f32);
@@ -113,7 +113,7 @@ TEST_P(conv_any_fmt_test_float, TestsConvolutionAnyFmt)
 }
 INSTANTIATE_TEST_CASE_P(TestConvolutionAnyFmtForward, conv_any_fmt_test_float,
         ::testing::Values(conv_any_fmt_test_params_float{ prop_kind::forward,
-                engine::kind::cpu, convolution_forward::direct, fmt::any, fmt::nchw,
+                engine::kind::cpu, algorithm::convolution_direct, fmt::any, fmt::nchw,
                 fmt::any, fmt::oihw, fmt::any, fmt::x, fmt::any, fmt::nchw,
                 { 2, 1, 4, 4, 4, 6, 4, 4, 3, 3, 1, 1, 1, 1 } }));
 
@@ -121,27 +121,27 @@ INSTANTIATE_TEST_CASE_P(
         TestConvolutionAlexnetAnyFmtForwardBlocked, conv_any_fmt_test_float,
         ::testing::Values(
                 conv_any_fmt_test_params_float{ prop_kind::forward,
-                        engine::kind::cpu, convolution_forward::direct, fmt::any,
+                        engine::kind::cpu, algorithm::convolution_direct, fmt::any,
                         fmt::nchw, fmt::any, fmt::Ohwi8o, fmt::any, fmt::x,
                         fmt::any, fmt::nChw8c,
                         { 2, 1, 3, 227, 227, 96, 55, 55, 11, 11, 0, 0, 4, 4 } },
                 conv_any_fmt_test_params_float{ prop_kind::forward,
-                        engine::kind::cpu, convolution_forward::direct, fmt::any,
+                        engine::kind::cpu, algorithm::convolution_direct, fmt::any,
                         fmt::nChw8c, fmt::any, fmt::gOIhw8i8o, fmt::any, fmt::x,
                         fmt::any, fmt::nChw8c,
                         { 2, 2, 96, 27, 27, 256, 27, 27, 5, 5, 2, 2, 1, 1 } },
                 conv_any_fmt_test_params_float{ prop_kind::forward,
-                        engine::kind::cpu, convolution_forward::direct, fmt::any,
+                        engine::kind::cpu, algorithm::convolution_direct, fmt::any,
                         fmt::nChw8c, fmt::any, fmt::OIhw8i8o, fmt::any, fmt::x,
                         fmt::any, fmt::nChw8c,
                         { 2, 1, 256, 13, 13, 384, 13, 13, 3, 3, 1, 1, 1, 1 } },
                 conv_any_fmt_test_params_float{ prop_kind::forward,
-                        engine::kind::cpu, convolution_forward::direct, fmt::any,
+                        engine::kind::cpu, algorithm::convolution_direct, fmt::any,
                         fmt::nChw8c, fmt::any, fmt::gOIhw8i8o, fmt::any, fmt::x,
                         fmt::any, fmt::nChw8c,
                         { 2, 2, 384, 13, 13, 384, 13, 13, 3, 3, 1, 1, 1, 1 } },
                 conv_any_fmt_test_params_float{ prop_kind::forward,
-                        engine::kind::cpu, convolution_forward::direct, fmt::any,
+                        engine::kind::cpu, algorithm::convolution_direct, fmt::any,
                         fmt::nChw8c, fmt::any, fmt::gOIhw8i8o, fmt::any, fmt::x,
                         fmt::any, fmt::nChw8c, { 2, 2, 384, 13, 13, 256, 13, 13,
                                                        3, 3, 1, 1, 1, 1 } }));
