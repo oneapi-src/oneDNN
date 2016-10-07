@@ -90,7 +90,7 @@ void test2() {
     real_t *bias = (real_t*)calloc(product(c3_bias_sizes, 1), sizeof(real_t));
     real_t *dst = (real_t*)calloc(product(c3_dst_sizes, 4), sizeof(real_t));
     real_t *out_mem = (real_t*)calloc(product(c3_dst_sizes, 4), sizeof(real_t));
-    CHECK_TRUE(src && weights && bias && dst);
+    CHECK_TRUE(src && weights && bias && dst && out_mem);
 
     for (int i = 0; i < c3_bias_sizes[0]; ++i) bias[i] = i;
 
