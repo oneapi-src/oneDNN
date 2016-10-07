@@ -88,7 +88,6 @@ static const rpd_create_f cpu_reorder_impl_list[] = {
     simple_reorder_t<f32, any, f32, any, fmt_order::any, spec::reference>::pd_t::create,
     nullptr,
 };
-
 #define INSTANCE(inst) &primitive_desc_t::create<inst::pd_t>
 static const pd_create_f cpu_impl_list[] = {
     /* conv */
@@ -100,6 +99,7 @@ static const pd_create_f cpu_impl_list[] = {
     /* pool */
     INSTANCE(jit_avx2_pooling_fwd_t),
     INSTANCE(ref_pooling_fwd_t<data_type::f32>),
+    INSTANCE(ref_pooling_bwd_t<data_type::f32>),
     /* lrn */
     INSTANCE(jit_avx2_lrn_fwd_t),
     INSTANCE(ref_lrn_fwd_t<data_type::f32>),

@@ -493,6 +493,7 @@ enum algorithm {
     pooling_max = c_api::mkldnn_pooling_max,
     pooling_avg = c_api::mkldnn_pooling_avg
 };
+
 static c_api::mkldnn_alg_kind_t convert_to_c(algorithm aalgorithm) {
     return static_cast<c_api::mkldnn_alg_kind_t>(aalgorithm);
 }
@@ -1108,6 +1109,66 @@ struct pooling_forward : public primitive {
         error::wrap_c_api(c_api::mkldnn_primitive_create(&result,
                     aprimitive_desc.get(), inputs, outputs),
                 "could not create a pooling forward primitive");
+        reset(result);
+    }
+};
+
+struct pooling_backward : public primitive {
+    struct desc {
+        c_api::mkldnn_pooling_desc_t data;
+        desc(algorithm &aalgorithm,
+                const memory::desc &diff_src_desc,
+                const memory::desc &diff_dst_desc,
+                const memory::dims &strides,
+                const memory::dims &kernel,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r, 
+                const padding_kind apadding_kind) {
+            memory::validate_dims(strides);
+            memory::validate_dims(kernel);
+            memory::validate_dims(padding_l);
+            memory::validate_dims(padding_r);
+            error::wrap_c_api(c_api::mkldnn_pooling_backward_desc_init(&data,
+                        convert_to_c(aalgorithm),
+                        &diff_src_desc.data, &diff_dst_desc.data,
+                        &strides[0], &kernel[0],
+                        &padding_l[0], &padding_r[0],
+                        mkldnn::convert_to_c(apadding_kind)),
+                    "could not init a backward pooling descriptor");
+        }
+    };
+
+    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t>{
+        primitive_desc(const desc &adesc, const engine &aengine,
+        const pooling_forward::primitive_desc &hint_fwd_primitive_desc) {
+        c_api::mkldnn_primitive_desc_t result;
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_create(
+                        &result, &adesc.data, aengine.get(),
+                        hint_fwd_primitive_desc.get()),
+                    "could not create a backward pooling primitive descriptor");
+            reset(result);
+        }
+    };
+
+    pooling_backward(const primitive_desc &aprimitive_desc, const primitive::at &diff_dst,
+            const memory &diff_src) {
+        c_api::mkldnn_primitive_t result;
+        c_api::mkldnn_primitive_at_t inputs[] = { diff_dst.data };
+        c_api::const_mkldnn_primitive_t outputs[] = { diff_src.get() };
+        error::wrap_c_api(c_api::mkldnn_primitive_create(&result,
+                    aprimitive_desc.get(), inputs, outputs),
+                "could not create a pooling backward primitive");
+        reset(result);
+    }
+
+    pooling_backward(const primitive_desc &aprimitive_desc, const primitive::at &diff_dst,
+            const primitive::at &workspace, const memory &diff_src) {
+        c_api::mkldnn_primitive_t result;
+        c_api::mkldnn_primitive_at_t inputs[] = { diff_dst.data, workspace.data };
+        c_api::const_mkldnn_primitive_t outputs[] = { diff_src.get() };
+        error::wrap_c_api(c_api::mkldnn_primitive_create(&result,
+                    aprimitive_desc.get(), inputs, outputs),
+                "could not create a pooling backward primitive");
         reset(result);
     }
 };

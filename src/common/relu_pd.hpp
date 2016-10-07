@@ -28,7 +28,9 @@ namespace impl {
 
 struct relu_fwd_pd_t: public primitive_desc_t {
     typedef relu_fwd_pd_t base_class;
+    typedef relu_fwd_pd_t hint_class;
     static constexpr auto base_pkind = primitive_kind::relu;
+    static constexpr auto base_prop_kind = prop_kind::backward;
 
     relu_fwd_pd_t(mkldnn::impl::engine_t *engine, const relu_desc_t *adesc,
             const relu_fwd_pd_t *hint_fwd_pd)

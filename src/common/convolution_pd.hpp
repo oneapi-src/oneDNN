@@ -30,11 +30,13 @@ namespace impl {
 template <bool with_relu>
 struct _convolution_fwd_pd_t: public primitive_desc_t {
     typedef _convolution_fwd_pd_t base_class;
+    typedef _convolution_fwd_pd_t hint_class;
     typedef typename utils::conditional<with_relu,
             convolution_relu_desc_t, convolution_desc_t>::type base_desc_t;
     static constexpr auto base_pkind =
         utils::conditional_v<with_relu, primitive_kind_t,
         primitive_kind::convolution_relu, primitive_kind::convolution>::value;
+    static constexpr auto base_prop_kind = prop_kind::backward;
 
     _convolution_fwd_pd_t(mkldnn::impl::engine_t *engine,
             const base_desc_t *adesc, const _convolution_fwd_pd_t *hint_fwd_pd)

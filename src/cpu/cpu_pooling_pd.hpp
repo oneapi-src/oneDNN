@@ -56,6 +56,32 @@ protected:
     virtual status_t init() = 0;
 };
 
+struct cpu_pooling_bwd_pd_t: public pooling_bwd_pd_t {
+    using cpu_memory_pd_t = cpu_memory_t::pd_t;
+
+    cpu_pooling_bwd_pd_t(engine_t *engine, const pooling_desc_t *adesc,
+            const pooling_fwd_pd_t *hint_fwd_pd)
+        : pooling_bwd_pd_t(engine, adesc, hint_fwd_pd)
+        , diff_src_pd_(engine_, &desc_.diff_src_desc)
+        , diff_dst_pd_(engine_, &desc_.diff_dst_desc)
+        , ws_pd_(engine_) {}
+    virtual ~cpu_pooling_bwd_pd_t() {}
+
+    virtual const cpu_memory_pd_t *diff_src_pd(int index = 0) const override
+    { return index == 0 ? &diff_src_pd_ : nullptr; }
+    virtual const cpu_memory_pd_t *diff_dst_pd(int index = 0) const override
+    { return index == 0 ? &diff_dst_pd_ : nullptr; }
+    virtual const cpu_memory_pd_t *workspace_pd(int index = 0) const override
+    { return (index == 0 && !ws_pd_.is_zero()) ? &ws_pd_ : nullptr; }
+
+protected:
+    cpu_memory_pd_t diff_src_pd_;
+    cpu_memory_pd_t diff_dst_pd_;
+    cpu_memory_pd_t ws_pd_;
+
+    virtual status_t init() = 0;
+};
+
 }
 }
 }

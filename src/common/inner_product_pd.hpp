@@ -28,7 +28,9 @@ namespace impl {
 
 struct inner_product_fwd_pd_t: public primitive_desc_t {
     typedef inner_product_fwd_pd_t base_class;
+    typedef inner_product_fwd_pd_t hint_class;
     static constexpr auto base_pkind = primitive_kind::inner_product;
+    static constexpr auto base_prop_kind = prop_kind::backward;
 
     inner_product_fwd_pd_t(mkldnn::impl::engine_t *engine,
             const inner_product_desc_t *adesc,

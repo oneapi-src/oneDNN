@@ -75,6 +75,49 @@ private:
     pd_t conf_;
 };
 
+template <impl::data_type_t data_type>
+struct ref_pooling_bwd_t: public cpu_primitive_t {
+    struct pd_t: public cpu_pooling_bwd_pd_t {
+        pd_t(engine_t *engine, const pooling_desc_t *adesc,
+                const pooling_fwd_pd_t *hint_fwd_pd)
+            : cpu_pooling_bwd_pd_t(engine, adesc, hint_fwd_pd) {}
+
+        DECLARE_COMMON_PD_T(ref_pooling_bwd_t);
+
+        virtual status_t init() override {
+            using namespace prop_kind;
+            using namespace alg_kind;
+            assert(engine()->kind() == engine_kind::cpu);
+            bool ok = true
+                && utils::one_of(desc()->prop_kind, backward_data)
+                && utils::one_of(desc()->alg_kind, pooling_max, pooling_avg)
+                && utils::everyone_is(data_type, diff_dst_pd()->desc()->data_type,
+                        diff_src_pd()->desc()->data_type);
+            if (!ok) return status::unimplemented;
+
+            auto indices_desc = *diff_dst_pd()->desc();
+            indices_desc.data_type = data_type::s32;
+            ws_pd_ = cpu_memory_t::pd_t(engine_, &indices_desc);
+
+            return status::success;
+        }
+    };
+
+    ref_pooling_bwd_t(const pd_t *pd, const input_vector &inputs,
+            const output_vector &outputs)
+        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {}
+    typedef typename prec_trait<data_type>::type data_t;
+
+    virtual void execute(event_t *e) {
+        execute_backward();
+        e->set_state(event_t::ready);
+    }
+
+private:
+    void execute_backward();
+    pd_t conf_;
+};
+
 }
 }
 }
