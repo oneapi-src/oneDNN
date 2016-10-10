@@ -30,7 +30,6 @@ struct batch_normalization_fwd_pd_t: public primitive_desc_t {
     typedef batch_normalization_fwd_pd_t base_class;
     typedef batch_normalization_fwd_pd_t hint_class;
     static constexpr auto base_pkind = primitive_kind::batch_normalization;
-    static constexpr auto base_prop_kind = prop_kind::backward;
 
     batch_normalization_fwd_pd_t(mkldnn::impl::engine_t *engine,
             const batch_normalization_desc_t *adesc,

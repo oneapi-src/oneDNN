@@ -30,7 +30,6 @@ struct lrn_fwd_pd_t: public primitive_desc_t {
     typedef lrn_fwd_pd_t base_class;
     typedef lrn_fwd_pd_t hint_class;
     static constexpr auto base_pkind = primitive_kind::lrn;
-    static constexpr auto base_prop_kind = prop_kind::backward;
 
     lrn_fwd_pd_t(mkldnn::impl::engine_t *engine, const lrn_desc_t *adesc,
             const lrn_fwd_pd_t *hint_fwd_pd)
