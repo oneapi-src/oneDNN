@@ -117,7 +117,6 @@ void check_pool_bwd(pool_bwd_test_params p, memory &diff_src, memory &diff_dst, 
             }
         }
     }
-                     
 
 #pragma omp parallel for collapse(2)
     for (int n = 0; n < pd.mb; n++) {
@@ -143,7 +142,6 @@ void check_pool_bwd(pool_bwd_test_params p, memory &diff_src, memory &diff_dst, 
                                     ref_diff_src[iidx] += diff_dst;
                             }
                         }
-                      
                     } else if (p.aalgorithm == algorithm::pooling_avg) {
                         for (int kh = 0; kh < pd.kh; kh++) {
                             for (int kw = 0; kw < pd.kw; kw++) {
@@ -225,7 +223,7 @@ protected:
         pool_prim_desc.reset(
                 new pooling_forward::primitive_desc(pool_desc, *eng));
 
-        bool with_workspace = p.aalgorithm != algorithm::pooling_avg; 
+        bool with_workspace = p.aalgorithm != algorithm::pooling_avg;
         auto p_workspace_desc = with_workspace ?
             pool_prim_desc->workspace_primitive_desc() :
             memory::primitive_desc( {{}, data_type, p.diff_dst_format}, *eng);
@@ -264,7 +262,7 @@ protected:
         auto pool_bwd_prim_desc = pooling_backward::primitive_desc(
                 pool_bwd_desc, *eng, *pool_prim_desc);
 
-        bool with_workspace = p.aalgorithm != algorithm::pooling_avg; 
+        bool with_workspace = p.aalgorithm != algorithm::pooling_avg;
 
         auto pool_bwd = with_workspace ?
                 pooling_backward(pool_bwd_prim_desc, *dst, *workspace, *src) :
@@ -324,7 +322,7 @@ INSTANTIATE_TEST_CASE_P(
             pool_bwd_test_params_float{ engine::kind::cpu,
             pooling_avg, memory::format::nchw,
             memory::format::nchw, { 2, 64, 8, 8, 4, 4, 3, 3, 0, 0, 2, 2 } },
-            pool_bwd_test_params_float{ engine::kind::cpu, 
+            pool_bwd_test_params_float{ engine::kind::cpu,
             pooling_avg, memory::format::nchw,
             memory::format::nchw, { 2, 64, 8, 8, 4, 4, 3, 3, 0, 0, 2, 2 } }
             ));

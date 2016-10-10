@@ -26,7 +26,7 @@ include_directories(${CMAKE_SOURCE_DIR}/tests/gtests
 #file(GLOB API_TEST_CASES_SRC api_tests/*.cpp)
 #file(GLOB PRIM_TEST_CASES_SRC test_*.cpp)
 file(GLOB PRIM_TEST_CASES_SRC
-#                              test_convolution_forward.cpp
+                              test_convolution_forward.cpp
                               test_convolution_format_any.cpp
                               test_lrn_forward.cpp
                               test_pooling_forward.cpp
