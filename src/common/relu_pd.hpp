@@ -30,7 +30,6 @@ struct relu_fwd_pd_t: public primitive_desc_t {
     typedef relu_fwd_pd_t base_class;
     typedef relu_fwd_pd_t hint_class;
     static constexpr auto base_pkind = primitive_kind::relu;
-    static constexpr auto base_prop_kind = prop_kind::backward;
 
     relu_fwd_pd_t(mkldnn::impl::engine_t *engine, const relu_desc_t *adesc,
             const relu_fwd_pd_t *hint_fwd_pd)
@@ -53,6 +52,59 @@ struct relu_fwd_pd_t: public primitive_desc_t {
     virtual int n_inputs() const override { return 1; }
     virtual int n_outputs() const override
     { return 1 + (workspace_pd() != nullptr); }
+
+    virtual status_t query(query_t what, int idx, void *result) const override
+    {
+        switch (what) {
+        case query::relu_d:
+            *(const relu_desc_t**)result = desc(); break;
+        default: return primitive_desc_t::query(what, idx, result);
+        }
+        return status::success;
+    }
+
+    /* common relu aux functions */
+
+    inline int MB() const { return desc_.data_desc.dims[0]; }
+    inline int C() const { return desc_.data_desc.dims[1]; }
+    inline int H() const { return desc_.data_desc.dims[2]; }
+    inline int W() const { return desc_.data_desc.dims[3]; }
+
+protected:
+    relu_desc_t desc_;
+    const relu_fwd_pd_t *hint_fwd_pd_;
+};
+
+struct relu_bwd_pd_t: public primitive_desc_t {
+    typedef relu_bwd_pd_t base_class;
+    typedef relu_fwd_pd_t hint_class;
+    static constexpr auto base_pkind = primitive_kind::relu;
+
+    relu_bwd_pd_t(mkldnn::impl::engine_t *engine, const relu_desc_t *adesc,
+            const relu_fwd_pd_t *hint_fwd_pd)
+        : primitive_desc_t(engine, primitive_kind::relu)
+        , desc_(*adesc), hint_fwd_pd_(hint_fwd_pd) {}
+    virtual ~relu_bwd_pd_t() {}
+
+    const relu_desc_t *desc() const { return &desc_; }
+    virtual const op_desc_t *op_desc() const override
+    { return reinterpret_cast<const op_desc_t *>(this->desc()); }
+
+    virtual const memory_pd_t *input_pd(int index = 0) const override
+    {
+        if (index == 0) return src_pd();
+        if (index == 0) return diff_dst_pd();
+        if (index == 1) return workspace_pd();
+        return nullptr;
+    }
+    virtual const memory_pd_t *output_pd(int index = 0) const override {
+        if (index == 0) return diff_src_pd();
+        return nullptr;
+    }
+
+    virtual int n_inputs() const override
+    { return 2 + (workspace_pd() != nullptr); }
+    virtual int n_outputs() const override { return 1; }
 
     virtual status_t query(query_t what, int idx, void *result) const override
     {

@@ -1122,7 +1122,7 @@ struct pooling_backward : public primitive {
                 const memory::dims &strides,
                 const memory::dims &kernel,
                 const memory::dims &padding_l,
-                const memory::dims &padding_r, 
+                const memory::dims &padding_r,
                 const padding_kind apadding_kind) {
             memory::validate_dims(strides);
             memory::validate_dims(kernel);
@@ -1223,6 +1223,42 @@ struct relu_forward : public primitive {
         reset(result);
     }
     */
+};
+
+struct relu_backward : public primitive {
+    struct desc {
+        c_api::mkldnn_relu_desc_t data;
+        template <typename T>
+        desc(const memory::desc &diff_data_desc, const memory::desc &data_desc,
+            T negative_slope) {
+            error::wrap_c_api(c_api::mkldnn_relu_backward_desc_init(&data,
+                        &diff_data_desc.data, &data_desc.data,
+                        static_cast<double>(negative_slope)),
+                    "could not create a relu backward descriptor");
+        }
+    };
+    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t>{
+        primitive_desc(const desc &adesc, const engine &aengine,
+        const relu_forward::primitive_desc &hint_fwd_primitive_desc) {
+            c_api::mkldnn_primitive_desc_t result;
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_create(
+                        &result, &adesc.data, aengine.get(),
+                        hint_fwd_primitive_desc.get()),
+                    "could not create a relu backward primitive descriptor");
+            reset(result);
+        }
+    };
+    relu_backward(const primitive_desc &aprimitive_desc,
+            const primitive::at &src, const primitive::at &diff_dst,
+            const memory &diff_src) {
+        c_api::mkldnn_primitive_t result;
+        c_api::mkldnn_primitive_at_t inputs[] = { src.data, diff_dst.data };
+        c_api::const_mkldnn_primitive_t outputs[] = { diff_src.get() };
+        error::wrap_c_api(c_api::mkldnn_primitive_create(&result,
+                aprimitive_desc.get(), inputs, outputs),
+            "could not create a relu backward primitive");
+        reset(result);
+    }
 };
 
 struct batch_normalization_forward : public primitive {

@@ -96,6 +96,7 @@ static const pd_create_f cpu_impl_list[] = {
     /* relu */
     INSTANCE(jit_avx2_relu_fwd_t),
     INSTANCE(ref_relu_fwd_t<data_type::f32>),
+    INSTANCE(ref_relu_bwd_t<data_type::f32>),
     /* pool */
     INSTANCE(jit_avx2_pooling_fwd_t),
     INSTANCE(ref_pooling_fwd_t<data_type::f32>),
