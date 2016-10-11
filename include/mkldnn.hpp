@@ -958,6 +958,53 @@ struct convolution_backward_bias : public primitive {
     }
 };
 
+struct convolution_relu_forward : public primitive {
+    struct desc {
+        c_api::mkldnn_convolution_relu_desc_t data;
+        desc(const convolution_forward::desc conv_desc,
+                const double negative_slope)
+        {
+            error::wrap_c_api(c_api::mkldnn_convolution_relu_desc_init(&data,
+                        &conv_desc.data, negative_slope),
+                    "could not create a convolution_relu_forward descriptor");
+        }
+    };
+
+    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t>{
+        primitive_desc(const desc &adesc, const engine &aengine) {
+            c_api::mkldnn_primitive_desc_t result;
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_create(
+                    &result, &adesc.data, aengine.get(), nullptr),
+                "could not create a convolution relu forward descriptor");
+            reset(result);
+        }
+    };
+
+    convolution_relu_forward(const primitive_desc &aprimitive_desc,
+            const primitive::at &src, const primitive::at &weights,
+            const primitive::at &bias, const memory &dst) {
+        c_api::mkldnn_primitive_t result;
+        c_api::mkldnn_primitive_at_t inputs[] = { src.data, weights.data,
+                bias.data };
+        c_api::const_mkldnn_primitive_t outputs[] = { dst.get() };
+        error::wrap_c_api(c_api::mkldnn_primitive_create(&result,
+                aprimitive_desc.get(), inputs, outputs),
+            "could not create a convolution relu forward primitive");
+        reset(result);
+    }
+
+    convolution_relu_forward(const primitive_desc &aprimitive_desc,
+            const primitive::at &src, const primitive::at &weights,
+            const memory &dst) {
+        c_api::mkldnn_primitive_t result;
+        c_api::mkldnn_primitive_at_t inputs[] = { src.data, weights.data };
+        c_api::const_mkldnn_primitive_t outputs[] = { dst.get() };
+        error::wrap_c_api(c_api::mkldnn_primitive_create(&result,
+                aprimitive_desc.get(), inputs, outputs),
+            "could not create a convolution relu forward primitive");
+        reset(result);
+    }
+};
 struct lrn_forward : public primitive {
     struct desc {
         c_api::mkldnn_lrn_desc_t data;
