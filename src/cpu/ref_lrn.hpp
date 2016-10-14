@@ -71,6 +71,45 @@ private:
     pd_t conf_;
 };
 
+template <impl::data_type_t data_type>
+struct ref_lrn_bwd_t: public cpu_primitive_t {
+    struct pd_t: public cpu_lrn_bwd_pd_t {
+        pd_t(engine_t *engine, const lrn_desc_t *adesc,
+                const lrn_fwd_pd_t *hint_fwd_pd)
+            : cpu_lrn_bwd_pd_t(engine, adesc, hint_fwd_pd) {}
+
+        DECLARE_COMMON_PD_T(ref_lrn_bwd_t);
+
+        virtual status_t init() override {
+            using namespace prop_kind;
+            using namespace alg_kind;
+            assert(engine()->kind() == engine_kind::cpu);
+            bool ok = true
+                && utils::one_of(desc()->prop_kind, backward_data)
+                && utils::one_of(desc()->alg_kind, lrn_across_channels
+                        /*, lrn_within_channel */) // not supported yet
+                && utils::everyone_is(data_type, desc()->data_desc.data_type);
+            if (!ok) return status::unimplemented;
+
+            return status::success;
+        }
+    };
+
+    ref_lrn_bwd_t(const pd_t *pd, const input_vector &inputs,
+            const output_vector &outputs)
+        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {}
+    typedef typename prec_trait<data_type>::type data_t;
+
+    virtual void execute(event_t *e) {
+        execute_backward();
+        e->set_state(event_t::ready);
+    }
+
+private:
+    void execute_backward();
+    pd_t conf_;
+};
+
 }
 }
 }
