@@ -854,22 +854,24 @@ struct convolution_backward_data : public primitive {
                     "could not create a convolution backward data descriptor");
         }
     };
-// TODO: replace nullptr -> hint
     struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t>{
-        primitive_desc(const desc &adesc, const engine &aengine) {
+        primitive_desc(const desc &adesc, const engine &aengine,
+                const convolution_forward::primitive_desc
+                    &hint_fwd_primitive_desc) {
             c_api::mkldnn_primitive_desc_t result;
             error::wrap_c_api(c_api::mkldnn_primitive_desc_create(
-                        &result, &adesc.data, aengine.get(), nullptr),
+                        &result, &adesc.data, aengine.get(),
+                        hint_fwd_primitive_desc.get()),
                     "could not create a convolution backward data primitive descriptor");
             reset(result);
         }
     };
 
     convolution_backward_data(const primitive_desc &aprimitive_desc,
-            const memory &diff_src, const primitive::at &weights,
-            const primitive::at &diff_dst) {
+            const primitive::at &diff_dst, const primitive::at &weights,
+            const memory &diff_src) {
         c_api::mkldnn_primitive_t result;
-        c_api::mkldnn_primitive_at_t inputs[] = { weights.data, diff_dst.data };
+        c_api::mkldnn_primitive_at_t inputs[] = { diff_dst.data, weights.data  };
         c_api::const_mkldnn_primitive_t outputs[] = { diff_src.get() };
         error::wrap_c_api(c_api::mkldnn_primitive_create(&result,
                     aprimitive_desc.get(), inputs, outputs),

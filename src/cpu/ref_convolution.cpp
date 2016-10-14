@@ -24,7 +24,7 @@ namespace impl {
 namespace cpu {
 
 template <bool with_relu, impl::data_type_t data_type>
-void _ref_convolution_t<with_relu, data_type>::execute_forward() {
+void _ref_convolution_fwd_t<with_relu, data_type>::execute_forward() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto weights = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto bias = reinterpret_cast<const data_t *>(this->input_memory(2));
@@ -92,8 +92,81 @@ void _ref_convolution_t<with_relu, data_type>::execute_forward() {
     }
 }
 
-template struct _ref_convolution_t<false, data_type::f32>;
-template struct _ref_convolution_t<true, data_type::f32>;
+template <impl::data_type_t data_type>
+void ref_convolution_bwd_data_t<data_type>::execute_backward_data() {
+    auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(0));
+    auto weights = reinterpret_cast<const data_t *>(this->input_memory(1));
+    auto diff_src = reinterpret_cast<data_t*>(this->memory());
+
+    const memory_desc_wrapper diff_dst_d(conf_.diff_dst_pd());
+    const memory_desc_wrapper diff_src_d(conf_.diff_src_pd());
+    const memory_desc_wrapper weights_d(conf_.weights_pd(0));
+
+    const bool with_groups = conf_.with_groups();
+
+    const int G = conf_.G();
+    const int MB = conf_.MB();
+    const int OH = conf_.OH();
+    const int OW = conf_.OW();
+    const int IH = conf_.IH();
+    const int IW = conf_.IW();
+
+    const int OC = conf_.OC() / G;
+    const int IC = conf_.IC() / G;
+    const int KH = conf_.KH();
+    const int KW = conf_.KW();
+
+    const int KSH = conf_.KSH();
+    const int KSW = conf_.KSW();
+
+    const int padT = conf_.padT();
+    const int padL = conf_.padL();
+
+
+    auto ker = [=](data_t *d, int g, int mb, int ic, int ih, int iw) {
+        for (int oc = 0; oc < OC; ++oc) {
+            for (int kh = 0; kh < KH; ++kh) {
+                for (int kw = 0; kw < KW; ++kw) {
+                    if (iw + padL < kw || ih + padT < kh)
+                        continue;
+                    int ow = iw - kw + padL;
+                    int oh = ih - kh + padT;
+                    if (ow % KSW != 0 || oh % KSH != 0)
+                        continue;
+                    ow /= KSW;
+                    oh /= KSH;
+
+                    if (oh < OH && ow < OW) {
+                        *d += diff_dst[diff_dst_d.off(mb, g*OC + oc, oh, ow)] *
+                            (with_groups ?
+                             weights[weights_d.off(g, oc, ic, kh, kw)] :
+                             weights[weights_d.off(oc, ic, kh, kw)]);
+                    }
+                }
+            }
+        }
+    };
+
+#   pragma omp parallel for collapse(5) schedule(static)
+    for (int g = 0; g < G; ++g) {
+        for (int mb = 0; mb < MB; ++mb) {
+            for (int ic = 0; ic < IC; ++ic) {
+                for (int ih = 0; ih < IH; ++ih) {
+                    for (int iw = 0; iw < IW; ++iw) {
+                        auto ds_idx = diff_src_d.off(mb, g*IC + ic, ih, iw);
+                        data_t *d = &diff_src[ds_idx];
+                        *d = data_t(0);
+                        ker(d, g, mb, ic, ih, iw);
+                    }
+                }
+            }
+        }
+    }
+}
+
+template struct _ref_convolution_fwd_t<false, data_type::f32>;
+template struct _ref_convolution_fwd_t<true, data_type::f32>;
+template struct ref_convolution_bwd_data_t<data_type::f32>;
 
 }
 }

@@ -92,7 +92,8 @@ static const rpd_create_f cpu_reorder_impl_list[] = {
 static const pd_create_f cpu_impl_list[] = {
     /* conv */
     INSTANCE(jit_avx2_convolution_t),
-    INSTANCE(ref_convolution_t<data_type::f32>),
+    INSTANCE(ref_convolution_fwd_t<data_type::f32>),
+    INSTANCE(ref_convolution_bwd_data_t<data_type::f32>),
     /* relu */
     INSTANCE(jit_avx2_relu_fwd_t),
     INSTANCE(ref_relu_fwd_t<data_type::f32>),
