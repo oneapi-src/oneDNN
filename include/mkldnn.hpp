@@ -1019,29 +1019,57 @@ struct lrn_forward : public primitive {
             "could not create a lrn forward primitive");
         reset(result);
     }
+};
 
-    /*
-    lrn_forward(prop_kind aprop_kind, algorithm aalgorithm,
-            const primitive::at &src, const memory &workspace,
-            const memory &dst,
-            int local_size, double alpha, double beta) {
-        auto src_md = memory(src).get_primitive_desc();
-        auto dst_md = dst.get_primitive_desc();
+struct lrn_backward : public primitive {
+    struct desc {
+        c_api::mkldnn_lrn_desc_t data;
+        desc(algorithm aalgorithm,
+            const memory::desc &src_desc,
+            const memory::desc &diff_dst_desc,
+            int local_size, double alpha, double beta)
+        {
+            error::wrap_c_api(c_api::mkldnn_lrn_backward_desc_init(&data,
+                convert_to_c(aalgorithm),
+                &diff_dst_desc.data, &src_desc.data, local_size, alpha, beta),
+                "could not create a lrn backward descriptor");
+        }
+    };
 
-        auto lrn_d = desc(aprop_kind, aalgorithm, src_md.desc(),
-                local_size, alpha, beta);
-        auto lrn_pd = primitive_desc(lrn_d, ???engine???);
+    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t>{
+        primitive_desc(const desc &adesc, const engine &aengine) {
+            c_api::mkldnn_primitive_desc_t result;
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_create(
+                    &result, &adesc.data, aengine.get(), nullptr),
+                "could not create a lrn backward primitive descriptor");
+            reset(result);
+        }
+    };
 
+    lrn_backward(const primitive_desc &aprimitive_desc,
+            const primitive::at &src, const primitive::at &diff_dst,
+            const primitive::at &workspace, const memory &diff_src) {
         c_api::mkldnn_primitive_t result;
-        c_api::mkldnn_primitive_at_t inputs[] = { src.data };
-        c_api::const_mkldnn_primitive_t outputs[] = { dst.get(),
-                workspace.get() };
+        c_api::mkldnn_primitive_at_t inputs[] = { src.data, diff_dst.data,
+                workspace.data };
+        c_api::const_mkldnn_primitive_t outputs[] = { diff_src.get() };
         error::wrap_c_api(c_api::mkldnn_primitive_create(&result,
-                &lrn_pd.get(), inputs, outputs),
-            "could not create a lrn forward primitive");
+                aprimitive_desc.get(), inputs, outputs),
+            "could not create a lrn backward primitive");
         reset(result);
     }
-    */
+
+    lrn_backward(const primitive_desc &aprimitive_desc,
+            const primitive::at &src, const primitive::at &diff_dst,
+            const memory &diff_src) {
+        c_api::mkldnn_primitive_t result;
+        c_api::mkldnn_primitive_at_t inputs[] = { src.data, diff_dst.data };
+        c_api::const_mkldnn_primitive_t outputs[] = { diff_src.get() };
+        error::wrap_c_api(c_api::mkldnn_primitive_create(&result,
+                aprimitive_desc.get(), inputs, outputs),
+            "could not create a lrn backward primitive");
+        reset(result);
+    }
 };
 
 struct pooling_forward : public primitive {
