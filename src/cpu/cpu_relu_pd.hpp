@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_RELU_FWD_PD_HPP
-#define CPU_RELU_FWD_PD_HPP
+#ifndef CPU_RELU_PD_HPP
+#define CPU_RELU_PD_HPP
 
 #include <assert.h>
 

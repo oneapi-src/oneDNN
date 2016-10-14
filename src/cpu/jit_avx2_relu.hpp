@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_AVX2_RELU_FWD_HPP
-#define CPU_JIT_AVX2_RELU_FWD_HPP
+#ifndef CPU_JIT_AVX2_RELU_HPP
+#define CPU_JIT_AVX2_RELU_HPP
 
 #include <assert.h>
 

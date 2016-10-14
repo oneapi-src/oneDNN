@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef RELU_FWD_PD_HPP
-#define RELU_FWD_PD_HPP
+#ifndef RELU_PD_HPP
+#define RELU_PD_HPP
 
 #include "mkldnn.h"
 

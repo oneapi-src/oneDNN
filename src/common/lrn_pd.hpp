@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef LRN_FWD_PD_HPP
-#define LRN_FWD_PD_HPP
+#ifndef LRN_PD_HPP
+#define LRN_PD_HPP
 
 #include "mkldnn.h"
 

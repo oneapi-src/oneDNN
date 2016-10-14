@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_POOLING_FWD_PD_HPP
-#define CPU_POOLING_FWD_PD_HPP
+#ifndef CPU_POOLING_PD_HPP
+#define CPU_POOLING_PD_HPP
 
 #include <assert.h>
 

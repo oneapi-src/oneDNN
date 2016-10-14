@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef POOLING_FWD_PD_HPP
-#define POOLING_FWD_PD_HPP
+#ifndef POOLING_PD_HPP
+#define POOLING_PD_HPP
 
 #include "mkldnn.h"
 
