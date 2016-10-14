@@ -53,10 +53,8 @@ status_t pooling_desc_init(pooling_desc_t *pool_desc,
     pd.src_desc = zero_md();
     pd.dst_desc = zero_md();
 
-    if (!is_fwd) {
-        pd.diff_src_desc = *src_desc;
-        pd.diff_dst_desc = *dst_desc;
-    }
+    (is_fwd ? pd.src_desc : pd.diff_src_desc) = *src_desc;
+    (is_fwd ? pd.dst_desc : pd.diff_dst_desc) = *dst_desc;
 
     int sp_dims = src_desc->ndims - 2;
     utils::array_copy(pd.strides, strides, sp_dims);
