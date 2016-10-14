@@ -26,9 +26,7 @@ include_directories(${CMAKE_SOURCE_DIR}/tests/gtests
 #file(GLOB API_TEST_CASES_SRC api_tests/*.cpp)
 #file(GLOB PRIM_TEST_CASES_SRC test_*.cpp)
 file(GLOB PRIM_TEST_CASES_SRC RELATIVE ${CMAKE_SOURCE_DIR}/tests/gtests
-                              test_convolution_forward.cpp
-                              test_convolution_backward_data.cpp
-                              test_convolution_format_any.cpp
+                              test_reorder.cpp
                               test_lrn_forward.cpp
                               test_lrn_backward.cpp
                               test_pooling_forward.cpp
@@ -36,9 +34,12 @@ file(GLOB PRIM_TEST_CASES_SRC RELATIVE ${CMAKE_SOURCE_DIR}/tests/gtests
                               test_relu_forward.cpp
                               test_relu_backward.cpp
                               test_batch_normalization_forward.cpp
-                              test_inner_product.cpp
                               test_concat.cpp
-                              test_reorder.cpp) #temporary
+                              test_inner_product.cpp
+                              test_convolution_forward.cpp
+                              test_convolution_backward_data.cpp
+                              test_convolution_format_any.cpp
+                              ) #temporary
 
 foreach(TEST_FILE ${PRIM_TEST_CASES_SRC})
     get_filename_component (TEST_FILE_WE ${TEST_FILE} NAME_WE)
