@@ -24,14 +24,13 @@ namespace mkldnn {
 template <typename data_t>
 struct relu_bwd_test_params {
     data_t negative_slope;
-    prop_kind aprop_kind;
     engine::kind engine_kind;
     memory::format memory_format;
     memory::dims dims;
 };
 
 template <typename data_t>
-void check_relu_fwd(prop_kind aprop_kind, data_t negative_slope, memory::desc &md,
+void check_relu_fwd(data_t negative_slope, memory::desc &md,
         memory &src, memory &dst)
 {
     data_t *src_data = (data_t *)src.get_data_handle();
@@ -52,7 +51,7 @@ void check_relu_fwd(prop_kind aprop_kind, data_t negative_slope, memory::desc &m
 }
 
 template <typename data_t>
-void check_relu_bwd(prop_kind aprop_kind, data_t negative_slope, memory::desc &md,
+void check_relu_bwd(data_t negative_slope, memory::desc &md,
         memory &src, memory &diff_dst, memory &diff_src)
 {
     data_t *src_data = (data_t *)src.get_data_handle();
@@ -129,7 +128,7 @@ protected:
         auto s = stream(stream::kind::lazy);
         s.submit(pipeline).wait();
 
-        check_relu_fwd(p.aprop_kind, p.negative_slope, *src_desc,
+        check_relu_fwd(p.negative_slope, *src_desc,
             *src, *dst);
     }
 
@@ -148,7 +147,7 @@ protected:
         auto s = stream(stream::kind::lazy);
         s.submit(pipeline).wait();
 
-        check_relu_bwd(p.aprop_kind, p.negative_slope, *src_desc,
+        check_relu_bwd(p.negative_slope, *src_desc,
             *src, *dst, *diff_src);
     }
 };
@@ -159,12 +158,12 @@ using relu_bwd_test_params_float = relu_bwd_test_params<float>;
 TEST_P(relu_bwd_test_float, TestsReLUBackward) { }
 INSTANTIATE_TEST_CASE_P(TestReLUBackward, relu_bwd_test_float,
         ::testing::Values(
-            relu_bwd_test_params_float{0, prop_kind::forward, engine::kind::cpu,
+            relu_bwd_test_params_float{0, engine::kind::cpu,
             memory::format::nchw, {10, 10, 10, 10}},
-            relu_bwd_test_params_float{.1f, prop_kind::forward, engine::kind::cpu,
+            relu_bwd_test_params_float{.1f, engine::kind::cpu,
             memory::format::nchw, {256, 64, 8, 16}},
-            relu_bwd_test_params_float{.1f, prop_kind::forward, engine::kind::cpu,
+            relu_bwd_test_params_float{.1f, engine::kind::cpu,
             memory::format::nchw, {1, 1, 1, 1}},
-            relu_bwd_test_params_float{.1f, prop_kind::forward, engine::kind::cpu,
+            relu_bwd_test_params_float{.1f, engine::kind::cpu,
             memory::format::nchw, {3, 5, 7, 11}}));
 }
