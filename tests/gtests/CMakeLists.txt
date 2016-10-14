@@ -30,6 +30,7 @@ file(GLOB PRIM_TEST_CASES_SRC RELATIVE ${CMAKE_SOURCE_DIR}/tests/gtests
                               test_convolution_backward_data.cpp
                               test_convolution_format_any.cpp
                               test_lrn_forward.cpp
+                              test_lrn_backward.cpp
                               test_pooling_forward.cpp
                               test_pooling_backward.cpp
                               test_relu_forward.cpp
