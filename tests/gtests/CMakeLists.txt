@@ -16,7 +16,7 @@
 
 add_subdirectory (gtest)
 
-set(APP_NAME "tests_gtest")
+set(APP_NAME "gtest")
 set(MAIN_SRC_GTEST main.cpp)
 include_directories(${CMAKE_SOURCE_DIR}/include)
 include_directories(${CMAKE_SOURCE_DIR}/tests/gtests
@@ -25,8 +25,8 @@ include_directories(${CMAKE_SOURCE_DIR}/tests/gtests
 # TODO: enable me!
 #file(GLOB API_TEST_CASES_SRC api_tests/*.cpp)
 #file(GLOB PRIM_TEST_CASES_SRC test_*.cpp)
-file(GLOB PRIM_TEST_CASES_SRC
-#                              test_convolution_forward.cpp
+file(GLOB PRIM_TEST_CASES_SRC RELATIVE ${CMAKE_SOURCE_DIR}/tests/gtests
+                              test_convolution_forward.cpp
                               test_convolution_backward_data.cpp
                               test_convolution_format_any.cpp
                               test_lrn_forward.cpp
@@ -38,13 +38,14 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_inner_product.cpp
                               test_concat.cpp
                               test_reorder.cpp) #temporary
-add_executable(${APP_NAME}
-    ${MAIN_SRC_GTEST}
-    ${API_TEST_CASES_SRC}
-    ${PRIM_TEST_CASES_SRC}
-    )
-target_link_libraries(${APP_NAME} mkldnn gtest)
-add_test(${APP_NAME} ${APP_NAME})
+
+foreach(TEST_FILE ${PRIM_TEST_CASES_SRC})
+    get_filename_component (TEST_FILE_WE ${TEST_FILE} NAME_WE)
+    set(CURR_APP_NAME ${TEST_FILE_WE})
+    add_executable(${CURR_APP_NAME} ${MAIN_SRC_GTEST} ${TEST_FILE})
+    target_link_libraries(${CURR_APP_NAME} mkldnn gtest)
+    add_test(${CURR_APP_NAME} ${CURR_APP_NAME})
+endforeach()
 
 # we need to have either this or the add_test above; disabling for now...
 # add_custom_command(TARGET ${APP_NAME}
