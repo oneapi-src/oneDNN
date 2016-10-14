@@ -333,20 +333,10 @@ mkldnn_status_t MKLDNN_API mkldnn_convolution_backward_weights_desc_init(
         mkldnn_convolution_desc_t *conv_desc, mkldnn_alg_kind_t alg_kind,
         const mkldnn_memory_desc_t *src_desc,
         const mkldnn_memory_desc_t *diff_weights_desc,
+        const mkldnn_memory_desc_t *diff_bias_desc,
         const mkldnn_memory_desc_t *diff_dst_desc, const mkldnn_dims_t strides,
         const mkldnn_dims_t padding_l, const mkldnn_dims_t padding_r,
         mkldnn_padding_kind_t padding_kind);
-
-/** Initializes a convolution descriptor @p conv_desc for backward propagation
- * with respect to bias using @p alg_kind, memory descriptors, @p strides, @p
- * padding, and @p padding_kind.
- *
- * @note memory descriptors are allowed to be initialized with #mkldnn_any
- * value of @p format_kind. */
-mkldnn_status_t MKLDNN_API mkldnn_convolution_backward_bias_desc_init(
-        mkldnn_convolution_desc_t *conv_desc, mkldnn_alg_kind_t alg_kind,
-        const mkldnn_memory_desc_t *diff_bias_desc,
-        const mkldnn_memory_desc_t *diff_dst_desc);
 
 /** @} */
 

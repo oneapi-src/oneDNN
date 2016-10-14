@@ -38,6 +38,7 @@ file(GLOB PRIM_TEST_CASES_SRC RELATIVE ${CMAKE_SOURCE_DIR}/tests/gtests
                               test_inner_product.cpp
                               test_convolution_forward.cpp
                               test_convolution_backward_data.cpp
+                              test_convolution_backward_weights.cpp
                               test_convolution_format_any.cpp
                               ) #temporary
 

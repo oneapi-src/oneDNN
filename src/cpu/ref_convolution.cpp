@@ -164,9 +164,97 @@ void ref_convolution_bwd_data_t<data_type>::execute_backward_data() {
     }
 }
 
+template <impl::data_type_t data_type>
+void ref_convolution_bwd_weights_t<data_type>::execute_backward_weights() {
+    auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
+    auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
+    auto diff_weights = reinterpret_cast<data_t*>(this->memory(0));
+    auto diff_bias = reinterpret_cast<data_t *>(this->memory(1));
+
+    const memory_desc_wrapper src_d(conf_.src_pd(0));
+    const memory_desc_wrapper diff_dst_d(conf_.diff_dst_pd());
+    const memory_desc_wrapper diff_weights_d(conf_.diff_weights_pd(0));
+    const memory_desc_wrapper diff_bias_d(conf_.diff_weights_pd(1));
+
+    const bool with_groups = conf_.with_groups();
+
+    const int G = conf_.G();
+    const int MB = conf_.MB();
+    const int OH = conf_.OH();
+    const int OW = conf_.OW();
+    const int IH = conf_.IH();
+    const int IW = conf_.IW();
+
+    const int OC = conf_.OC() / G;
+    const int IC = conf_.IC() / G;
+    const int KH = conf_.KH();
+    const int KW = conf_.KW();
+
+    const int KSH = conf_.KSH();
+    const int KSW = conf_.KSW();
+
+    const int padT = conf_.padT();
+    const int padL = conf_.padL();
+
+
+    auto ker = [=](data_t *d, int g, int oc, int ic, int kh, int kw) {
+        for (int mb = 0; mb < MB; ++mb) {
+            for (int oh = 0; oh < OH; ++oh) {
+                for (int ow = 0; ow < OW; ++ow) {
+                    if (ow*KSW + kw < padL
+                            || oh*KSH + kh < padT
+                            || ow*KSW + kw >= IW + padL
+                            || oh*KSH + kh >= IH + padT)
+                        continue;
+
+                        int ih = oh*KSH - padT + kh;
+                        int iw = ow*KSW - padL + kw;
+
+                        *d += diff_dst[diff_dst_d.off(mb, g*OC + oc, oh, ow)] *
+                            src[src_d.off(mb, g*IC + ic, ih, iw)];
+                }
+            }
+        }
+    };
+
+    auto ker_bias = [=](data_t *d, int g, int oc) {
+        for (int mb = 0; mb < MB; ++mb) {
+            for (int oh = 0; oh < OH; ++oh) {
+                for (int ow = 0; ow < OW; ++ow) {
+                    *d += diff_dst[diff_dst_d.off(mb, g*OC + oc, oh, ow)];
+                }
+            }
+        }
+    };
+
+#   pragma omp parallel for collapse(2) schedule(static)
+    for (int g = 0; g < G; ++g) {
+        for (int oc = 0; oc < OC; ++oc) {
+            if (diff_bias) {
+                data_t *db = &diff_bias[diff_bias_d.off(g*OC+oc)];
+               *db = data_t(0);
+                ker_bias(db, g, oc);
+            }
+
+            for (int ic = 0; ic < IC; ++ic) {
+                for (int kh = 0; kh < KH; ++kh) {
+                    for (int kw = 0; kw < KW; ++kw) {
+                        data_t *d = with_groups
+                            ? &diff_weights[diff_weights_d.off(g, oc, ic, kh, kw)]
+                            : &diff_weights[diff_weights_d.off(oc, ic, kh, kw)];
+                        *d = data_t(0);
+                        ker(d, g, oc, ic, kh, kw);
+                    }
+                }
+            }
+        }
+    }
+}
+
 template struct _ref_convolution_fwd_t<false, data_type::f32>;
 template struct _ref_convolution_fwd_t<true, data_type::f32>;
 template struct ref_convolution_bwd_data_t<data_type::f32>;
+template struct ref_convolution_bwd_weights_t<data_type::f32>;
 
 }
 }

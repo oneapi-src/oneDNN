@@ -73,6 +73,9 @@ protected:
     }
 };
 
+using cpu_convolution_fwd_pd_t = _cpu_convolution_fwd_pd_t<false>;
+using cpu_convolution_relu_fwd_pd_t = _cpu_convolution_fwd_pd_t<true>;
+
 struct cpu_convolution_bwd_data_pd_t: public convolution_bwd_data_pd_t {
     using cpu_memory_pd_t = cpu_memory_t::pd_t;
 
@@ -108,8 +111,49 @@ protected:
     }
 };
 
-using cpu_convolution_fwd_pd_t = _cpu_convolution_fwd_pd_t<false>;
-using cpu_convolution_relu_fwd_pd_t = _cpu_convolution_fwd_pd_t<true>;
+struct cpu_convolution_bwd_weights_pd_t: public convolution_bwd_weights_pd_t {
+    using cpu_memory_pd_t = cpu_memory_t::pd_t;
+
+    cpu_convolution_bwd_weights_pd_t(engine_t *engine,
+            const convolution_desc_t *adesc,
+            const convolution_fwd_pd_t *hint_fwd_pd)
+        : convolution_bwd_weights_pd_t(engine, adesc, hint_fwd_pd)
+        , src_pd_(this->engine_, &this->desc_.src_desc)
+        , diff_dst_pd_(this->engine_, &this->desc_.diff_dst_desc)
+        , diff_weights_pd_(this->engine_, &this->desc_.diff_weights_desc)
+        , diff_bias_pd_(this->engine_, &this->desc_.diff_bias_desc) {}
+    virtual ~cpu_convolution_bwd_weights_pd_t() {}
+
+    virtual const cpu_memory_pd_t *src_pd(int index = 0) const override
+    { return index == 0 ? &src_pd_ : nullptr; }
+    virtual const cpu_memory_pd_t *diff_dst_pd(int index = 0) const override
+    { return index == 0 ? &diff_dst_pd_ : nullptr; }
+    virtual const cpu_memory_pd_t *diff_weights_pd(int index = 0) const
+        override {
+            if (index == 0) return &diff_weights_pd_;
+            if (index == 1 && this->with_bias()) return &diff_bias_pd_;
+            return  nullptr;
+        }
+
+protected:
+    cpu_memory_pd_t src_pd_;
+    cpu_memory_pd_t diff_dst_pd_;
+    cpu_memory_pd_t diff_weights_pd_, diff_bias_pd_;
+
+    virtual status_t set_default_params() {
+        using namespace memory_format;
+        if (src_pd_.desc()->format == any)
+            CHECK(diff_weights_pd_.set_format(nchw));
+        if (diff_dst_pd_.desc()->format == any)
+            CHECK(diff_dst_pd_.set_format(nchw));
+        if (diff_weights_pd_.desc()->format == any)
+            CHECK(diff_weights_pd_.set_format(
+                        this->with_groups() ? goihw : oihw));
+        if (diff_bias_pd_.desc()->format == any)
+            CHECK(diff_bias_pd_.set_format(x));
+        return status::success;
+    }
+};
 
 }
 }

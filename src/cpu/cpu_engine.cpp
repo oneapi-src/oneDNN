@@ -94,6 +94,7 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(jit_avx2_convolution_t),
     INSTANCE(ref_convolution_fwd_t<data_type::f32>),
     INSTANCE(ref_convolution_bwd_data_t<data_type::f32>),
+    INSTANCE(ref_convolution_bwd_weights_t<data_type::f32>),
     /* relu */
     INSTANCE(jit_avx2_relu_fwd_t),
     INSTANCE(ref_relu_fwd_t<data_type::f32>),
