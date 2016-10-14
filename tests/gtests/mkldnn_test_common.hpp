@@ -149,7 +149,7 @@ static void compare_data(mkldnn::memory& ref, mkldnn::memory& dst)
         data_t got = dst_data[i];
         data_t diff = got - ref;
         data_t e = std::abs(ref) > 1e-4 ? diff / ref : diff;
-        EXPECT_NEAR(e, 0.0, 1e-4);
+        EXPECT_NEAR(e, 0.0, 1e-4) << "Index: " << i << " of: " << num;
     }
 }
 
