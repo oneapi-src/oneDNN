@@ -95,9 +95,11 @@ struct ref_pooling_bwd_t: public cpu_primitive_t {
                         diff_src_pd()->desc()->data_type);
             if (!ok) return status::unimplemented;
 
-            auto indices_desc = *diff_dst_pd()->desc();
-            indices_desc.data_type = data_type::s32;
-            ws_pd_ = cpu_memory_t::pd_t(engine_, &indices_desc);
+            if (desc()->alg_kind != pooling_avg) {
+                auto indices_desc = *diff_dst_pd()->desc();
+                indices_desc.data_type = data_type::s32;
+                ws_pd_ = cpu_memory_t::pd_t(engine_, &indices_desc);
+            }
 
             return status::success;
         }
