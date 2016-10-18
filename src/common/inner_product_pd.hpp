@@ -75,7 +75,7 @@ struct inner_product_fwd_pd_t: public primitive_desc_t {
     inline int IH() const
     { assert(ndims() == 4); return desc_.src_desc.dims[2]; }
     inline int IW() const
-    { assert(ndims() == 4); return desc_.src_desc.dims[2]; }
+    { assert(ndims() == 4); return desc_.src_desc.dims[3]; }
     inline int KH() const
     { assert(ndims() == 4); return desc_.weights_desc.dims[2]; }
     inline int KW() const
