@@ -34,7 +34,7 @@ include("cmake/Doxygen.cmake")
 
 # sdl options
 if(UNIX OR APPLE)
-    set(CMAKE_CCXX_FLAGS "${CMAKE_CCXX_FLAGS} -fPIE -fPIC -Wformat -Wformat-security")
+    set(CMAKE_CCXX_FLAGS "${CMAKE_CCXX_FLAGS} -fPIC -Wformat -Wformat-security")
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -D_FORTIFY_SOURCE=2")
     set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -D_FORTIFY_SOURCE=2")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pie")
