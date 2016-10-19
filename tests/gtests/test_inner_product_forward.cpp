@@ -32,9 +32,11 @@ template <typename data_t>
 void compute_ref_inner_product_fwd(test_inner_product_descr_t ipd, memory &src,
         memory &weights, memory &bias, memory &dst)
 {
+    const bool w_bias = memory::convert_to_c(memory::format::format_undef)
+        != bias.get_primitive_desc().desc().data.format;
     data_t *src_data = (data_t *)src.get_data_handle();
     data_t *weights_data = (data_t *)weights.get_data_handle();
-    data_t *bias_data = (data_t *)bias.get_data_handle();
+    data_t *bias_data = w_bias ? (data_t *)bias.get_data_handle() : nullptr;
     data_t *dst_data = (data_t *)dst.get_data_handle();
 
     const memory::desc src_d = src.get_primitive_desc().desc();
@@ -100,7 +102,9 @@ protected:
                 create_md({ ipd.oc, ipd.ic, ipd.kh, ipd.kw }, data_type,
                         p.weights_format) :
                 create_md({ ipd.oc, ipd.ic }, data_type, p.weights_format);
-        auto ip_bias_desc = create_md({ ipd.oc }, data_type, p.bias_format);
+        auto ip_bias_desc = with_bias ?
+                create_md({ ipd.oc }, data_type, p.bias_format) :
+                create_md({}, data_type, p.bias_format);
         auto ip_dst_desc = create_md({ ipd.mb, ipd.oc }, data_type, p.dst_format);
 
         auto ip_src = memory(memory::primitive_desc(ip_src_desc, eng));
@@ -149,6 +153,26 @@ using inprod_test_params_float = inprod_test_params;
 TEST_P(inner_product_test_float, TestsInnerProduct)
 {
 }
+INSTANTIATE_TEST_CASE_P(
+        TestInnerProductForwardNoBias, inner_product_test_float,
+        ::testing::Values(
+                inprod_test_params_float{ prop_kind::forward, engine::kind::cpu,
+                        memory::format::nchw, memory::format::oihw,
+                        memory::format::format_undef, memory::format::nc,
+                        { 2, 32, 48, 6, 6 } },
+                inprod_test_params_float{ prop_kind::forward, engine::kind::cpu,
+                        memory::format::nChw8c, memory::format::oIhw8i,
+                        memory::format::format_undef, memory::format::nc,
+                        { 2, 32, 48, 6, 6 } },
+                inprod_test_params_float{ prop_kind::forward, engine::kind::cpu,
+                        memory::format::nc, memory::format::oi,
+                        memory::format::format_undef, memory::format::nc,
+                        { 2, 32, 1152, 1, 1 } },
+                inprod_test_params_float{ prop_kind::forward, engine::kind::cpu,
+                        memory::format::nc, memory::format::oi,
+                        memory::format::format_undef, memory::format::nc,
+                        { 2, 2, 4, 1, 1 } }));
+
 INSTANTIATE_TEST_CASE_P(
         TestInnerProductForward, inner_product_test_float,
         ::testing::Values(
