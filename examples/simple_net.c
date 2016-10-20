@@ -289,16 +289,14 @@ mkldnn_status_t simple_net(){
     CHECK(mkldnn_memory_set_data_handle(lrn_scratch_memory,
             lrn_scratch_buffer));
 
-    mkldnn_primitive_at_t lrn_srcs[] = {
-        mkldnn_primitive_at(relu_dst_memory, 0),
-        mkldnn_primitive_at(lrn_scratch_memory, 0)
-    };
+    mkldnn_primitive_at_t lrn_srcs = { relu_dst_memory };
 
-    const_mkldnn_primitive_t lrn_dsts[] = { lrn_dst_memory };
+    const_mkldnn_primitive_t lrn_dsts[] = { lrn_dst_memory,
+            lrn_scratch_memory };
 
     /* finally create a lrn primitive */
     mkldnn_primitive_t lrn;
-    CHECK(mkldnn_primitive_create(&lrn, lrn_pd, lrn_srcs, lrn_dsts));
+    CHECK(mkldnn_primitive_create(&lrn, lrn_pd, &lrn_srcs, lrn_dsts));
 
     /* AlexNet: pool
      * {BATCH, 96, 55, 55} -> {BATCH, 96, 27, 27}
@@ -358,19 +356,17 @@ mkldnn_status_t simple_net(){
     CHECK(prepare_reorder(&pool_user_dst_memory, &pool_dst_pd, 0,
             &pool_internal_dst_memory, &pool_reorder_dst, pool_dst_buffer));
 
-    mkldnn_primitive_at_t pool_srcs[] = {
-        mkldnn_primitive_at(lrn_dst_memory, 0),
-        mkldnn_primitive_at(pool_indices_memory, 0)
-    };
+    mkldnn_primitive_at_t pool_srcs = { lrn_dst_memory };
 
     pool_dst_memory = pool_internal_dst_memory ? pool_internal_dst_memory
         : pool_user_dst_memory;
 
-    const_mkldnn_primitive_t pool_dsts[] = { pool_dst_memory };
+    const_mkldnn_primitive_t pool_dsts[] = { pool_dst_memory,
+            pool_indices_memory };
 
     /* finally create a pooling primitive */
     mkldnn_primitive_t pool;
-    CHECK(mkldnn_primitive_create(&pool, pool_pd, pool_srcs, pool_dsts));
+    CHECK(mkldnn_primitive_create(&pool, pool_pd, &pool_srcs, pool_dsts));
 
     /* build a simple net */
     uint32_t n = 0;
