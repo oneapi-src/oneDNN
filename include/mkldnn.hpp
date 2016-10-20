@@ -1038,6 +1038,18 @@ struct lrn_forward : public primitive {
             adesc.reset(ldesc);
             return adesc;
         }
+
+        memory::primitive_desc dst_primitive_desc() const {
+            memory::primitive_desc adesc;
+            c_api::mkldnn_primitive_desc_t cdesc;
+            c_api::const_mkldnn_primitive_desc_t const_cdesc =
+                c_api::mkldnn_primitive_desc_query_pd(get(),
+                               mkldnn::convert_to_c(dst_pd), 0);
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_clone(&cdesc, const_cdesc),
+                    "could not clone a dst primitive descriptor");
+            adesc.reset(cdesc);
+            return adesc;
+        }
     };
 
     lrn_forward(const primitive_desc &aprimitive_desc,
@@ -1134,6 +1146,18 @@ struct pooling_forward : public primitive {
             adesc.reset(cdesc);
             return adesc;
         }
+
+        memory::primitive_desc dst_primitive_desc() const {
+            memory::primitive_desc adesc;
+            c_api::mkldnn_primitive_desc_t cdesc;
+            c_api::const_mkldnn_primitive_desc_t const_cdesc =
+                c_api::mkldnn_primitive_desc_query_pd(get(),
+                               mkldnn::convert_to_c(dst_pd), 0);
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_clone(&cdesc, const_cdesc),
+                    "could not clone a dst primitive descriptor");
+            adesc.reset(cdesc);
+            return adesc;
+        }
     };
 
     pooling_forward(const primitive_desc &aprimitive_desc, const primitive::at &src,
@@ -1179,6 +1203,18 @@ struct relu_forward : public primitive {
                         &result, &adesc.data, aengine.get(), nullptr),
                     "could not create a relu forward primitive descriptor");
             reset(result);
+        }
+
+        memory::primitive_desc dst_primitive_desc() const {
+            memory::primitive_desc adesc;
+            c_api::mkldnn_primitive_desc_t cdesc;
+            c_api::const_mkldnn_primitive_desc_t const_cdesc =
+                c_api::mkldnn_primitive_desc_query_pd(get(),
+                               mkldnn::convert_to_c(dst_pd), 0);
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_clone(&cdesc, const_cdesc),
+                    "could not clone a dst primitive descriptor");
+            adesc.reset(cdesc);
+            return adesc;
         }
     };
 
@@ -1252,6 +1288,18 @@ struct batch_normalization_forward : public primitive {
                                mkldnn::convert_to_c(workspace_pd), 0);
             c_api::mkldnn_primitive_desc_clone(&bndesc, const_bndesc);
             adesc.reset(bndesc);
+            return adesc;
+        }
+
+        memory::primitive_desc dst_primitive_desc() const {
+            memory::primitive_desc adesc;
+            c_api::mkldnn_primitive_desc_t cdesc;
+            c_api::const_mkldnn_primitive_desc_t const_cdesc =
+                c_api::mkldnn_primitive_desc_query_pd(get(),
+                               mkldnn::convert_to_c(dst_pd), 0);
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_clone(&cdesc, const_cdesc),
+                    "could not clone a dst primitive descriptor");
+            adesc.reset(cdesc);
             return adesc;
         }
     };
