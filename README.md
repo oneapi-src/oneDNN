@@ -1,6 +1,6 @@
 # Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN)
 [![Apache License Version 2.0](https://img.shields.io/badge/license-Apache_2.0-green.svg)](LICENSE)
-![v0.2 technical preview](https://img.shields.io/badge/v0.1-technical_preview-orange.svg)
+![v0.2 technical preview](https://img.shields.io/badge/v0.2-technical_preview-orange.svg)
 
 Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN) is an
 open source performance library for Deep Learning (DL) applications intended
@@ -13,8 +13,9 @@ Intel MKL-DNN includes functionality similar to [Intel(R) Math Kernel
 Library (Intel(R) MKL) 2017](https://software.intel.com/en-us/intel-mkl), but is not
 API compatible. We are investigating how to unify the APIs in future Intel MKL releases.
 
-This release is a technical preview with functionality to support AlexNet and
-VGG topologies forward path. As with any technical preview, APIs may change in future updates.
+This release is a technical preview with functionality necessary to accelerate
+bleeding edge image recognition topologies, including Cifar*, AlexNet*, VGG*, 
+GoogleNet* and ResNet*. As with any technical preview, APIs may change in future updates.
 
 ## License
 Intel MKL-DNN is licensed under

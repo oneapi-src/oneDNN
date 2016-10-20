@@ -9,18 +9,18 @@ convolutional neural networks (CNN) with C and C++ interfaces. This
 project is created to help DL community innovate on Intel(R) processors.
 
 The library supports the most commonly used primitives necessary to accelerate
-bleeding edge image recognition topologies, including AlexNet* and VGG*. The 
-primitives include convolution, inner product, pooling, normalization, and
-activation primitives with support for forward (scoring or inference)
-operations. This release includes the following classes of functions:
+bleeding edge image recognition topologies, including Cifar*, AlexNet*, VGG*, 
+GoogleNet* and ResNet*. The primitives include convolution, inner product, 
+pooling, normalization, and activation primitives with support for inference
+operation. This release includes the following classes of functions:
 
 * Convolution: direct batched convolution
 
 * Inner Product
 
-* Pooling: maximum
+* Pooling: maximum, average
 
-* Normalization: local response normalization across channels (LRN)
+* Normalization: local response normalization (LRN) across channels and within channel, batch normalization
 
 * Activation: rectified linear unit neuron activation (ReLU)
 
