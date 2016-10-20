@@ -72,6 +72,7 @@ enable_testing()
 include_directories(include)
 
 add_subdirectory(src)
+add_subdirectory(examples)
 add_subdirectory(tests)
 
 install(FILES LICENSE DESTINATION share/doc/${LIB_NAME})
