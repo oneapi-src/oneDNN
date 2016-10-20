@@ -54,6 +54,15 @@ protected:
     cpu_memory_pd_t ws_pd_;
 
     virtual status_t init() = 0;
+
+    virtual status_t set_default_params() {
+        using namespace memory_format;
+        if (src_pd_.desc()->format == any)
+            CHECK(src_pd_.set_format(nchw));
+        if (dst_pd_.desc()->format == any)
+            CHECK(dst_pd_.set_format(src_pd_.desc()->format));
+        return status::success;
+    }
 };
 
 }

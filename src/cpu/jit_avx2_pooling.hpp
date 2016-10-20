@@ -44,6 +44,7 @@ struct jit_avx2_pooling_fwd_t: public cpu_primitive_t {
             using namespace utils;
             assert(engine()->kind() == engine_kind::cpu);
             bool ok = true
+                && set_default_params() == status::success
                 && one_of(desc()->prop_kind, forward_training,
                         forward_inference)
                 && one_of(desc()->alg_kind, pooling_max, pooling_avg)
