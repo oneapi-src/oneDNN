@@ -47,7 +47,7 @@ struct jit_avx2_batch_normalization_fwd_t: public cpu_primitive_t {
                         forward_inference)
                 && utils::everyone_is(data_type::f32,
                         desc()->data_desc.data_type,
-                        desc()->data_diff_scaleshift_desc.data_type);
+                        desc()->data_scaleshift_desc.data_type);
             if (!ok) return status::unimplemented;
 
             bool is_training = desc_.prop_kind == forward_training;

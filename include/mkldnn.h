@@ -436,16 +436,6 @@ mkldnn_status_t MKLDNN_API mkldnn_batch_normalization_forward_desc_init(
         double epsilon);
 
 /** Initializes a batch normalization descriptor @p bnrm_desc for backward
- * propagation with respect to data using memory descriptors @p data_desc and
- * @p diff_data_desc, and normalization parameter @p epsilon.
- *
- * @sa mkldnn_batch_normalization_desc_t */
-mkldnn_status_t MKLDNN_API mkldnn_batch_normalization_backward_data_desc_init(
-        mkldnn_batch_normalization_desc_t *bnrm_desc,
-        const mkldnn_memory_desc_t *diff_data_desc,
-        const mkldnn_memory_desc_t *data_desc);
-
-/** Initializes a batch normalization descriptor @p bnrm_desc for backward
  * propagation with respect to data and scale-shift parameters using memory
  * descriptors @p data_desc and @p diff_data_desc, and normalization parameter
  * @p epsilon.
@@ -453,6 +443,7 @@ mkldnn_status_t MKLDNN_API mkldnn_batch_normalization_backward_data_desc_init(
  * @sa mkldnn_batch_normalization_desc_t */
 mkldnn_status_t MKLDNN_API mkldnn_batch_normalization_backward_desc_init(
         mkldnn_batch_normalization_desc_t *bnrm_desc,
+        mkldnn_prop_kind_t prop_kind,
         const mkldnn_memory_desc_t *diff_data_desc,
         const mkldnn_memory_desc_t *data_desc);
 

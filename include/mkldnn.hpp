@@ -1347,7 +1347,7 @@ struct batch_normalization_forward : public primitive {
                     c_api::mkldnn_batch_normalization_forward_desc_init(&data,
                         mkldnn::convert_to_c(aprop_kind), &src_desc.data,
                         static_cast<double>(epsilon)),
-                "could not create a batch normalization descriptor");
+                "could not create a batch normalization forward descriptor");
         }
     };
 
@@ -1430,6 +1430,84 @@ struct batch_normalization_forward : public primitive {
         reset(result);
     }
     */
+};
+
+struct batch_normalization_backward : public primitive {
+    struct desc {
+        c_api::mkldnn_batch_normalization_desc_t data;
+        desc(prop_kind aprop_kind, const memory::desc &diff_data_desc,
+                const memory::desc &data_desc) {
+            error::wrap_c_api(
+                    c_api::mkldnn_batch_normalization_backward_desc_init(&data,
+                        mkldnn::convert_to_c(aprop_kind),
+                        &diff_data_desc.data, &data_desc.data),
+                "could not create a batch normalization backward descriptor");
+        }
+    };
+
+    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t>{
+        primitive_desc(const desc &adesc, const engine &aengine,
+                const batch_normalization_forward::primitive_desc
+                    &hint_fwd_primitive_desc) {
+            c_api::mkldnn_primitive_desc_t result;
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_create(
+                &result, &adesc.data, aengine.get(),
+                hint_fwd_primitive_desc.get()),
+        "could not create a batch normalization backward primitive descriptor");
+            reset(result);
+        }
+
+        memory::primitive_desc weights_primitive_desc() const {
+            memory::primitive_desc adesc;
+            c_api::mkldnn_primitive_desc_t bndesc;
+            c_api::const_mkldnn_primitive_desc_t const_bndesc =
+                    c_api::mkldnn_primitive_desc_query_pd(get(),
+                               mkldnn::convert_to_c(weights_pd), 0);
+            c_api::mkldnn_primitive_desc_clone(&bndesc, const_bndesc);
+            adesc.reset(bndesc);
+            return adesc;
+        }
+
+        memory::primitive_desc workspace_primitive_desc() const {
+            memory::primitive_desc adesc;
+            c_api::mkldnn_primitive_desc_t bndesc;
+            c_api::const_mkldnn_primitive_desc_t const_bndesc =
+                    c_api::mkldnn_primitive_desc_query_pd(get(),
+                               mkldnn::convert_to_c(workspace_pd), 0);
+            c_api::mkldnn_primitive_desc_clone(&bndesc, const_bndesc);
+            adesc.reset(bndesc);
+            return adesc;
+        }
+    };
+
+    batch_normalization_backward(const primitive_desc &aprimitive_desc,
+            const primitive::at &src, const primitive::at &diff_dst,
+            const primitive::at &weights, const primitive::at &workspace,
+            const memory &diff_src, const memory &diff_weights) {
+        c_api::mkldnn_primitive_t result;
+        c_api::mkldnn_primitive_at_t inputs[] = { src.data, diff_dst.data,
+                weights.data, workspace.data };
+        c_api::const_mkldnn_primitive_t outputs[] = { diff_src.get(),
+                diff_weights.get() };
+        error::wrap_c_api(c_api::mkldnn_primitive_create(&result,
+                aprimitive_desc.get(), inputs, outputs),
+            "could not create a batch normalization backward primitive");
+        reset(result);
+    }
+
+    batch_normalization_backward(const primitive_desc &aprimitive_desc,
+            const primitive::at &src, const primitive::at &diff_dst,
+            const primitive::at &weights, const primitive::at &workspace,
+            const memory &diff_src) {
+        c_api::mkldnn_primitive_t result;
+        c_api::mkldnn_primitive_at_t inputs[] = { src.data, diff_dst.data,
+                weights.data, workspace.data };
+        c_api::const_mkldnn_primitive_t outputs[] = { diff_src.get() };
+        error::wrap_c_api(c_api::mkldnn_primitive_create(&result,
+                aprimitive_desc.get(), inputs, outputs),
+            "could not create a batch normalization backward primitive");
+        reset(result);
+    }
 };
 
 struct inner_product_forward: public primitive {

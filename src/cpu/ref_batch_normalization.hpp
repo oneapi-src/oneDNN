@@ -45,7 +45,7 @@ struct ref_batch_normalization_fwd_t: public cpu_primitive_t {
                 && utils::one_of(desc()->prop_kind, forward_training,
                         forward_inference)
                 && utils::everyone_is(data_type, desc()->data_desc.data_type,
-                        desc()->data_diff_scaleshift_desc.data_type);
+                        desc()->data_scaleshift_desc.data_type);
             if (!ok) return status::unimplemented;
 
             if (desc_.prop_kind == forward_training) {
@@ -72,6 +72,57 @@ struct ref_batch_normalization_fwd_t: public cpu_primitive_t {
 
 private:
     void execute_forward();
+    pd_t conf_;
+};
+
+template <impl::data_type_t data_type>
+struct ref_batch_normalization_bwd_t: public cpu_primitive_t {
+    struct pd_t: public cpu_batch_normalization_bwd_pd_t {
+        pd_t(engine_t *engine, const batch_normalization_desc_t *adesc,
+                const batch_normalization_fwd_pd_t *hint_fwd_pd)
+            : cpu_batch_normalization_bwd_pd_t(engine, adesc, hint_fwd_pd) {}
+
+        DECLARE_COMMON_PD_T(ref_batch_normalization_bwd_t);
+
+        virtual status_t init() override {
+            using namespace prop_kind;
+            assert(engine()->kind() == engine_kind::cpu);
+            bool ok = true
+                && utils::one_of(desc()->prop_kind, backward, backward_data)
+                && utils::everyone_is(data_type, desc()->data_desc.data_type,
+                        desc()->diff_data_desc.data_type,
+                        desc()->data_desc.data_type,
+                        desc()->data_scaleshift_desc.data_type);
+            if (!ok) return status::unimplemented;
+
+            memory_desc_t ws_d;
+            dims_t ws_dims = { C() * 2 };
+            mkldnn_memory_desc_init(&ws_d, 1, ws_dims, data_type,
+                    memory_format::x);
+            ws_pd_ = cpu_memory_t::pd_t(engine_, &ws_d);
+
+            bool ws_ok = true
+                && hint_fwd_pd_->workspace_pd()->desc()->ndims == 1
+                && hint_fwd_pd_->workspace_pd()->desc()->format == memory_format::x
+                && hint_fwd_pd_->workspace_pd()->desc()->data_type == data_type;
+            if (!ws_ok) return status::unimplemented;
+
+            return status::success;
+        }
+    };
+
+    ref_batch_normalization_bwd_t(const pd_t *pd, const input_vector &inputs,
+            const output_vector &outputs)
+        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {}
+    typedef typename prec_trait<data_type>::type data_t;
+
+    virtual void execute(event_t *e) {
+        execute_backward();
+        e->set_state(event_t::ready);
+    }
+
+private:
+    void execute_backward();
     pd_t conf_;
 };
 

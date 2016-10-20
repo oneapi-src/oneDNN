@@ -18,6 +18,7 @@
 #include "mkldnn.h"
 
 #include "c_types_map.hpp"
+#include "type_helpers.hpp"
 #include "utils.hpp"
 
 using namespace mkldnn::impl;
@@ -25,6 +26,7 @@ using namespace mkldnn::impl::utils;
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::prop_kind;
 using namespace mkldnn::impl::alg_kind;
+using namespace mkldnn::impl::types;
 
 namespace {
 status_t bnrm_desc_init(batch_normalization_desc_t *bnrm_desc,
@@ -42,12 +44,19 @@ status_t bnrm_desc_init(batch_normalization_desc_t *bnrm_desc,
     bd.prop_kind = prop_kind;
 
     bd.data_desc = *data_desc;
-    if (bd.prop_kind == backward_data)
+    if ( one_of(bd.prop_kind,backward_data, backward) )
         bd.diff_data_desc = *diff_data_desc;
 
-    dims_t scale_shift_dims = { 2, data_desc->dims[1] };
-    mkldnn_memory_desc_init(&bd.data_diff_scaleshift_desc, 2, scale_shift_dims,
+    dims_t scaleshift_dims = { 2, data_desc->dims[1] };
+    mkldnn_memory_desc_init(&bd.data_scaleshift_desc, 2, scaleshift_dims,
             data_desc->data_type, mkldnn_nc);
+
+    if (bd.prop_kind == backward) {
+        mkldnn_memory_desc_init(&bd.diff_data_scaleshift_desc, 2, scaleshift_dims,
+                data_desc->data_type, mkldnn_nc);
+    } else {
+        bd.diff_data_scaleshift_desc = zero_md();
+    }
 
     bd.batch_norm_epsilon = epsilon;
 
@@ -72,17 +81,12 @@ status_t mkldnn_batch_normalization_forward_desc_init(
     return bnrm_desc_init(bnrm_desc, prop_kind, data_desc, nullptr, epsilon);
 }
 
-status_t mkldnn_batch_normalization_backward_data_desc_init(
-        batch_normalization_desc_t *bnrm_desc,
-        const memory_desc_t *diff_data_desc, const memory_desc_t *data_desc) {
-    return bnrm_desc_init(bnrm_desc, backward_data, data_desc, diff_data_desc,
-            0);
-}
-
 status_t mkldnn_batch_normalization_backward_desc_init(
-        batch_normalization_desc_t *bnrm_desc,
+        batch_normalization_desc_t *bnrm_desc, prop_kind_t prop_kind,
         const memory_desc_t *diff_data_desc, const memory_desc_t *data_desc) {
-    return bnrm_desc_init(bnrm_desc, backward, data_desc, diff_data_desc, 0);
+    if (!one_of(prop_kind, backward, backward_data))
+        return invalid_arguments;
+    return bnrm_desc_init(bnrm_desc, prop_kind, data_desc, diff_data_desc, 0);
 }
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

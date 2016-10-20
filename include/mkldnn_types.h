@@ -411,7 +411,8 @@ typedef struct {
      * Scaleshift memory descriptor uses 2D #mkldnn_nc format[2,Channels]. 1-st
      * dimension contains gamma parameter, 2-nd dimension contains beta
      * parameter. */
-    mkldnn_memory_desc_t data_diff_scaleshift_desc;
+    mkldnn_memory_desc_t data_scaleshift_desc;
+    mkldnn_memory_desc_t diff_data_scaleshift_desc;
     /** Batch normalization epsilon parameter. */
     double batch_norm_epsilon;
 } mkldnn_batch_normalization_desc_t;

@@ -33,6 +33,7 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_relu_forward.cpp
                               test_relu_backward.cpp
                               test_batch_normalization_forward.cpp
+                              test_batch_normalization_backward.cpp
                               test_concat.cpp
                               test_inner_product.cpp
                               test_convolution_forward.cpp
