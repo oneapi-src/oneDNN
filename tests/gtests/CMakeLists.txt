@@ -33,7 +33,7 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_pooling_forward.cpp
                               test_relu_forward.cpp
                               test_batch_normalization_forward.cpp
-                              test_inner_product.cpp
+                              test_inner_product_forward.cpp
                               test_concat.cpp
                               test_reorder.cpp) #temporary
 add_executable(${APP_NAME}
