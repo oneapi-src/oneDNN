@@ -121,7 +121,7 @@ template <typename data_t>
 static void fill_data(const int size, data_t *data, data_t mean,
         data_t deviation, double sparsity = 1.)
 {
-#   pragma omp parallel for
+#   pragma omp parallel for schedule(static)
     for (int n = 0; n < size; n++) {
         data[n] = set_value<data_t>(n, mean, deviation, sparsity);
     }
@@ -130,7 +130,7 @@ static void fill_data(const int size, data_t *data, data_t mean,
 template <typename data_t>
 static void fill_data(const int size, data_t *data, double sparsity = 1.)
 {
-#   pragma omp parallel for
+#   pragma omp parallel for schedule(static)
     for (int n = 0; n < size; n++) {
         data[n] = set_value<data_t>(n, data_t(1), data_t(2e-1), sparsity);
     }
@@ -143,7 +143,7 @@ static void compare_data(mkldnn::memory& ref, mkldnn::memory& dst)
     size_t num = ref.get_primitive_desc().get_size() / sizeof(data_t);
     data_t *ref_data = (data_t *)ref.get_data_handle();
     data_t *dst_data = (data_t *)dst.get_data_handle();
-#   pragma omp parallel for
+#   pragma omp parallel for schedule(static)
     for (size_t i = 0; i < num; ++i) {
         data_t ref = ref_data[i];
         data_t got = dst_data[i];

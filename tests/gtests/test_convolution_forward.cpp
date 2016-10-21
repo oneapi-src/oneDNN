@@ -39,7 +39,7 @@ void compute_ref_conv_fwd(const test_convolution_descr_t &c,
     data_t *bias_data = w_bias ? (data_t *)bias.get_data_handle() : nullptr;
     data_t *dst_data = (data_t *)dst.get_data_handle();
 
-#pragma omp parallel for collapse(5)
+#pragma omp parallel for collapse(5) schedule(static)
     for (int n = 0; n < c.mb; n++) {
         for (int g = 0; g < c.ng; g++) {
             for (int oc = 0; oc < c.oc / c.ng; oc++) {

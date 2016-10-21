@@ -81,7 +81,7 @@ void check_lrn_fwd(const test_lrn_desc_t &ld,
     };
 
     const int N = ld.mb;
-#   pragma omp parallel for collapse(4)
+#   pragma omp parallel for collapse(4) schedule(static)
     for (int n = 0; n < N; ++n) {
         for (int c = 0; c < C; ++c) {
             for (int h = 0; h < H; ++h) {

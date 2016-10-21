@@ -47,7 +47,7 @@ void compute_ref_conv_relu_fwd(const test_convolution_relu_descr_t &c,
     const memory::desc weights_d = weights.get_primitive_desc().desc();
     const memory::desc dst_d = dst.get_primitive_desc().desc();
 
-#pragma omp parallel for collapse(5)
+#pragma omp parallel for collapse(5) schedule(static)
     for (int n = 0; n < c.mb; n++) {
         for (int g = 0; g < c.ng; g++) {
             for (int oc = 0; oc < c.oc / c.ng; oc++) {

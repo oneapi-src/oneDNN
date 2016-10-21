@@ -42,7 +42,7 @@ void compute_ref_inner_product_bwd_data(const test_inner_product_descr_t &ipd,
 
     bool has_spatial = ipd.kh > 1 && ipd.kw > 1;
 
-#pragma omp parallel for collapse(2)
+#pragma omp parallel for collapse(2) schedule(static)
     for (int n = 0; n < ipd.mb; n++) {
         for (int ic = 0; ic < ipd.ic; ic++) {
             if (has_spatial) {
