@@ -114,6 +114,8 @@ static const pd_create_f cpu_impl_list[] = {
     /* inner product */
     INSTANCE(gemm_inner_product_fwd_t<data_type::f32>),
     INSTANCE(ref_inner_product_fwd_t<data_type::f32>),
+    INSTANCE(ref_inner_product_bwd_data_t<data_type::f32>),
+    INSTANCE(ref_inner_product_bwd_weights_t<data_type::f32>),
     /* conv_relu */
     INSTANCE(jit_avx2_convolution_relu_t),
     INSTANCE(ref_convolution_relu_t<data_type::f32>),

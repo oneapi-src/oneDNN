@@ -1618,6 +1618,182 @@ struct inner_product_forward: public primitive {
         reset(result);
     }
 };
+
+struct inner_product_backward_data: public primitive {
+    struct desc {
+        c_api::mkldnn_inner_product_desc_t data;
+        desc(const memory::desc &diff_src_desc,
+                const memory::desc &weights_desc,
+                const memory::desc &diff_dst_desc) {
+            error::wrap_c_api(
+                    c_api::mkldnn_inner_product_backward_data_desc_init(&data,
+                        &diff_src_desc.data, &weights_desc.data,
+                        &diff_dst_desc.data),
+                "could not create a inner product backward data descriptor");
+        }
+    };
+
+    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t>{
+        primitive_desc(const desc &adesc, const engine &aengine,
+                const inner_product_forward::primitive_desc
+                    &hint_fwd_primitive_desc) {
+            c_api::mkldnn_primitive_desc_t result;
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_create(&result,
+                    &adesc.data, aengine.get(), hint_fwd_primitive_desc.get()),
+        "could not create a inner product backward data primitive descriptor");
+            reset(result);
+        }
+
+        memory::primitive_desc diff_dst_primitive_desc() const {
+            memory::primitive_desc adesc;
+            c_api::mkldnn_primitive_desc_t cdesc;
+            c_api::const_mkldnn_primitive_desc_t const_cdesc =
+                c_api::mkldnn_primitive_desc_query_pd(get(),
+                               mkldnn::convert_to_c(diff_dst_pd), 0);
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_clone(&cdesc, const_cdesc),
+                    "could not clone a diff dst primititve descriptor");
+            adesc.reset(cdesc);
+            return adesc;
+        }
+
+        memory::primitive_desc weights_primitive_desc() const {
+            memory::primitive_desc adesc;
+            c_api::mkldnn_primitive_desc_t cdesc;
+            c_api::const_mkldnn_primitive_desc_t const_cdesc =
+                c_api::mkldnn_primitive_desc_query_pd(get(),
+                               mkldnn::convert_to_c(weights_pd), 0);
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_clone(&cdesc, const_cdesc),
+                    "could not clone a weights primitive descriptor");
+            adesc.reset(cdesc);
+            return adesc;
+        }
+
+        memory::primitive_desc diff_src_primitive_desc() const {
+            memory::primitive_desc adesc;
+            c_api::mkldnn_primitive_desc_t cdesc;
+            c_api::const_mkldnn_primitive_desc_t const_cdesc =
+                c_api::mkldnn_primitive_desc_query_pd(get(),
+                               mkldnn::convert_to_c(diff_src_pd), 0);
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_clone(&cdesc, const_cdesc),
+                    "could not clone a diff src primitive descriptor");
+            adesc.reset(cdesc);
+            return adesc;
+        }
+    };
+
+    inner_product_backward_data(const primitive_desc &aprimitive_desc,
+            const primitive::at &diff_dst, const primitive::at weights,
+            const memory &diff_src) {
+        c_api::mkldnn_primitive_t result;
+        c_api::mkldnn_primitive_at_t inputs[] = { diff_dst.data, weights.data };
+        c_api::const_mkldnn_primitive_t outputs[] = { diff_src.get() };
+        error::wrap_c_api(c_api::mkldnn_primitive_create(&result,
+                aprimitive_desc.get(), inputs, outputs),
+            "could not create a inner product backward data primitive");
+        reset(result);
+    }
+};
+
+struct inner_product_backward_weights: public primitive {
+    struct desc {
+        c_api::mkldnn_inner_product_desc_t data;
+        desc(const memory::desc &src_desc,
+                const memory::desc &diff_weights_desc,
+                const memory::desc &diff_bias_desc,
+                const memory::desc &diff_dst_desc) {
+            error::wrap_c_api(
+                    c_api::mkldnn_inner_product_backward_weights_desc_init(
+                        &data, &src_desc.data, &diff_weights_desc.data,
+                        &diff_bias_desc.data, &diff_dst_desc.data),
+                "could not create a inner product backward weights descriptor");
+        }
+    };
+
+    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t>{
+        primitive_desc(const desc &adesc, const engine &aengine,
+                const inner_product_forward::primitive_desc
+                    &hint_fwd_primitive_desc) {
+            c_api::mkldnn_primitive_desc_t result;
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_create(&result,
+                    &adesc.data, aengine.get(), hint_fwd_primitive_desc.get()),
+        "could not create a inner product backward weights primitive descriptor");
+            reset(result);
+        }
+
+        memory::primitive_desc diff_dst_primitive_desc() const {
+            memory::primitive_desc adesc;
+            c_api::mkldnn_primitive_desc_t cdesc;
+            c_api::const_mkldnn_primitive_desc_t const_cdesc =
+                c_api::mkldnn_primitive_desc_query_pd(get(),
+                               mkldnn::convert_to_c(diff_dst_pd), 0);
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_clone(&cdesc, const_cdesc),
+                    "could not clone a diff dst primititve descriptor");
+            adesc.reset(cdesc);
+            return adesc;
+        }
+
+        memory::primitive_desc diff_weights_primitive_desc() const {
+            memory::primitive_desc adesc;
+            c_api::mkldnn_primitive_desc_t cdesc;
+            c_api::const_mkldnn_primitive_desc_t const_cdesc =
+                c_api::mkldnn_primitive_desc_query_pd(get(),
+                               mkldnn::convert_to_c(diff_weights_pd), 0);
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_clone(&cdesc, const_cdesc),
+                    "could not clone a diff weights primitive descriptor");
+            adesc.reset(cdesc);
+            return adesc;
+        }
+
+        memory::primitive_desc diff_bias_primitive_desc() const {
+            memory::primitive_desc adesc;
+            c_api::mkldnn_primitive_desc_t cdesc;
+            c_api::const_mkldnn_primitive_desc_t const_cdesc =
+                c_api::mkldnn_primitive_desc_query_pd(get(),
+                               mkldnn::convert_to_c(diff_weights_pd), 1);
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_clone(&cdesc, const_cdesc),
+                    "could not clone a diff bias primitive descriptor");
+            adesc.reset(cdesc);
+            return adesc;
+        }
+
+        memory::primitive_desc src_primitive_desc() const {
+            memory::primitive_desc adesc;
+            c_api::mkldnn_primitive_desc_t cdesc;
+            c_api::const_mkldnn_primitive_desc_t const_cdesc =
+                c_api::mkldnn_primitive_desc_query_pd(get(),
+                               mkldnn::convert_to_c(src_pd), 0);
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_clone(&cdesc, const_cdesc),
+                    "could not clone a src primitive descriptor");
+            adesc.reset(cdesc);
+            return adesc;
+        }
+    };
+
+    inner_product_backward_weights(const primitive_desc &aprimitive_desc,
+            const primitive::at &src, const primitive::at diff_dst,
+            const memory &diff_weights) {
+        c_api::mkldnn_primitive_t result;
+        c_api::mkldnn_primitive_at_t inputs[] = { src.data, diff_dst.data };
+        c_api::const_mkldnn_primitive_t outputs[] = { diff_weights.get() };
+        error::wrap_c_api(c_api::mkldnn_primitive_create(&result,
+                aprimitive_desc.get(), inputs, outputs),
+            "could not create a inner product backward weights primitive");
+        reset(result);
+    }
+
+    inner_product_backward_weights(const primitive_desc &aprimitive_desc,
+            const primitive::at &src, const primitive::at diff_dst,
+            const memory &diff_weights, const memory &diff_bias) {
+        c_api::mkldnn_primitive_t result;
+        c_api::mkldnn_primitive_at_t inputs[] = { src.data, diff_dst.data };
+        c_api::const_mkldnn_primitive_t outputs[] =
+                { diff_weights.get(), diff_bias.get()};
+        error::wrap_c_api(c_api::mkldnn_primitive_create(&result,
+                aprimitive_desc.get(), inputs, outputs),
+            "could not create a inner product backward weights primitive");
+        reset(result);
+    }
+};
 } // namespace mkldnn
 
 #endif

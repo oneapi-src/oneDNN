@@ -492,16 +492,6 @@ mkldnn_status_t MKLDNN_API mkldnn_inner_product_backward_weights_desc_init(
         mkldnn_inner_product_desc_t *ip_desc,
         const mkldnn_memory_desc_t *src_desc,
         const mkldnn_memory_desc_t *diff_weights_desc,
-        const mkldnn_memory_desc_t *diff_dst_desc);
-
-/** Initializes an inner product descriptor @p ip_desc for backward propagation
- * with respect to bias using memory descriptors.
- *
- * @note
- *     memory descriptors are allowed to be initialized with #mkldnn_any value
- *     of @p format_kind. */
-mkldnn_status_t MKLDNN_API mkldnn_inner_product_backward_bias_desc_init(
-        mkldnn_inner_product_desc_t *ip_desc,
         const mkldnn_memory_desc_t *diff_bias_desc,
         const mkldnn_memory_desc_t *diff_dst_desc);
 

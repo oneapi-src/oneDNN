@@ -25,6 +25,7 @@ using namespace mkldnn::impl;
 using namespace mkldnn::impl::utils;
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::prop_kind;
+using namespace mkldnn::impl::types;
 
 namespace {
 status_t ip_desc_init(inner_product_desc_t *ip_desc, prop_kind_t prop_kind,
@@ -37,16 +38,21 @@ status_t ip_desc_init(inner_product_desc_t *ip_desc, prop_kind_t prop_kind,
     id.primitive_kind = primitive_kind::inner_product;
     id.prop_kind = prop_kind;
 
-    const bool is_fwd = one_of(prop_kind, forward_training, forward_inference);
-    const bool with_bias = bias_desc
-        && bias_desc->format != memory_format::undef;
+    id.diff_src_desc = id.src_desc = zero_md();
+    id.diff_dst_desc = id.dst_desc = zero_md();
+    id.diff_weights_desc = id.weights_desc = zero_md();
+    id.diff_bias_desc = id.bias_desc = zero_md();
 
-    (is_fwd ? id.src_desc : id.diff_src_desc) = *src_desc;
+    const bool is_fwd = one_of(prop_kind, forward_training, forward_inference);
+    const bool with_bias = bias_desc && bias_desc->format != memory_format::undef;
+
+    (prop_kind == backward_data ? id.diff_src_desc : id.src_desc) = *src_desc;
+    (is_fwd ? id.dst_desc : id.diff_dst_desc)  = *dst_desc;
     (prop_kind == backward_weights ? id.diff_weights_desc : id.weights_desc) =
         *weights_desc;
-    if (with_bias) id.bias_desc = *bias_desc;
-    else if (is_fwd) id.bias_desc = types::zero_md();
-    (prop_kind == backward_data ? id.diff_dst_desc : id.dst_desc)  = *dst_desc;
+    if (with_bias)
+        (prop_kind == backward_weights ? id.diff_bias_desc : id.bias_desc) =
+            *bias_desc;
 
     /* FIXME: fill-in! */
     bool consistency = true
@@ -87,32 +93,10 @@ status_t mkldnn_inner_product_backward_data_desc_init(
 status_t mkldnn_inner_product_backward_weights_desc_init(
         inner_product_desc_t *ip_desc, const memory_desc_t *src_desc,
         const memory_desc_t *diff_weights_desc,
+        const memory_desc_t *diff_bias_desc,
         const memory_desc_t *diff_dst_desc) {
     return ip_desc_init(ip_desc, backward_weights, src_desc, diff_weights_desc,
-            nullptr, diff_dst_desc);
-}
-
-status_t mkldnn_inner_product_backward_bias_desc_init(
-        inner_product_desc_t *ip_desc, const memory_desc_t *diff_bias_desc,
-        const memory_desc_t *diff_dst_desc) {
-    bool args_ok = !any_null(ip_desc, diff_bias_desc, diff_dst_desc);
-    if (!args_ok) return invalid_arguments;
-
-    inner_product_desc_t id = {};
-    id.primitive_kind = primitive_kind::inner_product;
-    id.prop_kind = backward_bias;
-
-    id.diff_bias_desc = *diff_bias_desc;
-    id.diff_dst_desc = *diff_dst_desc;
-
-    bool consistency = true
-        && diff_dst_desc->ndims == 2
-        && diff_bias_desc->ndims == 1
-        && diff_bias_desc->dims[0] == diff_dst_desc->dims[1];
-    if (!consistency) return invalid_arguments;
-
-    *ip_desc = id;
-    return success;
+            diff_bias_desc, diff_dst_desc);
 }
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
