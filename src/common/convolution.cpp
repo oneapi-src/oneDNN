@@ -51,8 +51,8 @@ status_t conv_desc_init(convolution_desc_t *conv_desc,
 
     cd.diff_src_desc = cd.src_desc = zero_md();
     cd.diff_dst_desc = cd.dst_desc = zero_md();
-    cd.weights_desc = zero_md();
-    cd.bias_desc = zero_md();
+    cd.diff_weights_desc = cd.weights_desc = zero_md();
+    cd.diff_bias_desc = cd.bias_desc = zero_md();
 
     const bool is_fwd = one_of(prop_kind, forward_training, forward_inference);
     const bool with_bias = bias_desc && bias_desc->format != memory_format::undef;
@@ -60,8 +60,6 @@ status_t conv_desc_init(convolution_desc_t *conv_desc,
 
     (prop_kind == backward_data ? cd.diff_src_desc : cd.src_desc) = *src_desc;
     (is_fwd ? cd.dst_desc : cd.diff_dst_desc)  = *dst_desc;
-    (prop_kind == backward_weights ? cd.diff_weights_desc : cd.weights_desc) =
-        *weights_desc;
     (prop_kind == backward_weights ? cd.diff_weights_desc : cd.weights_desc) =
         *weights_desc;
     if (with_bias)
