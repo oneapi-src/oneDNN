@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include <iostream>
+#include <numeric>
 #include "mkldnn.hpp"
 
 using namespace mkldnn;
