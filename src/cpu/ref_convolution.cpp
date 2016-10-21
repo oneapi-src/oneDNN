@@ -207,11 +207,11 @@ void ref_convolution_bwd_weights_t<data_type>::execute_backward_weights() {
                             || oh*KSH + kh >= IH + padT)
                         continue;
 
-                        int ih = oh*KSH - padT + kh;
-                        int iw = ow*KSW - padL + kw;
+                    int ih = oh*KSH - padT + kh;
+                    int iw = ow*KSW - padL + kw;
 
-                        *d += diff_dst[diff_dst_d.off(mb, g*OC + oc, oh, ow)] *
-                            src[src_d.off(mb, g*IC + ic, ih, iw)];
+                    *d += diff_dst[diff_dst_d.off(mb, g*OC + oc, oh, ow)] *
+                        src[src_d.off(mb, g*IC + ic, ih, iw)];
                 }
             }
         }
