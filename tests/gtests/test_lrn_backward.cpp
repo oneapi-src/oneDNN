@@ -43,7 +43,7 @@ struct lrn_test_params {
 };
 
 template <typename data_t>
-void check_lrn_fwd(lrn_test_params &p, memory &src, memory &dst)
+void check_lrn_fwd(const lrn_test_params &p, const memory &src, const memory &dst)
 {
     data_t *src_ptr = (data_t *)src.get_data_handle();
     data_t *dst_ptr = (data_t *)dst.get_data_handle();
@@ -104,8 +104,8 @@ void check_lrn_fwd(lrn_test_params &p, memory &src, memory &dst)
 }
 
 template <typename data_t>
-void check_lrn_bwd(lrn_test_params &p, memory &src, memory &diff_dst,
-        memory &diff_src)
+void check_lrn_bwd(const lrn_test_params &p, const memory &src,
+        const memory &diff_dst, const memory &diff_src)
 {
     data_t *src_ptr = (data_t *)src.get_data_handle();
     data_t *diff_dst_ptr = (data_t *)diff_dst.get_data_handle();

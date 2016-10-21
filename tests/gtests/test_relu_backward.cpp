@@ -30,8 +30,8 @@ struct relu_bwd_test_params {
 };
 
 template <typename data_t>
-void check_relu_fwd(data_t negative_slope, memory::desc &md,
-        memory &src, memory &dst)
+void check_relu_fwd(data_t negative_slope, const memory::desc &md,
+        const memory &src, const memory &dst)
 {
     data_t *src_data = (data_t *)src.get_data_handle();
     data_t *dst_data = (data_t *)dst.get_data_handle();
@@ -51,8 +51,8 @@ void check_relu_fwd(data_t negative_slope, memory::desc &md,
 }
 
 template <typename data_t>
-void check_relu_bwd(data_t negative_slope, memory::desc &md,
-        memory &src, memory &diff_dst, memory &diff_src)
+void check_relu_bwd(data_t negative_slope, const memory::desc &md,
+        const memory &src, const memory &diff_dst, const memory &diff_src)
 {
     data_t *src_data = (data_t *)src.get_data_handle();
     data_t *diff_dst_data = (data_t *)diff_dst.get_data_handle();

@@ -30,8 +30,8 @@ struct test_bnorm_desc_t {
 };
 
 template <typename data_t>
-void check_bnorm_fwd(test_bnorm_desc_t &bnd,
-        const memory &src, const memory &weights, memory &dst)
+void check_bnorm_fwd(const test_bnorm_desc_t &bnd,
+        const memory &src, const memory &weights, const memory &dst)
 {
     const data_t *src_data = (const data_t *)src.get_data_handle();
     const data_t *weights_data = (const data_t *)weights.get_data_handle();
@@ -91,7 +91,7 @@ void check_bnorm_fwd(test_bnorm_desc_t &bnd,
 template <typename data_t>
 void check_bnorm_bwd(test_bnorm_desc_t &bnd, prop_kind aprop_kind,
         const memory &src, const memory &diff_dst, const memory &weights,
-        const memory &workspace, memory &diff_src, const memory &diff_weights)
+        const memory &workspace, const memory &diff_src, const memory &diff_weights)
 {
     const data_t *src_data = (const data_t *)src.get_data_handle();
     const data_t *weights_data = (const data_t *)weights.get_data_handle();

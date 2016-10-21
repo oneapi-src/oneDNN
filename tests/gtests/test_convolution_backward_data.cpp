@@ -22,8 +22,8 @@
 namespace mkldnn {
 
 template <typename data_t>
-void compute_ref_conv_bwd_data(test_convolution_descr_t c, memory diff_src,
-        memory weights, memory diff_dst)
+void compute_ref_conv_bwd_data(const test_convolution_descr_t &c,
+        const memory &diff_src, const memory &weights, const memory &diff_dst)
 {
     data_t *diff_dst_data = (data_t *)diff_dst.get_data_handle();
     data_t *weights_data = (data_t *)weights.get_data_handle();

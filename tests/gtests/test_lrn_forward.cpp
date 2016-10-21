@@ -34,9 +34,9 @@ struct test_lrn_desc_t {
 };
 
 template <typename data_t>
-void check_lrn_fwd(test_lrn_desc_t ld,
-        const memory::desc src_d, const memory::desc dst_d,
-        memory &src, memory &dst)
+void check_lrn_fwd(const test_lrn_desc_t &ld,
+        const memory::desc &src_d, const memory::desc &dst_d,
+        const memory &src, const memory &dst)
 {
     data_t *src_ptr = (data_t *)src.get_data_handle();
     data_t *dst_ptr = (data_t *)dst.get_data_handle();

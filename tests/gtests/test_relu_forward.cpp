@@ -22,8 +22,8 @@
 namespace mkldnn {
 
 template <typename data_t>
-void check_relu(prop_kind aprop_kind, data_t negative_slope, memory::desc &md,
-        const data_t *src, const data_t *dst)
+void check_relu(prop_kind aprop_kind, data_t negative_slope,
+        const memory::desc &md, const data_t *src, const data_t *dst)
 {
     ASSERT_EQ(md.data.ndims, 4);
     ASSERT_EQ(md.data.format, memory::convert_to_c(memory::format::nchw));

@@ -39,7 +39,8 @@ struct pool_bwd_test_params {
 };
 
 template <typename data_t>
-void check_pool_fwd(pool_bwd_test_params p, memory &src, memory &dst)
+void check_pool_fwd(const pool_bwd_test_params &p, const memory &src,
+        const memory &dst)
 {
     data_t *src_data = (data_t *)src.get_data_handle();
     data_t *dst_data = (data_t *)dst.get_data_handle();
@@ -92,7 +93,8 @@ void check_pool_fwd(pool_bwd_test_params p, memory &src, memory &dst)
 }
 
 template <typename data_t>
-void check_pool_bwd(pool_bwd_test_params p, memory &diff_src, memory &diff_dst, memory &ws)
+void check_pool_bwd(const pool_bwd_test_params &p, const memory &diff_src,
+        const memory &diff_dst, const memory &ws)
 {
     data_t *diff_src_data = (data_t *)diff_src.get_data_handle();
     data_t *diff_dst_data = (data_t *)diff_dst.get_data_handle();

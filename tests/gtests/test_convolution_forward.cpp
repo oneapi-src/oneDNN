@@ -22,15 +22,15 @@
 namespace mkldnn {
 
 template <typename data_t>
-void compute_ref_conv_fwd(test_convolution_descr_t c,
-        const memory::desc src_d,
-        const memory::desc weights_d,
-        const memory::desc bias_d,
-        const memory::desc dst_d,
-        memory src,
-        memory weights,
-        memory bias,
-        memory dst)
+void compute_ref_conv_fwd(const test_convolution_descr_t &c,
+        const memory::desc &src_d,
+        const memory::desc &weights_d,
+        const memory::desc &bias_d,
+        const memory::desc &dst_d,
+        const memory &src,
+        const memory &weights,
+        const memory &bias,
+        const memory &dst)
 {
     const bool w_bias = memory::convert_to_c(memory::format::format_undef)
         != bias_d.data.format;

@@ -22,8 +22,8 @@
 namespace mkldnn {
 
 template <typename data_t>
-void compute_ref_conv_bwd_bias(test_convolution_descr_t c, memory diff_dst,
-        memory diff_bias)
+void compute_ref_conv_bwd_bias(const test_convolution_descr_t &c,
+        const memory &diff_dst, const memory &diff_bias)
 {
     data_t *diff_bias_data = (data_t *)diff_bias.get_data_handle();
     data_t *diff_dst_data = (data_t *)diff_dst.get_data_handle();
@@ -52,8 +52,8 @@ void compute_ref_conv_bwd_bias(test_convolution_descr_t c, memory diff_dst,
 }
 
 template <typename data_t>
-void compute_ref_conv_bwd_weights(test_convolution_descr_t c, memory src,
-        memory diff_dst, memory diff_weights)
+void compute_ref_conv_bwd_weights(const test_convolution_descr_t &c,
+        const memory &src, const memory &diff_dst, const memory &diff_weights)
 {
     data_t *src_data = (data_t *)src.get_data_handle();
     data_t *diff_weights_data = (data_t *)diff_weights.get_data_handle();
