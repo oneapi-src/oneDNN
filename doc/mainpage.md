@@ -90,9 +90,6 @@ These steps reflect the following levels of abstraction:
 
 ### Auxiliary Types
 
-* **Tensor** - a data description that contains the number of dimensions the data
-  has and the dimensions themselves.
-
 * **Primitive_at** - a structure that contains a primitive and an index. This
   structure specifies which output of the primitive to use as an input for
   another primitive.
@@ -118,7 +115,7 @@ std::vector<mkldnn::primitive> net;
 3. Allocate input data and create a tensor structure that describes it.
 ~~~cpp
 std::vector<float> src(2 * 3 * 227 * 227);
-mkldnn::tensor::dims conv_src_dims = {2, 3, 227, 227};
+mkldnn::memory::dims conv_src_dims = {2, 3, 227, 227};
 ~~~
 
 4. Create two memory descriptors: one for data in a user format, and one for
@@ -131,27 +128,27 @@ mkldnn::tensor::dims conv_src_dims = {2, 3, 227, 227};
    the convolution.
 ~~~cpp
 auto user_src_md = mkldnn::memory::desc({conv_src_dims},
-    mkldnn::memory::precision::f32, mkldnn::memory::format::nchw);
+    mkldnn::memory::data_type::f32, mkldnn::memory::format::nchw);
 auto conv_src_md = mkldnn::memory::desc({conv_src_dims},
-    mkldnn::memory::precision::f32, mkldnn::memory::format::any);
+    mkldnn::memory::data_type::f32, mkldnn::memory::format::any);
 ~~~
 
 5. Create a convolution descriptor by specifying the algorithm, propagation
    kind, shapes of input, weights, bias, and output, and convolution strides,
    padding, and padding kind.
 ~~~cpp
-auto conv_desc = mkldnn::convolution::desc(
-    mkldnn::prop_kind::forward, mkldnn::convolution::direct,
+auto conv_desc = mkldnn::convolution_forward::desc(
+    mkldnn::prop_kind::forward, mkldnn::algorithm::convolution_direct,
     conv_src_md, /* format::any used here to let convolution choose a format */
     conv_weights_md, conv_bias_md, conv_dst_md,
-    {1, 1}, {0, 0}, mkldnn::padding_kind::zero);
+    {1, 1}, {0, 0}, {0, 0}, mkldnn::padding_kind::zero);
 ~~~
 
 6. Create a descriptor of the convolution primitive. Once created, this descriptor
    has specific formats instead of any wildcard formats specified
    in the convolution descriptor.
 ~~~cpp
-auto conv_pd = mkldnn::convolution::primitive_desc(conv_desc, cpu_engine);
+auto conv_pd = mkldnn::convolution_forward::primitive_desc(conv_desc, cpu_engine);
 ~~~
 
 7. Create a memory primitive that contains user data and check whether the user
@@ -166,14 +163,14 @@ auto user_src_memory = mkldnn::memory(user_src_memory_descriptor, src);
 
 /* Check whether a reorder is needed  */
 auto conv_input = user_src_memory;
-if (mkldnn::memory::primitive_desc(conv_pd.data.src_primitive_desc)
+if (mkldnn::memory::primitive_desc(conv_pd.src_primitive_desc())
         != user_src_memory_descriptor) {
     /* Yes, it is needed */
 
     /* Convolution primitive descriptor contains the descriptor of a memory
      * primitive it requires as input. Because a pointer to the allocated
      * memory is not specified, Intel MKL-DNN allocates the memory. */
-    auto conv_src_memory = mkldnn::memory(conv_pd.data.src_primitive_desc);
+    auto conv_src_memory = mkldnn::memory(conv_pd.src_primitive_desc());
 
     /* create a reorder between data, make it an input for the convolution */
     conv_input = mkldnn::reorder(user_src_memory, conv_src_memory)
@@ -188,15 +185,15 @@ if (mkldnn::memory::primitive_desc(conv_pd.data.src_primitive_desc)
 /* Note that the conv_input primitive (whether it be a memory or a reorder)
  * is an input dependency for the convolution primitive, which means that the
  * convolution primitive will not be executed before the data is ready. */
-auto conv = mkldnn::convolution(conv_pd, conv_input, conv_weights_memory,
-        conv_user_bias_memory, conv_dst_memory);
+auto conv = mkldnn::convolution_forward(conv_pd, conv_input,
+        conv_weights_memory, conv_user_bias_memory, conv_dst_memory);
 net.push_back(conv);
 ~~~
 
 9. Finally, create a stream, submit all the primitives, and wait for
     completion.
 ~~~cpp
-mkldnn::stream().submit(net).wait();
+mkldnn::stream(mkldnn::stream::kind::eager).submit(net).wait();
 ~~~
 
 @subpage legal_information
