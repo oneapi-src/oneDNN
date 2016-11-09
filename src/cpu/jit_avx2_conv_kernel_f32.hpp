@@ -57,10 +57,10 @@ struct __attribute__((__packed__)) jit_conv_call_s {
     int ic_flag;
 };
 
-struct jit_avx2_conv_kernel_f32: public jit_generator {
+struct jit_avx2_conv_fwd_kernel_f32: public jit_generator {
     enum { IC_FLAG_FIRST = 1, IC_FLAG_LAST = 2 };
 
-    jit_avx2_conv_kernel_f32(jit_conv_conf_t ajcp, void *code_ptr = nullptr,
+    jit_avx2_conv_fwd_kernel_f32(jit_conv_conf_t ajcp, void *code_ptr = nullptr,
             size_t code_size = 8 * Xbyak::DEFAULT_MAX_CODE_SIZE)
         : jcp(ajcp)
     {

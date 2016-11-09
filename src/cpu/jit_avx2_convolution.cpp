@@ -28,7 +28,7 @@ using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::memory_format;
 
 template <bool with_relu>
-void _jit_avx2_convolution_t<with_relu>::execute_forward() {
+void _jit_avx2_convolution_fwd_t<with_relu>::execute_forward() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto weights = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto bias = reinterpret_cast<const data_t *>(this->input_memory(2));
@@ -67,11 +67,11 @@ void _jit_avx2_convolution_t<with_relu>::execute_forward() {
                 const size_t _c = g*jcp.nb_oc + jcp.nb_oc_blocking*oc;
                 par_conv.bias = &bias[bias_d.blk_off(_c*jcp.oc_block)];
             }
-            par_conv.ic_flag |= jit_avx2_conv_kernel_f32::IC_FLAG_FIRST;
+            par_conv.ic_flag |= jit_avx2_conv_fwd_kernel_f32::IC_FLAG_FIRST;
         }
 
         if (with_relu && ic + 1 == jcp.nb_ic) {
-            par_conv.ic_flag |= jit_avx2_conv_kernel_f32::IC_FLAG_LAST;
+            par_conv.ic_flag |= jit_avx2_conv_fwd_kernel_f32::IC_FLAG_LAST;
         }
 
         par_conv.kh_padding = jcp.kh - i_t_overflow - i_b_overflow;
@@ -94,8 +94,8 @@ void _jit_avx2_convolution_t<with_relu>::execute_forward() {
     }
 }
 
-template void _jit_avx2_convolution_t<true>::execute_forward();
-template void _jit_avx2_convolution_t<false>::execute_forward();
+template void _jit_avx2_convolution_fwd_t<true>::execute_forward();
+template void _jit_avx2_convolution_fwd_t<false>::execute_forward();
 
 }
 }

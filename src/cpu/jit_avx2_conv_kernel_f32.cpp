@@ -28,7 +28,7 @@ namespace cpu {
 using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::utils;
 
-void jit_avx2_conv_kernel_f32::oh_step_unroll_kw(int ur_w, int pad_l,
+void jit_avx2_conv_fwd_kernel_f32::oh_step_unroll_kw(int ur_w, int pad_l,
         int pad_r) {
     using Xbyak::Ymm;
 
@@ -67,7 +67,7 @@ void jit_avx2_conv_kernel_f32::oh_step_unroll_kw(int ur_w, int pad_l,
     }
 }
 
-void jit_avx2_conv_kernel_f32::oh_step_nopad(int ur_w, int pad_l, int pad_r,
+void jit_avx2_conv_fwd_kernel_f32::oh_step_nopad(int ur_w, int pad_l, int pad_r,
         char pad_label) {
     using Xbyak::Ymm;
     char kw_label[4] = ".wP";
@@ -117,7 +117,7 @@ void jit_avx2_conv_kernel_f32::oh_step_nopad(int ur_w, int pad_l, int pad_r,
     }
 }
 
-void jit_avx2_conv_kernel_f32::width_blk_step(int ur_w, int pad_l, int pad_r,
+void jit_avx2_conv_fwd_kernel_f32::width_blk_step(int ur_w, int pad_l, int pad_r,
         char pad_label) {
     using Xbyak::Ymm;
 
@@ -211,7 +211,7 @@ void jit_avx2_conv_kernel_f32::width_blk_step(int ur_w, int pad_l, int pad_r,
     L(done_label);
 }
 
-void jit_avx2_conv_kernel_f32::generate() {
+void jit_avx2_conv_fwd_kernel_f32::generate() {
     using Xbyak::Ymm;
     this->preamble();
 
@@ -278,7 +278,7 @@ void jit_avx2_conv_kernel_f32::generate() {
     this->postamble();
 }
 
-status_t jit_avx2_conv_kernel_f32::init_conf(jit_conv_conf_t &jcp,
+status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
         const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &weights_d, const memory_desc_wrapper &dst_d,
         bool with_relu, double relu_negative_slope)

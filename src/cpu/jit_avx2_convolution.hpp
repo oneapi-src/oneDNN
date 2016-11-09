@@ -27,7 +27,7 @@ namespace impl {
 namespace cpu {
 
 template <bool with_relu>
-struct _jit_avx2_convolution_t: public cpu_primitive_t {
+struct _jit_avx2_convolution_fwd_t: public cpu_primitive_t {
     struct pd_t: public _cpu_convolution_fwd_pd_t<with_relu> {
         pd_t(engine_t *engine,
                 const typename pd_t::base_desc_t *adesc,
@@ -35,7 +35,7 @@ struct _jit_avx2_convolution_t: public cpu_primitive_t {
             : _cpu_convolution_fwd_pd_t<with_relu>(engine, adesc, hint_fwd_pd)
             , jcp_({}) {}
 
-        DECLARE_COMMON_PD_T(_jit_avx2_convolution_t<with_relu>);
+        DECLARE_COMMON_PD_T(_jit_avx2_convolution_fwd_t<with_relu>);
 
         virtual status_t init() override {
             using namespace prop_kind;
@@ -56,7 +56,7 @@ struct _jit_avx2_convolution_t: public cpu_primitive_t {
                         data_type::f32 == this->cdesc_().bias_desc.data_type);
             if (!ok) return status::unimplemented;
 
-            return jit_avx2_conv_kernel_f32::init_conf(jcp_, this->cdesc_(),
+            return jit_avx2_conv_fwd_kernel_f32::init_conf(jcp_, this->cdesc_(),
                     *this->src_pd_.desc(), *this->weights_pd_.desc(),
                     *this->dst_pd_.desc(), with_relu, this->negative_slope());
         }
@@ -84,10 +84,10 @@ struct _jit_avx2_convolution_t: public cpu_primitive_t {
         }
     };
 
-    _jit_avx2_convolution_t(const pd_t *pd, const input_vector &inputs,
+    _jit_avx2_convolution_fwd_t(const pd_t *pd, const input_vector &inputs,
             const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
-    { kernel_ = new jit_avx2_conv_kernel_f32(conf_.jcp_); }
+    { kernel_ = new jit_avx2_conv_fwd_kernel_f32(conf_.jcp_); }
     typedef typename prec_trait<data_type::f32>::type data_t;
 
     virtual void execute(event_t *e) {
@@ -98,11 +98,11 @@ struct _jit_avx2_convolution_t: public cpu_primitive_t {
 private:
     void execute_forward();
     pd_t conf_;
-    jit_avx2_conv_kernel_f32 *kernel_;
+    jit_avx2_conv_fwd_kernel_f32 *kernel_;
 };
 
-using jit_avx2_convolution_t = _jit_avx2_convolution_t<false>;
-using jit_avx2_convolution_relu_t = _jit_avx2_convolution_t<true>;
+using jit_avx2_convolution_fwd_t = _jit_avx2_convolution_fwd_t<false>;
+using jit_avx2_convolution_relu_t = _jit_avx2_convolution_fwd_t<true>;
 
 }
 }
