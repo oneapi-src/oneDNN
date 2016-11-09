@@ -30,7 +30,7 @@ namespace impl {
 namespace cpu {
 
 template <bool with_relu, impl::data_type_t data_type>
-struct _ref_convolution_t: public cpu_primitive_t {
+struct _ref_convolution_fwd_t: public cpu_primitive_t {
     struct pd_t: public _cpu_convolution_fwd_pd_t<with_relu> {
         pd_t(engine_t *engine,
                 const typename pd_t::base_desc_t *adesc,
@@ -38,7 +38,7 @@ struct _ref_convolution_t: public cpu_primitive_t {
             : _cpu_convolution_fwd_pd_t<with_relu>(engine, adesc, hint_fwd_pd)
         {}
 
-        DECLARE_COMMON_PD_T(_ref_convolution_t);
+        DECLARE_COMMON_PD_T(_ref_convolution_fwd_t);
 
         virtual status_t init() override {
             using namespace prop_kind;
@@ -61,7 +61,7 @@ struct _ref_convolution_t: public cpu_primitive_t {
         }
     };
 
-    _ref_convolution_t(const pd_t *pd, const input_vector &inputs,
+    _ref_convolution_fwd_t(const pd_t *pd, const input_vector &inputs,
             const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {}
     typedef typename prec_trait<data_type>::type data_t;
@@ -84,9 +84,109 @@ private:
 };
 
 template <impl::data_type_t data_type>
-using ref_convolution_t = _ref_convolution_t<false, data_type>;
+using ref_convolution_fwd_t = _ref_convolution_fwd_t<false, data_type>;
 template <impl::data_type_t data_type>
-using ref_convolution_relu_t = _ref_convolution_t<true, data_type>;
+using ref_convolution_relu_t = _ref_convolution_fwd_t<true, data_type>;
+
+template <impl::data_type_t data_type>
+struct ref_convolution_bwd_data_t: public cpu_primitive_t {
+    struct pd_t: public cpu_convolution_bwd_data_pd_t {
+        pd_t(engine_t *engine,
+                const convolution_desc_t *adesc,
+                const convolution_fwd_pd_t *hint_fwd_pd)
+            : cpu_convolution_bwd_data_pd_t(engine, adesc, hint_fwd_pd)
+        {}
+
+        DECLARE_COMMON_PD_T(ref_convolution_bwd_data_t);
+
+        virtual status_t init() override {
+            using namespace prop_kind;
+            assert(this->engine()->kind() == engine_kind::cpu);
+            bool ok = true
+                && this->set_default_params() == status::success
+                && utils::one_of(this->desc()->prop_kind, backward,
+                        backward_data)
+                && this->desc()->alg_kind == alg_kind::convolution_direct
+                && utils::everyone_is(data_type,
+                        this->desc()->diff_src_desc.data_type,
+                        this->desc()->weights_desc.data_type,
+                        this->desc()->diff_dst_desc.data_type);
+            return ok ? status::success : status::unimplemented;
+        }
+    };
+
+    ref_convolution_bwd_data_t(const pd_t *pd, const input_vector &inputs,
+            const output_vector &outputs)
+        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {}
+    typedef typename prec_trait<data_type>::type data_t;
+
+    virtual void execute(event_t *e) {
+        switch (conf_.desc()->prop_kind) {
+        case prop_kind::backward:
+        case prop_kind::backward_data:
+            execute_backward_data();
+            break;
+        default:
+            assert(!"invalid prop_kind");
+        }
+        e->set_state(event_t::ready);
+    }
+
+private:
+    void execute_backward_data();
+    pd_t conf_;
+};
+
+template <impl::data_type_t data_type>
+struct ref_convolution_bwd_weights_t: public cpu_primitive_t {
+    struct pd_t: public cpu_convolution_bwd_weights_pd_t {
+        pd_t(engine_t *engine,
+                const convolution_desc_t *adesc,
+                const convolution_fwd_pd_t *hint_fwd_pd)
+            : cpu_convolution_bwd_weights_pd_t(engine, adesc, hint_fwd_pd)
+        {}
+
+        DECLARE_COMMON_PD_T(ref_convolution_bwd_weights_t);
+
+        virtual status_t init() override {
+            using namespace prop_kind;
+            assert(this->engine()->kind() == engine_kind::cpu);
+            bool ok = true
+                && this->set_default_params() == status::success
+                && utils::one_of(this->desc()->prop_kind, backward,
+                        backward_weights)
+                && this->desc()->alg_kind == alg_kind::convolution_direct
+                && utils::everyone_is(data_type,
+                        this->desc()->src_desc.data_type,
+                        this->desc()->diff_dst_desc.data_type,
+                        this->desc()->diff_weights_desc.data_type)
+                && utils::implication(this->with_bias(),
+                        data_type == this->desc()->diff_bias_desc.data_type);
+            return ok ? status::success : status::unimplemented;
+        }
+    };
+
+    ref_convolution_bwd_weights_t(const pd_t *pd, const input_vector &inputs,
+            const output_vector &outputs)
+        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {}
+    typedef typename prec_trait<data_type>::type data_t;
+
+    virtual void execute(event_t *e) {
+        switch (conf_.desc()->prop_kind) {
+        case prop_kind::backward:
+        case prop_kind::backward_weights:
+            execute_backward_weights();
+            break;
+        default:
+            assert(!"invalid prop_kind");
+        }
+        e->set_state(event_t::ready);
+    }
+
+private:
+    void execute_backward_weights();
+    pd_t conf_;
+};
 
 }
 }

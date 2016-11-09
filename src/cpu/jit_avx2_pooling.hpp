@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_AVX2_POOLING_FWD_HPP
-#define CPU_JIT_AVX2_POOLING_FWD_HPP
+#ifndef CPU_JIT_AVX2_POOLING_HPP
+#define CPU_JIT_AVX2_POOLING_HPP
 
 #include <assert.h>
 

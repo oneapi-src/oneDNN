@@ -44,7 +44,7 @@ void compute_ref_inner_product_fwd(test_inner_product_descr_t ipd, memory &src,
     const memory::desc bias_d = bias.get_primitive_desc().desc();
     const memory::desc dst_d = dst.get_primitive_desc().desc();
 
-#pragma omp parallel for collapse(2)
+#pragma omp parallel for collapse(2) schedule(static)
     for (int n = 0; n < ipd.mb; n++) {
         for (int oc = 0; oc < ipd.oc; oc++) {
             int oidx = n * ipd.oc + oc;

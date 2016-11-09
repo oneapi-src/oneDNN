@@ -88,27 +88,34 @@ static const rpd_create_f cpu_reorder_impl_list[] = {
     simple_reorder_t<f32, any, f32, any, fmt_order::any, spec::reference>::pd_t::create,
     nullptr,
 };
-
 #define INSTANCE(inst) &primitive_desc_t::create<inst::pd_t>
 static const pd_create_f cpu_impl_list[] = {
     /* conv */
     INSTANCE(jit_avx2_convolution_t),
-    INSTANCE(ref_convolution_t<data_type::f32>),
+    INSTANCE(ref_convolution_fwd_t<data_type::f32>),
+    INSTANCE(ref_convolution_bwd_data_t<data_type::f32>),
+    INSTANCE(ref_convolution_bwd_weights_t<data_type::f32>),
     /* relu */
     INSTANCE(jit_avx2_relu_fwd_t),
     INSTANCE(ref_relu_fwd_t<data_type::f32>),
+    INSTANCE(ref_relu_bwd_t<data_type::f32>),
     /* pool */
     INSTANCE(jit_avx2_pooling_fwd_t),
     INSTANCE(ref_pooling_fwd_t<data_type::f32>),
+    INSTANCE(ref_pooling_bwd_t<data_type::f32>),
     /* lrn */
     INSTANCE(jit_avx2_lrn_fwd_t),
     INSTANCE(ref_lrn_fwd_t<data_type::f32>),
+    INSTANCE(ref_lrn_bwd_t<data_type::f32>),
     /* batch normalization */
     INSTANCE(jit_avx2_batch_normalization_fwd_t),
     INSTANCE(ref_batch_normalization_fwd_t<data_type::f32>),
+    INSTANCE(ref_batch_normalization_bwd_t<data_type::f32>),
     /* inner product */
     INSTANCE(gemm_inner_product_fwd_t<data_type::f32>),
     INSTANCE(ref_inner_product_fwd_t<data_type::f32>),
+    INSTANCE(ref_inner_product_bwd_data_t<data_type::f32>),
+    INSTANCE(ref_inner_product_bwd_weights_t<data_type::f32>),
     /* conv_relu */
     INSTANCE(jit_avx2_convolution_relu_t),
     INSTANCE(ref_convolution_relu_t<data_type::f32>),

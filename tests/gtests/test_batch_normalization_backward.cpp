@@ -88,422 +88,549 @@ void check_bnorm_fwd(const test_bnorm_desc_t &bnd,
     delete[] workspace_data;
 }
 
-struct bnorm_fwd_test_params {
+template <typename data_t>
+void check_bnorm_bwd(test_bnorm_desc_t &bnd, prop_kind aprop_kind,
+        const memory &src, const memory &diff_dst, const memory &weights,
+        const memory &workspace, const memory &diff_src, const memory &diff_weights)
+{
+    const data_t *src_data = (const data_t *)src.get_data_handle();
+    const data_t *weights_data = (const data_t *)weights.get_data_handle();
+    const data_t *diff_dst_data = (const data_t *)diff_dst.get_data_handle();
+    const data_t *workspace_data = (const data_t *)workspace.get_data_handle();
+    data_t *diff_src_data = (data_t *)diff_src.get_data_handle();
+    const data_t *diff_weights_data = (const data_t *)diff_weights.get_data_handle();
+
+    const memory::desc src_d = src.get_primitive_desc().desc();
+    const memory::desc diff_dst_d = diff_dst.get_primitive_desc().desc();
+    const memory::desc weights_d = weights.get_primitive_desc().desc();
+    const memory::desc workspace_d = workspace.get_primitive_desc().desc();
+    const memory::desc diff_src_d = diff_src.get_primitive_desc().desc();
+    const memory::desc diff_weights_d = diff_weights.get_primitive_desc().desc();
+
+    auto ws_mean = &workspace_data[map_index(workspace_d, 0)];
+    auto ws_variance = &workspace_data[map_index(workspace_d, bnd.c)];
+
+    const data_t eps = 1.e-6 * bnd.mb * bnd.h * bnd.w;
+
+#pragma omp parallel for
+    for (int c = 0; c < bnd.c; c++) {
+        data_t ref_diff_gamma = data_t(0);
+        data_t ref_diff_beta = data_t(0);
+
+        auto mean = ws_mean[c];
+        auto variance = ws_variance[c];
+
+        auto gamma = weights_data[map_index(weights_d, c)];
+
+        for (int n = 0; n < bnd.mb; n++)
+        for (int h = 0; h < bnd.h; h++)
+            for (int w = 0; w < bnd.w; w++) {
+                int sidx = n * bnd.c * bnd.h * bnd.w + c * bnd.h * bnd.w
+                        + h * bnd.w + w;
+                ref_diff_gamma += (src_data[map_index(src_d, sidx)] - mean)
+                    * diff_dst_data[map_index(diff_dst_d, sidx)];
+                ref_diff_beta += diff_dst_data[map_index(diff_dst_d, sidx)];
+            }
+        ref_diff_gamma *= variance;
+
+        if (aprop_kind == backward) {
+            auto diff_gamma = diff_weights_data[map_index(diff_weights_d, c)];
+            auto diff_beta = diff_weights_data[map_index(diff_weights_d, bnd.c + c)];
+            EXPECT_NEAR(diff_gamma, ref_diff_gamma, eps);
+            EXPECT_NEAR(diff_beta, ref_diff_beta, eps);
+        }
+
+        for (int n = 0; n < bnd.mb; n++)
+        for (int h = 0; h < bnd.h; h++)
+            for (int w = 0; w < bnd.w; w++) {
+                int sidx = n * bnd.c * bnd.h * bnd.w + c * bnd.h * bnd.w
+                        + h * bnd.w + w;
+                data_t ref_diff_src = diff_dst_data[map_index(diff_dst_d, sidx)]
+                        - ref_diff_beta/(bnd.mb*bnd.h*bnd.w)
+                        - (src_data[map_index(src_d, sidx)] - mean)
+                        *ref_diff_gamma*variance/(bnd.mb*bnd.h*bnd.w);
+                ref_diff_src *= gamma*variance;
+                data_t out_diff_src = diff_src_data[map_index(diff_src_d, sidx)];
+                data_t norm_max = std::max(fabs(out_diff_src), fabs(ref_diff_src));
+                if (norm_max < eps) norm_max = data_t(1);
+                EXPECT_NEAR((out_diff_src - ref_diff_src) / norm_max, 0., eps);
+            }
+    }
+}
+
+struct bnorm_bwd_test_params {
     prop_kind aprop_kind;
-    const engine::kind engine_kind;
-    memory::format src_format;
-    memory::format dst_format;
+    engine::kind engine_kind;
+    memory::format data_format;
+    memory::format diff_format;
     memory::format weights_format;
     test_bnorm_desc_t test_bnd;
 };
 
 template <typename data_t>
-class bnorm_forward_test : public ::testing::TestWithParam<bnorm_fwd_test_params> {
+class bnorm_backward_test : public ::testing::TestWithParam<bnorm_bwd_test_params> {
+private:
+    std::shared_ptr<memory> src;
+    std::shared_ptr<memory> dst;
+    std::shared_ptr<memory> diff_src;
+    std::shared_ptr<memory> diff_dst;
+    std::shared_ptr<memory> workspace;
+    std::shared_ptr<memory> weights;
+    std::shared_ptr<memory> diff_weights;
+    std::shared_ptr<memory::desc> data_desc;
+    std::shared_ptr<memory::desc> diff_desc;
+    std::shared_ptr<batch_normalization_forward::primitive_desc> bnrm_prim_desc;
+    bnorm_bwd_test_params p;
+    std::shared_ptr<engine> eng;
+    memory::data_type data_type;
+
 protected:
     virtual void SetUp()
     {
-        bnorm_fwd_test_params p
-                = ::testing::TestWithParam<bnorm_fwd_test_params>::GetParam();
+        p = ::testing::TestWithParam<bnorm_bwd_test_params>::GetParam();
 
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
-        ASSERT_TRUE(p.aprop_kind == prop_kind::forward_training
-                || p.aprop_kind == prop_kind::forward_scoring);
-        auto eng = engine(p.engine_kind, 0);
+        ASSERT_TRUE(p.aprop_kind == prop_kind::backward
+                || p.aprop_kind == prop_kind::backward_data);
+        eng.reset(new engine(p.engine_kind, 0));
         memory::data_type data_type = data_traits<data_t>::data_type;
         ASSERT_EQ(data_type, mkldnn::memory::data_type::f32);
 
         test_bnorm_desc_t bnd = p.test_bnd;
-        bool with_workspace = p.aprop_kind == prop_kind::forward_training;
 
-        auto src_desc = create_md(
-                { bnd.mb, bnd.c, bnd.h, bnd.w }, data_type, p.src_format);
-        auto dst_desc = create_md(
-                { bnd.mb, bnd.c, bnd.h, bnd.w }, data_type, p.dst_format);
+        data_desc.reset(new memory::desc(
+                { bnd.mb, bnd.c, bnd.h, bnd.w }, data_type, p.data_format));
+        diff_desc.reset(new memory::desc(
+                { bnd.mb, bnd.c, bnd.h, bnd.w }, data_type, p.data_format));
 
-        auto src_primitive_desc = memory::primitive_desc(src_desc, eng);
-        auto dst_primitive_desc = memory::primitive_desc(dst_desc, eng);
+        Forward();
+        Backward();
+    }
 
-        auto src_size = src_primitive_desc.get_size();
-        auto dst_size = dst_primitive_desc.get_size();
+    void Forward() {
+        test_bnorm_desc_t bnd = p.test_bnd;
 
-        // TODO: free
-        data_t *src_data = new data_t[src_size];
-        data_t *weights_data = nullptr;
-        data_t *workspace_data = nullptr;
-        data_t *dst_data = new data_t[dst_size];
+        src.reset(new memory({*data_desc, *eng}));
+        dst.reset(new memory({*data_desc, *eng}));
 
-        auto src = memory(src_primitive_desc, src_data);
-        auto dst = memory(dst_primitive_desc, dst_data);
+        auto bnrm_desc =
+                batch_normalization_forward::desc(prop_kind::forward_training,
+                *data_desc, bnd.eps);
+        bnrm_prim_desc.reset(
+                new batch_normalization_forward::primitive_desc(bnrm_desc, *eng));
 
-        auto bn_desc
-            = batch_normalization_forward::desc(p.aprop_kind, src_desc, bnd.eps);
-        auto bn_prim_desc = batch_normalization_forward::primitive_desc(bn_desc, eng);
-
-        auto weights_primitive_desc = bn_prim_desc.weights_primitive_desc();
-        auto weights_size = weights_primitive_desc.get_size();
-        weights_data = new data_t[weights_size];
-        auto weights = memory(weights_primitive_desc, weights_data);
+        weights.reset(new memory(bnrm_prim_desc->weights_primitive_desc()));
 
         fill_data<data_t>(
-                src.get_primitive_desc().get_size() / sizeof(data_t),
-                (data_t *)src.get_data_handle());
+                src->get_primitive_desc().get_size() / sizeof(data_t),
+                (data_t *)src->get_data_handle());
         fill_data<data_t>(
-                weights.get_primitive_desc().get_size() / sizeof(data_t),
-                (data_t *)weights.get_data_handle());
+                weights->get_primitive_desc().get_size() / sizeof(data_t),
+                (data_t *)weights->get_data_handle());
 
         std::vector<primitive> pipeline;
         auto s = stream(stream::kind::lazy);
-        if (with_workspace) {
-            auto workspace_primitive_desc =
-                bn_prim_desc.workspace_primitive_desc();
-            auto workspace_size = workspace_primitive_desc.get_size();
-            workspace_data = new data_t[workspace_size];
-            auto workspace = memory(workspace_primitive_desc, workspace_data);
-            auto bn = batch_normalization_forward(bn_prim_desc,
-                    src, weights, workspace, dst);
-            pipeline.push_back(bn);
-            s.submit(pipeline).wait();
-        } else {
-            auto bn = batch_normalization_forward(bn_prim_desc, src, weights, dst);
-            pipeline.push_back(bn);
-            s.submit(pipeline).wait();
-        }
 
-        check_bnorm_fwd<data_t>(bnd, src, weights, dst);
+        workspace.reset(new memory(
+                bnrm_prim_desc->workspace_primitive_desc()));
+        auto bn = batch_normalization_forward(*bnrm_prim_desc,
+                *src, *weights, *workspace, *dst);
+        pipeline.push_back(bn);
+        s.submit(pipeline).wait();
+
+        check_bnorm_fwd<data_t>(bnd, *src, *weights, *dst);
+    }
+
+    void Backward()
+    {
+        test_bnorm_desc_t bnd = p.test_bnd;
+
+        diff_src.reset(new memory({*diff_desc, *eng}));
+        diff_dst.reset(new memory({*diff_desc, *eng}));
+
+        auto bnrm_bwd_desc = batch_normalization_backward::desc(p.aprop_kind,
+                    *diff_desc, *data_desc);
+        auto bnrm_bwd_prim_desc = batch_normalization_backward::primitive_desc(
+                    bnrm_bwd_desc, *eng, *bnrm_prim_desc);
+
+        diff_weights.reset(
+                new memory(bnrm_bwd_prim_desc.weights_primitive_desc()));
+
+        fill_data<data_t>(
+                diff_dst->get_primitive_desc().get_size() / sizeof(data_t),
+                (data_t *)diff_dst->get_data_handle());
+
+        std::vector<primitive> pipeline;
+        auto s = stream(stream::kind::lazy);
+
+        auto bn_bwd = p.aprop_kind == backward_data ?
+                batch_normalization_backward(bnrm_bwd_prim_desc, *src,
+                    *diff_dst, *weights, *workspace, *diff_src) :
+                batch_normalization_backward(bnrm_bwd_prim_desc, *src,
+                    *diff_dst, *weights, *workspace, *diff_src, *diff_weights);
+
+        pipeline.push_back(bn_bwd);
+        s.submit(pipeline).wait();
+
+        check_bnorm_bwd<data_t>(bnd, p.aprop_kind, *src, *diff_dst, *weights,
+            *workspace, *diff_src, *diff_weights);
     }
 };
 
-using bnorm_forward_test_float = bnorm_forward_test<float>;
-using bnorm_fwd_test_params_float = bnorm_fwd_test_params;
+using bnorm_backward_test_float = bnorm_backward_test<float>;
+using bnorm_bwd_test_params_float = bnorm_bwd_test_params;
 
-TEST_P(bnorm_forward_test_float, TestsBNorm)
+TEST_P(bnorm_backward_test_float, TestsBNormBwd)
 {
 }
 
-INSTANTIATE_TEST_CASE_P(TestBNormForward, bnorm_forward_test_float,
-        ::testing::Values(bnorm_fwd_test_params_float{ prop_kind::forward_training,
-                engine::kind::cpu, memory::format::nchw, memory::format::nchw,
-                memory::format::nc, { 2, 10, 4, 4, 0.1 } }));
+INSTANTIATE_TEST_CASE_P(TestBNormBackward, bnorm_backward_test_float,
+        ::testing::Values(
+                bnorm_bwd_test_params_float{ prop_kind::backward,
+                        engine::kind::cpu, memory::format::nchw,
+                        memory::format::nchw, memory::format::nc,
+                        { 2, 10, 4, 4, 0.1 } }));
 
 INSTANTIATE_TEST_CASE_P(
-        TestBNormForwardBlocked, bnorm_forward_test_float,
+        TestBNormBackwardBlocked, bnorm_backward_test_float,
         ::testing::Values(
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 8, 4, 4, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward_data,
+                        engine::kind::cpu, memory::format::nChw8c,
+                        memory::format::nChw8c, memory::format::nc,
+                        { 2, 8, 4, 4, 0.1 } },
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 16, 4, 4, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward_data,
+                        engine::kind::cpu, memory::format::nChw8c,
+                        memory::format::nChw8c, memory::format::nc,
+                        { 2, 16, 4, 4, 0.1 } },
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 16, 8, 8, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward_data,
+                        engine::kind::cpu, memory::format::nChw8c,
+                        memory::format::nChw8c, memory::format::nc,
+                        { 2, 16, 8, 8, 0.1 } },
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 16, 16, 8, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward_data,
+                        engine::kind::cpu, memory::format::nChw8c,
+                        memory::format::nChw8c, memory::format::nc,
+                        { 2, 16, 16, 8, 0.1 } },
+                bnorm_bwd_test_params_float{ prop_kind::backward,
+                        engine::kind::cpu, memory::format::nChw8c,
+                        memory::format::nChw8c, memory::format::nc,
+                        { 2, 16, 16, 10, 0.1 } },
+                bnorm_bwd_test_params_float{ prop_kind::backward_data,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 16, 16, 10, 0.1 } }));
 
 INSTANTIATE_TEST_CASE_P(
-        TestBNormGoogleNetForwardNCHW, bnorm_forward_test_float,
+        TestBNormGoogleNetBackwardNCHW, bnorm_backward_test_float,
         ::testing::Values(
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nchw,
                         memory::format::nchw, memory::format::nc,
                         { 2, 64, 112, 112, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nchw,
                         memory::format::nchw, memory::format::nc,
                         { 2, 64, 56, 56, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nchw,
                         memory::format::nchw, memory::format::nc,
                         { 2, 192, 56, 56, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nchw,
                         memory::format::nchw, memory::format::nc,
                         { 2, 96, 28, 28, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nchw,
                         memory::format::nchw, memory::format::nc,
                         { 2, 16, 28, 28, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nchw,
                         memory::format::nchw, memory::format::nc,
                         { 2, 64, 28, 28, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nchw,
                         memory::format::nchw, memory::format::nc,
                         { 2, 128, 28, 28, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nchw,
                         memory::format::nchw, memory::format::nc,
                         { 2, 32, 28, 28, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nchw,
                         memory::format::nchw, memory::format::nc,
                         { 2, 96, 28, 28, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nchw,
                         memory::format::nchw, memory::format::nc,
                         { 2, 96, 14, 14, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nchw,
                         memory::format::nchw, memory::format::nc,
                         { 2, 16, 14, 14, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nchw,
                         memory::format::nchw, memory::format::nc,
                         { 2, 192, 14, 14, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nchw,
                         memory::format::nchw, memory::format::nc,
                         { 2, 208, 14, 14, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nchw,
                         memory::format::nchw, memory::format::nc,
                         { 2, 48, 14, 14, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nchw,
                         memory::format::nchw, memory::format::nc,
                         { 2, 64, 14, 14, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nchw,
                         memory::format::nchw, memory::format::nc,
                         { 2, 112, 14, 14, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nchw,
                         memory::format::nchw, memory::format::nc,
                         { 2, 24, 14, 14, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nchw,
                         memory::format::nchw, memory::format::nc,
                         { 2, 160, 14, 14, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nchw,
                         memory::format::nchw, memory::format::nc,
                         { 2, 224, 14, 14, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nchw,
                         memory::format::nchw, memory::format::nc,
                         { 2, 128, 4, 4, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nchw,
                         memory::format::nchw, memory::format::nc,
                         { 2, 128, 14, 14, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nchw,
                         memory::format::nchw, memory::format::nc,
                         { 2, 512, 14, 14, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nchw,
                         memory::format::nchw, memory::format::nc,
                         { 2, 256, 14, 14, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nchw,
                         memory::format::nchw, memory::format::nc,
                         { 2, 144, 14, 14, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nchw,
                         memory::format::nchw, memory::format::nc,
                         { 2, 32, 14, 14, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nchw,
                         memory::format::nchw, memory::format::nc,
                         { 2, 228, 14, 14, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nchw,
                         memory::format::nchw, memory::format::nc,
                         { 2, 528, 14, 14, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nchw,
                         memory::format::nchw, memory::format::nc,
                         { 2, 320, 14, 14, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nchw,
                         memory::format::nchw, memory::format::nc,
                         { 2, 160, 7, 7, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nchw,
                         memory::format::nchw, memory::format::nc,
                         { 2, 32, 7, 7, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nchw,
                         memory::format::nchw, memory::format::nc,
                         { 2, 256, 7, 7, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nchw,
                         memory::format::nchw, memory::format::nc,
                         { 2, 320, 7, 7, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nchw,
                         memory::format::nchw, memory::format::nc,
                         { 2, 128, 7, 7, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nchw,
                         memory::format::nchw, memory::format::nc,
                         { 2, 192, 7, 7, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nchw,
                         memory::format::nchw, memory::format::nc,
                         { 2, 48, 7, 7, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nchw,
                         memory::format::nchw, memory::format::nc,
                         { 2, 384, 7, 7, 0.1 } }));
 
 INSTANTIATE_TEST_CASE_P(
-        TestBNormGoogleNetForwardBlocked, bnorm_forward_test_float,
+        TestBNormGoogleNetBackwardBlocked, bnorm_backward_test_float,
         ::testing::Values(
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 64, 112, 112, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 64, 56, 56, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 192, 56, 56, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 96, 28, 28, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 16, 28, 28, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 64, 28, 28, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 128, 28, 28, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 32, 28, 28, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 96, 28, 28, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 96, 14, 14, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 16, 14, 14, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 192, 14, 14, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 208, 14, 14, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 48, 14, 14, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 64, 14, 14, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 112, 14, 14, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 24, 14, 14, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 160, 14, 14, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 224, 14, 14, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 128, 4, 4, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 128, 14, 14, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 512, 14, 14, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 256, 14, 14, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 144, 14, 14, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 32, 14, 14, 0.1 } },
                 /* size is not supported by nChw8c format yet
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 228, 14, 14, 0.1 } },
                 */
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 528, 14, 14, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 320, 14, 14, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 160, 7, 7, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 32, 7, 7, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 256, 7, 7, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 320, 7, 7, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 128, 7, 7, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 192, 7, 7, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 48, 7, 7, 0.1 } },
-                bnorm_fwd_test_params_float{ prop_kind::forward_training,
+                bnorm_bwd_test_params_float{ prop_kind::backward,
                         engine::kind::cpu, memory::format::nChw8c,
                         memory::format::nChw8c, memory::format::nc,
                         { 2, 384, 7, 7, 0.1 } }));
+
 }

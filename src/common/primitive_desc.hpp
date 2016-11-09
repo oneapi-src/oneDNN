@@ -72,7 +72,7 @@ struct mkldnn_primitive_desc: public mkldnn::impl::c_compatible {
         if (adesc->kind != pd_t::base_pkind) return invalid_arguments;
         assert(hint_fwd ? hint_fwd->kind() == pd_t::base_pkind : true);
         auto hint =
-            reinterpret_cast<const typename pd_t::base_class *>(hint_fwd);
+            reinterpret_cast<const typename pd_t::hint_class *>(hint_fwd);
         auto _pd = new pd_t(engine, (const pd_op_desc_t *)adesc, hint);
         if (_pd == nullptr) return out_of_memory;
         if (_pd->init() != success) { delete _pd; return unimplemented; }

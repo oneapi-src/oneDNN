@@ -18,6 +18,7 @@
 #include "mkldnn.h"
 
 #include "c_types_map.hpp"
+#include "type_helpers.hpp"
 #include "utils.hpp"
 
 using namespace mkldnn::impl;
@@ -25,6 +26,7 @@ using namespace mkldnn::impl::utils;
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::prop_kind;
 using namespace mkldnn::impl::alg_kind;
+using namespace mkldnn::impl::types;
 
 namespace {
 status_t pooling_desc_init(pooling_desc_t *pool_desc,
@@ -44,13 +46,17 @@ status_t pooling_desc_init(pooling_desc_t *pool_desc,
     pd.primitive_kind = primitive_kind::pooling;
     pd.prop_kind = prop_kind;
     pd.alg_kind = alg_kind;
+    pd.src_desc.ndims = src_desc->ndims;
 
     const bool is_fwd = one_of(prop_kind, forward_training, forward_inference);
+
+    pd.src_desc = zero_md();
+    pd.dst_desc = zero_md();
 
     (is_fwd ? pd.src_desc : pd.diff_src_desc) = *src_desc;
     (is_fwd ? pd.dst_desc : pd.diff_dst_desc) = *dst_desc;
 
-    int sp_dims = pd.src_desc.ndims - 2;
+    int sp_dims = src_desc->ndims - 2;
     utils::array_copy(pd.strides, strides, sp_dims);
     utils::array_copy(pd.kernel, kernel, sp_dims);
     utils::array_copy(pd.padding[0], padding_l, sp_dims);

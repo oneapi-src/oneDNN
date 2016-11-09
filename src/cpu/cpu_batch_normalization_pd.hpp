@@ -39,7 +39,7 @@ struct cpu_batch_normalization_fwd_pd_t: public batch_normalization_fwd_pd_t {
             const batch_normalization_fwd_pd_t *hint_fwd_pd)
         : batch_normalization_fwd_pd_t(engine, adesc, hint_fwd_pd)
         , data_pd_(engine_, &desc_.data_desc)
-        , scaleshift_pd_(engine_, &desc_.data_diff_scaleshift_desc)
+        , scaleshift_pd_(engine_, &desc_.data_scaleshift_desc)
         , ws_pd_(engine_) {}
     virtual ~cpu_batch_normalization_fwd_pd_t() {}
 
@@ -55,6 +55,43 @@ struct cpu_batch_normalization_fwd_pd_t: public batch_normalization_fwd_pd_t {
 protected:
     cpu_memory_pd_t data_pd_;
     cpu_memory_pd_t scaleshift_pd_;
+    cpu_memory_pd_t ws_pd_;
+
+    virtual status_t init() = 0;
+};
+
+struct cpu_batch_normalization_bwd_pd_t: public batch_normalization_bwd_pd_t {
+    using cpu_memory_pd_t = cpu_memory_t::pd_t;
+
+    cpu_batch_normalization_bwd_pd_t(engine_t *engine,
+            const batch_normalization_desc_t *adesc,
+            const batch_normalization_fwd_pd_t *hint_fwd_pd)
+        : batch_normalization_bwd_pd_t(engine, adesc, hint_fwd_pd)
+        , data_pd_(engine_, &desc_.data_desc)
+        , diff_data_pd_(engine_, &desc_.diff_data_desc)
+        , scaleshift_pd_(engine_, &desc_.data_scaleshift_desc)
+        , diff_scaleshift_pd_(engine_, &desc_.diff_data_scaleshift_desc)
+        , ws_pd_(engine_) {}
+    virtual ~cpu_batch_normalization_bwd_pd_t() {}
+
+    virtual const cpu_memory_pd_t *src_pd(int index = 0) const override
+    { return index == 0 ? &data_pd_ : nullptr; }
+    virtual const cpu_memory_pd_t *diff_dst_pd(int index = 0) const override
+    { return index == 0 ? &diff_data_pd_ : nullptr; }
+    virtual const cpu_memory_pd_t *weights_pd(int index = 0) const override
+    { return index == 0 ? &scaleshift_pd_ : nullptr; }
+    virtual const cpu_memory_pd_t *diff_weights_pd(int index = 0) const
+        override { return index == 0 ? &diff_scaleshift_pd_ : nullptr; }
+    virtual const cpu_memory_pd_t *diff_src_pd(int index = 0) const override
+    { return index == 0 ? &diff_data_pd_ : nullptr; }
+    virtual const cpu_memory_pd_t *workspace_pd(int index = 0) const override
+    { return (index == 0 && !ws_pd_.is_zero()) ? &ws_pd_ : nullptr; }
+
+protected:
+    cpu_memory_pd_t data_pd_;
+    cpu_memory_pd_t diff_data_pd_;
+    cpu_memory_pd_t scaleshift_pd_;
+    cpu_memory_pd_t diff_scaleshift_pd_;
     cpu_memory_pd_t ws_pd_;
 
     virtual status_t init() = 0;

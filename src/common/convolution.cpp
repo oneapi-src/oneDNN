@@ -26,6 +26,7 @@ using namespace mkldnn::impl::utils;
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::prop_kind;
 using namespace mkldnn::impl::alg_kind;
+using namespace mkldnn::impl::types;
 
 namespace {
 status_t conv_desc_init(convolution_desc_t *conv_desc,
@@ -48,18 +49,24 @@ status_t conv_desc_init(convolution_desc_t *conv_desc,
     cd.prop_kind = prop_kind;
     cd.alg_kind = alg_kind;
 
+    cd.diff_src_desc = cd.src_desc = zero_md();
+    cd.diff_dst_desc = cd.dst_desc = zero_md();
+    cd.diff_weights_desc = cd.weights_desc = zero_md();
+    cd.diff_bias_desc = cd.bias_desc = zero_md();
+
     const bool is_fwd = one_of(prop_kind, forward_training, forward_inference);
     const bool with_bias = bias_desc && bias_desc->format != memory_format::undef;
     const bool with_groups = weights_desc->ndims == src_desc->ndims + 1;
 
-    (is_fwd ? cd.src_desc : cd.diff_src_desc) = *src_desc;
+    (prop_kind == backward_data ? cd.diff_src_desc : cd.src_desc) = *src_desc;
+    (is_fwd ? cd.dst_desc : cd.diff_dst_desc)  = *dst_desc;
     (prop_kind == backward_weights ? cd.diff_weights_desc : cd.weights_desc) =
         *weights_desc;
-    if (with_bias) cd.bias_desc = *bias_desc;
-    else if (is_fwd) cd.bias_desc = types::zero_md();
-    (prop_kind == backward_data ? cd.diff_dst_desc : cd.dst_desc)  = *dst_desc;
+    if (with_bias)
+        (prop_kind == backward_weights ? cd.diff_bias_desc : cd.bias_desc) =
+            *bias_desc;
 
-    int sp_dims = cd.src_desc.ndims - 2;
+    int sp_dims = src_desc->ndims - 2;
     utils::array_copy(cd.strides, strides, sp_dims);
     utils::array_copy(cd.padding[0], padding_l, sp_dims);
     utils::array_copy(cd.padding[1], padding_r, sp_dims);
@@ -116,39 +123,13 @@ status_t mkldnn_convolution_backward_data_desc_init(
 status_t mkldnn_convolution_backward_weights_desc_init(
         convolution_desc_t *conv_desc, alg_kind_t alg_kind,
         const memory_desc_t *src_desc, const memory_desc_t *diff_weights_desc,
+        const memory_desc_t *diff_bias_desc,
         const memory_desc_t *diff_dst_desc, const dims_t strides,
         const dims_t padding_l, const dims_t padding_r,
         padding_kind_t padding_kind) {
     return conv_desc_init(conv_desc, backward_weights, alg_kind, src_desc,
-            diff_weights_desc, nullptr, diff_dst_desc, strides, padding_l,
-            padding_r, padding_kind);
-}
-
-status_t mkldnn_convolution_backward_bias_desc_init(
-        convolution_desc_t *conv_desc, alg_kind_t alg_kind,
-        const memory_desc_t *diff_bias_desc,
-        const memory_desc_t *diff_dst_desc) {
-    bool args_ok = true
-        && !any_null(conv_desc, diff_bias_desc, diff_dst_desc)
-        && one_of(alg_kind, convolution_direct);
-    if (!args_ok) return invalid_arguments;
-
-    convolution_desc_t cd = {};
-    cd.primitive_kind = primitive_kind::convolution;
-    cd.prop_kind = backward_bias;
-    cd.alg_kind = alg_kind;
-
-    cd.diff_bias_desc = *diff_bias_desc;
-    cd.diff_dst_desc = *diff_dst_desc;
-
-    bool consistency = true
-        && diff_dst_desc->ndims == 4
-        && diff_bias_desc->ndims == 1
-        && diff_bias_desc->dims[0] == diff_dst_desc->dims[1];
-    if (!consistency) return invalid_arguments;
-
-    *conv_desc = cd;
-    return success;
+            diff_weights_desc, diff_bias_desc, diff_dst_desc, strides,
+            padding_l, padding_r, padding_kind);
 }
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

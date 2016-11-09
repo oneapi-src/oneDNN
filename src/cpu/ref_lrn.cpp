@@ -87,7 +87,83 @@ void ref_lrn_fwd_t<data_type>::execute_forward() {
     }
 }
 
+template <impl::data_type_t data_type>
+void ref_lrn_bwd_t<data_type>::execute_backward() {
+    using namespace alg_kind;
+
+    auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
+    auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
+    //auto ws = reinterpret_cast<data_t*>(this->memory(3)); // unused
+    auto diff_src = reinterpret_cast<data_t*>(this->memory(0));
+
+    const memory_desc_wrapper data_d(conf_.src_pd());
+    const memory_desc_wrapper diff_data_d(conf_.diff_dst_pd());
+    //const memory_desc_wrapper ws_d(conf_.workspace_pd()); // unused
+
+    const int MB = conf_.MB();
+    const int C = conf_.C();
+    const int H = conf_.H();
+    const int W = conf_.W();
+
+    const double alpha = conf_.desc()->lrn_alpha;
+    const double beta = conf_.desc()->lrn_beta;
+    const double k = 1.0;
+    const int kernel_size = conf_.desc()->local_size;
+
+    auto get_omega = [=](data_t c_k, int kernel_size, double alpha, int C,
+            const data_t *src, int n, int c, int h, int w) {
+        data_t sum = 0.0;
+
+        int half_kernel_size = (kernel_size - 1) / 2;
+        int c_start = (c < half_kernel_size) ? 0 : c - half_kernel_size;
+        int c_end = c + kernel_size - half_kernel_size;
+        c_end = c_end < C ? c_end : C;
+        for (int i = c_start; i < c_end; ++i) {
+            data_t value = src[data_d.off(n, i, h, w)];
+            sum += value * value;
+        }
+        sum *= alpha / kernel_size;
+        return c_k + sum;
+    };
+
+    auto ker = [=](data_t *d, int mb, int oc, int oh, int ow) {
+        int ks_start = kernel_size/2 > oc ? kernel_size/2 - oc : 0;
+        int ks_stop = C - oc <= kernel_size/2 ? C - oc + kernel_size/2 : kernel_size;
+
+        data_t A = 0, B = 0, omega_mid = 0;
+
+        for (int ks = ks_start; ks < ks_stop; ks++) {
+            int _t = oc + ks - (kernel_size/2);
+            data_t omega = get_omega(k, kernel_size, alpha, C,
+                    src, mb, _t, oh, ow);
+
+            if (ks == kernel_size/2) omega_mid = omega;
+
+            data_t t = src[data_d.off(mb, _t, oh, ow)] / powf(omega, beta);
+            B +=  (1.0f / omega) * t * diff_dst[diff_data_d.off(mb, _t, oh, ow)];
+        }
+
+        A = (1.0f / powf(omega_mid, beta)) * diff_dst[diff_data_d.off(mb, oc, oh, ow)];
+        B *= src[data_d.off(mb, oc, oh, ow)];
+        B *= (2.0f * alpha * beta) / kernel_size;
+        *d = A - B;
+    };
+
+#   pragma omp parallel for collapse(4) schedule(static)
+    for (int mb = 0; mb < MB; ++mb) {
+        for (int c = 0; c < C; ++c) {
+            for (int h = 0; h < H; ++h) {
+                for (int w = 0; w < W; ++w) {
+                    ker(&diff_src[diff_data_d.off(mb, c, h, w)], mb, c, h, w);
+                }
+            }
+        }
+    }
+
+}
+
 template struct ref_lrn_fwd_t<data_type::f32>;
+template struct ref_lrn_bwd_t<data_type::f32>;
 
 }
 }

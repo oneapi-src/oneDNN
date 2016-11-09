@@ -333,20 +333,10 @@ mkldnn_status_t MKLDNN_API mkldnn_convolution_backward_weights_desc_init(
         mkldnn_convolution_desc_t *conv_desc, mkldnn_alg_kind_t alg_kind,
         const mkldnn_memory_desc_t *src_desc,
         const mkldnn_memory_desc_t *diff_weights_desc,
+        const mkldnn_memory_desc_t *diff_bias_desc,
         const mkldnn_memory_desc_t *diff_dst_desc, const mkldnn_dims_t strides,
         const mkldnn_dims_t padding_l, const mkldnn_dims_t padding_r,
         mkldnn_padding_kind_t padding_kind);
-
-/** Initializes a convolution descriptor @p conv_desc for backward propagation
- * with respect to bias using @p alg_kind, memory descriptors, @p strides, @p
- * padding, and @p padding_kind.
- *
- * @note memory descriptors are allowed to be initialized with #mkldnn_any
- * value of @p format_kind. */
-mkldnn_status_t MKLDNN_API mkldnn_convolution_backward_bias_desc_init(
-        mkldnn_convolution_desc_t *conv_desc, mkldnn_alg_kind_t alg_kind,
-        const mkldnn_memory_desc_t *diff_bias_desc,
-        const mkldnn_memory_desc_t *diff_dst_desc);
 
 /** @} */
 
@@ -446,16 +436,6 @@ mkldnn_status_t MKLDNN_API mkldnn_batch_normalization_forward_desc_init(
         double epsilon);
 
 /** Initializes a batch normalization descriptor @p bnrm_desc for backward
- * propagation with respect to data using memory descriptors @p data_desc and
- * @p diff_data_desc, and normalization parameter @p epsilon.
- *
- * @sa mkldnn_batch_normalization_desc_t */
-mkldnn_status_t MKLDNN_API mkldnn_batch_normalization_backward_data_desc_init(
-        mkldnn_batch_normalization_desc_t *bnrm_desc,
-        const mkldnn_memory_desc_t *diff_data_desc,
-        const mkldnn_memory_desc_t *data_desc);
-
-/** Initializes a batch normalization descriptor @p bnrm_desc for backward
  * propagation with respect to data and scale-shift parameters using memory
  * descriptors @p data_desc and @p diff_data_desc, and normalization parameter
  * @p epsilon.
@@ -463,6 +443,7 @@ mkldnn_status_t MKLDNN_API mkldnn_batch_normalization_backward_data_desc_init(
  * @sa mkldnn_batch_normalization_desc_t */
 mkldnn_status_t MKLDNN_API mkldnn_batch_normalization_backward_desc_init(
         mkldnn_batch_normalization_desc_t *bnrm_desc,
+        mkldnn_prop_kind_t prop_kind,
         const mkldnn_memory_desc_t *diff_data_desc,
         const mkldnn_memory_desc_t *data_desc);
 
@@ -511,16 +492,6 @@ mkldnn_status_t MKLDNN_API mkldnn_inner_product_backward_weights_desc_init(
         mkldnn_inner_product_desc_t *ip_desc,
         const mkldnn_memory_desc_t *src_desc,
         const mkldnn_memory_desc_t *diff_weights_desc,
-        const mkldnn_memory_desc_t *diff_dst_desc);
-
-/** Initializes an inner product descriptor @p ip_desc for backward propagation
- * with respect to bias using memory descriptors.
- *
- * @note
- *     memory descriptors are allowed to be initialized with #mkldnn_any value
- *     of @p format_kind. */
-mkldnn_status_t MKLDNN_API mkldnn_inner_product_backward_bias_desc_init(
-        mkldnn_inner_product_desc_t *ip_desc,
         const mkldnn_memory_desc_t *diff_bias_desc,
         const mkldnn_memory_desc_t *diff_dst_desc);
 
