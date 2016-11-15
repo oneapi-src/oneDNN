@@ -41,13 +41,14 @@ struct ref_relu_fwd_t: public cpu_primitive_t {
         virtual status_t init() override {
             using namespace prop_kind;
             assert(engine()->kind() == engine_kind::cpu);
+
+            is_dense = memory_desc_wrapper(src_pd()).is_dense();
             bool ok = true
                 && utils::one_of(desc()->prop_kind, forward_training,
                         forward_inference)
-                && utils::everyone_is(data_type, desc()->data_desc.data_type);
+                && utils::everyone_is(data_type, desc()->data_desc.data_type)
+                && utils::implication(!is_dense, src_pd()->desc()->ndims == 4);
             if (!ok) return status::unimplemented;
-
-            is_dense = memory_desc_wrapper(src_pd()).is_dense();
 
             return status::success;
         }

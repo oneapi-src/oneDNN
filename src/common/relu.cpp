@@ -46,11 +46,9 @@ status_t relu_desc_init(relu_desc_t *relu_desc, prop_kind_t prop_kind,
     rd.negative_slope = negative_slope;
 
     bool consistency = true
-        && rd.data_desc.ndims == 4;
-    if (rd.prop_kind == backward_data)
-        consistency = consistency
-            && rd.diff_data_desc.ndims == 4
-            && array_cmp(rd.diff_data_desc.dims, rd.data_desc.dims, 4);
+        && implication(rd.prop_kind == backward_data,
+                array_cmp(rd.diff_data_desc.dims, rd.data_desc.dims,
+                    rd.diff_data_desc.ndims));
     if (!consistency) return invalid_arguments;
 
     *relu_desc = rd;
