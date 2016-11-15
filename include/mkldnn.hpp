@@ -705,6 +705,14 @@ struct stream: public handle<c_api::mkldnn_stream_t> {
                     &c_api_error_primitive);
         return (status == c_api::mkldnn_success);
     }
+
+    stream &rerun() {
+        c_api::mkldnn_primitive_t c_api_error_primitive;
+        error::wrap_c_api(
+                c_api::mkldnn_stream_rerun(get(), &c_api_error_primitive),
+                "could not rerun a stream", &c_api_error_primitive);
+        return *this;
+    }
 };
 
 struct convolution_forward: public primitive {

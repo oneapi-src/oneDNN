@@ -112,6 +112,11 @@ status_t mkldnn_stream_wait(stream_t *stream, int block,
     return stream->wait(error_primitive);
 }
 
+status_t mkldnn_stream_rerun(stream_t *stream, primitive_t **error_primitive) {
+    if (stream == nullptr) return invalid_arguments;
+    return stream->rerun(error_primitive);
+}
+
 status_t mkldnn_stream_destroy(stream_t *stream) {
     if (stream) delete stream;
     return success;

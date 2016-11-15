@@ -551,6 +551,11 @@ mkldnn_status_t MKLDNN_API mkldnn_stream_submit(mkldnn_stream_t stream,
 mkldnn_status_t MKLDNN_API mkldnn_stream_wait(mkldnn_stream_t stream,
         int block, mkldnn_primitive_t *error_primitive);
 
+/** Reruns all the primitives within the @p stream. In case of an error,
+ * returns the offending @p error_primitive if it is not @c NULL. */
+mkldnn_status_t MKLDNN_API mkldnn_stream_rerun(mkldnn_stream_t stream,
+        mkldnn_primitive_t *error_primitive);
+
 /** Destroys an execution @p stream. */
 mkldnn_status_t MKLDNN_API mkldnn_stream_destroy(mkldnn_stream_t stream);
 
