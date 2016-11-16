@@ -26,6 +26,7 @@ include_directories(${CMAKE_SOURCE_DIR}/tests/gtests
 #file(GLOB API_TEST_CASES_SRC api_tests/*.cpp)
 #file(GLOB PRIM_TEST_CASES_SRC test_*.cpp)
 file(GLOB PRIM_TEST_CASES_SRC RELATIVE ${CMAKE_SOURCE_DIR}/tests/gtests
+                              test_sum.cpp
                               test_reorder.cpp
                               test_concat.cpp
                               test_relu_forward.cpp

@@ -639,6 +639,74 @@ struct concat : public primitive {
     }
 };
 
+struct sum : public primitive {
+    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t>{
+        std::vector<c_api::const_mkldnn_primitive_desc_t> cpp_to_c(
+                std::vector<memory::primitive_desc> inputs) {
+            std::vector<c_api::const_mkldnn_primitive_desc_t> c_api_inputs;
+            c_api_inputs.reserve(inputs.size());
+            auto convert_to_c = [](memory::primitive_desc d) { return d.get();};
+            std::transform(inputs.begin(), inputs.end(),
+                    std::back_inserter(c_api_inputs), convert_to_c);
+            return c_api_inputs;
+        }
+
+        primitive_desc(const memory::desc &output, std::vector<double> scale,
+                std::vector<memory::primitive_desc> inputs) {
+            c_api::mkldnn_primitive_desc_t result;
+
+            auto c_api_inputs = cpp_to_c(inputs);
+
+            error::wrap_c_api(c_api::mkldnn_sum_primitive_desc_create(
+                    &result, &output.data, c_api_inputs.size(),
+                    &scale[0], &c_api_inputs[0]),
+                "could not create a sum primitive descriptor");
+            reset(result);
+        }
+
+        primitive_desc(std::vector<double> scale,
+                std::vector<memory::primitive_desc> inputs) {
+            c_api::mkldnn_primitive_desc_t result;
+
+            auto c_api_inputs = cpp_to_c(inputs);
+
+            error::wrap_c_api(c_api::mkldnn_sum_primitive_desc_create(
+                    &result, nullptr, c_api_inputs.size(), &scale[0],
+                    &c_api_inputs[0]),
+                "could not create a sum primitive descriptor");
+            reset(result);
+        }
+
+        memory::primitive_desc dst_primitive_desc() const {
+            memory::primitive_desc adesc;
+            c_api::mkldnn_primitive_desc_t cdesc;
+            c_api::const_mkldnn_primitive_desc_t const_cdesc =
+                c_api::mkldnn_primitive_desc_query_pd(get(),
+                               mkldnn::convert_to_c(dst_pd), 0);
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_clone(&cdesc,
+                    const_cdesc),
+                    "could not clone a dst primitive descriptor");
+            adesc.reset(cdesc);
+            return adesc;
+        }
+
+    };
+
+    sum(const primitive_desc &sum_pd,
+            std::vector<primitive::at> &inputs, const memory &output) {
+        c_api::mkldnn_primitive_t result;
+
+        std::vector<c_api::mkldnn_primitive_at_t> p_inputs;
+        for (size_t i = 0; i < inputs.size(); i++)
+            p_inputs.push_back(inputs[i].data);
+        c_api::const_mkldnn_primitive_t outputs[] = { output.get() };
+
+        error::wrap_c_api(c_api::mkldnn_primitive_create(&result,
+                    sum_pd.get(), &p_inputs[0], outputs),
+                "could not create a sum primitive");
+        reset(result);
+    }
+};
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 template <> struct handle_traits<c_api::mkldnn_stream_t> {
     static constexpr auto destructor = &c_api::mkldnn_stream_destroy;

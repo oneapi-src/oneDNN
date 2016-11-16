@@ -35,8 +35,9 @@ struct cpu_reorder_pd_t: public reorder_pd_t {
     using cpu_memory_pd_t = cpu_memory_t::pd_t;
 
     cpu_reorder_pd_t(const cpu_memory_pd_t *input_pd,
-            const cpu_memory_pd_t *output_pd)
-        : reorder_pd_t(input_pd->engine())
+            const cpu_memory_pd_t *output_pd,
+            const double alpha, const double beta)
+        : reorder_pd_t(input_pd->engine(), alpha, beta)
         , input_pd_(*input_pd), output_pd_(*output_pd) {}
     virtual ~cpu_reorder_pd_t() {}
 

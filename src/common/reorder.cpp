@@ -47,7 +47,7 @@ status_t mkldnn_reorder_primitive_desc_create(
     auto e = (i_ek != engine_kind::cpu) ? input->engine() : output->engine();
 
     for (auto r = e->get_reorder_implementation_list(); *r; ++r) {
-        if ((*r)(r_pd, i_mpd, o_mpd) == success) return success;
+        if ((*r)(r_pd, i_mpd, o_mpd, 1.0, 0.0) == success) return success;
     }
     return unimplemented;
 }

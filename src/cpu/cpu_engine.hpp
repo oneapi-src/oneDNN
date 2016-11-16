@@ -45,6 +45,9 @@ public:
     virtual status_t concat_primitive_desc_create(concat_pd_t **concat_pd,
             const memory_desc_t *output_d, int n, int concat_dim,
             const memory_pd_t **input_pds);
+    virtual status_t sum_primitive_desc_create(sum_pd_t **sum_pd,
+            const memory_desc_t *output_d, int n, double* scale,
+            const memory_pd_t **input_pds);
 
     virtual const reorder_primitive_desc_create_f*
         get_reorder_implementation_list() const;

@@ -121,6 +121,24 @@ protected:
     int n_, concat_dim_;
 };
 
+struct sum_pd_t: public primitive_desc_t {
+    sum_pd_t(engine_t *engine, int n)
+        : primitive_desc_t(engine, primitive_kind::sum)
+        , n_(n) {}
+    virtual ~sum_pd_t() {}
+
+    virtual const op_desc_t *op_desc() const override { return nullptr; }
+
+    virtual const memory_pd_t *input_pd(int index = 0) const override
+    { return index < n_inputs() ? src_pd(index) : nullptr; }
+    virtual const memory_pd_t *output_pd(int index = 0) const override
+    { return index == 0 ? dst_pd() : nullptr; }
+    virtual int n_inputs() const override { return n_; }
+    virtual int n_outputs() const override { return 1; }
+protected:
+    int n_;
+};
+
 }
 }
 

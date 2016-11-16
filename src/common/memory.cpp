@@ -199,4 +199,49 @@ status_t mkldnn_concat_primitive_desc_create(primitive_desc_t **concat_pd,
             (concat_pd_t**)concat_pd, output_d, n, concat_dim, i_mpds);
 }
 
+
+status_t mkldnn_sum_primitive_desc_create(primitive_desc_t **sum_pd,
+        const memory_desc_t *output_d, int n, double* scale,
+        const primitive_desc_t **input_pds) {
+    bool args_ok = !any_null(sum_pd, input_pds, scale) && n > 0;
+    if (!args_ok) return invalid_arguments;
+    for (int i = 0; i < n; ++i) {
+        if (input_pds[i] == nullptr ||
+                input_pds[i]->kind() != primitive_kind::memory)
+            return invalid_arguments;
+    }
+
+    auto i_mpds = (const memory_pd_t **)input_pds;
+    engine_t *engine = i_mpds[0]->engine();
+    const int ndims = i_mpds[0]->desc()->ndims;
+    const dims_t &dims = i_mpds[0]->desc()->dims;
+    const data_type_t dt = i_mpds[0]->desc()->data_type;
+
+    for (int i = 1; i < n; ++i) {
+        if (i_mpds[i]->engine() != engine) return invalid_arguments;
+        if (i_mpds[i]->desc()->ndims != ndims) return invalid_arguments;
+        for (int d = 0; d < ndims; ++d) {
+            if (i_mpds[i]->desc()->dims[d] != dims[d])
+                return invalid_arguments;
+        }
+        if (i_mpds[i]->desc()->data_type != dt) return invalid_arguments;
+    }
+
+    memory_desc_t dummy_output_d;
+    if (output_d) {
+        if (output_d->ndims != ndims) return invalid_arguments;
+        for (int d = 0; d < ndims; ++d) {
+            if (output_d->dims[d] != dims[d])
+                return invalid_arguments;
+        }
+    } else {
+        dummy_output_d = *i_mpds[0]->desc();
+        dummy_output_d.format = memory_format::any;
+        output_d = &dummy_output_d;
+    }
+
+    return i_mpds[0]->engine()->sum_primitive_desc_create(
+            (sum_pd_t**)sum_pd, output_d, n, scale, i_mpds);
+}
+
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

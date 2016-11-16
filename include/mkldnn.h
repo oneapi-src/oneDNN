@@ -285,6 +285,23 @@ mkldnn_status_t MKLDNN_API mkldnn_concat_inplace_by_output_primitive_desc_create
 
 /** @} */
 
+/** @addtogroup c_api_sum Sum
+ * A primitive to sum data
+ * @{ */
+
+/** Creates out-of-place @p sum_primitive_desc for sum of @p n
+ * inputs multiplied by scale with resulting @p output_desc memory
+ * descriptor. @p output_desc can be NULL or be specified with #mkldnn_any
+ * format -- in this case appropriate memory format would be chosen
+ * automatically. */
+mkldnn_status_t MKLDNN_API mkldnn_sum_primitive_desc_create(
+        mkldnn_primitive_desc_t *sum_primitive_desc,
+        const mkldnn_memory_desc_t *output_desc, int n, double* scale,
+        const_mkldnn_primitive_desc_t *input_pds);
+
+
+/** @} */
+
 /** @addtogroup c_api_convolution Convolution
  * A primitive to compute convolution using different algorithms.
  * @{ */

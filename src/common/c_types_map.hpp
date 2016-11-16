@@ -110,6 +110,7 @@ namespace primitive_kind {
     const primitive_kind_t reorder = mkldnn_reorder;
     const primitive_kind_t concat = mkldnn_concat;
     const primitive_kind_t concat_inplace = mkldnn_concat_inplace;
+    const primitive_kind_t sum = mkldnn_sum;
     const primitive_kind_t convolution = mkldnn_convolution;
     const primitive_kind_t relu = mkldnn_relu;
     const primitive_kind_t pooling = mkldnn_pooling;
@@ -221,6 +222,7 @@ using stream_t = mkldnn_stream;
 struct memory_pd_t;
 struct view_pd_t;
 struct concat_pd_t;
+struct sum_pd_t;
 struct reorder_pd_t;
 
 }
