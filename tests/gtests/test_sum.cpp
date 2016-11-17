@@ -76,7 +76,6 @@ protected:
         sum_test_params p
             = ::testing::TestWithParam<sum_test_params>::GetParam();
 
-        int src_dim_sum = 0;
         for (size_t i = 0; i < p.srcs_cds.size(); i++) {
             for (size_t dim = 0; dim < p.dst_cds.size(); dim++) {
                 ASSERT_TRUE(p.srcs_cds[i][dim] == p.dst_cds[dim]);
