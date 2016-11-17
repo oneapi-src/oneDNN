@@ -67,8 +67,6 @@ struct cpu_sum_t: public cpu_primitive_t
                 dst_pd_ = cpu_memory_t::pd_t(engine, output_d);
             }
 
-            const int ndims = dst_pd_.desc()->ndims;
-
             use_simple_sum_ =
                 cpu_simple_sum_t<data_type::f32>::applicable(src_pds_, scale_,
                         dst_pd_);
