@@ -99,6 +99,56 @@ private:
     void generate();
 };
 
+struct jit_avx2_conv_bwd_weights_kernel_f32: public jit_generator {
+    jit_avx2_conv_bwd_weights_kernel_f32(jit_conv_conf_t ajcp,
+            void *code_ptr = nullptr,
+            size_t code_size = 8 * Xbyak::DEFAULT_MAX_CODE_SIZE)
+        : jcp(ajcp)
+    {
+        this->generate();
+        jit_ker = (void (*)(jit_conv_call_s *))this->getCode();
+    }
+
+    static status_t init_conf(jit_conv_conf_t &jcp,
+            const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
+            const memory_desc_wrapper &diff_weights_d,
+            const memory_desc_wrapper &diff_dst_d);
+
+    jit_conv_conf_t jcp;
+    void (*jit_ker)(jit_conv_call_s *);
+
+private:
+    using reg64_t = const Xbyak::Reg64;
+    reg64_t reg_input = rax;
+    reg64_t reg_kernel = rdx;
+    reg64_t reg_output = rsi;
+    reg64_t b_ic = rcx;
+    reg64_t kj = r8;
+    reg64_t reg_kh = r9;
+    reg64_t reg_ur_w_trips = r10;
+    reg64_t reg_tmp = r11;
+    reg64_t reg_oj = r15;
+    reg64_t reg_ih_count = rbx;
+
+    inline Xbyak::Address get_address(Xbyak::Reg64 base, int offset);
+    inline void oh_step_comeback_pointers(const char *kh_comeback_label);
+    inline void compute_ic_block_step(int ur_w, int pad_l, int pad_r,
+            int ic_block_step, int input_offset, int kernel_offset,
+            int output_offset);
+    inline void compute_oh_step_disp(const char* kh_label,
+            const char* ic_block_label, const char* ow_block_label,
+            const char* kh_comeback_label);
+    inline void compute_oh_step_unroll_ow(const char* kh_label,
+            const char* ic_block_label, const char* ow_block_label,
+            const char* kh_comeback_label, int ic_block_step, int max_ur_w);
+    inline void compute_oh_step_common(const char* kh_label,
+            const char* ic_block_label, const char* ow_block_label,
+            const char* kh_comeback_label, int ic_block_step, int max_ur_w);
+    inline void compute_oh_loop_common();
+
+    void generate();
+};
+
 }
 }
 }

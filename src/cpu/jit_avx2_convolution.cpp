@@ -97,6 +97,69 @@ void _jit_avx2_convolution_fwd_t<with_relu>::execute_forward() {
 template void _jit_avx2_convolution_fwd_t<true>::execute_forward();
 template void _jit_avx2_convolution_fwd_t<false>::execute_forward();
 
+void jit_avx2_convolution_bwd_weights_t::execute_backward_weights() {
+    auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
+    auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
+    auto diff_weights = reinterpret_cast<data_t*>(this->memory(0));
+    auto diff_bias = reinterpret_cast<data_t *>(this->memory(1));
+
+    const memory_desc_wrapper src_d(conf_.src_pd(0));
+    const memory_desc_wrapper diff_dst_d(conf_.diff_dst_pd());
+    const memory_desc_wrapper diff_weights_d(conf_.diff_weights_pd(0));
+    const memory_desc_wrapper diff_bias_d(conf_.diff_weights_pd(1));
+
+    const auto &jcp = kernel_->jcp;
+
+    auto ker = [&](int g, int n, int oc, int ic) {
+        jit_conv_call_s par_conv = {};
+
+        par_conv.src = &src[src_d.blk_off(n, g * jcp.nb_ic + ic)];
+        par_conv.dst = &diff_dst[diff_dst_d.blk_off(n, g * jcp.nb_oc + oc)];
+
+        const size_t wdiff_offset = conf_.with_groups()
+            ? diff_weights_d.blk_off(g, oc, ic, 0, 0)
+            : diff_weights_d.blk_off(oc, ic, 0, 0);
+        par_conv.filt = &diff_weights[wdiff_offset];
+
+        if (n == 0) {
+            const size_t sz = jcp.kw * jcp.kh * jcp.oc_block * jcp.ic_block;
+            for (int i = 0; i < sz; ++i) diff_weights[wdiff_offset + i] = 0.0;
+        }
+
+        if (diff_bias && ic == 0) {
+            const size_t _c = g*jcp.nb_oc + oc;
+            auto db = &diff_bias[diff_bias_d.blk_off(_c*jcp.oc_block)];
+
+            if (n == 0) {
+                for (int cb = 0; cb < jcp.oc_block; ++cb) db[cb] = 0.0;
+            }
+
+            for (int h = 0; h < jcp.oh; ++h) {
+                for (int w = 0; w < jcp.ow; ++w) {
+                    auto dd = &diff_dst[diff_dst_d.blk_off(n,
+                            g * jcp.nb_oc + oc, h, w)];
+                    for (int cb = 0; cb < jcp.oc_block; ++cb) {
+                        db[cb] += dd[cb];
+                    }
+                }
+            }
+        }
+
+        kernel_->jit_ker(&par_conv);
+    };
+
+#   pragma omp parallel for collapse(3) schedule(static)
+    for (int g = 0; g < jcp.ngroups; ++g) {
+        for (int oc = 0; oc < jcp.nb_oc; ++oc) {
+            for (int ic = 0; ic < jcp.nb_ic; ++ic) {
+                for (int n = 0; n < jcp.mb; ++n) {
+                    ker(g, n, oc, ic);
+                }
+            }
+        }
+    }
+}
+
 }
 }
 }
