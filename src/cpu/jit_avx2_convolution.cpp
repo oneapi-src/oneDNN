@@ -123,7 +123,7 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights() {
 
         if (n == 0) {
             const size_t sz = jcp.kw * jcp.kh * jcp.oc_block * jcp.ic_block;
-            for (int i = 0; i < sz; ++i) diff_weights[wdiff_offset + i] = 0.0;
+            for (size_t i = 0; i < sz; ++i) diff_weights[wdiff_offset + i] = 0.0;
         }
 
         if (diff_bias && ic == 0) {
