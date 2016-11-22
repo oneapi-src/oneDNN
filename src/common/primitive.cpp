@@ -36,6 +36,10 @@ status_t mkldnn_primitive_create(primitive_t **primitive,
         const primitive_t **outputs) {
     if (utils::any_null(primitive, primitive_desc))
         return invalid_arguments;
+    for (int i = 0; i < primitive_desc->n_inputs(); ++i)
+        if (inputs[i].primitive == nullptr) return invalid_arguments;
+    for (int i = 0; i < primitive_desc->n_outputs(); ++i)
+        if (outputs[i] == nullptr) return invalid_arguments;
     return primitive_desc->create_primitive(primitive, inputs, outputs);
 }
 
