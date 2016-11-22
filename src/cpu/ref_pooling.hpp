@@ -51,7 +51,8 @@ struct ref_pooling_fwd_t: public cpu_primitive_t {
                         dst_pd()->desc()->data_type);
             if (!ok) return status::unimplemented;
 
-            if (desc_.prop_kind == forward_training) {
+            bool is_training = desc_.prop_kind == forward_training;
+            if (desc()->alg_kind == pooling_max && is_training) {
                 auto indices_desc = *dst_pd()->desc();
                 indices_desc.data_type = data_type::s32;
                 ws_pd_ = cpu_memory_t::pd_t(engine_, &indices_desc);
