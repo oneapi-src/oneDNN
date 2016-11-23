@@ -86,9 +86,11 @@ namespace memory_format {
     const memory_format_t oihw = mkldnn_oihw;
     const memory_format_t oIhw8i = mkldnn_oIhw8i;
     const memory_format_t OIhw8i8o = mkldnn_OIhw8i8o;
+    const memory_format_t OIhw8o8i = mkldnn_OIhw8o8i;
     const memory_format_t Ohwi8o = mkldnn_Ohwi8o;
     const memory_format_t goihw = mkldnn_goihw;
     const memory_format_t gOIhw8i8o = mkldnn_gOIhw8i8o;
+    const memory_format_t gOIhw8o8i = mkldnn_gOIhw8o8i;
 }
 
 using padding_kind_t = mkldnn_padding_kind_t;

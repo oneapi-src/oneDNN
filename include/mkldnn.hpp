@@ -286,9 +286,11 @@ struct memory: public primitive  {
         oihw = c_api::mkldnn_oihw,
         oIhw8i = c_api::mkldnn_oIhw8i,
         OIhw8i8o = c_api::mkldnn_OIhw8i8o,
+        OIhw8o8i = c_api::mkldnn_OIhw8o8i,
         Ohwi8o = c_api::mkldnn_Ohwi8o,
         goihw = c_api::mkldnn_goihw,
         gOIhw8i8o = c_api::mkldnn_gOIhw8i8o,
+        gOIhw8o8i = c_api::mkldnn_gOIhw8o8i,
     };
 
     /// A memory descriptor.
