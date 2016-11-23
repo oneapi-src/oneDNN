@@ -34,7 +34,7 @@ struct conv_any_fmt_test_params {
     fmt bias_fmt_exp;
     fmt dst_fmt_in;
     fmt dst_fmt_exp;
-    test_convolution_descr_t test_cd;
+    test_convolution_sizes_t test_cd;
 };
 
 template <typename data_t>
@@ -65,7 +65,7 @@ protected:
                 p.bias_fmt_in == fmt::any || p.bias_fmt_in == p.bias_fmt_exp);
         ASSERT_TRUE(p.dst_fmt_in == fmt::any || p.dst_fmt_in == p.dst_fmt_exp);
 
-        test_convolution_descr_t cd = p.test_cd;
+        test_convolution_sizes_t cd = p.test_cd;
 
         auto c_src_desc
                 = create_md({ cd.mb, cd.ic, cd.ih, cd.iw }, data_type, p.src_fmt_in);

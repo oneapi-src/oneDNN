@@ -85,10 +85,12 @@ inline mkldnn::memory::desc create_md(mkldnn::memory::dims dims,
     case f::nChw8c:
     case f::oihw:
     case f::OIhw8i8o:
+    case f::OIhw8o8i:
     case f::Ohwi8o:
         ndims = 4; break;
     case f::goihw:
     case f::gOIhw8i8o:
+    case f::gOIhw8o8i:
         ndims = 5; break;
     case f::format_undef:
         ndims = 0; break;
@@ -149,11 +151,11 @@ static void compare_data(mkldnn::memory& ref, mkldnn::memory& dst)
         data_t got = dst_data[i];
         data_t diff = got - ref;
         data_t e = std::abs(ref) > 1e-4 ? diff / ref : diff;
-        EXPECT_NEAR(e, 0.0, 1e-4) << "Index: " << i << " of: " << num;
+        EXPECT_NEAR(e, 0.0, 1e-4) << "Index: " << i << " Total: " << num;
     }
 }
 
-struct test_convolution_descr_t {
+struct test_convolution_sizes_t {
     int mb;
     int ng;
     int ic, ih, iw;
@@ -161,6 +163,20 @@ struct test_convolution_descr_t {
     int kh, kw;
     int padh, padw;
     int strh, strw;
+};
+
+struct test_convolution_formats_t {
+    mkldnn::memory::format src_format;
+    mkldnn::memory::format weights_format;
+    mkldnn::memory::format bias_format;
+    mkldnn::memory::format dst_format;
+};
+
+struct test_convolution_params_t {
+    const mkldnn::engine::kind engine_kind;
+    mkldnn::algorithm aalgorithm;
+    test_convolution_formats_t formats;
+    test_convolution_sizes_t sizes;
 };
 
 #endif

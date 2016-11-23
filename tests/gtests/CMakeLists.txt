@@ -22,6 +22,7 @@ include_directories(${CMAKE_SOURCE_DIR}/include)
 include_directories(${CMAKE_SOURCE_DIR}/tests/gtests
                     ${CMAKE_SOURCE_DIR}/tests/gtests/gtest
                     )
+include_directories(${CMAKE_SOURCE_DIR}/tests/gtests/in)
 # TODO: enable me!
 #file(GLOB API_TEST_CASES_SRC api_tests/*.cpp)
 #file(GLOB PRIM_TEST_CASES_SRC test_*.cpp)

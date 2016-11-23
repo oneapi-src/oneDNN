@@ -19,21 +19,12 @@
 
 #include "mkldnn.hpp"
 
+#define NEGATIVE_SLOPE 0.0
+
 namespace mkldnn {
 
-struct test_convolution_relu_descr_t {
-    int mb;
-    int ng;
-    int ic, ih, iw;
-    int oc, oh, ow;
-    int kh, kw;
-    int padh, padw;
-    int strh, strw;
-    double negative_slope;
-};
-
 template <typename data_t>
-void compute_ref_conv_relu_fwd(const test_convolution_relu_descr_t &c,
+void compute_ref_conv_relu_fwd(const test_convolution_sizes_t &c,
         const memory &src, const memory &weights, const memory &bias,
         const memory &dst, bool w_bias)
 {
@@ -86,7 +77,7 @@ void compute_ref_conv_relu_fwd(const test_convolution_relu_descr_t &c,
 
                         if (dst_data[map_index(dst_d, oidx)] < 0) {
                             dst_data[map_index(dst_d, oidx)] *=
-                                c.negative_slope;
+                                NEGATIVE_SLOPE;
                         }
 
                     }
@@ -96,43 +87,33 @@ void compute_ref_conv_relu_fwd(const test_convolution_relu_descr_t &c,
     }
 }
 
-struct conv_relu_test_params {
-    prop_kind aprop_kind;
-    const engine::kind engine_kind;
-    algorithm aalgorithm;
-    memory::format src_format;
-    memory::format weights_format;
-    memory::format bias_format;
-    memory::format dst_format;
-    test_convolution_relu_descr_t test_cd;
-};
-
 template <typename data_t>
-class convolution_relu_test : public ::testing::TestWithParam<conv_relu_test_params> {
+class convolution_relu_test
+    : public ::testing::TestWithParam<test_convolution_params_t> {
 protected:
     virtual void SetUp()
     {
-        conv_relu_test_params p
-                = ::testing::TestWithParam<conv_relu_test_params>::GetParam();
+        test_convolution_params_t p
+                = ::testing::TestWithParam<
+                test_convolution_params_t>::GetParam();
 
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
-        ASSERT_EQ(p.aprop_kind, prop_kind::forward_scoring);
         ASSERT_EQ(p.aalgorithm, convolution_direct);
         auto eng = engine(p.engine_kind, 0);
         memory::data_type data_type = data_traits<data_t>::data_type;
         ASSERT_EQ(data_type, mkldnn::memory::data_type::f32);
 
-        test_convolution_relu_descr_t cd = p.test_cd;
+        test_convolution_sizes_t cd = p.sizes;
 
-        auto c_src_desc
-                = create_md({ cd.mb, cd.ic, cd.ih, cd.iw }, data_type, p.src_format);
+        auto c_src_desc = create_md({ cd.mb, cd.ic, cd.ih, cd.iw },
+                data_type, p.formats.src_format);
         auto c_weights_desc = cd.ng > 1 ?
                 create_md({ cd.ng, cd.oc / cd.ng, cd.ic / cd.ng, cd.kh, cd.kw },
-                        data_type, p.weights_format) :
-                create_md(
-                        { cd.oc, cd.ic, cd.kh, cd.kw }, data_type, p.weights_format);
-        auto c_dst_desc
-                = create_md({ cd.mb, cd.oc, cd.oh, cd.ow }, data_type, p.dst_format);
+                        data_type, p.formats.weights_format) :
+                create_md({ cd.oc, cd.ic, cd.kh, cd.kw },
+                        data_type, p.formats.weights_format);
+        auto c_dst_desc = create_md({ cd.mb, cd.oc, cd.oh, cd.ow },
+                data_type, p.formats.dst_format);
 
         auto c_src = memory({c_src_desc, eng});
         auto c_weights = memory({c_weights_desc, eng});
@@ -140,17 +121,17 @@ protected:
 
         auto dst_ref = memory({c_dst_desc, eng});
 
-        fill_data<data_t>(c_src.get_primitive_desc().get_size() / sizeof(data_t),
-                (data_t *)c_src.get_data_handle());
+        fill_data<data_t>(c_src.get_primitive_desc().get_size()
+                / sizeof(data_t), (data_t *)c_src.get_data_handle());
 
         fill_data<data_t>(
-                c_weights.get_primitive_desc().get_size() / sizeof(data_t),
-                (data_t *)c_weights.get_data_handle());
+                c_weights.get_primitive_desc().get_size()
+                / sizeof(data_t), (data_t *)c_weights.get_data_handle());
 
-        bool with_bias = p.bias_format != memory::format::format_undef;
+        bool with_bias = p.formats.bias_format != memory::format::format_undef;
         auto c_bias_desc = with_bias ?
-                create_md({ cd.oc }, data_type, p.bias_format) :
-                create_md({}, data_type, p.bias_format);
+                create_md({ cd.oc }, data_type, p.formats.bias_format) :
+                create_md({}, data_type, p.formats.bias_format);
         auto c_bias = memory({c_bias_desc, eng});
         if (with_bias) {
             fill_data<data_t>(
@@ -165,17 +146,17 @@ protected:
         }
 
         auto conv_desc = with_bias ?
-                convolution_forward::desc(p.aprop_kind, p.aalgorithm,
-                        c_src_desc, c_weights_desc, c_bias_desc, c_dst_desc,
-                        { cd.strh, cd.strw }, { cd.padh, cd.padw }, padR,
-                        padding_kind::zero) :
-                convolution_forward::desc(p.aprop_kind, p.aalgorithm,
-                        c_src_desc, c_weights_desc, c_dst_desc,
+                convolution_forward::desc(prop_kind::forward_scoring,
+                        p.aalgorithm, c_src_desc, c_weights_desc, c_bias_desc,
+                        c_dst_desc, { cd.strh, cd.strw }, { cd.padh, cd.padw },
+                        padR, padding_kind::zero) :
+                convolution_forward::desc(prop_kind::forward_scoring,
+                        p.aalgorithm, c_src_desc, c_weights_desc, c_dst_desc,
                         { cd.strh, cd.strw }, { cd.padh, cd.padw }, padR,
                         padding_kind::zero);
 
         auto conv_relu_desc =
-            convolution_relu_forward::desc(conv_desc, cd.negative_slope);
+            convolution_relu_forward::desc(conv_desc, NEGATIVE_SLOPE);
         auto conv_primitive_desc = convolution_relu_forward::primitive_desc(
                 conv_relu_desc, eng);
 
@@ -195,126 +176,13 @@ protected:
     }
 };
 
-using convolution_relu_test_float = convolution_relu_test<float>;
-using conv_relu_test_params_float = conv_relu_test_params;
+using convolution_test = convolution_relu_test<float>;
 
-TEST_P(convolution_relu_test_float, TestsConvolution)
+TEST_P(convolution_test, TestConvolution)
 {
 }
-INSTANTIATE_TEST_CASE_P(
-        TestConvolutionForward, convolution_relu_test_float,
-        ::testing::Values(
-                conv_relu_test_params_float{ prop_kind::forward_scoring, engine::kind::cpu,
-                        convolution_direct, memory::format::nchw,
-                        memory::format::oihw, memory::format::x,
-                        memory::format::nchw,
-                        { 2, 1, 4, 4, 4, 6, 4, 4, 3, 3, 1, 1, 1, 1, 0.0 } },
-                conv_relu_test_params_float{ prop_kind::forward_scoring, engine::kind::cpu,
-                        convolution_direct, memory::format::nchw,
-                        memory::format::oihw, memory::format::x,
-                        memory::format::nchw,
-                        { 2, 1, 4, 4, 4, 6, 2, 2, 3, 3, 0, 0, 1, 1, 0.0 } }));
 
-INSTANTIATE_TEST_CASE_P(
-        TestConvolutionForwardNoBias, convolution_relu_test_float,
-        ::testing::Values(
-                conv_relu_test_params_float{ prop_kind::forward_scoring, engine::kind::cpu,
-                        convolution_direct, memory::format::nchw,
-                        memory::format::oihw, memory::format::format_undef,
-                        memory::format::nchw,
-                        { 2, 1, 4, 4, 4, 6, 4, 4, 3, 3, 1, 1, 1, 1, 0.0 } },
-                conv_relu_test_params_float{ prop_kind::forward_scoring, engine::kind::cpu,
-                        convolution_direct, memory::format::nchw,
-                        memory::format::oihw, memory::format::format_undef,
-                        memory::format::nchw,
-                        { 2, 1, 4, 4, 4, 6, 2, 2, 3, 3, 0, 0, 1, 1, 0.0 } }));
+#define DIRECTION_FORWARD
+#include "convolution_common.h"
 
-INSTANTIATE_TEST_CASE_P(
-        TestConvolutionForwardNHWC, convolution_relu_test_float,
-        ::testing::Values(
-                conv_relu_test_params_float{ prop_kind::forward_scoring, engine::kind::cpu,
-                        convolution_direct, memory::format::nhwc,
-                        memory::format::oihw, memory::format::x,
-                        memory::format::nhwc,
-                        { 2, 1, 4, 4, 4, 6, 4, 4, 3, 3, 1, 1, 1, 1, 0.0 } },
-                conv_relu_test_params_float{ prop_kind::forward_scoring, engine::kind::cpu,
-                        convolution_direct, memory::format::nhwc,
-                        memory::format::oihw, memory::format::x,
-                        memory::format::nhwc,
-                        { 2, 1, 4, 4, 4, 6, 2, 2, 3, 3, 0, 0, 1, 1, 0.0 } }));
-INSTANTIATE_TEST_CASE_P(
-        TestConvolutionForwardBlocked, convolution_relu_test_float,
-        ::testing::Values(
-                conv_relu_test_params_float{ prop_kind::forward_scoring, engine::kind::cpu,
-                        convolution_direct, memory::format::nChw8c,
-                        memory::format::OIhw8i8o, memory::format::x,
-                        memory::format::nChw8c,
-                        { 2, 1, 32, 13, 13, 48, 13, 13, 3, 3, 1, 1, 1, 1, 0.0 } },
-                conv_relu_test_params_float{ prop_kind::forward_scoring, engine::kind::cpu,
-                        convolution_direct, memory::format::nChw8c,
-                        memory::format::OIhw8i8o, memory::format::x,
-                        memory::format::nChw8c,
-                        { 2, 1, 32, 13, 13, 48, 11, 11, 3, 3, 0, 0, 1, 1, 0.0 } }));
-INSTANTIATE_TEST_CASE_P(
-        TestConvolutionAlexnetForwardNCHW, convolution_relu_test_float,
-        ::testing::Values(
-                conv_relu_test_params_float{ prop_kind::forward_scoring, engine::kind::cpu,
-                        convolution_direct, memory::format::nchw,
-                        memory::format::oihw, memory::format::x,
-                        memory::format::nchw,
-                        { 2, 1, 3, 227, 227, 96, 55, 55, 11, 11, 0, 0, 4, 4, 0.0 } },
-                conv_relu_test_params_float{ prop_kind::forward_scoring, engine::kind::cpu,
-                        convolution_direct, memory::format::nchw,
-                        memory::format::goihw, memory::format::x,
-                        memory::format::nchw,
-                        { 2, 2, 96, 27, 27, 256, 27, 27, 5, 5, 2, 2, 1, 1, 0.0 } },
-                conv_relu_test_params_float{ prop_kind::forward_scoring, engine::kind::cpu,
-                        convolution_direct, memory::format::nchw,
-                        memory::format::oihw, memory::format::x,
-                        memory::format::nchw,
-                        { 2, 1, 256, 13, 13, 384, 13, 13, 3, 3, 1, 1, 1, 1, 0.0 } },
-                conv_relu_test_params_float{ prop_kind::forward_scoring, engine::kind::cpu,
-                        convolution_direct, memory::format::nchw,
-                        memory::format::goihw, memory::format::x,
-                        memory::format::nchw,
-                        { 2, 2, 384, 13, 13, 384, 13, 13, 3, 3, 1, 1, 1, 1, 0.0 } },
-                conv_relu_test_params_float{ prop_kind::forward_scoring, engine::kind::cpu,
-                        convolution_direct, memory::format::nchw,
-                        memory::format::goihw, memory::format::x,
-                        memory::format::nchw, { 2, 2, 384, 13, 13, 256, 13, 13,
-                                                      3, 3, 1, 1, 1, 1, 0.0 } }));
-INSTANTIATE_TEST_CASE_P(
-        TestConvolutionAlexnetForwardBlocked, convolution_relu_test_float,
-        ::testing::Values(
-                conv_relu_test_params_float{ prop_kind::forward_scoring, engine::kind::cpu,
-                        convolution_direct, memory::format::nchw,
-                        memory::format::Ohwi8o, memory::format::x,
-                        memory::format::nChw8c,
-                        { 2, 1, 3, 227, 227, 96, 55, 55, 11, 11, 0, 0, 4, 4, 0.0 } },
-                conv_relu_test_params_float{ prop_kind::forward_scoring, engine::kind::cpu,
-                        convolution_direct, memory::format::nhwc,
-                        memory::format::Ohwi8o, memory::format::x,
-                        memory::format::nChw8c,
-                        { 2, 1, 3, 227, 227, 96, 55, 55, 11, 11, 0, 0, 4, 4, 0.0 } },
-                conv_relu_test_params_float{ prop_kind::forward_scoring, engine::kind::cpu,
-                        convolution_direct, memory::format::nChw8c,
-                        memory::format::gOIhw8i8o, memory::format::x,
-                        memory::format::nChw8c,
-                        { 2, 2, 96, 27, 27, 256, 27, 27, 5, 5, 2, 2, 1, 1, 0.0 } },
-                conv_relu_test_params_float{ prop_kind::forward_scoring, engine::kind::cpu,
-                        convolution_direct, memory::format::nChw8c,
-                        memory::format::OIhw8i8o, memory::format::format_undef,
-                        memory::format::nChw8c,
-                        { 2, 1, 256, 13, 13, 384, 13, 13, 3, 3, 1, 1, 1, 1, 0.0 } },
-                conv_relu_test_params_float{ prop_kind::forward_scoring, engine::kind::cpu,
-                        convolution_direct, memory::format::nChw8c,
-                        memory::format::gOIhw8i8o, memory::format::format_undef,
-                        memory::format::nChw8c,
-                        { 2, 2, 384, 13, 13, 384, 13, 13, 3, 3, 1, 1, 1, 1, 0.0 } },
-                conv_relu_test_params_float{ prop_kind::forward_scoring, engine::kind::cpu,
-                        convolution_direct, memory::format::nChw8c,
-                        memory::format::gOIhw8i8o, memory::format::format_undef,
-                        memory::format::nChw8c,
-                        { 2, 2, 384, 13, 13, 256, 13, 13, 3, 3, 1, 1, 1,
-                            1, 0.0 } }));
 }

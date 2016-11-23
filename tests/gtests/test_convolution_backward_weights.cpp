@@ -22,7 +22,7 @@
 namespace mkldnn {
 
 template <typename data_t>
-void compute_ref_conv_bwd_bias(const test_convolution_descr_t &c,
+void compute_ref_conv_bwd_bias(const test_convolution_sizes_t &c,
         const memory &diff_dst, const memory &diff_bias)
 {
     data_t *diff_bias_data = (data_t *)diff_bias.get_data_handle();
@@ -52,7 +52,7 @@ void compute_ref_conv_bwd_bias(const test_convolution_descr_t &c,
 }
 
 template <typename data_t>
-void compute_ref_conv_bwd_weights(const test_convolution_descr_t &c,
+void compute_ref_conv_bwd_weights(const test_convolution_sizes_t &c,
         const memory &src, const memory &diff_dst, const memory &diff_weights)
 {
     data_t *src_data = (data_t *)src.get_data_handle();
@@ -104,25 +104,15 @@ void compute_ref_conv_bwd_weights(const test_convolution_descr_t &c,
     }
 }
 
-struct conv_bwd_weights_test_params {
-    const engine::kind engine_kind;
-    algorithm aalgorithm;
-    memory::format src_format;
-    memory::format diff_weights_format;
-    memory::format diff_bias_format;
-    memory::format diff_dst_format;
-    test_convolution_descr_t test_cd;
-};
-
 template <typename data_t>
 class convolution_backward_weights_test
-            : public ::testing::TestWithParam<conv_bwd_weights_test_params> {
+            : public ::testing::TestWithParam<test_convolution_params_t> {
 protected:
     virtual void SetUp()
     {
-        conv_bwd_weights_test_params p
+        test_convolution_params_t p
                 = ::testing::TestWithParam<
-                conv_bwd_weights_test_params>::GetParam();
+                test_convolution_params_t>::GetParam();
 
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         ASSERT_EQ(p.aalgorithm, convolution_direct);
@@ -130,31 +120,31 @@ protected:
         memory::data_type data_type = data_traits<data_t>::data_type;
         ASSERT_EQ(data_type, mkldnn::memory::data_type::f32);
 
-        test_convolution_descr_t cd = p.test_cd;
+        test_convolution_sizes_t cd = p.sizes;
 
         auto c_src_desc = create_md({ cd.mb, cd.ic, cd.ih, cd.iw }, data_type,
-                p.src_format);
+                p.formats.src_format);
         auto c_diff_weights_desc = cd.ng > 1 ?
                 create_md({ cd.ng, cd.oc / cd.ng, cd.ic / cd.ng, cd.kh, cd.kw },
-                        data_type, p.diff_weights_format) :
+                        data_type, p.formats.weights_format) :
                 create_md(
                         { cd.oc, cd.ic, cd.kh, cd.kw }, data_type,
-                        p.diff_weights_format);
+                        p.formats.weights_format);
         auto c_diff_bias_desc
-                = create_md({ cd.oc }, data_type, p.diff_bias_format);
+                = create_md({ cd.oc }, data_type, p.formats.bias_format);
         auto c_diff_dst_desc
                 = create_md({ cd.mb, cd.oc, cd.oh, cd.ow }, data_type,
-                        p.diff_dst_format);
+                        p.formats.dst_format);
 
         auto c_src = memory({c_src_desc, eng});
         auto c_diff_weights = memory({c_diff_weights_desc, eng});
         auto c_diff_bias = memory({c_diff_bias_desc, eng});
         auto c_diff_dst = memory({c_diff_dst_desc, eng});
 
-        fill_data<data_t>(c_diff_dst.get_primitive_desc().get_size() / sizeof(data_t),
-                (data_t *)c_diff_dst.get_data_handle());
-        fill_data<data_t>(c_src.get_primitive_desc().get_size() / sizeof(data_t),
-                (data_t *)c_src.get_data_handle());
+        fill_data<data_t>(c_diff_dst.get_primitive_desc().get_size()
+                / sizeof(data_t), (data_t *)c_diff_dst.get_data_handle());
+        fill_data<data_t>(c_src.get_primitive_desc().get_size()
+                / sizeof(data_t), (data_t *)c_src.get_data_handle());
 
         std::vector<int> padR = { cd.padh, cd.padw };
         for (int i = 0; i < 2; ++i) {
@@ -164,13 +154,13 @@ protected:
 
         auto conv_desc = convolution_forward::desc(prop_kind::forward_training,
                 p.aalgorithm, c_src_desc, c_diff_weights_desc, c_diff_bias_desc,
-                c_diff_dst_desc, { cd.strh, cd.strw }, { cd.padh, cd.padw }, padR,
-                padding_kind::zero);
+                c_diff_dst_desc, { cd.strh, cd.strw }, { cd.padh, cd.padw },
+                padR, padding_kind::zero);
 
         auto conv_bwd_weights_desc = convolution_backward_weights::desc(
                 p.aalgorithm, c_src_desc, c_diff_weights_desc, c_diff_bias_desc,
-                c_diff_dst_desc, { cd.strh, cd.strw }, { cd.padh, cd.padw }, padR,
-                padding_kind::zero);
+                c_diff_dst_desc, { cd.strh, cd.strw }, { cd.padh, cd.padw },
+                padR, padding_kind::zero);
 
         auto conv_primitive_desc = convolution_forward::primitive_desc(
                 conv_desc, eng);
@@ -200,171 +190,13 @@ protected:
     }
 };
 
-using convolution_backward_weights_test_float
-        = convolution_backward_weights_test<float>;
-using conv_bwd_weights_test_params_float = conv_bwd_weights_test_params;
+using convolution_test = convolution_backward_weights_test<float>;
 
-TEST_P(convolution_backward_weights_test_float, TestsConvolution)
+TEST_P(convolution_test, TestConvolution)
 {
 }
 
-INSTANTIATE_TEST_CASE_P(
-        TestConvolutionBackwardWeights,
-        convolution_backward_weights_test_float,
-        ::testing::Values(
-                conv_bwd_weights_test_params_float{ engine::kind::cpu,
-                        convolution_direct, memory::format::nchw,
-                        memory::format::oihw, memory::format::x,
-                        memory::format::nchw,
-                        { 2, 1, 4, 4, 4, 6, 4, 4, 3, 3, 1, 1, 1, 1 } },
-                conv_bwd_weights_test_params_float{ engine::kind::cpu,
-                        convolution_direct, memory::format::nchw,
-                        memory::format::oihw, memory::format::x,
-                        memory::format::nchw,
-                        { 2, 1, 4, 4, 4, 6, 2, 2, 3, 3, 0, 0, 1, 1 } }));
+#define DIRECTION_BACKWARD_WEIGHTS
+#include "convolution_common.h"
 
-INSTANTIATE_TEST_CASE_P(
-        TestConvolutionBackwardWeightsNoBias,
-        convolution_backward_weights_test_float,
-        ::testing::Values(
-                conv_bwd_weights_test_params_float{ engine::kind::cpu,
-                        convolution_direct, memory::format::nchw,
-                        memory::format::oihw, memory::format::x,
-                        memory::format::nchw,
-                        { 2, 1, 4, 4, 4, 6, 4, 4, 3, 3, 1, 1, 1, 1 } },
-                conv_bwd_weights_test_params_float{ engine::kind::cpu,
-                        convolution_direct, memory::format::nchw,
-                        memory::format::oihw, memory::format::x,
-                        memory::format::nchw,
-                        { 2, 1, 4, 4, 4, 6, 2, 2, 3, 3, 0, 0, 1, 1 } }));
-
-INSTANTIATE_TEST_CASE_P(
-        TestConvolutionBackwardWeightsNHWC,
-        convolution_backward_weights_test_float,
-        ::testing::Values(
-                conv_bwd_weights_test_params_float{ engine::kind::cpu,
-                        convolution_direct, memory::format::nhwc,
-                        memory::format::oihw, memory::format::x,
-                        memory::format::nhwc,
-                        { 2, 1, 4, 4, 4, 6, 4, 4, 3, 3, 1, 1, 1, 1 } },
-                conv_bwd_weights_test_params_float{ engine::kind::cpu,
-                        convolution_direct, memory::format::nhwc,
-                        memory::format::oihw, memory::format::x,
-                        memory::format::nhwc,
-                        { 2, 1, 4, 4, 4, 6, 2, 2, 3, 3, 0, 0, 1, 1 } }));
-
-INSTANTIATE_TEST_CASE_P(
-        TestConvolutionBackwardWeightsBlocked,
-        convolution_backward_weights_test_float,
-        ::testing::Values(
-                conv_bwd_weights_test_params_float{ engine::kind::cpu,
-                        convolution_direct, memory::format::nChw8c,
-                        memory::format::OIhw8i8o, memory::format::x,
-                        memory::format::nChw8c,
-                        { 2, 1, 32, 13, 13, 32, 12, 12, 3, 3, 0, 0, 1, 1 } },
-                conv_bwd_weights_test_params_float{ engine::kind::cpu,
-                        convolution_direct, memory::format::nChw8c,
-                        memory::format::OIhw8i8o, memory::format::x,
-                        memory::format::nChw8c,
-                        { 2, 1, 32, 3, 3, 32, 4, 4, 3, 3, 1, 1, 1, 1 } },
-                conv_bwd_weights_test_params_float{ engine::kind::cpu,
-                        convolution_direct, memory::format::nChw8c,
-                        memory::format::OIhw8i8o, memory::format::x,
-                        memory::format::nChw8c,
-                        { 2, 1, 32, 4, 4, 32, 4, 4, 3, 3, 0, 0, 1, 1 } },
-                conv_bwd_weights_test_params_float{ engine::kind::cpu,
-                        convolution_direct, memory::format::nChw8c,
-                        memory::format::OIhw8i8o, memory::format::x,
-                        memory::format::nChw8c,
-                        { 2, 1, 32, 3, 3, 32, 2, 2, 3, 3, 0, 0, 1, 1 } },
-                conv_bwd_weights_test_params_float{ engine::kind::cpu,
-                        convolution_direct, memory::format::nChw8c,
-                        memory::format::OIhw8i8o, memory::format::x,
-                        memory::format::nChw8c,
-                        { 2, 1, 32, 2, 2, 32, 2, 2, 3, 3, 1, 1, 1, 1 } },
-                conv_bwd_weights_test_params_float{ engine::kind::cpu,
-                        convolution_direct, memory::format::nChw8c,
-                        memory::format::OIhw8i8o, memory::format::x,
-                        memory::format::nChw8c,
-                        { 2, 1, 32, 13, 13, 48, 13, 13, 3, 3, 1, 1, 1, 1 } },
-                conv_bwd_weights_test_params_float{ engine::kind::cpu,
-                        convolution_direct, memory::format::nChw8c,
-                        memory::format::OIhw8i8o, memory::format::x,
-                        memory::format::nChw8c,
-                        { 2, 1, 32, 13, 13, 48, 11, 11, 3, 3, 0, 0, 1, 1 } }));
-
-INSTANTIATE_TEST_CASE_P(
-        TestConvolutionAlexnetBackwardWeightsNCHW,
-        convolution_backward_weights_test_float,
-        ::testing::Values(
-                conv_bwd_weights_test_params_float{ engine::kind::cpu,
-                        convolution_direct, memory::format::nchw,
-                        memory::format::oihw, memory::format::x,
-                        memory::format::nchw,
-                        { 2, 1, 3, 227, 227, 96, 55, 55, 11, 11, 0, 0, 4, 4 } },
-                conv_bwd_weights_test_params_float{ engine::kind::cpu,
-                        convolution_direct, memory::format::nchw,
-                        memory::format::goihw, memory::format::x,
-                        memory::format::nchw,
-                        { 2, 2, 96, 27, 27, 256, 27, 27, 5, 5, 2, 2, 1, 1 } },
-                conv_bwd_weights_test_params_float{ engine::kind::cpu,
-                        convolution_direct, memory::format::nchw,
-                        memory::format::oihw, memory::format::x,
-                        memory::format::nchw,
-                        { 2, 1, 256, 13, 13, 384, 13, 13, 3, 3, 1, 1, 1, 1 } },
-                conv_bwd_weights_test_params_float{ engine::kind::cpu,
-                        convolution_direct, memory::format::nchw,
-                        memory::format::goihw, memory::format::x,
-                        memory::format::nchw,
-                        { 2, 2, 384, 13, 13, 384, 13, 13, 3, 3, 1, 1, 1, 1 } },
-                conv_bwd_weights_test_params_float{ engine::kind::cpu,
-                        convolution_direct, memory::format::nchw,
-                        memory::format::goihw, memory::format::x,
-                        memory::format::nchw,
-                        { 2, 2, 384, 13, 13, 256, 13, 13, 3, 3, 1, 1, 1, 1 } }));
-
-INSTANTIATE_TEST_CASE_P(
-        TestConvolutionAlexnetBackwardWeightsBlocked,
-        convolution_backward_weights_test_float,
-        ::testing::Values(
-                conv_bwd_weights_test_params_float{ engine::kind::cpu,
-                        convolution_direct, memory::format::nchw,
-                        memory::format::Ohwi8o, memory::format::x,
-                        memory::format::nChw8c,
-                        { 2, 1, 3, 227, 227, 96, 55, 55, 11, 11, 0, 0, 4, 4 } },
-                conv_bwd_weights_test_params_float{ engine::kind::cpu,
-                        convolution_direct, memory::format::nhwc,
-                        memory::format::Ohwi8o, memory::format::x,
-                        memory::format::nChw8c,
-                        { 2, 1, 3, 227, 227, 96, 55, 55, 11, 11, 0, 0, 4, 4 } },
-                conv_bwd_weights_test_params_float{ engine::kind::cpu,
-                        convolution_direct, memory::format::nChw8c,
-                        memory::format::gOIhw8i8o, memory::format::x,
-                        memory::format::nChw8c,
-                        { 2, 2, 96, 27, 27, 256, 27, 27, 5, 5, 2, 2, 1, 1 } },
-                conv_bwd_weights_test_params_float{ engine::kind::cpu,
-                        convolution_direct, memory::format::nChw8c,
-                        memory::format::OIhw8i8o, memory::format::x,
-                        memory::format::nChw8c,
-                        { 2, 1, 256, 13, 13, 384, 13, 13, 3, 3, 1, 1, 1, 1 } },
-                conv_bwd_weights_test_params_float{ engine::kind::cpu,
-                        convolution_direct, memory::format::nChw8c,
-                        memory::format::gOIhw8i8o, memory::format::x,
-                        memory::format::nChw8c,
-                        { 2, 2, 384, 13, 13, 384, 13, 13, 3, 3, 1, 1, 1, 1 } },
-                conv_bwd_weights_test_params_float{ engine::kind::cpu,
-                        convolution_direct, memory::format::nChw8c,
-                        memory::format::gOIhw8i8o, memory::format::x,
-                        memory::format::nChw8c,
-                        { 2, 2, 384, 13, 13, 256, 13, 13, 3, 3, 1, 1, 1, 1 } }));
-
-INSTANTIATE_TEST_CASE_P(
-        TestConvolutionCifar10BackwardWeightsBlocked,
-        convolution_backward_weights_test_float,
-        ::testing::Values(
-                conv_bwd_weights_test_params_float{ engine::kind::cpu,
-                        convolution_direct, memory::format::nchw,
-                        memory::format::Ohwi8o, memory::format::x,
-                        memory::format::nChw8c,
-                        { 2, 1, 3, 32, 32, 32, 32, 32, 5, 5, 2, 2, 1, 1 } }));
 }
