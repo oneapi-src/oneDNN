@@ -97,6 +97,73 @@ void _jit_avx2_convolution_fwd_t<with_relu>::execute_forward() {
 template void _jit_avx2_convolution_fwd_t<true>::execute_forward();
 template void _jit_avx2_convolution_fwd_t<false>::execute_forward();
 
+void jit_avx2_convolution_bwd_data_t::execute_backward_data() {
+    auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(0));
+    auto weights = reinterpret_cast<const data_t *>(this->input_memory(1));
+    auto diff_src = reinterpret_cast<data_t*>(this->memory());
+
+    const memory_desc_wrapper diff_dst_d(conf_.diff_dst_pd());
+    const memory_desc_wrapper diff_src_d(conf_.diff_src_pd());
+    const memory_desc_wrapper weights_d(conf_.weights_pd(0));
+
+    const auto &jcp = kernel_->jcp;
+
+    auto ker = [&](int g, int n, int ic, int oc, int ih) {
+        jit_conv_call_s par_conv = {};
+
+        const int i_t_overflow = nstl::max(0, jcp.kh - 1 - ih - jcp.t_pad);
+        const int b_pad = jcp.ihp - jcp.ih - jcp.t_pad;
+        const int i_b_overflow = nstl::max(0, jcp.kh - 1 - (jcp.ih - 1 - ih) - b_pad);
+        const int oh = ih + jcp.t_pad - i_b_overflow;
+
+        const int simd_w = 8;
+
+        par_conv.src = &diff_src[diff_src_d.blk_off(n,
+                    /*jcp.ic == 3 ? 0 :*/
+                g * jcp.nb_ic + jcp.nb_ic_blocking*ic, ih, 0)];
+        par_conv.dst = const_cast<data_t *>(&diff_dst[diff_dst_d.blk_off(n,
+                g * jcp.nb_oc + oc, oh, 0)]);
+        par_conv.filt = const_cast<data_t *>(&weights[conf_.with_groups()
+            ? weights_d.blk_off(g, oc, jcp.ic == 3 ? 0 : jcp.nb_ic_blocking*ic, i_b_overflow, 0)
+            : weights_d.blk_off(oc, jcp.ic == 3 ? 0 : jcp.nb_ic_blocking*ic, i_b_overflow, 0)]);
+        par_conv.src_prf  = nullptr;
+        par_conv.dst_prf  = nullptr;
+        par_conv.filt_prf = nullptr;
+        if (oc == 0)
+        {
+            for (int iw = 0; iw < jcp.iw; iw++)
+            {
+                for (int b = 0; b < jcp.nb_ic_blocking; b++)
+                {
+                    int current_ic = (jcp.ic == 3 ? 0 : g*jcp.nb_ic)
+                        + jcp.nb_ic_blocking*ic+b;
+                    int current_idx = diff_src_d.blk_off(n, current_ic, ih, iw);
+                    for (int v = 0; v < simd_w; v++)
+                        diff_src[current_idx + v] = 0.0;
+                }
+            }
+        }
+
+        par_conv.kh_padding = jcp.kh - i_t_overflow - i_b_overflow;
+        par_conv.kw_padding = 0;
+
+        kernel_->jit_ker(&par_conv);
+    };
+
+#   pragma omp parallel for collapse(3) schedule(static)
+    for (int n = 0; n < jcp.mb; ++n) {
+        for (int g = 0; g < jcp.ngroups; ++g) {
+            for (int ic = 0; ic < (jcp.nb_ic/jcp.nb_ic_blocking); ++ic) {
+                for (int oc = 0; oc < jcp.nb_oc; ++oc) {
+                    for (int ih = 0; ih < jcp.ih; ++ih) {
+                        ker(g, n, ic, oc, ih);
+                    }
+                }
+            }
+        }
+    }
+}
+
 void jit_avx2_convolution_bwd_weights_t::execute_backward_weights() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));

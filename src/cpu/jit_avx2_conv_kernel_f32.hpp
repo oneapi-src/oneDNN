@@ -99,6 +99,56 @@ private:
     void generate();
 };
 
+struct jit_avx2_conv_bwd_data_kernel_f32: public jit_generator {
+    enum { IC_FLAG_FIRST = 1, IC_FLAG_LAST = 2 };
+
+    jit_avx2_conv_bwd_data_kernel_f32(jit_conv_conf_t ajcp,
+            void *code_ptr = nullptr,
+            size_t code_size = 8 * Xbyak::DEFAULT_MAX_CODE_SIZE)
+        : jcp(ajcp)
+    {
+        this->generate();
+        jit_ker = (void (*)(jit_conv_call_s *))this->getCode();
+    }
+
+    static status_t init_conf(jit_conv_conf_t &jcp,
+            const convolution_desc_t &cd, const memory_desc_wrapper &diff_src_d,
+            const memory_desc_wrapper &weights_d,
+            const memory_desc_wrapper &diff_dst_d);
+
+    jit_conv_conf_t jcp;
+    void (*jit_ker)(jit_conv_call_s *);
+
+private:
+    using reg64_t = const Xbyak::Reg64;
+
+    /*
+    reg64_t param          = Xbyak::util::cdecl_param1;
+    */
+    reg64_t reg_input      = rax;
+    reg64_t reg_ddst       = rax;
+    reg64_t aux_reg_input  = r8;
+    reg64_t aux_reg_ddst   = r8;
+    reg64_t aux1_reg_input = r9;
+    reg64_t reg_kernel     = rdx;
+    reg64_t aux_reg_kernel = r10;
+    reg64_t reg_output     = rsi;
+    reg64_t reg_dsrc       = rsi;
+    reg64_t aux_reg_output = rbx;
+    reg64_t aux_reg_dsrc = rbx;
+
+    reg64_t kj      = r11;
+    reg64_t oi_iter = r12;
+    reg64_t reg_kh  = r14;
+    reg64_t ki_iter = r13;
+
+    inline Xbyak::Address get_address(Xbyak::Reg64 base, int offset);
+    inline void hsw_iter_s1(int ur_w, int l_overflow, int r_overflow,
+            const char* kh_lable);
+
+    void generate();
+};
+
 struct jit_avx2_conv_bwd_weights_kernel_f32: public jit_generator {
     jit_avx2_conv_bwd_weights_kernel_f32(jit_conv_conf_t ajcp,
             void *code_ptr = nullptr,

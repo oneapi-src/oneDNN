@@ -104,6 +104,78 @@ private:
 using jit_avx2_convolution_fwd_t = _jit_avx2_convolution_fwd_t<false>;
 using jit_avx2_convolution_relu_t = _jit_avx2_convolution_fwd_t<true>;
 
+struct jit_avx2_convolution_bwd_data_t: public cpu_primitive_t {
+    struct pd_t: public cpu_convolution_bwd_data_pd_t {
+        pd_t(engine_t *engine,
+                const convolution_desc_t *adesc,
+                const convolution_fwd_pd_t *hint_fwd_pd)
+            : cpu_convolution_bwd_data_pd_t(engine, adesc, hint_fwd_pd)
+            , jcp_({})
+        {}
+
+        DECLARE_COMMON_PD_T(jit_avx2_convolution_bwd_data_t);
+
+        virtual status_t init() override {
+            using namespace prop_kind;
+            assert(this->engine()->kind() == engine_kind::cpu);
+            bool ok = true
+                && this->set_default_params() == status::success
+                && utils::one_of(this->desc()->prop_kind, backward_data)
+                && this->desc()->alg_kind == alg_kind::convolution_direct
+                && utils::everyone_is(data_type::f32,
+                        this->desc()->diff_src_desc.data_type,
+                        this->desc()->weights_desc.data_type,
+                        this->desc()->diff_dst_desc.data_type);
+            if (!ok) return status::unimplemented;
+
+            return jit_avx2_conv_bwd_data_kernel_f32::init_conf(jcp_,
+                    *this->desc(), *this->diff_src_pd_.desc(),
+                    *this->weights_pd_.desc(), *this->diff_dst_pd_.desc());
+        }
+
+        jit_conv_conf_t jcp_;
+
+    protected:
+        virtual status_t set_default_params() override {
+            using namespace memory_format;
+
+            if (this->diff_src_pd_.desc()->format == any) {
+                CHECK(this->diff_src_pd_.set_format(nChw8c));
+            }
+            if (this->diff_dst_pd_.desc()->format == any) {
+                CHECK(this->diff_dst_pd_.set_format(nChw8c));
+            }
+            if (this->weights_pd_.desc()->format == any) {
+                CHECK(this->weights_pd_.set_format(this->with_groups()
+                            ? gOIhw8o8i : OIhw8o8i));
+            }
+            return status::success;
+        }
+    };
+
+    jit_avx2_convolution_bwd_data_t(const pd_t *pd, const input_vector &inputs,
+            const output_vector &outputs)
+        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
+    { kernel_ = new jit_avx2_conv_bwd_data_kernel_f32(conf_.jcp_); }
+    typedef typename prec_trait<data_type::f32>::type data_t;
+
+    virtual void execute(event_t *e) {
+        switch (conf_.desc()->prop_kind) {
+        case prop_kind::backward_data:
+            execute_backward_data();
+            break;
+        default:
+            assert(!"invalid prop_kind");
+        }
+        e->set_state(event_t::ready);
+    }
+
+private:
+    void execute_backward_data();
+    pd_t conf_;
+    jit_avx2_conv_bwd_data_kernel_f32 *kernel_;
+};
+
 struct jit_avx2_convolution_bwd_weights_t: public cpu_primitive_t {
     struct pd_t: public  cpu_convolution_bwd_weights_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,

@@ -361,6 +361,228 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     return status::success;
 }
 
+inline Xbyak::Address jit_avx2_conv_bwd_data_kernel_f32::get_address(
+        Xbyak::Reg64 base, int offset) {
+    using Xbyak::Ymm;
+    return YWORD[base + offset];
+}
+
+void jit_avx2_conv_bwd_data_kernel_f32::hsw_iter_s1(int ur_w, int l_overflow,
+        int r_overflow, const char* kh_lable) {
+    using Xbyak::Ymm;
+
+    int kw    = jcp.kw;
+    int kh    = jcp.kh;
+    int iw    = jcp.iw;
+    int ih    = jcp.ih;
+    int ow    = jcp.ow;
+
+    int ic_block = jcp.ic_block;
+    int oc_block = jcp.oc_block;
+    int nb_ic_block = jcp.nb_ic_blocking;
+
+    for (int ii = 0; ii < nb_ic_block; ii++)
+        for (int jj = 0; jj < ur_w; jj++)
+            vmovups(Ymm(ur_w*ii+jj), ptr [ reg_dsrc + sizeof(float)*(ii*ih*iw+jj)*ic_block ]);
+
+    mov(aux_reg_ddst, reg_ddst);
+    mov(aux_reg_kernel, reg_kernel);
+
+    mov(kj, reg_kh);
+    L(kh_lable);
+    {
+        //TODO: try lable
+        for (int ki = 0; ki < kw; ki++)
+        {
+            int jj_start = nstl::max(0, l_overflow - (kw-1) + ki) ; // 0;
+            int jj_end = ur_w - nstl::max(0, r_overflow - ki); // ur_w;
+            for (int ofm2 = 0; ofm2 < jcp.oc_block; ofm2++)
+            {
+                for (int jj =jj_start ; jj < jj_end; jj++)
+                {
+                    int aux_output_offset = (jj + jcp.l_pad - ki)*jcp.oc_block + ofm2;
+                    vbroadcastss(Ymm(nb_ic_block*ur_w+jj), ptr [ aux_reg_ddst + sizeof(float)*aux_output_offset ]);
+                }
+                for (int ii = 0; ii  < nb_ic_block; ii++)
+                {
+                    int aux_kernel_offset = ii*kh*kw*jcp.ic_block*jcp.oc_block +
+                                             ki*jcp.ic_block*jcp.oc_block+ ofm2*jcp.ic_block;
+                    vmovups(ymm15, ptr [ aux_reg_kernel +  sizeof(float)*aux_kernel_offset ]);
+                    for (int jj = jj_start; jj  < jj_end; jj++)
+                    {
+                        vfmadd231ps(Ymm(ur_w*ii+jj), Ymm(nb_ic_block*ur_w+jj), ymm15);
+                    }
+                }
+            }
+        }
+        add(aux_reg_kernel, sizeof(float)*kw *oc_block*ic_block);
+        sub(aux_reg_ddst, sizeof(float)*ow*oc_block);
+
+        dec(kj);
+        cmp(kj, 0);
+        jg(kh_lable, T_NEAR);
+    }
+
+    for (int ii = 0; ii < nb_ic_block; ii++)
+        for (int jj = 0; jj < ur_w; jj++)
+            vmovups(ptr [ reg_dsrc + sizeof(float)*(ii*ih*iw+jj)*ic_block ], Ymm(ur_w*ii+jj));
+
+}
+
+void jit_avx2_conv_bwd_data_kernel_f32::generate() {
+    using Xbyak::Ymm;
+    preamble();
+
+    mov(reg_dsrc, ptr[this->param1 + GET_OFF(src)]);
+    mov(reg_ddst, ptr[this->param1 + GET_OFF(dst)]);
+    mov(reg_kernel, ptr[this->param1 + GET_OFF(filt)]);
+    mov(reg_kh, ptr[this->param1 + GET_OFF(kh_padding)]);
+
+    int n_oi = jcp.iw / jcp.ur_w;
+    xor_(oi_iter, oi_iter);
+
+    int l_overflow = nstl::max(0, jcp.kw - 1 - jcp.l_pad);
+    if (l_overflow > 0)
+    {
+        hsw_iter_s1(jcp.ur_w, l_overflow, 0, ".kh_loop_oimain_overflow_l");
+        add(reg_dsrc , sizeof(float)*jcp.ur_w*jcp.ic_block);
+        add(reg_ddst, sizeof(float)*jcp.ur_w*jcp.oc_block);
+        inc(oi_iter);
+    }
+
+    int r_pad = jcp.iwp - jcp.iw - jcp.l_pad;
+    int r_overflow1 = nstl::max(0,jcp.kw - 1 - (jcp.iw - jcp.ur_w*n_oi) - r_pad);
+    int r_overflow  = nstl::max(0,jcp.kw - 1 - r_pad);
+    if (r_overflow1 > 0)
+        n_oi--;
+
+    if ((l_overflow <= 0 && n_oi > 0)
+      ||(l_overflow >  0 && n_oi > 1))
+    {
+        L(".ow_loop");
+        {
+            hsw_iter_s1(jcp.ur_w, 0, 0, ".kh_loop_oimain");
+            add(reg_dsrc, sizeof(float)*jcp.ur_w*jcp.ic_block);
+            add(reg_ddst, sizeof(float)*jcp.ur_w*jcp.oc_block);
+
+            inc(oi_iter);
+            cmp(oi_iter, n_oi); jl(".ow_loop", T_NEAR);
+        }
+    }
+
+    if (r_overflow1 > 0 )
+    {
+        hsw_iter_s1(jcp.ur_w, 0, r_overflow1, ".kh_loop_oimain_overflow_r");
+        add(reg_dsrc, sizeof(float)*jcp.ur_w*jcp.ic_block);
+        add(reg_ddst, sizeof(float)*jcp.ur_w*jcp.oc_block);
+    }
+    if (jcp.ur_w_tail != 0)
+        hsw_iter_s1(jcp.ur_w_tail, 0, r_overflow, ".kh_loop_oitail");
+
+    this->postamble();
+}
+
+status_t jit_avx2_conv_bwd_data_kernel_f32::init_conf(jit_conv_conf_t &jcp,
+        const convolution_desc_t &cd, const memory_desc_wrapper &diff_src_d,
+        const memory_desc_wrapper &weights_d,
+        const memory_desc_wrapper &diff_dst_d)
+{
+    const bool with_groups = weights_d.ndims() == diff_src_d.ndims() + 1;
+
+    jcp.ngroups = with_groups ? weights_d.dims()[0] : 1;
+    jcp.mb = diff_src_d.dims()[0];
+
+    jcp.oc = diff_dst_d.dims()[1] / jcp.ngroups;
+    jcp.ic = diff_src_d.dims()[1] / jcp.ngroups;
+
+    jcp.ih = diff_src_d.dims()[2];
+    jcp.iw = diff_src_d.dims()[3];
+    jcp.oh = diff_dst_d.dims()[2];
+    jcp.ow = diff_dst_d.dims()[3];
+
+    jcp.kh = weights_d.dims()[with_groups + 2];
+    jcp.kw = weights_d.dims()[with_groups + 3];
+
+    jcp.t_pad = cd.padding[0][0];
+    jcp.l_pad = cd.padding[0][1];
+
+    jcp.stride_h = cd.strides[0];
+    jcp.stride_w = cd.strides[1];
+
+    const int simd_w = 8;
+
+    /* derivatives */
+    jcp.ihp = jcp.ih + 2*jcp.t_pad;
+    jcp.iwp = jcp.iw + 2*jcp.l_pad;
+    jcp.ohp = jcp.oh; /* do we really need */
+    jcp.owp = jcp.ow; /* padded output ??? */
+
+    jcp.ic_block = (jcp.ic % simd_w) ? 1 : simd_w;
+    jcp.nb_ic = jcp.ic / jcp.ic_block;
+
+    jcp.oc_block = simd_w;
+    if (jcp.oc % jcp.oc_block) return status::unimplemented;
+    jcp.nb_oc = jcp.oc / jcp.oc_block;
+
+    jcp.ur_h = 1; /* no code-unrolling by h so far */
+    jcp.nb_ic_blocking = 1;
+    jcp.nb_oc_blocking = 1;
+    jcp.ur_w = 1;
+
+    jcp.src_fmt = diff_src_d.format();
+
+    bool args_ok = true
+        && diff_src_d.format() == nChw8c
+        && weights_d.format() == with_groups ? gOIhw8o8i : OIhw8o8i
+        && diff_dst_d.format() == nChw8c
+        && jcp.stride_w == jcp.stride_h
+        && jcp.stride_w == 1
+        && jcp.ic % simd_w == 0
+        && jcp.oc % simd_w == 0
+        && jcp.t_pad == jcp.l_pad /* Only AlexNet so far */
+        && (jcp.t_pad == 1 || jcp.t_pad == 2) /* Only AlexNet so far */
+        && jcp.oh == (jcp.ihp - jcp.kh) / jcp.stride_h + 1
+        && jcp.ow == (jcp.iwp - jcp.kw) / jcp.stride_w + 1;
+    if (!args_ok) return status::unimplemented;
+
+    jcp.ur_w = 3;
+    if (jcp.stride_w > 1 || jcp.stride_h > 1)
+        return status::unimplemented;
+    if (jcp.ngroups == 1
+        && jcp.kw == 1 && jcp.kh == 1 && jcp.l_pad == 0 && jcp.t_pad == 0
+        && jcp.stride_w == 1 && jcp.stride_h == 1
+        && jcp.iw == jcp.ow && jcp.ih == jcp.oh
+        && jcp.ic_block == simd_w) {
+
+        jcp.nb_ic_blocking = 3;
+
+        return status::success;
+    }
+
+    jcp.ur_w = 3;
+    for (int b = 4; b > 1; b--)
+    {
+        if (jcp.nb_ic % b == 0)
+        {
+            jcp.nb_ic_blocking = b;
+            break;
+        }
+    }
+    jcp.ur_w_tail = jcp.iw % jcp.ur_w;
+    int l_overflow = nstl::max(0, jcp.kw - 1 - jcp.l_pad);
+    if (l_overflow > jcp.ur_w) /* maximum 1 step with l_overflow so far */
+        return status::unimplemented;
+    int r_pad = jcp.iwp - jcp.iw - jcp.l_pad;
+    int r_overflow_step0 = nstl::max(0, jcp.kw - 1 - (jcp.iw - jcp.ur_w) - r_pad);
+    if (l_overflow > 0 && r_overflow_step0 > 0) /* no steps with both left and
+                                                   right overflow so far */
+        return status::unimplemented;
+    int r_overflow_no_tail = nstl::max(0,jcp.kw - 1 - jcp.ur_w_tail - r_pad);
+    if (r_overflow_no_tail > jcp.ur_w) /* maximum 1 ur_w block with
+                                          r_overflow so far */
+        return status::unimplemented;
+    return status::success;
+}
 
 void jit_avx2_conv_bwd_weights_kernel_f32::generate() {
     using Xbyak::Ymm;
