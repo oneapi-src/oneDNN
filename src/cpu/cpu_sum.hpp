@@ -84,7 +84,7 @@ struct cpu_sum_t: public cpu_primitive_t
                     }
                 }
             }
-            assert(reorder_pds_.size() == n_);
+            assert((int)reorder_pds_.size() == n_);
         }
         pd_t(const pd_t &rhs)
             : sum_pd_t(rhs), use_simple_sum_(rhs.use_simple_sum_)
