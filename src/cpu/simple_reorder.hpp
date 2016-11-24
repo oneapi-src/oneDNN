@@ -267,6 +267,62 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     typename utils::enable_if<
+        (fmt_i == gOIhw8i8o && fmt_o == gOIhw8o8i)
+        || (fmt_i == OIhw8i8o && fmt_o == OIhw8o8i)
+    >::type>
+{
+    static bool is_applicable(const memory_desc_wrapper &input_d,
+            const memory_desc_wrapper &output_d) {
+        return input_d.format() == (order_keep ? fmt_i : fmt_o)
+            && output_d.format() == (order_keep ? fmt_o : fmt_i);
+    }
+
+    static status_t execute(const memory_desc_wrapper &input_d,
+        const memory_desc_wrapper &output_d, const data_t<type_i> *input,
+        data_t<type_o> *output,
+        const double alpha, const double beta) {
+        constexpr bool w_groups = fmt_i == gOIhw8i8o;
+
+        const auto &dims = input_d.dims();
+
+        auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o) {
+            for (int ic = 0; ic < 8; ++ic) {
+                for (int oc = 0; oc < 8; ++oc) {
+                    const int o_idx = ic*8 + oc;
+                    const int i_idx = oc*8 + ic;
+                    o[o_idx] = (alpha == 1.0 && beta == 0.0)
+                        ? data_t<type_o>(i[i_idx])
+                        : alpha*data_t<type_o>(i[i_idx]) + beta*o[o_idx];
+                }
+            }
+        };
+
+        const int _G = w_groups ? dims[0] : 1;
+
+#       pragma omp parallel for collapse(5) schedule(static)
+        for (int g = 0; g < _G; ++g) {
+            for (int o = 0; o < dims[w_groups + 0]/8; ++o) {
+                for (int i = 0; i < dims[w_groups + 1]/8; ++i) {
+                    for (int h = 0; h < dims[w_groups + 2]; ++h) {
+                        for (int w = 0; w < dims[w_groups + 3]; ++w) {
+                            auto i_ptr = &input[input_d.blk_off<!w_groups>(g,
+                                    o, i, h, w)];
+                            auto o_ptr = &output[output_d.blk_off<!w_groups>(g,
+                                    o, i, h, w)];
+                            ker(i_ptr, o_ptr);
+                        }
+                    }
+                }
+            }
+        }
+
+        return success;
+    }
+};
+
+template <SIMPLE_REORDER_TEMPL_DECL>
+struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
+    typename utils::enable_if<
         fmt_i == any && fmt_o == any && order_keep == fmt_order::any,
     spec::direct_copy>::type>
 {
