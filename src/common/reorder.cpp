@@ -21,6 +21,7 @@
 #include "engine.hpp"
 #include "memory_pd.hpp"
 #include "primitive_desc.hpp"
+#include "type_helpers.hpp"
 #include "utils.hpp"
 
 using namespace mkldnn::impl;
@@ -44,6 +45,10 @@ status_t mkldnn_reorder_primitive_desc_create(
             reorder_primitive_desc);
     auto i_mpd = reinterpret_cast<const memory_pd_t*>(input);
     auto o_mpd = reinterpret_cast<const memory_pd_t*>(output);
+
+    if (!memory_desc_wrapper(i_mpd).consistent_with(o_mpd))
+        return invalid_arguments;
+
     auto e = (i_ek != engine_kind::cpu) ? input->engine() : output->engine();
 
     for (auto r = e->get_reorder_implementation_list(); *r; ++r) {

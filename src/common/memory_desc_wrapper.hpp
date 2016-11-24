@@ -113,6 +113,9 @@ struct memory_desc_wrapper: public c_compatible {
     inline bool similar_to(const memory_desc_wrapper &rhs,
             bool with_padding = true, bool with_data_type = true) const;
 
+    /** returns true if one memory can be reordered to another */
+    inline bool consistent_with(const memory_desc_wrapper &rhs) const;
+
     /* offset section */
 
     /** returns physical offset by logical one. logical offset is represented by
@@ -249,6 +252,23 @@ inline bool memory_desc_wrapper::similar_to(const memory_desc_wrapper &rhs,
                 array_cmp(blk.padding_dims, r_blk.padding_dims, ndims())
                 && array_cmp(blk.offset_padding_to_data,
                     r_blk.offset_padding_to_data, ndims()));
+}
+
+inline bool memory_desc_wrapper::consistent_with(
+        const memory_desc_wrapper &rhs) const {
+    if (ndims() == rhs.ndims()) {
+        for (int d = 0; d < ndims(); ++d) {
+            if (dims()[d] != rhs.dims()[d]) return false;
+        }
+        return true;
+    } else {
+        /* TODO: revise.
+         * is the following possible?
+         * [1, a, b] <--reorder--> [a, b]
+         * [a, 1, b] <--reorder--> [a, b]
+         * not, at least for now */
+        return false;
+    }
 }
 
 }
