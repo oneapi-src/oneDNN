@@ -86,7 +86,7 @@ void simple_net(){
     auto conv_weights_memory = conv_user_weights_memory;
     if (memory::primitive_desc(conv_prim_desc.weights_primitive_desc()) !=
         conv_user_weights_memory.get_primitive_desc()) {
-        conv_weights_memory = memory(conv_prim_desc.src_primitive_desc());
+        conv_weights_memory = memory(conv_prim_desc.weights_primitive_desc());
         net.push_back(reorder(conv_user_weights_memory, conv_weights_memory));
     }
 
