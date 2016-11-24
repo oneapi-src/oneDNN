@@ -69,19 +69,11 @@ struct cpu_simple_sum_t: public c_compatible {
                     sum->input_memory(a)) + i_d.blk_off(0);
         }
 
-        double scale = scale_[0];
-        const data_t *input_ptr = &(input_ptrs[0][0]);
-
 #       pragma omp parallel for schedule(static)
         for (size_t e = 0; e < nelems; ++e) {
-             output[e] = scale*input_ptr[e];
-        }
-        for (int a = 1; a < num_arrs; ++a) {
-            scale = scale_[a];
-            input_ptr = &(input_ptrs[a][0]);
-#           pragma omp parallel for schedule(static)
-            for (size_t e = 0; e < nelems; ++e) {
-                output[e] += scale*input_ptr[e];
+            output[e] = 0.;
+            for (int a = 0; a < num_arrs; ++a) {
+                output[e] += scale_[a]*input_ptrs[a][e];
             }
         }
     }
