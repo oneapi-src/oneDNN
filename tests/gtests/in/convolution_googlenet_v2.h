@@ -1,5 +1,4 @@
-INSTANTIATE_TEST_CASE_P(GooglenetV2Blocked_part1,
-        convolution_test, ::testing::Values(
+INST_TEST_CASE(GoogleNetV2_Blocked_part1,
     PARAMS(nchw, Ohwi8o, FMT_BIAS, FMT_DATA_BLOCKED,
         2, 1,   3, 224, 224,  64, 112, 112, 7, 7, 3, 3, 2, 2),
     PARAMS(FMT_DATA_BLOCKED, FMT_WEIGHTS_BLOCKED, FMT_BIAS, FMT_DATA_BLOCKED,
@@ -46,10 +45,9 @@ INSTANTIATE_TEST_CASE_P(GooglenetV2Blocked_part1,
         2, 1,  96,  28,  28,  96,  14,  14, 3, 3, 1, 1, 2, 2),
     PARAMS(FMT_DATA_BLOCKED, FMT_WEIGHTS_BLOCKED, FMT_BIAS, FMT_DATA_BLOCKED,
         2, 1, 576,   4,   4, 128,   4,   4, 1, 1, 0, 0, 1, 1)
-));
+);
 
-INSTANTIATE_TEST_CASE_P(GooglenetV2Blocked_part2,
-        convolution_test, ::testing::Values(
+INST_TEST_CASE(GoogleNetV2_Blocked_part2,
     PARAMS(FMT_DATA_BLOCKED, FMT_WEIGHTS_BLOCKED, FMT_BIAS, FMT_DATA_BLOCKED,
         2, 1, 576,  14,  14, 224,  14,  14, 1, 1, 0, 0, 1, 1),
     PARAMS(FMT_DATA_BLOCKED, FMT_WEIGHTS_BLOCKED, FMT_BIAS, FMT_DATA_BLOCKED,
@@ -146,4 +144,4 @@ INSTANTIATE_TEST_CASE_P(GooglenetV2Blocked_part2,
         2, 1, 224,   7,   7, 224,   7,   7, 3, 3, 1, 1, 1, 1),
     PARAMS(FMT_DATA_BLOCKED, FMT_WEIGHTS_BLOCKED, FMT_BIAS, FMT_DATA_BLOCKED,
         2, 1,1024,   7,   7, 128,   7,   7, 1, 1, 0, 0, 1, 1)
-));
+);
