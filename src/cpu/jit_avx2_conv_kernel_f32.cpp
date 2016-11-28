@@ -628,15 +628,20 @@ status_t jit_avx2_conv_bwd_weights_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     jcp.with_relu = 0;
     jcp.relu_negative_slope = 0;
 
+    const int simd_w = 8;
+
     bool args_ok = true
         && src_d.format() == nChw8c
         && diff_weights_d.format() == (with_groups ? gOIhw8i8o : OIhw8i8o)
         && one_of(cd.bias_desc.format, memory_format::undef, x)
         && diff_dst_d.format() == nChw8c
+        && jcp.ic % simd_w == 0
+        && jcp.oc % simd_w == 0
+        && jcp.oh == (jcp.ihp - jcp.kh) / jcp.stride_h + 1
+        && jcp.ow == (jcp.iwp - jcp.kw) / jcp.stride_w + 1
         && jcp.kw < 14;
     if (!args_ok) return status::unimplemented;
 
-    const int simd_w = 8;
     jcp.ic_block = simd_w;
     jcp.nb_ic = jcp.ic / jcp.ic_block;
 
