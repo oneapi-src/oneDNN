@@ -637,8 +637,6 @@ status_t jit_avx2_conv_bwd_weights_kernel_f32::init_conf(jit_conv_conf_t &jcp,
         && diff_dst_d.format() == nChw8c
         && jcp.ic % simd_w == 0
         && jcp.oc % simd_w == 0
-        && jcp.oh == (jcp.ihp - jcp.kh) / jcp.stride_h + 1
-        && jcp.ow == (jcp.iwp - jcp.kw) / jcp.stride_w + 1
         && jcp.kw < 14;
     if (!args_ok) return status::unimplemented;
 
