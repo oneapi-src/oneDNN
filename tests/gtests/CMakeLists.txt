@@ -31,6 +31,7 @@ file(GLOB PRIM_TEST_CASES_SRC RELATIVE ${CMAKE_SOURCE_DIR}/tests/gtests
                               test_reorder.cpp
                               test_concat.cpp
                               test_relu_forward.cpp
+                              test_softmax_forward.cpp
                               test_relu_backward.cpp
                               test_lrn_forward.cpp
                               test_lrn_backward.cpp

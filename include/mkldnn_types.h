@@ -195,6 +195,8 @@ typedef enum {
     mkldnn_convolution,
     /** A ReLU primitive. */
     mkldnn_relu,
+    /** A Softmax primitive. */
+    mkldnn_softmax,
     /** A pooling primitive. */
     mkldnn_pooling,
     /** An LRN primitive. */
@@ -344,6 +346,20 @@ typedef struct {
      */
     double negative_slope;
 } mkldnn_relu_desc_t;
+
+/** A descriptor of a Softmax operation. */
+typedef struct {
+    /** The kind of primitive. Used for self identifying the primitive
+    * descriptor. Must be #mkldnn_softmax. */
+    mkldnn_primitive_kind_t primitive_kind;
+    /** The kind of propagation. Possible values: #mkldnn_forward_training,
+     * #mkldnn_forward_inference. */
+    mkldnn_prop_kind_t prop_kind;
+    /** Source and destination memory descriptor. */
+    mkldnn_memory_desc_t data_desc;
+    /** The axis along which to perform the softmax. */
+    int softmax_axis;
+} mkldnn_softmax_desc_t;
 
 /** A descriptor of a pooling operation. */
 typedef struct {
@@ -591,6 +607,7 @@ typedef enum {
     mkldnn_query_memory_d, /**< memory descriptor for memory and view */
     mkldnn_query_convolution_d, /**< convolution descriptor */
     mkldnn_query_relu_d, /**< relu descriptor */
+    mkldnn_query_softmax_d, /**< softmax descriptor */
     mkldnn_query_pooling_d, /**< pooling descriptor */
     mkldnn_query_lrn_d, /**< lrn descriptor */
     mkldnn_query_batch_normalization_d, /**< batch normalization descriptor */

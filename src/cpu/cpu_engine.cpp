@@ -27,6 +27,7 @@
 #include "cpu/ref_convolution.hpp"
 #include "cpu/jit_avx2_relu.hpp"
 #include "cpu/ref_relu.hpp"
+#include "cpu/ref_softmax.hpp"
 #include "cpu/jit_avx2_pooling.hpp"
 #include "cpu/ref_pooling.hpp"
 #include "cpu/jit_avx2_lrn.hpp"
@@ -116,6 +117,8 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(jit_avx2_relu_fwd_t),
     INSTANCE(ref_relu_fwd_t<data_type::f32>),
     INSTANCE(ref_relu_bwd_t<data_type::f32>),
+    /* softmax */
+    INSTANCE(ref_softmax_fwd_t<data_type::f32>),
     /* pool */
     INSTANCE(jit_avx2_pooling_fwd_t),
     INSTANCE(ref_pooling_fwd_t<data_type::f32>),

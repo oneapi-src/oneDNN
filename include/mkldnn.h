@@ -377,6 +377,19 @@ mkldnn_status_t MKLDNN_API mkldnn_relu_backward_desc_init(
 
 /** @} */
 
+/** @addtogroup c_api_softmax Softmax
+ * A primitive to perform softmax.
+ * @{ */
+
+/** Initializes a @p softmax_desc for forward propagation using @p prop_kind
+ * (possible value are #mkldnn_forward_training or #mkldnn_forward_inference)
+ * and memory descriptor @p data_desc. */
+mkldnn_status_t MKLDNN_API mkldnn_softmax_forward_desc_init(
+        mkldnn_softmax_desc_t *softmax_desc, mkldnn_prop_kind_t prop_kind,
+        const mkldnn_memory_desc_t *data_desc, int softmax_axis);
+
+/** @} */
+
 /** @addtogroup c_api_pooling Pooling
  * A primitive to perform max, min, or average pooling.
  * @{ */

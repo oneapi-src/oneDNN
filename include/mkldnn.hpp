@@ -447,6 +447,7 @@ enum query {
     memory_d = c_api::mkldnn_query_memory_d,
     convolution_d = c_api::mkldnn_query_convolution_d,
     relu_d = c_api::mkldnn_query_relu_d,
+    softmax_d = c_api::mkldnn_query_softmax_d,
     pooling_d = c_api::mkldnn_query_pooling_d,
     lrn_d = c_api::mkldnn_query_lrn_d,
     batch_normalization_d = c_api::mkldnn_query_batch_normalization_d,
@@ -1530,6 +1531,40 @@ struct relu_backward : public primitive {
         error::wrap_c_api(c_api::mkldnn_primitive_create(&result,
                 aprimitive_desc.get(), inputs, outputs),
             "could not create a relu backward primitive");
+        reset(result);
+    }
+};
+
+struct softmax_forward : public primitive {
+    struct desc {
+        c_api::mkldnn_softmax_desc_t data;
+        desc(prop_kind aprop_kind, const memory::desc &data_desc,
+             int softmax_axis) {
+            error::wrap_c_api(c_api::mkldnn_softmax_forward_desc_init(&data,
+                    mkldnn::convert_to_c(aprop_kind), &data_desc.data,
+                    softmax_axis),
+                "could not create a softmax forward descriptor");
+        }
+    };
+
+    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t>{
+        primitive_desc(const desc &adesc, const engine &aengine) {
+            c_api::mkldnn_primitive_desc_t result;
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_create(
+                    &result, &adesc.data, aengine.get(), nullptr),
+                "could not create a softmax forward primitive descriptor");
+            reset(result);
+        }
+    };
+
+    softmax_forward(const primitive_desc &aprimitive_desc,
+            const primitive::at &src, const memory &dst) {
+        c_api::mkldnn_primitive_t result;
+        c_api::mkldnn_primitive_at_t inputs[] = { src.data };
+        c_api::const_mkldnn_primitive_t outputs[] = { dst.get() };
+        error::wrap_c_api(c_api::mkldnn_primitive_create(&result,
+                aprimitive_desc.get(), inputs, outputs),
+            "could not create a softmax forward primitive");
         reset(result);
     }
 };
