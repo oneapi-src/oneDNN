@@ -29,7 +29,8 @@ using namespace Xbyak;
 status_t jit_avx2_bnrm_kernel_f32::init_conf(jit_bnrm_conf_t &jbp,
         const batch_normalization_desc_t &bnd,
         const memory_desc_wrapper &data_d,
-        const memory_desc_wrapper &scaleshift_d, bool is_training) {
+        const memory_desc_wrapper &scaleshift_d,
+        bool is_training, bool stats_is_src, bool use_scaleshift) {
     bool args_ok = (data_d.format() == memory_format::nChw8c ||
             (data_d.format() == memory_format::nchw
               && data_d.dims()[2] == 1 && data_d.dims()[3] == 1))
@@ -42,6 +43,8 @@ status_t jit_avx2_bnrm_kernel_f32::init_conf(jit_bnrm_conf_t &jbp,
     jbp.w = data_d.dims()[3];
     jbp.eps = bnd.batch_norm_epsilon;
     jbp.is_training = is_training;
+    jbp.stats_is_src = stats_is_src;
+    jbp.use_scaleshift = use_scaleshift;
 
     jbp.c_block = 8;
     jbp.nb_c = jbp.c / jbp.c_block;
@@ -95,7 +98,8 @@ inline void jit_avx2_bnrm_kernel_f32::dst_compute(int block_size) {
             vmovups(Ymm(j), ptr[aux_ptr +
                     ((i * 8) + j) * jbp.c_block * sizeof(float)]);
             vfmsub213ps(Ymm(j), ymm_variance, ymm_mean_mul_variance);
-            vfmadd213ps(Ymm(j), ymm_scale, ymm_shift);
+            if (jbp.use_scaleshift)
+                vfmadd213ps(Ymm(j), ymm_scale, ymm_shift);
             vmovups(ptr[aux_dst_ptr +
                     ((i * 8) + j) * jbp.c_block * sizeof(float)], Ymm(j));
         }
@@ -104,7 +108,8 @@ inline void jit_avx2_bnrm_kernel_f32::dst_compute(int block_size) {
         vmovups(Ymm(j), ptr[aux_ptr +
                 ((block_8 * 8) + j) * jbp.c_block * sizeof(float)]);
         vfmsub213ps(Ymm(j), ymm_variance, ymm_mean_mul_variance);
-        vfmadd213ps(Ymm(j), ymm_scale, ymm_shift);
+        if (jbp.use_scaleshift)
+            vfmadd213ps(Ymm(j), ymm_scale, ymm_shift);
         vmovups(ptr[aux_dst_ptr +
                 ((block_8 * 8) + j) * jbp.c_block * sizeof(float)], Ymm(j));
     }
@@ -121,8 +126,10 @@ void jit_avx2_bnrm_kernel_f32::generate() {
     mov(reg_src, ptr[this->param1 + GET_OFF(src)]);
     mov(reg_dst, ptr[this->param1 + GET_OFF(dst)]);
     mov(reg_scaleshift, ptr[this->param1 + GET_OFF(scaleshift)]);
-    if (jbp.is_training)
-        mov(reg_workspace, ptr[this->param1 + GET_OFF(workspace)]);
+    if (jbp.is_training || jbp.stats_is_src){
+        mov(reg_mean, ptr[this->param1 + GET_OFF(mean)]);
+        mov(reg_variance, ptr[this->param1 + GET_OFF(variance)]);
+    }
 #   undef GET_OFF
 
     vpxor(ymm_mean, ymm_mean);
@@ -171,8 +178,8 @@ void jit_avx2_bnrm_kernel_f32::generate() {
         vaddps(ymm_mean, ymm_mean, Ymm(i));
     vdivps(ymm_mean, ymm_mean, ymm_spatial_n);
 
-    if (jbp.is_training)
-        vmovups(ptr[reg_workspace], ymm_mean);
+    if (jbp.is_training && !jbp.stats_is_src)
+        vmovups(ptr[reg_mean], ymm_mean);
 
     for (int i = 0; i < 8; i++)
         vpxor(Ymm(i), Ymm(i));
@@ -208,11 +215,13 @@ void jit_avx2_bnrm_kernel_f32::generate() {
     vsqrtps(ymm_variance, ymm_variance);
     vdivps(ymm_variance, ymm_one, ymm_variance);
 
-    if (jbp.is_training)
-        vmovups(ptr[reg_workspace + jbp.c*sizeof(float)], ymm_variance);
+    if (jbp.is_training && !jbp.stats_is_src)
+        vmovups(ptr[reg_variance], ymm_variance);
     vmulps(ymm_mean_mul_variance, ymm_mean, ymm_variance);
-    vmovups(ymm_scale, ptr[reg_scaleshift]);
-    vmovups(ymm_shift, ptr[reg_scaleshift + jbp.c*sizeof(float)]);
+    if (jbp.use_scaleshift) {
+        vmovups(ymm_scale, ptr[reg_scaleshift]);
+        vmovups(ymm_shift, ptr[reg_scaleshift + jbp.c*sizeof(float)]);
+    }
 
     mov(aux_ptr, reg_src);
     mov(aux_dst_ptr, reg_dst);

@@ -50,17 +50,18 @@ struct jit_avx2_batch_normalization_fwd_t: public cpu_primitive_t {
                         desc()->data_scaleshift_desc.data_type);
             if (!ok) return status::unimplemented;
 
-            bool is_training = desc_.prop_kind == forward_training;
-            if (is_training) {
-                memory_desc_t ws_d;
-                dims_t ws_dims = { C() * 2 };
-                mkldnn_memory_desc_init(&ws_d, 1, ws_dims, data_type::f32,
-                        memory_format::x);
-                ws_pd_ = cpu_memory_t::pd_t(engine_, &ws_d);
+            if (stats_is_src() || is_training()) {
+                memory_desc_t stats_d;
+                dims_t stats_dims = { C() };
+                mkldnn_memory_desc_init(&stats_d, 1, stats_dims,
+                        data_type::f32, memory_format::x);
+                mean_pd_ = cpu_memory_t::pd_t(engine_, &stats_d);
+                variance_pd_ = cpu_memory_t::pd_t(engine_, &stats_d);
             }
 
             return jit_avx2_bnrm_kernel_f32::init_conf(jbp_, desc_,
-                    data_pd_.desc(), scaleshift_pd_.desc(), is_training);
+                    data_pd_.desc(), scaleshift_pd_.desc(),
+                    is_training(), stats_is_src(), use_scaleshift());
         }
 
         jit_bnrm_conf_t jbp_;

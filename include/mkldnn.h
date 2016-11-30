@@ -457,25 +457,28 @@ mkldnn_status_t MKLDNN_API mkldnn_lrn_backward_desc_init(
 /** Initializes a batch normalization descriptor @p bnrm_desc for forward
  * propagation using @p prop_kind, (possible values are
  * #mkldnn_forward_training or #mkldnn_forward_inference), memory descriptor
- * @p data_desc and normalization parameter @p epsilon.
+ * @p data_desc, normalization parameter @p epsilon and flags (possible values
+ * are #mkldnn_use_global_stats and #mkldnn_use_scaleshift).
  *
  * @sa mkldnn_batch_normalization_desc_t */
 mkldnn_status_t MKLDNN_API mkldnn_batch_normalization_forward_desc_init(
         mkldnn_batch_normalization_desc_t *bnrm_desc,
         mkldnn_prop_kind_t prop_kind, const mkldnn_memory_desc_t *data_desc,
-        double epsilon);
+        double epsilon, unsigned flags);
 
 /** Initializes a batch normalization descriptor @p bnrm_desc for backward
  * propagation with respect to data and scale-shift parameters using memory
  * descriptors @p data_desc and @p diff_data_desc, and normalization parameter
- * @p epsilon.
+ * @p epsilon and flags (possible values are #mkldnn_gradient_data_only and
+ * #mkldnn_use_scaleshift).
  *
  * @sa mkldnn_batch_normalization_desc_t */
 mkldnn_status_t MKLDNN_API mkldnn_batch_normalization_backward_desc_init(
         mkldnn_batch_normalization_desc_t *bnrm_desc,
         mkldnn_prop_kind_t prop_kind,
         const mkldnn_memory_desc_t *diff_data_desc,
-        const mkldnn_memory_desc_t *data_desc);
+        const mkldnn_memory_desc_t *data_desc,
+        double epsilon, unsigned flags);
 
 /** @} */
 

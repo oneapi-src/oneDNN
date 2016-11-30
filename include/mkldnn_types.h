@@ -228,6 +228,16 @@ typedef enum {
     mkldnn_lrn_within_channel = 66,
 } mkldnn_alg_kind_t;
 
+/** Flags for batch-normalization primititve. */
+typedef enum {
+    /** Use global statistics */
+    mkldnn_use_global_stats = 0x1U,
+    /** Use scale and shift parameters */
+    mkldnn_use_scaleshift = 0x2U,
+    /** Omit statistics */
+    mkldnn_omit_stats = 0x4U
+} mkldnn_batch_normalization_flag_t;
+
 /** @} */
 
 /** @addtogroup c_api_types_memory Auxiliary types for memory description
@@ -445,6 +455,7 @@ typedef struct {
     mkldnn_memory_desc_t diff_data_scaleshift_desc;
     /** Batch normalization epsilon parameter. */
     double batch_norm_epsilon;
+    unsigned flags;
 } mkldnn_batch_normalization_desc_t;
 
 /** A descriptor of an inner product operation. */

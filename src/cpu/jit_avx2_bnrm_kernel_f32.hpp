@@ -28,6 +28,8 @@ struct jit_bnrm_conf_t {
     int mb, c, h, w;
     float eps;
     bool is_training;
+    bool stats_is_src;
+    bool use_scaleshift;
 
     int c_block;
     int nb_c;
@@ -37,8 +39,9 @@ struct jit_bnrm_conf_t {
 
 struct __attribute__((__packed__)) jit_bnrm_call_s {
     const float *src, *dst;
+    const float *mean;
+    const float *variance;
     const float *scaleshift;
-    const float *workspace;
 };
 
 struct jit_avx2_bnrm_kernel_f32: public jit_generator {
@@ -53,7 +56,8 @@ struct jit_avx2_bnrm_kernel_f32: public jit_generator {
     static status_t init_conf(jit_bnrm_conf_t &jbp,
             const batch_normalization_desc_t &bnd,
             const memory_desc_wrapper &data_d,
-            const memory_desc_wrapper &scaleshift_d, bool is_training);
+            const memory_desc_wrapper &scaleshift_d,
+            bool is_training, bool stats_is_src, bool use_scaleshift);
 
 private:
     // TODO: move to jit_kernel.h and use Xbyak names (Roma)
@@ -64,7 +68,8 @@ private:
     reg64_t reg_src = rax;
     reg64_t reg_scaleshift = rdx;
     reg64_t reg_dst = rsi;
-    reg64_t reg_workspace = rbx;
+    reg64_t reg_mean = rbx;
+    reg64_t reg_variance = rcx;
 
     reg64_t aux_ptr = r8;
     reg64_t save_ptr = r9;

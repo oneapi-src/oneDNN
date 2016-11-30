@@ -31,7 +31,7 @@ using namespace mkldnn::impl::types;
 namespace {
 status_t bnrm_desc_init(batch_normalization_desc_t *bnrm_desc,
         prop_kind_t prop_kind, const memory_desc_t *data_desc,
-        const memory_desc_t *diff_data_desc, double epsilon) {
+        const memory_desc_t *diff_data_desc, double epsilon, unsigned flags) {
     bool args_ok = true
         && !any_null(bnrm_desc, data_desc)
         && one_of(prop_kind, forward_training, forward_inference,
@@ -52,13 +52,18 @@ status_t bnrm_desc_init(batch_normalization_desc_t *bnrm_desc,
             data_desc->data_type, mkldnn_nc);
 
     if (bd.prop_kind == backward) {
-        mkldnn_memory_desc_init(&bd.diff_data_scaleshift_desc, 2, scaleshift_dims,
-                data_desc->data_type, mkldnn_nc);
+        mkldnn_memory_desc_init(&bd.diff_data_scaleshift_desc, 2,
+                scaleshift_dims, data_desc->data_type, mkldnn_nc);
     } else {
         bd.diff_data_scaleshift_desc = zero_md();
     }
 
     bd.batch_norm_epsilon = epsilon;
+
+    unsigned bnorm_flags = mkldnn_use_global_stats | mkldnn_omit_stats;
+    if ((~bnorm_flags & flags) != 0) return invalid_arguments;
+
+    bd.flags = flags;
 
     bool consistency = true
         && bd.data_desc.ndims == 4;
@@ -75,18 +80,21 @@ status_t bnrm_desc_init(batch_normalization_desc_t *bnrm_desc,
 
 status_t mkldnn_batch_normalization_forward_desc_init(
         batch_normalization_desc_t *bnrm_desc, prop_kind_t prop_kind,
-        const memory_desc_t *data_desc, double epsilon) {
+        const memory_desc_t *data_desc, double epsilon, unsigned flags) {
     if (!one_of(prop_kind, forward_training, forward_inference))
         return invalid_arguments;
-    return bnrm_desc_init(bnrm_desc, prop_kind, data_desc, nullptr, epsilon);
+    return bnrm_desc_init(bnrm_desc, prop_kind, data_desc, nullptr,
+            epsilon, flags);
 }
 
 status_t mkldnn_batch_normalization_backward_desc_init(
         batch_normalization_desc_t *bnrm_desc, prop_kind_t prop_kind,
-        const memory_desc_t *diff_data_desc, const memory_desc_t *data_desc) {
+        const memory_desc_t *diff_data_desc, const memory_desc_t *data_desc,
+        double epsilon, unsigned flags) {
     if (!one_of(prop_kind, backward, backward_data))
         return invalid_arguments;
-    return bnrm_desc_init(bnrm_desc, prop_kind, data_desc, diff_data_desc, 0);
+    return bnrm_desc_init(bnrm_desc, prop_kind, data_desc, diff_data_desc,
+            epsilon, flags);
 }
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

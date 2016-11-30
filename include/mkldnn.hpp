@@ -499,6 +499,12 @@ enum algorithm {
     pooling_avg = c_api::mkldnn_pooling_avg
 };
 
+enum batch_normalization_flag {
+    use_global_stats = c_api::mkldnn_use_global_stats,
+    use_scale_shift = c_api::mkldnn_use_scaleshift,
+    omit_stats = c_api::mkldnn_omit_stats
+};
+
 static c_api::mkldnn_alg_kind_t convert_to_c(algorithm aalgorithm) {
     return static_cast<c_api::mkldnn_alg_kind_t>(aalgorithm);
 }
@@ -1626,11 +1632,12 @@ struct batch_normalization_forward : public primitive {
     struct desc {
         c_api::mkldnn_batch_normalization_desc_t data;
         template <typename T>
-        desc(prop_kind aprop_kind, const memory::desc &src_desc, T epsilon) {
+        desc(prop_kind aprop_kind, const memory::desc &src_desc, T epsilon,
+                unsigned _flags) {
             error::wrap_c_api(
                     c_api::mkldnn_batch_normalization_forward_desc_init(&data,
                         mkldnn::convert_to_c(aprop_kind), &src_desc.data,
-                        static_cast<double>(epsilon)),
+                        static_cast<double>(epsilon), _flags),
                 "could not create a batch normalization forward descriptor");
         }
     };
@@ -1650,20 +1657,51 @@ struct batch_normalization_forward : public primitive {
             c_api::const_mkldnn_primitive_desc_t const_bndesc =
                     c_api::mkldnn_primitive_desc_query_pd(get(),
                                mkldnn::convert_to_c(weights_pd), 0);
-            c_api::mkldnn_primitive_desc_clone(&bndesc, const_bndesc);
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_clone(&bndesc,
+                        const_bndesc),
+                    "could not clone a weights primitive descriptor");
             adesc.reset(bndesc);
             return adesc;
         }
 
-        memory::primitive_desc workspace_primitive_desc() const {
-            memory::primitive_desc adesc;
+        memory::primitive_desc mean_primitive_desc() const {
+            memory::primitive_desc aprimitive_desc;
             c_api::mkldnn_primitive_desc_t bndesc;
+            c_api::mkldnn_batch_normalization_desc_t p;
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_query(
+                    get(), mkldnn::convert_to_c(batch_normalization_d), 0, &p),
+                    "could not get a batch-normalization descriptor");
             c_api::const_mkldnn_primitive_desc_t const_bndesc =
+                (p.flags & use_global_stats) ?
                     c_api::mkldnn_primitive_desc_query_pd(get(),
-                               mkldnn::convert_to_c(workspace_pd), 0);
-            c_api::mkldnn_primitive_desc_clone(&bndesc, const_bndesc);
-            adesc.reset(bndesc);
-            return adesc;
+                        mkldnn::convert_to_c(src_pd), 1) :
+                    c_api::mkldnn_primitive_desc_query_pd(get(),
+                        mkldnn::convert_to_c(dst_pd), 1);
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_clone(&bndesc,
+                        const_bndesc),
+                    "could not clone a mean primitive descriptor");
+            aprimitive_desc.reset(bndesc);
+            return aprimitive_desc;
+        }
+
+        memory::primitive_desc variance_primitive_desc() const {
+            memory::primitive_desc aprimitive_desc;
+            c_api::mkldnn_primitive_desc_t bndesc;
+            c_api::mkldnn_batch_normalization_desc_t p;
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_query(
+                    get(), mkldnn::convert_to_c(batch_normalization_d), 0, &p),
+                    "could not get a batch-normalization descriptor");
+            c_api::const_mkldnn_primitive_desc_t const_bndesc =
+                (p.flags & use_global_stats) ?
+                    c_api::mkldnn_primitive_desc_query_pd(get(),
+                        mkldnn::convert_to_c(src_pd), 2) :
+                    c_api::mkldnn_primitive_desc_query_pd(get(),
+                        mkldnn::convert_to_c(dst_pd), 2);
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_clone(&bndesc,
+                        const_bndesc),
+                    "could not clone a variance primitive descriptor");
+            aprimitive_desc.reset(bndesc);
+            return aprimitive_desc;
         }
 
         memory::primitive_desc dst_primitive_desc() const {
@@ -1672,7 +1710,8 @@ struct batch_normalization_forward : public primitive {
             c_api::const_mkldnn_primitive_desc_t const_cdesc =
                 c_api::mkldnn_primitive_desc_query_pd(get(),
                                mkldnn::convert_to_c(dst_pd), 0);
-            error::wrap_c_api(c_api::mkldnn_primitive_desc_clone(&cdesc, const_cdesc),
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_clone(&cdesc,
+                        const_cdesc),
                     "could not clone a dst primitive descriptor");
             adesc.reset(cdesc);
             return adesc;
@@ -1731,12 +1770,14 @@ struct batch_normalization_forward : public primitive {
 struct batch_normalization_backward : public primitive {
     struct desc {
         c_api::mkldnn_batch_normalization_desc_t data;
+        template <typename T>
         desc(prop_kind aprop_kind, const memory::desc &diff_data_desc,
-                const memory::desc &data_desc) {
+                const memory::desc &data_desc, T epsilon, unsigned flags) {
             error::wrap_c_api(
                     c_api::mkldnn_batch_normalization_backward_desc_init(&data,
                         mkldnn::convert_to_c(aprop_kind),
-                        &diff_data_desc.data, &data_desc.data),
+                        &diff_data_desc.data, &data_desc.data,
+                        static_cast<double>(epsilon), flags),
                 "could not create a batch normalization backward descriptor");
         }
     };
@@ -1759,19 +1800,63 @@ struct batch_normalization_backward : public primitive {
             c_api::const_mkldnn_primitive_desc_t const_bndesc =
                     c_api::mkldnn_primitive_desc_query_pd(get(),
                                mkldnn::convert_to_c(weights_pd), 0);
-            c_api::mkldnn_primitive_desc_clone(&bndesc, const_bndesc);
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_clone(&bndesc,
+                        const_bndesc),
+                    "could not clone a weights primitive descriptor");
             adesc.reset(bndesc);
             return adesc;
         }
 
-        memory::primitive_desc workspace_primitive_desc() const {
-            memory::primitive_desc adesc;
+        memory::primitive_desc mean_primitive_desc() const {
+            memory::primitive_desc aprimitive_desc;
             c_api::mkldnn_primitive_desc_t bndesc;
+            c_api::mkldnn_batch_normalization_desc_t p;
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_query(
+                    get(), mkldnn::convert_to_c(batch_normalization_d), 0, &p),
+                    "could not get a batch-normalization descriptor");
             c_api::const_mkldnn_primitive_desc_t const_bndesc =
+                (p.flags & use_global_stats) ?
                     c_api::mkldnn_primitive_desc_query_pd(get(),
-                               mkldnn::convert_to_c(workspace_pd), 0);
-            c_api::mkldnn_primitive_desc_clone(&bndesc, const_bndesc);
-            adesc.reset(bndesc);
+                        mkldnn::convert_to_c(src_pd), 1) :
+                    c_api::mkldnn_primitive_desc_query_pd(get(),
+                        mkldnn::convert_to_c(dst_pd), 1);
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_clone(&bndesc,
+                        const_bndesc),
+                    "could not clone a mean primitive descriptor");
+            aprimitive_desc.reset(bndesc);
+            return aprimitive_desc;
+        }
+
+        memory::primitive_desc variance_primitive_desc() const {
+            memory::primitive_desc aprimitive_desc;
+            c_api::mkldnn_primitive_desc_t bndesc;
+            c_api::mkldnn_batch_normalization_desc_t p;
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_query(
+                    get(), mkldnn::convert_to_c(batch_normalization_d), 0, &p),
+                    "could not get a batch-normalization descriptor");
+            c_api::const_mkldnn_primitive_desc_t const_bndesc =
+                (p.flags & use_global_stats) ?
+                    c_api::mkldnn_primitive_desc_query_pd(get(),
+                        mkldnn::convert_to_c(src_pd), 2) :
+                    c_api::mkldnn_primitive_desc_query_pd(get(),
+                        mkldnn::convert_to_c(dst_pd), 2);
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_clone(&bndesc,
+                        const_bndesc),
+                    "could not clone a variance primitive descriptor");
+            aprimitive_desc.reset(bndesc);
+            return aprimitive_desc;
+        }
+
+        memory::primitive_desc dst_primitive_desc() const {
+            memory::primitive_desc adesc;
+            c_api::mkldnn_primitive_desc_t cdesc;
+            c_api::const_mkldnn_primitive_desc_t const_cdesc =
+                c_api::mkldnn_primitive_desc_query_pd(get(),
+                               mkldnn::convert_to_c(dst_pd), 0);
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_clone(&cdesc,
+                        const_cdesc),
+                    "could not clone a dst primitive descriptor");
+            adesc.reset(cdesc);
             return adesc;
         }
     };

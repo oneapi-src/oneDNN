@@ -39,23 +39,37 @@ struct cpu_batch_normalization_fwd_pd_t: public batch_normalization_fwd_pd_t {
             const batch_normalization_fwd_pd_t *hint_fwd_pd)
         : batch_normalization_fwd_pd_t(engine, adesc, hint_fwd_pd)
         , data_pd_(engine_, &desc_.data_desc)
-        , scaleshift_pd_(engine_, &desc_.data_scaleshift_desc)
-        , ws_pd_(engine_) {}
+        , mean_pd_(engine_)
+        , variance_pd_(engine_)
+        , scaleshift_pd_(engine_, &desc_.data_scaleshift_desc) {}
     virtual ~cpu_batch_normalization_fwd_pd_t() {}
 
-    virtual const cpu_memory_pd_t *src_pd(int index = 0) const override
-    { return index == 0 ? &data_pd_ : nullptr; }
-    virtual const cpu_memory_pd_t *dst_pd(int index = 0) const override
-    { return index == 0 ? &data_pd_ : nullptr; }
+    virtual const cpu_memory_pd_t *src_pd(int index = 0) const override {
+        if (index == 0) return &data_pd_;
+        if (stats_is_src()) {
+            if (index == 1) return &mean_pd_;
+            if (index == 2) return &variance_pd_;
+        }
+        return nullptr;
+    }
+
+    virtual const cpu_memory_pd_t *dst_pd(int index = 0) const override {
+        if (index == 0)  return &data_pd_;
+        if (!stats_is_src() && is_training()) {
+            if (index == 1) return &mean_pd_;
+            if (index == 2) return &variance_pd_;
+        }
+        return nullptr;
+    }
+
     virtual const cpu_memory_pd_t *weights_pd(int index = 0) const override
     { return index == 0 ? &scaleshift_pd_ : nullptr; }
-    virtual const cpu_memory_pd_t *workspace_pd(int index = 0) const override
-    { return (index == 0 && !ws_pd_.is_zero()) ? &ws_pd_ : nullptr; }
 
 protected:
     cpu_memory_pd_t data_pd_;
+    cpu_memory_pd_t mean_pd_;
+    cpu_memory_pd_t variance_pd_;
     cpu_memory_pd_t scaleshift_pd_;
-    cpu_memory_pd_t ws_pd_;
 
     virtual status_t init() = 0;
 };
@@ -68,14 +82,22 @@ struct cpu_batch_normalization_bwd_pd_t: public batch_normalization_bwd_pd_t {
             const batch_normalization_fwd_pd_t *hint_fwd_pd)
         : batch_normalization_bwd_pd_t(engine, adesc, hint_fwd_pd)
         , data_pd_(engine_, &desc_.data_desc)
+        , mean_pd_(engine_)
+        , variance_pd_(engine_)
         , diff_data_pd_(engine_, &desc_.diff_data_desc)
         , scaleshift_pd_(engine_, &desc_.data_scaleshift_desc)
-        , diff_scaleshift_pd_(engine_, &desc_.diff_data_scaleshift_desc)
-        , ws_pd_(engine_) {}
+        , diff_scaleshift_pd_(engine_, &desc_.diff_data_scaleshift_desc) {}
     virtual ~cpu_batch_normalization_bwd_pd_t() {}
 
-    virtual const cpu_memory_pd_t *src_pd(int index = 0) const override
-    { return index == 0 ? &data_pd_ : nullptr; }
+    virtual const cpu_memory_pd_t *src_pd(int index = 0) const override {
+        if (index == 0) return &data_pd_;
+        if (stats_is_src()) {
+            if (index == 1) return &mean_pd_;
+            if (index == 2) return &variance_pd_;
+        }
+        return nullptr;
+    }
+
     virtual const cpu_memory_pd_t *diff_dst_pd(int index = 0) const override
     { return index == 0 ? &diff_data_pd_ : nullptr; }
     virtual const cpu_memory_pd_t *weights_pd(int index = 0) const override
@@ -84,15 +106,14 @@ struct cpu_batch_normalization_bwd_pd_t: public batch_normalization_bwd_pd_t {
         override { return index == 0 ? &diff_scaleshift_pd_ : nullptr; }
     virtual const cpu_memory_pd_t *diff_src_pd(int index = 0) const override
     { return index == 0 ? &diff_data_pd_ : nullptr; }
-    virtual const cpu_memory_pd_t *workspace_pd(int index = 0) const override
-    { return (index == 0 && !ws_pd_.is_zero()) ? &ws_pd_ : nullptr; }
 
 protected:
     cpu_memory_pd_t data_pd_;
+    cpu_memory_pd_t mean_pd_;
+    cpu_memory_pd_t variance_pd_;
     cpu_memory_pd_t diff_data_pd_;
     cpu_memory_pd_t scaleshift_pd_;
     cpu_memory_pd_t diff_scaleshift_pd_;
-    cpu_memory_pd_t ws_pd_;
 
     virtual status_t init() = 0;
 };

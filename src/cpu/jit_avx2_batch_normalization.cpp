@@ -29,11 +29,24 @@ using namespace mkldnn::impl::memory_format;
 
 void jit_avx2_batch_normalization_fwd_t::execute_forward() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
-    auto scaleshift = reinterpret_cast<const data_t *>(this->input_memory(1));
+    /* FIXME: check this */
+   data_t* mean = conf_.stats_is_src() ?
+       const_cast<data_t*>(reinterpret_cast<const data_t*>(
+               this->input_memory(1))) :
+       reinterpret_cast<data_t*>(this->memory(1));
+
+   data_t* variance = conf_.stats_is_src() ?
+       const_cast<data_t*>(reinterpret_cast<const data_t*>(
+               this->input_memory(2))) :
+       reinterpret_cast<data_t*>(this->memory(2));
+
+    auto scaleshift = reinterpret_cast<const data_t *>(this->input_memory(3));
+
     auto dst = reinterpret_cast<data_t*>(this->memory(0));
-    auto ws = reinterpret_cast<data_t*>(this->memory(1));
 
     const memory_desc_wrapper data_d(conf_.src_pd());
+    const memory_desc_wrapper mean_d(conf_.mean_pd());
+    const memory_desc_wrapper variance_d(conf_.variance_pd());
     const memory_desc_wrapper scaleshift_d(conf_.weights_pd());
 
     const auto &jbp = kernel_->jbp;
@@ -49,7 +62,8 @@ void jit_avx2_batch_normalization_fwd_t::execute_forward() {
         arg.src = &src[d_off];
         arg.dst = &dst[d_off];
         arg.scaleshift = &scaleshift[scaleshift_d.off(0, c)];
-        arg.workspace = &ws[c];
+        arg.mean = &mean[mean_d.off(c)];
+        arg.variance = &variance[variance_d.off(c)];
 
         (*kernel_)(&arg);
     };
