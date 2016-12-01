@@ -138,7 +138,7 @@ protected:
     virtual status_t set_default_params() {
         using namespace memory_format;
         if (src_pd_.desc()->format == any)
-            CHECK(diff_weights_pd_.set_format(ndims() == 4 ? nchw : nc));
+            CHECK(src_pd_.set_format(ndims() == 4 ? nchw : nc));
         if (diff_dst_pd_.desc()->format == any)
             CHECK(diff_dst_pd_.set_format(nc));
         if (diff_weights_pd_.desc()->format == any)
