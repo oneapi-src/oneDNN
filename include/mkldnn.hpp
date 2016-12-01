@@ -1633,11 +1633,11 @@ struct batch_normalization_forward : public primitive {
         c_api::mkldnn_batch_normalization_desc_t data;
         template <typename T>
         desc(prop_kind aprop_kind, const memory::desc &src_desc, T epsilon,
-                unsigned _flags) {
+                unsigned flags) {
             error::wrap_c_api(
                     c_api::mkldnn_batch_normalization_forward_desc_init(&data,
                         mkldnn::convert_to_c(aprop_kind), &src_desc.data,
-                        static_cast<double>(epsilon), _flags),
+                        static_cast<double>(epsilon), flags),
                 "could not create a batch normalization forward descriptor");
         }
     };
@@ -1664,44 +1664,43 @@ struct batch_normalization_forward : public primitive {
             return adesc;
         }
 
-        memory::primitive_desc mean_primitive_desc() const {
-            memory::primitive_desc aprimitive_desc;
+        memory::primitive_desc diff_weights_primitive_desc() const {
+            memory::primitive_desc adesc;
             c_api::mkldnn_primitive_desc_t bndesc;
-            c_api::mkldnn_batch_normalization_desc_t p;
-            error::wrap_c_api(c_api::mkldnn_primitive_desc_query(
-                    get(), mkldnn::convert_to_c(batch_normalization_d), 0, &p),
-                    "could not get a batch-normalization descriptor");
             c_api::const_mkldnn_primitive_desc_t const_bndesc =
-                (p.flags & use_global_stats) ?
                     c_api::mkldnn_primitive_desc_query_pd(get(),
-                        mkldnn::convert_to_c(src_pd), 1) :
+                               mkldnn::convert_to_c(diff_weights_pd), 0);
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_clone(&bndesc,
+                        const_bndesc),
+                    "could not clone a diff_weights primitive descriptor");
+            adesc.reset(bndesc);
+            return adesc;
+        }
+
+        memory::primitive_desc mean_primitive_desc() const {
+            memory::primitive_desc adesc;
+            c_api::mkldnn_primitive_desc_t bndesc;
+            c_api::const_mkldnn_primitive_desc_t const_bndesc =
                     c_api::mkldnn_primitive_desc_query_pd(get(),
-                        mkldnn::convert_to_c(dst_pd), 1);
+                               mkldnn::convert_to_c(src_pd), 1);
             error::wrap_c_api(c_api::mkldnn_primitive_desc_clone(&bndesc,
                         const_bndesc),
                     "could not clone a mean primitive descriptor");
-            aprimitive_desc.reset(bndesc);
-            return aprimitive_desc;
+            adesc.reset(bndesc);
+            return adesc;
         }
 
         memory::primitive_desc variance_primitive_desc() const {
-            memory::primitive_desc aprimitive_desc;
+            memory::primitive_desc adesc;
             c_api::mkldnn_primitive_desc_t bndesc;
-            c_api::mkldnn_batch_normalization_desc_t p;
-            error::wrap_c_api(c_api::mkldnn_primitive_desc_query(
-                    get(), mkldnn::convert_to_c(batch_normalization_d), 0, &p),
-                    "could not get a batch-normalization descriptor");
             c_api::const_mkldnn_primitive_desc_t const_bndesc =
-                (p.flags & use_global_stats) ?
                     c_api::mkldnn_primitive_desc_query_pd(get(),
-                        mkldnn::convert_to_c(src_pd), 2) :
-                    c_api::mkldnn_primitive_desc_query_pd(get(),
-                        mkldnn::convert_to_c(dst_pd), 2);
+                               mkldnn::convert_to_c(src_pd), 2);
             error::wrap_c_api(c_api::mkldnn_primitive_desc_clone(&bndesc,
                         const_bndesc),
                     "could not clone a variance primitive descriptor");
-            aprimitive_desc.reset(bndesc);
-            return aprimitive_desc;
+            adesc.reset(bndesc);
+            return adesc;
         }
 
         memory::primitive_desc dst_primitive_desc() const {
@@ -1720,11 +1719,52 @@ struct batch_normalization_forward : public primitive {
 
     batch_normalization_forward(const primitive_desc &aprimitive_desc,
             const primitive::at &src, const primitive::at &weights,
-            const memory &workspace, const memory &dst) {
+            const primitive::at &mean, const primitive::at &variance,
+            const memory &dst) {
+        c_api::mkldnn_primitive_t result;
+        c_api::mkldnn_primitive_at_t inputs[] = { src.data,
+            mean.data, variance.data, weights.data };
+        c_api::const_mkldnn_primitive_t outputs[] = { dst.get() };
+        error::wrap_c_api(c_api::mkldnn_primitive_create(&result,
+                aprimitive_desc.get(), inputs, outputs),
+            "could not create a batch normalization forward primitive");
+        reset(result);
+    }
+
+    batch_normalization_forward(const primitive_desc &aprimitive_desc,
+            const primitive::at &src, const primitive::at &weights,
+            const memory &mean, const memory &variance,
+            const memory &dst) {
         c_api::mkldnn_primitive_t result;
         c_api::mkldnn_primitive_at_t inputs[] = { src.data, weights.data };
         c_api::const_mkldnn_primitive_t outputs[] = { dst.get(),
-                workspace.get() };
+            mean.get(), variance.get() };
+        error::wrap_c_api(c_api::mkldnn_primitive_create(&result,
+                aprimitive_desc.get(), inputs, outputs),
+            "could not create a batch normalization forward primitive");
+        reset(result);
+    }
+
+    batch_normalization_forward(const primitive_desc &aprimitive_desc,
+            const primitive::at &src, const primitive::at &mean,
+            const primitive::at &variance, const memory &dst) {
+        c_api::mkldnn_primitive_t result;
+        c_api::mkldnn_primitive_at_t inputs[] = { src.data,
+            mean.data, variance.data };
+        c_api::const_mkldnn_primitive_t outputs[] = { dst.get() };
+        error::wrap_c_api(c_api::mkldnn_primitive_create(&result,
+                aprimitive_desc.get(), inputs, outputs),
+            "could not create a batch normalization forward primitive");
+        reset(result);
+    }
+
+    batch_normalization_forward(const primitive_desc &aprimitive_desc,
+            const primitive::at &src, const memory &mean,
+            const memory &variance, const memory &dst) {
+        c_api::mkldnn_primitive_t result;
+        c_api::mkldnn_primitive_at_t inputs[] = { src.data };
+        c_api::const_mkldnn_primitive_t outputs[] = { dst.get(),
+            mean.get(), variance.get() };
         error::wrap_c_api(c_api::mkldnn_primitive_create(&result,
                 aprimitive_desc.get(), inputs, outputs),
             "could not create a batch normalization forward primitive");
@@ -1743,28 +1783,16 @@ struct batch_normalization_forward : public primitive {
         reset(result);
     }
 
-    /*
-    batch_normalization_forward(prop_kind aprop_kind,
-        const primitive::at &src, const memory &dst,
-        const primitive::at &scaleshift, const primitive::at &workspace,
-        double epsilon) {
-        auto src_md = memory(src).get_primitive_desc();
-        auto dst_md = dst.get_primitive_desc();
-        auto scaleshift_md = memory(scaleshift).get_primitive_desc();
-
-        auto batch_normalization_d = desc(aprop_kind,
-            src_md.desc(), dst_md.desc(), scaleshift_md.desc(), epsilon);
-        auto batch_normalization_pd = primitive_desc(batch_normalization_d,
-            engine(src_md.data.base.engine));
-
+    batch_normalization_forward(const primitive_desc &aprimitive_desc,
+            const primitive::at &src, const memory &dst) {
         c_api::mkldnn_primitive_t result;
-        error::wrap_c_api(c_api::mkldnn_batch_normalization_create(&result,
-            &batch_normalization_pd.data, src.data, dst.get(), scaleshift.data,
-            workspace.data),
-            "could not create a batch normalization primitive");
+        c_api::mkldnn_primitive_at_t inputs[] = { src.data };
+        c_api::const_mkldnn_primitive_t outputs[] = { dst.get() };
+        error::wrap_c_api(c_api::mkldnn_primitive_create(&result,
+                aprimitive_desc.get(), inputs, outputs),
+            "could not create a batch normalization forward primitive");
         reset(result);
     }
-    */
 };
 
 struct batch_normalization_backward : public primitive {
@@ -1861,13 +1889,15 @@ struct batch_normalization_backward : public primitive {
         }
     };
 
+    // Prop_kind == backward
     batch_normalization_backward(const primitive_desc &aprimitive_desc,
             const primitive::at &src, const primitive::at &diff_dst,
-            const primitive::at &weights, const primitive::at &workspace,
-            const memory &diff_src, const memory &diff_weights) {
+            const primitive::at &weights, const primitive::at &mean,
+            const primitive::at &variance, const memory &diff_src,
+            const memory &diff_weights) {
         c_api::mkldnn_primitive_t result;
-        c_api::mkldnn_primitive_at_t inputs[] = { src.data, diff_dst.data,
-                weights.data, workspace.data };
+        c_api::mkldnn_primitive_at_t inputs[] = { src.data,
+            mean.data, variance.data, diff_dst.data, weights.data };
         c_api::const_mkldnn_primitive_t outputs[] = { diff_src.get(),
                 diff_weights.get() };
         error::wrap_c_api(c_api::mkldnn_primitive_create(&result,
@@ -1876,13 +1906,29 @@ struct batch_normalization_backward : public primitive {
         reset(result);
     }
 
+    // Prop_kind == backward_data
     batch_normalization_backward(const primitive_desc &aprimitive_desc,
             const primitive::at &src, const primitive::at &diff_dst,
-            const primitive::at &weights, const primitive::at &workspace,
+            const primitive::at &weights, const primitive::at &mean,
+            const primitive::at &variance, const memory &diff_src) {
+        c_api::mkldnn_primitive_t result;
+        c_api::mkldnn_primitive_at_t inputs[] = { src.data,
+            mean.data, variance.data, diff_dst.data, weights.data };
+        c_api::const_mkldnn_primitive_t outputs[] = { diff_src.get() };
+        error::wrap_c_api(c_api::mkldnn_primitive_create(&result,
+                aprimitive_desc.get(), inputs, outputs),
+            "could not create a batch normalization backward primitive");
+        reset(result);
+    }
+
+    // Prop_kind == backward_data
+    batch_normalization_backward(const primitive_desc &aprimitive_desc,
+            const primitive::at &src, const primitive::at &diff_dst,
+            const primitive::at &mean, const primitive::at &variance,
             const memory &diff_src) {
         c_api::mkldnn_primitive_t result;
-        c_api::mkldnn_primitive_at_t inputs[] = { src.data, diff_dst.data,
-                weights.data, workspace.data };
+        c_api::mkldnn_primitive_at_t inputs[] = { src.data,
+            mean.data, variance.data, diff_dst.data };
         c_api::const_mkldnn_primitive_t outputs[] = { diff_src.get() };
         error::wrap_c_api(c_api::mkldnn_primitive_create(&result,
                 aprimitive_desc.get(), inputs, outputs),
