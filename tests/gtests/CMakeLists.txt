@@ -37,8 +37,7 @@ file(GLOB PRIM_TEST_CASES_SRC RELATIVE ${CMAKE_SOURCE_DIR}/tests/gtests
                               test_lrn_backward.cpp
                               test_pooling_forward.cpp
                               test_pooling_backward.cpp
-                              test_batch_normalization_forward.cpp
-                              test_batch_normalization_backward.cpp
+                              test_batch_normalization.cpp
                               test_inner_product_forward.cpp
                               test_inner_product_backward_data.cpp
                               test_inner_product_backward_weights.cpp
