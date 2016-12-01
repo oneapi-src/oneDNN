@@ -1192,13 +1192,26 @@ struct lrn_forward : public primitive {
             reset(result);
         }
 
+        memory::primitive_desc src_primitive_desc() const {
+            memory::primitive_desc adesc;
+            c_api::mkldnn_primitive_desc_t cdesc;
+            c_api::const_mkldnn_primitive_desc_t const_cdesc =
+                c_api::mkldnn_primitive_desc_query_pd(get(),
+                               mkldnn::convert_to_c(src_pd), 0);
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_clone(&cdesc, const_cdesc),
+                    "could not clone a src primitive descriptor");
+            adesc.reset(cdesc);
+            return adesc;
+        }
+
         memory::primitive_desc workspace_primitive_desc() const {
             memory::primitive_desc adesc;
             c_api::mkldnn_primitive_desc_t ldesc;
             c_api::const_mkldnn_primitive_desc_t const_ldesc =
                     c_api::mkldnn_primitive_desc_query_pd(get(),
                                mkldnn::convert_to_c(workspace_pd), 0);
-            c_api::mkldnn_primitive_desc_clone(&ldesc, const_ldesc);
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_clone(&ldesc, const_ldesc),
+                    "could not clone a workspace primitive descriptor");
             adesc.reset(ldesc);
             return adesc;
         }
@@ -1263,6 +1276,42 @@ struct lrn_backward : public primitive {
                     &result, &adesc.data, aengine.get(), nullptr),
                 "could not create a lrn backward primitive descriptor");
             reset(result);
+        }
+
+        memory::primitive_desc diff_src_primitive_desc() const {
+            memory::primitive_desc adesc;
+            c_api::mkldnn_primitive_desc_t cdesc;
+            c_api::const_mkldnn_primitive_desc_t const_cdesc =
+                c_api::mkldnn_primitive_desc_query_pd(get(),
+                               mkldnn::convert_to_c(diff_src_pd), 0);
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_clone(&cdesc, const_cdesc),
+                    "could not clone a diff_src primitive descriptor");
+            adesc.reset(cdesc);
+            return adesc;
+        }
+
+        memory::primitive_desc workspace_primitive_desc() const {
+            memory::primitive_desc adesc;
+            c_api::mkldnn_primitive_desc_t ldesc;
+            c_api::const_mkldnn_primitive_desc_t const_ldesc =
+                    c_api::mkldnn_primitive_desc_query_pd(get(),
+                               mkldnn::convert_to_c(workspace_pd), 0);
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_clone(&ldesc, const_ldesc),
+                    "could not clone a workspace primitive descriptor");
+            adesc.reset(ldesc);
+            return adesc;
+        }
+
+        memory::primitive_desc diff_dst_primitive_desc() const {
+            memory::primitive_desc adesc;
+            c_api::mkldnn_primitive_desc_t cdesc;
+            c_api::const_mkldnn_primitive_desc_t const_cdesc =
+                c_api::mkldnn_primitive_desc_query_pd(get(),
+                               mkldnn::convert_to_c(diff_dst_pd), 0);
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_clone(&cdesc, const_cdesc),
+                    "could not clone a diff_dst primitive descriptor");
+            adesc.reset(cdesc);
+            return adesc;
         }
     };
 
