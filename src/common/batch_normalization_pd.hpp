@@ -48,6 +48,9 @@ struct batch_normalization_fwd_pd_t: public primitive_desc_t {
             if (index == 1) return mean_pd();
             if (index == 2) return variance_pd();
         }
+        if (use_scaleshift() && index == 1 + 2*stats_is_src()) {
+            return weights_pd();
+        }
         return nullptr;
     }
     virtual const memory_pd_t *output_pd(int index = 0) const override {
@@ -121,10 +124,10 @@ struct batch_normalization_bwd_pd_t: public primitive_desc_t {
 
     virtual const memory_pd_t *input_pd(int index = 0) const override {
         if (index == 0) return src_pd();
-        if (index == 1) return src_pd(1);
-        if (index == 2) return src_pd(2);
+        if (index == 1) return mean_pd();
+        if (index == 2) return variance_pd();
         if (index == 3) return diff_dst_pd();
-        if (index == 4) return weights_pd();
+        if (use_scaleshift() && index == 4) return weights_pd();
         return nullptr;
     }
     virtual const memory_pd_t *output_pd(int index = 0) const override {
@@ -134,24 +137,21 @@ struct batch_normalization_bwd_pd_t: public primitive_desc_t {
     }
 
     virtual const memory_pd_t *mean_pd() const {
-        return stats_is_src() ? src_pd(1) : dst_pd(1); }
+        return src_pd(1); }
 
     virtual const memory_pd_t *variance_pd() const {
-        return stats_is_src() ? src_pd(2) : dst_pd(2); }
-
-    inline bool stats_is_src() const {
-        return desc_.flags && mkldnn_use_global_stats; }
+        return src_pd(2); }
 
     inline bool use_scaleshift() const {
         return desc_.flags & mkldnn_use_scaleshift; }
 
     inline bool omit_stats() const {
-        return desc_.flags && mkldnn_omit_stats; }
+        return desc_.flags & mkldnn_omit_stats; }
 
     virtual int n_inputs() const override
     { return 4 + use_scaleshift(); }
     virtual int n_outputs() const override
-    { return 1 + (diff_weights_pd()->desc()->format != mkldnn_format_undef); }
+    { return 1 + (desc_.prop_kind == prop_kind::backward); }
 
     virtual status_t query(query_t what, int idx, void *result) const override
     {

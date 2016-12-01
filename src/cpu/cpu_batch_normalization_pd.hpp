@@ -91,10 +91,9 @@ struct cpu_batch_normalization_bwd_pd_t: public batch_normalization_bwd_pd_t {
 
     virtual const cpu_memory_pd_t *src_pd(int index = 0) const override {
         if (index == 0) return &data_pd_;
-        if (stats_is_src()) {
-            if (index == 1) return &mean_pd_;
-            if (index == 2) return &variance_pd_;
-        }
+        if (index == 1) return &mean_pd_;
+        if (index == 2) return &variance_pd_;
+
         return nullptr;
     }
 
