@@ -218,6 +218,9 @@ protected:
         auto training = prop_kind::forward_training;
         auto scoring = prop_kind::forward_scoring;
 
+        auto backward = prop_kind::backward;
+        auto backward_data = prop_kind::backward_data;
+
         // TODO: check me
         Forward(use_global_stats, training);
         Forward(0u, prop_kind::forward_scoring);
@@ -226,12 +229,12 @@ protected:
         Forward(use_scale_shift, scoring);
         Forward(use_scale_shift, training);
 
-        Backward(use_scale_shift | omit_stats, prop_kind::backward);
-        Backward(use_scale_shift, prop_kind::backward);
-        Backward(omit_stats, prop_kind::backward_data);
-        Backward(0u, prop_kind::backward_data);
-        Backward(use_scale_shift | omit_stats, prop_kind::backward_data);
-        Backward(use_scale_shift, prop_kind::backward_data);
+        Backward(use_scale_shift | omit_stats, backward);
+        Backward(use_scale_shift, backward);
+        Backward(omit_stats, backward_data);
+        Backward(0u, backward_data);
+        Backward(use_scale_shift | omit_stats, backward_data);
+        Backward(use_scale_shift, backward_data);
     }
 
     void Forward(unsigned flags, prop_kind pk) {
@@ -318,7 +321,7 @@ protected:
         } else {
             return useScaleShift
                 ? batch_normalization_forward(*bnrm_prim_desc,
-                    *src, *weights, *mean, *variance, *dst)
+                    *src, *mean, *variance, *weights, *dst)
                 : batch_normalization_forward(*bnrm_prim_desc,
                     *src, *mean, *variance, *dst);
         }
@@ -329,13 +332,13 @@ protected:
         if (useScaleShift) {
             return pk == prop_kind::backward
                 ? batch_normalization_backward(*bnrm_bwd_prim_desc,
-                    *src, *diff_dst, *weights, *mean, *variance, *diff_src)
+                    *src, *mean, *variance, *diff_dst, *weights, *diff_src)
                 : batch_normalization_backward(*bnrm_bwd_prim_desc,
-                    *src, *diff_dst, *weights, *mean, *variance,
+                    *src, *mean, *variance, *diff_dst, *weights,
                     *diff_src, *diff_weights);
         } else {
             return batch_normalization_backward(*bnrm_bwd_prim_desc,
-                    *src, *diff_dst, *mean, *variance, *diff_src);
+                    *src, *mean, *variance, *diff_dst, *diff_src);
         }
     }
 };

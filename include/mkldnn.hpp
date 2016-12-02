@@ -1718,12 +1718,25 @@ struct batch_normalization_forward : public primitive {
     };
 
     batch_normalization_forward(const primitive_desc &aprimitive_desc,
-            const primitive::at &src, const primitive::at &weights,
-            const primitive::at &mean, const primitive::at &variance,
+            const primitive::at &src, const primitive::at &mean,
+            const primitive::at &variance, const primitive::at &weights,
             const memory &dst) {
         c_api::mkldnn_primitive_t result;
         c_api::mkldnn_primitive_at_t inputs[] = { src.data,
             mean.data, variance.data, weights.data };
+        c_api::const_mkldnn_primitive_t outputs[] = { dst.get() };
+        error::wrap_c_api(c_api::mkldnn_primitive_create(&result,
+                aprimitive_desc.get(), inputs, outputs),
+            "could not create a batch normalization forward primitive");
+        reset(result);
+    }
+
+    batch_normalization_forward(const primitive_desc &aprimitive_desc,
+            const primitive::at &src, const primitive::at &mean,
+            const primitive::at &variance, const memory &dst) {
+        c_api::mkldnn_primitive_t result;
+        c_api::mkldnn_primitive_at_t inputs[] = { src.data,
+            mean.data, variance.data };
         c_api::const_mkldnn_primitive_t outputs[] = { dst.get() };
         error::wrap_c_api(c_api::mkldnn_primitive_create(&result,
                 aprimitive_desc.get(), inputs, outputs),
@@ -1739,19 +1752,6 @@ struct batch_normalization_forward : public primitive {
         c_api::mkldnn_primitive_at_t inputs[] = { src.data, weights.data };
         c_api::const_mkldnn_primitive_t outputs[] = { dst.get(),
             mean.get(), variance.get() };
-        error::wrap_c_api(c_api::mkldnn_primitive_create(&result,
-                aprimitive_desc.get(), inputs, outputs),
-            "could not create a batch normalization forward primitive");
-        reset(result);
-    }
-
-    batch_normalization_forward(const primitive_desc &aprimitive_desc,
-            const primitive::at &src, const primitive::at &mean,
-            const primitive::at &variance, const memory &dst) {
-        c_api::mkldnn_primitive_t result;
-        c_api::mkldnn_primitive_at_t inputs[] = { src.data,
-            mean.data, variance.data };
-        c_api::const_mkldnn_primitive_t outputs[] = { dst.get() };
         error::wrap_c_api(c_api::mkldnn_primitive_create(&result,
                 aprimitive_desc.get(), inputs, outputs),
             "could not create a batch normalization forward primitive");
@@ -1891,9 +1891,9 @@ struct batch_normalization_backward : public primitive {
 
     // Prop_kind == backward
     batch_normalization_backward(const primitive_desc &aprimitive_desc,
-            const primitive::at &src, const primitive::at &diff_dst,
-            const primitive::at &weights, const primitive::at &mean,
-            const primitive::at &variance, const memory &diff_src,
+            const primitive::at &src, const primitive::at &mean,
+            const primitive::at &variance, const primitive::at &diff_dst,
+            const primitive::at &weights, const memory &diff_src,
             const memory &diff_weights) {
         c_api::mkldnn_primitive_t result;
         c_api::mkldnn_primitive_at_t inputs[] = { src.data,
@@ -1908,9 +1908,9 @@ struct batch_normalization_backward : public primitive {
 
     // Prop_kind == backward_data
     batch_normalization_backward(const primitive_desc &aprimitive_desc,
-            const primitive::at &src, const primitive::at &diff_dst,
-            const primitive::at &weights, const primitive::at &mean,
-            const primitive::at &variance, const memory &diff_src) {
+            const primitive::at &src, const primitive::at &mean,
+            const primitive::at &variance,const primitive::at &diff_dst,
+            const primitive::at &weights,  const memory &diff_src) {
         c_api::mkldnn_primitive_t result;
         c_api::mkldnn_primitive_at_t inputs[] = { src.data,
             mean.data, variance.data, diff_dst.data, weights.data };
@@ -1923,8 +1923,8 @@ struct batch_normalization_backward : public primitive {
 
     // Prop_kind == backward_data
     batch_normalization_backward(const primitive_desc &aprimitive_desc,
-            const primitive::at &src, const primitive::at &diff_dst,
-            const primitive::at &mean, const primitive::at &variance,
+            const primitive::at &src, const primitive::at &mean,
+            const primitive::at &variance, const primitive::at &diff_dst,
             const memory &diff_src) {
         c_api::mkldnn_primitive_t result;
         c_api::mkldnn_primitive_at_t inputs[] = { src.data,
