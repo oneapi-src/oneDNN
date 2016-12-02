@@ -1838,12 +1838,12 @@ struct batch_normalization_backward : public primitive {
         memory::primitive_desc mean_primitive_desc() const {
             memory::primitive_desc aprimitive_desc;
             c_api::mkldnn_primitive_desc_t bndesc;
-            c_api::mkldnn_batch_normalization_desc_t p;
+            c_api::mkldnn_batch_normalization_desc_t *p;
             error::wrap_c_api(c_api::mkldnn_primitive_desc_query(
                     get(), mkldnn::convert_to_c(batch_normalization_d), 0, &p),
                     "could not get a batch-normalization descriptor");
             c_api::const_mkldnn_primitive_desc_t const_bndesc =
-                (p.flags & use_global_stats) ?
+                (p->flags & use_global_stats) ?
                     c_api::mkldnn_primitive_desc_query_pd(get(),
                         mkldnn::convert_to_c(src_pd), 1) :
                     c_api::mkldnn_primitive_desc_query_pd(get(),
@@ -1858,12 +1858,12 @@ struct batch_normalization_backward : public primitive {
         memory::primitive_desc variance_primitive_desc() const {
             memory::primitive_desc aprimitive_desc;
             c_api::mkldnn_primitive_desc_t bndesc;
-            c_api::mkldnn_batch_normalization_desc_t p;
+            c_api::mkldnn_batch_normalization_desc_t *p;
             error::wrap_c_api(c_api::mkldnn_primitive_desc_query(
                     get(), mkldnn::convert_to_c(batch_normalization_d), 0, &p),
                     "could not get a batch-normalization descriptor");
             c_api::const_mkldnn_primitive_desc_t const_bndesc =
-                (p.flags & use_global_stats) ?
+                (p->flags & use_global_stats) ?
                     c_api::mkldnn_primitive_desc_query_pd(get(),
                         mkldnn::convert_to_c(src_pd), 2) :
                     c_api::mkldnn_primitive_desc_query_pd(get(),
