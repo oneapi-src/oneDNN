@@ -82,7 +82,7 @@ struct batch_normalization_fwd_pd_t: public primitive_desc_t {
     virtual int n_inputs() const override {
         return 1 + 2*(stats_is_src()) + use_scaleshift(); }
     virtual int n_outputs() const override {
-        return 1 + 2*(!stats_is_src()); }
+        return 1 + 2*(!stats_is_src())*(is_training()); }
 
     virtual status_t query(query_t what, int idx, void *result) const override
     {

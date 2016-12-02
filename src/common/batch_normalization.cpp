@@ -60,7 +60,8 @@ status_t bnrm_desc_init(batch_normalization_desc_t *bnrm_desc,
 
     bd.batch_norm_epsilon = epsilon;
 
-    unsigned bnorm_flags = mkldnn_use_global_stats | mkldnn_omit_stats;
+    unsigned bnorm_flags =
+        mkldnn_use_global_stats | mkldnn_omit_stats | mkldnn_use_scaleshift;
     if ((~bnorm_flags & flags) != 0) return invalid_arguments;
 
     bd.flags = flags;

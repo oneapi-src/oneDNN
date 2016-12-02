@@ -222,19 +222,19 @@ protected:
         auto backward_data = prop_kind::backward_data;
 
         // TODO: check me
-        Forward(use_global_stats, training);
-        Forward(0u, prop_kind::forward_scoring);
+        Forward(0u, scoring);
         Forward(0u, training);
-        Forward(use_scale_shift | use_global_stats, training);
+        Forward(use_global_stats, training);
         Forward(use_scale_shift, scoring);
         Forward(use_scale_shift, training);
+        Forward(use_scale_shift | use_global_stats, training);
 
-        Backward(use_scale_shift | omit_stats, backward);
-        Backward(use_scale_shift, backward);
-        Backward(omit_stats, backward_data);
         Backward(0u, backward_data);
-        Backward(use_scale_shift | omit_stats, backward_data);
+        Backward(omit_stats, backward_data);
+        Backward(use_scale_shift, backward);
         Backward(use_scale_shift, backward_data);
+        Backward(use_scale_shift | omit_stats, backward);
+        Backward(use_scale_shift | omit_stats, backward_data);
     }
 
     void Forward(unsigned flags, prop_kind pk) {
@@ -319,11 +319,21 @@ protected:
                     *src, *weights, *dst)
                 : batch_normalization_forward(*bnrm_prim_desc, *src, *dst);
         } else {
-            return useScaleShift
-                ? batch_normalization_forward(*bnrm_prim_desc,
-                    *src, *mean, *variance, *weights, *dst)
-                : batch_normalization_forward(*bnrm_prim_desc,
-                    *src, *mean, *variance, *dst);
+            if (useGlobalStats) {
+                return useScaleShift
+                    ? batch_normalization_forward(*bnrm_prim_desc,
+                        *src, (const primitive::at)*mean,
+                        (const primitive::at)*variance, *weights, *dst)
+                    : batch_normalization_forward(*bnrm_prim_desc,
+                        *src, (const primitive::at)*mean,
+                        (const primitive::at)*variance, *dst);
+            } else {
+                return useScaleShift
+                    ? batch_normalization_forward(*bnrm_prim_desc,
+                        *src, *mean, *variance, *weights, *dst)
+                    : batch_normalization_forward(*bnrm_prim_desc,
+                        *src, *mean, *variance, *dst);
+            }
         }
     }
 
