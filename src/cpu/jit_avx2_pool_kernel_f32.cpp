@@ -19,6 +19,12 @@
 
 #include "jit_avx2_pool_kernel_f32.hpp"
 
+namespace mkldnn {
+namespace impl {
+namespace cpu {
+
+using namespace Xbyak;
+
 #define ymm_store_mask Ymm(15)
 #define ymm_input Ymm(14)
 #define ymm_tmp Ymm(13)
@@ -35,10 +41,6 @@
 #define xmm_ji_offset Xmm(8)
 #define ymm_offset_base Ymm(7)
 #define xmm_offset_base Xmm(7)
-
-namespace mkldnn {
-namespace impl {
-namespace cpu {
 
 status_t jit_avx2_pool_kernel_f32::init_conf(jit_pool_conf_t &jpp,
             const pooling_desc_t &pd, const memory_desc_wrapper &src_d,
@@ -83,7 +85,7 @@ status_t jit_avx2_pool_kernel_f32::init_conf(jit_pool_conf_t &jpp,
 }
 
 inline void jit_avx2_pool_kernel_f32::avg_oh_step(int ur_w, int pad_l,
-        int pad_r, const char* kh_lable) {
+        int pad_r, const char* kh_label) {
     using Xbyak::Ymm;
     using Xbyak::Xmm;
 
@@ -93,13 +95,7 @@ inline void jit_avx2_pool_kernel_f32::avg_oh_step(int ur_w, int pad_l,
     int stride_w = jpp.stride_w;
     int c_block = jpp.c_block;
 
-    union {
-        float _devider;
-        int _devider_int;
-    } cvt;
-    cvt._devider = kw*kh;
-
-    mov(tmp_gpr, cvt._devider_int);
+    mov(tmp_gpr, float2int(kw * kh));
     movq(xmm_tmp, tmp_gpr);
     vbroadcastss(ymm_tmp, xmm_tmp);
 
@@ -108,7 +104,7 @@ inline void jit_avx2_pool_kernel_f32::avg_oh_step(int ur_w, int pad_l,
 
     mov(aux_reg_input , reg_input);
     xor_(kj, kj);
-    L(kh_lable);
+    L(kh_label);
     {
         for (int ki = 0; ki < kw; ki++) {
             int jj_start = nstl::max(0, pad_l - ki);
@@ -125,26 +121,18 @@ inline void jit_avx2_pool_kernel_f32::avg_oh_step(int ur_w, int pad_l,
         add(aux_reg_input,  sizeof(float) * iw * c_block);
         inc(kj);
         cmp(kj, reg_kh);
-        jl(kh_lable, T_NEAR);
+        jl(kh_label, T_NEAR);
     }
 
     for (int jj = 0; jj < ur_w; jj++) {
         vdivps(Ymm(jj), Ymm(jj), ymm_tmp);
-        vmovups(YWORD[reg_output + sizeof(float)*jj*c_block], Ymm(jj));
+        vmovups(yword[reg_output + sizeof(float)*jj*c_block], Ymm(jj));
     }
 }
 
 inline void jit_avx2_pool_kernel_f32::max_oh_step(int ur_w, int pad_l,
-        int pad_r, const char *kh_lable) {
-    using Xbyak::Ymm;
-    using Xbyak::Xmm;
-
-    unsigned char _cmp = 1;
-    union {
-        float _flt_max;
-        int _flt_max_int;
-    } cvt;
-    cvt._flt_max = -FLT_MAX;
+        int pad_r, const char *kh_label) {
+    unsigned char _cmp_lt_os = 1;
 
     int iw = jpp.iw;
     int kw = jpp.kw;
@@ -153,7 +141,7 @@ inline void jit_avx2_pool_kernel_f32::max_oh_step(int ur_w, int pad_l,
 
     vpxor(ymm_store_mask, ymm_store_mask);
 
-    mov(tmp_gpr, cvt._flt_max_int);
+    mov(tmp_gpr, float2int(-FLT_MAX));
     movq(xmm_tmp, tmp_gpr);
     vbroadcastss(ymm_tmp, xmm_tmp);
     for (int jj = 0; jj < ur_w; jj++)
@@ -161,7 +149,7 @@ inline void jit_avx2_pool_kernel_f32::max_oh_step(int ur_w, int pad_l,
 
     mov(aux_reg_input, reg_input);
     xor_(kj, kj);
-    L(kh_lable);
+    L(kh_label);
     {
         if (jpp.is_training) {
             vpxor(ymm_ki_offset, ymm_ki_offset);
@@ -188,7 +176,7 @@ inline void jit_avx2_pool_kernel_f32::max_oh_step(int ur_w, int pad_l,
                 }
                 vmovups(ymm_input,
                         ptr[aux_reg_input + sizeof(float)*aux_input_offset]);
-                vcmpps(ymm_store_mask, Ymm(jj), ymm_input, _cmp);
+                vcmpps(ymm_store_mask, Ymm(jj), ymm_input, _cmp_lt_os);
                 vblendvps(Ymm(jj), Ymm(jj), ymm_input, ymm_store_mask);
                 if (jpp.is_training) {
                     vblendvps(Ymm(ur_w+jj), Ymm(ur_w+jj), ymm_index,
@@ -203,13 +191,13 @@ inline void jit_avx2_pool_kernel_f32::max_oh_step(int ur_w, int pad_l,
         add(aux_reg_input,  sizeof(float) * iw * c_block);
         inc(kj);
         cmp(kj, reg_kh);
-        jl(kh_lable, T_NEAR);
+        jl(kh_label, T_NEAR);
     }
 
     for (int jj = 0; jj < ur_w; jj++) {
-        vmovups(YWORD[reg_output + sizeof(float)*jj*c_block], Ymm(jj));
+        vmovups(yword[reg_output + sizeof(float)*jj*c_block], Ymm(jj));
         if (jpp.is_training)
-            vmovdqu(YWORD[reg_index + sizeof(int)*jj*c_block], Ymm(ur_w+jj));
+            vmovdqu(yword[reg_index + sizeof(int)*jj*c_block], Ymm(ur_w+jj));
     }
 }
 

@@ -24,12 +24,14 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
+using namespace Xbyak;
+
 status_t jit_avx2_bnrm_kernel_f32::init_conf(jit_bnrm_conf_t &jbp,
         const batch_normalization_desc_t &bnd,
         const memory_desc_wrapper &data_d,
         const memory_desc_wrapper &scaleshift_d, bool is_training) {
     bool args_ok = (data_d.format() == memory_format::nChw8c ||
-            ( data_d.format() == memory_format::nchw
+            (data_d.format() == memory_format::nchw
               && data_d.dims()[2] == 1 && data_d.dims()[3] == 1))
         && scaleshift_d.format() == memory_format::nc;
     if (!args_ok) return status::unimplemented;
@@ -51,8 +53,6 @@ status_t jit_avx2_bnrm_kernel_f32::init_conf(jit_bnrm_conf_t &jbp,
 }
 
 inline void jit_avx2_bnrm_kernel_f32::mean_compute(int block_size) {
-    using Xbyak::Ymm;
-
     int block_8 = block_size / 8;
     int block_tail = block_size % 8;
     for (int i = 0; i < block_8; i++) {
@@ -68,8 +68,6 @@ inline void jit_avx2_bnrm_kernel_f32::mean_compute(int block_size) {
 }
 
 inline void jit_avx2_bnrm_kernel_f32::variance_compute(int block_size) {
-    using Xbyak::Ymm;
-
     int block_4 = block_size / 4;
     int block_tail = block_size % 4;
 
@@ -90,8 +88,6 @@ inline void jit_avx2_bnrm_kernel_f32::variance_compute(int block_size) {
 }
 
 inline void jit_avx2_bnrm_kernel_f32::dst_compute(int block_size) {
-    using Xbyak::Ymm;
-
     int block_8 = block_size / 8;
     int block_tail = block_size % 8;
     for (int i = 0; i < block_8; i++) {
@@ -115,12 +111,6 @@ inline void jit_avx2_bnrm_kernel_f32::dst_compute(int block_size) {
 }
 
 void jit_avx2_bnrm_kernel_f32::generate() {
-    using Xbyak::Ymm;
-    union {
-        float _sp_value;
-        int _int_value;
-    } cvt;
-
     int N = jbp.mb;
     int spatial = jbp.w*jbp.h;
     int n_blocks = spatial / jbp.wh_block;
@@ -138,18 +128,15 @@ void jit_avx2_bnrm_kernel_f32::generate() {
     vpxor(ymm_mean, ymm_mean);
     vpxor(ymm_variance, ymm_variance);
 
-    cvt._sp_value = (float)(spatial * N);
-    mov(tmp_gpr, cvt._int_value);
+    mov(tmp_gpr, float2int(spatial * N));
     movq(xmm_spatial_n, tmp_gpr);
     vbroadcastss(ymm_spatial_n, xmm_spatial_n);
 
-    cvt._sp_value = (float)(jbp.eps);
-    mov(tmp_gpr, cvt._int_value);
+    mov(tmp_gpr, float2int(jbp.eps));
     movq(xmm_epsilon, tmp_gpr);
     vbroadcastss(ymm_epsilon, xmm_epsilon);
 
-    cvt._sp_value = (float)(1.0);
-    mov(tmp_gpr, cvt._int_value);
+    mov(tmp_gpr, float2int(1.0));
     movq(xmm_one, tmp_gpr);
     vbroadcastss(ymm_one, xmm_one);
 

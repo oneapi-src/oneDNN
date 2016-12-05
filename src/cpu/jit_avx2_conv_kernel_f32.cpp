@@ -30,11 +30,11 @@ namespace cpu {
 using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::utils;
 
+using namespace Xbyak;
 
 void jit_avx2_conv_fwd_kernel_f32::oh_step_unroll_kw(int ur_w, int pad_l,
-        int pad_r) {
-    using Xbyak::Ymm;
-
+        int pad_r)
+{
     int iw = jcp.iw;
     int ih = jcp.ih;
     int kw = jcp.kw;
@@ -72,9 +72,7 @@ void jit_avx2_conv_fwd_kernel_f32::oh_step_unroll_kw(int ur_w, int pad_l,
 
 void jit_avx2_conv_fwd_kernel_f32::oh_step_nopad(int ur_w, int pad_l, int pad_r,
         char pad_label) {
-    using Xbyak::Ymm;
-    char kw_label[4] = ".wP";
-    kw_label[2] = pad_label;
+    char kw_label[4] = {'.', 'w', pad_label, '\0'};
 
     int iw = jcp.iw;
     int ih = jcp.ih;
@@ -122,8 +120,6 @@ void jit_avx2_conv_fwd_kernel_f32::oh_step_nopad(int ur_w, int pad_l, int pad_r,
 
 void jit_avx2_conv_fwd_kernel_f32::width_blk_step(int ur_w, int pad_l, int pad_r,
         char pad_label) {
-    using Xbyak::Ymm;
-
     int iw = jcp.iw;
     int kw = jcp.kw;
     int ow = jcp.ow;
@@ -133,15 +129,15 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(int ur_w, int pad_l, int pad_r
     int oc_blk = jcp.oc_block;
     const int inp_mult = jcp.src_fmt == nchw ? 1 : ic_blk;
 
-    char init_done_label[4] = {'.', 'i', pad_label, '\0'};
-    char init_first_label[4] = {'.', 'f', pad_label, '\0'};
+    char init_done_label[] = {'.', 'i', pad_label, '\0'};
+    char init_first_label[] = {'.', 'f', pad_label, '\0'};
 
     test(reg_ci_flag, IC_FLAG_FIRST);
     jne(init_first_label, T_NEAR);
 
     for (int ii = 0; ii < nb_oc_block; ii++)
         for (int jj = 0; jj < ur_w; jj++)
-            vmovups(Ymm(ur_w * ii + jj), YWORD[reg_output
+            vmovups(Ymm(ur_w * ii + jj), yword[reg_output
                     + sizeof(float) * (ii * oh * ow + jj) * oc_blk]);
     jmp(init_done_label);
 
@@ -150,7 +146,7 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(int ur_w, int pad_l, int pad_r
         for (int ii = 0; ii < nb_oc_block; ii++)
             for (int jj = 0; jj < ur_w; jj++)
                 vmovups(Ymm(ur_w * ii + jj),
-                        YWORD[reg_bias + sizeof(float)*ii*oc_blk]);
+                        yword[reg_bias + sizeof(float)*ii*oc_blk]);
     } else {
         for (int ii = 0; ii < nb_oc_block; ii++)
             for (int jj = 0; jj < ur_w; jj++)
@@ -163,7 +159,7 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(int ur_w, int pad_l, int pad_r
     mov(aux_reg_kernel, reg_kernel);
 
     mov(kj, reg_kh);
-    char kh_label[4] = {'.', 'h', pad_label, '\0'};
+    char kh_label[] = {'.', 'h', pad_label, '\0'};
     L(kh_label);
     {
         if (jcp.kw >= 5 && pad_l == 0 && pad_r == 0) {
@@ -181,8 +177,9 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(int ur_w, int pad_l, int pad_r
         jg(kh_label, T_NEAR);
     }
 
-    char done_label[4] = {'.', 'd', pad_label, '\0'};
-    char regular_store_label[4] = {'.', 's', pad_label, '\0'};
+    char done_label[] = {'.', 'd', pad_label, '\0'};
+    char regular_store_label[] = {'.', 's', pad_label, '\0'};
+
     if (this->jcp.with_relu) {
         assert(nb_oc_block*ur_w < 15);
         test(reg_ci_flag, IC_FLAG_LAST);
@@ -197,7 +194,7 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(int ur_w, int pad_l, int pad_r
 
                 vcmpgtps(ymask, reg_out, yzero);
                 vblendvps(reg_out, yzero, reg_out, ymask);
-                vmovups(YWORD[reg_output + sizeof(float) * o_off], reg_out);
+                vmovups(yword[reg_output + sizeof(float) * o_off], reg_out);
             }
         }
 
@@ -208,14 +205,13 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(int ur_w, int pad_l, int pad_r
         for (int jj = 0; jj < ur_w; jj++) {
             const size_t o_off = (ii * oh * ow + jj) * oc_blk;
             Ymm reg_out = Ymm(ur_w * ii + jj);
-            vmovups(YWORD[reg_output + sizeof(float) * o_off], reg_out);
+            vmovups(yword[reg_output + sizeof(float) * o_off], reg_out);
         }
     }
     L(done_label);
 }
 
 void jit_avx2_conv_fwd_kernel_f32::generate() {
-    using Xbyak::Ymm;
     this->preamble();
 
     mov(reg_input, ptr[this->param1 + GET_OFF(src)]);
@@ -361,16 +357,8 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     return status::success;
 }
 
-inline Xbyak::Address jit_avx2_conv_bwd_data_kernel_f32::get_address(
-        Xbyak::Reg64 base, int offset) {
-    using Xbyak::Ymm;
-    return YWORD[base + offset];
-}
-
 void jit_avx2_conv_bwd_data_kernel_f32::hsw_iter_s1(int ur_w, int l_overflow,
-        int r_overflow, const char* kh_lable) {
-    using Xbyak::Ymm;
-
+        int r_overflow, const char* kh_label) {
     int kw    = jcp.kw;
     int kh    = jcp.kh;
     int iw    = jcp.iw;
@@ -389,9 +377,9 @@ void jit_avx2_conv_bwd_data_kernel_f32::hsw_iter_s1(int ur_w, int l_overflow,
     mov(aux_reg_kernel, reg_kernel);
 
     mov(kj, reg_kh);
-    L(kh_lable);
+    L(kh_label);
     {
-        //TODO: try lable
+        //TODO: try label
         for (int ki = 0; ki < kw; ki++)
         {
             int jj_start = nstl::max(0, l_overflow - (kw-1) + ki) ; // 0;
@@ -420,7 +408,7 @@ void jit_avx2_conv_bwd_data_kernel_f32::hsw_iter_s1(int ur_w, int l_overflow,
 
         dec(kj);
         cmp(kj, 0);
-        jg(kh_lable, T_NEAR);
+        jg(kh_label, T_NEAR);
     }
 
     for (int ii = 0; ii < nb_ic_block; ii++)
@@ -430,7 +418,6 @@ void jit_avx2_conv_bwd_data_kernel_f32::hsw_iter_s1(int ur_w, int l_overflow,
 }
 
 void jit_avx2_conv_bwd_data_kernel_f32::generate() {
-    using Xbyak::Ymm;
     preamble();
 
     mov(reg_dsrc, ptr[this->param1 + GET_OFF(src)]);
@@ -585,7 +572,6 @@ status_t jit_avx2_conv_bwd_data_kernel_f32::init_conf(jit_conv_conf_t &jcp,
 }
 
 void jit_avx2_conv_bwd_weights_kernel_f32::generate() {
-    using Xbyak::Ymm;
     this->preamble();
 
     mov(reg_input, ptr[this->param1 + GET_OFF(src)]);
@@ -649,12 +635,6 @@ status_t jit_avx2_conv_bwd_weights_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     return status::success;
 }
 
-inline Xbyak::Address jit_avx2_conv_bwd_weights_kernel_f32::get_address(
-        Xbyak::Reg64 base, int offset) {
-    using Xbyak::Ymm;
-    return YWORD[base + offset];
-}
-
 inline void jit_avx2_conv_bwd_weights_kernel_f32::oh_step_comeback_pointers(
         const char *kh_comeback_label) {
     mov(kj, reg_kh);
@@ -670,8 +650,6 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::oh_step_comeback_pointers(
 inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_ic_block_step(
         int ur_w, int pad_l, int pad_r, int ic_block_step, int input_offset,
         int kernel_offset, int output_offset) {
-    using Xbyak::Ymm;
-
     const int kw = jcp.kw;
     const int ic_block = jcp.ic_block;
     const int oc_block = jcp.oc_block;
@@ -679,14 +657,13 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_ic_block_step(
         for (int i_ic = 0; i_ic < ic_block_step; i_ic++) {
             size_t off = sizeof(float)*(i_kw*ic_block + i_ic)*jcp.oc_block
                 + kernel_offset;
-            vmovups(Ymm(i_kw*ic_block_step + i_ic), get_address(reg_kernel,
-                        off));
+            vmovups(Ymm(i_kw*ic_block_step + i_ic), yword[reg_kernel + off]);
         }
     }
 
     for (int i_ur = 0; i_ur < ur_w; i_ur++) {
-        vmovups(Ymm(kw*ic_block_step + 0), get_address(reg_output,
-                    sizeof(float)*i_ur*oc_block + output_offset));
+        vmovups(Ymm(kw*ic_block_step + 0), yword[reg_output
+                + sizeof(float)*i_ur*oc_block + output_offset]);
 
         for (int i_kw = 0; i_kw < kw; i_kw++) {
             int i_iw = i_ur*jcp.stride_w + i_kw;
@@ -697,7 +674,7 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_ic_block_step(
                 size_t i_off = sizeof(float)*((i_iw - pad_l)*ic_block + i_ic)
                     + input_offset;
                 vbroadcastss(Ymm(kw*ic_block_step + 1),
-                        get_address(reg_input, i_off));
+                        yword[reg_input + i_off]);
                 vfmadd231ps(Ymm(i_kw * ic_block_step + i_ic),
                         Ymm(kw*ic_block_step + 0), Ymm(kw*ic_block_step + 1));
             }
@@ -708,7 +685,7 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_ic_block_step(
         for (int i_ic = 0; i_ic < ic_block_step; i_ic++) {
             size_t off = sizeof(float)*(i_kw*ic_block + i_ic)*jcp.oc_block
                 + kernel_offset;
-            vmovups(get_address(reg_kernel, off), Ymm(i_kw*ic_block_step
+            vmovups(yword[reg_kernel + off], Ymm(i_kw*ic_block_step
                         + i_ic));
         }
     }

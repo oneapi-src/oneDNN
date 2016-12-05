@@ -24,38 +24,64 @@
 #define XBYAK_USE_MMAP_ALLOCATOR
 #include "xbyak/xbyak.h"
 
-#define XBYAK_VERSION 0x5000
-
-#if XBYAK_VERSION >= 0x5000
-    #define ZWORD   zword
-    #define ZWORD_b zword_b
-    #define YWORD   yword
-    #define YWORD_b yzword_b
-#else
-    #define ZWORD zmmword
-    #define YWORD ymmword
-#endif
-
 namespace mkldnn {
 namespace impl {
 namespace cpu {
 
+
+// TODO: move this to jit_generator class?
 namespace {
-using namespace Xbyak;
+
+// TODO: move this somewhere else? Although this is only used by jit kernels
+// (Roma)
+static inline int float2int(float x) {
+    union {
+        float vfloat;
+        int vint;
+    } cvt;
+    cvt.vfloat = x;
+    return cvt.vint;
+}
+
+// TODO: A GPR class that hides ABI details from the JIT kernels and allows
+// numbering registers from 0 to 14 (x86_64) / 6 (x32) (gpr0, gpr1, ...) and
+// stack register (sr).
+//
+// This will allow using syntax like this:
+//
+// param = gpr0;
+// reg_input = gpr0;
+// reg_output =  gpr1;
+// ...
+//
+// #ifndef XBYAK64
+// mov(param, ptr[sr])
+// #endif
+//
+// (Roma)
+
 #ifdef XBYAK64
-static const Operand::Code reg_to_preserve[] = {
-    Operand::RBX, Operand::RSP, Operand::RBP,
-    Operand::R12, Operand::R13, Operand::R14, Operand::R15,
+constexpr Xbyak::Operand::Code abi_save_regs[] = {
+    Xbyak::Operand::RBX, Xbyak::Operand::RSP, Xbyak::Operand::RBP,
+    Xbyak::Operand::R12, Xbyak::Operand::R13, Xbyak::Operand::R14,
+    Xbyak::Operand::R15,
 #ifdef _WIN
-    Operand::RDI, Operand::RSI,
+    Xbyak::Operand::RDI, Xbyak::Operand::RSI,
 #endif
 };
+constexpr size_t num_abi_save_regs
+    = sizeof(abi_save_regs) / sizeof(abi_save_regs[0]);
+
 #ifdef _WIN
-static const Reg64 cdecl_param1(Operand::RCX), cdecl_param2(Operand::RDX),
-             cdecl_param3(Operand::R8), cdecl_param4(Operand::R9);
+static const Xbyak::Reg64 abi_param1(Xbyak::Operand::RCX),
+             abi_param2(Xbyak::Operand::RDX),
+             abi_param3(Xbyak::Operand::R8),
+             abi_param4(Xbyak::Operand::R9);
 #else
-static const Reg64 cdecl_param1(Operand::RDI), cdecl_param2(Operand::RSI),
-             cdecl_param3(Operand::RDX), cdecl_param4(Operand::RCX);
+static const Xbyak::Reg64 abi_param1(Xbyak::Operand::RDI),
+             abi_param2(Xbyak::Operand::RSI),
+             abi_param3(Xbyak::Operand::RDX),
+             abi_param4(Xbyak::Operand::RCX);
 #endif
 #endif
 }
@@ -63,23 +89,23 @@ static const Reg64 cdecl_param1(Operand::RDI), cdecl_param2(Operand::RSI),
 class jit_generator : public Xbyak::CodeGenerator
 {
 protected:
-    Xbyak::Reg64 param1 = cdecl_param1;
+    Xbyak::Reg64 param1 = abi_param1;
+
     void preamble() {
-        const size_t nregs = sizeof(reg_to_preserve)/sizeof(reg_to_preserve[0]);
-        for (size_t i = 0; i < nregs; ++i)
-            push(Xbyak::Reg64(reg_to_preserve[i]));
+        for (size_t i = 0; i < num_abi_save_regs; ++i)
+            push(Xbyak::Reg64(abi_save_regs[i]));
     }
+
     void postamble() {
-        const size_t nregs = sizeof(reg_to_preserve)/sizeof(reg_to_preserve[0]);
-        for (size_t i = 0; i < nregs; ++i)
-            pop(Xbyak::Reg64(reg_to_preserve[nregs - 1 - i]));
+        for (size_t i = 0; i < num_abi_save_regs; ++i)
+            pop(Xbyak::Reg64(abi_save_regs[num_abi_save_regs - 1 - i]));
         ret();
     }
 
 public:
     jit_generator(
-        void* code_ptr = nullptr,
-        size_t code_size = 8 * Xbyak::DEFAULT_MAX_CODE_SIZE
+        void *code_ptr = nullptr,
+        size_t code_size = 32 * 1024 // size of a typical IC$
         ) : Xbyak::CodeGenerator(code_size, code_ptr)
     {
     }

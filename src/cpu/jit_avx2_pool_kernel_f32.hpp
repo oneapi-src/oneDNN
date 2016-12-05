@@ -56,8 +56,7 @@ struct __attribute__ ((__packed__)) jit_pool_call_s {
 };
 
 struct jit_avx2_pool_kernel_f32: public jit_generator {
-    jit_avx2_pool_kernel_f32(jit_pool_conf_t ajpp, void* code_ptr = nullptr,
-        size_t code_size = 8 * Xbyak::DEFAULT_MAX_CODE_SIZE): jpp(ajpp)
+    jit_avx2_pool_kernel_f32(jit_pool_conf_t ajpp): jpp(ajpp)
     {
         this->generate();
         jit_ker = (decltype(jit_ker))this->getCode();
@@ -85,12 +84,17 @@ private:
     reg64_t tmp_gpr2 = rdx;
 
     void (*jit_ker)(jit_pool_call_s *);
-    void avg_oh_step(int ur_w, int pad_l, int pad_r, const char *kh_lable);
-    void max_oh_step(int ur_w, int pad_l, int pad_r, const char *kh_lable);
-    inline void oh_step(int ur_w, int pad_l, int pad_r, const char *kh_lable) {
-        if (jpp.is_max) max_oh_step(ur_w, pad_l, pad_r, kh_lable);
-        else avg_oh_step(ur_w, pad_l, pad_r, kh_lable);
+
+    void avg_oh_step(int ur_w, int pad_l, int pad_r, const char *kh_label);
+    void max_oh_step(int ur_w, int pad_l, int pad_r, const char *kh_label);
+
+    void oh_step(int ur_w, int pad_l, int pad_r, const char *kh_label) {
+        if (jpp.is_max)
+            max_oh_step(ur_w, pad_l, pad_r, kh_label);
+        else
+            avg_oh_step(ur_w, pad_l, pad_r, kh_label);
     }
+
     void generate();
 };
 
