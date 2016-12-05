@@ -1258,23 +1258,25 @@ struct lrn_backward : public primitive {
     struct desc {
         c_api::mkldnn_lrn_desc_t data;
         desc(algorithm aalgorithm,
-            const memory::desc &src_desc,
-            const memory::desc &diff_dst_desc,
+            const memory::desc &data_desc,
+            const memory::desc &diff_data_desc,
             int local_size, double alpha, double beta)
         {
             error::wrap_c_api(c_api::mkldnn_lrn_backward_desc_init(&data,
                 convert_to_c(aalgorithm),
-                &diff_dst_desc.data, &src_desc.data, local_size, alpha, beta),
+                &diff_data_desc.data, &data_desc.data, local_size, alpha, beta),
                 "could not create a lrn backward descriptor");
         }
     };
 
     struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t>{
-        primitive_desc(const desc &adesc, const engine &aengine) {
-            c_api::mkldnn_primitive_desc_t result;
+        primitive_desc(const desc &adesc, const engine &aengine,
+        const lrn_forward::primitive_desc &hint_fwd_primitive_desc) {
+        c_api::mkldnn_primitive_desc_t result;
             error::wrap_c_api(c_api::mkldnn_primitive_desc_create(
-                    &result, &adesc.data, aengine.get(), nullptr),
-                "could not create a lrn backward primitive descriptor");
+                        &result, &adesc.data, aengine.get(),
+                        hint_fwd_primitive_desc.get()),
+                    "could not create a backward lrn primitive descriptor");
             reset(result);
         }
 

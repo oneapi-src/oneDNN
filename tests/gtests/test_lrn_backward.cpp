@@ -267,7 +267,8 @@ protected:
                 p.test_ld.local_size, p.test_ld.alpha, p.test_ld.beta);
         diff_src.reset(new memory({*diff_src_desc, *eng}));
         diff_dst.reset(new memory({*diff_dst_desc, *eng}));
-        auto lrn_prim_desc = lrn_backward::primitive_desc(lrn_desc, *eng);
+        auto lrn_prim_desc = lrn_backward::primitive_desc(lrn_desc, *eng,
+                *lrn_fwd_prim_desc);
 
         fill_data<data_t>(diff_dst->get_primitive_desc().get_size()
                 / sizeof(data_t), (data_t *)diff_dst->get_data_handle());
