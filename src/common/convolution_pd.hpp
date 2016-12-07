@@ -121,8 +121,8 @@ template<> inline double convolution_fwd_pd_t::negative_slope() const
 template<> inline double convolution_relu_fwd_pd_t::negative_slope() const
 { return desc()->negative_slope; }
 
-template<>
-inline const convolution_desc_t &convolution_fwd_pd_t::cdesc_() const
+template<bool with_relu> inline const
+convolution_desc_t &_convolution_fwd_pd_t<with_relu>::cdesc_() const
 { return desc_; }
 template<>
 inline const convolution_desc_t &convolution_relu_fwd_pd_t::cdesc_() const
