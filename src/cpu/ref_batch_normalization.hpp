@@ -104,9 +104,12 @@ struct ref_batch_normalization_bwd_t: public cpu_primitive_t {
             variance_pd_ = cpu_memory_t::pd_t(engine_, &stats_d);
 
             bool ws_ok = true
-                && hint_fwd_pd_->workspace_pd()->desc()->ndims == 1
-                && hint_fwd_pd_->workspace_pd()->desc()->format == memory_format::x
-                && hint_fwd_pd_->workspace_pd()->desc()->data_type == data_type;
+                && hint_fwd_pd_->mean_pd()->desc()->ndims == 1
+                && hint_fwd_pd_->mean_pd()->desc()->format == memory_format::x
+                && hint_fwd_pd_->mean_pd()->desc()->data_type == data_type
+                && hint_fwd_pd_->variance_pd()->desc()->ndims == 1
+                && hint_fwd_pd_->variance_pd()->desc()->format == memory_format::x
+                && hint_fwd_pd_->variance_pd()->desc()->data_type == data_type;
             if (!ws_ok) return status::unimplemented;
 
             return status::success;

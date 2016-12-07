@@ -30,17 +30,20 @@ template <impl::data_type_t data_type>
 void ref_batch_normalization_fwd_t<data_type>::execute_forward() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     /* FIXME: check this */
-   data_t* mean = conf_.stats_is_src() ?
-       const_cast<data_t*>(reinterpret_cast<const data_t*>(
+    data_t* mean = conf_.stats_is_src() ?
+        const_cast<data_t*>(reinterpret_cast<const data_t*>(
                this->input_memory(1))) :
-       reinterpret_cast<data_t*>(this->memory(1));
+        reinterpret_cast<data_t*>(this->memory(1));
 
-   data_t* variance = conf_.stats_is_src() ?
-       const_cast<data_t*>(reinterpret_cast<const data_t*>(
-               this->input_memory(2))) :
-       reinterpret_cast<data_t*>(this->memory(2));
+    data_t* variance = conf_.stats_is_src() ?
+        const_cast<data_t*>(reinterpret_cast<const data_t*>(
+                this->input_memory(2))) :
+        reinterpret_cast<data_t*>(this->memory(2));
 
-    auto scaleshift = reinterpret_cast<const data_t *>(this->input_memory(3));
+    auto idx_scaleshift = 1 + 2*conf_.stats_is_src();
+    auto scaleshift =
+        reinterpret_cast<const data_t *>(this->input_memory(idx_scaleshift));
+
     auto dst = reinterpret_cast<data_t*>(this->memory(0));
 
     const memory_desc_wrapper data_d(conf_.src_pd());
@@ -76,8 +79,8 @@ void ref_batch_normalization_fwd_t<data_type>::execute_forward() {
                 v_variance += m*m;
             }
             v_variance /= W*H*N;
-            sqrt_variance = 1. / sqrt(v_variance + eps);
         }
+        sqrt_variance = 1. / sqrt(v_variance + eps);
 
         if (use_scaleshift) {
             for (int n = 0; n < N; ++n)
