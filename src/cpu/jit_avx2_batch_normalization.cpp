@@ -40,7 +40,9 @@ void jit_avx2_batch_normalization_fwd_t::execute_forward() {
                this->input_memory(2))) :
        reinterpret_cast<data_t*>(this->memory(2));
 
-    auto scaleshift = reinterpret_cast<const data_t *>(this->input_memory(3));
+    auto idx_scaleshift = 1 + 2*conf_.stats_is_src();
+    auto scaleshift =
+        reinterpret_cast<const data_t *>(this->input_memory(idx_scaleshift));
 
     auto dst = reinterpret_cast<data_t*>(this->memory(0));
 
@@ -62,9 +64,10 @@ void jit_avx2_batch_normalization_fwd_t::execute_forward() {
         arg.src = &src[d_off];
         arg.dst = &dst[d_off];
         arg.scaleshift = &scaleshift[scaleshift_d.off(0, c)];
-        arg.mean = &mean[mean_d.off(c)];
-        arg.variance = &variance[variance_d.off(c)];
-
+        if (conf_.stats_is_src() || conf_.is_training()) {
+            arg.mean = &mean[mean_d.off(c)];
+            arg.variance = &variance[variance_d.off(c)];
+        }
         (*kernel_)(&arg);
     };
 

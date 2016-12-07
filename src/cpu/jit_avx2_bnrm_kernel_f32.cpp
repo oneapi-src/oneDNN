@@ -147,76 +147,83 @@ void jit_avx2_bnrm_kernel_f32::generate() {
     movq(xmm_one, tmp_gpr);
     vbroadcastss(ymm_one, xmm_one);
 
-    for (int i = 0; i < 8; i++)
-        vpxor(Ymm(i), Ymm(i));
-    mov(aux_ptr, reg_src);
-    xor_(n_iter, n_iter);
-    L(".n_mean_loop");
-    {
-        mov(save_ptr, aux_ptr);
-        if (n_blocks > 0) {
+    if (jbp.stats_is_src) {
+        vmovups(ymm_mean, ptr[reg_mean]);
+        vmovups(ymm_variance, ptr[reg_variance]);
+    } else {
+        for (int i = 0; i < 8; i++)
+            vpxor(Ymm(i), Ymm(i));
+        mov(aux_ptr, reg_src);
+        xor_(n_iter, n_iter);
+        L(".n_mean_loop");
+        {
+            mov(save_ptr, aux_ptr);
+            if (n_blocks > 0) {
+                xor_(sp_iter, sp_iter);
+                L(".spatial_mean_loop");
+                {
+                    mean_compute(jbp.wh_block);
+                    add(aux_ptr, jbp.c_block*jbp.wh_block*sizeof(float));
+
+                    inc(sp_iter);
+                    cmp(sp_iter, n_blocks);
+                    jl(".spatial_mean_loop", T_NEAR);
+                }
+            }
+            mean_compute(jbp.wh_block_tail);
+            add(save_ptr, jbp.c*jbp.w*jbp.h*sizeof(float));
+            mov(aux_ptr, save_ptr);
+
+            inc(n_iter);
+            cmp(n_iter, N);
+            jl(".n_mean_loop", T_NEAR);
+        }
+        for (int i = 0; i < 8; i++)
+            vaddps(ymm_mean, ymm_mean, Ymm(i));
+        vdivps(ymm_mean, ymm_mean, ymm_spatial_n);
+
+        if (jbp.is_training) {
+            vmovups(ptr[reg_mean], ymm_mean);
+        }
+
+        for (int i = 0; i < 8; i++)
+            vpxor(Ymm(i), Ymm(i));
+        mov(aux_ptr, reg_src);
+        xor_(n_iter, n_iter);
+        L(".n_variance_loop");
+        {
+            mov(save_ptr, aux_ptr);
             xor_(sp_iter, sp_iter);
-            L(".spatial_mean_loop");
-            {
-                mean_compute(jbp.wh_block);
-                add(aux_ptr, jbp.c_block*jbp.wh_block*sizeof(float));
+            if (n_blocks > 0) {
+                L(".spatial_variance_loop");
+                {
+                    variance_compute(jbp.wh_block);
+                    add(aux_ptr, jbp.c_block*jbp.wh_block*sizeof(float));
 
-                inc(sp_iter);
-                cmp(sp_iter, n_blocks);
-                jl(".spatial_mean_loop", T_NEAR);
+                    inc(sp_iter);
+                    cmp(sp_iter, n_blocks);
+                    jl(".spatial_variance_loop", T_NEAR);
+                }
             }
+            variance_compute(jbp.wh_block_tail);
+            add(save_ptr, jbp.c*jbp.w*jbp.h*sizeof(float));
+            mov(aux_ptr, save_ptr);
+
+            inc(n_iter);
+            cmp(n_iter, N);
+            jl(".n_variance_loop", T_NEAR);
         }
-        mean_compute(jbp.wh_block_tail);
-        add(save_ptr, jbp.c*jbp.w*jbp.h*sizeof(float));
-        mov(aux_ptr, save_ptr);
-
-        inc(n_iter);
-        cmp(n_iter, N);
-        jl(".n_mean_loop", T_NEAR);
+        for (int i = 0; i < 4; i++)
+            vaddps(ymm_variance, ymm_variance, Ymm(i));
+        vdivps(ymm_variance, ymm_variance, ymm_spatial_n);
+        if (jbp.is_training)
+            vmovups(ptr[reg_variance], ymm_variance);
     }
-    for (int i = 0; i < 8; i++)
-        vaddps(ymm_mean, ymm_mean, Ymm(i));
-    vdivps(ymm_mean, ymm_mean, ymm_spatial_n);
 
-    if (jbp.is_training && !jbp.stats_is_src)
-        vmovups(ptr[reg_mean], ymm_mean);
-
-    for (int i = 0; i < 8; i++)
-        vpxor(Ymm(i), Ymm(i));
-    mov(aux_ptr, reg_src);
-    xor_(n_iter, n_iter);
-    L(".n_variance_loop");
-    {
-        mov(save_ptr, aux_ptr);
-        xor_(sp_iter, sp_iter);
-        if (n_blocks > 0) {
-            L(".spatial_variance_loop");
-            {
-                variance_compute(jbp.wh_block);
-                add(aux_ptr, jbp.c_block*jbp.wh_block*sizeof(float));
-
-                inc(sp_iter);
-                cmp(sp_iter, n_blocks);
-                jl(".spatial_variance_loop", T_NEAR);
-            }
-        }
-        variance_compute(jbp.wh_block_tail);
-        add(save_ptr, jbp.c*jbp.w*jbp.h*sizeof(float));
-        mov(aux_ptr, save_ptr);
-
-        inc(n_iter);
-        cmp(n_iter, N);
-        jl(".n_variance_loop", T_NEAR);
-    }
-    for (int i = 0; i < 4; i++)
-        vaddps(ymm_variance, ymm_variance, Ymm(i));
-    vdivps(ymm_variance, ymm_variance, ymm_spatial_n);
     vaddps(ymm_variance, ymm_variance, ymm_epsilon);
     vsqrtps(ymm_variance, ymm_variance);
     vdivps(ymm_variance, ymm_one, ymm_variance);
 
-    if (jbp.is_training && !jbp.stats_is_src)
-        vmovups(ptr[reg_variance], ymm_variance);
     vmulps(ymm_mean_mul_variance, ymm_mean, ymm_variance);
     if (jbp.use_scaleshift) {
         vmovups(ymm_scale, ptr[reg_scaleshift]);
