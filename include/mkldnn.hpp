@@ -1746,8 +1746,7 @@ struct batch_normalization_forward : public primitive {
 
     batch_normalization_forward(const primitive_desc &aprimitive_desc,
             const primitive::at &src, const primitive::at &weights,
-            const memory &mean, const memory &variance,
-            const memory &dst) {
+            const memory &dst, const memory &mean, const memory &variance) {
         c_api::mkldnn_primitive_t result;
         c_api::mkldnn_primitive_at_t inputs[] = { src.data, weights.data };
         c_api::const_mkldnn_primitive_t outputs[] = { dst.get(),
@@ -1759,8 +1758,8 @@ struct batch_normalization_forward : public primitive {
     }
 
     batch_normalization_forward(const primitive_desc &aprimitive_desc,
-            const primitive::at &src, const memory &mean,
-            const memory &variance, const memory &dst) {
+            const primitive::at &src, const memory &dst, const memory &mean,
+            const memory &variance) {
         c_api::mkldnn_primitive_t result;
         c_api::mkldnn_primitive_at_t inputs[] = { src.data };
         c_api::const_mkldnn_primitive_t outputs[] = { dst.get(),
