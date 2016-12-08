@@ -108,6 +108,8 @@ typedef enum {
     mkldnn_nchw,
     /** 4D data tensor in the @c nhwc format typically used in TensorFlow. */
     mkldnn_nhwc,
+    /** 4D data tensor in the @c chwn format typically used in Neon. */
+    mkldnn_chwn,
     /** 4D data tensor in the @c nchw format with channels data laid out in
      * memory in 8-element blocks. */
     mkldnn_nChw8c,
@@ -116,6 +118,9 @@ typedef enum {
     /** 4D weights tensor in the format (input channels, output channels,
      * width, height). */
     mkldnn_oihw,
+    /** 4D weights tensor in the format (input channels, width, height,
+     * output channels). */
+    mkldnn_ihwo,
     /** 4D weights tensor in the @c oihw format with both input and output
      * channels data laid out in memory in 8-element blocks. */
     mkldnn_OIhw8i8o,
