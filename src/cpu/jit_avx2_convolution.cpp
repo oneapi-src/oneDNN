@@ -53,19 +53,17 @@ void _jit_avx2_convolution_fwd_t<with_relu>::execute_forward() {
         par_conv.src = const_cast<data_t *>(&src[src_d.blk_off(n,
                     jcp.ic == 3 ? 0 : g * jcp.nb_ic + ic, ih, 0)]);
 
-        par_conv.dst = &dst[dst_d.blk_off(n,
-                g * jcp.nb_oc + oc * jcp.nb_oc_blocking, oh, 0)];
+        par_conv.dst = &dst[dst_d.blk_off(n, g * jcp.nb_oc + oc, oh, 0)];
 
-        const int wcb = jcp.nb_oc_blocking*oc;
         const int wh = i_t_overflow;
         par_conv.filt = &weights[conf_.with_groups()
-            ? weights_d.blk_off(g, wcb, jcp.ic == 3 ? 0 : ic, wh, 0)
-            : weights_d.blk_off(wcb, jcp.ic == 3 ? 0 : ic, wh, 0)];
+            ? weights_d.blk_off(g, oc, jcp.ic == 3 ? 0 : ic, wh, 0)
+            : weights_d.blk_off(oc, jcp.ic == 3 ? 0 : ic, wh, 0)];
 
         if (ic == 0) {
             if (bias) {
-                const size_t _c = g*jcp.nb_oc + jcp.nb_oc_blocking*oc;
-                par_conv.bias = &bias[bias_d.blk_off(_c*jcp.oc_block)];
+                const size_t _c = g * jcp.nb_oc + oc; // XXX duplication
+                par_conv.bias = &bias[bias_d.blk_off(_c * jcp.oc_block)];
             }
             par_conv.ic_flag |= jit_avx2_conv_fwd_kernel_f32::IC_FLAG_FIRST;
         }
@@ -77,13 +75,16 @@ void _jit_avx2_convolution_fwd_t<with_relu>::execute_forward() {
         par_conv.kh_padding = jcp.kh - i_t_overflow - i_b_overflow;
         par_conv.kw_padding = 0;
 
+        par_conv.oc_blocks
+            = nstl::min(oc + jcp.nb_oc_blocking, jcp.nb_oc) - oc;
+
         kernel_->jit_ker(&par_conv);
     };
 
 #   pragma omp parallel for collapse(3) schedule(static)
     for (int g = 0; g < jcp.ngroups; ++g) {
         for (int n = 0; n < jcp.mb; ++n) {
-            for (int oc = 0; oc < (jcp.nb_oc/jcp.nb_oc_blocking); ++oc) {
+            for (int oc = 0; oc < jcp.nb_oc; oc += jcp.nb_oc_blocking) {
                 for (int ic = 0; ic < jcp.nb_ic; ++ic) {
                     for (int oh = 0; oh < jcp.oh; ++oh) {
                         ker(g, n, oc, ic, oh);

@@ -56,11 +56,16 @@ private:
     reg64_t oi_iter = r11;
     reg64_t ki_iter = r12;
     reg64_t reg_kh = rcx;
+    reg64_t reg_oc_blocks = r14;
     Xbyak::Reg32 reg_ci_flag = r13d;
 
-    inline void oh_step_unroll_kw(int ur_w, int pad_l, int pad_r);
-    inline void oh_step_nopad(int ur_w, int pad_l, int pad_r, char pad_label);
-    inline void width_blk_step(int ur_w, int pad_l, int pad_r, char pad_label);
+    inline void oh_step_unroll_kw(int ur_w, int pad_l, int pad_r,
+            int oc_blocks);
+    inline void oh_step_nopad(int ur_w, int pad_l, int pad_r,
+            char pad_label, int oc_blocks, char oc_blocks_label);
+    inline void width_blk_step(int ur_w, int pad_l, int pad_r,
+            char pad_label, int oc_blocks, char oc_blocks_label);
+    inline void solve_common(int oc_blocks, char oc_blocks_label);
 
     void generate();
 };

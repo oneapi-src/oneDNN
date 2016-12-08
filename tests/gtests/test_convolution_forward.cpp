@@ -153,8 +153,10 @@ protected:
 
         std::vector<int> padR = { cd.padh, cd.padw };
         for (int i = 0; i < 2; ++i) {
-        if ((cd.ih + cd.padh + padR[0] - cd.kh)/cd.strh + 1 != cd.oh) ++padR[0];
-        if ((cd.iw + cd.padw + padR[1] - cd.kw)/cd.strw + 1 != cd.ow) ++padR[1];
+            if ((cd.ih + cd.padh + padR[0] - cd.kh) / cd.strh + 1 != cd.oh)
+                ++padR[0];
+            if ((cd.iw + cd.padw + padR[1] - cd.kw) / cd.strw + 1 != cd.ow)
+                ++padR[1];
         }
 
         auto conv_desc = with_bias ?

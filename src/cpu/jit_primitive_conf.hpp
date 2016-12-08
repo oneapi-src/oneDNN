@@ -51,6 +51,7 @@ struct __attribute__((__packed__)) jit_conv_call_s {
     size_t kh_padding;
     size_t kh_padding_prf;
     size_t kw_padding;
+    size_t oc_blocks;
     int ic_flag;
 };
 
