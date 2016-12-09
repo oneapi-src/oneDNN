@@ -54,7 +54,7 @@ void check_bnrm_fwd(const test_bnrm_params_t &p,
            (const data_t *)mean.get_data_handle() : nullptr;
     const data_t *variance_data = (!calculate_stats || is_training) ?
            (const data_t *)variance.get_data_handle() : nullptr;
-    data_t *dst_data = (data_t *)dst.get_data_handle();
+    const data_t *dst_data = (data_t *)dst.get_data_handle();
 
     const memory::desc src_d = src.get_primitive_desc().desc();
     const memory::desc dst_d = dst.get_primitive_desc().desc();
@@ -112,7 +112,7 @@ void check_bnrm_fwd(const test_bnrm_params_t &p,
                             + weights_data[map_index(weights_d, bp.c + c)];
                     data_t out = dst_data[map_index(dst_d, sdidx)];
                     data_t norm_max = std::max(fabs(out), fabs(ref_dst));
-                    if (norm_max < eps) norm_max = data_t(1);
+                    if (norm_max < 10e-3) norm_max = data_t(1);
                     EXPECT_NEAR((out - ref_dst) / norm_max, 0., eps);
                 }
         } else {
@@ -125,7 +125,7 @@ void check_bnrm_fwd(const test_bnrm_params_t &p,
                             - ref_mean) * sqrt_variance;
                     data_t out = dst_data[map_index(dst_d, sdidx)];
                     data_t norm_max = std::max(fabs(out), fabs(ref_dst));
-                    if (norm_max < eps) norm_max = data_t(1);
+                    if (norm_max < 10e-3) norm_max = data_t(1);
                     EXPECT_NEAR((out - ref_dst) / norm_max, 0., eps);
                 }
         }
@@ -133,28 +133,30 @@ void check_bnrm_fwd(const test_bnrm_params_t &p,
 }
 
 template <typename data_t>
-void check_bnrm_bwd(const test_bnrm_params_t &bp,
-        const memory &src, const memory &diff_dst, const memory &weights,
-        const memory &diff_src, const memory &diff_weights)
+void check_bnrm_bwd(const test_bnrm_params_t &p,
+        const memory &src, const memory &diff_dst, const memory &mean,
+        const memory &variance, const memory &weights, const memory &diff_src,
+        const memory &diff_weights, unsigned flags, prop_kind pk)
 {
-    (void)bp;
-    (void)src;
-    (void)diff_dst;
-    (void)weights;
-    (void)diff_src;
-    (void)diff_weights;
-    /*
+    const bool use_weights = flags & use_scale_shift;
+    const bool calculate_diff_stats = !(flags & omit_stats);
+
     const data_t *src_data = (const data_t *)src.get_data_handle();
-    const data_t *weights_data = (const data_t *)weights.get_data_handle();
+    const data_t *weights_data = use_weights ? (const data_t *)weights.get_data_handle() : nullptr;
     const data_t *diff_dst_data = (const data_t *)diff_dst.get_data_handle();
-    data_t *diff_src_data = (data_t *)diff_src.get_data_handle();
-    const data_t *diff_weights_data = (const data_t *)diff_weights.get_data_handle();
+    const data_t *mean_data = (const data_t *)mean.get_data_handle();
+    const data_t *variance_data = (const data_t *)variance.get_data_handle();
+    const data_t *diff_src_data = (data_t *)diff_src.get_data_handle();
+    const data_t *diff_weights_data = (pk == prop_kind::backward) ?
+            (data_t *)diff_weights.get_data_handle() : nullptr;
 
     const memory::desc src_d = src.get_primitive_desc().desc();
     const memory::desc diff_dst_d = diff_dst.get_primitive_desc().desc();
     const memory::desc weights_d = weights.get_primitive_desc().desc();
     const memory::desc diff_src_d = diff_src.get_primitive_desc().desc();
     const memory::desc diff_weights_d = diff_weights.get_primitive_desc().desc();
+
+    test_bnrm_sizes_t bp = p.sizes;
 
     const data_t eps = 1.e-6 * bp.mb * bp.h * bp.w;
 
@@ -163,23 +165,24 @@ void check_bnrm_bwd(const test_bnrm_params_t &bp,
         data_t ref_diff_gamma = data_t(0);
         data_t ref_diff_beta = data_t(0);
 
-        auto mean = ws_mean[c];
-        auto variance = ws_variance[c];
+        auto v_mean = mean_data[c];
+        auto v_variance = variance_data[c];
+        const data_t sqrt_variance = data_t(1) / sqrt(v_variance + p.eps);
 
-        auto gamma = weights_data[map_index(weights_d, c)];
+        auto gamma = use_weights ? weights_data[map_index(weights_d, c)] : 1;
 
         for (int n = 0; n < bp.mb; n++)
         for (int h = 0; h < bp.h; h++)
-            for (int w = 0; w < bp.w; w++) {
-                int sidx = n * bp.c * bp.h * bp.w + c * bp.h * bp.w
-                        + h * bp.w + w;
-                ref_diff_gamma += (src_data[map_index(src_d, sidx)] - mean)
-                    * diff_dst_data[map_index(diff_dst_d, sidx)];
-                ref_diff_beta += diff_dst_data[map_index(diff_dst_d, sidx)];
-            }
-        ref_diff_gamma *= variance;
+        for (int w = 0; w < bp.w; w++) {
+            int sidx = n * bp.c * bp.h * bp.w + c * bp.h * bp.w
+                    + h * bp.w + w;
+            ref_diff_gamma += (src_data[map_index(src_d, sidx)] - v_mean)
+                * diff_dst_data[map_index(diff_dst_d, sidx)];
+            ref_diff_beta += diff_dst_data[map_index(diff_dst_d, sidx)];
+        }
+        ref_diff_gamma *= sqrt_variance;
 
-        if (aprop_kind == backward) {
+        if (pk == backward) {
             auto diff_gamma = diff_weights_data[map_index(diff_weights_d, c)];
             auto diff_beta = diff_weights_data[map_index(diff_weights_d, bp.c + c)];
             EXPECT_NEAR(diff_gamma, ref_diff_gamma, eps);
@@ -191,18 +194,19 @@ void check_bnrm_bwd(const test_bnrm_params_t &bp,
             for (int w = 0; w < bp.w; w++) {
                 int sidx = n * bp.c * bp.h * bp.w + c * bp.h * bp.w
                         + h * bp.w + w;
-                data_t ref_diff_src = diff_dst_data[map_index(diff_dst_d, sidx)]
-                        - ref_diff_beta/(bp.mb*bp.h*bp.w)
-                        - (src_data[map_index(src_d, sidx)] - mean)
-                        *ref_diff_gamma*variance/(bp.mb*bp.h*bp.w);
-                ref_diff_src *= gamma*variance;
+                data_t ref_diff_src = diff_dst_data[map_index(diff_dst_d, sidx)];
+                if (calculate_diff_stats) {
+                        ref_diff_src -= ref_diff_beta/(bp.mb*bp.h*bp.w)
+                        + (src_data[map_index(src_d, sidx)] - v_mean)
+                        *ref_diff_gamma*sqrt_variance/(bp.mb*bp.h*bp.w);
+                }
+                ref_diff_src *= gamma*sqrt_variance;
                 data_t out_diff_src = diff_src_data[map_index(diff_src_d, sidx)];
                 data_t norm_max = std::max(fabs(out_diff_src), fabs(ref_diff_src));
                 if (norm_max < eps) norm_max = data_t(1);
                 EXPECT_NEAR((out_diff_src - ref_diff_src) / norm_max, 0., eps);
             }
     }
-    */
 }
 
 template <typename data_t>
@@ -246,26 +250,23 @@ protected:
         diff_dst.reset(new memory({*diff_desc, *eng}));
 
         auto training = prop_kind::forward_training;
-//        auto scoring = prop_kind::forward_scoring;
+        auto scoring = prop_kind::forward_scoring;
 
-//        auto backward = prop_kind::backward;
-//        auto backward_data = prop_kind::backward_data;
 
-        // TODO: check me
-//        Forward(0u, scoring); //OK
-//        Forward(0u, training); // OK
-//        Forward(use_global_stats, training); // OK
-//        Forward(use_global_stats, scoring); // OK
-//        Forward(use_scale_shift, scoring); // failed
-        Forward(use_scale_shift, training); // failed
-//        Forward(use_scale_shift | use_global_stats, training); // OK
+        Forward(0u, scoring);
+        Forward(0u, training);
+        Forward(use_global_stats, training);
+        Forward(use_global_stats, scoring);
+        Forward(use_scale_shift, scoring);
+        Forward(use_scale_shift, training);
+        Forward(use_scale_shift | use_global_stats, training);
 
-//        Backward(0u, backward_data);
-//        Backward(omit_stats, backward_data);
-//        Backward(use_scale_shift, backward);
-//       Backward(use_scale_shift, backward_data);
-//        Backward(use_scale_shift | omit_stats, backward);
-//        Backward(use_scale_shift | omit_stats, backward_data);
+        Backward(0u, backward_data);
+        Backward(omit_stats, backward_data);
+        Backward(use_scale_shift, backward);
+        Backward(use_scale_shift, backward_data);
+        Backward(use_scale_shift | omit_stats, backward);
+        Backward(use_scale_shift | omit_stats, backward_data);
     }
 
     void Forward(unsigned flags, prop_kind pk) {
@@ -279,15 +280,14 @@ protected:
         bnrm_prim_desc.reset(new batch_normalization_forward::primitive_desc(
                     bnrm_desc, *eng));
 
-        if (useScaleShift) weights.reset(new memory(
-                    bnrm_prim_desc->weights_primitive_desc()));
+        weights.reset(new memory(bnrm_prim_desc->weights_primitive_desc()));
         if (isTraining || useGlobalStats) {
             mean.reset(new memory(bnrm_prim_desc->mean_primitive_desc()));
             variance.reset(
                     new memory(bnrm_prim_desc->variance_primitive_desc()));
         }
 
-        fill(*src, 5.0);
+        fill(*src);
         if (useScaleShift) fill(*weights);
         if (useGlobalStats) {
             fill(*mean);
@@ -315,16 +315,15 @@ protected:
 
         if (useScaleShift) weights.reset(new memory(
                     bnrm_bwd_prim_desc->weights_primitive_desc()));
-        if (pk == prop_kind::backward) diff_weights.reset(new memory(
-                    bnrm_bwd_prim_desc->diff_weights_primitive_desc()));
+        diff_weights.reset(new memory(bnrm_bwd_prim_desc->diff_weights_primitive_desc()));
         mean.reset(new memory(bnrm_bwd_prim_desc->mean_primitive_desc()));
         variance.reset(new memory(
                     bnrm_bwd_prim_desc->variance_primitive_desc()));
 
         if (useScaleShift) fill(*weights);
         fill(*diff_dst);
-        fill(*mean, 0.);
-        fill(*variance, 1.);
+        fill(*mean);
+        fill(*variance);
 
         auto bnrm_bwd = createBnrmBwd(useScaleShift, pk);
 
@@ -333,7 +332,7 @@ protected:
         stream(stream::kind::lazy).submit(pipeline).wait();
 
         check_bnrm_bwd<data_t>(p,
-                *src, *diff_dst, *weights, *diff_src, *diff_weights);
+                *src, *diff_dst, *mean, *variance, *weights, *diff_src, *diff_weights, flags, pk);
     }
 
     void fill(memory &m, data_t mean = 1.) {
@@ -371,7 +370,7 @@ protected:
     primitive createBnrmBwd(bool useScaleShift, prop_kind pk)
     {
         if (useScaleShift) {
-            return pk == prop_kind::backward
+            return pk == prop_kind::backward_data
                 ? batch_normalization_backward(*bnrm_bwd_prim_desc,
                     *src, *mean, *variance, *diff_dst, *weights, *diff_src)
                 : batch_normalization_backward(*bnrm_bwd_prim_desc,
@@ -386,7 +385,7 @@ protected:
 
 using bnrm_test_float = bnrm_test<float>;
 
-TEST_P(bnrm_test_float, TestsBnrmBwd)
+TEST_P(bnrm_test_float, TestsBnrm)
 {
 }
 
@@ -403,7 +402,7 @@ TEST_P(bnrm_test_float, TestsBnrmBwd)
 
 #define INST_TEST_CASE(str, ...) INSTANTIATE_TEST_CASE_P( \
         str, bnrm_test_float, ::testing::Values(__VA_ARGS__))
-/*
+
 INST_TEST_CASE(Simple_NCHW,
     PARAMS(nchw, nchw, 2, 10, 4, 4, EPS)
 );
@@ -459,9 +458,9 @@ INST_TEST_CASE(GoogleNet_NCHW,
     PARAMS(nchw, nchw, 2, 48, 7, 7, EPS),
     PARAMS(nchw, nchw, 2, 384, 7, 7, EPS)
 );
-*/
+
 INST_TEST_CASE(GoogleNet_Blocked,
-/*    PARAMS(nChw8c, nChw8c, 2, 64, 112, 112, EPS),
+    PARAMS(nChw8c, nChw8c, 2, 64, 112, 112, EPS),
     PARAMS(nChw8c, nChw8c, 2, 64, 56, 56, EPS),
     PARAMS(nChw8c, nChw8c, 2, 192, 56, 56, EPS),
     PARAMS(nChw8c, nChw8c, 2, 96, 28, 28, EPS),
@@ -495,7 +494,7 @@ INST_TEST_CASE(GoogleNet_Blocked,
     PARAMS(nChw8c, nChw8c, 2, 128, 7, 7, EPS),
     PARAMS(nChw8c, nChw8c, 2, 192, 7, 7, EPS),
     PARAMS(nChw8c, nChw8c, 2, 48, 7, 7, EPS),
-*/    PARAMS(nChw8c, nChw8c, 2, 384, 7, 7, EPS)
+    PARAMS(nChw8c, nChw8c, 2, 384, 7, 7, EPS)
 );
 
 }
