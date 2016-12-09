@@ -39,7 +39,7 @@ namespace cpu {
 using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::utils;
 
-void jit_avx2_relu_kernel_f32::step(bool vectorize, size_t shift) {
+void jit_avx2_relu_kernel_f32::step(bool vectorize, int shift) {
     if (vectorize) {
         vmovups(ymm_src, ptr[reg_src + shift]);
     } else {
@@ -69,13 +69,13 @@ void jit_avx2_relu_kernel_f32::generate() {
 
     vxorps(ymm_zero, ymm_zero, ymm_zero);
 
-    const size_t vector_shift = jrp.vector_length * sizeof(float);
+    const int vector_shift = jrp.vector_length * sizeof(float);
     mov(reg_main_loop_iterator, ptr[this->param1 + GET_OFF(main_loop_iters)]);
 
     L(".relu_main_loop");
     cmp(reg_main_loop_iterator, 0);
     je(".relu_remainder", T_NEAR);
-    for (size_t uf = 0; uf < jrp.unroll_factor; uf++) {
+    for (int uf = 0; uf < jrp.unroll_factor; uf++) {
         step(true, uf * vector_shift);
     }
     add(reg_src, jrp.unroll_factor * vector_shift);
@@ -88,17 +88,17 @@ void jit_avx2_relu_kernel_f32::generate() {
     mov(reg_remainder, ptr[this->param1 + GET_OFF(process_remainder)]);
     cmp(reg_remainder, 0);
     je(".relu_end", T_NEAR);
-    const size_t vectorized_remainder_size =
+    const int vectorized_remainder_size =
         jrp.remainder_size - jrp.remainder_main_loop_iters * jrp.unrolled_size;
-    const size_t remainder_vectors =
+    const int remainder_vectors =
         vectorized_remainder_size / jrp.vector_length;
-    for (size_t uf = 0; uf < remainder_vectors; uf++) {
+    for (int uf = 0; uf < remainder_vectors; uf++) {
         step(true, uf * vector_shift);
     }
 
     add(reg_src, remainder_vectors * vector_shift);
     add(reg_dst, remainder_vectors * vector_shift);
-    for (size_t uf = 0; uf < jrp.remainder_size % jrp.vector_length; uf++) {
+    for (int uf = 0; uf < jrp.remainder_size % jrp.vector_length; uf++) {
         step(false, uf * sizeof(float));
     }
 

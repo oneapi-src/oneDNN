@@ -25,16 +25,16 @@ namespace impl {
 namespace cpu {
 
 struct jit_relu_conf_t {
-    size_t vector_length;
-    size_t unroll_factor;
-    size_t jit_n_runs;
+    int vector_length;
+    int unroll_factor;
+    int jit_n_runs;
 
-    size_t n_elems;
-    size_t block_size;
-    size_t main_loop_iters;
-    size_t unrolled_size;
-    size_t remainder_size;
-    size_t remainder_main_loop_iters;
+    int n_elems;
+    int block_size;
+    int main_loop_iters;
+    int unrolled_size;
+    int remainder_size;
+    int remainder_main_loop_iters;
 
     float negative_slope;
 };
@@ -73,7 +73,7 @@ private:
     reg64_t imm_addr64 = rbx;
 
     inline Xbyak::Address get_address(Xbyak::Reg64 base, int offset);
-    inline void step(bool vectorize, size_t shift);
+    inline void step(bool vectorize, int shift);
 
     void generate();
 };
