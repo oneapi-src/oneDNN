@@ -25,6 +25,8 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
+#include "jit_avx2_relu_kernel_f32.hpp"
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {
@@ -48,13 +50,18 @@ struct jit_avx2_relu_fwd_t: public cpu_primitive_t {
                 && memory_desc_wrapper(src_pd()).is_dense();
             if (!ok) return status::unimplemented;
 
-            return status::success;
+            return jit_avx2_relu_kernel_f32::init_conf(jrp_, desc_,
+                    data_pd_.desc(), data_pd_.desc());
         }
+
+        jit_relu_conf_t jrp_;
     };
 
     jit_avx2_relu_fwd_t(const pd_t *pd, const input_vector &inputs,
-            const output_vector &outputs);
-    ~jit_avx2_relu_fwd_t();
+            const output_vector &outputs)
+        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
+    { kernel_ = new jit_avx2_relu_kernel_f32(conf_.jrp_); }
+    ~jit_avx2_relu_fwd_t() { delete kernel_; };
 
     typedef typename prec_trait<data_type::f32>::type data_t;
 
@@ -67,11 +74,7 @@ private:
     void execute_forward();
     pd_t conf_;
 
-    float negative_slope_;
-    size_t n_elems_, chunk_size_;
-
-    struct xbyak_relu;
-    xbyak_relu *ker_, *ker_rem_;
+    jit_avx2_relu_kernel_f32 *kernel_;
 };
 
 }
