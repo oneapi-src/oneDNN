@@ -82,8 +82,8 @@ struct cpu_batch_normalization_bwd_pd_t: public batch_normalization_bwd_pd_t {
             const batch_normalization_fwd_pd_t *hint_fwd_pd)
         : batch_normalization_bwd_pd_t(engine, adesc, hint_fwd_pd)
         , data_pd_(engine_, &desc_.data_desc)
-        , mean_pd_(engine_)
-        , variance_pd_(engine_)
+        , mean_pd_(engine_, &desc_.mean_desc)
+        , variance_pd_(engine_, &desc_.variance_desc)
         , diff_data_pd_(engine_, &desc_.diff_data_desc)
         , scaleshift_pd_(engine_, &desc_.data_scaleshift_desc)
         , diff_scaleshift_pd_(engine_, &desc_.diff_data_scaleshift_desc) {}

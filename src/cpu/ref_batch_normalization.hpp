@@ -96,21 +96,15 @@ struct ref_batch_normalization_bwd_t: public cpu_primitive_t {
                         desc()->data_scaleshift_desc.data_type);
             if (!ok) return status::unimplemented;
 
-            memory_desc_t stats_d;
-            dims_t stats_dims = { C() };
-            mkldnn_memory_desc_init(&stats_d, 1, stats_dims, data_type,
-                    memory_format::x);
-            mean_pd_ = cpu_memory_t::pd_t(engine_, &stats_d);
-            variance_pd_ = cpu_memory_t::pd_t(engine_, &stats_d);
 
-            bool ws_ok = true
+            bool stats_ok = true
                 && hint_fwd_pd_->mean_pd()->desc()->ndims == 1
                 && hint_fwd_pd_->mean_pd()->desc()->format == memory_format::x
                 && hint_fwd_pd_->mean_pd()->desc()->data_type == data_type
                 && hint_fwd_pd_->variance_pd()->desc()->ndims == 1
                 && hint_fwd_pd_->variance_pd()->desc()->format == memory_format::x
                 && hint_fwd_pd_->variance_pd()->desc()->data_type == data_type;
-            if (!ws_ok) return status::unimplemented;
+            if (!stats_ok) return status::unimplemented;
 
             return status::success;
         }
