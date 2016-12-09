@@ -98,8 +98,9 @@ inline void jit_avx2_bnrm_kernel_f32::dst_compute(int block_size) {
             vmovups(Ymm(j), ptr[aux_ptr +
                     ((i * 8) + j) * jbp.c_block * sizeof(float)]);
             vfmsub213ps(Ymm(j), ymm_variance, ymm_mean_mul_variance);
-            if (jbp.use_scaleshift)
+            if (jbp.use_scaleshift) {
                 vfmadd213ps(Ymm(j), ymm_scale, ymm_shift);
+            }
             vmovups(ptr[aux_dst_ptr +
                     ((i * 8) + j) * jbp.c_block * sizeof(float)], Ymm(j));
         }
@@ -108,8 +109,9 @@ inline void jit_avx2_bnrm_kernel_f32::dst_compute(int block_size) {
         vmovups(Ymm(j), ptr[aux_ptr +
                 ((block_8 * 8) + j) * jbp.c_block * sizeof(float)]);
         vfmsub213ps(Ymm(j), ymm_variance, ymm_mean_mul_variance);
-        if (jbp.use_scaleshift)
+        if (jbp.use_scaleshift) {
             vfmadd213ps(Ymm(j), ymm_scale, ymm_shift);
+        }
         vmovups(ptr[aux_dst_ptr +
                 ((block_8 * 8) + j) * jbp.c_block * sizeof(float)], Ymm(j));
     }
@@ -216,8 +218,9 @@ void jit_avx2_bnrm_kernel_f32::generate() {
         for (int i = 0; i < 4; i++)
             vaddps(ymm_variance, ymm_variance, Ymm(i));
         vdivps(ymm_variance, ymm_variance, ymm_spatial_n);
-        if (jbp.is_training)
+        if (jbp.is_training) {
             vmovups(ptr[reg_variance], ymm_variance);
+        }
     }
 
     vaddps(ymm_variance, ymm_variance, ymm_epsilon);

@@ -135,7 +135,7 @@ void ref_batch_normalization_bwd_t<data_type>::execute_backward() {
     const int W = conf_.W();
 
     const double eps = conf_.desc()->batch_norm_epsilon;
-    const bool use_scaleshift = conf_.use_scaleshift();;
+    const bool use_scaleshift = conf_.use_scaleshift();
     const bool calculate_diff_stats = !conf_.omit_stats();
 
 
