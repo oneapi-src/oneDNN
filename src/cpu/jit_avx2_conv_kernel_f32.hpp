@@ -134,7 +134,6 @@ private:
     reg64_t reg_kh  = r14;
     reg64_t ki_iter = r13;
 
-    inline Xbyak::Address get_address(Xbyak::Reg64 base, int offset);
     inline void hsw_iter_s1(int ur_w, int l_overflow, int r_overflow,
             const char* kh_label);
 
@@ -169,7 +168,6 @@ private:
     reg64_t reg_oj = r15;
     reg64_t reg_ih_count = rbx;
 
-    inline Xbyak::Address get_address(Xbyak::Reg64 base, int offset);
     inline void oh_step_comeback_pointers(const char *kh_comeback_label);
     inline void compute_ic_block_step(int ur_w, int pad_l, int pad_r,
             int ic_block_step, int input_offset, int kernel_offset,
