@@ -88,6 +88,8 @@ struct _jit_avx2_convolution_fwd_t: public cpu_primitive_t {
             const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
     { kernel_ = new jit_avx2_conv_fwd_kernel_f32(conf_.jcp_); }
+    ~_jit_avx2_convolution_fwd_t() { delete kernel_; };
+
     typedef typename prec_trait<data_type::f32>::type data_t;
 
     virtual void execute(event_t *e) {
@@ -157,6 +159,8 @@ struct jit_avx2_convolution_bwd_data_t: public cpu_primitive_t {
             const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
     { kernel_ = new jit_avx2_conv_bwd_data_kernel_f32(conf_.jcp_); }
+    ~jit_avx2_convolution_bwd_data_t() { delete kernel_; };
+
     typedef typename prec_trait<data_type::f32>::type data_t;
 
     virtual void execute(event_t *e) {
@@ -231,6 +235,8 @@ struct jit_avx2_convolution_bwd_weights_t: public cpu_primitive_t {
             const input_vector &inputs, const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
     { kernel_ = new jit_avx2_conv_bwd_weights_kernel_f32(conf_.jcp_); }
+    ~jit_avx2_convolution_bwd_weights_t() { delete kernel_; };
+
     typedef typename prec_trait<data_type::f32>::type data_t;
 
     virtual void execute(event_t *e) {
