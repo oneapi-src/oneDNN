@@ -23,15 +23,6 @@
 
 #define GET_OFF(field) offsetof(jit_relu_call_s, field)
 
-#define ymm_ns Ymm(15)
-#define ymm_zero Ymm(14)
-
-#define ymm_src Ymm(0)
-#define xmm_src Xmm(0)
-#define ymm_dst Ymm(1)
-#define xmm_dst Xmm(1)
-#define ymm_mask Ymm(2)
-
 namespace mkldnn {
 namespace impl {
 namespace cpu {
@@ -41,28 +32,55 @@ using namespace mkldnn::impl::utils;
 
 void jit_avx2_relu_kernel_f32::step(bool vectorize, int shift) {
     if (vectorize) {
-        vmovups(ymm_src, ptr[reg_src + shift]);
+        vmovups(ymm_from, ptr[reg_from + shift]);
+        if (jrp.isBackward)
+            vmovups(ymm_for_comparison, ptr[reg_for_comparison + shift]);
     } else {
-        movss(xmm_src, ptr[reg_src + shift]);
+        movss(xmm_from, ptr[reg_from + shift]);
+        if (jrp.isBackward)
+            movss(xmm_for_comparison, ptr[reg_for_comparison + shift]);
     }
 
-    vmulps(ymm_dst, ymm_src, ymm_ns);
-    vcmpgtps(ymm_mask, ymm_src, ymm_zero);
-    vblendvps(ymm_dst, ymm_dst, ymm_src, ymm_mask);
+    vmulps(ymm_to, ymm_from, ymm_ns);
+    vcmpgtps(ymm_mask, ymm_for_comparison, ymm_zero);
+    vblendvps(ymm_to, ymm_to, ymm_from, ymm_mask);
 
     if (vectorize) {
-        vmovups(ptr[reg_dst + shift], ymm_dst);
+        vmovups(ptr[reg_to + shift], ymm_to);
     } else {
-        movss(ptr[reg_dst + shift], xmm_dst);
+        movss(ptr[reg_to + shift], xmm_to);
     }
+}
+
+void jit_avx2_relu_kernel_f32::setupRegisters() {
+    reg_from = rax;
+    reg_for_comparison = jrp.isBackward ? rbx : reg_from;
+    reg_to = rcx;
+    reg_main_loop_iterator = rdx;
+    reg_remainder = rdi;
+    imm_addr64 = rsi;
+
+    ymm_ns = reg_ymm(15);
+    ymm_zero = reg_ymm(14);
+    ymm_mask = reg_ymm(13);
+
+    ymm_from = reg_ymm(0);
+    xmm_from = reg_xmm(0);
+    ymm_for_comparison = jrp.isBackward ? reg_ymm(1) : ymm_from;
+    xmm_for_comparison = jrp.isBackward ? reg_xmm(1) : xmm_from;
+    ymm_to = reg_ymm(2);
+    xmm_to = reg_xmm(2);
 }
 
 void jit_avx2_relu_kernel_f32::generate() {
     using Xbyak::Ymm;
     this->preamble();
 
-    mov(reg_src, ptr[this->param1 + GET_OFF(src)]);
-    mov(reg_dst, ptr[this->param1 + GET_OFF(dst)]);
+    setupRegisters();
+
+    mov(reg_for_comparison, ptr[this->param1 + GET_OFF(for_comparison)]);
+    mov(reg_from, ptr[this->param1 + GET_OFF(from)]);
+    mov(reg_to, ptr[this->param1 + GET_OFF(to)]);
     mov(imm_addr64, reinterpret_cast<size_t>(&jrp.negative_slope));
 
     vbroadcastss(ymm_ns, ptr[imm_addr64]);
@@ -78,8 +96,10 @@ void jit_avx2_relu_kernel_f32::generate() {
     for (int uf = 0; uf < jrp.unroll_factor; uf++) {
         step(true, uf * vector_shift);
     }
-    add(reg_src, jrp.unroll_factor * vector_shift);
-    add(reg_dst, jrp.unroll_factor * vector_shift);
+    add(reg_from, jrp.unroll_factor * vector_shift);
+    add(reg_to, jrp.unroll_factor * vector_shift);
+    if (jrp.isBackward)
+        add(reg_for_comparison, jrp.unroll_factor * vector_shift);
     dec(reg_main_loop_iterator);
     jmp(".relu_main_loop", T_NEAR);
 
@@ -96,8 +116,10 @@ void jit_avx2_relu_kernel_f32::generate() {
         step(true, uf * vector_shift);
     }
 
-    add(reg_src, remainder_vectors * vector_shift);
-    add(reg_dst, remainder_vectors * vector_shift);
+    add(reg_from, remainder_vectors * vector_shift);
+    add(reg_to, remainder_vectors * vector_shift);
+    if (jrp.isBackward)
+        add(reg_for_comparison, remainder_vectors * vector_shift);
     for (int uf = 0; uf < jrp.remainder_size % jrp.vector_length; uf++) {
         step(false, uf * sizeof(float));
     }
@@ -107,14 +129,14 @@ void jit_avx2_relu_kernel_f32::generate() {
 }
 
 status_t jit_avx2_relu_kernel_f32::init_conf(jit_relu_conf_t &jrp,
-        const relu_desc_t &rd, const memory_desc_wrapper &src_d,
-        const memory_desc_wrapper &dst_d, float negative_slope)
+        const relu_desc_t &rd, const memory_desc_wrapper &data_d,
+        bool isBackward)
 {
     jrp.vector_length = 8;
     jrp.unroll_factor = 4;
     jrp.jit_n_runs = 256; // TODO: use runtime info about available threads
 
-    jrp.n_elems = src_d.nelems();
+    jrp.n_elems = data_d.nelems();
 
     jrp.unrolled_size = jrp.vector_length * jrp.unroll_factor;
     jrp.main_loop_iters = jrp.n_elems / (jrp.unrolled_size * jrp.jit_n_runs);
@@ -126,14 +148,9 @@ status_t jit_avx2_relu_kernel_f32::init_conf(jit_relu_conf_t &jrp,
     jrp.remainder_main_loop_iters = jrp.remainder_size / jrp.unrolled_size;
 
     jrp.negative_slope = rd.negative_slope;
+    jrp.isBackward = isBackward;
 
     return status::success;
-}
-
-inline Xbyak::Address jit_avx2_relu_kernel_f32::get_address(
-        Xbyak::Reg64 base, int offset) {
-    using Xbyak::Ymm;
-    return YWORD[base + offset];
 }
 
 }

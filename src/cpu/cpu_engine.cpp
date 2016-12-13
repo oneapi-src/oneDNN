@@ -115,6 +115,7 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(ref_convolution_bwd_weights_t<data_type::f32>),
     /* relu */
     INSTANCE(jit_avx2_relu_fwd_t),
+    INSTANCE(jit_avx2_relu_bwd_t),
     INSTANCE(ref_relu_fwd_t<data_type::f32>),
     INSTANCE(ref_relu_bwd_t<data_type::f32>),
     /* softmax */
