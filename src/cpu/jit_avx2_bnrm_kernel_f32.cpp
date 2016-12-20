@@ -134,8 +134,8 @@ void jit_avx2_bnrm_kernel_f32::generate() {
     }
 #   undef GET_OFF
 
-    vpxor(ymm_mean, ymm_mean);
-    vpxor(ymm_variance, ymm_variance);
+    vpxor(ymm_mean, ymm_mean, ymm_mean);
+    vpxor(ymm_variance, ymm_variance, ymm_variance);
 
     mov(tmp_gpr, float2int(spatial * N));
     movq(xmm_spatial_n, tmp_gpr);
@@ -154,7 +154,7 @@ void jit_avx2_bnrm_kernel_f32::generate() {
         vmovups(ymm_variance, ptr[reg_variance]);
     } else {
         for (int i = 0; i < 8; i++)
-            vpxor(Ymm(i), Ymm(i));
+            vpxor(Ymm(i), Ymm(i), Ymm(i));
         mov(aux_ptr, reg_src);
         xor_(n_iter, n_iter);
         L(".n_mean_loop");
@@ -189,7 +189,7 @@ void jit_avx2_bnrm_kernel_f32::generate() {
         }
 
         for (int i = 0; i < 8; i++)
-            vpxor(Ymm(i), Ymm(i));
+            vpxor(Ymm(i), Ymm(i), Ymm(i));
         mov(aux_ptr, reg_src);
         xor_(n_iter, n_iter);
         L(".n_variance_loop");

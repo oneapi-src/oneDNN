@@ -100,7 +100,7 @@ inline void jit_avx2_pool_kernel_f32::avg_oh_step(int ur_w, int pad_l,
     vbroadcastss(ymm_tmp, xmm_tmp);
 
     for (int jj = 0; jj < ur_w; jj++)
-        vpxor(Ymm(jj), Ymm(jj));
+        vpxor(Ymm(jj), Ymm(jj), Ymm(jj));
 
     mov(aux_reg_input , reg_input);
     xor_(kj, kj);
@@ -139,7 +139,7 @@ inline void jit_avx2_pool_kernel_f32::max_oh_step(int ur_w, int pad_l,
     int stride_w = jpp.stride_w;
     int c_block = jpp.c_block;
 
-    vpxor(ymm_store_mask, ymm_store_mask);
+    vpxor(ymm_store_mask, ymm_store_mask, ymm_store_mask);
 
     mov(tmp_gpr, float2int(-FLT_MAX));
     movq(xmm_tmp, tmp_gpr);
@@ -152,7 +152,7 @@ inline void jit_avx2_pool_kernel_f32::max_oh_step(int ur_w, int pad_l,
     L(kh_label);
     {
         if (jpp.is_training) {
-            vpxor(ymm_ki_offset, ymm_ki_offset);
+            vpxor(ymm_ki_offset, ymm_ki_offset, ymm_ki_offset);
         }
         for (int ki = 0; ki < kw; ki++) {
             int jj_start = nstl::max(0, pad_l - ki);

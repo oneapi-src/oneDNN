@@ -92,10 +92,6 @@
 	#endif
 #endif
 
-#ifdef _MSC_VER
-extern "C" unsigned __int64 __xgetbv(int);
-#endif
-
 namespace Xbyak { namespace util {
 
 /**
@@ -162,7 +158,7 @@ public:
 	static inline uint64 getXfeature()
 	{
 #ifdef _MSC_VER
-		return __xgetbv(0);
+		return _xgetbv(0);
 #else
 		unsigned int eax, edx;
 		// xgetvb is not support on gcc 4.2
@@ -220,6 +216,8 @@ public:
 	static const Type tAVX512BW = uint64(1) << 41;
 	static const Type tAVX512VL = uint64(1) << 42;
 	static const Type tAVX512VBMI = uint64(1) << 43;
+	static const Type tAVX512_4VNNIW = uint64(1) << 44;
+	static const Type tAVX512_4FMAPS = uint64(1) << 45;
 
 	Cpu()
 		: type_(NONE)
@@ -269,10 +267,9 @@ public:
 				if (data[2] & (1U << 28)) type_ |= tAVX;
 				if (data[2] & (1U << 12)) type_ |= tFMA;
 				if (((bv >> 5) & 7) == 7) {
-					getCpuid(7, data);
+					getCpuidEx(7, 0, data);
 					if (data[1] & (1U << 16)) type_ |= tAVX512F;
 					if (type_ & tAVX512F) {
-						getCpuidEx(7, 0, data);
 						if (data[1] & (1U << 17)) type_ |= tAVX512DQ;
 						if (data[1] & (1U << 21)) type_ |= tAVX512IFMA;
 						if (data[1] & (1U << 26)) type_ |= tAVX512PF;
@@ -281,6 +278,8 @@ public:
 						if (data[1] & (1U << 30)) type_ |= tAVX512BW;
 						if (data[1] & (1U << 31)) type_ |= tAVX512VL;
 						if (data[2] & (1U << 1)) type_ |= tAVX512VBMI;
+						if (data[3] & (1U << 2)) type_ |= tAVX512_4VNNIW;
+						if (data[3] & (1U << 3)) type_ |= tAVX512_4FMAPS;
 					}
 				}
 			}
@@ -354,7 +353,7 @@ class Pack {
 	const Xbyak::Reg64 *tbl_[maxTblNum];
 	size_t n_;
 public:
-	Pack() : n_(0) {}
+	Pack() : tbl_(), n_(0) {}
 	Pack(const Xbyak::Reg64 *tbl, size_t n) { init(tbl, n); }
 	Pack(const Pack& rhs)
 		: n_(rhs.n_)

@@ -150,7 +150,7 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(int ur_w, int pad_l, int pad_r
     } else {
         for (int ii = 0; ii < nb_oc_block; ii++)
             for (int jj = 0; jj < ur_w; jj++)
-                vpxor(Ymm(ur_w * ii + jj), Ymm(ur_w * ii + jj));
+                vpxor(Ymm(ur_w * ii + jj), Ymm(ur_w * ii + jj), Ymm(ur_w * ii + jj));
     }
 
     L(init_done_label);
