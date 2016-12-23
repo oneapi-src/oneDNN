@@ -51,7 +51,7 @@ inline size_t data_type_size(data_type_t data_type) {
 
 inline memory_format_t format_normalize(const memory_format_t fmt) {
     using namespace memory_format;
-    if (utils::one_of(fmt, x, nc, nchw, nhwc, chwn, nChw8c, oi, oihw, ihwo,
+    if (utils::one_of(fmt, x, nc, nchw, nhwc, chwn, nChw8c, oi, io, oihw, ihwo,
                 OIhw8i8o, OIhw8o8i, Ohwi8o, goihw, gOIhw8i8o, gOIhw8o8i))
         return blocked;
     return fmt;

@@ -284,6 +284,7 @@ struct memory: public primitive  {
         chwn = c_api::mkldnn_chwn,
         nChw8c = c_api::mkldnn_nChw8c,
         oi = c_api::mkldnn_oi,
+        io = c_api::mkldnn_io,
         oihw = c_api::mkldnn_oihw,
         ihwo = c_api::mkldnn_ihwo,
         oIhw8i = c_api::mkldnn_oIhw8i,

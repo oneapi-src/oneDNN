@@ -115,6 +115,8 @@ typedef enum {
     mkldnn_nChw8c,
     /** 2D weights tensor in the format (input channels, output channels). */
     mkldnn_oi,
+    /** 2D weights tensor in the format (input channels, output channels). */
+    mkldnn_io,
     /** 4D weights tensor in the format (input channels, output channels,
      * width, height). */
     mkldnn_oihw,

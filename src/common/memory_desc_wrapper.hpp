@@ -66,7 +66,7 @@ struct memory_desc_wrapper: public c_compatible {
     size_t size() const {
         using namespace mkldnn::impl::memory_format;
         if (is_zero() || format() == memory_format::any) return 0;
-        assert(utils::one_of(format(), x, nc, nchw, nhwc, chwn, nChw8c, oi,
+        assert(utils::one_of(format(), x, nc, nchw, nhwc, chwn, nChw8c, oi, io,
                     oihw, ihwo, OIhw8i8o, OIhw8o8i, Ohwi8o, goihw, gOIhw8i8o,
                     gOIhw8o8i, blocked));
 
