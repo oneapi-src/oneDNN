@@ -23,6 +23,7 @@
  * be obtained with mmap */
 #define XBYAK_USE_MMAP_ALLOCATOR
 #include "xbyak/xbyak.h"
+#include "xbyak/xbyak_util.h"
 
 namespace mkldnn {
 namespace impl {
@@ -84,6 +85,29 @@ static const Xbyak::Reg64 abi_param1(Xbyak::Operand::RDI),
              abi_param4(Xbyak::Operand::RCX);
 #endif
 #endif
+
+typedef enum {
+    avx2,
+    avx512_mic,
+} cpu_isa_t;
+
+static inline bool mayiuse(const cpu_isa_t cpu_isa) {
+    using namespace Xbyak::util;
+    static Cpu cpu;
+
+    switch (cpu_isa) {
+    case avx2:
+        return cpu.has(Cpu::tAVX2);
+    case avx512_mic:
+        return true
+            && cpu.has(Cpu::tAVX512F)
+            && cpu.has(Cpu::tAVX512CD)
+            && cpu.has(Cpu::tAVX512ER)
+            && cpu.has(Cpu::tAVX512PF);
+    }
+    return false;
+}
+
 }
 
 class jit_generator : public Xbyak::CodeGenerator
