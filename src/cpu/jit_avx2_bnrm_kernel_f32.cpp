@@ -35,6 +35,7 @@ status_t jit_avx2_bnrm_kernel_f32::init_conf(jit_bnrm_conf_t &jbp,
 
     bool args_ok = (data_d.format() == memory_format::nChw8c ||
             (data_d.format() == memory_format::nchw
+              && data_d.dims()[1] % 8 == 0
               && data_d.dims()[2] == 1 && data_d.dims()[3] == 1))
         && scaleshift_d.format() == memory_format::nc;
     if (!args_ok) return status::unimplemented;

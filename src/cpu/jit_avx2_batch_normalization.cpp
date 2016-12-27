@@ -54,7 +54,7 @@ void jit_avx2_batch_normalization_fwd_t::execute_forward() {
     const auto &jbp = kernel_->jbp;
     /* FIXME: check this */
     const int b_c_mult = data_d.format() == memory_format::nChw8c
-        ? 1 : data_d.dims()[2] * data_d.dims()[3];
+        ? 1 : data_d.dims()[2] * data_d.dims()[3] * jbp.c_block;
 
     auto ker = [&](int b_c) {
         jit_bnrm_call_s arg = {};
