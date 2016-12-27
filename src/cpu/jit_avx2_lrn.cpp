@@ -556,6 +556,8 @@ status_t jit_avx2_lrn_fwd_t::pd_t::init() {
     using namespace alg_kind;
 
     assert(engine()->kind() == engine_kind::cpu);
+    
+    if (!mayiuse(avx2)) return unimplemented;
 
     const memory_desc_wrapper data_d(data_pd_.desc());
     bool ok = true

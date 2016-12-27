@@ -132,6 +132,8 @@ status_t jit_avx2_relu_kernel_f32::init_conf(jit_relu_conf_t &jrp,
         const relu_desc_t &rd, const memory_desc_wrapper &data_d,
         bool isBackward)
 {
+    if (!mayiuse(avx2)) return status::unimplemented;
+
     jrp.vector_length = 8;
     jrp.unroll_factor = 4;
     jrp.jit_n_runs = 256; // TODO: use runtime info about available threads

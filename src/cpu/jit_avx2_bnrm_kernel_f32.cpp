@@ -31,6 +31,8 @@ status_t jit_avx2_bnrm_kernel_f32::init_conf(jit_bnrm_conf_t &jbp,
         const memory_desc_wrapper &data_d,
         const memory_desc_wrapper &scaleshift_d,
         bool is_training, bool stats_is_src, bool use_scaleshift) {
+    if (!mayiuse(avx2)) return status::unimplemented;
+
     bool args_ok = (data_d.format() == memory_format::nChw8c ||
             (data_d.format() == memory_format::nchw
               && data_d.dims()[2] == 1 && data_d.dims()[3] == 1))

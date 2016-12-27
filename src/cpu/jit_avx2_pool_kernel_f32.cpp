@@ -45,6 +45,8 @@ using namespace Xbyak;
 status_t jit_avx2_pool_kernel_f32::init_conf(jit_pool_conf_t &jpp,
             const pooling_desc_t &pd, const memory_desc_wrapper &src_d,
             const memory_desc_wrapper &dst_d, bool is_training) {
+    if (!mayiuse(avx2)) return status::unimplemented;
+
     bool args_ok = true
         && utils::one_of(pd.alg_kind, alg_kind::pooling_max,
                 alg_kind::pooling_avg)

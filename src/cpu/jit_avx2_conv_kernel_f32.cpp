@@ -280,6 +280,8 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
         const memory_desc_wrapper &weights_d, const memory_desc_wrapper &dst_d,
         bool with_relu, double relu_negative_slope)
 {
+    if (!mayiuse(avx2)) return status::unimplemented;
+
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
 
     jcp.ngroups = with_groups ? weights_d.dims()[0] : 1;
@@ -474,6 +476,8 @@ status_t jit_avx2_conv_bwd_data_kernel_f32::init_conf(jit_conv_conf_t &jcp,
         const memory_desc_wrapper &weights_d,
         const memory_desc_wrapper &diff_dst_d)
 {
+    if (!mayiuse(avx2)) return status::unimplemented;
+
     const bool with_groups = weights_d.ndims() == diff_src_d.ndims() + 1;
 
     jcp.ngroups = with_groups ? weights_d.dims()[0] : 1;
@@ -587,6 +591,8 @@ status_t jit_avx2_conv_bwd_weights_kernel_f32::init_conf(jit_conv_conf_t &jcp,
         const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &diff_weights_d,
         const memory_desc_wrapper &diff_dst_d) {
+    if (!mayiuse(avx2)) return status::unimplemented;
+
     const bool with_groups = diff_weights_d.ndims() == src_d.ndims() + 1;
 
     jcp.ngroups = with_groups ? diff_weights_d.dims()[0] : 1;
