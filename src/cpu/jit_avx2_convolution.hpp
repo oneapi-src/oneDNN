@@ -20,6 +20,7 @@
 #include "c_types_map.hpp"
 #include "cpu_convolution_pd.hpp"
 #include "cpu_engine.hpp"
+#include "jit_primitive_conf.hpp"
 #include "jit_avx2_conv_kernel_f32.hpp"
 
 namespace mkldnn {
@@ -68,16 +69,13 @@ struct _jit_avx2_convolution_fwd_t: public cpu_primitive_t {
             using namespace memory_format;
 
             const bool flat = this->IC() == 3;
-            if (this->src_pd_.desc()->format == any) {
+            if (this->src_pd_.desc()->format == any)
                 CHECK(this->src_pd_.set_format(flat ? nchw : nChw8c));
-            }
-            if (this->dst_pd_.desc()->format == any) {
+            if (this->dst_pd_.desc()->format == any)
                 CHECK(this->dst_pd_.set_format(nChw8c));
-            }
-            if (this->weights_pd_.desc()->format == any) {
+            if (this->weights_pd_.desc()->format == any)
                 CHECK(this->weights_pd_.set_format(this->with_groups()
                             ? gOIhw8i8o : (flat ? Ohwi8o : OIhw8i8o)));
-            }
             if (this->bias_pd_.desc()->format == any)
                 CHECK(this->bias_pd_.set_format(x));
             return status::success;
@@ -141,16 +139,13 @@ struct jit_avx2_convolution_bwd_data_t: public cpu_primitive_t {
         virtual status_t set_default_params() override {
             using namespace memory_format;
 
-            if (this->diff_src_pd_.desc()->format == any) {
+            if (this->diff_src_pd_.desc()->format == any)
                 CHECK(this->diff_src_pd_.set_format(nChw8c));
-            }
-            if (this->diff_dst_pd_.desc()->format == any) {
+            if (this->diff_dst_pd_.desc()->format == any)
                 CHECK(this->diff_dst_pd_.set_format(nChw8c));
-            }
-            if (this->weights_pd_.desc()->format == any) {
+            if (this->weights_pd_.desc()->format == any)
                 CHECK(this->weights_pd_.set_format(this->with_groups()
                             ? gOIhw8o8i : OIhw8o8i));
-            }
             return status::success;
         }
     };
@@ -213,20 +208,15 @@ struct jit_avx2_convolution_bwd_weights_t: public cpu_primitive_t {
         virtual status_t set_default_params() override {
             using namespace memory_format;
 
-            if (this->src_pd_.desc()->format == any) {
+            if (this->src_pd_.desc()->format == any)
                 CHECK(this->src_pd_.set_format(nChw8c));
-            }
-            if (this->diff_dst_pd_.desc()->format == any) {
+            if (this->diff_dst_pd_.desc()->format == any)
                 CHECK(this->diff_dst_pd_.set_format(nChw8c));
-            }
-            if (this->diff_weights_pd_.desc()->format == any) {
+            if (this->diff_weights_pd_.desc()->format == any)
                 CHECK(this->diff_weights_pd_.set_format(this->with_groups()
                             ? gOIhw8i8o : OIhw8i8o));
-            }
-            if (this->diff_bias_pd_.desc()->format == any) {
+            if (this->diff_bias_pd_.desc()->format == any)
                 CHECK(this->diff_bias_pd_.set_format(x));
-            }
-
             return status::success;
         }
     };

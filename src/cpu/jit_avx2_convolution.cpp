@@ -49,11 +49,14 @@ void _jit_avx2_convolution_fwd_t<with_relu>::execute_forward() {
         const int i_b_overflow = nstl::max(jcp.ih, ij + jcp.kh - jcp.t_pad)
             - jcp.ih;
 
+        const size_t _oc = g * jcp.nb_oc + oc;
+        const size_t _ic = g * jcp.nb_ic + ic;
+
         const int ih = nstl::max(ij - jcp.t_pad, 0);
         par_conv.src = const_cast<data_t *>(&src[src_d.blk_off(n,
-                    jcp.ic == 3 ? 0 : g * jcp.nb_ic + ic, ih, 0)]);
+                    jcp.ic == 3 ? 0 : _ic, ih, 0)]);
 
-        par_conv.dst = &dst[dst_d.blk_off(n, g * jcp.nb_oc + oc, oh, 0)];
+        par_conv.dst = &dst[dst_d.blk_off(n, _oc, oh, 0)];
 
         const int wh = i_t_overflow;
         par_conv.filt = &weights[conf_.with_groups()
@@ -61,10 +64,8 @@ void _jit_avx2_convolution_fwd_t<with_relu>::execute_forward() {
             : weights_d.blk_off(oc, jcp.ic == 3 ? 0 : ic, wh, 0)];
 
         if (ic == 0) {
-            if (bias) {
-                const size_t _c = g * jcp.nb_oc + oc; // XXX duplication
-                par_conv.bias = &bias[bias_d.blk_off(_c * jcp.oc_block)];
-            }
+            if (bias)
+                par_conv.bias = &bias[bias_d.blk_off(_oc * jcp.oc_block)];
             par_conv.ic_flag |= jit_avx2_conv_fwd_kernel_f32::IC_FLAG_FIRST;
         }
 
@@ -130,6 +131,7 @@ void jit_avx2_convolution_bwd_data_t::execute_backward_data() {
         par_conv.src_prf  = nullptr;
         par_conv.dst_prf  = nullptr;
         par_conv.filt_prf = nullptr;
+        // TODO: move initialization into the kernel
         if (oc == 0)
         {
             for (int iw = 0; iw < jcp.iw; iw++)
@@ -189,6 +191,7 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights() {
             : diff_weights_d.blk_off(oc, ic, 0, 0);
         par_conv.filt = &diff_weights[wdiff_offset];
 
+        // TODO: move initialization into the kernel
         if (n == 0) {
             const size_t sz = jcp.kw * jcp.kh * jcp.oc_block * jcp.ic_block;
             for (size_t i = 0; i < sz; ++i) diff_weights[wdiff_offset + i] = 0.0;
