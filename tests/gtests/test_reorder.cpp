@@ -120,7 +120,17 @@ INSTANTIATE_TEST_CASE_P(TestReorder, reorder_simple_test_f32_f32,
             cfg{eng::cpu, fmt::goihw, fmt::gOIhw8i8o, {2, 32, 32, 3, 3}},
             cfg{eng::cpu, fmt::gOIhw8i8o, fmt::goihw, {2, 32, 32, 3, 3}},
             cfg{eng::cpu, fmt::gOIhw8i8o, fmt::gOIhw8o8i, {2, 32, 32, 3, 3}},
-            cfg{eng::cpu, fmt::gOIhw8o8i, fmt::gOIhw8i8o, {2, 32, 32, 3, 3}}
+            cfg{eng::cpu, fmt::gOIhw8o8i, fmt::gOIhw8i8o, {2, 32, 32, 3, 3}},
+            cfg{eng::cpu, fmt::nchw, fmt::nChw16c, {2, 64, 4, 4}},
+            cfg{eng::cpu, fmt::nChw16c, fmt::nchw, {2, 64, 4, 4}},
+            cfg{eng::cpu, fmt::oihw, fmt::OIhw16i16o, {64, 64, 3, 3}},
+            cfg{eng::cpu, fmt::OIhw16i16o, fmt::oihw, {64, 64, 3, 3}},
+            cfg{eng::cpu, fmt::goihw, fmt::gOIhw16i16o, {2, 64, 64, 3, 3}},
+            cfg{eng::cpu, fmt::gOIhw16i16o, fmt::goihw, {2, 64, 64, 3, 3}},
+            cfg{eng::cpu, fmt::OIhw16i16o, fmt::OIhw16o16i, {64, 64, 3, 3}},
+            cfg{eng::cpu, fmt::OIhw16o16i, fmt::OIhw16i16o, {64, 64, 3, 3}},
+            cfg{eng::cpu, fmt::gOIhw16i16o, fmt::gOIhw16o16i, {2, 64, 64, 3, 3}},
+            cfg{eng::cpu, fmt::gOIhw16o16i, fmt::gOIhw16i16o, {2, 64, 64, 3, 3}}
             )
         );
 

@@ -113,6 +113,9 @@ typedef enum {
     /** 4D data tensor in the @c nchw format with channels data laid out in
      * memory in 8-element blocks. */
     mkldnn_nChw8c,
+    /** 4D data tensor in the @c nchw format with channels data laid out in
+     * memory in 16-element blocks. */
+    mkldnn_nChw16c,
     /** 2D weights tensor in the format (input channels, output channels). */
     mkldnn_oi,
     /** 2D weights tensor in the format (input channels, output channels). */
@@ -127,12 +130,22 @@ typedef enum {
      * channels data laid out in memory in 8-element blocks. */
     mkldnn_OIhw8i8o,
     /** 4D weights tensor in the @c oihw format with both input and output
+     * channels data laid out in memory in 16-element blocks. */
+    mkldnn_OIhw16i16o,
+    /** 4D weights tensor in the @c oihw format with both input and output
      * channels data laid out in memory in 8-element blocks. */
     mkldnn_OIhw8o8i,
+    /** 4D weights tensor in the @c oihw format with both input and output
+     * channels data laid out in memory in 16-element blocks. */
+    mkldnn_OIhw16o16i,
     /** 4D weights tensor in the format (output channels, width, height, input
      * channels) with output channels data laid out in memory in 8-element
      * blocks. */
     mkldnn_Ohwi8o,
+    /** 4D weights tensor in the format (output channels, width, height, input
+     * channels) with output channels data laid out in memory in 16-element
+     * blocks. */
+    mkldnn_Ohwi16o,
     /** 5D weights tensor in the @c oihw format with extra outer dimension for
      * groups. */
     mkldnn_goihw,
@@ -141,12 +154,23 @@ typedef enum {
      */
     mkldnn_gOIhw8i8o,
     /** 5D weights tensor in the blocked version of @c goihw format with both
+     * input and output channels data laid out in memory in 16-element blocks.
+     */
+    mkldnn_gOIhw16i16o,
+    /** 5D weights tensor in the blocked version of @c goihw format with both
      * input and output channels data laid out in memory in 8-element blocks.
      */
     mkldnn_gOIhw8o8i,
+    /** 5D weights tensor in the blocked version of @c goihw format with both
+     * input and output channels data laid out in memory in 16-element blocks.
+     */
+    mkldnn_gOIhw16o16i,
     /** 4D weights tensor in the oihw format with input channels data laid out
      * in memory in 8-element blocks. */
     mkldnn_oIhw8i = mkldnn_nChw8c,
+    /** 4D weights tensor in the oihw format with input channels data laid out
+     * in memory in 16-element blocks. */
+    mkldnn_oIhw16i = mkldnn_nChw16c,
 } mkldnn_memory_format_t;
 
 /** Kinds of padding. Define how to interpret the data in padding regions. */

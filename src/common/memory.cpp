@@ -64,16 +64,22 @@ status_t mkldnn_memory_desc_init(memory_desc_t *memory_desc, int ndims,
     case nhwc:
     case chwn:
     case nChw8c:
+    case nChw16c:
     case oi:
     case io:
     case oihw:
     case ihwo:
     case OIhw8i8o:
+    case OIhw16i16o:
     case OIhw8o8i:
+    case OIhw16o16i:
     case Ohwi8o:
+    case Ohwi16o:
     case goihw:
     case gOIhw8i8o:
+    case gOIhw16i16o:
     case gOIhw8o8i:
+    case gOIhw16o16i:
         status = memory_desc_wrapper::compute_blocking(md);
         break;
     /* not enough information */
