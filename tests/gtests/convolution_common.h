@@ -16,8 +16,8 @@
 #define FMT_WEIGHTS_BLOCKED_G gOIhw8o8i
 #define TEST_CASE_NAME_PREFIX BackwardData
 #elif defined DIRECTION_BACKWARD_WEIGHTS
-#define FMT_WEIGHTS_BLOCKED OIhw8o8i
-#define FMT_WEIGHTS_BLOCKED_G gOIhw8o8i
+#define FMT_WEIGHTS_BLOCKED OIhw8i8o
+#define FMT_WEIGHTS_BLOCKED_G gOIhw8i8o
 #define TEST_CASE_NAME_PREFIX BackwardWeights
 #endif
 
