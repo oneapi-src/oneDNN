@@ -28,8 +28,9 @@ namespace cpu {
 
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::memory_format;
+using namespace mkldnn::impl::utils;
 
-enum { VECTOR_LENGTH = 8, MAX_LOCAL_SIZE = 32 };
+enum params { VECTOR_LENGTH = 8, MAX_LOCAL_SIZE = 32 };
 typedef struct {
     const float *src;
     float *dst, *scratch;
@@ -573,9 +574,8 @@ status_t jit_avx2_lrn_fwd_t::pd_t::init() {
 
     const memory_desc_wrapper data_d(data_pd_.desc());
     bool ok = true
-        && utils::one_of(desc()->prop_kind, forward_training,
-                forward_inference)
-        && utils::everyone_is(data_type::f32, desc()->data_desc.data_type)
+        && one_of(desc()->prop_kind, forward_training, forward_inference)
+        && everyone_is(data_type::f32, desc()->data_desc.data_type)
         && data_d.ndims() == 4
         && data_d.dims()[1] % VECTOR_LENGTH == 0
         && data_d.dims()[1] >= 2 * VECTOR_LENGTH
@@ -587,14 +587,14 @@ status_t jit_avx2_lrn_fwd_t::pd_t::init() {
     bool args_ok_across = true
         && desc()->alg_kind == lrn_across_channels
         && desc()->local_size == 5
-        && utils::one_of(data_d.format(), nChw8c, nchw, nhwc);
+        && one_of(data_d.format(), nChw8c, nchw, nhwc);
 
     bool args_ok_within = true
         && desc()->alg_kind == lrn_within_channel
         && desc()->local_size <= MAX_LOCAL_SIZE
         && data_d.dims()[2] >= desc()->local_size
         && data_d.dims()[3] >= desc()->local_size
-        && utils::one_of(data_d.format(), nChw8c);
+        && one_of(data_d.format(), nChw8c);
 
     return args_ok_across || args_ok_within ? success : unimplemented;
 }

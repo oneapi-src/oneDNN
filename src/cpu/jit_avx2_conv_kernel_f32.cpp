@@ -45,9 +45,9 @@ void jit_avx2_conv_fwd_kernel_f32::oh_step_unroll_kw(int ur_w,
     int oc_blk = jcp.oc_block;
 
     for (int ki = 0; ki < kw; ki++) {
-        int jj_start = nstl::max(0, (pad_l - ki + stride_w - 1) / stride_w);
+        int jj_start = nstl::max(0, div_up(pad_l - ki, stride_w));
         int jj_end = ur_w
-            - nstl::max(0, (ki + pad_r - (kw - 1) + stride_w - 1) / stride_w);
+            - nstl::max(0, div_up(ki + pad_r - (kw - 1), stride_w));
         for (int ifm2 = 0; ifm2 < ic_blk; ifm2++) {
             for (int jj = jj_start; jj < jj_end; jj++) {
                 int inp_off;

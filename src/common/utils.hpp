@@ -19,6 +19,7 @@
 
 #include <stddef.h>
 #include <stdlib.h>
+#include <assert.h>
 
 namespace mkldnn {
 namespace impl {
@@ -107,6 +108,29 @@ inline T array_product(const T *arr, size_t size) {
     T prod = 1;
     for (size_t i = 0; i < size; ++i) prod *= arr[i];
     return prod;
+}
+
+template <typename T, typename U>
+inline T div_up(const T a, const U b) {
+    assert(b);
+    return (a + b - 1) / b;
+}
+
+template <typename T, typename U>
+inline T rnd_up(const T a, const U b) {
+    return div_up(a, b) * b;
+}
+
+template <typename T, typename U, typename V>
+inline U this_block_size(const T offset, const U max, const V block_size) {
+    assert(offset < max);
+    // TODO (Roma): can't use nstl::max() due to circular dependency... we
+    // need to fix this
+    const T block_boundary = offset + block_size;
+    if (block_boundary > max)
+        return max - offset;
+    else
+        return block_size;
 }
 
 }
