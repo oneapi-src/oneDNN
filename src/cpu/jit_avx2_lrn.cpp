@@ -772,20 +772,20 @@ struct jit_avx2_lrn_bwd_t::jit_avx2_lrn_kernel_f32: public jit_generator {
         bool is_first = J.version == -1 || J.version == -2;
         bool is_last  = J.version == +1 || J.version == -2;
 
-        char lrn_loop[8] = {'.', 'l', 'r', 'n', 'b', '_', 'm' , '\0'};
-
+        char tag;
         if (is_first || is_single) {
             vxorps(xsrc_prev, xsrc_prev, xsrc_prev);
             vmovups(ptr[t + 0], xsrc_prev);
-            lrn_loop[6] = 'f';
+            tag = 'f';
         }
         if (is_last || is_single) {
             vxorps(xsrc_next, xsrc_next, xsrc_next);
             vmovups(ptr[t + 48], xsrc_next);
-            lrn_loop[6] = 'l';
+            tag = 'l';
         }
         mov(hw, this->use_h_parallelizm ? J.W : J.H*J.W);
 
+        jit_tagged_label lrn_loop("lrn_loop", tag);
         L(lrn_loop);
         {
             if (!is_first && !is_single) {

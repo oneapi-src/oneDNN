@@ -17,6 +17,8 @@
 #ifndef CPU_JIT_AVX2_GENERATOR_HPP
 #define CPU_JIT_AVX2_GENERATOR_HPP
 
+#include <type_traits>
+
 #define XBYAK64
 #define XBYAK_NO_OP_NAMES
 /* in order to make selinux happy memory that would be marked with X-bit should
@@ -28,7 +30,6 @@
 namespace mkldnn {
 namespace impl {
 namespace cpu {
-
 
 // TODO: move this to jit_generator class?
 namespace {
@@ -110,6 +111,48 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa) {
 
 }
 
+// TODO (Roma): move all_same to a more appropriate location
+
+template <typename T, typename U, typename... Us>
+struct all_same : std::false_type {};
+
+template <typename T, typename... Us>
+struct all_same<T, T, Us...> : all_same<T, Us...> { };
+
+template <typename T>
+struct all_same<T, T> : std::true_type {};
+
+template <size_t len = 64>
+class jit_tagged_label_base {
+public:
+    enum { maxlen = len };
+    template <size_t n, typename... Tags,
+             typename = std::enable_if<all_same<char, Tags...>::value>>
+    jit_tagged_label_base(const char (&base)[n], Tags... tags) {
+        // XXX: This code is ugly but useful
+        constexpr size_t ntags = sizeof...(tags);
+        static_assert(n + ntags < maxlen, "resulting label may be too long");
+        // paste tags first in case base has unexpected null chars
+        paste_tags(tags...);
+        for (size_t i = 0; i < n; i++)
+            label_name_[ntags + i] = base[i];
+        // don't assume that the base string is 0-terminated
+        label_name_[ntags + n] = '\0';
+    }
+    operator const char*() const { return label_name_; }
+    const char *c_str() const { return label_name_; }
+private:
+    char label_name_[maxlen];
+    void paste_tags() { }
+    template <typename... Tags>
+    void paste_tags(char tag, Tags... tags) {
+        label_name_[sizeof...(tags)] = tag;
+        paste_tags(tags...);
+    }
+};
+
+typedef jit_tagged_label_base<> jit_tagged_label;
+
 class jit_generator : public Xbyak::CodeGenerator
 {
 protected:
@@ -125,6 +168,17 @@ protected:
             pop(Xbyak::Reg64(abi_save_regs[num_abi_save_regs - 1 - i]));
         ret();
     }
+
+    // Provide overrides for custom jit_tagged_label and C strings rather than
+    // implement a conversion of jit_tagge_label to std::string to avoid
+    // additional C++ runtime dependency
+
+    template <size_t len>
+    void L(const jit_tagged_label_base<len> &label) {
+        Xbyak::CodeGenerator::L(label.c_str());
+    }
+
+    void L(const char *label) { Xbyak::CodeGenerator::L(label); }
 
 public:
     jit_generator(
