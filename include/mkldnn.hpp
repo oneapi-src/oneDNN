@@ -331,7 +331,7 @@ struct memory: public primitive  {
     };
 
     /// A memory primitive descriptor.
-    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t>{
+    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t> {
         friend struct memory;
 
         // TODO: make private
@@ -518,7 +518,7 @@ static c_api::mkldnn_alg_kind_t convert_to_c(algorithm aalgorithm) {
 }
 
 struct reorder : public primitive {
-    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t>{
+    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t> {
         primitive_desc(const memory::primitive_desc &input,
                        const memory::primitive_desc &output) {
             c_api::mkldnn_primitive_desc_t result;
@@ -557,7 +557,7 @@ struct reorder : public primitive {
 };
 
 struct view : public primitive {
-    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t>{
+    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t> {
         primitive_desc(const memory::primitive_desc &input, memory::dims dims,
                 memory::dims offsets) {
             c_api::mkldnn_primitive_desc_t result;
@@ -591,7 +591,7 @@ struct view : public primitive {
 };
 
 struct concat : public primitive {
-    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t>{
+    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t> {
         std::vector<c_api::const_mkldnn_primitive_desc_t> cpp_to_c(
                 std::vector<memory::primitive_desc> inputs) {
             std::vector<c_api::const_mkldnn_primitive_desc_t> c_api_inputs;
@@ -659,7 +659,7 @@ struct concat : public primitive {
 };
 
 struct sum : public primitive {
-    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t>{
+    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t> {
         std::vector<c_api::const_mkldnn_primitive_desc_t> cpp_to_c(
                 std::vector<memory::primitive_desc> inputs) {
             std::vector<c_api::const_mkldnn_primitive_desc_t> c_api_inputs;
@@ -843,7 +843,7 @@ struct convolution_forward: public primitive {
                     "could not create a convolution forward descriptor");
         }
     };
-    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t>{
+    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t> {
         primitive_desc(const desc &adesc, const engine &aengine) {
             c_api::mkldnn_primitive_desc_t result;
             error::wrap_c_api(c_api::mkldnn_primitive_desc_create(
@@ -949,7 +949,7 @@ struct convolution_backward_data : public primitive {
                     "could not create a convolution backward data descriptor");
         }
     };
-    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t>{
+    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t> {
         primitive_desc(const desc &adesc, const engine &aengine,
                 const convolution_forward::primitive_desc
                     &hint_fwd_primitive_desc) {
@@ -1053,7 +1053,7 @@ struct convolution_backward_weights : public primitive {
         }
     };
 
-    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t>{
+    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t> {
         primitive_desc(const desc &adesc, const engine &aengine,
                 const convolution_forward::primitive_desc
                     &hint_fwd_primitive_desc) {
@@ -1150,7 +1150,7 @@ struct convolution_relu_forward : public primitive {
         }
     };
 
-    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t>{
+    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t> {
         primitive_desc(const desc &adesc, const engine &aengine) {
             c_api::mkldnn_primitive_desc_t result;
             error::wrap_c_api(c_api::mkldnn_primitive_desc_create(
@@ -1199,7 +1199,7 @@ struct lrn_forward : public primitive {
         }
     };
 
-    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t>{
+    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t> {
         primitive_desc(const desc &adesc, const engine &aengine) {
             c_api::mkldnn_primitive_desc_t result;
             error::wrap_c_api(c_api::mkldnn_primitive_desc_create(
@@ -1285,7 +1285,7 @@ struct lrn_backward : public primitive {
         }
     };
 
-    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t>{
+    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t> {
         primitive_desc(const desc &adesc, const engine &aengine,
         const lrn_forward::primitive_desc &hint_fwd_primitive_desc) {
         c_api::mkldnn_primitive_desc_t result;
@@ -1385,7 +1385,7 @@ struct pooling_forward : public primitive {
         }
     };
 
-    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t>{
+    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t> {
         primitive_desc(const desc &adesc, const engine &aengine) {
         c_api::mkldnn_primitive_desc_t result;
             error::wrap_c_api(c_api::mkldnn_primitive_desc_create(
@@ -1467,7 +1467,7 @@ struct pooling_backward : public primitive {
         }
     };
 
-    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t>{
+    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t> {
         primitive_desc(const desc &adesc, const engine &aengine,
         const pooling_forward::primitive_desc &hint_fwd_primitive_desc) {
         c_api::mkldnn_primitive_desc_t result;
@@ -1515,7 +1515,7 @@ struct relu_forward : public primitive {
         }
     };
 
-    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t>{
+    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t> {
         primitive_desc(const desc &adesc, const engine &aengine) {
             c_api::mkldnn_primitive_desc_t result;
             error::wrap_c_api(c_api::mkldnn_primitive_desc_create(
@@ -1578,7 +1578,7 @@ struct relu_backward : public primitive {
                     "could not create a relu backward descriptor");
         }
     };
-    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t>{
+    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t> {
         primitive_desc(const desc &adesc, const engine &aengine,
         const relu_forward::primitive_desc &hint_fwd_primitive_desc) {
             c_api::mkldnn_primitive_desc_t result;
@@ -1614,7 +1614,7 @@ struct softmax_forward : public primitive {
         }
     };
 
-    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t>{
+    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t> {
         primitive_desc(const desc &adesc, const engine &aengine) {
             c_api::mkldnn_primitive_desc_t result;
             error::wrap_c_api(c_api::mkldnn_primitive_desc_create(
@@ -1650,7 +1650,7 @@ struct batch_normalization_forward : public primitive {
         }
     };
 
-    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t>{
+    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t> {
         primitive_desc(const desc &adesc, const engine &aengine) {
             c_api::mkldnn_primitive_desc_t result;
             error::wrap_c_api(c_api::mkldnn_primitive_desc_create(
@@ -1818,7 +1818,7 @@ struct batch_normalization_backward : public primitive {
         }
     };
 
-    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t>{
+    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t> {
         primitive_desc(const desc &adesc, const engine &aengine,
                 const batch_normalization_forward::primitive_desc
                     &hint_fwd_primitive_desc) {
@@ -1969,7 +1969,7 @@ struct inner_product_forward: public primitive {
         }
     };
 
-    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t>{
+    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t> {
         primitive_desc(const desc &adesc, const engine &aengine) {
             c_api::mkldnn_primitive_desc_t result;
             error::wrap_c_api(c_api::mkldnn_primitive_desc_create(
@@ -2067,7 +2067,7 @@ struct inner_product_backward_data: public primitive {
         }
     };
 
-    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t>{
+    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t> {
         primitive_desc(const desc &adesc, const engine &aengine,
                 const inner_product_forward::primitive_desc
                     &hint_fwd_primitive_desc) {
@@ -2143,7 +2143,7 @@ struct inner_product_backward_weights: public primitive {
         }
     };
 
-    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t>{
+    struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t> {
         primitive_desc(const desc &adesc, const engine &aengine,
                 const inner_product_forward::primitive_desc
                     &hint_fwd_primitive_desc) {
