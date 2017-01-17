@@ -67,11 +67,10 @@ void ref_lrn_fwd_t<data_type>::execute_forward() {
                 }
             }
         }
-        data_t k = pow(1 + alpha * sum / summands, beta);
-        d[0] = src[data_d.off(mb, oc, oh, ow)] / k;
+        data_t k = 1 + alpha * sum / summands;
         if (ws)
-            ws[ws_d.off(mb, oc, oh, ow)]
-                = 1 / (k * (1 + alpha * sum / summands)); // for back prop
+            ws[ws_d.off(mb, oc, oh, ow)] = k; // for back prop
+        d[0] = src[data_d.off(mb, oc, oh, ow)] / pow(k, beta);
     };
 
     const int MB = conf_.MB();
