@@ -18,6 +18,7 @@
 #include "mkldnn.h"
 
 #include "c_types_map.hpp"
+#include "type_helpers.hpp"
 #include "utils.hpp"
 
 using namespace mkldnn::impl;
@@ -25,6 +26,7 @@ using namespace mkldnn::impl::utils;
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::prop_kind;
 using namespace mkldnn::impl::alg_kind;
+using namespace mkldnn::impl::types;
 
 namespace {
 status_t lrn_desc_init(lrn_desc_t *lrn_desc,
@@ -48,6 +50,8 @@ status_t lrn_desc_init(lrn_desc_t *lrn_desc,
     ld.data_desc = *data_desc;
     if (!is_fwd)
         ld.diff_data_desc = *diff_data_desc;
+    else
+        ld.diff_data_desc = zero_md();
     ld.local_size = local_size;
     ld.lrn_alpha = alpha;
     ld.lrn_beta = beta;
