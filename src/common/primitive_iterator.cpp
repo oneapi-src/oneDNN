@@ -31,8 +31,8 @@ struct mkldnn_primitive_desc_iterator: public c_compatible {
 
     mkldnn_primitive_desc_iterator(engine_t *engine, const op_desc_t *op_desc,
             const primitive_desc_t *hint_fwd_pd)
-        : idx_(-1), engine_(engine), pd_(nullptr), op_desc_(*op_desc)
-        , hint_fwd_pd_(hint_fwd_pd)
+        : idx_(-1), engine_(engine), pd_(nullptr)
+        , op_desc_(op_desc), hint_fwd_pd_(hint_fwd_pd)
         , impl_list_(engine_->get_implementation_list()), last_idx_(0)
     {
         while (impl_list_[last_idx_] != nullptr) ++last_idx_;
@@ -50,7 +50,7 @@ struct mkldnn_primitive_desc_iterator: public c_compatible {
     primitive_desc_iterator_t &operator++() {
         if (pd_) delete pd_;
         while (++idx_ != last_idx_) {
-            auto s = impl_list_[idx_](&pd_, &op_desc_, engine_, hint_fwd_pd_);
+            auto s = impl_list_[idx_](&pd_, op_desc_, engine_, hint_fwd_pd_);
             if (s == success) break;
         }
         return *this;
@@ -65,7 +65,7 @@ protected:
     int idx_;
     engine_t *engine_;
     primitive_desc_t *pd_;
-    op_desc_t op_desc_;
+    const op_desc_t *op_desc_;
     const primitive_desc_t *hint_fwd_pd_;
     const pd_create_f *impl_list_;
     int last_idx_;
@@ -73,7 +73,7 @@ protected:
 private:
     mkldnn_primitive_desc_iterator(engine_t *engine, int last_idx)
         : idx_(last_idx), engine_(engine), pd_(nullptr)
-        , op_desc_(primitive_kind::undefined), hint_fwd_pd_(nullptr)
+        , op_desc_(nullptr), hint_fwd_pd_(nullptr)
         , impl_list_(nullptr), last_idx_(last_idx) {}
 };
 
