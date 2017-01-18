@@ -136,6 +136,7 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(ref_pooling_bwd_t<data_type::f32>),
     /* lrn */
     INSTANCE(jit_avx2_lrn_fwd_t),
+    INSTANCE(jit_avx2_lrn_bwd_t),
     INSTANCE(ref_lrn_fwd_t<data_type::f32>),
     INSTANCE(ref_lrn_bwd_t<data_type::f32>),
     /* batch normalization */
