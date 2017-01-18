@@ -60,7 +60,7 @@ void check_bnrm_fwd(const test_bnrm_params_t &p,
     const memory::desc dst_d = dst.get_primitive_desc().desc();
 
     test_bnrm_sizes_t bp = p.sizes;
-    data_t eps = 1.e-5 * bp.mb * bp.h * bp.w;
+    data_t eps = 1.e-4 * bp.mb * bp.h * bp.w;
 
 #pragma omp parallel for
     for (int c = 0; c < bp.c; c++) {
@@ -96,8 +96,8 @@ void check_bnrm_fwd(const test_bnrm_params_t &p,
                 EXPECT_NEAR((variance_data[c] - ref_variance) / variance_norm_max, 0., eps);
             }
         }
-        data_t sqrt_variance = sqrt(ref_variance + p.eps);
-        sqrt_variance = data_t(1) / (sqrt_variance);
+        data_t ref_sqrt_variance = sqrt(ref_variance + p.eps);
+        data_t ref_rsqrt_variance = data_t(1) / (ref_sqrt_variance);
 
         if (use_weights) {
             memory::desc weights_d = weights.get_primitive_desc().desc();
@@ -108,7 +108,7 @@ void check_bnrm_fwd(const test_bnrm_params_t &p,
                             + h * bp.w + w;
                     data_t ref_dst = weights_data[map_index(weights_d, c)]
                             * (src_data[map_index(src_d, sdidx)]
-                            - ref_mean) * sqrt_variance
+                            - ref_mean) * ref_rsqrt_variance
                             + weights_data[map_index(weights_d, bp.c + c)];
                     data_t out = dst_data[map_index(dst_d, sdidx)];
                     data_t norm_max = std::max(fabs(out), fabs(ref_dst));
@@ -122,7 +122,7 @@ void check_bnrm_fwd(const test_bnrm_params_t &p,
                     int sdidx = n * bp.c * bp.h * bp.w + c * bp.h * bp.w
                             + h * bp.w + w;
                     data_t ref_dst = (src_data[map_index(src_d, sdidx)]
-                            - ref_mean) * sqrt_variance;
+                            - ref_mean) * ref_rsqrt_variance;
                     data_t out = dst_data[map_index(dst_d, sdidx)];
                     data_t norm_max = std::max(fabs(out), fabs(ref_dst));
                     if (norm_max < 10e-3) norm_max = data_t(1);
@@ -404,12 +404,16 @@ TEST_P(bnrm_test_float, TestsBnrm)
         str, bnrm_test_float, ::testing::Values(__VA_ARGS__))
 
 INST_TEST_CASE(Simple_NCHW,
+    PARAMS(nchw, nchw, 2, 8, 1, 1, EPS),
+    PARAMS(nchw, nchw, 2, 10, 1, 1, EPS),
+    PARAMS(nchw, nchw, 2, 8, 4, 4, EPS),
     PARAMS(nchw, nchw, 2, 10, 4, 4, EPS)
 );
 
 INST_TEST_CASE(Simple_Blocked,
-    PARAMS(nChw8c, nChw8c, 2, 8, 6, 6, EPS),
+    PARAMS(nChw8c, nChw8c, 2, 8, 1, 1, EPS),
     PARAMS(nChw8c, nChw8c, 2, 8, 4, 4, EPS),
+    PARAMS(nChw8c, nChw8c, 2, 8, 6, 6, EPS),
     PARAMS(nChw8c, nChw8c, 2, 16, 4, 4, EPS),
     PARAMS(nChw8c, nChw8c, 2, 16, 4, 4, EPS),
     PARAMS(nChw8c, nChw8c, 2, 16, 8, 8, EPS),
