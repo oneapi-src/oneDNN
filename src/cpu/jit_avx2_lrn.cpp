@@ -98,7 +98,7 @@ struct jit_avx2_lrn_fwd_t::jit_avx2_lrn_kernel_f32: public jit_generator {
                 }
                 else
                 {
-                    vmovups(ytmp, ptr[src + (i * stride + j)* VECTOR_LENGTH * 4]);
+                    vmovups(ytmp, ptr[src + (i*stride + j)*VECTOR_LENGTH*4]);
                     vfmadd231ps(ysum, ytmp, ytmp);
                 }
             }
@@ -136,10 +136,10 @@ struct jit_avx2_lrn_fwd_t::jit_avx2_lrn_kernel_f32: public jit_generator {
         Xbyak::Ymm ytmp = ymm12;
 
         static const char *label[MAX_LOCAL_SIZE] = {
-            ".l00", ".l01", ".l02", ".l03", ".l04", ".l05", ".l06", ".l07", ".l08", ".l09",
-            ".l10", ".l11", ".l12", ".l13", ".l14", ".l15", ".l16", ".l17", ".l18", ".l19",
-            ".l20", ".l21", ".l22", ".l23", ".l24", ".l25", ".l26", ".l27", ".l28", ".l29",
-            ".l30", ".l31"
+            ".l00", ".l01", ".l02", ".l03", ".l04", ".l05", ".l06", ".l07",
+            ".l08", ".l09", ".l10", ".l11", ".l12", ".l13", ".l14", ".l15",
+            ".l16", ".l17", ".l18", ".l19", ".l20", ".l21", ".l22", ".l23",
+            ".l24", ".l25", ".l26", ".l27", ".l28", ".l29", ".l30", ".l31"
         };
 
         this->preamble();
@@ -168,7 +168,8 @@ struct jit_avx2_lrn_fwd_t::jit_avx2_lrn_kernel_f32: public jit_generator {
             cmp(w, 0);
             jne(label_t[i], T_NEAR);
             for (int j = J.W - S2; j < J.W; ++j)
-                within_body(-i, S2, -s2, J.W - 1 - j, J.W, ysum, ydst, ytmp, ysum2, pk);
+                within_body(-i, S2, -s2, J.W - 1 - j, J.W,
+                        ysum, ydst, ytmp, ysum2, pk);
         }
 
         mov(h, J.H - J.size + 1);
@@ -182,7 +183,8 @@ struct jit_avx2_lrn_fwd_t::jit_avx2_lrn_kernel_f32: public jit_generator {
         cmp(w, 0);
         jne(".lrn_loop_w", T_NEAR);
         for (int j = J.W - S2; j < J.W; ++j)
-            within_body(-s2, S2, -s2, J.W - 1 - j, J.W, ysum, ydst, ytmp, ysum2, pk);
+            within_body(-s2, S2, -s2, J.W - 1 - j, J.W,
+                    ysum, ydst, ytmp, ysum2, pk);
         dec(h);
         cmp(h, 0);
         jne(".lrn_loop_h", T_NEAR);
@@ -190,15 +192,20 @@ struct jit_avx2_lrn_fwd_t::jit_avx2_lrn_kernel_f32: public jit_generator {
         for (int i = J.H - S2; i < J.H; ++i)
         {
             for (int j = 0; j < s2; ++j)
-                within_body(-s2, J.H - 1 - i, -j, S2, J.W, ysum, ydst, ytmp, ysum2, pk);
+                within_body(-s2, J.H - 1 - i, -j, S2, J.W,
+                        ysum, ydst, ytmp, ysum2, pk);
+
             mov(w, J.W - J.size + 1);
             L(label_b[i - (J.H - S2)]);
-            within_body(-s2, J.H - 1 - i, -s2, S2, J.W, ysum, ydst, ytmp, ysum2, pk);
+            within_body(-s2, J.H - 1 - i, -s2, S2, J.W,
+                    ysum, ydst, ytmp, ysum2, pk);
             dec(w);
             cmp(w, 0);
             jne(label_b[i - (J.H - S2)], T_NEAR);
+
             for (int j = J.W - S2; j < J.W; ++j)
-                within_body(-s2, J.H - 1 - i, -s2, J.W - 1 - j, J.W, ysum, ydst, ytmp, ysum2, pk);
+                within_body(-s2, J.H - 1 - i, -s2, J.W - 1 - j, J.W,
+                        ysum, ydst, ytmp, ysum2, pk);
         }
 
         this->postamble();
@@ -310,7 +317,8 @@ struct jit_avx2_lrn_fwd_t::jit_avx2_lrn_kernel_f32: public jit_generator {
         , alpha(A)
     {
         static const uint32_t mask[] = {
-            0, 0, 0x80000000, 0x80000000, 0x80000000, 0x80000000, 0x80000000, 0x80000000, 0x80000000, 0, 0
+            0, 0, 0x80000000, 0x80000000, 0x80000000, 0x80000000,
+            0x80000000, 0x80000000, 0x80000000, 0, 0
         };
 
         Xbyak::Reg64 c = r9;
@@ -474,8 +482,8 @@ struct jit_avx2_lrn_fwd_t::jit_avx2_lrn_kernel_f32: public jit_generator {
         , alpha(A)
     {
         static const uint32_t mask[] = {
-            0x80000000, 0x80000000, 0x80000000, 0x80000000, 0x80000000, 0x80000000, 0x80000000,
-            0, 0, 0, 0, 0, 0, 0
+            0x80000000, 0x80000000, 0x80000000, 0x80000000, 0x80000000,
+            0x80000000, 0x80000000, 0, 0, 0, 0, 0, 0, 0
         };
         Xbyak::Reg64 c = r10;
         Xbyak::Ymm ymask = ymm2;
@@ -565,7 +573,8 @@ status_t jit_avx2_lrn_fwd_t::pd_t::init() {
 
     const memory_desc_wrapper data_d(data_pd_.desc());
     bool ok = true
-        && utils::one_of(desc()->prop_kind, forward_training, forward_inference)
+        && utils::one_of(desc()->prop_kind, forward_training,
+                forward_inference)
         && utils::everyone_is(data_type::f32, desc()->data_desc.data_type)
         && data_d.ndims() == 4
         && data_d.dims()[1] % VECTOR_LENGTH == 0
