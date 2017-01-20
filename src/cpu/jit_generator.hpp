@@ -31,6 +31,18 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
+typedef enum {
+    avx2,
+    avx512_mic,
+} cpu_isa_t;
+
+template <cpu_isa_t> struct cpu_isa_trait {}; /* ::vlen -> 32 (for avx2) */
+
+template <> struct cpu_isa_trait<avx2>
+{ static constexpr int vlen = 32; };
+template <> struct cpu_isa_trait<avx512_mic>
+{ static constexpr int vlen = 64; };
+
 // TODO: move this to jit_generator class?
 namespace {
 
@@ -82,11 +94,6 @@ static const Xbyak::Reg64 abi_param1(Xbyak::Operand::RDI),
              abi_not_param1(Xbyak::Operand::RCX);
 #endif
 #endif
-
-typedef enum {
-    avx2,
-    avx512_mic,
-} cpu_isa_t;
 
 static inline bool mayiuse(const cpu_isa_t cpu_isa) {
     using namespace Xbyak::util;
