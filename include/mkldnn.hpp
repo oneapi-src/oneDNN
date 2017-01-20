@@ -75,7 +75,7 @@ public:
     /// @param weak A flag to specify whether the wrapper should be weak.
     void reset(T t, bool weak = false) {
         auto dummy_destructor = [](T) { return decltype(traits::destructor(0))(0); };
-        _data.reset(t, weak ? dummy_destructor: traits::destructor);
+        _data.reset(t, weak ? dummy_destructor : traits::destructor);
     }
 
     /// Returns the value of the underlying C handle.
@@ -117,8 +117,6 @@ public:
         /// Returns the specified output.
         inline operator primitive() const;
     };
-
-
 
     /// Returns the descriptor of the underlying C API primitive
     inline c_api::const_mkldnn_primitive_desc_t get_primitive_desc() const;
@@ -266,7 +264,7 @@ struct memory: public primitive  {
     /// Data type specification. See #mkldnn_precision_t for a detailed
     /// description.
     enum data_type {
-        data__undef = c_api::mkldnn_data_type_undef,
+        data_undef = c_api::mkldnn_data_type_undef,
         f32 = c_api::mkldnn_f32,
         s32 = c_api::mkldnn_s32,
     };
@@ -379,8 +377,6 @@ struct memory: public primitive  {
     /// Constructs a memory primitive.
     ///
     /// @param adesc Memory primitive descriptor.
-    /// @param input Pointer to previously allocated data. If @c NULL, the library
-    ///              allocates the memory.
     memory(const primitive_desc &adesc) {
         c_api::mkldnn_primitive_t result;
         error::wrap_c_api(
