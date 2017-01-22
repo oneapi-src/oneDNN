@@ -18,6 +18,7 @@
 #include "mkldnn.h"
 
 #include "c_types_map.hpp"
+#include "type_helpers.hpp"
 #include "utils.hpp"
 
 using namespace mkldnn::impl;
@@ -25,6 +26,7 @@ using namespace mkldnn::impl::utils;
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::prop_kind;
 using namespace mkldnn::impl::alg_kind;
+using namespace mkldnn::impl::types;
 
 namespace {
 status_t relu_desc_init(relu_desc_t *relu_desc, prop_kind_t prop_kind,
@@ -41,8 +43,9 @@ status_t relu_desc_init(relu_desc_t *relu_desc, prop_kind_t prop_kind,
     rd.prop_kind = prop_kind;
 
     rd.data_desc = *data_desc;
-    if (rd.prop_kind == backward_data)
-        rd.diff_data_desc = *diff_data_desc;
+    rd.diff_data_desc =
+        (rd.prop_kind == backward_data) ? *diff_data_desc : zero_md();
+
     rd.negative_slope = negative_slope;
 
     bool consistency = true
