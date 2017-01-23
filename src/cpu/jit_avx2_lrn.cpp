@@ -772,7 +772,7 @@ struct jit_avx2_lrn_bwd_t::jit_avx2_lrn_kernel_f32: public jit_generator {
         bool is_first = J.version == -1 || J.version == -2;
         bool is_last  = J.version == +1 || J.version == -2;
 
-        char tag;
+        char tag = '\0';
         if (is_first || is_single) {
             vxorps(xsrc_prev, xsrc_prev, xsrc_prev);
             vmovups(ptr[t + 0], xsrc_prev);
