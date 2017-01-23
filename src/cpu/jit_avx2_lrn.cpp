@@ -880,8 +880,13 @@ status_t jit_avx2_lrn_bwd_t::pd_t::init() {
         && desc()->lrn_beta == 0.75;
     if (!ok) return unimplemented;
 
+    ws_pd_ = data_pd_;
+
+    auto fwd_ws_d_ = hint_fwd_pd_->workspace_pd()->desc();
     bool ws_ok = true
-        && hint_fwd_pd_->src_pd() == src_pd();
+        && fwd_ws_d_->ndims == data_d.ndims()
+        && fwd_ws_d_->format == data_d.format()
+        && fwd_ws_d_->data_type == data_d.data_type();
     if (!ws_ok) return unimplemented;
 
     bool args_ok_across = true
