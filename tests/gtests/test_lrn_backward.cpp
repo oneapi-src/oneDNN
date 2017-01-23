@@ -397,6 +397,40 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nChw8c, { 2, 256, 27, 27, 1.0e-4, 0.75, 5, ACROSS } }
             ));
 
+INSTANTIATE_TEST_CASE_P(
+        TestLRNGoogleNetV1NCHW, lrn_test_float,
+        ::testing::Values(
+            lrn_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nchw,
+            memory::format::nchw, { 2, 64, 56, 56, 1.0e-4, 0.75, 5, ACROSS } },
+            lrn_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nchw,
+            memory::format::nchw, { 2, 64, 56, 56, 1.0e-4, 0.75, 5, ACROSS } },
+            lrn_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nchw,
+            memory::format::nchw, { 2, 192, 56, 56, 1.0e-4, 0.75, 5, ACROSS } },
+            lrn_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nchw,
+            memory::format::nchw, { 2, 192, 56, 56, 1.0e-4, 0.75, 5, ACROSS } }
+            ));
+
+INSTANTIATE_TEST_CASE_P(
+        TestLRNGoogleNetV1Blocked, lrn_test_float,
+        ::testing::Values(
+            lrn_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nChw8c,
+            memory::format::nChw8c, { 2, 64, 56, 56, 1.0e-4, 0.75, 5, ACROSS } },
+            lrn_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nChw8c,
+            memory::format::nChw8c, { 2, 64, 56, 56, 1.0e-4, 0.75, 5, ACROSS } },
+            lrn_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nChw8c,
+            memory::format::nChw8c, { 2, 192, 56, 56, 1.0e-4, 0.75, 5, ACROSS } },
+            lrn_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nChw8c,
+            memory::format::nChw8c, { 2, 192, 56, 56, 1.0e-4, 0.75, 5, ACROSS } }
+            ));
+
 // Backward does not support WITHIN yet.
 /*
 INSTANTIATE_TEST_CASE_P(
