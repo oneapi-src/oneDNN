@@ -158,7 +158,7 @@ void check_bnrm_bwd(const test_bnrm_params_t &p,
 
     test_bnrm_sizes_t bp = p.sizes;
 
-    const data_t eps = 1.e-6 * bp.mb * bp.h * bp.w;
+    const data_t eps = 1.e-4 * bp.mb * bp.h * bp.w;
 
 #pragma omp parallel for
     for (int c = 0; c < bp.c; c++) {
