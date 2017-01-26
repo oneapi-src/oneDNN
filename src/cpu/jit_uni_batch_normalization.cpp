@@ -867,6 +867,8 @@ void jit_uni_batch_normalization_bwd_t<isa>::execute(event_t *e) {
 /* struct instantiation */
 template struct jit_uni_batch_normalization_fwd_t<avx2>;
 template struct jit_uni_batch_normalization_bwd_t<avx2>;
+template struct jit_uni_batch_normalization_fwd_t<avx512_mic>;
+template struct jit_uni_batch_normalization_bwd_t<avx512_mic>;
 
 }
 }

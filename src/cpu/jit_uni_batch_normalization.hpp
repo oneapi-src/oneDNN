@@ -48,7 +48,7 @@ struct jit_uni_batch_normalization_fwd_t: public cpu_primitive_t {
             assert(engine()->kind() == engine_kind::cpu);
             auto desired_fmt = isa == avx2
                 ? memory_format::nChw8c
-                : -1;
+                : memory_format::nChw16c;
             bool ok = true
                 && mayiuse(isa)
                 && is_fwd()
@@ -100,7 +100,7 @@ struct jit_uni_batch_normalization_bwd_t: public cpu_primitive_t {
             assert(engine()->kind() == engine_kind::cpu);
             auto desired_fmt = isa == avx2
                 ? memory_format::nChw8c
-                : -1;
+                : memory_format::nChw16c;
             bool ok = true
                 && mayiuse(isa)
                 && is_bwd()
