@@ -76,14 +76,10 @@ constexpr size_t num_abi_save_regs
 
 #ifdef _WIN
 static const Xbyak::Reg64 abi_param1(Xbyak::Operand::RCX),
-             abi_param2(Xbyak::Operand::RDX),
-             abi_param3(Xbyak::Operand::R8),
-             abi_param4(Xbyak::Operand::R9);
+             abi_not_param1(Xbyak::Operand::RDI);
 #else
 static const Xbyak::Reg64 abi_param1(Xbyak::Operand::RDI),
-             abi_param2(Xbyak::Operand::RSI),
-             abi_param3(Xbyak::Operand::RDX),
-             abi_param4(Xbyak::Operand::RCX);
+             abi_not_param1(Xbyak::Operand::RCX);
 #endif
 #endif
 
@@ -157,16 +153,49 @@ class jit_generator : public Xbyak::CodeGenerator
 {
 protected:
     Xbyak::Reg64 param1 = abi_param1;
+    const int EVEX_max_8b_offt = 0x200;
+    const Xbyak::Reg64 reg_EVEX_max_8b_offt = rbp;
 
     void preamble() {
         for (size_t i = 0; i < num_abi_save_regs; ++i)
             push(Xbyak::Reg64(abi_save_regs[i]));
+        if (mayiuse(avx512_mic)) {
+            mov(reg_EVEX_max_8b_offt, 2 * EVEX_max_8b_offt);
+        }
     }
 
     void postamble() {
         for (size_t i = 0; i < num_abi_save_regs; ++i)
             pop(Xbyak::Reg64(abi_save_regs[num_abi_save_regs - 1 - i]));
         ret();
+    }
+
+    Xbyak::Address EVEX_compress_addr(Xbyak::Reg64 base,
+            int offt, bool bcast = false)
+    {
+        using Xbyak::Zmm;
+        using Xbyak::Reg64;
+        using Xbyak::Address;
+        using Xbyak::RegExp;
+
+        int scale = 0;
+
+        if (EVEX_max_8b_offt <= offt && offt < 3 * EVEX_max_8b_offt) {
+            offt = offt - 2 * EVEX_max_8b_offt;
+            scale = 1;
+        } else if (3 * EVEX_max_8b_offt <= offt && offt < 5 * EVEX_max_8b_offt) {
+            offt = offt - 4 * EVEX_max_8b_offt;
+            scale = 2;
+        }
+
+        auto re = RegExp() + base + offt;
+        if (scale)
+            re = re + reg_EVEX_max_8b_offt * scale;
+
+        if (bcast)
+            return zword_b [re];
+        else
+            return zword [re];
     }
 
     // Provide overrides for custom jit_tagged_label and C strings rather than

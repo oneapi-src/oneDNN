@@ -38,6 +38,7 @@ struct jit_conv_conf_t {
     int nb_ic_blocking, nb_oc_blocking; // blocking of nb_ic and nb_ic
     int ur_h, ur_w;
     int ur_w_tail;
+    bool is_1stconv;
 };
 
 struct __attribute__((__packed__)) jit_conv_call_s {
@@ -48,9 +49,12 @@ struct __attribute__((__packed__)) jit_conv_call_s {
     const float *src_prf;
     const float *dst_prf;
     const float *filt_prf;
+    const float *bias_prf;
     size_t kh_padding;
     size_t kh_padding_prf;
     size_t kw_padding;
+    size_t current_ic;
+    size_t current_ic_prf;
     size_t oc_blocks;
     int ic_flag;
 };

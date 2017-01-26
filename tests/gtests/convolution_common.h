@@ -10,20 +10,27 @@
 #ifdef DIRECTION_FORWARD
 #define FMT_WEIGHTS_BLOCKED OIhw8i8o
 #define FMT_WEIGHTS_BLOCKED_G gOIhw8i8o
+#define FMT_WEIGHTS_BLOCKED16 OIhw16i16o
+#define FMT_WEIGHTS_BLOCKED16_G gOIhw16i16o
 #define TEST_CASE_NAME_PREFIX Forward
 #elif defined DIRECTION_BACKWARD_DATA
 #define FMT_WEIGHTS_BLOCKED OIhw8o8i
 #define FMT_WEIGHTS_BLOCKED_G gOIhw8o8i
+#define FMT_WEIGHTS_BLOCKED16 OIhw16o16i
+#define FMT_WEIGHTS_BLOCKED16_G gOIhw16o16i
 #define TEST_CASE_NAME_PREFIX BackwardData
 #elif defined DIRECTION_BACKWARD_WEIGHTS
 #define FMT_WEIGHTS_BLOCKED OIhw8i8o
 #define FMT_WEIGHTS_BLOCKED_G gOIhw8i8o
+#define FMT_WEIGHTS_BLOCKED16 OIhw16i16o
+#define FMT_WEIGHTS_BLOCKED16_G gOIhw16i16o
 #define TEST_CASE_NAME_PREFIX BackwardWeights
 #endif
 
 #define FMT_BIAS x
 #define FMT_NO_BIAS undef
 #define FMT_DATA_BLOCKED nChw8c
+#define FMT_DATA_BLOCKED16 nChw16c
 
 #define PARAMS(src, weights, bias, dst, ...) \
     test_convolution_params_t { ENGINE, ALGORITHM, \

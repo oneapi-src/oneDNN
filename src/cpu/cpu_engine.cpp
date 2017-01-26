@@ -23,6 +23,7 @@
 #include "cpu_concat.hpp"
 #include "cpu_sum.hpp"
 
+#include "cpu/jit_avx512_mic_convolution.hpp"
 #include "cpu/jit_avx2_1x1_convolution.hpp"
 #include "cpu/jit_avx2_convolution.hpp"
 #include "cpu/ref_convolution.hpp"
@@ -118,6 +119,7 @@ static const rpd_create_f cpu_reorder_impl_list[] = {
 #define INSTANCE(inst) &primitive_desc_t::create<inst::pd_t>
 static const pd_create_f cpu_impl_list[] = {
     /* conv */
+    INSTANCE(jit_avx512_mic_convolution_fwd_t),
     INSTANCE(jit_avx2_1x1_convolution_fwd_t),
     INSTANCE(jit_avx2_1x1_convolution_bwd_data_t),
     INSTANCE(jit_avx2_1x1_convolution_bwd_weights_t),
