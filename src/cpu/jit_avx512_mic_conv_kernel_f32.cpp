@@ -37,7 +37,7 @@ void jit_avx512_mic_conv_fwd_kernel_f32::prepare_output(int ur_w)
         Zmm zmm(i);
         vpxord(zmm, zmm, zmm);
         int aux_output_offset = typesize * (i)*jcp.oc_block;
-        prefetcht2(EVEX_compress_addr(reg_out_prf, aux_output_offset));
+        prefetcht1(EVEX_compress_addr(reg_out_prf, aux_output_offset));
     }
 }
 
