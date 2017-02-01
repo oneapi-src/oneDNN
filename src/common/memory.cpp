@@ -113,7 +113,7 @@ status_t mkldnn_view_primitive_desc_create(primitive_desc_t **view_pd,
         (const memory_pd_t*)memory_pd;
     memory_desc_wrapper md(*mpd->desc());
     for (int d = 0; d < md.ndims(); ++d) {
-        if (offsets[d] < 0 || (offsets[d] + dims[d] >= md.dims()[d]))
+        if (offsets[d] < 0 || (offsets[d] + dims[d] > md.dims()[d]))
             return invalid_arguments;
     }
     return memory_pd->engine()->view_primitive_desc_create(
