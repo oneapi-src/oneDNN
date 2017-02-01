@@ -563,6 +563,19 @@ struct view : public primitive {
                 "could not create a view primitive descriptor");
             reset(result);
         }
+
+        memory::primitive_desc dst_primitive_desc() const {
+            memory::primitive_desc adesc;
+            c_api::mkldnn_primitive_desc_t cdesc;
+            c_api::const_mkldnn_primitive_desc_t const_cdesc =
+                c_api::mkldnn_primitive_desc_query_pd(get(),
+                               mkldnn::convert_to_c(dst_pd), 0);
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_clone(&cdesc,
+                        const_cdesc),
+                    "could not clone a dst primitive descriptor");
+            adesc.reset(cdesc);
+            return adesc;
+        }
     };
 
     view(const primitive_desc &view_pd, primitive::at input) {
