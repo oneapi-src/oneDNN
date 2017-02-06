@@ -117,8 +117,8 @@ protected:
 
         std::vector<int> padR = { pd.padh, pd.padw };
         for (int i = 0; i < 2; ++i) {
-        if ((pd.ih + pd.padh + padR[0] - pd.kh + pd.strh-1)/pd.strh + 1 < pd.oh) ++padR[0];
-        if ((pd.iw + pd.padw + padR[1] - pd.kw + pd.strw-1)/pd.strw + 1 < pd.ow) ++padR[1];
+        if ((pd.ih + pd.padh + padR[0] - pd.kh)/pd.strh + 1 < pd.oh) ++padR[0];
+        if ((pd.iw + pd.padw + padR[1] - pd.kw)/pd.strw + 1 < pd.ow) ++padR[1];
         }
 
         auto pool_desc = pooling_forward::desc(p.aprop_kind, p.aalgorithm, p_src_desc,

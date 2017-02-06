@@ -71,8 +71,8 @@ status_t pooling_desc_init(pooling_desc_t *pool_desc,
         && src_desc->dims[1] == dst_desc->dims[1];
     for (int i = 2; i <= 3; ++i)
         consistency = consistency && (
-                (src_desc->dims[i] - kernel[i - 2] + strides[i - 2] - 1
-                 + padding_l[i - 2] + padding_r[i - 2]) / strides[i - 2] + 1
+                (src_desc->dims[i] - kernel[i - 2] + padding_l[i - 2]
+                 + padding_r[i - 2]) / strides[i - 2] + 1
                 == dst_desc->dims[i]);
     if (!consistency) return invalid_arguments;
 
