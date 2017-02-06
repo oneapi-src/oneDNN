@@ -147,7 +147,6 @@ inline void jit_avx2_pool_kernel_f32::avg_oh_step(int ur_w, int pad_l,
 
 inline void jit_avx2_pool_kernel_f32::max_oh_step_fwd(int ur_w, int pad_l,
         int pad_r, const char *kh_label) {
-    unsigned char _cmp_eq_os = 0;
     unsigned char _cmp_lt_os = 1;
 
     int iw = jpp.iw;
@@ -207,8 +206,6 @@ inline void jit_avx2_pool_kernel_f32::max_oh_step_fwd(int ur_w, int pad_l,
 
 inline void jit_avx2_pool_kernel_f32::max_oh_step_bwd(int ur_w, int pad_l,
         int pad_r, const char *kh_label) {
-    unsigned char _cmp_eq_os = 0;
-    unsigned char _cmp_lt_os = 1;
 
     int iw = jpp.iw;
     int kw = jpp.kw;
@@ -257,7 +254,6 @@ void jit_avx2_pool_kernel_f32::generate() {
     int ow = jpp.ow;
     int iw = jpp.iw;
     int kw = jpp.kw;
-    int kh = jpp.kh;
     int ur_w = jpp.ur_w;
     int c_block = jpp.c_block;
     int stride_w = jpp.stride_w;
