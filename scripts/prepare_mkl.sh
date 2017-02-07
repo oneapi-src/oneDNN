@@ -15,7 +15,7 @@
 # limitations under the License.
 #===============================================================================
 
-MKLURL="https://github.com/01org/mkl-dnn/releases/download/v0.3/mklml_lnx_2017.0.1.20161005.tgz"
+MKLURL="https://github.com/01org/mkl-dnn/releases/download/v0.5/mklml_lnx_2017.0.2.20170110.tgz"
 
 DST=`dirname $0`/../external
 DST=`readlink -f $DST`
