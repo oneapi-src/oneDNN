@@ -1,6 +1,6 @@
 # Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN)
 [![Apache License Version 2.0](https://img.shields.io/badge/license-Apache_2.0-green.svg)](LICENSE)
-![v0.3 technical preview](https://img.shields.io/badge/v0.3-technical_preview-orange.svg)
+![v0.5 technical preview](https://img.shields.io/badge/v0.5-technical_preview-orange.svg)
 
 Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN) is an
 open source performance library for Deep Learning (DL) applications intended
@@ -49,9 +49,10 @@ request will be merged into our internal and GitHub repositories.
 Intel MKL-DNN supports Intel(R) 64 architecture processors and is optimized for
 * Intel(R) Xeon(R) processor E5-xxxx v3 (codename Haswell)
 * Intel(R) Xeon(R) processor E5-xxxx v4 (codename Broadwell)
+* Intel(R) Xeon Phi(TM) processor 72xx (codename Kingts Landing)
 
-Processors without Intel(R) Advanced Vector Extensions 2 (Intel(R) AVX2) are not
-supported in this release.
+Processors without Intel(R) Advanced Vector Extensions 2 (Intel(R) AVX2) are 
+supported and will run reference code.
 
 The software dependencies are:
 * [Cmake](https://cmake.org/download/) 2.8.0 or later
