@@ -133,6 +133,25 @@ inline U this_block_size(const T offset, const U max, const V block_size) {
         return block_size;
 }
 
+template<typename T>
+inline T nd_iterator_init(T start) { return start; }
+template<typename T, typename U, typename W, typename... Args>
+inline T nd_iterator_init(T start, U &x, const W &X, Args& ... tuple) {
+    start = nd_iterator_init(start, tuple...);
+    x = start % X;
+    return start / X;
+}
+
+inline bool nd_iterator_step() { return true; }
+template<typename U, typename W, typename... Args>
+inline bool nd_iterator_step(U &x, const W &X, Args& ... tuple) {
+    if (nd_iterator_step(tuple...) ) {
+        x = (x + 1) % X;
+        return x == 0;
+    }
+    return false;
+}
+
 }
 
 inline void* malloc(size_t size, int alignment) {
