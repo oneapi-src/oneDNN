@@ -48,7 +48,7 @@ void _jit_avx512_mic_convolution_fwd_t<with_relu>::execute_forward()
         size_t start{0}, end{0};
         const int oc_dim = jcp.nb_oc / jcp.nb_oc_blocking;
         const size_t work_amount = jcp.mb * jcp.ngroups * oc_dim;
-        size_t n, g, oc;
+        size_t n{0}, g{0}, oc{0};
         jit_conv_call_s par_conv = {};
 
         balance211(work_amount, nthr, ithr, start, end);
