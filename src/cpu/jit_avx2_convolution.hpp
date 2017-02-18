@@ -207,14 +207,15 @@ struct jit_avx2_convolution_bwd_weights_t: public cpu_primitive_t {
     protected:
         virtual status_t set_default_params() override {
             using namespace memory_format;
+            const bool flat = this->IC() == 3;
 
             if (this->src_pd_.desc()->format == any)
-                CHECK(this->src_pd_.set_format(nChw8c));
+                CHECK(this->src_pd_.set_format(flat ? nchw : nChw8c));
             if (this->diff_dst_pd_.desc()->format == any)
                 CHECK(this->diff_dst_pd_.set_format(nChw8c));
             if (this->diff_weights_pd_.desc()->format == any)
                 CHECK(this->diff_weights_pd_.set_format(this->with_groups()
-                            ? gOIhw8i8o : OIhw8i8o));
+                        ? gOIhw8i8o : (flat ? Ohwi8o : OIhw8i8o)));
             if (this->diff_bias_pd_.desc()->format == any)
                 CHECK(this->diff_bias_pd_.set_format(x));
             return status::success;

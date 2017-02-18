@@ -183,12 +183,15 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights() {
     auto ker = [&](int g, int n, int oc, int ic) {
         jit_conv_call_s par_conv = {};
 
-        par_conv.src = &src[src_d.blk_off(n, g * jcp.nb_ic + ic)];
-        par_conv.dst = &diff_dst[diff_dst_d.blk_off(n, g * jcp.nb_oc + oc)];
+        const size_t _oc = g * jcp.nb_oc + oc;
+        const size_t _ic = g * jcp.nb_ic + ic;
+
+        par_conv.src = &src[src_d.blk_off(n, jcp.ic == 3 ? 0 : _ic)];
+        par_conv.dst = &diff_dst[diff_dst_d.blk_off(n, _oc)];
 
         const size_t wdiff_offset = conf_.with_groups()
-            ? diff_weights_d.blk_off(g, oc, ic, 0, 0)
-            : diff_weights_d.blk_off(oc, ic, 0, 0);
+            ? diff_weights_d.blk_off(g, oc, jcp.ic == 3 ? 0 : ic, 0, 0)
+            : diff_weights_d.blk_off(oc, jcp.ic == 3 ? 0 : ic, 0, 0);
         par_conv.filt = &diff_weights[wdiff_offset];
 
         // TODO: move initialization into the kernel
@@ -198,8 +201,7 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights() {
         }
 
         if (diff_bias && ic == 0) {
-            const size_t _c = g*jcp.nb_oc + oc;
-            auto db = &diff_bias[diff_bias_d.blk_off(_c*jcp.oc_block)];
+            auto db = &diff_bias[diff_bias_d.blk_off(_oc * jcp.oc_block)];
 
             if (n == 0) {
                 for (int cb = 0; cb < jcp.oc_block; ++cb) db[cb] = 0.0;
@@ -207,15 +209,13 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights() {
 
             for (int h = 0; h < jcp.oh; ++h) {
                 for (int w = 0; w < jcp.ow; ++w) {
-                    auto dd = &diff_dst[diff_dst_d.blk_off(n,
-                            g * jcp.nb_oc + oc, h, w)];
+                    auto dd = &diff_dst[diff_dst_d.blk_off(n, _oc, h, w)];
                     for (int cb = 0; cb < jcp.oc_block; ++cb) {
                         db[cb] += dd[cb];
                     }
                 }
             }
         }
-
         kernel_->jit_ker(&par_conv);
     };
 
