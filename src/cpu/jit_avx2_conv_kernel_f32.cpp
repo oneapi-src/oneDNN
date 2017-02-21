@@ -743,12 +743,11 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_oh_step_disp(
     int ic_block_step;
     if (jcp.src_fmt == nchw) {
         ic_block_step = jcp.kw >= 5 ? 1 : jcp.ic_block;
-        }
-    else {
+    } else {
         ic_block_step = jcp.kw > 7 ? 1
         : jcp.kw > 3 ? 2
         : jcp.kw > 1 ? 4 : 8;
-        }
+    }
 
     const int max_ur_w = jcp.ow > 56 ? 14 : 28;
 
@@ -785,7 +784,7 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_oh_step_unroll_ow(
             compute_ic_block_step(jcp.ow, jcp.l_pad, r_pad, ic_block_step, 0,
                     0, 0);
             int inp_icblk_stride = jcp.src_fmt == nchw ? jcp.ih*jcp.iw : 1;
-            add(reg_input , sizeof(float) * ic_block_step * inp_icblk_stride);
+            add(reg_input, sizeof(float) * ic_block_step * inp_icblk_stride);
             add(reg_kernel, sizeof(float) * ic_block_step * oc_block);
             add(b_ic, ic_block_step);
             cmp(b_ic, ic_block);
