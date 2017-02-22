@@ -50,8 +50,8 @@ status_t pooling_desc_init(pooling_desc_t *pool_desc,
 
     const bool is_fwd = one_of(prop_kind, forward_training, forward_inference);
 
-    pd.src_desc = zero_md();
-    pd.dst_desc = zero_md();
+    pd.diff_src_desc = pd.src_desc = zero_md();
+    pd.diff_dst_desc = pd.dst_desc = zero_md();
 
     (is_fwd ? pd.src_desc : pd.diff_src_desc) = *src_desc;
     (is_fwd ? pd.dst_desc : pd.diff_dst_desc) = *dst_desc;
