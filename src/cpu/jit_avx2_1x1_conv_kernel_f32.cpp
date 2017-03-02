@@ -487,6 +487,12 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
 
     jcp.ur = 4;
 
+    int load_blocking{ 0 };
+    int load_blocking_max{ 0 };
+    int bcast_blocking{ 0 };
+    int bcast_blocking_max{ 0 };
+    int reduce_blocking{ 0 };
+
     if (one_of(jcp.prop_kind, forward, forward_inference)) {
         jcp.reduce_dim = jcp.ic;
         jcp.reduce_block = jcp.ic_block;
@@ -510,6 +516,12 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
 
         jcp.load_loop_load_step = jcp.ic * jcp.oc_block * sizeof(float);
         jcp.load_loop_iter_step = jcp.oc_block;
+
+        load_blocking = 120; // assumes the kernel is jcp.ur x 3
+        load_blocking_max = 144;
+        bcast_blocking = 128; // affects load balancing across threads
+        bcast_blocking_max = 192;
+        reduce_blocking = 128; // affects L1$ utilization
     } else if (jcp.prop_kind == backward_data) {
         jcp.reduce_dim = jcp.oc;
         jcp.reduce_block = jcp.oc_block;
@@ -533,6 +545,12 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
 
         jcp.load_loop_load_step = jcp.oc_block * jcp.ic_block * sizeof(float);
         jcp.load_loop_iter_step = jcp.ic_block;
+
+        load_blocking = 96; // assumes the kernel is jcp.ur x 3
+        load_blocking_max = 144;
+        bcast_blocking = 128; // affects load balancing across threads
+        bcast_blocking_max = 196;
+        reduce_blocking = 64; // affects L1$ utilization
     } else if (jcp.prop_kind == backward_weights) {
         jcp.reduce_dim = jcp.os;
         jcp.reduce_block = 1;
@@ -554,22 +572,30 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
         jcp.bcast_loop_bcast_step = jcp.ic_block * jcp.is * sizeof(float);
         jcp.bcast_loop_bcast_substep = jcp.ur * sizeof(float);
 
-        jcp.load_loop_load_step = jcp.oc_block *jcp.os * sizeof(float);
+        jcp.load_loop_load_step = jcp.oc_block * jcp.os * sizeof(float);
         jcp.load_loop_iter_step = jcp.oc_block;
+
+        load_blocking = 3 * jcp.oc_block; // assumes the kernel is jcp.ur x 3
+        load_blocking_max = load_blocking;
+        bcast_blocking = jcp.ic_block; // affects load balancing across threads
+        bcast_blocking_max = bcast_blocking;
+        reduce_blocking = 128; // affects L1$ utilization
     } else
         return status::unimplemented;
+
+    assert(load_blocking);
+    assert(load_blocking_max);
+    assert(bcast_blocking);
+    assert(bcast_blocking_max);
+    assert(reduce_blocking);
 
     assert(jcp.bcast_block % jcp.ur == 0);
     jcp.ur_tail = jcp.bcast_dim % jcp.ur;
 
-    const int load_blocking // assumes the kernel is jcp.ur x 3
-            = (jcp.prop_kind == backward_weights) ? 3 * jcp.oc_block : 120;
-    const int bcast_blocking // affects load balancing across threads
-        = (jcp.prop_kind == backward_weights) ? jcp.ic_block : 128;
-    const int reduce_blocking = 128; // affects L1$ utilization
-
     jcp.nb_bcast_blocking = bcast_blocking / jcp.bcast_block;
+    jcp.nb_bcast_blocking_max = bcast_blocking_max / jcp.bcast_block;
     jcp.nb_load_blocking = load_blocking / jcp.load_block;
+    jcp.nb_load_blocking_max = load_blocking_max / jcp.load_block;
     jcp.nb_reduce_blocking = reduce_blocking / jcp.reduce_block;
 
     jcp.nb_bcast = div_up(jcp.bcast_dim, jcp.bcast_block);
@@ -578,7 +604,6 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
 
     return status::success;
 }
-
 }
 }
 }
