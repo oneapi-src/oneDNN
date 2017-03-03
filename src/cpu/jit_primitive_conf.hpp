@@ -22,6 +22,8 @@ namespace impl {
 namespace cpu {
 
 struct jit_conv_conf_t {
+    prop_kind_t prop_kind;
+
     int mb;
     int ngroups, ic, oc;
     int ih, iw, oh, ow;
@@ -37,6 +39,7 @@ struct jit_conv_conf_t {
     int nb_ic, ic_block;
     int nb_oc, oc_block;
     int nb_ic_blocking, nb_oc_blocking; // blocking of nb_ic and nb_ic
+    int nb_ic_blocking_max;
     int ur_h, ur_w;
     int ur_w_tail;
     bool is_1stconv;

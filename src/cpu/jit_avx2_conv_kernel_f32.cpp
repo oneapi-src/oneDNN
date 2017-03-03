@@ -27,6 +27,7 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
+using namespace mkldnn::impl::prop_kind;
 using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::utils;
 
@@ -316,6 +317,8 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
 {
     if (!mayiuse(avx2)) return status::unimplemented;
 
+    jcp.prop_kind = cd.prop_kind;
+
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
 
     jcp.ngroups = with_groups ? weights_d.dims()[0] : 1;
@@ -382,8 +385,16 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
 
     jcp.oc_block = simd_w;
     jcp.nb_oc = jcp.oc / jcp.oc_block;
-    jcp.nb_ic_blocking = 1;
+
     jcp.nb_oc_blocking = 4; /* the optimal value for the kernel */
+
+    if (one_of(jcp.prop_kind, forward_training, forward_inference)) {
+        jcp.nb_ic_blocking = 12;
+        jcp.nb_ic_blocking_max = 16;
+    } else {
+        jcp.nb_ic_blocking = 1;
+        jcp.nb_ic_blocking_max = jcp.nb_ic_blocking;
+    }
 
     return status::success;
 }
