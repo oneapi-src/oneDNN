@@ -26,6 +26,7 @@ struct jit_conv_conf_t {
     int ngroups, ic, oc;
     int ih, iw, oh, ow;
     int l_pad, t_pad;
+    int r_pad, b_pad;
     int kh, kw;
     int stride_h, stride_w;
     memory_format_t src_fmt;
@@ -103,7 +104,6 @@ struct __attribute__((__packed__)) jit_1x1_conv_call_s {
 
     size_t reduce_pos_flag;
 };
-
 
 }
 }

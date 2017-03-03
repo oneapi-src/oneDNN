@@ -130,6 +130,89 @@ void _jit_avx512_mic_convolution_fwd_t<with_relu>::execute_forward()
 }
 template void _jit_avx512_mic_convolution_fwd_t<true>::execute_forward();
 template void _jit_avx512_mic_convolution_fwd_t<false>::execute_forward();
+
+void jit_avx512_mic_convolution_bwd_data_t::execute_backward_data() {
+    auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(0));
+    auto weights = reinterpret_cast<const data_t *>(this->input_memory(1));
+    auto diff_src = reinterpret_cast<data_t*>(this->memory());
+
+    const memory_desc_wrapper diff_dst_d(conf_.diff_dst_pd());
+    const memory_desc_wrapper diff_src_d(conf_.diff_src_pd());
+    const memory_desc_wrapper weights_d(conf_.weights_pd(0));
+
+    const auto &jcp = kernel_->jcp;
+
+#pragma omp parallel
+    {
+        const int ithr=omp_get_thread_num(), nthr=omp_get_num_threads();
+
+        size_t start{0}, end{0};
+        size_t n{0}, g{0}, ic{0};
+        jit_conv_call_s par_conv = {0};
+        const int ic_dim = jcp.nb_ic/jcp.nb_ic_blocking;
+        const size_t work_amount = jcp.ngroups * jcp.mb * ic_dim;
+
+        balance211(work_amount, nthr, ithr, start, end);
+        nd_iterator_init(start, g, jcp.ngroups, n, jcp.mb, ic, ic_dim);
+
+        par_conv.src_prf = NULL;
+        par_conv.dst_prf = NULL;
+        par_conv.filt_prf = NULL;
+        for (size_t iwork = start; iwork < end; ++iwork) {
+            for (int oc = 0; oc < jcp.nb_oc; ++oc) {
+                for (int ih = 0; ih < jcp.ih; ++ih) {
+                    size_t i_t_overflow = nstl::max(0, jcp.kh - 1 - ih
+                            - jcp.t_pad);
+                    size_t i_b_overflow = nstl::max(0, jcp.kh - 1
+                            - (jcp.ih - 1 - ih) - jcp.b_pad);
+                    size_t oh = ih + jcp.t_pad - i_b_overflow;
+
+                    par_conv.src = par_conv.src_prf;
+                    par_conv.dst = par_conv.dst_prf;
+                    par_conv.filt = par_conv.filt_prf;
+                    par_conv.current_ic = par_conv.current_ic_prf;
+
+                    par_conv.src_prf = const_cast<data_t *>(&diff_src[
+                            diff_src_d.blk_off(n, g * ic_dim
+                            + jcp.nb_ic_blocking*ic, ih, 0)]);
+                    par_conv.dst_prf = const_cast<data_t *>(&diff_dst[
+                            diff_dst_d.blk_off(n, g * jcp.nb_oc + oc, oh, 0)]);
+                    par_conv.filt_prf = const_cast<data_t *>(&weights[
+                            conf_.with_groups()
+                            ? weights_d.blk_off(g, oc,jcp.nb_ic_blocking*ic,
+                              i_b_overflow, 0)
+                            : weights_d.blk_off(oc,jcp.nb_ic_blocking*ic,
+                              i_b_overflow, 0)]);
+
+                    par_conv.kh_padding = par_conv.kh_padding_prf;
+                    par_conv.kh_padding_prf = jcp.kh - i_t_overflow
+                        - i_b_overflow;
+                    par_conv.kw_padding = 0;
+                    par_conv.current_ic_prf = oc;
+
+                    if (par_conv.src != NULL)
+                        kernel_->jit_ker(&par_conv);
+                }
+            }
+            nd_iterator_step(g, jcp.ngroups, n, jcp.mb, ic, ic_dim);
+        }
+        par_conv.src = par_conv.src_prf;
+        par_conv.dst = par_conv.dst_prf;
+        par_conv.filt = par_conv.filt_prf;
+
+        par_conv.src_prf = NULL;
+        par_conv.dst_prf = NULL;
+        par_conv.filt_prf = NULL;
+
+        par_conv.kh_padding = par_conv.kh_padding_prf;
+        par_conv.kw_padding = 0;
+        par_conv.current_ic = par_conv.current_ic_prf;
+
+        if (par_conv.src != NULL)
+            kernel_->jit_ker(&par_conv);
+    }
+}
+
 }
 }
 }
