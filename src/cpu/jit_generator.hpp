@@ -215,6 +215,7 @@ protected:
     }
 
     void L(const char *label) { Xbyak::CodeGenerator::L(label); }
+    void L(const Xbyak::Label& label) { Xbyak::CodeGenerator::L(label); }
 
 public:
     jit_generator(
