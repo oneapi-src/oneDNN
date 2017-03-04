@@ -1454,7 +1454,7 @@ struct pooling_forward : public primitive {
 struct pooling_backward : public primitive {
     struct desc {
         c_api::mkldnn_pooling_desc_t data;
-        desc(algorithm &aalgorithm,
+        desc(algorithm aalgorithm,
                 const memory::desc &diff_src_desc,
                 const memory::desc &diff_dst_desc,
                 const memory::dims &strides,
