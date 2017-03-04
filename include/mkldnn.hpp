@@ -1486,6 +1486,18 @@ struct pooling_backward : public primitive {
                     "could not create a backward pooling primitive descriptor");
             reset(result);
         }
+        
+        memory::primitive_desc diff_src_primitive_desc() const {
+            memory::primitive_desc adesc;
+            c_api::mkldnn_primitive_desc_t cdesc;
+            c_api::const_mkldnn_primitive_desc_t const_cdesc =
+                c_api::mkldnn_primitive_desc_query_pd(get(),
+                               mkldnn::convert_to_c(diff_src_pd), 0);
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_clone(&cdesc, const_cdesc),
+                    "could not clone a diff src primitive descriptor");
+            adesc.reset(cdesc);
+            return adesc;
+        }
     };
 
     pooling_backward(const primitive_desc &aprimitive_desc, const primitive::at &diff_dst,
@@ -1596,6 +1608,18 @@ struct relu_backward : public primitive {
                         hint_fwd_primitive_desc.get()),
                     "could not create a relu backward primitive descriptor");
             reset(result);
+        }
+        
+        memory::primitive_desc diff_src_primitive_desc() const {
+            memory::primitive_desc adesc;
+            c_api::mkldnn_primitive_desc_t cdesc;
+            c_api::const_mkldnn_primitive_desc_t const_cdesc =
+                c_api::mkldnn_primitive_desc_query_pd(get(),
+                               mkldnn::convert_to_c(diff_src_pd), 0);
+            error::wrap_c_api(c_api::mkldnn_primitive_desc_clone(&cdesc, const_cdesc),
+                    "could not clone a diff src primitive descriptor");
+            adesc.reset(cdesc);
+            return adesc;
         }
     };
     relu_backward(const primitive_desc &aprimitive_desc,
