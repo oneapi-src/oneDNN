@@ -2458,7 +2458,7 @@ void jit_avx2_gemm_f32::sgemm(const char *transa, const char *transb,
         const float *p_beta, float *C, const int *p_ldc, const float *bias)
 {
     assert(*transa == transa_ && *transb == transb_ && *p_beta == beta_);
-    int nthr = omp_get_max_threads();
+    int nthr = (omp_in_parallel()) ? 1 : omp_get_max_threads();
     int m = *p_m;
     int n = *p_n;
     int k = *p_k;
