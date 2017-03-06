@@ -93,6 +93,26 @@ struct jit_1x1_conv_conf_t {
     int bcast_loop_bcast_step, bcast_loop_bcast_substep;
 };
 
+struct jit_gemm_conv_conf_t {
+    prop_kind_t prop_kind;
+
+    int mb;
+    int ngroups, ic, oc;
+    int iw, ih, ow, oh;
+    int l_pad, t_pad;
+    int kh, kw;
+    int stride_h, stride_w;
+    memory_format_t src_fmt;
+    bool with_bias, with_relu;
+    double relu_negative_slope;
+
+    int is, os, ks;
+    int ic_block, oc_block;
+    bool need_im2col;
+    int im2col_size;
+    float *ws;
+};
+
 struct __attribute__((__packed__)) jit_1x1_conv_call_s {
     const float *bcast_data;
     const float *load_data;
