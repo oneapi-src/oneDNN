@@ -20,8 +20,10 @@
 #include "c_types_map.hpp"
 #include "cpu_convolution_pd.hpp"
 #include "cpu_engine.hpp"
+#include "cpu_reducer.hpp"
 #include "jit_primitive_conf.hpp"
 #include "jit_avx2_conv_kernel_f32.hpp"
+#include "mkldnn_thread.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -225,7 +227,22 @@ struct jit_avx2_convolution_bwd_weights_t: public cpu_primitive_t {
     jit_avx2_convolution_bwd_weights_t(const pd_t *pd,
             const input_vector &inputs, const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
-    { kernel_ = new jit_avx2_conv_bwd_weights_kernel_f32(conf_.jcp_); }
+        , kernel_(nullptr), reducer_weights_(nullptr), reducer_bias_(nullptr)
+    {
+        kernel_ = new jit_avx2_conv_bwd_weights_kernel_f32(conf_.jcp_);
+
+        const int max_threads = omp_get_max_threads();
+        const size_t max_buffer_size = 1<<21; /* just a heuristic */
+        const auto &j = conf_.jcp_;
+        reducer_weights_ = new cpu_reducer_t<data_type::f32>(reduce_balancer_t(
+                    max_threads, j.kh * j.kw * j.ic_block * j.oc_block,
+                    j.ngroups * j.nb_ic * j.nb_oc, j.mb, max_buffer_size));
+        if (conf_.with_bias()) {
+            reducer_bias_ = new cpu_reducer_t<data_type::f32>(
+                    reduce_balancer_t(max_threads, j.oc_block,
+                        j.ngroups * j.nb_oc, j.mb, max_buffer_size));
+        }
+    }
     ~jit_avx2_convolution_bwd_weights_t() { delete kernel_; };
 
     typedef typename prec_trait<data_type::f32>::type data_t;
@@ -239,6 +256,7 @@ private:
     void execute_backward_weights();
     pd_t conf_;
     jit_avx2_conv_bwd_weights_kernel_f32 *kernel_;
+    cpu_reducer_t<data_type::f32> *reducer_weights_, *reducer_bias_;
 };
 
 }

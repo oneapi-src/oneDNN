@@ -219,71 +219,102 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights() {
     const memory_desc_wrapper src_d(conf_.src_pd(0));
     const memory_desc_wrapper diff_dst_d(conf_.diff_dst_pd());
     const memory_desc_wrapper diff_weights_d(conf_.diff_weights_pd(0));
-    const memory_desc_wrapper diff_bias_d(conf_.diff_weights_pd(1));
 
     const auto &jcp = kernel_->jcp;
-    const size_t work_amount = jcp.ngroups * jcp.nb_oc * jcp.nb_ic;
 
-    auto ker = [&](const int ithr, const int nthr) {
-        size_t start{ 0 }, end{ 0 };
-        balance211(work_amount, nthr, ithr, start, end);
+    auto ker = [&](int ithr, int nthr) {
+        auto rw = this->reducer_weights_;
+        assert(nthr == rw->balancer_.nthr_);
 
-        size_t g, ocb, icb;
-        nd_iterator_init(start, g, jcp.ngroups, ocb, jcp.nb_oc, icb, jcp.nb_ic);
-        for (size_t iwork = start; iwork < end; ++iwork) {
-            for (int n = 0; n < jcp.mb; ++n) {
-                jit_conv_call_s par_conv = {};
+        const int w_job_start = rw->balancer_.ithr_job_off(ithr);
+        const int w_njobs = rw->balancer_.ithr_njobs(ithr);
 
+        if (w_njobs == 0) return;
+
+        /* reduction dimension */
+        int img_start, img_end;
+        balance211(jcp.mb, rw->balancer_.nthr_per_group_,
+                rw->balancer_.id_in_group(ithr), img_start, img_end);
+
+        /* jobs */
+        int g_start, ocb_start, icb_start;
+        nd_iterator_init(w_job_start, g_start, jcp.ngroups, ocb_start,
+                jcp.nb_oc, icb_start, jcp.nb_ic);
+
+        for (int img = img_start; img < img_end; ++img) {
+            int g = g_start, ocb = ocb_start, icb = icb_start;
+            for (int w_job_loc = 0; w_job_loc < w_njobs; ++w_job_loc) {
                 const size_t _oc = g * jcp.nb_oc + ocb;
                 const size_t _ic = g * jcp.nb_ic + icb;
 
-                par_conv.src = &src[src_d.blk_off(n, jcp.ic == 3 ? 0 : _ic)];
-                par_conv.dst = &diff_dst[diff_dst_d.blk_off(n, _oc)];
+                jit_conv_call_s par_conv = {};
+                par_conv.src = &src[src_d.blk_off(img, _ic)];
+                par_conv.dst = &diff_dst[diff_dst_d.blk_off(img, _oc)];
+                par_conv.filt = &rw->get_local_ptr(ithr, diff_weights)[
+                    w_job_loc * rw->balancer_.job_size_];
 
-                const size_t wdiff_offset = conf_.with_groups()
-                        ? diff_weights_d.blk_off(g, ocb,
-                                            jcp.ic == 3 ? 0 : icb, 0, 0)
-                        : diff_weights_d.blk_off(ocb,
-                                            jcp.ic == 3 ? 0 : icb, 0, 0);
-                par_conv.filt = &diff_weights[wdiff_offset];
-
-                // TODO: move initialization into the kernel
-                if (n == 0) {
-                    const size_t sz =
-                                jcp.kw * jcp.kh * jcp.oc_block * jcp.ic_block;
-                    for (size_t i = 0; i < sz; ++i)
-                        diff_weights[wdiff_offset + i] = 0.0;
-                }
-
-                if (diff_bias && icb == 0) {
-                    auto db = &diff_bias[
-                                diff_bias_d.blk_off(_oc * jcp.oc_block)];
-
-                    if (n == 0) {
-                        for (int cb = 0; cb < jcp.oc_block; ++cb) db[cb] = 0.0;
-                    }
-
-                    for (int h = 0; h < jcp.oh; ++h) {
-                        for (int w = 0; w < jcp.ow; ++w) {
-                            auto dd = &diff_dst[
-                                        diff_dst_d.blk_off(n, _oc, h, w)];
-                            for (int cb = 0; cb < jcp.oc_block; ++cb) {
-                                db[cb] += dd[cb];
-                            }
-                        }
-                    }
-                }
+                /* TODO: put dw <-- 0 in kernel */
+                if (img == img_start)
+                    array_set((data_t *)par_conv.filt, 0,
+                            rw->balancer_.job_size_);
                 kernel_->jit_ker(&par_conv);
+
+                nd_iterator_step(g, jcp.ngroups, ocb, jcp.nb_oc, icb,
+                        jcp.nb_ic);
             }
-            nd_iterator_step(g, jcp.ngroups, ocb, jcp.nb_oc, icb, jcp.nb_ic);
         }
+        rw->reduce(ithr, diff_weights);
     };
 
-#pragma omp parallel
+    auto ker_bias = [&](int ithr, int nthr) {
+        auto rb = this->reducer_bias_;
+        assert(nthr == rb->balancer_.nthr_);
+
+        const int b_job_start = rb->balancer_.ithr_job_off(ithr);
+        const int b_njobs = rb->balancer_.ithr_njobs(ithr);
+
+        if (b_njobs == 0) return;
+
+        /* reduction dimension */
+        int img_start, img_end;
+        balance211(jcp.mb, rb->balancer_.nthr_per_group_,
+                rb->balancer_.id_in_group(ithr), img_start, img_end);
+
+        /* jobs */
+        int g_start, ocb_start;
+        nd_iterator_init(b_job_start, g_start, jcp.ngroups, ocb_start,
+                jcp.nb_oc);
+
+        for (int img = img_start; img < img_end; ++img) {
+            int g = g_start, ocb = ocb_start;
+            for (int b_job_loc = 0; b_job_loc < b_njobs; ++b_job_loc) {
+                const size_t _oc = g * jcp.nb_oc + ocb;
+
+                const data_t *d_dst = &diff_dst[diff_dst_d.blk_off(img, _oc)];
+                data_t *d_bias = &rb->get_local_ptr(ithr, diff_bias)[
+                    b_job_loc * rb->balancer_.job_size_];
+
+                if (img == img_start)
+                    array_set(d_bias, 0, rb->balancer_.job_size_);
+                for (int hwo = 0; hwo < jcp.oh * jcp.ow * 8; ++hwo)
+                    d_bias[hwo % 8] += d_dst[hwo];
+
+                nd_iterator_step(g, jcp.ngroups, ocb, jcp.nb_oc);
+            }
+        }
+        rb->reduce(ithr, diff_bias);
+    };
+
+#   pragma omp parallel
     {
-        ker(omp_get_thread_num(), omp_get_num_threads());
+        int ithr = omp_get_thread_num();
+        int nthr = omp_get_num_threads();
+        ker(ithr, nthr);
+        if (conf_.with_bias())
+            ker_bias(ithr, nthr);
     }
 }
+
 }
 }
 }
