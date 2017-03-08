@@ -157,7 +157,7 @@ status_t prepare_workspace(
     if (ws_size != 0) {
         jcp.ws = (float*)malloc(ws_size, 64);
         if (jcp.ws == NULL) return status::out_of_memory;
-        for (size_t i = 0; i < jcp.im2col_size; ++i) jcp.ws[i] = 0.;
+        for (int i = 0; i < jcp.im2col_size; ++i) jcp.ws[i] = 0.;
     }
     return status::success;
 }
@@ -183,7 +183,7 @@ void bwd_weights_reduction_par(int ithr, int nthr, const jit_gemm_conv_conf_t &j
 
     for (int i = 0; i < nthr; ++i) {
         const float *ws_i = weights_reduce_ws + i * weights_g_size;
-        for (int s = weights_start; s < weights_end; ++s)
+        for (size_t s = weights_start; s < weights_end; ++s)
             weights[s] = (i == 0 ? 0 : weights[s]) + ws_i[s];
     }
 }
