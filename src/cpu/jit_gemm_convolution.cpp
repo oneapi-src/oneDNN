@@ -22,8 +22,6 @@
 #include "type_helpers.hpp"
 #include "mkldnn_thread.hpp"
 
-#include "omp.h"
-
 namespace mkldnn {
 namespace impl {
 namespace cpu {
@@ -65,14 +63,14 @@ void _jit_gemm_convolution_fwd_t<with_relu>::execute_forward() {
             const data_t *_src = src + (n * jcp.ngroups + g)*src_step;
             data_t *_dst = dst + (n * jcp.ngroups + g)*dst_step;
             const data_t *_weights = weights + g * weights_g_size;
-            data_t *_col = (data_t*)jcp.ws + ithr * jcp.ic * jcp.ks * jcp.os;
+            data_t *_col = this->ws + ithr * jcp.ic * jcp.ks * jcp.os;
 
             if (jcp.need_im2col)
                 jit_gemm_convolution_utils::im2col(jcp, _src, _col);
             sgemm_->sgemm("N", "N", &M, &N, &K, &one,
                 jcp.need_im2col ? _col:_src, &M, _weights, &K, &zero, _dst, &M);
             if (jcp.with_bias || jcp.with_relu) {
-                data_t *d = _dst, b;
+                data_t *d = _dst, b = 0.0;
                 for (int oc = 0; oc < jcp.oc; ++oc) {
                     if(jcp.with_bias) b = bias[g * jcp.oc + oc];
                     for (int oS = 0; oS < jcp.os; ++oS) {
@@ -124,7 +122,7 @@ void jit_gemm_convolution_bwd_data_t::execute_backward_data() {
             data_t *_diff_src = diff_src + (n * jcp.ngroups + g)*src_step;
             const data_t *_diff_dst = diff_dst + (n * jcp.ngroups + g)*dst_step;
             const data_t *_weights = weights + g * weights_g_size;
-            data_t *_col = (data_t*)jcp.ws + ithr * jcp.ic * jcp.ks * jcp.os;
+            data_t *_col = this->ws + ithr * jcp.ic * jcp.ks * jcp.os;
 
             sgemm_->sgemm("N", "T", &M, &N, &K, &one, _diff_dst, &M,
                 _weights, &N, &zero, jcp.need_im2col ? _col : _diff_src, &M);
@@ -171,8 +169,8 @@ void jit_gemm_convolution_bwd_weights_t::execute_backward_weights() {
 
             assert(implication((g_end - g_start) > 1, need_reduction == 0));
 
-            data_t *_col = jcp.ws + ithr * jcp.ic * jcp.ks * jcp.os;
-            data_t *weights_reduce_base = jcp.ws + jcp.im2col_size
+            data_t *_col = this->ws + ithr * jcp.ic * jcp.ks * jcp.os;
+            data_t *weights_reduce_base = this->ws + jcp.im2col_size
                     + ithr_g * nthr_mb * weights_g_size;
             data_t *weights_reduce = weights_reduce_base
                     + ithr_mb * weights_g_size;

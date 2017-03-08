@@ -109,8 +109,7 @@ struct jit_gemm_conv_conf_t {
     int is, os, ks;
     int ic_block, oc_block;
     bool need_im2col;
-    int im2col_size;
-    float *ws;
+    size_t im2col_size;
 };
 
 struct __attribute__((__packed__)) jit_1x1_conv_call_s {

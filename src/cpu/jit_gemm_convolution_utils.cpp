@@ -21,8 +21,6 @@
 #include "type_helpers.hpp"
 #include "jit_gemm_convolution_utils.hpp"
 
-#include "omp.h"
-
 namespace mkldnn {
 namespace impl {
 namespace cpu {
@@ -138,7 +136,7 @@ void init_conf(
 }
 
 status_t prepare_workspace(
-        jit_gemm_conv_conf_t &jcp, bool is_bwd_weights,
+        jit_gemm_conv_conf_t &jcp, float **ws, bool is_bwd_weights,
         const size_t weights_size) {
     const int nthr = omp_get_max_threads();
     if (jcp.need_im2col) {
@@ -152,12 +150,12 @@ status_t prepare_workspace(
         const size_t sz_per_thread = jcp.ngroups * weights_size;
         weights_reduce_size = nthr * sz_per_thread;
     }
-
+    *ws = 0;
     const size_t ws_size = sizeof(float)*jcp.im2col_size + weights_reduce_size;
     if (ws_size != 0) {
-        jcp.ws = (float*)malloc(ws_size, 64);
-        if (jcp.ws == NULL) return status::out_of_memory;
-        for (int i = 0; i < jcp.im2col_size; ++i) jcp.ws[i] = 0.;
+        *ws = (float*)malloc(ws_size, 64);
+        if (*ws == NULL) return status::out_of_memory;
+        for (size_t i = 0; i < jcp.im2col_size; ++i) (*ws)[i] = 0.;
     }
     return status::success;
 }

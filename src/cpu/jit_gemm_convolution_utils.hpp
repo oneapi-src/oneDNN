@@ -35,9 +35,9 @@ namespace jit_gemm_convolution_utils {
     void init_conf(jit_gemm_conv_conf_t &jcp,
         const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &weights_d, const memory_desc_wrapper &dst_d,
-        bool with_relu = false, double relu_negative_slope = false);
+        bool with_relu = false, double relu_negative_slope = -1.0);
 
-    status_t prepare_workspace(jit_gemm_conv_conf_t &jcp,
+    status_t prepare_workspace(jit_gemm_conv_conf_t &jcp, float **ws,
         bool is_bwd_filt, const size_t weights_size);
 
     void bwd_weights_balance(int ithr, int nthr,

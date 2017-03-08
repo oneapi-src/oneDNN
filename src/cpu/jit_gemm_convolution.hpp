@@ -95,11 +95,11 @@ struct _jit_gemm_convolution_fwd_t: public cpu_primitive_t {
             *(conf_.cdesc()), conf_.src_pd(), conf_.weights_pd(0),
             conf_.dst_pd(), with_relu, conf_.negative_slope());
         jit_gemm_convolution_utils::prepare_workspace(this->conf_.jcp_,
-            false, 0L);
+            &this->ws, false, 0L);
     }
     ~_jit_gemm_convolution_fwd_t() {
         delete sgemm_;
-        if (this->conf_.jcp_.ws) free(this->conf_.jcp_.ws);
+        if (this->ws) free(this->ws);
     };
 
     typedef typename prec_trait<data_type::f32>::type data_t;
@@ -113,6 +113,7 @@ private:
     void execute_forward();
     pd_t conf_;
     jit_avx2_gemm_f32 *sgemm_;
+    data_t *ws;
 };
 
 using jit_gemm_convolution_fwd_t = _jit_gemm_convolution_fwd_t<false>;
@@ -178,11 +179,11 @@ struct jit_gemm_convolution_bwd_data_t: public cpu_primitive_t {
             *(conf_.desc()), conf_.diff_src_pd(), conf_.weights_pd(0),
             conf_.diff_dst_pd());
         jit_gemm_convolution_utils::prepare_workspace(this->conf_.jcp_,
-            true, 0L);
+            &this->ws, true, 0L);
     }
     ~jit_gemm_convolution_bwd_data_t() {
         delete sgemm_;
-        if (this->conf_.jcp_.ws) free(this->conf_.jcp_.ws);
+        if (this->ws) free(this->ws);
     };
 
     typedef typename prec_trait<data_type::f32>::type data_t;
@@ -203,6 +204,7 @@ private:
     void execute_backward_data();
     pd_t conf_;
     jit_avx2_gemm_f32 *sgemm_;
+    data_t *ws;
 };
 
 struct jit_gemm_convolution_bwd_weights_t: public cpu_primitive_t {
@@ -271,12 +273,12 @@ struct jit_gemm_convolution_bwd_weights_t: public cpu_primitive_t {
             conf_.diff_dst_pd());
           const memory_desc_wrapper weights_d(conf_.diff_weights_pd(0));
         jit_gemm_convolution_utils::prepare_workspace(this->conf_.jcp_,
-            true, weights_d.size());
+            &this->ws, true, weights_d.size());
     }
     ~jit_gemm_convolution_bwd_weights_t() {
         delete sgemm_0;
         delete sgemm_1;
-        if (this->conf_.jcp_.ws) free(this->conf_.jcp_.ws);
+        if (this->ws) free(this->ws);
      };
 
     typedef typename prec_trait<data_type::f32>::type data_t;
@@ -297,6 +299,7 @@ private:
     void execute_backward_weights();
     pd_t conf_;
     jit_avx2_gemm_f32 *sgemm_0, *sgemm_1;
+    data_t *ws;
 };
 
 }
