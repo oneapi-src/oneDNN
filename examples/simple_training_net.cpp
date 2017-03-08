@@ -417,8 +417,9 @@ void simple_net()
     if (reorder_conv_diff_weights)
         net_bwd.push_back(conv_reorder_diff_weights);
 
+    int n_iter = 1; //number of iterations for training
     /* execute */
-    while (1) {
+    while (n_iter) {
         /* forward */
         stream(stream::kind::eager).submit(net_fwd).wait();
 
@@ -437,8 +438,7 @@ void simple_net()
         // some user defined func update_weights(conv_weights.data(),
         // conv_bias.data(), net_diff_weights, net_diff_bias);
 
-        /* one iteration */
-        break;
+        --n_iter;
     }
 }
 

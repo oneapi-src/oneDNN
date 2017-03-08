@@ -734,8 +734,9 @@ mkldnn_status_t simple_net()
     void *net_diff_weights = NULL;
     void *net_diff_bias = NULL;
 
+    int n_iter = 1; //number of iterations for training.
     /* Execute the net */
-    while (1) {
+    while (n_iter) {
         /* Forward pass */
         CHECK(mkldnn_stream_submit(stream_fwd, n_fwd, net_fwd, NULL));
         CHECK(mkldnn_stream_wait(stream_fwd, n_fwd, NULL));
@@ -759,8 +760,7 @@ mkldnn_status_t simple_net()
         // conv_bias_memory,
         //      net_diff_weights, net_diff_bias);
 
-        /* one iteration of training */
-        break;
+        --n_iter;
     }
 
     /* Cleanup forward */
