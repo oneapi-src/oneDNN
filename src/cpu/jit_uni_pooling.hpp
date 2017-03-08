@@ -71,6 +71,16 @@ struct jit_uni_pooling_fwd_t: public cpu_primitive_t {
         }
 
         jit_pool_conf_t jpp_;
+
+    protected:
+        virtual status_t set_default_params() override {
+            auto desired_fmt = isa == avx2
+                ? memory_format::nChw8c
+                : memory_format::nChw16c;
+            if (dst_pd_.desc()->format == memory_format::any)
+               CHECK(dst_pd_.set_format(desired_fmt));
+            return status::success;
+        }
     };
 
     jit_uni_pooling_fwd_t(const pd_t *pd, const input_vector &inputs,
@@ -133,6 +143,16 @@ struct jit_uni_pooling_bwd_t: public cpu_primitive_t {
         }
 
         jit_pool_conf_t jpp_;
+
+    protected:
+        virtual status_t set_default_params() override {
+            auto desired_fmt = isa == avx2
+                ? memory_format::nChw8c
+                : memory_format::nChw16c;
+            if (diff_src_pd_.desc()->format == memory_format::any)
+               CHECK(diff_src_pd_.set_format(desired_fmt));
+           return status::success;
+        }
     };
 
     jit_uni_pooling_bwd_t(const pd_t *pd, const input_vector &inputs,
