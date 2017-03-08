@@ -163,7 +163,11 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(ref_batch_normalization_bwd_t<data_type::f32>),
     /* inner product */
     INSTANCE(jit_avx2_inner_product_fwd_t),
+    INSTANCE(jit_avx2_inner_product_bwd_weights_t),
+    INSTANCE(jit_avx2_inner_product_bwd_data_t),
     INSTANCE(gemm_inner_product_fwd_t<data_type::f32>),
+    INSTANCE(gemm_inner_product_bwd_data_t<data_type::f32>),
+    INSTANCE(gemm_inner_product_bwd_weights_t<data_type::f32>),
     INSTANCE(ref_inner_product_fwd_t<data_type::f32>),
     INSTANCE(ref_inner_product_bwd_data_t<data_type::f32>),
     INSTANCE(ref_inner_product_bwd_weights_t<data_type::f32>),

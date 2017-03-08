@@ -84,22 +84,75 @@ void gemm_inner_product_fwd_t<data_type>::execute_forward() {
     auto dst = reinterpret_cast<data_t*>(this->memory());
 
     const memory_desc_wrapper dst_d(conf_.dst_pd());
-
     // TODO: consistency checks
-    const cblas_int M = conf_.MB();
-    const cblas_int N = conf_.OC();
-    const cblas_int K = conf_.IC_total();
+    const cblas_int MB = conf_.MB();
+    const cblas_int OC = conf_.OC();
+    const cblas_int IC = conf_.IC_total();
 
-    cblas_gemm<data_type>(CblasRowMajor, CblasNoTrans, CblasTrans, M, N, K,
-            1.0, src, K, weights, K, 0.0, dst, N);
+    cblas_gemm<data_type>(CblasColMajor, CblasTrans, CblasNoTrans, OC, MB, IC,
+            1.0, weights, IC, src, IC, 0.0, dst, OC);
     if (bias)
 #       pragma omp parallel for schedule(static)
-        for (cblas_int mb = 0; mb < M; mb++)
-            cblas_axpy<data_type>(N, 1.0, bias, 1, dst + dst_d.blk_off(mb), 1);
+        for (cblas_int mb = 0; mb < MB; mb++)
+            cblas_axpy<data_type>(OC, 1.0, bias, 1, dst + dst_d.blk_off(mb), 1);
+#endif
+}
+
+template <impl::data_type_t data_type>
+void gemm_inner_product_bwd_data_t<data_type>::execute_backward_data() {
+#ifdef USE_CBLAS
+    auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(0));
+    auto weights = reinterpret_cast<const data_t *>(this->input_memory(1));
+    auto diff_src = reinterpret_cast<data_t*>(this->memory());
+
+    // TODO: consistency checks
+    const cblas_int MB = conf_.MB();
+    const cblas_int OC = conf_.OC();
+    const cblas_int IC = conf_.IC_total();
+
+    cblas_gemm<data_type>(CblasColMajor, CblasNoTrans, CblasNoTrans, IC, MB, OC,
+            1.0, weights, IC, diff_dst, OC, 0.0, diff_src, IC);
+#endif
+}
+
+template <impl::data_type_t data_type>
+void gemm_inner_product_bwd_weights_t<data_type>::execute_backward_weights() {
+#ifdef USE_CBLAS
+
+
+    auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
+    auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
+    auto diff_weights = reinterpret_cast<data_t *>(this->memory(0));
+    auto diff_bias = reinterpret_cast<data_t *>(this->memory(1));
+
+    const memory_desc_wrapper diff_dst_d(conf_.diff_dst_pd());
+    const memory_desc_wrapper diff_bias_d(conf_.diff_weights_pd(1));
+
+    // TODO: consistency checks
+    const cblas_int MB = conf_.MB();
+    const cblas_int OC = conf_.OC();
+    const cblas_int IC = conf_.IC_total();
+
+    cblas_gemm<data_type>(CblasColMajor, CblasNoTrans, CblasTrans, IC, OC, MB,
+            1.0, src, IC, diff_dst, OC, 0.0, diff_weights, IC);
+
+
+    if (diff_bias) {
+#       pragma omp parallel for schedule(static)
+        for (int oc = 0; oc < OC; ++oc) {
+            data_t *db = &diff_bias[diff_bias_d.off(oc)];
+            *db = data_t(0);
+            for (int mb = 0; mb < MB; ++mb) {
+                *db += diff_dst[diff_dst_d.off(mb, oc)];
+            }
+        }
+    }
 #endif
 }
 
 template struct gemm_inner_product_fwd_t<data_type::f32>;
+template struct gemm_inner_product_bwd_data_t<data_type::f32>;
+template struct gemm_inner_product_bwd_weights_t<data_type::f32>;
 
 }
 }

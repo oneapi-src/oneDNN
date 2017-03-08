@@ -49,17 +49,89 @@ void jit_avx2_inner_product_fwd_t::execute_forward()
     auto bias = reinterpret_cast<const data_t *>(this->input_memory(2));
     auto dst = reinterpret_cast<data_t *>(this->memory());
 
-    const memory_desc_wrapper dst_d(conf_.dst_pd());
-
     // TODO: consistency checks
-    int M = conf_.MB();
-    int N = conf_.OC();
-    int K = conf_.IC_total();
+    int MB = conf_.MB();
+    int OC = conf_.OC();
+    int IC = conf_.IC_total();
 
     float alpha = 1.0, beta = 0.0;
-    sgemm_->sgemm("T", "N", &N, &M, &K, &alpha, weights, &K, src, &K, &beta,
-            dst, &N, bias);
+    sgemm_->sgemm("T", "N", &OC, &MB, &IC, &alpha, weights, &IC, src, &IC, &beta,
+            dst, &OC, bias);
 }
+
+jit_avx2_inner_product_bwd_weights_t::jit_avx2_inner_product_bwd_weights_t(const pd_t *pd,
+        const input_vector &inputs, const output_vector &outputs)
+    : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
+{
+    sgemm_ = new jit_avx2_gemm_f32('N', 'T', 0.0, false);
+}
+
+jit_avx2_inner_product_bwd_weights_t::~jit_avx2_inner_product_bwd_weights_t()
+{
+    delete sgemm_;
+}
+
+void jit_avx2_inner_product_bwd_weights_t::execute_backward_weights()
+{
+    auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
+    auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
+    auto diff_weights = reinterpret_cast<data_t *>(this->memory(0));
+    auto diff_bias = reinterpret_cast<data_t *>(this->memory(1));
+
+    const memory_desc_wrapper diff_dst_d(conf_.diff_dst_pd());
+    const memory_desc_wrapper diff_bias_d(conf_.diff_weights_pd(1));
+
+    // TODO: consistency checks
+    int MB = conf_.MB();
+    int OC = conf_.OC();
+    int IC = conf_.IC_total();
+
+    float alpha = 1.0, beta = 0.0;
+    sgemm_->sgemm("N", "T", &IC, &OC, &MB, &alpha, src, &IC, diff_dst, &OC, &beta,
+            diff_weights, &IC, nullptr);
+
+    if (diff_bias) {
+#       pragma omp parallel for schedule(static)
+        for (int oc = 0; oc < OC; ++oc) {
+            data_t *db = &diff_bias[diff_bias_d.off(oc)];
+            *db = data_t(0);
+            for (int mb = 0; mb < MB; ++mb) {
+                *db += diff_dst[diff_dst_d.off(mb, oc)];
+            }
+        }
+    }
+
+}
+
+jit_avx2_inner_product_bwd_data_t::jit_avx2_inner_product_bwd_data_t(const pd_t *pd,
+        const input_vector &inputs, const output_vector &outputs)
+    : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
+{
+    sgemm_ = new jit_avx2_gemm_f32('N', 'N', 0.0, false);
+}
+
+jit_avx2_inner_product_bwd_data_t::~jit_avx2_inner_product_bwd_data_t()
+{
+    delete sgemm_;
+}
+
+void jit_avx2_inner_product_bwd_data_t::execute_backward_data()
+{
+    auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(0));
+    auto weights = reinterpret_cast<const data_t *>(this->input_memory(1));
+    auto diff_src = reinterpret_cast<data_t*>(this->memory());
+
+    // TODO: consistency checks
+    int MB = conf_.MB();
+    int OC = conf_.OC();
+    int IC = conf_.IC_total();
+
+    float alpha = 1.0, beta = 0.0;
+
+    sgemm_->sgemm("N", "N", &IC, &MB, &OC, &alpha, weights, &IC, diff_dst, &OC, &beta,
+            diff_src, &IC, nullptr);
+}
+
 }
 }
 }
