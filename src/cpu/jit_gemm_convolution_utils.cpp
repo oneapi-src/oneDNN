@@ -176,7 +176,7 @@ void bwd_weights_reduction_par(int ithr, int nthr, const jit_gemm_conv_conf_t &j
         const float *weights_reduce_ws, float *weights) {
     const size_t weights_g_size = jcp.ic * jcp.oc * jcp.ks;
 
-    size_t weights_start, weights_end;
+    size_t weights_start{0}, weights_end{0};
     balance211(weights_g_size, nthr, ithr, weights_start, weights_end);
 
     for (int i = 0; i < nthr; ++i) {

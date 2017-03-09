@@ -112,7 +112,7 @@ void jit_gemm_convolution_bwd_data_t::execute_backward_data() {
         const int ithr = omp_get_thread_num();
         const int nthr = omp_get_num_threads();
 
-        int g, n;
+        int g{0}, n{0};
         size_t start = 0, end = 0;
         balance211(work_amount, nthr, ithr, start, end);
         nd_iterator_init(start, g, jcp.ngroups, n, jcp.mb);
@@ -156,7 +156,7 @@ void jit_gemm_convolution_bwd_weights_t::execute_backward_weights() {
         const int nthr = omp_get_num_threads();
 
         int ithr_g, nthr_g, ithr_mb, nthr_mb;
-        size_t g_start, g_end, mb_start, mb_end;
+        size_t g_start{0}, g_end{0}, mb_start{0}, mb_end{0};
 
         jit_gemm_convolution_utils::bwd_weights_balance(ithr, nthr,
                 jcp.ngroups, jcp.mb, ithr_g, nthr_g, ithr_mb, nthr_mb);
@@ -212,7 +212,7 @@ void jit_gemm_convolution_bwd_weights_t::execute_backward_weights() {
         {
             const int ithr = omp_get_thread_num();
             const int nthr = omp_get_num_threads();
-            int g, oc;
+            int g{0}, oc{0};
             size_t start = 0, end = 0;
             balance211(work_amount, nthr, ithr, start, end);
             nd_iterator_init(start, g, jcp.ngroups, oc, jcp.oc);
