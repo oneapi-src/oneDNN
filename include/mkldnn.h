@@ -304,6 +304,22 @@ mkldnn_status_t MKLDNN_API mkldnn_sum_primitive_desc_create(
 
 /** @addtogroup c_api_convolution Convolution
  * A primitive to compute convolution using different algorithms.
+ *
+ * \f[dst[n][oc][oh][ow]  =
+ *     \sum_{kw=0}^{KW}\sum_{kh=0}^{KH}\sum_{ic=0}^{IC}
+ *     src[n][ic][oh \cdot s_h - p_l[0] + kh][ow \cdot s_w - p_r[1] + kw]
+ *     \cdot weights[g][oc][ic][kh][kw]
+ *     + bias[g][oc],\f]
+ *
+ * where size of output spatial domain is given by
+ * \f$ OH = \left\lfloor{\frac{IH - KH + p_l[0] + p_r[0]}{s_h}}
+ *          \right\rfloor + 1\f$,
+ * \f$ OW = \left\lfloor{\frac{IW - KW + p_l[1] + p_r[1]}{s_w}}
+ *          \right\rfloor + 1\f$,
+ *
+ * and summation is carried over input channels \f$ic\f$ in
+ * group \f$g\f$, and \f$s_h, s_w\f$ are @p strides and
+ * \f$p_l, p_r\f$ are @p padding_l and @p padding_r.
  * @{ */
 
 /** Initializes a convolution descriptor @p conv_desc for forward propagation
@@ -359,6 +375,9 @@ mkldnn_status_t MKLDNN_API mkldnn_convolution_backward_weights_desc_init(
 
 /** @addtogroup c_api_relu ReLU
  * A primitive to compute a parametric rectifier linear unit (ReLU).
+ * 
+ * \f[dst[n][c][h][w] = \max(src[n][c][h][w], 0) +
+ *                      \min(src[n][c][h][w], 0) \cdot negative\_slope\f]
  * @{ */
 
 /** Initializes a @p relu_desc for forward propagation using @p prop_kind
@@ -379,6 +398,14 @@ mkldnn_status_t MKLDNN_API mkldnn_relu_backward_desc_init(
 
 /** @addtogroup c_api_softmax Softmax
  * A primitive to perform softmax.
+ *
+ * \f[dst[u][c][in] =
+ *    \frac{\exp(src[ou][c][in]) - \max\limits_{c}(src[ou][c][in])}
+ *    {\sum\limits_{c}\{\exp(src[ou][c][in]) 
+ *    - \max\limits_{c}(src[ou][c][in])\}},\f]
+ *
+ * where \f$ou, iu\f$ are outer and inner sizes repectively, defined
+ * by @p data_desc.dims and @p softmax_axis.
  * @{ */
 
 /** Initializes a @p softmax_desc for forward propagation using @p prop_kind
@@ -392,6 +419,20 @@ mkldnn_status_t MKLDNN_API mkldnn_softmax_forward_desc_init(
 
 /** @addtogroup c_api_pooling Pooling
  * A primitive to perform max, min, or average pooling.
+ * 
+ * Max pooling:
+ * \f[dst[n][oc][oh][ow] =
+ *     \max\limits_{kw,kh}
+ *     (src[n][ic][oh \cdot s_h - p_l[0] + kh][ow \cdot s_w - p_r[1] + kw]),\f]
+ *
+ * Average pooling:
+ * \f[dst[n][oc][oh][ow] =
+ *     \frac{1}{KW \cdot KH}\sum\limits_{kw,kh}
+ *     src[n][ic][oh \cdot s_h - p_l[0] + kh][ow \cdot s_w - p_r[1] + kw],\f]
+ *
+ * where \f$p_l, p_r\f$ are @p padding_l and @p padding_r
+ * respectively and output spatial dimensions are calculated
+ * similarly as done in convolution.
  * @{ */
 
 /** Initializes a pooling descriptor @p pool_desc for forward propagation using
@@ -427,7 +468,21 @@ mkldnn_status_t MKLDNN_API mkldnn_pooling_backward_desc_init(
 
 /** @addtogroup c_api_lrn LRN
  * A primitive to perform local response normalization (LRN) across or within
- * channels.
+ * channels. 
+ * 
+ * LRN accross channels:
+ * \f[dst[n][c][h][w] = \left\{k + \frac{\alpha}{n_{l}}
+ *                      \sum\limits_{i=-(n_{l}-1)/2}^{(n_{l}+1)/2}
+ *                      (src[n][c+i][h][w])^2\right\}^{-\beta}
+ *                      src[n][c][h][w],\f]
+ *
+ * LRN within channels:
+ * \f[dst[n][c][h][w] = \left\{k + \frac{\alpha}{n_{l}}
+ *                      \sum\limits_{i=-(n_{l}-1)/2}^{(n_{l}+1)/2}
+ *                      (src[n][c][h+i][w+i])^2\right\}^{-\beta}
+ *                      src[n][c][h][w],\f]
+ *
+ * where \f$n_{l}\f$ is the @p local_size.
  * @{ */
 
 /** Initializes an @p lrn_desc for forward propagation using @p prop_kind
@@ -452,6 +507,16 @@ mkldnn_status_t MKLDNN_API mkldnn_lrn_backward_desc_init(
 
 /** @addtogroup c_api_batch_normalization Batch Normalization
  * A primitive to perform batch normalization
+ * \f[dst[n][c][h][w] = \gamma[c] \frac{src[n][c][h][w] - \mu[c]}
+ *                      {\sqrt{\sigma[c] + eps}} + \beta[c],\f]
+ *
+ * where \f$\gamma[c], \beta[c]\f$ are weights and bias for a channel and,
+ *
+ * \f$\mu[c] = \frac{1}{NHW} \sum\limits_{whn} src[n][c][h][w]\f$,
+ * \f$\sigma[c] = \frac{1}{NHW} \sum\limits_{whn} 
+ *                              (src[n][c][h][w] - \mu[c])^2\f$,
+ *
+ * and eps is a constant to improve numerical stability.
  * @{ */
 
 /** Initializes a batch normalization descriptor @p bnrm_desc for forward
@@ -485,6 +550,11 @@ mkldnn_status_t MKLDNN_API mkldnn_batch_normalization_backward_desc_init(
 /** @addtogroup c_api_inner_product Inner product
  * A primitive to compute an inner product.
  * Inner product layer is also known as fully connected layer.
+ * with spatial dimension:
+ * 
+ * \f[dst[n][oc] = \sum\limits_{ic, kh, kw}
+ *                 src[n][ic][kh][kw] \cdot weights[oc][ic][kh][kw] 
+ *                 + bias[oc]\f]
  * @{ */
 
 /** Initializes an inner product descriptor @p ip_desc for forward propagation
