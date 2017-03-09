@@ -534,7 +534,7 @@ mkldnn_status_t MKLDNN_API mkldnn_batch_normalization_forward_desc_init(
 /** Initializes a batch normalization descriptor @p bnrm_desc for backward
  * propagation with respect to data and scale-shift parameters using memory
  * descriptors @p data_desc and @p diff_data_desc, and normalization parameter
- * @p epsilon and flags (possible values are #mkldnn_gradient_data_only and
+ * @p epsilon and flags (possible values are #mkldnn_use_global_stats and
  * #mkldnn_use_scaleshift).
  *
  * @sa mkldnn_batch_normalization_desc_t */

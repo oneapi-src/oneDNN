@@ -261,7 +261,7 @@ struct memory: public primitive  {
                     "invalid dimensions");
     }
 
-    /// Data type specification. See #mkldnn_precision_t for a detailed
+    /// Data type specification. See #mkldnn_data_type_t for a detailed
     /// description.
     enum data_type {
         data_undef = c_api::mkldnn_data_type_undef,
@@ -352,9 +352,6 @@ struct memory: public primitive  {
 
         /// Returns the number of data elements in the memory described.
         ///
-        /// @param with_padding A flag to specify whether to consider the padding area
-        ///                     in the computations.
-
         /// Returns the number of bytes required to allocate the memory described
         /// including the padding area.
         size_t get_size() const {
