@@ -251,86 +251,81 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights() {
 
     const auto &jcp = kernel_->jcp;
 
-    int load_work = div_up(jcp.nb_load, jcp.nb_load_blocking);
-    int bcast_work = div_up(jcp.nb_bcast, jcp.nb_bcast_blocking);
-    const size_t work_amount = jcp.ngroups * load_work * bcast_work;
+    // TODO (Roma): remove this restriction
+    assert(jcp.stride_w == 1 && jcp.stride_h == 1);
 
+    const int nb_ic = jcp.nb_bcast;
+    const int nb_oc = jcp.nb_load;
+    const int nb_os = jcp.nb_reduce;
+    const int os_block = jcp.reduce_block;
+    const int nb_ic_blocking = jcp.nb_bcast_blocking;
+    const int nb_oc_blocking = jcp.nb_load_blocking;
+    const int nb_os_blocking = jcp.nb_reduce_blocking;
+
+    const int load_work = div_up(nb_oc, nb_oc_blocking);
+    const int bcast_work = div_up(nb_ic, nb_ic_blocking);
+
+    const int work_amount = jcp.ngroups * load_work * bcast_work;
+
+    // TODO (Roma): port adaptive blocking from MKL
     auto ker = [&](const int ithr, const int nthr) {
-        size_t start{ 0 }, end{ 0 };
-        size_t g, load_i, bcast_i;
-
+        int start, end;
         balance211(work_amount, nthr, ithr, start, end);
+
+        int g, load_i, bcast_i;
         nd_iterator_init(start, g, jcp.ngroups, load_i, load_work, bcast_i,
                          bcast_work);
-        for (size_t iwork = start; iwork < end; ++iwork) {
-            int ocb, icb;
-            icb = jcp.nb_bcast_blocking * bcast_i;
-            ocb = jcp.nb_load_blocking * load_i;
-            for (int n = 0; n < jcp.mb; ++n) {
-                for (int osb = 0; osb < jcp.nb_reduce;
-                     osb += jcp.nb_reduce_blocking) {
-                    jit_1x1_conv_call_s par_conv = {};
 
-                    int nb_ic = jcp.nb_bcast, nb_oc = jcp.nb_load;
-                    int nb_os = jcp.nb_reduce, os_block = jcp.reduce_block;
-                    int nb_os_blocking = jcp.nb_reduce_blocking;
-                    int nb_oc_blocking = jcp.nb_load_blocking;
-                    int nb_ic_blocking = jcp.nb_bcast_blocking;
+        for (int iwork = start; iwork < end; ++iwork) {
+            const int ocb = nb_oc_blocking * load_i;
+            const int icb = nb_ic_blocking * bcast_i;
 
-                    int os = osb * os_block;
+            const int _icb = g * nb_ic + icb;
+            const int _ocb = g * nb_oc + ocb;
 
-                    // TODO (Roma): remove this restriction
-                    assert(jcp.stride_w == 1 && jcp.stride_h == 1);
+            for (int img = 0; img < jcp.mb; ++img) {
+                for (int osb = 0; osb < nb_os; osb += nb_os_blocking) {
+                    const int os = osb * os_block;
+                    const int oh = os / jcp.ow;
+                    const int ow = os % jcp.ow;
 
-                    int oh = os / jcp.ow;
-                    int ow = os % jcp.ow;
-                    size_t _ocb = g * nb_oc + ocb;
-                    size_t diff_dst_off = diff_dst_d.blk_off(n, _ocb, oh, ow);
-                    par_conv.load_data = &diff_dst[diff_dst_off];
-
-                    int iw = ow;
-                    int ih = oh;
-                    size_t _icb = g * nb_ic + icb;
-                    size_t src_off = src_d.blk_off(n, _icb, ih, iw);
-                    par_conv.bcast_data = &src[src_off];
-
-                    par_conv.output_data = &diff_weights[conf_.with_groups()
+                    jit_1x1_conv_call_s p = {};
+                    p.load_data = &diff_dst[
+                        diff_dst_d.blk_off(img, _ocb, oh, ow)];
+                    p.bcast_data = &src[src_d.blk_off(img, _icb, oh, ow)];
+                    p.output_data = &diff_weights[conf_.with_groups()
                         ? diff_weights_d.blk_off(g, ocb, icb)
                         : diff_weights_d.blk_off(ocb, icb)];
 
-                    par_conv.reduce_pos_flag =
-                        (osb == 0 && n == 0
-                            ? jit_avx2_1x1_conv_kernel_f32::REDUCE_FLAG_FIRST
-                            : 0)
-                        | (osb + nb_os_blocking >= nb_os && n + 1 == jcp.mb
-                            ? jit_avx2_1x1_conv_kernel_f32::REDUCE_FLAG_LAST
-                            : 0);
+                    p.reduce_pos_flag =
+                        (osb == 0 && img == 0)
+                        * jit_avx2_1x1_conv_kernel_f32::REDUCE_FLAG_FIRST
+                        |
+                        (osb + nb_os_blocking >= nb_os && img + 1 == jcp.mb)
+                        * jit_avx2_1x1_conv_kernel_f32::REDUCE_FLAG_LAST;
 
-                    par_conv.reduce_dim = this_block_size(
-                            os, jcp.os, nb_os_blocking * os_block);
-                    par_conv.bcast_dim = this_block_size(
-                        icb * jcp.ic_block, jcp.ic,
-                        nb_ic_blocking * jcp.ic_block);
-                    par_conv.load_dim = this_block_size(
-                        ocb * jcp.oc_block, jcp.oc,
-                        nb_oc_blocking * jcp.oc_block);
-                    par_conv.output_stride =
-                        jcp.ic * jcp.oc_block * sizeof(float);
+                    p.reduce_dim = this_block_size(os, jcp.os,
+                            nb_os_blocking * os_block);
+                    p.bcast_dim = this_block_size(icb * jcp.ic_block, jcp.ic,
+                            nb_ic_blocking * jcp.ic_block);
+                    p.load_dim = this_block_size(ocb * jcp.oc_block, jcp.oc,
+                            nb_oc_blocking * jcp.oc_block);
+                    p.output_stride = jcp.ic * jcp.oc_block * sizeof(data_t);
 
-                    par_conv.bias_data = (diff_bias && icb == 0)
+                    p.bias_data = (diff_bias && icb == 0)
                         ? &diff_bias[diff_bias_d.blk_off(_ocb * jcp.oc_block)]
                         : 0;
 
-                    kernel_->jit_ker(&par_conv);
+                    kernel_->jit_ker(&p);
                 }
             }
+
             nd_iterator_step(g, jcp.ngroups, load_i, load_work, bcast_i,
                              bcast_work);
         }
     };
 
-// TODO (Roma): port adaptive blocking from MKL
-#pragma omp parallel
+#   pragma omp parallel
     {
         ker(omp_get_thread_num(), omp_get_num_threads());
     }
