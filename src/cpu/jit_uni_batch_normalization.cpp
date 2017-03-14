@@ -23,6 +23,7 @@
 #include "utils.hpp"
 
 #include "jit_generator.hpp"
+#include "cpu_barrier.hpp"
 
 #include "jit_uni_batch_normalization.hpp"
 
@@ -33,19 +34,12 @@ namespace cpu {
 namespace {
 
 using namespace Xbyak;
+namespace barrier = simple_barrier;
 
 typedef float data_t;
 
 template <cpu_isa_t isa>
 struct jit_bnorm_t: public jit_generator {
-    struct barrier_t {
-        enum { CACHE_LINE_SIZE = 64 };
-        volatile size_t ctr;
-        char pad1[CACHE_LINE_SIZE - 1 * sizeof(size_t)];
-        volatile size_t sense;
-        char pad2[CACHE_LINE_SIZE - 1 * sizeof(size_t)];
-    };
-
     struct call_params_t {
         // keep all sizes at 8 bytes -- jit code expects this
         size_t N_ithr, N_nthr;
@@ -58,7 +52,7 @@ struct jit_bnorm_t: public jit_generator {
         const data_t *src, *dst;
         const data_t *diff_src, *diff_dst;
         const data_t *rbuf1, *rbuf2;
-        barrier_t *barrier;
+        barrier::ctx_t *barrier;
     };
 
     /* cpu specific part */
@@ -101,7 +95,6 @@ struct jit_bnorm_t: public jit_generator {
     Reg64 reg_bar = reg_coff;
     Reg64 reg_nnthr = reg_soff; // must be usable w/ loops over coff
     Reg64 reg_tmp = reg_ctr;
-    Reg64 reg_tmp2 = reg_nnthr;
 
     size_t unroll_blocks = isa == avx2 ? 1 : 4;
     size_t unroll_regs = isa == avx2 ? 1 : 4;
@@ -190,46 +183,10 @@ struct jit_bnorm_t: public jit_generator {
 #       undef PARAM_OFF
     }
 
-    void barrier(char id) {
-#       define BAR_CTR_OFF offsetof(barrier_t, ctr)
-#       define BAR_SENSE_OFF offsetof(barrier_t, sense)
-        char barrier_exit_label[] = " barrier_exit";
-        char spin_label[] = " spin";
-        barrier_exit_label[0] = id;
-        spin_label[0] = id;
-
+    void barrier() {
         mov(reg_nnthr, ptr[rsp + stack_off_N_nthr]);
-        cmp(reg_nnthr, 1);
-        jbe(barrier_exit_label);
         mov(reg_bar, ptr[rsp + stack_off_barrier]);
-
-        mov(reg_tmp2, ptr[reg_bar + BAR_SENSE_OFF]);
-        mov(reg_tmp, 1);
-
-        if (isa == avx512_mic) {
-            prefetchwt1(ptr[reg_bar + BAR_CTR_OFF]);
-            prefetchwt1(ptr[reg_bar + BAR_CTR_OFF]);
-        }
-
-        lock(); xadd(ptr[reg_bar + BAR_CTR_OFF], reg_tmp);
-        add(reg_tmp, 1);
-        cmp(reg_tmp, ptr[rsp + stack_off_N_nthr]);
-        jne(spin_label);
-
-        xor_(reg_tmp, reg_tmp);
-        mov(ptr[reg_bar + BAR_CTR_OFF], reg_tmp);
-        not_(reg_tmp2);
-        mov(ptr[reg_bar + BAR_SENSE_OFF], reg_tmp2);
-        jmp(barrier_exit_label);
-
-        L(spin_label);
-        mov(reg_tmp, ptr[reg_bar + BAR_SENSE_OFF]);
-        cmp(reg_tmp2, reg_tmp);
-        je(spin_label);
-
-        L(barrier_exit_label);
-#       undef BAR_CTR_OFF
-#       undef BAR_SENSE_OFF
+        simple_barrier::generate(*this, reg_bar, reg_nnthr);
     }
 
     Address mean_ptr(size_t offt = 0) {
@@ -353,7 +310,7 @@ struct jit_bnorm_t: public jit_generator {
             jne("mean_spatial");
         }
 
-        barrier('A'); {
+        barrier(); {
             mov(reg_tmp, ptr[rsp + stack_off_N_ithr]);
             cmp(reg_tmp, 0);
             jne("no_mean_reduction");
@@ -379,7 +336,7 @@ struct jit_bnorm_t: public jit_generator {
             }
         }
         L("no_mean_reduction");
-        barrier('B');
+        barrier();
 
         xor_(reg_soff, reg_soff);
         L("var_spatial"); {
@@ -422,7 +379,7 @@ struct jit_bnorm_t: public jit_generator {
             jne("var_spatial");
         }
 
-        barrier('C'); {
+        barrier(); {
             mov(reg_tmp, ptr[rsp + stack_off_N_ithr]);
             cmp(reg_tmp, 0);
             jne("no_var_reduction");
@@ -447,7 +404,7 @@ struct jit_bnorm_t: public jit_generator {
             }
         }
         L("no_var_reduction");
-        barrier('D');
+        barrier();
     }
 
     void forward() {
@@ -566,7 +523,7 @@ struct jit_bnorm_t: public jit_generator {
             jne("sh_spatial");
         }
 
-        barrier('A'); {
+        barrier(); {
             mov(reg_tmp, ptr[rsp + stack_off_N_ithr]);
             cmp(reg_tmp, 0);
             jne("no_sh_reduction");
@@ -598,7 +555,7 @@ struct jit_bnorm_t: public jit_generator {
             }
         }
         L("no_sh_reduction");
-        barrier('B');
+        barrier();
 
         mov(reg_diff_src, ptr[rsp + stack_off_diff_src]);
         xor_(reg_soff, reg_soff);
@@ -708,9 +665,11 @@ struct uni_bnorm_driver_t: public c_compatible {
         rbuf_ = pbuf_ + num_pbufs * bdesc_->C();
 
         int num_barriers = bdesc_->C() / simd_w;
-        if (syncable_)
-            barriers_ = new
-                typename jit_bnorm_t<isa>::barrier_t[num_barriers] {};
+        if (syncable_) {
+            barriers_ = new barrier::ctx_t[num_barriers];
+            for (int i = 0; i < num_barriers; ++i)
+                barrier::ctx_init(&barriers_[i]);
+        }
 	}
     ~uni_bnorm_driver_t() { delete [] buf_; delete [] barriers_; }
 
@@ -803,7 +762,7 @@ private:
     bool use_tmp_stats_, use_tmp_diff_scale_shift_;
 
     data_t *buf_, *sbuf_, *rbuf_, *pbuf_;
-    typename jit_bnorm_t<isa>::barrier_t *barriers_;
+    barrier::ctx_t *barriers_;
 };
 
 }
