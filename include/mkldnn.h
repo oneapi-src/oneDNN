@@ -488,20 +488,20 @@ mkldnn_status_t MKLDNN_API mkldnn_pooling_backward_desc_init(
 /** Initializes an @p lrn_desc for forward propagation using @p prop_kind
  * (possible values are #mkldnn_forward_training or #mkldnn_forward_inference),
  * @p alg_kind, memory descriptor @p data_desc, and regularization
- * parameters @p local_size, @p alpha, and @p beta. */
+ * parameters @p local_size, @p alpha, @p beta, and @p k. */
 mkldnn_status_t MKLDNN_API mkldnn_lrn_forward_desc_init(
         mkldnn_lrn_desc_t *lrn_desc, mkldnn_prop_kind_t prop_kind,
         mkldnn_alg_kind_t alg_kind, const mkldnn_memory_desc_t *data_desc,
-        int local_size, double alpha, double beta);
+        int local_size, double alpha, double beta, double k);
 
 /** Initializes an @p lrn_desc for backward propagation using @p alg_kind,
  * memory descriptors @p data_desc, and @p diff_data_desc, and regularization
- * parameters @p local_size, @p alpha, and @p beta. */
+ * parameters @p local_size, @p alpha, @p beta, and @p k. */
 mkldnn_status_t MKLDNN_API mkldnn_lrn_backward_desc_init(
         mkldnn_lrn_desc_t *lrn_desc, mkldnn_alg_kind_t alg_kind,
         const mkldnn_memory_desc_t *diff_data_desc,
         const mkldnn_memory_desc_t *data_desc, int local_size, double alpha,
-        double beta);
+        double beta, double k);
 
 /** @} */
 

@@ -147,15 +147,17 @@ void simple_net()
      * local size: 5
      * alpha: 0.0001
      * beta: 0.75
+     * k: 1.0
      */
     const uint32_t local_size = 5;
     const double alpha = 0.0001;
     const double beta = 0.75;
+    const double k = 1.0;
 
     /* create a lrn primitive descriptor */
     auto lrn_desc = lrn_forward::desc(prop_kind::forward, lrn_across_channels,
                                       relu_pd.dst_primitive_desc().desc(),
-                                      local_size, alpha, beta);
+                                      local_size, alpha, beta, k);
     auto lrn_pd = lrn_forward::primitive_desc(lrn_desc, cpu_engine);
 
     /* create lrn dst memory */
@@ -282,7 +284,7 @@ void simple_net()
     /* create backward lrn primitive descriptor */
     auto lrn_bwd_desc = lrn_backward::desc(
             lrn_across_channels, lrn_pd.src_primitive_desc().desc(),
-            lrn_diff_dst_md, local_size, alpha, beta);
+            lrn_diff_dst_md, local_size, alpha, beta, k);
     auto lrn_bwd_pd
             = lrn_backward::primitive_desc(lrn_bwd_desc, cpu_engine, lrn_pd);
 

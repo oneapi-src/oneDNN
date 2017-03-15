@@ -257,6 +257,7 @@ mkldnn_status_t simple_net(){
     uint32_t local_size = 5;
     double alpha = 0.0001;
     double beta = 0.75;
+    double k = 1.0;
 
     int32_t *lrn_dst_sizes = relu_dst_sizes;
 
@@ -273,8 +274,8 @@ mkldnn_status_t simple_net(){
     /* create a lrn */
     mkldnn_lrn_desc_t lrn_desc;
     CHECK(mkldnn_lrn_forward_desc_init(&lrn_desc, mkldnn_forward,
-            mkldnn_lrn_across_channels, lrn_src_md,
-            alpha, beta, local_size));
+            mkldnn_lrn_across_channels, lrn_src_md, local_size,
+            alpha, beta, k));
 
     mkldnn_primitive_desc_t lrn_pd;
     CHECK(mkldnn_primitive_desc_create(&lrn_pd, &lrn_desc, engine, NULL));

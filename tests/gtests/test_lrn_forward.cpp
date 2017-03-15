@@ -28,7 +28,7 @@ enum {ACROSS=0,WITHIN=1};
 struct test_lrn_desc_t {
     int mb, c;
     int h, w;
-    double alpha, beta;
+    double alpha, beta, k;
     int local_size;
     int kind; // 0 ac, 1 wc
 };
@@ -71,7 +71,7 @@ void check_lrn_fwd(const test_lrn_desc_t &ld,
                 }
             }
         }
-        data_t norm_coef = powf(1 + ld.alpha * sum / summands, ld.beta);
+        data_t norm_coef = powf(ld.k + ld.alpha * sum / summands, ld.beta);
         data_t ref_out = src_ptr[map_index(src_d, off(n, oc, oh, ow))]/norm_coef;
         data_t eps = 1.e-7*(2*summands+5);
         data_t out = d[0];
@@ -126,7 +126,7 @@ protected:
                 data_type, p.dst_format);
 
         auto lrn_desc = lrn_forward::desc(p.aprop_kind, p.aalgorithm, l_src_desc,
-                ld.local_size, ld.alpha, ld.beta);
+                ld.local_size, ld.alpha, ld.beta, ld.k);
         auto lrn_prim_desc = lrn_forward::primitive_desc(lrn_desc, eng);
 
         auto src_primitive_desc = memory::primitive_desc(l_src_desc, eng);
@@ -181,30 +181,48 @@ INSTANTIATE_TEST_CASE_P(TestLRNForward, lrn_forward_test_float,
         ::testing::Values(
             lrn_fwd_test_params_float{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nchw,
-            memory::format::nchw, { 2, 10, 4, 4, 1.0e-4, 0.75, 5, ACROSS } }
+            memory::format::nchw, { 2, 10, 4, 4, 1.0e-4, 0.75, 1.0, 5, ACROSS } }
             , lrn_fwd_test_params_float{ prop_kind::forward_scoring,
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nchw,
-            memory::format::nchw, { 2, 10, 4, 4, 1.0e-4, 0.75, 5, ACROSS } }
+            memory::format::nchw, { 2, 10, 4, 4, 1.0e-4, 0.75, 1.0, 5, ACROSS } }
+            , lrn_fwd_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nchw,
+            memory::format::nchw, { 2, 10, 4, 4, 1.0e-4, 0.75, 3.0, 5, ACROSS } }
+            , lrn_fwd_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nchw,
+            memory::format::nchw, { 2, 10, 4, 4, 1.0e-4, 0.75, 3.0, 5, ACROSS } }
             ));
 
 INSTANTIATE_TEST_CASE_P(TestLRNForwardNHWC, lrn_forward_test_float,
         ::testing::Values(
             lrn_fwd_test_params_float{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nhwc,
-            memory::format::nhwc, { 2, 10, 4, 4, 1.0e-4, 0.75, 5, ACROSS } }
+            memory::format::nhwc, { 2, 10, 4, 4, 1.0e-4, 0.75, 1.0, 5, ACROSS } }
             , lrn_fwd_test_params_float{ prop_kind::forward_scoring,
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nhwc,
-            memory::format::nhwc, { 2, 10, 4, 4, 1.0e-4, 0.75, 5, ACROSS } }
+            memory::format::nhwc, { 2, 10, 4, 4, 1.0e-4, 0.75, 1.0, 5, ACROSS } }
+            , lrn_fwd_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nhwc,
+            memory::format::nhwc, { 2, 10, 4, 4, 1.0e-4, 0.75, 4.85, 5, ACROSS } }
+            , lrn_fwd_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nhwc,
+            memory::format::nhwc, { 2, 10, 4, 4, 1.0e-4, 0.75, 4.85, 5, ACROSS } }
             ));
 
 INSTANTIATE_TEST_CASE_P(TestLRNForwardBlocked, lrn_forward_test_float,
         ::testing::Values(
             lrn_fwd_test_params_float{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nChw8c,
-            memory::format::nChw8c, { 2, 16, 4, 4, 1.0e-4, 0.75, 5, ACROSS } }
+            memory::format::nChw8c, { 2, 16, 4, 4, 1.0e-4, 0.75, 1.0, 5, ACROSS } }
             , lrn_fwd_test_params_float{ prop_kind::forward_scoring,
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nChw8c,
-            memory::format::nChw8c, { 2, 16, 4, 4, 1.0e-4, 0.75, 5, ACROSS } }
+            memory::format::nChw8c, { 2, 16, 4, 4, 1.0e-4, 0.75, 1.0, 5, ACROSS } }
+            , lrn_fwd_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nChw8c,
+            memory::format::nChw8c, { 2, 16, 4, 4, 1.0e-4, 0.75, 5.7, 5, ACROSS } }
+            , lrn_fwd_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nChw8c,
+            memory::format::nChw8c, { 2, 16, 4, 4, 1.0e-4, 0.75, 5.7, 5, ACROSS } }
             ));
 
 INSTANTIATE_TEST_CASE_P(
@@ -212,16 +230,16 @@ INSTANTIATE_TEST_CASE_P(
         ::testing::Values(
             lrn_fwd_test_params_float{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nchw,
-            memory::format::nchw, { 2, 96, 55, 55, 1.0e-4, 0.75, 5, ACROSS } }
+            memory::format::nchw, { 2, 96, 55, 55, 1.0e-4, 0.75, 1.0, 5, ACROSS } }
             , lrn_fwd_test_params_float{ prop_kind::forward_scoring,
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nchw,
-            memory::format::nchw, { 2, 96, 55, 55, 1.0e-4, 0.75, 5, ACROSS } }
+            memory::format::nchw, { 2, 96, 55, 55, 1.0e-4, 0.75, 1.0, 5, ACROSS } }
             , lrn_fwd_test_params_float{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nchw,
-            memory::format::nchw, { 2, 256, 27, 27, 1.0e-4, 0.75, 5, ACROSS } }
+            memory::format::nchw, { 2, 256, 27, 27, 1.0e-4, 0.75, 1.0, 5, ACROSS } }
             , lrn_fwd_test_params_float{ prop_kind::forward_scoring,
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nchw,
-            memory::format::nchw, { 2, 256, 27, 27, 1.0e-4, 0.75, 5, ACROSS } }
+            memory::format::nchw, { 2, 256, 27, 27, 1.0e-4, 0.75, 1.0, 5, ACROSS } }
             ));
 
 INSTANTIATE_TEST_CASE_P(
@@ -229,16 +247,16 @@ INSTANTIATE_TEST_CASE_P(
         ::testing::Values(
                 lrn_fwd_test_params_float{ prop_kind::forward_training,
                 engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nhwc,
-                memory::format::nhwc, { 2, 96, 55, 55, 1.0e-4, 0.75, 5, ACROSS } },
+                memory::format::nhwc, { 2, 96, 55, 55, 1.0e-4, 0.75, 1.0, 5, ACROSS } },
                 lrn_fwd_test_params_float{ prop_kind::forward_scoring,
                 engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nhwc,
-                memory::format::nhwc, { 2, 96, 55, 55, 1.0e-4, 0.75, 5, ACROSS } },
+                memory::format::nhwc, { 2, 96, 55, 55, 1.0e-4, 0.75, 1.0, 5, ACROSS } },
                 lrn_fwd_test_params_float{ prop_kind::forward_training,
                 engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nhwc,
-                memory::format::nhwc, { 2, 256, 27, 27, 1.0e-4, 0.75, 5, ACROSS } },
+                memory::format::nhwc, { 2, 256, 27, 27, 1.0e-4, 0.75, 1.0, 5, ACROSS } },
                 lrn_fwd_test_params_float{ prop_kind::forward_scoring,
                 engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nhwc,
-                memory::format::nhwc, { 2, 256, 27, 27, 1.0e-4, 0.75, 5, ACROSS } }
+                memory::format::nhwc, { 2, 256, 27, 27, 1.0e-4, 0.75, 1.0, 5, ACROSS } }
             ));
 
 INSTANTIATE_TEST_CASE_P(
@@ -246,16 +264,16 @@ INSTANTIATE_TEST_CASE_P(
         ::testing::Values(
             lrn_fwd_test_params_float{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nChw8c,
-            memory::format::nChw8c, { 2, 96, 55, 55, 1.0e-4, 0.75, 5, ACROSS } },
+            memory::format::nChw8c, { 2, 96, 55, 55, 1.0e-4, 0.75, 1.0, 5, ACROSS } },
             lrn_fwd_test_params_float{ prop_kind::forward_scoring,
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nChw8c,
-            memory::format::nChw8c, { 2, 96, 55, 55, 1.0e-4, 0.75, 5, ACROSS } },
+            memory::format::nChw8c, { 2, 96, 55, 55, 1.0e-4, 0.75, 1.0, 5, ACROSS } },
             lrn_fwd_test_params_float{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nChw8c,
-            memory::format::nChw8c, { 2, 256, 27, 27, 1.0e-4, 0.75, 5, ACROSS } },
+            memory::format::nChw8c, { 2, 256, 27, 27, 1.0e-4, 0.75, 1.0, 5, ACROSS } },
             lrn_fwd_test_params_float{ prop_kind::forward_scoring,
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nChw8c,
-            memory::format::nChw8c, { 2, 256, 27, 27, 1.0e-4, 0.75, 5, ACROSS } }
+            memory::format::nChw8c, { 2, 256, 27, 27, 1.0e-4, 0.75, 1.0, 5, ACROSS } }
             ));
 
 INSTANTIATE_TEST_CASE_P(
@@ -263,16 +281,16 @@ INSTANTIATE_TEST_CASE_P(
         ::testing::Values(
             lrn_fwd_test_params_float{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nchw,
-            memory::format::nchw, { 2, 64, 56, 56, 1.0e-4, 0.75, 5, ACROSS } },
+            memory::format::nchw, { 2, 64, 56, 56, 1.0e-4, 0.75, 1.0, 5, ACROSS } },
             lrn_fwd_test_params_float{ prop_kind::forward_scoring,
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nchw,
-            memory::format::nchw, { 2, 64, 56, 56, 1.0e-4, 0.75, 5, ACROSS } },
+            memory::format::nchw, { 2, 64, 56, 56, 1.0e-4, 0.75, 1.0, 5, ACROSS } },
             lrn_fwd_test_params_float{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nchw,
-            memory::format::nchw, { 2, 192, 56, 56, 1.0e-4, 0.75, 5, ACROSS } },
+            memory::format::nchw, { 2, 192, 56, 56, 1.0e-4, 0.75, 1.0, 5, ACROSS } },
             lrn_fwd_test_params_float{ prop_kind::forward_scoring,
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nchw,
-            memory::format::nchw, { 2, 192, 56, 56, 1.0e-4, 0.75, 5, ACROSS } }
+            memory::format::nchw, { 2, 192, 56, 56, 1.0e-4, 0.75, 1.0, 5, ACROSS } }
             ));
 
 INSTANTIATE_TEST_CASE_P(
@@ -280,16 +298,16 @@ INSTANTIATE_TEST_CASE_P(
         ::testing::Values(
             lrn_fwd_test_params_float{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nChw8c,
-            memory::format::nChw8c, { 2, 64, 56, 56, 1.0e-4, 0.75, 5, ACROSS } },
+            memory::format::nChw8c, { 2, 64, 56, 56, 1.0e-4, 0.75, 1.0, 5, ACROSS } },
             lrn_fwd_test_params_float{ prop_kind::forward_scoring,
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nChw8c,
-            memory::format::nChw8c, { 2, 64, 56, 56, 1.0e-4, 0.75, 5, ACROSS } },
+            memory::format::nChw8c, { 2, 64, 56, 56, 1.0e-4, 0.75, 1.0, 5, ACROSS } },
             lrn_fwd_test_params_float{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nChw8c,
-            memory::format::nChw8c, { 2, 192, 56, 56, 1.0e-4, 0.75, 5, ACROSS } },
+            memory::format::nChw8c, { 2, 192, 56, 56, 1.0e-4, 0.75, 1.0, 5, ACROSS } },
             lrn_fwd_test_params_float{ prop_kind::forward_scoring,
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nChw8c,
-            memory::format::nChw8c, { 2, 192, 56, 56, 1.0e-4, 0.75, 5, ACROSS } }
+            memory::format::nChw8c, { 2, 192, 56, 56, 1.0e-4, 0.75, 1.0, 5, ACROSS } }
             ));
 
 INSTANTIATE_TEST_CASE_P(
@@ -297,27 +315,27 @@ INSTANTIATE_TEST_CASE_P(
         ::testing::Values(
             lrn_fwd_test_params_float{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::lrn_within_channel, memory::format::nChw8c,
-            memory::format::nChw8c, { 2, 96, 55, 55, 1.0e-4, 0.75, 3, WITHIN } }
+            memory::format::nChw8c, { 2, 96, 55, 55, 1.0e-4, 0.75, 1.0, 3, WITHIN } }
             , lrn_fwd_test_params_float{ prop_kind::forward_scoring,
             engine::kind::cpu, algorithm::lrn_within_channel, memory::format::nChw8c,
-            memory::format::nChw8c, { 2, 96, 55, 55, 1.0e-4, 0.75, 3, WITHIN } }
+            memory::format::nChw8c, { 2, 96, 55, 55, 1.0e-4, 0.75, 1.0, 3, WITHIN } }
             , lrn_fwd_test_params_float{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::lrn_within_channel, memory::format::nChw8c,
-            memory::format::nChw8c, { 2, 256, 27, 27, 1.0e-4, 0.75, 3, WITHIN } }
+            memory::format::nChw8c, { 2, 256, 27, 27, 1.0e-4, 0.75, 1.0, 3, WITHIN } }
             , lrn_fwd_test_params_float{ prop_kind::forward_scoring,
             engine::kind::cpu, algorithm::lrn_within_channel, memory::format::nChw8c,
-            memory::format::nChw8c, { 2, 256, 27, 27, 1.0e-4, 0.75, 3, WITHIN } }
+            memory::format::nChw8c, { 2, 256, 27, 27, 1.0e-4, 0.75, 1.0, 3, WITHIN } }
             , lrn_fwd_test_params_float{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::lrn_within_channel, memory::format::nChw8c,
-            memory::format::nChw8c, { 2, 96, 55, 55, 1.0e-4, 0.75, 5, WITHIN } }
+            memory::format::nChw8c, { 2, 96, 55, 55, 1.0e-4, 0.75, 1.0, 5, WITHIN } }
             , lrn_fwd_test_params_float{ prop_kind::forward_scoring,
             engine::kind::cpu, algorithm::lrn_within_channel, memory::format::nChw8c,
-            memory::format::nChw8c, { 2, 96, 55, 55, 1.0e-4, 0.75, 5, WITHIN } }
+            memory::format::nChw8c, { 2, 96, 55, 55, 1.0e-4, 0.75, 1.0, 5, WITHIN } }
             , lrn_fwd_test_params_float{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::lrn_within_channel, memory::format::nChw8c,
-            memory::format::nChw8c, { 2, 256, 27, 27, 1.0e-4, 0.75, 5, WITHIN } }
+            memory::format::nChw8c, { 2, 256, 27, 27, 1.0e-4, 0.75, 1.0, 5, WITHIN } }
             , lrn_fwd_test_params_float{ prop_kind::forward_scoring,
             engine::kind::cpu, algorithm::lrn_within_channel, memory::format::nChw8c,
-            memory::format::nChw8c, { 2, 256, 27, 27, 1.0e-4, 0.75, 5, WITHIN } }
+            memory::format::nChw8c, { 2, 256, 27, 27, 1.0e-4, 0.75, 1.0, 5, WITHIN } }
             ));
 }

@@ -32,7 +32,7 @@ namespace {
 status_t lrn_desc_init(lrn_desc_t *lrn_desc,
         prop_kind_t prop_kind, alg_kind_t alg_kind,
         const memory_desc_t *data_desc, const memory_desc_t *diff_data_desc,
-        int local_size, double alpha, double beta) {
+        int local_size, double alpha, double beta, double k) {
     bool args_ok = true
         && !any_null(lrn_desc, data_desc)
         && one_of(alg_kind, lrn_within_channel, lrn_across_channels)
@@ -55,6 +55,7 @@ status_t lrn_desc_init(lrn_desc_t *lrn_desc,
     ld.local_size = local_size;
     ld.lrn_alpha = alpha;
     ld.lrn_beta = beta;
+    ld.lrn_k = k;
 
     bool consistency = true
         && ld.data_desc.ndims == 4;
@@ -72,19 +73,19 @@ status_t lrn_desc_init(lrn_desc_t *lrn_desc,
 status_t mkldnn_lrn_forward_desc_init(lrn_desc_t *lrn_desc,
         prop_kind_t prop_kind, alg_kind_t alg_kind,
         const memory_desc_t *data_desc, int local_size, double alpha,
-        double beta) {
+        double beta, double k) {
     if (!one_of(prop_kind, forward_training, forward_inference))
         return invalid_arguments;
     return lrn_desc_init(lrn_desc, prop_kind, alg_kind, data_desc, nullptr,
-            local_size, alpha, beta);
+            local_size, alpha, beta, k);
 }
 
 status_t mkldnn_lrn_backward_desc_init(lrn_desc_t *lrn_desc,
         alg_kind_t alg_kind, const memory_desc_t *data_desc,
         const memory_desc_t *diff_data_desc, int local_size, double alpha,
-        double beta) {
+        double beta, double k) {
     return lrn_desc_init(lrn_desc, backward_data, alg_kind, data_desc,
-            diff_data_desc, local_size, alpha, beta);
+            diff_data_desc, local_size, alpha, beta, k);
 }
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

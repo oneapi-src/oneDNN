@@ -295,7 +295,7 @@ void test3() {
 
     CHECK(mkldnn_lrn_forward_desc_init(&l2_desc,
                 mkldnn_forward_inference, mkldnn_lrn_across_channels,
-                &l2_data_md, 5, 1e-4, 0.75));
+                &l2_data_md, 5, 1e-4, 0.75, 1.0));
     CHECK(mkldnn_primitive_desc_create(&l2_pd, &l2_desc, engine, NULL));
     CHECK(mkldnn_primitive_create(&l2, l2_pd, l2_srcs, l2_dsts));
 

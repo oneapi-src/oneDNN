@@ -486,6 +486,8 @@ typedef struct {
     double lrn_alpha;
     /** LRN beta parameter. */
     double lrn_beta;
+    /** LRN k parameter. */
+    double lrn_k;
 } mkldnn_lrn_desc_t;
 
 /** A descriptor of a Batch Normalization operation. */

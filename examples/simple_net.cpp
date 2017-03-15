@@ -120,6 +120,7 @@ void simple_net(){
     const uint32_t local_size = 5;
     const double alpha = 0.0001;
     const double beta = 0.75;
+    const double k = 1.0;
 
     auto lrn_dst_memory = memory(relu_dst_memory.get_primitive_desc());
 
@@ -129,7 +130,7 @@ void simple_net(){
     /* create lrn primitive and add it to net */
     auto lrn_desc = lrn_forward::desc(prop_kind::forward, lrn_across_channels,
                 conv_prim_desc.dst_primitive_desc().desc(), local_size,
-                alpha, beta);
+                alpha, beta, k);
     auto lrn_prim_desc = lrn_forward::primitive_desc(lrn_desc, cpu_engine);
 
     net.push_back(lrn_forward(lrn_prim_desc, relu_dst_memory,

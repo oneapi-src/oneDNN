@@ -73,11 +73,13 @@ struct jit_avx2_lrn_fwd_t::jit_avx2_lrn_kernel_f32: public jit_generator {
     Xbyak::Reg64 scratch = rdx;
     Xbyak::Reg64 imm_addr64 = rbx;
 
+    Xbyak::Xmm xalpha = xmm0;
     Xbyak::Ymm yalpha = ymm0;
-    Xbyak::Ymm yone = ymm1;
+    Xbyak::Xmm xk = xmm1;
+    Xbyak::Ymm yk = ymm1;
 
-    static const float one;
     float alpha;
+    float k;
 
     void (*ker)(jit_args_fwd_t *);
     void operator()(jit_args_fwd_t *arg) { ker(arg); }
@@ -104,14 +106,14 @@ struct jit_avx2_lrn_fwd_t::jit_avx2_lrn_kernel_f32: public jit_generator {
                 }
             }
         }
-        vfmadd132ps(ysum, yone, yalpha); // ysum <- ysum*yalpha+yone
+        vfmadd132ps(ysum, yk, yalpha); // ysum <- ysum*yalpha+yk
         vmovaps(ytmp, ysum);
         if (pk != prop_kind::forward_inference)
             vmovups(ptr[scratch], ytmp);
         vmulps(ysum2, ysum, ysum);
-        vmulps(ysum, ysum, ysum2); // ysum = (ysum*yalpha+yone)^3;
+        vmulps(ysum, ysum, ysum2); // ysum = (ysum*yalpha+yk)^3;
         vsqrtps(ysum, ysum);
-        vsqrtps(ysum, ysum); // ysum = (ysum*yalpha+yone)^0.75
+        vsqrtps(ysum, ysum); // ysum = (ysum*yalpha+yk)^0.75
         vdivps(ydst, ydst, ysum); // ydst <- ydst / ysum
         vmovups(ptr[dst], ydst);
         add(src, 32);
@@ -123,11 +125,12 @@ struct jit_avx2_lrn_fwd_t::jit_avx2_lrn_kernel_f32: public jit_generator {
     jit_avx2_lrn_kernel_f32(
         const struct nchw8c_within &J,
         float A,
+        float K,
         prop_kind_t pk,
         void *code_ptr = nullptr,
         size_t code_size = 2 * Xbyak::DEFAULT_MAX_CODE_SIZE)
         : jit_generator(code_ptr, code_size)
-        , alpha(A)
+        , alpha(A), k(K)
     {
         Xbyak::Reg64 h = r9;
         Xbyak::Reg64 w = r10;
@@ -149,10 +152,14 @@ struct jit_avx2_lrn_fwd_t::jit_avx2_lrn_kernel_f32: public jit_generator {
         mov(dst, ptr[this->param1 + 8]);
         if (pk != prop_kind::forward_inference)
             mov(scratch, ptr[this->param1 + 16]);
-        mov(imm_addr64, reinterpret_cast<size_t>(&this->alpha));
-        vbroadcastss(yalpha, ptr[imm_addr64]);
-        mov(imm_addr64, reinterpret_cast<size_t>(&this->one));
-        vbroadcastss(yone, ptr[imm_addr64]);
+
+        mov(imm_addr64, float2int(this->alpha));
+        movq(xalpha, imm_addr64);
+        vbroadcastss(yalpha, xalpha);
+
+        mov(imm_addr64, float2int(this->k));
+        movq(xk, imm_addr64);
+        vbroadcastss(yk, xk);
 
         int s2 = (J.size - 1) / 2, S2 = J.size - s2 - 1;
         const char **label_t = &label[0];
@@ -218,11 +225,12 @@ struct jit_avx2_lrn_fwd_t::jit_avx2_lrn_kernel_f32: public jit_generator {
     jit_avx2_lrn_kernel_f32(
         const struct nchw8c_across &J,
         float A,
+        float K,
         prop_kind_t pk,
         void *code_ptr = nullptr,
         size_t code_size = 1 * Xbyak::DEFAULT_MAX_CODE_SIZE)
         : jit_generator(code_ptr, code_size)
-        , alpha(A)
+        , alpha(A), k(K)
     {
         Xbyak::Reg64 t = rsp;
         Xbyak::Reg64 hw = r9;
@@ -246,10 +254,14 @@ struct jit_avx2_lrn_fwd_t::jit_avx2_lrn_kernel_f32: public jit_generator {
         if (pk != prop_kind::forward_inference)
             mov(scratch, ptr[this->param1 + 16]);
         sub(t, 64);
-        mov(imm_addr64, reinterpret_cast<size_t>(&this->alpha));
-        vbroadcastss(yalpha, ptr[imm_addr64]);
-        mov(imm_addr64, reinterpret_cast<size_t>(&this->one));
-        vbroadcastss(yone, ptr[imm_addr64]);
+        mov(imm_addr64, float2int(this->alpha));
+        movq(xalpha, imm_addr64);
+        vbroadcastss(yalpha, xalpha);
+
+        mov(imm_addr64, float2int(this->k));
+        movq(xk, imm_addr64);
+        vbroadcastss(yk, xk);
+
         if (J.version == -1)
         {
             vxorps(xsrc_prev, xsrc_prev, xsrc_prev);
@@ -281,7 +293,7 @@ struct jit_avx2_lrn_fwd_t::jit_avx2_lrn_kernel_f32: public jit_generator {
         vfmadd231ps(ysum, yb, yb);
         vfmadd231ps(ysum, yd, yd);
         vfmadd231ps(ysum, ye, ye);
-        vfmadd132ps(ysum, yone, yalpha); // ysum <- ysum*yalpha+yone
+        vfmadd132ps(ysum, yk, yalpha); // ysum <- ysum*yalpha+yk
 
         vmovaps(ybase, ysum);
         if (pk != prop_kind::forward_inference)
@@ -311,11 +323,12 @@ struct jit_avx2_lrn_fwd_t::jit_avx2_lrn_kernel_f32: public jit_generator {
     jit_avx2_lrn_kernel_f32(
         const struct nhwc_across &J,
         float A,
+        float K,
         prop_kind_t pk,
         void *code_ptr = nullptr,
         size_t code_size = 1 * Xbyak::DEFAULT_MAX_CODE_SIZE)
         : jit_generator(code_ptr, code_size)
-        , alpha(A)
+        , alpha(A), k(K)
     {
         static const uint32_t mask[] = {
             0, 0, 0x80000000, 0x80000000, 0x80000000, 0x80000000,
@@ -339,10 +352,13 @@ struct jit_avx2_lrn_fwd_t::jit_avx2_lrn_kernel_f32: public jit_generator {
         mov(dst, ptr[this->param1 + 8]);
         if (pk != prop_kind::forward_inference)
             mov(scratch, ptr[this->param1 + 16]);
-        mov(imm_addr64, reinterpret_cast<size_t>(&this->alpha));
-        vbroadcastss(yalpha, ptr[imm_addr64]);
-        mov(imm_addr64, reinterpret_cast<size_t>(&this->one));
-        vbroadcastss(yone, ptr[imm_addr64]);
+        mov(imm_addr64, float2int(this->alpha));
+        movq(xalpha, imm_addr64);
+        vbroadcastss(yalpha, xalpha);
+
+        mov(imm_addr64, float2int(this->k));
+        movq(xk, imm_addr64);
+        vbroadcastss(yk, xk);
 
         vxorps(ysum, ysum, ysum);
 
@@ -367,17 +383,17 @@ struct jit_avx2_lrn_fwd_t::jit_avx2_lrn_kernel_f32: public jit_generator {
         vfmadd231ps(ysum, ye, ye);
 
         vmovups(ydst, ysum);
-        vfmadd132ps(ydst, yone, yalpha); // ydst <- ysum*yalpha+yone
+        vfmadd132ps(ydst, yk, yalpha); // ydst <- ysum*yalpha+yk
 
         vmovaps(ybase, ydst);
         if (pk != prop_kind::forward_inference)
             vmovups(ptr[scratch], ybase);
         vmulps(ydst, ydst, ydst);
-        vmulps(ydst, ydst, ybase); // ydst = (ysum*yalpha+yone)^3;
+        vmulps(ydst, ydst, ybase); // ydst = (ysum*yalpha+yk)^3;
         vsqrtps(ydst, ydst);
-        vsqrtps(ydst, ydst); // ydst = (ysum*yalpha+yone)^0.75
+        vsqrtps(ydst, ydst); // ydst = (ysum*yalpha+yk)^0.75
 
-        vdivps(ydst, yc, ydst); // ydst = ysrc / (ysum*yalpha+yone)^0.75
+        vdivps(ydst, yc, ydst); // ydst = ysrc / (ysum*yalpha+yk)^0.75
         vmovups(ptr[dst], ydst);
 
         vxorps(ysum, ysum, ysum);
@@ -410,16 +426,16 @@ struct jit_avx2_lrn_fwd_t::jit_avx2_lrn_kernel_f32: public jit_generator {
         vfmadd231ps(ysum, ye, ye);
 
         vmovups(ydst, ysum);
-        vfmadd132ps(ydst, yone, yalpha); // ydst <- ysum*yalpha+yone
+        vfmadd132ps(ydst, yk, yalpha); // ydst <- ysum*yalpha+yk
 
         vmovaps(ybase, ydst);
         if (pk != prop_kind::forward_inference)
             vmovups(ptr[scratch], ybase);
         vmulps(ydst, ydst, ydst);
-        vmulps(ydst, ydst, ybase); // ydst = (ysum*yalpha+yone)^3;
+        vmulps(ydst, ydst, ybase); // ydst = (ysum*yalpha+yk)^3;
         vsqrtps(ydst, ydst);
-        vsqrtps(ydst, ydst); // ydst = (ysum*yalpha+yone)^0.75
-        vdivps(ydst, yc, ydst); // ydst = ysrc / (ysum*yalpha+yone)^0.75
+        vsqrtps(ydst, ydst); // ydst = (ysum*yalpha+yk)^0.75
+        vdivps(ydst, yc, ydst); // ydst = ysrc / (ysum*yalpha+yk)^0.75
 
         vmovups(ptr[dst], ydst);
 
@@ -444,7 +460,7 @@ struct jit_avx2_lrn_fwd_t::jit_avx2_lrn_kernel_f32: public jit_generator {
         vfmadd231ps(ysum, ye, ye);
 
         vmovups(ydst, ysum);
-        vfmadd132ps(ydst, yone, yalpha); // ydst <- ysum*yalpha+yone
+        vfmadd132ps(ydst, yk, yalpha); // ydst <- ysum*yalpha+yk
 
         vmovaps(ybase, ydst);
         if (pk != prop_kind::forward_inference)
@@ -455,10 +471,10 @@ struct jit_avx2_lrn_fwd_t::jit_avx2_lrn_kernel_f32: public jit_generator {
                 vmovups(ptr[scratch], ybase);
         }
         vmulps(ydst, ydst, ydst);
-        vmulps(ydst, ydst, ybase); // ydst = (ysum*yalpha+yone)^3;
+        vmulps(ydst, ydst, ybase); // ydst = (ysum*yalpha+yk)^3;
         vsqrtps(ydst, ydst);
-        vsqrtps(ydst, ydst); // ydst = (ysum*yalpha+yone)^0.75
-        vdivps(ydst, yc, ydst); // ydst = ysrc / (ysum*yalpha+yone)^0.75
+        vsqrtps(ydst, ydst); // ydst = (ysum*yalpha+yk)^0.75
+        vdivps(ydst, yc, ydst); // ydst = ysrc / (ysum*yalpha+yk)^0.75
 
         if (tail != 0)
             vmaskmovps(ptr[dst], ymask, ydst);
@@ -476,11 +492,12 @@ struct jit_avx2_lrn_fwd_t::jit_avx2_lrn_kernel_f32: public jit_generator {
     jit_avx2_lrn_kernel_f32(
         struct nchw_across J,
         float A,
+        float K,
         prop_kind_t pk,
         void* code_ptr = nullptr,
         size_t code_size = 2 * Xbyak::DEFAULT_MAX_CODE_SIZE)
         : jit_generator(code_ptr, code_size)
-        , alpha(A)
+        , alpha(A), k(K)
     {
         static const uint32_t mask[] = {
             0x80000000, 0x80000000, 0x80000000, 0x80000000, 0x80000000,
@@ -502,10 +519,13 @@ struct jit_avx2_lrn_fwd_t::jit_avx2_lrn_kernel_f32: public jit_generator {
             mov(imm_addr64, reinterpret_cast<size_t>(&mask[7 - J.tail]));
             vmovups(ymask, ptr[imm_addr64]);
         }
-        mov(imm_addr64, reinterpret_cast<size_t>(&this->alpha));
-        vbroadcastss(yalpha, ptr[imm_addr64]);
-        mov(imm_addr64, reinterpret_cast<size_t>(&this->one));
-        vbroadcastss(yone, ptr[imm_addr64]);
+        mov(imm_addr64, float2int(this->alpha));
+        movq(xalpha, imm_addr64);
+        vbroadcastss(yalpha, xalpha);
+
+        mov(imm_addr64, float2int(this->k));
+        movq(xk, imm_addr64);
+        vbroadcastss(yk, xk);
 
         mov(src, ptr[this->param1 + 0]);
         mov(dst, ptr[this->param1 + 8]);
@@ -562,8 +582,6 @@ struct jit_avx2_lrn_fwd_t::jit_avx2_lrn_kernel_f32: public jit_generator {
     }
 };
 
-const float jit_avx2_lrn_fwd_t::jit_avx2_lrn_kernel_f32::one = 1.0f;
-
 status_t jit_avx2_lrn_fwd_t::pd_t::init() {
     using namespace prop_kind;
     using namespace alg_kind;
@@ -610,31 +628,32 @@ jit_avx2_lrn_fwd_t::jit_avx2_lrn_fwd_t(const pd_t *pd,
     const int W = conf_.W();
     const int ls = conf_.desc()->local_size;
     double A = conf_.desc()->lrn_alpha / ls;
+    double K = conf_.desc()->lrn_k;
 
     auto pk = conf_.desc()->prop_kind;
     auto ak = conf_.desc()->alg_kind;
     auto dfmt = conf_.src_pd()->desc()->format;
 
     if (dfmt == nChw8c && ls == 5 && ak == lrn_across_channels) {
-        ker_ = new jit_avx2_lrn_kernel_f32(nchw8c_across(H, W, 0), A, pk);
+        ker_ = new jit_avx2_lrn_kernel_f32(nchw8c_across(H, W, 0), A, K, pk);
         ker_first_ = new jit_avx2_lrn_kernel_f32(nchw8c_across(H, W, -1),
-                A, pk);
+                A, K, pk);
         ker_last_ = new jit_avx2_lrn_kernel_f32(nchw8c_across(H, W, +1),
-                A, pk);
+                A, K, pk);
     } else if (dfmt == nChw8c && ak == lrn_within_channel) {
         /* within channel, local_size (x) local_size */
         A /= ls; /* XXX: why? */
-        ker_ = new jit_avx2_lrn_kernel_f32(nchw8c_within(H, W, ls), A, pk);
+        ker_ = new jit_avx2_lrn_kernel_f32(nchw8c_within(H, W, ls), A, K, pk);
     } else if (dfmt == nchw && ls == 5 && ak == lrn_across_channels) {
-        ker_ = new jit_avx2_lrn_kernel_f32(nchw_across(C, H*W, 0), A, pk);
+        ker_ = new jit_avx2_lrn_kernel_f32(nchw_across(C, H*W, 0), A, K, pk);
         int remind = (H*W) % VECTOR_LENGTH;
         if (remind != 0) {
             ker_last_ =
                 new jit_avx2_lrn_kernel_f32(nchw_across(C, H*W, remind),
-                        A, pk);
+                        A, K, pk);
         }
     } else if (true /* XXX: why */) {
-        ker_ = new jit_avx2_lrn_kernel_f32(nhwc_across(C), A, pk);
+        ker_ = new jit_avx2_lrn_kernel_f32(nhwc_across(C), A, K, pk);
     }
 }
 
@@ -718,6 +737,7 @@ struct jit_avx2_lrn_bwd_t::jit_avx2_lrn_kernel_f32: public jit_generator {
     Xbyak::Reg64 workspace = rdx;
     Xbyak::Reg64 imm_addr64 = rsi;
 
+    Xbyak::Xmm xnalphabeta = xmm0;
     Xbyak::Ymm ynalphabeta = ymm0;
 
     float nalphabeta;
@@ -766,8 +786,10 @@ struct jit_avx2_lrn_bwd_t::jit_avx2_lrn_kernel_f32: public jit_generator {
         mov(diffsrc, ptr[this->param1 + 24]);
 
         sub(t, 64);
-        mov(imm_addr64, reinterpret_cast<size_t>(&this->nalphabeta));
-        vbroadcastss(ynalphabeta, ptr[imm_addr64]);
+        mov(imm_addr64, float2int(this->nalphabeta));
+        movq(xnalphabeta, imm_addr64);
+        vbroadcastss(ynalphabeta, xnalphabeta);
+
         bool is_single = J.version == 3;
         bool is_first = J.version == -1 || J.version == -2;
         bool is_last  = J.version == +1 || J.version == -2;

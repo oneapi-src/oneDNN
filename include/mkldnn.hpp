@@ -1196,11 +1196,20 @@ struct lrn_forward : public primitive {
         c_api::mkldnn_lrn_desc_t data;
         desc(prop_kind aprop_kind, algorithm aalgorithm,
             const memory::desc &src_desc,
+            int local_size, double alpha, double beta, double k)
+        {
+            error::wrap_c_api(c_api::mkldnn_lrn_forward_desc_init(&data,
+                mkldnn::convert_to_c(aprop_kind), convert_to_c(aalgorithm),
+                &src_desc.data, local_size, alpha, beta, k),
+                "could not create a lrn forward descriptor");
+        }
+        desc(prop_kind aprop_kind, algorithm aalgorithm,
+            const memory::desc &src_desc,
             int local_size, double alpha, double beta)
         {
             error::wrap_c_api(c_api::mkldnn_lrn_forward_desc_init(&data,
                 mkldnn::convert_to_c(aprop_kind), convert_to_c(aalgorithm),
-                &src_desc.data, local_size, alpha, beta),
+                &src_desc.data, local_size, alpha, beta, double(1.0)),
                 "could not create a lrn forward descriptor");
         }
     };
@@ -1282,11 +1291,21 @@ struct lrn_backward : public primitive {
         desc(algorithm aalgorithm,
             const memory::desc &data_desc,
             const memory::desc &diff_data_desc,
+            int local_size, double alpha, double beta, double k)
+        {
+            error::wrap_c_api(c_api::mkldnn_lrn_backward_desc_init(&data,
+                convert_to_c(aalgorithm), &diff_data_desc.data,
+                &data_desc.data, local_size, alpha, beta, k),
+                "could not create a lrn backward descriptor");
+        }
+        desc(algorithm aalgorithm,
+            const memory::desc &data_desc,
+            const memory::desc &diff_data_desc,
             int local_size, double alpha, double beta)
         {
             error::wrap_c_api(c_api::mkldnn_lrn_backward_desc_init(&data,
-                convert_to_c(aalgorithm),
-                &diff_data_desc.data, &data_desc.data, local_size, alpha, beta),
+                convert_to_c(aalgorithm), &diff_data_desc.data,
+                &data_desc.data, local_size, alpha, beta, double(1.0)),
                 "could not create a lrn backward descriptor");
         }
     };
