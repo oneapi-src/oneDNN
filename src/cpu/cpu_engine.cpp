@@ -33,6 +33,7 @@
 #include "cpu/ref_softmax.hpp"
 #include "cpu/jit_uni_pooling.hpp"
 #include "cpu/ref_pooling.hpp"
+#include "cpu/jit_avx512_mic_lrn.hpp"
 #include "cpu/jit_avx2_lrn.hpp"
 #include "cpu/ref_lrn.hpp"
 #include "cpu/jit_uni_batch_normalization.hpp"
@@ -150,6 +151,8 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(ref_pooling_fwd_t<data_type::f32>),
     INSTANCE(ref_pooling_bwd_t<data_type::f32>),
     /* lrn */
+    INSTANCE(jit_avx512_mic_lrn_fwd_t),
+    INSTANCE(jit_avx512_mic_lrn_bwd_t),
     INSTANCE(jit_avx2_lrn_fwd_t),
     INSTANCE(jit_avx2_lrn_bwd_t),
     INSTANCE(ref_lrn_fwd_t<data_type::f32>),
