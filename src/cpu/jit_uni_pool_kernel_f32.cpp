@@ -33,9 +33,7 @@ status_t jit_uni_pool_kernel_f32<isa>::init_conf(jit_pool_conf_t &jpp,
     bool args_ok = true
         && utils::one_of(pd.alg_kind, alg_kind::pooling_max,
                 alg_kind::pooling_avg)
-        && pd.kernel[0] == pd.kernel[1]
-        && pd.padding[0][0] == pd.padding[1][0] /* top = bottom */
-        && pd.padding[0][1] == pd.padding[1][1] /* left = right */;
+        && pd.kernel[0] == pd.kernel[1];
     if (!args_ok) return status::unimplemented;
 
     const int simd_w = isa == avx2 ? 8 : 16;
