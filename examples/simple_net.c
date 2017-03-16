@@ -173,7 +173,7 @@ mkldnn_status_t simple_net(){
 
     /* create memory for dst data, we don't need reorder it to user data */
     CHECK(mkldnn_primitive_create(&conv_internal_dst_memory,
-            mkldnn_primitive_desc_query_pd(conv_pd, mkldnn_query_src_pd, 0),
+            mkldnn_primitive_desc_query_pd(conv_pd, mkldnn_query_dst_pd, 0),
             NULL, NULL));
     CHECK(mkldnn_memory_set_data_handle(
             conv_internal_dst_memory, conv_dst_buffer));
