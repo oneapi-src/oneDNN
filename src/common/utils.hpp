@@ -155,16 +155,16 @@ inline U this_block_size(const T offset, const U max, const V block_size) {
 template<typename T>
 inline T nd_iterator_init(T start) { return start; }
 template<typename T, typename U, typename W, typename... Args>
-inline T nd_iterator_init(T start, U &x, const W &X, Args& ... tuple) {
-    start = nd_iterator_init(start, tuple...);
+inline T nd_iterator_init(T start, U &x, const W &X, Args &&... tuple) {
+    start = nd_iterator_init(start, utils::forward<Args>(tuple)...);
     x = start % X;
     return start / X;
 }
 
 inline bool nd_iterator_step() { return true; }
 template<typename U, typename W, typename... Args>
-inline bool nd_iterator_step(U &x, const W &X, Args& ... tuple) {
-    if (nd_iterator_step(tuple...) ) {
+inline bool nd_iterator_step(U &x, const W &X, Args &&... tuple) {
+    if (nd_iterator_step(utils::forward<Args>(tuple)...) ) {
         x = (x + 1) % X;
         return x == 0;
     }
