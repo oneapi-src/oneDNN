@@ -148,9 +148,8 @@ void jit_avx2_1x1_conv_kernel_f32::reduce_loop(int load_loop_blk, int ur,
         jit_tagged_label init_done("init_done", load_loop_tag, bcast_loop_tag);
         jit_tagged_label init_zero("init_zero", load_loop_tag, bcast_loop_tag);
 
-        if (jcp.with_bias
-                && one_of(jcp.prop_kind, forward, forward_inference))
-        {
+        if (jcp.with_bias && one_of(jcp.prop_kind, forward_training,
+                    forward_inference)) {
             test(reg_reduce_pos_flag, REDUCE_FLAG_FIRST);
             jz(init_zero);
 
@@ -350,7 +349,7 @@ void jit_avx2_1x1_conv_kernel_f32::generate()
         bcast_loop(load_loop_blk, bcast_loop_tag);
         add(reg_load_data, load_loop_blk * jcp.load_loop_load_step);
         switch (jcp.prop_kind) {
-        case forward:
+        case forward_training:
         case forward_inference:
             add(reg_bias_data, load_loop_blk * jcp.oc_block * sizeof(float));
             add(reg_output_data,
@@ -493,7 +492,7 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
     int bcast_blocking_max{ 0 };
     int reduce_blocking{ 0 };
 
-    if (one_of(jcp.prop_kind, forward, forward_inference)) {
+    if (one_of(jcp.prop_kind, forward_training, forward_inference)) {
         jcp.reduce_dim = jcp.ic;
         jcp.reduce_block = jcp.ic_block;
 
