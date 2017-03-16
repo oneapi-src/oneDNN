@@ -59,6 +59,17 @@ template <typename U, U t, U f> struct conditional_v<true, U, t, f>
 template <typename U, U t, U f> struct conditional_v<false, U, t, f>
 { static constexpr U value = f; };
 
+template <typename T> struct remove_reference { typedef T type; };
+template <typename T> struct remove_reference<T&> { typedef T type; };
+template <typename T> struct remove_reference<T&&> { typedef T type; };
+
+template <typename T>
+inline T&& forward(typename utils::remove_reference<T>::type &t)
+{ return static_cast<T&&>(t); }
+template <typename T>
+inline T&& forward(typename utils::remove_reference<T>::type &&t)
+{ return static_cast<T&&>(t); }
+
 template <typename T>
 inline T zero() { T zero = T(); return zero; }
 
