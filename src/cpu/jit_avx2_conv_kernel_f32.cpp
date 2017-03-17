@@ -365,9 +365,10 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     if (jcp.ow < jcp.ur_w) jcp.ur_w = jcp.ow;
     jcp.ur_w_tail = jcp.ow % jcp.ur_w;
 
+    jcp.nb_oc_blocking = 4; /* the optimal value for the kernel */
+ 
     args_ok = true
         && jcp.oc % simd_w == 0
-        && jcp.l_pad <= jcp.ur_w
         && implication(jcp.kw > 7, (jcp.t_pad == 0 && jcp.l_pad == 0)
                 || (jcp.stride_w == 1 && jcp.stride_h == 1))
         && implication(mimo, jcp.ic % simd_w == 0);
@@ -377,16 +378,25 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
             (jcp.ow - jcp.ur_w_tail - 1) * jcp.stride_w + (jcp.kw - 1)
             - (jcp.iw + jcp.l_pad - 1));
 
-    /* maximum 1 ur_w block with r_pad so far */
-    if (r_pad_no_tail > jcp.ur_w) return status::unimplemented;
+    if (r_pad_no_tail > jcp.ur_w) {
+        /* recalculate ur_w, nb_oc_blocking and ur_w_tail */
+        jcp.ur_w = r_pad_no_tail + 1;
+        jcp.nb_oc_blocking = ((16 - 1)-jcp.ur_w)/jcp.ur_w;
+        jcp.ur_w_tail = jcp.ow % jcp.ur_w;
+        /* check again ... */
+        r_pad_no_tail = nstl::max(0,
+            (jcp.ow - jcp.ur_w_tail - 1) * jcp.stride_w + (jcp.kw - 1)
+          - (jcp.iw + jcp.l_pad - 1));
+        if ((r_pad_no_tail > jcp.ur_w) || (jcp.ow < jcp.ur_w))
+            return status::unimplemented;
+    }
+    if (jcp.l_pad > jcp.ur_w) return status::unimplemented;
 
     jcp.ic_block = (jcp.ic % simd_w != 0) ? jcp.ic : simd_w;
     jcp.nb_ic = jcp.ic / jcp.ic_block;
 
     jcp.oc_block = simd_w;
     jcp.nb_oc = jcp.oc / jcp.oc_block;
-
-    jcp.nb_oc_blocking = 4; /* the optimal value for the kernel */
 
     if (one_of(jcp.prop_kind, forward_training, forward_inference)) {
         jcp.nb_ic_blocking = 12;
