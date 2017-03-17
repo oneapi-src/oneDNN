@@ -46,7 +46,7 @@
 #endif
 
 #define FMT_BIAS x
-#define FMT_NO_BIAS undef
+#define FMT_NO_BIAS format_undef
 #define FMT_DATA_BLOCKED nChw8c
 #define FMT_DATA_BLOCKED16 nChw16c
 
