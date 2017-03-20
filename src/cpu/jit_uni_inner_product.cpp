@@ -32,7 +32,7 @@ using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::primitive_kind;
 
 template <cpu_isa_t isa>
-jit_uni_inner_product_fwd_t<isa>::jit_uni_inner_product_fwd_t<isa>(const pd_t *pd,
+jit_uni_inner_product_fwd_t<isa>::jit_uni_inner_product_fwd_t(const pd_t *pd,
         const input_vector &inputs, const output_vector &outputs)
     : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
 {
@@ -40,7 +40,7 @@ jit_uni_inner_product_fwd_t<isa>::jit_uni_inner_product_fwd_t<isa>(const pd_t *p
 }
 
 template <cpu_isa_t isa>
-jit_uni_inner_product_fwd_t<isa>::~jit_uni_inner_product_fwd_t<isa>()
+jit_uni_inner_product_fwd_t<isa>::~jit_uni_inner_product_fwd_t()
 {
     delete sgemm_;
 }
@@ -64,7 +64,7 @@ void jit_uni_inner_product_fwd_t<isa>::execute_forward()
 }
 
 template <cpu_isa_t isa>
-jit_uni_inner_product_bwd_weights_t<isa>::jit_uni_inner_product_bwd_weights_t<isa>(const pd_t *pd,
+jit_uni_inner_product_bwd_weights_t<isa>::jit_uni_inner_product_bwd_weights_t(const pd_t *pd,
         const input_vector &inputs, const output_vector &outputs)
     : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
 {
@@ -72,7 +72,7 @@ jit_uni_inner_product_bwd_weights_t<isa>::jit_uni_inner_product_bwd_weights_t<is
 }
 
 template <cpu_isa_t isa>
-jit_uni_inner_product_bwd_weights_t<isa>::~jit_uni_inner_product_bwd_weights_t<isa>()
+jit_uni_inner_product_bwd_weights_t<isa>::~jit_uni_inner_product_bwd_weights_t()
 {
     delete sgemm_;
 }
@@ -111,7 +111,7 @@ void jit_uni_inner_product_bwd_weights_t<isa>::execute_backward_weights()
 }
 
 template <cpu_isa_t isa>
-jit_uni_inner_product_bwd_data_t<isa>::jit_uni_inner_product_bwd_data_t<isa>(const pd_t *pd,
+jit_uni_inner_product_bwd_data_t<isa>::jit_uni_inner_product_bwd_data_t(const pd_t *pd,
         const input_vector &inputs, const output_vector &outputs)
     : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
 {
@@ -119,7 +119,7 @@ jit_uni_inner_product_bwd_data_t<isa>::jit_uni_inner_product_bwd_data_t<isa>(con
 }
 
 template <cpu_isa_t isa>
-jit_uni_inner_product_bwd_data_t<isa>::~jit_uni_inner_product_bwd_data_t<isa>()
+jit_uni_inner_product_bwd_data_t<isa>::~jit_uni_inner_product_bwd_data_t()
 {
     delete sgemm_;
 }
