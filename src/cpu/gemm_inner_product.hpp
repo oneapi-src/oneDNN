@@ -68,17 +68,6 @@ struct gemm_inner_product_fwd_t: public cpu_primitive_t {
             return status::unimplemented;
 #endif
         }
-
-    protected:
-        virtual status_t set_default_params() override {
-            using namespace memory_format;
-            if (src_pd_.desc()->format == any && ndims() == 4)
-                CHECK(src_pd_.set_format(nChw8c));
-            if (weights_pd_.desc()->format == any &&
-                    src_pd_.desc()->format == nChw8c)
-                CHECK(weights_pd_.set_format(oIhw8i));
-            return cpu_inner_product_fwd_pd_t::set_default_params();
-        }
     };
 
     gemm_inner_product_fwd_t(const pd_t *pd, const input_vector &inputs,
@@ -132,17 +121,6 @@ struct gemm_inner_product_bwd_data_t: public cpu_primitive_t {
             return status::unimplemented;
 #endif
         }
-
-    protected:
-        virtual status_t set_default_params() override {
-            using namespace memory_format;
-            if (diff_src_pd_.desc()->format == any && ndims() == 4)
-                CHECK(diff_src_pd_.set_format(nChw8c));
-            if (weights_pd_.desc()->format == any &&
-                    diff_src_pd_.desc()->format == nChw8c)
-                CHECK(weights_pd_.set_format(oIhw8i));
-            return cpu_inner_product_bwd_data_pd_t::set_default_params();
-        }
     };
 
     gemm_inner_product_bwd_data_t(const pd_t *pd, const input_vector &inputs,
@@ -195,17 +173,6 @@ struct gemm_inner_product_bwd_weights_t: public cpu_primitive_t {
 #else
             return status::unimplemented;
 #endif
-        }
-
-    protected:
-        virtual status_t set_default_params() override {
-            using namespace memory_format;
-            if (src_pd_.desc()->format == any && ndims() == 4)
-                CHECK(src_pd_.set_format(nChw8c));
-            if (diff_weights_pd_.desc()->format == any &&
-                    src_pd_.desc()->format == nChw8c)
-                CHECK(diff_weights_pd_.set_format(oIhw8i));
-            return cpu_inner_product_bwd_weights_pd_t::set_default_params();
         }
     };
 

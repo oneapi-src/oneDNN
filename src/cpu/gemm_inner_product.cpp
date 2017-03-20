@@ -118,8 +118,6 @@ void gemm_inner_product_bwd_data_t<data_type>::execute_backward_data() {
 template <impl::data_type_t data_type>
 void gemm_inner_product_bwd_weights_t<data_type>::execute_backward_weights() {
 #ifdef USE_CBLAS
-
-
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto diff_weights = reinterpret_cast<data_t *>(this->memory(0));
