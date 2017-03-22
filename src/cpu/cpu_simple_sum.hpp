@@ -81,7 +81,7 @@ struct cpu_simple_sum_t: public c_compatible {
             size_t start{0}, end{0};
             balance211(blocks_number, nthr, ithr, start, end);
 
-            for (int nb = start; nb < end; ++nb) {
+            for (size_t nb = start; nb < end; ++nb) {
                 int start_e = nb * block_size;
                 int end_e = start_e + block_size;
                 for (int e = start_e; e < end_e; e++) {
