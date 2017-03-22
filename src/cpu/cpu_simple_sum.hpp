@@ -25,6 +25,7 @@
 
 #include "cpu_memory.hpp"
 #include "cpu_primitive.hpp"
+#include "mkldnn_thread.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -69,11 +70,41 @@ struct cpu_simple_sum_t: public c_compatible {
                     sum->input_memory(a)) + i_d.blk_off(0);
         }
 
-#       pragma omp parallel for schedule(static)
-        for (size_t e = 0; e < nelems; ++e) {
-            output[e] = 0.;
-            for (int a = 0; a < num_arrs; ++a) {
-                output[e] += scale_[a]*input_ptrs[a][e];
+        int block_size =  16 * 1024/sizeof(data_type);
+        const size_t blocks_number = nelems / block_size;
+        int tail = nelems % block_size;
+
+#pragma omp parallel
+        {
+            const int ithr = omp_get_thread_num();
+            const int nthr = omp_get_num_threads();
+            size_t start{0}, end{0};
+            balance211(blocks_number, nthr, ithr, start, end);
+
+            for (int nb = start; nb < end; ++nb) {
+                int start_e = nb * block_size;
+                int end_e = start_e + block_size;
+                for (int e = start_e; e < end_e; e++) {
+                    output[e] = scale_[0] * input_ptrs[0][e];
+                }
+                for (int a = 1; a < num_arrs; a++) {
+                    for (int e = start_e; e < end_e; e++) {
+                        output[e] += scale_[a] * input_ptrs[a][e];
+                    }
+                }
+            }
+
+            if (tail != 0 && ithr == nthr - 1) {
+                int start_e = nelems - tail;
+                int end_e = nelems;
+                for (int e = start_e; e < end_e; e++) {
+                    output[e] = scale_[0] * input_ptrs[0][e];
+                }
+                for (int a = 1; a < num_arrs; a++) {
+                    for (int e = start_e; e < end_e; e++) {
+                        output[e] += scale_[a] * input_ptrs[a][e];
+                    }
+                }
             }
         }
     }
