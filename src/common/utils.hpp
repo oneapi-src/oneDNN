@@ -34,11 +34,19 @@ namespace impl {
 
 namespace utils {
 
-/* SFINAE helper -- anoluge to std::enable_if */
+/* a bunch of std:: analogues to be compliant with any msvs version
+ *
+ * Rationale: msvs c++ (and even some c) headers contain special pragma that
+ * injects msvs-version check into object files in order to abi-mismatches
+ * during the static linking. This makes sense if e.g. std:: objects are passed
+ * through between application and library, which is not the case for mkl-dnn
+ * (since there is no any c++-rt dependent stuff, ideally...). */
+
+/* SFINAE helper -- analogue to std::enable_if */
 template<bool expr, class T = void> struct enable_if {};
 template<class T> struct enable_if<true, T> { typedef T type; };
 
-/* anlogue std::conditional */
+/* analogue std::conditional */
 template <bool, typename, typename> struct conditional {};
 template <typename T, typename F> struct conditional<true, T, F>
 { typedef T type; };
