@@ -20,7 +20,10 @@
 #include "c_types_map.hpp"
 #include "cpu_convolution_pd.hpp"
 #include "cpu_engine.hpp"
+#include "cpu_reducer.hpp"
 #include "jit_avx2_1x1_conv_kernel_f32.hpp"
+#include "mkldnn_thread.hpp"
+#include "utils.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -231,7 +234,40 @@ struct jit_avx2_1x1_convolution_bwd_weights_t: public cpu_primitive_t {
     jit_avx2_1x1_convolution_bwd_weights_t(const pd_t *pd,
             const input_vector &inputs, const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
-    { kernel_ = new jit_avx2_1x1_conv_kernel_f32(conf_.jcp_); }
+    {
+        kernel_ = new jit_avx2_1x1_conv_kernel_f32(conf_.jcp_);
+
+        const auto &jcp = kernel_->jcp;
+
+        const int ic_block = jcp.bcast_block;
+        const int nb_ic = jcp.nb_bcast;
+        const int nb_ic_blocking = jcp.nb_bcast_blocking;
+        const int bcast_work = utils::div_up(nb_ic, nb_ic_blocking);
+
+        const int oc_block = jcp.load_block;
+        const int nb_oc = jcp.nb_load;
+        const int nb_oc_blocking = jcp.nb_load_blocking;
+        const int load_work = utils::div_up(nb_oc, nb_oc_blocking);
+
+        const int job_size
+            = nb_oc_blocking * nb_ic_blocking * ic_block * oc_block;
+        const int njobs_x = bcast_work;
+        const int njobs_y = jcp.ngroups * load_work;
+
+        const int max_threads = omp_get_max_threads();
+        const size_t max_buffer_size = max_threads * job_size * 8;
+
+        reducer_weights_ = new cpu_reducer_2d_t<data_type::f32>(
+                reduce_balancer_t(max_threads, job_size, njobs_y * njobs_x,
+                    jcp.mb * jcp.reduce_dim, max_buffer_size),
+                job_size / nb_oc_blocking, nb_oc_blocking,
+                nb_ic * ic_block * oc_block, nb_oc, false);
+
+        reducer_bias_ = !conf_.with_bias() ? nullptr
+            : new cpu_reducer_t<data_type::f32>(reduce_balancer_t(max_threads,
+                        oc_block, conf_.G() * conf_.OC() / oc_block,
+                        conf_.MB(), max_buffer_size));
+    }
     ~jit_avx2_1x1_convolution_bwd_weights_t() { delete kernel_; };
 
     typedef typename prec_trait<data_type::f32>::type data_t;
@@ -251,6 +287,8 @@ private:
     void execute_backward_weights();
     pd_t conf_;
     jit_avx2_1x1_conv_kernel_f32 *kernel_;
+    cpu_reducer_2d_t<data_type::f32> *reducer_weights_;
+    cpu_reducer_t<data_type::f32> *reducer_bias_;
 };
 
 }

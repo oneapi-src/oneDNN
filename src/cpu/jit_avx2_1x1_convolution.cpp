@@ -255,79 +255,173 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights() {
     assert(jcp.stride_w == 1 && jcp.stride_h == 1);
 
     const int nb_ic = jcp.nb_bcast;
-    const int nb_oc = jcp.nb_load;
-    const int nb_os = jcp.nb_reduce;
-    const int os_block = jcp.reduce_block;
     const int nb_ic_blocking = jcp.nb_bcast_blocking;
-    const int nb_oc_blocking = jcp.nb_load_blocking;
-    const int nb_os_blocking = jcp.nb_reduce_blocking;
-
-    const int load_work = div_up(nb_oc, nb_oc_blocking);
     const int bcast_work = div_up(nb_ic, nb_ic_blocking);
 
-    const int work_amount = jcp.ngroups * load_work * bcast_work;
+    const int nb_oc = jcp.nb_load;
+    const int nb_oc_blocking = jcp.nb_load_blocking;
+    const int load_work = div_up(nb_oc, nb_oc_blocking);
 
-    // TODO (Roma): port adaptive blocking from MKL
-    auto ker = [&](const int ithr, const int nthr) {
-        int start, end;
-        balance211(work_amount, nthr, ithr, start, end);
+    const int sp_dim = jcp.reduce_dim;
+    const int mb_sp_work = jcp.mb * sp_dim;
 
-        int g, load_i, bcast_i;
-        nd_iterator_init(start, g, jcp.ngroups, load_i, load_work, bcast_i,
-                         bcast_work);
+    auto step = [](int default_step, int remaining, int tail_step) {
+        assert(default_step <= tail_step);
+        return remaining < tail_step ? remaining : default_step;
+    };
 
-        for (int iwork = start; iwork < end; ++iwork) {
-            const int ocb = nb_oc_blocking * load_i;
-            const int icb = nb_ic_blocking * bcast_i;
+    auto oc_ic_sp_loop = [=](int sp_start, int sp_end, bool first_image,
+            data_t *store_to, size_t store_to_ld, const data_t *diff_dst,
+            const data_t *src) {
+        jit_1x1_conv_call_s p = {};
+        p.output_stride = store_to_ld * sizeof(float);
+        const int sp_step_def = jcp.nb_reduce_blocking * jcp.reduce_block;
 
-            const int _icb = g * nb_ic + icb;
-            const int _ocb = g * nb_oc + ocb;
+        int oc_b_step = 0;
+        for (int oc_b = 0; oc_b < nb_oc_blocking; oc_b += oc_b_step) {
+            oc_b_step = step(12, nb_oc_blocking - oc_b, 18);
+            p.load_dim = oc_b_step * jcp.oc_block;
 
-            for (int img = 0; img < jcp.mb; ++img) {
-                for (int osb = 0; osb < nb_os; osb += nb_os_blocking) {
-                    const int os = osb * os_block;
-                    const int oh = os / jcp.ow;
-                    const int ow = os % jcp.ow;
+            int ic_b_step = 0;
+            for (int ic_b = 0; ic_b < nb_ic_blocking; ic_b += ic_b_step) {
+                ic_b_step = step(12, nb_ic_blocking - ic_b, 18);
+                p.bcast_dim = ic_b_step * jcp.ic_block;
 
-                    jit_1x1_conv_call_s p = {};
-                    p.load_data = &diff_dst[
-                        diff_dst_d.blk_off(img, _ocb, oh, ow)];
-                    p.bcast_data = &src[src_d.blk_off(img, _icb, oh, ow)];
-                    p.output_data = &diff_weights[conf_.with_groups()
-                        ? diff_weights_d.blk_off(g, ocb, icb)
-                        : diff_weights_d.blk_off(ocb, icb)];
+                p.output_data = store_to + oc_b * store_to_ld
+                    + ic_b * jcp.ic_block * jcp.oc_block;
 
-                    p.reduce_pos_flag =
-                        (osb == 0 && img == 0)
-                        * jit_avx2_1x1_conv_kernel_f32::REDUCE_FLAG_FIRST
-                        |
-                        (osb + nb_os_blocking >= nb_os && img + 1 == jcp.mb)
-                        * jit_avx2_1x1_conv_kernel_f32::REDUCE_FLAG_LAST;
+                /* spatial reduction */
+                int sp_step = 0;
+                for (int sp = sp_start; sp < sp_end; sp += sp_step) {
+                    sp_step = step(sp_step_def, sp_end - sp, 192);
+                    p.reduce_dim = sp_step;
 
-                    p.reduce_dim = this_block_size(os, jcp.os,
-                            nb_os_blocking * os_block);
-                    p.bcast_dim = this_block_size(icb * jcp.ic_block, jcp.ic,
-                            nb_ic_blocking * jcp.ic_block);
-                    p.load_dim = this_block_size(ocb * jcp.oc_block, jcp.oc,
-                            nb_oc_blocking * jcp.oc_block);
-                    p.output_stride = jcp.ic * jcp.oc_block * sizeof(data_t);
+                    p.reduce_pos_flag = (sp == sp_start && first_image)
+                        * jit_avx2_1x1_conv_kernel_f32::REDUCE_FLAG_FIRST;
 
-                    p.bias_data = (diff_bias && icb == 0)
-                        ? &diff_bias[diff_bias_d.blk_off(_ocb * jcp.oc_block)]
-                        : 0;
+                    p.load_data = diff_dst
+                        + (oc_b * jcp.reduce_dim + sp) * jcp.oc_block;
+                    p.bcast_data = src
+                        + (ic_b * jcp.reduce_dim + sp) * jcp.ic_block;
 
                     kernel_->jit_ker(&p);
                 }
+            }
+        }
+    };
+
+    auto ker = [&](const int ithr, const int nthr) {
+        auto rw = this->reducer_weights_;
+        assert(nthr == rw->balancer_.nthr_);
+
+        const int w_njobs = rw->balancer_.ithr_njobs(ithr);
+        if (w_njobs == 0) return;
+
+        /* setup: independent work (oc, ic) */
+        const int w_job_start = rw->balancer_.ithr_job_off(ithr);
+        int g, load_i, bcast_i;
+        nd_iterator_init(w_job_start, g, jcp.ngroups, load_i, load_work,
+                bcast_i, bcast_work);
+
+        /* setup: reduction work (mb, sp) */
+        int mb_sp_start, mb_sp_end;
+        balance211(mb_sp_work, rw->balancer_.nthr_per_group_,
+                rw->balancer_.id_in_group(ithr), mb_sp_start, mb_sp_end);
+        int img_start, sp_start;
+        nd_iterator_init(mb_sp_start, img_start, jcp.mb, sp_start, sp_dim);
+
+        /* independent work */
+        for (int iwork = 0; iwork < w_njobs; ++iwork) {
+            const int oc_b = nb_oc_blocking * load_i;
+            const int ic_b = nb_ic_blocking * bcast_i;
+
+            const int _ic_b = g * nb_ic + ic_b;
+            const int _oc_b = g * nb_oc + oc_b;
+
+            data_t *store_to;
+            size_t store_to_ld;
+
+            if (rw->balancer_.nthr_per_group_ == 1 ||
+                    (rw->balancer_.master(ithr) && rw->master_uses_dst_)) {
+                const size_t off = conf_.with_groups()
+                    ? diff_weights_d.blk_off(g, oc_b, ic_b)
+                    : diff_weights_d.blk_off(oc_b, ic_b);
+                store_to = &diff_weights[off];
+                store_to_ld = jcp.ic * jcp.oc_block;
+            } else {
+                const size_t off = iwork * rw->balancer_.job_size_;
+                store_to = &rw->get_local_ptr(ithr, nullptr)[off];
+                store_to_ld = nb_ic_blocking * jcp.ic_block * jcp.oc_block;
+            }
+
+            /* reduction work */
+            int img = img_start;
+            int sp = sp_start;
+            int sp_step = 0;
+            for (int mb_sp = mb_sp_start; mb_sp < mb_sp_end; mb_sp += sp_step)
+            {
+                sp_step = nstl::min(sp_dim - sp, mb_sp_end - mb_sp);
+
+                const bool first_image = img == img_start;
+                oc_ic_sp_loop(sp, sp + sp_step, first_image, store_to,
+                        store_to_ld, &diff_dst[diff_dst_d.blk_off(img, _oc_b)],
+                        &src[src_d.blk_off(img, _ic_b)]);
+
+                sp = 0;
+                img += 1;
             }
 
             nd_iterator_step(g, jcp.ngroups, load_i, load_work, bcast_i,
                              bcast_work);
         }
+        rw->reduce(ithr, diff_weights);
+    };
+
+    auto ker_bias = [&](int ithr, int nthr) {
+        auto rb = this->reducer_bias_;
+        assert(nthr == rb->balancer_.nthr_);
+
+        const int b_job_start = rb->balancer_.ithr_job_off(ithr);
+        const int b_njobs = rb->balancer_.ithr_njobs(ithr);
+
+        if (b_njobs == 0) return;
+
+        /* reduction dimension */
+        int img_start, img_end;
+        balance211(jcp.mb, rb->balancer_.nthr_per_group_,
+                rb->balancer_.id_in_group(ithr), img_start, img_end);
+
+        /* jobs */
+        int g_start, ocb_start;
+        nd_iterator_init(b_job_start, g_start, jcp.ngroups, ocb_start, nb_oc);
+
+        for (int img = img_start; img < img_end; ++img) {
+            int g = g_start, ocb = ocb_start;
+            for (int b_job_loc = 0; b_job_loc < b_njobs; ++b_job_loc) {
+                const size_t _oc = g * nb_oc + ocb;
+
+                const data_t *d_dst = &diff_dst[diff_dst_d.blk_off(img, _oc)];
+                data_t *d_bias = &rb->get_local_ptr(ithr, diff_bias)[
+                    b_job_loc * rb->balancer_.job_size_];
+
+                if (img == img_start)
+                    array_set(d_bias, 0, rb->balancer_.job_size_);
+                for (int hwo = 0; hwo < jcp.reduce_dim * 8; ++hwo)
+                    d_bias[hwo % 8] += d_dst[hwo];
+
+                nd_iterator_step(g, jcp.ngroups, ocb, nb_oc);
+            }
+        }
+        rb->reduce(ithr, diff_bias);
     };
 
 #   pragma omp parallel
     {
-        ker(omp_get_thread_num(), omp_get_num_threads());
+        int ithr = omp_get_thread_num();
+        int nthr = omp_get_num_threads();
+        ker(ithr, nthr);
+        if (conf_.with_bias())
+            ker_bias(ithr, nthr);
     }
 }
 

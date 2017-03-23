@@ -449,9 +449,7 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
     jcp.stride_w = cd.strides[1];
 
     jcp.src_fmt = src_d.format();
-    jcp.with_bias
-        = cd.bias_desc.format != memory_format::undef
-        || cd.diff_bias_desc.format != memory_format::undef;
+    jcp.with_bias = cd.bias_desc.format != memory_format::undef;
     jcp.with_relu = with_relu;
     jcp.relu_negative_slope = relu_negative_slope;
 
@@ -574,10 +572,30 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
         jcp.load_loop_load_step = jcp.oc_block * jcp.os * sizeof(float);
         jcp.load_loop_iter_step = jcp.oc_block;
 
-        load_blocking = 3 * jcp.oc_block; // assumes the kernel is jcp.ur x 3
+        /* --- */
+
+        load_blocking = div_up(jcp.load_dim, jcp.load_block);
+        while (true) {
+            if (load_blocking <= 32) break;
+            else if (load_blocking % 2 == 0) load_blocking /= 2;
+            else if (load_blocking % 3 == 0) load_blocking /= 3;
+            else break;
+        }
+        load_blocking *= jcp.load_block;
         load_blocking_max = load_blocking;
-        bcast_blocking = jcp.ic_block; // affects load balancing across threads
+        assert(jcp.load_dim % load_blocking == 0);
+
+        bcast_blocking = div_up(jcp.bcast_dim, jcp.bcast_block);
+        while (true) {
+            if (bcast_blocking <= 9) break;
+            else if (bcast_blocking % 2 == 0) bcast_blocking /= 2;
+            else if (bcast_blocking % 3 == 0) bcast_blocking /= 3;
+            else break;
+        }
+        bcast_blocking *= jcp.bcast_block;
         bcast_blocking_max = bcast_blocking;
+        assert(jcp.bcast_dim % bcast_blocking == 0);
+
         reduce_blocking = 128; // affects L1$ utilization
     } else
         return status::unimplemented;
@@ -603,6 +621,7 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
 
     return status::success;
 }
+
 }
 }
 }
