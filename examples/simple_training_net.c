@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <string.h>
+#include <malloc.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -39,6 +41,10 @@
             exit(2);                                                           \
         }                                                                      \
     } while (0)
+
+void *aligned_malloc(size_t size, size_t alignment) {
+    return memalign(alignment, size);
+}
 
 static size_t product(int *arr, size_t size)
 {
@@ -140,10 +146,13 @@ mkldnn_status_t simple_net()
     int net_src_sizes[4] = { BATCH, 3, 227, 227 };
     int net_dst_sizes[4] = { BATCH, 96, 27, 27 };
 
-    float *net_src = (float *)calloc(product(net_src_sizes, 4), sizeof(float));
-    float *net_dst = (float *)calloc(product(net_dst_sizes, 4), sizeof(float));
+    float *net_src =
+        (float *)aligned_malloc(product(net_src_sizes,4)*sizeof(float), 64);
+    float *net_dst =
+        (float *)aligned_malloc(product(net_dst_sizes, 4)*sizeof(float), 64);
 
     init_net_data(net_src, 4, net_src_sizes);
+    memset(net_dst, 0, product(net_dst_sizes, 4)*sizeof(float));
 
     /*----------------------------------------------------------------------*/
     /*----------------- Forward Stream -------------------------------------*/
@@ -159,10 +168,11 @@ mkldnn_status_t simple_net()
     int conv_padding[2] = { 0, 0 };
 
     float *conv_src = net_src;
-    float *conv_weights
-            = (float *)calloc(product(conv_weights_sizes, 4), sizeof(float));
-    float *conv_bias
-            = (float *)calloc(product(conv_bias_sizes, 1), sizeof(float));
+    float *conv_weights =
+        (float *)aligned_malloc(product(conv_weights_sizes, 4)*sizeof(float),
+                                64);
+    float *conv_bias =
+         (float *)aligned_malloc(product(conv_bias_sizes, 1)*sizeof(float), 64);
 
     init_net_data(conv_weights, 4, conv_weights_sizes);
     init_net_data(conv_bias, 1, conv_bias_sizes);
@@ -202,12 +212,17 @@ mkldnn_status_t simple_net()
     mkldnn_primitive_t conv_internal_src_memory, conv_internal_weights_memory,
             conv_internal_dst_memory;
 
-    float *conv_src_buffer
-            = (float *)calloc(product(conv_src_sizes, 4), sizeof(float));
-    float *conv_weights_buffer
-            = (float *)calloc(product(conv_weights_sizes, 4), sizeof(float));
-    float *conv_dst_buffer
-            = (float *)calloc(product(conv_dst_sizes, 4), sizeof(float));
+    float *conv_src_buffer =
+        (float *)aligned_malloc(product(conv_src_sizes, 4)*sizeof(float), 64);
+    float *conv_weights_buffer =
+        (float *)aligned_malloc(product(conv_weights_sizes, 4)*sizeof(float),
+                                64);
+    float *conv_dst_buffer =
+        (float *)aligned_malloc(product(conv_dst_sizes, 4)*sizeof(float), 64);
+    memset(conv_src_buffer, 0, product(conv_src_sizes, 4)*sizeof(float));
+    memset(conv_weights_buffer, 0,
+        product(conv_weights_sizes, 4)*sizeof(float));
+    memset(conv_dst_buffer, 0, product(conv_dst_sizes, 4)*sizeof(float));
 
     /* create memory for dst data, we don't need to reorder it to user data */
     CHECK(mkldnn_primitive_create(
@@ -257,8 +272,9 @@ mkldnn_status_t simple_net()
     double negative_slope = 1.0;
 
     int *relu_dst_sizes = conv_dst_sizes;
-    float *relu_dst_buffer
-            = (float *)calloc(product(relu_dst_sizes, 4), sizeof(float));
+    float *relu_dst_buffer =
+        (float *)aligned_malloc(product(relu_dst_sizes, 4)*sizeof(float), 64);
+    memset(relu_dst_buffer, 0, product(relu_dst_sizes, 4)*sizeof(float));
 
     /* create relu src memory descriptor using dst memory descriptor
      * from previos primitive */
@@ -305,10 +321,9 @@ mkldnn_status_t simple_net()
 
     int32_t *lrn_dst_sizes = relu_dst_sizes;
 
-    float *lrn_dst_buffer
-            = (float *)calloc(product(lrn_dst_sizes, 4), sizeof(float));
-    float *lrn_workspace_buffer
-            = (float *)calloc(product(lrn_dst_sizes, 4), sizeof(float));
+    float *lrn_dst_buffer =
+        (float *)aligned_malloc(product(lrn_dst_sizes, 4)*sizeof(float), 64);
+    memset(lrn_dst_buffer, 0, product(lrn_dst_sizes, 4)*sizeof(float));
 
     /* create lrn src memory descriptor using dst memory descriptor
      *  from previos primitive */
@@ -339,6 +354,11 @@ mkldnn_status_t simple_net()
                                              0);
     CHECK(mkldnn_primitive_create(&lrn_workspace_memory, lrn_workspace_pd, NULL,
                                   NULL));
+    size_t lrn_workspace_size =
+        mkldnn_memory_primitive_desc_get_size(lrn_workspace_pd);
+    float *lrn_workspace_buffer =
+        (float*)aligned_malloc(lrn_workspace_size, 64);
+    memset(lrn_workspace_buffer, 0, lrn_workspace_size);
     CHECK(mkldnn_memory_set_data_handle(lrn_workspace_memory,
                                         lrn_workspace_buffer));
 
@@ -362,10 +382,9 @@ mkldnn_status_t simple_net()
     int32_t pool_strides[2] = { 2, 2 };
     int32_t pool_padding[2] = { 0, 0 };
 
-    float *pool_dst_buffer
-            = (float *)calloc(product(pool_dst_sizes, 4), sizeof(float));
-    float *pool_workspace_buffer
-            = (float *)calloc(product(pool_dst_sizes, 4), sizeof(float));
+    float *pool_dst_buffer =
+        (float *)aligned_malloc(product(pool_dst_sizes, 4)*sizeof(float), 64);
+    memset(pool_dst_buffer, 0, product(pool_dst_sizes, 4)*sizeof(float));
 
     /* create pooling src memory descriptor using dst descriptor
      *  from previos primitive */
@@ -399,6 +418,11 @@ mkldnn_status_t simple_net()
                                              0);
     CHECK(mkldnn_primitive_create(&pool_workspace_memory, pool_workspace_pd,
                                   NULL, NULL));
+    size_t pool_workspace_size =
+        mkldnn_memory_primitive_desc_get_size(pool_workspace_pd);
+    float *pool_workspace_buffer =
+        (float*)aligned_malloc(pool_workspace_size, 64);
+    memset(pool_workspace_buffer, 0, pool_workspace_size);
     CHECK(mkldnn_memory_set_data_handle(pool_workspace_memory,
                                         pool_workspace_buffer));
 
@@ -448,8 +472,8 @@ mkldnn_status_t simple_net()
     /*----------------------------------------------------------------------*/
     /*----------------- Backward Stream -------------------------------------*/
     /* ... user diff_data ...*/
-    float *net_diff_dst
-            = (float *)calloc(product(pool_dst_sizes, 4), sizeof(float));
+    float *net_diff_dst =
+        (float *)aligned_malloc(product(pool_dst_sizes, 4)*sizeof(float), 64);
 
     init_net_data(net_diff_dst, 4, pool_dst_sizes);
 
@@ -459,8 +483,10 @@ mkldnn_status_t simple_net()
                      net_diff_dst, &pool_user_diff_dst_memory);
 
     /* Pooling Backward */
-    float *pool_diff_src_buffer
-            = (float *)calloc(product(pool_src_sizes, 4), sizeof(float));
+    float *pool_diff_src_buffer =
+        (float *)aligned_malloc(product(pool_src_sizes, 4)*sizeof(float), 64);
+    memset(pool_diff_src_buffer, 0,
+        product(pool_src_sizes, 4)*sizeof(float));
 
     /* pooling diff src memory descriptor */
     const mkldnn_memory_desc_t *pool_diff_src_md
@@ -485,8 +511,10 @@ mkldnn_status_t simple_net()
     /* create reorder primitive between user diff dst and pool diff dst
      * if required*/
     mkldnn_primitive_t pool_diff_dst_memory;
-    float *pool_diff_dst_buffer
-            = (float *)calloc(product(pool_dst_sizes, 4), sizeof(float));
+    float *pool_diff_dst_buffer =
+        (float *)aligned_malloc(product(pool_dst_sizes, 4)*sizeof(float), 64);
+    memset(pool_diff_dst_buffer, 0,
+        product(pool_dst_sizes, 4)*sizeof(float));
     mkldnn_primitive_t pool_reorder_diff_dst, pool_internal_diff_dst_memory;
     const_mkldnn_primitive_desc_t pool_diff_dst_pd
             = mkldnn_primitive_desc_query_pd(pool_bwd_pd,
@@ -536,8 +564,11 @@ mkldnn_status_t simple_net()
 
     /* create memory primitives for lrn diff src */
     int32_t *lrn_diff_src_sizes = relu_dst_sizes;
-    float *lrn_diff_src_buffer
-            = (float *)calloc(product(lrn_diff_src_sizes, 4), sizeof(float));
+    float *lrn_diff_src_buffer =
+        (float *)aligned_malloc(product(lrn_diff_src_sizes, 4)*sizeof(float),
+                                64);
+    memset(lrn_diff_src_buffer, 0,
+        product(lrn_diff_src_sizes, 4)*sizeof(float));
 
     mkldnn_primitive_t lrn_diff_src_memory;
     const_mkldnn_primitive_desc_t lrn_diff_src_pd
@@ -575,8 +606,11 @@ mkldnn_status_t simple_net()
 
     /* create memory primities for relu diff src */
     int32_t *relu_diff_src_sizes = conv_dst_sizes;
-    float *relu_diff_src_buffer
-            = (float *)calloc(product(relu_diff_src_sizes, 4), sizeof(float));
+    float *relu_diff_src_buffer =
+        (float *)aligned_malloc(product(relu_diff_src_sizes, 4)*sizeof(float),
+                                64);
+    memset(relu_diff_src_buffer, 0,
+        product(relu_diff_src_sizes, 4)*sizeof(float));
 
     mkldnn_primitive_t relu_diff_src_memory;
     const_mkldnn_primitive_desc_t relu_diff_src_pd
@@ -599,17 +633,28 @@ mkldnn_status_t simple_net()
                                   relu_diff_srcs));
 
     /* Backward convolution with respect to weights */
-    float *conv_diff_weights_buffer
-            = (float *)calloc(product(conv_weights_sizes, 4), sizeof(float));
-    float *conv_diff_bias_buffer
-            = (float *)calloc(product(conv_bias_sizes, 1), sizeof(float));
-    float *conv_user_diff_weights_buffer
-            = (float *)calloc(product(conv_weights_sizes, 4), sizeof(float));
-
-    float *conv_bwd_src_buffer
-            = (float *)calloc(product(conv_src_sizes, 4), sizeof(float));
-    float *conv_diff_dst_buffer
-            = (float *)calloc(product(conv_dst_sizes, 4), sizeof(float));
+    float *conv_diff_weights_buffer =
+        (float *)aligned_malloc(product(conv_weights_sizes, 4)*sizeof(float),
+                                64);
+    float *conv_diff_bias_buffer =
+        (float *)aligned_malloc(product(conv_bias_sizes, 1)*sizeof(float), 64);
+    float *conv_user_diff_weights_buffer =
+        (float *)aligned_malloc(product(conv_weights_sizes, 4)*sizeof(float),
+                                64);
+    float *conv_bwd_src_buffer =
+        (float *)aligned_malloc(product(conv_src_sizes, 4)*sizeof(float), 64);
+    float *conv_diff_dst_buffer =
+        (float *)aligned_malloc(product(conv_dst_sizes, 4)*sizeof(float), 64);
+    memset(conv_diff_weights_buffer, 0,
+        product(conv_weights_sizes, 4)*sizeof(float));
+    memset(conv_diff_bias_buffer, 0,
+        product(conv_bias_sizes, 1)*sizeof(float));
+    memset(conv_user_diff_weights_buffer, 0,
+        product(conv_weights_sizes, 4)*sizeof(float));
+    memset(conv_bwd_src_buffer, 0,
+        product(conv_src_sizes, 4)*sizeof(float));
+    memset(conv_diff_dst_buffer, 0,
+       product(conv_dst_sizes, 4)*sizeof(float));
 
     /* initialize memory for diff weights in user format */
     mkldnn_primitive_t conv_user_diff_weights_memory;
