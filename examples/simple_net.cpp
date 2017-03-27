@@ -168,8 +168,8 @@ void simple_net(){
     auto pool_indices_memory = memory(pool_pd.workspace_primitive_desc());
 
     /* create pooling primitive an add it to net */
-    net.push_back(pooling_forward(pool_pd, lrn_dst_memory, pool_indices_memory,
-        pool_dst_memory));
+    net.push_back(pooling_forward(pool_pd, lrn_dst_memory, pool_dst_memory,
+        pool_indices_memory));
 
     /* create reorder between internal and user data if it is needed and
      *  add it to net after pooling */

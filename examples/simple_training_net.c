@@ -582,14 +582,15 @@ mkldnn_status_t simple_net()
     mkldnn_primitive_at_t lrn_diff_dsts[]
             = { mkldnn_primitive_at(relu_dst_memory,
                                     0), // lrn_bwd requires src as first input
-                mkldnn_primitive_at(pool_diff_dst_memory, 0),
+                mkldnn_primitive_at(pool_diff_src_memory, 0),
                 mkldnn_primitive_at(lrn_workspace_memory, 0) };
 
     const_mkldnn_primitive_t lrn_diff_srcs[] = { lrn_diff_src_memory };
 
     /* finally create backward lrn primitive */
     mkldnn_primitive_t lrn_bwd;
-    mkldnn_primitive_create(&lrn_bwd, lrn_bwd_pd, lrn_diff_dsts, lrn_diff_srcs);
+    CHECK(mkldnn_primitive_create(&lrn_bwd, lrn_bwd_pd, lrn_diff_dsts,
+             lrn_diff_srcs));
 
     /* Backward relu */
     const mkldnn_memory_desc_t *relu_diff_dst_md
