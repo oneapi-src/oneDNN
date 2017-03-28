@@ -212,13 +212,12 @@ struct cpu_reducer_2d_t {
     void deallocate_workspace() { if (workspace_) free(workspace_); }
 
     /** for given thread returns the pointer where to put partial results.
-     * Reduction destination @p dst must be provided as well (master threads
-     * from each group will use it for partial result to reduce memory
-     * pressure).
+     * Depending on @p master_uses_dst_ returned pointer for master threads
+     * would be either equal to the destination memory or to the workspace (in
+     * contrast, cpu_reducer_t struct always use destination memory for master
+     * threads).
      *
-     * @note: job offset is already applied by get_local_ptr(), which means all
-     *        threads should start writing from the very beginning of returned
-     *        address.
+     * @note: @p master_uses_dst_ == #false is unimplemented at the moment
      */
     data_t *get_local_ptr(int ithr, data_t *dst);
 
