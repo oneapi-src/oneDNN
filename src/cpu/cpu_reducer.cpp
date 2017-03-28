@@ -124,6 +124,7 @@ struct reducer_2d_driver_f32_t: public reducer_2d_driver_t<data_type::f32>,
     Xbyak::Reg64 reg_nx = abi_param4;
 
     Xbyak::Reg64 reg_x = rax;
+    Xbyak::Reg64 reg_src_id = r10;
 
     reducer_2d_driver_f32_t(int n_src, size_t src_ld, size_t src_step,
             size_t dst_step, bool nullify_dst)
@@ -193,9 +194,23 @@ struct reducer_2d_driver_f32_t: public reducer_2d_driver_t<data_type::f32>,
             else
                 load_dst(nloads[id], load_len[id]);
 
-            for (int src_id = 0; src_id < n_src_; ++src_id) {
-                const size_t base_off = src_id * src_ld_ * typesize;
-                accumulate(nloads[id], load_len[id], base_off);
+            if (nloads[id] > 1) {
+                Label loop_srcs;
+                mov(reg_src_id, n_src_);
+                L(loop_srcs);
+
+                accumulate(nloads[id], load_len[id], 0);
+                add(reg_src, src_ld_ * typesize);
+
+                dec(reg_src_id);
+                jnz(loop_srcs, T_NEAR);
+
+                sub(reg_src, n_src_ * src_ld_ * typesize);
+            } else {
+                for (int src_id = 0; src_id < n_src_; ++src_id) {
+                    const size_t base_off = src_id * src_ld_ * typesize;
+                    accumulate(nloads[id], load_len[id], base_off);
+                }
             }
 
             store_dst(nloads[id], load_len[id]);
