@@ -116,7 +116,7 @@ struct reducer_2d_driver_f32_t: public reducer_2d_driver_t<data_type::f32>,
     void uni_vpxor(const Xmm& x1, const Xmm& x2, const Operand& op)
     { if (isa == avx2) vpxor(x1, x2, op); else vpxord(x1, x2, op); }
     const int vlen = cpu_isa_trait<isa>::vlen;
-    const size_t typesize = sizeof(float);
+    const int typesize = sizeof(float);
 
     Xbyak::Reg64 reg_dst = abi_param1;
     Xbyak::Reg64 reg_src = abi_param2;
@@ -131,53 +131,84 @@ struct reducer_2d_driver_f32_t: public reducer_2d_driver_t<data_type::f32>,
                 dst_step, nullify_dst)
     { generate(); }
 
-    void loop_x() {
-        using namespace Xbyak;
+    void nullify_dst(int nloads, int load_len) {
+        UNUSED(load_len);
+        for (int i = 0; i < nloads; ++i)
+            uni_vpxor(Vmm(i), Vmm(i), Vmm(i));
+        /* prefetches[dst] ? */
+    }
 
-        Label loop_x_label[2], exit_label;
-        int nloads[2] = {cpu_isa_trait<isa>::n_vregs, 1};
+    void load_dst(int nloads, int load_len) {
+        for (int i = 0; i < nloads; ++i) {
+            if (load_len == typesize)
+                movd(Xmm(i), ptr[reg_dst + i * load_len]);
+            else if (load_len == vlen)
+                vmovups(Vmm(i), ptr[reg_dst + i * load_len]);
+            else
+                assert(!"unsupported");
+        }
+    }
+
+    void store_dst(int nloads, int load_len) {
+        for (int i = 0; i < nloads; ++i) {
+            if (load_len == typesize)
+                movd(ptr[reg_dst + i * load_len], Xmm(i));
+            else if (load_len == vlen)
+                vmovups(ptr[reg_dst + i * load_len], Vmm(i));
+            else
+                assert(!"unsupported");
+        }
+    }
+
+    void accumulate(int nloads, int load_len, size_t base_off) {
+        for (int i = 0; i < nloads; ++i) {
+            size_t off = base_off + i * load_len;
+
+            if (load_len == typesize)
+                addss(Xmm(i), ptr[reg_src + off]);
+            else if (load_len == vlen)
+                vaddps(Vmm(i), Vmm(i), vmmword[reg_src + off]);
+            else
+                assert(!"unsupported");
+        }
+    }
+
+    void loop_x() {
+        const int nloads[] = {cpu_isa_trait<isa>::n_vregs, 1, 1};
+        const int nbranches = sizeof(nloads) / sizeof(nloads[0]);
+
+        const int load_len[nbranches] = {vlen, vlen, typesize};
+        Label loop_x_label[nbranches + 1];
 
         mov(reg_x, reg_nx);
 
-        cmp(reg_x, nloads[0] * vlen);
-        jl(loop_x_label[1], T_NEAR); /* tail processing */
-
-        for (int id = 0; id < 2; ++id) {
+        for (int id = 0; id < nbranches; ++id) {
             L(loop_x_label[id]);
 
-            if (nullify_dst_) {
-                for (int i = 0; i < nloads[id]; ++i)
-                    uni_vpxor(Vmm(i), Vmm(i), Vmm(i));
-                /* prefetches[dst] ? */
-            } else {
-                for (int i = 0; i < nloads[id]; ++i)
-                    vmovups(Vmm(i), ptr[reg_dst + i * vlen]);
-            }
+            cmp(reg_x, nloads[id] * load_len[id]);
+            jl(loop_x_label[id + 1], T_NEAR);
+
+            if (nullify_dst_)
+                nullify_dst(nloads[id], load_len[id]);
+            else
+                load_dst(nloads[id], load_len[id]);
 
             for (int src_id = 0; src_id < n_src_; ++src_id) {
-                for (int i = 0; i < nloads[id]; ++i) {
-                    size_t off = src_id * src_ld_ * typesize + i * vlen;
-                    vaddps(Vmm(i), Vmm(i), ptr[reg_src + off]);
-                }
+                const size_t base_off = src_id * src_ld_ * typesize;
+                accumulate(nloads[id], load_len[id], base_off);
             }
 
-            for (int i = 0; i < nloads[id]; ++i)
-                vmovups(ptr[reg_dst + i * vlen], Vmm(i));
+            store_dst(nloads[id], load_len[id]);
 
-            add(reg_src, nloads[id] * vlen);
-            add(reg_dst, nloads[id] * vlen);
+            add(reg_src, nloads[id] * load_len[id]);
+            add(reg_dst, nloads[id] * load_len[id]);
 
-            sub(reg_x, nloads[id] * vlen);
-            cmp(reg_x, nloads[id] * vlen);
-            jge(loop_x_label[id], T_NEAR);
+            sub(reg_x, nloads[id] * load_len[id]);
 
-            if (id == 0) {
-                test(reg_x, reg_x);
-                je(exit_label, T_NEAR);
-            }
+            jmp(loop_x_label[id], T_NEAR);
         }
 
-        L(exit_label);
+        L(loop_x_label[nbranches]);
 
         /* restore address registers */
         sub(reg_src, reg_nx);
@@ -185,7 +216,6 @@ struct reducer_2d_driver_f32_t: public reducer_2d_driver_t<data_type::f32>,
     }
 
     void generate() {
-        using namespace Xbyak;
         assert(isa == avx2 || isa == avx512_mic);
 
         preamble();
@@ -216,11 +246,11 @@ inline reducer_2d_driver_t<data_type> *create_reduce_2d_drv(int n_src,
         if (mayiuse(avx512_mic))
             return new reducer_2d_driver_f32_t<avx512_mic>(n_src, src_ld,
                     src_step, dst_step, nullify_dst);
-        else
+        else if (mayiuse(avx2))
             return new reducer_2d_driver_f32_t<avx2>(n_src, src_ld, src_step,
                     dst_step, nullify_dst);
     }
-    assert(!"unsupported data type");
+    assert(!"unimplemented");
     return nullptr;
 }
 
