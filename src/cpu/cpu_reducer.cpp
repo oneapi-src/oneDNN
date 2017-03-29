@@ -344,7 +344,7 @@ void cpu_reducer_t<data_type>::reduce_nolock(int ithr, data_t *dst) {
     const size_t cl = 64 / sizeof(data_t);
 
     const size_t reduction_size = njobs_in_grp * balancer_.job_size_;
-    size_t start, end;
+    size_t start{0}, end{0};
     balance211(div_up(reduction_size, cl), balancer_.nthr_per_group_,
             id_in_grp, start, end);
 
@@ -442,7 +442,7 @@ void cpu_reducer_2d_t<data_type>::reduce_nolock(int ithr, data_t *dst) {
     const int pr_my_grp = id_in_grp / pr_nthr_per_grp;
     const int pr_my_id = id_in_grp % pr_nthr_per_grp;
 
-    int pr_job_start, pr_job_end;
+    int pr_job_start{0}, pr_job_end{0};
     balance211(njobs_in_grp, pr_grps, pr_my_grp, pr_job_start, pr_job_end);
 
     for (int j = pr_job_start; j < pr_job_end; ++j) {
@@ -454,7 +454,7 @@ void cpu_reducer_2d_t<data_type>::reduce_nolock(int ithr, data_t *dst) {
         const int ny = nstl::min(dst_y_ - start_y, job_size_y_);
         const int nx = nstl::min(dst_x_ - start_x, job_size_x_);
 
-        int ny_start, ny_end;
+        int ny_start{0}, ny_end{0};
         balance211(ny, pr_nthr_per_grp, pr_my_id, ny_start, ny_end);
         if (ny_start == ny_end) continue;
 

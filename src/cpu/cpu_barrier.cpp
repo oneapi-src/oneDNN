@@ -33,7 +33,7 @@ void generate(jit_generator &code, Xbyak::Reg64 reg_ctx,
     Xbyak::Reg64 reg_tmp = [&]() {
         /* returns register which is neither reg_ctx nor reg_nthr */
         Xbyak::Reg64 regs[] = { util::rax, util::rbx, util::rcx };
-        for (size_t i = 0; i < sizeof(regs); ++i)
+        for (size_t i = 0; i < sizeof(regs) / sizeof(regs[0]); ++i)
             if (!utils::one_of(regs[i], reg_ctx, reg_nthr))
                 return regs[i];
         return regs[0]; /* should not happen */

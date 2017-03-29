@@ -47,10 +47,10 @@ void _jit_avx2_1x1_convolution_fwd_t<with_relu>::execute_forward() {
     const size_t work_amount = jcp.mb * jcp.ngroups * jcp.nb_bcast;
 
     auto ker = [&](const int ithr, const int nthr) {
-        size_t start{ 0 }, end{ 0 };
+        size_t start{0}, end{0};
         balance211(work_amount, nthr, ithr, start, end);
 
-        size_t n, g, osb;
+        size_t n{0}, g{0}, osb{0};
         int iwork = (int)start;
         while (iwork < (int)end) {
             nd_iterator_init(iwork, n, jcp.mb, g, jcp.ngroups, osb,
@@ -153,8 +153,7 @@ void jit_avx2_1x1_convolution_bwd_data_t::execute_backward_data() {
     const size_t work_amount = jcp.mb * jcp.ngroups * jcp.nb_bcast;
 
     auto ker = [&](const int ithr, const int nthr) {
-        size_t start{ 0 }, end{ 0 };
-
+        size_t start{0}, end{0};
         balance211(work_amount, nthr, ithr, start, end);
 
         int icb = 0;
@@ -164,7 +163,7 @@ void jit_avx2_1x1_convolution_bwd_data_t::execute_backward_data() {
                                     ? load_step_rem
                                     : jcp.nb_load_blocking;
 
-            size_t n, g, isb;
+            size_t n{0}, g{0}, isb{0};
             int iwork = (int)start;
             while (iwork < (int)end) {
                 nd_iterator_init(iwork, n, jcp.mb, g, jcp.ngroups, isb,
@@ -319,15 +318,15 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights() {
 
         /* setup: independent work (oc, ic) */
         const int w_job_start = rw->balancer_.ithr_job_off(ithr);
-        int g, load_i, bcast_i;
+        int g{0}, load_i{0}, bcast_i{0};
         nd_iterator_init(w_job_start, g, jcp.ngroups, load_i, load_work,
                 bcast_i, bcast_work);
 
         /* setup: reduction work (mb, sp) */
-        int mb_sp_start, mb_sp_end;
+        int mb_sp_start{0}, mb_sp_end{0};
         balance211(mb_sp_work, rw->balancer_.nthr_per_group_,
                 rw->balancer_.id_in_group(ithr), mb_sp_start, mb_sp_end);
-        int img_start, sp_start;
+        int img_start{0}, sp_start{0};
         nd_iterator_init(mb_sp_start, img_start, jcp.mb, sp_start, sp_dim);
 
         /* independent work */
@@ -387,12 +386,12 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights() {
         if (b_njobs == 0) return;
 
         /* reduction dimension */
-        int img_start, img_end;
+        int img_start{0}, img_end{0};
         balance211(jcp.mb, rb->balancer_.nthr_per_group_,
                 rb->balancer_.id_in_group(ithr), img_start, img_end);
 
         /* jobs */
-        int g_start, ocb_start;
+        int g_start{0}, ocb_start{0};
         nd_iterator_init(b_job_start, g_start, jcp.ngroups, ocb_start, nb_oc);
 
         for (int img = img_start; img < img_end; ++img) {
