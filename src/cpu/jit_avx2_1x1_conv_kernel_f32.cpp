@@ -422,6 +422,8 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
         const memory_desc_wrapper &weights_d, const memory_desc_wrapper &dst_d,
         bool with_relu, double relu_negative_slope)
 {
+    if (!mayiuse(avx2)) return status::unimplemented;
+
     // TODO (Roma): this code is duplicated from the generic kernel; maybe the
     // configuration struct could do some stuff below
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;

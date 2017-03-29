@@ -45,6 +45,8 @@ struct _jit_gemm_convolution_fwd_t: public cpu_primitive_t {
 
             assert(this->engine()->kind() == engine_kind::cpu);
 
+            if (!mayiuse(avx2)) return status::unimplemented;
+
             bool ok = true
                 && this->set_default_params() == status::success
                 && utils::one_of(this->cdesc_().prop_kind, forward_training,
@@ -136,6 +138,8 @@ struct jit_gemm_convolution_bwd_data_t: public cpu_primitive_t {
 
             assert(this->engine()->kind() == engine_kind::cpu);
 
+            if (!mayiuse(avx2)) return status::unimplemented;
+
             bool ok = true
                 && this->set_default_params() == status::success
                 && utils::one_of(this->desc()->prop_kind, backward,
@@ -223,6 +227,8 @@ struct jit_gemm_convolution_bwd_weights_t: public cpu_primitive_t {
             using namespace memory_format;
 
             assert(this->engine()->kind() == engine_kind::cpu);
+
+            if (!mayiuse(avx2)) return status::unimplemented;
 
             bool ok = true
             && this->set_default_params() == status::success
