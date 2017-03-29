@@ -81,9 +81,10 @@ void _jit_avx512_mic_convolution_fwd_t<with_relu>::execute_forward()
                             n, jcp.ic == 3 ? 0 : g * jcp.nb_ic + ic, ih, 0)]);
                     par_conv.dst_prf = const_cast<data_t *>(
                             &dst[dst_d.blk_off(n, g * jcp.nb_oc + oc, oh, 0)]);
-                    par_conv.bias_prf
+                    if (bias)
+                        par_conv.bias_prf
                             = const_cast<data_t *>(&bias[bias_d.blk_off(
-                                    (g * jcp.nb_oc + oc) * jcp.oc_block)]);
+                                        (g * jcp.nb_oc + oc) * jcp.oc_block)]);
                     par_conv.filt_prf = const_cast<data_t *>(
                             &weights[conf_.with_groups() ?
                                             weights_d.blk_off(g, oc,

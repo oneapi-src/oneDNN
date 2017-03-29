@@ -47,7 +47,8 @@ void jit_avx512_mic_conv_fwd_kernel_f32::store_output(int ur_w, char pad_label)
     char store_label[] = { '.', 's', pad_label, '\0' };
 
     mov(reg_current_ic, ptr[this->param1 + GET_OFF(current_ic)]);
-    mov(reg_bias, ptr[this->param1 + GET_OFF(bias)]);
+    if (jcp.with_bias)
+        mov(reg_bias, ptr[this->param1 + GET_OFF(bias)]);
 
     cmp(reg_current_ic, 0);
     je(no_update_label, T_NEAR);
