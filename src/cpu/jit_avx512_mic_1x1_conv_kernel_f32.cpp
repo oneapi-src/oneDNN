@@ -443,7 +443,7 @@ void jit_avx512_mic_1x1_conv_kernel_f32::generate()
 
     int ur_num = sizeof(ur_cases) / sizeof(ur_cases[0]);
 
-    for (int ur_idx = ur_num; ur_idx > 0; --ur_idx) {
+    for (int ur_idx = ur_num - 1; ur_idx > 0; ur_idx--) {
         int label_idx = ur_num - ur_idx - 1;
         if (jcp.ur <= ur_cases[ur_idx]) {
             cmp(reg_load_loop_work, simd_w * (label_idx + 1));
