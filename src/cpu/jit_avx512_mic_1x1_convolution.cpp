@@ -48,10 +48,10 @@ void _jit_avx512_mic_1x1_convolution_fwd_t<with_relu>::execute_forward()
     const size_t work_amount = jcp.mb * jcp.ngroups * jcp.nb_bcast;
 
     auto ker = [&](const int ithr, const int nthr) {
-        size_t start{ 0 }, end{ 0 };
+        size_t start{0}, end{0};
         balance211(work_amount, nthr, ithr, start, end);
 
-        size_t n, g, osb;
+        size_t n{0}, g{0}, osb{0};
         int iwork = (int)start;
         while (iwork < (int)end) {
             nd_iterator_init(iwork, n, jcp.mb, g, jcp.ngroups, osb,
@@ -157,7 +157,7 @@ void jit_avx512_mic_1x1_convolution_bwd_data_t::execute_backward_data()
     const size_t work_amount = jcp.mb * jcp.ngroups * jcp.nb_bcast;
 
     auto ker = [&](const int ithr, const int nthr) {
-        size_t start{ 0 }, end{ 0 };
+        size_t start{0}, end{0};
 
         balance211(work_amount, nthr, ithr, start, end);
 
@@ -168,7 +168,7 @@ void jit_avx512_mic_1x1_convolution_bwd_data_t::execute_backward_data()
                                     ? load_step_rem
                                     : jcp.nb_load_blocking;
 
-            size_t n, g, isb;
+            size_t n{0}, g{0}, isb{0};
             int iwork = (int)start;
             while (iwork < (int)end) {
                 nd_iterator_init(iwork, n, jcp.mb, g, jcp.ngroups, isb,
@@ -262,8 +262,8 @@ void jit_avx512_mic_1x1_convolution_bwd_weights_t::execute_backward_weights()
     const size_t work_amount = jcp.ngroups * load_work * bcast_work;
 
     auto ker = [&](const int ithr, const int nthr) {
-        size_t start{ 0 }, end{ 0 };
-        size_t g, load_i, bcast_i;
+        size_t start{0}, end{0};
+        size_t g{0}, load_i{0}, bcast_i{0};
 
         balance211(work_amount, nthr, ithr, start, end);
         nd_iterator_init(start, g, jcp.ngroups, load_i, load_work, bcast_i,
