@@ -138,6 +138,65 @@ private:
     void generate();
 };
 
+struct jit_avx512_mic_conv_bwd_weights_kernel_f32 : public jit_generator {
+    jit_avx512_mic_conv_bwd_weights_kernel_f32(jit_conv_conf_t ajcp) : jcp(ajcp)
+    {
+        this->generate();
+        jit_ker = (void (*)(jit_conv_call_s *))this->getCode();
+    }
+
+    static status_t init_conf(jit_conv_conf_t &jcp,
+        const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
+        const memory_desc_wrapper &diff_weights_d,
+        const memory_desc_wrapper &diff_dst_d);
+
+    jit_conv_conf_t jcp;
+    void (*jit_ker)(jit_conv_call_s *);
+
+private:
+    using reg64_t = const Xbyak::Reg64;
+    enum {typesize = sizeof(float)};
+
+    reg64_t param = abi_param1;
+    reg64_t reg_input = rax;
+    reg64_t reg_kernel = rdx;
+    reg64_t reg_output = rsi;
+    reg64_t b_ic = abi_not_param1;
+    reg64_t kj = r8;
+    reg64_t reg_kh  = r9;
+    reg64_t reg_ur_w_trips  = r10;
+    reg64_t reg_oj = r15;
+    reg64_t reg_ih_count = rbx;
+
+    reg64_t aux_reg_bcast_data = r14;
+    reg64_t aux_reg_load_data  = r15;
+
+    reg64_t bk_loop = rdx;
+    reg64_t bcast_loop = rsi;
+
+    reg64_t reg_init_flag = r13;
+
+    reg64_t aux_bk_loop = r12;
+    reg64_t reg_bbcast = rax;
+    reg64_t reg_bload = r11;
+    reg64_t aux1_reg_bcast_data = rbx;
+    reg64_t aux_reg_out_data = abi_not_param1;
+    reg64_t reg_output_loadblk_step = abi_param1;
+
+    inline void compute_oh_step_unroll_ow_icblock(int ic_block_step,
+        int max_ur_w);
+    inline void oh_step_comeback_pointers();
+    inline void compute_oh_step_unroll_ow(int ic_block_step, int max_ur_w);
+    inline void compute_ic_block_step(int ur_w, int pad_l, int pad_r,
+        int ic_block_step, int input_offset, int kernel_offset,
+        int output_offset);
+    inline void compute_oh_step_common(int ic_block_step, int max_ur_w);
+    inline void compute_oh_step_disp();
+    inline void compute_oh_loop_common();
+    void generate();
+};
+
+
 }
 }
 }

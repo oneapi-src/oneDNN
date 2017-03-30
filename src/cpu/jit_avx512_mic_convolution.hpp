@@ -21,6 +21,7 @@
 #include "cpu_convolution_pd.hpp"
 #include "cpu_engine.hpp"
 #include "jit_avx512_mic_conv_kernel_f32.hpp"
+#include "cpu_reducer.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -184,6 +185,88 @@ private:
     void execute_backward_data();
     pd_t conf_;
     jit_avx512_mic_conv_bwd_data_kernel_f32 *kernel_;
+};
+
+struct jit_avx512_mic_convolution_bwd_weights_t: public cpu_primitive_t {
+    struct pd_t: public  cpu_convolution_bwd_weights_pd_t {
+        pd_t(engine_t *engine, const convolution_desc_t *adesc,
+                const convolution_fwd_pd_t *hint_fwd_pd)
+            : cpu_convolution_bwd_weights_pd_t(engine, adesc, hint_fwd_pd)
+            , jcp_({}) {}
+
+        DECLARE_COMMON_PD_T(jit_avx512_mic_convolution_bwd_weights_t);
+
+        virtual status_t init() override {
+            assert(this->engine()->kind() == engine_kind::cpu);
+            bool ok = true
+                && this->set_default_params() == status::success
+                && this->desc()->prop_kind == prop_kind::backward_weights
+                && this->desc()->alg_kind == alg_kind::convolution_direct
+                && utils::everyone_is(data_type::f32,
+                        this->desc()->src_desc.data_type,
+                        this->desc()->diff_dst_desc.data_type,
+                        this->desc()->diff_weights_desc.data_type);
+            if (!ok) return status::unimplemented;
+
+            return jit_avx512_mic_conv_bwd_weights_kernel_f32::init_conf(jcp_,
+                    *this->desc(), *this->src_pd_.desc(),
+                    *this->diff_weights_pd_.desc(),
+                    *this->diff_dst_pd_.desc());
+        }
+
+        jit_conv_conf_t jcp_;
+
+    protected:
+        virtual status_t set_default_params() override {
+            using namespace memory_format;
+            const bool flat = this->IC() == 3;
+
+            if (this->src_pd_.desc()->format == any)
+                CHECK(this->src_pd_.set_format(flat ? nchw : nChw16c));
+            if (this->diff_dst_pd_.desc()->format == any)
+                CHECK(this->diff_dst_pd_.set_format(nChw16c));
+            if (this->diff_weights_pd_.desc()->format == any)
+                CHECK(this->diff_weights_pd_.set_format(this->with_groups()
+                        ? gOIhw16i16o : (flat ? Ohwi16o : OIhw16i16o)));
+            if (this->diff_bias_pd_.desc()->format == any)
+                CHECK(this->diff_bias_pd_.set_format(x));
+            return status::success;
+        }
+    };
+
+    jit_avx512_mic_convolution_bwd_weights_t(const pd_t *pd,
+            const input_vector &inputs, const output_vector &outputs)
+        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
+        , kernel_(nullptr), reducer_weights_(nullptr), reducer_bias_(nullptr)
+    {
+        kernel_ = new jit_avx512_mic_conv_bwd_weights_kernel_f32(conf_.jcp_);
+        const int max_threads = omp_get_max_threads();
+        const size_t max_buffer_size = max_threads*3*5*5*16*16;
+        const auto &j = conf_.jcp_;
+
+        reducer_weights_ = new cpu_reducer_t<data_type::f32>(reduce_balancer_t(
+                    max_threads, j.kh * j.kw * j.ic_block * j.oc_block,
+                    j.ngroups * j.nb_ic * j.nb_oc, j.mb, max_buffer_size));
+        if (conf_.with_bias()) {
+            reducer_bias_ = new cpu_reducer_t<data_type::f32>(
+                    reduce_balancer_t(max_threads, j.oc_block,
+                        j.ngroups * j.nb_oc, j.mb, max_buffer_size));
+        }
+    }
+    ~jit_avx512_mic_convolution_bwd_weights_t() { delete kernel_; };
+
+    typedef typename prec_trait<data_type::f32>::type data_t;
+
+    virtual void execute(event_t *e) {
+        execute_backward_weights();
+        e->set_state(event_t::ready);
+    }
+
+private:
+    void execute_backward_weights();
+    pd_t conf_;
+    jit_avx512_mic_conv_bwd_weights_kernel_f32 *kernel_;
+    cpu_reducer_t<data_type::f32> *reducer_weights_, *reducer_bias_;
 };
 
 }
