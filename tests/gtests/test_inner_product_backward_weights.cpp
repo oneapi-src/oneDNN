@@ -114,6 +114,7 @@ protected:
                 = ::testing::TestWithParam<inprod_test_params>::GetParam();
         test_inner_product_descr_t ipd = p.test_ipd;
         bool has_spatial = ipd.kh > 1 && ipd.kw > 1;
+        bool with_bias = p.diff_bias_format != memory::format::format_undef;
 
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         auto eng = engine(p.engine_kind, 0);
@@ -130,7 +131,9 @@ protected:
                 create_md({ ipd.oc, ipd.ic }, data_type, p.diff_weights_format);
         auto ip_diff_dst_desc =
             create_md({ ipd.mb, ipd.oc }, data_type, p.diff_dst_format);
-        auto ip_diff_bias_desc = create_md({ ipd.oc }, data_type, p.diff_bias_format);
+        auto ip_diff_bias_desc = with_bias ?
+            create_md({ ipd.oc }, data_type, p.diff_bias_format) :
+            create_md({}, data_type, p.diff_bias_format);
 
         auto ip_src = memory(memory::primitive_desc(ip_src_desc, eng));
         auto ip_diff_dst = memory(memory::primitive_desc(ip_diff_dst_desc, eng));
@@ -151,8 +154,12 @@ protected:
         auto ip_fwd_pdesc = inner_product_forward::primitive_desc(ip_fwd_desc, eng);
 
         // Create inner product backward
-        auto ip_desc = inner_product_backward_weights::desc(ip_src_desc,
-                ip_diff_weights_desc, ip_diff_bias_desc, ip_diff_dst_desc);
+        auto ip_desc = with_bias ?
+            inner_product_backward_weights::desc(ip_src_desc,
+                ip_diff_weights_desc, ip_diff_bias_desc, ip_diff_dst_desc) :
+            inner_product_backward_weights::desc(ip_src_desc,
+                ip_diff_weights_desc, ip_diff_dst_desc);
+
 
         auto ip_primitive_desc = inner_product_backward_weights::primitive_desc(
                 ip_desc, eng, ip_fwd_pdesc);
@@ -169,9 +176,11 @@ protected:
                 diff_weights_ref);
         compare_data<data_t>(diff_weights_ref, ip_diff_weights);
 
-        compute_ref_inner_product_bwd_bias<data_t>(ipd, ip_diff_dst,
-                diff_bias_ref);
-        compare_data<data_t>(diff_bias_ref, ip_diff_bias);
+        if (with_bias) {
+            compute_ref_inner_product_bwd_bias<data_t>(ipd, ip_diff_dst,
+                    diff_bias_ref);
+            compare_data<data_t>(diff_bias_ref, ip_diff_bias);
+        }
     }
 };
 
@@ -181,6 +190,30 @@ using inprod_test_params_float = inprod_test_params;
 TEST_P(inner_product_test_float, TestsInnerProduct)
 {
 }
+INSTANTIATE_TEST_CASE_P(
+        TestInnerProductBackwardWeightsNoBias, inner_product_test_float,
+        ::testing::Values(
+                inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::nchw, memory::format::oihw,
+                        memory::format::format_undef, memory::format::nc,
+                        { 2, 32, 48, 6, 6 } },
+                inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::nChw8c, memory::format::oIhw8i,
+                        memory::format::format_undef, memory::format::nc,
+                        { 2, 32, 48, 6, 6 } },
+                inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::nChw16c, memory::format::oIhw16i,
+                        memory::format::format_undef, memory::format::nc,
+                        { 2, 32, 48, 6, 6 } },
+                inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::nc, memory::format::oi,
+                        memory::format::format_undef, memory::format::nc,
+                        { 2, 32, 1152, 1, 1 } },
+                inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::nc, memory::format::oi,
+                        memory::format::format_undef, memory::format::nc,
+                        { 2, 2, 4, 1, 1 } }));
+
 INSTANTIATE_TEST_CASE_P(
         TestInnerProductBackwardWeights, inner_product_test_float,
         ::testing::Values(

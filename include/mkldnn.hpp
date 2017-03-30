@@ -2190,6 +2190,15 @@ struct inner_product_backward_weights: public primitive {
                         &diff_bias_desc.data, &diff_dst_desc.data),
                 "could not create a inner product backward weights descriptor");
         }
+        desc(const memory::desc &src_desc,
+                const memory::desc &diff_weights_desc,
+                const memory::desc &diff_dst_desc) {
+            error::wrap_c_api(
+                    c_api::mkldnn_inner_product_backward_weights_desc_init(
+                        &data, &src_desc.data, &diff_weights_desc.data,
+                        nullptr, &diff_dst_desc.data),
+                "could not create a inner product backward weights descriptor");
+        }
     };
 
     struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t> {
