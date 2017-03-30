@@ -513,4 +513,51 @@ INSTANTIATE_TEST_CASE_P(
             algorithm::pooling_avg, memory::format::nChw16c,
             memory::format::nChw16c, { 16, 64, 32, 32, 16, 16, 3, 3, 0, 0, 2, 2 } }
             ));
+
+INSTANTIATE_TEST_CASE_P(
+        TestPoolingBackwardAsymmPadding, pooling_bwd_test_float, ::testing::Values(
+            pool_bwd_test_params_float{
+            engine::kind::cpu, algorithm::pooling_max, memory::format::nChw8c,
+            memory::format::nChw8c, {1, 8, 3, 4, 1, 5, 3, 3, 0, 1, 1, 1}}
+            ,pool_bwd_test_params_float{
+            engine::kind::cpu, algorithm::pooling_avg, memory::format::nChw8c,
+            memory::format::nChw8c, {1, 8, 3, 4, 1, 5, 3, 3, 0, 1, 1, 1}}
+
+            ,pool_bwd_test_params_float{
+            engine::kind::cpu, algorithm::pooling_max, memory::format::nChw8c,
+            memory::format::nChw8c, {1, 8, 3, 14, 1, 8, 3, 3, 0, 1, 1, 2}}
+            ,pool_bwd_test_params_float{
+            engine::kind::cpu, algorithm::pooling_avg, memory::format::nChw8c,
+            memory::format::nChw8c, {1, 8, 3, 14, 1, 8, 3, 3, 0, 1, 1, 2}}
+
+            ,pool_bwd_test_params_float{
+            engine::kind::cpu, algorithm::pooling_max, memory::format::nChw8c,
+            memory::format::nChw8c, {1, 96, 3, 100, 1, 51, 3, 3, 0, 1, 1, 2}}
+            ,pool_bwd_test_params_float{
+            engine::kind::cpu, algorithm::pooling_avg, memory::format::nChw8c,
+            memory::format::nChw8c, {1, 96, 3, 100, 1, 51, 3, 3, 0, 1, 1, 2}}
+
+            ,pool_bwd_test_params_float{
+            engine::kind::cpu, algorithm::pooling_max, memory::format::nChw8c,
+            memory::format::nChw8c, {1, 96, 3, 102, 1, 52, 3, 3, 0, 1, 1, 2}}
+            ,pool_bwd_test_params_float{
+            engine::kind::cpu, algorithm::pooling_avg, memory::format::nChw8c,
+            memory::format::nChw8c, {1, 96, 3, 102, 1, 52, 3, 3, 0, 1, 1, 2}}
+
+            ,pool_bwd_test_params_float{
+            engine::kind::cpu, algorithm::pooling_max, memory::format::nChw8c,
+            memory::format::nChw8c, {1, 96, 9, 103, 7, 52, 3, 3, 0, 1, 1, 2}}
+            ,pool_bwd_test_params_float{
+            engine::kind::cpu, algorithm::pooling_avg, memory::format::nChw8c,
+            memory::format::nChw8c, {1, 96, 9, 103, 7, 52, 3, 3, 0, 1, 1, 2}}
+
+            ,pool_bwd_test_params_float{
+            engine::kind::cpu, algorithm::pooling_max, memory::format::nChw8c,
+            memory::format::nChw8c, {1, 96, 300, 500, 151, 251, 3, 3, 1, 1, 2, 2} }
+            ,pool_bwd_test_params_float{
+            engine::kind::cpu, algorithm::pooling_avg, memory::format::nChw8c,
+            memory::format::nChw8c, {1, 96, 300, 500, 151, 251, 3, 3, 1, 1, 2, 2} }
+
+            ));
+
 }

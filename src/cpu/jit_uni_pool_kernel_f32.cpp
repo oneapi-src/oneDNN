@@ -107,7 +107,8 @@ inline void jit_uni_pool_kernel_f32<isa>::avg_step(int ur_w, int pad_l,
     {
         for (int ki = 0; ki < kw; ki++) {
             int jj_start = nstl::max(0, pad_l - ki);
-            int jj_end = ur_w - nstl::max(0, ki + pad_r - (kw-1));
+            int jj_end = ur_w
+                - utils::div_up(nstl::max(0, ki + pad_r - (kw-1)), stride_w);
             for (int jj = jj_start; jj  < jj_end; jj++) {
                 int aux_input_offset = (ki+jj*stride_w-pad_l)* c_block;
                 if (aux_input_offset > iw * c_block)
@@ -165,7 +166,8 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_fwd(int ur_w, int pad_l,
     {
         for (int ki = 0; ki < kw; ki++) {
             int jj_start = nstl::max(0, pad_l - ki);
-            int jj_end = ur_w - nstl::max(0, ki + pad_r - (kw-1));
+            int jj_end = ur_w
+                - utils::div_up(nstl::max(0, ki + pad_r - (kw-1)), stride_w);
             for (int jj = jj_start; jj  < jj_end; jj++) {
                 int aux_input_offset = (ki+jj*stride_w-pad_l)* c_block;
                 if (aux_input_offset > iw * c_block)
@@ -224,7 +226,8 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_bwd(int ur_w, int pad_l,
     {
         for (int ki = 0; ki < kw; ki++) {
             int jj_start = nstl::max(0, pad_l - ki);
-            int jj_end = ur_w - nstl::max(0, ki + pad_r - (kw-1));
+            int jj_end = ur_w
+                - utils::div_up(nstl::max(0, ki + pad_r - (kw-1)), stride_w);
             for (int jj = jj_start; jj  < jj_end; jj++) {
                 int aux_input_offset = (ki+jj*stride_w-pad_l)* c_block;
                 if (aux_input_offset > iw * c_block)
