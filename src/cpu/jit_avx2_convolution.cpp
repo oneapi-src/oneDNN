@@ -295,9 +295,14 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights() {
                     b_job_loc * rb->balancer_.job_size_];
 
                 if (img == img_start)
-                    array_set(d_bias, 0, rb->balancer_.job_size_);
-                for (int hwo = 0; hwo < jcp.oh * jcp.ow * 8; ++hwo)
-                    d_bias[hwo % 8] += d_dst[hwo];
+                    for (int o = 0; o < 8; ++o)
+                        d_bias[o] = 0.;
+
+                for (int hw = 0; hw < jcp.oh * jcp.ow; ++hw) {
+                    for (int o = 0; o < 8; ++o)
+                        d_bias[o] += d_dst[o];
+                    d_dst += 8;
+                }
 
                 nd_iterator_step(g, jcp.ngroups, ocb, jcp.nb_oc);
             }
