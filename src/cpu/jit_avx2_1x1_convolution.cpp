@@ -96,10 +96,14 @@ void _jit_avx2_1x1_convolution_fwd_t<with_relu>::execute_forward() {
 
                 for (int icb = 0; icb < nb_ic; icb += nb_ic_blocking) {
                     par_conv.reduce_pos_flag = 0
-                        | (icb == 0)
-                            * jit_avx2_1x1_conv_kernel_f32::REDUCE_FLAG_FIRST
-                        | (icb + nb_ic_blocking >= nb_ic)
-                            * jit_avx2_1x1_conv_kernel_f32::REDUCE_FLAG_LAST;
+                        | (icb == 0
+                                ?
+                                jit_avx2_1x1_conv_kernel_f32::REDUCE_FLAG_FIRST
+                                : 0)
+                        | (icb + nb_ic_blocking >= nb_ic
+                                ?
+                                jit_avx2_1x1_conv_kernel_f32::REDUCE_FLAG_LAST
+                                : 0);
 
                     par_conv.reduce_dim = this_block_size(icb * jcp.ic_block,
                             jcp.ic, nb_ic_blocking * jcp.ic_block);
@@ -142,88 +146,81 @@ void jit_avx2_1x1_convolution_bwd_data_t::execute_backward_data() {
 
     const auto &jcp = kernel_->jcp;
 
-    const size_t work_amount = jcp.mb * jcp.ngroups * jcp.nb_bcast;
+    // TODO (Roma): remove this restriction
+    assert(jcp.stride_w == 1 && jcp.stride_h == 1);
+
+    const int nb_ic = jcp.nb_load;
+    const int nb_oc = jcp.nb_reduce;
+    const int os_block = jcp.bcast_block;
+    const int nb_oc_blocking = jcp.nb_reduce_blocking;
+
+    const int work_amount = jcp.mb * jcp.ngroups * jcp.nb_bcast;
+
+    auto step = [](int default_step, int remaining, int tail_step) {
+        assert(default_step <= tail_step);
+        return remaining < tail_step ? remaining : default_step;
+    };
 
     auto ker = [&](const int ithr, const int nthr) {
-        size_t start{0}, end{0};
+        jit_1x1_conv_call_s p = {};
+
+        int start{0}, end{0};
         balance211(work_amount, nthr, ithr, start, end);
 
-        int icb = 0;
-        while (icb < jcp.nb_load) {
-            int load_step_rem = jcp.nb_load - icb;
-            int load_step = (load_step_rem < jcp.nb_load_blocking_max)
-                                    ? load_step_rem
-                                    : jcp.nb_load_blocking;
+        int load_step = 0;
+        for (int icb = 0; icb < jcp.nb_load; icb += load_step) {
+            load_step = step(jcp.nb_load_blocking, jcp.nb_load - icb,
+                    jcp.nb_load_blocking_max);
 
-            size_t n{0}, g{0}, isb{0};
-            int iwork = (int)start;
-            while (iwork < (int)end) {
-                nd_iterator_init(iwork, n, jcp.mb, g, jcp.ngroups, isb,
-                                 jcp.nb_bcast);
-                int bcast_step = jcp.nb_bcast_blocking;
-                int bcast_step_rem = jcp.nb_bcast - isb;
-                if (bcast_step_rem <= jcp.nb_bcast_blocking_max)
-                    bcast_step = bcast_step_rem;
-                if ((iwork + bcast_step) > (int)end)
-                    bcast_step = (int)end - iwork;
+            p.load_dim = this_block_size(icb * jcp.ic_block, jcp.ic,
+                    load_step * jcp.ic_block);
+
+            int bcast_step;
+            for (int iwork = start; iwork < end; iwork += bcast_step) {
+                int n{0}, g{0}, osb{0};
+                nd_iterator_init(iwork, n, jcp.mb, g, jcp.ngroups, osb,
+                        jcp.nb_bcast);
+
+                bcast_step = step(jcp.nb_bcast_blocking, jcp.nb_bcast - osb,
+                        jcp.nb_bcast_blocking_max);
+                bcast_step = nstl::min(bcast_step, end - iwork);
+
+                const int os = osb * os_block;
+                p.bcast_dim = this_block_size(os, jcp.os,
+                        bcast_step * os_block);
+
+                const int oh = os / jcp.ow;
+                const int ow = os % jcp.ow;
+                const int ih = oh;
+                const int iw = ow;
+
+                const int _icb = g * nb_ic + icb;
+                size_t diff_src_off = diff_src_d.blk_off(n, _icb, ih, iw);
+                p.output_data = &diff_src[diff_src_off];
 
                 for (int ocb = 0; ocb < jcp.nb_reduce;
-                     ocb += jcp.nb_reduce_blocking) {
-                    jit_1x1_conv_call_s par_conv = {};
-
-                    // TODO (Roma): remove this restriction
-                    assert(jcp.stride_w == 1 && jcp.stride_h == 1);
-
-                    int nb_ic = jcp.nb_load, nb_oc = jcp.nb_reduce;
-                    int is_block = jcp.bcast_block;
-                    int nb_ic_blocking = load_step;
-                    int nb_oc_blocking = jcp.nb_reduce_blocking;
-
-                    int is = isb * is_block;
-                    int nb_is_blocking = bcast_step;
-
-                    int iw = is % jcp.iw;
-                    int ih = is / jcp.iw;
-                    size_t _icb = g * nb_ic + icb;
-                    size_t diff_src_off = diff_src_d.blk_off(n, _icb, ih, iw);
-                    par_conv.output_data = &diff_src[diff_src_off];
-
-                    int ow = iw;
-                    int oh = ih;
-                    size_t _ocb = g * nb_oc + ocb;
+                        ocb += jcp.nb_reduce_blocking) {
+                    const int _ocb = g * nb_oc + ocb;
                     size_t diff_dst_off = diff_dst_d.blk_off(n, _ocb, oh, ow);
-                    par_conv.bcast_data = &diff_dst[diff_dst_off];
+                    p.bcast_data = &diff_dst[diff_dst_off];
 
-                    par_conv.load_data = &weights[conf_.with_groups()
-                                             ? weights_d.blk_off(g, ocb, icb)
-                                             : weights_d.blk_off(ocb, icb)];
+                    p.load_data = &weights[conf_.with_groups()
+                        ? weights_d.blk_off(g, ocb, icb)
+                        : weights_d.blk_off(ocb, icb)];
 
-                    par_conv.reduce_pos_flag =
-                        (ocb == 0
-                            ? jit_avx2_1x1_conv_kernel_f32::REDUCE_FLAG_FIRST
-                            : 0)
-                          | (ocb + nb_oc_blocking >= nb_oc
-                            ? jit_avx2_1x1_conv_kernel_f32::REDUCE_FLAG_LAST
-                            : 0);
+                    p.reduce_pos_flag = ocb == 0
+                        ? jit_avx2_1x1_conv_kernel_f32::REDUCE_FLAG_FIRST : 0;
 
-                    par_conv.reduce_dim = this_block_size(
-                        ocb * jcp.oc_block, jcp.oc,
-                        nb_oc_blocking * jcp.oc_block);
-                    par_conv.bcast_dim = this_block_size(
-                            is, jcp.is, nb_is_blocking * is_block);
-                    par_conv.load_dim = this_block_size(
-                        icb * jcp.ic_block, jcp.ic,
-                        nb_ic_blocking * jcp.ic_block);
+                    p.reduce_dim = this_block_size(ocb * jcp.oc_block, jcp.oc,
+                            nb_oc_blocking * jcp.oc_block);
 
-                    kernel_->jit_ker(&par_conv);
+                    kernel_->jit_ker(&p);
                 }
-                iwork += bcast_step;
             }
-            icb += load_step;
         }
     };
 
-#pragma omp parallel
+#   pragma omp parallel
     {
         ker(omp_get_thread_num(), omp_get_num_threads());
     }
@@ -287,8 +284,8 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights() {
                     sp_step = step(sp_step_def, sp_end - sp, 192);
                     p.reduce_dim = sp_step;
 
-                    p.reduce_pos_flag = (sp == sp_start && first_image)
-                        * jit_avx2_1x1_conv_kernel_f32::REDUCE_FLAG_FIRST;
+                    p.reduce_pos_flag = sp == sp_start && first_image
+                        ? jit_avx2_1x1_conv_kernel_f32::REDUCE_FLAG_FIRST : 0;
 
                     p.load_data = diff_dst
                         + (oc_b * jcp.reduce_dim + sp) * jcp.oc_block;
