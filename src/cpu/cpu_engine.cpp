@@ -29,7 +29,7 @@
 #include "cpu/jit_avx2_convolution.hpp"
 #include "cpu/jit_gemm_convolution.hpp"
 #include "cpu/ref_convolution.hpp"
-#include "cpu/jit_avx2_relu.hpp"
+#include "cpu/jit_uni_relu.hpp"
 #include "cpu/ref_relu.hpp"
 #include "cpu/ref_softmax.hpp"
 #include "cpu/jit_uni_pooling.hpp"
@@ -142,8 +142,10 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(ref_convolution_bwd_data_t<data_type::f32>),
     INSTANCE(ref_convolution_bwd_weights_t<data_type::f32>),
     /* relu */
-    INSTANCE(jit_avx2_relu_fwd_t),
-    INSTANCE(jit_avx2_relu_bwd_t),
+    INSTANCE(jit_uni_relu_fwd_t<avx512_mic>),
+    INSTANCE(jit_uni_relu_bwd_t<avx512_mic>),
+    INSTANCE(jit_uni_relu_fwd_t<avx2>),
+    INSTANCE(jit_uni_relu_bwd_t<avx2>),
     INSTANCE(ref_relu_fwd_t<data_type::f32>),
     INSTANCE(ref_relu_bwd_t<data_type::f32>),
     /* softmax */
