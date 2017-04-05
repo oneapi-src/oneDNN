@@ -237,12 +237,12 @@ void jit_avx512_mic_convolution_bwd_weights_t::execute_backward_weights() {
         if (w_njobs == 0) return;
 
         /* reduction dimension */
-        int img_start, img_end;
+        int img_start{0}, img_end{0};
         balance211(jcp.mb, rw->balancer_.nthr_per_group_,
             rw->balancer_.id_in_group(ithr), img_start, img_end);
 
         /* jobs */
-        int g_start, ocb_start, icb_start;
+        int g_start{0}, ocb_start{0}, icb_start{0};
         nd_iterator_init(w_job_start, g_start, jcp.ngroups, ocb_start,
             jcp.nb_oc, icb_start, jcp.nb_ic);
 
