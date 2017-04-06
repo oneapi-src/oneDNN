@@ -141,6 +141,7 @@ struct convolution_bwd_data_pd_t: public primitive_desc_t {
     virtual ~convolution_bwd_data_pd_t() {}
 
     const convolution_desc_t *desc() const { return &desc_; }
+    const convolution_desc_t *cdesc() const { return desc(); }
     virtual const op_desc_t *op_desc() const override
     { return reinterpret_cast<const op_desc_t *>(this->desc()); }
 
@@ -218,6 +219,7 @@ struct convolution_bwd_weights_pd_t: public primitive_desc_t {
     virtual ~convolution_bwd_weights_pd_t() {}
 
     const convolution_desc_t *desc() const { return &desc_; }
+    const convolution_desc_t *cdesc() const { return desc(); }
     virtual const op_desc_t *op_desc() const override
     { return reinterpret_cast<const op_desc_t *>(this->desc()); }
 
