@@ -51,7 +51,7 @@ foreach(TEST_FILE ${PRIM_TEST_CASES_SRC})
     get_filename_component (TEST_FILE_WE ${TEST_FILE} NAME_WE)
     set(CURR_APP_NAME ${TEST_FILE_WE})
     add_executable(${CURR_APP_NAME} ${MAIN_SRC_GTEST} ${TEST_FILE})
-    target_link_libraries(${CURR_APP_NAME} mkldnn gtest)
+    target_link_libraries(${CURR_APP_NAME} mkldnn mkldnn_gtest)
     add_test(${CURR_APP_NAME} ${CURR_APP_NAME})
 endforeach()
 
