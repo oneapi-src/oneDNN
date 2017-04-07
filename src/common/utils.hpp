@@ -130,7 +130,7 @@ inline T array_product(const T *arr, size_t size) {
 }
 
 template <typename T, typename U>
-inline T div_up(const T a, const U b) {
+inline typename remove_reference<T>::type div_up(const T a, const U b) {
     assert(b);
     return (a + b - 1) / b;
 }
