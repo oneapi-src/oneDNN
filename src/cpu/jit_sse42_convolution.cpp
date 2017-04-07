@@ -56,7 +56,7 @@ void _jit_sse42_convolution_fwd_t<with_relu>::execute_forward() {
             if (icb_step_rem < jcp.nb_ic_blocking_max)
                 icb_step = icb_step_rem;
 
-            size_t n, g, ocbb, oh;
+            size_t n{0}, g{0}, ocbb{0}, oh{0};
             nd_iterator_init(start, n, jcp.mb, g, jcp.ngroups, ocbb, ocb_work,
                              oh, jcp.oh);
             for (size_t iwork = start; iwork < end; ++iwork) {
