@@ -213,9 +213,9 @@ void jit_sse42_1x1_conv_kernel_f32::reduce_loop(int load_loop_blk, int ur,
                 for (int i = 0; i < load_loop_blk; ++i) {
                     xorps(mask0, mask0);
                     xorps(mask1, mask1);
-                    #define OWN_CMP_LE_OS 0x02
-                    cmpps(mask0, reg_accum(i, j, 0), OWN_CMP_LE_OS);
-                    cmpps(mask1, reg_accum(i, j, 1), OWN_CMP_LE_OS);
+                    const unsigned char _cmp_le_os = 2;
+                    cmpps(mask0, reg_accum(i, j, 0), _cmp_le_os);
+                    cmpps(mask1, reg_accum(i, j, 1), _cmp_le_os);
                     blendvps(reg_accum(i, j, 0), mask0);
                     blendvps(reg_accum(i, j, 1), mask1);
                     movups(output_ptr(i, j, 0), reg_accum(i, j, 0));
