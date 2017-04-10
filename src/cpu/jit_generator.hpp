@@ -262,6 +262,40 @@ protected:
     void L(const char *label) { Xbyak::CodeGenerator::L(label); }
     void L(const Xbyak::Label& label) { Xbyak::CodeGenerator::L(label); }
 
+    void uni_vpxor(const Xbyak::Xmm& x1, const Xbyak::Xmm& x2,
+                   const Xbyak::Operand& op) {
+        assert(x1.getIdx() == x2.getIdx());
+        pxor(x2, op);
+    }
+    void uni_vpxor(const Xbyak::Ymm& x1, const Xbyak::Ymm& x2,
+                   const Xbyak::Operand& op) {
+        vpxor(x1, x2, op);
+    }
+    void uni_vpxor(const Xbyak::Zmm& x1, const Xbyak::Zmm& x2,
+                   const Xbyak::Operand& op) {
+        vpxord(x1, x2, op);
+    }
+
+    void uni_vmovdqu(const Xbyak::Address& addr, const Xbyak::Xmm& x) {
+        movdqu(addr, x);
+    }
+    void uni_vmovdqu(const Xbyak::Address& addr, const Xbyak::Ymm& x) {
+        vmovdqu(addr, x);
+    }
+    void uni_vmovdqu(const Xbyak::Address& addr, const Xbyak::Zmm& x) {
+        vmovdqu32(addr, x);
+    }
+
+    void uni_vmovdqu(const Xbyak::Xmm& x, const Xbyak::Address& addr) {
+        movdqu(x, addr);
+    }
+    void uni_vmovdqu(const Xbyak::Ymm& x, const Xbyak::Address& addr) {
+        vmovdqu(x, addr);
+    }
+    void uni_vmovdqu(const Xbyak::Zmm& x, const Xbyak::Address& addr) {
+        vmovdqu32(x, addr);
+    }
+
     void uni_vmovups(const Xbyak::Address& addr, const Xbyak::Xmm& x) {
         movups(addr, x);
     }
@@ -364,6 +398,16 @@ protected:
     }
     void uni_vsqrtps(const Xbyak::Ymm& x, const Xbyak::Operand& op) {
         vsqrtps(x, op);
+    }
+
+    void uni_vpaddd(const Xbyak::Xmm& x1, const Xbyak::Xmm& x2,
+                    const Xbyak::Operand& op) {
+        assert(x1.getIdx() == x2.getIdx());
+        paddd(x2, op);
+    }
+    void uni_vpaddd(const Xbyak::Ymm& x1, const Xbyak::Xmm& x2,
+                    const Xbyak::Operand& op) {
+        vpaddd(x1, x2, op);
     }
 
     void uni_vpaddd(const Xbyak::Xmm& x1, const Xbyak::Xmm& x2,

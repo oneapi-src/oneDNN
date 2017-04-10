@@ -43,9 +43,9 @@ struct jit_uni_pooling_fwd_t: public cpu_primitive_t {
             using namespace prop_kind;
             using namespace alg_kind;
             using namespace utils;
-            auto desired_fmt = isa == avx2
-                ? memory_format::nChw8c
-                : memory_format::nChw16c;
+            auto desired_fmt = isa == avx512_common
+                ? memory_format::nChw16c
+                : memory_format::nChw8c;
             assert(engine()->kind() == engine_kind::cpu);
             bool ok = true
                 && mayiuse(isa)
@@ -76,9 +76,9 @@ struct jit_uni_pooling_fwd_t: public cpu_primitive_t {
 
     protected:
         virtual status_t set_default_params() override {
-            auto desired_fmt = isa == avx2
-                ? memory_format::nChw8c
-                : memory_format::nChw16c;
+            auto desired_fmt = isa == avx512_common
+                ? memory_format::nChw16c
+                : memory_format::nChw8c;
             if (dst_pd_.desc()->format == memory_format::any)
                CHECK(dst_pd_.set_format(desired_fmt));
             return status::success;
@@ -119,9 +119,9 @@ struct jit_uni_pooling_bwd_t: public cpu_primitive_t {
             using namespace alg_kind;
             using namespace utils;
 
-            auto desired_fmt = isa == avx2
-                ? memory_format::nChw8c
-                : memory_format::nChw16c;
+            auto desired_fmt = isa == avx512_common
+                ? memory_format::nChw16c
+                : memory_format::nChw8c;
 
             assert(engine()->kind() == engine_kind::cpu);
             bool ok = true
@@ -151,9 +151,9 @@ struct jit_uni_pooling_bwd_t: public cpu_primitive_t {
 
     protected:
         virtual status_t set_default_params() override {
-            auto desired_fmt = isa == avx2
-                ? memory_format::nChw8c
-                : memory_format::nChw16c;
+            auto desired_fmt = isa == avx512_common
+                ? memory_format::nChw16c
+                : memory_format::nChw8c;
             if (diff_src_pd_.desc()->format == memory_format::any)
                CHECK(diff_src_pd_.set_format(desired_fmt));
            return status::success;
@@ -187,4 +187,3 @@ private:
 #endif
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
-

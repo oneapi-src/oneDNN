@@ -75,26 +75,23 @@ struct jit_uni_pool_kernel_f32: public jit_generator {
             const memory_desc_wrapper &dst_d);
 
 private:
+    using Vmm = typename utils::conditional3<isa == sse42, Xmm, isa == avx2,
+                                             Ymm, Zmm>::type;
+    Vmm vreg(int idx) { return Vmm((isa == avx512_common ? 31 : 15) - idx); }
 
-    using Vmm = typename utils::conditional<isa == avx2, Ymm, Zmm>::type;
-    const AddressFrame &vmmword = (isa == avx2) ? yword : zword;
-    void uni_vpxor(const Xmm& x1, const Xmm& x2, const Operand& op)
-        { if (isa == avx2) vpxor(x1, x2, op); else vpxord(x1, x2, op); }
-    void uni_vmovdqu(const Address& addr, const Xmm& x)
-        { if (isa == avx2) vmovdqu(addr, x); else vmovdqu32(addr, x); }
-    void uni_vmovdqu(const Xmm& x, const Address& addr)
-        { if (isa == avx2) vmovdqu(x, addr); else vmovdqu32(x, addr); }
-    Vmm vreg(int idx) { return Vmm((isa == avx2 ? 15 : 31) - idx); }
+    const AddressFrame &vmmword = (isa == sse42) ? xword :
+                                  (isa == avx2) ? yword : zword;
 
-    Xmm xmm_ker_area_h = Xmm(1);
-    Xmm xmm_one = Xmm(1);
-    Xmm xmm_tmp = Xmm(2);
+    Xmm vmm_mask = Xmm(0);
+    Xmm xmm_ker_area_h = Xmm(2);
+    Xmm xmm_one = Xmm(2);
+    Xmm xmm_tmp = Xmm(3);
 
-    Vmm vmm_ker_area_h = Vmm(1);
-    Vmm vmm_one = Vmm(1);
-    Vmm vmm_tmp = Vmm(2);
+    Vmm vmm_ker_area_h = Vmm(2);
+    Vmm vmm_one = Vmm(2);
+    Vmm vmm_tmp = Vmm(3);
 
-    Vmm vmm_k_offset = Vmm(0);
+    Vmm vmm_k_offset = Vmm(1);
 
     Opmask k_store_mask = Opmask(7);
 
@@ -102,9 +99,9 @@ private:
     reg64_t reg_input      = r8;
     reg64_t aux_reg_input  = r9;
     reg64_t reg_index      = r10;
-    reg64_t aux_reg_index  = r11;
     reg64_t reg_output     = r12;
     reg64_t reg_arr_init   = r13;
+    reg64_t dst_ptr        = rdi;
 
     reg64_t kj      = r14;
     reg64_t oi_iter = r15;
@@ -130,6 +127,16 @@ private:
         }
         else
             avg_step(ur_w, pad_l, pad_r, kh_label);
+    }
+
+    void step_high_half(int ur_w, int pad_l, int pad_r, const char *kh_label) {
+        add(reg_input, sizeof(float) * 4);
+        add(reg_output, sizeof(float) * 4);
+        if (jpp.alg == alg_kind::pooling_max &&
+            (jpp.is_training || jpp.is_backward))
+            add(reg_index, sizeof(int) * 4);
+
+        step(ur_w, pad_l, pad_r, kh_label);
     }
 
     void generate();
