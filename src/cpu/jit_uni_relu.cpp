@@ -47,44 +47,65 @@ struct jit_uni_relu_kernel_f32 : public jit_generator {
 
     void compute_step(bool vectorize, const int uf, const int shift)
     {
-        unsigned char _cmp_gt_os = 14;
+        unsigned char _cmp_gt_os = isa == avx512_common ? 14 : 6;
 
         for (int i = 0; i < uf; i++) {
             if (vectorize) {
-                vmovups(Vmm(i), ptr[reg_from + i * shift]);
+                uni_vmovups(Vmm(i + 1), ptr[reg_from + i * shift]);
                 if (this->isBackward)
-                    vmovups(Vmm(uf + i), ptr[reg_for_comparison + i * shift]);
+                    uni_vmovups(Vmm(uf + i + 1),
+                                ptr[reg_for_comparison + i * shift]);
             } else {
-                movss(Xmm(i), ptr[reg_from + i * shift]);
+                movss(Xmm(i + 1), ptr[reg_from + i * shift]);
                 if (this->isBackward)
-                    movss(Xmm(uf + i), ptr[reg_for_comparison + i * shift]);
+                    movss(Xmm(uf + i + 1),
+                          ptr[reg_for_comparison + i * shift]);
+            }
+        }
+
+        if (isa == sse42) {
+            for (int i = 0; i < uf; i++) {
+                movups(Vmm(2 * uf + i + 1), Vmm(i + 1));
+                mulps(Vmm(2 * uf + i + 1), vmm_ns);
+
+                Vmm mask = Vmm(0);
+                if (this->isBackward) {
+                    movups(mask, Vmm(uf + i + 1));
+                    cmpps(mask, vmm_zero, _cmp_gt_os);
+                } else {
+                    movups(mask, Vmm(i + 1));
+                    cmpps(mask, vmm_zero, _cmp_gt_os);
+                }
+                blendvps(Vmm(2 * uf + i + 1), Vmm(i + 1));
+            }
+        } else {
+            for (int i = 0; i < uf; i++) {
+                vmulps(Vmm(2 * uf + i + 1), Vmm(i + 1), vmm_ns);
+                if (isa == avx2) {
+                    if (this->isBackward)
+                        vcmpgtps(vmm_mask, Vmm(uf + i + 1), vmm_zero);
+                    else
+                        vcmpgtps(vmm_mask, Vmm(i + 1), vmm_zero);
+
+                    vblendvps(Vmm(2 * uf + i + 1), Vmm(2 * uf + i + 1),
+                              Vmm(i + 1), vmm_mask);
+
+                } else {
+                    if (this->isBackward)
+                        vcmpps(k_mask, Vmm(uf + i + 1), vmm_zero, _cmp_gt_os);
+                    else
+                        vcmpps(k_mask, Vmm(i + 1), vmm_zero, _cmp_gt_os);
+                    vblendmps(Vmm(2 * uf + i + 1) | k_mask, Vmm(2 * uf + i + 1),
+                              Vmm(i + 1));
+                }
             }
         }
 
         for (int i = 0; i < uf; i++) {
-            vmulps(Vmm(2 * uf + i), Vmm(i), vmm_ns);
-            if (isa == avx2) {
-                if (this->isBackward)
-                    vcmpgtps(vmm_mask, Vmm(uf + i), vmm_zero);
-                else
-                    vcmpgtps(vmm_mask, Vmm(i), vmm_zero);
-
-                vblendvps(Vmm(2 * uf + i), Vmm(2 * uf + i), Vmm(i), vmm_mask);
-
-            } else {
-                if (this->isBackward)
-                    vcmpps(k_mask, Vmm(uf + i), vmm_zero, _cmp_gt_os);
-                else
-                    vcmpps(k_mask, Vmm(i), vmm_zero, _cmp_gt_os);
-                vblendmps(Vmm(2 * uf + i) | k_mask, Vmm(2 * uf + i), Vmm(i));
-            }
-        }
-
-        for (int i = 0; i < uf; i++) {
             if (vectorize) {
-                vmovups(ptr[reg_to + i * shift], Vmm(2 * uf + i));
+                uni_vmovups(ptr[reg_to + i * shift], Vmm(2 * uf + i + 1));
             } else {
-                movss(ptr[reg_to + i * shift], Xmm(2 * uf + i));
+                movss(ptr[reg_to + i * shift], Xmm(2 * uf + i + 1));
             }
         }
     }
@@ -92,7 +113,7 @@ struct jit_uni_relu_kernel_f32 : public jit_generator {
     jit_uni_relu_kernel_f32(bool isbackward, float nslope)
         : jit_generator(), isBackward(isbackward), negative_slope(nslope)
     {
-        assert(isa == avx2 || isa == avx512_common || isa == avx512_mic);
+        assert(isa == sse42 || isa == avx2 || isa == avx512_common);
 
         Reg64 param = abi_param1;
 
@@ -112,7 +133,7 @@ struct jit_uni_relu_kernel_f32 : public jit_generator {
 
         mov(imm_addr64, float2int(this->negative_slope));
         movq(xmm_ns, imm_addr64);
-        vbroadcastss(vmm_ns, xmm_ns);
+        uni_vbroadcastss(vmm_ns, xmm_ns);
 
         uni_vpxor(vmm_zero, vmm_zero, vmm_zero);
 
@@ -141,14 +162,8 @@ struct jit_uni_relu_kernel_f32 : public jit_generator {
     }
 
 private:
-    using Vmm = typename utils::conditional<isa == avx2, Ymm, Zmm>::type;
-    void uni_vpxor(const Xmm &x1, const Xmm &x2, const Operand &op)
-    {
-        if (isa == avx2)
-            vpxor(x1, x2, op);
-        else
-            vpxord(x1, x2, op);
-    }
+    using Vmm = typename utils::conditional3<isa == sse42, Xmm,
+                                             isa == avx2, Ymm, Zmm>::type;
 
     Reg64 reg_from = rax;
     Reg64 reg_for_comparison = this->isBackward ? rdx : reg_from;
@@ -158,10 +173,10 @@ private:
 
     Xmm xmm_ns = Xmm(14);
 
-    Vmm vmm_ns = Vmm(isa == avx2 ? 14 : 30);
-    Vmm vmm_zero = Vmm(isa == avx2 ? 15 : 31);
+    Vmm vmm_ns = Vmm(isa == avx512_common ? 30 : 14);
+    Vmm vmm_zero = Vmm(isa == avx512_common ? 31 : 15);
 
-    Vmm vmm_mask = Vmm(isa == avx2 ? 12 : 28);
+    Vmm vmm_mask = Vmm(isa == avx512_common ? 28 : 12);
     Opmask k_mask = Opmask(1);
 };
 
@@ -176,6 +191,7 @@ status_t jit_uni_relu_fwd_t<isa>::pd_t::init()
                 forward_inference)
         && utils::everyone_is(data_type::f32, desc()->data_desc.data_type)
         && memory_desc_wrapper(src_pd()).is_dense();
+
     return ok ? status::success : status::unimplemented;
 }
 
@@ -300,6 +316,8 @@ void jit_uni_relu_bwd_t<isa>::execute_backward()
     }
 }
 
+template struct jit_uni_relu_fwd_t<sse42>;
+template struct jit_uni_relu_bwd_t<sse42>;
 template struct jit_uni_relu_fwd_t<avx2>;
 template struct jit_uni_relu_bwd_t<avx2>;
 template struct jit_uni_relu_fwd_t<avx512_common>;
