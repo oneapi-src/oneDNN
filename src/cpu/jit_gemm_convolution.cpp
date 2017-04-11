@@ -22,6 +22,14 @@
 #include "type_helpers.hpp"
 #include "mkldnn_thread.hpp"
 
+#ifdef USE_MKL
+#include "mkl_cblas.h"
+#endif
+
+#ifndef USE_CBLAS
+#define cblas_sgemm(...) assert(!"CBLAS is unavailable")
+#endif
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {
@@ -30,8 +38,8 @@ using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::utils;
 
-template <bool with_relu>
-void _jit_gemm_convolution_fwd_t<with_relu>::execute_forward() {
+template <bool with_relu, bool run_jit>
+void _gemm_convolution_fwd_t<with_relu, run_jit>::execute_forward() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto weights = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto bias = reinterpret_cast<const data_t *>(this->input_memory(2));
@@ -67,8 +75,16 @@ void _jit_gemm_convolution_fwd_t<with_relu>::execute_forward() {
 
             if (jcp.need_im2col)
                 jit_gemm_convolution_utils::im2col(jcp, _src, _col);
-            sgemm_->sgemm("N", "N", &M, &N, &K, &one,
-                jcp.need_im2col ? _col:_src, &M, _weights, &K, &zero, _dst, &M);
+
+            if (run_jit) {
+                sgemm_->sgemm("N", "N", &M, &N, &K, &one, jcp.need_im2col ?
+                    _col:_src, &M, _weights, &K, &zero, _dst, &M);
+            } else {
+                cblas_sgemm(CblasColMajor, CblasNoTrans, CblasNoTrans, M, N, K,
+                    one, jcp.need_im2col ? _col:_src, M, _weights, K, zero,
+                    _dst, M);
+            }
+
             if (jcp.with_bias || jcp.with_relu) {
                 data_t *d = _dst, b = 0.0;
                 for (int oc = 0; oc < jcp.oc; ++oc) {
@@ -86,10 +102,13 @@ void _jit_gemm_convolution_fwd_t<with_relu>::execute_forward() {
     }
 }
 
-template void _jit_gemm_convolution_fwd_t<true>::execute_forward();
-template void _jit_gemm_convolution_fwd_t<false>::execute_forward();
+template void _gemm_convolution_fwd_t<true, true>::execute_forward();
+template void _gemm_convolution_fwd_t<false, true>::execute_forward();
+template void _gemm_convolution_fwd_t<true, false>::execute_forward();
+template void _gemm_convolution_fwd_t<false, false>::execute_forward();
 
-void jit_gemm_convolution_bwd_data_t::execute_backward_data() {
+template <bool run_jit>
+void _gemm_convolution_bwd_data_t<run_jit>::execute_backward_data() {
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto weights = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto diff_src = reinterpret_cast<data_t*>(this->memory());
@@ -124,8 +143,15 @@ void jit_gemm_convolution_bwd_data_t::execute_backward_data() {
             const data_t *_weights = weights + g * weights_g_size;
             data_t *_col = this->ws + ithr * jcp.ic * jcp.ks * jcp.os;
 
-            sgemm_->sgemm("N", "T", &M, &N, &K, &one, _diff_dst, &M,
-                _weights, &N, &zero, jcp.need_im2col ? _col : _diff_src, &M);
+            if (run_jit) {
+                sgemm_->sgemm("N", "T", &M, &N, &K, &one, _diff_dst, &M,
+                    _weights, &N, &zero, jcp.need_im2col ? _col:_diff_src, &M);
+            } else {
+                cblas_sgemm(CblasColMajor, CblasNoTrans, CblasTrans, M, N, K,
+                    one, _diff_dst, M, _weights, N, zero,
+                    jcp.need_im2col ? _col : _diff_src, M);
+            }
+
             if (jcp.need_im2col)
                 jit_gemm_convolution_utils::col2im(jcp, _col, _diff_src);
             nd_iterator_step(g, jcp.ngroups, n, jcp.mb);
@@ -133,7 +159,11 @@ void jit_gemm_convolution_bwd_data_t::execute_backward_data() {
     }
 }
 
-void jit_gemm_convolution_bwd_weights_t::execute_backward_weights() {
+template void _gemm_convolution_bwd_data_t<true>::execute_backward_data();
+template void _gemm_convolution_bwd_data_t<false>::execute_backward_data();
+
+template <bool run_jit>
+void _gemm_convolution_bwd_weights_t<run_jit>::execute_backward_weights() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto diff_weights = reinterpret_cast<data_t*>(this->memory(0));
@@ -183,14 +213,17 @@ void jit_gemm_convolution_bwd_weights_t::execute_backward_weights() {
                             + (mb*jcp.ngroups+g)*dst_step;
                     if (jcp.need_im2col)
                         jit_gemm_convolution_utils::im2col(jcp, _src, _col);
-                    if (mb == mb_start)
-                        sgemm_0->sgemm("T", "N", &M, &N, &K, &one,
-                            jcp.need_im2col ? _col : _src, &K,
-                                _diff_dst, &K, &zero, _diff_weights, &M);
-                    else
-                        sgemm_1->sgemm("T", "N", &M, &N, &K, &one,
-                            jcp.need_im2col ? _col : _src, &K,
-                                _diff_dst, &K, &one, _diff_weights, &M);
+                    if (run_jit) {
+                        (mb == mb_start ? sgemm_0 :sgemm_1)->sgemm("T", "N", &M,
+                                &N, &K, &one, jcp.need_im2col ? _col : _src, &K,
+                                _diff_dst, &K, mb == mb_start ? &zero : &one,
+                                _diff_weights, &M);
+                    } else {
+                        cblas_sgemm(CblasColMajor, CblasTrans, CblasNoTrans,
+                                M, N, K, one, jcp.need_im2col ? _col : _src, K,
+                                _diff_dst, K, mb == mb_start ? zero : one,
+                                _diff_weights, M);
+                    }
                 }
             }
             if (need_reduction) {
@@ -228,6 +261,9 @@ void jit_gemm_convolution_bwd_weights_t::execute_backward_weights() {
         }
     }
 }
+
+template void _gemm_convolution_bwd_weights_t<true>::execute_backward_weights();
+template void _gemm_convolution_bwd_weights_t<false>::execute_backward_weights();
 
 }
 }
