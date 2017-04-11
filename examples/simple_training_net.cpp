@@ -215,8 +215,8 @@ void simple_net()
     auto pool_workspace_memory = memory(pool_pd.workspace_primitive_desc());
 
     /* finally create a pooling primitive */
-    auto pool = pooling_forward(pool_pd, lrn_dst_memory, pool_workspace_memory,
-                                pool_dst_memory);
+    auto pool = pooling_forward(pool_pd, lrn_dst_memory, pool_dst_memory,
+                                pool_workspace_memory);
 
     /* build forward net */
     std::vector<primitive> net_fwd;
