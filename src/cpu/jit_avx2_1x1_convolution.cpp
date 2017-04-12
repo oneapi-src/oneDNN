@@ -396,7 +396,8 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights() {
                         const int iw = nstl::max(ow * stride_w - pad_l, 0);
                         rp.iw_start = iw;
 
-                        rp.ws = scratch_ + ithr * ws_per_thread_;
+                        rp.ws = scratch_ + ithr * ws_per_thread_
+                            + (ic_b * jcp.is + sp) * jcp.ic_block;
                         rp.src = src
                             + ih * src_d.blocking_desc().strides[0][2]
                             + iw * src_d.blocking_desc().strides[0][3];
