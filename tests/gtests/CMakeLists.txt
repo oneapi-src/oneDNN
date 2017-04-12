@@ -26,7 +26,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}
 # TODO: enable me!
 #file(GLOB API_TEST_CASES_SRC api_tests/*.cpp)
 #file(GLOB PRIM_TEST_CASES_SRC test_*.cpp)
-file(GLOB PRIM_TEST_CASES_SRC RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/../gtests
+file(GLOB PRIM_TEST_CASES_SRC
                               test_sum.cpp
                               test_reorder.cpp
                               test_concat.cpp
