@@ -86,7 +86,7 @@ struct jit_avx512_mic_1x1_conv_kernel_f32 : public jit_generator {
     int stack_space_needed = 32;
 
     void bcast_loop(int load_loop_blk);
-    void reduce_loop(int load_loop_blk, int ur, int substep);
+    void reduce_loop(int load_loop_blk, int ur, int substep, bool wraparound);
     void diff_bias_loop(int load_loop_blk);
 
     void generate();

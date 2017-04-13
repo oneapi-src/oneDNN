@@ -53,7 +53,7 @@ void jit_avx512_mic_1x1_conv_kernel_f32::bcast_loop(int load_loop_blk)
         int num_substeps = jcp.bcast_block / jcp.ur;
         assert(num_substeps > 0 && num_substeps < 10);
         for (int i = 0; i < num_substeps; i++) {
-            reduce_loop(load_loop_blk, jcp.ur, i);
+            reduce_loop(load_loop_blk, jcp.ur, i, false);
             if (i < num_substeps - 1) {
                 add(aux1_reg_bcast_data, jcp.bcast_loop_bcast_substep);
                 add(aux_reg_output_data, jcp.bcast_loop_output_substep);
@@ -76,13 +76,14 @@ void jit_avx512_mic_1x1_conv_kernel_f32::bcast_loop(int load_loop_blk)
         Label bcast_loop_tail_out;
         cmp(bcast_loop_iter, 0);
         jz(bcast_loop_tail_out, T_NEAR);
-        reduce_loop(load_loop_blk, jcp.ur_tail, 0);
+        reduce_loop(load_loop_blk, jcp.ur_tail, 0, true);
         L(bcast_loop_tail_out);
     }
 }
 
 void jit_avx512_mic_1x1_conv_kernel_f32::reduce_loop(int load_loop_blk, int ur,
-                                                     int substep)
+                                                     int substep,
+                                                     bool wraparound)
 {
     auto vreg_load = [=](int i) {
         return Zmm(ur * load_loop_blk + i);
@@ -221,27 +222,32 @@ void jit_avx512_mic_1x1_conv_kernel_f32::reduce_loop(int load_loop_blk, int ur,
         L(store_done);
     };
 
-    auto prefetch_callback = [=](int ur_hw, int ic, int i_op,
+    auto prefetch_callback = [=](int ur_hw, int u, int j, int i,
                                       bool last_block, bool wraparound) {
         bool pf_ker_l1 = true;
         bool pf_ker_l2 = wraparound;
+        int n_ops = jcp.reduce_loop_unroll * ur_hw * load_loop_blk;
+        int i_op =
+            u * ur_hw * load_loop_blk + j * load_loop_blk + i;
 
         int n_pf_ker_l1 = pf_ker_l1 ? jcp.ic_block : 0;
         int n_pf_ker_l2 = pf_ker_l2 && wraparound ? jcp.ic_block : 0;
         int n_pf_out_l1 = 0;
 
-        int pf_inp_ic_iters = 8; // # of iters over ic during which to pf input
+        int pf_inp_ops = n_ops/2; // # of operations during which to pf input
+        int pf_inp_trigger = nstl::max(1, pf_inp_ops / ur_hw);
 
-        int n_other_pf = n_pf_ker_l1 + n_pf_ker_l2 + n_pf_out_l1;
-        int n_other_pf_ops = ur_hw * (jcp.ic_block - pf_inp_ic_iters);
+        int n_other_pf =
+            load_loop_blk * (n_pf_ker_l1 + n_pf_ker_l2 + n_pf_out_l1);
+        int n_other_pf_ops = n_ops - pf_inp_ops;
         int other_pf_trigger
                 = n_other_pf ? nstl::max(1, n_other_pf_ops / n_other_pf) : 0;
 
-        if (ic < pf_inp_ic_iters && i_op % pf_inp_ic_iters == 0) {
+        if (i_op < pf_inp_ops && i_op % pf_inp_trigger == 0) {
             // input prefetches have the highest priority b/c the
             // first iteration of the kernel block touches all the
             // cache lines
-            int i_pf = i_op / pf_inp_ic_iters;
+            int i_pf = i_op / pf_inp_trigger;
             auto pf_reg = wraparound && last_block
                                   ? reg_bcast_data
                                   : (last_block ? aux1_reg_bcast_data
@@ -251,23 +257,33 @@ void jit_avx512_mic_1x1_conv_kernel_f32::reduce_loop(int load_loop_blk, int ur,
                                         : (last_block ? jcp.ur : jcp.is)))
                        * jcp.ic_block;
             prefetcht0(ptr[pf_reg + offt * sizeof(float)]);
-        } else if (ic >= pf_inp_ic_iters && n_other_pf) {
+        } else if (i_op >= pf_inp_ops && n_other_pf) {
             // remaining prefetches are spread among the rest of the
             // operations; prefetches for output take priority
             // TODO: spread L2 prefetches among L1 prefetches
-            i_op -= pf_inp_ic_iters * jcp.ur;
+            i_op -= pf_inp_ops;
             if (i_op % other_pf_trigger == 0) {
-                int i_pf = i_op / other_pf_trigger;
+                int i_pf = i_op / (load_loop_blk*other_pf_trigger);
                 if (i_pf < n_pf_ker_l2) {
-                    int offt = (i_pf + jcp.ic) * jcp.oc_block;
+                    int offt = (i_pf + i*jcp.ic + jcp.ic) * jcp.oc_block;
+                    if (jcp.prop_kind == backward_data)
+                        offt = (i_pf + i * jcp.oc_block + jcp.oc_block)
+                                * jcp.ic_block;
                     prefetcht1(ptr[aux_reg_load_data + offt * sizeof(float)]);
                 } else if (i_pf < n_pf_ker_l2 + n_pf_ker_l1) {
                     i_pf -= n_pf_ker_l2;
                     auto pf_reg = last_block ? reg_load_data
                                              : aux_reg_load_data;
-                    int offt = (i_pf + (last_block ? (wraparound ? jcp.ic : 0)
-                                                   : jcp.ic_block))
-                               * jcp.oc_block;
+                    int offt = (i_pf + i*jcp.ic
+                                    + (last_block ?
+                                        (wraparound ? jcp.ic : 0)
+                                        : jcp.ic_block))
+                                * jcp.oc_block;
+                    if (jcp.prop_kind == backward_data) {
+                        offt = (i_pf + i * jcp.oc_block + (last_block
+                                ? ( wraparound ? jcp.ic_block : 0)
+                                : jcp.ic)) * jcp.oc_block;
+                    }
                     prefetcht0(ptr[pf_reg + offt * sizeof(float)]);
                 } else if (i_pf < n_pf_ker_l1 + n_pf_ker_l2 + n_pf_out_l1) {
                     i_pf -= n_pf_ker_l1 + n_pf_ker_l2;
@@ -286,10 +302,13 @@ void jit_avx512_mic_1x1_conv_kernel_f32::reduce_loop(int load_loop_blk, int ur,
                                 bcast_ptr(u, j));
 
                     if (j == ur - 1
-                        && !(last_block && u == jcp.reduce_loop_unroll - 1))
+                        && !(last_block
+                            && u == jcp.reduce_loop_unroll - 1))
                         vmovups(vreg_load(i), load_ptr(u + 1, i));
+
+                    prefetch_callback(ur, u, j, i,
+                                        last_block, wraparound);
                 }
-                prefetch_callback(ur, u, j + u * ur, last_block, false);
             }
         }
     };
@@ -646,6 +665,11 @@ status_t jit_avx512_mic_1x1_conv_kernel_f32::init_conf(
 
     } else if (jcp.prop_kind == backward_data) {
 
+        int kernel_treshold = 192*1024;
+        jcp.ur = nstl::min(28, jcp.os);
+        if (jcp.iw <= 14 && jcp.ic * jcp.oc < kernel_treshold)
+            jcp.ur = nstl::min(14, jcp.os);
+
         jcp.reduce_dim = jcp.oc;
         jcp.reduce_block = jcp.oc_block;
 
@@ -669,25 +693,18 @@ status_t jit_avx512_mic_1x1_conv_kernel_f32::init_conf(
         jcp.load_loop_load_step = jcp.oc_block * jcp.ic_block * sizeof(float);
         jcp.load_loop_iter_step = jcp.ic_block;
 
-        load_blocking = nstl::min(64, jcp.load_dim);
-        load_blocking_max = load_blocking;
+        load_blocking = nstl::min(528, jcp.load_dim);
 
-        reduce_blocking = 64;
+        reduce_blocking = nstl::min(256, jcp.reduce_dim);
 
         const int USABLE_KNL_L2 = 400ULL * 1024;
         int os_block_size = sizeof(float) * reduce_blocking * jcp.ur;
         bcast_blocking
                 = nstl::min(jcp.os, jcp.ur * (USABLE_KNL_L2 / os_block_size));
-        int bcast_tail = jcp.os % bcast_blocking;
-        if (bcast_tail) {
-            for (int i = bcast_blocking; i > jcp.ur; i -= jcp.ur)
-                if (jcp.os % i == 0) {
-                    bcast_blocking = i;
-                    bcast_tail = 0;
-                    break;
-                }
-        }
+
+        bcast_blocking = nstl::min(196, bcast_blocking);
         bcast_blocking_max = bcast_blocking * 3 / 2;
+        load_blocking_max = load_blocking * 3 / 2;
 
     } else if (jcp.prop_kind == backward_weights) {
         jcp.reduce_dim = jcp.os;
