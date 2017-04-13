@@ -18,15 +18,15 @@ add_subdirectory (gtest)
 
 set(APP_NAME "gtest")
 set(MAIN_SRC_GTEST main.cpp)
-include_directories(${CMAKE_SOURCE_DIR}/include)
-include_directories(${CMAKE_SOURCE_DIR}/tests/gtests
-                    ${CMAKE_SOURCE_DIR}/tests/gtests/gtest
+
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}
+                    ${CMAKE_CURRENT_SOURCE_DIR}/gtest
+                    ${CMAKE_CURRENT_SOURCE_DIR}/in
                     )
-include_directories(${CMAKE_SOURCE_DIR}/tests/gtests/in)
 # TODO: enable me!
 #file(GLOB API_TEST_CASES_SRC api_tests/*.cpp)
 #file(GLOB PRIM_TEST_CASES_SRC test_*.cpp)
-file(GLOB PRIM_TEST_CASES_SRC RELATIVE ${CMAKE_SOURCE_DIR}/tests/gtests
+file(GLOB PRIM_TEST_CASES_SRC
                               test_sum.cpp
                               test_reorder.cpp
                               test_concat.cpp
@@ -51,7 +51,7 @@ foreach(TEST_FILE ${PRIM_TEST_CASES_SRC})
     get_filename_component (TEST_FILE_WE ${TEST_FILE} NAME_WE)
     set(CURR_APP_NAME ${TEST_FILE_WE})
     add_executable(${CURR_APP_NAME} ${MAIN_SRC_GTEST} ${TEST_FILE})
-    target_link_libraries(${CURR_APP_NAME} mkldnn gtest)
+    target_link_libraries(${CURR_APP_NAME} mkldnn mkldnn_gtest)
     add_test(${CURR_APP_NAME} ${CURR_APP_NAME})
 endforeach()
 
