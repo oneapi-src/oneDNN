@@ -182,6 +182,7 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(jit_uni_batch_normalization_bwd_t<avx512_common>),
     INSTANCE(jit_uni_batch_normalization_fwd_t<avx2>),
     INSTANCE(jit_uni_batch_normalization_bwd_t<avx2>),
+    INSTANCE(jit_uni_batch_normalization_fwd_t<sse42>),
     INSTANCE(ref_batch_normalization_fwd_t<data_type::f32>),
     INSTANCE(ref_batch_normalization_bwd_t<data_type::f32>),
     /* inner product */

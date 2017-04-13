@@ -56,11 +56,18 @@ struct jit_bnorm_t: public jit_generator {
     };
 
     /* cpu specific part */
-    using Vmm = typename utils::conditional<isa == avx2, Ymm, Zmm>::type;
-    const AddressFrame &vmmword = (isa == avx2) ? yword : zword;
-    void uni_vpxor(const Xmm& x1, const Xmm& x2, const Operand& op)
-    { if (isa == avx2) vpxor(x1, x2, op); else vpxord(x1, x2, op); }
-    const int vlen = cpu_isa_trait<isa>::vlen;
+    using Vmm = typename utils::conditional3<isa == sse42, Xmm,
+                                             isa == avx2, Ymm, Zmm>::type;
+    const AddressFrame &vmmword = (isa == sse42) ? xword :
+                                  (isa == avx2) ? yword : zword;
+
+    void uni_vpxor(const Xmm& x1, const Xmm& x2, const Operand& op) {
+        if (isa == sse42) pxor(x2, op);
+        else if (isa == avx2) vpxor(x1, x2, op);
+        else vpxord(x1, x2, op);
+    }
+
+    const int vlen = isa == sse42 ? 32 : cpu_isa_trait<isa>::vlen;
 
     const batch_normalization_pd_t *bdesc_;
 
@@ -91,23 +98,28 @@ struct jit_bnorm_t: public jit_generator {
     Reg64 reg_dst = rsi;
     Reg64 reg_diff_dst = reg_dst;
 
+    Reg64 simd_iter = reg_dst;
+    Reg64 dst_simd_iter = rcx;
+    Reg64 reg_tmp_off = reg_roff;
+
     // Reuse loop counters
     Reg64 reg_bar = reg_coff;
     Reg64 reg_nnthr = reg_soff; // must be usable w/ loops over coff
     Reg64 reg_tmp = reg_ctr;
 
-    size_t unroll_blocks = isa == avx2 ? 1 : 4;
-    size_t unroll_regs = isa == avx2 ? 1 : 4;
-    Vmm vdiff_beta = Vmm(isa == avx2 ? 6 : 21);
-    Vmm vdiff_gamma = Vmm(isa == avx2 ? 7 : 22);
-    Vmm vsqrtvar = Vmm(isa == avx2 ? 8 : 23);
-    Vmm vone = Vmm(isa == avx2 ? 9 : 24);
-    Vmm vmean = Vmm(isa == avx2 ? 10 : 25);
-    Vmm vvar = Vmm(isa == avx2 ? 11 : 26);
-    Vmm vgamma = Vmm(isa == avx2 ? 12 : 27);
-    Vmm vbeta = Vmm(isa == avx2 ? 13 : 28);
-    Vmm veps = Vmm(isa == avx2 ? 14 : 29);
-    Vmm vchan_size = Vmm(isa == avx2 ? 15 : 31);
+    size_t unroll_blocks = isa == avx512_common ? 4 : 1;
+    size_t unroll_regs = isa == avx512_common ? 4 : 1;
+    Vmm vbuf = Vmm(isa == avx512_common ? 20 : 5);
+    Vmm vdiff_beta = Vmm(isa == avx512_common ? 21 : 6);
+    Vmm vdiff_gamma = Vmm(isa == avx512_common ? 22 : 7);
+    Vmm vsqrtvar = Vmm(isa == avx512_common ? 23 : 8);
+    Vmm vone = Vmm(isa == avx512_common ? 24 : 9);
+    Vmm vmean = Vmm(isa == avx512_common ? 25 : 10);
+    Vmm vvar = Vmm(isa == avx512_common ? 26 : 11);
+    Vmm vgamma = Vmm(isa == avx512_common ? 27 : 12);
+    Vmm vbeta = Vmm(isa == avx512_common ? 28 : 13);
+    Vmm veps = Vmm(isa == avx512_common ? 29 : 14);
+    Vmm vchan_size = Vmm(isa == avx512_common ? 31 : 15);
 
     size_t t0_pf_offt;
     size_t t1_pf_offt;
@@ -152,9 +164,9 @@ struct jit_bnorm_t: public jit_generator {
         mov(reg_mean, ptr[reg_param + PARAM_OFF(mean)]);
         mov(reg_scale_shift, ptr[reg_param + PARAM_OFF(scale_shift)]);
 
-        vbroadcastss(vchan_size, vmmword[reg_param + PARAM_OFF(chan_size)]);
-        vbroadcastss(vone, vmmword[reg_param + PARAM_OFF(one)]);
-        vbroadcastss(veps, vmmword[reg_param + PARAM_OFF(eps)]);
+        uni_vbroadcastss(vchan_size, vmmword[reg_param + PARAM_OFF(chan_size)]);
+        uni_vbroadcastss(vone, vmmword[reg_param + PARAM_OFF(one)]);
+        uni_vbroadcastss(veps, vmmword[reg_param + PARAM_OFF(eps)]);
 
         mov(reg_tmp, ptr[reg_param + PARAM_OFF(N_nthr)]);
         mov(ptr[rsp + stack_off_N_nthr], reg_tmp);
@@ -250,49 +262,115 @@ struct jit_bnorm_t: public jit_generator {
             fini(i);
     }
 
+    void mean_channels(const char* ch_label, const char* loop_label) {
+        L(ch_label); {
+            uni_vmovups(Vmm(0), vmmword[reg_rbuf1 + reg_coff]);
+            spat_loop(loop_label, spat_size, unroll_blocks,
+                unroll_regs,
+                    [=](size_t base_reg) {
+                        Vmm v = Vmm(base_reg * 2);
+                        if (base_reg)
+                            uni_vpxor(v, v, v);
+                    },
+                    [=](size_t base_reg, size_t i) {
+                        Vmm v0 = Vmm(base_reg * 2 + 0);
+                        Vmm v1 = Vmm(base_reg * 2 + 1);
+                        size_t offt = i * vlen;
+                        uni_vmovups(v1,
+                            vmmword[reg_src + reg_soff + offt]);
+                        uni_vaddps(v0, v0, v1);
+                        mic_prefetcht0(ptr[reg_src + reg_soff + offt
+                                + t0_pf_offt]);
+                        mic_prefetcht1(ptr[reg_src + reg_soff + offt
+                                + t1_pf_offt]);
+                    },
+                    [=](size_t base_reg) {
+                        Vmm b = Vmm(0);
+                        Vmm v = Vmm(base_reg * 2);
+                        if (base_reg)
+                            uni_vaddps(b, b, v);
+                    });
+            uni_vmovups(vmmword[reg_rbuf1 + reg_coff], Vmm(0));
+
+            add(reg_coff, vlen);
+            cmp(reg_coff, reg_coff_max);
+            jl(ch_label);
+        }
+    }
+
+    void var_channels(const char* ch_label, const char* loop_label) {
+        L(ch_label); {
+            uni_vmovups(vmean, mean_ptr());
+            uni_vmovups(Vmm(0), vmmword[reg_rbuf1 + reg_coff]);
+            spat_loop(loop_label, spat_size, unroll_blocks, unroll_regs,
+                    [=](size_t base_reg) {
+                        Vmm v = Vmm(base_reg * 3);
+                        if (base_reg > 0)
+                            uni_vpxor(v, v, v);
+                    },
+                    [=](size_t base_reg, size_t i) {
+                        Vmm v = Vmm(3 * base_reg);
+                        Vmm vtmp0 = Vmm(3 * base_reg + 1);
+                        Vmm vtmp1 = Vmm(3 * base_reg + 2);
+                        size_t offt = i * vlen;
+                        uni_vmovups(vtmp0,
+                            vmmword[reg_src + reg_soff + offt]);
+                        if (isa == sse42) {
+                            movups(vtmp1, vmean);
+                            subps(vtmp1, vtmp0);
+                        } else {
+                            vsubps(vtmp1, vmean, vtmp0);
+                        }
+                        uni_vfmadd231ps(v, vtmp1, vtmp1);
+
+                        mic_prefetcht0(ptr[reg_src + reg_soff + offt
+                                + t0_pf_offt]);
+                        mic_prefetcht1(ptr[reg_src + reg_soff + offt
+                                + t1_pf_offt]);
+                    },
+                    [=](size_t base_reg) {
+                        Vmm b = Vmm(0);
+                        Vmm v = Vmm(base_reg * 3);
+                        if (base_reg)
+                            uni_vaddps(b, b, v);
+                    });
+            uni_vmovups(vmmword[reg_rbuf1 + reg_coff], Vmm(0));
+            add(reg_coff, vlen);
+            cmp(reg_coff, reg_coff_max);
+            jl(ch_label);
+        }
+    }
+
     void compute_mean_variance() {
         uni_vpxor(Vmm(0), Vmm(0), Vmm(0));
         xor_(reg_coff, reg_coff);
         L("zero_rbuf"); {
-            vmovups(vmmword[reg_rbuf1 + reg_coff], Vmm(0));
-            add(reg_coff, vlen);
+            uni_vmovups(vmmword[reg_rbuf1 + reg_coff], Vmm(0));
+            add(reg_coff, isa == sse42 ? vlen / 2 : vlen);
             cmp(reg_coff, reg_coff_max);
             jne("zero_rbuf");
         }
 
         mov(reg_src, ptr[rsp + stack_off_src]);
+
         xor_(reg_soff, reg_soff);
         L("mean_spatial"); {
             xor_(reg_coff, reg_coff);
-            L("mean_channels"); {
-                vmovups(Vmm(0), vmmword[reg_rbuf1 + reg_coff]);
-                spat_loop("mean_spat", spat_size, unroll_blocks, unroll_regs,
-                        [=](size_t base_reg) {
-                            Vmm v = Vmm(base_reg * 2);
-                            if (base_reg)
-                                uni_vpxor(v, v, v);
-                        },
-                        [=](size_t base_reg, size_t i) {
-                            Vmm v0 = Vmm(base_reg * 2 + 0);
-                            Vmm v1 = Vmm(base_reg * 2 + 1);
-                            size_t offt = i * vlen;
-                            vmovups(v1, vmmword[reg_src + reg_soff + offt]);
-                            vaddps(v0, v0, v1);
-                            mic_prefetcht0(ptr[reg_src + reg_soff + offt
-                                    + t0_pf_offt]);
-                            mic_prefetcht1(ptr[reg_src + reg_soff + offt
-                                    + t1_pf_offt]);
-                        },
-                        [=](size_t base_reg) {
-                            Vmm b = Vmm(0);
-                            Vmm v = Vmm(base_reg * 2);
-                            if (base_reg)
-                                vaddps(b, b, v);
-                        });
-                vmovups(vmmword[reg_rbuf1 + reg_coff], Vmm(0));
-                add(reg_coff, vlen);
-                cmp(reg_coff, reg_coff_max);
-                jne("mean_channels");
+
+            if (isa == sse42)
+                mov(reg_tmp_off, reg_soff);
+
+            mean_channels("mean_channels", "mean_spat");
+
+            if (isa == sse42) {
+                mov(reg_soff, reg_tmp_off);
+                add(reg_src, vlen / 2);
+                mov(reg_coff, vlen / 2);
+
+                mean_channels("mean_channels_high_half",
+                              "mean_spat_high_half");
+
+                sub(reg_src, vlen / 2);
             }
 
             add(reg_soff, reg_mb_stride_Bc);
@@ -312,15 +390,17 @@ struct jit_bnorm_t: public jit_generator {
                 uni_vpxor(Vmm(1), Vmm(1), Vmm(1));
                 mov(reg_ctr, reg_nnthr);
                 L("mean_reduction_thrs"); {
-                    vaddps(Vmm(1), Vmm(1), vmmword[reg_rbuf1 + reg_roff]);
-                    vmovups(vmmword[reg_rbuf1 + reg_roff], Vmm(0));
+                    uni_vaddps(Vmm(1), Vmm(1), vmmword[reg_rbuf1 + reg_roff]);
+                    uni_vmovups(vmmword[reg_rbuf1 + reg_roff], Vmm(0));
                     add(reg_roff, reg_coff_max);
                     sub(reg_ctr, 1);
                     jnz("mean_reduction_thrs");
                 }
-                vdivps(Vmm(1), Vmm(1), vchan_size);
-                vmovups(mean_ptr(), Vmm(1));
-                add(reg_coff, vlen);
+                uni_vdivps(Vmm(1), Vmm(1), vchan_size);
+                uni_vmovups(mean_ptr(), Vmm(1));
+
+                add(reg_coff, isa == sse42 ? vlen / 2 : vlen);
+
                 cmp(reg_coff, reg_coff_max);
                 jne("mean_reduction_channels");
             }
@@ -331,39 +411,23 @@ struct jit_bnorm_t: public jit_generator {
         xor_(reg_soff, reg_soff);
         L("var_spatial"); {
             xor_(reg_coff, reg_coff);
-            L("var_channels"); {
-                vmovups(vmean, mean_ptr());
-                vmovups(Vmm(0), vmmword[reg_rbuf1 + reg_coff]);
-                spat_loop("var_spat", spat_size, unroll_blocks, unroll_regs,
-                        [=](size_t base_reg) {
-                            Vmm v = Vmm(base_reg * 3);
-                            if (base_reg > 0)
-                                uni_vpxor(v, v, v);
-                        },
-                        [=](size_t base_reg, size_t i) {
-                            Vmm v = Vmm(3 * base_reg);
-                            Vmm vtmp0 = Vmm(3 * base_reg + 1);
-                            Vmm vtmp1 = Vmm(3 * base_reg + 2);
-                            size_t offt = i * vlen;
-                            vmovups(vtmp0, vmmword[reg_src + reg_soff + offt]);
-                            vsubps(vtmp1, vmean, vtmp0);
-                            vfmadd231ps(v, vtmp1, vtmp1);
-                            mic_prefetcht0(ptr[reg_src + reg_soff + offt
-                                    + t0_pf_offt]);
-                            mic_prefetcht1(ptr[reg_src + reg_soff + offt
-                                    + t1_pf_offt]);
-                        },
-                        [=](size_t base_reg) {
-                            Vmm b = Vmm(0);
-                            Vmm v = Vmm(base_reg * 3);
-                            if (base_reg)
-                                vaddps(b, b, v);
-                        });
-                vmovups(vmmword[reg_rbuf1 + reg_coff], Vmm(0));
-                add(reg_coff, vlen);
-                cmp(reg_coff, reg_coff_max);
-                jne("var_channels");
+
+            if (isa == sse42)
+                mov(reg_tmp_off, reg_soff);
+
+            var_channels("var_channels", "var_spat");
+
+            if (isa == sse42) {
+                mov(reg_soff, reg_tmp_off);
+                add(reg_src, vlen / 2);
+                mov(reg_coff, vlen / 2);
+
+                var_channels("var_channels_high_half",
+                             "var_spat_high_half");
+
+                sub(reg_src, vlen / 2);
             }
+
             add(reg_soff, reg_mb_stride_Bc);
             cmp(reg_soff, reg_soff_max);
             jne("var_spatial");
@@ -381,14 +445,15 @@ struct jit_bnorm_t: public jit_generator {
                 uni_vpxor(Vmm(1), Vmm(1), Vmm(1));
                 mov(reg_ctr, reg_nnthr);
                 L("var_reduction_thrs"); { // TODO: unroll (?)
-                    vaddps(Vmm(1), Vmm(1), vmmword[reg_rbuf1 + reg_roff]);
+                    uni_vaddps(Vmm(1), Vmm(1), vmmword[reg_rbuf1 + reg_roff]);
                     add(reg_roff, reg_coff_max);
                     sub(reg_ctr, 1);
                     jnz("var_reduction_thrs");
                 }
-                vdivps(Vmm(1), Vmm(1), vchan_size);
-                vmovups(var_ptr(), Vmm(1));
-                add(reg_coff, vlen);
+                uni_vdivps(Vmm(1), Vmm(1), vchan_size);
+                uni_vmovups(var_ptr(), Vmm(1));
+                add(reg_coff, isa == sse42 ? vlen / 2 : vlen);
+
                 cmp(reg_coff, reg_coff_max);
                 jne("var_reduction_channels");
             }
@@ -397,46 +462,78 @@ struct jit_bnorm_t: public jit_generator {
         barrier();
     }
 
+    void forward_channels(const char* ch_label, const char* loop_label) {
+        L(ch_label); {
+            uni_vmovups(vmean, mean_ptr());
+            uni_vmovups(vsqrtvar, var_ptr());
+            uni_vaddps(vsqrtvar, vsqrtvar, veps);
+            uni_vsqrtps(vsqrtvar, vsqrtvar);
+
+            if (isa == sse42) {
+                movups(vbuf, vone);
+                divps(vbuf, vsqrtvar);
+                movups(vsqrtvar, vbuf);
+            } else {
+                vdivps(vsqrtvar, vone, vsqrtvar);
+            }
+
+            if (bdesc_->use_scaleshift()) {
+                uni_vmovups(vgamma, gamma_ptr());
+                uni_vmovups(vbeta, beta_ptr());
+            }
+
+            spat_loop(loop_label, spat_size, unroll_blocks, unroll_regs,
+                    [](size_t base_reg) {UNUSED(base_reg);},
+                    [=](size_t base_reg, size_t i) {
+                        Vmm v = Vmm(base_reg);
+                        size_t offt = i * vlen;
+                        uni_vmovups(v,
+                            vmmword[reg_src + reg_soff + offt]);
+                        mic_prefetcht0(ptr[reg_src + reg_soff + offt
+                                + t0_pf_offt]);
+                        mic_prefetcht1(ptr[reg_src + reg_soff + offt
+                                + t1_pf_offt]);
+                        uni_vsubps(v, v, vmean);
+                        uni_vmulps(v, v, vsqrtvar);
+                        if (bdesc_->use_scaleshift()) {
+                            uni_vfmadd213ps(v, vgamma, vbeta);
+                        }
+                        uni_vmovntps(vmmword[reg_dst + reg_soff + offt],
+                            v);
+                    },
+                    [](size_t base_reg) {UNUSED(base_reg);});
+
+            add(reg_coff, vlen);
+            cmp(reg_coff, reg_coff_max);
+            jl(ch_label);
+        }
+    }
+
     void forward() {
         mov(reg_src, ptr[rsp + stack_off_src]);
         mov(reg_dst, ptr[rsp + stack_off_dst]);
+
         xor_(reg_soff, reg_soff);
         L("dst_spatial"); {
             xor_(reg_coff, reg_coff);
-            L("dst_channels"); {
-                vmovups(vmean, mean_ptr());
-                vmovups(vsqrtvar, var_ptr());
-                vaddps(vsqrtvar, vsqrtvar, veps);
-                vsqrtps(vsqrtvar, vsqrtvar);
-                vdivps(vsqrtvar, vone, vsqrtvar);
-                if (bdesc_->use_scaleshift()) {
-                    vmovups(vgamma, gamma_ptr());
-                    vmovups(vbeta, beta_ptr());
-                }
+            if (isa == sse42)
+                mov(reg_tmp_off, reg_soff);
 
-                spat_loop("dst_spat", spat_size, unroll_blocks, unroll_regs,
-                        [](size_t base_reg) {UNUSED(base_reg);},
-                        [=](size_t base_reg, size_t i) {
-                            Vmm v = Vmm(base_reg);
-                            size_t offt = i * vlen;
-                            vmovups(v, vmmword[reg_src + reg_soff + offt]);
-                            mic_prefetcht0(ptr[reg_src + reg_soff + offt
-                                    + t0_pf_offt]);
-                            mic_prefetcht1(ptr[reg_src + reg_soff + offt
-                                    + t1_pf_offt]);
-                            vsubps(v, v, vmean);
-                            vmulps(v, v, vsqrtvar);
-                            if (bdesc_->use_scaleshift()) {
-                                vfmadd213ps(v, vgamma, vbeta);
-                            }
-                            vmovntps(vmmword[reg_dst + reg_soff + offt], v);
-                        },
-                        [](size_t base_reg) {UNUSED(base_reg);});
+            forward_channels("dst_channels", "spat_loop");
 
-                add(reg_coff, vlen);
-                cmp(reg_coff, reg_coff_max);
-                jne("dst_channels");
+            if (isa == sse42) {
+                mov(reg_soff, reg_tmp_off);
+                add(reg_src, vlen / 2);
+                add(reg_dst, vlen / 2);
+                mov(reg_coff, vlen / 2);
+
+                forward_channels("dst_channels_high_half",
+                                 "spat_loop_high_half");
+
+                sub(reg_src, vlen / 2);
+                sub(reg_dst, vlen / 2);
             }
+
             add(reg_soff, reg_mb_stride_Bc);
             cmp(reg_soff, reg_soff_max);
             jnz("dst_spatial");
@@ -609,7 +706,8 @@ struct jit_bnorm_t: public jit_generator {
     }
 
     jit_bnorm_t(const batch_normalization_pd_t *bdesc): bdesc_(bdesc) {
-        assert(isa == avx2 || isa == avx512_common || isa == avx512_mic);
+        static_assert(isa == sse42 || isa == avx2 || isa == avx512_common
+                || isa == avx512_mic, "unsupported isa");
 
         preamble();
         compute_static_strides();
@@ -744,7 +842,8 @@ private:
         }
     }
 
-    const int simd_w = cpu_isa_trait<isa>::vlen / sizeof(data_t);
+    const int simd_w = isa == sse42 ? 8 :
+        cpu_isa_trait<isa>::vlen / sizeof(data_t);
 
     const batch_normalization_pd_t *bdesc_;
     jit_bnorm_t<isa> ker_;
@@ -814,6 +913,7 @@ void jit_uni_batch_normalization_bwd_t<isa>::execute(event_t *e) {
 }
 
 /* struct instantiation */
+template struct jit_uni_batch_normalization_fwd_t<sse42>;
 template struct jit_uni_batch_normalization_fwd_t<avx2>;
 template struct jit_uni_batch_normalization_bwd_t<avx2>;
 template struct jit_uni_batch_normalization_fwd_t<avx512_common>;
