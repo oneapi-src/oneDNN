@@ -83,9 +83,8 @@ private:
     reg64_t aux_reg_out = abi_not_param1;
 
     inline void prepare_output(int ur_w);
-    inline void store_output(int ur_w, char pad_label);
-    inline int compute_loop(int ur_w, int pad_l, int pad_r,
-            const char *kh_label, char pad_label);
+    inline void store_output(int ur_w);
+    inline int compute_loop(int ur_w, int pad_l, int pad_r);
 
     void generate();
 };

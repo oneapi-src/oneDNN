@@ -41,10 +41,9 @@ void jit_avx512_mic_conv_fwd_kernel_f32::prepare_output(int ur_w)
     }
 }
 
-void jit_avx512_mic_conv_fwd_kernel_f32::store_output(int ur_w, char pad_label)
+void jit_avx512_mic_conv_fwd_kernel_f32::store_output(int ur_w)
 {
-    char no_update_label[] = { '.', 'n', pad_label, '\0' };
-    char store_label[] = { '.', 's', pad_label, '\0' };
+    Label no_update_label, store_label;
 
     mov(reg_current_ic, ptr[this->param1 + GET_OFF(current_ic)]);
     if (jcp.with_bias)
@@ -77,8 +76,8 @@ void jit_avx512_mic_conv_fwd_kernel_f32::store_output(int ur_w, char pad_label)
     }
 }
 
-int jit_avx512_mic_conv_fwd_kernel_f32::compute_loop(
-        int ur_w, int pad_l, int pad_r, const char *kh_label, char pad_label)
+int jit_avx512_mic_conv_fwd_kernel_f32::compute_loop(int ur_w, int pad_l,
+    int pad_r)
 {
     bool prf_ker = true;
     bool prf_inp = true;
@@ -89,6 +88,7 @@ int jit_avx512_mic_conv_fwd_kernel_f32::compute_loop(
     int ic_block = jcp.ic_block;
     int oc_block = jcp.oc_block;
     int nb_oc_block = jcp.nb_oc_blocking;
+    Label kh_label;
 
     int ker_pipeline_depth = 4;
     assert(oc_block >= ker_pipeline_depth);
@@ -152,17 +152,17 @@ int jit_avx512_mic_conv_fwd_kernel_f32::compute_loop(
                         = nstl::max(0, (pad_l - ki + stride_w - 1) / stride_w);
                 int j_end = ur_w
                         - nstl::max(0, (ki + pad_r - (kw - 1) + stride_w - 1)
-                                            / stride_w);
+                        / stride_w);
 
                 for (int j = j_start; j < j_end; j++) {
                     int iw_str = !jcp.is_1stconv ? ic_block : 1;
                     int ic_str = !jcp.is_1stconv ? 1 : iw * ih;
                     int aux_input_offset
                             = typesize * ((ki + j * stride_w - pad_l) * iw_str
-                                                 + ic * ic_str);
+                              + ic * ic_str);
                     vfmadd231ps(
                             Zmm(j), zmm_ker, EVEX_compress_addr(aux_reg_inp,
-                                                     aux_input_offset, true));
+                            aux_input_offset, true));
                     int fma_idx = step * ur_w + j;
                     int prf_slot_idx = fma_idx / prf_inst_spacing;
                     if (fma_idx % prf_inst_spacing == prf_inst_trigger) {
@@ -183,15 +183,15 @@ int jit_avx512_mic_conv_fwd_kernel_f32::compute_loop(
                                     inp_prf_offset
                                             = ic_block * typesize
                                             * ((inp_prf_idx / kw)
-                                                              * inp_prf_stride
-                                                      + (inp_prf_idx % kw));
+                                            * inp_prf_stride
+                                            + (inp_prf_idx % kw));
                                 } else {
                                     int ic_prf_stride = typesize * iw * ih;
                                     int iw_prf_stride = typesize * simd_w;
                                     inp_prf_offset = ((inp_prf_idx / ic_block)
-                                                    * iw_prf_stride
+                                            * iw_prf_stride
                                             + (inp_prf_idx % ic_block)
-                                                    * ic_prf_stride);
+                                            * ic_prf_stride);
                                 }
                                 prefetcht0(EVEX_compress_addr(
                                         aux_reg_inp_prf, inp_prf_offset));
@@ -213,7 +213,7 @@ int jit_avx512_mic_conv_fwd_kernel_f32::compute_loop(
         cmp(reg_kj, 0);
         jg(kh_label, T_NEAR);
     }
-    store_output(ur_w, pad_label);
+    store_output(ur_w);
 
     return 0;
 }
@@ -245,38 +245,36 @@ void jit_avx512_mic_conv_fwd_kernel_f32::generate()
 
     int r_pad = nstl::max(0, (ow - 1) * stride_w + (kw - 1) - (iw + l_pad - 1));
     if (ow == ur_w) {
-        const char *kh_loop_label = ".kh_loop";
         mov(reg_inp_prf, ptr[this->param1 + GET_OFF(src_prf)]);
         mov(reg_out_prf, ptr[this->param1 + GET_OFF(dst_prf)]);
-        compute_loop(ur_w, l_pad, r_pad, kh_loop_label, 'b');
+        compute_loop(ur_w, l_pad, r_pad);
     } else {
         mov(reg_inp_prf, reg_inp);
         mov(reg_out_prf, reg_out);
         int n_oi = ow / ur_w;
-        int r_pad1 = 0;
 
+        int r_pad1 = (ur_w * n_oi - 1) * stride_w + kw - 1 - (iw + l_pad - 1);
         xor_(reg_oi, reg_oi);
         if (l_pad > 0) {
-            const char *kh_loop_l_pad_label = ".kh_loop_l_pad";
             add(reg_inp_prf, inp_shift_pad);
             add(reg_out_prf, out_shift);
-            compute_loop(ur_w, l_pad, 0, kh_loop_l_pad_label, 'l');
+            compute_loop(ur_w, l_pad, 0);
             add(reg_inp, inp_shift_pad);
             add(reg_out, out_shift);
             inc(reg_oi);
 
-            r_pad1 = (ur_w * n_oi - 1) * stride_w + kw - 1 - (iw + l_pad - 1);
             if (r_pad1 > 0)
                 n_oi--;
         }
         if ((l_pad <= 0 && n_oi > 0) || (l_pad > 0 && n_oi > 1)) {
-            const char *kh_loop_main_label = ".kh_loop_main";
-            const char *ow_loop_label = ".ow_loop";
+            if (l_pad <= 0 && r_pad1 > 0)
+                n_oi--;
+            Label ow_loop_label;
             L(ow_loop_label);
             {
                 add(reg_inp_prf, inp_shift);
                 add(reg_out_prf, out_shift);
-                compute_loop(ur_w, 0, 0, kh_loop_main_label, 'n');
+                compute_loop(ur_w, 0, 0);
                 add(reg_inp, inp_shift);
                 add(reg_out, out_shift);
                 inc(reg_oi);
@@ -285,18 +283,16 @@ void jit_avx512_mic_conv_fwd_kernel_f32::generate()
             }
         }
         if (r_pad1 > 0) {
-            const char *kh_loop_r_pad_label = ".kh_loop_r_pad";
             add(reg_inp_prf, inp_shift);
             add(reg_out_prf, out_shift);
-            compute_loop(ur_w, 0, r_pad1, kh_loop_r_pad_label, 'r');
+            compute_loop(ur_w, 0, r_pad1);
             add(reg_inp, inp_shift);
             add(reg_out, out_shift);
         }
         if (ur_w_tail != 0) {
-            const char *kh_loop_tail_label = ".kh_loop_tail";
             add(reg_inp_prf, inp_shift);
             add(reg_out_prf, out_shift);
-            compute_loop(ur_w_tail, 0, r_pad, kh_loop_tail_label, 't');
+            compute_loop(ur_w_tail, 0, r_pad);
         }
     }
 
