@@ -125,7 +125,7 @@ void _jit_avx512_mic_convolution_fwd_t<with_relu>::execute_forward()
             kernel_->jit_ker(&par_conv);
     };
 
-#pragma omp parallel
+#   pragma omp parallel
     {
         ker(omp_get_thread_num(), omp_get_num_threads());
     }
@@ -144,7 +144,7 @@ void jit_avx512_mic_convolution_bwd_data_t::execute_backward_data() {
 
     const auto &jcp = kernel_->jcp;
 
-#pragma omp parallel
+#   pragma omp parallel
     {
         const int ithr=omp_get_thread_num(), nthr=omp_get_num_threads();
 
@@ -281,13 +281,13 @@ void jit_avx512_mic_convolution_bwd_weights_t::execute_backward_weights() {
         if (b_njobs == 0) return;
 
         /* reduction dimension */
-        int img_start, img_end;
+        int img_start{0}, img_end{0};
 
         balance211(jcp.mb, rb->balancer_.nthr_per_group_,
             rb->balancer_.id_in_group(ithr), img_start, img_end);
 
         /* jobs */
-        int g_start, ocb_start;
+        int g_start{0}, ocb_start{0};
         nd_iterator_init(b_job_start, g_start, jcp.ngroups, ocb_start,
             jcp.nb_oc);
 
