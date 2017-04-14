@@ -410,16 +410,6 @@ protected:
         vpaddd(x1, x2, op);
     }
 
-    void uni_vpaddd(const Xbyak::Xmm& x1, const Xbyak::Xmm& x2,
-                    const Xbyak::Operand& op) {
-        assert(x1.getIdx() == x2.getIdx());
-        paddd(x2, op);
-    }
-    void uni_vpaddd(const Xbyak::Ymm& x1, const Xbyak::Xmm& x2,
-                    const Xbyak::Operand& op) {
-        vpaddd(x1, x2, op);
-    }
-
 public:
     jit_generator(
         void *code_ptr = nullptr,

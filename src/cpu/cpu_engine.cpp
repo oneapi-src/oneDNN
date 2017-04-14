@@ -38,7 +38,7 @@
 #include "cpu/ref_pooling.hpp"
 #include "cpu/nchw_pooling.hpp"
 #include "cpu/jit_avx512_common_lrn.hpp"
-#include "cpu/jit_avx2_lrn.hpp"
+#include "cpu/jit_uni_lrn.hpp"
 #include "cpu/ref_lrn.hpp"
 #include "cpu/jit_uni_batch_normalization.hpp"
 #include "cpu/ref_batch_normalization.hpp"
@@ -175,8 +175,9 @@ static const pd_create_f cpu_impl_list[] = {
     /* lrn */
     INSTANCE(jit_avx512_common_lrn_fwd_t),
     INSTANCE(jit_avx512_common_lrn_bwd_t),
-    INSTANCE(jit_avx2_lrn_fwd_t),
-    INSTANCE(jit_avx2_lrn_bwd_t),
+    INSTANCE(jit_uni_lrn_fwd_t<avx2>),
+    INSTANCE(jit_uni_lrn_bwd_t<avx2>),
+    INSTANCE(jit_uni_lrn_fwd_t<sse42>),
     INSTANCE(ref_lrn_fwd_t<data_type::f32>),
     INSTANCE(ref_lrn_bwd_t<data_type::f32>),
     /* batch normalization */

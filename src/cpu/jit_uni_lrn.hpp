@@ -14,31 +14,40 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_AVX2_LRN_FWD_HPP
-#define CPU_JIT_AVX2_LRN_FWD_HPP
+#ifndef CPU_JIT_UNI_LRN_FWD_HPP
+#define CPU_JIT_UNI_LRN_FWD_HPP
 
 #include "c_types_map.hpp"
 #include "cpu_lrn_pd.hpp"
 #include "cpu_engine.hpp"
+#include "jit_uni_lrn_kernel_f32.hpp"
+#include "jit_generator.hpp"
+#include "type_helpers.hpp"
+#include "utils.hpp"
 
 namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-struct jit_avx2_lrn_fwd_t: public cpu_primitive_t {
+using namespace mkldnn::impl::status;
+using namespace mkldnn::impl::memory_format;
+using namespace mkldnn::impl::utils;
+
+template <cpu_isa_t isa>
+struct jit_uni_lrn_fwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_lrn_fwd_pd_t {
         pd_t(engine_t *engine, const lrn_desc_t *adesc,
                 const lrn_fwd_pd_t *hint_fwd_pd)
             : cpu_lrn_fwd_pd_t(engine, adesc, hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T(jit_avx2_lrn_fwd_t);
+        DECLARE_COMMON_PD_T(jit_uni_lrn_fwd_t<isa>);
 
         virtual status_t init() override;
     };
 
-    jit_avx2_lrn_fwd_t(const pd_t *pd, const input_vector &inputs,
+    jit_uni_lrn_fwd_t(const pd_t *pd, const input_vector &inputs,
             const output_vector &outputs);
-    ~jit_avx2_lrn_fwd_t();
+    ~jit_uni_lrn_fwd_t();
 
     typedef typename prec_trait<data_type::f32>::type data_t;
 
@@ -51,24 +60,24 @@ private:
     void execute_forward();
     pd_t conf_;
 
-    struct jit_avx2_lrn_kernel_f32;
-    jit_avx2_lrn_kernel_f32 *ker_, *ker_first_, *ker_last_;
+    jit_uni_lrn_fwd_kernel_f32<isa> *ker_, *ker_first_, *ker_last_;
 };
 
-struct jit_avx2_lrn_bwd_t: public cpu_primitive_t {
+template <cpu_isa_t isa>
+struct jit_uni_lrn_bwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_lrn_bwd_pd_t {
         pd_t(engine_t *engine, const lrn_desc_t *adesc,
                 const lrn_fwd_pd_t *hint_fwd_pd)
             : cpu_lrn_bwd_pd_t(engine, adesc, hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T(jit_avx2_lrn_bwd_t);
+        DECLARE_COMMON_PD_T(jit_uni_lrn_bwd_t<isa>);
 
         virtual status_t init() override;
     };
 
-    jit_avx2_lrn_bwd_t(const pd_t *pd, const input_vector &inputs,
+    jit_uni_lrn_bwd_t(const pd_t *pd, const input_vector &inputs,
             const output_vector &outputs);
-    ~jit_avx2_lrn_bwd_t();
+    ~jit_uni_lrn_bwd_t();
 
     typedef typename prec_trait<data_type::f32>::type data_t;
 
@@ -81,8 +90,7 @@ private:
     void execute_backward();
     pd_t conf_;
 
-    struct jit_avx2_lrn_kernel_f32;
-    jit_avx2_lrn_kernel_f32 *ker_, *ker_first_, *ker_last_;
+    jit_uni_lrn_bwd_kernel_f32<isa> *ker_, *ker_first_, *ker_last_;
 };
 
 }
