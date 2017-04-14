@@ -122,7 +122,8 @@ protected:
         auto dst_ref = memory({c_dst_desc, eng});
 
         fill_data<data_t>(c_src.get_primitive_desc().get_size()
-                / sizeof(data_t), (data_t *)c_src.get_data_handle());
+                / sizeof(data_t), (data_t *)c_src.get_data_handle(),
+                1., true);
 
         fill_data<data_t>(
                 c_weights.get_primitive_desc().get_size()
@@ -136,7 +137,7 @@ protected:
         if (with_bias) {
             fill_data<data_t>(
                     c_bias.get_primitive_desc().get_size() / sizeof(data_t),
-                    (data_t *)c_bias.get_data_handle());
+                    (data_t *)c_bias.get_data_handle(), 1., true);
         }
 
         std::vector<int> padR = { cd.padh, cd.padw };

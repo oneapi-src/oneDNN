@@ -136,11 +136,15 @@ static void fill_data(const int size, data_t *data, data_t mean,
 }
 
 template <typename data_t>
-static void fill_data(const int size, data_t *data, double sparsity = 1.)
+static void fill_data(const int size, data_t *data, double sparsity = 1.,
+        bool init_negs = false)
 {
 #   pragma omp parallel for schedule(static)
     for (int n = 0; n < size; n++) {
         data[n] = set_value<data_t>(n, data_t(1), data_t(2e-1), sparsity);
+
+        if (init_negs && n%4 == 0)
+            data[n] = -data[n];
     }
 }
 
