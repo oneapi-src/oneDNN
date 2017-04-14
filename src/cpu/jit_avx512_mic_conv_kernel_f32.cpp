@@ -43,7 +43,7 @@ void jit_avx512_mic_conv_fwd_kernel_f32::prepare_output(int ur_w)
 
 void jit_avx512_mic_conv_fwd_kernel_f32::store_output(int ur_w)
 {
-    Label no_update_label, store_label;
+    Label no_update_label, store_label, relu_label;
 
     mov(reg_current_ic, ptr[this->param1 + GET_OFF(current_ic)]);
     if (jcp.with_bias)
@@ -56,7 +56,7 @@ void jit_avx512_mic_conv_fwd_kernel_f32::store_output(int ur_w)
         int aux_output_offset = typesize * (i)*jcp.oc_block;
         vaddps(zmm, zmm, EVEX_compress_addr(reg_out, aux_output_offset));
     }
-    jmp(store_label, T_NEAR);
+    jmp(relu_label, T_NEAR);
 
     L(no_update_label);
     if (jcp.with_bias) {
@@ -67,6 +67,20 @@ void jit_avx512_mic_conv_fwd_kernel_f32::store_output(int ur_w)
     }
     if (jcp.with_bias)
         prefetcht1(EVEX_compress_addr(reg_bias, 64));
+
+    L(relu_label);
+    if (jcp.with_relu) {
+        cmp(reg_current_ic, jcp.nb_ic-1);
+        jl(store_label, T_NEAR);
+        const unsigned char _cmp_lt_os = 1;
+        for (int i = 0; i < ur_w; i++){
+            Opmask kmask = Opmask(7);
+            Zmm zmm(i);
+            vcmpps(kmask, zmm, zmm_zero, _cmp_lt_os);
+            vmulps(zmm | kmask, zmm, zmm_relu_ns);
+        }
+    }
+
     L(store_label);
     for (int i = 0; i < ur_w; i++) {
         Zmm zmm(i);
@@ -242,6 +256,10 @@ void jit_avx512_mic_conv_fwd_kernel_f32::generate()
     mov(reg_ker, ptr[this->param1 + GET_OFF(filt)]);
     mov(reg_kh, ptr[this->param1 + GET_OFF(kh_padding)]);
     mov(reg_ker_prf, ptr[this->param1 + GET_OFF(filt_prf)]);
+    mov(reg_relu_ns, reinterpret_cast<size_t>(&jcp.relu_negative_slope));
+
+    vbroadcastss(zmm_relu_ns, ptr[reg_relu_ns]);
+    vpxord(zmm_zero, zmm_zero, zmm_zero);
 
     int r_pad = nstl::max(0, (ow - 1) * stride_w + (kw - 1) - (iw + l_pad - 1));
     if (ow == ur_w) {
