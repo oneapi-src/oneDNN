@@ -240,7 +240,7 @@ protected:
 public:
     jit_generator(
         void *code_ptr = nullptr,
-        size_t code_size = 32 * 1024 // size of a typical IC$
+        size_t code_size = 128 * 1024 // size of a typical IC$
         ) : Xbyak::CodeGenerator(code_size, code_ptr)
     {
     }
