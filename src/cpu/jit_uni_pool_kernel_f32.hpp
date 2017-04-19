@@ -35,8 +35,9 @@ struct jit_pool_conf_t {
     int stride_h, stride_w;
     int kh, kw;
     int t_pad, l_pad;
-    bool is_max;
+    alg_kind_t alg;
     bool is_training;
+    bool pad_w_is_null;
     bool is_backward;
 
     int nb_c, c_block;
@@ -55,6 +56,7 @@ struct __attribute__ ((__packed__)) jit_pool_call_s {
     size_t kh_padding_shift;
     size_t kw_padding;
     const float* init_value;
+    float ker_area_h;
 };
 
 template <cpu_isa_t isa>
@@ -66,6 +68,7 @@ struct jit_uni_pool_kernel_f32: public jit_generator {
     }
 
     jit_pool_conf_t jpp;
+
     void operator()(jit_pool_call_s *arg) { jit_ker(arg); }
     static status_t init_conf(jit_pool_conf_t &jbp,
             const pooling_desc_t &pd, const memory_desc_wrapper &src_d,
@@ -82,9 +85,11 @@ private:
     void uni_vmovdqu(const Xmm& x, const Address& addr)
         { if (isa == avx2) vmovdqu(x, addr); else vmovdqu32(x, addr); }
 
+    Xmm xmm_ker_area_h = Xmm(14);
     Xmm xmm_one = Xmm(14);
     Xmm xmm_tmp = Xmm(13);
 
+    Vmm vmm_ker_area_h = Vmm(isa == avx2 ? 14 : 30);
     Vmm vmm_one = Vmm(isa == avx2 ? 14 : 30);
     Vmm vmm_tmp = Vmm(isa == avx2 ? 13 : 29);
 
@@ -106,15 +111,18 @@ private:
     reg64_t reg_kh  = rax;
     reg64_t reg_k_shift  = rbx;
     reg64_t tmp_gpr = rcx;
+    reg64_t reg_ker_area_h = rdx;
 
+    int prev_kw;
     void (*jit_ker)(jit_pool_call_s *);
 
+    void maybe_recalculate_divisor(int jj, int ur_w, int pad_l, int pad_r);
     void avg_step(int ur_w, int pad_l, int pad_r, const char *kh_label);
     void max_step_fwd(int ur_w, int pad_l, int pad_r, const char *kh_label);
     void max_step_bwd(int ur_w, int pad_l, int pad_r, const char *kh_label);
 
     void step(int ur_w, int pad_l, int pad_r, const char *kh_label) {
-        if (jpp.is_max) {
+        if (jpp.alg == alg_kind::pooling_max) {
             if(jpp.is_backward)
                 max_step_bwd(ur_w, pad_l, pad_r, kh_label);
             else

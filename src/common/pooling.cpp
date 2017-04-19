@@ -36,7 +36,9 @@ status_t pooling_desc_init(pooling_desc_t *pool_desc,
         const dims_t padding_r, padding_kind_t padding_kind) {
     bool args_ok = true
         && !any_null(pool_desc, src_desc, dst_desc, strides, kernel, padding_l)
-        && one_of(alg_kind, pooling_max, pooling_avg)
+        && one_of(alg_kind, pooling_max,
+                pooling_avg_include_padding,
+                pooling_avg_exclude_padding)
         && one_of(padding_kind, padding_kind::padding_zero);
     if (!args_ok) return invalid_arguments;
 

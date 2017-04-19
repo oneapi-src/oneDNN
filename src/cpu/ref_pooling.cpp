@@ -21,6 +21,7 @@
 
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"
+#include "nstl.hpp"
 
 #include "ref_pooling.hpp"
 
@@ -34,8 +35,8 @@ void ref_pooling_fwd_t<data_type>::execute_forward() {
 
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto dst = reinterpret_cast<data_t*>(this->memory(0));
-    auto ws = conf_.desc()->alg_kind == alg_kind::pooling_avg ? nullptr
-        : reinterpret_cast<int*>(this->memory(1));
+    auto ws = conf_.desc()->alg_kind == pooling_max ?
+        reinterpret_cast<int*>(this->memory(1)) : nullptr;
 
     const memory_desc_wrapper src_d(conf_.src_pd());
     const memory_desc_wrapper dst_d(conf_.dst_pd());
@@ -49,6 +50,12 @@ void ref_pooling_fwd_t<data_type>::execute_forward() {
     const int SW = conf_.KSW();
     const int padT = conf_.padT();
     const int padL = conf_.padL();
+
+    auto alg = conf_.desc()->alg_kind;
+
+    auto apply_offset = [=](int index, int offset) {
+        return (index > offset) ? index - offset : 0;
+    };
 
     auto ker_max = [=](data_t *d, int mb, int oc, int oh, int ow) {
         for (int kh = 0; kh < KH; ++kh) {
@@ -69,17 +76,21 @@ void ref_pooling_fwd_t<data_type>::execute_forward() {
     };
 
     auto ker_avg = [=](data_t *d, int mb, int oc, int oh, int ow) {
-        for (int kh = 0; kh < KH; ++kh) {
-            for (int kw = 0; kw < KW; ++kw) {
-                const int ih = oh * SH - padT + kh;
-                const int iw = ow * SW - padL + kw;
+        auto ih_start = apply_offset(oh*SH, padT);
+        auto iw_start = apply_offset(ow*SW, padL);
+        auto ih_end = nstl::min(oh*SH - padT + KH, IH);
+        auto iw_end = nstl::min(ow*SW - padL + KW, IW);
 
-                if (ih < 0 || ih >= IH) continue;
-                if (iw < 0 || iw >= IW) continue;
+        auto num_summands = (alg == pooling_avg_include_padding) ? KW*KH
+            : (ih_end - ih_start)*(iw_end - iw_start);
 
+        for (int ih = ih_start; ih < ih_end; ++ih) {
+            for (int iw = iw_start; iw < iw_end; ++iw) {
                 d[0] += src[src_d.off(mb, oc, ih, iw)];
             }
         }
+
+        d[0] /= num_summands;
     };
 
     const int MB = conf_.MB();
@@ -87,7 +98,7 @@ void ref_pooling_fwd_t<data_type>::execute_forward() {
     const int OH = conf_.OH();
     const int OW = conf_.OW();
 
-    if (conf_.desc()->alg_kind == alg_kind::pooling_max) {
+    if (alg == pooling_max) {
 #       pragma omp parallel for collapse(4) schedule(static)
         for (int mb = 0; mb < MB; ++mb) {
             for (int oc = 0; oc < OC; ++oc) {
@@ -109,7 +120,6 @@ void ref_pooling_fwd_t<data_type>::execute_forward() {
                         data_t *d = &dst[dst_d.off(mb, oc, oh, ow)];
                         d[0] = 0;
                         ker_avg(d, mb, oc, oh, ow);
-                        d[0] /= KW*KH;
                     }
                 }
             }
@@ -122,8 +132,8 @@ void ref_pooling_bwd_t<data_type>::execute_backward() {
     using namespace alg_kind;
 
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(0));
-    auto ws = conf_.desc()->alg_kind == alg_kind::pooling_avg ? nullptr
-        : reinterpret_cast<const int*>(this->input_memory(1));
+    auto ws = conf_.desc()->alg_kind == alg_kind::pooling_max ?
+        reinterpret_cast<const int*>(this->input_memory(1)) : nullptr;
     auto diff_src = reinterpret_cast<data_t*>(this->memory(0));
 
     const memory_desc_wrapper diff_dst_d(conf_.diff_dst_pd());
@@ -138,6 +148,12 @@ void ref_pooling_bwd_t<data_type>::execute_backward() {
     const int SW = conf_.KSW();
     const int padT = conf_.padT();
     const int padL = conf_.padL();
+
+    auto alg = conf_.desc()->alg_kind;
+
+    auto apply_offset = [=](int index, int offset) {
+        return (index > offset) ? index - offset : 0;
+    };
 
     auto ker_zero = [=](int _mb, int _oc) {
         for (int ih = 0; ih < IH; ++ih) {
@@ -158,15 +174,17 @@ void ref_pooling_bwd_t<data_type>::execute_backward() {
     };
 
     auto ker_avg = [=](const data_t *d, int mb, int oc, int oh, int ow) {
-        for (int kh = 0; kh < KH; ++kh) {
-            for (int kw = 0; kw < KW; ++kw) {
-                const int ih = oh * SH - padT + kh;
-                const int iw = ow * SW - padL + kw;
+        auto ih_start = apply_offset(oh*SH, padT);
+        auto iw_start = apply_offset(ow*SW, padL);
+        auto ih_end = nstl::min(oh*SH - padT + KH, IH);
+        auto iw_end = nstl::min(ow*SW - padL + KW, IW);
 
-                if (ih < 0 || ih >= IH) continue;
-                if (iw < 0 || iw >= IW) continue;
+        auto num_summands = (alg == pooling_avg_include_padding) ? KW*KH
+            : (ih_end - ih_start)*(iw_end - iw_start);
 
-                diff_src[diff_src_d.off(mb, oc, ih, iw)] += d[0] / (KH * KW);
+        for (int ih = ih_start; ih < ih_end; ++ih) {
+            for (int iw = iw_start; iw < iw_end; ++iw) {
+                diff_src[diff_src_d.off(mb, oc, ih, iw)] += d[0] / num_summands;
             }
         }
     };

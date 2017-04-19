@@ -34,8 +34,8 @@ void nchw_pooling_fwd_t<data_type>::execute_forward() {
 
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto dst = reinterpret_cast<data_t*>(this->memory(0));
-    auto ws = conf_.desc()->alg_kind == alg_kind::pooling_avg ? nullptr
-        : reinterpret_cast<int*>(this->memory(1));
+    auto ws = conf_.desc()->alg_kind == alg_kind::pooling_max ?
+        reinterpret_cast<int*>(this->memory(1)) : nullptr;
 
     const int MB = conf_.MB();
     const int C = conf_.C();
@@ -49,6 +49,12 @@ void nchw_pooling_fwd_t<data_type>::execute_forward() {
     const int SW = conf_.KSW();
     const int padT = conf_.padT();
     const int padL = conf_.padL();
+
+    auto alg = conf_.desc()->alg_kind;
+
+    auto apply_offset = [=](int index, int offset) {
+        return (index > offset) ? index - offset : 0;
+    };
 
     auto ker_max = [=](data_t *d, int mb, int c, int oh, int ow) {
         for (int kh = 0; kh < KH; ++kh) {
@@ -73,18 +79,22 @@ void nchw_pooling_fwd_t<data_type>::execute_forward() {
     };
 
     auto ker_avg = [=](data_t *d, int mb, int c, int oh, int ow) {
-        for (int kh = 0; kh < KH; ++kh) {
-            for (int kw = 0; kw < KW; ++kw) {
-                const int ih = oh * SH - padT + kh;
-                const int iw = ow * SW - padL + kw;
+        auto ih_start = apply_offset(oh*SH, padT);
+        auto iw_start = apply_offset(ow*SW, padL);
+        auto ih_end = nstl::min(oh*SH - padT + KH, IH);
+        auto iw_end = nstl::min(ow*SW - padL + KW, IW);
 
-                if (ih < 0 || ih >= IH) continue;
-                if (iw < 0 || iw >= IW) continue;
+        auto num_summands = (alg == pooling_avg_include_padding) ? KW*KH
+            : (ih_end - ih_start)*(iw_end - iw_start);
 
+        for (int ih = ih_start; ih < ih_end; ++ih) {
+            for (int iw = iw_start; iw < iw_end; ++iw) {
                 auto src_offset = mb*C*IH*IW + c*IH*IW + ih*IW + iw;
                 d[0] += src[src_offset];
             }
         }
+
+        d[0] /= num_summands;
     };
 
 
@@ -112,7 +122,6 @@ void nchw_pooling_fwd_t<data_type>::execute_forward() {
                         data_t *d = &dst[dst_offset];
                         d[0] = 0;
                         ker_avg(d, mb, c, oh, ow);
-                        d[0] /= KW*KH;
                     }
                 }
             }
@@ -125,8 +134,8 @@ void nchw_pooling_bwd_t<data_type>::execute_backward() {
     using namespace alg_kind;
 
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(0));
-    auto ws = conf_.desc()->alg_kind == alg_kind::pooling_avg ? nullptr
-        : reinterpret_cast<const int*>(this->input_memory(1));
+    auto ws = conf_.desc()->alg_kind == alg_kind::pooling_max ?
+        reinterpret_cast<const int*>(this->input_memory(1)) : nullptr;
     auto diff_src = reinterpret_cast<data_t*>(this->memory(0));
 
     const memory_desc_wrapper ws_d(conf_.workspace_pd());
@@ -144,6 +153,12 @@ void nchw_pooling_bwd_t<data_type>::execute_backward() {
     const int padT = conf_.padT();
     const int padL = conf_.padL();
 
+    auto alg = conf_.desc()->alg_kind;
+
+    auto apply_offset = [=](int index, int offset) {
+        return (index > offset) ? index - offset : 0;
+    };
+
     auto ker_zero = [=](int mb, int c) {
        auto diff_src_offset = mb*C*IH*IW + c*IH*IW;
         for (int ih = 0; ih < IH; ++ih) {
@@ -152,7 +167,6 @@ void nchw_pooling_bwd_t<data_type>::execute_backward() {
             }
         }
     };
-
 
     auto ker_max = [=](const data_t *d, int mb, int c, int oh, int ow) {
         auto b_c = ws_d.blocking_desc().block_dims[1];
@@ -168,16 +182,18 @@ void nchw_pooling_bwd_t<data_type>::execute_backward() {
     };
 
     auto ker_avg = [=](const data_t *d, int mb, int c, int oh, int ow) {
-        for (int kh = 0; kh < KH; ++kh) {
-            for (int kw = 0; kw < KW; ++kw) {
-                const int ih = oh * SH - padT + kh;
-                const int iw = ow * SW - padL + kw;
+        auto ih_start = apply_offset(oh*SH, padT);
+        auto iw_start = apply_offset(ow*SW, padL);
+        auto ih_end = nstl::min(oh*SH - padT + KH, IH);
+        auto iw_end = nstl::min(ow*SW - padL + KW, IW);
 
-                if (ih < 0 || ih >= IH) continue;
-                if (iw < 0 || iw >= IW) continue;
+        auto num_summands = (alg == pooling_avg_include_padding) ? KW*KH
+            : (ih_end - ih_start)*(iw_end - iw_start);
 
+        for (int ih = ih_start; ih < ih_end; ++ih) {
+            for (int iw = iw_start; iw < iw_end; ++iw) {
                 auto diff_src_offset = mb*C*IH*IW + c*IH*IW + ih*IW + iw;
-                diff_src[diff_src_offset] += d[0] / (KH * KW);
+                diff_src[diff_src_offset] += d[0] / num_summands;
             }
         }
     };

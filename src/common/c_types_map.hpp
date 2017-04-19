@@ -61,6 +61,8 @@ namespace alg_kind {
     const alg_kind_t convolution_direct = mkldnn_convolution_direct;
     const alg_kind_t pooling_max = mkldnn_pooling_max;
     const alg_kind_t pooling_avg = mkldnn_pooling_avg;
+    const alg_kind_t pooling_avg_include_padding = mkldnn_pooling_avg_include_padding;
+    const alg_kind_t pooling_avg_exclude_padding = mkldnn_pooling_avg_exclude_padding;
     const alg_kind_t lrn_across_channels = mkldnn_lrn_across_channels;
     const alg_kind_t lrn_within_channel = mkldnn_lrn_within_channel;
 }

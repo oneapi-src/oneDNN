@@ -48,7 +48,9 @@ struct nchw_pooling_fwd_t: public cpu_primitive_t {
                 && set_default_params() == status::success
                 && utils::one_of(desc()->prop_kind, forward_training,
                         forward_inference)
-                && utils::one_of(desc()->alg_kind, pooling_max, pooling_avg)
+                && utils::one_of(desc()->alg_kind, pooling_max,
+                        pooling_avg_include_padding,
+                        pooling_avg_exclude_padding)
                 && utils::everyone_is(data_type, src_pd()->desc()->data_type,
                         dst_pd()->desc()->data_type)
                 && utils::everyone_is(nchw, src_pd()->desc()->format,
@@ -97,14 +99,16 @@ struct nchw_pooling_bwd_t: public cpu_primitive_t {
             bool ok = true
                 && set_default_params() == status::success
                 && utils::one_of(desc()->prop_kind, backward_data)
-                && utils::one_of(desc()->alg_kind, pooling_max, pooling_avg)
+                && utils::one_of(desc()->alg_kind, pooling_max,
+                        pooling_avg_include_padding,
+                        pooling_avg_exclude_padding)
                 && utils::everyone_is(data_type, diff_dst_pd()->desc()->data_type,
                         diff_src_pd()->desc()->data_type)
                 && utils::everyone_is(nchw, diff_dst_pd()->desc()->format,
                         diff_src_pd()->desc()->format);
             if (!ok) return status::unimplemented;
 
-            if (desc()->alg_kind != pooling_avg) {
+            if (desc()->alg_kind == pooling_max) {
                 bool ws_ok = true
                     && hint_fwd_pd_
                     && hint_fwd_pd_->workspace_pd()

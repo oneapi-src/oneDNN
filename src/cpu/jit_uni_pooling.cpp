@@ -29,14 +29,14 @@ template <cpu_isa_t isa>
 void jit_uni_pooling_fwd_t<isa>::execute_forward() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto dst = reinterpret_cast<data_t*>(this->memory(0));
-    auto indices = conf_.desc()->alg_kind == alg_kind::pooling_avg ? nullptr
-        : reinterpret_cast<int*>(this->memory(1));
+    auto indices = conf_.desc()->alg_kind == alg_kind::pooling_max ?
+        reinterpret_cast<int*>(this->memory(1)) : nullptr;
 
     const memory_desc_wrapper src_d(conf_.src_pd());
     const memory_desc_wrapper dst_d(conf_.dst_pd());
     const memory_desc_wrapper indices_d(conf_.workspace_pd());
 
-    const auto &jpp = kernel_->jpp;
+    const auto &jpp = conf_.jpp_;
 
     auto ker = [&](int n, int b_c, int oh) {
         jit_pool_call_s arg = {};
@@ -53,6 +53,9 @@ void jit_uni_pooling_fwd_t<isa>::execute_forward() {
         arg.kh_padding = jpp.kh - i_t_overflow - i_b_overflow;
         arg.kh_padding_shift = i_t_overflow*jpp.kw;
         arg.kw_padding = 0;
+        arg.ker_area_h = jpp.kh -
+            nstl::max(0, oh*jpp.stride_h - jpp.t_pad + jpp.kh - jpp.ih) -
+            nstl::max(0, jpp.t_pad - oh*jpp.stride_h);
 
         (*kernel_)(&arg);
     };
@@ -71,14 +74,14 @@ template <cpu_isa_t isa>
 void jit_uni_pooling_bwd_t<isa>::execute_backward() {
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto diff_src = reinterpret_cast<data_t*>(this->memory(0));
-    auto indices = conf_.desc()->alg_kind == alg_kind::pooling_avg ? nullptr
-        : reinterpret_cast<const int*>(this->input_memory(1));
+    auto indices = conf_.desc()->alg_kind == alg_kind::pooling_max ?
+        reinterpret_cast<const int*>(this->input_memory(1)) : nullptr;
 
     const memory_desc_wrapper diff_src_d(conf_.diff_src_pd());
     const memory_desc_wrapper diff_dst_d(conf_.diff_dst_pd());
     const memory_desc_wrapper indices_d(conf_.workspace_pd());
 
-    const auto &jpp = kernel_->jpp;
+    const auto &jpp = conf_.jpp_;
 
     auto ker = [&](int n, int b_c, int oh) {
         jit_pool_call_s arg = {};
@@ -95,6 +98,9 @@ void jit_uni_pooling_bwd_t<isa>::execute_backward() {
         arg.kh_padding = jpp.kh - i_t_overflow - i_b_overflow;
         arg.kh_padding_shift = i_t_overflow*jpp.kw;
         arg.kw_padding = 0;
+        arg.ker_area_h = jpp.kh -
+            nstl::max(0, oh*jpp.stride_h - jpp.t_pad + jpp.kh - jpp.ih) -
+            nstl::max(0, jpp.t_pad - oh*jpp.stride_h);
 
         (*kernel_)(&arg);
     };

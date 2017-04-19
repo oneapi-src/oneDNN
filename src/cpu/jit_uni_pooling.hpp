@@ -52,7 +52,9 @@ struct jit_uni_pooling_fwd_t: public cpu_primitive_t {
                 && set_default_params() == status::success
                 && one_of(desc()->prop_kind, forward_training,
                         forward_inference)
-                && one_of(desc()->alg_kind, pooling_max, pooling_avg)
+                && one_of(desc()->alg_kind, pooling_max,
+                        pooling_avg_include_padding,
+                        pooling_avg_exclude_padding)
                 && everyone_is(data_type::f32, src_pd()->desc()->data_type,
                         dst_pd()->desc()->data_type)
                 && everyone_is(desired_fmt, src_pd()->desc()->format,
@@ -87,7 +89,8 @@ struct jit_uni_pooling_fwd_t: public cpu_primitive_t {
             const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
     { kernel_ = new jit_uni_pool_kernel_f32<isa>(conf_.jpp_); }
-    ~jit_uni_pooling_fwd_t() { delete kernel_; };
+
+    ~jit_uni_pooling_fwd_t() { delete kernel_; }
 
     typedef typename prec_trait<data_type::f32>::type data_t;
 
@@ -125,7 +128,9 @@ struct jit_uni_pooling_bwd_t: public cpu_primitive_t {
                 && mayiuse(isa)
                 && set_default_params() == status::success
                 && one_of(desc()->prop_kind, backward, backward_data)
-                && one_of(desc()->alg_kind, pooling_max, pooling_avg)
+                && one_of(desc()->alg_kind, pooling_max,
+                        pooling_avg_include_padding,
+                        pooling_avg_exclude_padding)
                 && everyone_is(desired_fmt, diff_src_pd()->desc()->format,
                         diff_dst_pd()->desc()->format)
                 && everyone_is(data_type::f32, diff_src_pd()->desc()->data_type,
@@ -159,7 +164,8 @@ struct jit_uni_pooling_bwd_t: public cpu_primitive_t {
             const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
     { kernel_ = new jit_uni_pool_kernel_f32<isa>(conf_.jpp_); }
-    ~jit_uni_pooling_bwd_t() { delete kernel_; };
+
+    ~jit_uni_pooling_bwd_t() { delete kernel_; }
 
     typedef typename prec_trait<data_type::f32>::type data_t;
 
