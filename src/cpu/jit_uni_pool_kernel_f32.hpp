@@ -84,17 +84,17 @@ private:
         { if (isa == avx2) vmovdqu(addr, x); else vmovdqu32(addr, x); }
     void uni_vmovdqu(const Xmm& x, const Address& addr)
         { if (isa == avx2) vmovdqu(x, addr); else vmovdqu32(x, addr); }
+    Vmm vreg(int idx) { return Vmm((isa == avx2 ? 15 : 31) - idx); }
 
-    Xmm xmm_ker_area_h = Xmm(14);
-    Xmm xmm_one = Xmm(14);
-    Xmm xmm_tmp = Xmm(13);
+    Xmm xmm_ker_area_h = Xmm(1);
+    Xmm xmm_one = Xmm(1);
+    Xmm xmm_tmp = Xmm(2);
 
-    Vmm vmm_ker_area_h = Vmm(isa == avx2 ? 14 : 30);
-    Vmm vmm_one = Vmm(isa == avx2 ? 14 : 30);
-    Vmm vmm_tmp = Vmm(isa == avx2 ? 13 : 29);
+    Vmm vmm_ker_area_h = Vmm(1);
+    Vmm vmm_one = Vmm(1);
+    Vmm vmm_tmp = Vmm(2);
 
-    Vmm vmm_input = Vmm(isa == avx2 ? 12 : 28);
-    Vmm vmm_k_offset = Vmm(isa == avx2 ? 15 : 31);
+    Vmm vmm_k_offset = Vmm(0);
 
     Opmask k_store_mask = Opmask(7);
 
