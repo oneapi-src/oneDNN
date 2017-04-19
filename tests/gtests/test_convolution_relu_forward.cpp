@@ -55,8 +55,10 @@ void compute_ref_conv_relu_fwd(const test_convolution_sizes_t &c,
                         for (int ic = 0; ic < c.ic / c.ng; ic++) {
                             for (int kh = 0; kh < c.kh; kh++) {
                                 for (int kw = 0; kw < c.kw; kw++) {
-                                    int iw = ow * c.strw - c.padw + kw;
-                                    int ih = oh * c.strh - c.padh + kh;
+                                    int iw = ow * c.strw
+                                          - c.padw + kw * (1 + c.dilw);
+                                    int ih = oh * c.strh
+                                          - c.padh + kh * (1 + c.dilh);
                                     if (iw < 0 || iw >= c.iw) continue;
                                     if (ih < 0 || ih >= c.ih) continue;
                                     int iidx = n * c.ic * c.ih * c.iw
@@ -149,19 +151,23 @@ protected:
 
         std::vector<int> padR = { cd.padh, cd.padw };
         for (int i = 0; i < 2; ++i) {
-        if ((cd.ih + cd.padh + padR[0] - cd.kh)/cd.strh + 1 != cd.oh) ++padR[0];
-        if ((cd.iw + cd.padw + padR[1] - cd.kw)/cd.strw + 1 != cd.ow) ++padR[1];
+            if ((cd.ih - ((cd.kh - 1) * (cd.dilh + 1) + 1) + cd.padh + padR[0])
+                / cd.strh + 1 != cd.oh)
+                ++padR[0];
+            if ((cd.iw - ((cd.kw - 1) * (cd.dilw + 1) + 1) + cd.padw + padR[1])
+                / cd.strw + 1 != cd.ow)
+                ++padR[1];
         }
 
         auto conv_desc = with_bias ?
                 convolution_forward::desc(prop_kind::forward_scoring,
                         p.aalgorithm, c_src_desc, c_weights_desc, c_bias_desc,
-                        c_dst_desc, { cd.strh, cd.strw }, { cd.padh, cd.padw },
-                        padR, padding_kind::zero) :
+                        c_dst_desc, { cd.strh, cd.strw }, { cd.dilh, cd.dilw },
+                        { cd.padh, cd.padw }, padR, padding_kind::zero) :
                 convolution_forward::desc(prop_kind::forward_scoring,
                         p.aalgorithm, c_src_desc, c_weights_desc, c_dst_desc,
-                        { cd.strh, cd.strw }, { cd.padh, cd.padw }, padR,
-                        padding_kind::zero);
+                        { cd.strh, cd.strw }, { cd.dilh, cd.dilw },
+                        { cd.padh, cd.padw }, padR, padding_kind::zero);
 
         auto conv_relu_desc =
             convolution_relu_forward::desc(conv_desc, NEGATIVE_SLOPE);
@@ -193,5 +199,6 @@ TEST_P(convolution_test, TestConvolution)
 #define FP32
 #define DIRECTION_FORWARD
 #include "convolution_common.h"
+#include "diluted_convolution.h"
 
 }

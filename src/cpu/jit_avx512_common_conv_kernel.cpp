@@ -529,6 +529,11 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     jcp.relu_negative_slope = relu_negative_slope;
     jcp.ur_h = 1;
 
+    jcp.dilate_h = cd.dilates[0];
+    jcp.dilate_w = cd.dilates[1];
+    if (jcp.dilate_h != 0 || jcp.dilate_w != 0)
+        return status::unimplemented;
+
     // TODO: simplify
     if (jcp.ic % simd_w != 0) {
         if ((jcp.ic == 3 || jcp.ic == 1) && jcp.src_fmt == nchw)
@@ -985,6 +990,11 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
     jcp.stride_h = cd.strides[0];
     jcp.stride_w = cd.strides[1];
     if (jcp.stride_w != jcp.stride_h)
+        return status::unimplemented;
+
+    jcp.dilate_h = cd.dilates[0];
+    jcp.dilate_w = cd.dilates[1];
+    if (jcp.dilate_h != 0 || jcp.dilate_w != 0)
         return status::unimplemented;
 
     jcp.r_pad = nstl::max(0, (jcp.ow - 1) * jcp.stride_w + jcp.kw - jcp.iw
@@ -1598,6 +1608,11 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
 
     jcp.stride_h = cd.strides[0];
     jcp.stride_w = cd.strides[1];
+
+    jcp.dilate_h = cd.dilates[0];
+    jcp.dilate_w = cd.dilates[1];
+    if (jcp.dilate_h != 0 || jcp.dilate_w != 0)
+        return status::unimplemented;
 
     jcp.r_pad = nstl::max(0, (jcp.ow - 1) * jcp.stride_w + jcp.kw - jcp.iw
         - jcp.l_pad);

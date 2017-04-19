@@ -421,6 +421,8 @@ typedef struct {
     mkldnn_memory_desc_t diff_dst_desc;
     /** Convolution strides in each spatial dimension. */
     mkldnn_dims_t strides;
+    /** Convolution dilates in each spatial dimension. */
+    mkldnn_dims_t dilates;
     /** Padding in each spatial dimension. padding[0] is a padding in the
      * beginning (@p padding_l), padding[1] is a padding in the end (@p
      * padding_r). */

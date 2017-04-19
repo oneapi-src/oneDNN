@@ -18,9 +18,6 @@
 
 #include "mkldnn.hpp"
 
-#define EXPAND_ARGS(args) args
-#define EXPAND_SIZES(mb, ng, ic, ih, iw, oc, oh, ow, kh, kw, ph, pw, sh, sw) \
-    { mb, ng, ic, ih, iw, oc, oh, ow, kh, kw, ph, pw, sh, sw }
 #define EXPAND_FORMATS(src, weights, bias, dst) \
     { mkldnn::memory::format::src, mkldnn::memory::format::weights, \
     mkldnn::memory::format::bias, mkldnn::memory::format::dst }
@@ -60,7 +57,7 @@
 
 #define PARAMS(src, weights, bias, dst, ...) \
     test_convolution_params_t { ENGINE, ALGORITHM, \
-    EXPAND_FORMATS(src, weights, bias, dst), EXPAND_ARGS(EXPAND_SIZES(__VA_ARGS__)) }
+    EXPAND_FORMATS(src, weights, bias, dst), {__VA_ARGS__} }
 
 #define CONCAT_WITH_UNDERSCORE_(a,b) a ## _ ## b
 #define CONCAT_WITH_UNDERSCORE(a,b) CONCAT_WITH_UNDERSCORE_(a,b)

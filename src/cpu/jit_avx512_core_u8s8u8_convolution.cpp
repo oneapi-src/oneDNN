@@ -396,6 +396,8 @@ status_t jit_avx512_core_u8s8u8_conv_fwd_ker_t::init_conf(jit_conv_conf_t &c,
     c.r_pad = cd.padding[1][1];
     c.stride_h = cd.strides[0];
     c.stride_w = cd.strides[1];
+    c.dilate_h = cd.dilates[0];
+    c.dilate_w = cd.dilates[1];
     c.src_fmt = src_d.format();
     c.with_bias = cd.bias_desc.format != memory_format::undef;
     c.with_relu = with_relu;
@@ -407,6 +409,8 @@ status_t jit_avx512_core_u8s8u8_conv_fwd_ker_t::init_conf(jit_conv_conf_t &c,
     const bool args_ok = true
         && c.ic % c.ic_block == 0
         && c.oc % c.oc_block == 0
+        && c.dilate_h == 0
+        && c.dilate_w == 0
         && everyone_is(nhwc, src_d.format(), dst_d.format())
         && wei_d.format() == (with_groups ? gOhIw16o4i : OhIw16o4i)
         && one_of(cd.bias_desc.format, memory_format::undef, any, x)

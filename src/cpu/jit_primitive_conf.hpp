@@ -40,6 +40,7 @@ struct jit_conv_conf_t {
     int r_pad, b_pad;
     int kh, kw;
     int stride_h, stride_w;
+    int dilate_h, dilate_w;
     memory_format_t src_fmt;
     bool with_bias, with_relu;
     double relu_negative_slope;
@@ -151,6 +152,7 @@ struct jit_gemm_conv_conf_t {
     int l_pad, t_pad;
     int kh, kw;
     int stride_h, stride_w;
+    int dilate_h, dilate_w;
     memory_format_t src_fmt;
     bool with_bias, with_relu;
     double relu_negative_slope;

@@ -41,12 +41,12 @@ void im2col(
     for (int ic = 0; ic < jcp.ic; ++ic) {
         for (int kh = 0; kh < jcp.kh; ++kh) {
         for (int oh = 0; oh < jcp.oh; ++oh) {
-            const int ih = oh * jcp.stride_h - jcp.t_pad + kh;
+            const int ih = oh * jcp.stride_h - jcp.t_pad + kh * (1 + jcp.dilate_h);
             if (ih < 0 || ih >= jcp.ih) continue;
 
             for (int kw = 0; kw < jcp.kw; ++kw) {
             for (int ow = 0; ow < jcp.ow; ++ow) {
-                const int iw = ow * jcp.stride_w - jcp.l_pad + kw;
+                const int iw = ow * jcp.stride_w - jcp.l_pad + kw * (1 + jcp.dilate_w);
                 if (iw < 0 || iw >= jcp.iw) continue;
 
                 const size_t col_idx = ((kh*jcp.kw + kw)*jcp.oh+oh)*jcp.ow+ow;
@@ -74,12 +74,12 @@ void col2im(
 
         for (int oh = 0; oh < jcp.oh; ++oh) {
         for (int kh = 0; kh < jcp.kh; ++kh) {
-            const int ih = oh * jcp.stride_h - jcp.t_pad + kh;
+            const int ih = oh * jcp.stride_h - jcp.t_pad + kh * (1 + jcp.dilate_h);
             if (ih < 0 || ih >= jcp.ih) continue;
 
             for (int ow = 0; ow < jcp.ow; ++ow) {
             for (int kw = 0; kw < jcp.kw; ++kw) {
-                const int iw = ow * jcp.stride_w - jcp.l_pad + kw;
+                const int iw = ow * jcp.stride_w - jcp.l_pad + kw * (1 + jcp.dilate_w);
                 if (iw < 0 || iw >= jcp.iw) continue;
 
                 const size_t col_idx = ((kh*jcp.kw + kw)*jcp.oh+oh)*jcp.ow+ow;
@@ -122,6 +122,9 @@ void init_conf(
 
     jcp.stride_h = cd.strides[0];
     jcp.stride_w = cd.strides[1];
+
+    jcp.dilate_h = cd.dilates[0];
+    jcp.dilate_w = cd.dilates[1];
 
     jcp.src_fmt = src_d.format();
     jcp.with_bias

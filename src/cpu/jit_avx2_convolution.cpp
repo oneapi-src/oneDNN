@@ -70,19 +70,21 @@ void _jit_avx2_convolution_fwd_t<with_relu>::execute_forward() {
 
                     const int ij = oh * jcp.stride_h;
                     const int i_t_overflow = nstl::max(0, jcp.t_pad - ij);
-                    const int i_b_overflow = nstl::max(jcp.ih,
-                                        ij + jcp.kh - jcp.t_pad) - jcp.ih;
+                    const int i_b_overflow = nstl::max(jcp.ih, ij
+                        + (jcp.kh-1) * (jcp.dilate_h+1) - jcp.t_pad+1) - jcp.ih;
 
                     const size_t _oc = g * jcp.nb_oc + ocb;
                     const size_t _ic = g * jcp.nb_ic + icb;
 
-                    const int ih = nstl::max(ij - jcp.t_pad, 0);
+                    const int ih = nstl::max(ij - jcp.t_pad
+                        + div_up(i_t_overflow,
+                                 (jcp.dilate_h+1)) * (jcp.dilate_h + 1), 0);
                     par_conv.src = &src[src_d.blk_off(n,
                         jcp.ic == 3 ? 0 : _ic, ih, 0)];
 
                     par_conv.dst = &dst[dst_d.blk_off(n, _oc, oh, 0)];
 
-                    const int wh = i_t_overflow;
+                    const int wh = div_up(i_t_overflow, (jcp.dilate_h + 1));
                     par_conv.filt = &weights[conf_.with_groups()
                                         ? weights_d.blk_off(g, ocb,
                                             jcp.ic == 3 ? 0 : icb, wh, 0)
@@ -102,7 +104,9 @@ void _jit_avx2_convolution_fwd_t<with_relu>::execute_forward() {
                                     jit_avx2_conv_fwd_kernel_f32::IC_FLAG_LAST;
                     }
 
-                    par_conv.kh_padding = jcp.kh - i_t_overflow - i_b_overflow;
+                    par_conv.kh_padding = jcp.kh
+                        - div_up(i_t_overflow, (jcp.dilate_h + 1))
+                        - div_up(i_b_overflow, (jcp.dilate_h + 1));
                     par_conv.kw_padding = 0;
 
                     par_conv.oc_blocks =
