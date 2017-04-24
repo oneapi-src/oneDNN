@@ -370,6 +370,10 @@ status_t jit_avx512_mic_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
         }
     }
 
+    //TODO (Tanya) currenly applied to Segnet convolutions only.
+    //Need to try for other topologies
+    if (jcp.ow > 150 && jcp.ur_w < regs/2) jcp.ur_w = regs;
+
     int n_oi = (jcp.ow / jcp.ur_w);
     int r_pad = (jcp.ur_w * n_oi - 1) * jcp.stride_w + jcp.kw - jcp.iw
             - jcp.l_pad;
