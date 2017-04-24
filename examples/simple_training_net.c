@@ -21,7 +21,7 @@
 #include <math.h>
 #include "mkldnn.h"
 
-#define BATCH 256
+#define BATCH 32
 
 #define CHECK(f)                                                               \
     do {                                                                       \

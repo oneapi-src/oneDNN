@@ -25,7 +25,7 @@ void simple_net()
 {
     auto cpu_engine = engine(engine::cpu, 0);
 
-    const uint32_t batch = 256;
+    const uint32_t batch = 32;
 
     std::vector<float> net_src(batch * 3 * 227 * 227);
     std::vector<float> net_dst(batch * 96 * 27 * 27);

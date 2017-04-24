@@ -20,7 +20,7 @@
 #include <stdlib.h>
 #include "mkldnn.h"
 
-#define BATCH 256
+#define BATCH 8
 
 #define CHECK(f) do { \
     mkldnn_status_t s = f; \
