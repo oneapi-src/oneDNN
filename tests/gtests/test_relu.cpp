@@ -46,7 +46,7 @@ void check_relu_fwd(data_t negative_slope, const memory::desc &md,
     size_t W = md.data.dims[3];
     for (size_t i = 0; i < N * C * H * W; ++i) {
         data_t s = src_data[i];
-        assert_eq(dst_data[i], s >= 0 ? s : s * negative_slope);
+        assert_eq(dst_data[i], s > 0 ? s : s * negative_slope);
     }
 }
 
@@ -68,7 +68,7 @@ void check_relu_bwd(data_t negative_slope, const memory::desc &md,
     for (size_t i = 0; i < N * C * H * W; ++i) {
         data_t s = src_data[i];
         data_t dd = diff_dst_data[i];
-        assert_eq(diff_src_data[i], s >= 0 ? dd : dd * negative_slope);
+        assert_eq(diff_src_data[i], s > 0 ? dd : dd * negative_slope);
     }
 }
 
