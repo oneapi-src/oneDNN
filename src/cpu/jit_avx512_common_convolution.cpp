@@ -17,7 +17,7 @@
 #include "mkldnn_types.h"
 
 #include "c_types_map.hpp"
-#include "jit_avx512_mic_convolution.hpp"
+#include "jit_avx512_common_convolution.hpp"
 #include "mkldnn_thread.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
@@ -31,7 +31,7 @@ using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::utils;
 
 template <bool with_relu>
-void _jit_avx512_mic_convolution_fwd_t<with_relu>::execute_forward()
+void _jit_avx512_common_convolution_fwd_t<with_relu>::execute_forward()
 {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto weights = reinterpret_cast<const data_t *>(this->input_memory(1));
@@ -130,10 +130,10 @@ void _jit_avx512_mic_convolution_fwd_t<with_relu>::execute_forward()
         ker(omp_get_thread_num(), omp_get_num_threads());
     }
 }
-template void _jit_avx512_mic_convolution_fwd_t<true>::execute_forward();
-template void _jit_avx512_mic_convolution_fwd_t<false>::execute_forward();
+template void _jit_avx512_common_convolution_fwd_t<true>::execute_forward();
+template void _jit_avx512_common_convolution_fwd_t<false>::execute_forward();
 
-void jit_avx512_mic_convolution_bwd_data_t::execute_backward_data() {
+void jit_avx512_common_convolution_bwd_data_t::execute_backward_data() {
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto weights = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto diff_src = reinterpret_cast<data_t*>(this->memory());
@@ -215,7 +215,7 @@ void jit_avx512_mic_convolution_bwd_data_t::execute_backward_data() {
     }
 }
 
-void jit_avx512_mic_convolution_bwd_weights_t::execute_backward_weights() {
+void jit_avx512_common_convolution_bwd_weights_t::execute_backward_weights() {
     auto src = reinterpret_cast<const data_t * > (this->input_memory(0));
     auto diff_dst = reinterpret_cast<const data_t * > (this->input_memory(1));
     auto diff_weights = reinterpret_cast<data_t *>(this->memory(0));

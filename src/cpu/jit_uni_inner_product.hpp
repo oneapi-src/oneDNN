@@ -23,7 +23,7 @@
 #include "cpu_engine.hpp"
 #include "cpu_inner_product_pd.hpp"
 #include "jit_avx2_gemm_f32.hpp"
-#include "jit_avx512_mic_gemm_f32.hpp"
+#include "jit_avx512_common_gemm_f32.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
@@ -95,7 +95,7 @@ private:
     void execute_forward();
     pd_t conf_;
     using jit_uni_gemm_f32 = typename utils::conditional
-         <isa == avx2, jit_avx2_gemm_f32, jit_avx512_mic_gemm_f32>::type;
+         <isa == avx2, jit_avx2_gemm_f32, jit_avx512_common_gemm_f32>::type;
     jit_uni_gemm_f32 *sgemm_;
 };
 
@@ -161,7 +161,7 @@ private:
     void execute_backward_weights();
     pd_t conf_;
     using jit_uni_gemm_f32 = typename utils::conditional
-        <isa == avx2, jit_avx2_gemm_f32, jit_avx512_mic_gemm_f32>::type;
+        <isa == avx2, jit_avx2_gemm_f32, jit_avx512_common_gemm_f32>::type;
     jit_uni_gemm_f32 *sgemm_;
 };
 
@@ -228,7 +228,7 @@ private:
     void execute_backward_data();
     pd_t conf_;
     using jit_uni_gemm_f32 = typename utils::conditional
-        <isa == avx2, jit_avx2_gemm_f32, jit_avx512_mic_gemm_f32>::type;
+        <isa == avx2, jit_avx2_gemm_f32, jit_avx512_common_gemm_f32>::type;
     jit_uni_gemm_f32 *sgemm_;
 };
 }

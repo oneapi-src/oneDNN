@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef JIT_AVX512_MIC_GEMM_F32_HPP
-#define JIT_AVX512_MIC_GEMM_F32_HPP
+#ifndef JIT_AVX512_COMMON_GEMM_F32_HPP
+#define JIT_AVX512_COMMON_GEMM_F32_HPP
 
 #include "c_types_map.hpp"
 #include "jit_generator.hpp"
@@ -24,16 +24,16 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-class jit_avx512_mic_gemm_f32 {
+class jit_avx512_common_gemm_f32 {
 public:
     void sgemm(const char *transa, const char *transb, const int *M,
             const int *N, const int *K, const float *alpha, const float *A,
             const int *lda, const float *B, const int *ldb, const float *beta,
             float *C, const int *ldc, const float *bias = NULL);
 
-    jit_avx512_mic_gemm_f32(
+    jit_avx512_common_gemm_f32(
             char transa, char transb, float beta, bool hasBias = false);
-    ~jit_avx512_mic_gemm_f32();
+    ~jit_avx512_common_gemm_f32();
 
 private:
     typedef void (*ker)(long long int, long long int, long long int, float *,
@@ -47,7 +47,7 @@ private:
             int ithr, int nthr, int n, int *t_offset, int *t_block);
     inline void sum_two_matrices(
             int m, int n, float *p_src, int ld_src, float *p_dst, int ld_dst);
-    inline void calc_nthr_nocopy_avx512_mic(int m, int n, int k, int nthrs,
+    inline void calc_nthr_nocopy_avx512_common(int m, int n, int k, int nthrs,
             int *nthrs_m, int *nthrs_n, int *nthrs_k, int *BM, int *BN,
             int *BK);
 

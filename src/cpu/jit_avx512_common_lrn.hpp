@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_AVX512_MIC_LRN_HPP
-#define CPU_JIT_AVX512_MIC_LRN_HPP
+#ifndef CPU_JIT_AVX512_COMMON_LRN_HPP
+#define CPU_JIT_AVX512_COMMON_LRN_HPP
 
 #include "c_types_map.hpp"
 #include "cpu_lrn_pd.hpp"
@@ -25,20 +25,20 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-struct jit_avx512_mic_lrn_fwd_t: public cpu_primitive_t {
+struct jit_avx512_common_lrn_fwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_lrn_fwd_pd_t {
         pd_t(engine_t *engine, const lrn_desc_t *adesc,
                 const lrn_fwd_pd_t *hint_fwd_pd)
             : cpu_lrn_fwd_pd_t(engine, adesc, hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T(jit_avx512_mic_lrn_fwd_t);
+        DECLARE_COMMON_PD_T(jit_avx512_common_lrn_fwd_t);
 
         virtual status_t init() override;
     };
 
-    jit_avx512_mic_lrn_fwd_t(const pd_t *pd, const input_vector &inputs,
+    jit_avx512_common_lrn_fwd_t(const pd_t *pd, const input_vector &inputs,
             const output_vector &outputs);
-    ~jit_avx512_mic_lrn_fwd_t();
+    ~jit_avx512_common_lrn_fwd_t();
 
     typedef typename prec_trait<data_type::f32>::type data_t;
 
@@ -52,25 +52,25 @@ private:
     pd_t conf_;
 
     int use_h_parallelism;
-    struct jit_avx512_mic_lrn_kernel_f32;
-    jit_avx512_mic_lrn_kernel_f32 *ker_, *ker_first_, *ker_last_;
+    struct jit_avx512_common_lrn_kernel_f32;
+    jit_avx512_common_lrn_kernel_f32 *ker_, *ker_first_, *ker_last_;
 
 };
 
-struct jit_avx512_mic_lrn_bwd_t: public cpu_primitive_t {
+struct jit_avx512_common_lrn_bwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_lrn_bwd_pd_t {
         pd_t(engine_t *engine, const lrn_desc_t *adesc,
                 const lrn_fwd_pd_t *hint_fwd_pd)
             : cpu_lrn_bwd_pd_t(engine, adesc, hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T(jit_avx512_mic_lrn_bwd_t);
+        DECLARE_COMMON_PD_T(jit_avx512_common_lrn_bwd_t);
 
         virtual status_t init() override;
     };
 
-    jit_avx512_mic_lrn_bwd_t(const pd_t *pd, const input_vector &inputs,
+    jit_avx512_common_lrn_bwd_t(const pd_t *pd, const input_vector &inputs,
             const output_vector &outputs);
-    ~jit_avx512_mic_lrn_bwd_t();
+    ~jit_avx512_common_lrn_bwd_t();
 
     typedef typename prec_trait<data_type::f32>::type data_t;
 
@@ -84,8 +84,8 @@ private:
     pd_t conf_;
 
     int use_h_parallelism;
-    struct jit_avx512_mic_lrn_kernel_f32;
-    jit_avx512_mic_lrn_kernel_f32 *ker_, *ker_first_, *ker_last_;
+    struct jit_avx512_common_lrn_kernel_f32;
+    jit_avx512_common_lrn_kernel_f32 *ker_, *ker_first_, *ker_last_;
 
 };
 

@@ -231,7 +231,7 @@ struct reducer_2d_driver_f32_t: public reducer_2d_driver_t<data_type::f32>,
     }
 
     void generate() {
-        assert(isa == avx2 || isa == avx512_mic);
+        assert(isa == avx2 || isa == avx512_common);
 
         preamble();
 
@@ -258,8 +258,8 @@ template <impl::data_type_t data_type>
 inline reducer_2d_driver_t<data_type> *create_reduce_2d_drv(int n_src,
         size_t src_ld, size_t src_step, size_t dst_step, bool nullify_dst) {
     if (data_type == data_type::f32) {
-        if (mayiuse(avx512_mic))
-            return new reducer_2d_driver_f32_t<avx512_mic>(n_src, src_ld,
+        if (mayiuse(avx512_common))
+            return new reducer_2d_driver_f32_t<avx512_common>(n_src, src_ld,
                     src_step, dst_step, nullify_dst);
         else if (mayiuse(avx2))
             return new reducer_2d_driver_f32_t<avx2>(n_src, src_ld, src_step,

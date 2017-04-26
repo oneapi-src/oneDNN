@@ -20,7 +20,7 @@
 #include "mkldnn_thread.hpp"
 #include "utils.hpp"
 
-#include "jit_avx512_mic_1x1_conv_kernel_f32.hpp"
+#include "jit_avx512_common_1x1_conv_kernel_f32.hpp"
 
 #define GET_OFF(field) offsetof(jit_1x1_conv_call_s, field)
 
@@ -34,7 +34,7 @@ using namespace mkldnn::impl::utils;
 
 using namespace Xbyak;
 
-void jit_avx512_mic_1x1_conv_kernel_f32::bcast_loop(int load_loop_blk)
+void jit_avx512_common_1x1_conv_kernel_f32::bcast_loop(int load_loop_blk)
 {
     mov(aux1_reg_bcast_data, reg_bcast_data);
     mov(aux_reg_bcast_data, reg_bcast_data);
@@ -79,8 +79,8 @@ void jit_avx512_mic_1x1_conv_kernel_f32::bcast_loop(int load_loop_blk)
     }
 }
 
-void jit_avx512_mic_1x1_conv_kernel_f32::reduce_loop(int load_loop_blk, int ur,
-                                                int substep, bool wraparound)
+void jit_avx512_common_1x1_conv_kernel_f32::reduce_loop(int load_loop_blk,
+         int ur, int substep, bool wraparound)
 {
     auto vreg_load = [=](int i_load) {
         return Zmm(ur * load_loop_blk + i_load);
@@ -341,7 +341,7 @@ void jit_avx512_mic_1x1_conv_kernel_f32::reduce_loop(int load_loop_blk, int ur,
     store();
 }
 
-void jit_avx512_mic_1x1_conv_kernel_f32::diff_bias_loop(int load_loop_blk)
+void jit_avx512_common_1x1_conv_kernel_f32::diff_bias_loop(int load_loop_blk)
 {
     // TODO: This function is obsolete because diff_bias calculated in harness.
     if (!jcp.with_bias || jcp.prop_kind != backward_weights)
@@ -411,7 +411,7 @@ void jit_avx512_mic_1x1_conv_kernel_f32::diff_bias_loop(int load_loop_blk)
 static int ur_cases[] = {2, 4, 5, 8, 14, 28};
 constexpr int ur_num = sizeof(ur_cases) / sizeof(ur_cases[0]);
 
-void jit_avx512_mic_1x1_conv_kernel_f32::generate()
+void jit_avx512_common_1x1_conv_kernel_f32::generate()
 {
     preamble();
 
@@ -535,12 +535,13 @@ int best_divider(int value, int min_divider, int max_divider,
 
 }
 
-status_t jit_avx512_mic_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
-        const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
-        const memory_desc_wrapper &weights_d, const memory_desc_wrapper &dst_d,
-        bool with_relu, double relu_negative_slope)
+status_t jit_avx512_common_1x1_conv_kernel_f32::init_conf(
+        jit_1x1_conv_conf_t &jcp, const convolution_desc_t &cd,
+        const memory_desc_wrapper &src_d, const memory_desc_wrapper &weights_d,
+        const memory_desc_wrapper &dst_d, bool with_relu,
+        double relu_negative_slope)
 {
-    if (!mayiuse(avx512_mic)) return status::unimplemented;
+    if (!mayiuse(avx512_common)) return status::unimplemented;
 
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
 

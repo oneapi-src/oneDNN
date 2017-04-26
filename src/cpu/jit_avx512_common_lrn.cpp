@@ -17,7 +17,7 @@
 #include "mkldnn_types.h"
 
 #include "c_types_map.hpp"
-#include "jit_avx512_mic_lrn.hpp"
+#include "jit_avx512_common_lrn.hpp"
 #include "jit_generator.hpp"
 #include "mkldnn_thread.hpp"
 #include "type_helpers.hpp"
@@ -69,7 +69,8 @@ struct nChw16c_across {
     nChw16c_across(int h, int w, int v) : H(h), W(w), version(v) {}
 };
 
-struct jit_avx512_mic_lrn_fwd_t::jit_avx512_mic_lrn_kernel_f32: public jit_generator {
+struct jit_avx512_common_lrn_fwd_t::jit_avx512_common_lrn_kernel_f32:
+       public jit_generator {
     int HW, W;
     bool is_first;
     bool is_last;
@@ -220,7 +221,7 @@ struct jit_avx512_mic_lrn_fwd_t::jit_avx512_mic_lrn_kernel_f32: public jit_gener
         }
     }
 
-    jit_avx512_mic_lrn_kernel_f32(
+    jit_avx512_common_lrn_kernel_f32(
         const struct nChw16c_across &J,
         prop_kind_t prop_kind,
         int use_h_parallel,
@@ -314,13 +315,13 @@ struct jit_avx512_mic_lrn_fwd_t::jit_avx512_mic_lrn_kernel_f32: public jit_gener
     }
 };
 
-status_t jit_avx512_mic_lrn_fwd_t::pd_t::init() {
+status_t jit_avx512_common_lrn_fwd_t::pd_t::init() {
     using namespace prop_kind;
     using namespace alg_kind;
 
     assert(engine()->kind() == engine_kind::cpu);
 
-    if (!mayiuse(avx512_mic)) return unimplemented;
+    if (!mayiuse(avx512_common)) return unimplemented;
 
     const memory_desc_wrapper data_d(data_pd_.desc());
     bool ok = true
@@ -347,7 +348,7 @@ status_t jit_avx512_mic_lrn_fwd_t::pd_t::init() {
     return args_ok_across ? success : unimplemented;
 }
 
-jit_avx512_mic_lrn_fwd_t::jit_avx512_mic_lrn_fwd_t(const pd_t *pd,
+jit_avx512_common_lrn_fwd_t::jit_avx512_common_lrn_fwd_t(const pd_t *pd,
         const input_vector &inputs, const output_vector &outputs)
     : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
     , use_h_parallelism(0), ker_(nullptr), ker_first_(nullptr)
@@ -365,22 +366,22 @@ jit_avx512_mic_lrn_fwd_t::jit_avx512_mic_lrn_fwd_t(const pd_t *pd,
     use_h_parallelism = H > 28 ? 1 : 0;
 
     if (C / vsize == 1) {
-        ker_ = new jit_avx512_mic_lrn_kernel_f32(nChw16c_across(H, W, 3), pk,
+        ker_ = new jit_avx512_common_lrn_kernel_f32(nChw16c_across(H, W, 3), pk,
             use_h_parallelism, alpha, k);
     } else {
-        ker_ = new jit_avx512_mic_lrn_kernel_f32(nChw16c_across(H, W, 0), pk,
+        ker_ = new jit_avx512_common_lrn_kernel_f32(nChw16c_across(H, W, 0), pk,
             use_h_parallelism, alpha, k);
-        ker_first_ = new jit_avx512_mic_lrn_kernel_f32(nChw16c_across(H, W, -1),
-            pk, use_h_parallelism, alpha, k);
-        ker_last_ = new jit_avx512_mic_lrn_kernel_f32(nChw16c_across(H, W, +1),
-            pk, use_h_parallelism, alpha, k);
+        ker_first_ = new jit_avx512_common_lrn_kernel_f32(
+            nChw16c_across(H, W, -1), pk, use_h_parallelism, alpha, k);
+        ker_last_ = new jit_avx512_common_lrn_kernel_f32(
+            nChw16c_across(H, W, +1), pk, use_h_parallelism, alpha, k);
     }
 }
 
-jit_avx512_mic_lrn_fwd_t::~jit_avx512_mic_lrn_fwd_t()
+jit_avx512_common_lrn_fwd_t::~jit_avx512_common_lrn_fwd_t()
 { delete ker_; delete ker_first_; delete ker_last_; }
 
-void jit_avx512_mic_lrn_fwd_t::execute_forward() {
+void jit_avx512_common_lrn_fwd_t::execute_forward() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto dst = reinterpret_cast<data_t*>(this->memory(0));
     auto ws = reinterpret_cast<data_t*>(this->memory(1));
@@ -456,7 +457,8 @@ void jit_avx512_mic_lrn_fwd_t::execute_forward() {
     }
 }
 
-struct jit_avx512_mic_lrn_bwd_t::jit_avx512_mic_lrn_kernel_f32: public jit_generator {
+struct jit_avx512_common_lrn_bwd_t::jit_avx512_common_lrn_kernel_f32:
+    public jit_generator {
     int HW, W;
     bool is_first;
     bool is_last;
@@ -631,7 +633,7 @@ struct jit_avx512_mic_lrn_bwd_t::jit_avx512_mic_lrn_kernel_f32: public jit_gener
 
     }
 
-    jit_avx512_mic_lrn_kernel_f32(
+    jit_avx512_common_lrn_kernel_f32(
         const struct nChw16c_across &J,
         float A,
         float B,
@@ -715,13 +717,13 @@ struct jit_avx512_mic_lrn_bwd_t::jit_avx512_mic_lrn_kernel_f32: public jit_gener
 
 };
 
-status_t jit_avx512_mic_lrn_bwd_t::pd_t::init() {
+status_t jit_avx512_common_lrn_bwd_t::pd_t::init() {
     using namespace prop_kind;
     using namespace alg_kind;
 
     assert(engine()->kind() == engine_kind::cpu);
 
-    if (!mayiuse(avx512_mic)) return unimplemented;
+    if (!mayiuse(avx512_common)) return unimplemented;
 
     const memory_desc_wrapper data_d(data_pd_.desc());
     bool ok = true
@@ -753,7 +755,7 @@ status_t jit_avx512_mic_lrn_bwd_t::pd_t::init() {
     return args_ok_across ? success : unimplemented;
 }
 
-jit_avx512_mic_lrn_bwd_t::jit_avx512_mic_lrn_bwd_t(const pd_t *pd,
+jit_avx512_common_lrn_bwd_t::jit_avx512_common_lrn_bwd_t(const pd_t *pd,
         const input_vector &inputs, const output_vector &outputs)
     : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
     , use_h_parallelism(0),  ker_(nullptr), ker_first_(nullptr)
@@ -768,22 +770,22 @@ jit_avx512_mic_lrn_bwd_t::jit_avx512_mic_lrn_bwd_t(const pd_t *pd,
     use_h_parallelism = H > 28 ? 1 : 0;
 
     if (C / vsize == 1) {
-        ker_ = new jit_avx512_mic_lrn_kernel_f32(nChw16c_across(H, W, 3),
+        ker_ = new jit_avx512_common_lrn_kernel_f32(nChw16c_across(H, W, 3),
         alpha, beta, use_h_parallelism);
     } else {
-        ker_ = new jit_avx512_mic_lrn_kernel_f32(nChw16c_across(H, W, 0),
+        ker_ = new jit_avx512_common_lrn_kernel_f32(nChw16c_across(H, W, 0),
             alpha, beta, use_h_parallelism);
-        ker_first_ = new jit_avx512_mic_lrn_kernel_f32(nChw16c_across(H, W, -1),
-            alpha, beta, use_h_parallelism);
-        ker_last_ = new jit_avx512_mic_lrn_kernel_f32(nChw16c_across(H, W, +1),
-            alpha, beta, use_h_parallelism);
+        ker_first_ = new jit_avx512_common_lrn_kernel_f32(
+            nChw16c_across(H, W, -1), alpha, beta, use_h_parallelism);
+        ker_last_ = new jit_avx512_common_lrn_kernel_f32(
+            nChw16c_across(H, W, +1), alpha, beta, use_h_parallelism);
     }
 }
 
-jit_avx512_mic_lrn_bwd_t::~jit_avx512_mic_lrn_bwd_t()
+jit_avx512_common_lrn_bwd_t::~jit_avx512_common_lrn_bwd_t()
 { delete ker_; delete ker_first_; delete ker_last_; }
 
-void jit_avx512_mic_lrn_bwd_t::execute_backward() {
+void jit_avx512_common_lrn_bwd_t::execute_backward() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto ws = reinterpret_cast<const data_t *>(this->input_memory(2));

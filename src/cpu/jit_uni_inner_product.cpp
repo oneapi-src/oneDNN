@@ -18,7 +18,7 @@
 #include "type_helpers.hpp"
 
 #include "jit_avx2_gemm_f32.hpp"
-#include "jit_avx512_mic_gemm_f32.hpp"
+#include "jit_avx512_common_gemm_f32.hpp"
 #include "jit_uni_inner_product.hpp"
 
 namespace mkldnn {
@@ -142,9 +142,9 @@ void jit_uni_inner_product_bwd_data_t<isa>::execute_backward_data()
             diff_src, &IC, nullptr);
 }
 
-template struct jit_uni_inner_product_bwd_data_t<avx512_mic>;
-template struct jit_uni_inner_product_bwd_weights_t<avx512_mic>;
-template struct jit_uni_inner_product_fwd_t<avx512_mic>;
+template struct jit_uni_inner_product_bwd_data_t<avx512_common>;
+template struct jit_uni_inner_product_bwd_weights_t<avx512_common>;
+template struct jit_uni_inner_product_fwd_t<avx512_common>;
 template struct jit_uni_inner_product_bwd_data_t<avx2>;
 template struct jit_uni_inner_product_bwd_weights_t<avx2>;
 template struct jit_uni_inner_product_fwd_t<avx2>;

@@ -373,7 +373,7 @@ void jit_uni_pool_kernel_f32<isa>::generate() {
 }
 
 template struct jit_uni_pool_kernel_f32<avx2>;
-template struct jit_uni_pool_kernel_f32<avx512_mic>;
+template struct jit_uni_pool_kernel_f32<avx512_common>;
 
 }
 }

@@ -119,8 +119,8 @@ void jit_uni_pooling_bwd_t<isa>::execute_backward() {
 
 template struct jit_uni_pooling_fwd_t<avx2>;
 template struct jit_uni_pooling_bwd_t<avx2>;
-template struct jit_uni_pooling_fwd_t<avx512_mic>;
-template struct jit_uni_pooling_bwd_t<avx512_mic>;
+template struct jit_uni_pooling_fwd_t<avx512_common>;
+template struct jit_uni_pooling_bwd_t<avx512_common>;
 
 }
 }

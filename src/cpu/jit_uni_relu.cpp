@@ -92,7 +92,7 @@ struct jit_uni_relu_kernel_f32 : public jit_generator {
     jit_uni_relu_kernel_f32(bool isbackward, float nslope)
         : jit_generator(), isBackward(isbackward), negative_slope(nslope)
     {
-        assert(isa == avx2 || isa == avx512_mic);
+        assert(isa == avx2 || isa == avx512_common);
 
         Reg64 param = abi_param1;
 
@@ -184,7 +184,7 @@ jit_uni_relu_fwd_t
         <isa>::jit_uni_relu_fwd_t(const pd_t *pd, const input_vector &inputs,
                                   const output_vector &outputs)
     : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
-{ 
+{
     kernel_ = new jit_uni_relu_kernel_f32<isa>(false,
         conf_.desc()->negative_slope);
 }
@@ -302,8 +302,8 @@ void jit_uni_relu_bwd_t<isa>::execute_backward()
 
 template struct jit_uni_relu_fwd_t<avx2>;
 template struct jit_uni_relu_bwd_t<avx2>;
-template struct jit_uni_relu_fwd_t<avx512_mic>;
-template struct jit_uni_relu_bwd_t<avx512_mic>;
+template struct jit_uni_relu_fwd_t<avx512_common>;
+template struct jit_uni_relu_bwd_t<avx512_common>;
 
 }
 }

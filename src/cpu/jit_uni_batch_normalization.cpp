@@ -128,7 +128,7 @@ struct jit_bnorm_t: public jit_generator {
         spat_size = bdesc_->W() * bdesc_->H();
         chan_data_offt = bdesc_->C() * sizeof(data_t);
 
-        if (isa == avx512_mic) {
+        if (isa == avx512_common) {
             t0_pf_offt = 4096;
             t1_pf_offt = 0;
         } else {
@@ -619,7 +619,7 @@ struct jit_bnorm_t: public jit_generator {
     }
 
     jit_bnorm_t(const batch_normalization_pd_t *bdesc): bdesc_(bdesc) {
-        assert(isa == avx2 || isa == avx512_mic);
+        assert(isa == avx2 || isa == avx512_common);
 
         preamble();
         compute_static_strides();
@@ -646,19 +646,19 @@ struct uni_bnorm_driver_t: public c_compatible {
     uni_bnorm_driver_t(const batch_normalization_pd_t *bdesc)
         : bdesc_(bdesc), ker_(bdesc_), syncable_(true), buf_(nullptr)
         , barriers_(nullptr)
-	{
+    {
         use_tmp_stats_ = !bdesc_->stats_is_src()
             && bdesc_->desc()->prop_kind == prop_kind::forward_inference;
         use_tmp_diff_scale_shift_ = false
             || (bdesc_->is_bwd() && !bdesc_->use_scaleshift())
             || bdesc_->desc()->prop_kind == prop_kind::backward_data;
         int num_sbufs = 2 * use_tmp_stats_;
-		int num_pbufs = 2 * use_tmp_diff_scale_shift_;
-		int num_rbufs = bdesc_->is_fwd() ? 1 : 2;
+        int num_pbufs = 2 * use_tmp_diff_scale_shift_;
+        int num_rbufs = bdesc_->is_fwd() ? 1 : 2;
 
         int buf_size =
             (num_sbufs + num_pbufs + num_rbufs * bdesc_->MB()) * bdesc_->C();
-		buf_ = new data_t[buf_size];
+        buf_ = new data_t[buf_size];
 
         sbuf_ = buf_;
         pbuf_ = sbuf_ + num_sbufs * bdesc_->C();
@@ -670,7 +670,7 @@ struct uni_bnorm_driver_t: public c_compatible {
             for (int i = 0; i < num_barriers; ++i)
                 barrier::ctx_init(&barriers_[i]);
         }
-	}
+    }
     ~uni_bnorm_driver_t() { delete [] buf_; delete [] barriers_; }
 
     void exec(int ithr, int nthr, const data_t *src, data_t *diff_src,
@@ -826,8 +826,8 @@ void jit_uni_batch_normalization_bwd_t<isa>::execute(event_t *e) {
 /* struct instantiation */
 template struct jit_uni_batch_normalization_fwd_t<avx2>;
 template struct jit_uni_batch_normalization_bwd_t<avx2>;
-template struct jit_uni_batch_normalization_fwd_t<avx512_mic>;
-template struct jit_uni_batch_normalization_bwd_t<avx512_mic>;
+template struct jit_uni_batch_normalization_fwd_t<avx512_common>;
+template struct jit_uni_batch_normalization_bwd_t<avx512_common>;
 
 }
 }

@@ -14,13 +14,13 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_AVX512_MIC_CONVOLUTION_HPP
-#define CPU_JIT_AVX512_MIC_CONVOLUTION_HPP
+#ifndef CPU_JIT_AVX512_COMMON_CONVOLUTION_HPP
+#define CPU_JIT_AVX512_COMMON_CONVOLUTION_HPP
 
 #include "c_types_map.hpp"
 #include "cpu_convolution_pd.hpp"
 #include "cpu_engine.hpp"
-#include "jit_avx512_mic_conv_kernel_f32.hpp"
+#include "jit_avx512_common_conv_kernel_f32.hpp"
 #include "cpu_reducer.hpp"
 
 namespace mkldnn {
@@ -28,7 +28,7 @@ namespace impl {
 namespace cpu {
 
 template <bool with_relu>
-struct _jit_avx512_mic_convolution_fwd_t : public cpu_primitive_t {
+struct _jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
     struct pd_t : public _cpu_convolution_fwd_pd_t<with_relu> {
         pd_t(engine_t *engine, const typename pd_t::base_desc_t *adesc,
                 const typename pd_t::base_class *hint_fwd_pd)
@@ -37,7 +37,7 @@ struct _jit_avx512_mic_convolution_fwd_t : public cpu_primitive_t {
         {
         }
 
-        DECLARE_COMMON_PD_T(_jit_avx512_mic_convolution_fwd_t<with_relu>);
+        DECLARE_COMMON_PD_T(_jit_avx512_common_convolution_fwd_t<with_relu>);
 
         virtual status_t init() override
         {
@@ -59,7 +59,7 @@ struct _jit_avx512_mic_convolution_fwd_t : public cpu_primitive_t {
             if (!ok)
                 return status::unimplemented;
 
-            return jit_avx512_mic_conv_fwd_kernel_f32::init_conf(jcp_,
+            return jit_avx512_common_conv_fwd_kernel_f32::init_conf(jcp_,
                     this->cdesc_(), *this->src_pd_.desc(),
                     *this->weights_pd_.desc(), *this->dst_pd_.desc(), with_relu,
                     this->negative_slope());
@@ -89,13 +89,13 @@ struct _jit_avx512_mic_convolution_fwd_t : public cpu_primitive_t {
         }
     };
 
-    _jit_avx512_mic_convolution_fwd_t(const pd_t *pd,
+    _jit_avx512_common_convolution_fwd_t(const pd_t *pd,
             const input_vector &inputs, const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
     {
-        kernel_ = new jit_avx512_mic_conv_fwd_kernel_f32(conf_.jcp_);
+        kernel_ = new jit_avx512_common_conv_fwd_kernel_f32(conf_.jcp_);
     }
-    ~_jit_avx512_mic_convolution_fwd_t() { delete kernel_; };
+    ~_jit_avx512_common_convolution_fwd_t() { delete kernel_; };
 
     typedef typename prec_trait<data_type::f32>::type data_t;
 
@@ -108,15 +108,15 @@ struct _jit_avx512_mic_convolution_fwd_t : public cpu_primitive_t {
 private:
     void execute_forward();
     pd_t conf_;
-    jit_avx512_mic_conv_fwd_kernel_f32 *kernel_;
+    jit_avx512_common_conv_fwd_kernel_f32 *kernel_;
 };
 
-using jit_avx512_mic_convolution_fwd_t
-        = _jit_avx512_mic_convolution_fwd_t<false>;
-using jit_avx512_mic_convolution_relu_t
-        = _jit_avx512_mic_convolution_fwd_t<true>;
+using jit_avx512_common_convolution_fwd_t
+        = _jit_avx512_common_convolution_fwd_t<false>;
+using jit_avx512_common_convolution_relu_t
+        = _jit_avx512_common_convolution_fwd_t<true>;
 
-struct jit_avx512_mic_convolution_bwd_data_t: public cpu_primitive_t {
+struct jit_avx512_common_convolution_bwd_data_t: public cpu_primitive_t {
     struct pd_t: public cpu_convolution_bwd_data_pd_t {
         pd_t(engine_t *engine,
                 const convolution_desc_t *adesc,
@@ -125,7 +125,7 @@ struct jit_avx512_mic_convolution_bwd_data_t: public cpu_primitive_t {
             , jcp_({})
         {}
 
-        DECLARE_COMMON_PD_T(jit_avx512_mic_convolution_bwd_data_t);
+        DECLARE_COMMON_PD_T(jit_avx512_common_convolution_bwd_data_t);
 
         virtual status_t init() override {
             using namespace prop_kind;
@@ -140,7 +140,7 @@ struct jit_avx512_mic_convolution_bwd_data_t: public cpu_primitive_t {
                         this->desc()->diff_dst_desc.data_type);
             if (!ok) return status::unimplemented;
 
-            return jit_avx512_mic_conv_bwd_data_kernel_f32::init_conf(jcp_,
+            return jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(jcp_,
                     *this->desc(), *this->diff_src_pd_.desc(),
                     *this->weights_pd_.desc(), *this->diff_dst_pd_.desc());
         }
@@ -162,11 +162,11 @@ struct jit_avx512_mic_convolution_bwd_data_t: public cpu_primitive_t {
         }
     };
 
-    jit_avx512_mic_convolution_bwd_data_t(const pd_t *pd,
+    jit_avx512_common_convolution_bwd_data_t(const pd_t *pd,
             const input_vector &inputs, const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
-    { kernel_ = new jit_avx512_mic_conv_bwd_data_kernel_f32(conf_.jcp_); }
-    ~jit_avx512_mic_convolution_bwd_data_t() { delete kernel_; };
+    { kernel_ = new jit_avx512_common_conv_bwd_data_kernel_f32(conf_.jcp_); }
+    ~jit_avx512_common_convolution_bwd_data_t() { delete kernel_; };
 
     typedef typename prec_trait<data_type::f32>::type data_t;
 
@@ -184,17 +184,17 @@ struct jit_avx512_mic_convolution_bwd_data_t: public cpu_primitive_t {
 private:
     void execute_backward_data();
     pd_t conf_;
-    jit_avx512_mic_conv_bwd_data_kernel_f32 *kernel_;
+    jit_avx512_common_conv_bwd_data_kernel_f32 *kernel_;
 };
 
-struct jit_avx512_mic_convolution_bwd_weights_t: public cpu_primitive_t {
+struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
     struct pd_t: public  cpu_convolution_bwd_weights_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const convolution_fwd_pd_t *hint_fwd_pd)
             : cpu_convolution_bwd_weights_pd_t(engine, adesc, hint_fwd_pd)
             , jcp_({}) {}
 
-        DECLARE_COMMON_PD_T(jit_avx512_mic_convolution_bwd_weights_t);
+        DECLARE_COMMON_PD_T(jit_avx512_common_convolution_bwd_weights_t);
 
         virtual status_t init() override {
             assert(this->engine()->kind() == engine_kind::cpu);
@@ -208,7 +208,8 @@ struct jit_avx512_mic_convolution_bwd_weights_t: public cpu_primitive_t {
                         this->desc()->diff_weights_desc.data_type);
             if (!ok) return status::unimplemented;
 
-            return jit_avx512_mic_conv_bwd_weights_kernel_f32::init_conf(jcp_,
+            return jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
+                    jcp_,
                     *this->desc(), *this->src_pd_.desc(),
                     *this->diff_weights_pd_.desc(),
                     *this->diff_dst_pd_.desc());
@@ -234,12 +235,12 @@ struct jit_avx512_mic_convolution_bwd_weights_t: public cpu_primitive_t {
         }
     };
 
-    jit_avx512_mic_convolution_bwd_weights_t(const pd_t *pd,
+    jit_avx512_common_convolution_bwd_weights_t(const pd_t *pd,
             const input_vector &inputs, const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
         , kernel_(nullptr), reducer_weights_(nullptr), reducer_bias_(nullptr)
     {
-        kernel_ = new jit_avx512_mic_conv_bwd_weights_kernel_f32(conf_.jcp_);
+        kernel_ = new jit_avx512_common_conv_bwd_weights_kernel_f32(conf_.jcp_);
         const int max_threads = omp_get_max_threads();
         const size_t max_buffer_size = max_threads*3*5*5*16*16;
         const auto &j = conf_.jcp_;
@@ -253,7 +254,7 @@ struct jit_avx512_mic_convolution_bwd_weights_t: public cpu_primitive_t {
                         j.ngroups * j.nb_oc, j.mb, max_buffer_size));
         }
     }
-    ~jit_avx512_mic_convolution_bwd_weights_t() { delete kernel_; };
+    ~jit_avx512_common_convolution_bwd_weights_t() { delete kernel_; };
 
     typedef typename prec_trait<data_type::f32>::type data_t;
 
@@ -265,7 +266,7 @@ struct jit_avx512_mic_convolution_bwd_weights_t: public cpu_primitive_t {
 private:
     void execute_backward_weights();
     pd_t conf_;
-    jit_avx512_mic_conv_bwd_weights_kernel_f32 *kernel_;
+    jit_avx512_common_conv_bwd_weights_kernel_f32 *kernel_;
     cpu_reducer_t<data_type::f32> *reducer_weights_, *reducer_bias_;
 };
 

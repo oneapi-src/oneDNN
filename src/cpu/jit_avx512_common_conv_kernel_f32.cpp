@@ -19,7 +19,7 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-#include "jit_avx512_mic_conv_kernel_f32.hpp"
+#include "jit_avx512_common_conv_kernel_f32.hpp"
 
 #define GET_OFF(field) offsetof(jit_conv_call_s, field)
 
@@ -31,7 +31,7 @@ using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::utils;
 using namespace Xbyak;
 
-void jit_avx512_mic_conv_fwd_kernel_f32::prepare_output(int ur_w)
+void jit_avx512_common_conv_fwd_kernel_f32::prepare_output(int ur_w)
 {
     for (int i = 0; i < ur_w; i++) {
         Zmm zmm(i);
@@ -41,7 +41,7 @@ void jit_avx512_mic_conv_fwd_kernel_f32::prepare_output(int ur_w)
     }
 }
 
-void jit_avx512_mic_conv_fwd_kernel_f32::store_output(int ur_w)
+void jit_avx512_common_conv_fwd_kernel_f32::store_output(int ur_w)
 {
     Label no_update_label, store_label, relu_label;
 
@@ -90,7 +90,7 @@ void jit_avx512_mic_conv_fwd_kernel_f32::store_output(int ur_w)
     }
 }
 
-int jit_avx512_mic_conv_fwd_kernel_f32::compute_loop(int ur_w, int pad_l,
+int jit_avx512_common_conv_fwd_kernel_f32::compute_loop(int ur_w, int pad_l,
     int pad_r)
 {
     bool prf_ker = true;
@@ -232,7 +232,7 @@ int jit_avx512_mic_conv_fwd_kernel_f32::compute_loop(int ur_w, int pad_l,
     return 0;
 }
 
-void jit_avx512_mic_conv_fwd_kernel_f32::generate()
+void jit_avx512_common_conv_fwd_kernel_f32::generate()
 {
     int iw = jcp.iw;
     int ow = jcp.ow;
@@ -317,12 +317,12 @@ void jit_avx512_mic_conv_fwd_kernel_f32::generate()
     this->postamble();
 }
 
-status_t jit_avx512_mic_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
+status_t jit_avx512_common_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
         const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &weights_d, const memory_desc_wrapper &dst_d,
         bool with_relu, double relu_negative_slope)
 {
-    if (!mayiuse(avx512_mic))
+    if (!mayiuse(avx512_common))
         return status::unimplemented;
 
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
@@ -425,7 +425,7 @@ status_t jit_avx512_mic_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     return status::success;
 }
 
-void jit_avx512_mic_conv_bwd_data_kernel_f32::prepare_output(int ur_w) {
+void jit_avx512_common_conv_bwd_data_kernel_f32::prepare_output(int ur_w) {
     for (int k = 0; k < jcp.nb_ic_blocking; k++) {
         for (int j = 0; j  < ur_w; j++) {
             Zmm zmm(ur_w * k + j);
@@ -437,7 +437,7 @@ void jit_avx512_mic_conv_bwd_data_kernel_f32::prepare_output(int ur_w) {
     }
 }
 
-void jit_avx512_mic_conv_bwd_data_kernel_f32::store_output(int ur_w) {
+void jit_avx512_common_conv_bwd_data_kernel_f32::store_output(int ur_w) {
     Label no_update_label;
 
     mov(reg_current_ic, ptr[param + GET_OFF(current_ic)]);
@@ -463,7 +463,7 @@ void jit_avx512_mic_conv_bwd_data_kernel_f32::store_output(int ur_w) {
     }
 }
 
-int jit_avx512_mic_conv_bwd_data_kernel_f32::compute_loop(int ur_w,
+int jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop(int ur_w,
         int l_overflow, int r_overflow) {
     Label kh_label;
     int kw    = jcp.kw;
@@ -569,7 +569,7 @@ int jit_avx512_mic_conv_bwd_data_kernel_f32::compute_loop(int ur_w,
     return 0;
 }
 
-void jit_avx512_mic_conv_bwd_data_kernel_f32::generate() {
+void jit_avx512_common_conv_bwd_data_kernel_f32::generate() {
     int iw    = jcp.iw;
     int ow    = jcp.ow;
     int kw    = jcp.kw;
@@ -650,12 +650,12 @@ void jit_avx512_mic_conv_bwd_data_kernel_f32::generate() {
     this->postamble();
 }
 
-status_t jit_avx512_mic_conv_bwd_data_kernel_f32::init_conf(
+status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
         jit_conv_conf_t &jcp,
         const convolution_desc_t &cd, const memory_desc_wrapper &diff_src_d,
         const memory_desc_wrapper &weights_d,
         const memory_desc_wrapper &diff_dst_d) {
-    if (!mayiuse(avx512_mic)) return status::unimplemented;
+    if (!mayiuse(avx512_common)) return status::unimplemented;
 
     const bool with_groups = weights_d.ndims() == diff_src_d.ndims() + 1;
 
@@ -769,7 +769,7 @@ status_t jit_avx512_mic_conv_bwd_data_kernel_f32::init_conf(
     return status::success;
 }
 
-void jit_avx512_mic_conv_bwd_weights_kernel_f32::oh_step_comeback_pointers() {
+void jit_avx512_common_conv_bwd_weights_kernel_f32::oh_step_comeback_pointers() {
     Label kh_comeback_label;
 
     mov(kj, reg_kh);
@@ -783,7 +783,7 @@ void jit_avx512_mic_conv_bwd_weights_kernel_f32::oh_step_comeback_pointers() {
     }
 }
 
-void jit_avx512_mic_conv_bwd_weights_kernel_f32::compute_ic_block_step(
+void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_ic_block_step(
     int ur_w, int pad_l, int pad_r,
     int ic_block_step, int input_offset, int kernel_offset,
     int output_offset) {
@@ -840,7 +840,7 @@ void jit_avx512_mic_conv_bwd_weights_kernel_f32::compute_ic_block_step(
 }
 
 void
-jit_avx512_mic_conv_bwd_weights_kernel_f32::compute_oh_step_unroll_ow_icblock(
+jit_avx512_common_conv_bwd_weights_kernel_f32::compute_oh_step_unroll_ow_icblock(
     int ic_block_step, int max_ur_w) {
     UNUSED(max_ur_w);
 
@@ -869,7 +869,7 @@ jit_avx512_mic_conv_bwd_weights_kernel_f32::compute_oh_step_unroll_ow_icblock(
     }
 }
 
-void jit_avx512_mic_conv_bwd_weights_kernel_f32::compute_oh_step_unroll_ow(
+void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_oh_step_unroll_ow(
     int ic_block_step, int max_ur_w) {
     Label kh_label, ic_block_label;
 
@@ -911,7 +911,7 @@ void jit_avx512_mic_conv_bwd_weights_kernel_f32::compute_oh_step_unroll_ow(
     }
 }
 
-void jit_avx512_mic_conv_bwd_weights_kernel_f32::compute_oh_step_common(
+void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_oh_step_common(
     int ic_block_step, int max_ur_w) {
 
     Label kh_label, ic_block_label, ow_block_label;
@@ -991,7 +991,7 @@ void jit_avx512_mic_conv_bwd_weights_kernel_f32::compute_oh_step_common(
     }
 }
 
-void jit_avx512_mic_conv_bwd_weights_kernel_f32::compute_oh_step_disp() {
+void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_oh_step_disp() {
 
     int ic_block_step = jcp.kw <= 7 ? 4 : 2;
     if (jcp.is_1stconv) {
@@ -1002,7 +1002,7 @@ void jit_avx512_mic_conv_bwd_weights_kernel_f32::compute_oh_step_disp() {
     }
     int max_ur_w = 28;
 
-    bool too_large_to_unroll = (jcp.kw > 1 || jcp.kh > 1) && 
+    bool too_large_to_unroll = (jcp.kw > 1 || jcp.kh > 1) &&
          (jcp.stride_w > 1 || jcp.stride_h > 1);
 
     if (jcp.kw <= 3 && jcp.ow <= 16 && !too_large_to_unroll)
@@ -1013,7 +1013,7 @@ void jit_avx512_mic_conv_bwd_weights_kernel_f32::compute_oh_step_disp() {
     oh_step_comeback_pointers();
 }
 
-void jit_avx512_mic_conv_bwd_weights_kernel_f32::compute_oh_loop_common() {
+void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_oh_loop_common() {
     int b_pad = nstl::max(0, (jcp.oh - 1) * jcp.stride_h + jcp.kh - 1
         - (jcp.ih + jcp.t_pad - 1));
     int t_pad = jcp.t_pad;
@@ -1097,7 +1097,7 @@ void jit_avx512_mic_conv_bwd_weights_kernel_f32::compute_oh_loop_common() {
     }
 }
 
-void jit_avx512_mic_conv_bwd_weights_kernel_f32::generate() {
+void jit_avx512_common_conv_bwd_weights_kernel_f32::generate() {
     this->preamble();
 
     mov(reg_input, ptr[param + GET_OFF(src)]);
@@ -1109,12 +1109,12 @@ void jit_avx512_mic_conv_bwd_weights_kernel_f32::generate() {
     this->postamble();
 }
 
-status_t jit_avx512_mic_conv_bwd_weights_kernel_f32::init_conf(
+status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
     jit_conv_conf_t &jcp,
     const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
     const memory_desc_wrapper &diff_weights_d,
     const memory_desc_wrapper &diff_dst_d) {
-    if (!mayiuse(avx512_mic)) return status::unimplemented;
+    if (!mayiuse(avx512_common)) return status::unimplemented;
     const bool with_groups = diff_weights_d.ndims() == src_d.ndims() + 1;
 
     jcp.ngroups = with_groups ? diff_weights_d.dims()[0] : 1;

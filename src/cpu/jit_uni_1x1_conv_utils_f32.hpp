@@ -176,7 +176,7 @@ struct rtus_driver_f32_t: public jit_generator {
 
     void generate() {
         using namespace Xbyak;
-        assert(isa == avx2 || isa == avx512_mic);
+        assert(isa == avx2 || isa == avx512_common);
 
 #if defined(_WIN32)
         push(rdi);
@@ -249,7 +249,7 @@ inline void init_rtus_driver_f32(conv_t *self) {
 
     const auto &src_d = is_bwd_data ? cd.diff_src_desc : cd.src_desc;
     assert((isa == avx2 && src_d.format == memory_format::nChw8c)
-            || (isa == avx512_mic && src_d.format == memory_format::nChw16c));
+           || (isa == avx512_common && src_d.format == memory_format::nChw16c));
     const int ih = src_d.dims[2];
     const int iw = src_d.dims[3];
 

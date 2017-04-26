@@ -51,7 +51,7 @@ void generate(jit_generator &code, Xbyak::Reg64 reg_ctx,
     code.push(reg_tmp);
     code.mov(reg_tmp, 1);
 
-    if (mayiuse(avx512_mic)) {
+    if (mayiuse(avx512_common)) {
         code.prefetchwt1(code.ptr[reg_ctx + BAR_CTR_OFF]);
         code.prefetchwt1(code.ptr[reg_ctx + BAR_CTR_OFF]);
     }

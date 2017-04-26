@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef JIT_AVX512_MIC_CONV_KERNEL_F32_HPP
-#define JIT_AVX512_MIC_CONV_KERNEL_F32_HPP
+#ifndef JIT_AVX512_COMMON_CONV_KERNEL_F32_HPP
+#define JIT_AVX512_COMMON_CONV_KERNEL_F32_HPP
 
 #include "c_types_map.hpp"
 #include "jit_generator.hpp"
@@ -25,9 +25,9 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-struct jit_avx512_mic_conv_fwd_kernel_f32 : public jit_generator {
+struct jit_avx512_common_conv_fwd_kernel_f32 : public jit_generator {
 
-    jit_avx512_mic_conv_fwd_kernel_f32(jit_conv_conf_t ajcp) : jcp(ajcp)
+    jit_avx512_common_conv_fwd_kernel_f32(jit_conv_conf_t ajcp) : jcp(ajcp)
     {
         this->generate();
         jit_ker = (void (*)(jit_conv_call_s *)) this->getCode();
@@ -93,8 +93,8 @@ private:
     void generate();
 };
 
-struct jit_avx512_mic_conv_bwd_data_kernel_f32: public jit_generator {
-    jit_avx512_mic_conv_bwd_data_kernel_f32(jit_conv_conf_t ajcp): jcp(ajcp)
+struct jit_avx512_common_conv_bwd_data_kernel_f32: public jit_generator {
+    jit_avx512_common_conv_bwd_data_kernel_f32(jit_conv_conf_t ajcp): jcp(ajcp)
     {
         this->generate();
         jit_ker = (void (*)(jit_conv_call_s *))this->getCode();
@@ -141,8 +141,9 @@ private:
     void generate();
 };
 
-struct jit_avx512_mic_conv_bwd_weights_kernel_f32 : public jit_generator {
-    jit_avx512_mic_conv_bwd_weights_kernel_f32(jit_conv_conf_t ajcp) : jcp(ajcp)
+struct jit_avx512_common_conv_bwd_weights_kernel_f32 : public jit_generator {
+    jit_avx512_common_conv_bwd_weights_kernel_f32(jit_conv_conf_t ajcp) :
+        jcp(ajcp)
     {
         this->generate();
         jit_ker = (void (*)(jit_conv_call_s *))this->getCode();

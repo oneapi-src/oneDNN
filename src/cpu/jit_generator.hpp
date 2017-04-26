@@ -34,6 +34,7 @@ namespace cpu {
 typedef enum {
     sse42,
     avx2,
+    avx512_common,
     avx512_mic,
 } cpu_isa_t;
 
@@ -48,6 +49,11 @@ template <> struct cpu_isa_trait<avx2> {
     static constexpr int vlen_shift = 5;
     static constexpr int vlen = 32;
     static constexpr int n_vregs = 16;
+};
+template <> struct cpu_isa_trait<avx512_common> {
+    static constexpr int vlen_shift = 6;
+    static constexpr int vlen = 64;
+    static constexpr int n_vregs = 32;
 };
 template <> struct cpu_isa_trait<avx512_mic> {
     static constexpr int vlen_shift = 6;
@@ -122,6 +128,8 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa) {
         return cpu.has(Cpu::tSSE42);
     case avx2:
         return cpu.has(Cpu::tAVX2);
+    case avx512_common:
+        return cpu.has(Cpu::tAVX512F);
     case avx512_mic:
         return true
             && cpu.has(Cpu::tAVX512F)
@@ -186,7 +194,7 @@ protected:
     void preamble() {
         for (size_t i = 0; i < num_abi_save_regs; ++i)
             push(Xbyak::Reg64(abi_save_regs[i]));
-        if (mayiuse(avx512_mic)) {
+        if (mayiuse(avx512_common)) {
             mov(reg_EVEX_max_8b_offt, 2 * EVEX_max_8b_offt);
         }
     }
