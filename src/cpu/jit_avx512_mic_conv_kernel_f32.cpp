@@ -1002,7 +1002,10 @@ void jit_avx512_mic_conv_bwd_weights_kernel_f32::compute_oh_step_disp() {
     }
     int max_ur_w = 28;
 
-    if (jcp.kw <= 3 && jcp.ow <= 16)
+    bool too_large_to_unroll = (jcp.kw > 1 || jcp.kh > 1) && 
+         (jcp.stride_w > 1 || jcp.stride_h > 1);
+
+    if (jcp.kw <= 3 && jcp.ow <= 16 && !too_large_to_unroll)
         compute_oh_step_unroll_ow_icblock(ic_block_step, max_ur_w);
     else if (jcp.ow <= max_ur_w)
         compute_oh_step_unroll_ow(ic_block_step, max_ur_w);
