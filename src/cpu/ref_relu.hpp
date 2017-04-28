@@ -95,10 +95,14 @@ struct ref_relu_bwd_t: public cpu_primitive_t {
                 && memory_desc_wrapper(diff_dst_pd()).is_dense()
                 && memory_desc_wrapper(diff_src_pd()).is_dense();
 
+            formats_are_equal = desc()->data_desc.format ==
+                desc()->diff_data_desc.format;
+
             return status::success;
         }
 
         bool is_dense;
+        bool formats_are_equal;
     };
 
     ref_relu_bwd_t(const pd_t *pd, const input_vector &inputs,
@@ -107,7 +111,8 @@ struct ref_relu_bwd_t: public cpu_primitive_t {
     typedef typename prec_trait<data_type>::type data_t;
 
     virtual void execute(event_t *e) {
-        if (conf_.is_dense) execute_backward_dense();
+        if (conf_.is_dense && conf_.formats_are_equal)
+            execute_backward_dense();
         else execute_backward_generic();
         e->set_state(event_t::ready);
     }
