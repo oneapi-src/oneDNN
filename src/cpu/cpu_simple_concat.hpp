@@ -57,10 +57,10 @@ struct cpu_simple_concat_t: public c_compatible {
             const nstl::vector<cpu_memory_t::pd_t> &dst_pds_,
             cpu_primitive_t *concat) {
         const int num_arrs = src_pds_.size();
-        const data_t *input_ptrs[num_arrs];
-        data_t *output_ptrs[num_arrs];
-        size_t nelems_no_d0[num_arrs];
-        size_t is[num_arrs];
+        VARIABLE_LENGTH_ARRAY(input_ptrs, num_arrs, const data_t *);
+        VARIABLE_LENGTH_ARRAY(output_ptrs, num_arrs, const data_t *);
+        VARIABLE_LENGTH_ARRAY(nelems_no_d0, num_arrs, size_t);
+        VARIABLE_LENGTH_ARRAY(is, num_arrs, size_t);
 
         auto o_base_ptr = reinterpret_cast<data_t *>(concat->memory());
 
@@ -87,7 +87,7 @@ struct cpu_simple_concat_t: public c_compatible {
             for (int a = 0; a < num_arrs; ++a) {
                 /* do coping */
                 const data_t *i = &input_ptrs[a][is[a]*n];
-                data_t *o = &output_ptrs[a][os*n];
+                data_t *o = (data_t *)&output_ptrs[a][os*n];
                 for (size_t e = 0; e < nelems_no_d0[a]; ++e) o[e] = i[e];
             }
         }

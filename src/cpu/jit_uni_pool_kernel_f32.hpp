@@ -44,7 +44,10 @@ struct jit_pool_conf_t {
     int ur_w_tail;
 };
 
-struct __attribute__ ((__packed__)) jit_pool_call_s {
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+#pragma pack(push,1)
+#endif
+struct PACKED jit_pool_call_s {
     const float *src;
     const float *dst;
     const int *indices;
@@ -56,6 +59,9 @@ struct __attribute__ ((__packed__)) jit_pool_call_s {
     size_t kw_padding;
     const float* init_value;
 };
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+#pragma pack(pop)
+#endif
 
 template <cpu_isa_t isa>
 struct jit_uni_pool_kernel_f32: public jit_generator {

@@ -16,8 +16,14 @@
 *******************************************************************************/
 #endif
 
+#ifdef _MSC_VER
+#define EXPAND_SIZES_(mb, ng, ic, ih, iw, oc, oh, ow, kh, kw, ph, pw, sh, sw) \
+    { mb, ng, ic, ih, iw, oc, oh, ow, kh, kw, ph, pw, sh, sw }
+#define EXPAND_SIZES(x) x
+#else
 #define EXPAND_SIZES(mb, ng, ic, ih, iw, oc, oh, ow, kh, kw, ph, pw, sh, sw) \
     { mb, ng, ic, ih, iw, oc, oh, ow, kh, kw, ph, pw, sh, sw }
+#endif
 #define EXPAND_FORMATS(src, weights, bias, dst) \
     { memory::format::src, memory::format::weights, \
     memory::format::bias, memory::format::dst }

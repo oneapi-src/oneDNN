@@ -46,7 +46,6 @@ void _jit_avx2_convolution_fwd_t<with_relu>::execute_forward() {
 
     int ocb_work = div_up(jcp.nb_oc, jcp.nb_oc_blocking);
     const size_t work_amount = jcp.mb * jcp.ngroups * ocb_work * jcp.oh;
-
     auto ker = [&](const int ithr, const int nthr) {
         size_t start{0}, end{0};
         balance211(work_amount, nthr, ithr, start, end);
@@ -62,13 +61,13 @@ void _jit_avx2_convolution_fwd_t<with_relu>::execute_forward() {
             nd_iterator_init(start, n, jcp.mb, g, jcp.ngroups, ocbb, ocb_work,
                              oh, jcp.oh);
             for (size_t iwork = start; iwork < end; ++iwork) {
-                int ocb = ocbb * jcp.nb_oc_blocking;
+                int ocb = static_cast<int>(ocbb * jcp.nb_oc_blocking);
                 int ocb_num = jcp.nb_oc_blocking;
 
                 for (int icb = icbb; icb < icbb + icb_step; ++icb) {
                     jit_conv_call_s par_conv = {};
 
-                    const int ij = oh * jcp.stride_h;
+                    const int ij = static_cast<int>(oh * jcp.stride_h);
                     const int i_t_overflow = nstl::max(0, jcp.t_pad - ij);
                     const int i_b_overflow = nstl::max(jcp.ih,
                                         ij + jcp.kh - jcp.t_pad) - jcp.ih;
@@ -183,11 +182,11 @@ void jit_avx2_convolution_bwd_data_t::execute_backward_data() {
                         {
                             for (int b = 0; b < jcp.nb_ic_blocking; b++)
                             {
-                                int current_ic =
+                                int current_ic = static_cast<int>(
                                     (jcp.ic == 3 ? 0 : g * jcp.nb_ic)
-                                    + jcp.nb_ic_blocking * icbb + b;
+                                    + jcp.nb_ic_blocking * icbb + b);
                                 int current_idx =
-                                    diff_src_d.blk_off(n, current_ic, ih, iw);
+                                    static_cast<int>(diff_src_d.blk_off(n, current_ic, ih, iw));
                                 for (int v = 0; v < simd_w; v++)
                                     diff_src[current_idx + v] = 0.0;
                             }

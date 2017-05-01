@@ -31,7 +31,6 @@ function(detect_mkl LIBNAME)
             set(MKLINC ${MKLINC} PARENT_SCOPE)
         endif()
     endif()
-
     get_filename_component(__mklinc_root "${MKLINC}" PATH)
     find_library(MKLLIB NAMES ${LIBNAME}
         PATHS   ${MKLROOT}/lib ${MKLROOT}/lib/intel64
@@ -48,8 +47,12 @@ function(detect_mkl LIBNAME)
     endif()
 endfunction()
 
+if (WIN32)
+detect_mkl("mkl_rt.lib")
+else()
 detect_mkl("libmklml_intel.so")
 detect_mkl("libmkl_rt.so")
+endif()
 
 set(FAIL_WITHOUT_MKL)
 

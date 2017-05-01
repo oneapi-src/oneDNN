@@ -173,12 +173,19 @@ inline bool nd_iterator_step(U &x, const W &X, Args &&... tuple) {
 
 }
 
+#if defined(_WIN32)
+inline void* malloc(size_t size, int alignment) {
+	return _aligned_malloc(size, alignment);
+}
+inline void free(void* p) {	_aligned_free(p); }
+#else
 inline void* malloc(size_t size, int alignment) {
     void *ptr;
     int rc = ::posix_memalign(&ptr, alignment, size);
     return (rc == 0) ? ptr : 0;
 }
 inline void free(void* p) { ::free(p); }
+#endif
 
 struct c_compatible {
     enum { default_alignment = 64 };

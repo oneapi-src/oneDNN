@@ -16,6 +16,7 @@
 
 #include <math.h>
 
+#include "mkldnn.h"
 #include "mkldnn_thread.hpp"
 #include "utils.hpp"
 
@@ -44,28 +45,52 @@ struct jit_avx2_gemm_f32::xbyak_gemm : public jit_generator {
             size_t code_size = 80 * Xbyak::DEFAULT_MAX_CODE_SIZE)
         : jit_generator(code_ptr, code_size)
     {
+        // called with
+        // (*ker_)(m, n, k, alpha, a, lda, b, ldb, beta, c, ldc, bias);
+        //
         bool isTransA = (transa == 'T' || transa == 't');
         bool isTransB = (transb == 'T' || transb == 't');
         bool isBeta0 = (beta == 0.0);
         bool isBetaN = (!isBeta0 && beta != 1.0);
-
         // various definitions for convenience
         auto ARG_M = rdi;
         auto ARG_N = rsi;
         auto K = rdx;
         auto ARG_ALPHA = rcx;
+
+#ifdef _WIN
+        // WIN64ABI passes in arguments different than gcc so we
+        // need to setup stack offsets accordingly
+        // win     rcx, rdx, r8,  r9 ...
+        // gcc     rdi, rsi, rdx, rcx, r8, r9 ...
+        const int kWINSTACKOFFSET = 0x20 + STACKSIZE;
+        auto ARG_M_ = rcx;
+        auto ARG_N_ = rdx;
+        auto ARG_K_ = r8;
+        auto ARG_ALPHA_ = r9;
+        auto A = r8;
+        auto LDA = r9;
+
+        auto ARG_A = ptr[rsp + 8 + kWINSTACKOFFSET];
+        auto ARG_LDA = ptr[rsp + 16 + kWINSTACKOFFSET];
+        auto ARG_B = ptr[rsp + 24 + kWINSTACKOFFSET];
+        auto ARG_LDB = ptr[rsp + 32 + kWINSTACKOFFSET];
+        auto ARG_BETA = ptr[rsp + 40 + kWINSTACKOFFSET];
+        auto ARG_C = ptr[rsp + 48 + kWINSTACKOFFSET];
+        auto ARG_LDC = ptr[rsp + 56 + kWINSTACKOFFSET];
+        auto ARG_BIAS = ptr[rsp + 64 + kWINSTACKOFFSET];
+#else
         auto ARG_A = r8;
         auto ARG_LDA = r9;
-
         auto ARG_B = ptr[rsp + 8 + STACKSIZE];
         auto ARG_LDB = ptr[rsp + 16 + STACKSIZE];
         auto ARG_BETA = ptr[rsp + 24 + STACKSIZE];
         auto ARG_C = ptr[rsp + 32 + STACKSIZE];
         auto ARG_LDC = ptr[rsp + 40 + STACKSIZE];
         auto ARG_BIAS = ptr[rsp + 48 + STACKSIZE];
-
         auto A = ARG_A;
         auto LDA = ARG_LDA;
+#endif
         auto B = r11;
         auto LDB = rbx;
         auto LDC = r13;
@@ -2057,7 +2082,10 @@ struct jit_avx2_gemm_f32::xbyak_gemm : public jit_generator {
         mov(ptr[rsp + 24], r13);
         mov(ptr[rsp + 32], r14);
         mov(ptr[rsp + 40], r15);
-
+#ifdef _WIN
+        mov(ptr[rsp + 48], rsi);
+        mov(ptr[rsp + 56], rdi);
+#endif
         // Get the registers
         mov(B, ARG_B);
         mov(LDB, ARG_LDB);
@@ -2067,6 +2095,18 @@ struct jit_avx2_gemm_f32::xbyak_gemm : public jit_generator {
             mov(r10, ARG_BIAS);
         mov(LDC, ARG_LDC);
         mov(rbp, rsp);
+
+#ifdef _WIN
+        // Map WIN64ABI register usage to what the code below uses
+        // (seems to be the easiest option to do it this was)
+        mov(ARG_M, ARG_M_);
+        mov(ARG_N, ARG_N_);
+        mov(K, ARG_K_);
+        mov(ARG_ALPHA, ARG_ALPHA_);
+        // For WIN64ABI the 5th and 6th parameter comes from stack - load it to register
+        mov(A, ARG_A);
+        mov(LDA, ARG_LDA);
+#endif
 
         vmovss(xmm0, ptr[ARG_ALPHA]);
         vmovss(xmm1, ptr[r15]);
@@ -2164,6 +2204,10 @@ struct jit_avx2_gemm_f32::xbyak_gemm : public jit_generator {
         mov(r13, ptr[rsp + 24]);
         mov(r14, ptr[rsp + 32]);
         mov(r15, ptr[rsp + 40]);
+#ifdef _WIN
+        mov(rsi, ptr[rsp + 48]);
+        mov(rdi, ptr[rsp + 56]);
+#endif
 
         vzeroupper();
         add(rsp, STACKSIZE);
@@ -2276,11 +2320,11 @@ void jit_avx2_gemm_f32::sgemm_nocopy_driver(const char *transa,
                     }
                 }
                 if (Bk == 0) {
-                    if (*beta == 0.0 && bias == NULL)
+                    if (*beta == 0.0 && bias == NULL) 
                         (*ker_b0_)((long long int)sizeM, (long long int)sizeN,
-                                (long long int)sizeK, alpha, curA,
-                                (long long int)lda, curB, (long long int)ldb,
-                                beta, curC, (long long int)ldc, curBias);
+                            (long long int)sizeK, alpha, curA,
+                            (long long int)lda, curB, (long long int)ldb,
+                            beta, curC, (long long int)ldc, curBias);
                     else
                         (*ker_bn_)((long long int)sizeM, (long long int)sizeN,
                                 (long long int)sizeK, alpha, curA,
@@ -2482,7 +2526,13 @@ void jit_avx2_gemm_f32::sgemm(const char *transa, const char *transb,
 
 #define CACHE_LINE_SIZE 16
 
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+    const int status_size = nthr * CACHE_LINE_SIZE;
+    VARIABLE_LENGTH_ARRAY(ompstatus, status_size, unsigned int);
+#else
     unsigned int __volatile__ ompstatus[nthr * CACHE_LINE_SIZE];
+#endif
+
     float *c_buffers = NULL;
 
     if (nthr_k > 1) {
