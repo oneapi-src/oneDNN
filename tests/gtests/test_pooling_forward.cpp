@@ -26,7 +26,7 @@ struct test_pool_desc_t {
     int ih, iw;
     int oh, ow;
     int kh, kw;
-    int padh, padw;
+    int padt, padl;
     int strh, strw;
 };
 
@@ -52,6 +52,7 @@ void check_pool_fwd(const pool_test_params &p, const memory &src,
     const memory::desc ws_d  = ws.get_primitive_desc().desc();
 
     auto pd = p.test_pd;
+
 #pragma omp parallel for collapse(4) schedule(static)
     for (int n = 0; n < pd.mb; n++) {
         for (int c = 0; c < pd.c; c++) {
@@ -61,24 +62,28 @@ void check_pool_fwd(const pool_test_params &p, const memory &src,
                             + oh * pd.ow + ow;
                     data_t out = dst_data[map_index(dst_d, oidx)];
                     int out_index = -1;
-                    if(p.aalgorithm == algorithm::pooling_max
+                    if(p.aalgorithm == pooling_max
                         && p.aprop_kind == prop_kind::forward_training) {
                         out_index = ws_data[map_index(ws_d, oidx)];
                     }
                     data_t out_ref = data_t(0);
                     int out_ref_index = 0;
                     bool is_initialized = false;
-                    for (int kh = 0; kh < pd.kh; kh++) {
-                        for (int kw = 0; kw < pd.kw; kw++) {
-                            int iw = ow * pd.strw - pd.padw + kw;
-                            int ih = oh * pd.strh - pd.padh + kh;
-                            if (iw < 0 || iw >= pd.iw) continue;
+                    int num_summands = 0;
+
+                    for (int kh = 0; kh < pd.kh; ++kh) {
+                        for (int kw = 0; kw < pd.kw; ++kw) {
+                            const int ih = oh * pd.strh - pd.padt + kh;
+                            const int iw = ow * pd.strw - pd.padl + kw;
+
                             if (ih < 0 || ih >= pd.ih) continue;
+                            if (iw < 0 || iw >= pd.iw) continue;
+
                             int iidx = n * pd.c * pd.ih * pd.iw
                                     + c * pd.ih * pd.iw + ih * pd.iw + iw;
 
                             data_t d = src_data[map_index(src_d, iidx)];
-                            if (p.aalgorithm == algorithm::pooling_max) {
+                            if (p.aalgorithm == pooling_max) {
                                 if (!is_initialized) {
                                     out_ref = d;
                                     out_ref_index = kh* pd.kh + kw;
@@ -89,17 +94,25 @@ void check_pool_fwd(const pool_test_params &p, const memory &src,
                                         out_ref_index = kh* pd.kh + kw;
                                     }
                                 }
-                            } else if (p.aalgorithm == algorithm::pooling_avg) {
+                            } else if (p.aalgorithm == pooling_avg_include_padding ||
+                                       p.aalgorithm == pooling_avg_exclude_padding) {
                                 out_ref += d;
+                                num_summands++;
                             }
                         }
                     }
-                    if (p.aalgorithm == algorithm::pooling_avg) {
-                        out_ref /= pd.kw*pd.kh;
+
+                    if (p.aalgorithm == pooling_avg_include_padding) {
+                        num_summands = pd.kw * pd.kh;
+                    }
+
+                    if (p.aalgorithm == pooling_avg_include_padding ||
+                        p.aalgorithm == pooling_avg_exclude_padding) {
+                        out_ref /= num_summands;
                     }
                     EXPECT_NEAR(out, out_ref, 1e-6);
-                    if(p.aalgorithm == algorithm::pooling_max
-                        && p.aprop_kind == prop_kind::forward_training) {
+                    if(p.aalgorithm == pooling_max
+                        && p.aprop_kind == forward_training) {
                         if ( out_index != out_ref_index)
                             printf("DEBUG: ! out_index %d NE out_ref_index %d . n = %d c = %d oh = %d ow = %d\n"
                                 , out_index, out_ref_index, n, c, oh, ow);
@@ -132,20 +145,20 @@ protected:
         auto p_dst_desc
                 = create_md({ pd.mb, pd.c, pd.oh, pd.ow }, data_type, p.dst_format);
 
-        std::vector<int> padR = { pd.padh, pd.padw };
+        std::vector<int> padR = { pd.padt, pd.padl };
         for (int i = 0; i < 2; ++i) {
-        if ((pd.ih + pd.padh + padR[0] - pd.kh)/pd.strh + 1 < pd.oh) ++padR[0];
-        if ((pd.iw + pd.padw + padR[1] - pd.kw)/pd.strw + 1 < pd.ow) ++padR[1];
+        if ((pd.ih + pd.padt + padR[0] - pd.kh)/pd.strh + 1 < pd.oh) ++padR[0];
+        if ((pd.iw + pd.padl + padR[1] - pd.kw)/pd.strw + 1 < pd.ow) ++padR[1];
         }
 
         auto pool_desc = pooling_forward::desc(p.aprop_kind, p.aalgorithm, p_src_desc,
-                p_dst_desc, {pd.strh, pd.strw}, {pd.kh, pd.kw}, {pd.padh, pd.padw},
+                p_dst_desc, {pd.strh, pd.strw}, {pd.kh, pd.kw}, {pd.padt, pd.padl},
                 padR, padding_kind::zero);
 
         auto pool_prim_desc = pooling_forward::primitive_desc(pool_desc, eng);
 
         bool with_workspace = p.aprop_kind == prop_kind::forward_training &&
-                p.aalgorithm != algorithm::pooling_avg; 
+                p.aalgorithm == pooling_max;
         auto p_workspace_desc = with_workspace ?
             pool_prim_desc.workspace_primitive_desc() :
             memory::primitive_desc( {{}, data_type, p.dst_format}, eng);
@@ -236,10 +249,19 @@ INSTANTIATE_TEST_CASE_P(
 INSTANTIATE_TEST_CASE_P(
         TestPoolingForwardAvgBlockedPerf, pooling_test_float, ::testing::Values(
             pool_test_params_float{ prop_kind::forward_training, engine::kind::cpu,
-            algorithm::pooling_avg, memory::format::nChw8c,
+            algorithm::pooling_avg_exclude_padding, memory::format::nChw8c,
+            memory::format::nChw8c, { 1, 8, 3, 3, 3, 3, 3, 3, 1, 1, 1, 1 } }
+            , pool_test_params_float{ prop_kind::forward_training, engine::kind::cpu,
+            algorithm::pooling_avg_include_padding, memory::format::nChw8c,
             memory::format::nChw8c, { 16, 64, 32, 32, 16, 16, 3, 3, 0, 0, 2, 2 } }
             , pool_test_params_float{ prop_kind::forward_training, engine::kind::cpu,
-            algorithm::pooling_avg, memory::format::nChw8c,
+            algorithm::pooling_avg_exclude_padding, memory::format::nChw8c,
+            memory::format::nChw8c, { 16, 64, 32, 32, 16, 16, 3, 3, 0, 0, 2, 2 } }
+            , pool_test_params_float{ prop_kind::forward_training, engine::kind::cpu,
+            algorithm::pooling_avg_include_padding, memory::format::nChw8c,
+            memory::format::nChw8c, { 16, 64, 32, 32, 16, 16, 3, 3, 0, 0, 2, 2 } }
+            , pool_test_params_float{ prop_kind::forward_training, engine::kind::cpu,
+            algorithm::pooling_avg_exclude_padding, memory::format::nChw8c,
             memory::format::nChw8c, { 16, 64, 32, 32, 16, 16, 3, 3, 0, 0, 2, 2 } }
             ));
 
@@ -279,10 +301,16 @@ INSTANTIATE_TEST_CASE_P(
 INSTANTIATE_TEST_CASE_P(
         TestPoolingForwardAvgBlocked16Perf, pooling_test_float, ::testing::Values(
             pool_test_params_float{ prop_kind::forward_training, engine::kind::cpu,
-            algorithm::pooling_avg, memory::format::nChw16c,
+            algorithm::pooling_avg_include_padding, memory::format::nChw16c,
             memory::format::nChw16c, { 16, 64, 32, 32, 16, 16, 3, 3, 0, 0, 2, 2 } }
             , pool_test_params_float{ prop_kind::forward_training, engine::kind::cpu,
-            algorithm::pooling_avg, memory::format::nChw16c,
+            algorithm::pooling_avg_exclude_padding, memory::format::nChw16c,
+            memory::format::nChw16c, { 16, 64, 32, 32, 16, 16, 3, 3, 0, 0, 2, 2 } }
+            , pool_test_params_float{ prop_kind::forward_training, engine::kind::cpu,
+            algorithm::pooling_avg_include_padding, memory::format::nChw16c,
+            memory::format::nChw16c, { 16, 64, 32, 32, 16, 16, 3, 3, 0, 0, 2, 2 } }
+            , pool_test_params_float{ prop_kind::forward_training, engine::kind::cpu,
+            algorithm::pooling_avg_exclude_padding, memory::format::nChw16c,
             memory::format::nChw16c, { 16, 64, 32, 32, 16, 16, 3, 3, 0, 0, 2, 2 } }
             ));
 
@@ -388,17 +416,37 @@ INSTANTIATE_TEST_CASE_P(
 INSTANTIATE_TEST_CASE_P(
         TestPoolingAvgCIFAR10NCHW, pooling_test_float, ::testing::Values(
             pool_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nchw,
-            memory::format::nchw, { 2, 32, 16, 16, 8, 8, 3, 3, 0, 0, 2, 2 } },
-            pool_test_params_float{ prop_kind::forward_scoring,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nchw,
-            memory::format::nchw, { 2, 32, 16, 15, 8, 8, 3, 3, 0, 0, 2, 2 } },
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nchw, memory::format::nchw,
+            { 2, 32, 16, 16, 8, 8, 3, 3, 0, 0, 2, 2 } },
             pool_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nchw,
-            memory::format::nchw, { 2, 64, 8, 8, 4, 4, 3, 3, 0, 0, 2, 2 } },
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nchw, memory::format::nchw,
+            { 2, 32, 16, 16, 8, 8, 3, 3, 0, 0, 2, 2 } },
             pool_test_params_float{ prop_kind::forward_scoring,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nchw,
-            memory::format::nchw, { 2, 64, 8, 8, 4, 4, 3, 3, 0, 0, 2, 2 } }
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nchw, memory::format::nchw,
+            { 2, 32, 16, 15, 8, 8, 3, 3, 0, 0, 2, 2 } },
+            pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nchw, memory::format::nchw,
+            { 2, 32, 16, 15, 8, 8, 3, 3, 0, 0, 2, 2 } },
+            pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nchw, memory::format::nchw,
+            { 2, 64, 8, 8, 4, 4, 3, 3, 0, 0, 2, 2 } },
+            pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nchw, memory::format::nchw,
+            { 2, 64, 8, 8, 4, 4, 3, 3, 0, 0, 2, 2 } },
+            pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nchw, memory::format::nchw,
+            { 2, 64, 8, 8, 4, 4, 3, 3, 0, 0, 2, 2 } },
+            pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nchw, memory::format::nchw,
+            { 2, 64, 8, 8, 4, 4, 3, 3, 0, 0, 2, 2 } }
             ));
 
 INSTANTIATE_TEST_CASE_P(
@@ -414,17 +462,37 @@ INSTANTIATE_TEST_CASE_P(
 INSTANTIATE_TEST_CASE_P(
         TestPoolingAvgCIFAR10Blocked, pooling_test_float, ::testing::Values(
             pool_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nChw8c,
-            memory::format::nChw8c, { 2, 32, 16, 16, 8, 8, 3, 3, 0, 0, 2, 2 } },
-            pool_test_params_float{ prop_kind::forward_scoring,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nChw8c,
-            memory::format::nChw8c, { 2, 32, 16, 16, 8, 8, 3, 3, 0, 0, 2, 2 } },
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nChw8c, memory::format::nChw8c,
+            { 2, 32, 16, 16, 8, 8, 3, 3, 0, 0, 2, 2 } },
             pool_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nChw8c,
-            memory::format::nChw8c, { 2, 64, 8, 8, 4, 4, 3, 3, 0, 0, 2, 2 } },
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nChw8c, memory::format::nChw8c,
+            { 2, 32, 16, 16, 8, 8, 3, 3, 0, 0, 2, 2 } },
             pool_test_params_float{ prop_kind::forward_scoring,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nChw8c,
-            memory::format::nChw8c, { 2, 64, 8, 8, 4, 4, 3, 3, 0, 0, 2, 2 } }
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nChw8c, memory::format::nChw8c,
+            { 2, 32, 16, 16, 8, 8, 3, 3, 0, 0, 2, 2 } },
+            pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nChw8c, memory::format::nChw8c,
+            { 2, 32, 16, 16, 8, 8, 3, 3, 0, 0, 2, 2 } },
+            pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nChw8c, memory::format::nChw8c,
+            { 2, 64, 8, 8, 4, 4, 3, 3, 0, 0, 2, 2 } },
+            pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nChw8c, memory::format::nChw8c,
+            { 2, 64, 8, 8, 4, 4, 3, 3, 0, 0, 2, 2 } },
+            pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nChw8c, memory::format::nChw8c,
+            { 2, 64, 8, 8, 4, 4, 3, 3, 0, 0, 2, 2 } },
+            pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nChw8c, memory::format::nChw8c,
+            { 2, 64, 8, 8, 4, 4, 3, 3, 0, 0, 2, 2 } }
             ));
 
 INSTANTIATE_TEST_CASE_P(
@@ -440,17 +508,37 @@ INSTANTIATE_TEST_CASE_P(
 INSTANTIATE_TEST_CASE_P(
         TestPoolingAvgCIFAR10Blocked16, pooling_test_float, ::testing::Values(
             pool_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nChw16c,
-            memory::format::nChw16c, { 2, 32, 16, 16, 8, 8, 3, 3, 0, 0, 2, 2 } },
-            pool_test_params_float{ prop_kind::forward_scoring,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nChw16c,
-            memory::format::nChw16c, { 2, 32, 16, 16, 8, 8, 3, 3, 0, 0, 2, 2 } },
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nChw16c, memory::format::nChw16c,
+            { 2, 32, 16, 16, 8, 8, 3, 3, 0, 0, 2, 2 } },
             pool_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nChw16c,
-            memory::format::nChw16c, { 2, 64, 8, 8, 4, 4, 3, 3, 0, 0, 2, 2 } },
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nChw16c, memory::format::nChw16c,
+            { 2, 32, 16, 16, 8, 8, 3, 3, 0, 0, 2, 2 } },
             pool_test_params_float{ prop_kind::forward_scoring,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nChw16c,
-            memory::format::nChw16c, { 2, 64, 8, 8, 4, 4, 3, 3, 0, 0, 2, 2 } }
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nChw16c, memory::format::nChw16c,
+            { 2, 32, 16, 16, 8, 8, 3, 3, 0, 0, 2, 2 } },
+            pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nChw16c, memory::format::nChw16c,
+            { 2, 32, 16, 16, 8, 8, 3, 3, 0, 0, 2, 2 } },
+            pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nChw16c, memory::format::nChw16c,
+            { 2, 64, 8, 8, 4, 4, 3, 3, 0, 0, 2, 2 } },
+            pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nChw16c, memory::format::nChw16c,
+            { 2, 64, 8, 8, 4, 4, 3, 3, 0, 0, 2, 2 } },
+            pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nChw16c, memory::format::nChw16c,
+            { 2, 64, 8, 8, 4, 4, 3, 3, 0, 0, 2, 2 } },
+            pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nChw16c, memory::format::nChw16c,
+            { 2, 64, 8, 8, 4, 4, 3, 3, 0, 0, 2, 2 } }
             ));
 
 INSTANTIATE_TEST_CASE_P(
@@ -552,97 +640,217 @@ INSTANTIATE_TEST_CASE_P(
 INSTANTIATE_TEST_CASE_P(
         TestPoolingAvgGoogleNetV1NCHW, pooling_test_float, ::testing::Values(
             pool_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nchw,
-            memory::format::nchw, { 2, 512, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 } },
-            pool_test_params_float{ prop_kind::forward_scoring,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nchw,
-            memory::format::nchw, { 2, 512, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 } },
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nchw, memory::format::nchw,
+            { 2, 512, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 } },
             pool_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nchw,
-            memory::format::nchw, { 2, 528, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 } },
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nchw, memory::format::nchw,
+            { 2, 512, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 } },
             pool_test_params_float{ prop_kind::forward_scoring,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nchw,
-            memory::format::nchw, { 2, 528, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 } },
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nchw, memory::format::nchw,
+            { 2, 512, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 } },
+            pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nchw, memory::format::nchw,
+            { 2, 512, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 } },
             pool_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nchw,
-            memory::format::nchw, { 2, 1024, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } },
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nchw, memory::format::nchw,
+            { 2, 528, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 } },
+            pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nchw, memory::format::nchw,
+            { 2, 528, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 } },
             pool_test_params_float{ prop_kind::forward_scoring,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nchw,
-            memory::format::nchw, { 2, 1024, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } }
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nchw, memory::format::nchw,
+            { 2, 528, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 } },
+            pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nchw, memory::format::nchw,
+            { 2, 528, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 } },
+            pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nchw, memory::format::nchw,
+            { 2, 1024, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } },
+            pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nchw, memory::format::nchw,
+            { 2, 1024, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } },
+            pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nchw, memory::format::nchw,
+            { 2, 1024, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } },
+            pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nchw, memory::format::nchw,
+            { 2, 1024, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } }
             ));
 
 INSTANTIATE_TEST_CASE_P(
         TestPoolingAvgGoogleNetV1Blocked, pooling_test_float, ::testing::Values(
             pool_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nChw8c,
-            memory::format::nChw8c, { 2, 512, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 } },
-            pool_test_params_float{ prop_kind::forward_scoring,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nChw8c,
-            memory::format::nChw8c, { 2, 512, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 } },
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nChw8c, memory::format::nChw8c,
+            { 2, 512, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 } },
             pool_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nChw8c,
-            memory::format::nChw8c, { 2, 528, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 } },
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nChw8c, memory::format::nChw8c,
+            { 2, 512, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 } },
             pool_test_params_float{ prop_kind::forward_scoring,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nChw8c,
-            memory::format::nChw8c, { 2, 528, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 } },
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nChw8c, memory::format::nChw8c,
+            { 2, 512, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 } },
+            pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nChw8c, memory::format::nChw8c,
+            { 2, 512, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 } },
             pool_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nChw8c,
-            memory::format::nChw8c, { 2, 1024, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } },
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nChw8c, memory::format::nChw8c,
+            { 2, 528, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 } },
+            pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nChw8c, memory::format::nChw8c,
+            { 2, 528, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 } },
             pool_test_params_float{ prop_kind::forward_scoring,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nChw8c,
-            memory::format::nChw8c, { 2, 1024, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } }
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nChw8c, memory::format::nChw8c,
+            { 2, 528, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 } },
+            pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nChw8c, memory::format::nChw8c,
+            { 2, 528, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 } },
+            pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nChw8c, memory::format::nChw8c,
+            { 2, 1024, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } },
+            pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nChw8c, memory::format::nChw8c,
+            { 2, 1024, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } },
+            pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nChw8c, memory::format::nChw8c,
+            { 2, 1024, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } },
+            pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nChw8c, memory::format::nChw8c,
+            { 2, 1024, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } }
             ));
 
 INSTANTIATE_TEST_CASE_P(
         TestPoolingAvgGoogleNetV1Blocked16, pooling_test_float, ::testing::Values(
             pool_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nChw16c,
-            memory::format::nChw16c, { 2, 512, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 } },
-            pool_test_params_float{ prop_kind::forward_scoring,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nChw16c,
-            memory::format::nChw16c, { 2, 512, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 } },
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nChw16c, memory::format::nChw16c,
+            { 2, 512, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 } },
             pool_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nChw16c,
-            memory::format::nChw16c, { 2, 528, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 } },
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nChw16c, memory::format::nChw16c,
+            { 2, 512, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 } },
             pool_test_params_float{ prop_kind::forward_scoring,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nChw16c,
-            memory::format::nChw16c, { 2, 528, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 } },
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nChw16c, memory::format::nChw16c,
+            { 2, 512, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 } },
+            pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nChw16c, memory::format::nChw16c,
+            { 2, 512, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 } },
             pool_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nChw16c,
-            memory::format::nChw16c, { 2, 1024, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } },
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nChw16c, memory::format::nChw16c,
+            { 2, 528, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 } },
+            pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nChw16c, memory::format::nChw16c,
+            { 2, 528, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 } },
             pool_test_params_float{ prop_kind::forward_scoring,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nChw16c,
-            memory::format::nChw16c, { 2, 1024, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } }
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nChw16c, memory::format::nChw16c,
+            { 2, 528, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 } },
+            pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nChw16c, memory::format::nChw16c,
+            { 2, 528, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 } },
+            pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nChw16c, memory::format::nChw16c,
+            { 2, 1024, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } },
+            pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nChw16c, memory::format::nChw16c,
+            { 2, 1024, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } },
+            pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nChw16c, memory::format::nChw16c,
+            { 2, 1024, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } },
+            pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nChw16c, memory::format::nChw16c,
+            { 2, 1024, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } }
             ));
 
 INSTANTIATE_TEST_CASE_P(
         TestPoolingAvgResnet50NCHW, pooling_test_float, ::testing::Values(
             pool_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nchw,
-            memory::format::nchw, { 2, 512, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } },
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nchw, memory::format::nchw,
+            { 2, 512, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } },
+            pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nchw, memory::format::nchw,
+            { 2, 512, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } },
             pool_test_params_float{ prop_kind::forward_scoring,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nchw,
-            memory::format::nchw, { 2, 512, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } }
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nchw, memory::format::nchw,
+            { 2, 512, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } },
+            pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nchw, memory::format::nchw,
+            { 2, 512, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } }
             ));
 
 INSTANTIATE_TEST_CASE_P(
         TestPoolingAvgResnet50Blocked, pooling_test_float, ::testing::Values(
             pool_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nChw8c,
-            memory::format::nChw8c, { 2, 512, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } },
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nChw8c, memory::format::nChw8c,
+            { 2, 512, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } },
+            pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nChw8c, memory::format::nChw8c,
+            { 2, 512, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } },
             pool_test_params_float{ prop_kind::forward_scoring,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nChw8c,
-            memory::format::nChw8c, { 2, 512, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } }
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nChw8c, memory::format::nChw8c,
+            { 2, 512, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } },
+            pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nChw8c, memory::format::nChw8c,
+            { 2, 512, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } }
             ));
 
 INSTANTIATE_TEST_CASE_P(
         TestPoolingAvgResnet50Blocked16, pooling_test_float, ::testing::Values(
             pool_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nChw16c,
-            memory::format::nChw16c, { 2, 512, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } },
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nChw16c, memory::format::nChw16c,
+            { 2, 512, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } },
+            pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nChw16c, memory::format::nChw16c,
+            { 2, 512, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } },
             pool_test_params_float{ prop_kind::forward_scoring,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nChw16c,
-            memory::format::nChw16c, { 2, 512, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } }
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nChw16c, memory::format::nChw16c,
+            { 2, 512, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } },
+            pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nChw16c, memory::format::nChw16c,
+            { 2, 512, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } }
             ));
 
 INSTANTIATE_TEST_CASE_P(
@@ -651,43 +859,74 @@ INSTANTIATE_TEST_CASE_P(
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw8c,
             memory::format::nChw8c, {1, 8, 3, 4, 1, 5, 3, 3, 0, 1, 1, 1}}
             ,pool_test_params_float{ prop_kind::forward_scoring,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nChw8c,
-            memory::format::nChw8c, {1, 8, 3, 4, 1, 5, 3, 3, 0, 1, 1, 1}}
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nChw8c, memory::format::nChw8c,
+            {1, 8, 3, 4, 1, 5, 3, 3, 0, 1, 1, 1}}
+            ,pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nChw8c, memory::format::nChw8c,
+            {1, 8, 3, 4, 1, 5, 3, 3, 0, 1, 1, 1}}
 
             ,pool_test_params_float{ prop_kind::forward_scoring,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw8c,
             memory::format::nChw8c, {1, 8, 3, 14, 1, 8, 3, 3, 0, 1, 1, 2}}
             ,pool_test_params_float{ prop_kind::forward_scoring,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nChw8c,
-            memory::format::nChw8c, {1, 8, 3, 14, 1, 8, 3, 3, 0, 1, 1, 2}}
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nChw8c, memory::format::nChw8c,
+            {1, 8, 3, 14, 1, 8, 3, 3, 0, 1, 1, 2}}
+            ,pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nChw8c, memory::format::nChw8c,
+            {1, 8, 3, 14, 1, 8, 3, 3, 0, 1, 1, 2}}
 
             ,pool_test_params_float{ prop_kind::forward_scoring,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw8c,
             memory::format::nChw8c, {1, 96, 3, 100, 1, 51, 3, 3, 0, 1, 1, 2}}
             ,pool_test_params_float{ prop_kind::forward_scoring,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nChw8c,
-            memory::format::nChw8c, {1, 96, 3, 100, 1, 51, 3, 3, 0, 1, 1, 2}}
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nChw8c, memory::format::nChw8c,
+            {1, 96, 3, 100, 1, 51, 3, 3, 0, 1, 1, 2}}
+            ,pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nChw8c, memory::format::nChw8c,
+            {1, 96, 3, 100, 1, 51, 3, 3, 0, 1, 1, 2}}
 
             ,pool_test_params_float{ prop_kind::forward_scoring,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw8c,
             memory::format::nChw8c, {1, 96, 3, 102, 1, 52, 3, 3, 0, 1, 1, 2}}
             ,pool_test_params_float{ prop_kind::forward_scoring,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nChw8c,
-            memory::format::nChw8c, {1, 96, 3, 102, 1, 52, 3, 3, 0, 1, 1, 2}}
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nChw8c, memory::format::nChw8c,
+            {1, 96, 3, 102, 1, 52, 3, 3, 0, 1, 1, 2}}
+            ,pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nChw8c, memory::format::nChw8c,
+            {1, 96, 3, 102, 1, 52, 3, 3, 0, 1, 1, 2}}
 
             ,pool_test_params_float{ prop_kind::forward_scoring,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw8c,
             memory::format::nChw8c, {1, 96, 9, 103, 7, 52, 3, 3, 0, 1, 1, 2}}
             ,pool_test_params_float{ prop_kind::forward_scoring,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nChw8c,
-            memory::format::nChw8c, {1, 96, 9, 103, 7, 52, 3, 3, 0, 1, 1, 2}}
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nChw8c, memory::format::nChw8c,
+            {1, 96, 9, 103, 7, 52, 3, 3, 0, 1, 1, 2}}
+            ,pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nChw8c, memory::format::nChw8c,
+            {1, 96, 9, 103, 7, 52, 3, 3, 0, 1, 1, 2}}
 
             ,pool_test_params_float{ prop_kind::forward_scoring,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw8c,
             memory::format::nChw8c, {1, 96, 300, 500, 151, 251, 3, 3, 1, 1, 2, 2} }
             ,pool_test_params_float{ prop_kind::forward_scoring,
-            engine::kind::cpu, algorithm::pooling_avg, memory::format::nChw8c,
-            memory::format::nChw8c, {1, 96, 300, 500, 151, 251, 3, 3, 1, 1, 2, 2} }
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nChw8c, memory::format::nChw8c,
+            {1, 96, 300, 500, 151, 251, 3, 3, 1, 1, 2, 2} }
+            ,pool_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nChw8c, memory::format::nChw8c,
+            {1, 96, 300, 500, 151, 251, 3, 3, 1, 1, 2, 2} }
 
             ));
+
 }

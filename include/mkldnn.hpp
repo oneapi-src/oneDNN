@@ -506,7 +506,9 @@ enum algorithm {
     lrn_across_channels = c_api::mkldnn_lrn_across_channels,
     lrn_within_channel  = c_api::mkldnn_lrn_within_channel,
     pooling_max = c_api::mkldnn_pooling_max,
-    pooling_avg = c_api::mkldnn_pooling_avg
+    pooling_avg = c_api::mkldnn_pooling_avg,
+    pooling_avg_include_padding = c_api::mkldnn_pooling_avg_include_padding,
+    pooling_avg_exclude_padding = c_api::mkldnn_pooling_avg_exclude_padding
 };
 
 enum batch_normalization_flag {

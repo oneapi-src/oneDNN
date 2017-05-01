@@ -80,6 +80,7 @@ void ref_relu_bwd_t<data_type>::execute_backward_generic() {
     auto diff_src = reinterpret_cast<data_t*>(this->memory(0));
 
     const memory_desc_wrapper data_d(conf_.src_pd());
+    const memory_desc_wrapper diff_data_d(conf_.diff_src_pd());
 
     const int MB = conf_.MB();
     const int C = conf_.C();
@@ -92,10 +93,11 @@ void ref_relu_bwd_t<data_type>::execute_backward_generic() {
         for (int c = 0; c < C; ++c) {
             for (int h = 0; h < H; ++h) {
                 for (int w = 0; w < W; ++w) {
-                    auto d_off = data_d.off(n, c, h, w);
-                    data_t s = src[d_off];
-                    data_t dd = diff_dst[d_off];
-                    data_t &ds = diff_src[d_off];
+                    auto data_off = data_d.off(n, c, h, w);
+                    auto diff_data_off = diff_data_d.off(n, c, h, w);
+                    data_t s = src[data_off];
+                    data_t dd = diff_dst[diff_data_off];
+                    data_t &ds = diff_src[diff_data_off];
                     ds = dd * ((s > 0) ? 1. : negative_slope);
                 }
             }

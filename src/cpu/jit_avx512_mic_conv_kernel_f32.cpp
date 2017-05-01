@@ -370,6 +370,10 @@ status_t jit_avx512_mic_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
         }
     }
 
+    //TODO (Tanya) currenly applied to Segnet convolutions only.
+    //Need to try for other topologies
+    if (jcp.ow > 150 && jcp.ur_w < regs/2) jcp.ur_w = regs;
+
     int n_oi = (jcp.ow / jcp.ur_w);
     int r_pad = (jcp.ur_w * n_oi - 1) * jcp.stride_w + jcp.kw - jcp.iw
             - jcp.l_pad;
@@ -998,7 +1002,10 @@ void jit_avx512_mic_conv_bwd_weights_kernel_f32::compute_oh_step_disp() {
     }
     int max_ur_w = 28;
 
-    if (jcp.kw <= 3 && jcp.ow <= 16)
+    bool too_large_to_unroll = (jcp.kw > 1 || jcp.kh > 1) && 
+         (jcp.stride_w > 1 || jcp.stride_h > 1);
+
+    if (jcp.kw <= 3 && jcp.ow <= 16 && !too_large_to_unroll)
         compute_oh_step_unroll_ow_icblock(ic_block_step, max_ur_w);
     else if (jcp.ow <= max_ur_w)
         compute_oh_step_unroll_ow(ic_block_step, max_ur_w);
