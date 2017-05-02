@@ -198,6 +198,20 @@ protected:
             mov(reg_EVEX_max_8b_offt, 2 * EVEX_max_8b_offt);
         }
     }
+    void mic_prefetcht0(Xbyak::Address a) {
+        if (mayiuse(avx512_mic))
+            prefetcht0(a);
+    }
+
+    void mic_prefetcht1(Xbyak::Address a) {
+        if (mayiuse(avx512_mic))
+            prefetcht1(a);
+    }
+
+    void mic_prefetcht2(Xbyak::Address a) {
+        if (mayiuse(avx512_mic))
+            prefetcht2(a);
+    }
 
     void postamble() {
         for (size_t i = 0; i < num_abi_save_regs; ++i)

@@ -128,7 +128,7 @@ struct jit_bnorm_t: public jit_generator {
         spat_size = bdesc_->W() * bdesc_->H();
         chan_data_offt = bdesc_->C() * sizeof(data_t);
 
-        if (isa == avx512_common) {
+        if (isa == avx512_mic) {
             t0_pf_offt = 4096;
             t1_pf_offt = 0;
         } else {
@@ -215,16 +215,6 @@ struct jit_bnorm_t: public jit_generator {
         return vmmword[reg_scale_shift + reg_coff + offt + 1 * chan_data_offt];
     }
 
-    void maybe_prefetcht0(Address a) {
-        if (t0_pf_offt != 0)
-            prefetcht0(a);
-    }
-
-    void maybe_prefetcht1(Address a) {
-        if (t1_pf_offt != 0)
-            prefetcht1(a);
-    }
-
     template <typename init_t, typename body_t, typename fini_t>
     void spat_loop(const char *label, size_t len, size_t blocks, size_t regs,
             init_t init, body_t body, fini_t fini) {
@@ -288,9 +278,9 @@ struct jit_bnorm_t: public jit_generator {
                             size_t offt = i * vlen;
                             vmovups(v1, vmmword[reg_src + reg_soff + offt]);
                             vaddps(v0, v0, v1);
-                            maybe_prefetcht0(ptr[reg_src + reg_soff + offt
+                            mic_prefetcht0(ptr[reg_src + reg_soff + offt
                                     + t0_pf_offt]);
-                            maybe_prefetcht1(ptr[reg_src + reg_soff + offt
+                            mic_prefetcht1(ptr[reg_src + reg_soff + offt
                                     + t1_pf_offt]);
                         },
                         [=](size_t base_reg) {
@@ -358,9 +348,9 @@ struct jit_bnorm_t: public jit_generator {
                             vmovups(vtmp0, vmmword[reg_src + reg_soff + offt]);
                             vsubps(vtmp1, vmean, vtmp0);
                             vfmadd231ps(v, vtmp1, vtmp1);
-                            maybe_prefetcht0(ptr[reg_src + reg_soff + offt
+                            mic_prefetcht0(ptr[reg_src + reg_soff + offt
                                     + t0_pf_offt]);
-                            maybe_prefetcht1(ptr[reg_src + reg_soff + offt
+                            mic_prefetcht1(ptr[reg_src + reg_soff + offt
                                     + t1_pf_offt]);
                         },
                         [=](size_t base_reg) {
@@ -430,9 +420,9 @@ struct jit_bnorm_t: public jit_generator {
                             Vmm v = Vmm(base_reg);
                             size_t offt = i * vlen;
                             vmovups(v, vmmword[reg_src + reg_soff + offt]);
-                            maybe_prefetcht0(ptr[reg_src + reg_soff + offt
+                            mic_prefetcht0(ptr[reg_src + reg_soff + offt
                                     + t0_pf_offt]);
-                            maybe_prefetcht1(ptr[reg_src + reg_soff + offt
+                            mic_prefetcht1(ptr[reg_src + reg_soff + offt
                                     + t1_pf_offt]);
                             vsubps(v, v, vmean);
                             vmulps(v, v, vsqrtvar);
@@ -495,13 +485,13 @@ struct jit_bnorm_t: public jit_generator {
                             vsubps(t3, vmean, t1);
                             vfnmadd231ps(o0, t3, t2);
                             vaddps(o1, t2);
-                            maybe_prefetcht0(ptr[reg_diff_dst + reg_soff + offt
+                            mic_prefetcht0(ptr[reg_diff_dst + reg_soff + offt
                                     + t0_pf_offt]);
-                            maybe_prefetcht0(ptr[reg_src + reg_soff + offt
+                            mic_prefetcht0(ptr[reg_src + reg_soff + offt
                                     + t0_pf_offt]);
-                            maybe_prefetcht1(ptr[reg_diff_dst + reg_soff + offt
+                            mic_prefetcht1(ptr[reg_diff_dst + reg_soff + offt
                                     + t1_pf_offt]);
-                            maybe_prefetcht1(ptr[reg_src + reg_soff + offt
+                            mic_prefetcht1(ptr[reg_src + reg_soff + offt
                                     + t1_pf_offt]);
                         },
                         [=](size_t base_reg) {
@@ -597,13 +587,13 @@ struct jit_bnorm_t: public jit_generator {
                             }
                             vmovntps(vmmword[reg_diff_src + reg_soff + offt],
                                     v);
-                            maybe_prefetcht0(ptr[reg_diff_dst + reg_soff + offt
+                            mic_prefetcht0(ptr[reg_diff_dst + reg_soff + offt
                                     + t0_pf_offt]);
-                            maybe_prefetcht0(ptr[reg_src + reg_soff + offt
+                            mic_prefetcht0(ptr[reg_src + reg_soff + offt
                                     + t0_pf_offt]);
-                            maybe_prefetcht1(ptr[reg_diff_dst + reg_soff
+                            mic_prefetcht1(ptr[reg_diff_dst + reg_soff
                                     + offt + t1_pf_offt]);
-                            maybe_prefetcht1(ptr[reg_src + reg_soff + offt
+                            mic_prefetcht1(ptr[reg_src + reg_soff + offt
                                     + t1_pf_offt]);
                         },
                         [=](size_t base_reg) {UNUSED(base_reg);});
@@ -619,7 +609,7 @@ struct jit_bnorm_t: public jit_generator {
     }
 
     jit_bnorm_t(const batch_normalization_pd_t *bdesc): bdesc_(bdesc) {
-        assert(isa == avx2 || isa == avx512_common);
+        assert(isa == avx2 || isa == avx512_common || isa == avx512_mic);
 
         preamble();
         compute_static_strides();

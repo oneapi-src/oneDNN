@@ -132,28 +132,28 @@ struct jit_avx512_common_lrn_fwd_t::jit_avx512_common_lrn_kernel_f32:
         };
 
         if (!is_first && !is_single) {
-            IRB_LOOP(prefetcht0(ptr[src + (irb + prf0_offt - HW) * vlen]));
-            IRB_LOOP(prefetcht2(ptr[src + (irb + prf2_offt - HW) * vlen]));
+            IRB_LOOP(mic_prefetcht0(ptr[src + (irb + prf0_offt - HW)*vlen]));
+            IRB_LOOP(mic_prefetcht2(ptr[src + (irb + prf2_offt - HW)*vlen]));
         }
-        IRB_LOOP(prefetcht0(EVEX_compress_addr(src,(irb + prf0_offt)*vlen)));
-        IRB_LOOP(prefetcht2(EVEX_compress_addr(src,(irb + prf2_offt)*vlen)));
+        IRB_LOOP(mic_prefetcht0(EVEX_compress_addr(src, (irb + prf0_offt)*vlen)));
+        IRB_LOOP(mic_prefetcht2(EVEX_compress_addr(src, (irb + prf2_offt)*vlen)));
         if (!is_last && !is_single) {
-            IRB_LOOP(prefetcht0(ptr[src + (irb + prf0_offt + HW) * vlen]));
-            IRB_LOOP(prefetcht2(ptr[src + (irb + prf2_offt + HW) * vlen]));
+            IRB_LOOP(mic_prefetcht0(ptr[src + (irb + prf0_offt + HW)*vlen]));
+            IRB_LOOP(mic_prefetcht2(ptr[src + (irb + prf2_offt + HW)*vlen]));
         }
         if (pk != prop_kind::forward_inference) {
-            IRB_LOOP(prefetcht0(EVEX_compress_addr(scratch0,
+            IRB_LOOP(mic_prefetcht0(EVEX_compress_addr(scratch0,
                        (irb + prf0_offt)*vlen)));
-            IRB_LOOP(prefetcht2(EVEX_compress_addr(scratch0,
+            IRB_LOOP(mic_prefetcht2(EVEX_compress_addr(scratch0,
                        (irb + prf2_offt)*vlen)));
         }
-        IRB_LOOP(prefetcht0(EVEX_compress_addr(dst, (irb + prf0_offt)*vlen)));
-        IRB_LOOP(prefetcht2(EVEX_compress_addr(dst, (irb + prf2_offt)*vlen)));
+        IRB_LOOP(mic_prefetcht0(EVEX_compress_addr(dst, (irb + prf0_offt)*vlen)));
+        IRB_LOOP(mic_prefetcht2(EVEX_compress_addr(dst, (irb + prf2_offt)*vlen)));
         if (pk != prop_kind::forward_inference) {
-            IRB_LOOP(prefetcht0(EVEX_compress_addr(scratch1,
-                        (irb + prf0_offt)*vlen)));
-            IRB_LOOP(prefetcht2(EVEX_compress_addr(scratch1,
-                        (irb + prf2_offt)*vlen)));
+            IRB_LOOP(mic_prefetcht0(EVEX_compress_addr(scratch1,
+                         (irb + prf0_offt) * vlen)));
+            IRB_LOOP(mic_prefetcht2(EVEX_compress_addr(scratch1,
+                         (irb + prf2_offt) * vlen)));
         }
 
         loop_size = loop_size_param;
@@ -524,43 +524,43 @@ struct jit_avx512_common_lrn_bwd_t::jit_avx512_common_lrn_kernel_f32:
 // ---- prefetching -------------------------------------------
         if (!is_first && !is_single) {
             if (prefetchL1)
-                IRB_LOOP(prefetcht0(ptr[workspace1 + (irb + prf0_offt
+                IRB_LOOP(mic_prefetcht0(ptr[workspace1 + (irb + prf0_offt
                         - 2 * HW) * vlen]));
             if (prefetchL1)
-                IRB_LOOP(prefetcht0(ptr[diffdst    + (irb + prf0_offt
+                IRB_LOOP(mic_prefetcht0(ptr[diffdst    + (irb + prf0_offt
                         - HW) * vlen]));
         }
 
         if (prefetchL1)
-            IRB_LOOP(prefetcht0(ptr[src + (irb + prf0_offt)*vlen]));
+            IRB_LOOP(mic_prefetcht0(ptr[src + (irb + prf0_offt)*vlen]));
         if (prefetchL2)
-            IRB_LOOP(prefetcht2(ptr[src + (irb + prf2_offt)*vlen]));
+            IRB_LOOP(mic_prefetcht2(ptr[src + (irb + prf2_offt)*vlen]));
 
         if (prefetchL1)
-            IRB_LOOP(prefetcht0(ptr[workspace1 + (irb + prf0_offt)*vlen]));
+            IRB_LOOP(mic_prefetcht0(ptr[workspace1 + (irb + prf0_offt)*vlen]));
 
         if (prefetchL1)
-            IRB_LOOP(prefetcht0(ptr[diffdst + (irb + prf0_offt)*vlen]));
+            IRB_LOOP(mic_prefetcht0(ptr[diffdst + (irb + prf0_offt)*vlen]));
 
         if (!is_last && !is_single) {
             if (prefetchL1)
-                IRB_LOOP(prefetcht0(ptr[workspace1 + (irb + prf0_offt
+                IRB_LOOP(mic_prefetcht0(ptr[workspace1 + (irb + prf0_offt
                         + 2 * HW) * vlen]));
             if (prefetchL2)
-                IRB_LOOP(prefetcht2(ptr[workspace1 + (irb + prf2_offt
+                IRB_LOOP(mic_prefetcht2(ptr[workspace1 + (irb + prf2_offt
                         + 2 * HW) * vlen]));
 
             if (prefetchL1)
-                IRB_LOOP(prefetcht0(ptr[diffdst +  (irb + prf0_offt
-                        + HW) * vlen]));
+                IRB_LOOP(mic_prefetcht0(ptr[diffdst +  (irb + prf0_offt
+                          + HW) * vlen]));
             if (prefetchL2)
-                IRB_LOOP(prefetcht2(ptr[diffdst +  (irb + prf2_offt
+                IRB_LOOP(mic_prefetcht2(ptr[diffdst +  (irb + prf2_offt
                         + HW) * vlen]));
         }
         if (prefetchL1)
-            IRB_LOOP(prefetcht0(ptr[workspace0 + (irb + prf0_offt)*vlen]));
+            IRB_LOOP(mic_prefetcht0(ptr[workspace0 + (irb + prf0_offt)*vlen]));
         if (prefetchL2)
-            IRB_LOOP(prefetcht2(ptr[workspace0 + (irb + prf2_offt)*vlen]));
+            IRB_LOOP(mic_prefetcht2(ptr[workspace0 + (irb + prf2_offt)*vlen]));
 // -----------------------------------------------------------
 
         if (loop_size_param == 0)

@@ -231,7 +231,7 @@ struct reducer_2d_driver_f32_t: public reducer_2d_driver_t<data_type::f32>,
     }
 
     void generate() {
-        assert(isa == avx2 || isa == avx512_common);
+        assert(isa == avx2 || isa == avx512_common || isa == avx512_mic);
 
         preamble();
 

@@ -552,25 +552,23 @@ struct jit_avx512_common_gemm_f32::xbyak_gemm : public jit_generator {
 
             for (int i = 0; i < 8; i++) {
                 if (!isDirect) {
-                    prefetcht0(ptr[AO1
+                    mic_prefetcht0(ptr[AO1
                             + (PREFETCHSIZEA + i * unroll_m + 0 * 16 - OFFSET)
                                     * SIZE]);
                     if (unroll_m >= 32)
-                        prefetcht0(ptr[AO1
-                                + (PREFETCHSIZEA + i * unroll_m + 1 * 16
-                                          - OFFSET)
-                                        * SIZE]);
+                        mic_prefetcht0(ptr[AO1
+                            + (PREFETCHSIZEA + i * unroll_m + 1 * 16 - OFFSET)
+                                    * SIZE]);
                     if (unroll_m >= 48)
-                        prefetcht0(ptr[AO1
-                                + (PREFETCHSIZEA + i * unroll_m + 2 * 16
-                                          - OFFSET)
-                                        * SIZE]);
+                        mic_prefetcht0(ptr[AO1
+                            + (PREFETCHSIZEA + i * unroll_m + 2 * 16 - OFFSET)
+                                    * SIZE]);
                 } else {
-                    prefetcht0(ptr[AO1 + LDA4 + (16 * 0 * SIZE)]);
+                    mic_prefetcht0(ptr[AO1 + LDA4 + (16 * 0 * SIZE)]);
                     if (unroll_m >= 32)
-                        prefetcht0(ptr[AO1 + LDA4 + (16 * 1 * SIZE)]);
+                        mic_prefetcht0(ptr[AO1 + LDA4 + (16 * 1 * SIZE)]);
                     if (unroll_m >= 48)
-                        prefetcht0(ptr[AO1 + LDA4 + (16 * 2 * SIZE)]);
+                        mic_prefetcht0(ptr[AO1 + LDA4 + (16 * 2 * SIZE)]);
                 }
 
                 if (!isDirect) {
@@ -665,35 +663,35 @@ struct jit_avx512_common_gemm_f32::xbyak_gemm : public jit_generator {
                     if (!isTransB) {
                         switch (i) {
                         case 0:
-                            prefetcht0(
+                            mic_prefetcht0(
                                     ptr[BO1 + (PREFETCHSIZEB - OFFSET) * SIZE]);
                             break;
                         case 1:
-                            prefetcht0(ptr[BO1 + LDB
+                            mic_prefetcht0(ptr[BO1 + LDB
                                     + (PREFETCHSIZEB - OFFSET) * SIZE]);
                             break;
                         case 2:
-                            prefetcht0(ptr[BO1 + LDB * 2
+                            mic_prefetcht0(ptr[BO1 + LDB * 2
                                     + (PREFETCHSIZEB - OFFSET) * SIZE]);
                             break;
                         case 3:
-                            prefetcht0(ptr[BO1 + LDB3
+                            mic_prefetcht0(ptr[BO1 + LDB3
                                     + (PREFETCHSIZEB - OFFSET) * SIZE]);
                             break;
                         case 4:
-                            prefetcht0(
+                            mic_prefetcht0(
                                     ptr[BO2 + (PREFETCHSIZEB - OFFSET) * SIZE]);
                             break;
                         case 5:
-                            prefetcht0(ptr[BO2 + LDB
+                            mic_prefetcht0(ptr[BO2 + LDB
                                     + (PREFETCHSIZEB - OFFSET) * SIZE]);
                             break;
                         case 6:
-                            prefetcht0(ptr[BO2 + LDB * 2
+                            mic_prefetcht0(ptr[BO2 + LDB * 2
                                     + (PREFETCHSIZEB - OFFSET) * SIZE]);
                             break;
                         case 7:
-                            prefetcht0(ptr[BO2 + LDB3
+                            mic_prefetcht0(ptr[BO2 + LDB3
                                     + (PREFETCHSIZEB - OFFSET) * SIZE]);
                             break;
                         }
@@ -769,32 +767,32 @@ struct jit_avx512_common_gemm_f32::xbyak_gemm : public jit_generator {
 
                 if (i == 1) {
                     if (doCPrefetch) {
-                        prefetcht0(ptr[CO2 + 0 * 16 * SIZE]);
+                        mic_prefetcht0(ptr[CO2 + 0 * 16 * SIZE]);
                     }
                 }
                 if (i == 3) {
                     if (doCPrefetch && unroll_m >= 32) {
-                        prefetcht0(ptr[CO2 + 1 * 16 * SIZE]);
+                        mic_prefetcht0(ptr[CO2 + 1 * 16 * SIZE]);
                     }
                     if (!isTransA) {
-                        prefetcht2(ptr[AA + 16 * 0 * SIZE]);
+                        mic_prefetcht2(ptr[AA + 16 * 0 * SIZE]);
                     }
                 }
                 if (i == 5) {
                     if (doCPrefetch) {
                         if (unroll_m >= 48)
-                            prefetcht0(ptr[CO2 + 2 * 16 * SIZE]);
+                            mic_prefetcht0(ptr[CO2 + 2 * 16 * SIZE]);
                         add(CO2, LDC);
                     }
                     if (!isTransA) {
                         if (unroll_m >= 32) {
-                            prefetcht2(ptr[AA + 16 * 1 * SIZE]);
+                            mic_prefetcht2(ptr[AA + 16 * 1 * SIZE]);
                         }
                     }
                 }
 
                 if (isTransB) {
-                    prefetcht0(ptr[BO1 + BO2]);
+                    mic_prefetcht0(ptr[BO1 + BO2]);
                     add(BO1, LDB);
                 }
             } // end of for loop
@@ -806,7 +804,7 @@ struct jit_avx512_common_gemm_f32::xbyak_gemm : public jit_generator {
             }
             if (!isTransA) {
                 if (unroll_m >= 48)
-                    prefetcht2(ptr[AA + 16 * 2 * SIZE]);
+                    mic_prefetcht2(ptr[AA + 16 * 2 * SIZE]);
                 lea(AA, ptr[AA + LDA]);
             }
 

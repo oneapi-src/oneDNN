@@ -92,7 +92,7 @@ struct jit_uni_relu_kernel_f32 : public jit_generator {
     jit_uni_relu_kernel_f32(bool isbackward, float nslope)
         : jit_generator(), isBackward(isbackward), negative_slope(nslope)
     {
-        assert(isa == avx2 || isa == avx512_common);
+        assert(isa == avx2 || isa == avx512_common || isa == avx512_mic);
 
         Reg64 param = abi_param1;
 

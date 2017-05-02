@@ -37,7 +37,7 @@ void jit_avx512_common_conv_fwd_kernel_f32::prepare_output(int ur_w)
         Zmm zmm(i);
         vpxord(zmm, zmm, zmm);
         int aux_output_offset = typesize * (i)*jcp.oc_block;
-        prefetcht1(EVEX_compress_addr(reg_out_prf, aux_output_offset));
+        mic_prefetcht1(EVEX_compress_addr(reg_out_prf, aux_output_offset));
     }
 }
 
@@ -66,7 +66,7 @@ void jit_avx512_common_conv_fwd_kernel_f32::store_output(int ur_w)
         }
     }
     if (jcp.with_bias)
-        prefetcht1(EVEX_compress_addr(reg_bias, 64));
+        mic_prefetcht1(EVEX_compress_addr(reg_bias, 64));
 
     L(relu_label);
     if (jcp.with_relu) {
@@ -86,7 +86,7 @@ void jit_avx512_common_conv_fwd_kernel_f32::store_output(int ur_w)
         Zmm zmm(i);
         int aux_output_offset = typesize * (i)*jcp.oc_block;
         vmovups(EVEX_compress_addr(reg_out, aux_output_offset), zmm);
-        prefetcht0(EVEX_compress_addr(reg_out_prf, aux_output_offset));
+        mic_prefetcht0(EVEX_compress_addr(reg_out_prf, aux_output_offset));
     }
 }
 
@@ -184,7 +184,7 @@ int jit_avx512_common_conv_fwd_kernel_f32::compute_loop(int ur_w, int pad_l,
                                 && ker_prfs < num_ker_prfs) {
                             int ker_prf_offset
                                     = typesize * ker_prfs * jcp.oc_block;
-                            prefetcht2(EVEX_compress_addr(
+                            mic_prefetcht2(EVEX_compress_addr(
                                     aux_reg_ker_prf, ker_prf_offset));
                             ker_prf_inserted = true;
                             ker_prfs++;
@@ -207,7 +207,7 @@ int jit_avx512_common_conv_fwd_kernel_f32::compute_loop(int ur_w, int pad_l,
                                             + (inp_prf_idx % ic_block)
                                             * ic_prf_stride);
                                 }
-                                prefetcht0(EVEX_compress_addr(
+                                mic_prefetcht0(EVEX_compress_addr(
                                         aux_reg_inp_prf, inp_prf_offset));
                             }
                         }
@@ -432,7 +432,7 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::prepare_output(int ur_w) {
             vpxord(zmm, zmm, zmm);
             int aux_src_offset = typesize *
                 (k * jcp.ih * jcp.iw + j) * jcp.ic_block;
-            prefetcht1(EVEX_compress_addr(reg_src_prf, aux_src_offset));
+            mic_prefetcht1(EVEX_compress_addr(reg_src_prf, aux_src_offset));
         }
     }
 }
@@ -458,7 +458,7 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::store_output(int ur_w) {
             int aux_src_offset = typesize *
                 (k * jcp.ih * jcp.iw + j) * jcp.ic_block;
             vmovups(EVEX_compress_addr(reg_src, aux_src_offset), zmm);
-            prefetcht0(EVEX_compress_addr(reg_src_prf, aux_src_offset));
+            mic_prefetcht0(EVEX_compress_addr(reg_src_prf, aux_src_offset));
         }
     }
 }
@@ -535,7 +535,7 @@ int jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop(int ur_w,
                         if (!ker_prf_inserted && ker_prfs < num_ker_loads) {
                             int ker_prf_offset = typesize
                                 * ker_prfs * jcp.oc_block;
-                            prefetcht1(EVEX_compress_addr(aux_reg_ker_prf,
+                            mic_prefetcht1(EVEX_compress_addr(aux_reg_ker_prf,
                                                           ker_prf_offset));
                             ker_prf_inserted = true;
                             ker_prfs++;
@@ -545,7 +545,7 @@ int jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop(int ur_w,
                                 int inp_prf_offset = ic_block
                                     * typesize * ((inp_prf_idx / kw)
                                                 * kw + (inp_prf_idx % kw));
-                                prefetcht0(EVEX_compress_addr(aux_reg_dst_prf,
+                                mic_prefetcht0(EVEX_compress_addr(aux_reg_dst_prf,
                                                               inp_prf_offset));
                             }
                         }
