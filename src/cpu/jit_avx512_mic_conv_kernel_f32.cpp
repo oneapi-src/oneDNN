@@ -415,7 +415,7 @@ status_t jit_avx512_mic_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     jcp.nb_ic_blocking = jcp.nb_oc_blocking = 1;
 
     if (jcp.ic % simd_w != 0) {
-        if (jcp.ic == 3 || jcp.ic == 1)
+        if ((jcp.ic == 3 || jcp.ic == 1) && jcp.src_fmt == nchw)
             jcp.is_1stconv = true;
         else
             return status::unimplemented;
@@ -1168,7 +1168,8 @@ status_t jit_avx512_mic_conv_bwd_weights_kernel_f32::init_conf(
 
     jcp.is_1stconv = false;
     if (jcp.ic % simd_w != 0) {
-        if (jcp.ic == 3 || jcp.ic == 1) jcp.is_1stconv = true;
+        if ((jcp.ic == 3 || jcp.ic == 1) && jcp.src_fmt == nchw)
+            jcp.is_1stconv = true;
         else return status::unimplemented;
     }
     jcp.ic_block = (jcp.ic % simd_w) ? jcp.ic : simd_w;
