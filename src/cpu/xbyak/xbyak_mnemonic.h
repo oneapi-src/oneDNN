@@ -410,6 +410,9 @@ void jnge(const Label& label, LabelType type = T_AUTO) { opJmp(label, type, 0x7C
 void jnge(const char *label, LabelType type = T_AUTO) { jnge(std::string(label), type); }
 void jnge(const void *addr) { opJmpAbs(addr, T_NEAR, 0x7C, 0x8C, 0x0F); }
 void jnge(std::string label, LabelType type = T_AUTO) { opJmp(label, type, 0x7C, 0x8C, 0x0F); }
+#if defined(_MSC_VER) && defined(__INTEL_COMPILER)
+#undef jnl
+#endif
 void jnl(const Label& label, LabelType type = T_AUTO) { opJmp(label, type, 0x7D, 0x8D, 0x0F); }
 void jnl(const char *label, LabelType type = T_AUTO) { jnl(std::string(label), type); }
 void jnl(const void *addr) { opJmpAbs(addr, T_NEAR, 0x7D, 0x8D, 0x0F); }

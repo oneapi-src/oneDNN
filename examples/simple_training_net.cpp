@@ -38,10 +38,10 @@ void simple_net()
      * {batch, 3, 227, 227} (x) {96, 3, 11, 11} -> {batch, 96, 55, 55}
      * strides: {4, 4}
      */
-    memory::dims conv_src_tz = { batch, 3, 227, 227 };
+    memory::dims conv_src_tz = { (int)batch, 3L, 227, 227 };
     memory::dims conv_weights_tz = { 96, 3, 11, 11 };
     memory::dims conv_bias_tz = { 96 };
-    memory::dims conv_dst_tz = { batch, 96, 55, 55 };
+    memory::dims conv_dst_tz = { (int)batch, 96L, 55, 55 };
     memory::dims conv_strides = { 4, 4 };
     auto conv_padding = { 0, 0 };
 
@@ -176,7 +176,7 @@ void simple_net()
      * kernel: {3, 3}
      * strides: {2, 2}
      */
-    memory::dims pool_dst_tz = { batch, 96, 27, 27 };
+    memory::dims pool_dst_tz = { (int)batch, 96L, 27, 27 };
     memory::dims pool_kernel = { 3, 3 };
     memory::dims pool_strides = { 2, 2 };
     auto pool_padding = { 0, 0 };
@@ -454,7 +454,9 @@ int main(int argc, char **argv)
     catch (error &e)
     {
         std::cerr << "status: " << e.status << std::endl;
+#ifndef _WIN32
         std::cerr << "message: " << e.message << std::endl;
-    }
+#endif
+	}
     return 0;
 }

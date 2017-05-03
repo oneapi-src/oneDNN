@@ -45,7 +45,11 @@ struct jit_conv_conf_t {
     bool is_1stconv;
 };
 
-struct __attribute__((__packed__)) jit_conv_call_s {
+
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+#pragma pack(push,1)
+#endif
+struct PACKED jit_conv_call_s {
     const float *src; /* hack, non-const for backward_data */
     const float *dst; /* hack, non-const for forward */
     const float *filt; /* hack, non-const for backward_weights */
@@ -62,6 +66,9 @@ struct __attribute__((__packed__)) jit_conv_call_s {
     size_t oc_blocks;
     int ic_flag;
 };
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+#pragma pack(pop)
+#endif
 
 struct jit_1x1_conv_conf_t {
     prop_kind_t prop_kind;
@@ -112,7 +119,10 @@ struct jit_gemm_conv_conf_t {
     size_t im2col_size;
 };
 
-struct __attribute__((__packed__)) jit_1x1_conv_call_s {
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+#pragma pack(push,1)
+#endif
+struct PACKED jit_1x1_conv_call_s {
     const float *bcast_data;
     const float *load_data;
     const float *output_data;
@@ -126,6 +136,9 @@ struct __attribute__((__packed__)) jit_1x1_conv_call_s {
 
     size_t reduce_pos_flag;
 };
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+#pragma pack(pop)
+#endif
 
 }
 }

@@ -51,7 +51,7 @@ void test1() {
 
     const int len0 = 100;
     mkldnn_dims_t dims = {len0};
-    real_t data[len0];
+    real_t *data = malloc(sizeof(real_t) * len0);
 
     mkldnn_memory_desc_t md;
     mkldnn_primitive_desc_t mpd;

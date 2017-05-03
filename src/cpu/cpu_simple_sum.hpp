@@ -55,14 +55,14 @@ struct cpu_simple_sum_t: public c_compatible {
                         cpu_memory_t::pd_t &dst_pds_,
                         cpu_primitive_t *sum)
     {
-        const int num_arrs = src_pds_.size();
+        int num_arrs = src_pds_.size();
 
         auto output = reinterpret_cast<data_t *>(sum->memory());
         const memory_desc_wrapper o_d(&dst_pds_);
         output += o_d.blk_off(0);
         const size_t nelems = o_d.nelems();
 
-        const data_t *input_ptrs[num_arrs];
+        VARIABLE_LENGTH_ARRAY(input_ptrs, num_arrs, const data_t *);
         for (int a = 0; a < num_arrs; ++a) {
             const memory_desc_wrapper i_d(&src_pds_[a]);
 

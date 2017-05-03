@@ -32,6 +32,7 @@ set_property(TARGET api-c PROPERTY C_STANDARD 99)
 target_link_libraries(api-c ${LIB_NAME})
 add_test(api-c api-c)
 
+if(NOT WIN32)
 set(test_c_symbols "${CMAKE_CURRENT_BINARY_DIR}/test_c_symbols.c")
 add_executable(test_c_symbols-c ${test_c_symbols})
 add_custom_command(
@@ -40,9 +41,7 @@ add_custom_command(
     ${CMAKE_CURRENT_SOURCE_DIR}/.. ${test_c_symbols}
 )
 target_link_libraries(test_c_symbols-c ${LIB_NAME})
-
 add_test(test_c_symbols-c test_c_symbols-c)
-
-
+endif()
 
 add_subdirectory(gtests)

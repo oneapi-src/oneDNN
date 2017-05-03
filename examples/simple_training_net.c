@@ -43,7 +43,19 @@
     } while (0)
 
 void *aligned_malloc(size_t size, size_t alignment) {
+#ifdef _WIN32
+    return _aligned_malloc(size, alignment);
+#else
     return memalign(alignment, size);
+#endif
+}
+
+void aligned_free(void *p) {
+#ifdef _WIN32
+    _aligned_free(p);
+#else
+    free(p);
+#endif
 }
 
 static size_t product(int *arr, size_t size)
@@ -814,8 +826,8 @@ mkldnn_status_t simple_net()
     /* Cleanup forward */
     mkldnn_stream_destroy(stream_fwd);
 
-    free(net_src);
-    free(net_dst);
+    aligned_free(net_src);
+    aligned_free(net_dst);
 
     mkldnn_primitive_destroy(conv_user_src_memory);
     mkldnn_primitive_destroy(conv_user_weights_memory);
@@ -827,24 +839,24 @@ mkldnn_status_t simple_net()
     mkldnn_primitive_destroy(conv_reorder_weights);
     mkldnn_primitive_destroy(conv);
 
-    free(conv_weights);
-    free(conv_bias);
+    aligned_free(conv_weights);
+    aligned_free(conv_bias);
 
-    free(conv_src_buffer);
-    free(conv_weights_buffer);
-    free(conv_dst_buffer);
+    aligned_free(conv_src_buffer);
+    aligned_free(conv_weights_buffer);
+    aligned_free(conv_dst_buffer);
 
     mkldnn_primitive_destroy(relu_dst_memory);
     mkldnn_primitive_destroy(relu);
 
-    free(relu_dst_buffer);
+    aligned_free(relu_dst_buffer);
 
     mkldnn_primitive_destroy(lrn_workspace_memory);
     mkldnn_primitive_destroy(lrn_dst_memory);
     mkldnn_primitive_destroy(lrn);
 
-    free(lrn_workspace_buffer);
-    free(lrn_dst_buffer);
+    aligned_free(lrn_workspace_buffer);
+    aligned_free(lrn_dst_buffer);
 
     mkldnn_primitive_destroy(pool_user_dst_memory);
     mkldnn_primitive_destroy(pool_internal_dst_memory);
@@ -852,8 +864,8 @@ mkldnn_status_t simple_net()
     mkldnn_primitive_destroy(pool_reorder_dst);
     mkldnn_primitive_destroy(pool);
 
-    free(pool_dst_buffer);
-    free(pool_workspace_buffer);
+    aligned_free(pool_dst_buffer);
+    aligned_free(pool_workspace_buffer);
 
     /* Cleanup backward */
     mkldnn_stream_destroy(stream_bwd);
@@ -864,19 +876,19 @@ mkldnn_status_t simple_net()
     mkldnn_primitive_destroy(pool_reorder_diff_dst);
     mkldnn_primitive_destroy(pool_bwd);
 
-    free(net_diff_dst);
-    free(pool_diff_dst_buffer);
-    free(pool_diff_src_buffer);
+    aligned_free(net_diff_dst);
+    aligned_free(pool_diff_dst_buffer);
+    aligned_free(pool_diff_src_buffer);
 
     mkldnn_primitive_destroy(lrn_diff_src_memory);
     mkldnn_primitive_destroy(lrn_bwd);
 
-    free(lrn_diff_src_buffer);
+    aligned_free(lrn_diff_src_buffer);
 
     mkldnn_primitive_destroy(relu_diff_src_memory);
     mkldnn_primitive_destroy(relu_bwd);
 
-    free(relu_diff_src_buffer);
+    aligned_free(relu_diff_src_buffer);
 
     mkldnn_primitive_destroy(conv_user_diff_weights_memory);
     mkldnn_primitive_destroy(conv_diff_bias_memory);
@@ -884,9 +896,9 @@ mkldnn_status_t simple_net()
     mkldnn_primitive_destroy(conv_reorder_diff_weights);
     mkldnn_primitive_destroy(conv_bwd_weights);
 
-    free(conv_diff_weights_buffer);
-    free(conv_diff_bias_buffer);
-    free(conv_user_diff_weights_buffer);
+    aligned_free(conv_diff_weights_buffer);
+    aligned_free(conv_diff_bias_buffer);
+    aligned_free(conv_user_diff_weights_buffer);
 
     return mkldnn_success;
 }

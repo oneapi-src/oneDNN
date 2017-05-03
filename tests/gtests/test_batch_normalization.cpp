@@ -389,7 +389,12 @@ TEST_P(bnrm_test_float, TestsBnrm)
 {
 }
 
+#ifdef _MSC_VER
+#define EXPAND_SIZES(x) x
+#define EXPAND_SIZES_(mb, c, h, w) { mb, c, h, w }
+#else
 #define EXPAND_SIZES(mb, c, h, w) { mb, c, h, w }
+#endif
 #define EXPAND_FORMATS(data, diff) \
     { memory::format::data, memory::format::diff }
 

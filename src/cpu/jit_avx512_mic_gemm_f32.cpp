@@ -16,6 +16,7 @@
 
 #include <math.h>
 
+#include "mkldnn.h"
 #include "mkldnn_thread.hpp"
 #include "utils.hpp"
 
@@ -1962,7 +1963,12 @@ void jit_avx512_mic_gemm_f32::sgemm(const char *transa, const char *transb,
 
 #define CACHE_LINE_SIZE 16
 
+#if defined(_MSC_VER)
+    const int status_size = nthr * CACHE_LINE_SIZE;
+    VARIABLE_LENGTH_ARRAY(ompstatus, status_size, unsigned int);
+#else
     unsigned int __volatile__ ompstatus[nthr * CACHE_LINE_SIZE];
+#endif
     float *c_buffers = NULL;
 
     if (nthr_k > 1) {

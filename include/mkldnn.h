@@ -43,6 +43,27 @@
 #   define MKLDNN_API
 #endif
 
+#if defined(_MSC_VER) // && !defined(__INTEL_COMPILER)
+#define PACKED
+#else
+#define PACKED __attribute__((__packed__))
+#endif
+
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+// since MSVC does not support variable length arrays, replace them
+// with a define. One can either use vectors or alloca to implement
+// VLA - for now use alloca
+//#define VARIABLE_LENGTH_ARRAY(variable_name, num_items, type) \
+//    std::vector<type> variable_name(num_items)
+
+#define VARIABLE_LENGTH_ARRAY(variable_name, num_items, type) \
+    type *variable_name = (type *)alloca(sizeof(type) * num_items)
+#else
+#define VARIABLE_LENGTH_ARRAY(variable_name, num_items, type) \
+    type variable_name[num_items]
+#endif
+
+
 #include "mkldnn_types.h"
 #endif /* DOXYGEN_SHOULD_SKIP_THIS */
 

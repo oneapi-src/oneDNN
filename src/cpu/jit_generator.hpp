@@ -122,12 +122,15 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa) {
         return cpu.has(Cpu::tSSE42);
     case avx2:
         return cpu.has(Cpu::tAVX2);
+#ifdef _WIN
+	// TODO: this path is not tested on windows
     case avx512_mic:
         return true
             && cpu.has(Cpu::tAVX512F)
             && cpu.has(Cpu::tAVX512CD)
             && cpu.has(Cpu::tAVX512ER)
             && cpu.has(Cpu::tAVX512PF);
+#endif
     }
     return false;
 }

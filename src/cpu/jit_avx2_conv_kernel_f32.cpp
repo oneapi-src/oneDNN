@@ -284,9 +284,9 @@ void jit_avx2_conv_fwd_kernel_f32::generate()
     mov(reg_kernel, ptr[this->param1 + GET_OFF(filt)]);
     if (jcp.with_bias)
         mov(reg_bias, ptr[this->param1 + GET_OFF(bias)]);
-    mov(reg_kh, ptr[this->param1 + GET_OFF(kh_padding)]);
     mov(reg_ci_flag, ptr[this->param1 + GET_OFF(ic_flag)]);
     mov(reg_oc_blocks, ptr[this->param1 + GET_OFF(oc_blocks)]);
+    mov(reg_kh, ptr[this->param1 + GET_OFF(kh_padding)]);
 
     int nb_oc_tail = jcp.nb_oc % jcp.nb_oc_blocking;
     const char *tail_label = ".tail";

@@ -18,7 +18,6 @@
 #define MEMORY_DESC_WRAPPER_HPP
 
 #include <assert.h>
-
 #include "c_types_map.hpp"
 #include "nstl.hpp"
 #include "utils.hpp"
@@ -70,7 +69,6 @@ struct memory_desc_wrapper: public c_compatible {
                     oihw, ihwo, OIhw8i8o, OIhw8o8i, Ohwi8o, goihw, gOIhw8i8o,
                     gOIhw8o8i, blocked, nChw16c, OIhw16i16o, OIhw16o16i,
                     Ohwi16o, gOIhw16i16o, gOIhw16o16i));
-
         if (blocking_desc().offset_padding != 0) return 0;
 
         const auto &block_dims = blocking_desc().block_dims;
@@ -212,6 +210,14 @@ private:
         return size_t(xn)*blocking_desc().strides[0][sizeof...(args)] +
             _blk_off<Args...>(args...);
     }
+
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+	template<typename T>
+    inline size_t _blk_off(T xn) const {
+        return blocking_desc().offset_padding +
+            size_t(xn)*blocking_desc().strides[0][0];
+    }
+#endif
 };
 
 inline bool memory_desc_wrapper::is_dense(bool with_padding) const {

@@ -21,6 +21,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <memory>
+#include <iterator>
 #include <vector>
 #include <algorithm>
 #endif
@@ -381,13 +382,21 @@ struct memory: public primitive  {
                 "could not create a memory primitive");
         reset(result);
         auto _malloc = [](size_t size, int alignment) {
-            void *ptr;
-            int rc = ::posix_memalign(&ptr, alignment, size);
-            return (rc == 0) ? (char*)ptr : nullptr;
+#ifdef _WIN32
+        return _aligned_malloc(size, alignment);
+#else
+	    void *ptr;
+        int rc = ::posix_memalign(&ptr, alignment, size);
+        return (rc == 0) ? (char*)ptr : nullptr;
+#endif
         };
+#ifdef _WIN32
+        auto _free = [](char* p) { ::_aligned_free((void*)p); };
+#else
         auto _free = [](char* p) { ::free((void*)p); };
-        _handle.reset(_malloc(adesc.get_size(), 64), _free);
-        set_data_handle(_handle.get());
+#endif
+	    _handle.reset((char *)_malloc(adesc.get_size(), 64), _free);
+	    set_data_handle(_handle.get());
     }
 
     memory(const primitive_desc &adesc, void *ahandle) {

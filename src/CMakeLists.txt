@@ -31,10 +31,10 @@ include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/common
     ${CMAKE_CURRENT_SOURCE_DIR}/cpu/xbyak
     )
+
 add_library(${TARGET_NAME} SHARED ${HEADERS} ${SOURCES})
-target_link_libraries(${TARGET_NAME} ${${TARGET_NAME}_LINKER_LIBS})
+target_link_libraries(${TARGET_NAME} ${${TARGET_NAME}_LINKER_LIBS} ${EXTERNAL_LIBS})
 set_property(TARGET ${TARGET_NAME} PROPERTY CXX_STANDARD 11)
 set_property(TARGET ${TARGET_NAME} PROPERTY CXX_STANDARD_REQUIRED ON)
-
 install(TARGETS ${TARGET_NAME} DESTINATION lib)
 install(FILES ${HEADERS} DESTINATION include)
