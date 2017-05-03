@@ -32,6 +32,8 @@ using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::utils;
 
+/* convolution forward */
+
 template <bool with_relu>
 void _jit_avx512_mic_1x1_convolution_fwd_t<with_relu>::execute_forward()
 {
@@ -43,7 +45,6 @@ void _jit_avx512_mic_1x1_convolution_fwd_t<with_relu>::execute_forward()
     const memory_desc_wrapper src_d(conf_.src_pd());
     const memory_desc_wrapper dst_d(conf_.dst_pd());
     const memory_desc_wrapper weights_d(conf_.weights_pd(0));
-    const memory_desc_wrapper bias_d(conf_.weights_pd(1));
 
     const auto &jcp = kernel_->jcp;
 
@@ -111,13 +112,11 @@ void _jit_avx512_mic_1x1_convolution_fwd_t<with_relu>::execute_forward()
                 for (int icb = 0; icb < nb_ic; icb += nb_ic_blocking) {
                     p.reduce_pos_flag = 0
                         | (icb == 0
-                                ?
-                                jit_avx512_mic_1x1_conv_kernel_f32::REDUCE_FLAG_FIRST
-                                : 0)
+                        ? jit_avx512_mic_1x1_conv_kernel_f32::REDUCE_FLAG_FIRST
+                        : 0)
                         | (icb + nb_ic_blocking >= nb_ic
-                                ?
-                                jit_avx512_mic_1x1_conv_kernel_f32::REDUCE_FLAG_LAST
-                                : 0);
+                        ? jit_avx512_mic_1x1_conv_kernel_f32::REDUCE_FLAG_LAST
+                        : 0);
 
                     p.reduce_dim = this_block_size(icb * jcp.ic_block, jcp.ic,
                             nb_ic_blocking * jcp.ic_block);
@@ -159,6 +158,8 @@ void _jit_avx512_mic_1x1_convolution_fwd_t<with_relu>::execute_forward()
 
 template void _jit_avx512_mic_1x1_convolution_fwd_t<true>::execute_forward();
 template void _jit_avx512_mic_1x1_convolution_fwd_t<false>::execute_forward();
+
+/* convolution backward wtr data */
 
 void jit_avx512_mic_1x1_convolution_bwd_data_t::execute_backward_data()
 {
@@ -249,7 +250,8 @@ void jit_avx512_mic_1x1_convolution_bwd_data_t::execute_backward_data()
                         : weights_d.blk_off(ocb, icb)];
 
                     p.reduce_pos_flag = ocb == 0
-                        ? jit_avx512_mic_1x1_conv_kernel_f32::REDUCE_FLAG_FIRST : 0;
+                        ? jit_avx512_mic_1x1_conv_kernel_f32::REDUCE_FLAG_FIRST
+                        : 0;
 
                     p.reduce_dim = this_block_size(ocb * jcp.oc_block, jcp.oc,
                             nb_oc_blocking * jcp.oc_block);
@@ -269,7 +271,10 @@ void jit_avx512_mic_1x1_convolution_bwd_data_t::execute_backward_data()
     }
 }
 
-jit_avx512_mic_1x1_convolution_bwd_weights_t::jit_avx512_mic_1x1_convolution_bwd_weights_t(
+/* convolution backward wtr weights */
+
+jit_avx512_mic_1x1_convolution_bwd_weights_t
+::jit_avx512_mic_1x1_convolution_bwd_weights_t(
         const pd_t *pd, const input_vector &inputs,
         const output_vector &outputs)
     : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd), kernel_(nullptr)
@@ -377,17 +382,20 @@ void jit_avx512_mic_1x1_convolution_bwd_weights_t::execute_backward_weights()
 
                 /* spatial reduction */
                 int sp_b_step = 0;
-                for (int sp_b = sp_b_start; sp_b < sp_b_end; sp_b += sp_b_step) {
-                    sp_b_step = step(jcp.nb_reduce_blocking, sp_b_end - sp_b, jcp.nb_reduce_blocking_max);
+                for (int sp_b = sp_b_start; sp_b < sp_b_end; sp_b += sp_b_step)
+                {
+                    sp_b_step = step(jcp.nb_reduce_blocking, sp_b_end - sp_b,
+                            jcp.nb_reduce_blocking_max);
                     p.reduce_dim = sp_b_step * jcp.reduce_block;
                     rp.os = p.reduce_dim;
 
                     p.reduce_pos_flag = sp_b == sp_b_start && first_image
-                        ? jit_avx512_mic_1x1_conv_kernel_f32::REDUCE_FLAG_FIRST : 0;
+                        ? jit_avx512_mic_1x1_conv_kernel_f32::REDUCE_FLAG_FIRST
+                        : 0;
 
                     int sp = sp_b * jcp.reduce_block;
                     p.load_data = diff_dst
-                        + (oc_b * jcp.reduce_dim + sp) * jcp.oc_block;
+                            + (oc_b * jcp.reduce_dim + sp) * jcp.oc_block;
 
                     if (conf_.rtus_.reduce_src_) {
                         const int oh = sp / jcp.ow;
@@ -465,8 +473,8 @@ void jit_avx512_mic_1x1_convolution_bwd_weights_t::execute_backward_weights()
             int img = img_start;
             int sp_b = sp_b_start;
             int sp_b_step = 0;
-            for (int mb_sp_b = mb_sp_b_start; mb_sp_b < mb_sp_b_end; mb_sp_b += sp_b_step)
-            {
+            for (int mb_sp_b = mb_sp_b_start; mb_sp_b < mb_sp_b_end;
+                    mb_sp_b += sp_b_step) {
                 sp_b_step = nstl::min(sp_nb - sp_b, mb_sp_b_end - mb_sp_b);
 
                 const bool first_image = img == img_start;
@@ -480,6 +488,7 @@ void jit_avx512_mic_1x1_convolution_bwd_weights_t::execute_backward_weights()
             nd_iterator_step(g, jcp.ngroups, load_i, load_work, bcast_i,
                              bcast_work);
         }
+
         rw->reduce(ithr, diff_weights);
     };
 
@@ -533,6 +542,7 @@ void jit_avx512_mic_1x1_convolution_bwd_weights_t::execute_backward_weights()
             ker_bias(ithr, nthr);
     }
 }
+
 }
 }
 }

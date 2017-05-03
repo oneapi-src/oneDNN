@@ -85,7 +85,7 @@ struct _jit_avx512_mic_1x1_convolution_fwd_t : public cpu_primitive_t {
                 CHECK(this->dst_pd_.set_format(nChw16c));
             if (this->weights_pd_.desc()->format == any)
                 CHECK(this->weights_pd_.set_format(this->with_groups()
-                                                    ? gOIhw16i16o : OIhw16i16o));
+                                                ? gOIhw16i16o : OIhw16i16o));
             if (this->bias_pd_.desc()->format == any)
                 CHECK(this->bias_pd_.set_format(x));
             return status::success;
@@ -180,7 +180,7 @@ struct jit_avx512_mic_1x1_convolution_bwd_data_t : public cpu_primitive_t {
                 CHECK(this->diff_dst_pd_.set_format(nChw16c));
             if (this->weights_pd_.desc()->format == any)
                 CHECK(this->weights_pd_.set_format(this->with_groups()
-                                                    ? gOIhw16o16i : OIhw16o16i));
+                                                ? gOIhw16o16i : OIhw16o16i));
             return status::success;
         }
     };
@@ -279,7 +279,7 @@ struct jit_avx512_mic_1x1_convolution_bwd_weights_t : public cpu_primitive_t {
                 CHECK(this->diff_dst_pd_.set_format(nChw16c));
             if (this->diff_weights_pd_.desc()->format == any)
                 CHECK(this->diff_weights_pd_.set_format(this->with_groups()
-                                                        ? gOIhw16i16o : OIhw16i16o));
+                                                ? gOIhw16i16o : OIhw16i16o));
             if (this->diff_bias_pd_.desc()->format == any)
                 CHECK(this->diff_bias_pd_.set_format(x));
             return status::success;
