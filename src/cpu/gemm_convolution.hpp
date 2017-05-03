@@ -22,7 +22,7 @@
 #include "cpu_engine.hpp"
 #include "jit_avx2_gemm_f32.hpp"
 #include "jit_primitive_conf.hpp"
-#include "jit_gemm_convolution_utils.hpp"
+#include "gemm_convolution_utils.hpp"
 
 namespace mkldnn {
 namespace impl {

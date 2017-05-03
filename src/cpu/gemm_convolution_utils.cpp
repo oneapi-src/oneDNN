@@ -19,7 +19,7 @@
 #include "c_types_map.hpp"
 #include "utils.hpp"
 #include "type_helpers.hpp"
-#include "jit_gemm_convolution_utils.hpp"
+#include "gemm_convolution_utils.hpp"
 
 namespace mkldnn {
 namespace impl {

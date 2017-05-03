@@ -29,7 +29,7 @@
 #include "cpu/jit_sse42_1x1_convolution.hpp"
 #include "cpu/jit_avx2_convolution.hpp"
 #include "cpu/jit_sse42_convolution.hpp"
-#include "cpu/jit_gemm_convolution.hpp"
+#include "cpu/gemm_convolution.hpp"
 #include "cpu/ref_convolution.hpp"
 #include "cpu/jit_uni_relu.hpp"
 #include "cpu/ref_relu.hpp"

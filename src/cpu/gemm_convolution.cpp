@@ -17,7 +17,7 @@
 #include "mkldnn_types.h"
 
 #include "c_types_map.hpp"
-#include "jit_gemm_convolution.hpp"
+#include "gemm_convolution.hpp"
 #include "utils.hpp"
 #include "type_helpers.hpp"
 #include "mkldnn_thread.hpp"
