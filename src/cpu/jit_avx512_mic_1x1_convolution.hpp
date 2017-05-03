@@ -40,8 +40,7 @@ struct _jit_avx512_mic_1x1_convolution_fwd_t : public cpu_primitive_t {
 
         DECLARE_COMMON_PD_T(_jit_avx512_mic_1x1_convolution_fwd_t<with_relu>);
 
-        virtual status_t init() override
-        {
+        virtual status_t init() override {
             using namespace prop_kind;
             assert(this->engine()->kind() == engine_kind::cpu);
             bool ok = true && this->set_default_params() == status::success
@@ -73,16 +72,15 @@ struct _jit_avx512_mic_1x1_convolution_fwd_t : public cpu_primitive_t {
         jit_1x1_conv_conf_t jcp_;
 
       protected:
-        virtual status_t set_default_params() override
-        {
+        virtual status_t set_default_params() override {
             using namespace memory_format;
             if (this->src_pd_.desc()->format == any)
                 CHECK(this->src_pd_.set_format(nChw16c));
             if (this->dst_pd_.desc()->format == any)
                 CHECK(this->dst_pd_.set_format(nChw16c));
             if (this->weights_pd_.desc()->format == any)
-                CHECK(this->weights_pd_.set_format(
-                        this->with_groups() ? gOIhw16i16o : OIhw16i16o));
+                CHECK(this->weights_pd_.set_format(this->with_groups()
+                                                    ? gOIhw16i16o : OIhw16i16o));
             if (this->bias_pd_.desc()->format == any)
                 CHECK(this->bias_pd_.set_format(x));
             return status::success;
@@ -96,15 +94,13 @@ struct _jit_avx512_mic_1x1_convolution_fwd_t : public cpu_primitive_t {
     {
         kernel_ = new jit_avx512_mic_1x1_conv_kernel_f32(conf_.jcp_);
     }
-    ~_jit_avx512_mic_1x1_convolution_fwd_t()
-    {
+    ~_jit_avx512_mic_1x1_convolution_fwd_t() {
         delete kernel_;
     };
 
     typedef typename prec_trait<data_type::f32>::type data_t;
 
-    virtual void execute(event_t *e)
-    {
+    virtual void execute(event_t *e) {
         execute_forward();
         e->set_state(event_t::ready);
     }
@@ -131,8 +127,7 @@ struct jit_avx512_mic_1x1_convolution_bwd_data_t : public cpu_primitive_t {
 
         DECLARE_COMMON_PD_T(jit_avx512_mic_1x1_convolution_bwd_data_t);
 
-        virtual status_t init() override
-        {
+        virtual status_t init() override {
             using namespace prop_kind;
             assert(this->engine()->kind() == engine_kind::cpu);
             bool ok = true && this->set_default_params() == status::success
@@ -154,9 +149,8 @@ struct jit_avx512_mic_1x1_convolution_bwd_data_t : public cpu_primitive_t {
         // TODO (Roma): structs conf header cleanup
         jit_1x1_conv_conf_t jcp_;
 
-      protected:
-        virtual status_t set_default_params() override
-        {
+    protected:
+        virtual status_t set_default_params() override {
             using namespace memory_format;
 
             if (this->diff_src_pd_.desc()->format == any)
@@ -164,8 +158,8 @@ struct jit_avx512_mic_1x1_convolution_bwd_data_t : public cpu_primitive_t {
             if (this->diff_dst_pd_.desc()->format == any)
                 CHECK(this->diff_dst_pd_.set_format(nChw16c));
             if (this->weights_pd_.desc()->format == any)
-                CHECK(this->weights_pd_.set_format(
-                        this->with_groups() ? gOIhw16o16i : OIhw16o16i));
+                CHECK(this->weights_pd_.set_format(this->with_groups()
+                                                    ? gOIhw16o16i : OIhw16o16i));
             return status::success;
         }
     };
@@ -184,8 +178,7 @@ struct jit_avx512_mic_1x1_convolution_bwd_data_t : public cpu_primitive_t {
 
     typedef typename prec_trait<data_type::f32>::type data_t;
 
-    virtual void execute(event_t *e)
-    {
+    virtual void execute(event_t *e) {
         switch (conf_.desc()->prop_kind) {
         case prop_kind::backward_data:
             execute_backward_data();
@@ -213,8 +206,7 @@ struct jit_avx512_mic_1x1_convolution_bwd_weights_t : public cpu_primitive_t {
 
         DECLARE_COMMON_PD_T(jit_avx512_mic_1x1_convolution_bwd_weights_t);
 
-        virtual status_t init() override
-        {
+        virtual status_t init() override {
             using namespace prop_kind;
             assert(this->engine()->kind() == engine_kind::cpu);
             bool ok = true && this->set_default_params() == status::success
@@ -250,8 +242,8 @@ struct jit_avx512_mic_1x1_convolution_bwd_weights_t : public cpu_primitive_t {
             if (this->diff_dst_pd_.desc()->format == any)
                 CHECK(this->diff_dst_pd_.set_format(nChw16c));
             if (this->diff_weights_pd_.desc()->format == any)
-                CHECK(this->diff_weights_pd_.set_format(
-                        this->with_groups() ? gOIhw16i16o : OIhw16i16o));
+                CHECK(this->diff_weights_pd_.set_format(this->with_groups()
+                                                        ? gOIhw16i16o : OIhw16i16o));
             if (this->diff_bias_pd_.desc()->format == any)
                 CHECK(this->diff_bias_pd_.set_format(x));
             return status::success;
@@ -272,8 +264,7 @@ struct jit_avx512_mic_1x1_convolution_bwd_weights_t : public cpu_primitive_t {
 
     typedef typename prec_trait<data_type::f32>::type data_t;
 
-    virtual void execute(event_t *e)
-    {
+    virtual void execute(event_t *e) {
         switch (conf_.desc()->prop_kind) {
         case prop_kind::backward_weights:
             execute_backward_weights();

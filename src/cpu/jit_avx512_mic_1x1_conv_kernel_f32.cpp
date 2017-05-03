@@ -47,8 +47,7 @@ void jit_avx512_mic_1x1_conv_kernel_f32::bcast_loop(int load_loop_blk)
     cmp(bcast_loop_iter, jcp.ur);
     jl(bcast_loop_tail, T_NEAR);
 
-    L(bcast_loop);
-    {
+    L(bcast_loop); {
         assert(jcp.bcast_block % jcp.ur == 0);
         int num_substeps = jcp.bcast_block / jcp.ur;
         assert(num_substeps > 0 && num_substeps < 10);
@@ -58,12 +57,10 @@ void jit_avx512_mic_1x1_conv_kernel_f32::bcast_loop(int load_loop_blk)
                 add(aux1_reg_bcast_data, jcp.bcast_loop_bcast_substep);
                 add(aux_reg_output_data, jcp.bcast_loop_output_substep);
             } else {
-                add(aux1_reg_bcast_data,
-                    jcp.bcast_loop_bcast_step - (num_substeps - 1)
-                                                * jcp.bcast_loop_bcast_substep);
-                add(aux_reg_output_data,
-                    jcp.bcast_loop_output_step
-                    - (num_substeps - 1) * jcp.bcast_loop_output_substep);
+                add(aux1_reg_bcast_data, jcp.bcast_loop_bcast_step
+                        - (num_substeps - 1) * jcp.bcast_loop_bcast_substep);
+                add(aux_reg_output_data, jcp.bcast_loop_output_step
+                        - (num_substeps - 1) * jcp.bcast_loop_output_substep);
             }
         }
         sub(bcast_loop_iter, jcp.bcast_block);
@@ -82,8 +79,7 @@ void jit_avx512_mic_1x1_conv_kernel_f32::bcast_loop(int load_loop_blk)
 }
 
 void jit_avx512_mic_1x1_conv_kernel_f32::reduce_loop(int load_loop_blk, int ur,
-                                                     int substep,
-                                                     bool wraparound)
+                                                     int substep, bool wraparound)
 {
     auto vreg_load = [=](int i_load) {
         return Zmm(ur * load_loop_blk + i_load);
@@ -328,8 +324,7 @@ void jit_avx512_mic_1x1_conv_kernel_f32::reduce_loop(int load_loop_blk, int ur,
     sub(reduce_loop_iter, jcp.reduce_loop_unroll);
     jle(reduce_loop_tail, T_NEAR);
 
-    L(reduce_loop);
-    {
+    L(reduce_loop); {
         fma_block(false);
         add(aux_reg_bcast_data, jcp.reduce_loop_bcast_step);
         add(aux_reg_load_data, jcp.reduce_loop_load_step);
@@ -509,14 +504,12 @@ void jit_avx512_mic_1x1_conv_kernel_f32::generate()
     postamble();
 }
 
-status_t jit_avx512_mic_1x1_conv_kernel_f32::init_conf(
-        jit_1x1_conv_conf_t &jcp, const convolution_desc_t &cd,
-        const memory_desc_wrapper &src_d, const memory_desc_wrapper &weights_d,
-        const memory_desc_wrapper &dst_d, bool with_relu,
-        double relu_negative_slope)
+status_t jit_avx512_mic_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
+        const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
+        const memory_desc_wrapper &weights_d, const memory_desc_wrapper &dst_d,
+        bool with_relu, double relu_negative_slope)
 {
-    if (!mayiuse(avx512_mic))
-        return status::unimplemented;
+    if (!mayiuse(avx512_mic)) return status::unimplemented;
 
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
 
@@ -551,26 +544,29 @@ status_t jit_avx512_mic_1x1_conv_kernel_f32::init_conf(
     jcp.os = jcp.oh * jcp.ow;
     jcp.is = jcp.ih * jcp.iw;
 
-    constexpr memory_format_t weights_formats[2][2]
-            = { { OIhw16i16o, OIhw16o16i }, { gOIhw16i16o, gOIhw16o16i } };
+    constexpr memory_format_t weights_formats[2][2] = {
+            { OIhw16i16o, OIhw16o16i },
+            { gOIhw16i16o, gOIhw16o16i }
+    };
     memory_format_t weights_format
             = weights_formats[with_groups][jcp.prop_kind == backward_data];
 
-    bool args_ok = true && jcp.ngroups == 1 && src_d.format() == nChw16c
-                   && weights_d.format() == weights_format
-                   && one_of(cd.bias_desc.format, memory_format::undef, any, x)
-                   && dst_d.format() == nChw16c;
-    if (!args_ok)
-        return status::unimplemented;
+    bool args_ok = true
+        && jcp.ngroups == 1
+        && src_d.format() == nChw16c
+        && weights_d.format() == weights_format
+        && one_of(cd.bias_desc.format, memory_format::undef, any, x)
+        && dst_d.format() == nChw16c;
+    if (!args_ok) return status::unimplemented;
 
     const int simd_w = 16;
 
-    args_ok = true && jcp.oc % simd_w == 0 && jcp.ic % simd_w == 0
-              && jcp.t_pad == 0 && jcp.l_pad == 0 && jcp.stride_w == 1
-              && jcp.stride_h == 1 // TODO: support some strides
-              && jcp.kh == 1 && jcp.kw == 1;
-    if (!args_ok)
-        return status::unimplemented;
+    args_ok = true
+        && jcp.oc % simd_w == 0 && jcp.ic % simd_w == 0
+        && jcp.t_pad == 0 && jcp.l_pad == 0
+        && jcp.stride_w == 1 && jcp.stride_h == 1 // TODO: support some strides
+        && jcp.kh == 1 && jcp.kw == 1;
+    if (!args_ok) return status::unimplemented;
 
     jcp.ic_block = jcp.oc_block = simd_w;
 
@@ -616,10 +612,10 @@ status_t jit_avx512_mic_1x1_conv_kernel_f32::init_conf(
         jcp.bcast_block = jcp.ur;
 
         jcp.reduce_loop_unroll = jcp.reduce_block;
-        jcp.reduce_loop_bcast_step = jcp.reduce_loop_unroll * jcp.is
-                                     * sizeof(float);
-        jcp.reduce_loop_load_step = jcp.reduce_loop_unroll * jcp.oc_block
-                                    * sizeof(float);
+        jcp.reduce_loop_bcast_step
+            = jcp.reduce_loop_unroll * jcp.is * sizeof(float);
+        jcp.reduce_loop_load_step
+            = jcp.reduce_loop_unroll * jcp.oc_block * sizeof(float);
 
         jcp.bcast_loop_output_step = jcp.ur * jcp.oc_block * sizeof(float);
         jcp.bcast_loop_output_substep = -1; // unused
@@ -685,10 +681,10 @@ status_t jit_avx512_mic_1x1_conv_kernel_f32::init_conf(
         jcp.bcast_block = jcp.ur;
 
         jcp.reduce_loop_unroll = jcp.reduce_block;
-        jcp.reduce_loop_bcast_step = jcp.reduce_loop_unroll * jcp.os
-                                     * sizeof(float);
-        jcp.reduce_loop_load_step = jcp.reduce_loop_unroll * jcp.ic
-                                    * sizeof(float);
+        jcp.reduce_loop_bcast_step
+            = jcp.reduce_loop_unroll * jcp.os * sizeof(float);
+        jcp.reduce_loop_load_step
+            = jcp.reduce_loop_unroll * jcp.ic * sizeof(float);
 
         jcp.bcast_loop_output_step = jcp.ur * jcp.ic_block * sizeof(float);
         jcp.bcast_loop_output_substep = -1; // unused
@@ -722,13 +718,12 @@ status_t jit_avx512_mic_1x1_conv_kernel_f32::init_conf(
         jcp.bcast_block = jcp.ic_block;
 
         jcp.reduce_loop_unroll = jcp.reduce_block;
-        jcp.reduce_loop_bcast_step = jcp.reduce_loop_unroll * jcp.ic_block
-                                     * sizeof(float);
-        jcp.reduce_loop_load_step = jcp.reduce_loop_unroll * jcp.oc_block
-                                    * sizeof(float);
+        jcp.reduce_loop_bcast_step
+            = jcp.reduce_loop_unroll * jcp.ic_block * sizeof(float);
+        jcp.reduce_loop_load_step
+            = jcp.reduce_loop_unroll * jcp.oc_block * sizeof(float);
 
-        jcp.bcast_loop_output_step = jcp.oc_block * jcp.ic_block
-                                     * sizeof(float);
+        jcp.bcast_loop_output_step = jcp.oc_block * jcp.ic_block * sizeof(float);
         jcp.bcast_loop_output_substep = jcp.oc_block * jcp.ur * sizeof(float);
         jcp.bcast_loop_bcast_step = jcp.ic_block * jcp.is * sizeof(float);
         jcp.bcast_loop_bcast_substep = jcp.ur * sizeof(float);
