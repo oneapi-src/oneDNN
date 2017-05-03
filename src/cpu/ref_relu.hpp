@@ -78,7 +78,8 @@ struct ref_relu_bwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_relu_bwd_pd_t {
         pd_t(engine_t *engine, const relu_desc_t *adesc,
                 const relu_fwd_pd_t *hint_fwd_pd)
-            : cpu_relu_bwd_pd_t(engine, adesc, hint_fwd_pd), is_dense(false) {}
+            : cpu_relu_bwd_pd_t(engine, adesc, hint_fwd_pd), is_dense_(false)
+        {}
 
         DECLARE_COMMON_PD_T(ref_relu_bwd_t);
 
@@ -86,23 +87,19 @@ struct ref_relu_bwd_t: public cpu_primitive_t {
             using namespace prop_kind;
             assert(engine()->kind() == engine_kind::cpu);
             bool ok = true
-                && utils::one_of(desc()->prop_kind, backward_data, backward)
+                && desc()->prop_kind == backward_data
                 && utils::everyone_is(data_type, desc()->data_desc.data_type,
                         desc()->diff_data_desc.data_type);
             if (!ok) return status::unimplemented;
 
-            is_dense = memory_desc_wrapper(src_pd()).is_dense()
-                && memory_desc_wrapper(diff_dst_pd()).is_dense()
-                && memory_desc_wrapper(diff_src_pd()).is_dense();
-
-            formats_are_equal = desc()->data_desc.format ==
-                desc()->diff_data_desc.format;
+            const bool same_fmt = memory_desc_wrapper(diff_dst_pd())
+                == memory_desc_wrapper(src_pd());
+            is_dense_ = memory_desc_wrapper(src_pd()).is_dense() && same_fmt;
 
             return status::success;
         }
 
-        bool is_dense;
-        bool formats_are_equal;
+        bool is_dense_;
     };
 
     ref_relu_bwd_t(const pd_t *pd, const input_vector &inputs,
@@ -111,8 +108,7 @@ struct ref_relu_bwd_t: public cpu_primitive_t {
     typedef typename prec_trait<data_type>::type data_t;
 
     virtual void execute(event_t *e) {
-        if (conf_.is_dense && conf_.formats_are_equal)
-            execute_backward_dense();
+        if (conf_.is_dense_) execute_backward_dense();
         else execute_backward_generic();
         e->set_state(event_t::ready);
     }

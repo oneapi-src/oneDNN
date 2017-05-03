@@ -239,14 +239,10 @@ status_t jit_uni_relu_bwd_t<isa>::pd_t::init()
 
     bool ok = true
         && mayiuse(isa)
-        && utils::one_of(desc()->prop_kind, backward_data, backward)
-        && utils::everyone_is(data_type::f32, desc()->data_desc.data_type,
-                desc()->diff_data_desc.data_type)
-        && utils::everyone_is(desc()->data_desc.format,
-                desc()->diff_data_desc.format)
+        && desc()->prop_kind == backward_data
+        && src_pd()->desc()->data_type == data_type::f32
         && memory_desc_wrapper(src_pd()).is_dense()
-        && memory_desc_wrapper(diff_dst_pd()).is_dense()
-        && memory_desc_wrapper(diff_src_pd()).is_dense();
+        && memory_desc_wrapper(diff_dst_pd()) == memory_desc_wrapper(src_pd());
 
     return ok ? status::success : status::unimplemented;
 }
