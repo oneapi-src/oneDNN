@@ -536,8 +536,7 @@ status_t jit_avx512_mic_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
     jcp.stride_w = cd.strides[1];
 
     jcp.src_fmt = src_d.format();
-    jcp.with_bias = cd.bias_desc.format != memory_format::undef
-                    || cd.diff_bias_desc.format != memory_format::undef;
+    jcp.with_bias = cd.bias_desc.format != memory_format::undef;
     jcp.with_relu = with_relu;
     jcp.relu_negative_slope = relu_negative_slope;
 
