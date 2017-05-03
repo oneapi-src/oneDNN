@@ -13,10 +13,11 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-
+#include <float.h>
 #include "c_types_map.hpp"
 #include "nstl.hpp"
 #include "type_helpers.hpp"
+#include "mkldnn_thread.hpp"
 #include "utils.hpp"
 
 #include "jit_avx512_mic_1x1_conv_kernel_f32.hpp"
@@ -417,6 +418,9 @@ void jit_avx512_mic_1x1_conv_kernel_f32::diff_bias_loop(int load_loop_blk)
     L(diff_bias_loop_out);
 }
 
+static int ur_cases[] = {2, 4, 5, 8, 14, 28};
+constexpr int ur_num = sizeof(ur_cases) / sizeof(ur_cases[0]);
+
 void jit_avx512_mic_1x1_conv_kernel_f32::generate()
 {
     preamble();
@@ -470,9 +474,6 @@ void jit_avx512_mic_1x1_conv_kernel_f32::generate()
     const int simd_w = 16;
 
     Label load_loop_blk[7];
-    int ur_cases[6] = {2, 4, 6, 8, 14, 30};
-
-    int ur_num = sizeof(ur_cases) / sizeof(ur_cases[0]);
 
     for (int ur_idx = ur_num - 1; ur_idx > 0; ur_idx--) {
         int label_idx = ur_num - ur_idx - 1;
@@ -515,6 +516,33 @@ void jit_avx512_mic_1x1_conv_kernel_f32::generate()
     add(rsp, stack_space_needed);
 
     postamble();
+}
+
+namespace {
+
+float loss_ratio(int amount, int divider)
+{
+    return float(rnd_up(amount, divider) - amount) / rnd_up(amount, divider);
+}
+
+int best_divider(int value, int min_divider, int max_divider,
+                        bool find_max, int step = 1)
+{
+    max_divider = nstl::max(1, nstl::min(max_divider, value));
+    min_divider = nstl::max(1, nstl::min(min_divider, max_divider));
+
+    float min_loss = FLT_MAX;
+    int x_divider = max_divider;
+    for (int divider = max_divider; divider >= min_divider; divider -= step) {
+        const float loss = loss_ratio(value, divider);
+        if ((find_max && loss < min_loss) || (!find_max && loss <= min_loss)) {
+            min_loss = loss;
+            x_divider = divider;
+        }
+    }
+    return x_divider;
+}
+
 }
 
 status_t jit_avx512_mic_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
@@ -614,6 +642,9 @@ status_t jit_avx512_mic_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
     int reduce_blocking{ 0 };
     int reduce_blocking_max{ 0 };
 
+    const int KNL_L2_capacity = (512 * 1024) / sizeof(float);
+    const int KNL_L1_capacity = (64 * 1024) / sizeof(float);
+
     if (one_of(jcp.prop_kind, forward_training, forward_inference)) {
         jcp.reduce_dim = jcp.ic;
         jcp.reduce_block = jcp.ic_block;
@@ -641,10 +672,16 @@ status_t jit_avx512_mic_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
         load_blocking = nstl::min(64, jcp.load_dim);
         load_blocking_max = load_blocking;
 
-        reduce_blocking = nstl::min(1024, jcp.reduce_dim);
+        reduce_blocking = (KNL_L2_capacity / 2) / load_blocking;
+        reduce_blocking = jcp.reduce_block *
+                (reduce_blocking / jcp.reduce_block); // round by jcp.reduce_block
+
+        reduce_blocking = nstl::min(reduce_blocking, jcp.reduce_dim);
+
         int reduce_tail = jcp.reduce_dim % reduce_blocking;
         if (reduce_tail) {
-            for (int i = reduce_blocking; i > 16; i -= 16)
+            for (int i = reduce_blocking; i > jcp.reduce_block;
+                                                i -= jcp.reduce_block)
                 if (jcp.reduce_dim % i == 0) {
                     reduce_blocking = i;
                     reduce_tail = 0;
@@ -652,14 +689,16 @@ status_t jit_avx512_mic_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
                 }
         }
         if (reduce_tail && reduce_tail < 64) {
-            for (int i = reduce_blocking; i >= reduce_blocking - 64; i -= 16)
+            for (int i = reduce_blocking; i >= reduce_blocking - 64;
+                                                    i -= jcp.reduce_block)
                 if (jcp.reduce_dim % i >= 64) {
                     reduce_blocking = i;
                     break;
                 }
         }
 
-        const int USABLE_KNL_L2 = 400ULL * 1024;
+        const int USABLE_KNL_L2 =
+            (KNL_L2_capacity - reduce_blocking * load_blocking) * sizeof(float);
         int os_block_size = sizeof(float) * reduce_blocking * jcp.ur;
         bcast_blocking
                 = nstl::min(jcp.os, jcp.ur * (USABLE_KNL_L2 / os_block_size));
@@ -671,15 +710,13 @@ status_t jit_avx512_mic_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
                     break;
                 }
         }
-        if (bcast_blocking > jcp.os / 2) {
-            bcast_blocking = jcp.ur * div_up(jcp.os / 2, jcp.ur);
-        }
         bcast_blocking_max = bcast_blocking * 3 / 2;
+        reduce_blocking_max = reduce_blocking;
 
     } else if (jcp.prop_kind == backward_data) {
         // TODO: update evristic blocking
 
-        int kernel_treshold = 192*1024;
+        int kernel_treshold = 192 * 1024;
         jcp.ur = nstl::min(28, jcp.os);
         if (jcp.iw <= 14 && jcp.ic * jcp.oc < kernel_treshold)
             jcp.ur = nstl::min(14, jcp.os);
@@ -719,23 +756,11 @@ status_t jit_avx512_mic_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
         bcast_blocking = nstl::min(196, bcast_blocking);
         bcast_blocking_max = bcast_blocking * 3 / 2;
         load_blocking_max = load_blocking * 3 / 2;
+        reduce_blocking_max = reduce_blocking;
 
     } else if (jcp.prop_kind == backward_weights) {
-        jcp.ur = 16;
-
         jcp.reduce_dim = jcp.os;
-
-        if ((jcp.ih == 56 && jcp.iw == 56)
-            || (jcp.ih == 28 && jcp.iw == 28)
-            || (jcp.ih == 14 && jcp.iw == 14)) {
-            jcp.reduce_block = 14;
-        } else if (jcp.ih == 7 && jcp.iw == 7) {
-            jcp.reduce_block = 7;
-        } else if (jcp.ih * jcp.iw <=16) {
-            jcp.reduce_block = jcp.os;
-        } else {
-            assert(false);
-        }
+        jcp.reduce_block = best_divider(jcp.is, 7, 16, true);
 
         jcp.load_dim = jcp.oc;
         jcp.load_block = jcp.oc_block;
@@ -743,13 +768,16 @@ status_t jit_avx512_mic_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
         jcp.bcast_dim = jcp.ic;
         jcp.bcast_block = jcp.ic_block;
 
+        jcp.ur = jcp.bcast_block;
+
         jcp.reduce_loop_unroll = jcp.reduce_block;
         jcp.reduce_loop_bcast_step
             = jcp.reduce_loop_unroll * jcp.ic_block * sizeof(float);
         jcp.reduce_loop_load_step
             = jcp.reduce_loop_unroll * jcp.oc_block * sizeof(float);
 
-        jcp.bcast_loop_output_step = jcp.oc_block * jcp.ic_block * sizeof(float);
+        jcp.bcast_loop_output_step =
+                                jcp.oc_block * jcp.ic_block * sizeof(float);
         jcp.bcast_loop_output_substep = jcp.oc_block * jcp.ur * sizeof(float);
         jcp.bcast_loop_bcast_step = jcp.ic_block * jcp.is * sizeof(float);
         jcp.bcast_loop_bcast_substep = jcp.ur * sizeof(float);
@@ -760,29 +788,34 @@ status_t jit_avx512_mic_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
         /* --- */
 
         load_blocking = div_up(jcp.load_dim, jcp.load_block);
-        while (true) {
-            if (load_blocking <= 32) break;
-            else if (load_blocking % 2 == 0) load_blocking /= 2;
-            else if (load_blocking % 3 == 0) load_blocking /= 3;
-            else break;
-        }
+        load_blocking = best_divider(load_blocking, 16, load_blocking, false);
         load_blocking *= jcp.load_block;
         load_blocking_max = load_blocking;
         assert(jcp.load_dim % load_blocking == 0);
 
         bcast_blocking = div_up(jcp.bcast_dim, jcp.bcast_block);
-        while (true) {
-            if (bcast_blocking <= 9) break;
-            else if (bcast_blocking % 2 == 0) bcast_blocking /= 2;
-            else if (bcast_blocking % 3 == 0) bcast_blocking /= 3;
-            else break;
-        }
+        bcast_blocking = best_divider(bcast_blocking, 5, bcast_blocking, false);
         bcast_blocking *= jcp.bcast_block;
         bcast_blocking_max = bcast_blocking;
         assert(jcp.bcast_dim % bcast_blocking == 0);
 
-        reduce_blocking = jcp.reduce_block * (128 / jcp.reduce_block); // affects L1$ utilization
-        reduce_blocking_max = jcp.reduce_block * (192 / jcp.reduce_block);;
+        // for reduction balance
+        int num_jobs = div_up(jcp.load_dim, load_blocking) *
+                        div_up(jcp.bcast_dim, bcast_blocking);
+        const int nthreads = omp_get_max_threads();
+        int threads_per_job = nstl::max(1, nthreads / num_jobs);
+        reduce_blocking = div_up(jcp.mb * jcp.reduce_dim, jcp.reduce_block);
+        reduce_blocking = div_up(reduce_blocking, threads_per_job);
+
+        int max_reduce_blocking = KNL_L2_capacity /
+                    ((bcast_blocking + load_blocking) * jcp.reduce_block);
+        max_reduce_blocking = nstl::min(max_reduce_blocking,
+                    (KNL_L1_capacity / (jcp.bcast_block)) / jcp.reduce_block);
+        reduce_blocking = best_divider(reduce_blocking,
+                    max_reduce_blocking - 2, max_reduce_blocking, true);
+        reduce_blocking *= jcp.reduce_block;
+
+        reduce_blocking_max = reduce_blocking * 3 / 2;
         assert(reduce_blocking % jcp.reduce_block == 0);
         assert(reduce_blocking_max % jcp.reduce_block == 0);
 

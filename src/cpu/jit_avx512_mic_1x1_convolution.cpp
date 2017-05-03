@@ -361,14 +361,14 @@ void jit_avx512_mic_1x1_convolution_bwd_weights_t::execute_backward_weights()
 
         int oc_b_step = 0;
         for (int oc_b = 0; oc_b < nb_oc_blocking; oc_b += oc_b_step) {
-            // !!!??? Why 12 and 18 ?
-            oc_b_step = step(12, nb_oc_blocking - oc_b, 18);
+            oc_b_step = step(jcp.nb_load_blocking,
+                            nb_oc_blocking - oc_b, jcp.nb_load_blocking_max);
             p.load_dim = oc_b_step * jcp.oc_block;
 
             int ic_b_step = 0;
             for (int ic_b = 0; ic_b < nb_ic_blocking; ic_b += ic_b_step) {
-                // !!!??? Why 12 and 18 ?
-                ic_b_step = step(12, nb_ic_blocking - ic_b, 18);
+                ic_b_step = step(jcp.nb_bcast_blocking,
+                            nb_ic_blocking - ic_b, jcp.nb_bcast_blocking_max);
                 p.bcast_dim = ic_b_step * jcp.ic_block;
                 rp.icb = p.bcast_dim / jcp.ic_block;
 
