@@ -81,7 +81,8 @@ struct jit_1x1_conv_conf_t {
 
     int ur, ur_tail;
 
-    int reduce_dim, reduce_block, nb_reduce, nb_reduce_blocking;
+    int reduce_dim, reduce_block, nb_reduce,
+        nb_reduce_blocking, nb_reduce_blocking_max;
     int load_dim, load_block, nb_load,
         nb_load_blocking, nb_load_blocking_max;
     int bcast_dim, bcast_block, nb_bcast,

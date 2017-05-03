@@ -300,7 +300,7 @@ jit_avx512_mic_1x1_convolution_bwd_weights_t::jit_avx512_mic_1x1_convolution_bwd
 
     reducer_weights_ = new cpu_reducer_2d_t<data_type::f32>(
             reduce_balancer_t(max_threads, job_size, njobs_y * njobs_x,
-                jcp.mb * jcp.reduce_dim, max_buffer_size),
+                jcp.mb * jcp.nb_reduce, max_buffer_size),
             job_size / nb_oc_blocking, nb_oc_blocking,
             nb_ic * ic_block * oc_block, nb_oc, false);
 
@@ -338,8 +338,8 @@ void jit_avx512_mic_1x1_convolution_bwd_weights_t::execute_backward_weights()
     const int nb_oc_blocking = jcp.nb_load_blocking;
     const int load_work = div_up(nb_oc, nb_oc_blocking);
 
-    const int sp_dim = jcp.reduce_dim;
-    const int mb_sp_work = jcp.mb * sp_dim;
+    const int sp_nb = jcp.nb_reduce;
+    const int mb_sp_work = jcp.mb * sp_nb;
 
     const int stride_h = conf_.desc()->strides[0];
     const int stride_w = conf_.desc()->strides[1];
@@ -351,14 +351,13 @@ void jit_avx512_mic_1x1_convolution_bwd_weights_t::execute_backward_weights()
         return remaining < tail_step ? remaining : default_step;
     };
 
-    auto oc_ic_sp_loop = [=](int sp_start, int sp_end, bool first_image,
+    auto oc_ic_sp_loop = [=](int sp_b_start, int sp_b_end, bool first_image,
             data_t *store_to, size_t store_to_ld, const data_t *diff_dst,
             const data_t *src, int ithr) {
         jit_1x1_conv_call_s p = {};
         rtus_driver_f32_t<avx512_mic>::call_params_t rp = {};
 
         p.output_stride = store_to_ld * sizeof(float);
-        const int sp_step_def = jcp.nb_reduce_blocking * jcp.reduce_block;
 
         int oc_b_step = 0;
         for (int oc_b = 0; oc_b < nb_oc_blocking; oc_b += oc_b_step) {
@@ -377,15 +376,16 @@ void jit_avx512_mic_1x1_convolution_bwd_weights_t::execute_backward_weights()
                     + ic_b * jcp.ic_block * jcp.oc_block;
 
                 /* spatial reduction */
-                int sp_step = 0;
-                for (int sp = sp_start; sp < sp_end; sp += sp_step) {
-                    sp_step = step(sp_step_def, sp_end - sp, 192);
-                    p.reduce_dim = sp_step;
+                int sp_b_step = 0;
+                for (int sp_b = sp_b_start; sp_b < sp_b_end; sp_b += sp_b_step) {
+                    sp_b_step = step(jcp.nb_reduce_blocking, sp_b_end - sp_b, jcp.nb_reduce_blocking_max);
+                    p.reduce_dim = sp_b_step * jcp.reduce_block;
                     rp.os = p.reduce_dim;
 
-                    p.reduce_pos_flag = sp == sp_start && first_image
+                    p.reduce_pos_flag = sp_b == sp_b_start && first_image
                         ? jit_avx512_mic_1x1_conv_kernel_f32::REDUCE_FLAG_FIRST : 0;
 
+                    int sp = sp_b * jcp.reduce_block;
                     p.load_data = diff_dst
                         + (oc_b * jcp.reduce_dim + sp) * jcp.oc_block;
 
@@ -431,11 +431,11 @@ void jit_avx512_mic_1x1_convolution_bwd_weights_t::execute_backward_weights()
                 bcast_i, bcast_work);
 
         /* setup: reduction work (mb, sp) */
-        int mb_sp_start{0}, mb_sp_end{0};
+        int mb_sp_b_start{0}, mb_sp_b_end{0};
         balance211(mb_sp_work, rw->balancer_.nthr_per_group_,
-                rw->balancer_.id_in_group(ithr), mb_sp_start, mb_sp_end);
-        int img_start{0}, sp_start{0};
-        nd_iterator_init(mb_sp_start, img_start, jcp.mb, sp_start, sp_dim);
+                rw->balancer_.id_in_group(ithr), mb_sp_b_start, mb_sp_b_end);
+        int img_start{0}, sp_b_start{0};
+        nd_iterator_init(mb_sp_b_start, img_start, jcp.mb, sp_b_start, sp_nb);
 
         /* independent work */
         for (int iwork = 0; iwork < w_njobs; ++iwork) {
@@ -463,21 +463,20 @@ void jit_avx512_mic_1x1_convolution_bwd_weights_t::execute_backward_weights()
 
             /* reduction work */
             int img = img_start;
-            int sp = sp_start;
-            int sp_step = 0;
-            for (int mb_sp = mb_sp_start; mb_sp < mb_sp_end; mb_sp += sp_step)
+            int sp_b = sp_b_start;
+            int sp_b_step = 0;
+            for (int mb_sp_b = mb_sp_b_start; mb_sp_b < mb_sp_b_end; mb_sp_b += sp_b_step)
             {
-                sp_step = nstl::min(sp_dim - sp, mb_sp_end - mb_sp);
+                sp_b_step = nstl::min(sp_nb - sp_b, mb_sp_b_end - mb_sp_b);
 
                 const bool first_image = img == img_start;
-                oc_ic_sp_loop(sp, sp + sp_step, first_image, store_to,
+                oc_ic_sp_loop(sp_b, sp_b + sp_b_step, first_image, store_to,
                         store_to_ld, &diff_dst[diff_dst_d.blk_off(img, _oc_b)],
                         &src[src_d.blk_off(img, _ic_b)], ithr);
 
-                sp = 0;
+                sp_b = 0;
                 img += 1;
             }
-
             nd_iterator_step(g, jcp.ngroups, load_i, load_work, bcast_i,
                              bcast_work);
         }

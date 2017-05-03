@@ -599,6 +599,7 @@ status_t jit_avx512_mic_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
     int bcast_blocking{ 0 };
     int bcast_blocking_max{ 0 };
     int reduce_blocking{ 0 };
+    int reduce_blocking_max{ 0 };
 
     if (one_of(jcp.prop_kind, forward_training, forward_inference)) {
         jcp.reduce_dim = jcp.ic;
@@ -707,10 +708,21 @@ status_t jit_avx512_mic_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
         load_blocking_max = load_blocking * 3 / 2;
 
     } else if (jcp.prop_kind == backward_weights) {
-        jcp.ur = 8;
+        jcp.ur = 16;
 
         jcp.reduce_dim = jcp.os;
-        jcp.reduce_block = 1;
+
+        if ((jcp.ih == 56 && jcp.iw == 56)
+            || (jcp.ih == 28 && jcp.iw == 28)
+            || (jcp.ih == 14 && jcp.iw == 14)) {
+            jcp.reduce_block = 14;
+        } else if (jcp.ih == 7 && jcp.iw == 7) {
+            jcp.reduce_block = 7;
+        } else if (jcp.ih * jcp.iw <=16) {
+            jcp.reduce_block = jcp.os;
+        } else {
+            assert(false);
+        }
 
         jcp.load_dim = jcp.oc;
         jcp.load_block = jcp.oc_block;
@@ -754,7 +766,13 @@ status_t jit_avx512_mic_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
         }
         bcast_blocking *= jcp.bcast_block;
         bcast_blocking_max = bcast_blocking;
-        reduce_blocking = 128; // affects L1$ utilization
+        assert(jcp.bcast_dim % bcast_blocking == 0);
+
+        reduce_blocking = jcp.reduce_block * (128 / jcp.reduce_block); // affects L1$ utilization
+        reduce_blocking_max = jcp.reduce_block * (192 / jcp.reduce_block);;
+        assert(reduce_blocking % jcp.reduce_block == 0);
+        assert(reduce_blocking_max % jcp.reduce_block == 0);
+
     } else
         return status::unimplemented;
 
@@ -772,6 +790,7 @@ status_t jit_avx512_mic_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
     jcp.nb_load_blocking = load_blocking / jcp.load_block;
     jcp.nb_load_blocking_max = load_blocking_max / jcp.load_block;
     jcp.nb_reduce_blocking = reduce_blocking / jcp.reduce_block;
+    jcp.nb_reduce_blocking_max = reduce_blocking_max / jcp.reduce_block;
 
     jcp.nb_bcast = div_up(jcp.bcast_dim, jcp.bcast_block);
     jcp.nb_load = div_up(jcp.load_dim, jcp.load_block);
