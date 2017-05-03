@@ -17,6 +17,10 @@
 #ifndef NSTL_HPP
 #define NSTL_HPP
 
+#include <stdint.h>
+#include <limits.h>
+#include <float.h>
+
 #include <vector>
 #include <map>
 
@@ -35,6 +39,34 @@ template<typename T>
 inline const T& min(const T& a, const T& b) {
     return a < b ? a : b;
 }
+
+// Rationale: MKL-DNN needs numeric limits implementation that does not
+// generate dependencies on C++ run-time libraries.
+
+template<typename T> struct numeric_limits {
+    static constexpr T lowest() { return T(); }
+    static constexpr T max() { return T(); }
+};
+
+template<> struct numeric_limits<float> {
+    static constexpr float lowest() { return -FLT_MAX; }
+    static constexpr float max() { return FLT_MAX; }
+};
+
+template<> struct numeric_limits<int> {
+    static constexpr int lowest() { return INT_MIN; }
+    static constexpr int max() { return INT_MAX; }
+};
+
+template<> struct numeric_limits<int8_t> {
+    static constexpr int8_t lowest() { return INT8_MIN; }
+    static constexpr int8_t max() { return INT8_MAX; }
+};
+
+template<> struct numeric_limits<uint8_t> {
+    static constexpr uint8_t lowest() { return 0; }
+    static constexpr uint8_t max() { return UINT8_MAX; }
+};
 
 // Rationale: MKL-DNN needs container implementations that do not generate
 // dependencies on C++ run-time libraries.

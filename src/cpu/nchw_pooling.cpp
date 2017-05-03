@@ -17,10 +17,9 @@
 #include <assert.h>
 #include <math.h>
 
-#include <float.h>
-
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"
+#include "nstl.hpp"
 
 #include "nchw_pooling.hpp"
 
@@ -106,7 +105,7 @@ void nchw_pooling_fwd_t<data_type>::execute_forward() {
                     for (int ow = 0; ow < OW; ++ow) {
                         auto dst_offset = mb*C*OH*OW + c*OH*OW + oh*OW + ow;
                         data_t *d = &dst[dst_offset];
-                        d[0] = -FLT_MAX;
+                        d[0] = nstl::numeric_limits<data_t>::lowest();
                         ker_max(d, mb, c, oh, ow);
                     }
                 }

@@ -174,7 +174,7 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_fwd(int ur_w, int pad_l,
     int stride_w = jpp.stride_w;
     int c_block = jpp.c_block;
 
-    mov(tmp_gpr, float2int(-FLT_MAX));
+    mov(tmp_gpr, float2int(nstl::numeric_limits<float>::lowest()));
     movq(xmm_tmp, tmp_gpr);
     uni_vbroadcastss(vmm_tmp, xmm_tmp);
 

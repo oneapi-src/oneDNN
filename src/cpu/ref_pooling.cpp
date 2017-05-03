@@ -17,8 +17,6 @@
 #include <assert.h>
 #include <math.h>
 
-#include <float.h>
-
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"
 #include "nstl.hpp"
@@ -106,7 +104,7 @@ void ref_pooling_fwd_t<data_type>::execute_forward() {
                 for (int oh = 0; oh < OH; ++oh) {
                     for (int ow = 0; ow < OW; ++ow) {
                         data_t *d = &dst[dst_d.off(mb, oc, oh, ow)];
-                        d[0] = -FLT_MAX;
+                        d[0] = nstl::numeric_limits<data_t>::lowest();
                         ker_max(d, mb, oc, oh, ow);
                     }
                 }
