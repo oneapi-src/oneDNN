@@ -286,17 +286,16 @@ struct jit_avx512_mic_1x1_convolution_bwd_weights_t : public cpu_primitive_t {
         }
     };
 
+    template <cpu_isa_t isa, typename conv_t>
+    friend void init_rtus_driver_f32(conv_t *self);
     jit_avx512_mic_1x1_convolution_bwd_weights_t(const pd_t *pd,
                                                  const input_vector &inputs,
-                                                 const output_vector &outputs)
-        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
-    {
-        kernel_ = new jit_avx512_mic_1x1_conv_kernel_f32(conf_.jcp_);
-    }
-    ~jit_avx512_mic_1x1_convolution_bwd_weights_t()
-    {
+                                                 const output_vector &outputs);
+    ~jit_avx512_mic_1x1_convolution_bwd_weights_t() {
         delete kernel_;
-    };
+        delete rtus_driver_;
+        free(scratch_);
+    }
 
     typedef typename prec_trait<data_type::f32>::type data_t;
 
@@ -315,7 +314,15 @@ struct jit_avx512_mic_1x1_convolution_bwd_weights_t : public cpu_primitive_t {
     void execute_backward_weights();
     pd_t conf_;
     jit_avx512_mic_1x1_conv_kernel_f32 *kernel_;
+    cpu_reducer_2d_t<data_type::f32> *reducer_weights_;
+    cpu_reducer_t<data_type::f32> *reducer_bias_;
+
+    /* reduction to unit stride */
+    rtus_driver_f32_t<avx512_mic> *rtus_driver_;
+    size_t ws_per_thread_;
+    data_t *scratch_;
 };
+
 }
 }
 }
