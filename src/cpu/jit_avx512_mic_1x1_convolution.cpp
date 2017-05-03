@@ -301,7 +301,7 @@ jit_avx512_mic_1x1_convolution_bwd_weights_t::jit_avx512_mic_1x1_convolution_bwd
     reducer_weights_ = new cpu_reducer_2d_t<data_type::f32>(
             reduce_balancer_t(max_threads, job_size, njobs_y * njobs_x,
                 jcp.mb * jcp.nb_reduce, max_buffer_size),
-            job_size / nb_oc_blocking, nb_oc_blocking,
+            job_size / nb_oc_blocking, nb_oc_blocking, ic_block,
             nb_ic * ic_block * oc_block, nb_oc, false);
 
     reducer_bias_ = !conf_.with_bias() ? nullptr

@@ -202,7 +202,8 @@ struct cpu_reducer_2d_t {
     typedef typename prec_trait<data_type>::type data_t;
 
     cpu_reducer_2d_t(const reduce_balancer_t &balancer, int job_size_x,
-            int job_size_y, int dst_x, int dst_y, bool master_uses_dst);
+            int job_size_y, int x_block, int dst_x, int dst_y,
+            bool master_uses_dst);
     ~cpu_reducer_2d_t();
 
     /** allocates internal buffer for partial computations. */
@@ -236,7 +237,7 @@ struct cpu_reducer_2d_t {
     bool master_uses_dst_;
 
 private:
-    int job_size_x_, job_size_y_, dst_x_, dst_y_;
+    int job_size_x_, job_size_y_, x_block_, dst_x_, dst_y_;
 
     size_t ws_per_thread() const
     { return balancer_.njobs_per_group_ub_ * balancer_.job_size_; }
@@ -245,9 +246,12 @@ private:
     reducer_2d_driver_t<data_type> *drv_;
     simple_barrier::ctx_t *barriers_; /** barrier::ctx_t[groups_] */
 
+    int choose_x_blocking(int nx, int ny, int nthr_per_grp);
+    void reduce_block(const data_t* wspace_base,
+            data_t *dst, int job, int start_y, int start_x,
+            int ny_start, int nx_start, int ny_step, int nx_step);
     void reduce_nolock(int ithr, data_t *dst);
 };
-
 
 }
 }

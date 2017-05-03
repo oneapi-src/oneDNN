@@ -352,6 +352,7 @@ void jit_avx512_mic_1x1_conv_kernel_f32::reduce_loop(int load_loop_blk, int ur,
 
 void jit_avx512_mic_1x1_conv_kernel_f32::diff_bias_loop(int load_loop_blk)
 {
+    // TODO: This function is obsolete because diff_bias calculated in harness.
     if (!jcp.with_bias || jcp.prop_kind != backward_weights)
         return;
 
