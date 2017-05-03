@@ -219,20 +219,24 @@ void jit_avx512_mic_1x1_conv_kernel_f32::reduce_loop(int load_loop_blk, int ur,
         L(store_done);
     };
 
-    auto prefetch_callback = [=](int ur_hw, int i_reduce, int i_ur, int i_load,
+    auto prefetch_callback = [=](int ur, int i_reduce, int i_ur, int i_load,
                                       bool last_block, bool wraparound) {
         bool pf_ker_l1 = true;
         bool pf_ker_l2 = wraparound;
-        int n_ops = jcp.reduce_loop_unroll * ur_hw * load_loop_blk;
+        int n_ops = jcp.reduce_loop_unroll * ur * load_loop_blk;
         int i_op =
-            i_reduce * ur_hw * load_loop_blk + i_ur * load_loop_blk + i_load;
+            i_reduce * ur * load_loop_blk + i_ur * load_loop_blk + i_load;
 
-        int n_pf_ker_l1 = pf_ker_l1 ? jcp.ic_block : 0;
-        int n_pf_ker_l2 = pf_ker_l2 && wraparound ? jcp.ic_block : 0;
+        int n_pf_ker_l1 = pf_ker_l1 ? jcp.reduce_block : 0;
+        int n_pf_ker_l2 = pf_ker_l2 && wraparound ? jcp.reduce_block : 0;
         int n_pf_out_l1 = 0;
 
         int pf_inp_ops = n_ops/2; // # of operations during which to pf input
-        int pf_inp_trigger = nstl::max(1, pf_inp_ops / ur_hw);
+        int pf_inp_trigger;
+        if (jcp.prop_kind == backward_weights)
+            pf_inp_trigger = nstl::max(1, pf_inp_ops / jcp.reduce_block);
+        else
+            pf_inp_trigger = nstl::max(1, pf_inp_ops / ur);
 
         int n_other_pf =
             load_loop_blk * (n_pf_ker_l1 + n_pf_ker_l2 + n_pf_out_l1);
@@ -249,10 +253,18 @@ void jit_avx512_mic_1x1_conv_kernel_f32::reduce_loop(int load_loop_blk, int ur,
                                   ? reg_bcast_data
                                   : (last_block ? aux1_reg_bcast_data
                                                 : aux_reg_bcast_data);
-            int offt = (i_pf + (wraparound && last_block
-                                        ? 0
-                                        : (last_block ? jcp.ur : jcp.is)))
-                       * jcp.ic_block;
+            int offt = i_pf;
+            if (jcp.prop_kind == backward_weights) {
+                offt += wraparound && last_block
+                                    ? 0
+                                    : (last_block ? jcp.is : jcp.reduce_block);
+                offt *= jcp.bcast_block;
+            } else {
+                offt += wraparound && last_block
+                                    ? 0
+                                    : (last_block ? jcp.ur : jcp.is);
+                offt *= jcp.reduce_block;
+            }
             prefetcht0(ptr[pf_reg + offt * sizeof(float)]);
         } else if (i_op >= pf_inp_ops && n_other_pf) {
             // remaining prefetches are spread among the rest of the
@@ -262,24 +274,24 @@ void jit_avx512_mic_1x1_conv_kernel_f32::reduce_loop(int load_loop_blk, int ur,
             if (i_op % other_pf_trigger == 0) {
                 int i_pf = i_op / (load_loop_blk*other_pf_trigger);
                 if (i_pf < n_pf_ker_l2) {
-                    int offt = (i_pf + i_load*jcp.ic + jcp.ic) * jcp.oc_block;
+                    int offt = (i_pf + (i_load + 1) * jcp.reduce_dim) * jcp.load_block;
                     if (jcp.prop_kind == backward_data)
-                        offt = (i_pf + i_load * jcp.oc_block + jcp.oc_block)
-                                * jcp.ic_block;
+                        offt = (i_pf + (i_load + 1)* jcp.reduce_block)
+                                * jcp.load_block;
                     prefetcht1(ptr[aux_reg_load_data + offt * sizeof(float)]);
                 } else if (i_pf < n_pf_ker_l2 + n_pf_ker_l1) {
                     i_pf -= n_pf_ker_l2;
                     auto pf_reg = last_block ? reg_load_data
                                              : aux_reg_load_data;
-                    int offt = (i_pf + i_load*jcp.ic
+                    int offt = (i_pf + i_load * jcp.reduce_dim
                                     + (last_block ?
-                                        (wraparound ? jcp.ic : 0)
-                                        : jcp.ic_block))
-                                * jcp.oc_block;
+                                        (wraparound ? jcp.reduce_dim : 0)
+                                        : jcp.reduce_block))
+                                * jcp.load_block;
                     if (jcp.prop_kind == backward_data) {
-                        offt = (i_pf + i_load * jcp.oc_block + (last_block
-                                ? ( wraparound ? jcp.ic_block : 0)
-                                : jcp.ic)) * jcp.oc_block;
+                        offt = (i_pf + i_load * jcp.reduce_block + (last_block
+                                ? ( wraparound ? jcp.load_block : 0)
+                                : jcp.load_dim)) * jcp.reduce_block;
                     }
                     prefetcht0(ptr[pf_reg + offt * sizeof(float)]);
                 } else if (i_pf < n_pf_ker_l1 + n_pf_ker_l2 + n_pf_out_l1) {
