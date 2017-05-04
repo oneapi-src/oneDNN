@@ -101,11 +101,11 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                         if (order_keep) {
                             o[w * blksize + c] =
                                 alpha * data_t<type_o>(i[nchw_off])
-                                + beta * o[w * blksize + c];
+                                + (beta ? beta * o[w * blksize + c] : 0);
                         } else {
                             o[nchw_off] =
                                 alpha * data_t<type_o>(i[w * blksize + c])
-                                + beta * o[nchw_off];
+                                + (beta ? beta * o[nchw_off] : 0);
                         }
                     }
                 }
@@ -166,11 +166,11 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                         if (order_keep) {
                             o[w * os[3] + c] =
                                 alpha * data_t<type_o>(i[c * is[1] + w])
-                                + beta * o[w * os[3] + c];
+                                + (beta ? beta * o[w * os[3] + c] : 0);
                         } else {
                             o[c * os[1] + w] =
                                 alpha * data_t<type_o>(i[w * is[3] + c])
-                                + beta * o[c * os[1] + w];
+                                + (beta ? beta * o[c * os[1] + w] : 0);
                         }
                     }
                 }
@@ -239,11 +239,11 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                     if (order_keep) {
                         o[ic * blksize + oc] =
                             alpha * data_t<type_o>(i[_g_oihw_off])
-                            + beta * o[ic * blksize + oc];
+                            + (beta ? beta * o[ic * blksize + oc] : 0);
                     } else {
                         o[_g_oihw_off] =
                             alpha * data_t<type_o>(i[ic * blksize + oc])
-                            + beta * o[_g_oihw_off];
+                            + (beta ? beta * o[_g_oihw_off] : 0);
                     }
                 }
                 }
@@ -307,7 +307,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                     const int i_idx = oc * blksize + ic;
                     o[o_idx] = (alpha == 1.0 && beta == 0.0)
                         ? data_t<type_o>(i[i_idx])
-                        : alpha * data_t<type_o>(i[i_idx]) + beta * o[o_idx];
+                        : alpha * data_t<type_o>(i[i_idx])
+                            + (beta ? beta * o[o_idx] : 0);
                 }
             }
         };
@@ -367,7 +368,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         } else {
 #           pragma omp parallel for schedule(static)
             for (size_t e = 0; e < nelems; ++e) {
-                output[e] = alpha * data_t<type_o>(input[e]) + beta * output[e];
+                output[e] = alpha * data_t<type_o>(input[e])
+                    + (beta ? beta * output[e] : 0);
             }
         }
 
@@ -417,7 +419,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 for (size_t e = 0; e < nelems_no_d0; ++e) {
                     output[os * n + e] =
                         alpha * data_t<type_o>(input[is * n + e])
-                        + beta * output[os * n + e];
+                        + (beta ? beta * output[os * n + e] : 0);
                 }
             }
         }
@@ -475,7 +477,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             for (size_t e = 0; e < nelems; ++e) {
                 output[output_d.off_l(e)] =
                     alpha * data_t<type_o>(input[input_d.off_l(e)])
-                    + beta * output[output_d.off_l(e)];
+                    + (beta ? beta * output[output_d.off_l(e)] : 0);
             }
         }
 
