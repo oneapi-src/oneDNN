@@ -40,7 +40,8 @@ inline void rtus_prepare(conv_pd_t *self, const convolution_desc_t *&conv_d,
 
     bool rtus_applicable = true
         && (conv_d->strides[0] != 1 || conv_d->strides[1] != 1)
-        && src_d->format == memory_format::nChw8c;
+        && utils::one_of(src_d->format,
+            memory_format::nChw8c, memory_format::nChw16c);
     for (int d = 2; d < 4; ++d) {
         /* TODO: relax these conditions (by improving reducer) */
         rtus_applicable = rtus_applicable
@@ -247,6 +248,8 @@ inline void init_rtus_driver_f32(conv_t *self) {
     const int stride_w = cd.strides[1];
 
     const auto &src_d = is_bwd_data ? cd.diff_src_desc : cd.src_desc;
+    assert((isa == avx2 && src_d.format == memory_format::nChw8c)
+            || (isa == avx512_mic && src_d.format == memory_format::nChw16c));
     const int ih = src_d.dims[2];
     const int iw = src_d.dims[3];
 
