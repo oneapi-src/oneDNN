@@ -85,7 +85,7 @@ protected:
     mkldnn::impl::primitive_kind_t kind_;
 };
 
-#define DECLARE_COMMON_PD_T(base_primitive_t) \
+#define DECLARE_COMMON_PD_T(...) \
     virtual pd_t *clone() const override { return new pd_t(*this); } \
     virtual status_t create_primitive(primitive_t **primitive, \
             const primitive_at_t *inputs, \
@@ -93,7 +93,7 @@ protected:
         primitive_t::input_vector ins(inputs, inputs + this->n_inputs()); \
         primitive_t::output_vector outs(outputs, outputs + this->n_outputs()); \
         return safe_ptr_assign<primitive_t>(*primitive, \
-                new base_primitive_t(this, ins, outs)); \
+                new (__VA_ARGS__)(this, ins, outs)); \
     } \
 
 #endif
