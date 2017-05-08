@@ -1,6 +1,6 @@
 # Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN)
 [![Apache License Version 2.0](https://img.shields.io/badge/license-Apache_2.0-green.svg)](LICENSE)
-![v0.7 beta](https://img.shields.io/badge/v0.7-beta-orange.svg)
+![v0.9 beta](https://img.shields.io/badge/v0.9-beta-orange.svg)
 
 Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN) is an
 open source performance library for Deep Learning (DL) applications intended
@@ -15,7 +15,7 @@ API compatible. We are investigating how to unify the APIs in future Intel MKL r
 
 This release is a technical preview with functionality necessary to accelerate
 bleeding edge image recognition topologies, including Cifar\*, AlexNet\*, VGG\*, 
-GoogleNet\* and ResNet\*. As with any technical preview, APIs may change in future updates.
+GoogleNet\* and ResNet\*. 
 
 ## License
 Intel MKL-DNN is licensed under
@@ -47,12 +47,13 @@ request will be merged into our internal and GitHub repositories.
 
 ## System Requirements
 Intel MKL-DNN supports Intel(R) 64 architecture processors and is optimized for
-* Intel(R) Xeon(R) processor E5-xxxx v3 (codename Haswell)
-* Intel(R) Xeon(R) processor E5-xxxx v4 (codename Broadwell)
-* Intel(R) Xeon Phi(TM) processor 72xx (codename Knights Landing)
-
-Processors without Intel(R) Advanced Vector Extensions 2 (Intel(R) AVX2) are 
-supported and will run reference code.
+* Intel Atom(R) processor with Intel(R) SSE4.1 support
+* 4th, 5th, 6th and 7th generation Intel(R) Core processor
+* Intel(R) Xeon(R) processor E5 v3 family (code named Haswell)
+* Intel(R) Xeon(R) processor E5 v4 family (code named Broadwell)
+* Intel(R) Xeon(R) Platinum processor family (code name Skylake)
+* Intel(R) Xeon Phi(TM) product family x200 (code named Knights Landing)
+* Future Intel(R) Xeon Phi(TM) processor (code named Knights Mill)
 
 The software dependencies are:
 * [Cmake](https://cmake.org/download/) 2.8.0 or later
@@ -67,7 +68,7 @@ The software was validated on RedHat\* Enterprise Linux 7 with
   16.0 or later
 
 The implementation uses OpenMP\* 4.0 SIMD extensions. We recommend using
-Intel(R) compiler for the best performance results.
+Intel(R) Compiler for the best performance results.
 
 ## Installation
 Download [Intel MKL-DNN source code](https://github.com/01org/mkl-dnn/archive/master.zip)
@@ -77,16 +78,19 @@ or clone the repository to your system
 	git clone https://github.com/01org/mkl-dnn.git
 ```
 
-Satisfy all hardware and software dependencies and ensure that the versions are correct before installing.
-Intel MKL-DNN uses the optimized matrix-matrix multiplication (GEMM) function from Intel MKL. The dynamic 
-library with this functionality is included win the repository. Before building the project, download the library
-using the script provided:
+Satisfy all hardware and software dependencies and ensure that the versions
+are correct before installing. Intel MKL-DNN can take advantage of optimized
+matrix-matrix multiplication (GEMM) function from Intel MKL. The dynamic
+library with this functionality is included in the repository. If you choose 
+to build Intel MKL-DNN with binary dependency download Intel MKL small
+libraries first using provided script
 
 ```
 	cd scripts && ./prepare_mkl.sh && cd ..
 ```
 
-or download manually and unpack it to the `external` directory in the repository root.
+or download manually and unpack it to the `external` directory in the 
+repository root.
 
 Intel MKL-DNN uses a CMake-based build system
 
