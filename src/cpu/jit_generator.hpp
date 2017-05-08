@@ -32,6 +32,7 @@ namespace impl {
 namespace cpu {
 
 typedef enum {
+    isa_any,
     sse42,
     avx2,
     avx512_common,
@@ -136,6 +137,8 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa) {
             && cpu.has(Cpu::tAVX512CD)
             && cpu.has(Cpu::tAVX512ER)
             && cpu.has(Cpu::tAVX512PF);
+    case isa_any:
+        return true;
     }
     return false;
 }

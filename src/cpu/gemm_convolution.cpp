@@ -38,8 +38,8 @@ using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::utils;
 
-template <bool with_relu, bool run_jit>
-void _gemm_convolution_fwd_t<with_relu, run_jit>::execute_forward() {
+template <bool with_relu, bool run_jit, cpu_isa_t isa>
+void _gemm_convolution_fwd_t<with_relu, run_jit, isa>::execute_forward() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto weights = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto bias = reinterpret_cast<const data_t *>(this->input_memory(2));
@@ -102,13 +102,15 @@ void _gemm_convolution_fwd_t<with_relu, run_jit>::execute_forward() {
     }
 }
 
-template void _gemm_convolution_fwd_t<true, true>::execute_forward();
-template void _gemm_convolution_fwd_t<false, true>::execute_forward();
-template void _gemm_convolution_fwd_t<true, false>::execute_forward();
-template void _gemm_convolution_fwd_t<false, false>::execute_forward();
+template struct _gemm_convolution_fwd_t<true, true, avx512_common>;
+template struct _gemm_convolution_fwd_t<true, true, avx2>;
+template struct _gemm_convolution_fwd_t<false, true, avx512_common>;
+template struct _gemm_convolution_fwd_t<false, true, avx2>;
+template struct _gemm_convolution_fwd_t<true, false, isa_any>;
+template struct _gemm_convolution_fwd_t<false, false, isa_any>;
 
-template <bool run_jit>
-void _gemm_convolution_bwd_data_t<run_jit>::execute_backward_data() {
+template <bool run_jit, cpu_isa_t isa>
+void _gemm_convolution_bwd_data_t<run_jit, isa>::execute_backward_data() {
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto weights = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto diff_src = reinterpret_cast<data_t*>(this->memory());
@@ -159,11 +161,12 @@ void _gemm_convolution_bwd_data_t<run_jit>::execute_backward_data() {
     }
 }
 
-template void _gemm_convolution_bwd_data_t<true>::execute_backward_data();
-template void _gemm_convolution_bwd_data_t<false>::execute_backward_data();
+template struct _gemm_convolution_bwd_data_t<true, avx512_common>;
+template struct _gemm_convolution_bwd_data_t<true, avx2>;
+template struct _gemm_convolution_bwd_data_t<false, isa_any>;
 
-template <bool run_jit>
-void _gemm_convolution_bwd_weights_t<run_jit>::execute_backward_weights() {
+template <bool run_jit, cpu_isa_t isa>
+void _gemm_convolution_bwd_weights_t<run_jit, isa>::execute_backward_weights() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto diff_weights = reinterpret_cast<data_t*>(this->memory(0));
@@ -262,8 +265,9 @@ void _gemm_convolution_bwd_weights_t<run_jit>::execute_backward_weights() {
     }
 }
 
-template void _gemm_convolution_bwd_weights_t<true>::execute_backward_weights();
-template void _gemm_convolution_bwd_weights_t<false>::execute_backward_weights();
+template struct _gemm_convolution_bwd_weights_t<true, avx512_common>;
+template struct _gemm_convolution_bwd_weights_t<true, avx2>;
+template struct _gemm_convolution_bwd_weights_t<false, isa_any>;
 
 }
 }
