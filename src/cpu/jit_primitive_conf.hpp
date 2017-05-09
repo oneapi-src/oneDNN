@@ -43,6 +43,13 @@ struct jit_conv_conf_t {
     int ur_h, ur_w;
     int ur_w_tail;
     bool is_1stconv;
+
+    /* avx512_u8s8u8 */
+    int ic_nb1, ic_nb2;
+    int oc_nb1;
+    int ur_ow_max, ur_ow, ur_ow_tail;
+    int ur_ow_nsteps;
+    data_type_t bia_dt;
 };
 
 struct __attribute__((__packed__)) jit_conv_call_s {

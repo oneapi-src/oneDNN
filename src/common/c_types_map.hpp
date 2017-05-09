@@ -100,11 +100,13 @@ namespace memory_format {
     const memory_format_t OIhw16o16i = mkldnn_OIhw16o16i;
     const memory_format_t Ohwi8o = mkldnn_Ohwi8o;
     const memory_format_t Ohwi16o = mkldnn_Ohwi16o;
+    const memory_format_t OhIw16o4i = mkldnn_OhIw16o4i;
     const memory_format_t goihw = mkldnn_goihw;
     const memory_format_t gOIhw8i8o = mkldnn_gOIhw8i8o;
     const memory_format_t gOIhw16i16o = mkldnn_gOIhw16i16o;
     const memory_format_t gOIhw8o8i = mkldnn_gOIhw8o8i;
     const memory_format_t gOIhw16o16i = mkldnn_gOIhw16o16i;
+    const memory_format_t gOhIw16o4i = mkldnn_gOhIw16o4i;
 }
 
 using padding_kind_t = mkldnn_padding_kind_t;

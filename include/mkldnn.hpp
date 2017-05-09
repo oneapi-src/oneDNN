@@ -296,11 +296,13 @@ struct memory: public primitive  {
         OIhw16o16i = c_api::mkldnn_OIhw16o16i,
         Ohwi8o = c_api::mkldnn_Ohwi8o,
         Ohwi16o = c_api::mkldnn_Ohwi16o,
+        OhIw16o4i = c_api::mkldnn_OhIw16o4i,
         goihw = c_api::mkldnn_goihw,
         gOIhw8i8o = c_api::mkldnn_gOIhw8i8o,
         gOIhw16i16o = c_api::mkldnn_gOIhw16i16o,
         gOIhw8o8i = c_api::mkldnn_gOIhw8o8i,
         gOIhw16o16i = c_api::mkldnn_gOIhw16o16i,
+        gOhIw16o4i = c_api::mkldnn_gOhIw16o4i,
     };
 
     /// A memory descriptor.
