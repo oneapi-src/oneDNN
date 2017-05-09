@@ -29,14 +29,16 @@ struct jit_avx512_common_conv_fwd_kernel : public jit_generator {
 
     jit_avx512_common_conv_fwd_kernel(jit_conv_conf_t ajcp) : jcp(ajcp)
     {
-        this->generate();
-        jit_ker = (void (*)(jit_conv_call_s *)) this->getCode();
+        generate();
+        jit_ker = (void (*)(jit_conv_call_s *))getCode();
     }
 
     static status_t init_conf(jit_conv_conf_t &jcp,
-            const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
+            const convolution_desc_t &cd,
+            const memory_desc_wrapper &src_d,
             const memory_desc_wrapper &weights_d,
-            const memory_desc_wrapper &dst_d, bool with_relu = false,
+            const memory_desc_wrapper &dst_d,
+            bool with_relu = false,
             double relu_negative_slope = 0.);
 
     jit_conv_conf_t jcp;
@@ -88,59 +90,60 @@ private:
 
     inline void prepare_output(int ur_w);
     inline void store_output(int ur_w);
-    inline int compute_loop_fma(int ur_w, int pad_l, int pad_r);
-    inline int compute_loop_4vnni(int ur_w, int pad_l, int pad_r);
-    inline int compute_loop(int ur_w, int pad_l, int pad_r);
+    inline void compute_loop_fma(int ur_w, int pad_l, int pad_r);
+    inline void compute_loop_4vnni(int ur_w, int pad_l, int pad_r);
+    inline void compute_loop(int ur_w, int pad_l, int pad_r);
 
     void generate();
 
     inline void vadd(Xbyak::Zmm zmm, reg64_t reg, int offset)   {
         if (jcp._4vnni)
             vpaddd(zmm, zmm, EVEX_compress_addr(reg, offset));
-    else
+        else
             vaddps(zmm, zmm, EVEX_compress_addr(reg, offset));
     }
+
     inline int get_output_offset(int oi, int n_oc_block) {
-        return jcp.typesize_out * (n_oc_block*jcp.oh*jcp.ow + oi)*jcp.oc_block;
+        return jcp.typesize_out
+            * (n_oc_block * jcp.oh * jcp.ow + oi) * jcp.oc_block;
     }
 
     inline int get_input_offset(int ki, int ic, int oi, int pad_l) {
         int scale = (jcp._4vnni) ? 2 : 1;
         int iw_str = !jcp.is_1stconv ? jcp.ic_block : 1;
         int ic_str = !jcp.is_1stconv ? 1 : jcp.iw * jcp.ih;
-        return jcp.typesize_in * (
-            (ki + oi * jcp.stride_w - pad_l) * iw_str + scale * ic * ic_str);
+        return jcp.typesize_in
+            * ((ki + oi * jcp.stride_w - pad_l) * iw_str + scale * ic * ic_str);
     }
 
     inline int get_kernel_offset(int ki,int ic,int n_oc_block,int ker_number) {
         int scale = (jcp._4vnni) ? 2 : 1;
-        return jcp.typesize_in * (
-          n_oc_block * jcp.nb_ic * jcp.ic_block * jcp.oc_block * jcp.kh * jcp.kw
-          + ((ic + ker_number) * scale * jcp.oc_block
-          + ki * jcp.ic_block * jcp.oc_block));
+        return jcp.typesize_in * jcp.oc_block
+            * (n_oc_block * jcp.nb_ic * jcp.ic_block * jcp.kh * jcp.kw
+                    + (ic + ker_number) * scale + ki * jcp.ic_block);
     }
 
     inline int get_ow_start(int ki, int pad_l) {
-        return nstl::max(0, (pad_l - ki + jcp.stride_w - 1)/jcp.stride_w);
+        return nstl::max(0, (pad_l - ki + jcp.stride_w - 1) / jcp.stride_w);
     }
 
     inline int get_ow_end(int ki, int pad_r) {
         return jcp.ur_w - nstl::max(0,
             (ki + pad_r - (jcp.kw - 1) + jcp.stride_w - 1) / jcp.stride_w);
     }
-
-
 };
 
 struct jit_avx512_common_conv_bwd_data_kernel_f32: public jit_generator {
+
     jit_avx512_common_conv_bwd_data_kernel_f32(jit_conv_conf_t ajcp): jcp(ajcp)
     {
-        this->generate();
-        jit_ker = (void (*)(jit_conv_call_s *))this->getCode();
+        generate();
+        jit_ker = (void (*)(jit_conv_call_s *))getCode();
     }
 
     static status_t init_conf(jit_conv_conf_t &jcp,
-            const convolution_desc_t &cd, const memory_desc_wrapper &diff_src_d,
+            const convolution_desc_t &cd,
+            const memory_desc_wrapper &diff_src_d,
             const memory_desc_wrapper &weights_d,
             const memory_desc_wrapper &diff_dst_d);
 
@@ -151,10 +154,10 @@ private:
     using reg64_t = const Xbyak::Reg64;
     enum { typesize = sizeof(float) };
 
-    reg64_t param      = abi_param1;
-    reg64_t reg_dst     = r8;
-    reg64_t reg_ker     = r9;
-    reg64_t reg_src     = r10;
+    reg64_t param = abi_param1;
+    reg64_t reg_dst = r8;
+    reg64_t reg_ker = r9;
+    reg64_t reg_src = r10;
 
     reg64_t reg_dst_prf = r11;
     reg64_t reg_ker_prf = r12;
@@ -176,20 +179,22 @@ private:
 
     inline void prepare_output(int ur_w);
     inline void store_output(int ur_w);
-    inline int compute_loop(int ur_w, int l_overflow, int r_overflow);
+    inline void compute_loop(int ur_w, int l_overflow, int r_overflow);
     void generate();
 };
 
 struct jit_avx512_common_conv_bwd_weights_kernel_f32 : public jit_generator {
-    jit_avx512_common_conv_bwd_weights_kernel_f32(jit_conv_conf_t ajcp) :
-        jcp(ajcp)
+
+    jit_avx512_common_conv_bwd_weights_kernel_f32(jit_conv_conf_t ajcp)
+        : jcp(ajcp)
     {
-        this->generate();
-        jit_ker = (void (*)(jit_conv_call_s *))this->getCode();
+        generate();
+        jit_ker = (void (*)(jit_conv_call_s *))getCode();
     }
 
     static status_t init_conf(jit_conv_conf_t &jcp,
-        const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
+        const convolution_desc_t &cd,
+        const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &diff_weights_d,
         const memory_desc_wrapper &diff_dst_d);
 
@@ -227,15 +232,16 @@ private:
     reg64_t reg_output_loadblk_step = abi_param1;
 
     inline void compute_oh_step_unroll_ow_icblock(int ic_block_step,
-        int max_ur_w);
+            int max_ur_w);
     inline void oh_step_comeback_pointers();
     inline void compute_oh_step_unroll_ow(int ic_block_step, int max_ur_w);
-    inline void compute_ic_block_step(int ur_w, int pad_l, int pad_r,
-        int ic_block_step, int input_offset, int kernel_offset,
-        int output_offset);
+    inline void compute_ic_block_step(int ur_w,
+            int pad_l, int pad_r, int ic_block_step,
+            int input_offset, int kernel_offset, int output_offset);
     inline void compute_oh_step_common(int ic_block_step, int max_ur_w);
     inline void compute_oh_step_disp();
     inline void compute_oh_loop_common();
+
     void generate();
 };
 

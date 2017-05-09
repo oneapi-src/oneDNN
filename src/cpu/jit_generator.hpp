@@ -217,6 +217,7 @@ protected:
             mov(reg_EVEX_max_8b_offt, 2 * EVEX_max_8b_offt);
         }
     }
+
     void mic_prefetcht0(Xbyak::Address a) {
         if (mayiuse(avx512_mic))
             prefetcht0(a);
