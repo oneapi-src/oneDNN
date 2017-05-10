@@ -78,19 +78,19 @@ or clone the repository to your system
 	git clone https://github.com/01org/mkl-dnn.git
 ```
 
-Satisfy all hardware and software dependencies and ensure that the versions
-are correct before installing. Intel MKL-DNN can take advantage of optimized
+Ensure that all software dependencies are in place and have at least minimal
+supported version. Intel MKL-DNN can take advantage of optimized
 matrix-matrix multiplication (GEMM) function from Intel MKL. The dynamic
 library with this functionality is included in the repository. If you choose 
-to build Intel MKL-DNN with binary dependency download Intel MKL small
-libraries first using provided script
+to build Intel MKL-DNN with the binary dependency download Intel MKL small
+libraries using provided script
 
 ```
 	cd scripts && ./prepare_mkl.sh && cd ..
 ```
 
-or download manually and unpack it to the `external` directory in the 
-repository root.
+or manually from [GitHub release section](https://github.com/01org/mkl-dnn/releases)
+and unpack it to the `external` directory in the repository root.
 
 Intel MKL-DNN uses a CMake-based build system
 
