@@ -398,7 +398,7 @@ void jit_avx512_common_lrn_fwd_t::execute_forward() {
 
         balance211(work_amount, nthr, ithr, start, end);
         if (use_h_parallelism) {
-            int n, c16, h;
+            int n{0}, c16{0}, h{0};
             nd_iterator_init(start, n, N, c16, C16, h, H);
             for (size_t iwork = start; iwork < end; ++iwork) {
                 auto offset = n*C*H*W + c16*H*W*vsize
@@ -424,7 +424,7 @@ void jit_avx512_common_lrn_fwd_t::execute_forward() {
                 nd_iterator_step(n, N, c16, C16, h, H);
             }
         } else {
-            int n, c16;
+            int n{0}, c16{0};
             nd_iterator_init(start, n, N, c16, C16);
             for (size_t iwork = start; iwork < end; ++iwork) {
                 auto offset = n*C*H*W + c16*H*W*vsize;
@@ -803,7 +803,7 @@ void jit_avx512_common_lrn_bwd_t::execute_backward() {
 
         balance211(work_amount, nthr, ithr, start, end);
         if (use_h_parallelism) {
-            int n, c16, h;
+            int n{0}, c16{0}, h{0};
             nd_iterator_init(start, n, N,  h, H, c16, C16);
             for (size_t iwork = start; iwork < end; ++iwork) {
                 auto offset = n*C*H*W + c16*H*W*vsize
@@ -830,7 +830,7 @@ void jit_avx512_common_lrn_bwd_t::execute_backward() {
                 nd_iterator_step(n, N, h, H, c16, C16);
             }
         } else {
-            int n, c16;
+            int n{0}, c16{0};
             nd_iterator_init(start, n, N, c16, C16);
             for (size_t iwork = start; iwork < end; ++iwork) {
                 auto offset = n*C*H*W + c16*H*W*vsize;

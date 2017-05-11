@@ -63,7 +63,7 @@ void _gemm_convolution_fwd_t<with_relu, run_jit, isa>::execute_forward() {
         const int ithr = omp_get_thread_num();
         const int nthr = omp_get_num_threads();
 
-        int g, n;
+        int g{0}, n{0};
         size_t start = 0, end = 0;
         balance211(work_amount, nthr, ithr, start, end);
         nd_iterator_init(start, g, jcp.ngroups, n, jcp.mb);
