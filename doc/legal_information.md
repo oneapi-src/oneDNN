@@ -7,4 +7,4 @@ Legal Information {#legal_information}
 <p>The products and services described may contain defects or errors which may cause deviations from published specifications. Current characterized errata are available on request.</p>
 <p>Cilk, Intel, the Intel logo, Intel Atom, Intel Core, Intel Inside, Intel NetBurst, Intel SpeedStep, Intel vPro, Intel Xeon Phi, Intel XScale, Itanium, MMX, Pentium, Thunderbolt, Ultrabook, VTune and Xeon are trademarks of Intel Corporation in the U.S. and/or other countries.</p>
 <p>\* Other names and brands may be claimed as the property of others.</p>
-<p>(C) 2016, Intel Corporation.</p>
+<p>(C) 2016-2017, Intel Corporation.</p>
