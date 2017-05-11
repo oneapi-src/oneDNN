@@ -72,6 +72,8 @@ status_t conv_desc_init(convolution_desc_t *conv_desc,
     utils::array_copy(cd.padding[1], padding_r, sp_dims);
 
     cd.padding_kind = padding_kind;
+    cd.accum_data_type = types::default_accum_data_type(src_desc->data_type,
+            weights_desc->data_type, dst_desc->data_type);
 
     const int g = with_groups ? weights_desc->dims[0] : 1;
 

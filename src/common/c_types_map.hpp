@@ -72,6 +72,8 @@ namespace data_type {
     const data_type_t undef = mkldnn_data_type_undef;
     const data_type_t f32 = mkldnn_f32;
     const data_type_t s32 = mkldnn_s32;
+    const data_type_t s8 = mkldnn_s8;
+    const data_type_t u8 = mkldnn_u8;
 }
 
 using memory_format_t = mkldnn_memory_format_t;

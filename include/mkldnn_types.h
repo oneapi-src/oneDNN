@@ -66,6 +66,10 @@ typedef enum {
     mkldnn_f32 = 1,
     /** 32-bit signed integer. */
     mkldnn_s32 = 2,
+    /** 8-bit signed integer. */
+    mkldnn_s8 = 3,
+    /** 8-bit unsigned integer. */
+    mkldnn_u8 = 4,
 } mkldnn_data_type_t;
 
 /** Memory format specification.
@@ -399,6 +403,8 @@ typedef struct {
     mkldnn_dims_t padding[2];
     /** The kind of padding to use. */
     mkldnn_padding_kind_t padding_kind;
+    /** The accumulator data type. Initialized automatically. */
+    mkldnn_data_type_t accum_data_type;
 } mkldnn_convolution_desc_t;
 
 /** A descriptor of a rectifier linear unit (ReLU) operation. */
@@ -464,6 +470,8 @@ typedef struct {
     mkldnn_dims_t padding[2];
     /** The kind of padding to use. */
     mkldnn_padding_kind_t padding_kind;
+    /** The accumulator data type. Initialized automatically. */
+    mkldnn_data_type_t accum_data_type;
 } mkldnn_pooling_desc_t;
 
 /** A descriptor of a Local Response Normalization (LRN) operation. */
@@ -549,6 +557,8 @@ typedef struct {
     mkldnn_memory_desc_t dst_desc;
     /** Destination gradient memory descriptor. */
     mkldnn_memory_desc_t diff_dst_desc;
+    /** The accumulator data type. Initialized automatically. */
+    mkldnn_data_type_t accum_data_type;
 } mkldnn_inner_product_desc_t;
 
 /** A descriptor of a convolution followed by relu operation. */

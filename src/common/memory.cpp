@@ -43,7 +43,7 @@ status_t mkldnn_memory_desc_init(memory_desc_t *memory_desc, int ndims,
     /* memory_desc != 0 */
     bool args_ok = !any_null(memory_desc)
         && 0 < ndims && ndims <= TENSOR_MAX_DIMS
-        && one_of(data_type, f32, s32);
+        && one_of(data_type, f32, s32, s8, u8);
     if (!args_ok) return invalid_arguments;
 
     memory_desc_t md;

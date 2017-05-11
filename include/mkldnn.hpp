@@ -267,6 +267,8 @@ struct memory: public primitive  {
         data_undef = c_api::mkldnn_data_type_undef,
         f32 = c_api::mkldnn_f32,
         s32 = c_api::mkldnn_s32,
+        s8 = c_api::mkldnn_s8,
+        u8 = c_api::mkldnn_u8,
     };
 
     /// Memory format specification. See #mkldnn_memory_format_t

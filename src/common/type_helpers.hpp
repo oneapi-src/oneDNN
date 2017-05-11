@@ -43,6 +43,8 @@ inline size_t data_type_size(data_type_t data_type) {
     switch (data_type) {
     case f32: return sizeof(prec_trait<f32>::type);
     case s32: return sizeof(prec_trait<s32>::type);
+    case s8: return sizeof(prec_trait<s8>::type);
+    case u8: return sizeof(prec_trait<u8>::type);
     case data_type::undef:
     default: assert(!"unknown data_type");
     }
@@ -98,6 +100,19 @@ inline memory_desc_t zero_md() {
 
 inline status_t set_default_format(memory_desc_t &md, memory_format_t fmt) {
     return mkldnn_memory_desc_init(&md, md.ndims, md.dims, md.data_type, fmt);
+}
+
+inline data_type_t default_accum_data_type(data_type_t src_dt,
+        data_type_t wei_dt, data_type_t dst_dt) {
+    using namespace utils;
+    using namespace data_type;
+
+    if (everyone_is(f32, src_dt, wei_dt, dst_dt)) return f32;
+    if (one_of(src_dt, s8, u8) && one_of(wei_dt, s8, u8, data_type::undef) &&
+            one_of(dst_dt, s8, u8, data_type::undef)) return s32;
+
+    assert(!"unimplemented use-case: no default parameters available");
+    return dst_dt;
 }
 
 }
