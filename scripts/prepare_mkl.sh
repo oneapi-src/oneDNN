@@ -15,7 +15,7 @@
 # limitations under the License.
 #===============================================================================
 
-MKLURL="https://github.com/01org/mkl-dnn/releases/download/v0.7/mklml_lnx_2018.0.20170425.tgz"
+MKLURL="https://github.com/01org/mkl-dnn/releases/download/v0.9/mklml_lnx_2018.0.20170425.tgz"
 
 DST=`dirname $0`/../external
 DST=`readlink -f $DST`
@@ -23,4 +23,4 @@ mkdir -p $DST
 wget --no-check-certificate -P $DST $MKLURL
 tar -xzf $DST/mklml_lnx*.tgz -C $DST
 
-echo "Downloaded and unpacked Intel(R) MKL libraries for machine learning to $DST"
+echo "Downloaded and unpacked Intel(R) MKL small libraries to $DST"
