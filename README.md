@@ -22,7 +22,11 @@ Intel MKL-DNN is licensed under
 [Apache License Version 2.0](http://www.apache.org/licenses/LICENSE-2.0).
 
 ## Documentation
-The latest Intel MKL-DNN documentation is at [GitHub pages](http://01org.github.io/mkl-dnn/).
+The latest version of Intel MKL-DNN reference manual is available 
+[GitHub pages](http://01org.github.io/mkl-dnn/). Basic concepts are also
+explained in the tutorial
+* [Intel MKL-DNN: Part 1--Overview and Installation](https://software.intel.com/en-us/articles/intel-mkl-dnn-part-1-library-overview-and-installation)
+* [Intel MKL-DNN: Part 2--Code Build and Walkthrough](https://software.intel.com/en-us/articles/intel-mkl-dnn-part-2-sample-code-build-and-walkthrough)
 
 ## Support
 Please report issues and suggestions via
@@ -79,7 +83,9 @@ or clone the repository to your system
 ```
 
 Ensure that all software dependencies are in place and have at least minimal
-supported version. Intel MKL-DNN can take advantage of optimized
+supported version. 
+
+Intel MKL-DNN can take advantage of optimized
 matrix-matrix multiplication (GEMM) function from Intel MKL. The dynamic
 library with this functionality is included in the repository. If you choose 
 to build Intel MKL-DNN with the binary dependency download Intel MKL small
@@ -90,7 +96,11 @@ libraries using provided script
 ```
 
 or manually from [GitHub release section](https://github.com/01org/mkl-dnn/releases)
-and unpack it to the `external` directory in the repository root.
+and unpack it to the `external` directory in the repository root. 
+
+You can choose to build Intel MKL-DNN without binary dependency. The resulting
+version will be fully functional, however performance of certain convolution
+shapes and sizes and inner product relying on SGEMM function may be suboptimal.
 
 Intel MKL-DNN uses a CMake-based build system
 
@@ -118,3 +128,50 @@ Finally,
 ```
 will place the  header files, libraries and documentation in `/usr/local`. To change
 the installation path, use the option `-DCMAKE_INSTALL_PREFIX=<prefix>` when invoking CMake.
+
+## Linking your application
+Intel MKL-DNN include several header files providing C and C++ APIs for 
+the functionality and several dynamic libraries depending on how Intel MKL-DNN
+was built.
+```
+	lib/
+	    libmkldnn.so     # Intel MKL-DNN dynamic library
+# The following libraries are included only if Intel MKL-DNN is built with binary dependency.
+	    libiomp5.so      # Intel OpenMP* runtime library
+	    libmkl_gnu.so    # Intel MKL small library for GNU* OpenMP runtime
+	    libmkl_intel.so  # Intel MKL small library for Intel(R) OpenMP runtime
+	include/
+	    mkldnn.h         # C header
+	    mkldnn.hpp       # C++ header
+	    mkldnn_types.h   # auxillary C header
+```
+
+Intel MKL-DNN uses OpenMP* for parallelism and requires an OpenMP runtime 
+library to work. As different OpenMP runtimes may not be binary compatible
+it's important to ensure that only one OpenMP runtime is used throughout the
+application. Having more than one OpenMP runtime initialized may lead to
+undefined behavior resulting in incorrect results or crashes.
+
+Intel MKL-DNN library built with binary dependency will link against Intel OpenMP
+runtime included with Intel MKL small libraries package. Intel OpenMP runtime
+is binary compatible with GNU OpenMP and CLANG OpenMP runtimes and should
+be used in the final application. Here are example linklines for GNU C++ compiler
+and Intel C++ compiler.
+```
+	g++ -std=c++11 -fopenmp -Wl,--as-needed -I${MKLDNNROOT}/include -L${MKLDNNROOT}/lib simple_net.cpp -lmkldnn -lmklml_intel -liomp5
+```
+```
+	icpc -std=c++11 -qopenmp -I${MKLDNNROOT}/include -L${MKLDNNROOT}/lib simple_net.cpp -lmkldnn -lmklml_intel
+```
+In `g++` example option `-Wl,--as-needed` forces linker to resolve OpenMP symbols
+in Intel OpenMP runtime library.
+
+Intel MKL-DNN library built standalone will use OpenMP runtime supplied by
+the compiler, so as long as both the library and the application use the
+same compiler correct OpenMP runtime will be used. 
+```
+	g++ -std=c++11 -fopenmp -I${MKLDNNROOT}/include -L${MKLDNNROOT}/lib simple_net.cpp -lmkldnn
+```
+```
+	icpc -std=c++11 -qopenmp -I${MKLDNNROOT}/include -L${MKLDNNROOT}/lib simple_net.cpp -lmkldnn
+```
