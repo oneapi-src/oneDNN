@@ -132,19 +132,18 @@ the installation path, use the option `-DCMAKE_INSTALL_PREFIX=<prefix>` when inv
 ## Linking your application
 Intel MKL-DNN include several header files providing C and C++ APIs for 
 the functionality and several dynamic libraries depending on how Intel MKL-DNN
-was built.
-```
-	lib/
-	    libmkldnn.so     # Intel MKL-DNN dynamic library
-# The following libraries are included only if Intel MKL-DNN is built with binary dependency.
-	    libiomp5.so      # Intel OpenMP* runtime library
-	    libmkl_gnu.so    # Intel MKL small library for GNU* OpenMP runtime
-	    libmkl_intel.so  # Intel MKL small library for Intel(R) OpenMP runtime
-	include/
-	    mkldnn.h         # C header
-	    mkldnn.hpp       # C++ header
-	    mkldnn_types.h   # auxillary C header
-```
+was built. Intel OpenMP runtime and Intel MKL small libraries are not installed
+for standalone Intel MKL-DNN build.
+
+|File                   | Description
+|:---                   |:---
+|lib/libmkldnn.so       | Intel MKL-DNN dynamic library
+|lib/libiomp5.so        | Intel OpenMP* runtime library
+|lib/libmkl_gnu.so      | Intel MKL small library for GNU* OpenMP runtime
+|lib/libmkl_intel.so    | Intel MKL small library for Intel(R) OpenMP runtime
+|include/mkldnn.h       | C header
+|include/mkldnn.hpp     | C++ header
+|include/mkldnn_types.h | auxillary C header
 
 Intel MKL-DNN uses OpenMP* for parallelism and requires an OpenMP runtime 
 library to work. As different OpenMP runtimes may not be binary compatible
