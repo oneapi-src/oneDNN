@@ -37,19 +37,16 @@ struct cpu_relu_fwd_pd_t: public relu_fwd_pd_t {
     cpu_relu_fwd_pd_t(engine_t *engine, const relu_desc_t *adesc,
             const relu_fwd_pd_t *hint_fwd_pd)
         : relu_fwd_pd_t(engine, adesc, hint_fwd_pd)
-        , data_pd_(engine_, &desc_.data_desc), ws_pd_(engine_) {}
+        , data_pd_(engine_, &desc_.data_desc) {}
     virtual ~cpu_relu_fwd_pd_t() {}
 
     virtual const cpu_memory_pd_t *src_pd(int index = 0) const override
     { return index == 0 ? &data_pd_ : nullptr; }
     virtual const cpu_memory_pd_t *dst_pd(int index = 0) const override
     { return index == 0 ? &data_pd_ : nullptr; }
-    virtual const cpu_memory_pd_t *workspace_pd(int index = 0) const override
-    { return (index == 0 && !ws_pd_.is_zero()) ? &ws_pd_ : nullptr; }
 
 protected:
     cpu_memory_pd_t data_pd_;
-    cpu_memory_pd_t ws_pd_;
 
     virtual status_t init() = 0;
 };
@@ -61,7 +58,7 @@ struct cpu_relu_bwd_pd_t: public relu_bwd_pd_t {
             const relu_fwd_pd_t *hint_fwd_pd)
         : relu_bwd_pd_t(engine, adesc, hint_fwd_pd)
         , data_pd_(engine_, &desc_.data_desc)
-        , diff_data_pd_(engine_, &desc_.diff_data_desc), ws_pd_(engine_) {}
+        , diff_data_pd_(engine_, &desc_.diff_data_desc) {}
     virtual ~cpu_relu_bwd_pd_t() {}
 
     virtual const cpu_memory_pd_t *src_pd(int index = 0) const override
@@ -70,13 +67,10 @@ struct cpu_relu_bwd_pd_t: public relu_bwd_pd_t {
     { return index == 0 ? &diff_data_pd_ : nullptr; }
     virtual const cpu_memory_pd_t *diff_src_pd(int index = 0) const override
     { return index == 0 ? &diff_data_pd_ : nullptr; }
-    virtual const cpu_memory_pd_t *workspace_pd(int index = 0) const override
-    { return (index == 0 && !ws_pd_.is_zero()) ? &ws_pd_ : nullptr; }
 
 protected:
     cpu_memory_pd_t data_pd_;
     cpu_memory_pd_t diff_data_pd_;
-    cpu_memory_pd_t ws_pd_;
 
     virtual status_t init() = 0;
 };
