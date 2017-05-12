@@ -13,9 +13,9 @@ Intel MKL-DNN includes functionality similar to [Intel(R) Math Kernel
 Library (Intel(R) MKL) 2017](https://software.intel.com/en-us/intel-mkl), but is not
 API compatible. We are investigating how to unify the APIs in future Intel MKL releases.
 
-This release is a technical preview with functionality necessary to accelerate
-bleeding edge image recognition topologies, including Cifar\*, AlexNet\*, VGG\*, 
-GoogleNet\* and ResNet\*. 
+This release contains a range of performance critical functions used in modern
+image recognition topologies including Cifar\*, AlexNet\*, VGG\*, 
+GoogleNet\* and ResNet\* optimized for wide range of Intel processors.
 
 ## License
 Intel MKL-DNN is licensed under
