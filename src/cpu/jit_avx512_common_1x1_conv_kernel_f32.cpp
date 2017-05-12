@@ -166,7 +166,6 @@ void jit_avx512_common_1x1_conv_kernel_f32::reduce_loop(int load_loop_blk,
     };
     auto store = [=]() {
 
-        Label store_done;
         Label store_noadd;
 
         test(reg_reduce_pos_flag, REDUCE_FLAG_FIRST);
@@ -180,33 +179,27 @@ void jit_avx512_common_1x1_conv_kernel_f32::reduce_loop(int load_loop_blk,
         L(store_noadd);
 
         if (jcp.with_relu) {
-            unsigned char _cmp_gt_os = 14;
+            const unsigned char _cmp_lt_os = 1;
             assert(ur * load_loop_blk < 14);
 
             Label store_norelu;
             test(reg_reduce_pos_flag, REDUCE_FLAG_LAST);
             jz(store_norelu, T_NEAR);
 
-            Zmm vzero = zmm31;
-            vpxord(vzero, vzero, vzero);
             for (int i_ur = 0; i_ur < ur; ++i_ur)
                 for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
-                    vcmpps(vmask, vreg_accum(i_load, i_ur), vzero, _cmp_gt_os);
-                    vblendmps(vreg_accum(i_load, i_ur) | vmask,
-                                vzero, vreg_accum(i_load, i_ur));
-                    vmovups(output_ptr(i_load, i_ur), vreg_accum(i_load, i_ur));
-                }
-
-            jmp(store_done, T_NEAR);
+                    vcmpps(vmask, vreg_accum(i_load, i_ur), zmm_zero,
+                        _cmp_lt_os);
+                    vmulps(vreg_accum(i_load, i_ur) | vmask,
+                        vreg_accum(i_load, i_ur), zmm_relu_ns);
+            }
             L(store_norelu);
         }
 
         for (int i_ur = 0; i_ur < ur; ++i_ur)
-            for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
+            for (int i_load = 0; i_load < load_loop_blk; ++i_load)
                 vmovntps(output_ptr(i_load, i_ur), vreg_accum(i_load, i_ur));
-            }
 
-        L(store_done);
     };
 
     auto prefetch_callback = [=](int ur, int i_reduce, int i_ur, int i_load,
@@ -438,6 +431,10 @@ void jit_avx512_common_1x1_conv_kernel_f32::generate()
     mov(reg_reduce_pos_flag, ptr[param1 + GET_OFF(reduce_pos_flag)]);
     if (jcp.prop_kind == backward_weights)
         mov(reg_output_stride, ptr[param1 + GET_OFF(output_stride)]);
+    mov(reg_relu_ns, reinterpret_cast<size_t>(&jcp.relu_negative_slope));
+
+    vbroadcastss(zmm_relu_ns, ptr[reg_relu_ns]);
+    vpxord(zmm_zero, zmm_zero, zmm_zero);
 
     auto load_loop_body = [=](int load_loop_blk) {
         bcast_loop(load_loop_blk);
