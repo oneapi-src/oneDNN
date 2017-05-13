@@ -112,7 +112,7 @@ struct jit_avx512_u8s8u8_conv_fwd_ker_t: public jit_generator {
 
 void jit_avx512_u8s8u8_conv_fwd_ker_t::load_wei_s8() {
     assert(c_.oc_block * c_.ic_block * sizeof(wei_data_t)
-            == cpu_isa_trait<avx512_mic>::vlen);
+            == cpu_isa_traits<avx512_mic>::vlen);
     for (int ic_b1 = 0; ic_b1 < c_.ic_nb1; ++ic_b1) {
         for (int kw = 0; kw < c_.kw; ++kw) {
             const int off = (ic_b1 * c_.kw + kw) * c_.oc_block * c_.ic_block;
@@ -414,7 +414,7 @@ status_t jit_avx512_u8s8u8_conv_fwd_ker_t::init_conf(jit_conv_conf_t &c,
     c.ic_nb1 = c.kw < 7 && ic_nb % 4 == 0 ? 4 : (ic_nb % 2 == 0 ? 2 : 1);
     c.ic_nb2 = ic_nb / c.ic_nb1;
 
-    const int nregs = cpu_isa_trait<avx512_core>::n_vregs;
+    const int nregs = cpu_isa_traits<avx512_core>::n_vregs;
     const int nregs_aux = 2; // 1_s16, src_u8
     const int nregs_wei = c.ic_nb1 * c.kw;
 

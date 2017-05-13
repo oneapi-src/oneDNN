@@ -41,11 +41,11 @@ namespace types {
 inline size_t data_type_size(data_type_t data_type) {
     using namespace data_type;
     switch (data_type) {
-    case f32: return sizeof(prec_trait<f32>::type);
-    case s32: return sizeof(prec_trait<s32>::type);
-    case s16: return sizeof(prec_trait<s16>::type);
-    case s8: return sizeof(prec_trait<s8>::type);
-    case u8: return sizeof(prec_trait<u8>::type);
+    case f32: return sizeof(prec_traits<f32>::type);
+    case s32: return sizeof(prec_traits<s32>::type);
+    case s16: return sizeof(prec_traits<s16>::type);
+    case s8: return sizeof(prec_traits<s8>::type);
+    case u8: return sizeof(prec_traits<u8>::type);
     case data_type::undef:
     default: assert(!"unknown data_type");
     }

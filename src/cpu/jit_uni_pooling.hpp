@@ -92,7 +92,7 @@ struct jit_uni_pooling_fwd_t: public cpu_primitive_t {
 
     ~jit_uni_pooling_fwd_t() { delete kernel_; }
 
-    typedef typename prec_trait<data_type::f32>::type data_t;
+    typedef typename prec_traits<data_type::f32>::type data_t;
 
     virtual void execute(event_t *e) {
         execute_forward();
@@ -167,7 +167,7 @@ struct jit_uni_pooling_bwd_t: public cpu_primitive_t {
 
     ~jit_uni_pooling_bwd_t() { delete kernel_; }
 
-    typedef typename prec_trait<data_type::f32>::type data_t;
+    typedef typename prec_traits<data_type::f32>::type data_t;
 
     virtual void execute(event_t *e) {
         execute_backward();

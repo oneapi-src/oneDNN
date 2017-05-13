@@ -113,7 +113,7 @@ struct _gemm_convolution_fwd_t: public cpu_primitive_t {
         if (this->ws) free(this->ws);
     };
 
-    typedef typename prec_trait<data_type::f32>::type data_t;
+    typedef typename prec_traits<data_type::f32>::type data_t;
 
     virtual void execute(event_t *e) {
         execute_forward();
@@ -220,7 +220,7 @@ struct _gemm_convolution_bwd_data_t: public cpu_primitive_t {
         if (this->ws) free(this->ws);
     };
 
-    typedef typename prec_trait<data_type::f32>::type data_t;
+    typedef typename prec_traits<data_type::f32>::type data_t;
 
     virtual void execute(event_t *e) {
         switch (conf_.desc()->prop_kind) {
@@ -337,7 +337,7 @@ struct _gemm_convolution_bwd_weights_t: public cpu_primitive_t {
         if (this->ws) free(this->ws);
      };
 
-    typedef typename prec_trait<data_type::f32>::type data_t;
+    typedef typename prec_traits<data_type::f32>::type data_t;
 
     virtual void execute(event_t *e) {
         switch (conf_.desc()->prop_kind) {

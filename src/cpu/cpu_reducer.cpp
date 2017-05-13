@@ -90,7 +90,7 @@ using namespace Xbyak;
 
 template <impl::data_type_t data_type>
 struct reducer_2d_driver_t: public c_compatible {
-    typedef typename prec_trait<data_type>::type data_t;
+    typedef typename prec_traits<data_type>::type data_t;
 
     reducer_2d_driver_t(int n_src, size_t src_ld,
             size_t src_step, size_t dst_step, bool nullify_dst)
@@ -115,7 +115,7 @@ struct reducer_2d_driver_f32_t: public reducer_2d_driver_t<data_type::f32>,
     const AddressFrame &vmmword = (isa == avx2) ? yword : zword;
     void uni_vpxor(const Xmm& x1, const Xmm& x2, const Operand& op)
     { if (isa == avx2) vpxor(x1, x2, op); else vpxord(x1, x2, op); }
-    const int vlen = cpu_isa_trait<isa>::vlen;
+    const int vlen = cpu_isa_traits<isa>::vlen;
     const int typesize = sizeof(float);
 
     Xbyak::Reg64 reg_dst = abi_param1;
@@ -175,7 +175,7 @@ struct reducer_2d_driver_f32_t: public reducer_2d_driver_t<data_type::f32>,
     }
 
     void loop_x() {
-        const int nloads[] = {cpu_isa_trait<isa>::n_vregs, 1, 1};
+        const int nloads[] = {cpu_isa_traits<isa>::n_vregs, 1, 1};
         const int nbranches = sizeof(nloads) / sizeof(nloads[0]);
 
         const int load_len[nbranches] = {vlen, vlen, typesize};

@@ -151,7 +151,7 @@ template <impl::data_type_t data_type> struct reducer_2d_driver_t;
  */
 template <impl::data_type_t data_type>
 struct cpu_reducer_t {
-    typedef typename prec_trait<data_type>::type data_t;
+    typedef typename prec_traits<data_type>::type data_t;
 
     cpu_reducer_t(const reduce_balancer_t &balancer);
     ~cpu_reducer_t();
@@ -199,7 +199,7 @@ private:
 
 template <impl::data_type_t data_type>
 struct cpu_reducer_2d_t {
-    typedef typename prec_trait<data_type>::type data_t;
+    typedef typename prec_traits<data_type>::type data_t;
 
     cpu_reducer_2d_t(const reduce_balancer_t &balancer, int job_size_x,
             int job_size_y, int x_block, int dst_x, int dst_y,

@@ -34,7 +34,7 @@ using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::data_type;
 
 template<impl::data_type_t type>
-using data_t = typename prec_trait<type>::type;
+using data_t = typename prec_traits<type>::type;
 
 namespace fmt_order {
     const bool keep = true;

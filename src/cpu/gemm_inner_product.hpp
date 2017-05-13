@@ -73,7 +73,7 @@ struct gemm_inner_product_fwd_t: public cpu_primitive_t {
     gemm_inner_product_fwd_t(const pd_t *pd, const input_vector &inputs,
             const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {}
-    typedef typename prec_trait<data_type>::type data_t;
+    typedef typename prec_traits<data_type>::type data_t;
 
     virtual void execute(event_t *e) {
         execute_forward();
@@ -126,7 +126,7 @@ struct gemm_inner_product_bwd_data_t: public cpu_primitive_t {
     gemm_inner_product_bwd_data_t(const pd_t *pd, const input_vector &inputs,
             const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {}
-    typedef typename prec_trait<data_type>::type data_t;
+    typedef typename prec_traits<data_type>::type data_t;
 
     virtual void execute(event_t *e) {
         execute_backward_data();
@@ -179,7 +179,7 @@ struct gemm_inner_product_bwd_weights_t: public cpu_primitive_t {
     gemm_inner_product_bwd_weights_t(const pd_t *pd, const input_vector &inputs,
             const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {}
-    typedef typename prec_trait<data_type>::type data_t;
+    typedef typename prec_traits<data_type>::type data_t;
 
     virtual void execute(event_t *e) {
         execute_backward_weights();

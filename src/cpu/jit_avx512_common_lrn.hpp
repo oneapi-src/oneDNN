@@ -40,7 +40,7 @@ struct jit_avx512_common_lrn_fwd_t: public cpu_primitive_t {
             const output_vector &outputs);
     ~jit_avx512_common_lrn_fwd_t();
 
-    typedef typename prec_trait<data_type::f32>::type data_t;
+    typedef typename prec_traits<data_type::f32>::type data_t;
 
     virtual void execute(event_t *e) {
         execute_forward();
@@ -72,7 +72,7 @@ struct jit_avx512_common_lrn_bwd_t: public cpu_primitive_t {
             const output_vector &outputs);
     ~jit_avx512_common_lrn_bwd_t();
 
-    typedef typename prec_trait<data_type::f32>::type data_t;
+    typedef typename prec_traits<data_type::f32>::type data_t;
 
     virtual void execute(event_t *e) {
         execute_backward();

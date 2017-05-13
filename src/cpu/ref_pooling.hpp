@@ -69,8 +69,8 @@ struct ref_pooling_fwd_t: public cpu_primitive_t {
             const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {}
 
-    typedef typename prec_trait<data_type>::type data_t;
-    typedef typename prec_trait<acc_type>::type acc_data_t;
+    typedef typename prec_traits<data_type>::type data_t;
+    typedef typename prec_traits<acc_type>::type acc_data_t;
 
     virtual void execute(event_t *e) {
         execute_forward();
@@ -119,7 +119,7 @@ struct ref_pooling_bwd_t: public cpu_primitive_t {
     ref_pooling_bwd_t(const pd_t *pd, const input_vector &inputs,
             const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {}
-    typedef typename prec_trait<data_type>::type data_t;
+    typedef typename prec_traits<data_type>::type data_t;
 
     virtual void execute(event_t *e) {
         execute_backward();

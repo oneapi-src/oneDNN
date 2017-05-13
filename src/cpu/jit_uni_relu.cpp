@@ -117,10 +117,10 @@ struct jit_uni_relu_kernel_f32 : public jit_generator {
 
         Reg64 param = abi_param1;
 
-        const int simd_w = cpu_isa_trait<isa>::vlen / sizeof(float);
+        const int simd_w = cpu_isa_traits<isa>::vlen / sizeof(float);
         const int loop_dec[] = {simd_w, 1};
         const int uf[] = {1, 1};
-        const int shift[] = {cpu_isa_trait<isa>::vlen, sizeof(float)};
+        const int shift[] = {cpu_isa_traits<isa>::vlen, sizeof(float)};
         const bool loop_vectorize[] = {true, false};
 
         this->preamble();

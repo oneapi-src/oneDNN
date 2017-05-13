@@ -90,10 +90,10 @@ struct _jit_avx512_u8s8u8_convolution_fwd_t : public cpu_primitive_t {
             const input_vector &inputs, const output_vector &outputs);
     ~_jit_avx512_u8s8u8_convolution_fwd_t();
 
-    typedef typename prec_trait<data_type::u8>::type src_data_t;
-    typedef typename prec_trait<data_type::s8>::type wei_data_t;
-    typedef typename prec_trait<data_type::u8>::type dst_data_t;
-    typedef typename prec_trait<data_type::s32>::type acc_data_t;
+    typedef typename prec_traits<data_type::u8>::type src_data_t;
+    typedef typename prec_traits<data_type::s8>::type wei_data_t;
+    typedef typename prec_traits<data_type::u8>::type dst_data_t;
+    typedef typename prec_traits<data_type::s32>::type acc_data_t;
 
     virtual void execute(event_t *e) {
         execute_forward();

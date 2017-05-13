@@ -96,8 +96,8 @@ struct _jit_avx512_mic_s16s16s32_convolution_fwd_t : public cpu_primitive_t {
     }
     ~_jit_avx512_mic_s16s16s32_convolution_fwd_t() { delete kernel_; };
 
-    typedef typename prec_trait<data_type::s16>::type data_input_t;
-    typedef typename prec_trait<data_type::s32>::type data_output_t;
+    typedef typename prec_traits<data_type::s16>::type data_input_t;
+    typedef typename prec_traits<data_type::s32>::type data_output_t;
 
     virtual void execute(event_t *e)
     {

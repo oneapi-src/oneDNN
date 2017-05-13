@@ -67,7 +67,7 @@ struct jit_bnorm_t: public jit_generator {
         else vpxord(x1, x2, op);
     }
 
-    const int vlen = isa == sse42 ? 32 : cpu_isa_trait<isa>::vlen;
+    const int vlen = isa == sse42 ? 32 : cpu_isa_traits<isa>::vlen;
 
     const batch_normalization_pd_t *bdesc_;
 
@@ -843,7 +843,7 @@ private:
     }
 
     const int simd_w = isa == sse42 ? 8 :
-        cpu_isa_trait<isa>::vlen / sizeof(data_t);
+        cpu_isa_traits<isa>::vlen / sizeof(data_t);
 
     const batch_normalization_pd_t *bdesc_;
     jit_bnorm_t<isa> ker_;

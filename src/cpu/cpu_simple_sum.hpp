@@ -33,7 +33,7 @@ namespace cpu {
 
 template <impl::data_type_t data_type>
 struct cpu_simple_sum_t: public c_compatible {
-    typedef typename prec_trait<data_type>::type data_t;
+    typedef typename prec_traits<data_type>::type data_t;
 
     static bool applicable(const nstl::vector<cpu_memory_t::pd_t> &src_pds_,
                             const nstl::vector<double> &scale_,

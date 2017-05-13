@@ -322,7 +322,7 @@ void jit_uni_pool_kernel_f32<isa>::generate() {
 
     prev_kw = 0;
 
-    int vlen = cpu_isa_trait<isa>::vlen;
+    int vlen = cpu_isa_traits<isa>::vlen;
 
 #   define GET_OFF(field) offsetof(jit_pool_call_s, field)
     mov(reg_input, ptr[this->param1 + GET_OFF(src)]);

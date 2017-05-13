@@ -61,10 +61,10 @@ struct ref_inner_product_fwd_t: public cpu_primitive_t {
             const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {}
 
-    typedef typename prec_trait<src_type>::type src_data_t;
-    typedef typename prec_trait<wei_type>::type wei_data_t;
-    typedef typename prec_trait<acc_type>::type acc_data_t;
-    typedef typename prec_trait<dst_type>::type dst_data_t;
+    typedef typename prec_traits<src_type>::type src_data_t;
+    typedef typename prec_traits<wei_type>::type wei_data_t;
+    typedef typename prec_traits<acc_type>::type acc_data_t;
+    typedef typename prec_traits<dst_type>::type dst_data_t;
 
     virtual void execute(event_t *e) {
         switch (conf_.desc()->prop_kind) {
@@ -110,7 +110,7 @@ struct ref_inner_product_bwd_data_t: public cpu_primitive_t {
     ref_inner_product_bwd_data_t(const pd_t *pd, const input_vector &inputs,
             const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {}
-    typedef typename prec_trait<data_type>::type data_t;
+    typedef typename prec_traits<data_type>::type data_t;
 
     virtual void execute(event_t *e) {
         switch (conf_.desc()->prop_kind) {
@@ -158,7 +158,7 @@ struct ref_inner_product_bwd_weights_t: public cpu_primitive_t {
     ref_inner_product_bwd_weights_t(const pd_t *pd, const input_vector &inputs,
             const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {}
-    typedef typename prec_trait<data_type>::type data_t;
+    typedef typename prec_traits<data_type>::type data_t;
 
     virtual void execute(event_t *e) {
         switch (conf_.desc()->prop_kind) {

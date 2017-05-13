@@ -91,7 +91,7 @@ struct rtus_driver_f32_t: public jit_generator {
     void uni_vpxor(const Xbyak::Xmm& x1, const Xbyak::Xmm& x2,
             const Xbyak::Operand& op)
     { if (isa == avx2) vpxor(x1, x2, op); else vpxord(x1, x2, op); }
-    const int vlen = cpu_isa_trait<isa>::vlen;
+    const int vlen = cpu_isa_traits<isa>::vlen;
     const int typesize = sizeof(float);
 
     Xbyak::Reg64 reg_ws = abi_param1;
@@ -193,7 +193,7 @@ struct rtus_driver_f32_t: public jit_generator {
         READ_PARAM(ws); /* reg_ws should always be read the last */
 #undef  READ_PARAM
 
-        shl(reg_os, cpu_isa_trait<isa>::vlen_shift);
+        shl(reg_os, cpu_isa_traits<isa>::vlen_shift);
 
         if (!src_to_ws_)
             uni_vpxor(reg_zero, reg_zero, reg_zero);

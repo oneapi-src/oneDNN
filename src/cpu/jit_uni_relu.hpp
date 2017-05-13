@@ -48,7 +48,7 @@ struct jit_uni_relu_fwd_t : public cpu_primitive_t {
                        const output_vector &outputs);
     ~jit_uni_relu_fwd_t();
 
-    typedef typename prec_trait<data_type::f32>::type data_t;
+    typedef typename prec_traits<data_type::f32>::type data_t;
 
     virtual void execute(event_t *e)
     {
@@ -78,7 +78,7 @@ struct jit_uni_relu_bwd_t : public cpu_primitive_t {
                        const output_vector &outputs);
     ~jit_uni_relu_bwd_t();
 
-    typedef typename prec_trait<data_type::f32>::type data_t;
+    typedef typename prec_traits<data_type::f32>::type data_t;
 
     virtual void execute(event_t *e)
     {

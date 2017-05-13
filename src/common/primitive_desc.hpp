@@ -68,7 +68,7 @@ struct mkldnn_primitive_desc: public mkldnn::impl::c_compatible {
             const mkldnn::impl::primitive_desc_t *hint_fwd) {
         using namespace mkldnn::impl;
         using namespace mkldnn::impl::status;
-        using pd_op_desc_t = typename pkind_trait<pd_t::base_pkind>::desc_type;
+        using pd_op_desc_t = typename pkind_traits<pd_t::base_pkind>::desc_type;
         if (adesc->kind != pd_t::base_pkind) return invalid_arguments;
         assert(hint_fwd ? hint_fwd->kind() == pd_t::base_pkind : true);
         auto hint =

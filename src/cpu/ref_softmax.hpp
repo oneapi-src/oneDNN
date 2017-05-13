@@ -77,7 +77,7 @@ struct ref_softmax_fwd_t: public cpu_primitive_t {
             && data_d.blocking_desc().strides[0][axis] == 1;
     }
     ~ref_softmax_fwd_t() { if (ws_) delete [] ws_; }
-    typedef typename prec_trait<data_type>::type data_t;
+    typedef typename prec_traits<data_type>::type data_t;
 
     virtual void execute(event_t *e) {
         if (use_dense_) execute_forward_dense();

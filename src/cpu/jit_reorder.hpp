@@ -34,7 +34,7 @@ namespace impl_dtype = mkldnn::impl::data_type;
 namespace impl_mfmt = mkldnn::impl::memory_format;
 
 template<impl::data_type_t type>
-using data_t = typename prec_trait<type>::type;
+using data_t = typename prec_traits<type>::type;
 
 template<impl::memory_format_t fmt_i, impl::memory_format_t fmt_o,
     impl::data_type_t type_i, impl::data_type_t type_o>

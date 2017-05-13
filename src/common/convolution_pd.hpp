@@ -64,7 +64,7 @@ struct _convolution_fwd_pd_t: public primitive_desc_t {
     virtual status_t query(query_t what, int idx, void *result) const override
     {
         switch (what) {
-        case pkind_trait<base_pkind>::query_d:
+        case pkind_traits<base_pkind>::query_d:
             *(const base_desc_t**)result = desc(); break;
         default: return primitive_desc_t::query(what, idx, result);
         }

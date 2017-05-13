@@ -59,7 +59,7 @@ struct ref_relu_fwd_t: public cpu_primitive_t {
     ref_relu_fwd_t(const pd_t *pd, const input_vector &inputs,
             const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {}
-    typedef typename prec_trait<data_type>::type data_t;
+    typedef typename prec_traits<data_type>::type data_t;
 
     virtual void execute(event_t *e) {
         if (conf_.is_dense) execute_forward_dense();
@@ -105,7 +105,7 @@ struct ref_relu_bwd_t: public cpu_primitive_t {
     ref_relu_bwd_t(const pd_t *pd, const input_vector &inputs,
             const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {}
-    typedef typename prec_trait<data_type>::type data_t;
+    typedef typename prec_traits<data_type>::type data_t;
 
     virtual void execute(event_t *e) {
         if (conf_.is_dense_) execute_backward_dense();

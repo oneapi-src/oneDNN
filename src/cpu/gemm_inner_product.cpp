@@ -33,7 +33,7 @@ typedef MKL_INT cblas_int;
 namespace {
 
 template <data_type_t data_type>
-using data_t = typename prec_trait<data_type>::type;
+using data_t = typename prec_traits<data_type>::type;
 
 template <data_type_t data_type>
 inline void cblas_gemm(CBLAS_LAYOUT layout,

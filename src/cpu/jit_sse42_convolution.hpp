@@ -88,7 +88,7 @@ struct _jit_sse42_convolution_fwd_t: public cpu_primitive_t {
     { kernel_ = new jit_sse42_conv_fwd_kernel_f32(conf_.jcp_); }
     ~_jit_sse42_convolution_fwd_t() { delete kernel_; };
 
-    typedef typename prec_trait<data_type::f32>::type data_t;
+    typedef typename prec_traits<data_type::f32>::type data_t;
 
     virtual void execute(event_t *e) {
         execute_forward();

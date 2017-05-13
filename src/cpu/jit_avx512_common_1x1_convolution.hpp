@@ -110,7 +110,7 @@ struct _jit_avx512_common_1x1_convolution_fwd_t : public cpu_primitive_t {
         free(scratch_);
     }
 
-    typedef typename prec_trait<data_type::f32>::type data_t;
+    typedef typename prec_traits<data_type::f32>::type data_t;
 
     virtual void execute(event_t *e) {
         execute_forward();
@@ -204,7 +204,7 @@ struct jit_avx512_common_1x1_convolution_bwd_data_t : public cpu_primitive_t {
         free(scratch_);
     }
 
-    typedef typename prec_trait<data_type::f32>::type data_t;
+    typedef typename prec_traits<data_type::f32>::type data_t;
 
     virtual void execute(event_t *e) {
         switch (conf_.desc()->prop_kind) {
@@ -297,7 +297,7 @@ struct jit_avx512_common_1x1_convolution_bwd_weights_t : public cpu_primitive_t 
         free(scratch_);
     }
 
-    typedef typename prec_trait<data_type::f32>::type data_t;
+    typedef typename prec_traits<data_type::f32>::type data_t;
 
     virtual void execute(event_t *e) {
         switch (conf_.desc()->prop_kind) {
