@@ -16,6 +16,7 @@
 
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"
+#include "mkldnn_traits.hpp"
 
 #include "ref_convolution.hpp"
 
@@ -23,12 +24,14 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-template <bool with_relu, impl::data_type_t data_type>
-void _ref_convolution_fwd_t<with_relu, data_type>::execute_forward() {
-    auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
-    auto weights = reinterpret_cast<const data_t *>(this->input_memory(1));
-    auto bias = reinterpret_cast<const data_t *>(this->input_memory(2));
-    auto dst = reinterpret_cast<data_t*>(this->memory());
+template <bool with_relu, data_type_t src_type, data_type_t wei_type,
+         data_type_t acc_type, data_type_t dst_type>
+void _ref_convolution_fwd_t<with_relu, src_type, wei_type, acc_type, dst_type>
+        ::execute_forward() {
+    auto src = reinterpret_cast<const src_data_t *>(this->input_memory(0));
+    auto weights = reinterpret_cast<const wei_data_t *>(this->input_memory(1));
+    auto bias = reinterpret_cast<const dst_data_t *>(this->input_memory(2));
+    auto dst = reinterpret_cast<dst_data_t *>(this->memory());
 
     const memory_desc_wrapper src_d(conf_.src_pd());
     const memory_desc_wrapper dst_d(conf_.dst_pd());
@@ -57,7 +60,7 @@ void _ref_convolution_fwd_t<with_relu, data_type>::execute_forward() {
 
     const double nslope = conf_.negative_slope();
 
-    auto ker = [=](data_t &d, int g, int mb, int oc, int oh, int ow) {
+    auto ker = [=](acc_data_t &d, int g, int mb, int oc, int oh, int ow) {
         for (int ic = 0; ic < IC; ++ic) {
             for (int kh = 0; kh < KH; ++kh) {
                 for (int kw = 0; kw < KW; ++kw) {
@@ -67,9 +70,10 @@ void _ref_convolution_fwd_t<with_relu, data_type>::execute_forward() {
                     if (ih < 0 || ih >= IH) continue;
                     if (iw < 0 || iw >= IW) continue;
 
-                    d += src[src_d.off(mb, g*IC + ic, ih, iw)] * (with_groups
-                            ? weights[weights_d.off(g, oc, ic, kh, kw)]
-                            :  weights[weights_d.off(oc, ic, kh, kw)]);
+                    d += (acc_data_t)src[src_d.off(mb, g*IC + ic, ih, iw)]
+                        * (with_groups
+                                ? weights[weights_d.off(g, oc, ic, kh, kw)]
+                                : weights[weights_d.off(oc, ic, kh, kw)]);
                 }
             }
         }
@@ -81,10 +85,11 @@ void _ref_convolution_fwd_t<with_relu, data_type>::execute_forward() {
             for (int oc = 0; oc < OC; ++oc) {
                 for (int oh = 0; oh < OH; ++oh) {
                     for (int ow = 0; ow < OW; ++ow) {
-                        data_t &d = dst[dst_d.off(mb, g*OC + oc, oh, ow)];
-                        d = bias ? bias[bias_d.off(g*OC + oc)] : data_t(0);
-                        ker(d, g, mb, oc, oh, ow);
-                        if (with_relu && d < 0) d *= nslope;
+                        acc_data_t a = bias
+                            ? bias[bias_d.off(g*OC + oc)] : (dst_data_t)0;
+                        ker(a, g, mb, oc, oh, ow);
+                        if (with_relu && a < (acc_data_t)0) a *= nslope;
+                        dst[dst_d.off(mb, g*OC + oc, oh, ow)] = (dst_data_t)a;
                     }
                 }
             }
@@ -253,6 +258,11 @@ void ref_convolution_bwd_weights_t<data_type>::execute_backward_weights() {
 
 template struct _ref_convolution_fwd_t<false, data_type::f32>;
 template struct _ref_convolution_fwd_t<true, data_type::f32>;
+template struct _ref_convolution_fwd_t<false, data_type::u8, data_type::s8,
+         data_type::s32, data_type::u8>;
+template struct _ref_convolution_fwd_t<true, data_type::u8, data_type::s8,
+         data_type::s32, data_type::u8>;
+
 template struct ref_convolution_bwd_data_t<data_type::f32>;
 template struct ref_convolution_bwd_weights_t<data_type::f32>;
 

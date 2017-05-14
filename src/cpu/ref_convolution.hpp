@@ -29,7 +29,10 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-template <bool with_relu, impl::data_type_t data_type>
+template <bool with_relu, impl::data_type_t src_type,
+         impl::data_type_t wei_type = src_type,
+         impl::data_type_t acc_type = src_type,
+         impl::data_type_t dst_type = acc_type>
 struct _ref_convolution_fwd_t: public cpu_primitive_t {
     struct pd_t: public _cpu_convolution_fwd_pd_t<with_relu> {
         pd_t(engine_t *engine,
@@ -51,12 +54,12 @@ struct _ref_convolution_fwd_t: public cpu_primitive_t {
                         this->base_pkind == primitive_kind::convolution_relu,
                         this->cdesc_().prop_kind == forward_inference)
                 && this->cdesc_().alg_kind == alg_kind::convolution_direct
-                && utils::everyone_is(data_type,
-                        this->cdesc_().src_desc.data_type,
-                        this->cdesc_().weights_desc.data_type,
-                        this->cdesc_().dst_desc.data_type)
+                && this->cdesc_().src_desc.data_type == src_type
+                && this->cdesc_().weights_desc.data_type == wei_type
+                && this->cdesc_().accum_data_type == acc_type
+                && this->cdesc_().dst_desc.data_type == dst_type
                 && utils::implication(this->with_bias(),
-                        data_type == this->cdesc_().bias_desc.data_type);
+                        this->cdesc_().bias_desc.data_type == dst_type);
             return ok ? status::success : status::unimplemented;
         }
     };
@@ -64,7 +67,11 @@ struct _ref_convolution_fwd_t: public cpu_primitive_t {
     _ref_convolution_fwd_t(const pd_t *pd, const input_vector &inputs,
             const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {}
-    typedef typename prec_trait<data_type>::type data_t;
+
+    typedef typename prec_trait<src_type>::type src_data_t;
+    typedef typename prec_trait<wei_type>::type wei_data_t;
+    typedef typename prec_trait<acc_type>::type acc_data_t;
+    typedef typename prec_trait<dst_type>::type dst_data_t;
 
     virtual void execute(event_t *e) {
         switch (conf_.cdesc()->prop_kind) {
@@ -83,10 +90,17 @@ private:
     pd_t conf_;
 };
 
-template <impl::data_type_t data_type>
-using ref_convolution_fwd_t = _ref_convolution_fwd_t<false, data_type>;
-template <impl::data_type_t data_type>
-using ref_convolution_relu_t = _ref_convolution_fwd_t<true, data_type>;
+template <impl::data_type_t src_type, impl::data_type_t wei_type = src_type,
+         impl::data_type_t acc_type = src_type,
+         impl::data_type_t dst_type = acc_type>
+using ref_convolution_fwd_t = _ref_convolution_fwd_t<false, src_type, wei_type,
+      acc_type, dst_type>;
+
+template <impl::data_type_t src_type, impl::data_type_t wei_type = src_type,
+         impl::data_type_t acc_type = src_type,
+         impl::data_type_t dst_type = acc_type>
+using ref_convolution_relu_t = _ref_convolution_fwd_t<true, src_type, wei_type,
+      acc_type, dst_type>;
 
 template <impl::data_type_t data_type>
 struct ref_convolution_bwd_data_t: public cpu_primitive_t {

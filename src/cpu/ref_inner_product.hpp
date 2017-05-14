@@ -29,7 +29,9 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-template <impl::data_type_t data_type>
+template <impl::data_type_t src_type, impl::data_type_t wei_type = src_type,
+         impl::data_type_t acc_type = src_type,
+         impl::data_type_t dst_type = acc_type>
 struct ref_inner_product_fwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_inner_product_fwd_pd_t {
         pd_t(engine_t *engine, const inner_product_desc_t *adesc,
@@ -45,11 +47,12 @@ struct ref_inner_product_fwd_t: public cpu_primitive_t {
                 && this->set_default_params() == status::success
                 && utils::one_of(desc()->prop_kind, forward_training,
                         forward_inference)
-                && utils::everyone_is(data_type, desc()->src_desc.data_type,
-                        desc()->weights_desc.data_type,
-                        desc()->dst_desc.data_type)
+                && desc()->src_desc.data_type == src_type
+                && desc()->weights_desc.data_type == wei_type
+                && desc()->accum_data_type == acc_type
+                && desc()->dst_desc.data_type == dst_type
                 && utils::implication(this->with_bias(),
-                        data_type == desc()->bias_desc.data_type);
+                        desc()->bias_desc.data_type == dst_type);
             return ok ? status::success : status::unimplemented;
         }
     };
@@ -57,7 +60,11 @@ struct ref_inner_product_fwd_t: public cpu_primitive_t {
     ref_inner_product_fwd_t(const pd_t *pd, const input_vector &inputs,
             const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {}
-    typedef typename prec_trait<data_type>::type data_t;
+
+    typedef typename prec_trait<src_type>::type src_data_t;
+    typedef typename prec_trait<wei_type>::type wei_data_t;
+    typedef typename prec_trait<acc_type>::type acc_data_t;
+    typedef typename prec_trait<dst_type>::type dst_data_t;
 
     virtual void execute(event_t *e) {
         switch (conf_.desc()->prop_kind) {

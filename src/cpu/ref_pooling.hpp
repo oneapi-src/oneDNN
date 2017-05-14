@@ -29,7 +29,7 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-template <impl::data_type_t data_type>
+template <impl::data_type_t data_type, impl::data_type_t acc_type = data_type>
 struct ref_pooling_fwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_pooling_fwd_pd_t {
         pd_t(engine_t *engine, const pooling_desc_t *adesc,
@@ -50,7 +50,8 @@ struct ref_pooling_fwd_t: public cpu_primitive_t {
                         pooling_avg_include_padding,
                         pooling_avg_exclude_padding)
                 && utils::everyone_is(data_type, src_pd()->desc()->data_type,
-                        dst_pd()->desc()->data_type);
+                        dst_pd()->desc()->data_type)
+                && desc()->accum_data_type == acc_type;
             if (!ok) return status::unimplemented;
 
             bool is_training = desc_.prop_kind == forward_training;
@@ -67,7 +68,9 @@ struct ref_pooling_fwd_t: public cpu_primitive_t {
     ref_pooling_fwd_t(const pd_t *pd, const input_vector &inputs,
             const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {}
+
     typedef typename prec_trait<data_type>::type data_t;
+    typedef typename prec_trait<acc_type>::type acc_data_t;
 
     virtual void execute(event_t *e) {
         execute_forward();

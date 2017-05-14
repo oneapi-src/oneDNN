@@ -23,12 +23,14 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-template <impl::data_type_t data_type>
-void ref_inner_product_fwd_t<data_type>::execute_forward() {
-    auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
-    auto weights = reinterpret_cast<const data_t *>(this->input_memory(1));
-    auto bias = reinterpret_cast<const data_t *>(this->input_memory(2));
-    auto dst = reinterpret_cast<data_t*>(this->memory());
+template <data_type_t src_type, data_type_t wei_type, data_type_t acc_type,
+         data_type_t dst_type>
+void ref_inner_product_fwd_t<src_type, wei_type, acc_type, dst_type>
+        ::execute_forward() {
+    auto src = reinterpret_cast<const src_data_t *>(this->input_memory(0));
+    auto weights = reinterpret_cast<const wei_data_t *>(this->input_memory(1));
+    auto bias = reinterpret_cast<const dst_data_t *>(this->input_memory(2));
+    auto dst = reinterpret_cast<dst_data_t *>(this->memory());
 
     const memory_desc_wrapper src_d(conf_.src_pd());
     const memory_desc_wrapper dst_d(conf_.dst_pd());
@@ -40,40 +42,43 @@ void ref_inner_product_fwd_t<data_type>::execute_forward() {
     const int IC = conf_.IC();
 
     const bool src_has_spatial = src_d.ndims() == 4;
-    auto ker_has_spatial = [=](data_t *d, int mb, int oc) {
+    auto ker_has_spatial = [=](acc_data_t &d, int mb, int oc) {
         const int KH = conf_.KH();
         const int KW = conf_.KW();
         for (int ic = 0; ic < IC; ++ic) {
             for (int kh = 0; kh < KH; ++kh) {
                 for (int kw = 0; kw < KW; ++kw) {
-                    *d += src[src_d.off(mb, ic, kh, kw)]
+                    d += (acc_data_t)src[src_d.off(mb, ic, kh, kw)]
                         * weights[weights_d.off(oc, ic, kh, kw)];
                 }
             }
         }
     };
 
-    auto ker_no_spatial = [=](data_t *d, int mb, int oc) {
+    auto ker_no_spatial = [=](acc_data_t &d, int mb, int oc) {
         for (int ic = 0; ic < IC; ++ic) {
-            *d += src[src_d.off(mb, ic)] * weights[weights_d.off(oc, ic)];
+            d += (acc_data_t)src[src_d.off(mb, ic)]
+                * weights[weights_d.off(oc, ic)];
         }
     };
 
 #   pragma omp parallel for collapse(2) schedule(static)
     for (int mb = 0; mb < MB; ++mb) {
         for (int oc = 0; oc < OC; ++oc) {
-            data_t *d = &dst[dst_d.off(mb, oc)];
-            *d = bias ? bias[bias_d.off(oc)] : data_t(0);
+            acc_data_t a = bias ? bias[bias_d.off(oc)] : (dst_data_t)0;
             if (src_has_spatial) {
-                ker_has_spatial(d, mb, oc);
+                ker_has_spatial(a, mb, oc);
             } else {
-                ker_no_spatial(d, mb, oc);
+                ker_no_spatial(a, mb, oc);
             }
+            dst[dst_d.off(mb, oc)] = (dst_data_t)a;
         }
     }
 }
 
 template struct ref_inner_product_fwd_t<data_type::f32>;
+template struct ref_inner_product_fwd_t<data_type::u8, data_type::s8,
+         data_type::s32, data_type::u8>;
 
 template <impl::data_type_t data_type>
 void ref_inner_product_bwd_data_t<data_type>::execute_backward_data() {
