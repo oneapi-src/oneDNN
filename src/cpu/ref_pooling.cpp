@@ -32,11 +32,14 @@ namespace cpu {
 template <impl::data_type_t data_type>
 void ref_pooling_fwd_t<data_type>::execute_forward() {
     using namespace alg_kind;
+    using namespace prop_kind;
+
+    auto alg = conf_.desc()->alg_kind;
 
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
-    auto dst = reinterpret_cast<data_t*>(this->memory(0));
-    auto ws = conf_.desc()->alg_kind == pooling_max ?
-        reinterpret_cast<int*>(this->memory(1)) : nullptr;
+    auto dst = reinterpret_cast<data_t *>(this->memory(0));
+    auto ws = alg == pooling_max && conf_.desc()->prop_kind == forward_training
+        ? reinterpret_cast<int *>(this->memory(1)) : nullptr;
 
     const memory_desc_wrapper src_d(conf_.src_pd());
     const memory_desc_wrapper dst_d(conf_.dst_pd());
@@ -50,8 +53,6 @@ void ref_pooling_fwd_t<data_type>::execute_forward() {
     const int SW = conf_.KSW();
     const int padT = conf_.padT();
     const int padL = conf_.padL();
-
-    auto alg = conf_.desc()->alg_kind;
 
     auto apply_offset = [=](int index, int offset) {
         return (index > offset) ? index - offset : 0;
