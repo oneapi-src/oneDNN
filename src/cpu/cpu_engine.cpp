@@ -123,7 +123,8 @@ static const rpd_create_f cpu_reorder_impl_list[] = {
     simple_reorder_t<f32, any, f32, any, fmt_order::any, spec::reference>::pd_t::create,
     nullptr,
 };
-#define INSTANCE(inst) &primitive_desc_t::create<inst::pd_t>
+
+#define INSTANCE(...) &primitive_desc_t::create<__VA_ARGS__::pd_t>
 static const pd_create_f cpu_impl_list[] = {
     /* conv */
     INSTANCE(jit_avx512_common_1x1_convolution_fwd_t),
