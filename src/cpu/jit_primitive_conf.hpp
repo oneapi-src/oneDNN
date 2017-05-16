@@ -81,6 +81,7 @@ struct __attribute__((__packed__)) jit_conv_call_s {
 
 struct jit_1x1_conv_conf_t {
     prop_kind_t prop_kind;
+    conv_version_t ver;
 
     int mb;
     int ngroups, ic, oc;
@@ -108,6 +109,7 @@ struct jit_1x1_conv_conf_t {
     int load_loop_load_step, load_loop_iter_step;
     int bcast_loop_output_step, bcast_loop_output_substep;
     int bcast_loop_bcast_step, bcast_loop_bcast_substep;
+    int fma_step;
 };
 
 struct jit_gemm_conv_conf_t {

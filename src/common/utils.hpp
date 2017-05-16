@@ -148,6 +148,11 @@ inline typename remove_reference<T>::type rnd_up(const T a, const U b) {
     return div_up(a, b) * b;
 }
 
+template <typename T, typename U>
+inline typename remove_reference<T>::type rnd_dn(const T a, const U b) {
+    return (a / b) * b;
+}
+
 template <typename T, typename U, typename V>
 inline U this_block_size(const T offset, const U max, const V block_size) {
     assert(offset < max);

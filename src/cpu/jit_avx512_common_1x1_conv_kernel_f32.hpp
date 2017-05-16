@@ -82,7 +82,6 @@ struct jit_avx512_common_1x1_conv_kernel_f32 : public jit_generator {
 
     int reg_diff_bias_data_stack_offt = 0;
     int bcast_loop_work_offt = 16;
-
     int stack_space_needed = 32;
 
     void bcast_loop(int load_loop_blk);
