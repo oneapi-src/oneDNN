@@ -25,11 +25,14 @@ operations. The library includes the following classes of functions:
     - batch normalization
 
 * Activation
-  rectified linear unit neuron activation (ReLU), softmax
+    - rectified linear unit neuron activation (ReLU)
+	- softmax
 
 * Data manipulation
-  reorder (multi-dimensional transposition/conversion), sum,
-                     concat, view
+    - reorder (multi-dimensional transposition/conversion),
+    - sum,
+    - concat
+	- view
 
 Intel MKL DNN primitives implement a plain C/C++ application programming
 interface (API) that can be used in the existing C/C++ DNN frameworks, as well
@@ -300,4 +303,3 @@ use the topology: Convolution, ReLU, LRN, and pooling.
     - C++: simple_training_net.cpp
 
 @subpage legal_information
-
