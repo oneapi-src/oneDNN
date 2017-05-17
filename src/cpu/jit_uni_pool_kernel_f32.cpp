@@ -66,7 +66,7 @@ status_t jit_uni_pool_kernel_f32<isa>::init_conf(jit_pool_conf_t &jpp,
     if (jpp.alg == pooling_max) {
         jpp.ur_w = isa == avx512_common ? 16 : 4;
         if (jpp.is_training)
-            jpp.ur_w = isa == avx512_common ? 10 : 3;
+            jpp.ur_w = isa == avx512_common ? 9 : 3;
         else if (jpp.is_backward)
             jpp.ur_w = isa == avx512_common ? 6 : 3;
     } else {
