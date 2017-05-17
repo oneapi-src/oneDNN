@@ -113,9 +113,8 @@ void check_pool_fwd(const pool_test_params &p, const memory &src,
                     EXPECT_NEAR(out, out_ref, 1e-6);
                     if(p.aalgorithm == pooling_max
                         && p.aprop_kind == forward_training) {
-                        if ( out_index != out_ref_index)
-                            printf("DEBUG: ! out_index %d NE out_ref_index %d . n = %d c = %d oh = %d ow = %d\n"
-                                , out_index, out_ref_index, n, c, oh, ow);
+                        EXPECT_EQ(out_index, out_ref_index) << " n = " << n
+                             << " c = " << c << " oh = " << oh << " ow = " << ow;
                     }
                 }
             }
