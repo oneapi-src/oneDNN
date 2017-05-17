@@ -30,7 +30,7 @@ void _ref_convolution_fwd_t<with_relu, src_type, wei_type, acc_type, dst_type>
         ::execute_forward() {
     auto src = reinterpret_cast<const src_data_t *>(this->input_memory(0));
     auto weights = reinterpret_cast<const wei_data_t *>(this->input_memory(1));
-    auto bias = reinterpret_cast<const dst_data_t *>(this->input_memory(2));
+    auto bias = reinterpret_cast<const char *>(this->input_memory(2));
     auto dst = reinterpret_cast<dst_data_t *>(this->memory());
 
     const memory_desc_wrapper src_d(conf_.src_pd());
@@ -79,6 +79,17 @@ void _ref_convolution_fwd_t<with_relu, src_type, wei_type, acc_type, dst_type>
         }
     };
 
+    auto get_bias = [=](size_t off) -> acc_data_t {
+        switch (conf_.cdesc()->bias_desc.data_type) {
+        case data_type::s8: return *((const int8_t *)bias + off);
+        case data_type::u8: return *((const uint8_t *)bias + off);
+        case data_type::s32: return *((const int *)bias + off);
+        case data_type::f32: return *((const float *)bias + off);
+        default: assert(!"unimplemented");
+        }
+        return 0;
+    };
+
 #   pragma omp parallel for collapse(5) schedule(static)
     for (int g = 0; g < G; ++g) {
         for (int mb = 0; mb < MB; ++mb) {
@@ -86,7 +97,7 @@ void _ref_convolution_fwd_t<with_relu, src_type, wei_type, acc_type, dst_type>
                 for (int oh = 0; oh < OH; ++oh) {
                     for (int ow = 0; ow < OW; ++ow) {
                         acc_data_t a = bias
-                            ? bias[bias_d.off(g*OC + oc)] : (dst_data_t)0;
+                            ? get_bias(bias_d.off(g*OC + oc)) : (acc_data_t)0;
                         ker(a, g, mb, oc, oh, ow);
                         if (with_relu && a < (acc_data_t)0) a *= nslope;
                         dst[dst_d.off(mb, g*OC + oc, oh, ow)] = (dst_data_t)a;

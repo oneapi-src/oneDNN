@@ -58,8 +58,9 @@ struct _ref_convolution_fwd_t: public cpu_primitive_t {
                 && this->cdesc_().weights_desc.data_type == wei_type
                 && this->cdesc_().accum_data_type == acc_type
                 && this->cdesc_().dst_desc.data_type == dst_type
-                && utils::implication(this->with_bias(),
-                        this->cdesc_().bias_desc.data_type == dst_type);
+                && utils::implication(this->with_bias(), utils::one_of(
+                            this->cdesc_().bias_desc.data_type,
+                            data_type::s32, data_type::s8, data_type::u8));
             return ok ? status::success : status::unimplemented;
         }
     };
