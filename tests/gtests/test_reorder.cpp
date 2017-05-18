@@ -100,37 +100,64 @@ using f32_f32 = std::pair<float, float>;
 using reorder_simple_test_f32_f32 = reorder_simple_test<f32_f32>;
 using test_simple_params_f32_f32 = test_simple_params<f32_f32>;
 
+using s32_s32 = std::pair<int32_t, int32_t>;
+using reorder_simple_test_s32_s32 = reorder_simple_test<s32_s32>;
+using test_simple_params_s32_s32 = test_simple_params<s32_s32>;
+
+using s16_s16 = std::pair<int16_t, int16_t>;
+using reorder_simple_test_s16_s16 = reorder_simple_test<s16_s16>;
+using test_simple_params_s16_s16 = test_simple_params<s16_s16>;
+
 using eng = engine::kind;
 using fmt = memory::format;
-using cfg = test_simple_params_f32_f32;
+using cfg_f32= test_simple_params_f32_f32;
+using cfg_s32= test_simple_params_s32_s32;
+using cfg_s16= test_simple_params_s16_s16;
 
 TEST_P(reorder_simple_test_f32_f32, TestsReorder) { }
 INSTANTIATE_TEST_CASE_P(TestReorder, reorder_simple_test_f32_f32,
         ::testing::Values(
-            cfg{eng::cpu, fmt::nchw, fmt::nchw, {10, 10, 10, 10}},
-            cfg{eng::cpu, fmt::nchw, fmt::nhwc, {10, 10, 10, 10}},
-            cfg{eng::cpu, fmt::nhwc, fmt::nchw, {10, 10, 10, 10}},
-            cfg{eng::cpu, fmt::nhwc, fmt::nhwc, {10, 10, 10, 10}},
-            cfg{eng::cpu, fmt::nchw, fmt::nChw8c, {2, 32, 4, 4}},
-            cfg{eng::cpu, fmt::nChw8c, fmt::nchw, {2, 32, 4, 4}},
-            cfg{eng::cpu, fmt::oihw, fmt::OIhw8i8o, {32, 32, 3, 3}},
-            cfg{eng::cpu, fmt::OIhw8i8o, fmt::oihw, {32, 32, 3, 3}},
-            cfg{eng::cpu, fmt::OIhw8i8o, fmt::OIhw8o8i, {32, 32, 3, 3}},
-            cfg{eng::cpu, fmt::OIhw8o8i, fmt::OIhw8i8o, {32, 32, 3, 3}},
-            cfg{eng::cpu, fmt::goihw, fmt::gOIhw8i8o, {2, 32, 32, 3, 3}},
-            cfg{eng::cpu, fmt::gOIhw8i8o, fmt::goihw, {2, 32, 32, 3, 3}},
-            cfg{eng::cpu, fmt::gOIhw8i8o, fmt::gOIhw8o8i, {2, 32, 32, 3, 3}},
-            cfg{eng::cpu, fmt::gOIhw8o8i, fmt::gOIhw8i8o, {2, 32, 32, 3, 3}},
-            cfg{eng::cpu, fmt::nchw, fmt::nChw16c, {2, 64, 4, 4}},
-            cfg{eng::cpu, fmt::nChw16c, fmt::nchw, {2, 64, 4, 4}},
-            cfg{eng::cpu, fmt::oihw, fmt::OIhw16i16o, {64, 64, 3, 3}},
-            cfg{eng::cpu, fmt::OIhw16i16o, fmt::oihw, {64, 64, 3, 3}},
-            cfg{eng::cpu, fmt::goihw, fmt::gOIhw16i16o, {2, 64, 64, 3, 3}},
-            cfg{eng::cpu, fmt::gOIhw16i16o, fmt::goihw, {2, 64, 64, 3, 3}},
-            cfg{eng::cpu, fmt::OIhw16i16o, fmt::OIhw16o16i, {64, 64, 3, 3}},
-            cfg{eng::cpu, fmt::OIhw16o16i, fmt::OIhw16i16o, {64, 64, 3, 3}},
-            cfg{eng::cpu, fmt::gOIhw16i16o, fmt::gOIhw16o16i, {2, 64, 64, 3, 3}},
-            cfg{eng::cpu, fmt::gOIhw16o16i, fmt::gOIhw16i16o, {2, 64, 64, 3, 3}}
+            cfg_f32{eng::cpu, fmt::nchw, fmt::nchw, {10, 10, 10, 10}},
+            cfg_f32{eng::cpu, fmt::nchw, fmt::nhwc, {10, 10, 10, 10}},
+            cfg_f32{eng::cpu, fmt::nhwc, fmt::nchw, {10, 10, 10, 10}},
+            cfg_f32{eng::cpu, fmt::nhwc, fmt::nhwc, {10, 10, 10, 10}},
+            cfg_f32{eng::cpu, fmt::nchw, fmt::nChw8c, {2, 32, 4, 4}},
+            cfg_f32{eng::cpu, fmt::nChw8c, fmt::nchw, {2, 32, 4, 4}},
+            cfg_f32{eng::cpu, fmt::oihw, fmt::OIhw8i8o, {32, 32, 3, 3}},
+            cfg_f32{eng::cpu, fmt::OIhw8i8o, fmt::oihw, {32, 32, 3, 3}},
+            cfg_f32{eng::cpu, fmt::OIhw8i8o, fmt::OIhw8o8i, {32, 32, 3, 3}},
+            cfg_f32{eng::cpu, fmt::OIhw8o8i, fmt::OIhw8i8o, {32, 32, 3, 3}},
+            cfg_f32{eng::cpu, fmt::goihw, fmt::gOIhw8i8o, {2, 32, 32, 3, 3}},
+            cfg_f32{eng::cpu, fmt::gOIhw8i8o, fmt::goihw, {2, 32, 32, 3, 3}},
+            cfg_f32{eng::cpu, fmt::gOIhw8i8o, fmt::gOIhw8o8i, {2, 32, 32, 3, 3}},
+            cfg_f32{eng::cpu, fmt::gOIhw8o8i, fmt::gOIhw8i8o, {2, 32, 32, 3, 3}},
+            cfg_f32{eng::cpu, fmt::nchw, fmt::nChw16c, {2, 64, 4, 4}},
+            cfg_f32{eng::cpu, fmt::nChw16c, fmt::nchw, {2, 64, 4, 4}},
+            cfg_f32{eng::cpu, fmt::oihw, fmt::OIhw16i16o, {64, 64, 3, 3}},
+            cfg_f32{eng::cpu, fmt::OIhw16i16o, fmt::oihw, {64, 64, 3, 3}},
+            cfg_f32{eng::cpu, fmt::goihw, fmt::gOIhw16i16o, {2, 64, 64, 3, 3}},
+            cfg_f32{eng::cpu, fmt::gOIhw16i16o, fmt::goihw, {2, 64, 64, 3, 3}},
+            cfg_f32{eng::cpu, fmt::OIhw16i16o, fmt::OIhw16o16i, {64, 64, 3, 3}},
+            cfg_f32{eng::cpu, fmt::OIhw16o16i, fmt::OIhw16i16o, {64, 64, 3, 3}},
+            cfg_f32{eng::cpu, fmt::gOIhw16i16o, fmt::gOIhw16o16i, {2, 64, 64, 3, 3}},
+            cfg_f32{eng::cpu, fmt::gOIhw16o16i, fmt::gOIhw16i16o, {2, 64, 64, 3, 3}}
+            )
+        );
+TEST_P(reorder_simple_test_s32_s32, TestsReorder) { }
+INSTANTIATE_TEST_CASE_P(TestReorder, reorder_simple_test_s32_s32,
+        ::testing::Values(
+            cfg_s32{eng::cpu, fmt::nchw, fmt::nChw16c, {2, 64, 4, 4}},
+            cfg_s32{eng::cpu, fmt::nChw16c, fmt::nchw, {2, 64, 4, 4}}
+            )
+        );
+
+TEST_P(reorder_simple_test_s16_s16, TestsReorder) { }
+INSTANTIATE_TEST_CASE_P(TestReorder, reorder_simple_test_s16_s16,
+        ::testing::Values(
+            cfg_s16{eng::cpu, fmt::oihw, fmt::OIhw8i16o2i, {64, 64, 3, 3}},
+            cfg_s16{eng::cpu, fmt::OIhw8i16o2i, fmt::oihw, {64, 64, 3, 3}},
+            cfg_s16{eng::cpu, fmt::goihw, fmt::gOIhw8i16o2i, {2, 64, 64, 3, 3}},
+            cfg_s16{eng::cpu, fmt::gOIhw8i16o2i, fmt::goihw, {2, 64, 64, 3, 3}}
             )
         );
 
