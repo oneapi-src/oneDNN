@@ -45,6 +45,7 @@ struct _ref_convolution_fwd_t: public cpu_primitive_t {
 
         virtual status_t init() override {
             using namespace prop_kind;
+            using namespace data_type;
             assert(this->engine()->kind() == engine_kind::cpu);
             bool ok = true
                 && this->set_default_params() == status::success
@@ -58,9 +59,12 @@ struct _ref_convolution_fwd_t: public cpu_primitive_t {
                 && this->cdesc_().weights_desc.data_type == wei_type
                 && this->cdesc_().accum_data_type == acc_type
                 && this->cdesc_().dst_desc.data_type == dst_type
-                && utils::implication(this->with_bias(), utils::one_of(
-                            this->cdesc_().bias_desc.data_type,
-                            data_type::s32, data_type::s8, data_type::u8));
+                && utils::implication(this->with_bias(), true
+                        && utils::implication(src_type == u8,
+                            utils::one_of(this->cdesc_().bias_desc.data_type,
+                                s32, s8, u8))
+                        && utils::implication(src_type == f32,
+                            this->cdesc_().bias_desc.data_type == f32));
             return ok ? status::success : status::unimplemented;
         }
     };
