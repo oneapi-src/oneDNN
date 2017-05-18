@@ -155,7 +155,7 @@ status_t jit_uni_lrn_fwd_t<isa>::pd_t::init() {
 
     assert(engine()->kind() == engine_kind::cpu);
 
-    if (!mayiuse(avx2)) return unimplemented;
+    if (!mayiuse(isa)) return unimplemented;
 
     const memory_desc_wrapper data_d(data_pd_.desc());
     bool ok = true
@@ -286,7 +286,7 @@ status_t jit_uni_lrn_bwd_t<isa>::pd_t::init() {
 
     assert(engine()->kind() == engine_kind::cpu);
 
-    if (!mayiuse(avx2)) return unimplemented;
+    if (!mayiuse(isa)) return unimplemented;
 
     const memory_desc_wrapper data_d(data_pd_.desc());
     bool ok = true
