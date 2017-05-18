@@ -17,6 +17,8 @@
 #ifndef JIT_PRIMITIVE_CONF_HPP
 #define JIT_PRIMITIVE_CONF_HPP
 
+#include <stdint.h>
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {
@@ -43,7 +45,10 @@ struct jit_conv_conf_t {
     int ur_h, ur_w;
     int ur_w_tail;
     bool is_1stconv;
-
+    /* 4vnni */
+    size_t typesize_in;
+    size_t typesize_out;
+    bool _4vnni;
     /* avx512_u8s8u8 */
     int ic_nb1, ic_nb2;
     int oc_nb1;
@@ -61,6 +66,16 @@ struct __attribute__((__packed__)) jit_conv_call_s {
     const float *dst_prf;
     const float *filt_prf;
     const float *bias_prf;
+
+    const int16_t *src_int16;
+    const int32_t *dst_int32;
+    const int16_t *filt_int16;
+    const int32_t *bias_int32;
+    const int16_t *src_prf_int16;
+    const int32_t *dst_prf_int32;
+    const int16_t *filt_prf_int16;
+    const int32_t *bias_prf_int32;
+
     size_t kh_padding;
     size_t kh_padding_prf;
     size_t kw_padding;

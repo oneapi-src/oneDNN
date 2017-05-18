@@ -20,7 +20,7 @@
 #include "c_types_map.hpp"
 #include "cpu_convolution_pd.hpp"
 #include "cpu_engine.hpp"
-#include "jit_avx512_common_conv_kernel_f32.hpp"
+#include "jit_avx512_common_conv_kernel.hpp"
 #include "cpu_reducer.hpp"
 
 namespace mkldnn {
@@ -59,7 +59,7 @@ struct _jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
             if (!ok)
                 return status::unimplemented;
 
-            return jit_avx512_common_conv_fwd_kernel_f32::init_conf(jcp_,
+            return jit_avx512_common_conv_fwd_kernel::init_conf(jcp_,
                     this->cdesc_(), *this->src_pd_.desc(),
                     *this->weights_pd_.desc(), *this->dst_pd_.desc(), with_relu,
                     this->negative_slope());
@@ -93,7 +93,7 @@ struct _jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
             const input_vector &inputs, const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
     {
-        kernel_ = new jit_avx512_common_conv_fwd_kernel_f32(conf_.jcp_);
+        kernel_ = new jit_avx512_common_conv_fwd_kernel(conf_.jcp_);
     }
     ~_jit_avx512_common_convolution_fwd_t() { delete kernel_; };
 
@@ -108,7 +108,7 @@ struct _jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
 private:
     void execute_forward();
     pd_t conf_;
-    jit_avx512_common_conv_fwd_kernel_f32 *kernel_;
+    jit_avx512_common_conv_fwd_kernel *kernel_;
 };
 
 using jit_avx512_common_convolution_fwd_t

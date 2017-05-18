@@ -46,6 +46,7 @@
 #include "cpu/ref_inner_product.hpp"
 #include "cpu/gemm_inner_product.hpp"
 #include "cpu/jit_uni_inner_product.hpp"
+#include "cpu/jit_avx512_mic_s16s16s32_convolution.hpp"
 
 #include "cpu/jit_reorder.hpp"
 #include "cpu/simple_reorder.hpp"
@@ -177,6 +178,7 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(ref_convolution_bwd_data_t<data_type::f32>),
     INSTANCE(ref_convolution_bwd_weights_t<data_type::f32>),
     /* conv (int) */
+    INSTANCE(jit_avx512_mic_s16s16s32_convolution_fwd_t),
     INSTANCE(jit_avx512_u8s8u8_convolution_fwd_t),
     INSTANCE(ref_convolution_fwd_t<data_type::u8, data_type::s8,
             data_type::s32, data_type::u8>),
