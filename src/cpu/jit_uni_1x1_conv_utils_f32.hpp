@@ -247,13 +247,11 @@ inline void init_rtus_driver_f32(conv_t *self) {
     const int stride_h = cd.strides[0];
     const int stride_w = cd.strides[1];
 
-    const auto &src_format = is_bwd_data ? conf.diff_src_pd()->desc()->format
-                                            : conf.src_pd()->desc()->format;
-    assert((isa == avx2 && src_format == memory_format::nChw8c)
-           || (isa == avx512_common && src_format == memory_format::nChw16c));
-    UNUSED(src_format);
+    const auto &src_d = is_bwd_data ? *conf.diff_src_pd()->desc()
+                                    : *conf.src_pd()->desc();
+    assert((isa == avx2 && src_d.format == memory_format::nChw8c)
+           || (isa == avx512_common && src_d.format == memory_format::nChw16c));
 
-    const auto &src_d = is_bwd_data ? cd.diff_src_desc : cd.src_desc;
     const int ih = src_d.dims[2];
     const int iw = src_d.dims[3];
 
