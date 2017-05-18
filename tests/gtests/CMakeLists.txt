@@ -41,7 +41,8 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_inner_product_backward_data.cpp
                               test_inner_product_backward_weights.cpp
                               test_convolution_format_any.cpp
-                              test_convolution_forward.cpp
+                              test_convolution_forward_f32.cpp
+                              test_convolution_forward_s16s16s32.cpp
                               test_convolution_relu_forward.cpp
                               test_convolution_backward_data.cpp
                               test_convolution_backward_weights.cpp

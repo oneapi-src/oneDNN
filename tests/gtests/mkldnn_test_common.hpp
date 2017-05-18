@@ -20,6 +20,7 @@
 #include <numeric>
 #include <vector>
 #include <cmath>
+#include <stdint.h>
 
 #include "gtest/gtest.h"
 
@@ -29,6 +30,12 @@ template <typename data_t> struct data_traits { };
 template <> struct data_traits<float> {
     static const auto data_type = mkldnn::memory::data_type::f32;
 };
+template <> struct data_traits<int16_t> {
+    static const auto data_type = mkldnn::memory::data_type::s16;
+};
+template <> struct data_traits<int32_t> {
+    static const auto data_type = mkldnn::memory::data_type::s32;
+};
 
 template <typename T> inline void assert_eq(T a, T b);
 template <> inline void assert_eq<float>(float a, float b) {
@@ -36,6 +43,14 @@ template <> inline void assert_eq<float>(float a, float b) {
 }
 
 inline size_t map_index(const mkldnn::memory::desc &md, size_t index) {
+    const mkldnn::c_api::mkldnn_memory_format_t f_weights_g =
+        static_cast<mkldnn::c_api::mkldnn_memory_format_t>(
+            mkldnn::memory::format::gOIhw8i16o2i);
+    const mkldnn::c_api::mkldnn_memory_format_t f_weights =
+        static_cast<mkldnn::c_api::mkldnn_memory_format_t>(
+            mkldnn::memory::format::OIhw8i16o2i);
+    const bool with_groups = md.data.format == f_weights_g;
+
     const int ndims = md.data.ndims;
     const int *dims = md.data.dims;
     const int *pdims = md.data.layout_desc.blocking.padding_dims;
@@ -45,6 +60,7 @@ inline size_t map_index(const mkldnn::memory::desc &md, size_t index) {
     auto *strides_within_block = md.data.layout_desc.blocking.strides[1];
 
     size_t ph_index = 0;
+    int oc_16 = 0, ic_2 = 0;
 
     for (int rd = 0; rd < ndims; ++rd) {
         int d = ndims - rd - 1;
@@ -54,16 +70,23 @@ inline size_t map_index(const mkldnn::memory::desc &md, size_t index) {
         int cur_dim = dims[d];
         int cur_block = md.data.layout_desc.blocking.block_dims[d];
 
-        int cur_pos = optd[d] + (index % cur_dim);
+        int pos_d = index % cur_dim;
+        int cur_pos = optd[d] + pos_d;
+
         int cur_pos_block = cur_pos / cur_block;
         int cur_pos_within_block = cur_pos % cur_block;
+
+        if (d == (with_groups + 0)) oc_16 = pos_d % 16;
+        if (d == (with_groups + 1)) ic_2  = pos_d % 2;
 
         ph_index += cur_pos_block*strides_block[d];
         ph_index += cur_pos_within_block*strides_within_block[d];
 
         index /= cur_dim;
     }
-
+    if (md.data.format == f_weights_g || md.data.format == f_weights) {
+        ph_index += -16 * ic_2 + oc_16 + ic_2;
+    }
     ph_index += md.data.layout_desc.blocking.offset_padding;
 
     return ph_index;
@@ -87,6 +110,7 @@ inline mkldnn::memory::desc create_md(mkldnn::memory::dims dims,
     case f::oihw:
     case f::OIhw8i8o:
     case f::OIhw16i16o:
+    case f::OIhw8i16o2i:
     case f::OIhw8o8i:
     case f::OIhw16o16i:
     case f::Ohwi8o:
@@ -95,6 +119,7 @@ inline mkldnn::memory::desc create_md(mkldnn::memory::dims dims,
     case f::goihw:
     case f::gOIhw8i8o:
     case f::gOIhw16i16o:
+    case f::gOIhw8i16o2i:
     case f::gOIhw8o8i:
     case f::gOIhw16o16i:
         ndims = 5; break;
@@ -120,6 +145,9 @@ static inline data_t set_value(size_t index, data_t mean, data_t deviation,
         const size_t in_group = index % group_size;
         const bool fill = in_group == ((group % 1637) % group_size);
         return fill ? mean + deviation * sin(data_t(index % 37)) : 0;
+    } else if (data_traits<data_t>::data_type == mkldnn::memory::data_type::s32
+        || data_traits<data_t>::data_type == mkldnn::memory::data_type::s16) {
+        return data_t(rand()%11);
     } else {
         return data_t(0);
     }
@@ -157,11 +185,18 @@ static void compare_data(mkldnn::memory& ref, mkldnn::memory& dst)
     data_t *dst_data = (data_t *)dst.get_data_handle();
 #   pragma omp parallel for schedule(static)
     for (size_t i = 0; i < num; ++i) {
+        if (data_traits<data_t>::data_type == mkldnn::memory::data_type::f32) {
         data_t ref = ref_data[i];
         data_t got = dst_data[i];
         data_t diff = got - ref;
         data_t e = std::abs(ref) > 1e-4 ? diff / ref : diff;
         EXPECT_NEAR(e, 0.0, 1e-4) << "Index: " << i << " Total: " << num;
+       }  else if (data_traits<data_t>::data_type
+                    == mkldnn::memory::data_type::s32) {
+           data_t ref = ref_data[i];
+           data_t got = dst_data[i];
+           EXPECT_EQ(ref, got) << "Index: " << i << " Total: " << num;
+       }
     }
 }
 

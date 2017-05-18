@@ -183,6 +183,7 @@ TEST_P(convolution_test, TestConvolution)
 {
 }
 
+#define FP32
 #define DIRECTION_FORWARD
 #include "convolution_common.h"
 
