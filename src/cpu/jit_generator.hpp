@@ -38,6 +38,7 @@ typedef enum {
     avx512_common,
     avx512_core,
     avx512_mic,
+    avx512_mic_4ops,
 } cpu_isa_t;
 
 template <cpu_isa_t> struct cpu_isa_trait {}; /* ::vlen -> 32 (for avx2) */
@@ -61,6 +62,9 @@ template <> struct cpu_isa_trait<avx512_core>:
     public cpu_isa_trait<avx512_common> {};
 
 template <> struct cpu_isa_trait<avx512_mic>:
+    public cpu_isa_trait<avx512_common> {};
+
+template <> struct cpu_isa_trait<avx512_mic_4ops>:
     public cpu_isa_trait<avx512_common> {};
 
 // TODO: move this to jit_generator class?
@@ -144,6 +148,11 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa) {
             && cpu.has(Cpu::tAVX512CD)
             && cpu.has(Cpu::tAVX512ER)
             && cpu.has(Cpu::tAVX512PF);
+    case avx512_mic_4ops:
+        return true
+            && mayiuse(avx512_mic)
+            && cpu.has(Cpu::tAVX512_4FMAPS)
+            && cpu.has(Cpu::tAVX512_4VNNIW);
     case isa_any:
         return true;
     }
