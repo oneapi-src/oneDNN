@@ -174,6 +174,8 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(jit_avx512_u8s8u8_convolution_fwd_t),
     INSTANCE(ref_convolution_fwd_t<data_type::u8, data_type::s8,
             data_type::s32, data_type::u8>),
+    INSTANCE(ref_convolution_fwd_t<data_type::s16,data_type::s16,
+            data_type::s32, data_type::s32>),
     /* relu */
     INSTANCE(jit_uni_relu_fwd_t<avx512_common>),
     INSTANCE(jit_uni_relu_bwd_t<avx512_common>),
@@ -249,6 +251,8 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(jit_avx512_u8s8u8_convolution_relu_t),
     INSTANCE(ref_convolution_relu_t<data_type::u8, data_type::s8,
             data_type::s32, data_type::u8>),
+    INSTANCE(ref_convolution_relu_t<data_type::s16,data_type::s16,
+            data_type::s32, data_type::s32>),
     /* eol */
     nullptr,
 };

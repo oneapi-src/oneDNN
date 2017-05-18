@@ -273,6 +273,10 @@ template struct _ref_convolution_fwd_t<false, data_type::u8, data_type::s8,
          data_type::s32, data_type::u8>;
 template struct _ref_convolution_fwd_t<true, data_type::u8, data_type::s8,
          data_type::s32, data_type::u8>;
+template struct _ref_convolution_fwd_t<false, data_type::s16, data_type::s16,
+         data_type::s32, data_type::s32>;
+template struct _ref_convolution_fwd_t<true, data_type::s16, data_type::s16,
+         data_type::s32, data_type::s32>;
 
 template struct ref_convolution_bwd_data_t<data_type::f32>;
 template struct ref_convolution_bwd_weights_t<data_type::f32>;
