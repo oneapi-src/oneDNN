@@ -66,10 +66,12 @@ typedef enum {
     mkldnn_f32 = 1,
     /** 32-bit signed integer. */
     mkldnn_s32 = 2,
+    /** 16-bit signed integer. */
+    mkldnn_s16 = 4,
     /** 8-bit signed integer. */
-    mkldnn_s8 = 3,
+    mkldnn_s8 = 5,
     /** 8-bit unsigned integer. */
-    mkldnn_u8 = 4,
+    mkldnn_u8 = 6,
 } mkldnn_data_type_t;
 
 /** Memory format specification.
@@ -136,6 +138,10 @@ typedef enum {
     /** 4D weights tensor in the @c oihw format with both input and output
      * channels data laid out in memory in 16-element blocks. */
     mkldnn_OIhw16i16o,
+    /** 4D weights tensor in the @c oihw format with output channels data
+     * laid out in memory in 16-element blocks and input channels data
+     * laid out in memory in 8-element blocks blocked by pairs. */
+    mkldnn_OIhw8i16o2i,
     /** 4D weights tensor in the @c oihw format with both input and output
      * channels data laid out in memory in 8-element blocks. */
     mkldnn_OIhw8o8i,
@@ -164,6 +170,10 @@ typedef enum {
      * input and output channels data laid out in memory in 16-element blocks.
      */
     mkldnn_gOIhw16i16o,
+    /** 5D weights tensor in the @c oihw format with output channels data
+     * laid out in memory in 16-element blocks and input channels data
+     * laid out in memory in 8-element blocks blocked by pairs. */
+    mkldnn_gOIhw8i16o2i,
     /** 5D weights tensor in the blocked version of @c goihw format with both
      * input and output channels data laid out in memory in 8-element blocks.
      */

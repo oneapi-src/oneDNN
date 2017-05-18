@@ -69,7 +69,8 @@ struct memory_desc_wrapper: public c_compatible {
         assert(utils::one_of(format(), x, nc, nchw, nhwc, chwn, nChw8c, oi, io,
                     oihw, ihwo, OIhw8i8o, OIhw8o8i, Ohwi8o, OhIw16o4i, goihw,
                     gOIhw8i8o, gOIhw8o8i, blocked, nChw16c, OIhw16i16o,
-                    OIhw16o16i, Ohwi16o, gOIhw16i16o, gOIhw16o16i, gOhIw16o4i)
+                    OIhw16o16i, Ohwi16o, gOIhw16i16o, gOIhw16o16i, gOhIw16o4i,
+                    OIhw8i16o2i, gOIhw8i16o2i)
                 );
 
         if (blocking_desc().offset_padding != 0) return 0;
@@ -124,6 +125,7 @@ struct memory_desc_wrapper: public c_compatible {
      * an array \param pos. if \param is_pos_padded is true \param pos
      * represents the position in already padded area */
     inline size_t off_v(const dims_t pos, bool is_pos_padded = false) const {
+        using namespace mkldnn::impl::memory_format;
         assert(format() != memory_format::any);
         const blocking_desc_t &blk = blocking_desc();
         const dims_t &optd = blk.offset_padding_to_data;
@@ -138,6 +140,13 @@ struct memory_desc_wrapper: public c_compatible {
 
             phys_offset += pos_block * blk.strides[0][d];
             phys_offset += pos_within_block * blk.strides[1][d];
+        }
+        if (format() == gOIhw8i16o2i || format() == OIhw8i16o2i) {
+            // TODO: Fix temporary workaround for formats with double blocking
+            const bool with_groups = format() == gOIhw8i16o2i;
+            const int oc_16 = pos[with_groups + 0] % 16;
+            const int ic_2  = pos[with_groups + 1] % 2;
+            phys_offset += -16 * ic_2 + oc_16 + ic_2;
         }
         return phys_offset;
     }

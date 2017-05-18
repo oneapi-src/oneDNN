@@ -18,6 +18,7 @@
 #define MKLDNN_TRAITS_HPP
 
 #include <assert.h>
+#include <stdint.h>
 
 #include "mkldnn.h"
 #include "c_types_map.hpp"
@@ -33,7 +34,8 @@ template <typename> struct data_trait {}; /* ::data_type -> f32 */
 template <primitive_kind_t> struct pkind_trait {}; /* ::desc_type, ::query_d */
 
 template <> struct prec_trait<data_type::f32> { typedef float type; };
-template <> struct prec_trait<data_type::s32> { typedef int type; };
+template <> struct prec_trait<data_type::s32> { typedef int32_t type; };
+template <> struct prec_trait<data_type::s16> { typedef int16_t type; };
 template <> struct prec_trait<data_type::s8> { typedef int8_t type; };
 template <> struct prec_trait<data_type::u8> { typedef uint8_t type; };
 
@@ -41,6 +43,8 @@ template <> struct data_trait<float>
 { static constexpr data_type_t data_type = data_type::f32; };
 template <> struct data_trait<int>
 { static constexpr data_type_t data_type = data_type::s32; };
+template <> struct data_trait<int16_t>
+{ static constexpr data_type_t data_type = data_type::s16; };
 template <> struct data_trait<int8_t>
 { static constexpr data_type_t data_type = data_type::s8; };
 template <> struct data_trait<uint8_t>

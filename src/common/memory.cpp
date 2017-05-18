@@ -43,7 +43,7 @@ status_t mkldnn_memory_desc_init(memory_desc_t *memory_desc, int ndims,
     /* memory_desc != 0 */
     bool args_ok = !any_null(memory_desc)
         && 0 < ndims && ndims <= TENSOR_MAX_DIMS
-        && one_of(data_type, f32, s32, s8, u8);
+        && one_of(data_type, f32, s32, s16, s8, u8);
     if (!args_ok) return invalid_arguments;
 
     memory_desc_t md;
@@ -71,6 +71,7 @@ status_t mkldnn_memory_desc_init(memory_desc_t *memory_desc, int ndims,
     case ihwo:
     case OIhw8i8o:
     case OIhw16i16o:
+    case OIhw8i16o2i:
     case OIhw8o8i:
     case OIhw16o16i:
     case Ohwi8o:
@@ -79,6 +80,7 @@ status_t mkldnn_memory_desc_init(memory_desc_t *memory_desc, int ndims,
     case goihw:
     case gOIhw8i8o:
     case gOIhw16i16o:
+    case gOIhw8i16o2i:
     case gOIhw8o8i:
     case gOIhw16o16i:
     case gOhIw16o4i:

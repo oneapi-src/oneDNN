@@ -267,6 +267,7 @@ struct memory: public primitive  {
         data_undef = c_api::mkldnn_data_type_undef,
         f32 = c_api::mkldnn_f32,
         s32 = c_api::mkldnn_s32,
+        s16 = c_api::mkldnn_s16,
         s8 = c_api::mkldnn_s8,
         u8 = c_api::mkldnn_u8,
     };
@@ -294,12 +295,14 @@ struct memory: public primitive  {
         OIhw16i16o = c_api::mkldnn_OIhw16i16o,
         OIhw8o8i = c_api::mkldnn_OIhw8o8i,
         OIhw16o16i = c_api::mkldnn_OIhw16o16i,
+        OIhw8i16o2i = c_api::mkldnn_OIhw8i16o2i,
         Ohwi8o = c_api::mkldnn_Ohwi8o,
         Ohwi16o = c_api::mkldnn_Ohwi16o,
         OhIw16o4i = c_api::mkldnn_OhIw16o4i,
         goihw = c_api::mkldnn_goihw,
         gOIhw8i8o = c_api::mkldnn_gOIhw8i8o,
         gOIhw16i16o = c_api::mkldnn_gOIhw16i16o,
+        gOIhw8i16o2i = c_api::mkldnn_gOIhw8i16o2i,
         gOIhw8o8i = c_api::mkldnn_gOIhw8o8i,
         gOIhw16o16i = c_api::mkldnn_gOIhw16o16i,
         gOhIw16o4i = c_api::mkldnn_gOhIw16o4i,
@@ -1508,7 +1511,7 @@ struct pooling_backward : public primitive {
                     "could not create a backward pooling primitive descriptor");
             reset(result);
         }
-        
+
         memory::primitive_desc diff_src_primitive_desc() const {
             memory::primitive_desc adesc;
             c_api::mkldnn_primitive_desc_t cdesc;
@@ -1631,7 +1634,7 @@ struct relu_backward : public primitive {
                     "could not create a relu backward primitive descriptor");
             reset(result);
         }
-        
+
         memory::primitive_desc diff_src_primitive_desc() const {
             memory::primitive_desc adesc;
             c_api::mkldnn_primitive_desc_t cdesc;

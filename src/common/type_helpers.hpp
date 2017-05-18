@@ -43,6 +43,7 @@ inline size_t data_type_size(data_type_t data_type) {
     switch (data_type) {
     case f32: return sizeof(prec_trait<f32>::type);
     case s32: return sizeof(prec_trait<s32>::type);
+    case s16: return sizeof(prec_trait<s16>::type);
     case s8: return sizeof(prec_trait<s8>::type);
     case u8: return sizeof(prec_trait<u8>::type);
     case data_type::undef:
@@ -56,7 +57,8 @@ inline memory_format_t format_normalize(const memory_format_t fmt) {
     if (utils::one_of(fmt, x, nc, nchw, nhwc, chwn, nChw8c, oi, io, oihw, ihwo,
                 OIhw8i8o, OIhw8o8i, Ohwi8o, OhIw16o4i, goihw, gOIhw8i8o,
                 gOIhw8o8i, nChw16c, OIhw16i16o, OIhw16o16i, Ohwi16o,
-                gOIhw16i16o, gOIhw16o16i, gOhIw16o4i))
+                gOIhw16i16o, gOIhw16o16i, gOhIw16o4i,
+                OIhw8i16o2i, gOIhw8i16o2i))
         return blocked;
     return fmt;
 }
@@ -108,6 +110,7 @@ inline data_type_t default_accum_data_type(data_type_t src_dt,
     using namespace data_type;
 
     if (everyone_is(f32, src_dt, wei_dt, dst_dt)) return f32;
+    if (src_dt == s16 && wei_dt == s16 && dst_dt == s32) return s32;
     if (one_of(src_dt, s8, u8) && one_of(wei_dt, s8, u8, data_type::undef) &&
             one_of(dst_dt, s8, u8, data_type::undef)) return s32;
 
