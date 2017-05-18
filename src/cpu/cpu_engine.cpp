@@ -195,6 +195,7 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(ref_relu_bwd_t<data_type::f32>),
     /* relu (int) */
     INSTANCE(ref_relu_fwd_t<data_type::s32>),
+    INSTANCE(ref_relu_fwd_t<data_type::s16>),
     INSTANCE(ref_relu_fwd_t<data_type::s8>),
     INSTANCE(ref_relu_fwd_t<data_type::u8>),
     /* softmax */
@@ -212,6 +213,7 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(ref_pooling_bwd_t<data_type::f32>),
     /* pool (int) */
     INSTANCE(ref_pooling_fwd_t<data_type::s32>),
+    INSTANCE(ref_pooling_fwd_t<data_type::s16, data_type::s32>),
     INSTANCE(ref_pooling_fwd_t<data_type::s8, data_type::s32>),
     INSTANCE(ref_pooling_fwd_t<data_type::u8, data_type::s32>),
     /* lrn */
@@ -244,6 +246,8 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(ref_inner_product_bwd_data_t<data_type::f32>),
     INSTANCE(ref_inner_product_bwd_weights_t<data_type::f32>),
     /* inner product (int) */
+    INSTANCE(ref_inner_product_fwd_t<data_type::s16, data_type::s16,
+            data_type::s32, data_type::s32>),
     INSTANCE(ref_inner_product_fwd_t<data_type::u8, data_type::s8,
             data_type::s32, data_type::u8>),
     /* conv_relu */
@@ -259,6 +263,8 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(ref_convolution_relu_t<data_type::f32>),
     /* conv_relu (int) */
     INSTANCE(jit_avx512_u8s8u8_convolution_relu_t),
+    INSTANCE(ref_convolution_relu_t<data_type::s16, data_type::s16,
+            data_type::s32, data_type::s32>),
     INSTANCE(ref_convolution_relu_t<data_type::u8, data_type::s8,
             data_type::s32, data_type::u8>),
     INSTANCE(ref_convolution_relu_t<data_type::s16,data_type::s16,

@@ -129,6 +129,7 @@ void ref_relu_bwd_t<data_type>::execute_backward_dense() {
 
 template struct ref_relu_fwd_t<data_type::f32>;
 template struct ref_relu_fwd_t<data_type::s32>;
+template struct ref_relu_fwd_t<data_type::s16>;
 template struct ref_relu_fwd_t<data_type::s8>;
 template struct ref_relu_fwd_t<data_type::u8>;
 

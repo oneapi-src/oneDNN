@@ -77,6 +77,8 @@ void ref_inner_product_fwd_t<src_type, wei_type, acc_type, dst_type>
 }
 
 template struct ref_inner_product_fwd_t<data_type::f32>;
+template struct ref_inner_product_fwd_t<data_type::s16, data_type::s16,
+         data_type::s32, data_type::s32>;
 template struct ref_inner_product_fwd_t<data_type::u8, data_type::s8,
          data_type::s32, data_type::u8>;
 
