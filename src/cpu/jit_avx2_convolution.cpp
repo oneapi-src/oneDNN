@@ -77,8 +77,8 @@ void _jit_avx2_convolution_fwd_t<with_relu>::execute_forward() {
                     const size_t _ic = g * jcp.nb_ic + icb;
 
                     const int ih = nstl::max(ij - jcp.t_pad, 0);
-                    par_conv.src = const_cast<data_t *>(&src[src_d.blk_off(n,
-                        jcp.ic == 3 ? 0 : _ic, ih, 0)]);
+                    par_conv.src = &src[src_d.blk_off(n,
+                        jcp.ic == 3 ? 0 : _ic, ih, 0)];
 
                     par_conv.dst = &dst[dst_d.blk_off(n, _oc, oh, 0)];
 
@@ -163,16 +163,15 @@ void jit_avx2_convolution_bwd_data_t::execute_backward_data() {
                     par_conv.src = &diff_src[diff_src_d.blk_off(n,
                             /*jcp.ic == 3 ? 0 :*/
                             g * jcp.nb_ic + jcp.nb_ic_blocking * icbb, ih, 0)];
-                    par_conv.dst = const_cast<data_t *>(&diff_dst[
-                            diff_dst_d.blk_off(n, g * jcp.nb_oc + oc, oh, 0)]);
-                    par_conv.filt = const_cast<data_t *>(&weights[
-                        conf_.with_groups()
-                        ? weights_d.blk_off(g, oc,
+                    par_conv.dst = &diff_dst[diff_dst_d.blk_off(
+                            n, g * jcp.nb_oc + oc, oh, 0)];
+                    par_conv.filt = &weights[
+                        conf_.with_groups() ? weights_d.blk_off(g, oc,
                                 jcp.ic == 3 ? 0 : jcp.nb_ic_blocking * icbb,
                                 i_b_overflow, 0)
                         : weights_d.blk_off(oc,
                                 jcp.ic == 3 ? 0 : jcp.nb_ic_blocking * icbb,
-                                i_b_overflow, 0)]);
+                                i_b_overflow, 0)];
                     par_conv.src_prf = nullptr;
                     par_conv.dst_prf = nullptr;
                     par_conv.filt_prf = nullptr;

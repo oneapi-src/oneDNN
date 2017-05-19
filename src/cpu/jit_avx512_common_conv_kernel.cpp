@@ -49,11 +49,7 @@ void jit_avx512_common_conv_fwd_kernel::store_output(int ur_w)
 
     mov(reg_current_ic, ptr[this->param1 + GET_OFF(current_ic)]);
     if (jcp.with_bias) {
-        if(jcp._4vnni) {
-            mov(reg_bias, ptr[this->param1 + GET_OFF(bias_int32)]);
-        } else {
-            mov(reg_bias, ptr[this->param1 + GET_OFF(bias)]);
-        }
+        mov(reg_bias, ptr[this->param1 + GET_OFF(bias)]);
     }
     cmp(reg_current_ic, 0);
     je(no_update_label, T_NEAR);
@@ -319,17 +315,11 @@ void jit_avx512_common_conv_fwd_kernel::generate()
     int out_shift = jcp.typesize_out * (ur_w * oc_block);
 
     this->preamble();
-    if (jcp._4vnni) {
-        mov(reg_inp, ptr[this->param1 + GET_OFF(src_int16)]);
-        mov(reg_out, ptr[this->param1 + GET_OFF(dst_int32)]);
-        mov(reg_ker, ptr[this->param1 + GET_OFF(filt_int16)]);
-        mov(reg_ker_prf, ptr[this->param1 + GET_OFF(filt_prf_int16)]);
-    } else {
-        mov(reg_inp, ptr[this->param1 + GET_OFF(src)]);
-        mov(reg_out, ptr[this->param1 + GET_OFF(dst)]);
-        mov(reg_ker, ptr[this->param1 + GET_OFF(filt)]);
-        mov(reg_ker_prf, ptr[this->param1 + GET_OFF(filt_prf)]);
-    }
+    mov(reg_inp, ptr[this->param1 + GET_OFF(src)]);
+    mov(reg_out, ptr[this->param1 + GET_OFF(dst)]);
+    mov(reg_ker, ptr[this->param1 + GET_OFF(filt)]);
+    mov(reg_ker_prf, ptr[this->param1 + GET_OFF(filt_prf)]);
+
     mov(reg_kh, ptr[this->param1 + GET_OFF(kh_padding)]);
 
     if (!jcp._4vnni) {
@@ -339,13 +329,8 @@ void jit_avx512_common_conv_fwd_kernel::generate()
     }
     int r_pad = nstl::max(0, (ow - 1) * stride_w + (kw - 1) - (iw + l_pad - 1));
     if (ow == ur_w) {
-        if (jcp._4vnni) {
-            mov(reg_inp_prf, ptr[this->param1 + GET_OFF(src_prf_int16)]);
-            mov(reg_out_prf, ptr[this->param1 + GET_OFF(dst_prf_int32)]);
-        } else {
-            mov(reg_inp_prf, ptr[this->param1 + GET_OFF(src_prf)]);
-            mov(reg_out_prf, ptr[this->param1 + GET_OFF(dst_prf)]);
-        }
+        mov(reg_inp_prf, ptr[this->param1 + GET_OFF(src_prf)]);
+        mov(reg_out_prf, ptr[this->param1 + GET_OFF(dst_prf)]);
         compute_loop(ur_w, l_pad, r_pad);
     } else {
         mov(reg_inp_prf, reg_inp);

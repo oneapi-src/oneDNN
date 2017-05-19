@@ -58,24 +58,14 @@ struct jit_conv_conf_t {
 };
 
 struct __attribute__((__packed__)) jit_conv_call_s {
-    const float *src; /* hack, non-const for backward_data */
-    const float *dst; /* hack, non-const for forward */
-    const float *filt; /* hack, non-const for backward_weights */
-    const float *bias; /* hack, non-const for backward_bias */
-    const float *src_prf;
-    const float *dst_prf;
-    const float *filt_prf;
-    const float *bias_prf;
-
-    const int16_t *src_int16;
-    const int32_t *dst_int32;
-    const int16_t *filt_int16;
-    const int32_t *bias_int32;
-    const int16_t *src_prf_int16;
-    const int32_t *dst_prf_int32;
-    const int16_t *filt_prf_int16;
-    const int32_t *bias_prf_int32;
-
+    const void *src; /* hack, non-const for backward_data */
+    const void *dst; /* hack, non-const for forward */
+    const void *filt; /* hack, non-const for backward_weights */
+    const void *bias; /* hack, non-const for backward_bias */
+    const void *src_prf;
+    const void *dst_prf;
+    const void *filt_prf;
+    const void *bias_prf;
     size_t kh_padding;
     size_t kh_padding_prf;
     size_t kw_padding;

@@ -75,8 +75,8 @@ void _jit_sse42_convolution_fwd_t<with_relu>::execute_forward() {
                     const size_t _ic = g * jcp.nb_ic + icb;
 
                     const int ih = nstl::max(ij - jcp.t_pad, 0);
-                    par_conv.src = const_cast<data_t *>(&src[src_d.blk_off(n,
-                        jcp.ic == 3 ? 0 : _ic, ih, 0)]);
+                    par_conv.src = &src[src_d.blk_off(n,
+                        jcp.ic == 3 ? 0 : _ic, ih, 0)];
 
                     par_conv.dst = &dst[dst_d.blk_off(n, _oc, oh, 0)];
 

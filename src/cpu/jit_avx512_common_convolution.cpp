@@ -77,22 +77,20 @@ void _jit_avx512_common_convolution_fwd_t<with_relu>::execute_forward()
                     par_conv.current_ic = par_conv.current_ic_prf;
 
                     const int ih = nstl::max(ij - jcp.t_pad, 0);
-                    par_conv.src_prf = const_cast<data_t *>(&src[src_d.blk_off(
-                            n, jcp.ic == 3 ? 0 : g * jcp.nb_ic + ic, ih, 0)]);
-                    par_conv.dst_prf = const_cast<data_t *>(
-                            &dst[dst_d.blk_off(n, g * jcp.nb_oc + oc, oh, 0)]);
+                    par_conv.src_prf = &src[src_d.blk_off(
+                            n, jcp.ic == 3 ? 0 : g * jcp.nb_ic + ic, ih, 0)];
+                    par_conv.dst_prf = &dst[dst_d.blk_off(
+                            n, g * jcp.nb_oc + oc, oh, 0)];
                     if (bias)
-                        par_conv.bias_prf
-                            = const_cast<data_t *>(&bias[bias_d.blk_off(
-                                        (g * jcp.nb_oc + oc) * jcp.oc_block)]);
-                    par_conv.filt_prf = const_cast<data_t *>(
-                            &weights[conf_.with_groups() ?
+                        par_conv.bias_prf = &bias[bias_d.blk_off(
+                                        (g * jcp.nb_oc + oc) * jcp.oc_block)];
+                    par_conv.filt_prf = &weights[conf_.with_groups() ?
                                             weights_d.blk_off(g, oc,
                                                     jcp.ic == 3 ? 0 : ic,
                                                     i_t_overflow, 0) :
                                             weights_d.blk_off(oc,
                                                     jcp.ic == 3 ? 0 : ic,
-                                                    i_t_overflow, 0)]);
+                                                    i_t_overflow, 0)];
 
                     par_conv.kh_padding = par_conv.kh_padding_prf;
                     par_conv.kh_padding_prf

@@ -55,10 +55,10 @@ void _jit_avx512_mic_s16s16s32_convolution_fwd_t<with_relu>::execute_forward()
         balance211(work_amount, nthr, ithr, start, end);
         nd_iterator_init(start, n, jcp.mb, g, jcp.ngroups, oc, oc_dim);
 
-        par_conv.src_prf_int16 = NULL;
-        par_conv.dst_prf_int32 = NULL;
-        par_conv.filt_prf_int16 = NULL;
-        par_conv.bias_prf_int32 = NULL;
+        par_conv.src_prf = NULL;
+        par_conv.dst_prf = NULL;
+        par_conv.filt_prf = NULL;
+        par_conv.bias_prf = NULL;
 
         for (size_t iwork = start; iwork < end; ++iwork) {
             for (int ic = 0; ic < jcp.nb_ic; ++ic) {
@@ -70,56 +70,54 @@ void _jit_avx512_mic_s16s16s32_convolution_fwd_t<with_relu>::execute_forward()
                             = nstl::max(jcp.ih, ij + jcp.kh - jcp.t_pad)
                             - jcp.ih;
 
-                    par_conv.src_int16 = par_conv.src_prf_int16;
-                    par_conv.dst_int32 = par_conv.dst_prf_int32;
-                    par_conv.filt_int16 = par_conv.filt_prf_int16;
-                    par_conv.bias_int32 = par_conv.bias_prf_int32;
+                    par_conv.src = par_conv.src_prf;
+                    par_conv.dst = par_conv.dst_prf;
+                    par_conv.filt = par_conv.filt_prf;
+                    par_conv.bias = par_conv.bias_prf;
                     par_conv.current_ic = par_conv.current_ic_prf;
 
                     const int ih = nstl::max(ij - jcp.t_pad, 0);
                     const int oc_b = jcp.nb_oc_blocking * oc;
-                    par_conv.src_prf_int16 = const_cast<data_input_t *>(&src[
-                        src_d.blk_off(n, g * jcp.nb_ic + ic, ih, 0)]);
-                    par_conv.dst_prf_int32 = const_cast<data_output_t *>(&dst[
-                        dst_d.blk_off(n, g * jcp.nb_oc + oc_b, oh, 0)]);
+                    par_conv.src_prf = &src[src_d.blk_off(
+                            n, g * jcp.nb_ic + ic, ih, 0)];
+                    par_conv.dst_prf = &dst[dst_d.blk_off(
+                            n, g * jcp.nb_oc + oc_b, oh, 0)];
                     if (bias)
-                        par_conv.bias_prf_int32
-                            = const_cast<data_output_t *>(&bias[bias_d.blk_off(
-                                    (g * jcp.nb_oc + oc_b) * jcp.oc_block)]);
-                    par_conv.filt_prf_int16 = const_cast<data_input_t *>(
-                            &weights[conf_.with_groups() ?
+                        par_conv.bias_prf = &bias[bias_d.blk_off(
+                                    (g * jcp.nb_oc + oc_b) * jcp.oc_block)];
+                    par_conv.filt_prf = &weights[conf_.with_groups() ?
                                             weights_d.blk_off(g,
                                                 oc_b, ic, i_t_overflow, 0) :
                                             weights_d.blk_off(
-                                                oc_b, ic, i_t_overflow, 0)]);
+                                                oc_b, ic, i_t_overflow, 0)];
                     par_conv.kh_padding = par_conv.kh_padding_prf;
                     par_conv.kh_padding_prf
                             = jcp.kh - i_t_overflow - i_b_overflow;
                     par_conv.kw_padding = 0;
                     par_conv.current_ic_prf = ic;
 
-                    if (par_conv.src_int16 != NULL)
+                    if (par_conv.src != NULL)
                         kernel_->jit_ker(&par_conv);
                 }
             }
             nd_iterator_step(n, jcp.mb, g, jcp.ngroups, oc, oc_dim);
         }
 
-        par_conv.src_int16 = par_conv.src_prf_int16;
-        par_conv.dst_int32 = par_conv.dst_prf_int32;
-        par_conv.filt_int16 = par_conv.filt_prf_int16;
-        par_conv.bias_int32 = par_conv.bias_prf_int32;
+        par_conv.src = par_conv.src_prf;
+        par_conv.dst = par_conv.dst_prf;
+        par_conv.filt = par_conv.filt_prf;
+        par_conv.bias = par_conv.bias_prf;
         par_conv.current_ic = par_conv.current_ic_prf;
 
-        par_conv.src_prf_int16 = NULL;
-        par_conv.dst_prf_int32 = NULL;
-        par_conv.filt_prf_int16 = NULL;
-        par_conv.bias_prf_int32 = NULL;
+        par_conv.src_prf = NULL;
+        par_conv.dst_prf = NULL;
+        par_conv.filt_prf = NULL;
+        par_conv.bias_prf = NULL;
 
         par_conv.kh_padding = par_conv.kh_padding_prf;
         par_conv.kw_padding = 0;
 
-        if (par_conv.src_int16 != NULL)
+        if (par_conv.src != NULL)
             kernel_->jit_ker(&par_conv);
     };
 
