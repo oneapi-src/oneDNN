@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_AVX512_U8S8U8_CONVOLUTION_HPP
-#define CPU_JIT_AVX512_U8S8U8_CONVOLUTION_HPP
+#ifndef CPU_JIT_AVX512_CORE_U8S8U8_CONVOLUTION_HPP
+#define CPU_JIT_AVX512_CORE_U8S8U8_CONVOLUTION_HPP
 
 #include "c_types_map.hpp"
 #include "cpu_convolution_pd.hpp"
@@ -27,10 +27,10 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-struct jit_avx512_u8s8u8_conv_fwd_ker_t;
+struct jit_avx512_core_u8s8u8_conv_fwd_ker_t;
 
 template <bool with_relu>
-struct _jit_avx512_u8s8u8_convolution_fwd_t : public cpu_primitive_t {
+struct _jit_avx512_core_u8s8u8_convolution_fwd_t : public cpu_primitive_t {
     struct pd_t : public _cpu_convolution_fwd_pd_t<with_relu> {
         pd_t(engine_t *engine, const typename pd_t::base_desc_t *adesc,
                 const typename pd_t::base_class *hint_fwd_pd)
@@ -38,7 +38,8 @@ struct _jit_avx512_u8s8u8_convolution_fwd_t : public cpu_primitive_t {
             , jcp_({})
         {}
 
-        DECLARE_COMMON_PD_T(_jit_avx512_u8s8u8_convolution_fwd_t<with_relu>);
+        DECLARE_COMMON_PD_T(
+                _jit_avx512_core_u8s8u8_convolution_fwd_t<with_relu>);
 
         virtual status_t init() override {
             using namespace prop_kind;
@@ -86,9 +87,9 @@ struct _jit_avx512_u8s8u8_convolution_fwd_t : public cpu_primitive_t {
         }
     };
 
-    _jit_avx512_u8s8u8_convolution_fwd_t(const pd_t *pd,
+    _jit_avx512_core_u8s8u8_convolution_fwd_t(const pd_t *pd,
             const input_vector &inputs, const output_vector &outputs);
-    ~_jit_avx512_u8s8u8_convolution_fwd_t();
+    ~_jit_avx512_core_u8s8u8_convolution_fwd_t();
 
     typedef typename prec_traits<data_type::u8>::type src_data_t;
     typedef typename prec_traits<data_type::s8>::type wei_data_t;
@@ -104,15 +105,15 @@ private:
     void execute_forward();
     pd_t conf_;
 
-    jit_avx512_u8s8u8_conv_fwd_ker_t *ker_;
+    jit_avx512_core_u8s8u8_conv_fwd_ker_t *ker_;
     size_t ws_per_thread_;
     acc_data_t *ws_;
 };
 
-using jit_avx512_u8s8u8_convolution_fwd_t
-        = _jit_avx512_u8s8u8_convolution_fwd_t<false>;
-using jit_avx512_u8s8u8_convolution_relu_t
-        = _jit_avx512_u8s8u8_convolution_fwd_t<true>;
+using jit_avx512_core_u8s8u8_convolution_fwd_t
+        = _jit_avx512_core_u8s8u8_convolution_fwd_t<false>;
+using jit_avx512_core_u8s8u8_convolution_relu_t
+        = _jit_avx512_core_u8s8u8_convolution_fwd_t<true>;
 
 }
 }

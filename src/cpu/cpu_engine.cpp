@@ -28,7 +28,7 @@
 #include "cpu/jit_avx2_1x1_convolution.hpp"
 #include "cpu/jit_sse42_1x1_convolution.hpp"
 #include "cpu/jit_avx2_convolution.hpp"
-#include "cpu/jit_avx512_u8s8u8_convolution.hpp"
+#include "cpu/jit_avx512_core_u8s8u8_convolution.hpp"
 #include "cpu/jit_sse42_convolution.hpp"
 #include "cpu/gemm_convolution.hpp"
 #include "cpu/ref_convolution.hpp"
@@ -179,7 +179,7 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(ref_convolution_bwd_weights_t<data_type::f32>),
     /* conv (int) */
     INSTANCE(jit_avx512_mic_s16s16s32_convolution_fwd_t),
-    INSTANCE(jit_avx512_u8s8u8_convolution_fwd_t),
+    INSTANCE(jit_avx512_core_u8s8u8_convolution_fwd_t),
     INSTANCE(ref_convolution_fwd_t<data_type::u8, data_type::s8,
             data_type::s32, data_type::u8>),
     INSTANCE(ref_convolution_fwd_t<data_type::s16,data_type::s16,
@@ -262,7 +262,7 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(jit_avx2_gemm_convolution_relu_t),
     INSTANCE(ref_convolution_relu_t<data_type::f32>),
     /* conv_relu (int) */
-    INSTANCE(jit_avx512_u8s8u8_convolution_relu_t),
+    INSTANCE(jit_avx512_core_u8s8u8_convolution_relu_t),
     INSTANCE(ref_convolution_relu_t<data_type::s16, data_type::s16,
             data_type::s32, data_type::s32>),
     INSTANCE(ref_convolution_relu_t<data_type::u8, data_type::s8,

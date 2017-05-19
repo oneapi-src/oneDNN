@@ -23,7 +23,7 @@
 
 #include "jit_generator.hpp"
 
-#include "jit_avx512_u8s8u8_convolution.hpp"
+#include "jit_avx512_core_u8s8u8_convolution.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -35,11 +35,11 @@ using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::utils;
 
-struct jit_avx512_u8s8u8_conv_fwd_ker_t: public jit_generator {
-    typedef jit_avx512_u8s8u8_convolution_fwd_t::src_data_t src_data_t;
-    typedef jit_avx512_u8s8u8_convolution_fwd_t::wei_data_t wei_data_t;
-    typedef jit_avx512_u8s8u8_convolution_fwd_t::acc_data_t acc_data_t;
-    typedef jit_avx512_u8s8u8_convolution_fwd_t::dst_data_t dst_data_t;
+struct jit_avx512_core_u8s8u8_conv_fwd_ker_t: public jit_generator {
+    typedef jit_avx512_core_u8s8u8_convolution_fwd_t::src_data_t src_data_t;
+    typedef jit_avx512_core_u8s8u8_convolution_fwd_t::wei_data_t wei_data_t;
+    typedef jit_avx512_core_u8s8u8_convolution_fwd_t::acc_data_t acc_data_t;
+    typedef jit_avx512_core_u8s8u8_convolution_fwd_t::dst_data_t dst_data_t;
 
     enum { STATE_LOAD_DST_U8 = 0x1U };
 
@@ -70,7 +70,8 @@ struct jit_avx512_u8s8u8_conv_fwd_ker_t: public jit_generator {
     Reg64 reg_ptr_dst_u8 = r14;
     Reg64 reg_ptr_dst_s32 = r15;
 
-    Zmm vreg_src_u8 = zmm30;
+    Zmm vreg_src_u8 = zmm29;
+    Zmm vreg_zero = zmm30;
     Zmm vreg_one_s16 = zmm31;
 
     int id_vreg_dst(int o) {
@@ -98,7 +99,7 @@ struct jit_avx512_u8s8u8_conv_fwd_ker_t: public jit_generator {
     void compute_ow_oc_block();
     void generate();
 
-    jit_avx512_u8s8u8_conv_fwd_ker_t(const jit_conv_conf_t &c): c_(c) {
+    jit_avx512_core_u8s8u8_conv_fwd_ker_t(const jit_conv_conf_t &c): c_(c) {
         generate();
         ker_ = reinterpret_cast<decltype(ker_)>(const_cast<uint8_t*>(
                         getCode()));
@@ -110,7 +111,7 @@ struct jit_avx512_u8s8u8_conv_fwd_ker_t: public jit_generator {
             double negative_slope);
 };
 
-void jit_avx512_u8s8u8_conv_fwd_ker_t::load_wei_s8() {
+void jit_avx512_core_u8s8u8_conv_fwd_ker_t::load_wei_s8() {
     assert(c_.oc_block * c_.ic_block * sizeof(wei_data_t)
             == cpu_isa_traits<avx512_mic>::vlen);
     for (int ic_b1 = 0; ic_b1 < c_.ic_nb1; ++ic_b1) {
@@ -122,19 +123,19 @@ void jit_avx512_u8s8u8_conv_fwd_ker_t::load_wei_s8() {
     }
 }
 
-void jit_avx512_u8s8u8_conv_fwd_ker_t::load_dst_s32(int ur_ow) {
+void jit_avx512_core_u8s8u8_conv_fwd_ker_t::load_dst_s32(int ur_ow) {
     using namespace data_type;
 
-    Label l_load_s8, l_ret;
+    Label l_load_u8, l_ret;
     test(reg_state, STATE_LOAD_DST_U8);
-    jne(l_load_s8, T_NEAR);
+    jne(l_load_u8, T_NEAR);
 
     for (int o = 0; o < ur_ow; ++o)
         vmovups(vreg_dst_s32(o), ptr[reg_ptr_dst_s32 + reg_off_dst_s32
                 + o * c_.oc_block * sizeof(acc_data_t)]);
     jmp(l_ret, T_NEAR);
 
-    L(l_load_s8);
+    L(l_load_u8);
     if (c_.with_bias) {
         switch (c_.bia_dt) {
             case s8: vpmovsxbd(vreg_dst_s32(0), ptr[reg_ptr_bia_c8]); break;
@@ -152,11 +153,11 @@ void jit_avx512_u8s8u8_conv_fwd_ker_t::load_dst_s32(int ur_ow) {
     L(l_ret);
 }
 
-void jit_avx512_u8s8u8_conv_fwd_ker_t::store_dst(int ur_ow) {
-    Label l_store_s8, l_ret;
+void jit_avx512_core_u8s8u8_conv_fwd_ker_t::store_dst(int ur_ow) {
+    Label l_store_u8, l_ret;
 
     add(reg_ic_b2, reg_kh); /* non-destructive check on 0 */
-    je(l_store_s8, T_NEAR); /* jump if ic_b2 == 0 && kh == 0 */
+    je(l_store_u8, T_NEAR); /* jump if ic_b2 == 0 && kh == 0 */
 
     sub(reg_ic_b2, reg_kh); /* recover reg_ic_b2 */
 
@@ -166,9 +167,10 @@ void jit_avx512_u8s8u8_conv_fwd_ker_t::store_dst(int ur_ow) {
 
     jmp(l_ret, T_NEAR);
 
-    L(l_store_s8);
+    L(l_store_u8);
     for (int o = 0; o < ur_ow; ++o) {
         const int r = id_vreg_dst(o);
+        vpmaxsd(Zmm(r), vreg_zero, Zmm(r));
         vpmovusdb(Xmm(r), Zmm(r));
         vmovups(ptr[reg_ptr_dst_u8 + reg_off_dst_u8
                 + o * c_.ngroups * c_.oc * sizeof(dst_data_t)], Xmm(r));
@@ -179,20 +181,20 @@ void jit_avx512_u8s8u8_conv_fwd_ker_t::store_dst(int ur_ow) {
 }
 
 /** computes:
- *      i_s8 [ic_nb1]         [4i]
+ *      i_u8 [ic_nb1]         [4i]
  * (*)  w_s8 [ic_nb1][kw][16o][4i]
  * (+=) --------------------------
  *      o_s32            [16o]
  *
  * parameters:
- *   i_s8 = input[reg_ptr_src_u8 + reg_off_src_u8 + width:iw_off]
+ *   i_u8 = input[reg_ptr_src_u8 + reg_off_src_u8 + width:iw_off]
  *   w_s8 = weights[width:k]
  *
  * assumptions:
  *   ic_block == 4i
  *   oc_block == 16o
  */
-void jit_avx512_u8s8u8_conv_fwd_ker_t::compute(int o, int iw_off, int k) {
+void jit_avx512_core_u8s8u8_conv_fwd_ker_t::compute(int o, int iw_off, int k) {
     assert(0 <= k && k < c_.kw);
     assert(0 <= o && o < c_.ur_ow_max);
 
@@ -215,19 +217,18 @@ void jit_avx512_u8s8u8_conv_fwd_ker_t::compute(int o, int iw_off, int k) {
 }
 
 /** computes:
- *  i_s8 [~ur_ow~][-ic_nb2][ic_nb1]         [4i] (*)
+ *  i_u8 [~ur_ow~][-ic_nb2][ic_nb1]         [4i] (*)
  *  w_s8                   [ic_nb1][kw][16o][4i]
  * o_s32 [ ur_ow ]                     [16o]
  *
  * with no reduction over ic_nb2
  */
-void jit_avx512_u8s8u8_conv_fwd_ker_t::compute_part_ur_ow_oc_block(int ur_ow,
-        int iw_start) {
+void jit_avx512_core_u8s8u8_conv_fwd_ker_t::compute_part_ur_ow_oc_block(
+        int ur_ow, int iw_start) {
     Label l_iw_0;
 
-    if (c_.l_pad) {
-        /* handle left padding
-         * caution: check only at the first iteration, see [a1] */
+    if (c_.l_pad && iw_start == 0) {
+        /* [r1]: left padding handling happens only at the first iteration */
         test(reg_off_src_u8, reg_off_src_u8);
         je(l_iw_0, T_NEAR);
     }
@@ -256,16 +257,16 @@ void jit_avx512_u8s8u8_conv_fwd_ker_t::compute_part_ur_ow_oc_block(int ur_ow,
 }
 
 /** computes:
- *  i_s8 [~ow~][-ic_nb2][ic_nb1]         [4i] (*)
+ *  i_u8 [~ow~][-ic_nb2][ic_nb1]         [4i] (*)
  *  w_s8       [-ic_nb2][ic_nb1][kw][16o][4i]
  * --------------------------------------------
  * o_s32 [ ow ]                     [16o]     (cast)
  * --------------------------------------------
- *  o_s8 [ ow ]                     [16o]
+ *  o_u8 [ ow ]                     [16o]
  *
  * with no reduction over ic_nb2
  */
-void jit_avx512_u8s8u8_conv_fwd_ker_t::compute_part_ow_oc_block() {
+void jit_avx512_core_u8s8u8_conv_fwd_ker_t::compute_part_ow_oc_block() {
     const int ow_tail_start = c_.ur_ow_nsteps * c_.ur_ow;
     const int iw_tail_start = ow_tail_start * c_.stride_w;
 
@@ -278,22 +279,25 @@ void jit_avx512_u8s8u8_conv_fwd_ker_t::compute_part_ow_oc_block() {
     Label l_ur_ow_step;
     L(l_ur_ow_step); {
         load_dst_s32(c_.ur_ow);
-        compute_part_ur_ow_oc_block(c_.ur_ow, 0); /* [a1] */
-        store_dst(c_.ur_ow); // also increase reg_off_dst_s{8,32}
+        compute_part_ur_ow_oc_block(c_.ur_ow, 0); /* see [r1] */
+        store_dst(c_.ur_ow); /* also increases reg_off_dst_u8 */
 
-        const int step_src_u8 = c_.ur_ow * c_.stride_w * c_.ic;
+        const int step_src_u8 = c_.ur_ow * c_.stride_w * c_.ngroups * c_.ic;
         const int step_dst_s32 = c_.ur_ow * c_.oc_block;
 
         add(reg_off_src_u8, step_src_u8 * sizeof(src_data_t));
         add(reg_off_dst_s32, step_dst_s32 * sizeof(acc_data_t));
-        // increasing reg_off_dst_u8 happens inside store_dst at the last store
+        /* increasing reg_off_dst_u8 happens inside store_dst() */
 
         cmp(reg_off_dst_s32, ow_tail_start * c_.oc_block * sizeof(acc_data_t));
         jne(l_ur_ow_step, T_NEAR);
     }
 
-    if (ow_tail_start == c_.ow)
+    if (c_.ur_ow_tail == 0)
         return;
+
+    /* tail ur_ow_tail processing and/or handling right padding
+     * [r2]: only this part of the kernel handles right padding */
 
     load_dst_s32(c_.ur_ow_tail);
     compute_part_ur_ow_oc_block(c_.ur_ow_tail, iw_tail_start);
@@ -301,17 +305,22 @@ void jit_avx512_u8s8u8_conv_fwd_ker_t::compute_part_ow_oc_block() {
 }
 
 /** computes:
- *  i_s8 [~ow~][ic_nb2][ic_nb1]         [4i] (*)
+ *  i_u8 [~ow~][ic_nb2][ic_nb1]         [4i] (*)
  *  w_s8       [ic_nb2][ic_nb1][kw][16o][4i]
  * --------------------------------------------
  * o_s32 [ ow ]                    [16o]     (cast)
  * --------------------------------------------
- *  o_s8 [ ow ]                    [16o]
+ *  o_u8 [ ow ]                    [16o]
  *
  * with reduction over ic_nb2
  */
-void jit_avx512_u8s8u8_conv_fwd_ker_t::compute_ow_oc_block() {
+void jit_avx512_core_u8s8u8_conv_fwd_ker_t::compute_ow_oc_block() {
     Label l_kh, l_ic_b2;
+
+    Reg16 reg_tmp = reg_ic_b2.cvt16();
+    mov(reg_tmp, 0x1);
+    vpbroadcastw(vreg_one_s16, reg_tmp);
+    vpxord(vreg_zero, vreg_zero, vreg_zero);
 
     xor_(reg_state, reg_state);
     or_(reg_state, STATE_LOAD_DST_U8);
@@ -344,7 +353,7 @@ void jit_avx512_u8s8u8_conv_fwd_ker_t::compute_ow_oc_block() {
     }
 }
 
-void jit_avx512_u8s8u8_conv_fwd_ker_t::generate() {
+void jit_avx512_core_u8s8u8_conv_fwd_ker_t::generate() {
     preamble();
 
 #   define READ_PARAM(reg, field) \
@@ -357,16 +366,12 @@ void jit_avx512_u8s8u8_conv_fwd_ker_t::generate() {
     READ_PARAM(reg_kh, kh_range);
 #   undef READ_PARAM
 
-    Reg16 reg_tmp = reg_ic_b2.cvt16();
-    mov(reg_tmp, 0x1);
-    vpbroadcastw(vreg_one_s16, reg_tmp);
-
     compute_ow_oc_block();
 
     postamble();
 }
 
-status_t jit_avx512_u8s8u8_conv_fwd_ker_t::init_conf(jit_conv_conf_t &c,
+status_t jit_avx512_core_u8s8u8_conv_fwd_ker_t::init_conf(jit_conv_conf_t &c,
         const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &wei_d, const memory_desc_wrapper &dst_d,
         bool with_relu, double negative_slope) {
@@ -386,7 +391,9 @@ status_t jit_avx512_u8s8u8_conv_fwd_ker_t::init_conf(jit_conv_conf_t &c,
     c.kh = wei_d.dims()[with_groups + 2];
     c.kw = wei_d.dims()[with_groups + 3];
     c.t_pad = cd.padding[0][0];
+    c.b_pad = cd.padding[1][0];
     c.l_pad = cd.padding[0][1];
+    c.r_pad = cd.padding[1][1];
     c.stride_h = cd.strides[0];
     c.stride_w = cd.strides[1];
     c.src_fmt = src_d.format();
@@ -415,18 +422,52 @@ status_t jit_avx512_u8s8u8_conv_fwd_ker_t::init_conf(jit_conv_conf_t &c,
     c.ic_nb2 = ic_nb / c.ic_nb1;
 
     const int nregs = cpu_isa_traits<avx512_core>::n_vregs;
-    const int nregs_aux = 2; // 1_s16, src_u8
+    const int nregs_aux = 3; // src_u8, 0, 1_s16
     const int nregs_wei = c.ic_nb1 * c.kw;
 
     assert(nregs_wei + nregs_aux < nregs);
 
     c.ur_ow_max = nregs - nregs_wei - nregs_aux;
 
-    c.ur_ow = nstl::min(c.ow, c.ur_ow_max);
-    c.ur_ow_nsteps = c.ow / c.ur_ow;
+    /* ideally it would be great to have:
+     *
+     * c.ur_ow = nstl::min(c.ow, c.ur_ow_max);
+     * c.ur_ow_nsteps = c.ow / c.ur_ow;
+     * c.ur_ow_tail = c.ow - c.ur_ow_nsteps * c.ur_ow;
+     *
+     * but due to the restriction [r2] we need to call `separate` kernel to
+     * handle right padding.
+     */
+    for (c.ur_ow = nstl::min(c.ow, c.ur_ow_max); c.ur_ow > 0; --c.ur_ow) {
+        c.ur_ow_nsteps = c.ow / c.ur_ow;
+
+        if (c.r_pad == 0)
+            /* nothing special if there is no right padding */
+            break;
+
+        if (c.ur_ow_nsteps * c.ur_ow == c.ow) {
+            if (c.ur_ow != c.ow) {
+                /* to handle right padding special part of the kernel is used
+                 * see [r2] */
+                assert(c.r_pad != 0);
+                assert(c.ur_ow_nsteps > 1);
+                --c.ur_ow_nsteps;
+            }
+            break;
+        }
+
+        /* check whether last non-tail processing kernel has to deal with right
+         * padding. */
+        const int input_right_edge
+            = (c.ur_ow * c.ur_ow_nsteps - 1) * c.stride_w - c.l_pad + c.kw - 1;
+        /* if it has not -- we are fine.
+         * if it has to -- try next ur_ow (again, see [r2]) */
+        if (input_right_edge < c.iw)
+            break;
+    }
     c.ur_ow_tail = c.ow - c.ur_ow_nsteps * c.ur_ow;
 
-    assert(c.ur_ow * c.stride_w >= c.l_pad); /* [a1] */
+    assert(c.ur_ow * c.stride_w >= c.l_pad); /* see [r1] */
 
     assert(c.ur_ow <= c.ur_ow_max && c.ur_ow_tail <= c.ur_ow_max);
     assert(c.ur_ow * c.ur_ow_nsteps + c.ur_ow_tail == c.ow);
@@ -437,19 +478,20 @@ status_t jit_avx512_u8s8u8_conv_fwd_ker_t::init_conf(jit_conv_conf_t &c,
 /*****************************************************************************/
 
 template <bool with_relu>
-status_t _jit_avx512_u8s8u8_convolution_fwd_t<with_relu>::pd_t::jit_conf() {
-    return jit_avx512_u8s8u8_conv_fwd_ker_t::init_conf(jcp_, this->cdesc_(),
-            *this->src_pd_.desc(), *this->weights_pd_.desc(),
+status_t _jit_avx512_core_u8s8u8_convolution_fwd_t<with_relu>::pd_t::jit_conf()
+{
+    return jit_avx512_core_u8s8u8_conv_fwd_ker_t::init_conf(jcp_,
+            this->cdesc_(), *this->src_pd_.desc(), *this->weights_pd_.desc(),
             *this->dst_pd_.desc(), with_relu, this->negative_slope());
 }
 
 template <bool with_relu>
-_jit_avx512_u8s8u8_convolution_fwd_t<with_relu>::
-_jit_avx512_u8s8u8_convolution_fwd_t(const pd_t *pd,
+_jit_avx512_core_u8s8u8_convolution_fwd_t<with_relu>::
+_jit_avx512_core_u8s8u8_convolution_fwd_t(const pd_t *pd,
         const input_vector &inputs, const output_vector &outputs)
     : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd), ker_(nullptr)
     , ws_(nullptr) {
-    ker_ = new jit_avx512_u8s8u8_conv_fwd_ker_t(conf_.jcp_);
+    ker_ = new jit_avx512_core_u8s8u8_conv_fwd_ker_t(conf_.jcp_);
 
     const int nthreads = omp_get_max_threads();
     ws_per_thread_ = conf_.jcp_.ow * conf_.jcp_.oc_block;
@@ -458,11 +500,11 @@ _jit_avx512_u8s8u8_convolution_fwd_t(const pd_t *pd,
 }
 
 template <bool with_relu>
-_jit_avx512_u8s8u8_convolution_fwd_t<with_relu>::
-~_jit_avx512_u8s8u8_convolution_fwd_t() { delete ker_; free(ws_); }
+_jit_avx512_core_u8s8u8_convolution_fwd_t<with_relu>::
+~_jit_avx512_core_u8s8u8_convolution_fwd_t() { delete ker_; free(ws_); }
 
 template <bool with_relu>
-void _jit_avx512_u8s8u8_convolution_fwd_t<with_relu>::execute_forward() {
+void _jit_avx512_core_u8s8u8_convolution_fwd_t<with_relu>::execute_forward() {
     auto src_u8 = reinterpret_cast<const src_data_t *>(input_memory(0));
     auto wei_s8 = reinterpret_cast<const wei_data_t *>(input_memory(1));
     auto bia_c8 = reinterpret_cast<const char *>(input_memory(2));
@@ -495,7 +537,7 @@ void _jit_avx512_u8s8u8_convolution_fwd_t<with_relu>::execute_forward() {
         nd_iterator_init(start, n, c.mb, g, c.ngroups, oh, c.oh, oc_b1,
                 c.oc_nb1);
 
-        jit_avx512_u8s8u8_conv_fwd_ker_t::call_params_t p = {};
+        jit_avx512_core_u8s8u8_conv_fwd_ker_t::call_params_t p = {};
         p.dst_s32 = ws_ + ithr * ws_per_thread_;
 
         for (int iwork = start; iwork < end; ++iwork) {
@@ -530,8 +572,8 @@ void _jit_avx512_u8s8u8_convolution_fwd_t<with_relu>::execute_forward() {
     }
 }
 
-template struct _jit_avx512_u8s8u8_convolution_fwd_t<true>;
-template struct _jit_avx512_u8s8u8_convolution_fwd_t<false>;
+template struct _jit_avx512_core_u8s8u8_convolution_fwd_t<true>;
+template struct _jit_avx512_core_u8s8u8_convolution_fwd_t<false>;
 
 }
 }
