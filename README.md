@@ -17,6 +17,10 @@ This release contains a range of performance critical functions used in modern
 image recognition topologies including Cifar\*, AlexNet\*, VGG\*, 
 GoogleNet\* and ResNet\* optimized for wide range of Intel processors.
 
+Functionality related to integer data types `s16s16s32` and `u8s8u8` included
+in this release is experimental and might change without prior notification in
+future releases.
+
 ## License
 Intel MKL-DNN is licensed under
 [Apache License Version 2.0](http://www.apache.org/licenses/LICENSE-2.0).
