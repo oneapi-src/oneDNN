@@ -434,6 +434,33 @@ public:
         ) : Xbyak::CodeGenerator(code_size, code_ptr)
     {
     }
+
+    // XXX: use normal_case name and update all callees (?)
+    const Xbyak::uint8 *getCode() {
+        const Xbyak::uint8 *code = CodeGenerator::getCode();
+#ifdef CPU_ENABLE_JIT_DUMP
+        if (!code)
+            return 0;
+
+        // TODO (Roma): add a virtual name() function that would used to -
+        // notify profiles like vtune about generated code - generate a
+        // meaningful file name
+
+        FILE *fp = fopen("mkldnn_jit_dump.bin", "w+");
+        // XXX: Failure to dump code is not fatal (?)
+        if (!fp)
+            return code;
+
+        fwrite(code, getSize(), 1, fp);
+        fclose(fp);
+#endif
+        return code;
+    };
+
+    template<typename F> const F getCode() {
+        // XXX (Roma): Xbyak code probably has a bug here
+        return (const F)getCode();
+    }
 };
 
 }
