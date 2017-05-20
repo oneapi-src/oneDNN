@@ -45,15 +45,24 @@ void _jit_avx512_common_convolution_fwd_t<with_relu>::execute_forward()
 
     const auto &jcp = kernel_->jcp;
 
-    auto ker = [&](const int ithr, const int nthr) {
+#   pragma omp parallel
+    {
+        const int ithr = omp_get_thread_num(), nthr = omp_get_num_threads();
+
         size_t start{0}, end{0};
-        const int oc_dim = jcp.nb_oc / jcp.nb_oc_blocking;
-        const size_t work_amount = jcp.mb * jcp.ngroups * oc_dim;
-        size_t n{0}, g{0}, oc{0};
+        assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
+        const int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
+        const size_t work_amount = jcp.mb * jcp.ngroups * oc_chunks;
+        size_t n{0}, g{0}, occ{0};
         jit_conv_call_s par_conv = {};
 
         balance211(work_amount, nthr, ithr, start, end);
-        nd_iterator_init(start, n, jcp.mb, g, jcp.ngroups, oc, oc_dim);
+        if (jcp.loop_order == loop_cgn)
+            nd_iterator_init(start, occ, oc_chunks, g, jcp.ngroups, n, jcp.mb);
+        else if (jcp.loop_order == loop_gnc)
+            nd_iterator_init(start, g, jcp.ngroups, n, jcp.mb, occ, oc_chunks);
+        else
+            assert(!"unsupported loop order");
 
         par_conv.src_prf = NULL;
         par_conv.dst_prf = NULL;
@@ -61,6 +70,7 @@ void _jit_avx512_common_convolution_fwd_t<with_relu>::execute_forward()
         par_conv.bias_prf = NULL;
 
         for (size_t iwork = start; iwork < end; ++iwork) {
+            const size_t oc = occ * jcp.nb_oc_blocking;
             for (int ic = 0; ic < jcp.nb_ic; ++ic) {
                 for (int oh = 0; oh < jcp.oh; ++oh) {
 
@@ -102,7 +112,13 @@ void _jit_avx512_common_convolution_fwd_t<with_relu>::execute_forward()
                         kernel_->jit_ker(&par_conv);
                 }
             }
-            nd_iterator_step(n, jcp.mb, g, jcp.ngroups, oc, oc_dim);
+
+            if (jcp.loop_order == loop_cgn)
+                nd_iterator_step(occ, oc_chunks, g, jcp.ngroups, n, jcp.mb);
+            else if (jcp.loop_order == loop_gnc)
+                nd_iterator_step(g, jcp.ngroups, n, jcp.mb, occ, oc_chunks);
+            else
+                assert(!"unsupported loop order");
         }
 
         par_conv.src = par_conv.src_prf;
@@ -111,21 +127,17 @@ void _jit_avx512_common_convolution_fwd_t<with_relu>::execute_forward()
         par_conv.bias = par_conv.bias_prf;
         par_conv.current_ic = par_conv.current_ic_prf;
 
-        par_conv.src_prf = NULL;
-        par_conv.dst_prf = NULL;
-        par_conv.filt_prf = NULL;
-        par_conv.bias_prf = NULL;
+        par_conv.src_prf = src;
+        par_conv.dst_prf = dst;
+        par_conv.filt_prf = weights;
+        par_conv.bias_prf = bias;
 
         par_conv.kh_padding = par_conv.kh_padding_prf;
         par_conv.kw_padding = 0;
 
         if (par_conv.src != NULL)
             kernel_->jit_ker(&par_conv);
-    };
 
-#   pragma omp parallel
-    {
-        ker(omp_get_thread_num(), omp_get_num_threads());
     }
 }
 template void _jit_avx512_common_convolution_fwd_t<true>::execute_forward();
@@ -144,21 +156,27 @@ void jit_avx512_common_convolution_bwd_data_t::execute_backward_data() {
 
 #   pragma omp parallel
     {
-        const int ithr=omp_get_thread_num(), nthr=omp_get_num_threads();
+        const int ithr = omp_get_thread_num(), nthr = omp_get_num_threads();
 
         size_t start{0}, end{0};
-        size_t n{0}, g{0}, ic{0};
+        size_t n{0}, g{0}, icc{0};
         jit_conv_call_s par_conv = {0};
-        const int ic_dim = jcp.nb_ic/jcp.nb_ic_blocking;
-        const size_t work_amount = jcp.ngroups * jcp.mb * ic_dim;
+        const int ic_chunks = jcp.nb_ic / jcp.nb_ic_blocking;
+        const size_t work_amount = jcp.ngroups * jcp.mb * ic_chunks;
 
         balance211(work_amount, nthr, ithr, start, end);
-        nd_iterator_init(start, g, jcp.ngroups, n, jcp.mb, ic, ic_dim);
+        if (jcp.loop_order == loop_cgn)
+            nd_iterator_init(start, icc, ic_chunks, g, jcp.ngroups, n, jcp.mb);
+        else if (jcp.loop_order == loop_gnc)
+            nd_iterator_init(start, g, jcp.ngroups, n, jcp.mb, icc, ic_chunks);
+        else
+            assert(!"unsupported loop order");
 
         par_conv.src_prf = NULL;
         par_conv.dst_prf = NULL;
         par_conv.filt_prf = NULL;
         for (size_t iwork = start; iwork < end; ++iwork) {
+            const size_t ic = icc * jcp.nb_ic_blocking;
             for (int oc = 0; oc < jcp.nb_oc; ++oc) {
                 for (int ih = 0; ih < jcp.ih; ++ih) {
                     size_t i_t_overflow = nstl::max(0, jcp.kh - 1 - ih
@@ -173,16 +191,13 @@ void jit_avx512_common_convolution_bwd_data_t::execute_backward_data() {
                     par_conv.current_ic = par_conv.current_ic_prf;
 
                     par_conv.src_prf = const_cast<data_t *>(&diff_src[
-                            diff_src_d.blk_off(n, g * ic_dim
-                            + jcp.nb_ic_blocking*ic, ih, 0)]);
+                            diff_src_d.blk_off(n, g * jcp.nb_ic + ic, ih, 0)]);
                     par_conv.dst_prf = const_cast<data_t *>(&diff_dst[
                             diff_dst_d.blk_off(n, g * jcp.nb_oc + oc, oh, 0)]);
                     par_conv.filt_prf = const_cast<data_t *>(&weights[
                             conf_.with_groups()
-                            ? weights_d.blk_off(g, oc,jcp.nb_ic_blocking*ic,
-                              i_b_overflow, 0)
-                            : weights_d.blk_off(oc,jcp.nb_ic_blocking*ic,
-                              i_b_overflow, 0)]);
+                            ? weights_d.blk_off(g, oc, ic, i_b_overflow, 0)
+                            : weights_d.blk_off(oc, ic, i_b_overflow, 0)]);
 
                     par_conv.kh_padding = par_conv.kh_padding_prf;
                     par_conv.kh_padding_prf = jcp.kh - i_t_overflow
@@ -194,7 +209,13 @@ void jit_avx512_common_convolution_bwd_data_t::execute_backward_data() {
                         kernel_->jit_ker(&par_conv);
                 }
             }
-            nd_iterator_step(g, jcp.ngroups, n, jcp.mb, ic, ic_dim);
+
+            if (jcp.loop_order == loop_cgn)
+                nd_iterator_step(icc, ic_chunks, g, jcp.ngroups, n, jcp.mb);
+            else if (jcp.loop_order == loop_gnc)
+                nd_iterator_step(g, jcp.ngroups, n, jcp.mb, icc, ic_chunks);
+            else
+                assert(!"unsupported loop order");
         }
         par_conv.src = par_conv.src_prf;
         par_conv.dst = par_conv.dst_prf;

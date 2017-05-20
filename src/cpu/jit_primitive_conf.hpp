@@ -23,8 +23,13 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
+enum conv_version_t {ver_unused, ver_fma, ver_4fma, ver_4vnni};
+enum conv_loop_order_t {loop_cgn, loop_gnc, loop_ngc};
+
 struct jit_conv_conf_t {
     prop_kind_t prop_kind;
+    conv_version_t ver;
+    conv_loop_order_t loop_order;
 
     int mb;
     int ngroups, ic, oc;
@@ -48,7 +53,6 @@ struct jit_conv_conf_t {
     /* 4vnni */
     size_t typesize_in;
     size_t typesize_out;
-    bool _4vnni;
     /* avx512_u8s8u8 */
     int ic_nb1, ic_nb2;
     int oc_nb1;

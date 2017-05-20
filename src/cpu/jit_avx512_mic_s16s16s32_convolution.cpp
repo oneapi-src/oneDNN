@@ -53,6 +53,7 @@ void _jit_avx512_mic_s16s16s32_convolution_fwd_t<with_relu>::execute_forward()
         jit_conv_call_s par_conv = {};
 
         balance211(work_amount, nthr, ithr, start, end);
+        assert(jcp.loop_order == loop_ngc);
         nd_iterator_init(start, n, jcp.mb, g, jcp.ngroups, oc, oc_dim);
 
         par_conv.src_prf = NULL;

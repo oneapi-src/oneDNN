@@ -132,7 +132,7 @@ struct jit_avx512_common_convolution_bwd_data_t: public cpu_primitive_t {
             assert(this->engine()->kind() == engine_kind::cpu);
             bool ok = true
                 && this->set_default_params() == status::success
-                && utils::one_of(this->desc()->prop_kind, backward_data)
+                && utils::one_of(this->desc()->prop_kind, backward_data) // XXX (this->!)
                 && this->desc()->alg_kind == alg_kind::convolution_direct
                 && utils::everyone_is(data_type::f32,
                         this->desc()->diff_src_desc.data_type,

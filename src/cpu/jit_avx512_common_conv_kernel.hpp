@@ -46,7 +46,10 @@ struct jit_avx512_common_conv_fwd_kernel : public jit_generator {
 
 private:
     using reg64_t = const Xbyak::Reg64;
-    enum { typesize = sizeof(float) };
+    enum {
+        typesize = sizeof(float),
+        ker_reg_base_idx = 28,
+    };
 
     reg64_t param = abi_param1;
     reg64_t reg_inp = r8;
@@ -85,6 +88,17 @@ private:
     reg64_t aux1_reg_inp = rbx;
     reg64_t aux_reg_out = abi_not_param1;
 
+    inline Xbyak::Zmm zmm_ker(int i_ic) {
+        assert(i_ic < 4);
+        return Xbyak::Zmm(ker_reg_base_idx + i_ic);
+    }
+
+    inline Xbyak::Zmm zmm_out(int i_ur, int i_oc) {
+        int idx = i_ur + i_oc * jcp.ur_w;
+        assert(idx < ker_reg_base_idx);
+        return Xbyak::Zmm(idx);
+    }
+
     Xbyak::Zmm zmm_relu_ns = Xbyak::Zmm(30);
     Xbyak::Zmm zmm_zero = Xbyak::Zmm(31);
 
@@ -92,12 +106,13 @@ private:
     inline void store_output(int ur_w);
     inline void compute_loop_fma(int ur_w, int pad_l, int pad_r);
     inline void compute_loop_4vnni(int ur_w, int pad_l, int pad_r);
+    inline void compute_loop_4fma(int ur_w, int pad_l, int pad_r);
     inline void compute_loop(int ur_w, int pad_l, int pad_r);
 
     void generate();
 
     inline void vadd(Xbyak::Zmm zmm, reg64_t reg, int offset)   {
-        if (jcp._4vnni)
+        if (jcp.ver == ver_4vnni)
             vpaddd(zmm, zmm, EVEX_compress_addr(reg, offset));
         else
             vaddps(zmm, zmm, EVEX_compress_addr(reg, offset));
@@ -109,7 +124,7 @@ private:
     }
 
     inline int get_input_offset(int ki, int ic, int oi, int pad_l) {
-        int scale = (jcp._4vnni) ? 2 : 1;
+        int scale = (jcp.ver == ver_4vnni) ? 2 : 1;
         int iw_str = !jcp.is_1stconv ? jcp.ic_block : 1;
         int ic_str = !jcp.is_1stconv ? 1 : jcp.iw * jcp.ih;
         return jcp.typesize_in
@@ -117,7 +132,7 @@ private:
     }
 
     inline int get_kernel_offset(int ki,int ic,int n_oc_block,int ker_number) {
-        int scale = (jcp._4vnni) ? 2 : 1;
+        int scale = (jcp.ver == ver_4vnni) ? 2 : 1;
         return jcp.typesize_in * jcp.oc_block
             * (n_oc_block * jcp.nb_ic * jcp.ic_block * jcp.kh * jcp.kw
                     + (ic + ker_number) * scale + ki * jcp.ic_block);
@@ -152,7 +167,10 @@ struct jit_avx512_common_conv_bwd_data_kernel_f32: public jit_generator {
 
 private:
     using reg64_t = const Xbyak::Reg64;
-    enum { typesize = sizeof(float) };
+    enum {
+        typesize = sizeof(float),
+        ker_reg_base_idx = 28,
+    };
 
     reg64_t param = abi_param1;
     reg64_t reg_dst = r8;
@@ -177,8 +195,21 @@ private:
 
     reg64_t reg_tmp = rbp;
 
+    inline Xbyak::Zmm zmm_ker(int i_ic) {
+        assert(i_ic < 4);
+        return Xbyak::Zmm(ker_reg_base_idx + i_ic);
+    }
+
+    inline Xbyak::Zmm zmm_out(int i_ur, int i_oc) {
+        int idx = i_ur + i_oc * jcp.ur_w;
+        assert(idx < ker_reg_base_idx);
+        return Xbyak::Zmm(idx);
+    }
+
     inline void prepare_output(int ur_w);
     inline void store_output(int ur_w);
+    inline void compute_loop_4fma(int ur_w, int l_overflow, int r_overflow);
+    inline void compute_loop_fma(int ur_w, int l_overflow, int r_overflow);
     inline void compute_loop(int ur_w, int l_overflow, int r_overflow);
     void generate();
 };
