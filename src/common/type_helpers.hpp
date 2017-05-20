@@ -109,10 +109,17 @@ inline data_type_t default_accum_data_type(data_type_t src_dt,
     using namespace utils;
     using namespace data_type;
 
-    if (everyone_is(f32, src_dt, wei_dt, dst_dt)) return f32;
-    if (src_dt == s16 && wei_dt == s16 && dst_dt == s32) return s32;
-    if (one_of(src_dt, s8, u8) && one_of(wei_dt, s8, u8, data_type::undef) &&
-            one_of(dst_dt, s8, u8, data_type::undef)) return s32;
+    if (src_dt == f32 && one_of(wei_dt, f32, data_type::undef)
+            && one_of(dst_dt, f32, data_type::undef))
+        return f32;
+
+    if (src_dt == s16 && one_of(wei_dt, s16, data_type::undef)
+            && one_of(dst_dt, s32, data_type::undef))
+        return s32;
+
+    if (one_of(src_dt, s8, u8) && one_of(wei_dt, s8, u8, data_type::undef)
+            && one_of(dst_dt, s8, u8, data_type::undef))
+        return s32;
 
     assert(!"unimplemented use-case: no default parameters available");
     return dst_dt;

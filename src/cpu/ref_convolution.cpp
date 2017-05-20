@@ -100,6 +100,10 @@ void _ref_convolution_fwd_t<with_relu, src_type, wei_type, acc_type, dst_type>
                             ? get_bias(bias_d.off(g*OC + oc)) : (acc_data_t)0;
                         ker(a, g, mb, oc, oh, ow);
                         if (with_relu && a < (acc_data_t)0) a *= nslope;
+                        if (a < nstl::numeric_limits<dst_data_t>::lowest())
+                            a = nstl::numeric_limits<dst_data_t>::lowest();
+                        if (a > nstl::numeric_limits<dst_data_t>::max())
+                            a = nstl::numeric_limits<dst_data_t>::max();
                         dst[dst_d.off(mb, g*OC + oc, oh, ow)] = (dst_data_t)a;
                     }
                 }
