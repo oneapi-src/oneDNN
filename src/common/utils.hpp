@@ -144,7 +144,7 @@ inline typename remove_reference<T>::type div_up(const T a, const U b) {
 }
 
 template <typename T, typename U>
-inline T rnd_up(const T a, const U b) {
+inline typename remove_reference<T>::type rnd_up(const T a, const U b) {
     return div_up(a, b) * b;
 }
 
