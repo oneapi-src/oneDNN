@@ -395,7 +395,7 @@ struct memory: public primitive  {
             return (rc == 0) ? (char*)ptr : nullptr;
         };
         auto _free = [](char* p) { ::free((void*)p); };
-        _handle.reset(_malloc(adesc.get_size(), 64), _free);
+        _handle.reset(_malloc(adesc.get_size(), 4096), _free);
         set_data_handle(_handle.get());
     }
 
