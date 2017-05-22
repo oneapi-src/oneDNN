@@ -122,8 +122,15 @@ protected:
         auto dst_ref = memory({c_dst_desc, eng});
 
         fill_data<data_t>(c_src.get_primitive_desc().get_size()
-                / sizeof(data_t), (data_t *)c_src.get_data_handle(),
-                1., true);
+                / sizeof(data_t), (data_t *)c_src.get_data_handle());
+        // TODO: Temporary workaround for testing of convolution + relu
+        data_t *src_data = (data_t *)c_src.get_data_handle();
+        const int mb_chunk =
+            (c_src.get_primitive_desc().get_size() / sizeof(data_t))
+            / cd.mb;
+        for (int i = 0; i < cd.mb * mb_chunk; ++i) {
+            if ((i / mb_chunk) % 2) src_data[i] *= -1.;
+        }
 
         fill_data<data_t>(
                 c_weights.get_primitive_desc().get_size()

@@ -77,6 +77,16 @@ void jit_avx512_common_conv_fwd_kernel::store_output(int ur_w)
     L(relu_label);
     if (jcp.with_relu) {
         // TODO: Not supported for int16->int32 convolution
+        if (!jcp._4vnni) {
+            vpxord(zmm_zero, zmm_zero, zmm_zero);
+            if (jcp.relu_negative_slope == 0) {
+                zmm_relu_ns = zmm_zero;
+            } else {
+                mov(reg_relu_ns,
+                    reinterpret_cast<size_t>(&jcp.relu_negative_slope));
+                vbroadcastss(zmm_relu_ns, ptr[reg_relu_ns]);
+            }
+        }
         cmp(reg_current_ic, jcp.nb_ic-1);
         jl(store_label, T_NEAR);
         const unsigned char _cmp_lt_os = 1;
@@ -319,14 +329,8 @@ void jit_avx512_common_conv_fwd_kernel::generate()
     mov(reg_out, ptr[this->param1 + GET_OFF(dst)]);
     mov(reg_ker, ptr[this->param1 + GET_OFF(filt)]);
     mov(reg_ker_prf, ptr[this->param1 + GET_OFF(filt_prf)]);
-
     mov(reg_kh, ptr[this->param1 + GET_OFF(kh_padding)]);
 
-    if (!jcp._4vnni) {
-        mov(reg_relu_ns, reinterpret_cast<size_t>(&jcp.relu_negative_slope));
-        vbroadcastss(zmm_relu_ns, ptr[reg_relu_ns]);
-        vpxord(zmm_zero, zmm_zero, zmm_zero);
-    }
     int r_pad = nstl::max(0, (ow - 1) * stride_w + (kw - 1) - (iw + l_pad - 1));
     if (ow == ur_w) {
         mov(reg_inp_prf, ptr[this->param1 + GET_OFF(src_prf)]);
