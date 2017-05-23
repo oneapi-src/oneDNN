@@ -196,7 +196,7 @@ template <> struct handle_traits<c_api::mkldnn_engine_t> {
 /// An execution engine.
 struct engine: public handle<c_api::mkldnn_engine_t> {
     friend class primitive;
-    using handle::handle;
+    /// gcc bug??? using handle::handle;
 
     /// Kinds of engines
     enum kind {
@@ -246,6 +246,41 @@ private:
 template <> struct handle_traits<c_api::mkldnn_primitive_desc_t> {
     static constexpr auto destructor = &c_api::mkldnn_primitive_desc_destroy;
 };
+enum query {
+    undef = c_api::mkldnn_query_undef,
+
+    eengine = c_api::mkldnn_query_engine,
+    primitive_kind = c_api::mkldnn_query_primitive_kind,
+
+    num_of_inputs_s32 = c_api::mkldnn_query_num_of_inputs_s32,
+    num_of_outputs_s32 = c_api::mkldnn_query_num_of_outputs_s32,
+
+    time_estimate_f64 = c_api::mkldnn_query_time_estimate_f64,
+    memory_consumption_s64 = c_api::mkldnn_query_memory_consumption_s64,
+
+    memory_d = c_api::mkldnn_query_memory_d,
+    convolution_d = c_api::mkldnn_query_convolution_d,
+    relu_d = c_api::mkldnn_query_relu_d,
+    softmax_d = c_api::mkldnn_query_softmax_d,
+    pooling_d = c_api::mkldnn_query_pooling_d,
+    lrn_d = c_api::mkldnn_query_lrn_d,
+    batch_normalization_d = c_api::mkldnn_query_batch_normalization_d,
+    inner_product_d = c_api::mkldnn_query_inner_product_d,
+    convolution_relu_d = c_api::mkldnn_query_convolution_relu_d,
+
+    input_pd = c_api::mkldnn_query_input_pd,
+    output_pd = c_api::mkldnn_query_output_pd,
+    src_pd = c_api::mkldnn_query_src_pd,
+    diff_src_pd = c_api::mkldnn_query_diff_src_pd,
+    weights_pd = c_api::mkldnn_query_weights_pd,
+    diff_weights_pd = c_api::mkldnn_query_diff_weights_pd,
+    dst_pd = c_api::mkldnn_query_dst_pd,
+    diff_dst_pd = c_api::mkldnn_query_diff_dst_pd,
+    workspace_pd = c_api::mkldnn_query_workspace_pd,
+};
+inline c_api::mkldnn_query_t convert_to_c(query aquery) {
+    return static_cast<c_api::mkldnn_query_t>(aquery);
+}
 
 /// Memory primitive that describes the data.
 struct memory: public primitive  {
@@ -352,6 +387,16 @@ struct memory: public primitive  {
             reset(result);
         }
 
+        engine get_engine() {
+          c_api::mkldnn_engine_t engine_q;
+          error::wrap_c_api(
+              c_api::mkldnn_primitive_desc_query(this->get(),
+                mkldnn::convert_to_c(query::eengine), 0, &engine_q),
+              "could not get engine from primitive_desc");
+
+          return engine(engine_q);
+        }
+
         /// Returns the memory primitive descriptor.
         memory::desc desc() {
             auto memory_d = mkldnn_primitive_desc_query_memory_d(get());
@@ -442,42 +487,6 @@ struct memory: public primitive  {
 
 };
 
-enum query {
-    undef = c_api::mkldnn_query_undef,
-
-    eengine = c_api::mkldnn_query_engine,
-    primitive_kind = c_api::mkldnn_query_primitive_kind,
-
-    num_of_inputs_s32 = c_api::mkldnn_query_num_of_inputs_s32,
-    num_of_outputs_s32 = c_api::mkldnn_query_num_of_outputs_s32,
-
-    time_estimate_f64 = c_api::mkldnn_query_time_estimate_f64,
-    memory_consumption_s64 = c_api::mkldnn_query_memory_consumption_s64,
-
-    memory_d = c_api::mkldnn_query_memory_d,
-    convolution_d = c_api::mkldnn_query_convolution_d,
-    relu_d = c_api::mkldnn_query_relu_d,
-    softmax_d = c_api::mkldnn_query_softmax_d,
-    pooling_d = c_api::mkldnn_query_pooling_d,
-    lrn_d = c_api::mkldnn_query_lrn_d,
-    batch_normalization_d = c_api::mkldnn_query_batch_normalization_d,
-    inner_product_d = c_api::mkldnn_query_inner_product_d,
-    convolution_relu_d = c_api::mkldnn_query_convolution_relu_d,
-
-    input_pd = c_api::mkldnn_query_input_pd,
-    output_pd = c_api::mkldnn_query_output_pd,
-    src_pd = c_api::mkldnn_query_src_pd,
-    diff_src_pd = c_api::mkldnn_query_diff_src_pd,
-    weights_pd = c_api::mkldnn_query_weights_pd,
-    diff_weights_pd = c_api::mkldnn_query_diff_weights_pd,
-    dst_pd = c_api::mkldnn_query_dst_pd,
-    diff_dst_pd = c_api::mkldnn_query_diff_dst_pd,
-    workspace_pd = c_api::mkldnn_query_workspace_pd,
-};
-inline c_api::mkldnn_query_t convert_to_c(query aquery) {
-    return static_cast<c_api::mkldnn_query_t>(aquery);
-}
-
 enum padding_kind {
     zero = c_api::mkldnn_padding_zero
 };
@@ -528,6 +537,15 @@ struct reorder : public primitive {
                         &result, input.get(), output.get()),
                     "could not create a reorder primitive descriptor");
             reset(result);
+        }
+        engine get_engine() {
+          c_api::mkldnn_engine_t engine_q;
+          error::wrap_c_api(
+              c_api::mkldnn_primitive_desc_query(this->get(),
+                mkldnn::convert_to_c(query::eengine), 0, &engine_q),
+              "could not get engine from primitive_desc");
+
+          return engine(engine_q);
         }
     };
 
@@ -581,6 +599,16 @@ struct view : public primitive {
                     "could not clone a dst primitive descriptor");
             adesc.reset(cdesc);
             return adesc;
+        }
+
+        engine get_engine() {
+          c_api::mkldnn_engine_t engine_q;
+          error::wrap_c_api(
+              c_api::mkldnn_primitive_desc_query(this->get(),
+                mkldnn::convert_to_c(query::eengine), 0, &engine_q),
+              "could not get engine from primitive_desc");
+
+          return engine(engine_q);
         }
     };
 
@@ -655,6 +683,15 @@ struct concat : public primitive {
             return adesc;
         }
 
+        engine get_engine() {
+          c_api::mkldnn_engine_t engine_q;
+          error::wrap_c_api(
+              c_api::mkldnn_primitive_desc_query(this->get(),
+                mkldnn::convert_to_c(query::eengine), 0, &engine_q),
+              "could not get engine from primitive_desc");
+
+          return engine(engine_q);
+        }
     };
 
     concat(const primitive_desc &concat_pd,
@@ -724,6 +761,15 @@ struct sum : public primitive {
             return adesc;
         }
 
+        engine get_engine() {
+          c_api::mkldnn_engine_t engine_q;
+          error::wrap_c_api(
+              c_api::mkldnn_primitive_desc_query(this->get(),
+                mkldnn::convert_to_c(query::eengine), 0, &engine_q),
+              "could not get engine from primitive_desc");
+
+          return engine(engine_q);
+        }
     };
 
     sum(const primitive_desc &sum_pd,
@@ -914,6 +960,16 @@ struct convolution_forward: public primitive {
             adesc.reset(cdesc);
             return adesc;
         }
+
+        engine get_engine() {
+          c_api::mkldnn_engine_t engine_q;
+          error::wrap_c_api(
+              c_api::mkldnn_primitive_desc_query(this->get(),
+                mkldnn::convert_to_c(query::eengine), 0, &engine_q),
+              "could not get engine from primitive_desc");
+
+          return engine(engine_q);
+        }
     };
 
     convolution_forward(const primitive_desc &aprimitive_desc,
@@ -1009,6 +1065,16 @@ struct convolution_backward_data : public primitive {
                     "could not clone a diff_dst primitive descriptor");
             adesc.reset(cdesc);
             return adesc;
+        }
+
+        engine get_engine() {
+          c_api::mkldnn_engine_t engine_q;
+          error::wrap_c_api(
+              c_api::mkldnn_primitive_desc_query(this->get(),
+                mkldnn::convert_to_c(query::eengine), 0, &engine_q),
+              "could not get engine from primitive_desc");
+
+          return engine(engine_q);
         }
     };
 
@@ -1126,6 +1192,16 @@ struct convolution_backward_weights : public primitive {
             adesc.reset(cdesc);
             return adesc;
         }
+
+        engine get_engine() {
+          c_api::mkldnn_engine_t engine_q;
+          error::wrap_c_api(
+              c_api::mkldnn_primitive_desc_query(this->get(),
+                mkldnn::convert_to_c(query::eengine), 0, &engine_q),
+              "could not get engine from primitive_desc");
+
+          return engine(engine_q);
+        }
     };
 
     convolution_backward_weights(const primitive_desc &aprimitive_desc,
@@ -1172,6 +1248,16 @@ struct convolution_relu_forward : public primitive {
                     &result, &adesc.data, aengine.get(), nullptr),
                 "could not create a convolution relu forward descriptor");
             reset(result);
+        }
+
+        engine get_engine() {
+          c_api::mkldnn_engine_t engine_q;
+          error::wrap_c_api(
+              c_api::mkldnn_primitive_desc_query(this->get(),
+                mkldnn::convert_to_c(query::eengine), 0, &engine_q),
+              "could not get engine from primitive_desc");
+
+          return engine(engine_q);
         }
     };
 
@@ -1266,6 +1352,16 @@ struct lrn_forward : public primitive {
                     "could not clone a dst primitive descriptor");
             adesc.reset(cdesc);
             return adesc;
+        }
+
+        engine get_engine() {
+          c_api::mkldnn_engine_t engine_q;
+          error::wrap_c_api(
+              c_api::mkldnn_primitive_desc_query(this->get(),
+                mkldnn::convert_to_c(query::eengine), 0, &engine_q),
+              "could not get engine from primitive_desc");
+
+          return engine(engine_q);
         }
     };
 
@@ -1365,6 +1461,16 @@ struct lrn_backward : public primitive {
             adesc.reset(cdesc);
             return adesc;
         }
+
+        engine get_engine() {
+          c_api::mkldnn_engine_t engine_q;
+          error::wrap_c_api(
+              c_api::mkldnn_primitive_desc_query(this->get(),
+                mkldnn::convert_to_c(query::eengine), 0, &engine_q),
+              "could not get engine from primitive_desc");
+
+          return engine(engine_q);
+        }
     };
 
     lrn_backward(const primitive_desc &aprimitive_desc,
@@ -1451,6 +1557,16 @@ struct pooling_forward : public primitive {
             adesc.reset(cdesc);
             return adesc;
         }
+
+        engine get_engine() {
+          c_api::mkldnn_engine_t engine_q;
+          error::wrap_c_api(
+              c_api::mkldnn_primitive_desc_query(this->get(),
+                mkldnn::convert_to_c(query::eengine), 0, &engine_q),
+              "could not get engine from primitive_desc");
+
+          return engine(engine_q);
+        }
     };
 
     pooling_forward(const primitive_desc &aprimitive_desc, const primitive::at &src,
@@ -1523,6 +1639,16 @@ struct pooling_backward : public primitive {
             adesc.reset(cdesc);
             return adesc;
         }
+
+        engine get_engine() {
+          c_api::mkldnn_engine_t engine_q;
+          error::wrap_c_api(
+              c_api::mkldnn_primitive_desc_query(this->get(),
+                mkldnn::convert_to_c(query::eengine), 0, &engine_q),
+              "could not get engine from primitive_desc");
+
+          return engine(engine_q);
+        }
     };
 
     pooling_backward(const primitive_desc &aprimitive_desc, const primitive::at &diff_dst,
@@ -1580,6 +1706,16 @@ struct relu_forward : public primitive {
                     "could not clone a dst primitive descriptor");
             adesc.reset(cdesc);
             return adesc;
+        }
+
+        engine get_engine() {
+          c_api::mkldnn_engine_t engine_q;
+          error::wrap_c_api(
+              c_api::mkldnn_primitive_desc_query(this->get(),
+                mkldnn::convert_to_c(query::eengine), 0, &engine_q),
+              "could not get engine from primitive_desc");
+
+          return engine(engine_q);
         }
     };
 
@@ -1646,6 +1782,16 @@ struct relu_backward : public primitive {
             adesc.reset(cdesc);
             return adesc;
         }
+
+        engine get_engine() {
+          c_api::mkldnn_engine_t engine_q;
+          error::wrap_c_api(
+              c_api::mkldnn_primitive_desc_query(this->get(),
+                mkldnn::convert_to_c(query::eengine), 0, &engine_q),
+              "could not get engine from primitive_desc");
+
+          return engine(engine_q);
+        }
     };
     relu_backward(const primitive_desc &aprimitive_desc,
             const primitive::at &src, const primitive::at &diff_dst,
@@ -1679,6 +1825,16 @@ struct softmax_forward : public primitive {
                     &result, &adesc.data, aengine.get(), nullptr),
                 "could not create a softmax forward primitive descriptor");
             reset(result);
+        }
+
+        engine get_engine() {
+          c_api::mkldnn_engine_t engine_q;
+          error::wrap_c_api(
+              c_api::mkldnn_primitive_desc_query(this->get(),
+                mkldnn::convert_to_c(query::eengine), 0, &engine_q),
+              "could not get engine from primitive_desc");
+
+          return engine(engine_q);
         }
     };
 
@@ -1781,6 +1937,16 @@ struct batch_normalization_forward : public primitive {
                     "could not clone a dst primitive descriptor");
             adesc.reset(cdesc);
             return adesc;
+        }
+
+        engine get_engine() {
+          c_api::mkldnn_engine_t engine_q;
+          error::wrap_c_api(
+              c_api::mkldnn_primitive_desc_query(this->get(),
+                mkldnn::convert_to_c(query::eengine), 0, &engine_q),
+              "could not get engine from primitive_desc");
+
+          return engine(engine_q);
         }
     };
 
@@ -1952,6 +2118,16 @@ struct batch_normalization_backward : public primitive {
             adesc.reset(cdesc);
             return adesc;
         }
+
+        engine get_engine() {
+          c_api::mkldnn_engine_t engine_q;
+          error::wrap_c_api(
+              c_api::mkldnn_primitive_desc_query(this->get(),
+                mkldnn::convert_to_c(query::eengine), 0, &engine_q),
+              "could not get engine from primitive_desc");
+
+          return engine(engine_q);
+        }
     };
 
     // Prop_kind == backward
@@ -2083,6 +2259,16 @@ struct inner_product_forward: public primitive {
             adesc.reset(cdesc);
             return adesc;
         }
+
+        engine get_engine() {
+          c_api::mkldnn_engine_t engine_q;
+          error::wrap_c_api(
+              c_api::mkldnn_primitive_desc_query(this->get(),
+                mkldnn::convert_to_c(query::eengine), 0, &engine_q),
+              "could not get engine from primitive_desc");
+
+          return engine(engine_q);
+        }
     };
 
     inner_product_forward(const primitive_desc &aprimitive_desc,
@@ -2170,6 +2356,16 @@ struct inner_product_backward_data: public primitive {
                     "could not clone a diff src primitive descriptor");
             adesc.reset(cdesc);
             return adesc;
+        }
+
+        engine get_engine() {
+          c_api::mkldnn_engine_t engine_q;
+          error::wrap_c_api(
+              c_api::mkldnn_primitive_desc_query(this->get(),
+                mkldnn::convert_to_c(query::eengine), 0, &engine_q),
+              "could not get engine from primitive_desc");
+
+          return engine(engine_q);
         }
     };
 
@@ -2267,6 +2463,16 @@ struct inner_product_backward_weights: public primitive {
                     "could not clone a src primitive descriptor");
             adesc.reset(cdesc);
             return adesc;
+        }
+
+        engine get_engine() {
+          c_api::mkldnn_engine_t engine_q;
+          error::wrap_c_api(
+              c_api::mkldnn_primitive_desc_query(this->get(),
+                mkldnn::convert_to_c(query::eengine), 0, &engine_q),
+              "could not get engine from primitive_desc");
+
+          return engine(engine_q);
         }
     };
 
