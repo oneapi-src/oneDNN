@@ -54,11 +54,11 @@ inline size_t data_type_size(data_type_t data_type) {
 
 inline memory_format_t format_normalize(const memory_format_t fmt) {
     using namespace memory_format;
-    if (utils::one_of(fmt, x, nc, nchw, nhwc, chwn, nChw8c, oi, io, oihw, ihwo,
-                OIhw8i8o, OIhw8o8i, Ohwi8o, OhIw16o4i, goihw, gOIhw8i8o,
-                gOIhw8o8i, nChw16c, OIhw16i16o, OIhw16o16i, Ohwi16o,
-                gOIhw16i16o, gOIhw16o16i, gOhIw16o4i,
-                OIhw8i16o2i, gOIhw8i16o2i))
+    if (utils::one_of(fmt, x, nc, nchw, nhwc, chwn, nChw8c, nChw16c, oi, io,
+                oihw, ihwo, oIhw8i, oIhw16i, OIhw8i8o, OIhw16i16o, OIhw8i16o2i,
+                OIhw8o8i, OIhw16o16i, Ohwi8o, Ohwi16o, OhIw16o4i, goihw,
+                gOIhw8i8o, gOIhw16i16o, gOIhw8i16o2i, gOIhw8o8i, gOIhw16o16i,
+                gOhwi8o, gOhwi16o, gOhIw16o4i))
         return blocked;
     return fmt;
 }

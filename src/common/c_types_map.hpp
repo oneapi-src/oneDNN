@@ -109,6 +109,8 @@ namespace memory_format {
     const memory_format_t gOIhw8i16o2i = mkldnn_gOIhw8i16o2i;
     const memory_format_t gOIhw8o8i = mkldnn_gOIhw8o8i;
     const memory_format_t gOIhw16o16i = mkldnn_gOIhw16o16i;
+    const memory_format_t gOhwi8o = mkldnn_gOhwi8o;
+    const memory_format_t gOhwi16o = mkldnn_gOhwi16o;
     const memory_format_t gOhIw16o4i = mkldnn_gOhIw16o4i;
 }
 

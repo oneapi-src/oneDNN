@@ -75,7 +75,8 @@ struct _jit_sse42_convolution_fwd_t: public cpu_primitive_t {
                 CHECK(this->dst_pd_.set_format(nChw8c));
             if (this->weights_pd_.desc()->format == any)
                 CHECK(this->weights_pd_.set_format(this->with_groups()
-                            ? gOIhw8i8o : (flat ? Ohwi8o : OIhw8i8o)));
+                            ? (flat ? gOhwi8o : gOIhw8i8o)
+                            : (flat ? Ohwi8o : OIhw8i8o)));
             if (this->bias_pd_.desc()->format == any)
                 CHECK(this->bias_pd_.set_format(x));
             return status::success;

@@ -438,11 +438,10 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         jcp.typesize_in = sizeof(float);
         jcp.typesize_out = sizeof(float);
         bool args_ok = true
-            && implication(flat, one_of(src_d.format(), nchw, nhwc))
-            && implication(mimo, src_d.format() == nChw16c)
-            && weights_d.format()
-                    == (with_groups ? gOIhw16i16o :
-                                      (flat ? Ohwi16o : OIhw16i16o))
+            && implication(flat, one_of(src_d.format(), nchw, nhwc)
+                    && one_of(weights_d.format(), Ohwi16o, gOhwi16o))
+            && implication(mimo, src_d.format() == nChw16c
+                    && one_of(weights_d.format(), OIhw16i16o, gOIhw16i16o))
             && one_of(cd.bias_desc.format, memory_format::undef, any, x)
             && dst_d.format() == nChw16c;
         if (!args_ok)
@@ -1253,10 +1252,10 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
     jcp.owp = jcp.ow;
 
     bool args_ok = true
-        && implication(flat, one_of(src_d.format(), nchw, nhwc))
-        && implication(mimo, src_d.format() == nChw16c)
-        && diff_weights_d.format() == (with_groups ? gOIhw16i16o : (flat ?
-              Ohwi16o : OIhw16i16o))
+        && implication(flat, one_of(src_d.format(), nchw, nhwc)
+                && one_of(diff_weights_d.format(), Ohwi16o, gOhwi16o))
+        && implication(mimo, src_d.format() == nChw16c
+                && one_of(diff_weights_d.format(), OIhw16i16o, gOIhw16i16o))
         && one_of(cd.bias_desc.format, memory_format::undef, any, x)
         && diff_dst_d.format() == nChw16c;
     if (!args_ok) return status::unimplemented;

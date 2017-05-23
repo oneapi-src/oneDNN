@@ -350,10 +350,10 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     const bool mimo = !flat;
 
     bool args_ok = true
-        && implication(flat, one_of(src_d.format(), nchw, nhwc))
-        && implication(mimo, src_d.format() == nChw8c)
-        && weights_d.format() ==
-                (with_groups ? gOIhw8i8o : (flat ? Ohwi8o : OIhw8i8o))
+        && implication(flat, one_of(src_d.format(), nchw, nhwc)
+                && one_of(weights_d.format(), Ohwi8o, gOhwi8o))
+        && implication(mimo, src_d.format() == nChw8c
+                && one_of(weights_d.format(), OIhw8i8o, gOIhw8i8o))
         && one_of(cd.bias_desc.format, memory_format::undef, any, x)
         && dst_d.format() == nChw8c;
     if (!args_ok) return status::unimplemented;
@@ -676,9 +676,10 @@ status_t jit_avx2_conv_bwd_weights_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     const int simd_w = 8;
 
     bool args_ok = true
-        && implication(flat, one_of(src_d.format(), nchw, nhwc))
-        && implication(mimo, src_d.format() == nChw8c)
-        && diff_weights_d.format() == (with_groups ? gOIhw8i8o : (flat ? Ohwi8o : OIhw8i8o))
+        && implication(flat, one_of(src_d.format(), nchw, nhwc)
+                && one_of(diff_weights_d.format(), Ohwi8o, gOhwi8o))
+        && implication(mimo, src_d.format() == nChw8c
+                && one_of(diff_weights_d.format(), OIhw8i8o, gOIhw8i8o))
         && one_of(cd.bias_desc.format, memory_format::undef, any, x)
         && diff_dst_d.format() == nChw8c
         && implication(mimo, jcp.ic % simd_w == 0)
