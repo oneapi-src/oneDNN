@@ -269,6 +269,12 @@ private:
     inline void compute_ic_block_step(int ur_w,
             int pad_l, int pad_r, int ic_block_step,
             int input_offset, int kernel_offset, int output_offset);
+    inline void compute_ic_block_step_fma(int ur_w,
+            int pad_l, int pad_r, int ic_block_step,
+            int input_offset, int kernel_offset, int output_offset);
+    inline void compute_ic_block_step_4fma(int ur_w,
+            int pad_l, int pad_r, int ic_block_step,
+            int input_offset, int kernel_offset, int output_offset);
     inline void compute_oh_step_common(int ic_block_step, int max_ur_w);
     inline void compute_oh_step_disp();
     inline void compute_oh_loop_common();

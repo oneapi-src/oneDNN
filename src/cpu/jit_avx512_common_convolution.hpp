@@ -240,10 +240,11 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
             const input_vector &inputs, const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
         , kernel_(nullptr), reducer_weights_(nullptr), reducer_bias_(nullptr)
+        , ws_(nullptr)
     {
         kernel_ = new jit_avx512_common_conv_bwd_weights_kernel_f32(conf_.jcp_);
         const int max_threads = omp_get_max_threads();
-        const size_t max_buffer_size = max_threads*3*5*5*16*16;
+        const size_t max_buffer_size = max_threads * 3 * 5 * 5 * 16 * 16;
         const auto &j = conf_.jcp_;
 
         reducer_weights_ = new cpu_reducer_t<data_type::f32>(reduce_balancer_t(
@@ -254,8 +255,16 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
                     reduce_balancer_t(max_threads, j.oc_block,
                         j.ngroups * j.nb_oc, j.mb, max_buffer_size));
         }
+        if (j.transpose_src) {
+            const int ws_size = j.mb * j.ngroups *
+                j.nb_ic * j.ic_block * j.iw * j.ih * sizeof(data_t);
+            ws_ = (data_t*)malloc(ws_size, 64);
+        }
     }
-    ~jit_avx512_common_convolution_bwd_weights_t() { delete kernel_; };
+    ~jit_avx512_common_convolution_bwd_weights_t() {
+        delete kernel_;
+        free(ws_);
+    };
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
@@ -269,6 +278,7 @@ private:
     pd_t conf_;
     jit_avx512_common_conv_bwd_weights_kernel_f32 *kernel_;
     cpu_reducer_t<data_type::f32> *reducer_weights_, *reducer_bias_;
+    data_t *ws_;
 };
 
 }

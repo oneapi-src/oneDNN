@@ -15,7 +15,6 @@
 *******************************************************************************/
 
 #include "mkldnn_types.h"
-
 #include "c_types_map.hpp"
 #include "jit_avx512_common_convolution.hpp"
 #include "mkldnn_thread.hpp"
@@ -239,12 +238,43 @@ void jit_avx512_common_convolution_bwd_weights_t::execute_backward_weights() {
     auto diff_dst = reinterpret_cast<const data_t * > (this->input_memory(1));
     auto diff_weights = reinterpret_cast<data_t *>(this->memory(0));
     auto diff_bias = reinterpret_cast<data_t *>(this->memory(1));
+    auto tr_src = reinterpret_cast<data_t *>(this->ws_);
 
     const memory_desc_wrapper src_d(conf_.src_pd(0));
     const memory_desc_wrapper diff_dst_d(conf_.diff_dst_pd());
     const memory_desc_wrapper diff_weights_d(conf_.diff_weights_pd(0));
 
     const auto &jcp = kernel_->jcp;
+
+    auto ker_transpose = [&](int ithr, int nthr) {
+        const int trans_size = jcp.iw;
+        const int spat_size = jcp.iw * jcp.ih;
+        const int notrans_size = spat_size / trans_size;
+
+        const size_t trans_work_amount
+            = jcp.mb * jcp.ngroups * jcp.nb_ic * notrans_size;
+        size_t start{0}, end{0};
+        balance211(trans_work_amount, nthr, ithr, start, end);
+        int img{0}, g{0}, ntd{0}, b_ic{0};
+        nd_iterator_init(start, img, jcp.mb, g, jcp.ngroups, b_ic, jcp.nb_ic,
+            ntd, notrans_size);
+
+        const int _ic = g * jcp.nb_ic + b_ic;
+        const data_t *src1 = &src[src_d.blk_off(img, _ic, ntd)];
+        data_t *tr_src1 = &tr_src[src_d.blk_off(img, _ic, ntd)];
+
+        for (size_t iwork = start; iwork < end; iwork++) {
+            #pragma unroll
+            for (int i = 0; i < trans_size; i++) {
+                #pragma omp simd
+                for (int j = 0; j < 16; j++)
+                    tr_src1[j*trans_size + i] = src1[i*16 + j];
+            }
+            src1 += trans_size * jcp.ic_block;
+            tr_src1 += trans_size * jcp.ic_block;
+        }
+        #pragma omp barrier
+    };
 
     auto ker = [&](int ithr, int nthr) {
         auto rw = this->reducer_weights_;
@@ -272,7 +302,9 @@ void jit_avx512_common_convolution_bwd_weights_t::execute_backward_weights() {
                 const size_t _ic = g * jcp.nb_ic + icb;
 
                 jit_conv_call_s par_conv = { };
-                par_conv.src = &src[src_d.blk_off(img, _ic)];
+                par_conv.src = jcp.transpose_src
+                    ? &tr_src[src_d.blk_off(img, _ic)]
+                    : &src[src_d.blk_off(img, _ic)];
                 par_conv.dst = &diff_dst[diff_dst_d.blk_off(img, _oc)];
                 par_conv.filt = &rw->get_local_ptr(ithr, diff_weights)[
                     w_job_loc * rw->balancer_.job_size_];
@@ -339,6 +371,8 @@ void jit_avx512_common_convolution_bwd_weights_t::execute_backward_weights() {
     {
         int ithr = omp_get_thread_num();
         int nthr = omp_get_num_threads();
+        if (jcp.transpose_src)
+            ker_transpose(ithr, nthr);
         ker(ithr, nthr);
         if (conf_.with_bias())
             ker_bias(ithr, nthr);
