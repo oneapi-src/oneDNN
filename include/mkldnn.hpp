@@ -268,7 +268,7 @@ struct engine: public handle<c_api::mkldnn_engine_t> {
     explicit engine(const c_api::mkldnn_engine_t& aengine)
         : handle(aengine, true) {}
 
-    engine(handle<c_api::mkldnn_primitive_desc_t> pd) {
+    engine(const handle<c_api::mkldnn_primitive_desc_t> pd) {
         c_api::mkldnn_engine_t engine_q;
         error::wrap_c_api(
             c_api::mkldnn_primitive_desc_query(pd.get(),
@@ -278,7 +278,7 @@ struct engine: public handle<c_api::mkldnn_engine_t> {
         reset(engine_q, true);
     }
 
-    static engine query(handle<c_api::mkldnn_primitive_desc_t> pd) {
+    static engine query(const handle<c_api::mkldnn_primitive_desc_t> &pd) {
         c_api::mkldnn_engine_t engine_q;
         error::wrap_c_api(
             c_api::mkldnn_primitive_desc_query(pd.get(),
@@ -289,7 +289,7 @@ struct engine: public handle<c_api::mkldnn_engine_t> {
     }
 
     template <class primitive_desc>
-    static engine query(primitive_desc &pd) {
+    static engine query(const primitive_desc &pd) {
         c_api::mkldnn_engine_t engine_q;
         error::wrap_c_api(
             c_api::mkldnn_primitive_desc_query(pd.get(),
