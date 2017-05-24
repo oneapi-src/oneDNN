@@ -179,24 +179,25 @@ static void fill_data(const int size, data_t *data, double sparsity = 1.,
 template <typename data_t>
 static void compare_data(mkldnn::memory& ref, mkldnn::memory& dst)
 {
+    using data_type = mkldnn::memory::data_type;
+
+    ASSERT_TRUE(data_traits<data_t>::data_type == data_type::f32 ||
+            data_traits<data_t>::data_type == data_type::s32);
+
     // Only true for dense format
     size_t num = ref.get_primitive_desc().get_size() / sizeof(data_t);
     data_t *ref_data = (data_t *)ref.get_data_handle();
     data_t *dst_data = (data_t *)dst.get_data_handle();
 #   pragma omp parallel for schedule(static)
     for (size_t i = 0; i < num; ++i) {
-        if (data_traits<data_t>::data_type == mkldnn::memory::data_type::f32) {
         data_t ref = ref_data[i];
         data_t got = dst_data[i];
-        data_t diff = got - ref;
-        data_t e = std::abs(ref) > 1e-4 ? diff / ref : diff;
-        EXPECT_NEAR(e, 0.0, 1e-4) << "Index: " << i << " Total: " << num;
-       }  else if (data_traits<data_t>::data_type
-                    == mkldnn::memory::data_type::s32) {
-           data_t ref = ref_data[i];
-           data_t got = dst_data[i];
-           EXPECT_EQ(ref, got) << "Index: " << i << " Total: " << num;
-       }
+        if (data_traits<data_t>::data_type == data_type::f32) {
+            data_t diff = got - ref;
+            data_t e = std::abs(ref) > 1e-4 ? diff / ref : diff;
+            EXPECT_NEAR(e, 0.0, 1e-4) << "Index: " << i << " Total: " << num;
+        }  else if (data_traits<data_t>::data_type == data_type::s32)
+            EXPECT_EQ(ref, got) << "Index: " << i << " Total: " << num;
     }
 }
 
