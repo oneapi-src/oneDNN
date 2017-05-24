@@ -193,6 +193,42 @@ template <> struct handle_traits<c_api::mkldnn_engine_t> {
 };
 #endif
 
+enum query {
+    undef = c_api::mkldnn_query_undef,
+
+    eengine = c_api::mkldnn_query_engine,
+    primitive_kind = c_api::mkldnn_query_primitive_kind,
+
+    num_of_inputs_s32 = c_api::mkldnn_query_num_of_inputs_s32,
+    num_of_outputs_s32 = c_api::mkldnn_query_num_of_outputs_s32,
+
+    time_estimate_f64 = c_api::mkldnn_query_time_estimate_f64,
+    memory_consumption_s64 = c_api::mkldnn_query_memory_consumption_s64,
+
+    memory_d = c_api::mkldnn_query_memory_d,
+    convolution_d = c_api::mkldnn_query_convolution_d,
+    relu_d = c_api::mkldnn_query_relu_d,
+    softmax_d = c_api::mkldnn_query_softmax_d,
+    pooling_d = c_api::mkldnn_query_pooling_d,
+    lrn_d = c_api::mkldnn_query_lrn_d,
+    batch_normalization_d = c_api::mkldnn_query_batch_normalization_d,
+    inner_product_d = c_api::mkldnn_query_inner_product_d,
+    convolution_relu_d = c_api::mkldnn_query_convolution_relu_d,
+
+    input_pd = c_api::mkldnn_query_input_pd,
+    output_pd = c_api::mkldnn_query_output_pd,
+    src_pd = c_api::mkldnn_query_src_pd,
+    diff_src_pd = c_api::mkldnn_query_diff_src_pd,
+    weights_pd = c_api::mkldnn_query_weights_pd,
+    diff_weights_pd = c_api::mkldnn_query_diff_weights_pd,
+    dst_pd = c_api::mkldnn_query_dst_pd,
+    diff_dst_pd = c_api::mkldnn_query_diff_dst_pd,
+    workspace_pd = c_api::mkldnn_query_workspace_pd,
+};
+inline c_api::mkldnn_query_t convert_to_c(query aquery) {
+    return static_cast<c_api::mkldnn_query_t>(aquery);
+}
+
 /// An execution engine.
 struct engine: public handle<c_api::mkldnn_engine_t> {
     friend class primitive;
@@ -232,6 +268,37 @@ struct engine: public handle<c_api::mkldnn_engine_t> {
     explicit engine(const c_api::mkldnn_engine_t& aengine)
         : handle(aengine, true) {}
 
+    engine(handle<c_api::mkldnn_primitive_desc_t> pd) {
+        c_api::mkldnn_engine_t engine_q;
+        error::wrap_c_api(
+            c_api::mkldnn_primitive_desc_query(pd.get(),
+              mkldnn::convert_to_c(query::eengine), 0, &engine_q),
+            "could not get engine from primitive_desc");
+
+        reset(engine_q, true);
+    }
+
+    static engine query(handle<c_api::mkldnn_primitive_desc_t> pd) {
+        c_api::mkldnn_engine_t engine_q;
+        error::wrap_c_api(
+            c_api::mkldnn_primitive_desc_query(pd.get(),
+              mkldnn::convert_to_c(query::eengine), 0, &engine_q),
+            "could not get engine from primitive_desc");
+
+        return engine(engine_q);
+    }
+
+    template <class primitive_desc>
+    static engine query(primitive_desc &pd) {
+        c_api::mkldnn_engine_t engine_q;
+        error::wrap_c_api(
+            c_api::mkldnn_primitive_desc_query(pd.get(),
+              mkldnn::convert_to_c(query::eengine), 0, &engine_q),
+            "could not get engine from primitive_desc");
+
+        return engine(engine_q);
+    }
+
 private:
     static c_api::mkldnn_engine_kind_t convert_to_c(kind akind) {
         return static_cast<c_api::mkldnn_engine_kind_t>(akind);
@@ -246,41 +313,6 @@ private:
 template <> struct handle_traits<c_api::mkldnn_primitive_desc_t> {
     static constexpr auto destructor = &c_api::mkldnn_primitive_desc_destroy;
 };
-enum query {
-    undef = c_api::mkldnn_query_undef,
-
-    eengine = c_api::mkldnn_query_engine,
-    primitive_kind = c_api::mkldnn_query_primitive_kind,
-
-    num_of_inputs_s32 = c_api::mkldnn_query_num_of_inputs_s32,
-    num_of_outputs_s32 = c_api::mkldnn_query_num_of_outputs_s32,
-
-    time_estimate_f64 = c_api::mkldnn_query_time_estimate_f64,
-    memory_consumption_s64 = c_api::mkldnn_query_memory_consumption_s64,
-
-    memory_d = c_api::mkldnn_query_memory_d,
-    convolution_d = c_api::mkldnn_query_convolution_d,
-    relu_d = c_api::mkldnn_query_relu_d,
-    softmax_d = c_api::mkldnn_query_softmax_d,
-    pooling_d = c_api::mkldnn_query_pooling_d,
-    lrn_d = c_api::mkldnn_query_lrn_d,
-    batch_normalization_d = c_api::mkldnn_query_batch_normalization_d,
-    inner_product_d = c_api::mkldnn_query_inner_product_d,
-    convolution_relu_d = c_api::mkldnn_query_convolution_relu_d,
-
-    input_pd = c_api::mkldnn_query_input_pd,
-    output_pd = c_api::mkldnn_query_output_pd,
-    src_pd = c_api::mkldnn_query_src_pd,
-    diff_src_pd = c_api::mkldnn_query_diff_src_pd,
-    weights_pd = c_api::mkldnn_query_weights_pd,
-    diff_weights_pd = c_api::mkldnn_query_diff_weights_pd,
-    dst_pd = c_api::mkldnn_query_dst_pd,
-    diff_dst_pd = c_api::mkldnn_query_diff_dst_pd,
-    workspace_pd = c_api::mkldnn_query_workspace_pd,
-};
-inline c_api::mkldnn_query_t convert_to_c(query aquery) {
-    return static_cast<c_api::mkldnn_query_t>(aquery);
-}
 
 /// Memory primitive that describes the data.
 struct memory: public primitive  {
