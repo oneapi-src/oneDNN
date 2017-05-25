@@ -184,9 +184,17 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma(int ur_w,
                         EVEX_compress_addr(aux_reg_inp,aux_input_offset));
                 if ((jj % 2) && (prf_count < 4)) {
                     int aux_kernel_prf = kernel_offset(kk, ic + prf_count, ki);
-                    mic_prefetcht1(EVEX_compress_addr(
+                    mic_prefetcht0(EVEX_compress_addr(
                                 aux_reg_ker_prf, aux_kernel_prf));
                     prf_count++;
+                }
+                if (!(jj % 2) && ki == 0 && ic == 0 && kk == 0) {
+                    mic_prefetcht1(EVEX_compress_addr(aux_reg_inp_prf,
+                        aux_input_offset));
+                }
+                if (!(jj % 2) && ki == 1 && ic == 0 && kk == 0) {
+                    mic_prefetcht0(EVEX_compress_addr(aux_reg_inp,
+                        aux_input_offset + typesize * iw * ic_block));
                 }
             }
         }
@@ -369,8 +377,16 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4vnni(
                         if ((oi % 2) && (prf_count < ker_load_number)) {
                             int kernel_offset = get_kernel_offset(
                                 ki, ic, kk, prf_count++);
-                            prefetcht1(EVEX_compress_addr(aux_reg_ker_prf,
+                            prefetcht0(EVEX_compress_addr(aux_reg_ker_prf,
                                 kernel_offset));
+                        }
+                        if (!(oi % 2) && ki == 0 && ic==0 && kk==0) {
+                            prefetcht1(EVEX_compress_addr(aux_reg_inp_prf,
+                                input_offset));
+                        }
+                        if (!(oi % 2) && ki == 1 && ic==0 && kk==0) {
+                            prefetcht0(EVEX_compress_addr(aux_reg_inp,
+                                input_offset + shift_input_ptr));
                         }
                     }
                 }
