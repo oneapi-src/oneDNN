@@ -111,6 +111,8 @@ struct jit_1x1_conv_conf_t {
     int bcast_loop_output_step, bcast_loop_output_substep;
     int bcast_loop_bcast_step, bcast_loop_bcast_substep;
     int fma_step;
+    int load_grp_count;
+    bool use_outer;
 };
 
 struct jit_gemm_conv_conf_t {

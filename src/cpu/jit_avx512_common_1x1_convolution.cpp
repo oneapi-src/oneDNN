@@ -32,6 +32,31 @@ using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::utils;
 
+namespace {
+template <typename T, typename U>
+void balance2D(U nthr, U ithr, T ny, T &ny_start, T &ny_end,
+    T nx, T &nx_start, T &nx_end, T nx_divider)
+{
+    if (ny % nthr == 0 || nx_divider == 1) {
+        nx_start = 0;
+        nx_end = nx;
+        balance211(ny, nthr, ithr, ny_start, ny_end);
+    } else {
+        const T grp_size = utils::div_up(nthr, nx_divider);
+        const T grp_count = utils::div_up(nthr, grp_size);
+
+        const T current_grp = ithr / grp_size;
+        balance211(nx, grp_count, current_grp, nx_start, nx_end);
+
+        const T current_grp_ithr = ithr % grp_size;
+        const T current_grp_offt = current_grp * grp_size;
+        const T current_grp_nthr =
+            nstl::min(nthr, current_grp_offt + grp_size) - current_grp_offt;
+        int start, end;
+        balance211(ny, current_grp_nthr, current_grp_ithr, ny_start, ny_end);
+    }
+}
+}
 /* convolution forward */
 
 template <bool with_relu>
@@ -71,84 +96,105 @@ void _jit_avx512_common_1x1_convolution_fwd_t<with_relu>::execute_forward()
         const int nb_ic_blocking = jcp.nb_reduce_blocking;
         const int os_block = jcp.bcast_block;
 
-        int start{0}, end{0};
-        balance211(work_amount, nthr, ithr, start, end);
+        int bcast_start{0}, bcast_end{0}, ocb_start{0}, ocb_end{0};
+        balance2D(nthr, ithr, work_amount, bcast_start, bcast_end,
+            jcp.nb_load, ocb_start, ocb_end, jcp.load_grp_count);
 
-        int iwork = start;
-        while (iwork < end) {
-            int n{0}, g{0}, osb{0};
-            nd_iterator_init(iwork, n, jcp.mb, g, jcp.ngroups, osb,
-                             jcp.nb_bcast);
+        int nbic_outer = jcp.use_outer ? nb_ic : 1;
+        int icb_outer_step = jcp.use_outer ? nb_ic_blocking : 1;
 
-            int bcast_step = step(jcp.nb_bcast_blocking, jcp.nb_bcast - osb,
-                    jcp.nb_bcast_blocking_max);
-            bcast_step = nstl::min(bcast_step, end - iwork);
+        int nbic_inner = jcp.use_outer ? 1 : nb_ic;
+        int icb_inner_step = jcp.use_outer ? 1 : nb_ic_blocking;
 
-            const int os = osb * os_block;
-            const int oh = os / jcp.ow;
-            const int ow = os % jcp.ow;
+        for (int icb_outer = 0; icb_outer < nbic_outer;
+            icb_outer += icb_outer_step) {
+            int cur_icb_outer =
+                nstl::min(icb_outer + icb_outer_step, nbic_outer) - icb_outer;
 
-            const int ih = nstl::max(oh * stride_h - pad_t, 0);
-            const int iw = nstl::max(ow * stride_w - pad_l, 0);
-            rp.iw_start = iw;
+            int iwork = bcast_start;
+            while (iwork < bcast_end) {
+                int n{0}, g{0}, osb{0}, lb{0};
+                nd_iterator_init(iwork, n, jcp.mb, g, jcp.ngroups, osb,
+                    jcp.nb_bcast);
+                int bcast_step = step(jcp.nb_bcast_blocking, jcp.nb_bcast - osb,
+                        jcp.nb_bcast_blocking_max);
+                bcast_step = nstl::min(bcast_step, bcast_end - iwork);
 
-            p.bcast_dim = this_block_size(os, jcp.os, bcast_step * os_block);
-            rp.os = p.bcast_dim;
+                const int os = osb * os_block;
+                const int oh = os / jcp.ow;
+                const int ow = os % jcp.ow;
 
-            int ocb = 0;
-            while (ocb < jcp.nb_load) {
-                const int load_step = step(jcp.nb_load_blocking,
-                        jcp.nb_load - ocb, jcp.nb_load_blocking_max);
+                const int ih = nstl::max(oh * stride_h - pad_t, 0);
+                const int iw = nstl::max(ow * stride_w - pad_l, 0);
+                rp.iw_start = iw;
 
-                const int _ocb = g * nb_oc + ocb;
-                p.load_dim = this_block_size(ocb * jcp.oc_block, jcp.oc,
-                        load_step * jcp.oc_block);
+                p.bcast_dim = this_block_size(os, jcp.os,
+                    bcast_step * os_block);
+                rp.os = p.bcast_dim;
 
-                const size_t dst_off = dst_d.blk_off(n, _ocb, oh, ow);
-                p.output_data = &dst[dst_off];
+                int ocb = ocb_start;
+                while (ocb < ocb_end) {
+                    const int load_step = step(jcp.nb_load_blocking,
+                            ocb_end - ocb, jcp.nb_load_blocking_max);
 
-                p.bias_data = &bias[_ocb * jcp.oc_block];
+                    const int _ocb = g * nb_oc + ocb;
+                    p.load_dim = this_block_size(ocb * jcp.oc_block,
+                        ocb_end * jcp.oc_block, load_step * jcp.oc_block);
 
-                for (int icb = 0; icb < nb_ic; icb += nb_ic_blocking) {
-                    p.reduce_pos_flag = 0
-                        | (icb == 0
-                        ? jit_avx512_common_1x1_conv_kernel_f32::
-                          REDUCE_FLAG_FIRST
-                        : 0)
-                        | (icb + nb_ic_blocking >= nb_ic
-                        ? jit_avx512_common_1x1_conv_kernel_f32::
-                          REDUCE_FLAG_LAST
-                        : 0);
+                    const size_t dst_off = dst_d.blk_off(n, _ocb, oh, ow);
+                    p.output_data = &dst[dst_off];
 
-                    p.reduce_dim = this_block_size(icb * jcp.ic_block, jcp.ic,
-                            nb_ic_blocking * jcp.ic_block);
-                    rp.icb = p.reduce_dim / jcp.reduce_block;
+                    p.bias_data = &bias[_ocb * jcp.oc_block];
 
-                    p.load_data = &weights[conf_.with_groups()
-                        ? weights_d.blk_off(g, ocb, icb)
-                        : weights_d.blk_off(ocb, icb)];
+                    for (int icb_inner = 0; icb_inner < nbic_inner;
+                        icb_inner += icb_inner_step) {
+                        int cur_icb_inner =
+                            nstl::min(icb_inner + icb_inner_step, nbic_inner) -
+                            icb_inner;
 
-                    const int _icb = g * nb_ic + icb;
-                    if (conf_.rtus_.reduce_src_) {
-                        rp.ws = scratch_ + ithr * ws_per_thread_
-                            + _icb * jcp.is * jcp.ic_block;
+                        int icb = jcp.use_outer ? icb_outer : icb_inner;
+                        int nb_ic_blocking_step = jcp.use_outer
+                            ? cur_icb_outer
+                            : cur_icb_inner;
 
-                        if (ocb == 0) {
-                            rp.src = src + src_d.blk_off(n, _icb, ih, iw);
-                            rtus_driver_->ker_(&rp);
-                        }
+                        p.reduce_pos_flag = 0
+                            | (icb == 0
+                            ? jit_avx512_common_1x1_conv_kernel_f32::
+                              REDUCE_FLAG_FIRST
+                            : 0)
+                            | (icb + nb_ic_blocking_step >= nb_ic
+                            ? jit_avx512_common_1x1_conv_kernel_f32::
+                              REDUCE_FLAG_LAST
+                            : 0);
 
-                        p.bcast_data = rp.ws;
-                    } else
-                        p.bcast_data = src + src_d.blk_off(n, _icb, ih, iw);
+                        p.reduce_dim = this_block_size(icb * jcp.ic_block,
+                            jcp.ic, nb_ic_blocking_step * jcp.ic_block);
+                        rp.icb = p.reduce_dim / jcp.reduce_block;
 
-                    kernel_->jit_ker(&p);
+                        p.load_data = &weights[conf_.with_groups()
+                            ? weights_d.blk_off(g, ocb, icb)
+                            : weights_d.blk_off(ocb, icb)];
+
+                        const int _icb = g * nb_ic + icb;
+                        if (conf_.rtus_.reduce_src_) {
+                            rp.ws = scratch_ + ithr * ws_per_thread_
+                                + _icb * jcp.is * jcp.ic_block;
+
+                            if (ocb == ocb_start) {
+                                rp.src = src + src_d.blk_off(n, _icb, ih, iw);
+                                rtus_driver_->ker_(&rp);
+                            }
+
+                            p.bcast_data = rp.ws;
+                        } else
+                            p.bcast_data = src + src_d.blk_off(n, _icb, ih, iw);
+
+                        kernel_->jit_ker(&p);
+                    }
+                    ocb += load_step;
                 }
-
-                ocb += load_step;
+                iwork += bcast_step;
             }
-
-            iwork += bcast_step;
         }
     };
 
@@ -199,71 +245,93 @@ void jit_avx512_common_1x1_convolution_bwd_data_t::execute_backward_data()
         jit_1x1_conv_call_s p = {};
         rtus_driver_f32_t<avx512_common>::call_params_t rp = {};
 
-        int start{0}, end{0};
-        balance211(work_amount, nthr, ithr, start, end);
+        int bcast_start{0}, bcast_end{0}, icb_start{0}, icb_end{0};
+        balance2D(nthr, ithr, work_amount, bcast_start, bcast_end,
+            jcp.nb_load, icb_start, icb_end, jcp.load_grp_count);
 
-        int load_step = 0;
-        for (int icb = 0; icb < jcp.nb_load; icb += load_step) {
-            load_step = step(jcp.nb_load_blocking, jcp.nb_load - icb,
-                    jcp.nb_load_blocking_max);
+        int nboc_outer = jcp.use_outer ? nb_oc : 1;
+        int ocb_outer_step = jcp.use_outer ? nb_oc_blocking : 1;
 
-            p.load_dim = this_block_size(icb * jcp.ic_block, jcp.ic,
-                    load_step * jcp.ic_block);
-            rp.icb = p.load_dim / jcp.ic_block;
+        int nboc_inner = jcp.use_outer ? 1 : nb_oc;
+        int ocb_inner_step = jcp.use_outer ? 1 : nb_oc_blocking;
 
-            int bcast_step;
-            for (int iwork = start; iwork < end; iwork += bcast_step) {
-                int n{0}, g{0}, osb{0};
-                nd_iterator_init(iwork, n, jcp.mb, g, jcp.ngroups, osb,
-                        jcp.nb_bcast);
+        for (int ocb_outer = 0; ocb_outer < nboc_outer;
+            ocb_outer += ocb_outer_step) {
+            size_t cur_ocb_outer =
+                nstl::min(ocb_outer + ocb_outer_step, nboc_outer) - ocb_outer;
 
-                bcast_step = step(jcp.nb_bcast_blocking, jcp.nb_bcast - osb,
-                        jcp.nb_bcast_blocking_max);
-                bcast_step = nstl::min(bcast_step, end - iwork);
+            int load_step = 0;
+            for (int icb = icb_start; icb < icb_end; icb += load_step) {
+                load_step = step(jcp.nb_load_blocking, jcp.nb_load - icb,
+                        jcp.nb_load_blocking_max);
 
-                const int os = osb * os_block;
-                p.bcast_dim = this_block_size(os, jcp.os,
-                        bcast_step * os_block);
-                rp.os = p.bcast_dim;
+                p.load_dim = this_block_size(icb * jcp.ic_block,
+                    icb_end * jcp.ic_block, load_step * jcp.ic_block);
+                rp.icb = p.load_dim / jcp.ic_block;
 
-                const int oh = os / jcp.ow;
-                const int ow = os % jcp.ow;
-                const int ih = nstl::max(oh * stride_h - pad_t, 0);
-                const int iw = nstl::max(ow * stride_w - pad_l, 0);
-                rp.iw_start = iw;
+                int bcast_step;
+                for (int iwork = bcast_start; iwork < bcast_end;
+                    iwork += bcast_step)
+                {
+                    int n{0}, g{0}, osb{0};
+                    nd_iterator_init(iwork, n, jcp.mb, g, jcp.ngroups, osb,
+                            jcp.nb_bcast);
 
-                const int _icb = g * nb_ic + icb;
-                rp.src = diff_src + diff_src_d.blk_off(n, _icb, ih, iw);
+                    bcast_step = step(jcp.nb_bcast_blocking, jcp.nb_bcast - osb,
+                            jcp.nb_bcast_blocking_max);
+                    bcast_step = nstl::min(bcast_step, bcast_end - iwork);
 
-                if (conf_.rtus_.reduce_src_) {
-                    rp.ws = scratch_ + ithr * ws_per_thread_;
-                    p.output_data = rp.ws;
-                } else
-                    p.output_data = rp.src;
+                    const int os = osb * os_block;
+                    p.bcast_dim = this_block_size(os, jcp.os,
+                            bcast_step * os_block);
+                    rp.os = p.bcast_dim;
 
-                for (int ocb = 0; ocb < jcp.nb_reduce;
-                        ocb += jcp.nb_reduce_blocking) {
-                    const int _ocb = g * nb_oc + ocb;
-                    size_t diff_dst_off = diff_dst_d.blk_off(n, _ocb, oh, ow);
-                    p.bcast_data = &diff_dst[diff_dst_off];
+                    const int oh = os / jcp.ow;
+                    const int ow = os % jcp.ow;
+                    const int ih = nstl::max(oh * stride_h - pad_t, 0);
+                    const int iw = nstl::max(ow * stride_w - pad_l, 0);
+                    rp.iw_start = iw;
 
-                    p.load_data = &weights[conf_.with_groups()
-                        ? weights_d.blk_off(g, ocb, icb)
-                        : weights_d.blk_off(ocb, icb)];
+                    const int _icb = g * nb_ic + icb;
+                    rp.src = diff_src + diff_src_d.blk_off(n, _icb, ih, iw);
 
-                    p.reduce_pos_flag = ocb == 0
-                        ? jit_avx512_common_1x1_conv_kernel_f32::
-                          REDUCE_FLAG_FIRST
-                        : 0;
+                    if (conf_.rtus_.reduce_src_) {
+                        rp.ws = scratch_ + ithr * ws_per_thread_;
+                        p.output_data = rp.ws;
+                    } else
+                        p.output_data = rp.src;
 
-                    p.reduce_dim = this_block_size(ocb * jcp.oc_block, jcp.oc,
-                            nb_oc_blocking * jcp.oc_block);
+                    for (int ocb_inner = 0; ocb_inner < nboc_inner;
+                        ocb_inner += ocb_inner_step) {
+                        int cur_ocb_inner =
+                            nstl::min(ocb_inner + ocb_inner_step, nboc_inner) -
+                            ocb_inner;
 
-                    kernel_->jit_ker(&p);
+                        int ocb = jcp.use_outer ? ocb_outer : ocb_inner;
+                        int nb_oc_blocking_step = jcp.use_outer
+                            ? cur_ocb_outer : cur_ocb_inner;
+                        const int _ocb = g * nb_oc + ocb;
+                        size_t diff_dst_off =
+                            diff_dst_d.blk_off(n, _ocb, oh, ow);
+                        p.bcast_data = &diff_dst[diff_dst_off];
+
+                        p.load_data = &weights[conf_.with_groups()
+                            ? weights_d.blk_off(g, ocb, icb)
+                            : weights_d.blk_off(ocb, icb)];
+
+                        p.reduce_pos_flag = ocb == 0
+                            ? jit_avx512_common_1x1_conv_kernel_f32::
+                              REDUCE_FLAG_FIRST
+                            : 0;
+
+                        p.reduce_dim = this_block_size(ocb * jcp.oc_block,
+                            jcp.oc, nb_oc_blocking_step * jcp.oc_block);
+
+                        kernel_->jit_ker(&p);
+                    }
+                    if (conf_.rtus_.reduce_src_)
+                        rtus_driver_->ker_(&rp);
                 }
-
-                if (conf_.rtus_.reduce_src_)
-                    rtus_driver_->ker_(&rp);
             }
         }
     };

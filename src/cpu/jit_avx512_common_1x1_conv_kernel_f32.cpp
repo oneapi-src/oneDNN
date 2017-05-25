@@ -553,7 +553,7 @@ status_t jit_avx512_common_1x1_conv_kernel_f32::init_conf(
         jit_1x1_conv_conf_t &jcp, const convolution_desc_t &cd,
         const memory_desc_wrapper &src_d, const memory_desc_wrapper &weights_d,
         const memory_desc_wrapper &dst_d, bool with_relu,
-        double relu_negative_slope)
+        double relu_negative_slope, int nthreads, bool reduce_src)
 {
     if (!mayiuse(avx512_common)) return status::unimplemented;
 
@@ -658,8 +658,12 @@ status_t jit_avx512_common_1x1_conv_kernel_f32::init_conf(
     int reduce_blocking{ 0 };
     int reduce_blocking_max{ 0 };
 
+    jcp.load_grp_count = 1;
+
     const int KNL_L2_capacity = (512 * 1024) / sizeof(float);
     const int KNL_L1_capacity = (64 * 1024) / sizeof(float);
+
+    const int SMALL_SPATIAL = 15 * 15;
 
     if (one_of(jcp.prop_kind, forward_training, forward_inference)) {
         jcp.reduce_dim = jcp.ic;
@@ -729,6 +733,17 @@ status_t jit_avx512_common_1x1_conv_kernel_f32::init_conf(
         bcast_blocking_max = bcast_blocking * 3 / 2;
         reduce_blocking_max = reduce_blocking;
 
+        if (jcp.oh < 8 && jcp.mb < nthreads) {
+            // XXX probably not the best choice...
+            const int nb_oc_div =
+                nstl::min(div_up(jcp.load_dim, jcp.load_block),
+                utils::div_up(nthreads, jcp.mb));
+            int load_grp_size = utils::div_up(nthreads, nb_oc_div);
+            jcp.load_grp_count = utils::div_up(nthreads, load_grp_size);
+        }
+        if (jcp.ver == ver_4fma && jcp.os < SMALL_SPATIAL)
+            jcp.use_outer = true;
+
     } else if (jcp.prop_kind == backward_data) {
         // TODO: update evristic blocking
 
@@ -774,6 +789,20 @@ status_t jit_avx512_common_1x1_conv_kernel_f32::init_conf(
         bcast_blocking_max = bcast_blocking * 3 / 2;
         load_blocking_max = rnd_dn(load_blocking * 3 / 2, jcp.load_block);
         reduce_blocking_max = reduce_blocking;
+
+        if (jcp.oh < 8 && jcp.mb < nthreads) {
+            // XXX: there must be a function that does this...
+            // Something similar to balance211 should work best
+            // XXX probably not the best choice...
+            const int nb_ic_div =
+                nstl::min(div_up(jcp.load_dim, jcp.load_block),
+                utils::div_up(nthreads, jcp.mb));
+            int load_grp_size = utils::div_up(nthreads, nb_ic_div);
+            jcp.load_grp_count = utils::div_up(nthreads, load_grp_size);
+        }
+
+        if (jcp.ver == ver_4fma && jcp.is < SMALL_SPATIAL && !reduce_src)
+            jcp.use_outer = true;
 
     } else if (jcp.prop_kind == backward_weights) {
         jcp.reduce_dim = jcp.os;

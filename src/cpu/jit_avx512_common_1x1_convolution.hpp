@@ -67,7 +67,8 @@ struct _jit_avx512_common_1x1_convolution_fwd_t : public cpu_primitive_t {
             rtus_prepare(this, conv_d, src_d, this->dst_pd_.desc());
             return jit_avx512_common_1x1_conv_kernel_f32::init_conf(jcp_,
                     *conv_d, *src_d, *this->weights_pd_.desc(),
-                    *this->dst_pd_.desc(), with_relu, this->negative_slope());
+                    *this->dst_pd_.desc(), with_relu, this->negative_slope(),
+                    omp_get_max_threads(), rtus_.reduce_src_);
         }
 
         jit_1x1_conv_conf_t jcp_;
@@ -160,7 +161,8 @@ struct jit_avx512_common_1x1_convolution_bwd_data_t : public cpu_primitive_t {
             rtus_prepare(this, conv_d, diff_src_d, this->diff_dst_pd_.desc());
             return jit_avx512_common_1x1_conv_kernel_f32::init_conf(jcp_,
                             *conv_d, *diff_src_d, *this->weights_pd_.desc(),
-                            *this->diff_dst_pd_.desc());
+                            *this->diff_dst_pd_.desc(), omp_get_max_threads(),
+                            rtus_.reduce_src_);
         }
 
         // TODO (Roma): structs conf header cleanup
@@ -255,10 +257,10 @@ struct jit_avx512_common_1x1_convolution_bwd_weights_t : public cpu_primitive_t 
             const convolution_desc_t *conv_d = this->desc();
             const memory_desc_t *src_d = this->src_pd_.desc();
             rtus_prepare(this, conv_d, src_d, this->diff_dst_pd_.desc());
-
             return jit_avx512_common_1x1_conv_kernel_f32::init_conf(jcp_,
                             *conv_d, *src_d, *this->diff_weights_pd_.desc(),
-                            *this->diff_dst_pd_.desc());
+                            *this->diff_dst_pd_.desc(), omp_get_max_threads(),
+                            rtus_.reduce_src_);
         }
 
         // TODO (Roma): structs conf header cleanup
