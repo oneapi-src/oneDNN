@@ -268,33 +268,22 @@ struct engine: public handle<c_api::mkldnn_engine_t> {
     explicit engine(const c_api::mkldnn_engine_t& aengine)
         : handle(aengine, true) {}
 
-    engine(const handle<c_api::mkldnn_primitive_desc_t> pd) {
+    engine(const handle<c_api::mkldnn_primitive_desc_t> &pd) {
         c_api::mkldnn_engine_t engine_q;
         error::wrap_c_api(
-            c_api::mkldnn_primitive_desc_query(pd.get(),
-              mkldnn::convert_to_c(query::eengine), 0, &engine_q),
-            "could not get engine from primitive_desc");
-
+                c_api::mkldnn_primitive_desc_query(pd.get(),
+                    mkldnn::convert_to_c(eengine), 0, &engine_q),
+                "could not get engine from primitive_desc");
         reset(engine_q, true);
-    }
-
-    static engine query(const handle<c_api::mkldnn_primitive_desc_t> &pd) {
-        c_api::mkldnn_engine_t engine_q;
-        error::wrap_c_api(
-            c_api::mkldnn_primitive_desc_query(pd.get(),
-              mkldnn::convert_to_c(query::eengine), 0, &engine_q),
-            "could not get engine from primitive_desc");
-
-        return engine(engine_q);
     }
 
     template <class primitive_desc>
     static engine query(const primitive_desc &pd) {
         c_api::mkldnn_engine_t engine_q;
         error::wrap_c_api(
-            c_api::mkldnn_primitive_desc_query(pd.get(),
-              mkldnn::convert_to_c(query::eengine), 0, &engine_q),
-            "could not get engine from primitive_desc");
+                c_api::mkldnn_primitive_desc_query(pd.get(),
+                    mkldnn::convert_to_c(eengine), 0, &engine_q),
+                "could not get engine from primitive_desc");
 
         return engine(engine_q);
     }
