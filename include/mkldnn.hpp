@@ -232,7 +232,7 @@ inline c_api::mkldnn_query_t convert_to_c(query aquery) {
 /// An execution engine.
 struct engine: public handle<c_api::mkldnn_engine_t> {
     friend class primitive;
-    /// gcc bug??? using handle::handle;
+    // gcc bug??? using handle::handle;
 
     /// Kinds of engines
     enum kind {
