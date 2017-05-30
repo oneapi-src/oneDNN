@@ -91,8 +91,6 @@ void _jit_avx512_common_convolution_fwd_t<with_relu>::execute_forward()
                     ? weights_d.blk_off(g, ocb, 0, 0, 0)
                     : weights_d.blk_off(ocb, 0, 0, 0));
             for (int icb = 0; icb < jcp.nb_ic; ++icb) {
-                const size_t icb_ = jcp.ic == 3 ? 0 : icb;
-                const size_t ic_ = jcp.ic == 3 ? 0 : g * jcp.nb_ic + icb;
                 const data_t *src_ptr = src_ptr_base;
                 const data_t *dst_ptr = dst_ptr_base;
                 const data_t *weights_ptr = weights_ptr_base;

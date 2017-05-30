@@ -52,7 +52,6 @@ void balance2D(U nthr, U ithr, T ny, T &ny_start, T &ny_end,
         const T current_grp_offt = current_grp * grp_size;
         const T current_grp_nthr =
             nstl::min(nthr, current_grp_offt + grp_size) - current_grp_offt;
-        int start, end;
         balance211(ny, current_grp_nthr, current_grp_ithr, ny_start, ny_end);
     }
 }
@@ -113,7 +112,7 @@ void _jit_avx512_common_1x1_convolution_fwd_t<with_relu>::execute_forward()
 
             int iwork = bcast_start;
             while (iwork < bcast_end) {
-                int n{0}, g{0}, osb{0}, lb{0};
+                int n{0}, g{0}, osb{0};
                 nd_iterator_init(iwork, n, jcp.mb, g, jcp.ngroups, osb,
                     jcp.nb_bcast);
                 int bcast_step = step(jcp.nb_bcast_blocking, jcp.nb_bcast - osb,
