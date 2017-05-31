@@ -32,6 +32,10 @@ namespace impl {
     return status; \
 } while (0)
 
+#ifdef _WIN32
+#define __PRETTY_FUNCTION__ __FUNCSIG__
+#endif
+
 namespace utils {
 
 /* a bunch of std:: analogues to be compliant with any msvs version

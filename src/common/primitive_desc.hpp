@@ -59,6 +59,8 @@ struct mkldnn_primitive_desc: public mkldnn::impl::c_compatible {
             const mkldnn::impl::primitive_at_t *inputs,
             const mkldnn::impl::primitive_t **outputs) const = 0;
 
+    virtual const char *name() const { return "mkldnn_primitive_desc"; }
+
     /* static magic */
 
     template<typename pd_t>
@@ -95,6 +97,7 @@ protected:
         return safe_ptr_assign<primitive_t>(*primitive, \
                 new (__VA_ARGS__)(this, ins, outs)); \
     } \
+    virtual const char *name() const override { return __PRETTY_FUNCTION__; }
 
 #endif
 

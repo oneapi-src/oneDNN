@@ -205,6 +205,8 @@ enum query {
     time_estimate_f64 = c_api::mkldnn_query_time_estimate_f64,
     memory_consumption_s64 = c_api::mkldnn_query_memory_consumption_s64,
 
+    impl_info_str = c_api::mkldnn_query_impl_info_str,
+
     memory_d = c_api::mkldnn_query_memory_d,
     convolution_d = c_api::mkldnn_query_convolution_d,
     relu_d = c_api::mkldnn_query_relu_d,

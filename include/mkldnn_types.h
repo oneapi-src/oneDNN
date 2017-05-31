@@ -688,6 +688,7 @@ typedef struct {
  *      *_s32                        | int *
  *      *_s64                        | ptrdiff_t *
  *      *_f64                        | double *
+ *      *_str                        | const char **
  *      *_md                         | const mkldnn_memory_desc_t **
  *      *_${op}_d                    | const mkldnn_${op}_desc_t **
  *      *_pd                         | const_mkldnn_primitive_desc_t *
@@ -715,6 +716,8 @@ typedef enum {
     mkldnn_query_memory_consumption_s64, /**< memory consumption -- extra
                                            (scratch) memory, additional to all
                                            inputs and outputs memory (bytes) */
+
+    mkldnn_query_impl_info_str, /**< implementation name */
 
     /* memory and op descriptor section */
     mkldnn_query_some_d = 64, /**< stub */

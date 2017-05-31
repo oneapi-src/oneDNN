@@ -157,6 +157,8 @@ namespace query {
     const query_t time_estimate_f64 = mkldnn_query_time_estimate_f64;
     const query_t memory_consumption_s64 = mkldnn_query_memory_consumption_s64;
 
+    const query_t impl_info_str = mkldnn_query_impl_info_str;
+
     const query_t some_d = mkldnn_query_some_d;
     const query_t memory_d = mkldnn_query_memory_d;
     const query_t convolution_d = mkldnn_query_convolution_d;

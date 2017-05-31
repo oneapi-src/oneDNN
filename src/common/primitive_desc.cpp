@@ -51,6 +51,8 @@ status_t primitive_desc_t::query(query_t what, int idx, void *result) const {
         case query::num_of_inputs_s32: *(int*)result = n_inputs(); break;
         case query::num_of_outputs_s32: *(int*)result = n_outputs(); break;
 
+        case query::impl_info_str: *(const char **)result = name(); break;
+
         default: return unimplemented;
     }
     return success;
