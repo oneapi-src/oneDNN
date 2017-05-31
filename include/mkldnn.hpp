@@ -193,10 +193,46 @@ template <> struct handle_traits<c_api::mkldnn_engine_t> {
 };
 #endif
 
+enum query {
+    undef = c_api::mkldnn_query_undef,
+
+    eengine = c_api::mkldnn_query_engine,
+    primitive_kind = c_api::mkldnn_query_primitive_kind,
+
+    num_of_inputs_s32 = c_api::mkldnn_query_num_of_inputs_s32,
+    num_of_outputs_s32 = c_api::mkldnn_query_num_of_outputs_s32,
+
+    time_estimate_f64 = c_api::mkldnn_query_time_estimate_f64,
+    memory_consumption_s64 = c_api::mkldnn_query_memory_consumption_s64,
+
+    memory_d = c_api::mkldnn_query_memory_d,
+    convolution_d = c_api::mkldnn_query_convolution_d,
+    relu_d = c_api::mkldnn_query_relu_d,
+    softmax_d = c_api::mkldnn_query_softmax_d,
+    pooling_d = c_api::mkldnn_query_pooling_d,
+    lrn_d = c_api::mkldnn_query_lrn_d,
+    batch_normalization_d = c_api::mkldnn_query_batch_normalization_d,
+    inner_product_d = c_api::mkldnn_query_inner_product_d,
+    convolution_relu_d = c_api::mkldnn_query_convolution_relu_d,
+
+    input_pd = c_api::mkldnn_query_input_pd,
+    output_pd = c_api::mkldnn_query_output_pd,
+    src_pd = c_api::mkldnn_query_src_pd,
+    diff_src_pd = c_api::mkldnn_query_diff_src_pd,
+    weights_pd = c_api::mkldnn_query_weights_pd,
+    diff_weights_pd = c_api::mkldnn_query_diff_weights_pd,
+    dst_pd = c_api::mkldnn_query_dst_pd,
+    diff_dst_pd = c_api::mkldnn_query_diff_dst_pd,
+    workspace_pd = c_api::mkldnn_query_workspace_pd,
+};
+inline c_api::mkldnn_query_t convert_to_c(query aquery) {
+    return static_cast<c_api::mkldnn_query_t>(aquery);
+}
+
 /// An execution engine.
 struct engine: public handle<c_api::mkldnn_engine_t> {
     friend class primitive;
-    using handle::handle;
+    // gcc bug??? using handle::handle;
 
     /// Kinds of engines
     enum kind {
@@ -231,6 +267,26 @@ struct engine: public handle<c_api::mkldnn_engine_t> {
 
     explicit engine(const c_api::mkldnn_engine_t& aengine)
         : handle(aengine, true) {}
+
+    engine(const handle<c_api::mkldnn_primitive_desc_t> &pd) {
+        c_api::mkldnn_engine_t engine_q;
+        error::wrap_c_api(
+                c_api::mkldnn_primitive_desc_query(pd.get(),
+                    mkldnn::convert_to_c(eengine), 0, &engine_q),
+                "could not get engine from primitive_desc");
+        reset(engine_q, true);
+    }
+
+    template <class primitive_desc>
+    static engine query(const primitive_desc &pd) {
+        c_api::mkldnn_engine_t engine_q;
+        error::wrap_c_api(
+                c_api::mkldnn_primitive_desc_query(pd.get(),
+                    mkldnn::convert_to_c(eengine), 0, &engine_q),
+                "could not get engine from primitive_desc");
+
+        return engine(engine_q);
+    }
 
 private:
     static c_api::mkldnn_engine_kind_t convert_to_c(kind akind) {
@@ -374,6 +430,8 @@ struct memory: public primitive  {
         bool operator!=(const primitive_desc &other) const {
             return !operator==(other);
         }
+
+        engine get_engine() { return engine::query(*this); }
     };
 
     /// Constructs a memory primitive from a generic primitive.
@@ -444,42 +502,6 @@ struct memory: public primitive  {
 
 };
 
-enum query {
-    undef = c_api::mkldnn_query_undef,
-
-    eengine = c_api::mkldnn_query_engine,
-    primitive_kind = c_api::mkldnn_query_primitive_kind,
-
-    num_of_inputs_s32 = c_api::mkldnn_query_num_of_inputs_s32,
-    num_of_outputs_s32 = c_api::mkldnn_query_num_of_outputs_s32,
-
-    time_estimate_f64 = c_api::mkldnn_query_time_estimate_f64,
-    memory_consumption_s64 = c_api::mkldnn_query_memory_consumption_s64,
-
-    memory_d = c_api::mkldnn_query_memory_d,
-    convolution_d = c_api::mkldnn_query_convolution_d,
-    relu_d = c_api::mkldnn_query_relu_d,
-    softmax_d = c_api::mkldnn_query_softmax_d,
-    pooling_d = c_api::mkldnn_query_pooling_d,
-    lrn_d = c_api::mkldnn_query_lrn_d,
-    batch_normalization_d = c_api::mkldnn_query_batch_normalization_d,
-    inner_product_d = c_api::mkldnn_query_inner_product_d,
-    convolution_relu_d = c_api::mkldnn_query_convolution_relu_d,
-
-    input_pd = c_api::mkldnn_query_input_pd,
-    output_pd = c_api::mkldnn_query_output_pd,
-    src_pd = c_api::mkldnn_query_src_pd,
-    diff_src_pd = c_api::mkldnn_query_diff_src_pd,
-    weights_pd = c_api::mkldnn_query_weights_pd,
-    diff_weights_pd = c_api::mkldnn_query_diff_weights_pd,
-    dst_pd = c_api::mkldnn_query_dst_pd,
-    diff_dst_pd = c_api::mkldnn_query_diff_dst_pd,
-    workspace_pd = c_api::mkldnn_query_workspace_pd,
-};
-inline c_api::mkldnn_query_t convert_to_c(query aquery) {
-    return static_cast<c_api::mkldnn_query_t>(aquery);
-}
-
 enum padding_kind {
     zero = c_api::mkldnn_padding_zero
 };
@@ -531,6 +553,8 @@ struct reorder : public primitive {
                     "could not create a reorder primitive descriptor");
             reset(result);
         }
+
+        engine get_engine() { return engine::query(*this); }
     };
 
     reorder(const primitive_desc &aprimitive_desc,
@@ -584,6 +608,8 @@ struct view : public primitive {
             adesc.reset(cdesc);
             return adesc;
         }
+
+        engine get_engine() { return engine::query(*this); }
     };
 
     view(const primitive_desc &view_pd, primitive::at input) {
@@ -657,6 +683,7 @@ struct concat : public primitive {
             return adesc;
         }
 
+        engine get_engine() { return engine::query(*this); }
     };
 
     concat(const primitive_desc &concat_pd,
@@ -726,6 +753,7 @@ struct sum : public primitive {
             return adesc;
         }
 
+        engine get_engine() { return engine::query(*this); }
     };
 
     sum(const primitive_desc &sum_pd,
@@ -916,6 +944,8 @@ struct convolution_forward: public primitive {
             adesc.reset(cdesc);
             return adesc;
         }
+
+        engine get_engine() { return engine::query(*this); }
     };
 
     convolution_forward(const primitive_desc &aprimitive_desc,
@@ -1012,6 +1042,8 @@ struct convolution_backward_data : public primitive {
             adesc.reset(cdesc);
             return adesc;
         }
+
+        engine get_engine() { return engine::query(*this); }
     };
 
     convolution_backward_data(const primitive_desc &aprimitive_desc,
@@ -1128,6 +1160,8 @@ struct convolution_backward_weights : public primitive {
             adesc.reset(cdesc);
             return adesc;
         }
+
+        engine get_engine() { return engine::query(*this); }
     };
 
     convolution_backward_weights(const primitive_desc &aprimitive_desc,
@@ -1175,6 +1209,8 @@ struct convolution_relu_forward : public primitive {
                 "could not create a convolution relu forward descriptor");
             reset(result);
         }
+
+        engine get_engine() { return engine::query(*this); }
     };
 
     convolution_relu_forward(const primitive_desc &aprimitive_desc,
@@ -1269,6 +1305,8 @@ struct lrn_forward : public primitive {
             adesc.reset(cdesc);
             return adesc;
         }
+
+        engine get_engine() { return engine::query(*this); }
     };
 
     lrn_forward(const primitive_desc &aprimitive_desc,
@@ -1367,6 +1405,8 @@ struct lrn_backward : public primitive {
             adesc.reset(cdesc);
             return adesc;
         }
+
+        engine get_engine() { return engine::query(*this); }
     };
 
     lrn_backward(const primitive_desc &aprimitive_desc,
@@ -1453,6 +1493,8 @@ struct pooling_forward : public primitive {
             adesc.reset(cdesc);
             return adesc;
         }
+
+        engine get_engine() { return engine::query(*this); }
     };
 
     pooling_forward(const primitive_desc &aprimitive_desc, const primitive::at &src,
@@ -1525,6 +1567,8 @@ struct pooling_backward : public primitive {
             adesc.reset(cdesc);
             return adesc;
         }
+
+        engine get_engine() { return engine::query(*this); }
     };
 
     pooling_backward(const primitive_desc &aprimitive_desc, const primitive::at &diff_dst,
@@ -1583,6 +1627,8 @@ struct relu_forward : public primitive {
             adesc.reset(cdesc);
             return adesc;
         }
+
+        engine get_engine() { return engine::query(*this); }
     };
 
     relu_forward(const primitive_desc &aprimitive_desc,
@@ -1648,6 +1694,8 @@ struct relu_backward : public primitive {
             adesc.reset(cdesc);
             return adesc;
         }
+
+        engine get_engine() { return engine::query(*this); }
     };
     relu_backward(const primitive_desc &aprimitive_desc,
             const primitive::at &src, const primitive::at &diff_dst,
@@ -1682,6 +1730,8 @@ struct softmax_forward : public primitive {
                 "could not create a softmax forward primitive descriptor");
             reset(result);
         }
+
+        engine get_engine() { return engine::query(*this); }
     };
 
     softmax_forward(const primitive_desc &aprimitive_desc,
@@ -1784,6 +1834,8 @@ struct batch_normalization_forward : public primitive {
             adesc.reset(cdesc);
             return adesc;
         }
+
+        engine get_engine() { return engine::query(*this); }
     };
 
     batch_normalization_forward(const primitive_desc &aprimitive_desc,
@@ -1954,6 +2006,8 @@ struct batch_normalization_backward : public primitive {
             adesc.reset(cdesc);
             return adesc;
         }
+
+        engine get_engine() { return engine::query(*this); }
     };
 
     // Prop_kind == backward
@@ -2085,6 +2139,8 @@ struct inner_product_forward: public primitive {
             adesc.reset(cdesc);
             return adesc;
         }
+
+        engine get_engine() { return engine::query(*this); }
     };
 
     inner_product_forward(const primitive_desc &aprimitive_desc,
@@ -2173,6 +2229,8 @@ struct inner_product_backward_data: public primitive {
             adesc.reset(cdesc);
             return adesc;
         }
+
+        engine get_engine() { return engine::query(*this); }
     };
 
     inner_product_backward_data(const primitive_desc &aprimitive_desc,
@@ -2270,6 +2328,8 @@ struct inner_product_backward_weights: public primitive {
             adesc.reset(cdesc);
             return adesc;
         }
+
+        engine get_engine() { return engine::query(*this); }
     };
 
     inner_product_backward_weights(const primitive_desc &aprimitive_desc,
