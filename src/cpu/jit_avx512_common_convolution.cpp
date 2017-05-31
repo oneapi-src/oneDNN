@@ -29,9 +29,41 @@ using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::utils;
 
+using namespace nstl;
+
+using jit_conv_ker_t = void (*)(jit_conv_call_s *);
+
+inline void jit_conv_ker_pipeline(jit_conv_ker_t ker, jit_conv_call_s &p,
+        const void *src, const void *dst, const void *filt, const void *bias,
+        int channel, int kh_padding)
+{
+#define PIPELINE(field) \
+    do { \
+        p.field = p.field ## _prf; \
+        p.field ## _prf = field; \
+    } while (0)
+
+    PIPELINE(src);
+    PIPELINE(dst);
+    PIPELINE(filt);
+    PIPELINE(bias);
+    PIPELINE(channel);
+    PIPELINE(kh_padding);
+
+    if (p.src)
+        ker(&p);
+}
+
+#define wht_blk_off(d, g, ...) \
+        (conf_.with_groups() \
+         ? (d).blk_off((g), __VA_ARGS__) \
+         : (d).blk_off(__VA_ARGS__))
+
 template <bool with_relu>
 void _jit_avx512_common_convolution_fwd_t<with_relu>::execute_forward()
 {
+    assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
+
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto weights = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto bias = reinterpret_cast<const data_t *>(this->input_memory(2));
@@ -46,16 +78,14 @@ void _jit_avx512_common_convolution_fwd_t<with_relu>::execute_forward()
 
 #   pragma omp parallel
     {
-        const int ithr = omp_get_thread_num(), nthr = omp_get_num_threads();
+        int ithr = omp_get_thread_num(), nthr = omp_get_num_threads();
 
-        size_t start{0}, end{0};
-        assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
-        const int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
-        const size_t work_amount = jcp.mb * jcp.ngroups * oc_chunks;
-        size_t n{0}, g{0}, occ{0};
-        jit_conv_call_s par_conv = {};
-
+        int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
+        size_t start, end;
+        size_t work_amount = jcp.mb * jcp.ngroups * oc_chunks;
         balance211(work_amount, nthr, ithr, start, end);
+
+        int n{0}, g{0}, occ{0};
         if (jcp.loop_order == loop_cgn)
             nd_iterator_init(start, occ, oc_chunks, g, jcp.ngroups, n, jcp.mb);
         else if (jcp.loop_order == loop_gnc)
@@ -63,66 +93,45 @@ void _jit_avx512_common_convolution_fwd_t<with_relu>::execute_forward()
         else
             assert(!"unsupported loop order");
 
-        par_conv.src_prf = NULL;
-        par_conv.dst_prf = NULL;
-        par_conv.filt_prf = NULL;
-        par_conv.bias_prf = NULL;
+        size_t src_h_stride = src_d.blk_off(0, 0, 1);
+        size_t src_c_stride = src_d.blk_off(0, 1);
+        size_t dst_h_stride = dst_d.blk_off(0, 0, 1);
+        size_t wht_h_stride = wht_blk_off(weights_d, 0, 0, 0, 1);
+        size_t wht_ic_stride = wht_blk_off(weights_d, 0, 0, 1);
 
-        // TODO: check that assumptions make sense...
-        const size_t dst_h_stride = dst_d.blk_off(0, 0, 1, 0);
-        const size_t src_h_stride = src_d.blk_off(0, 0, 1, 0);
-        const size_t src_c_stride = src_d.blk_off(0, 1, 0, 0);
-        const size_t wht_h_stride = conf_.with_groups()
-            ? weights_d.blk_off(0, 0, 0, 1, 0)
-            : weights_d.blk_off(0, 0, 1, 0);
-        const size_t wht_ic_stride = conf_.with_groups()
-            ? weights_d.blk_off(0, 0, 1, 0, 0)
-            : weights_d.blk_off(0, 1, 0, 0);
-
+        jit_conv_call_s par_conv = {0};
         for (size_t iwork = start; iwork < end; ++iwork) {
-            const size_t ocb = occ * jcp.nb_oc_blocking;
-            const size_t g_ocb = g * jcp.nb_oc + ocb;
-            const size_t g_oc = g_ocb * jcp.oc_block;
-            const size_t g_icb = g * jcp.nb_ic;
-            const data_t *bias_ptr = bias ? bias + bias_d.blk_off(g_oc) : 0;
-            const data_t *dst_ptr_base = dst + dst_d.blk_off(n, g_ocb, 0, 0);
-            const data_t *src_ptr_base = src + src_d.blk_off(n, g_icb, -jcp.t_pad, 0);
-            const data_t *weights_ptr_base = weights + (conf_.with_groups()
-                    ? weights_d.blk_off(g, ocb, 0, 0, 0)
-                    : weights_d.blk_off(ocb, 0, 0, 0));
+            int ocb = occ * jcp.nb_oc_blocking;
+            int g_ocb = g * jcp.nb_oc + ocb;
+            int g_oc = g_ocb * jcp.oc_block;
+            int g_icb = g * jcp.nb_ic;
+
+            auto bias_w = bias ? bias + bias_d.blk_off(g_oc) : 0;
+            auto dst_w = dst + dst_d.blk_off(n, g_ocb);
+            auto src_w = src + src_d.blk_off(n, g_icb, -jcp.t_pad);
+            auto wht_w = weights + wht_blk_off(weights_d, g, ocb);
+
             for (int icb = 0; icb < jcp.nb_ic; ++icb) {
-                const data_t *src_ptr = src_ptr_base;
-                const data_t *dst_ptr = dst_ptr_base;
-                const data_t *weights_ptr = weights_ptr_base;
-                for (int oh = 0, ij = -jcp.t_pad; oh < jcp.oh; ++oh, ij += jcp.stride_h) {
-                    const int i_t_overflow = -nstl::min(0, ij);
-                    const int i_b_overflow = nstl::max(jcp.ih, ij + jcp.kh) - jcp.ih;
+                auto src_c = src_w;
+                auto dst_c = dst_w;
+                for (int oj = 0, ij = -jcp.t_pad; oj < jcp.oh;
+                        ++oj, ij += jcp.stride_h)
+                {
+                    int i_t_overflow = -min(0, ij);
+                    int i_b_overflow = max(jcp.ih, ij + jcp.kh) - jcp.ih;
 
-                    par_conv.src = par_conv.src_prf;
-                    par_conv.dst = par_conv.dst_prf;
-                    par_conv.filt = par_conv.filt_prf;
-                    par_conv.bias = par_conv.bias_prf;
-                    par_conv.channel = par_conv.channel_prf;
+                    jit_conv_ker_pipeline(kernel_->jit_ker, par_conv,
+                            src_c + i_t_overflow * src_h_stride,
+                            dst_c,
+                            wht_w + i_t_overflow * wht_h_stride,
+                            bias_w,
+                            icb, jcp.kh - i_t_overflow - i_b_overflow);
 
-                    par_conv.src_prf = src_ptr + i_t_overflow * src_h_stride;
-                    par_conv.dst_prf = dst_ptr;
-                    par_conv.bias_prf = bias_ptr;
-                    par_conv.filt_prf = weights_ptr + i_t_overflow * wht_h_stride;
-
-                    par_conv.kh_padding = par_conv.kh_padding_prf;
-                    par_conv.kh_padding_prf
-                        = jcp.kh - i_t_overflow - i_b_overflow;
-                    par_conv.kw_padding = 0;
-                    par_conv.channel_prf = icb;
-
-                    if (par_conv.src != NULL)
-                        kernel_->jit_ker(&par_conv);
-
-                    src_ptr += src_h_stride * jcp.stride_h;
-                    dst_ptr += dst_h_stride;
+                    src_c += src_h_stride * jcp.stride_h;
+                    dst_c += dst_h_stride;
                 }
-                src_ptr_base += src_c_stride;
-                weights_ptr_base += wht_ic_stride;
+                src_w += src_c_stride;
+                wht_w += wht_ic_stride;
             }
 
             if (jcp.loop_order == loop_cgn)
@@ -133,18 +142,8 @@ void _jit_avx512_common_convolution_fwd_t<with_relu>::execute_forward()
                 assert(!"unsupported loop order");
         }
 
-        par_conv.src = par_conv.src_prf;
-        par_conv.dst = par_conv.dst_prf;
-        par_conv.filt = par_conv.filt_prf;
-        par_conv.bias = par_conv.bias_prf;
-        par_conv.channel = par_conv.channel_prf;
-
-        par_conv.kh_padding = par_conv.kh_padding_prf;
-        par_conv.kw_padding = 0;
-
-        if (par_conv.src != NULL)
-            kernel_->jit_ker(&par_conv);
-
+        jit_conv_ker_pipeline(kernel_->jit_ker, par_conv,
+                src, dst, weights, bias, 0, 0);
     }
 }
 template void _jit_avx512_common_convolution_fwd_t<true>::execute_forward();
@@ -163,15 +162,14 @@ void jit_avx512_common_convolution_bwd_data_t::execute_backward_data() {
 
 #   pragma omp parallel
     {
-        const int ithr = omp_get_thread_num(), nthr = omp_get_num_threads();
+        int ithr = omp_get_thread_num(), nthr = omp_get_num_threads();
 
-        size_t start{0}, end{0};
-        size_t n{0}, g{0}, icc{0};
-        jit_conv_call_s par_conv = {0};
-        const int ic_chunks = jcp.nb_ic / jcp.nb_ic_blocking;
-        const size_t work_amount = jcp.ngroups * jcp.mb * ic_chunks;
-
+        size_t start, end;
+        int ic_chunks = jcp.nb_ic / jcp.nb_ic_blocking;
+        size_t work_amount = jcp.ngroups * jcp.mb * ic_chunks;
         balance211(work_amount, nthr, ithr, start, end);
+
+        int n{0}, g{0}, icc{0};
         if (jcp.loop_order == loop_cgn)
             nd_iterator_init(start, icc, ic_chunks, g, jcp.ngroups, n, jcp.mb);
         else if (jcp.loop_order == loop_gnc)
@@ -179,42 +177,36 @@ void jit_avx512_common_convolution_bwd_data_t::execute_backward_data() {
         else
             assert(!"unsupported loop order");
 
-        par_conv.src_prf = NULL;
-        par_conv.dst_prf = NULL;
-        par_conv.filt_prf = NULL;
+        size_t diff_src_h_stride = diff_src_d.blk_off(0, 0, 1);
+        size_t diff_dst_h_stride = diff_dst_d.blk_off(0, 0, 1);
+        size_t diff_dst_c_stride = diff_dst_d.blk_off(0, 1);
+        size_t wht_h_stride = wht_blk_off(weights_d, 0, 0, 0, 1);
+        size_t wht_oc_stride = wht_blk_off(weights_d, 0, 1);
+
+        jit_conv_call_s par_conv = {0};
         for (size_t iwork = start; iwork < end; ++iwork) {
-            const size_t ic = icc * jcp.nb_ic_blocking;
-            for (int oc = 0; oc < jcp.nb_oc; ++oc) {
-                for (int ih = 0; ih < jcp.ih; ++ih) {
-                    size_t i_t_overflow = nstl::max(0, jcp.kh - 1 - ih
-                            - jcp.t_pad);
-                    size_t i_b_overflow = nstl::max(0, jcp.kh - 1
-                            - (jcp.ih - 1 - ih) - jcp.b_pad);
-                    size_t oh = ih + jcp.t_pad - i_b_overflow;
+            int icb = icc * jcp.nb_ic_blocking;
+            int g_icb = g * jcp.nb_ic + icb;
+            int g_ocb = g * jcp.nb_oc;
 
-                    par_conv.src = par_conv.src_prf;
-                    par_conv.dst = par_conv.dst_prf;
-                    par_conv.filt = par_conv.filt_prf;
-                    par_conv.channel = par_conv.channel_prf;
+            auto diff_src_w = diff_src + diff_src_d.blk_off(n, g_icb);
+            auto diff_dst_w = diff_dst + diff_dst_d.blk_off(n, g_ocb);
+            auto wht_w = weights + wht_blk_off(weights_d, g, 0, icb);
 
-                    par_conv.src_prf = const_cast<data_t *>(&diff_src[
-                            diff_src_d.blk_off(n, g * jcp.nb_ic + ic, ih, 0)]);
-                    par_conv.dst_prf = const_cast<data_t *>(&diff_dst[
-                            diff_dst_d.blk_off(n, g * jcp.nb_oc + oc, oh, 0)]);
-                    par_conv.filt_prf = const_cast<data_t *>(&weights[
-                            conf_.with_groups()
-                            ? weights_d.blk_off(g, oc, ic, i_b_overflow, 0)
-                            : weights_d.blk_off(oc, ic, i_b_overflow, 0)]);
+            for (int ocb = 0; ocb < jcp.nb_oc; ++ocb) {
+                for (int ij = 0; ij < jcp.ih; ++ij) {
+                    int i_t_overflow = max(0, jcp.kh - 1 - ij - jcp.t_pad);
+                    int i_b_overflow = max(0, jcp.kh - jcp.ih + ij - jcp.b_pad);
+                    int oj = ij + jcp.t_pad - i_b_overflow;
 
-                    par_conv.kh_padding = par_conv.kh_padding_prf;
-                    par_conv.kh_padding_prf = jcp.kh - i_t_overflow
-                        - i_b_overflow;
-                    par_conv.kw_padding = 0;
-                    par_conv.channel_prf = oc;
-
-                    if (par_conv.src != NULL)
-                        kernel_->jit_ker(&par_conv);
+                    jit_conv_ker_pipeline(kernel_->jit_ker, par_conv,
+                            diff_src_w + ij * diff_src_h_stride,
+                            diff_dst_w + oj * diff_dst_h_stride,
+                            wht_w + i_b_overflow * wht_h_stride,
+                            0, ocb, jcp.kh - i_t_overflow - i_b_overflow);
                 }
+                diff_dst_w += diff_dst_c_stride;
+                wht_w += wht_oc_stride;
             }
 
             if (jcp.loop_order == loop_cgn)
@@ -224,20 +216,9 @@ void jit_avx512_common_convolution_bwd_data_t::execute_backward_data() {
             else
                 assert(!"unsupported loop order");
         }
-        par_conv.src = par_conv.src_prf;
-        par_conv.dst = par_conv.dst_prf;
-        par_conv.filt = par_conv.filt_prf;
 
-        par_conv.src_prf = NULL;
-        par_conv.dst_prf = NULL;
-        par_conv.filt_prf = NULL;
-
-        par_conv.kh_padding = par_conv.kh_padding_prf;
-        par_conv.kw_padding = 0;
-        par_conv.channel = par_conv.channel_prf;
-
-        if (par_conv.src != NULL)
-            kernel_->jit_ker(&par_conv);
+        jit_conv_ker_pipeline(kernel_->jit_ker, par_conv,
+                diff_src, diff_dst, weights, 0, 0, 0);
     }
 }
 
