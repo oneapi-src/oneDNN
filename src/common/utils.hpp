@@ -188,6 +188,32 @@ inline bool nd_iterator_step(U &x, const W &X, Args &&... tuple) {
     return false;
 }
 
+template<typename U, typename W, typename Y>
+inline bool nd_iterator_jump(U &cur, const U end, W &x, const Y &X)
+{
+    U max_jump = end - cur;
+    Y dim_jump = X - x;
+    if (dim_jump <= max_jump) {
+        x = 0;
+        cur += dim_jump;
+        return true;
+    } else {
+        cur += max_jump;
+        x += max_jump;
+        return false;
+    }
+}
+template<typename U, typename W, typename Y, typename... Args>
+inline bool nd_iterator_jump(U &cur, const U end, W &x, const Y &X,
+        Args &&... tuple)
+{
+    if (nd_iterator_jump(cur, end, utils::forward<Args>(tuple)...)) {
+        x = (x + 1) % X;
+        return x == 0;
+    }
+    return false;
+}
+
 }
 
 inline void* malloc(size_t size, int alignment) {
