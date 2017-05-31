@@ -66,7 +66,7 @@ private:
     reg64_t aux_reg_inp_prf = rsi;
     reg64_t aux_reg_ker_prf = rdx;
 
-    reg64_t reg_current_ic = rsi;
+    reg64_t reg_channel = rsi;
     reg64_t reg_bias = rdx;
 
     reg64_t reg_kj = rax;
@@ -191,7 +191,7 @@ private:
     reg64_t reg_oi = rbx;
     reg64_t reg_kh = abi_not_param1;
 
-    reg64_t reg_current_ic = rsi;
+    reg64_t reg_channel = rsi;
 
     reg64_t reg_tmp = rbp;
 

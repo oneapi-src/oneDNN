@@ -75,7 +75,7 @@ void _jit_avx512_mic_s16s16s32_convolution_fwd_t<with_relu>::execute_forward()
                     par_conv.dst = par_conv.dst_prf;
                     par_conv.filt = par_conv.filt_prf;
                     par_conv.bias = par_conv.bias_prf;
-                    par_conv.current_ic = par_conv.current_ic_prf;
+                    par_conv.channel = par_conv.channel_prf;
 
                     const int ih = nstl::max(ij - jcp.t_pad, 0);
                     const int oc_b = jcp.nb_oc_blocking * oc;
@@ -95,7 +95,7 @@ void _jit_avx512_mic_s16s16s32_convolution_fwd_t<with_relu>::execute_forward()
                     par_conv.kh_padding_prf
                             = jcp.kh - i_t_overflow - i_b_overflow;
                     par_conv.kw_padding = 0;
-                    par_conv.current_ic_prf = ic;
+                    par_conv.channel_prf = ic;
 
                     if (par_conv.src != NULL)
                         kernel_->jit_ker(&par_conv);
@@ -108,7 +108,7 @@ void _jit_avx512_mic_s16s16s32_convolution_fwd_t<with_relu>::execute_forward()
         par_conv.dst = par_conv.dst_prf;
         par_conv.filt = par_conv.filt_prf;
         par_conv.bias = par_conv.bias_prf;
-        par_conv.current_ic = par_conv.current_ic_prf;
+        par_conv.channel = par_conv.channel_prf;
 
         par_conv.src_prf = NULL;
         par_conv.dst_prf = NULL;

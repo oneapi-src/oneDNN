@@ -73,11 +73,11 @@ void jit_avx512_common_conv_fwd_kernel::store_output(int ur_w)
 {
     Label no_update_label, store_label, relu_label;
 
-    mov(reg_current_ic, ptr[param1 + GET_OFF(current_ic)]);
+    mov(reg_channel, ptr[param1 + GET_OFF(channel)]);
     if (jcp.with_bias) {
         mov(reg_bias, ptr[param1 + GET_OFF(bias)]);
     }
-    cmp(reg_current_ic, 0);
+    cmp(reg_channel, 0);
     je(no_update_label, T_NEAR);
 
     for (int k = 0; k < jcp.nb_oc_blocking; k++)
@@ -113,7 +113,7 @@ void jit_avx512_common_conv_fwd_kernel::store_output(int ur_w)
                 vbroadcastss(zmm_relu_ns, ptr[reg_relu_ns]);
             }
         }
-        cmp(reg_current_ic, jcp.nb_ic - 1);
+        cmp(reg_channel, jcp.nb_ic - 1);
         jl(store_label, T_NEAR);
         const unsigned char _cmp_lt_os = 1;
         for (int k = 0; k < jcp.nb_oc_blocking; k++)
@@ -656,8 +656,8 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::store_output(int ur_w)
 {
     Label no_update_label;
 
-    mov(reg_current_ic, ptr[param + GET_OFF(current_ic)]);
-    cmp(reg_current_ic, 0);
+    mov(reg_channel, ptr[param + GET_OFF(channel)]);
+    cmp(reg_channel, 0);
     je(no_update_label, T_NEAR);
     for (int k = 0; k < jcp.nb_ic_blocking; k++) {
         for (int j = 0; j < ur_w; j++) {

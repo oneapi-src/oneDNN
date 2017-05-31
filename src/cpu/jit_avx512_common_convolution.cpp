@@ -102,7 +102,7 @@ void _jit_avx512_common_convolution_fwd_t<with_relu>::execute_forward()
                     par_conv.dst = par_conv.dst_prf;
                     par_conv.filt = par_conv.filt_prf;
                     par_conv.bias = par_conv.bias_prf;
-                    par_conv.current_ic = par_conv.current_ic_prf;
+                    par_conv.channel = par_conv.channel_prf;
 
                     par_conv.src_prf = src_ptr + i_t_overflow * src_h_stride;
                     par_conv.dst_prf = dst_ptr;
@@ -113,7 +113,7 @@ void _jit_avx512_common_convolution_fwd_t<with_relu>::execute_forward()
                     par_conv.kh_padding_prf
                         = jcp.kh - i_t_overflow - i_b_overflow;
                     par_conv.kw_padding = 0;
-                    par_conv.current_ic_prf = icb;
+                    par_conv.channel_prf = icb;
 
                     if (par_conv.src != NULL)
                         kernel_->jit_ker(&par_conv);
@@ -137,7 +137,7 @@ void _jit_avx512_common_convolution_fwd_t<with_relu>::execute_forward()
         par_conv.dst = par_conv.dst_prf;
         par_conv.filt = par_conv.filt_prf;
         par_conv.bias = par_conv.bias_prf;
-        par_conv.current_ic = par_conv.current_ic_prf;
+        par_conv.channel = par_conv.channel_prf;
 
         par_conv.kh_padding = par_conv.kh_padding_prf;
         par_conv.kw_padding = 0;
@@ -195,7 +195,7 @@ void jit_avx512_common_convolution_bwd_data_t::execute_backward_data() {
                     par_conv.src = par_conv.src_prf;
                     par_conv.dst = par_conv.dst_prf;
                     par_conv.filt = par_conv.filt_prf;
-                    par_conv.current_ic = par_conv.current_ic_prf;
+                    par_conv.channel = par_conv.channel_prf;
 
                     par_conv.src_prf = const_cast<data_t *>(&diff_src[
                             diff_src_d.blk_off(n, g * jcp.nb_ic + ic, ih, 0)]);
@@ -210,7 +210,7 @@ void jit_avx512_common_convolution_bwd_data_t::execute_backward_data() {
                     par_conv.kh_padding_prf = jcp.kh - i_t_overflow
                         - i_b_overflow;
                     par_conv.kw_padding = 0;
-                    par_conv.current_ic_prf = oc;
+                    par_conv.channel_prf = oc;
 
                     if (par_conv.src != NULL)
                         kernel_->jit_ker(&par_conv);
@@ -234,7 +234,7 @@ void jit_avx512_common_convolution_bwd_data_t::execute_backward_data() {
 
         par_conv.kh_padding = par_conv.kh_padding_prf;
         par_conv.kw_padding = 0;
-        par_conv.current_ic = par_conv.current_ic_prf;
+        par_conv.channel = par_conv.channel_prf;
 
         if (par_conv.src != NULL)
             kernel_->jit_ker(&par_conv);
