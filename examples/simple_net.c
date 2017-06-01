@@ -39,8 +39,18 @@
 } while(0)
 
 void *aligned_malloc(size_t size, size_t alignment) {
+#ifdef WIN32
+    return _aligned_malloc(size, alignment);
+#else
     return memalign(alignment, size);
+#endif
 }
+
+#ifdef WIN32
+void __cdecl free(void *ptr) {
+    _aligned_free(ptr);
+}
+#endif
 
 static size_t product(int *arr, size_t size) {
     size_t prod = 1;

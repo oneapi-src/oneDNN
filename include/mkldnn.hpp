@@ -451,10 +451,21 @@ struct memory: public primitive  {
         reset(result);
         auto _malloc = [](size_t size, int alignment) {
             void *ptr;
+#ifdef _WIN32
+            ptr = _aligned_malloc(size, alignment);
+            int rc = ((ptr)? 0 : errno);
+#else
             int rc = ::posix_memalign(&ptr, alignment, size);
+#endif /* _WIN32 */
             return (rc == 0) ? (char*)ptr : nullptr;
         };
-        auto _free = [](char* p) { ::free((void*)p); };
+        auto _free = [](char* p) {
+#ifdef _WIN32
+            _aligned_free((void*)p);
+#else
+            ::free((void*)p);
+#endif /* _WIN32 */
+        };
         _handle.reset(_malloc(adesc.get_size(), 4096), _free);
         set_data_handle(_handle.get());
     }
