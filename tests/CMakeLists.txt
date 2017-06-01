@@ -46,3 +46,5 @@ add_test(test_c_symbols-c test_c_symbols-c)
 
 
 add_subdirectory(gtests)
+
+add_subdirectory(benchdnn)
