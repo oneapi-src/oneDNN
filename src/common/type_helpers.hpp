@@ -95,7 +95,7 @@ inline bool operator!=(const memory_desc_t &lhs, const memory_desc_t &rhs) {
 }
 
 inline memory_desc_t zero_md() {
-    memory_desc_t zero({});
+    memory_desc_t zero{};
     zero.primitive_kind = primitive_kind::memory;
     return zero;
 }
