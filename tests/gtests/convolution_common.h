@@ -22,11 +22,11 @@
 #define EXPAND_SIZES(mb, ng, ic, ih, iw, oc, oh, ow, kh, kw, ph, pw, sh, sw) \
     { mb, ng, ic, ih, iw, oc, oh, ow, kh, kw, ph, pw, sh, sw }
 #define EXPAND_FORMATS(src, weights, bias, dst) \
-    { memory::format::src, memory::format::weights, \
-    memory::format::bias, memory::format::dst }
+    { mkldnn::memory::format::src, mkldnn::memory::format::weights, \
+    mkldnn::memory::format::bias, mkldnn::memory::format::dst }
 
-#define ENGINE engine::kind::cpu
-#define ALGORITHM convolution_direct
+#define ENGINE mkldnn::engine::kind::cpu
+#define ALGORITHM mkldnn::convolution_direct
 
 #ifdef DIRECTION_FORWARD
 #define FMT_WEIGHTS_BLOCKED OIhw8i8o
