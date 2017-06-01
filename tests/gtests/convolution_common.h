@@ -16,6 +16,8 @@
 *******************************************************************************/
 #endif
 
+#include "mkldnn.hpp"
+
 #define EXPAND_SIZES(mb, ng, ic, ih, iw, oc, oh, ow, kh, kw, ph, pw, sh, sw) \
     { mb, ng, ic, ih, iw, oc, oh, ow, kh, kw, ph, pw, sh, sw }
 #define EXPAND_FORMATS(src, weights, bias, dst) \

@@ -16,6 +16,7 @@
 
 #include <iostream>
 #include <numeric>
+#include <string>
 #include "mkldnn.hpp"
 
 using namespace mkldnn;

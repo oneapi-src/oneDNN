@@ -23,6 +23,7 @@
 #include <memory>
 #include <vector>
 #include <algorithm>
+#include <iterator>
 #endif
 
 namespace mkldnn {
