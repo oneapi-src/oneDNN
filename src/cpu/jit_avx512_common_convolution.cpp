@@ -102,7 +102,7 @@ void _jit_avx512_common_convolution_fwd_t<with_relu>::execute_forward()
         size_t wht_ic_stride = wht_blk_off(weights_d, 0, 0, 1);
 
         jit_conv_call_s par_conv = {0};
-        while(start < end) {
+        while (start < end) {
             int ocb = occ * jcp.nb_oc_blocking;
             int g_ocb = g * jcp.nb_oc + ocb;
             int g_oc = g_ocb * jcp.oc_block;
@@ -174,14 +174,16 @@ void jit_avx512_common_convolution_bwd_data_t::execute_backward_data() {
 
         size_t start, end;
         int ic_chunks = jcp.nb_ic / jcp.nb_ic_blocking;
-        size_t work_amount = jcp.ngroups * jcp.mb * ic_chunks;
+        size_t work_amount = jcp.ngroups * jcp.mb * ic_chunks * jcp.ih;
         balance211(work_amount, nthr, ithr, start, end);
 
-        int n{0}, g{0}, icc{0};
+        int n{0}, g{0}, icc{0}, ih_s{0};
         if (jcp.loop_order == loop_cgn)
-            nd_iterator_init(start, icc, ic_chunks, g, jcp.ngroups, n, jcp.mb);
+            nd_iterator_init(start,
+                    icc, ic_chunks, g, jcp.ngroups, n, jcp.mb, ih_s, jcp.ih);
         else if (jcp.loop_order == loop_gnc)
-            nd_iterator_init(start, g, jcp.ngroups, n, jcp.mb, icc, ic_chunks);
+            nd_iterator_init(start,
+                    g, jcp.ngroups, n, jcp.mb, icc, ic_chunks, ih_s, jcp.ih);
         else
             assert(!"unsupported loop order");
 
@@ -192,17 +194,20 @@ void jit_avx512_common_convolution_bwd_data_t::execute_backward_data() {
         size_t wht_oc_stride = wht_blk_off(weights_d, 0, 1);
 
         jit_conv_call_s par_conv = {0};
-        for (size_t iwork = start; iwork < end; ++iwork) {
+        while (start < end) {
             int icb = icc * jcp.nb_ic_blocking;
             int g_icb = g * jcp.nb_ic + icb;
             int g_ocb = g * jcp.nb_oc;
+
+            size_t work_rem = end - start;
+            int ih_e = ih_s + work_rem > jcp.ih ? jcp.ih : ih_s + work_rem;
 
             auto diff_src_w = diff_src + diff_src_d.blk_off(n, g_icb);
             auto diff_dst_w = diff_dst + diff_dst_d.blk_off(n, g_ocb);
             auto wht_w = weights + wht_blk_off(weights_d, g, 0, icb);
 
             for (int ocb = 0; ocb < jcp.nb_oc; ++ocb) {
-                for (int ij = 0; ij < jcp.ih; ++ij) {
+                for (int ij = ih_s; ij < ih_e; ++ij) {
                     int i_t_overflow = max(0, jcp.kh - 1 - ij - jcp.t_pad);
                     int i_b_overflow = max(0, jcp.kh - jcp.ih + ij - jcp.b_pad);
                     int oj = ij + jcp.t_pad - i_b_overflow;
@@ -218,9 +223,11 @@ void jit_avx512_common_convolution_bwd_data_t::execute_backward_data() {
             }
 
             if (jcp.loop_order == loop_cgn)
-                nd_iterator_step(icc, ic_chunks, g, jcp.ngroups, n, jcp.mb);
+                nd_iterator_jump(start, end,
+                        icc, ic_chunks, g, jcp.ngroups, n, jcp.mb, ih_s, jcp.ih);
             else if (jcp.loop_order == loop_gnc)
-                nd_iterator_step(g, jcp.ngroups, n, jcp.mb, icc, ic_chunks);
+                nd_iterator_jump(start, end,
+                        g, jcp.ngroups, n, jcp.mb, icc, ic_chunks, ih_s, jcp.ih);
             else
                 assert(!"unsupported loop order");
         }
