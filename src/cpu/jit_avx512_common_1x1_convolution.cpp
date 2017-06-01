@@ -83,9 +83,10 @@ void _jit_avx512_common_1x1_convolution_fwd_t<with_relu>::execute_forward()
         assert(default_step <= tail_step);
         return remaining < tail_step ? remaining : default_step;
     };
-    auto ker = [&](const int ithr, const int nthr) {
-        // TODO (Roma): remove this restriction
-        assert(jcp.stride_w == 1 && jcp.stride_h == 1);
+
+#   pragma omp parallel
+    {
+        int ithr = omp_get_thread_num(), nthr = omp_get_num_threads();
 
         jit_1x1_conv_call_s p = {};
         rtus_driver_f32_t<avx512_common>::call_params_t rp = {};
@@ -195,11 +196,7 @@ void _jit_avx512_common_1x1_convolution_fwd_t<with_relu>::execute_forward()
                 iwork += bcast_step;
             }
         }
-    };
 
-#   pragma omp parallel
-    {
-        ker(omp_get_thread_num(), omp_get_num_threads());
     }
 }
 
@@ -240,7 +237,10 @@ void jit_avx512_common_1x1_convolution_bwd_data_t::execute_backward_data()
         return remaining < tail_step ? remaining : default_step;
     };
 
-    auto ker = [&](const int ithr, const int nthr) {
+#   pragma omp parallel
+    {
+        int ithr = omp_get_thread_num(), nthr = omp_get_num_threads();
+
         jit_1x1_conv_call_s p = {};
         rtus_driver_f32_t<avx512_common>::call_params_t rp = {};
 
@@ -333,11 +333,6 @@ void jit_avx512_common_1x1_convolution_bwd_data_t::execute_backward_data()
                 }
             }
         }
-    };
-
-#   pragma omp parallel
-    {
-        ker(omp_get_thread_num(), omp_get_num_threads());
     }
 }
 
