@@ -724,8 +724,16 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_4fma(int ur_w,
 
                 if ((jj % 2) && (prf_count < 4)) {
                     int aux_kernel_prf = kernel_offset(kk, oc + prf_count, ki);
-                    prefetcht1(EVEX_compress_addr(
-                                aux_reg_ker_prf, aux_kernel_prf));
+                    mic_prefetcht1(EVEX_compress_addr(
+                        aux_reg_ker_prf, aux_kernel_prf));
+                    if (!(jj % 2) && ki == 0 && oc == 0 && kk == 0) {
+                        mic_prefetcht1(EVEX_compress_addr(aux_reg_dst_prf,
+                                aux_dst_offset));
+                    }
+                    if (!(jj % 2) && ki == 1 && oc == 0 && kk == 0) {
+                        mic_prefetcht0(EVEX_compress_addr(aux_reg_dst,
+                                aux_dst_offset + typesize * ow * oc_block));
+                    }
                     prf_count++;
                 }
             }
