@@ -990,7 +990,7 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
 
     bool args_ok = true
         && diff_src_d.format() == nChw16c
-        && weights_d.format() == with_groups ? gOIhw16o16i : OIhw16o16i
+        && weights_d.format() == (with_groups ? gOIhw16o16i : OIhw16o16i)
         && diff_dst_d.format() == nChw16c;
     if (!args_ok)
         return status::unimplemented;
