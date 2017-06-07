@@ -847,10 +847,7 @@ status_t jit_avx512_common_1x1_conv_kernel_f32::init_conf(
                     max_reduce_blocking - 2, max_reduce_blocking, true);
         reduce_blocking *= jcp.reduce_block;
 
-        reduce_blocking_max = reduce_blocking * 3 / 2;
-        assert(reduce_blocking % jcp.reduce_block == 0);
-        assert(reduce_blocking_max % jcp.reduce_block == 0);
-
+        reduce_blocking_max = rnd_dn(reduce_blocking * 3 / 2, jcp.reduce_block);
     } else
         return status::unimplemented;
 
