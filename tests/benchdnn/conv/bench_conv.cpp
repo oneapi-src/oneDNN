@@ -93,7 +93,7 @@ void reset_parameters() {
 
 void check_correctness(const desc_t *c) {
     const prb_t p(*c, dir, cfg, alg, merge, mb);
-    char pstr[256];
+    char pstr[max_prb_len];
     prb2str(&p, pstr);
 
     if (pattern && !match_regex(pstr, pattern))
@@ -180,7 +180,7 @@ FILE *open_batch_file(const char *fname) {
     char *fdir = NULL;
     {
         char fname_copy[PATH_MAX];
-        strcpy(fname_copy, fname);
+        strncpy(fname_copy, fname, PATH_MAX);
         fdir = dirname(fname_copy);
     }
 
@@ -198,7 +198,7 @@ FILE *open_batch_file(const char *fname) {
 
     for (int n = 0; n < n_paths; ++n) {
         char fullname[PATH_MAX];
-        sprintf(fullname, "%s/%s", search_paths[n], fname);
+        snprintf(fullname, PATH_MAX, "%s/%s", search_paths[n], fname);
         fp = fopen(fullname, "r");
         print(50, "batch file used: %s\n", fullname);
         if (fp) break;

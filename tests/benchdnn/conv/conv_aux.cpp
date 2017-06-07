@@ -36,7 +36,7 @@ const char *inp_type2str(int what) {
     case ACC: return "ACC";
     }
     assert(!"incorrect input type");
-    return NULL;
+    return "incorrect input type";
 }
 
 alg_t str2alg(const char *str) {
@@ -151,19 +151,21 @@ void desc2str(const desc_t *d, char *buffer, bool canonical) {
             && d->sh == 1 && d->ph == d->pw && !canonical) {
         if (d->g == 1) {
             if (d->mb == 2) {
-                sprintf(buffer, "ic%dih%doc%doh%dkh%dph%dn%s", d->ic,
-                        d->ih, d->oc, d->oh, d->kh, d->ph, d->name);
-            } else {
-                sprintf(buffer, "mb%dic%dih%doc%doh%dkh%dph%dn%s", d->mb,
+                snprintf(buffer, max_desc_len, "ic%dih%doc%doh%dkh%dph%dn%s",
                         d->ic, d->ih, d->oc, d->oh, d->kh, d->ph, d->name);
+            } else {
+                snprintf(buffer, max_desc_len,
+                        "mb%dic%dih%doc%doh%dkh%dph%dn%s", d->mb, d->ic, d->ih,
+                        d->oc, d->oh, d->kh, d->ph, d->name);
             }
             return;
         }
-        sprintf(buffer, "g%dmb%dic%dih%doc%doh%dkh%dph%dn%s", d->g,
-                d->mb, d->ic, d->ih, d->oc, d->oh, d->kh, d->ph, d->name);
+        snprintf(buffer, max_desc_len, "g%dmb%dic%dih%doc%doh%dkh%dph%dn%s",
+                d->g, d->mb, d->ic, d->ih, d->oc, d->oh, d->kh, d->ph, d->name
+                );
         return;
     }
-    sprintf(buffer,
+    snprintf(buffer, max_desc_len,
             "g%dmb%dic%dih%diw%doc%doh%dow%dkh%dkw%dsh%dsw%dph%dpw%dn%s",
             d->g, d->mb, d->ic, d->ih, d->iw, d->oc, d->oh, d->ow,
             d->kh, d->kw, d->sh, d->sw, d->ph, d->pw, d->name);
@@ -192,15 +194,15 @@ const char *cfg2str(const dt_conf_t *cfg) {
 }
 
 void prb2str(const prb_t *p, char *buffer, bool canonical) {
-    char desc_buf[128];
+    char desc_buf[max_desc_len];
     char dir_str[16] = {0}, cfg_str[16] = {0}, alg_str[16] = {0},
-         merge_str[16] = {0};
+         merge_str[24] = {0};
     desc2str(p, desc_buf, canonical);
-    sprintf(dir_str, "--dir=%s ", dir2str(p->dir));
-    sprintf(cfg_str, "--cfg=%s ", cfg2str(p->cfg));
-    sprintf(alg_str, "--alg=%s ", alg2str(p->alg));
-    sprintf(merge_str, "--merge=%s ", merge2str(p->merge));
-    sprintf(buffer, "%s%s%s%s%s",
+    snprintf(dir_str, sizeof(dir_str), "--dir=%s ", dir2str(p->dir));
+    snprintf(cfg_str, sizeof(cfg_str), "--cfg=%s ", cfg2str(p->cfg));
+    snprintf(alg_str, sizeof(alg_str), "--alg=%s ", alg2str(p->alg));
+    snprintf(merge_str, sizeof(merge_str), "--merge=%s ", merge2str(p->merge));
+    snprintf(buffer, max_prb_len, "%s%s%s%s%s",
             p->dir == FWD_B ? "" : dir_str,
             p->cfg == conf_f32 ? "" : cfg_str,
             p->alg == DIRECT ? "" : alg_str,
@@ -212,7 +214,8 @@ bool maybe_skip(const char *impl_str) {
     if (skip_impl == NULL || *skip_impl == '\0')
         return false;
 
-    char what[128] = {0};
+    const size_t max_len = 128;
+    char what[max_len] = {0};
 
     const char *s_start = skip_impl;
     while (1) {
@@ -225,7 +228,8 @@ bool maybe_skip(const char *impl_str) {
         if (s_start[len - 1] == '"' || s_start[len - 1] == '\'')
             --len;
 
-        SAFE(len < 128 ? OK : FAIL, CRIT);
+        SAFE(len < max_len ? OK : FAIL, CRIT);
+        len = MIN2(len, max_len - 1);
         strncpy(what, s_start, len);
         what[len] = '\0';
 

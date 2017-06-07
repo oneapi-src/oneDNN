@@ -50,6 +50,7 @@ struct desc_t {
 
     const char *name;
 };
+const size_t max_desc_len = 196;
 int str2desc(desc_t *desc, const char *str);
 void desc2str(const desc_t *d, char *buffer, bool canonical = false);
 
@@ -98,6 +99,7 @@ struct prb_t: public desc_t {
     alg_t alg;
     merge_t merge;
 };
+const size_t max_prb_len = 392;
 void prb2str(const prb_t *p, char *buffer, bool canonical = false);
 
 /* some extra control parameters which shouldn't be placed in prb_t */

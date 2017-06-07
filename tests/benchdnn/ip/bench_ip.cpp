@@ -37,7 +37,7 @@ int bench(int argc, char **argv) {
     int ip_fails = 0;
 
     for (int id = 0; id < ip_num; ++id) {
-        res_t res;
+        res_t res{0};
         ip::doit(&ipps[id], &res);
         if (res.errors) {
             printf("[%3d] FAILED (errs: %d out of %d)\n", id, res.errors,
