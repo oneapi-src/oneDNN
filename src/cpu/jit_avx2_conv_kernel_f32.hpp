@@ -55,7 +55,7 @@ private:
     reg64_t kj = r10;
     reg64_t oi_iter = r11;
     reg64_t ki_iter = r12;
-    reg64_t reg_kh = rcx;
+    reg64_t reg_kh = abi_not_param1;
     reg64_t reg_oc_blocks = r14;
     Xbyak::Reg32 reg_ci_flag = r13d;
 
