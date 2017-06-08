@@ -64,6 +64,28 @@ struct jit_conv_conf_t {
     data_type_t bia_dt;
 };
 
+
+struct jit_conv_winograd_conf_t : public jit_conv_conf_t {
+    //Winograd specific attributes
+    //alpha determines the tile size
+    int alpha;
+    //number of tiles in x dimension
+    int itiles;
+    //number of tiles in y dimension
+    int jtiles;
+    //number of images in a block
+    int bimg;
+
+    int nb_Xc;
+    int dim_kernel;
+    int nb_iter;
+
+    bool double_buffering;
+    bool load_U;
+    int zmm_start;
+    int nb_reg;
+};
+
 struct __attribute__((__packed__)) jit_conv_call_s {
     const void *src; /* hack, non-const for backward_data */
     const void *dst; /* hack, non-const for forward */

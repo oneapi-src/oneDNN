@@ -59,6 +59,7 @@ namespace prop_kind {
 using alg_kind_t = mkldnn_alg_kind_t;
 namespace alg_kind {
     const alg_kind_t convolution_direct = mkldnn_convolution_direct;
+    const alg_kind_t convolution_winograd = mkldnn_convolution_winograd;
     const alg_kind_t pooling_max = mkldnn_pooling_max;
     const alg_kind_t pooling_avg = mkldnn_pooling_avg;
     const alg_kind_t pooling_avg_include_padding = mkldnn_pooling_avg_include_padding;

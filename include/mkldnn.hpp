@@ -527,6 +527,7 @@ inline c_api::mkldnn_prop_kind_t convert_to_c(prop_kind kind) {
 
 enum algorithm {
     convolution_direct = c_api::mkldnn_convolution_direct,
+    convolution_winograd = c_api::mkldnn_convolution_winograd,
     lrn_across_channels = c_api::mkldnn_lrn_across_channels,
     lrn_within_channel  = c_api::mkldnn_lrn_within_channel,
     pooling_max = c_api::mkldnn_pooling_max,

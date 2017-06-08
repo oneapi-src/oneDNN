@@ -124,6 +124,7 @@ struct mkldnn_engine: public mkldnn::impl::c_compatible {
     typedef mkldnn::impl::status_t (*primitive_desc_create_f)(
             mkldnn::impl::primitive_desc_t **, const mkldnn::impl::op_desc_t *,
             mkldnn::impl::engine_t *, const mkldnn::impl::primitive_desc_t *);
+
     /** return the list of implementations. engine guarantees to return a
      * NULL-terminated list */
     virtual const primitive_desc_create_f* get_implementation_list() const;

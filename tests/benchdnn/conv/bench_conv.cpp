@@ -46,10 +46,10 @@ const _dt_conf_t conf_f32 = {
 };
 
 const _dt_conf_t conf_f32_wino = {
-    {mkldnn_f32, -int_max_exact, int_max_exact, -16,  16, 3, 1, .25, 1e-5},
+    {mkldnn_f32, -int_max_exact, int_max_exact,   0,  16, 3, 1, .25, 1e-5},
     {mkldnn_f32, -int_max_exact, int_max_exact,   2,  64, 2, 1, .75, 5e-5},
     {mkldnn_f32, -int_max_exact, int_max_exact,   1, 128, 1, 1, .25,   0.},
-    {mkldnn_f32, -int_max_exact, int_max_exact, -16,  16, 3, 1, .25, 1e-5},
+    {mkldnn_f32, -int_max_exact, int_max_exact,   0,  16, 3, 1, .25, 1e-5},
     {mkldnn_f32,},
 };
 

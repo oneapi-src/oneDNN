@@ -311,8 +311,9 @@ inline int init_pd(const prb_t *p, mkldnn_convolution_desc_t &cd,
     };
     int padding_r[] = {bph(p->ih, p->oh, p->kh, p->sh, p->ph),
         bph(p->iw, p->ow, p->kw, p->sw, p->pw)};
-    auto alg = p->alg == DIRECT
-        ? mkldnn_convolution_direct : mkldnn_convolution_direct;
+
+    mkldnn_alg_kind_t alg = mkldnn_convolution_direct;
+    if (p->alg == WINO) alg = mkldnn_convolution_winograd;
 
     switch (p->dir) {
     case FWD_D: case FWD_B:

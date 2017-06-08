@@ -270,6 +270,8 @@ typedef enum {
 typedef enum {
     /** Direct convolution */
     mkldnn_convolution_direct = 1,
+    /** Winograd convolution */
+    mkldnn_convolution_winograd = 2,
     /** Max pooling */
     mkldnn_pooling_max = 34,
     /** Average pooling include padding */
