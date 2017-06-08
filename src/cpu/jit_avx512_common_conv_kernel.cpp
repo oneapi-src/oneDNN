@@ -1105,21 +1105,6 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::oh_step_comeback_pointers()
     }
 }
 
-void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_ic_block_step(
-    int ur_w, int pad_l, int pad_r,
-    int ic_block_step, int input_offset, int kernel_offset,
-    int output_offset)
-{
-    if (jcp.ver == ver_4fma)
-        compute_ic_block_step_4fma(ur_w, pad_l, pad_r,
-            ic_block_step, input_offset, kernel_offset, output_offset);
-    else if (jcp.ver == ver_fma)
-        compute_ic_block_step_fma(ur_w, pad_l, pad_r,
-                ic_block_step, input_offset, kernel_offset, output_offset);
-    else
-        assert(!"unknown convolution version");
-}
-
 void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_ic_block_step_fma(
     int ur_w, int pad_l, int pad_r,
     int ic_block_step, int input_offset, int kernel_offset,
@@ -1243,6 +1228,21 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_ic_block_step_4fma(
                 Zmm(i_kw * ic_block_step + i_ic));
 }
 
+void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_ic_block_step(
+    int ur_w, int pad_l, int pad_r,
+    int ic_block_step, int input_offset, int kernel_offset,
+    int output_offset)
+{
+    if (jcp.ver == ver_4fma)
+        compute_ic_block_step_4fma(ur_w, pad_l, pad_r,
+                ic_block_step, input_offset, kernel_offset, output_offset);
+    else if (jcp.ver == ver_fma)
+        compute_ic_block_step_fma(ur_w, pad_l, pad_r,
+                ic_block_step, input_offset, kernel_offset, output_offset);
+    else
+        assert(!"unknown convolution version");
+}
+
 void
 jit_avx512_common_conv_bwd_weights_kernel_f32::compute_oh_step_unroll_ow_icblock(
     int ic_block_step, int max_ur_w)
@@ -1346,6 +1346,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_oh_step_common(
             ur_w = ur_w / 2;
         }
     }
+
     int inp_mult = (jcp.is_1stconv || jcp.transpose_src) ? 1 : ic_block;
     int input_comeback = (ur_w_trips * ur_w * jcp.stride_w - l_pad) * inp_mult;
     int output_comeback = ur_w_trips * ur_w * oc_block;
@@ -1408,20 +1409,20 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_oh_step_disp()
     int ic_block_step = jcp.kw <= 3 ? 8 : (jcp.kw <= 7 ? 4 : 2);
     if (jcp.is_1stconv) {
         bool large_code = jcp.kw >= 7 && (jcp.l_pad > 0 || jcp.t_pad > 0);
-        ic_block_step = (jcp.kw * jcp.ic_block <= 28 && !large_code)
-            ? jcp.ic_block
-            : 1;
+        ic_block_step
+            = (jcp.kw * jcp.ic_block <= 28 && !large_code) ? jcp.ic_block : 1;
     }
-    int max_ur_w = 28;
 
-    bool too_large_to_unroll = (jcp.kw > 1 || jcp.kh > 1) &&
-         (jcp.stride_w > 1 || jcp.stride_h > 1);
+    bool too_large_to_unroll
+        = (jcp.kw > 1 || jcp.kh > 1) && (jcp.stride_w > 1 || jcp.stride_h > 1);
 
     if (jcp.kw <= 3 && jcp.ow <= 16 && !too_large_to_unroll)
         compute_oh_step_unroll_ow_icblock(ic_block_step, max_ur_w);
     else if (jcp.ow <= max_ur_w)
         compute_oh_step_unroll_ow(ic_block_step, max_ur_w);
-    else compute_oh_step_common(ic_block_step, max_ur_w);
+    else
+        compute_oh_step_common(ic_block_step, max_ur_w);
+
     oh_step_comeback_pointers();
 }
 
@@ -1527,8 +1528,10 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
     jit_conv_conf_t &jcp,
     const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
     const memory_desc_wrapper &diff_weights_d,
-    const memory_desc_wrapper &diff_dst_d) {
-    if (!mayiuse(avx512_common)) return status::unimplemented;
+    const memory_desc_wrapper &diff_dst_d)
+{
+    if (!mayiuse(avx512_common))
+        return status::unimplemented;
     const bool with_groups = diff_weights_d.ndims() == src_d.ndims() + 1;
 
     jcp.prop_kind = cd.prop_kind;
@@ -1574,13 +1577,14 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
     jcp.owp = jcp.ow;
 
     bool args_ok = true
-        && implication(flat, one_of(src_d.format(), nchw, nhwc)
-                && one_of(diff_weights_d.format(), Ohwi16o, gOhwi16o))
-        && implication(mimo, src_d.format() == nChw16c
-                && one_of(diff_weights_d.format(), OIhw16i16o, gOIhw16i16o))
+        && implication(flat, one_of(src_d.format(), nchw, nhwc))
+        && implication(flat, one_of(diff_weights_d.format(), Ohwi16o, gOhwi16o))
+        && implication(mimo, src_d.format() == nChw16c)
+        && implication(mimo, one_of(diff_weights_d.format(), OIhw16i16o, gOIhw16i16o))
         && one_of(cd.bias_desc.format, memory_format::undef, any, x)
         && diff_dst_d.format() == nChw16c;
-    if (!args_ok) return status::unimplemented;
+    if (!args_ok)
+        return status::unimplemented;
 
     jcp.is_1stconv = false;
     if (jcp.ic % simd_w != 0) {
@@ -1603,7 +1607,6 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
     jcp.ur_h = 1; /* no code-unrolling by h so far */
     jcp.nb_ic_blocking = 1;
     jcp.nb_oc_blocking = 1;
-    jcp.ur_w = 1;
 
     if (jcp.kw > 14) return status::unimplemented;
     if (jcp.is_1stconv && jcp.ngroups > 1) return status::unimplemented;
@@ -1613,8 +1616,7 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
         && jcp.b_pad <= jcp.kh / 2;
     if (!args_ok1) return status::unimplemented;
 
-    const int regs = 28;
-    for (int ur_w = regs; ur_w > 0; --ur_w) {
+    for (int ur_w = nstl::min(max_ur_w, jcp.ow); ur_w > 0; --ur_w) {
         if (jcp.ow % ur_w == 0) {
             jcp.ur_w = ur_w;
             break;

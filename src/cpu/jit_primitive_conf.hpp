@@ -50,6 +50,7 @@ struct jit_conv_conf_t {
     int ur_h, ur_w;
     int ur_w_tail;
     bool is_1stconv;
+    /* 4fma */
     bool transpose_src;
     /* 4vnni */
     size_t typesize_in;
