@@ -257,7 +257,7 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
         }
         if (j.transpose_src) {
             const int ws_size = j.mb * j.ngroups *
-                j.nb_ic * j.ic_block * j.iw * j.ih * sizeof(data_t);
+                j.nb_ic * j.ic_block * j.tr_iw * j.ih * sizeof(data_t);
             ws_ = (data_t*)malloc(ws_size, 64);
         }
     }

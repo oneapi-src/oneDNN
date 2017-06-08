@@ -250,34 +250,65 @@ void jit_avx512_common_convolution_bwd_weights_t::execute_backward_weights() {
 
     const auto &jcp = kernel_->jcp;
 
-    auto ker_transpose = [&](int ithr, int nthr) {
-        const int trans_size = jcp.iw;
-        const int spat_size = jcp.iw * jcp.ih;
-        const int notrans_size = spat_size / trans_size;
+    // TODO: use memory descriptor with the same fmt as src
+    //       (or use a macro :))
+    auto tr_src_off = [&](int img, int ic, int ij) {
+        const size_t tr_row_size = jcp.tr_iw * jcp.ic_block;
+        const size_t tr_chn_size = tr_row_size * jcp.ih;
+        const size_t tr_img_size = tr_chn_size * jcp.nb_ic * jcp.ngroups;
 
-        const size_t trans_work_amount
-            = jcp.mb * jcp.ngroups * jcp.nb_ic * notrans_size;
-        size_t start{0}, end{0};
-        balance211(trans_work_amount, nthr, ithr, start, end);
-        int img{0}, g{0}, ntd{0}, b_ic{0};
-        nd_iterator_init(start, img, jcp.mb, g, jcp.ngroups, b_ic, jcp.nb_ic,
-            ntd, notrans_size);
+        return img * tr_img_size + ic * tr_chn_size + ij * tr_row_size;
+    };
+
+    auto ker_transpose = [&](int ithr, int nthr) {
+        const size_t work_amount = jcp.mb * jcp.ngroups * jcp.nb_ic * jcp.ih;
+
+        size_t start, end;
+        balance211(work_amount, nthr, ithr, start, end);
+
+        int img{0}, g{0}, b_ic{0}, j{0};
+        nd_iterator_init(start,
+                img, jcp.mb, g, jcp.ngroups, b_ic, jcp.nb_ic, j, jcp.ih);
 
         const int _ic = g * jcp.nb_ic + b_ic;
-        const data_t *src1 = &src[src_d.blk_off(img, _ic, ntd)];
-        data_t *tr_src1 = &tr_src[src_d.blk_off(img, _ic, ntd)];
+        const data_t *src1 = &src[src_d.blk_off(img, _ic, j)];
+        data_t *tr_src1 = &tr_src[tr_src_off(img, _ic, j)];
+
+        assert(jcp.ic_block == 16);
+        constexpr int ic_block = 16;
+        const size_t src_stride = jcp.iw * ic_block;
+        const size_t tr_src_stride = jcp.tr_iw * ic_block;
+
+        const int l_pad = jcp.l_pad;
+        const int iwlp = l_pad + jcp.iw;
+        const int tr_iw = jcp.tr_iw;
 
         for (size_t iwork = start; iwork < end; iwork++) {
-            #pragma unroll
-            for (int i = 0; i < trans_size; i++) {
-                #pragma omp simd
-                for (int j = 0; j < 16; j++)
-                    tr_src1[j*trans_size + i] = src1[i*16 + j];
-            }
-            src1 += trans_size * jcp.ic_block;
-            tr_src1 += trans_size * jcp.ic_block;
+#           pragma unroll
+#           pragma omp simd
+            for (int i = 0; i < l_pad; i++)
+#               pragma omp simd
+                for (int j = 0; j < ic_block; j++)
+                    tr_src1[j * jcp.tr_iw + i] = 0.0;
+
+#           pragma unroll
+#           pragma omp simd
+            for (int i = l_pad; i < iwlp; i++)
+#               pragma omp simd
+                for (int j = 0; j < ic_block; j++)
+                    tr_src1[j * jcp.tr_iw + i] = src1[(i - l_pad) * 16 + j];
+
+#           pragma unroll
+#           pragma omp simd
+            for (int i = iwlp; i < tr_iw; i++)
+#               pragma omp simd
+                for (int j = 0; j < ic_block; j++)
+                    tr_src1[j * jcp.tr_iw + i] = 0.0;
+
+            src1 += src_stride;
+            tr_src1 += tr_src_stride;
         }
-        #pragma omp barrier
+#       pragma omp barrier
     };
 
     auto ker = [&](int ithr, int nthr) {
@@ -307,7 +338,7 @@ void jit_avx512_common_convolution_bwd_weights_t::execute_backward_weights() {
 
                 jit_conv_call_s par_conv = { };
                 par_conv.src = jcp.transpose_src
-                    ? &tr_src[src_d.blk_off(img, _ic)]
+                    ? &tr_src[tr_src_off(img, _ic, 0)]
                     : &src[src_d.blk_off(img, _ic)];
                 par_conv.dst = &diff_dst[diff_dst_d.blk_off(img, _oc)];
                 par_conv.filt = &rw->get_local_ptr(ithr, diff_weights)[
