@@ -117,6 +117,7 @@ using cfg_s16= test_simple_params_s16_s16;
 TEST_P(reorder_simple_test_f32_f32, TestsReorder) { }
 INSTANTIATE_TEST_CASE_P(TestReorder, reorder_simple_test_f32_f32,
         ::testing::Values(
+            cfg_f32{eng::cpu, fmt::nchw, fmt::nchw, {10, 10, 10, 10}},
             cfg_f32{eng::cpu, fmt::nchw, fmt::nhwc, {10, 10, 10, 10}},
             cfg_f32{eng::cpu, fmt::nhwc, fmt::nchw, {10, 10, 10, 10}},
             cfg_f32{eng::cpu, fmt::nchw, fmt::chwn, {28, 3, 10, 10}},
