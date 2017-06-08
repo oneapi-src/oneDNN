@@ -105,6 +105,7 @@ inline mkldnn::memory::desc create_md(mkldnn::memory::dims dims,
         ndims = 2; break;
     case f::nchw:
     case f::nhwc:
+    case f::chwn:
     case f::nChw8c:
     case f::nChw16c:
     case f::oihw:
