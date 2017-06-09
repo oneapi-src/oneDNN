@@ -80,8 +80,8 @@ void _jit_avx512_common_convolution_fwd_t<with_relu>::execute_forward()
         int ithr = omp_get_thread_num(), nthr = omp_get_num_threads();
 
         int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
-        size_t start, end;
-        size_t work_amount = jcp.mb * jcp.ngroups * oc_chunks * jcp.oh;
+        int start, end;
+        int work_amount = jcp.mb * jcp.ngroups * oc_chunks * jcp.oh;
         balance211(work_amount, nthr, ithr, start, end);
 
         int n{0}, g{0}, occ{0}, oh_s{0};
@@ -107,7 +107,7 @@ void _jit_avx512_common_convolution_fwd_t<with_relu>::execute_forward()
             int g_oc = g_ocb * jcp.oc_block;
             int g_icb = g * jcp.nb_ic;
 
-            size_t work_rem = end - start;
+            int work_rem = end - start;
             int ih_s = -jcp.t_pad + oh_s * jcp.stride_h;
             int oh_e = oh_s + work_rem > jcp.oh ? jcp.oh : oh_s + work_rem;
 
@@ -171,9 +171,9 @@ void jit_avx512_common_convolution_bwd_data_t::execute_backward_data() {
     {
         int ithr = omp_get_thread_num(), nthr = omp_get_num_threads();
 
-        size_t start, end;
+        int start, end;
         int ic_chunks = jcp.nb_ic / jcp.nb_ic_blocking;
-        size_t work_amount = jcp.ngroups * jcp.mb * ic_chunks * jcp.ih;
+        int work_amount = jcp.ngroups * jcp.mb * ic_chunks * jcp.ih;
         balance211(work_amount, nthr, ithr, start, end);
 
         int n{0}, g{0}, icc{0}, ih_s{0};
@@ -198,7 +198,7 @@ void jit_avx512_common_convolution_bwd_data_t::execute_backward_data() {
             int g_icb = g * jcp.nb_ic + icb;
             int g_ocb = g * jcp.nb_oc;
 
-            size_t work_rem = end - start;
+            int work_rem = end - start;
             int ih_e = ih_s + work_rem > jcp.ih ? jcp.ih : ih_s + work_rem;
 
             auto diff_src_w = diff_src + diff_src_d.blk_off(n, g_icb);
