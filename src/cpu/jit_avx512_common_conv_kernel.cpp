@@ -1214,16 +1214,18 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_ic_block_step_4fma(
 
         const ptrdiff_t next_input_block_offset
             = typesize * ic_block_step * jcp.tr_iw;
-        if (i_ur % 16 == 4 && i_kw == 0)
+        if (i_ur % 16 == 4 && i_kw == 0) {
             if (i_ur + 16 < ur_w)
                 prefetcht0(inp_addr(i_ur + 16, i_ic));
             else
                 prefetcht0(inp_addr(0, i_ic, next_input_block_offset));
-        if (i_ur % 16 == 4 && i_kw == 1)
+        }
+        if (i_ur % 16 == 4 && i_kw == 1) {
             if (input_wraparound)
                 prefetcht1(inp_addr(i_ur, i_ic, -input_offset));
             else
                 prefetcht1(inp_addr(i_ur, i_ic, next_input_block_offset));
+        }
     };
 
     for (int i_kw = 0; i_kw < kw; i_kw++)
