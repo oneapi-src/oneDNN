@@ -192,7 +192,7 @@ template<typename U, typename W, typename Y>
 inline bool nd_iterator_jump(U &cur, const U end, W &x, const Y &X)
 {
     U max_jump = end - cur;
-    Y dim_jump = X - x;
+    U dim_jump = X - x;
     if (dim_jump <= max_jump) {
         x = 0;
         cur += dim_jump;
