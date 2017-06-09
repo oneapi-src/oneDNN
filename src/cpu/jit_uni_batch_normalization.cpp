@@ -746,7 +746,7 @@ struct uni_bnorm_driver_t: public c_compatible {
 
         int buf_size =
             (num_sbufs + num_pbufs + num_rbufs * bdesc_->MB()) * bdesc_->C();
-        buf_ = new data_t[buf_size];
+        buf_ = (data_t *)malloc(buf_size * sizeof(data_t), 64);
 
         sbuf_ = buf_;
         pbuf_ = sbuf_ + num_sbufs * bdesc_->C();
@@ -754,12 +754,13 @@ struct uni_bnorm_driver_t: public c_compatible {
 
         int num_barriers = bdesc_->C() / simd_w;
         if (syncable_) {
-            barriers_ = new barrier::ctx_t[num_barriers];
+            barriers_ = (barrier::ctx_t *)malloc(
+                    num_barriers * sizeof(barrier::ctx_t), 64);
             for (int i = 0; i < num_barriers; ++i)
                 barrier::ctx_init(&barriers_[i]);
         }
     }
-    ~uni_bnorm_driver_t() { delete [] buf_; delete [] barriers_; }
+    ~uni_bnorm_driver_t() { free(buf_); free(barriers_); }
 
     void exec(int ithr, int nthr, const data_t *src, data_t *diff_src,
             data_t *dst, const data_t *diff_dst, const data_t *scale_shift,
