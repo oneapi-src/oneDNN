@@ -158,16 +158,18 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o,
                 const int nsize) {
             if (alpha == 1.0 && beta == 0) {
-#               pragma omp simd collapse(2)
+#               pragma omp simd
                 for (int n = 0; n < nsize; n++) {
+#                   pragma omp simd
                     for (int c = 0; c < blksize; ++c) {
                         o[n * o_st[0] + c * co_mult] =
                             data_t<type_o>(i[n * i_st[0] + c * ci_mult]);
                     }
                 }
             } else {
-#               pragma omp simd collapse(2)
+#               pragma omp simd
                 for (int n = 0; n < nsize; n++) {
+#                   pragma omp simd
                     for (int c = 0; c < blksize; ++c) {
                         o[n * o_st[0] + c * co_mult] =
                             alpha * data_t<type_o>(i[n * i_st[0] + c * ci_mult])
@@ -283,8 +285,9 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o,
                 const int nrows, const int ncols) {
             if (alpha == 1.0 && beta == 0) {
-#               pragma omp simd collapse(2)
+#               pragma omp simd
                 for (int row = 0; row < nrows; ++row) {
+#                   pragma omp simd
                     for (int col = 0; col < ncols; ++col) {
                         const auto o_idx = row * ostrides[0]
                             + col * ostrides[3];
@@ -294,8 +297,9 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                     }
                 }
             } else {
-#               pragma omp simd collapse(2)
+#               pragma omp simd
                 for (int row = 0; row < nrows; ++row) {
+#                   pragma omp simd
                     for (int col = 0; col < ncols; ++col) {
                         const auto o_idx = row * ostrides[0]
                             + col * ostrides[3];
