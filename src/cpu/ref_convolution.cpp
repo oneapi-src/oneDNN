@@ -80,13 +80,16 @@ void _ref_convolution_fwd_t<with_relu, src_type, wei_type, acc_type, dst_type>
     };
 
     auto get_bias = [=](size_t off) -> acc_data_t {
+#       define CASE(dt) case dt: \
+            return (acc_data_t)(*((const prec_traits<dt>::type *)bias + off))
         switch (conf_.cdesc()->bias_desc.data_type) {
-        case data_type::s8: return *((const int8_t *)bias + off);
-        case data_type::u8: return *((const uint8_t *)bias + off);
-        case data_type::s32: return *((const int *)bias + off);
-        case data_type::f32: return *((const float *)bias + off);
+        CASE(data_type::s8);
+        CASE(data_type::u8);
+        CASE(data_type::s32);
+        CASE(data_type::f32);
         default: assert(!"unimplemented");
         }
+#       undef CASE
         return 0;
     };
 
