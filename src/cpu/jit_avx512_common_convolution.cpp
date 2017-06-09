@@ -62,8 +62,6 @@ inline void jit_conv_ker_pipeline(jit_conv_ker_t ker, jit_conv_call_s &p,
 template <bool with_relu>
 void _jit_avx512_common_convolution_fwd_t<with_relu>::execute_forward()
 {
-    assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
-
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto weights = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto bias = reinterpret_cast<const data_t *>(this->input_memory(2));
@@ -75,6 +73,7 @@ void _jit_avx512_common_convolution_fwd_t<with_relu>::execute_forward()
     const memory_desc_wrapper bias_d(conf_.weights_pd(1));
 
     const auto &jcp = kernel_->jcp;
+    assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
 
 #   pragma omp parallel
     {
