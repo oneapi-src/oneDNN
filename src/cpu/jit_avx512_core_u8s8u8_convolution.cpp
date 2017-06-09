@@ -408,7 +408,7 @@ status_t jit_avx512_core_u8s8u8_conv_fwd_ker_t::init_conf(jit_conv_conf_t &c,
         && c.ic % c.ic_block == 0
         && c.oc % c.oc_block == 0
         && everyone_is(nhwc, src_d.format(), dst_d.format())
-        && (wei_d.format() == with_groups ? gOhIw16o4i : OhIw16o4i)
+        && wei_d.format() == (with_groups ? gOhIw16o4i : OhIw16o4i)
         && one_of(cd.bias_desc.format, memory_format::undef, any, x)
         && implication(with_relu, negative_slope == 0.);
 

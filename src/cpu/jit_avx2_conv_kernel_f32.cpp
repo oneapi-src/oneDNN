@@ -576,7 +576,7 @@ status_t jit_avx2_conv_bwd_data_kernel_f32::init_conf(jit_conv_conf_t &jcp,
 
     bool args_ok = true
         && diff_src_d.format() == nChw8c
-        && weights_d.format() == with_groups ? gOIhw8o8i : OIhw8o8i
+        && weights_d.format() == (with_groups ? gOIhw8o8i : OIhw8o8i)
         && diff_dst_d.format() == nChw8c
         && jcp.stride_w == jcp.stride_h
         && jcp.stride_w == 1
