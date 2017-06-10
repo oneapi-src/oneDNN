@@ -235,7 +235,7 @@ struct jit_avx512_common_conv_bwd_weights_kernel_f32 : public jit_generator {
 private:
     using reg64_t = const Xbyak::Reg64;
     enum {typesize = sizeof(float)};
-    constexpr static int max_ur_w = 28;
+    static const int max_ur_w;
 
     reg64_t param = abi_param1;
     reg64_t reg_input = rax;

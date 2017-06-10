@@ -1090,6 +1090,8 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
     return status::success;
 }
 
+const int jit_avx512_common_conv_bwd_weights_kernel_f32::max_ur_w = 28;
+
 void jit_avx512_common_conv_bwd_weights_kernel_f32::oh_step_comeback_pointers()
 {
     Label kh_comeback_label;
