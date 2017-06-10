@@ -385,6 +385,7 @@ protected:
 
 using bnrm_test_float = bnrm_test<float>;
 
+#define EXPAND_ARGS(args) args
 TEST_P(bnrm_test_float, TestsBnrm)
 {
 }
@@ -400,9 +401,9 @@ TEST_P(bnrm_test_float, TestsBnrm)
     test_bnrm_params_t { ENGINE, \
     EXPAND_FORMATS(data, diff), EXPAND_SIZES(mb, c, h, w), eps }
 
-#define PARAMS_N(...) PARAMS(nchw, nchw, __VA_ARGS__)
-#define PARAMS_B8(...) PARAMS(nChw8c, nChw8c, __VA_ARGS__)
-#define PARAMS_B16(...) PARAMS(nChw16c, nChw16c, __VA_ARGS__)
+#define PARAMS_N(...) EXPAND_ARGS(PARAMS(nchw, nchw, __VA_ARGS__))
+#define PARAMS_B8(...) EXPAND_ARGS(PARAMS(nChw8c, nChw8c, __VA_ARGS__))
+#define PARAMS_B16(...) EXPAND_ARGS(PARAMS(nChw16c, nChw16c, __VA_ARGS__))
 
 #define INST_TEST_CASE(str, ...) INSTANTIATE_TEST_CASE_P( \
         str, bnrm_test_float, ::testing::Values(__VA_ARGS__))
