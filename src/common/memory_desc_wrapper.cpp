@@ -81,8 +81,12 @@ status_t fill_nonblocked(memory_desc_t &md, const int perm[]) {
 
 status_t fill_contiguous_blocked(memory_desc_t &md, const dims_t block_dims,
         const int perm[]) {
-    /* TODO: check for dims[d] % block_dims[d] != 0 */
     const int ndims = md.ndims;
+
+    for (int d = 0; d < ndims; ++d)
+        if (md.dims[d] % block_dims[d] != 0)
+            return unimplemented;
+
     blocking_desc_t &blk = md.layout_desc.blocking;
     array_copy(blk.block_dims, block_dims, ndims);
 
