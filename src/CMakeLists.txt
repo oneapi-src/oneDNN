@@ -31,6 +31,16 @@ include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/common
     ${CMAKE_CURRENT_SOURCE_DIR}/cpu/xbyak
     )
+
+if(WIN32)
+    add_definitions(-D_WIN)
+    add_definitions(-DNOMINMAX)
+    # Correct 'jnl' macro/jit issue
+    if(${CMAKE_CXX_COMPILER_ID} STREQUAL "Intel")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Qlong-double")
+    endif()
+endif()
+
 add_library(${TARGET_NAME} SHARED ${HEADERS} ${SOURCES})
 target_link_libraries(${TARGET_NAME} ${${TARGET_NAME}_LINKER_LIBS})
 set_property(TARGET ${TARGET_NAME} PROPERTY CXX_STANDARD 11)
