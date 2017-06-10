@@ -225,25 +225,9 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                         const auto nChw8c_off =(c/8) * nChw8c_d.blocking_desc().strides[0][1]
                             + w * nChw8c_d.blocking_desc().strides[0][3] + c % 8;
 
-//                        if (order_keep) {
-//                            std::cout<<"from " <<i <<" + " <<nChw8c_off
-//                                <<" to " <<o <<" + " <<w*blksize + c <<std::endl;
-//                        } else {
-//                            std::cout<<"from " <<i << " + " <<w*blksize + c
-//                                <<" to " <<o <<" + " <<nChw8c_off <<std::endl;
-//                        }
-
                         if (order_keep) {
-//                             assert(input + input_d.blocking_desc().offset_padding <= i + nChw8c_off
-//                                     && i + nChw8c_off < input + input_d.blocking_desc().offset_padding + input_d.nelems(true));
-//                             assert(output + output_d.blocking_desc().offset_padding <= o + w*blksize + c
-//                                     && o + w*blksize + c < output + output_d.blocking_desc().offset_padding + output_d.nelems(true));
                             o[w * blksize + c] = data_t<type_o>(i[nChw8c_off]);
                         } else {
-//                             assert(input + input_d.blocking_desc().offset_padding <= i + w*blksize + c
-//                                     && i + w*blksize + c < input + input_d.blocking_desc().offset_padding + input_d.nelems(true));
-//                             assert(output + output_d.blocking_desc().offset_padding <= o + nChw8c_off
-//                                     && o + nChw8c_off < output + output_d.blocking_desc().offset_padding + output_d.nelems(true));
                             o[nChw8c_off] = data_t<type_o>(i[w * blksize + c]);
                         }
                     }
