@@ -195,8 +195,8 @@ const char *cfg2str(const dt_conf_t *cfg) {
 
 void prb2str(const prb_t *p, char *buffer, bool canonical) {
     char desc_buf[max_desc_len];
-    char dir_str[16] = {0}, cfg_str[16] = {0}, alg_str[16] = {0},
-         merge_str[24] = {0};
+    char dir_str[32] = {0}, cfg_str[32] = {0}, alg_str[32] = {0},
+         merge_str[32] = {0};
     desc2str(p, desc_buf, canonical);
     snprintf(dir_str, sizeof(dir_str), "--dir=%s ", dir2str(p->dir));
     snprintf(cfg_str, sizeof(cfg_str), "--cfg=%s ", cfg2str(p->cfg));
