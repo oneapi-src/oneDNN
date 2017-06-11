@@ -406,16 +406,16 @@ INSTANTIATE_TEST_CASE_P(TestLRN_nChw16c, lrn_test_float,
             memory::format::nChw16c, { 2, 16, 4, 4, 1.0e-4, 0.75, 5.0, 5, ACROSS } }
             , lrn_test_params_float{ prop_kind::forward_scoring,
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nChw16c,
-            memory::format::nChw16c, { 1, 8, 1, 1, 1.0e-4, 0.75, 1.0, 5, ACROSS } }
+            memory::format::nChw16c, { 1, 16, 1, 1, 1.0e-4, 0.75, 1.0, 5, ACROSS } }
             , lrn_test_params_float{ prop_kind::forward_scoring,
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nChw16c,
-            memory::format::nChw16c, { 1, 8, 1, 1, 1.0e-4, 0.75, 1.0, 5, ACROSS } }
+            memory::format::nChw16c, { 1, 16, 1, 1, 1.0e-4, 0.75, 1.0, 5, ACROSS } }
             , lrn_test_params_float{ prop_kind::forward_scoring,
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nChw16c,
-            memory::format::nChw16c, { 1, 8, 1, 1, 1.0e-4, 0.75, 2.2, 5, ACROSS } }
+            memory::format::nChw16c, { 1, 16, 1, 1, 1.0e-4, 0.75, 2.2, 5, ACROSS } }
             , lrn_test_params_float{ prop_kind::forward_scoring,
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nChw16c,
-            memory::format::nChw16c, { 1, 8, 1, 1, 1.0e-4, 0.75, 2.2, 5, ACROSS } }
+            memory::format::nChw16c, { 1, 16, 1, 1, 1.0e-4, 0.75, 2.2, 5, ACROSS } }
             , lrn_test_params_float{ prop_kind::forward_scoring,
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nChw16c,
             memory::format::nChw16c, { 1, 32, 5, 5, 1.0e-2, 0.7, 1.0, 3, ACROSS } }
