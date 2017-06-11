@@ -236,8 +236,12 @@ void jit_avx512_common_1x1_conv_kernel_f32::reduce_loop(int load_loop_blk,
 
         for (int i_ur = 0; i_ur < ur; ++i_ur)
             for (int i_load = 0; i_load < load_loop_blk; ++i_load)
-                vmovntps(output_ptr(i_load, i_ur), vreg_accum(i_load, i_ur));
-
+                if (jcp.use_vmovntps)
+                    vmovntps(output_ptr(i_load, i_ur),
+                        vreg_accum(i_load, i_ur));
+                else
+                    vmovups(output_ptr(i_load, i_ur),
+                        vreg_accum(i_load, i_ur));
     };
 
     auto prefetch_callback = [=](int ur, int i_reduce, int i_ur, int i_load,
@@ -250,7 +254,7 @@ void jit_avx512_common_1x1_conv_kernel_f32::reduce_loop(int load_loop_blk,
 
         int n_pf_ker_l1 = pf_ker_l1 ? jcp.reduce_block : 0;
         int n_pf_ker_l2 = pf_ker_l2 && wraparound ? jcp.reduce_block : 0;
-        int n_pf_out_l1 = 0;
+        int n_pf_out_l1 = jcp.use_vmovntps ? 0 : ur;
 
         int pf_inp_ops = n_ops / 2; // # of operations during which to pf input
         int pf_inp_trigger;
@@ -636,13 +640,22 @@ status_t jit_avx512_common_1x1_conv_kernel_f32::init_conf(
     int max_regs = 28;
     int min_regs = 8;
 
+    int size_treshold;
+    if (jcp.ver == ver_4fma)
+        size_treshold = 28;
+    else
+        size_treshold = 14;
+
     for (int ur_w = max_regs; ur_w >= min_regs; ur_w--) {
-        if ((jcp.ih >= 14 && jcp.ih % ur_w == 0)
-            || (jcp.ih < 14 && jcp.os % ur_w == 0)) {
+        if ((jcp.ih >= size_treshold && jcp.ih % ur_w == 0)
+            || (jcp.ih < size_treshold && jcp.os % ur_w == 0)) {
             jcp.ur = ur_w;
             break;
         }
     }
+    const int SMALL_SPATIAL = 7 * 7;
+    const int BIG_REDUCE_DIM = 1024;
+
     if (jcp.ur == 1) {
         jcp.ur = nstl::min(max_regs, jcp.os);
         int os_tail = jcp.os % max_regs;
@@ -665,11 +678,11 @@ status_t jit_avx512_common_1x1_conv_kernel_f32::init_conf(
     int reduce_blocking_max{ 0 };
 
     jcp.load_grp_count = 1;
+    jcp.loop_order = loop_lbr;
+    jcp.use_vmovntps = true;
 
-    const int KNL_L2_capacity = (512 * 1024) / sizeof(float);
-    const int KNL_L1_capacity = (64 * 1024) / sizeof(float);
-
-    const int SMALL_SPATIAL = 15 * 15;
+    const int L2_capacity = (512 * 1024) / sizeof(float);
+    const int L1_capacity = (32 * 1024) / sizeof(float);
 
     if (one_of(jcp.prop_kind, forward_training, forward_inference)) {
         jcp.reduce_dim = jcp.ic;
@@ -695,41 +708,46 @@ status_t jit_avx512_common_1x1_conv_kernel_f32::init_conf(
         jcp.load_loop_load_step = jcp.ic * jcp.oc_block * sizeof(float);
         jcp.load_loop_iter_step = jcp.oc_block;
         load_blocking = jcp.load_dim;
-        load_blocking_max = load_blocking;
 
-        reduce_blocking = jcp.reduce_dim;
-        if (jcp.ver == ver_4fma && jcp.reduce_dim * jcp.load_dim > 256000) {
-            // TODO: update heuristic blocking
-            jcp.use_outer = true;
-            if (jcp.reduce_dim >= 512)
-                reduce_blocking = nstl::min(256, jcp.reduce_dim / 4);
+        int nb_bcast = div_up(jcp.bcast_dim, jcp.bcast_block);
+        int nb_load = div_up(jcp.load_dim, jcp.load_block);
+        int nb_reduce = div_up(jcp.reduce_dim, jcp.reduce_block);
+
+        int reduce_divider = 1;
+        if (jcp.bcast_dim <= SMALL_SPATIAL && jcp.reduce_dim > BIG_REDUCE_DIM)
+            reduce_divider = 4;
+        else if (jcp.bcast_dim > SMALL_SPATIAL
+            && jcp.reduce_dim >= BIG_REDUCE_DIM)
+            reduce_divider = 2;
+
+        if (reduce_divider > 1) {
+            jcp.loop_order = loop_rlb;
+            jcp.use_vmovntps = false;
         }
-        reduce_blocking = rnd_dn(reduce_blocking, jcp.reduce_block);
-        reduce_blocking = nstl::min(reduce_blocking, jcp.reduce_dim);
-        reduce_blocking = best_divider(jcp.reduce_dim, jcp.reduce_block,
-                            reduce_blocking, true, jcp.reduce_block);
+        reduce_blocking = nstl::max(1, nb_reduce / reduce_divider);
+        reduce_blocking = best_divider(nb_reduce, 1, reduce_blocking, true);
+        reduce_blocking *= jcp.reduce_block;
 
-        int os_block_size = reduce_blocking * jcp.ur;
-        const int USABLE_KNL_L2_capacity = nstl::max(os_block_size,
-            KNL_L2_capacity - reduce_blocking * jcp.load_block);
-        bcast_blocking = jcp.ur * (USABLE_KNL_L2_capacity / os_block_size);
-        bcast_blocking = nstl::min(jcp.os, bcast_blocking);
-        bcast_blocking = best_divider(jcp.os, jcp.ur, bcast_blocking, true,
-                                         jcp.ur);
+        int kernel_size = reduce_blocking * jcp.load_dim;
+        int bcast_block_size = reduce_blocking * jcp.bcast_block;
+        int L2_for_kernel = L2_capacity - bcast_block_size;
+        jcp.load_grp_count = utils::div_up(kernel_size, L2_for_kernel);
+        load_blocking = div_up(nb_load, jcp.load_grp_count) * jcp.load_block;
+        kernel_size = utils::div_up(kernel_size, jcp.load_grp_count);
 
+        bcast_blocking = div_up(jcp.mb * jcp.ngroups * nb_bcast,
+            div_up(nthreads, jcp.load_grp_count)) * jcp.bcast_block;
+        bcast_blocking = nstl::min(jcp.bcast_dim, bcast_blocking);
+        int space_for_bcast = nstl::min(L1_capacity - 4 * jcp.load_block,
+            L2_capacity - kernel_size);
+        int bcast_in_cache =
+            nstl::max(jcp.bcast_block, space_for_bcast / reduce_blocking);
+        bcast_blocking = nstl::min(bcast_blocking,
+            rnd_dn(bcast_in_cache, jcp.bcast_block));
+
+        load_blocking_max = load_blocking;
         bcast_blocking_max = bcast_blocking * 3 / 2;
         reduce_blocking_max = reduce_blocking;
-
-        if (jcp.oh < 8 && jcp.mb < nthreads) {
-            // XXX probably not the best choice...
-            const int nb_oc_div =
-                nstl::min(div_up(jcp.load_dim, jcp.load_block),
-                utils::div_up(nthreads, jcp.mb));
-            int load_grp_size = utils::div_up(nthreads, nb_oc_div);
-            jcp.load_grp_count = utils::div_up(nthreads, load_grp_size);
-        }
-        if (jcp.ver == ver_4fma && jcp.os < SMALL_SPATIAL)
-            jcp.use_outer = true;
 
     } else if (jcp.prop_kind == backward_data) {
         // TODO: update heuristic blocking
@@ -766,10 +784,10 @@ status_t jit_avx512_common_1x1_conv_kernel_f32::init_conf(
 
         reduce_blocking = nstl::min(256, jcp.reduce_dim);
 
-        const int USABLE_KNL_L2 = 400ULL * 1024;
+        const int USABLE_L2 = 400ULL * 1024;
         int os_block_size = sizeof(float) * reduce_blocking * jcp.ur;
         bcast_blocking = nstl::min(jcp.os,
-            jcp.ur * nstl::max(1, USABLE_KNL_L2 / os_block_size));
+            jcp.ur * nstl::max(1, USABLE_L2 / os_block_size));
         bcast_blocking = nstl::min(196, bcast_blocking);
         bcast_blocking = rnd_dn(bcast_blocking, jcp.bcast_block);
 
@@ -788,8 +806,8 @@ status_t jit_avx512_common_1x1_conv_kernel_f32::init_conf(
             jcp.load_grp_count = utils::div_up(nthreads, load_grp_size);
         }
 
-        if (jcp.ver == ver_4fma && jcp.is < SMALL_SPATIAL && !reduce_src)
-            jcp.use_outer = true;
+        if (jcp.ver == ver_4fma && jcp.is < 15 * 15 && !reduce_src)
+            jcp.loop_order = loop_rbl;
 
     } else if (jcp.prop_kind == backward_weights) {
         jcp.reduce_dim = jcp.os;
@@ -839,10 +857,10 @@ status_t jit_avx512_common_1x1_conv_kernel_f32::init_conf(
         reduce_blocking = div_up(jcp.mb * jcp.reduce_dim, jcp.reduce_block);
         reduce_blocking = div_up(reduce_blocking, threads_per_job);
 
-        int max_reduce_blocking = KNL_L2_capacity /
+        int max_reduce_blocking = L2_capacity /
                     ((bcast_blocking + load_blocking) * jcp.reduce_block);
         max_reduce_blocking = nstl::min(max_reduce_blocking,
-                    (KNL_L1_capacity / (jcp.bcast_block)) / jcp.reduce_block);
+                    (L1_capacity / (jcp.bcast_block)) / jcp.reduce_block);
         reduce_blocking = best_divider(reduce_blocking,
                     max_reduce_blocking - 2, max_reduce_blocking, true);
         reduce_blocking *= jcp.reduce_block;

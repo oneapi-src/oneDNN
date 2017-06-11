@@ -25,6 +25,8 @@ namespace cpu {
 
 enum conv_version_t {ver_unused, ver_fma, ver_4fma, ver_4vnni};
 enum conv_loop_order_t {loop_cgn, loop_gnc, loop_ngc};
+enum conv_1x1_loop_order_t {loop_rbl, loop_rlb, loop_lbr, loop_lrb, loop_blr,
+                            loop_brl};
 
 struct jit_conv_conf_t {
     prop_kind_t prop_kind;
@@ -136,7 +138,8 @@ struct jit_1x1_conv_conf_t {
     int bcast_loop_bcast_step, bcast_loop_bcast_substep;
     int fma_step;
     int load_grp_count;
-    bool use_outer;
+    conv_1x1_loop_order_t loop_order;
+    bool use_vmovntps;
 };
 
 struct jit_gemm_conv_conf_t {
