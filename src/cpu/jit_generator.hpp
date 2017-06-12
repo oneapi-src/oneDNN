@@ -442,8 +442,8 @@ public:
         if (!code)
             return 0;
 
-        // TODO (Roma): add a virtual name() function that would used to -
-        // notify profiles like vtune about generated code - generate a
+        // TODO (Roma): add a virtual name() function that would be used to
+        // notify profilers like vtune about generated code and generate a
         // meaningful file name
 
         FILE *fp = fopen("mkldnn_jit_dump.bin", "w+");
