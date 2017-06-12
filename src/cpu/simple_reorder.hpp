@@ -200,6 +200,77 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
+    typename utils::enable_if<
+        fmt_i == nChw8c && fmt_o == nChw16c
+    >::type>
+{
+    static bool is_applicable(const memory_desc_wrapper &input_d,
+            const memory_desc_wrapper &output_d) {
+        return input_d.format() == (order_keep ? fmt_i : fmt_o)
+            && output_d.format() == (order_keep ? fmt_o : fmt_i);
+    }
+
+    static status_t execute(const memory_desc_wrapper &input_d,
+        const memory_desc_wrapper &output_d, const data_t<type_i> *input,
+        data_t<type_o> *output,
+        const double alpha, const double beta) {
+        const auto &nChw8c_d = order_keep ? input_d : output_d;
+        const auto &dims = input_d.dims();
+        constexpr int blksize = 16;
+
+        auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o) {
+            if (alpha == 1.0 && beta == 0.0) {
+                for (int w = 0; w < dims[3]; ++w) {
+                    for (int c = 0; c < blksize; ++c) {
+                        const auto nChw8c_off =(c/8) * nChw8c_d.blocking_desc().strides[0][1]
+                            + w * nChw8c_d.blocking_desc().strides[0][3] + c % 8;
+
+                        if (order_keep) {
+                            o[w * blksize + c] = data_t<type_o>(i[nChw8c_off]);
+                        } else {
+                            o[nChw8c_off] = data_t<type_o>(i[w * blksize + c]);
+                        }
+                    }
+                }
+            } else {
+                for (int w = 0; w < dims[3]; ++w) {
+                    for (int c = 0; c < blksize; ++c) {
+                        const auto nChw8c_off =(c/8) * nChw8c_d.blocking_desc().strides[0][1]
+                            + w * nChw8c_d.blocking_desc().strides[0][3] + c % 8;
+                        if (order_keep) {
+                            o[w * blksize + c] =
+                                alpha * data_t<type_o>(i[nChw8c_off])
+                                + (beta ? beta * o[w * blksize + c] : 0);
+                        } else {
+                            o[nChw8c_off] =
+                                alpha * data_t<type_o>(i[w * blksize + c])
+                                + (beta ? beta * o[nChw8c_off] : 0);
+                        }
+                    }
+                }
+            }
+        };
+
+#       pragma omp parallel for collapse(3) schedule(static)
+        for (int n = 0; n < dims[0]; ++n) {
+            for (int C = 0; C < dims[1] / blksize; ++C) {
+                for (int h = 0; h < dims[2]; ++h) {
+                    constexpr int i_c_mult = order_keep ? 2 : 1;
+                    constexpr int o_c_mult = order_keep ? 1 : 2;
+                    auto i = &input[input_d.blk_off(n, i_c_mult * C, h)];
+                    auto o = &output[output_d.blk_off(n, o_c_mult * C, h)];
+                    ker(i, o);
+                }
+            }
+        }
+
+        return success;
+    }
+};
+
+
+template <SIMPLE_REORDER_TEMPL_DECL>
+struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     typename utils::enable_if<fmt_i == nchw && fmt_o == nhwc>::type>
 {
     static bool is_applicable(const memory_desc_wrapper &input_d,
