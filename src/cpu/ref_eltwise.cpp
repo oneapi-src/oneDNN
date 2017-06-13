@@ -20,14 +20,14 @@
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"
 
-#include "ref_relu.hpp"
+#include "ref_eltwise.hpp"
 
 namespace mkldnn {
 namespace impl {
 namespace cpu {
 
 template <impl::data_type_t data_type>
-void ref_relu_fwd_t<data_type>::execute_forward_generic() {
+void ref_eltwise_fwd_t<data_type>::execute_forward_generic() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto dst = reinterpret_cast<data_t*>(this->memory(0));
 
@@ -37,7 +37,7 @@ void ref_relu_fwd_t<data_type>::execute_forward_generic() {
     const int C = conf_.C();
     const int H = conf_.H();
     const int W = conf_.W();
-    const double negative_slope = conf_.desc()->negative_slope;
+    const double alpha = conf_.desc()->alpha;
 
 #   pragma omp parallel for collapse(4) schedule(static)
     for (int n = 0; n < MB; ++n) {
@@ -47,7 +47,7 @@ void ref_relu_fwd_t<data_type>::execute_forward_generic() {
                     auto d_off = data_d.off(n, c, h, w);
                     data_t s = src[d_off];
                     data_t &d = dst[d_off];
-                    d = (s > 0) ? s : s * negative_slope;
+                    d = (s > 0) ? s : s * alpha;
                 }
             }
         }
@@ -55,26 +55,26 @@ void ref_relu_fwd_t<data_type>::execute_forward_generic() {
 }
 
 template <impl::data_type_t data_type>
-void ref_relu_fwd_t<data_type>::execute_forward_dense() {
+void ref_eltwise_fwd_t<data_type>::execute_forward_dense() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto dst = reinterpret_cast<data_t*>(this->memory(0));
 
     const memory_desc_wrapper data_d(conf_.src_pd());
 
     const size_t nelems = data_d.nelems();
-    const double negative_slope = conf_.desc()->negative_slope;
+    const double alpha = conf_.desc()->alpha;
 
     src += data_d.blocking_desc().offset_padding;
     dst += data_d.blocking_desc().offset_padding;
 
 #   pragma omp parallel for schedule(static)
     for (size_t e = 0; e < nelems; ++e) {
-        dst[e] = src[e] * ((src[e] > 0) ? 1. : negative_slope);
+        dst[e] = src[e] * ((src[e] > 0) ? 1. : alpha);
     }
 }
 
 template <impl::data_type_t data_type>
-void ref_relu_bwd_t<data_type>::execute_backward_generic() {
+void ref_eltwise_bwd_t<data_type>::execute_backward_generic() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto diff_src = reinterpret_cast<data_t*>(this->memory(0));
@@ -86,7 +86,7 @@ void ref_relu_bwd_t<data_type>::execute_backward_generic() {
     const int C = conf_.C();
     const int H = conf_.H();
     const int W = conf_.W();
-    const double negative_slope = conf_.desc()->negative_slope;
+    const double alpha = conf_.desc()->alpha;
 
 #   pragma omp parallel for collapse(4) schedule(static)
     for (int n = 0; n < MB; ++n) {
@@ -98,7 +98,7 @@ void ref_relu_bwd_t<data_type>::execute_backward_generic() {
                     data_t s = src[data_off];
                     data_t dd = diff_dst[diff_data_off];
                     data_t &ds = diff_src[diff_data_off];
-                    ds = dd * ((s > 0) ? 1. : negative_slope);
+                    ds = dd * ((s > 0) ? 1. : alpha);
                 }
             }
         }
@@ -106,7 +106,7 @@ void ref_relu_bwd_t<data_type>::execute_backward_generic() {
 }
 
 template <impl::data_type_t data_type>
-void ref_relu_bwd_t<data_type>::execute_backward_dense() {
+void ref_eltwise_bwd_t<data_type>::execute_backward_dense() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto diff_src = reinterpret_cast<data_t*>(this->memory(0));
@@ -115,7 +115,7 @@ void ref_relu_bwd_t<data_type>::execute_backward_dense() {
     const memory_desc_wrapper diff_data_d(conf_.diff_src_pd());
 
     const size_t nelems = data_d.nelems();
-    const double negative_slope = conf_.desc()->negative_slope;
+    const double alpha = conf_.desc()->alpha;
 
     src += data_d.blocking_desc().offset_padding;
     diff_dst += diff_data_d.blocking_desc().offset_padding;
@@ -123,17 +123,17 @@ void ref_relu_bwd_t<data_type>::execute_backward_dense() {
 
 #   pragma omp parallel for schedule(static)
     for (size_t e = 0; e < nelems; ++e) {
-        diff_src[e] = diff_dst[e] * ((src[e] > 0) ? 1. : negative_slope);
+        diff_src[e] = diff_dst[e] * ((src[e] > 0) ? 1. : alpha);
     }
 }
 
-template struct ref_relu_fwd_t<data_type::f32>;
-template struct ref_relu_fwd_t<data_type::s32>;
-template struct ref_relu_fwd_t<data_type::s16>;
-template struct ref_relu_fwd_t<data_type::s8>;
-template struct ref_relu_fwd_t<data_type::u8>;
+template struct ref_eltwise_fwd_t<data_type::f32>;
+template struct ref_eltwise_fwd_t<data_type::s32>;
+template struct ref_eltwise_fwd_t<data_type::s16>;
+template struct ref_eltwise_fwd_t<data_type::s8>;
+template struct ref_eltwise_fwd_t<data_type::u8>;
 
-template struct ref_relu_bwd_t<data_type::f32>;
+template struct ref_eltwise_bwd_t<data_type::f32>;
 
 }
 }

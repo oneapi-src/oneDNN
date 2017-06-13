@@ -20,7 +20,7 @@
 #include "utils.hpp"
 #include "jit_generator.hpp"
 
-#include "jit_uni_relu.hpp"
+#include "jit_uni_eltwise.hpp"
 
 #define GET_OFF(field) offsetof(jit_args, field)
 
@@ -38,9 +38,9 @@ struct jit_args {
 };
 
 template <cpu_isa_t isa>
-struct jit_uni_relu_kernel_f32 : public jit_generator {
+struct jit_uni_eltwise_kernel_f32 : public jit_generator {
     bool isBackward;
-    float negative_slope;
+    float alpha;
 
     void (*jit_ker)(jit_args *);
     void operator()(jit_args *arg){jit_ker(arg);}
@@ -110,8 +110,8 @@ struct jit_uni_relu_kernel_f32 : public jit_generator {
         }
     }
 
-    jit_uni_relu_kernel_f32(bool isbackward, float nslope)
-        : jit_generator(), isBackward(isbackward), negative_slope(nslope)
+    jit_uni_eltwise_kernel_f32(bool isbackward, float alpha)
+        : jit_generator(), isBackward(isbackward), alpha(alpha)
     {
         assert(isa == sse42 || isa == avx2 || isa == avx512_common);
 
@@ -131,7 +131,7 @@ struct jit_uni_relu_kernel_f32 : public jit_generator {
         mov(reg_to, ptr[param + GET_OFF(to)]);
         mov(reg_work_amount, ptr[param + GET_OFF(work_amount)]);
 
-        mov(imm_addr64, float2int(this->negative_slope));
+        mov(imm_addr64, float2int(this->alpha));
         movq(xmm_ns, imm_addr64);
         uni_vbroadcastss(vmm_ns, xmm_ns);
 
@@ -181,7 +181,7 @@ private:
 };
 
 template <cpu_isa_t isa>
-status_t jit_uni_relu_fwd_t<isa>::pd_t::init()
+status_t jit_uni_eltwise_fwd_t<isa>::pd_t::init()
 {
     using namespace prop_kind;
 
@@ -189,6 +189,7 @@ status_t jit_uni_relu_fwd_t<isa>::pd_t::init()
     bool ok = true && mayiuse(isa)
         && utils::one_of(desc()->prop_kind, forward_training,
                 forward_inference)
+        && utils::one_of(desc()->alg_kind, alg_kind::eltwise_relu)
         && utils::everyone_is(data_type::f32, desc()->data_desc.data_type)
         && memory_desc_wrapper(src_pd()).is_dense();
 
@@ -196,21 +197,19 @@ status_t jit_uni_relu_fwd_t<isa>::pd_t::init()
 }
 
 template <cpu_isa_t isa>
-jit_uni_relu_fwd_t
-        <isa>::jit_uni_relu_fwd_t(const pd_t *pd, const input_vector &inputs,
-                                  const output_vector &outputs)
+jit_uni_eltwise_fwd_t<isa>::jit_uni_eltwise_fwd_t(const pd_t *pd,
+        const input_vector &inputs, const output_vector &outputs)
     : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
 {
-    kernel_ = new jit_uni_relu_kernel_f32<isa>(false,
-        conf_.desc()->negative_slope);
+    kernel_ = new jit_uni_eltwise_kernel_f32<isa>(false, conf_.desc()->alpha);
 }
 
 template <cpu_isa_t isa>
-jit_uni_relu_fwd_t<isa>::~jit_uni_relu_fwd_t()
+jit_uni_eltwise_fwd_t<isa>::~jit_uni_eltwise_fwd_t()
 { delete kernel_; }
 
 template <cpu_isa_t isa>
-void jit_uni_relu_fwd_t<isa>::execute_forward()
+void jit_uni_eltwise_fwd_t<isa>::execute_forward()
 {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto dst = reinterpret_cast<data_t *>(this->memory(0));
@@ -247,15 +246,14 @@ void jit_uni_relu_fwd_t<isa>::execute_forward()
 }
 
 template <cpu_isa_t isa>
-status_t jit_uni_relu_bwd_t<isa>::pd_t::init()
+status_t jit_uni_eltwise_bwd_t<isa>::pd_t::init()
 {
-    using namespace prop_kind;
-
     assert(engine()->kind() == engine_kind::cpu);
 
     bool ok = true
         && mayiuse(isa)
-        && desc()->prop_kind == backward_data
+        && desc()->prop_kind == prop_kind::backward_data
+        && utils::one_of(desc()->alg_kind, alg_kind::eltwise_relu)
         && src_pd()->desc()->data_type == data_type::f32
         && memory_desc_wrapper(src_pd()).is_dense()
         && memory_desc_wrapper(diff_dst_pd()) == memory_desc_wrapper(src_pd());
@@ -264,20 +262,19 @@ status_t jit_uni_relu_bwd_t<isa>::pd_t::init()
 }
 
 template <cpu_isa_t isa>
-jit_uni_relu_bwd_t<isa>::jit_uni_relu_bwd_t(const pd_t *pd,
+jit_uni_eltwise_bwd_t<isa>::jit_uni_eltwise_bwd_t(const pd_t *pd,
         const input_vector &inputs, const output_vector &outputs)
     : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
 {
-    kernel_ = new jit_uni_relu_kernel_f32<isa>(true,
-        conf_.desc()->negative_slope);
+    kernel_ = new jit_uni_eltwise_kernel_f32<isa>(true, conf_.desc()->alpha);
 }
 
 template <cpu_isa_t isa>
-jit_uni_relu_bwd_t<isa>::~jit_uni_relu_bwd_t()
+jit_uni_eltwise_bwd_t<isa>::~jit_uni_eltwise_bwd_t()
 { delete kernel_; }
 
 template <cpu_isa_t isa>
-void jit_uni_relu_bwd_t<isa>::execute_backward()
+void jit_uni_eltwise_bwd_t<isa>::execute_backward()
 {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
@@ -316,12 +313,12 @@ void jit_uni_relu_bwd_t<isa>::execute_backward()
     }
 }
 
-template struct jit_uni_relu_fwd_t<sse42>;
-template struct jit_uni_relu_bwd_t<sse42>;
-template struct jit_uni_relu_fwd_t<avx2>;
-template struct jit_uni_relu_bwd_t<avx2>;
-template struct jit_uni_relu_fwd_t<avx512_common>;
-template struct jit_uni_relu_bwd_t<avx512_common>;
+template struct jit_uni_eltwise_fwd_t<sse42>;
+template struct jit_uni_eltwise_bwd_t<sse42>;
+template struct jit_uni_eltwise_fwd_t<avx2>;
+template struct jit_uni_eltwise_bwd_t<avx2>;
+template struct jit_uni_eltwise_fwd_t<avx512_common>;
+template struct jit_uni_eltwise_bwd_t<avx512_common>;
 
 }
 }

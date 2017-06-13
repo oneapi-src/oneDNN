@@ -14,13 +14,13 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_UNI_RELU_HPP
-#define CPU_JIT_UNI_RELU_HPP
+#ifndef CPU_JIT_UNI_ELTWISE_HPP
+#define CPU_JIT_UNI_ELTWISE_HPP
 
 #include <assert.h>
 
 #include "c_types_map.hpp"
-#include "cpu_relu_pd.hpp"
+#include "cpu_eltwise_pd.hpp"
 #include "cpu_engine.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
@@ -30,23 +30,23 @@ namespace impl {
 namespace cpu {
 
 template <cpu_isa_t isa>
-struct jit_uni_relu_kernel_f32;
+struct jit_uni_eltwise_kernel_f32;
 
 template <cpu_isa_t isa>
-struct jit_uni_relu_fwd_t : public cpu_primitive_t {
-    struct pd_t : public cpu_relu_fwd_pd_t {
-        pd_t(engine_t *engine, const relu_desc_t *adesc,
-             const relu_fwd_pd_t *hint_fwd_pd)
-            : cpu_relu_fwd_pd_t(engine, adesc, hint_fwd_pd) {}
+struct jit_uni_eltwise_fwd_t : public cpu_primitive_t {
+    struct pd_t : public cpu_eltwise_fwd_pd_t {
+        pd_t(engine_t *engine, const eltwise_desc_t *adesc,
+             const eltwise_fwd_pd_t *hint_fwd_pd)
+            : cpu_eltwise_fwd_pd_t(engine, adesc, hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T(jit_uni_relu_fwd_t<isa>);
+        DECLARE_COMMON_PD_T(jit_uni_eltwise_fwd_t<isa>);
 
         virtual status_t init() override;
     };
 
-    jit_uni_relu_fwd_t(const pd_t *pd, const input_vector &inputs,
+    jit_uni_eltwise_fwd_t(const pd_t *pd, const input_vector &inputs,
                        const output_vector &outputs);
-    ~jit_uni_relu_fwd_t();
+    ~jit_uni_eltwise_fwd_t();
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
@@ -59,24 +59,24 @@ struct jit_uni_relu_fwd_t : public cpu_primitive_t {
 private:
     void execute_forward();
     pd_t conf_;
-    jit_uni_relu_kernel_f32<isa> *kernel_;
+    jit_uni_eltwise_kernel_f32<isa> *kernel_;
 };
 
 template <cpu_isa_t isa>
-struct jit_uni_relu_bwd_t : public cpu_primitive_t {
-    struct pd_t : public cpu_relu_bwd_pd_t {
-        pd_t(engine_t *engine, const relu_desc_t *adesc,
-             const relu_fwd_pd_t *hint_fwd_pd)
-            : cpu_relu_bwd_pd_t(engine, adesc, hint_fwd_pd) {}
+struct jit_uni_eltwise_bwd_t : public cpu_primitive_t {
+    struct pd_t : public cpu_eltwise_bwd_pd_t {
+        pd_t(engine_t *engine, const eltwise_desc_t *adesc,
+             const eltwise_fwd_pd_t *hint_fwd_pd)
+            : cpu_eltwise_bwd_pd_t(engine, adesc, hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T(jit_uni_relu_bwd_t<isa>);
+        DECLARE_COMMON_PD_T(jit_uni_eltwise_bwd_t<isa>);
 
         virtual status_t init() override;
     };
 
-    jit_uni_relu_bwd_t(const pd_t *pd, const input_vector &inputs,
+    jit_uni_eltwise_bwd_t(const pd_t *pd, const input_vector &inputs,
                        const output_vector &outputs);
-    ~jit_uni_relu_bwd_t();
+    ~jit_uni_eltwise_bwd_t();
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
@@ -89,7 +89,7 @@ struct jit_uni_relu_bwd_t : public cpu_primitive_t {
 private:
     void execute_backward();
     pd_t conf_;
-    jit_uni_relu_kernel_f32<isa> *kernel_;
+    jit_uni_eltwise_kernel_f32<isa> *kernel_;
 };
 
 }

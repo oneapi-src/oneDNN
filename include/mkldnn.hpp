@@ -210,6 +210,7 @@ enum query {
 
     memory_d = c_api::mkldnn_query_memory_d,
     convolution_d = c_api::mkldnn_query_convolution_d,
+    eltwise_d = c_api::mkldnn_query_eltwise_d,
     relu_d = c_api::mkldnn_query_relu_d,
     softmax_d = c_api::mkldnn_query_softmax_d,
     pooling_d = c_api::mkldnn_query_pooling_d,
@@ -540,6 +541,7 @@ inline c_api::mkldnn_prop_kind_t convert_to_c(prop_kind kind) {
 enum algorithm {
     convolution_direct = c_api::mkldnn_convolution_direct,
     convolution_winograd = c_api::mkldnn_convolution_winograd,
+    eltwise_relu = c_api::mkldnn_eltwise_relu,
     lrn_across_channels = c_api::mkldnn_lrn_across_channels,
     lrn_within_channel  = c_api::mkldnn_lrn_within_channel,
     pooling_max = c_api::mkldnn_pooling_max,
@@ -1654,17 +1656,25 @@ struct pooling_backward : public primitive {
     }
 };
 
-struct relu_forward : public primitive {
+struct eltwise_forward : public primitive {
     struct desc {
-        c_api::mkldnn_relu_desc_t data;
+        c_api::mkldnn_eltwise_desc_t data;
         template <typename T>
-        desc(prop_kind aprop_kind, const memory::desc &src_desc,
-                T negative_slope) {
-            error::wrap_c_api(c_api::mkldnn_relu_forward_desc_init(&data,
-                        mkldnn::convert_to_c(aprop_kind), &src_desc.data,
-                        static_cast<double>(negative_slope)),
-                    "could not create a relu forward descriptor");
+        desc(prop_kind aprop_kind, algorithm alg_kind,
+                const memory::desc &src_desc, T alpha = 0, T beta = 0) {
+            error::wrap_c_api(c_api::mkldnn_eltwise_forward_desc_init(&data,
+                        mkldnn::convert_to_c(aprop_kind),
+                        mkldnn::convert_to_c(alg_kind), &src_desc.data,
+                        static_cast<double>(alpha), static_cast<double>(beta)),
+                    "could not create a eltwise forward descriptor");
         }
+
+        /** @deprecated: api backward compatibility for relu */
+        template <typename T>
+        MKLDNN_DEPRECATED
+        desc(prop_kind aprop_kind, const memory::desc &src_desc,
+                T negative_slope)
+        : desc(aprop_kind, eltwise_relu, src_desc, negative_slope) {}
     };
 
     struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t> {
@@ -1672,7 +1682,7 @@ struct relu_forward : public primitive {
             c_api::mkldnn_primitive_desc_t result;
             error::wrap_c_api(c_api::mkldnn_primitive_desc_create(
                         &result, &adesc.data, aengine.get(), nullptr),
-                    "could not create a relu forward primitive descriptor");
+                    "could not create a eltwise forward primitive descriptor");
             reset(result);
         }
 
@@ -1681,8 +1691,9 @@ struct relu_forward : public primitive {
             c_api::mkldnn_primitive_desc_t cdesc;
             c_api::const_mkldnn_primitive_desc_t const_cdesc =
                 c_api::mkldnn_primitive_desc_query_pd(get(),
-                               mkldnn::convert_to_c(dst_pd), 0);
-            error::wrap_c_api(c_api::mkldnn_primitive_desc_clone(&cdesc, const_cdesc),
+                        mkldnn::convert_to_c(dst_pd), 0);
+            error::wrap_c_api(
+                    c_api::mkldnn_primitive_desc_clone(&cdesc, const_cdesc),
                     "could not clone a dst primitive descriptor");
             adesc.reset(cdesc);
             return adesc;
@@ -1691,55 +1702,50 @@ struct relu_forward : public primitive {
         engine get_engine() { return engine::query(*this); }
     };
 
-    relu_forward(const primitive_desc &aprimitive_desc,
+    eltwise_forward(const primitive_desc &aprimitive_desc,
             const primitive::at &src, const memory &dst) {
         c_api::mkldnn_primitive_t result;
         c_api::mkldnn_primitive_at_t inputs[] = { src.data };
         c_api::const_mkldnn_primitive_t outputs[] = { dst.get() };
         error::wrap_c_api(c_api::mkldnn_primitive_create(&result,
                 aprimitive_desc.get(), inputs, outputs),
-            "could not create a relu forward primitive");
+            "could not create a eltwise forward primitive");
         reset(result);
     }
-
-    /*
-    relu_forward(prop_kind aprop_kind, double negative_slope,
-            const primitive::at &src, const memory &dst) {
-        auto src_md = memory(src).get_primitive_desc();
-        auto dst_md = memory(dst).get_primitive_desc();
-
-        auto relu_d = desc(aprop_kind, negative_slope, src_md.desc(),
-                dst_md.desc());
-        auto relu_pd = primitive_desc(relu_d, engine(src_md.data.base.engine));
-        c_api::mkldnn_primitive_t result;
-        error::wrap_c_api(c_api::mkldnn_relu_create(&result,
-                    &relu_pd.data, src.data, dst.get()),
-                "could not create a relu primitive");
-        reset(result);
-    }
-    */
 };
 
-struct relu_backward : public primitive {
+typedef eltwise_forward relu_forward;
+
+struct eltwise_backward : public primitive {
     struct desc {
-        c_api::mkldnn_relu_desc_t data;
+        c_api::mkldnn_eltwise_desc_t data;
+
         template <typename T>
-        desc(const memory::desc &diff_data_desc, const memory::desc &data_desc,
-            T negative_slope) {
-            error::wrap_c_api(c_api::mkldnn_relu_backward_desc_init(&data,
-                        &diff_data_desc.data, &data_desc.data,
-                        static_cast<double>(negative_slope)),
-                    "could not create a relu backward descriptor");
+        desc(algorithm alg_kind, const memory::desc &diff_data_desc,
+                const memory::desc &data_desc, T alpha = 0, T beta = 0) {
+            error::wrap_c_api(c_api::mkldnn_eltwise_backward_desc_init(&data,
+                        mkldnn::convert_to_c(alg_kind), &diff_data_desc.data,
+                        &data_desc.data, static_cast<double>(alpha),
+                        static_cast<double>(beta)),
+                    "could not create a eltwise backward descriptor");
         }
+
+        /** @deprecated: api backward compatibility for relu */
+        template <typename T>
+        MKLDNN_DEPRECATED
+        desc(const memory::desc &diff_data_desc, const memory::desc &data_desc,
+            T negative_slope): desc(eltwise_relu, diff_data_desc, data_desc,
+                negative_slope) {}
     };
+
     struct primitive_desc : public handle<c_api::mkldnn_primitive_desc_t> {
         primitive_desc(const desc &adesc, const engine &aengine,
-        const relu_forward::primitive_desc &hint_fwd_primitive_desc) {
+        const eltwise_forward::primitive_desc &hint_fwd_primitive_desc) {
             c_api::mkldnn_primitive_desc_t result;
             error::wrap_c_api(c_api::mkldnn_primitive_desc_create(
                         &result, &adesc.data, aengine.get(),
                         hint_fwd_primitive_desc.get()),
-                    "could not create a relu backward primitive descriptor");
+                    "could not create a eltwise backward primitive descriptor");
             reset(result);
         }
 
@@ -1757,7 +1763,8 @@ struct relu_backward : public primitive {
 
         engine get_engine() { return engine::query(*this); }
     };
-    relu_backward(const primitive_desc &aprimitive_desc,
+
+    eltwise_backward(const primitive_desc &aprimitive_desc,
             const primitive::at &src, const primitive::at &diff_dst,
             const memory &diff_src) {
         c_api::mkldnn_primitive_t result;
@@ -1765,10 +1772,12 @@ struct relu_backward : public primitive {
         c_api::const_mkldnn_primitive_t outputs[] = { diff_src.get() };
         error::wrap_c_api(c_api::mkldnn_primitive_create(&result,
                 aprimitive_desc.get(), inputs, outputs),
-            "could not create a relu backward primitive");
+            "could not create a eltwise backward primitive");
         reset(result);
     }
 };
+
+typedef eltwise_backward relu_backward;
 
 struct softmax_forward : public primitive {
     struct desc {

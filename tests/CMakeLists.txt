@@ -18,6 +18,11 @@ if(POLICY CMP0065)
     cmake_policy(SET CMP0065 NEW)
 endif()
 
+if(UNIX OR APPLE)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-deprecated-declarations")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-declarations")
+endif()
+
 #add_executable(api-check-c api_check.c)
 #target_link_libraries(api-check-c ${LIB_NAME})
 #add_test(api-check-c api-check-c)

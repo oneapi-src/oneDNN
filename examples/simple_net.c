@@ -248,9 +248,9 @@ mkldnn_status_t simple_net(){
         mkldnn_primitive_desc_query_memory_d(conv_dst_pd);
 
     /* create a relu */
-    mkldnn_relu_desc_t relu_desc;
-    CHECK(mkldnn_relu_forward_desc_init(&relu_desc, mkldnn_forward,
-            relu_src_md, negative_slope));
+    mkldnn_eltwise_desc_t relu_desc;
+    CHECK(mkldnn_eltwise_forward_desc_init(&relu_desc, mkldnn_forward,
+                mkldnn_eltwise_relu, relu_src_md, negative_slope, 0));
 
     mkldnn_primitive_desc_t relu_pd;
     CHECK(mkldnn_primitive_desc_create(&relu_pd, &relu_desc, engine, NULL));

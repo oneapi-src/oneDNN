@@ -14,13 +14,13 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_REF_RELU_HPP
-#define CPU_REF_RELU_HPP
+#ifndef CPU_REF_ELTWISE_HPP
+#define CPU_REF_ELTWISE_HPP
 
 #include <assert.h>
 
 #include "c_types_map.hpp"
-#include "cpu_relu_pd.hpp"
+#include "cpu_eltwise_pd.hpp"
 #include "cpu_engine.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
@@ -30,13 +30,14 @@ namespace impl {
 namespace cpu {
 
 template <impl::data_type_t data_type>
-struct ref_relu_fwd_t: public cpu_primitive_t {
-    struct pd_t: public cpu_relu_fwd_pd_t {
-        pd_t(engine_t *engine, const relu_desc_t *adesc,
-                const relu_fwd_pd_t *hint_fwd_pd)
-            : cpu_relu_fwd_pd_t(engine, adesc, hint_fwd_pd), is_dense(false) {}
+struct ref_eltwise_fwd_t: public cpu_primitive_t {
+    struct pd_t: public cpu_eltwise_fwd_pd_t {
+        pd_t(engine_t *engine, const eltwise_desc_t *adesc,
+                const eltwise_fwd_pd_t *hint_fwd_pd)
+            : cpu_eltwise_fwd_pd_t(engine, adesc, hint_fwd_pd)
+            , is_dense(false) {}
 
-        DECLARE_COMMON_PD_T(ref_relu_fwd_t);
+        DECLARE_COMMON_PD_T(ref_eltwise_fwd_t);
 
         virtual status_t init() override {
             using namespace prop_kind;
@@ -56,7 +57,7 @@ struct ref_relu_fwd_t: public cpu_primitive_t {
         bool is_dense;
     };
 
-    ref_relu_fwd_t(const pd_t *pd, const input_vector &inputs,
+    ref_eltwise_fwd_t(const pd_t *pd, const input_vector &inputs,
             const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {}
     typedef typename prec_traits<data_type>::type data_t;
@@ -74,14 +75,14 @@ private:
 };
 
 template <impl::data_type_t data_type>
-struct ref_relu_bwd_t: public cpu_primitive_t {
-    struct pd_t: public cpu_relu_bwd_pd_t {
-        pd_t(engine_t *engine, const relu_desc_t *adesc,
-                const relu_fwd_pd_t *hint_fwd_pd)
-            : cpu_relu_bwd_pd_t(engine, adesc, hint_fwd_pd), is_dense_(false)
-        {}
+struct ref_eltwise_bwd_t: public cpu_primitive_t {
+    struct pd_t: public cpu_eltwise_bwd_pd_t {
+        pd_t(engine_t *engine, const eltwise_desc_t *adesc,
+                const eltwise_fwd_pd_t *hint_fwd_pd)
+            : cpu_eltwise_bwd_pd_t(engine, adesc, hint_fwd_pd)
+            , is_dense_(false) {}
 
-        DECLARE_COMMON_PD_T(ref_relu_bwd_t);
+        DECLARE_COMMON_PD_T(ref_eltwise_bwd_t);
 
         virtual status_t init() override {
             using namespace prop_kind;
@@ -96,13 +97,16 @@ struct ref_relu_bwd_t: public cpu_primitive_t {
                 == memory_desc_wrapper(src_pd());
             is_dense_ = memory_desc_wrapper(src_pd()).is_dense() && same_fmt;
 
+            if (!utils::implication(!is_dense_, src_pd()->desc()->ndims == 4))
+                return status::unimplemented;
+
             return status::success;
         }
 
         bool is_dense_;
     };
 
-    ref_relu_bwd_t(const pd_t *pd, const input_vector &inputs,
+    ref_eltwise_bwd_t(const pd_t *pd, const input_vector &inputs,
             const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {}
     typedef typename prec_traits<data_type>::type data_t;

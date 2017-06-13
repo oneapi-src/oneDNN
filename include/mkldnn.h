@@ -402,22 +402,56 @@ mkldnn_status_t MKLDNN_API mkldnn_convolution_backward_weights_desc_init(
 
 /** @} */
 
-/** @addtogroup c_api_relu ReLU
+/** @addtogroup c_api_eltwise Eltwise
+ * A primitive to compute element wise operations like parametric rectifier
+ * linear unit (ReLU).
+ * @{ */
+
+/** Initializes a @p eltwise_desc for forward propagation using @p prop_kind
+ * (possible values are #mkldnn_forward_training or #mkldnn_forward_inference),
+ * @p alg_kind algorithm (possible values: #mkldnn_eltwise_relu), memory
+ * descriptor @p data_desc, and @p alpha, @p beta parameters.
+ * @sa mkldnn_eltwise_desc_t for details */
+mkldnn_status_t MKLDNN_API mkldnn_eltwise_forward_desc_init(
+        mkldnn_eltwise_desc_t *eltwise_desc, mkldnn_prop_kind_t prop_kind,
+        mkldnn_alg_kind_t alg_kind, const mkldnn_memory_desc_t *data_desc,
+        double alpha, double beta);
+
+/** Initializes a @p eltwise_desc for backward propagation using @p alg_kind
+ * algorithm (possible values: #mkldnn_eltwise_relu), memory descriptors
+ * @p diff_data_desc and @p data_desc, and @p alpha, @p beta parameters.
+ * @sa mkldnn_eltwise_desc_t for details */
+mkldnn_status_t MKLDNN_API mkldnn_eltwise_backward_desc_init(
+        mkldnn_eltwise_desc_t *eltwise_desc, mkldnn_alg_kind_t alg_kind,
+        const mkldnn_memory_desc_t *diff_data_desc,
+        const mkldnn_memory_desc_t *data_desc, double alpha, double beta);
+
+/** @} */
+
+/** @addtogroup c_api_relu ReLU (deprecated, use Eltwise instead)
  * A primitive to compute a parametric rectifier linear unit (ReLU).
- * 
+ *
  * \f[dst[n][c][h][w] = \max(src[n][c][h][w], 0) +
  *                      \min(src[n][c][h][w], 0) \cdot negative\_slope\f]
  * @{ */
 
 /** Initializes a @p relu_desc for forward propagation using @p prop_kind
  * (possible values are #mkldnn_forward_training or #mkldnn_forward_inference),
- * @p negative_slope and memory descriptor @p data_desc. */
+ * @p negative_slope and memory descriptor @p data_desc.
+ *
+ * @deprecated use mkldnn_eltwise_forward_desc_init() instead, with @p alpha
+ * equals @negative_slope */
+MKLDNN_DEPRECATED
 mkldnn_status_t MKLDNN_API mkldnn_relu_forward_desc_init(
         mkldnn_relu_desc_t *relu_desc, mkldnn_prop_kind_t prop_kind,
         const mkldnn_memory_desc_t *data_desc, double negative_slope);
 
 /** Initializes a @p relu_desc for backward propagation using @p negative_slope
- * and memory descriptors @p diff_data_desc and @p data_desc. */
+ * and memory descriptors @p diff_data_desc and @p data_desc.
+ *
+ * @deprecated use mkldnn_eltwise_backward_desc_init() instead, with @p alpha
+ * equals @negative_slope */
+MKLDNN_DEPRECATED
 mkldnn_status_t MKLDNN_API mkldnn_relu_backward_desc_init(
         mkldnn_relu_desc_t *relu_desc,
         const mkldnn_memory_desc_t *diff_data_desc,

@@ -14,13 +14,13 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_RELU_PD_HPP
-#define CPU_RELU_PD_HPP
+#ifndef CPU_ELTWISE_PD_HPP
+#define CPU_ELTWISE_PD_HPP
 
 #include <assert.h>
 
 #include "c_types_map.hpp"
-#include "relu_pd.hpp"
+#include "eltwise_pd.hpp"
 #include "cpu_engine.hpp"
 #include "cpu_memory.hpp"
 #include "cpu_primitive.hpp"
@@ -31,14 +31,14 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-struct cpu_relu_fwd_pd_t: public relu_fwd_pd_t {
+struct cpu_eltwise_fwd_pd_t: public eltwise_fwd_pd_t {
     using cpu_memory_pd_t = cpu_memory_t::pd_t;
 
-    cpu_relu_fwd_pd_t(engine_t *engine, const relu_desc_t *adesc,
-            const relu_fwd_pd_t *hint_fwd_pd)
-        : relu_fwd_pd_t(engine, adesc, hint_fwd_pd)
+    cpu_eltwise_fwd_pd_t(engine_t *engine, const eltwise_desc_t *adesc,
+            const eltwise_fwd_pd_t *hint_fwd_pd)
+        : eltwise_fwd_pd_t(engine, adesc, hint_fwd_pd)
         , data_pd_(engine_, &desc_.data_desc) {}
-    virtual ~cpu_relu_fwd_pd_t() {}
+    virtual ~cpu_eltwise_fwd_pd_t() {}
 
     virtual const cpu_memory_pd_t *src_pd(int index = 0) const override
     { return index == 0 ? &data_pd_ : nullptr; }
@@ -51,15 +51,15 @@ protected:
     virtual status_t init() = 0;
 };
 
-struct cpu_relu_bwd_pd_t: public relu_bwd_pd_t {
+struct cpu_eltwise_bwd_pd_t: public eltwise_bwd_pd_t {
     using cpu_memory_pd_t = cpu_memory_t::pd_t;
 
-    cpu_relu_bwd_pd_t(engine_t *engine, const relu_desc_t *adesc,
-            const relu_fwd_pd_t *hint_fwd_pd)
-        : relu_bwd_pd_t(engine, adesc, hint_fwd_pd)
+    cpu_eltwise_bwd_pd_t(engine_t *engine, const eltwise_desc_t *adesc,
+            const eltwise_fwd_pd_t *hint_fwd_pd)
+        : eltwise_bwd_pd_t(engine, adesc, hint_fwd_pd)
         , data_pd_(engine_, &desc_.data_desc)
         , diff_data_pd_(engine_, &desc_.diff_data_desc) {}
-    virtual ~cpu_relu_bwd_pd_t() {}
+    virtual ~cpu_eltwise_bwd_pd_t() {}
 
     virtual const cpu_memory_pd_t *src_pd(int index = 0) const override
     { return index == 0 ? &data_pd_ : nullptr; }

@@ -33,8 +33,8 @@
 #include "cpu/jit_sse42_convolution.hpp"
 #include "cpu/gemm_convolution.hpp"
 #include "cpu/ref_convolution.hpp"
-#include "cpu/jit_uni_relu.hpp"
-#include "cpu/ref_relu.hpp"
+#include "cpu/jit_uni_eltwise.hpp"
+#include "cpu/ref_eltwise.hpp"
 #include "cpu/ref_softmax.hpp"
 #include "cpu/jit_uni_pooling.hpp"
 #include "cpu/ref_pooling.hpp"
@@ -197,20 +197,20 @@ static const pd_create_f cpu_impl_list[] = {
             data_type::s32, data_type::u8>),
     INSTANCE(ref_convolution_fwd_t<data_type::s16,data_type::s16,
             data_type::s32, data_type::s32>),
-    /* relu */
-    INSTANCE(jit_uni_relu_fwd_t<avx512_common>),
-    INSTANCE(jit_uni_relu_bwd_t<avx512_common>),
-    INSTANCE(jit_uni_relu_fwd_t<avx2>),
-    INSTANCE(jit_uni_relu_bwd_t<avx2>),
-    INSTANCE(jit_uni_relu_fwd_t<sse42>),
-    INSTANCE(jit_uni_relu_bwd_t<sse42>),
-    INSTANCE(ref_relu_fwd_t<data_type::f32>),
-    INSTANCE(ref_relu_bwd_t<data_type::f32>),
-    /* relu (int) */
-    INSTANCE(ref_relu_fwd_t<data_type::s32>),
-    INSTANCE(ref_relu_fwd_t<data_type::s16>),
-    INSTANCE(ref_relu_fwd_t<data_type::s8>),
-    INSTANCE(ref_relu_fwd_t<data_type::u8>),
+    /* eltwise */
+    INSTANCE(jit_uni_eltwise_fwd_t<avx512_common>),
+    INSTANCE(jit_uni_eltwise_bwd_t<avx512_common>),
+    INSTANCE(jit_uni_eltwise_fwd_t<avx2>),
+    INSTANCE(jit_uni_eltwise_bwd_t<avx2>),
+    INSTANCE(jit_uni_eltwise_fwd_t<sse42>),
+    INSTANCE(jit_uni_eltwise_bwd_t<sse42>),
+    INSTANCE(ref_eltwise_fwd_t<data_type::f32>),
+    INSTANCE(ref_eltwise_bwd_t<data_type::f32>),
+    /* eltwise (int) */
+    INSTANCE(ref_eltwise_fwd_t<data_type::s32>),
+    INSTANCE(ref_eltwise_fwd_t<data_type::s16>),
+    INSTANCE(ref_eltwise_fwd_t<data_type::s8>),
+    INSTANCE(ref_eltwise_fwd_t<data_type::u8>),
     /* softmax */
     INSTANCE(ref_softmax_fwd_t<data_type::f32>),
     /* pool */
@@ -263,7 +263,7 @@ static const pd_create_f cpu_impl_list[] = {
             data_type::s32, data_type::s32>),
     INSTANCE(ref_inner_product_fwd_t<data_type::u8, data_type::s8,
             data_type::s32, data_type::u8>),
-    /* conv_relu */
+    /* conv_eltwise */
     INSTANCE(jit_avx512_common_1x1_convolution_relu_t),
     INSTANCE(jit_avx512_common_convolution_relu_t),
     INSTANCE(jit_avx2_1x1_convolution_relu_t),
@@ -274,7 +274,7 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(jit_avx512_common_gemm_convolution_relu_t),
     INSTANCE(jit_avx2_gemm_convolution_relu_t),
     INSTANCE(ref_convolution_relu_t<data_type::f32>),
-    /* conv_relu (int) */
+    /* conv_eltwise (int) */
     INSTANCE(jit_avx512_core_u8s8u8_convolution_relu_t),
     INSTANCE(ref_convolution_relu_t<data_type::s16, data_type::s16,
             data_type::s32, data_type::s32>),

@@ -57,7 +57,7 @@ template <> struct pkind_traits<primitive_kind::op> { \
 }
 PKIND_TRAITS_INST(memory);
 PKIND_TRAITS_INST(convolution);
-PKIND_TRAITS_INST(relu);
+PKIND_TRAITS_INST(eltwise);
 PKIND_TRAITS_INST(softmax);
 PKIND_TRAITS_INST(pooling);
 PKIND_TRAITS_INST(lrn);
