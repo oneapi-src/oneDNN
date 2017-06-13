@@ -248,21 +248,6 @@ private:
     reg64_t reg_oj = r15;
     reg64_t reg_ih_count = rbx;
 
-    reg64_t aux_reg_bcast_data = r14;
-    reg64_t aux_reg_load_data  = r15;
-
-    reg64_t bk_loop = rdx;
-    reg64_t bcast_loop = rsi;
-
-    reg64_t reg_init_flag = r13;
-
-    reg64_t aux_bk_loop = r12;
-    reg64_t reg_bbcast = rax;
-    reg64_t reg_bload = r11;
-    reg64_t aux1_reg_bcast_data = rbx;
-    reg64_t aux_reg_out_data = abi_not_param1;
-    reg64_t reg_output_loadblk_step = abi_param1;
-
     inline void compute_oh_step_unroll_ow_icblock(int ic_block_step,
             int max_ur_w);
     inline void oh_step_comeback_pointers();
