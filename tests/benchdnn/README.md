@@ -57,7 +57,7 @@ where *harness-knobs* are:
 
 and *conv-desc* is convolution description. The canonical form is:
 ```
-    gXmbXicXihXiwXocXohXowXkhXkwXshXswXphXpwXnS
+    gXmbXicXihXiwXocXohXowXkhXkwXshXswXphXpwXdhXdwXnS
 ```
 Here X is a number and S is string (n stands for name). Some of the parameters
 might be omitted if there is either default one (e.g. if g is not specified

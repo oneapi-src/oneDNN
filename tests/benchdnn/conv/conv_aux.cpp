@@ -75,19 +75,20 @@ int str2desc(desc_t *desc, const char *str) {
     desc_t d{0};
 
     /* canonical form:
-     * dYgXmbXicXihXiwXocXohXowXkhXkwXshXswXphXpwXnS
+     * dYgXmbXicXihXiwXocXohXowXkhXkwXshXswXphXpwXdhXdwXnS
      *
      * where: Y = {fb, fd, bd, bw, bb}, X is number, S - string
      *
      * implicit rules:
-     *  - default values: { mb = 2, g = 1, d = fd, sh = sw = 1, S="wip" }
+     *  - default values:
+     *      mb = 2, g = 1, d = fd, sh = sw = 1, dh = dw = 0, S="wip"
      *  - if H is undefined => H = W
      *  - if W is undefined => W = H
      *  - if `output` is undefined => compute output
      *  - if padding is undefined => compute trivial padding
      */
 
-    d.g = 1; d.mb = 2; d.sh = d.sw = 1; d.name = "\"wip\"";
+    d.g = 1; d.mb = 2; d.sh = d.sw = 1; d.dh = d.dw = 0; d.name = "\"wip\"";
 
     const char *s = str;
     assert(s);
@@ -108,6 +109,7 @@ int str2desc(desc_t *desc, const char *str) {
         CASE_N(kh); CASE_N(kw);
         CASE_N(sh); CASE_N(sw);
         CASE_N(ph); CASE_N(pw);
+        CASE_N(dh); CASE_N(dw);
         if (*s == 'n') { d.name = s + 1; break; }
         if (!ok) return FAIL;
     }
@@ -117,6 +119,7 @@ int str2desc(desc_t *desc, const char *str) {
     if (d.ih * d.iw == 0) d.ih = d.iw = MAX2(d.ih, d.iw);
     if (d.kh * d.kw == 0) d.kh = d.kw = MAX2(d.kh, d.kw);
     if (d.ph * d.pw == 0) d.ph = d.pw = MAX2(d.ph, d.pw);
+    if (d.dh * d.dw == 0) d.dh = d.dw = MAX2(d.dh, d.dw);
 
     if (d.oh == 0 && d.ow != 0) d.oh = d.ow;
     if (d.ow == 0 && d.oh != 0) d.ow = d.oh;
@@ -124,21 +127,22 @@ int str2desc(desc_t *desc, const char *str) {
     if (d.ih == 0 || d.kh == 0) return FAIL;
     if (d.ic == 0 || d.oc == 0) return FAIL;
 
-    auto compute_out = [](int i, int k, int s, int p) {
-        return (i - k + 2 * p) / s + 1;
+    auto compute_out = [](int i, int k, int s, int p, int d) {
+        return (i - ((k - 1) * (d + 1)) + 1 + 2 * p) / s + 1;
     };
-    auto compute_pad = [](int o, int i, int k, int s) {
-        return ((o - 1) * s - i + k) / 2; /* XXX: is it oK? */
+    auto compute_pad = [](int o, int i, int k, int s, int d) {
+        /* XXX: is it oK? */
+        return ((o - 1) * s - i + ((k - 1) * (d + 1) + 1)) / 2;
     };
 
-    if (d.oh == 0) d.oh = compute_out(d.ih, d.kh, d.sh, d.ph);
-    else if (d.ph == 0 && d.oh != compute_out(d.ih, d.kh, d.sh, d.ph)) {
-        d.ph = compute_pad(d.oh, d.ih, d.kh, d.ph);
+    if (d.oh == 0) d.oh = compute_out(d.ih, d.kh, d.sh, d.ph, d.dh);
+    else if (d.ph == 0 && d.oh != compute_out(d.ih, d.kh, d.sh, d.ph, d.dh)) {
+        d.ph = compute_pad(d.oh, d.ih, d.kh, d.ph, d.dh);
     }
 
-    if (d.ow == 0) d.ow = compute_out(d.iw, d.kw, d.sw, d.pw);
-    else if (d.pw == 0 && d.ow != compute_out(d.iw, d.kw, d.sw, d.pw)) {
-        d.pw = compute_pad(d.ow, d.iw, d.kw, d.pw);
+    if (d.ow == 0) d.ow = compute_out(d.iw, d.kw, d.sw, d.pw, d.dw);
+    else if (d.pw == 0 && d.ow != compute_out(d.iw, d.kw, d.sw, d.pw, d.dw)) {
+        d.pw = compute_pad(d.ow, d.iw, d.kw, d.pw, d.dw);
     }
 
     *desc = d;
@@ -147,28 +151,37 @@ int str2desc(desc_t *desc, const char *str) {
 }
 
 void desc2str(const desc_t *d, char *buffer, bool canonical) {
-    if (d->ih == d->iw && d->oh == d->ow && d->kh == d->kw && d->sh == d->sw
-            && d->sh == 1 && d->ph == d->pw && !canonical) {
-        if (d->g == 1) {
-            if (d->mb == 2) {
-                snprintf(buffer, max_desc_len, "ic%dih%doc%doh%dkh%dph%dn%s",
-                        d->ic, d->ih, d->oc, d->oh, d->kh, d->ph, d->name);
-            } else {
-                snprintf(buffer, max_desc_len,
-                        "mb%dic%dih%doc%doh%dkh%dph%dn%s", d->mb, d->ic, d->ih,
-                        d->oc, d->oh, d->kh, d->ph, d->name);
-            }
-            return;
-        }
-        snprintf(buffer, max_desc_len, "g%dmb%dic%dih%doc%doh%dkh%dph%dn%s",
-                d->g, d->mb, d->ic, d->ih, d->oc, d->oh, d->kh, d->ph, d->name
-                );
-        return;
+    int rem_len = max_desc_len;
+#   define DPRINT(...) do { \
+        int l = snprintf(buffer, rem_len, __VA_ARGS__); \
+        buffer += l; rem_len -= l; \
+    } while(0)
+
+    if (canonical || d->g != 1) DPRINT("g%d", d->g);
+    if (canonical || d->mb != 2) DPRINT("mb%d", d->mb);
+
+    const bool half_form = d->ih == d->iw && d->kh == d->kw && d->oh == d->ow
+        && d->sh == d->sw && d->ph == d->pw && d->dh == d->dw;
+
+    if (!canonical && half_form) {
+        DPRINT("ic%dih%doc%doh%dkh%d", d->ic, d->ih, d->oc, d->oh, d->kh);
+        if (d->sh != 1) DPRINT("sh%d", d->sh);
+        if (d->ph != 0) DPRINT("ph%d", d->ph);
+        if (d->dh != 0) DPRINT("dh%d", d->dh);
+    } else {
+        DPRINT("ic%dih%diw%doc%doh%dow%dkh%dkw%d",
+                d->ic, d->ih, d->iw, d->oc, d->oh, d->ow, d->kh, d->kw);
+        if (canonical || d->sh != 1 || d->sw != 1)
+            DPRINT("sh%dsw%d", d->sh, d->sw);
+        if (canonical || d->ph != 0 || d->sh != 0)
+            DPRINT("ph%dpw%d", d->ph, d->pw);
+        if (canonical || d->dh != 0 || d->dw != 0)
+            DPRINT("dh%ddw%d", d->dh, d->dw);
     }
-    snprintf(buffer, max_desc_len,
-            "g%dmb%dic%dih%diw%doc%doh%dow%dkh%dkw%dsh%dsw%dph%dpw%dn%s",
-            d->g, d->mb, d->ic, d->ih, d->iw, d->oc, d->oh, d->ow,
-            d->kh, d->kw, d->sh, d->sw, d->ph, d->pw, d->name);
+
+    DPRINT("n%s", d->name);
+
+#   undef DPRINT
 }
 
 const dt_conf_t *str2cfg(const char *str) {

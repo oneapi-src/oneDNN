@@ -1,12 +1,14 @@
 # Todo
 
-* change int to double for cfg->{min, max}
+* add verbosity control through environment variable
 
-* add support for winograd
+* add performance testing
+
+* change int to double for cfg->{min, max}
 
 * add quick testing
 
-* add performance testing
+* add more examples on convolution notation
 
 # Done
 
@@ -17,3 +19,7 @@
 * add input files
 
 * add support for conv_relu
+
+* add support for winograd
+
+* add dilated convolution

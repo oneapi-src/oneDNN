@@ -305,22 +305,24 @@ inline int init_pd(const prb_t *p, mkldnn_convolution_desc_t &cd,
     DNN_SAFE(mkldnn_memory_desc_init(&dst_d, 4, dst_dims, p->cfg[DST].dt, mkldnn_any), WARN);
 
     int strides[] = {p->sh, p->sw};
+    int dilates[] = {p->dh, p->dw};
     int padding[] = {p->ph, p->pw};
-    auto bph = [&](int ih, int oh, int kh, int sh, int ph) {
-        return (oh - 1) * sh - ih + kh - ph;
+    auto bph = [&](int ih, int oh, int kh, int sh, int ph, int dh) {
+        return (oh - 1) * sh - ih + ((kh - 1) * (dh + 1) + 1) - ph;
     };
-    int padding_r[] = {bph(p->ih, p->oh, p->kh, p->sh, p->ph),
-        bph(p->iw, p->ow, p->kw, p->sw, p->pw)};
+    int padding_r[] = {
+        bph(p->ih, p->oh, p->kh, p->sh, p->ph, p->dh),
+        bph(p->iw, p->ow, p->kw, p->sw, p->pw, p->dw)};
 
     mkldnn_alg_kind_t alg = mkldnn_convolution_direct;
     if (p->alg == WINO) alg = mkldnn_convolution_winograd;
 
     switch (p->dir) {
     case FWD_D: case FWD_B:
-        DNN_SAFE(mkldnn_convolution_forward_desc_init(&cd,
+        DNN_SAFE(mkldnn_dilated_convolution_forward_desc_init(&cd,
                     mkldnn_forward_inference, alg, &src_d, &wei_d,
-                    p->dir == FWD_D ? NULL : &bia_d, &dst_d, strides, padding,
-                    padding_r, mkldnn_padding_zero), WARN);
+                    p->dir == FWD_D ? NULL : &bia_d, &dst_d, strides, dilates,
+                    padding, padding_r, mkldnn_padding_zero), WARN);
         break;
     case BWD_D:
         DNN_SAFE(mkldnn_convolution_backward_data_desc_init(&cd, alg, &src_d,

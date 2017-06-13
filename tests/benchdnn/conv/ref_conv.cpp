@@ -23,11 +23,11 @@ void compute_ref_fwd(const prb_t *p, dnn_mem_t &src_m,
     auto ker = [&](float &d, int g, int mb, int oc, int oh, int ow) {
         for (int ic = 0; ic < p->ic/p->g; ++ic) {
             for (int kh = 0; kh < p->kh; ++kh) {
-                const int ih = oh * p->sh - p->ph + kh;
+                const int ih = oh * p->sh - p->ph + kh * (p->dh + 1);
                 if (ih < 0 || ih >= p->ih) continue;
 
                 for (int kw = 0; kw < p->kw; ++kw) {
-                    const int iw = ow * p->sw - p->pw + kw;
+                    const int iw = ow * p->sw - p->pw + kw * (p->dw + 1);
                     if (iw < 0 || iw >= p->iw) continue;
 
                     size_t src_off = src_off_f(p, mb, g, ic, ih, iw);
@@ -63,13 +63,13 @@ void compute_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
     auto ker = [&](float &ds, int g, int mb, int ic, int ih, int iw) {
         for (int oc = 0; oc < p->oc/p->g; ++oc) {
             for (int kh = 0; kh < p->kh; ++kh) {
-                int oh = ih - kh + p->ph;
+                int oh = ih - kh * (p->dh + 1) + p->ph;
                 if (oh < 0 || oh % p->sh) continue;
                 oh /= p->sh;
                 if (oh >= p->oh) continue;
 
                 for (int kw = 0; kw < p->kw; ++kw) {
-                    int ow = iw - kw + p->pw;
+                    int ow = iw - kw * (p->dw + 1) + p->pw;
                     if (ow < 0 || ow % p->sw) continue;
                     ow /= p->sw;
                     if (ow >= p->ow) continue;
@@ -106,8 +106,8 @@ void compute_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m,
         for (int mb = 0; mb < p->mb; ++mb) {
             for (int oh = 0; oh < p->oh; ++oh) {
             for (int ow = 0; ow < p->ow; ++ow) {
-                const int ih = oh * p->sh - p->ph + kh;
-                const int iw = ow * p->sw - p->pw + kw;
+                const int ih = oh * p->sh - p->ph + kh * (p->dh + 1);
+                const int iw = ow * p->sw - p->pw + kw * (p->dw + 1);
                 if (ih < 0 || ih >= p->ih) continue;
                 if (iw < 0 || iw >= p->iw) continue;
 

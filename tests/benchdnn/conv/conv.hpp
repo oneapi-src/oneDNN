@@ -47,6 +47,7 @@ struct desc_t {
     int kh, kw;
     int sh, sw;
     int ph, pw;
+    int dh, dw;
 
     const char *name;
 };
