@@ -284,27 +284,26 @@ void jit_avx512_common_convolution_bwd_weights_t::execute_backward_weights() {
 
         for (size_t iwork = start; iwork < end; iwork++) {
 #           pragma omp simd collapse(2)
+#           pragma unroll
             for (int i = 0; i < l_pad; i++)
-#               pragma unroll
                 for (int j = 0; j < ic_block; j++)
                     tr_src1[j * jcp.tr_iw + i] = 0.0;
 
 #           pragma omp simd collapse(2)
+#           pragma unroll
             for (int i = l_pad; i < iwlp; i++)
-#               pragma unroll
                 for (int j = 0; j < ic_block; j++)
                     tr_src1[j * jcp.tr_iw + i] = src1[(i - l_pad) * 16 + j];
 
 #           pragma omp simd collapse(2)
+#           pragma unroll
             for (int i = iwlp; i < tr_iw; i++)
-#               pragma unroll
                 for (int j = 0; j < ic_block; j++)
                     tr_src1[j * jcp.tr_iw + i] = 0.0;
 
             src1 += src_stride;
             tr_src1 += tr_src_stride;
         }
-
 #       pragma omp barrier
     };
 
