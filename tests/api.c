@@ -45,13 +45,14 @@ static size_t product(int *arr, size_t size) {
 
 typedef float real_t;
 
+#define LENGTH_100 100
+
 void test1() {
     mkldnn_engine_t engine;
     CHECK(mkldnn_engine_create(&engine, mkldnn_cpu, 0));
 
-    const int len0 = 100;
-    mkldnn_dims_t dims = {len0};
-    real_t data[len0];
+    mkldnn_dims_t dims = { LENGTH_100 };
+    real_t data[LENGTH_100];
 
     mkldnn_memory_desc_t md;
     mkldnn_primitive_desc_t mpd;
@@ -71,7 +72,7 @@ void test1() {
     CHECK_TRUE(req == data);
 
     CHECK_TRUE(mkldnn_memory_primitive_desc_get_size(mpd)
-            == len0 * sizeof(data[0]));
+            == LENGTH_100 * sizeof(data[0]));
 
     CHECK(mkldnn_primitive_get_primitive_desc(m, &mpd_tmp));
     CHECK_TRUE(mkldnn_memory_primitive_desc_equal(mpd, mpd_tmp));
