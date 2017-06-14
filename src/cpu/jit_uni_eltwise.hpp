@@ -29,7 +29,6 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-template <cpu_isa_t isa>
 struct jit_uni_eltwise_kernel_f32;
 
 template <cpu_isa_t isa>
@@ -59,7 +58,7 @@ struct jit_uni_eltwise_fwd_t : public cpu_primitive_t {
 private:
     void execute_forward();
     pd_t conf_;
-    jit_uni_eltwise_kernel_f32<isa> *kernel_;
+    jit_uni_eltwise_kernel_f32 *kernel_;
 };
 
 template <cpu_isa_t isa>
@@ -89,7 +88,7 @@ struct jit_uni_eltwise_bwd_t : public cpu_primitive_t {
 private:
     void execute_backward();
     pd_t conf_;
-    jit_uni_eltwise_kernel_f32<isa> *kernel_;
+    jit_uni_eltwise_kernel_f32 *kernel_;
 };
 
 }

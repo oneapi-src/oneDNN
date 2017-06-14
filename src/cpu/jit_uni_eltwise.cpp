@@ -37,27 +37,38 @@ struct jit_args {
     size_t work_amount;
 };
 
+struct jit_uni_eltwise_kernel_f32 : public c_compatible {
+    const eltwise_desc_t &desc_;
+
+    void (*ker_)(const jit_args *);
+    void operator()(const jit_args *args) { assert(ker_); ker_(args); }
+
+    jit_uni_eltwise_kernel_f32(const eltwise_desc_t &desc)
+        : desc_(desc), ker_(nullptr) {}
+    virtual ~jit_uni_eltwise_kernel_f32() {}
+
+protected:
+    bool is_bwd() const { return desc_.prop_kind == prop_kind::backward_data; }
+};
+
+/* jit kernels */
+namespace {
 template <cpu_isa_t isa>
-struct jit_uni_eltwise_kernel_f32 : public jit_generator {
-    bool isBackward;
-    float alpha;
-
-    void (*jit_ker)(jit_args *);
-    void operator()(jit_args *arg){jit_ker(arg);}
-
-    void compute_step(bool vectorize, const int uf, const int shift)
-    {
+struct jit_uni_relu_kernel_f32 : public jit_uni_eltwise_kernel_f32,
+    public jit_generator
+{
+    void compute_step(bool vectorize, const int uf, const int shift) {
         unsigned char _cmp_gt_os = isa == avx512_common ? 14 : 6;
 
         for (int i = 0; i < uf; i++) {
             if (vectorize) {
                 uni_vmovups(Vmm(i + 1), ptr[reg_from + i * shift]);
-                if (this->isBackward)
+                if (is_bwd())
                     uni_vmovups(Vmm(uf + i + 1),
                                 ptr[reg_for_comparison + i * shift]);
             } else {
                 movss(Xmm(i + 1), ptr[reg_from + i * shift]);
-                if (this->isBackward)
+                if (is_bwd())
                     movss(Xmm(uf + i + 1),
                           ptr[reg_for_comparison + i * shift]);
             }
@@ -69,7 +80,7 @@ struct jit_uni_eltwise_kernel_f32 : public jit_generator {
                 mulps(Vmm(2 * uf + i + 1), vmm_ns);
 
                 Vmm mask = Vmm(0);
-                if (this->isBackward) {
+                if (is_bwd()) {
                     movups(mask, Vmm(uf + i + 1));
                     cmpps(mask, vmm_zero, _cmp_gt_os);
                 } else {
@@ -82,7 +93,7 @@ struct jit_uni_eltwise_kernel_f32 : public jit_generator {
             for (int i = 0; i < uf; i++) {
                 vmulps(Vmm(2 * uf + i + 1), Vmm(i + 1), vmm_ns);
                 if (isa == avx2) {
-                    if (this->isBackward)
+                    if (is_bwd())
                         vcmpgtps(vmm_mask, Vmm(uf + i + 1), vmm_zero);
                     else
                         vcmpgtps(vmm_mask, Vmm(i + 1), vmm_zero);
@@ -91,7 +102,7 @@ struct jit_uni_eltwise_kernel_f32 : public jit_generator {
                               Vmm(i + 1), vmm_mask);
 
                 } else {
-                    if (this->isBackward)
+                    if (is_bwd())
                         vcmpps(k_mask, Vmm(uf + i + 1), vmm_zero, _cmp_gt_os);
                     else
                         vcmpps(k_mask, Vmm(i + 1), vmm_zero, _cmp_gt_os);
@@ -110,9 +121,10 @@ struct jit_uni_eltwise_kernel_f32 : public jit_generator {
         }
     }
 
-    jit_uni_eltwise_kernel_f32(bool isbackward, float alpha)
-        : jit_generator(), isBackward(isbackward), alpha(alpha)
+    jit_uni_relu_kernel_f32(const eltwise_desc_t &desc)
+        : jit_uni_eltwise_kernel_f32(desc), jit_generator()
     {
+        assert(desc.alg_kind == alg_kind::eltwise_relu);
         assert(isa == sse42 || isa == avx2 || isa == avx512_common);
 
         Reg64 param = abi_param1;
@@ -126,12 +138,12 @@ struct jit_uni_eltwise_kernel_f32 : public jit_generator {
         this->preamble();
 
         mov(reg_from, ptr[param + GET_OFF(from)]);
-        if (this->isBackward)
+        if (is_bwd())
             mov(reg_for_comparison, ptr[param + GET_OFF(for_comparison)]);
         mov(reg_to, ptr[param + GET_OFF(to)]);
         mov(reg_work_amount, ptr[param + GET_OFF(work_amount)]);
 
-        mov(imm_addr64, float2int(this->alpha));
+        mov(imm_addr64, float2int(desc.alpha));
         movq(xmm_ns, imm_addr64);
         uni_vbroadcastss(vmm_ns, xmm_ns);
 
@@ -148,7 +160,7 @@ struct jit_uni_eltwise_kernel_f32 : public jit_generator {
 
             add(reg_from, uf[id] * shift[id]);
             add(reg_to, uf[id] * shift[id]);
-            if (this->isBackward)
+            if (is_bwd())
                 add(reg_for_comparison, uf[id] * shift[id]);
 
             sub(reg_work_amount, uf[id] * loop_dec[id]);
@@ -158,7 +170,7 @@ struct jit_uni_eltwise_kernel_f32 : public jit_generator {
         L(loop_label[2]);
         this->postamble();
 
-        jit_ker = (void (*)(jit_args *)) this->getCode();
+        ker_ = (decltype(ker_))this->getCode();
     }
 
 private:
@@ -166,7 +178,7 @@ private:
                                              isa == avx2, Ymm, Zmm>::type;
 
     Reg64 reg_from = rax;
-    Reg64 reg_for_comparison = this->isBackward ? rdx : reg_from;
+    Reg64 reg_for_comparison = is_bwd() ? rdx : reg_from;
     Reg64 reg_to = r8;
     Reg64 reg_work_amount = rsi;
     Reg64 imm_addr64 = rbx;
@@ -179,6 +191,7 @@ private:
     Vmm vmm_mask = Vmm(isa == avx512_common ? 28 : 12);
     Opmask k_mask = Opmask(1);
 };
+}
 
 template <cpu_isa_t isa>
 status_t jit_uni_eltwise_fwd_t<isa>::pd_t::init()
@@ -201,7 +214,7 @@ jit_uni_eltwise_fwd_t<isa>::jit_uni_eltwise_fwd_t(const pd_t *pd,
         const input_vector &inputs, const output_vector &outputs)
     : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
 {
-    kernel_ = new jit_uni_eltwise_kernel_f32<isa>(false, conf_.desc()->alpha);
+    kernel_ = new jit_uni_relu_kernel_f32<isa>(*conf_.desc());
 }
 
 template <cpu_isa_t isa>
@@ -266,7 +279,7 @@ jit_uni_eltwise_bwd_t<isa>::jit_uni_eltwise_bwd_t(const pd_t *pd,
         const input_vector &inputs, const output_vector &outputs)
     : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
 {
-    kernel_ = new jit_uni_eltwise_kernel_f32<isa>(true, conf_.desc()->alpha);
+    kernel_ = new jit_uni_relu_kernel_f32<isa>(*conf_.desc());
 }
 
 template <cpu_isa_t isa>
