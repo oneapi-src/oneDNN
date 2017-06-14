@@ -43,6 +43,14 @@
 #   define MKLDNN_API
 #endif
 
+#if defined (__GNUC__)
+#   define MKLDNN_DEPRECATED __attribute__((deprecated))
+#elif defined(_MSC_VER)
+#   define MKLDNN_DEPRECATED __declspec(deprecated)
+#else
+#   define MKLDNN_DEPRECATED
+#endif
+
 #include "mkldnn_types.h"
 #endif /* DOXYGEN_SHOULD_SKIP_THIS */
 
