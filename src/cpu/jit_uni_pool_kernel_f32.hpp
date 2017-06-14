@@ -45,7 +45,7 @@ struct jit_pool_conf_t {
     int ur_w_tail;
 };
 
-struct __attribute__ ((__packed__)) jit_pool_call_s {
+struct jit_pool_call_s {
     const float *src;
     const float *dst;
     const int *indices;

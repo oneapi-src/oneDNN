@@ -89,7 +89,7 @@ struct jit_conv_winograd_conf_t : public jit_conv_conf_t {
     int nb_reg;
 };
 
-struct __attribute__((__packed__)) jit_conv_call_s {
+struct jit_conv_call_s {
     const void *src; /* hack, non-const for backward_data */
     const void *dst; /* hack, non-const for forward */
     const void *filt; /* hack, non-const for backward_weights */
@@ -163,7 +163,7 @@ struct jit_gemm_conv_conf_t {
     size_t im2col_size;
 };
 
-struct __attribute__((__packed__)) jit_1x1_conv_call_s {
+struct jit_1x1_conv_call_s {
     const float *bcast_data;
     const float *load_data;
     const float *output_data;
