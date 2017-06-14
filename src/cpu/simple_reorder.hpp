@@ -649,7 +649,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         if (alpha == 1.0 && beta == 0.0) {
 #           pragma omp parallel for schedule(static)
-            for (size_t e = 0; e < nelems; ++e) {
+            for (int e = 0; e < nelems; ++e) {
                 output[e] = data_t<type_o>(input[e]);
             }
         } else {
@@ -755,13 +755,13 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         if (alpha == 1.0 && beta == 0.0) {
 #           pragma omp parallel for schedule(static)
-            for (size_t e = 0; e < nelems; ++e) {
+            for (int e = 0; e < nelems; ++e) {
                 output[output_d.off_l(e)] =
                     data_t<type_o>(input[input_d.off_l(e)]);
             }
         } else {
 #           pragma omp parallel for schedule(static)
-            for (size_t e = 0; e < nelems; ++e) {
+            for (int e = 0; e < nelems; ++e) {
                 output[output_d.off_l(e)] =
                     alpha * data_t<type_o>(input[input_d.off_l(e)])
                     + (beta ? beta * output[output_d.off_l(e)] : 0);

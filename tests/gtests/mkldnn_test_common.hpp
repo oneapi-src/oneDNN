@@ -186,11 +186,12 @@ static void compare_data(mkldnn::memory& ref, mkldnn::memory& dst)
             data_traits<data_t>::data_type == data_type::s32);
 
     // Only true for dense format
-    size_t num = ref.get_primitive_desc().get_size() / sizeof(data_t);
+    /* Note: size_t incompatible with MSVC++ */
+    ptrdiff_t num = ref.get_primitive_desc().get_size() / sizeof(data_t);
     data_t *ref_data = (data_t *)ref.get_data_handle();
     data_t *dst_data = (data_t *)dst.get_data_handle();
 #   pragma omp parallel for schedule(static)
-    for (size_t i = 0; i < num; ++i) {
+    for (ptrdiff_t i = 0; i < num; ++i) {
         data_t ref = ref_data[i];
         data_t got = dst_data[i];
         if (data_traits<data_t>::data_type == data_type::f32) {

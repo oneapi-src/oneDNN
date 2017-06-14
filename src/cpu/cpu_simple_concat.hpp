@@ -83,7 +83,7 @@ struct cpu_simple_concat_t: public c_compatible {
         catch_me();
 
 #       pragma omp parallel for collapse(2) schedule(static)
-        for (size_t n = 0; n < N; ++n) {
+        for (int n = 0; n < N; ++n) {
             for (int a = 0; a < num_arrs; ++a) {
                 /* do coping */
                 const data_t *i = &input_ptrs[a][is[a]*n];

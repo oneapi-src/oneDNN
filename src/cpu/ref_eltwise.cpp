@@ -68,7 +68,7 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_dense() {
     dst += data_d.blocking_desc().offset_padding;
 
 #   pragma omp parallel for schedule(static)
-    for (size_t e = 0; e < nelems; ++e) {
+    for (int e = 0; e < nelems; ++e) {
         dst[e] = src[e] * ((src[e] > 0) ? 1. : alpha);
     }
 }
@@ -122,7 +122,7 @@ void ref_eltwise_bwd_t<data_type>::execute_backward_dense() {
     diff_src += diff_data_d.blocking_desc().offset_padding;
 
 #   pragma omp parallel for schedule(static)
-    for (size_t e = 0; e < nelems; ++e) {
+    for (int e = 0; e < nelems; ++e) {
         diff_src[e] = diff_dst[e] * ((src[e] > 0) ? 1. : alpha);
     }
 }
