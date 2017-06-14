@@ -276,6 +276,8 @@ typedef enum {
     mkldnn_convolution_winograd = 2,
     /** Eltwise: ReLU */
     mkldnn_eltwise_relu = 8,
+    /** Eltwise: hyperbolic tangent non-linearity (tanh) */
+    mkldnn_eltwise_tanh = 9,
     /** Max pooling */
     mkldnn_pooling_max = 34,
     /** Average pooling include padding */
@@ -446,7 +448,8 @@ typedef struct {
      * #mkldnn_forward_inference, #mkldnn_backward, and #mkldnn_backward_data.
      */
     mkldnn_prop_kind_t prop_kind;
-    /** The kind of eltwise algorithm. Possible values: #mkldnn_eltwise_relu */
+    /** The kind of eltwise algorithm. Possible values: #mkldnn_eltwise_relu,
+     * #mkldnn_eltwise_tanh */
     mkldnn_alg_kind_t alg_kind;
     /** Source and destination memory descriptor. */
     mkldnn_memory_desc_t data_desc;
@@ -455,6 +458,7 @@ typedef struct {
     /** Algorithm specific parameter.
      * Accordance table:
      *  - #mkldnn_eltwise_relu: @p alpha -- negative slope, @p beta ignored
+     *  - #mkldnn_eltwise_tanh: @p alpha and @p beta ignored
      */
     double alpha, beta;
     /** Scaling factor for negative values. Stored as double-precision, but

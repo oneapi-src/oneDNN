@@ -21,6 +21,22 @@
 
 namespace mkldnn {
 
+template <typename T> T relu_fwd(T s, T alpha) {
+    return s > 0 ? s : s * alpha;
+}
+template <typename T> T relu_bwd(T dd, T s, T alpha) {
+    return s > 0 ? dd : dd * alpha;
+}
+
+template <typename T> T tanh_fwd(T s) {
+    T e = ::expf(2*s); /* maybe replace with -2*s? */
+    return (e - 1) / (e + 1);
+}
+template <typename T> T tanh_bwd(T dd, T s) {
+    T th = tanh_fwd(s);
+    return dd * (1 - th * th);
+}
+
 template <typename data_t>
 struct eltwise_test_params {
     engine::kind engine_kind;
@@ -32,8 +48,8 @@ struct eltwise_test_params {
 };
 
 template <typename data_t>
-void check_eltwise_fwd(data_t alpha, const memory::desc &md,
-        const memory &src, const memory &dst)
+void check_eltwise_fwd(const eltwise_test_params<data_t> &p,
+        const memory::desc &md, const memory &src, const memory &dst)
 {
     data_t *src_data = (data_t *)src.get_data_handle();
     data_t *dst_data = (data_t *)dst.get_data_handle();
@@ -47,13 +63,20 @@ void check_eltwise_fwd(data_t alpha, const memory::desc &md,
     size_t W = md.data.dims[3];
     for (size_t i = 0; i < N * C * H * W; ++i) {
         data_t s = src_data[i];
-        EXPECT_NEAR(dst_data[i], s > 0 ? s : s * alpha, 1.e-7);
+        data_t ref_d = 0;
+        switch (p.alg_kind) {
+        case eltwise_relu: ref_d = relu_fwd(s, p.alpha); break;
+        case eltwise_tanh: ref_d = tanh_fwd(s); break;
+        default: assert(!"unknown alg_kind");
+        }
+        EXPECT_NEAR(dst_data[i], ref_d, 1.e-6);
     }
 }
 
 template <typename data_t>
-void check_eltwise_bwd(data_t alpha, const memory::desc &md,
-        const memory &src, const memory &diff_dst, const memory &diff_src)
+void check_eltwise_bwd(const eltwise_test_params<data_t> &p,
+        const memory::desc &md, const memory &src, const memory &diff_dst,
+        const memory &diff_src)
 {
     data_t *src_data = (data_t *)src.get_data_handle();
     data_t *diff_dst_data = (data_t *)diff_dst.get_data_handle();
@@ -72,8 +95,13 @@ void check_eltwise_bwd(data_t alpha, const memory::desc &md,
     for (size_t i = 0; i < N * C * H * W; ++i) {
         data_t ref_s = src_data[map_index(data_d, i)];
         data_t ref_dd = diff_dst_data[map_index(diff_data_d, i)];
-        data_t ref_ds = ref_dd * ((ref_s > 0) ? 1. : alpha);
-        EXPECT_NEAR(diff_src_data[map_index(diff_data_d, i)], ref_ds, 1.e-7);
+        data_t ref_ds = 0;
+        switch (p.alg_kind) {
+        case eltwise_relu: ref_ds = relu_bwd(ref_dd, ref_s, p.alpha); break;
+        case eltwise_tanh: ref_ds = tanh_bwd(ref_dd, ref_s); break;
+        default: assert(!"unknown alg_kind");
+        }
+        EXPECT_NEAR(diff_src_data[map_index(diff_data_d, i)], ref_ds, 1.e-6);
     }
 }
 
@@ -133,7 +161,7 @@ protected:
         auto s = stream(stream::kind::lazy);
         s.submit(pipeline).wait();
 
-        check_eltwise_fwd(p.alpha, *data_desc, *src, *dst);
+        check_eltwise_fwd(p, *data_desc, *src, *dst);
     }
 
     void Backward() {
@@ -155,8 +183,7 @@ protected:
         auto s = stream(stream::kind::lazy);
         s.submit(pipeline).wait();
 
-        check_eltwise_bwd(p.alpha, *data_desc, *src, *diff_dst,
-                *diff_src);
+        check_eltwise_bwd(p, *data_desc, *src, *diff_dst, *diff_src);
     }
 };
 
@@ -176,46 +203,51 @@ TEST_P(eltwise_test_float, TestsEltwise)
     EXPAND_FORMATS(data), EXPAND_FORMATS(diff_data), \
     alpha, beta, {mb, c, h, w} }
 
+#define PARAMS_ALL_ALG(...) \
+    PARAMS(eltwise_relu, __VA_ARGS__), \
+    PARAMS(eltwise_tanh, __VA_ARGS__) \
+
+
 #define INST_TEST_CASE(str, ...) INSTANTIATE_TEST_CASE_P( \
         str, eltwise_test_float, ::testing::Values(__VA_ARGS__))
 
 INST_TEST_CASE(SimpleZeroNegativeSlope_NCHW,
-    PARAMS(eltwise_relu, nchw, nchw, 0.f, 0.f, 2, 8, 4, 4),
-    PARAMS(eltwise_relu, nchw, nchw, 0.f, 0.f, 2, 16, 4, 4),
-    PARAMS(eltwise_relu, nchw, nchw, 0.f, 0.f, 2, 16, 8, 8),
-    PARAMS(eltwise_relu, nchw, nchw, 0.f, 0.f, 2, 16, 16, 8),
-    PARAMS(eltwise_relu, nchw, nchw, 0.f, 0.f, 2, 16, 10, 8),
-    PARAMS(eltwise_relu, nchw, nchw, 0.f, 0.f, 10, 10, 10, 10),
-    PARAMS(eltwise_relu, nchw, nchw, 0.f, 0.f, 256, 64, 8, 16),
-    PARAMS(eltwise_relu, nchw, nchw, 0.f, 0.f, 1, 1, 1, 1),
-    PARAMS(eltwise_relu, nchw, nchw, 0.f, 0.f, 3, 5, 7, 11)
+    PARAMS_ALL_ALG(nchw, nchw, 0.f, 0.f, 2, 8, 4, 4),
+    PARAMS_ALL_ALG(nchw, nchw, 0.f, 0.f, 2, 16, 4, 4),
+    PARAMS_ALL_ALG(nchw, nchw, 0.f, 0.f, 2, 16, 8, 8),
+    PARAMS_ALL_ALG(nchw, nchw, 0.f, 0.f, 2, 16, 16, 8),
+    PARAMS_ALL_ALG(nchw, nchw, 0.f, 0.f, 2, 16, 10, 8),
+    PARAMS_ALL_ALG(nchw, nchw, 0.f, 0.f, 10, 10, 10, 10),
+    PARAMS_ALL_ALG(nchw, nchw, 0.f, 0.f, 256, 64, 8, 16),
+    PARAMS_ALL_ALG(nchw, nchw, 0.f, 0.f, 1, 1, 1, 1),
+    PARAMS_ALL_ALG(nchw, nchw, 0.f, 0.f, 3, 5, 7, 11)
 );
 
 INST_TEST_CASE(Simple_NCHW,
-    PARAMS(eltwise_relu, nchw, nchw, 0.1f, 0.f, 2, 8, 4, 4),
-    PARAMS(eltwise_relu, nchw, nchw, 0.1f, 0.f, 2, 16, 4, 4),
-    PARAMS(eltwise_relu, nchw, nchw, 0.1f, 0.f, 2, 16, 8, 8),
-    PARAMS(eltwise_relu, nchw, nchw, 0.1f, 0.f, 2, 16, 16, 8),
-    PARAMS(eltwise_relu, nchw, nchw, 0.1f, 0.f, 2, 16, 10, 8),
-    PARAMS(eltwise_relu, nchw, nchw, 0.1f, 0.f, 10, 10, 10, 10),
-    PARAMS(eltwise_relu, nchw, nchw, 0.1f, 0.f, 256, 64, 8, 16),
-    PARAMS(eltwise_relu, nchw, nchw, 0.1f, 0.f, 1, 1, 1, 1),
-    PARAMS(eltwise_relu, nchw, nchw, 0.1f, 0.f, 3, 5, 7, 11)
+    PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.f, 2, 8, 4, 4),
+    PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.f, 2, 16, 4, 4),
+    PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.f, 2, 16, 8, 8),
+    PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.f, 2, 16, 16, 8),
+    PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.f, 2, 16, 10, 8),
+    PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.f, 10, 10, 10, 10),
+    PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.f, 256, 64, 8, 16),
+    PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.f, 1, 1, 1, 1),
+    PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.f, 3, 5, 7, 11)
 );
 
 INST_TEST_CASE(Simple,
-    PARAMS(eltwise_relu, nchw, nChw8c, 0.1f, 0.f, 2, 8, 4, 4),
-    PARAMS(eltwise_relu, nChw8c, nchw, 0.1f, 0.f, 2, 16, 4, 4),
-    PARAMS(eltwise_relu, nchw, nchw, 0.1f, 0.f, 2, 16, 8, 8),
-    PARAMS(eltwise_relu, nChw8c, nChw8c, 0.1f, 0.f, 2, 16, 16, 8),
-    PARAMS(eltwise_relu, nhwc, nchw, 0.1f, 0.f, 2, 16, 10, 8),
-    PARAMS(eltwise_relu, nchw, nhwc, 0.1f, 0.f, 10, 10, 10, 10)
+    PARAMS_ALL_ALG(nchw, nChw8c, 0.1f, 0.f, 2, 8, 4, 4),
+    PARAMS_ALL_ALG(nChw8c, nchw, 0.1f, 0.f, 2, 16, 4, 4),
+    PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.f, 2, 16, 8, 8),
+    PARAMS_ALL_ALG(nChw8c, nChw8c, 0.1f, 0.f, 2, 16, 16, 8),
+    PARAMS_ALL_ALG(nhwc, nchw, 0.1f, 0.f, 2, 16, 10, 8),
+    PARAMS_ALL_ALG(nchw, nhwc, 0.1f, 0.f, 10, 10, 10, 10)
 );
 
 INST_TEST_CASE(AlexNet_NCHW,
-    PARAMS(eltwise_relu, nchw, nchw, 0.f, 0.f, 2, 96, 55, 55),
-    PARAMS(eltwise_relu, nchw, nchw, 0.f, 0.f, 2, 256, 27, 27),
-    PARAMS(eltwise_relu, nchw, nchw, 0.f, 0.f, 2, 384, 13, 13)
+    PARAMS_ALL_ALG(nchw, nchw, 0.f, 0.f, 2, 96, 55, 55),
+    PARAMS_ALL_ALG(nchw, nchw, 0.f, 0.f, 2, 256, 27, 27),
+    PARAMS_ALL_ALG(nchw, nchw, 0.f, 0.f, 2, 384, 13, 13)
 );
 
 }

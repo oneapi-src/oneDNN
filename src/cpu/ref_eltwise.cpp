@@ -26,6 +26,26 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
+using namespace alg_kind;
+
+namespace {
+template <typename T, typename A> T relu_fwd(T s, A alpha) {
+    return s > 0 ? s : s * alpha;
+}
+template <typename T, typename A> T relu_bwd(T dd, T s, A alpha) {
+    return s > 0 ? dd : dd * alpha;
+}
+
+template <typename T> T tanh_fwd(T s) {
+    T e = ::expf(2*s); /* maybe replace with -2*s? */
+    return (e - 1) / (e + 1);
+}
+template <typename T> T tanh_bwd(T dd, T s) {
+    T th = tanh_fwd(s);
+    return dd * (1 - th * th);
+}
+}
+
 template <impl::data_type_t data_type>
 void ref_eltwise_fwd_t<data_type>::execute_forward_generic() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
@@ -37,6 +57,7 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_generic() {
     const int C = conf_.C();
     const int H = conf_.H();
     const int W = conf_.W();
+    const auto alg_kind = conf_.desc()->alg_kind;
     const double alpha = conf_.desc()->alpha;
 
 #   pragma omp parallel for collapse(4) schedule(static)
@@ -47,7 +68,11 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_generic() {
                     auto d_off = data_d.off(n, c, h, w);
                     data_t s = src[d_off];
                     data_t &d = dst[d_off];
-                    d = (s > 0) ? s : s * alpha;
+                    switch (alg_kind) {
+                    case eltwise_relu: d = relu_fwd(s, alpha); break;
+                    case eltwise_tanh: d = tanh_fwd(s); break;
+                    default: assert(!"unknown eltwise alg_kind");
+                    }
                 }
             }
         }
@@ -62,6 +87,7 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_dense() {
     const memory_desc_wrapper data_d(conf_.src_pd());
 
     const size_t nelems = data_d.nelems();
+    const auto alg_kind = conf_.desc()->alg_kind;
     const double alpha = conf_.desc()->alpha;
 
     src += data_d.blocking_desc().offset_padding;
@@ -69,7 +95,11 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_dense() {
 
 #   pragma omp parallel for schedule(static)
     for (int e = 0; e < nelems; ++e) {
-        dst[e] = src[e] * ((src[e] > 0) ? 1. : alpha);
+        switch (alg_kind) {
+        case eltwise_relu: dst[e] = relu_fwd(src[e], alpha); break;
+        case eltwise_tanh: dst[e] = tanh_fwd(src[e]); break;
+        default: assert(!"unknown eltwise alg_kind");
+        }
     }
 }
 
@@ -86,6 +116,7 @@ void ref_eltwise_bwd_t<data_type>::execute_backward_generic() {
     const int C = conf_.C();
     const int H = conf_.H();
     const int W = conf_.W();
+    const auto alg_kind = conf_.desc()->alg_kind;
     const double alpha = conf_.desc()->alpha;
 
 #   pragma omp parallel for collapse(4) schedule(static)
@@ -98,7 +129,11 @@ void ref_eltwise_bwd_t<data_type>::execute_backward_generic() {
                     data_t s = src[data_off];
                     data_t dd = diff_dst[diff_data_off];
                     data_t &ds = diff_src[diff_data_off];
-                    ds = dd * ((s > 0) ? 1. : alpha);
+                    switch (alg_kind) {
+                    case eltwise_relu: ds = relu_bwd(dd, s, alpha); break;
+                    case eltwise_tanh: ds = tanh_bwd(dd, s); break;
+                    default: assert(!"unknown eltwise alg_kind");
+                    }
                 }
             }
         }
@@ -115,6 +150,7 @@ void ref_eltwise_bwd_t<data_type>::execute_backward_dense() {
     const memory_desc_wrapper diff_data_d(conf_.diff_src_pd());
 
     const size_t nelems = data_d.nelems();
+    const auto alg_kind = conf_.desc()->alg_kind;
     const double alpha = conf_.desc()->alpha;
 
     src += data_d.blocking_desc().offset_padding;
@@ -124,6 +160,12 @@ void ref_eltwise_bwd_t<data_type>::execute_backward_dense() {
 #   pragma omp parallel for schedule(static)
     for (int e = 0; e < nelems; ++e) {
         diff_src[e] = diff_dst[e] * ((src[e] > 0) ? 1. : alpha);
+        switch (alg_kind) {
+        case eltwise_relu: diff_src[e] = relu_bwd(diff_dst[e], src[e], alpha);
+                           break;
+        case eltwise_tanh: diff_src[e] = tanh_bwd(diff_dst[e], src[e]); break;
+        default: assert(!"unknown eltwise alg_kind");
+        }
     }
 }
 

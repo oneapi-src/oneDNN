@@ -409,8 +409,8 @@ mkldnn_status_t MKLDNN_API mkldnn_convolution_backward_weights_desc_init(
 
 /** Initializes a @p eltwise_desc for forward propagation using @p prop_kind
  * (possible values are #mkldnn_forward_training or #mkldnn_forward_inference),
- * @p alg_kind algorithm (possible values: #mkldnn_eltwise_relu), memory
- * descriptor @p data_desc, and @p alpha, @p beta parameters.
+ * @p alg_kind algorithm, memory descriptor @p data_desc, and @p alpha,
+ * @p beta parameters.
  * @sa mkldnn_eltwise_desc_t for details */
 mkldnn_status_t MKLDNN_API mkldnn_eltwise_forward_desc_init(
         mkldnn_eltwise_desc_t *eltwise_desc, mkldnn_prop_kind_t prop_kind,
@@ -418,8 +418,8 @@ mkldnn_status_t MKLDNN_API mkldnn_eltwise_forward_desc_init(
         double alpha, double beta);
 
 /** Initializes a @p eltwise_desc for backward propagation using @p alg_kind
- * algorithm (possible values: #mkldnn_eltwise_relu), memory descriptors
- * @p diff_data_desc and @p data_desc, and @p alpha, @p beta parameters.
+ * algorithm memory descriptors @p diff_data_desc and @p data_desc, and
+ * @p alpha, @p beta parameters.
  * @sa mkldnn_eltwise_desc_t for details */
 mkldnn_status_t MKLDNN_API mkldnn_eltwise_backward_desc_init(
         mkldnn_eltwise_desc_t *eltwise_desc, mkldnn_alg_kind_t alg_kind,
