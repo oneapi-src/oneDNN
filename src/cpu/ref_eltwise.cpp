@@ -44,6 +44,13 @@ template <typename T> T tanh_bwd(T dd, T s) {
     T th = tanh_fwd(s);
     return dd * (1 - th * th);
 }
+
+template <typename T, typename A> T elu_fwd(T s, A alpha) {
+    return s > 0 ? s : alpha * (::expf(s) - 1);
+}
+template <typename T, typename A> T elu_bwd(T dd, T s, A alpha) {
+    return dd * (s > 0 ? 1. : alpha * ::expf(s));
+}
 }
 
 template <impl::data_type_t data_type>
@@ -71,6 +78,7 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_generic() {
                     switch (alg_kind) {
                     case eltwise_relu: d = relu_fwd(s, alpha); break;
                     case eltwise_tanh: d = tanh_fwd(s); break;
+                    case eltwise_elu: d = elu_fwd(s, alpha); break;
                     default: assert(!"unknown eltwise alg_kind");
                     }
                 }
@@ -98,6 +106,7 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_dense() {
         switch (alg_kind) {
         case eltwise_relu: dst[e] = relu_fwd(src[e], alpha); break;
         case eltwise_tanh: dst[e] = tanh_fwd(src[e]); break;
+        case eltwise_elu: dst[e] = elu_fwd(src[e], alpha); break;
         default: assert(!"unknown eltwise alg_kind");
         }
     }
@@ -132,6 +141,7 @@ void ref_eltwise_bwd_t<data_type>::execute_backward_generic() {
                     switch (alg_kind) {
                     case eltwise_relu: ds = relu_bwd(dd, s, alpha); break;
                     case eltwise_tanh: ds = tanh_bwd(dd, s); break;
+                    case eltwise_elu: ds = elu_bwd(dd, s, alpha); break;
                     default: assert(!"unknown eltwise alg_kind");
                     }
                 }
@@ -164,6 +174,8 @@ void ref_eltwise_bwd_t<data_type>::execute_backward_dense() {
         case eltwise_relu: diff_src[e] = relu_bwd(diff_dst[e], src[e], alpha);
                            break;
         case eltwise_tanh: diff_src[e] = tanh_bwd(diff_dst[e], src[e]); break;
+        case eltwise_elu: diff_src[e] = elu_bwd(diff_dst[e], src[e], alpha);
+                           break;
         default: assert(!"unknown eltwise alg_kind");
         }
     }

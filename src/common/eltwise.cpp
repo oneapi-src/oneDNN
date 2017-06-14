@@ -36,7 +36,7 @@ status_t eltwise_desc_init(eltwise_desc_t *eltwise_desc, prop_kind_t prop_kind,
         && !any_null(eltwise_desc, data_desc)
         && one_of(prop_kind, forward_training, forward_inference,
                 backward_data)
-        && one_of(alg_kind, eltwise_relu, eltwise_tanh)
+        && one_of(alg_kind, eltwise_relu, eltwise_tanh, eltwise_elu)
         && implication(prop_kind == backward_data, diff_data_desc != nullptr);
     if (!args_ok) return invalid_arguments;
 

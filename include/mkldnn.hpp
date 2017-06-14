@@ -543,6 +543,7 @@ enum algorithm {
     convolution_winograd = c_api::mkldnn_convolution_winograd,
     eltwise_relu = c_api::mkldnn_eltwise_relu,
     eltwise_tanh = c_api::mkldnn_eltwise_tanh,
+    eltwise_elu = c_api::mkldnn_eltwise_elu,
     lrn_across_channels = c_api::mkldnn_lrn_across_channels,
     lrn_within_channel  = c_api::mkldnn_lrn_within_channel,
     pooling_max = c_api::mkldnn_pooling_max,

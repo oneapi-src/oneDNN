@@ -37,6 +37,13 @@ template <typename T> T tanh_bwd(T dd, T s) {
     return dd * (1 - th * th);
 }
 
+template <typename T, typename A> T elu_fwd(T s, A alpha) {
+    return s > 0 ? s : alpha * (::expf(s) - 1);
+}
+template <typename T, typename A> T elu_bwd(T dd, T s, A alpha) {
+    return dd * (s > 0 ? 1. : alpha * ::expf(s));
+}
+
 template <typename data_t>
 struct eltwise_test_params {
     engine::kind engine_kind;
@@ -67,6 +74,7 @@ void check_eltwise_fwd(const eltwise_test_params<data_t> &p,
         switch (p.alg_kind) {
         case eltwise_relu: ref_d = relu_fwd(s, p.alpha); break;
         case eltwise_tanh: ref_d = tanh_fwd(s); break;
+        case eltwise_elu: ref_d = elu_fwd(s, p.alpha); break;
         default: assert(!"unknown alg_kind");
         }
         EXPECT_NEAR(dst_data[i], ref_d, 1.e-6);
@@ -99,6 +107,7 @@ void check_eltwise_bwd(const eltwise_test_params<data_t> &p,
         switch (p.alg_kind) {
         case eltwise_relu: ref_ds = relu_bwd(ref_dd, ref_s, p.alpha); break;
         case eltwise_tanh: ref_ds = tanh_bwd(ref_dd, ref_s); break;
+        case eltwise_elu: ref_ds = elu_bwd(ref_dd, ref_s, p.alpha); break;
         default: assert(!"unknown alg_kind");
         }
         EXPECT_NEAR(diff_src_data[map_index(diff_data_d, i)], ref_ds, 1.e-6);
@@ -205,8 +214,8 @@ TEST_P(eltwise_test_float, TestsEltwise)
 
 #define PARAMS_ALL_ALG(...) \
     PARAMS(eltwise_relu, __VA_ARGS__), \
-    PARAMS(eltwise_tanh, __VA_ARGS__) \
-
+    PARAMS(eltwise_tanh, __VA_ARGS__), \
+    PARAMS(eltwise_elu, __VA_ARGS__) \
 
 #define INST_TEST_CASE(str, ...) INSTANTIATE_TEST_CASE_P( \
         str, eltwise_test_float, ::testing::Values(__VA_ARGS__))

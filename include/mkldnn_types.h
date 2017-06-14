@@ -278,6 +278,8 @@ typedef enum {
     mkldnn_eltwise_relu = 8,
     /** Eltwise: hyperbolic tangent non-linearity (tanh) */
     mkldnn_eltwise_tanh = 9,
+    /** Eltwise: parametric exponential linear unit (elu) */
+    mkldnn_eltwise_elu = 10,
     /** Max pooling */
     mkldnn_pooling_max = 34,
     /** Average pooling include padding */
@@ -449,7 +451,7 @@ typedef struct {
      */
     mkldnn_prop_kind_t prop_kind;
     /** The kind of eltwise algorithm. Possible values: #mkldnn_eltwise_relu,
-     * #mkldnn_eltwise_tanh */
+     * #mkldnn_eltwise_tanh, #mkldnn_eltwise_elu */
     mkldnn_alg_kind_t alg_kind;
     /** Source and destination memory descriptor. */
     mkldnn_memory_desc_t data_desc;
@@ -459,6 +461,7 @@ typedef struct {
      * Accordance table:
      *  - #mkldnn_eltwise_relu: @p alpha -- negative slope, @p beta ignored
      *  - #mkldnn_eltwise_tanh: @p alpha and @p beta ignored
+     *  - #mkldnn_eltwise_elu: @p alpha -- negative slope, @p beta ignored
      */
     double alpha, beta;
     /** Scaling factor for negative values. Stored as double-precision, but
