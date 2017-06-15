@@ -24,7 +24,9 @@
 #include "cpu_sum.hpp"
 
 #include "cpu/jit_avx512_common_1x1_convolution.hpp"
+#ifndef _WIN32
 #include "cpu/jit_avx512_common_convolution_winograd.hpp"
+#endif
 #include "cpu/jit_avx512_common_convolution.hpp"
 #include "cpu/jit_avx2_1x1_convolution.hpp"
 #include "cpu/jit_sse42_1x1_convolution.hpp"
@@ -166,9 +168,11 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(jit_avx512_common_1x1_convolution_fwd_t),
     INSTANCE(jit_avx512_common_1x1_convolution_bwd_data_t),
     INSTANCE(jit_avx512_common_1x1_convolution_bwd_weights_t),
+#ifndef _WIN32
     INSTANCE(jit_avx512_common_convolution_winograd_fwd_t),
     INSTANCE(jit_avx512_common_convolution_winograd_bwd_data_t),
     INSTANCE(jit_avx512_common_convolution_winograd_bwd_weights_t),
+#endif
     INSTANCE(jit_avx512_common_convolution_fwd_t),
     INSTANCE(jit_avx512_common_convolution_bwd_data_t),
     INSTANCE(jit_avx512_common_convolution_bwd_weights_t),

@@ -33,6 +33,14 @@ include_directories(
     )
 
 if(WIN32)
+    message(STATUS "Note: Currently no support for Winograd on Windows")
+    list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/cpu/jit_avx512_common_conv_winograd_kernel_f32.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/cpu/jit_avx512_common_convolution_winograd.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/cpu/jit_avx512_common_conv_winograd_kernel_f32.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/cpu/jit_avx512_common_convolution_winograd.cpp)
+endif()
+
+if(WIN32)
     add_definitions(-D_WIN)
     add_definitions(-DNOMINMAX)
     # Correct 'jnl' macro/jit issue
