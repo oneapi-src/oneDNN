@@ -26,7 +26,7 @@ namespace cpu {
 
 template <cpu_isa_t isa>
 jit_uni_lrn_fwd_t<isa>::jit_uni_lrn_fwd_t(
-    const jit_uni_lrn_fwd_t<isa>::pd_t *pd,
+    const pd_t *pd,
     const input_vector &inputs, const output_vector &outputs)
     : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd), ker_(nullptr)
     , ker_first_(nullptr), ker_last_(nullptr)
