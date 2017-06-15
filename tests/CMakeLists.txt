@@ -19,8 +19,16 @@ if(POLICY CMP0065)
 endif()
 
 if(UNIX OR APPLE)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-deprecated-declarations")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-declarations")
+    # workaround for Intel Compiler 16.0 that doesn't suppress warning on
+    # deprecation with "-Wno-deprecated" compiler flag
+    if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel" AND
+            CMAKE_CXX_COMPILER_VERSION VERSION_LESS "17.0")
+        set(SUPPRESS_DEPRECATE_WARNS "-diag-disable:1478")
+    else()
+        set(SUPPRESS_DEPRECATE_WARNS "-Wno-deprecated-declarations")
+    endif()
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SUPPRESS_DEPRECATE_WARNS}")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SUPPRESS_DEPRECATE_WARNS}")
 endif()
 
 #add_executable(api-check-c api_check.c)
