@@ -29,6 +29,7 @@
 
 #ifdef _WIN32
 #   define STRUCT_ALIGN(al, ...) __declspec(align(al)) __VA_ARGS__
+#   define OFFSET_SHADOWSPACE 0x28
 #else
 #   define STRUCT_ALIGN(al, ...) __VA_ARGS__ __attribute__((__aligned__(al)))
 #endif

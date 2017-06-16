@@ -52,35 +52,45 @@ struct jit_avx512_common_gemm_f32::xbyak_gemm : public jit_generator {
         bool isBetaN = (!isBeta0 && beta != 1.0);
 
         // various definitions for convenience
-        auto ARG_M = rdi;
-        auto ARG_N = rsi;
-        auto K = rdx;
-        auto ARG_ALPHA = rcx;
+        auto ARG_M = abi_param1;
+        auto ARG_N = abi_param2;
+        auto K = abi_param3;
+        auto ARG_ALPHA = abi_param4;
+#ifdef _WIN32
+        auto ARG_A = ptr[rsp + OFFSET_SHADOWSPACE + STACKSIZE];
+        auto ARG_LDA = qword[rsp + OFFSET_SHADOWSPACE +
+            sizeof(float *) + STACKSIZE];
+        const auto stackOffset = OFFSET_SHADOWSPACE +
+            sizeof(float *) + STACKSIZE;
+        auto A = rsi;
+        auto LDA = rdi;
+#else
         auto ARG_A = r8;
         auto ARG_LDA = r9;
-
-        auto ARG_B = ptr[rsp + 8 + STACKSIZE];
-        auto ARG_LDB = ptr[rsp + 16 + STACKSIZE];
-        auto ARG_BETA = ptr[rsp + 24 + STACKSIZE];
-        auto ARG_C = ptr[rsp + 32 + STACKSIZE];
-        auto ARG_LDC = ptr[rsp + 40 + STACKSIZE];
-        auto ARG_BIAS = ptr[rsp + 48 + STACKSIZE];
-
+        const auto stackOffset = STACKSIZE;
         auto A = ARG_A;
         auto LDA = ARG_LDA;
+#endif
+        auto ARG_B = ptr[rsp + 8 + stackOffset];
+        auto ARG_LDB = ptr[rsp + 16 + stackOffset];
+        auto ARG_BETA = ptr[rsp + 24 + stackOffset];
+        auto ARG_C = ptr[rsp + 32 + stackOffset];
+        auto ARG_LDC = ptr[rsp + 40 + stackOffset];
+        auto ARG_BIAS = ptr[rsp + 48 + stackOffset];
+
         auto B = r11;
         auto LDB = rbx;
         auto LDC = r13;
         auto LL = rax;
-        auto AO1 = rsi;
-        auto BO1 = rcx;
+        auto AO1 = abi_param2;
+        auto BO1 = abi_param4;
         auto BO2 = rbp;
         auto CO1 = r14;
         auto CO2 = r15;
         auto LDB3 = r10;
-        auto LDA4 = rdi;
+        auto LDA4 = abi_param1;
         auto AA = r12;
-        auto BIAS1 = rdi;
+        auto BIAS1 = abi_param1;
 
         auto M = qword[rsp + 0];
         auto N = qword[rsp + 8];
@@ -1482,6 +1492,8 @@ struct jit_avx512_common_gemm_f32::xbyak_gemm : public jit_generator {
         mov(ptr[rsp + 24], r13);
         mov(ptr[rsp + 32], r14);
         mov(ptr[rsp + 40], r15);
+        mov(ptr[rsp + 48], rdi);
+        mov(ptr[rsp + 56], rsi);
 
         // Get the registers
         mov(B, ARG_B);
@@ -1495,6 +1507,11 @@ struct jit_avx512_common_gemm_f32::xbyak_gemm : public jit_generator {
 
         vmovss(xmm0, ptr[ARG_ALPHA]);
         vmovss(xmm1, ptr[r15]);
+
+#if _WIN32
+        mov(A, ARG_A);
+        mov(LDA, ARG_LDA);
+#endif
 
         // Create buffer and align to 4kB page
         lea(rax, ptr[K * SIZE]);
@@ -1579,6 +1596,8 @@ struct jit_avx512_common_gemm_f32::xbyak_gemm : public jit_generator {
         mov(r13, ptr[rsp + 24]);
         mov(r14, ptr[rsp + 32]);
         mov(r15, ptr[rsp + 40]);
+        mov(rdi, ptr[rsp + 48]);
+        mov(rsi, ptr[rsp + 56]);
 
         vzeroupper();
         add(rsp, STACKSIZE);
