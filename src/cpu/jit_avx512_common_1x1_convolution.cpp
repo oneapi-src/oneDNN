@@ -212,6 +212,40 @@ void _jit_avx512_common_1x1_convolution_fwd_t<with_relu>::execute_forward()
                 }
                 ocb += load_step;
             }
+        } else if (jcp.loop_order == loop_rbl) {
+            for (int icb = 0; icb < nb_ic; icb += nb_ic_blocking) {
+                init_reduce(icb);
+                int iwork = bcast_start;
+                while (iwork < bcast_end) {
+                    int n, g, bcast_step, oh, ow, ih, iw;
+                    init_bcast(iwork, n, g, bcast_step, oh, ow, ih, iw);
+                    int ocb = ocb_start;
+                    while (ocb < ocb_end) {
+                        int load_step;
+                        init_load(ocb, load_step);
+                        inner_ker(ocb, icb, n, g, oh, ow, ih, iw);
+                        ocb += load_step;
+                    }
+                    iwork += bcast_step;
+                }
+            }
+        } else if (jcp.loop_order == loop_blr) {
+            int iwork = bcast_start;
+            while (iwork < bcast_end) {
+                int n, g, bcast_step, oh, ow, ih, iw;
+                init_bcast(iwork, n, g, bcast_step, oh, ow, ih, iw);
+                int ocb = ocb_start;
+                while (ocb < ocb_end) {
+                    int load_step;
+                    init_load(ocb, load_step);
+                    for (int icb = 0; icb < nb_ic; icb += nb_ic_blocking) {
+                        init_reduce(icb);
+                        inner_ker(ocb, icb, n, g, oh, ow, ih, iw);
+                    }
+                    ocb += load_step;
+                }
+                iwork += bcast_step;
+            }
         } else {
             assert(!"unsupported loop order");
         }

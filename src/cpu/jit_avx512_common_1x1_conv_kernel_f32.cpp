@@ -678,7 +678,6 @@ status_t jit_avx512_common_1x1_conv_kernel_f32::init_conf(
     int reduce_blocking_max{ 0 };
 
     jcp.load_grp_count = 1;
-    jcp.loop_order = loop_lbr;
     jcp.use_vmovntps = true;
 
     const int L2_capacity = (512 * 1024) / sizeof(float);
@@ -707,6 +706,9 @@ status_t jit_avx512_common_1x1_conv_kernel_f32::init_conf(
 
         jcp.load_loop_load_step = jcp.ic * jcp.oc_block * sizeof(float);
         jcp.load_loop_iter_step = jcp.oc_block;
+
+        jcp.loop_order = reduce_src ? loop_blr : loop_lbr;
+
         load_blocking = jcp.load_dim;
 
         int nb_bcast = div_up(jcp.bcast_dim, jcp.bcast_block);
@@ -721,7 +723,7 @@ status_t jit_avx512_common_1x1_conv_kernel_f32::init_conf(
             reduce_divider = 2;
 
         if (reduce_divider > 1) {
-            jcp.loop_order = loop_rlb;
+            jcp.loop_order = reduce_src ? loop_rbl : loop_rlb;
             jcp.use_vmovntps = false;
         }
         reduce_blocking = nstl::max(1, nb_reduce / reduce_divider);
@@ -780,6 +782,8 @@ status_t jit_avx512_common_1x1_conv_kernel_f32::init_conf(
         jcp.load_loop_load_step = jcp.oc_block * jcp.ic_block * sizeof(float);
         jcp.load_loop_iter_step = jcp.ic_block;
 
+        jcp.loop_order = loop_lbr;
+
         load_blocking = jcp.load_dim;
 
         reduce_blocking = nstl::min(256, jcp.reduce_dim);
@@ -807,7 +811,7 @@ status_t jit_avx512_common_1x1_conv_kernel_f32::init_conf(
         }
 
         if (jcp.ver == ver_4fma && jcp.is < 15 * 15 && !reduce_src)
-            jcp.loop_order = loop_rbl;
+            jcp.loop_order = loop_rlb;
 
     } else if (jcp.prop_kind == backward_weights) {
         jcp.reduce_dim = jcp.os;
