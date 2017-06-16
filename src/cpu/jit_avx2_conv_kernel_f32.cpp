@@ -702,6 +702,8 @@ status_t jit_avx2_conv_bwd_weights_kernel_f32::init_conf(jit_conv_conf_t &jcp,
         && implication(mimo, jcp.ic % simd_w == 0)
         && jcp.oc % simd_w == 0
         && jcp.kw < 14
+        && jcp.kh <= jcp.t_pad + jcp.ih /* [bwd_w:r1] */
+        && jcp.kh <= jcp.ih /* [bwd_w:r2] */
         && jcp.dilate_h == 0
         && jcp.dilate_w == 0;
     if (!args_ok) return status::unimplemented;
@@ -944,7 +946,8 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_oh_loop_common()
     xor_(reg_ih_count, reg_ih_count);
     xor_(reg_oj, reg_oj);
     if (t_pad > 0) {
-        mov(reg_kh, jcp.kh - t_pad);
+        assert(jcp.kh <= t_pad + jcp.ih); /* [bwd_w:r1] */
+        mov(reg_kh, jcp.kh <= t_pad + jcp.ih ? jcp.kh - t_pad : jcp.ih);
         add(reg_kernel, sizeof(float) * t_pad * jcp.kw * icoc_block);
 
         L(".oh_tpad_label"); {
@@ -955,9 +958,12 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_oh_loop_common()
 
             inc(reg_oj);
             add(reg_ih_count, stride_h);
-
             add(reg_kh, stride_h);
-            cmp(reg_kh, jcp.kh);
+
+            /* the overlap between input and kernel may not reach kernel size.
+             * so far we do not support that (until we put constant here) */
+            const int final_inp_ker_overlap = jcp.kh; /* [bwd_w:r2] */
+            cmp(reg_kh, final_inp_ker_overlap);
             jl(".oh_tpad_label", T_NEAR);
         }
 
