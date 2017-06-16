@@ -21,6 +21,8 @@
 
 #include "jit_avx2_gemm_f32.hpp"
 
+#define CACHE_LINE_SIZE 16
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {
@@ -2470,6 +2472,8 @@ void jit_avx2_gemm_f32::sgemm(const char *transa, const char *transb,
 
     int nthr_m, nthr_n, nthr_k, nthr_mn;
 
+    assert(nthr <= nthrs_);
+
     // Determine threading partitioning
     calc_nthr_nocopy_avx2(
             m, n, k, nthr, &nthr_m, &nthr_n, &nthr_k, &MB, &NB, &KB);
@@ -2480,9 +2484,9 @@ void jit_avx2_gemm_f32::sgemm(const char *transa, const char *transb,
 
     nthr_mn = nthr_m * nthr_n;
 
-#define CACHE_LINE_SIZE 16
+    unsigned int volatile *ompstatus = (unsigned int volatile *)ompstatus_;
+    if (!ompstatus) return;
 
-    unsigned int __volatile__ ompstatus[nthr * CACHE_LINE_SIZE];
     float *c_buffers = NULL;
 
     if (nthr_k > 1) {
@@ -2632,6 +2636,10 @@ jit_avx2_gemm_f32::jit_avx2_gemm_f32(
     } else {
         ker_b0_ = ker_bn_;
     }
+    nthrs_ = omp_get_max_threads();
+    ompstatus_ = (unsigned int *)malloc(
+        sizeof(unsigned int *) * nthrs_ * CACHE_LINE_SIZE, 64);
+    assert(ompstatus_);
 }
 
 jit_avx2_gemm_f32::~jit_avx2_gemm_f32()
@@ -2641,6 +2649,7 @@ jit_avx2_gemm_f32::~jit_avx2_gemm_f32()
         delete ker_b1_;
     if (beta_ != 0.0 || (beta_ == 0.0 && hasBias_))
         delete ker_b0_;
+    free(ompstatus_);
 }
 
 }

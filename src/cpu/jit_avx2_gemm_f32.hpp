@@ -56,6 +56,8 @@ private:
     bool hasBias_;
     struct xbyak_gemm;
     xbyak_gemm *ker_bn_, *ker_b1_, *ker_b0_;
+    unsigned int *ompstatus_;
+    int nthrs_;
 };
 }
 }
