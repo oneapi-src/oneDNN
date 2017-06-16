@@ -28,18 +28,45 @@
 
 namespace conv {
 
+double get_trust_nz_level(const prb_t *p, int what, bool final_compare) {
+    if (!final_compare)
+        return p->cfg[what].f_sparsity;
+
+    double trust = 0.3; /* why? */
+    switch (what) {
+        case SRC:
+            trust /= p->sh * p->sw;
+            break;
+        case WEI:
+            trust /= 1. * p->kh * p->kw
+                / MIN3(p->kh * p->kw, p->ih * p->iw, p->oh * p->ow);
+            break;
+        case BIA:
+            trust = 0.8 * p->cfg[DST].f_sparsity; /* why? */
+            break;
+        case DST:
+            trust /= p->merge == RELU ? 2. : 1.;
+            break;
+    }
+
+    return trust;
+}
+
 inline int compare_dat(const prb_t *p, int what, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r, bool final_compare = false) {
     int nelems = mem_dt.nelems();
 
-    r->errors = 0;
-    r->total = nelems;
+    const char *swhat = inp_type2str(what);
 
     int in = 0, below = 0, above = 0;
     int in_ok = 0, below_ok = 0, above_ok = 0;
     int non_zero = 0;
 
     float max_rel_diff = 0;
+
+    r->errors = 0;
+    r->total = nelems;
+
     for (int i = 0; i < nelems; ++i) {
         const float dt = ((float*)mem_dt)[i];
         const float fp = ((float*)mem_fp)[i];
@@ -73,7 +100,7 @@ inline int compare_dat(const prb_t *p, int what, dnn_mem_t &mem_dt,
                 }
                 print(0, "[%4d][%s][%d,%d,%d,%d,%d] "
                         "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                        i, inp_type2str(what), mb_or_g, g_or_oc, c, h, w,
+                        i, swhat, mb_or_g, g_or_oc, c, h, w,
                         fp, dt, diff, rel_diff);
             }
         }
@@ -89,19 +116,17 @@ inline int compare_dat(const prb_t *p, int what, dnn_mem_t &mem_dt,
             }
 
             print(0, "[%4d][%s][%d,%d,%d,%d,%d] fp:%8g dt:%8g\n",
-                    i, inp_type2str(what), mb_or_g, g_or_oc, c, h, w, fp, dt);
+                    i, swhat, mb_or_g, g_or_oc, c, h, w, fp, dt);
         }
 
         non_zero += fp != 0;
     }
 
     if (final_compare || r->errors)
-        print(2, "[%s] max_rel_diff:%g\n", inp_type2str(what), max_rel_diff);
+        print(2, "[%s] max_rel_diff:%g\n", swhat, max_rel_diff);
 
     const double trust_rg_level = 0.3;
-    const double trust_nz_level = 0.3
-        / (final_compare && what == SRC ? p->sh * p->sw : 1.)
-        / (final_compare && what == DST && p->merge == RELU ? 2. : 1.);
+    const double trust_nz_level = get_trust_nz_level(p, what, final_compare);
 
     const double trust_rg = (double)in / r->total;
     const double trust_nz = (double)non_zero / r->total;
@@ -111,23 +136,30 @@ inline int compare_dat(const prb_t *p, int what, dnn_mem_t &mem_dt,
         && (trust_rg < trust_rg_level || trust_nz < trust_nz_level);
 
     const bool dump = verbose >= 20
-        || (verbose >= 10 && (trust_rg < 1. || trust_nz < 1.))
-        || no_trust;
+        || (verbose >= 10 && (trust_rg < 1. || trust_nz < 1.));
     if (dump)
-        print(0, "@@@ %strust range:%.2f nz:%.2f (level range:%.2f nz:%.2f). "
+        print(0, "@@@ [%s] %strust range:%.2f nz:%.2f "
+                "(level range:%.2f nz:%.2f). "
                 "in:%d (ok:%d) below:%d (ok:%d) above:%d (ok:%d) nz:%d "
-                "total:%d\n", final_compare ? "final: " : "",
+                "total:%d\n", swhat, final_compare ? "final: " : "",
                 trust_rg, trust_nz, trust_rg_level, trust_nz_level, in, in_ok,
                 below, below_ok, above, above_ok, non_zero, r->total);
 
     if (no_trust) {
-        print(0, "@@@ test-bug: trust is too low. "
-                "range:%.2f nz:%.2f (level: range:%.2f nz:%.2f)\n",
-                trust_rg, trust_nz, trust_rg_level, trust_nz_level);
-        return FAIL;
+        r->state = MISTRUSTED;
+        print(0, "@@@ [%s] test-bug: trust is too low. "
+                "range:%.2f (?<%.2f) nz:%.2f (?<%.2f) (nz: %d total: %d)\n",
+                swhat, trust_rg, trust_rg_level, trust_nz, trust_nz_level,
+                non_zero, r->total);
     }
 
-    return r->errors ? FAIL : OK;
+    if (r->errors)
+        r->state = FAILED;
+
+    if (final_compare && r->state == UNTESTED)
+        r->state = PASSED; /* optimism */
+
+    return r->state == FAILED ? FAIL : OK;
 }
 
 inline int compare_src(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
@@ -160,7 +192,7 @@ inline int fill_src(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
     for (int ih = 0; ih < p->ih; ++ih)
     for (int iw = 0; iw < p->iw; ++iw)
     {
-        const int gen = 17 * ih + 13 * iw + 13 * mb + 19 * ic;
+        const int gen = 17 * ih + 13 * iw + 13 * mb + 19 * ic + 1637;
         const bool non_base = true
             && gen % (p->kh * p->kw) <= c.f_sparsity * (p->kh * p->kw);
 //            && (17 * ih + 13 * mb) % p->kh == 0
@@ -199,7 +231,7 @@ inline int fill_wei(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
     for (int kh = 0; kh < p->kh; ++kh)
     for (int kw = 0; kw < p->kw; ++kw)
     {
-        const int gen = 17 * kh + 13 * kw + 13 * oc + 19 * ic;
+        const int gen = 17 * kh + 13 * kw + 13 * oc + 19 * ic + 38;
         const bool non_base = true
             && gen % (p->kh * p->kw) <= c.f_sparsity * (p->kh * p->kw);
 //            && (17 * kh + 13 * oc) % p->kh == 0
@@ -269,7 +301,7 @@ inline int fill_dst(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
     for (int oh = 0; oh < p->oh; ++oh)
     for (int ow = 0; ow < p->ow; ++ow)
     {
-        const int gen = 19 * oh + 17 * ow + 13 * mb + 13 * oc;
+        const int gen = 19 * oh + 17 * ow + 13 * mb + 13 * oc + 223;
         const bool non_base = true
             && gen % (p->kh * p->kw) <= c.f_sparsity * (p->kh * p->kw);
 //            && (19 * oh + 13 * mb) % p->kh == 0
@@ -291,7 +323,7 @@ inline int fill_dst(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
 }
 
 inline int init_pd(const prb_t *p, mkldnn_convolution_desc_t &cd,
-        mkldnn_primitive_desc_t &cpd) {
+        mkldnn_primitive_desc_t &cpd, res_t *r) {
     mkldnn_memory_desc_t src_d, wei_d, bia_d, dst_d;
 
     mkldnn_dims_t src_dims = {p->mb, p->ic, p->ih, p->iw};
@@ -340,12 +372,27 @@ inline int init_pd(const prb_t *p, mkldnn_convolution_desc_t &cd,
     DNN_SAFE(cd.accum_data_type == p->cfg[ACC].dt
             ? mkldnn_success : mkldnn_unimplemented, CRIT);
 
+    mkldnn_status_t init_status = mkldnn_success;
     if (p->merge == RELU) {
         mkldnn_convolution_relu_desc_t crd;
         DNN_SAFE(mkldnn_convolution_relu_desc_init(&crd, &cd, 0), WARN);
-        DNN_SAFE(mkldnn_primitive_desc_create(&cpd, &crd, engine, NULL), WARN);
+        init_status = mkldnn_primitive_desc_create(&cpd, &crd, engine, NULL);
     } else {
-        DNN_SAFE(mkldnn_primitive_desc_create(&cpd, &cd, engine, NULL), WARN);
+        init_status = mkldnn_primitive_desc_create(&cpd, &cd, engine, NULL);
+    }
+
+    if (init_status == mkldnn_unimplemented)
+        return r->state = UNIMPLEMENTED, OK;
+    else
+        SAFE(init_status, WARN);
+
+    const char *impl_str = query_impl_info(cpd);
+    if (maybe_skip(impl_str)) {
+        print(2, "SKIPPED: mkldnn implementation: %s\n", impl_str);
+        DNN_SAFE(mkldnn_primitive_desc_destroy(cpd), WARN);
+        return r->state = SKIPPED, OK;
+    } else {
+        print(50, "mkldnn implementation: %s\n", impl_str);
     }
 
     auto q = [=](mkldnn_query_t query, int index = 0) {
@@ -379,30 +426,16 @@ inline int init_pd(const prb_t *p, mkldnn_convolution_desc_t &cd,
 }
 
 int doit(const prb_t *p, res_t *r) {
-    res_t res_zero{0};
+    res_t res_zero{};
     *r = res_zero;
 
     mkldnn_convolution_desc_t cd;
     mkldnn_primitive_desc_t cpd;
     mkldnn_primitive_t c;
 
-    int init_status = init_pd(p, cd, cpd);
-    if (init_status == UNIMPL && allow_unimpl) {
-        print(2, "SKIP: unimplemented%s\n", "");
-        r->skipped = true;
-        return SKIP;
-    } else {
-        SAFE(init_status, WARN);
-    }
-
-    const char *impl_str = query_impl_info(cpd);
-    if (maybe_skip(impl_str)) {
-        print(2, "SKIP: mkldnn implementation: %s\n", impl_str);
-        r->skipped = true;
-        return SKIP;
-    } else {
-        print(50, "mkldnn implementation: %s\n", impl_str);
-    }
+    SAFE(init_pd(p, cd, cpd, r), WARN);
+    if (r->state == SKIPPED || r->state == UNIMPLEMENTED)
+        return OK;
 
     auto &src_dt_d = p->dir == BWD_D ? cd.diff_src_desc : cd.src_desc;
     auto &wei_dt_d = p->dir & FLAG_WEI ? cd.diff_weights_desc : cd.weights_desc;

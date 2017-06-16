@@ -27,8 +27,6 @@
 
 #define OK 0
 #define FAIL 1
-#define SKIP 2
-#define UNIMPL 3
 
 enum { CRIT = 1, WARN = 2 };
 
@@ -47,6 +45,9 @@ enum { CRIT = 1, WARN = 2 };
 
 #define MIN2(a,b) ((a)<(b)?(a):(b))
 #define MAX2(a,b) ((a)>(b)?(a):(b))
+
+#define MIN3(a,b,c) MIN2(a,MIN2(b,c))
+#define MAX3(a,b,c) MAX2(a,MAX2(b,c))
 
 #define STRINGIFy(s) #s
 #define STRINGIFY(s) STRINGIFy(s)
@@ -73,8 +74,11 @@ extern int verbose;
 
 struct stat_t {
     int tests;
-    int fails;
+    int passed;
+    int failed;
     int skipped;
+    int mistrusted;
+    int unimplemented;
 };
 extern stat_t benchdnn_stat;
 
@@ -95,8 +99,12 @@ enum dir_t {
 dir_t str2dir(const char *str);
 const char *dir2str(dir_t dir);
 
+enum res_state_t { UNTESTED = 0, PASSED, SKIPPED, MISTRUSTED, UNIMPLEMENTED,
+    FAILED };
+const char *state2str(res_state_t state);
+
 struct res_t {
-    bool skipped;
+    res_state_t state;
     int errors, total;
 };
 

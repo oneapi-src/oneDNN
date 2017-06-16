@@ -58,9 +58,16 @@ int main(int argc, char **argv) {
 
     finalize();
 
-    if (benchdnn_stat.fails || benchdnn_stat.tests == 0 || verbose > 0)
-        printf("tests:%d fails:%d skipped:%d\n", benchdnn_stat.tests,
-                benchdnn_stat.fails, benchdnn_stat.skipped);
+    printf("tests:%d passed:%d "
+            "skipped:%d mistrusted:%d unimplemented:%d "
+            "failed:%d\n",
+            benchdnn_stat.tests, benchdnn_stat.passed,
+            benchdnn_stat.skipped, benchdnn_stat.mistrusted,
+            benchdnn_stat.unimplemented, benchdnn_stat.failed);
 
-    return !!benchdnn_stat.fails;
+    assert(benchdnn_stat.tests <= benchdnn_stat.passed + benchdnn_stat.skipped
+            + benchdnn_stat.mistrusted + benchdnn_stat.unimplemented
+            + benchdnn_stat.failed);
+
+    return !!benchdnn_stat.failed;
 }

@@ -46,6 +46,19 @@ const char *dir2str(dir_t dir) {
     return "DIR_UNDEF";
 }
 
+const char *state2str(res_state_t state) {
+#define CASE(x) if (state == x) return STRINGIFY(x)
+    CASE(UNTESTED);
+    CASE(PASSED);
+    CASE(SKIPPED);
+    CASE(MISTRUSTED);
+    CASE(UNIMPLEMENTED);
+    CASE(FAILED);
+#undef CASE
+    assert(!"unknown res state");
+    return "STATE_UNDEF";
+}
+
 bool str2bool(const char *str) {
     return !strcasecmp("true", str) || !strcasecmp("1", str);
 }

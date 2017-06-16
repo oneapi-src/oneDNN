@@ -48,7 +48,7 @@ inline const char *status2str(mkldnn_status_t status) {
             fflush(0); \
             if (s == CRIT) exit(2); \
         } \
-        return status == mkldnn_unimplemented ? UNIMPL : FAIL; \
+        return FAIL; \
     } \
 } while(0)
 

@@ -189,6 +189,7 @@ void desc2str(const desc_t *d, char *buffer, bool canonical) {
 const dt_conf_t *str2cfg(const char *str) {
 #define CASE(name, cfg) if (!strcasecmp(name, str)) return cfg
     CASE("f32", conf_f32);
+    CASE("f32_full", conf_f32_full);
     CASE("f32_wino", conf_f32_wino);
     CASE("s16s32", conf_s16s32);
     CASE("s8s32", conf_s8s32);
@@ -200,6 +201,7 @@ const dt_conf_t *str2cfg(const char *str) {
 const char *cfg2str(const dt_conf_t *cfg) {
 #define CASE(name, _cfg) if (cfg == _cfg) return name
     CASE("f32", conf_f32);
+    CASE("f32_full", conf_f32_full);
     CASE("f32_wino", conf_f32_wino);
     CASE("s16s32", conf_s16s32);
     CASE("s8s32", conf_s8s32);

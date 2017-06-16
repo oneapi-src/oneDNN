@@ -37,7 +37,7 @@ int bench(int argc, char **argv) {
     int ip_fails = 0;
 
     for (int id = 0; id < ip_num; ++id) {
-        res_t res{0};
+        res_t res{};
         ip::doit(&ipps[id], &res);
         if (res.errors) {
             printf("[%3d] FAILED (errs: %d out of %d)\n", id, res.errors,
@@ -47,7 +47,7 @@ int bench(int argc, char **argv) {
     }
 
 
-    benchdnn_stat.fails = ip_fails;
+    benchdnn_stat.failed = ip_fails;
     benchdnn_stat.tests = ip_num;
 
     return OK;

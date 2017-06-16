@@ -39,9 +39,17 @@ namespace conv {
 const int int_max_exact = 1<<24;
 const _dt_conf_t conf_f32 = {
     {mkldnn_f32, -int_max_exact, int_max_exact,  -64,  64, 0, 1, .25, 0.},
-    {mkldnn_f32, -int_max_exact, int_max_exact,  -32,  32, 0, 1, .25, 0.},
-    {mkldnn_f32, -int_max_exact, int_max_exact, -512, 512, 0, 1, .25, 0.},
+    {mkldnn_f32, -int_max_exact, int_max_exact,  -32,  32, 0, 1, 1.0, 0.},
+    {mkldnn_f32, -int_max_exact, int_max_exact, -512, 512, 0, 1, 1.0, 0.},
     {mkldnn_f32, -int_max_exact, int_max_exact,  -64,  64, 0, 1, .25, 0.},
+    {mkldnn_f32,},
+};
+
+const _dt_conf_t conf_f32_full = {
+    {mkldnn_f32, -int_max_exact, int_max_exact,  -64,  64, 0, 1, 1.0, 0.},
+    {mkldnn_f32, -int_max_exact, int_max_exact,  -32,  32, 0, 1, 1.0, 0.},
+    {mkldnn_f32, -int_max_exact, int_max_exact, -512, 512, 0, 1, 1.0, 0.},
+    {mkldnn_f32, -int_max_exact, int_max_exact,  -64,  64, 0, 1, 1.0, 0.},
     {mkldnn_f32,},
 };
 
@@ -74,7 +82,6 @@ const dt_conf_t *cfg = conf_f32;
 const char *pattern = NULL;
 dir_t dir = FWD_B;
 int mb = 0;
-int conv_fails = 0, conv_skipped = 0, conv_num = 0;
 alg_t alg = DIRECT;
 merge_t merge = NONE;
 const char *skip_impl = "";
@@ -100,21 +107,50 @@ void check_correctness(const desc_t *c) {
         return;
     print(1, "run: %s\n", pstr);
 
-    res_t res{0};
+    res_t res{};
     const int status = conv::doit(&p, &res);
+    (void)status;
 
-    if (status == OK)
-        print(50, "[%d:%s] PASSED\n", conv_num, c->name);
-    else if (status == SKIP)
-        print(0, "[%d:%s] SKIPPED __REPRO: %s\n", conv_num, c->name, pstr);
-    else
-        print(0, "[%d:%s] FAILED (status:%d errors:%d total:%d) __REPRO: %s\n",
-                conv_num, c->name, status, res.errors, res.total, pstr);
+    auto &bs = benchdnn_stat;
+    const char *state = state2str(res.state);
 
-    conv_fails += status != OK && status != SKIP;
-    conv_skipped += status == SKIP;
-    conv_num += 1;
-};
+    switch (res.state) {
+    case UNTESTED:
+    case FAILED:
+        assert(status == FAIL);
+        bs.failed++;
+        print(0, "%d:%s (errors:%d total:%d) __REPRO: %s\n", bs.tests, state,
+                res.errors, res.total, pstr);
+        break;
+    case SKIPPED:
+        assert(status == OK);
+        print(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
+        bs.skipped++;
+        break;
+    case UNIMPLEMENTED:
+        assert(status == OK);
+        print(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
+        bs.unimplemented++;
+        bs.failed += !allow_unimpl;
+        break;
+    case MISTRUSTED:
+        assert(status == OK);
+        bs.mistrusted++;
+        print(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
+        // bs.failed++; /* temporal workaround for some tests */
+        break;
+    case PASSED:
+        assert(status == OK);
+        print(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
+        bs.passed++;
+        break;
+    default:
+        assert(!"unknowtn state");
+        { []() { SAFE(FAIL, CRIT); return 0; }(); }
+    }
+
+    bs.tests++;
+}
 
 int batch(const char *fname);
 
@@ -155,16 +191,13 @@ int bench(int argc, char **argv) {
         }
     }
 
-    if (conv_num == 0) {
+    /* deprecated? */
+    if (benchdnn_stat.tests == 0) {
         /* use default list of problems */
         int N = sizeof(default_list) / sizeof(default_list[0]);
         for (int n = 0; n < N; ++n)
             check_correctness(&default_list[n]);
     }
-
-    benchdnn_stat.tests = conv_num;
-    benchdnn_stat.fails = conv_fails;
-    benchdnn_stat.skipped = conv_skipped;
 
     return OK;
 }

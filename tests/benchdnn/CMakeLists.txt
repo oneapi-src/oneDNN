@@ -37,7 +37,7 @@ target_link_libraries(benchdnn ${LIB_NAME})
 
 file(COPY inputs DESTINATION .)
 add_custom_target(test_conv
-    COMMAND benchdnn --conv -v1 --batch=inputs/test_conv_all
+    COMMAND benchdnn --conv --batch=inputs/test_conv_all
     DEPENDS benchdnn
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
