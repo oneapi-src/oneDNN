@@ -35,6 +35,7 @@ static void catch_me() {}
 template <impl::data_type_t data_type>
 struct cpu_simple_concat_t: public c_compatible {
     typedef typename prec_traits<data_type>::type data_t;
+    enum { max_num_arrs = 16 };
 
     static bool applicable(const nstl::vector<cpu_memory_t::pd_t> &src_pds_,
             const nstl::vector<cpu_memory_t::pd_t> &dst_pds_, int concat_dim) {
@@ -42,7 +43,8 @@ struct cpu_simple_concat_t: public c_compatible {
             return nelems_no_dim_0(data_d) == _size_no_dim_0(data_d);
         };
 
-        bool ok = concat_dim != 0;
+        bool ok = concat_dim != 0 && src_pds_.size() <= max_num_arrs;
+
         for (size_t i = 0; i < src_pds_.size(); ++i) {
             const memory_desc_wrapper i_d(&src_pds_[i]);
             const memory_desc_wrapper o_d(&dst_pds_[i]);
@@ -57,10 +59,10 @@ struct cpu_simple_concat_t: public c_compatible {
             const nstl::vector<cpu_memory_t::pd_t> &dst_pds_,
             cpu_primitive_t *concat) {
         const int num_arrs = src_pds_.size();
-        const data_t *input_ptrs[num_arrs];
-        data_t *output_ptrs[num_arrs];
-        size_t nelems_no_d0[num_arrs];
-        size_t is[num_arrs];
+        const data_t *input_ptrs[max_num_arrs];
+        data_t *output_ptrs[max_num_arrs];
+        size_t nelems_no_d0[max_num_arrs];
+        size_t is[max_num_arrs];
 
         auto o_base_ptr = reinterpret_cast<data_t *>(concat->memory());
 

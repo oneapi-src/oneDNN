@@ -34,13 +34,14 @@ namespace cpu {
 template <impl::data_type_t data_type>
 struct cpu_simple_sum_t: public c_compatible {
     typedef typename prec_traits<data_type>::type data_t;
+    enum { max_num_arrs = 16 };
 
     static bool applicable(const nstl::vector<cpu_memory_t::pd_t> &src_pds_,
                             const nstl::vector<double> &scale_,
                             cpu_memory_t::pd_t &dst_pds_)
     {
         const memory_desc_wrapper o_d(&dst_pds_);
-        bool ok = true;
+        bool ok = true && src_pds_.size() <= max_num_arrs;
         for (size_t i = 0; i < src_pds_.size(); ++i) {
             const memory_desc_wrapper i_d(&src_pds_[i]);
             ok = ok && i_d.data_type() == data_type
@@ -61,8 +62,8 @@ struct cpu_simple_sum_t: public c_compatible {
         const memory_desc_wrapper o_d(&dst_pds_);
         output += o_d.blk_off(0);
         const size_t nelems = o_d.nelems();
+        const data_t *input_ptrs[max_num_arrs];
 
-        const data_t *input_ptrs[num_arrs];
         for (int a = 0; a < num_arrs; ++a) {
             const memory_desc_wrapper i_d(&src_pds_[a]);
 
