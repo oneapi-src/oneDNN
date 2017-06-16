@@ -78,6 +78,7 @@ int str2desc(desc_t *desc, const char *str) {
      * dYgXmbXicXihXiwXocXohXowXkhXkwXshXswXphXpwXdhXdwXnS
      *
      * where: Y = {fb, fd, bd, bw, bb}, X is number, S - string
+     * note: symbol `_` is ignored
      *
      * implicit rules:
      *  - default values:
@@ -111,6 +112,7 @@ int str2desc(desc_t *desc, const char *str) {
         CASE_N(ph); CASE_N(pw);
         CASE_N(dh); CASE_N(dw);
         if (*s == 'n') { d.name = s + 1; break; }
+        if (*s == '_') ++s;
         if (!ok) return FAIL;
     }
 #   undef CASE_NN

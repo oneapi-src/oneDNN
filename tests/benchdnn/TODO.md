@@ -23,3 +23,5 @@
 * add support for winograd
 
 * add dilated convolution
+
+* add `_` as delimiter for conv description (can we read it now?)

@@ -63,8 +63,9 @@ Here X is a number and S is string (n stands for name). Some of the parameters
 might be omitted if there is either default one (e.g. if g is not specified
 **benchdnn** uses 1) or if the can be computed automatically (e.g. output shape
 can be derived from the input one and kernel). Also if either width or height
-is not specified than it is assumed height == width. See `str2desc()` in
-conv/conv_aux.cpp for more details and implicit rules :^)
+is not specified than it is assumed height == width. Special symbol `_` is
+ignored, hence maybe used as delimiter. See `str2desc()` in conv/conv_aux.cpp
+for more details and implicit rules :^)
 
 
 ### convolution configurations (aka precision specification)
@@ -120,8 +121,8 @@ configurations (`s8s32` and `f32`):
 ```
     $ ./benchdnn --conv -v1 \
         --mb=4 --dir=FWD_B \
-        --prec=s8s32 ic3ih227iw227oc96oh55ow55kh11kw11sh4sw4ph0pw0n"alexnet:conv1" \
-        --prec=f32 ic3ih227iw227oc96oh55ow55kh11kw11sh4sw4ph0pw0n"alexnet:conv1"
+        --prec=s8s32 ic3ih227iw227_oc96oh55ow55_kh11kw11_sh4sw4ph0pw0_n"alexnet:conv1" \
+        --prec=f32 ic3ih227iw227_oc96oh55ow55_kh11kw11_sh4sw4ph0pw0_n"alexnet:conv1"
 ```
 
 Run batch file for different algorithms (assuming the file only specifies
