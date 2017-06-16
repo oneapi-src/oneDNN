@@ -82,7 +82,7 @@ void _ref_convolution_fwd_t<with_relu, src_type, wei_type, acc_type, dst_type>
         }
     };
 
-    auto get_bias = [=](size_t off) -> acc_data_t {
+    auto get_bias = [=, &bias](size_t off) -> acc_data_t {
 #       define CASE(dt) case dt: \
             return (acc_data_t)(*((const prec_traits<dt>::type *)bias + off))
         switch (conf_.cdesc()->bias_desc.data_type) {
