@@ -1,0 +1,7 @@
+# f32
+--reset --cfg=f32_full
+--dir=FWD_B  --batch=conv_regression_small_spatial
+--dir=BWD_D  --batch=conv_regression_small_spatial
+--dir=BWD_WB --batch=conv_regression_small_spatial
+--merge=RELU
+--dir=FWD_B --batch=conv_regression_small_spatial

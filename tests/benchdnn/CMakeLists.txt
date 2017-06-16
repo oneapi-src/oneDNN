@@ -41,3 +41,8 @@ add_custom_target(test_conv
     DEPENDS benchdnn
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
+add_custom_target(test_conv_regression
+    COMMAND benchdnn --conv --batch=inputs/test_conv_regression
+    DEPENDS benchdnn
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
