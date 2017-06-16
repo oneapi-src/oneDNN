@@ -128,7 +128,7 @@ int str2desc(desc_t *desc, const char *str) {
     if (d.ic == 0 || d.oc == 0) return FAIL;
 
     auto compute_out = [](int i, int k, int s, int p, int d) {
-        return (i - ((k - 1) * (d + 1)) + 1 + 2 * p) / s + 1;
+        return (i - ((k - 1) * (d + 1) + 1) + 2 * p) / s + 1;
     };
     auto compute_pad = [](int o, int i, int k, int s, int d) {
         /* XXX: is it oK? */
