@@ -25,6 +25,7 @@
 #include "type_helpers.hpp"
 #include "cpu_primitive.hpp"
 #include "cpu_engine.hpp"
+#include "simple_reorder.hpp"
 
 namespace mkldnn {
 namespace impl {
