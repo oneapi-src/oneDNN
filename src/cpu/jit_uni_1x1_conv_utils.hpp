@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef JIT_UNI_1x1_CONV_UTILS_F32_HPP
-#define JIT_UNI_1x1_CONV_UTILS_F32_HPP
+#ifndef JIT_UNI_1x1_CONV_UTILS_HPP
+#define JIT_UNI_1x1_CONV_UTILS_HPP
 
 #include "mkldnn_thread.hpp"
 #include "utils.hpp"
@@ -62,8 +62,10 @@ inline void rtus_prepare(conv_pd_t *self, const convolution_desc_t *&conv_d,
             memory_desc_wrapper::compute_blocking(
                     self->rtus_.conv_d_.diff_src_desc);
         } else {
+            data_type_t data_type = self->rtus_.conv_d_.src_desc.data_type;
             src_d = &(self->rtus_.conv_d_.src_desc = *dst_d);
             self->rtus_.conv_d_.src_desc.dims[1] = ic;
+            self->rtus_.conv_d_.src_desc.data_type = data_type;
             memory_desc_wrapper::compute_blocking(
                     self->rtus_.conv_d_.src_desc);
         }
@@ -71,12 +73,11 @@ inline void rtus_prepare(conv_pd_t *self, const convolution_desc_t *&conv_d,
 }
 
 template <cpu_isa_t isa>
-struct rtus_driver_f32_t: public jit_generator {
-    using data_t = float;
+struct rtus_driver_t: public jit_generator {
 
     struct call_params_t {
-        const data_t *ws; /* reduced image (w/ strides = 1) */
-        const data_t *src; /* source image (w/ non-unit strides) */
+        const void *ws; /* reduced image (w/ strides = 1) */
+        const void *src; /* source image (w/ non-unit strides) */
         size_t icb;
         size_t os;
         size_t iw_start;
@@ -85,14 +86,11 @@ struct rtus_driver_f32_t: public jit_generator {
     void (*ker_)(const call_params_t *p);
 
     /* cpu specific part */
-    using Vmm =
-        typename utils::conditional<isa == avx2, Xbyak::Ymm, Xbyak::Zmm>::type;
-    const Xbyak::AddressFrame &vmmword = (isa == avx2) ? yword : zword;
     void uni_vpxor(const Xbyak::Xmm& x1, const Xbyak::Xmm& x2,
-            const Xbyak::Operand& op)
-    { if (isa == avx2) vpxor(x1, x2, op); else vpxord(x1, x2, op); }
-    const int vlen = cpu_isa_traits<isa>::vlen;
-    const int typesize = sizeof(float);
+        const Xbyak::Operand& op) {
+        if (isa == avx2 || typesize_ == 2) vpxor(x1, x2, op);
+        else vpxord(x1, x2, op);
+    }
 
     Xbyak::Reg64 reg_ws = abi_param1;
     Xbyak::Reg64 reg_src = abi_not_param1;
@@ -104,20 +102,36 @@ struct rtus_driver_f32_t: public jit_generator {
     Xbyak::Reg64 reg_cur_iw = r9;
     Xbyak::Reg64 reg_cur_src = r10;
 
-    Vmm reg_zero = Vmm(0);
-    Vmm reg_v = Vmm(1);
-
-    int simd_w = vlen / typesize;
     int iw_, stride_w_;
-    int src_step_h_, src_step_icb_, ws_step_icb_;
+    int src_step_h_, src_step_icb_, ws_step_icb_, vlen_, vlen_shift_;
     bool src_to_ws_;
+    size_t typesize_;
+    Xbyak::Ymm reg_zero;
+    Xbyak::Ymm reg_v;
 
-    rtus_driver_f32_t(int iw, int stride_w, int src_step_h,
-            int src_step_icb, int ws_step_icb, bool src_to_ws)
+    rtus_driver_t(int iw, int stride_w, int src_step_h,
+            int src_step_icb, int ws_step_icb, bool src_to_ws, size_t typesize)
         : iw_(iw), stride_w_(stride_w), src_step_h_(src_step_h)
         , src_step_icb_(src_step_icb), ws_step_icb_(ws_step_icb)
-        , src_to_ws_(src_to_ws)
-    { generate(); }
+        , src_to_ws_(src_to_ws), typesize_(typesize)
+    {
+        using namespace Xbyak;
+        vlen_ = cpu_isa_traits<isa>::vlen;
+        vlen_shift_ = cpu_isa_traits<isa>::vlen_shift;
+        if (typesize_ == 2) {
+            vlen_ /= 2;
+            vlen_shift_--;
+        }
+
+        if (isa == avx2 || typesize_ == 2) {
+            reg_zero = Ymm(0);
+            reg_v = Ymm(1);
+        } else {
+            reg_zero = Zmm(0);
+            reg_v = Zmm(1);
+        }
+        generate();
+    }
 
     void loop_is() {
         using namespace Xbyak;
@@ -136,30 +150,30 @@ struct rtus_driver_f32_t: public jit_generator {
             vmovups(reg_v, ptr[reg_ws]);
             vmovups(ptr[reg_cur_src], reg_v);
             for (int w = 1; w < stride_w_; ++w)
-                vmovups(ptr[reg_cur_src + w * simd_w * typesize], reg_zero);
+                vmovups(ptr[reg_cur_src + w * vlen_], reg_zero);
         }
 
-        add(reg_ws, simd_w * typesize);
+        add(reg_ws, vlen_);
 
         add(reg_cur_iw, stride_w_);
-        add(reg_cur_src, stride_w_ * simd_w * typesize);
+        add(reg_cur_src, stride_w_ * vlen_);
 
         cmp(reg_cur_iw, iw_);
         jl(skip_h_step);
 
         if (src_to_ws_) {
-            add(reg_cur_src, (src_step_h_ - iw_) * simd_w * typesize);
+            add(reg_cur_src, (src_step_h_ - iw_) * vlen_);
         } else {
             Xbyak::Reg64 reg_cur_src_fin = reg_cur_iw; /* just reuse */
             mov(reg_cur_src_fin, reg_cur_src);
-            add(reg_cur_src_fin, (src_step_h_ - iw_) * simd_w * typesize);
+            add(reg_cur_src_fin, (src_step_h_ - iw_) * vlen_);
             Label ih_loop;
             L(ih_loop);
 
             for (int w = 0; w < stride_w_; ++w)
-                vmovups(ptr[reg_cur_src + w * simd_w * typesize], reg_zero);
+                vmovups(ptr[reg_cur_src + w * vlen_], reg_zero);
 
-            add(reg_cur_src, stride_w_ * simd_w * typesize);
+            add(reg_cur_src, stride_w_ * vlen_);
             cmp(reg_cur_src, reg_cur_src_fin);
             jl(ih_loop);
         }
@@ -167,7 +181,7 @@ struct rtus_driver_f32_t: public jit_generator {
 
         L(skip_h_step);
 
-        sub(reg_cur_os, simd_w * typesize);
+        sub(reg_cur_os, vlen_);
         jnz(is_loop);
 
         /* restore dst */
@@ -193,7 +207,7 @@ struct rtus_driver_f32_t: public jit_generator {
         READ_PARAM(ws); /* reg_ws should always be read the last */
 #undef  READ_PARAM
 
-        shl(reg_os, cpu_isa_traits<isa>::vlen_shift);
+        shl(reg_os, vlen_shift_);
 
         if (!src_to_ws_)
             uni_vpxor(reg_zero, reg_zero, reg_zero);
@@ -203,8 +217,8 @@ struct rtus_driver_f32_t: public jit_generator {
 
         loop_is();
 
-        add(reg_ws, ws_step_icb_ * simd_w * typesize);
-        add(reg_src, src_step_icb_ * simd_w * typesize);
+        add(reg_ws, ws_step_icb_ * vlen_);
+        add(reg_src, src_step_icb_ * vlen_);
 
         dec(reg_icb);
         jnz(icb_loop, T_NEAR);
@@ -220,8 +234,7 @@ struct rtus_driver_f32_t: public jit_generator {
 };
 
 template <cpu_isa_t isa, typename conv_t>
-inline void init_rtus_driver_f32(conv_t *self) {
-    using data_t = float;
+inline void init_rtus_driver(conv_t *self) {
     const auto &conf = self->conf_;
     const auto &cd = *conf.cdesc();
     const bool is_bwd_data = cd.prop_kind == prop_kind::backward_data;
@@ -240,9 +253,11 @@ inline void init_rtus_driver_f32(conv_t *self) {
     default: assert(!"unsupported prop_kind");
     }
 
+    size_t typesize = sizeof(decltype(*self->scratch_));
+
     self->ws_per_thread_ = factor * conf.jcp_.is * conf.jcp_.ic_block;
-    self->scratch_ = (data_t *)malloc(
-            max_threads * self->ws_per_thread_ * sizeof(data_t), 64);
+    self->scratch_ = (decltype(self->scratch_))malloc(
+            max_threads * self->ws_per_thread_ * typesize, 64);
 
     const int stride_h = cd.strides[0];
     const int stride_w = cd.strides[1];
@@ -259,8 +274,8 @@ inline void init_rtus_driver_f32(conv_t *self) {
     const int src_step_icb = ih * iw;
     const int ws_step_icb = conf.jcp_.is;
     const bool src_to_ws = !is_bwd_data;
-    self->rtus_driver_ = new rtus_driver_f32_t<isa>(iw, stride_w, src_step_h,
-            src_step_icb, ws_step_icb, src_to_ws);
+    self->rtus_driver_ = new rtus_driver_t<isa>(iw, stride_w, src_step_h,
+            src_step_icb, ws_step_icb, src_to_ws, typesize);
 }
 
 }

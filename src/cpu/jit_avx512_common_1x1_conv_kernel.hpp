@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef JIT_AVX512_COMMON_1x1_CONV_KERNEL_F32_HPP
-#define JIT_AVX512_COMMON_1x1_CONV_KERNEL_F32_HPP
+#ifndef JIT_AVX512_COMMON_1x1_CONV_KERNEL_HPP
+#define JIT_AVX512_COMMON_1x1_CONV_KERNEL_HPP
 
 #include "c_types_map.hpp"
 #include "jit_generator.hpp"
@@ -25,10 +25,10 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-struct jit_avx512_common_1x1_conv_kernel_f32 : public jit_generator {
+struct jit_avx512_common_1x1_conv_kernel : public jit_generator {
     enum { REDUCE_FLAG_FIRST = 1, REDUCE_FLAG_LAST = 2 };
 
-    jit_avx512_common_1x1_conv_kernel_f32(jit_1x1_conv_conf_t ajcp) : jcp(ajcp)
+    jit_avx512_common_1x1_conv_kernel(jit_1x1_conv_conf_t ajcp) : jcp(ajcp)
     {
         this->generate();
         jit_ker = (void (*)(jit_1x1_conv_call_s *)) this->getCode();
