@@ -89,7 +89,6 @@ struct jit_avx512_common_1x1_conv_kernel : public jit_generator {
 
     void bcast_loop(int load_loop_blk);
     void reduce_loop(int load_loop_blk, int ur, int substep, bool wraparound);
-    void diff_bias_loop(int load_loop_blk);
 
     void generate();
 };

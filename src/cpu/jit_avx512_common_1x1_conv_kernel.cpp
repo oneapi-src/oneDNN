@@ -402,73 +402,6 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(int load_loop_blk,
     store();
 }
 
-void jit_avx512_common_1x1_conv_kernel::diff_bias_loop(int load_loop_blk)
-{
-    // TODO: This function is obsolete because diff_bias calculated in harness.
-    if (!jcp.with_bias || jcp.prop_kind != backward_weights)
-        return;
-
-    Label diff_bias_loop;
-    Label diff_bias_loop_out;
-    Label diff_bias_init_out;
-    Label diff_bias_load;
-
-    auto diff_bias_ptr = [=](int i_load) {
-        return EVEX_compress_addr(reg_diff_bias_data,
-                                  i_load * jcp.oc_block * sizeof(float));
-    };
-
-    auto load_ptr = [=](int i_reduce, int i_load) {
-        return EVEX_compress_addr(aux_reg_load_data,
-                (i_load * jcp.os + i_reduce) * jcp.oc_block * sizeof(float));
-    };
-
-    auto diff_bias_reg = [=](int i_load) { return Zmm(i_load); };
-
-    mov(reg_diff_bias_data,
-        EVEX_compress_addr(rsp, reg_diff_bias_data_stack_offt));
-
-    cmp(reg_diff_bias_data, 0);
-    je(diff_bias_loop_out, T_NEAR);
-
-    test(reg_reduce_pos_flag, REDUCE_FLAG_FIRST);
-    jz(diff_bias_load, T_NEAR);
-
-    for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
-        auto r = diff_bias_reg(i_load);
-        vpxord(r, r, r);
-    }
-    jmp(diff_bias_init_out, T_NEAR);
-
-    L(diff_bias_load);
-    for (int i_load = 0; i_load < load_loop_blk; ++i_load)
-        vmovups(diff_bias_reg(i_load), diff_bias_ptr(i_load));
-
-    L(diff_bias_init_out);
-    mov(aux_reg_load_data, reg_load_data);
-    mov(reduce_loop_iter, reg_reduce_loop_work);
-    L(diff_bias_loop);
-    {
-        for (int i_reduce = 0; i_reduce < jcp.reduce_loop_unroll; ++i_reduce)
-            for (int i_load = 0; i_load < load_loop_blk; ++i_load)
-                vaddps(diff_bias_reg(i_load),
-                        diff_bias_reg(i_load),
-                        load_ptr(i_reduce, i_load));
-        assert(jcp.reduce_dim % jcp.reduce_loop_unroll == 0);
-        add(aux_reg_load_data, jcp.reduce_loop_load_step);
-        sub(reduce_loop_iter, jcp.reduce_loop_unroll);
-        jnz(diff_bias_loop, T_NEAR);
-    }
-
-    for (int i_load = 0; i_load < load_loop_blk; i_load++)
-        vmovups(diff_bias_ptr(i_load), diff_bias_reg(i_load));
-    add(reg_diff_bias_data, load_loop_blk * jcp.oc_block * sizeof(float));
-    mov(EVEX_compress_addr(rsp, reg_diff_bias_data_stack_offt),
-        reg_diff_bias_data);
-
-    L(diff_bias_loop_out);
-}
-
 void jit_avx512_common_1x1_conv_kernel::generate()
 {
     preamble();
@@ -479,13 +412,8 @@ void jit_avx512_common_1x1_conv_kernel::generate()
 
     sub(rsp, stack_space_needed);
 
-    if (jcp.with_bias) {
-        if (jcp.prop_kind == backward_weights) {
-            mov(reg_diff_bias_data, ptr[param1 + GET_OFF(bias_data)]);
-            mov(ptr[rsp + reg_diff_bias_data_stack_offt], reg_diff_bias_data);
-        } else
-            mov(reg_bias_data, ptr[param1 + GET_OFF(bias_data)]);
-    }
+    if (jcp.with_bias)
+        mov(reg_bias_data, ptr[param1 + GET_OFF(bias_data)]);
 
     mov(reg_load_loop_work, ptr[param1 + GET_OFF(load_dim)]);
     mov(reg_bcast_loop_work, ptr[param1 + GET_OFF(bcast_dim)]);
@@ -553,7 +481,6 @@ void jit_avx512_common_1x1_conv_kernel::generate()
                     cmp(reg_load_loop_work, 0);
                     je(load_loop_blk[num_ur_cases], T_NEAR);
                 }
-                diff_bias_loop(label_idx + 1);
                 load_loop_body(label_idx + 1);
                 if (label_idx - 1 > 0) {
                     cmp(reg_load_loop_work, 2 * label_idx * simd_w);
