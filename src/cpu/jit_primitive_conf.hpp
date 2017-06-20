@@ -65,6 +65,7 @@ struct jit_conv_conf_t {
     int ur_ow_max, ur_ow, ur_ow_tail;
     int ur_ow_nsteps;
     data_type_t bia_dt;
+    data_type_t dst_dt;
 };
 
 

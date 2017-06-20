@@ -276,19 +276,21 @@ void ref_convolution_bwd_weights_t<data_type>::execute_backward_weights() {
     }
 }
 
-template struct _ref_convolution_fwd_t<false, data_type::f32>;
-template struct _ref_convolution_fwd_t<true, data_type::f32>;
-template struct _ref_convolution_fwd_t<false, data_type::u8, data_type::s8,
-         data_type::s32, data_type::u8>;
-template struct _ref_convolution_fwd_t<true, data_type::u8, data_type::s8,
-         data_type::s32, data_type::u8>;
-template struct _ref_convolution_fwd_t<false, data_type::s16, data_type::s16,
-         data_type::s32, data_type::s32>;
-template struct _ref_convolution_fwd_t<true, data_type::s16, data_type::s16,
-         data_type::s32, data_type::s32>;
+using namespace data_type;
 
-template struct ref_convolution_bwd_data_t<data_type::f32>;
-template struct ref_convolution_bwd_weights_t<data_type::f32>;
+template struct _ref_convolution_fwd_t<false, f32>;
+template struct _ref_convolution_fwd_t<true, f32>;
+template struct _ref_convolution_fwd_t<false, s16, s16, s32, s32>;
+template struct _ref_convolution_fwd_t<true, s16, s16, s32, s32>;
+template struct _ref_convolution_fwd_t<false, u8, s8, s32, s32>;
+template struct _ref_convolution_fwd_t<true, u8, s8, s32, s32>;
+template struct _ref_convolution_fwd_t<false, u8, s8, s32, s8>;
+template struct _ref_convolution_fwd_t<true, u8, s8, s32, s8>;
+template struct _ref_convolution_fwd_t<false, u8, s8, s32, u8>;
+template struct _ref_convolution_fwd_t<true, u8, s8, s32, u8>;
+
+template struct ref_convolution_bwd_data_t<f32>;
+template struct ref_convolution_bwd_weights_t<f32>;
 
 }
 }

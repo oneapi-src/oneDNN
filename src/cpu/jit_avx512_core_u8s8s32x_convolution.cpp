@@ -23,7 +23,7 @@
 
 #include "jit_generator.hpp"
 
-#include "jit_avx512_core_u8s8u8_convolution.hpp"
+#include "jit_avx512_core_u8s8s32x_convolution.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -34,21 +34,17 @@ using namespace Xbyak;
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::utils;
+using namespace mkldnn::impl::types;
 
-struct jit_avx512_core_u8s8u8_conv_fwd_ker_t: public jit_generator {
-    typedef jit_avx512_core_u8s8u8_convolution_fwd_t::src_data_t src_data_t;
-    typedef jit_avx512_core_u8s8u8_convolution_fwd_t::wei_data_t wei_data_t;
-    typedef jit_avx512_core_u8s8u8_convolution_fwd_t::acc_data_t acc_data_t;
-    typedef jit_avx512_core_u8s8u8_convolution_fwd_t::dst_data_t dst_data_t;
-
-    enum { STATE_LOAD_DST_U8 = 0x1U };
+struct jit_avx512_core_u8s8s32x_conv_fwd_ker_t: public jit_generator {
+    enum { STATE_FIRST_DST_LOAD = 0x1U };
 
     struct call_params_t {
-        const src_data_t *src_u8;
-        const wei_data_t *wei_s8;
-        const char *bia_c8;
-        const dst_data_t *dst_u8;
-        const int *dst_s32;
+        const void *src_u8;
+        const void *wei_s8;
+        const void *bia;
+        const void *acc_s32;
+        const void *dst;
         size_t kh_range;
     };
 
@@ -61,18 +57,23 @@ struct jit_avx512_core_u8s8u8_conv_fwd_ker_t: public jit_generator {
     Reg32 reg_state = esi;
 
     Reg64 reg_off_src_u8 = r8;
-    Reg64 reg_off_dst_u8 = r9;
-    Reg64 reg_off_dst_s32 = r10;
+    Reg64 reg_off_acc_s32 = r9;
+    Reg64 reg_off_dst = r10;
 
     Reg64 reg_ptr_src_u8 = r11;
     Reg64 reg_ptr_wei_s8 = r12;
-    Reg64 reg_ptr_bia_c8 = r13;
-    Reg64 reg_ptr_dst_u8 = r14;
-    Reg64 reg_ptr_dst_s32 = r15;
+    Reg64 reg_ptr_bia = r13;
+    Reg64 reg_ptr_acc_s32 = r14;
+    Reg64 reg_ptr_dst = r15;
 
     Zmm vreg_src_u8 = zmm29;
     Zmm vreg_zero = zmm30;
     Zmm vreg_one_s16 = zmm31;
+
+    size_t sizeof_src_dt() const { return data_type_size(data_type::u8); }
+    size_t sizeof_wei_dt() const { return data_type_size(data_type::s8); }
+    size_t sizeof_acc_dt() const { return data_type_size(data_type::s32); }
+    size_t sizeof_dst_dt() const { return data_type_size(c_.dst_dt); }
 
     int id_vreg_dst(int o) {
         assert(o < c_.ur_ow_max);
@@ -85,12 +86,12 @@ struct jit_avx512_core_u8s8u8_conv_fwd_ker_t: public jit_generator {
         return Zmm(id_reg_wei);
     }
 
-    Zmm vreg_dst_s32(int o) {
+    Zmm vreg_acc_s32(int o) {
         return Zmm(id_vreg_dst(o));
     }
 
     void load_wei_s8();
-    void load_dst_s32(int ur_ow);
+    void load_acc_s32(int ur_ow);
     void store_dst(int ur_ow);
 
     void compute(int o, int iw_off, int k);
@@ -99,7 +100,7 @@ struct jit_avx512_core_u8s8u8_conv_fwd_ker_t: public jit_generator {
     void compute_ow_oc_block();
     void generate();
 
-    jit_avx512_core_u8s8u8_conv_fwd_ker_t(const jit_conv_conf_t &c): c_(c) {
+    jit_avx512_core_u8s8s32x_conv_fwd_ker_t(const jit_conv_conf_t &c): c_(c) {
         generate();
         ker_ = reinterpret_cast<decltype(ker_)>(const_cast<uint8_t*>(
                         getCode()));
@@ -111,71 +112,83 @@ struct jit_avx512_core_u8s8u8_conv_fwd_ker_t: public jit_generator {
             double negative_slope);
 };
 
-void jit_avx512_core_u8s8u8_conv_fwd_ker_t::load_wei_s8() {
-    assert(c_.oc_block * c_.ic_block * sizeof(wei_data_t)
+void jit_avx512_core_u8s8s32x_conv_fwd_ker_t::load_wei_s8() {
+    assert(c_.oc_block * c_.ic_block * sizeof_wei_dt()
             == cpu_isa_traits<avx512_mic>::vlen);
     for (int ic_b1 = 0; ic_b1 < c_.ic_nb1; ++ic_b1) {
         for (int kw = 0; kw < c_.kw; ++kw) {
             const int off = (ic_b1 * c_.kw + kw) * c_.oc_block * c_.ic_block;
             vmovups(vreg_wei_s8(ic_b1, kw), ptr[reg_ptr_wei_s8
-                    + off * sizeof(wei_data_t)]);
+                    + off * sizeof_wei_dt()]);
         }
     }
 }
 
-void jit_avx512_core_u8s8u8_conv_fwd_ker_t::load_dst_s32(int ur_ow) {
+void jit_avx512_core_u8s8s32x_conv_fwd_ker_t::load_acc_s32(int ur_ow) {
     using namespace data_type;
 
-    Label l_load_u8, l_ret;
-    test(reg_state, STATE_LOAD_DST_U8);
-    jne(l_load_u8, T_NEAR);
+    Label l_first_load, l_ret;
+    test(reg_state, STATE_FIRST_DST_LOAD);
+    jne(l_first_load, T_NEAR);
 
     for (int o = 0; o < ur_ow; ++o)
-        vmovups(vreg_dst_s32(o), ptr[reg_ptr_dst_s32 + reg_off_dst_s32
-                + o * c_.oc_block * sizeof(acc_data_t)]);
+        vmovups(vreg_acc_s32(o), ptr[reg_ptr_acc_s32 + reg_off_acc_s32
+                + o * c_.oc_block * sizeof_acc_dt()]);
     jmp(l_ret, T_NEAR);
 
-    L(l_load_u8);
+    L(l_first_load);
     if (c_.with_bias) {
         switch (c_.bia_dt) {
-            case s8: vpmovsxbd(vreg_dst_s32(0), ptr[reg_ptr_bia_c8]); break;
-            case u8: vpmovzxbd(vreg_dst_s32(0), ptr[reg_ptr_bia_c8]); break;
-            case s32: vmovups(vreg_dst_s32(0), zword [reg_ptr_bia_c8]); break;
+            case s8: vpmovsxbd(vreg_acc_s32(0), ptr[reg_ptr_bia]); break;
+            case u8: vpmovzxbd(vreg_acc_s32(0), ptr[reg_ptr_bia]); break;
+            case s32: vmovups(vreg_acc_s32(0), zword [reg_ptr_bia]); break;
             default: assert(!"unsupported bias data type");
         }
         for (int o = 1; o < ur_ow; ++o)
-            vmovaps(vreg_dst_s32(o), vreg_dst_s32(0));
+            vmovaps(vreg_acc_s32(o), vreg_acc_s32(0));
     } else {
         for (int o = 0; o < ur_ow; ++o)
-            vpxord(vreg_dst_s32(o), vreg_dst_s32(o), vreg_dst_s32(o));
+            vpxord(vreg_acc_s32(o), vreg_acc_s32(o), vreg_acc_s32(o));
     }
 
     L(l_ret);
 }
 
-void jit_avx512_core_u8s8u8_conv_fwd_ker_t::store_dst(int ur_ow) {
-    Label l_store_u8, l_ret;
+void jit_avx512_core_u8s8s32x_conv_fwd_ker_t::store_dst(int ur_ow) {
+    Label l_final_store, l_ret;
 
     add(reg_ic_b2, reg_kh); /* non-destructive check on 0 */
-    je(l_store_u8, T_NEAR); /* jump if ic_b2 == 0 && kh == 0 */
+    je(l_final_store, T_NEAR); /* jump if ic_b2 == 0 && kh == 0 */
 
     sub(reg_ic_b2, reg_kh); /* recover reg_ic_b2 */
 
     for (int o = 0; o < ur_ow; ++o)
-        vmovups(ptr[reg_ptr_dst_s32 + reg_off_dst_s32
-                + o * c_.oc_block * sizeof(acc_data_t)], vreg_dst_s32(o));
+        vmovups(ptr[reg_ptr_acc_s32 + reg_off_acc_s32
+                + o * c_.oc_block * sizeof_acc_dt()], vreg_acc_s32(o));
 
     jmp(l_ret, T_NEAR);
 
-    L(l_store_u8);
+    L(l_final_store);
     for (int o = 0; o < ur_ow; ++o) {
         const int r = id_vreg_dst(o);
-        vpmaxsd(Zmm(r), vreg_zero, Zmm(r));
-        vpmovusdb(Xmm(r), Zmm(r));
-        vmovups(ptr[reg_ptr_dst_u8 + reg_off_dst_u8
-                + o * c_.ngroups * c_.oc * sizeof(dst_data_t)], Xmm(r));
+        Address dst = ptr[reg_ptr_dst + reg_off_dst
+            + o * c_.ngroups * c_.oc * sizeof_dst_dt()];
+
+        if (c_.with_relu || c_.dst_dt == data_type::u8)
+            vpmaxsd(Zmm(r), vreg_zero, Zmm(r));
+
+        switch (c_.dst_dt) {
+        case data_type::s32:
+            vmovups(dst, Zmm(r)); break;
+        case data_type::s8:
+            vpmovsdb(Xmm(r), Zmm(r)); vmovups(dst, Xmm(r)); break;
+        case data_type::u8:
+            vpmovusdb(Xmm(r), Zmm(r)); vmovups(dst, Xmm(r)); break;
+        default:
+            assert(!"unknown dst_dt");
+        }
     }
-    add(reg_off_dst_u8, ur_ow * c_.ngroups * c_.oc * sizeof(dst_data_t));
+    add(reg_off_dst, ur_ow * c_.ngroups * c_.oc * sizeof_dst_dt());
 
     L(l_ret);
 }
@@ -194,7 +207,8 @@ void jit_avx512_core_u8s8u8_conv_fwd_ker_t::store_dst(int ur_ow) {
  *   ic_block == 4i
  *   oc_block == 16o
  */
-void jit_avx512_core_u8s8u8_conv_fwd_ker_t::compute(int o, int iw_off, int k) {
+void jit_avx512_core_u8s8s32x_conv_fwd_ker_t::compute(int o, int iw_off, int k)
+{
     assert(0 <= k && k < c_.kw);
     assert(0 <= o && o < c_.ur_ow_max);
 
@@ -206,13 +220,13 @@ void jit_avx512_core_u8s8u8_conv_fwd_ker_t::compute(int o, int iw_off, int k) {
 
         // [4i, 4i, ..., 4i] (16)
         vpbroadcastd(vreg_src_u8, ptr[reg_ptr_src_u8 + reg_off_src_u8
-                + off * sizeof(src_data_t)]);
+                + off * sizeof_src_dt()]);
         // [2t, 2t, ..., 2t] (16) <-- i0 * w0 + i1 * w1
         vpmaddubsw(vreg_t_s16, vreg_src_u8, vreg_wei_s8(ic_b1, k));
         // [1u, 1u, ..., 1u] (16) <-- t0 * 1 + t1 * 1
         vpmaddwd(vreg_t_s32, vreg_t_s16, vreg_one_s16);
         // [1o, 1o, ..., 1o] (16) <-- o + u
-        vpaddd(vreg_dst_s32(o), vreg_dst_s32(o), vreg_t_s32);
+        vpaddd(vreg_acc_s32(o), vreg_acc_s32(o), vreg_t_s32);
     }
 }
 
@@ -223,7 +237,7 @@ void jit_avx512_core_u8s8u8_conv_fwd_ker_t::compute(int o, int iw_off, int k) {
  *
  * with no reduction over ic_nb2
  */
-void jit_avx512_core_u8s8u8_conv_fwd_ker_t::compute_part_ur_ow_oc_block(
+void jit_avx512_core_u8s8s32x_conv_fwd_ker_t::compute_part_ur_ow_oc_block(
         int ur_ow, int iw_start) {
     Label l_iw_0;
 
@@ -262,34 +276,34 @@ void jit_avx512_core_u8s8u8_conv_fwd_ker_t::compute_part_ur_ow_oc_block(
  * --------------------------------------------
  * o_s32 [ ow ]                     [16o]     (cast)
  * --------------------------------------------
- *  o_u8 [ ow ]                     [16o]
+ *  o_dt [ ow ]                     [16o]
  *
  * with no reduction over ic_nb2
  */
-void jit_avx512_core_u8s8u8_conv_fwd_ker_t::compute_part_ow_oc_block() {
+void jit_avx512_core_u8s8s32x_conv_fwd_ker_t::compute_part_ow_oc_block() {
     const int ow_tail_start = c_.ur_ow_nsteps * c_.ur_ow;
     const int iw_tail_start = ow_tail_start * c_.stride_w;
 
     load_wei_s8();
 
     xor_(reg_off_src_u8, reg_off_src_u8);
-    xor_(reg_off_dst_u8, reg_off_dst_u8);
-    xor_(reg_off_dst_s32, reg_off_dst_s32);
+    xor_(reg_off_acc_s32, reg_off_acc_s32);
+    xor_(reg_off_dst, reg_off_dst);
 
     Label l_ur_ow_step;
     L(l_ur_ow_step); {
-        load_dst_s32(c_.ur_ow);
+        load_acc_s32(c_.ur_ow);
         compute_part_ur_ow_oc_block(c_.ur_ow, 0); /* see [r1] */
-        store_dst(c_.ur_ow); /* also increases reg_off_dst_u8 */
+        store_dst(c_.ur_ow); /* also increases reg_off_dst */
 
         const int step_src_u8 = c_.ur_ow * c_.stride_w * c_.ngroups * c_.ic;
-        const int step_dst_s32 = c_.ur_ow * c_.oc_block;
+        const int step_acc_s32 = c_.ur_ow * c_.oc_block;
 
-        add(reg_off_src_u8, step_src_u8 * sizeof(src_data_t));
-        add(reg_off_dst_s32, step_dst_s32 * sizeof(acc_data_t));
-        /* increasing reg_off_dst_u8 happens inside store_dst() */
+        add(reg_off_src_u8, step_src_u8 * sizeof_src_dt());
+        add(reg_off_acc_s32, step_acc_s32 * sizeof_acc_dt());
+        /* increasing reg_off_dst happens inside store_dst() */
 
-        cmp(reg_off_dst_s32, ow_tail_start * c_.oc_block * sizeof(acc_data_t));
+        cmp(reg_off_acc_s32, ow_tail_start * c_.oc_block * sizeof_acc_dt());
         jne(l_ur_ow_step, T_NEAR);
     }
 
@@ -299,7 +313,7 @@ void jit_avx512_core_u8s8u8_conv_fwd_ker_t::compute_part_ow_oc_block() {
     /* tail ur_ow_tail processing and/or handling right padding
      * [r2]: only this part of the kernel handles right padding */
 
-    load_dst_s32(c_.ur_ow_tail);
+    load_acc_s32(c_.ur_ow_tail);
     compute_part_ur_ow_oc_block(c_.ur_ow_tail, iw_tail_start);
     store_dst(c_.ur_ow_tail);
 }
@@ -310,11 +324,11 @@ void jit_avx512_core_u8s8u8_conv_fwd_ker_t::compute_part_ow_oc_block() {
  * --------------------------------------------
  * o_s32 [ ow ]                    [16o]     (cast)
  * --------------------------------------------
- *  o_u8 [ ow ]                    [16o]
+ *  o_dt [ ow ]                    [16o]
  *
  * with reduction over ic_nb2
  */
-void jit_avx512_core_u8s8u8_conv_fwd_ker_t::compute_ow_oc_block() {
+void jit_avx512_core_u8s8s32x_conv_fwd_ker_t::compute_ow_oc_block() {
     Label l_kh, l_ic_b2;
 
     Reg16 reg_tmp = reg_ic_b2.cvt16();
@@ -323,7 +337,7 @@ void jit_avx512_core_u8s8u8_conv_fwd_ker_t::compute_ow_oc_block() {
     vpxord(vreg_zero, vreg_zero, vreg_zero);
 
     xor_(reg_state, reg_state);
-    or_(reg_state, STATE_LOAD_DST_U8);
+    or_(reg_state, STATE_FIRST_DST_LOAD);
 
     L(l_kh); {
         mov(reg_ic_b2, c_.ic_nb2);
@@ -336,33 +350,33 @@ void jit_avx512_core_u8s8u8_conv_fwd_ker_t::compute_ow_oc_block() {
 
             const int step_src = c_.ic_nb1 * c_.ic_block;
             const int step_wei = c_.ic_nb1 * c_.kw * c_.oc_block * c_.ic_block;
-            add(reg_ptr_src_u8, step_src * sizeof(src_data_t));
-            add(reg_ptr_wei_s8, step_wei * sizeof(wei_data_t));
+            add(reg_ptr_src_u8, step_src * sizeof_src_dt());
+            add(reg_ptr_wei_s8, step_wei * sizeof_wei_dt());
 
-            and_(reg_state, ~STATE_LOAD_DST_U8);
+            and_(reg_state, ~STATE_FIRST_DST_LOAD);
 
             test(reg_ic_b2, reg_ic_b2);
             jne(l_ic_b2, T_NEAR);
         }
 
         const int step_src = - c_.ic + c_.iw * c_.ngroups * c_.ic; // [ih:+1]
-        add(reg_ptr_src_u8, step_src * sizeof(src_data_t));
+        add(reg_ptr_src_u8, step_src * sizeof_src_dt());
 
         test(reg_kh, reg_kh);
         jne(l_kh, T_NEAR);
     }
 }
 
-void jit_avx512_core_u8s8u8_conv_fwd_ker_t::generate() {
+void jit_avx512_core_u8s8s32x_conv_fwd_ker_t::generate() {
     preamble();
 
 #   define READ_PARAM(reg, field) \
         mov(reg, ptr[abi_param1 + offsetof(call_params_t, field)])
     READ_PARAM(reg_ptr_src_u8, src_u8);
     READ_PARAM(reg_ptr_wei_s8, wei_s8);
-    READ_PARAM(reg_ptr_bia_c8, bia_c8);
-    READ_PARAM(reg_ptr_dst_u8, dst_u8);
-    READ_PARAM(reg_ptr_dst_s32, dst_s32);
+    READ_PARAM(reg_ptr_bia, bia);
+    READ_PARAM(reg_ptr_acc_s32, acc_s32);
+    READ_PARAM(reg_ptr_dst, dst);
     READ_PARAM(reg_kh, kh_range);
 #   undef READ_PARAM
 
@@ -371,7 +385,7 @@ void jit_avx512_core_u8s8u8_conv_fwd_ker_t::generate() {
     postamble();
 }
 
-status_t jit_avx512_core_u8s8u8_conv_fwd_ker_t::init_conf(jit_conv_conf_t &c,
+status_t jit_avx512_core_u8s8s32x_conv_fwd_ker_t::init_conf(jit_conv_conf_t &c,
         const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &wei_d, const memory_desc_wrapper &dst_d,
         bool with_relu, double negative_slope) {
@@ -402,6 +416,7 @@ status_t jit_avx512_core_u8s8u8_conv_fwd_ker_t::init_conf(jit_conv_conf_t &c,
     c.with_bias = cd.bias_desc.format != memory_format::undef;
     c.with_relu = with_relu;
     c.bia_dt = c.with_bias ? cd.bias_desc.data_type : data_type::undef;
+    c.dst_dt = cd.dst_desc.data_type;
 
     c.ic_block = 4;
     c.oc_block = 16;
@@ -414,7 +429,8 @@ status_t jit_avx512_core_u8s8u8_conv_fwd_ker_t::init_conf(jit_conv_conf_t &c,
         && everyone_is(nhwc, src_d.format(), dst_d.format())
         && wei_d.format() == (with_groups ? gOhIw16o4i : OhIw16o4i)
         && one_of(cd.bias_desc.format, memory_format::undef, any, x)
-        && implication(with_relu, negative_slope == 0.);
+        && implication(with_relu, negative_slope == 0.)
+        && one_of(c.dst_dt, data_type::s32, data_type::s8, data_type::u8);
 
     if (!args_ok)
         return status::unimplemented;
@@ -481,38 +497,40 @@ status_t jit_avx512_core_u8s8u8_conv_fwd_ker_t::init_conf(jit_conv_conf_t &c,
 
 /*****************************************************************************/
 
-template <bool with_relu>
-status_t _jit_avx512_core_u8s8u8_convolution_fwd_t<with_relu>::pd_t::jit_conf()
+template <bool with_relu, data_type_t dst_data_type>
+status_t _jit_avx512_core_u8s8s32x_convolution_fwd_t<with_relu,
+         dst_data_type>::pd_t::jit_conf()
 {
-    return jit_avx512_core_u8s8u8_conv_fwd_ker_t::init_conf(jcp_,
+    return jit_avx512_core_u8s8s32x_conv_fwd_ker_t::init_conf(jcp_,
             this->cdesc_(), *this->src_pd_.desc(), *this->weights_pd_.desc(),
             *this->dst_pd_.desc(), with_relu, this->negative_slope());
 }
 
-template <bool with_relu>
-_jit_avx512_core_u8s8u8_convolution_fwd_t<with_relu>::
-_jit_avx512_core_u8s8u8_convolution_fwd_t(const pd_t *pd,
+template <bool with_relu, data_type_t dst_data_type>
+_jit_avx512_core_u8s8s32x_convolution_fwd_t<with_relu, dst_data_type>::
+_jit_avx512_core_u8s8s32x_convolution_fwd_t(const pd_t *pd,
         const input_vector &inputs, const output_vector &outputs)
     : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd), ker_(nullptr)
     , ws_(nullptr) {
-    ker_ = new jit_avx512_core_u8s8u8_conv_fwd_ker_t(conf_.jcp_);
+    ker_ = new jit_avx512_core_u8s8s32x_conv_fwd_ker_t(conf_.jcp_);
 
     const int nthreads = omp_get_max_threads();
     ws_per_thread_ = conf_.jcp_.ow * conf_.jcp_.oc_block;
-    ws_ = (acc_data_t *)malloc(nthreads * ws_per_thread_ * sizeof(acc_data_t),
-            64);
+    ws_ = (acc_data_t *)malloc(
+            nthreads * ws_per_thread_ * sizeof(acc_data_t), 64);
 }
 
-template <bool with_relu>
-_jit_avx512_core_u8s8u8_convolution_fwd_t<with_relu>::
-~_jit_avx512_core_u8s8u8_convolution_fwd_t() { delete ker_; free(ws_); }
+template <bool with_relu, data_type_t dst_data_type>
+_jit_avx512_core_u8s8s32x_convolution_fwd_t<with_relu, dst_data_type>::
+~_jit_avx512_core_u8s8s32x_convolution_fwd_t() { delete ker_; free(ws_); }
 
-template <bool with_relu>
-void _jit_avx512_core_u8s8u8_convolution_fwd_t<with_relu>::execute_forward() {
+template <bool with_relu, data_type_t dst_data_type>
+void _jit_avx512_core_u8s8s32x_convolution_fwd_t<with_relu, dst_data_type>::
+execute_forward() {
     auto src_u8 = reinterpret_cast<const src_data_t *>(input_memory(0));
     auto wei_s8 = reinterpret_cast<const wei_data_t *>(input_memory(1));
-    auto bia_c8 = reinterpret_cast<const char *>(input_memory(2));
-    auto dst_u8 = reinterpret_cast<dst_data_t *>(memory());
+    auto bia = reinterpret_cast<const char *>(input_memory(2));
+    auto dst = reinterpret_cast<dst_data_t *>(memory(0));
 
     const memory_desc_wrapper src_d(conf_.src_pd());
     const memory_desc_wrapper wei_d(conf_.weights_pd(0));
@@ -541,8 +559,8 @@ void _jit_avx512_core_u8s8u8_convolution_fwd_t<with_relu>::execute_forward() {
         nd_iterator_init(start, n, c.mb, g, c.ngroups, oh, c.oh, oc_b1,
                 c.oc_nb1);
 
-        jit_avx512_core_u8s8u8_conv_fwd_ker_t::call_params_t p = {};
-        p.dst_s32 = ws_ + ithr * ws_per_thread_;
+        jit_avx512_core_u8s8s32x_conv_fwd_ker_t::call_params_t p = {};
+        p.acc_s32 = ws_ + ithr * ws_per_thread_;
 
         for (int iwork = start; iwork < end; ++iwork) {
             const int kh_start = nstl::max(0, c.t_pad - oh * c.stride_h);
@@ -559,8 +577,8 @@ void _jit_avx512_core_u8s8u8_convolution_fwd_t<with_relu>::execute_forward() {
             p.wei_s8 = &wei_s8[conf_.with_groups()
                 ? wei_d.blk_off(g, oc_b1, 0, kh_start)
                 : wei_d.blk_off(oc_b1, 0, kh_start)];
-            p.bia_c8 = &bia_c8[oc_start * bia_dt_size];
-            p.dst_u8 = &dst_u8[dst_d.blk_off(n, oc_start, oh)];
+            p.bia = &bia[oc_start * bia_dt_size];
+            p.dst = &dst[dst_d.blk_off(n, oc_start, oh)];
 
             p.kh_range = (size_t)(kh_end - kh_start);
 
@@ -576,8 +594,12 @@ void _jit_avx512_core_u8s8u8_convolution_fwd_t<with_relu>::execute_forward() {
     }
 }
 
-template struct _jit_avx512_core_u8s8u8_convolution_fwd_t<true>;
-template struct _jit_avx512_core_u8s8u8_convolution_fwd_t<false>;
+template struct _jit_avx512_core_u8s8s32x_convolution_fwd_t<true, data_type::s8>;
+template struct _jit_avx512_core_u8s8s32x_convolution_fwd_t<false, data_type::s8>;
+template struct _jit_avx512_core_u8s8s32x_convolution_fwd_t<true, data_type::u8>;
+template struct _jit_avx512_core_u8s8s32x_convolution_fwd_t<false, data_type::u8>;
+template struct _jit_avx512_core_u8s8s32x_convolution_fwd_t<true, data_type::s32>;
+template struct _jit_avx512_core_u8s8s32x_convolution_fwd_t<false, data_type::s32>;
 
 }
 }

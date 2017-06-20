@@ -118,7 +118,7 @@ inline data_type_t default_accum_data_type(data_type_t src_dt,
         return s32;
 
     if (one_of(src_dt, s8, u8) && one_of(wei_dt, s8, u8, data_type::undef)
-            && one_of(dst_dt, s8, u8, data_type::undef))
+            && one_of(dst_dt, s8, u8, s32, data_type::undef))
         return s32;
 
     assert(!"unimplemented use-case: no default parameters available");
