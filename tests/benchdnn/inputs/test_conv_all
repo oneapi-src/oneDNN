@@ -10,11 +10,15 @@
 --merge=RELU                # +relu
 --dir=FWD_B --batch=conv_all
 
-# s8 (skx)
---reset --cfg=s8s32
+# i8 (skx)
+--reset --dir=FWD_B --mb=2
 --skip-impl="ref:gemm"      # ! test jit version only
---mb=2
---dir=FWD_B --batch=conv_all
+
+--cfg=u8s8s32u8  --batch=conv_all
+--cfg=u8s8s32s8  --batch=conv_all
+--cfg=u8s8s32s32 --batch=conv_all
+--merge=RELU
+--cfg=u8s8s32s32 --batch=conv_all
 
 # s16 (knm)
 --reset --cfg=s16s32

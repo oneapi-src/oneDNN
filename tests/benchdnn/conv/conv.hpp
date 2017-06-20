@@ -84,7 +84,9 @@ extern const _dt_conf_t conf_f32;
 extern const _dt_conf_t conf_f32_full;
 extern const _dt_conf_t conf_f32_wino;
 extern const _dt_conf_t conf_s16s32;
-extern const _dt_conf_t conf_s8s32;
+extern const _dt_conf_t conf_u8s8s32s32;
+extern const _dt_conf_t conf_u8s8s32s8;
+extern const _dt_conf_t conf_u8s8s32u8;
 
 const dt_conf_t *str2cfg(const char *str);
 const char *cfg2str(const dt_conf_t *cfg);

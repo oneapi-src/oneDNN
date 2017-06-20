@@ -98,9 +98,10 @@ inline int compare_dat(const prb_t *p, int what, dnn_mem_t &mem_dt,
                 case BIA: inv_bia_off_f(p, i, mb_or_g, g_or_oc); break;
                 case DST: inv_dst_off_f(p, i, mb_or_g, g_or_oc, c, h, w); break;
                 }
-                print(0, "[%4d][%s][%d,%d,%d,%d,%d] "
+                print(0, "[%4d][%s%s][%d,%d,%d,%d,%d] "
                         "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                        i, swhat, mb_or_g, g_or_oc, c, h, w,
+                        i, final_compare == false ? "REORDER " : "",
+                        swhat, mb_or_g, g_or_oc, c, h, w,
                         fp, dt, diff, rel_diff);
             }
         }

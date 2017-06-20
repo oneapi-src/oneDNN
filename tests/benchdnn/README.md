@@ -43,7 +43,7 @@ The usage:
 
 where *harness-knobs* are:
 
- - `--cfg={f32, s8s32, ...}` configuration (see below), default `f32`
+ - `--cfg={f32, u8s8s32u8, ...}` configuration (see below), default `f32`
  - `--dir={FWD_D, FWD_B, BWD_D, BWD_W, BWD_WB}` direction, default `FWD_B`
  - `--alg={DIRECT, WINO}` convolution algorithm, default DIRECT
  - `--merge={NONE, RELU}` merged primitive, default NONE (nothing merged)
@@ -80,11 +80,13 @@ want keep it 0 and it seems to work for now).
 The table below shows cases supported by Intel MKL-DNN and corresponding
 configurations for **benchdnn**:
 
-|src type | wei type | acc type | dst type | cfg      | notes
-|:---     |:---      |:---      |:---      |:---      |:---
-| f32     | f32      | f32      | f32      | f32      | inference optimized for sse4.2+, training avx2+
-| s16     | s16      | s32      | s32      | s16s32   | optimized for processors with support of 4vnni
-| u8      | s8       | s32      | u8       | s8s32    | optimized for processors with support of avx512vl
+|src type | wei type | acc type | dst type | cfg        | notes
+|:---     |:---      |:---      |:---      |:---        |:---
+| f32     | f32      | f32      | f32      | f32        | inference optimized for sse4.2+, training avx2+
+| s16     | s16      | s32      | s32      | s16s32     | optimized for processors with support of 4vnni
+| u8      | s8       | s32      | s32      | u8s8s32s32 | optimized for processors with support of avx512vl
+| u8      | s8       | s32      | s8       | u8s8s32s8  | same as u8s8s32s32
+| u8      | s8       | s32      | u8       | u8s8s32u8  | same as u8s8s32s32
 
 
 ## Examples
@@ -108,20 +110,20 @@ verbose level set to 2:
         --cfg=f32 --dir=BWD_W --match='.*kh3[^0-9].*'
 ```
 
-Run the default set of s8s32 backward convolutions wrt data but skip all the
-convolutions that will use reference or gemm-based implementation:
+Run the default set of u8s8s32u8 backward convolutions wrt data but skip all
+the convolutions that will use reference or gemm-based implementation:
 ```
     $ ./benchdnn --conv \
-        --cfg=s8s32 --dir=BWD_B --skip-impl='ref:gemm'
+        --cfg=u8s8s32u8 --dir=BWD_B --skip-impl='ref:gemm'
 ```
 
 Run explicitly specified 1st forward convolution (including bias) from Alexnet
 with the minibatch set to 4, verbose level set to 1 for two given
-configurations (`s8s32` and `f32`):
+configurations (`u8s8s32u8` and `f32`):
 ```
     $ ./benchdnn --conv -v1 \
         --mb=4 --dir=FWD_B \
-        --prec=s8s32 ic3ih227iw227_oc96oh55ow55_kh11kw11_sh4sw4ph0pw0_n"alexnet:conv1" \
+        --prec=u8s8s32u8 ic3ih227iw227_oc96oh55ow55_kh11kw11_sh4sw4ph0pw0_n"alexnet:conv1" \
         --prec=f32 ic3ih227iw227_oc96oh55ow55_kh11kw11_sh4sw4ph0pw0_n"alexnet:conv1"
 ```
 
