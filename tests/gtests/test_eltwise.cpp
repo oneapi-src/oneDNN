@@ -203,6 +203,8 @@ TEST_P(eltwise_test_float, TestsEltwise)
 {
 }
 
+#define EXPAND(args) args
+
 #define EXPAND_FORMATS(data) memory::format::data
 
 #define ENGINE engine::kind::cpu
@@ -213,9 +215,9 @@ TEST_P(eltwise_test_float, TestsEltwise)
     alpha, beta, {mb, c, h, w} }
 
 #define PARAMS_ALL_ALG(...) \
-    PARAMS(eltwise_relu, __VA_ARGS__), \
-    PARAMS(eltwise_tanh, __VA_ARGS__), \
-    PARAMS(eltwise_elu, __VA_ARGS__) \
+    EXPAND(PARAMS(eltwise_relu, __VA_ARGS__)), \
+    EXPAND(PARAMS(eltwise_tanh, __VA_ARGS__)), \
+    EXPAND(PARAMS(eltwise_elu, __VA_ARGS__))
 
 #define INST_TEST_CASE(str, ...) INSTANTIATE_TEST_CASE_P( \
         str, eltwise_test_float, ::testing::Values(__VA_ARGS__))
