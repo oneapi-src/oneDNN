@@ -270,6 +270,9 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(ref_inner_product_fwd_t<data_type::u8, data_type::s8,
             data_type::s32, data_type::u8>),
     /* conv_eltwise */
+#ifndef _WIN32
+    INSTANCE(jit_avx512_common_convolution_winograd_relu_t),
+#endif
     INSTANCE(jit_avx512_common_1x1_convolution_relu_t),
     INSTANCE(jit_avx512_common_convolution_relu_t),
     INSTANCE(jit_avx2_1x1_convolution_relu_t),
