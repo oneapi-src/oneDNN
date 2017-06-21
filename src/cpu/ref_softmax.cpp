@@ -62,7 +62,6 @@ void ref_softmax_fwd_t<data_type>::execute_forward_generic() {
     const memory_desc_wrapper data_d(conf_.src_pd());
     const size_t dim = channels_ * inner_size_;
 
-//#pragma omp parallel for schedule(static)
     for (int ou = 0; ou < outer_size_; ou++) {
         utils::array_set(max_, 0, inner_size_);
         utils::array_set(denom_, 0, inner_size_);
@@ -116,6 +115,7 @@ void ref_softmax_fwd_t<data_type>::_exp(const int n, data_t *a, data_t *r) {
         return;
     }
 #endif
+#pragma omp parallel for
     for (int c = 0; c < n; ++c) {
         r[c] = exp(a[c]);
     }
@@ -139,6 +139,7 @@ void ref_softmax_fwd_t<data_type>::_scal(
         return;
     }
 #endif
+#pragma omp parallel for
     for (int c = 0; c < n; ++c) {
         x[c] *= alpha;
     }
