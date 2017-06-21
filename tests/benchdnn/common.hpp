@@ -62,7 +62,12 @@ inline void *zmalloc(size_t size, int align) {
 }
 inline void zfree(void *ptr) { return ::free(ptr); }
 
+enum bench_mode_t { MODE_UNDEF = 0x0, CORR = 0x1, PERF = 0x2, };
+const char *bench_mode2str(bench_mode_t mode);
+bench_mode_t str2bench_mode(const char *str);
+
 extern int verbose;
+extern bench_mode_t bench_mode;
 
 #define print(v, fmt, ...) do { \
     if (verbose >= v) { \
@@ -103,14 +108,51 @@ enum res_state_t { UNTESTED = 0, PASSED, SKIPPED, MISTRUSTED, UNIMPLEMENTED,
     FAILED };
 const char *state2str(res_state_t state);
 
-struct res_t {
-    res_state_t state;
-    int errors, total;
-};
-
 bool str2bool(const char *str);
 const char *bool2str(bool value);
 
 bool match_regex(const char *str, const char *pattern);
+
+/* perf */
+extern double max_ms_per_prb; /** maximum time spends per prb in ms */
+extern int min_times_per_prb; /** minimal amount of runs per prb */
+extern int fix_times_per_prb; /** if non-zero run prb that many times */
+
+struct benchdnn_timer_t {
+    enum mode_t { min = 0, avg = 1, max = 2, n_modes };
+
+    benchdnn_timer_t() { reset(); }
+
+    void reset(); /** fully reset the measurements */
+
+    void start(); /** restart timer */
+    void stop(); /** stop timer & update statistics */
+
+    void stamp() { stop(); }
+
+    int times() const { return times_; }
+
+    double total_ms() const { return ms_[avg]; }
+
+    double ms(mode_t mode = benchdnn_timer_t::min) const
+    { return ms_[mode] / (mode == avg ? times_ : 1); }
+
+    long long ticks(mode_t mode = min) const
+    { return ticks_[mode] / (mode == avg ? times_ : 1); }
+
+    benchdnn_timer_t &operator=(const benchdnn_timer_t &rhs);
+
+    int times_;
+    long long ticks_[n_modes], ticks_start_;
+    double ms_[n_modes], ms_start_;
+};
+
+/* result structure */
+
+struct res_t {
+    res_state_t state;
+    int errors, total;
+    benchdnn_timer_t timer;
+};
 
 #endif

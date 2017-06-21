@@ -29,8 +29,13 @@
 #include "conv/conv.hpp"
 #include "ip/ip.hpp"
 
-stat_t benchdnn_stat {0};
 int verbose {0};
+bench_mode_t bench_mode {CORR};
+stat_t benchdnn_stat {0};
+
+double max_ms_per_prb {3e3};
+int min_times_per_prb {5};
+int fix_times_per_prb {0};
 
 int main(int argc, char **argv) {
     prim_t prim = DEF;
@@ -39,7 +44,10 @@ int main(int argc, char **argv) {
     while (true) {
         if (!strcmp("--conv", argv[0])) prim = CONV;
         else if (!strcmp("--ip", argv[0])) prim = IP;
-        else if (!strncmp("-v", argv[0], 2)) verbose = atoi(argv[0] + 2);
+        else if (!strncmp("--mode=", argv[0], 7))
+            bench_mode = str2bench_mode(argv[0] + 7);
+        else if (!strncmp("-v", argv[0], 2))
+            verbose = atoi(argv[0] + 2);
         else if (!strncmp("--verbose=", argv[0], 10))
             verbose = atoi(argv[0] + 10);
         else break;

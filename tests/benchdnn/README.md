@@ -1,6 +1,6 @@
 # benchdnn
 
-**benchdnn** is a standalone correctness (and maybe performance) benchmark for
+**benchdnn** is a standalone correctness and performance benchmark for
 [Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN)](
 https://raw.githubusercontent.com/01org/mkl-dnn) library.
 The purpose of the benchmark is extended and robust correctness verification of
@@ -20,11 +20,13 @@ harnesses. So far it has harness for Intel MKL-DNN convolution and inner
 product.
 The usage:
 ```
-    $ ./benchdnn: [--HARNESS] [-vN|--verbose=N] HARNESS-OPTS
+    $ ./benchdnn: [--HARNESS] [--mode=MODE] [-vN|--verbose=N] HARNESS-OPTS
 ```
 where:
 
  - `HARNESS` is either `conv` [default] or `ip`
+
+ - `MODE` -- string that contains flags for benchmark mode. Use `C` or `c` for correctness (used by default), and `P` or `p` for performance
 
  - `N` -- verbose level (integer from 0 [default] to ...)
 
@@ -51,6 +53,7 @@ where *harness-knobs* are:
  - `--match=regex` check only convolutions that match with regex, default is `".*"`
  - `--skip-impl="str1[:str2]...` skip implementation (see mkldnn_query_impl_info_str), default `""`
  - `--allow-unimpl=true|false` do not treat unimplemented configuration as an error, default `false`
+ - `--perf-template=template-str` set template for performance report (see section *Performance measurements*)
  - `--reset` reset all the parameters set before to default one
  - `-vN|--verbose=N` verbose level, default `0`
  - `--batch=file` use options from the given file (see in subdirectory)
@@ -89,6 +92,53 @@ configurations for **benchdnn**:
 | u8      | s8       | s32      | u8       | u8s8s32u8  | same as u8s8s32s32
 
 
+## Performance measurements
+
+**benchdnn** supports custom performance report. Template is passed via
+command line and consists of terminal and nonterminal symbols. Nonterminal
+symbols are printed as is. Description of terminal symbols is given below.
+There is also a notion of modifiers (marked as @) that change meaning of
+terminal symbols, e.g. sign '-' means minimum of (in terms of time). See
+table of modifiers below.
+
+> **caution:** threads have to be pinned in order to get consistent frequency
+
+| abbreviation  | description
+|:------------  |:-----------
+| %d            | problem descriptor
+| %n            | problem name
+| %@F           | effective cpu frequency computed as clocks[@] / time[@]
+| %O            | number of ops required (padding is not taken into account)
+| %@t           | time in ms
+| %@c           | time in clocks
+| %@p           | ops per second
+
+| modifier  | description
+|:--------  |:-----------
+|           | default
+| -         | min (time) -- default
+| 0         | avg (time)
+| +         | max (time)
+|           |
+| K         | Kilo (1e3)
+| M         | Mega (1e6)
+| G         | Giga (1e9)
+
+The default template can be found in conv/bench_conv.cpp that is defined as
+`perf,%n,%d,%GO,%GF,%-t,%-Gp,%0t,%0Gp`. That will produce the following output
+in CSV format:
+```
+string: perf
+convolution name
+full conv-desc
+number of giga ops calculated
+effective cpu frequency in GHz (amb clocks[min] / time[min])
+minimum time spent in ms
+best gigaops (since it corresponds to mimimum time)
+average time spent in ms
+average gigaops (since it corresponds to average time)
+```
+
 ## Examples
 
 Run the default set of f32 forwad convolutions w/ bias and default minibatch:
@@ -102,6 +152,14 @@ Run the same but with merged ReLU:
     $ ./benchdnn --conv \
         --cfg=f32 --dir=FWD_B --merge=RELU
 ```
+
+Run the same as previous but also measure performance:
+```
+    $ ./benchdnn --conv --mode=CORRnPERF \
+        --cfg=f32 --dir=FWD_B --merge=RELU
+```
+
+> **note**: instead of `CORRnPERF` one can use `CP`, `PC`, `cp`, or `pc`
 
 Run the default set of f32 backward convolutions wrt weights with kh=3 and
 verbose level set to 2:

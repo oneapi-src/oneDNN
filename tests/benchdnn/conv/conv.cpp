@@ -463,40 +463,61 @@ int doit(const prb_t *p, res_t *r) {
         SAFE(fill_bia(p, bia_dt, bia_fp, r), WARN);
 
     if (p->dir & FLAG_FWD) {
-        compute_ref_fwd(p, src_fp, wei_fp, bia_fp, dst_fp);
         mkldnn_primitive_at_t inputs[3] = { {src_dt.p_, 0}, {wei_dt.p_, 0},
             {p->dir & FLAG_BIA ? bia_dt.p_ : NULL, 0}
         };
         const_mkldnn_primitive_t outputs[] = { dst_dt.p_ };
         DNN_SAFE(mkldnn_primitive_create(&c, cpd, inputs, outputs), WARN);
         SAFE(execute(c), WARN);
-        dnn_mem_t dst(dst_dt, fp, mkldnn_nchw);
-        SAFE(dst.reorder(dst_dt), WARN);
-        SAFE(compare_dst(p, dst, dst_fp, r, true), WARN);
+        if (bench_mode & CORR) {
+            compute_ref_fwd(p, src_fp, wei_fp, bia_fp, dst_fp);
+            dnn_mem_t dst(dst_dt, fp, mkldnn_nchw);
+            SAFE(dst.reorder(dst_dt), WARN);
+            SAFE(compare_dst(p, dst, dst_fp, r, true), WARN);
+        }
     } else if (p->dir == BWD_D) {
-        compute_ref_bwd_d(p, src_fp, wei_fp, dst_fp);
         mkldnn_primitive_at_t inputs[3] = { {dst_dt.p_, 0}, {wei_dt.p_, 0}, };
         const_mkldnn_primitive_t outputs[] = { src_dt.p_ };
         DNN_SAFE(mkldnn_primitive_create(&c, cpd, inputs, outputs), WARN);
         SAFE(execute(c), WARN);
-        dnn_mem_t src(src_dt, fp, mkldnn_nchw);
-        SAFE(src.reorder(src_dt), WARN);
-        SAFE(compare_src(p, src, src_fp, r, true), WARN);
+        if (bench_mode & CORR) {
+            compute_ref_bwd_d(p, src_fp, wei_fp, dst_fp);
+            dnn_mem_t src(src_dt, fp, mkldnn_nchw);
+            SAFE(src.reorder(src_dt), WARN);
+            SAFE(compare_src(p, src, src_fp, r, true), WARN);
+        }
     } else if (p->dir & FLAG_BWD && p->dir & FLAG_WEI) {
-        compute_ref_bwd_w(p, src_fp, wei_fp, bia_fp, dst_fp);
         mkldnn_primitive_at_t inputs[3] = { {src_dt.p_, 0}, {dst_dt.p_, 0}, };
         const_mkldnn_primitive_t outputs[] = { wei_dt.p_,
             p->dir & FLAG_BIA ? bia_dt.p_ : NULL,
         };
         DNN_SAFE(mkldnn_primitive_create(&c, cpd, inputs, outputs), WARN);
         SAFE(execute(c), WARN);
-        dnn_mem_t wei(wei_dt, fp, mkldnn_goihw);
-        SAFE(wei.reorder(wei_dt), WARN);
-        SAFE(compare_wei(p, wei, wei_fp, r, true), WARN);
-        if (p->dir & FLAG_BIA) {
-            dnn_mem_t bia(bia_dt, fp, mkldnn_x);
-            SAFE(bia.reorder(bia_dt), WARN);
-            SAFE(compare_bia(p, bia, bia_fp, r, true), WARN);
+        if (bench_mode & CORR) {
+            compute_ref_bwd_w(p, src_fp, wei_fp, bia_fp, dst_fp);
+            dnn_mem_t wei(wei_dt, fp, mkldnn_goihw);
+            SAFE(wei.reorder(wei_dt), WARN);
+            SAFE(compare_wei(p, wei, wei_fp, r, true), WARN);
+            if (p->dir & FLAG_BIA) {
+                dnn_mem_t bia(bia_dt, fp, mkldnn_x);
+                SAFE(bia.reorder(bia_dt), WARN);
+                SAFE(compare_bia(p, bia, bia_fp, r, true), WARN);
+            }
+        }
+    }
+
+    if (bench_mode & PERF) {
+        auto &t = r->timer;
+        t.reset();
+        while (true) {
+            SAFE(execute(c), WARN);
+            t.stamp();
+            const bool stop = false
+                || (fix_times_per_prb && t.times() >= fix_times_per_prb)
+                || (!fix_times_per_prb
+                        && t.total_ms() >= max_ms_per_prb
+                        && t.times() >= min_times_per_prb);
+            if (stop) break;
         }
     }
 

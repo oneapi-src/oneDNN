@@ -102,6 +102,7 @@ alg_t alg = DIRECT;
 merge_t merge = NONE;
 const char *skip_impl = "";
 bool allow_unimpl = false;
+const char *perf_template = "perf,%n,%d,%GO,%GF,%-t,%-Gp,%0t,%0Gp";
 
 void reset_parameters() {
     cfg = conf_f32;
@@ -127,11 +128,17 @@ void check_correctness(const desc_t *c) {
     const int status = conv::doit(&p, &res);
     (void)status;
 
+    bool want_perf_report = false;
+
     auto &bs = benchdnn_stat;
     const char *state = state2str(res.state);
 
     switch (res.state) {
     case UNTESTED:
+        if (!(bench_mode & CORR)) {
+            want_perf_report = true;
+            break;
+        }
     case FAILED:
         assert(status == FAIL);
         bs.failed++;
@@ -158,12 +165,16 @@ void check_correctness(const desc_t *c) {
     case PASSED:
         assert(status == OK);
         print(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
+        want_perf_report = true;
         bs.passed++;
         break;
     default:
         assert(!"unknown state");
         { []() { SAFE(FAIL, CRIT); return 0; }(); }
     }
+
+    if (want_perf_report && bench_mode & PERF)
+        perf_report(&p, &res, pstr);
 
     bs.tests++;
 }
@@ -190,8 +201,12 @@ int bench(int argc, char **argv) {
             skip_impl = argv[arg] + 12;
         else if (!strncmp("--allow-unimpl=", argv[arg], 15))
             allow_unimpl = str2bool(argv[arg] + 15);
+        else if (!strncmp("--perf-template=", argv[arg], 16))
+            perf_template = argv[arg] + 16;
         else if (!strcmp("--reset", argv[arg]))
             reset_parameters();
+        else if (!strncmp("--mode=", argv[0], 7))
+            bench_mode = str2bench_mode(argv[0] + 7);
         else if (!strncmp("-v", argv[arg], 2))
             verbose = atoi(argv[arg] + 2);
         else if (!strncmp("--verbose=", argv[arg], 10))

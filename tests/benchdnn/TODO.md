@@ -1,14 +1,17 @@
 # Todo
 
-* add verbosity control through environment variable
+* common:
+    - add verbosity control through environment variable
 
-* add performance testing
+* correctness:
+    - change int to double for cfg->{min, max}
+    - add quick testing
 
-* change int to double for cfg->{min, max}
+* performance:
+    - add efficiency output
 
-* add quick testing
-
-* add more examples on convolution notation
+* documentation:
+    - add more examples on convolution notation
 
 # Done
 
@@ -25,3 +28,5 @@
 * add dilated convolution
 
 * add `_` as delimiter for conv description (can we read it now?)
+
+* add performance testing

@@ -94,14 +94,19 @@ const char *cfg2str(const dt_conf_t *cfg);
 struct prb_t: public desc_t {
     prb_t(const desc_t &desc, dir_t dir, const dt_conf_t *cfg, alg_t alg,
             merge_t merge, int mb = 0)
-        : desc_t(desc), dir(dir), cfg(cfg), alg(alg), merge(merge) {
+        : desc_t(desc), dir(dir), cfg(cfg), alg(alg), merge(merge), ops(0) {
         if (mb) this->mb = mb;
+        count_ops();
     }
 
     dir_t dir;
     const dt_conf_t *cfg;
     alg_t alg;
     merge_t merge;
+
+    double ops;
+
+    void count_ops();
 };
 const size_t max_prb_len = 392;
 void prb2str(const prb_t *p, char *buffer, bool canonical = false);
@@ -109,6 +114,7 @@ void prb2str(const prb_t *p, char *buffer, bool canonical = false);
 /* some extra control parameters which shouldn't be placed in prb_t */
 extern const char *skip_impl; /* NULL or "" means do not skip anything */
 extern bool allow_unimpl; /* true means do not treat unimplemented as error */
+extern const char *perf_template; /* performance output template */
 
 inline size_t src_off_f(const prb_t *p, int mb, int g, int ic, int ih, int iw)
 {
@@ -172,6 +178,8 @@ void compute_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m, dnn_mem_t &wei_m,
         dnn_mem_t &diff_dst_m);
 void compute_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &diff_wei_m,
         dnn_mem_t &diff_bia_m, dnn_mem_t &diff_dst_m);
+
+void perf_report(const prb_t *p, const res_t *r, const char *pstr);
 
 bool maybe_skip(const char *impl_str);
 int doit(const prb_t *p, res_t *res);

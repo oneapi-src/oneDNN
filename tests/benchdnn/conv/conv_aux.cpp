@@ -214,6 +214,27 @@ const char *cfg2str(const dt_conf_t *cfg) {
     return NULL;
 }
 
+void prb_t::count_ops() {
+    if (ops > 0) return;
+
+    double sp_ops = 0;
+    for (int oh = 0; oh < this->oh; ++oh) {
+    for (int ow = 0; ow < this->ow; ++ow) {
+        for (int kh = 0; kh < this->kh; ++kh) {
+            const int ih = oh * this->sh - this->ph + kh * (this->dh + 1);
+            if (ih < 0 || ih >= this->ih) continue;
+            for (int kw = 0; kw < this->kw; ++kw) {
+                const int iw = ow * this->sw - this->pw + kw * (this->dw + 1);
+                if (iw < 0 || iw >= this->iw) continue;
+                sp_ops += 1;
+            }
+        }
+    }
+    }
+
+    ops = 2 * this->mb * this->oc * this->ic / this->g * sp_ops;
+}
+
 void prb2str(const prb_t *p, char *buffer, bool canonical) {
     char desc_buf[max_desc_len];
     char dir_str[32] = {0}, cfg_str[32] = {0}, alg_str[32] = {0},
