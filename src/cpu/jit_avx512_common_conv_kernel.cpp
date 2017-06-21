@@ -42,11 +42,9 @@ inline void pick_loop_order(jit_conv_conf_t &jcp) {
     auto w = (jcp.prop_kind == backward_data) ? jcp.iw : jcp.ow;
     auto h = (jcp.prop_kind == backward_data) ? jcp.ih : jcp.oh;
     switch (jcp.ver) {
-    case ver_4vnni:
-        jcp.loop_order = loop_ngc;
-        break;
     case ver_fma:
         jcp.loop_order = loop_cgn;
+    case ver_4vnni:
     case ver_4fma:
         jcp.loop_order
             = (w <= small_spatial && h <= small_spatial) ? loop_cgn : loop_gnc;

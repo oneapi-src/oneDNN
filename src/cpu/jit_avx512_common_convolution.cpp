@@ -59,13 +59,15 @@ inline void jit_conv_ker_pipeline(jit_conv_ker_t ker, jit_conv_call_s &p,
          ? (d).blk_off((g), __VA_ARGS__) \
          : (d).blk_off(__VA_ARGS__))
 
-template <bool with_relu>
-void _jit_avx512_common_convolution_fwd_t<with_relu>::execute_forward()
+template <bool with_relu, data_type_t src_type, data_type_t wei_type,
+          data_type_t dst_type>
+void _jit_avx512_common_convolution_fwd_t
+    <with_relu, src_type, wei_type, dst_type>::execute_forward()
 {
-    auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
-    auto weights = reinterpret_cast<const data_t *>(this->input_memory(1));
-    auto bias = reinterpret_cast<const data_t *>(this->input_memory(2));
-    auto dst = reinterpret_cast<data_t *>(this->memory());
+    auto src = reinterpret_cast<const src_data_t *>(this->input_memory(0));
+    auto weights = reinterpret_cast<const wei_data_t *>(this->input_memory(1));
+    auto bias = reinterpret_cast<const dst_data_t *>(this->input_memory(2));
+    auto dst = reinterpret_cast<dst_data_t *>(this->memory());
 
     const memory_desc_wrapper src_d(conf_.src_pd());
     const memory_desc_wrapper dst_d(conf_.dst_pd());
@@ -153,8 +155,10 @@ void _jit_avx512_common_convolution_fwd_t<with_relu>::execute_forward()
                 src, dst, weights, bias, 0, 0);
     }
 }
-template void _jit_avx512_common_convolution_fwd_t<true>::execute_forward();
-template void _jit_avx512_common_convolution_fwd_t<false>::execute_forward();
+template struct _jit_avx512_common_convolution_fwd_t<false, data_type::f32>;
+template struct _jit_avx512_common_convolution_fwd_t<true, data_type::f32>;
+template struct _jit_avx512_common_convolution_fwd_t<false, data_type::s16,
+        data_type::s16, data_type::s32>;
 
 void jit_avx512_common_convolution_bwd_data_t::execute_backward_data() {
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(0));
