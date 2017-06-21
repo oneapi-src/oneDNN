@@ -161,7 +161,7 @@ void check_correctness(const desc_t *c) {
         bs.passed++;
         break;
     default:
-        assert(!"unknowtn state");
+        assert(!"unknown state");
         { []() { SAFE(FAIL, CRIT); return 0; }(); }
     }
 
