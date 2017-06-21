@@ -573,6 +573,71 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     typename utils::enable_if<
+        (fmt_i == gOIhw8i16o2i && fmt_o == gOIhw8o16i2o)
+        || (fmt_i == OIhw8i16o2i && fmt_o == OIhw8o16i2o)
+    >::type>
+{
+    static bool is_applicable(const memory_desc_wrapper &input_d,
+            const memory_desc_wrapper &output_d) {
+        return input_d.format() == (order_keep ? fmt_i : fmt_o)
+            && output_d.format() == (order_keep ? fmt_o : fmt_i);
+    }
+
+    static status_t execute(const memory_desc_wrapper &input_d,
+        const memory_desc_wrapper &output_d, const data_t<type_i> *input,
+        data_t<type_o> *output,
+        const double alpha, const double beta) {
+        constexpr bool w_groups = fmt_i == gOIhw8i16o2i;
+
+        const auto &dims = input_d.dims();
+        const int blksize = 16;
+
+        auto index_src = [&](const int ic, const int oc) {
+            return ((ic / 2) * blksize * 2 + 2 * oc + ic % 2);
+        };
+        auto index_dst = [&](const int ic, const int oc) {
+            return ((oc / 2) * blksize * 2 + 2 * ic + oc % 2);
+        };
+
+        auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o) {
+            for (int ic = 0; ic < blksize; ++ic) {
+                for (int oc = 0; oc < blksize; ++oc) {
+                    const int o_idx = ic * blksize + oc;
+                    const int i_idx = oc * blksize + ic;
+                    o[index_dst(ic,oc)] = (alpha == 1.0 && beta == 0.0)
+                        ? data_t<type_o>(i[index_src(ic,oc)])
+                        : alpha * data_t<type_o>(i[index_src(ic,oc)])
+                            + (beta ? beta * o[index_dst(ic,oc)] : 0);
+                }
+            }
+        };
+
+        const int _G = w_groups ? dims[0] : 1;
+
+#       pragma omp parallel for collapse(5) schedule(static)
+        for (int g = 0; g < _G; ++g) {
+            for (int o = 0; o < dims[w_groups + 0] / blksize; ++o) {
+                for (int i = 0; i < dims[w_groups + 1] / blksize; ++i) {
+                    for (int h = 0; h < dims[w_groups + 2]; ++h) {
+                        for (int w = 0; w < dims[w_groups + 3]; ++w) {
+                            auto i_ptr = &input[input_d.blk_off<!w_groups>(g,
+                                    o, i, h, w)];
+                            auto o_ptr = &output[output_d.blk_off<!w_groups>(g,
+                                    o, i, h, w)];
+                            ker(i_ptr, o_ptr);
+                        }
+                    }
+                }
+            }
+        }
+
+        return success;
+    }
+};
+
+template <SIMPLE_REORDER_TEMPL_DECL>
+struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
+    typename utils::enable_if<
         (fmt_i == gOIhw8i8o && fmt_o == gOIhw8o8i)
         || (fmt_i == OIhw8i8o && fmt_o == OIhw8o8i)
         || (fmt_i == gOIhw16i16o && fmt_o == gOIhw16o16i)
