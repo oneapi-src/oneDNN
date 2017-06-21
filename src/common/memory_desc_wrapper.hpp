@@ -68,10 +68,10 @@ struct memory_desc_wrapper: public c_compatible {
         if (is_zero() || format() == memory_format::any) return 0;
         assert(utils::one_of(format(), x, nc, nchw, nhwc, chwn, nChw8c,
                     nChw16c, oi, io, oihw, ihwo, oIhw8i, oIhw16i, OIhw8i8o,
-                    OIhw16i16o, OIhw8i16o2i, OIhw8o8i, OIhw16o16i, Ohwi8o,
-                    Ohwi16o, OhIw16o4i, goihw, gOIhw8i8o, gOIhw16i16o,
-                    gOIhw8i16o2i, gOIhw8o8i, gOIhw16o16i, gOhwi8o, gOhwi16o,
-                    gOhIw16o4i));
+                    OIhw16i16o, OIhw8i16o2i, OIhw8o16i2o, OIhw8o8i, OIhw16o16i,
+                    Ohwi8o, Ohwi16o, OhIw16o4i, goihw, gOIhw8i8o, gOIhw16i16o,
+                    gOIhw8i16o2i, gOIhw8o16i2o, gOIhw8o8i, gOIhw16o16i, gOhwi8o,
+                    gOhwi16o, gOhIw16o4i));
 
         if (blocking_desc().offset_padding != 0) return 0;
 
@@ -147,6 +147,13 @@ struct memory_desc_wrapper: public c_compatible {
             const int oc_16 = pos[with_groups + 0] % 16;
             const int ic_2  = pos[with_groups + 1] % 2;
             phys_offset += -16 * ic_2 + oc_16 + ic_2;
+        }
+        if (format() == gOIhw8o16i2o || format() == OIhw8o16i2o) {
+            // TODO: Fix temporary workaround for formats with double blocking
+            const bool with_groups = format() == gOIhw8o16i2o;
+            const int ic_16 = pos[with_groups + 1] % 16;
+            const int oc_2  = pos[with_groups + 0] % 2;
+            phys_offset += -16 * oc_2 + ic_16 + oc_2;
         }
         return phys_offset;
     }
