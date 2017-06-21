@@ -165,7 +165,11 @@ INSTANTIATE_TEST_CASE_P(TestReorder, reorder_simple_test_s16_s16,
             cfg_s16{eng::cpu, fmt::oihw, fmt::OIhw8i16o2i, {64, 64, 3, 3}},
             cfg_s16{eng::cpu, fmt::OIhw8i16o2i, fmt::oihw, {64, 64, 3, 3}},
             cfg_s16{eng::cpu, fmt::goihw, fmt::gOIhw8i16o2i, {2, 64, 64, 3, 3}},
-            cfg_s16{eng::cpu, fmt::gOIhw8i16o2i, fmt::goihw, {2, 64, 64, 3, 3}}
+            cfg_s16{eng::cpu, fmt::gOIhw8i16o2i, fmt::goihw, {2, 64, 64, 3, 3}},
+            cfg_s16{eng::cpu, fmt::OIhw8i16o2i, fmt::OIhw8o16i2o, {64, 64, 3, 3}},
+            cfg_s16{eng::cpu, fmt::OIhw8o16i2o, fmt::OIhw8i16o2i, {64, 64, 3, 3}},
+            cfg_s16{eng::cpu, fmt::gOIhw8i16o2i, fmt::gOIhw8o16i2o, {2, 64, 64, 3, 3}},
+            cfg_s16{eng::cpu, fmt::gOIhw8o16i2o, fmt::gOIhw8i16o2i, {2, 64, 64, 3, 3}}
             )
         );
 

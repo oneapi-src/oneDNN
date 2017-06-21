@@ -43,13 +43,21 @@ template <> inline void assert_eq<float>(float a, float b) {
 }
 
 inline size_t map_index(const mkldnn::memory::desc &md, size_t index) {
-    const mkldnn::c_api::mkldnn_memory_format_t f_weights_g =
+    const mkldnn::c_api::mkldnn_memory_format_t fwd_weights_g =
         static_cast<mkldnn::c_api::mkldnn_memory_format_t>(
             mkldnn::memory::format::gOIhw8i16o2i);
-    const mkldnn::c_api::mkldnn_memory_format_t f_weights =
+    const mkldnn::c_api::mkldnn_memory_format_t fwd_weights =
         static_cast<mkldnn::c_api::mkldnn_memory_format_t>(
             mkldnn::memory::format::OIhw8i16o2i);
-    const bool with_groups = md.data.format == f_weights_g;
+    const mkldnn::c_api::mkldnn_memory_format_t bwd_weights_g =
+        static_cast<mkldnn::c_api::mkldnn_memory_format_t>(
+            mkldnn::memory::format::gOIhw8o16i2o);
+    const mkldnn::c_api::mkldnn_memory_format_t bwd_weights =
+        static_cast<mkldnn::c_api::mkldnn_memory_format_t>(
+            mkldnn::memory::format::OIhw8o16i2o);
+
+    const bool with_groups = (md.data.format == fwd_weights_g)
+                          || (md.data.format == bwd_weights_g);
 
     const int ndims = md.data.ndims;
     const int *dims = md.data.dims;
@@ -60,7 +68,8 @@ inline size_t map_index(const mkldnn::memory::desc &md, size_t index) {
     auto *strides_within_block = md.data.layout_desc.blocking.strides[1];
 
     size_t ph_index = 0;
-    int oc_16 = 0, ic_2 = 0;
+    int oc_16 = 0, ic_2 = 0,
+        oc_2 = 0, ic_16 = 0;
 
     for (int rd = 0; rd < ndims; ++rd) {
         int d = ndims - rd - 1;
@@ -76,17 +85,20 @@ inline size_t map_index(const mkldnn::memory::desc &md, size_t index) {
         int cur_pos_block = cur_pos / cur_block;
         int cur_pos_within_block = cur_pos % cur_block;
 
-        if (d == (with_groups + 0)) oc_16 = pos_d % 16;
-        if (d == (with_groups + 1)) ic_2  = pos_d % 2;
+        if (d == (with_groups + 0)) { oc_16 = pos_d % 16; oc_2 = pos_d % 2; }
+        if (d == (with_groups + 1)) { ic_2 = pos_d % 2; ic_16 = pos_d % 16; }
 
         ph_index += cur_pos_block*strides_block[d];
         ph_index += cur_pos_within_block*strides_within_block[d];
 
         index /= cur_dim;
     }
-    if (md.data.format == f_weights_g || md.data.format == f_weights) {
+    if (md.data.format == fwd_weights_g || md.data.format == fwd_weights) {
         ph_index += -16 * ic_2 + oc_16 + ic_2;
-    }
+    } else
+        if (md.data.format == bwd_weights_g || md.data.format == bwd_weights) {
+            ph_index += -16 * oc_2 + ic_16 + oc_2;
+        }
     ph_index += md.data.layout_desc.blocking.offset_padding;
 
     return ph_index;
@@ -112,6 +124,7 @@ inline mkldnn::memory::desc create_md(mkldnn::memory::dims dims,
     case f::OIhw8i8o:
     case f::OIhw16i16o:
     case f::OIhw8i16o2i:
+    case f::OIhw8o16i2o:
     case f::OIhw8o8i:
     case f::OIhw16o16i:
     case f::Ohwi8o:
@@ -121,6 +134,7 @@ inline mkldnn::memory::desc create_md(mkldnn::memory::dims dims,
     case f::gOIhw8i8o:
     case f::gOIhw16i16o:
     case f::gOIhw8i16o2i:
+    case f::gOIhw8o16i2o:
     case f::gOIhw8o8i:
     case f::gOIhw16o16i:
         ndims = 5; break;
