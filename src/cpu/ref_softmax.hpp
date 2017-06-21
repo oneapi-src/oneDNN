@@ -88,6 +88,12 @@ struct ref_softmax_fwd_t: public cpu_primitive_t {
 private:
     void execute_forward_dense();
     void execute_forward_generic();
+    void _max(const int n, const data_t *x, data_t *max_data);
+    void _sub(const int n, const data_t alpha, const data_t *x, data_t *y);
+    void _exp(const int n, data_t *a, data_t *r);
+    void _sum(const int n, const data_t *x, data_t *sum_data);
+    void _scal(const int n, const data_t alpha, data_t *x);
+
     pd_t conf_;
 
     bool use_dense_;
