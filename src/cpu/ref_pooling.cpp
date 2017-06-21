@@ -128,8 +128,8 @@ void ref_pooling_fwd_t<data_type, acc_type>::execute_forward() {
     }
 }
 
-template <impl::data_type_t data_type>
-void ref_pooling_bwd_t<data_type>::execute_backward() {
+template <data_type_t data_type, data_type_t acc_type>
+void ref_pooling_bwd_t<data_type, acc_type>::execute_backward() {
     using namespace alg_kind;
 
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(0));
@@ -159,7 +159,7 @@ void ref_pooling_bwd_t<data_type>::execute_backward() {
     auto ker_zero = [=](int _mb, int _oc) {
         for (int ih = 0; ih < IH; ++ih) {
             for (int iw = 0; iw < IW; ++iw) {
-                diff_src[diff_src_d.off(_mb, _oc, ih, iw)] = 0.0f;
+                diff_src[diff_src_d.off(_mb, _oc, ih, iw)] = data_type_t(0);
             }
         }
     };
@@ -233,6 +233,8 @@ template struct ref_pooling_fwd_t<data_type::s8, data_type::s32>;
 template struct ref_pooling_fwd_t<data_type::u8, data_type::s32>;
 
 template struct ref_pooling_bwd_t<data_type::f32>;
+template struct ref_pooling_bwd_t<data_type::s32>;
+template struct ref_pooling_bwd_t<data_type::s16, data_type::s32>;
 
 }
 }
