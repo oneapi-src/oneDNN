@@ -221,10 +221,17 @@ private:
         assert(idx < ker_reg_base_idx);
         return Xbyak::Zmm(idx);
     }
+    inline void vadd(Xbyak::Zmm zmm, reg64_t reg, int offset) {
+        if (jcp.ver == ver_4vnni)
+            vpaddd(zmm, zmm, EVEX_compress_addr(reg, offset));
+        else
+            vaddps(zmm, zmm, EVEX_compress_addr(reg, offset));
+    }
 
     inline void prepare_output(int ur_w);
     inline void store_output(int ur_w);
     inline void compute_loop_4fma(int ur_w, int l_overflow, int r_overflow);
+    inline void compute_loop_4vnni(int ur_w, int l_overflow, int r_overflow);
     inline void compute_loop_fma(int ur_w, int l_overflow, int r_overflow);
     inline void compute_loop(int ur_w, int l_overflow, int r_overflow);
     void generate();
