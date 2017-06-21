@@ -118,6 +118,22 @@ private:
             vaddps(zmm, zmm, EVEX_compress_addr(reg, offset));
     }
 
+    inline void vcmp(Xbyak::Opmask kmask,
+        Xbyak::Zmm zmm_src1, Xbyak::Zmm zmm_src2, const unsigned char cmp) {
+        if (jcp.ver == ver_4vnni)
+            vpcmpd(kmask, zmm_src1, zmm_src2, cmp);
+        else
+            vcmpps(kmask, zmm_src1, zmm_src2, cmp);
+    }
+
+    inline void vmul(Xbyak::Zmm zmm_dst, Xbyak::Opmask kmask,
+                     Xbyak::Zmm zmm_src1, Xbyak::Zmm zmm_src2) {
+        if (jcp.ver == ver_4vnni)
+            vpmulld(zmm_dst | kmask, zmm_src1, zmm_src2);
+        else
+            vmulps(zmm_dst | kmask, zmm_src1, zmm_src2);
+    }
+
     inline int get_output_offset(int oi, int n_oc_block) {
         return jcp.typesize_out
             * (n_oc_block * jcp.oh * jcp.ow + oi) * jcp.oc_block;

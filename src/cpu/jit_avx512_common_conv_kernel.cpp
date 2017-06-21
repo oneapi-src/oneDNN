@@ -100,16 +100,13 @@ void jit_avx512_common_conv_fwd_kernel::store_output(int ur_w)
 
     L(relu_label);
     if (jcp.with_relu) {
-        // TODO: Not supported for int16->int32 convolution
-        if (jcp.ver != ver_4vnni) {
-            vpxord(zmm_zero, zmm_zero, zmm_zero);
-            if (jcp.relu_negative_slope == 0) {
-                zmm_relu_ns = zmm_zero;
-            } else {
-                mov(reg_relu_ns,
-                    reinterpret_cast<size_t>(&jcp.relu_negative_slope));
-                vbroadcastss(zmm_relu_ns, ptr[reg_relu_ns]);
-            }
+        vpxord(zmm_zero, zmm_zero, zmm_zero);
+        if (jcp.relu_negative_slope == 0 || jcp.ver == ver_4vnni) {
+            zmm_relu_ns = zmm_zero;
+        } else {
+            mov(reg_relu_ns,
+                reinterpret_cast<size_t>(&jcp.relu_negative_slope));
+            vbroadcastss(zmm_relu_ns, ptr[reg_relu_ns]);
         }
         cmp(reg_channel, jcp.nb_ic - 1);
         jl(store_label, T_NEAR);
@@ -118,8 +115,8 @@ void jit_avx512_common_conv_fwd_kernel::store_output(int ur_w)
             for (int j = 0; j < ur_w; j++){
                 Opmask kmask = Opmask(7);
                 Zmm zmm = zmm_out(j, k);
-                vcmpps(kmask, zmm, zmm_zero, _cmp_lt_os);
-                vmulps(zmm | kmask, zmm, zmm_relu_ns);
+                vcmp(kmask, zmm, zmm_zero, _cmp_lt_os);
+                vmul(zmm, kmask, zmm, zmm_relu_ns);
             }
     }
 

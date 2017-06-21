@@ -159,6 +159,8 @@ template struct _jit_avx512_common_convolution_fwd_t<false, data_type::f32>;
 template struct _jit_avx512_common_convolution_fwd_t<true, data_type::f32>;
 template struct _jit_avx512_common_convolution_fwd_t<false, data_type::s16,
         data_type::s16, data_type::s32>;
+template struct _jit_avx512_common_convolution_fwd_t<true, data_type::s16,
+        data_type::s16, data_type::s32>;
 
 void jit_avx512_common_convolution_bwd_data_t::execute_backward_data() {
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(0));
