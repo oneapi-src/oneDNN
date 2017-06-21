@@ -24,6 +24,14 @@
 #include "cpu_primitive.hpp"
 #include "cpu_engine.hpp"
 
+#if (defined(__INTEL_COMPILER) && __INTEL_COMPILER <= 1600) || defined(__MSC_VER)
+/* Excluding ICC 16.0 from adding simd because it results in accuracy issues.
+ * MSC doesn't support simd in _pragma */
+#    define pragma_simd
+#else
+#    define pragma_simd _Pragma("simd")
+#endif
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {
@@ -649,11 +657,13 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         if (alpha == 1.0 && beta == 0.0) {
 #           pragma omp parallel for schedule(static)
+            pragma_simd
             for (int e = 0; e < nelems; ++e) {
                 output[e] = data_t<type_o>(input[e]);
             }
         } else {
 #           pragma omp parallel for schedule(static)
+            pragma_simd
             for (size_t e = 0; e < nelems; ++e) {
                 output[e] = alpha * data_t<type_o>(input[e])
                     + (beta ? beta * output[e] : 0);
@@ -695,6 +705,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         if (alpha == 1.0 && beta == 0.0) {
 #           pragma omp parallel for collapse(2) schedule(static)
+            pragma_simd
             for (int n = 0; n < N; ++n) {
                 for (size_t e = 0; e < nelems_no_d0; ++e) {
                     output[os * n + e] = data_t<type_o>(input[is * n + e]);
@@ -702,6 +713,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             }
         } else {
 #           pragma omp parallel for collapse(2) schedule(static)
+            pragma_simd
             for (int n = 0; n < N; ++n) {
                 for (size_t e = 0; e < nelems_no_d0; ++e) {
                     output[os * n + e] =
