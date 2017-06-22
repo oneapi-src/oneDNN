@@ -819,6 +819,7 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
         load_blocking = best_divider(load_blocking, 16, load_blocking, false);
         load_blocking *= jcp.load_block;
         load_blocking_max = load_blocking;
+        assert(jcp.load_dim % load_blocking == 0);
 
         bcast_blocking = div_up(jcp.bcast_dim, jcp.bcast_block);
         bcast_blocking = best_divider(bcast_blocking, 5, bcast_blocking, false);
@@ -865,7 +866,6 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
     }
 
     assert(jcp.bcast_block % jcp.ur == 0);
-    assert(jcp.load_dim % load_blocking == 0);
 
     jcp.ur_tail = jcp.bcast_dim % jcp.ur;
 
