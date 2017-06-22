@@ -118,11 +118,14 @@ void _ref_convolution_fwd_t<with_relu, src_type, wei_type, acc_type, dst_type>
     }
 }
 
-template <impl::data_type_t data_type>
-void ref_convolution_bwd_data_t<data_type>::execute_backward_data() {
-    auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(0));
-    auto weights = reinterpret_cast<const data_t *>(this->input_memory(1));
-    auto diff_src = reinterpret_cast<data_t*>(this->memory());
+template <data_type_t diff_dst_type, data_type_t wei_type,
+          data_type_t acc_type, data_type_t diff_src_type>
+void ref_convolution_bwd_data_t<diff_dst_type, wei_type,
+          acc_type, diff_src_type>::execute_backward_data() {
+    auto diff_dst = reinterpret_cast<const diff_dst_data_t*>
+                                                      (this->input_memory(0));
+    auto weights = reinterpret_cast<const wei_data_t*>(this->input_memory(1));
+    auto diff_src = reinterpret_cast<diff_src_data_t*>(this->memory());
 
     const memory_desc_wrapper diff_dst_d(conf_.diff_dst_pd());
     const memory_desc_wrapper diff_src_d(conf_.diff_src_pd());
@@ -148,7 +151,7 @@ void ref_convolution_bwd_data_t<data_type>::execute_backward_data() {
     const int padT = conf_.padT();
     const int padL = conf_.padL();
 
-    auto ker = [=](data_t *d, int g, int mb, int ic, int ih, int iw) {
+    auto ker = [=](acc_data_t &d, int g, int mb, int ic, int ih, int iw) {
         for (int oc = 0; oc < OC; ++oc) {
             for (int kh = 0; kh < KH; ++kh) {
                 for (int kw = 0; kw < KW; ++kw) {
@@ -162,10 +165,11 @@ void ref_convolution_bwd_data_t<data_type>::execute_backward_data() {
                     oh /= KSH;
 
                     if (oh < OH && ow < OW) {
-                        *d += diff_dst[diff_dst_d.off(mb, g*OC + oc, oh, ow)] *
+                        d += (acc_data_t)(diff_dst[
+                                        diff_dst_d.off(mb, g*OC + oc, oh, ow)] *
                             (with_groups ?
                              weights[weights_d.off(g, oc, ic, kh, kw)] :
-                             weights[weights_d.off(oc, ic, kh, kw)]);
+                             weights[weights_d.off(oc, ic, kh, kw)]));
                     }
                 }
             }
@@ -179,9 +183,13 @@ void ref_convolution_bwd_data_t<data_type>::execute_backward_data() {
                 for (int ih = 0; ih < IH; ++ih) {
                     for (int iw = 0; iw < IW; ++iw) {
                         auto ds_idx = diff_src_d.off(mb, g*IC + ic, ih, iw);
-                        data_t *d = &diff_src[ds_idx];
-                        *d = data_t(0);
-                        ker(d, g, mb, ic, ih, iw);
+                        acc_data_t a = acc_data_t(0);
+                        ker(a, g, mb, ic, ih, iw);
+                        if (a < nstl::numeric_limits<diff_src_data_t>::lowest())
+                            a = nstl::numeric_limits<diff_src_data_t>::lowest();
+                        if (a > nstl::numeric_limits<diff_src_data_t>::max())
+                            a = nstl::numeric_limits<diff_src_data_t>::max();
+                        diff_src[ds_idx] = (diff_src_data_t)a;
                     }
                 }
             }
@@ -290,6 +298,7 @@ template struct _ref_convolution_fwd_t<false, u8, s8, s32, u8>;
 template struct _ref_convolution_fwd_t<true, u8, s8, s32, u8>;
 
 template struct ref_convolution_bwd_data_t<f32>;
+template struct ref_convolution_bwd_data_t<s16, s16, s32, s32>;
 template struct ref_convolution_bwd_weights_t<f32>;
 
 }

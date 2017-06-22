@@ -210,6 +210,8 @@ static const pd_create_f cpu_impl_list[] = {
             data_type::s32, data_type::s8>),
     INSTANCE(ref_convolution_fwd_t<data_type::u8, data_type::s8,
             data_type::s32, data_type::u8>),
+    INSTANCE(ref_convolution_bwd_data_t<data_type::s16,data_type::s16,
+            data_type::s32, data_type::s32>),
     /* eltwise */
     INSTANCE(jit_uni_eltwise_fwd_t<avx512_common>),
     INSTANCE(jit_uni_eltwise_bwd_t<avx512_common>),
