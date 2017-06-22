@@ -154,6 +154,8 @@ static const rpd_create_f cpu_reorder_impl_list[] = {
     simple_reorder_t<f32, any, u8, any, fmt_order::any, spec::reference>::pd_t::create,
     simple_reorder_t<u8, any, f32, any, fmt_order::any, spec::reference>::pd_t::create,
     /* s16 <-> s16 */
+    simple_reorder_t<s16, any, s16, any, fmt_order::any, spec::direct_copy>::pd_t::create,
+    simple_reorder_t<s16, any, s16, any, fmt_order::any, spec::direct_copy_except_dim_0>::pd_t::create,
     simple_reorder_t<s16, oihw, s16, OIhw8i16o2i, fmt_order::keep>::pd_t::create,
     simple_reorder_t<s16, oihw, s16, OIhw8i16o2i, fmt_order::reverse>::pd_t::create,
     simple_reorder_t<s16, goihw, s16, gOIhw8i16o2i, fmt_order::keep>::pd_t::create,
@@ -162,6 +164,7 @@ static const rpd_create_f cpu_reorder_impl_list[] = {
     simple_reorder_t<s16, OIhw8i16o2i, s16, OIhw8o16i2o, fmt_order::reverse>::pd_t::create,
     simple_reorder_t<s16, gOIhw8i16o2i, s16, gOIhw8o16i2o, fmt_order::keep>::pd_t::create,
     simple_reorder_t<s16, gOIhw8i16o2i, s16, gOIhw8o16i2o, fmt_order::reverse>::pd_t::create,
+    simple_reorder_t<s16, any, s16, any, fmt_order::any, spec::reference>::pd_t::create,
     /* eol */
     nullptr,
 };
