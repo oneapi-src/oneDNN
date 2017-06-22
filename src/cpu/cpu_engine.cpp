@@ -280,6 +280,8 @@ static const pd_create_f cpu_impl_list[] = {
     /* inner product (int) */
     INSTANCE(ref_inner_product_fwd_t<data_type::s16, data_type::s16,
             data_type::s32, data_type::s32>),
+    INSTANCE(ref_inner_product_bwd_data_t<data_type::s16, data_type::s16,
+            data_type::s32, data_type::s32>),
     INSTANCE(ref_inner_product_fwd_t<data_type::u8, data_type::s8,
             data_type::s32, data_type::u8>),
     /* conv_eltwise */
