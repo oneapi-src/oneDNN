@@ -556,7 +556,10 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         jcp.ver = ver_4vnni;
         jcp.typesize_in = sizeof(int16_t);
         jcp.typesize_out = sizeof(int32_t);
-    } else if (mayiuse(avx512_common)) {
+    } else if (mayiuse(avx512_common) &&
+            src_d.data_type() == data_type::f32
+         && weights_d.data_type() == data_type::f32
+         && dst_d.data_type() == data_type::f32) {
         bool args_ok = true
             && implication(flat, one_of(src_d.format(), nchw, nhwc)
                     && one_of(weights_d.format(), Ohwi16o, gOhwi16o))
@@ -1129,7 +1132,10 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
         jcp.ver = ver_4vnni;
         jcp.typesize_in = sizeof(int16_t);
         jcp.typesize_out = sizeof(int32_t);
-    } else if (mayiuse(avx512_common)) {
+    } else if (mayiuse(avx512_common) &&
+            diff_dst_d.data_type() == data_type::f32
+         && weights_d.data_type() == data_type::f32
+         && diff_src_d.data_type() == data_type::f32) {
         if (weights_d.format() != (with_groups ? gOIhw16o16i : OIhw16o16i))
             return status::unimplemented;
         jcp.ver = ver_fma;
