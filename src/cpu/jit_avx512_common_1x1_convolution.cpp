@@ -260,7 +260,8 @@ template struct _jit_avx512_common_1x1_convolution_fwd_t<true, data_type::f32>;
 template struct _jit_avx512_common_1x1_convolution_fwd_t<false, data_type::f32>;
 template struct _jit_avx512_common_1x1_convolution_fwd_t<false, data_type::s16,
     data_type::s16, data_type::s32>;
-
+template struct _jit_avx512_common_1x1_convolution_fwd_t<true, data_type::s16,
+    data_type::s16, data_type::s32>;
 /* convolution backward wtr data */
 
 template <data_type_t diff_dst_type, data_type_t wei_type,

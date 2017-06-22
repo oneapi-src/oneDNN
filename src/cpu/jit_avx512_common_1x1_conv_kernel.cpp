@@ -195,6 +195,23 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(int load_loop_blk,
                 vmovups(vreg_load(i_load, i_fma),
                     load_ptr(load_scale * i_fma, i_load));
     };
+
+    auto vcmp = [=](Xbyak::Opmask kmask,
+        Xbyak::Zmm zmm_src1, Xbyak::Zmm zmm_src2, const unsigned char cmp) {
+        if (jcp.ver == ver_4vnni)
+            vpcmpd(kmask, zmm_src1, zmm_src2, cmp);
+        else
+            vcmpps(kmask, zmm_src1, zmm_src2, cmp);
+    };
+
+    auto vmul = [=](Xbyak::Zmm zmm_dst, Xbyak::Opmask kmask,
+                     Xbyak::Zmm zmm_src1, Xbyak::Zmm zmm_src2) {
+        if (jcp.ver == ver_4vnni)
+            vpmulld(zmm_dst | kmask, zmm_src1, zmm_src2);
+        else
+            vmulps(zmm_dst | kmask, zmm_src1, zmm_src2);
+    };
+
     auto store = [=]() {
 
         Label store_noadd;
@@ -231,9 +248,9 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(int load_loop_blk,
 
             for (int i_ur = 0; i_ur < ur; ++i_ur)
                 for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
-                    vcmpps(vmask, vreg_accum(i_load, i_ur), zmm_zero,
+                    vcmp(vmask, vreg_accum(i_load, i_ur), zmm_zero,
                         _cmp_lt_os);
-                    vmulps(vreg_accum(i_load, i_ur) | vmask,
+                    vmul(vreg_accum(i_load, i_ur), vmask,
                         vreg_accum(i_load, i_ur), zmm_relu_ns);
             }
             L(store_norelu);

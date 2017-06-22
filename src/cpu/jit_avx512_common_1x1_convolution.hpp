@@ -47,6 +47,7 @@ struct _jit_avx512_common_1x1_convolution_fwd_t : public cpu_primitive_t {
 
         virtual status_t init() override {
             using namespace prop_kind;
+            using namespace utils;
             assert(this->engine()->kind() == engine_kind::cpu);
             bool ok = true
                 && this->set_default_params() == status::success
@@ -59,8 +60,11 @@ struct _jit_avx512_common_1x1_convolution_fwd_t : public cpu_primitive_t {
                 && this->cdesc_().src_desc.data_type == src_type
                 && this->cdesc_().weights_desc.data_type == wei_type
                 && this->cdesc_().dst_desc.data_type == dst_type
-                && utils::implication(this->with_bias(),
-                    dst_type == this->cdesc_().bias_desc.data_type);
+                && implication(this->with_bias(),
+                    dst_type == this->cdesc_().bias_desc.data_type)
+                && implication(with_relu && dst_type == data_type::s32
+                    && everyone_is(data_type::s16, src_type, wei_type),
+                    this->negative_slope() == 0.);
             if (!ok) return status::unimplemented;
 
             const convolution_desc_t *conv_d = &this->cdesc_();
@@ -145,6 +149,9 @@ using jit_avx512_common_1x1_convolution_relu_f32_t
         = _jit_avx512_common_1x1_convolution_fwd_t<true, data_type::f32>;
 using jit_avx512_common_1x1_convolution_fwd_s16s16s32_t
         = _jit_avx512_common_1x1_convolution_fwd_t<false, data_type::s16,
+            data_type::s16, data_type::s32>;
+using jit_avx512_common_1x1_convolution_relu_s16s16s32_t
+        = _jit_avx512_common_1x1_convolution_fwd_t<true, data_type::s16,
             data_type::s16, data_type::s32>;
 
 template <impl::data_type_t diff_dst_type,
