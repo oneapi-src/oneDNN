@@ -170,9 +170,10 @@ static const rpd_create_f cpu_reorder_impl_list[] = {
 static const pd_create_f cpu_impl_list[] = {
     /* conv */
     INSTANCE(jit_avx512_common_1x1_convolution_fwd_f32_t),
-    INSTANCE(jit_avx512_common_1x1_convolution_bwd_data_t),
+    INSTANCE(jit_avx512_common_1x1_convolution_bwd_data_f32_t),
     INSTANCE(jit_avx512_common_1x1_convolution_bwd_weights_t),
     INSTANCE(jit_avx512_common_1x1_convolution_fwd_s16s16s32_t),
+    INSTANCE(jit_avx512_common_1x1_convolution_bwd_data_s16s16s32_t),
 #ifndef _WIN32
     INSTANCE(jit_avx512_common_convolution_winograd_fwd_t),
     INSTANCE(jit_avx512_common_convolution_winograd_bwd_data_t),

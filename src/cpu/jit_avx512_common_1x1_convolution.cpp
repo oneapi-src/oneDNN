@@ -58,13 +58,14 @@ void balance2D(U nthr, U ithr, T ny, T &ny_start, T &ny_end,
 }
 /* convolution forward */
 
-template <bool with_relu, data_type_t itype, data_type_t otype>
-void _jit_avx512_common_1x1_convolution_fwd_t<with_relu, itype, otype>::
-    execute_forward()
+template <bool with_relu, data_type_t src_type, data_type_t wei_type,
+        data_type_t dst_type>
+void _jit_avx512_common_1x1_convolution_fwd_t
+    <with_relu, src_type, wei_type, dst_type>::execute_forward()
 {
     auto src = reinterpret_cast<const src_data_t *>(this->input_memory(0));
     auto weights =
-        reinterpret_cast<const src_data_t *>(this->input_memory(1));
+        reinterpret_cast<const wei_data_t *>(this->input_memory(1));
     auto bias = reinterpret_cast<const dst_data_t *>(this->input_memory(2));
     auto dst = reinterpret_cast<dst_data_t *>(this->memory());
 
@@ -255,20 +256,23 @@ void _jit_avx512_common_1x1_convolution_fwd_t<with_relu, itype, otype>::
     }
 }
 
-template void _jit_avx512_common_1x1_convolution_fwd_t<true, data_type::f32,
-    data_type::f32>::execute_forward();
-template void _jit_avx512_common_1x1_convolution_fwd_t<false, data_type::f32,
-    data_type::f32>::execute_forward();
-template void _jit_avx512_common_1x1_convolution_fwd_t<false, data_type::s16,
-    data_type::s32>::execute_forward();
+template struct _jit_avx512_common_1x1_convolution_fwd_t<true, data_type::f32>;
+template struct _jit_avx512_common_1x1_convolution_fwd_t<false, data_type::f32>;
+template struct _jit_avx512_common_1x1_convolution_fwd_t<false, data_type::s16,
+    data_type::s16, data_type::s32>;
 
 /* convolution backward wtr data */
 
-void jit_avx512_common_1x1_convolution_bwd_data_t::execute_backward_data()
+template <data_type_t diff_dst_type, data_type_t wei_type,
+    data_type_t diff_src_type>
+void _jit_avx512_common_1x1_convolution_bwd_data_t
+    <diff_dst_type, wei_type, diff_src_type>::execute_backward_data()
 {
-    auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(0));
-    auto weights = reinterpret_cast<const data_t *>(this->input_memory(1));
-    auto diff_src = reinterpret_cast<data_t *>(this->memory());
+    auto diff_dst = reinterpret_cast<const diff_dst_data_t *>
+        (this->input_memory(0));
+    auto weights = reinterpret_cast<const wei_data_t *>
+        (this->input_memory(1));
+    auto diff_src = reinterpret_cast<diff_src_data_t *>(this->memory());
 
     const memory_desc_wrapper diff_dst_d(conf_.diff_dst_pd());
     const memory_desc_wrapper weights_d(conf_.weights_pd(0));
@@ -396,6 +400,10 @@ void jit_avx512_common_1x1_convolution_bwd_data_t::execute_backward_data()
         }
     }
 }
+
+template struct _jit_avx512_common_1x1_convolution_bwd_data_t<data_type::f32>;
+template struct _jit_avx512_common_1x1_convolution_bwd_data_t<data_type::s16,
+    data_type::s16, data_type::s32>;
 
 /* convolution backward wtr weights */
 

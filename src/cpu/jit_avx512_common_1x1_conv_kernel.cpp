@@ -565,20 +565,24 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
     jcp.ic_block = jcp.oc_block = simd_w;
 
     if (mayiuse(avx512_mic_4ops)
-        && one_of(jcp.prop_kind, forward_training, forward_inference)
-        && src_d.data_type() == data_type::s16
-        && weights_d.data_type() == data_type::s16
-        && dst_d.data_type() == data_type::s32)
+        && (one_of(jcp.prop_kind, forward_training, forward_inference)
+            && src_d.data_type() == data_type::s16
+            && weights_d.data_type() == data_type::s16
+            && dst_d.data_type() == data_type::s32)
+        || (jcp.prop_kind == backward_data
+            && src_d.data_type() == data_type::s32
+            && weights_d.data_type() == data_type::s16
+            && dst_d.data_type() == data_type::s16))
     {
         constexpr memory_format_t weights_formats[2][2] = {
-            { OIhw8i16o2i, undef },
-            { gOIhw8i16o2i, undef }
+            { OIhw8i16o2i, OIhw8o16i2o },
+            { gOIhw8i16o2i, gOIhw8o16i2o }
         };
         memory_format_t weights_format
             = weights_formats[with_groups][jcp.prop_kind == backward_data];
-        if (weights_d.format() != weights_format) {
+        if (weights_d.format() != weights_format)
             return status::unimplemented;
-        }
+
         jcp.ver = ver_4vnni;
         jcp.fma_step = 4;
         jcp.typesize_in = sizeof(prec_traits<data_type::s16>::type);
