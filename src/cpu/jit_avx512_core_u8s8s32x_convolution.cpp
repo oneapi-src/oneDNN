@@ -429,6 +429,8 @@ status_t jit_avx512_core_u8s8s32x_conv_fwd_ker_t::init_conf(jit_conv_conf_t &c,
         && everyone_is(nhwc, src_d.format(), dst_d.format())
         && wei_d.format() == (with_groups ? gOhIw16o4i : OhIw16o4i)
         && one_of(cd.bias_desc.format, memory_format::undef, any, x)
+        && c.t_pad < c.kh && c.b_pad < c.kh
+        && c.l_pad < c.kw && c.r_pad < c.kw
         && implication(with_relu, negative_slope == 0.)
         && one_of(c.dst_dt, data_type::s32, data_type::s8, data_type::u8);
 
