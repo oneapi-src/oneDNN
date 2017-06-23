@@ -29,27 +29,29 @@ namespace cpu {
 using namespace alg_kind;
 
 namespace {
-template <typename T, typename A> T relu_fwd(T s, A alpha) {
-    return s > 0 ? s : s * alpha;
+template <typename T, typename A> inline T relu_fwd(T s, A alpha) {
+    return s > 0 ? s : static_cast<T>(s * alpha);
 }
-template <typename T, typename A> T relu_bwd(T dd, T s, A alpha) {
-    return s > 0 ? dd : dd * alpha;
+template <typename T, typename A> inline T relu_bwd(T dd, T s, A alpha) {
+    return s > 0 ? dd : static_cast<T>(dd * alpha);
 }
 
 template <typename T> T tanh_fwd(T s) {
-    T e = ::expf(2*s); /* maybe replace with -2*s? */
-    return (e - 1) / (e + 1);
+    float const e = ::expf(2*s); /* maybe replace with -2*s? */
+    return static_cast<T>((e - 1) / (e + 1));
 }
 template <typename T> T tanh_bwd(T dd, T s) {
-    T th = tanh_fwd(s);
-    return dd * (1 - th * th);
+    //T th = tanh_fwd(s);
+    float const e = ::expf(2*s); /* maybe replace with -2*s? */
+    float const th = (e - 1.f) / (e + 1.f);
+    return static_cast<T>(dd * (1 - th * th));
 }
 
 template <typename T, typename A> T elu_fwd(T s, A alpha) {
-    return s > 0 ? s : alpha * (::expf(s) - 1);
+    return s > 0 ? s : static_cast<T>(alpha * (::expf((float)s) - 1.f));
 }
 template <typename T, typename A> T elu_bwd(T dd, T s, A alpha) {
-    return dd * (s > 0 ? 1. : alpha * ::expf(s));
+    return dd * (s > 0 ? T{1} : static_cast<T>(alpha * ::expf((float)s)));
 }
 }
 
@@ -169,7 +171,8 @@ void ref_eltwise_bwd_t<data_type>::execute_backward_dense() {
 
 #   pragma omp parallel for schedule(static)
     for (int e = 0; e < nelems; ++e) {
-        diff_src[e] = diff_dst[e] * ((src[e] > 0) ? 1. : alpha);
+        diff_src[e] = static_cast<data_t>(diff_dst[e]
+            * ((src[e] > 0) ? 1. : alpha));
         switch (alg_kind) {
         case eltwise_relu: diff_src[e] = relu_bwd(diff_dst[e], src[e], alpha);
                            break;

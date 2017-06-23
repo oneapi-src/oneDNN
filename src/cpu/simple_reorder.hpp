@@ -106,13 +106,13 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                         const auto nchw_off =
                             c * nchw_d.blocking_desc().strides[0][1] + w;
                         if (order_keep) {
-                            o[w * blksize + c] =
-                                alpha * data_t<type_o>(i[nchw_off])
-                                + (beta ? beta * o[w * blksize + c] : 0);
+                            o[w * blksize + c] = data_t<type_o>(
+                                alpha * i[nchw_off]
+                                + (beta ? beta * o[w * blksize + c] : 0));
                         } else {
-                            o[nchw_off] =
-                                alpha * data_t<type_o>(i[w * blksize + c])
-                                + (beta ? beta * o[nchw_off] : 0);
+                            o[nchw_off] = data_t<type_o>(
+                                alpha * i[w * blksize + c]
+                                + (beta ? beta * o[nchw_off] : 0));
                         }
                     }
                 }
@@ -177,9 +177,9 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 #               pragma omp simd collapse(2)
                 for (int n = 0; n < nsize; n++) {
                     for (int c = 0; c < blksize; ++c) {
-                        o[n * o_st[0] + c * co_mult] =
-                            alpha * data_t<type_o>(i[n * i_st[0] + c * ci_mult])
-                            + (beta ? beta * o[n * o_st[0] + c * co_mult] : 0);
+                        o[n * o_st[0] + c * co_mult] = data_t<type_o>(
+                            alpha * i[n * i_st[0] + c * ci_mult]
+                            + (beta ? beta * o[n * o_st[0] + c * co_mult] : 0));
                     }
                 }
             }
@@ -232,23 +232,24 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o) {
             if (alpha == 1.0 && beta == 0.0) {
                 for (int blk = 0; blk < 2; ++blk){
-                    const int i_blk = order_keep ? blk * stride_8c[1]
+                    const int i_blk = order_keep ? blk * (int)stride_8c[1]
                         : blk * blksize_8c;
                     const int o_blk = order_keep ? blk * blksize_8c
-                        : blk * stride_8c[1];
+                        : blk * (int)stride_8c[1];
                     for (int c = 0; c < blksize_8c; ++c) {
                         o[o_blk + c] = i[i_blk + c];
                     }
                 }
             } else {
                 for (int blk = 0; blk < 2; ++blk){
-                    const int i_blk = order_keep ? blk * stride_8c[1]
+                    const int i_blk = order_keep ? blk * (int)stride_8c[1]
                         : blk * blksize_8c;
                     const int o_blk = order_keep ? blk * blksize_8c
-                        : blk * stride_8c[1];
+                        : blk * (int)stride_8c[1];
                     for (int c = 0; c < blksize_8c; ++c) {
-                        o[o_blk + c] = alpha * data_t<type_o>(i[i_blk + c]) +
-                            (beta ? beta * o[o_blk + c] : 0);
+                        o[o_blk + c] = data_t<type_o>(
+                            alpha * i[i_blk + c]
+                            + (beta ? beta * o[o_blk + c] : 0));
                     }
                 }
             }
@@ -306,13 +307,13 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                         const auto &is = input_d.blocking_desc().strides[0];
                         const auto &os = output_d.blocking_desc().strides[0];
                         if (order_keep) {
-                            o[w * os[3] + c] =
-                                alpha * data_t<type_o>(i[c * is[1] + w])
-                                + (beta ? beta * o[w * os[3] + c] : 0);
+                            o[w * os[3] + c] = data_t<type_o>(
+                                alpha * i[c * is[1] + w]
+                                + (beta ? beta * o[w * os[3] + c] : 0));
                         } else {
-                            o[c * os[1] + w] =
-                                alpha * data_t<type_o>(i[w * is[3] + c])
-                                + (beta ? beta * o[c * os[1] + w] : 0);
+                            o[c * os[1] + w] = data_t<type_o>(
+                                alpha * i[w * is[3] + c]
+                                + (beta ? beta * o[c * os[1] + w] : 0));
                         }
                     }
                 }
@@ -533,13 +534,13 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                         + 2 * ic * _g_oihw_d.blocking_desc().strides[0]
                             [w_groups + 1];
                     if (order_keep) {
-                        o[index(ic, oc)] =
-                            alpha * data_t<type_o>(i[_g_oihw_off])
-                            + (beta ? beta * o[index(ic, oc)] : 0);
+                        o[index(ic, oc)] = data_t<type_o>(
+                            alpha * i[_g_oihw_off]
+                            + (beta ? beta * o[index(ic, oc)] : 0));
                     } else {
-                        o[_g_oihw_off] =
-                            alpha * data_t<type_o>(i[index(ic, oc)])
-                            + (beta ? beta * o[_g_oihw_off] : 0);
+                        o[_g_oihw_off] = data_t<type_o>(
+                            alpha * i[index(ic, oc)]
+                            + (beta ? beta * o[_g_oihw_off] : 0));
                     }
                 }
                 }
@@ -599,15 +600,24 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             return ((oc / 2) * blksize * 2 + 2 * ic + oc % 2);
         };
 
-        auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o) {
-            for (int ic = 0; ic < blksize; ++ic) {
-                for (int oc = 0; oc < blksize; ++oc) {
-                    const int o_idx = ic * blksize + oc;
-                    const int i_idx = oc * blksize + ic;
-                    o[index_dst(ic,oc)] = (alpha == 1.0 && beta == 0.0)
-                        ? data_t<type_o>(i[index_src(ic,oc)])
-                        : alpha * data_t<type_o>(i[index_src(ic,oc)])
-                            + (beta ? beta * o[index_dst(ic,oc)] : 0);
+        auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o) -> void {
+            if (alpha == 1.0 && beta == 0.0) {
+                for (int ic = 0; ic < blksize; ++ic) {
+                    for (int oc = 0; oc < blksize; ++oc) {
+                        const int o_idx = ic * blksize + oc;
+                        const int i_idx = oc * blksize + ic;
+                        o[index_dst(ic,oc)] = data_t<type_o>(i[index_src(ic,oc)]);
+                    }
+                }
+            } else {
+                for (int ic = 0; ic < blksize; ++ic) {
+                    for (int oc = 0; oc < blksize; ++oc) {
+                        const int o_idx = ic * blksize + oc;
+                        const int i_idx = oc * blksize + ic;
+                        o[index_dst(ic,oc)] = data_t<type_o>(
+                                alpha * i[index_src(ic,oc)]
+                                + (beta ? beta * o[index_dst(ic,oc)] : 0));
+                    }
                 }
             }
         };
@@ -730,8 +740,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 #           pragma omp parallel for schedule(static)
             pragma_simd
             for (size_t e = 0; e < nelems; ++e) {
-                output[e] = alpha * data_t<type_o>(input[e])
-                    + (beta ? beta * output[e] : 0);
+                output[e] = data_t<type_o>(
+                    alpha * input[e] + (beta ? beta * output[e] : 0));
             }
         }
 
@@ -781,9 +791,9 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             pragma_simd
             for (int n = 0; n < N; ++n) {
                 for (size_t e = 0; e < nelems_no_d0; ++e) {
-                    output[os * n + e] =
-                        alpha * data_t<type_o>(input[is * n + e])
-                        + (beta ? beta * output[os * n + e] : 0);
+                    output[os * n + e] = data_t<type_o>(
+                        alpha * input[is * n + e]
+                        + (beta ? beta * output[os * n + e] : 0));
                 }
             }
         }
@@ -839,9 +849,9 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         } else {
 #           pragma omp parallel for schedule(static)
             for (int e = 0; e < nelems; ++e) {
-                output[output_d.off_l(e)] =
-                    alpha * data_t<type_o>(input[input_d.off_l(e)])
-                    + (beta ? beta * output[output_d.off_l(e)] : 0);
+                output[output_d.off_l(e)] = data_t<type_o>(
+                    alpha * input[input_d.off_l(e)]
+                    + (beta ? beta * output[output_d.off_l(e)] : 0));
             }
         }
 

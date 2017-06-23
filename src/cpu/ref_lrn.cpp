@@ -29,6 +29,8 @@ namespace cpu {
 template <impl::data_type_t data_type>
 void ref_lrn_fwd_t<data_type>::execute_forward() {
     using namespace alg_kind;
+    typedef float float_t;    // foo_traits<data_type>::float_t;
+    typedef double accsqr_t;  // foo_traits<data_type>::accsqr_t; //float may be OK for f32
 
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto dst = reinterpret_cast<data_t*>(this->memory(0));
@@ -44,14 +46,14 @@ void ref_lrn_fwd_t<data_type>::execute_forward() {
 
     auto ker = [=](data_t *d, int mb, int oc, int oh, int ow) {
         const double alpha = conf_.desc()->lrn_alpha;
-        const double beta = conf_.desc()->lrn_beta;
+        const float beta = static_cast<float>(conf_.desc()->lrn_beta);
         const double k = conf_.desc()->lrn_k;
 
         const int size = conf_.desc()->local_size;
         const int CSIZE = across_channels ? size : 1;
         const int HWSIZE = size + 1 - CSIZE;
 
-        data_t sum = 0.0;
+        accsqr_t sum = 0;
         int summands = across_channels ? size : size*size;
         for (int c = oc; c < oc + CSIZE; ++c) {
             if (c < (CSIZE - 1) / 2) continue;
@@ -62,16 +64,18 @@ void ref_lrn_fwd_t<data_type>::execute_forward() {
                 for (int w = ow; w < ow + HWSIZE; ++w) {
                     if (w < (HWSIZE - 1) / 2) continue;
                     if (w >= W + (HWSIZE - 1) / 2) continue;
-                    data_t s = src[data_d.off(mb, c - (CSIZE - 1) / 2,
+                    accsqr_t s = src[data_d.off(mb, c - (CSIZE - 1) / 2,
                             h - (HWSIZE - 1) / 2, w - (HWSIZE - 1) / 2)];
                     sum += s * s;
                 }
             }
         }
-        sum = k + alpha * sum / summands;
+        const double fsum = k + alpha * sum / summands;
+        const data_t dsum = static_cast<data_t>(fsum);
         if (ws)
-            ws[ws_d.off(mb, oc, oh, ow)] = sum; // for back prop
-        d[0] = src[data_d.off(mb, oc, oh, ow)] / pow(sum, beta);
+            ws[ws_d.off(mb, oc, oh, ow)] = dsum; // for back prop (ok for integer data_t?)
+        d[0] = static_cast<data_t>( src[data_d.off(mb, oc, oh, ow)]
+                                    / powf((float)dsum, beta) );
     };
 
     const int MB = conf_.MB();
@@ -90,6 +94,8 @@ void ref_lrn_fwd_t<data_type>::execute_forward() {
 template <impl::data_type_t data_type>
 void ref_lrn_bwd_t<data_type>::execute_backward() {
     using namespace alg_kind;
+    typedef float float_t;    // foo_traits<data_type>::float_t;
+    typedef double accsqr_t;  // foo_traits<data_type>::accsqr_t; //float may be OK for f32
 
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
@@ -105,48 +111,48 @@ void ref_lrn_bwd_t<data_type>::execute_backward() {
     const int H = conf_.H();
     const int W = conf_.W();
 
-    const double alpha = conf_.desc()->lrn_alpha;
-    const double beta = conf_.desc()->lrn_beta;
-    const double k = conf_.desc()->lrn_k;
+    const float_t alpha = static_cast<float_t>(conf_.desc()->lrn_alpha);
+    const float_t beta = static_cast<float_t>(conf_.desc()->lrn_beta);
+    const float_t k = static_cast<float_t>(conf_.desc()->lrn_k);
     const int kernel_size = conf_.desc()->local_size;
 
     auto get_omega = [=](data_t c_k, int kernel_size, double alpha, int C,
-            const data_t *src, int n, int c, int h, int w) {
-        data_t sum = 0.0;
+            const data_t *src, int n, int c, int h, int w) -> float_t {
+        accsqr_t sum = 0.0;
 
         int half_kernel_size = (kernel_size - 1) / 2;
         int c_start = (c < half_kernel_size) ? 0 : c - half_kernel_size;
         int c_end = c + kernel_size - half_kernel_size;
         c_end = c_end < C ? c_end : C;
         for (int i = c_start; i < c_end; ++i) {
-            data_t value = src[data_d.off(n, i, h, w)];
+            const accsqr_t value = src[data_d.off(n, i, h, w)];
             sum += value * value;
         }
-        sum *= alpha / kernel_size;
-        return c_k + sum;
+        const auto fsum = sum * alpha / kernel_size;
+        return static_cast<float_t>(c_k + fsum);
     };
 
     auto ker = [=](data_t *d, int mb, int oc, int oh, int ow) {
         int ks_start = kernel_size/2 > oc ? kernel_size/2 - oc : 0;
         int ks_stop = C - oc <= kernel_size/2 ? C - oc + kernel_size/2 : kernel_size;
 
-        data_t A = 0, B = 0, omega_mid = 0;
-
+        float_t A = 0, B = 0, omega_mid = 0;
+        // intermediate calcs data_t --> float_t : check if OK for integer data_t!
         for (int ks = ks_start; ks < ks_stop; ks++) {
             int _t = oc + ks - (kernel_size/2);
-            data_t omega = get_omega(k, kernel_size, alpha, C,
+            const float_t omega = get_omega(k, kernel_size, alpha, C,
                     src, mb, _t, oh, ow);
 
             if (ks == kernel_size/2) omega_mid = omega;
 
-            data_t t = src[data_d.off(mb, _t, oh, ow)] / powf(omega, beta);
+            const float_t t = src[data_d.off(mb, _t, oh, ow)] / powf(omega, beta);
             B +=  (1.0f / omega) * t * diff_dst[diff_data_d.off(mb, _t, oh, ow)];
         }
 
         A = (1.0f / powf(omega_mid, beta)) * diff_dst[diff_data_d.off(mb, oc, oh, ow)];
         B *= src[data_d.off(mb, oc, oh, ow)];
         B *= (2.0f * alpha * beta) / kernel_size;
-        *d = A - B;
+        *d = static_cast<data_t>(A - B); // final cast down to data_t
     };
 
 #   pragma omp parallel for collapse(4) schedule(static)
