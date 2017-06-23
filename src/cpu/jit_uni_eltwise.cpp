@@ -537,7 +537,7 @@ status_t jit_uni_eltwise_fwd_t<isa>::pd_t::init()
 template <cpu_isa_t isa>
 jit_uni_eltwise_fwd_t<isa>::jit_uni_eltwise_fwd_t(const pd_t *pd,
         const input_vector &inputs, const output_vector &outputs)
-    : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
+    : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd), kernel_(nullptr)
 {
     const auto &desc = *conf_.desc();
     switch (desc.alg_kind) {
@@ -609,7 +609,7 @@ status_t jit_uni_eltwise_bwd_t<isa>::pd_t::init()
 template <cpu_isa_t isa>
 jit_uni_eltwise_bwd_t<isa>::jit_uni_eltwise_bwd_t(const pd_t *pd,
         const input_vector &inputs, const output_vector &outputs)
-    : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
+    : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd), kernel_(nullptr)
 {
     const auto &desc = *conf_.desc();
     switch (desc.alg_kind) {
