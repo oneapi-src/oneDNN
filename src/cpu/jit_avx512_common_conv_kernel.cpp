@@ -1782,8 +1782,6 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
     }
 
     if (mayiuse(avx512_mic_4ops)
-            && jcp.iw >= small_spatial
-            && jcp.ih >= small_spatial
             && jcp.stride_w == 1 // transposing output and diff_filter can help
             && !jcp.is_1stconv)
         jcp.ver = ver_4fma;
@@ -1793,10 +1791,12 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
     jcp.transpose_src = (jcp.ver == ver_4fma);
     if (jcp.transpose_src) {
         jcp.ur_w = jcp.ow;
-        if (jcp.ver == ver_4fma) // double check
-            jcp.tr_iw = rnd_up(jcp.iw + jcp.l_pad + 4, 4);
-        else
+        if (jcp.ver == ver_4fma) { // double check
+            int right_pad = (jcp.r_pad > 1) ? 4 : jcp.r_pad;
+            jcp.tr_iw = rnd_up(jcp.iw + jcp.l_pad + right_pad, 4);
+        } else {
             jcp.tr_iw = jcp.iw;
+        }
     }
 
     return status::success;

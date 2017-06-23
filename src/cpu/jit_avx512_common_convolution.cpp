@@ -274,6 +274,7 @@ void jit_avx512_common_convolution_bwd_weights_t::execute_backward_weights() {
     };
 
     auto ker_transpose = [&](int ithr, int nthr) {
+
         const size_t work_amount = jcp.mb * jcp.ngroups * jcp.nb_ic * jcp.ih;
 
         size_t start, end;
@@ -284,41 +285,36 @@ void jit_avx512_common_convolution_bwd_weights_t::execute_backward_weights() {
                 img, jcp.mb, g, jcp.ngroups, b_ic, jcp.nb_ic, j, jcp.ih);
 
         const int _ic = g * jcp.nb_ic + b_ic;
-        const data_t *src1 = &src[src_d.blk_off(img, _ic, j)];
+        data_t *src1 = (data_t*)&src[src_d.blk_off(img, _ic, j)];
         data_t *tr_src1 = &tr_src[tr_src_off(img, _ic, j)];
 
         assert(jcp.ic_block == 16);
-        constexpr int ic_block = 16;
-        const size_t src_stride = jcp.iw * ic_block;
-        const size_t tr_src_stride = jcp.tr_iw * ic_block;
 
-        const int l_pad = jcp.l_pad;
-        const int iwlp = l_pad + jcp.iw;
-        const int tr_iw = jcp.tr_iw;
+        const size_t src_stride = jcp.iw * jcp.ic_block;
+        const size_t tr_src_stride = jcp.tr_iw * jcp.ic_block;
 
-        for (size_t iwork = start; iwork < end; iwork++) {
-#           pragma omp simd collapse(2)
-#           pragma unroll
-            for (int i = 0; i < l_pad; i++)
-                for (int j = 0; j < ic_block; j++)
-                    tr_src1[j * jcp.tr_iw + i] = 0.0;
+        const int pf_depth = 4;
+        struct { data_t *src, *tr_src; } pf_circ_buf[pf_depth];
+        size_t work_len = end - start;
 
-#           pragma omp simd collapse(2)
-#           pragma unroll
-            for (int i = l_pad; i < iwlp; i++)
-                for (int j = 0; j < ic_block; j++)
-                    tr_src1[j * jcp.tr_iw + i] = src1[(i - l_pad) * 16 + j];
+        for (size_t iwork = 0; iwork < work_len + pf_depth - 1; iwork++) {
+            pf_circ_buf[iwork % pf_depth] = {src1, tr_src1};
 
-#           pragma omp simd collapse(2)
-#           pragma unroll
-            for (int i = iwlp; i < tr_iw; i++)
-                for (int j = 0; j < ic_block; j++)
-                    tr_src1[j * jcp.tr_iw + i] = 0.0;
-
+            if (iwork >= pf_depth - 1) {
+                int old_idx = (iwork - pf_depth + 1) % pf_depth;
+                jit_src_transpose_s par_trans = { };
+                par_trans.src = pf_circ_buf[old_idx].src;
+                par_trans.tr_src = pf_circ_buf[old_idx].tr_src;
+                par_trans.src_prf = src1;
+                par_trans.tr_src_prf = tr_src1;
+                trans_kernel_->jit_ker(&par_trans);
+            }
             src1 += src_stride;
             tr_src1 += tr_src_stride;
         }
+
 #       pragma omp barrier
+
     };
 
     auto ker = [&](int ithr, int nthr) {

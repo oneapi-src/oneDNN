@@ -21,6 +21,7 @@
 #include "cpu_convolution_pd.hpp"
 #include "cpu_engine.hpp"
 #include "jit_avx512_common_conv_kernel.hpp"
+#include "jit_transpose_src_utils.hpp"
 #include "cpu_reducer.hpp"
 
 namespace mkldnn {
@@ -275,8 +276,8 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
     jit_avx512_common_convolution_bwd_weights_t(const pd_t *pd,
             const input_vector &inputs, const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
-        , kernel_(nullptr), reducer_weights_(nullptr), reducer_bias_(nullptr)
-        , ws_(nullptr)
+        , kernel_(nullptr), trans_kernel_(nullptr), ws_(nullptr)
+        , reducer_weights_(nullptr), reducer_bias_(nullptr)
     {
         kernel_ = new jit_avx512_common_conv_bwd_weights_kernel_f32(conf_.jcp_);
         const int max_threads = omp_get_max_threads();
@@ -293,12 +294,14 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
         }
         if (j.transpose_src) {
             const int ws_size = j.mb * j.ngroups *
-                j.nb_ic * j.ic_block * j.tr_iw * j.ih * sizeof(data_t);
-            ws_ = (data_t*)malloc(ws_size, 64);
+                j.nb_ic * j.ic_block * j.tr_iw * j.ih;
+            ws_ = (data_t*)malloc(ws_size * sizeof(data_t), 64);
+            trans_kernel_ = new jit_transpose_src(&conf_.jcp_);
         }
     }
     ~jit_avx512_common_convolution_bwd_weights_t() {
         delete kernel_;
+        delete trans_kernel_;
         free(ws_);
     };
 
@@ -313,8 +316,9 @@ private:
     void execute_backward_weights();
     pd_t conf_;
     jit_avx512_common_conv_bwd_weights_kernel_f32 *kernel_;
-    cpu_reducer_t<data_type::f32> *reducer_weights_, *reducer_bias_;
+    jit_transpose_src *trans_kernel_;
     data_t *ws_;
+    cpu_reducer_t<data_type::f32> *reducer_weights_, *reducer_bias_;
 };
 
 }
