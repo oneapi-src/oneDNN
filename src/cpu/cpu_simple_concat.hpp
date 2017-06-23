@@ -59,7 +59,7 @@ struct cpu_simple_concat_t: public c_compatible {
     static void execute(const nstl::vector<cpu_memory_t::pd_t> &src_pds_,
             const nstl::vector<cpu_memory_t::pd_t> &dst_pds_,
             cpu_primitive_t *concat) {
-        const int num_arrs = int(src_pds_.size());
+        const int num_arrs = int(src_pds_.size()); // safe because <= max_num_arrs
         const data_t *input_ptrs[max_num_arrs];
         data_t *output_ptrs[max_num_arrs];
         size_t nelems_no_d0[max_num_arrs];
@@ -87,7 +87,7 @@ struct cpu_simple_concat_t: public c_compatible {
 
 #       pragma omp parallel for collapse(2) schedule(static)
         for (size_t n = 0; n < N; ++n) {
-            for (size_t a = 0; a < num_arrs; ++a) {
+            for (int a = 0; a < num_arrs; ++a) {
                 /* do coping */
                 const data_t *i = &input_ptrs[a][is[a]*n];
                 data_t *o = &output_ptrs[a][os*n];
