@@ -41,7 +41,7 @@ int main(int argc, char **argv) {
     prim_t prim = DEF;
     --argc; ++argv;
 
-    while (true) {
+    while (argc > 0) {
         if (!strcmp("--conv", argv[0])) prim = CONV;
         else if (!strcmp("--ip", argv[0])) prim = IP;
         else if (!strncmp("--mode=", argv[0], 7))
