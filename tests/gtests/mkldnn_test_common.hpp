@@ -30,6 +30,12 @@ template <typename data_t> struct data_traits { };
 template <> struct data_traits<float> {
     static const auto data_type = mkldnn::memory::data_type::f32;
 };
+template <> struct data_traits<uint8_t> {
+    static const auto data_type = mkldnn::memory::data_type::u8;
+};
+template <> struct data_traits<int8_t> {
+    static const auto data_type = mkldnn::memory::data_type::s8;
+};
 template <> struct data_traits<int16_t> {
     static const auto data_type = mkldnn::memory::data_type::s16;
 };
@@ -163,8 +169,11 @@ static inline data_t set_value(size_t index, data_t mean, data_t deviation,
         return fill ? static_cast<data_t>(mean + deviation * sinf(float(index % 37)))
             : data_t{0};
     } else if (data_traits<data_t>::data_type == mkldnn::memory::data_type::s32
-        || data_traits<data_t>::data_type == mkldnn::memory::data_type::s16) {
-        return data_t(rand()%11);
+        || data_traits<data_t>::data_type == mkldnn::memory::data_type::s16
+        || data_traits<data_t>::data_type == mkldnn::memory::data_type::s8) {
+        return data_t(rand() % 21 - 10);
+    } else if (data_traits<data_t>::data_type == mkldnn::memory::data_type::u8) {
+        return data_t(rand() % 17);
     } else {
         return data_t(0);
     }
