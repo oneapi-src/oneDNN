@@ -1146,7 +1146,7 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
                 jcp.ver = ver_4fma;
             }
     } else {
-            return status::unimplemented;
+        return status::unimplemented;
     }
 
     jcp.nb_ic_blocking = jcp.nb_oc_blocking = 1;
