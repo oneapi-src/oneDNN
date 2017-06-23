@@ -80,7 +80,7 @@ void compute_ref_conv_relu_fwd(const test_convolution_sizes_t &c,
 
                         if (dst_data[map_index(dst_d, oidx)] < 0) {
                             dst_data[map_index(dst_d, oidx)] =
-                                static_cast<data_dst_t>( NEGATIVE_SLOPE
+                                static_cast<data_t_dst>( NEGATIVE_SLOPE
                                 * dst_data[map_index(dst_d, oidx)] );
                         }
 

@@ -167,7 +167,7 @@ static inline data_t set_value(size_t index, data_t mean, data_t deviation,
         const size_t group = index / group_size;
         const size_t in_group = index % group_size;
         const bool fill = in_group == ((group % 1637) % group_size);
-        return fill ? static_cast<data_t>(mean + deviation * sin(float(index % 37)))
+        return fill ? static_cast<data_t>(mean + deviation * sinf(float(index % 37)))
             : data_t{0};
     } else if (data_traits<data_t>::data_type == mkldnn::memory::data_type::s32
         || data_traits<data_t>::data_type == mkldnn::memory::data_type::s16) {
