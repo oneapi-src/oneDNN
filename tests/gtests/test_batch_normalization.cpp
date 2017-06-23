@@ -60,7 +60,7 @@ void check_bnrm_fwd(const test_bnrm_params_t &p,
     const memory::desc dst_d = dst.get_primitive_desc().desc();
 
     test_bnrm_sizes_t bp = p.sizes;
-    data_t eps = 1.e-4 * bp.mb * bp.h * bp.w;
+    data_t eps = static_cast<data_t>(1.e-4 * bp.mb * bp.h * bp.w);
 
 #pragma omp parallel for
     for (int c = 0; c < bp.c; c++) {
@@ -96,7 +96,7 @@ void check_bnrm_fwd(const test_bnrm_params_t &p,
                 EXPECT_NEAR((variance_data[c] - ref_variance) / variance_norm_max, 0., eps);
             }
         }
-        data_t ref_sqrt_variance = sqrt(ref_variance + p.eps);
+        data_t ref_sqrt_variance = static_cast<data_t>(sqrt(ref_variance + p.eps));
         data_t ref_rsqrt_variance = data_t(1) / (ref_sqrt_variance);
 
         if (use_weights) {
@@ -158,7 +158,7 @@ void check_bnrm_bwd(const test_bnrm_params_t &p,
 
     test_bnrm_sizes_t bp = p.sizes;
 
-    const data_t eps = 1.e-4 * bp.mb * bp.h * bp.w;
+    const data_t eps = static_cast<data_t>(1.e-4 * bp.mb * bp.h * bp.w);
 
 #pragma omp parallel for
     for (int c = 0; c < bp.c; c++) {
@@ -167,7 +167,7 @@ void check_bnrm_bwd(const test_bnrm_params_t &p,
 
         auto v_mean = mean_data[c];
         auto v_variance = variance_data[c];
-        const data_t sqrt_variance = data_t(1) / sqrt(v_variance + p.eps);
+        const data_t sqrt_variance = data_t(1.0 / sqrt(v_variance + p.eps));
 
         auto gamma = use_weights ? weights_data[map_index(weights_d, c)] : 1;
 

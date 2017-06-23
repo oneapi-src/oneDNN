@@ -49,7 +49,7 @@ void compute_ref_inner_product_fwd(test_inner_product_descr_t ipd, memory &src,
         for (int oc = 0; oc < ipd.oc; oc++) {
             int oidx = n * ipd.oc + oc;
             dst_data[map_index(dst_d, oidx)] = bias_data ?
-                    bias_data[map_index(bias_d, oc)] : 0.0;
+                    bias_data[map_index(bias_d, oc)] : data_t{0};
             for (int ic = 0; ic < ipd.ic; ic++) {
                 for (int kh = 0; kh < ipd.kh; kh++) {
                     for (int kw = 0; kw < ipd.kw; kw++) {

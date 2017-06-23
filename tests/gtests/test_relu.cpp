@@ -71,7 +71,7 @@ void check_relu_bwd(data_t negative_slope, const memory::desc &md,
     for (size_t i = 0; i < N * C * H * W; ++i) {
         data_t ref_s = src_data[map_index(data_d, i)];
         data_t ref_dd = diff_dst_data[map_index(diff_data_d, i)];
-        data_t ref_ds = ref_dd * ((ref_s > 0) ? 1. : negative_slope);
+        data_t ref_ds = ref_dd * ((ref_s > 0) ? data_t{1} : negative_slope);
         EXPECT_NEAR(diff_src_data[map_index(diff_data_d, i)], ref_ds, 1.e-7);
     }
 }
@@ -181,6 +181,8 @@ TEST_P(relu_test_float, TestsReLU)
         str, relu_test_float, ::testing::Values(__VA_ARGS__))
 
 INST_TEST_CASE(SimpleZeroNegativeSlope_NCHW,
+    //PARAMS(nchw, nchw, 0.f, 1, 8, 10000, 10000),  // is a tensor of 3 Gb data ok? YES (330 s runtime, slow)
+    //PARAMS(nchw, nchw, 0.f, 1, 12, 10000, 10000), // is a tensor of >4 Gb data ok? worked once (release mode)
     PARAMS(nchw, nchw, 0.f, 2, 8, 4, 4),
     PARAMS(nchw, nchw, 0.f, 2, 16, 4, 4),
     PARAMS(nchw, nchw, 0.f, 2, 16, 8, 8),

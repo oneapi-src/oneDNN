@@ -41,7 +41,7 @@ template <typename T, typename A> T elu_fwd(T s, A alpha) {
     return s > 0 ? s : alpha * (::expf(s) - 1);
 }
 template <typename T, typename A> T elu_bwd(T dd, T s, A alpha) {
-    return dd * (s > 0 ? 1. : alpha * ::expf(s));
+    return static_cast<T>(dd * (s > 0 ? 1 : alpha * ::expf((float)s)));
 }
 
 template <typename data_t>

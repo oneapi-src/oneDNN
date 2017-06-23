@@ -64,3 +64,5 @@ endforeach()
 #                   POST_BUILD
 #                   WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
 #                   COMMAND ${APP_NAME} )
+
+# vim: et ts=4 sw=4
