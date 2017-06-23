@@ -645,6 +645,8 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     jcp.with_relu = with_relu;
     jcp.relu_negative_slope = relu_negative_slope;
     jcp.ur_h = 1;
+    jcp.oc_block = simd_w;
+    jcp.ic_block = (jcp.ic % simd_w != 0) ? jcp.ic : simd_w;
 
     jcp.dilate_h = cd.dilates[0];
     jcp.dilate_w = cd.dilates[1];
@@ -747,8 +749,6 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     if (r_pad_no_tail > jcp.ur_w)
         return status::unimplemented;
 
-    jcp.oc_block = simd_w;
-    jcp.ic_block = (jcp.ic % simd_w != 0) ? jcp.ic : simd_w;
     jcp.nb_ic = jcp.ic / jcp.ic_block;
     jcp.nb_oc = jcp.oc / jcp.oc_block;
     jcp.nb_ic_blocking = jcp.nb_oc_blocking = 1;
