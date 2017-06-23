@@ -277,7 +277,7 @@ void jit_avx512_common_convolution_bwd_weights_t::execute_backward_weights() {
 
         const size_t work_amount = jcp.mb * jcp.ngroups * jcp.nb_ic * jcp.ih;
 
-        size_t start, end;
+        size_t start{0}, end{0};
         balance211(work_amount, nthr, ithr, start, end);
 
         int img{0}, g{0}, b_ic{0}, j{0};
