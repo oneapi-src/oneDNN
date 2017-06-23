@@ -22,6 +22,11 @@
 
 #include "ref_softmax.hpp"
 
+#ifdef USE_MKL
+#include "mkl_vml_functions.h"
+#include "mkl_cblas.h"
+#endif
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {
@@ -31,20 +36,17 @@ void ref_softmax_fwd_t<data_type>::execute_forward_dense() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto dst = reinterpret_cast<data_t *>(this->memory(0));
 
+#   pragma omp parallel for schedule(static)
     for (int ou = 0; ou < outer_size_; ou++) {
-        max_[0] = denom_[0] = 0;
+        const data_t *src_data = src + ou * channels_;
+        data_t *dst_data = dst + ou * channels_;
+        data_t scalar = 0;
 
-        for (int c = 0; c < channels_; c++)
-            max_[0] = nstl::max(max_[0], src[c]);
-
-        for (int c = 0; c < channels_; c++)
-            denom_[0] += dst[c] = exp(src[c] - max_[0]);
-
-        for (int c = 0; c < channels_; c++)
-            dst[c] /= denom_[0];
-
-        src += channels_;
-        dst += channels_;
+        _max(channels_, src_data, &scalar);
+        _sub(channels_, scalar, src_data, dst_data);
+        _exp(channels_, dst_data, dst_data);
+        _sum(channels_, dst_data, &scalar);
+        _scal(channels_, data_t(1)/scalar, dst_data);
     }
 }
 
@@ -81,6 +83,56 @@ void ref_softmax_fwd_t<data_type>::execute_forward_generic() {
             }
         }
     }
+}
+
+
+template <impl::data_type_t data_type>
+void ref_softmax_fwd_t<data_type>::_max(int n, const data_t *x,
+        data_t *max_data) {
+    max_data[0] = x[0];
+    for (int c = 1; c < n; ++c)
+        max_data[0] = nstl::max(max_data[0], x[c]);
+}
+
+template <impl::data_type_t data_type>
+void ref_softmax_fwd_t<data_type>::_sub(int n, data_t alpha, const data_t *x,
+        data_t *y) {
+    for (int c = 0; c < n; ++c)
+        y[c] = x[c] - alpha;
+}
+
+template <impl::data_type_t data_type>
+void ref_softmax_fwd_t<data_type>::_exp(int n, const data_t *a, data_t *r) {
+#ifdef USE_MKL
+    if (data_type == data_type::f32) {
+        vsExp(n, a, r);
+        return;
+    }
+#endif
+#   pragma omp parallel for
+    for (int c = 0; c < n; ++c)
+        r[c] = exp(a[c]);
+}
+
+template <impl::data_type_t data_type>
+void ref_softmax_fwd_t<data_type>::_sum(int n, const data_t *x,
+        data_t *sum_data) {
+    sum_data[0] = 0;
+    for (int c = 0; c < n; ++c)
+        sum_data[0] += x[c];
+}
+
+template <impl::data_type_t data_type>
+void ref_softmax_fwd_t<data_type>::_scal(int n, data_t alpha, data_t *x) {
+#ifdef USE_MKL
+    if (data_type == data_type::f32) {
+        cblas_sscal(n, alpha, x, 1);
+        return;
+    }
+#endif
+#   pragma omp parallel for
+    for (int c = 0; c < n; ++c)
+        x[c] *= alpha;
 }
 
 template struct ref_softmax_fwd_t<data_type::f32>;
