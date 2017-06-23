@@ -82,10 +82,10 @@ void check_lrn_fwd(const lrn_test_params &p, const memory &src, const memory &ds
             }
         }
 
-        data_t norm_coef = powf(p.test_ld.k + p.test_ld.alpha * sum / summands,
-                p.test_ld.beta);
-        data_t ref_out = src_ptr[map_index(src_d, off(n, oc, oh, ow))]/norm_coef;
-        data_t eps = 1.e-7*(2*summands+5);
+        auto const norm_coef = std::pow(p.test_ld.k + p.test_ld.alpha * sum / summands,
+                    p.test_ld.beta);
+        data_t ref_out = static_cast<data_t>(src_ptr[map_index(src_d, off(n, oc, oh, ow))]/norm_coef);
+        data_t eps = static_cast<data_t>(1.e-7f*(2*summands+5));
         data_t out = d[0];
         data_t norm_max = std::max(fabs(out), fabs(ref_out));
         if (norm_max < eps) norm_max = 1.;
@@ -158,16 +158,16 @@ void check_lrn_bwd(const lrn_test_params &p, const memory &src,
 
         for (int ks = ks_start; ks < ks_stop; ks++) {
             int _t = oc + ks - (kernel_size/2);
-            data_t omega = get_omega(k, kernel_size, alpha, C,
+            data_t omega = get_omega(static_cast<data_t>(k), kernel_size, alpha, C,
                     src_ptr, mb, _t, oh, ow);
 
             if (ks == kernel_size/2) omega_mid = omega;
 
-            data_t t = src_ptr[map_index(src_d, off(mb, _t, oh, ow))] / powf(omega, beta);
+            data_t t = src_ptr[map_index(src_d, off(mb, _t, oh, ow))] / powf((float)omega, (float)beta);
             B +=  (1.0f / omega) * t * diff_dst_ptr[map_index(diff_dst_d, off(mb, _t, oh, ow))];
         }
 
-        A = (1.0f / powf(omega_mid, beta))
+        A = (1.0f / powf((float)omega_mid, (float)beta))
             * diff_dst_ptr[map_index(diff_dst_d, off(mb, oc, oh, ow))];
         B *= src_ptr[map_index(src_d, off(mb, oc, oh, ow))];
         B *= (2.0f * alpha * beta) / kernel_size;
@@ -183,8 +183,8 @@ void check_lrn_bwd(const lrn_test_params &p, const memory &src,
                             mb, c, h, w);
                     auto A = ref_diff_src_ptr[map_index(diff_src_d, off(mb, c, h, w))];
                     auto B = diff_src_ptr[map_index(diff_src_d, off(mb, c, h, w))];
-                    data_t eps = 1.e-6*((2*(2*local_size + 3) + 6)*local_size
-                        + (2*local_size + 3) + 9);
+                    data_t eps = static_cast<data_t>( 1.e-6*((2*(2*local_size + 3) + 6)*local_size
+                        + (2*local_size + 3) + 9) );
                     data_t norm_max = std::max(fabs(A), fabs(B));
                     if (norm_max < eps) norm_max = 1.;
                     EXPECT_NEAR(A, B, eps*norm_max);
