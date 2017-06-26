@@ -185,6 +185,11 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma(int ur_w,
     prepare_output(ur_w);
 
     mov(reg_kj, reg_kh);
+    Label skip_kh_loop;
+    if (jcp.kh <= jcp.t_pad) {
+        cmp(reg_kj, 0);
+        je(skip_kh_loop, T_NEAR);
+    }
 
     align(16);
     L(kh_label);
@@ -326,6 +331,8 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma(int ur_w,
     cmp(reg_kj, 0);
     jg(kh_label, T_NEAR);
 
+    L(skip_kh_loop);
+
     store_output(ur_w);
 }
 
@@ -370,6 +377,11 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_fma(int ur_w, int pad_l,
     mov(aux_reg_inp_prf, reg_inp_prf);
     mov(aux_reg_ker_prf, reg_ker_prf);
     mov(reg_kj, reg_kh);
+    Label skip_kh_loop;
+    if (jcp.kh <= jcp.t_pad) {
+        cmp(reg_kj, 0);
+        je(skip_kh_loop, T_NEAR);
+    }
     align(16);
     L(kh_label);
     {
@@ -455,6 +467,8 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_fma(int ur_w, int pad_l,
         jg(kh_label, T_NEAR);
     }
 
+    L(skip_kh_loop);
+
     store_output(ur_w);
 }
 
@@ -475,7 +489,12 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4vnni(
 
     prepare_output(ur_w);
 
+    Label skip_kh_loop;
     mov(reg_kj, reg_kh);
+    if (jcp.kh <= jcp.t_pad) {
+        cmp(reg_kj, 0);
+        je(skip_kh_loop, T_NEAR);
+    }
     L(kh_label); {
         for (int ki = 0; ki < jcp.kw; ki++) {
             for (int ic = 0; ic < jcp.ic_block / 2; ic += 4) {
@@ -518,6 +537,8 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4vnni(
         cmp(reg_kj, 0);
         jg(kh_label, T_NEAR);
     }
+
+    L(skip_kh_loop);
     store_output(ur_w);
 }
 
