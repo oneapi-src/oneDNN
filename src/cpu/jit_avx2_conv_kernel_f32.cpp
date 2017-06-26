@@ -712,6 +712,7 @@ status_t jit_avx2_conv_bwd_weights_kernel_f32::init_conf(jit_conv_conf_t &jcp,
         && jcp.kw < 14
         && jcp.kh <= jcp.t_pad + jcp.ih /* [bwd_w:r1] */
         && jcp.kh <= jcp.ih /* [bwd_w:r2] */
+        && jcp.t_pad < jcp.kh /* XXX: must fix the kernel! */
         && jcp.dilate_h == 0
         && jcp.dilate_w == 0;
     if (!args_ok) return status::unimplemented;
