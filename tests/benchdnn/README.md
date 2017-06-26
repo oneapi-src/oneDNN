@@ -46,7 +46,7 @@ The usage:
 where *harness-knobs* are:
 
  - `--cfg={f32, u8s8s32u8, ...}` configuration (see below), default `f32`
- - `--dir={FWD_D, FWD_B, BWD_D, BWD_W, BWD_WB}` direction, default `FWD_B`
+ - `--dir={FWD_D (forward data), FWD_B (forward data + bias), BWD_D (backward data), BWD_W (backward weights), BWD_WB (backward weights + bias)}` direction, default `FWD_B`
  - `--alg={DIRECT, WINO}` convolution algorithm, default DIRECT
  - `--merge={NONE, RELU}` merged primitive, default NONE (nothing merged)
  - `--mb=N` override minibatch that is specified in convolution description, default `0` (use mb specified in conv desc)
