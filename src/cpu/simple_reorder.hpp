@@ -375,8 +375,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                             + col * ostrides[3];
                         const auto i_idx = row * istrides[0]
                             + col * istrides[3];
-                        o[o_idx] = alpha * data_t<type_o>(i[i_idx])
-                            + (beta ? beta * o[o_idx] : 0);
+                        o[o_idx] = data_t<type_o>(alpha * i[i_idx]
+                            + (beta ? beta * o[o_idx] : 0));
                     }
                 }
             }
@@ -446,12 +446,12 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                             [w_groups + 1];
                     if (order_keep) {
                         o[ic * blksize + oc] =
-                            alpha * data_t<type_o>(i[_g_oihw_off])
-                            + (beta ? beta * o[ic * blksize + oc] : 0);
+                            data_t<type_o>(alpha * i[_g_oihw_off]
+                            + (beta ? beta * o[ic * blksize + oc] : 0));
                     } else {
                         o[_g_oihw_off] =
-                            alpha * data_t<type_o>(i[ic * blksize + oc])
-                            + (beta ? beta * o[_g_oihw_off] : 0);
+                            data_t<type_o>(alpha * i[ic * blksize + oc]
+                            + (beta ? beta * o[_g_oihw_off] : 0));
                     }
                 }
                 }
@@ -604,16 +604,12 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             if (alpha == 1.0 && beta == 0.0) {
                 for (int ic = 0; ic < blksize; ++ic) {
                     for (int oc = 0; oc < blksize; ++oc) {
-                        const int o_idx = ic * blksize + oc;
-                        const int i_idx = oc * blksize + ic;
                         o[index_dst(ic,oc)] = data_t<type_o>(i[index_src(ic,oc)]);
                     }
                 }
             } else {
                 for (int ic = 0; ic < blksize; ++ic) {
                     for (int oc = 0; oc < blksize; ++oc) {
-                        const int o_idx = ic * blksize + oc;
-                        const int i_idx = oc * blksize + ic;
                         o[index_dst(ic,oc)] = data_t<type_o>(
                                 alpha * i[index_src(ic,oc)]
                                 + (beta ? beta * o[index_dst(ic,oc)] : 0));
@@ -677,8 +673,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                     const int i_idx = oc * blksize + ic;
                     o[o_idx] = (alpha == 1.0 && beta == 0.0)
                         ? data_t<type_o>(i[i_idx])
-                        : alpha * data_t<type_o>(i[i_idx])
-                            + (beta ? beta * o[o_idx] : 0);
+                        : data_t<type_o>(alpha * i[i_idx]
+                            + (beta ? beta * o[o_idx] : 0));
                 }
             }
         };
