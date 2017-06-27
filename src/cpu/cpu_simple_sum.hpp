@@ -71,7 +71,7 @@ struct cpu_simple_sum_t: public c_compatible {
                     sum->input_memory(a)) + i_d.blk_off(0);
         }
 
-        unsigned block_size =  int(16 * 1024/sizeof(data_type));
+        const size_t block_size = 16 * 1024 / sizeof(data_type);
         const size_t blocks_number = nelems / block_size;
         const size_t tail = nelems % block_size;
 
@@ -86,11 +86,11 @@ struct cpu_simple_sum_t: public c_compatible {
                 size_t start_e = nb * block_size;
                 size_t end_e = start_e + block_size;
                 for (size_t e = start_e; e < end_e; e++) {
-                    output[e] = static_cast<data_t>(scale_[0] * input_ptrs[0][e]);
+                    output[e] = data_t(scale_[0] * input_ptrs[0][e]);
                 }
                 for (int a = 1; a < num_arrs; a++) {
                     for (size_t e = start_e; e < end_e; e++) {
-                        output[e] += static_cast<data_t>(scale_[a] * input_ptrs[a][e]);
+                        output[e] += data_t(scale_[a] * input_ptrs[a][e]);
                     }
                 }
             }
@@ -99,11 +99,11 @@ struct cpu_simple_sum_t: public c_compatible {
                 size_t start_e = nelems - tail;
                 size_t end_e = nelems;
                 for (size_t e = start_e; e < end_e; e++) {
-                    output[e] = static_cast<data_t>(scale_[0] * input_ptrs[0][e]);
+                    output[e] = data_t(scale_[0] * input_ptrs[0][e]);
                 }
                 for (int a = 1; a < num_arrs; a++) {
                     for (size_t e = start_e; e < end_e; e++) {
-                        output[e] += static_cast<data_t>(scale_[a] * input_ptrs[a][e]);
+                        output[e] += data_t(scale_[a] * input_ptrs[a][e]);
                     }
                 }
             }
