@@ -51,7 +51,8 @@ struct cpu_simple_concat_t: public c_compatible {
             ok = ok && i_d.data_type() == data_type
                 && o_d.data_type() == data_type && i_d.format() == o_d.format()
                 && is_dense_no_0(i_d) && is_dense_no_0(o_d)
-                && (src_pds_.size()==0 || i_d.blocking_desc().strides[0][0] > 0);
+                && (src_pds_.size() == 0 ||
+                        i_d.blocking_desc().strides[0][0] > 0);
         }
         return ok;
     }
@@ -59,7 +60,7 @@ struct cpu_simple_concat_t: public c_compatible {
     static void execute(const nstl::vector<cpu_memory_t::pd_t> &src_pds_,
             const nstl::vector<cpu_memory_t::pd_t> &dst_pds_,
             cpu_primitive_t *concat) {
-        const int num_arrs = int(src_pds_.size()); // safe because <= max_num_arrs
+        const int num_arrs = int(src_pds_.size()); // safe (<= max_num_arrs)
         const data_t *input_ptrs[max_num_arrs];
         data_t *output_ptrs[max_num_arrs];
         size_t nelems_no_d0[max_num_arrs];
@@ -80,17 +81,17 @@ struct cpu_simple_concat_t: public c_compatible {
         }
 
         const memory_desc_wrapper o_d(&dst_pds_[0]);
-        const size_t N = o_d.dims()[0];
+        const int N = o_d.dims()[0];
         const size_t os = size_t(o_d.blocking_desc().strides[0][0]);
 
         catch_me();
 
 #       pragma omp parallel for collapse(2) schedule(static)
-        for (size_t n = 0; n < N; ++n) {
+        for (int n = 0; n < N; ++n) {
             for (int a = 0; a < num_arrs; ++a) {
                 /* do coping */
-                const data_t *i = &input_ptrs[a][is[a]*n];
-                data_t *o = &output_ptrs[a][os*n];
+                const data_t *i = &input_ptrs[a][is[a] * size_t(n)];
+                data_t *o = &output_ptrs[a][os * size_t(n)];
                 for (size_t e = 0; e < nelems_no_d0[a]; ++e) o[e] = i[e];
             }
         }
