@@ -38,7 +38,7 @@ void check_relu_fwd(data_t negative_slope, const memory::desc &md,
     data_t *dst_data = (data_t *)dst.get_data_handle();
 
     ASSERT_EQ(md.data.ndims, 4);
-    ASSERT_EQ(md.data.data_type, memory::convert_to_c(memory::data_type::f32)); // TODO: type assert
+    ASSERT_EQ(md.data.data_type, memory::data_type::f32); // TODO: type assert
 
     size_t N = md.data.dims[0];
     size_t C = md.data.dims[1];
@@ -62,7 +62,7 @@ void check_relu_bwd(data_t negative_slope, const memory::desc &md,
     const memory::desc diff_data_d = diff_src.get_primitive_desc().desc();
 
     ASSERT_EQ(md.data.ndims, 4);
-    ASSERT_EQ(md.data.data_type, memory::convert_to_c(memory::data_type::f32)); // TODO: type assert
+    ASSERT_EQ(md.data.data_type, memory::data_type::f32); // TODO: type assert
 
     size_t N = md.data.dims[0];
     size_t C = md.data.dims[1];

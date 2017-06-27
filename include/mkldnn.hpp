@@ -519,6 +519,32 @@ struct memory: public primitive  {
 
 };
 
+inline bool operator==(c_api::mkldnn_data_type_t a, memory::data_type b) {
+    return a == memory::convert_to_c(b);
+}
+inline bool operator!=(c_api::mkldnn_data_type_t a, memory::data_type b) {
+    return !(a == b);
+}
+inline bool operator==(memory::data_type a, c_api::mkldnn_data_type_t b) {
+    return b == a;
+}
+inline bool operator!=(memory::data_type a, c_api::mkldnn_data_type_t b) {
+    return !(a == b);
+}
+
+inline bool operator==(c_api::mkldnn_memory_format_t a, memory::format b) {
+    return a == memory::convert_to_c(b);
+}
+inline bool operator!=(c_api::mkldnn_memory_format_t a, memory::format b) {
+    return !(a == b);
+}
+inline bool operator==(memory::format a, c_api::mkldnn_memory_format_t b) {
+    return b == a;
+}
+inline bool operator!=(memory::format a, c_api::mkldnn_memory_format_t b) {
+    return !(a == b);
+}
+
 enum padding_kind {
     zero = c_api::mkldnn_padding_zero
 };
