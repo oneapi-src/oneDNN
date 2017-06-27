@@ -73,8 +73,8 @@
         CONCAT_WITH_UNDERSCORE(TEST_CASE_NAME_PREFIX, str), __VA_ARGS__)
 
 #include "convolution_simple_small.h"
-#include "convolution_alexnet.h"
-#include "convolution_googlenet_v1.h"
-#include "convolution_googlenet_v2.h"
-#include "convolution_resnet.h"
-#include "convolution_cifar10.h"
+//#include "convolution_alexnet.h"
+//#include "convolution_googlenet_v1.h"
+//#include "convolution_googlenet_v2.h"
+//#include "convolution_resnet.h"
+//#include "convolution_cifar10.h"
