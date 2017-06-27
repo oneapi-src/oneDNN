@@ -29,13 +29,12 @@ template <typename T, typename A> inline T relu_bwd(T dd, T s, A alpha) {
 }
 
 template <typename T> T tanh_fwd(T s) {
-    double e = ::exp(2*s); /* maybe replace with -2*s? */
+    const double e = ::exp(2*s); /* maybe replace with -2*s? */
     return static_cast<T>((e - 1.0) / (e + 1.0));
 }
 template <typename T> T tanh_bwd(T dd, T s) {
-    //T th = tanh_fwd(s);
-    double const e = ::exp(2*s); /* maybe replace with -2*s? */
-    double const th = ((e - 1) / (e + 1));
+    const double e = ::exp(2*s); /* maybe replace with -2*s? */
+    const double th = ((e - 1) / (e + 1));
     return static_cast<T>(dd * (1 - th * th));
 }
 
