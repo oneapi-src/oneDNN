@@ -23,41 +23,13 @@
 #include "jit_generator.hpp"
 #include "type_helpers.hpp"
 
+#include "jit_primitive_conf.hpp"
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {
 
 using namespace Xbyak;
-
-struct jit_pool_conf_t {
-    int mb, c;
-    int ih, iw, oh, ow;
-    int stride_h, stride_w;
-    int kh, kw;
-    int t_pad, l_pad;
-    alg_kind_t alg;
-    bool is_training;
-    bool pad_w_is_null;
-    bool is_backward;
-
-    int nb_c, c_block;
-    int ur_w;
-    int ur_w_tail;
-};
-
-struct jit_pool_call_s {
-    const float *src;
-    const float *dst;
-    const int *indices;
-    const float *src_prf;
-    const float *dst_prf;
-    const int *indices_prf;
-    size_t kh_padding;
-    size_t kh_padding_shift;
-    size_t kw_padding;
-    const float* init_value;
-    float ker_area_h;
-};
 
 template <cpu_isa_t isa>
 struct jit_uni_pool_kernel_f32: public jit_generator {

@@ -23,6 +23,7 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
+/* convolution */
 enum conv_version_t {ver_unused, ver_fma, ver_4fma, ver_4vnni};
 enum conv_loop_order_t {loop_cgn, loop_gnc, loop_ngc};
 enum conv_1x1_loop_order_t {loop_rbl, loop_rlb, loop_lbr, loop_lrb, loop_blr,
@@ -181,6 +182,42 @@ struct jit_1x1_conv_call_s {
 
     size_t reduce_pos_flag;
 };
+
+/* pooling */
+struct jit_pool_conf_t {
+    int mb, c;
+    int ih, iw, oh, ow;
+    int stride_h, stride_w;
+    int kh, kw;
+    int t_pad, l_pad;
+    alg_kind_t alg;
+    bool is_training;
+    bool pad_w_is_null;
+    bool is_backward;
+
+    int c_block, c_tail, nb_c;
+    int ur_c, ur_c_tail;
+    int ur_w;
+    int ur_w_tail;
+    size_t tail[4];
+    data_type_t src_dt;
+    data_type_t dst_dt;
+};
+
+struct jit_pool_call_s {
+    const float *src;
+    const float *dst;
+    const int *indices;
+    const float *src_prf;
+    const float *dst_prf;
+    const int *indices_prf;
+    size_t kh_padding;
+    size_t kh_padding_shift;
+    size_t kw_padding;
+    const float* init_value;
+    float ker_area_h;
+};
+
 
 }
 }
