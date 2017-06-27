@@ -235,6 +235,12 @@ private:
     inline void compute_loop_fma(int ur_w, int l_overflow, int r_overflow);
     inline void compute_loop(int ur_w, int l_overflow, int r_overflow);
     void generate();
+    inline int get_iw_start(int ki, int l_overflow) {
+        return nstl::max(0, l_overflow - (jcp.kw - 1) + ki);
+    }
+    inline int get_iw_end(int ki, int r_overflow) {
+        return jcp.ur_w - nstl::max(0, r_overflow - ki);
+    }
 };
 
 struct jit_avx512_common_conv_bwd_weights_kernel_f32 : public jit_generator {
