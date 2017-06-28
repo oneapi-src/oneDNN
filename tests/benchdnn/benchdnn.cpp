@@ -73,9 +73,5 @@ int main(int argc, char **argv) {
             benchdnn_stat.skipped, benchdnn_stat.mistrusted,
             benchdnn_stat.unimplemented, benchdnn_stat.failed);
 
-    assert(benchdnn_stat.tests <= benchdnn_stat.passed + benchdnn_stat.skipped
-            + benchdnn_stat.mistrusted + benchdnn_stat.unimplemented
-            + benchdnn_stat.failed);
-
     return !!benchdnn_stat.failed;
 }
