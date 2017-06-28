@@ -32,8 +32,9 @@ template <typename data_t>
 void compute_ref_inner_product_fwd(test_inner_product_descr_t ipd, memory &src,
         memory &weights, memory &bias, memory &dst)
 {
-    const bool w_bias = memory::convert_to_c(memory::format::format_undef)
-        != bias.get_primitive_desc().desc().data.format;
+    const bool w_bias
+        = (bias.get_primitive_desc().desc().data.format
+            != memory::format::format_undef);
     data_t *src_data = (data_t *)src.get_data_handle();
     data_t *weights_data = (data_t *)weights.get_data_handle();
     data_t *bias_data = w_bias ? (data_t *)bias.get_data_handle() : nullptr;

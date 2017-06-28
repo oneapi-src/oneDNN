@@ -104,14 +104,14 @@ void _jit_avx2_convolution_fwd_t<with_relu>::execute_forward() {
                                     jit_avx2_conv_fwd_kernel_f32::IC_FLAG_LAST;
                     }
 
-                    par_conv.kh_padding = jcp.kh
-                        - div_up(i_t_overflow, (jcp.dilate_h + 1))
-                        - div_up(i_b_overflow, (jcp.dilate_h + 1));
-                    par_conv.kw_padding = 0;
-
                     par_conv.oc_blocks =
                             nstl::min(ocb + ocb_num, jcp.nb_oc) - ocb;
 
+                    par_conv.kw_padding = 0;
+                    const int kh_padding = jcp.kh
+                        - div_up(i_t_overflow, (jcp.dilate_h + 1))
+                        - div_up(i_b_overflow, (jcp.dilate_h + 1));
+                    par_conv.kh_padding = nstl::max(0, kh_padding);
                     kernel_->jit_ker(&par_conv);
                 }
                 nd_iterator_step(n, jcp.mb, g, jcp.ngroups, ocbb, ocb_work,

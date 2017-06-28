@@ -168,7 +168,12 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(int ur_w,
     mov(aux_reg_input, reg_input);
     mov(aux_reg_kernel, reg_kernel);
 
+    Label skip_kh_loop;
     mov(kj, reg_kh);
+    if (jcp.kh <= jcp.t_pad) {
+        cmp(kj, 0);
+        je(skip_kh_loop, T_NEAR);
+    }
     jit_tagged_label kh_label("kh", pad_tag, oc_blocks_tag);
     L(kh_label);
     {
@@ -187,6 +192,8 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(int ur_w,
         cmp(kj, 0);
         jg(kh_label, T_NEAR);
     }
+
+    L(skip_kh_loop);
 
     jit_tagged_label done_label("done", pad_tag, oc_blocks_tag);
     jit_tagged_label regular_store_label("store", pad_tag, oc_blocks_tag);
@@ -380,6 +387,7 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
 
     args_ok = true
         && jcp.oc % simd_w == 0
+        && jcp.l_pad <= jcp.ur_w
         && implication(jcp.kw > 7, (jcp.t_pad == 0 && jcp.l_pad == 0)
                 || (jcp.stride_w == 1 && jcp.stride_h == 1))
         && implication(mimo, jcp.ic % simd_w == 0);
@@ -704,6 +712,7 @@ status_t jit_avx2_conv_bwd_weights_kernel_f32::init_conf(jit_conv_conf_t &jcp,
         && jcp.kw < 14
         && jcp.kh <= jcp.t_pad + jcp.ih /* [bwd_w:r1] */
         && jcp.kh <= jcp.ih /* [bwd_w:r2] */
+        && jcp.t_pad < jcp.kh /* XXX: must fix the kernel! */
         && jcp.dilate_h == 0
         && jcp.dilate_w == 0;
     if (!args_ok) return status::unimplemented;

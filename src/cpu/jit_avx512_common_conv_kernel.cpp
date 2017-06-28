@@ -139,7 +139,17 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma(int ur_w,
     int stride_w = jcp.stride_w;
     int ic_block = jcp.ic_block;
     int oc_block = jcp.oc_block;
-    Label kh_label;
+    Label kh_label, last_iter_label, loop_end_label;
+    int ker_load_number = 4;
+    int shift_kernel_ptr = typesize * jcp.kw * jcp.oc_block * jcp.ic_block;
+    int shift_input_ptr = typesize * jcp.iw * jcp.ic_block;
+
+    bool check_last_kh = (jcp.kh > 3);
+    bool one_fma_one_pref = (jcp.ow > 28);
+
+    int oi_ipref_t0 = get_ow_start(0, pad_l);
+    int oi_ipref_t1 = oi_ipref_t0;
+    int ow_end_ipref = get_ow_end(0, pad_r);
 
     assert(jcp.oc % jcp.nb_oc_blocking == 0);
 
@@ -154,55 +164,174 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma(int ur_w,
         int ic_offset = ic * jcp.oc_block;
         return typesize * (blk_offset + ic_offset);
     };
+    auto kernel_loads = [=](int ki, int ic, int kk) {
+        for (int ii = 0; ii < ker_load_number; ii++) {
+            int aux_kernel_offset = kernel_offset(kk, ic + ii, ki);
+            vmovups(zmm_ker(ii),
+                EVEX_compress_addr(aux_reg_ker, aux_kernel_offset));
+        }
+    };
+    auto prefetch_inp_next_kh = [&](int ki, int ki_start, int cnt0, int cnt1) {
+        if (cnt1 >= ker_load_number && cnt0 >= ker_load_number
+            && ki >= ki_start && oi_ipref_t0 < ow_end_ipref) {
+            int aux_inp_offset = typesize * ((oi_ipref_t0
+                    * stride_w - pad_l) * ic_block + jcp.iw * ic_block);
+            prefetcht0(EVEX_compress_addr(aux_reg_inp,
+                    aux_inp_offset));
+            oi_ipref_t0++;
+        }
+    };
 
     prepare_output(ur_w);
 
     mov(reg_kj, reg_kh);
-    L(kh_label); {
-        for (int ki = 0; ki < kw; ki++)
-        for (int ic = 0; ic < ic_block; ic += 4)
-        for (int kk = 0; kk < jcp.nb_oc_blocking; kk++) {
-            for (int ii = 0; ii < 4; ii++) {
-                int aux_kernel_offset = kernel_offset(kk, ic + ii, ki);
-                vmovups(zmm_ker(ii),
-                        EVEX_compress_addr(aux_reg_ker, aux_kernel_offset));
-            }
-
-            int jj_start = nstl::max(0,
-                    (pad_l - ki + stride_w - 1) / stride_w);
-            int jj_end = ur_w - nstl::max(0,
-                    (ki + pad_r - (kw - 1) + stride_w - 1) / stride_w);
-            for (int jj = jj_start, prf_count = 0; jj  < jj_end; jj++) {
-                int aux_input_offset =  typesize
-                    * ((ki + jj * stride_w -pad_l) * ic_block + ic);
-                v4fmaddps(zmm_out(jj, kk), zmm_ker(0),
-                        EVEX_compress_addr(aux_reg_inp,aux_input_offset));
-                if ((jj % 2) && (prf_count < 4)) {
-                    int aux_kernel_prf = kernel_offset(kk, ic + prf_count, ki);
-                    mic_prefetcht0(EVEX_compress_addr(
-                                aux_reg_ker_prf, aux_kernel_prf));
-                    prf_count++;
-                }
-                if (!(jj % 2) && ki == 0 && ic == 0 && kk == 0) {
-                    mic_prefetcht1(EVEX_compress_addr(aux_reg_inp_prf,
-                        aux_input_offset));
-                }
-                if (!(jj % 2) && ki == 1 && ic == 0 && kk == 0) {
-                    mic_prefetcht0(EVEX_compress_addr(aux_reg_inp,
-                        aux_input_offset + typesize * iw * ic_block));
-                }
-            }
-        }
-
-        add(aux_reg_ker, typesize * kw * oc_block * ic_block);
-        add(aux_reg_inp, typesize * iw * ic_block);
-        add(aux_reg_ker_prf, typesize * kw * oc_block * ic_block);
-        add(aux_reg_inp_prf, typesize * iw * ic_block);
-
-        dec(reg_kj);
+    Label skip_kh_loop;
+    if (jcp.kh <= jcp.t_pad) {
         cmp(reg_kj, 0);
-        jg(kh_label, T_NEAR);
+        je(skip_kh_loop, T_NEAR);
     }
+
+    align(16);
+    L(kh_label);
+    if (check_last_kh) {
+        for (int ki = 0; ki < kw; ki++)
+            for (int ic = 0; ic < ic_block; ic += 4)
+                for (int kk = 0; kk < jcp.nb_oc_blocking; kk++) {
+                    bool last_kernel_loads = (kk == jcp.nb_oc_blocking - 1
+                        && ki == kw - 1 && (ic + 4) == ic_block);
+
+                    if (last_kernel_loads) {
+                        cmp(reg_kj, 1);
+                        je(last_iter_label, T_NEAR);
+                    }
+
+                    kernel_loads(ki, ic, kk);
+                    for (int oi = get_ow_start(ki, pad_l), prf_count_t1 = 0,
+                        prf_count_t0 = 0; oi  < get_ow_end(ki, pad_r); oi++) {
+                        int aux_input_offset =  typesize
+                            * ((ki + oi * stride_w - pad_l) * ic_block + ic);
+                        v4fmaddps(zmm_out(oi, kk), zmm_ker(0),
+                            EVEX_compress_addr(aux_reg_inp, aux_input_offset));
+
+                        if (oi % 2) {
+                            if (prf_count_t0 < 4) {
+                                int aux_kernel_prf;
+                                if (last_kernel_loads)
+                                    aux_kernel_prf= kernel_offset(0,
+                                        prf_count_t0 + ic + 4
+                                        - ic_block, 0) + typesize * kw
+                                        * oc_block * ic_block;
+                                else
+                                    aux_kernel_prf = kernel_offset(kk, ic + 4
+                                        + prf_count_t0, ki);
+                                mic_prefetcht0(EVEX_compress_addr(aux_reg_ker,
+                                    aux_kernel_prf));
+                                prf_count_t0++;
+                            } else if (prf_count_t1 < 4) {
+                                mic_prefetcht1(EVEX_compress_addr(
+                                    aux_reg_ker_prf, kernel_offset(kk, ic
+                                    + prf_count_t1, ki)));
+                                prf_count_t1++;
+                            }
+                        } else
+                           prefetch_inp_next_kh(ki, 2, prf_count_t0,
+                               prf_count_t1);
+                    }
+
+                    if (last_kernel_loads) {
+                        jmp(loop_end_label, T_NEAR);
+
+                        L(last_iter_label);
+
+                        kernel_loads(ki, ic, kk);
+                        for (int oi = get_ow_start(ki, pad_l), prf_count_t1 = 0,
+                             prf_count_t0 = 0; oi  < get_ow_end(ki, pad_r);
+                             oi++) {
+                            int aux_input_offset =  typesize
+                               * ((ki + oi * stride_w - pad_l) * ic_block + ic);
+                            v4fmaddps(zmm_out(oi, kk), zmm_ker(0),
+                                EVEX_compress_addr(aux_reg_inp,
+                                    aux_input_offset));
+                            if (oi % 2) {
+                                if (prf_count_t0 < 4) {
+                                    mic_prefetcht0(EVEX_compress_addr(
+                                        aux_reg_ker_prf, kernel_offset(0,
+                                        prf_count_t0, 0)));
+                                    prf_count_t0++;
+                                } else if (prf_count_t1 < 4) {
+                                    mic_prefetcht1(EVEX_compress_addr(
+                                        aux_reg_ker_prf, kernel_offset(kk,
+                                        ic + prf_count_t1, ki)));
+                                    prf_count_t1++;
+                                }
+                            }
+                        }
+                        L(loop_end_label);
+                    }
+                }
+    } else {
+        for (int ki = 0; ki < kw; ki++)
+            for (int ic = 0; ic < ic_block; ic += 4)
+                for (int kk = 0; kk < jcp.nb_oc_blocking; kk++) {
+                    kernel_loads(ki, ic, kk);
+                    for (int oi = get_ow_start(ki, pad_l), prf_count_t1 = 0,
+                        prf_count_t0 = 0;
+                        oi  < get_ow_end(ki, pad_r); oi++) {
+                        int aux_input_offset =  typesize
+                            * ((ki + oi * stride_w - pad_l) * ic_block + ic);
+                        v4fmaddps(zmm_out(oi, kk), zmm_ker(0),
+                            EVEX_compress_addr(aux_reg_inp, aux_input_offset));
+
+                        if (one_fma_one_pref) {
+                            if (prf_count_t0 < 4) {
+                                int aux_kernel_prf;
+                                if (kk == jcp.nb_oc_blocking - 1 && ki == kw - 1
+                                    && ic + 4 >= ic_block)
+                                    aux_kernel_prf = kernel_offset(0,
+                                        prf_count_t0 + ic + 4 - ic_block, 0)
+                                        + typesize * kw * oc_block * ic_block;
+                                else
+                                    aux_kernel_prf = kernel_offset(kk,
+                                        ic + 4 + prf_count_t0, ki);
+                                mic_prefetcht0(EVEX_compress_addr(
+                                    aux_reg_ker, aux_kernel_prf));
+                                prf_count_t0++;
+                            } else if (prf_count_t1 < 4) {
+                                mic_prefetcht1(EVEX_compress_addr(
+                                    aux_reg_ker_prf, kernel_offset(kk,
+                                    ic + prf_count_t1, ki)));
+                                prf_count_t1++;
+                            } else
+                                prefetch_inp_next_kh(ki, 0, prf_count_t0,
+                                    prf_count_t1);
+                        } else {
+                            if ((oi % 2) && (prf_count_t0 < 4)) {
+                                mic_prefetcht0(EVEX_compress_addr(
+                                    aux_reg_ker_prf, kernel_offset(kk,
+                                    ic + prf_count_t0, ki)));
+                                prf_count_t0++;
+                            }
+                            if (!(oi % 2) && ki == 0 && ic == 0 && kk == 0)
+                                mic_prefetcht1(EVEX_compress_addr(
+                                    aux_reg_inp_prf, aux_input_offset));
+                            if (!(oi % 2) && ki == 1 && ic == 0 && kk == 0)
+                                mic_prefetcht0(EVEX_compress_addr(aux_reg_inp,
+                                  aux_input_offset + typesize * iw * ic_block));
+                        }
+                    }
+                }
+    }
+
+    add(aux_reg_ker, shift_kernel_ptr);
+    add(aux_reg_inp, shift_input_ptr);
+    add(aux_reg_ker_prf, shift_kernel_ptr);
+    add(aux_reg_inp_prf, shift_input_ptr);
+
+    dec(reg_kj);
+    cmp(reg_kj, 0);
+    jg(kh_label, T_NEAR);
+
+    L(skip_kh_loop);
 
     store_output(ur_w);
 }
@@ -248,6 +377,11 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_fma(int ur_w, int pad_l,
     mov(aux_reg_inp_prf, reg_inp_prf);
     mov(aux_reg_ker_prf, reg_ker_prf);
     mov(reg_kj, reg_kh);
+    Label skip_kh_loop;
+    if (jcp.kh <= jcp.t_pad) {
+        cmp(reg_kj, 0);
+        je(skip_kh_loop, T_NEAR);
+    }
     align(16);
     L(kh_label);
     {
@@ -333,6 +467,8 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_fma(int ur_w, int pad_l,
         jg(kh_label, T_NEAR);
     }
 
+    L(skip_kh_loop);
+
     store_output(ur_w);
 }
 
@@ -353,7 +489,12 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4vnni(
 
     prepare_output(ur_w);
 
+    Label skip_kh_loop;
     mov(reg_kj, reg_kh);
+    if (jcp.kh <= jcp.t_pad) {
+        cmp(reg_kj, 0);
+        je(skip_kh_loop, T_NEAR);
+    }
     L(kh_label); {
         for (int ki = 0; ki < jcp.kw; ki++) {
             for (int ic = 0; ic < jcp.ic_block / 2; ic += 4) {
@@ -396,6 +537,8 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4vnni(
         cmp(reg_kj, 0);
         jg(kh_label, T_NEAR);
     }
+
+    L(skip_kh_loop);
     store_output(ur_w);
 }
 
@@ -523,6 +666,8 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     jcp.with_relu = with_relu;
     jcp.relu_negative_slope = relu_negative_slope;
     jcp.ur_h = 1;
+    jcp.oc_block = simd_w;
+    jcp.ic_block = (jcp.ic % simd_w != 0) ? jcp.ic : simd_w;
 
     jcp.dilate_h = cd.dilates[0];
     jcp.dilate_w = cd.dilates[1];
@@ -625,8 +770,6 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     if (r_pad_no_tail > jcp.ur_w)
         return status::unimplemented;
 
-    jcp.oc_block = simd_w;
-    jcp.ic_block = (jcp.ic % simd_w != 0) ? jcp.ic : simd_w;
     jcp.nb_ic = jcp.ic / jcp.ic_block;
     jcp.nb_oc = jcp.oc / jcp.oc_block;
     jcp.nb_ic_blocking = jcp.nb_oc_blocking = 1;

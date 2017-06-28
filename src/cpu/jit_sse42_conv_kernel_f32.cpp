@@ -184,7 +184,12 @@ void jit_sse42_conv_fwd_kernel_f32::width_blk_step(int ur_w,
 
     L(init_done_label);
 
+    Label skip_kh_loop;
     mov(kj, reg_kh);
+    if (jcp.kh <= jcp.t_pad) {
+        cmp(kj, 0);
+        je(skip_kh_loop, T_NEAR);
+    }
     jit_tagged_label kh_label("kh", pad_tag, oc_blocks_tag);
     L(kh_label);
     {
@@ -203,6 +208,8 @@ void jit_sse42_conv_fwd_kernel_f32::width_blk_step(int ur_w,
         cmp(kj, 0);
         jg(kh_label, T_NEAR);
     }
+
+    L(skip_kh_loop);
 
     jit_tagged_label done_label("done", pad_tag, oc_blocks_tag);
     jit_tagged_label regular_store_label("store", pad_tag, oc_blocks_tag);

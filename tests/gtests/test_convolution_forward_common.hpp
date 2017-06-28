@@ -36,8 +36,7 @@ void compute_ref_conv_fwd(const test_convolution_sizes_t &c,
         const memory &bias,
         const memory &dst)
 {
-    const bool w_bias = memory::convert_to_c(memory::format::format_undef)
-        != bias_d.data.format;
+    const bool w_bias = bias_d.data.format != memory::format::format_undef;
     data_t_src *src_data = (data_t_src *)src.get_data_handle();
     data_t_wei *weights_data = (data_t_wei *)weights.get_data_handle();
 

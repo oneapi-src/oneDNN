@@ -43,18 +43,11 @@ template <> inline void assert_eq<float>(float a, float b) {
 }
 
 inline size_t map_index(const mkldnn::memory::desc &md, size_t index) {
-    const mkldnn::c_api::mkldnn_memory_format_t fwd_weights_g =
-        static_cast<mkldnn::c_api::mkldnn_memory_format_t>(
-            mkldnn::memory::format::gOIhw8i16o2i);
-    const mkldnn::c_api::mkldnn_memory_format_t fwd_weights =
-        static_cast<mkldnn::c_api::mkldnn_memory_format_t>(
-            mkldnn::memory::format::OIhw8i16o2i);
-    const mkldnn::c_api::mkldnn_memory_format_t bwd_weights_g =
-        static_cast<mkldnn::c_api::mkldnn_memory_format_t>(
-            mkldnn::memory::format::gOIhw8o16i2o);
-    const mkldnn::c_api::mkldnn_memory_format_t bwd_weights =
-        static_cast<mkldnn::c_api::mkldnn_memory_format_t>(
-            mkldnn::memory::format::OIhw8o16i2o);
+    using fmt = mkldnn::memory::format;
+    const fmt fwd_weights_g = fmt::gOIhw8i16o2i;
+    const fmt fwd_weights = fmt::OIhw8i16o2i;
+    const fmt bwd_weights_g = fmt::gOIhw8o16i2o;
+    const fmt bwd_weights = fmt::OIhw8o16i2o;
 
     const bool with_groups = (md.data.format == fwd_weights_g)
                           || (md.data.format == bwd_weights_g);

@@ -63,8 +63,6 @@ struct cpu_sum_t: public cpu_primitive_t
                 for (int i = 0; i < n_; ++i)
                     out_fmt = nstl::max(out_fmt, src_pds_[i].desc()->format);
                 dst_pd_.set_format(out_fmt); /* TODO: check status */
-            } else {
-                dst_pd_ = cpu_memory_t::pd_t(engine, output_d);
             }
 
             use_simple_sum_ =
