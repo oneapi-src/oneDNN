@@ -62,11 +62,22 @@ enum { CRIT = 1, WARN = 2 };
 #define CONCAT2(a,b) CONCAt2(a,b)
 
 inline void *zmalloc(size_t size, int align) {
-    void *p;
-    int rc = ::posix_memalign(&p, align, size);
-    return rc == 0 ? p : 0;
+    void *ptr;
+#ifdef _WIN32
+    ptr = _aligned_malloc(size, align);
+    int rc = ((ptr) ? 0 : errno);
+#else
+    int rc = ::posix_memalign(&ptr, align, size);
+#endif /* _WIN32 */
+    return rc == 0 ? ptr : 0;
 }
-inline void zfree(void *ptr) { return ::free(ptr); }
+inline void zfree(void *ptr) {
+#ifdef _WIN32
+    _aligned_free(ptr);
+#else
+    return ::free(ptr);
+#endif /* _WIN32 */
+}
 
 enum bench_mode_t { MODE_UNDEF = 0x0, CORR = 0x1, PERF = 0x2, };
 const char *bench_mode2str(bench_mode_t mode);
