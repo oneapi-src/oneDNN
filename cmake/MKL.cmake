@@ -48,8 +48,12 @@ function(detect_mkl LIBNAME)
     endif()
 endfunction()
 
-detect_mkl("libmklml_intel.so")
-detect_mkl("libmkl_rt.so")
+if(WIN32)
+    detect_mkl("mklml")
+elseif(UNIX)
+    detect_mkl("libmklml_intel.so")
+    detect_mkl("libmkl_rt.so")
+endif()
 
 set(FAIL_WITHOUT_MKL)
 

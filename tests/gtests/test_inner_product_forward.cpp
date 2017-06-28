@@ -32,8 +32,9 @@ template <typename data_t>
 void compute_ref_inner_product_fwd(test_inner_product_descr_t ipd, memory &src,
         memory &weights, memory &bias, memory &dst)
 {
-    const bool w_bias = memory::convert_to_c(memory::format::format_undef)
-        != bias.get_primitive_desc().desc().data.format;
+    const bool w_bias
+        = (bias.get_primitive_desc().desc().data.format
+            != memory::format::format_undef);
     data_t *src_data = (data_t *)src.get_data_handle();
     data_t *weights_data = (data_t *)weights.get_data_handle();
     data_t *bias_data = w_bias ? (data_t *)bias.get_data_handle() : nullptr;
@@ -49,7 +50,7 @@ void compute_ref_inner_product_fwd(test_inner_product_descr_t ipd, memory &src,
         for (int oc = 0; oc < ipd.oc; oc++) {
             int oidx = n * ipd.oc + oc;
             dst_data[map_index(dst_d, oidx)] = bias_data ?
-                    bias_data[map_index(bias_d, oc)] : 0.0;
+                    bias_data[map_index(bias_d, oc)] : data_t{0};
             for (int ic = 0; ic < ipd.ic; ic++) {
                 for (int kh = 0; kh < ipd.kh; kh++) {
                     for (int kw = 0; kw < ipd.kw; kw++) {

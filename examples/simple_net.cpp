@@ -16,6 +16,7 @@
 
 #include <iostream>
 #include <numeric>
+#include <string>
 #include "mkldnn.hpp"
 
 using namespace mkldnn;
@@ -23,7 +24,7 @@ using namespace mkldnn;
 void simple_net(){
     auto cpu_engine = engine(engine::cpu, 0);
 
-    const uint32_t batch = 8;
+    const int batch = 8;
 
     std::vector<float> net_src(batch * 3 * 227 * 227);
     std::vector<float> net_dst(batch * 96 * 27 * 27);
@@ -104,11 +105,13 @@ void simple_net(){
     auto relu_dst_memory = memory(conv_prim_desc.dst_primitive_desc());
 
     /* create relu primitive and add it to net */
-    auto relu_desc = relu_forward::desc(prop_kind::forward,
+    auto relu_desc = eltwise_forward::desc(prop_kind::forward,
+            algorithm::eltwise_relu,
             conv_prim_desc.dst_primitive_desc().desc(), negative_slope);
-    auto relu_prim_desc = relu_forward::primitive_desc(relu_desc, cpu_engine);
+    auto relu_prim_desc = eltwise_forward::primitive_desc(relu_desc,
+            cpu_engine);
 
-    net.push_back(relu_forward(relu_prim_desc, conv_dst_memory,
+    net.push_back(eltwise_forward(relu_prim_desc, conv_dst_memory,
             relu_dst_memory));
 
     /* AlexNet: lrn

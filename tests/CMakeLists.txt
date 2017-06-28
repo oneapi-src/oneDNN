@@ -18,6 +18,19 @@ if(POLICY CMP0065)
     cmake_policy(SET CMP0065 NEW)
 endif()
 
+if(UNIX OR APPLE)
+    # workaround for Intel Compiler 16.0 that doesn't suppress warning on
+    # deprecation with "-Wno-deprecated" compiler flag
+    if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel" AND
+            CMAKE_CXX_COMPILER_VERSION VERSION_LESS "17.0")
+        set(SUPPRESS_DEPRECATE_WARNS "-diag-disable:1478")
+    else()
+        set(SUPPRESS_DEPRECATE_WARNS "-Wno-deprecated-declarations")
+    endif()
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SUPPRESS_DEPRECATE_WARNS}")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SUPPRESS_DEPRECATE_WARNS}")
+endif()
+
 #add_executable(api-check-c api_check.c)
 #target_link_libraries(api-check-c ${LIB_NAME})
 #add_test(api-check-c api-check-c)
@@ -32,17 +45,24 @@ set_property(TARGET api-c PROPERTY C_STANDARD 99)
 target_link_libraries(api-c ${LIB_NAME})
 add_test(api-c api-c)
 
-set(test_c_symbols "${CMAKE_CURRENT_BINARY_DIR}/test_c_symbols.c")
-add_executable(test_c_symbols-c ${test_c_symbols})
-add_custom_command(
-    OUTPUT ${test_c_symbols}
-    COMMAND /bin/bash ${CMAKE_CURRENT_SOURCE_DIR}/generate_c_symbols_refs.sh
-    ${CMAKE_CURRENT_SOURCE_DIR}/.. ${test_c_symbols}
-)
-target_link_libraries(test_c_symbols-c ${LIB_NAME})
+if(UNIX OR APPLE)
+    set(test_c_symbols "${CMAKE_CURRENT_BINARY_DIR}/test_c_symbols.c")
+    add_executable(test_c_symbols-c ${test_c_symbols})
+    add_custom_command(
+        OUTPUT ${test_c_symbols}
+        COMMAND /bin/bash ${CMAKE_CURRENT_SOURCE_DIR}/generate_c_symbols_refs.sh
+        ${CMAKE_CURRENT_SOURCE_DIR}/.. ${test_c_symbols}
+    )
+    target_link_libraries(test_c_symbols-c ${LIB_NAME})
+    add_test(test_c_symbols-c test_c_symbols-c)
+# elseif(WIN32)
+# No Windows support for: test_c_symbols.c
+endif()
 
-add_test(test_c_symbols-c test_c_symbols-c)
+
 
 
 
 add_subdirectory(gtests)
+
+add_subdirectory(benchdnn)

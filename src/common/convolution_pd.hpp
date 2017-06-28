@@ -92,6 +92,9 @@ struct _convolution_fwd_pd_t: public primitive_desc_t {
     inline int KSH() const { return cdesc_().strides[0]; }
     inline int KSW() const { return cdesc_().strides[1]; }
 
+    inline int KDH() const { return cdesc_().dilates[0]; }
+    inline int KDW() const { return cdesc_().dilates[1]; }
+
     inline int padT() const { return cdesc_().padding[0][0]; }
     inline int padB() const { return cdesc_().padding[1][0]; }
     inline int padL() const { return cdesc_().padding[0][1]; }

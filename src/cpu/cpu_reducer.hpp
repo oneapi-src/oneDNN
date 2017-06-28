@@ -59,8 +59,8 @@ namespace cpu {
  * different parts of the reduction dimension. Thread 0 in each group is called
  * master (@sa reduce_balancer_t::master()).
  *
- * TODO: if threading driver do not allow sync between sub-group of threads
- *       (e.g. TBB) enforce the # of thread per group to be 1
+ * TODO: if threading driver does not allow sync between sub-group of threads
+ *       (e.g. Intel(R) TBB) enforce the # of thread per group to be 1
  */
 struct reduce_balancer_t {
     reduce_balancer_t(int nthr, int job_size, int njobs, int reduction_size,

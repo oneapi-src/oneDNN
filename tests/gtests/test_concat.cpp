@@ -101,14 +101,14 @@ protected:
             auto src_memory = memory(mpd);
             const size_t sz = src_memory.get_primitive_desc().get_size() / sizeof(data_t);
             auto s = (data_t *)src_memory.get_data_handle();
-            for (size_t j = 0; j < sz; ++j) s[j] = i;
+            for (size_t j = 0; j < sz; ++j) s[j] = static_cast<data_t>(i);
             // fill_data<data_t>(sz, (data_t *)src_memory.get_data_handle());
             srcs_pd.push_back(mpd);
             srcs.push_back(src_memory);
         }
 
         auto dst_desc = memory::desc(p.dst_cds, data_type, p.dst_format);
-        auto concat_pd = concat::primitive_desc(dst_desc, p.concat_dimension, srcs_pd);
+        auto concat_pd = concat::primitive_desc(dst_desc, static_cast<int>(p.concat_dimension), srcs_pd);
         auto dst = memory(concat_pd.dst_primitive_desc());
 
         std::vector<primitive::at> inputs;
@@ -127,7 +127,7 @@ protected:
         auto s = stream(stream::kind::eager);
         s.submit(pipeline).wait();
 
-        check_data(srcs, dst, p.concat_dimension);
+        check_data(srcs, dst, static_cast<int>(p.concat_dimension));
     }
 };
 

@@ -54,11 +54,11 @@ inline size_t data_type_size(data_type_t data_type) {
 
 inline memory_format_t format_normalize(const memory_format_t fmt) {
     using namespace memory_format;
-    if (utils::one_of(fmt, x, nc, nchw, nhwc, chwn, nChw8c, oi, io, oihw, ihwo,
-                OIhw8i8o, OIhw8o8i, Ohwi8o, OhIw16o4i, goihw, gOIhw8i8o,
-                gOIhw8o8i, nChw16c, OIhw16i16o, OIhw16o16i, Ohwi16o,
-                gOIhw16i16o, gOIhw16o16i, gOhIw16o4i,
-                OIhw8i16o2i, gOIhw8i16o2i))
+    if (utils::one_of(fmt, x, nc, nchw, nhwc, chwn, nChw8c, nChw16c, oi, io,
+                oihw, ihwo, oIhw8i, oIhw16i, OIhw8i8o, OIhw16i16o, OIhw8i16o2i,
+                OIhw8o16i2o, OIhw8o8i, OIhw16o16i, Ohwi8o, Ohwi16o, OhIw16o4i,
+                goihw, gOIhw8i8o, gOIhw16i16o, gOIhw8i16o2i, gOIhw8o16i2o,
+                gOIhw8o8i, gOIhw16o16i, gOhwi8o, gOhwi16o, gOhIw16o4i))
         return blocked;
     return fmt;
 }
@@ -95,7 +95,7 @@ inline bool operator!=(const memory_desc_t &lhs, const memory_desc_t &rhs) {
 }
 
 inline memory_desc_t zero_md() {
-    memory_desc_t zero({});
+    memory_desc_t zero{};
     zero.primitive_kind = primitive_kind::memory;
     return zero;
 }
@@ -109,10 +109,17 @@ inline data_type_t default_accum_data_type(data_type_t src_dt,
     using namespace utils;
     using namespace data_type;
 
-    if (everyone_is(f32, src_dt, wei_dt, dst_dt)) return f32;
-    if (src_dt == s16 && wei_dt == s16 && dst_dt == s32) return s32;
-    if (one_of(src_dt, s8, u8) && one_of(wei_dt, s8, u8, data_type::undef) &&
-            one_of(dst_dt, s8, u8, data_type::undef)) return s32;
+    if (src_dt == f32 && one_of(wei_dt, f32, data_type::undef)
+            && one_of(dst_dt, f32, data_type::undef))
+        return f32;
+
+    if (src_dt == s16 && one_of(wei_dt, s16, data_type::undef)
+            && one_of(dst_dt, s32, data_type::undef))
+        return s32;
+
+    if (one_of(src_dt, s8, u8) && one_of(wei_dt, s8, u8, data_type::undef)
+            && one_of(dst_dt, s8, u8, s32, data_type::undef))
+        return s32;
 
     assert(!"unimplemented use-case: no default parameters available");
     return dst_dt;

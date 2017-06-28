@@ -17,6 +17,7 @@
 #include <iostream>
 #include <numeric>
 #include <math.h>
+#include <string>
 #include "mkldnn.hpp"
 
 using namespace mkldnn;
@@ -25,7 +26,7 @@ void simple_net()
 {
     auto cpu_engine = engine(engine::cpu, 0);
 
-    const uint32_t batch = 32;
+    const int batch = 32;
 
     std::vector<float> net_src(batch * 3 * 227 * 227);
     std::vector<float> net_dst(batch * 96 * 27 * 27);
@@ -131,16 +132,16 @@ void simple_net()
     /* create relu primitive desc */
     /* keep memory format of source same as the format of convolution
      * output in order to avoid reorder */
-    auto relu_desc = relu_forward::desc(prop_kind::forward,
-                                        conv_pd.dst_primitive_desc().desc(),
-                                        negative_slope);
-    auto relu_pd = relu_forward::primitive_desc(relu_desc, cpu_engine);
+    auto relu_desc = eltwise_forward::desc(prop_kind::forward,
+            algorithm::eltwise_relu, conv_pd.dst_primitive_desc().desc(),
+            negative_slope);
+    auto relu_pd = eltwise_forward::primitive_desc(relu_desc, cpu_engine);
 
     /* create relu dst memory primitive */
     auto relu_dst_memory = memory(relu_pd.dst_primitive_desc());
 
     /* finally create a relu primitive */
-    auto relu = relu_forward(relu_pd, conv_dst_memory, relu_dst_memory);
+    auto relu = eltwise_forward(relu_pd, conv_dst_memory, relu_dst_memory);
 
     /* AlexNet: lrn
      * {batch, 96, 55, 55} -> {batch, 96, 55, 55}
@@ -302,16 +303,16 @@ void simple_net()
     auto relu_src_md = conv_pd.dst_primitive_desc().desc();
 
     /* create backward relu primitive_descriptor */
-    auto relu_bwd_desc = relu_backward::desc(relu_diff_dst_md, relu_src_md,
-                                             negative_slope);
+    auto relu_bwd_desc = eltwise_backward::desc(algorithm::eltwise_relu,
+            relu_diff_dst_md, relu_src_md, negative_slope);
     auto relu_bwd_pd
-            = relu_backward::primitive_desc(relu_bwd_desc, cpu_engine, relu_pd);
+            = eltwise_backward::primitive_desc(relu_bwd_desc, cpu_engine, relu_pd);
 
     /* create memory for relu diff src */
     auto relu_diff_src_memory = memory(relu_bwd_pd.diff_src_primitive_desc());
 
     /* finally create a backward relu primitive */
-    auto relu_bwd = relu_backward(relu_bwd_pd, conv_dst_memory,
+    auto relu_bwd = eltwise_backward(relu_bwd_pd, conv_dst_memory,
                                   lrn_diff_src_memory, relu_diff_src_memory);
 
     /* Backward convolution with respect to weights */

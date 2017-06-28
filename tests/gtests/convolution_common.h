@@ -16,14 +16,14 @@
 *******************************************************************************/
 #endif
 
-#define EXPAND_SIZES(mb, ng, ic, ih, iw, oc, oh, ow, kh, kw, ph, pw, sh, sw) \
-    { mb, ng, ic, ih, iw, oc, oh, ow, kh, kw, ph, pw, sh, sw }
-#define EXPAND_FORMATS(src, weights, bias, dst) \
-    { memory::format::src, memory::format::weights, \
-    memory::format::bias, memory::format::dst }
+#include "mkldnn.hpp"
 
-#define ENGINE engine::kind::cpu
-#define ALGORITHM convolution_direct
+#define EXPAND_FORMATS(src, weights, bias, dst) \
+    { mkldnn::memory::format::src, mkldnn::memory::format::weights, \
+    mkldnn::memory::format::bias, mkldnn::memory::format::dst }
+
+#define ENGINE mkldnn::engine::kind::cpu
+#define ALGORITHM mkldnn::convolution_direct
 
 #ifdef DIRECTION_FORWARD
 #define FMT_WEIGHTS_BLOCKED OIhw8i8o
@@ -39,8 +39,13 @@
 #elif defined DIRECTION_BACKWARD_DATA
 #define FMT_WEIGHTS_BLOCKED OIhw8o8i
 #define FMT_WEIGHTS_BLOCKED_G gOIhw8o8i
+#if defined(FP32)
 #define FMT_WEIGHTS_BLOCKED16 OIhw16o16i
 #define FMT_WEIGHTS_BLOCKED16_G gOIhw16o16i
+#elif defined(S16S16S32)
+#define FMT_WEIGHTS_BLOCKED16 OIhw8o16i2o
+#define FMT_WEIGHTS_BLOCKED16_G gOIhw8o16i2o
+#endif
 #define TEST_CASE_NAME_PREFIX BackwardData
 #elif defined DIRECTION_BACKWARD_WEIGHTS
 #define FMT_WEIGHTS_BLOCKED OIhw8i8o
@@ -57,7 +62,7 @@
 
 #define PARAMS(src, weights, bias, dst, ...) \
     test_convolution_params_t { ENGINE, ALGORITHM, \
-    EXPAND_FORMATS(src, weights, bias, dst), EXPAND_SIZES(__VA_ARGS__) }
+    EXPAND_FORMATS(src, weights, bias, dst), {__VA_ARGS__} }
 
 #define CONCAT_WITH_UNDERSCORE_(a,b) a ## _ ## b
 #define CONCAT_WITH_UNDERSCORE(a,b) CONCAT_WITH_UNDERSCORE_(a,b)

@@ -27,8 +27,8 @@ using namespace Xbyak;
 
 //////////////////////////////////////////////////////////////////////////////
 // forward kernel
-template<>
-void jit_uni_lrn_fwd_kernel_f32<avx2>::within_body(
+template<cpu_isa_t isa>
+void jit_uni_lrn_fwd_kernel_f32<isa>::within_body(
         int hoff, int Hoff, int woff, int Woff, int stride,
         Xbyak::Ymm ysum, Xbyak::Ymm ydst, Xbyak::Ymm ytmp, Xbyak::Ymm ysum2,
         prop_kind_t pk)
@@ -66,8 +66,8 @@ void jit_uni_lrn_fwd_kernel_f32<avx2>::within_body(
         add(scratch, 32);
 }
 
-template<>
-void jit_uni_lrn_fwd_kernel_f32<sse42>::within_body_sse42(
+template<cpu_isa_t isa>
+void jit_uni_lrn_fwd_kernel_f32<isa>::within_body_sse42(
     int hoff, int Hoff, int woff, int Woff, int stride, prop_kind_t pk)
 {
     Xbyak::Xmm xtmp_lo = xmm12;

@@ -28,6 +28,11 @@ inline int omp_get_thread_num() { return 0; }
 inline int omp_in_parallel() { return 0; }
 #endif
 
+/* VisualStudio still support omp 2.0 */
+#ifdef _MSC_VER
+#define collapse(x)
+#endif
+
 namespace mkldnn {
 namespace impl {
 

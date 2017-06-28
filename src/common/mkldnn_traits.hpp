@@ -41,7 +41,7 @@ template <> struct prec_traits<data_type::u8> { typedef uint8_t type; };
 
 template <> struct data_traits<float>
 { static constexpr data_type_t data_type = data_type::f32; };
-template <> struct data_traits<int>
+template <> struct data_traits<int32_t>
 { static constexpr data_type_t data_type = data_type::s32; };
 template <> struct data_traits<int16_t>
 { static constexpr data_type_t data_type = data_type::s16; };
@@ -57,7 +57,7 @@ template <> struct pkind_traits<primitive_kind::op> { \
 }
 PKIND_TRAITS_INST(memory);
 PKIND_TRAITS_INST(convolution);
-PKIND_TRAITS_INST(relu);
+PKIND_TRAITS_INST(eltwise);
 PKIND_TRAITS_INST(softmax);
 PKIND_TRAITS_INST(pooling);
 PKIND_TRAITS_INST(lrn);

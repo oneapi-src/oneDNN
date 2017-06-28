@@ -42,20 +42,21 @@ void jit_avx2_conv_fwd_kernel_f32::oh_step_unroll_kw(int ur_w,
     int kh = jcp.kh;
     int nb_ic = jcp.nb_ic;
     int stride_w = jcp.stride_w;
+    int dilate_w = jcp.dilate_w + 1;
     int ic_blk = jcp.ic_block;
     int oc_blk = jcp.oc_block;
 
     for (int ki = 0; ki < kw; ki++) {
-        int jj_start = nstl::max(0, div_up(pad_l - ki, stride_w));
+        int jj_start = nstl::max(0, div_up(pad_l - ki * dilate_w, stride_w));
         int jj_end = ur_w
-            - nstl::max(0, div_up(ki + pad_r - (kw - 1), stride_w));
+            - nstl::max(0, div_up(ki*dilate_w+pad_r-(kw-1)*dilate_w, stride_w));
         for (int ifm2 = 0; ifm2 < ic_blk; ifm2++) {
             for (int jj = jj_start; jj < jj_end; jj++) {
                 int inp_off;
                 if (jcp.src_fmt == nchw)
-                    inp_off = ifm2 * ih * iw + (ki + jj * stride_w - pad_l);
+                    inp_off = ifm2*ih*iw + (ki*dilate_w + jj*stride_w - pad_l);
                 else
-                    inp_off = (ki + jj * stride_w - pad_l) * ic_blk + ifm2;
+                    inp_off = (ki*dilate_w + jj*stride_w - pad_l)*ic_blk + ifm2;
                 vbroadcastss(Ymm(oc_blocks * ur_w + jj),
                         ptr[aux_reg_input + sizeof(float) * inp_off]);
             }
@@ -84,6 +85,7 @@ void jit_avx2_conv_fwd_kernel_f32::oh_step_nopad(int ur_w,
     int kh = jcp.kh;
     int nb_ic = jcp.nb_ic;
     int stride_w = jcp.stride_w;
+    int dilate_w = jcp.dilate_w + 1;
     int ic_blk = jcp.ic_block;
     int oc_blk = jcp.oc_block;
 
@@ -113,7 +115,8 @@ void jit_avx2_conv_fwd_kernel_f32::oh_step_nopad(int ur_w,
             }
         }
         add(aux_reg_kernel, sizeof(float) * oc_blk * ic_blk);
-        add(aux_reg_input, sizeof(float) * (jcp.src_fmt == nchw ? 1 : ic_blk));
+        add(aux_reg_input, sizeof(float)
+            * (jcp.src_fmt == nchw ? dilate_w : ic_blk * dilate_w));
 
         inc(ki_iter);
         cmp(ki_iter, kw);
@@ -129,9 +132,12 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(int ur_w,
     int kw = jcp.kw;
     int ow = jcp.ow;
     int oh = jcp.oh;
+    int dilate_h = jcp.dilate_h + 1;
+    int dilate_w = jcp.dilate_w + 1;
     int ic_blk = jcp.ic_block;
     int oc_blk = jcp.oc_block;
-    const int inp_mult = jcp.src_fmt == nchw ? 1 : ic_blk;
+    const int inp_mult = jcp.src_fmt == nchw ? dilate_h : ic_blk * dilate_h;
+    const int inp_off = jcp.src_fmt == nchw ? dilate_w : ic_blk * dilate_w;
 
     jit_tagged_label init_done_label("init", pad_tag, oc_blocks_tag);
     jit_tagged_label init_first_label("first", pad_tag, oc_blocks_tag);
@@ -162,14 +168,19 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(int ur_w,
     mov(aux_reg_input, reg_input);
     mov(aux_reg_kernel, reg_kernel);
 
+    Label skip_kh_loop;
     mov(kj, reg_kh);
+    if (jcp.kh <= jcp.t_pad) {
+        cmp(kj, 0);
+        je(skip_kh_loop, T_NEAR);
+    }
     jit_tagged_label kh_label("kh", pad_tag, oc_blocks_tag);
     L(kh_label);
     {
         if (jcp.kw >= 5 && pad_l == 0 && pad_r == 0) {
             oh_step_nopad(ur_w, pad_l, pad_r, pad_tag, oc_blocks,
                     oc_blocks_tag);
-            sub(aux_reg_input, sizeof(float) * kw * inp_mult);
+            sub(aux_reg_input, sizeof(float) * kw * inp_off);
             add(aux_reg_input, sizeof(float) * iw * inp_mult);
         } else {
             oh_step_unroll_kw(ur_w, pad_l, pad_r, oc_blocks);
@@ -181,6 +192,8 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(int ur_w,
         cmp(kj, 0);
         jg(kh_label, T_NEAR);
     }
+
+    L(skip_kh_loop);
 
     jit_tagged_label done_label("done", pad_tag, oc_blocks_tag);
     jit_tagged_label regular_store_label("store", pad_tag, oc_blocks_tag);
@@ -226,13 +239,15 @@ inline void jit_avx2_conv_fwd_kernel_f32::solve_common(
     int kw = jcp.kw;
     int ic_blk = jcp.ic_block;
     int oc_blk = jcp.oc_block;
+    int dilate_w = jcp.dilate_w + 1;
     int str_w = jcp.stride_w;
     const int inp_mult = jcp.src_fmt == nchw ? 1 : ic_blk;
 
     int l_pad = jcp.l_pad;
-    int r_pad = nstl::max(0, (int(jcp.ow) - 1) * str_w + kw - 1
+    int r_pad = nstl::max(0, (int(jcp.ow) - 1) * str_w + (kw - 1) * dilate_w
             - (iw + l_pad - 1));
-    int r_pad1 = (ur_w * n_oi - 1) * str_w + kw - 1 - (iw + l_pad - 1);
+    int r_pad1 = (ur_w * n_oi - 1) * str_w + (kw - 1) * dilate_w
+            - (iw + l_pad - 1);
     if (r_pad1 > 0) n_oi--;
 
     if (l_pad > 0) {
@@ -341,6 +356,9 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     jcp.stride_h = cd.strides[0];
     jcp.stride_w = cd.strides[1];
 
+    jcp.dilate_h = cd.dilates[0];
+    jcp.dilate_w = cd.dilates[1];
+
     jcp.src_fmt = src_d.format();
     jcp.with_bias = cd.bias_desc.format != memory_format::undef;
     jcp.with_relu = with_relu;
@@ -350,10 +368,10 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     const bool mimo = !flat;
 
     bool args_ok = true
-        && implication(flat, one_of(src_d.format(), nchw, nhwc))
-        && implication(mimo, src_d.format() == nChw8c)
-        && weights_d.format() ==
-                (with_groups ? gOIhw8i8o : (flat ? Ohwi8o : OIhw8i8o))
+        && implication(flat, one_of(src_d.format(), nchw, nhwc)
+                && one_of(weights_d.format(), Ohwi8o, gOhwi8o))
+        && implication(mimo, src_d.format() == nChw8c
+                && one_of(weights_d.format(), OIhw8i8o, gOIhw8i8o))
         && one_of(cd.bias_desc.format, memory_format::undef, any, x)
         && dst_d.format() == nChw8c;
     if (!args_ok) return status::unimplemented;
@@ -366,17 +384,17 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     jcp.ur_w_tail = jcp.ow % jcp.ur_w;
 
     jcp.nb_oc_blocking = 4; /* the optimal value for the kernel */
- 
+
     args_ok = true
         && jcp.oc % simd_w == 0
+        && jcp.l_pad <= jcp.ur_w
         && implication(jcp.kw > 7, (jcp.t_pad == 0 && jcp.l_pad == 0)
                 || (jcp.stride_w == 1 && jcp.stride_h == 1))
         && implication(mimo, jcp.ic % simd_w == 0);
     if (!args_ok) return status::unimplemented;
 
-    int r_pad_no_tail = nstl::max(0,
-            (jcp.ow - jcp.ur_w_tail - 1) * jcp.stride_w + (jcp.kw - 1)
-            - (jcp.iw + jcp.l_pad - 1));
+    int r_pad_no_tail = nstl::max(0, (jcp.ow - jcp.ur_w_tail - 1) * jcp.stride_w
+        + (jcp.kw - 1) * (jcp.dilate_w + 1) - (jcp.iw + jcp.l_pad - 1));
 
     if (r_pad_no_tail > jcp.ur_w) {
         /* recalculate ur_w, nb_oc_blocking and ur_w_tail */
@@ -384,9 +402,8 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
         jcp.nb_oc_blocking = ((16 - 1)-jcp.ur_w)/jcp.ur_w;
         jcp.ur_w_tail = jcp.ow % jcp.ur_w;
         /* check again ... */
-        r_pad_no_tail = nstl::max(0,
-            (jcp.ow - jcp.ur_w_tail - 1) * jcp.stride_w + (jcp.kw - 1)
-          - (jcp.iw + jcp.l_pad - 1));
+        r_pad_no_tail = nstl::max(0, (jcp.ow - jcp.ur_w_tail - 1) * jcp.stride_w
+            + (jcp.kw - 1) * (jcp.dilate_w + 1) - (jcp.iw + jcp.l_pad - 1));
         if ((r_pad_no_tail > jcp.ur_w) || (jcp.ow < jcp.ur_w))
             return status::unimplemented;
     }
@@ -552,6 +569,9 @@ status_t jit_avx2_conv_bwd_data_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     jcp.stride_h = cd.strides[0];
     jcp.stride_w = cd.strides[1];
 
+    jcp.dilate_h = cd.dilates[0];
+    jcp.dilate_w = cd.dilates[1];
+
     const int simd_w = 8;
 
     /* derivatives */
@@ -576,10 +596,12 @@ status_t jit_avx2_conv_bwd_data_kernel_f32::init_conf(jit_conv_conf_t &jcp,
 
     bool args_ok = true
         && diff_src_d.format() == nChw8c
-        && weights_d.format() == with_groups ? gOIhw8o8i : OIhw8o8i
+        && weights_d.format() == (with_groups ? gOIhw8o8i : OIhw8o8i)
         && diff_dst_d.format() == nChw8c
         && jcp.stride_w == jcp.stride_h
         && jcp.stride_w == 1
+        && jcp.dilate_h == 0
+        && jcp.dilate_w == 0
         && jcp.ic % simd_w == 0
         && jcp.oc % simd_w == 0
         && jcp.t_pad == jcp.l_pad /* Only AlexNet so far */
@@ -665,6 +687,9 @@ status_t jit_avx2_conv_bwd_weights_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     jcp.stride_h = cd.strides[0];
     jcp.stride_w = cd.strides[1];
 
+    jcp.dilate_h = cd.dilates[0];
+    jcp.dilate_w = cd.dilates[1];
+
     jcp.src_fmt = src_d.format();
     jcp.with_bias = cd.diff_bias_desc.format != memory_format::undef;
     jcp.with_relu = 0;
@@ -676,14 +701,20 @@ status_t jit_avx2_conv_bwd_weights_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     const int simd_w = 8;
 
     bool args_ok = true
-        && implication(flat, one_of(src_d.format(), nchw, nhwc))
-        && implication(mimo, src_d.format() == nChw8c)
-        && diff_weights_d.format() == (with_groups ? gOIhw8i8o : (flat ? Ohwi8o : OIhw8i8o))
+        && implication(flat, one_of(src_d.format(), nchw, nhwc)
+                && one_of(diff_weights_d.format(), Ohwi8o, gOhwi8o))
+        && implication(mimo, src_d.format() == nChw8c
+                && one_of(diff_weights_d.format(), OIhw8i8o, gOIhw8i8o))
         && one_of(cd.bias_desc.format, memory_format::undef, any, x)
         && diff_dst_d.format() == nChw8c
         && implication(mimo, jcp.ic % simd_w == 0)
         && jcp.oc % simd_w == 0
-        && jcp.kw < 14;
+        && jcp.kw < 14
+        && jcp.kh <= jcp.t_pad + jcp.ih /* [bwd_w:r1] */
+        && jcp.kh <= jcp.ih /* [bwd_w:r2] */
+        && jcp.t_pad < jcp.kh /* XXX: must fix the kernel! */
+        && jcp.dilate_h == 0
+        && jcp.dilate_w == 0;
     if (!args_ok) return status::unimplemented;
 
     jcp.ic_block = (jcp.ic % simd_w != 0) ? jcp.ic : simd_w;
@@ -924,7 +955,8 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_oh_loop_common()
     xor_(reg_ih_count, reg_ih_count);
     xor_(reg_oj, reg_oj);
     if (t_pad > 0) {
-        mov(reg_kh, jcp.kh - t_pad);
+        assert(jcp.kh <= t_pad + jcp.ih); /* [bwd_w:r1] */
+        mov(reg_kh, jcp.kh <= t_pad + jcp.ih ? jcp.kh - t_pad : jcp.ih);
         add(reg_kernel, sizeof(float) * t_pad * jcp.kw * icoc_block);
 
         L(".oh_tpad_label"); {
@@ -935,9 +967,12 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_oh_loop_common()
 
             inc(reg_oj);
             add(reg_ih_count, stride_h);
-
             add(reg_kh, stride_h);
-            cmp(reg_kh, jcp.kh);
+
+            /* the overlap between input and kernel may not reach kernel size.
+             * so far we do not support that (until we put constant here) */
+            const int final_inp_ker_overlap = jcp.kh; /* [bwd_w:r2] */
+            cmp(reg_kh, final_inp_ker_overlap);
             jl(".oh_tpad_label", T_NEAR);
         }
 

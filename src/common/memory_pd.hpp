@@ -115,7 +115,7 @@ struct concat_pd_t: public primitive_desc_t {
     { return index < n_inputs() ? src_pd(index) : nullptr; }
     virtual const memory_pd_t *output_pd(int index = 0) const override
     { return index == 0 ? dst_pd() : nullptr; }
-    virtual int n_inputs() const override { return concat_dim_; }
+    virtual int n_inputs() const override { return n_; }
     virtual int n_outputs() const override { return 1; }
 protected:
     int n_, concat_dim_;

@@ -42,9 +42,9 @@ template <typename data_t>
 class convolution_any_fmt_test
         : public ::testing::TestWithParam<conv_any_fmt_test_params> {
 protected:
-    virtual bool FmtIsExp(const c_api::mkldnn_memory_format_t in, fmt *exp ){
+    virtual bool FmtIsExp(const mkldnn_memory_format_t in, fmt *exp ) {
         for (int i = 0; i < EXP_VALS_NUM; i++)
-            if (in == memory::convert_to_c(exp[i]))
+            if (in == exp[i])
                 return true;
         return false;
     }

@@ -53,9 +53,9 @@ template<> struct numeric_limits<float> {
     static constexpr float max() { return FLT_MAX; }
 };
 
-template<> struct numeric_limits<int> {
-    static constexpr int lowest() { return INT_MIN; }
-    static constexpr int max() { return INT_MAX; }
+template<> struct numeric_limits<int32_t> {
+    static constexpr int lowest() { return INT32_MIN; }
+    static constexpr int max() { return INT32_MAX; }
 };
 
 template<> struct numeric_limits<int8_t> {

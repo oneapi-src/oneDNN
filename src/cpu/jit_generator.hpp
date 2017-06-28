@@ -27,6 +27,12 @@
 #include "xbyak/xbyak.h"
 #include "xbyak/xbyak_util.h"
 
+#ifdef _WIN32
+#   define STRUCT_ALIGN(al, ...) __declspec(align(al)) __VA_ARGS__
+#else
+#   define STRUCT_ALIGN(al, ...) __VA_ARGS__ __attribute__((__aligned__(al)))
+#endif
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {
@@ -217,6 +223,7 @@ protected:
             mov(reg_EVEX_max_8b_offt, 2 * EVEX_max_8b_offt);
         }
     }
+
     void mic_prefetcht0(Xbyak::Address a) {
         if (mayiuse(avx512_mic))
             prefetcht0(a);
@@ -426,12 +433,128 @@ protected:
         vpaddd(x1, x2, op);
     }
 
+    void uni_vandps(const Xbyak::Xmm& x, const Xbyak::Operand& op1,
+                    const Xbyak::Operand& op2 = Xbyak::Operand()) {
+        if (x.getIdx() != op1.getIdx())
+            throw Xbyak::Error(Xbyak::ERR_INTERNAL);
+        andps(x, op2);
+    }
+    void uni_vandps(const Xbyak::Ymm& x, const Xbyak::Operand& op1,
+                    const Xbyak::Operand& op2 = Xbyak::Operand()) {
+        vandps(x, op1, op2);
+    }
+
+    void uni_vpslld(const Xbyak::Xmm& x, const Xbyak::Operand& op,
+                    const int imm) {
+        if (x.getIdx() != op.getIdx())
+            throw Xbyak::Error(Xbyak::ERR_INTERNAL);
+        pslld(x, imm);
+    }
+    void uni_vpslld(const Xbyak::Ymm& x, const Xbyak::Operand& op,
+                    const int imm) {
+        vpslld(x, op, imm);
+    }
+
+    void uni_vmaxps(const Xbyak::Xmm& x, const Xbyak::Operand& op1,
+                    const Xbyak::Operand& op2 = Xbyak::Operand()) {
+        if (x.getIdx() != op1.getIdx())
+            throw Xbyak::Error(Xbyak::ERR_INTERNAL);
+        maxps(x, op2);
+    }
+    void uni_vmaxps(const Xbyak::Ymm& x, const Xbyak::Operand& op1,
+                    const Xbyak::Operand& op2 = Xbyak::Operand()) {
+        vmaxps(x, op1, op2);
+    }
+
+    void uni_vminps(const Xbyak::Xmm& x, const Xbyak::Operand& op1,
+                    const Xbyak::Operand& op2 = Xbyak::Operand()) {
+        if (x.getIdx() != op1.getIdx())
+            throw Xbyak::Error(Xbyak::ERR_INTERNAL);
+        minps(x, op2);
+    }
+    void uni_vminps(const Xbyak::Ymm& x, const Xbyak::Operand& op1,
+                    const Xbyak::Operand& op2 = Xbyak::Operand()) {
+        vminps(x, op1, op2);
+    }
+
+    void uni_vcmpgtps(const Xbyak::Xmm& x1, const Xbyak::Xmm& x2,
+                      const Xbyak::Operand& op) {
+        if (x1.getIdx() != x2.getIdx())
+            throw Xbyak::Error(Xbyak::ERR_INTERNAL);
+        cmpps(x1, op, 0x6);
+    }
+    void uni_vcmpgtps(const Xbyak::Ymm& x1, const Xbyak::Ymm& x2,
+                      const Xbyak::Operand& op) {
+        vcmpgtps(x1, x2, op);
+    }
+
+    void uni_vblendvps(const Xbyak::Xmm& x1, const Xbyak::Xmm& x2,
+                       const Xbyak::Operand& op, const Xbyak::Xmm& msk) {
+        if (x1.getIdx() != x2.getIdx())
+            throw Xbyak::Error(Xbyak::ERR_INTERNAL);
+        blendvps(x1, op);
+    }
+    void uni_vblendvps(const Xbyak::Ymm& x1, const Xbyak::Ymm& x2,
+                       const Xbyak::Operand& op, const Xbyak::Ymm& msk) {
+        vblendvps(x1, x2, op, msk);
+    }
+
+    void uni_vroundps(const Xbyak::Xmm& x, const Xbyak::Operand& op,
+                      const int imm) {
+        roundps(x, op, imm);
+    }
+    void uni_vroundps(const Xbyak::Ymm& x, const Xbyak::Operand& op,
+                      const int imm) {
+        vroundps(x, op, imm);
+    }
+
+    void uni_vcvtps2dq(const Xbyak::Xmm& x, const Xbyak::Operand& op) {
+        cvtps2dq(x, op);
+    }
+    void uni_vcvtps2dq(const Xbyak::Ymm& x, const Xbyak::Operand& op) {
+        vcvtps2dq(x, op);
+    }
+
+    void uni_vmovmskps(const Xbyak::Reg& x1, const Xbyak::Xmm& x2) {
+        movmskps(x1.cvt64(), x2);
+    }
+    void uni_vmovmskps(const Xbyak::Reg& x1, const Xbyak::Ymm& x2) {
+        vmovmskps(x1, x2);
+    }
+
 public:
     jit_generator(
         void *code_ptr = nullptr,
         size_t code_size = 128 * 1024
         ) : Xbyak::CodeGenerator(code_size, code_ptr)
     {
+    }
+
+    // XXX: use normal_case name and update all callees (?)
+    const Xbyak::uint8 *getCode() {
+        const Xbyak::uint8 *code = CodeGenerator::getCode();
+#ifdef CPU_ENABLE_JIT_DUMP
+        if (!code)
+            return 0;
+
+        // TODO (Roma): add a virtual name() function that would be used to
+        // notify profilers like Intel(R) Vtune(TM) Amplifier about 
+        // generated code and generate a meaningful file name
+
+        FILE *fp = fopen("mkldnn_jit_dump.bin", "w+");
+        // XXX: Failure to dump code is not fatal (?)
+        if (!fp)
+            return code;
+
+        fwrite(code, getSize(), 1, fp);
+        fclose(fp);
+#endif
+        return code;
+    };
+
+    template<typename F> const F getCode() {
+        // XXX (Roma): Xbyak code probably has a bug here
+        return (const F)getCode();
     }
 };
 

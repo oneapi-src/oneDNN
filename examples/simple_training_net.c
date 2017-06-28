@@ -43,8 +43,18 @@
     } while (0)
 
 void *aligned_malloc(size_t size, size_t alignment) {
+#ifdef WIN32
+    return _aligned_malloc(size, alignment);
+#else
     return memalign(alignment, size);
+#endif
 }
+
+#ifdef WIN32
+void __cdecl free(void *ptr) {
+    _aligned_free(ptr);
+}
+#endif
 
 static size_t product(int *arr, size_t size)
 {
@@ -286,9 +296,9 @@ mkldnn_status_t simple_net()
             = mkldnn_primitive_desc_query_memory_d(conv_dst_pd);
 
     /* create a relu primitive descriptor */
-    mkldnn_relu_desc_t relu_desc;
-    CHECK(mkldnn_relu_forward_desc_init(&relu_desc, mkldnn_forward, relu_src_md,
-                                        negative_slope));
+    mkldnn_eltwise_desc_t relu_desc;
+    CHECK(mkldnn_eltwise_forward_desc_init(&relu_desc, mkldnn_forward,
+                mkldnn_eltwise_relu, relu_src_md, negative_slope, 0));
 
     mkldnn_primitive_desc_t relu_pd;
     CHECK(mkldnn_primitive_desc_create(&relu_pd, &relu_desc, engine, NULL));
@@ -597,9 +607,10 @@ mkldnn_status_t simple_net()
             = mkldnn_primitive_desc_query_memory_d(lrn_diff_src_pd);
 
     /* create backward relu descriptor */
-    mkldnn_relu_desc_t relu_bwd_desc;
-    CHECK(mkldnn_relu_backward_desc_init(&relu_bwd_desc, relu_diff_dst_md,
-                                         relu_src_md, negative_slope));
+    mkldnn_eltwise_desc_t relu_bwd_desc;
+    CHECK(mkldnn_eltwise_backward_desc_init(&relu_bwd_desc,
+                mkldnn_eltwise_relu, relu_diff_dst_md, relu_src_md,
+                negative_slope, 0));
 
     mkldnn_primitive_desc_t relu_bwd_pd;
     CHECK(mkldnn_primitive_desc_create(&relu_bwd_pd, &relu_bwd_desc, engine,

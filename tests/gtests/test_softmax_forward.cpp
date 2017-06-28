@@ -29,7 +29,7 @@ void check_softmax_fwd(prop_kind aprop_kind, memory &src, memory &dst, int axis)
     const memory::desc dst_pd = dst.get_primitive_desc().desc();
 
     ASSERT_EQ(dst_pd.data.data_type,
-            memory::convert_to_c(memory::data_type::f32)); // TODO: type assert
+            memory::data_type::f32); // TODO: type assert
 
     double result = 0.0f;
 

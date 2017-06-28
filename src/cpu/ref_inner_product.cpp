@@ -82,11 +82,14 @@ template struct ref_inner_product_fwd_t<data_type::s16, data_type::s16,
 template struct ref_inner_product_fwd_t<data_type::u8, data_type::s8,
          data_type::s32, data_type::u8>;
 
-template <impl::data_type_t data_type>
-void ref_inner_product_bwd_data_t<data_type>::execute_backward_data() {
-    auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(0));
-    auto weights = reinterpret_cast<const data_t *>(this->input_memory(1));
-    auto diff_src = reinterpret_cast<data_t*>(this->memory());
+template <data_type_t src_type, data_type_t wei_type, data_type_t acc_type,
+         data_type_t dst_type>
+void ref_inner_product_bwd_data_t<src_type, wei_type, acc_type, dst_type>
+    ::execute_backward_data() {
+    auto diff_dst = reinterpret_cast<const diff_dst_data_t *>
+                                                       (this->input_memory(0));
+    auto weights = reinterpret_cast<const wei_data_t *>(this->input_memory(1));
+    auto diff_src = reinterpret_cast<diff_src_data_t*>(this->memory());
 
     const memory_desc_wrapper diff_dst_d(conf_.diff_dst_pd());
     const memory_desc_wrapper weights_d(conf_.weights_pd(0));
@@ -106,27 +109,32 @@ void ref_inner_product_bwd_data_t<data_type>::execute_backward_data() {
                 const int KW = conf_.KW();
                 for (int kh = 0; kh < KH; ++kh) {
                     for (int kw = 0; kw < KW; ++kw) {
-                        data_t *ds = &diff_src[diff_src_d.off(mb, ic, kh, kw)];
-                        *ds = data_t(0);
+                        acc_data_t ds = acc_data_t(0);
                         for (int oc = 0; oc < OC; ++oc) {
-                            *ds += diff_dst[diff_dst_d.off(mb, oc)]
-                                * weights[weights_d.off(oc, ic, kh, kw)];
+                            ds += (acc_data_t)(
+                                diff_dst[diff_dst_d.off(mb, oc)]
+                                * weights[weights_d.off(oc, ic, kh, kw)]);
                         }
+                        diff_src[diff_src_d.off(mb, ic, kh, kw)]
+                            = (diff_src_data_t)ds;
                     }
                 }
             } else {
-                data_t *ds = &diff_src[diff_src_d.off(mb, ic)];
-                *ds = data_t(0);
+                acc_data_t ds = acc_data_t(0);
                 for (int oc = 0; oc < OC; ++oc) {
-                    *ds += diff_dst[diff_dst_d.off(mb, oc)] *
-                        weights[weights_d.off(oc, ic)];
+                    ds += (acc_data_t)(diff_dst[diff_dst_d.off(mb, oc)] *
+                        weights[weights_d.off(oc, ic)]);
                 }
+                diff_src[diff_src_d.off(mb, ic)] = (diff_src_data_t)ds;
             }
         }
     }
 }
 
 template struct ref_inner_product_bwd_data_t<data_type::f32>;
+template struct ref_inner_product_bwd_data_t<data_type::s32>;
+template struct ref_inner_product_bwd_data_t<data_type::s16, data_type::s16,
+                data_type::s32, data_type::s32>;
 
 template <impl::data_type_t data_type>
 void ref_inner_product_bwd_weights_t<data_type>::execute_backward_weights() {

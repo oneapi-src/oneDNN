@@ -64,7 +64,7 @@ void _jit_avx2_1x1_convolution_fwd_t<with_relu>::execute_forward() {
         assert(jcp.stride_w == 1 && jcp.stride_h == 1);
 
         jit_1x1_conv_call_s p = {};
-        rtus_driver_f32_t<avx2>::call_params_t rp = {};
+        rtus_driver_t<avx2>::call_params_t rp = {};
 
         const int nb_oc = jcp.nb_load;
         const int nb_ic = jcp.nb_reduce;
@@ -196,7 +196,7 @@ void jit_avx2_1x1_convolution_bwd_data_t::execute_backward_data() {
 
     auto ker = [&](const int ithr, const int nthr) {
         jit_1x1_conv_call_s p = {};
-        rtus_driver_f32_t<avx2>::call_params_t rp = {};
+        rtus_driver_t<avx2>::call_params_t rp = {};
 
         int start{0}, end{0};
         balance211(work_amount, nthr, ithr, start, end);
@@ -312,7 +312,7 @@ jit_avx2_1x1_convolution_bwd_weights_t::jit_avx2_1x1_convolution_bwd_weights_t(
                     oc_block, conf_.G() * conf_.OC() / oc_block,
                     conf_.MB(), max_buffer_size));
 
-    init_rtus_driver_f32<avx2>(this);
+    init_rtus_driver<avx2>(this);
 }
 
 void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights() {
@@ -356,7 +356,7 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights() {
             data_t *store_to, size_t store_to_ld, const data_t *diff_dst,
             const data_t *src, int ithr) {
         jit_1x1_conv_call_s p = {};
-        rtus_driver_f32_t<avx2>::call_params_t rp = {};
+        rtus_driver_t<avx2>::call_params_t rp = {};
 
         p.output_stride = store_to_ld * sizeof(float);
         const int sp_step_def = jcp.nb_reduce_blocking * jcp.reduce_block;

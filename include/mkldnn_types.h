@@ -142,6 +142,10 @@ typedef enum {
      * laid out in memory in 16-element blocks and input channels data
      * laid out in memory in 8-element blocks blocked by pairs. */
     mkldnn_OIhw8i16o2i,
+    /** 4D weights tensor in the @c oihw format with input channels data
+     * laid out in memory in 16-element blocks and output channels data
+     * laid out in memory in 8-element blocks blocked by pairs. */
+    mkldnn_OIhw8o16i2o,
     /** 4D weights tensor in the @c oihw format with both input and output
      * channels data laid out in memory in 8-element blocks. */
     mkldnn_OIhw8o8i,
@@ -174,6 +178,10 @@ typedef enum {
      * laid out in memory in 16-element blocks and input channels data
      * laid out in memory in 8-element blocks blocked by pairs. */
     mkldnn_gOIhw8i16o2i,
+    /** 5D weights tensor in the @c oihw format with input channels data
+     * laid out in memory in 16-element blocks and output channels data
+     * laid out in memory in 8-element blocks blocked by pairs. */
+    mkldnn_gOIhw8o16i2o,
     /** 5D weights tensor in the blocked version of @c goihw format with both
      * input and output channels data laid out in memory in 8-element blocks.
      */
@@ -182,6 +190,12 @@ typedef enum {
      * input and output channels data laid out in memory in 16-element blocks.
      */
     mkldnn_gOIhw16o16i,
+    /** 5D weights tensor in the blocked version of @c goihw format with output
+     * channels data laid out in memory in 8-element blocks. */
+    mkldnn_gOhwi8o,
+    /** 5D weights tensor in the blocked version of @c goihw format with output
+     * channels data laid out in memory in 16-element blocks. */
+    mkldnn_gOhwi16o,
     /** 5D weights tensor in the @c goihw format with both input and output
      * channels data laid out in memory in 16-element and 4-element blocks. */
     mkldnn_gOhIw16o4i,
@@ -244,8 +258,10 @@ typedef enum {
     mkldnn_sum,
     /** A convolution primitive. */
     mkldnn_convolution,
-    /** A ReLU primitive. */
-    mkldnn_relu,
+    /** An element-wise primitive. */
+    mkldnn_eltwise,
+    /** A ReLU primitive, @deprecated. */
+    mkldnn_relu = mkldnn_eltwise,
     /** A Softmax primitive. */
     mkldnn_softmax,
     /** A pooling primitive. */
@@ -264,6 +280,14 @@ typedef enum {
 typedef enum {
     /** Direct convolution */
     mkldnn_convolution_direct = 1,
+    /** Winograd convolution */
+    mkldnn_convolution_winograd = 2,
+    /** Eltwise: ReLU */
+    mkldnn_eltwise_relu = 8,
+    /** Eltwise: hyperbolic tangent non-linearity (tanh) */
+    mkldnn_eltwise_tanh = 9,
+    /** Eltwise: parametric exponential linear unit (elu) */
+    mkldnn_eltwise_elu = 10,
     /** Max pooling */
     mkldnn_pooling_max = 34,
     /** Average pooling include padding */
@@ -413,6 +437,8 @@ typedef struct {
     mkldnn_memory_desc_t diff_dst_desc;
     /** Convolution strides in each spatial dimension. */
     mkldnn_dims_t strides;
+    /** Convolution dilates in each spatial dimension. */
+    mkldnn_dims_t dilates;
     /** Padding in each spatial dimension. padding[0] is a padding in the
      * beginning (@p padding_l), padding[1] is a padding in the end (@p
      * padding_r). */
@@ -423,7 +449,7 @@ typedef struct {
     mkldnn_data_type_t accum_data_type;
 } mkldnn_convolution_desc_t;
 
-/** A descriptor of a rectifier linear unit (ReLU) operation. */
+/** A descriptor of a element-wise operation. */
 typedef struct {
     /** The kind of primitive. Used for self identifying the primitive
      * descriptor. Must be #mkldnn_relu. */
@@ -432,15 +458,29 @@ typedef struct {
      * #mkldnn_forward_inference, #mkldnn_backward, and #mkldnn_backward_data.
      */
     mkldnn_prop_kind_t prop_kind;
+    /** The kind of eltwise algorithm. Possible values: #mkldnn_eltwise_relu,
+     * #mkldnn_eltwise_tanh, #mkldnn_eltwise_elu */
+    mkldnn_alg_kind_t alg_kind;
     /** Source and destination memory descriptor. */
     mkldnn_memory_desc_t data_desc;
     /** Source and destination gradient memory descriptor. */
     mkldnn_memory_desc_t diff_data_desc;
+    /** Algorithm specific parameter.
+     * Accordance table:
+     *  - #mkldnn_eltwise_relu: @p alpha -- negative slope, @p beta ignored
+     *  - #mkldnn_eltwise_tanh: @p alpha and @p beta ignored
+     *  - #mkldnn_eltwise_elu: @p alpha -- negative slope, @p beta ignored
+     */
+    double alpha, beta;
     /** Scaling factor for negative values. Stored as double-precision, but
      * interpreted in a way specific to the data type in each implementation.
-     */
+     * @deprecated: for ReLU use alpha instead
+     * @warning: read-only value */
     double negative_slope;
-} mkldnn_relu_desc_t;
+} mkldnn_eltwise_desc_t;
+
+/* @depracated: use mkldnn_eltwise_desc_t */
+typedef mkldnn_eltwise_desc_t mkldnn_relu_desc_t;
 
 /** A descriptor of a Softmax operation. */
 typedef struct {
@@ -682,6 +722,7 @@ typedef struct {
  *      *_s32                        | int *
  *      *_s64                        | ptrdiff_t *
  *      *_f64                        | double *
+ *      *_str                        | const char **
  *      *_md                         | const mkldnn_memory_desc_t **
  *      *_${op}_d                    | const mkldnn_${op}_desc_t **
  *      *_pd                         | const_mkldnn_primitive_desc_t *
@@ -710,11 +751,14 @@ typedef enum {
                                            (scratch) memory, additional to all
                                            inputs and outputs memory (bytes) */
 
+    mkldnn_query_impl_info_str, /**< implementation name */
+
     /* memory and op descriptor section */
     mkldnn_query_some_d = 64, /**< stub */
     mkldnn_query_memory_d, /**< memory descriptor for memory and view */
     mkldnn_query_convolution_d, /**< convolution descriptor */
-    mkldnn_query_relu_d, /**< relu descriptor */
+    mkldnn_query_eltwise_d, /**< eltwise descriptor */
+    mkldnn_query_relu_d = mkldnn_query_eltwise_d, /**< @deprecated */
     mkldnn_query_softmax_d, /**< softmax descriptor */
     mkldnn_query_pooling_d, /**< pooling descriptor */
     mkldnn_query_lrn_d, /**< lrn descriptor */

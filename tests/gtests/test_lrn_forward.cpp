@@ -71,9 +71,10 @@ void check_lrn_fwd(const test_lrn_desc_t &ld,
                 }
             }
         }
-        data_t norm_coef = powf(ld.k + ld.alpha * sum / summands, ld.beta);
+        data_t norm_coef = powf(static_cast<float>(ld.k + ld.alpha * sum / summands),
+                                static_cast<float>(ld.beta));
         data_t ref_out = src_ptr[map_index(src_d, off(n, oc, oh, ow))]/norm_coef;
-        data_t eps = 1.e-7*(2*summands+5);
+        data_t eps = static_cast<data_t>(1.e-7f*(2*summands+5));
         data_t out = d[0];
         data_t norm_max = std::max(fabs(out), fabs(ref_out));
         if (norm_max < eps) norm_max = 1.;

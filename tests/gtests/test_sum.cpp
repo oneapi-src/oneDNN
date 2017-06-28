@@ -97,7 +97,8 @@ protected:
                 src_memory.get_primitive_desc().get_size() / sizeof(data_t);
             auto s = (data_t *)src_memory.get_data_handle();
 #           pragma omp parallel for
-            for (size_t j = 0; j < sz; ++j) s[j] = i + 1;
+            /* Note: size_t incompatible with MSVC++ */
+            for (ptrdiff_t j = 0; j < sz; ++j) s[j] = static_cast<data_t>(i + 1);
             // fill_data<data_t>(sz, (data_t *)src_memory.get_data_handle());
             srcs_pd.push_back(mpd);
             srcs.push_back(src_memory);

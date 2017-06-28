@@ -83,7 +83,10 @@ private:
     pd_t conf_;
 };
 
-template <impl::data_type_t data_type>
+template <impl::data_type_t diff_dst_type,
+          impl::data_type_t wei_type = diff_dst_type,
+          impl::data_type_t acc_type = diff_dst_type,
+          impl::data_type_t diff_src_type = acc_type>
 struct ref_inner_product_bwd_data_t: public cpu_primitive_t {
     struct pd_t: public cpu_inner_product_bwd_data_pd_t {
         pd_t(engine_t *engine, const inner_product_desc_t *adesc,
@@ -99,10 +102,10 @@ struct ref_inner_product_bwd_data_t: public cpu_primitive_t {
                 && this->set_default_params() == status::success
                 && utils::one_of(this->desc()->prop_kind, backward,
                         backward_data)
-                && utils::everyone_is(data_type,
-                        this->desc()->diff_src_desc.data_type,
-                        this->desc()->weights_desc.data_type,
-                        this->desc()->diff_dst_desc.data_type);
+                && desc()->src_desc.data_type == diff_src_type
+                && desc()->weights_desc.data_type == wei_type
+                && desc()->accum_data_type == acc_type
+                && desc()->dst_desc.data_type == diff_dst_type;
             return ok ? status::success : status::unimplemented;
         }
     };
@@ -110,7 +113,10 @@ struct ref_inner_product_bwd_data_t: public cpu_primitive_t {
     ref_inner_product_bwd_data_t(const pd_t *pd, const input_vector &inputs,
             const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {}
-    typedef typename prec_traits<data_type>::type data_t;
+    typedef typename prec_traits<diff_dst_type>::type diff_dst_data_t;
+    typedef typename prec_traits<wei_type>::type wei_data_t;
+    typedef typename prec_traits<acc_type>::type acc_data_t;
+    typedef typename prec_traits<diff_src_type>::type diff_src_data_t;
 
     virtual void execute(event_t *e) {
         switch (conf_.desc()->prop_kind) {

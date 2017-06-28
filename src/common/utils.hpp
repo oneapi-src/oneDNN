@@ -20,6 +20,9 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <assert.h>
+#ifdef WIN32
+#include <malloc.h>
+#endif
 
 namespace mkldnn {
 namespace impl {
@@ -31,6 +34,10 @@ namespace impl {
     if (status != status::success) \
     return status; \
 } while (0)
+
+#ifdef _WIN32
+#define __PRETTY_FUNCTION__ __FUNCSIG__
+#endif
 
 namespace utils {
 
@@ -144,8 +151,13 @@ inline typename remove_reference<T>::type div_up(const T a, const U b) {
 }
 
 template <typename T, typename U>
-inline T rnd_up(const T a, const U b) {
+inline typename remove_reference<T>::type rnd_up(const T a, const U b) {
     return div_up(a, b) * b;
+}
+
+template <typename T, typename U>
+inline typename remove_reference<T>::type rnd_dn(const T a, const U b) {
+    return (a / b) * b;
 }
 
 template <typename T, typename U, typename V>
@@ -179,14 +191,52 @@ inline bool nd_iterator_step(U &x, const W &X, Args &&... tuple) {
     return false;
 }
 
+template<typename U, typename W, typename Y>
+inline bool nd_iterator_jump(U &cur, const U end, W &x, const Y &X)
+{
+    U max_jump = end - cur;
+    U dim_jump = X - x;
+    if (dim_jump <= max_jump) {
+        x = 0;
+        cur += dim_jump;
+        return true;
+    } else {
+        cur += max_jump;
+        x += max_jump;
+        return false;
+    }
+}
+template<typename U, typename W, typename Y, typename... Args>
+inline bool nd_iterator_jump(U &cur, const U end, W &x, const Y &X,
+        Args &&... tuple)
+{
+    if (nd_iterator_jump(cur, end, utils::forward<Args>(tuple)...)) {
+        x = (x + 1) % X;
+        return x == 0;
+    }
+    return false;
+}
+
 }
 
 inline void* malloc(size_t size, int alignment) {
     void *ptr;
+
+#ifdef _WIN32
+    ptr = _aligned_malloc(size, alignment);
+    int rc = ptr ? 0 : -1;
+#else
     int rc = ::posix_memalign(&ptr, alignment, size);
+#endif
+
     return (rc == 0) ? ptr : 0;
 }
+
+#ifdef _WIN32
+inline void free(void* p) { _aligned_free(p); };
+#else
 inline void free(void* p) { ::free(p); }
+#endif
 
 struct c_compatible {
     enum { default_alignment = 64 };

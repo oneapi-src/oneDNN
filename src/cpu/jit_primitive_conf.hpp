@@ -23,8 +23,15 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
+enum conv_version_t {ver_unused, ver_fma, ver_4fma, ver_4vnni};
+enum conv_loop_order_t {loop_cgn, loop_gnc, loop_ngc};
+enum conv_1x1_loop_order_t {loop_rbl, loop_rlb, loop_lbr, loop_lrb, loop_blr,
+                            loop_brl};
+
 struct jit_conv_conf_t {
     prop_kind_t prop_kind;
+    conv_version_t ver;
+    conv_loop_order_t loop_order;
 
     int mb;
     int ngroups, ic, oc;
@@ -33,6 +40,7 @@ struct jit_conv_conf_t {
     int r_pad, b_pad;
     int kh, kw;
     int stride_h, stride_w;
+    int dilate_h, dilate_w;
     memory_format_t src_fmt;
     bool with_bias, with_relu;
     double relu_negative_slope;
@@ -45,19 +53,44 @@ struct jit_conv_conf_t {
     int ur_h, ur_w;
     int ur_w_tail;
     bool is_1stconv;
+    /* 4fma */
+    bool transpose_src;
+    int tr_iw;
     /* 4vnni */
     size_t typesize_in;
     size_t typesize_out;
-    bool _4vnni;
     /* avx512_u8s8u8 */
     int ic_nb1, ic_nb2;
     int oc_nb1;
     int ur_ow_max, ur_ow, ur_ow_tail;
     int ur_ow_nsteps;
     data_type_t bia_dt;
+    data_type_t dst_dt;
 };
 
-struct __attribute__((__packed__)) jit_conv_call_s {
+
+struct jit_conv_winograd_conf_t : public jit_conv_conf_t {
+    //Winograd specific attributes
+    //alpha determines the tile size
+    int alpha;
+    //number of tiles in x dimension
+    int itiles;
+    //number of tiles in y dimension
+    int jtiles;
+    //number of images in a block
+    int bimg;
+
+    int nb_Xc;
+    int dim_kernel;
+    int nb_iter;
+
+    bool double_buffering;
+    bool load_U;
+    int zmm_start;
+    int nb_reg;
+};
+
+struct jit_conv_call_s {
     const void *src; /* hack, non-const for backward_data */
     const void *dst; /* hack, non-const for forward */
     const void *filt; /* hack, non-const for backward_weights */
@@ -69,14 +102,15 @@ struct __attribute__((__packed__)) jit_conv_call_s {
     size_t kh_padding;
     size_t kh_padding_prf;
     size_t kw_padding;
-    size_t current_ic;
-    size_t current_ic_prf;
+    size_t channel;
+    size_t channel_prf;
     size_t oc_blocks;
     int ic_flag;
 };
 
 struct jit_1x1_conv_conf_t {
     prop_kind_t prop_kind;
+    conv_version_t ver;
 
     int mb;
     int ngroups, ic, oc;
@@ -104,6 +138,13 @@ struct jit_1x1_conv_conf_t {
     int load_loop_load_step, load_loop_iter_step;
     int bcast_loop_output_step, bcast_loop_output_substep;
     int bcast_loop_bcast_step, bcast_loop_bcast_substep;
+    int fma_step;
+    int load_grp_count;
+    conv_1x1_loop_order_t loop_order;
+    bool use_vmovntps;
+    /* 4vnni */
+    size_t typesize_in;
+    size_t typesize_out;
 };
 
 struct jit_gemm_conv_conf_t {
@@ -115,6 +156,7 @@ struct jit_gemm_conv_conf_t {
     int l_pad, t_pad;
     int kh, kw;
     int stride_h, stride_w;
+    int dilate_h, dilate_w;
     memory_format_t src_fmt;
     bool with_bias, with_relu;
     double relu_negative_slope;
@@ -125,11 +167,11 @@ struct jit_gemm_conv_conf_t {
     size_t im2col_size;
 };
 
-struct __attribute__((__packed__)) jit_1x1_conv_call_s {
-    const float *bcast_data;
-    const float *load_data;
-    const float *output_data;
-    const float *bias_data; // used in forward and backward_weights only
+struct jit_1x1_conv_call_s {
+    const void *bcast_data;
+    const void *load_data;
+    const void *output_data;
+    const void *bias_data; // used in forward and backward_weights only
 
     size_t load_dim;
     size_t bcast_dim;

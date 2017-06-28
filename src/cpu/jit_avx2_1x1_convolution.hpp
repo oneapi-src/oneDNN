@@ -22,7 +22,7 @@
 #include "cpu_engine.hpp"
 #include "cpu_reducer.hpp"
 #include "jit_avx2_1x1_conv_kernel_f32.hpp"
-#include "jit_uni_1x1_conv_utils_f32.hpp"
+#include "jit_uni_1x1_conv_utils.hpp"
 #include "mkldnn_thread.hpp"
 #include "utils.hpp"
 
@@ -94,7 +94,7 @@ struct _jit_avx2_1x1_convolution_fwd_t: public cpu_primitive_t {
     };
 
     template <cpu_isa_t isa, typename conv_t>
-    friend void init_rtus_driver_f32(conv_t *self);
+    friend void init_rtus_driver(conv_t *self);
 
     _jit_avx2_1x1_convolution_fwd_t(const pd_t *pd, const input_vector &inputs,
             const output_vector &outputs)
@@ -103,7 +103,7 @@ struct _jit_avx2_1x1_convolution_fwd_t: public cpu_primitive_t {
         , scratch_(nullptr)
     {
         kernel_ = new jit_avx2_1x1_conv_kernel_f32(conf_.jcp_);
-        init_rtus_driver_f32<avx2>(this);
+        init_rtus_driver<avx2>(this);
     }
     ~_jit_avx2_1x1_convolution_fwd_t() {
         delete kernel_;
@@ -124,7 +124,7 @@ private:
     jit_avx2_1x1_conv_kernel_f32 *kernel_;
 
     /* reduction to unit stride */
-    rtus_driver_f32_t<avx2> *rtus_driver_;
+    rtus_driver_t<avx2> *rtus_driver_;
     size_t ws_per_thread_;
     data_t *scratch_;
 };
@@ -187,7 +187,7 @@ struct jit_avx2_1x1_convolution_bwd_data_t: public cpu_primitive_t {
     };
 
     template <cpu_isa_t isa, typename conv_t>
-    friend void init_rtus_driver_f32(conv_t *self);
+    friend void init_rtus_driver(conv_t *self);
 
     jit_avx2_1x1_convolution_bwd_data_t(const pd_t *pd,
             const input_vector &inputs, const output_vector &outputs)
@@ -196,7 +196,7 @@ struct jit_avx2_1x1_convolution_bwd_data_t: public cpu_primitive_t {
         , scratch_(nullptr)
     {
         kernel_ = new jit_avx2_1x1_conv_kernel_f32(conf_.jcp_);
-        init_rtus_driver_f32<avx2>(this);
+        init_rtus_driver<avx2>(this);
     }
     ~jit_avx2_1x1_convolution_bwd_data_t() {
         delete kernel_;
@@ -223,7 +223,7 @@ private:
     jit_avx2_1x1_conv_kernel_f32 *kernel_;
 
     /* reduction to unit stride */
-    rtus_driver_f32_t<avx2> *rtus_driver_;
+    rtus_driver_t<avx2> *rtus_driver_;
     size_t ws_per_thread_;
     data_t *scratch_;
 };
@@ -288,7 +288,7 @@ struct jit_avx2_1x1_convolution_bwd_weights_t: public cpu_primitive_t {
     };
 
     template <cpu_isa_t isa, typename conv_t>
-    friend void init_rtus_driver_f32(conv_t *self);
+    friend void init_rtus_driver(conv_t *self);
 
     jit_avx2_1x1_convolution_bwd_weights_t(const pd_t *pd,
             const input_vector &inputs, const output_vector &outputs);
@@ -319,7 +319,7 @@ private:
     cpu_reducer_t<data_type::f32> *reducer_bias_;
 
     /* reduction to unit stride */
-    rtus_driver_f32_t<avx2> *rtus_driver_;
+    rtus_driver_t<avx2> *rtus_driver_;
     size_t ws_per_thread_;
     data_t *scratch_;
 };

@@ -70,8 +70,8 @@ struct _gemm_convolution_fwd_t: public cpu_primitive_t {
                         data_type::f32 == this->cdesc_().bias_desc.data_type)
                 && this->src_pd_.desc()->format == nchw
                 && this->dst_pd_.desc()->format == nchw
-                && (this->weights_pd_.desc()->format == this->with_groups()
-                    ? goihw : oihw);
+                && this->weights_pd_.desc()->format == (this->with_groups()
+                        ? goihw : oihw);
             return ok ? status::success : status::unimplemented;
         }
 
@@ -179,8 +179,8 @@ struct _gemm_convolution_bwd_data_t: public cpu_primitive_t {
                         this->desc()->diff_dst_desc.data_type)
                 && this->diff_src_pd_.desc()->format == nchw
                 && this->diff_dst_pd_.desc()->format == nchw
-                && (this->weights_pd_.desc()->format == this->with_groups()
-                     ? goihw : oihw);
+                && this->weights_pd_.desc()->format == (this->with_groups()
+                        ? goihw : oihw);
             return ok ? status::success : status::unimplemented;
         }
 
@@ -289,8 +289,8 @@ struct _gemm_convolution_bwd_weights_t: public cpu_primitive_t {
                     data_type::f32 == this->desc()->diff_bias_desc.data_type)
             && this->src_pd_.desc()->format == nchw
             && this->diff_dst_pd_.desc()->format == nchw
-            && (this->diff_weights_pd_.desc()->format == this->with_groups()
-                 ? goihw : oihw);
+            && this->diff_weights_pd_.desc()->format == (this->with_groups()
+                    ? goihw : oihw);
             return ok ? status::success : status::unimplemented;
         }
 
