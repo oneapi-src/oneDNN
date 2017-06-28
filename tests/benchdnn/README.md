@@ -181,8 +181,8 @@ configurations (`u8s8s32u8` and `f32`):
 ```
     $ ./benchdnn --conv -v1 \
         --mb=4 --dir=FWD_B \
-        --prec=u8s8s32u8 ic3ih227iw227_oc96oh55ow55_kh11kw11_sh4sw4ph0pw0_n"alexnet:conv1" \
-        --prec=f32 ic3ih227iw227_oc96oh55ow55_kh11kw11_sh4sw4ph0pw0_n"alexnet:conv1"
+        --cfg=u8s8s32u8 ic3ih227iw227_oc96oh55ow55_kh11kw11_sh4sw4ph0pw0_n"alexnet:conv1" \
+        --cfg=f32 ic3ih227iw227_oc96oh55ow55_kh11kw11_sh4sw4ph0pw0_n"alexnet:conv1"
 ```
 
 Run batch file for different algorithms (assuming the file only specifies
