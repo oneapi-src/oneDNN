@@ -233,7 +233,22 @@ int bench(int argc, char **argv, bool main_bench) {
     return OK;
 }
 
+#ifdef _WIN32
+#include <windows.h>
+#define PATH_MAX MAX_PATH
+static char *dirname(char *path) {
+    char drive[_MAX_DRIVE];
+    char dir[_MAX_DIR];
+    _splitpath(path, drive, dir, NULL, NULL);
+    path[0] = '\0';
+    if (drive != NULL) strncat(path, drive, _MAX_DRIVE);
+    if (dir != NULL) strncat(path, dir, MAX_PATH);
+    if (path[0] == '\0') strcat(path, ".");
+    return path;
+}
+#else
 #include <libgen.h>
+#endif /* WIN32 */
 
 FILE *open_batch_file(const char *fname) {
     const int max_paths = 4;
