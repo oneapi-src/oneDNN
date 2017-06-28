@@ -28,6 +28,12 @@
 #define OK 0
 #define FAIL 1
 
+#ifdef _WIN32
+#define strncasecmp _strnicmp
+#define strcasecmp _stricmp
+#define __PRETTY_FUNCTION__ __FUNCSIG__
+#endif
+
 enum { CRIT = 1, WARN = 2 };
 
 #define SAFE(f, s) do { \
