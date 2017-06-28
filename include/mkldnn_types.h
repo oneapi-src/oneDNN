@@ -129,9 +129,12 @@ typedef enum {
     /** 4D weights tensor in the format (input channels, output channels,
      * width, height). */
     mkldnn_oihw,
-    /** 4D weights tensor in the format (input channels, width, height,
+    /** 4D weights tensor in the format (input channels, height, width,
      * output channels). */
     mkldnn_ihwo,
+    /** 4D weights tensor in the format (height, width, input channels,
+     * output channels). */
+    mkldnn_hwio,
     /** 4D weights tensor in the @c oihw format with both input and output
      * channels data laid out in memory in 8-element blocks. */
     mkldnn_OIhw8i8o,
