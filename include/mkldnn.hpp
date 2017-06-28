@@ -24,6 +24,8 @@
 #include <vector>
 #include <algorithm>
 #include <iterator>
+
+#include "mkldnn.h"
 #endif
 
 namespace mkldnn {
@@ -85,10 +87,6 @@ public:
     bool operator==(const handle &other) const { return other._data.get() == _data.get(); }
     bool operator!=(const handle &other) const { return !(*this == other); }
 };
-
-#ifndef DOXYGEN_SHOULD_SKIP_THIS
-#include "mkldnn.h"
-#endif
 
 template <> struct handle_traits<mkldnn_primitive_t> {
     static constexpr auto destructor = &mkldnn_primitive_destroy;
