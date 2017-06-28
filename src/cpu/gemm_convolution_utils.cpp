@@ -141,14 +141,14 @@ void init_conf(
 status_t prepare_workspace(
         jit_gemm_conv_conf_t &jcp, float **ws, bool is_bwd_weights,
         const size_t weights_size) {
-    const int nthr = omp_get_max_threads();
+    const size_t nthr = omp_get_max_threads();
     if (jcp.need_im2col) {
         const size_t sz_per_thread = jcp.ic*jcp.ks*jcp.os;
-        jcp.im2col_size = utils::rnd_up((size_t)nthr*sz_per_thread, 16);
+        jcp.im2col_size = utils::rnd_up(nthr*sz_per_thread, 16);
     } else {
         jcp.im2col_size = 0;
     }
-    int weights_reduce_size = 0;
+    size_t weights_reduce_size = 0;
     if (is_bwd_weights && jcp.mb != 1 && nthr != 1) {
         const size_t sz_per_thread = jcp.ngroups * weights_size;
         weights_reduce_size = nthr * sz_per_thread;

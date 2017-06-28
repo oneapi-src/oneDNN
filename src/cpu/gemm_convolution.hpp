@@ -325,7 +325,7 @@ struct _gemm_convolution_bwd_weights_t: public cpu_primitive_t {
         jit_gemm_convolution_utils::init_conf(conf_.jcp_,
             *(conf_.desc()), conf_.src_pd(), conf_.diff_weights_pd(0),
             conf_.diff_dst_pd());
-          const memory_desc_wrapper weights_d(conf_.diff_weights_pd(0));
+        const memory_desc_wrapper weights_d(conf_.diff_weights_pd(0));
         jit_gemm_convolution_utils::prepare_workspace(this->conf_.jcp_,
             &this->ws, true, weights_d.size());
     }
