@@ -184,9 +184,14 @@ void check_bnrm_bwd(const test_bnrm_params_t &p,
 
         if (pk == backward) {
             auto diff_gamma = diff_weights_data[map_index(diff_weights_d, c)];
+            data_t norm_max = std::max(fabs(diff_gamma), fabs(ref_diff_gamma));
+            if (norm_max < 10e-3) norm_max = data_t(1);
+            EXPECT_NEAR((diff_gamma - ref_diff_gamma) / norm_max, 0., eps);
+
             auto diff_beta = diff_weights_data[map_index(diff_weights_d, bp.c + c)];
-            EXPECT_NEAR(diff_gamma, ref_diff_gamma, eps);
-            EXPECT_NEAR(diff_beta, ref_diff_beta, eps);
+            norm_max = std::max(fabs(diff_beta), fabs(ref_diff_beta));
+            if (norm_max < 10e-3) norm_max = data_t(1);
+            EXPECT_NEAR((diff_beta - ref_diff_beta) / norm_max, 0., eps);
         }
 
         for (int n = 0; n < bp.mb; n++)
