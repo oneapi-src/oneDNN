@@ -387,7 +387,7 @@ struct memory: public primitive  {
                 format aformat) {
             validate_dims(adims);
             error::wrap_c_api(
-                    c_api::mkldnn_memory_desc_init(&data, adims.size(),
+                    c_api::mkldnn_memory_desc_init(&data, (int)adims.size(),
                         adims.size() == 0 ? nullptr : &adims[0],
                          convert_to_c(adata_type), convert_to_c(aformat)),
                     "could not initialize a memory descriptor");
@@ -673,7 +673,7 @@ struct concat : public primitive {
             auto c_api_inputs = cpp_to_c(inputs);
 
             error::wrap_c_api(c_api::mkldnn_concat_primitive_desc_create(
-                    &result, &output.data, c_api_inputs.size(),
+                    &result, &output.data, (int)c_api_inputs.size(),
                     concat_dimension, &c_api_inputs[0]),
                 "could not create a concat primitive descriptor");
             reset(result);
@@ -686,8 +686,8 @@ struct concat : public primitive {
             auto c_api_inputs = cpp_to_c(inputs);
 
             error::wrap_c_api(c_api::mkldnn_concat_primitive_desc_create(
-                    &result, nullptr, c_api_inputs.size(), concat_dimension,
-                    &c_api_inputs[0]),
+                    &result, nullptr, (int)c_api_inputs.size(),
+                    concat_dimension, &c_api_inputs[0]),
                 "could not create a concat primitive descriptor");
             reset(result);
         }
@@ -742,7 +742,7 @@ struct sum : public primitive {
             auto c_api_inputs = cpp_to_c(inputs);
 
             error::wrap_c_api(c_api::mkldnn_sum_primitive_desc_create(
-                    &result, &output.data, c_api_inputs.size(),
+                    &result, &output.data, (int)c_api_inputs.size(),
                     &scale[0], &c_api_inputs[0]),
                 "could not create a sum primitive descriptor");
             reset(result);
@@ -755,7 +755,7 @@ struct sum : public primitive {
             auto c_api_inputs = cpp_to_c(inputs);
 
             error::wrap_c_api(c_api::mkldnn_sum_primitive_desc_create(
-                    &result, nullptr, c_api_inputs.size(), &scale[0],
+                    &result, nullptr, (int)c_api_inputs.size(), &scale[0],
                     &c_api_inputs[0]),
                 "could not create a sum primitive descriptor");
             reset(result);
