@@ -393,7 +393,7 @@ inline int init_pd(const prb_t *p, mkldnn_convolution_desc_t &cd,
         DNN_SAFE(mkldnn_primitive_desc_destroy(cpd), WARN);
         return r->state = SKIPPED, OK;
     } else {
-        print(50, "mkldnn implementation: %s\n", impl_str);
+        print(5, "mkldnn implementation: %s\n", impl_str);
     }
 
     auto q = [=](mkldnn_query_t query, int index = 0) {
