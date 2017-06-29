@@ -31,7 +31,7 @@ namespace cpu {
 
 namespace {
 /** Common code logic --> single point of change.
- * Eases ports to other OS (which may not support jit at all).
+ * Can be more complicated to support other OSes (e.g. without JIT support).
  */
 template<bool run_jit, cpu_isa_t isa>
 static inline bool constexpr _gemm_convolution_implemented() {
