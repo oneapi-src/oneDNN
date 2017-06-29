@@ -543,6 +543,40 @@ protected:
         vmovmskps(x1, x2);
     }
 
+    void mul_by_const(const Xbyak::Reg &out,
+            const Xbyak::Reg64 &tmp, int value) {
+        // Generates a shift + add sequence for multiplicating contents of the
+        // out register by a known JIT-time value. Clobbers the tmp register.
+        //
+        // Pros compared to mul/imul:
+        // - does not require using known registers
+        // - not microcoded on Xeon Phi
+        // Still, there are probably a lot of cases when mul/imul is faster on
+        // Core CPUs. Not intended for critical path.
+
+        // TODO: detect when overflow is emminent (Roma)
+        // TODO: detect when using mul/imul is a better option (Roma)
+
+        int p = 0; // the current power of 2
+        int old_p = 0; // the last seen power of 2 such that value[old_p] != 0
+
+        xor_(tmp, tmp);
+        while (value) {
+            if (value & 1) {
+                int shift = p - old_p;
+                if (shift) {
+                    shl(out, shift);
+                    old_p = p;
+                }
+                add(tmp, out);
+            }
+            value >>= 1;
+            p++;
+        }
+        mov(out, tmp);
+    }
+
+
 public:
     jit_generator(
         void *code_ptr = nullptr,
