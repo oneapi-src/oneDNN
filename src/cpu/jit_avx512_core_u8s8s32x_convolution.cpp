@@ -114,7 +114,7 @@ struct jit_avx512_core_u8s8s32x_conv_fwd_ker_t: public jit_generator {
 
 void jit_avx512_core_u8s8s32x_conv_fwd_ker_t::load_wei_s8() {
     assert(c_.oc_block * c_.ic_block * sizeof_wei_dt()
-            == cpu_isa_traits<avx512_mic>::vlen);
+            == cpu_isa_traits<avx512_core>::vlen);
     for (int ic_b1 = 0; ic_b1 < c_.ic_nb1; ++ic_b1) {
         for (int kw = 0; kw < c_.kw; ++kw) {
             const int off = (ic_b1 * c_.kw + kw) * c_.oc_block * c_.ic_block;

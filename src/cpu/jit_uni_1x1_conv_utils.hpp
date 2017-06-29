@@ -190,7 +190,8 @@ struct rtus_driver_t: public jit_generator {
 
     void generate() {
         using namespace Xbyak;
-        assert(isa == avx2 || isa == avx512_common || isa == avx512_mic);
+        assert(isa == avx2 || isa == avx512_common
+                || isa == avx512_core || isa == avx512_mic);
 
 #if defined(_WIN32)
         push(rdi);
