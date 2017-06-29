@@ -20,7 +20,7 @@
  * 
  *  USE_MKL  USE_CBLAS effect
  *  -------  --------- ------
- *  yes      yes       normal compile: jit calls preferred over MKL cblas_sgemm
+ *  yes      yes       normal compile: jit *may* be preferred over MKL cblas_sgemm
  *  yes      no        jit calls OK; assert if cblas_sgemm is ever called
  *  no       yes       system-dependent (non-MKL) cblas
  *  no       no        gemm convolution (or other blas) N/A; create stubs
