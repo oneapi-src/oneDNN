@@ -31,18 +31,16 @@ namespace cpu {
 
 namespace {
 /** Common code logic --> single point of change.
- * Can be more complicated to support other OSes (e.g. without JIT support).
+ * Can be more complicated to support other OSes
+ * (e.g. without JIT support, no mayiuse available).
+ * Some compilers (my gcc) still insist on one-liner returns here :(
  */
 template<bool run_jit, cpu_isa_t isa>
 static inline bool constexpr _gemm_convolution_implemented() {
-
-            if (run_jit) {
-                return mayiuse(isa);
-            }
 #if defined(USE_MKL) || defined(USE_CBLAS)
-            return true;
+    return run_jit? mayiuse(isa): true;
 #else
-            return false;
+    return run_jit? mayiuse(isa): false;
 #endif
 
 }
