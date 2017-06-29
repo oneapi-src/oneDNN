@@ -21,18 +21,24 @@
 #include "utils.hpp"
 #include "type_helpers.hpp"
 #include "mkldnn_thread.hpp"
-
-#ifdef USE_MKL
-#include "mkl_cblas.h"
-#endif
-
-#ifndef USE_CBLAS
-#define cblas_sgemm(...) assert(!"CBLAS is unavailable")
-#endif
+#include "os-blas.hpp"
 
 namespace mkldnn {
 namespace impl {
 namespace cpu {
+
+#if ! USE_MKL && ! USE_CBLAS // provide empty stubs (init always will say "NO")
+
+template <bool with_relu, bool run_jit, cpu_isa_t isa>
+void _gemm_convolution_fwd_t<with_relu, run_jit, isa>::execute_forward() {}
+
+template <bool run_jit, cpu_isa_t isa>
+void _gemm_convolution_bwd_data_t<run_jit, isa>::execute_backward_data() {}
+
+template <bool run_jit, cpu_isa_t isa>
+void _gemm_convolution_bwd_weights_t<run_jit, isa>::execute_backward_weights() {}
+
+#else // some sort of gemm (jit? cblas?) is available
 
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::memory_format;
@@ -268,6 +274,8 @@ void _gemm_convolution_bwd_weights_t<run_jit, isa>::execute_backward_weights() {
 template struct _gemm_convolution_bwd_weights_t<true, avx512_common>;
 template struct _gemm_convolution_bwd_weights_t<true, avx2>;
 template struct _gemm_convolution_bwd_weights_t<false, isa_any>;
+
+#endif // some sort of gemm is available
 
 }
 }

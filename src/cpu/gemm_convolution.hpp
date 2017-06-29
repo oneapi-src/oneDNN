@@ -29,6 +29,25 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
+namespace {
+/** Common code logic --> single point of change.
+ * Eases ports to other OS (which may not support jit at all).
+ */
+template<bool run_jit, cpu_isa_t isa>
+static inline bool constexpr _gemm_convolution_implemented() {
+
+            if (run_jit) {
+                return mayiuse(isa);
+            }
+#if defined(USE_MKL) || defined(USE_CBLAS)
+            return true;
+#else
+            return false;
+#endif
+
+}
+}
+
 template <bool with_relu, bool run_jit, cpu_isa_t isa>
 struct _gemm_convolution_fwd_t: public cpu_primitive_t {
     struct pd_t: public _cpu_convolution_fwd_pd_t<with_relu> {
@@ -46,15 +65,8 @@ struct _gemm_convolution_fwd_t: public cpu_primitive_t {
 
             assert(this->engine()->kind() == engine_kind::cpu);
 
-            if (run_jit) {
-                if (!mayiuse(isa)) return status::unimplemented;
-            } else {
-#ifndef USE_CBLAS
-                return status::unimplemented;
-#endif
-            }
-
             bool ok = true
+                && _gemm_convolution_implemented< run_jit, isa >()
                 && this->set_default_params() == status::success
                 && utils::one_of(this->cdesc_().prop_kind, forward_training,
                         forward_inference)
@@ -160,15 +172,8 @@ struct _gemm_convolution_bwd_data_t: public cpu_primitive_t {
 
             assert(this->engine()->kind() == engine_kind::cpu);
 
-            if (run_jit) {
-                if (!mayiuse(isa)) return status::unimplemented;
-            } else {
-#ifndef USE_CBLAS
-                return status::unimplemented;
-#endif
-            }
-
             bool ok = true
+                && _gemm_convolution_implemented< run_jit, isa >()
                 && this->set_default_params() == status::success
                 && utils::one_of(this->desc()->prop_kind, backward,
                         backward_data)
@@ -268,15 +273,8 @@ struct _gemm_convolution_bwd_weights_t: public cpu_primitive_t {
 
             assert(this->engine()->kind() == engine_kind::cpu);
 
-            if (run_jit) {
-                if (!mayiuse(isa)) return status::unimplemented;
-            } else {
-#ifndef USE_CBLAS
-                return status::unimplemented;
-#endif
-            }
-
             bool ok = true
+            && _gemm_convolution_implemented< run_jit, isa >()
             && this->set_default_params() == status::success
             && utils::one_of(this->desc()->prop_kind, backward,
                     backward_weights)
