@@ -41,6 +41,8 @@
 void *aligned_malloc(size_t size, size_t alignment) {
 #ifdef WIN32
     return _aligned_malloc(size, alignment);
+#elif defined(_SX)
+    return malloc(size);
 #else
     return memalign(alignment, size);
 #endif
