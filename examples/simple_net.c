@@ -97,14 +97,14 @@ mkldnn_status_t prepare_reorder(
              * already appeared in in- and out- memory primitive descriptors */
             CHECK(mkldnn_reorder_primitive_desc_create(&reorder_pd,
                         user_memory_pd, *prim_memory_pd));
-            mkldnn_primitive_at_t inputs = { *user_memory };
+            mkldnn_primitive_at_t inputs = { *user_memory, 0 };
             const_mkldnn_primitive_t outputs[] = { *prim_memory };
             CHECK(mkldnn_primitive_create(reorder, reorder_pd, &inputs,
                         outputs));
         } else {
             CHECK(mkldnn_reorder_primitive_desc_create(&reorder_pd,
                         *prim_memory_pd, user_memory_pd));
-            mkldnn_primitive_at_t inputs = { *prim_memory };
+            mkldnn_primitive_at_t inputs = { *prim_memory, 0 };
             const_mkldnn_primitive_t outputs[] = { *user_memory };
             CHECK(mkldnn_primitive_create(reorder, reorder_pd, &inputs,
                         outputs));
@@ -263,7 +263,7 @@ mkldnn_status_t simple_net(){
 
     /* finally create a relu primitive */
     mkldnn_primitive_t relu;
-    mkldnn_primitive_at_t relu_srcs = { conv_internal_dst_memory };
+    mkldnn_primitive_at_t relu_srcs = { conv_internal_dst_memory, 0 };
     const_mkldnn_primitive_t relu_dsts[] = { relu_dst_memory };
 
     CHECK(mkldnn_primitive_create(&relu, relu_pd, &relu_srcs, relu_dsts));
@@ -317,7 +317,7 @@ mkldnn_status_t simple_net(){
     CHECK(mkldnn_memory_set_data_handle(lrn_scratch_memory,
             lrn_scratch_buffer));
 
-    mkldnn_primitive_at_t lrn_srcs = { relu_dst_memory };
+    mkldnn_primitive_at_t lrn_srcs = { relu_dst_memory, 0 };
 
     const_mkldnn_primitive_t lrn_dsts[] = { lrn_dst_memory,
             lrn_scratch_memory };
@@ -387,7 +387,7 @@ mkldnn_status_t simple_net(){
     CHECK(prepare_reorder(&pool_user_dst_memory, &pool_dst_pd, 0,
             &pool_internal_dst_memory, &pool_reorder_dst, pool_dst_buffer));
 
-    mkldnn_primitive_at_t pool_srcs = { lrn_dst_memory };
+    mkldnn_primitive_at_t pool_srcs = { lrn_dst_memory, 0 };
 
     pool_dst_memory = pool_internal_dst_memory ? pool_internal_dst_memory
         : pool_user_dst_memory;
