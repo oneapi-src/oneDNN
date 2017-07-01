@@ -224,7 +224,7 @@ private:
     template<typename ...Void>
     inline size_t _blk_off() const { return blocking_desc().offset_padding; }
 
-#ifdef _MSVC_LANG
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     template<typename T> inline size_t _blk_off(T x0) const {
         return size_t(x0)*blocking_desc().strides[0][0] + _blk_off();
     }
