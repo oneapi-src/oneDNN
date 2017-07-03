@@ -535,20 +535,28 @@ public:
     const Xbyak::uint8 *getCode() {
         const Xbyak::uint8 *code = CodeGenerator::getCode();
 #ifdef CPU_ENABLE_JIT_DUMP
-        if (!code)
-            return 0;
+        if (code) {
+#define SIMPLE_NAME_COUNTER
+#ifdef SIMPLE_NAME_COUNTER
+            static int counter = 0;
+#define MAX_FNAME_LEN 256
+            char fname[MAX_FNAME_LEN + 1];
+            snprintf(fname, MAX_FNAME_LEN, "mkldnn_jit_dump.%d.bin", counter);
+            counter++;
+#else
+            const char *fname = "mkldnn_jit_dump.bin";
+#endif
+            // TODO (Roma): add a virtual name() function that would be
+            // used to notify profilers like Intel(R) Vtune(TM) Amplifier
+            // about generated code and generate a meaningful file name
 
-        // TODO (Roma): add a virtual name() function that would be used to
-        // notify profilers like Intel(R) Vtune(TM) Amplifier about 
-        // generated code and generate a meaningful file name
-
-        FILE *fp = fopen("mkldnn_jit_dump.bin", "w+");
-        // XXX: Failure to dump code is not fatal (?)
-        if (!fp)
-            return code;
-
-        fwrite(code, getSize(), 1, fp);
-        fclose(fp);
+            FILE *fp = fopen(fname, "w+");
+            // Failure to dump code is not fatal
+            if (fp) {
+                fwrite(code, getSize(), 1, fp);
+                fclose(fp);
+            }
+        }
 #endif
         return code;
     };
