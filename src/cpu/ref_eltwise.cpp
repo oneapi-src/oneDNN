@@ -37,11 +37,11 @@ template <typename T, typename A> inline T relu_bwd(T dd, T s, A alpha) {
 }
 
 template <typename T> T tanh_fwd(T s) {
-    const float e = ::expf(float(2*s)); /* maybe replace with -2*s? */
+    const float e = ::expf(float(2 * s)); /* maybe replace with -2*s? */
     return static_cast<T>((e - 1) / (e + 1));
 }
 template <typename T> T tanh_bwd(T dd, T s) {
-    const float e = ::expf(float(2*s)); /* maybe replace with -2*s? */
+    const float e = ::expf(float(2 * s)); /* maybe replace with -2*s? */
     const float th = (e - 1.f) / (e + 1.f);
     return static_cast<T>(dd * (1 - th * th));
 }
