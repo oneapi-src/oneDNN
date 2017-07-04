@@ -50,6 +50,7 @@ void jit_uni_pooling_fwd_t<isa>::execute_forward() {
         arg.dst = &dst[dst_d.blk_off(n, b_c, oh, 0)];
         if (indices)
             arg.indices = &indices[indices_d.blk_off(n, b_c, oh, 0)];
+        arg.oh = oh;
         arg.kh_padding = jpp.kh - i_t_overflow - i_b_overflow;
         arg.kh_padding_shift = i_t_overflow*jpp.kw;
         arg.kw_padding = 0;
@@ -95,6 +96,7 @@ void jit_uni_pooling_bwd_t<isa>::execute_backward() {
         arg.dst = &diff_dst[diff_dst_d.blk_off(n, b_c, oh, 0)];
         if (indices)
             arg.indices = &indices[indices_d.blk_off(n, b_c, oh, 0)];
+        arg.oh = oh;
         arg.kh_padding = jpp.kh - i_t_overflow - i_b_overflow;
         arg.kh_padding_shift = i_t_overflow*jpp.kw;
         arg.kw_padding = 0;
@@ -108,8 +110,6 @@ void jit_uni_pooling_bwd_t<isa>::execute_backward() {
 #   pragma omp parallel for collapse(2) schedule(static)
     for (int n = 0; n < jpp.mb; ++n) {
         for (int b_c = 0; b_c < jpp.nb_c; ++b_c) {
-            data_t *dsrc = diff_src + diff_src_d.blk_off(n, b_c);
-            for (int i = 0; i < jpp.ih * jpp.iw * jpp.c_block; ++i) dsrc[i] = 0.;
             for (int oh = 0; oh < jpp.oh; ++oh) {
                 ker (n, b_c, oh);
             }

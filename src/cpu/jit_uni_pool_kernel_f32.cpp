@@ -26,6 +26,8 @@ namespace cpu {
 using namespace Xbyak;
 using namespace alg_kind;
 
+#define GET_OFF(field) offsetof(jit_pool_call_s, field)
+
 template <cpu_isa_t isa>
 status_t jit_uni_pool_kernel_f32<isa>::init_conf(jit_pool_conf_t &jpp,
             const pooling_desc_t &pd, const memory_desc_wrapper &src_d,
@@ -304,6 +306,35 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_bwd(int ur_w, int pad_l,
 }
 
 template <cpu_isa_t isa>
+void jit_uni_pool_kernel_f32<isa>::maybe_zero_diff_src() {
+    assert(jpp.c_block % cpu_isa_traits<isa>::vlen == 0);
+    Label l_skip, l_zero;
+
+    auto reg_oh = tmp_gpr;
+    mov(reg_oh, ptr[this->param1 + GET_OFF(oh)]);
+    test(reg_oh, reg_oh);
+    jne(l_skip, T_NEAR);
+
+    auto vzero = vmm_tmp;
+    uni_vpxor(vzero, vzero, vzero);
+
+    auto reg_off = tmp_gpr;
+    xor_(reg_off, reg_off);
+
+    L(l_zero);
+    {
+        const int dim = jpp.iw * jpp.c_block * sizeof(float);
+        for (int i = 0; i < dim; i += cpu_isa_traits<isa>::vlen)
+            vmovups(ptr[reg_input + reg_off + i], vzero);
+        add(reg_off, dim);
+        cmp(reg_off, jpp.ih * dim);
+        jl(l_zero, T_NEAR);
+    }
+
+    L(l_skip);
+}
+
+template <cpu_isa_t isa>
 void jit_uni_pool_kernel_f32<isa>::generate() {
 
     this->preamble();
@@ -324,7 +355,6 @@ void jit_uni_pool_kernel_f32<isa>::generate() {
 
     int vlen = cpu_isa_traits<isa>::vlen;
 
-#   define GET_OFF(field) offsetof(jit_pool_call_s, field)
     mov(reg_input, ptr[this->param1 + GET_OFF(src)]);
     mov(reg_output, ptr[this->param1 + GET_OFF(dst)]);
     if (jpp.alg == pooling_max && (jpp.is_training || jpp.is_backward))
@@ -333,7 +363,8 @@ void jit_uni_pool_kernel_f32<isa>::generate() {
     mov(reg_k_shift, ptr[this->param1 + GET_OFF(kh_padding_shift)]);
     mov(reg_ker_area_h, ptr[this->param1 + GET_OFF(ker_area_h)]);
 
-#   undef GET_OFF
+    if (jpp.is_backward)
+        maybe_zero_diff_src();
 
     if (jpp.alg == pooling_max && (jpp.is_training || jpp.is_backward)) {
         mov(tmp_gpr, 1);

@@ -79,7 +79,7 @@ private:
     reg64_t oi_iter = r15;
     reg64_t reg_kh  = rax;
     reg64_t reg_k_shift  = rbx;
-    reg64_t tmp_gpr = rcx;
+    reg64_t tmp_gpr = abi_not_param1;
     reg64_t reg_ker_area_h = rdx;
 
     int prev_kw;
@@ -89,6 +89,8 @@ private:
     void avg_step(int ur_w, int pad_l, int pad_r, const char *kh_label);
     void max_step_fwd(int ur_w, int pad_l, int pad_r, const char *kh_label);
     void max_step_bwd(int ur_w, int pad_l, int pad_r, const char *kh_label);
+
+    void maybe_zero_diff_src();
 
     void step(int ur_w, int pad_l, int pad_r, const char *kh_label) {
         if (jpp.alg == alg_kind::pooling_max) {

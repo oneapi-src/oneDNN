@@ -211,6 +211,7 @@ struct jit_pool_call_s {
     const float *src_prf;
     const float *dst_prf;
     const int *indices_prf;
+    size_t oh;
     size_t kh_padding;
     size_t kh_padding_shift;
     size_t kw_padding;
