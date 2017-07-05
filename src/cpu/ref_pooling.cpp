@@ -37,11 +37,12 @@ void ref_pooling_fwd_t<data_type, acc_type>::execute_forward() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto dst = reinterpret_cast<data_t *>(this->memory(0));
     auto ws = alg == pooling_max && conf_.desc()->prop_kind == forward_training
-        ? reinterpret_cast<int *>(this->memory(1)) : nullptr;
+        ? reinterpret_cast<unsigned char *>(this->memory(1)) : nullptr;
 
     const memory_desc_wrapper src_d(conf_.src_pd());
     const memory_desc_wrapper dst_d(conf_.dst_pd());
     const memory_desc_wrapper ws_d(conf_.workspace_pd());
+    const data_type_t ws_dt = ws ? ws_d.data_type() : data_type::undef;
 
     const int IH = conf_.IH();
     const int IW = conf_.IW();
@@ -68,7 +69,15 @@ void ref_pooling_fwd_t<data_type, acc_type>::execute_forward() {
                 auto s = src[src_d.off(mb, oc, ih, iw)];
                 if (s > d[0]) {
                     d[0] = s;
-                    if (ws) ws[ws_d.off(mb, oc, oh, ow)] = kh*KW + kw;
+                    if (ws) {
+                        size_t off = ws_d.off(mb, oc, oh, ow);
+                        if (ws_dt == data_type::u8) {
+                            ws[off] = kh*KW + kw;
+                        } else {
+                            assert(ws_dt == data_type::s32);
+                            ((int *)ws)[off] = kh*KW + kw;
+                        }
+                    }
                 }
             }
         }
@@ -133,9 +142,9 @@ void ref_pooling_bwd_t<data_type, acc_type>::execute_backward() {
     using namespace alg_kind;
 
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(0));
-    auto ws = conf_.desc()->alg_kind == alg_kind::pooling_max ?
-        reinterpret_cast<const int*>(this->input_memory(1)) : nullptr;
-    auto diff_src = reinterpret_cast<data_t*>(this->memory(0));
+    auto ws = conf_.desc()->alg_kind != alg_kind::pooling_max ? nullptr
+        : reinterpret_cast<const unsigned char *>(this->input_memory(1));
+    auto diff_src = reinterpret_cast<data_t *>(this->memory(0));
 
     const memory_desc_wrapper diff_dst_d(conf_.diff_dst_pd());
     const memory_desc_wrapper ws_d(conf_.workspace_pd());
@@ -165,7 +174,9 @@ void ref_pooling_bwd_t<data_type, acc_type>::execute_backward() {
     };
 
     auto ker_max = [=](const data_t *d, int mb, int oc, int oh, int ow) {
-        const int index = ws[ws_d.off(mb, oc, oh, ow)];
+        const size_t ws_off = ws_d.off(mb, oc, oh, ow);
+        const int index = ws_d.data_type() == data_type::u8
+            ? (int)ws[ws_off] : ((int *)ws)[ws_off];
         const int kw = index % KW;
         const int kh = index / KW;
         const int ih = oh * SH - padT + kh;

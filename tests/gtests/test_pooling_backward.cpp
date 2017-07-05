@@ -113,7 +113,15 @@ void check_pool_bwd(const pool_bwd_test_params &p, const memory &diff_src,
 {
     data_t *diff_src_data = (data_t *)diff_src.get_data_handle();
     data_t *diff_dst_data = (data_t *)diff_dst.get_data_handle();
-    int *ws_data = (int *)ws.get_data_handle();
+
+    auto ws_data = [=](size_t idx) -> int {
+        auto w = (unsigned char *)ws.get_data_handle();
+        if (w == nullptr) return -1;
+        if (ws.get_primitive_desc().desc().data.data_type == mkldnn_u8)
+            return (int)w[idx];
+        else
+            return ((int *)w)[idx];
+    };
 
     const memory::desc diff_src_d = diff_src.get_primitive_desc().desc();
     const memory::desc diff_dst_d = diff_dst.get_primitive_desc().desc();
@@ -148,8 +156,8 @@ void check_pool_bwd(const pool_bwd_test_params &p, const memory &diff_src,
                             + oh * pd.ow + ow;
                     data_t diff_dst = diff_dst_data[map_index(diff_dst_d, oidx)];
                     if (p.aalgorithm == pooling_max) {
-                        int kh_max = ws_data[map_index(ws_d, oidx)] / pd.kw;
-                        int kw_max = ws_data[map_index(ws_d, oidx)] % pd.kw;
+                        int kh_max = ws_data(map_index(ws_d, oidx)) / pd.kw;
+                        int kw_max = ws_data(map_index(ws_d, oidx)) % pd.kw;
                         for (int kh = 0; kh < pd.kh; kh++) {
                             for (int kw = 0; kw < pd.kw; kw++) {
                                 int iw = ow * pd.strw - pd.padl + kw;

@@ -194,6 +194,7 @@ struct jit_pool_conf_t {
     bool is_training;
     bool pad_w_is_null;
     bool is_backward;
+    data_type_t ind_dt;
 
     int c_block, c_tail, nb_c;
     int ur_c, ur_c_tail;
@@ -207,10 +208,10 @@ struct jit_pool_conf_t {
 struct jit_pool_call_s {
     const float *src;
     const float *dst;
-    const int *indices;
+    const void *indices;
     const float *src_prf;
     const float *dst_prf;
-    const int *indices_prf;
+    const void *indices_prf;
     size_t oh;
     size_t kh_padding;
     size_t kh_padding_shift;

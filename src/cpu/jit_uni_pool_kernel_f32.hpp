@@ -49,7 +49,9 @@ struct jit_uni_pool_kernel_f32: public jit_generator {
 private:
     using Vmm = typename utils::conditional3<isa == sse42, Xmm, isa == avx2,
                                              Ymm, Zmm>::type;
-    Vmm vreg(int idx) { return Vmm((isa == avx512_common ? 31 : 15) - idx); }
+    Xmm xreg(int idx) { return Xmm((isa == avx512_common ? 31 : 15) - idx); }
+    Ymm yreg(int idx) { return Ymm(xreg(idx).getIdx()); }
+    Vmm vreg(int idx) { return Vmm(xreg(idx).getIdx()); }
 
     const AddressFrame &vmmword = (isa == sse42) ? xword :
                                   (isa == avx2) ? yword : zword;
@@ -65,6 +67,7 @@ private:
 
     Vmm vmm_k_offset = Vmm(1);
 
+    Opmask k_index_mask = Opmask(6);
     Opmask k_store_mask = Opmask(7);
 
     using reg64_t = const Xbyak::Reg64;
@@ -81,6 +84,8 @@ private:
     reg64_t reg_k_shift  = rbx;
     reg64_t tmp_gpr = abi_not_param1;
     reg64_t reg_ker_area_h = rdx;
+
+    Xbyak::Reg32 reg_shuf_mask = esi;
 
     int prev_kw;
     void (*jit_ker)(jit_pool_call_s *);
@@ -107,8 +112,8 @@ private:
         add(reg_input, sizeof(float) * 4);
         add(reg_output, sizeof(float) * 4);
         if (jpp.alg == alg_kind::pooling_max &&
-            (jpp.is_training || jpp.is_backward))
-            add(reg_index, sizeof(int) * 4);
+                (jpp.is_training || jpp.is_backward))
+            add(reg_index, types::data_type_size(jpp.ind_dt) * 4);
 
         step(ur_w, pad_l, pad_r, kh_label);
     }

@@ -45,7 +45,15 @@ void check_pool_fwd(const pool_test_params &p, const memory &src,
 {
     data_t *src_data = (data_t *)src.get_data_handle();
     data_t *dst_data = (data_t *)dst.get_data_handle();
-    int *ws_data  = (int *)ws.get_data_handle();
+
+    auto ws_data = [=](size_t idx) -> int {
+        auto w = (unsigned char *)ws.get_data_handle();
+        if (w == nullptr) return -1;
+        if (ws.get_primitive_desc().desc().data.data_type == mkldnn_u8)
+            return (int)w[idx];
+        else
+            return ((int *)w)[idx];
+    };
 
     const memory::desc src_d = src.get_primitive_desc().desc();
     const memory::desc dst_d = dst.get_primitive_desc().desc();
@@ -64,7 +72,7 @@ void check_pool_fwd(const pool_test_params &p, const memory &src,
                     int out_index = -1;
                     if(p.aalgorithm == pooling_max
                         && p.aprop_kind == prop_kind::forward_training) {
-                        out_index = ws_data[map_index(ws_d, oidx)];
+                        out_index = ws_data(map_index(ws_d, oidx));
                     }
                     data_t out_ref = data_t(0);
                     int out_ref_index = 0;

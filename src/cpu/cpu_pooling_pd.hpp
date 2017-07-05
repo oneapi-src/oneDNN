@@ -26,10 +26,20 @@
 #include "cpu_primitive.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
+#include "nstl.hpp"
 
 namespace mkldnn {
 namespace impl {
 namespace cpu {
+
+inline data_type_t pooling_index_data_type(const pooling_desc_t *p) {
+    using nstl::numeric_limits;
+    /* the simplest way to express 256... */
+    const int u8_max =
+        numeric_limits<typename prec_traits<data_type::u8>::type>::max();
+    return p->kernel[0] * p->kernel[1] <= u8_max
+        ? data_type::u8 : data_type::s32;
+}
 
 struct cpu_pooling_fwd_pd_t: public pooling_fwd_pd_t {
     using cpu_memory_pd_t = cpu_memory_t::pd_t;
