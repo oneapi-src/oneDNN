@@ -26,7 +26,7 @@ namespace impl {
 namespace cpu {
 
 struct jit_avx512_common_1x1_conv_kernel : public jit_generator {
-    enum { REDUCE_FLAG_FIRST = 1, REDUCE_FLAG_LAST = 2 };
+    enum { REDUCE_FLAG_FIRST = 1, REDUCE_FLAG_LAST = 2, FLAG_BIAS_UPDATE = 4 };
 
     jit_avx512_common_1x1_conv_kernel(jit_1x1_conv_conf_t ajcp) : jcp(ajcp)
     {
@@ -73,7 +73,7 @@ struct jit_avx512_common_1x1_conv_kernel : public jit_generator {
     reg64_t bcast_loop_iter = rdx;
     reg64_t reduce_loop_iter = rdi;
     reg64_t reg_reduce_pos_flag = rax;
-    reg64_t reg_output_stride = r12;
+    reg64_t reg_output_stride = r13;
     reg64_t reg_bias_data = r12;
     reg64_t reg_relu_ns = r13;
     reg64_t reg_bcast_loop_work = aux1_reg_bcast_data;
@@ -82,6 +82,7 @@ struct jit_avx512_common_1x1_conv_kernel : public jit_generator {
 
     Xbyak::Zmm zmm_relu_ns = Xbyak::Zmm(30);
     Xbyak::Zmm zmm_zero = Xbyak::Zmm(31);
+    Xbyak::Zmm vreg_diff_bias = zmm_relu_ns;
 
     int reg_diff_bias_data_stack_offt = 0;
     int bcast_loop_work_offt = 16;

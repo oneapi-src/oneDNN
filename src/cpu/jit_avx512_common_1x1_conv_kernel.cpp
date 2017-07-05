@@ -212,6 +212,13 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(int load_loop_blk,
             vmulps(zmm_dst | kmask, zmm_src1, zmm_src2);
     };
 
+    auto vadd = [=](const Xmm& x1, const Xmm& x2, const Operand& op) {
+        if (jcp.ver == ver_4vnni)
+            vpaddd(x1, x2, op);
+        else
+            vaddps(x1, x2, op);
+    };
+
     auto store = [=]() {
 
         Label store_noadd;
@@ -221,10 +228,7 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(int load_loop_blk,
         for (int i_ur = 0; i_ur < ur; ++i_ur)
             for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
                 auto r = vreg_accum(i_load, i_ur);
-                if (jcp.ver == ver_4vnni)
-                    vpaddd(r, r, output_ptr(i_load, i_ur));
-                else
-                    vaddps(r, r, output_ptr(i_load, i_ur));
+                vadd(r, r, output_ptr(i_load, i_ur));
             }
 
         L(store_noadd);
@@ -392,6 +396,26 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(int load_loop_blk,
                 }
             }
         }
+
+        if (jcp.with_bias && jcp.prop_kind == backward_weights && substep == 0) {
+            Label l_skip_bias;
+            test(reg_reduce_pos_flag, FLAG_BIAS_UPDATE);
+            jz(l_skip_bias, T_NEAR);
+            cmp(bcast_loop_iter, jcp.bcast_block);
+            jg(l_skip_bias, T_NEAR);
+
+            for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
+                vmovups(vreg_diff_bias, bias_ptr(i_load));
+                for (int i_reduce = 0; i_reduce < jcp.reduce_loop_unroll;
+                        ++i_reduce) {
+                    vadd(vreg_diff_bias, vreg_diff_bias,
+                            load_ptr(i_reduce, i_load));
+                }
+                vmovups(bias_ptr(i_load), vreg_diff_bias);
+            }
+
+            L(l_skip_bias);
+        }
     };
     Label reduce_loop;
     Label reduce_loop_tail;
@@ -437,9 +461,10 @@ void jit_avx512_common_1x1_conv_kernel::generate()
     mov(EVEX_compress_addr(rsp, bcast_loop_work_offt), reg_bcast_loop_work);
     mov(reg_reduce_loop_work, ptr[param1 + GET_OFF(reduce_dim)]);
     mov(reg_reduce_pos_flag, ptr[param1 + GET_OFF(reduce_pos_flag)]);
+    if (one_of(jcp.prop_kind, forward_training, forward_inference))
+        mov(reg_relu_ns, reinterpret_cast<size_t>(&jcp.relu_negative_slope));
     if (jcp.prop_kind == backward_weights)
         mov(reg_output_stride, ptr[param1 + GET_OFF(output_stride)]);
-    mov(reg_relu_ns, reinterpret_cast<size_t>(&jcp.relu_negative_slope));
 
     auto load_loop_body = [=](int load_loop_blk) {
         bcast_loop(load_loop_blk);
@@ -459,6 +484,8 @@ void jit_avx512_common_1x1_conv_kernel::generate()
                     jcp.typesize_out);
             break;
         case backward_weights:
+            add(reg_bias_data,
+                load_loop_blk * jcp.load_block * jcp.typesize_out);
             for (int i_load = 0; i_load < load_loop_blk; i_load++)
                 add(reg_output_data, reg_output_stride);
             break;
@@ -556,7 +583,11 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
     jcp.stride_w = cd.strides[1];
 
     jcp.src_fmt = src_d.format();
-    jcp.with_bias = cd.bias_desc.format != memory_format::undef;
+    jcp.with_bias = one_of(jcp.prop_kind, forward_training, forward_inference)
+        ? cd.bias_desc.format != memory_format::undef
+        : (jcp.prop_kind == backward_weights
+                ? cd.diff_bias_desc.format != memory_format::undef
+                : false);
     jcp.with_relu = with_relu;
     jcp.relu_negative_slope = relu_negative_slope;
 

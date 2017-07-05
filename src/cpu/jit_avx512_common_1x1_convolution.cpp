@@ -444,13 +444,16 @@ jit_avx512_common_1x1_convolution_bwd_weights_t
             job_size / nb_oc_blocking, nb_oc_blocking, ic_block,
             nb_ic * ic_block * oc_block, nb_oc, false);
 
+    const int nworkers = reducer_weights_->balancer_.ngroups_
+        * reducer_weights_->balancer_.nthr_per_group_;
+    const int bias_len = jcp.oc * jcp.ngroups;
     reducer_bias_ = !conf_.with_bias() ? nullptr
-        : new cpu_reducer_t<data_type::f32>(reduce_balancer_t(max_threads,
-                    oc_block, conf_.G() * conf_.OC() / oc_block,
-                    conf_.MB(), max_buffer_size));
+        : new cpu_reducer_t<data_type::f32>(reduce_balancer_t(nworkers,
+                    bias_len, 1, nworkers, 0));
 
     init_rtus_driver<avx512_common>(this);
 }
+
 void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights()
 {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
@@ -492,8 +495,9 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights()
     };
 
     auto oc_ic_sp_loop = [=](int sp_b_start, int sp_b_end, bool first_image,
-            data_t *store_to, size_t store_to_ld, const data_t *diff_dst,
-            const data_t *src, int ithr) {
+            data_t *store_to, size_t store_to_ld, data_t *d_bias,
+            const data_t *diff_dst, const data_t *src, int ithr,
+            bool ic_is_zero) {
         jit_1x1_conv_call_s p = {};
         rtus_driver_t<avx512_common>::call_params_t rp = {};
 
@@ -504,6 +508,7 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights()
             oc_b_step = step(jcp.nb_load_blocking,
                             nb_oc_blocking - oc_b, jcp.nb_load_blocking_max);
             p.load_dim = oc_b_step * jcp.oc_block;
+            p.bias_data = d_bias + oc_b * jcp.oc_block;
 
             int ic_b_step = 0;
             for (int ic_b = 0; ic_b < nb_ic_blocking; ic_b += ic_b_step) {
@@ -515,6 +520,9 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights()
                 p.output_data = store_to + oc_b * store_to_ld
                     + ic_b * jcp.ic_block * jcp.oc_block;
 
+                p.reduce_pos_flag = ic_is_zero && ic_b == 0
+                    ? jit_avx512_common_1x1_conv_kernel::FLAG_BIAS_UPDATE : 0;
+
                 /* spatial reduction */
                 int sp_b_step = 0;
                 for (int sp_b = sp_b_start; sp_b < sp_b_end; sp_b += sp_b_step)
@@ -524,10 +532,12 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights()
                     p.reduce_dim = sp_b_step * jcp.reduce_block;
                     rp.os = p.reduce_dim;
 
-                    p.reduce_pos_flag = sp_b == sp_b_start && first_image
-                        ? jit_avx512_common_1x1_conv_kernel::
-                          REDUCE_FLAG_FIRST
-                        : 0;
+                    auto f_flag =
+                        jit_avx512_common_1x1_conv_kernel::REDUCE_FLAG_FIRST;
+                    if (sp_b == sp_b_start && first_image)
+                        p.reduce_pos_flag |= f_flag;
+                    else
+                        p.reduce_pos_flag &= ~f_flag;
 
                     int sp = sp_b * jcp.reduce_block;
                     p.load_data = diff_dst
@@ -563,10 +573,20 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights()
 
     auto ker = [&](const int ithr, const int nthr) {
         auto rw = this->reducer_weights_;
+        auto rb = this->reducer_bias_;
         assert(nthr == rw->balancer_.nthr_);
 
         const int w_njobs = rw->balancer_.ithr_njobs(ithr);
         if (w_njobs == 0) return;
+
+        data_t *loc_diff_bias = nullptr;
+        if (diff_bias) {
+            assert(ithr <
+                    rw->balancer_.ngroups_ * rw->balancer_.nthr_per_group_);
+            loc_diff_bias = rb->get_local_ptr(ithr, diff_bias);
+            for (int i = 0; i < rb->balancer_.job_size_; ++i)
+                loc_diff_bias[i] = 0;
+        }
 
         /* setup: independent work (oc, ic) */
         const int w_job_start = rw->balancer_.ithr_job_off(ithr);
@@ -615,8 +635,9 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights()
 
                 const bool first_image = img == img_start;
                 oc_ic_sp_loop(sp_b, sp_b + sp_b_step, first_image, store_to,
-                        store_to_ld, &diff_dst[diff_dst_d.blk_off(img, _oc_b)],
-                        &src[src_d.blk_off(img, _ic_b)], ithr);
+                        store_to_ld, &loc_diff_bias[_oc_b * jcp.oc_block],
+                        &diff_dst[diff_dst_d.blk_off(img, _oc_b)],
+                        &src[src_d.blk_off(img, _ic_b)], ithr, ic_b == 0);
 
                 sp_b = 0;
                 img += 1;
@@ -626,47 +647,8 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights()
         }
 
         rw->reduce(ithr, diff_weights);
-    };
-
-    auto ker_bias = [&](int ithr, int nthr) {
-        auto rb = this->reducer_bias_;
-        assert(nthr == rb->balancer_.nthr_);
-
-        const int b_job_start = rb->balancer_.ithr_job_off(ithr);
-        const int b_njobs = rb->balancer_.ithr_njobs(ithr);
-
-        if (b_njobs == 0) return;
-
-        /* reduction dimension */
-        int img_start{0}, img_end{0};
-        balance211(jcp.mb, rb->balancer_.nthr_per_group_,
-                rb->balancer_.id_in_group(ithr), img_start, img_end);
-
-        /* jobs */
-        int g_start{0}, ocb_start{0};
-        nd_iterator_init(b_job_start, g_start, jcp.ngroups, ocb_start, nb_oc);
-
-        for (int img = img_start; img < img_end; ++img) {
-            int g = g_start, ocb = ocb_start;
-            for (int b_job_loc = 0; b_job_loc < b_njobs; ++b_job_loc) {
-                const size_t _oc = g * nb_oc + ocb;
-
-                const data_t *d_dst = &diff_dst[diff_dst_d.blk_off(img, _oc)];
-                data_t *d_bias = &rb->get_local_ptr(ithr, diff_bias)[
-                    b_job_loc * rb->balancer_.job_size_];
-
-                if (img == img_start)
-                    for (int o = 0; o < simd_w; ++o) d_bias[o] = 0.;
-                for (int hw = 0; hw < jcp.oh * jcp.ow; ++hw) {
-                    for (int o = 0; o < simd_w; ++o)
-                        d_bias[o] += d_dst[o];
-                    d_dst += simd_w;
-                }
-
-                nd_iterator_step(g, jcp.ngroups, ocb, nb_oc);
-            }
-        }
-        rb->reduce(ithr, diff_bias);
+        if (diff_bias)
+            rb->reduce(ithr, diff_bias);
     };
 
 #   pragma omp parallel
@@ -674,8 +656,6 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights()
         int ithr = omp_get_thread_num();
         int nthr = omp_get_num_threads();
         ker(ithr, nthr);
-        if (conf_.with_bias())
-            ker_bias(ithr, nthr);
     }
 }
 
