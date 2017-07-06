@@ -33,6 +33,9 @@ include_directories(
 add_executable(benchdnn ${SOURCES})
 set_property(TARGET benchdnn PROPERTY CXX_STANDARD 11)
 target_link_libraries(benchdnn ${LIB_NAME})
+if(UNIX AND NOT APPLE)
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lrt")
+endif()
 # add_test(benchdnn benchdnn)
 
 file(COPY inputs DESTINATION .)
