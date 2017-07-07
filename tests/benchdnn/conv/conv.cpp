@@ -446,15 +446,17 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t src_dt(src_dt_d, p->cfg[SRC].dt);
     dnn_mem_t wei_dt(wei_dt_d, p->cfg[WEI].dt);
     dnn_mem_t dst_dt(dst_dt_d, p->cfg[DST].dt);
-    dnn_mem_t bia_dt = p->dir & FLAG_BIA
-        ? dnn_mem_t(bia_dt_d, p->cfg[BIA].dt) : dnn_mem_t();
+    dnn_mem_t *p_bia_dt = p->dir & FLAG_BIA
+        ? new dnn_mem_t(bia_dt_d, p->cfg[BIA].dt) : new dnn_mem_t();
+    dnn_mem_t &bia_dt = *p_bia_dt;
 
     const auto fp = mkldnn_f32;
     dnn_mem_t src_fp(src_dt_d, fp, mkldnn_nchw);
     dnn_mem_t wei_fp(wei_dt_d, fp, mkldnn_goihw);
     dnn_mem_t dst_fp(dst_dt_d, fp, mkldnn_nchw);
-    dnn_mem_t bia_fp = p->dir & FLAG_BIA
-        ? dnn_mem_t(bia_dt_d, fp, mkldnn_x) : dnn_mem_t();
+    dnn_mem_t *p_bia_fp = p->dir & FLAG_BIA
+        ? new dnn_mem_t(bia_dt_d, fp, mkldnn_x) : new dnn_mem_t();
+    dnn_mem_t &bia_fp = *p_bia_fp;
 
     SAFE(fill_src(p, src_dt, src_fp, r), WARN);
     SAFE(fill_wei(p, wei_dt, wei_fp, r), WARN);
@@ -520,7 +522,8 @@ int doit(const prb_t *p, res_t *r) {
             if (stop) break;
         }
     }
-
+    delete p_bia_dt;
+    delete p_bia_fp;
     return OK;
 }
 
