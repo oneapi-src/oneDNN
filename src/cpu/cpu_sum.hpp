@@ -135,7 +135,7 @@ struct cpu_sum_t: public cpu_primitive_t
 
         bool use_simple_sum_; /* FIXME: improve */
         nstl::vector<cpu_memory_t::pd_t> src_pds_;
-        nstl::vector<double> scale_;
+        nstl::vector<float> scale_;
         nstl::vector<const reorder_pd_t *> reorder_pds_;
         cpu_memory_t::pd_t dst_pd_;
     };

@@ -37,7 +37,7 @@ struct cpu_simple_sum_t: public c_compatible {
     enum { max_num_arrs = 16 };
 
     static bool applicable(const nstl::vector<cpu_memory_t::pd_t> &src_pds_,
-                            const nstl::vector<double> &scale_,
+                            const nstl::vector<float> &scale_,
                             cpu_memory_t::pd_t &dst_pds_)
     {
         const memory_desc_wrapper o_d(&dst_pds_);
@@ -52,7 +52,7 @@ struct cpu_simple_sum_t: public c_compatible {
     }
 
     static void execute(const nstl::vector<cpu_memory_t::pd_t> &src_pds_,
-                        const nstl::vector<double> &scale_,
+                        const nstl::vector<float> &scale_,
                         cpu_memory_t::pd_t &dst_pds_,
                         cpu_primitive_t *sum)
     {
@@ -85,10 +85,12 @@ struct cpu_simple_sum_t: public c_compatible {
             for (size_t nb = start; nb < end; ++nb) {
                 size_t start_e = nb * block_size;
                 size_t end_e = start_e + block_size;
+#               pragma simd
                 for (size_t e = start_e; e < end_e; e++) {
                     output[e] = data_t(scale_[0] * input_ptrs[0][e]);
                 }
                 for (int a = 1; a < num_arrs; a++) {
+#                   pragma simd
                     for (size_t e = start_e; e < end_e; e++) {
                         output[e] += data_t(scale_[a] * input_ptrs[a][e]);
                     }
@@ -98,10 +100,12 @@ struct cpu_simple_sum_t: public c_compatible {
             if (tail != 0 && ithr == nthr - 1) {
                 size_t start_e = nelems - tail;
                 size_t end_e = nelems;
+#               pragma simd
                 for (size_t e = start_e; e < end_e; e++) {
                     output[e] = data_t(scale_[0] * input_ptrs[0][e]);
                 }
                 for (int a = 1; a < num_arrs; a++) {
+#                   pragma simd
                     for (size_t e = start_e; e < end_e; e++) {
                         output[e] += data_t(scale_[a] * input_ptrs[a][e]);
                     }
