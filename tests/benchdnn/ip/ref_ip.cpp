@@ -20,7 +20,7 @@ namespace ip {
 
 void compute_ref_fwd(const prb_t *p, dnn_mem_t &src_m,
         dnn_mem_t &wei_m, dnn_mem_t &bia_m, dnn_mem_t &dst_m) {
-    auto ker = [=](float &d, int mb, int oc) {
+    auto ker = [&](float &d, int mb, int oc) {
         for (int ic = 0; ic < p->ic; ++ic) {
             for (int ih = 0; ih < p->ih; ++ih) {
             for (int iw = 0; iw < p->iw; ++iw) {
