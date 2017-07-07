@@ -181,7 +181,7 @@ void check_correctness(const desc_t *c) {
 
 int batch(const char *fname);
 
-int bench(int argc, char **argv) {
+int bench(int argc, char **argv, bool main_bench) {
     for (int arg = 0; arg < argc; ++arg) {
         if (!strncmp("--batch=", argv[arg], 8))
             SAFE(batch(argv[arg] + 8), CRIT);
@@ -223,7 +223,7 @@ int bench(int argc, char **argv) {
     }
 
     /* deprecated? */
-    if (benchdnn_stat.tests == 0) {
+    if (main_bench && benchdnn_stat.tests == 0) {
         /* use default list of problems */
         int N = sizeof(default_list) / sizeof(default_list[0]);
         for (int n = 0; n < N; ++n)
@@ -295,7 +295,7 @@ int batch(const char *fname) {
             l += offset;
         }
     }
-    bench(n_opts, opts);
+    bench(n_opts, opts, false);
 
     for (int n = 0; n < n_opts; ++n)
         free(opts[n]);
