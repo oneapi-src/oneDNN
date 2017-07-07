@@ -117,12 +117,12 @@ using cfg_s16= test_simple_params_s16_s16;
 TEST_P(reorder_simple_test_f32_f32, TestsReorder) { }
 INSTANTIATE_TEST_CASE_P(TestReorder, reorder_simple_test_f32_f32,
         ::testing::Values(
-            cfg_f32{eng::cpu, fmt::nchw, fmt::nchw, {10, 10, 10, 10}},
+            cfg_f32{eng::cpu, fmt::nchw, fmt::nchw, {10, 10, 13, 13}},
             cfg_f32{eng::cpu, fmt::nchw, fmt::nhwc, {10, 10, 10, 10}},
             cfg_f32{eng::cpu, fmt::nhwc, fmt::nchw, {10, 10, 10, 10}},
             cfg_f32{eng::cpu, fmt::nchw, fmt::chwn, {28, 3, 10, 10}},
             cfg_f32{eng::cpu, fmt::chwn, fmt::nchw, {28, 3, 10, 10}},
-            cfg_f32{eng::cpu, fmt::nhwc, fmt::nhwc, {10, 10, 10, 10}},
+            cfg_f32{eng::cpu, fmt::nhwc, fmt::nhwc, {10, 10, 13, 13}},
             cfg_f32{eng::cpu, fmt::nchw, fmt::nChw8c, {2, 32, 4, 4}},
             cfg_f32{eng::cpu, fmt::nChw8c, fmt::nchw, {2, 32, 4, 4}},
             cfg_f32{eng::cpu, fmt::chwn, fmt::nChw8c, {28, 96, 10, 10}},
