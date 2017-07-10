@@ -132,6 +132,68 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
+    typename utils::enable_if<
+        fmt_i == nhwc && (fmt_o == nChw8c || fmt_o == nChw16c)
+    >::type>
+{
+    static bool is_applicable(const memory_desc_wrapper &input_d,
+            const memory_desc_wrapper &output_d) {
+        return input_d.format() == (order_keep ? fmt_i : fmt_o)
+            && output_d.format() == (order_keep ? fmt_o : fmt_i);
+    }
+
+    static status_t execute(const memory_desc_wrapper &input_d,
+        const memory_desc_wrapper &output_d, const data_t<type_i> *input,
+        data_t<type_o> *output,
+        const double alpha, const double beta) {
+        const auto &nchw_d = order_keep ? input_d : output_d;
+        const auto &dims = input_d.dims();
+        constexpr int blksize = fmt_o == nChw8c ? 8 : 16;
+        const auto is = input_d.blocking_desc().strides[0];
+        const auto os = output_d.blocking_desc().strides[0];
+
+        auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o) {
+            if (alpha == 1.0 && beta == 0.0) {
+#               pragma omp simd collapse(2)
+                for (int C = 0; C < dims[1] / blksize; ++C) {
+                    for (int c = 0; c < blksize; ++c) {
+                        if (order_keep) {
+                            o[C * os[1] + c] = data_t<type_o>(i[C * blksize + c]);
+                        } else {
+                            o[C * blksize + c] = data_t<type_o>(i[C * is[1] + c]);
+                        }
+                    }
+                }
+            } else {
+#               pragma omp simd collapse(2)
+                for (int C = 0; C < dims[1] / blksize; ++C) {
+                    for (int c = 0; c < blksize; ++c) {
+                        const auto dst_off = order_keep ? C * os[1] + c :
+                                                          C * blksize + c;
+                        const auto src_off = order_keep ? C * blksize + c :
+                                                          C * is[1] + c;
+                        o[dst_off] = data_t<type_o>(alpha * i[src_off]
+                                     + (beta ? beta * o[dst_off] : 0));
+                    }
+                }
+            }
+        };
+
+#       pragma omp parallel for collapse(3) schedule(static)
+        for (int n = 0; n < dims[0]; ++n) {
+            for (int h = 0; h < dims[2]; ++h) {
+                for (int w = 0; w < dims[3]; ++w) {
+                    auto i = &input[input_d.blk_off(n, 0, h, w)];
+                    auto o = &output[output_d.blk_off(n, 0, h, w)];
+                    ker(i, o);
+                }
+            }
+        }
+    }
+};
+
+template <SIMPLE_REORDER_TEMPL_DECL>
+struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     typename utils::enable_if<fmt_i == chwn
     && (fmt_o == nChw8c || fmt_o == nChw16c)>::type>
 {
@@ -283,15 +345,16 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         data_t<type_o> *output,
         const double alpha_, const double beta_) {
         const auto &dims = input_d.dims();
+        const auto is = input_d.blocking_desc().strides[0];
+        const auto os = output_d.blocking_desc().strides[0];
 
         const float alpha = alpha_, beta = beta_;
 
         auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o) {
             if (alpha == 1.0 && beta == 0.0) {
+#               pragma omp simd collapse(2)
                 for (int w = 0; w < dims[3]; ++w) {
                     for (int c = 0; c < dims[1]; ++c) {
-                        const auto &is = input_d.blocking_desc().strides[0];
-                        const auto &os = output_d.blocking_desc().strides[0];
                         if (order_keep) {
                             o[w * os[3] + c] = data_t<type_o>(i[c * is[1] + w]);
                         } else {
@@ -300,10 +363,9 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                     }
                 }
             } else {
+#               pragma omp simd collapse(2)
                 for (int w = 0; w < dims[3]; ++w) {
                     for (int c = 0; c < dims[1]; ++c) {
-                        const auto &is = input_d.blocking_desc().strides[0];
-                        const auto &os = output_d.blocking_desc().strides[0];
                         if (order_keep) {
                             o[w * os[3] + c] = data_t<type_o>(
                                 alpha * i[c * is[1] + w]
