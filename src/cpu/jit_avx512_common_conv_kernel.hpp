@@ -158,8 +158,8 @@ private:
         return nstl::max(0, (pad_l - ki + jcp.stride_w - 1) / jcp.stride_w);
     }
 
-    inline int get_ow_end(int ki, int pad_r) {
-        return jcp.ur_w - nstl::max(0,
+    inline int get_ow_end(int ur_w, int ki, int pad_r) {
+        return ur_w - nstl::max(0,
             (ki + pad_r - (jcp.kw - 1) + jcp.stride_w - 1) / jcp.stride_w);
     }
 };

@@ -149,7 +149,7 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma(int ur_w,
 
     int oi_ipref_t0 = get_ow_start(0, pad_l);
     int oi_ipref_t1 = oi_ipref_t0;
-    int ow_end_ipref = get_ow_end(0, pad_r);
+    int ow_end_ipref = get_ow_end(ur_w, 0, pad_r);
 
     assert(jcp.oc % jcp.nb_oc_blocking == 0);
 
@@ -207,7 +207,7 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma(int ur_w,
 
                     kernel_loads(ki, ic, kk);
                     for (int oi = get_ow_start(ki, pad_l), prf_count_t1 = 0,
-                        prf_count_t0 = 0; oi  < get_ow_end(ki, pad_r); oi++) {
+                        prf_count_t0 = 0; oi  < get_ow_end(ur_w, ki, pad_r); oi++) {
                         int aux_input_offset =  typesize
                             * ((ki + oi * stride_w - pad_l) * ic_block + ic);
                         v4fmaddps(zmm_out(oi, kk), zmm_ker(0),
@@ -245,7 +245,7 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma(int ur_w,
 
                         kernel_loads(ki, ic, kk);
                         for (int oi = get_ow_start(ki, pad_l), prf_count_t1 = 0,
-                             prf_count_t0 = 0; oi  < get_ow_end(ki, pad_r);
+                             prf_count_t0 = 0; oi  < get_ow_end(ur_w, ki, pad_r);
                              oi++) {
                             int aux_input_offset =  typesize
                                * ((ki + oi * stride_w - pad_l) * ic_block + ic);
@@ -276,7 +276,7 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma(int ur_w,
                     kernel_loads(ki, ic, kk);
                     for (int oi = get_ow_start(ki, pad_l), prf_count_t1 = 0,
                         prf_count_t0 = 0;
-                        oi  < get_ow_end(ki, pad_r); oi++) {
+                        oi  < get_ow_end(ur_w, ki, pad_r); oi++) {
                         int aux_input_offset =  typesize
                             * ((ki + oi * stride_w - pad_l) * ic_block + ic);
                         v4fmaddps(zmm_out(oi, kk), zmm_ker(0),
@@ -408,7 +408,7 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_fma(int ur_w, int pad_l,
                 bool ker_prf_inserted = false;
                 Zmm zmm_kernel = zmm_ker(step % ker_pipeline_depth);
                 int j_start = get_ow_start(ki, pad_l);
-                int j_end = get_ow_end(ki, pad_r);
+                int j_end = get_ow_end(ur_w, ki, pad_r);
                 for (int j = j_start; j < j_end; j++) {
                     int aux_input_offset = get_input_offset(ki, ic, j, pad_l);
                     vfmadd231ps(zmm_out(j, 0), zmm_kernel,
@@ -505,7 +505,7 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4vnni(
                             EVEX_compress_addr(aux_reg_ker, kernel_offset));
                     }
                     int ow_start = get_ow_start(ki, pad_l);
-                    int ow_end = get_ow_end(ki, pad_r);
+                    int ow_end = get_ow_end(ur_w, ki, pad_r);
                     for (int oi = ow_start, prf_count = 0; oi  < ow_end; oi++) {
                         int input_offset = get_input_offset(ki,ic,oi,pad_l);
                         vp4dpwssd(Zmm(ur_w*kk + oi), Zmm(ker_reg_base_idx),
