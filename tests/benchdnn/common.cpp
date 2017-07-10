@@ -16,11 +16,15 @@
 
 #include "common.hpp"
 
+#ifdef _WIN32
+#include <chrono>
+#else
 #define HAVE_REGEX
 #if defined(HAVE_REGEX)
 #include <sys/types.h>
 #include <regex.h>
-#endif
+#endif /* HAVE_REGEX */
+#endif /* _WIN32 */
 
 const char *bench_mode2str(bench_mode_t mode) {
     const char *modes[] = {
@@ -111,9 +115,23 @@ bool match_regex(const char *str, const char *pattern) { return true; }
 
 /* perf */
 
-#include <unistd.h>
 #include <sys/types.h>
 #include <time.h>
+
+#ifdef _WIN32
+unsigned long long ticks_now() {
+    /* Not allowed on user-mode, privileged instruction */
+    return (unsigned long long)0;
+}
+
+static inline double ms_now() {
+    auto timePointTmp
+        = std::chrono::high_resolution_clock::now().time_since_epoch();
+    return std::chrono::duration<double, std::micro>(timePointTmp).count();
+}
+#else
+
+#include <unistd.h>
 
 unsigned long long ticks_now() {
     unsigned eax, edx, ecx;
@@ -129,6 +147,7 @@ static inline double ms_now() {
     clock_gettime(CLOCK_MONOTONIC, &tv);
     return (1000000000ll * tv.tv_sec + tv.tv_nsec) / 1e6;
 }
+#endif /* _WIN32 */
 
 void benchdnn_timer_t::reset() {
     times_ = 0;
