@@ -60,7 +60,7 @@ struct nchw_pooling_fwd_t: public cpu_primitive_t {
             bool is_training = desc_.prop_kind == forward_training;
             if (desc()->alg_kind == pooling_max && is_training) {
                 auto indices_desc = *dst_pd()->desc();
-                indices_desc.data_type = data_type::s32;
+                indices_desc.data_type = pooling_index_data_type(desc());
                 ws_pd_ = cpu_memory_t::pd_t(engine_, &indices_desc);
             }
 

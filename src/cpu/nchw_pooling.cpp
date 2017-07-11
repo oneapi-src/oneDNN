@@ -34,7 +34,10 @@ void nchw_pooling_fwd_t<data_type>::execute_forward() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto dst = reinterpret_cast<data_t*>(this->memory(0));
     auto ws = conf_.desc()->alg_kind == alg_kind::pooling_max ?
-        reinterpret_cast<int*>(this->memory(1)) : nullptr;
+        reinterpret_cast<unsigned char *>(this->memory(1)) : nullptr;
+
+    const memory_desc_wrapper ws_d(conf_.workspace_pd());
+    const data_type_t ws_dt = ws ? ws_d.data_type() : data_type::undef;
 
     const int MB = conf_.MB();
     const int C = conf_.C();
@@ -70,7 +73,12 @@ void nchw_pooling_fwd_t<data_type>::execute_forward() {
                     d[0] = s;
                     if (ws) {
                         auto ws_offset = mb*C*OH*OW + c*OH*OW + oh*OW + ow;
-                        ws[ws_offset] = kh*KW + kw;
+                        if (ws_dt == data_type::u8) {
+                            ws[ws_offset] = kh*KW + kw;
+                        } else {
+                            assert(ws_dt == data_type::s32);
+                            ((int *)ws)[ws_offset] = kh*KW + kw;
+                        }
                     }
                 }
             }
@@ -133,8 +141,8 @@ void nchw_pooling_bwd_t<data_type>::execute_backward() {
     using namespace alg_kind;
 
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(0));
-    auto ws = conf_.desc()->alg_kind == alg_kind::pooling_max ?
-        reinterpret_cast<const int*>(this->input_memory(1)) : nullptr;
+    auto ws = conf_.desc()->alg_kind != alg_kind::pooling_max ? nullptr :
+        reinterpret_cast<const unsigned char *>(this->input_memory(1));
     auto diff_src = reinterpret_cast<data_t*>(this->memory(0));
 
     const memory_desc_wrapper ws_d(conf_.workspace_pd());
@@ -170,7 +178,8 @@ void nchw_pooling_bwd_t<data_type>::execute_backward() {
     auto ker_max = [=](const data_t *d, int mb, int c, int oh, int ow) {
         auto b_c = ws_d.blocking_desc().block_dims[1];
         auto ws_offset = ws_d.blk_off(mb, c / b_c, oh, ow) + c % b_c;
-        const int index = ws[ws_offset];
+        const int index = ws_d.data_type() == data_type::u8
+            ? (int)ws[ws_offset] : ((const int *)ws)[ws_offset];
         const int kw = index % KW;
         const int kh = index / KW;
         const int ih = oh * SH - padT + kh;
