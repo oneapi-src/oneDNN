@@ -1001,12 +1001,12 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             start = start * block_size;
             end = end * block_size;
             if (alpha == 1.0 && beta == 0.0) {
-#               pragma simd
+#               pragma omp simd
                 for (size_t e = start; e < end; ++e) {
                     output[e] = data_t<type_o>(input[e]);
                 }
             } else{
-#               pragma simd
+#               pragma omp simd
                 for (size_t e = start; e < end; ++e) {
                     output[e] = data_t<type_o>(alpha * input[e]
                         + (beta ? beta * output[e] : 0));
@@ -1070,7 +1070,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                     size_t dim1_e =
                         dim1_s + work_rem > nelems_no_d0 ? nelems_no_d0
                         : dim1_s + work_rem;
-#                   pragma simd
+#                   pragma omp simd
                     for (size_t e = dim1_s; e < dim1_e; ++e){
                         output[os * n + e] = data_t<type_o>(input[is * n + e]);
                     }
@@ -1091,7 +1091,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                     size_t dim1_e =
                         dim1_s + work_rem > nelems_no_d0 ? nelems_no_d0
                         : dim1_s + work_rem;
-#                   pragma simd
+#                   pragma omp simd
                     for (size_t e = dim1_s; e < dim1_e; ++e){
                         output[os * n + e] = data_t<type_o>(
                                 alpha * input[is * n + e]
