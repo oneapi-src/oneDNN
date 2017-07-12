@@ -212,12 +212,27 @@ typedef jit_tagged_label_base<> jit_tagged_label;
 
 class jit_generator : public Xbyak::CodeGenerator
 {
+private:
+    const int xmm_len = 16;
+#ifdef _WIN
+    const int xmm_to_preserve_start = 6;
+    const int xmm_to_preserve = 10;
+#else
+    const int xmm_to_preserve_start = 0;
+    const int xmm_to_preserve = 0;
+#endif
+
 protected:
     Xbyak::Reg64 param1 = abi_param1;
     const int EVEX_max_8b_offt = 0x200;
     const Xbyak::Reg64 reg_EVEX_max_8b_offt = rbp;
 
     void preamble() {
+        if (xmm_to_preserve) {
+            sub(rsp, xmm_to_preserve * xmm_len);
+            for (int i = 0; i < xmm_to_preserve; ++i)
+                movdqu(ptr[rsp + i * xmm_len], Xbyak::Xmm(xmm_to_preserve_start + i));
+        }
         for (size_t i = 0; i < num_abi_save_regs; ++i)
             push(Xbyak::Reg64(abi_save_regs[i]));
         if (mayiuse(avx512_common)) {
@@ -243,6 +258,11 @@ protected:
     void postamble() {
         for (size_t i = 0; i < num_abi_save_regs; ++i)
             pop(Xbyak::Reg64(abi_save_regs[num_abi_save_regs - 1 - i]));
+        if (xmm_to_preserve) {
+            for (int i = 0; i < xmm_to_preserve; ++i)
+                movdqu(Xbyak::Xmm(xmm_to_preserve_start + i), ptr[rsp + i * xmm_len]);
+            add(rsp, xmm_to_preserve * xmm_len);
+        }
         ret();
     }
 
