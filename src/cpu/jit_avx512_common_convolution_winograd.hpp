@@ -20,6 +20,7 @@
 #include "c_types_map.hpp"
 #include "cpu_convolution_pd.hpp"
 #include "cpu_engine.hpp"
+#include "scratchpad.hpp"
 
 #include "jit_avx512_common_conv_winograd_kernel_f32.hpp"
 
@@ -28,19 +29,23 @@ namespace impl {
 namespace cpu {
 
 namespace {
-inline void allocate_winograd_workspace(const jit_conv_winograd_conf_t &jcp,
-        float *&up, float *&vp, float *&mp) {
-    /* Allocating temporary buffers */
-    const size_t up_size = jcp.alpha * jcp.alpha * jcp.ic * jcp.oc;
+inline void allocate_winograd_scratchpad(const jit_conv_winograd_conf_t &jcp,
+        size_t &up_offset, size_t &vp_offset, size_t &mp_offset,
+        scratchpad_t *&winograd_scratchpad) {
+    const size_t up_size = jcp.alpha * jcp.alpha * jcp.ic * jcp.oc
+        * sizeof(float);
     const size_t vp_size = jcp.alpha * jcp.alpha * jcp.itiles * jcp.jtiles
-        * jcp.ic * jcp.mb;
+        * jcp.ic * jcp.mb * sizeof(float);
     const size_t mp_size = jcp.alpha * jcp.alpha * jcp.itiles * jcp.jtiles
-        * jcp.oc * jcp.mb;
+        * jcp.oc * jcp.mb * sizeof(float);
 
-    /* Allocating memory on a page boundary to reduce TLB and page misses */
-    up = (float *)malloc(up_size * sizeof(float), 2097152);
-    vp = (float *)malloc(vp_size * sizeof(float), 2097152);
-    mp = (float *)malloc(mp_size * sizeof(float), 2097152);
+    /* Allocating memory buffers on a page boundary reduces TLB/page misses */
+    const size_t page_size = 2097152;
+    up_offset = 0;
+    vp_offset = utils::rnd_up(up_size, page_size);
+    mp_offset = vp_offset + utils::rnd_up(vp_size, page_size);
+
+    winograd_scratchpad = create_scratchpad(mp_offset + mp_size);
 }
 }
 
@@ -102,18 +107,18 @@ struct _jit_avx512_common_convolution_winograd_fwd_t : public cpu_primitive_t {
     _jit_avx512_common_convolution_winograd_fwd_t(const pd_t *pd,
             const input_vector &inputs, const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
-        , kernel_(nullptr), up_(nullptr), vp_(nullptr), mp_(nullptr) {
+        , kernel_(nullptr), up_offset_(0), vp_offset_(0), mp_offset_(0),
+          scratchpad_buffer_(nullptr) {
         const auto &jcp = conf_.jcp_;
         kernel_
             = new jit_avx512_common_conv_winograd_fwd_kernel_f32(conf_.jcp_);
-        allocate_winograd_workspace(jcp, up_, vp_, mp_);
+        allocate_winograd_scratchpad(jcp, up_offset_, vp_offset_, mp_offset_,
+                                     scratchpad_buffer_);
     }
 
     ~_jit_avx512_common_convolution_winograd_fwd_t() {
         delete kernel_;
-        free(up_);
-        free(vp_);
-        free(mp_);
+        delete scratchpad_buffer_;
     };
 
     typedef typename prec_traits<data_type::f32>::type data_t;
@@ -129,9 +134,10 @@ struct _jit_avx512_common_convolution_winograd_fwd_t : public cpu_primitive_t {
     jit_avx512_common_conv_winograd_fwd_kernel_f32 *kernel_;
 
     // Buffer required to store transforms in the frequency domain
-    float *up_;
-    float *vp_;
-    float *mp_;
+    scratchpad_t *scratchpad_buffer_;
+    size_t up_offset_;
+    size_t vp_offset_;
+    size_t mp_offset_;
 };
 
 using jit_avx512_common_convolution_winograd_fwd_t =
@@ -188,18 +194,18 @@ struct jit_avx512_common_convolution_winograd_bwd_data_t
     jit_avx512_common_convolution_winograd_bwd_data_t(const pd_t *pd,
             const input_vector &inputs, const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
-        , kernel_(nullptr), up_(nullptr), vp_(nullptr), mp_(nullptr) {
+        , kernel_(nullptr), up_offset_(0), vp_offset_(0), mp_offset_(0),
+          scratchpad_buffer_(nullptr) {
         const auto &jcp = conf_.jcp_;
         kernel_
             = new jit_avx512_common_conv_winograd_bwd_data_kernel_f32(jcp);
-        allocate_winograd_workspace(jcp, up_, vp_, mp_);
+        allocate_winograd_scratchpad(jcp, up_offset_, vp_offset_, mp_offset_,
+                                     scratchpad_buffer_);
     }
 
     ~jit_avx512_common_convolution_winograd_bwd_data_t() {
         delete kernel_;
-        free(up_);
-        free(vp_);
-        free(mp_);
+        delete scratchpad_buffer_;
     };
 
     typedef typename prec_traits<data_type::f32>::type data_t;
@@ -221,9 +227,10 @@ struct jit_avx512_common_convolution_winograd_bwd_data_t
     jit_avx512_common_conv_winograd_bwd_data_kernel_f32 *kernel_;
 
     // Buffer required to store transforms in the frequency domain
-    float *up_;
-    float *vp_;
-    float *mp_;
+    scratchpad_t *scratchpad_buffer_;
+    size_t up_offset_;
+    size_t vp_offset_;
+    size_t mp_offset_;
 };
 
 struct jit_avx512_common_convolution_winograd_bwd_weights_t
@@ -279,18 +286,18 @@ struct jit_avx512_common_convolution_winograd_bwd_weights_t
     jit_avx512_common_convolution_winograd_bwd_weights_t(const pd_t *pd,
             const input_vector &inputs, const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
-        , kernel_(nullptr), up_(nullptr), vp_(nullptr), mp_(nullptr) {
+        , kernel_(nullptr), up_offset_(0), vp_offset_(0), mp_offset_(0),
+          scratchpad_buffer_(nullptr) {
         auto jcp = conf_.jcp_;
         kernel_ = new jit_avx512_common_conv_winograd_bwd_weights_kernel_f32(
             conf_.jcp_);
-        allocate_winograd_workspace(jcp, up_, vp_, mp_);
+        allocate_winograd_scratchpad(jcp, up_offset_, vp_offset_, mp_offset_,
+                                     scratchpad_buffer_);
     }
 
     ~jit_avx512_common_convolution_winograd_bwd_weights_t() {
         delete kernel_;
-        free(up_);
-        free(vp_);
-        free(mp_);
+        delete scratchpad_buffer_;
     };
 
     typedef typename prec_traits<data_type::f32>::type data_t;
@@ -312,9 +319,10 @@ struct jit_avx512_common_convolution_winograd_bwd_weights_t
     jit_avx512_common_conv_winograd_bwd_weights_kernel_f32 *kernel_;
 
     // Buffer required to store transforms in the frequency domain
-    float *up_;
-    float *vp_;
-    float *mp_;
+    scratchpad_t *scratchpad_buffer_;
+    size_t up_offset_;
+    size_t vp_offset_;
+    size_t mp_offset_;
 };
 }
 }

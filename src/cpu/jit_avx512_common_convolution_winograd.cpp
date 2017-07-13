@@ -839,11 +839,13 @@ void _jit_avx512_common_convolution_winograd_fwd_t<with_relu>::execute_forward()
         (decltype(weights))(this->input_memory(1));
     float (*bias)[simd_w] = (decltype(bias))(this->input_memory(2));
 
-    float(*U)[alpha][jcp.nb_oc][jcp.nb_ic][simd_w][simd_w] = (decltype(U))(up_);
+    char * base_ptr = scratchpad_buffer_->get();
+    float(*U)[alpha][jcp.nb_oc][jcp.nb_ic][simd_w][simd_w] =
+        (decltype(U))(base_ptr + up_offset_);
     float(*V)[alpha][alpha][jcp.nb_ic][jcp.bimg][jcp.jtiles][jcp.itiles]
-             [simd_w] = (decltype(V))(vp_);
+             [simd_w] = (decltype(V))(base_ptr + vp_offset_);
     float(*M)[alpha][alpha][jcp.nb_oc][jcp.bimg][jcp.jtiles][jcp.itiles]
-             [simd_w] = (decltype(M))(mp_);
+             [simd_w] = (decltype(M))(base_ptr + mp_offset_);
 
 #pragma omp parallel
     {
@@ -907,11 +909,13 @@ void jit_avx512_common_convolution_winograd_bwd_data_t::
     float(*weights)[jcp.nb_ic][jcp.kh][jcp.kw][simd_w][simd_w] =
         (decltype(weights))(this->input_memory(1));
 
-    float(*U)[alpha][jcp.nb_ic][jcp.nb_oc][simd_w][simd_w] = (decltype(U))(up_);
+    char * base_ptr = scratchpad_buffer_->get();
+    float(*U)[alpha][jcp.nb_ic][jcp.nb_oc][simd_w][simd_w] =
+        (decltype(U))(base_ptr + up_offset_);
     float(*V)[alpha][alpha][jcp.nb_ic][jcp.bimg][jcp.jtiles][jcp.itiles]
-             [simd_w] = (decltype(V))(vp_);
+             [simd_w] = (decltype(V))(base_ptr + vp_offset_);
     float(*M)[alpha][alpha][jcp.nb_oc][jcp.bimg][jcp.jtiles][jcp.itiles]
-             [simd_w] = (decltype(M))(mp_);
+             [simd_w] = (decltype(M))(base_ptr + mp_offset_);
 
 #pragma omp parallel
     {
@@ -973,11 +977,13 @@ void jit_avx512_common_convolution_winograd_bwd_weights_t::
         = (decltype(diff_weights))(this->memory(0));
     float(*diff_bias)[simd_w] = (decltype(diff_bias))(this->memory(1));
 
-    float(*U)[alpha][jcp.nb_oc][jcp.nb_ic][simd_w][simd_w] = (decltype(U))(up_);
+    char * base_ptr = scratchpad_buffer_->get();
+    float(*U)[alpha][jcp.nb_oc][jcp.nb_ic][simd_w][simd_w] =
+        (decltype(U))(base_ptr + up_offset_);
     float(*V)[alpha][alpha][jcp.nb_ic][jcp.bimg][jcp.jtiles][jcp.itiles]
-             [simd_w] = (decltype(V))(vp_);
+             [simd_w] = (decltype(V))(base_ptr + vp_offset_);
     float(*M)[alpha][alpha][jcp.nb_oc][jcp.bimg][jcp.jtiles][jcp.itiles]
-             [simd_w] = (decltype(M))(mp_);
+             [simd_w] = (decltype(M))(base_ptr + mp_offset_);
 
 #pragma omp parallel
     {
