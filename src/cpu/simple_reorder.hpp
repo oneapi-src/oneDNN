@@ -360,7 +360,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o) {
             if (alpha == 1.0 && beta == 0.0) {
-#               pragma omp simd collapse(2)
                 for (int w = 0; w < dims[3]; ++w) {
                     for (int c = 0; c < dims[1]; ++c) {
                         if (order_keep) {
@@ -371,7 +370,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                     }
                 }
             } else {
-#               pragma omp simd collapse(2)
                 for (int w = 0; w < dims[3]; ++w) {
                     for (int c = 0; c < dims[1]; ++c) {
                         if (order_keep) {
@@ -421,7 +419,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o) {
             if (alpha == 1.0 && beta == 0) {
-#               pragma omp simd collapse(2)
                 for (int oc = 0; oc < dims[0]; ++oc) {
                     for (int kw = 0; kw < dims[3]; ++kw) {
                         if (order_keep) {
@@ -432,7 +429,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                     }
                 }
             } else {
-#               pragma omp simd collapse(2)
                 for (int oc = 0; oc < dims[0]; ++oc) {
                     for (int kw = 0; kw < dims[3]; ++kw) {
                         const auto dst_off = order_keep ? oc * os[0] + kw :
