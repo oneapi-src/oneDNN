@@ -197,6 +197,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 }
             }
         }
+
+        return success;
     }
 };
 
