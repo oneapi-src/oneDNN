@@ -349,7 +349,7 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_bwd(int ur_w, int pad_l,
 
 template <cpu_isa_t isa>
 void jit_uni_pool_kernel_f32<isa>::maybe_zero_diff_src() {
-    assert(jpp.c_block % cpu_isa_traits<isa>::vlen == 0);
+    assert(jpp.c_block * sizeof(float) % cpu_isa_traits<isa>::vlen == 0);
     Label l_skip, l_zero;
 
     auto reg_oh = tmp_gpr;
