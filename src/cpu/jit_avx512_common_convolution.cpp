@@ -257,13 +257,18 @@ void jit_avx512_common_convolution_bwd_weights_t::execute_backward_weights() {
     auto diff_dst = reinterpret_cast<const data_t * > (this->input_memory(1));
     auto diff_weights = reinterpret_cast<data_t *>(this->memory(0));
     auto diff_bias = reinterpret_cast<data_t *>(this->memory(1));
-    auto tr_src = reinterpret_cast<data_t *>(this->ws_);
 
     const memory_desc_wrapper src_d(conf_.src_pd(0));
     const memory_desc_wrapper diff_dst_d(conf_.diff_dst_pd());
     const memory_desc_wrapper diff_weights_d(conf_.diff_weights_pd(0));
 
     const auto &jcp = kernel_->jcp;
+
+    const int wei_size = jcp.ngroups * jcp.oc * jcp.ic * jcp.kh * jcp.kw;
+    const int wei_block_size = jcp.kh * jcp.kw * jcp.ic_block * jcp.oc_block;
+
+    simple_barrier::ctx_t reduction_barrier;
+    simple_barrier::ctx_init(&reduction_barrier);
 
     // TODO: use memory descriptor with the same fmt as src
     //       (or use a macro :))
@@ -275,36 +280,36 @@ void jit_avx512_common_convolution_bwd_weights_t::execute_backward_weights() {
         return img * tr_img_size + ic * tr_chn_size + ij * tr_row_size;
     };
 
-    auto ker_transpose = [&](int ithr, int nthr) {
+    auto uker_trans = [&](int ithr_mb, int img, int g_start, int g_work,
+            int ic_b_start, int ic_b_work, int ithr, int nthr) {
+        const int work_amount = g_work * ic_b_work * jcp.ih;
 
-        const size_t work_amount = jcp.mb * jcp.ngroups * jcp.nb_ic * jcp.ih;
-
-        size_t start{0}, end{0};
+        int start{0}, end{0};
         balance211(work_amount, nthr, ithr, start, end);
 
-        int img{0}, g{0}, b_ic{0}, j{0};
-        nd_iterator_init(start,
-                img, jcp.mb, g, jcp.ngroups, b_ic, jcp.nb_ic, j, jcp.ih);
+        int g{0}, ic_b{0}, j{0};
+        nd_iterator_init(start, g, g_work, ic_b, ic_b_work, j, jcp.ih);
+        g += g_start;
+        ic_b += ic_b_start;
 
-        const int _ic = g * jcp.nb_ic + b_ic;
+        const int _ic = g * jcp.nb_ic + ic_b;
         data_t *src1 = (data_t*)&src[src_d.blk_off(img, _ic, j)];
-        data_t *tr_src1 = &tr_src[tr_src_off(img, _ic, j)];
+        data_t *tr_src1 = &tr_src_[tr_src_off(ithr_mb, _ic, j)];
 
         assert(jcp.ic_block == 16);
+        const int src_stride = jcp.iw * jcp.ic_block;
+        const int tr_src_stride = jcp.tr_iw * jcp.ic_block;
 
-        const size_t src_stride = jcp.iw * jcp.ic_block;
-        const size_t tr_src_stride = jcp.tr_iw * jcp.ic_block;
-
-        const int pf_depth = 4;
+        const int pf_depth = 2;
         struct { data_t *src, *tr_src; } pf_circ_buf[pf_depth];
-        size_t work_len = end - start;
+        const int my_work = end - start;
 
-        for (size_t iwork = 0; iwork < work_len + pf_depth - 1; iwork++) {
+        for (int iwork = 0; iwork < my_work + pf_depth - 1; iwork++) {
             pf_circ_buf[iwork % pf_depth] = {src1, tr_src1};
 
             if (iwork >= pf_depth - 1) {
                 int old_idx = (iwork - pf_depth + 1) % pf_depth;
-                jit_src_transpose_s par_trans = { };
+                jit_src_transpose_s par_trans = {};
                 par_trans.src = pf_circ_buf[old_idx].src;
                 par_trans.tr_src = pf_circ_buf[old_idx].tr_src;
                 par_trans.src_prf = src1;
@@ -314,55 +319,111 @@ void jit_avx512_common_convolution_bwd_weights_t::execute_backward_weights() {
             src1 += src_stride;
             tr_src1 += tr_src_stride;
         }
-
-#       pragma omp barrier
-
     };
 
     auto ker = [&](int ithr, int nthr) {
-        auto rw = this->reducer_weights_;
-        assert(nthr == rw->balancer_.nthr_);
+        const int ithr_ic_b = ithr % nthr_ic_b_;
+        const int ithr_oc_b = ithr / nthr_ic_b_ % nthr_oc_b_;
+        const int ithr_g = ithr / nthr_ic_b_ / nthr_oc_b_ % nthr_g_;
+        const int ithr_mb = ithr / nthr_ic_b_ / nthr_oc_b_ / nthr_g_;
 
-        const int w_job_start = rw->balancer_.ithr_job_off(ithr);
-        const int w_njobs = rw->balancer_.ithr_njobs(ithr);
-
-        if (w_njobs == 0) return;
+        const int ithr_but_oc = (ithr_mb * nthr_g_ + ithr_g) * nthr_ic_b_
+            + ithr_ic_b;
 
         /* reduction dimension */
         int img_start{0}, img_end{0};
-        balance211(jcp.mb, rw->balancer_.nthr_per_group_,
-            rw->balancer_.id_in_group(ithr), img_start, img_end);
+        balance211(jcp.mb, nthr_mb_, ithr_mb, img_start, img_end);
 
-        /* jobs */
-        int g_start{0}, ocb_start{0}, icb_start{0};
-        nd_iterator_init(w_job_start, g_start, jcp.ngroups, ocb_start,
-            jcp.nb_oc, icb_start, jcp.nb_ic);
+        /* independent dimensions */
+        int g_start{0}, oc_b_start{0}, ic_b_start{0};
+        int g_end{0}, oc_b_end{0}, ic_b_end{0};
+
+        balance211(jcp.ngroups, nthr_g_, ithr_g, g_start, g_end);
+        balance211(jcp.nb_oc, nthr_oc_b_, ithr_oc_b, oc_b_start, oc_b_end);
+        balance211(jcp.nb_ic, nthr_ic_b_, ithr_ic_b, ic_b_start, ic_b_end);
+
+        const int g_work = g_end - g_start;
+        const int oc_b_work = oc_b_end - oc_b_start;
+        const int ic_b_work = ic_b_end - ic_b_start;
+
+        data_t *diff_wei = ithr_mb == 0
+            ? diff_weights : ws_reduction_ + (ithr_mb - 1) * wei_size;
 
         for (int img = img_start; img < img_end; ++img) {
-            int g = g_start, ocb = ocb_start, icb = icb_start;
-            for (int w_job_loc = 0; w_job_loc < w_njobs; ++w_job_loc) {
-                const size_t _oc = g * jcp.nb_oc + ocb;
-                const size_t _ic = g * jcp.nb_ic + icb;
+            if (jcp.transpose_src) {
+                /* tr_src[nb_ic][ih][16][~iw~] <- src[nb_ic][ih][iw][16] */
+                if (nthr_oc_b_ > 1)
+                    simple_barrier::barrier(&bctx_[ithr_but_oc], nthr_oc_b_);
+                uker_trans(ithr_mb, img, g_start, g_work, ic_b_start,
+                        ic_b_work, ithr_oc_b, nthr_oc_b_);
+                if (nthr_oc_b_ > 1)
+                    simple_barrier::barrier(&bctx_[ithr_but_oc], nthr_oc_b_);
+            }
 
-                jit_conv_call_s par_conv = { };
+            for (int g = g_start; g < g_end; ++g) {
+            for (int oc_b = oc_b_start; oc_b < oc_b_end; ++oc_b) {
+            for (int ic_b = ic_b_start; ic_b < ic_b_end; ++ic_b) {
+                const int _oc = g * jcp.nb_oc + oc_b;
+                const int _ic = g * jcp.nb_ic + ic_b;
+
+                jit_conv_call_s par_conv = {};
                 par_conv.src = jcp.transpose_src
-                    ? &tr_src[tr_src_off(img, _ic, 0)]
+                    ? &tr_src_[tr_src_off(ithr_mb, _ic, 0)]
                     : &src[src_d.blk_off(img, _ic)];
                 par_conv.dst = &diff_dst[diff_dst_d.blk_off(img, _oc)];
-                par_conv.filt = &rw->get_local_ptr(ithr, diff_weights)[
-                    w_job_loc * rw->balancer_.job_size_];
+
+                const size_t off = wht_blk_off(diff_weights_d, g, oc_b, ic_b);
+                par_conv.filt = diff_wei + off;
 
                 /* TODO: put dw <-- 0 in kernel */
-                if (img == img_start) array_set((data_t *)par_conv.filt, 0,
-                        rw->balancer_.job_size_);
+                if (img == img_start)
+                    array_set((data_t *)par_conv.filt, 0, wei_block_size);
 
                 kernel_->jit_ker(&par_conv);
-
-                nd_iterator_step(g, jcp.ngroups, ocb, jcp.nb_oc, icb,
-                    jcp.nb_ic);
+            }
+            }
             }
         }
-        rw->reduce(ithr, diff_weights);
+
+        /* diff_weights[:] += sum(ws_reduction_[thr_mb][:]) */
+        if (nthr_mb_ > 1) {
+            simple_barrier::barrier(&reduction_barrier, nthr_);
+
+            const int ic_b_kh_work = ic_b_work * jcp.kh;
+            const int work = g_work * oc_b_work * ic_b_kh_work;
+
+            int start, end;
+            balance211(work, nthr_mb_, ithr_mb, start, end);
+            if (start == end) return;
+
+            for (int thr_mb = 1; thr_mb < nthr_mb_; ++thr_mb) {
+                int w = start;
+                int sub_g_start, sub_oc_b_start, sub_ic_b_kh_start;
+                nd_iterator_init(w, sub_g_start, g_work, sub_oc_b_start,
+                        oc_b_work, sub_ic_b_kh_start, ic_b_kh_work);
+                while (w < end) {
+                    const int g = g_start + sub_g_start;
+                    const int oc_b = oc_b_start + sub_oc_b_start;
+                    const int ic_b = ic_b_start + sub_ic_b_kh_start / jcp.kh;
+                    const int kh = sub_ic_b_kh_start % jcp.kh;
+
+                    const int acc_size
+                        = nstl::min(end - w, ic_b_kh_work - sub_ic_b_kh_start)
+                        * jcp.kw * jcp.ic_block * jcp.oc_block;
+
+                    const size_t off
+                        = wht_blk_off(diff_weights_d, g, oc_b, ic_b, kh);
+                    data_t *d = diff_weights + off;
+                    data_t *s = ws_reduction_ + (thr_mb - 1) * wei_size + off;
+
+                    acc_ker_->accumulate(d, s, acc_size);
+
+                    nd_iterator_jump(w, end, sub_g_start, g_work,
+                            sub_oc_b_start, oc_b_work, sub_ic_b_kh_start,
+                            ic_b_kh_work);
+                }
+            }
+        }
     };
 
     auto ker_bias = [&](int ithr, int nthr) {
@@ -410,16 +471,112 @@ void jit_avx512_common_convolution_bwd_weights_t::execute_backward_weights() {
         rb->reduce(ithr, diff_bias);
     };
 
-#   pragma omp parallel
+#   pragma omp parallel num_threads(nthr_)
     {
         int ithr = omp_get_thread_num();
-        int nthr = omp_get_num_threads();
-        if (jcp.transpose_src)
-            ker_transpose(ithr, nthr);
-        ker(ithr, nthr);
+        assert(nthr_ == omp_get_num_threads());
+        ker(ithr, nthr_);
         if (conf_.with_bias())
-            ker_bias(ithr, nthr);
+            ker_bias(ithr, nthr_);
     }
+}
+
+void jit_avx512_common_convolution_bwd_weights_t::balance() {
+    const int max_threads = omp_get_max_threads();
+    const auto &j = conf_.jcp_;
+
+    if (max_threads < j.ngroups) {
+        /* simplification... fortunately it doesn't hurt much */
+        nthr_ = nthr_mb_ = nthr_g_ = nthr_oc_b_ = nthr_ic_b_ = 1;
+        return;
+    }
+
+    nthr_g_ = j.ngroups;
+    const int nthr = max_threads / nthr_g_;
+
+    auto calc_mem_cost = [=](int nthr_mb, int nthr_oc_b, int nthr_ic_b) {
+        /* calculate per thread memory cost (read/write). high level optimizer
+         * tries to minimize memory consumption. few notes:
+         *  (n1) unclear why, but that essentially helps first convolution...
+         *  (n2) assuming the reduction over minibatch is always there:
+         *    - instead of 8 it should be 5 here (write ~= 2 read):
+         *      kernel: temporal workspace 1 write
+         *      reduction: 1 read from workspace and 1 write to the diff_wei
+         *    - but experiments showed 8 works better than 5 or 6... */
+        return 0
+            + 1
+            * div_up(j.mb, nthr_mb) * div_up(j.ngroups, nthr_g_)
+            * div_up(j.nb_ic, nthr_ic_b) * j.ic_block * j.ih * j.iw
+            / j.stride_h / j.stride_w /* (n1) */
+            + 1
+            * div_up(j.mb, nthr_mb) * div_up(j.ngroups, nthr_g_)
+            * div_up(j.nb_oc, nthr_oc_b) * j.oc_block * j.oh * j.ow
+            + 8 /* (n2) */
+            * div_up(j.ngroups, nthr_g_)
+            * div_up(j.nb_oc, nthr_oc_b) * div_up(j.nb_ic, nthr_ic_b)
+            * j.kh * j.kw * j.ic_block * j.oc_block;
+    };
+
+    auto calc_comp_cost = [=](int nthr_mb, int nthr_oc_b, int nthr_ic_b) {
+        return 1
+            * div_up(j.mb, nthr_mb)
+            * div_up(j.ngroups, nthr_g_)
+            * div_up(j.nb_oc, nthr_oc_b)
+            * div_up(j.nb_ic, nthr_ic_b);
+    };
+
+    int nthr_mb = 1,  nthr_oc_b = 1, nthr_ic_b = 1;
+    int best_mem_cost = calc_mem_cost(nthr_mb, nthr_oc_b, nthr_ic_b);
+
+    /* step 1: find the best thread distribution with lowest memory cost */
+    const int nthr_mb_max = nstl::min(nthr, j.mb);
+    for (nthr_mb = 1; nthr_mb <= nthr_mb_max; ++nthr_mb) {
+        const int nthr_par = nthr / nthr_mb;
+        const int nthr_oc_b_max = nstl::min(nthr_par, j.nb_oc);
+        for (nthr_oc_b = 1; nthr_oc_b <= nthr_oc_b_max; ++nthr_oc_b) {
+            nthr_ic_b = nstl::min(nthr_par / nthr_oc_b, j.nb_ic);
+            int mem_cost = calc_mem_cost(nthr_mb, nthr_oc_b, nthr_ic_b);
+            if (mem_cost <= best_mem_cost) {
+                best_mem_cost = mem_cost;
+                nthr_mb_ = nthr_mb;
+                nthr_oc_b_ = nthr_oc_b;
+                nthr_ic_b_ = nthr_ic_b;
+            }
+        }
+    }
+
+    /* step 2: search for a thread distribution with lower compute cost.
+     * the constrains:
+     *  - memory cost cannot exceed 110% of the best found in the step 1
+     *  - unless compute cost is 133% lower than the current best case
+     * note: both constants were found empirically */
+    int best_comp_cost = calc_comp_cost(nthr_mb_, nthr_oc_b_, nthr_ic_b_);
+    for (nthr_mb = 1; nthr_mb <= nthr_mb_max; ++nthr_mb) {
+        const int nthr_par = nthr / nthr_mb;
+        const int nthr_oc_b_max = nstl::min(nthr_par, j.nb_oc);
+        for (nthr_oc_b = 1; nthr_oc_b <= nthr_oc_b_max; ++nthr_oc_b) {
+            nthr_ic_b = nstl::min(nthr_par / nthr_oc_b, j.nb_ic);
+            int mem_cost = calc_mem_cost(nthr_mb, nthr_oc_b, nthr_ic_b);
+            int comp_cost = calc_comp_cost(nthr_mb, nthr_oc_b, nthr_ic_b);
+
+            const bool opt1 = comp_cost <= best_comp_cost
+                && mem_cost < 1.1 * best_mem_cost;
+            const bool opt2 = 4 * comp_cost <= 3 * best_comp_cost;
+
+            if (opt1 || opt2) {
+                best_comp_cost = comp_cost;
+                nthr_mb_ = nthr_mb;
+                nthr_oc_b_ = nthr_oc_b;
+                nthr_ic_b_ = nthr_ic_b;
+            }
+        }
+    }
+
+    if (nthr_mb_ > max_threads/2 && nthr_mb_ < max_threads)
+        nthr_mb_ = min(j.mb, max_threads);
+
+    nthr_ = nthr_mb_ * nthr_g_ * nthr_oc_b_ * nthr_ic_b_;
+    assert(nthr_ <= max_threads);
 }
 
 }

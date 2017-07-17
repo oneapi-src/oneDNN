@@ -33,14 +33,14 @@ struct jit_src_transpose_s {
 
 struct jit_transpose_src: public jit_generator
 {
-    jit_transpose_src(jit_conv_conf_t *aparams)
+    jit_transpose_src(const jit_conv_conf_t *aparams)
         : params(aparams)
     {
         this->generate();
         jit_ker = (decltype(jit_ker))this->getCode();
     }
 
-    jit_conv_conf_t *params;
+    const jit_conv_conf_t *params;
     void (*jit_ker)(jit_src_transpose_s *);
 
     void operator()(jit_src_transpose_s *arg) { jit_ker(arg); }
