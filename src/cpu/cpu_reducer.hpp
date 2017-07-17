@@ -253,6 +253,18 @@ private:
     void reduce_nolock(int ithr, data_t *dst);
 };
 
+/** simple 1d accumulator: y[:] += x[:] */
+template <impl::data_type_t data_type>
+struct cpu_accumulator_1d_t {
+    typedef typename prec_traits<data_type>::type data_t;
+
+    cpu_accumulator_1d_t();
+    ~cpu_accumulator_1d_t();
+    void accumulate(data_t *dst, const data_t *src, size_t size);
+
+    reducer_2d_driver_t<data_type> *drv_;
+};
+
 }
 }
 }

@@ -529,6 +529,26 @@ void cpu_reducer_2d_t<data_type>::reduce_nolock(int ithr, data_t *dst) {
 
 template struct cpu_reducer_2d_t<data_type::f32>;
 
+/* accumulator section */
+
+template <impl::data_type_t data_type>
+cpu_accumulator_1d_t<data_type>::cpu_accumulator_1d_t(): drv_(nullptr) {
+    drv_ = create_reduce_2d_drv<data_type>(1, 0, 0, 0, false);
+}
+
+template <impl::data_type_t data_type>
+cpu_accumulator_1d_t<data_type>::~cpu_accumulator_1d_t() {
+    delete drv_;
+}
+
+template <impl::data_type_t data_type>
+void cpu_accumulator_1d_t<data_type>::accumulate(data_t *dst,
+        const data_t *src, size_t size) {
+    (*drv_)(dst, src, 1, size);
+}
+
+template struct cpu_accumulator_1d_t<data_type::f32>;
+
 }
 }
 }
