@@ -333,6 +333,8 @@ struct jit_avx512_common_1x1_convolution_bwd_weights_t : public cpu_primitive_t 
                                                  const output_vector &outputs);
     ~jit_avx512_common_1x1_convolution_bwd_weights_t() {
         delete kernel_;
+        delete reducer_weights_;
+        delete reducer_bias_;
         delete rtus_driver_;
         free(scratch_);
     }
