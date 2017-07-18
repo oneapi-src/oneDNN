@@ -31,7 +31,8 @@ status_t mkldnn_convolution_relu_desc_init(
         convolution_relu_desc_t *conv_relu_desc,
         const convolution_desc_t *conv_desc, double negative_slope) {
     bool args_ok = !any_null(conv_relu_desc, conv_desc)
-        && conv_desc->prop_kind == prop_kind::forward_inference;
+        && utils::one_of(conv_desc->prop_kind, prop_kind::forward_training,
+                prop_kind::forward_inference);
     if (!args_ok) return invalid_arguments;
     conv_relu_desc->primitive_kind = primitive_kind::convolution_relu;
     conv_relu_desc->convolution_desc = *conv_desc;

@@ -45,9 +45,6 @@ struct _jit_sse42_convolution_fwd_t: public cpu_primitive_t {
                 && this->set_default_params() == status::success
                 && utils::one_of(this->cdesc_().prop_kind, forward_training,
                         forward_inference)
-                && utils::implication(
-                        this->base_pkind == primitive_kind::convolution_relu,
-                        this->cdesc_().prop_kind == forward_inference)
                 && this->cdesc_().alg_kind == alg_kind::convolution_direct
                 && utils::everyone_is(data_type::f32,
                         this->cdesc_().src_desc.data_type,
