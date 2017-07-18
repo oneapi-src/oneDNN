@@ -96,6 +96,7 @@ struct reducer_2d_driver_t: public c_compatible {
             size_t src_step, size_t dst_step, bool nullify_dst)
         : n_src_(n_src), src_ld_(src_ld), src_step_(src_step)
         , dst_step_(dst_step), nullify_dst_(nullify_dst), ker_(nullptr) {}
+    virtual ~reducer_2d_driver_t() {}
     void operator()(data_t *dst, const data_t *srcs, size_t ny, size_t nx)
     { assert(ker_); ker_(dst, srcs, ny, nx); }
 
