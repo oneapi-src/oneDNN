@@ -1826,6 +1826,30 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_oh_step_disp()
     oh_step_comeback_pointers();
 }
 
+void jit_avx512_common_conv_bwd_weights_kernel_f32::maybe_zero_kernel()
+{
+    Label skip_zeroing, zeroing_loop;
+
+    mov(reg_tmp, ptr[param + GET_OFF(channel)]);
+    cmp(reg_tmp, 0);
+    jz(skip_zeroing, T_NEAR);
+
+    Zmm zero = Zmm(0);
+    vpxord(zero, zero, zero);
+    xor_(reg_tmp, reg_tmp);
+    L(zeroing_loop); {
+        assert(jcp.oc_block * typesize == cpu_isa_traits<avx512_common>::vlen);
+        for (int ic1 = 0; ic1 < jcp.ic_block; ic1++)
+            vmovups(ptr[reg_kernel + reg_tmp + ic1 * jcp.oc_block * typesize],
+                    zero);
+        add(reg_tmp, jcp.ic_block * jcp.oc_block * typesize);
+        cmp(reg_tmp, jcp.ic_block * jcp.oc_block * jcp.kw * jcp.kh * typesize);
+        jnz(zeroing_loop);
+    }
+
+    L(skip_zeroing);
+}
+
 void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_oh_loop_common()
 {
     int b_pad = nstl::max(0, (jcp.oh - 1) * jcp.stride_h + jcp.kh - 1
@@ -1836,6 +1860,8 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_oh_loop_common()
     int iw = jcp.transpose_src ? jcp.tr_iw : jcp.iw;
     Label oh_label, oh_label_end, oh_tpad_label, oh_bpad_label,
         oh_bpad_label_end;
+
+    maybe_zero_kernel();
 
     mov(reg_kh, jcp.kh);
     xor_(reg_ih_count, reg_ih_count);

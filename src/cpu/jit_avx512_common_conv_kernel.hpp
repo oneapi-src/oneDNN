@@ -276,7 +276,9 @@ private:
     reg64_t reg_ur_w_trips  = r10;
     reg64_t reg_oj = r15;
     reg64_t reg_ih_count = rbx;
+    reg64_t reg_tmp = r14;
 
+    inline void maybe_zero_kernel();
     inline void compute_oh_step_unroll_ow_icblock(int ic_block_step,
             int max_ur_w);
     inline void oh_step_comeback_pointers();

@@ -374,10 +374,7 @@ void jit_avx512_common_convolution_bwd_weights_t::execute_backward_weights() {
 
                 const size_t off = wht_blk_off(diff_weights_d, g, oc_b, ic_b);
                 par_conv.filt = diff_wei + off;
-
-                /* TODO: put dw <-- 0 in kernel */
-                if (img == img_start)
-                    array_set((data_t *)par_conv.filt, 0, wei_block_size);
+                par_conv.channel = (img == img_start);
 
                 kernel_->jit_ker(&par_conv);
             }
