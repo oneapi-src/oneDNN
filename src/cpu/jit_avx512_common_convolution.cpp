@@ -389,13 +389,13 @@ void jit_avx512_common_convolution_bwd_weights_t::execute_backward_weights() {
             const int ic_b_kh_work = ic_b_work * jcp.kh;
             const int work = g_work * oc_b_work * ic_b_kh_work;
 
-            int start, end;
+            int start{0}, end{0};
             balance211(work, nthr_mb_, ithr_mb, start, end);
             if (start == end) return;
 
             for (int thr_mb = 1; thr_mb < nthr_mb_; ++thr_mb) {
                 int w = start;
-                int sub_g_start, sub_oc_b_start, sub_ic_b_kh_start;
+                int sub_g_start{0}, sub_oc_b_start{0}, sub_ic_b_kh_start{0};
                 nd_iterator_init(w, sub_g_start, g_work, sub_oc_b_start,
                         oc_b_work, sub_ic_b_kh_start, ic_b_kh_work);
                 while (w < end) {
