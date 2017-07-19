@@ -550,9 +550,9 @@ protected:
         //
         // Pros compared to mul/imul:
         // - does not require using known registers
-        // - not microcoded on Xeon Phi
+        // - not microcoded on Intel(R) Xeon Phi(TM) processors
         // Still, there are probably a lot of cases when mul/imul is faster on
-        // Core CPUs. Not intended for critical path.
+        // Intel(R) Core(TM) processors. Not intended for critical path.
 
         // TODO: detect when overflow is emminent (Roma)
         // TODO: detect when using mul/imul is a better option (Roma)

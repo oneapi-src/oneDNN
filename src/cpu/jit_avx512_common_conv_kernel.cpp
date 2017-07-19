@@ -1971,7 +1971,7 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32::compute_full_spat_loop()
     //      reduce code size)
     //          Loop over OW block -- emit_fma_step()
 
-    Opmask reg_h_block = k1; // 32-bit only on Xeon Phi
+    Opmask reg_h_block = k1; // 32-bit only on Intel(R) Xeon Phi(TM) processors
     Reg64 reg_kh = rax;
     Reg64 reg_kw = rbx;
     Reg64 reg_tmp = abi_not_param1;
