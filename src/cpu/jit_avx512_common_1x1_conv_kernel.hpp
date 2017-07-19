@@ -65,6 +65,7 @@ struct jit_avx512_common_1x1_conv_kernel : public jit_generator {
     reg64_t aux_reg_bcast_data = r14;
     reg64_t aux1_reg_bcast_data = rbx;
     reg64_t aux_reg_load_data = r15;
+    reg64_t imm_addr64 = aux_reg_load_data;
     reg64_t aux_reg_output_data = rcx;
     reg64_t reg_load_loop_work = rsi;
     reg64_t reg_reduce_loop_work = r11;
@@ -78,6 +79,7 @@ struct jit_avx512_common_1x1_conv_kernel : public jit_generator {
     reg64_t reg_diff_bias_data = bcast_loop_iter;
     mask_t vmask = k7;
 
+    Xbyak::Xmm xmm_relu_ns = Xbyak::Xmm(30);
     Xbyak::Zmm zmm_relu_ns = Xbyak::Zmm(30);
     Xbyak::Zmm zmm_zero = Xbyak::Zmm(31);
     Xbyak::Zmm vreg_diff_bias = zmm_relu_ns;

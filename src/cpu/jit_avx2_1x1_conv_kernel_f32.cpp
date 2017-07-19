@@ -196,13 +196,21 @@ void jit_avx2_1x1_conv_kernel_f32::reduce_loop(int load_loop_blk, int ur,
             test(reg_reduce_pos_flag, FLAG_REDUCE_LAST);
             jz(store_norelu, T_NEAR);
 
-            Ymm vzero = ymm15, vmask = ymm14;
             vxorps(vzero, vzero, vzero);
+            if (jcp.relu_negative_slope == 0) {
+               ymm_relu_ns = vzero;
+            } else {
+               mov(imm_addr64, float2int(jcp.relu_negative_slope));
+               movq(xmm_relu_ns, imm_addr64);
+               uni_vbroadcastss(ymm_relu_ns, xmm_relu_ns);
+            }
+
             for (int j = 0; j < ur; ++j)
                 for (int i = 0; i < load_loop_blk; ++i) {
                     vcmpgtps(vmask, vreg_accum(i, j), vzero);
-                    vblendvps(vreg_accum(i, j),
-                            vzero, vreg_accum(i, j), vmask);
+                    vmulps(ymm_res_ns, ymm_relu_ns, vreg_accum(i, j));
+                    vblendvps(vreg_accum(i, j), ymm_res_ns,
+                             vreg_accum(i, j), vmask);
                     vmovups(output_ptr(i, j), vreg_accum(i, j));
                 }
 

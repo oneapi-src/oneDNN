@@ -105,9 +105,9 @@ void jit_avx512_common_conv_fwd_kernel::store_output(int ur_w)
         if (jcp.relu_negative_slope == 0 || jcp.ver == ver_4vnni) {
             zmm_relu_ns = zmm_zero;
         } else {
-            mov(reg_relu_ns,
-                reinterpret_cast<size_t>(&jcp.relu_negative_slope));
-            vbroadcastss(zmm_relu_ns, ptr[reg_relu_ns]);
+            mov(imm_addr64, float2int(jcp.relu_negative_slope));
+            vmovq(xmm_relu_ns, imm_addr64);
+            vbroadcastss(zmm_relu_ns, xmm_relu_ns);
         }
         cmp(reg_channel, jcp.nb_ic - 1);
         jl(store_label, T_NEAR);

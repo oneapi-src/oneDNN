@@ -245,9 +245,9 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(int load_loop_blk,
             if (jcp.relu_negative_slope == 0) {
                 zmm_relu_ns = zmm_zero;
             } else {
-                mov(reg_relu_ns,
-                        reinterpret_cast<size_t>(&jcp.relu_negative_slope));
-                vbroadcastss(zmm_relu_ns, ptr[reg_relu_ns]);
+                mov(imm_addr64, float2int(jcp.relu_negative_slope));
+                vmovq(xmm_relu_ns, imm_addr64);
+                vbroadcastss(zmm_relu_ns, xmm_relu_ns);
             }
 
             for (int i_ur = 0; i_ur < ur; ++i_ur)

@@ -68,6 +68,7 @@ private:
     reg64_t load_loop_iter = r13;
     reg64_t bcast_loop_iter = r14;
     reg64_t reduce_loop_iter = r15;
+    reg64_t imm_addr64 = reduce_loop_iter;
     reg64_t reg_reduce_pos_flag = r8;
     reg64_t reg_output_stride = r12;
     reg64_t reg_bias_data = r12;
@@ -77,6 +78,11 @@ private:
     int stack_space_needed = 8;
 
     ymm_t vreg_bcast = ymm_t(15);
+    Xbyak::Xmm xmm_relu_ns = Xbyak::Xmm(13);
+    Xbyak::Ymm ymm_relu_ns = Xbyak::Ymm(13);
+    Xbyak::Ymm ymm_res_ns = Xbyak::Ymm(12);
+    Xbyak::Ymm vzero = Xbyak::Ymm(15);
+    Xbyak::Ymm vmask = Xbyak::Ymm(14);
 
     void bcast_loop(int load_loop_blk, char load_loop_tag);
     void reduce_loop(int load_loop_blk, int ur, char load_loop_tag,

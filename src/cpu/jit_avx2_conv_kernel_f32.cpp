@@ -203,15 +203,23 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(int ur_w,
         test(reg_ci_flag, FLAG_IC_LAST);
         je(regular_store_label, T_NEAR);
 
-        Ymm yzero = ymm15, ymask = ymm14;
         vxorps(yzero, yzero, yzero);
+        if (jcp.relu_negative_slope == 0) {
+           ymm_relu_ns = yzero;
+        } else {
+           mov(imm_addr64, float2int(jcp.relu_negative_slope));
+           movq(xmm_relu_ns, imm_addr64);
+           uni_vbroadcastss(ymm_relu_ns, xmm_relu_ns);
+        }
+
         for (int ii = 0; ii < oc_blocks; ii++) {
             for (int jj = 0; jj < ur_w; jj++) {
                 const size_t o_off = (ii * oh * ow + jj) * oc_blk;
                 Ymm reg_out = Ymm(ur_w * ii + jj);
 
                 vcmpgtps(ymask, reg_out, yzero);
-                vblendvps(reg_out, yzero, reg_out, ymask);
+                vmulps(ymm_res_ns, ymm_relu_ns, reg_out);
+                vblendvps(reg_out, ymm_res_ns, reg_out, ymask);
                 vmovups(yword[reg_output + sizeof(float) * o_off], reg_out);
             }
         }

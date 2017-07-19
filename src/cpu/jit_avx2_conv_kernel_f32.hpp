@@ -55,7 +55,14 @@ private:
     reg64_t ki_iter = r12;
     reg64_t reg_kh = abi_not_param1;
     reg64_t reg_oc_blocks = r14;
+    reg64_t imm_addr64 = r15;
     Xbyak::Reg32 reg_ci_flag = r13d;
+
+    Xbyak::Xmm xmm_relu_ns = Xbyak::Xmm(13);
+    Xbyak::Ymm ymm_relu_ns = Xbyak::Ymm(13);
+    Xbyak::Ymm ymm_res_ns = Xbyak::Ymm(12);
+    Xbyak::Ymm yzero = Xbyak::Ymm(15);
+    Xbyak::Ymm ymask = Xbyak::Ymm(14);
 
     inline void oh_step_unroll_kw(int ur_w, int pad_l, int pad_r,
             int oc_blocks);

@@ -101,6 +101,8 @@ private:
         return Xbyak::Zmm(idx);
     }
 
+    Xbyak::Reg64 imm_addr64 = r15;
+    Xbyak::Xmm xmm_relu_ns = Xbyak::Xmm(30);
     Xbyak::Zmm zmm_relu_ns = Xbyak::Zmm(30);
     Xbyak::Zmm zmm_zero = Xbyak::Zmm(31);
 
