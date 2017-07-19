@@ -432,7 +432,7 @@ int doit(const prb_t *p, res_t *r) {
 
     mkldnn_convolution_desc_t cd;
     mkldnn_primitive_desc_t cpd;
-    mkldnn_primitive_t c;
+    mkldnn_primitive_t c{};
 
     SAFE(init_pd(p, cd, cpd, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED)
