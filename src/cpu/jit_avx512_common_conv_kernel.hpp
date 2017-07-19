@@ -299,6 +299,10 @@ private:
     inline void compute_oh_step_disp();
     inline void compute_oh_loop_common();
 
+    inline bool compute_full_spat_loop();
+
+    inline void compute_loop();
+
     void generate();
 };
 
