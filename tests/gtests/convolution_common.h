@@ -60,10 +60,6 @@
 #define FMT_DATA_BLOCKED nChw8c
 #define FMT_DATA_BLOCKED16 nChw16c
 
-#define PARAMS(src, weights, bias, dst, ...) \
-    test_convolution_params_t { ENGINE, ALGORITHM, \
-    EXPAND_FORMATS(src, weights, bias, dst), {__VA_ARGS__} }
-
 #define CONCAT_WITH_UNDERSCORE_(a,b) a ## _ ## b
 #define CONCAT_WITH_UNDERSCORE(a,b) CONCAT_WITH_UNDERSCORE_(a,b)
 
@@ -71,6 +67,19 @@
         str, convolution_test, ::testing::Values(__VA_ARGS__))
 #define INST_TEST_CASE(str, ...) INST_TEST_CASE_( \
         CONCAT_WITH_UNDERSCORE(TEST_CASE_NAME_PREFIX, str), __VA_ARGS__)
+
+#ifndef NEGATIVE_SLOPE
+#define NEGATIVE_SLOPE 0.0
+#else
+#undef INST_TEST_CASE
+#define INST_TEST_CASE(str, ...) INST_TEST_CASE_( \
+        CONCAT_WITH_UNDERSCORE(CONCAT_WITH_UNDERSCORE(TEST_CASE_NAME_PREFIX, \
+        str), neg_slope),  __VA_ARGS__)
+#endif
+
+#define PARAMS(src, weights, bias, dst, ...) \
+    test_convolution_params_t { ENGINE, ALGORITHM, NEGATIVE_SLOPE, \
+    EXPAND_FORMATS(src, weights, bias, dst), {__VA_ARGS__} }
 
 #include "convolution_simple_small.h"
 //#include "convolution_alexnet.h"

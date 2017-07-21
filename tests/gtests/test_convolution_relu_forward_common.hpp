@@ -19,15 +19,13 @@
 
 #include "mkldnn.hpp"
 
-#define NEGATIVE_SLOPE 0.0
-
 namespace mkldnn {
 
 template <typename data_t_src, typename data_t_wei,
           typename data_t_acc, typename data_t_dst>
 void compute_ref_conv_relu_fwd(const test_convolution_sizes_t &c,
         const memory &src, const memory &weights, const memory &bias,
-        const memory &dst, bool w_bias)
+        const memory &dst, bool w_bias, double negative_slope)
 {
     data_t_src *src_data = (data_t_src *)src.get_data_handle();
     data_t_wei *weights_data = (data_t_wei *)weights.get_data_handle();
@@ -80,7 +78,7 @@ void compute_ref_conv_relu_fwd(const test_convolution_sizes_t &c,
 
                         if (dst_data[map_index(dst_d, oidx)] < 0) {
                             dst_data[map_index(dst_d, oidx)] =
-                                static_cast<data_t_dst>( NEGATIVE_SLOPE
+                                static_cast<data_t_dst>( negative_slope
                                 * dst_data[map_index(dst_d, oidx)] );
                         }
 
@@ -105,6 +103,7 @@ protected:
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         ASSERT_EQ(p.aalgorithm, convolution_direct);
         auto eng = engine(p.engine_kind, 0);
+        double negative_slope = p.relu_negative_slope;
 
         memory::data_type data_type_src = data_traits<data_t_src>::data_type;
         memory::data_type data_type_dst = data_traits<data_t_dst>::data_type;
@@ -175,7 +174,7 @@ protected:
                         { cd.padh, cd.padw }, padR, padding_kind::zero);
 
         auto conv_relu_desc =
-            convolution_relu_forward::desc(conv_desc, NEGATIVE_SLOPE);
+            convolution_relu_forward::desc(conv_desc, negative_slope);
         auto conv_primitive_desc = convolution_relu_forward::primitive_desc(
                 conv_relu_desc, eng);
 
@@ -190,7 +189,8 @@ protected:
         stream(stream::kind::lazy).submit(pipeline).wait();
 
         compute_ref_conv_relu_fwd<data_t_src, data_t_wei, data_t_wei,
-            data_t_dst>(cd, c_src, c_weights, c_bias, dst_ref, with_bias);
+            data_t_dst>(cd, c_src, c_weights, c_bias, dst_ref, with_bias,
+            negative_slope);
         compare_data<data_t_dst>(dst_ref, c_dst);
     }
 };

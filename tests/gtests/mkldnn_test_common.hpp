@@ -268,6 +268,7 @@ struct test_convolution_formats_t {
 struct test_convolution_params_t {
     const mkldnn::engine::kind engine_kind;
     mkldnn::algorithm aalgorithm;
+    const double relu_negative_slope;
     test_convolution_formats_t formats;
     test_convolution_sizes_t sizes;
 };
