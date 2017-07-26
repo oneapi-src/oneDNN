@@ -440,7 +440,7 @@ mkldnn_status_t MKLDNN_API mkldnn_eltwise_backward_desc_init(
  * @p negative_slope and memory descriptor @p data_desc.
  *
  * @deprecated use mkldnn_eltwise_forward_desc_init() instead, with @p alpha
- * equals @negative_slope */
+ * equals @p negative_slope */
 MKLDNN_DEPRECATED
 mkldnn_status_t MKLDNN_API mkldnn_relu_forward_desc_init(
         mkldnn_relu_desc_t *relu_desc, mkldnn_prop_kind_t prop_kind,
@@ -450,7 +450,7 @@ mkldnn_status_t MKLDNN_API mkldnn_relu_forward_desc_init(
  * and memory descriptors @p diff_data_desc and @p data_desc.
  *
  * @deprecated use mkldnn_eltwise_backward_desc_init() instead, with @p alpha
- * equals @negative_slope */
+ * equals @p negative_slope */
 MKLDNN_DEPRECATED
 mkldnn_status_t MKLDNN_API mkldnn_relu_backward_desc_init(
         mkldnn_relu_desc_t *relu_desc,
