@@ -219,8 +219,14 @@ void jit_sse42_conv_fwd_kernel_f32::width_blk_step(int ur_w,
         test(reg_ci_flag, FLAG_IC_LAST);
         je(regular_store_label, T_NEAR);
 
-        Xmm xzero = xmm15, xmask = xmm0;
         pxor(xzero, xzero);
+        if (jcp.relu_negative_slope == 0) {
+           xmm_relu_ns = xzero;
+        } else {
+           mov(imm_addr64, float2int(jcp.relu_negative_slope));
+           movq(xmm_relu_ns, imm_addr64);
+           shufps(xmm_relu_ns, xmm_relu_ns, 0x0);
+        }
         for (int ii = 0; ii < oc_blocks; ii++) {
             for (int jj = 0; jj < ur_w; jj++) {
                 const size_t o_off = (ii * oh * ow + jj) * oc_blk;
@@ -230,7 +236,9 @@ void jit_sse42_conv_fwd_kernel_f32::width_blk_step(int ur_w,
 
                 pxor(xmask, xmask);
                 cmpps(xmask, reg_out, _cmp_gt_os);
-                blendvps(reg_out, xzero);
+                movups(xmm_res_ns, reg_out);
+                mulps(xmm_res_ns, xmm_relu_ns);
+                blendvps(reg_out, xmm_res_ns);
                 movups(xword[reg_output + sizeof(float) * o_off], reg_out);
             }
         }
