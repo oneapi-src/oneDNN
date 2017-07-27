@@ -68,6 +68,7 @@ endif()
 
 if(WIN32)
     add_definitions(-DMKLDNN_DLL -DMKLDNN_DLL_EXPORTS)
+    add_definitions(/MP)
     if(${CMAKE_CXX_COMPILER_ID} STREQUAL "Intel")
         set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS} /Qopenmp")
         set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS} -std=c++11 /Qopenmp")
