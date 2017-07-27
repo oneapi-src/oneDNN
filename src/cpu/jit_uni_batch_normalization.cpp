@@ -888,6 +888,11 @@ void jit_uni_batch_normalization_fwd_t<isa>::execute(event_t *e) {
 }
 
 template <cpu_isa_t isa>
+jit_uni_batch_normalization_fwd_t<isa>::~jit_uni_batch_normalization_fwd_t() {
+    delete bnorm_driver_;
+}
+
+template <cpu_isa_t isa>
 jit_uni_batch_normalization_bwd_t<isa>::jit_uni_batch_normalization_bwd_t(
         const pd_t *pd, const input_vector &inputs,
         const output_vector &outputs)
@@ -911,6 +916,11 @@ void jit_uni_batch_normalization_bwd_t<isa>::execute(event_t *e) {
                 mean, var);
     }
     e->set_state(event_t::ready);
+}
+
+template <cpu_isa_t isa>
+jit_uni_batch_normalization_bwd_t<isa>::~jit_uni_batch_normalization_bwd_t() {
+    delete bnorm_driver_;
 }
 
 /* struct instantiation */

@@ -75,7 +75,7 @@ struct jit_uni_batch_normalization_fwd_t: public cpu_primitive_t {
 
     jit_uni_batch_normalization_fwd_t(const pd_t *pd,
             const input_vector &inputs, const output_vector &outputs);
-    ~jit_uni_batch_normalization_fwd_t() { delete bnorm_driver_; };
+    ~jit_uni_batch_normalization_fwd_t();
     virtual void execute(event_t *e);
 
 private:
@@ -122,7 +122,7 @@ struct jit_uni_batch_normalization_bwd_t: public cpu_primitive_t {
 
     jit_uni_batch_normalization_bwd_t(const pd_t *pd,
             const input_vector &inputs, const output_vector &outputs);
-    ~jit_uni_batch_normalization_bwd_t() { delete bnorm_driver_; };
+    ~jit_uni_batch_normalization_bwd_t();
     virtual void execute(event_t *e);
 
 private:
