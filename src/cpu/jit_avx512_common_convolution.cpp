@@ -309,12 +309,12 @@ void jit_avx512_common_convolution_bwd_weights_t::execute_backward_weights() {
 
             if (iwork >= pf_depth - 1) {
                 int old_idx = (iwork - pf_depth + 1) % pf_depth;
-                jit_src_transpose_s par_trans = {};
-                par_trans.src = pf_circ_buf[old_idx].src;
-                par_trans.tr_src = pf_circ_buf[old_idx].tr_src;
-                par_trans.src_prf = src1;
-                par_trans.tr_src_prf = tr_src1;
-                trans_kernel_->jit_ker(&par_trans);
+                jit_trans_src_t::ctx_t ctx = {};
+                ctx.src = pf_circ_buf[old_idx].src;
+                ctx.tr_src = pf_circ_buf[old_idx].tr_src;
+                ctx.src_prf = src1;
+                ctx.tr_src_prf = tr_src1;
+                (*trans_kernel_)(&ctx);
             }
             src1 += src_stride;
             tr_src1 += tr_src_stride;

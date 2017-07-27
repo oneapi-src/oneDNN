@@ -18,6 +18,7 @@
 #include "type_helpers.hpp"
 #include "nstl.hpp"
 #include "utils.hpp"
+#include "jit_generator.hpp"
 
 #include "jit_transpose_src_utils.hpp"
 
@@ -27,7 +28,43 @@ namespace cpu {
 
 using namespace Xbyak;
 
-void jit_transpose_src::transpose(int nrows, int l_pad, int r_pad, bool nontemporal_stores) {
+struct jit_trans_iw_ic_t: public jit_trans_src_t, public jit_generator {
+    jit_trans_iw_ic_t(const jit_conv_conf_t *conf): jit_trans_src_t(conf) {
+        generate();
+        ker_ = (decltype(ker_))this->getCode();
+    }
+
+private:
+    using reg64_t = const Xbyak::Reg64;
+    using reg32_t = const Xbyak::Reg32;
+    using opmask_t = const Xbyak::Opmask;
+
+    enum { typesize = sizeof(float), transpose_size = 16, small_spatial = 14 };
+    int src_stride, tr_src_stride;
+    int tail;
+    bool enable_prefetch;
+
+    opmask_t k3333 = k1;
+    opmask_t k5555 = k2;
+    opmask_t kAAAA = k3;
+    opmask_t kCCCC = k4;
+    opmask_t k0F0F = k5;
+    opmask_t kF0F0 = k6;
+    opmask_t kTail = k7;
+
+    reg64_t reg_src = r8;
+    reg64_t reg_tr_src = r9;
+    reg64_t reg_src_prf = r10;
+    reg64_t reg_tr_src_prf = r11;
+    reg64_t reg_loop = r12;
+    reg64_t reg_tr_src_tmp = r13;
+    reg32_t regw_tmp = r14d;
+
+    void transpose(int nrows, int l_pad, int r_pad, bool nontemporal_stores);
+    void generate();
+};
+
+void jit_trans_iw_ic_t::transpose(int nrows, int l_pad, int r_pad, bool nontemporal_stores) {
     assert(nrows >= 0 && nrows <= transpose_size);
     static_assert(transpose_size == 16, "Unsupported transpose size");
     if (!nrows)
@@ -112,7 +149,6 @@ void jit_transpose_src::transpose(int nrows, int l_pad, int r_pad, bool nontempo
         if (l_pad > 0) {
             padding(reg_tr_src, l_pad);
         }
-
     };
 
     auto transpose16x8 = [=](int base_idx) {
@@ -187,7 +223,6 @@ void jit_transpose_src::transpose(int nrows, int l_pad, int r_pad, bool nontempo
     };
 
     auto fixup16x16 = [=]() {
-
         // swap 8
         for (int i = 0; i < 8; i++) {
             auto tmp = tmp_zmm(i);
@@ -217,16 +252,14 @@ void jit_transpose_src::transpose(int nrows, int l_pad, int r_pad, bool nontempo
     transpose16x8(0);
     transpose16x8(8);
     fixup16x16();
-
 }
 
-void jit_transpose_src::generate()
-{
+void jit_trans_iw_ic_t::generate() {
     preamble();
 
-    const int ic_block = params->ic_block;
-    const int iw = params->iw;
-    const int tr_iw = params->tr_iw;
+    const int ic_block = conf_->ic_block;
+    const int iw = conf_->iw;
+    const int tr_iw = conf_->tr_iw;
     const int transposes = utils::div_up(iw, transpose_size);
     int loop_iters = nstl::max(0, transposes - 1);
     tail = iw - loop_iters * transpose_size;
@@ -242,10 +275,10 @@ void jit_transpose_src::generate()
     const int src_step = ic_block * transpose_size * typesize;
     const int tr_src_step = ic_block * typesize;
 
-    const int left_pad = params->l_pad;
+    const int left_pad = conf_->l_pad;
     const int right_pad = tr_iw - iw - left_pad;
 
-#define GET_TR_OFF(x) offsetof(jit_src_transpose_s, x)
+#define GET_TR_OFF(x) offsetof(ctx_t, x)
     mov(reg_src, ptr [param1 + GET_TR_OFF(src)]);
     mov(reg_tr_src, ptr [param1 + GET_TR_OFF(tr_src)]);
     mov(reg_src_prf, ptr [param1 + GET_TR_OFF(src_prf)]);
@@ -291,6 +324,13 @@ void jit_transpose_src::generate()
         transpose(tail, left_pad, right_pad, nontemporal_stores);
 
     postamble();
+}
+
+jit_trans_src_t *create_trans_src(const jit_conv_conf_t *conf) {
+    if (conf->ver == ver_4fma && !conf->is_1stconv)
+        return new jit_trans_iw_ic_t(conf);
+    assert(!"unsupported configuration");
+    return nullptr;
 }
 
 }

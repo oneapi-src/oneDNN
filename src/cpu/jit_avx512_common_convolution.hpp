@@ -291,7 +291,7 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
             tr_src_ = (data_t *)malloc(tr_src_size * sizeof(data_t), 64);
             for (size_t i = tr_src_size0; i < tr_src_size; i++)
                 tr_src_[i] = 0;
-            trans_kernel_ = new jit_transpose_src(&j);
+            trans_kernel_ = create_trans_src(&j);
         }
 
         balance();
@@ -316,7 +316,8 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
 
     ~jit_avx512_common_convolution_bwd_weights_t() {
         delete kernel_;
-        delete trans_kernel_;
+        if (trans_kernel_)
+            delete trans_kernel_;
         delete acc_ker_;
         delete reducer_bias_;
 
@@ -340,7 +341,7 @@ private:
     pd_t conf_;
 
     jit_avx512_common_conv_bwd_weights_kernel_f32 *kernel_;
-    jit_transpose_src *trans_kernel_;
+    jit_trans_src_t *trans_kernel_;
     cpu_accumulator_1d_t<data_type::f32> *acc_ker_;
     cpu_reducer_t<data_type::f32> *reducer_bias_;
 
