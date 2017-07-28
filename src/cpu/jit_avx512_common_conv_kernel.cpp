@@ -2320,8 +2320,166 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32::compute_full_spat_loop()
     return true;
 }
 
+bool jit_avx512_common_conv_bwd_weights_kernel_f32::flat_4ops_compute() {
+    const auto &j = jcp;
+    const bool ok = j.ver == ver_4fma && j.is_1stconv;
+    if (!ok) return false;
+
+    Reg64 reg_ptr_tr_src = r8;
+    Reg64 reg_ptr_dst = r9;
+    Reg64 reg_ptr_wei = r10;
+
+    Reg64 reg_kh_step = rax;
+    Reg64 reg_channel = rbx;
+    Reg64 reg_oh = abi_not_param1;
+    Reg64 reg_kh = rdx;
+    Reg64 reg_clear_flag = rsi;
+
+    auto zmm_wei = [&](int kh, int kw) {
+        return Zmm(8 + kh * j.kw + kw);
+    };
+    auto zmm_dst = [&](int ow) {
+        return Zmm(ow % 8);
+    };
+
+    auto addr_tr_src = [&](int kh, int iw) {
+        return ptr[reg_ptr_tr_src
+            + (kh * j.stride_w * j.tr_ld + iw) * typesize];
+    };
+    auto addr_dst = [&](int ow) {
+        return ptr[reg_ptr_dst + ow * jcp.oc_block * typesize];
+    };
+    auto addr_wei = [&](int kh, int kw) {
+        return ptr[reg_ptr_wei + (kh * j.kw + kw) * j.oc_block * typesize];
+    };
+
+    auto emit_fma_block = [&](int kh_step) {
+        for (int kh = 0; kh < kh_step; ++kh) {
+            for (int kw = 0; kw < j.kw; ++kw) {
+                auto vwei = zmm_wei(kh, kw);
+                vpxord(vwei, vwei, vwei);
+            }
+        }
+
+        for (int ow = 0; ow < j.ow; ow += 4) {
+            for (int _ow = ow; _ow < ow + 4; ++_ow) {
+                auto vdst = zmm_dst(_ow);
+                if (_ow < j.ow)
+                    vmovups(vdst, addr_dst(_ow));
+                else
+                    vpxord(vdst, vdst, vdst);
+            }
+
+            for (int kh = 0; kh < kh_step; ++kh) {
+                for (int kw = 0; kw < j.kw; ++kw) {
+                    const int iw = ow + (kw % j.stride_w) * j.tr_ld
+                        + (kw / j.stride_w);
+                    v4fmaddps(zmm_wei(kh, kw), zmm_dst(ow),
+                            addr_tr_src(kh, iw));
+                    if (1 && kh == 0 && kw < 4) {
+                        prefetcht1(ptr[reg_ptr_dst
+                                + (j.ow + ow + kw) * jcp.oc_block * typesize]);
+                    }
+                }
+            }
+        }
+
+        Label l_store;
+        test(reg_clear_flag, reg_clear_flag);
+        jnz(l_store, T_NEAR);
+        for (int kh = 0; kh < kh_step; ++kh) {
+            for (int kw = 0; kw < j.kw; ++kw)
+                vaddps(zmm_wei(kh, kw), addr_wei(kh, kw));
+        }
+        L(l_store);
+        for (int kh = 0; kh < kh_step; ++kh) {
+            for (int kw = 0; kw < j.kw; ++kw)
+                vmovups(addr_wei(kh, kw), zmm_wei(kh, kw));
+        }
+    };
+
+    auto emit_kh_loop = [&]() {
+        const int kh_step_rem = j.kh % j.kh_step;
+        xor_(reg_kh, reg_kh);
+        mov(reg_kh_step, j.kh_step);
+
+        Label l_kh_loop;
+        L(l_kh_loop); {
+            Label l_done;
+
+            if (kh_step_rem != 0) {
+                Label l_keep_kh_step;
+                cmp(reg_kh, j.kh - j.kh_step);
+                jle(l_keep_kh_step, T_NEAR);
+
+                mov(reg_kh_step, kh_step_rem);
+                emit_fma_block(kh_step_rem);
+                jmp(l_done, T_NEAR);
+
+                L(l_keep_kh_step);
+            }
+
+            emit_fma_block(j.kh_step);
+
+            L(l_done);
+
+            add(reg_ptr_tr_src, j.kh_step * j.stride_w * j.tr_ld * typesize);
+            add(reg_ptr_wei, j.kh_step * j.kw * j.oc_block * typesize);
+            add(reg_kh, j.kh_step);
+
+            cmp(reg_kh, j.kh);
+            jl(l_kh_loop, T_NEAR);
+        }
+
+        const int kh_steps = rnd_up(j.kh, j.kh_step);
+        sub(reg_ptr_tr_src, kh_steps * j.stride_w * j.tr_ld * typesize);
+        sub(reg_ptr_wei, kh_steps * j.kw * j.oc_block * typesize);
+    };
+
+    auto emit_oh_loop = [&]() {
+        mov(reg_oh, j.oh);
+
+        Label l_oh_loop;
+        L(l_oh_loop); {
+            Label l_restore_clear_flag, l_jump;
+
+            cmp(reg_oh, j.oh);
+            je(l_restore_clear_flag, T_NEAR);
+
+            {
+                xor_(reg_clear_flag, reg_clear_flag);
+                jmp(l_jump, T_NEAR);
+            }
+
+            L(l_restore_clear_flag); {
+                mov(reg_clear_flag, reg_channel);
+            }
+            L(l_jump);
+
+            emit_kh_loop();
+
+            add(reg_ptr_tr_src, j.stride_h * j.stride_w * j.tr_ld * typesize);
+            add(reg_ptr_dst, j.ow * j.oc_block * typesize);
+
+            dec(reg_oh);
+            jnz(l_oh_loop, T_NEAR);
+        }
+    };
+
+    mov(reg_ptr_tr_src, ptr[param + GET_OFF(src)]);
+    mov(reg_ptr_dst, ptr[param + GET_OFF(dst)]);
+    mov(reg_ptr_wei, ptr[param + GET_OFF(filt)]);
+    mov(reg_channel, ptr[param + GET_OFF(channel)]);
+
+    emit_oh_loop();
+
+    return true;
+}
+
 void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_loop()
 {
+    if (flat_4ops_compute())
+        return;
     if (compute_full_spat_loop())
         return;
     compute_oh_loop_common();
@@ -2449,20 +2607,37 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
         if (!src_ok)
             return status::unimplemented;
 
-        jcp.ver = ver_fma;
-        /* TODO: the following should be swapped */
-        jcp.ic_block = jcp.ic;
+        const int tr_ld = rnd_up(div_up(jcp.iw + jcp.l_pad + jcp.r_pad,
+                    jcp.stride_w), 16);
+        const auto want_4fma_wfmt = with_groups ? gOihw16o : Oihw16o;
+        const bool use_4fma = true
+            && mayiuse(avx512_mic_4ops)
+            && everyone_is(0, jcp.l_pad, jcp.r_pad, jcp.t_pad, jcp.b_pad)
+            && jcp.stride_w == 4
+            && tr_ld / simd_w <= 4 /* [bwd_w:tr_src:r1] */
+            && implication(diff_weights_d.format() != any,
+                    diff_weights_d.format() == want_4fma_wfmt);
+
+        if (use_4fma) {
+            jcp.ver = ver_4fma;
+            jcp.kh_step = 28 / jcp.kw;
+            jcp.tr_ld = tr_ld;
+            jcp.ic_block = 1;
+            if (diff_weights_d.format() == any)
+                CHECK(diff_weights_pd.set_format(want_4fma_wfmt));
+        } else {
+            jcp.ver = ver_fma;
+            jcp.ic_block = jcp.ic;
+
+            const auto want_wfmt = with_groups ? gOhwi16o : Ohwi16o;
+            if (diff_weights_d.format() == any)
+                CHECK(diff_weights_pd.set_format(want_wfmt));
+            if (diff_weights_d.format() != want_wfmt)
+                return status::unimplemented;
+        }
+
         jcp.nb_ic = jcp.ic / jcp.ic_block;
         jcp.src_fmt = src_d.format();
-
-        if (diff_weights_d.format() == any)
-            CHECK(diff_weights_pd.set_format(with_groups
-                        ? gOhwi16o : Ohwi16o));
-        const bool weights_ok = true
-            && diff_weights_d.format() == with_groups ? gOhwi16o : Ohwi16o;
-        if (!weights_ok)
-            return status::unimplemented;
-
         jcp.transpose_src = false;
     } else {
         if (src_d.format() == any)

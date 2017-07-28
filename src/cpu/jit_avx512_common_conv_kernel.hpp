@@ -301,6 +301,7 @@ private:
     inline void compute_oh_loop_common();
 
     inline bool compute_full_spat_loop();
+    inline bool flat_4ops_compute();
 
     inline void compute_loop();
 
