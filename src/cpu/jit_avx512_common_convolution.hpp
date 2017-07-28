@@ -222,8 +222,6 @@ private:
     jit_avx512_common_conv_bwd_data_kernel_f32 *kernel_;
 };
 
-#define USE_2D_P13N
-
 struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
     struct pd_t: public  cpu_convolution_bwd_weights_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
