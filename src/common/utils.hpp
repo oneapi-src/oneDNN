@@ -86,7 +86,8 @@ inline T&& forward(typename utils::remove_reference<T>::type &&t)
 { return static_cast<T&&>(t); }
 
 template <typename T>
-inline T zero() { T zero = T(); return zero; }
+inline typename remove_reference<T>::type zero()
+{ auto zero = typename remove_reference<T>::type(); return zero; }
 
 template <typename T, typename P>
 inline bool everyone_is(T val, P item) { return val == item; }
