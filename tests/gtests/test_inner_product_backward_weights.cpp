@@ -135,23 +135,11 @@ protected:
             create_md({ ipd.oc }, data_type, p.diff_bias_format) :
             create_md({}, data_type, p.diff_bias_format);
 
-        auto ip_src = memory(memory::primitive_desc(ip_src_desc, eng));
-        auto ip_diff_dst = memory(memory::primitive_desc(ip_diff_dst_desc, eng));
-        auto ip_diff_weights = memory(memory::primitive_desc(ip_diff_weights_desc, eng));
-        auto diff_weights_ref = memory(memory::primitive_desc(ip_diff_weights_desc, eng));
-        auto ip_diff_bias = memory(memory::primitive_desc(ip_diff_bias_desc, eng));
-        auto diff_bias_ref = memory(memory::primitive_desc(ip_diff_bias_desc, eng));
-
-        fill_data<data_t>(ip_src.get_primitive_desc().get_size() / sizeof(data_t),
-                (data_t *)ip_src.get_data_handle());
-        fill_data<data_t>(
-                ip_diff_dst.get_primitive_desc().get_size() / sizeof(data_t),
-                (data_t *)ip_diff_dst.get_data_handle());
-
         // Create inner product forward (hint for backward)
         auto ip_fwd_desc = inner_product_forward::desc(prop_kind::forward,
             ip_src_desc, ip_diff_weights_desc, ip_diff_dst_desc);
-        auto ip_fwd_pdesc = inner_product_forward::primitive_desc(ip_fwd_desc, eng);
+        auto ip_fwd_pdesc = inner_product_forward::primitive_desc(ip_fwd_desc,
+                eng);
 
         // Create inner product backward
         auto ip_desc = with_bias ?
@@ -160,9 +148,28 @@ protected:
             inner_product_backward_weights::desc(ip_src_desc,
                 ip_diff_weights_desc, ip_diff_dst_desc);
 
-
         auto ip_primitive_desc = inner_product_backward_weights::primitive_desc(
                 ip_desc, eng, ip_fwd_pdesc);
+
+        auto ip_src = memory(ip_primitive_desc.src_primitive_desc());
+        auto ip_diff_dst = memory(ip_primitive_desc.diff_dst_primitive_desc());
+        auto ip_diff_weights =
+            memory(ip_primitive_desc.diff_weights_primitive_desc());
+        auto diff_weights_ref =
+            memory(ip_primitive_desc.diff_weights_primitive_desc());
+        auto ip_diff_bias = with_bias ?
+                memory(ip_primitive_desc.diff_bias_primitive_desc()) :
+                memory(memory::primitive_desc(ip_diff_bias_desc, eng));
+        auto diff_bias_ref = with_bias ?
+                memory(ip_primitive_desc.diff_bias_primitive_desc()) :
+                memory(memory::primitive_desc(ip_diff_bias_desc, eng));
+
+        fill_data<data_t>(
+                ip_src.get_primitive_desc().get_size() / sizeof(data_t),
+                (data_t *)ip_src.get_data_handle());
+        fill_data<data_t>(
+                ip_diff_dst.get_primitive_desc().get_size() / sizeof(data_t),
+                (data_t *)ip_diff_dst.get_data_handle());
 
         auto ip = inner_product_backward_weights(ip_primitive_desc,
                     ip_src, ip_diff_dst, ip_diff_weights, ip_diff_bias);

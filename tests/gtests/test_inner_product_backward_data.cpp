@@ -110,21 +110,11 @@ protected:
         auto ip_diff_dst_desc =
                 create_md({ ipd.mb, ipd.oc }, data_type,p.diff_dst_format);
 
-        auto ip_diff_src = memory(memory::primitive_desc(ip_diff_src_desc, eng));
-        auto ip_weights = memory(memory::primitive_desc(ip_weights_desc, eng));
-        auto ip_diff_dst = memory(memory::primitive_desc(ip_diff_dst_desc, eng));
-        auto diff_src_ref = memory(memory::primitive_desc(ip_diff_src_desc, eng));
-
-        fill_data<data_t>(ip_diff_dst.get_primitive_desc().get_size() / sizeof(data_t),
-                (data_t *)ip_diff_dst.get_data_handle());
-        fill_data<data_t>(
-                ip_weights.get_primitive_desc().get_size() / sizeof(data_t),
-                (data_t *)ip_weights.get_data_handle());
-
         // Create inner product forward (hint for backward)
         auto ip_fwd_desc = inner_product_forward::desc(prop_kind::forward,
             ip_diff_src_desc, ip_weights_desc, ip_diff_dst_desc);
-        auto ip_fwd_pdesc = inner_product_forward::primitive_desc(ip_fwd_desc, eng);
+        auto ip_fwd_pdesc = inner_product_forward::primitive_desc(ip_fwd_desc,
+                eng);
 
         // Create inner product backward
         auto ip_desc = inner_product_backward_data::desc(ip_diff_src_desc,
@@ -132,6 +122,18 @@ protected:
 
         auto ip_primitive_desc = inner_product_backward_data::primitive_desc(
                 ip_desc, eng, ip_fwd_pdesc);
+
+        auto ip_diff_src = memory(ip_primitive_desc.diff_src_primitive_desc());
+        auto ip_weights = memory(ip_primitive_desc.weights_primitive_desc());
+        auto ip_diff_dst = memory(ip_primitive_desc.diff_dst_primitive_desc());
+        auto diff_src_ref = memory(ip_primitive_desc.diff_src_primitive_desc());
+
+        fill_data<data_t>(
+                ip_diff_dst.get_primitive_desc().get_size() / sizeof(data_t),
+                (data_t *)ip_diff_dst.get_data_handle());
+        fill_data<data_t>(
+                ip_weights.get_primitive_desc().get_size() / sizeof(data_t),
+                (data_t *)ip_weights.get_data_handle());
 
         auto ip = inner_product_backward_data(ip_primitive_desc,
                     ip_diff_dst, ip_weights, ip_diff_src);

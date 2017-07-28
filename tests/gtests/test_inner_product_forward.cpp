@@ -108,20 +108,6 @@ protected:
                 create_md({}, data_type, p.bias_format);
         auto ip_dst_desc = create_md({ ipd.mb, ipd.oc }, data_type, p.dst_format);
 
-        auto ip_src = memory(memory::primitive_desc(ip_src_desc, eng));
-        auto ip_weights = memory(memory::primitive_desc(ip_weights_desc, eng));
-        auto ip_bias = memory(memory::primitive_desc(ip_bias_desc, eng));
-        auto ip_dst = memory(memory::primitive_desc(ip_dst_desc, eng));
-        auto dst_ref = memory(memory::primitive_desc(ip_dst_desc, eng));
-
-        fill_data<data_t>(ip_src.get_primitive_desc().get_size() / sizeof(data_t),
-                (data_t *)ip_src.get_data_handle());
-        fill_data<data_t>(
-                ip_weights.get_primitive_desc().get_size() / sizeof(data_t),
-                (data_t *)ip_weights.get_data_handle());
-        fill_data<data_t>(ip_bias.get_primitive_desc().get_size() / sizeof(data_t),
-                (data_t *)ip_bias.get_data_handle());
-
         auto ip_desc = with_bias ?
             inner_product_forward::desc(p.aprop_kind,
                 ip_src_desc, ip_weights_desc, ip_bias_desc, ip_dst_desc) :
@@ -130,6 +116,24 @@ protected:
 
         auto ip_primitive_desc = inner_product_forward::primitive_desc(
                 ip_desc, eng);
+
+        auto ip_src = memory(ip_primitive_desc.src_primitive_desc());
+        auto ip_weights = memory(ip_primitive_desc.weights_primitive_desc());
+        auto ip_bias = with_bias ?
+            memory(ip_primitive_desc.bias_primitive_desc()) :
+            memory(memory::primitive_desc(ip_bias_desc, eng));
+        auto ip_dst = memory(ip_primitive_desc.dst_primitive_desc());
+        auto dst_ref = memory(ip_primitive_desc.dst_primitive_desc());
+
+        fill_data<data_t>(ip_src.get_primitive_desc().get_size() / sizeof(data_t),
+                (data_t *)ip_src.get_data_handle());
+        fill_data<data_t>(
+                ip_weights.get_primitive_desc().get_size() / sizeof(data_t),
+                (data_t *)ip_weights.get_data_handle());
+        if (with_bias) {
+            fill_data<data_t>(ip_bias.get_primitive_desc().get_size() /
+                    sizeof(data_t), (data_t *)ip_bias.get_data_handle());
+        }
 
         auto ip = with_bias ?
             inner_product_forward(ip_primitive_desc,
