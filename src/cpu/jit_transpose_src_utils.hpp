@@ -17,6 +17,7 @@
 #ifndef CPU_JIT_TRANSPOSE_SRC_HPP
 #define CPU_JIT_TRANSPOSE_SRC_HPP
 
+#include "cpu_barrier.hpp"
 #include "jit_primitive_conf.hpp"
 
 namespace mkldnn {
@@ -29,6 +30,11 @@ struct jit_trans_src_t {
         const void *tr_src;
         const void *src_prf;
         const void *tr_src_prf;
+
+        /* 1st conv 4fma: backward by weights */
+        int nthr_oc_b; /* number of threads process given src image */
+        int tr_src_ih_start, tr_src_ih_end; /* thread's transposition bounds */
+        simple_barrier::ctx_t *tr_src_bctx; /* transposition synchronization */
     };
 
     jit_trans_src_t(const jit_conv_conf_t *conf)

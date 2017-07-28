@@ -19,6 +19,7 @@
 #include "nstl.hpp"
 #include "utils.hpp"
 #include "jit_generator.hpp"
+#include "cpu_barrier.hpp"
 
 #include "jit_transpose_src_utils.hpp"
 
@@ -27,6 +28,8 @@ namespace impl {
 namespace cpu {
 
 using namespace Xbyak;
+
+#define GET_OFF(x) offsetof(ctx_t, x)
 
 struct jit_trans_iw_ic_t: public jit_trans_src_t, public jit_generator {
     jit_trans_iw_ic_t(const jit_conv_conf_t *conf): jit_trans_src_t(conf) {
@@ -278,12 +281,10 @@ void jit_trans_iw_ic_t::generate() {
     const int left_pad = conf_->l_pad;
     const int right_pad = tr_iw - iw - left_pad;
 
-#define GET_TR_OFF(x) offsetof(ctx_t, x)
-    mov(reg_src, ptr [param1 + GET_TR_OFF(src)]);
-    mov(reg_tr_src, ptr [param1 + GET_TR_OFF(tr_src)]);
-    mov(reg_src_prf, ptr [param1 + GET_TR_OFF(src_prf)]);
-    mov(reg_tr_src_prf, ptr [param1 + GET_TR_OFF(tr_src_prf)]);
-#undef GET_TR_OFF
+    mov(reg_src, ptr [param1 + GET_OFF(src)]);
+    mov(reg_tr_src, ptr [param1 + GET_OFF(tr_src)]);
+    mov(reg_src_prf, ptr [param1 + GET_OFF(src_prf)]);
+    mov(reg_tr_src_prf, ptr [param1 + GET_OFF(tr_src_prf)]);
 
     auto kmovw = [=](Opmask k, unsigned w) {
         mov(regw_tmp, w);
@@ -326,9 +327,158 @@ void jit_trans_iw_ic_t::generate() {
     postamble();
 }
 
+struct jit_trans_iw_x4_4x_t: public jit_trans_src_t, public jit_generator {
+    jit_trans_iw_x4_4x_t(const jit_conv_conf_t *conf): jit_trans_src_t(conf) {
+        generate();
+        ker_ = (decltype(ker_))this->getCode();
+    }
+
+    void generate();
+    enum { typesize = (int)sizeof(float) };
+};
+
+/** @brief transposition of the form [:][iw/4][4] -> [:][4][iw/4]
+ * required for 1st 4fma backward by weights convolution */
+void jit_trans_iw_x4_4x_t::generate() {
+    using namespace utils;
+
+    /* TODO: put into code */
+    static int mask[16] = {
+        0, 4, 8, 12, 1, 5, 9, 13, 2, 6, 10, 14, 3, 7, 11, 15, };
+
+    const auto &c = *conf_;
+    const int simd_w = cpu_isa_traits<avx512_common>::vlen / typesize;
+    const int niters = c.tr_ld / simd_w;
+
+    assert(niters <= 4); /* [bwd_w:tr_src:r1] */
+
+    Reg64 reg_ptr_src = r8;
+    Reg64 reg_ptr_tr_src = r9;
+
+    Reg64 reg_ih = rax;
+    Reg64 reg_ih_end = rbx;
+
+    Reg64 reg_nthr_oc_b = rsi;
+    Reg64 reg_ptr_tr_src_bctx = abi_not_param1;
+
+    Reg64 reg_tmp = rdx;
+
+    Zmm vmsk = Zmm(31);
+    Opmask kmsk = k7;
+
+    auto emit_tr_sync = [&]() {
+        simple_barrier::generate(*this, reg_ptr_tr_src_bctx, reg_nthr_oc_b);
+    };
+
+    auto emit_tr_iw = [&]() {
+        auto vreg = [](int iter, int i) {
+            assert(4 * iter + i < 24);
+            return Zmm(4 * iter + i);
+        };
+        auto vtmp = [](int i) { return Zmm(24 + i); };
+
+        auto emit_load = [&](int iter) {
+            for (int i = 0; i < 4; ++i) {
+                auto v = vreg(iter, i);
+                const size_t off = (iter * 4 + i) * simd_w;
+
+                if (off + simd_w <= c.iw)
+                    vmovups(v, ptr[reg_ptr_src + off * typesize]);
+                else if (off < c.iw)
+                    vmovups(v | kmsk | T_z, ptr[reg_ptr_src + off * typesize]);
+                else
+                    vpxord(v, v, v);
+            }
+        };
+
+        auto emit_tr = [&](int iter) {
+            for (int i = 0; i < 4; ++i)
+                vpermps(vreg(iter, i), vmsk, vreg(iter, i));
+
+            vshuff32x4(vtmp(0), vreg(iter, 0), vreg(iter, 1), 0x88);
+            vshuff32x4(vtmp(1), vreg(iter, 0), vreg(iter, 1), 0xdd);
+            vshuff32x4(vtmp(2), vreg(iter, 2), vreg(iter, 3), 0x88);
+            vshuff32x4(vtmp(3), vreg(iter, 2), vreg(iter, 3), 0xdd);
+
+            vshuff32x4(vreg(iter, 0), vtmp(0), vtmp(2), 0x88);
+            vshuff32x4(vreg(iter, 2), vtmp(0), vtmp(2), 0xdd);
+            vshuff32x4(vreg(iter, 1), vtmp(1), vtmp(3), 0x88);
+            vshuff32x4(vreg(iter, 3), vtmp(1), vtmp(3), 0xdd);
+        };
+
+        auto emit_store = [&]() {
+            for (int i = 0; i < 4; ++i) {
+                for (int iter = 0; iter < niters; ++iter) {
+                    const size_t off = i * c.tr_ld + iter * simd_w;
+                    vmovups(ptr[reg_ptr_tr_src + off * typesize], vreg(iter, i));
+                }
+            }
+        };
+
+        for (int iter = 0; iter < niters; ++iter)
+            emit_load(iter);
+
+        for (int iter = 0; iter < niters; ++iter)
+            emit_tr(iter);
+
+        emit_store();
+    };
+
+    preamble();
+
+    mov(reg_ptr_src, ptr[abi_param1 + GET_OFF(src)]);
+    mov(reg_ptr_tr_src, ptr[abi_param1 + GET_OFF(tr_src)]);
+
+    mov(reg_nthr_oc_b.cvt32(), ptr[abi_param1 + GET_OFF(nthr_oc_b)]);
+    mov(reg_ih.cvt32(), ptr[abi_param1 + GET_OFF(tr_src_ih_start)]);
+    mov(reg_ih_end.cvt32(), ptr[abi_param1 + GET_OFF(tr_src_ih_end)]);
+    mov(reg_ptr_tr_src_bctx, ptr[abi_param1 + GET_OFF(tr_src_bctx)]);
+
+    emit_tr_sync();
+
+    Label l_ih_loop, l_tr_done;
+    cmp(reg_ih, reg_ih_end);
+    je(l_tr_done, T_NEAR);
+
+    mov(reg_tmp, (size_t)&mask[0]);
+    vmovups(vmsk, ptr[reg_tmp]);
+
+    if (c.iw % simd_w) {
+        const char load_mask = (1 << (c.iw % simd_w)) - 1;
+        mov(reg_tmp, load_mask);
+        kmovw(kmsk, reg_tmp.cvt32());
+    }
+
+    /* src += ih_start * c.iw; */
+    imul(reg_tmp, reg_ih, c.iw * typesize);
+    add(reg_ptr_src, reg_tmp);
+    /* tr_src += ih_start * c.stride_w * c.tr_ld; */
+    imul(reg_tmp, reg_ih, c.stride_w * c.tr_ld * typesize);
+    add(reg_ptr_tr_src, reg_tmp);
+
+    L(l_ih_loop); {
+        emit_tr_iw();
+
+        add(reg_ptr_src, c.iw * typesize);
+        add(reg_ptr_tr_src, c.stride_w * c.tr_ld * typesize);
+
+        inc(reg_ih);
+        cmp(reg_ih, reg_ih_end);
+        jl(l_ih_loop, T_NEAR);
+    }
+
+    L(l_tr_done);
+
+    emit_tr_sync();
+
+    postamble();
+}
+
 jit_trans_src_t *create_trans_src(const jit_conv_conf_t *conf) {
     if (conf->ver == ver_4fma && !conf->is_1stconv)
         return new jit_trans_iw_ic_t(conf);
+    if (conf->ver == ver_4fma && conf->is_1stconv)
+        return new jit_trans_iw_x4_4x_t(conf);
     assert(!"unsupported configuration");
     return nullptr;
 }
