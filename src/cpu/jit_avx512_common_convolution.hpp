@@ -274,8 +274,9 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
     jit_avx512_common_convolution_bwd_weights_t(const pd_t *pd,
             const input_vector &inputs, const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
-        , kernel_(nullptr), trans_kernel_(nullptr), tr_src_(nullptr)
-        , reducer_bias_(nullptr), ws_reduction_(nullptr), tr_src_bctx_(nullptr)
+        , kernel_(nullptr), trans_kernel_(nullptr), acc_ker_(nullptr)
+        , tr_src_(nullptr) , reducer_bias_(nullptr), ws_reduction_(nullptr)
+        , tr_src_bctx_(nullptr)
     {
         const auto &j = conf_.jcp_;
         kernel_ = new jit_avx512_common_conv_bwd_weights_kernel_f32(j);
@@ -300,10 +301,12 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
                 simple_barrier::ctx_init(&tr_src_bctx_[i]);
         }
 
-        const int wei_size = j.ngroups * j.oc * j.ic * j.kh * j.kw;
-        ws_reduction_ = (data_t *)malloc(
-                (nthr_mb_ - 1) * wei_size * sizeof(data_t), 64);
-        acc_ker_ = new cpu_accumulator_1d_t<data_type::f32>();
+        if (nthr_mb_ > 1) {
+            const int wei_size = j.ngroups * j.oc * j.ic * j.kh * j.kw;
+            ws_reduction_ = (data_t *)malloc(
+                    (nthr_mb_ - 1) * wei_size * sizeof(data_t), 64);
+            acc_ker_ = new cpu_accumulator_1d_t<data_type::f32>();
+        }
 
         if (conf_.with_bias()) {
             const size_t max_buffer_size = nthr_ * 3 * 5 * 5 * 16 * 16;
@@ -317,7 +320,8 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
         delete kernel_;
         if (trans_kernel_)
             delete trans_kernel_;
-        delete acc_ker_;
+        if (acc_ker_)
+            delete acc_ker_;
         delete reducer_bias_;
 
         free(tr_src_);
