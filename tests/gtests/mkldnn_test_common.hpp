@@ -210,15 +210,33 @@ static void compare_data(mkldnn::memory& ref, mkldnn::memory& dst)
     ASSERT_TRUE(data_traits<data_t>::data_type == data_type::f32 ||
             data_traits<data_t>::data_type == data_type::s32);
 
-    // Only true for dense format
     /* Note: size_t incompatible with MSVC++ */
-    ptrdiff_t num = ref.get_primitive_desc().get_size() / sizeof(data_t);
+    auto ref_desc = ref.get_primitive_desc().desc();
+    auto dst_desc = dst.get_primitive_desc().desc();
+
+    ASSERT_TRUE(ref_desc.data.ndims == dst_desc.data.ndims);
+
+    auto ndims = ref_desc.data.ndims;
+
+    for (auto d = 0; d < ndims; ++d) {
+        ASSERT_TRUE(ref_desc.data.dims[d] == dst_desc.data.dims[d]);
+    }
+
+    auto dims = ref_desc.data.dims;
+
+    ptrdiff_t num = 1;
+    for (auto d = 0; d < ndims; ++d) {
+        num *= dims[d];
+    }
+
     data_t *ref_data = (data_t *)ref.get_data_handle();
     data_t *dst_data = (data_t *)dst.get_data_handle();
+
 #   pragma omp parallel for schedule(static)
     for (ptrdiff_t i = 0; i < num; ++i) {
-        data_t ref = ref_data[i];
-        data_t got = dst_data[i];
+        data_t ref = ref_data[map_index(ref_desc, i)];
+        data_t got = dst_data[map_index(dst_desc, i)];
+
         if (data_traits<data_t>::data_type == data_type::f32) {
             data_t diff = got - ref;
             data_t e = std::abs(ref) > 1e-4 ? diff / ref : diff;
