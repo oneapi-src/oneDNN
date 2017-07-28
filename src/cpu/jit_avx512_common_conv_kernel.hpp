@@ -18,6 +18,8 @@
 #define JIT_AVX512_COMMON_CONV_KERNEL_F32_HPP
 
 #include "c_types_map.hpp"
+#include "cpu_memory.hpp"
+
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
 
@@ -253,10 +255,9 @@ struct jit_avx512_common_conv_bwd_weights_kernel_f32 : public jit_generator {
     }
 
     static status_t init_conf(jit_conv_conf_t &jcp,
-        const convolution_desc_t &cd,
-        const memory_desc_wrapper &src_d,
-        const memory_desc_wrapper &diff_weights_d,
-        const memory_desc_wrapper &diff_dst_d);
+            const convolution_desc_t &cd, cpu_memory_t::pd_t &src_pd,
+            cpu_memory_t::pd_t &diff_weights_pd,
+            cpu_memory_t::pd_t &diff_bias_pd, cpu_memory_t::pd_t &diff_dst_pd);
 
     jit_conv_conf_t jcp;
     void (*jit_ker)(jit_conv_call_s *);

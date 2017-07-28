@@ -18,6 +18,7 @@
 #include "nstl.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
+#include "cpu_memory.hpp"
 
 #include "jit_avx512_common_conv_kernel.hpp"
 
@@ -2340,15 +2341,23 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::generate()
 }
 
 status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
-    jit_conv_conf_t &jcp,
-    const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
-    const memory_desc_wrapper &diff_weights_d,
-    const memory_desc_wrapper &diff_dst_d)
+    jit_conv_conf_t &jcp, const convolution_desc_t &cd,
+    cpu_memory_t::pd_t &src_pd, cpu_memory_t::pd_t &diff_weights_pd,
+    cpu_memory_t::pd_t &diff_bias_pd, cpu_memory_t::pd_t &diff_dst_pd)
 {
     if (!mayiuse(avx512_common))
         return status::unimplemented;
+
+    const int simd_w = cpu_isa_traits<avx512_common>::vlen / sizeof(float);
+
+    const memory_desc_wrapper src_d(&src_pd);
+    const memory_desc_wrapper diff_weights_d(&diff_weights_pd);
+    const memory_desc_wrapper diff_bias_d(&diff_bias_pd);
+    const memory_desc_wrapper diff_dst_d(&diff_dst_pd);
+
     const bool with_groups = diff_weights_d.ndims() == src_d.ndims() + 1;
 
+    jcp = zero<decltype(jcp)>();
     jcp.prop_kind = cd.prop_kind;
 
     jcp.ngroups = with_groups ? diff_weights_d.dims()[0] : 1;
@@ -2381,81 +2390,106 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
     jcp.b_pad = nstl::max(0, (jcp.oh - 1) * jcp.stride_h + jcp.kh - jcp.ih
         - jcp.t_pad);
 
-    jcp.src_fmt = src_d.format();
-    jcp.with_bias = cd.diff_bias_desc.format != memory_format::undef;
-    jcp.with_relu = 0;
-    jcp.relu_negative_slope = 0;
-
-    const bool flat = jcp.ic == 3;
-    const bool mimo = !flat;
-
-    const int simd_w = 16;
-
     jcp.ihp = jcp.ih + jcp.t_pad + jcp.b_pad;
     jcp.iwp = jcp.iw + jcp.l_pad + jcp.r_pad;
     jcp.ohp = jcp.oh;
     jcp.owp = jcp.ow;
 
-    bool args_ok = true
-        && implication(flat, one_of(src_d.format(), nchw, nhwc))
-        && implication(flat, one_of(diff_weights_d.format(), Ohwi16o, gOhwi16o))
-        && implication(mimo, src_d.format() == nChw16c)
-        && implication(mimo, one_of(diff_weights_d.format(), OIhw16i16o, gOIhw16i16o))
-        && one_of(cd.bias_desc.format, memory_format::undef, any, x)
-        && diff_dst_d.format() == nChw16c;
-    if (!args_ok)
-        return status::unimplemented;
-
-    jcp.is_1stconv = false;
-    if (jcp.ic % simd_w != 0) {
-        if ((jcp.ic == 3 || jcp.ic == 1) && jcp.src_fmt == nchw)
-            jcp.is_1stconv = true;
-        else return status::unimplemented;
-    }
-    jcp.ic_block = (jcp.ic % simd_w) ? jcp.ic : simd_w;
-    jcp.nb_ic = jcp.ic / jcp.ic_block;
-
-    if (jcp.is_1stconv) {
-        jcp.ic_block = jcp.ic;
-        jcp.nb_ic = 1;
+    /* conditions on bias memory */
+    jcp.with_bias = cd.diff_bias_desc.format != memory_format::undef;
+    if (jcp.with_bias) {
+        if (diff_bias_d.format() == any)
+            CHECK(diff_bias_pd.set_format(x));
+        if (diff_bias_d.format() != x)
+            return status::unimplemented;
     }
 
+    /* conditions on destination memory */
     jcp.oc_block = simd_w;
-    if (jcp.oc % jcp.oc_block) return status::unimplemented;
+    if (jcp.oc % jcp.oc_block)
+        return status::unimplemented;
     jcp.nb_oc = jcp.oc / jcp.oc_block;
 
-    jcp.ur_h = 1; /* no code-unrolling by h so far */
-    jcp.nb_ic_blocking = 1;
-    jcp.nb_oc_blocking = 1;
+    if (diff_dst_d.format() == any)
+        CHECK(diff_dst_pd.set_format(nChw16c));
+    if (diff_dst_d.format() != nChw16c)
+        return status::unimplemented;
 
-    if (jcp.kw > 14) return status::unimplemented;
-    if (jcp.is_1stconv && jcp.ngroups > 1) return status::unimplemented;
-
-    bool args_ok1 = true
+    /* kernel applicability check wrt boundaries
+     * the conditions are quite general across the kernels we have,
+     * but ideally the check should belong to a specific kernel... */
+    const bool boundaries_ok = true
         && jcp.t_pad <= jcp.kh / 2
         && jcp.b_pad <= jcp.kh / 2
         && jcp.kh <= jcp.t_pad + jcp.ih /* [bwd_w:r1] */
         && jcp.kh <= jcp.ih; /* [bwd_w:r2] */
-    if (!args_ok1) return status::unimplemented;
+    if (!boundaries_ok)
+        return status::unimplemented;
 
+    /* yet another common check */
+    if (jcp.kw > 14)
+        return status::unimplemented;
+
+    /* setting register strategy */
     for (int ur_w = nstl::min(max_ur_w, jcp.ow); ur_w > 0; --ur_w) {
-        if (jcp.ow % ur_w == 0) {
-            jcp.ur_w = ur_w;
-            break;
-        }
+        if (jcp.ow % ur_w == 0) { jcp.ur_w = ur_w; break; }
     }
 
-    if (mayiuse(avx512_mic_4ops)
-            && jcp.stride_w == 1 // transposing output and diff_filter can help
-            && !jcp.is_1stconv)
-        jcp.ver = ver_4fma;
-    else
-        jcp.ver = ver_fma;
+    /* check for the 1st convolution */
+    jcp.is_1stconv = jcp.ic % simd_w;
+    if (jcp.is_1stconv) {
+        if (src_d.format() == any)
+            CHECK(src_pd.set_format(nchw));
 
-    jcp.transpose_src = (jcp.ver == ver_4fma);
-    if (jcp.transpose_src) {
-        jcp.ur_w = jcp.ow;
-        if (jcp.ver == ver_4fma) {
+        const bool src_ok = true
+            && one_of(jcp.ic, 1, 3)
+            && implication(jcp.ic == 1, one_of(src_d.format(), nchw, nhwc))
+            && implication(jcp.ic != 1, src_d.format() == nchw)
+            && jcp.ngroups == 1;
+        if (!src_ok)
+            return status::unimplemented;
+
+        jcp.ver = ver_fma;
+        /* TODO: the following should be swapped */
+        jcp.ic_block = jcp.ic;
+        jcp.nb_ic = jcp.ic / jcp.ic_block;
+        jcp.src_fmt = src_d.format();
+
+        if (diff_weights_d.format() == any)
+            CHECK(diff_weights_pd.set_format(with_groups
+                        ? gOhwi16o : Ohwi16o));
+        const bool weights_ok = true
+            && diff_weights_d.format() == with_groups ? gOhwi16o : Ohwi16o;
+        if (!weights_ok)
+            return status::unimplemented;
+
+        jcp.transpose_src = false;
+    } else {
+        if (src_d.format() == any)
+            CHECK(src_pd.set_format(nChw16c));
+        if (diff_weights_d.format() == any)
+            CHECK(diff_weights_pd.set_format(with_groups
+                        ? gOIhw16i16o : OIhw16i16o));
+
+        const bool ok = true
+            && src_d.format() == nChw16c
+            && diff_weights_d.format() == with_groups
+                    ? gOIhw16i16o : OIhw16i16o;
+        if (!ok)
+            return status::unimplemented;
+
+        jcp.ic_block = simd_w;
+        jcp.nb_ic = jcp.ic / jcp.ic_block;
+        jcp.src_fmt = src_d.format();
+
+        if (mayiuse(avx512_mic_4ops) && jcp.stride_w == 1)
+            jcp.ver = ver_4fma;
+        else
+            jcp.ver = ver_fma;
+
+        jcp.transpose_src = jcp.ver == ver_4fma;
+        if (jcp.transpose_src) {
+            jcp.ur_w = jcp.ow;
             // XXX, BUGBUGBUG, but not a FIXME: this assumes that it's OK to
             // cross the right boundary. The only requirement is not to have
             // NaNs there because another multiplicand is always guaranteed to
@@ -2465,9 +2499,6 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
             // about 5-10% depending on the dimensions (Roma)
             jcp.tr_iw = rnd_up(jcp.iw + jcp.kw - 1, 4);
             jcp.tr_src_num_guard_elems = 4; // upper bound
-        } else {
-            jcp.tr_iw = jcp.iw;
-            jcp.tr_src_num_guard_elems = 0;
         }
     }
 

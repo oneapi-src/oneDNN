@@ -234,7 +234,6 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
         virtual status_t init() override {
             assert(this->engine()->kind() == engine_kind::cpu);
             bool ok = true
-                && this->set_default_params() == status::success
                 && this->desc()->prop_kind == prop_kind::backward_weights
                 && this->desc()->alg_kind == alg_kind::convolution_direct
                 && utils::everyone_is(data_type::f32,
@@ -244,31 +243,11 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
             if (!ok) return status::unimplemented;
 
             return jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
-                    jcp_,
-                    *this->desc(), *this->src_pd_.desc(),
-                    *this->diff_weights_pd_.desc(),
-                    *this->diff_dst_pd_.desc());
+                    jcp_, *this->desc(), this->src_pd_, this->diff_weights_pd_,
+                    this->diff_bias_pd_, this->diff_dst_pd_);
         }
 
         jit_conv_conf_t jcp_;
-
-    protected:
-        virtual status_t set_default_params() override {
-            using namespace memory_format;
-            const bool flat = this->IC() == 3;
-
-            if (this->src_pd_.desc()->format == any)
-                CHECK(this->src_pd_.set_format(flat ? nchw : nChw16c));
-            if (this->diff_dst_pd_.desc()->format == any)
-                CHECK(this->diff_dst_pd_.set_format(nChw16c));
-            if (this->diff_weights_pd_.desc()->format == any)
-                CHECK(this->diff_weights_pd_.set_format(this->with_groups()
-                            ? (flat ? gOhwi16o : gOIhw16i16o)
-                            : (flat ? Ohwi16o : OIhw16i16o)));
-            if (this->diff_bias_pd_.desc()->format == any)
-                CHECK(this->diff_bias_pd_.set_format(x));
-            return status::success;
-        }
     };
 
     jit_avx512_common_convolution_bwd_weights_t(const pd_t *pd,
