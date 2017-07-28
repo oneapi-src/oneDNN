@@ -270,7 +270,7 @@ jit_avx512_common_convolution_bwd_weights_t(const pd_t *pd,
         // XXX: See the comment about tr_iw and guarding elements in
         // jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf()
         const int tr_src_size0 =
-            j.mb * j.ngroups * j.nb_ic * j.ic_block * j.tr_iw * j.ih;
+            nthr_mb_ * j.ngroups * j.nb_ic * j.ic_block * j.tr_iw * j.ih;
         const size_t tr_src_size = tr_src_size0 + j.tr_src_num_guard_elems;
         tr_src_ = (data_t *)malloc(tr_src_size * sizeof(data_t), 64);
         for (size_t i = tr_src_size0; i < tr_src_size; i++)
@@ -317,12 +317,12 @@ void jit_avx512_common_convolution_bwd_weights_t::execute_backward_weights() {
 
     // TODO: use memory descriptor with the same fmt as src
     //       (or use a macro :))
-    auto tr_src_off = [&](int img, int ic, int ij) {
+    auto tr_src_off = [&](int ithr_mb, int ic, int ij) {
         const size_t tr_row_size = jcp.tr_iw * jcp.ic_block;
         const size_t tr_chn_size = tr_row_size * jcp.ih;
         const size_t tr_img_size = tr_chn_size * jcp.nb_ic * jcp.ngroups;
 
-        return img * tr_img_size + ic * tr_chn_size + ij * tr_row_size;
+        return ithr_mb * tr_img_size + ic * tr_chn_size + ij * tr_row_size;
     };
 
     auto uker_trans = [&](int ithr_mb, int img, int g_start, int g_work,
