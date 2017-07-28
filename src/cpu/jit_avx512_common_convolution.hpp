@@ -277,7 +277,7 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
             const input_vector &inputs, const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
         , kernel_(nullptr), trans_kernel_(nullptr), tr_src_(nullptr)
-        , reducer_bias_(nullptr), ws_reduction_(nullptr), bctx_(nullptr)
+        , reducer_bias_(nullptr), ws_reduction_(nullptr), tr_src_bctx_(nullptr)
     {
         const auto &j = conf_.jcp_;
         kernel_ = new jit_avx512_common_conv_bwd_weights_kernel_f32(j);
@@ -295,10 +295,10 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
                 tr_src_[i] = 0;
             trans_kernel_ = create_trans_src(&j);
 
-            bctx_ = (simple_barrier::ctx_t *)malloc(
+            tr_src_bctx_ = (simple_barrier::ctx_t *)malloc(
                     nthr_ * sizeof(simple_barrier::ctx_t), 64);
             for (int i = 0; i < nthr_; ++i)
-                simple_barrier::ctx_init(&bctx_[i]);
+                simple_barrier::ctx_init(&tr_src_bctx_[i]);
         }
 
         const int wei_size = j.ngroups * j.oc * j.ic * j.kh * j.kw;
@@ -324,7 +324,7 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
         free(tr_src_);
         free(ws_reduction_);
 
-        free(bctx_);
+        free(tr_src_bctx_);
     }
 
     typedef typename prec_traits<data_type::f32>::type data_t;
@@ -349,7 +349,7 @@ private:
     data_t *ws_reduction_;
 
     int nthr_, nthr_mb_, nthr_g_, nthr_oc_b_, nthr_ic_b_;
-    simple_barrier::ctx_t *bctx_;
+    simple_barrier::ctx_t *tr_src_bctx_;
 };
 
 }

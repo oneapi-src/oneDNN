@@ -352,12 +352,13 @@ void jit_avx512_common_convolution_bwd_weights_t::execute_backward_weights() {
         for (int img = img_start; img < img_end; ++img) {
             if (jcp.transpose_src) {
                 /* tr_src[nb_ic][ih][16][~iw~] <- src[nb_ic][ih][iw][16] */
+                using simple_barrier::barrier;
                 if (nthr_oc_b_ > 1)
-                    simple_barrier::barrier(&bctx_[ithr_but_oc], nthr_oc_b_);
+                    barrier(&tr_src_bctx_[ithr_but_oc], nthr_oc_b_);
                 uker_trans(ithr_mb, img, g_start, g_work, ic_b_start,
                         ic_b_work, ithr_oc_b, nthr_oc_b_);
                 if (nthr_oc_b_ > 1)
-                    simple_barrier::barrier(&bctx_[ithr_but_oc], nthr_oc_b_);
+                    barrier(&tr_src_bctx_[ithr_but_oc], nthr_oc_b_);
             }
 
             for (int g = g_start; g < g_end; ++g) {
