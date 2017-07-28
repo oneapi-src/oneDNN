@@ -282,6 +282,8 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
         const auto &j = conf_.jcp_;
         kernel_ = new jit_avx512_common_conv_bwd_weights_kernel_f32(j);
 
+        balance();
+
         if (j.transpose_src) {
             // XXX: See the comment about tr_iw and guarding elements in
             // jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf()
@@ -292,14 +294,12 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
             for (size_t i = tr_src_size0; i < tr_src_size; i++)
                 tr_src_[i] = 0;
             trans_kernel_ = create_trans_src(&j);
+
+            bctx_ = (simple_barrier::ctx_t *)malloc(
+                    nthr_ * sizeof(simple_barrier::ctx_t), 64);
+            for (int i = 0; i < nthr_; ++i)
+                simple_barrier::ctx_init(&bctx_[i]);
         }
-
-        balance();
-
-        bctx_ = (simple_barrier::ctx_t *)malloc(
-                nthr_ * sizeof(simple_barrier::ctx_t), 64);
-        for (int i = 0; i < nthr_; ++i)
-            simple_barrier::ctx_init(&bctx_[i]);
 
         const int wei_size = j.ngroups * j.oc * j.ic * j.kh * j.kw;
         ws_reduction_ = (data_t *)malloc(
