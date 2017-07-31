@@ -277,6 +277,11 @@ private:
     void execute_backward_weights();
     void balance();
 
+    struct thread_info_t;
+    void compute_diff_weights(const thread_info_t *);
+    void reduce_diff_weights(const thread_info_t *);
+    void compute_diff_bias(const thread_info_t *);
+
     pd_t conf_;
 
     jit_avx512_common_conv_bwd_weights_kernel_f32 *kernel_;
@@ -288,7 +293,7 @@ private:
     data_t *ws_reduction_;
 
     int nthr_, nthr_mb_, nthr_g_, nthr_oc_b_, nthr_ic_b_;
-    simple_barrier::ctx_t *tr_src_bctx_;
+    simple_barrier::ctx_t *tr_src_bctx_, reduction_bctx_;
 };
 
 }
