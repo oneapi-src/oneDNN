@@ -118,7 +118,7 @@ struct jit_conv_call_s {
     size_t channel;
     size_t channel_prf;
     size_t oc_blocks;
-    int ic_flag;
+    int flags;
 };
 
 struct jit_1x1_conv_conf_t {

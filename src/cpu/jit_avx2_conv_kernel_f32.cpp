@@ -300,7 +300,7 @@ void jit_avx2_conv_fwd_kernel_f32::generate()
     if (jcp.with_bias)
         mov(reg_bias, ptr[this->param1 + GET_OFF(bias)]);
     mov(reg_kh, ptr[this->param1 + GET_OFF(kh_padding)]);
-    mov(reg_ci_flag, ptr[this->param1 + GET_OFF(ic_flag)]);
+    mov(reg_ci_flag, ptr[this->param1 + GET_OFF(flags)]);
     mov(reg_oc_blocks, ptr[this->param1 + GET_OFF(oc_blocks)]);
 
     int nb_oc_tail = jcp.nb_oc % jcp.nb_oc_blocking;
