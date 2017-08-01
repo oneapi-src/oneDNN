@@ -2333,11 +2333,40 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32::compute_full_spat_loop()
 
             Label kh_loop_work;
             cmp(reg_h, 0);
-            jg(kh_loop_work);
+            jg(kh_loop_work, T_NEAR);
 
-            // empty h loop for this jcp.kh, move ker ptr and jump to the end
+            // empty h loop for this jcp.kh:
+            // - set the output to 0 if necessary
+            // - move ker pt
+            // - jump to the end
             sub(reg_h, 1);
-            add(reg_ker, 256 * jcp.kw * typesize);
+            Label skip_ker_zeroing;
+
+            // The reg_ker ptr has highest bit set if the output needs to be
+            // zeroed. Those who have byte-aligned their data will suffer the
+            // consiquences :(
+            // TODO: move the flag to a mask register? (Roma)
+            test(reg_tmp, 1);
+            jnz(skip_ker_zeroing, T_NEAR);
+
+            Label zeroing_loop;
+            vpxord(zmm0, zmm0, zmm0);
+            and_(reg_ker, ~1); // temporarily clear the zeroing flag
+            mov(reg_tmp, jcp.kw);
+            L(zeroing_loop); {
+                for (int ic1 = 0; ic1 < jcp.ic_block; ic1++)
+                    vmovups(ker_addr(ic1), zmm0);
+                add(reg_ker, jcp.oc_block * jcp.ic_block * typesize);
+                sub(reg_tmp, 1);
+                jnz(zeroing_loop, T_NEAR);
+            }
+            // restore the zeroing flag (it will be cleared after the end of
+            // emit_kh_kw_loop, but we may need it until then)
+            or_(reg_ker, 1);
+            jmp(kh_loop_end, T_NEAR);
+
+            L(skip_ker_zeroing);
+            add(reg_ker, jcp.oc_block * jcp.ic_block * jcp.kw * typesize);
             jmp(kh_loop_end, T_NEAR);
 
             L(kh_loop_work);
@@ -2435,7 +2464,7 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32::compute_full_spat_loop()
         size_t ker_reset_offset
             = jcp.oc_block * jcp.ic_block * typesize * jcp.kw * jcp.kh;
         sub(reg_ker, ker_reset_offset);
-        and_(reg_ker, ~1); // reset zeroing flag
+        and_(reg_ker, ~1); // Clear the zeroing flag for subsequent updates
 
         size_t inp_row_step = jcp.tr_iw * jcp.ic_block * typesize;
         size_t out_block_step
