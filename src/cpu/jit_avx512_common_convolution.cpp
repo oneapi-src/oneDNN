@@ -264,10 +264,14 @@ jit_avx512_common_convolution_bwd_weights_t(const pd_t *pd,
 
     balance();
 
-    if (j.transpose_src || (j.ver == ver_4fma && j.is_1stconv)) {
+    if (j.ver == ver_4fma) {
         trans_kernel_ = create_trans_src(&j);
 
-        if (j.transpose_src) {
+        if (j.is_1stconv) {
+            const int tr_src_size =
+                nthr_ / nthr_oc_b_ * j.ih * j.stride_w * j.tr_ld;
+            tr_src_ = (data_t *)malloc(tr_src_size * sizeof(data_t), 64);
+        } else {
             // XXX: See the comment about tr_iw and guarding elements in
             // jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf()
             const int tr_src_size0 =
@@ -276,10 +280,6 @@ jit_avx512_common_convolution_bwd_weights_t(const pd_t *pd,
             tr_src_ = (data_t *)malloc(tr_src_size * sizeof(data_t), 64);
             for (size_t i = tr_src_size0; i < tr_src_size; i++)
                 tr_src_[i] = 0;
-        } else {
-            const int tr_src_size =
-                nthr_ / nthr_oc_b_ * j.ih * j.stride_w * j.tr_ld;
-            tr_src_ = (data_t *)malloc(tr_src_size * sizeof(data_t), 64);
         }
 
         /* prepare synchronization contexts */
@@ -481,7 +481,7 @@ void jit_avx512_common_convolution_bwd_weights_t::compute_diff_weights(
         for (int img = ti->img_start; img < ti->img_end; ++img) {
             p.channel = img == ti->img_start;
 
-            if (jcp.transpose_src) {
+            if (jcp.ver == ver_4fma) {
                 /* tr_src[nb_ic][ih][16][~iw~] <- src[nb_ic][ih][iw][16] */
                 using simple_barrier::barrier;
                 if (nthr_oc_b_ > 1)
@@ -497,7 +497,7 @@ void jit_avx512_common_convolution_bwd_weights_t::compute_diff_weights(
                 const int _oc = g * jcp.nb_oc + oc_b;
                 const int _ic = g * jcp.nb_ic + ic_b;
 
-                p.src = jcp.transpose_src
+                p.src = jcp.ver == ver_4fma
                     ? &tr_src_[tr_src_off(ti->ithr_mb, _ic, 0)]
                     : &ti->src[src_d.blk_off(img, _ic)];
                 p.dst = &ti->diff_dst[diff_dst_d.blk_off(img, _oc)];

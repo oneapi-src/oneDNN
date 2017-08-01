@@ -63,7 +63,6 @@ struct jit_conv_conf_t {
     int ur_w_tail;
     bool is_1stconv;
     /* 4fma */
-    bool transpose_src;
     int tr_iw;
     int tr_src_num_guard_elems;
     /* 1st conv: 4fma */
