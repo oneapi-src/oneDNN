@@ -2110,6 +2110,26 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32::compute_full_spat_loop()
     //      reduce code size)
     //          Loop over OW block -- emit_fma_step()
 
+    int max_working_set_size = 256 * 1024;
+
+    int inp_row_size = jcp.ic_block * jcp.tr_iw * typesize;
+    int out_row_size = jcp.oc_block * jcp.ow * typesize;
+    int row_size = inp_row_size + out_row_size;
+
+    int h_block_size = jcp.oh;
+    while (h_block_size * row_size > max_working_set_size) {
+        for (int i = 2; i <= h_block_size; i++)
+            if (i == h_block_size)
+                h_block_size = h_block_size / 2;
+            else if (h_block_size % i == 0) {
+                h_block_size = h_block_size / i;
+                break;
+            }
+    }
+
+    if (h_block_size == 0)
+        return false;
+
     Opmask reg_h_block = k1; // 32-bit only on Intel(R) Xeon Phi(TM) processors
     Reg64 reg_kh = rax;
     Reg64 reg_kw = rbx;
@@ -2144,13 +2164,16 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32::compute_full_spat_loop()
         return ptr[reg_ker + ic1 * jcp.oc_block * typesize];
     };
 
-    auto emit_fma_block = [&](int block_size,
+    auto emit_fma_block = [&](int h_block_size,
             bool is_last_block, bool is_last_kh_kw_iter, bool is_last_row)
     {
         int ow4u = rnd_up(jcp.ow, 4);
+        int def_step_size = 16;
 
         bool pf1_inp = is_last_kh_kw_iter;
         bool pf1_out = is_last_kh_kw_iter;
+        bool has_w_tail = (jcp.ow % def_step_size != 0 || jcp.ow % 4 != 0);
+        bool full_w_unroll = jcp.ow / def_step_size < 2 + has_w_tail;
 
         int simd_w = cpu_isa_traits<avx512_common>::vlen / typesize;
 
@@ -2199,16 +2222,17 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32::compute_full_spat_loop()
             }
         };
 
-        auto emit_fma_step = [&](int step_size, bool tail) {
+        auto emit_fma_step = [&](int step_size, bool is_w_tail) {
             assert(step_size % 4 == 0);
             int tail_size = ow4u % step_size;
-            int this_step_size = tail && tail_size ? tail_size : step_size;
+            int this_step_size
+                = (is_w_tail && tail_size) ? tail_size : step_size;
             int ow_last_chunk4 = jcp.ow % 4;
             int ow_zero_tail4 = ow_last_chunk4 ? 4 - ow_last_chunk4 : 0;
             for (int oi4 = 0; oi4 < this_step_size; oi4 += 4) {
                 for (int oi1 = 0; oi1 < 4; oi1++) {
                     int oi = oi4 + oi1;
-                    if (!tail || oi < this_step_size - ow_zero_tail4) {
+                    if (!is_w_tail || oi < this_step_size - ow_zero_tail4) {
                         vmovups(zmm_out(oi), out_addr(oi));
                         emit_out_pf(oi);
                     } else {
@@ -2224,31 +2248,27 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32::compute_full_spat_loop()
             }
         };
 
-        int w_step = 16;
-        bool has_tail = (jcp.ow % w_step != 0 || jcp.ow % 4 != 0);
-        bool full_unroll = jcp.ow / w_step < 2 + has_tail;
-
-        if (full_unroll)
-            emit_fma_step(ow4u, true);
+        if (full_w_unroll)
+            emit_fma_step(ow4u, false);
         else {
             Label w_loop;
-            int num_w_iters = jcp.ow / w_step;
+            int num_w_iters = jcp.ow / def_step_size;
             mov(reg_i, num_w_iters);
             L(w_loop); {
-                emit_fma_step(w_step, false);
-                add(reg_inp, w_step * typesize);
-                add(reg_out, w_step * jcp.oc_block * typesize);
+                emit_fma_step(def_step_size, false);
+                add(reg_inp, def_step_size * typesize);
+                add(reg_out, def_step_size * jcp.oc_block * typesize);
                 sub(reg_i, 1);
                 jnz(w_loop);
             }
-            if (has_tail)
-                emit_fma_step(w_step, true);
-            sub(reg_inp, num_w_iters * w_step * typesize);
-            sub(reg_out, num_w_iters * w_step * jcp.oc_block * typesize);
+            if (has_w_tail)
+                emit_fma_step(def_step_size, true);
+            sub(reg_inp, num_w_iters * def_step_size * typesize);
+            sub(reg_out, num_w_iters * def_step_size * jcp.oc_block * typesize);
         }
     };
 
-    auto emit_h_loop = [&](int block_size,
+    auto emit_h_loop = [&](int h_block_size,
             bool is_last_block, bool is_last_kh_kw_iter)
     {
         Label h_loop, skip_h_loop;
@@ -2257,7 +2277,7 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32::compute_full_spat_loop()
         je(skip_h_loop, T_NEAR);
         L(h_loop); {
 
-            emit_fma_block(block_size,
+            emit_fma_block(h_block_size,
                     is_last_block, is_last_kh_kw_iter, false);
 
             add(reg_inp, jcp.tr_iw * jcp.ic_block * typesize);
@@ -2272,18 +2292,18 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32::compute_full_spat_loop()
         for (int ic1 = 0; ic1 < jcp.ic_block; ic1++)
             prefetcht0(ker_addr(ic1));
 
-        emit_fma_block(block_size, is_last_block, is_last_kh_kw_iter, true);
+        emit_fma_block(h_block_size, is_last_block, is_last_kh_kw_iter, true);
     };
 
     auto emit_kh_kw_loop = [&](bool is_first_block, bool is_last_block,
-            int block_size)
+            int h_block_size)
     {
         xor_(reg_kh, reg_kh);
         Label kh_loop, kh_loop_end;
 
         int last_oh_block_size
-            = jcp.oh - rnd_up(jcp.oh - block_size, block_size);
-        int oh_block_size = (is_last_block) ? last_oh_block_size : block_size;
+            = jcp.oh - rnd_up(jcp.oh - h_block_size, h_block_size);
+        int oh_block_size = (is_last_block) ? last_oh_block_size : h_block_size;
         // NB: this is correct because we only support t_pad = kh / 2 and thus
         // ih == oh
         int ih_block_size
@@ -2341,19 +2361,26 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32::compute_full_spat_loop()
                 mov(reg_inp_save, reg_inp);
                 lea(reg_inp, ptr[reg_inp + reg_kw * typesize]);
 
+#if 0
+                // XXX: Generate code with special prefetches when switching
+                // blocks or at the end of the last block. Disabled to reduce
+                // code size and because there's no performance benefit (Roma)
                 Label regular_h_loop, end_h_loop;
-                cmp(reg_kw, jcp.kw);
+                cmp(reg_kw, jcp.kw - 1);
                 jne(regular_h_loop, T_NEAR);
-                cmp(reg_kh, jcp.kh);
+                cmp(reg_kh, jcp.kh - 1);
                 jne(regular_h_loop, T_NEAR);
 
-                emit_h_loop(block_size, is_last_block, true);
+                emit_h_loop(oh_block_size, is_last_block, true);
                 jmp(end_h_loop, T_NEAR);
 
                 L(regular_h_loop);
-                emit_h_loop(block_size, is_last_block, false);
+                emit_h_loop(oh_block_size, is_last_block, false);
 
                 L(end_h_loop);
+#else
+                emit_h_loop(oh_block_size, is_last_block, false);
+#endif
 
                 mov(reg_out, reg_out_save);
                 mov(reg_inp, reg_inp_save);
@@ -2392,23 +2419,6 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32::compute_full_spat_loop()
         }
     };
 
-    int max_working_set_size = 256 * 1024;
-
-    int inp_row_size = jcp.ic_block * jcp.tr_iw * typesize;
-    int out_row_size = jcp.oc_block * jcp.ow * typesize;
-    int row_size = inp_row_size + out_row_size;
-
-    int block_size = jcp.oh;
-    while (block_size * row_size > max_working_set_size) {
-        for (int i = 2; i <= block_size; i++)
-            if (i == block_size)
-                block_size = block_size / 2;
-            else if (block_size % i == 0) {
-                block_size = block_size / i;
-                break;
-            }
-    }
-
     mov(reg_inp, ptr[param + GET_OFF(src)]);
     mov(reg_out, ptr[param + GET_OFF(dst)]);
     mov(reg_ker, ptr[param + GET_OFF(filt)]);
@@ -2417,9 +2427,9 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32::compute_full_spat_loop()
     mov(reg_tmp, ptr[param + GET_OFF(channel)]);
     or_(reg_ker, reg_tmp);
 
-    bool single_kh_kw_loop = (block_size == jcp.oh);
+    bool single_kh_kw_loop = (h_block_size == jcp.oh);
 
-    emit_kh_kw_loop(true, single_kh_kw_loop, block_size);
+    emit_kh_kw_loop(true, single_kh_kw_loop, h_block_size);
 
     if (!single_kh_kw_loop) {
         size_t ker_reset_offset
@@ -2428,12 +2438,12 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32::compute_full_spat_loop()
         and_(reg_ker, ~1); // reset zeroing flag
 
         size_t inp_row_step = jcp.tr_iw * jcp.ic_block * typesize;
-        size_t out_block_step = jcp.ow * jcp.oc_block * typesize * block_size;
-
-        add(reg_inp, inp_row_step * (block_size - jcp.t_pad));
+        size_t out_block_step
+                = jcp.ow * jcp.oc_block * typesize * h_block_size;
+        add(reg_inp, inp_row_step * (h_block_size - jcp.t_pad));
         add(reg_out, out_block_step);
 
-        int num_innermost_iters = div_up(jcp.oh, block_size) - 2;
+        int num_innermost_iters = div_up(jcp.oh, h_block_size) - 2;
         if (num_innermost_iters > 0) {
             bool need_innermost_loop = num_innermost_iters > 1;
             Label h_block_loop;
@@ -2441,9 +2451,9 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32::compute_full_spat_loop()
             mov(reg_tmp_w, num_innermost_iters);
             kmovw(reg_h_block, reg_tmp_w);
             L(h_block_loop); {
-                emit_kh_kw_loop(false, false, block_size);
+                emit_kh_kw_loop(false, false, h_block_size);
                 sub(reg_ker, ker_reset_offset);
-                add(reg_inp, inp_row_step * block_size);
+                add(reg_inp, inp_row_step * h_block_size);
                 add(reg_out, out_block_step);
                 kmovw(reg_tmp_w, reg_h_block);
                 sub(reg_tmp_w, 1);
@@ -2452,7 +2462,7 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32::compute_full_spat_loop()
             }
         }
 
-        emit_kh_kw_loop(false, true, block_size);
+        emit_kh_kw_loop(false, true, h_block_size);
     }
 
     return true;
