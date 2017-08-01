@@ -294,8 +294,9 @@ jit_avx512_common_convolution_bwd_weights_t(const pd_t *pd,
 
     if (nthr_mb_ > 1) {
         const int wei_size = j.ngroups * j.oc * j.ic * j.kh * j.kw;
+        const int bia_size = j.ngroups * j.oc;
         ws_reduction_ = (data_t *)malloc(
-                (nthr_mb_ - 1) * wei_size * sizeof(data_t), 64);
+                (nthr_mb_ - 1) * (wei_size + bia_size) * sizeof(data_t), 64);
         acc_ker_ = new cpu_accumulator_1d_t<data_type::f32>();
         simple_barrier::ctx_init(&reduction_bctx_);
     }
@@ -367,6 +368,9 @@ void jit_avx512_common_convolution_bwd_weights_t::compute_diff_weights(
 
     data_t *diff_wei = ti->ithr_mb == 0
         ? ti->diff_weights : ws_reduction_ + (ti->ithr_mb - 1) * wei_size;
+    data_t *diff_bia = ti->ithr_mb == 0
+        ? ti->diff_bias : ws_reduction_ + (nthr_mb_ - 1) * wei_size
+                + (ti->ithr_mb - 1) * jcp.ngroups * jcp.oc;
 
     // TODO: use memory descriptor with the same fmt as src (or use a macro :))
     auto tr_src_off = [&](int ithr_mb, int ic, int ij) {
@@ -434,8 +438,18 @@ void jit_avx512_common_convolution_bwd_weights_t::compute_diff_weights(
 
         p.src = tr_ctx.tr_src;
 
+        /* zero diff_bias if applicable */
+        if (jcp.with_bias && ti->ithr_ic_b == 0) {
+            assert(jcp.oc_block == 16);
+            for (int oc_b = ti->ic_b_start; oc_b < ti->oc_b_end; ++oc_b) {
+                data_t *db = &diff_bia[oc_b * 16];
+                for (int o = 0; o < 16; ++o)
+                    db[o] = 0;
+            }
+        }
+
         for (int img = ti->img_start; img < ti->img_end; ++img) {
-            p.channel = img == ti->img_start;
+            p.flags = (img == ti->img_start) * FLAG_MB_FIRST;
 
             for (int g = ti->g_start; g < ti->g_end; ++g) {
             for (int ic_b = ti->ic_b_start; ic_b < ti->ic_b_end; ++ic_b) {
@@ -444,6 +458,11 @@ void jit_avx512_common_convolution_bwd_weights_t::compute_diff_weights(
 
                 (*trans_kernel_)(&tr_ctx);
 
+                if (ic_b == 0)
+                    p.flags |= FLAG_IC_FIRST;
+                else
+                    p.flags &= ~FLAG_IC_FIRST;
+
                 for (int oc_b = ti->oc_b_start; oc_b < ti->oc_b_end; ++oc_b) {
                     const int _oc = g * jcp.nb_oc + oc_b;
                     p.dst = &ti->diff_dst[diff_dst_d.blk_off(img, _oc)];
@@ -451,6 +470,7 @@ void jit_avx512_common_convolution_bwd_weights_t::compute_diff_weights(
                     const size_t off =
                         wht_blk_off(diff_weights_d, g, oc_b, ic_b);
                     p.filt = diff_wei + off;
+                    p.bias = diff_bia + _oc * jcp.oc_block;
 
                     kernel_->jit_ker(&p);
                 }
@@ -499,6 +519,8 @@ void jit_avx512_common_convolution_bwd_weights_t::reduce_diff_weights(
 
     const auto &jcp = kernel_->jcp;
     const int wei_size = jcp.ngroups * jcp.oc * jcp.ic * jcp.kh * jcp.kw;
+    const int bia_size = jcp.ngroups * jcp.oc;
+    const data_t *diff_bias_ws = ws_reduction_ + (nthr_mb_ - 1) * wei_size;
 
     /* diff_weights[:] += sum(ws_reduction_[thr_mb][:]) */
     simple_barrier::barrier(&reduction_bctx_, nthr_);
@@ -535,6 +557,12 @@ void jit_avx512_common_convolution_bwd_weights_t::reduce_diff_weights(
             nd_iterator_jump(w, end, sub_g_start, ti->g_work, sub_oc_b_start,
                     ti->oc_b_work, sub_ic_b_kh_start, ic_b_kh_work);
         }
+
+        if (jcp.with_bias && jcp.is_1stconv && jcp.ver == ver_4fma) {
+            if (ti->ithr == 0)
+                acc_ker_->accumulate(ti->diff_bias, diff_bias_ws, bia_size);
+            diff_bias_ws += bia_size;
+        }
     }
 }
 
@@ -546,6 +574,8 @@ void jit_avx512_common_convolution_bwd_weights_t::compute_diff_bias(
     assert(nthr_ == rb->balancer_.nthr_);
 
     const auto &jcp = kernel_->jcp;
+
+    if (jcp.with_bias && jcp.is_1stconv && jcp.ver == ver_4fma) return;
 
     const int b_job_start = rb->balancer_.ithr_job_off(ti->ithr);
     const int b_njobs = rb->balancer_.ithr_njobs(ti->ithr);

@@ -2328,12 +2328,16 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32::flat_4ops_compute() {
     Reg64 reg_ptr_tr_src = r8;
     Reg64 reg_ptr_dst = r9;
     Reg64 reg_ptr_wei = r10;
+    Reg64 reg_ptr_bia = r11;
 
     Reg64 reg_kh_step = rax;
-    Reg64 reg_channel = rbx;
     Reg64 reg_oh = abi_not_param1;
     Reg64 reg_kh = rdx;
-    Reg64 reg_clear_flag = rsi;
+
+    Reg32 reg_flag_save = ebx;
+    Reg32 reg_flag = esi;
+
+    Zmm vbia(31);
 
     auto zmm_wei = [&](int kh, int kw) {
         return Zmm(8 + kh * j.kw + kw);
@@ -2380,12 +2384,17 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32::flat_4ops_compute() {
                         prefetcht1(ptr[reg_ptr_dst
                                 + (j.ow + ow + kw) * jcp.oc_block * typesize]);
                     }
+                    if (j.with_bias && kh_step == 1) { /* [bwd_w:b:r1] */
+                        const int off = kw + 4 - j.kw;
+                        if (off >= 0 && ow + off < j.ow)
+                            vaddps(vbia, vbia, zmm_dst(ow + off));
+                    }
                 }
             }
         }
 
         Label l_store;
-        test(reg_clear_flag, reg_clear_flag);
+        test(reg_flag, FLAG_MB_FIRST);
         jnz(l_store, T_NEAR);
         for (int kh = 0; kh < kh_step; ++kh) {
             for (int kw = 0; kw < j.kw; ++kw)
@@ -2441,19 +2450,17 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32::flat_4ops_compute() {
 
         Label l_oh_loop;
         L(l_oh_loop); {
-            Label l_restore_clear_flag, l_jump;
+            Label l_restore_mb_flag, l_jump;
 
             cmp(reg_oh, j.oh);
-            je(l_restore_clear_flag, T_NEAR);
+            je(l_restore_mb_flag, T_NEAR);
 
-            {
-                xor_(reg_clear_flag, reg_clear_flag);
-                jmp(l_jump, T_NEAR);
-            }
+            and_(reg_flag, ~FLAG_MB_FIRST);
+            jmp(l_jump, T_NEAR);
 
-            L(l_restore_clear_flag); {
-                mov(reg_clear_flag, reg_channel);
-            }
+            L(l_restore_mb_flag);
+            mov(reg_flag, reg_flag_save);
+
             L(l_jump);
 
             emit_kh_loop();
@@ -2466,12 +2473,30 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32::flat_4ops_compute() {
         }
     };
 
+    auto emit_bia_store = [&]() {
+        if (!j.with_bias) return;
+
+        Label l_bia_store, l_bia_skip;
+        test(reg_flag, FLAG_IC_FIRST);
+        jz(l_bia_skip);
+
+        test(reg_flag, FLAG_MB_FIRST);
+        jnz(l_bia_store, T_NEAR);
+        vaddps(vbia, ptr[reg_ptr_bia]);
+        L(l_bia_store);
+        vmovups(ptr[reg_ptr_bia], vbia);
+        L(l_bia_skip);
+    };
+
     mov(reg_ptr_tr_src, ptr[param + GET_OFF(src)]);
     mov(reg_ptr_dst, ptr[param + GET_OFF(dst)]);
     mov(reg_ptr_wei, ptr[param + GET_OFF(filt)]);
-    mov(reg_channel, ptr[param + GET_OFF(channel)]);
+    mov(reg_ptr_bia, ptr[param + GET_OFF(bias)]);
+    mov(reg_flag_save, ptr[param + GET_OFF(flags)]);
 
+    vpxord(vbia, vbia, vbia);
     emit_oh_loop();
+    emit_bia_store();
 
     return true;
 }
@@ -2609,18 +2634,22 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
 
         const int tr_ld = rnd_up(div_up(jcp.iw + jcp.l_pad + jcp.r_pad,
                     jcp.stride_w), 16);
+        const int kh_step = nstl::max((28 - jcp.with_bias) / jcp.kw, 1);
+        const int kh_step_rem = jcp.kh % kh_step;
         const auto want_4fma_wfmt = with_groups ? gOihw16o : Oihw16o;
         const bool use_4fma = true
             && mayiuse(avx512_mic_4ops)
             && everyone_is(0, jcp.l_pad, jcp.r_pad, jcp.t_pad, jcp.b_pad)
+            && jcp.kw <= 28 - jcp.with_bias
             && jcp.stride_w == 4
             && tr_ld / simd_w <= 4 /* [bwd_w:tr_src:r1] */
+            && implication(jcp.with_bias, kh_step_rem == 1) /* [bwd_w:b:r1] */
             && implication(diff_weights_d.format() != any,
                     diff_weights_d.format() == want_4fma_wfmt);
 
         if (use_4fma) {
             jcp.ver = ver_4fma;
-            jcp.kh_step = 28 / jcp.kw;
+            jcp.kh_step = kh_step;
             jcp.tr_ld = tr_ld;
             jcp.ic_block = 1;
             if (diff_weights_d.format() == any)
