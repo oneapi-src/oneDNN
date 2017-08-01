@@ -2091,14 +2091,6 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32::compute_full_spat_loop()
     if (jcp.l_pad != jcp.kw / 2 || jcp.t_pad != jcp.kh / 2)
         return false;
 
-    // FIXME: add L2 prefetches to remove this restriction
-    size_t inp_block_size = jcp.iw * jcp.ih * jcp.ic_block * typesize;
-    size_t out_block_size = jcp.ow * jcp.oh * jcp.oc_block * typesize;
-    size_t effective_l2_size = 128 * 1024; // approx.
-
-    if (inp_block_size + out_block_size > effective_l2_size)
-        return false;
-
     // General code layout:
     //
     // Blocking over OH -- top level
@@ -2110,25 +2102,48 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32::compute_full_spat_loop()
     //      reduce code size)
     //          Loop over OW block -- emit_fma_step()
 
-    int max_working_set_size = 256 * 1024;
+    int max_working_set_size = 128 * 1024;
 
     int inp_row_size = jcp.ic_block * jcp.tr_iw * typesize;
     int out_row_size = jcp.oc_block * jcp.ow * typesize;
     int row_size = inp_row_size + out_row_size;
 
     int h_block_size = jcp.oh;
-    while (h_block_size * row_size > max_working_set_size) {
-        for (int i = 2; i <= h_block_size; i++)
-            if (i == h_block_size)
-                h_block_size = h_block_size / 2;
-            else if (h_block_size % i == 0) {
-                h_block_size = h_block_size / i;
-                break;
-            }
+    int working_set_size = row_size * h_block_size;
+
+    if (working_set_size > max_working_set_size) {
+        int opt_working_set_size = 48 * 1024;
+        assert(opt_working_set_size < max_working_set_size);
+
+        while (working_set_size > opt_working_set_size) {
+            for (int i = 2; i <= h_block_size; i++)
+                if (i == h_block_size)
+                    h_block_size = h_block_size / 2;
+                else if (h_block_size % i == 0) {
+                    h_block_size = h_block_size / i;
+                    break;
+                }
+            working_set_size = row_size * h_block_size;
+        }
     }
 
     if (h_block_size == 0)
         return false;
+
+    // check that we can use simple arithmetic for prefetch address
+    // calculations
+    // TODO: we need some traits for this check (Roma)
+    int cache_line_size = 64;
+    assert(jcp.ic_block * typesize == 64);
+    assert(jcp.oc_block * typesize == 64);
+
+    int num_inp_l2_pfs = jcp.tr_iw * h_block_size;
+    int avg_h_loop_len = h_block_size;
+    int num_inp_l2_pfs_per_fma_block
+        = div_up(num_inp_l2_pfs, avg_h_loop_len * jcp.kw * jcp.kh);
+    int num_out_l2_pfs = jcp.ow * h_block_size;
+    int num_out_l2_pfs_per_fma_block
+        = div_up(num_out_l2_pfs, avg_h_loop_len * jcp.kw * jcp.kh);
 
     Opmask reg_h_block = k1; // 32-bit only on Intel(R) Xeon Phi(TM) processors
     Reg64 reg_kh = rax;
@@ -2145,12 +2160,16 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32::compute_full_spat_loop()
     Reg64 reg_out = r14;
     Reg64 reg_ker = r15;
 
-    Reg64 reg_inp_pf = r11;
-    Reg64 reg_out_pf = r12;
+    Reg64 reg_inp_pf_l1 = rbp;
+
+    Reg64 reg_inp_pf_l2 = r11;
+    Reg64 reg_out_pf_l2 = r12;
+
+    Xmm reg_inp_pf_save = xmm17;
+    Xmm reg_out_pf_save = xmm18;
 
     Reg64 reg_inp_save = abi_param1;
     Reg64 reg_out_save = reg_tmp;
-
 
     auto zmm_out = [&](int oi) { return Zmm(24 + oi % 8); };
     auto zmm_ker = [&](int ic1) { return Zmm(ic1); };
@@ -2167,68 +2186,86 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32::compute_full_spat_loop()
     auto emit_fma_block = [&](int h_block_size,
             bool is_last_block, bool is_last_kh_kw_iter, bool is_last_row)
     {
+        // TODO: add an fma version (Roma)
+
         int ow4u = rnd_up(jcp.ow, 4);
         int def_step_size = 16;
 
-        bool pf1_inp = is_last_kh_kw_iter;
-        bool pf1_out = is_last_kh_kw_iter;
         bool has_w_tail = (jcp.ow % def_step_size != 0 || jcp.ow % 4 != 0);
         bool full_w_unroll = jcp.ow / def_step_size < 2 + has_w_tail;
 
-        int simd_w = cpu_isa_traits<avx512_common>::vlen / typesize;
+        auto emit_fma_step = [&](int step_size,
+                int num_inp_l1_pfs_per_fma_step,
+                int num_inp_l2_pfs_per_fma_step,
+                int num_out_l2_pfs_per_fma_step, bool is_w_tail)
+        {
+            bool block_wraparound = is_w_tail && is_last_row;
+            bool block_end = block_wraparound && is_last_kh_kw_iter;
+            bool the_end = block_end && is_last_block;
 
-        int num_inp_pf_slots = ow4u / 4 * jcp.ic_block;
-        int num_inp_cache_lines = jcp.ic_block * jcp.tr_iw / simd_w;
-        int num_pf_kinds = pf1_inp ? 2: 1;
-        int num_inp_pfs = num_inp_cache_lines * num_pf_kinds;
-        int inp_pf_period = num_inp_pf_slots / num_inp_pfs;
-        int inp_pf_idx = 0;
-        int inp_pf_slot_idx = 0;
-
-        auto emit_out_pf = [&](int oi) {
-            if (!is_last_kh_kw_iter)
-                prefetcht0(out_addr(oi, 1));
-            else {
-                prefetcht0(ptr[reg_out
-                        + reg_ohs
-                        + (oi - jcp.ow * (jcp.oh - 1)) * jcp.oc_block * typesize]);
-                // TODO: prefetcht0 for last_block
-                // TODO: prefetcht1 for last_block
-            }
-        };
-
-        auto emit_inp_pf = [&](int oi4, int ic1) {
-            int inp_pf_slot_idx = oi4 * jcp.ic_block / 4 + ic1;
-            if (inp_pf_slot_idx % inp_pf_period)
-                return;
-            int inp_pf_idx = inp_pf_slot_idx / inp_pf_period;
-            if (inp_pf_idx >= num_inp_pfs)
-                return;
-            size_t local_offset
-                = ((inp_pf_idx / num_pf_kinds) % num_inp_cache_lines)
-                * 64;
-            if (inp_pf_idx % num_pf_kinds == 0) {
-                // TODO: inp_addr is useless :(
-                if (!is_last_kh_kw_iter) {
-                    size_t ih_offset = typesize * jcp.tr_iw * jcp.ic_block;
-                    prefetcht0(ptr[reg_inp + ih_offset + local_offset]);
-                } else {
-                    prefetcht0(ptr[reg_inp_save
-                            + reg_kw * typesize + local_offset]);
-                    // TODO: prefetcht0 for last_block
-                }
-            } else {
-                // TODO: prefetcht1 for last_block
-            }
-        };
-
-        auto emit_fma_step = [&](int step_size, bool is_w_tail) {
             assert(step_size % 4 == 0);
             int tail_size = ow4u % step_size;
             int this_step_size
                 = (is_w_tail && tail_size) ? tail_size : step_size;
             int ow_last_chunk4 = jcp.ow % 4;
             int ow_zero_tail4 = ow_last_chunk4 ? 4 - ow_last_chunk4 : 0;
+
+            auto emit_out_pf = [&](int oi) {
+#if 1
+                if (oi + def_step_size < step_size || !block_wraparound)
+                    prefetcht0(ptr[reg_out
+                            + ((def_step_size + oi)
+                                * jcp.oc_block * typesize)]);
+                else {
+                    assert(block_wraparound);
+                    assert(oi + def_step_size >= step_size);
+                    prefetcht0(ptr[reg_out_save
+                            + ((oi + def_step_size - step_size)
+                                * jcp.oc_block * typesize)]);
+                }
+#else
+                // XXX: This is an alternative prefetching strategy that
+                // always prefetches the next row. Keeping it here for
+                // future experiments (Roma)
+                if (!block_wraparound)
+                    prefetcht0(ptr[reg_out
+                            + (jcp.ow + oi) * jcp.oc_block * typesize]);
+                else
+                    prefetcht0(ptr[reg_out + reg_ohs
+                            - ((h_block_size - 1) * jcp.ow
+                                - oi) * jcp.oc_block * typesize]);
+#endif
+                if (oi < num_out_l2_pfs_per_fma_step)
+                    prefetcht1(ptr[reg_out_pf_l2
+                            + oi * jcp.oc_block * typesize]);
+            };
+
+            auto emit_inp_pf = [&](int oi4, int ic1) {
+                int pf_slot_idx = ic1 + oi4 / 4 * jcp.ic_block;
+                int num_pf_slots = jcp.ic_block * step_size / 4;
+
+                int num_pfs = num_inp_l1_pfs_per_fma_step
+                    + num_inp_l2_pfs_per_fma_step;
+                int pf_freq = nstl::max(1, num_pf_slots / num_pfs);
+
+                if (pf_slot_idx % pf_freq)
+                    return;
+
+                int pf_idx = pf_slot_idx / pf_freq;
+
+                if (pf_idx < num_inp_l2_pfs_per_fma_step)
+                    prefetcht1(ptr[reg_inp_pf_l2
+                            + pf_idx * jcp.ic_block * typesize]);
+                else {
+                    pf_idx -= num_inp_l2_pfs_per_fma_step;
+                    // Prefetch the 'tail' of the cache line because most of
+                    // the accesses are not aligned
+                    prefetcht0(ptr[reg_inp_pf_l1
+                            + pf_idx * jcp.ic_block * typesize
+                            + cache_line_size - typesize]);
+                }
+            };
+
             for (int oi4 = 0; oi4 < this_step_size; oi4 += 4) {
                 for (int oi1 = 0; oi1 < 4; oi1++) {
                     int oi = oi4 + oi1;
@@ -2248,23 +2285,57 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32::compute_full_spat_loop()
             }
         };
 
-        if (full_w_unroll)
-            emit_fma_step(ow4u, false);
-        else {
+        // Input is transposed and padded but we only access about jcp.iw
+        // elements so use that to compute the # of cache lines in each 'row'
+        int num_inp_l1_pfs
+            = div_up(jcp.iw * typesize, cache_line_size) * jcp.ic_block;
+
+        if (full_w_unroll) {
+            emit_fma_step(ow4u, num_inp_l1_pfs,
+                    num_inp_l2_pfs_per_fma_block,
+                    num_out_l2_pfs_per_fma_block, true);
+            add(reg_inp_pf_l2, num_inp_l2_pfs_per_fma_block * cache_line_size);
+            add(reg_out_pf_l2, num_out_l2_pfs_per_fma_block * cache_line_size);
+        } else {
             Label w_loop;
             int num_w_iters = jcp.ow / def_step_size;
+            int num_w_iters_full = num_w_iters + has_w_tail;
+            int num_inp_l1_pfs_per_fma_step
+                = div_up(num_inp_l1_pfs, num_w_iters_full);
+            int num_inp_l2_pfs_per_fma_step
+                = div_up(num_inp_l2_pfs_per_fma_block, num_w_iters_full);
+            int num_out_l2_pfs_per_fma_step
+                = div_up(num_out_l2_pfs_per_fma_block, num_w_iters_full);
             mov(reg_i, num_w_iters);
             L(w_loop); {
-                emit_fma_step(def_step_size, false);
+                emit_fma_step(def_step_size, num_inp_l1_pfs_per_fma_step,
+                        num_inp_l2_pfs_per_fma_step,
+                        num_out_l2_pfs_per_fma_step, false);
                 add(reg_inp, def_step_size * typesize);
                 add(reg_out, def_step_size * jcp.oc_block * typesize);
+                add(reg_inp_pf_l1,
+                        num_inp_l1_pfs_per_fma_step * cache_line_size);
+                add(reg_inp_pf_l2,
+                        num_inp_l2_pfs_per_fma_step * cache_line_size);
+                add(reg_out_pf_l2,
+                        num_out_l2_pfs_per_fma_step * cache_line_size);
                 sub(reg_i, 1);
                 jnz(w_loop);
             }
-            if (has_w_tail)
-                emit_fma_step(def_step_size, true);
-            sub(reg_inp, num_w_iters * def_step_size * typesize);
-            sub(reg_out, num_w_iters * def_step_size * jcp.oc_block * typesize);
+            if (has_w_tail) {
+                emit_fma_step(def_step_size, num_inp_l1_pfs_per_fma_step,
+                        num_inp_l2_pfs_per_fma_step,
+                        num_out_l2_pfs_per_fma_step, true);
+                add(reg_inp_pf_l2,
+                        num_inp_l2_pfs_per_fma_step * cache_line_size);
+                add(reg_out_pf_l2,
+                        num_out_l2_pfs_per_fma_step * cache_line_size);
+            }
+            // reset reg_inp and reg_out because emit_h_loop expects
+            // unmodified pointers
+            int w_offset = num_w_iters * def_step_size;
+            sub(reg_inp, w_offset * typesize);
+            sub(reg_out, w_offset * jcp.oc_block * typesize);
         }
     };
 
@@ -2277,6 +2348,8 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32::compute_full_spat_loop()
         je(skip_h_loop, T_NEAR);
         L(h_loop); {
 
+            lea(reg_inp_pf_l1,
+                    ptr[reg_inp + jcp.tr_iw * jcp.ic_block * typesize]);
             emit_fma_block(h_block_size,
                     is_last_block, is_last_kh_kw_iter, false);
 
@@ -2292,6 +2365,7 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32::compute_full_spat_loop()
         for (int ic1 = 0; ic1 < jcp.ic_block; ic1++)
             prefetcht0(ker_addr(ic1));
 
+        lea(reg_inp_pf_l1, ptr[reg_inp_save + reg_kw * typesize]);
         emit_fma_block(h_block_size, is_last_block, is_last_kh_kw_iter, true);
     };
 
@@ -2451,13 +2525,27 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32::compute_full_spat_loop()
     mov(reg_inp, ptr[param + GET_OFF(src)]);
     mov(reg_out, ptr[param + GET_OFF(dst)]);
     mov(reg_ker, ptr[param + GET_OFF(filt)]);
-    mov(reg_inp_pf, ptr[param + GET_OFF(src_prf)]);
-    mov(reg_out_pf, ptr[param + GET_OFF(dst_prf)]);
+    mov(reg_inp_pf_l2, ptr[param + GET_OFF(src_prf)]);
+    mov(reg_out_pf_l2, ptr[param + GET_OFF(dst_prf)]);
     mov(reg_tmp, ptr[param + GET_OFF(channel)]);
     or_(reg_ker, reg_tmp);
 
     bool single_kh_kw_loop = (h_block_size == jcp.oh);
 
+    size_t inp_row_step = jcp.tr_iw * jcp.ic_block * typesize;
+    size_t first_inp_block_step = inp_row_step * (h_block_size - jcp.t_pad);
+    size_t inp_block_step = inp_row_step * h_block_size;
+    size_t out_block_step = jcp.ow * jcp.oc_block * typesize * h_block_size;
+
+    if (!single_kh_kw_loop) {
+        // Save the original prefetch pointers from the OpenMP driver
+        vmovq(reg_inp_pf_save, reg_inp_pf_l2);
+        vmovq(reg_out_pf_save, reg_out_pf_l2);
+        mov(reg_inp_pf_l2, reg_inp);
+        add(reg_inp_pf_l2, first_inp_block_step);
+        mov(reg_out_pf_l2, reg_out);
+        add(reg_out_pf_l2, out_block_step);
+    }
     emit_kh_kw_loop(true, single_kh_kw_loop, h_block_size);
 
     if (!single_kh_kw_loop) {
@@ -2466,11 +2554,12 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32::compute_full_spat_loop()
         sub(reg_ker, ker_reset_offset);
         and_(reg_ker, ~1); // Clear the zeroing flag for subsequent updates
 
-        size_t inp_row_step = jcp.tr_iw * jcp.ic_block * typesize;
-        size_t out_block_step
-                = jcp.ow * jcp.oc_block * typesize * h_block_size;
-        add(reg_inp, inp_row_step * (h_block_size - jcp.t_pad));
+        add(reg_inp, first_inp_block_step);
         add(reg_out, out_block_step);
+        mov(reg_inp_pf_l2, reg_inp);
+        add(reg_inp_pf_l2, inp_block_step);
+        mov(reg_out_pf_l2, reg_out);
+        add(reg_out_pf_l2, out_block_step);
 
         int num_innermost_iters = div_up(jcp.oh, h_block_size) - 2;
         if (num_innermost_iters > 0) {
@@ -2484,6 +2573,10 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32::compute_full_spat_loop()
                 sub(reg_ker, ker_reset_offset);
                 add(reg_inp, inp_row_step * h_block_size);
                 add(reg_out, out_block_step);
+                mov(reg_inp_pf_l2, reg_inp);
+                add(reg_inp_pf_l2, inp_block_step);
+                mov(reg_out_pf_l2, reg_out);
+                add(reg_out_pf_l2, out_block_step);
                 kmovw(reg_tmp_w, reg_h_block);
                 sub(reg_tmp_w, 1);
                 kmovw(reg_h_block, reg_tmp_w);
@@ -2491,6 +2584,10 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32::compute_full_spat_loop()
             }
         }
 
+        // Restore the original prefetch pointers that came from the OpenMP
+        // driver
+        vmovq(reg_inp_pf_l2, reg_inp_pf_save);
+        vmovq(reg_out_pf_l2, reg_out_pf_save);
         emit_kh_kw_loop(false, true, h_block_size);
     }
 

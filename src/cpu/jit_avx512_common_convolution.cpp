@@ -421,8 +421,6 @@ void jit_avx512_common_convolution_bwd_weights_t::compute_diff_weights(
         }
     };
 
-    jit_conv_call_s p = {};
-
     if (jcp.is_1stconv && jcp.ver == ver_4fma) {
         /* prepare contexts */
         jit_trans_src_t::ctx_t tr_ctx = {};
@@ -436,6 +434,7 @@ void jit_avx512_common_convolution_bwd_weights_t::compute_diff_weights(
         tr_ctx.tr_src_ih_end = ih_end;
         tr_ctx.tr_src_bctx = tr_src_bctx_ + ti->ithr_but_oc;
 
+        jit_conv_call_s p = {};
         p.src = tr_ctx.tr_src;
 
         /* zero diff_bias if applicable */
@@ -479,7 +478,7 @@ void jit_avx512_common_convolution_bwd_weights_t::compute_diff_weights(
         }
     } else {
         for (int img = ti->img_start; img < ti->img_end; ++img) {
-            p.channel = img == ti->img_start;
+            jit_conv_call_s p = {0};
 
             if (jcp.ver == ver_4fma) {
                 /* tr_src[nb_ic][ih][16][~iw~] <- src[nb_ic][ih][iw][16] */
@@ -497,18 +496,29 @@ void jit_avx512_common_convolution_bwd_weights_t::compute_diff_weights(
                 const int _oc = g * jcp.nb_oc + oc_b;
                 const int _ic = g * jcp.nb_ic + ic_b;
 
-                p.src = jcp.ver == ver_4fma
-                    ? &tr_src_[tr_src_off(ti->ithr_mb, _ic, 0)]
-                    : &ti->src[src_d.blk_off(img, _ic)];
-                p.dst = &ti->diff_dst[diff_dst_d.blk_off(img, _oc)];
+                jit_conv_ker_pipeline(kernel_->jit_ker, p,
+                        (jcp.ver == ver_4fma
+                         ? &tr_src_[tr_src_off(ti->ithr_mb, _ic, 0)]
+                         : &ti->src[src_d.blk_off(img, _ic)]),
+                        &ti->diff_dst[diff_dst_d.blk_off(img, _oc)],
+                        diff_wei + wht_blk_off(diff_weights_d, g, oc_b, ic_b),
+                        0, (img == ti->img_start), 0);
 
-                const size_t off = wht_blk_off(diff_weights_d, g, oc_b, ic_b);
-                p.filt = diff_wei + off;
+            }
+            }
+            }
 
-                kernel_->jit_ker(&p);
-            }
-            }
-            }
+            const int _oc = ti->g_start * jcp.nb_oc + ti->oc_b_start;
+            const int _ic = ti->g_start * jcp.nb_ic + ti->ic_b_start;
+            jit_conv_ker_pipeline(kernel_->jit_ker, p,
+                    (jcp.ver == ver_4fma
+                     ? &tr_src_[tr_src_off(ti->ithr_mb, _ic, 0)]
+                     : &ti->src[src_d.blk_off(img + 1, _ic)]),
+                    &ti->diff_dst[diff_dst_d.blk_off(img + 1, _oc)],
+                    diff_wei + wht_blk_off(
+                        diff_weights_d, ti->g_start,
+                        ti->oc_b_start, ti->ic_b_start),
+                    0, 0, 0);
         }
     }
 }
