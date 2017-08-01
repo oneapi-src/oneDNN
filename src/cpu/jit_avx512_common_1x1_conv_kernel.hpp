@@ -26,8 +26,6 @@ namespace impl {
 namespace cpu {
 
 struct jit_avx512_common_1x1_conv_kernel : public jit_generator {
-    enum { REDUCE_FLAG_FIRST = 1, REDUCE_FLAG_LAST = 2, FLAG_BIAS_UPDATE = 4 };
-
     jit_avx512_common_1x1_conv_kernel(jit_1x1_conv_conf_t ajcp) : jcp(ajcp)
     {
         this->generate();

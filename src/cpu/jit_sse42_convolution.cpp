@@ -93,13 +93,11 @@ void _jit_sse42_convolution_fwd_t<with_relu>::execute_forward() {
                         if (bias)
                             par_conv.bias =
                                     &bias[bias_d.blk_off(_oc * jcp.oc_block)];
-                        par_conv.ic_flag |=
-                                jit_sse42_conv_fwd_kernel_f32::IC_FLAG_FIRST;
+                        par_conv.ic_flag |= FLAG_IC_FIRST;
                     }
 
                     if (with_relu && icb + 1 == jcp.nb_ic) {
-                        par_conv.ic_flag |=
-                                jit_sse42_conv_fwd_kernel_f32::IC_FLAG_LAST;
+                        par_conv.ic_flag |= FLAG_IC_LAST;
                     }
 
                     par_conv.oc_blocks =

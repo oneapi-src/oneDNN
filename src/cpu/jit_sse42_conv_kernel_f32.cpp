@@ -160,7 +160,7 @@ void jit_sse42_conv_fwd_kernel_f32::width_blk_step(int ur_w,
 
     L(init_simd_iter_label);
 
-    test(reg_ci_flag, IC_FLAG_FIRST);
+    test(reg_ci_flag, FLAG_IC_FIRST);
     jne(init_first_label, T_NEAR);
 
     for (int ii = 0; ii < oc_blocks; ii++)
@@ -216,7 +216,7 @@ void jit_sse42_conv_fwd_kernel_f32::width_blk_step(int ur_w,
 
     if (this->jcp.with_relu) {
         assert(oc_blocks * ur_w < 15);
-        test(reg_ci_flag, IC_FLAG_LAST);
+        test(reg_ci_flag, FLAG_IC_LAST);
         je(regular_store_label, T_NEAR);
 
         Xmm xzero = xmm15, xmask = xmm0;

@@ -26,8 +26,6 @@ namespace impl {
 namespace cpu {
 
 struct jit_sse42_1x1_conv_kernel_f32: public jit_generator {
-    enum { REDUCE_FLAG_FIRST = 1, REDUCE_FLAG_LAST = 2 };
-
     jit_sse42_1x1_conv_kernel_f32(jit_1x1_conv_conf_t ajcp): jcp(ajcp) {
         this->generate();
         jit_ker = (void (*)(jit_1x1_conv_call_s *))this->getCode();

@@ -142,7 +142,7 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(int ur_w,
     jit_tagged_label init_done_label("init", pad_tag, oc_blocks_tag);
     jit_tagged_label init_first_label("first", pad_tag, oc_blocks_tag);
 
-    test(reg_ci_flag, IC_FLAG_FIRST);
+    test(reg_ci_flag, FLAG_IC_FIRST);
     jne(init_first_label, T_NEAR);
 
     for (int ii = 0; ii < oc_blocks; ii++)
@@ -200,7 +200,7 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(int ur_w,
 
     if (this->jcp.with_relu) {
         assert(oc_blocks * ur_w < 15);
-        test(reg_ci_flag, IC_FLAG_LAST);
+        test(reg_ci_flag, FLAG_IC_LAST);
         je(regular_store_label, T_NEAR);
 
         Ymm yzero = ymm15, ymask = ymm14;

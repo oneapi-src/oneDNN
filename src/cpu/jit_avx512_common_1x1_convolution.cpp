@@ -140,14 +140,9 @@ void _jit_avx512_common_1x1_convolution_fwd_t
             const int nb_ic_blocking_step =
                 nstl::min(icb + nb_ic_blocking, nb_ic) - icb;
             p.reduce_pos_flag = 0
-                | (icb == 0
-                ? jit_avx512_common_1x1_conv_kernel::
-                  REDUCE_FLAG_FIRST
-                : 0)
+                | (icb == 0 ? FLAG_REDUCE_FIRST : 0)
                 | (icb + nb_ic_blocking_step >= nb_ic
-                ? jit_avx512_common_1x1_conv_kernel::
-                  REDUCE_FLAG_LAST
-                : 0);
+                        ? FLAG_REDUCE_LAST : 0);
 
             p.reduce_dim = this_block_size(icb * jcp.ic_block,
                 jcp.ic, nb_ic_blocking_step * jcp.ic_block);
@@ -384,10 +379,7 @@ void _jit_avx512_common_1x1_convolution_bwd_data_t
                             ? weights_d.blk_off(g, ocb, icb)
                             : weights_d.blk_off(ocb, icb)];
 
-                        p.reduce_pos_flag = ocb == 0
-                            ? jit_avx512_common_1x1_conv_kernel::
-                              REDUCE_FLAG_FIRST
-                            : 0;
+                        p.reduce_pos_flag = ocb == 0 ? FLAG_REDUCE_FIRST : 0;
 
                         p.reduce_dim = this_block_size(ocb * jcp.oc_block,
                             jcp.oc, nb_oc_blocking_step * jcp.oc_block);
@@ -521,7 +513,7 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights()
                     + ic_b * jcp.ic_block * jcp.oc_block;
 
                 p.reduce_pos_flag = ic_is_zero && ic_b == 0
-                    ? jit_avx512_common_1x1_conv_kernel::FLAG_BIAS_UPDATE : 0;
+                    ? FLAG_IC_FIRST : 0;
 
                 /* spatial reduction */
                 int sp_b_step = 0;
@@ -532,12 +524,10 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights()
                     p.reduce_dim = sp_b_step * jcp.reduce_block;
                     rp.os = p.reduce_dim;
 
-                    auto f_flag =
-                        jit_avx512_common_1x1_conv_kernel::REDUCE_FLAG_FIRST;
                     if (sp_b == sp_b_start && first_image)
-                        p.reduce_pos_flag |= f_flag;
+                        p.reduce_pos_flag |= FLAG_REDUCE_FIRST;
                     else
-                        p.reduce_pos_flag &= ~f_flag;
+                        p.reduce_pos_flag &= ~FLAG_REDUCE_FIRST;
 
                     int sp = sp_b * jcp.reduce_block;
                     p.load_data = diff_dst

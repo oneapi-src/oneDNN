@@ -29,6 +29,14 @@ enum conv_loop_order_t {loop_cgn, loop_gnc, loop_ngc};
 enum conv_1x1_loop_order_t {loop_rbl, loop_rlb, loop_lbr, loop_lrb, loop_blr,
                             loop_brl};
 
+enum {
+    FLAG_MB_FIRST = 1 << 0, FLAG_MB_LAST = 1 << 1,
+    FLAG_OC_FIRST = 1 << 2, FLAG_OC_LAST = 1 << 3,
+    FLAG_IC_FIRST = 1 << 4, FLAG_IC_LAST = 1 << 5,
+    FLAG_SP_FIRST = 1 << 6, FLAG_SP_LAST = 1 << 7,
+    FLAG_REDUCE_FIRST = 1<<8, FLAG_REDUCE_LAST = 1<<9,
+};
+
 struct jit_conv_conf_t {
     prop_kind_t prop_kind;
     conv_version_t ver;

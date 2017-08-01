@@ -111,14 +111,9 @@ void _jit_avx2_1x1_convolution_fwd_t<with_relu>::execute_forward() {
 
                 for (int icb = 0; icb < nb_ic; icb += nb_ic_blocking) {
                     p.reduce_pos_flag = 0
-                        | (icb == 0
-                                ?
-                                jit_avx2_1x1_conv_kernel_f32::REDUCE_FLAG_FIRST
-                                : 0)
+                        | (icb == 0 ? FLAG_REDUCE_FIRST : 0)
                         | (icb + nb_ic_blocking >= nb_ic
-                                ?
-                                jit_avx2_1x1_conv_kernel_f32::REDUCE_FLAG_LAST
-                                : 0);
+                                ? FLAG_REDUCE_LAST : 0);
 
                     p.reduce_dim = this_block_size(icb * jcp.ic_block, jcp.ic,
                             nb_ic_blocking * jcp.ic_block);
@@ -250,8 +245,7 @@ void jit_avx2_1x1_convolution_bwd_data_t::execute_backward_data() {
                         ? weights_d.blk_off(g, ocb, icb)
                         : weights_d.blk_off(ocb, icb)];
 
-                    p.reduce_pos_flag = ocb == 0
-                        ? jit_avx2_1x1_conv_kernel_f32::REDUCE_FLAG_FIRST : 0;
+                    p.reduce_pos_flag = ocb == 0 ? FLAG_REDUCE_FIRST : 0;
 
                     p.reduce_dim = this_block_size(ocb * jcp.oc_block, jcp.oc,
                             nb_oc_blocking * jcp.oc_block);
@@ -383,7 +377,7 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights() {
                     rp.os = p.reduce_dim;
 
                     p.reduce_pos_flag = sp == sp_start && first_image
-                        ? jit_avx2_1x1_conv_kernel_f32::REDUCE_FLAG_FIRST : 0;
+                        ? FLAG_REDUCE_FIRST : 0;
 
                     p.load_data = diff_dst
                         + (oc_b * jcp.reduce_dim + sp) * jcp.oc_block;

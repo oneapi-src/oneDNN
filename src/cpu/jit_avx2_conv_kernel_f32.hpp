@@ -26,8 +26,6 @@ namespace impl {
 namespace cpu {
 
 struct jit_avx2_conv_fwd_kernel_f32: public jit_generator {
-    enum { IC_FLAG_FIRST = 1, IC_FLAG_LAST = 2 };
-
     jit_avx2_conv_fwd_kernel_f32(jit_conv_conf_t ajcp): jcp(ajcp)
     {
         this->generate();
@@ -71,8 +69,6 @@ private:
 };
 
 struct jit_avx2_conv_bwd_data_kernel_f32: public jit_generator {
-    enum { IC_FLAG_FIRST = 1, IC_FLAG_LAST = 2 };
-
     jit_avx2_conv_bwd_data_kernel_f32(jit_conv_conf_t ajcp): jcp(ajcp)
     {
         this->generate();

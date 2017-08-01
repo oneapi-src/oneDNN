@@ -96,10 +96,8 @@ void _jit_sse42_1x1_convolution_fwd_t<with_relu>::execute_forward() {
 
                 for (int icb = 0; icb < nb_ic; icb += nb_ic_blocking) {
                     par_conv.reduce_pos_flag = 0
-                        | (icb == 0)
-                            * jit_sse42_1x1_conv_kernel_f32::REDUCE_FLAG_FIRST
-                        | (icb + nb_ic_blocking >= nb_ic)
-                            * jit_sse42_1x1_conv_kernel_f32::REDUCE_FLAG_LAST;
+                        | (icb == 0) * FLAG_REDUCE_FIRST
+                        | (icb + nb_ic_blocking >= nb_ic) * FLAG_REDUCE_LAST;
 
                     par_conv.reduce_dim = this_block_size(icb * jcp.ic_block,
                             jcp.ic, nb_ic_blocking * jcp.ic_block);

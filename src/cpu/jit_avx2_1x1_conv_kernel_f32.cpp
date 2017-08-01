@@ -150,7 +150,7 @@ void jit_avx2_1x1_conv_kernel_f32::reduce_loop(int load_loop_blk, int ur,
 
         if (jcp.with_bias && one_of(jcp.prop_kind, forward_training,
                     forward_inference)) {
-            test(reg_reduce_pos_flag, REDUCE_FLAG_FIRST);
+            test(reg_reduce_pos_flag, FLAG_REDUCE_FIRST);
             jz(init_zero);
 
             for (int i = 0; i < load_loop_blk; i++)
@@ -178,7 +178,7 @@ void jit_avx2_1x1_conv_kernel_f32::reduce_loop(int load_loop_blk, int ur,
         jit_tagged_label store_noadd(
                 "store_noadd", load_loop_tag, bcast_loop_tag);
 
-        test(reg_reduce_pos_flag, REDUCE_FLAG_FIRST);
+        test(reg_reduce_pos_flag, FLAG_REDUCE_FIRST);
         jnz(store_noadd, T_NEAR);
         for (int j = 0; j < ur; ++j)
             for (int i = 0; i < load_loop_blk; ++i) {
@@ -193,7 +193,7 @@ void jit_avx2_1x1_conv_kernel_f32::reduce_loop(int load_loop_blk, int ur,
 
             jit_tagged_label store_norelu(
                     "store_norelu", load_loop_tag, bcast_loop_tag);
-            test(reg_reduce_pos_flag, REDUCE_FLAG_LAST);
+            test(reg_reduce_pos_flag, FLAG_REDUCE_LAST);
             jz(store_norelu, T_NEAR);
 
             Ymm vzero = ymm15, vmask = ymm14;
@@ -288,7 +288,7 @@ void jit_avx2_1x1_conv_kernel_f32::diff_bias_loop(int load_loop_blk,
     cmp(reg_diff_bias_data, 0);
     je(diff_bias_loop_out, T_NEAR);
 
-    test(reg_reduce_pos_flag, REDUCE_FLAG_FIRST);
+    test(reg_reduce_pos_flag, FLAG_REDUCE_FIRST);
     jz(diff_bias_load, T_NEAR);
 
     for (int i = 0; i < load_loop_blk; ++i) {

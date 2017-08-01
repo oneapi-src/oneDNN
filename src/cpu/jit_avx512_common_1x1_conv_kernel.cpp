@@ -172,7 +172,7 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(int load_loop_blk,
 
         if (jcp.with_bias
             && one_of(jcp.prop_kind, forward_training, forward_inference)) {
-            test(reg_reduce_pos_flag, REDUCE_FLAG_FIRST);
+            test(reg_reduce_pos_flag, FLAG_REDUCE_FIRST);
             jz(init_zero, T_NEAR);
 
             for (int i_load = 0; i_load < load_loop_blk; i_load++)
@@ -223,7 +223,7 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(int load_loop_blk,
 
         Label store_noadd;
 
-        test(reg_reduce_pos_flag, REDUCE_FLAG_FIRST);
+        test(reg_reduce_pos_flag, FLAG_REDUCE_FIRST);
         jnz(store_noadd, T_NEAR);
         for (int i_ur = 0; i_ur < ur; ++i_ur)
             for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
@@ -238,7 +238,7 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(int load_loop_blk,
             assert(ur * load_loop_blk < 30);
 
             Label store_norelu;
-            test(reg_reduce_pos_flag, REDUCE_FLAG_LAST);
+            test(reg_reduce_pos_flag, FLAG_REDUCE_LAST);
             jz(store_norelu, T_NEAR);
 
             vpxord(zmm_zero, zmm_zero, zmm_zero);
@@ -399,7 +399,7 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(int load_loop_blk,
 
         if (jcp.with_bias && jcp.prop_kind == backward_weights && substep == 0) {
             Label l_skip_bias;
-            test(reg_reduce_pos_flag, FLAG_BIAS_UPDATE);
+            test(reg_reduce_pos_flag, FLAG_IC_FIRST);
             jz(l_skip_bias, T_NEAR);
             cmp(bcast_loop_iter, jcp.bcast_block);
             jg(l_skip_bias, T_NEAR);
