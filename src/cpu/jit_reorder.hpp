@@ -19,13 +19,14 @@
 
 #include <assert.h>
 
-#include "jit_generator.hpp"
 #include "c_types_map.hpp"
-#include "cpu_reorder_pd.hpp"
 #include "type_helpers.hpp"
+#include "cpu_reorder_pd.hpp"
 #include "cpu_primitive.hpp"
-#include "cpu_engine.hpp"
+
 #include "simple_reorder.hpp"
+
+#include "jit_generator.hpp"
 
 namespace mkldnn {
 namespace impl {

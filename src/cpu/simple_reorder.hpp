@@ -18,11 +18,14 @@
 #define CPU_SIMPLE_REORDER_HPP
 
 #include <assert.h>
+
 #include "c_types_map.hpp"
-#include "cpu_reorder_pd.hpp"
 #include "type_helpers.hpp"
+#include "mkldnn_thread.hpp"
+#include "utils.hpp"
+
+#include "cpu_reorder_pd.hpp"
 #include "cpu_primitive.hpp"
-#include "cpu_engine.hpp"
 
 #if (defined(__INTEL_COMPILER) && __INTEL_COMPILER <= 1600) || defined(_MSC_VER)
 /* Excluding ICC 16.0 from adding simd because it results in accuracy issues.
@@ -39,6 +42,8 @@ namespace cpu {
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::data_type;
+
+using namespace mkldnn::impl::utils;
 
 template<impl::data_type_t type>
 using data_t = typename prec_traits<type>::type;
