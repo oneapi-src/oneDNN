@@ -47,7 +47,7 @@ struct _jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
         {
             using namespace prop_kind;
             assert(this->engine()->kind() == engine_kind::cpu);
-            bool ok = true && this->set_default_params() == status::success
+            bool ok = true
                     && utils::one_of(this->cdesc_().prop_kind, forward_training,
                                forward_inference)
                     && this->cdesc_().alg_kind == alg_kind::convolution_direct
@@ -63,44 +63,12 @@ struct _jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
             if (!ok)
                 return status::unimplemented;
 
-            return jit_avx512_common_conv_fwd_kernel::init_conf(jcp_,
-                    this->cdesc_(), *this->src_pd_.desc(),
-                    *this->weights_pd_.desc(), *this->dst_pd_.desc(), with_relu,
-                    this->negative_slope());
+            return jit_avx512_common_conv_fwd_kernel::init_conf(
+                    jcp_, this->cdesc_(), this->src_pd_, this->weights_pd_,
+                    this->dst_pd_, this->bias_pd_, with_relu, this->negative_slope());
         }
 
         jit_conv_conf_t jcp_;
-
-    protected:
-        virtual status_t set_default_params() override
-        {
-            using namespace memory_format;
-            const bool flat = this->IC() == 3;
-            if (this->src_pd_.desc()->format == any) {
-                CHECK(this->src_pd_.set_format(flat ? nchw : nChw16c));
-            }
-            if (this->dst_pd_.desc()->format == any) {
-                CHECK(this->dst_pd_.set_format(nChw16c));
-            }
-            if (this->weights_pd_.desc()->format == any) {
-                if (dst_type == data_type::s32
-                 && src_type == data_type::s16
-                 && wei_type == data_type::s16) {
-                        CHECK(this->weights_pd_.set_format(this->with_groups() ?
-                                        gOIhw8i16o2i : OIhw8i16o2i));
-                    }
-                else if (dst_type == data_type::f32
-                      && src_type == data_type::f32
-                      && wei_type == data_type::f32) {
-                        CHECK(this->weights_pd_.set_format(this->with_groups()
-                                    ? (flat ? gOhwi16o : gOIhw16i16o)
-                                    : (flat ? Ohwi16o : OIhw16i16o)));
-                      }
-            }
-            if (this->bias_pd_.desc()->format == any)
-                CHECK(this->bias_pd_.set_format(x));
-            return status::success;
-        }
     };
 
     _jit_avx512_common_convolution_fwd_t(const pd_t *pd,

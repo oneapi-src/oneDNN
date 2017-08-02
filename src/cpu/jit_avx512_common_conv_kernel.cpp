@@ -128,8 +128,89 @@ void jit_avx512_common_conv_fwd_kernel::store_output(int ur_w)
             int aux_output_offset
                 = typesize * (k * jcp.oh * jcp.ow + j) * jcp.oc_block;
             vmovups(EVEX_compress_addr(reg_out, aux_output_offset), zmm);
-            prefetcht0(EVEX_compress_addr(reg_out_prf, aux_output_offset));
+            mic_prefetcht0(EVEX_compress_addr(reg_out_prf, aux_output_offset));
         }
+}
+
+void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma_1st(int ur_w,
+        int pad_l, int pad_r)
+{
+
+    int iw = jcp.iw;
+    int ih = jcp.ih;
+    int kw = jcp.kw;
+    int stride_w = jcp.stride_w;
+    int ic_block = jcp.ic_block;
+    int oc_block = jcp.oc_block;
+
+    Label kh_label;
+
+    mov(aux_reg_inp, reg_inp);
+    mov(aux_reg_ker, reg_ker);
+    mov(aux_reg_inp_prf, reg_inp_prf);
+
+    prepare_output(ur_w);
+
+    mov(reg_kj, reg_kh);
+    Label skip_kh_loop;
+    if (jcp.kh <= jcp.t_pad) {
+        cmp(reg_kj, 0);
+        je(skip_kh_loop, T_NEAR);
+    }
+    L(kh_label);
+    for (int ki = 0; ki < kw; ki += 4) {
+        for (int ic = 0; ic < ic_block; ic++) {
+            for (int i = 0; i < 4; i++) {
+                int aux_ker_offset = jcp.typesize_in
+                    * ((ki + i) * oc_block + ic * kw * jcp.kh * oc_block);
+                if (ki + i < kw)
+                    vmovups(zmm_ker(i),
+                        EVEX_compress_addr(aux_reg_ker, aux_ker_offset));
+                else
+                    vpxord(zmm_ker(i), zmm_ker(i), zmm_ker(i));
+            }
+
+            int j_start = get_ow_start(ki, pad_l);
+            int j_end = get_ow_end(ur_w, ki, pad_r);
+
+            for (int j = j_start, prf_count=0; j < j_end; j++) {
+                int aux_input_offset = jcp.typesize_in
+                            * ((ki + j * stride_w - pad_l) + ic * iw * ih);
+                v4fmaddps(zmm_out(j, 0), zmm_ker(0),
+                    EVEX_compress_addr(aux_reg_inp, aux_input_offset));
+                if (ki + prf_count < kw && prf_count < 4
+                    && ((ki < 2 && j % 4) || j % 2)) {
+                    int aux_ker_offset = jcp.typesize_in
+                        * ((ki + prf_count) * oc_block
+                        + ic * kw * jcp.kh * oc_block + kw * oc_block);
+                    mic_prefetcht0(EVEX_compress_addr(aux_reg_ker,
+                        aux_ker_offset));
+                    prf_count++;
+                }
+                if (ki == 0
+                    && j % (64 / (stride_w * jcp.typesize_in)) == 0) {
+                    mic_prefetcht0(EVEX_compress_addr(aux_reg_inp_prf,
+                        aux_input_offset));
+                }
+                if (ki == 1
+                    && j % (64 / (stride_w * jcp.typesize_in)) == 0) {
+                    mic_prefetcht0(EVEX_compress_addr(aux_reg_inp,
+                        aux_input_offset+jcp.typesize_in * iw));
+                }
+            }
+        }
+    }
+    add(aux_reg_ker, jcp.typesize_in * kw * oc_block);
+    add(aux_reg_inp, jcp.typesize_in * iw);
+    add(aux_reg_inp_prf, jcp.typesize_in * iw);
+
+    dec(reg_kj);
+    cmp(reg_kj, 0);
+    jg(kh_label, T_NEAR);
+
+    L(skip_kh_loop);
+
+    store_output(ur_w);
 }
 
 void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma(int ur_w,
@@ -549,7 +630,10 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop(int ur_w,
     if (jcp.ver == ver_4vnni)
         compute_loop_4vnni(ur_w, pad_l, pad_r);
     else if (jcp.ver == ver_4fma)
-        compute_loop_4fma(ur_w, pad_l, pad_r);
+        if(jcp.is_1stconv)
+            compute_loop_4fma_1st(ur_w, pad_l, pad_r);
+        else
+            compute_loop_4fma(ur_w, pad_l, pad_r);
     else if (jcp.ver == ver_fma)
         compute_loop_fma(ur_w, pad_l, pad_r);
     else
@@ -637,16 +721,26 @@ void jit_avx512_common_conv_fwd_kernel::generate()
 }
 
 status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
-        const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
-        const memory_desc_wrapper &weights_d, const memory_desc_wrapper &dst_d,
-        bool with_relu, double relu_negative_slope)
+            const convolution_desc_t &cd, cpu_memory_t::pd_t &src_pd,
+            cpu_memory_t::pd_t &weights_pd, cpu_memory_t::pd_t &dst_pd,
+            cpu_memory_t::pd_t &bias_pd, bool with_relu, double relu_negative_slope)
 {
     using namespace prop_kind;
 
-    const int simd_w = 16;
+    if (!mayiuse(avx512_common))
+        return status::unimplemented;
+
+    const int simd_w = cpu_isa_traits<avx512_common>::vlen / sizeof(float);
+
+    const memory_desc_wrapper src_d(&src_pd);
+    const memory_desc_wrapper weights_d(&weights_pd);
+    const memory_desc_wrapper dst_d(&dst_pd);
+    const memory_desc_wrapper bias_d(&bias_pd);
+
     const int regs = 28;
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
 
+    jcp = zero<decltype(jcp)>();
     jcp.prop_kind = cd.prop_kind;
     jcp.ngroups = with_groups ? weights_d.dims()[0] : 1;
     jcp.mb = src_d.dims()[0];
@@ -663,7 +757,6 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     jcp.stride_h = cd.strides[0];
     jcp.stride_w = cd.strides[1];
     jcp.src_fmt = src_d.format();
-    jcp.with_bias = cd.bias_desc.format != memory_format::undef;
     jcp.with_relu = with_relu;
     jcp.relu_negative_slope = relu_negative_slope;
     jcp.ur_h = 1;
@@ -677,60 +770,104 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
 
     // TODO: simplify
     if (jcp.ic % simd_w != 0) {
-        if ((jcp.ic == 3 || jcp.ic == 1) && jcp.src_fmt == nchw)
+        if (jcp.ic == 3 || jcp.ic == 1)
             jcp.is_1stconv = true;
         else
             return status::unimplemented;
     } else
         jcp.is_1stconv = false;
 
-    const bool flat = jcp.ic == 3;
-    const bool mimo = !flat;
+    if (dst_d.format() == any)
+        CHECK(dst_pd.set_format(nChw16c));
+    if (dst_d.format() != nChw16c)
+        return status::unimplemented;
+
+    if (jcp.is_1stconv) {
+        if (src_d.format() == any)
+            CHECK(src_pd.set_format(nchw));
+        if (src_d.format() != nchw)
+            return status::unimplemented;
+    } else {
+        if (src_d.format() == any)
+            CHECK(src_pd.set_format(nChw16c));
+        if (src_d.format() != nChw16c)
+            return status::unimplemented;
+    }
+    jcp.with_bias = cd.bias_desc.format != memory_format::undef;
+    if (jcp.with_bias) {
+        if (bias_d.format() == any)
+            CHECK(bias_pd.set_format(x));
+        if (bias_d.format() != x)
+            return status::unimplemented;
+    }
+
     if (mayiuse(avx512_mic_4ops) &&
             src_d.data_type() == data_type::s16
          && weights_d.data_type() == data_type::s16
          && dst_d.data_type() == data_type::s32)
     {
-        bool args_ok = true
-                && mimo // TODO: add support of first convolution
-                && src_d.format() == nChw16c
-                && weights_d.format() == (with_groups ? gOIhw8i16o2i : OIhw8i16o2i)
-                && one_of(cd.bias_desc.format, memory_format::undef, any, x)
-                && dst_d.format() == nChw16c;
-        if (!args_ok)
+        if (jcp.is_1stconv)
             return status::unimplemented;
+
         jcp.ver = ver_4vnni;
         jcp.typesize_in = sizeof(int16_t);
         jcp.typesize_out = sizeof(int32_t);
+
+        const auto w_format = with_groups ? gOIhw8i16o2i : OIhw8i16o2i;
+        if (weights_d.format() == any)
+            CHECK(weights_pd.set_format(w_format));
+        if (!one_of(weights_d.format(), OIhw16i16o, gOIhw16i16o))
+            return status::unimplemented;
     } else if (mayiuse(avx512_common) &&
             src_d.data_type() == data_type::f32
          && weights_d.data_type() == data_type::f32
          && dst_d.data_type() == data_type::f32) {
-        bool args_ok = true
-            && implication(flat, one_of(src_d.format(), nchw, nhwc)
-                    && one_of(weights_d.format(), Ohwi16o, gOhwi16o))
-            && implication(mimo, src_d.format() == nChw16c
-                    && one_of(weights_d.format(), OIhw16i16o, gOIhw16i16o))
-            && one_of(cd.bias_desc.format, memory_format::undef, any, x)
-            && dst_d.format() == nChw16c;
-        if (!args_ok)
-            return status::unimplemented;
         jcp.ver = ver_fma;
         jcp.typesize_in = sizeof(float);
         jcp.typesize_out = sizeof(float);
-        if (mayiuse(avx512_mic_4ops) && !jcp.is_1stconv)
-            jcp.ver = ver_4fma;
+        if (mayiuse(avx512_mic_4ops))
+           jcp.ver = ver_4fma;
+
+        if (jcp.is_1stconv) {
+            // TODO: fix & remove constraints below
+            if (jcp.l_pad != 0 || jcp.r_pad != 0
+                || jcp.b_pad != 0 || jcp.t_pad != 0
+                || (jcp.kw < 7 && jcp.kh < 7))
+                jcp.ver = ver_fma;
+            if (jcp.ver == ver_4fma) {
+                const auto w_format = (with_groups) ? gOihw16o : Oihw16o;
+                if (weights_d.format() == any)
+                    CHECK(weights_pd.set_format(w_format));
+                if (!one_of(weights_d.format(), Oihw16o, gOihw16o))
+                    return status::unimplemented;
+            } else {
+                const auto w_format = (with_groups) ? gOhwi16o : Ohwi16o;
+                if (weights_d.format() == any)
+                    CHECK(weights_pd.set_format(w_format));
+                if (!one_of(weights_d.format(), Ohwi16o, gOhwi16o))
+                    return status::unimplemented;
+            }
+        } else {
+            const auto w_format = (with_groups) ? gOIhw16i16o : OIhw16i16o;
+            if (weights_d.format() == any)
+                CHECK(weights_pd.set_format(w_format));
+            if (!one_of(weights_d.format(), OIhw16i16o, gOIhw16i16o))
+                return status::unimplemented;
+        }
     } else {
-            return status::unimplemented;
+        return status::unimplemented;
     }
 
-    for (int ur_w = regs; ur_w > 0; --ur_w) {
-        if (jcp.ow % ur_w == 0) {
-            jcp.ur_w = ur_w;
-            break;
+    if (jcp.ver == ver_4fma && jcp.is_1stconv) {
+        jcp.ur_w = jcp.ow < regs ? jcp.ow : regs;
+    } else {
+        for (int ur_w = regs; ur_w > 0; --ur_w) {
+            if (jcp.ow % ur_w == 0) {
+                jcp.ur_w = ur_w;
+                break;
+            }
         }
     }
-
     // TODO (Tanya): currenly applied to Segnet convolutions only.
     // Need to try for other topologies
     if (jcp.ow > 150 && jcp.ur_w < regs/2)
@@ -762,7 +899,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     bool args_ok = true
         && jcp.oc % simd_w == 0
         && jcp.l_pad <= jcp.ur_w
-        && implication(mimo, jcp.ic % simd_w == 0);
+        && implication(!jcp.is_1stconv, jcp.ic % simd_w == 0);
     if (!args_ok)
         return status::unimplemented;
 
@@ -774,7 +911,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     jcp.nb_ic = jcp.ic / jcp.ic_block;
     jcp.nb_oc = jcp.oc / jcp.oc_block;
     jcp.nb_ic_blocking = jcp.nb_oc_blocking = 1;
-    if (one_of(jcp.ver, ver_4vnni, ver_4fma))
+    if (one_of(jcp.ver, ver_4vnni, ver_4fma) && !jcp.is_1stconv)
         for (int i = jcp.nb_oc; i > 0; i--)
             if (i * jcp.ur_w <= regs && jcp.nb_oc % i == 0) {
                 jcp.nb_oc_blocking = i;

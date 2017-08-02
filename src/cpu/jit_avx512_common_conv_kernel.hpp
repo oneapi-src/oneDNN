@@ -34,12 +34,12 @@ struct jit_avx512_common_conv_fwd_kernel : public jit_generator {
         generate();
         jit_ker = (void (*)(jit_conv_call_s *))getCode();
     }
-
     static status_t init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd,
-            const memory_desc_wrapper &src_d,
-            const memory_desc_wrapper &weights_d,
-            const memory_desc_wrapper &dst_d,
+            cpu_memory_t::pd_t &src_pd,
+            cpu_memory_t::pd_t &weights_pd,
+            cpu_memory_t::pd_t &dst_pd,
+            cpu_memory_t::pd_t &bias_pd,
             bool with_relu = false,
             double relu_negative_slope = 0.);
 
@@ -109,6 +109,7 @@ private:
     inline void compute_loop_fma(int ur_w, int pad_l, int pad_r);
     inline void compute_loop_4vnni(int ur_w, int pad_l, int pad_r);
     inline void compute_loop_4fma(int ur_w, int pad_l, int pad_r);
+    inline void compute_loop_4fma_1st(int ur_w, int pad_l, int pad_r);
     inline void compute_loop(int ur_w, int pad_l, int pad_r);
 
     void generate();
