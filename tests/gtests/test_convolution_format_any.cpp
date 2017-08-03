@@ -22,7 +22,7 @@
 namespace mkldnn {
 using fmt = memory::format;
 
-#define EXP_VALS_NUM 2
+#define EXP_VALS_NUM 3
 struct fmt_compare {
     fmt in;
     fmt exp[EXP_VALS_NUM];
@@ -129,15 +129,21 @@ TEST_P(conv_any_fmt_test_float, TestsConvolutionAnyFmt)
 #define ALG algorithm::convolution_direct
 #define PROP_KIND prop_kind::forward
 
-#define ANY_X { fmt::any, { fmt::x, fmt::format_undef } }
-#define ANY_NCHW { fmt::any, { fmt::nchw, fmt::format_undef } }
-#define ANY_OIHW { fmt::any, { fmt::oihw, fmt::format_undef } }
+#define ANY_X { fmt::any,    \
+              { fmt::x, fmt::format_undef, fmt::format_undef } }
+#define ANY_NCHW { fmt::any, \
+              { fmt::nchw, fmt::format_undef, fmt::format_undef } }
+#define ANY_OIHW { fmt::any, \
+                 { fmt::oihw, fmt::format_undef, fmt::format_undef } }
 
-#define ANY_OHWIxO { fmt::any, { fmt::Ohwi8o, fmt::Ohwi16o } }
-#define ANY_NCHWxC { fmt::any, { fmt::nChw8c, fmt::nChw16c } }
-#define ANY_OHWIxO { fmt::any, { fmt::Ohwi8o, fmt::Ohwi16o } }
-#define ANY_OIHWxIxO { fmt::any, { fmt::OIhw8i8o, fmt::OIhw16i16o } }
-#define ANY_GOIHWxIxO { fmt::any, { fmt::gOIhw8i8o, fmt::gOIhw16i16o } }
+#define ANY_OHWIxO { fmt::any,   \
+                   { fmt::Ohwi8o, fmt::Ohwi16o, fmt::Oihw16o } }
+#define ANY_NCHWxC { fmt::any,   \
+                   { fmt::nChw8c, fmt::nChw16c, fmt::format_undef } }
+#define ANY_OIHWxIxO { fmt::any, \
+                     { fmt::OIhw8i8o, fmt::OIhw16i16o, fmt::format_undef } }
+#define ANY_GOIHWxIxO { fmt::any,\
+                      { fmt::gOIhw8i8o, fmt::gOIhw16i16o, fmt::format_undef } }
 
 INSTANTIATE_TEST_CASE_P(TestConvolutionAnyFmtForward, conv_any_fmt_test_float,
     ::testing::Values(conv_any_fmt_test_params_float{ PROP_KIND, ENGINE, ALG,
