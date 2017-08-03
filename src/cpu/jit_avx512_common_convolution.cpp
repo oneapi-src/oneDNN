@@ -219,15 +219,37 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
 
             for (int ocb = 0; ocb < jcp.nb_oc; ++ocb) {
                 for (int ij = ih_s; ij < ih_e; ++ij) {
-                    int i_t_overflow = max(0, jcp.kh - 1 - ij - jcp.t_pad);
-                    int i_b_overflow = max(0, jcp.kh - jcp.ih + ij - jcp.b_pad);
-                    int oj = ij + jcp.t_pad - i_b_overflow;
+                    int oj, k_len, k_lo;
+                    if (jcp.stride_h == 1) { // fast path
+                        int i_t_overflow = max(0, jcp.kh - 1 - ij - jcp.t_pad);
+                        int i_b_overflow = max(0, jcp.kh - jcp.ih + ij
+                                - jcp.b_pad);
+                        k_len = jcp.kh - i_t_overflow - i_b_overflow;
+                        k_lo = i_b_overflow;
+                        oj = ij + jcp.t_pad - i_b_overflow;
+                    } else {
+                        int b_pad = jcp.stride_h * (jcp.oh - 1) + jcp.kh
+                            - jcp.ih - jcp.t_pad;
+                        int i_t_overflow = max(0, (jcp.kh - 1 - ij - jcp.t_pad)
+                                / jcp.stride_h);
+                        int i_b_overflow = max(0, (jcp.kh - jcp.ih + ij
+                                    - b_pad) / jcp.stride_h);
+                        int overflow_kh_hi = jcp.kh - 1 - abs((jcp.ih - 1
+                                    + b_pad - ij) % jcp.stride_h);
+                        int overflow_kh_lo = (ij + jcp.t_pad) % jcp.stride_h;
+
+                        k_len = (overflow_kh_hi - overflow_kh_lo)
+                            / jcp.stride_h + 1 - i_t_overflow - i_b_overflow;
+                        k_lo = overflow_kh_lo + i_b_overflow * jcp.stride_h;
+                        oj = (ij + jcp.t_pad - k_lo) / jcp.stride_h;
+                    }
+                    assert(k_len >= 0);
 
                     jit_conv_ker_pipeline(kernel_->jit_ker, par_conv,
                             diff_src_w + ij * diff_src_h_stride,
                             diff_dst_w + oj * diff_dst_h_stride,
-                            wht_w + i_b_overflow * wht_h_stride,
-                            0, ocb, jcp.kh - i_t_overflow - i_b_overflow);
+                            wht_w + k_lo * wht_h_stride,
+                            0, ocb, k_len);
                 }
                 diff_dst_w += diff_dst_c_stride;
                 wht_w += wht_oc_stride;
@@ -244,7 +266,7 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
         }
 
         jit_conv_ker_pipeline(kernel_->jit_ker, par_conv,
-                diff_src, diff_dst, weights, 0, 0, 0);
+                diff_src, diff_dst, weights, 0, 0, 1);
     }
 }
 
