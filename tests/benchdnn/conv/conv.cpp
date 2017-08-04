@@ -506,6 +506,10 @@ int doit(const prb_t *p, res_t *r) {
                 SAFE(compare_bia(p, bia, bia_fp, r, true), WARN);
             }
         }
+    } else {
+        delete p_bia_dt;
+        delete p_bia_fp;
+        SAFE(FAIL, CRIT);
     }
 
     if (bench_mode & PERF) {
@@ -522,8 +526,10 @@ int doit(const prb_t *p, res_t *r) {
             if (stop) break;
         }
     }
+
     delete p_bia_dt;
     delete p_bia_fp;
+
     return OK;
 }
 
