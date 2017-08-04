@@ -30,19 +30,16 @@ namespace impl {
 namespace cpu {
 
 namespace {
-/** Common code logic --> single point of change.
- * Can be more complicated to support other OSes
+/** Can be more complicated to support other OSes
  * (e.g. without JIT support, no mayiuse available).
- * Some compilers (my gcc) still insist on one-liner returns here :(
- */
+ * Some compilers (gcc) still insist on one-liner returns here :( */
 template<bool run_jit, cpu_isa_t isa>
 static inline bool constexpr _gemm_convolution_implemented() {
 #if defined(USE_MKL) || defined(USE_CBLAS)
-    return run_jit? mayiuse(isa): true;
+    return run_jit ? mayiuse(isa) : true;
 #else
-    return run_jit? mayiuse(isa): false;
+    return run_jit ? mayiuse(isa) : false;
 #endif
-
 }
 }
 
@@ -64,7 +61,7 @@ struct _gemm_convolution_fwd_t: public cpu_primitive_t {
             assert(this->engine()->kind() == engine_kind::cpu);
 
             bool ok = true
-                && _gemm_convolution_implemented< run_jit, isa >()
+                && _gemm_convolution_implemented<run_jit, isa>()
                 && this->set_default_params() == status::success
                 && utils::one_of(this->cdesc_().prop_kind, forward_training,
                         forward_inference)
@@ -171,7 +168,7 @@ struct _gemm_convolution_bwd_data_t: public cpu_primitive_t {
             assert(this->engine()->kind() == engine_kind::cpu);
 
             bool ok = true
-                && _gemm_convolution_implemented< run_jit, isa >()
+                && _gemm_convolution_implemented<run_jit, isa>()
                 && this->set_default_params() == status::success
                 && utils::one_of(this->desc()->prop_kind, backward,
                         backward_data)
@@ -272,7 +269,7 @@ struct _gemm_convolution_bwd_weights_t: public cpu_primitive_t {
             assert(this->engine()->kind() == engine_kind::cpu);
 
             bool ok = true
-            && _gemm_convolution_implemented< run_jit, isa >()
+            && _gemm_convolution_implemented<run_jit, isa>()
             && this->set_default_params() == status::success
             && utils::one_of(this->desc()->prop_kind, backward,
                     backward_weights)

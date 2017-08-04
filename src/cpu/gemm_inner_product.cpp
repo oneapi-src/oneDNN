@@ -18,18 +18,18 @@
 #include "type_helpers.hpp"
 
 #include "gemm_inner_product.hpp"
-#include "os-blas.hpp"
-//
-// TODO: check if jit gemm should be made available for inner_product
-//       Should this decision be consistent with gemm_convolution ?
-//
-// USE_MKL      USE_CBLAS       effect
-// -------      ---------       ------
-// yes          yes             use mkl cblas (NO JJIT - why?)
-// yes          no              no jit, so not possible(?) (provide stubs)
-// no           yes             system-dependent (non-MKL) cblas
-// no           no              gemm inner product not possible (provide stubs)
-//
+#include "os_blas.hpp"
+
+/* TODO: check if jit gemm should be made available for inner_product
+ *       Should this decision be consistent with gemm_convolution ?
+ *
+ * USE_MKL      USE_CBLAS       effect
+ * -------      ---------       ------
+ * yes          yes             use mkl cblas (NO JIT - why?)
+ * yes          no              no jit, so not possible(?) (provide stubs)
+ * no           yes             system-dependent (non-MKL) cblas
+ * no           no              gemm inner product not possible (provide stubs)
+ */
 
 namespace mkldnn {
 namespace impl {
