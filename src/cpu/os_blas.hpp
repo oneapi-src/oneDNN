@@ -40,7 +40,9 @@ extern "C" {
 #include "cblas.h" // CHECK: does SX also have a fortran API sgemm?
 }
 #else
+#ifdef USE_CBLAS
 #include "cblas.h" // Maybe a system/cmake cblas works for you?
+#endif
 #endif
 #endif
 
