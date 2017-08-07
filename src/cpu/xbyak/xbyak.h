@@ -150,7 +150,7 @@ namespace Xbyak {
 
 enum {
 	DEFAULT_MAX_CODE_SIZE = 4096,
-	VERSION = 0x5410 /* 0xABCD = A.BC(D) */
+	VERSION = 0x5432 /* 0xABCD = A.BC(D) */
 };
 
 #ifndef MIE_INTEGER_TYPE_DEFINED
@@ -289,7 +289,7 @@ public:
 	}
 };
 
-inline const char *ConvertErrorToString(Error err)
+inline const char *ConvertErrorToString(const Error& err)
 {
 	return err.what();
 }
@@ -451,7 +451,7 @@ public:
 	bool isExtIdx() const { return (getIdx() & 8) != 0; }
 	bool isExtIdx2() const { return (getIdx() & 16) != 0; }
 	bool hasEvex() const { return isZMM() || isExtIdx2() || hasZero() || getOpmaskIdx() || getRounding(); }
-	bool hasRex() const { return isExt8bit() | isREG(64) | isExtIdx(); }
+	bool hasRex() const { return isExt8bit() || isREG(64) || isExtIdx(); }
 	bool hasZero() const { return zero_; }
 	int getOpmaskIdx() const { return mask_; }
 	int getRounding() const { return rounding_; }
@@ -794,7 +794,7 @@ inline RegExp operator-(const RegExp& e, size_t disp)
 }
 
 // 2nd parameter for constructor of CodeArray(maxSize, userPtr, alloc)
-void *const AutoGrow = (void*)1;
+void *const AutoGrow = (void*)1; //-V566
 
 class CodeArray {
 	enum Type {
@@ -886,6 +886,7 @@ public:
 	{
 		size_ = 0;
 		addrInfoList_.clear();
+		isCalledCalcJmpAddress_ = false;
 	}
 	void db(int code)
 	{
@@ -898,14 +899,14 @@ public:
 		}
 		top_[size_++] = static_cast<uint8>(code);
 	}
-	void db(const uint8 *code, int codeSize)
+	void db(const uint8 *code, size_t codeSize)
 	{
-		for (int i = 0; i < codeSize; i++) db(code[i]);
+		for (size_t i = 0; i < codeSize; i++) db(code[i]);
 	}
-	void db(uint64 code, int codeSize)
+	void db(uint64 code, size_t codeSize)
 	{
 		if (codeSize > 8) throw Error(ERR_BAD_PARAMETER);
-		for (int i = 0; i < codeSize; i++) db(static_cast<uint8>(code >> (i * 8)));
+		for (size_t i = 0; i < codeSize; i++) db(static_cast<uint8>(code >> (i * 8)));
 	}
 	void dw(uint32 code) { db(code, 2); }
 	void dd(uint32 code) { db(code, 4); }
@@ -2416,6 +2417,9 @@ public:
 	}
 #endif
 
+#ifdef XBYAK_UNDEF_JNL
+	#undef jnl
+#endif
 #ifndef XBYAK_DONT_READ_LIST
 #include "xbyak_mnemonic.h"
 	void align(int x = 16)
@@ -2423,7 +2427,7 @@ public:
 		if (x == 1) return;
 		if (x < 1 || (x & (x - 1))) throw Error(ERR_BAD_ALIGN);
 		if (isAutoGrow() && x > (int)inner::ALIGN_PAGE_SIZE) fprintf(stderr, "warning:autoGrow mode does not support %d align\n", x);
-		while (size_t(getCurr()) % x) {
+		while (size_t(getCurr()) % size_t(x) > 0) {
 			nop();
 		}
 	}
