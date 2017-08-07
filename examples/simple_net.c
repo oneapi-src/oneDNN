@@ -76,6 +76,7 @@ static void init_data_memory(uint32_t dim, const int *dims,
     CHECK(mkldnn_memory_set_data_handle(*memory, data));
     CHECK(mkldnn_memory_get_data_handle(*memory, &req));
     CHECK_TRUE(req == data);
+    CHECK(mkldnn_primitive_desc_destroy(user_pd));
 }
 
 mkldnn_status_t prepare_reorder(
@@ -112,6 +113,7 @@ mkldnn_status_t prepare_reorder(
                         outputs));
         }
         CHECK(mkldnn_memory_set_data_handle(*prim_memory, buffer));
+        CHECK(mkldnn_primitive_desc_destroy(reorder_pd));
     } else {
         *prim_memory = NULL;
         *reorder = NULL;
@@ -419,6 +421,11 @@ mkldnn_status_t simple_net(){
     CHECK(mkldnn_stream_wait(stream, n, NULL));
 
     /* clean-up */
+    CHECK(mkldnn_primitive_desc_destroy(conv_pd));
+    CHECK(mkldnn_primitive_desc_destroy(relu_pd));
+    CHECK(mkldnn_primitive_desc_destroy(lrn_pd));
+    CHECK(mkldnn_primitive_desc_destroy(pool_pd));
+
     mkldnn_stream_destroy(stream);
 
     free(net_src);
@@ -461,6 +468,8 @@ mkldnn_status_t simple_net(){
 
     free(pool_dst_buffer);
     free(pool_indices_buffer);
+
+    mkldnn_engine_destroy(engine);
 
     return mkldnn_success;
 }

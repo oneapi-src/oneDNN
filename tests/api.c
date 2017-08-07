@@ -226,6 +226,7 @@ void test2() {
     CHECK(mkldnn_primitive_destroy(c3_weights));
     CHECK(mkldnn_primitive_destroy(c3_bias));
     CHECK(mkldnn_primitive_destroy(c3_dst));
+    CHECK(mkldnn_primitive_destroy(out));
     CHECK(mkldnn_engine_destroy(engine));
 
     const int N = c3_dst_sizes[0], C = c3_dst_sizes[1],
@@ -337,6 +338,7 @@ void test3() {
     CHECK(mkldnn_primitive_destroy(l2));
     CHECK(mkldnn_primitive_destroy(l2_src));
     CHECK(mkldnn_primitive_destroy(l2_dst));
+    CHECK(mkldnn_primitive_destroy(out));
     CHECK(mkldnn_engine_destroy(engine));
 
     const int N = l2_data_sizes[0], C = l2_data_sizes[1],
