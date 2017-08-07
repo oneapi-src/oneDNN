@@ -364,27 +364,116 @@ void jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::
     auto ker = [=](int ur) {
         /* Computing the GEMM */
         /* we assume the output is in the first 16 Zmms */
+        int num_4fma = jcp.ver == ver_4fma ? ur / 4 : 0;
+        int num_fma = jcp.ver == ver_4fma ? ur % 4 : ur;
+        int nrowsA = 16;
+        int ncolsA = 4;
+        int dsize = sizeof(float);
+        int cols_dst = 16;
 
-        /* we do double buffering on A */
-        if (jcp.double_buffering)
-            vmovups(Zmm(jcp.zmm_start), zword[reg_srcA]);
+        if (num_4fma) {
+            /* Multiply 16 x 4 blocks for each nb_iter.
+             * 4 columns of A are multiplied with 4 values of B for each 4fma */
+            for (int i = 0; i < num_4fma; ++i){
+                for (int j = 0; j < ncolsA; ++j) {
+                    vmovups(Zmm(jcp.zmm_start + i * ncolsA + j),
+                            zword[reg_srcA + nrowsA * dsize * (ncolsA * i + j)]);
+                }
+            }
 
-        for (int i = 0; i < ur; i++) {
+            for (int i = 0; i < num_4fma; ++i){
+                int zmm_start_b = jcp.zmm_start + num_4fma * ncolsA;
+                for (int j = 0; j < ncolsA; ++j) {
+                    vmovups(Zmm(zmm_start_b + j),
+                            zword[reg_srcB + nrowsA * dsize * (ncolsA * i + j)]);
+                }
+
+                 /* Transposes 4x4 blocks in 16x4 block of B instead of
+                  * full 16x4 block, since we only need
+                  * 4 contiguous values for one 4fma.*/
+                vunpcklps(Zmm(zmm_start_b + 4), Zmm(zmm_start_b),
+                        Zmm(zmm_start_b + 1));
+                vunpcklps(Zmm(zmm_start_b + 5), Zmm(zmm_start_b + 2),
+                        Zmm(zmm_start_b + 3));
+                vunpckhps(Zmm(zmm_start_b), Zmm(zmm_start_b),
+                        Zmm(zmm_start_b + 1));
+                vunpckhps(Zmm(zmm_start_b + 1), Zmm(zmm_start_b + 2),
+                        Zmm(zmm_start_b + 3));
+
+                vunpcklpd(Zmm(zmm_start_b + 2), Zmm(zmm_start_b + 4),
+                        Zmm(zmm_start_b + 5));
+                vunpckhpd(Zmm(zmm_start_b + 3), Zmm(zmm_start_b + 4),
+                        Zmm(zmm_start_b + 5));
+
+                vunpcklpd(Zmm(zmm_start_b + 4), Zmm(zmm_start_b),
+                        Zmm(zmm_start_b + 1));
+                vunpckhpd(Zmm(zmm_start_b + 5), Zmm(zmm_start_b),
+                        Zmm(zmm_start_b + 1));
+
+                for (int j = ncolsA - 1; j >= 0; --j) {
+                    sub(reg_sp, nrowsA * dsize);
+                    /* push transpose to stack instead of original location
+                     * to avoid overwrites by other threads*/
+                    vmovups(zword[reg_sp], Zmm(zmm_start_b + 2 + j));
+                }
+
+
+                /* Naive approach: prefetch 16x4 blocks for next nb_iter to
+                 * avoid L2 misses for A and B*/
+                if (i == 0) {
+                    for (int j = 0; j < ncolsA; ++j) {
+                        prefetcht1(ptr[reg_srcA + nrowsA * dsize
+                                * (ncolsA * num_4fma + num_fma + j)]);
+                        prefetcht0(ptr[reg_srcB + nrowsA * dsize
+                                * (ncolsA * num_4fma + num_fma + j)]);
+                    }
+                }
+
+                int rowB = 0;
+                for (int j = 0; j < cols_dst; ++j) {
+                     /* partially transposed 4x16 block of B is multiplied with
+                     * columns of A (c1 - column 1, c2 - column 2 and so on...)
+                     * in order as shown,
+                     * B: c1, c2, c3, c4, c17, c18, c19, c20, ...
+                     *    c5, c6, c7, c8, c21, c22, c23, c24, ...
+                     *    c9, c10, c11, c12, c25, c26, c27, c28, ...
+                     *    c13, c14, c15, c16, c29, c30, c31, c32, ...*/
+                    if (j != 0 && j % ncolsA == 0)
+                        rowB += ncolsA * dsize;
+                    int quadB = (j % ncolsA) * nrowsA * dsize + rowB;
+                    v4fmaddps(Zmm(j), Zmm(jcp.zmm_start + i * ncolsA),
+                            EVEX_compress_addr(reg_sp, quadB, false));
+                }
+
+                for (int j = 0; j < ncolsA; ++j) {
+                    add(reg_sp, nrowsA * dsize);
+                }
+            }
+        }
+
+        if (num_fma && jcp.double_buffering)
+            vmovups(Zmm(jcp.zmm_start),
+                    zword[reg_srcA + num_4fma * ncolsA * nrowsA * dsize]);
+
+        for (int i = 0; i < num_fma; ++i) {
             Zmm current;
             if (jcp.double_buffering) {
-                if (i < ur - 1)
+                if (i < num_fma - 1)
                     vmovups(Zmm(jcp.zmm_start + ((i + 1) % 2)),
-                            zword[reg_srcA + 64 * (i + 1)]);
+                            zword[reg_srcA
+                            + nrowsA * dsize * (num_4fma * ncolsA + i + 1)]);
                 current = Zmm(jcp.zmm_start + (i % 2));
             } else {
-                vmovups(Zmm(jcp.zmm_start + i),
-                            zword[reg_srcA + 64 * i]);
+                vmovups(Zmm(jcp.zmm_start),
+                            zword[reg_srcA + nrowsA * dsize * i]);
                 current = Zmm(jcp.zmm_start);
             }
 
-            for (int j = 0; j < 16; j++) {
-                vfmadd231ps(Zmm(j), current,
-                            EVEX_compress_addr(reg_srcB, (16 * i + j) * 4, true));
+            for (int j = 0; j < cols_dst; j++) {
+                vfmadd231ps(Zmm(j), current, EVEX_compress_addr(
+                            reg_srcB,
+                            ((num_4fma * ncolsA + i) * nrowsA  + j) * dsize,
+                            true));
             }
         }
     };
@@ -500,6 +589,8 @@ status_t jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::init_conf(
     jcp.oc_block = simd_w;
     jcp.nb_oc = jcp.oc / jcp.oc_block;
 
+    jcp.ver = mayiuse(avx512_mic_4ops) ? ver_4fma : ver_fma;
+
     // Winograd specific initialization
     jcp.alpha = 6;
     const int tile_size = jcp.alpha - 2;
@@ -544,7 +635,7 @@ status_t jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::init_conf(
         jcp.bimg = (candidate1 < candidate2) ? candidate1 : candidate2;
 
         /* Prevents aggressive unrolling */
-        int kernel_size_threshold = 2;
+        int kernel_size_threshold = jcp.ver == ver_4fma ? 4 : 2;
         jcp.dim_kernel = get_largest_divisor_lower_than(
             jcp.bimg * jcp.itiles * jcp.jtiles, kernel_size_threshold);
         jcp.nb_iter = (jcp.bimg * jcp.jtiles * jcp.itiles) / jcp.dim_kernel;
@@ -554,6 +645,9 @@ status_t jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::init_conf(
     jcp.zmm_start = 16;
     jcp.nb_reg = 32 - jcp.zmm_start;
     jcp.double_buffering = true;
+    int regs_transV = jcp.ver == ver_4fma ? 6 : 0;
+    int regs_loadM = jcp.dim_kernel * (jcp.double_buffering ? 2 : 1);
+    assert(implication(jcp.ver_4fma, jcp.nb_reg >= regs_loadM + regs_transV));
 
     return status::success;
 }

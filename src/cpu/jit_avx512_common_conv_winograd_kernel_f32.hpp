@@ -117,6 +117,7 @@ struct jit_avx512_common_conv_winograd_bwd_weights_kernel_f32
     reg64_t reg_srcA_const = abi_param2;
     reg64_t reg_srcB = abi_param3;
 
+    reg64_t reg_sp = rsp;
     reg64_t reg_srcA = r9;
     reg64_t reg_nb_ic = r10;
     reg64_t reg_loop_cpt = r11;
