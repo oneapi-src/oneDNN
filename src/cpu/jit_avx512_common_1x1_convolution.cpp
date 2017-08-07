@@ -37,23 +37,21 @@ template <typename T, typename U>
 void balance2D(U nthr, U ithr, T ny, T &ny_start, T &ny_end,
     T nx, T &nx_start, T &nx_end, T nx_divider)
 {
-    if (ny % nthr == 0 || nx_divider == 1) {
-        nx_start = 0;
-        nx_end = nx;
-        balance211(ny, nthr, ithr, ny_start, ny_end);
-    } else {
-        const T grp_size = utils::div_up(nthr, nx_divider);
-        const T grp_count = utils::div_up(nthr, grp_size);
+    const T grp_size = utils::div_up(nthr, nx_divider);
+    const T grp_count = utils::div_up(nthr, grp_size);
 
-        const T current_grp = ithr / grp_size;
-        balance211(nx, grp_count, current_grp, nx_start, nx_end);
-
-        const T current_grp_ithr = ithr % grp_size;
-        const T current_grp_offt = current_grp * grp_size;
-        const T current_grp_nthr =
-            nstl::min(nthr, current_grp_offt + grp_size) - current_grp_offt;
-        balance211(ny, current_grp_nthr, current_grp_ithr, ny_start, ny_end);
+    T grp = ithr / grp_size;
+    T grp_ithr = ithr % grp_size;
+    T grp_nthr = grp_size;
+    T first_grps = nthr % grp_count;
+    if (first_grps > 0 && grp >= first_grps) {
+        ithr -= first_grps * grp_size;
+        grp_nthr--;
+        grp = ithr / grp_nthr + first_grps;
+        grp_ithr = ithr % grp_nthr;
     }
+    balance211(nx, grp_count, grp, nx_start, nx_end);
+    balance211(ny, grp_nthr, grp_ithr, ny_start, ny_end);
 }
 }
 /* convolution forward */
