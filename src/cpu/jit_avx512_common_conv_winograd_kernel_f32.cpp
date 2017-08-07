@@ -647,7 +647,7 @@ status_t jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::init_conf(
     jcp.double_buffering = true;
     int regs_transV = jcp.ver == ver_4fma ? 6 : 0;
     int regs_loadM = jcp.dim_kernel * (jcp.double_buffering ? 2 : 1);
-    assert(implication(jcp.ver_4fma, jcp.nb_reg >= regs_loadM + regs_transV));
+    assert(jcp.nb_reg >= regs_loadM + regs_transV);
 
     return status::success;
 }
