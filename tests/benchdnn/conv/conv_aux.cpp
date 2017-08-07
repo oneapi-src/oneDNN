@@ -118,15 +118,6 @@ int str2desc(desc_t *desc, const char *str) {
 #   undef CASE_NN
 #   undef CASE_N
 
-    if (d.ih * d.iw == 0) d.ih = d.iw = MAX2(d.ih, d.iw);
-    if (d.kh * d.kw == 0) d.kh = d.kw = MAX2(d.kh, d.kw);
-    if (d.ph * d.pw == 0) d.ph = d.pw = MAX2(d.ph, d.pw);
-    if (d.dh * d.dw == 0) d.dh = d.dw = MAX2(d.dh, d.dw);
-
-    if (d.oh == 0 && d.ow != 0) d.oh = d.ow;
-    if (d.ow == 0 && d.oh != 0) d.ow = d.oh;
-
-    if (d.ih == 0 || d.kh == 0) return FAIL;
     if (d.ic == 0 || d.oc == 0) return FAIL;
 
     auto compute_out = [](int i, int k, int s, int p, int d) {
@@ -137,14 +128,39 @@ int str2desc(desc_t *desc, const char *str) {
         return ((o - 1) * s - i + ((k - 1) * (d + 1) + 1)) / 2;
     };
 
-    if (d.oh == 0) d.oh = compute_out(d.ih, d.kh, d.sh, d.ph, d.dh);
-    else if (d.ph == 0 && d.oh != compute_out(d.ih, d.kh, d.sh, d.ph, d.dh)) {
-        d.ph = compute_pad(d.oh, d.ih, d.kh, d.ph, d.dh);
+    const bool no_h = (d.ih | d.kh | d.oh | d.ph | d.dh) == 0 && d.sh == 1;
+    const bool no_w = (d.iw | d.kw | d.ow | d.pw | d.dw) == 0 && d.sw == 1;
+
+    if (!no_h) {
+        if (!d.ih || !d.kh) return FAIL;
+
+        if (!d.oh) d.oh = compute_out(d.ih, d.kh, d.sh, d.ph, d.dh);
+        else if (!d.ph && d.oh != compute_out(d.ih, d.kh, d.sh, d.ph, d.dh))
+            d.ph = compute_pad(d.oh, d.ih, d.kh, d.ph, d.dh);
     }
 
-    if (d.ow == 0) d.ow = compute_out(d.iw, d.kw, d.sw, d.pw, d.dw);
-    else if (d.pw == 0 && d.ow != compute_out(d.iw, d.kw, d.sw, d.pw, d.dw)) {
-        d.pw = compute_pad(d.ow, d.iw, d.kw, d.pw, d.dw);
+    if (!no_w) {
+        if (!d.iw || !d.kw) return FAIL;
+
+        if (!d.ow) d.ow = compute_out(d.iw, d.kw, d.sw, d.pw, d.dw);
+        else if (!d.pw && d.ow != compute_out(d.iw, d.kw, d.sw, d.pw, d.dw))
+            d.pw = compute_pad(d.ow, d.iw, d.kw, d.pw, d.dw);
+    }
+
+    if (no_w) {
+        d.iw = d.ih;
+        d.kw = d.kh;
+        d.ow = d.oh;
+        d.pw = d.ph;
+        d.sw = d.sh;
+        d.dw = d.dh;
+    } else if (no_h) {
+        d.ih = d.iw;
+        d.kh = d.kw;
+        d.oh = d.ow;
+        d.ph = d.pw;
+        d.sh = d.sw;
+        d.dh = d.dw;
     }
 
     *desc = d;
