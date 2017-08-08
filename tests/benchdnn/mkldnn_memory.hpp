@@ -62,21 +62,6 @@ struct dnn_mem_t {
 
     ~dnn_mem_t() { cleanup(); }
 
-#if 0
-    /* I don't know c++ :( */
-    dnn_mem_t &operator=(dnn_mem_t &rhs) {
-        if (&rhs == this) return *this;
-        cleanup();
-        md_ = rhs.md_;
-        mpd_ = rhs.mpd_; rhs.mpd_ = NULL;
-        p_ = rhs.p_; rhs.p_ = NULL;
-        data_ = rhs.data_; rhs.data_ = NULL;
-        is_data_owner_ = rhs.is_data_owner_; rhs.is_data_owner_ = false;
-        active_ = !(rhs.active_ = false);
-        return *this;
-    }
-#endif
-
     int reorder(const dnn_mem_t &rhs) {
         if (this == &rhs) return OK;
 
