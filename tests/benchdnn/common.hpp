@@ -49,6 +49,8 @@ enum { CRIT = 1, WARN = 2 };
     } \
 } while(0)
 
+#define ABS(a) ((a)>0?(a):(-(a)))
+
 #define MIN2(a,b) ((a)<(b)?(a):(b))
 #define MAX2(a,b) ((a)>(b)?(a):(b))
 

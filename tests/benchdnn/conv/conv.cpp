@@ -24,6 +24,8 @@
 #include "mkldnn_common.hpp"
 #include "mkldnn_memory.hpp"
 
+#include "norm.hpp"
+
 #include "conv/conv.hpp"
 
 namespace conv {
@@ -62,6 +64,7 @@ inline int compare_dat(const prb_t *p, int what, dnn_mem_t &mem_dt,
     int in_ok = 0, below_ok = 0, above_ok = 0;
     int non_zero = 0;
 
+    diff_norm_t diff_norm;
     float max_rel_diff = 0;
 
     r->errors = 0;
@@ -76,14 +79,17 @@ inline int compare_dat(const prb_t *p, int what, dnn_mem_t &mem_dt,
 
         bool ok = true;
         if (fp < p->cfg[what].min) {
+            diff_norm.update(p->cfg[what].min, dt);
             ok = dt == p->cfg[what].min;
             below += 1;
             below_ok += ok;
         } else if (fp > p->cfg[what].max) {
+            diff_norm.update(p->cfg[what].max, dt);
             ok = dt == p->cfg[what].max;
             above += 1;
             above_ok += ok;
         } else {
+            diff_norm.update(fp, dt);
             ok = (fabs(fp) > 1e-5 ? rel_diff : diff) <= p->cfg[what].eps;
             in += 1;
             in_ok += ok;
@@ -123,8 +129,23 @@ inline int compare_dat(const prb_t *p, int what, dnn_mem_t &mem_dt,
         non_zero += fp != 0;
     }
 
-    if (final_compare || r->errors)
-        print(2, "[%s] max_rel_diff:%g\n", swhat, max_rel_diff);
+    diff_norm.done();
+
+    if (final_compare || r->errors) {
+        const int vl = r->errors ? 0 : 2;
+        print(vl, "@@@ [%s] %sdiff: l0(``%g``) "
+                "l1:(%g,%g,%g,``%g``) "
+                "l2:(%g,%g,%g,``%g``) "
+                "l8:(%g,%g,%g,``%g``)\n",
+                swhat, final_compare ? "final: " : "",
+                diff_norm.rel_diff(norm_t::L0),
+                diff_norm.a_[norm_t::L1], diff_norm.b_[norm_t::L1],
+                diff_norm.diff_[norm_t::L1], diff_norm.rel_diff(norm_t::L1),
+                diff_norm.a_[norm_t::L2], diff_norm.b_[norm_t::L2],
+                diff_norm.diff_[norm_t::L2], diff_norm.rel_diff(norm_t::L2),
+                diff_norm.a_[norm_t::L8], diff_norm.b_[norm_t::L8],
+                diff_norm.diff_[norm_t::L8], diff_norm.rel_diff(norm_t::L8));
+    }
 
     const double trust_rg_level = 0.3;
     const double trust_nz_level = get_trust_nz_level(p, what, final_compare);
@@ -138,13 +159,14 @@ inline int compare_dat(const prb_t *p, int what, dnn_mem_t &mem_dt,
 
     const bool dump = verbose >= 20
         || (verbose >= 10 && (trust_rg < 1. || trust_nz < 1.));
-    if (dump)
+    if (dump) {
         print(0, "@@@ [%s] %strust range:%.2f nz:%.2f "
                 "(level range:%.2f nz:%.2f). "
                 "in:%d (ok:%d) below:%d (ok:%d) above:%d (ok:%d) nz:%d "
                 "total:%d\n", swhat, final_compare ? "final: " : "",
                 trust_rg, trust_nz, trust_rg_level, trust_nz_level, in, in_ok,
                 below, below_ok, above, above_ok, non_zero, r->total);
+    }
 
     if (no_trust) {
         r->state = MISTRUSTED;
