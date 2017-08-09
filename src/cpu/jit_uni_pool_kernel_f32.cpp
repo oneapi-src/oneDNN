@@ -367,7 +367,7 @@ void jit_uni_pool_kernel_f32<isa>::maybe_zero_diff_src() {
     {
         const int dim = jpp.iw * jpp.c_block * sizeof(float);
         for (int i = 0; i < dim; i += cpu_isa_traits<isa>::vlen)
-            vmovups(ptr[reg_input + reg_off + i], vzero);
+            uni_vmovups(ptr[reg_input + reg_off + i], vzero);
         add(reg_off, dim);
         cmp(reg_off, jpp.ih * dim);
         jl(l_zero, T_NEAR);
