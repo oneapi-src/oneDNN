@@ -26,9 +26,9 @@
  *
  * USE_MKL      USE_CBLAS       effect
  * -------      ---------       ------
- * yes          yes             use mkl cblas (NO JIT - why?)
+ * yes          yes             use Intel(R) MKL CBLAS (NO JIT - why?)
  * yes          no              no jit, so not possible(?) (provide stubs)
- * no           yes             system-dependent (non-MKL) cblas
+ * no           yes             system-dependent CBLAS
  * no           no              gemm inner product not possible (provide stubs)
  */
 
