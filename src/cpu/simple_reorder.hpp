@@ -682,6 +682,93 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     typename utils::enable_if<
+        (fmt_i == goihw && (fmt_o == gOIhw8o8i || fmt_o == gOIhw16o16i))
+        || (fmt_i == oihw && (fmt_o == OIhw8o8i || fmt_o == OIhw16o16i))
+    >::type>
+{
+    static bool is_applicable(const memory_desc_wrapper &input_d,
+            const memory_desc_wrapper &output_d) {
+        return input_d.format() == (order_keep ? fmt_i : fmt_o)
+            && output_d.format() == (order_keep ? fmt_o : fmt_i);
+    }
+
+    static status_t execute(const memory_desc_wrapper &input_d,
+        const memory_desc_wrapper &output_d, const data_t<type_i> *input,
+        data_t<type_o> *output,
+        const double alpha_, const double beta_) {
+        constexpr bool w_groups = fmt_i == goihw;
+
+        const auto &_g_oihw_d = order_keep ? input_d : output_d;
+        const auto &dims = input_d.dims();
+        constexpr int blksize =
+            (fmt_o == OIhw8o8i || fmt_o == gOIhw8o8i) ? 8 : 16;
+
+        const float alpha = alpha_, beta = beta_;
+
+        auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o) {
+            if (alpha == 1.0 && beta == 0.0) {
+                for (int oc = 0; oc < blksize; ++oc) {
+                for (int ic = 0; ic < blksize; ++ic) {
+                    const auto _g_oihw_off =
+                        oc * _g_oihw_d.blocking_desc().strides[0][w_groups + 0]
+                        + ic * _g_oihw_d.blocking_desc().strides[0]
+                            [w_groups + 1];
+                    if (order_keep) {
+                        o[oc * blksize + ic] = data_t<type_o>(i[_g_oihw_off]);
+                    } else {
+                        o[_g_oihw_off] = data_t<type_o>(i[oc * blksize + ic]);
+                    }
+                }
+                }
+            } else {
+                for (int oc = 0; oc < blksize; ++oc) {
+                for (int ic = 0; ic < blksize; ++ic) {
+                    const auto _g_oihw_off =
+                        oc * _g_oihw_d.blocking_desc().strides[0][w_groups + 0]
+                        + ic * _g_oihw_d.blocking_desc().strides[0]
+                            [w_groups + 1];
+                    if (order_keep) {
+                        o[oc * blksize + ic] =
+                            data_t<type_o>(alpha * i[_g_oihw_off]
+                            + (beta ? beta * o[ic * blksize + oc] : 0));
+                    } else {
+                        o[_g_oihw_off] =
+                            data_t<type_o>(alpha * i[oc * blksize + ic]
+                            + (beta ? beta * o[_g_oihw_off] : 0));
+                    }
+                }
+                }
+            }
+        };
+
+        const int _G = w_groups ? dims[0] : 1;
+
+#       pragma omp parallel for collapse(5) schedule(static)
+        for (int g = 0; g < _G; ++g) {
+            for (int O = 0; O < dims[w_groups + 0] / blksize; ++O) {
+                for (int I = 0; I < dims[w_groups + 1] / blksize; ++I) {
+                    for (int h = 0; h < dims[w_groups + 2]; ++h) {
+                        for (int w = 0; w < dims[w_groups + 3]; ++w) {
+                            constexpr int i_mult = order_keep ? blksize : 1;
+                            constexpr int o_mult = order_keep ? 1 : blksize;
+                            auto i = &input[input_d.blk_off<!w_groups>(g,
+                                    i_mult * O, i_mult * I, h, w)];
+                            auto o = &output[output_d.blk_off<!w_groups>(
+                                    g, o_mult * O, o_mult * I, h, w)];
+                            ker(i, o);
+                        }
+                    }
+                }
+            }
+        }
+
+        return success;
+    }
+};
+
+template <SIMPLE_REORDER_TEMPL_DECL>
+struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
+    typename utils::enable_if<
         (fmt_i == goihw && fmt_o == gOihw16o)
         || (fmt_i == oihw && fmt_o == Oihw16o)
     >::type>
