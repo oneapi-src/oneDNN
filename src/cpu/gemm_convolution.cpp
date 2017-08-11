@@ -28,21 +28,6 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-#if !defined(USE_MKL) && !defined(USE_CBLAS)
-/* provide empty stubs (init always will say "NO") */
-
-template <bool with_relu, bool run_jit, cpu_isa_t isa>
-void _gemm_convolution_fwd_t<with_relu, run_jit, isa>::execute_forward() {}
-
-template <bool run_jit, cpu_isa_t isa>
-void _gemm_convolution_bwd_data_t<run_jit, isa>::execute_backward_data() {}
-
-template <bool run_jit, cpu_isa_t isa>
-void _gemm_convolution_bwd_weights_t<run_jit, isa>::execute_backward_weights()
-{}
-
-#else /* some sort of gemm (jit? cblas?) is available */
-
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::utils;
@@ -262,8 +247,6 @@ void _gemm_convolution_bwd_weights_t<run_jit, isa>::execute_backward_weights() {
         }
     }
 }
-
-#endif /* some sort of gemm is available */
 
 template struct _gemm_convolution_fwd_t<true, true, avx512_common>;
 template struct _gemm_convolution_fwd_t<true, true, avx2>;

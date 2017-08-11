@@ -28,23 +28,29 @@
  *  no       no        gemm convolution (or other blas) N/A; create stubs
  */
 
-#ifdef USE_MKL
+#if defined(USE_MKL)
+
 #include "mkl_cblas.h"
-#ifndef USE_CBLAS
+#if !defined(USE_CBLAS)
 #define cblas_sgemm(...) assert(!"CBLAS is unavailable")
 #endif
 
-#else // non-MKL: platform-dependent non-jit gemm might be available...
+#else /* defined(USE_MKL) */
+
 #if defined(_SX)
+/* TODO: _SX should also define USE_CBLAS in case the later is available */
 extern "C" {
 #include "cblas.h" // CHECK: does SX also have a fortran API sgemm?
 }
-#else
-#ifdef USE_CBLAS
+
+#elif defined(USE_CBLAS)
 #include "cblas.h" // Maybe a system/cmake cblas works for you?
-#endif
-#endif
-#endif
+#else
+/* put the stubs to make a code compilable but not workable */
+#define cblas_sgemm(...) assert(!"CBLAS is unavailable")
+#endif /* defined(_SX) */
+
+#endif /* defined(USE_MKL) */
 
 namespace mkldnn {
 namespace impl {
@@ -53,10 +59,11 @@ namespace cpu {
 #if defined(USE_MKL) && defined(USE_CBLAS)
 typedef MKL_INT cblas_int;
 
-#elif defined(USE_CBLAS) // modify for your particular cblas.h ...
+#elif defined(USE_CBLAS)
 typedef int cblas_int;
 
-#if defined(_SX) // this cblas.h is peculiar...
+#if defined(_SX)
+/* this cblas.h is peculiar... */
 typedef CBLAS_ORDER CBLAS_LAYOUT;
 #endif
 #endif
