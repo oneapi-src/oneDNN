@@ -73,7 +73,11 @@ The software was validated on RedHat\* Enterprise Linux 7 with
 * GNU\* Compiler Collection 6.1
 * Clang\* 3.8.0
 * [Intel(R) C/C++ Compiler](https://software.intel.com/en-us/intel-parallel-studio-xe)
-  16.0 or later
+  17.0
+and on Windows Server\* 2012 R2 with
+* Visual Studio\* 2015
+* [Intel(R) C/C++ Compiler](https://software.intel.com/en-us/intel-parallel-studio-xe)
+  17.0
 
 The implementation uses OpenMP\* 4.0 SIMD extensions. We recommend using
 Intel(R) Compiler for the best performance results.
