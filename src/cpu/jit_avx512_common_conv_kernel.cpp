@@ -816,7 +816,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         const auto w_format = with_groups ? gOIhw8i16o2i : OIhw8i16o2i;
         if (weights_d.format() == any)
             CHECK(weights_pd.set_format(w_format));
-        if (!one_of(weights_d.format(), OIhw16i16o, gOIhw16i16o))
+        if (!one_of(weights_d.format(), gOIhw8i16o2i, OIhw8i16o2i))
             return status::unimplemented;
     } else if (mayiuse(avx512_common) &&
             src_d.data_type() == data_type::f32
