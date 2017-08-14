@@ -456,6 +456,9 @@ void src_transform_fwd(jit_conv_winograd_conf_t conv, float *inp, float *tinp)
 
     for (int tj = 0; tj < conv.jtiles; tj++) {
         for (int ti = 0; ti < conv.itiles; ti++) {
+            float *base = &(input(tj * tile_size - conv.t_pad,
+                    ti * tile_size - conv.l_pad, 0));
+            float *tmp = base;
             for (int j = 0; j < alpha; j++) {
                 int ydim = tj * tile_size + j;
                 if ((conv.t_pad <= ydim) && (ydim < ifhp)) {
@@ -464,8 +467,7 @@ void src_transform_fwd(jit_conv_winograd_conf_t conv, float *inp, float *tinp)
                         if ((conv.l_pad <= xdim) && (xdim < ifwp)) {
 #pragma omp simd
                             for (int v = 0; v < 16; v++) {
-                                I[j][i][v] = input(ydim - conv.t_pad,
-                                        xdim - conv.l_pad, v);
+                                I[j][i][v] = *(tmp + v);
                             }
                         } else {
 #pragma omp simd
@@ -473,6 +475,7 @@ void src_transform_fwd(jit_conv_winograd_conf_t conv, float *inp, float *tinp)
                                 I[j][i][v] = 0.0f;
                             }
                         }
+                        tmp += simd_w;
                     }
                 } else {
                     for (int i = 0; i < alpha; i++) {
@@ -482,6 +485,8 @@ void src_transform_fwd(jit_conv_winograd_conf_t conv, float *inp, float *tinp)
                         }
                     }
                 }
+                base += (conv.iw * simd_w);
+                tmp = base;
             }
 
             trans_I_4x4_3x3(Iw, I);
