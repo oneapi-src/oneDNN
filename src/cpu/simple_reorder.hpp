@@ -730,7 +730,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                     if (order_keep) {
                         o[oc * blksize + ic] =
                             data_t<type_o>(alpha * i[_g_oihw_off]
-                            + (beta ? beta * o[ic * blksize + oc] : 0));
+                            + (beta ? beta * o[oc * blksize + ic] : 0));
                     } else {
                         o[_g_oihw_off] =
                             data_t<type_o>(alpha * i[oc * blksize + ic]
