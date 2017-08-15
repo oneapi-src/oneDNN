@@ -24,9 +24,7 @@
 #include "cpu_sum.hpp"
 
 #include "cpu/jit_avx512_common_1x1_convolution.hpp"
-#ifndef _WIN32
 #include "cpu/jit_avx512_common_convolution_winograd.hpp"
-#endif
 #include "cpu/jit_avx512_common_convolution.hpp"
 #include "cpu/jit_avx2_1x1_convolution.hpp"
 #include "cpu/jit_sse42_1x1_convolution.hpp"
@@ -104,11 +102,9 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(jit_avx512_common_1x1_convolution_bwd_weights_t),
     INSTANCE(jit_avx512_common_1x1_convolution_fwd_s16s16s32_t),
     INSTANCE(jit_avx512_common_1x1_convolution_bwd_data_s16s16s32_t),
-#ifndef _WIN32
     INSTANCE(jit_avx512_common_convolution_winograd_fwd_t),
     INSTANCE(jit_avx512_common_convolution_winograd_bwd_data_t),
     INSTANCE(jit_avx512_common_convolution_winograd_bwd_weights_t),
-#endif
     INSTANCE(jit_avx512_common_convolution_fwd_t<f32>),
     INSTANCE(jit_avx512_common_convolution_bwd_data_t<f32>),
     INSTANCE(jit_avx512_common_convolution_bwd_weights_t),
@@ -215,9 +211,7 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(ref_inner_product_bwd_data_t<s32, s16, s16, s32>),
     INSTANCE(ref_inner_product_fwd_t<u8, s8, u8, s32>),
     /* conv_eltwise */
-#ifndef _WIN32
     INSTANCE(jit_avx512_common_convolution_winograd_relu_t),
-#endif
     INSTANCE(jit_avx512_common_1x1_convolution_relu_f32_t),
     INSTANCE(jit_avx512_common_1x1_convolution_relu_s16s16s32_t),
     INSTANCE(jit_avx512_common_convolution_relu_t<f32>),
