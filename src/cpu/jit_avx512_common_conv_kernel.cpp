@@ -867,6 +867,9 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
                 break;
             }
         }
+        if (jcp.ur_w == 1) {
+            jcp.ur_w = nstl::min(jcp.ow, regs);
+        }
     }
     // TODO (Tanya): currenly applied to Segnet convolutions only.
     // Need to try for other topologies
