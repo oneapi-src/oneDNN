@@ -858,8 +858,8 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         return status::unimplemented;
     }
 
-    if (jcp.ver == ver_4fma && jcp.is_1stconv) {
-        jcp.ur_w = jcp.ow < regs ? jcp.ow : regs;
+    if (jcp.is_1stconv) {
+        jcp.ur_w = nstl::min(jcp.ow, regs);
     } else {
         for (int ur_w = regs; ur_w > 0; --ur_w) {
             if (jcp.ow % ur_w == 0) {
