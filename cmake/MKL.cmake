@@ -65,6 +65,7 @@ endfunction()
 
 if(WIN32)
     detect_mkl("mklml")
+    detect_mkl("mkl_rt")
 elseif(UNIX)
     detect_mkl("libmklml_intel.so")
     detect_mkl("libmkl_rt.so")
