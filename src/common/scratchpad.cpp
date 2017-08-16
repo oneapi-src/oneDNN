@@ -66,6 +66,8 @@ struct global_scratchpad_t : public scratchpad_t {
         reference_count_--;
         if (reference_count_ == 0) {
             free(scratchpad_);
+            scratchpad_ = nullptr;
+            size_ = 0;
         }
     }
 
