@@ -271,12 +271,13 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(int load_loop_blk,
     };
 
     auto prefetch_callback = [=](int ur, int i_reduce, int i_ur, int i_load,
-                                      bool last_block, bool wraparound) {
+        bool last_block, bool wraparound, int reduce_step)
+    {
         bool pf_ker_l1 = true;
         bool pf_ker_l2 = wraparound;
-        int n_ops = jcp.reduce_loop_unroll * ur * load_loop_blk;
-        int i_op =
-            i_reduce * ur * load_loop_blk + i_ur * load_loop_blk + i_load;
+        int n_ops = (jcp.reduce_loop_unroll / reduce_step) * ur * load_loop_blk;
+        int i_op = (i_reduce / reduce_step) * ur * load_loop_blk +
+            i_ur * load_loop_blk + i_load;
 
         int n_pf_ker_l1 = pf_ker_l1 ? jcp.reduce_block : 0;
         int n_pf_ker_l2 = pf_ker_l2 && wraparound ? jcp.reduce_block : 0;
@@ -390,9 +391,8 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(int load_loop_blk,
                                         load_scale * i_fma, i_load));
                         }
                     }
-                    for (int i_fma = 0; i_fma < reduce_step; i_fma++)
-                        prefetch_callback(ur, i_reduce + i_fma, i_ur, i_load,
-                                        last_block, wraparound);
+                    prefetch_callback(ur, i_reduce, i_ur, i_load,
+                                    last_block, wraparound, reduce_step);
                 }
             }
         }
