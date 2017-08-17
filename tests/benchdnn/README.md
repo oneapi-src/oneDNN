@@ -106,7 +106,9 @@ table of modifiers below.
 | abbreviation  | description
 |:------------  |:-----------
 | %d            | problem descriptor
+| %D            | expanded problem descriptor (conv parameters in csv format)
 | %n            | problem name
+| %z            | direction
 | %@F           | effective cpu frequency computed as clocks[@] / time[@]
 | %O            | number of ops required (padding is not taken into account)
 | %@t           | time in ms
@@ -123,6 +125,9 @@ table of modifiers below.
 | K         | Kilo (1e3)
 | M         | Mega (1e6)
 | G         | Giga (1e9)
+
+The definition of expanded problem descriptor is:
+`g,mb,ic,ih,iw,oc,oh,ow,kh,kw,sh,sw,ph,pw`.
 
 The default template can be found in conv/bench_conv.cpp that is defined as
 `perf,%n,%d,%GO,%GF,%-t,%-Gp,%0t,%0Gp`. That will produce the following output
