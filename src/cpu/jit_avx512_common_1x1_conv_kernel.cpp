@@ -843,7 +843,8 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
             jcp.load_grp_count = utils::div_up(nthreads, load_grp_size);
         }
 
-        if (jcp.ver == ver_4fma && jcp.is < 15 * 15 && !reduce_src)
+        if (one_of(jcp.ver, ver_4fma, ver_4vnni)
+                && jcp.is < 15 * 15 && !reduce_src)
             jcp.loop_order = loop_rlb;
 
     } else if (jcp.prop_kind == backward_weights) {
