@@ -31,6 +31,11 @@ namespace impl {
 namespace nstl {
 
 template<typename T>
+inline const T abs(const T& a) {
+    return a >= 0 ? a : -a;
+}
+
+template<typename T>
 inline const T& max(const T& a, const T& b) {
     return a > b ? a : b;
 }
