@@ -287,14 +287,17 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_bwd(int ur_w, int pad_l,
         const size_t step_index
             = jj * c_block * types::data_type_size(jpp.ind_dt);
         if (jpp.ind_dt == data_type::u8) {
-            if (isa == sse42)
+            if (isa == sse42) {
                 movd(xreg(ur_w+jj), ptr[reg_index + step_index]);
-            else if (isa == avx2)
-                movq(xreg(ur_w+jj), ptr[reg_index + step_index]);
-            else
-                vmovups(vreg(ur_w+jj) | k_index_mask,
-                        ptr[reg_index + step_index]);
-            vpmovzxbd(vreg(ur_w+jj), xreg(ur_w+jj));
+                pmovzxbd(vreg(ur_w+jj), xreg(ur_w+jj));
+            } else {
+                if (isa == avx2)
+                    movq(xreg(ur_w+jj), ptr[reg_index + step_index]);
+                else
+                    vmovups(vreg(ur_w+jj) | k_index_mask,
+                            ptr[reg_index + step_index]);
+                vpmovzxbd(vreg(ur_w+jj), xreg(ur_w+jj));
+            }
         } else {
             uni_vmovups(vreg(ur_w+jj), ptr[reg_index + step_index]);
         }
