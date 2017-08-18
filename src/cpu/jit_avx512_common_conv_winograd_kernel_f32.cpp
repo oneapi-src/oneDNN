@@ -36,8 +36,8 @@ using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::utils;
 using namespace Xbyak;
 
-const int L1_cache_size = 32768; /* KNL L1 cache size */
-// const int L2_cache_size = 512000; /* KNL L2 per-core cache size */
+int L1_cache_size = get_cache_size(1, true);
+int L2_cache_size = get_cache_size(2, true);
 
 int get_largest_divisor_lower_than(int number, int bound) {
     int res = 1;
