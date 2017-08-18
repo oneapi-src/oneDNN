@@ -129,6 +129,41 @@ class Cpu {
 			displayModel = model;
 		}
 	}
+	static const unsigned int max_number_cache_levels = 10;
+#define value_from_bits(val, base, end) ((val << (sizeof(val)*8-end-1)) >> (sizeof(val)*8-end+base-1))
+	void setCacheHierarchy()
+	{
+		unsigned int data[4];
+
+		if ((type_ & tINTEL) == 0) {
+			fprintf(stderr, "ERR cache hierarchy querying is not supported\n");
+			throw Error(ERR_INTERNAL);
+		}
+
+		/* Note: here we assume the first level of data cache is
+		 * not shared (which is the case for every existing
+		 * architecture) and use this to determine the SMT width */
+		unsigned int cache_type = 42;
+		unsigned int smt_width = 0;
+		for (int i = 0; ((cache_type != NO_CACHE) && (data_cache_levels < max_number_cache_levels)); i++) {
+			getCpuidEx(0x4, i, data);
+			cache_type = value_from_bits(data[0], 0, 4);
+			if ((cache_type == DATA_CACHE) || (cache_type == UNIFIED_CACHE)) {
+				int nb_logical_cores = value_from_bits(data[0], 14, 25) + 1;
+				data_cache_size[data_cache_levels] =
+					(value_from_bits(data[1], 22, 31) + 1)
+					* (value_from_bits(data[1], 12, 21) + 1)
+					* (value_from_bits(data[1], 0, 11) + 1)
+					* (data[2] + 1);
+				if ((cache_type == DATA_CACHE) && (smt_width == 0)) smt_width = nb_logical_cores;
+				assert(smt_width != 0);
+				cores_sharing_data_cache[data_cache_levels] = nb_logical_cores / smt_width;
+				data_cache_levels++;
+			}
+		}
+	}
+#undef value_from_bits
+
 public:
 	int model;
 	int family;
@@ -137,6 +172,11 @@ public:
 	int extFamily;
 	int displayFamily; // family + extFamily
 	int displayModel; // model + extModel
+
+	unsigned int data_cache_size[max_number_cache_levels];
+	unsigned int cores_sharing_data_cache[max_number_cache_levels];
+	unsigned int data_cache_levels;
+
 	/*
 		data[] = { eax, ebx, ecx, edx }
 	*/
@@ -169,6 +209,11 @@ public:
 #endif
 	}
 	typedef uint64 Type;
+	static const Type NO_CACHE = 0;
+	static const Type DATA_CACHE = 1;
+	static const Type INSTRUCTION_CACHE = 2;
+	static const Type UNIFIED_CACHE = 3;
+
 	static const Type NONE = 0;
 	static const Type tMMX = 1 << 0;
 	static const Type tMMX2 = 1 << 1;
@@ -223,6 +268,7 @@ public:
 
 	Cpu()
 		: type_(NONE)
+		, data_cache_levels(0)
 	{
 		unsigned int data[4];
 		getCpuid(0, data);
@@ -300,6 +346,8 @@ public:
 			if (data[2] & (1U << 0)) type_ |= tPREFETCHWT1;
 		}
 		setFamily();
+		if ((type_ & tINTEL) == tINTEL)
+			setCacheHierarchy();
 	}
 	void putFamily() const
 	{
