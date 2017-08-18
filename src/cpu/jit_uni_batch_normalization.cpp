@@ -20,6 +20,7 @@
 #include "nstl.hpp"
 #include "type_helpers.hpp"
 #include "mkldnn_thread.hpp"
+#include "math_utils.hpp"
 #include "utils.hpp"
 
 #include "jit_generator.hpp"
@@ -829,8 +830,8 @@ private:
             C_ithr = ithr; C_nthr = nthr;
             balance211(C_blks, C_nthr, C_ithr, C_blk_s, C_blk_e);
         } else {
-            N_nthr = nstl::min((int)N, nthr / (int)C_blks);
-            C_nthr = nthr / N_nthr;
+            C_nthr = math::gcd(nthr, (int)C_blks);
+            N_nthr = nstl::min((int)N, nthr / C_nthr);
             if (ithr < C_nthr * N_nthr) {
                 N_ithr = ithr % N_nthr;
                 C_ithr = ithr / N_nthr;
