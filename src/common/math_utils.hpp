@@ -34,7 +34,7 @@ inline int gcd(int a, int b) {
 	if (b == 0) return a;
 
 	int r;
-	while (r = a % b) { a = b; b = r; }
+	while ((r = a % b) != 0) { a = b; b = r; }
 
 	return b;
 }
