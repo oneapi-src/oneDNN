@@ -165,11 +165,10 @@ void ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
                     oh /= KSH;
 
                     if (oh < OH && ow < OW) {
-                        d += (acc_data_t)(diff_dst[
-                                        diff_dst_d.off(mb, g*OC + oc, oh, ow)] *
-                            (with_groups ?
-                             weights[weights_d.off(g, oc, ic, kh, kw)] :
-                             weights[weights_d.off(oc, ic, kh, kw)]));
+                        d += (acc_data_t)diff_dst[diff_dst_d.off(mb, g*OC + oc,
+                                oh, ow)] * (with_groups
+                                    ? weights[weights_d.off(g, oc, ic, kh, kw)]
+                                    : weights[weights_d.off(oc, ic, kh, kw)]);
                     }
                 }
             }
