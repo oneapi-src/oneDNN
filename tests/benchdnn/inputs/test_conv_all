@@ -14,8 +14,8 @@
 --reset --dir=FWD_B --mb=2
 --skip-impl="ref:gemm"      # ! test jit version only
 
---cfg=u8s8s32u8  --batch=conv_all
---cfg=u8s8s32s8  --batch=conv_all
+--cfg=u8s8u8s32  --batch=conv_all
+--cfg=u8s8s8s32  --batch=conv_all
 --cfg=u8s8s32s32 --batch=conv_all
 --merge=RELU
 --cfg=u8s8s32s32 --batch=conv_all
