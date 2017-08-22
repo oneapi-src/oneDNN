@@ -21,10 +21,10 @@
 --cfg=u8s8s32s32 --batch=conv_all
 
 # s16 (knm)
---reset --cfg=s16s16s32s32
+--reset --mb=2
 --skip-impl="ref:gemm"      # ! test jit version only
---mb=2
---dir=FWD_B --batch=conv_all
+--cfg=s16s16s32s32 --dir=FWD_B --batch=conv_all
+--cfg=s32s16s16s32 --dir=BWD_D --batch=conv_all
 
 --merge=RELU                # +relu
 --dir=FWD_B --batch=conv_all
