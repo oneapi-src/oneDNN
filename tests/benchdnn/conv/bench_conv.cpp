@@ -31,68 +31,6 @@
 
 namespace conv {
 
-/* cfgs definition
- * arrays: SRC, WEI, BIA, DST, ACC
- * params: {data_type, min, max, f_min, f_max, f_base, f_step, f_sparsity, eps}
- */
-
-const int int_max_exact = 1<<24;
-const _dt_conf_t conf_f32 = {
-    {mkldnn_f32, -int_max_exact, int_max_exact,  -64,  64, 0, 1, .25, 0.},
-    {mkldnn_f32, -int_max_exact, int_max_exact,  -32,  32, 0, 1, 1.0, 0.},
-    {mkldnn_f32, -int_max_exact, int_max_exact, -512, 512, 0, 1, 1.0, 0.},
-    {mkldnn_f32, -int_max_exact, int_max_exact,  -64,  64, 0, 1, .25, 0.},
-    {mkldnn_f32,},
-};
-
-const _dt_conf_t conf_f32_full = {
-    {mkldnn_f32, -int_max_exact, int_max_exact,  -64,  64, 0, 1, 1.0, 0.},
-    {mkldnn_f32, -int_max_exact, int_max_exact,  -32,  32, 0, 1, 1.0, 0.},
-    {mkldnn_f32, -int_max_exact, int_max_exact, -512, 512, 0, 1, 1.0, 0.},
-    {mkldnn_f32, -int_max_exact, int_max_exact,  -64,  64, 0, 1, 1.0, 0.},
-    {mkldnn_f32,},
-};
-
-const _dt_conf_t conf_f32_wino = {
-    {mkldnn_f32, -int_max_exact, int_max_exact,   0,  16, 3, 1, .25, 1e-5},
-    {mkldnn_f32, -int_max_exact, int_max_exact,   2,  64, 2, 1, .75, 5e-5},
-    {mkldnn_f32, -int_max_exact, int_max_exact,   1, 128, 1, 1, .25,   0.},
-    {mkldnn_f32, -int_max_exact, int_max_exact,   0,  16, 3, 1, .25, 1e-5},
-    {mkldnn_f32,},
-};
-
-const _dt_conf_t conf_s16s32 = {
-    {mkldnn_s16, INT16_MIN, INT16_MAX, -4,  4, 0, 1, .25, 0.},
-    {mkldnn_s16, INT16_MIN, INT16_MAX, -5,  5, 0, 1, .25, 0.},
-    {mkldnn_s32, INT32_MIN, INT32_MAX, -8, 32, 0, 1, .25, 0.},
-    {mkldnn_s32, INT32_MIN, INT32_MAX, -4,  4, 0, 1, .25, 0.},
-    {mkldnn_s32,},
-};
-
-const _dt_conf_t conf_u8s8s32s32 = {
-    {mkldnn_u8,          0, UINT8_MAX,    0,   4, 0, 1, .25, 0.},
-    {mkldnn_s8,   INT8_MIN,  INT8_MAX,   -5,   5, 0, 1, .25, 0.},
-    {mkldnn_s32, INT32_MIN, INT32_MAX,   -8,  32, 0, 1, .25, 0.},
-    {mkldnn_s32, INT32_MIN, INT32_MAX, -255, 255, 0, 1, .25, 0.},
-    {mkldnn_s32,},
-};
-
-const _dt_conf_t conf_u8s8s32s8 = {
-    {mkldnn_u8,          0, UINT8_MAX,    0,   4, 0, 1, .25, 0.},
-    {mkldnn_s8,   INT8_MIN,  INT8_MAX,   -5,   5, 0, 1, .25, 0.},
-    {mkldnn_s32, INT32_MIN, INT32_MAX,   -8,  32, 0, 1, .25, 0.},
-    {mkldnn_s8,   INT8_MIN,  INT8_MAX, -127, 127, 0, 1, .25, 0.},
-    {mkldnn_s32,},
-};
-
-const _dt_conf_t conf_u8s8s32u8 = {
-    {mkldnn_u8,          0, UINT8_MAX,    0,   4, 0, 1, .25, 0.},
-    {mkldnn_s8,   INT8_MIN,  INT8_MAX,   -5,   5, 0, 1, .25, 0.},
-    {mkldnn_s32, INT32_MIN, INT32_MAX,   -8,  32, 0, 1, .25, 0.},
-    {mkldnn_u8,          0, UINT8_MAX,    0, 255, 0, 1, .25, 0.},
-    {mkldnn_s32,},
-};
-
 /* global driver parameters */
 const dt_conf_t *cfg = conf_f32;
 const char *pattern = NULL;

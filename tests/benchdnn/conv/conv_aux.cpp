@@ -202,34 +202,6 @@ void desc2str(const desc_t *d, char *buffer, bool canonical) {
 #   undef DPRINT
 }
 
-const dt_conf_t *str2cfg(const char *str) {
-#define CASE(name, cfg) if (!strcasecmp(name, str)) return cfg
-    CASE("f32", conf_f32);
-    CASE("f32_full", conf_f32_full);
-    CASE("f32_wino", conf_f32_wino);
-    CASE("s16s32", conf_s16s32);
-    CASE("u8s8s32s32", conf_u8s8s32s32);
-    CASE("u8s8s32s8", conf_u8s8s32s8);
-    CASE("u8s8s32u8", conf_u8s8s32u8);
-#undef CASE
-    []() { SAFE(FAIL, CRIT); return 0; }();
-    return (const dt_conf_t *)1;
-}
-
-const char *cfg2str(const dt_conf_t *cfg) {
-#define CASE(name, _cfg) if (cfg == _cfg) return name
-    CASE("f32", conf_f32);
-    CASE("f32_full", conf_f32_full);
-    CASE("f32_wino", conf_f32_wino);
-    CASE("s16s32", conf_s16s32);
-    CASE("u8s8s32s32", conf_u8s8s32s32);
-    CASE("u8s8s32s8", conf_u8s8s32s8);
-    CASE("u8s8s32u8", conf_u8s8s32u8);
-#undef CASE
-    []() { SAFE(FAIL, CRIT); return 0; }();
-    return NULL;
-}
-
 void prb_t::count_ops() {
     if (ops > 0) return;
 
