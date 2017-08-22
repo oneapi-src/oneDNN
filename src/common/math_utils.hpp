@@ -26,6 +26,17 @@ namespace mkldnn {
 namespace impl {
 namespace math {
 
+template <typename data_t, typename acc_t>
+inline typename utils::remove_reference<data_t>::type saturate(const acc_t &x)
+{
+    acc_t v = x;
+    if (v < nstl::numeric_limits<data_t>::lowest())
+        v = nstl::numeric_limits<data_t>::lowest();
+    if (v > nstl::numeric_limits<data_t>::max())
+        v = nstl::numeric_limits<data_t>::max();
+    return (typename utils::remove_reference<data_t>::type)v;
+}
+
 inline int gcd(int a, int b) {
 	a = impl::nstl::abs(a);
 	b = impl::nstl::abs(b);

@@ -138,6 +138,8 @@ inline data_type_t default_accum_data_type(data_type_t src_dt,
         if (src_dt == s32 && wei_dt == s16 && dst_dt == s16)
             return s32;
     } else if (prop_kind == backward_weights) {
+        if (src_dt == s16 && wei_dt == s32 && dst_dt == s16)
+            return s32;
     }
 
     assert(!"unimplemented use-case: no default parameters available");

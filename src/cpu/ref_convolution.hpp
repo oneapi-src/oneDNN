@@ -159,7 +159,9 @@ private:
     pd_t conf_;
 };
 
-template <impl::data_type_t data_type>
+template <impl::data_type_t src_type, impl::data_type_t diff_wei_type,
+         impl::data_type_t diff_dst_type,
+         impl::data_type_t acc_type = diff_wei_type>
 struct ref_convolution_bwd_weights_t: public cpu_primitive_t {
     struct pd_t: public cpu_convolution_bwd_weights_pd_t {
         pd_t(engine_t *engine,
@@ -178,12 +180,13 @@ struct ref_convolution_bwd_weights_t: public cpu_primitive_t {
                 && utils::one_of(this->desc()->prop_kind, backward,
                         backward_weights)
                 && this->desc()->alg_kind == alg_kind::convolution_direct
-                && utils::everyone_is(data_type,
-                        this->desc()->src_desc.data_type,
-                        this->desc()->diff_dst_desc.data_type,
-                        this->desc()->diff_weights_desc.data_type)
+                && this->desc()->src_desc.data_type == src_type
+                && this->desc()->diff_weights_desc.data_type == diff_wei_type
+                && this->desc()->diff_dst_desc.data_type == diff_dst_type
+                && this->desc()->accum_data_type == acc_type
                 && utils::implication(this->with_bias(),
-                        data_type == this->desc()->diff_bias_desc.data_type);
+                        this->desc()->diff_bias_desc.data_type
+                        == diff_wei_type);
             return ok ? status::success : status::unimplemented;
         }
     };
@@ -191,7 +194,11 @@ struct ref_convolution_bwd_weights_t: public cpu_primitive_t {
     ref_convolution_bwd_weights_t(const pd_t *pd, const input_vector &inputs,
             const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {}
-    typedef typename prec_traits<data_type>::type data_t;
+
+    typedef typename prec_traits<src_type>::type src_data_t;
+    typedef typename prec_traits<diff_wei_type>::type diff_wei_data_t;
+    typedef typename prec_traits<diff_dst_type>::type diff_dst_data_t;
+    typedef typename prec_traits<acc_type>::type acc_data_t;
 
     virtual void execute(event_t *e) {
         switch (conf_.desc()->prop_kind) {
