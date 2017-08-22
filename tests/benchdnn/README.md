@@ -88,6 +88,7 @@ configurations for **benchdnn**:
 | f32     | f32      | f32      | f32      | f32          | inference optimized for sse4.2+, training avx2+
 | s16     | s16      | s32      | s32      | s16s16s32s32 | optimized for processors with support of 4vnni, forward pass only (aka FWD_D, FWD_B)
 | s32     | s16      | s16      | s32      | s32s16s16s32 | optimized for processors with support of 4vnni, backward wrt data only (aka BWD_D)
+| s16     | s32      | s16      | s32      | s16s32s16s32 | optimized for processors with support of 4vnni, backward wrt weights (aka BWD_W, BWD_WB)
 | u8      | s8       | s32      | s32      | u8s8s32s32   | optimized for processors with support of avx512vl, forward pass only (aka FWD_D, FWD_B)
 | u8      | s8       | s8       | s32      | u8s8s8s32    | same notes as for u8s8s32s32
 | u8      | s8       | u8       | s32      | u8s8u8s32    | same notes as for u8s8s32s32
