@@ -83,13 +83,13 @@ want keep it 0 and it seems to work for now).
 The table below shows cases supported by Intel MKL-DNN and corresponding
 configurations for **benchdnn**:
 
-|src type | wei type | dst type | acc type | cfg        | notes
-|:---     |:---      |:---      |:---      |:---        |:---
-| f32     | f32      | f32      | f32      | f32        | inference optimized for sse4.2+, training avx2+
-| s16     | s16      | s32      | s32      | s16s32     | optimized for processors with support of 4vnni
-| u8      | s8       | s32      | s32      | u8s8s32s32 | optimized for processors with support of avx512vl
-| u8      | s8       | s8       | s32      | u8s8s8s32  | same as u8s8s32s32
-| u8      | s8       | u8       | s32      | u8s8u8s32  | same as u8s8s32s32
+|src type | wei type | dst type | acc type | cfg          | notes
+|:---     |:---      |:---      |:---      |:---          |:---
+| f32     | f32      | f32      | f32      | f32          | inference optimized for sse4.2+, training avx2+
+| s16     | s16      | s32      | s32      | s16s16s32s32 | optimized for processors with support of 4vnni
+| u8      | s8       | s32      | s32      | u8s8s32s32   | optimized for processors with support of avx512vl
+| u8      | s8       | s8       | s32      | u8s8s8s32    | same as u8s8s32s32
+| u8      | s8       | u8       | s32      | u8s8u8s32    | same as u8s8s32s32
 
 
 ## Performance measurements

@@ -21,7 +21,7 @@
 --cfg=u8s8s32s32 --batch=conv_all
 
 # s16 (knm)
---reset --cfg=s16s32
+--reset --cfg=s16s16s32s32
 --skip-impl="ref:gemm"      # ! test jit version only
 --mb=2
 --dir=FWD_B --batch=conv_all
