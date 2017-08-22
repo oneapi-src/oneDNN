@@ -106,21 +106,39 @@ inline status_t set_default_format(memory_desc_t &md, memory_format_t fmt) {
 }
 
 inline data_type_t default_accum_data_type(data_type_t src_dt,
-        data_type_t wei_dt, data_type_t dst_dt) {
+        data_type_t dst_dt) {
     using namespace utils;
     using namespace data_type;
 
-    if (src_dt == f32 && one_of(wei_dt, f32, data_type::undef)
-            && one_of(dst_dt, f32, data_type::undef))
-        return f32;
+    if (one_of(f32, src_dt, dst_dt)) return f32;
+    if (one_of(s16, src_dt, dst_dt)) return s32;
 
-    if (src_dt == s16 && one_of(wei_dt, s16, data_type::undef)
-            && one_of(dst_dt, s32, data_type::undef))
-        return s32;
+    if (one_of(s8, src_dt, dst_dt) || one_of(u8, src_dt, dst_dt)) return s32;
 
-    if (one_of(src_dt, s8, u8) && one_of(wei_dt, s8, u8, data_type::undef)
-            && one_of(dst_dt, s8, u8, s32, data_type::undef))
-        return s32;
+    assert(!"unimplemented use-case: no default parameters available");
+    return dst_dt;
+}
+
+inline data_type_t default_accum_data_type(data_type_t src_dt,
+        data_type_t wei_dt, data_type_t dst_dt, prop_kind_t prop_kind) {
+    using namespace utils;
+    using namespace data_type;
+    using namespace prop_kind;
+
+    /* prop_kind doesn't matter */
+    if (everyone_is(f32, src_dt, wei_dt, dst_dt)) return f32;
+
+    if (one_of(prop_kind, forward_training, forward_inference)) {
+        if (src_dt == s16 && wei_dt == s16 && dst_dt == s32)
+            return s32;
+
+        if (src_dt == u8 && wei_dt == s8 && one_of(dst_dt, s32, s8, u8))
+            return s32;
+    } else if (prop_kind == backward_data) {
+        if (src_dt == s32 && wei_dt == s16 && dst_dt == s16)
+            return s32;
+    } else if (prop_kind == backward_weights) {
+    }
 
     assert(!"unimplemented use-case: no default parameters available");
     return dst_dt;

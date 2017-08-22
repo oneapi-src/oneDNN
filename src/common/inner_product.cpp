@@ -55,7 +55,7 @@ status_t ip_desc_init(inner_product_desc_t *ip_desc, prop_kind_t prop_kind,
             *bias_desc;
 
     id.accum_data_type = types::default_accum_data_type(src_desc->data_type,
-            weights_desc->data_type, dst_desc->data_type);
+            weights_desc->data_type, dst_desc->data_type, prop_kind);
 
     /* FIXME: fill-in! */
     bool consistency = true

@@ -25,8 +25,8 @@ namespace impl {
 namespace cpu {
 
 template <bool with_relu, data_type_t src_type, data_type_t wei_type,
-         data_type_t acc_type, data_type_t dst_type>
-void _ref_convolution_fwd_t<with_relu, src_type, wei_type, acc_type, dst_type>
+         data_type_t dst_type, data_type_t acc_type>
+void _ref_convolution_fwd_t<with_relu, src_type, wei_type, dst_type, acc_type>
         ::execute_forward() {
     auto src = reinterpret_cast<const src_data_t *>(this->input_memory(0));
     auto weights = reinterpret_cast<const wei_data_t *>(this->input_memory(1));
@@ -118,12 +118,12 @@ void _ref_convolution_fwd_t<with_relu, src_type, wei_type, acc_type, dst_type>
     }
 }
 
-template <data_type_t diff_dst_type, data_type_t wei_type,
-          data_type_t acc_type, data_type_t diff_src_type>
-void ref_convolution_bwd_data_t<diff_dst_type, wei_type,
-          acc_type, diff_src_type>::execute_backward_data() {
-    auto diff_dst = reinterpret_cast<const diff_dst_data_t*>
-                                                      (this->input_memory(0));
+template <data_type_t diff_src_type, data_type_t wei_type,
+         data_type_t diff_dst_type, data_type_t acc_type>
+void ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
+     acc_type>::execute_backward_data() {
+    auto diff_dst = reinterpret_cast<const diff_dst_data_t*>(
+            this->input_memory(0));
     auto weights = reinterpret_cast<const wei_data_t*>(this->input_memory(1));
     auto diff_src = reinterpret_cast<diff_src_data_t*>(this->memory());
 
@@ -292,13 +292,14 @@ template struct _ref_convolution_fwd_t<false, s16, s16, s32, s32>;
 template struct _ref_convolution_fwd_t<true, s16, s16, s32, s32>;
 template struct _ref_convolution_fwd_t<false, u8, s8, s32, s32>;
 template struct _ref_convolution_fwd_t<true, u8, s8, s32, s32>;
-template struct _ref_convolution_fwd_t<false, u8, s8, s32, s8>;
-template struct _ref_convolution_fwd_t<true, u8, s8, s32, s8>;
-template struct _ref_convolution_fwd_t<false, u8, s8, s32, u8>;
-template struct _ref_convolution_fwd_t<true, u8, s8, s32, u8>;
+template struct _ref_convolution_fwd_t<false, u8, s8, s8, s32>;
+template struct _ref_convolution_fwd_t<true, u8, s8, s8, s32>;
+template struct _ref_convolution_fwd_t<false, u8, s8, u8, s32>;
+template struct _ref_convolution_fwd_t<true, u8, s8, u8, s32>;
 
-template struct ref_convolution_bwd_data_t<f32>;
-template struct ref_convolution_bwd_data_t<s16, s16, s32, s32>;
+template struct ref_convolution_bwd_data_t<f32, f32, f32, f32>;
+template struct ref_convolution_bwd_data_t<s32, s16, s16, s32>;
+
 template struct ref_convolution_bwd_weights_t<f32>;
 
 }

@@ -30,8 +30,8 @@ namespace impl {
 namespace cpu {
 
 template <impl::data_type_t src_type, impl::data_type_t wei_type = src_type,
-         impl::data_type_t acc_type = src_type,
-         impl::data_type_t dst_type = acc_type>
+         impl::data_type_t dst_type = src_type,
+         impl::data_type_t acc_type = dst_type>
 struct ref_inner_product_fwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_inner_product_fwd_pd_t {
         pd_t(engine_t *engine, const inner_product_desc_t *adesc,
@@ -63,8 +63,8 @@ struct ref_inner_product_fwd_t: public cpu_primitive_t {
 
     typedef typename prec_traits<src_type>::type src_data_t;
     typedef typename prec_traits<wei_type>::type wei_data_t;
-    typedef typename prec_traits<acc_type>::type acc_data_t;
     typedef typename prec_traits<dst_type>::type dst_data_t;
+    typedef typename prec_traits<acc_type>::type acc_data_t;
 
     virtual void execute(event_t *e) {
         switch (conf_.desc()->prop_kind) {
@@ -83,10 +83,9 @@ private:
     pd_t conf_;
 };
 
-template <impl::data_type_t diff_dst_type,
-          impl::data_type_t wei_type = diff_dst_type,
-          impl::data_type_t acc_type = diff_dst_type,
-          impl::data_type_t diff_src_type = acc_type>
+template <impl::data_type_t diff_src_type, impl::data_type_t wei_type,
+         impl::data_type_t diff_dst_type,
+         impl::data_type_t acc_type = diff_src_type>
 struct ref_inner_product_bwd_data_t: public cpu_primitive_t {
     struct pd_t: public cpu_inner_product_bwd_data_pd_t {
         pd_t(engine_t *engine, const inner_product_desc_t *adesc,
@@ -113,10 +112,11 @@ struct ref_inner_product_bwd_data_t: public cpu_primitive_t {
     ref_inner_product_bwd_data_t(const pd_t *pd, const input_vector &inputs,
             const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {}
-    typedef typename prec_traits<diff_dst_type>::type diff_dst_data_t;
-    typedef typename prec_traits<wei_type>::type wei_data_t;
-    typedef typename prec_traits<acc_type>::type acc_data_t;
+
     typedef typename prec_traits<diff_src_type>::type diff_src_data_t;
+    typedef typename prec_traits<wei_type>::type wei_data_t;
+    typedef typename prec_traits<diff_dst_type>::type diff_dst_data_t;
+    typedef typename prec_traits<acc_type>::type acc_data_t;
 
     virtual void execute(event_t *e) {
         switch (conf_.desc()->prop_kind) {
