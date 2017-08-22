@@ -959,8 +959,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 for (int oc = 0; oc < blksize; ++oc) {
                     const auto _g_oihw_off =
                         oc * _g_oihw_d.blocking_desc().strides[0][w_groups + 0]
-                        + 2 * ic * _g_oihw_d.blocking_desc().strides[0]
-                            [w_groups + 1];
+                      + ic * _g_oihw_d.blocking_desc().strides[0][w_groups + 1];
                     if (order_keep) {
                         o[index(ic, oc)] = data_t<type_o>(
                             alpha * i[_g_oihw_off]
