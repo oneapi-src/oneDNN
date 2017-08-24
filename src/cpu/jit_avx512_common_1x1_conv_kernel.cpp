@@ -760,14 +760,19 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
 
         int kernel_size = reduce_blocking * jcp.load_dim;
         int bcast_block_size = reduce_blocking * jcp.bcast_block;
-        int L2_for_kernel = L2_capacity - bcast_block_size;
+        int L2_for_kernel = rnd_dn(L2_capacity - bcast_block_size,
+                reduce_blocking * jcp.load_block);
         int load_grp_count
                 = reduce_src ? 1 : utils::div_up(kernel_size, L2_for_kernel);
+        if (!reduce_src)
+            load_grp_count = best_divider(
+                    nthreads, load_grp_count, 2 * load_grp_count, false);
 
         load_blocking = div_up(nb_load, load_grp_count) * jcp.load_block;
         kernel_size = utils::div_up(kernel_size, load_grp_count);
-        if (jcp.oh < 8 && jcp.mb < nthreads
-                && jcp.reduce_dim * jcp.load_dim >= 1024 * 1024)
+        if (jcp.oh < 8 && jcp.mb <= nthreads
+                && jcp.reduce_dim * jcp.load_dim >= 1024 * 1024
+                && reduce_blocking == jcp.reduce_dim)
             jcp.load_grp_count = load_grp_count;
 
         bcast_blocking = div_up(jcp.mb * jcp.ngroups * nb_bcast,
