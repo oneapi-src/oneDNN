@@ -28,7 +28,7 @@
 --cfg=s16s32s16s32 --dir=BWD_WB --batch=conv_all
 
 --merge=RELU                # +relu
---dir=FWD_B --batch=conv_all
+--cfg=s16s16s32s32 --dir=FWD_B --batch=conv_all
 
 # f32 wino
 --reset --cfg=f32_wino --alg=wino
