@@ -66,9 +66,9 @@ if(UNIX OR APPLE)
     endif()
 endif()
 
-# See https://stackoverflow.com/questions/986426
-# UNIT8_MAX is not part of C++ standard. Define theses macros to fit C++ standard.
+# UNIT8_MAX like macros are part of C99 standard and not C++ (see C99 standard 7.18.2 and 7.18.4)
 add_definitions(-D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS)
+
 if(WIN32)
     add_definitions(-DMKLDNN_DLL -DMKLDNN_DLL_EXPORTS)
     add_definitions(/MP)
