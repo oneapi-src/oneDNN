@@ -2153,6 +2153,9 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32::compute_full_spat_loop()
                     break;
                 }
             working_set_size = row_size * h_block_size;
+
+            if (h_block_size == 1 && working_set_size > opt_working_set_size)
+                return false;
         }
     }
 
