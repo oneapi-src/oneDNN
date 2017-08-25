@@ -2159,7 +2159,7 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32::compute_full_spat_loop()
         }
     }
 
-    if (h_block_size == 0)
+    if (h_block_size < nstl::max(1, jcp.t_pad))
         return false;
 
     // check that we can use simple arithmetic for prefetch address
