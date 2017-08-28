@@ -45,6 +45,81 @@ template <typename T, typename A> T elu_bwd(T dd, T s, A alpha) {
     return static_cast<T>(dd * (s > 0 ? 1 : alpha * ::exp(s)));
 }
 
+template <typename T>
+T square_fwd(T s) {
+    return s * s;
+}
+
+template <typename T>
+T square_bwd(T dd, T s) {
+    return dd * 2*s;
+}
+
+template <typename T>
+T abs_fwd(T s) {
+    return s > 0 ? s : -s;;
+}
+
+template <typename T>
+T abs_bwd(T dd, T s) {
+    return dd * (s > 0 ? 1 : s < 0 ? -1 : 0);
+}
+
+template <typename T>
+T sqrt_fwd(T s) {
+    return s > 0 ? ::sqrt(s) : 0;
+}
+
+template <typename T>
+T sqrt_bwd(T dd, T s) {
+    return s > 0 ? dd / (2 * ::sqrt(s)) : 0;
+}
+
+template <typename T, typename A>
+T linear_fwd(T s, A alpha, A beta) {
+    return alpha * s + beta;
+}
+
+template <typename T, typename A>
+T linear_bwd(T dd, T s, A alpha, A beta) {
+    (void) s;
+    (void) beta;
+    return dd * alpha;
+}
+
+template <typename T, typename A>
+T bounded_relu_fwd(T s, A alpha) {
+    s = s > 0 ? s : 0;
+    return s > alpha ? alpha : s;
+}
+
+template <typename T, typename A>
+T bounded_relu_bwd(T dd, T s, A alpha) {
+    return dd * ((0 < s && s < alpha) ? 1 : 0);
+}
+
+template <typename T>
+T soft_relu_fwd(T s) {
+    return logf(1 + ::exp(s));
+}
+
+template <typename T>
+T soft_relu_bwd(T dd, T s) {
+    return dd / (1 + ::exp(-s));
+}
+
+template <typename T>
+T logistic_fwd(T s) {
+    T v = ::exp(s);
+    return v / (v + 1);
+}
+
+template <typename T>
+T logistic_bwd(T dd, T s) {
+    T v = ::exp(-s);
+    return dd * v / ((v + 1) * (v + 1));
+}
+
 template <typename data_t>
 struct eltwise_test_params {
     engine::kind engine_kind;
@@ -73,12 +148,24 @@ void check_eltwise_fwd(const eltwise_test_params<data_t> &p,
         data_t s = src_data[i];
         data_t ref_d = 0;
         switch (p.alg_kind) {
-        case eltwise_relu: ref_d = relu_fwd(s, p.alpha); break;
-        case eltwise_tanh: ref_d = tanh_fwd(s); break;
-        case eltwise_elu: ref_d = elu_fwd(s, p.alpha); break;
+        case eltwise_relu:        ref_d = relu_fwd(s, p.alpha);           break;
+        case eltwise_tanh:        ref_d = tanh_fwd(s);                    break;
+        case eltwise_elu:         ref_d = elu_fwd(s, p.alpha);            break;
+        case eltwise_square:      ref_d = square_fwd(s);                  break;
+        case eltwise_abs:         ref_d = abs_fwd(s);                     break;
+        case eltwise_sqrt:        ref_d = sqrt_fwd(s);                    break;
+        case eltwise_linear:      ref_d = linear_fwd(s, p.alpha, p.beta); break;
+        case eltwise_bounded_relu: ref_d = bounded_relu_fwd(s, p.alpha);  break;
+        case eltwise_soft_relu:   ref_d = soft_relu_fwd(s);               break;
+        case eltwise_logistic:    ref_d = logistic_fwd(s);                break;
         default: assert(!"unknown alg_kind");
         }
-        EXPECT_NEAR(dst_data[i], ref_d, 1.e-6);
+        if (p.alg_kind == eltwise_soft_relu){
+            EXPECT_NEAR(dst_data[i], ref_d, 2.e-6);
+        }
+        else{
+            EXPECT_NEAR(dst_data[i], ref_d, 1.e-6);
+        }
     }
 }
 
@@ -106,9 +193,22 @@ void check_eltwise_bwd(const eltwise_test_params<data_t> &p,
         data_t ref_dd = diff_dst_data[map_index(diff_data_d, i)];
         data_t ref_ds = 0;
         switch (p.alg_kind) {
-        case eltwise_relu: ref_ds = relu_bwd(ref_dd, ref_s, p.alpha); break;
-        case eltwise_tanh: ref_ds = tanh_bwd(ref_dd, ref_s); break;
-        case eltwise_elu: ref_ds = elu_bwd(ref_dd, ref_s, p.alpha); break;
+        case eltwise_relu:   ref_ds = relu_bwd(ref_dd, ref_s, p.alpha); break;
+        case eltwise_tanh:   ref_ds = tanh_bwd(ref_dd, ref_s); break;
+        case eltwise_elu:    ref_ds = elu_bwd(ref_dd, ref_s, p.alpha); break;
+        case eltwise_square: ref_ds = square_bwd(ref_dd, ref_s); break;
+        case eltwise_abs:    ref_ds = abs_bwd(ref_dd, ref_s); break;
+        case eltwise_sqrt:   ref_ds = sqrt_bwd(ref_dd, ref_s); break;
+        case eltwise_linear:
+            ref_ds = linear_bwd(ref_dd, ref_s, p.alpha, p.beta);
+            break;
+        case eltwise_bounded_relu:
+            ref_ds = bounded_relu_bwd(ref_dd, ref_s, p.alpha);
+            break;
+        case eltwise_soft_relu:
+            ref_ds = soft_relu_bwd(ref_dd, ref_s);
+            break;
+        case eltwise_logistic: ref_ds = logistic_bwd(ref_dd, ref_s); break;
         default: assert(!"unknown alg_kind");
         }
         EXPECT_NEAR(diff_src_data[map_index(diff_data_d, i)], ref_ds, 1.e-6);
@@ -218,7 +318,16 @@ TEST_P(eltwise_test_float, TestsEltwise)
 #define PARAMS_ALL_ALG(...) \
     EXPAND(PARAMS(eltwise_relu, __VA_ARGS__)), \
     EXPAND(PARAMS(eltwise_tanh, __VA_ARGS__)), \
-    EXPAND(PARAMS(eltwise_elu, __VA_ARGS__))
+    EXPAND(PARAMS(eltwise_elu, __VA_ARGS__)), \
+    EXPAND(PARAMS(eltwise_square, __VA_ARGS__)), \
+    EXPAND(PARAMS(eltwise_abs, __VA_ARGS__))
+
+#define PARAMS_ALL_ALG_SDPART(...) \
+    EXPAND(PARAMS(eltwise_sqrt, __VA_ARGS__)), \
+    EXPAND(PARAMS(eltwise_linear, __VA_ARGS__)), \
+    EXPAND(PARAMS(eltwise_soft_relu, __VA_ARGS__)), \
+    EXPAND(PARAMS(eltwise_bounded_relu, __VA_ARGS__)), \
+    EXPAND(PARAMS(eltwise_logistic, __VA_ARGS__))
 
 #define INST_TEST_CASE(str, ...) INSTANTIATE_TEST_CASE_P( \
         str, eltwise_test_float, ::testing::Values(__VA_ARGS__))
@@ -247,6 +356,10 @@ INST_TEST_CASE(Simple_NCHW,
     PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.f, 3, 5, 7, 11)
 );
 
+INST_TEST_CASE(Simple_NCHW_SDPART,
+    PARAMS_ALL_ALG_SDPART(nchw, nchw, 0.1f, 0.f, 256, 64, 8, 16)
+);
+
 INST_TEST_CASE(Simple,
     PARAMS_ALL_ALG(nchw, nChw8c, 0.1f, 0.f, 2, 8, 4, 4),
     PARAMS_ALL_ALG(nChw8c, nchw, 0.1f, 0.f, 2, 16, 4, 4),
@@ -256,10 +369,22 @@ INST_TEST_CASE(Simple,
     PARAMS_ALL_ALG(nchw, nhwc, 0.1f, 0.f, 10, 10, 10, 10)
 );
 
+INST_TEST_CASE(Simple_SDPART,
+    PARAMS_ALL_ALG_SDPART(nchw, nChw8c, 0.1f, 0.f, 2, 8, 4, 4),
+    PARAMS_ALL_ALG_SDPART(nChw8c, nchw, 0.1f, 0.f, 2, 16, 4, 4),
+    PARAMS_ALL_ALG_SDPART(nchw, nchw, 0.1f, 0.f, 2, 16, 8, 8),
+    PARAMS_ALL_ALG_SDPART(nChw8c, nChw8c, 0.1f, 0.f, 2, 16, 16, 8),
+    PARAMS_ALL_ALG_SDPART(nhwc, nchw, 0.1f, 0.f, 2, 16, 10, 8),
+    PARAMS_ALL_ALG_SDPART(nchw, nhwc, 0.1f, 0.f, 10, 10, 10, 10)
+);
+
 INST_TEST_CASE(AlexNet_NCHW,
     PARAMS_ALL_ALG(nchw, nchw, 0.f, 0.f, 2, 96, 55, 55),
     PARAMS_ALL_ALG(nchw, nchw, 0.f, 0.f, 2, 256, 27, 27),
-    PARAMS_ALL_ALG(nchw, nchw, 0.f, 0.f, 2, 384, 13, 13)
+    PARAMS_ALL_ALG(nchw, nchw, 0.f, 0.f, 2, 384, 13, 13),
+    PARAMS_ALL_ALG_SDPART(nchw, nchw, 0.f, 0.f, 2, 96, 55, 55),
+    PARAMS_ALL_ALG_SDPART(nchw, nchw, 0.f, 0.f, 2, 256, 27, 27),
+    PARAMS_ALL_ALG_SDPART(nchw, nchw, 0.f, 0.f, 2, 384, 13, 13)
 );
 
 }

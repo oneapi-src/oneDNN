@@ -52,6 +52,81 @@ template <typename T, typename A> T elu_fwd(T s, A alpha) {
 template <typename T, typename A> T elu_bwd(T dd, T s, A alpha) {
     return static_cast<T>(dd * (s > 0 ? 1 : alpha * ::expf((float)s)));
 }
+
+template <typename T>
+T square_fwd(T s) {
+    return s * s;
+}
+
+template <typename T>
+T square_bwd(T dd, T s) {
+    return dd * 2*s;
+}
+
+template <typename T>
+T abs_fwd(T s) {
+    return s > 0 ? s : -s;
+}
+
+template <typename T>
+T abs_bwd(T dd, T s) {
+    return s > 0 ? dd : s < 0 ? -dd : 0;
+}
+
+template <typename T>
+T sqrt_fwd(T s) {
+    return s > 0 ? ::sqrt(s) : 0;
+}
+
+template <typename T>
+T sqrt_bwd(T dd, T s) {
+    return s > 0 ? dd / (2 * ::sqrt(s)) : 0;
+}
+
+template <typename T, typename A>
+T linear_fwd(T s, A alpha, A beta) {
+    return alpha * s + beta;
+}
+
+template <typename T, typename A>
+T linear_bwd(T dd, T s, A alpha, A beta) {
+    (void) s;
+    (void) beta;
+    return dd * alpha;
+}
+
+template <typename T, typename A>
+T bounded_relu_fwd(T s, A alpha) {
+    s = s > 0 ? s : 0;
+    return s > alpha ? alpha : s;
+}
+
+template <typename T, typename A>
+T bounded_relu_bwd(T dd, T s, A alpha) {
+    return dd * (0 < s && s < alpha ? 1 : 0);
+}
+
+template <typename T>
+T soft_relu_fwd(T s) {
+    return log(1 + ::expf((float)s));
+}
+
+template <typename T>
+T soft_relu_bwd(T dd, T s) {
+    return dd / (1 + ::expf((float)(-s)));
+}
+
+template <typename T>
+T logistic_fwd(T s) {
+    T v = ::expf((float)s);
+    return v / (v + 1);
+}
+
+template <typename T>
+T logistic_bwd(T dd, T s) {
+    T v = ::expf((float)(-s));
+    return dd * v / ((v + 1) * (v + 1));
+}
 }
 
 template <impl::data_type_t data_type>
@@ -67,6 +142,7 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_generic() {
     const int W = conf_.W();
     const auto alg_kind = conf_.desc()->alg_kind;
     const double alpha = conf_.desc()->alpha;
+    const double beta = conf_.desc()->beta;
 
 #   pragma omp parallel for collapse(4) schedule(static)
     for (int n = 0; n < MB; ++n) {
@@ -80,6 +156,14 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_generic() {
                     case eltwise_relu: d = relu_fwd(s, alpha); break;
                     case eltwise_tanh: d = tanh_fwd(s); break;
                     case eltwise_elu: d = elu_fwd(s, alpha); break;
+                    case eltwise_square: d = square_fwd(s); break;
+                    case eltwise_abs: d = abs_fwd(s); break;
+                    case eltwise_sqrt: d = sqrt_fwd(s); break;
+                    case eltwise_linear: d = linear_fwd(s, alpha, beta); break;
+                    case eltwise_bounded_relu:
+                        d = bounded_relu_fwd(s, alpha); break;
+                    case eltwise_soft_relu: d = soft_relu_fwd(s); break;
+                    case eltwise_logistic: d = logistic_fwd(s); break;
                     default: assert(!"unknown eltwise alg_kind");
                     }
                 }
@@ -98,16 +182,27 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_dense() {
     const size_t nelems = data_d.nelems();
     const auto alg_kind = conf_.desc()->alg_kind;
     const double alpha = conf_.desc()->alpha;
+    const double beta  = conf_.desc()->beta;
 
     src += data_d.blocking_desc().offset_padding;
     dst += data_d.blocking_desc().offset_padding;
 
 #   pragma omp parallel for schedule(static)
     for (int e = 0; e < nelems; ++e) {
+        const data_t s = src[e];
+        data_t &d = dst[e];
+
         switch (alg_kind) {
-        case eltwise_relu: dst[e] = relu_fwd(src[e], alpha); break;
-        case eltwise_tanh: dst[e] = tanh_fwd(src[e]); break;
-        case eltwise_elu: dst[e] = elu_fwd(src[e], alpha); break;
+        case eltwise_relu: d = relu_fwd(s, alpha); break;
+        case eltwise_tanh: d = tanh_fwd(s); break;
+        case eltwise_elu: d = elu_fwd(s, alpha); break;
+        case eltwise_square: d = square_fwd(s); break;
+        case eltwise_abs: d = abs_fwd(s); break;
+        case eltwise_sqrt: d = sqrt_fwd(s); break;
+        case eltwise_linear: d = linear_fwd(s, alpha, beta); break;
+        case eltwise_bounded_relu: d = bounded_relu_fwd(s, alpha); break;
+        case eltwise_soft_relu: d = soft_relu_fwd(s); break;
+        case eltwise_logistic: d = logistic_fwd(s); break;
         default: assert(!"unknown eltwise alg_kind");
         }
     }
@@ -128,6 +223,7 @@ void ref_eltwise_bwd_t<data_type>::execute_backward_generic() {
     const int W = conf_.W();
     const auto alg_kind = conf_.desc()->alg_kind;
     const double alpha = conf_.desc()->alpha;
+    const double beta = conf_.desc()->beta;
 
 #   pragma omp parallel for collapse(4) schedule(static)
     for (int n = 0; n < MB; ++n) {
@@ -143,6 +239,15 @@ void ref_eltwise_bwd_t<data_type>::execute_backward_generic() {
                     case eltwise_relu: ds = relu_bwd(dd, s, alpha); break;
                     case eltwise_tanh: ds = tanh_bwd(dd, s); break;
                     case eltwise_elu: ds = elu_bwd(dd, s, alpha); break;
+                    case eltwise_square: ds = square_bwd(dd, s); break;
+                    case eltwise_abs: ds = abs_bwd(dd, s); break;
+                    case eltwise_sqrt: ds = sqrt_bwd(dd, s); break;
+                    case eltwise_linear:
+                        ds = linear_bwd(dd, s, alpha, beta); break;
+                    case eltwise_bounded_relu:
+                        ds = bounded_relu_bwd(dd, s, alpha); break;
+                    case eltwise_soft_relu: ds = soft_relu_bwd(dd, s); break;
+                    case eltwise_logistic: ds = logistic_bwd(dd, s); break;
                     default: assert(!"unknown eltwise alg_kind");
                     }
                 }
@@ -163,6 +268,7 @@ void ref_eltwise_bwd_t<data_type>::execute_backward_dense() {
     const size_t nelems = data_d.nelems();
     const auto alg_kind = conf_.desc()->alg_kind;
     const double alpha = conf_.desc()->alpha;
+    const double beta = conf_.desc()->beta;
 
     src += data_d.blocking_desc().offset_padding;
     diff_dst += diff_data_d.blocking_desc().offset_padding;
@@ -170,14 +276,21 @@ void ref_eltwise_bwd_t<data_type>::execute_backward_dense() {
 
 #   pragma omp parallel for schedule(static)
     for (int e = 0; e < nelems; ++e) {
-        diff_src[e] = static_cast<data_t>(diff_dst[e]
-            * ((src[e] > 0) ? 1. : alpha));
+        const data_t dd = diff_dst[e];
+        const data_t s = src[e];
+        data_t &ds = diff_src[e];
+
         switch (alg_kind) {
-        case eltwise_relu: diff_src[e] = relu_bwd(diff_dst[e], src[e], alpha);
-                           break;
-        case eltwise_tanh: diff_src[e] = tanh_bwd(diff_dst[e], src[e]); break;
-        case eltwise_elu: diff_src[e] = elu_bwd(diff_dst[e], src[e], alpha);
-                           break;
+        case eltwise_relu: ds = relu_bwd(dd, s, alpha); break;
+        case eltwise_tanh: ds = tanh_bwd(dd, s); break;
+        case eltwise_elu: ds = elu_bwd(dd, s, alpha); break;
+        case eltwise_square: ds = square_bwd(dd, s); break;
+        case eltwise_abs: ds = abs_bwd(dd, s); break;
+        case eltwise_sqrt: ds = sqrt_bwd(dd, s); break;
+        case eltwise_linear: ds = linear_bwd(dd, s, alpha, beta); break;
+        case eltwise_bounded_relu: ds = bounded_relu_bwd(dd, s, alpha); break;
+        case eltwise_soft_relu: ds = soft_relu_bwd(dd, s); break;
+        case eltwise_logistic: ds = logistic_bwd(dd, s); break;
         default: assert(!"unknown eltwise alg_kind");
         }
     }
