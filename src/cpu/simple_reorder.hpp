@@ -66,6 +66,12 @@ struct reference {};
 #define SIMPLE_REORDER_TEMPL_CALL \
     type_i, fmt_i, type_o, fmt_o, order_keep
 
+#define DECLARE_COMMON_PARAMS() \
+        const memory_desc_wrapper &input_d = pd->input_pd(); \
+        const memory_desc_wrapper &output_d = pd->output_pd(); \
+        const double alpha_ = pd->alpha(); \
+        const double beta_ = pd->beta();
+
 /* specific reorders: common template */
 template <SIMPLE_REORDER_TEMPL_DECL, typename spec = void>
 struct simple_reorder_impl {};
@@ -84,10 +90,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             && output_d.format() == (order_keep ? fmt_o : fmt_i);
     }
 
-    static status_t execute(const memory_desc_wrapper &input_d,
-        const memory_desc_wrapper &output_d, const data_t<type_i> *input,
-        data_t<type_o> *output,
-        const double alpha_, const double beta_) {
+    static status_t execute(const cpu_reorder_pd_t *pd,
+        const data_t<type_i> *input, data_t<type_o> *output) {
+        DECLARE_COMMON_PARAMS();
+
         const auto &nchw_d = order_keep ? input_d : output_d;
         const auto &dims = input_d.dims();
         constexpr int blksize = fmt_o == nChw8c ? 8 : 16;
@@ -155,10 +161,11 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             && output_d.format() == (order_keep ? fmt_o : fmt_i);
     }
 
-    static status_t execute(const memory_desc_wrapper &input_d,
-        const memory_desc_wrapper &output_d, const data_t<type_i> *input,
-        data_t<type_o> *output,
-        const double alpha, const double beta) {
+    static status_t execute(const cpu_reorder_pd_t *pd,
+        const data_t<type_i> *input, data_t<type_o> *output) {
+        DECLARE_COMMON_PARAMS();
+
+        const float alpha = alpha_, beta = beta_;
         const auto &nchw_d = order_keep ? input_d : output_d;
         const auto &dims = input_d.dims();
         constexpr int blksize = fmt_o == nChw8c ? 8 : 16;
@@ -218,9 +225,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             && output_d.format() == (order_keep ? fmt_o : fmt_i);
     }
 
-    static status_t execute(const memory_desc_wrapper &input_d,
-            const memory_desc_wrapper &output_d, const data_t<type_i> *input,
-        data_t<type_o> *output, const double alpha_, const double beta_) {
+    static status_t execute(const cpu_reorder_pd_t *pd,
+        const data_t<type_i> *input, data_t<type_o> *output) {
+        DECLARE_COMMON_PARAMS();
+
         const auto &dims = input_d.dims();
         const auto i_st = input_d.blocking_desc().strides[0];
         const auto o_st = output_d.blocking_desc().strides[0];
@@ -288,9 +296,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             && output_d.format() == (order_keep ? fmt_o : fmt_i);
     }
 
-    static status_t execute(const memory_desc_wrapper &input_d,
-        const memory_desc_wrapper &output_d, const data_t<type_i> *input,
-        data_t<type_o> *output, const double alpha_, const double beta_) {
+    static status_t execute(const cpu_reorder_pd_t *pd,
+        const data_t<type_i> *input, data_t<type_o> *output) {
+        DECLARE_COMMON_PARAMS();
+
         const auto &dims = input_d.dims();
 
         constexpr int blksize_16c = 16;
@@ -355,10 +364,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             && output_d.format() == (order_keep ? fmt_o : fmt_i);
     }
 
-    static status_t execute(const memory_desc_wrapper &input_d,
-        const memory_desc_wrapper &output_d, const data_t<type_i> *input,
-        data_t<type_o> *output,
-        const double alpha_, const double beta_) {
+    static status_t execute(const cpu_reorder_pd_t *pd,
+        const data_t<type_i> *input, data_t<type_o> *output) {
+        DECLARE_COMMON_PARAMS();
+
         const auto &dims = input_d.dims();
         const auto is = input_d.blocking_desc().strides[0];
         const auto os = output_d.blocking_desc().strides[0];
@@ -416,10 +425,11 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             && output_d.format() == (order_keep ? fmt_o : fmt_i);
     }
 
-    static status_t execute(const memory_desc_wrapper &input_d,
-        const memory_desc_wrapper &output_d, const data_t<type_i> *input,
-        data_t<type_o> *output,
-        const double alpha, const double beta) {
+    static status_t execute(const cpu_reorder_pd_t *pd,
+        const data_t<type_i> *input, data_t<type_o> *output) {
+        DECLARE_COMMON_PARAMS();
+
+        const float alpha = alpha_, beta = beta_;
         const auto &dims = input_d.dims();
         const auto is = input_d.blocking_desc().strides[0];
         const auto os = output_d.blocking_desc().strides[0];
@@ -472,9 +482,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             && output_d.format() == (order_keep ? fmt_o : fmt_i);
     }
 
-    static status_t execute(const memory_desc_wrapper &input_d,
-        const memory_desc_wrapper &output_d, const data_t<type_i> *input,
-        data_t<type_o> *output, const double alpha_, const double beta_) {
+    static status_t execute(const cpu_reorder_pd_t *pd,
+        const data_t<type_i> *input, data_t<type_o> *output) {
+        DECLARE_COMMON_PARAMS();
+
         const auto &dims = input_d.dims();
 
         constexpr int tsize = 16;
@@ -539,9 +550,11 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             && output_d.format() == (order_keep ? fmt_o : fmt_i);
     }
 
-    static status_t execute(const memory_desc_wrapper &input_d,
-            const memory_desc_wrapper &output_d, const data_t<type_i> *input,
-        data_t<type_o> *output, const double alpha, const double beta) {
+    static status_t execute(const cpu_reorder_pd_t *pd,
+        const data_t<type_i> *input, data_t<type_o> *output) {
+        DECLARE_COMMON_PARAMS();
+
+        const float alpha = alpha_, beta = beta_;
         const auto &dims = input_d.dims();
         const auto is = input_d.blocking_desc().strides[0];
         const auto os = output_d.blocking_desc().strides[0];
@@ -605,10 +618,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             && output_d.format() == (order_keep ? fmt_o : fmt_i);
     }
 
-    static status_t execute(const memory_desc_wrapper &input_d,
-        const memory_desc_wrapper &output_d, const data_t<type_i> *input,
-        data_t<type_o> *output,
-        const double alpha_, const double beta_) {
+    static status_t execute(const cpu_reorder_pd_t *pd,
+        const data_t<type_i> *input, data_t<type_o> *output) {
+        DECLARE_COMMON_PARAMS();
+
         constexpr bool w_groups = fmt_i == goihw;
 
         const auto &_g_oihw_d = order_keep ? input_d : output_d;
@@ -692,10 +705,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             && output_d.format() == (order_keep ? fmt_o : fmt_i);
     }
 
-    static status_t execute(const memory_desc_wrapper &input_d,
-        const memory_desc_wrapper &output_d, const data_t<type_i> *input,
-        data_t<type_o> *output,
-        const double alpha_, const double beta_) {
+    static status_t execute(const cpu_reorder_pd_t *pd,
+        const data_t<type_i> *input, data_t<type_o> *output) {
+        DECLARE_COMMON_PARAMS();
+
         constexpr bool w_groups = fmt_i == goihw;
 
         const auto &_g_oihw_d = order_keep ? input_d : output_d;
@@ -779,9 +792,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             && output_d.format() == (order_keep ? fmt_o : fmt_i);
     }
 
-    static status_t execute(const memory_desc_wrapper &input_d,
-        const memory_desc_wrapper &output_d, const data_t<type_i> *input,
-        data_t<type_o> *output, const double alpha_, const double beta_) {
+    static status_t execute(const cpu_reorder_pd_t *pd,
+        const data_t<type_i> *input, data_t<type_o> *output) {
+        DECLARE_COMMON_PARAMS();
+
         constexpr bool w_groups = fmt_i == goihw;
 
         const auto &_g_oihw_d = order_keep ? input_d : output_d;
@@ -849,11 +863,11 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             && output_d.format() == (order_keep ? fmt_o : fmt_i);
     }
 
-    static status_t execute(const memory_desc_wrapper &input_d,
-        const memory_desc_wrapper &output_d, const data_t<type_i> *input,
-        data_t<type_o> *output,
-        const double alpha, const double beta) {
+    static status_t execute(const cpu_reorder_pd_t *pd,
+        const data_t<type_i> *input, data_t<type_o> *output) {
+        DECLARE_COMMON_PARAMS();
 
+        const float alpha = alpha_, beta = beta_;
         const auto &_hwio_d = order_keep ? input_d : output_d;
         const auto &dims = input_d.dims();
         constexpr int blksize = fmt_o == OIhw8i8o ? 8 : 16;
@@ -922,10 +936,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             && output_d.format() == (order_keep ? fmt_o : fmt_i);
     }
 
-    static status_t execute(const memory_desc_wrapper &input_d,
-        const memory_desc_wrapper &output_d, const data_t<type_i> *input,
-        data_t<type_o> *output,
-        const double alpha_, const double beta_) {
+    static status_t execute(const cpu_reorder_pd_t *pd,
+        const data_t<type_i> *input, data_t<type_o> *output) {
+        DECLARE_COMMON_PARAMS();
+
         constexpr bool w_groups = fmt_i == goihw;
 
         const auto &_g_oihw_d = order_keep ? input_d : output_d;
@@ -1011,10 +1025,11 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             && output_d.format() == (order_keep ? fmt_o : fmt_i);
     }
 
-    static status_t execute(const memory_desc_wrapper &input_d,
-        const memory_desc_wrapper &output_d, const data_t<type_i> *input,
-        data_t<type_o> *output,
-        const double alpha, const double beta) {
+    static status_t execute(const cpu_reorder_pd_t *pd,
+        const data_t<type_i> *input, data_t<type_o> *output) {
+        DECLARE_COMMON_PARAMS();
+
+        const double alpha = alpha_, beta = beta_;
         constexpr bool w_groups = fmt_i == gOIhw8i16o2i;
 
         const auto &dims = input_d.dims();
@@ -1083,10 +1098,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             && output_d.format() == (order_keep ? fmt_o : fmt_i);
     }
 
-    static status_t execute(const memory_desc_wrapper &input_d,
-        const memory_desc_wrapper &output_d, const data_t<type_i> *input,
-        data_t<type_o> *output,
-        const double alpha_, const double beta_) {
+    static status_t execute(const cpu_reorder_pd_t *pd,
+        const data_t<type_i> *input, data_t<type_o> *output) {
+        DECLARE_COMMON_PARAMS();
+
         constexpr bool w_groups = (fmt_i == gOIhw8i8o || fmt_i == gOIhw16i16o);
 
         const auto &dims = input_d.dims();
@@ -1143,10 +1158,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             && output_d.format() == (order_keep ? fmt_o : fmt_i);
     }
 
-    static status_t execute(const memory_desc_wrapper &input_d,
-        const memory_desc_wrapper &output_d, const data_t<type_i> *input,
-        data_t<type_o> *output,
-        const double alpha_, const double beta_) {
+    static status_t execute(const cpu_reorder_pd_t *pd,
+        const data_t<type_i> *input, data_t<type_o> *output) {
+        DECLARE_COMMON_PARAMS();
+
         const bool w_groups = fmt_i == gOihw16o;
 
         const auto &dims = input_d.dims();
@@ -1193,10 +1208,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             && output_d.is_dense();
     }
 
-    static status_t execute(const memory_desc_wrapper &input_d,
-        const memory_desc_wrapper &output_d, const data_t<type_i> *input,
-        data_t<type_o> *output,
-        const double alpha_, const double beta_) {
+    static status_t execute(const cpu_reorder_pd_t *pd,
+        const data_t<type_i> *input, data_t<type_o> *output) {
+        DECLARE_COMMON_PARAMS();
+
         assert(input_d.is_dense());
 
         input += input_d.blk_off(0);
@@ -1259,10 +1274,9 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             && is_dense_no_0(output_d);
     }
 
-    static status_t execute(const memory_desc_wrapper &input_d,
-        const memory_desc_wrapper &output_d, const data_t<type_i> *input,
-        data_t<type_o> *output,
-        const double alpha_, const double beta_) {
+    static status_t execute(const cpu_reorder_pd_t *pd,
+        const data_t<type_i> *input, data_t<type_o> *output) {
+        DECLARE_COMMON_PARAMS();
 
         input += input_d.blk_off(0);
         output += output_d.blk_off(0);
@@ -1357,10 +1371,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         return true;
     }
 
-    static status_t execute(const memory_desc_wrapper &input_d,
-        const memory_desc_wrapper &output_d, const data_t<type_i> *input,
-        data_t<type_o> *output,
-        const double alpha_, const double beta_) {
+    static status_t execute(const cpu_reorder_pd_t *pd,
+        const data_t<type_i> *input, data_t<type_o> *output) {
+        DECLARE_COMMON_PARAMS();
+
         const size_t nelems = input_d.nelems();
 
         const float alpha = alpha_, beta = beta_;
@@ -1427,8 +1441,7 @@ struct simple_reorder_t: public cpu_primitive_t {
                 this->input_memory(0));
         auto output = reinterpret_cast<data_t<type_o> *>(this->memory());
         simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL, spec>::execute(
-                conf_.input_pd()->desc(), conf_.output_pd()->desc(),
-                input, output, conf_.alpha(), conf_.beta());
+                &conf_, input, output);
         e->set_state(event_t::ready);
     }
 
