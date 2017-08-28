@@ -408,6 +408,16 @@ public:
         vaddps(x, op1, op2);
     }
 
+    void uni_vpsignd(const Xbyak::Xmm& x1, const Xbyak::Xmm& x2,
+                     const Xbyak::Operand& op) {
+        assert(x1.getIdx() == x2.getIdx());
+        psignd(x1, op);
+    }
+    void uni_vpsignd(const Xbyak::Ymm& x1, const Xbyak::Ymm& x2,
+                     const Xbyak::Operand& op) {
+        vpsignd(x1, x2, op);
+    }
+
     void uni_vsubps(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
                     const Xbyak::Operand &op2 = Xbyak::Operand()) {
         assert(x.getIdx() == op1.getIdx());
@@ -448,6 +458,17 @@ public:
         vfmadd231ps(x1, x2, op);
     }
 
+    void uni_vfnmadd231ps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
+                           const Xbyak::Operand &op) {
+        mulps(x2, op);
+        subps(x1, x2);
+    }
+
+    void uni_vfnmadd231ps(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
+                           const Xbyak::Operand &op) {
+        vfnmadd231ps(x1, x2, op);
+    }
+
     void uni_vsqrtps(const Xbyak::Xmm &x, const Xbyak::Operand &op) {
         sqrtps(x, op);
     }
@@ -467,8 +488,7 @@ public:
 
     void uni_vandps(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
                     const Xbyak::Operand &op2 = Xbyak::Operand()) {
-        if (x.getIdx() != op1.getIdx())
-            throw Xbyak::Error(Xbyak::ERR_INTERNAL);
+        assert(x.getIdx() != op1.getIdx());
         andps(x, op2);
     }
     void uni_vandps(const Xbyak::Ymm &x, const Xbyak::Operand &op1,
@@ -476,10 +496,19 @@ public:
         vandps(x, op1, op2);
     }
 
+    void uni_vorps(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
+                    const Xbyak::Operand &op2 = Xbyak::Operand()) {
+        assert(x.getIdx() != op1.getIdx());
+        orps(x, op2);
+    }
+    void uni_vorps(const Xbyak::Ymm &x, const Xbyak::Operand &op1,
+                    const Xbyak::Operand &op2 = Xbyak::Operand()) {
+        vorps(x, op1, op2);
+    }
+
     void uni_vpslld(const Xbyak::Xmm &x, const Xbyak::Operand &op,
                     const int imm) {
-        if (x.getIdx() != op.getIdx())
-            throw Xbyak::Error(Xbyak::ERR_INTERNAL);
+        assert(x.getIdx() != op.getIdx());
         pslld(x, imm);
     }
     void uni_vpslld(const Xbyak::Ymm &x, const Xbyak::Operand &op,
@@ -487,10 +516,19 @@ public:
         vpslld(x, op, imm);
     }
 
+    void uni_vpsrld(const Xbyak::Xmm &x, const Xbyak::Operand &op,
+                    const int imm) {
+        assert(x.getIdx() != op.getIdx());
+        psrld(x, imm);
+    }
+    void uni_vpsrld(const Xbyak::Ymm &x, const Xbyak::Operand &op,
+                    const int imm) {
+        vpsrld(x, op, imm);
+    }
+
     void uni_vmaxps(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
                     const Xbyak::Operand &op2 = Xbyak::Operand()) {
-        if (x.getIdx() != op1.getIdx())
-            throw Xbyak::Error(Xbyak::ERR_INTERNAL);
+        assert(x.getIdx() != op1.getIdx());
         maxps(x, op2);
     }
     void uni_vmaxps(const Xbyak::Ymm &x, const Xbyak::Operand &op1,
@@ -500,8 +538,7 @@ public:
 
     void uni_vminps(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
                     const Xbyak::Operand &op2 = Xbyak::Operand()) {
-        if (x.getIdx() != op1.getIdx())
-            throw Xbyak::Error(Xbyak::ERR_INTERNAL);
+        assert(x.getIdx() != op1.getIdx());
         minps(x, op2);
     }
     void uni_vminps(const Xbyak::Ymm &x, const Xbyak::Operand &op1,
@@ -511,8 +548,7 @@ public:
 
     void uni_vcmpgtps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
                       const Xbyak::Operand &op) {
-        if (x1.getIdx() != x2.getIdx())
-            throw Xbyak::Error(Xbyak::ERR_INTERNAL);
+        assert(x1.getIdx() != x2.getIdx());
         cmpps(x1, op, 0x6);
     }
     void uni_vcmpgtps(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
@@ -522,8 +558,7 @@ public:
 
     void uni_vblendvps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
                        const Xbyak::Operand &op, const Xbyak::Xmm &msk) {
-        if (x1.getIdx() != x2.getIdx())
-            throw Xbyak::Error(Xbyak::ERR_INTERNAL);
+        assert(x1.getIdx() != x2.getIdx());
         blendvps(x1, op);
     }
     void uni_vblendvps(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
@@ -545,6 +580,13 @@ public:
     }
     void uni_vcvtps2dq(const Xbyak::Ymm &x, const Xbyak::Operand &op) {
         vcvtps2dq(x, op);
+    }
+
+    void uni_vcvtdq2ps(const Xbyak::Xmm &x, const Xbyak::Operand &op) {
+        cvtdq2ps(x, op);
+    }
+    void uni_vcvtdq2ps(const Xbyak::Ymm &x, const Xbyak::Operand &op) {
+        vcvtdq2ps(x, op);
     }
 
     void uni_vmovmskps(const Xbyak::Reg &x1, const Xbyak::Xmm &x2) {
