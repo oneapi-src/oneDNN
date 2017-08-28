@@ -762,18 +762,24 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
         int bcast_block_size = reduce_blocking * jcp.bcast_block;
         int L2_for_kernel = rnd_dn(L2_capacity - bcast_block_size,
                 reduce_blocking * jcp.load_block);
-        int load_grp_count
-                = reduce_src ? 1 : utils::div_up(kernel_size, L2_for_kernel);
-        if (!reduce_src)
-            load_grp_count = best_divider(
-                    nthreads, load_grp_count, 2 * load_grp_count, false);
+        int load_divider =
+                reduce_src ? 1 : div_up(kernel_size, L2_for_kernel);
+        load_divider = nstl::max(load_divider,
+            div_up(nthreads, jcp.mb * jcp.ngroups * nb_bcast));
+        load_divider = best_divider(
+                nthreads, load_divider, 2 * load_divider, false);
 
-        load_blocking = div_up(nb_load, load_grp_count) * jcp.load_block;
-        kernel_size = utils::div_up(kernel_size, load_grp_count);
-        if (jcp.oh < 8 && jcp.mb <= nthreads
+        load_blocking = div_up(nb_load, load_divider) * jcp.load_block;
+        kernel_size = div_up(kernel_size, load_divider);
+        bool need_extra_parallelization = true
+            && jcp.mb * jcp.ngroups * nb_bcast < nthreads;
+        // Heuristic condition for certain convolutions...
+        bool need_divided_kernel = true
+                && jcp.oh <= 7 && jcp.mb <= nthreads
                 && jcp.reduce_dim * jcp.load_dim >= 1024 * 1024
-                && reduce_blocking == jcp.reduce_dim)
-            jcp.load_grp_count = load_grp_count;
+                && reduce_blocking == jcp.reduce_dim;
+        if (need_divided_kernel || need_extra_parallelization)
+            jcp.load_grp_count = load_divider;
 
         bcast_blocking = div_up(jcp.mb * jcp.ngroups * nb_bcast,
             div_up(nthreads, jcp.load_grp_count)) * jcp.bcast_block;
