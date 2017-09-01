@@ -670,9 +670,10 @@ void jit_avx512_common_convolution_bwd_weights_t::balance() {
     const int max_threads = omp_get_max_threads();
     const auto &j = conf_.jcp_;
 
+    nthr_ = nthr_mb_ = nthr_g_ = nthr_oc_b_ = nthr_ic_b_ = 1;
+
     if (max_threads < j.ngroups) {
         /* simplification... fortunately it doesn't hurt much */
-        nthr_ = nthr_mb_ = nthr_g_ = nthr_oc_b_ = nthr_ic_b_ = 1;
         return;
     }
 
@@ -719,16 +720,15 @@ void jit_avx512_common_convolution_bwd_weights_t::balance() {
             * div_up(j.nb_ic, nthr_ic_b);
     };
 
-    int nthr_mb = 1,  nthr_oc_b = 1, nthr_ic_b = 1;
-    int best_mem_cost = calc_mem_cost(nthr_mb, nthr_oc_b, nthr_ic_b);
+    int best_mem_cost = calc_mem_cost(nthr_mb_, nthr_oc_b_, nthr_ic_b_);
 
     /* step 1: find the best thread distribution with lowest memory cost */
     const int nthr_mb_max = nstl::min(nthr, j.mb);
-    for (nthr_mb = 1; nthr_mb <= nthr_mb_max; ++nthr_mb) {
+    for (int nthr_mb = 1; nthr_mb <= nthr_mb_max; ++nthr_mb) {
         const int nthr_par = nthr / nthr_mb;
         const int nthr_oc_b_max = nstl::min(nthr_par, j.nb_oc);
-        for (nthr_oc_b = 1; nthr_oc_b <= nthr_oc_b_max; ++nthr_oc_b) {
-            nthr_ic_b = nstl::min(nthr_par / nthr_oc_b, j.nb_ic);
+        for (int nthr_oc_b = 1; nthr_oc_b <= nthr_oc_b_max; ++nthr_oc_b) {
+            int nthr_ic_b = nstl::min(nthr_par / nthr_oc_b, j.nb_ic);
             int mem_cost = calc_mem_cost(nthr_mb, nthr_oc_b, nthr_ic_b);
             if (mem_cost <= best_mem_cost) {
                 best_mem_cost = mem_cost;
@@ -745,11 +745,11 @@ void jit_avx512_common_convolution_bwd_weights_t::balance() {
      *  - unless compute cost is 133% lower than the current best case
      * note: both constants were found empirically */
     int best_comp_cost = calc_comp_cost(nthr_mb_, nthr_oc_b_, nthr_ic_b_);
-    for (nthr_mb = 1; nthr_mb <= nthr_mb_max; ++nthr_mb) {
+    for (int nthr_mb = 1; nthr_mb <= nthr_mb_max; ++nthr_mb) {
         const int nthr_par = nthr / nthr_mb;
         const int nthr_oc_b_max = nstl::min(nthr_par, j.nb_oc);
-        for (nthr_oc_b = 1; nthr_oc_b <= nthr_oc_b_max; ++nthr_oc_b) {
-            nthr_ic_b = nstl::min(nthr_par / nthr_oc_b, j.nb_ic);
+        for (int nthr_oc_b = 1; nthr_oc_b <= nthr_oc_b_max; ++nthr_oc_b) {
+            int nthr_ic_b = nstl::min(nthr_par / nthr_oc_b, j.nb_ic);
             int mem_cost = calc_mem_cost(nthr_mb, nthr_oc_b, nthr_ic_b);
             int comp_cost = calc_comp_cost(nthr_mb, nthr_oc_b, nthr_ic_b);
 
