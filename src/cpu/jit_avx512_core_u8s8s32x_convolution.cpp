@@ -43,6 +43,7 @@ struct jit_avx512_core_u8s8s32x_conv_fwd_ker_t: public jit_generator {
         const void *src_u8;
         const void *wei_s8;
         const void *bia;
+        const void *scales;
         const void *acc_s32;
         const void *dst;
         size_t kh_range;
@@ -60,12 +61,15 @@ struct jit_avx512_core_u8s8s32x_conv_fwd_ker_t: public jit_generator {
     Reg64 reg_off_acc_s32 = r9;
     Reg64 reg_off_dst = r10;
 
+    Reg64 reg_ptr_scales = abi_not_param1;
+
     Reg64 reg_ptr_src_u8 = r11;
     Reg64 reg_ptr_wei_s8 = r12;
     Reg64 reg_ptr_bia = r13;
     Reg64 reg_ptr_acc_s32 = r14;
     Reg64 reg_ptr_dst = r15;
 
+    Zmm vreg_scales = zmm28;
     Zmm vreg_tmp = zmm29;
     Zmm vreg_zero = zmm30;
     Zmm vreg_one_s16 = zmm31;
@@ -108,8 +112,8 @@ struct jit_avx512_core_u8s8s32x_conv_fwd_ker_t: public jit_generator {
 
     static status_t init_conf(jit_conv_conf_t &c, const convolution_desc_t &cd,
             const memory_desc_wrapper &src_d, const memory_desc_wrapper &wei_d,
-            const memory_desc_wrapper &dst_d, bool with_relu,
-            float negative_slope);
+            const memory_desc_wrapper &dst_d, const primitive_attr_t *attr,
+            bool with_relu, float negative_slope);
 };
 
 void jit_avx512_core_u8s8s32x_conv_fwd_ker_t::load_wei_s8() {
@@ -160,14 +164,21 @@ void jit_avx512_core_u8s8s32x_conv_fwd_ker_t::store_dst(int ur_ow) {
 
     L(l_final_store);
 
+    vmovups(vreg_scales, zword[reg_ptr_scales]);
+
     auto vreg_bia = vreg_tmp;
     if (c_.with_bias) {
         switch (c_.bia_dt) {
+        case f32:
         case s32: vmovups(vreg_bia, zword [reg_ptr_bia]); break;
         case s8: vpmovsxbd(vreg_bia, ptr[reg_ptr_bia]); break;
         case u8: vpmovzxbd(vreg_bia, ptr[reg_ptr_bia]); break;
         default: assert(!"unsupported bias data type");
         }
+        if (c_.bia_dt != f32)
+            vcvtdq2ps(vreg_bia, vreg_bia); /* TODO: cvt and load at once */
+    } else {
+        vpxord(vreg_bia, vreg_bia, vreg_bia);
     }
 
     for (int o = 0; o < ur_ow; ++o) {
@@ -175,14 +186,21 @@ void jit_avx512_core_u8s8s32x_conv_fwd_ker_t::store_dst(int ur_ow) {
         Address dst = ptr[reg_ptr_dst + reg_off_dst
             + o * c_.ngroups * c_.oc * sizeof_dst_dt()];
 
-        if (c_.with_bias)
-            vpaddd(Zmm(r), Zmm(r), vreg_bia);
+        vcvtdq2ps(Zmm(r), Zmm(r));
+        vaddps(Zmm(r), Zmm(r), vreg_bia);
+        vmulps(Zmm(r), Zmm(r), vreg_scales);
 
         if (c_.with_relu || c_.dst_dt == data_type::u8)
-            vpmaxsd(Zmm(r), vreg_zero, Zmm(r));
+            vmaxps(Zmm(r), vreg_zero, Zmm(r));
 
-        if (c_.dst_dt == f32)
-            vcvtdq2ps(Zmm(r), Zmm(r));
+        if (c_.dst_dt != f32) {
+            if (c_.rmode == round_mode::nearest)
+                vcvtps2dq(Zmm(r) | T_rn_sae, Zmm(r));
+            else if (c_.rmode == round_mode::down)
+                vcvtps2dq(Zmm(r) | T_rd_sae, Zmm(r));
+            else
+                assert(!"unimplemented");
+        }
 
         switch (c_.dst_dt) {
         case f32:
@@ -380,6 +398,7 @@ void jit_avx512_core_u8s8s32x_conv_fwd_ker_t::generate() {
     READ_PARAM(reg_ptr_src_u8, src_u8);
     READ_PARAM(reg_ptr_wei_s8, wei_s8);
     READ_PARAM(reg_ptr_bia, bia);
+    READ_PARAM(reg_ptr_scales, scales);
     READ_PARAM(reg_ptr_acc_s32, acc_s32);
     READ_PARAM(reg_ptr_dst, dst);
     READ_PARAM(reg_kh, kh_range);
@@ -393,7 +412,7 @@ void jit_avx512_core_u8s8s32x_conv_fwd_ker_t::generate() {
 status_t jit_avx512_core_u8s8s32x_conv_fwd_ker_t::init_conf(jit_conv_conf_t &c,
         const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &wei_d, const memory_desc_wrapper &dst_d,
-        bool with_relu, float negative_slope) {
+        const primitive_attr_t *attr, bool with_relu, float negative_slope) {
     if (!mayiuse(avx512_core))
         return status::unimplemented;
 
@@ -422,6 +441,7 @@ status_t jit_avx512_core_u8s8s32x_conv_fwd_ker_t::init_conf(jit_conv_conf_t &c,
     c.with_relu = with_relu;
     c.bia_dt = c.with_bias ? cd.bias_desc.data_type : data_type::undef;
     c.dst_dt = cd.dst_desc.data_type;
+    c.rmode = attr->round_mode_;
 
     c.ic_block = 4;
     c.oc_block = 16;
@@ -438,7 +458,9 @@ status_t jit_avx512_core_u8s8s32x_conv_fwd_ker_t::init_conf(jit_conv_conf_t &c,
         && c.l_pad < c.kw && c.r_pad < c.kw
         && implication(with_relu, negative_slope == 0.)
         && one_of(c.dst_dt, data_type::f32, data_type::s32, data_type::s8,
-                data_type::u8);
+                data_type::u8)
+        && implication(c.dst_dt != data_type::f32, one_of(c.rmode,
+                    round_mode::nearest, round_mode::down));
 
     if (!args_ok)
         return status::unimplemented;
@@ -450,7 +472,7 @@ status_t jit_avx512_core_u8s8s32x_conv_fwd_ker_t::init_conf(jit_conv_conf_t &c,
     c.ic_nb2 = ic_nb / c.ic_nb1;
 
     const int nregs = cpu_isa_traits<avx512_core>::n_vregs;
-    const int nregs_aux = 3; // tmp, 0, 1_s16
+    const int nregs_aux = 4; // scales, tmp, 0, 1_s16
     const int nregs_wei = c.ic_nb1 * c.kw;
 
     assert(nregs_wei + nregs_aux < nregs);
@@ -511,7 +533,8 @@ status_t _jit_avx512_core_u8s8s32x_convolution_fwd_t<with_relu,
 {
     return jit_avx512_core_u8s8s32x_conv_fwd_ker_t::init_conf(jcp_,
             this->cdesc_(), *this->src_pd_.desc(), *this->weights_pd_.desc(),
-            *this->dst_pd_.desc(), with_relu, this->negative_slope());
+            *this->dst_pd_.desc(), this->attr(), with_relu,
+            this->negative_slope());
 }
 
 template <bool with_relu, data_type_t dst_data_type>
@@ -548,6 +571,10 @@ execute_forward() {
         ? types::data_type_size(conf_.cdesc()->bias_desc.data_type) : 0;
 
     const auto &c = ker_->c_;
+
+    const auto &oscales = conf_.attr()->output_scales_;
+    const int is_oc_scale = oscales.mask_ == 1 << 1;
+    assert(utils::implication(!is_oc_scale, oscales.mask_ == 0));
 
     /*
      * s [mb]              [ih]              [iw][g]       [ic/16*4i]     [4i]
@@ -586,6 +613,7 @@ execute_forward() {
                 ? wei_d.blk_off(g, oc_b1, 0, kh_start)
                 : wei_d.blk_off(oc_b1, 0, kh_start)];
             p.bia = &bia[oc_start * bia_dt_size];
+            p.scales = &oscales.scales_[is_oc_scale * oc_start];
             p.dst = &dst[dst_d.blk_off(n, oc_start, oh)];
 
             p.kh_range = (size_t)(kh_end - kh_start);

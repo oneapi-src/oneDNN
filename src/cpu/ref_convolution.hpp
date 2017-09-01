@@ -61,7 +61,7 @@ struct _ref_convolution_fwd_t: public cpu_primitive_t {
                 && utils::implication(this->with_bias(), true
                         && utils::implication(src_type == u8,
                             utils::one_of(this->cdesc_().bias_desc.data_type,
-                                s32, s8, u8))
+                                f32, s32, s8, u8))
                         && utils::implication(src_type == f32,
                             this->cdesc_().bias_desc.data_type == f32));
             return ok ? status::success : status::unimplemented;
