@@ -66,7 +66,7 @@ struct jit_avx512_core_u8s8s32x_conv_fwd_ker_t: public jit_generator {
     Reg64 reg_ptr_acc_s32 = r14;
     Reg64 reg_ptr_dst = r15;
 
-    Zmm vreg_src_u8 = zmm29;
+    Zmm vreg_tmp = zmm29;
     Zmm vreg_zero = zmm30;
     Zmm vreg_one_s16 = zmm31;
 
@@ -125,8 +125,6 @@ void jit_avx512_core_u8s8s32x_conv_fwd_ker_t::load_wei_s8() {
 }
 
 void jit_avx512_core_u8s8s32x_conv_fwd_ker_t::load_acc_s32(int ur_ow) {
-    using namespace data_type;
-
     Label l_first_load, l_ret;
     test(reg_state, STATE_FIRST_DST_LOAD);
     jne(l_first_load, T_NEAR);
@@ -137,24 +135,16 @@ void jit_avx512_core_u8s8s32x_conv_fwd_ker_t::load_acc_s32(int ur_ow) {
     jmp(l_ret, T_NEAR);
 
     L(l_first_load);
-    if (c_.with_bias) {
-        switch (c_.bia_dt) {
-            case s8: vpmovsxbd(vreg_acc_s32(0), ptr[reg_ptr_bia]); break;
-            case u8: vpmovzxbd(vreg_acc_s32(0), ptr[reg_ptr_bia]); break;
-            case s32: vmovups(vreg_acc_s32(0), zword [reg_ptr_bia]); break;
-            default: assert(!"unsupported bias data type");
-        }
-        for (int o = 1; o < ur_ow; ++o)
-            vmovaps(vreg_acc_s32(o), vreg_acc_s32(0));
-    } else {
-        for (int o = 0; o < ur_ow; ++o)
-            vpxord(vreg_acc_s32(o), vreg_acc_s32(o), vreg_acc_s32(o));
-    }
+
+    for (int o = 0; o < ur_ow; ++o)
+        vpxord(vreg_acc_s32(o), vreg_acc_s32(o), vreg_acc_s32(o));
 
     L(l_ret);
 }
 
 void jit_avx512_core_u8s8s32x_conv_fwd_ker_t::store_dst(int ur_ow) {
+    using namespace data_type;
+
     Label l_final_store, l_ret;
 
     add(reg_ic_b2, reg_kh); /* non-destructive check on 0 */
@@ -169,23 +159,33 @@ void jit_avx512_core_u8s8s32x_conv_fwd_ker_t::store_dst(int ur_ow) {
     jmp(l_ret, T_NEAR);
 
     L(l_final_store);
+
+    auto vreg_bia = vreg_tmp;
+    if (c_.with_bias) {
+        switch (c_.bia_dt) {
+        case s32: vmovups(vreg_bia, zword [reg_ptr_bia]); break;
+        case s8: vpmovsxbd(vreg_bia, ptr[reg_ptr_bia]); break;
+        case u8: vpmovzxbd(vreg_bia, ptr[reg_ptr_bia]); break;
+        default: assert(!"unsupported bias data type");
+        }
+    }
+
     for (int o = 0; o < ur_ow; ++o) {
         const int r = id_vreg_dst(o);
         Address dst = ptr[reg_ptr_dst + reg_off_dst
             + o * c_.ngroups * c_.oc * sizeof_dst_dt()];
 
+        if (c_.with_bias)
+            vpaddd(Zmm(r), Zmm(r), vreg_bia);
+
         if (c_.with_relu || c_.dst_dt == data_type::u8)
             vpmaxsd(Zmm(r), vreg_zero, Zmm(r));
 
         switch (c_.dst_dt) {
-        case data_type::s32:
-            vmovups(dst, Zmm(r)); break;
-        case data_type::s8:
-            vpmovsdb(Xmm(r), Zmm(r)); vmovups(dst, Xmm(r)); break;
-        case data_type::u8:
-            vpmovusdb(Xmm(r), Zmm(r)); vmovups(dst, Xmm(r)); break;
-        default:
-            assert(!"unknown dst_dt");
+        case s32: vmovups(dst, Zmm(r)); break;
+        case s8: vpmovsdb(Xmm(r), Zmm(r)); vmovups(dst, Xmm(r)); break;
+        case u8: vpmovusdb(Xmm(r), Zmm(r)); vmovups(dst, Xmm(r)); break;
+        default: assert(!"unknown dst_dt");
         }
     }
     add(reg_off_dst, ur_ow * c_.ngroups * c_.oc * sizeof_dst_dt());
@@ -212,6 +212,7 @@ void jit_avx512_core_u8s8s32x_conv_fwd_ker_t::compute(int o, int iw_off, int k)
     assert(0 <= k && k < c_.kw);
     assert(0 <= o && o < c_.ur_ow_max);
 
+    Zmm vreg_src_u8 = vreg_tmp;
     Zmm vreg_t_s16 = vreg_src_u8;
     Zmm vreg_t_s32 = vreg_src_u8;
 
@@ -444,7 +445,7 @@ status_t jit_avx512_core_u8s8s32x_conv_fwd_ker_t::init_conf(jit_conv_conf_t &c,
     c.ic_nb2 = ic_nb / c.ic_nb1;
 
     const int nregs = cpu_isa_traits<avx512_core>::n_vregs;
-    const int nregs_aux = 3; // src_u8, 0, 1_s16
+    const int nregs_aux = 3; // tmp, 0, 1_s16
     const int nregs_wei = c.ic_nb1 * c.kw;
 
     assert(nregs_wei + nregs_aux < nregs);
