@@ -137,7 +137,8 @@ struct jit_uni_pooling_bwd_t: public cpu_primitive_t {
                         diff_dst_pd()->desc()->data_type)
                 && utils::implication(desc()->alg_kind == pooling_max,
                         hint_fwd_pd_ && hint_fwd_pd_->workspace_pd()
-                        && hint_fwd_pd_->workspace_pd()->engine()->kind());
+                        && hint_fwd_pd_->workspace_pd()->desc()->format
+                                == desired_fmt);
             if (!ok) return status::unimplemented;
 
             if (desc()->alg_kind == pooling_max)
