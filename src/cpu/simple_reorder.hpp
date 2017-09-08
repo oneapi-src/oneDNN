@@ -1203,9 +1203,9 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 {
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d) {
-        /* FIXME: is the formule correct? */
-        return input_d.format() == output_d.format() && input_d.is_dense()
-            && output_d.is_dense();
+        /* FIXME: is the formula correct? */
+        return input_d.similar_to(output_d, true, false, 0)
+            && input_d.is_dense() && output_d.is_dense();
     }
 
     static status_t execute(const cpu_reorder_pd_t *pd,
@@ -1270,8 +1270,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             return nelems_no_dim_0(data_d) == _size_no_dim_0(data_d);
         };
         /* FIXME: is the formula correct? */
-        return input_d.format() == output_d.format() && is_dense_no_0(input_d)
-            && is_dense_no_0(output_d);
+        return input_d.similar_to(output_d, true, false, 1)
+            && is_dense_no_0(input_d) && is_dense_no_0(output_d);
     }
 
     static status_t execute(const cpu_reorder_pd_t *pd,
