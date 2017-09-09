@@ -70,6 +70,7 @@ endif()
 add_definitions(-D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS)
 
 if(WIN32)
+    set(USERCONFIG_PLATFORM "x64")
     add_definitions(-DMKLDNN_DLL -DMKLDNN_DLL_EXPORTS)
     add_definitions(/MP)
     if(${CMAKE_CXX_COMPILER_ID} STREQUAL "Intel")
