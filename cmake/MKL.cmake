@@ -23,7 +23,11 @@ function(detect_mkl LIBNAME)
 
     find_path(MKLINC mkl_cblas.h
         PATHS ${MKLROOT}/include $ENV{MKLROOT}/include)
-    if(NOT MKLINC)
+    if(MKLINC AND WIN32)
+        set (MKL_REDIST ${MKLINC}/../../redist/)
+        find_path(MKLDLL ${LIBNAME}.dll
+            PATHS ${MKL_REDIST}/mkl ${MKL_REDIST}/intel64/mkl)
+    elseif(NOT MKLINC)
         file(GLOB_RECURSE MKLINC
                 ${CMAKE_CURRENT_SOURCE_DIR}/external/*/mkl_cblas.h)
         if(MKLINC)
@@ -52,9 +56,13 @@ function(detect_mkl LIBNAME)
         PATHS   ${MKLROOT}/lib ${MKLROOT}/lib/intel64
                 $ENV{MKLROOT}/lib $ENV{MKLROOT}/lib/intel64
                 ${__mklinc_root}/lib ${__mklinc_root}/lib/intel64)
+
     if(MKLINC AND MKLLIB)
         set(HAVE_MKL TRUE PARENT_SCOPE)
         get_filename_component(MKLLIBPATH "${MKLLIB}" PATH)
+        if(WIN32)
+            find_path(MKLDLL ${LIBNAME}.dll PATHS ${MKLLIBPATH})
+        endif()
         string(FIND "${MKLLIBPATH}" ${CMAKE_CURRENT_SOURCE_DIR}/external __idx)
         if(${__idx} EQUAL 0)
             install(PROGRAMS ${MKLLIB} ${MKLLIBPATH}/libiomp5.so
@@ -77,6 +85,18 @@ if(HAVE_MKL)
     add_definitions(-DUSE_MKL -DUSE_CBLAS)
     include_directories(AFTER ${MKLINC})
     list(APPEND mkldnn_LINKER_LIBS ${MKLLIB})
+    if(WIN32)
+        set(ENV_PATH "$ENV{PATH}")
+        string(REPLACE ";" "\;" ENV_PATH "${ENV_PATH}")
+        set(CTESTCONFIG_PATH "${ENV_PATH}")
+        set(CTESTCONFIG_PATH "${CTESTCONFIG_PATH}\;${MKLDLL}")
+        if(NOT MKLDLL)
+            message(WARNING "Intel(R) MKL dll not found. Compilation still possible "
+            "but may encounter problems when running executables.")
+        else()
+            message (STATUS "MKL DLL(s) (path) ${MKLDLL}")
+        endif()
+    endif()
     message(STATUS "Intel(R) MKL found: include ${MKLINC}, lib ${MKLLIB}")
 else()
     if(DEFINED ENV{FAIL_WITHOUT_MKL} OR DEFINED FAIL_WITHOUT_MKL)
