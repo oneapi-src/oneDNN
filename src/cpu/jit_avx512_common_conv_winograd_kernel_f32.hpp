@@ -25,13 +25,23 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-struct _jit_avx512_common_conv_winograd_data_kernel_f32 : public jit_generator
-{
+struct _jit_avx512_common_conv_winograd_data_kernel_f32 : public jit_generator {
     _jit_avx512_common_conv_winograd_data_kernel_f32(
-            jit_conv_winograd_conf_t ajcp) : jcp(ajcp) {
-        this->gemm_loop_generate();
-        gemm_loop_ker =
-            (void (*)(float *, const float *, const float *)) this->getCode();
+            jit_conv_winograd_conf_t ajcp)
+        : jcp(ajcp)
+    {
+        //******************* First iter kernel ********************//
+        this->gemm_loop_generate(true);
+        gemm_loop_ker_first_iter
+                = (decltype(gemm_loop_ker_first_iter)) this->getCode();
+
+        //************** Subsequent iterations kernel **************//
+        if (jcp.nb_ic > 1) {
+            align();
+            const Xbyak::uint8 *addr = getCurr();
+            this->gemm_loop_generate(false);
+            gemm_loop_ker = (decltype(gemm_loop_ker))addr;
+        }
     }
 
     static status_t init_conf_common(jit_conv_winograd_conf_t &jcp,
@@ -39,31 +49,32 @@ struct _jit_avx512_common_conv_winograd_data_kernel_f32 : public jit_generator
             const memory_desc_wrapper &weights_d,
             const memory_desc_wrapper &dst_d);
 
+    static status_t init_conf_kernel(
+            jit_conv_winograd_conf_t &jcp, int dimM, int dimN, int dimK);
+
     jit_conv_winograd_conf_t jcp;
     void (*gemm_loop_ker)(float *, const float *, const float *);
-    void (*input_transform_ker)(const float *, const float *);
+    void (*gemm_loop_ker_first_iter)(float *, const float *, const float *);
 
-  private:
+protected:
     using reg64_t = const Xbyak::Reg64;
     enum { typesize = sizeof(float) };
 
-    void gemm_compute_kernel(bool first_iter, bool last_iter);
-    void gemm_loop_generate();
+    void gemm_loop_generate(bool is_beta_zero);
 
     /* registers used for GEMM */
-    reg64_t reg_dstC_const = abi_param1;
+    reg64_t reg_dstC = abi_param1;
     reg64_t reg_srcA = abi_param2;
     reg64_t reg_srcB = abi_param3;
 
-    reg64_t reg_dstC = r9;
-    reg64_t reg_nb_Xc = r10;
-    reg64_t reg_loop_cpt = r11;
+    reg64_t reg_dimM_block_loop_cnt = r10;
+    reg64_t reg_dimK_block_loop_cnt = r11;
 };
 
 struct jit_avx512_common_conv_winograd_fwd_kernel_f32
-    : _jit_avx512_common_conv_winograd_data_kernel_f32 {
+        : _jit_avx512_common_conv_winograd_data_kernel_f32 {
     using _jit_avx512_common_conv_winograd_data_kernel_f32::
-        _jit_avx512_common_conv_winograd_data_kernel_f32;
+            _jit_avx512_common_conv_winograd_data_kernel_f32;
 
     static status_t init_conf(jit_conv_winograd_conf_t &jcp,
             const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
@@ -73,28 +84,45 @@ struct jit_avx512_common_conv_winograd_fwd_kernel_f32
 };
 
 struct jit_avx512_common_conv_winograd_bwd_data_kernel_f32
-    : public _jit_avx512_common_conv_winograd_data_kernel_f32 {
+        : public _jit_avx512_common_conv_winograd_data_kernel_f32 {
     using _jit_avx512_common_conv_winograd_data_kernel_f32::
-        _jit_avx512_common_conv_winograd_data_kernel_f32;
+            _jit_avx512_common_conv_winograd_data_kernel_f32;
 
     static status_t init_conf(jit_conv_winograd_conf_t &jcp,
-            const convolution_desc_t &cd,
-            const memory_desc_wrapper &diff_src_d,
+            const convolution_desc_t &cd, const memory_desc_wrapper &diff_src_d,
             const memory_desc_wrapper &weights_d,
             const memory_desc_wrapper &diff_dst_d);
 };
 
 struct jit_avx512_common_conv_winograd_bwd_weights_kernel_f32
-    : public jit_generator {
+        : public jit_generator {
     jit_avx512_common_conv_winograd_bwd_weights_kernel_f32(
-        jit_conv_winograd_conf_t ajcp) : jcp(ajcp) {
-        this->gemm_loop_generate(true);
-        gemm_loop_ker_first_img =
-            (void (*)(float *, const float *, const float *)) this->getCode();
-        this->align();
-        gemm_loop_ker =
-            (void (*)(float *, const float *, const float *)) this->getCurr();
-        this->gemm_loop_generate(false);
+            jit_conv_winograd_conf_t ajcp)
+        : jcp(ajcp)
+    {
+
+        //******************* First iter kernel ********************//
+        {
+            align();
+            const Xbyak::uint8 *addr = getCurr();
+            this->gemm_loop_generate(true);
+            gemm_loop_ker_first_iter = (decltype(gemm_loop_ker_first_iter))addr;
+        }
+
+        if (jcp.tile_block > 1) {
+            align();
+            const Xbyak::uint8 *addr = getCurr();
+            this->gemm_loop_generate(false);
+            gemm_loop_ker = (decltype(gemm_loop_ker))addr;
+        }
+
+        if (jcp.ver == ver_4fma) {
+            align();
+            const Xbyak::uint8 *addr = getCurr();
+            this->transpose_ker_generate();
+            size_t size = getCurr() - addr;
+            transpose_4fma_ker = (decltype(transpose_4fma_ker))addr;
+        }
     }
 
     static status_t init_conf(jit_conv_winograd_conf_t &jcp,
@@ -104,14 +132,18 @@ struct jit_avx512_common_conv_winograd_bwd_weights_kernel_f32
 
     jit_conv_winograd_conf_t jcp;
     void (*gemm_loop_ker)(float *, const float *, const float *);
-    void (*gemm_loop_ker_first_img)(float *, const float *, const float *);
+    void (*gemm_loop_ker_first_iter)(float *, const float *, const float *);
+    void (*transpose_4fma_ker)(float *, float *);
 
-  private:
+private:
     using reg64_t = const Xbyak::Reg64;
     enum { typesize = sizeof(float) };
 
-    void gemm_loop_generate(bool first_img);
-    void gemm_compute_kernel();
+    void gemm_loop_generate(bool is_first_tile);
+    void transpose_ker_generate();
+
+    reg64_t reg_origB = abi_param2;
+    reg64_t reg_transB = abi_param1;
 
     reg64_t reg_dstC = abi_param1;
     reg64_t reg_srcA_const = abi_param2;
@@ -121,8 +153,12 @@ struct jit_avx512_common_conv_winograd_bwd_weights_kernel_f32
     reg64_t reg_srcA = r9;
     reg64_t reg_nb_ic = r10;
     reg64_t reg_loop_cpt = r11;
-};
 
+    /* Registers used by new kernel */
+    reg64_t reg_dimM_block_loop_cnt = r10;
+    reg64_t reg_dimK_block_loop_cnt = r12;
+    reg64_t reg_dimN_block_loop_cnt = r11;
+};
 }
 }
 }

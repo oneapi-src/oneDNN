@@ -82,24 +82,38 @@ struct jit_conv_conf_t {
 
 
 struct jit_conv_winograd_conf_t : public jit_conv_conf_t {
-    //Winograd specific attributes
     //alpha determines the tile size
-    int alpha;
-    //number of tiles in x dimension
+    static const int alpha = 6;
     int itiles;
-    //number of tiles in y dimension
     int jtiles;
-    //number of images in a block
-    int bimg;
-
-    int nb_Xc;
-    int dim_kernel;
-    int nb_iter;
+    int ntiles;
+    int ic_simd_block;
+    int tile_4fma_padding;
+    int tile_4fma;
+    int oc_simd_block;
+    int tile_block;
+    int tile_block_ur;
+    int nb_tile_block_ur;
 
     bool double_buffering;
-    bool load_U;
     int zmm_start;
     int nb_reg;
+
+    int dimK;
+    int dimK_4fma;
+    int dimK_reg_block;
+    int dimK_block;
+    int dimK_nb_block;
+
+    int dimM;
+    int dimM_simd_block;
+    int dimM_block;
+    int dimM_nb_block;
+
+    int dimN;
+    int dimN_reg_block;
+    int dimN_block;
+    int dimN_nb_block;
 };
 
 struct jit_conv_call_s {

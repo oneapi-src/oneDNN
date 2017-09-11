@@ -233,7 +233,7 @@ private:
     const int xmm_to_preserve = 0;
 #endif
 
-protected:
+public:
     Xbyak::Reg64 param1 = abi_param1;
     const int EVEX_max_8b_offt = 0x200;
     const Xbyak::Reg64 reg_EVEX_max_8b_offt = rbp;

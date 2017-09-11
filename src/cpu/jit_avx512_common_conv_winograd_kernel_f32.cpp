@@ -39,163 +39,229 @@ using namespace Xbyak;
 int L1_cache_size = get_cache_size(1, true);
 int L2_cache_size = get_cache_size(2, true);
 
-int get_largest_divisor_lower_than(int number, int bound) {
-    int res = 1;
-    for (int divisor = 2; divisor <= ::sqrt(number); divisor++) {
+// the test funtion takes jcp, the candidate and the current best.
+// it  returns true if the new candidate is better
+int get_divisor_satisfying_cond(jit_conv_winograd_conf_t jcp, int number,
+        int default_best, bool (*test)(jit_conv_winograd_conf_t, int, int))
+{
+    int best_divisor = default_best;
+    auto test_num
+            = [&best_divisor, test](jit_conv_winograd_conf_t jcp, int num) {
+                  if (test(jcp, num, best_divisor)) {
+                      best_divisor = num;
+                  }
+              };
+
+    for (int divisor = 1; divisor <= ::sqrt(number); divisor++) {
         if (number % divisor == 0) {
-            /* if we reached the bound, we return the previously found divisor
-             */
-            if (divisor > bound)
-                return res;
-
-            /* if not, number/divisor is a divisor too, so we try it */
-            int alt_res = number / divisor;
-            if (alt_res <= bound)
-                return alt_res;
-
-            /* if number/divisor is greater than the bound, we update
-               the current greater divisor lower than bound */
-            res = divisor;
+            test_num(jcp, divisor);
+            test_num(jcp, number / divisor);
         }
     }
-    return res;
+
+    return best_divisor;
 }
 
-void _jit_avx512_common_conv_winograd_data_kernel_f32::gemm_compute_kernel(
-        bool first_iter, bool last_iter) {
-    /* This fonction computes a GEMM with:
-       - srcA of dimension 16 x 16
-       - srcB of dimension dim_kernel x 16
-       - dst of dimension  dim_kernel x 16
-       All matrices are in column major format.
-     */
+/* assumes 512 bits registers */
+/* TODO: add support for strides */
+/* TODO: handle the prefetch distance automatically */
+typedef enum cache_t_ { L1, L2, L3 } cache_t;
 
-    auto ker = [=](int ur) {
-        if (first_iter) {
-            /* Initializing the output 16x16 tile to zero */
-            for (int i = 0; i < ur; i++) {
-                Zmm zmm(jcp.zmm_start + i);
-                vpxord(zmm, zmm, zmm);
-            }
-        } else {
-            /* Load the input from memory */
-            for (int i = 0; i < ur; i++) {
-                Zmm zmm(jcp.zmm_start + i);
-                vmovups(zmm, zword[reg_dstC + 64 * i]);
-            }
+template <typename data_t>
+struct prefetcher_t {
+    prefetcher_t(jit_generator *generator, Xbyak::Reg64 reg_base_addr,
+            cache_t cache_type, size_t block_size, /* in number of elements*/
+            int nb_instructions_in_block, int fma_ipc)
+        : cg_(generator)
+        , reg_base_addr_(reg_base_addr)
+        , cache_block_size_(block_size)
+        , cache_type_(cache_type)
+    {
+        nb_cache_lines_to_prefetch_ = cache_block_size_ / (64 / sizeof(data_t));
+        prefetch_spread_
+                = div_up(nb_instructions_in_block, nb_cache_lines_to_prefetch_);
+        prefetch_blk_
+                = div_up(nb_cache_lines_to_prefetch_, nb_instructions_in_block);
+
+        /* assumption: when fetch in Li, data is already in L(i+1) */
+        int cache_latency;
+        switch (cache_type_) {
+        case L1: cache_latency = 14; break;
+        case L2: cache_latency = 250; break;
+        case L3: cache_latency = 250; break;
         }
 
-        /* Computing the GEMM */
-
-        if (jcp.double_buffering)
-            vmovups(zmm0, zword[reg_srcA]);
-
-        const int inc_i = jcp.ver == ver_4fma ? 4 : 1;
-        for (int i = 0; i < 16; i += inc_i) {
-            Zmm current;
-            if (!jcp.load_U) {
-                if (jcp.double_buffering) {
-                    if (i < 15)
-                        vmovups(Zmm((i + 1) % 2),
-                                zword[reg_srcA + 64 * (i + 1)]);
-                    current = Zmm(i % 2);
-                } else {
-                    for (int j = 0; j < inc_i; j++)
-                        vmovups(Zmm(i + j), zword[reg_srcA + 64 * (i + j)]);
-                    current = Zmm(i);
-                }
-            } else {
-                current = Zmm(i);
-            }
-            for (int j = 0; j < ur; j++) {
-                Zmm zmm(jcp.zmm_start + j);
-                if (jcp.ver == ver_4fma)
-                    v4fmaddps(zmm, Zmm(i), EVEX_compress_addr(reg_srcB, 64*j + i*4, false));
-                else
-                    vfmadd231ps(zmm, current, EVEX_compress_addr(reg_srcB, 64*j + i*4, true));
-            }
-        }
-
-        /* Writing the result to memory */
-        for (int i = 0; i < ur; i++) {
-            Zmm zmm(jcp.zmm_start + i);
-            vmovups(zword[reg_dstC + 64 * i], zmm);
-        }
-    };
-
-    int quotient_dim = jcp.dim_kernel / jcp.nb_reg;
-    int remainder_dim = jcp.dim_kernel % jcp.nb_reg;
-
-    for (int t = 0; t < quotient_dim; t++) {
-        ker(jcp.nb_reg);
-        add(reg_srcB, jcp.nb_reg * 16 * 4);
-        add(reg_dstC, jcp.nb_reg * 16 * 4);
+        prefetch_distance_ = div_up(cache_latency, nb_cache_lines_to_prefetch_);
     }
-    if (remainder_dim != 0) {
-        ker(remainder_dim);
-        add(reg_srcB, remainder_dim * 16 * 4);
-        add(reg_dstC, remainder_dim * 16 * 4);
+
+    void prefetch(int instruction_number)
+    {
+        if (instruction_number % prefetch_spread_ == 0) {
+            for (int i = 0; (i < prefetch_blk_)
+                    && (prefetches_issued_ < nb_cache_lines_to_prefetch_);
+                    i++, prefetches_issued_++) {
+                prefetch_inst_(cg_->EVEX_compress_addr(
+                        reg_base_addr_, (cache_block_size_ * prefetch_distance_)
+                                        * sizeof(data_t)
+                                + (prefetches_issued_ * 64)));
+            }
+        }
     }
-}
 
-void _jit_avx512_common_conv_winograd_data_kernel_f32::gemm_loop_generate() {
-    Label nbXc_loop;
+private:
+    void prefetch_inst_(const Xbyak::Address &addr)
+    {
+        switch (cache_type_) {
+        case L1: cg_->prefetcht0(addr); break;
+        case L2: cg_->prefetcht1(addr); break;
+        case L3: cg_->prefetcht2(addr); break;
+        default:
+            break; // TODO: raise an exception or put an assert
+        }
+    }
 
-    auto load_A = [=]() {
-        for (int i = 0; i < 16; i++)
-            vmovups(Zmm(i), zword[reg_srcA + 64 * i]);
-    };
+    jit_generator *cg_;
+    Xbyak::Reg64 reg_base_addr_;
+    cache_t cache_type_;
+    size_t cache_block_size_ = 0;
+    size_t nb_cache_lines_to_prefetch_ = 0;
+    int prefetches_issued_ = 0;
+    int prefetch_spread_ = 0;
+    int prefetch_blk_ = 0;
+    int prefetch_distance_ = 0;
+};
 
-    auto inner_loops = [=](bool first_iter) {
-        Label loop_label;
+void _jit_avx512_common_conv_winograd_data_kernel_f32::gemm_loop_generate(
+        bool is_beta_zero)
+{
+    // const int dimK_simd_block = jcp.dimK_reg_block;
 
-        if (jcp.load_U)
-            load_A();
+    // for (int dimM_block =0; dimM_block < jcp.dimM_block; dimM_block++)
+    //     for (int dimK_block = 0; dimK_block < jcp.dimK_block; dimK_block++)
+    //         for (int dimK_reg_block= 0; dimK_reg_block < jcp.dimK_reg_block;
+    //         dimK_reg_block++)
+    //                 for (int tile =0; tile < jcp.dimN_reg_block; tile++)
+    //                     C[dimM_block][tile] +=
+    //                     A[dimM_block][dimK_block][dimK_reg_block] *
+    //                     broadcast(B[dimK_block][tile][dimK_reg_block]);
+    // 1) We do register blocking on A[dimM_block][dimK_block][dimK_reg_block],
+    // so we load it before the loop on tile
+    // 2) the loop on tile must be fully unrolled. Don't know about the one on
+    // dimK_reg_block. I think it should be
 
-        // for (int img1 = 0; img1 < jcp.bimg; img1++)
-        // for (int tj = 0; tj < jcp.jtiles; tj++)
-        // for (int ti = 0; ti < jcp.itiles; ti++)
+    auto inner_loops = [=]() {
+        Label dimM_block_loop, dimK_block_loop;
+        const int inc_dimK_reg_block = jcp.ver == ver_4fma ? 4 : 1;
+        const int fma_ipc = jcp.ver == ver_4fma ? 1 : 2;
+
+        prefetcher_t<float> L1_pf(this, reg_srcB, L1,
+                jcp.dimN_reg_block * jcp.dimK_reg_block,
+                jcp.dimK_reg_block * jcp.dimN_reg_block / inc_dimK_reg_block,
+                fma_ipc);
+        prefetcher_t<float> L2_pf(this, reg_srcB, L2,
+                jcp.dimN_reg_block * jcp.dimK_reg_block,
+                jcp.dimK_reg_block * jcp.dimN_reg_block / inc_dimK_reg_block,
+                fma_ipc);
+
+        if (jcp.dimM_block > 1) {
+            mov(reg_dimM_block_loop_cnt, jcp.dimM_block);
+            L(dimM_block_loop);
+        }
         {
-            if (jcp.nb_iter > 1) {
-                mov(reg_loop_cpt, jcp.nb_iter);
-                L(loop_label);
+            // First, we zero the accumulators if first nb_ic iteration,
+            // otherwise we load them
+            for (int tile = 0; tile < jcp.dimN_reg_block; tile++) {
+                Zmm zmm(jcp.zmm_start + tile);
+                if (is_beta_zero)
+                    vpxord(zmm, zmm, zmm);
+                else
+                    vmovups(zmm, zword[reg_dstC + 64 * tile]);
             }
 
-            gemm_compute_kernel(first_iter, false);
+            if (jcp.dimK_block > 1) {
+                mov(reg_dimK_block_loop_cnt, jcp.dimK_block);
+                L(dimK_block_loop);
+            }
+            {
+                auto load_A = [=](int reg_idx, int offset) {
+                    for (int i = 0; i < inc_dimK_reg_block; i++)
+                        vmovups(Zmm(reg_idx + i),
+                                zword[reg_srcA + 64 * (offset + i)]);
+                };
 
-            if (jcp.nb_iter > 1) {
-                sub(reg_loop_cpt, 1);
-                jnz(loop_label);
+                // Used when doing double buffering
+                int next = 0;
+                if (jcp.double_buffering) {
+                    load_A(next, 0);
+                }
+                for (int dimK_reg_block = 0;
+                        dimK_reg_block < jcp.dimK_reg_block;
+                        dimK_reg_block += inc_dimK_reg_block) {
+                    int current;
+                    /* Loading the next vector from A */
+                    current = next;
+                    if (jcp.double_buffering) {
+                        next = (dimK_reg_block + inc_dimK_reg_block)
+                                % (2 * inc_dimK_reg_block);
+                        load_A(next, dimK_reg_block + inc_dimK_reg_block);
+                    } else {
+                        next = 0;
+                        load_A(next, dimK_reg_block);
+                    }
+                    /* Performing the fmas */
+                    for (int tile = 0; tile < jcp.dimN_reg_block; tile++) {
+                        Zmm zmm(jcp.zmm_start + tile);
+                        L1_pf.prefetch(
+                                dimK_reg_block * jcp.dimN_reg_block + tile);
+                        if (jcp.ver == ver_4fma)
+                            v4fmaddps(zmm, Zmm(current),
+                                    EVEX_compress_addr(reg_srcB,
+                                              64 * tile + dimK_reg_block * 4));
+                        else
+                            vfmadd231ps(zmm, Zmm(current),
+                                    EVEX_compress_addr(reg_srcB,
+                                                64 * tile + dimK_reg_block * 4,
+                                                true));
+                        L2_pf.prefetch(
+                                dimK_reg_block * jcp.dimN_reg_block + tile);
+                    }
+                }
+
+                if (jcp.dimK_block > 1) {
+                    add(reg_srcA, jcp.dimK_reg_block * 64);
+                    add(reg_srcB, jcp.dimN_reg_block * 64);
+                    sub(reg_dimK_block_loop_cnt, 1);
+                    jnz(dimK_block_loop);
+                }
+            }
+
+            // We write the results in destination
+            for (int tile = 0; tile < jcp.dimN_reg_block; tile++) {
+                Zmm zmm(jcp.zmm_start + tile);
+                if (jcp.dimK_nb_block == 1)
+                    vmovntps(zword[reg_dstC + 64 * tile], zmm);
+                else
+                    vmovups(zword[reg_dstC + 64 * tile], zmm);
+            }
+
+            if (jcp.dimM_block > 1) {
+                sub(reg_srcB, jcp.dimK_block * jcp.dimN_reg_block * 64);
+                add(reg_dstC, jcp.dimN_reg_block * 64);
+                sub(reg_dimM_block_loop_cnt, 1);
+                jnz(dimM_block_loop);
             }
         }
     };
 
+    /* Preamble */
     // register used to handle long fma encoding
     push(reg_EVEX_max_8b_offt);
     mov(reg_EVEX_max_8b_offt, 2 * EVEX_max_8b_offt);
 
-    // first iteration on ifm1 for fwd and ofm1 for bwd_data: GEMM with beta=0
-    mov(reg_dstC, reg_dstC_const);
-    inner_loops(true);
+    /* kernel */
+    inner_loops();
 
-    // subsequent iteration of GEMMs with beta=1
-    if (jcp.nb_Xc > 1) {
-        // fwd: for (int ifm1 = 1; ifm1 < jcp.nb_ic; ifm1++)
-        // bwd_data: for (int ofm1 = 1; ofm1 < jcp.nb_oc; ofm1++)
-        mov(reg_nb_Xc, jcp.nb_Xc - 1);
-        L(nbXc_loop);
-
-        /* dstC matrix is independent of ifm1 and serves as accumulator */
-        mov(reg_dstC, reg_dstC_const);
-        /* We get the next U matrix */
-        add(reg_srcA, 16 * 16 * 4);
-
-        inner_loops(false);
-
-        sub(reg_nb_Xc, 1);
-        jnz(nbXc_loop);
-    }
-
+    /* Postamble */
     pop(reg_EVEX_max_8b_offt);
     ret();
 }
@@ -203,7 +269,8 @@ void _jit_avx512_common_conv_winograd_data_kernel_f32::gemm_loop_generate() {
 status_t _jit_avx512_common_conv_winograd_data_kernel_f32::init_conf_common(
         jit_conv_winograd_conf_t &jcp, const convolution_desc_t &cd,
         const memory_desc_wrapper &src_d, const memory_desc_wrapper &weights_d,
-        const memory_desc_wrapper &dst_d) {
+        const memory_desc_wrapper &dst_d)
+{
 
     if (!mayiuse(avx512_common))
         return status::unimplemented;
@@ -211,7 +278,6 @@ status_t _jit_avx512_common_conv_winograd_data_kernel_f32::init_conf_common(
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
     const int simd_w = 16;
 
-    // Initializing jcp
     jcp.ngroups = with_groups ? weights_d.dims()[0] : 1;
     jcp.mb = src_d.dims()[0];
     jcp.oc = dst_d.dims()[1] / jcp.ngroups;
@@ -226,20 +292,21 @@ status_t _jit_avx512_common_conv_winograd_data_kernel_f32::init_conf_common(
     jcp.l_pad = cd.padding[0][1];
     jcp.stride_h = cd.strides[0];
     jcp.stride_w = cd.strides[1];
-    jcp.r_pad =
-        nstl::max(0, (jcp.ow - 1) * jcp.stride_w + jcp.kw - jcp.iw - jcp.l_pad);
-    jcp.b_pad =
-        nstl::max(0, (jcp.oh - 1) * jcp.stride_h + jcp.kh - jcp.ih - jcp.t_pad);
+    jcp.r_pad = nstl::max(
+            0, (jcp.ow - 1) * jcp.stride_w + jcp.kw - jcp.iw - jcp.l_pad);
+    jcp.b_pad = nstl::max(
+            0, (jcp.oh - 1) * jcp.stride_h + jcp.kh - jcp.ih - jcp.t_pad);
     jcp.ihp = jcp.ih + jcp.t_pad + jcp.b_pad;
     jcp.iwp = jcp.iw + jcp.l_pad + jcp.r_pad;
     jcp.ohp = jcp.oh;
     jcp.owp = jcp.ow;
 
     // Winograd specific initialization
-    jcp.alpha = 6;
     const int tile_size = jcp.alpha - 2;
+    /* Assumption: padding = 1*/
     jcp.itiles = (jcp.ow + tile_size - 1) / tile_size;
     jcp.jtiles = (jcp.oh + tile_size - 1) / tile_size;
+    jcp.ntiles = jcp.mb * jcp.itiles * jcp.itiles;
 
     // Checking conditions not supported by these kernels
     if (jcp.ngroups != 1)
@@ -258,63 +325,191 @@ status_t _jit_avx512_common_conv_winograd_data_kernel_f32::init_conf_common(
     if (dst_d.format() != nChw16c)
         return status::unimplemented;
 
-    // Setting kernel parameters
-    {
-        /* Conditions on bimg:
-           - it should divide minibatch
-           - the matrices of the gemm should fit in the L1 cache
-             ([2*(16xbimg*itiles*jtiles)]*4 Bytes < 32KB) (hence the 128 below)
-           - minibatch/bimg * alpha^2 should always be at least the number of
-           cores
-        */
-
-        const int num_threads = omp_get_max_threads();
-        int cache_threshold = (L1_cache_size / 128) / (jcp.itiles * jcp.jtiles);
-        int num_threads_threshold =
-            (jcp.mb * jcp.alpha * jcp.alpha) / num_threads;
-
-        int candidate1 =
-            get_largest_divisor_lower_than(jcp.mb, cache_threshold);
-        int candidate2 =
-            get_largest_divisor_lower_than(jcp.mb, num_threads_threshold);
-        jcp.bimg = (candidate1 < candidate2) ? candidate1 : candidate2;
-
-        /* we pick the unrolling factor to prevent tail computation and
-         * excessive unrolling */
-        int kernel_size_threshold = KERNEL_SIZE_THRESHOLD;
-        jcp.dim_kernel = get_largest_divisor_lower_than(
-            jcp.bimg * jcp.itiles * jcp.jtiles, kernel_size_threshold);
-        jcp.nb_iter = (jcp.bimg * jcp.jtiles * jcp.itiles) / jcp.dim_kernel;
-    }
-
     jcp.ver = mayiuse(avx512_mic_4ops) ? ver_4fma : ver_fma;
 
-    jcp.load_U = true;
-    /* we do double buffering if A is not loaded in registers */
-    jcp.double_buffering = !(jcp.ver == ver_4fma) && !jcp.load_U;
+    return status::success;
+}
 
-    if (jcp.load_U) {
-        /* The 16 first registers are reserved to load U */
-        jcp.zmm_start = 16;
-    } else {
-        if (jcp.ver == ver_4fma)
-            jcp.zmm_start = 4;
-        else {
-            if (jcp.double_buffering)
-                jcp.zmm_start = 2;
-            else
-                jcp.zmm_start = 1;
-        }
-    }
+bool check_cond1(int dimN_reg_block, int dimK_block, int dimK_reg_block,
+        int dimM_block, int dimM_simd_block, float C)
+{
+    float lhs = (dimM_block * dimN_reg_block * dimM_simd_block
+                        + dimM_block * dimK_block * dimK_reg_block
+                                * dimM_simd_block
+                        + dimK_block * dimN_reg_block * dimK_reg_block)
+            * sizeof(float);
+    float rhs = C * L1_cache_size;
+    return (lhs < rhs);
+}
 
+bool check_cond1_bis(int dimN_reg_block, int dimK_block, int dimK_reg_block,
+        int dimM_block, int dimM_simd_block, float C)
+{
+    float lhs = (dimM_block * dimK_block * dimK_reg_block * dimM_simd_block
+                        + dimK_block * dimN_reg_block * dimK_reg_block)
+            * sizeof(float);
+    float rhs = C * L1_cache_size;
+    return (lhs < rhs);
+}
+
+bool check_cond2(int nb_dimN_reg_block, int dimN_reg_block, int dimK_nb_block,
+        int dimK_block, int dimK_reg_block, int dimM_block, int dimM_simd_block,
+        float C)
+{
+    int lhs = (nb_dimN_reg_block * dimM_block * dimN_reg_block * dimM_simd_block
+                      + dimK_nb_block * dimM_block * dimK_block * dimK_reg_block
+                              * dimM_simd_block
+                      + nb_dimN_reg_block * dimK_nb_block * dimK_block
+                              * dimN_reg_block * dimK_reg_block)
+            * sizeof(float);
+    float rhs = C * L2_cache_size;
+    return (lhs < rhs);
+}
+
+status_t _jit_avx512_common_conv_winograd_data_kernel_f32::init_conf_kernel(
+        jit_conv_winograd_conf_t &jcp, int dimM, int dimN, int dimK)
+{
+    /*
+     Parameter selection:
+
+     [1] L1_cache condition with stores
+     [dimM_block][dimN_reg_block][simd_w]
+     + [dimM_block][dimK_block][simd_w][simd_w]
+     + [dimK_block][dimN_reg_block][simd_w] < C * L1_cache_size
+
+     [1bis] L1_cache condition with non-temporal stores
+     + [dimM_block][dimK_block][simd_w][simd_w]
+     + [dimK_block][dimN_reg_block][simd_w] < C * L1_cache_size
+
+     [2] L2 cache condition
+     [nb_dimN_reg_block][dimM_block][dimN_reg_block][simd_w]
+     + [dimK_nb_block][dimM_block][dimK_block][simd_w][simd_w]
+     + [nb_dimN_reg_block][dimK_nb_block][dimK_block][dimN_reg_block][simd_w]
+     < C * L2_cache_size
+
+     with C~1/2. C is here to prevent the HW prefetcher from evicting the needed
+     data.
+
+     0) pick dimN_reg_block such that it is just above what is needed
+     ot cover load latencies. Ideally, it should be bigger than 14 to
+     hide latencies.
+
+     1) pick dimK_block. Assuming jcp.dimM_block=1, Check if [1bis]
+     holds with dimK_block = dimK / simd_w.
+
+       i.  If it does, (with the current POR topologies, it should
+       almost always be the case)
+
+         a. pick dimK_block=dimK/simd_w as it enables to stream the
+         output of the GEMM and save some bandwidth for reading and
+         will save some work for the prefetcher.
+
+         b. pick dimM_block as big as possible such that:
+           - [1bis] holds
+
+         c. pick nb_dimN_reg_block such that [2] holds
+
+       ii. If it does not, it is not clear what is the best tradeoff:
+          a. maximize dimK_block to minimize the number of writes?
+          b. maximize dimM_block to maximize L1 cache reuse
+          c. find the best (dimM_block, dimK_block couple) depending on
+            the number of use-per-load and write instructions? What
+            would be the weight to put to each?
+          For now, we will stick with a., but it is worth
+          investigating c. Note that this will come with some
+          maintenance burden as the weights will likely be
+          architecture dependant
+   */
+
+    jcp.dimK_reg_block = 16;
+    jcp.dimM_simd_block = 16;
+
+    // TODO: replace double buffering with nuple buffering to maximize register
+    // usage.
+    // the choice of the number of buffers will then come after choosing
+    // dimN_reg_block
+    // Do we do double buffering?
+    jcp.double_buffering = true;
+    if (jcp.double_buffering)
+        jcp.zmm_start = 2 * ((jcp.ver == ver_4fma) ? 4 : 2);
+    else
+        jcp.zmm_start = 1;
     jcp.nb_reg = 32 - jcp.zmm_start;
 
-    jcp.ic_block = (jcp.ic % simd_w != 0) ? jcp.ic : simd_w;
-    jcp.nb_ic = jcp.ic / jcp.ic_block;
+    //******************* Choosing dimN_reg_block *******************//
+    jcp.dimN = dimN;
+#define MIN_REQUIRED_DIMN_REG_BLOCK 14
+    auto test_cond_dimN_reg_block = [](jit_conv_winograd_conf_t jcp,
+            int dimN_reg_block, int current_best) {
+        return (dimN_reg_block >= MIN_REQUIRED_DIMN_REG_BLOCK)
+                && (dimN_reg_block < jcp.nb_reg)
+                && (dimN_reg_block < current_best);
+    };
+    jcp.dimN_reg_block = get_divisor_satisfying_cond(
+            jcp, jcp.dimN, jcp.dimN, test_cond_dimN_reg_block);
 
-    jcp.oc_block = simd_w;
-    jcp.nb_oc = jcp.oc / jcp.oc_block;
+    //********************* Choosing dimK_block **********************//
+    jcp.dimK = dimK;
+    auto test_cond1_dimK_block = [](
+            jit_conv_winograd_conf_t jcp, int dimK_block, int current_best) {
+        return check_cond1(jcp.dimN_reg_block, dimK_block, jcp.dimK_reg_block,
+                       1, jcp.dimM_simd_block, .75f)
+                && (dimK_block > current_best);
+    };
 
+    auto test_cond1_bis_dimK_block = [](
+            jit_conv_winograd_conf_t jcp, int dimK_block, int current_best) {
+        return check_cond1_bis(jcp.dimN_reg_block, dimK_block,
+                       jcp.dimK_reg_block, 1, jcp.dimM_simd_block, .9f)
+                && (dimK_block > current_best);
+    };
+
+    jcp.dimK_block = get_divisor_satisfying_cond(
+            jcp, jcp.dimK / jcp.dimK_reg_block, 1, test_cond1_bis_dimK_block);
+    // If we are not able to use streams, we fall back to condition [1]
+    if (jcp.dimK_block < jcp.dimK / jcp.dimK_reg_block)
+        jcp.dimK_block = get_divisor_satisfying_cond(
+                jcp, jcp.dimK / jcp.dimK_reg_block, 1, test_cond1_dimK_block);
+    jcp.dimK_nb_block = (jcp.dimK / jcp.dimK_reg_block) / jcp.dimK_block;
+
+    //********************* Choosing dimM_block **********************//
+    jcp.dimM = dimM;
+    jcp.dimM_simd_block = 16;
+    /*XXX: Why C=0.5 here but C=0.75 for dimK_block?*/
+    auto test_cond1_dimM_block = [](
+            jit_conv_winograd_conf_t jcp, int dimM_block, int current_best) {
+        return check_cond1(jcp.dimN_reg_block, jcp.dimK_block,
+                       jcp.dimK_reg_block, dimM_block, jcp.dimM_simd_block, .5f)
+                && (dimM_block > current_best);
+    };
+
+    auto test_cond1_bis_dimM_block = [](
+            jit_conv_winograd_conf_t jcp, int dimM_block, int current_best) {
+        return check_cond1_bis(jcp.dimN_reg_block, jcp.dimK_block,
+                       jcp.dimK_reg_block, dimM_block, jcp.dimM_simd_block, .3f)
+                && (dimM_block > current_best);
+    };
+
+    if (jcp.dimK_block < jcp.dimK / jcp.dimK_reg_block)
+        jcp.dimM_block = get_divisor_satisfying_cond(
+                jcp, jcp.dimM / jcp.dimM_simd_block, 1, test_cond1_dimM_block);
+    else
+        jcp.dimM_block = get_divisor_satisfying_cond(jcp,
+                jcp.dimM / jcp.dimM_simd_block, 1, test_cond1_bis_dimM_block);
+    jcp.dimM_nb_block = (jcp.dimM / jcp.dimM_simd_block) / jcp.dimM_block;
+
+    //******************* Choosing dimN_block *******************//
+    auto test_cond2_dimN_block = [](
+            jit_conv_winograd_conf_t jcp, int dimN_block, int current_best) {
+        return check_cond2(dimN_block, jcp.dimN_reg_block, jcp.dimK_nb_block,
+                       jcp.dimK_block, jcp.dimK_reg_block, jcp.dimM_block,
+                       jcp.dimM_simd_block, .5f)
+                && (dimN_block > current_best);
+    };
+
+    jcp.dimN_block = get_divisor_satisfying_cond(
+            jcp, jcp.dimN / jcp.dimN_reg_block, 1, test_cond2_dimN_block);
+    jcp.dimN_nb_block = jcp.dimN / (jcp.dimN_reg_block * jcp.dimN_block);
     return status::success;
 }
 
@@ -322,238 +517,342 @@ status_t jit_avx512_common_conv_winograd_fwd_kernel_f32::init_conf(
         jit_conv_winograd_conf_t &jcp, const convolution_desc_t &cd,
         const memory_desc_wrapper &src_d, const memory_desc_wrapper &weights_d,
         const memory_desc_wrapper &dst_d, bool with_relu,
-        double relu_negative_slope) {
+        double relu_negative_slope)
+{
     status_t st = init_conf_common(jcp, cd, src_d, weights_d, dst_d);
 
     if (st != status::success)
         return st;
 
     jcp.with_bias = cd.bias_desc.format != memory_format::undef;
-    jcp.nb_Xc = jcp.nb_ic;
     jcp.with_relu = with_relu;
     jcp.relu_negative_slope = relu_negative_slope;
 
-    return status::success;
+    status_t res = init_conf_kernel(jcp, jcp.oc, jcp.ntiles, jcp.ic);
+    jcp.ic_simd_block = jcp.dimK_reg_block;
+    jcp.ic_block = jcp.dimK_block;
+    jcp.nb_ic = jcp.dimK_nb_block;
+    jcp.oc_simd_block = jcp.dimM_simd_block;
+    jcp.oc_block = jcp.dimM_block;
+    jcp.nb_oc = jcp.dimM_nb_block;
+    jcp.tile_block_ur = jcp.dimN_reg_block;
+    jcp.nb_tile_block_ur = jcp.dimN_block;
+    jcp.tile_block = jcp.dimN_nb_block;
+    jcp.tile_4fma_padding = 0; // only relevant for backward weights
+
+    return res;
 }
 
 status_t jit_avx512_common_conv_winograd_bwd_data_kernel_f32::init_conf(
         jit_conv_winograd_conf_t &jcp, const convolution_desc_t &cd,
         const memory_desc_wrapper &diff_src_d,
         const memory_desc_wrapper &weights_d,
-        const memory_desc_wrapper &diff_dst_d) {
+        const memory_desc_wrapper &diff_dst_d)
+{
     status_t st = init_conf_common(jcp, cd, diff_src_d, weights_d, diff_dst_d);
 
     if (st != status::success)
         return st;
 
-    jcp.nb_Xc = jcp.nb_oc;
+    status_t res = init_conf_kernel(jcp, jcp.ic, jcp.ntiles, jcp.oc);
+    jcp.oc_simd_block = jcp.dimK_reg_block;
+    jcp.oc_block = jcp.dimK_block;
+    jcp.nb_oc = jcp.dimK_nb_block;
+    jcp.ic_simd_block = jcp.dimM_simd_block;
+    jcp.ic_block = jcp.dimM_block;
+    jcp.nb_ic = jcp.dimM_nb_block;
+    jcp.tile_block_ur = jcp.dimN_reg_block;
+    jcp.nb_tile_block_ur = jcp.dimN_block;
+    jcp.tile_block = jcp.dimN_nb_block;
+    jcp.tile_4fma_padding = 0; // only relevant for backward weights
 
-    return status::success;
+    return res;
 }
+void jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::transpose_ker_generate()
+{
+    auto load_B = [=](int reg_idx, int offset) {
+        for (int i = 0; i < 4; i++) {
+            vmovups(Zmm(reg_idx + i), zword[reg_origB + (offset + i) * jcp.dimN_reg_block * sizeof(float)]);
+        }
+    };
 
-void jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::
-    gemm_compute_kernel() {
-    /* This function computes a GEMM with:
-       - srcA of dimension dim_ker*nb_iter x 16
-       - srcB of dimension 16 x dim_ker*nb_iter
-       - dst of dimension 16 x 16
-       All matrices are in column major format (srcB is transposed).
-     */
-    Label label_loop_gemm;
-
-    auto ker = [=](int ur) {
-        /* Computing the GEMM */
-        /* we assume the output is in the first 16 Zmms */
-        int num_4fma = jcp.ver == ver_4fma ? ur / 4 : 0;
-        int num_fma = jcp.ver == ver_4fma ? ur % 4 : ur;
-        int nrowsA = 16;
-        int ncolsA = 4;
-        int dsize = sizeof(float);
-        int cols_dst = 16;
-
-        if (num_4fma) {
-            /* Multiply 16 x 4 blocks for each nb_iter.
-             * 4 columns of A are multiplied with 4 values of B for each 4fma */
-            for (int i = 0; i < num_4fma; ++i){
-                for (int j = 0; j < ncolsA; ++j) {
-                    vmovups(Zmm(jcp.zmm_start + i * ncolsA + j),
-                            zword[reg_srcA + nrowsA * dsize * (ncolsA * i + j)]);
+    int curr = 0;
+    for (int j = 0; j < jcp.alpha; j++) {
+        for (int i = 0; i < jcp.alpha; i++) {
+            int origB_offset = (j * jcp.alpha + i) * jcp.dimK_4fma;
+            int transB_offset = (j * jcp.alpha + i) * jcp.dimK_nb_block *
+                jcp.dimN_block * jcp.dimK_block * jcp.dimK_reg_block *
+                jcp.dimK_4fma * jcp.dimN_reg_block;
+            for (int tb = 0; tb < jcp.dimK_4fma; tb+=4) {
+                /*double buffering to hide load latencies*/
+                int next = (curr + 4) % 8;
+                if (i == 0 && tb == 0) {
+                    load_B(0, origB_offset);
                 }
+                if (tb + 4 < (jcp.dimK_4fma -1)) {
+                    load_B(next, origB_offset + 4);
+                } else if (i < jcp.alpha - 1) {
+                    load_B(next, origB_offset + jcp.dimK_4fma);
+                }
+
+                vunpcklps(Zmm(8), Zmm(curr), Zmm(curr + 1));
+                vunpcklps(Zmm(9), Zmm(curr + 2), Zmm(curr + 3));
+                vunpckhps(Zmm(curr), Zmm(curr), Zmm(curr + 1));
+                vunpckhps(Zmm(curr + 1), Zmm(curr + 2), Zmm(curr + 3));
+
+                vunpcklpd(Zmm(curr + 2), Zmm(8), Zmm(9));
+                vunpckhpd(Zmm(curr + 3), Zmm(8), Zmm(9));
+
+                vunpcklpd(Zmm(8), Zmm(curr), Zmm(curr + 1));
+                vunpckhpd(Zmm(9), Zmm(curr), Zmm(curr + 1));
+
+                vmovntps(zword[reg_transB
+                        + sizeof(float) * (transB_offset + tb * jcp.dimN_reg_block)],
+                        Zmm(curr+2));
+                vmovntps(zword[reg_transB
+                        + sizeof(float) * (transB_offset + (tb + 1) * jcp.dimN_reg_block)],
+                        Zmm(curr+3));
+                vmovntps(zword[reg_transB
+                        + sizeof(float) * (transB_offset + (tb + 2) * jcp.dimN_reg_block)],
+                        Zmm(8));
+                vmovntps(zword[reg_transB
+                        + sizeof(float) * (transB_offset + (tb + 3) * jcp.dimN_reg_block)],
+                        Zmm(9));
+                curr = next;
+
             }
+        }
+    }
+    ret();
+}
+void jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::gemm_loop_generate(
+        bool is_first_tile)
+{
+    // for (int ofm2 = 0; ofm2 < jcp.oc_block; ofm2++)
+    //     for (int ifm2 = 0; ifm2 < jcp.ic_block; ifm2++)
+    //             for (int nb_tile_block_ur = 0; nb_tile_block_ur <
+    //             jcp.nb_tile_block_ur; nb_tile_block_ur++)
+    //                 for (int tile_block_ur = 0; tile_block_ur <
+    //                 jcp.tile_block_ur; tile_block_ur++)
+    //                     for (int ifm3 = 0; ifm3 < jcp.ic_reg_block; ++ifm3)
+    //                         U[ofm2][ifm2][ofm3][ifm3][0:oc_simd_block] +=
+    //                             M[ofm2][ofm3][nb_tile_block_ur][tile_block_ur][0:oc_simd_block]
+    //                              *
+    //                              broadcast(V[ifm2][nb_tile_block_ur][ifm3][tile_block_ur])
+    auto inner_loops = [=]() {
+        int inc_fma = jcp.ver == ver_4fma ? 4 : 1;
+        const int fma_ipc = jcp.ver == ver_4fma ? 1 : 2;
+        prefetcher_t<float> L1_pf(this, reg_srcB, L1,
+                jcp.dimK_reg_block * jcp.dimN_reg_block * jcp.dimK_4fma,
+                jcp.dimK_reg_block * jcp.dimN_reg_block * jcp.dimK_4fma
+                        / inc_fma,
+                fma_ipc);
+        prefetcher_t<float> L2_pf(this, reg_srcB, L2,
+                jcp.dimK_reg_block * jcp.dimN_reg_block * jcp.dimK_4fma,
+                jcp.dimK_reg_block * jcp.dimN_reg_block * jcp.dimK_4fma
+                        / inc_fma,
+                fma_ipc);
 
-            for (int i = 0; i < num_4fma; ++i){
-                int zmm_start_b = jcp.zmm_start + num_4fma * ncolsA;
-                for (int j = 0; j < ncolsA; ++j) {
-                    vmovups(Zmm(zmm_start_b + j),
-                            zword[reg_srcB + nrowsA * dsize * (ncolsA * i + j)]);
+        auto load_A = [=](int reg_idx, int offset) {
+            for (int i = 0; i < inc_fma; i++) {
+                vmovups(Zmm(reg_idx + i),
+                        zword[reg_srcA +
+                        sizeof(float) * jcp.dimM_simd_block * (offset + i)]);
+            }
+        };
+
+        Label dimM_block_loop, dimK_block_loop, dimN_block_loop;
+        if (jcp.dimM_block > 1) {
+            mov(reg_dimM_block_loop_cnt, jcp.dimM_block);
+            L(dimM_block_loop);
+        }
+        { /************* OC_block (M) loop ***********/
+            if (jcp.dimN_block > 1) {
+                mov(reg_dimN_block_loop_cnt, jcp.dimN_block);
+                L(dimN_block_loop);
+            }
+            { /*************** IC_block (N) loop *********/
+                for (int dimN_reg_block = 0;
+                        dimN_reg_block < jcp.dimN_reg_block; ++dimN_reg_block) {
+                    Zmm zmm(jcp.zmm_start + dimN_reg_block);
+                    if (is_first_tile)
+                        vpxord(zmm, zmm, zmm);
+                    else
+                        vmovups(zmm, zword[reg_dstC +
+                                dimN_reg_block * jcp.dimM_simd_block *
+                                sizeof(float)]);
                 }
 
-                 /* Transposes 4x4 blocks in 16x4 block of B instead of
-                  * full 16x4 block, since we only need
-                  * 4 contiguous values for one 4fma.*/
-                vunpcklps(Zmm(zmm_start_b + 4), Zmm(zmm_start_b),
-                        Zmm(zmm_start_b + 1));
-                vunpcklps(Zmm(zmm_start_b + 5), Zmm(zmm_start_b + 2),
-                        Zmm(zmm_start_b + 3));
-                vunpckhps(Zmm(zmm_start_b), Zmm(zmm_start_b),
-                        Zmm(zmm_start_b + 1));
-                vunpckhps(Zmm(zmm_start_b + 1), Zmm(zmm_start_b + 2),
-                        Zmm(zmm_start_b + 3));
-
-                vunpcklpd(Zmm(zmm_start_b + 2), Zmm(zmm_start_b + 4),
-                        Zmm(zmm_start_b + 5));
-                vunpckhpd(Zmm(zmm_start_b + 3), Zmm(zmm_start_b + 4),
-                        Zmm(zmm_start_b + 5));
-
-                vunpcklpd(Zmm(zmm_start_b + 4), Zmm(zmm_start_b),
-                        Zmm(zmm_start_b + 1));
-                vunpckhpd(Zmm(zmm_start_b + 5), Zmm(zmm_start_b),
-                        Zmm(zmm_start_b + 1));
-
-                for (int j = ncolsA - 1; j >= 0; --j) {
-                    sub(reg_sp, nrowsA * dsize);
-                    /* push transpose to stack instead of original location
-                     * to avoid overwrites by other threads*/
-                    vmovups(zword[reg_sp], Zmm(zmm_start_b + 2 + j));
+                if (jcp.dimK_block > 1) {
+                    mov(reg_dimK_block_loop_cnt, jcp.dimK_block);
+                    L(dimK_block_loop);
                 }
-
-
-                /* Naive approach: prefetch 16x4 blocks for next nb_iter to
-                 * avoid L2 misses for A and B*/
-                if (i == 0) {
-                    for (int j = 0; j < ncolsA; ++j) {
-                        prefetcht1(ptr[reg_srcA + nrowsA * dsize
-                                * (ncolsA * num_4fma + num_fma + j)]);
-                        prefetcht0(ptr[reg_srcB + nrowsA * dsize
-                                * (ncolsA * num_4fma + num_fma + j)]);
+                { /************* nb_tile_ur(K) loop ********/
+                    int next = 0;
+                    if (jcp.double_buffering) {
+                        load_A(next, 0);
+                    }
+                    for (int dimK_reg_block = 0;
+                            dimK_reg_block < jcp.dimK_reg_block;
+                            dimK_reg_block++) {
+                        int srcB_offset = dimK_reg_block * jcp.dimK_4fma
+                                * jcp.dimN_reg_block;
+                        for (int dimK_4fma = 0; dimK_4fma < jcp.dimK_4fma;
+                                dimK_4fma += inc_fma) {
+                            int current = next;
+                            if (jcp.double_buffering) {
+                                next = (dimK_reg_block * jcp.dimK_4fma
+                                               + dimK_4fma + inc_fma)
+                                        % (2 * inc_fma);
+                                load_A(next, dimK_reg_block * jcp.dimK_4fma
+                                                + dimK_4fma + inc_fma);
+                            } else {
+                                next = 0;
+                                load_A(next, dimK_reg_block * jcp.dimK_4fma
+                                                + dimK_4fma);
+                            }
+                            for (int dimN_reg_block = 0;
+                                    dimN_reg_block < jcp.dimN_reg_block;
+                                    ++dimN_reg_block) {
+                                L1_pf.prefetch(srcB_offset / inc_fma
+                                        + dimK_4fma / inc_fma
+                                                * jcp.dimN_reg_block
+                                        + dimN_reg_block);
+                                L2_pf.prefetch(srcB_offset / inc_fma
+                                        + dimK_4fma / inc_fma
+                                                * jcp.dimN_reg_block
+                                        + dimN_reg_block);
+                                if (jcp.ver == ver_4fma) {
+                                    int srcB_trans_offset = (dimK_4fma / 4) * 64
+                                            + dimK_4fma % 4;
+                                    v4fmaddps(
+                                            Zmm(jcp.zmm_start + dimN_reg_block),
+                                            Zmm(current),
+                                            EVEX_compress_addr(reg_srcB,
+                                                    sizeof(float) * (
+                                                        srcB_offset +
+                                                        srcB_trans_offset +
+                                                        (dimN_reg_block % 4) * 16 +
+                                                        (dimN_reg_block / 4) * 4)));
+                                } else {
+                                    vfmadd231ps(
+                                            Zmm(jcp.zmm_start + dimN_reg_block),
+                                            Zmm(current),
+                                            EVEX_compress_addr(reg_srcB,
+                                                sizeof(float) * (srcB_offset + dimN_reg_block),
+                                                    true));
+                                }
+                            }
+                        }
                     }
                 }
 
-                int rowB = 0;
-                for (int j = 0; j < cols_dst; ++j) {
-                     /* partially transposed 4x16 block of B is multiplied with
-                     * columns of A (c1 - column 1, c2 - column 2 and so on...)
-                     * in order as shown,
-                     * B: c1, c2, c3, c4, c17, c18, c19, c20, ...
-                     *    c5, c6, c7, c8, c21, c22, c23, c24, ...
-                     *    c9, c10, c11, c12, c25, c26, c27, c28, ...
-                     *    c13, c14, c15, c16, c29, c30, c31, c32, ...*/
-                    if (j != 0 && j % ncolsA == 0)
-                        rowB += ncolsA * dsize;
-                    int quadB = (j % ncolsA) * nrowsA * dsize + rowB;
-                    v4fmaddps(Zmm(j), Zmm(jcp.zmm_start + i * ncolsA),
-                            EVEX_compress_addr(reg_sp, quadB, false));
+                add(reg_srcA, jcp.dimK_reg_block * jcp.dimK_4fma
+                                * jcp.dimM_simd_block * sizeof(float));
+                add(reg_srcB, jcp.dimK_reg_block * jcp.dimN_reg_block
+                                * jcp.dimK_4fma * sizeof(float));
+                if (jcp.dimK_block > 1) {
+                    sub(reg_dimK_block_loop_cnt, 1);
+                    jnz(dimK_block_loop);
                 }
 
-                for (int j = 0; j < ncolsA; ++j) {
-                    add(reg_sp, nrowsA * dsize);
+                /******** Write C back to memory *******/
+                for (int dimN_reg_block = 0;
+                        dimN_reg_block < jcp.dimN_reg_block; ++dimN_reg_block) {
+                    Zmm zmm(jcp.zmm_start + dimN_reg_block);
+                    vmovups(zword[reg_dstC +
+                            dimN_reg_block * jcp.dimM_simd_block * sizeof(float)],
+                            zmm);
+                }
+
+                sub(reg_srcA, jcp.dimK_block * jcp.dimK_reg_block *
+                        jcp.dimK_4fma * jcp.dimM_simd_block * sizeof(float));
+                add(reg_dstC, jcp.dimN_reg_block * jcp.dimM_simd_block
+                        * sizeof(float));
+                if (jcp.dimN_block > 1) {
+                    sub(reg_dimN_block_loop_cnt, 1);
+                    jnz(dimN_block_loop);
                 }
             }
-        }
 
-        if (num_fma && jcp.double_buffering)
-            vmovups(Zmm(jcp.zmm_start),
-                    zword[reg_srcA + num_4fma * ncolsA * nrowsA * dsize]);
-
-        for (int i = 0; i < num_fma; ++i) {
-            Zmm current;
-            if (jcp.double_buffering) {
-                if (i < num_fma - 1)
-                    vmovups(Zmm(jcp.zmm_start + ((i + 1) % 2)),
-                            zword[reg_srcA
-                            + nrowsA * dsize * (num_4fma * ncolsA + i + 1)]);
-                current = Zmm(jcp.zmm_start + (i % 2));
-            } else {
-                vmovups(Zmm(jcp.zmm_start),
-                            zword[reg_srcA + nrowsA * dsize * i]);
-                current = Zmm(jcp.zmm_start);
-            }
-
-            for (int j = 0; j < cols_dst; j++) {
-                vfmadd231ps(Zmm(j), current, EVEX_compress_addr(
-                            reg_srcB,
-                            ((num_4fma * ncolsA + i) * nrowsA  + j) * dsize,
-                            true));
+            if (jcp.dimM_block > 1) {
+                sub(reg_srcB, jcp.dimN_block * jcp.dimK_block
+                                * jcp.dimK_reg_block * jcp.dimN_reg_block
+                                * jcp.dimK_4fma * sizeof(float));
+                add(reg_srcA, jcp.dimK_block * jcp.dimK_reg_block
+                                * jcp.dimK_4fma * jcp.dimM_simd_block * sizeof(float));
+                sub(reg_dimM_block_loop_cnt, 1);
+                jnz(dimM_block_loop);
             }
         }
     };
 
-    // for (int img1 = 0; img1 < jcp.bimg; img1++)
-    // for (int tj = 0; tj < jcp.jtiles; tj++)
-    // for (int ti = 0; ti < jcp.itiles; ti++)
-    {
-        // dim_ker * nb_iter = jcp.bimg * jcp.jtiles * jcp.itiles
-        if (jcp.nb_iter > 1) {
-            mov(reg_loop_cpt, jcp.nb_iter);
-            L(label_loop_gemm);
-        }
-
-        ker(jcp.dim_kernel);
-
-        add(reg_srcA, jcp.dim_kernel * 16 * 4);
-        add(reg_srcB, jcp.dim_kernel * 16 * 4);
-
-        if (jcp.nb_iter > 1) {
-            sub(reg_loop_cpt, 1);
-            jnz(label_loop_gemm);
-        }
-    }
-}
-
-void jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::
-    gemm_loop_generate(bool first_img) {
-    Label nbic_loop;
-
+    /* Preamble */
     // register used to handle long fma encoding
     push(reg_EVEX_max_8b_offt);
+    push(reg_dimK_block_loop_cnt);
     mov(reg_EVEX_max_8b_offt, 2 * EVEX_max_8b_offt);
+    mov(reg_srcA, reg_srcA_const);
+    inner_loops();
 
-    if (jcp.nb_ic > 1) {
-        // for (int ifm1 = 1; ifm1 < jcp.nb_ic; ifm1++)
-        mov(reg_nb_ic, jcp.nb_ic);
-        L(nbic_loop);
-    }
-
-    {
-        /* srcA matrix is independent of ifm1 */
-        mov(reg_srcA, reg_srcA_const);
-
-        /* We load U in registers */
-        for (int i = 0; i < 16; i++) {
-            Zmm zmm(i);
-            if (first_img) { /* Initializing the output 16x16 tile to zero */
-                vpxord(zmm, zmm, zmm);
-            } else { /* We load it from memory hoping it is in cache */
-                vmovups(zmm, zword[reg_dstC + 64 * i]);
-            }
-        }
-
-        gemm_compute_kernel();
-
-        /* Writing U for this ic to memory */
-        for (int i = 0; i < 16; i++) {
-            Zmm zmm(i);
-            vmovups(zword[reg_dstC + 64 * i], zmm);
-        }
-    }
-
-    if (jcp.nb_ic > 1) {
-        /* We get the next U matrix */
-        add(reg_dstC, 16 * 16 * 4);
-
-        sub(reg_nb_ic, 1);
-        jnz(nbic_loop);
-    }
-
+    /* Postamble */
+    pop(reg_dimK_block_loop_cnt);
     pop(reg_EVEX_max_8b_offt);
     ret();
 }
 
+bool check_cond1_wu(int dimM_block, int dimM_simdw, int dimK_block,
+        int dimK_reg_block, int dimK_4fma, int dimN_reg_block, float C)
+{
+    float lhs = dimM_block * dimN_reg_block * dimM_simdw;
+    lhs += dimM_block * dimK_block * dimK_reg_block * dimK_4fma * dimM_simdw;
+    lhs += dimK_block * dimN_reg_block * dimK_reg_block * dimK_4fma;
+    lhs *= sizeof(float);
+    float rhs = C * L1_cache_size;
+    return (lhs <= rhs);
+}
+
+bool check_cond1bis_wu(int dimM_block, int dimM_simdw, int dimK_block,
+        int dimK_reg_block, int dimK_4fma, int dimN_reg_block, float C)
+{
+    float lhs
+            = dimM_block * dimK_block * dimK_reg_block * dimK_4fma * dimM_simdw;
+    lhs += dimK_block * dimN_reg_block * dimK_reg_block * dimK_4fma;
+    lhs *= sizeof(float);
+    float rhs = C * L1_cache_size;
+    return (lhs <= rhs);
+}
+
+bool check_cond2bis_wu(int dimM_block, int dimM_simdw, int dimK_block,
+        int dimK_reg_block, int dimK_4fma, int dimN_block, int dimN_reg_block,
+        float C)
+{
+    float lhs
+            = dimM_block * dimM_simdw * dimK_block * dimK_reg_block * dimK_4fma;
+    lhs += dimK_block * dimK_reg_block * dimK_4fma * dimN_block
+            * dimN_reg_block;
+    lhs *= sizeof(float);
+    float rhs = C * L2_cache_size;
+    return (lhs <= rhs);
+}
+bool check_cond2_wu(int dimM_block, int dimM_simdw, int dimK_block,
+        int dimK_reg_block, int dimK_4fma, int dimN_block, int dimN_reg_block,
+        float C)
+{
+    float lhs = dimM_block * dimM_simdw * dimN_block * dimN_reg_block;
+    lhs += dimM_block * dimM_simdw * dimK_block * dimK_reg_block * dimK_4fma;
+    lhs += dimK_block * dimK_reg_block * dimK_4fma * dimN_block
+            * dimN_reg_block;
+    lhs *= sizeof(float);
+    float rhs = C * L2_cache_size;
+    return (lhs <= rhs);
+}
+
 status_t jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::init_conf(
         jit_conv_winograd_conf_t &jcp, const convolution_desc_t &cd,
-        const memory_desc_wrapper &src_d,
-        const memory_desc_wrapper &diff_dst_d,
-        const memory_desc_wrapper &diff_weights_d) {
+        const memory_desc_wrapper &src_d, const memory_desc_wrapper &diff_dst_d,
+        const memory_desc_wrapper &diff_weights_d)
+{
     if (!mayiuse(avx512_common))
         return status::unimplemented;
 
@@ -574,28 +873,23 @@ status_t jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::init_conf(
     jcp.l_pad = cd.padding[0][1];
     jcp.stride_h = cd.strides[0];
     jcp.stride_w = cd.strides[1];
-    jcp.r_pad =
-        nstl::max(0, (jcp.ow - 1) * jcp.stride_w + jcp.kw - jcp.iw - jcp.l_pad);
-    jcp.b_pad =
-        nstl::max(0, (jcp.oh - 1) * jcp.stride_h + jcp.kh - jcp.ih - jcp.t_pad);
+    jcp.r_pad = nstl::max(
+            0, (jcp.ow - 1) * jcp.stride_w + jcp.kw - jcp.iw - jcp.l_pad);
+    jcp.b_pad = nstl::max(
+            0, (jcp.oh - 1) * jcp.stride_h + jcp.kh - jcp.ih - jcp.t_pad);
     jcp.ihp = jcp.ih + jcp.t_pad + jcp.b_pad;
     jcp.iwp = jcp.iw + jcp.l_pad + jcp.r_pad;
     jcp.ohp = jcp.oh;
     jcp.owp = jcp.ow;
     jcp.with_bias = (cd.diff_bias_desc.format != memory_format::undef);
 
-    jcp.ic_block = simd_w;
-    jcp.nb_ic = jcp.ic / jcp.ic_block;
-    jcp.oc_block = simd_w;
-    jcp.nb_oc = jcp.oc / jcp.oc_block;
-
     jcp.ver = mayiuse(avx512_mic_4ops) ? ver_4fma : ver_fma;
 
     // Winograd specific initialization
-    jcp.alpha = 6;
     const int tile_size = jcp.alpha - 2;
     jcp.itiles = (jcp.ow + tile_size - 1) / tile_size;
     jcp.jtiles = (jcp.oh + tile_size - 1) / tile_size;
+    jcp.ntiles = jcp.mb * jcp.itiles * jcp.jtiles;
 
     // Winograd kernel works only for 3x3 convolution with stride 1
     if (jcp.ngroups != 1)
@@ -613,45 +907,142 @@ status_t jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::init_conf(
     if (diff_dst_d.format() != nChw16c)
         return status::unimplemented;
 
-    {
-        /* Conditions on bimg:
-           - it should divide minibatch
-           - the matrices of the gemm should fit in the L1 cache
-             ([2*(16xbimg*itiles*jtiles)]*4 Bytes < 32KB) (hence the 248 below)
-           - minibatch/bimg * alpha^2 should always be at least the number of
-           cores
-        */
+    /*************************** New Kernel Parameters
+     * *****************************/
+    jcp.ic_simd_block = simd_w;
+    jcp.oc_simd_block = simd_w;
+    jcp.dimK_4fma = 1;
+    jcp.tile_4fma_padding = 0;
 
-        int num_threads = omp_get_max_threads();
-
-        int cache_threshold = (L1_cache_size / 64) / (jcp.itiles * jcp.jtiles);
-        int num_threads_threshold =
-            (jcp.mb * jcp.alpha * jcp.alpha) / num_threads;
-
-        int candidate1 =
-            get_largest_divisor_lower_than(jcp.mb, cache_threshold);
-        int candidate2 =
-            get_largest_divisor_lower_than(jcp.mb, num_threads_threshold);
-        jcp.bimg = (candidate1 < candidate2) ? candidate1 : candidate2;
-
-        /* Prevents aggressive unrolling */
-        int kernel_size_threshold = jcp.ver == ver_4fma ? 4 : 2;
-        jcp.dim_kernel = get_largest_divisor_lower_than(
-            jcp.bimg * jcp.itiles * jcp.jtiles, kernel_size_threshold);
-        jcp.nb_iter = (jcp.bimg * jcp.jtiles * jcp.itiles) / jcp.dim_kernel;
+#define MAX_4FMA_UR 8
+    if (jcp.ver == ver_4fma) {
+        auto test_cond_4fma = [](
+                jit_conv_winograd_conf_t jcp, int dimK_4fma, int current_best) {
+            return (dimK_4fma % 4 == 0) && (dimK_4fma <= MAX_4FMA_UR)
+                    && (dimK_4fma > current_best);
+        };
+        jcp.dimK_4fma = get_divisor_satisfying_cond(
+                jcp, jcp.itiles * jcp.jtiles, 4, test_cond_4fma);
+        if (jcp.dimK_4fma == 1)
+            jcp.dimK_4fma = 4;
+        if ((jcp.itiles * jcp.jtiles) % jcp.dimK_4fma != 0)
+            jcp.tile_4fma_padding = jcp.dimK_4fma
+                    - ((jcp.itiles * jcp.jtiles) % jcp.dimK_4fma);
     }
 
-    /* The 16 first registers are reserved to write U */
-    jcp.zmm_start = 16;
-    jcp.nb_reg = 32 - jcp.zmm_start;
+    jcp.tile_4fma = jcp.dimK_4fma;
+    /*NOTE: When (itiles * jtiles) % dimK_4fma != 0, transpose in diff_src
+     * transform
+     * will not work correctly, this is solved by applying padding.*/
+    jcp.dimK = jcp.mb * (jcp.itiles * jcp.jtiles + jcp.tile_4fma_padding);
+
     jcp.double_buffering = true;
-    int regs_transV = jcp.ver == ver_4fma ? 6 : 0;
-    int regs_loadM = jcp.dim_kernel * (jcp.double_buffering ? 2 : 1);
-    assert(jcp.nb_reg >= regs_loadM + regs_transV);
+    if (jcp.double_buffering)
+        jcp.zmm_start = jcp.ver == ver_4fma ? 8 : 2;
+    else
+        jcp.zmm_start = jcp.ver == ver_4fma ? 4 : 1;
+    jcp.nb_reg = 32 - jcp.zmm_start;
+
+    /*************** Choose dimN_reg_block (ic_simd_block)
+     * *******************************/
+    jcp.dimN = jcp.ic;
+    /*Hardcoded to 16 because N = ic for bwd weights and
+     innermost dimension for ic is assumed 16 in src transforms. This
+     choice covers load latencies while maintaining simplicity of kernel
+     for POR topologies. FIXME in future??: Will not work for future topologies
+     when ic%16 != 0*/
+    jcp.dimN_reg_block = jcp.ic_simd_block;
+
+    /****************************** Choose dimK_block
+     * **************************/
+    // No freedom for choosing dimM_simd_block because ic_simd_block
+    // is determined by input data format
+    jcp.dimM_simd_block = jcp.oc_simd_block;
+
+    auto test_cond1bis_dimK_block = [](
+            jit_conv_winograd_conf_t jcp, int dimK_block, int current_best) {
+        return check_cond1bis_wu(1, jcp.dimM_simd_block, dimK_block, 1,
+                       jcp.dimK_4fma, jcp.dimN_reg_block, 0.4f)
+                && (dimK_block > current_best);
+    };
+
+    auto test_cond1_dimK_block = [](
+            jit_conv_winograd_conf_t jcp, int dimK_block, int current_best) {
+        return check_cond1_wu(1, jcp.dimM_simd_block, dimK_block, 1,
+                       jcp.dimK_4fma, jcp.dimN_reg_block, 0.4f)
+                && (dimK_block > current_best);
+    };
+
+    auto test_cond2bis_dimK_block = [](
+            jit_conv_winograd_conf_t jcp, int dimK_block, int current_best) {
+        return check_cond2bis_wu(1, jcp.dimM_simd_block, dimK_block, 1,
+                       jcp.dimK_4fma, 1, jcp.dimN_reg_block, 0.5f)
+                && (dimK_block > current_best);
+    };
+
+    auto test_cond2_dimK_block = [](
+            jit_conv_winograd_conf_t jcp, int dimK_block, int current_best) {
+        return check_cond2_wu(1, jcp.dimM_simd_block, dimK_block, 1,
+                       jcp.dimK_4fma, 1, jcp.dimN_reg_block, 0.1f)
+                && (dimK_block > current_best);
+    };
+
+    jcp.dimK_block = get_divisor_satisfying_cond(
+            jcp, jcp.dimK / jcp.dimK_4fma, 1, test_cond2bis_dimK_block);
+    if (jcp.dimK_block < jcp.dimK / jcp.dimK_4fma)
+        jcp.dimK_block = get_divisor_satisfying_cond(
+                jcp, jcp.dimK / jcp.dimK_4fma, 1, test_cond2_dimK_block);
+
+    jcp.dimK_reg_block = get_divisor_satisfying_cond(
+            jcp, jcp.dimK_block, 1, test_cond1bis_dimK_block);
+    if (jcp.dimK_reg_block < jcp.dimK_block) {
+        jcp.dimK_reg_block = get_divisor_satisfying_cond(
+                jcp, jcp.dimK_block, 1, test_cond1_dimK_block);
+    }
+    jcp.dimK_block /= jcp.dimK_reg_block;
+    jcp.dimK_nb_block
+            = jcp.dimK / jcp.dimK_4fma / jcp.dimK_reg_block / jcp.dimK_block;
+    jcp.tile_block_ur = jcp.dimK_reg_block;
+    jcp.nb_tile_block_ur = jcp.dimK_block;
+    jcp.tile_block = jcp.dimK_nb_block;
+
+    /***************************** Chose dimN block
+     * ****************************/
+    auto test_cond2_dimN_block = [](
+            jit_conv_winograd_conf_t jcp, int dimN_block, int current_best) {
+        return check_cond2_wu(1, jcp.dimM_simd_block, jcp.dimK_block,
+                       jcp.dimK_reg_block, jcp.dimK_4fma, dimN_block,
+                       jcp.dimN_reg_block, 0.5f)
+                && (dimN_block > current_best);
+    };
+
+    jcp.dimN_block = get_divisor_satisfying_cond(
+            jcp, jcp.dimN / jcp.dimN_reg_block, 1, test_cond2_dimN_block);
+    jcp.ic_block = jcp.dimN_block;
+    jcp.dimN_nb_block = jcp.dimN / jcp.dimN_reg_block / jcp.dimN_block;
+    jcp.nb_ic = jcp.dimN_nb_block;
+
+    /********************************* Choose dimM block
+     * ************************/
+    jcp.dimM = jcp.oc;
+
+    auto test_cond1_dimM_block = [](
+            jit_conv_winograd_conf_t jcp, int dimM_block, int current_best) {
+        return check_cond1_wu(dimM_block, jcp.dimM_simd_block, 1,
+                       jcp.dimK_reg_block, jcp.dimK_4fma, jcp.dimN_reg_block,
+                       1.0f)
+                && (dimM_block > current_best)
+                && (jcp.dimM / jcp.dimM_simd_block / dimM_block) >= 2;
+    };
+
+    jcp.dimM_block = get_divisor_satisfying_cond(
+            jcp, jcp.dimM / jcp.dimM_simd_block, 1, test_cond1_dimM_block);
+    jcp.dimM_nb_block = (jcp.dimM / jcp.dimM_simd_block) / jcp.dimM_block;
+    jcp.oc_block = jcp.dimM_block;
+    jcp.nb_oc = jcp.dimM_nb_block;
 
     return status::success;
 }
-
 }
 }
 }
