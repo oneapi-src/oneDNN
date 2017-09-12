@@ -31,6 +31,11 @@ include_directories(
     )
 
 add_executable(benchdnn ${SOURCES})
+if(WIN32)
+    configure_file(${CMAKE_SOURCE_DIR}/config_template.vcxproj.user
+        benchdnn.vcxproj.user @ONLY)
+    set_property(TARGET benchdnn PROPERTY ENVIRONMENT "PATH=${TEST_PATH}")
+endif()
 set_property(TARGET benchdnn PROPERTY CXX_STANDARD 11)
 target_link_libraries(benchdnn ${LIB_NAME})
 if(UNIX AND NOT APPLE)
@@ -47,8 +52,18 @@ add_custom_target(test_conv
     DEPENDS benchdnn
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
+if(WIN32)
+    configure_file(${CMAKE_SOURCE_DIR}/config_template.vcxproj.user
+        test_conv.vcxproj.user @ONLY)
+    set_property(TARGET test_conv PROPERTY ENVIRONMENT "PATH=${TEST_PATH}")
+endif()
 add_custom_target(test_conv_regression
     COMMAND benchdnn --conv --batch=inputs/test_conv_regression
     DEPENDS benchdnn
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
+if(WIN32)
+    configure_file(${CMAKE_SOURCE_DIR}/config_template.vcxproj.user
+        test_conv_regression.vcxproj.user @ONLY)
+    set_property(TARGET test_conv_regression PROPERTY ENVIRONMENT "PATH=${TEST_PATH}")
+endif()

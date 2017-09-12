@@ -45,6 +45,11 @@ set_property(TARGET api-c PROPERTY C_STANDARD 99)
 target_link_libraries(api-c ${LIB_NAME})
 add_test(api-c api-c)
 
+if(WIN32)
+    set_property(TEST api-c PROPERTY ENVIRONMENT "PATH=${CTESTCONFIG_PATH}")
+    configure_file(${CMAKE_SOURCE_DIR}/config_template.vcxproj.user
+        api-c.vcxproj.user @ONLY)
+endif()
 if(UNIX OR APPLE)
     set(test_c_symbols "${CMAKE_CURRENT_BINARY_DIR}/test_c_symbols.c")
     add_executable(test_c_symbols-c ${test_c_symbols})

@@ -57,6 +57,11 @@ foreach(TEST_FILE ${PRIM_TEST_CASES_SRC})
     add_executable(${CURR_APP_NAME} ${MAIN_SRC_GTEST} ${TEST_FILE})
     target_link_libraries(${CURR_APP_NAME} mkldnn mkldnn_gtest)
     add_test(${CURR_APP_NAME} ${CURR_APP_NAME})
+    if(WIN32)
+        configure_file(${CMAKE_SOURCE_DIR}/config_template.vcxproj.user
+            ${CURR_APP_NAME}.vcxproj.user @ONLY)
+        set_property(TEST ${CURR_APP_NAME} PROPERTY ENVIRONMENT "PATH=${CTESTCONFIG_PATH}")
+    endif()
 endforeach()
 
 # we need to have either this or the add_test above; disabling for now...
