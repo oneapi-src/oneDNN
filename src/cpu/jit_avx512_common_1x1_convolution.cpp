@@ -398,50 +398,57 @@ template struct _jit_avx512_common_1x1_convolution_bwd_data_t<data_type::s16,
 
 /* convolution backward wtr weights */
 
-jit_avx512_common_1x1_convolution_bwd_weights_t
-::jit_avx512_common_1x1_convolution_bwd_weights_t(
-        const pd_t *pd, const input_vector &inputs,
-        const output_vector &outputs)
-    : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd), kernel_(nullptr)
-    , rtus_driver_(nullptr), ws_per_thread_(0), scratch_(nullptr)
+#define wht_blk_off(d, g, ...) \
+        (conf_.with_groups() \
+         ? (d).blk_off((g), __VA_ARGS__) \
+         : (d).blk_off(__VA_ARGS__))
+
+jit_avx512_common_1x1_convolution_bwd_weights_t ::
+        jit_avx512_common_1x1_convolution_bwd_weights_t(const pd_t *pd,
+                const input_vector &inputs, const output_vector &outputs)
+    : cpu_primitive_t(&conf_, inputs, outputs)
+    , conf_(*pd), kernel_(nullptr), acc_ker_(nullptr), reducer_bias_(nullptr)
+    , trans_kernel_(nullptr), rtus_driver_(nullptr), ws_per_thread_(0)
+    , scratch_(nullptr), bctx_(nullptr), tr_src_(nullptr)
+    , ws_reduction_(nullptr)
 {
     kernel_ = new jit_avx512_common_1x1_conv_kernel(conf_.jcp_);
 
     const auto &jcp = kernel_->jcp;
 
-    const int ic_block = jcp.bcast_block;
-    const int nb_ic = jcp.nb_bcast;
-    const int nb_ic_blocking = jcp.nb_bcast_blocking;
-    const int bcast_work = utils::div_up(nb_ic, nb_ic_blocking);
+    balance();
 
-    const int oc_block = jcp.load_block;
-    const int nb_oc = jcp.nb_load;
-    const int nb_oc_blocking = jcp.nb_load_blocking;
-    const int load_work = utils::div_up(nb_oc, nb_oc_blocking);
+    bctx_ = (simple_barrier::ctx_t *)malloc(
+            nthr_ * sizeof(simple_barrier::ctx_t), 64);
+    for (int i = 0; i < nthr_; ++i)
+        simple_barrier::ctx_init(&bctx_[i]);
 
-    const int job_size
-        = nb_oc_blocking * nb_ic_blocking * ic_block * oc_block;
-    const int njobs_x = bcast_work;
-    const int njobs_y = jcp.ngroups * load_work;
+    const int wei_size = jcp.ngroups * jcp.oc * jcp.ic;
+    ws_reduction_
+            = (data_t *)malloc((nthr_mb_ - 1) * wei_size * sizeof(data_t), 64);
+    acc_ker_ = new cpu_accumulator_1d_t<data_type::f32>();
 
-    const int simd_w = 16;
-    const int max_threads = omp_get_max_threads();
-    const size_t max_buffer_size = max_threads * job_size * simd_w;
-
-    reducer_weights_ = new cpu_reducer_2d_t<data_type::f32>(
-            reduce_balancer_t(max_threads, job_size, njobs_y * njobs_x,
-                jcp.mb * jcp.nb_reduce, max_buffer_size),
-            job_size / nb_oc_blocking, nb_oc_blocking, ic_block,
-            nb_ic * ic_block * oc_block, nb_oc, false);
-
-    const int nworkers = reducer_weights_->balancer_.ngroups_
-        * reducer_weights_->balancer_.nthr_per_group_;
-    const int bias_len = jcp.oc * jcp.ngroups;
-    reducer_bias_ = !conf_.with_bias() ? nullptr
-        : new cpu_reducer_t<data_type::f32>(reduce_balancer_t(nworkers,
-                    bias_len, 1, nworkers, 0));
+    if (conf_.with_bias()) {
+        const size_t max_buffer_size = nthr_ * 3 * 5 * 5 * 16 * 16;
+        reducer_bias_ = new cpu_reducer_t<data_type::f32>(
+                reduce_balancer_t(nthr_, jcp.oc_block,
+                        jcp.ngroups * jcp.nb_load, jcp.mb, max_buffer_size));
+    }
+    if (jcp.transpose_src) {
+        const size_t tr_src_size = jcp.mb * jcp.ngroups * jcp.ic * jcp.tr_is;
+        tr_src_ = (data_t *)malloc(tr_src_size * sizeof(data_t), 64);
+        for (size_t i = 0; i < tr_src_size; i++)
+            tr_src_[i] = 0;
+        jit_transpose4x16_src_t tp = {};
+        tp.src_pf0_distance = 4;
+        tp.tr_src_pf0_distance = 0;
+        tp.src_pf1 = true;
+        tp.tr_src_pf1 = false;
+        trans_kernel_ = new jit_transpose4x16_src(&jcp, &tp);
+    }
 
     init_rtus_driver<avx512_common>(this);
+
 }
 
 void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights()
@@ -458,18 +465,19 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights()
 
     const auto &jcp = kernel_->jcp;
 
+    const int wei_size = jcp.ngroups * jcp.oc * jcp.ic;
+
+    simple_barrier::ctx_t reduction_barrier;
+    simple_barrier::ctx_init(&reduction_barrier);
+
     // TODO (Roma): remove this restriction
     assert(jcp.stride_w == 1 && jcp.stride_h == 1);
 
-    const int simd_w = 16;
-
     const int nb_ic = jcp.nb_bcast;
     const int nb_ic_blocking = jcp.nb_bcast_blocking;
-    const int bcast_work = div_up(nb_ic, nb_ic_blocking);
 
     const int nb_oc = jcp.nb_load;
     const int nb_oc_blocking = jcp.nb_load_blocking;
-    const int load_work = div_up(nb_oc, nb_oc_blocking);
 
     const int sp_nb = jcp.nb_reduce;
     const int mb_sp_work = jcp.mb * sp_nb;
@@ -484,167 +492,390 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights()
         return remaining < tail_step ? remaining : default_step;
     };
 
-    auto oc_ic_sp_loop = [=](int sp_b_start, int sp_b_end, bool first_image,
-            data_t *store_to, size_t store_to_ld, data_t *d_bias,
-            const data_t *diff_dst, const data_t *src, int ithr,
-            bool ic_is_zero) {
-        jit_1x1_conv_call_s p = {};
-        rtus_driver_t<avx512_common>::call_params_t rp = {};
+    // TODO: use memory descriptor with the same fmt as src
+    // (or use a macro :))
+    auto tr_src_off = [&](int img, int icb, int is) {
+        const size_t tr_chn_size = jcp.tr_is * jcp.ic_block;
+        const size_t tr_img_size = tr_chn_size * nb_ic * jcp.ngroups;
+        return img * tr_img_size + icb * tr_chn_size + is * jcp.ic_block;
+    };
 
-        p.output_stride = store_to_ld * jcp.typesize_out;
+    auto uker_trans = [&](int ithr_mb, int img, int sp_b_start, int sp_size,
+        int g_start, int g_work, int ic_b_start, int ic_b_work,
+        int ithr, int nthr)
+    {
+        const int work_amount = g_work * ic_b_work;
 
-        int oc_b_step = 0;
-        for (int oc_b = 0; oc_b < nb_oc_blocking; oc_b += oc_b_step) {
-            oc_b_step = step(jcp.nb_load_blocking,
-                            nb_oc_blocking - oc_b, jcp.nb_load_blocking_max);
-            p.load_dim = oc_b_step * jcp.oc_block;
-            p.bias_data = d_bias + oc_b * jcp.oc_block;
+        int start{ 0 }, end{ 0 };
+        balance211(work_amount, nthr, ithr, start, end);
 
-            int ic_b_step = 0;
-            for (int ic_b = 0; ic_b < nb_ic_blocking; ic_b += ic_b_step) {
-                ic_b_step = step(jcp.nb_bcast_blocking,
-                            nb_ic_blocking - ic_b, jcp.nb_bcast_blocking_max);
-                p.bcast_dim = ic_b_step * jcp.ic_block;
-                rp.icb = p.bcast_dim / jcp.ic_block;
+        int g{ 0 }, ic_b{ 0 };
+        nd_iterator_init(start, g, g_work, ic_b, ic_b_work);
+        g += g_start;
+        ic_b += ic_b_start;
 
-                p.output_data = store_to + oc_b * store_to_ld
-                    + ic_b * jcp.ic_block * jcp.oc_block;
+        const int _ic = g * nb_ic + ic_b;
 
-                p.reduce_pos_flag = ic_is_zero && ic_b == 0
-                    ? FLAG_IC_FIRST : 0;
+        const int is = sp_b_start * jcp.reduce_block;
+        const int ih = is / jcp.iw;
+        const int iw = is % jcp.iw;
 
-                /* spatial reduction */
-                int sp_b_step = 0;
-                for (int sp_b = sp_b_start; sp_b < sp_b_end; sp_b += sp_b_step)
-                {
-                    sp_b_step = step(jcp.nb_reduce_blocking, sp_b_end - sp_b,
-                            jcp.nb_reduce_blocking_max);
-                    p.reduce_dim = sp_b_step * jcp.reduce_block;
-                    rp.os = p.reduce_dim;
+        data_t *src1 = (data_t *)&src[src_d.blk_off(img, _ic, ih, iw)];
+        data_t *tr_src1 = &tr_src_[tr_src_off(ithr_mb, _ic, is)];
 
-                    if (sp_b == sp_b_start && first_image)
-                        p.reduce_pos_flag |= FLAG_REDUCE_FIRST;
-                    else
-                        p.reduce_pos_flag &= ~FLAG_REDUCE_FIRST;
+        assert(jcp.ic_block == 16);
+        const int src_stride = jcp.is * jcp.ic_block;
+        const int tr_src_stride = jcp.tr_is * jcp.ic_block;
 
-                    int sp = sp_b * jcp.reduce_block;
-                    p.load_data = diff_dst
-                            + (oc_b * jcp.reduce_dim + sp) * jcp.oc_block;
+        const int my_work = end - start;
+        for (int iwork = 0; iwork < my_work; iwork++) {
+            jit_src_transpose_s par_trans = {};
+            assert(sp_size % 4 == 0 || sp_size % 4 == jcp.is % 4);
+            par_trans.size = sp_size;
+            par_trans.src = src1;
+            par_trans.tr_src = tr_src1;
+            par_trans.src_prf = src1 + 64 * 16;
+            par_trans.tr_src_prf = tr_src1 + 80 * 16;
+            trans_kernel_->jit_ker(&par_trans);
 
-                    if (conf_.rtus_.reduce_src_) {
-                        const int oh = sp / jcp.ow;
-                        const int ow = sp % jcp.ow;
-
-                        const int ih = nstl::max(oh * stride_h - pad_t, 0);
-                        const int iw = nstl::max(ow * stride_w - pad_l, 0);
-                        rp.iw_start = iw;
-
-                        rp.ws = scratch_ + ithr * ws_per_thread_
-                            + (ic_b * jcp.is + sp) * jcp.ic_block;
-                        rp.src = src
-                            + ih * src_d.blocking_desc().strides[0][2]
-                            + iw * src_d.blocking_desc().strides[0][3];
-
-                        if (oc_b == 0)
-                            rtus_driver_->ker_(&rp);
-
-                        p.bcast_data = rp.ws;
-                    } else
-                        p.bcast_data = src
-                            + (ic_b * jcp.reduce_dim + sp) * jcp.ic_block;
-
-                    kernel_->jit_ker(&p);
-                }
-            }
+            src1 += src_stride;
+            tr_src1 += tr_src_stride;
         }
     };
 
     auto ker = [&](const int ithr, const int nthr) {
-        auto rw = this->reducer_weights_;
+        const int ithr_ic_b = ithr % nthr_ic_b_;
+        const int ithr_oc_b = ithr / nthr_ic_b_ % nthr_oc_b_;
+        const int ithr_g = ithr / nthr_ic_b_ / nthr_oc_b_ % nthr_g_;
+        const int ithr_mb = ithr / nthr_ic_b_ / nthr_oc_b_ / nthr_g_;
+
+        const int ithr_but_oc
+                = (ithr_mb * nthr_g_ + ithr_g) * nthr_ic_b_ + ithr_ic_b;
+
+        /* reduction dimension */
+        int mb_sp_b_start{ 0 }, mb_sp_b_end{ 0 };
+        if (jcp.transpose_src && nthr_mb_ < jcp.mb / 2) {
+            // it's preferable to parallelize by mb if possible
+            int img_start{ 0 }, img_end{ 0 };
+            balance211(jcp.mb, nthr_mb_, ithr_mb, img_start, img_end);
+            mb_sp_b_start = img_start * sp_nb;
+            mb_sp_b_end = img_end * sp_nb;
+        }
+        else {
+            balance211(mb_sp_work, nthr_mb_, ithr_mb, mb_sp_b_start,
+                    mb_sp_b_end);
+        }
+
+        /* independent dimensions */
+        int g_start{ 0 }, oc_b_start{ 0 }, ic_b_start{ 0 };
+        int g_end{ 0 }, oc_b_end{ 0 }, ic_b_end{ 0 };
+
+        balance211(jcp.ngroups, nthr_g_, ithr_g, g_start, g_end);
+        balance211(jcp.nb_load, nthr_oc_b_, ithr_oc_b, oc_b_start, oc_b_end);
+        balance211(jcp.nb_bcast, nthr_ic_b_, ithr_ic_b, ic_b_start, ic_b_end);
+
+        const int g_work = g_end - g_start;
+        const int oc_b_work = oc_b_end - oc_b_start;
+        const int ic_b_work = ic_b_end - ic_b_start;
+
+        data_t *diff_wei = ithr_mb == 0 ?
+                diff_weights :
+                ws_reduction_ + (ithr_mb - 1) * wei_size;
+
+        int sp_b_step = 0;
+        for (int mb_sp_b = mb_sp_b_start; mb_sp_b < mb_sp_b_end;
+                mb_sp_b += sp_b_step) {
+            int img{ 0 }, sp_b{ 0 };
+            nd_iterator_init(mb_sp_b, img, jcp.mb, sp_b, sp_nb);
+            sp_b_step = step(jcp.nb_reduce_blocking,
+                    nstl::min(sp_nb - sp_b, mb_sp_b_end - mb_sp_b),
+                    jcp.nb_reduce_blocking_max);
+
+            for (int g = g_start; g < g_end; ++g) {
+                int load_step = 0;
+                int bcast_step = 0;
+                for (int ic_b = ic_b_start; ic_b < ic_b_end;
+                        ic_b += bcast_step) {
+                    bcast_step = step(nb_ic_blocking, ic_b_end - ic_b,
+                            jcp.nb_bcast_blocking_max);
+                    if (jcp.transpose_src) {
+                        if (nthr_oc_b_ > 1)
+                            simple_barrier::barrier(
+                                    &bctx_[ithr_but_oc], nthr_oc_b_);
+                        const int sp_size
+                                = nstl::min(sp_b_step * jcp.reduce_block,
+                                        jcp.is - sp_b * jcp.reduce_block);
+                        uker_trans(ithr_mb, img, sp_b, sp_size, g, 1, ic_b,
+                                bcast_step, ithr_oc_b, nthr_oc_b_);
+                        if (nthr_oc_b_ > 1)
+                            simple_barrier::barrier(
+                                    &bctx_[ithr_but_oc], nthr_oc_b_);
+                    }
+
+                    for (int oc_b = oc_b_start; oc_b < oc_b_end;
+                            oc_b += load_step) {
+                        load_step = step(nb_oc_blocking, oc_b_end - oc_b,
+                                jcp.nb_load_blocking_max);
+                        const int _ic_b = g * nb_ic + ic_b;
+                        const int _oc_b = g * nb_oc + oc_b;
+
+                        data_t *store_to;
+
+                        const size_t off
+                                = wht_blk_off(diff_weights_d, g, oc_b, ic_b);
+                        store_to = diff_wei + off;
+
+                        const data_t *diff_src = jcp.transpose_src ?
+                                &tr_src_[tr_src_off(ithr_mb, _ic_b, 0)] :
+                                &src[src_d.blk_off(img, _ic_b)];
+
+                        int sp_b_end = sp_b + sp_b_step;
+                        const data_t *pdiff_dst
+                                = &diff_dst[diff_dst_d.blk_off(img, _oc_b)];
+                        const data_t *local_src = diff_src;
+
+                        jit_1x1_conv_call_s p = {};
+                        rtus_driver_t<avx512_common>::call_params_t rp = {};
+
+                        p.output_stride
+                                = jcp.ic * jcp.oc_block * jcp.typesize_out;
+
+                        p.load_dim = load_step * jcp.oc_block;
+
+                        p.bcast_dim = bcast_step * jcp.ic_block;
+                        rp.icb = bcast_step;
+                        p.output_data = store_to;
+
+                        p.reduce_dim = sp_b_step * jcp.reduce_block;
+                        rp.os = p.reduce_dim;
+
+                        p.reduce_pos_flag = 0
+                            | (mb_sp_b == mb_sp_b_start ? FLAG_REDUCE_FIRST : 0)
+                            | (sp_b_end == sp_nb ? FLAG_SP_LAST : 0);
+
+                        int sp = sp_b * jcp.reduce_block;
+                        p.load_data = pdiff_dst + sp * jcp.oc_block;
+
+                        if (conf_.rtus_.reduce_src_) {
+                            const int oh = sp / jcp.ow;
+                            const int ow = sp % jcp.ow;
+
+                            const int ih = nstl::max(oh * stride_h - pad_t, 0);
+                            const int iw = nstl::max(ow * stride_w - pad_l, 0);
+                            rp.iw_start = iw;
+
+                            rp.ws = scratch_ + ithr * ws_per_thread_
+                                    + sp * jcp.ic_block;
+                            rp.src = local_src
+                                    + ih * src_d.blocking_desc().strides[0][2]
+                                    + iw * src_d.blocking_desc().strides[0][3];
+
+                            rtus_driver_->ker_(&rp);
+
+                            p.bcast_data = rp.ws;
+                        } else
+                            p.bcast_data = local_src + sp * jcp.ic_block;
+
+                        kernel_->jit_ker(&p);
+                    }
+                }
+            }
+        }
+
+        /* diff_weights[:] += sum(ws_reduction_[thr_mb][:]) */
+        if (nthr_mb_ > 1) {
+            simple_barrier::barrier(&reduction_barrier, nthr_);
+
+            const int work = g_work * oc_b_work * ic_b_work;
+
+            int start{ 0 }, end{ 0 };
+            balance211(work, nthr_mb_, ithr_mb, start, end);
+            if (start == end)
+                return;
+
+            for (int thr_mb = 1; thr_mb < nthr_mb_; ++thr_mb) {
+                int w = start;
+                int sub_g_start{ 0 }, sub_oc_b_start{ 0 },
+                        sub_ic_b_start{ 0 };
+                nd_iterator_init(w, sub_g_start, g_work, sub_oc_b_start,
+                        oc_b_work, sub_ic_b_start, ic_b_work);
+                while (w < end) {
+                    const int g = g_start + sub_g_start;
+                    const int oc_b = oc_b_start + sub_oc_b_start;
+                    const int ic_b = ic_b_start + sub_ic_b_start;
+
+                    const int acc_size
+                            = nstl::min(end - w, ic_b_work - sub_ic_b_start)
+                            * jcp.ic_block * jcp.oc_block;
+
+                    const size_t off
+                            = wht_blk_off(diff_weights_d, g, oc_b, ic_b);
+                    data_t *d = diff_weights + off;
+                    data_t *s = ws_reduction_ + (thr_mb - 1) * wei_size + off;
+
+                    acc_ker_->accumulate(d, s, acc_size);
+
+                    nd_iterator_jump(w, end, sub_g_start, g_work,
+                            sub_oc_b_start, oc_b_work, sub_ic_b_start,
+                            ic_b_work);
+                }
+            }
+        }
+    };
+    auto ker_bias = [&](int ithr, int nthr) {
         auto rb = this->reducer_bias_;
-        assert(nthr == rw->balancer_.nthr_);
+        assert(nthr == rb->balancer_.nthr_);
 
-        const int w_njobs = rw->balancer_.ithr_njobs(ithr);
-        if (w_njobs == 0) return;
+        const int b_job_start = rb->balancer_.ithr_job_off(ithr);
+        const int b_njobs = rb->balancer_.ithr_njobs(ithr);
 
-        data_t *loc_diff_bias = nullptr;
-        if (diff_bias) {
-            assert(ithr <
-                    rw->balancer_.ngroups_ * rw->balancer_.nthr_per_group_);
-            loc_diff_bias = rb->get_local_ptr(ithr, diff_bias);
-            for (int i = 0; i < rb->balancer_.job_size_; ++i)
-                loc_diff_bias[i] = 0;
-        }
+        if (b_njobs == 0)
+            return;
 
-        /* setup: independent work (oc, ic) */
-        const int w_job_start = rw->balancer_.ithr_job_off(ithr);
-        int g{0}, load_i{0}, bcast_i{0};
-        nd_iterator_init(w_job_start, g, jcp.ngroups, load_i, load_work,
-                bcast_i, bcast_work);
+        /* reduction dimension */
+        int img_start{ 0 }, img_end{ 0 };
 
-        /* setup: reduction work (mb, sp) */
-        int mb_sp_b_start{0}, mb_sp_b_end{0};
-        balance211(mb_sp_work, rw->balancer_.nthr_per_group_,
-                rw->balancer_.id_in_group(ithr), mb_sp_b_start, mb_sp_b_end);
-        int img_start{0}, sp_b_start{0};
-        nd_iterator_init(mb_sp_b_start, img_start, jcp.mb, sp_b_start, sp_nb);
+        balance211(jcp.mb, rb->balancer_.nthr_per_group_,
+                rb->balancer_.id_in_group(ithr), img_start, img_end);
 
-        /* independent work */
-        for (int iwork = 0; iwork < w_njobs; ++iwork) {
-            const int oc_b = nb_oc_blocking * load_i;
-            const int ic_b = nb_ic_blocking * bcast_i;
+        /* jobs */
+        int g_start{ 0 }, ocb_start{ 0 };
+        nd_iterator_init(
+                b_job_start, g_start, jcp.ngroups, ocb_start, jcp.nb_load);
 
-            const int _ic_b = g * nb_ic + ic_b;
-            const int _oc_b = g * nb_oc + oc_b;
+        for (int img = img_start; img < img_end; ++img) {
+            int g = g_start, ocb = ocb_start;
+            for (int b_job_loc = 0; b_job_loc < b_njobs; ++b_job_loc) {
+                const size_t _oc = g * jcp.nb_load + ocb;
 
-            data_t *store_to;
-            size_t store_to_ld;
+                const data_t *d_dst = &diff_dst[diff_dst_d.blk_off(img, _oc)];
+                data_t *d_bias = &rb->get_local_ptr(
+                        ithr, diff_bias)[b_job_loc * rb->balancer_.job_size_];
 
-            if (rw->balancer_.nthr_per_group_ == 1 ||
-                    (rw->balancer_.master(ithr) && rw->master_uses_dst_)) {
-                const size_t off = conf_.with_groups()
-                    ? diff_weights_d.blk_off(g, oc_b, ic_b)
-                    : diff_weights_d.blk_off(oc_b, ic_b);
-                store_to = &diff_weights[off];
-                store_to_ld = jcp.ic * jcp.oc_block;
-            } else {
-                const size_t off = iwork * rw->balancer_.job_size_;
-                store_to = &rw->get_local_ptr(ithr, nullptr)[off];
-                store_to_ld = nb_ic_blocking * jcp.ic_block * jcp.oc_block;
+                if (img == img_start)
+                    for (int o = 0; o < 16; ++o)
+                        d_bias[o] = 0.;
+
+                for (int hw = 0; hw < jcp.oh * jcp.ow; ++hw) {
+                    for (int o = 0; o < 16; ++o)
+                        d_bias[o] += d_dst[o];
+                    d_dst += 16;
+                }
+
+                nd_iterator_step(g, jcp.ngroups, ocb, jcp.nb_load);
             }
-
-            /* reduction work */
-            int img = img_start;
-            int sp_b = sp_b_start;
-            int sp_b_step = 0;
-            for (int mb_sp_b = mb_sp_b_start; mb_sp_b < mb_sp_b_end;
-                    mb_sp_b += sp_b_step) {
-                sp_b_step = nstl::min(sp_nb - sp_b, mb_sp_b_end - mb_sp_b);
-
-                const bool first_image = img == img_start;
-                oc_ic_sp_loop(sp_b, sp_b + sp_b_step, first_image, store_to,
-                        store_to_ld, &loc_diff_bias[_oc_b * jcp.oc_block],
-                        &diff_dst[diff_dst_d.blk_off(img, _oc_b)],
-                        &src[src_d.blk_off(img, _ic_b)], ithr, ic_b == 0);
-
-                sp_b = 0;
-                img += 1;
-            }
-            nd_iterator_step(g, jcp.ngroups, load_i, load_work, bcast_i,
-                             bcast_work);
         }
-
-        rw->reduce(ithr, diff_weights);
-        if (diff_bias)
-            rb->reduce(ithr, diff_bias);
+        rb->reduce(ithr, diff_bias);
     };
 
-#   pragma omp parallel
+#pragma omp parallel num_threads(nthr_)
     {
         int ithr = omp_get_thread_num();
-        int nthr = omp_get_num_threads();
-        ker(ithr, nthr);
+        assert(nthr_ == omp_get_num_threads());
+        ker(ithr, nthr_);
+        if (conf_.with_bias())
+            ker_bias(ithr, nthr_);
     }
+}
+
+void jit_avx512_common_1x1_convolution_bwd_weights_t::balance()
+{
+    const int max_threads = omp_get_max_threads();
+    const auto &j = conf_.jcp_;
+
+    if (max_threads < j.ngroups) {
+        /* simplification... fortunately it doesn't hurt much */
+        nthr_ = nthr_mb_ = nthr_g_ = nthr_oc_b_ = nthr_ic_b_ = 1;
+        return;
+    }
+
+    nthr_g_ = j.ngroups;
+    const int nthr = max_threads / nthr_g_;
+
+    auto calc_mem_cost = [=](int nthr_mb, int nthr_oc_b, int nthr_ic_b) {
+        /* calculate per thread memory cost (read/write). high level
+         * optimizer tries to minimize memory consumption. few notes: (n1)
+         * unclear why, but that essentially helps first convolution...
+         *  (n2) assuming the reduction over minibatch is always there:
+         *    - instead of 8 it should be 5 here (write ~= 2 read):
+         *      kernel: temporal workspace 1 write
+         *      reduction: 1 read from workspace and 1 write to the diff_wei
+         *    - but experiments showed 8 works better than 5 or 6... */
+        int bcast_koeff = 2;
+        int load_koeff = 1;
+        int output_koeff = 8;
+        return 0
+                + bcast_koeff * div_up(j.mb * j.nb_reduce, nthr_mb)
+                * div_up(j.ngroups, nthr_g_)
+                * div_up(j.nb_bcast, nthr_ic_b) * j.ic_block * j.reduce_block
+                / j.stride_h / j.stride_w /* (n1) */
+                + load_koeff * div_up(j.mb, nthr_mb)
+                * div_up(j.ngroups, nthr_g_)
+                * div_up(j.nb_load, nthr_oc_b) * j.oc_block * j.oh * j.ow
+                + output_koeff /* (n2) */
+                * div_up(j.ngroups, nthr_g_) * div_up(j.nb_load, nthr_oc_b)
+                * div_up(j.nb_bcast, nthr_ic_b) * j.ic_block
+                * j.oc_block;
+    };
+
+    auto calc_comp_cost = [=](int nthr_mb, int nthr_oc_b, int nthr_ic_b) {
+        return 1 * div_up(j.mb * j.nb_reduce, nthr_mb)
+                * div_up(j.ngroups, nthr_g_)
+                * div_up(j.nb_load, nthr_oc_b) * div_up(j.nb_bcast, nthr_ic_b);
+    };
+
+    int nthr_mb = 1, nthr_oc_b = 1, nthr_ic_b = 1;
+    int best_mem_cost = calc_mem_cost(nthr_mb, nthr_oc_b, nthr_ic_b);
+
+    /* step 1: find the best thread distribution with lowest memory cost */
+    const int nthr_mb_max = nstl::min(nthr, j.mb * j.nb_reduce);
+    for (nthr_mb = 1; nthr_mb <= nthr_mb_max; ++nthr_mb) {
+        const int nthr_par = nthr / nthr_mb;
+        const int nthr_oc_b_max = nstl::min(nthr_par, j.nb_load);
+        for (nthr_oc_b = 1; nthr_oc_b <= nthr_oc_b_max; ++nthr_oc_b) {
+            nthr_ic_b = nstl::min(nthr_par / nthr_oc_b, j.nb_bcast);
+            int mem_cost = calc_mem_cost(nthr_mb, nthr_oc_b, nthr_ic_b);
+            if (mem_cost <= best_mem_cost) {
+                best_mem_cost = mem_cost;
+                nthr_mb_ = nthr_mb;
+                nthr_oc_b_ = nthr_oc_b;
+                nthr_ic_b_ = nthr_ic_b;
+            }
+        }
+    }
+
+    /* step 2: search for a thread distribution with lower compute cost.
+     * the constrains:
+     *  - memory cost cannot exceed 110% of the best found in the step 1
+     *  - unless compute cost is 133% lower than the current best case
+     * note: both constants were found empirically */
+    int best_comp_cost = calc_comp_cost(nthr_mb_, nthr_oc_b_, nthr_ic_b_);
+    for (nthr_mb = 1; nthr_mb <= nthr_mb_max; ++nthr_mb) {
+        const int nthr_par = nthr / nthr_mb;
+        const int nthr_oc_b_max = nstl::min(nthr_par, j.nb_load);
+        for (nthr_oc_b = 1; nthr_oc_b <= nthr_oc_b_max; ++nthr_oc_b) {
+            nthr_ic_b = nstl::min(nthr_par / nthr_oc_b, j.nb_bcast);
+            int mem_cost = calc_mem_cost(nthr_mb, nthr_oc_b, nthr_ic_b);
+            int comp_cost = calc_comp_cost(nthr_mb, nthr_oc_b, nthr_ic_b);
+
+            const bool opt1 = comp_cost <= best_comp_cost
+                    && mem_cost < 1.1 * best_mem_cost;
+            const bool opt2 = 4 * comp_cost <= 3 * best_comp_cost;
+
+            if (opt1 || opt2) {
+                best_comp_cost = comp_cost;
+                nthr_mb_ = nthr_mb;
+                nthr_oc_b_ = nthr_oc_b;
+                nthr_ic_b_ = nthr_ic_b;
+            }
+        }
+    }
+
+    if (nthr_mb_ > max_threads / 2 && nthr_mb_ < max_threads)
+        nthr_mb_ = nstl::min(j.mb, max_threads);
+
+    nthr_ = nthr_mb_ * nthr_g_ * nthr_oc_b_ * nthr_ic_b_;
+    assert(nthr_ <= max_threads);
 }
 
 }

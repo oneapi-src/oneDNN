@@ -23,6 +23,7 @@
 #include "cpu_reducer.hpp"
 #include "jit_avx512_common_1x1_conv_kernel.hpp"
 #include "jit_uni_1x1_conv_utils.hpp"
+#include "jit_transpose_src_utils.hpp"
 #include "mkldnn_thread.hpp"
 #include "utils.hpp"
 
@@ -267,7 +268,8 @@ using jit_avx512_common_1x1_convolution_bwd_data_s16s16s32_t
         = _jit_avx512_common_1x1_convolution_bwd_data_t<data_type::s16,
             data_type::s16, data_type::s32>;
 
-struct jit_avx512_common_1x1_convolution_bwd_weights_t : public cpu_primitive_t {
+struct jit_avx512_common_1x1_convolution_bwd_weights_t : public cpu_primitive_t
+{
     struct pd_t : public cpu_convolution_bwd_weights_pd_t {
         pd_t(engine_t *engine,
                 const convolution_desc_t *adesc,
@@ -333,9 +335,12 @@ struct jit_avx512_common_1x1_convolution_bwd_weights_t : public cpu_primitive_t 
                                                  const output_vector &outputs);
     ~jit_avx512_common_1x1_convolution_bwd_weights_t() {
         delete kernel_;
-        delete reducer_weights_;
+        delete acc_ker_;
         delete reducer_bias_;
         delete rtus_driver_;
+        delete trans_kernel_;
+        free(bctx_);
+        free(ws_reduction_);
         free(scratch_);
     }
 
@@ -354,15 +359,23 @@ struct jit_avx512_common_1x1_convolution_bwd_weights_t : public cpu_primitive_t 
 
   private:
     void execute_backward_weights();
+    void balance();
+
     pd_t conf_;
     jit_avx512_common_1x1_conv_kernel *kernel_;
-    cpu_reducer_2d_t<data_type::f32> *reducer_weights_;
+    cpu_accumulator_1d_t<data_type::f32> *acc_ker_;
     cpu_reducer_t<data_type::f32> *reducer_bias_;
+    jit_transpose4x16_src *trans_kernel_;
 
     /* reduction to unit stride */
     rtus_driver_t<avx512_common> *rtus_driver_;
     size_t ws_per_thread_;
     data_t *scratch_;
+
+    int nthr_, nthr_mb_, nthr_g_, nthr_oc_b_, nthr_ic_b_;
+    simple_barrier::ctx_t *bctx_;
+    data_t *tr_src_;
+    data_t *ws_reduction_;
 };
 
 }

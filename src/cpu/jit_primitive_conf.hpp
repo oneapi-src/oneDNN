@@ -157,6 +157,11 @@ struct jit_1x1_conv_conf_t {
     /* 4vnni */
     size_t typesize_in;
     size_t typesize_out;
+
+    /* 4fma */
+    bool transpose_src;
+    int tr_is;
+
 };
 
 struct jit_gemm_conv_conf_t {

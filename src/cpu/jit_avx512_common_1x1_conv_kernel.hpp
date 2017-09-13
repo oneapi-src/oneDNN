@@ -76,17 +76,14 @@ struct jit_avx512_common_1x1_conv_kernel : public jit_generator {
     reg64_t reg_bias_data = r12;
     reg64_t reg_relu_ns = r13;
     reg64_t reg_bcast_loop_work = aux1_reg_bcast_data;
-    reg64_t reg_diff_bias_data = bcast_loop_iter;
     mask_t vmask = k7;
 
     Xbyak::Xmm xmm_relu_ns = Xbyak::Xmm(30);
     Xbyak::Zmm zmm_relu_ns = Xbyak::Zmm(30);
     Xbyak::Zmm zmm_zero = Xbyak::Zmm(31);
-    Xbyak::Zmm vreg_diff_bias = zmm_relu_ns;
 
-    int reg_diff_bias_data_stack_offt = 0;
-    int bcast_loop_work_offt = 16;
-    int stack_space_needed = 32;
+    int bcast_loop_work_offt = 0;
+    int stack_space_needed = 16;
 
     void bcast_loop(int load_loop_blk);
     void reduce_loop(int load_loop_blk, int ur, int substep, bool wraparound);
