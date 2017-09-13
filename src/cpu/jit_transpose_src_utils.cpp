@@ -474,6 +474,208 @@ void jit_trans_iw_x4_4x_t::generate() {
     postamble();
 }
 
+/*
+// -------------------------------------------------
+// jit_transpose4x16_src
+// -------------------------------------------------
+*/
+
+void jit_transpose4x16_src::transpose(int nrows)
+{
+    assert(nrows >= 0 && nrows <= transpose_size);
+    static_assert(transpose_size == 4, "Unsupported transpose size");
+    if (!nrows)
+        return;
+
+    auto pf_src_t0 = [=](int i) {
+        if (tparams->src_pf0_distance)
+            prefetcht0(EVEX_compress_addr(
+                    reg_src, (tparams->src_pf0_distance + i) * src_stride));
+    };
+
+    auto pf_tr_src_t0 = [=](int i) {
+        if (tparams->tr_src_pf0_distance)
+            prefetcht0(EVEX_compress_addr(reg_tr_src,
+                    (tparams->tr_src_pf0_distance + i) * src_stride));
+    };
+
+    auto pf_src_t1 = [=](int i) {
+        if (tparams->src_pf1)
+            prefetcht1(EVEX_compress_addr(reg_src_prf, i * src_stride));
+    };
+
+    auto pf_tr_src_t1 = [=](int i) {
+        if (tparams->tr_src_pf1)
+            prefetchwt1(EVEX_compress_addr(reg_tr_src_prf, i * tr_src_stride));
+    };
+
+    auto src_zmm = [=](int i) {
+        assert(i >= 0 && i < 4);
+        return Zmm(i);
+    };
+
+    auto tmp_zmm = [=](int i) {
+        assert(i >= 0 && i < 4);
+        return Zmm(4 + i);
+    };
+
+    auto load = [=](int i) {
+        vmovups(src_zmm(i), EVEX_compress_addr(reg_src, i * src_stride));
+    };
+
+    auto store = [=](Zmm r, int i) {
+        vmovntps(EVEX_compress_addr(reg_tr_src, i * tr_src_stride), r);
+    };
+
+    auto tmp0 = tmp_zmm(0);
+    auto tmp1 = tmp_zmm(1);
+    auto tmp2 = tmp_zmm(2);
+    auto tmp3 = tmp_zmm(3);
+
+    auto src0 = src_zmm(0);
+    auto src1 = src_zmm(1);
+    auto src2 = src_zmm(2);
+    auto src3 = src_zmm(3);
+    for (size_t i = 0; i < nrows; i++) {
+        load(i);
+    }
+
+    for (size_t i = nrows; i < 4; i++) {
+        vpxord(src_zmm(i), src_zmm(i), src_zmm(i));
+    }
+
+    vmovupd(tmp0, src0);
+    vmovupd(tmp1, src1);
+    pf_src_t0(0);
+    vpermpd(tmp0 | kF0, vidx01, src2);
+    vpermpd(tmp1 | kF0, vidx01, src3);
+
+    valignd(src0, src0, src0, 8);
+    valignd(src1, src1, src1, 8);
+    pf_src_t0(1);
+    vmovupd(tmp2, src0);
+    vmovupd(tmp3, src1);
+    pf_src_t0(2);
+    vpermpd(tmp2 | kF0, vidx10, src2);
+    vpermpd(tmp3 | kF0, vidx10, src3);
+    pf_src_t0(3);
+
+    vmovupd(src0, tmp0);
+    pf_src_t1(0);
+    vmovupd(src1, tmp2);
+    pf_src_t1(1);
+    vmovupd(src2, tmp1);
+    pf_src_t1(2);
+    vmovupd(src3, tmp3);
+    pf_src_t1(3);
+    vpermpd(src0 | kCC, vidx1, tmp1);
+    vpermpd(src1 | kCC, vidx1, tmp3);
+    pf_tr_src_t0(0);
+    vpermpd(src2 | k33, vidx1, tmp0);
+    vpermpd(src3 | k33, vidx1, tmp2);
+    pf_tr_src_t0(1);
+
+    vmovupd(tmp0, src0);
+    vmovupd(tmp1, src2);
+    pf_tr_src_t0(2);
+    vmovupd(tmp2, src1);
+    vmovupd(tmp3, src3);
+    pf_tr_src_t0(3);
+    vpermps(tmp0 | kFFFF, vidxP, src0);
+    pf_tr_src_t1(0);
+    vpermps(tmp1 | kFFFF, vidxP, src2);
+    pf_tr_src_t1(1);
+    vpermps(tmp2 | kFFFF, vidxP, src1);
+    pf_tr_src_t1(3);
+    vpermps(tmp3 | kFFFF, vidxP, src3);
+    pf_tr_src_t1(4);
+
+    store(tmp0, 0);
+    store(tmp1, 1);
+    store(tmp2, 2);
+    store(tmp3, 3);
+}
+
+alignas(64) static constexpr const int64_t idx01[8]
+        = { 0, 0, 0, 0, 0, 1, 2, 3 };
+alignas(64) static constexpr const int64_t idx10[8]
+        = { 0, 0, 0, 0, 4, 5, 6, 7 };
+alignas(64) static constexpr const int64_t idx1[8] = { 2, 3, 0, 1, 6, 7, 4, 5 };
+alignas(64) static constexpr const int32_t idxP[16]
+        = { 0, 4, 8, 12, 1, 5, 9, 13, 2, 6, 10, 14, 3, 7, 11, 15 };
+
+void jit_transpose4x16_src::generate()
+{
+    preamble();
+
+    const int ic_block = params->ic_block;
+    const int is = params->is;
+    int tail = is % transpose_size;
+
+    src_stride = ic_block * typesize;
+    assert(src_stride == 64);
+    tr_src_stride = ic_block * typesize;
+
+    const int src_step = ic_block * transpose_size * typesize;
+    const int tr_src_step = ic_block * transpose_size * typesize;
+
+#define GET_TR_OFF(x) offsetof(jit_src_transpose_s, x)
+    mov(reg_loop, ptr[param1 + GET_TR_OFF(size)]);
+    mov(reg_src, ptr[param1 + GET_TR_OFF(src)]);
+    mov(reg_tr_src, ptr[param1 + GET_TR_OFF(tr_src)]);
+    mov(reg_src_prf, ptr[param1 + GET_TR_OFF(src_prf)]);
+    mov(reg_tr_src_prf, ptr[param1 + GET_TR_OFF(tr_src_prf)]);
+#undef GET_TR_OFF
+
+    auto kmovw = [=](Opmask k, unsigned w) {
+        mov(regw_tmp, w);
+        jit_generator::kmovw(k, regw_tmp);
+    };
+
+    auto vmovdqa64 = [=](Zmm z, const int64_t *addr) {
+        mov(imm_addr64, reinterpret_cast<size_t>(addr));
+        jit_generator::vmovdqa64(z, ptr[imm_addr64]);
+    };
+
+    auto vmovdqa32 = [=](Zmm z, const int32_t *addr) {
+        mov(imm_addr64, reinterpret_cast<size_t>(addr));
+        jit_generator::vmovdqa32(z, ptr[imm_addr64]);
+    };
+
+    kmovw(kF0, 0xf0); // 11110000
+    kmovw(kCC, 0xcc); // 11001100
+    kmovw(k33, 0x33); // 00110011
+    kmovw(kFFFF, 0xffff); // 1111111111111111
+
+    vmovdqa64(vidx01, idx01);
+    vmovdqa64(vidx10, idx10);
+    vmovdqa64(vidx1, idx1);
+    vmovdqa32(vidxP, idxP);
+
+    Label loop_label;
+    Label tail_label;
+
+    cmp(reg_loop, transpose_size);
+    jl(tail_label, T_NEAR);
+
+
+    L(loop_label);
+    {
+        transpose(transpose_size);
+        add(reg_src, src_step);
+        add(reg_tr_src, tr_src_step);
+        add(reg_src_prf, src_step);
+        add(reg_tr_src_prf, tr_src_step);
+        sub(reg_loop, transpose_size);
+        cmp(reg_loop, transpose_size);
+        jge(loop_label, T_NEAR);
+    }
+    L(tail_label);
+    transpose(tail);
+
+    postamble();
+}
+
 jit_trans_src_t *create_trans_src(const jit_conv_conf_t *conf) {
     if (conf->ver == ver_4fma && !conf->is_1stconv)
         return new jit_trans_iw_ic_t(conf);
