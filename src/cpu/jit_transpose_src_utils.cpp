@@ -524,7 +524,7 @@ void jit_transpose4x16_src::transpose(int nrows)
     };
 
     auto store = [=](Zmm r, int i) {
-        vmovntps(EVEX_compress_addr(reg_tr_src, i * tr_src_stride), r);
+        vmovups(EVEX_compress_addr(reg_tr_src, i * tr_src_stride), r);
     };
 
     auto tmp0 = tmp_zmm(0);
@@ -657,7 +657,6 @@ void jit_transpose4x16_src::generate()
 
     cmp(reg_loop, transpose_size);
     jl(tail_label, T_NEAR);
-
 
     L(loop_label);
     {

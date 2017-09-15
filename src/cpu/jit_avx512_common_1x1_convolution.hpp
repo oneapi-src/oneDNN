@@ -359,7 +359,6 @@ struct jit_avx512_common_1x1_convolution_bwd_weights_t : public cpu_primitive_t
 
   private:
     void execute_backward_weights();
-    void balance();
 
     pd_t conf_;
     jit_avx512_common_1x1_conv_kernel *kernel_;
@@ -372,7 +371,6 @@ struct jit_avx512_common_1x1_convolution_bwd_weights_t : public cpu_primitive_t
     size_t ws_per_thread_;
     data_t *scratch_;
 
-    int nthr_, nthr_mb_, nthr_g_, nthr_oc_b_, nthr_ic_b_;
     simple_barrier::ctx_t *bctx_;
     data_t *tr_src_;
     data_t *ws_reduction_;
