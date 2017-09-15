@@ -19,6 +19,7 @@ cmake_minimum_required(VERSION 2.8)
 # version handling is done with old style
 if(POLICY CMP0048)
     cmake_policy(SET CMP0048 OLD)
+    cmake_policy(SET CMP0054 OLD)
 endif()
 
 set(PROJECT_NAME "Intel(R) MKL-DNN")
