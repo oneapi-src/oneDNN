@@ -422,8 +422,6 @@ struct memory: public primitive  {
             auto memory_d = mkldnn_primitive_desc_query_memory_d(get());
             return memory::desc(*memory_d); }
 
-        /// Returns the number of data elements in the memory described.
-        ///
         /// Returns the number of bytes required to allocate the memory described
         /// including the padding area.
         size_t get_size() const {
