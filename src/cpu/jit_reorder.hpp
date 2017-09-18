@@ -149,7 +149,7 @@ private:
     using Ymm = Xbyak::Ymm;
 
     Xbyak::Reg64 reg_alpha = rbx;
-    Xbyak::Reg64 reg_beta = rcx;
+    Xbyak::Reg64 reg_beta = abi_not_param1;
 
     Ymm ymm_al = Ymm(14);
     Ymm ymm_bt = Ymm(15);
