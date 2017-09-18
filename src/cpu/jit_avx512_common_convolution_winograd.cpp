@@ -889,7 +889,6 @@ void diff_src_transform_bwd_weights(int image, jit_conv_winograd_conf_t conv,
         % conv.nb_tile_block_ur;
     int tile_block = (tile_base_index / conv.tile_4fma / conv.tile_block_ur)
             / conv.nb_tile_block_ur;
-    __m512 Iw_trans[10];
 
     for (int tj = 0; tj < conv.jtiles; tj++) {
         for (int ti = 0; ti < conv.itiles; ti++) {
