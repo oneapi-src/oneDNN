@@ -65,7 +65,7 @@ void _gemm_convolution_fwd_t<with_relu, run_jit, isa>::execute_forward() {
             const data_t *_src = src + (n * jcp.ngroups + g)*src_step;
             data_t *_dst = dst + (n * jcp.ngroups + g)*dst_step;
             const data_t *_weights = weights + g * weights_g_size;
-            data_t *_col = this->ws + ithr * jcp.ic * jcp.ks * jcp.os;
+            data_t *_col = this->ws + (int64_t)ithr * jcp.ic * jcp.ks * jcp.os;
 
             if (jcp.need_im2col)
                 jit_gemm_convolution_utils::im2col(jcp, _src, _col);
