@@ -550,6 +550,8 @@ void weight_transform_fwd(jit_conv_winograd_conf_t conv, float *wp, float *twp)
     const int alpha = 6;
     const int ic_simd_block = 16;
     const int oc_simd_block = 16;
+    const int kh = 3;
+    const int kw = 3;
     array_offset_calculator<float, 6> input(wp,
             conv.nb_oc * conv.oc_block,
             conv.nb_ic * conv.ic_block,
@@ -561,10 +563,10 @@ void weight_transform_fwd(jit_conv_winograd_conf_t conv, float *wp, float *twp)
             conv.oc_block, conv.ic_block,
             ic_simd_block, oc_simd_block);
     float Fw[alpha][alpha][simd_w][simd_w];
-    float F[3][3][simd_w][simd_w];
+    float F[kh][kw][simd_w][simd_w];
 
-    for (int j = 0; j < conv.kh; j++) {
-        for (int i = 0; i < conv.kw; i++) {
+    for (int j = 0; j < kh; j++) {
+        for (int i = 0; i < kw; i++) {
             for (int v1 = 0; v1 < simd_w; v1++) {
 #pragma omp simd
                 for (int v2 = 0; v2 < simd_w; v2++) {
@@ -1067,8 +1069,10 @@ void diff_weights_transform_bwd_weights(jit_conv_winograd_conf_t conv,
         float *wp, float *twp)
 {
     const int simd_w = 16;
+    const int kh = 3;
+    const int kw = 3;
     float Fw[conv.alpha][conv.alpha][simd_w][simd_w];
-    float F[3][3][simd_w][simd_w];
+    float F[kh][kw][simd_w][simd_w];
 
     array_offset_calculator<float, 8> input(twp,
             conv.nb_ic, conv.nb_oc,
@@ -1093,8 +1097,8 @@ void diff_weights_transform_bwd_weights(jit_conv_winograd_conf_t conv,
 
     trans_O_3x3_4x4_wu(Fw, F);
 
-    for (int j = 0; j < conv.kh; j++) {
-        for (int i = 0; i < conv.kw; i++) {
+    for (int j = 0; j < kh; j++) {
+        for (int i = 0; i < kw; i++) {
             for (int v = 0; v < conv.ic_simd_block; v++) {
                 stream_ps(
                         &(output(0, 0, j, i, v, 0)),
