@@ -666,9 +666,11 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
             jcp.fma_step = 4;
         } else if (jcp.prop_kind == backward_weights && mayiuse(avx512_mic_4ops)
                 && !reduce_src
-                /* 4fma bwd_w for some cases of small spatial only */
-                && ((jcp.ih <= 7 && jcp.ic / jcp.oc <= 24)
-                           || (jcp.ih == 14 && jcp.ic / jcp.oc <= 4)))
+                /* Heuristic condition for relation of src size to oc. Otherwise
+                   the src transposition overhead exceed the benefit from 4fma
+                */
+                && ((jcp.is * jcp.ic) / jcp.oc <= 2048)
+                )
         {
             jcp.transpose_src = true;
             jcp.ver = ver_4fma;
@@ -880,6 +882,8 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
     } else if (jcp.prop_kind == backward_weights) {
 
         jcp.use_vmovntps = false;
+        if(jcp.is > SMALL_SPATIAL && jcp.ver == ver_4fma)
+            jcp.use_vmovntps = true;
 
         if (jcp.transpose_src)
             jcp.reduce_dim = jcp.tr_is;
@@ -1021,7 +1025,7 @@ void jit_avx512_common_1x1_conv_kernel::balance(jit_1x1_conv_conf_t &jcp,
         int load_koeff = 1;
         int output_koeff = 12;
         if (jcp.transpose_src) {
-            bcast_koeff = 4;
+            bcast_koeff = 5;
             load_koeff = 1;
             output_koeff = 8;
         }
