@@ -22,6 +22,12 @@
 
 #include "jit_avx512_common_convolution_winograd.hpp"
 
+#ifndef _MSC_VER
+#define pragma_unroll _Pragma("unroll")
+#else
+#define pragma_unroll
+#endif
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {
@@ -78,7 +84,7 @@ void trans_I_4x4_3x3(float Iw[6][6][16], float I[6][6][16])
     float t4[16];
     float t5[16];
 
-#pragma unroll
+pragma_unroll
     for (int i = 0; i < 6; i++) {
 #pragma omp simd
         for (int v = 0; v < 16; v++) {
@@ -97,7 +103,7 @@ void trans_I_4x4_3x3(float Iw[6][6][16], float I[6][6][16])
             T[5][i][v] = 4.0f * I[1][i][v] + t5[v];
         }
     }
-#pragma unroll
+pragma_unroll
     for (int i = 0; i < 6; i++) {
 #pragma omp simd
         for (int v = 0; v < 16; v++) {
@@ -131,7 +137,7 @@ void trans_W_4x4_3x3(float Fw_[6][6][16][16], float F[3][3][16][16])
     float t2[16];
 
     for (int j = 0; j < 16; j++) {
-#pragma unroll
+pragma_unroll
         for (int i = 0; i < 3; i++) {
 #pragma omp simd
             for (int k = 0; k < 16; k++) {
@@ -146,7 +152,7 @@ void trans_W_4x4_3x3(float Fw_[6][6][16][16], float F[3][3][16][16])
                 T[5][i][k] = F[2][i][j][k];
             }
         }
-#pragma unroll
+pragma_unroll
         for (int i = 0; i < 6; i++) {
 #pragma omp simd
             for (int k = 0; k < 16; k++) {
@@ -159,7 +165,7 @@ void trans_W_4x4_3x3(float Fw_[6][6][16][16], float F[3][3][16][16])
                 Fw[3][k] = t2[k] + rcp12 * T[i][1][k];
                 Fw[4][k] = t2[k] - rcp12 * T[i][1][k];
                 Fw[5][k] = T[i][2][k];
-#pragma unroll
+pragma_unroll
                 for (int l = 0; l < 6; l++) {
                     Fw_[i][l][j][k] = Fw[l][k];
                 }
@@ -176,7 +182,7 @@ void trans_O_4x4_3x3(float Mw[6][6][16], float O[4][4][16])
     float t2[16];
     float t3[16];
 
-#pragma unroll
+pragma_unroll
     for (int i = 0; i < 6; i++) {
 #pragma omp simd
         for (int v = 0; v < 16; v++) {
@@ -191,7 +197,7 @@ void trans_O_4x4_3x3(float Mw[6][6][16], float O[4][4][16])
             T[3][i][v] = t2[v] + t3[v] * 8.0f + Mw[5][i][v];
         }
     }
-#pragma unroll
+pragma_unroll
     for (int i = 0; i < 4; i++) {
 #pragma omp simd
         for (int v = 0; v < 16; v++) {
@@ -222,7 +228,7 @@ void trans_W_3x3_4x4(float Fw[6][6][16], float F[4][6][16])
     float t4[16];
     float T[6][4][16];
 
-#pragma unroll
+pragma_unroll
     for (int i = 0; i < 4; i++) {
 #pragma omp simd
         for (int j = 0; j < 16; j++) {
@@ -240,7 +246,7 @@ void trans_W_3x3_4x4(float Fw[6][6][16], float F[4][6][16])
             T[5][i][j] = F[3][i][j];
         }
     }
-#pragma unroll
+pragma_unroll
     for (int i = 0; i < 6; i++) {
 #pragma omp simd
         for (int j = 0; j < 16; j++) {
@@ -269,7 +275,7 @@ void trans_O_3x3_4x4(float Mw[6][6][16][16], float M[3][3][16][16])
     float t2[16];
 
     for (int j = 0; j < 16; j++) {
-#pragma unroll
+pragma_unroll
         for (int i = 0; i < 6; i++) {
 #pragma omp simd
             for (int l = 0; l < 16; l++) {
@@ -283,7 +289,7 @@ void trans_O_3x3_4x4(float Mw[6][6][16][16], float M[3][3][16][16])
                 T[2][i][l] = t0[l] + t2[l];
             }
         }
-#pragma unroll
+pragma_unroll
         for (int i = 0; i < 3; i++) {
 #pragma omp simd
             for (int l = 0; l < 16; l++) {
@@ -314,7 +320,7 @@ void trans_I_4x4_3x3_wu(float Iw[6][6][16], float I[6][6][16])
     float t4[16];
     float t5[16];
 
-#pragma unroll
+pragma_unroll
     for (int i = 0; i < 6; i++) {
 #pragma omp simd
         for (int v = 0; v < 16; v++) {
@@ -334,7 +340,7 @@ void trans_I_4x4_3x3_wu(float Iw[6][6][16], float I[6][6][16])
         }
     }
 
-#pragma unroll
+pragma_unroll
     for (int i = 0; i < 6; i++) {
 #pragma omp simd
         for (int v = 0; v < 16; v++) {
@@ -364,7 +370,7 @@ void trans_W_3x3_4x4_wu(float Fw[6][6][16], float F[4][6][16])
     float t3[16];
     float t4[16];
 
-#pragma unroll
+pragma_unroll
     for (int i = 0; i < 4; i++) {
 #pragma omp simd
         for (int v = 0; v < 16; v++) {
@@ -384,7 +390,7 @@ void trans_W_3x3_4x4_wu(float Fw[6][6][16], float F[4][6][16])
             T[5][i][v] = F[3][i][v];
         }
     }
-#pragma unroll
+pragma_unroll
     for (int i = 0; i < 6; i++) {
         for (int v = 0; v < 16; v++) {
             t0[v] = T[i][2][v] * 0.26890756302521f;
@@ -414,7 +420,7 @@ void trans_O_3x3_4x4_wu(float Mw[6][6][16][16], float M[3][3][16][16])
     float M_[3][16];
 
     for (int j = 0; j < 16; j++) {
-#pragma unroll
+pragma_unroll
         for (int i = 0; i < 6; i++) {
 #pragma omp simd
             for (int v = 0; v < 16; v++) {
@@ -428,7 +434,7 @@ void trans_O_3x3_4x4_wu(float Mw[6][6][16][16], float M[3][3][16][16])
                 T[2][i][v] = t0[v] * 0.390625f + t2[v];
             }
         }
-#pragma unroll
+pragma_unroll
         for (int i = 0; i < 3; i++) {
 #pragma omp simd
             for (int v = 0; v < 16; v++) {
@@ -442,7 +448,7 @@ void trans_O_3x3_4x4_wu(float Mw[6][6][16][16], float M[3][3][16][16])
                 M_[2][v] = t0[v] * 0.390625f + t2[v];
             }
 
-#pragma unroll
+pragma_unroll
             for (int k = 0; k < 3; k++) {
 #pragma omp simd
                 for (int v = 0; v < 16; v++) {
