@@ -872,8 +872,11 @@ void diff_src_transform_bwd_weights(int image, jit_conv_winograd_conf_t conv,
     const int ifhp = conv.ih + conv.t_pad;
     float I[conv.alpha][conv.alpha][simd_w];
     float Iw[conv.alpha][conv.alpha][simd_w];
-    float Iw_scratchpad[conv.alpha][conv.alpha][conv.tile_4fma][simd_w];
 
+    float *Iw_buffer = (float *) malloc(alpha * alpha * conv.tile_4fma
+            * simd_w * sizeof(float), 64);
+    array_offset_calculator<float, 4> Iw_scratchpad(Iw_buffer,
+            alpha, alpha, conv.tile_4fma, simd_w);
     array_offset_calculator<float, 5> input(inp,
             conv.mb, conv.ic/simd_w, conv.ih, conv.iw, simd_w);
     array_offset_calculator<float, 8> output(tinp,
@@ -929,7 +932,7 @@ void diff_src_transform_bwd_weights(int image, jit_conv_winograd_conf_t conv,
                     for (int i = 0; i < conv.alpha; i++) {
 #pragma omp simd
                         for (int v = 0; v < simd_w; v++) {
-                            Iw_scratchpad[j][i][tile_4fma][v] = Iw[j][i][v];
+                            Iw_scratchpad(j, i, tile_4fma, v) = Iw[j][i][v];
                         }
                     }
                 }
@@ -938,7 +941,7 @@ void diff_src_transform_bwd_weights(int image, jit_conv_winograd_conf_t conv,
                     float *outp = &(output(0, 0, 0,
                                 tile_block, 0,
                                 nb_tile_block_ur, tile_block_ur, 0));
-                    transpose_4fma_ker(outp, (float *)Iw_scratchpad);
+                    transpose_4fma_ker(outp, (float *)Iw_buffer);
                     tile_4fma = 0;
                     tile_block_ur++;
                 }
@@ -973,7 +976,7 @@ void diff_src_transform_bwd_weights(int image, jit_conv_winograd_conf_t conv,
                 for (int tb = tile_4fma; tb < conv.tile_4fma; tb++) {
 #                   pragma omp simd
                     for (int v = 0; v < simd_w; v++) {
-                        Iw_scratchpad[j][i][tb][v] = 0;
+                        Iw_scratchpad(j, i, tb, v) = 0;
                     }
                 }
             }
@@ -981,7 +984,7 @@ void diff_src_transform_bwd_weights(int image, jit_conv_winograd_conf_t conv,
         float *outp = &(output(0, 0, 0,
                     tile_block, 0,
                     nb_tile_block_ur, tile_block_ur, 0));
-        transpose_4fma_ker(outp, (float *)Iw_scratchpad);
+        transpose_4fma_ker(outp, (float *)Iw_buffer);
     }
 }
 
