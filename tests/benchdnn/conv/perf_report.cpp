@@ -43,10 +43,8 @@ table of modifiers below.
 | %D            | expanded problem descriptor (conv parameters in csv format)
 | %n            | problem name
 | %z            | direction
-| %@F           | effective cpu frequency computed as clocks[@] / time[@]
 | %O            | number of ops required (padding is not taken into account)
 | %@t           | time in ms
-| %@c           | time in clocks
 | %@p           | ops per second
 
 | modifier  | description
