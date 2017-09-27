@@ -121,12 +121,8 @@ void perf_report(const prb_t *p, const res_t *r, const char *pstr) {
             DPRINT("%s", dir2str(p->dir));
         else if (c == 'O')
             DPRINT("%g", p->ops / unit);
-        else if (c == 'F')
-            DPRINT("%g", t.ticks(mode) / t.ms(mode) / unit * 1e3);
         else if (c == 't')
             DPRINT("%g", t.ms(mode) / unit);
-        else if (c == 'c')
-            DPRINT("%g", t.ticks(mode) / unit);
         else if (c == 'p')
             DPRINT("%g", p->ops / t.ms(mode) / unit * 1e3);
         else
