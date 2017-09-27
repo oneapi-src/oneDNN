@@ -117,7 +117,7 @@ bool match_regex(const char *str, const char *pattern) { return true; }
 static inline double ms_now() {
     auto timePointTmp
         = std::chrono::high_resolution_clock::now().time_since_epoch();
-    return std::chrono::duration<double, std::micro>(timePointTmp).count();
+    return std::chrono::duration<double, std::milli>(timePointTmp).count();
 }
 
 void benchdnn_timer_t::reset() {
