@@ -16,9 +16,8 @@
 
 #include "common.hpp"
 
-#ifdef _WIN32
 #include <chrono>
-#else
+#ifndef _WIN32
 #define HAVE_REGEX
 #if defined(HAVE_REGEX)
 #include <sys/types.h>
@@ -115,25 +114,11 @@ bool match_regex(const char *str, const char *pattern) { return true; }
 
 /* perf */
 
-#include <sys/types.h>
-#include <time.h>
-
-#ifdef _WIN32
 static inline double ms_now() {
     auto timePointTmp
         = std::chrono::high_resolution_clock::now().time_since_epoch();
     return std::chrono::duration<double, std::micro>(timePointTmp).count();
 }
-#else
-
-#include <unistd.h>
-
-static inline double ms_now() {
-    struct timespec tv;
-    clock_gettime(CLOCK_MONOTONIC, &tv);
-    return (1000000000ll * tv.tv_sec + tv.tv_nsec) / 1e6;
-}
-#endif /* _WIN32 */
 
 void benchdnn_timer_t::reset() {
     times_ = 0;
