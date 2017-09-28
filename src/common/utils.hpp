@@ -126,15 +126,15 @@ namespace product_impl {
 template<size_t> struct int2type{};
 
 template <typename T>
-constexpr int product_impl(const T* arr, int2type<0>) { return arr[0]; }
+constexpr int product_impl(const T *arr, int2type<0>) { return arr[0]; }
 
 template <typename T, size_t num>
-inline T product_impl(const T* arr, int2type<num>) {
+inline T product_impl(const T *arr, int2type<num>) {
     return arr[0]*product_impl(arr+1, int2type<num-1>()); }
 }
 
 template <size_t num, typename T>
-inline T array_product(const T* arr) {
+inline T array_product(const T *arr) {
     return product_impl::product_impl(arr, product_impl::int2type<num-1>());
 }
 
@@ -220,7 +220,7 @@ inline bool nd_iterator_jump(U &cur, const U end, W &x, const Y &X,
 
 }
 
-inline void* malloc(size_t size, int alignment) {
+inline void *malloc(size_t size, int alignment) {
     void *ptr;
 
 #ifdef _WIN32
@@ -233,23 +233,25 @@ inline void* malloc(size_t size, int alignment) {
     return (rc == 0) ? ptr : 0;
 }
 
+inline void free(void *p) {
 #ifdef _WIN32
-inline void free(void* p) { _aligned_free(p); };
+    _aligned_free(p);
 #else
-inline void free(void* p) { ::free(p); }
+    ::free(p);
 #endif
+}
 
 struct c_compatible {
     enum { default_alignment = 64 };
-    static void* operator new(size_t sz) {
+    static void *operator new(size_t sz) {
         return malloc(sz, default_alignment);
     }
-    static void* operator new(size_t sz, void* p) { UNUSED(sz); return p; }
-    static void* operator new[](size_t sz) {
+    static void *operator new(size_t sz, void *p) { UNUSED(sz); return p; }
+    static void *operator new[](size_t sz) {
         return malloc(sz, default_alignment);
     }
-    static void operator delete(void* p) { free(p); }
-    static void operator delete[](void* p) { free(p); }
+    static void operator delete(void *p) { free(p); }
+    static void operator delete[](void *p) { free(p); }
 };
 
 inline void yield_thread() { }
