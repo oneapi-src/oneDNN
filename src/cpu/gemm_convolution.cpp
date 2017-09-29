@@ -32,6 +32,7 @@ using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::utils;
 
+
 template <bool with_relu, bool run_jit, cpu_isa_t isa>
 void _gemm_convolution_fwd_t<with_relu, run_jit, isa>::execute_forward() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
@@ -43,29 +44,37 @@ void _gemm_convolution_fwd_t<with_relu, run_jit, isa>::execute_forward() {
 
     const size_t src_step = jcp.ic * jcp.ih * jcp.iw;
     const size_t dst_step = jcp.oc * jcp.os;
-    const size_t weights_g_size = jcp.ic * jcp.oc * jcp.ks;
 
     const int M = jcp.os;
-    const int N = jcp.oc;
     const int K = jcp.ic * jcp.ks;
     const data_t zero = 0.0, one = 1.0;
 
-    const size_t work_amount = jcp.ngroups * jcp.mb;
-    int num_thr = (jcp.mb != 1) ? omp_get_max_threads() : 1;
+    int num_thr = (jcp.mb * jcp.oc != 1) ? omp_get_max_threads() : 1;
+    const size_t work_amount = jcp.ngroups * jcp.mb * jcp.oc;
 #pragma omp parallel num_threads(num_thr)
     {
         const int ithr = omp_get_thread_num();
         const int nthr = omp_get_num_threads();
 
-        int g{0}, n{0};
+        int g{0}, n{0}, oc_s{0};
         size_t start = 0, end = 0;
         balance211(work_amount, nthr, ithr, start, end);
-        nd_iterator_init(start, g, jcp.ngroups, n, jcp.mb);
-        for (size_t iwork = start; iwork < end; ++iwork) {
-            const data_t *_src = src + (n * jcp.ngroups + g)*src_step;
-            data_t *_dst = dst + (n * jcp.ngroups + g)*dst_step;
-            const data_t *_weights = weights + g * weights_g_size;
+
+        nd_iterator_init(start, g, jcp.ngroups, n, jcp.mb, oc_s, jcp.oc);
+        while (start < end)
+        {
+            int work_rem = end - start;
+            int oc_e = (oc_s + work_rem) > jcp.oc ? jcp.oc : oc_s + work_rem;
+            int oc_  = oc_e - oc_s;
+
+            int dst_offset = oc_s * jcp.oh * jcp.ow;
+            int weights_offset = oc_s * jcp.ic * jcp.kh * jcp.kw;
+
+            const data_t *_src = src+(n * jcp.ngroups + g) * src_step;
+                  data_t *_dst = dst+(n * jcp.ngroups + g) * dst_step + dst_offset;
+            const data_t *_weights = weights + weights_offset;
             data_t *_col = this->ws + (int64_t)ithr * jcp.ic * jcp.ks * jcp.os;
+            const int N = oc_;
 
             if (jcp.need_im2col)
                 jit_gemm_convolution_utils::im2col(jcp, _src, _col);
@@ -81,7 +90,7 @@ void _gemm_convolution_fwd_t<with_relu, run_jit, isa>::execute_forward() {
 
             if (jcp.with_bias || jcp.with_relu) {
                 data_t *d = _dst, b = 0.0;
-                for (int oc = 0; oc < jcp.oc; ++oc) {
+                for (int oc = oc_s; oc < oc_e; ++oc) {
                     if(jcp.with_bias) b = bias[g * jcp.oc + oc];
                     for (int oS = 0; oS < jcp.os; ++oS) {
                         if (jcp.with_bias) d[oS] += b;
@@ -91,7 +100,8 @@ void _gemm_convolution_fwd_t<with_relu, run_jit, isa>::execute_forward() {
                     d += jcp.os;
                 }
             }
-            nd_iterator_step(g, jcp.ngroups, n, jcp.mb);
+            nd_iterator_jump(start, end,
+                g, jcp.ngroups, n, jcp.mb, oc_s, jcp.oc);
         }
     }
 }
