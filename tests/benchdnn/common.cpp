@@ -17,13 +17,15 @@
 #include "common.hpp"
 
 #include <chrono>
-#ifndef _WIN32
 #define HAVE_REGEX
 #if defined(HAVE_REGEX)
+#ifdef _WIN32
+#include <regex>
+#else
 #include <sys/types.h>
 #include <regex.h>
-#endif /* HAVE_REGEX */
 #endif /* _WIN32 */
+#endif /* HAVE_REGEX */
 
 const char *bench_mode2str(bench_mode_t mode) {
     const char *modes[] = {
@@ -90,10 +92,17 @@ const char *bool2str(bool value) {
 }
 
 #if defined(HAVE_REGEX)
+#ifdef _WIN32
+/* NOTE: this should be supported on linux as well, but currently
+ * having issues for ICC170 and Clang*/
+bool match_regex(const char *str, const char *pattern) {
+    std::regex re(pattern);
+    return std::regex_search(str, re);
+}
+#else
 bool match_regex(const char *str, const char *pattern) {
     static regex_t regex;
     static const char *prev_pattern = NULL;
-
     if (pattern != prev_pattern) {
         if (prev_pattern)
             regfree(&regex);
@@ -108,6 +117,7 @@ bool match_regex(const char *str, const char *pattern) {
 
     return !regexec(&regex, str, 0, NULL, 0);
 }
+#endif /* _WIN32 */
 #else
 bool match_regex(const char *str, const char *pattern) { return true; }
 #endif
