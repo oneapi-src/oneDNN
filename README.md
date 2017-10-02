@@ -74,6 +74,7 @@ The software was validated on RedHat\* Enterprise Linux 7 with
 * Clang\* 3.8.0
 * [Intel(R) C/C++ Compiler](https://software.intel.com/en-us/intel-parallel-studio-xe)
   17.0
+
 and on Windows Server\* 2012 R2 with
 * Visual Studio\* 2015
 * [Intel(R) C/C++ Compiler](https://software.intel.com/en-us/intel-parallel-studio-xe)
