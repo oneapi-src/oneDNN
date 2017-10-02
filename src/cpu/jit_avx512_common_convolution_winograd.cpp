@@ -652,6 +652,15 @@ void dst_transform_fwd(int image, jit_conv_winograd_conf_t conv, float *toutp,
 
                                 }
                             }
+                            //printf("with relu:%d\n", conv.with_relu);
+                            if (conv.with_relu) {
+# pragma omp simd
+                                for (int v = 0; v < simd_w; v++) {
+                                    O[j][i][v] = O[j][i][v] < 0
+                                        ? O[j][i][v] * conv.relu_negative_slope
+                                        : O[j][i][v];
+                                }
+                            }
                             stream_ps(&(output(0, ydim, xdim, 0)), O[j][i]);
                         }
                     }
