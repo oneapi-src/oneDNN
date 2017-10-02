@@ -116,6 +116,9 @@ void ref_pooling_fwd_t<data_type, acc_type>::execute_forward() {
                     for (int ow = 0; ow < OW; ++ow) {
                         data_t *d = &dst[dst_d.off(mb, oc, oh, ow)];
                         d[0] = nstl::numeric_limits<data_t>::lowest();
+                        if (ws) {
+                            ws[ws_d.off(mb, oc, oh, ow)] = 0;
+                        }
                         ker_max(d, mb, oc, oh, ow);
                     }
                 }

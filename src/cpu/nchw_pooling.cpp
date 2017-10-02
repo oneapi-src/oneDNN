@@ -114,6 +114,10 @@ void nchw_pooling_fwd_t<data_type>::execute_forward() {
                         auto dst_offset = mb*C*OH*OW + c*OH*OW + oh*OW + ow;
                         data_t *d = &dst[dst_offset];
                         d[0] = nstl::numeric_limits<data_t>::lowest();
+                        if (ws) {
+                            ws[ws_d.off(mb, c, oh, ow)] = 0;
+                        }
+
                         ker_max(d, mb, c, oh, ow);
                     }
                 }
