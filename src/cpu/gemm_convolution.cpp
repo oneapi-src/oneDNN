@@ -68,7 +68,7 @@ void _gemm_convolution_fwd_t<with_relu, run_jit, isa>::execute_forward() {
             int oc_  = oc_e - oc_s;
 
             int dst_offset = oc_s * jcp.oh * jcp.ow;
-            int weights_offset = oc_s * jcp.ic * jcp.kh * jcp.kw;
+            int weights_offset = (g * jcp.oc + oc_s) * jcp.ic * jcp.kh * jcp.kw;
 
             const data_t *_src = src+(n * jcp.ngroups + g) * src_step;
                   data_t *_dst = dst+(n * jcp.ngroups + g) * dst_step + dst_offset;
