@@ -596,7 +596,7 @@ void weight_transform_fwd(jit_conv_winograd_conf_t conv, float *wp, float *twp)
     }
 }
 
-template <bool with_bias>
+template <bool with_bias, bool with_relu>
 void dst_transform_fwd(int image, jit_conv_winograd_conf_t conv, float *toutp,
         float *outp, float *bias)
 {
@@ -645,21 +645,13 @@ void dst_transform_fwd(int image, jit_conv_winograd_conf_t conv, float *toutp,
                     for (int i = 0; i < tile_size; i++) {
                         int xdim = ti * tile_size + i;
                         if (xdim < conv.ow) {
-                            if (with_bias) {
 #pragma omp simd
-                                for (int v = 0; v < simd_w; v++) {
-                                    O[j][i][v] += bias[v];
+                            for (int v = 0; v < simd_w; v++) {
+                                O[j][i][v] += with_bias ? bias[v] : 0.0f;
+                                O[j][i][v] = (with_relu && O[j][i][v] < 0.0f)
+                                             ? O[j][i][v] * conv.relu_negative_slope
+                                             : O[j][i][v];
 
-                                }
-                            }
-                            //printf("with relu:%d\n", conv.with_relu);
-                            if (conv.with_relu) {
-# pragma omp simd
-                                for (int v = 0; v < simd_w; v++) {
-                                    O[j][i][v] = O[j][i][v] < 0
-                                        ? O[j][i][v] * conv.relu_negative_slope
-                                        : O[j][i][v];
-                                }
                             }
                             stream_ps(&(output(0, ydim, xdim, 0)), O[j][i]);
                         }
@@ -1134,8 +1126,8 @@ void _jit_avx512_common_convolution_winograd_fwd_t<with_relu>::execute_forward()
     const int alpha = 6;
     const auto &jcp = kernel_->jcp;
 
-    auto output_transform = jcp.with_bias ? dst_transform_fwd<true> :
-                                            dst_transform_fwd<false>;
+    auto output_transform = jcp.with_bias ? dst_transform_fwd<true, with_relu> :
+                                            dst_transform_fwd<false, with_relu>;
 
     array_offset_calculator<float, 5> src((float *)this->input_memory(0),
             jcp.mb, jcp.ic/simd_w, jcp.ih, jcp.iw, simd_w);
