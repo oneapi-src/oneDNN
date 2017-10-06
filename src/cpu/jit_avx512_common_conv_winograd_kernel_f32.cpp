@@ -41,12 +41,12 @@ int L2_cache_size = get_cache_size(2, true);
 
 // the test funtion takes jcp, the candidate and the current best.
 // it  returns true if the new candidate is better
-int get_divisor_satisfying_cond(jit_conv_winograd_conf_t jcp, int number,
-        int default_best, bool (*test)(jit_conv_winograd_conf_t, int, int))
+int get_divisor_satisfying_cond(jit_conv_winograd_conf_t &jcp, int number,
+        int default_best, bool (*test)(jit_conv_winograd_conf_t &, int, int))
 {
     int best_divisor = default_best;
     auto test_num
-            = [&best_divisor, test](jit_conv_winograd_conf_t jcp, int num) {
+            = [&best_divisor, test](jit_conv_winograd_conf_t &jcp, int num) {
                   if (test(jcp, num, best_divisor)) {
                       best_divisor = num;
                   }
@@ -439,7 +439,7 @@ status_t _jit_avx512_common_conv_winograd_data_kernel_f32::init_conf_kernel(
     //******************* Choosing dimN_reg_block *******************//
     jcp.dimN = dimN;
 #define MIN_REQUIRED_DIMN_REG_BLOCK 14
-    auto test_cond_dimN_reg_block = [](jit_conv_winograd_conf_t jcp,
+    auto test_cond_dimN_reg_block = [](jit_conv_winograd_conf_t &jcp,
             int dimN_reg_block, int current_best) {
         return (dimN_reg_block >= MIN_REQUIRED_DIMN_REG_BLOCK)
                 && (dimN_reg_block < jcp.nb_reg)
@@ -449,7 +449,7 @@ status_t _jit_avx512_common_conv_winograd_data_kernel_f32::init_conf_kernel(
             jcp, jcp.dimN, 1, test_cond_dimN_reg_block);
 
     if (jcp.dimN_reg_block == 1) {
-        auto test_cond_dimN_reg_block = [](jit_conv_winograd_conf_t jcp,
+        auto test_cond_dimN_reg_block = [](jit_conv_winograd_conf_t &jcp,
                 int dimN_reg_block, int current_best) {
             return (dimN_reg_block < jcp.nb_reg)
                     && (dimN_reg_block > current_best);
@@ -462,14 +462,14 @@ status_t _jit_avx512_common_conv_winograd_data_kernel_f32::init_conf_kernel(
     //********************* Choosing dimK_block **********************//
     jcp.dimK = dimK;
     auto test_cond1_dimK_block = [](
-            jit_conv_winograd_conf_t jcp, int dimK_block, int current_best) {
+            jit_conv_winograd_conf_t &jcp, int dimK_block, int current_best) {
         return check_cond1(jcp.dimN_reg_block, dimK_block, jcp.dimK_reg_block,
                        1, jcp.dimM_simd_block, .75f)
                 && (dimK_block > current_best);
     };
 
     auto test_cond1_bis_dimK_block = [](
-            jit_conv_winograd_conf_t jcp, int dimK_block, int current_best) {
+            jit_conv_winograd_conf_t &jcp, int dimK_block, int current_best) {
         return check_cond1_bis(jcp.dimN_reg_block, dimK_block,
                        jcp.dimK_reg_block, 1, jcp.dimM_simd_block, .9f)
                 && (dimK_block > current_best);
@@ -488,14 +488,14 @@ status_t _jit_avx512_common_conv_winograd_data_kernel_f32::init_conf_kernel(
     jcp.dimM_simd_block = 16;
     /*XXX: Why C=0.5 here but C=0.75 for dimK_block?*/
     auto test_cond1_dimM_block = [](
-            jit_conv_winograd_conf_t jcp, int dimM_block, int current_best) {
+            jit_conv_winograd_conf_t &jcp, int dimM_block, int current_best) {
         return check_cond1(jcp.dimN_reg_block, jcp.dimK_block,
                        jcp.dimK_reg_block, dimM_block, jcp.dimM_simd_block, .5f)
                 && (dimM_block > current_best);
     };
 
     auto test_cond1_bis_dimM_block = [](
-            jit_conv_winograd_conf_t jcp, int dimM_block, int current_best) {
+            jit_conv_winograd_conf_t &jcp, int dimM_block, int current_best) {
         return check_cond1_bis(jcp.dimN_reg_block, jcp.dimK_block,
                        jcp.dimK_reg_block, dimM_block, jcp.dimM_simd_block, .3f)
                 && (dimM_block > current_best);
@@ -511,7 +511,7 @@ status_t _jit_avx512_common_conv_winograd_data_kernel_f32::init_conf_kernel(
 
     //******************* Choosing dimN_block *******************//
     auto test_cond2_dimN_block = [](
-            jit_conv_winograd_conf_t jcp, int dimN_block, int current_best) {
+            jit_conv_winograd_conf_t &jcp, int dimN_block, int current_best) {
         return check_cond2(dimN_block, jcp.dimN_reg_block, jcp.dimK_nb_block,
                        jcp.dimK_block, jcp.dimK_reg_block, jcp.dimM_block,
                        jcp.dimM_simd_block, .5f)
@@ -928,7 +928,7 @@ status_t jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::init_conf(
 #define MAX_4FMA_UR 8
     if (jcp.ver == ver_4fma) {
         auto test_cond_4fma = [](
-                jit_conv_winograd_conf_t jcp, int dimK_4fma, int current_best) {
+                jit_conv_winograd_conf_t &jcp, int dimK_4fma, int current_best) {
             return (dimK_4fma % 4 == 0) && (dimK_4fma <= MAX_4FMA_UR)
                     && (dimK_4fma > current_best);
         };
@@ -971,28 +971,28 @@ status_t jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::init_conf(
     jcp.dimM_simd_block = jcp.oc_simd_block;
 
     auto test_cond1bis_dimK_block = [](
-            jit_conv_winograd_conf_t jcp, int dimK_block, int current_best) {
+            jit_conv_winograd_conf_t &jcp, int dimK_block, int current_best) {
         return check_cond1bis_wu(1, jcp.dimM_simd_block, dimK_block, 1,
                        jcp.dimK_4fma, jcp.dimN_reg_block, 0.4f)
                 && (dimK_block > current_best);
     };
 
     auto test_cond1_dimK_block = [](
-            jit_conv_winograd_conf_t jcp, int dimK_block, int current_best) {
+            jit_conv_winograd_conf_t &jcp, int dimK_block, int current_best) {
         return check_cond1_wu(1, jcp.dimM_simd_block, dimK_block, 1,
                        jcp.dimK_4fma, jcp.dimN_reg_block, 0.4f)
                 && (dimK_block > current_best);
     };
 
     auto test_cond2bis_dimK_block = [](
-            jit_conv_winograd_conf_t jcp, int dimK_block, int current_best) {
+            jit_conv_winograd_conf_t &jcp, int dimK_block, int current_best) {
         return check_cond2bis_wu(1, jcp.dimM_simd_block, dimK_block, 1,
                        jcp.dimK_4fma, 1, jcp.dimN_reg_block, 0.5f)
                 && (dimK_block > current_best);
     };
 
     auto test_cond2_dimK_block = [](
-            jit_conv_winograd_conf_t jcp, int dimK_block, int current_best) {
+            jit_conv_winograd_conf_t &jcp, int dimK_block, int current_best) {
         return check_cond2_wu(1, jcp.dimM_simd_block, dimK_block, 1,
                        jcp.dimK_4fma, 1, jcp.dimN_reg_block, 0.1f)
                 && (dimK_block > current_best);
@@ -1020,7 +1020,7 @@ status_t jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::init_conf(
     /***************************** Chose dimN block
      * ****************************/
     auto test_cond2_dimN_block = [](
-            jit_conv_winograd_conf_t jcp, int dimN_block, int current_best) {
+            jit_conv_winograd_conf_t &jcp, int dimN_block, int current_best) {
         return check_cond2_wu(1, jcp.dimM_simd_block, jcp.dimK_block,
                        jcp.dimK_reg_block, jcp.dimK_4fma, dimN_block,
                        jcp.dimN_reg_block, 0.5f)
@@ -1038,7 +1038,7 @@ status_t jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::init_conf(
     jcp.dimM = jcp.oc;
 
     auto test_cond1_dimM_block = [](
-            jit_conv_winograd_conf_t jcp, int dimM_block, int current_best) {
+            jit_conv_winograd_conf_t &jcp, int dimM_block, int current_best) {
         return check_cond1_wu(dimM_block, jcp.dimM_simd_block, 1,
                        jcp.dimK_reg_block, jcp.dimK_4fma, jcp.dimN_reg_block,
                        1.0f)
