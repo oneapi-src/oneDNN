@@ -76,14 +76,20 @@ void compute_ref_conv_bwd_weights(const test_convolution_sizes_t &c,
                         for (int mb = 0; mb < c.mb; ++mb) {
                             for (int oh = 0; oh < c.oh; ++oh) {
                                 for (int ow = 0; ow < c.ow; ++ow) {
-                                    if (ow*c.strw + kw < c.padw
-                                            || oh*c.strh + kh < c.padh
-                                            || ow*c.strw + kw >= c.iw + c.padw
-                                            || oh*c.strh + kh >= c.ih + c.padh)
+                                    if (ow*c.strw + kw *
+                                        (1 + c.dilw) < c.padw ||
+                                        oh*c.strh + kh *
+                                        (1 + c.dilh) < c.padh ||
+                                        ow*c.strw + kw *
+                                        (1 + c.dilw) >= c.iw + c.padw ||
+                                        oh*c.strh + kh *
+                                        (1 + c.dilh)>= c.ih + c.padh)
                                         continue;
 
-                                    int ih = oh * c.strh - c.padh + kh;
-                                    int iw = ow * c.strw - c.padw + kw;
+                                    int ih = oh * c.strh - c.padh + kh
+                                            * (1 + c.dilh);
+                                    int iw = ow * c.strw - c.padw + kw
+                                            * (1 + c.dilw);
                                     int sidx = mb * c.ic * c.ih * c.iw
                                             + g * c.ic / c.ng * c.ih * c.iw
                                             + ic * c.ih * c.iw + ih * c.iw + iw;
@@ -148,19 +154,23 @@ protected:
 
         std::vector<int> padR = { cd.padh, cd.padw };
         for (int i = 0; i < 2; ++i) {
-        if ((cd.ih + cd.padh + padR[0] - cd.kh)/cd.strh + 1 != cd.oh) ++padR[0];
-        if ((cd.iw + cd.padw + padR[1] - cd.kw)/cd.strw + 1 != cd.ow) ++padR[1];
+            if ((cd.ih - ((cd.kh - 1) * (cd.dilh + 1) + 1) + cd.padh + padR[0])
+                / cd.strh + 1 != cd.oh)
+                ++padR[0];
+            if ((cd.iw - ((cd.kw - 1) * (cd.dilw + 1) + 1) + cd.padw + padR[1])
+                / cd.strw + 1 != cd.ow)
+                ++padR[1];
         }
 
         auto conv_desc = convolution_forward::desc(prop_kind::forward_training,
                 p.aalgorithm, c_src_desc, c_diff_weights_desc, c_diff_bias_desc,
-                c_diff_dst_desc, { cd.strh, cd.strw }, { cd.padh, cd.padw },
-                padR, padding_kind::zero);
+                c_diff_dst_desc, { cd.strh, cd.strw }, { cd.dilh, cd.dilw },
+                { cd.padh, cd.padw }, padR, padding_kind::zero);
 
         auto conv_bwd_weights_desc = convolution_backward_weights::desc(
                 p.aalgorithm, c_src_desc, c_diff_weights_desc, c_diff_bias_desc,
-                c_diff_dst_desc, { cd.strh, cd.strw }, { cd.padh, cd.padw },
-                padR, padding_kind::zero);
+                c_diff_dst_desc, { cd.strh, cd.strw }, { cd.dilh, cd.dilw },
+                { cd.padh, cd.padw }, padR, padding_kind::zero);
 
         auto conv_primitive_desc = convolution_forward::primitive_desc(
                 conv_desc, eng);
@@ -198,5 +208,6 @@ TEST_P(convolution_test, TestConvolution)
 
 #define DIRECTION_BACKWARD_WEIGHTS
 #include "convolution_common.h"
+#include "diluted_convolution.h"
 
 }
