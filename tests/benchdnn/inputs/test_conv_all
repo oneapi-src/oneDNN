@@ -37,5 +37,6 @@
 --mb=2                      # for fwd and bwd_d reduce mb
 --dir=FWD_B --batch=conv_all
 --dir=BWD_D --batch=conv_all
---mb=2
 --dir=BWD_WB --batch=conv_all
+--mb=1
+--dir=FWD_B --batch=conv_all
