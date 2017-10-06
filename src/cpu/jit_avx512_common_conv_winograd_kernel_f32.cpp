@@ -443,10 +443,21 @@ status_t _jit_avx512_common_conv_winograd_data_kernel_f32::init_conf_kernel(
             int dimN_reg_block, int current_best) {
         return (dimN_reg_block >= MIN_REQUIRED_DIMN_REG_BLOCK)
                 && (dimN_reg_block < jcp.nb_reg)
-                && (dimN_reg_block < current_best);
+                && (dimN_reg_block > current_best);
     };
     jcp.dimN_reg_block = get_divisor_satisfying_cond(
-            jcp, jcp.dimN, jcp.dimN, test_cond_dimN_reg_block);
+            jcp, jcp.dimN, 1, test_cond_dimN_reg_block);
+
+    if (jcp.dimN_reg_block == 1) {
+        auto test_cond_dimN_reg_block = [](jit_conv_winograd_conf_t jcp,
+                int dimN_reg_block, int current_best) {
+            return (dimN_reg_block < jcp.nb_reg)
+                    && (dimN_reg_block > current_best);
+        };
+
+        jcp.dimN_reg_block = get_divisor_satisfying_cond(
+                jcp, jcp.dimN, 1, test_cond_dimN_reg_block);
+    }
 
     //********************* Choosing dimK_block **********************//
     jcp.dimK = dimK;
