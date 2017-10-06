@@ -147,8 +147,8 @@ for standalone Intel MKL-DNN build.
 |:---                   |:---
 |lib/libmkldnn.so       | Intel MKL-DNN dynamic library
 |lib/libiomp5.so        | Intel OpenMP* runtime library
-|lib/libmkl_gnu.so      | Intel MKL small library for GNU* OpenMP runtime
-|lib/libmkl_intel.so    | Intel MKL small library for Intel(R) OpenMP runtime
+|lib/libmklml_gnu.so      | Intel MKL small library for GNU* OpenMP runtime
+|lib/libmklml_intel.so    | Intel MKL small library for Intel(R) OpenMP runtime
 |include/mkldnn.h       | C header
 |include/mkldnn.hpp     | C++ header
 |include/mkldnn_types.h | auxillary C header
