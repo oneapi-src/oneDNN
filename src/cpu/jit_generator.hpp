@@ -167,7 +167,7 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa) {
 }
 
 inline unsigned int get_cache_size(int level, bool per_core = true){
-    int l = level - 1;
+    unsigned int l = level - 1;
     if (cpu.data_cache_levels == 0)
         throw Xbyak::Error(Xbyak::ERR_INTERNAL);
     if (l < cpu.data_cache_levels)
