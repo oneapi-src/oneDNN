@@ -120,7 +120,8 @@ extern const char *perf_template; /* performance output template */
 
 inline size_t src_off_f(const prb_t *p, int mb, int g, int ic, int ih, int iw)
 {
-    return ((mb * p->ic + g * p->ic/p->g + ic) * p->ih + ih) * p->iw + iw;
+    return (((size_t)mb * p->ic + g * p->ic/p->g + ic) * p->ih + ih) * p->iw
+        + iw;
 }
 
 inline void inv_src_off_f(const prb_t *p, int off, int &mb, int &g, int &ic,
@@ -135,8 +136,8 @@ inline void inv_src_off_f(const prb_t *p, int off, int &mb, int &g, int &ic,
 
 inline size_t wei_off_f(const prb_t *p, int g, int oc, int ic, int kh, int kw)
 {
-    return (((g * p->oc / p->g + oc) * p->ic / p->g + ic) * p->kh + kh) * p->kw
-        + kw;
+    return ((((size_t)g * p->oc / p->g + oc) * p->ic / p->g + ic) * p->kh + kh)
+        * p->kw + kw;
 }
 
 inline void inv_wei_off_f(const prb_t *p, int off, int &g, int &oc, int &ic,
@@ -150,7 +151,7 @@ inline void inv_wei_off_f(const prb_t *p, int off, int &g, int &oc, int &ic,
 }
 
 inline size_t bia_off_f(const prb_t *p, int g, int oc) {
-    return g * p->oc / p->g + oc;
+    return (size_t)g * p->oc / p->g + oc;
 }
 
 inline void inv_bia_off_f(const prb_t *p, int off, int &g, int &oc) {
@@ -161,7 +162,8 @@ inline void inv_bia_off_f(const prb_t *p, int off, int &g, int &oc) {
 
 inline size_t dst_off_f(const prb_t *p, int mb, int g, int oc, int oh, int ow)
 {
-    return ((mb * p->oc + g * p->oc/p->g + oc) * p->oh + oh) * p->ow + ow;
+    return (((size_t)mb * p->oc + g * p->oc/p->g + oc) * p->oh + oh) * p->ow
+        + ow;
 }
 
 inline void inv_dst_off_f(const prb_t *p, int off, int &mb, int &g, int &oc,
