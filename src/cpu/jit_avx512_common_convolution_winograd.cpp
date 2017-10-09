@@ -74,62 +74,7 @@ private:
     const int _dims[Tdims];
 };
 
-void trans_I_4x4_3x3(float Iw[6][6][16], float I[6][6][16])
-{
-    float T[6][6][16];
-    float t0[16];
-    float t1[16];
-    float t2[16];
-    float t3[16];
-    float t4[16];
-    float t5[16];
-
-pragma_unroll
-    for (int i = 0; i < 6; i++) {
-#pragma omp simd
-        for (int v = 0; v < 16; v++) {
-            t0[v] = -4.0f * I[2][i][v] + I[4][i][v];
-            t1[v] = -4.0f * I[1][i][v] + I[3][i][v];
-            t2[v] = I[4][i][v] - I[2][i][v];
-            t3[v] = I[3][i][v] - I[1][i][v];
-            t4[v] = -5.0f * I[2][i][v] + I[4][i][v];
-            t5[v] = -5.0f * I[3][i][v] + I[5][i][v];
-
-            T[0][i][v] = 4.0f * I[0][i][v] + t4[v];
-            T[1][i][v] = t0[v] + t1[v];
-            T[2][i][v] = t0[v] - t1[v];
-            T[3][i][v] = 2.0f * t3[v] + t2[v];
-            T[4][i][v] = -2.0f * t3[v] + t2[v];
-            T[5][i][v] = 4.0f * I[1][i][v] + t5[v];
-        }
-    }
-pragma_unroll
-    for (int i = 0; i < 6; i++) {
-#pragma omp simd
-        for (int v = 0; v < 16; v++) {
-            t0[v] = -4.0f * T[i][2][v] + T[i][4][v];
-            t1[v] = -4.0f * T[i][1][v] + T[i][3][v];
-            t2[v] = T[i][4][v] - T[i][2][v];
-            t3[v] = T[i][3][v] - T[i][1][v];
-            t4[v] = -5.0f * T[i][2][v] + T[i][4][v];
-            t5[v] = -5.0f * T[i][3][v] + T[i][5][v];
-
-            Iw[i][0][v] = 4.0f * T[i][0][v] + t4[v];
-            Iw[i][1][v] = t0[v] + t1[v];
-            Iw[i][2][v] = t0[v] - t1[v];
-            Iw[i][3][v] = 2.0f * t3[v] + t2[v];
-            Iw[i][4][v] = -2.0f * t3[v] + t2[v];
-            Iw[i][5][v] = 4.0f * T[i][1][v] + t5[v];
-        }
-    }
-}
-
-void trans_W_4x4_3x3(float Fw_[6][6][16][16], float F[3][3][16][16])
-{
-    const float rcp4 = 1.0f / 4.0f;
-    const float rcp6 = 1.0f / 6.0f;
-    const float rcp12 = 1.0f / 12.0f;
-    const float rcp24 = 1.0f / 24.0f;
+void trans_W_4x4_3x3(float Fw_[6][6][16][16], float F[3][3][16][16]) {
     float Fw[6][16];
     float T[6][3][16];
     float t0[16];
@@ -137,35 +82,37 @@ void trans_W_4x4_3x3(float Fw_[6][6][16][16], float F[3][3][16][16])
     float t2[16];
 
     for (int j = 0; j < 16; j++) {
-pragma_unroll
+#pragma unroll
         for (int i = 0; i < 3; i++) {
 #pragma omp simd
             for (int k = 0; k < 16; k++) {
-                t0[k] = rcp6 * F[2][i][j][k];
-                t1[k] = -t0[k] - rcp6 * F[0][i][j][k];
-                t2[k] = t0[k] + rcp24 * F[0][i][j][k];
-                T[0][i][k] = rcp4 * F[0][i][j][k];
-                T[1][i][k] = t1[k] - rcp6 * F[1][i][j][k];
-                T[2][i][k] = t1[k] + rcp6 * F[1][i][j][k];
-                T[3][i][k] = t2[k] + rcp12 * F[1][i][j][k];
-                T[4][i][k] = t2[k] - rcp12 * F[1][i][j][k];
+                t0[k] = 0.26890756302521f * F[2][i][j][k];
+                t1[k] = -t0[k] - 0.688403361344538f * F[0][i][j][k];
+                t2[k] = t0[k] + 0.119514472455649f * F[0][i][j][k];
+
+                T[0][i][k] = 1.13777777777778f * F[0][i][j][k];
+                T[1][i][k] = t1[k] - 0.430252100840336f * F[1][i][j][k];
+                T[2][i][k] = t1[k] + 0.430252100840336f * F[1][i][j][k];
+                T[3][i][k] = t2[k] + 0.179271708683473f * F[1][i][j][k];
+                T[4][i][k] = t2[k] - 0.179271708683473f * F[1][i][j][k];
                 T[5][i][k] = F[2][i][j][k];
             }
         }
-pragma_unroll
+#pragma unroll
         for (int i = 0; i < 6; i++) {
 #pragma omp simd
             for (int k = 0; k < 16; k++) {
-                t0[k] = rcp6 * T[i][2][k];
-                t1[k] = -t0[k] - rcp6 * T[i][0][k];
-                t2[k] = t0[k] + rcp24 * T[i][0][k];
-                Fw[0][k] = rcp4 * T[i][0][k];
-                Fw[1][k] = t1[k] - rcp6 * T[i][1][k];
-                Fw[2][k] = t1[k] + rcp6 * T[i][1][k];
-                Fw[3][k] = t2[k] + rcp12 * T[i][1][k];
-                Fw[4][k] = t2[k] - rcp12 * T[i][1][k];
+                t0[k] = 0.26890756302521f * T[i][2][k];
+                t1[k] = -t0[k] - 0.688403361344538f * T[i][0][k];
+                t2[k] = t0[k] + 0.119514472455649f * T[i][0][k];
+
+                Fw[0][k] = 1.13777777777778f * T[i][0][k];
+                Fw[1][k] = t1[k] - 0.430252100840336f * T[i][1][k];
+                Fw[2][k] = t1[k] + 0.430252100840336f * T[i][1][k];
+                Fw[3][k] = t2[k] + 0.179271708683473f * T[i][1][k];
+                Fw[4][k] = t2[k] - 0.179271708683473f * T[i][1][k];
                 Fw[5][k] = T[i][2][k];
-pragma_unroll
+#pragma unroll
                 for (int l = 0; l < 6; l++) {
                     Fw_[i][l][j][k] = Fw[l][k];
                 }
@@ -174,15 +121,14 @@ pragma_unroll
     }
 }
 
-void trans_O_4x4_3x3(float Mw[6][6][16], float O[4][4][16])
-{
+void trans_O_4x4_3x3(float Mw[6][6][16], float O[4][4][16]) {
     float T[4][6][16];
     float t0[16];
     float t1[16];
     float t2[16];
     float t3[16];
 
-pragma_unroll
+#pragma unroll
     for (int i = 0; i < 6; i++) {
 #pragma omp simd
         for (int v = 0; v < 16; v++) {
@@ -192,12 +138,12 @@ pragma_unroll
             t3[v] = Mw[3][i][v] - Mw[4][i][v];
 
             T[0][i][v] = t0[v] + t1[v] + Mw[0][i][v];
-            T[1][i][v] = t2[v] + t3[v] * 2.0f;
-            T[2][i][v] = t0[v] + t1[v] * 4.0f;
-            T[3][i][v] = t2[v] + t3[v] * 8.0f + Mw[5][i][v];
+            T[1][i][v] = t2[v] * 0.625f + t3[v] * 1.5f;
+            T[2][i][v] = t0[v] * 0.390625f + t1[v] * 2.25f;
+            T[3][i][v] = t2[v] * 0.244140625f + t3[v] * 3.375f + Mw[5][i][v];
         }
     }
-pragma_unroll
+#pragma unroll
     for (int i = 0; i < 4; i++) {
 #pragma omp simd
         for (int v = 0; v < 16; v++) {
@@ -207,12 +153,13 @@ pragma_unroll
             t3[v] = T[i][3][v] - T[i][4][v];
 
             O[i][0][v] = t0[v] + t1[v] + T[i][0][v];
-            O[i][1][v] = t2[v] + t3[v] * 2.0f;
-            O[i][2][v] = t0[v] + t1[v] * 4.0f;
-            O[i][3][v] = t2[v] + t3[v] * 8.0f + T[i][5][v];
+            O[i][1][v] = t2[v] * 0.625f + t3[v] * 1.5f;
+            O[i][2][v] = t0[v] * 0.390625f + t1[v] * 2.25f;
+            O[i][3][v] = t2[v] * 0.244140625f + t3[v] * 3.375f + T[i][5][v];
         }
     }
 }
+
 
 void trans_W_3x3_4x4(float Fw[6][6][16], float F[4][6][16])
 {
@@ -310,7 +257,7 @@ pragma_unroll
     }
 }
 
-void trans_I_4x4_3x3_wu(float Iw[6][6][16], float I[6][6][16])
+void trans_I_4x4_3x3(float Iw[6][6][16], float I[6][6][16])
 {
     float T[6][6][16];
     float t0[16];
@@ -931,7 +878,7 @@ void diff_src_transform_bwd_weights(int image, jit_conv_winograd_conf_t conv,
                     }
                 }
             }
-            trans_I_4x4_3x3_wu(Iw, I);
+            trans_I_4x4_3x3(Iw, I);
 
             if (ver_4fma) {
                 for (int j = 0; j < conv.alpha; j++) {
