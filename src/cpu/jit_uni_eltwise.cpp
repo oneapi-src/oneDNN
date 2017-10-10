@@ -932,8 +932,7 @@ private:
 } /* namespace */
 
 template <cpu_isa_t isa>
-status_t jit_uni_eltwise_fwd_t<isa>::pd_t::init()
-{
+status_t jit_uni_eltwise_fwd_t<isa>::pd_t::init() {
     using namespace alg_kind;
 
     assert(engine()->kind() == engine_kind::cpu);
@@ -955,8 +954,7 @@ status_t jit_uni_eltwise_fwd_t<isa>::pd_t::init()
 template <cpu_isa_t isa>
 jit_uni_eltwise_fwd_t<isa>::jit_uni_eltwise_fwd_t(const pd_t *pd,
         const input_vector &inputs, const output_vector &outputs)
-    : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd), kernel_(nullptr)
-{
+    : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd), kernel_(nullptr) {
     const auto &desc = *conf_.desc();
     switch (desc.alg_kind) {
     case alg_kind::eltwise_relu:
@@ -971,8 +969,7 @@ jit_uni_eltwise_fwd_t<isa>::~jit_uni_eltwise_fwd_t()
 { delete kernel_; }
 
 template <cpu_isa_t isa>
-void jit_uni_eltwise_fwd_t<isa>::execute_forward()
-{
+void jit_uni_eltwise_fwd_t<isa>::execute_forward() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto dst = reinterpret_cast<data_t *>(this->memory(0));
 
@@ -1001,15 +998,14 @@ void jit_uni_eltwise_fwd_t<isa>::execute_forward()
             (*kernel_)(&arg);
     };
 
-#pragma omp parallel
+#   pragma omp parallel
     {
         ker(omp_get_thread_num(), omp_get_num_threads());
     }
 }
 
 template <cpu_isa_t isa>
-status_t jit_uni_eltwise_bwd_t<isa>::pd_t::init()
-{
+status_t jit_uni_eltwise_bwd_t<isa>::pd_t::init() {
     assert(engine()->kind() == engine_kind::cpu);
 
     bool ok = true
@@ -1026,8 +1022,7 @@ status_t jit_uni_eltwise_bwd_t<isa>::pd_t::init()
 template <cpu_isa_t isa>
 jit_uni_eltwise_bwd_t<isa>::jit_uni_eltwise_bwd_t(const pd_t *pd,
         const input_vector &inputs, const output_vector &outputs)
-    : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd), kernel_(nullptr)
-{
+    : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd), kernel_(nullptr) {
     const auto &desc = *conf_.desc();
     switch (desc.alg_kind) {
     case alg_kind::eltwise_relu:
@@ -1041,8 +1036,7 @@ jit_uni_eltwise_bwd_t<isa>::~jit_uni_eltwise_bwd_t()
 { delete kernel_; }
 
 template <cpu_isa_t isa>
-void jit_uni_eltwise_bwd_t<isa>::execute_backward()
-{
+void jit_uni_eltwise_bwd_t<isa>::execute_backward() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto diff_src = reinterpret_cast<data_t *>(this->memory(0));
@@ -1074,7 +1068,7 @@ void jit_uni_eltwise_bwd_t<isa>::execute_backward()
             (*kernel_)(&arg);
     };
 
-#pragma omp parallel
+#   pragma omp parallel
     {
         ker(omp_get_thread_num(), omp_get_num_threads());
     }
