@@ -274,6 +274,7 @@ struct jit_uni_kernel_fwd_f32: public jit_uni_eltwise_kernel_f32,
         mov(reg_to, ptr[param + GET_OFF(to)]);
         mov(reg_work_amount, ptr[param + GET_OFF(work_amount)]);
 
+        assert(prepare_const);
         (this->*prepare_const)();
 
         cmp(reg_work_amount, simd_w);
@@ -281,6 +282,7 @@ struct jit_uni_kernel_fwd_f32: public jit_uni_eltwise_kernel_f32,
 
         L("vectorized_loop_start");
 
+        assert(vectorized_body);
         (this->*vectorized_body)();
 
         add(reg_from, vlen);
@@ -297,6 +299,7 @@ struct jit_uni_kernel_fwd_f32: public jit_uni_eltwise_kernel_f32,
         cmp(reg_work_amount, 0);
         jle("reminder_loop_end", T_NEAR);
 
+        assert(reminder_body);
         (this->*reminder_body)();
 
         add(reg_from, sizeof(float));
@@ -310,6 +313,7 @@ struct jit_uni_kernel_fwd_f32: public jit_uni_eltwise_kernel_f32,
         postamble();
 
         // prepare consts for exp calculation
+        assert(prepare_table);
         (this->*prepare_table)();
 
         ker_ = (decltype(ker_))this->getCode();
