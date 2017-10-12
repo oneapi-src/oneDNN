@@ -18,7 +18,8 @@ if(POLICY CMP0065)
     cmake_policy(SET CMP0065 NEW)
 endif()
 
-if(UNIX OR APPLE)
+#[ejk] library not found for cygwin -- it links with lib${LIB_NAME}.dll.a
+if((UNIX OR APPLE) AND NOT "${CMAKE_CXX_COMPILER_ID}" STREQUAL "SX")
     # workaround for Intel Compiler 16.0 that doesn't suppress warning on
     # deprecation with "-Wno-deprecated" compiler flag
     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel" AND
@@ -35,10 +36,15 @@ endif()
 #target_link_libraries(api-check-c ${LIB_NAME})
 #add_test(api-check-c api-check-c)
 
-# add_executable(simple_convolution-c simple_convolution.c)
-# set_property(TARGET simple_convolution-c PROPERTY C_STANDARD 99)
-# target_link_libraries(simple_convolution-c ${LIB_NAME})
-# add_test(simple_convolution-c simple_convolution-c)
+#add_executable(simple_convolution-c simple_convolution.c)
+#set_property(TARGET simple_convolution-c PROPERTY C_STANDARD 99)
+#target_link_libraries(simple_convolution-c ${LIB_NAME})
+#add_test(simple_convolution-c simple_convolution-c)
+
+#add_executable(api-io-c api-io.c)
+#set_property(TARGET api-io-c PROPERTY C_STANDARD 99)
+#target_link_libraries(api-io-c ${LIB_NAME})
+#add_test(api-io-c api-io-c)
 
 add_executable(api-c api.c)
 set_property(TARGET api-c PROPERTY C_STANDARD 99)
@@ -49,8 +55,7 @@ if(WIN32)
     set_property(TEST api-c PROPERTY ENVIRONMENT "PATH=${CTESTCONFIG_PATH}")
     configure_file(${CMAKE_SOURCE_DIR}/config_template.vcxproj.user
         api-c.vcxproj.user @ONLY)
-endif()
-if(UNIX OR APPLE)
+elseif(UNIX OR APPLE)
     set(test_c_symbols "${CMAKE_CURRENT_BINARY_DIR}/test_c_symbols.c")
     add_executable(test_c_symbols-c ${test_c_symbols})
     add_custom_command(
@@ -60,13 +65,10 @@ if(UNIX OR APPLE)
     )
     target_link_libraries(test_c_symbols-c ${LIB_NAME})
     add_test(test_c_symbols-c test_c_symbols-c)
+
 # elseif(WIN32)
 # No Windows support for: test_c_symbols.c
 endif()
-
-
-
-
 
 add_subdirectory(gtests)
 

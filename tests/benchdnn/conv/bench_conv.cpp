@@ -19,6 +19,9 @@
 #include <stdio.h>
 #include <float.h>
 #include <math.h>
+#if defined(_SX)
+#include <libgen.h>	/* dirname and strnlen tucked away here! */
+#endif
 
 #include "mkldnn.h"
 
@@ -40,7 +43,7 @@ alg_t alg = DIRECT;
 merge_t merge = NONE;
 const char *skip_impl = "";
 bool allow_unimpl = false;
-const char *perf_template = "perf,%n,%d,%GO,%-t,%-Gp,%0t,%0Gp";
+const char *perf_template = "perf,%n,%d,%GO,%-t,%-Gp,%0t,%0Gp,%i";
 
 void reset_parameters() {
     cfg = conf_f32;
@@ -60,23 +63,24 @@ void check_correctness(const desc_t *c) {
 
     if (pattern && !match_regex(pstr, pattern))
         return;
-    print(1, "run: %s\n", pstr);
+    print(1, "run: %s", pstr);
 
-    res_t res{};
+    res_t res{ .state=UNTESTED };
     const int status = conv::doit(&p, &res);
     (void)status;
-
-    bool want_perf_report = false;
+    RT_ASSERT( status == OK || status == FAIL );
 
     auto &bs = benchdnn_stat;
+    bool want_perf_report = false;
     const char *state = state2str(res.state);
 
     switch (res.state) {
     case UNTESTED:
-        if (!(bench_mode & CORR)) {
-            want_perf_report = true;
-            break;
-        }
+        // [ejk] really? why fall-through ?! XXX
+        //if (!(bench_mode & CORR)) {
+        //    want_perf_report = true;
+        //    break;
+        //}
     case FAILED:
         assert(status == FAIL);
         bs.failed++;
@@ -89,7 +93,7 @@ void check_correctness(const desc_t *c) {
         bs.skipped++;
         break;
     case UNIMPLEMENTED:
-        assert(status == OK);
+        assert(status == FAIL);
         print(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
         bs.unimplemented++;
         bs.failed += !allow_unimpl;
@@ -103,16 +107,17 @@ void check_correctness(const desc_t *c) {
     case PASSED:
         assert(status == OK);
         print(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
-        want_perf_report = true;
-        bs.passed++;
+        //want_perf_report = true;
+        //bs.passed++;
         break;
     default:
-        assert(!"unknown state");
-        { []() { SAFE(FAIL, CRIT); return 0; }(); }
+        RT_ASSERT(!"unknown state");
     }
 
-    if (want_perf_report && bench_mode & PERF)
-        perf_report(&p, &res, pstr);
+    if(0){ // old report method, now we iterate within doit
+        if (want_perf_report && bench_mode & PERF)
+            perf_report(&p, &res, pstr);
+    }
 
     bs.tests++;
 }
@@ -160,10 +165,9 @@ int bench(int argc, char **argv, bool main_bench) {
         }
     }
 
-    /* deprecated? */
     if (main_bench && benchdnn_stat.tests == 0) {
-        /* use default list of problems */
-        int N = sizeof(default_list) / sizeof(default_list[0]);
+        const int N = sizeof(default_list) / sizeof(default_list[0]);
+        print(0,"/* using default list of %d problems */", N);
         for (int n = 0; n < N; ++n)
             check_correctness(&default_list[n]);
     }
@@ -184,7 +188,7 @@ static char *dirname(char *path) {
     if (path[0] == '\0') strcat(path, ".");
     return path;
 }
-#else
+#elif !defined(DOXYGEN_SHOULD_SKIP_THIS)
 #include <libgen.h>
 #endif /* WIN32 */
 
@@ -259,3 +263,4 @@ int batch(const char *fname) {
 }
 
 }
+// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

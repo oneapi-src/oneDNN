@@ -27,12 +27,35 @@
 #endif /* _WIN32 */
 #endif /* HAVE_REGEX */
 
+#include <iostream> // tmp XXX
+using std::cout; using std::endl;
+
+static const char *modes[] = { "CORR", "PERF", "TEST", "ALL" };
+static int const lenmax = sizeof "CORR+PERF+TEST+ALL"; // max-length result
+static char bench_mode_string[lenmax];
+
 const char *bench_mode2str(bench_mode_t mode) {
-    const char *modes[] = {
-        "MODE_UNDEF", "CORR", "PERF", "CORR+PERF"
+    assert( (int)mode < 2*(int)ALL );
+    if(mode==MODE_UNDEF)
+        return "MODE_UNDEF";
+    bench_mode_string[0] = '\0';
+
+    char *b = &bench_mode_string[0];
+    int len = lenmax;
+    char const* sep = "";
+    auto add_mode = [&](char const* m) {
+        int const n = snprintf(b, len, "%s%s",sep,m);
+        //cout<<" lenmax"<<lenmax<<" len"<<len<<" sep"<<sep<<" m"<<m<<" b"<<b<<" n"<<n<<endl;
+        assert(n>0);
+        if( n>len ){ /*b[len-1]='\0';*/ len=0;}
+        else {b+=n; len-=n;}
+        sep="+";
     };
-    assert((int)mode < 4);
-    return modes[(int)mode];
+    if ((mode & CORR)) {add_mode(modes[0]); }
+    if ((mode & PERF)) {add_mode(modes[1]); }
+    if ((mode & TEST)) {add_mode(modes[2]); }
+    if ((mode & ALL )) {add_mode(modes[3]); }
+    return const_cast<const char*>(&bench_mode_string[0]);
 }
 
 bench_mode_t str2bench_mode(const char *str) {
@@ -41,8 +64,15 @@ bench_mode_t str2bench_mode(const char *str) {
         mode = (bench_mode_t)((int)mode | (int)CORR);
     if (strchr(str, 'p') || strchr(str, 'P'))
         mode = (bench_mode_t)((int)mode | (int)PERF);
+    if (strchr(str, 'a') || strchr(str, 'A'))
+        mode = (bench_mode_t)((int)mode | (int)ALL);
+    if (strchr(str, 't') || strchr(str, 'T') )
+        mode = (bench_mode_t)((int)mode | (int)TEST);
     if (mode == MODE_UNDEF)
         []() { SAFE(FAIL, CRIT); return 0; }();
+
+    if ( (mode & ALL) && ! (mode & PERF || mode & CORR) )
+        mode = (bench_mode_t)((int)mode | (int)CORR);
     return mode;
 }
 

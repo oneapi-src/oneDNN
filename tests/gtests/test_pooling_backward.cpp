@@ -368,6 +368,7 @@ INSTANTIATE_TEST_CASE_P(
             ));
 
 
+#if MKLDNN_JIT_TYPES > 0
 INSTANTIATE_TEST_CASE_P(
         TestPoolingBackwardMaxBlocked, pooling_bwd_test_float, ::testing::Values(
 
@@ -653,5 +654,6 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nChw8c, {1, 96, 300, 500, 151, 251, 3, 3, 1, 1, 2, 2} }
 
             ));
+#endif
 
 }

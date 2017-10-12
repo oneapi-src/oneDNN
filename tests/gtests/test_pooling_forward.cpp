@@ -368,6 +368,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nhwc, { 2, 4, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1 } }
             ));
 
+#if MKLDNN_JIT_TYPES > 0
 INSTANTIATE_TEST_CASE_P(
         TestPoolingForwardMaxBlocked, pooling_test_float, ::testing::Values(
             pool_test_params_float{ prop_kind::forward_training,
@@ -390,7 +391,9 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nChw8c, { 122, 32, 32, 2, 32, 2, 3, 3, 1, 1, 1, 1 } }
 
             ));
+#endif
 
+#if MKLDNN_JIT_TYPES > 0
 INSTANTIATE_TEST_CASE_P(
         TestPoolingForwardMaxBlockedPerf, pooling_test_float, ::testing::Values(
             pool_test_params_float{ prop_kind::forward_training, engine::kind::cpu,
@@ -468,6 +471,7 @@ INSTANTIATE_TEST_CASE_P(
             algorithm::pooling_avg_exclude_padding, memory::format::nChw16c,
             memory::format::nChw16c, { 16, 64, 32, 32, 16, 16, 3, 3, 0, 0, 2, 2 } }
             ));
+#endif
 
 
 INSTANTIATE_TEST_CASE_P(
@@ -492,6 +496,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nchw, { 2, 16, 13, 13, 6, 6, 3, 3, 0, 0, 2, 2 } }
             ));
 
+#if MKLDNN_JIT_TYPES > 0
 INSTANTIATE_TEST_CASE_P(
         TestPoolingAlexnetForwardMaxBlocked, pooling_test_float, ::testing::Values(
             pool_test_params_float{ prop_kind::forward_training,
@@ -557,6 +562,7 @@ INSTANTIATE_TEST_CASE_P(
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw8c,
             memory::format::nChw8c, { 2, 16, 13, 13, 11, 11, 3, 3, 0, 0, 1, 1 } }
             ));
+#endif
 
 INSTANTIATE_TEST_CASE_P(
         TestPoolingMaxCIFAR10NCHW, pooling_test_float, ::testing::Values(
@@ -604,6 +610,7 @@ INSTANTIATE_TEST_CASE_P(
             { 2, 64, 8, 8, 4, 4, 3, 3, 0, 0, 2, 2 } }
             ));
 
+#if MKLDNN_JIT_TYPES > 0
 INSTANTIATE_TEST_CASE_P(
         TestPoolingMaxCIFAR10Blocked, pooling_test_float, ::testing::Values(
             pool_test_params_float{ prop_kind::forward_training,
@@ -695,6 +702,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nChw16c, memory::format::nChw16c,
             { 2, 64, 8, 8, 4, 4, 3, 3, 0, 0, 2, 2 } }
             ));
+#endif
 
 INSTANTIATE_TEST_CASE_P(
         TestPoolingMaxGoogleNetV1NCHW, pooling_test_float, ::testing::Values(
@@ -718,6 +726,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nchw, { 2, 1024, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } }
             ));
 
+#if MKLDNN_JIT_TYPES > 0
 INSTANTIATE_TEST_CASE_P(
         TestPoolingMaxGoogleNetV1Blocked, pooling_test_float, ::testing::Values(
             pool_test_params_float{ prop_kind::forward_training,
@@ -761,6 +770,7 @@ INSTANTIATE_TEST_CASE_P(
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw16c,
             memory::format::nChw16c, { 2, 1024, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } }
             ));
+#endif
 
 INSTANTIATE_TEST_CASE_P(
         TestPoolingMaxResnet50NCHW, pooling_test_float, ::testing::Values(
@@ -772,6 +782,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nchw, { 2, 512, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } }
             ));
 
+#if MKLDNN_JIT_TYPES > 0
 INSTANTIATE_TEST_CASE_P(
         TestPoolingMaxResnet50Blocked, pooling_test_float, ::testing::Values(
             pool_test_params_float{ prop_kind::forward_training,
@@ -791,6 +802,7 @@ INSTANTIATE_TEST_CASE_P(
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw16c,
             memory::format::nChw16c, { 2, 512, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } }
             ));
+#endif
 
 INSTANTIATE_TEST_CASE_P(
         TestPoolingAvgGoogleNetV1NCHW, pooling_test_float, ::testing::Values(
@@ -844,6 +856,7 @@ INSTANTIATE_TEST_CASE_P(
             { 2, 1024, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } }
             ));
 
+#if MKLDNN_JIT_TYPES > 0
 INSTANTIATE_TEST_CASE_P(
         TestPoolingAvgGoogleNetV1Blocked, pooling_test_float, ::testing::Values(
             pool_test_params_float{ prop_kind::forward_training,
@@ -947,6 +960,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nChw16c, memory::format::nChw16c,
             { 2, 1024, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } }
             ));
+#endif
 
 INSTANTIATE_TEST_CASE_P(
         TestPoolingAvgResnet50NCHW, pooling_test_float, ::testing::Values(
@@ -968,6 +982,7 @@ INSTANTIATE_TEST_CASE_P(
             { 2, 512, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } }
             ));
 
+#if MKLDNN_JIT_TYPES > 0
 INSTANTIATE_TEST_CASE_P(
         TestPoolingAvgResnet50Blocked, pooling_test_float, ::testing::Values(
             pool_test_params_float{ prop_kind::forward_training,
@@ -1007,7 +1022,9 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nChw16c, memory::format::nChw16c,
             { 2, 512, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 } }
             ));
+#endif
 
+#if MKLDNN_JIT_TYPES > 0
 INSTANTIATE_TEST_CASE_P(
         TestPoolingAsymmPadding, pooling_test_float, ::testing::Values(
             pool_test_params_float{ prop_kind::forward_scoring,
@@ -1083,5 +1100,6 @@ INSTANTIATE_TEST_CASE_P(
             {1, 96, 300, 500, 151, 251, 3, 3, 1, 1, 2, 2} }
 
             ));
+#endif
 
 }

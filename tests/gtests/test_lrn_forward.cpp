@@ -210,6 +210,7 @@ INSTANTIATE_TEST_CASE_P(TestLRNForwardNHWC, lrn_forward_test_float,
             memory::format::nhwc, { 2, 10, 4, 4, 1.0e-4, 0.75, 4.85, 5, ACROSS } }
             ));
 
+#if MKLDNN_JIT_TYPES > 0
 INSTANTIATE_TEST_CASE_P(TestLRNForward_nChw8c, lrn_forward_test_float,
         ::testing::Values(
             lrn_fwd_test_params_float{ prop_kind::forward_training,
@@ -225,7 +226,9 @@ INSTANTIATE_TEST_CASE_P(TestLRNForward_nChw8c, lrn_forward_test_float,
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nChw8c,
             memory::format::nChw8c, { 2, 16, 4, 4, 1.0e-4, 0.75, 5.7, 5, ACROSS } }
             ));
+#endif
 
+#if MKLDNN_JIT_TYPES > 0
 INSTANTIATE_TEST_CASE_P(TestLRNForward_nChw16c, lrn_forward_test_float,
         ::testing::Values(
             lrn_fwd_test_params_float{ prop_kind::forward_training,
@@ -241,6 +244,7 @@ INSTANTIATE_TEST_CASE_P(TestLRNForward_nChw16c, lrn_forward_test_float,
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nChw16c,
             memory::format::nChw16c, { 2, 16, 4, 4, 1.0e-4, 0.75, 5.7, 5, ACROSS } }
             ));
+#endif
 
 INSTANTIATE_TEST_CASE_P(
         TestLRNAlexnetForwardNCHW, lrn_forward_test_float,
@@ -276,6 +280,7 @@ INSTANTIATE_TEST_CASE_P(
                 memory::format::nhwc, { 2, 256, 27, 27, 1.0e-4, 0.75, 1.0, 5, ACROSS } }
             ));
 
+#if MKLDNN_JIT_TYPES > 0
 INSTANTIATE_TEST_CASE_P(
         TestLRNAlexnetForward_nChw8c, lrn_forward_test_float,
         ::testing::Values(
@@ -292,7 +297,9 @@ INSTANTIATE_TEST_CASE_P(
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nChw8c,
             memory::format::nChw8c, { 2, 256, 27, 27, 1.0e-4, 0.75, 1.0, 5, ACROSS } }
             ));
+#endif
 
+#if MKLDNN_JIT_TYPES > 0
 INSTANTIATE_TEST_CASE_P(
         TestLRNAlexnetForward_nChw16c, lrn_forward_test_float,
         ::testing::Values(
@@ -309,6 +316,7 @@ INSTANTIATE_TEST_CASE_P(
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nChw16c,
             memory::format::nChw16c, { 2, 256, 27, 27, 1.0e-4, 0.75, 1.0, 5, ACROSS } }
             ));
+#endif
 
 INSTANTIATE_TEST_CASE_P(
         TestLRNGoogleNetV1ForwardNCHW, lrn_forward_test_float,
@@ -327,6 +335,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nchw, { 2, 192, 56, 56, 1.0e-4, 0.75, 1.0, 5, ACROSS } }
             ));
 
+#if MKLDNN_JIT_TYPES > 0
 INSTANTIATE_TEST_CASE_P(
         TestLRNGoogleNetV1Forward_nChw8c, lrn_forward_test_float,
         ::testing::Values(
@@ -343,7 +352,9 @@ INSTANTIATE_TEST_CASE_P(
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nChw8c,
             memory::format::nChw8c, { 2, 192, 56, 56, 1.0e-4, 0.75, 1.0, 5, ACROSS } }
             ));
+#endif
 
+#if MKLDNN_JIT_TYPES > 0
 INSTANTIATE_TEST_CASE_P(
         TestLRNGoogleNetV1Forward_nChw16c, lrn_forward_test_float,
         ::testing::Values(
@@ -360,7 +371,9 @@ INSTANTIATE_TEST_CASE_P(
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nChw16c,
             memory::format::nChw16c, { 2, 192, 56, 56, 1.0e-4, 0.75, 1.0, 5, ACROSS } }
             ));
+#endif
 
+#if MKLDNN_JIT_TYPES > 0
 INSTANTIATE_TEST_CASE_P(
         TestLRNRCNNForwardBlocked, lrn_forward_test_float,
         ::testing::Values(
@@ -389,4 +402,5 @@ INSTANTIATE_TEST_CASE_P(
             engine::kind::cpu, algorithm::lrn_within_channel, memory::format::nChw8c,
             memory::format::nChw8c, { 2, 256, 27, 27, 1.0e-4, 0.75, 1.0, 5, WITHIN } }
             ));
+#endif
 }

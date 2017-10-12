@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "perf.h"
+
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -28,6 +30,15 @@
 
 #include "conv/conv.hpp"
 #include "ip/ip.hpp"
+
+#if defined(_OPENMP)
+#include <omp.h>
+#else
+inline int omp_get_max_threads() { return 1; }
+inline int omp_get_num_threads() { return 1; }
+inline int omp_get_thread_num() { return 0; }
+inline int omp_in_parallel() { return 0; }
+#endif
 
 int verbose {0};
 bench_mode_t bench_mode {CORR};
@@ -56,7 +67,15 @@ int main(int argc, char **argv) {
         ++argv;
     }
 
+    int omp_max_thr = omp_get_max_threads();
+    printf("benchdnn init ... omp_max_thr=%d",omp_max_thr); fflush(stdout);
     init();
+    printf(" OK\n"); fflush(stdout);
+    perf_t const * perf_data = perf_begin();
+    if(perf_data == nullptr) { // [ejk] may need some timing system init
+        printf("ERROR: perf_begin failed!\n");
+        exit(-1);
+    }
 
     switch (prim) {
     case CONV: conv::bench(argc, argv); break;
@@ -64,12 +83,14 @@ int main(int argc, char **argv) {
     default: fprintf(stderr, "err: unknown driver\n");
     }
 
+    perf_end(perf_data);
     finalize();
 
-    printf("tests:%d passed:%d "
+    printf("tests:%d impls:%d %s:%d "
             "skipped:%d mistrusted:%d unimplemented:%d "
             "failed:%d\n",
-            benchdnn_stat.tests, benchdnn_stat.passed,
+            benchdnn_stat.tests, benchdnn_stat.impls,
+            (bench_mode&CORR? "correct": "passed"), benchdnn_stat.passed,
             benchdnn_stat.skipped, benchdnn_stat.mistrusted,
             benchdnn_stat.unimplemented, benchdnn_stat.failed);
 

@@ -350,6 +350,7 @@ INSTANTIATE_TEST_CASE_P(TestLRNNHWC, lrn_test_float,
             memory::format::nhwc, { 2, 10, 4, 4, 1.0e-4, 0.75, 3.0, 5, ACROSS } }
             ));
 
+#if MKLDNN_JIT_TYPES > 0
 INSTANTIATE_TEST_CASE_P(TestLRN_nChw8c, lrn_test_float,
         ::testing::Values(
             lrn_test_params_float{ prop_kind::forward_training,
@@ -429,6 +430,7 @@ INSTANTIATE_TEST_CASE_P(TestLRN_nChw16c, lrn_test_float,
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nChw16c,
             memory::format::nChw16c, { 1, 32, 5, 5, 1.0e-2, 0.7, 0.1, 3, ACROSS } }
             ));
+#endif
 
 INSTANTIATE_TEST_CASE_P(
         TestLRNAlexnetNCHW, lrn_test_float,
@@ -464,6 +466,7 @@ INSTANTIATE_TEST_CASE_P(
                 memory::format::nhwc, { 2, 256, 27, 27, 1.0e-4, 0.75, 1.0, 5, ACROSS } }
             ));
 
+#if MKLDNN_JIT_TYPES > 0
 INSTANTIATE_TEST_CASE_P(
         TestLRNAlexnet_nChw8c, lrn_test_float,
         ::testing::Values(
@@ -497,6 +500,7 @@ INSTANTIATE_TEST_CASE_P(
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nChw16c,
             memory::format::nChw16c, { 2, 256, 27, 27, 1.0e-4, 0.75, 1.0, 5, ACROSS } }
             ));
+#endif
 
 INSTANTIATE_TEST_CASE_P(
         TestLRNGoogleNetV1NCHW, lrn_test_float,
@@ -515,6 +519,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nchw, { 2, 192, 56, 56, 1.0e-4, 0.75, 1.0, 5, ACROSS } }
             ));
 
+#if MKLDNN_JIT_TYPES > 0
 INSTANTIATE_TEST_CASE_P(
         TestLRNGoogleNetV1_nChw8c, lrn_test_float,
         ::testing::Values(
@@ -548,6 +553,7 @@ INSTANTIATE_TEST_CASE_P(
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nChw16c,
             memory::format::nChw16c, { 2, 192, 56, 56, 1.0e-4, 0.75, 1.0, 5, ACROSS } }
             ));
+#endif
 
 // Backward does not support WITHIN yet.
 /*

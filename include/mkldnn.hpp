@@ -36,6 +36,15 @@ namespace mkldnn {
 /// @addtogroup cpp_api_utils Utils
 /// @{
 
+#if 0
+/// signed size_t type (promotion of some 'int' calcs).
+/// - Is this OK for all compilers? for all #pragma omp for-loops?
+/// - wip: mkldnn.h has 64-bit dimensioning info, but loops often use int!
+/// - Are large (>2G/4G) memory regions to be supported eventually? 
+typedef intptr_t ssize_t;
+static_assert(sizeof(intptr_t) == sizeof(size_t)," ssize_t must be set by hand for this system");
+#endif
+
 /// A class that provides the destructor for an Intel(R) MKL-DNN C handle
 template <typename T> class handle_traits {};
 

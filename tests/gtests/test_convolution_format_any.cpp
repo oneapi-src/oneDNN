@@ -136,6 +136,9 @@ TEST_P(conv_any_fmt_test_float, TestsConvolutionAnyFmt)
 #define ANY_OIHW { fmt::any, \
                  { fmt::oihw, fmt::format_undef, fmt::format_undef } }
 
+#if !defined(TARGET_VANILLA)
+// Typically jit-related to Intel SIMD register lengths
+// These tests compile in VANILLA mode, but 'make test' fails them.
 #define ANY_OHWIxO { fmt::any,   \
                    { fmt::Ohwi8o, fmt::Ohwi16o, fmt::Oihw16o } }
 #define ANY_NCHWxC { fmt::any,   \
@@ -144,12 +147,21 @@ TEST_P(conv_any_fmt_test_float, TestsConvolutionAnyFmt)
                      { fmt::OIhw8i8o, fmt::OIhw16i16o, fmt::format_undef } }
 #define ANY_GOIHWxIxO { fmt::any,\
                       { fmt::gOIhw8i8o, fmt::gOIhw16i16o, fmt::format_undef } }
+#endif
 
 INSTANTIATE_TEST_CASE_P(TestConvolutionAnyFmtForward, conv_any_fmt_test_float,
     ::testing::Values(conv_any_fmt_test_params_float{ PROP_KIND, ENGINE, ALG,
     ANY_NCHW, ANY_OIHW, ANY_X, ANY_NCHW,
+    /* src     weights  bias    dst    */
+    { 2, 1, 4, 4, 4, 6, 4, 4, 3, 3, 1, 1, 1, 1 }/* conv sizes */ }));
+
+#if !defined(TARGET_VANILLA)
+INSTANTIATE_TEST_CASE_P(TestConvolutionAnyFmtForward_NCHWxC, conv_any_fmt_test_float,
+    ::testing::Values(conv_any_fmt_test_params_float{ PROP_KIND, ENGINE, ALG,
+    ANY_NCHWxC, ANY_OIHW, ANY_X, ANY_NCHWxC,
     { 2, 1, 4, 4, 4, 6, 4, 4, 3, 3, 1, 1, 1, 1 } }));
 
+/* For now, these formats all require JIT (cpu/) code */
 INSTANTIATE_TEST_CASE_P(
         TestConvolutionAlexnetAnyFmtForwardxlocked, conv_any_fmt_test_float,
         ::testing::Values(
@@ -168,4 +180,6 @@ INSTANTIATE_TEST_CASE_P(
                 conv_any_fmt_test_params_float{ PROP_KIND, ENGINE, ALG,
                     ANY_NCHWxC, ANY_GOIHWxIxO, ANY_X, ANY_NCHWxC,
                     { 2, 2, 384, 13, 13, 256, 13, 13, 3, 3, 1, 1, 1, 1 } }));
+#endif // TARGET_VANILLA
+
 }
