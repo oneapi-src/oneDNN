@@ -225,7 +225,7 @@ struct stream_eager_t: public stream_t {
         for (auto it = deps_.begin(); it != deps_.end(); ++it) {
             it->second.reset();
         }
-        return submit_impl(0, stream_.size(), error_prim);
+        return submit_impl(0, static_cast<int>(stream_.size()), error_prim);
     }
 
 protected:

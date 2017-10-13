@@ -48,7 +48,10 @@ struct mkldnn_primitive_desc_iterator: public c_compatible {
     { return mkldnn_primitive_desc_iterator(engine_, last_idx_); }
 
     primitive_desc_iterator_t &operator++() {
-        if (pd_) delete pd_;
+        if (pd_){
+            delete pd_;
+            pd_ = nullptr;
+        }
         while (++idx_ != last_idx_) {
             auto s = impl_list_[idx_](&pd_, op_desc_, engine_, hint_fwd_pd_);
             if (s == success) break;

@@ -46,6 +46,20 @@ status_t mkldnn_memory_desc_init(memory_desc_t *memory_desc, int ndims,
         && one_of(data_type, f32, s32, s16, s8, u8);
     if (!args_ok) return invalid_arguments;
 
+    /* for now, mkl-dnn is written NOT to support large tensors (>2G) */
+    uint64_t elements=1U;
+    uint64_t const max_elements=2147483648U;
+    for(int i=0U; i<ndims; ++i){
+        elements *= dims[i];
+        if (dims[i] <= 0 || elements > max_elements){
+            args_ok = false;
+            break;
+        }
+    }
+    // perhaps also limited to total memory size?
+    // i.e. elements * types::data_type_size(data_type) < 2G or 4G?
+    if (!args_ok) return invalid_arguments;
+
     memory_desc_t md;
     md.ndims = ndims;
     array_copy(md.dims, dims, ndims);

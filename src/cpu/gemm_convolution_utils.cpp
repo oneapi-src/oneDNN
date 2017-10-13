@@ -37,7 +37,7 @@ void im2col(
     const size_t col_step = jcp.ks * jcp.os;
 
     int num_thr = (jcp.mb != 1) ? omp_get_max_threads() : 1;
-#pragma omp parallel for  num_threads(num_thr)
+#pragma omp parallel for num_threads(num_thr)
     for (int ic = 0; ic < jcp.ic; ++ic) {
         for (int kh = 0; kh < jcp.kh; ++kh) {
         for (int oh = 0; oh < jcp.oh; ++oh) {

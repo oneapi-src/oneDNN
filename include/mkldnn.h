@@ -727,10 +727,10 @@ mkldnn_status_t MKLDNN_API mkldnn_stream_destroy(mkldnn_stream_t stream);
 
 /** @} */
 
-/** @} */
-
 #ifdef __cplusplus
 }
 #endif
+
+/** @} */
 
 #endif

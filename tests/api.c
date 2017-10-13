@@ -22,10 +22,7 @@
 
 #include "mkldnn.h"
 
-/** Set nonzero if you want to run valgrind.
- * Some things valgrind will not handle -- attempt to skip them
- * so you can still run under valgrind --lead-check=full ... */
-static int const want_valgrind = 1;
+#define LENGTH_100 100
 
 #define CHECK(f) do { \
     mkldnn_status_t s = f; \
@@ -44,18 +41,22 @@ static int const want_valgrind = 1;
 } while(0)
 
 #define TRACE(string) do { \
-    printf(" T:%s",string); fflush(stdout); \
+    /* printf(" T:%s",string); fflush(stdout); */ \
 }while(0)
+
+typedef float real_t;
+#define calloc_real_t( N ) (real_t*)calloc( (N), sizeof(real_t))
+
+/** Set nonzero if you want to run valgrind.
+ * Some things valgrind will not handle -- attempt to skip them
+ * so you can still run under valgrind --lead-check=full ... */
+static int const want_valgrind = 1;
 
 static size_t product(int *arr, size_t size) {
     size_t prod = 1;
     for (size_t i = 0; i < size; ++i) prod *= arr[i];
     return prod;
 }
-
-typedef float real_t;
-
-#define LENGTH_100 100
 
 void test1() {
     TRACE("+test1");
@@ -115,11 +116,11 @@ void test2() {
         (c3_src_sizes[3] + 2*padding[1] - c3_weights_sizes[4])/strides[1] + 1
     };
 
-    real_t *src = (real_t*)calloc(product(c3_src_sizes, 4), sizeof(real_t));
-    real_t *weights = (real_t*)calloc(product(c3_weights_sizes, 5), sizeof(real_t));
-    real_t *bias = (real_t*)calloc(product(c3_bias_sizes, 1), sizeof(real_t));
-    real_t *dst = (real_t*)calloc(product(c3_dst_sizes, 4), sizeof(real_t));
-    real_t *out_mem = (real_t*)calloc(product(c3_dst_sizes, 4), sizeof(real_t));
+    real_t *src =     calloc_real_t(product(c3_src_sizes, 4));
+    real_t *weights = calloc_real_t(product(c3_weights_sizes, 5));
+    real_t *bias =    calloc_real_t(product(c3_bias_sizes, 1));
+    real_t *dst =     calloc_real_t(product(c3_dst_sizes, 4));
+    real_t *out_mem = calloc_real_t(product(c3_dst_sizes, 4));
     CHECK_TRUE(src && weights && bias && dst && out_mem);
 
     for (int i = 0; i < c3_bias_sizes[0]; ++i) bias[i] = (real_t)(i);
@@ -134,7 +135,7 @@ void test2() {
     mkldnn_primitive_desc_t c3_src_pd, c3_weights_pd, c3_bias_pd, c3_dst_pd, out_pd;
     mkldnn_primitive_t c3_src, c3_weights, c3_bias, c3_dst, out;
 
-#if MKLDNN_JIT_TYPES > 0
+#if 1 /* MKLDNN_JIT_TYPES > 0 */
     mkldnn_memory_format_t lay_src     = mkldnn_nChw8c;
     mkldnn_memory_format_t lay_weights = (groups == 1 ? mkldnn_OIhw8i8o : mkldnn_gOIhw8i8o);
     mkldnn_memory_format_t lay_bias    = mkldnn_x;
@@ -285,9 +286,9 @@ void test3() {
     const int mb = 2;
     int l2_data_sizes[4] = {mb, 256, 13, 13};
 
-    real_t *src = (real_t*)calloc(product(l2_data_sizes, 4), sizeof(real_t));
-    real_t *dst = (real_t*)calloc(product(l2_data_sizes, 4), sizeof(real_t));
-    real_t *out_mem = (real_t*)calloc(product(l2_data_sizes, 4), sizeof(real_t));
+    real_t *src =     calloc_real_t(product(l2_data_sizes, 4));
+    real_t *dst =     calloc_real_t(product(l2_data_sizes, 4));
+    real_t *out_mem = calloc_real_t(product(l2_data_sizes, 4));
     CHECK_TRUE(src && dst && out_mem);
 
     for (size_t i = 0; i < product(l2_data_sizes, 4); ++i)
@@ -440,14 +441,14 @@ void test4() {
         (c3_src_sizes[3] + 2*padding[1] - c3_weights_sizes[4])/strides[1] + 1
     };
 
-    real_t *src = (real_t*)calloc(product(c3_src_sizes, 4), sizeof(real_t));
-    real_t *weights = (real_t*)calloc(product(c3_weights_sizes, 5), sizeof(real_t));
-    real_t *bias = (real_t*)calloc(product(c3_bias_sizes, 1), sizeof(real_t));
-    real_t *dst = (real_t*)calloc(product(c3_dst_sizes, 4), sizeof(real_t));
-    real_t *out_mem = (real_t*)calloc(product(c3_dst_sizes, 4), sizeof(real_t));
+    real_t *src =     calloc_real_t(product(c3_src_sizes, 4));
+    real_t *weights = calloc_real_t(product(c3_weights_sizes, 5));
+    real_t *bias =    calloc_real_t(product(c3_bias_sizes, 1));
+    real_t *dst =     calloc_real_t(product(c3_dst_sizes, 4));
+    real_t *out_mem = calloc_real_t(product(c3_dst_sizes, 4));
     CHECK_TRUE(src && weights && bias && dst && out_mem);
 
-    for (int i = 0; i < c3_bias_sizes[0]; ++i) bias[i] = (real_t)(i);
+    for (int i = 0; i < c3_bias_sizes[0]; ++i) bias[i] = (real_t)(i%19-9);
 
     TRACE("4:engine");
     mkldnn_engine_t engine;
@@ -459,7 +460,7 @@ void test4() {
     mkldnn_primitive_desc_t c3_src_pd, c3_weights_pd, c3_bias_pd, c3_dst_pd, out_pd;
     mkldnn_primitive_t c3_src, c3_weights, c3_bias, c3_dst, out;
 
-#if 1 // MKLDNN_JIT_TYPES > 0
+#if 1 /* MKLDNN_JIT_TYPES > 0 */
     mkldnn_memory_format_t lay_src     = mkldnn_nChw8c;
     mkldnn_memory_format_t lay_weights = (groups == 1 ? mkldnn_OIhw8i8o : mkldnn_gOIhw8i8o);
     mkldnn_memory_format_t lay_bias    = mkldnn_x;

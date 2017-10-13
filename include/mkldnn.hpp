@@ -461,6 +461,14 @@ struct memory: public primitive  {
                 mkldnn_primitive_create(&result, adesc.get(), nullptr, nullptr),
                 "could not create a memory primitive");
         reset(result);
+#if defined(_SX)
+        //  let's just ignore all alignment for SX (advanced memory bus)
+        auto _malloc = [](size_t size, int /*alignment*/) -> char* {
+            void *ptr = ::malloc(size);
+            return static_cast<char*>(ptr);
+        };
+        auto _free = [](char* p) { ::free((void*)p); };
+#else
         auto _malloc = [](size_t size, int alignment) {
             void *ptr;
 #ifdef _WIN32
@@ -478,6 +486,7 @@ struct memory: public primitive  {
             ::free((void*)p);
 #endif /* _WIN32 */
         };
+#endif // _SX
         _handle.reset(_malloc(adesc.get_size(), 4096), _free);
         set_data_handle(_handle.get());
     }
@@ -559,6 +568,8 @@ enum padding_kind {
 inline mkldnn_padding_kind_t convert_to_c(padding_kind kind) {
     return static_cast<mkldnn_padding_kind_t>(kind);
 }
+
+/// @}
 
 enum prop_kind {
     forward_training = mkldnn_forward_training,
@@ -2464,6 +2475,8 @@ struct inner_product_backward_weights: public primitive {
         reset(result);
     }
 };
+
+/// @} C++ API
 } // namespace mkldnn
 
 #endif

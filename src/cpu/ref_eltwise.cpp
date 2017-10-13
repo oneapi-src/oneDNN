@@ -103,7 +103,7 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_dense() {
     dst += data_d.blocking_desc().offset_padding;
 
 #   pragma omp parallel for schedule(static)
-    for (int e = 0; e < nelems; ++e) {
+    for (size_t e = 0; e < nelems; ++e) {
         switch (alg_kind) {
         case eltwise_relu: dst[e] = relu_fwd(src[e], alpha); break;
         case eltwise_tanh: dst[e] = tanh_fwd(src[e]); break;

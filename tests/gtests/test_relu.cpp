@@ -208,12 +208,10 @@ INST_TEST_CASE(Simple_NCHW,
 );
 
 INST_TEST_CASE(Simple,
-#if MKLDNN_JIT_TYPES > 0
     PARAMS(nchw, nChw8c, 0.1f, 2, 8, 4, 4),
     PARAMS(nChw8c, nchw, 0.1f, 2, 16, 4, 4),
     PARAMS(nchw, nchw, 0.1f, 2, 16, 8, 8),
     PARAMS(nChw8c, nChw8c, 0.1f, 2, 16, 16, 8),
-#endif
     PARAMS(nhwc, nchw, 0.1f, 2, 16, 10, 8),
     PARAMS(nchw, nhwc, 0.1f, 10, 10, 10, 10)
 );

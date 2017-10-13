@@ -47,7 +47,8 @@ status_t mkldnn_primitive_create(primitive_t **primitive,
 
 status_t mkldnn_primitive_get_primitive_desc(const primitive_t *primitive,
         const primitive_desc_t **primitive_desc) {
-    if (utils::any_null(primitive, primitive_desc))
+    // allow primitive_desc to be NULL, for convenience
+    if (utils::any_null(primitive/*, primitive_desc*/))
         return invalid_arguments;
     return safe_ptr_assign<const primitive_desc_t>(*primitive_desc,
             primitive->pd());

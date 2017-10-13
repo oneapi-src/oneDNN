@@ -48,3 +48,4 @@ int main( int argc, char* argv[ ] )
 
     return result;
 }
+/* vim: et ts=4 sw=4 cino^=l0,\:0,N-s */

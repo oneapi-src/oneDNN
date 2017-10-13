@@ -44,9 +44,9 @@ status_t stream_t::submit(const nstl::vector<primitive_t *> &prims,
         }
     }
 
-    const size_t start = stream_.size();
+    const int start = static_cast<int>(stream_.size());
     stream_.insert(stream_.end(), prims.begin(), prims.end());
-    return submit_impl(start, stream_.size(), error_prim);
+    return submit_impl(start, static_cast<int>(stream_.size()), error_prim);
 }
 
 bool stream_t::closed() const { return true; }

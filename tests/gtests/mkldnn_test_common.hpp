@@ -49,7 +49,6 @@ template <> inline void assert_eq<float>(float a, float b) {
 }
 
 inline size_t map_index(const mkldnn::memory::desc &md, size_t index) {
-#if MKLDNN_JIT_TYPES > 0
     using fmt = mkldnn::memory::format;
     const fmt fwd_weights_g = fmt::gOIhw8i16o2i;
     const fmt fwd_weights = fmt::OIhw8i16o2i;
@@ -58,7 +57,6 @@ inline size_t map_index(const mkldnn::memory::desc &md, size_t index) {
 
     const bool with_groups = (md.data.format == fwd_weights_g)
                           || (md.data.format == bwd_weights_g);
-#endif
 
     const int ndims = md.data.ndims;
     const int *dims = md.data.dims;
@@ -69,10 +67,8 @@ inline size_t map_index(const mkldnn::memory::desc &md, size_t index) {
     auto *strides_within_block = md.data.layout_desc.blocking.strides[1];
 
     size_t ph_index = 0;
-#if MKLDNN_JIT_TYPES > 0
     size_t oc_16 = 0, ic_2 = 0,
         oc_2 = 0, ic_16 = 0;
-#endif
 
     for (int rd = 0; rd < ndims; ++rd) {
         int d = ndims - rd - 1;
@@ -90,17 +86,14 @@ inline size_t map_index(const mkldnn::memory::desc &md, size_t index) {
         size_t cur_pos_block = cur_pos / cur_block;
         size_t cur_pos_within_block = cur_pos % cur_block;
 
-#if MKLDNN_JIT_TYPES > 0
         if (d == (with_groups + 0)) { oc_16 = pos_d % 16; oc_2 = pos_d % 2; }
         if (d == (with_groups + 1)) { ic_2 = pos_d % 2; ic_16 = pos_d % 16; }
-#endif
 
         ph_index += cur_pos_block*strides_block[d];
         ph_index += cur_pos_within_block*strides_within_block[d];
 
         index /= cur_dim;
     }
-#if MKLDNN_JIT_TYPES > 0
     if (md.data.format == fwd_weights_g || md.data.format == fwd_weights) {
         //ph_index += -16 * ic_2 + oc_16 + ic_2;
         ph_index += oc_16 + ic_2;
@@ -113,7 +106,6 @@ inline size_t map_index(const mkldnn::memory::desc &md, size_t index) {
             EXPECT_GE(ph_index, 16 * oc_2);
             ph_index -= 16 * oc_2;
         }
-#endif
     ph_index += md.data.layout_desc.blocking.offset_padding;
 
     return ph_index;
@@ -133,12 +125,9 @@ inline mkldnn::memory::desc create_md(mkldnn::memory::dims dims,
     case f::nchw:
     case f::nhwc:
     case f::chwn:
-#if MKLDNN_JIT_TYPES > 0
     case f::nChw8c:
     case f::nChw16c:
-#endif
     case f::oihw:
-#if MKLDNN_JIT_TYPES > 0
     case f::OIhw8i8o:
     case f::OIhw16i16o:
     case f::OIhw8i16o2i:
@@ -147,17 +136,14 @@ inline mkldnn::memory::desc create_md(mkldnn::memory::dims dims,
     case f::OIhw16o16i:
     case f::Ohwi8o:
     case f::Ohwi16o:
-#endif
         ndims = 4; break;
     case f::goihw:
-#if MKLDNN_JIT_TYPES > 0
     case f::gOIhw8i8o:
     case f::gOIhw16i16o:
     case f::gOIhw8i16o2i:
     case f::gOIhw8o16i2o:
     case f::gOIhw8o8i:
     case f::gOIhw16o16i:
-#endif
         ndims = 5; break;
     case f::format_undef:
         ndims = 0; break;
