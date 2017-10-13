@@ -14,6 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
+#ifdef __INTEL_COMPILER
+#include <immintrin.h>
+#endif
+
 #include "mkldnn_types.h"
 
 #include "c_types_map.hpp"
