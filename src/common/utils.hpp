@@ -238,14 +238,9 @@ inline void* malloc(size_t size, int alignment) {
     return (rc == 0) ? ptr : 0;
 }
 #else
-/** SX -> std malloc and free, instead of aligning pointers.
- * Until I am sure that we do not use these pointers in mkldnn.hpp
- * shared pointers, we had better err on side of compatibility.
- *
- * (i.e. match with _malloc/_free lambdas in mkldnn.hpp)
- *
- * \p alignment arg ignored.
- */
+/** SX -> ::malloc and ::free, instead of aligned pointers.
+ * \p alignment arg ignored (less important with SX memory architecture)
+ * \note Compatibility: matches _malloc/_free lambdas in mkldnn.hpp */
 inline void* malloc(size_t size, int /*alignment*/) { return ::malloc(size); }
 #endif
 

@@ -26,12 +26,6 @@ extern "C" {
 #include <stdint.h>
 #endif
 
-#if defined(TARGET_VANILLA) || defined(_SX)
-#define MKLDNN_JIT_TYPES 0
-#else
-#define MKLDNN_JIT_TYPES 1
-#endif
-
 /** @addtogroup c_api C API
  *  @{
  *
