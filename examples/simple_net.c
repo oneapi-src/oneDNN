@@ -14,11 +14,16 @@
 * limitations under the License.
 *******************************************************************************/
 
+// Required for posix_memalign
+#define _POSIX_C_SOURCE 200112L
+
 #include <string.h>
-#include <malloc.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include "mkldnn.h"
+#ifdef WIN32
+#include <malloc.h>
+#endif
 
 #define BATCH 8
 
@@ -44,7 +49,8 @@ void *aligned_malloc(size_t size, size_t alignment) {
 #elif defined(_SX)
     return malloc(size);
 #else
-    return memalign(alignment, size);
+    void *p;
+    return !posix_memalign(&p, alignment, size) ? p : NULL;
 #endif
 }
 
