@@ -296,12 +296,18 @@ jit_avx512_common_convolution_bwd_weights_t(const pd_t *pd,
         } else {
             // XXX: See the comment about tr_iw and guarding elements in
             // jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf()
-            const int tr_src_size0 =
-                nthr_mb_ * j.ngroups * j.nb_ic * j.ic_block * j.tr_iw * j.ih;
-            const size_t tr_src_size = tr_src_size0 + j.tr_src_num_guard_elems;
+            const int max_nthr = nthr_mb_ * j.ngroups * j.nb_ic;
+            const int min_tr_src_size_per_thr = j.ih * j.ic_block * j.tr_iw;
+            const int tr_src_size = max_nthr * min_tr_src_size_per_thr
+                + j.tr_src_num_guard_elems;
             tr_src_ = (data_t *)malloc(tr_src_size * sizeof(data_t), 64);
-            for (size_t i = tr_src_size0; i < tr_src_size; i++)
-                tr_src_[i] = 0;
+            /* to avoid NaNs in computations we zero tail num_guard_elems for
+             * each possible thread group */
+            for (int ithr = 1; ithr <= max_nthr; ++ithr) {
+                data_t *ts = &tr_src_[ithr * min_tr_src_size_per_thr];
+                for (int i = 0; i < j.tr_src_num_guard_elems; ++i)
+                    ts[i] = 0;
+            }
         }
 
         /* prepare synchronization contexts */
