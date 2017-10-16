@@ -49,15 +49,15 @@ void compute_ref_conv_bwd_data(const test_convolution_sizes_t &c,
                         for (int oc = 0; oc < c.oc / c.ng; oc++) {
                             for (int kh = 0; kh < c.kh; kh++) {
                                 for (int kw = 0; kw < c.kw; kw++) {
-                                    if (iw + c.padw < kw || ih + c.padh < kh)
+                                    if (iw + c.padw < kw * (1 + c.dilw)
+                                       || ih + c.padh < kh * (1 + c.dilh))
                                         continue;
-                                    int ow = iw - kw + c.padw;
-                                    int oh = ih - kh + c.padh;
+                                    int ow = iw - kw * (1 + c.dilw) + c.padw;
+                                    int oh = ih - kh * (1 + c.dilh) + c.padh;
                                     if (ow % c.strw != 0 || oh % c.strh != 0)
                                         continue;
                                     ow /= c.strw;
                                     oh /= c.strh;
-
                                     if (oh < c.oh && ow < c.ow) {
                                         int didx = mb * c.oc * c.oh * c.ow
                                                 + g * c.oc / c.ng * c.oh * c.ow
@@ -123,20 +123,25 @@ protected:
 
         std::vector<int> padR = { cd.padh, cd.padw };
         for (int i = 0; i < 2; ++i) {
-        if ((cd.ih + cd.padh + padR[0] - cd.kh)/cd.strh + 1 != cd.oh) ++padR[0];
-        if ((cd.iw + cd.padw + padR[1] - cd.kw)/cd.strw + 1 != cd.ow) ++padR[1];
+            if ((cd.ih - ((cd.kh - 1) * (cd.dilh + 1) + 1) + cd.padh + padR[0])
+                / cd.strh + 1 != cd.oh)
+                ++padR[0];
+            if ((cd.iw - ((cd.kw - 1) * (cd.dilw + 1) + 1) + cd.padw + padR[1])
+                / cd.strw + 1 != cd.ow)
+                ++padR[1];
         }
 
-        auto conv_desc = convolution_forward::desc(prop_kind::forward_training, p.aalgorithm, c_src_desc_f, c_weights_desc, c_dst_desc_f, { cd.strh, cd.strw }, { cd.padh, cd.padw }, padR, padding_kind::zero);
+        auto conv_desc = convolution_forward::desc(prop_kind::forward_training, p.aalgorithm, c_src_desc_f, c_weights_desc, c_dst_desc_f, { cd.strh, cd.strw }, { cd.dilh, cd.dilw }, { cd.padh, cd.padw }, padR, padding_kind::zero);
         auto conv_primitive_desc = convolution_forward::primitive_desc(conv_desc, eng);
                                                                                 /*diff_src*/                /*diff_dst*/
-        auto conv_bwd_data_desc = convolution_backward_data::desc(p.aalgorithm, c_src_desc, c_weights_desc, c_dst_desc, { cd.strh, cd.strw }, { cd.padh, cd.padw }, padR, padding_kind::zero);
+        auto conv_bwd_data_desc = convolution_backward_data::desc(p.aalgorithm, c_src_desc, c_weights_desc, c_dst_desc, { cd.strh, cd.strw }, { cd.dilh, cd.dilw }, { cd.padh, cd.padw }, padR, padding_kind::zero);
         auto conv_bwd_data_primitive_desc = convolution_backward_data::primitive_desc(conv_bwd_data_desc, eng, conv_primitive_desc);
 
         // Only true for dense format
         fill_data<data_t_wei>(c_weights.get_primitive_desc().get_size() / sizeof(data_t_wei), (data_t_wei *)c_weights.get_data_handle());
         fill_data<data_t_diff_dst>(c_diff_dst.get_primitive_desc().get_size() / sizeof(data_t_diff_dst),(data_t_diff_dst *)c_diff_dst.get_data_handle());
                                                                                     /*diff_dst*/           /*diff_src*/
+
         auto conv_bwd_data = convolution_backward_data(conv_bwd_data_primitive_desc, c_diff_dst, c_weights, c_diff_src);
 
         std::vector<primitive> pipeline;

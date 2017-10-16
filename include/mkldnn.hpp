@@ -591,6 +591,13 @@ enum algorithm {
     eltwise_relu = mkldnn_eltwise_relu,
     eltwise_tanh = mkldnn_eltwise_tanh,
     eltwise_elu = mkldnn_eltwise_elu,
+    eltwise_square = mkldnn_eltwise_square,
+    eltwise_abs = mkldnn_eltwise_abs,
+    eltwise_sqrt = mkldnn_eltwise_sqrt,
+    eltwise_linear = mkldnn_eltwise_linear,
+    eltwise_bounded_relu = mkldnn_eltwise_bounded_relu,
+    eltwise_soft_relu = mkldnn_eltwise_soft_relu,
+    eltwise_logistic = mkldnn_eltwise_logistic,
     lrn_across_channels = mkldnn_lrn_across_channels,
     lrn_within_channel  = mkldnn_lrn_within_channel,
     pooling_max = mkldnn_pooling_max,
@@ -1106,6 +1113,27 @@ struct convolution_backward_data : public primitive {
                         mkldnn::convert_to_c(apadding_kind)),
                     "could not create a convolution backward data descriptor");
         }
+        desc(algorithm aalgorithm,
+                const memory::desc &diff_src_desc,
+                const memory::desc &weights_desc,
+                const memory::desc &diff_dst_desc,
+                const memory::dims strides,
+                const memory::dims dilates,
+                const memory::dims padding_l,
+                const memory::dims padding_r,
+                const padding_kind apadding_kind) {
+            memory::validate_dims(strides);
+            memory::validate_dims(dilates);
+            memory::validate_dims(padding_l);
+            memory::validate_dims(padding_r);
+            error::wrap_c_api(
+                mkldnn_dilated_convolution_backward_data_desc_init(
+                    &data, convert_to_c(aalgorithm), &diff_src_desc.data,
+                    &weights_desc.data, &diff_dst_desc.data,
+                    &strides[0], &dilates[0], &padding_l[0], &padding_r[0],
+                    mkldnn::convert_to_c(apadding_kind)),
+                    "could not create a convolution backward data descriptor");
+        }
     };
     struct primitive_desc : public handle<mkldnn_primitive_desc_t> {
         primitive_desc(const desc &adesc, const engine &aengine,
@@ -1211,6 +1239,49 @@ struct convolution_backward_weights : public primitive {
                         mkldnn::convert_to_c(apadding_kind)),
                     "could not create a convolution backward weights descriptor");
         }
+        desc(algorithm aalgorithm,
+                const memory::desc &src_desc,
+                const memory::desc &diff_weights_desc,
+                const memory::desc &diff_bias_desc,
+                const memory::desc &diff_dst_desc,
+                const memory::dims strides,
+                const memory::dims dilates,
+                const memory::dims padding_l,
+                const memory::dims padding_r,
+                const padding_kind apadding_kind) {
+            memory::validate_dims(strides);
+            memory::validate_dims(dilates);
+            memory::validate_dims(padding_l);
+            memory::validate_dims(padding_r);
+            error::wrap_c_api(mkldnn_dilated_convolution_backward_weights_desc_init(
+                        &data, convert_to_c(aalgorithm), &src_desc.data,
+                        &diff_weights_desc.data, &diff_bias_desc.data,
+                        &diff_dst_desc.data,
+                        &strides[0], &dilates[0], &padding_l[0], &padding_r[0],
+                        mkldnn::convert_to_c(apadding_kind)),
+                    "could not create a convolution backward weights descriptor");
+        }
+        desc(algorithm aalgorithm,
+                const memory::desc &src_desc,
+                const memory::desc &diff_weights_desc,
+                const memory::desc &diff_dst_desc,
+                const memory::dims strides,
+                const memory::dims dilates,
+                const memory::dims padding_l,
+                const memory::dims padding_r,
+                const padding_kind apadding_kind) {
+            memory::validate_dims(strides);
+            memory::validate_dims(dilates);
+            memory::validate_dims(padding_l);
+            memory::validate_dims(padding_r);
+            error::wrap_c_api(mkldnn_dilated_convolution_backward_weights_desc_init(
+                        &data, convert_to_c(aalgorithm), &src_desc.data,
+                        &diff_weights_desc.data, nullptr, &diff_dst_desc.data,
+                        &strides[0], &dilates[0],  &padding_l[0], &padding_r[0],
+                        mkldnn::convert_to_c(apadding_kind)),
+                    "could not create a convolution backward weights descriptor");
+        }
+
     };
 
     struct primitive_desc : public handle<mkldnn_primitive_desc_t> {

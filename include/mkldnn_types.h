@@ -305,6 +305,20 @@ typedef enum {
     mkldnn_eltwise_tanh = 9,
     /** Eltwise: parametric exponential linear unit (elu) */
     mkldnn_eltwise_elu = 10,
+    /** Eltwise: square */
+    mkldnn_eltwise_square = 11,
+    /** Eltwise: abs */
+    mkldnn_eltwise_abs = 12,
+    /** Eltwise: square root */
+    mkldnn_eltwise_sqrt = 13,
+    /** Eltwise: linear */
+    mkldnn_eltwise_linear = 14,
+    /** Eltwise: bounded_relu */
+    mkldnn_eltwise_bounded_relu = 15,
+    /** Eltwise: soft_relu */
+    mkldnn_eltwise_soft_relu = 16,
+    /** Eltwise: logistic */
+    mkldnn_eltwise_logistic = 17,
     /** Max pooling */
     mkldnn_pooling_max = 34,
     /** Average pooling include padding */

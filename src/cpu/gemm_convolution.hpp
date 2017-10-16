@@ -177,7 +177,9 @@ struct _gemm_convolution_bwd_data_t: public cpu_primitive_t {
                 && this->diff_src_pd_.desc()->format == nchw
                 && this->diff_dst_pd_.desc()->format == nchw
                 && this->weights_pd_.desc()->format == (this->with_groups()
-                        ? goihw : oihw);
+                        ? goihw : oihw)
+                && this->desc()->dilates[0] == 0
+                && this->desc()->dilates[1] == 0;
             return ok ? status::success : status::unimplemented;
         }
 
@@ -280,7 +282,9 @@ struct _gemm_convolution_bwd_weights_t: public cpu_primitive_t {
             && this->src_pd_.desc()->format == nchw
             && this->diff_dst_pd_.desc()->format == nchw
             && this->diff_weights_pd_.desc()->format == (this->with_groups()
-                    ? goihw : oihw);
+                    ? goihw : oihw)
+            && this->desc()->dilates[0] == 0
+            && this->desc()->dilates[1] == 0;
             return ok ? status::success : status::unimplemented;
         }
 
