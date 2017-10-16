@@ -71,26 +71,39 @@ struct dnn_mem_t {
     ~dnn_mem_t() { cleanup(); }
 
     /** Make \c this to <em>look like</em> \c rhs, so \c this gets the re-ordered
-     * \em content of \c rhs */
+     * \em content of \c rhs. Try to clean up in case of Warnings. */
     int reorder(const dnn_mem_t &rhs) {
         if (this == &rhs) return OK;
         if (!rhs.active_) return FAIL;
 
-        mkldnn_primitive_t r;
-        //{
-            mkldnn_primitive_desc_t rpd;
-            DNN_SAFE(mkldnn_reorder_primitive_desc_create(&rpd, rhs.mpd_, mpd_),
-                     WARN);
+        /* [ejk] handling warning errors from *SAFE macros -> ugly. */
+        mkldnn_primitive_desc_t rpd;
+        auto mk_rpd = [&](){
+            DNN_SAFE(mkldnn_reorder_primitive_desc_create(&rpd, rhs.mpd_,
+                        mpd_), WARN);
+            return OK;
+        };
+        if (mk_rpd() == OK){
+            mkldnn_primitive_t r;
             mkldnn_primitive_at_t i = {rhs.p_, 0};
             const_mkldnn_primitive_t o = p_;
-            DNN_SAFE(mkldnn_primitive_create(&r, rpd, &i, &o), WARN);
-            // perhaps? DNN_SAFE(mkldnn_primitive_desc_destroy(rpd), CRIT);
-        //}
-        SAFE(execute(r), WARN);
-        DNN_SAFE(mkldnn_primitive_desc_destroy(rpd), CRIT);
-        DNN_SAFE(mkldnn_primitive_destroy(r), CRIT);
-
-        return OK;
+            auto mk_prim = [&](){
+                DNN_SAFE(mkldnn_primitive_create(&r, rpd, &i, &o), WARN);
+                return OK;
+            };
+            // [ejk] can it be here? DNN_SAFE(mkldnn_primitive_desc_destroy(rpd), CRIT);
+            if (mk_prim() == OK){
+                auto exec = [&](){
+                    SAFE(execute(r), WARN);
+                    return OK;
+                };
+                auto ret = exec();
+                DNN_SAFE(mkldnn_primitive_destroy(r), CRIT);
+                DNN_SAFE(mkldnn_primitive_desc_destroy(rpd), CRIT);
+                return ret; /* hopefully OK! */
+            }
+        }
+        return FAIL;
     }
 
     int N() const { return md_.dims[0]; }

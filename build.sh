@@ -338,8 +338,14 @@ if [ "$BUILDOK" == "y" ]; then
         fi
         if [ $DOTEST -ge 3 ]; then
             if [ -x ./bench.sh ]; then
-                # all non-ref impls, performance and correctness
-                /usr/bin/time -v ./bench.sh -${DOTARGET}mAPC -sref2>&1 | tee "${BUILDDIR}/test3.log" || true
+                # all mkl-dnn impls, correctness
+                /usr/bin/time -v ./bench.sh -${DOTARGET}mAC 2>&1 | tee "${BUILDDIR}/test3.log" || true
+            fi
+        fi
+        if [ $DOTEST -ge 4 ]; then
+            if [ -x ./bench.sh ]; then
+                # all non-ref mkl-dnn impls, performance
+                /usr/bin/time -v ./bench.sh -${DOTARGET}mAP -sref 2>&1 | tee "${BUILDDIR}/test4.log" || true
             fi
         fi
         echo "Tests done"

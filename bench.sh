@@ -56,7 +56,7 @@ VERBOSITY=0
 skip=""
 mode="--mode=P"
 # TODO: add batch file selection for some long tests examples [other than the default list]
-while getopts ":hqvjdt:V:s::" arg; do
+while getopts ":hqvjdm:t:V:s:" arg; do
     #echo "arg = ${arg}, OPTIND = ${OPTIND}, OPTARG=${OPTARG}"
     case $arg in
         v) # [yes] (if available, vanilla C/C++ only: no JIT)
@@ -73,7 +73,6 @@ while getopts ":hqvjdt:V:s::" arg; do
             DOQUICK="y"
             ;;
         m) # test mode string, C P [A] T -- for Corr Perf All Test
-            DOQUICK="n"
             mode="--mode=${OPTARG}"
             ;;
         t) # N threads [0: default env variables]
@@ -124,6 +123,9 @@ fi
 echo "build    directory : ${BUILDDIR}"
 echo "log      directory : ${LOGDIR}"
 echo "benchdnn directory : ${BENCHDIR}"
+echo "verbosity          : ${VERBOSITY}"
+echo "mode               : ${mode}"
+echo "skip               : ${skip}"
 if [ "${CC##sx}" == "sx" -o "${CXX##sx}" == "sx" ]; then
     echo "SX: cross-compiled benchdnn must be run on SX ACE/Aurora"
     exit 0
@@ -174,22 +176,25 @@ fi
 #(cd ${BENCHDIR} && ./benchdnn --conv --mode=AP -v${VERBOSITY} --cfg=f32 --dir=FWD_D --skip-impl="$skip" \
 #    mb12_ic3ih227iw227_oc96oh55ow55_kh11kw11_sh4sw4ph0pw0_nalexnet:conv1 \
 #    ) || { echo "Ohoh"; }
+(cd ${BENCHDIR} && ./benchdnn --conv --mode=AC -v${VERBOSITY} --cfg=f32 --dir=FWD_D --skip-impl="$skip" \
+    mb32_ic3ih44iw44_oc7oh10_kh11kw11_sh4sw4ph0pw0_nsmall1 \
+    mb32_ic3ih44kh3_oc7oh42_nsmall2 \
+    ) || { echo "Ohoh"; }
 (cd ${BENCHDIR} && ./benchdnn --conv --mode=AP -v${VERBOSITY} --cfg=f32 --dir=FWD_D --skip-impl="$skip" \
     mb32_ic3ih44iw44_oc7oh10_kh11kw11_sh4sw4ph0pw0_nsmall1 \
     mb32_ic3ih44kh3_oc7oh42_nsmall2 \
     ) || { echo "Ohoh"; }
-#(cd ${BENCHDIR} && ./benchdnn --conv --mode=AC -v${VERBOSITY} --cfg=f32 --dir=FWD_D --skip-impl="$skip" \
-#    mb32_ic3ih44iw44_oc7oh10_kh11kw11_sh4sw4ph0pw0_nsmall1 \
-#    mb32_ic3ih44kh3_oc7oh42_nsmall2 \
-#    ) || { echo "Ohoh"; }
 } 2>&1 | tee ${LOGDIR}/bench-quick-t${THREADS}.log
 #################
 if [ `uname` == 'SUPER-UX' -o "${DOQUICK}" = "y" ]; then
 	echo "Skipping long tests"
 else
-	echo "Bench Convolution Performance for ${MODE} fwd conv layers (many!) ..."
+    echo ""
+	echo "Bench Convolution Long Tests"
+	echo "for ${mode} FWD_B conv layers (many!) ..."
+    echo ""
 	LGBASE="${LOGDIR}/bench-convP-${DOTARGET}t${THREADS}"
-	(cd ${BENCHDIR} && ./benchdnn --conv ${MODE} -v3 --cfg=f32 --dir=FWD_B --skip-impl="$skip" \
+	(cd ${BENCHDIR} && ./benchdnn --conv ${MODE} -v${VERBOSITY} --cfg=f32 --dir=FWD_B --skip-impl="${skip}" \
         ) 2>&1 | tee ${LGBASE}-tmp.log \
 	&& mv ${LGBASE}-tmp.log ${LGBASE}.log && echo "${LGBASE}.log OK" \
 	|| { echo "${LGBASE}-tmp.log ERROR"; exit; }
