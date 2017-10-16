@@ -442,14 +442,15 @@ int init_conv_desc(mkldnn_convolution_desc_t &cd, const prb_t *p )
                     padding, padding_r, mkldnn_padding_zero), WARN);
         break;
     case BWD_D:
-        DNN_SAFE(mkldnn_convolution_backward_data_desc_init(&cd, alg, &src_d,
-                    &wei_d, &dst_d, strides, padding, padding_r,
-                    mkldnn_padding_zero), WARN);
+        DNN_SAFE(mkldnn_dilated_convolution_backward_data_desc_init(&cd, alg,
+                    &src_d, &wei_d, &dst_d, strides, dilates, padding,
+                    padding_r, mkldnn_padding_zero), WARN);
         break;
     case BWD_W: case BWD_WB:
-        DNN_SAFE(mkldnn_convolution_backward_weights_desc_init(&cd, alg,
-                    &src_d, &wei_d, p->dir == BWD_W ? NULL : &bia_d, &dst_d,
-                    strides, padding, padding_r, mkldnn_padding_zero), WARN);
+        DNN_SAFE(mkldnn_dilated_convolution_backward_weights_desc_init(&cd,
+                    alg, &src_d, &wei_d, p->dir == BWD_W ? NULL : &bia_d,
+                    &dst_d, strides, dilates, padding, padding_r,
+                    mkldnn_padding_zero), WARN);
         break;
     default: DNN_SAFE(mkldnn_invalid_arguments, CRIT);
              print(0,"%s\n", "bad init_conv_desc call : unsupported p->dir");

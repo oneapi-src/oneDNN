@@ -888,6 +888,17 @@ jit_uni_lrn_fwd_kernel_f32<sse42>::jit_uni_lrn_fwd_kernel_f32(
 }
 
 template<>
+void jit_uni_lrn_fwd_kernel_f32<sse42>::nchw_body(
+    int tail, int HW, prop_kind_t pk,
+    Xbyak::Ymm ymask,
+    Xbyak::Ymm ya,
+    Xbyak::Ymm yb,
+    Xbyak::Ymm yc,
+    Xbyak::Ymm yd,
+    Xbyak::Ymm ye,
+    Xbyak::Ymm ysum) {}
+
+template<>
 void jit_uni_lrn_fwd_kernel_f32<avx2>::nchw_body(
     int tail, int HW, prop_kind_t pk,
     Xbyak::Ymm ymask,
@@ -1066,6 +1077,13 @@ void jit_uni_lrn_fwd_kernel_f32<sse42>::nchw_body_sse42(
     movaps(ptr[store_addr + 8 * 4 * sizeof(float)], xe_lo);
     movaps(ptr[store_addr + 9 * 4 * sizeof(float)], xe_hi);
 }
+
+template<>
+void jit_uni_lrn_fwd_kernel_f32<avx2>::nchw_body_sse42(
+    int tail, int HW, prop_kind_t pk,
+    Xbyak::Xmm xmask_lo, Xbyak::Xmm xmask_hi,
+    Xbyak::Xmm xe_lo, Xbyak::Xmm xe_hi,
+    Xbyak::Xmm xsum_lo, Xbyak::Xmm xsum_hi) {}
 
 template<>
 jit_uni_lrn_fwd_kernel_f32<avx2>::jit_uni_lrn_fwd_kernel_f32(

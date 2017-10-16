@@ -192,6 +192,9 @@ struct convolution_bwd_data_pd_t: public primitive_desc_t {
     inline int KSH() const { return desc_.strides[0]; }
     inline int KSW() const { return desc_.strides[1]; }
 
+    inline int KDH() const { return desc_.dilates[0]; }
+    inline int KDW() const { return desc_.dilates[1]; }
+
     inline int padT() const { return desc_.padding[0][0]; }
     inline int padB() const { return desc_.padding[1][0]; }
     inline int padL() const { return desc_.padding[0][1]; }
@@ -274,6 +277,9 @@ struct convolution_bwd_weights_pd_t: public primitive_desc_t {
 
     inline int KSH() const { return desc_.strides[0]; }
     inline int KSW() const { return desc_.strides[1]; }
+
+    inline int KDH() const { return desc_.dilates[0]; }
+    inline int KDW() const { return desc_.dilates[1]; }
 
     inline int padT() const { return desc_.padding[0][0]; }
     inline int padB() const { return desc_.padding[1][0]; }
