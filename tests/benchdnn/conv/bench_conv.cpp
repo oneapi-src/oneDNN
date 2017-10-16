@@ -19,10 +19,6 @@
 #include <stdio.h>
 #include <float.h>
 #include <math.h>
-#if defined(_SX)
-#include <libgen.h>	/* dirname and strnlen tucked away here! */
-#endif
-
 #include "mkldnn.h"
 
 #include "mkldnn_common.hpp"
@@ -31,6 +27,23 @@
 #include "conv/conv.hpp"
 
 #include "conv/input_conv.hpp"
+
+#ifdef _WIN32
+#include <windows.h>
+#define PATH_MAX MAX_PATH
+static char *dirname(char *path) {
+    char drive[_MAX_DRIVE];
+    char dir[_MAX_DIR];
+    _splitpath(path, drive, dir, NULL, NULL);
+    path[0] = '\0';
+    if (drive != NULL) strncat(path, drive, _MAX_DRIVE);
+    if (dir != NULL) strncat(path, dir, MAX_PATH);
+    if (path[0] == '\0') strcat(path, ".");
+    return path;
+}
+#elif !defined(DOXYGEN_SHOULD_SKIP_THIS)
+#include <libgen.h>	/* dirname and strnlen tucked away here! */
+#endif /* WIN32 */
 
 namespace conv {
 
@@ -65,60 +78,26 @@ void check_correctness(const desc_t *c) {
         return;
     print(1, "run: %s", pstr);
 
-    res_t res{ .state=UNTESTED };
+    res_t res{};
     const int status = conv::doit(&p, &res);
     (void)status;
     RT_ASSERT( status == OK || status == FAIL );
 
     auto &bs = benchdnn_stat;
-    bool want_perf_report = false;
     const char *state = state2str(res.state);
-
+    /* [ejk] one `doit` run may include several impls now.
+     *       errors/total FAIL report is per-impl (inside doit) */
+    print(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
     switch (res.state) {
-    case UNTESTED:
-        // [ejk] really? why fall-through ?! XXX
-        //if (!(bench_mode & CORR)) {
-        //    want_perf_report = true;
-        //    break;
-        //}
-    case FAILED:
-        assert(status == FAIL);
-        bs.failed++;
-        print(0, "%d:%s (errors:%d total:%d) __REPRO: %s\n", bs.tests, state,
-                res.errors, res.total, pstr);
-        break;
-    case SKIPPED:
-        assert(status == OK);
-        print(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
-        bs.skipped++;
-        break;
-    case UNIMPLEMENTED:
-        assert(status == FAIL);
-        print(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
-        bs.unimplemented++;
-        bs.failed += !allow_unimpl;
-        break;
-    case MISTRUSTED:
-        assert(status == OK);
-        bs.mistrusted++;
-        print(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
-        // bs.failed++; /* temporal workaround for some tests */
-        break;
-    case PASSED:
-        assert(status == OK);
-        print(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
-        //want_perf_report = true;
-        //bs.passed++;
-        break;
+    case UNTESTED:      assert(status == FAIL); break;
+    case FAILED:        assert(status == FAIL); break;
+    case SKIPPED:       assert(status == OK  ); break;
+    case UNIMPLEMENTED: assert(status == FAIL); break;
+    case MISTRUSTED:    assert(status == OK  ); break;
+    case PASSED:        assert(status == OK  ); break;
     default:
         RT_ASSERT(!"unknown state");
     }
-
-    if(0){ // old report method, now we iterate within doit
-        if (want_perf_report && bench_mode & PERF)
-            perf_report(&p, &res, pstr);
-    }
-
     bs.tests++;
 }
 
@@ -174,23 +153,6 @@ int bench(int argc, char **argv, bool main_bench) {
 
     return OK;
 }
-
-#ifdef _WIN32
-#include <windows.h>
-#define PATH_MAX MAX_PATH
-static char *dirname(char *path) {
-    char drive[_MAX_DRIVE];
-    char dir[_MAX_DIR];
-    _splitpath(path, drive, dir, NULL, NULL);
-    path[0] = '\0';
-    if (drive != NULL) strncat(path, drive, _MAX_DRIVE);
-    if (dir != NULL) strncat(path, dir, MAX_PATH);
-    if (path[0] == '\0') strcat(path, ".");
-    return path;
-}
-#elif !defined(DOXYGEN_SHOULD_SKIP_THIS)
-#include <libgen.h>
-#endif /* WIN32 */
 
 FILE *open_batch_file(const char *fname) {
     const int max_paths = 4;

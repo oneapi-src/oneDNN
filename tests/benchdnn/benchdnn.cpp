@@ -71,6 +71,10 @@ int main(int argc, char **argv) {
     printf("benchdnn init ... omp_max_thr=%d",omp_max_thr); fflush(stdout);
     init();
     printf(" OK\n"); fflush(stdout);
+    // [ejk] perf stuff is a stub init for rdtsc/rdpmc/frequency governor.
+    //       It is not necessary with 'ticks' removed from benchdnn.
+    //       If reintroduced, an alternate approach is to expose xbyak's
+    //       rdtsc support within mkldnn headers.
     perf_t const * perf_data = perf_begin();
     if(perf_data == nullptr) { // [ejk] may need some timing system init
         printf("ERROR: perf_begin failed!\n");

@@ -338,7 +338,8 @@ if [ "$BUILDOK" == "y" ]; then
         fi
         if [ $DOTEST -ge 3 ]; then
             if [ -x ./bench.sh ]; then
-                /usr/bin/time -v ./bench.sh -q${DOTARGET} 2>&1 | tee "${BUILDDIR}/test3.log" || true
+                # all non-ref impls, performance and correctness
+                /usr/bin/time -v ./bench.sh -${DOTARGET}mAPC -sref2>&1 | tee "${BUILDDIR}/test3.log" || true
             fi
         fi
         echo "Tests done"

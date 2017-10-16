@@ -21,6 +21,12 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
+/* [ejk] Consider moving to mkldnn.hpp or even mkldnn.h, for purposes
+ * of benchmarking an I/O -- the name() strings return __FUNCTION__ that
+ * is long and ugly, and for a client/test prog to transform it to something
+ * pretty, these enums come in handy.   Yes, I know you do not technically
+ * need these exposed to have a "complete" API.
+ *    Ex. benchdnn : 'shorten(impl_str)' */
 typedef enum {
     isa_any,
     sse42,
@@ -30,13 +36,6 @@ typedef enum {
     avx512_mic,
     avx512_mic_4ops,
 } cpu_isa_t;
-
-#if defined(TARGET_VANILLA)
-// should not include jit_generator.hpp (or any other jit stuff)
-static inline constexpr bool mayiuse(const cpu_isa_t /*cpu_isa*/) {
-    return true;
-}
-#endif
 
 }
 }
