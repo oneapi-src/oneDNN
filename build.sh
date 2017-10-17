@@ -49,7 +49,8 @@ while getopts ":htvjdDqQpsSTb" arg; do
             # 0   : build    ~ ?? min  (jit), 1     min  (vanilla)
             # >=1 : examples ~  1 min  (jit), 13-16 mins (vanilla)
             # >=2 : test_*   ~ 10 mins (jit), 108   mins (vanilla)
-            # >=3 : benchdnn (bench.sh) performance/correctness tests (long)
+            # >=3 : benchdnn (bench.sh) performance tests (long)
+            # >=4 : benchdnn (bench.sh) correctnes tests, except ref (long)
             DOTEST=$(( DOTEST + 1 ))
             ;;
         v) # [yes] (vanilla C/C++ only: no src/cpu/ JIT assembler)
@@ -331,21 +332,24 @@ if [ "$BUILDOK" == "y" ]; then
         if [ true ]; then
             (cd "${BUILDDIR}" && ARGS='-VV -E .*test_.*' /usr/bin/time -v make test) 2>&1 | tee "${BUILDDIR}/test1.log" || true
         fi
-        if [ $DOTEST -ge 2 ]; then
-            echo "Testing ... test2"
-            (cd "${BUILDDIR}" && ARGS='-VV -N' make test \
-            && ARGS='-VV -R .*test_.*' /usr/bin/time -v make test) 2>&1 | tee "${BUILDDIR}/test2.log" || true
-        fi
+        #if [ $DOTEST -ge 2 ]; then
+        #    echo "Testing ... test2"
+        #    (cd "${BUILDDIR}" && ARGS='-VV -N' make test \
+        #    && ARGS='-VV -R .*test_.*' /usr/bin/time -v make test) \
+        #    2>&1 | tee "${BUILDDIR}/test2.log" || true
+        #fi
         if [ $DOTEST -ge 3 ]; then
             if [ -x ./bench.sh ]; then
-                # all mkl-dnn impls, correctness
-                /usr/bin/time -v ./bench.sh -${DOTARGET}mAC 2>&1 | tee "${BUILDDIR}/test3.log" || true
+                echo "# all mkl-dnn impls, correctness : -${DOTARGET}mAC"
+                /usr/bin/time -v ./bench.sh -${DOTARGET}mAC \
+                    2>&1 | tee "${BUILDDIR}/test3.log" || true
             fi
         fi
         if [ $DOTEST -ge 4 ]; then
             if [ -x ./bench.sh ]; then
-                # all non-ref mkl-dnn impls, performance
-                /usr/bin/time -v ./bench.sh -${DOTARGET}mAP -sref 2>&1 | tee "${BUILDDIR}/test4.log" || true
+                echo "# all non-ref mkl-dnn impls, performance: -${DOTARGET}mAP"
+                /usr/bin/time -v ./bench.sh -${DOTARGET}mAP -sref \
+                    2>&1 | tee "${BUILDDIR}/test4.log" || true
             fi
         fi
         echo "Tests done"

@@ -68,7 +68,10 @@ int main(int argc, char **argv) {
     }
 
     int omp_max_thr = omp_get_max_threads();
-    printf("benchdnn init ... omp_max_thr=%d",omp_max_thr); fflush(stdout);
+    printf("benchdnn --%s --mode=%s -v%d ... init omp_max_thr=%d ",
+                (prim==CONV? "conv": prim==IP? "ip" : "huh?"),
+                bench_mode2str(bench_mode), verbose, omp_max_thr);
+    fflush(stdout);
     init();
     printf(" OK\n"); fflush(stdout);
     // [ejk] perf stuff is a stub init for rdtsc/rdpmc/frequency governor.

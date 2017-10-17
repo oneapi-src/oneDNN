@@ -2,7 +2,7 @@
 # vim: et ts=4 sw=4
 #
 # Usage: ./bench.sh -h
-#   This runs benchdnn for some [quick?] tests
+#   This runs benchdnn for some [quick?] *convolution* tests
 #   Modify at will.  BUILDDIR matched with build.sh.
 #
 ORIGINAL_CMD="$0 $*"
@@ -53,8 +53,9 @@ THREADS=0
 BATCHDIR=tests/benchdnn/inputs
 BATCHFILE="${BATCHDIR}/conv_regression_small_spatial" # for example
 VERBOSITY=0
-skip=""
-mode="--mode=P"
+SKIP=""
+MODE="--mode=P"
+DIRS=(FWD_B) # FWD_D FWD_B BWD_D BWD_W BWD_WB
 # TODO: add batch file selection for some long tests examples [other than the default list]
 while getopts ":hqvjdm:t:V:s:" arg; do
     #echo "arg = ${arg}, OPTIND = ${OPTIND}, OPTARG=${OPTARG}"
@@ -69,11 +70,14 @@ while getopts ":hqvjdm:t:V:s:" arg; do
         d) # [no] debug release
             DODEBUG="y"
             ;;
+        D) # DIRS list : select from [FWD_B] FWD_D BWD_D BWD_W BWD_WB
+            DIRS=(${OPTARG})
+            ;;
         q) # quick : just a few QUICK samples
             DOQUICK="y"
             ;;
         m) # test mode string, C P [A] T -- for Corr Perf All Test
-            mode="--mode=${OPTARG}"
+            MODE="--mode=${OPTARG}"
             ;;
         t) # N threads [0: default env variables]
             THREADS=${OPTARG}
@@ -82,7 +86,7 @@ while getopts ":hqvjdm:t:V:s:" arg; do
             VERBOSITY=${OPTARG}
             ;;
         s) # skip-impl string [""]
-            skip="${OPTARG}"
+            SKIP="${OPTARG}"
             ;;
     h | *) # help
             usage
@@ -123,9 +127,10 @@ fi
 echo "build    directory : ${BUILDDIR}"
 echo "log      directory : ${LOGDIR}"
 echo "benchdnn directory : ${BENCHDIR}"
-echo "verbosity          : ${VERBOSITY}"
-echo "mode               : ${mode}"
-echo "skip               : ${skip}"
+echo "V-erbosity         : ${VERBOSITY}"
+echo "m-ode              : ${MODE}"
+echo "s-kip              : ${SKIP}"
+echo "D-irections        : ${DIRS[@]}" # multiple, like "FWD_B BWD_D BWD_WB", OK
 if [ "${CC##sx}" == "sx" -o "${CXX##sx}" == "sx" ]; then
     echo "SX: cross-compiled benchdnn must be run on SX ACE/Aurora"
     exit 0
@@ -158,7 +163,7 @@ fi
 #       --batch=inputs/test_conv_all ... selected the winograd examples
 # [ejk] direct conv + benchdnn doesn't work (was same in mkl-dnn master).
 #       does it require special fmt?
-#(cd ${BENCHDIR} && ./benchdnn --conv --mode=C -v${VERBOSITY} --skip-impl="$skip" \
+#(cd ${BENCHDIR} && ./benchdnn --conv --mode=C -v${VERBOSITY} --skip-impl="$SKIP" \
 #    --reset --cfg=f32_wino --alg=wino \
 #    --match=.*kh3[^0-9].* \
 #    --allow-unimpl=true \
@@ -169,35 +174,37 @@ fi
 #    --mb=1 \
 #    --dir=FWD_B --batch=inputs/conv_all \
 #    ) || { echo "Ohoh"; }
-#(cd ${BENCHDIR} && ./benchdnn --conv --mode=AP --alg=DIRECT -v${VERBOSITY} --cfg=f32 --dir=FWD_B --skip-impl="$skip" \
+#(cd ${BENCHDIR} && ./benchdnn --conv --mode=AP --alg=DIRECT -v${VERBOSITY} --cfg=f32 --dir=FWD_B --skip-impl="$SKIP" \
 #    mb1ic16oc16_ih32iw32kh3kw3_ph0pw0 \
 #    mb1ic16oc16_ih3oh1kh5ph0 \
 #    ) || { echo "Ohoh"; }
-#(cd ${BENCHDIR} && ./benchdnn --conv --mode=AP -v${VERBOSITY} --cfg=f32 --dir=FWD_D --skip-impl="$skip" \
+#(cd ${BENCHDIR} && ./benchdnn --conv --mode=AP -v${VERBOSITY} --cfg=f32 --dir=FWD_D --skip-impl="$SKIP" \
 #    mb12_ic3ih227iw227_oc96oh55ow55_kh11kw11_sh4sw4ph0pw0_nalexnet:conv1 \
 #    ) || { echo "Ohoh"; }
-(cd ${BENCHDIR} && ./benchdnn --conv --mode=AC -v${VERBOSITY} --cfg=f32 --dir=FWD_D --skip-impl="$skip" \
+(cd ${BENCHDIR} && ./benchdnn --conv --mode=AC -v${VERBOSITY} --cfg=f32 --dir=FWD_D --skip-impl="$SKIP" \
     mb32_ic3ih44iw44_oc7oh10_kh11kw11_sh4sw4ph0pw0_nsmall1 \
     mb32_ic3ih44kh3_oc7oh42_nsmall2 \
     ) || { echo "Ohoh"; }
-(cd ${BENCHDIR} && ./benchdnn --conv --mode=AP -v${VERBOSITY} --cfg=f32 --dir=FWD_D --skip-impl="$skip" \
+(cd ${BENCHDIR} && ./benchdnn --conv --mode=AP -v${VERBOSITY} --cfg=f32 --dir=FWD_D --skip-impl="$SKIP" \
     mb32_ic3ih44iw44_oc7oh10_kh11kw11_sh4sw4ph0pw0_nsmall1 \
     mb32_ic3ih44kh3_oc7oh42_nsmall2 \
     ) || { echo "Ohoh"; }
 } 2>&1 | tee ${LOGDIR}/bench-quick-t${THREADS}.log
+echo "bench.sh quick tests DONE -- logfile ${LOGDIR}/bench-quick-t${THREADS}.log"
 #################
 if [ `uname` == 'SUPER-UX' -o "${DOQUICK}" = "y" ]; then
 	echo "Skipping long tests"
 else
-    echo ""
-	echo "Bench Convolution Long Tests"
-	echo "for ${mode} FWD_B conv layers (many!) ..."
-    echo ""
-	LGBASE="${LOGDIR}/bench-convP-${DOTARGET}t${THREADS}"
-	(cd ${BENCHDIR} && ./benchdnn --conv ${MODE} -v${VERBOSITY} --cfg=f32 --dir=FWD_B --skip-impl="${skip}" \
-        ) 2>&1 | tee ${LGBASE}-tmp.log \
-	&& mv ${LGBASE}-tmp.log ${LGBASE}.log && echo "${LGBASE}.log OK" \
-	|| { echo "${LGBASE}-tmp.log ERROR"; exit; }
-
+    for dir in ${DIRS[@]}; do
+        echo ""
+        echo "Bench Convolution Long Tests"
+        echo "for ${MODE} --dir=${dir}  conv layers (many!) ..."
+        echo ""
+        LGBASE="${LOGDIR}/bench-convP-${DOTARGET}t${THREADS}"
+        (cd ${BENCHDIR} && ./benchdnn --conv ${MODE} -v${VERBOSITY} --cfg=f32 --dir=FWD_B --skip-impl="${SKIP}" \
+            ) 2>&1 | tee ${LGBASE}-tmp.log \
+            && mv ${LGBASE}-tmp.log ${LGBASE}.log && echo "${LGBASE}.log OK" \
+            || { echo "${LGBASE}-tmp.log ERROR"; exit; };
+    done;
 fi
 #

@@ -104,12 +104,12 @@ inline void zfree(void *ptr) { return ::free(ptr); }
 #endif
 
 /** generic benchmarking operating modes/modifiers.
- * \p CORR 'C'orrectness - executes default mkldnn convolution and reference impl
- * \p PERF 'P'erformance - loops execution of default mkldnn convolution for timings
- * \p ALL  'A'll         - 'C' or 'P' modifier -- add *all* mkldnn impls [if any]
- * \p TEST 'T'est        - 'C' or 'P' modifier -- add extra *test* benchdnn impls [if any]
+ * \p CORR 'C'orrectness - executes default mkl-dnn and reference impl
+ * \p PERF 'P'erformance - loops execution of default impl for timings
+ * \p ALL  'A'll         - 'C' or 'P' modifier : *all* mkldnn impls [if any]
+ * \p TEST 'T'est        - 'T' or 't' modifier : *test* benchdnn impls [if any]
  */
-enum bench_mode_t { MODE_UNDEF = 0x0, CORR = 0x1, PERF = 0x2, TEST=0x4, ALL=0x8 };
+enum bench_mode_t {MODE_UNDEF=0x0, CORR=0x1, PERF=0x2, TEST=0x4, ALL=0x8};
 const char *bench_mode2str(bench_mode_t mode);
 bench_mode_t str2bench_mode(const char *str);
 
