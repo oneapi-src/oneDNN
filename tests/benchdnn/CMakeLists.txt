@@ -23,6 +23,8 @@ file(GLOB_RECURSE HEADERS
 file(GLOB_RECURSE SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/*.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/*.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/*.h
     )
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}
@@ -37,8 +39,20 @@ if(WIN32)
     set_property(TARGET benchdnn PROPERTY ENVIRONMENT "PATH=${TEST_PATH}")
 endif()
 set_property(TARGET benchdnn PROPERTY CXX_STANDARD 11)
+set_property(TARGET benchdnn PROPERTY C_STANDARD 11)
 target_link_libraries(benchdnn ${LIB_NAME})
-if(UNIX AND NOT APPLE)
+if(NECSX) # dirname and strnlen extensions in a special library:
+    find_library(LIBGEN libgen) # NEW [ejk] probably need to tweak paths!!!
+    message(STATUS, "libgen ?? ${LIBGEN} ...")
+    if(LIBGEN)
+        target_link_libraries(benchdnn ${LIBGEN})
+    else()
+        target_link_libraries(benchdnn -lgen)
+    endif()
+    # Let me try the approach Ishizaka-san uses for milde compilation:
+    set_target_properties(benchdnn PROPERTIES
+        LINK_FLAGS -Wl,-h,muldefs,-h,lib_cyclic)
+elseif(UNIX AND NOT APPLE)
     find_library(LIBRT rt)
     if(LIBRT)
         target_link_libraries(benchdnn ${LIBRT})

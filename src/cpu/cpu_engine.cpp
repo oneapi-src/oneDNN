@@ -116,6 +116,9 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(jit_avx2_convolution_bwd_data_t),
     INSTANCE(jit_avx2_convolution_bwd_weights_t),
     INSTANCE(jit_sse42_convolution_fwd_t),
+    /* [ejk] benchdnn shows jit ones seems OK, and are much faster.
+     * Move mkl_gemm lower down?
+     * Do the jit ones need more burnin? */
     INSTANCE(mkl_gemm_convolution_fwd_t),
     INSTANCE(mkl_gemm_convolution_bwd_data_t),
     INSTANCE(mkl_gemm_convolution_bwd_weights_t),

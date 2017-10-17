@@ -16,8 +16,12 @@
 
 #ifndef CPU_JIT_AVX2_GENERATOR_HPP
 #define CPU_JIT_AVX2_GENERATOR_HPP
+#if defined(TARGET_VANILLA)
+#error "jit_generator.hpp should not be included for TARGET_VANILLA compile"
+#endif
 
 #include <type_traits>
+#include "cpu_isa.hpp"
 
 #define XBYAK64
 #define XBYAK_NO_OP_NAMES
@@ -37,16 +41,6 @@
 namespace mkldnn {
 namespace impl {
 namespace cpu {
-
-typedef enum {
-    isa_any,
-    sse42,
-    avx2,
-    avx512_common,
-    avx512_core,
-    avx512_mic,
-    avx512_mic_4ops,
-} cpu_isa_t;
 
 template <cpu_isa_t> struct cpu_isa_traits {}; /* ::vlen -> 32 (for avx2) */
 

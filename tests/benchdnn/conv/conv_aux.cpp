@@ -44,7 +44,7 @@ alg_t str2alg(const char *str) {
     CASE(DIRECT);
     CASE(WINO);
 #undef CASE
-    assert(!"unknown algorithm");
+    printf("--alg=%s unknown, assuming DIRECT\n", str);
     return DIRECT;
 }
 
@@ -97,7 +97,7 @@ int str2desc(desc_t *desc, const char *str) {
 #   define CASE_NN(p, c) do { \
         if (!strncmp(p, s, strlen(p))) { \
             ok = 1; s += strlen(p); \
-            char *end_s; d. c = strtol(s, &end_s, 10); s += (end_s - s); \
+            char *end_s; d. c = static_cast<int>(strtol(s, &end_s, 10)); s += (end_s - s); \
             /* printf("@@@debug: %s: %d\n", p, d. c); */ \
         } \
     } while (0)
@@ -278,3 +278,4 @@ bool maybe_skip(const char *impl_str) {
 }
 
 }
+// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

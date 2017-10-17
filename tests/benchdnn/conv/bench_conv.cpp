@@ -19,7 +19,6 @@
 #include <stdio.h>
 #include <float.h>
 #include <math.h>
-
 #include "mkldnn.h"
 
 #include "mkldnn_common.hpp"
@@ -28,6 +27,23 @@
 #include "conv/conv.hpp"
 
 #include "conv/input_conv.hpp"
+
+#ifdef _WIN32
+#include <windows.h>
+#define PATH_MAX MAX_PATH
+static char *dirname(char *path) {
+    char drive[_MAX_DRIVE];
+    char dir[_MAX_DIR];
+    _splitpath(path, drive, dir, NULL, NULL);
+    path[0] = '\0';
+    if (drive != NULL) strncat(path, drive, _MAX_DRIVE);
+    if (dir != NULL) strncat(path, dir, MAX_PATH);
+    if (path[0] == '\0') strcat(path, ".");
+    return path;
+}
+#elif !defined(DOXYGEN_SHOULD_SKIP_THIS)
+#include <libgen.h>	/* dirname and strnlen tucked away here! */
+#endif /* WIN32 */
 
 namespace conv {
 
@@ -40,7 +56,7 @@ alg_t alg = DIRECT;
 merge_t merge = NONE;
 const char *skip_impl = "";
 bool allow_unimpl = false;
-const char *perf_template = "perf,%n,%d,%GO,%-t,%-Gp,%0t,%0Gp";
+const char *perf_template = "perf,%n,%d,%GO,%-t,%-Gp,%0t,%0Gp,%i";
 
 void reset_parameters() {
     cfg = conf_f32;
@@ -60,60 +76,28 @@ void check_correctness(const desc_t *c) {
 
     if (pattern && !match_regex(pstr, pattern))
         return;
-    print(1, "run: %s\n", pstr);
+    print(1, "run: %s", pstr);
 
     res_t res{};
     const int status = conv::doit(&p, &res);
     (void)status;
-
-    bool want_perf_report = false;
+    RT_ASSERT( status == OK || status == FAIL );
 
     auto &bs = benchdnn_stat;
     const char *state = state2str(res.state);
-
+    /* [ejk] one `doit` run may include several impls now.
+     *       errors/total FAIL report is per-impl (inside doit) */
+    print(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
     switch (res.state) {
-    case UNTESTED:
-        if (!(bench_mode & CORR)) {
-            want_perf_report = true;
-            break;
-        }
-    case FAILED:
-        assert(status == FAIL);
-        bs.failed++;
-        print(0, "%d:%s (errors:%d total:%d) __REPRO: %s\n", bs.tests, state,
-                res.errors, res.total, pstr);
-        break;
-    case SKIPPED:
-        assert(status == OK);
-        print(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
-        bs.skipped++;
-        break;
-    case UNIMPLEMENTED:
-        assert(status == OK);
-        print(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
-        bs.unimplemented++;
-        bs.failed += !allow_unimpl;
-        break;
-    case MISTRUSTED:
-        assert(status == OK);
-        bs.mistrusted++;
-        print(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
-        // bs.failed++; /* temporal workaround for some tests */
-        break;
-    case PASSED:
-        assert(status == OK);
-        print(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
-        want_perf_report = true;
-        bs.passed++;
-        break;
+    case UNTESTED:      assert(status == FAIL); break;
+    case FAILED:        assert(status == FAIL); break;
+    case SKIPPED:       assert(status == OK  ); break;
+    case UNIMPLEMENTED: assert(status == FAIL); break;
+    case MISTRUSTED:    assert(status == OK  ); break;
+    case PASSED:        assert(status == OK  ); break;
     default:
-        assert(!"unknown state");
-        { []() { SAFE(FAIL, CRIT); return 0; }(); }
+        RT_ASSERT(!"unknown state");
     }
-
-    if (want_perf_report && bench_mode & PERF)
-        perf_report(&p, &res, pstr);
-
     bs.tests++;
 }
 
@@ -160,33 +144,15 @@ int bench(int argc, char **argv, bool main_bench) {
         }
     }
 
-    /* deprecated? */
     if (main_bench && benchdnn_stat.tests == 0) {
-        /* use default list of problems */
-        int N = sizeof(default_list) / sizeof(default_list[0]);
+        const int N = sizeof(default_list) / sizeof(default_list[0]);
+        print(0,"/* using default list of %d problems */", N);
         for (int n = 0; n < N; ++n)
             check_correctness(&default_list[n]);
     }
 
     return OK;
 }
-
-#ifdef _WIN32
-#include <windows.h>
-#define PATH_MAX MAX_PATH
-static char *dirname(char *path) {
-    char drive[_MAX_DRIVE];
-    char dir[_MAX_DIR];
-    _splitpath(path, drive, dir, NULL, NULL);
-    path[0] = '\0';
-    if (drive != NULL) strncat(path, drive, _MAX_DRIVE);
-    if (dir != NULL) strncat(path, dir, MAX_PATH);
-    if (path[0] == '\0') strcat(path, ".");
-    return path;
-}
-#else
-#include <libgen.h>
-#endif /* WIN32 */
 
 FILE *open_batch_file(const char *fname) {
     const int max_paths = 4;
@@ -259,3 +225,4 @@ int batch(const char *fname) {
 }
 
 }
+// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

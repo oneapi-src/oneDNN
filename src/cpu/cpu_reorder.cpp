@@ -20,8 +20,10 @@
 #include "cpu_memory.hpp"
 #include "type_helpers.hpp"
 
+#ifndef TARGET_VANILLA
 #include "cpu/jit_reorder.hpp"
-#include "cpu/simple_reorder.hpp"
+#endif
+#include "simple_reorder.hpp"
 
 namespace mkldnn {
 namespace impl {

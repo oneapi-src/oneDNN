@@ -34,6 +34,10 @@
 #define __PRETTY_FUNCTION__ __FUNCSIG__
 #endif
 
+/** \deprecated -- rdbutso REMOVED 'ticks' functions :) */
+#define USE_RDPMC 0
+#define USE_RDTSC 0
+
 enum { CRIT = 1, WARN = 2 };
 
 #define SAFE(f, s) do { \
@@ -49,6 +53,16 @@ enum { CRIT = 1, WARN = 2 };
     } \
 } while(0)
 
+#define RT_ASSERT( COND ) do { \
+    bool const rt_assert_cond = (COND); \
+    if( ! rt_assert_cond ) { \
+        fflush(0), fprintf(stderr, "@@@ error [%s:%d]: '%s' -> false\n", \
+                __PRETTY_FUNCTION__, __LINE__, #COND), fflush(0); \
+        exit(1); \
+    } \
+}while(0)
+
+
 #define ABS(a) ((a)>0?(a):(-(a)))
 
 #define MIN2(a,b) ((a)<(b)?(a):(b))
@@ -63,6 +77,7 @@ enum { CRIT = 1, WARN = 2 };
 #define CONCAt2(a,b) a ## b
 #define CONCAT2(a,b) CONCAt2(a,b)
 
+#if ! defined(_SX)
 inline void *zmalloc(size_t size, int align) {
     void *ptr;
 #ifdef _WIN32
@@ -81,7 +96,20 @@ inline void zfree(void *ptr) {
 #endif /* _WIN32 */
 }
 
-enum bench_mode_t { MODE_UNDEF = 0x0, CORR = 0x1, PERF = 0x2, };
+#else // SX architecture does not have/need posix_memalign
+inline void *zmalloc(size_t size, int align) {
+    return ::malloc(size);
+}
+inline void zfree(void *ptr) { return ::free(ptr); }
+#endif
+
+/** generic benchmarking operating modes/modifiers.
+ * \p CORR 'C'orrectness - executes default mkl-dnn and reference impl
+ * \p PERF 'P'erformance - loops execution of default impl for timings
+ * \p ALL  'A'll         - 'C' or 'P' modifier : *all* mkldnn impls [if any]
+ * \p TEST 'T'est        - 'T' or 't' modifier : *test* benchdnn impls [if any]
+ */
+enum bench_mode_t {MODE_UNDEF=0x0, CORR=0x1, PERF=0x2, TEST=0x4, ALL=0x8};
 const char *bench_mode2str(bench_mode_t mode);
 bench_mode_t str2bench_mode(const char *str);
 
@@ -97,7 +125,8 @@ extern bench_mode_t bench_mode;
 } while (0)
 
 struct stat_t {
-    int tests;
+    int tests;          ///< count convolution problem specs
+    int impls;          ///< count convolution impls (==tests if not iterating over impls)
     int passed;
     int failed;
     int skipped;
@@ -160,13 +189,16 @@ struct benchdnn_timer_t {
 
     int times_;
     double ms_[n_modes], ms_start_;
+#if USE_RDPMC || USE_RDTSC
+    long long ticks_[n_modes], ticks_start_;
+#endif
 };
 
-/* result structure */
-
+/** result structure. \c errors / \c total now now valid only for
+ * current impl within a single \c doit test. */
 struct res_t {
-    res_state_t state;
-    int errors, total;
+    res_state_t state;          ///< final status of one or more impls
+    int errors, total;          ///< elementwise compare errors/total
     benchdnn_timer_t timer;
 };
 

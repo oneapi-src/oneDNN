@@ -28,6 +28,22 @@
 namespace mkldnn {
 namespace impl {
 
+struct memory_pd_t; // fwd declaration
+
+// What effect on vanilla runtimes ...
+//  fast_memory_desc_wrapper< memory_format_t >
+//  - with size and off_v and off_l specialized.
+// Use in kernels as switch over all possible memory formats
+//  - Ex. switch(src_pd._md.format())
+//          case(nchw): fast_memory_desc_wrapper<nchw> src_xx(src_pd._md);
+//                      KERNEL( ..src_data[ src_xx.off(a,b,...) ] );
+//                      // and now src_xx.off is known at COMPILE-time.
+//                      break
+//          // ... repeat KERNEL code for ALL possible _md.format()s
+//        }
+//  - with multiple src/wei/out formats could get template explosion, so
+//    include a default case invoking the un-templated memory_desc_wrapper
+//    
 /** thin wrapper class over \struct memory_desc_t which allows easy
  * manipulatings with underlying C structure, which is taken by refernce */
 struct memory_desc_wrapper: public c_compatible {
@@ -37,9 +53,10 @@ struct memory_desc_wrapper: public c_compatible {
      * descriptor \param md */
     memory_desc_wrapper(const memory_desc_t &md) : _md(&md) {}
     memory_desc_wrapper(const memory_desc_t *md) : _md(md) {}
+    /** do not depend on \c memory_pd.hpp */
     memory_desc_wrapper(const memory_pd_t *m_pd);
 
-    /* implementing attrubutes */
+    /* implementing attributes */
     inline int ndims() const { return _md->ndims; }
     const dims_t &dims() const { return _md->dims; }
     data_type_t data_type() const { return _md->data_type; }
@@ -83,8 +100,8 @@ struct memory_desc_wrapper: public c_compatible {
         size_t max_size = 0;
         for (int d = 0; d < ndims(); ++d) {
             auto block = block_dims[d];
-            max_size = nstl::max(max_size,
-                    size_t(padding_dims[d]/block)*strides[0][d]);
+            max_size = nstl::max(max_size, // strides are ptrdiff_t
+                    size_t((padding_dims[d]/block)*strides[0][d]));
             if (block > 1)
                 max_size = nstl::max(max_size, size_t(block*strides[1][d]));
         }
@@ -133,7 +150,8 @@ struct memory_desc_wrapper: public c_compatible {
         const blocking_desc_t &blk = blocking_desc();
         const dims_t &optd = blk.offset_padding_to_data;
 
-        size_t phys_offset = blk.offset_padding;
+        assert( blk.offset_padding >= 0 ); // offset_padding is ptrdiff_t (signed?)
+        size_t phys_offset = static_cast<size_t>(blk.offset_padding);
         for (int d = 0; d < ndims(); ++d) {
             const int block = blk.block_dims[d];
 
@@ -170,14 +188,14 @@ struct memory_desc_wrapper: public c_compatible {
         for (int rd = 0; rd < ndims(); ++rd) {
             const int d = ndims() - 1 - rd;
             const int cur_dim = is_pos_padded ? padding_dims[d] : dims()[d];
-            pos[d] = l_offset % cur_dim;
+            pos[d] = static_cast<int>(l_offset % cur_dim);
             l_offset /= cur_dim;
         }
         return off_v(pos, is_pos_padded);
     }
 
     /** returns physical offset by logical one. logical offset is represented by
-     * a tuple of indeces (\param xn, ..., \param x1, \param x0) */
+     * a tuple of indices (\c xn, ..., \c x1, \c x0) */
     template<typename... Args> inline size_t off(Args... args) const {
         assert(sizeof...(args) == ndims());
         dims_t pos = { args... };
@@ -185,8 +203,7 @@ struct memory_desc_wrapper: public c_compatible {
     }
 
     /** returns physical offset by logical one. logical offset is represented by
-     * a tuple of indeces (\param xn, ..., \param x1, \param x0) in already
-     * padded area */
+     * a tuple of indices (\c xn, ..., \c x1, \c x0) in already padded area */
     template<typename... Args> inline size_t off_padding(Args... args) const {
         assert(sizeof...(args) == ndims());
         dims_t pos = { args... };
@@ -194,7 +211,7 @@ struct memory_desc_wrapper: public c_compatible {
     }
 
     /** returns physical offset by logical one. Logical offset is represented by
-     * a tuple of block indeces (\param bn, ..., \param b1, \param b0). It is a
+     * a tuple of block indices (\c bn, ..., \c b1, \c b0). It is a
      * user responsibility to adjust the result to get offset within blocks */
     template<typename ...Args> inline size_t blk_off(Args... args) const {
         return _blk_off<Args...>(args...);
@@ -224,8 +241,9 @@ private:
                 &dims()[ndims() - n_args]) + logical_offset(args...);
     }
 
-    template<typename ...Void>
-    inline size_t _blk_off() const { return blocking_desc().offset_padding; }
+    template<typename ...Void> // from ptrdiff_t
+    inline size_t _blk_off() const { return static_cast<size_t>(
+                                blocking_desc().offset_padding); }
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     template<typename T> inline size_t _blk_off(T x0) const {
@@ -235,8 +253,9 @@ private:
 
     template<typename T, typename ...Args>
     inline size_t _blk_off(Args ...args, T xn) const {
-        return size_t(xn)*blocking_desc().strides[0][sizeof...(args)] +
-            _blk_off<Args...>(args...);
+        return static_cast<size_t>(size_t(xn)
+            * blocking_desc().strides[0][sizeof...(args)]
+            + _blk_off<Args...>(args...));
     }
 };
 

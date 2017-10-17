@@ -176,14 +176,48 @@ inline void inv_dst_off_f(const prb_t *p, int off, int &mb, int &g, int &oc,
     assert(off == 0);
 }
 
-void compute_ref_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
-        dnn_mem_t &bia_m, dnn_mem_t &dst_m);
-void compute_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m, dnn_mem_t &wei_m,
-        dnn_mem_t &diff_dst_m);
-void compute_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &diff_wei_m,
-        dnn_mem_t &diff_bia_m, dnn_mem_t &diff_dst_m);
+typedef void (*conv_fwd_fn)   (const prb_t *p, dnn_mem_t &src_m,
+        dnn_mem_t &wei_m, dnn_mem_t &bia_m, dnn_mem_t &dst_m);
+typedef void (*conv_bwd_d_fn) (const prb_t *p, dnn_mem_t &diff_src_m,
+        dnn_mem_t &wei_m, dnn_mem_t &diff_dst_m);
+typedef void (*conv_bwd_w_fn )(const prb_t *p, dnn_mem_t &src_m,
+        dnn_mem_t &diff_wei_m, dnn_mem_t &diff_bia_m, dnn_mem_t &diff_dst_m);
 
-void perf_report(const prb_t *p, const res_t *r, const char *pstr);
+#if 1
+void compute_ref_fwd(const prb_t *p, dnn_mem_t &src_m,
+        dnn_mem_t &wei_m, dnn_mem_t &bia_m, dnn_mem_t &dst_m);
+void compute_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
+        dnn_mem_t &wei_m, dnn_mem_t &diff_dst_m);
+void compute_ref_bwd_w (const prb_t *p, dnn_mem_t &src_m,
+        dnn_mem_t &diff_wei_m, dnn_mem_t &diff_bia_m, dnn_mem_t &diff_dst_m);
+#else
+conv_fwd_fn compute_ref_fwd;
+conv_bwd_d_fn compute_ref_bwd_d;
+conv_bwd_w_fn  compute_ref_bwd_w;
+#endif
+
+typedef struct {
+    conv_fwd_fn   fwd;
+    conv_bwd_d_fn bwd_d;
+    conv_bwd_w_fn bwd_w;
+} conv_impls_t;
+
+/** returns a list of alternate convolution loops.
+ * The first one is (*always*) {compute_ref_fwd, compute_ref_bwd_d, compute_ref_bwd_w},
+ * and this impl is used for correctness testing (bench_mode 'C')
+ *
+ * Other impl triplets (if any) are *test** impls (bench_mode 'T').
+ * These *test* codes are local to benchdnn
+ *
+ * We expect to investigate convolutions in 'T'est mode, and if they are fast and
+ * correct move them to mkl-dnn (and comment them out of general use in benchdnn).
+ * \sa bench_mode.
+ */
+conv_impls_t * get_ref_impls();
+/** return size of benchdnn test impls list */
+size_t constexpr get_nref_impls();
+
+void perf_report(const prb_t *p, const res_t *r, const char *pstr, const char *impl=nullptr);
 
 bool maybe_skip(const char *impl_str);
 int doit(const prb_t *p, res_t *res);
@@ -191,4 +225,5 @@ int bench(int argc, char **argv, bool main_bench = true);
 
 }
 
+// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
 #endif

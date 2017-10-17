@@ -1,8 +1,7 @@
 # benchdnn
 
 **benchdnn** is a standalone correctness and performance benchmark for
-[Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN)](
-https://raw.githubusercontent.com/01org/mkl-dnn) library.
+[Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN)](https://raw.githubusercontent.com/01org/mkl-dnn) library.
 The purpose of the benchmark is extended and robust correctness verification of
 the primitives provided by MKL-DNN. So far **benchdnn** supports convolutions
 and inner products of different data types. It also implicitly tests reorders.
@@ -26,7 +25,10 @@ where:
 
  - `HARNESS` is either `conv` [default] or `ip`
 
- - `MODE` -- string that contains flags for benchmark mode. Use `C` or `c` for correctness (used by default), and `P` or `p` for performance
+ - `MODE` -- string that contains flags for benchmark mode.
+   - Use `C` or `c` for correctness (used by default), and `P` or `p` for performance.
+   - For `--conv`, an `A` in `--mode` will loop over all available mkl-dnn implementations
+   - For `--conv`, a `T` in `--mode` will loop over alt benchdnn reference impls [if any].
 
  - `N` -- verbose level (integer from 0 [default] to ...)
 
@@ -107,21 +109,22 @@ table of modifiers below.
 
 | abbreviation  | description
 |:------------  |:-----------
-| %d            | problem descriptor
-| %D            | expanded problem descriptor (conv parameters in csv format)
-| %n            | problem name
-| %z            | direction
-| %O            | number of ops required (padding is not taken into account)
-| %@t           | time in ms
-| %@p           | ops per second
+| \%d           | problem descriptor
+| \%D           | expanded problem descriptor (conv parameters in csv format)
+| \%n           | problem name
+| \%z           | direction
+| \%O           | number of ops required (padding is not taken into account)
+| \%@t          | time in ms
+| \%@p          | ops per second
+| \%i           | convolution implementation string
 
 | modifier  | description
 |:--------  |:-----------
 |           | default
-| -         | min (time) -- default
+| -         | min (time) = default
 | 0         | avg (time)
 | +         | max (time)
-|           |
+| --------- | ----------
 | K         | Kilo (1e3)
 | M         | Mega (1e6)
 | G         | Giga (1e9)
@@ -130,7 +133,7 @@ The definition of expanded problem descriptor is:
 `g,mb,ic,ih,iw,oc,oh,ow,kh,kw,sh,sw,ph,pw`.
 
 The default template can be found in conv/bench_conv.cpp that is defined as
-`perf,%n,%d,%GO,%-t,%-Gp,%0t,%0Gp`. That will produce the following output
+`perf,\%n,\%d,\%GO,\%-t,\%-Gp,\%0t,\%0Gp,\%i`. That will produce the following output
 in CSV format:
 ```
 string: perf
@@ -141,24 +144,25 @@ minimum time spent in ms
 best gigaops (since it corresponds to mimimum time)
 average time spent in ms
 average gigaops (since it corresponds to average time)
+convolution implementation name
 ```
 
 ## Examples
 
 Run the default set of f32 forwad convolutions w/ bias and default minibatch:
-```
+```ShellSession
     $ ./benchdnn --conv \
         --cfg=f32 --dir=FWD_B
 ```
 
 Run the same but with merged ReLU:
-```
+```ShellSession
     $ ./benchdnn --conv \
         --cfg=f32 --dir=FWD_B --merge=RELU
 ```
 
 Run the same as previous but also measure performance:
-```
+```ShellSession
     $ ./benchdnn --conv --mode=CORRnPERF \
         --cfg=f32 --dir=FWD_B --merge=RELU
 ```
@@ -167,14 +171,14 @@ Run the same as previous but also measure performance:
 
 Run the default set of f32 backward convolutions wrt weights with kh=3 and
 verbose level set to 2:
-```
+```ShellSession
     $ ./benchdnn --conv -v2 \
         --cfg=f32 --dir=BWD_W --match='.*kh3[^0-9].*'
 ```
 
 Run the default set of u8s8u8s32 backward convolutions wrt data but skip all
 the convolutions that will use reference or gemm-based implementation:
-```
+```ShellSession
     $ ./benchdnn --conv \
         --cfg=u8s8u8s32 --dir=BWD_B --skip-impl='ref:gemm'
 ```
@@ -182,18 +186,44 @@ the convolutions that will use reference or gemm-based implementation:
 Run explicitly specified 1st forward convolution (including bias) from Alexnet
 with the minibatch set to 4, verbose level set to 1 for two given
 configurations (`u8s8u8s32` and `f32`):
-```
+```ShellSession
     $ ./benchdnn --conv -v1 \
         --mb=4 --dir=FWD_B \
         --cfg=u8s8u8s32 ic3ih227iw227_oc96oh55ow55_kh11kw11_sh4sw4ph0pw0_n"alexnet:conv1" \
         --cfg=f32 ic3ih227iw227_oc96oh55ow55_kh11kw11_sh4sw4ph0pw0_n"alexnet:conv1"
 ```
 
+Run the 1st Alexnet convolution **comparing** all convolution
+**implementations** except for the reference one. `--mode`
+setting is for <b>A</b>ll <b>P</b>erformance. The spec was shortened
+because when height and width of things are equal, you only need to specify
+one of them.
+```ShellSession
+    $ ./benchdnn --conv --mode=AP \
+        --dir=FWD_D --skip-impl=ref ic3ih227_oc96oh55_kh11_sh4ph0_n"alexnet:conv1"
+```
+(On my desktop, the above yielded
+```Text linenos:false
+    benchdnn init ... omp_max_thr=12 OK
+
+    perf,alexnet:conv1,"--dir=FWD_D ic3ih227oc96oh55kh11sh4nalexnet:conv1",0.421661,0.814615,517.62,0.890699,473.404,"_jit_avx2_convolution_fwd_t"
+    perf,alexnet:conv1,"--dir=FWD_D ic3ih227oc96oh55kh11sh4nalexnet:conv1",0.421661,2.61064,161.516,2.85301,147.795,"_jit_sse42_convolution_fwd_t"
+    0:PASSED __REPRO: --dir=FWD_D ic3ih227oc96oh55kh11sh4nalexnet:conv1
+    tests:1 impls:3 passed:2 skipped:1 mistrusted:0 unimplemented:0 failed:0
+```
+- Yahoo. For this convolution, `avx2` was over 3x faster than the `sse2` (473 vs 148
+  Mops).  Prefacing the command with `OMP_NUM_THREADS=1`, I got 81 vs 27 Mops.
+- If you were to runn with `--mode=CAP`, the final output line should read
+  `correct:2` instead of `passed:2`.
+- If you were to runn with `--mode=CAPT`, and you have defined reference loops other
+  than the normal ones in `benchdnn/conv/ref_conv.cpp`, then you *may* see lines like:
+  `TEST #1 ... time 471.092000 ms CORRECT`
+
 Run batch file for different algorithms (assuming the file only specifies
 convolutions and does not include harness options that would override ones
 passed in the command line). Also ignore mkldnn_unimplemented errors in case of
 Winograd:
-```
+```ShellSession
     $ ./benchdnn --conv \
         --alg=DIRECT --batch=convs.in \
         --allow-unimpl=true \
@@ -214,8 +244,9 @@ Winograd:
 | ih, iw        | Input height and width
 | oh, ow        | Output height and width
 | kh, kw        | Kernel (filter, weights) height and width
-| sh, sw        | Convolution stride over height and width
-| ph, pw        | Convolution top and left padding
+| sh, sw        | Convolution stride over height and width (0=&gt;stride 1)
+| ph, pw        | Convolution top and left padding (0=none)
+| dh, dw        | Dilation of image region covered by kernel (0=&gt;x1)
 | mb            | Minibatch (amount of images processed at once)
 | g             | Groups (a way to reduce the amount of computations, see Alexnet topology)
 | FWD_{D,B}     | forward w/o and w/ bias

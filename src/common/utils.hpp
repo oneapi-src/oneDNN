@@ -119,7 +119,7 @@ inline bool array_cmp(const T *a1, const T *a2, size_t size) {
 }
 template<typename T, typename U>
 inline void array_set(T *arr, const U& val, size_t size) {
-    for (size_t i = 0; i < size; ++i) arr[i] = val;
+    for (size_t i = 0; i < size; ++i) arr[i] = static_cast<T>(val);
 }
 
 namespace product_impl {
@@ -178,8 +178,12 @@ inline T nd_iterator_init(T start) { return start; }
 template<typename T, typename U, typename W, typename... Args>
 inline T nd_iterator_init(T start, U &x, const W &X, Args &&... tuple) {
     start = nd_iterator_init(start, utils::forward<Args>(tuple)...);
-    x = start % X;
-    return start / X;
+    x = static_cast<U>(start % static_cast<T>(X));
+    return start / static_cast<T>(X);
+    // .. or maybe do in "larger-of" type ?
+    //typedef decltype(start + x) TU_t;
+    //x = static_cast<U>( (TU_t)(start) % (TU_t)(X));
+    //return static_cast<T>(start / X);
 }
 
 inline bool nd_iterator_step() { return true; }
@@ -220,6 +224,7 @@ inline bool nd_iterator_jump(U &cur, const U end, W &x, const Y &X,
 
 }
 
+#if !defined(_SX)
 inline void* malloc(size_t size, int alignment) {
     void *ptr;
 
@@ -232,6 +237,12 @@ inline void* malloc(size_t size, int alignment) {
 
     return (rc == 0) ? ptr : 0;
 }
+#else
+/** SX -> ::malloc and ::free, instead of aligned pointers.
+ * \p alignment arg ignored (less important with SX memory architecture)
+ * \note Compatibility: matches _malloc/_free lambdas in mkldnn.hpp */
+inline void* malloc(size_t size, int /*alignment*/) { return ::malloc(size); }
+#endif
 
 #ifdef _WIN32
 inline void free(void* p) { _aligned_free(p); };

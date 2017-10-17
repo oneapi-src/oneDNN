@@ -158,3 +158,4 @@ void compute_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m,
 }
 
 }
+// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

@@ -99,7 +99,7 @@ inline int compare_dat(dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     double eps = 1e-4;
 
     r->errors = 0;
-    r->total = nelems;
+    r->total = static_cast<int>(nelems);
     float max_rel_diff = 0;
     for (size_t i = 0; i < nelems; ++i) {
         float dt = ((float*)mem_dt)[i];
@@ -124,7 +124,7 @@ inline void fill_src(dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     const size_t sz = mem_00.nelems();
 #   pragma omp parallel for
     for (size_t i = 0; i < sz; ++i)
-        ((float*)mem_00)[i] = 1 + (i % 3); // 1 + sin(0.2* (i % 17));
+        ((float*)mem_00)[i] = (float)(1 + (i % 3)); // 1 + sin(0.2* (i % 17));
 
     mem_dt.reorder(mem_00);
     mem_fp.reorder(mem_dt);
@@ -140,7 +140,7 @@ inline void fill_wei(dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     const size_t sz = mem_00.nelems();
 #   pragma omp parallel for
     for (size_t i = 0; i < sz; ++i)
-        ((float*)mem_00)[i] = (i % 4) - 1 ; // 1 + sin(0.2* (i % 17));
+        ((float*)mem_00)[i] = (float)((i % 4) - 1) ; // 1 + sin(0.2* (i % 17));
 
     mem_dt.reorder(mem_00);
     mem_fp.reorder(mem_dt);
@@ -171,7 +171,7 @@ inline void fill_dst(dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     const size_t sz = mem_00.nelems();
 #   pragma omp parallel for
     for (size_t i = 0; i < sz; ++i)
-        ((float*)mem_00)[i] = 1 + (i % 3); // 1 + sin(0.2* (i % 17));
+        ((float*)mem_00)[i] = (float)(1 + (i % 3)); // 1 + sin(0.2* (i % 17));
 
     mem_dt.reorder(mem_00);
     mem_fp.reorder(mem_dt);
@@ -186,6 +186,7 @@ int doit(prb_t *p, res_t *r) {
     mkldnn_inner_product_desc_t ipd;
     mkldnn_primitive_desc_t ippd;
     mkldnn_primitive_t ip;
+    bool const use_bia = p->dir & FLAG_BIA;
 
     SAFE(init_pd(p, ipd, ippd), WARN);
 
@@ -198,25 +199,27 @@ int doit(prb_t *p, res_t *r) {
     dnn_mem_t src_dt(src_dt_d, p->src_dt);
     dnn_mem_t wei_dt(wei_dt_d, p->wei_dt);
     dnn_mem_t dst_dt(dst_dt_d, p->dst_dt);
-    dnn_mem_t bia_dt = p->dir & FLAG_BIA
-        ? dnn_mem_t(bia_dt_d, p->dst_dt) : dnn_mem_t();
+    //dnn_mem_t bia_dt = p->dir & FLAG_BIA
+    //        ? dnn_mem_t(bia_dt_d, p->dst_dt) : dnn_mem_t();
+    dnn_mem_t bia_dt = dnn_mem_t::optional(use_bia, bia_dt_d, p->dst_dt);
 
     dnn_mem_t src_fp(src_dt_d, fp, mkldnn_nchw);
     dnn_mem_t wei_fp(wei_dt_d, fp, mkldnn_oihw);
     dnn_mem_t dst_fp(dst_dt_d, fp, mkldnn_nc);
-    dnn_mem_t bia_fp = p->dir & FLAG_BIA
-        ? dnn_mem_t(bia_dt_d, fp, mkldnn_x) : dnn_mem_t();
+    //dnn_mem_t bia_fp = p->dir & FLAG_BIA
+    //        ? dnn_mem_t(bia_dt_d, fp, mkldnn_x) : dnn_mem_t();
+    dnn_mem_t bia_fp = dnn_mem_t::optional(use_bia, bia_dt_d, fp, mkldnn_x);
 
     fill_src(src_dt, src_fp, r);
     fill_wei(wei_dt, wei_fp, r);
     fill_dst(dst_dt, dst_fp, r);
-    if (p->dir & FLAG_BIA)
+    if (use_bia)
         fill_bia(bia_dt, bia_fp, r);
 
     if (p->dir & FLAG_FWD) {
         compute_ref_fwd(p, src_fp, wei_fp, bia_fp, dst_fp);
         mkldnn_primitive_at_t inputs[3] = { {src_dt.p_, 0}, {wei_dt.p_, 0},
-            {p->dir & FLAG_BIA ? bia_dt.p_ : NULL, 0}
+            {use_bia ? bia_dt.p_ : NULL, 0}
         };
         const_mkldnn_primitive_t outputs[] = { dst_dt.p_ };
         DNN_SAFE(mkldnn_primitive_create(&ip, ippd, inputs, outputs), WARN);
@@ -238,14 +241,14 @@ int doit(prb_t *p, res_t *r) {
         compute_ref_bwd_w(p, src_fp, wei_fp, bia_fp, dst_fp);
         mkldnn_primitive_at_t inputs[3] = { {src_dt.p_, 0}, {dst_dt.p_, 0}, };
         const_mkldnn_primitive_t outputs[] = { wei_dt.p_,
-            p->dir & FLAG_BIA ? bia_dt.p_ : NULL,
+            use_bia ? bia_dt.p_ : NULL,
         };
         DNN_SAFE(mkldnn_primitive_create(&c, ippd, inputs, outputs), WARN);
         execute(c);
         dnn_mem_t wei(wei_dt, fp, mkldnn_goihw);
         wei.reorder(wei_dt);
         if (compare_dat(wei, wei_fp, r) != 0) return FAIL;
-        if (p->dir & FLAG_BIA) {
+        if (use_bia) {
             dnn_mem_t bia(bia_dt, fp, mkldnn_x);
             bia.reorder(bia_dt);
             compare_dat(bia, bia_fp, r);
