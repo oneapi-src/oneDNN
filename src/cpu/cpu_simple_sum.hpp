@@ -85,12 +85,12 @@ struct cpu_simple_sum_t: public c_compatible {
             for (size_t nb = start; nb < end; ++nb) {
                 size_t start_e = nb * block_size;
                 size_t end_e = start_e + block_size;
-#               pragma simd
+#               pragma omp simd
                 for (size_t e = start_e; e < end_e; e++) {
                     output[e] = data_t(scale_[0] * input_ptrs[0][e]);
                 }
                 for (int a = 1; a < num_arrs; a++) {
-#                   pragma simd
+#                   pragma omp simd
                     for (size_t e = start_e; e < end_e; e++) {
                         output[e] += data_t(scale_[a] * input_ptrs[a][e]);
                     }
@@ -100,12 +100,12 @@ struct cpu_simple_sum_t: public c_compatible {
             if (tail != 0 && ithr == nthr - 1) {
                 size_t start_e = nelems - tail;
                 size_t end_e = nelems;
-#               pragma simd
+#               pragma omp simd
                 for (size_t e = start_e; e < end_e; e++) {
                     output[e] = data_t(scale_[0] * input_ptrs[0][e]);
                 }
                 for (int a = 1; a < num_arrs; a++) {
-#                   pragma simd
+#                   pragma omp simd
                     for (size_t e = start_e; e < end_e; e++) {
                         output[e] += data_t(scale_[a] * input_ptrs[a][e]);
                     }
