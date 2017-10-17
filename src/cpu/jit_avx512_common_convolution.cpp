@@ -642,6 +642,7 @@ void jit_avx512_common_convolution_bwd_weights_t::compute_diff_bias(
                 for (int o = 0; o < 16; ++o)
                     d_bias[o] = 0.;
 
+#           pragma omp simd
             for (int hw = 0; hw < jcp.oh * jcp.ow; ++hw) {
                 for (int o = 0; o < 16; ++o)
                     d_bias[o] += d_dst[o];

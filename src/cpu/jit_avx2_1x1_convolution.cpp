@@ -506,6 +506,8 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights() {
 
                 if (img == img_start)
                     for (int o = 0; o < 8; ++o) d_bias[o] = 0.;
+
+#               pragma omp simd
                 for (int hw = 0; hw < jcp.oh * jcp.ow; ++hw) {
                     for (int o = 0; o < 8; ++o)
                         d_bias[o] += d_dst[o];
