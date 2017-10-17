@@ -24,6 +24,14 @@
 
 #include "jit_generator.hpp"
 
+#if (defined(__INTEL_COMPILER) && __INTEL_COMPILER <= 1600) || defined(_MSC_VER)
+/* Excluding ICC 16.0 from adding simd because it results in accuracy issues.
+ * MSC doesn't support simd in _pragma */
+#    define pragma_simd
+#else
+#    define pragma_simd _Pragma("simd")
+#endif
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {
@@ -507,8 +515,8 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights() {
                 if (img == img_start)
                     for (int o = 0; o < 8; ++o) d_bias[o] = 0.;
 
-#               pragma omp simd
                 for (int hw = 0; hw < jcp.oh * jcp.ow; ++hw) {
+#                   pragma omp simd
                     for (int o = 0; o < 8; ++o)
                         d_bias[o] += d_dst[o];
                     d_dst += 8;

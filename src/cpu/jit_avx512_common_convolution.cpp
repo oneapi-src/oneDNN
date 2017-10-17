@@ -21,6 +21,15 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
+#if (defined(__INTEL_COMPILER) && __INTEL_COMPILER <= 1600) || defined(_MSC_VER)
+/* Excluding ICC 16.0 from adding simd because it results in accuracy issues.
+ * MSC doesn't support simd in _pragma */
+#    define pragma_simd
+#else
+#    define pragma_simd _Pragma("simd")
+#endif
+ 
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {
@@ -642,8 +651,8 @@ void jit_avx512_common_convolution_bwd_weights_t::compute_diff_bias(
                 for (int o = 0; o < 16; ++o)
                     d_bias[o] = 0.;
 
-#           pragma omp simd
             for (int hw = 0; hw < jcp.oh * jcp.ow; ++hw) {
+#               pragma simd
                 for (int o = 0; o < 16; ++o)
                     d_bias[o] += d_dst[o];
                 d_dst += 16;
