@@ -2,7 +2,7 @@
 # vim: et ts=4 sw=4
 #
 # Usage: ./bench.sh -h
-#   This runs benchdnn for some [quick?] *convolution* tests
+#   This runs benchdnn for some [quick?] --cfg=f32 *convolution* tests
 #   Modify at will.  BUILDDIR matched with build.sh.
 #
 ORIGINAL_CMD="$0 $*"
@@ -201,7 +201,7 @@ else
         echo "for ${MODE} --dir=${dir}  conv layers (many!) ..."
         echo ""
         LGBASE="${LOGDIR}/bench-convP-${DOTARGET}t${THREADS}"
-        (cd ${BENCHDIR} && ./benchdnn --conv ${MODE} -v${VERBOSITY} --cfg=f32 --dir=FWD_B --skip-impl="${SKIP}" \
+        (cd ${BENCHDIR} && ./benchdnn --conv ${MODE} -v${VERBOSITY} --cfg=f32 --dir=${dir} --skip-impl="${SKIP}" \
             ) 2>&1 | tee ${LGBASE}-tmp.log \
             && mv ${LGBASE}-tmp.log ${LGBASE}.log && echo "${LGBASE}.log OK" \
             || { echo "${LGBASE}-tmp.log ERROR"; exit; };

@@ -330,24 +330,26 @@ if [ "$BUILDOK" == "y" ]; then
         rm -f test1.log test2.log test3.log
         echo "Testing ... test1"
         if [ true ]; then
-            (cd "${BUILDDIR}" && ARGS='-VV -E .*test_.*' /usr/bin/time -v make test) 2>&1 | tee "${BUILDDIR}/test1.log" || true
+            (cd "${BUILDDIR}" && ARGS='-VV -E .*test_.*' /usr/bin/time -v make test) \
+                2>&1 | tee "${BUILDDIR}/test1.log" || true
         fi
-        #if [ $DOTEST -ge 2 ]; then
-        #    echo "Testing ... test2"
-        #    (cd "${BUILDDIR}" && ARGS='-VV -N' make test \
-        #    && ARGS='-VV -R .*test_.*' /usr/bin/time -v make test) \
-        #    2>&1 | tee "${BUILDDIR}/test2.log" || true
-        #fi
+        if [ $DOTEST -ge 2 ]; then
+            echo "Testing ... test2"
+            (cd "${BUILDDIR}" && ARGS='-VV -N' make test \
+                && ARGS='-VV -R .*test_.*' /usr/bin/time -v make test) \
+                2>&1 | tee "${BUILDDIR}/test2.log" || true
+        fi
         if [ $DOTEST -ge 3 ]; then
             if [ -x ./bench.sh ]; then
-                echo "# all mkl-dnn impls, correctness : -${DOTARGET}mAC"
-                /usr/bin/time -v ./bench.sh -${DOTARGET}mAC \
+                # testing ref impls takes ~ forever to run
+                echo "# non-ref mkl-dnn impls, correctness : -${DOTARGET}mAC"
+                /usr/bin/time -v ./bench.sh -${DOTARGET}mAC -sref \
                     2>&1 | tee "${BUILDDIR}/test3.log" || true
             fi
         fi
         if [ $DOTEST -ge 4 ]; then
             if [ -x ./bench.sh ]; then
-                echo "# all non-ref mkl-dnn impls, performance: -${DOTARGET}mAP"
+                echo "# non-ref mkl-dnn impls, performance: -${DOTARGET}mAP"
                 /usr/bin/time -v ./bench.sh -${DOTARGET}mAP -sref \
                     2>&1 | tee "${BUILDDIR}/test4.log" || true
             fi
