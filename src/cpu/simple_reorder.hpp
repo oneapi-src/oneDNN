@@ -1380,14 +1380,14 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const float alpha = alpha_, beta = beta_;
         if (alpha == 1.0 && beta == 0.0) {
 #           pragma omp parallel for schedule(static)
-#           pragma omp simd
+#           pragma simd
             for (int e = 0; e < nelems; ++e) {
                 output[output_d.off_l(e)] =
                     data_t<type_o>(input[input_d.off_l(e)]);
             }
         } else {
 #           pragma omp parallel for schedule(static)
-#           pragma omp simd
+#           pragma simd
             for (int e = 0; e < nelems; ++e) {
                 output[output_d.off_l(e)] = data_t<type_o>(
                     alpha * input[input_d.off_l(e)]
