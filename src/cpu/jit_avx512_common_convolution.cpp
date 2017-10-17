@@ -654,7 +654,6 @@ void jit_avx512_common_convolution_bwd_weights_t::compute_diff_bias(
             if (img == img_start)
                 for (int o = 0; o < 16; ++o)
                     d_bias[o] = 0.;
-
             for (int hw = 0; hw < jcp.oh * jcp.ow; ++hw) {
 #               pragma omp simd
                 for (int o = 0; o < 16; ++o)
@@ -718,15 +717,20 @@ void jit_avx512_common_convolution_bwd_weights_t::balance() {
          *      kernel: temporal workspace 1 write
          *      reduction: 1 read from workspace and 1 write to the diff_wei
          *    - but experiments showed 8 works better than 5 or 6... */
+
+        const int src_coef = j.ver == ver_4fma ? 4 : 1;
+        const int dst_coef = 1;
+        const int wei_coef = 8;
+
         return 0
-            + 1
+            + src_coef
             * div_up(j.mb, nthr_mb) * div_up(j.ngroups, nthr_g_)
             * div_up(j.nb_ic, nthr_ic_b) * j.ic_block * j.ih * j.iw
             / j.stride_h / j.stride_w /* (n1) */
-            + 1
+            + dst_coef
             * div_up(j.mb, nthr_mb) * div_up(j.ngroups, nthr_g_)
             * div_up(j.nb_oc, nthr_oc_b) * j.oc_block * j.oh * j.ow
-            + 8 /* (n2) */
+            + wei_coef /* (n2) */
             * div_up(j.ngroups, nthr_g_)
             * div_up(j.nb_oc, nthr_oc_b) * div_up(j.nb_ic, nthr_ic_b)
             * j.kh * j.kw * j.ic_block * j.oc_block;
@@ -758,7 +762,7 @@ void jit_avx512_common_convolution_bwd_weights_t::balance() {
             }
         }
     }
-
+#if 0
     /* step 2: search for a thread distribution with lower compute cost.
      * the constrains:
      *  - memory cost cannot exceed 110% of the best found in the step 1
@@ -785,7 +789,7 @@ void jit_avx512_common_convolution_bwd_weights_t::balance() {
             }
         }
     }
-
+#endif
     if (nthr_mb_ > max_threads/2 && nthr_mb_ < max_threads)
         nthr_mb_ = min(j.mb, max_threads);
 
