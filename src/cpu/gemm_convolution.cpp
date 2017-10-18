@@ -249,8 +249,8 @@ void _gemm_convolution_bwd_weights_t<run_jit, isa>::execute_backward_weights() {
                 data_t *db = &diff_bias[diff_bias_d.off(g*jcp.oc+oc)];
                 *db = data_t(0);
                 for (int mb = 0; mb < jcp.mb; ++mb)
-#                   pragma omp simd collapse(2)
                     for (int oh = 0; oh < jcp.oh; ++oh)
+#                       pragma omp simd
                         for (int ow = 0; ow < jcp.ow; ++ow)
                             *db += diff_dst[diff_dst_d.off(mb,g*jcp.oc+oc,oh,ow)];
                 nd_iterator_step(g, jcp.ngroups, oc, jcp.oc);
