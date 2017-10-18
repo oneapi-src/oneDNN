@@ -46,7 +46,7 @@ class sum_test: public ::testing::TestWithParam<sum_test_params> {
         for (auto c = 0; c < dst_dims[1]; c++)
         for (auto h = 0; h < dst_dims[2]; h++)
         for (auto w = 0; w < dst_dims[3]; w++) {
-            auto src_sum = 0.0;
+            data_t src_sum = 0.0;
             for (size_t num = 0; num < srcs.size(); num++) {
                 const data_t *src_data =
                     (const data_t *)srcs[num].get_data_handle();
@@ -60,11 +60,11 @@ class sum_test: public ::testing::TestWithParam<sum_test_params> {
                 src_sum += scale[num]*src_data[map_index(src_d, src_idx)];
 
             }
-            auto dst_idx = w
-                + dst_dims[3]
-                + dst_dims[2]
-                + dst_dims[1];
 
+            auto dst_idx = w
+                + dst_dims[3]*h
+                + dst_dims[2]*dst_dims[3]*c
+                + dst_dims[1]*dst_dims[2]*dst_dims[3]*n;
             EXPECT_NEAR(src_sum,
                         dst_data[map_index(dst_d, dst_idx)],
                         1e-7);
@@ -96,9 +96,7 @@ protected:
             const size_t sz =
                 src_memory.get_primitive_desc().get_size() / sizeof(data_t);
             auto s = (data_t *)src_memory.get_data_handle();
-#           pragma omp parallel for
-            for (size_t j = 0; j < sz; ++j) s[j] = static_cast<data_t>(i + 1);
-            // fill_data<data_t>(sz, (data_t *)src_memory.get_data_handle());
+            fill_data<data_t>(sz, (data_t *)src_memory.get_data_handle());
             srcs_pd.push_back(mpd);
             srcs.push_back(src_memory);
         }
@@ -106,6 +104,15 @@ protected:
         auto dst_desc = memory::desc(p.dst_cds, data_type, p.dst_format);
         auto sum_pd = sum::primitive_desc(dst_desc, p.scale, srcs_pd);
         auto dst = memory(sum_pd.dst_primitive_desc());
+
+        data_t *dst_data = (data_t *)dst.get_data_handle();
+        const size_t sz =
+            dst.get_primitive_desc().get_size() / sizeof(data_t);
+        // overwriting dst to prevent false positives for test cases.
+# pragma omp parallel for
+        for (size_t i = 0; i < sz; i++) {
+            dst_data[i] = -32;
+        }
 
         std::vector<primitive::at> inputs;
         for (size_t i = 0; i < p.srcs_cds.size(); i++) {
@@ -137,29 +144,29 @@ TEST_P(sum_test_float, TestsSum)
 INSTANTIATE_TEST_CASE_P(TestSum, sum_test_float, ::testing::Values(
     sum_test_params_float{engine::kind::cpu,
     {memory::format::nchw, memory::format::nchw}, memory::format::nchw,
-    {{2, 8, 3, 4}, {2, 8, 3, 4}}, {2, 8, 3, 4}, {1.0, 1.0}},
+    {{2, 8, 2, 2}, {2, 8, 2, 2}}, {2, 8, 2, 2}, {1.0, 1.0}},
     sum_test_params_float{engine::kind::cpu,
     {memory::format::nChw8c, memory::format::nChw8c}, memory::format::nChw8c,
-    {{2, 16, 1, 1}, {2, 16, 1, 1}}, {2, 16, 1, 1}, {1.0, 1.0}},
+    {{2, 16, 3, 4}, {2, 16, 3, 4}}, {2, 16, 3, 4}, {1.0, 1.0}},
     sum_test_params_float{engine::kind::cpu,
     {memory::format::nchw, memory::format::nchw}, memory::format::nChw8c,
-    {{2, 16, 1, 1}, {2, 16, 1, 1}}, {2, 16, 1, 1}, {1.0, 1.0}},
+    {{2, 16, 2, 2}, {2, 16, 2, 2}}, {2, 16, 2, 2}, {1.0, 1.0}},
     sum_test_params_float{engine::kind::cpu,
     {memory::format::nChw8c, memory::format::nChw8c}, memory::format::nchw,
-    {{2, 16, 1, 1}, {2, 16, 1, 1}}, {2, 16, 1, 1}, {1.0, 1.0}},
+    {{2, 16, 3, 4}, {2, 16, 3, 4}}, {2, 16, 3, 4}, {1.0, 1.0}},
 
     sum_test_params_float{engine::kind::cpu,
     {memory::format::nchw, memory::format::nchw}, memory::format::nchw,
-    {{2, 8, 3, 4}, {2, 8, 3, 4}}, {2, 8, 3, 4}, {2.0, 3.0}},
+    {{2, 8, 2, 2}, {2, 8, 2, 2}}, {2, 8, 2, 2}, {2.0, 3.0}},
     sum_test_params_float{engine::kind::cpu,
     {memory::format::nChw8c, memory::format::nChw8c}, memory::format::nChw8c,
-    {{2, 16, 1, 1}, {2, 16, 1, 1}}, {2, 16, 1, 1}, {2.0, 3.0}},
+    {{2, 16, 3, 4}, {2, 16, 3, 4}}, {2, 16, 3, 4}, {2.0, 3.0}},
     sum_test_params_float{engine::kind::cpu,
     {memory::format::nchw, memory::format::nchw}, memory::format::nChw8c,
-    {{2, 16, 1, 1}, {2, 16, 1, 1}}, {2, 16, 1, 1}, {2.0, 3.0}},
+    {{2, 16, 2, 2}, {2, 16, 2, 2}}, {2, 16, 2, 2}, {2.0, 3.0}},
     sum_test_params_float{engine::kind::cpu,
     {memory::format::nChw8c, memory::format::nChw8c}, memory::format::nchw,
-    {{2, 16, 1, 1}, {2, 16, 1, 1}}, {2, 16, 1, 1}, {2.0, 3.0}},
+    {{2, 16, 3, 4}, {2, 16, 3, 4}}, {2, 16, 3, 4}, {2.0, 3.0}},
 
     sum_test_params_float{engine::kind::cpu,
     {memory::format::nchw, memory::format::nChw8c}, memory::format::nchw,
