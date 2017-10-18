@@ -36,28 +36,85 @@ void im2col(
     const size_t im_step = jcp.ih * jcp.iw;
     const size_t col_step = jcp.ks * jcp.os;
 
-    int num_thr = (jcp.mb != 1) ? omp_get_max_threads() : 1;
-#pragma omp parallel for  num_threads(num_thr)
-    for (int ic = 0; ic < jcp.ic; ++ic) {
-        for (int kh = 0; kh < jcp.kh; ++kh) {
-        for (int oh = 0; oh < jcp.oh; ++oh) {
-            const int ih = oh * jcp.stride_h - jcp.t_pad + kh * (1 + jcp.dilate_h);
-            if (ih < 0 || ih >= jcp.ih) continue;
+    auto im2col_1st = [&](const float *im, float *col) {
+        const size_t work_amount = jcp.oh * jcp.kh;
+        #pragma omp parallel
+        {
+            const int ithr = omp_get_thread_num();
+            const int nthr = omp_get_num_threads();
 
-            for (int kw = 0; kw < jcp.kw; ++kw) {
-            for (int ow = 0; ow < jcp.ow; ++ow) {
-                const int iw = ow * jcp.stride_w - jcp.l_pad + kw * (1 + jcp.dilate_w);
-                if (iw < 0 || iw >= jcp.iw) continue;
+            size_t start = 0, end = 0, oh = 0, kh = 0;
+            balance211(work_amount, nthr, ithr, start, end);
+            nd_iterator_init(start, kh, jcp.kh, oh, jcp.oh);
 
-                const size_t col_idx = ((kh*jcp.kw + kw)*jcp.oh+oh)*jcp.ow+ow;
-                const size_t im_idx = ih*jcp.iw + iw;
-                col[col_idx] = im[im_idx];
-            }
+            for (size_t iwork = start; iwork < end; ++iwork)
+            {
+                const int ih = oh * jcp.stride_h - jcp.t_pad + kh * (1 + jcp.dilate_h);
+                if (ih < 0 || ih >= jcp.ih) {
+                    nd_iterator_step(kh, jcp.kh, oh, jcp.oh);
+                    continue;
+                }
+
+                for (int kw = 0; kw < jcp.kw; ++kw) {
+                for (int ow = 0; ow < jcp.ow; ++ow) {
+                    const int iw = ow * jcp.stride_w - jcp.l_pad + kw * (1 + jcp.dilate_w);
+                    if (iw < 0 || iw >= jcp.iw) continue;
+
+                    const size_t col_idx = ((kh*jcp.kw + kw)*jcp.oh+oh)*jcp.ow+ow;
+                    const size_t im_idx = ih*jcp.iw + iw;
+                    col[col_idx] = im[im_idx];
+                }}
+                nd_iterator_step(kh, jcp.kh, oh, jcp.oh);
             }
         }
+    };
+
+    auto im2col_common = [&](const float *im, float *col) {
+        const size_t work_amount = jcp.ic;
+        #pragma omp parallel
+        {
+            const int ithr = omp_get_thread_num();
+            const int nthr = omp_get_num_threads();
+
+            size_t start = 0, end = 0, ic = 0;
+            balance211(work_amount, nthr, ithr, start, end);
+            nd_iterator_init(start, ic, jcp.ic);
+
+            const float *im_ = im + ic * im_step;
+            float *col_ = col + ic * col_step;
+
+            for (size_t iwork = start; iwork < end; ++iwork)
+            {
+                for (int kh = 0; kh < jcp.kh; ++kh) {
+                for (int oh = 0; oh < jcp.oh; ++oh) {
+                    const int ih = oh * jcp.stride_h
+                                   - jcp.t_pad + kh * (1 + jcp.dilate_h);
+                    if (ih < 0 || ih >= jcp.ih) continue;
+
+                    for (int kw = 0; kw < jcp.kw; ++kw) {
+                    for (int ow = 0; ow < jcp.ow; ++ow) {
+                        const int iw = ow * jcp.stride_w
+                                       - jcp.l_pad + kw * (1 + jcp.dilate_w);
+                        if (iw < 0 || iw >= jcp.iw) continue;
+
+                        const size_t col_idx = ((kh * jcp.kw + kw) * jcp.oh+oh)
+                                               * jcp.ow + ow;
+                        const size_t im_idx = ih*jcp.iw + iw;
+                        col_[col_idx] = im_[im_idx];
+                    }}
+                }}
+                im_ += im_step;
+                col_ += col_step;
+
+                nd_iterator_step(ic, jcp.ic);
+            }
         }
-        im += im_step;
-        col += col_step;
+    };
+
+    if (jcp.ic != 1) {
+        im2col_common(im, col);
+    } else {
+        im2col_1st(im, col);
     }
 }
 
