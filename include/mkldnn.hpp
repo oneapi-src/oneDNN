@@ -88,9 +88,11 @@ public:
     bool operator!=(const handle &other) const { return !(*this == other); }
 };
 
+#ifndef DOXYGEN_SHOULD_SKIP_THIS
 template <> struct handle_traits<mkldnn_primitive_t> {
     static constexpr auto destructor = &mkldnn_primitive_destroy;
 };
+#endif
 
 /// Base class for all computational primitives.
 class primitive: public handle<mkldnn_primitive_t> {
@@ -299,9 +301,11 @@ private:
 /// @addtogroup cpp_api_memory Memory
 /// @{
 
+#ifndef DOXYGEN_SHOULD_SKIP_THIS
 template <> struct handle_traits<mkldnn_primitive_desc_t> {
     static constexpr auto destructor = &mkldnn_primitive_desc_destroy;
 };
+#endif
 
 /// Memory primitive that describes the data.
 struct memory: public primitive  {
