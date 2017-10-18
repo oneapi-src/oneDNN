@@ -57,7 +57,11 @@ class sum_test: public ::testing::TestWithParam<sum_test_params> {
                     + src_dims[3]*h
                     + src_dims[2]*src_dims[3]*c
                     + src_dims[1]*src_dims[2]*src_dims[3]*n;
-                src_sum += scale[num]*src_data[map_index(src_d, src_idx)];
+                if (num == 0) {
+                    src_sum = data_t(scale[num]) * src_data[map_index(src_d, src_idx)];
+                } else {
+                    src_sum += data_t(scale[num])* src_data[map_index(src_d, src_idx)];
+                }
 
             }
 
@@ -65,9 +69,9 @@ class sum_test: public ::testing::TestWithParam<sum_test_params> {
                 + dst_dims[3]*h
                 + dst_dims[2]*dst_dims[3]*c
                 + dst_dims[1]*dst_dims[2]*dst_dims[3]*n;
-            EXPECT_NEAR(src_sum,
-                        dst_data[map_index(dst_d, dst_idx)],
-                        1e-7);
+            EXPECT_NEAR((src_sum - dst_data[map_index(dst_d, dst_idx)]) / src_sum,
+                        0.0,
+                        1.2e-7);
         }
     }
 
