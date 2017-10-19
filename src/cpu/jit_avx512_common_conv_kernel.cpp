@@ -914,12 +914,17 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     jcp.nb_ic = jcp.ic / jcp.ic_block;
     jcp.nb_oc = jcp.oc / jcp.oc_block;
     jcp.nb_ic_blocking = jcp.nb_oc_blocking = 1;
-    if (one_of(jcp.ver, ver_4vnni, ver_4fma) && !jcp.is_1stconv)
-        for (int i = jcp.nb_oc; i > 0; i--)
-            if (i * jcp.ur_w <= regs && jcp.nb_oc % i == 0) {
-                jcp.nb_oc_blocking = i;
-                break;
-            }
+    if (one_of(jcp.ver, ver_4vnni, ver_4fma) && !jcp.is_1stconv) {
+        if (jcp.kw == 3 && jcp.kh == 3 && jcp.ow == 7 && jcp.oh == 7) {
+            jcp.nb_oc_blocking = 2;
+        } else {
+            for (int i = jcp.nb_oc; i > 0; i--)
+                if (i * jcp.ur_w <= regs && jcp.nb_oc % i == 0) {
+                    jcp.nb_oc_blocking = i;
+                    break;
+                }
+        }
+    }
 
     pick_loop_order(jcp);
 
