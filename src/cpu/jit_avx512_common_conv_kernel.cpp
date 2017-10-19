@@ -23,6 +23,7 @@
 #include "jit_avx512_common_conv_kernel.hpp"
 
 #define GET_OFF(field) offsetof(jit_conv_call_s, field)
+#define KNx_L2_EFFECTIVE_CAPACITY ((512-64)*1024)
 
 namespace mkldnn {
 namespace impl {
@@ -928,6 +929,29 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
 
     pick_loop_order(jcp);
 
+    jcp.nb_ic_L2 = jcp.nb_ic;
+
+    // TODO check for 4vnni
+    if (jcp.ver == ver_4fma) {
+        for (int divf = 2, temp_nb = jcp.nb_ic_L2; divf <= jcp.nb_ic;
+              divf++) {
+            int l2_src = jcp.iw * jcp.ic_block * jcp.ih * temp_nb;
+            int l2_dst = jcp.ow * jcp.oc_block * jcp.nb_oc_blocking * jcp.oh;
+            int l2_filt = jcp.kw * jcp.oc_block * jcp.ic_block * jcp.kh
+                * jcp.nb_oc_blocking * temp_nb;
+            if (4 * (l2_src + l2_dst + l2_filt) > KNx_L2_EFFECTIVE_CAPACITY) {
+                if (jcp.kh == 3 && jcp.oh == 7) {
+                    jcp.nb_ic_L2 = 1;
+                    break;
+                }
+                temp_nb = (jcp.nb_ic_L2 % divf == 0 ? jcp.nb_ic_L2 / divf
+                                : jcp.nb_ic_L2);
+            } else {
+                jcp.nb_ic_L2 = temp_nb;
+                break;
+            }
+        }
+    }
     return status::success;
 }
 
