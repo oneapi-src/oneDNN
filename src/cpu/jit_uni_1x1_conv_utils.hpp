@@ -194,6 +194,7 @@ struct rtus_driver_t: public jit_generator {
                 || isa == avx512_core || isa == avx512_mic);
 
 #if defined(_WIN32)
+        assert(reg_src == abi_not_param1 && abi_not_param1 == rdi);
         push(rdi);
 #endif
 
