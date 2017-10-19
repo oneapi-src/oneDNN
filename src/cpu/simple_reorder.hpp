@@ -609,7 +609,8 @@ template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     typename utils::enable_if<
         (fmt_i == goihw && (fmt_o == gOIhw8i8o || fmt_o == gOIhw16i16o))
-        || (fmt_i == oihw && (fmt_o == OIhw8i8o || fmt_o == OIhw16i16o))
+        || ((fmt_i == oihw || fmt_i == ihwo)
+                && (fmt_o == OIhw8i8o || fmt_o == OIhw16i16o))
     >::type>
 {
     static bool is_applicable(const memory_desc_wrapper &input_d,
