@@ -997,8 +997,9 @@ void diff_src_transform_bwd_weights(int image, jit_conv_winograd_conf_t conv,
     }
 }
 
+template <bool with_bias>
 void diff_dst_transform_bwd_weights(int image, jit_conv_winograd_conf_t conv,
-        float *inp, float *tinp)
+        float *inp, float *tinp, float *dbias)
 {
     const int simd_w = 16;
     const int tile_size = conv.alpha - 2;
@@ -1030,9 +1031,16 @@ void diff_dst_transform_bwd_weights(int image, jit_conv_winograd_conf_t conv,
                     for (int i = 0; i < conv.alpha; i++) {
                         int xdim = ti * tile_size + i;
                         if (xdim < conv.ow) {
+                            float *input_base = &(input(0, 0, ydim, xdim, 0));
 #pragma omp simd
                             for (int v = 0; v < simd_w; v++) {
-                                I[j][i][v] = input(0, 0, ydim, xdim, v);
+                                I[j][i][v] = input_base[v];
+                            }
+                            if (with_bias && j < tile_size && i < tile_size) {
+#pragma omp simd
+                                for (int v = 0; v < simd_w; v++) {
+                                    dbias[v] += input_base[v];
+                                }
                             }
                         } else {
 #pragma omp simd
@@ -1377,10 +1385,14 @@ void jit_avx512_common_convolution_winograd_bwd_weights_t::
     const int simd_w = 16;
     const int alpha = 6;
     const auto &jcp = kernel_->jcp;
+    int nthreads;
 
     auto diff_src_transform_bwd_weights_ver = jcp.ver == ver_4fma ?
             diff_src_transform_bwd_weights<true> :
             diff_src_transform_bwd_weights<false>;
+    auto diff_dst_transform_bwd_weights_ver = jcp.with_bias
+                                            ? diff_dst_transform_bwd_weights<true>
+                                            : diff_dst_transform_bwd_weights<false>;
 
     array_offset_calculator<float, 5> diff_src((float *)this->input_memory(0),
             jcp.mb, jcp.ic/simd_w, jcp.ih, jcp.iw, simd_w);
@@ -1420,8 +1432,31 @@ void jit_avx512_common_convolution_winograd_bwd_weights_t::
             omp_get_max_threads(),
             trans_buffer_size);
 
+    array_offset_calculator<float, 2> diff_bias_prv(
+            (float *)(base_ptr + sp_offsets_.biasu_offset_),
+            omp_get_max_threads(),
+            jcp.oc);
+
 #pragma omp parallel
     {
+        if (jcp.with_bias) {
+            nthreads = omp_get_num_threads();
+#pragma omp for nowait collapse(2)
+            for (int ithr = 0; ithr < nthreads; ithr++) {
+                for (int ofm = 0; ofm < jcp.oc; ofm++) {
+                    diff_bias_prv(ithr, ofm) = 0.0f;
+                }
+            }
+
+
+#pragma omp for nowait
+            for (int bofm = 0; bofm < jcp.oc / simd_w; bofm++) {
+#pragma omp simd
+                for (int v = 0; v < simd_w; v++)
+                    diff_bias(bofm, v) = 0.0f;
+            }
+        }
+
         const int ithread = omp_get_thread_num();
 #pragma omp for nowait collapse(3)
         for (int img = 0; img < jcp.mb; img++) {
@@ -1444,10 +1479,15 @@ void jit_avx512_common_convolution_winograd_bwd_weights_t::
         for (int img = 0; img < jcp.mb; img++) {
             for (int ofm1 = 0; ofm1 < jcp.nb_oc; ofm1++) {
                 for (int ofm2 = 0; ofm2 < jcp.oc_block; ofm2++) {
-                    diff_dst_transform_bwd_weights(img, jcp,
+                    float *dbias = jcp.with_bias
+                           ? &(diff_bias_prv(ithread,
+                                       simd_w * (ofm1 * jcp.oc_block + ofm2)))
+                           : NULL;
+                    diff_dst_transform_bwd_weights_ver(img, jcp,
                             &(diff_dst(img, ofm1 * jcp.oc_block + ofm2,
                                     0, 0, 0)),
-                            &(M(ofm1, 0, 0, 0, ofm2, 0, 0, 0)));
+                            &(M(ofm1, 0, 0, 0, ofm2, 0, 0, 0)),
+                            dbias);
                 }
             }
         }
@@ -1484,7 +1524,7 @@ void jit_avx512_common_convolution_winograd_bwd_weights_t::
 
 #pragma omp barrier
 
-#pragma omp for collapse(4)
+#pragma omp for nowait collapse(4)
         for (int ifm1 = 0; ifm1 < jcp.nb_ic; ifm1++) {
             for (int ofm1 = 0; ofm1 < jcp.nb_oc; ofm1++) {
                 for (int ofm2 = 0; ofm2 < jcp.oc_block; ofm2++) {
@@ -1501,18 +1541,14 @@ void jit_avx512_common_convolution_winograd_bwd_weights_t::
 
         if (jcp.with_bias) {
 #pragma omp for
-            for (int bofm = 0; bofm < jcp.oc / simd_w; bofm++) {
-                for (int v = 0; v < 16; v++)
-                    diff_bias(bofm, v) = 0.0f;
-                for (int img = 0; img < jcp.mb; img++) {
-                    for (int h = 0; h < jcp.oh; h++) {
-                        for (int w = 0; w < jcp.ow; w++) {
+            for (int ofm1 = 0; ofm1 < jcp.oc / simd_w; ofm1++) {
+                for (int ithr = 0; ithr < nthreads; ithr++) {
+                    float* base_bias_ptr = &(diff_bias(ofm1, 0));
+                    float* base_bias_prv_ptr = &(diff_bias_prv(
+                                ithr * jcp.oc + ofm1 * simd_w));
 #pragma omp simd
-                            for (int v = 0; v < simd_w; v++) {
-                                diff_bias(bofm, v) +=
-                                    diff_dst(img, bofm, h, w, v);
-                            }
-                        }
+                    for (int ofm2 = 0; ofm2 < simd_w; ofm2++) {
+                        base_bias_ptr[ofm2] += base_bias_prv_ptr[ofm2];
                     }
                 }
             }

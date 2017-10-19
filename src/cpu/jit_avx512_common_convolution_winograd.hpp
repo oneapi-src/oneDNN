@@ -35,6 +35,7 @@ struct winograd_sp_offsets_t {
     size_t vp_offset_ = 0;
     size_t mp_offset_ = 0;
     size_t diff_src_trans_offset_ = 0; //relevant for only bwdw
+    size_t biasu_offset_;
 };
 
 inline void allocate_winograd_scratchpad(const jit_conv_winograd_conf_t &jcp,
@@ -68,6 +69,15 @@ inline void allocate_winograd_scratchpad(const jit_conv_winograd_conf_t &jcp,
         sp_offsets.diff_src_trans_offset_ = sp_offsets.mp_offset_
                                        + utils::rnd_up(mp_size, page_size);
         sp_size = sp_offsets.diff_src_trans_offset_ + diff_src_trans_size;
+        if (!jcp.with_bias) {
+            sp_size = sp_offsets.diff_src_trans_offset_ + diff_src_trans_size;
+        } else {
+            const size_t biasu_size = omp_get_max_threads() * jcp.oc
+                                    * sizeof(float);
+            sp_offsets.biasu_offset_ = sp_offsets.diff_src_trans_offset_
+                                  + utils::rnd_up(diff_src_trans_size, page_size);
+            sp_size = sp_offsets.biasu_offset_ + biasu_size;
+        }
     }
     winograd_scratchpad = create_scratchpad(sp_size);
 }
