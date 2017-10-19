@@ -16,6 +16,12 @@
 # Locate Intel(R) MKL installation using MKLROOT or look in
 # ${CMAKE_CURRENT_SOURCE_DIR}/external
 #===============================================================================
+
+if(MKL_cmake_included)
+    return()
+endif()
+set(MKL_cmake_included true)
+
 function(detect_mkl LIBNAME)
     if(HAVE_MKL)
         return()
@@ -23,17 +29,14 @@ function(detect_mkl LIBNAME)
 
     find_path(MKLINC mkl_cblas.h
         PATHS ${MKLROOT}/include $ENV{MKLROOT}/include)
-    if(MKLINC AND WIN32)
-        set (MKL_REDIST ${MKLINC}/../../redist/)
-        find_path(MKLDLL ${LIBNAME}.dll
-            PATHS ${MKL_REDIST}/mkl ${MKL_REDIST}/intel64/mkl)
-    elseif(NOT MKLINC)
+    if(NOT MKLINC)
         file(GLOB_RECURSE MKLINC
                 ${CMAKE_CURRENT_SOURCE_DIR}/external/*/mkl_cblas.h)
         if(MKLINC)
+            # if user has multiple version under external/ then guess last
+            # one alphabetically is "latest" and warn
             list(LENGTH MKLINC MKLINCLEN)
-            if(MKLINCLEN GREATER 1) # if user downloaded multiple external/,
-                # then guess last one alphabetically is "latest" and warn
+            if(MKLINCLEN GREATER 1)
                 list(SORT MKLINC)
                 list(REVERSE MKLINC)
                 message(STATUS "MKLINC found ${MKLINCLEN} files:")
@@ -47,8 +50,10 @@ function(detect_mkl LIBNAME)
             endif()
             get_filename_component(MKLINC ${MKLINC} PATH)
             set(MKLINC ${MKLINC} PARENT_SCOPE)
-            message(STATUS "MKLINC (path) ${MKLINC}")
         endif()
+    endif()
+    if(NOT MKLINC)
+        return()
     endif()
 
     get_filename_component(__mklinc_root "${MKLINC}" PATH)
@@ -56,56 +61,102 @@ function(detect_mkl LIBNAME)
         PATHS   ${MKLROOT}/lib ${MKLROOT}/lib/intel64
                 $ENV{MKLROOT}/lib $ENV{MKLROOT}/lib/intel64
                 ${__mklinc_root}/lib ${__mklinc_root}/lib/intel64)
+    if(NOT MKLLIB)
+        return()
+    endif()
+    set(MKLLIB "${MKLLIB}" PARENT_SCOPE)
 
-    if(MKLINC AND MKLLIB)
-        set(HAVE_MKL TRUE PARENT_SCOPE)
-        get_filename_component(MKLLIBPATH "${MKLLIB}" PATH)
-        if(WIN32)
-            find_path(MKLDLL ${LIBNAME}.dll PATHS ${MKLLIBPATH})
-        endif()
-        string(FIND "${MKLLIBPATH}" ${CMAKE_CURRENT_SOURCE_DIR}/external __idx)
-        if(${__idx} EQUAL 0)
-            install(PROGRAMS ${MKLLIB} ${MKLLIBPATH}/libiomp5.so
-                    DESTINATION lib)
+    if(WIN32)
+        set(MKLREDIST ${MKLINC}/../../redist/)
+        find_file(MKLDLL NAMES ${LIBNAME}.dll
+            PATHS ${MKLREDIST}/mkl ${MKLREDIST}/intel64/mkl)
+        set(MKLDLL "${MKLDLL}" PARENT_SCOPE)
+        if(NOT MKLDLL)
+            return()
         endif()
     endif()
+
+    if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
+        get_filename_component(MKLLIBPATH ${MKLLIB} PATH)
+        find_library(MKLIOMP5LIB
+            NAMES "iomp5" "iomp5md" "libiomp5" "libiomp5md"
+            PATHS   ${MKLLIBPATH}
+                    ${MKLLIBPATH}/../../lib
+                    ${MKLLIBPATH}/../../../lib/intel64
+                    ${MKLLIBPATH}/../../compiler/lib
+                    ${MKLLIBPATH}/../../../compiler/lib/intel64)
+        if(NOT MKLIOMP5LIB)
+            return()
+        endif()
+        set(MKLIOMP5LIB "${MKLIOMP5LIB}" PARENT_SCOPE)
+        if(WIN32)
+            find_file(MKLIOMP5DLL
+                NAMES "libiomp5.dll" "libiomp5md.dll"
+                PATHS ${MKLREDIST}/../compiler)
+            if(NOT MKLIOMP5DLL)
+                return()
+            endif()
+            set(MKLIOMP5DLL "${MKLIOMP5DLL}" PARENT_SCOPE)
+        endif()
+    else()
+        set(MKLIOMP5LIB "Use compiler-provided iomp5 library")
+        set(MKLIOMP5DLL "${MKLIOMP5DLL}" PARENT_SCOPE)
+    endif()
+
+    get_filename_component(MKLLIBPATH "${MKLLIB}" PATH)
+    string(FIND "${MKLLIBPATH}" ${CMAKE_CURRENT_SOURCE_DIR}/external __idx)
+    if(${__idx} EQUAL 0)
+        if(WIN32)
+            set(MKLLIB_INSTALL ${MKLDLL})
+            set(MKLIOMP5LIB_INSTALL ${MKLIOMP5DLL})
+        else()
+            set(MKLLIB_INSTALL ${MKLLIB})
+            set(MKLIOMP5LIB_INSTALL ${MKLIOMP5LIB})
+        endif()
+        install(PROGRAMS ${MKLLIB_INSTALL} ${MKLIOMP5LIB_INSTALL}
+            DESTINATION lib)
+    endif()
+
+    if(WIN32)
+        # Add paths to DLL to %PATH% on Windows
+        get_filename_component(MKLDLLPATH "${MKLDLL}" PATH)
+        set(CTESTCONFIG_PATH "$ENV{PATH}")
+        string(REPLACE ";" "\;" CTESTCONFIG_PATH "${CTESTCONFIG_PATH}")
+        set(CTESTCONFIG_PATH "${CTESTCONFIG_PATH}\;${MKLDLLPATH}")
+        set(CTESTCONFIG_PATH "${CTESTCONFIG_PATH}" PARENT_SCOPE)
+    endif()
+
+    # TODO: cache the value
+    set(HAVE_MKL TRUE PARENT_SCOPE)
 endfunction()
 
-if(WIN32)
-    detect_mkl("mklml")
-    detect_mkl("mkl_rt")
-elseif(UNIX)
-    detect_mkl("libmklml_intel.so")
-    detect_mkl("libmkl_rt.so")
-endif()
-
-set(FAIL_WITHOUT_MKL)
+detect_mkl("mklml_intel")
+detect_mkl("mklml")
+detect_mkl("mkl_rt")
 
 if(HAVE_MKL)
     add_definitions(-DUSE_MKL -DUSE_CBLAS)
     include_directories(AFTER ${MKLINC})
     list(APPEND mkldnn_LINKER_LIBS ${MKLLIB})
+
+    set(MSG "Intel(R) MKL:")
+    message(STATUS "${MSG} include ${MKLINC}")
+    message(STATUS "${MSG} lib ${MKLLIB}")
+    message(STATUS "${MSG} OpenMP lib ${MKLIOMP5LIB}")
     if(WIN32)
-        set(ENV_PATH "$ENV{PATH}")
-        string(REPLACE ";" "\;" ENV_PATH "${ENV_PATH}")
-        set(CTESTCONFIG_PATH "${ENV_PATH}")
-        set(CTESTCONFIG_PATH "${CTESTCONFIG_PATH}\;${MKLDLL}")
-        if(NOT MKLDLL)
-            message(WARNING "Intel(R) MKL dll not found. Compilation still possible "
-            "but may encounter problems when running executables.")
-        else()
-            message (STATUS "MKL DLL(s) (path) ${MKLDLL}")
-        endif()
+        message(STATUS "${MSG} dll ${MKLDLL}")
+        message(STATUS "${MSG} OpenMP dll ${MKLIOMP5DLL}")
     endif()
-    message(STATUS "Intel(R) MKL found: include ${MKLINC}, lib ${MKLLIB}")
 else()
     if(DEFINED ENV{FAIL_WITHOUT_MKL} OR DEFINED FAIL_WITHOUT_MKL)
         set(SEVERITY "FATAL_ERROR")
     else()
         set(SEVERITY "WARNING")
     endif()
-    message(${SEVERITY} "Intel(R) MKL not found. Some performance features may not be "
+    message(${SEVERITY}
+        "Intel(R) MKL not found. Some performance features may not be "
         "available. Please run scripts/prepare_mkl.sh to download a minimal "
         "set of libraries or get a full version from "
         "https://software.intel.com/en-us/intel-mkl")
 endif()
+
