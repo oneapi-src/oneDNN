@@ -76,7 +76,7 @@ private:
     reg64_t reg_index      = r10;
     reg64_t reg_output     = r12;
     reg64_t reg_arr_init   = r13;
-    reg64_t dst_ptr        = rdi;
+    reg64_t dst_ptr        = abi_param1;
 
     reg64_t kj      = r14;
     reg64_t oi_iter = r15;

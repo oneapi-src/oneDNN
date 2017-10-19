@@ -136,7 +136,7 @@ private:
     reg64_t reg_input = rax;
     reg64_t reg_kernel = rdx;
     reg64_t reg_output = rsi;
-    reg64_t b_ic = rcx;
+    reg64_t b_ic = abi_not_param1;
     reg64_t kj = r8;
     reg64_t reg_kh = r9;
     reg64_t reg_ur_w_trips = r10;

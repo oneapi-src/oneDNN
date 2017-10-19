@@ -59,8 +59,8 @@ private:
     reg64_t reg_load_data = rsi;
     reg64_t reg_output_data = rbx;
     reg64_t aux_reg_bcast_data = rdx;
-    reg64_t aux1_reg_bcast_data = rcx;
-    reg64_t aux_reg_load_data = rdi;
+    reg64_t aux1_reg_bcast_data = abi_not_param1;
+    reg64_t aux_reg_load_data = abi_param1;
     reg64_t aux_reg_output_data = rbp;
     reg64_t reg_load_loop_work = r9;
     reg64_t reg_bcast_loop_work = r10;
