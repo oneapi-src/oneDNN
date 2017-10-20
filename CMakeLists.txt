@@ -16,10 +16,28 @@
 
 cmake_minimum_required(VERSION 2.8)
 
-# version handling is done with old style
+# Use old-style version handling
 if(POLICY CMP0048)
     cmake_policy(SET CMP0048 OLD)
     cmake_policy(SET CMP0054 OLD)
+endif()
+
+# Enable RPATH on MacOS/OSX
+if(POLICY CMP0042)
+    cmake_policy(SET CMP0042 NEW)
+endif()
+
+# Do not export symbols from executables
+if(POLICY CMP0065)
+    cmake_policy(SET CMP0065 NEW)
+endif()
+
+# Pass all flags to try_compile
+if(POLICY CMP0056)
+    cmake_policy(SET CMP0056 NEW)
+endif()
+if(POLICY CMP0066)
+    cmake_policy(SET CMP0066 NEW)
 endif()
 
 set(PROJECT_NAME "Intel(R) MKL-DNN")
