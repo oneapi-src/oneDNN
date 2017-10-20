@@ -13,6 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #===============================================================================
+# Locates Doxygen and configures documentation generation
+#===============================================================================
+
+if(Doxygen_cmake_included)
+    return()
+endif()
+set(Doxygen_cmake_included true)
 
 find_package(Doxygen)
 if(DOXYGEN_FOUND)
