@@ -33,8 +33,9 @@ template <impl::data_type_t data_type>
 struct ref_softmax_fwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_softmax_fwd_pd_t {
         pd_t(engine_t *engine, const softmax_desc_t *adesc,
+                const primitive_attr_t *attr,
                 const softmax_fwd_pd_t *hint_fwd_pd)
-            : cpu_softmax_fwd_pd_t(engine, adesc, hint_fwd_pd) {}
+            : cpu_softmax_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T(ref_softmax_fwd_t);
 

@@ -231,6 +231,21 @@ inline mkldnn_query_t convert_to_c(query aquery) {
     return static_cast<mkldnn_query_t>(aquery);
 }
 
+#ifndef DOXYGEN_SHOULD_SKIP_THIS
+template <> struct handle_traits<mkldnn_primitive_attr_t> {
+    static constexpr auto destructor = &mkldnn_primitive_attr_destroy;
+};
+#endif
+
+struct primitive_attr: public handle<mkldnn_primitive_attr_t> {
+    primitive_attr() {
+        mkldnn_primitive_attr_t result;
+        error::wrap_c_api(mkldnn_primitive_attr_create(&result),
+                "could not create a primitive attr");
+        reset(result);
+    }
+};
+
 /// An execution engine.
 struct engine: public handle<mkldnn_engine_t> {
     friend class primitive;
@@ -609,6 +624,16 @@ struct reorder : public primitive {
             mkldnn_primitive_desc_t result;
             error::wrap_c_api(mkldnn_reorder_primitive_desc_create(
                         &result, input.get(), output.get()),
+                    "could not create a reorder primitive descriptor");
+            reset(result);
+        }
+
+        primitive_desc(const memory::primitive_desc &input,
+                const memory::primitive_desc &output,
+                const primitive_attr &aattr) {
+            mkldnn_primitive_desc_t result;
+            error::wrap_c_api(mkldnn_reorder_primitive_desc_create_v2(
+                        &result, input.get(), output.get(), aattr.get()),
                     "could not create a reorder primitive descriptor");
             reset(result);
         }
@@ -1038,6 +1063,16 @@ struct convolution_forward: public primitive {
             mkldnn_primitive_desc_t result;
             error::wrap_c_api(mkldnn_primitive_desc_create(
                         &result, &adesc.data, aengine.get(), nullptr),
+                    "could not create a convolution forward primitive descriptor");
+            reset(result);
+        }
+
+        primitive_desc(const desc &adesc, const primitive_attr &aattr,
+                const engine &aengine) {
+            mkldnn_primitive_desc_t result;
+            error::wrap_c_api(mkldnn_primitive_desc_create_v2(
+                        &result, &adesc.data, aattr.get(),
+                        aengine.get(), nullptr),
                     "could not create a convolution forward primitive descriptor");
             reset(result);
         }
@@ -2308,6 +2343,16 @@ struct inner_product_forward: public primitive {
             reset(result);
         }
 
+        primitive_desc(const desc &adesc, const primitive_attr &aattr,
+                const engine &aengine) {
+            mkldnn_primitive_desc_t result;
+            error::wrap_c_api(mkldnn_primitive_desc_create_v2(
+                &result, &adesc.data, aattr.get(), aengine.get(), nullptr),
+                    "could not create a inner product "
+                    "forward primitive descriptor");
+            reset(result);
+        }
+
         memory::primitive_desc src_primitive_desc() const {
             memory::primitive_desc adesc;
             mkldnn_primitive_desc_t cdesc;
@@ -2315,7 +2360,7 @@ struct inner_product_forward: public primitive {
                 mkldnn_primitive_desc_query_pd(get(),
                                mkldnn::convert_to_c(src_pd), 0);
             error::wrap_c_api(mkldnn_primitive_desc_clone(&cdesc, const_cdesc),
-                    "could not clone a src primititve descriptor");
+                    "could not clone a src primitive descriptor");
             adesc.reset(cdesc);
             return adesc;
         }

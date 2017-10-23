@@ -33,8 +33,8 @@ template <impl::data_type_t data_type>
 struct ref_lrn_fwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_lrn_fwd_pd_t {
         pd_t(engine_t *engine, const lrn_desc_t *adesc,
-                const lrn_fwd_pd_t *hint_fwd_pd)
-            : cpu_lrn_fwd_pd_t(engine, adesc, hint_fwd_pd) {}
+                const primitive_attr_t *attr, const lrn_fwd_pd_t *hint_fwd_pd)
+            : cpu_lrn_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T(ref_lrn_fwd_t);
 
@@ -75,8 +75,8 @@ template <impl::data_type_t data_type>
 struct ref_lrn_bwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_lrn_bwd_pd_t {
         pd_t(engine_t *engine, const lrn_desc_t *adesc,
-                const lrn_fwd_pd_t *hint_fwd_pd)
-            : cpu_lrn_bwd_pd_t(engine, adesc, hint_fwd_pd) {}
+                const primitive_attr_t *attr, const lrn_fwd_pd_t *hint_fwd_pd)
+            : cpu_lrn_bwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T(ref_lrn_bwd_t);
 

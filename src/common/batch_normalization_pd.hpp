@@ -34,8 +34,9 @@ struct batch_normalization_pd_t: public primitive_desc_t {
 
     batch_normalization_pd_t(mkldnn::impl::engine_t *engine,
             const batch_normalization_desc_t *adesc,
+            const primitive_attr_t *attr,
             const batch_normalization_fwd_pd_t *hint_fwd_pd)
-        : primitive_desc_t(engine, primitive_kind::batch_normalization)
+        : primitive_desc_t(engine, attr, primitive_kind::batch_normalization)
         , desc_(*adesc), hint_fwd_pd_(hint_fwd_pd) {}
     virtual ~batch_normalization_pd_t() {}
 

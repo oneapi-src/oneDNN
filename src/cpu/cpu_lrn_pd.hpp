@@ -35,8 +35,8 @@ struct cpu_lrn_fwd_pd_t: public lrn_fwd_pd_t {
     using cpu_memory_pd_t = cpu_memory_t::pd_t;
 
     cpu_lrn_fwd_pd_t(engine_t *engine, const lrn_desc_t *adesc,
-            const lrn_fwd_pd_t *hint_fwd_pd)
-        : lrn_fwd_pd_t(engine, adesc, hint_fwd_pd)
+            const primitive_attr_t *attr, const lrn_fwd_pd_t *hint_fwd_pd)
+        : lrn_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
         , data_pd_(engine_, &desc_.data_desc), ws_pd_(engine_) {}
     virtual ~cpu_lrn_fwd_pd_t() {}
 
@@ -58,8 +58,8 @@ struct cpu_lrn_bwd_pd_t: public lrn_bwd_pd_t {
     using cpu_memory_pd_t = cpu_memory_t::pd_t;
 
     cpu_lrn_bwd_pd_t(engine_t *engine, const lrn_desc_t *adesc,
-            const lrn_fwd_pd_t *hint_fwd_pd)
-        : lrn_bwd_pd_t(engine, adesc, hint_fwd_pd)
+            const primitive_attr_t *attr, const lrn_fwd_pd_t *hint_fwd_pd)
+        : lrn_bwd_pd_t(engine, adesc, attr, hint_fwd_pd)
         , data_pd_(engine_, &desc_.data_desc)
         , diff_data_pd_(engine_, &desc_.diff_data_desc), ws_pd_(engine_) {}
     virtual ~cpu_lrn_bwd_pd_t() {}

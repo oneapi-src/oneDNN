@@ -257,6 +257,7 @@ struct op_desc_t {
 using engine_t = mkldnn_engine;
 using primitive_desc_iterator_t = mkldnn_primitive_desc_iterator;
 using primitive_desc_t = mkldnn_primitive_desc;
+using primitive_attr_t = mkldnn_primitive_attr;
 using primitive_t = mkldnn_primitive;
 using primitive_at_t = mkldnn_primitive_at_t;
 

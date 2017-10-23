@@ -32,8 +32,9 @@ struct pooling_fwd_pd_t: public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::pooling;
 
     pooling_fwd_pd_t(mkldnn::impl::engine_t *engine,
-            const pooling_desc_t *adesc, const pooling_fwd_pd_t *hint_fwd_pd)
-        : primitive_desc_t(engine, primitive_kind::pooling)
+            const pooling_desc_t *adesc, const primitive_attr_t *attr,
+            const pooling_fwd_pd_t *hint_fwd_pd)
+        : primitive_desc_t(engine, attr, primitive_kind::pooling)
         , desc_(*adesc), hint_fwd_pd_(hint_fwd_pd) {}
     virtual ~pooling_fwd_pd_t() {}
 
@@ -94,8 +95,9 @@ struct pooling_bwd_pd_t: public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::pooling;
 
     pooling_bwd_pd_t(mkldnn::impl::engine_t *engine,
-            const pooling_desc_t *adesc, const pooling_fwd_pd_t *hint_fwd_pd)
-        : primitive_desc_t(engine, primitive_kind::pooling)
+            const pooling_desc_t *adesc, const primitive_attr_t *attr,
+            const pooling_fwd_pd_t *hint_fwd_pd)
+        : primitive_desc_t(engine, attr, primitive_kind::pooling)
         , desc_(*adesc), hint_fwd_pd_(hint_fwd_pd) {}
     virtual ~pooling_bwd_pd_t() {}
 

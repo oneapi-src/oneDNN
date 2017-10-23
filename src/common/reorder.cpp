@@ -28,9 +28,10 @@ using namespace mkldnn::impl;
 using namespace mkldnn::impl::utils;
 using namespace mkldnn::impl::status;
 
-status_t mkldnn_reorder_primitive_desc_create(
+status_t mkldnn_reorder_primitive_desc_create_v2(
         primitive_desc_t **reorder_primitive_desc,
-        const primitive_desc_t *input, const primitive_desc_t *output) {
+        const primitive_desc_t *input, const primitive_desc_t *output,
+        const primitive_attr_t *attr) {
     bool args_ok = true
         && !any_null(reorder_primitive_desc, input, output)
         && everyone_is(primitive_kind::memory, input->kind(), output->kind());
@@ -51,10 +52,21 @@ status_t mkldnn_reorder_primitive_desc_create(
 
     auto e = (i_ek != engine_kind::cpu) ? input->engine() : output->engine();
 
+    const primitive_attr_t dummy_attr;
+    if (attr == NULL)
+        attr = &dummy_attr;
+
     for (auto r = e->get_reorder_implementation_list(); *r; ++r) {
-        if ((*r)(r_pd, i_mpd, o_mpd, 1.0, 0.0) == success) return success;
+        if ((*r)(r_pd, i_mpd, o_mpd, attr, 1.0, 0.0) == success) return success;
     }
     return unimplemented;
+}
+
+status_t mkldnn_reorder_primitive_desc_create(
+        primitive_desc_t **reorder_primitive_desc,
+        const primitive_desc_t *input, const primitive_desc_t *output) {
+    return mkldnn_reorder_primitive_desc_create_v2(reorder_primitive_desc,
+            input, output, nullptr);
 }
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

@@ -22,10 +22,9 @@
 #include "memory_pd.hpp"
 
 using namespace mkldnn::impl;
+using namespace mkldnn::impl::status;
 
 status_t primitive_desc_t::query(query_t what, int idx, void *result) const {
-    using namespace mkldnn::impl::status;
-
     auto safe_ret_pd = [&](const memory_pd_t *_) {
         if (_ == nullptr) return not_required;
         *(const primitive_desc_t **)result = _;
@@ -55,5 +54,14 @@ status_t primitive_desc_t::query(query_t what, int idx, void *result) const {
 
         default: return unimplemented;
     }
+    return success;
+}
+
+status_t mkldnn_primitive_desc_get_attr(const primitive_desc_t *primitive_desc,
+        const primitive_attr_t **attr) {
+    if (utils::any_null(primitive_desc, attr))
+        return invalid_arguments;
+
+    *attr = primitive_desc->attr();
     return success;
 }

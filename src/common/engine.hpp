@@ -101,20 +101,23 @@ struct mkldnn_engine: public mkldnn::impl::c_compatible {
 
     virtual mkldnn::impl::status_t concat_primitive_desc_create(
             mkldnn::impl::concat_pd_t **concat_pd,
-            const mkldnn::impl::memory_desc_t *output_d,
-            int n, int concat_dim, const mkldnn::impl::memory_pd_t **input_pds)
+            const mkldnn::impl::memory_desc_t *output_d, int n, int concat_dim,
+            const mkldnn::impl::memory_pd_t **input_pds,
+            const mkldnn::impl::primitive_attr_t *attr)
     { return mkldnn::impl::status::unimplemented; }
 
     virtual mkldnn::impl::status_t sum_primitive_desc_create(
             mkldnn::impl::sum_pd_t **sum_pd,
             const mkldnn::impl::memory_desc_t *output_d, int n,
-            const float *scale, const mkldnn::impl::memory_pd_t **input_pds)
+            const float *scales, const mkldnn::impl::memory_pd_t **input_pds,
+            const mkldnn::impl::primitive_attr_t *attr)
     { return mkldnn::impl::status::unimplemented; }
 
     typedef mkldnn::impl::status_t (*reorder_primitive_desc_create_f)(
             mkldnn::impl::reorder_pd_t **reorder_pd,
             const mkldnn::impl::memory_pd_t *input_memory_pd,
             const mkldnn::impl::memory_pd_t *output_memory_pd,
+            const mkldnn::impl::primitive_attr_t *attr,
             float alpha, float beta);
     /** return the list of reorder implementations. engine guarantees to return
      * a NULL-terminated list */
@@ -123,6 +126,7 @@ struct mkldnn_engine: public mkldnn::impl::c_compatible {
 
     typedef mkldnn::impl::status_t (*primitive_desc_create_f)(
             mkldnn::impl::primitive_desc_t **, const mkldnn::impl::op_desc_t *,
+            const mkldnn::impl::primitive_attr_t *attr,
             mkldnn::impl::engine_t *, const mkldnn::impl::primitive_desc_t *);
 
     /** return the list of implementations. engine guarantees to return a

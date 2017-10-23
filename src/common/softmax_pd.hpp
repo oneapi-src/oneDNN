@@ -32,8 +32,9 @@ struct softmax_fwd_pd_t: public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::softmax;
 
     softmax_fwd_pd_t(mkldnn::impl::engine_t *engine,
-            const softmax_desc_t *adesc,const softmax_fwd_pd_t *hint_fwd_pd)
-        : primitive_desc_t(engine, primitive_kind::softmax)
+            const softmax_desc_t *adesc, const primitive_attr_t *attr,
+            const softmax_fwd_pd_t *hint_fwd_pd)
+        : primitive_desc_t(engine, attr, primitive_kind::softmax)
         , desc_(*adesc), hint_fwd_pd_(hint_fwd_pd) {}
     virtual ~softmax_fwd_pd_t() {}
 

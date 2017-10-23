@@ -36,8 +36,9 @@ struct cpu_inner_product_fwd_pd_t: public inner_product_fwd_pd_t {
 
     cpu_inner_product_fwd_pd_t(engine_t *engine,
             const inner_product_desc_t *adesc,
+            const primitive_attr_t *attr,
             const inner_product_fwd_pd_t *hint_fwd_pd)
-        : inner_product_fwd_pd_t(engine, adesc, hint_fwd_pd)
+        : inner_product_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
         , src_pd_(engine_, &desc_.src_desc), dst_pd_(engine_, &desc_.dst_desc)
         , weights_pd_(engine_, &desc_.weights_desc)
         , bias_pd_(engine_, &desc_.bias_desc) {}
@@ -76,8 +77,9 @@ struct cpu_inner_product_bwd_data_pd_t: public inner_product_bwd_data_pd_t {
 
     cpu_inner_product_bwd_data_pd_t(engine_t *engine,
             const inner_product_desc_t *adesc,
+            const primitive_attr_t *attr,
             const inner_product_fwd_pd_t *hint_fwd_pd)
-        : inner_product_bwd_data_pd_t(engine, adesc, hint_fwd_pd)
+        : inner_product_bwd_data_pd_t(engine, adesc, attr, hint_fwd_pd)
         , diff_src_pd_(engine_, &desc_.diff_src_desc)
         , diff_dst_pd_(engine_, &desc_.diff_dst_desc)
         , weights_pd_(engine_, &desc_.weights_desc) {}
@@ -111,8 +113,9 @@ struct cpu_inner_product_bwd_weights_pd_t: public inner_product_bwd_weights_pd_t
 
     cpu_inner_product_bwd_weights_pd_t(engine_t *engine,
             const inner_product_desc_t *adesc,
+            const primitive_attr_t *attr,
             const inner_product_fwd_pd_t *hint_fwd_pd)
-        : inner_product_bwd_weights_pd_t(engine, adesc, hint_fwd_pd)
+        : inner_product_bwd_weights_pd_t(engine, adesc, attr, hint_fwd_pd)
         , src_pd_(engine_, &desc_.src_desc)
         , diff_dst_pd_(engine_, &desc_.diff_dst_desc)
         , diff_weights_pd_(engine_, &desc_.diff_weights_desc)

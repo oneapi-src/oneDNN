@@ -33,8 +33,9 @@ template <impl::data_type_t data_type>
 struct gemm_inner_product_fwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_inner_product_fwd_pd_t {
         pd_t(engine_t *engine, const inner_product_desc_t *adesc,
+                const primitive_attr_t *attr,
                 const inner_product_fwd_pd_t *hint_fwd_pd)
-            : cpu_inner_product_fwd_pd_t(engine, adesc, hint_fwd_pd) {}
+            : cpu_inner_product_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T(gemm_inner_product_fwd_t);
 
@@ -89,8 +90,10 @@ template <impl::data_type_t data_type>
 struct gemm_inner_product_bwd_data_t: public cpu_primitive_t {
     struct pd_t: public cpu_inner_product_bwd_data_pd_t {
         pd_t(engine_t *engine, const inner_product_desc_t *adesc,
+                const primitive_attr_t *attr,
                 const inner_product_fwd_pd_t *hint_fwd_pd)
-            : cpu_inner_product_bwd_data_pd_t(engine, adesc, hint_fwd_pd) {}
+            : cpu_inner_product_bwd_data_pd_t(engine, adesc, attr,
+                    hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T(gemm_inner_product_bwd_data_t);
 
@@ -142,8 +145,10 @@ template <impl::data_type_t data_type>
 struct gemm_inner_product_bwd_weights_t: public cpu_primitive_t {
     struct pd_t: public cpu_inner_product_bwd_weights_pd_t {
         pd_t(engine_t *engine, const inner_product_desc_t *adesc,
+                const primitive_attr_t *attr,
                 const inner_product_fwd_pd_t *hint_fwd_pd)
-            : cpu_inner_product_bwd_weights_pd_t(engine, adesc, hint_fwd_pd) {}
+            : cpu_inner_product_bwd_weights_pd_t(engine, adesc, attr,
+                    hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T(gemm_inner_product_bwd_weights_t);
 

@@ -49,12 +49,13 @@ struct cpu_sum_t: public cpu_primitive_t
     struct pd_t: public sum_pd_t
     {
         pd_t(engine_t *engine, const memory_desc_t *output_d, int n,
-                const float *scale, const cpu_memory_t::pd_t **input_pds)
-            : sum_pd_t(engine, n), dst_pd_(engine_)
+                const float *scales, const cpu_memory_t::pd_t **input_pds,
+                const primitive_attr_t *attr)
+            : sum_pd_t(engine, n, attr), dst_pd_(engine_)
         {
             for (int i = 0; i < n_; ++i) {
                 src_pds_.push_back(*input_pds[i]); /* make a copy */
-                scale_.push_back((float)scale[i]); /* make a copy */
+                scales_.push_back((float)scales[i]); /* make a copy */
             }
             dst_pd_ = cpu_memory_t::pd_t(engine, output_d);
             if (output_d->format == memory_format::any) {
@@ -66,17 +67,18 @@ struct cpu_sum_t: public cpu_primitive_t
             }
 
             use_simple_sum_ =
-                cpu_simple_sum_t<data_type::f32>::applicable(src_pds_, scale_,
+                cpu_simple_sum_t<data_type::f32>::applicable(src_pds_, scales_,
                         dst_pd_);
             if (use_simple_sum_) return;
 
             for (int i = 0; i < n_; ++i) {
                 auto r_impls = engine_->get_reorder_implementation_list();
                 for (auto r = r_impls; *r; ++r) {
+                    const primitive_attr_t dummy_attr;
                     reorder_pd_t *r_pd;
                     float beta = (i == 0) ? 0.0f : 1.0f;
-                    if ((*r)(&r_pd, &src_pds_[i], &dst_pd_, scale_[i], beta) ==
-                            status::success) {
+                    if ((*r)(&r_pd, &src_pds_[i], &dst_pd_, &dummy_attr,
+                                scales_[i], beta) == status::success) {
                         reorder_pds_.push_back(r_pd);
                         break;
                     }
@@ -88,8 +90,8 @@ struct cpu_sum_t: public cpu_primitive_t
             : sum_pd_t(rhs), use_simple_sum_(rhs.use_simple_sum_)
             , src_pds_(rhs.src_pds_), dst_pd_(rhs.dst_pd_)
         {
-            for (size_t i = 0; i < rhs.scale_.size(); ++i) {
-                scale_.push_back(rhs.scale_[i]);
+            for (size_t i = 0; i < rhs.scales_.size(); ++i) {
+                scales_.push_back(rhs.scales_[i]);
             }
             for (size_t i = 0; i < rhs.reorder_pds_.size(); ++i) {
                 reorder_pds_.push_back(
@@ -135,7 +137,7 @@ struct cpu_sum_t: public cpu_primitive_t
 
         bool use_simple_sum_; /* FIXME: improve */
         nstl::vector<cpu_memory_t::pd_t> src_pds_;
-        nstl::vector<float> scale_;
+        nstl::vector<float> scales_;
         nstl::vector<const reorder_pd_t *> reorder_pds_;
         cpu_memory_t::pd_t dst_pd_;
     };
@@ -155,7 +157,7 @@ struct cpu_sum_t: public cpu_primitive_t
     {
         if (conf_.use_simple_sum_) {
             cpu_simple_sum_t<data_type::f32>::execute(conf_.src_pds_,
-                    conf_.scale_, conf_.dst_pd_, this);
+                    conf_.scales_, conf_.dst_pd_, this);
         } else {
             for (size_t i = 0; i < reorders_.size(); ++i) {
                 event_t ei;

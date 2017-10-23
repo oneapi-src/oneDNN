@@ -76,6 +76,17 @@ mkldnn_status_t MKLDNN_API mkldnn_primitive_desc_iterator_create(
         const_mkldnn_op_desc_t op_desc, mkldnn_engine_t engine,
         const_mkldnn_primitive_desc_t hint_forward_primitive_desc);
 
+/** Creates a primitive descriptor @p iterator for given @p op_desc, @p attr,
+ * @p engine, and optionally a hint primitive descriptor from forward
+ * propagation (required for backward propagation). Pass @c NULL for forward
+ * propagation.
+ */
+mkldnn_status_t MKLDNN_API mkldnn_primitive_desc_iterator_create_v2(
+        mkldnn_primitive_desc_iterator_t *iterator,
+        const_mkldnn_op_desc_t op_desc, const_mkldnn_primitive_attr_t attr,
+        mkldnn_engine_t engine,
+        const_mkldnn_primitive_desc_t hint_forward_primitive_desc);
+
 /** Iterates over primitive descriptors. Returns #mkldnn_iterator_ends if no
  * more primitive descriptors are available */
 mkldnn_status_t MKLDNN_API mkldnn_primitive_desc_iterator_next(
@@ -102,10 +113,32 @@ mkldnn_status_t MKLDNN_API mkldnn_primitive_desc_create(
         const_mkldnn_op_desc_t op_desc, mkldnn_engine_t engine,
         const_mkldnn_primitive_desc_t hint_forward_primitive_desc);
 
+/** Creates a @p primitive_desc using @p op_desc, @p attr, @p engine, and
+ * optionally a hint primitive descriptor from forward propagation. The call is
+ * equivalent to create a primitive descriptor iterator, instantly fetch a @p
+ * primitive_desc and destroy the iterator. */
+mkldnn_status_t MKLDNN_API mkldnn_primitive_desc_create_v2(
+        mkldnn_primitive_desc_t *primitive_desc,
+        const_mkldnn_op_desc_t op_desc, const_mkldnn_primitive_attr_t attr,
+        mkldnn_engine_t engine,
+        const_mkldnn_primitive_desc_t hint_forward_primitive_desc);
+
 /** Makes a copy of a @p primitive_desc. */
 mkldnn_status_t MKLDNN_API mkldnn_primitive_desc_clone(
         mkldnn_primitive_desc_t *primitive_desc,
         const_mkldnn_primitive_desc_t existing_primitive_desc);
+
+/** Returns a constant reference to the attribute of a @p primitive_desc.
+ *
+ * @warning
+ *      User should not destroy obtained @p attr
+ *
+ * @warning
+ *      The lifetime of an @p attr is same as @p primitive_desc, so it is
+ *      illegal to use the @p attr once @p primitive_desc is destroyed */
+mkldnn_status_t MKLDNN_API mkldnn_primitive_desc_get_attr(
+        const_mkldnn_primitive_desc_t primitive_desc,
+        const_mkldnn_primitive_attr_t *attr);
 
 /** Deletes a @p primitive_desc. */
 mkldnn_status_t MKLDNN_API mkldnn_primitive_desc_destroy(
@@ -180,6 +213,30 @@ mkldnn_primitive_at_t MKLDNN_API mkldnn_primitive_at(
 
 /** @} */
 
+/** @addtogroup c_api_attributes Attributes
+ * An extension for controlling primitive behavior.
+ * @{ */
+
+/** Creates an empty (default) @p attr attribute. All the parameters set to
+ * default values.
+ *
+ * An empty attribute is used in primitive descriptor creating whenever it is
+ * not passed explicitly, e.g. in mkldnn_primitive_desc_create.
+ */
+mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_create(
+        mkldnn_primitive_attr_t *attr);
+
+/** Makes a copy of an @p existing_attr. */
+mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_clone(
+        mkldnn_primitive_attr_t *attr,
+        const_mkldnn_primitive_attr_t existing_attr);
+
+/** Deletes an @p attr. */
+mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_destroy(
+        mkldnn_primitive_attr_t attr);
+
+/** @} */
+
 /** @addtogroup c_api_memory Memory
  * A primitive to describe data.
  * @{ */
@@ -246,6 +303,14 @@ mkldnn_status_t MKLDNN_API mkldnn_reorder_primitive_desc_create(
         const_mkldnn_primitive_desc_t input,
         const_mkldnn_primitive_desc_t output);
 
+/** Initializes a @p reorder_primitive_desc using an @p attr attribute and
+ * descriptors of @p input and @p output memory primitives. */
+mkldnn_status_t MKLDNN_API mkldnn_reorder_primitive_desc_create_v2(
+        mkldnn_primitive_desc_t *reorder_primitive_desc,
+        const_mkldnn_primitive_desc_t input,
+        const_mkldnn_primitive_desc_t output,
+        const_mkldnn_primitive_attr_t attr);
+
 /** @} */
 
 /** @addtogroup c_api_concat Concat
@@ -304,9 +369,8 @@ mkldnn_status_t MKLDNN_API mkldnn_concat_inplace_by_output_primitive_desc_create
  * automatically. */
 mkldnn_status_t MKLDNN_API mkldnn_sum_primitive_desc_create(
         mkldnn_primitive_desc_t *sum_primitive_desc,
-        const mkldnn_memory_desc_t *output_desc, int n, const float *scale,
+        const mkldnn_memory_desc_t *output_desc, int n, const float *scales,
         const_mkldnn_primitive_desc_t *input_pds);
-
 
 /** @} */
 

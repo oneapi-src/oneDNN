@@ -32,8 +32,9 @@ struct eltwise_fwd_pd_t: public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::eltwise;
 
     eltwise_fwd_pd_t(mkldnn::impl::engine_t *engine,
-            const eltwise_desc_t *adesc, const eltwise_fwd_pd_t *hint_fwd_pd)
-        : primitive_desc_t(engine, primitive_kind::eltwise)
+            const eltwise_desc_t *adesc, const primitive_attr_t *attr,
+            const eltwise_fwd_pd_t *hint_fwd_pd)
+        : primitive_desc_t(engine, attr, primitive_kind::eltwise)
         , desc_(*adesc), hint_fwd_pd_(hint_fwd_pd) {}
     virtual ~eltwise_fwd_pd_t() {}
 
@@ -77,8 +78,9 @@ struct eltwise_bwd_pd_t: public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::eltwise;
 
     eltwise_bwd_pd_t(mkldnn::impl::engine_t *engine,
-            const eltwise_desc_t *adesc, const eltwise_fwd_pd_t *hint_fwd_pd)
-        : primitive_desc_t(engine, primitive_kind::eltwise)
+            const eltwise_desc_t *adesc, const primitive_attr_t *attr,
+            const eltwise_fwd_pd_t *hint_fwd_pd)
+        : primitive_desc_t(engine, attr, primitive_kind::eltwise)
         , desc_(*adesc), hint_fwd_pd_(hint_fwd_pd) {}
     virtual ~eltwise_bwd_pd_t() {}
 

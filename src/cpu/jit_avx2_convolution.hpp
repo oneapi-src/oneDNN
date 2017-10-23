@@ -34,8 +34,10 @@ struct _jit_avx2_convolution_fwd_t: public cpu_primitive_t {
     struct pd_t: public _cpu_convolution_fwd_pd_t<with_relu> {
         pd_t(engine_t *engine,
                 const typename pd_t::base_desc_t *adesc,
+                const primitive_attr_t *attr,
                 const typename pd_t::base_class *hint_fwd_pd)
-            : _cpu_convolution_fwd_pd_t<with_relu>(engine, adesc, hint_fwd_pd)
+            : _cpu_convolution_fwd_pd_t<with_relu>(engine, adesc, attr,
+                    hint_fwd_pd)
             , jcp_({}) {}
 
         DECLARE_COMMON_PD_T(_jit_avx2_convolution_fwd_t<with_relu>);
@@ -108,8 +110,9 @@ struct jit_avx2_convolution_bwd_data_t: public cpu_primitive_t {
     struct pd_t: public cpu_convolution_bwd_data_pd_t {
         pd_t(engine_t *engine,
                 const convolution_desc_t *adesc,
+                const primitive_attr_t * attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
-            : cpu_convolution_bwd_data_pd_t(engine, adesc, hint_fwd_pd)
+            : cpu_convolution_bwd_data_pd_t(engine, adesc, attr, hint_fwd_pd)
             , jcp_({})
         {}
 
@@ -178,8 +181,9 @@ private:
 struct jit_avx2_convolution_bwd_weights_t: public cpu_primitive_t {
     struct pd_t: public  cpu_convolution_bwd_weights_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
+                const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
-            : cpu_convolution_bwd_weights_pd_t(engine, adesc, hint_fwd_pd)
+            : cpu_convolution_bwd_weights_pd_t(engine, adesc, attr, hint_fwd_pd)
             , jcp_({}) {}
 
         DECLARE_COMMON_PD_T(jit_avx2_convolution_bwd_weights_t);

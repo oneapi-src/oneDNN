@@ -47,8 +47,9 @@ using namespace mkldnn::impl::status;
 struct cpu_concat_t: public cpu_primitive_t {
     struct pd_t: public concat_pd_t {
         pd_t(engine_t *engine, const memory_desc_t *output_d, int n,
-                int concat_dim, const cpu_memory_t::pd_t **input_pds)
-            : concat_pd_t(engine, n, concat_dim), dst_pd_(engine_)
+                int concat_dim, const cpu_memory_t::pd_t **input_pds,
+                const primitive_attr_t *attr)
+            : concat_pd_t(engine, n, concat_dim, attr), dst_pd_(engine_)
         {
             for (int i = 0; i < n_; ++i)
                 src_pds_.push_back(*input_pds[i]); /* make a copy */
@@ -86,9 +87,10 @@ struct cpu_concat_t: public cpu_primitive_t {
             for (int i = 0; i < n_; ++i) {
                 auto r_impls = engine_->get_reorder_implementation_list();
                 for (auto r = r_impls; *r; ++r) {
+                    const primitive_attr_t dummy_attr;
                     reorder_pd_t *r_pd;
-                    if ((*r)(&r_pd, &src_pds_[i], &src_image_pds_[i], 1.0, 0.0) ==
-                            status::success) {
+                    if ((*r)(&r_pd, &src_pds_[i], &src_image_pds_[i],
+                                &dummy_attr, 1.0, 0.0) == status::success) {
                         reorder_pds_.push_back(r_pd);
                         break;
                     }

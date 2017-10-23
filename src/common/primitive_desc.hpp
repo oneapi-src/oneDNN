@@ -22,20 +22,26 @@
 #include "c_types_map.hpp"
 #include "nstl.hpp"
 #include "type_helpers.hpp"
+#include "primitive_attr.hpp"
 
 struct mkldnn_primitive_desc: public mkldnn::impl::c_compatible {
     using memory_pd_t = mkldnn::impl::memory_pd_t;
 
     mkldnn_primitive_desc(mkldnn::impl::engine_t *engine,
+            const mkldnn::impl::primitive_attr_t *attr,
             mkldnn::impl::primitive_kind_t kind)
-        : engine_(engine)
-        , kind_(kind)
-    {}
+        : engine_(engine), attr_(*attr), kind_(kind) {}
+
+    mkldnn_primitive_desc(mkldnn::impl::engine_t *engine,
+            mkldnn::impl::primitive_kind_t kind)
+        : engine_(engine), kind_(kind) {}
+
     virtual mkldnn_primitive_desc *clone() const = 0;
     virtual ~mkldnn_primitive_desc() {}
 
-    inline mkldnn::impl::engine_t *engine() const { return engine_; }
-    inline mkldnn::impl::primitive_kind_t kind() const { return kind_; }
+    const mkldnn::impl::primitive_attr_t *attr() const { return &attr_; }
+    mkldnn::impl::engine_t *engine() const { return engine_; }
+    mkldnn::impl::primitive_kind_t kind() const { return kind_; }
     virtual const mkldnn::impl::op_desc_t *op_desc() const = 0;
 
 #   define DECLARE_PD_STUB(stub) \
@@ -66,6 +72,7 @@ struct mkldnn_primitive_desc: public mkldnn::impl::c_compatible {
     template<typename pd_t>
     static mkldnn::impl::status_t create(mkldnn::impl::primitive_desc_t **pd,
             const mkldnn::impl::op_desc_t *adesc,
+            const mkldnn::impl::primitive_attr_t *attr,
             mkldnn::impl::engine_t *engine,
             const mkldnn::impl::primitive_desc_t *hint_fwd) {
         using namespace mkldnn::impl;
@@ -75,7 +82,7 @@ struct mkldnn_primitive_desc: public mkldnn::impl::c_compatible {
         assert(hint_fwd ? hint_fwd->kind() == pd_t::base_pkind : true);
         auto hint =
             reinterpret_cast<const typename pd_t::hint_class *>(hint_fwd);
-        auto _pd = new pd_t(engine, (const pd_op_desc_t *)adesc, hint);
+        auto _pd = new pd_t(engine, (const pd_op_desc_t *)adesc, attr, hint);
         if (_pd == nullptr) return out_of_memory;
         if (_pd->init() != success) { delete _pd; return unimplemented; }
         *pd = _pd;
@@ -84,6 +91,7 @@ struct mkldnn_primitive_desc: public mkldnn::impl::c_compatible {
 
 protected:
     mkldnn::impl::engine_t *engine_;
+    mkldnn::impl::primitive_attr_t attr_;
     mkldnn::impl::primitive_kind_t kind_;
 };
 

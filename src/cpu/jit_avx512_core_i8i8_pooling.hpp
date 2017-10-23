@@ -32,8 +32,9 @@ struct jit_avx512_core_i8i8_pool_fwd_ker_t;
 struct jit_avx512_core_i8i8_pooling_fwd_t : public cpu_primitive_t {
     struct pd_t : public cpu_pooling_fwd_pd_t {
         pd_t(engine_t *engine, const pooling_desc_t  *adesc,
+                const primitive_attr_t *attr,
                 const pooling_fwd_pd_t  *hint_fwd_pd)
-        : cpu_pooling_fwd_pd_t(engine, adesc, hint_fwd_pd) {}
+        : cpu_pooling_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T(jit_avx512_core_i8i8_pooling_fwd_t);
 

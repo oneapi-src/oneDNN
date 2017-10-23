@@ -1391,8 +1391,9 @@ template <SIMPLE_REORDER_TEMPL_DECL, typename spec = void>
 struct simple_reorder_t: public cpu_primitive_t {
     struct pd_t: public cpu_reorder_pd_t {
         pd_t(const cpu_memory_pd_t *input_pd, const cpu_memory_pd_t *output_pd,
+                const primitive_attr_t *attr,
                 const float alpha, const float beta)
-            : cpu_reorder_pd_t(input_pd, output_pd, alpha, beta) {}
+            : cpu_reorder_pd_t(input_pd, output_pd, attr, alpha, beta) {}
 
         DECLARE_COMMON_PD_T(simple_reorder_t);
 
@@ -1400,8 +1401,8 @@ struct simple_reorder_t: public cpu_primitive_t {
                 reorder_pd_t **reorder_pd,
                 const memory_pd_t *input_pd,
                 const memory_pd_t *output_pd,
-                const float alpha,
-                const float beta) {
+                const primitive_attr_t *attr,
+                const float alpha, const float beta) {
             assert(input_pd->engine()->kind() == engine_kind::cpu);
             assert(output_pd->engine()->kind() == engine_kind::cpu);
             bool args_ok = true
@@ -1413,7 +1414,7 @@ struct simple_reorder_t: public cpu_primitive_t {
                 return invalid_arguments;
 
             auto _pd = new pd_t((const cpu_memory_pd_t *)input_pd,
-                    (const cpu_memory_pd_t *)output_pd, alpha, beta);
+                    (const cpu_memory_pd_t *)output_pd, attr, alpha, beta);
             return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
         }
     };

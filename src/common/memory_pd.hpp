@@ -104,8 +104,9 @@ struct view_pd_t: public primitive_desc_t {
 };
 
 struct concat_pd_t: public primitive_desc_t {
-    concat_pd_t(engine_t *engine, int n, int concat_dim)
-        : primitive_desc_t(engine, primitive_kind::concat)
+    concat_pd_t(engine_t *engine, int n, int concat_dim,
+            const primitive_attr_t *attr)
+        : primitive_desc_t(engine, attr, primitive_kind::concat)
         , n_(n), concat_dim_(concat_dim) {}
     virtual ~concat_pd_t() {}
 
@@ -122,8 +123,8 @@ protected:
 };
 
 struct sum_pd_t: public primitive_desc_t {
-    sum_pd_t(engine_t *engine, int n)
-        : primitive_desc_t(engine, primitive_kind::sum)
+    sum_pd_t(engine_t *engine, int n, const primitive_attr_t *attr)
+        : primitive_desc_t(engine, attr, primitive_kind::sum)
         , n_(n) {}
     virtual ~sum_pd_t() {}
 

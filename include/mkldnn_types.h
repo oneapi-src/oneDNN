@@ -734,6 +734,23 @@ typedef const struct mkldnn_primitive_desc *const_mkldnn_primitive_desc_t;
 
 /** @} */
 
+/** @addtogroup c_api_primitive_attr Primitive descriptor attributes
+ * @{ */
+
+/** @struct mkldnn_primitive_attr
+ * @brief An opaque structure for primitive descriptor attributes.
+ */
+struct mkldnn_primitive_attr;
+
+/** @brief A primitive descriptor attributes handle that controls primitive
+ * behavior. */
+typedef struct mkldnn_primitive_attr *mkldnn_primitive_attr_t;
+
+/** @brief A constant primitive descriptor attributes handle. */
+typedef const struct mkldnn_primitive_attr *const_mkldnn_primitive_attr_t;
+
+/** @} */
+
 /** @addtogroup c_api_types_primitive Primitive
  * @{ */
 

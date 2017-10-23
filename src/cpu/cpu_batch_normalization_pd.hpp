@@ -36,8 +36,9 @@ struct cpu_batch_normalization_fwd_pd_t: public batch_normalization_fwd_pd_t {
 
     cpu_batch_normalization_fwd_pd_t(engine_t *engine,
             const batch_normalization_desc_t *adesc,
+            const primitive_attr_t *attr,
             const batch_normalization_fwd_pd_t *hint_fwd_pd)
-        : batch_normalization_fwd_pd_t(engine, adesc, hint_fwd_pd)
+        : batch_normalization_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
         , data_pd_(engine_, &desc_.data_desc)
         , mean_pd_(engine_)
         , variance_pd_(engine_)
@@ -79,8 +80,9 @@ struct cpu_batch_normalization_bwd_pd_t: public batch_normalization_bwd_pd_t {
 
     cpu_batch_normalization_bwd_pd_t(engine_t *engine,
             const batch_normalization_desc_t *adesc,
+            const primitive_attr_t *attr,
             const batch_normalization_fwd_pd_t *hint_fwd_pd)
-        : batch_normalization_bwd_pd_t(engine, adesc, hint_fwd_pd)
+        : batch_normalization_bwd_pd_t(engine, adesc, attr, hint_fwd_pd)
         , data_pd_(engine_, &desc_.data_desc)
         , mean_pd_(engine_, &desc_.mean_desc)
         , variance_pd_(engine_, &desc_.variance_desc)

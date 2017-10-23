@@ -33,8 +33,9 @@ struct inner_product_fwd_pd_t: public primitive_desc_t {
 
     inner_product_fwd_pd_t(mkldnn::impl::engine_t *engine,
             const inner_product_desc_t *adesc,
+            const primitive_attr_t *attr,
             const inner_product_fwd_pd_t *hint_fwd_pd)
-        : primitive_desc_t(engine, primitive_kind::inner_product)
+        : primitive_desc_t(engine, attr, primitive_kind::inner_product)
         , desc_(*adesc), hint_fwd_pd_(hint_fwd_pd) {}
     virtual ~inner_product_fwd_pd_t() {}
 
@@ -100,8 +101,9 @@ struct inner_product_bwd_data_pd_t: public primitive_desc_t {
 
     inner_product_bwd_data_pd_t(mkldnn::impl::engine_t *engine,
             const inner_product_desc_t *adesc,
+            const primitive_attr_t *attr,
             const inner_product_fwd_pd_t *hint_fwd_pd)
-        : primitive_desc_t(engine, primitive_kind::inner_product)
+        : primitive_desc_t(engine, attr, primitive_kind::inner_product)
         , desc_(*adesc), hint_fwd_pd_(hint_fwd_pd) {}
     virtual ~inner_product_bwd_data_pd_t() {}
 
@@ -167,8 +169,9 @@ struct inner_product_bwd_weights_pd_t: public primitive_desc_t {
 
     inner_product_bwd_weights_pd_t(mkldnn::impl::engine_t *engine,
             const inner_product_desc_t *adesc,
+            const primitive_attr_t *attr,
             const inner_product_fwd_pd_t *hint_fwd_pd)
-        : primitive_desc_t(engine, primitive_kind::inner_product)
+        : primitive_desc_t(engine, attr, primitive_kind::inner_product)
         , desc_(*adesc), hint_fwd_pd_(hint_fwd_pd) {}
     virtual ~inner_product_bwd_weights_pd_t() {}
 
