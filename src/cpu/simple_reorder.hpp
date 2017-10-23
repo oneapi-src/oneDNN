@@ -69,8 +69,8 @@ struct reference {};
 #define DECLARE_COMMON_PARAMS() \
         const memory_desc_wrapper &input_d = pd->input_pd(); \
         const memory_desc_wrapper &output_d = pd->output_pd(); \
-        const double alpha_ = pd->alpha(); \
-        const double beta_ = pd->beta();
+        const float alpha_ = pd->alpha(); \
+        const float beta_ = pd->beta();
 
 /* specific reorders: common template */
 template <SIMPLE_REORDER_TEMPL_DECL, typename spec = void>
@@ -1030,7 +1030,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const data_t<type_i> *input, data_t<type_o> *output) {
         DECLARE_COMMON_PARAMS();
 
-        const double alpha = alpha_, beta = beta_;
+        const float alpha = alpha_, beta = beta_;
         constexpr bool w_groups = fmt_i == gOIhw8i16o2i;
 
         const auto &dims = input_d.dims();
@@ -1406,7 +1406,7 @@ template <SIMPLE_REORDER_TEMPL_DECL, typename spec = void>
 struct simple_reorder_t: public cpu_primitive_t {
     struct pd_t: public cpu_reorder_pd_t {
         pd_t(const cpu_memory_pd_t *input_pd, const cpu_memory_pd_t *output_pd,
-                const double alpha, const double beta)
+                const float alpha, const float beta)
             : cpu_reorder_pd_t(input_pd, output_pd, alpha, beta) {}
 
         DECLARE_COMMON_PD_T(simple_reorder_t);
@@ -1415,8 +1415,8 @@ struct simple_reorder_t: public cpu_primitive_t {
                 reorder_pd_t **reorder_pd,
                 const memory_pd_t *input_pd,
                 const memory_pd_t *output_pd,
-                const double alpha,
-                const double beta) {
+                const float alpha,
+                const float beta) {
             assert(input_pd->engine()->kind() == engine_kind::cpu);
             assert(output_pd->engine()->kind() == engine_kind::cpu);
             bool args_ok = true

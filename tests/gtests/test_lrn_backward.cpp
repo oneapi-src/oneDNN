@@ -28,7 +28,7 @@ enum {ACROSS=0,WITHIN=1};
 struct test_lrn_desc_t {
     int mb, c;
     int h, w;
-    double alpha, beta, k;
+    float alpha, beta, k;
     int local_size;
     int kind; // 0 ac, 1 wc
 };
@@ -130,7 +130,7 @@ void check_lrn_bwd(const lrn_test_params &p, const memory &src,
         return ((n * C + c) * H + h) * W + w;
     };
 
-    auto get_omega = [=](data_t c_k, int kernel_size, double alpha, int C,
+    auto get_omega = [=](data_t c_k, int kernel_size, float alpha, int C,
             const data_t *src, int n, int c, int h, int w) {
         data_t sum = 0.0;
 
@@ -147,9 +147,9 @@ void check_lrn_bwd(const lrn_test_params &p, const memory &src,
     };
 
     auto ker = [=](data_t *d, int mb, int oc, int oh, int ow) {
-        const double alpha = p.test_ld.alpha;
-        const double beta = p.test_ld.beta;
-        const double k = p.test_ld.k;
+        const float alpha = p.test_ld.alpha;
+        const float beta = p.test_ld.beta;
+        const float k = p.test_ld.k;
         const int kernel_size = p.test_ld.local_size;
         int ks_start = kernel_size/2 > oc ? kernel_size/2 - oc : 0;
         int ks_stop = C - oc <= kernel_size/2 ? C - oc + kernel_size/2 : kernel_size;

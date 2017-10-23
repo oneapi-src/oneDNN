@@ -31,7 +31,7 @@ using namespace mkldnn::impl::types;
 namespace {
 status_t bnrm_desc_init(batch_normalization_desc_t *bnrm_desc,
         prop_kind_t prop_kind, const memory_desc_t *data_desc,
-        const memory_desc_t *diff_data_desc, double epsilon, unsigned flags) {
+        const memory_desc_t *diff_data_desc, float epsilon, unsigned flags) {
     bool args_ok = true
         && !any_null(bnrm_desc, data_desc)
         && one_of(prop_kind, forward_training, forward_inference,
@@ -87,7 +87,7 @@ status_t bnrm_desc_init(batch_normalization_desc_t *bnrm_desc,
 
 status_t mkldnn_batch_normalization_forward_desc_init(
         batch_normalization_desc_t *bnrm_desc, prop_kind_t prop_kind,
-        const memory_desc_t *data_desc, double epsilon, unsigned flags) {
+        const memory_desc_t *data_desc, float epsilon, unsigned flags) {
     if (!one_of(prop_kind, forward_training, forward_inference))
         return invalid_arguments;
     return bnrm_desc_init(bnrm_desc, prop_kind, data_desc, nullptr,
@@ -97,7 +97,7 @@ status_t mkldnn_batch_normalization_forward_desc_init(
 status_t mkldnn_batch_normalization_backward_desc_init(
         batch_normalization_desc_t *bnrm_desc, prop_kind_t prop_kind,
         const memory_desc_t *diff_data_desc, const memory_desc_t *data_desc,
-        double epsilon, unsigned flags) {
+        float epsilon, unsigned flags) {
     if (!one_of(prop_kind, backward, backward_data))
         return invalid_arguments;
     return bnrm_desc_init(bnrm_desc, prop_kind, data_desc, diff_data_desc,

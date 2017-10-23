@@ -31,7 +31,7 @@ using namespace mkldnn::impl::types;
 namespace {
 status_t eltwise_desc_init(eltwise_desc_t *eltwise_desc, prop_kind_t prop_kind,
         alg_kind_t alg_kind, const memory_desc_t *data_desc,
-        const memory_desc_t *diff_data_desc, double alpha, double beta) {
+        const memory_desc_t *diff_data_desc, float alpha, float beta) {
     bool args_ok = true
         && !any_null(eltwise_desc, data_desc)
         && one_of(prop_kind, forward_training, forward_inference,
@@ -68,7 +68,7 @@ status_t eltwise_desc_init(eltwise_desc_t *eltwise_desc, prop_kind_t prop_kind,
 
 status_t mkldnn_eltwise_forward_desc_init(eltwise_desc_t *eltwise_desc,
         prop_kind_t prop_kind, alg_kind_t alg_kind,
-        const memory_desc_t *data_desc, double alpha, double beta) {
+        const memory_desc_t *data_desc, float alpha, float beta) {
     if (!one_of(prop_kind, forward_training, forward_inference))
         return invalid_arguments;
     return eltwise_desc_init(eltwise_desc, prop_kind, alg_kind, data_desc,
@@ -77,21 +77,21 @@ status_t mkldnn_eltwise_forward_desc_init(eltwise_desc_t *eltwise_desc,
 
 status_t mkldnn_eltwise_backward_desc_init(eltwise_desc_t *eltwise_desc,
         alg_kind_t alg_kind, const memory_desc_t *diff_data_desc,
-        const memory_desc_t *data_desc, double alpha, double beta) {
+        const memory_desc_t *data_desc, float alpha, float beta) {
     return eltwise_desc_init(eltwise_desc, backward_data, alg_kind, data_desc,
             diff_data_desc, alpha, beta);
 }
 
 status_t mkldnn_relu_forward_desc_init(eltwise_desc_t *relu_desc,
         prop_kind_t prop_kind, const memory_desc_t *data_desc,
-        double negative_slope) {
+        float negative_slope) {
     return mkldnn_eltwise_forward_desc_init(relu_desc, prop_kind, eltwise_relu,
             data_desc, negative_slope, 0.);
 }
 
 status_t mkldnn_relu_backward_desc_init(eltwise_desc_t *relu_desc,
         const memory_desc_t *diff_data_desc, const memory_desc_t *data_desc,
-        double negative_slope) {
+        float negative_slope) {
     return mkldnn_eltwise_backward_desc_init(relu_desc, eltwise_relu,
             diff_data_desc, data_desc, negative_slope, 0.);
 }

@@ -29,7 +29,7 @@ using namespace mkldnn::impl::alg_kind;
 
 status_t mkldnn_convolution_relu_desc_init(
         convolution_relu_desc_t *conv_relu_desc,
-        const convolution_desc_t *conv_desc, double negative_slope) {
+        const convolution_desc_t *conv_desc, float negative_slope) {
     bool args_ok = !any_null(conv_relu_desc, conv_desc)
         && utils::one_of(conv_desc->prop_kind, prop_kind::forward_training,
                 prop_kind::forward_inference);

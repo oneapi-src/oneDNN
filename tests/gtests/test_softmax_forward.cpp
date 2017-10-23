@@ -31,7 +31,8 @@ void check_softmax_fwd(prop_kind aprop_kind, memory &src, memory &dst, int axis)
     ASSERT_EQ(dst_pd.data.data_type,
             memory::data_type::f32); // TODO: type assert
 
-    double result = 0.0f;
+    float result = 0.0f;
+    const float eps = 2e-6;
 
     int MB = dst_pd.data.dims[0];
     int C = dst_pd.data.dims[1];
@@ -44,17 +45,17 @@ void check_softmax_fwd(prop_kind aprop_kind, memory &src, memory &dst, int axis)
                 for (int c = 0; c < C; ++c) {
                     result += dst_ptr[map_index(dst_pd, n * C + c)];
                 }
-                EXPECT_NEAR(result, 1.0, 1e-6);
+                EXPECT_NEAR(result, 1.0, eps);
             }
         }
         else if (axis == 0) {
             for (int c = 0; c < C; ++c) {
                 result = 0.0f;
-                
+
                 for (int n = 0; n < MB; ++n) {
                     result += dst_ptr[map_index(dst_pd, n * C + c)];
                 }
-                EXPECT_NEAR(result, 1.0, 1e-6);
+                EXPECT_NEAR(result, 1.0, eps);
             }
         }
     } else {
@@ -75,7 +76,7 @@ void check_softmax_fwd(prop_kind aprop_kind, memory &src, memory &dst, int axis)
                         for (int n = 0; n < MB; ++n) {
                             result += dst_ptr[map_index(dst_pd, off(n, c, h, w))];
                         }
-                        EXPECT_NEAR(result, 1.0, 1e-6);
+                        EXPECT_NEAR(result, 1.0, eps);
                     }
                 }
             }
@@ -88,7 +89,7 @@ void check_softmax_fwd(prop_kind aprop_kind, memory &src, memory &dst, int axis)
                         for (int c = 0; c < C; ++c) {
                             result += dst_ptr[map_index(dst_pd, off(n, c, h, w))];
                         }
-                        EXPECT_NEAR(result, 1.0, 1e-6);
+                        EXPECT_NEAR(result, 1.0, eps);
                     }
                 }
             }
@@ -101,7 +102,7 @@ void check_softmax_fwd(prop_kind aprop_kind, memory &src, memory &dst, int axis)
                         for (int h = 0; h < H; ++h) {
                             result += dst_ptr[map_index(dst_pd, off(n, c, h, w))];
                         }
-                        EXPECT_NEAR(result, 1.0, 1e-6);
+                        EXPECT_NEAR(result, 1.0, eps);
                     }
                 }
             }
@@ -114,7 +115,7 @@ void check_softmax_fwd(prop_kind aprop_kind, memory &src, memory &dst, int axis)
                         for (int w = 0; w < W; ++w) {
                             result += dst_ptr[map_index(dst_pd, off(n, c, h, w))];
                         }
-                        EXPECT_NEAR(result, 1.0, 1e-6);
+                        EXPECT_NEAR(result, 1.0, eps);
                     }
                 }
             }

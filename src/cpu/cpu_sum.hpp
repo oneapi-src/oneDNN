@@ -49,7 +49,7 @@ struct cpu_sum_t: public cpu_primitive_t
     struct pd_t: public sum_pd_t
     {
         pd_t(engine_t *engine, const memory_desc_t *output_d, int n,
-                double* scale, const cpu_memory_t::pd_t **input_pds)
+                float* scale, const cpu_memory_t::pd_t **input_pds)
             : sum_pd_t(engine, n), dst_pd_(engine_)
         {
             for (int i = 0; i < n_; ++i) {
@@ -74,7 +74,7 @@ struct cpu_sum_t: public cpu_primitive_t
                 auto r_impls = engine_->get_reorder_implementation_list();
                 for (auto r = r_impls; *r; ++r) {
                     reorder_pd_t *r_pd;
-                    double beta = (i == 0) ? 0.0 : 1.0;
+                    float beta = (i == 0) ? 0.0 : 1.0;
                     if ((*r)(&r_pd, &src_pds_[i], &dst_pd_, scale_[i], beta) ==
                             status::success) {
                         reorder_pds_.push_back(r_pd);

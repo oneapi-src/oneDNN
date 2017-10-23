@@ -304,7 +304,7 @@ mkldnn_status_t MKLDNN_API mkldnn_concat_inplace_by_output_primitive_desc_create
  * automatically. */
 mkldnn_status_t MKLDNN_API mkldnn_sum_primitive_desc_create(
         mkldnn_primitive_desc_t *sum_primitive_desc,
-        const mkldnn_memory_desc_t *output_desc, int n, double* scale,
+        const mkldnn_memory_desc_t *output_desc, int n, float* scale,
         const_mkldnn_primitive_desc_t *input_pds);
 
 
@@ -445,7 +445,7 @@ mkldnn_dilated_convolution_backward_weights_desc_init(
 mkldnn_status_t MKLDNN_API mkldnn_eltwise_forward_desc_init(
         mkldnn_eltwise_desc_t *eltwise_desc, mkldnn_prop_kind_t prop_kind,
         mkldnn_alg_kind_t alg_kind, const mkldnn_memory_desc_t *data_desc,
-        double alpha, double beta);
+        float alpha, float beta);
 
 /** Initializes a @p eltwise_desc for backward propagation using @p alg_kind
  * algorithm memory descriptors @p diff_data_desc and @p data_desc, and
@@ -454,7 +454,7 @@ mkldnn_status_t MKLDNN_API mkldnn_eltwise_forward_desc_init(
 mkldnn_status_t MKLDNN_API mkldnn_eltwise_backward_desc_init(
         mkldnn_eltwise_desc_t *eltwise_desc, mkldnn_alg_kind_t alg_kind,
         const mkldnn_memory_desc_t *diff_data_desc,
-        const mkldnn_memory_desc_t *data_desc, double alpha, double beta);
+        const mkldnn_memory_desc_t *data_desc, float alpha, float beta);
 
 /** @} */
 
@@ -474,7 +474,7 @@ mkldnn_status_t MKLDNN_API mkldnn_eltwise_backward_desc_init(
 MKLDNN_DEPRECATED
 mkldnn_status_t MKLDNN_API mkldnn_relu_forward_desc_init(
         mkldnn_relu_desc_t *relu_desc, mkldnn_prop_kind_t prop_kind,
-        const mkldnn_memory_desc_t *data_desc, double negative_slope);
+        const mkldnn_memory_desc_t *data_desc, float negative_slope);
 
 /** Initializes a @p relu_desc for backward propagation using @p negative_slope
  * and memory descriptors @p diff_data_desc and @p data_desc.
@@ -485,7 +485,7 @@ MKLDNN_DEPRECATED
 mkldnn_status_t MKLDNN_API mkldnn_relu_backward_desc_init(
         mkldnn_relu_desc_t *relu_desc,
         const mkldnn_memory_desc_t *diff_data_desc,
-        const mkldnn_memory_desc_t *data_desc, double negative_slope);
+        const mkldnn_memory_desc_t *data_desc, float negative_slope);
 
 /** @} */
 
@@ -585,7 +585,7 @@ mkldnn_status_t MKLDNN_API mkldnn_pooling_backward_desc_init(
 mkldnn_status_t MKLDNN_API mkldnn_lrn_forward_desc_init(
         mkldnn_lrn_desc_t *lrn_desc, mkldnn_prop_kind_t prop_kind,
         mkldnn_alg_kind_t alg_kind, const mkldnn_memory_desc_t *data_desc,
-        int local_size, double alpha, double beta, double k);
+        int local_size, float alpha, float beta, float k);
 
 /** Initializes an @p lrn_desc for backward propagation using @p alg_kind,
  * memory descriptors @p data_desc, and @p diff_data_desc, and regularization
@@ -593,8 +593,8 @@ mkldnn_status_t MKLDNN_API mkldnn_lrn_forward_desc_init(
 mkldnn_status_t MKLDNN_API mkldnn_lrn_backward_desc_init(
         mkldnn_lrn_desc_t *lrn_desc, mkldnn_alg_kind_t alg_kind,
         const mkldnn_memory_desc_t *diff_data_desc,
-        const mkldnn_memory_desc_t *data_desc, int local_size, double alpha,
-        double beta, double k);
+        const mkldnn_memory_desc_t *data_desc, int local_size, float alpha,
+        float beta, float k);
 
 /** @} */
 
@@ -622,7 +622,7 @@ mkldnn_status_t MKLDNN_API mkldnn_lrn_backward_desc_init(
 mkldnn_status_t MKLDNN_API mkldnn_batch_normalization_forward_desc_init(
         mkldnn_batch_normalization_desc_t *bnrm_desc,
         mkldnn_prop_kind_t prop_kind, const mkldnn_memory_desc_t *data_desc,
-        double epsilon, unsigned flags);
+        float epsilon, unsigned flags);
 
 /** Initializes a batch normalization descriptor @p bnrm_desc for backward
  * propagation with respect to data and scale-shift parameters using memory
@@ -636,7 +636,7 @@ mkldnn_status_t MKLDNN_API mkldnn_batch_normalization_backward_desc_init(
         mkldnn_prop_kind_t prop_kind,
         const mkldnn_memory_desc_t *diff_data_desc,
         const mkldnn_memory_desc_t *data_desc,
-        double epsilon, unsigned flags);
+        float epsilon, unsigned flags);
 
 /** @} */
 
@@ -702,7 +702,7 @@ mkldnn_status_t MKLDNN_API mkldnn_inner_product_backward_weights_desc_init(
  * descriptor @p conv_desc and ReLU parameter @p negative slope. */
 mkldnn_status_t MKLDNN_API mkldnn_convolution_relu_desc_init(
         mkldnn_convolution_relu_desc_t *conv_relu_desc,
-        const mkldnn_convolution_desc_t *conv_desc, double negative_slope);
+        const mkldnn_convolution_desc_t *conv_desc, float negative_slope);
 
 /** @} */
 

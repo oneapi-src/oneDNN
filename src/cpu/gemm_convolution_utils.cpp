@@ -155,7 +155,7 @@ void init_conf(
     jit_gemm_conv_conf_t &jcp, const convolution_desc_t &cd,
     const memory_desc_wrapper &src_d, const memory_desc_wrapper &weights_d,
     const memory_desc_wrapper &dst_d,
-    bool with_relu, double relu_negative_slope) {
+    bool with_relu, float relu_negative_slope) {
 
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
     jcp.prop_kind = cd.prop_kind;

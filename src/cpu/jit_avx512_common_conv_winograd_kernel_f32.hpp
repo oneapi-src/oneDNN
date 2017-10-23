@@ -80,7 +80,7 @@ struct jit_avx512_common_conv_winograd_fwd_kernel_f32
             const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
             const memory_desc_wrapper &weights_d,
             const memory_desc_wrapper &dst_d, bool with_relu = false,
-            double relu_negative_slope = 0.);
+            float relu_negative_slope = 0.);
 };
 
 struct jit_avx512_common_conv_winograd_bwd_data_kernel_f32

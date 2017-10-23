@@ -37,8 +37,8 @@ jit_uni_lrn_fwd_t<isa>::jit_uni_lrn_fwd_t(
     const int H = conf_.H();
     const int W = conf_.W();
     const int ls = conf_.desc()->local_size;
-    double A = conf_.desc()->lrn_alpha / ls;
-    double K = conf_.desc()->lrn_k;
+    float A = conf_.desc()->lrn_alpha / ls;
+    float K = conf_.desc()->lrn_k;
 
     auto pk = conf_.desc()->prop_kind;
     auto ak = conf_.desc()->alg_kind;

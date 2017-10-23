@@ -75,12 +75,12 @@ T abs_bwd(T dd, T s) {
 
 template <typename T>
 T sqrt_fwd(T s) {
-    return s > 0 ? ::sqrt(s) : 0;
+    return s > 0 ? ::sqrtf(s) : 0;
 }
 
 template <typename T>
 T sqrt_bwd(T dd, T s) {
-    return s > 0 ? dd / (2 * ::sqrt(s)) : 0;
+    return s > 0 ? dd / (2 * ::sqrtf(s)) : 0;
 }
 
 template <typename T, typename A>
@@ -141,8 +141,8 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_generic() {
     const int H = conf_.H();
     const int W = conf_.W();
     const auto alg_kind = conf_.desc()->alg_kind;
-    const double alpha = conf_.desc()->alpha;
-    const double beta = conf_.desc()->beta;
+    const float alpha = conf_.desc()->alpha;
+    const float beta = conf_.desc()->beta;
 
 #   pragma omp parallel for collapse(4) schedule(static)
     for (int n = 0; n < MB; ++n) {
@@ -181,8 +181,8 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_dense() {
 
     const size_t nelems = data_d.nelems();
     const auto alg_kind = conf_.desc()->alg_kind;
-    const double alpha = conf_.desc()->alpha;
-    const double beta  = conf_.desc()->beta;
+    const float alpha = conf_.desc()->alpha;
+    const float beta  = conf_.desc()->beta;
 
     src += data_d.blocking_desc().offset_padding;
     dst += data_d.blocking_desc().offset_padding;
@@ -222,8 +222,8 @@ void ref_eltwise_bwd_t<data_type>::execute_backward_generic() {
     const int H = conf_.H();
     const int W = conf_.W();
     const auto alg_kind = conf_.desc()->alg_kind;
-    const double alpha = conf_.desc()->alpha;
-    const double beta = conf_.desc()->beta;
+    const float alpha = conf_.desc()->alpha;
+    const float beta = conf_.desc()->beta;
 
 #   pragma omp parallel for collapse(4) schedule(static)
     for (int n = 0; n < MB; ++n) {
@@ -267,8 +267,8 @@ void ref_eltwise_bwd_t<data_type>::execute_backward_dense() {
 
     const size_t nelems = data_d.nelems();
     const auto alg_kind = conf_.desc()->alg_kind;
-    const double alpha = conf_.desc()->alpha;
-    const double beta = conf_.desc()->beta;
+    const float alpha = conf_.desc()->alpha;
+    const float beta = conf_.desc()->beta;
 
     src += data_d.blocking_desc().offset_padding;
     diff_dst += diff_data_d.blocking_desc().offset_padding;

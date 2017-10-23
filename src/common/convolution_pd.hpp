@@ -100,7 +100,7 @@ struct _convolution_fwd_pd_t: public primitive_desc_t {
     inline int padL() const { return cdesc_().padding[0][1]; }
     inline int padR() const { return cdesc_().padding[1][1]; }
 
-    inline double negative_slope() const;
+    inline float negative_slope() const;
 
     inline bool with_bias() const
     { return !memory_desc_wrapper(cdesc_().bias_desc).is_zero(); }
@@ -119,9 +119,9 @@ protected:
 using convolution_fwd_pd_t = mkldnn::impl::_convolution_fwd_pd_t<false>;
 using convolution_relu_fwd_pd_t = mkldnn::impl::_convolution_fwd_pd_t<true>;
 
-template<> inline double convolution_fwd_pd_t::negative_slope() const
+template<> inline float convolution_fwd_pd_t::negative_slope() const
 { return 0.; }
-template<> inline double convolution_relu_fwd_pd_t::negative_slope() const
+template<> inline float convolution_relu_fwd_pd_t::negative_slope() const
 { return desc()->negative_slope; }
 
 template<bool with_relu> inline const

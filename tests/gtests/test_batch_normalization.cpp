@@ -36,7 +36,7 @@ struct test_bnrm_params_t {
     mkldnn::engine::kind engine_kind;
     test_bnrm_formats_t formats;
     test_bnrm_sizes_t sizes;
-    double eps;
+    float eps;
 };
 
 template <typename data_t>

@@ -705,7 +705,7 @@ void jit_avx512_common_conv_fwd_kernel::generate()
 status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd, cpu_memory_t::pd_t &src_pd,
             cpu_memory_t::pd_t &weights_pd, cpu_memory_t::pd_t &dst_pd,
-            cpu_memory_t::pd_t &bias_pd, bool with_relu, double relu_negative_slope)
+            cpu_memory_t::pd_t &bias_pd, bool with_relu, float relu_negative_slope)
 {
     using namespace prop_kind;
 

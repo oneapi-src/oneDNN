@@ -29,20 +29,20 @@ template <typename T, typename A> inline T relu_bwd(T dd, T s, A alpha) {
 }
 
 template <typename T> T tanh_fwd(T s) {
-    const double e = ::exp(2*s); /* maybe replace with -2*s? */
+    const float e = ::expf(2*s); /* maybe replace with -2*s? */
     return static_cast<T>((e - 1.0) / (e + 1.0));
 }
 template <typename T> T tanh_bwd(T dd, T s) {
-    const double e = ::exp(2*s); /* maybe replace with -2*s? */
-    const double th = ((e - 1) / (e + 1));
+    const float e = ::expf(2*s); /* maybe replace with -2*s? */
+    const float th = ((e - 1) / (e + 1));
     return static_cast<T>(dd * (1 - th * th));
 }
 
 template <typename T, typename A> T elu_fwd(T s, A alpha) {
-    return s > 0 ? s : static_cast<T>(alpha * (::exp(s) - 1));
+    return s > 0 ? s : static_cast<T>(alpha * (::expf(s) - 1));
 }
 template <typename T, typename A> T elu_bwd(T dd, T s, A alpha) {
-    return static_cast<T>(dd * (s > 0 ? 1 : alpha * ::exp(s)));
+    return static_cast<T>(dd * (s > 0 ? 1 : alpha * ::expf(s)));
 }
 
 template <typename T>
@@ -67,12 +67,12 @@ T abs_bwd(T dd, T s) {
 
 template <typename T>
 T sqrt_fwd(T s) {
-    return s > 0 ? ::sqrt(s) : 0;
+    return s > 0 ? ::sqrtf(s) : 0;
 }
 
 template <typename T>
 T sqrt_bwd(T dd, T s) {
-    return s > 0 ? dd / (2 * ::sqrt(s)) : 0;
+    return s > 0 ? dd / (2 * ::sqrtf(s)) : 0;
 }
 
 template <typename T, typename A>
@@ -100,23 +100,23 @@ T bounded_relu_bwd(T dd, T s, A alpha) {
 
 template <typename T>
 T soft_relu_fwd(T s) {
-    return logf(1 + ::exp(s));
+    return logf(1 + ::expf(s));
 }
 
 template <typename T>
 T soft_relu_bwd(T dd, T s) {
-    return dd / (1 + ::exp(-s));
+    return dd / (1 + ::expf(-s));
 }
 
 template <typename T>
 T logistic_fwd(T s) {
-    T v = ::exp(s);
+    T v = ::expf(s);
     return v / (v + 1);
 }
 
 template <typename T>
 T logistic_bwd(T dd, T s) {
-    T v = ::exp(-s);
+    T v = ::expf(-s);
     return dd * v / ((v + 1) * (v + 1));
 }
 

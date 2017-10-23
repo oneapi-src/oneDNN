@@ -108,14 +108,14 @@ struct mkldnn_engine: public mkldnn::impl::c_compatible {
     virtual mkldnn::impl::status_t sum_primitive_desc_create(
             mkldnn::impl::sum_pd_t **sum_pd,
             const mkldnn::impl::memory_desc_t *output_d,
-            int n, double* scale, const mkldnn::impl::memory_pd_t **input_pds)
+            int n, float* scale, const mkldnn::impl::memory_pd_t **input_pds)
     { return mkldnn::impl::status::unimplemented; }
 
     typedef mkldnn::impl::status_t (*reorder_primitive_desc_create_f)(
             mkldnn::impl::reorder_pd_t **reorder_pd,
             const mkldnn::impl::memory_pd_t *input_memory_pd,
             const mkldnn::impl::memory_pd_t *output_memory_pd,
-            double alpha, double beta);
+            float alpha, float beta);
     /** return the list of reorder implementations. engine guarantees to return
      * a NULL-terminated list */
     virtual const reorder_primitive_desc_create_f*

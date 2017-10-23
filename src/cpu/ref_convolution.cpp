@@ -64,7 +64,7 @@ void _ref_convolution_fwd_t<with_relu, src_type, wei_type, dst_type, acc_type>
     const int padT = conf_.padT();
     const int padL = conf_.padL();
 
-    const double nslope = conf_.negative_slope();
+    const float nslope = conf_.negative_slope();
 
     auto ker = [=](acc_data_t &d, int g, int mb, int oc, int oh, int ow) {
         for (int ic = 0; ic < IC; ++ic) {

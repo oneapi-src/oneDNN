@@ -771,7 +771,7 @@ struct sum : public primitive {
             return c_api_inputs;
         }
 
-        primitive_desc(const memory::desc &output, std::vector<double> scale,
+        primitive_desc(const memory::desc &output, std::vector<float> scale,
                 std::vector<memory::primitive_desc> inputs) {
             mkldnn_primitive_desc_t result;
 
@@ -784,7 +784,7 @@ struct sum : public primitive {
             reset(result);
         }
 
-        primitive_desc(std::vector<double> scale,
+        primitive_desc(std::vector<float> scale,
                 std::vector<memory::primitive_desc> inputs) {
             mkldnn_primitive_desc_t result;
 
@@ -792,6 +792,38 @@ struct sum : public primitive {
 
             error::wrap_c_api(mkldnn_sum_primitive_desc_create(
                     &result, nullptr, (int)c_api_inputs.size(), &scale[0],
+                    &c_api_inputs[0]),
+                "could not create a sum primitive descriptor");
+            reset(result);
+        }
+
+        /** @deprecated: api backwards compatibility for double scales type */
+        MKLDNN_DEPRECATED
+        primitive_desc(const memory::desc &output, std::vector<double> scale,
+                std::vector<memory::primitive_desc> inputs) {
+            mkldnn_primitive_desc_t result;
+
+            auto c_api_inputs = cpp_to_c(inputs);
+            auto scale_f = std::vector<float>(scale.begin(), scale.end());
+
+            error::wrap_c_api(mkldnn_sum_primitive_desc_create(
+                    &result, &output.data, (int)c_api_inputs.size(),
+                    &scale_f[0], &c_api_inputs[0]),
+                "could not create a sum primitive descriptor");
+            reset(result);
+        }
+
+        /** @deprecated: api backwards compatibility for double scales type */
+        MKLDNN_DEPRECATED
+        primitive_desc(std::vector<double> scale,
+                std::vector<memory::primitive_desc> inputs) {
+            mkldnn_primitive_desc_t result;
+
+            auto c_api_inputs = cpp_to_c(inputs);
+            auto scale_f = std::vector<float>(scale.begin(), scale.end());
+
+            error::wrap_c_api(mkldnn_sum_primitive_desc_create(
+                    &result, nullptr, (int)c_api_inputs.size(), &scale_f[0],
                     &c_api_inputs[0]),
                 "could not create a sum primitive descriptor");
             reset(result);
@@ -1359,7 +1391,7 @@ struct convolution_relu_forward : public primitive {
     struct desc {
         mkldnn_convolution_relu_desc_t data;
         desc(const convolution_forward::desc conv_desc,
-                const double negative_slope)
+                const float negative_slope)
         {
             error::wrap_c_api(mkldnn_convolution_relu_desc_init(&data,
                         &conv_desc.data, negative_slope),
@@ -1409,7 +1441,7 @@ struct lrn_forward : public primitive {
         mkldnn_lrn_desc_t data;
         desc(prop_kind aprop_kind, algorithm aalgorithm,
             const memory::desc &src_desc,
-            int local_size, double alpha, double beta, double k)
+            int local_size, float alpha, float beta, float k)
         {
             error::wrap_c_api(mkldnn_lrn_forward_desc_init(&data,
                 mkldnn::convert_to_c(aprop_kind), convert_to_c(aalgorithm),
@@ -1418,11 +1450,11 @@ struct lrn_forward : public primitive {
         }
         desc(prop_kind aprop_kind, algorithm aalgorithm,
             const memory::desc &src_desc,
-            int local_size, double alpha, double beta)
+            int local_size, float alpha, float beta)
         {
             error::wrap_c_api(mkldnn_lrn_forward_desc_init(&data,
                 mkldnn::convert_to_c(aprop_kind), convert_to_c(aalgorithm),
-                &src_desc.data, local_size, alpha, beta, double(1.0)),
+                &src_desc.data, local_size, alpha, beta, float(1.0)),
                 "could not create a lrn forward descriptor");
         }
     };
@@ -1506,7 +1538,7 @@ struct lrn_backward : public primitive {
         desc(algorithm aalgorithm,
             const memory::desc &data_desc,
             const memory::desc &diff_data_desc,
-            int local_size, double alpha, double beta, double k)
+            int local_size, float alpha, float beta, float k)
         {
             error::wrap_c_api(mkldnn_lrn_backward_desc_init(&data,
                 convert_to_c(aalgorithm), &diff_data_desc.data,
@@ -1516,11 +1548,11 @@ struct lrn_backward : public primitive {
         desc(algorithm aalgorithm,
             const memory::desc &data_desc,
             const memory::desc &diff_data_desc,
-            int local_size, double alpha, double beta)
+            int local_size, float alpha, float beta)
         {
             error::wrap_c_api(mkldnn_lrn_backward_desc_init(&data,
                 convert_to_c(aalgorithm), &diff_data_desc.data,
-                &data_desc.data, local_size, alpha, beta, double(1.0)),
+                &data_desc.data, local_size, alpha, beta, float(1.0)),
                 "could not create a lrn backward descriptor");
         }
     };
@@ -1769,7 +1801,7 @@ struct eltwise_forward : public primitive {
             error::wrap_c_api(mkldnn_eltwise_forward_desc_init(&data,
                         mkldnn::convert_to_c(aprop_kind),
                         mkldnn::convert_to_c(alg_kind), &src_desc.data,
-                        static_cast<double>(alpha), static_cast<double>(beta)),
+                        static_cast<float>(alpha), static_cast<float>(beta)),
                     "could not create a eltwise forward descriptor");
         }
 
@@ -1829,8 +1861,8 @@ struct eltwise_backward : public primitive {
                 const memory::desc &data_desc, T alpha = 0, T beta = 0) {
             error::wrap_c_api(mkldnn_eltwise_backward_desc_init(&data,
                         mkldnn::convert_to_c(alg_kind), &diff_data_desc.data,
-                        &data_desc.data, static_cast<double>(alpha),
-                        static_cast<double>(beta)),
+                        &data_desc.data, static_cast<float>(alpha),
+                        static_cast<float>(beta)),
                     "could not create a eltwise backward descriptor");
         }
 
@@ -1928,7 +1960,7 @@ struct batch_normalization_forward : public primitive {
             error::wrap_c_api(
                     mkldnn_batch_normalization_forward_desc_init(&data,
                         mkldnn::convert_to_c(aprop_kind), &src_desc.data,
-                        static_cast<double>(epsilon), flags),
+                        static_cast<float>(epsilon), flags),
                 "could not create a batch normalization forward descriptor");
         }
     };
@@ -2098,7 +2130,7 @@ struct batch_normalization_backward : public primitive {
                     mkldnn_batch_normalization_backward_desc_init(&data,
                         mkldnn::convert_to_c(aprop_kind),
                         &diff_data_desc.data, &data_desc.data,
-                        static_cast<double>(epsilon), flags),
+                        static_cast<float>(epsilon), flags),
                 "could not create a batch normalization backward descriptor");
         }
     };

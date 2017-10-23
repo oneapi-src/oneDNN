@@ -566,7 +566,7 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
         jit_1x1_conv_conf_t &jcp, const convolution_desc_t &cd,
         const memory_desc_wrapper &src_d, const memory_desc_wrapper &weights_d,
         const memory_desc_wrapper &dst_d, bool with_relu,
-        double relu_negative_slope, int nthreads, bool reduce_src)
+        float relu_negative_slope, int nthreads, bool reduce_src)
 {
     if (!mayiuse(avx512_common)) return status::unimplemented;
 

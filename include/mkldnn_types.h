@@ -502,12 +502,12 @@ typedef struct {
      *  - #mkldnn_eltwise_tanh: @p alpha and @p beta ignored
      *  - #mkldnn_eltwise_elu: @p alpha -- negative slope, @p beta ignored
      */
-    double alpha, beta;
+    float alpha, beta;
     /** Scaling factor for negative values. Stored as double-precision, but
      * interpreted in a way specific to the data type in each implementation.
      * @deprecated: for ReLU use alpha instead
      * @warning: read-only value */
-    double negative_slope;
+    float negative_slope;
 } mkldnn_eltwise_desc_t;
 
 /* @depracated: use mkldnn_eltwise_desc_t */
@@ -581,11 +581,11 @@ typedef struct {
      * length of the square region to sum over (for within-channel LRN). */
     int local_size;
     /** LRN alpha parameter. */
-    double lrn_alpha;
+    float lrn_alpha;
     /** LRN beta parameter. */
-    double lrn_beta;
+    float lrn_beta;
     /** LRN k parameter. */
-    double lrn_k;
+    float lrn_k;
 } mkldnn_lrn_desc_t;
 
 /** A descriptor of a Batch Normalization operation. */
@@ -615,7 +615,7 @@ typedef struct {
     mkldnn_memory_desc_t mean_desc;
     mkldnn_memory_desc_t variance_desc;
     /** Batch normalization epsilon parameter. */
-    double batch_norm_epsilon;
+    float batch_norm_epsilon;
     unsigned flags;
 } mkldnn_batch_normalization_desc_t;
 
@@ -655,9 +655,9 @@ typedef struct {
     mkldnn_primitive_kind_t primitive_kind;
     /** A descriptor of a convolution operation. */
     mkldnn_convolution_desc_t convolution_desc;
-    /** Scaling factor for negative values, stored as double-precision but
+    /** Scaling factor for negative values, stored as float-precision but
      * interpreted in a way specific to the data type in each implementation */
-    double negative_slope;
+    float negative_slope;
 } mkldnn_convolution_relu_desc_t;
 
 /** @} */

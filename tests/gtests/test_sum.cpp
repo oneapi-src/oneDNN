@@ -27,14 +27,14 @@ struct sum_test_params {
     memory::format dst_format;
     std::vector<memory::dims> srcs_cds;
     memory::dims dst_cds;
-    std::vector<double> scale;
+    std::vector<float> scale;
 };
 
 
 template <typename data_t>
 class sum_test: public ::testing::TestWithParam<sum_test_params> {
     void check_data(const std::vector<memory> &srcs,
-                    const std::vector<double> scale,
+                    const std::vector<float> scale,
                     const memory &dst)
     {
         const data_t *dst_data = (const data_t *)dst.get_data_handle();

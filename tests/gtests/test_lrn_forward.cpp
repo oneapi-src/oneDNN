@@ -28,7 +28,7 @@ enum {ACROSS=0,WITHIN=1};
 struct test_lrn_desc_t {
     int mb, c;
     int h, w;
-    double alpha, beta, k;
+    float alpha, beta, k;
     int local_size;
     int kind; // 0 ac, 1 wc
 };

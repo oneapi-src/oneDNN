@@ -111,7 +111,7 @@ void ref_softmax_fwd_t<data_type>::_exp(int n, const data_t *a, data_t *r) {
 #endif
 #   pragma omp parallel for
     for (int c = 0; c < n; ++c)
-        r[c] = exp(a[c]);
+        r[c] = expf(a[c]);
 }
 
 template <impl::data_type_t data_type>

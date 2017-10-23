@@ -30,7 +30,7 @@ namespace mkldnn {
 namespace impl {
 
 struct reorder_pd_t: public primitive_desc_t {
-    reorder_pd_t(engine_t *engine, const double alpha, const double beta)
+    reorder_pd_t(engine_t *engine, const float alpha, const float beta)
         : primitive_desc_t(engine, primitive_kind::reorder)
         , alpha_(alpha), beta_(beta)
     {  }
@@ -38,11 +38,11 @@ struct reorder_pd_t: public primitive_desc_t {
 
     virtual const op_desc_t *op_desc() const { return nullptr; }
 
-    double alpha() const { return alpha_; }
-    double beta() const { return beta_; }
+    float alpha() const { return alpha_; }
+    float beta() const { return beta_; }
 
 protected:
-    double alpha_, beta_;
+    float alpha_, beta_;
 };
 
 }

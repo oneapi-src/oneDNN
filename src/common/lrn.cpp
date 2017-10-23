@@ -32,7 +32,7 @@ namespace {
 status_t lrn_desc_init(lrn_desc_t *lrn_desc,
         prop_kind_t prop_kind, alg_kind_t alg_kind,
         const memory_desc_t *data_desc, const memory_desc_t *diff_data_desc,
-        int local_size, double alpha, double beta, double k) {
+        int local_size, float alpha, float beta, float k) {
     bool args_ok = true
         && !any_null(lrn_desc, data_desc)
         && one_of(alg_kind, lrn_within_channel, lrn_across_channels)
@@ -72,8 +72,8 @@ status_t lrn_desc_init(lrn_desc_t *lrn_desc,
 
 status_t mkldnn_lrn_forward_desc_init(lrn_desc_t *lrn_desc,
         prop_kind_t prop_kind, alg_kind_t alg_kind,
-        const memory_desc_t *data_desc, int local_size, double alpha,
-        double beta, double k) {
+        const memory_desc_t *data_desc, int local_size, float alpha,
+        float beta, float k) {
     if (!one_of(prop_kind, forward_training, forward_inference))
         return invalid_arguments;
     return lrn_desc_init(lrn_desc, prop_kind, alg_kind, data_desc, nullptr,
@@ -82,8 +82,8 @@ status_t mkldnn_lrn_forward_desc_init(lrn_desc_t *lrn_desc,
 
 status_t mkldnn_lrn_backward_desc_init(lrn_desc_t *lrn_desc,
         alg_kind_t alg_kind, const memory_desc_t *data_desc,
-        const memory_desc_t *diff_data_desc, int local_size, double alpha,
-        double beta, double k) {
+        const memory_desc_t *diff_data_desc, int local_size, float alpha,
+        float beta, float k) {
     return lrn_desc_init(lrn_desc, backward_data, alg_kind, data_desc,
             diff_data_desc, local_size, alpha, beta, k);
 }

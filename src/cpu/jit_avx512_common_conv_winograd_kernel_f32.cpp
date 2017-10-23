@@ -528,7 +528,7 @@ status_t jit_avx512_common_conv_winograd_fwd_kernel_f32::init_conf(
         jit_conv_winograd_conf_t &jcp, const convolution_desc_t &cd,
         const memory_desc_wrapper &src_d, const memory_desc_wrapper &weights_d,
         const memory_desc_wrapper &dst_d, bool with_relu,
-        double relu_negative_slope)
+        float relu_negative_slope)
 {
     status_t st = init_conf_common(jcp, cd, src_d, weights_d, dst_d);
 

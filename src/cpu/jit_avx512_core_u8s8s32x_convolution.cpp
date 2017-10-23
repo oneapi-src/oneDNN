@@ -109,7 +109,7 @@ struct jit_avx512_core_u8s8s32x_conv_fwd_ker_t: public jit_generator {
     static status_t init_conf(jit_conv_conf_t &c, const convolution_desc_t &cd,
             const memory_desc_wrapper &src_d, const memory_desc_wrapper &wei_d,
             const memory_desc_wrapper &dst_d, bool with_relu,
-            double negative_slope);
+            float negative_slope);
 };
 
 void jit_avx512_core_u8s8s32x_conv_fwd_ker_t::load_wei_s8() {
@@ -388,7 +388,7 @@ void jit_avx512_core_u8s8s32x_conv_fwd_ker_t::generate() {
 status_t jit_avx512_core_u8s8s32x_conv_fwd_ker_t::init_conf(jit_conv_conf_t &c,
         const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &wei_d, const memory_desc_wrapper &dst_d,
-        bool with_relu, double negative_slope) {
+        bool with_relu, float negative_slope) {
     if (!mayiuse(avx512_core))
         return status::unimplemented;
 
