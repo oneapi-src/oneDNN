@@ -69,6 +69,10 @@ inline void *zmalloc(size_t size, int align) {
     ptr = _aligned_malloc(size, align);
     int rc = ((ptr) ? 0 : errno);
 #else
+    // TODO. Heuristics: Increasing the size to alignment increases
+    // the stability of performance results.
+    if (size < align)
+        size = align;
     int rc = ::posix_memalign(&ptr, align, size);
 #endif /* _WIN32 */
     return rc == 0 ? ptr : 0;

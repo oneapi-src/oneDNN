@@ -117,8 +117,9 @@ private:
         DNN_SAFE(mkldnn_primitive_create(&p_, mpd_, NULL, NULL), CRIT);
         is_data_owner_ = data == NULL;
         if (data == NULL) {
+            const size_t alignment = 1024 * 1024 * 2;
             size_t sz = mkldnn_memory_primitive_desc_get_size(mpd_);
-            data_ = zmalloc(sz, 64);
+            data_ = zmalloc(sz, alignment);
             DNN_SAFE(data_ == NULL ? mkldnn_out_of_memory : mkldnn_success,
                     WARN);
         } else {
