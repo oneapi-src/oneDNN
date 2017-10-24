@@ -102,6 +102,7 @@ using s16_s16 = std::pair<int16_t, int16_t>;
 
 using reorder_simple_test_data_f32_f32 = reorder_simple_test<f32_f32>;
 using reorder_simple_test_weights_f32_f32 = reorder_simple_test<f32_f32>;
+using reorder_simple_test_weights_f32_f32_IOhw16o16i = reorder_simple_test<f32_f32>;
 using reorder_simple_test_s32_s32 = reorder_simple_test<s32_s32>;
 using reorder_simple_test_s16_s16 = reorder_simple_test<s16_s16>;
 
@@ -141,6 +142,7 @@ INSTANTIATE_TEST_CASE_P(TestReorder, reorder_simple_test_data_f32_f32,
             cfg_f32{eng::cpu, fmt::nChw16c, fmt::nhwc, {2, 64, 4, 4}}
             )
         );
+
 TEST_P(reorder_simple_test_weights_f32_f32, TestsReorder) { }
 INSTANTIATE_TEST_CASE_P(TestReorder, reorder_simple_test_weights_f32_f32,
         ::testing::Values(
@@ -192,6 +194,22 @@ INSTANTIATE_TEST_CASE_P(TestReorder, reorder_simple_test_weights_f32_f32,
             cfg_f32{eng::cpu, fmt::gOihw16o, fmt::gOhwi16o, {2, 64, 64, 3, 3}}
             )
         );
+
+TEST_P(reorder_simple_test_weights_f32_f32_IOhw16o16i, TestsReorder) { }
+INSTANTIATE_TEST_CASE_P(TestReorder, reorder_simple_test_weights_f32_f32_IOhw16o16i,
+        ::testing::Values(
+            cfg_f32{eng::cpu, fmt::oihw, fmt::IOhw16o16i, {64, 64, 3, 3}},
+            cfg_f32{eng::cpu, fmt::IOhw16o16i, fmt::oihw, {64, 64, 3, 3}},
+            cfg_f32{eng::cpu, fmt::OIhw16i16o, fmt::IOhw16o16i, {64, 64, 3, 3}},
+            cfg_f32{eng::cpu, fmt::IOhw16o16i, fmt::OIhw16i16o, {64, 64, 3, 3}},
+            cfg_f32{eng::cpu, fmt::goihw, fmt::gOIhw16o16i, {2, 64, 64, 3, 3}},
+            cfg_f32{eng::cpu, fmt::gIOhw16o16i, fmt::goihw, {2, 64, 64, 3, 3}},
+            cfg_f32{eng::cpu, fmt::gOIhw16i16o, fmt::gIOhw16o16i, {2, 64, 64, 3, 3}},
+            cfg_f32{eng::cpu, fmt::gIOhw16o16i, fmt::gOIhw16i16o, {2, 64, 64, 3, 3}}
+            )
+        );
+
+
 TEST_P(reorder_simple_test_s32_s32, TestsReorder) { }
 INSTANTIATE_TEST_CASE_P(TestReorder, reorder_simple_test_s32_s32,
         ::testing::Values(

@@ -684,8 +684,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     typename utils::enable_if<
-        (fmt_i == goihw && (fmt_o == gOIhw8o8i || fmt_o == gOIhw16o16i))
-        || (fmt_i == oihw && (fmt_o == OIhw8o8i || fmt_o == OIhw16o16i))
+        (fmt_i == goihw && (fmt_o == gOIhw8o8i || fmt_o == gOIhw16o16i
+                            || fmt_o == gIOhw16o16i))
+        || (fmt_i == oihw && (fmt_o == OIhw8o8i || fmt_o == OIhw16o16i
+                            || fmt_o == IOhw16o16i))
     >::type>
 {
     static bool is_applicable(const memory_desc_wrapper &input_d,
@@ -1072,6 +1074,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         || (fmt_i == OIhw8i8o && fmt_o == OIhw8o8i)
         || (fmt_i == gOIhw16i16o && fmt_o == gOIhw16o16i)
         || (fmt_i == OIhw16i16o && fmt_o == OIhw16o16i)
+        || (fmt_i == gOIhw16i16o && fmt_o == gIOhw16o16i)
+        || (fmt_i == OIhw16i16o && fmt_o == IOhw16o16i)
     >::type>
 {
     static bool is_applicable(const memory_desc_wrapper &input_d,
