@@ -204,9 +204,10 @@ struct _jit_avx512_common_1x1_convolution_bwd_data_t : public cpu_primitive_t {
             if (this->weights_pd_.desc()->format == any) {
                 if (diff_dst_type == data_type::f32
                     && diff_src_type == data_type::f32
-                    && wei_type == data_type::f32)
-                        CHECK(this->weights_pd_.set_format(this->with_groups()
-                                                ? gOIhw16o16i : OIhw16o16i));
+                    && wei_type == data_type::f32) {
+                    CHECK(this->weights_pd_.set_format(this->with_groups()
+                        ? gIOhw16o16i : IOhw16o16i));
+                }
                 else if (diff_dst_type == data_type::s16
                     && diff_src_type == data_type::s32
                     && wei_type == data_type::s16)

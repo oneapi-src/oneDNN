@@ -150,10 +150,7 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(int load_loop_blk,
         size_t offt;
         size_t u0 = i_reduce % jcp.reduce_loop_unroll;
         size_t u1 = i_reduce / jcp.reduce_loop_unroll;
-        if (jcp.prop_kind == backward_data)
-            offt = (i_load * jcp.reduce_block + u0) * jcp.load_block;
-        else
-            offt = (i_load * jcp.reduce_dim + u0) * jcp.load_block;
+        offt = (i_load * jcp.reduce_dim + u0) * jcp.load_block;
         return EVEX_compress_addr(aux_reg_load_data,
                                   u1 * jcp.reduce_loop_load_step
                                   + jcp.typesize_in * offt);
@@ -329,10 +326,7 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(int load_loop_blk,
                 int i_pf = i_op / (load_loop_blk * other_pf_trigger);
                 if (i_pf < n_pf_ker_l2) {
                     int offt = (i_pf + (i_load + 1) * jcp.reduce_dim)
-                                    * jcp.load_block;
-                    if (jcp.prop_kind == backward_data)
-                        offt = (i_pf + (i_load + 1) * jcp.reduce_block)
-                                * jcp.load_block;
+                        * jcp.load_block;
                     mic_prefetcht1(ptr[aux_reg_load_data
                                     + offt * jcp.typesize_in]);
                 } else if (i_pf < n_pf_ker_l2 + n_pf_ker_l1) {
@@ -340,15 +334,10 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(int load_loop_blk,
                     auto pf_reg = last_block ? reg_load_data
                                              : aux_reg_load_data;
                     int offt = (i_pf + i_load * jcp.reduce_dim
-                                    + (last_block
-                                        ? (wraparound ? jcp.reduce_dim : 0)
-                                        : jcp.reduce_block))
-                                * jcp.load_block;
-                    if (jcp.prop_kind == backward_data) {
-                        offt = (i_pf + i_load * jcp.reduce_block + (last_block
-                                ? (wraparound ? jcp.load_block : 0)
-                                : jcp.load_dim)) * jcp.reduce_block;
-                    }
+                        + (last_block
+                            ? (wraparound ? jcp.reduce_dim : 0)
+                            : jcp.reduce_block))
+                        * jcp.load_block;
                     mic_prefetcht0(ptr[pf_reg + offt * jcp.typesize_in]);
                 } else if (i_pf < n_pf_ker_l1 + n_pf_ker_l2 + n_pf_out_l1) {
                     i_pf -= n_pf_ker_l1 + n_pf_ker_l2;
@@ -651,8 +640,8 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
                             weights_d.data_type(), dst_d.data_type()))
     {
         constexpr memory_format_t weights_formats[2][2] = {
-            { OIhw16i16o, OIhw16o16i },
-            { gOIhw16i16o, gOIhw16o16i }
+            { OIhw16i16o, IOhw16o16i },
+            { gOIhw16i16o, gIOhw16o16i }
         };
         memory_format_t weights_format
             = weights_formats[with_groups][jcp.prop_kind == backward_data];
