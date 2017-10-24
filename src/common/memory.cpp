@@ -225,7 +225,7 @@ status_t mkldnn_concat_primitive_desc_create(primitive_desc_t **concat_pd,
 
 
 status_t mkldnn_sum_primitive_desc_create(primitive_desc_t **sum_pd,
-        const memory_desc_t *output_d, int n, float* scale,
+        const memory_desc_t *output_d, int n, const float *scale,
         const primitive_desc_t **input_pds) {
     bool args_ok = !any_null(sum_pd, input_pds, scale) && n > 0;
     if (!args_ok) return invalid_arguments;

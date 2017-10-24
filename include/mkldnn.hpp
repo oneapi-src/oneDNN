@@ -771,7 +771,8 @@ struct sum : public primitive {
             return c_api_inputs;
         }
 
-        primitive_desc(const memory::desc &output, std::vector<float> scale,
+        primitive_desc(const memory::desc &output,
+                const std::vector<float> &scales,
                 std::vector<memory::primitive_desc> inputs) {
             mkldnn_primitive_desc_t result;
 
@@ -779,19 +780,19 @@ struct sum : public primitive {
 
             error::wrap_c_api(mkldnn_sum_primitive_desc_create(
                     &result, &output.data, (int)c_api_inputs.size(),
-                    &scale[0], &c_api_inputs[0]),
+                    &scales[0], &c_api_inputs[0]),
                 "could not create a sum primitive descriptor");
             reset(result);
         }
 
-        primitive_desc(std::vector<float> scale,
+        primitive_desc(const std::vector<float> &scales,
                 std::vector<memory::primitive_desc> inputs) {
             mkldnn_primitive_desc_t result;
 
             auto c_api_inputs = cpp_to_c(inputs);
 
             error::wrap_c_api(mkldnn_sum_primitive_desc_create(
-                    &result, nullptr, (int)c_api_inputs.size(), &scale[0],
+                    &result, nullptr, (int)c_api_inputs.size(), &scales[0],
                     &c_api_inputs[0]),
                 "could not create a sum primitive descriptor");
             reset(result);

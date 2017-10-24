@@ -107,8 +107,8 @@ struct mkldnn_engine: public mkldnn::impl::c_compatible {
 
     virtual mkldnn::impl::status_t sum_primitive_desc_create(
             mkldnn::impl::sum_pd_t **sum_pd,
-            const mkldnn::impl::memory_desc_t *output_d,
-            int n, float* scale, const mkldnn::impl::memory_pd_t **input_pds)
+            const mkldnn::impl::memory_desc_t *output_d, int n,
+            const float *scale, const mkldnn::impl::memory_pd_t **input_pds)
     { return mkldnn::impl::status::unimplemented; }
 
     typedef mkldnn::impl::status_t (*reorder_primitive_desc_create_f)(

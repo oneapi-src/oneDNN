@@ -49,7 +49,7 @@ struct cpu_sum_t: public cpu_primitive_t
     struct pd_t: public sum_pd_t
     {
         pd_t(engine_t *engine, const memory_desc_t *output_d, int n,
-                float* scale, const cpu_memory_t::pd_t **input_pds)
+                const float *scale, const cpu_memory_t::pd_t **input_pds)
             : sum_pd_t(engine, n), dst_pd_(engine_)
         {
             for (int i = 0; i < n_; ++i) {

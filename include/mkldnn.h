@@ -304,7 +304,7 @@ mkldnn_status_t MKLDNN_API mkldnn_concat_inplace_by_output_primitive_desc_create
  * automatically. */
 mkldnn_status_t MKLDNN_API mkldnn_sum_primitive_desc_create(
         mkldnn_primitive_desc_t *sum_primitive_desc,
-        const mkldnn_memory_desc_t *output_desc, int n, float* scale,
+        const mkldnn_memory_desc_t *output_desc, int n, const float *scale,
         const_mkldnn_primitive_desc_t *input_pds);
 
 
