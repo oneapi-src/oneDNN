@@ -1627,6 +1627,28 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
 
     pick_loop_order(jcp);
 
+    jcp.nb_oc_L2 = jcp.nb_oc;
+    // TODO check for 4vnni
+    if (jcp.ver == ver_4fma && (jcp.kh < 5 && jcp.kw < 5)) {
+        for (int divf = 2, temp_nb = jcp.nb_oc_L2; divf <= jcp.nb_oc;
+              divf++) {
+            int l2_src = jcp.iw * jcp.ic_block * jcp.nb_ic_blocking * jcp.ih;
+            int l2_dst = jcp.ow * jcp.oc_block * temp_nb * jcp.oh;
+            int l2_filt = jcp.kw * jcp.oc_block * jcp.ic_block * jcp.kh
+                * jcp.nb_ic_blocking * temp_nb;
+            if (4 * (l2_src + l2_dst + l2_filt) > KNx_L2_EFFECTIVE_CAPACITY) {
+                if (jcp.kh == 3 && jcp.ih == 7) {
+                    jcp.nb_oc_L2 = 1;
+                    break;
+                }
+                temp_nb = (jcp.nb_oc_L2 % divf == 0 ? jcp.nb_oc_L2 / divf
+                                : jcp.nb_oc_L2);
+            } else {
+                jcp.nb_oc_L2 = temp_nb;
+                break;
+            }
+        }
+    }
     return status::success;
 }
 

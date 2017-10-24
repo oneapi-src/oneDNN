@@ -196,86 +196,95 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
     {
         int ithr = omp_get_thread_num(), nthr = omp_get_num_threads();
 
-        int start, end;
+        int start, end, start_copy;
         int ic_chunks = jcp.nb_ic / jcp.nb_ic_blocking;
         int work_amount = jcp.ngroups * jcp.mb * ic_chunks * jcp.ih;
         balance211(work_amount, nthr, ithr, start, end);
+        start_copy = start;
 
-        int n{0}, g{0}, icc{0}, ih_s{0};
-        if (jcp.loop_order == loop_cgn)
-            nd_iterator_init(start,
-                    icc, ic_chunks, g, jcp.ngroups, n, jcp.mb, ih_s, jcp.ih);
-        else if (jcp.loop_order == loop_gnc)
-            nd_iterator_init(start,
-                    g, jcp.ngroups, n, jcp.mb, icc, ic_chunks, ih_s, jcp.ih);
-        else
-            assert(!"unsupported loop order");
-
+        jit_conv_call_s par_conv = {0};
         size_t diff_src_h_stride = diff_src_d.blk_off(0, 0, 1);
         size_t diff_dst_h_stride = diff_dst_d.blk_off(0, 0, 1);
         size_t diff_dst_c_stride = diff_dst_d.blk_off(0, 1);
         size_t wht_h_stride = wht_blk_off(weights_d, 0, 0, 0, 1);
         size_t wht_oc_stride = wht_blk_off(weights_d, 0, 1);
 
-        jit_conv_call_s par_conv = {0};
-        while (start < end) {
-            int icb = icc * jcp.nb_ic_blocking;
-            int g_icb = g * jcp.nb_ic + icb;
-            int g_ocb = g * jcp.nb_oc;
-
-            int work_rem = end - start;
-            int ih_e = ih_s + work_rem > jcp.ih ? jcp.ih : ih_s + work_rem;
-
-            auto diff_src_w = diff_src + diff_src_d.blk_off(n, g_icb);
-            auto diff_dst_w = diff_dst + diff_dst_d.blk_off(n, g_ocb);
-            auto wht_w = weights + wht_blk_off(weights_d, g, 0, icb);
-
-            for (int ocb = 0; ocb < jcp.nb_oc; ++ocb) {
-                for (int ij = ih_s; ij < ih_e; ++ij) {
-                    int oj, k_len, k_lo;
-                    if (jcp.stride_h == 1) { // fast path
-                        int i_t_overflow = max(0, jcp.kh - 1 - ij - jcp.t_pad);
-                        int i_b_overflow = max(0, jcp.kh - jcp.ih + ij
-                                - jcp.b_pad);
-                        k_len = jcp.kh - i_t_overflow - i_b_overflow;
-                        k_lo = i_b_overflow;
-                        oj = ij + jcp.t_pad - i_b_overflow;
-                    } else {
-                        int b_pad = jcp.stride_h * (jcp.oh - 1) + jcp.kh
-                            - jcp.ih - jcp.t_pad;
-                        int i_t_overflow = max(0, (jcp.kh - 1 - ij - jcp.t_pad)
-                                / jcp.stride_h);
-                        int i_b_overflow = max(0, (jcp.kh - jcp.ih + ij
-                                    - b_pad) / jcp.stride_h);
-                        int overflow_kh_hi = jcp.kh - 1 - abs((jcp.ih - 1
-                                    + b_pad - ij) % jcp.stride_h);
-                        int overflow_kh_lo = (ij + jcp.t_pad) % jcp.stride_h;
-
-                        k_len = (overflow_kh_hi - overflow_kh_lo)
-                            / jcp.stride_h + 1 - i_t_overflow - i_b_overflow;
-                        k_lo = overflow_kh_lo + i_b_overflow * jcp.stride_h;
-                        oj = (ij + jcp.t_pad - k_lo) / jcp.stride_h;
-                    }
-                    assert(k_len >= 0);
-
-                    jit_conv_ker_pipeline(kernel_->jit_ker, par_conv,
-                            diff_src_w + ij * diff_src_h_stride,
-                            diff_dst_w + oj * diff_dst_h_stride,
-                            wht_w + k_lo * wht_h_stride,
-                            0, ocb, k_len);
-                }
-                diff_dst_w += diff_dst_c_stride;
-                wht_w += wht_oc_stride;
-            }
-
+        for (int ocb_l2 = 0; ocb_l2 < jcp.nb_oc; ocb_l2 += jcp.nb_oc_L2) {
+            start = start_copy;
+            int n{0}, g{0}, icc{0}, ih_s{0};
             if (jcp.loop_order == loop_cgn)
-                nd_iterator_jump(start, end,
-                        icc, ic_chunks, g, jcp.ngroups, n, jcp.mb, ih_s, jcp.ih);
+                nd_iterator_init(start,
+                    icc, ic_chunks, g, jcp.ngroups, n, jcp.mb, ih_s, jcp.ih);
             else if (jcp.loop_order == loop_gnc)
-                nd_iterator_jump(start, end,
-                        g, jcp.ngroups, n, jcp.mb, icc, ic_chunks, ih_s, jcp.ih);
+                nd_iterator_init(start,
+                    g, jcp.ngroups, n, jcp.mb, icc, ic_chunks, ih_s, jcp.ih);
             else
                 assert(!"unsupported loop order");
+
+            while (start < end) {
+                int icb = icc * jcp.nb_ic_blocking;
+                int g_icb = g * jcp.nb_ic + icb;
+                int g_ocb = g * jcp.nb_oc;
+
+                int work_rem = end - start;
+                int ih_e = ih_s + work_rem > jcp.ih ? jcp.ih : ih_s + work_rem;
+
+                auto diff_src_w = diff_src + diff_src_d.blk_off(n, g_icb);
+                auto diff_dst_w = diff_dst
+                    + diff_dst_d.blk_off(n, g_ocb + ocb_l2);
+                auto wht_w = weights + wht_blk_off(weights_d, g, ocb_l2, icb);
+
+                for (int ocb = ocb_l2;
+                      ocb < min(jcp.nb_oc, ocb_l2 + jcp.nb_oc_L2); ++ocb) {
+                    for (int ij = ih_s; ij < ih_e; ++ij) {
+                        int oj, k_len, k_lo;
+                        if (jcp.stride_h == 1) { // fast path
+                            int i_t_overflow = max(0, jcp.kh - 1 - ij
+                                - jcp.t_pad);
+                            int i_b_overflow = max(0, jcp.kh - jcp.ih + ij
+                                - jcp.b_pad);
+                            k_len = jcp.kh - i_t_overflow - i_b_overflow;
+                            k_lo = i_b_overflow;
+                            oj = ij + jcp.t_pad - i_b_overflow;
+                        } else {
+                            int b_pad = jcp.stride_h * (jcp.oh - 1) + jcp.kh
+                                - jcp.ih - jcp.t_pad;
+                            int i_t_overflow = max(0, (jcp.kh - 1 - ij
+                                - jcp.t_pad) / jcp.stride_h);
+                            int i_b_overflow = max(0, (jcp.kh - jcp.ih + ij
+                                - b_pad) / jcp.stride_h);
+                            int overflow_kh_hi = jcp.kh - 1 - abs((jcp.ih - 1
+                                + b_pad - ij) % jcp.stride_h);
+                            int overflow_kh_lo = (ij + jcp.t_pad)
+                                % jcp.stride_h;
+
+                            k_len = (overflow_kh_hi - overflow_kh_lo)
+                                / jcp.stride_h + 1 - i_t_overflow
+                                - i_b_overflow;
+                            k_lo = overflow_kh_lo + i_b_overflow * jcp.stride_h;
+                            oj = (ij + jcp.t_pad - k_lo) / jcp.stride_h;
+                        }
+                        assert(k_len >= 0);
+
+                        jit_conv_ker_pipeline(kernel_->jit_ker, par_conv,
+                                diff_src_w + ij * diff_src_h_stride,
+                                diff_dst_w + oj * diff_dst_h_stride,
+                                wht_w + k_lo * wht_h_stride,
+                                0, ocb, k_len);
+                    }
+                    diff_dst_w += diff_dst_c_stride;
+                    wht_w += wht_oc_stride;
+                }
+
+                if (jcp.loop_order == loop_cgn)
+                    nd_iterator_jump(start, end,
+                      icc, ic_chunks, g, jcp.ngroups, n, jcp.mb, ih_s, jcp.ih);
+                else if (jcp.loop_order == loop_gnc)
+                    nd_iterator_jump(start, end,
+                      g, jcp.ngroups, n, jcp.mb, icc, ic_chunks, ih_s, jcp.ih);
+                else
+                    assert(!"unsupported loop order");
+            }
         }
 
         jit_conv_ker_pipeline(kernel_->jit_ker, par_conv,
