@@ -74,6 +74,14 @@ typedef enum {
     mkldnn_u8 = 6,
 } mkldnn_data_type_t;
 
+/** Rounding mode */
+typedef enum {
+    /** Round nearest */
+    mkldnn_round_nearest = 1,
+    /** Round down */
+    mkldnn_round_down = 2,
+} mkldnn_round_mode_t;
+
 /** Memory format specification.
  *
  * Intel(R) MKL-DNN uses the following notation for memory format names:
@@ -739,6 +747,10 @@ typedef const struct mkldnn_primitive_desc *const_mkldnn_primitive_desc_t;
 
 /** @struct mkldnn_primitive_attr
  * @brief An opaque structure for primitive descriptor attributes.
+ *
+ * Attributes may contain:
+ *  - rounding mode for integer based primitives (like convolution, reorders)
+ *  - output scales (to scale the result prior to storing it to the memory)
  */
 struct mkldnn_primitive_attr;
 

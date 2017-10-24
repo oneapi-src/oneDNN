@@ -88,6 +88,12 @@ namespace data_type {
     const data_type_t u8 = mkldnn_u8;
 }
 
+using round_mode_t = mkldnn_round_mode_t;
+namespace round_mode {
+    const round_mode_t nearest = mkldnn_round_nearest;
+    const round_mode_t down = mkldnn_round_down;
+}
+
 using memory_format_t = mkldnn_memory_format_t;
 namespace memory_format {
     const memory_format_t undef = mkldnn_format_undef;

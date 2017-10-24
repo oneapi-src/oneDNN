@@ -231,6 +231,15 @@ inline mkldnn_query_t convert_to_c(query aquery) {
     return static_cast<mkldnn_query_t>(aquery);
 }
 
+enum round_mode {
+    round_nearest = mkldnn_round_nearest,
+    round_down = mkldnn_round_down,
+};
+
+inline mkldnn_round_mode_t convert_to_c(round_mode mode) {
+    return static_cast<mkldnn_round_mode_t>(mode);
+}
+
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 template <> struct handle_traits<mkldnn_primitive_attr_t> {
     static constexpr auto destructor = &mkldnn_primitive_attr_destroy;
@@ -243,6 +252,40 @@ struct primitive_attr: public handle<mkldnn_primitive_attr_t> {
         error::wrap_c_api(mkldnn_primitive_attr_create(&result),
                 "could not create a primitive attr");
         reset(result);
+    }
+
+    round_mode get_int_output_round_mode() const {
+        mkldnn_round_mode_t result;
+        error::wrap_c_api(mkldnn_primitive_attr_get_int_output_round_mode(
+                    get(), &result), "could not get int output round mode");
+        return round_mode(result);
+    }
+
+    void set_int_output_round_mode(round_mode mode) {
+        error::wrap_c_api(mkldnn_primitive_attr_set_int_output_round_mode(
+                    get(), mkldnn::convert_to_c(mode)),
+                "could not set int output round mode");
+    }
+
+    void get_output_scales(int &mask, std::vector<float> &scales) const
+    {
+        int count, c_mask;
+        const float *c_scales;
+        error::wrap_c_api(mkldnn_primitive_attr_get_output_scales(get(),
+                    &count, &c_mask, &c_scales),
+                "could not get int output scales");
+        scales.resize(count);
+
+        mask = c_mask;
+        for (int c = 0; c < count; ++c)
+            scales[c] = c_scales[c];
+    }
+
+    void set_output_scales(int mask, const std::vector<float> &scales)
+    {
+        error::wrap_c_api(mkldnn_primitive_attr_set_output_scales(get(),
+                    (int)scales.size(), mask, &scales[0]),
+                "could not set int output scales");
     }
 };
 

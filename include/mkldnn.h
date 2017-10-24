@@ -235,6 +235,77 @@ mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_clone(
 mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_destroy(
         mkldnn_primitive_attr_t attr);
 
+/* Returns integer output rounding mode @p round_mode for a given @p attr,
+ * previously set by mkldnn_primitive_attr_set_int_output_round_mode. */
+mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_get_int_output_round_mode(
+        const_mkldnn_primitive_attr_t attr, mkldnn_round_mode_t *round_mode);
+
+/* Sets output rounding mode @p round_mode for integer operations for a given
+ * @p attr.
+ *
+ * The default value is #mkldnn_round_nearest.
+ */
+mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_set_int_output_round_mode(
+        mkldnn_primitive_attr_t attr, mkldnn_round_mode_t round_mode);
+
+/* Returns @p count, correspondence scale @p mask, and pointer to a constant
+ * floating point array of output @p scales for given @p attr, previously set
+ * by mkldnn_primitive_attr_set_output_scales.
+ *
+ * @warning
+ *      @scales array points to the internal @p attr field, so user should not
+ *      modify/destroy @p scales.
+ *
+ * @warning
+ *      The lifetime of @p scales is same as @p attr it belongs to, so it is
+ *      illegal to use the @p scales after @p attr is destroyed
+ */
+mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_get_output_scales(
+        const_mkldnn_primitive_attr_t attr, int *count, int *mask,
+        const float **scales);
+
+/* Sets output @p scales for primitive operations. The number of elements @p
+ * count and correspondence scale @p mask are stored for future use.
+ *
+ * The @p mask argument defines correspondence between output tensor dimensions
+ * and the @p scales array. Set i-th bit of @p mask to 1 to use dedicated
+ * scaling factor for each slice of the output tensor over i-th dimension. Set
+ * @p mask to 0 to use common scaling factor for the whole output tensor.
+ *
+ * @note
+ *      The dimension order is always native and does not depend on the actual
+ *      layout used. Examples:
+ *       - 2D dimensional data the order of dimensions is always: (n, c)
+ *       - 4D dimensional data the order is always: (n, c, h, w)
+ *       - 5D dimensional weights the order is always: (g, oc, ic, kh, kw)
+ *
+ * Example usage:
+ * @code
+ *      int mb = 32, oc = 32, oh = 14, ow = 14; // convolution output params
+ *      float scales[oc] = { ... }; // unique output scales per output channel
+ *      int oc_dim = 1; // mb_dim = 0, channel_dim = 1, height_dim = 2, ...
+ *
+ *      mkldnn_convolution_desc_t cd; // create & configure convolution op_desc
+ *
+ *      mkldnn_primitive_attr_t attr;
+ *      mkldnn_primitive_attr_create(&attr);  // create default attributes
+ *      mkldnn_primitive_attr_set_output_scales(attr, oc, 1 << oc_dim, scales);
+ *
+ *      mkldnn_primitive_desc_t cpd;
+ *      mkldnn_primitive_desc_create_v2(&cpd, &cd, attr, NULL);
+ * @endcode
+ *
+ * @note
+ *      There is no way to check that @p count corresponds to @p mask until an
+ *      actual primitive descriptor is created, so it is user's responsibility
+ *      to set proper values. The following formula must be hold:
+ *
+ *      count == \prod_{d \in mask} output.dims[d]
+ */
+mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_set_output_scales(
+        mkldnn_primitive_attr_t attr, int count, int mask,
+        const float *scales);
+
 /** @} */
 
 /** @addtogroup c_api_memory Memory
