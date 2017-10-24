@@ -69,8 +69,8 @@ struct reference {};
 #define DECLARE_COMMON_PARAMS() \
         const memory_desc_wrapper &input_d = pd->input_pd(); \
         const memory_desc_wrapper &output_d = pd->output_pd(); \
-        const float alpha_ = pd->alpha(); \
-        const float beta_ = pd->beta();
+        const float alpha = pd->alpha(); \
+        const float beta = pd->beta();
 
 /* specific reorders: common template */
 template <SIMPLE_REORDER_TEMPL_DECL, typename spec = void>
@@ -97,8 +97,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const auto &nchw_d = order_keep ? input_d : output_d;
         const auto &dims = input_d.dims();
         constexpr int blksize = fmt_o == nChw8c ? 8 : 16;
-
-        const float alpha = alpha_, beta = beta_;
 
         auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o) {
             if (alpha == 1.0 && beta == 0.0) {
@@ -165,7 +163,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const data_t<type_i> *input, data_t<type_o> *output) {
         DECLARE_COMMON_PARAMS();
 
-        const float alpha = alpha_, beta = beta_;
         const auto &nchw_d = order_keep ? input_d : output_d;
         const auto &dims = input_d.dims();
         constexpr int blksize = fmt_o == nChw8c ? 8 : 16;
@@ -233,7 +230,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const auto i_st = input_d.blocking_desc().strides[0];
         const auto o_st = output_d.blocking_desc().strides[0];
 
-        const float alpha = alpha_, beta = beta_;
         constexpr int blksize = fmt_o == nChw8c ? 8 : 16;
         constexpr int tsize = 16;
 
@@ -307,7 +303,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         constexpr int ic_mult = order_keep ? 2 : 1;
         constexpr int oc_mult = order_keep ? 1 : 2;
 
-        const float alpha = alpha_, beta = beta_;
         const auto stride_8c = order_keep ? input_d.blocking_desc().strides[0]
             : output_d.blocking_desc().strides[0];
 
@@ -372,8 +367,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const auto is = input_d.blocking_desc().strides[0];
         const auto os = output_d.blocking_desc().strides[0];
 
-        const float alpha = alpha_, beta = beta_;
-
         auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o) {
             if (alpha == 1.0 && beta == 0.0) {
                 for (int w = 0; w < dims[3]; ++w) {
@@ -429,7 +422,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const data_t<type_i> *input, data_t<type_o> *output) {
         DECLARE_COMMON_PARAMS();
 
-        const float alpha = alpha_, beta = beta_;
         const auto &dims = input_d.dims();
         const auto is = input_d.blocking_desc().strides[0];
         const auto os = output_d.blocking_desc().strides[0];
@@ -493,7 +485,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const auto istrides = input_d.blocking_desc().strides[0];
         const auto ostrides = output_d.blocking_desc().strides[0];
         const auto CHW = dims[1] * dims[2] * dims[3];
-        const float alpha = alpha_, beta = beta_;
 
         auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o,
                 const int nrows, const int ncols) {
@@ -554,7 +545,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const data_t<type_i> *input, data_t<type_o> *output) {
         DECLARE_COMMON_PARAMS();
 
-        const float alpha = alpha_, beta = beta_;
         const auto &dims = input_d.dims();
         const auto is = input_d.blocking_desc().strides[0];
         const auto os = output_d.blocking_desc().strides[0];
@@ -629,8 +619,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const auto &dims = input_d.dims();
         constexpr int blksize =
             (fmt_o == OIhw8i8o || fmt_o == gOIhw8i8o) ? 8 : 16;
-
-        const float alpha = alpha_, beta = beta_;
 
         auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o) {
             if (alpha == 1.0 && beta == 0.0) {
@@ -717,8 +705,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         constexpr int blksize =
             (fmt_o == OIhw8o8i || fmt_o == gOIhw8o8i) ? 8 : 16;
 
-        const float alpha = alpha_, beta = beta_;
-
         auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o) {
             if (alpha == 1.0 && beta == 0.0) {
                 for (int oc = 0; oc < blksize; ++oc) {
@@ -804,7 +790,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const auto &dims = input_d.dims();
         const int blksize = 16;
 
-        const float alpha = alpha_, beta = beta_;
         const int _G = w_groups ? dims[0] : 1;
         constexpr int i_mult = order_keep ? blksize : 1;
         constexpr int o_mult = order_keep ? 1 : blksize;
@@ -868,7 +853,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const data_t<type_i> *input, data_t<type_o> *output) {
         DECLARE_COMMON_PARAMS();
 
-        const float alpha = alpha_, beta = beta_;
         const auto &_hwio_d = order_keep ? input_d : output_d;
         const auto &dims = input_d.dims();
         constexpr int blksize = fmt_o == OIhw8i8o ? 8 : 16;
@@ -946,8 +930,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const auto &_g_oihw_d = order_keep ? input_d : output_d;
         const auto &dims = input_d.dims();
         const int blksize = 16;
-
-        const float alpha = alpha_, beta = beta_;
 
         auto index = [&](const int ic, const int oc) {
             return ((ic / 2) * blksize * 2 + 2 * oc + ic % 2);
@@ -1030,7 +1012,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const data_t<type_i> *input, data_t<type_o> *output) {
         DECLARE_COMMON_PARAMS();
 
-        const float alpha = alpha_, beta = beta_;
         constexpr bool w_groups = fmt_i == gOIhw8i16o2i;
 
         const auto &dims = input_d.dims();
@@ -1109,7 +1090,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         constexpr int blksize =
             (fmt_i == OIhw8i8o || fmt_i == gOIhw8i8o) ? 8 : 16;
 
-        const float alpha = alpha_, beta = beta_;
         auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o) {
             for (int ic = 0; ic < blksize; ++ic) {
                 for (int oc = 0; oc < blksize; ++oc) {
@@ -1168,7 +1148,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const auto &dims = input_d.dims();
         const int blksize = 16;
 
-        const float alpha = alpha_, beta = beta_;
         const int _G = w_groups ? dims[0] : 1;
 
 #       pragma omp parallel for collapse(5) schedule(static)
@@ -1223,8 +1202,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         constexpr int block_size = 16;
         const auto num_blocks = nelems / block_size;
         const auto rem_elems = nelems % block_size;
-
-        const float alpha = alpha_, beta = beta_;
 
 #       pragma omp parallel
         {
@@ -1281,7 +1258,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         input += input_d.blk_off(0);
         output += output_d.blk_off(0);
-        const float alpha = alpha_, beta = beta_;
 
         const int N = input_d.dims()[0];
         const size_t is = input_d.blocking_desc().strides[0][0];
@@ -1378,7 +1354,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         const size_t nelems = input_d.nelems();
 
-        const float alpha = alpha_, beta = beta_;
         if (alpha == 1.0 && beta == 0.0) {
 #           pragma omp parallel for schedule(static)
 #           pragma simd
