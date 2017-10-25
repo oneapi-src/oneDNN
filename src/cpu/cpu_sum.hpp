@@ -74,11 +74,12 @@ struct cpu_sum_t: public cpu_primitive_t
             for (int i = 0; i < n_; ++i) {
                 auto r_impls = engine_->get_reorder_implementation_list();
                 for (auto r = r_impls; *r; ++r) {
-                    const primitive_attr_t dummy_attr;
+                    primitive_attr_t dummy_attr;
+                    dummy_attr.output_scales_.set(scales_[i]);
                     reorder_pd_t *r_pd;
                     float beta = (i == 0) ? 0.0f : 1.0f;
-                    if ((*r)(&r_pd, &src_pds_[i], &dst_pd_, &dummy_attr,
-                                scales_[i], beta) == status::success) {
+                    if ((*r)(&r_pd, &src_pds_[i], &dst_pd_, &dummy_attr, beta)
+                            == status::success) {
                         reorder_pds_.push_back(r_pd);
                         break;
                     }

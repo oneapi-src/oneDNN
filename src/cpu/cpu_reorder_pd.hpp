@@ -36,9 +36,8 @@ struct cpu_reorder_pd_t: public reorder_pd_t {
 
     cpu_reorder_pd_t(const cpu_memory_pd_t *input_pd,
             const cpu_memory_pd_t *output_pd,
-            const primitive_attr_t *attr,
-            const float alpha, const float beta)
-        : reorder_pd_t(input_pd->engine(), attr, alpha, beta)
+            const primitive_attr_t *attr, float beta)
+        : reorder_pd_t(input_pd->engine(), attr, beta)
         , input_pd_(*input_pd), output_pd_(*output_pd) {}
     virtual ~cpu_reorder_pd_t() {}
 
@@ -46,9 +45,6 @@ struct cpu_reorder_pd_t: public reorder_pd_t {
     { return index == 0 ? &input_pd_ : nullptr; }
     virtual const cpu_memory_pd_t *output_pd(int index = 0) const override
     { return index == 0 ? &output_pd_ : nullptr; }
-
-    virtual int n_inputs() const override { return 1; }
-    virtual int n_outputs() const override { return 1; }
 
 protected:
     cpu_memory_pd_t input_pd_, output_pd_;

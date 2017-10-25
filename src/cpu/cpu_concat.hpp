@@ -87,10 +87,10 @@ struct cpu_concat_t: public cpu_primitive_t {
             for (int i = 0; i < n_; ++i) {
                 auto r_impls = engine_->get_reorder_implementation_list();
                 for (auto r = r_impls; *r; ++r) {
-                    const primitive_attr_t dummy_attr;
+                    const primitive_attr_t dummy_attr; /* alpha == 1. */
                     reorder_pd_t *r_pd;
                     if ((*r)(&r_pd, &src_pds_[i], &src_image_pds_[i],
-                                &dummy_attr, 1.0, 0.0) == status::success) {
+                                &dummy_attr, 0.0) == status::success) {
                         reorder_pds_.push_back(r_pd);
                         break;
                     }

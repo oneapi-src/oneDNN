@@ -23,6 +23,7 @@
 #include "c_types_map.hpp"
 #include "memory_pd.hpp"
 #include "nstl.hpp"
+#include "primitive_attr.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
@@ -31,19 +32,24 @@ namespace impl {
 
 struct reorder_pd_t: public primitive_desc_t {
     reorder_pd_t(engine_t *engine, const primitive_attr_t *attr,
-            const float alpha, const float beta)
+            float beta)
         : primitive_desc_t(engine, attr, primitive_kind::reorder)
-        , alpha_(alpha), beta_(beta)
-    {  }
+        , beta_(beta) {}
     virtual ~reorder_pd_t() {}
 
     virtual const op_desc_t *op_desc() const override { return nullptr; }
 
-    float alpha() const { return alpha_; }
+    virtual int n_inputs() const override { return 1; }
+    virtual int n_outputs() const override { return 1; }
+
+    float alpha() const {
+        assert(attr()->output_scales_.count_ == 1);
+        return attr()->output_scales_.scales_[0];
+    }
     float beta() const { return beta_; }
 
 protected:
-    float alpha_, beta_;
+    float beta_;
 };
 
 }
