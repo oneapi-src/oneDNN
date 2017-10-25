@@ -48,10 +48,7 @@ inline const T& min(const T& a, const T& b) {
 // Rationale: MKL-DNN needs numeric limits implementation that does not
 // generate dependencies on C++ run-time libraries.
 
-template<typename T> struct numeric_limits {
-    static constexpr T lowest() { return T(); }
-    static constexpr T max() { return T(); }
-};
+template<typename T> struct numeric_limits;
 
 template<> struct numeric_limits<float> {
     static constexpr float lowest() { return -FLT_MAX; }
@@ -61,6 +58,11 @@ template<> struct numeric_limits<float> {
 template<> struct numeric_limits<int32_t> {
     static constexpr int lowest() { return INT32_MIN; }
     static constexpr int max() { return INT32_MAX; }
+};
+
+template<> struct numeric_limits<int16_t> {
+    static constexpr int16_t lowest() { return INT16_MIN; }
+    static constexpr int16_t max() { return INT16_MAX; }
 };
 
 template<> struct numeric_limits<int8_t> {

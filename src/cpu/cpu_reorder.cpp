@@ -128,6 +128,14 @@ static const rpd_create_f cpu_reorder_impl_list[] = {
     /* u8 <-> fp32 */
     simple_reorder_t<f32, any, u8, any, fmt_order::any, spec::reference>::pd_t::create,
     simple_reorder_t<u8, any, f32, any, fmt_order::any, spec::reference>::pd_t::create,
+    /* int{8,32}  <-> int{8, 32} */
+    simple_reorder_t<u8, any, s8, any, fmt_order::any, spec::reference>::pd_t::create,
+    simple_reorder_t<s8, any, u8, any, fmt_order::any, spec::reference>::pd_t::create,
+    simple_reorder_t<u8, any, s32, any, fmt_order::any, spec::reference>::pd_t::create,
+    simple_reorder_t<s32, any, u8, any, fmt_order::any, spec::reference>::pd_t::create,
+    simple_reorder_t<s32, any, s32, any, fmt_order::any, spec::reference>::pd_t::create,
+    simple_reorder_t<s8, any, s8, any, fmt_order::any, spec::reference>::pd_t::create,
+    simple_reorder_t<u8, any, u8, any, fmt_order::any, spec::reference>::pd_t::create,
     /* s16 <-> s16 */
     simple_reorder_t<s16, any, s16, any, fmt_order::any, spec::direct_copy>::pd_t::create,
     simple_reorder_t<s16, any, s16, any, fmt_order::any, spec::direct_copy_except_dim_0>::pd_t::create,

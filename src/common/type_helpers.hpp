@@ -18,6 +18,7 @@
 #define TYPE_HELPERS_HPP
 
 #include <assert.h>
+#include <math.h>
 
 #include "mkldnn.h"
 
@@ -25,6 +26,7 @@
 #include "mkldnn_traits.hpp"
 #include "nstl.hpp"
 #include "utils.hpp"
+#include "math_utils.hpp"
 
 namespace mkldnn {
 namespace impl {
