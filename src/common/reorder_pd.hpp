@@ -36,7 +36,7 @@ struct reorder_pd_t: public primitive_desc_t {
     {  }
     virtual ~reorder_pd_t() {}
 
-    virtual const op_desc_t *op_desc() const { return nullptr; }
+    virtual const op_desc_t *op_desc() const override { return nullptr; }
 
     float alpha() const { return alpha_; }
     float beta() const { return beta_; }
