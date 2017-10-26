@@ -71,7 +71,19 @@ inline int compare_dat(const prb_t *p, int what, dnn_mem_t &mem_dt,
 
     for (size_t i = 0; i < nelems; ++i) {
         const float dt = ((float*)mem_dt)[i];
-        const float fp = ((float*)mem_fp)[i];
+        const float fp0 = ((float*)mem_fp)[i];
+
+        float fp = fp0;
+        if (p->cfg[what].dt != mkldnn_f32) {
+            using R = attr_t::round_mode_t;
+            switch (p->attr.irmode) {
+                case R::DOWN: fp = floorf(fp0); break;
+                case R::NEAREST: fp = rintf(fp0); break;
+                default:
+                    return UNTESTED;
+            }
+        }
+
         const float diff = fabsf(fp - dt);
         const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
 
@@ -103,11 +115,11 @@ inline int compare_dat(const prb_t *p, int what, dnn_mem_t &mem_dt,
                 case DST: inv_dst_off_f(p, i, mb_or_g, g_or_oc, c, h, w); break;
                 }
                 print(0, "[%4lu][%s%s][%d,%d,%d,%d,%d] "
-                        "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
+                        "fp:%8g fp0:%8g dt:%8g diff:%8g rdiff:%8g\n",
                         (unsigned long)i,
                         final_compare == false ? "REORDER " : "",
                         swhat, mb_or_g, g_or_oc, c, h, w,
-                        fp, dt, diff, rel_diff);
+                        fp, fp0, dt, diff, rel_diff);
             }
         }
 
@@ -121,9 +133,9 @@ inline int compare_dat(const prb_t *p, int what, dnn_mem_t &mem_dt,
             case DST: inv_dst_off_f(p, i, mb_or_g, g_or_oc, c, h, w); break;
             }
 
-            print(0, "[%4lu][%s][%d,%d,%d,%d,%d] fp:%8g dt:%8g\n",
+            print(0, "[%4lu][%s][%d,%d,%d,%d,%d] fp:%8g fp0:%8g dt:%8g\n",
                     (unsigned long)i,
-                    swhat, mb_or_g, g_or_oc, c, h, w, fp, dt);
+                    swhat, mb_or_g, g_or_oc, c, h, w, fp, fp0, dt);
         }
 
         non_zero += fp != 0;
@@ -401,9 +413,11 @@ inline int init_pd(const prb_t *p, mkldnn_convolution_desc_t &cd,
     if (p->merge == RELU) {
         mkldnn_convolution_relu_desc_t crd;
         DNN_SAFE(mkldnn_convolution_relu_desc_init(&crd, &cd, 0), WARN);
-        init_status = mkldnn_primitive_desc_create(&cpd, &crd, engine, NULL);
+        init_status = mkldnn_primitive_desc_create_v2(&cpd, &crd,
+                p->attr.mkldnn_attr, engine, NULL);
     } else {
-        init_status = mkldnn_primitive_desc_create(&cpd, &cd, engine, NULL);
+        init_status = mkldnn_primitive_desc_create_v2(&cpd, &cd,
+                p->attr.mkldnn_attr, engine, NULL);
     }
 
     if (init_status == mkldnn_unimplemented)

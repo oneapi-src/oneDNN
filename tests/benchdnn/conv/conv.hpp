@@ -40,6 +40,40 @@ enum merge_t { NONE, RELU, };
 merge_t str2merge(const char *str);
 const char *merge2str(merge_t merge);
 
+struct attr_t {
+    enum round_mode_t {
+        NEAREST = (int)mkldnn_round_nearest,
+        DOWN = (int)mkldnn_round_down,
+    };
+    static round_mode_t str2rmode(const char *str);
+    static const char *rmode2str(round_mode_t rmode);
+
+    struct scale_t {
+        enum policy_t { NONE = 0, COMMON, PER_OC, POLICY_TOTAL };
+        static policy_t str2policy(const char *str);
+        static const char *policy2str(policy_t policy);
+
+        policy_t policy = NONE;
+        float scale = 1.;
+
+        int str2scale(const char *str, const char **end_s);
+        void scale2str(char *buffer, char **end_b) const;
+
+        bool is_def() const { return this->policy == NONE; }
+    };
+
+    round_mode_t irmode = round_mode_t::NEAREST;
+    scale_t oscale;
+    mkldnn_primitive_attr_t mkldnn_attr = NULL;
+
+    bool is_def() const;
+    int mkldnn_attr_recreate();
+};
+
+const size_t max_attr_len = 128;
+int str2attr(attr_t *attr, const char *str);
+void attr2str(const attr_t *attr, char *buffer);
+
 struct desc_t {
     int g, mb;
     int ic, ih, iw;
@@ -95,8 +129,9 @@ const char *cfg2str(const dt_conf_t *cfg);
 
 struct prb_t: public desc_t {
     prb_t(const desc_t &desc, dir_t dir, const dt_conf_t *cfg, alg_t alg,
-            merge_t merge, int mb = 0)
-        : desc_t(desc), dir(dir), cfg(cfg), alg(alg), merge(merge), ops(0) {
+            merge_t merge, const attr_t &attr, int mb = 0)
+        : desc_t(desc), dir(dir), cfg(cfg), alg(alg), merge(merge), attr(attr)
+        , ops(0) {
         if (mb) this->mb = mb;
         count_ops();
     }
@@ -105,12 +140,13 @@ struct prb_t: public desc_t {
     const dt_conf_t *cfg;
     alg_t alg;
     merge_t merge;
+    attr_t attr;
 
     double ops;
 
     void count_ops();
 };
-const size_t max_prb_len = 392;
+const size_t max_prb_len = max_attr_len + max_desc_len + 196;
 void prb2str(const prb_t *p, char *buffer, bool canonical = false);
 
 /* some extra control parameters which shouldn't be placed in prb_t */

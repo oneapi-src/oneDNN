@@ -38,17 +38,38 @@ void compute_ref_fwd(const prb_t *p, dnn_mem_t &src_m,
         }
     };
 
+    auto maybe_scale = [&](float &d) {
+        if (!p->attr.oscale.is_def()) {
+            using policy_t = attr_t::scale_t::policy_t;
+            const auto &s = p->attr.oscale;
+            if (s.policy == policy_t::COMMON) {
+                d *= s.scale;
+            } else {
+                /* unsupported so far */
+                []() { SAFE(FAIL, CRIT); return 0; }();
+            }
+        }
+    };
+
 #   pragma omp parallel for collapse(5)
     for (int g = 0; g < p->g; ++g) {
     for (int mb = 0; mb < p->mb; ++mb) {
         for (int oc = 0; oc < p->oc/p->g; ++oc) {
         for (int oh = 0; oh < p->oh; ++oh) {
         for (int ow = 0; ow < p->ow; ++ow) {
-            size_t dst_off = dst_off_f(p, mb, g, oc, oh, ow);
-            size_t bia_off = bia_off_f(p, g, oc);
+            const size_t dst_off = dst_off_f(p, mb, g, oc, oh, ow);
             float &d = ((float*)dst_m)[dst_off];
-            d = (p->dir & FLAG_BIA) ? ((float*)bia_m)[bia_off] : 0;
+
+            d = 0;
             ker(d, g, mb, oc, oh, ow);
+
+            if (p->dir & FLAG_BIA) {
+                const size_t bia_off = bia_off_f(p, g, oc);
+                d += ((float*)bia_m)[bia_off];
+            }
+
+            maybe_scale(d);
+
             if (p->merge == RELU && d < 0)
                 d = 0;
         }
