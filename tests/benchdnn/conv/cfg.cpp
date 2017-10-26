@@ -82,6 +82,14 @@ const _dt_conf_t conf_s16s32s16s32 = {
     {mkldnn_s32,},
 };
 
+const _dt_conf_t conf_u8s8f32s32 = {
+    {mkldnn_u8,          0, UINT8_MAX,    0,   4, 0, 1, .25, 0.},
+    {mkldnn_s8,   INT8_MIN,  INT8_MAX,   -5,   5, 0, 1, .25, 0.},
+    {mkldnn_s32, INT32_MIN, INT32_MAX,   -8,  32, 0, 1, .25, 0.},
+    {mkldnn_f32, INT32_MIN, INT32_MAX, -int_max_exact, int_max_exact, 0, 1, .25, 0.},
+    {mkldnn_s32,},
+};
+
 const _dt_conf_t conf_u8s8s32s32 = {
     {mkldnn_u8,          0, UINT8_MAX,    0,   4, 0, 1, .25, 0.},
     {mkldnn_s8,   INT8_MIN,  INT8_MAX,   -5,   5, 0, 1, .25, 0.},
@@ -115,6 +123,7 @@ const dt_conf_t *str2cfg(const char *str) {
     CASE(s16s16s32s32);
     CASE(s32s16s16s32);
     CASE(s16s32s16s32);
+    CASE(u8s8f32s32);
     CASE(u8s8s32s32);
     CASE(u8s8s8s32);
     CASE(u8s8u8s32);
@@ -131,6 +140,7 @@ const char *cfg2str(const dt_conf_t *cfg) {
     CASE(s16s16s32s32);
     CASE(s32s16s16s32);
     CASE(s16s32s16s32);
+    CASE(u8s8f32s32);
     CASE(u8s8s32s32);
     CASE(u8s8s8s32);
     CASE(u8s8u8s32);

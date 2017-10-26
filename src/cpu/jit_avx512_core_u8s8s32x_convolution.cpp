@@ -181,7 +181,11 @@ void jit_avx512_core_u8s8s32x_conv_fwd_ker_t::store_dst(int ur_ow) {
         if (c_.with_relu || c_.dst_dt == data_type::u8)
             vpmaxsd(Zmm(r), vreg_zero, Zmm(r));
 
+        if (c_.dst_dt == f32)
+            vcvtdq2ps(Zmm(r), Zmm(r));
+
         switch (c_.dst_dt) {
+        case f32:
         case s32: vmovups(dst, Zmm(r)); break;
         case s8: vpmovsdb(Xmm(r), Zmm(r)); vmovups(dst, Xmm(r)); break;
         case u8: vpmovusdb(Xmm(r), Zmm(r)); vmovups(dst, Xmm(r)); break;
@@ -433,7 +437,8 @@ status_t jit_avx512_core_u8s8s32x_conv_fwd_ker_t::init_conf(jit_conv_conf_t &c,
         && c.t_pad < c.kh && c.b_pad < c.kh
         && c.l_pad < c.kw && c.r_pad < c.kw
         && implication(with_relu, negative_slope == 0.)
-        && one_of(c.dst_dt, data_type::s32, data_type::s8, data_type::u8);
+        && one_of(c.dst_dt, data_type::f32, data_type::s32, data_type::s8,
+                data_type::u8);
 
     if (!args_ok)
         return status::unimplemented;
@@ -603,6 +608,8 @@ template struct _jit_avx512_core_u8s8s32x_convolution_fwd_t<true, data_type::u8>
 template struct _jit_avx512_core_u8s8s32x_convolution_fwd_t<false, data_type::u8>;
 template struct _jit_avx512_core_u8s8s32x_convolution_fwd_t<true, data_type::s32>;
 template struct _jit_avx512_core_u8s8s32x_convolution_fwd_t<false, data_type::s32>;
+template struct _jit_avx512_core_u8s8s32x_convolution_fwd_t<true, data_type::f32>;
+template struct _jit_avx512_core_u8s8s32x_convolution_fwd_t<false, data_type::f32>;
 
 }
 }

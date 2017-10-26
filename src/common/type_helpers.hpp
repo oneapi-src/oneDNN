@@ -133,7 +133,7 @@ inline data_type_t default_accum_data_type(data_type_t src_dt,
         if (src_dt == s16 && wei_dt == s16 && dst_dt == s32)
             return s32;
 
-        if (src_dt == u8 && wei_dt == s8 && one_of(dst_dt, s32, s8, u8))
+        if (src_dt == u8 && wei_dt == s8 && one_of(dst_dt, f32, s32, s8, u8))
             return s32;
     } else if (prop_kind == backward_data) {
         if (src_dt == s32 && wei_dt == s16 && dst_dt == s16)

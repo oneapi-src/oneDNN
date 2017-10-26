@@ -130,6 +130,7 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(ref_convolution_bwd_weights_t<f32, f32, f32, f32>),
     /* conv (int) */
     INSTANCE(jit_avx512_common_convolution_fwd_t<s16, s16, s32>),
+    INSTANCE(_jit_avx512_core_u8s8s32x_convolution_fwd_t<false, f32>),
     INSTANCE(_jit_avx512_core_u8s8s32x_convolution_fwd_t<false, s32>),
     INSTANCE(_jit_avx512_core_u8s8s32x_convolution_fwd_t<false, s8>),
     INSTANCE(_jit_avx512_core_u8s8s32x_convolution_fwd_t<false, u8>),
@@ -224,6 +225,7 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(jit_avx2_gemm_convolution_relu_t),
     INSTANCE(ref_convolution_relu_t<f32>),
     /* conv_eltwise (int) */
+    INSTANCE(_jit_avx512_core_u8s8s32x_convolution_fwd_t<true, f32>),
     INSTANCE(_jit_avx512_core_u8s8s32x_convolution_fwd_t<true, s32>),
     INSTANCE(_jit_avx512_core_u8s8s32x_convolution_fwd_t<true, s8>),
     INSTANCE(_jit_avx512_core_u8s8s32x_convolution_fwd_t<true, u8>),
