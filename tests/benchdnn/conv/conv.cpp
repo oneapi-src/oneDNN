@@ -65,7 +65,6 @@ inline int compare_dat(const prb_t *p, int what, dnn_mem_t &mem_dt,
     int non_zero = 0;
 
     diff_norm_t diff_norm;
-    float max_rel_diff = 0;
 
     r->errors = 0;
     r->total = nelems;
@@ -75,7 +74,6 @@ inline int compare_dat(const prb_t *p, int what, dnn_mem_t &mem_dt,
         const float fp = ((float*)mem_fp)[i];
         const float diff = fabs(fp - dt);
         const float rel_diff = diff / (fabs(fp) > FLT_MIN ? fabs(fp) : 1);
-        if (max_rel_diff < rel_diff) max_rel_diff = rel_diff;
 
         bool ok = true;
         if (fp < p->cfg[what].min) {
