@@ -51,7 +51,7 @@ where *harness-knobs* are:
  - `--merge={NONE, RELU}` merged primitive, default NONE (nothing merged)
  - `--mb=N` override minibatch that is specified in convolution description, default `0` (use mb specified in conv desc)
  - `--match=regex` check only convolutions that match with regex, default is `".*"`. Notice: Windows may only interpret string arguments surrounded by double quotation marks.
- - `--skip-impl="str1[:str2]...` skip implementation (see mkldnn_query_impl_info_str), default `""`
+ - `--skip-impl="str1[:str2]..."` skip implementation (see mkldnn_query_impl_info_str), default `""`
  - `--allow-unimpl=true|false` do not treat unimplemented configuration as an error, default `false`
  - `--perf-template=template-str` set template for performance report (see section *Performance measurements*)
  - `--reset` reset all the parameters set before to default one
