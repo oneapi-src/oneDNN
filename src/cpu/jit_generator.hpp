@@ -277,13 +277,16 @@ public:
         ret();
     }
 
+    template<typename T>
     Xbyak::Address EVEX_compress_addr(Xbyak::Reg64 base,
-            int offt, bool bcast = false)
+            T raw_offt, bool bcast = false)
     {
         using Xbyak::Zmm;
         using Xbyak::Reg64;
         using Xbyak::Address;
         using Xbyak::RegExp;
+
+        auto offt = static_cast<int>(raw_offt);
 
         int scale = 0;
 

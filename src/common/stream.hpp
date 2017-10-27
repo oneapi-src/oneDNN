@@ -110,7 +110,7 @@ struct mkldnn_stream: public mkldnn::impl::c_compatible {
      * @param error_prim (output)
      *   address of a pointer to primitive. @p error_prim != @c nullptr
      */
-    virtual mkldnn::impl::status_t submit_impl(int begin, int end,
+    virtual mkldnn::impl::status_t submit_impl(size_t begin, size_t end,
             mkldnn::impl::primitive_t **error_prim) {
         UNUSED(begin); UNUSED(end); UNUSED(error_prim);
         return mkldnn::impl::status::success;
@@ -170,9 +170,9 @@ struct stream_lazy_t;
 struct stream_eager_t: public stream_t {
     friend stream_lazy_t;
 
-    virtual status_t submit_impl(int begin, int end,
+    virtual status_t submit_impl(size_t begin, size_t end,
             primitive_t **error_prim) {
-        for (int p_index = begin; p_index < end; ++p_index) {
+        for (size_t p_index = begin; p_index < end; ++p_index) {
             primitive_t *p = stream_[p_index];
             const nstl::vector<primitive_at_t> &inputs = p->inputs();
 

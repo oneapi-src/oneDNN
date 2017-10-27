@@ -173,7 +173,7 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(int load_loop_blk,
     auto bcast_ptr = [=](int i_reduce, int i_ur, bool bcast) {
         assert(i_ur < jcp.ur);
         assert(i_reduce <= jcp.reduce_loop_unroll);
-        size_t offt;
+        int offt;
         if (one_of(jcp.prop_kind, forward_training, forward_inference,
                    backward_data)) {
             assert(jcp.reduce_loop_unroll == jcp.reduce_block);
@@ -194,14 +194,13 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(int load_loop_blk,
     };
 
     auto load_ptr = [=](int i_reduce, int i_load) {
-        size_t offt;
-        size_t u0 = i_reduce % jcp.reduce_loop_unroll;
-        size_t u1 = i_reduce / jcp.reduce_loop_unroll;
+        int offt;
+        int u0 = i_reduce % jcp.reduce_loop_unroll;
+        int u1 = i_reduce / jcp.reduce_loop_unroll;
         if (jcp.prop_kind == backward_data && jcp.ver == ver_4vnni)
             offt = (i_load * jcp.reduce_block + u0) * jcp.load_block;
         else
             offt = (i_load * jcp.reduce_dim + u0) * jcp.load_block;
-
         return EVEX_compress_addr(aux_reg_load_data,
                                   u1 * jcp.reduce_loop_load_step
                                   + jcp.typesize_in * offt);

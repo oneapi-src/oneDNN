@@ -63,7 +63,7 @@ enum { CRIT = 1, WARN = 2 };
 #define CONCAt2(a,b) a ## b
 #define CONCAT2(a,b) CONCAt2(a,b)
 
-inline void *zmalloc(size_t size, int align) {
+inline void *zmalloc(size_t size, size_t align) {
     void *ptr;
 #ifdef _WIN32
     ptr = _aligned_malloc(size, align);
@@ -170,7 +170,7 @@ struct benchdnn_timer_t {
 
 struct res_t {
     res_state_t state;
-    int errors, total;
+    size_t errors, total;
     benchdnn_timer_t timer;
 };
 

@@ -56,7 +56,7 @@ double get_trust_nz_level(const prb_t *p, int what, bool final_compare) {
 
 inline int compare_dat(const prb_t *p, int what, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r, bool final_compare = false) {
-    int nelems = mem_dt.nelems();
+    size_t nelems = mem_dt.nelems();
 
     const char *swhat = inp_type2str(what);
 
@@ -69,7 +69,7 @@ inline int compare_dat(const prb_t *p, int what, dnn_mem_t &mem_dt,
     r->errors = 0;
     r->total = nelems;
 
-    for (int i = 0; i < nelems; ++i) {
+    for (size_t i = 0; i < nelems; ++i) {
         const float dt = ((float*)mem_dt)[i];
         const float fp = ((float*)mem_fp)[i];
         const float diff = fabsf(fp - dt);
@@ -102,9 +102,10 @@ inline int compare_dat(const prb_t *p, int what, dnn_mem_t &mem_dt,
                 case BIA: inv_bia_off_f(p, i, mb_or_g, g_or_oc); break;
                 case DST: inv_dst_off_f(p, i, mb_or_g, g_or_oc, c, h, w); break;
                 }
-                print(0, "[%4d][%s%s][%d,%d,%d,%d,%d] "
+                print(0, "[%4lu][%s%s][%d,%d,%d,%d,%d] "
                         "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                        i, final_compare == false ? "REORDER " : "",
+                        (unsigned long)i,
+                        final_compare == false ? "REORDER " : "",
                         swhat, mb_or_g, g_or_oc, c, h, w,
                         fp, dt, diff, rel_diff);
             }
@@ -120,8 +121,9 @@ inline int compare_dat(const prb_t *p, int what, dnn_mem_t &mem_dt,
             case DST: inv_dst_off_f(p, i, mb_or_g, g_or_oc, c, h, w); break;
             }
 
-            print(0, "[%4d][%s][%d,%d,%d,%d,%d] fp:%8g dt:%8g\n",
-                    i, swhat, mb_or_g, g_or_oc, c, h, w, fp, dt);
+            print(0, "[%4lu][%s][%d,%d,%d,%d,%d] fp:%8g dt:%8g\n",
+                    (unsigned long)i,
+                    swhat, mb_or_g, g_or_oc, c, h, w, fp, dt);
         }
 
         non_zero += fp != 0;
@@ -161,17 +163,18 @@ inline int compare_dat(const prb_t *p, int what, dnn_mem_t &mem_dt,
         print(0, "@@@ [%s] %strust range:%.2f nz:%.2f "
                 "(level range:%.2f nz:%.2f). "
                 "in:%d (ok:%d) below:%d (ok:%d) above:%d (ok:%d) nz:%d "
-                "total:%d\n", swhat, final_compare ? "final: " : "",
+                "total:%lu\n", swhat, final_compare ? "final: " : "",
                 trust_rg, trust_nz, trust_rg_level, trust_nz_level, in, in_ok,
-                below, below_ok, above, above_ok, non_zero, r->total);
+                below, below_ok, above, above_ok, non_zero,
+                (unsigned long)r->total);
     }
 
     if (no_trust) {
         r->state = MISTRUSTED;
         print(0, "@@@ [%s] test-bug: trust is too low. "
-                "range:%.2f (?<%.2f) nz:%.2f (?<%.2f) (nz: %d total: %d)\n",
+                "range:%.2f (?<%.2f) nz:%.2f (?<%.2f) (nz: %d total: %lu)\n",
                 swhat, trust_rg, trust_rg_level, trust_nz, trust_nz_level,
-                non_zero, r->total);
+                non_zero, (unsigned long)r->total);
     }
 
     if (r->errors)
@@ -284,9 +287,9 @@ inline int fill_bia(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
     const auto &c = p->cfg[BIA];
     const int range = c.f_max - c.f_min + 1;
 
-    const int sz = mem_00.nelems();
-    for (int i = 0; i < sz; ++i) {
-        const int gen = 19 * i;
+    const size_t sz = mem_00.nelems();
+    for (size_t i = 0; i < sz; ++i) {
+        const int gen = (int)(19 * i);
         const bool non_base = true
             && gen % (p->kh * p->kw) <= c.f_sparsity * (p->kh * p->kw);
         const float value =

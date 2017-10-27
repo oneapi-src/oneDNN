@@ -80,8 +80,9 @@ void check_correctness(const desc_t *c) {
     case FAILED:
         assert(status == FAIL);
         bs.failed++;
-        print(0, "%d:%s (errors:%d total:%d) __REPRO: %s\n", bs.tests, state,
-                res.errors, res.total, pstr);
+        print(0, "%d:%s (errors:%lu total:%lu) __REPRO: %s\n", bs.tests, state,
+                (unsigned long)res.errors,
+                (unsigned long)res.total, pstr);
         break;
     case SKIPPED:
         assert(status == OK);
@@ -239,7 +240,7 @@ int batch(const char *fname) {
             if (buf[0] == '#')
                 break; /* stop reading till eol */
 
-            const int len = strnlen(buf, maxlen) + 1;
+            const size_t len = strnlen(buf, maxlen) + 1;
             opts[n_opts] = (char *)malloc(len);
             SAFE(opts[n_opts] ? OK : FAIL, CRIT);
             strncpy(opts[n_opts], buf, len);

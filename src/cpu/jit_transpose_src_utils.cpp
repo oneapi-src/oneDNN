@@ -380,7 +380,7 @@ void jit_trans_iw_x4_4x_t::generate() {
         auto emit_load = [&](int iter) {
             for (int i = 0; i < 4; ++i) {
                 auto v = vreg(iter, i);
-                const size_t off = (iter * 4 + i) * simd_w;
+                const int off = (iter * 4 + i) * simd_w;
 
                 if (off + simd_w <= c.iw)
                     vmovups(v, ptr[reg_ptr_src + off * typesize]);
@@ -536,7 +536,7 @@ void jit_transpose4x16_src::transpose(int nrows)
     auto src1 = src_zmm(1);
     auto src2 = src_zmm(2);
     auto src3 = src_zmm(3);
-    for (size_t i = 0; i < nrows; i++) {
+    for (int i = 0; i < nrows; i++) {
         load(i);
     }
 

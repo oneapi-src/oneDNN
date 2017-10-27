@@ -71,8 +71,8 @@ struct jit_conv_conf_t {
     int tr_ld;
     int kh_step;
     /* 4vnni */
-    size_t typesize_in;
-    size_t typesize_out;
+    int typesize_in;
+    int typesize_out;
     /* avx512_u8s8u8 */
     int ic_nb1, ic_nb2;
     int oc_nb1;
@@ -171,8 +171,8 @@ struct jit_1x1_conv_conf_t {
     conv_1x1_loop_order_t loop_order;
     bool use_vmovntps;
     /* 4vnni */
-    size_t typesize_in;
-    size_t typesize_out;
+    int typesize_in;
+    int typesize_out;
 
     /* 4fma */
     bool transpose_src;

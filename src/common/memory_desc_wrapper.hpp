@@ -235,7 +235,7 @@ private:
 
     template<typename T, typename ...Args>
     inline size_t _blk_off(Args ...args, T xn) const {
-        return size_t(xn)*blocking_desc().strides[0][sizeof...(args)] +
+        return (size_t)(xn)*blocking_desc().strides[0][sizeof...(args)] +
             _blk_off<Args...>(args...);
     }
 };

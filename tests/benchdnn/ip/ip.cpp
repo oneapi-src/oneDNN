@@ -116,7 +116,7 @@ inline int compare_dat(dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
         }
     }
 
-    return r->errors;
+    return r->errors ? FAIL : OK;
 }
 
 inline void fill_src(dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {

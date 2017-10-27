@@ -40,8 +40,8 @@ int bench(int argc, char **argv) {
         res_t res{};
         ip::doit(&ipps[id], &res);
         if (res.errors) {
-            printf("[%3d] FAILED (errs: %d out of %d)\n", id, res.errors,
-                    res.total);
+            printf("[%3d] FAILED (errs: %lu out of %lu)\n", id,
+                    (unsigned long)res.errors, (unsigned long)res.total);
         }
         ip_fails += res.errors != 0;
     }

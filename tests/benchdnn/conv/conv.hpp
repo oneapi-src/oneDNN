@@ -124,7 +124,7 @@ inline size_t src_off_f(const prb_t *p, int mb, int g, int ic, int ih, int iw)
         + iw;
 }
 
-inline void inv_src_off_f(const prb_t *p, int off, int &mb, int &g, int &ic,
+inline void inv_src_off_f(const prb_t *p, size_t off, int &mb, int &g, int &ic,
         int &ih, int &iw) {
     iw = off % p->iw; off /= p->iw;
     ih = off % p->ih; off /= p->ih;
@@ -140,7 +140,7 @@ inline size_t wei_off_f(const prb_t *p, int g, int oc, int ic, int kh, int kw)
         * p->kw + kw;
 }
 
-inline void inv_wei_off_f(const prb_t *p, int off, int &g, int &oc, int &ic,
+inline void inv_wei_off_f(const prb_t *p, size_t off, int &g, int &oc, int &ic,
         int &kh, int &kw) {
     kw = off % p->kw; off /= p->kw;
     kh = off % p->kh; off /= p->kh;
@@ -154,7 +154,7 @@ inline size_t bia_off_f(const prb_t *p, int g, int oc) {
     return (size_t)g * p->oc / p->g + oc;
 }
 
-inline void inv_bia_off_f(const prb_t *p, int off, int &g, int &oc) {
+inline void inv_bia_off_f(const prb_t *p, size_t off, int &g, int &oc) {
     oc = off % (p->oc / p->g); off /= (p->oc / p->g);
     g = off % p->g; off /= p->g;
     assert(off == 0);
@@ -166,7 +166,7 @@ inline size_t dst_off_f(const prb_t *p, int mb, int g, int oc, int oh, int ow)
         + ow;
 }
 
-inline void inv_dst_off_f(const prb_t *p, int off, int &mb, int &g, int &oc,
+inline void inv_dst_off_f(const prb_t *p, size_t off, int &mb, int &g, int &oc,
         int &oh, int &ow) {
     ow = off % p->ow; off /= p->ow;
     oh = off % p->oh; off /= p->oh;

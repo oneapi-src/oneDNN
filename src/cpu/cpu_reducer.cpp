@@ -36,8 +36,8 @@ void reduce_balancer_t::balance() {
     const int job_complexity = 1;
 
     const int min_njobs_per_group = max(1, njobs_ / nthr_);
-    const int max_njobs_per_group = max<int>(1,
-            max_buffer_size_ / (nthr_ * job_size_));
+    const int max_njobs_per_group = max(1,
+            static_cast<int>(max_buffer_size_ / (nthr_ * job_size_)));
 
     /* initial guess */
     int ngroups = min(njobs_ / min_njobs_per_group, nthr_);
