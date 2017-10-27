@@ -74,8 +74,8 @@ struct prefetcher_t {
             int nb_instructions_in_block, int fma_ipc)
         : cg_(generator)
         , reg_base_addr_(reg_base_addr)
-        , cache_block_size_(block_size)
         , cache_type_(cache_type)
+        , cache_block_size_(block_size)
     {
         nb_cache_lines_to_prefetch_ = cache_block_size_ / (64 / sizeof(data_t));
         prefetch_spread_
@@ -123,8 +123,8 @@ private:
     jit_generator *cg_;
     Xbyak::Reg64 reg_base_addr_;
     cache_t cache_type_;
-    size_t cache_block_size_ = 0;
-    size_t nb_cache_lines_to_prefetch_ = 0;
+    int cache_block_size_ = 0;
+    int nb_cache_lines_to_prefetch_ = 0;
     int prefetches_issued_ = 0;
     int prefetch_spread_ = 0;
     int prefetch_blk_ = 0;
