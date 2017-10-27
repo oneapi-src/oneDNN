@@ -807,7 +807,7 @@ struct sum : public primitive {
             mkldnn_primitive_desc_t result;
 
             auto c_api_inputs = cpp_to_c(inputs);
-            auto scale_f = std::vector<float>(scale.begin(), scale.end());
+            auto scale_f = scale_to_float(scale);
 
             error::wrap_c_api(mkldnn_sum_primitive_desc_create(
                     &result, &output.data, (int)c_api_inputs.size(),
@@ -823,7 +823,7 @@ struct sum : public primitive {
             mkldnn_primitive_desc_t result;
 
             auto c_api_inputs = cpp_to_c(inputs);
-            auto scale_f = std::vector<float>(scale.begin(), scale.end());
+            auto scale_f = scale_to_float(scale);
 
             error::wrap_c_api(mkldnn_sum_primitive_desc_create(
                     &result, nullptr, (int)c_api_inputs.size(), &scale_f[0],
@@ -861,6 +861,14 @@ struct sum : public primitive {
                     sum_pd.get(), &p_inputs[0], outputs),
                 "could not create a sum primitive");
         reset(result);
+    }
+
+private:
+    static std::vector<float> scale_to_float(const std::vector<double> &vd) {
+        std::vector<float> vf(vd.size());
+        std::transform(vd.begin(), vd.end(), vf.begin(),
+                [=](double x){return (float)x;});
+        return vf;
     }
 };
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
