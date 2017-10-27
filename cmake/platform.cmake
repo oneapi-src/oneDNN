@@ -37,6 +37,9 @@ if(WIN32)
         set(CMAKE_CCXX_FLAGS "${CMAKE_CCXX_FLAGS} /wd4068") # unknown pragma
         set(CMAKE_CCXX_FLAGS "${CMAKE_CCXX_FLAGS} /wd4305") # double -> float
     endif()
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
+        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -QxHOST")
+    endif()
 elseif(UNIX OR APPLE)
     set(CMAKE_CCXX_FLAGS "${CMAKE_CCXX_FLAGS} -Wall -Werror -Wno-unknown-pragmas")
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
