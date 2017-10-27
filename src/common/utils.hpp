@@ -28,6 +28,7 @@ namespace mkldnn {
 namespace impl {
 
 #define UNUSED(x) ((void)x)
+#define MAYBE_UNUSED(x) UNUSED(x)
 
 #define CHECK(f) do { \
     status_t status = f; \

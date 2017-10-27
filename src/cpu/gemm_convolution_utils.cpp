@@ -126,6 +126,7 @@ void col2im(
     const int iS = jcp.ih * jcp.iw;
 
     int num_thr = (jcp.mb != 1) ? omp_get_max_threads() : 1;
+    MAYBE_UNUSED(num_thr);
 #pragma omp parallel for  num_threads(num_thr)
     for (int ic = 0; ic < jcp.ic; ++ic) {
         for (int is = 0; is < iS; ++is) im[is] = 0.;
