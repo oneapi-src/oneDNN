@@ -101,10 +101,10 @@ struct ref_inner_product_bwd_data_t: public cpu_primitive_t {
                 && this->set_default_params() == status::success
                 && utils::one_of(this->desc()->prop_kind, backward,
                         backward_data)
-                && desc()->src_desc.data_type == diff_src_type
+                && desc()->diff_src_desc.data_type == diff_src_type
                 && desc()->weights_desc.data_type == wei_type
                 && desc()->accum_data_type == acc_type
-                && desc()->dst_desc.data_type == diff_dst_type;
+                && desc()->diff_dst_desc.data_type == diff_dst_type;
             return ok ? status::success : status::unimplemented;
         }
     };
