@@ -84,7 +84,6 @@ void jit_avx512_common_1x1_conv_kernel::bcast_loop(int load_loop_blk)
             int num_substeps = jcp.bcast_block / jcp.ur;
             assert(num_substeps > 0 && num_substeps < 10);
             for (int i = 0; i < num_substeps; i++) {
-                printf("substep = %d\n", i);
                 reduce_loop(load_loop_blk, jcp.ur, i, false);
                 if (i < num_substeps - 1) {
                     add(aux1_reg_bcast_data, jcp.bcast_loop_bcast_substep);
@@ -103,7 +102,6 @@ void jit_avx512_common_1x1_conv_kernel::bcast_loop(int load_loop_blk)
         }
 
         L(bcast_loop_wraparound);
-        printf("jcp.ur_tail = %d\n", jcp.ur_tail);
         if (jcp.ur_tail) {
             je(bcast_loop_ur_full, T_NEAR);
             reduce_loop(load_loop_blk, jcp.ur_tail, 0, true);
