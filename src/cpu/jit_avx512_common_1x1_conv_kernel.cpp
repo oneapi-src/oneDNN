@@ -831,7 +831,6 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
             jcp.loop_order = reduce_src ? loop_blr : loop_lbr;
 
         int nb_bcast = div_up(jcp.bcast_dim, jcp.bcast_block);
-        int nb_load = div_up(jcp.load_dim, jcp.load_block);
         int nb_reduce = div_up(jcp.reduce_dim, jcp.reduce_block);
 
         reduce_blocking = nb_reduce;

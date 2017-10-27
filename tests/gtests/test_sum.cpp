@@ -99,7 +99,6 @@ protected:
             auto src_memory = memory(mpd);
             const size_t sz =
                 src_memory.get_primitive_desc().get_size() / sizeof(data_t);
-            auto s = (data_t *)src_memory.get_data_handle();
             fill_data<data_t>(sz, (data_t *)src_memory.get_data_handle());
             srcs_pd.push_back(mpd);
             srcs.push_back(src_memory);

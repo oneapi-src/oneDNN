@@ -120,7 +120,6 @@ struct jit_avx512_common_conv_winograd_bwd_weights_kernel_f32
             align();
             const Xbyak::uint8 *addr = getCurr();
             this->transpose_ker_generate();
-            size_t size = getCurr() - addr;
             transpose_4fma_ker = (decltype(transpose_4fma_ker))addr;
         }
     }

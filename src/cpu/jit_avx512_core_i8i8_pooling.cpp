@@ -238,8 +238,6 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t::compute_max_step(int ur_c, int c_tail)
 
     int iw = jpp.iw;
     int c = jpp.c;
-    int c_block = jpp.c_block;
-    int stride_w = jpp.stride_w;
 
     for (int jj = 0; jj < ur_c; jj++) {
         vmovdqu8(vreg_dst(jj), vreg_tmp);
@@ -284,8 +282,6 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t::compute_avg_step(int ur_c, int c_tail)
 
     int iw = jpp.iw;
     int c = jpp.c;
-    int c_block = jpp.c_block;
-    int stride_w = jpp.stride_w;
 
     for (int jj = 0; jj < ur_c; jj++) {
         for (int ll = 0; ll < 4; ll++) {
@@ -516,7 +512,7 @@ void jit_avx512_core_i8i8_pooling_fwd_t::execute_forward() {
         int start{0}, end{0};
         balance211(work_amount, nthr, ithr, start, end);
 
-        int n{0}, oh{0}, ow{0}, nb_c{0};
+        int n{0}, oh{0}, ow{0};
         nd_iterator_init(start, n, jpp.mb, oh, jpp.oh, ow, jpp.ow);
 
         jit_avx512_core_i8i8_pool_fwd_ker_t::call_params_t p = {};

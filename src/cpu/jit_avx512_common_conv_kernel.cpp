@@ -217,8 +217,6 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma_1st(int ur_w,
 void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma(int ur_w,
         int pad_l, int pad_r)
 {
-    int iw = jcp.iw;
-    int kw = jcp.kw;
     int stride_w = jcp.stride_w;
     int ic_block = jcp.ic_block;
     int oc_block = jcp.oc_block;
@@ -231,7 +229,6 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma(int ur_w,
     bool pref_current_inp = (jcp.iw < 14 || jcp.iw > 28);
 
     int oi_ipref_t0 = get_ow_start(0, pad_l);
-    int oi_ipref_t1 = oi_ipref_t0;
     int ow_end_ipref = get_ow_end(ur_w, 0, pad_r);
 
     assert(jcp.oc % jcp.nb_oc_blocking == 0);
@@ -276,6 +273,7 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma(int ur_w,
 
     align(16);
     L(kh_label);
+    int kw = jcp.kw;
     if (check_last_kh) {
         for (int ki = 0; ki < kw; ki++)
             for (int ic = 0; ic < ic_block; ic += 4)
@@ -357,8 +355,7 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma(int ur_w,
             for (int ic = 0; ic < ic_block; ic += 4)
                 for (int kk = 0; kk < jcp.nb_oc_blocking; kk++) {
                     kernel_loads(ki, ic, kk);
-                    for (int oi = get_ow_start(ki, pad_l), prf_count_t1 = 0,
-                        prf_count_t0 = 0;
+                    for (int oi = get_ow_start(ki, pad_l), prf_count_t1 = 0;
                         oi  < get_ow_end(ur_w, ki, pad_r); oi++) {
                         int aux_input_offset =  typesize
                             * ((ki + oi * stride_w - pad_l) * ic_block
@@ -989,7 +986,6 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_4fma(int ur_w,
     int shift_ker_ptr = typesize * kw * oc_block * ic_block;
     int shift_dst_ptr = typesize * ow * oc_block;
     int ii_dpref_t0 = get_iw_start(0, l_overflow);
-    int ii_dpref_t1 = ii_dpref_t0;
     int iw_end_ipref = get_iw_end(ur_w, 0, r_overflow);
 
     bool check_last_kh = (jcp.kh > 3);
@@ -1103,8 +1099,7 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_4fma(int ur_w,
         for (int kk = 0; kk < jcp.nb_ic_blocking; kk++) {
             kernel_loads(ki, oc, kk);
 
-            for (int ii = get_iw_start(ki, l_overflow),
-                    prf_count_t0 = 0, prf_count_t1 = 0;
+            for (int ii = get_iw_start(ki, l_overflow), prf_count_t1 = 0;
                     ii  < get_iw_end(ur_w, ki, r_overflow); ii++) {
                 int aux_dst_offset = typesize
                     * ((ii + jcp.l_pad - ki) * oc_block + oc);
@@ -2240,8 +2235,6 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32::compute_full_spat_loop()
                 int num_out_l2_pfs_per_fma_step, bool is_w_tail)
         {
             bool block_wraparound = is_w_tail && is_last_row;
-            bool block_end = block_wraparound && is_last_kh_kw_iter;
-            bool the_end = block_end && is_last_block;
 
             assert(step_size % 4 == 0);
             int tail_size = ow4u % step_size;
@@ -2603,7 +2596,6 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32::compute_full_spat_loop()
 
         int num_innermost_iters = div_up(jcp.oh, h_block_size) - 2;
         if (num_innermost_iters > 0) {
-            bool need_innermost_loop = num_innermost_iters > 1;
             Label h_block_loop;
 
             mov(reg_tmp_w, num_innermost_iters);
