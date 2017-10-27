@@ -21,7 +21,7 @@ CXXFLAGS = -std=c++11 -g -O0 -fopenmp
 LDFLAGS = -liomp5 -lrt -lpthread -ldl -lm
 
 MKLDNN_ROOT ?= ../../.install
-INC = -I$(MKLDNN_ROOT)/include
+INC = -I$(MKLDNN_ROOT)/include -I.
 
 build_dir = .build
 
