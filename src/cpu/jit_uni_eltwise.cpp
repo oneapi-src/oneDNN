@@ -265,6 +265,11 @@ struct jit_uni_kernel_fwd_f32: public jit_uni_eltwise_kernel_f32,
             break;
         default:
             assert(!"unknown eltwise alg_kind");
+            prepare_const = NULL;
+            vectorized_body = NULL;
+            reminder_body = NULL;
+            prepare_table = NULL;
+            // XXX: handle this case better....
         }
 
         preamble();
