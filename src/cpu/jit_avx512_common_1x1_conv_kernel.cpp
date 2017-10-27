@@ -197,7 +197,11 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(int load_loop_blk,
         size_t offt;
         size_t u0 = i_reduce % jcp.reduce_loop_unroll;
         size_t u1 = i_reduce / jcp.reduce_loop_unroll;
-        offt = (i_load * jcp.reduce_dim + u0) * jcp.load_block;
+        if (jcp.prop_kind == backward_data && jcp.ver == ver_4vnni)
+            offt = (i_load * jcp.reduce_block + u0) * jcp.load_block;
+        else
+            offt = (i_load * jcp.reduce_dim + u0) * jcp.load_block;
+
         return EVEX_compress_addr(aux_reg_load_data,
                                   u1 * jcp.reduce_loop_load_step
                                   + jcp.typesize_in * offt);
@@ -374,6 +378,10 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(int load_loop_blk,
                 if (i_pf < n_pf_ker_l2) {
                     int offt = (i_pf + (i_load + 1) * jcp.reduce_dim)
                         * jcp.load_block;
+                    if (jcp.prop_kind == backward_data && jcp.ver == ver_4vnni)
+                        offt = (i_pf + (i_load + 1) * jcp.reduce_block)
+                                * jcp.load_block;
+
                     mic_prefetcht1(ptr[aux_reg_load_data
                                     + offt * jcp.typesize_in]);
                 } else if (i_pf < n_pf_ker_l2 + n_pf_ker_l1) {
@@ -796,16 +804,25 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
         jcp.reduce_loop_unroll = jcp.reduce_block;
         jcp.reduce_loop_bcast_step
                 = jcp.reduce_loop_unroll * jcp.bcast_dim * jcp.typesize_in;
-        jcp.reduce_loop_load_step
-                = jcp.reduce_loop_unroll * jcp.load_block * jcp.typesize_in;
+
+        if (jcp.prop_kind == backward_data && jcp.ver == ver_4vnni)
+            jcp.reduce_loop_load_step
+                    = jcp.reduce_loop_unroll * jcp.ic * jcp.typesize_in;
+        else
+            jcp.reduce_loop_load_step
+                    = jcp.reduce_loop_unroll * jcp.load_block * jcp.typesize_in;
 
         jcp.bcast_loop_output_step = jcp.ur * jcp.load_block * jcp.typesize_out;
         jcp.bcast_loop_output_substep = -1; // unused
         jcp.bcast_loop_bcast_step = jcp.ur * jcp.reduce_block * jcp.typesize_in;
         jcp.bcast_loop_bcast_substep = -1; // unused
 
-        jcp.load_loop_load_step
-                = jcp.reduce_dim * jcp.load_block * jcp.typesize_in;
+        if (jcp.prop_kind == backward_data && jcp.ver == ver_4vnni)
+            jcp.load_loop_load_step
+                    = jcp.oc_block * jcp.ic_block * jcp.typesize_in;
+        else
+            jcp.load_loop_load_step
+                    = jcp.reduce_dim * jcp.load_block * jcp.typesize_in;
 
         jcp.load_loop_iter_step = jcp.load_block;
 
