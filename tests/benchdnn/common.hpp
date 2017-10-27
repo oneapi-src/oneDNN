@@ -111,7 +111,7 @@ struct stat_t {
 extern stat_t benchdnn_stat;
 
 enum prim_t {
-    CONV, IP, DEF = CONV,
+    SELF, CONV, IP, DEF = CONV,
 };
 
 enum dir_t {

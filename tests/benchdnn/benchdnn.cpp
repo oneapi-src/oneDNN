@@ -26,6 +26,7 @@
 #include "mkldnn_common.hpp"
 #include "mkldnn_memory.hpp"
 
+#include "self/self.hpp"
 #include "conv/conv.hpp"
 #include "ip/ip.hpp"
 
@@ -42,7 +43,8 @@ int main(int argc, char **argv) {
     --argc; ++argv;
 
     while (argc > 0) {
-        if (!strcmp("--conv", argv[0])) prim = CONV;
+        if (!strcmp("--self", argv[0])) prim = SELF;
+        else if (!strcmp("--conv", argv[0])) prim = CONV;
         else if (!strcmp("--ip", argv[0])) prim = IP;
         else if (!strncmp("--mode=", argv[0], 7))
             bench_mode = str2bench_mode(argv[0] + 7);
@@ -59,6 +61,7 @@ int main(int argc, char **argv) {
     init();
 
     switch (prim) {
+    case SELF: self::bench(argc, argv); break;
     case CONV: conv::bench(argc, argv); break;
     case IP: ip::bench(argc, argv); break;
     default: fprintf(stderr, "err: unknown driver\n");
