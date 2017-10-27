@@ -32,17 +32,17 @@ if(UNIX OR APPLE)
 endif()
 
 #add_executable(api-check-c api_check.c)
-#target_link_libraries(api-check-c ${LIB_NAME})
+#target_link_libraries(api-check-c ${LIB_NAME} ${EXTRA_LIBS})
 #add_test(api-check-c api-check-c)
 
 # add_executable(simple_convolution-c simple_convolution.c)
 # set_property(TARGET simple_convolution-c PROPERTY C_STANDARD 99)
-# target_link_libraries(simple_convolution-c ${LIB_NAME})
+# target_link_libraries(simple_convolution-c ${LIB_NAME} ${EXTRA_LIBS})
 # add_test(simple_convolution-c simple_convolution-c)
 
 add_executable(api-c api.c)
 set_property(TARGET api-c PROPERTY C_STANDARD 99)
-target_link_libraries(api-c ${LIB_NAME})
+target_link_libraries(api-c ${LIB_NAME} ${EXTRA_LIBS})
 add_test(api-c api-c)
 
 if(WIN32)
@@ -58,16 +58,11 @@ if(UNIX OR APPLE)
         COMMAND /bin/bash ${CMAKE_CURRENT_SOURCE_DIR}/generate_c_symbols_refs.sh
         ${CMAKE_CURRENT_SOURCE_DIR}/.. ${test_c_symbols}
     )
-    target_link_libraries(test_c_symbols-c ${LIB_NAME})
+    target_link_libraries(test_c_symbols-c ${LIB_NAME} ${EXTRA_LIBS})
     add_test(test_c_symbols-c test_c_symbols-c)
 # elseif(WIN32)
 # No Windows support for: test_c_symbols.c
 endif()
 
-
-
-
-
 add_subdirectory(gtests)
-
 add_subdirectory(benchdnn)

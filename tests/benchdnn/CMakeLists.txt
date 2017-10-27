@@ -14,8 +14,6 @@
 # limitations under the License.
 #===============================================================================
 
-set(TARGET_NAME ${LIB_NAME})
-
 file(GLOB_RECURSE HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/*.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/*.hpp
@@ -37,7 +35,7 @@ if(WIN32)
     set_property(TARGET benchdnn PROPERTY ENVIRONMENT "PATH=${CTESTCONFIG_PATH}")
 endif()
 set_property(TARGET benchdnn PROPERTY CXX_STANDARD 11)
-target_link_libraries(benchdnn ${LIB_NAME})
+target_link_libraries(benchdnn ${LIB_NAME} ${EXTRA_LIBS})
 if(UNIX AND NOT APPLE)
     find_library(LIBRT rt)
     if(LIBRT)
