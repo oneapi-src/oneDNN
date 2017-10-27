@@ -49,7 +49,13 @@ if(WIN32)
     set_property(TEST api-c PROPERTY ENVIRONMENT "PATH=${CTESTCONFIG_PATH}")
     configure_file(${CMAKE_SOURCE_DIR}/config_template.vcxproj.user
         api-c.vcxproj.user @ONLY)
+    # c4244: conversion with possible loss of data
+    # c4996: unsafe / deprecated functions
+    set(SUPPRESS_SOME_WARNINGS "/wd4996 /wd4244")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SUPPRESS_SOME_WARNINGS}")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SUPPRESS_SOME_WARNINGS}")
 endif()
+
 if(UNIX OR APPLE)
     set(test_c_symbols "${CMAKE_CURRENT_BINARY_DIR}/test_c_symbols.c")
     add_executable(test_c_symbols-c ${test_c_symbols})

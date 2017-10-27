@@ -32,6 +32,11 @@ set(CMAKE_CCXX_FLAGS)
 if(WIN32)
     set(USERCONFIG_PLATFORM "x64")
     set(CMAKE_CCXX_FLAGS "${CMAKE_CCXX_FLAGS} /MP")
+    if(MSVC)
+        set(CMAKE_CCXX_FLAGS "${CMAKE_CCXX_FLAGS} /wd4800") # int -> bool
+        set(CMAKE_CCXX_FLAGS "${CMAKE_CCXX_FLAGS} /wd4068") # unknown pragma
+        set(CMAKE_CCXX_FLAGS "${CMAKE_CCXX_FLAGS} /wd4305") # double -> float
+    endif()
 elseif(UNIX OR APPLE)
     set(CMAKE_CCXX_FLAGS "${CMAKE_CCXX_FLAGS} -Wall -Werror -Wno-unknown-pragmas")
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
