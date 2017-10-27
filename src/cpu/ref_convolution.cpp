@@ -108,7 +108,8 @@ void _ref_convolution_fwd_t<with_relu, src_type, wei_type, dst_type, acc_type>
                         acc_data_t a = bias
                             ? get_bias(bias_d.off(g*OC + oc)) : (acc_data_t)0;
                         ker(a, g, mb, oc, oh, ow);
-                        if (with_relu && a < (acc_data_t)0) a *= nslope;
+                        if (with_relu && a < (acc_data_t)0)
+                            a = (acc_data_t)((float)a * nslope);
                         dst[dst_d.off(mb, g*OC + oc, oh, ow)]
                             = saturate<dst_data_t>(a);
                     }

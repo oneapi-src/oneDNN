@@ -100,7 +100,7 @@ inline void jit_uni_pool_kernel_f32<isa>::maybe_recalculate_divisor(int jj,
         non_zero_kw -= nstl::max(0, pad_r - (ur_w - 1 - jj)*stride_w);
 
         if (non_zero_kw != prev_kw) {
-            mov(tmp_gpr, float2int(non_zero_kw));
+            mov(tmp_gpr, float2int((float)non_zero_kw));
             movq(xmm_tmp, tmp_gpr);
             uni_vbroadcastss(vmm_tmp, xmm_tmp);
             uni_vmulps(vmm_tmp, vmm_tmp, vmm_ker_area_h);
@@ -434,7 +434,7 @@ void jit_uni_pool_kernel_f32<isa>::generate() {
     }
 
     if (jpp.alg == pooling_avg_include_padding) {
-        mov(tmp_gpr, float2int(kw * kh));
+        mov(tmp_gpr, float2int((float)(kw * kh)));
         movq(xmm_tmp, tmp_gpr);
         uni_vpbroadcastd(vmm_tmp, xmm_tmp);
     }

@@ -350,7 +350,7 @@ void test3() {
     {
         size_t off = ((n*C + c)*H + h)*W + w;
         real_t e = (off % 13) + 1;
-        real_t diff = fabs(out_mem[off] - e);
+        real_t diff = (real_t)fabs(out_mem[off] - e);
         if (diff/fabs(e) > 0.0125)
             printf("exp: %g, got: %g\n", e, out_mem[off]);
         CHECK_TRUE(diff/fabs(e) < 0.0125);

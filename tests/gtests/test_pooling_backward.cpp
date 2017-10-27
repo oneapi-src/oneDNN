@@ -100,7 +100,7 @@ void check_pool_fwd(const pool_bwd_test_params &p, const memory &src,
                         p.aalgorithm == pooling_avg_exclude_padding) {
                         out_ref /= num_summands;
                     }
-                    EXPECT_NEAR(out, out_ref, 1e-6);
+                    EXPECT_NEAR(out, out_ref, 1e-6f);
                 }
             }
         }
@@ -204,7 +204,8 @@ void check_pool_bwd(const pool_bwd_test_params &p, const memory &diff_src,
                     int iidx = n * pd.c * pd.ih * pd.iw
                         + c * pd.ih * pd.iw + ih * pd.iw + iw;
                     EXPECT_NEAR(ref_diff_src[iidx],
-                                diff_src_data[map_index(diff_src_d, iidx)], 1e-5);
+                                diff_src_data[map_index(diff_src_d, iidx)],
+                                1e-5f);
                 }
 }
 

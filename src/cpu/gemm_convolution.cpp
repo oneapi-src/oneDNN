@@ -93,7 +93,8 @@ void _gemm_convolution_fwd_t<with_relu, run_jit, isa>::execute_forward() {
                     for (int oS = 0; oS < jcp.os; ++oS) {
                         if (jcp.with_bias) d[oS] += b;
                         if (jcp.with_relu)
-                            d[oS] *= (d[oS] > 0) ? 1. : jcp.relu_negative_slope;
+                            d[oS] *= (d[oS] > 0)
+                                ? (data_t)1.0 : jcp.relu_negative_slope;
                     }
                     d += jcp.os;
                 }

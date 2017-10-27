@@ -400,7 +400,7 @@ TEST_P(bnrm_test_float, TestsBnrm)
     { memory::format::data, memory::format::diff }
 
 #define ENGINE engine::kind::cpu
-#define EPS 1e-5
+#define EPS 1e-5f
 
 #define PARAMS(data, diff, mb, c, h, w, eps) \
     test_bnrm_params_t { ENGINE, \

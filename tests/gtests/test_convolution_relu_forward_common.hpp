@@ -135,7 +135,7 @@ protected:
             (c_src.get_primitive_desc().get_size() / sizeof(data_t_src))
             / cd.mb );
         for (int i = 0; i < cd.mb * mb_chunk; ++i) {
-            if ((i / mb_chunk) % 2) src_data[i] *= -1.;
+            if ((i / mb_chunk) % 2) src_data[i] *= (data_t_src)-1.;
         }
 
         fill_data<data_t_wei>(

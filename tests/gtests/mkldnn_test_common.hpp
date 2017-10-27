@@ -241,8 +241,9 @@ static void compare_data(mkldnn::memory& ref, mkldnn::memory& dst)
 
         if (data_traits<data_t>::data_type == data_type::f32) {
             data_t diff = got - ref;
-            data_t e = std::abs(ref) > 1e-4 ? diff / ref : diff;
-            EXPECT_NEAR(e, 0.0, 1e-4) << "Index: " << i << " Total: " << num;
+            data_t e = (std::abs(ref) > (data_t)1e-4) ? diff / ref : diff;
+            EXPECT_NEAR(e, (data_t)0.0, (data_t)1e-4)
+                << "Index: " << i << " Total: " << num;
         } else if (data_traits<data_t>::data_type == data_type::s32) {
             EXPECT_EQ(ref, got) << "Index: " << i << " Total: " << num;
         }

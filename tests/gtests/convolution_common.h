@@ -71,7 +71,7 @@
         CONCAT_WITH_UNDERSCORE(TEST_CASE_NAME_PREFIX, str), __VA_ARGS__)
 
 #ifndef NEGATIVE_SLOPE
-#define NEGATIVE_SLOPE 0.0
+#define NEGATIVE_SLOPE 0.0f
 #else
 #undef INST_TEST_CASE
 #define INST_TEST_CASE(str, ...) INST_TEST_CASE_( \

@@ -119,7 +119,7 @@ inline bool array_cmp(const T *a1, const T *a2, size_t size) {
 }
 template<typename T, typename U>
 inline void array_set(T *arr, const U& val, size_t size) {
-    for (size_t i = 0; i < size; ++i) arr[i] = val;
+    for (size_t i = 0; i < size; ++i) arr[i] = static_cast<T>(val);
 }
 
 namespace product_impl {

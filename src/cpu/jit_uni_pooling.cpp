@@ -58,9 +58,9 @@ void jit_uni_pooling_fwd_t<isa>::execute_forward() {
         arg.kh_padding = jpp.kh - i_t_overflow - i_b_overflow;
         arg.kh_padding_shift = i_t_overflow*jpp.kw;
         arg.kw_padding = 0;
-        arg.ker_area_h = jpp.kh -
+        arg.ker_area_h = (float)(jpp.kh -
             nstl::max(0, oh*jpp.stride_h - jpp.t_pad + jpp.kh - jpp.ih) -
-            nstl::max(0, jpp.t_pad - oh*jpp.stride_h);
+            nstl::max(0, jpp.t_pad - oh*jpp.stride_h));
 
         (*kernel_)(&arg);
     };
@@ -108,9 +108,9 @@ void jit_uni_pooling_bwd_t<isa>::execute_backward() {
         arg.kh_padding = jpp.kh - i_t_overflow - i_b_overflow;
         arg.kh_padding_shift = i_t_overflow*jpp.kw;
         arg.kw_padding = 0;
-        arg.ker_area_h = jpp.kh -
+        arg.ker_area_h = (float)(jpp.kh -
             nstl::max(0, oh*jpp.stride_h - jpp.t_pad + jpp.kh - jpp.ih) -
-            nstl::max(0, jpp.t_pad - oh*jpp.stride_h);
+            nstl::max(0, jpp.t_pad - oh*jpp.stride_h));
 
         (*kernel_)(&arg);
     };

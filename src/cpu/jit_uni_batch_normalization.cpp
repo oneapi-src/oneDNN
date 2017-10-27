@@ -792,9 +792,9 @@ struct uni_bnorm_driver_t: public c_compatible {
         typename jit_bnorm_t<isa>::call_params_t p;
 
         p.eps = bdesc_->desc()->batch_norm_epsilon;
-        p.one = 1.;
-        p.spat_size = H*W;
-        p.chan_size = 1. * N * p.spat_size;
+        p.one = 1.0f;
+        p.spat_size = H * W;
+        p.chan_size = 1.0f * N * p.spat_size;
 
         size_t C_blks = C / simd_w;
 

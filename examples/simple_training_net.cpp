@@ -33,7 +33,7 @@ void simple_net()
 
     /* initializing non-zero values for src */
     for (size_t i = 0; i < net_src.size(); ++i)
-        net_src[i] = sin(i);
+        net_src[i] = sinf((float)i);
 
     /* AlexNet: conv
      * {batch, 3, 227, 227} (x) {96, 3, 11, 11} -> {batch, 96, 55, 55}
@@ -55,9 +55,9 @@ void simple_net()
 
     /* initializing non-zero values for weights and bias */
     for (size_t i = 0; i < conv_weights.size(); ++i)
-        conv_weights[i] = sin(i);
+        conv_weights[i] = sinf((float)i);
     for (size_t i = 0; i < conv_bias.size(); ++i)
-        conv_bias[i] = sin(i);
+        conv_bias[i] = sinf((float)i);
 
     /* create memory for user data */
     auto conv_user_src_memory = memory(
@@ -237,7 +237,7 @@ void simple_net()
     /* ... user diff_data ...*/
     std::vector<float> net_diff_dst(batch * 96 * 27 * 27);
     for (size_t i = 0; i < net_diff_dst.size(); ++i)
-        net_diff_dst[i] = sin(i);
+        net_diff_dst[i] = sinf((float)i);
 
     /* create memory for user diff dst data */
     auto pool_user_diff_dst_memory = memory(

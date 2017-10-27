@@ -30,27 +30,27 @@ using namespace alg_kind;
 
 namespace {
 template <typename T, typename A> inline T relu_fwd(T s, A alpha) {
-    return s > 0 ? s : static_cast<T>(s * alpha);
+    return s > 0 ? s : (T)(s * alpha);
 }
 template <typename T, typename A> inline T relu_bwd(T dd, T s, A alpha) {
-    return s > 0 ? dd : static_cast<T>(dd * alpha);
+    return s > 0 ? dd : (T)(dd * alpha);
 }
 
 template <typename T> T tanh_fwd(T s) {
-    const float e = ::expf(float(2 * s)); /* maybe replace with -2*s? */
-    return static_cast<T>((e - 1) / (e + 1));
+    const float e = ::expf((float)(2 * s)); /* maybe replace with -2*s? */
+    return (T)((e - 1) / (e + 1));
 }
 template <typename T> T tanh_bwd(T dd, T s) {
-    const float e = ::expf(float(2 * s)); /* maybe replace with -2*s? */
+    const float e = ::expf((float)(2 * s)); /* maybe replace with -2*s? */
     const float th = (e - 1.f) / (e + 1.f);
-    return static_cast<T>(dd * (1 - th * th));
+    return (T)(dd * (1 - th * th));
 }
 
 template <typename T, typename A> T elu_fwd(T s, A alpha) {
-    return s > 0 ? s : static_cast<T>(alpha * (::expf((float)s) - 1.f));
+    return s > 0 ? s : (T)(alpha * (::expf((float)s) - 1.f));
 }
 template <typename T, typename A> T elu_bwd(T dd, T s, A alpha) {
-    return static_cast<T>(dd * (s > 0 ? 1 : alpha * ::expf((float)s)));
+    return (T)(dd * (s > 0 ? 1 : alpha * ::expf((float)s)));
 }
 
 template <typename T>
@@ -75,30 +75,32 @@ T abs_bwd(T dd, T s) {
 
 template <typename T>
 T sqrt_fwd(T s) {
-    return s > 0 ? ::sqrtf(s) : 0;
+    return s > 0 ? (T)(::sqrtf((float)(s))) : 0;
 }
 
 template <typename T>
 T sqrt_bwd(T dd, T s) {
-    return s > 0 ? dd / (2 * ::sqrtf(s)) : 0;
+    return s > 0
+        ? (T)(dd / (2 * ::sqrtf((float)(s))))
+        : 0;
 }
 
 template <typename T, typename A>
 T linear_fwd(T s, A alpha, A beta) {
-    return alpha * s + beta;
+    return (T)(alpha * s + beta);
 }
 
 template <typename T, typename A>
 T linear_bwd(T dd, T s, A alpha, A beta) {
     (void) s;
     (void) beta;
-    return dd * alpha;
+    return (T)(dd * alpha);
 }
 
 template <typename T, typename A>
 T bounded_relu_fwd(T s, A alpha) {
     s = s > 0 ? s : 0;
-    return s > alpha ? alpha : s;
+    return s > alpha ? (T)(alpha) : s;
 }
 
 template <typename T, typename A>
@@ -108,23 +110,23 @@ T bounded_relu_bwd(T dd, T s, A alpha) {
 
 template <typename T>
 T soft_relu_fwd(T s) {
-    return log(1 + ::expf((float)s));
+    return (T)(::logf(1 + ::expf((float)s)));
 }
 
 template <typename T>
 T soft_relu_bwd(T dd, T s) {
-    return dd / (1 + ::expf((float)(-s)));
+    return (T)(dd / (1 + ::expf((float)(-s))));
 }
 
 template <typename T>
 T logistic_fwd(T s) {
-    T v = ::expf((float)s);
+    T v = (T)(::expf((float)s));
     return v / (v + 1);
 }
 
 template <typename T>
 T logistic_bwd(T dd, T s) {
-    T v = ::expf((float)(-s));
+    T v = (T)(::expf((float)(-s)));
     return dd * v / ((v + 1) * (v + 1));
 }
 }

@@ -337,7 +337,7 @@ bool check_cond1(int dimN_reg_block, int dimK_block, int dimK_reg_block,
                         + dimM_block * dimK_block * dimK_reg_block
                                 * dimM_simd_block
                         + dimK_block * dimN_reg_block * dimK_reg_block)
-            * sizeof(float);
+            * (float)sizeof(float);
     float rhs = C * L1_cache_size;
     return (lhs < rhs);
 }
@@ -347,7 +347,7 @@ bool check_cond1_bis(int dimN_reg_block, int dimK_block, int dimK_reg_block,
 {
     float lhs = (dimM_block * dimK_block * dimK_reg_block * dimM_simd_block
                         + dimK_block * dimN_reg_block * dimK_reg_block)
-            * sizeof(float);
+            * (float)sizeof(float);
     float rhs = C * L1_cache_size;
     return (lhs < rhs);
 }
@@ -356,12 +356,12 @@ bool check_cond2(int nb_dimN_reg_block, int dimN_reg_block, int dimK_nb_block,
         int dimK_block, int dimK_reg_block, int dimM_block, int dimM_simd_block,
         float C)
 {
-    int lhs = (nb_dimN_reg_block * dimM_block * dimN_reg_block * dimM_simd_block
+    float lhs = (nb_dimN_reg_block * dimM_block * dimN_reg_block * dimM_simd_block
                       + dimK_nb_block * dimM_block * dimK_block * dimK_reg_block
                               * dimM_simd_block
                       + nb_dimN_reg_block * dimK_nb_block * dimK_block
                               * dimN_reg_block * dimK_reg_block)
-            * sizeof(float);
+            * (float)sizeof(float);
     float rhs = C * L2_cache_size;
     return (lhs < rhs);
 }
@@ -815,7 +815,7 @@ void jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::gemm_loop_generate(
 bool check_cond1_wu(int dimM_block, int dimM_simdw, int dimK_block,
         int dimK_reg_block, int dimK_4fma, int dimN_reg_block, float C)
 {
-    float lhs = dimM_block * dimN_reg_block * dimM_simdw;
+    float lhs = 1.0f * dimM_block * dimN_reg_block * dimM_simdw;
     lhs += dimM_block * dimK_block * dimK_reg_block * dimK_4fma * dimM_simdw;
     lhs += dimK_block * dimN_reg_block * dimK_reg_block * dimK_4fma;
     lhs *= sizeof(float);
@@ -827,7 +827,7 @@ bool check_cond1bis_wu(int dimM_block, int dimM_simdw, int dimK_block,
         int dimK_reg_block, int dimK_4fma, int dimN_reg_block, float C)
 {
     float lhs
-            = dimM_block * dimK_block * dimK_reg_block * dimK_4fma * dimM_simdw;
+        = 1.0f * dimM_block * dimK_block * dimK_reg_block * dimK_4fma * dimM_simdw;
     lhs += dimK_block * dimN_reg_block * dimK_reg_block * dimK_4fma;
     lhs *= sizeof(float);
     float rhs = C * L1_cache_size;
@@ -839,7 +839,7 @@ bool check_cond2bis_wu(int dimM_block, int dimM_simdw, int dimK_block,
         float C)
 {
     float lhs
-            = dimM_block * dimM_simdw * dimK_block * dimK_reg_block * dimK_4fma;
+        = 1.0f * dimM_block * dimM_simdw * dimK_block * dimK_reg_block * dimK_4fma;
     lhs += dimK_block * dimK_reg_block * dimK_4fma * dimN_block
             * dimN_reg_block;
     lhs *= sizeof(float);
@@ -850,7 +850,7 @@ bool check_cond2_wu(int dimM_block, int dimM_simdw, int dimK_block,
         int dimK_reg_block, int dimK_4fma, int dimN_block, int dimN_reg_block,
         float C)
 {
-    float lhs = dimM_block * dimM_simdw * dimN_block * dimN_reg_block;
+    float lhs = 1.0f * dimM_block * dimM_simdw * dimN_block * dimN_reg_block;
     lhs += dimM_block * dimM_simdw * dimK_block * dimK_reg_block * dimK_4fma;
     lhs += dimK_block * dimK_reg_block * dimK_4fma * dimN_block
             * dimN_reg_block;

@@ -104,8 +104,8 @@ inline int compare_dat(dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     for (size_t i = 0; i < nelems; ++i) {
         float dt = ((float*)mem_dt)[i];
         float fp = ((float*)mem_fp)[i];
-        float diff = fabs(fp - dt);
-        float rel_diff = diff / (fabs(fp) > FLT_MIN ? fabs(fp) : 1);
+        float diff = fabsf(fp - dt);
+        float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
         int ok = (fabs(fp) > 1e-5 ? rel_diff : diff) < eps;
         if (!ok) {
             r->errors++;
