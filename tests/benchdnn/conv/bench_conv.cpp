@@ -40,7 +40,7 @@ alg_t alg = DIRECT;
 merge_t merge = NONE;
 const char *skip_impl = "";
 bool allow_unimpl = false;
-const char *perf_template = "perf,%n,%d,%GO,%-t,%-Gp,%0t,%0Gp";
+const char *perf_template = "perf,%n,%d,%GO,%GF,%-t,%-Gp,%0t,%0Gp";
 
 void reset_parameters() {
     cfg = conf_f32;

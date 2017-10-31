@@ -130,8 +130,25 @@ static inline double ms_now() {
     return std::chrono::duration<double, std::milli>(timePointTmp).count();
 }
 
+#if !defined(BENCHDNN_USE_RDPMC) || defined(_WIN32)
+unsigned long long ticks_now() {
+    return (unsigned long long)0;
+}
+#else
+unsigned long long ticks_now() {
+    unsigned eax, edx, ecx;
+
+    ecx = (1 << 30) + 1;
+    __asm__ volatile("rdpmc" : "=a" (eax), "=d" (edx) : "c" (ecx));
+
+    return (unsigned long long)eax | (unsigned long long)edx << 32;
+}
+#endif
+
 void benchdnn_timer_t::reset() {
     times_ = 0;
+    for (int i = 0; i < n_modes; ++i) ticks_[i] = 0;
+    ticks_start_ = 0;
     for (int i = 0; i < n_modes; ++i) ms_[i] = 0;
     ms_start_ = 0;
 
@@ -139,12 +156,15 @@ void benchdnn_timer_t::reset() {
 }
 
 void benchdnn_timer_t::start() {
+    ticks_start_ = ticks_now();
     ms_start_ = ms_now();
 }
 
 void benchdnn_timer_t::stop() {
+    long long d_ticks = ticks_now() - ticks_start_; /* FIXME: overflow? */
     double d_ms = ms_now() - ms_start_;
 
+    ticks_start_ += d_ticks;
     ms_start_ += d_ms;
 
     ms_[benchdnn_timer_t::min] = times_
@@ -152,12 +172,21 @@ void benchdnn_timer_t::stop() {
     ms_[benchdnn_timer_t::avg] += d_ms;
     ms_[benchdnn_timer_t::max] = times_
         ? MAX2(ms_[benchdnn_timer_t::min], d_ms) : d_ms;
+
+    ticks_[benchdnn_timer_t::min] = times_
+        ? MIN2(ticks_[benchdnn_timer_t::min], d_ticks) : d_ticks;
+    ticks_[benchdnn_timer_t::avg] += d_ticks;
+    ticks_[benchdnn_timer_t::max] = times_
+        ? MAX2(ticks_[benchdnn_timer_t::min], d_ticks) : d_ticks;
+
     times_++;
 }
 
 benchdnn_timer_t &benchdnn_timer_t::operator=(const benchdnn_timer_t &rhs) {
     if (this == &rhs) return *this;
     times_ = rhs.times_;
+    for (int i = 0; i < n_modes; ++i) ticks_[i] = rhs.ticks_[i];
+    ticks_start_ = rhs.ticks_start_;
     for (int i = 0; i < n_modes; ++i) ms_[i] = rhs.ms_[i];
     ms_start_ = rhs.ms_start_;
     return *this;

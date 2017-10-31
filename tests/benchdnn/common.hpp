@@ -160,9 +160,13 @@ struct benchdnn_timer_t {
     double ms(mode_t mode = benchdnn_timer_t::min) const
     { return ms_[mode] / (mode == avg ? times_ : 1); }
 
+    long long ticks(mode_t mode = min) const
+    { return ticks_[mode] / (mode == avg ? times_ : 1); }
+
     benchdnn_timer_t &operator=(const benchdnn_timer_t &rhs);
 
     int times_;
+    long long ticks_[n_modes], ticks_start_;
     double ms_[n_modes], ms_start_;
 };
 

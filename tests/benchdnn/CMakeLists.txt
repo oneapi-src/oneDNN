@@ -28,6 +28,14 @@ include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/ip
     )
 
+option(BENCHDNN_USE_RDPMC
+    "enables rdpms counter to report precise cpu frequency.
+     CAUTION: may not work on all cpus (hence disable by default)"
+    OFF) # disabled by default
+if(BENCHDNN_USE_RDPMC)
+    add_definitions(-DBENCHDNN_USE_RDPMC)
+endif()
+
 add_executable(benchdnn ${SOURCES})
 if(WIN32)
     configure_file(${CMAKE_SOURCE_DIR}/config_template.vcxproj.user
