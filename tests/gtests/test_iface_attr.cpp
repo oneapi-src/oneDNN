@@ -64,4 +64,35 @@ TEST_F(attr_test, TestIntOutputScales) {
     EXPECT_EQ(scales[2], 3.);
 }
 
+TEST_F(attr_test, TestPostOps) {
+    mkldnn::primitive_attr attr;
+    mkldnn::post_ops ops;
+
+    algorithm alg;
+    float scale, alpha, beta;
+
+    EXPECT_EQ(ops.len(), 0);
+    EXPECT_EQ(attr.get_post_ops().len(), 0);
+
+    ops.append_sum(1.1f);
+    attr.set_post_ops(ops);
+
+    EXPECT_EQ(attr.get_post_ops().len(), 1);
+    EXPECT_EQ(attr.get_post_ops().kind(0), primitive::kind::sum);
+    attr.get_post_ops().get_params_sum(0, scale);
+    EXPECT_FLOAT_EQ(scale, 1.1f);
+
+    ops.append_eltwise(2.2f, algorithm::eltwise_bounded_relu, 3.3f, 4.4f);
+    attr.set_post_ops(ops);
+
+    EXPECT_EQ(attr.get_post_ops().len(), 2);
+    EXPECT_EQ(attr.get_post_ops().kind(0), primitive::kind::sum);
+    EXPECT_EQ(attr.get_post_ops().kind(1), primitive::kind::eltwise);
+    attr.get_post_ops().get_params_eltwise(1, scale, alg, alpha, beta);
+    EXPECT_FLOAT_EQ(scale, 2.2f);
+    EXPECT_EQ(alg, algorithm::eltwise_bounded_relu);
+    EXPECT_FLOAT_EQ(alpha, 3.3f);
+    EXPECT_FLOAT_EQ(beta, 4.4f);
+}
+
 }

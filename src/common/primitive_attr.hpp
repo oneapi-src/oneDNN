@@ -19,8 +19,9 @@
 
 #include "mkldnn.h"
 
-#include "utils.hpp"
 #include "c_types_map.hpp"
+#include "nstl.hpp"
+#include "utils.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -67,6 +68,42 @@ private:
 }
 }
 
+struct mkldnn_post_ops: public mkldnn::impl::c_compatible {
+    struct entry_t {
+        mkldnn::impl::primitive_kind_t kind;
+        union {
+            struct { float scale; } sum;
+            struct {
+                mkldnn::impl::alg_kind_t alg;
+                float scale, alpha, beta;
+            } eltwise;
+        };
+    };
+
+    mkldnn_post_ops(): len_(0) {}
+
+    mkldnn::impl::status_t append_sum(float scale);
+    mkldnn::impl::status_t append_eltwise(float scale,
+            mkldnn::impl::alg_kind_t alg, float alpha, float beta);
+
+    int find(mkldnn::impl::primitive_kind_t kind, int start = 0,
+            int stop = -1) const {
+        if (stop == -1) stop = len_;
+        stop = mkldnn::impl::nstl::min(stop, len_);
+        for (int idx = start; idx < stop; ++idx)
+            if (entry_[idx].kind == kind) return idx;
+        return -1;
+    }
+
+    bool contain(mkldnn::impl::primitive_kind_t kind, int index) const
+    { return find(kind, index, index + 1) == index; }
+
+    enum { capacity = 4 };
+
+    int len_;
+    entry_t entry_[capacity];
+};
+
 struct mkldnn_primitive_attr: public mkldnn::impl::c_compatible {
     mkldnn_primitive_attr()
         : round_mode_(mkldnn::impl::round_mode::nearest) {}
@@ -76,9 +113,12 @@ struct mkldnn_primitive_attr: public mkldnn::impl::c_compatible {
 
     mkldnn::impl::status_t set_round_mode(
             mkldnn::impl::round_mode_t round_mode);
+    mkldnn::impl::status_t set_post_ops(
+            const mkldnn::impl::post_ops_t &post_ops);
 
     mkldnn::impl::round_mode_t round_mode_;
     mkldnn::impl::scales_t output_scales_;
+    mkldnn::impl::post_ops_t post_ops_;
 };
 
 #endif

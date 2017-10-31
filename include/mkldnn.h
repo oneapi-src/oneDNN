@@ -306,6 +306,104 @@ mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_set_output_scales(
         mkldnn_primitive_attr_t attr, int count, int mask,
         const float *scales);
 
+/* Returns @p post_ops for given attr.
+ *
+ * @warning
+ *      @p post_ops points to the internal @p attr field, so user should not
+ *      modify/destroy @p post_ops. Also the lifetime of @p post_ops is the
+ *      same as @p attr it belongs to, so it is illegal to use @p post_ops once
+ *      @p attr is destroyed.
+ */
+mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_get_post_ops(
+        const_mkldnn_primitive_attr_t attr, const_mkldnn_post_ops_t *post_ops);
+
+/* Sets configured @p post_ops to an attribute @attr for future use (when
+ * primitive descriptor is being created.
+ *
+ * @note
+ *      At this point of time there is no way to check whether primitive
+ *      descriptor does or does not support given sequence of post operations.
+ *      That means that user should handle an error that might happen at
+ *      mkldnn_primitive_desc_create call.
+ */
+mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_set_post_ops(
+        mkldnn_primitive_attr_t attr, const_mkldnn_post_ops_t post_ops);
+
+/** @addtogroup c_api_attributes_post_ops Sequence of post operations
+ * An extension for performing extra operations after base operation.
+ * @{ */
+
+/** Creates an empty sequence of post operations @p post_ops. */
+mkldnn_status_t MKLDNN_API mkldnn_post_ops_create(mkldnn_post_ops_t *post_ops);
+
+/** Deletes a @p post_ops sequence. */
+mkldnn_status_t MKLDNN_API mkldnn_post_ops_destroy(mkldnn_post_ops_t post_ops);
+
+/** Returns the @p length of post operations for given @p post_ops. */
+int MKLDNN_API mkldnn_post_ops_len(const_mkldnn_post_ops_t post_ops);
+
+/** Returns the type of post operation with index @p index in given
+ * @p post_ops. In case of error returns #mkldnn_undefined_primitive. */
+mkldnn_primitive_kind_t MKLDNN_API mkldnn_post_ops_get_kind(
+        const_mkldnn_post_ops_t post_ops, int index);
+
+/** Appends accumulation (sum) post operation to the @p post_ops. Prior to
+ * accumulating the result the previous value would be multiplied by @p scale.
+ *
+ * The kind of this post operation is #mkldnn_sum.
+ *
+ * This feature might improve performance for the cases like residual learning
+ * blocks, where the result of convolution is accumulated to the previously
+ * computed activations. Scale parameter @p scale might be extremely for the
+ * integer-based computations, when the result and previous activations have
+ * different logical scaling factors.
+ *
+ * In the simplest case when the accumulation is the only post operation, the
+ * computations would be:
+ * dst[] <- scale * dst[] + op(...) // instead of dst[] <- op(...)
+ *
+ * @note
+ *      This post op (as well as all the others) disregards the original layout
+ *      of dst, i.e. the layout of the original dst is expected to be the same
+ *      as the layout of stored dst.
+ */
+mkldnn_status_t MKLDNN_API mkldnn_post_ops_append_sum(
+        mkldnn_post_ops_t post_ops, float scale);
+
+/** Gets the parameters of the accumulation (sum) post operation with index
+ * @p index in the sequence of @p post_ops.
+ *
+ * @note
+ *      If index @p index would not correspond to the accumulation post
+ *      operation, the function return #mkldnn_invalid_arguments.
+ */
+mkldnn_status_t MKLDNN_API mkldnn_post_ops_get_params_sum(
+        const_mkldnn_post_ops_t post_ops, int index, float *scale);
+
+/** Appends eltwise post operation to the @p post_ops with given parameters
+ * @p kind, @p alpha and @p beta (@se also mkldnn_eltwise_forward_desc_init and
+ * mkldnn_eltwise_desc_t).
+ *
+ * The kind of this post operation is #mkldnn_eltwise.
+ *
+ * In the simplest case when the eltwise is the only post operation, the
+ * computations would be:
+ * dst[] <- scale * eltwise_op ( op(...) ) // instead of dst[] <- op(...)
+ * where eltwise_op is configured with given parameters.
+ */
+mkldnn_status_t MKLDNN_API mkldnn_post_ops_append_eltwise(
+        mkldnn_post_ops_t post_ops, float scale, mkldnn_alg_kind_t alg,
+        float alpha, float beta);
+
+/** Gets the eltwise parameters of the post operation with index @p index in
+ * the sequence of @p post_ops.
+ */
+mkldnn_status_t MKLDNN_API mkldnn_post_ops_get_params_eltwise(
+        const_mkldnn_post_ops_t post_ops, int index, float *scale,
+        mkldnn_alg_kind_t *alg, float *alpha, float *beta);
+
+/** @} */
+
 /** @} */
 
 /** @addtogroup c_api_memory Memory

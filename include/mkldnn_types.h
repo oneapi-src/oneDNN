@@ -761,6 +761,33 @@ typedef struct mkldnn_primitive_attr *mkldnn_primitive_attr_t;
 /** @brief A constant primitive descriptor attributes handle. */
 typedef const struct mkldnn_primitive_attr *const_mkldnn_primitive_attr_t;
 
+/** @struct mkldnn_post_ops
+ * @brief An opaque structure for a chain of post operations.
+ *
+ * mkldnn_post_ops can be used to perform some (trivial) operations like
+ * accumulation or eltwise after certain primitives like convolution.
+ *
+ * Post operations might be combined together, making a chain of post
+ * operations. For instance one can configure convolution followed by
+ * accumulation followed by eltwise (relu). This might be especially beneficial
+ * for residual learning blocks.
+ *
+ * @warning
+ *      Of course not all the combinations are supported, so user should handle
+ *      error accordingly.
+ *
+ * Supported post operations:
+ *  - accumulation (base primitive: convolution)
+ *  - eltwise (base primitive: convolution)
+ */
+struct mkldnn_post_ops;
+
+/** @brief A post operation chain handle. */
+typedef struct mkldnn_post_ops *mkldnn_post_ops_t;
+
+/** @brief A constant post operation chain handle. */
+typedef const struct mkldnn_post_ops *const_mkldnn_post_ops_t;
+
 /** @} */
 
 /** @addtogroup c_api_types_primitive Primitive

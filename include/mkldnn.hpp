@@ -328,6 +328,57 @@ inline mkldnn_query_t convert_to_c(query aquery) {
 /// @{
 
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
+template <> struct handle_traits<mkldnn_post_ops_t> {
+    static constexpr auto destructor = &mkldnn_post_ops_destroy;
+};
+#endif
+
+struct post_ops: public handle<mkldnn_post_ops_t> {
+    post_ops() {
+        mkldnn_post_ops_t result;
+        error::wrap_c_api(mkldnn_post_ops_create(&result),
+                "could not create post operation sequence");
+        reset(result);
+    }
+
+    int len() const { return mkldnn_post_ops_len(get()); }
+
+    primitive::kind kind(int index) const {
+        error::wrap_c_api(
+                index < len() ? mkldnn_success : mkldnn_invalid_arguments,
+                "post_ops index is out of range");
+        return static_cast<primitive::kind>(mkldnn_post_ops_get_kind(get(),
+                    index));
+    }
+
+    void append_sum(float scale = 1.) {
+        error::wrap_c_api(mkldnn_post_ops_append_sum(get(), scale),
+                "could not append sum");
+    }
+
+    void get_params_sum(int index, float &scale) const {
+        error::wrap_c_api(mkldnn_post_ops_get_params_sum(get(), index, &scale),
+                "could not get sum params");
+    }
+
+    void append_eltwise(float scale, algorithm alg, float alpha,
+            float beta) {
+        error::wrap_c_api(mkldnn_post_ops_append_eltwise(get(), scale,
+                    convert_to_c(alg), alpha, beta),
+                "could not append eltwise");
+    }
+
+    void get_params_eltwise(int index, float &scale, algorithm &alg,
+            float &alpha, float &beta) const {
+        mkldnn_alg_kind_t c_alg;
+        error::wrap_c_api(mkldnn_post_ops_get_params_eltwise(get(), index,
+                    &scale, &c_alg, &alpha, &beta),
+                "could not get eltwise params");
+        alg = static_cast<algorithm>(c_alg);
+    }
+};
+
+#ifndef DOXYGEN_SHOULD_SKIP_THIS
 template <> struct handle_traits<mkldnn_primitive_attr_t> {
     static constexpr auto destructor = &mkldnn_primitive_attr_destroy;
 };
@@ -373,6 +424,20 @@ struct primitive_attr: public handle<mkldnn_primitive_attr_t> {
         error::wrap_c_api(mkldnn_primitive_attr_set_output_scales(get(),
                     (int)scales.size(), mask, &scales[0]),
                 "could not set int output scales");
+    }
+
+    const post_ops get_post_ops() const {
+        post_ops result;
+        const_mkldnn_post_ops_t c_result;
+        error::wrap_c_api(mkldnn_primitive_attr_get_post_ops(get(), &c_result),
+                "could not get post operation sequence");
+        result.reset(const_cast<mkldnn_post_ops_t>(c_result), true);
+        return result;
+    }
+
+    void set_post_ops(post_ops ops) {
+        error::wrap_c_api(mkldnn_primitive_attr_set_post_ops(get(), ops.get()),
+                "could not set post operation sequence");
     }
 };
 
