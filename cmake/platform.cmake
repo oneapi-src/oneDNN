@@ -51,6 +51,11 @@ elseif(UNIX OR APPLE)
         # very upset. Tell it that it's okay and that we love it
         # unconditionnaly.
         set(CMAKE_CCXX_FLAGS "${CMAKE_CCXX_FLAGS} -Wno-pass-failed")
+    elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+        if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 6.0)
+            # suppress warning on assumptions made regarding overflow (#146)
+            set(CMAKE_CCXX_FLAGS "${CMAKE_CCXX_FLAGS} -Wno-strict-overflow")
+        endif()
     elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
         set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -xHOST")
         # workaround for Intel Compiler 16.0 that produces error caused
