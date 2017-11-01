@@ -131,7 +131,7 @@ int attr_t::scale_t::str2scale(const char *str, const char **end_s) {
     this->scale = strtof(s, &end);
     if (this->scale <= 0 || end == s) return FAIL;
 
-    *end_s = s = end;
+    s = end;
     assert(*s == '\0' || *s == ';');
 
     return OK;
