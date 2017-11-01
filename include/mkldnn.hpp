@@ -105,6 +105,26 @@ class primitive: public handle<mkldnn_primitive_t> {
     friend class primitive_at;
     using handle::handle;
 public:
+    /// A proxy to C primitive kind enum
+    enum class kind {
+        undefined_primitive = mkldnn_undefined_primitive,
+        memory = mkldnn_memory,
+        view = mkldnn_view,
+        reorder = mkldnn_reorder,
+        concat = mkldnn_concat,
+        concat_inplace = mkldnn_concat_inplace,
+        sum = mkldnn_sum,
+        convolution = mkldnn_convolution,
+        eltwise = mkldnn_eltwise,
+        relu = mkldnn_relu,
+        softmax = mkldnn_softmax,
+        pooling = mkldnn_pooling,
+        lrn = mkldnn_lrn,
+        batch_normalization = mkldnn_batch_normalization,
+        inner_product = mkldnn_inner_product,
+        convolution_relu = mkldnn_convolution_relu,
+    };
+
     /// A wrapper structure to specify a particular output of a primitive.
     struct at {
         /// The underlying C API structure.
@@ -125,6 +145,10 @@ public:
     inline const_mkldnn_primitive_desc_t get_primitive_desc() const;
     // TODO: use the C++ API wrapper structure.
 };
+
+inline mkldnn_primitive_kind_t convert_to_c(primitive::kind akind) {
+    return static_cast<mkldnn_primitive_kind_t>(akind);
+}
 
 /// Intel(R) MKL-DNN exception class.
 ///
