@@ -15,12 +15,29 @@
 # limitations under the License.
 #===============================================================================
 
-MKLURL="https://github.com/01org/mkl-dnn/releases/download/v0.11/mklml_lnx_2018.0.1.20171007.tgz"
+MKLURLROOT="https://github.com/01org/mkl-dnn/releases/download/v0.11/"
+MKLVERSION="2018.0.1.20171007"
 
+os=`uname`
+if [ "$os" == "Linux" ]; then
+  MKLPACKAGE="mklml_lnx_${MKLVERSION}.tgz"
+elif [ "$os" == "Darwin" ]; then
+  MKLPACKAGE="mklml_mac_${MKLVERSION}.tgz"
+else
+  echo "Cannot identify operating system. Try downloading package manually."
+  exit 1
+fi
+
+MKLURL=${MKLURLROOT}${MKLPACKAGE}
 DST=`dirname $0`/../external
-DST=`readlink -f $DST`
 mkdir -p $DST
-wget --no-check-certificate -P $DST $MKLURL
-tar -xzf $DST/mklml_lnx*.tgz -C $DST
+DST=`cd $DST;pwd`
 
+curl -L -o "${DST}/${MKLPACKAGE}" "$MKLURL"
+if [ \! $? ]; then
+  echo "Download from $MKLURL to $DST failed"
+  exit 1
+fi
+
+tar -xzf "$DST/${MKLPACKAGE}" -C $DST
 echo "Downloaded and unpacked Intel(R) MKL small libraries to $DST"
