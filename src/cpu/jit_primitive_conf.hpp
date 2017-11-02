@@ -80,7 +80,6 @@ struct jit_conv_conf_t {
     int ur_ow_nsteps;
     data_type_t bia_dt;
     data_type_t dst_dt;
-    round_mode_t rmode;
 };
 
 

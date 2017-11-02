@@ -50,7 +50,8 @@ struct jit_avx512_core_u8s8s32x_conv_fwd_ker_t: public jit_generator {
     };
 
     void (*ker_)(const call_params_t *);
-    jit_conv_conf_t c_;
+    const jit_conv_conf_t &c_;
+    const primitive_attr_t &attr_;
 
     Reg64 reg_kh = rax;
     Reg64 reg_ic_b2 = rbx;
@@ -62,6 +63,7 @@ struct jit_avx512_core_u8s8s32x_conv_fwd_ker_t: public jit_generator {
     Reg64 reg_off_dst = r10;
 
     Reg64 reg_ptr_scales = abi_not_param1;
+    Reg64 reg_ptr_sum_scale = reg_ic_b2;
 
     Reg64 reg_ptr_src_u8 = r11;
     Reg64 reg_ptr_wei_s8 = r12;
@@ -94,6 +96,8 @@ struct jit_avx512_core_u8s8s32x_conv_fwd_ker_t: public jit_generator {
         return Zmm(id_vreg_dst(o));
     }
 
+    bool maybe_relu(int position);
+
     void load_wei_s8();
     void load_acc_s32(int ur_ow);
     void store_dst(int ur_ow);
@@ -104,17 +108,45 @@ struct jit_avx512_core_u8s8s32x_conv_fwd_ker_t: public jit_generator {
     void compute_ow_oc_block();
     void generate();
 
-    jit_avx512_core_u8s8s32x_conv_fwd_ker_t(const jit_conv_conf_t &c): c_(c) {
+    jit_avx512_core_u8s8s32x_conv_fwd_ker_t(const jit_conv_conf_t &c,
+            const primitive_attr_t &attr): c_(c), attr_(attr) {
         generate();
         ker_ = reinterpret_cast<decltype(ker_)>(const_cast<uint8_t*>(
                         getCode()));
     }
 
+    static bool post_ops_ok(const jit_conv_conf_t &c,
+            const primitive_attr_t &attr);
     static status_t init_conf(jit_conv_conf_t &c, const convolution_desc_t &cd,
             const memory_desc_wrapper &src_d, const memory_desc_wrapper &wei_d,
-            const memory_desc_wrapper &dst_d, const primitive_attr_t *attr,
+            const memory_desc_wrapper &dst_d, const primitive_attr_t &attr,
             bool with_relu, float negative_slope);
 };
+
+bool jit_avx512_core_u8s8s32x_conv_fwd_ker_t::maybe_relu(int position) {
+    using namespace primitive_kind;
+    const auto &p = attr_.post_ops_;
+
+    if (position == 0) {
+        /* relu before sum */
+        return false
+            || c_.with_relu
+            || p.contain(eltwise, 0)
+            || (c_.dst_dt == data_type::u8 && !p.contain(sum, 0));
+    } else if (position == 1) {
+        /* relu after sum */
+        const int sum_idx = p.contain(sum, 0)
+            ? 0 : (p.contain(sum, 1) ? 1 : -1);
+        if (sum_idx == -1)
+            return false;
+
+        return false
+            || p.contain(eltwise, sum_idx + 1)
+            || c_.dst_dt == data_type::u8;
+    }
+
+    return false;
+}
 
 void jit_avx512_core_u8s8s32x_conv_fwd_ker_t::load_wei_s8() {
     assert(c_.oc_block * c_.ic_block * sizeof_wei_dt()
@@ -181,6 +213,14 @@ void jit_avx512_core_u8s8s32x_conv_fwd_ker_t::store_dst(int ur_ow) {
         vpxord(vreg_bia, vreg_bia, vreg_bia);
     }
 
+    const auto &p = attr_.post_ops_;
+    const int sum_idx = p.find(primitive_kind::sum);
+    const float *p_sum_scale = &p.entry_[sum_idx].sum.scale;
+    if (sum_idx != -1 && *p_sum_scale != 1.f) {
+        assert(reg_ic_b2 == reg_ptr_sum_scale);
+        mov(reg_ptr_sum_scale, (size_t)p_sum_scale); // ic_b2 == 0 now
+    }
+
     for (int o = 0; o < ur_ow; ++o) {
         const int r = id_vreg_dst(o);
         Address dst = ptr[reg_ptr_dst + reg_off_dst
@@ -190,13 +230,37 @@ void jit_avx512_core_u8s8s32x_conv_fwd_ker_t::store_dst(int ur_ow) {
         vaddps(Zmm(r), Zmm(r), vreg_bia);
         vmulps(Zmm(r), Zmm(r), vreg_scales);
 
-        if (c_.with_relu || c_.dst_dt == data_type::u8)
+        if (maybe_relu(0))
+            vmaxps(Zmm(r), vreg_zero, Zmm(r));
+
+        if (sum_idx != -1) {
+            auto vreg_prev_dst = vreg_zero; /* reuse register w/ zeros... */
+
+            switch (c_.dst_dt) {
+                case f32:
+                case s32: vmovups(vreg_prev_dst, dst); break;
+                case s8: vpmovsxbd(vreg_prev_dst, dst); break;
+                case u8: vpmovzxbd(vreg_prev_dst, dst); break;
+                default: assert(!"unknown dst_dt");
+            }
+            if (c_.dst_dt != f32)
+                vcvtdq2ps(vreg_prev_dst, vreg_prev_dst);
+
+            if (*p_sum_scale == 1.)
+                vaddps(Zmm(r), vreg_prev_dst);
+            else
+                vfmadd231ps(Zmm(r), vreg_prev_dst, zword_b[reg_ptr_sum_scale]);
+
+            vpxord(vreg_zero, vreg_zero, vreg_zero); /* restore zeros */
+        }
+
+        if (maybe_relu(1))
             vmaxps(Zmm(r), vreg_zero, Zmm(r));
 
         if (c_.dst_dt != f32) {
-            if (c_.rmode == round_mode::nearest)
+            if (attr_.round_mode_ == round_mode::nearest)
                 vcvtps2dq(Zmm(r) | T_rn_sae, Zmm(r));
-            else if (c_.rmode == round_mode::down)
+            else if (attr_.round_mode_ == round_mode::down)
                 vcvtps2dq(Zmm(r) | T_rd_sae, Zmm(r));
             else
                 assert(!"unimplemented");
@@ -210,6 +274,12 @@ void jit_avx512_core_u8s8s32x_conv_fwd_ker_t::store_dst(int ur_ow) {
         default: assert(!"unknown dst_dt");
         }
     }
+
+    if (sum_idx != -1 && *p_sum_scale != 1.f) {
+        assert(reg_ic_b2 == reg_ptr_sum_scale);
+        xor_(reg_ic_b2, reg_ic_b2); // restore reg_ic_b2 == 0
+    }
+
     add(reg_off_dst, ur_ow * c_.ngroups * c_.oc * sizeof_dst_dt());
 
     L(l_ret);
@@ -409,10 +479,41 @@ void jit_avx512_core_u8s8s32x_conv_fwd_ker_t::generate() {
     postamble();
 }
 
+bool jit_avx512_core_u8s8s32x_conv_fwd_ker_t::post_ops_ok(
+        const jit_conv_conf_t &c, const primitive_attr_t &attr) {
+    using namespace primitive_kind;
+    const auto &p = attr.post_ops_;
+
+    auto is_relu = [&](int idx) {
+        return p.entry_[idx].kind == eltwise
+            && p.entry_[idx].eltwise.scale == 1.
+            && p.entry_[idx].eltwise.alg == alg_kind::eltwise_relu
+            && p.entry_[idx].eltwise.alpha == 0.;
+    };
+
+    switch (p.len_) {
+    case 0: return true;
+    case 1: return true
+                && implication(c.with_relu, p.contain(sum, 0))
+                && implication(!c.with_relu, is_relu(0) || p.contain(sum, 0));
+    case 2: return true
+                && implication(c.with_relu, p.contain(sum, 0) && is_relu(1))
+                && implication(!c.with_relu, false
+                        || (p.contain(sum, 0) && is_relu(1))
+                        || (p.contain(sum, 1) && is_relu(0)));
+    case 3: return true
+                && c.with_relu == false
+                && (is_relu(0) && p.contain(sum, 1) && is_relu(2));
+    default: return false;
+    }
+
+    return false;
+}
+
 status_t jit_avx512_core_u8s8s32x_conv_fwd_ker_t::init_conf(jit_conv_conf_t &c,
         const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &wei_d, const memory_desc_wrapper &dst_d,
-        const primitive_attr_t *attr, bool with_relu, float negative_slope) {
+        const primitive_attr_t &attr, bool with_relu, float negative_slope) {
     if (!mayiuse(avx512_core))
         return status::unimplemented;
 
@@ -441,7 +542,6 @@ status_t jit_avx512_core_u8s8s32x_conv_fwd_ker_t::init_conf(jit_conv_conf_t &c,
     c.with_relu = with_relu;
     c.bia_dt = c.with_bias ? cd.bias_desc.data_type : data_type::undef;
     c.dst_dt = cd.dst_desc.data_type;
-    c.rmode = attr->round_mode_;
 
     c.ic_block = 4;
     c.oc_block = 16;
@@ -459,10 +559,13 @@ status_t jit_avx512_core_u8s8s32x_conv_fwd_ker_t::init_conf(jit_conv_conf_t &c,
         && implication(with_relu, negative_slope == 0.)
         && one_of(c.dst_dt, data_type::f32, data_type::s32, data_type::s8,
                 data_type::u8)
-        && implication(c.dst_dt != data_type::f32, one_of(c.rmode,
+        && implication(c.dst_dt != data_type::f32, one_of(attr.round_mode_,
                     round_mode::nearest, round_mode::down));
 
     if (!args_ok)
+        return status::unimplemented;
+
+    if (!post_ops_ok(c, attr))
         return status::unimplemented;
 
     c.oc_nb1 = c.oc / c.oc_block;
@@ -533,7 +636,7 @@ status_t _jit_avx512_core_u8s8s32x_convolution_fwd_t<with_relu,
 {
     return jit_avx512_core_u8s8s32x_conv_fwd_ker_t::init_conf(jcp_,
             this->cdesc_(), *this->src_pd_.desc(), *this->weights_pd_.desc(),
-            *this->dst_pd_.desc(), this->attr(), with_relu,
+            *this->dst_pd_.desc(), *this->attr(), with_relu,
             this->negative_slope());
 }
 
@@ -543,7 +646,8 @@ _jit_avx512_core_u8s8s32x_convolution_fwd_t(const pd_t *pd,
         const input_vector &inputs, const output_vector &outputs)
     : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd), ker_(nullptr)
     , ws_(nullptr) {
-    ker_ = new jit_avx512_core_u8s8s32x_conv_fwd_ker_t(conf_.jcp_);
+    ker_ = new jit_avx512_core_u8s8s32x_conv_fwd_ker_t(conf_.jcp_,
+            *conf_.attr());
 
     const int nthreads = omp_get_max_threads();
     ws_per_thread_ = conf_.jcp_.ow * conf_.jcp_.oc_block;
