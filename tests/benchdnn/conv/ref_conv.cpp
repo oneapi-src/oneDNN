@@ -51,6 +51,24 @@ void compute_ref_fwd(const prb_t *p, dnn_mem_t &src_m,
         }
     };
 
+    auto maybe_post_ops = [&](float &conv_res, float dst) {
+        const auto &ops = p->attr.post_ops;
+        for (int idx = 0; idx < ops.len; ++idx) {
+            using pk = attr_t::post_ops_t::kind_t;
+            const auto &e = ops.entry[idx];
+            switch (e.kind) {
+            case pk::SUM:
+                conv_res += e.sum.scale * dst;
+                break;
+            case pk::RELU:
+                conv_res = e.eltwise.scale * (conv_res < 0 ? 0 : conv_res);
+                break;
+            default:
+                assert(!"unknown attr::post_ops::kind");
+            }
+        }
+    };
+
 #   pragma omp parallel for collapse(5)
     for (int g = 0; g < p->g; ++g) {
     for (int mb = 0; mb < p->mb; ++mb) {
@@ -58,20 +76,23 @@ void compute_ref_fwd(const prb_t *p, dnn_mem_t &src_m,
         for (int oh = 0; oh < p->oh; ++oh) {
         for (int ow = 0; ow < p->ow; ++ow) {
             const size_t dst_off = dst_off_f(p, mb, g, oc, oh, ow);
-            float &d = ((float*)dst_m)[dst_off];
+            float &dst = ((float*)dst_m)[dst_off];
 
-            d = 0;
-            ker(d, g, mb, oc, oh, ow);
+            float conv_res = 0;
+            ker(conv_res, g, mb, oc, oh, ow);
 
             if (p->dir & FLAG_BIA) {
                 const size_t bia_off = bia_off_f(p, g, oc);
-                d += ((float*)bia_m)[bia_off];
+                conv_res += ((float*)bia_m)[bia_off];
             }
 
-            maybe_scale(d);
+            if (p->merge == RELU && conv_res < 0)
+                conv_res = 0;
 
-            if (p->merge == RELU && d < 0)
-                d = 0;
+            maybe_scale(conv_res);
+            maybe_post_ops(conv_res, dst);
+
+            dst = conv_res;
         }
         }
         }

@@ -75,6 +75,7 @@ The attribute string *attr_str* is defined as (new lines for readability):
 ```
     [irmode={nearest,down};]
     [oscale={none,common,per_oc}[:scale];]
+    [post_ops='[{relu,sum[:sum_scale]};]...';]
 ```
 
 Here `irmode` defines the rounding mode for integer output (default is nearest).
@@ -89,6 +90,11 @@ is 1.0. Known policies are:
   - `common` corresponds to `mask=0` with common scale factor
   - `per_oc` corresponds to `mask=1<<1` (i.e. output channels) with different scale factors
 
+Next, `post_ops` stands for post operation sequence. Currently supported post
+ops are:
+
+  - `relu` with no parameters (i.e. corresponding scale is 1., alg = eltwise_relu, alpha = beta = 0.)
+  - `sum` with optional parameter scale (default 1.)
 
 ### convolution configurations (aka precision specification)
 
@@ -108,7 +114,8 @@ configurations for **benchdnn**:
 | s16     | s16      | s32      | s32      | s16s16s32s32 | optimized for processors with support of 4vnni, forward pass only (aka FWD_D, FWD_B)
 | s32     | s16      | s16      | s32      | s32s16s16s32 | optimized for processors with support of 4vnni, backward wrt data only (aka BWD_D)
 | s16     | s32      | s16      | s32      | s16s32s16s32 | optimized for processors with support of 4vnni, backward wrt weights (aka BWD_W, BWD_WB)
-| u8      | s8       | s32      | s32      | u8s8s32s32   | optimized for processors with support of avx512vl, forward pass only (aka FWD_D, FWD_B)
+| u8      | s8       | f32      | s32      | u8s8f32s32   | optimized for processors with support of avx512vl, forward pass only (aka FWD_D, FWD_B)
+| u8      | s8       | s32      | s32      | u8s8s32s32   | same notes as for u8s8s32s32
 | u8      | s8       | s8       | s32      | u8s8s8s32    | same notes as for u8s8s32s32
 | u8      | s8       | u8       | s32      | u8s8u8s32    | same notes as for u8s8s32s32
 
@@ -222,13 +229,23 @@ Winograd:
         --alg=WINO   --batch=convs.in
 ```
 
-Run the default set of u8s8u8s32 forward convolutions w/o bias, default
-minibatch, and one common output scale set to 0.5 with rounding mode set to
-down (via attributes):
+Run the default set of u8s8u8s32 forward convolutions w/o bias, skipping
+reference implementations and not triggering unimplemented as an error, with
+one common output scale set to 0.5 with rounding mode set to down
+(via attributes):
 ```
     $ ./benchdnn --conv \
-        --cfg=u8s8u8s32 --dir=FWD_D \
+        --cfg=u8s8u8s32 --dir=FWD_D --skip-impl="ref" --allow-unimpl=true \
         --attr="irmode=down;oscale=common:.5"
+```
+
+Almost the same as above (with minor changes), but also add post operation
+sequence **(relu, then sum with scale .3, then relu)** using
+attributes/mkldnn_post_ops_t:
+```
+    $ ./benchdnn --conv \
+        --cfg=u8s8s32s32 --dir=FWD_B \
+        --attr="oscale=common:.5;post_ops='relu;sum:.3;relu'"
 ```
 
 

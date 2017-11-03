@@ -39,8 +39,37 @@ struct attr_t {
         bool is_def() const { return this->policy == NONE; }
     };
 
+    struct post_ops_t {
+        enum kind_t { SUM, RELU, KIND_TOTAL };
+        static kind_t str2kind(const char *str);
+        static const char *kind2str(kind_t kind);
+
+        struct entry_t {
+            kind_t kind;
+            union {
+                struct { float scale; } sum;
+                struct {
+                    // eltwise algorithm in future
+                    float scale, alpha, beta; // unused now
+                } eltwise;
+            };
+        };
+
+        post_ops_t(): len(0) {}
+
+        int from_str(const char *str, const char **end_s);
+        void to_str(char *buffer, char **end_b) const;
+
+        bool is_def() const { return len == 0; }
+
+        enum { capacity = 4 };
+        int len;
+        entry_t entry[4];
+    };
+
     round_mode_t irmode = NEAREST;
     scale_t oscale;
+    post_ops_t post_ops;
     mkldnn_primitive_attr_t mkldnn_attr = NULL;
 
     bool is_def() const;

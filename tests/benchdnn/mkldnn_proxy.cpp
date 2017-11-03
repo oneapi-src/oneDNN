@@ -81,10 +81,99 @@ void attr_t::scale_t::scale2str(char *buffer, char **end_b) const {
     if (end_b) *end_b = buffer;
 }
 
+attr_t::post_ops_t::kind_t attr_t::post_ops_t::str2kind(const char *str) {
+#define CASE(_knd) if (!strcasecmp(STRINGIFY(_knd), str)) return _knd
+    CASE(SUM);
+    CASE(RELU);
+#undef CASE
+    assert(!"unknown attr::post_ops::kind");
+    return KIND_TOTAL;
+}
+
+const char *attr_t::post_ops_t::kind2str(attr_t::post_ops_t::kind_t kind) {
+    if (kind == SUM) return "sum";
+    if (kind == RELU) return "relu";
+    assert(!"unknown attr::post_ops::kind");
+    return "unknown attr::post_ops::kind";
+}
+
+int attr_t::post_ops_t::from_str(const char *str, const char **end_s) {
+    *this = post_ops_t();
+
+    if (str == NULL || *str != '\'') return FAIL;
+
+    const char *s_;
+    const char * &s = end_s ? *end_s : s_;
+    s = str;
+
+    ++s;
+    for (;;) {
+        if (*s == '\'') { ++s; return OK; }
+        if (len == capacity) return FAIL;
+
+        for (kind_t k = SUM; true; k = (kind_t)((int)k + 1)) {
+            if (k == KIND_TOTAL) return FAIL;
+
+            const char *ks = kind2str(k);
+            if (!strncasecmp(ks, s, strlen(ks))) {
+                auto &e = entry[len];
+
+                e.kind = k;
+                s += strlen(ks);
+                if (k == SUM) {
+                    if (*s == ':') {
+                        char *end;
+                        e.sum.scale = strtof(++s, &end);
+                        if (e.sum.scale <= 0 || end == s) return FAIL;
+                        s = end;
+                    } else {
+                        e.sum.scale = 1.f;
+                    }
+                } else if (k == RELU) {
+                    e.eltwise.scale = 1.f;
+                    e.eltwise.alpha = e.eltwise.beta = 0.f;
+                }
+
+                break;
+            }
+        }
+        ++len;
+
+        if (*s == ';') ++s;
+    }
+
+    return FAIL; /* unreachable */
+}
+
+void attr_t::post_ops_t::to_str(char *buffer, char **end_b) const {
+    assert(buffer);
+
+    buffer += sprintf(buffer, "'");
+    for (int idx = 0; idx < len; ++idx) {
+        buffer += sprintf(buffer, "%s", idx > 0 ? ";" : "");
+        const auto &e = entry[idx];
+
+        switch (e.kind) {
+        case SUM:
+            buffer += sprintf(buffer, "%s:%g", kind2str(e.kind), e.sum.scale);
+            break;
+        case RELU:
+            buffer += sprintf(buffer, "%s", kind2str(e.kind));
+            break;
+        default:
+            assert(!"unknown kind");
+            buffer += sprintf(buffer, "unknown_kind");
+        }
+    }
+    buffer += sprintf(buffer, "'");
+    if (end_b) *end_b = buffer;
+}
+
 bool attr_t::is_def() const {
     return true
         && irmode == round_mode_t::NEAREST
-        && oscale.is_def();
+        && oscale.is_def()
+        && post_ops.is_def();
 }
 
 int attr_t::mkldnn_attr_recreate() {
@@ -105,6 +194,32 @@ int attr_t::mkldnn_attr_recreate() {
         DNN_SAFE(mkldnn_primitive_attr_set_output_scales(mkldnn_attr, count,
                     mask, scales), CRIT);
         zfree(scales);
+    }
+
+    if (!post_ops.is_def()) {
+        mkldnn_post_ops_t ops;
+        DNN_SAFE(mkldnn_post_ops_create(&ops), CRIT);
+        for (int idx = 0; idx < post_ops.len; ++idx) {
+            const auto &e = post_ops.entry[idx];
+            switch (post_ops.entry[idx].kind) {
+            case post_ops_t::SUM:
+                DNN_SAFE(mkldnn_post_ops_append_sum(ops, e.sum.scale), CRIT);
+                break;
+            case post_ops_t::RELU:
+                DNN_SAFE(mkldnn_post_ops_append_eltwise(ops, e.eltwise.scale,
+                            mkldnn_eltwise_relu, e.eltwise.alpha,
+                            e.eltwise.beta), CRIT);
+                break;
+            default:
+                assert(!"unknown attr::post_ops::kind");
+            }
+        }
+        DNN_SAFE(mkldnn_primitive_attr_set_post_ops(mkldnn_attr, ops), CRIT);
+
+        const_mkldnn_post_ops_t const_ops;
+        DNN_SAFE(mkldnn_primitive_attr_get_post_ops(mkldnn_attr, &const_ops),
+                CRIT);
+        SAFE(mkldnn_post_ops_len(const_ops) == post_ops.len ? OK : FAIL, CRIT);
     }
 
     return OK;
@@ -135,6 +250,13 @@ int str2attr(attr_t *attr, const char *str) {
             if (rc != OK) return rc;
         }
 
+        param = "post_ops=";
+        if (!strncasecmp(param, s, strlen(param))) {
+            s += strlen(param);
+            rc = attr->post_ops.from_str(s, &s);
+            if (rc != OK) return rc;
+        }
+
         if (rc != OK) return FAIL;
         if (*s == ';') ++s;
     }
@@ -149,4 +271,6 @@ void attr2str(const attr_t *attr, char *buffer) {
             rmode2str((mkldnn_round_mode_t)attr->irmode));
     buffer += sprintf(buffer, ";oscale=");
     attr->oscale.scale2str(buffer, &buffer);
+    buffer += sprintf(buffer, ";post_ops=");
+    attr->post_ops.to_str(buffer, &buffer);
 }
