@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #===============================================================================
 # Copyright 2016-2017 Intel Corporation
 #
@@ -15,12 +15,26 @@
 # limitations under the License.
 #===============================================================================
 
-MKLURL="https://github.com/01org/mkl-dnn/releases/download/v0.11/mklml_lnx_2018.0.1.20171007.tgz"
+OS=$(uname -s)
+case $OS in
+  Linux) platform=lnx;;
+  Darwin) platform=mac;;
+  Windows) platform=win;;
+esac
 
-DST=`dirname $0`/../external
-DST=`readlink -f $DST`
+MKL_VERSION="2018.0.1.20171007"
+MKL_NAME=mklml
+MKLURL="https://github.com/01org/mkl-dnn/releases/download/v0.11/${MKL_NAME}_${platform}_${MKL_VERSION}.tgz"
+
+# MacOS readlink doesn't support -f option
+DST=`dirname $0`/../
+pushd $DST > /dev/null
+DST=$(pwd)/external
+popd > /dev/null
+
 mkdir -p $DST
-wget --no-check-certificate -P $DST $MKLURL
-tar -xzf $DST/mklml_lnx*.tgz -C $DST
+
+wget -P $DST $MKLURL
+tar -xzf "$DST/${MKL_NAME}_${platform}_${MKL_VERSION}.tgz" -C $DST
 
 echo "Downloaded and unpacked Intel(R) MKL small libraries to $DST"
