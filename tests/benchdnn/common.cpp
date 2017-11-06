@@ -16,16 +16,28 @@
 
 #include "common.hpp"
 
-#include <chrono>
-#define HAVE_REGEX
-#if defined(HAVE_REGEX)
+void *zmalloc(size_t size, size_t align) {
+    void *ptr;
 #ifdef _WIN32
-#include <regex>
+    ptr = _aligned_malloc(size, align);
+    int rc = ((ptr) ? 0 : errno);
 #else
-#include <sys/types.h>
-#include <regex.h>
+    // TODO. Heuristics: Increasing the size to alignment increases
+    // the stability of performance results.
+    if (size < align)
+        size = align;
+    int rc = ::posix_memalign(&ptr, align, size);
 #endif /* _WIN32 */
-#endif /* HAVE_REGEX */
+    return rc == 0 ? ptr : 0;
+}
+
+void zfree(void *ptr) {
+#ifdef _WIN32
+    _aligned_free(ptr);
+#else
+    return ::free(ptr);
+#endif /* _WIN32 */
+}
 
 const char *bench_mode2str(bench_mode_t mode) {
     const char *modes[] = {
@@ -91,15 +103,19 @@ const char *bool2str(bool value) {
     return value ? "true" : "false";
 }
 
-#if defined(HAVE_REGEX)
 #ifdef _WIN32
 /* NOTE: this should be supported on linux as well, but currently
  * having issues for ICC170 and Clang*/
+#include <regex>
+
 bool match_regex(const char *str, const char *pattern) {
     std::regex re(pattern);
     return std::regex_search(str, re);
 }
 #else
+#include <sys/types.h>
+#include <regex.h>
+
 bool match_regex(const char *str, const char *pattern) {
     static regex_t regex;
     static const char *prev_pattern = NULL;
@@ -118,11 +134,10 @@ bool match_regex(const char *str, const char *pattern) {
     return !regexec(&regex, str, 0, NULL, 0);
 }
 #endif /* _WIN32 */
-#else
-bool match_regex(const char *str, const char *pattern) { return true; }
-#endif
 
 /* perf */
+
+#include <chrono>
 
 static inline double ms_now() {
     auto timePointTmp
@@ -190,4 +205,51 @@ benchdnn_timer_t &benchdnn_timer_t::operator=(const benchdnn_timer_t &rhs) {
     for (int i = 0; i < n_modes; ++i) ms_[i] = rhs.ms_[i];
     ms_start_ = rhs.ms_start_;
     return *this;
+}
+
+void parse_result(res_t &res, bool &want_perf_report, bool allow_unimpl,
+        int status, char *pstr) {
+    auto &bs = benchdnn_stat;
+    const char *state = state2str(res.state);
+
+    switch (res.state) {
+    case UNTESTED:
+        if (!(bench_mode & CORR)) {
+            want_perf_report = true;
+            break;
+        }
+    case FAILED:
+        assert(status == FAIL);
+        bs.failed++;
+        print(0, "%d:%s (errors:%lu total:%lu) __REPRO: %s\n", bs.tests, state,
+                (unsigned long)res.errors,
+                (unsigned long)res.total, pstr);
+        break;
+    case SKIPPED:
+        assert(status == OK);
+        print(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
+        bs.skipped++;
+        break;
+    case UNIMPLEMENTED:
+        assert(status == OK);
+        print(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
+        bs.unimplemented++;
+        bs.failed += !allow_unimpl;
+        break;
+    case MISTRUSTED:
+        assert(status == OK);
+        bs.mistrusted++;
+        print(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
+        // bs.failed++; /* temporal workaround for some tests */
+        break;
+    case PASSED:
+        assert(status == OK);
+        print(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
+        want_perf_report = true;
+        bs.passed++;
+        break;
+    default:
+        assert(!"unknown state");
+        { []() { SAFE(FAIL, CRIT); return 0; }(); }
+    }
 }

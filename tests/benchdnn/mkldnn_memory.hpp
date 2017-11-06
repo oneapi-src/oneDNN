@@ -25,13 +25,12 @@ struct dnn_mem_t {
     dnn_mem_t(const mkldnn_memory_desc_t &md, void *data = NULL): active_(true)
     { initialize(md, data); }
 
-    dnn_mem_t(int ndims, mkldnn_dims_t dims, mkldnn_data_type_t dt,
+    dnn_mem_t(int ndims, const mkldnn_dims_t dims, mkldnn_data_type_t dt,
             mkldnn_memory_format_t fmt, void *data = NULL): active_(true) {
         mkldnn_memory_desc_t md;
         /* is it ugly enough? */
         [&](){
-            DNN_SAFE(mkldnn_memory_desc_init(&md, ndims, dims, dt, fmt),
-                    CRIT);
+            DNN_SAFE(mkldnn_memory_desc_init(&md, ndims, dims, dt, fmt), CRIT);
             SAFE(initialize(md, data), CRIT);
             return OK;
         }();
@@ -89,14 +88,17 @@ struct dnn_mem_t {
     int H() { return md_.dims[with_G() + 2]; } // works for both IH and KH
     int W() { return md_.dims[with_G() + 3]; } // works for both IW and KW
 
-    size_t size() { return mkldnn_memory_primitive_desc_get_size(mpd_); }
-    size_t nelems() {
-        DNN_SAFE(md_.data_type != mkldnn_f32
-                ? mkldnn_invalid_arguments : mkldnn_success, CRIT);
-        return size() / sizeof(float);
+    size_t size() const { return mkldnn_memory_primitive_desc_get_size(mpd_); }
+
+    size_t nelems() const {
+        size_t n = 1;
+        for (int i = 0; i < md_.ndims; ++i)
+            n *= md_.dims[i];
+        return n;
     }
 
     mkldnn_data_type_t dt() const { return md_.data_type; }
+    size_t sizeof_dt() const { return ::sizeof_dt(dt()); }
 
     template <typename T>
     explicit operator T*() const { return static_cast<T*>(data_); }

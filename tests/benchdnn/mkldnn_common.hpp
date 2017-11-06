@@ -17,26 +17,12 @@
 #ifndef _MKLDNN_COMMON_HPP
 #define _MKLDNN_COMMON_HPP
 
+#include <stddef.h>
+#include <stdint.h>
 #include "mkldnn.h"
 
 #include "common.hpp"
-
-inline const char *status2str(mkldnn_status_t status) {
-#   define CASE(s) case s: return #s
-    switch (status) {
-    CASE(mkldnn_success);
-    CASE(mkldnn_out_of_memory);
-    CASE(mkldnn_try_again);
-    CASE(mkldnn_invalid_arguments);
-    CASE(mkldnn_not_ready);
-    CASE(mkldnn_unimplemented);
-    CASE(mkldnn_iterator_ends);
-    CASE(mkldnn_runtime_error);
-    CASE(mkldnn_not_required);
-    }
-    return "unknown error";
-#   undef CASE
-}
+#include "mkldnn_debug.hpp"
 
 #define DNN_SAFE(f, s) do { \
     mkldnn_status_t status = f; \
@@ -51,6 +37,30 @@ inline const char *status2str(mkldnn_status_t status) {
         return FAIL; \
     } \
 } while(0)
+
+/* aux */
+
+template <mkldnn_data_type_t> struct prec_traits;
+
+template <> struct prec_traits<mkldnn_f32> { typedef float type; };
+template <> struct prec_traits<mkldnn_s32> { typedef int32_t type; };
+template <> struct prec_traits<mkldnn_s16> { typedef int16_t type; };
+template <> struct prec_traits<mkldnn_s8> { typedef int8_t type; };
+template <> struct prec_traits<mkldnn_u8> { typedef uint8_t type; };
+
+inline size_t sizeof_dt(mkldnn_data_type_t dt) {
+    switch (dt) {
+#   define CASE(dt) case dt: return sizeof(typename prec_traits<dt>::type)
+    CASE(mkldnn_f32);
+    CASE(mkldnn_s32);
+    CASE(mkldnn_s16);
+    CASE(mkldnn_s8);
+    CASE(mkldnn_u8);
+#   undef CASE
+    default: assert(!"bad data_type");
+    }
+    return 0;
+}
 
 /* simplification */
 extern mkldnn_engine_t engine;

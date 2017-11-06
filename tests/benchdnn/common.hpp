@@ -63,27 +63,8 @@ enum { CRIT = 1, WARN = 2 };
 #define CONCAt2(a,b) a ## b
 #define CONCAT2(a,b) CONCAt2(a,b)
 
-inline void *zmalloc(size_t size, size_t align) {
-    void *ptr;
-#ifdef _WIN32
-    ptr = _aligned_malloc(size, align);
-    int rc = ((ptr) ? 0 : errno);
-#else
-    // TODO. Heuristics: Increasing the size to alignment increases
-    // the stability of performance results.
-    if (size < align)
-        size = align;
-    int rc = ::posix_memalign(&ptr, align, size);
-#endif /* _WIN32 */
-    return rc == 0 ? ptr : 0;
-}
-inline void zfree(void *ptr) {
-#ifdef _WIN32
-    _aligned_free(ptr);
-#else
-    return ::free(ptr);
-#endif /* _WIN32 */
-}
+void *zmalloc(size_t size, size_t align);
+void zfree(void *ptr);
 
 enum bench_mode_t { MODE_UNDEF = 0x0, CORR = 0x1, PERF = 0x2, };
 const char *bench_mode2str(bench_mode_t mode);
@@ -177,5 +158,8 @@ struct res_t {
     size_t errors, total;
     benchdnn_timer_t timer;
 };
+
+void parse_result(res_t &res, bool &want_perf_report, bool allow_unimpl,
+        int status, char *pstr);
 
 #endif

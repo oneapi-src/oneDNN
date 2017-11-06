@@ -14,24 +14,22 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <stdio.h>
-#include <stdlib.h>
+#ifndef _MKLDNN_DEBUG_HPP
+#define _MKLDNN_DEBUG_HPP
 
-#include "self/self.hpp"
+#include "mkldnn.h"
 
-namespace self {
+/* status */
+const char *status2str(mkldnn_status_t status);
 
-int bench(int argc, char **argv, bool main_bench) {
-    (void)argv; (void)main_bench;
+/* data type */
+const char *dt2str(mkldnn_data_type_t dt);
 
-    SAFE(argc == 0 ? OK : FAIL, CRIT);
-    SAFE(bench_mode == CORR ? OK : FAIL, CRIT);
+/* round mode */
+const char *rmode2str(mkldnn_round_mode_t rmode);
+mkldnn_round_mode_t str2rmode(const char *str);
 
-    common();
-    conv();
+/* format */
+const char *fmt2str(mkldnn_memory_format_t fmt);
 
-    auto &bs = benchdnn_stat;
-    return bs.tests == bs.passed ? OK : FAIL;
-}
-
-}
+#endif

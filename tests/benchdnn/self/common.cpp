@@ -13,47 +13,19 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
+
 #include <string.h>
 #include <stdlib.h>
 
-#include "self/self.hpp"
-#include "conv/conv.hpp"
+#include "common.hpp"
+#include "mkldnn_common.hpp"
+#include "mkldnn_proxy.hpp"
 
-using namespace conv;
+#include "self/self.hpp"
 
 namespace self {
 
-int check_simple_enums() {
-    /* alg */
-    CHECK_CASE_STR_EQ(alg2str(alg_t::DIRECT), "direct");
-    CHECK_CASE_STR_NE(alg2str(alg_t::DIRECT), "directx");
-
-    CHECK_CASE_STR_EQ(alg2str(alg_t::WINO), "wino");
-    CHECK_CASE_STR_NE(alg2str(alg_t::WINO), "winox");
-
-    CHECK_EQ(str2alg("direct"), alg_t::DIRECT);
-    CHECK_EQ(str2alg("DIRECT"), alg_t::DIRECT);
-
-    CHECK_EQ(str2alg("wino"), alg_t::WINO);
-    CHECK_EQ(str2alg("WINO"), alg_t::WINO);
-
-    /* merge */
-    CHECK_CASE_STR_EQ(merge2str(merge_t::NONE), "none");
-    CHECK_CASE_STR_NE(merge2str(merge_t::NONE), "nonex");
-
-    CHECK_CASE_STR_EQ(merge2str(merge_t::RELU), "relu");
-    CHECK_CASE_STR_NE(merge2str(merge_t::RELU), "relux");
-
-    CHECK_EQ(str2merge("none"), merge_t::NONE);
-    CHECK_EQ(str2merge("NONE"), merge_t::NONE);
-
-    CHECK_EQ(str2merge("relu"), merge_t::RELU);
-    CHECK_EQ(str2merge("RELU"), merge_t::RELU);
-
-    return OK;
-}
-
-int check_attr2str() {
+static int check_attr2str() {
     char str[max_attr_len] = {'\0'};
 
     attr_t attr;
@@ -82,7 +54,7 @@ int check_attr2str() {
     return OK;
 }
 
-int check_str2attr() {
+static int check_str2attr() {
     attr_t attr;
 
 #   define CHECK_ATTR(str, irmode, os_policy, os_scale) \
@@ -110,8 +82,7 @@ int check_str2attr() {
     return OK;
 }
 
-void conv() {
-    RUN(check_simple_enums());
+void common() {
     RUN(check_attr2str());
     RUN(check_str2attr());
 }

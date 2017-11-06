@@ -70,54 +70,12 @@ void check_correctness(const desc_t *c) {
 
     bool want_perf_report = false;
 
-    auto &bs = benchdnn_stat;
-    const char *state = state2str(res.state);
-
-    switch (res.state) {
-    case UNTESTED:
-        if (!(bench_mode & CORR)) {
-            want_perf_report = true;
-            break;
-        }
-    case FAILED:
-        assert(status == FAIL);
-        bs.failed++;
-        print(0, "%d:%s (errors:%lu total:%lu) __REPRO: %s\n", bs.tests, state,
-                (unsigned long)res.errors,
-                (unsigned long)res.total, pstr);
-        break;
-    case SKIPPED:
-        assert(status == OK);
-        print(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
-        bs.skipped++;
-        break;
-    case UNIMPLEMENTED:
-        assert(status == OK);
-        print(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
-        bs.unimplemented++;
-        bs.failed += !allow_unimpl;
-        break;
-    case MISTRUSTED:
-        assert(status == OK);
-        bs.mistrusted++;
-        print(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
-        // bs.failed++; /* temporal workaround for some tests */
-        break;
-    case PASSED:
-        assert(status == OK);
-        print(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
-        want_perf_report = true;
-        bs.passed++;
-        break;
-    default:
-        assert(!"unknown state");
-        { []() { SAFE(FAIL, CRIT); return 0; }(); }
-    }
+    parse_result(res, want_perf_report, allow_unimpl, status, pstr);
 
     if (want_perf_report && bench_mode & PERF)
         perf_report(&p, &res, pstr);
 
-    bs.tests++;
+    benchdnn_stat.tests++;
 }
 
 int batch(const char *fname);
