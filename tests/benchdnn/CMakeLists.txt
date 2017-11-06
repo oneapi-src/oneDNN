@@ -26,6 +26,7 @@ include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/conv
     ${CMAKE_CURRENT_SOURCE_DIR}/ip
+    ${CMAKE_CURRENT_SOURCE_DIR}/reorder
     )
 
 option(BENCHDNN_USE_RDPMC

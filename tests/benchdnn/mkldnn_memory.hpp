@@ -61,13 +61,14 @@ struct dnn_mem_t {
 
     ~dnn_mem_t() { cleanup(); }
 
-    int reorder(const dnn_mem_t &rhs) {
+    int reorder(const dnn_mem_t &rhs) { return reorder(rhs, NULL); }
+    int reorder(const dnn_mem_t &rhs, const mkldnn_primitive_attr_t &attr) {
         if (this == &rhs) return OK;
 
         mkldnn_primitive_desc_t rpd;
         mkldnn_primitive_t r;
-        DNN_SAFE(mkldnn_reorder_primitive_desc_create(&rpd, rhs.mpd_, mpd_),
-                WARN);
+        DNN_SAFE(mkldnn_reorder_primitive_desc_create_v2(&rpd, rhs.mpd_,
+                    mpd_, attr), WARN);
         mkldnn_primitive_at_t i = {rhs.p_, 0};
         const_mkldnn_primitive_t o = p_;
         DNN_SAFE(mkldnn_primitive_create(&r, rpd, &i, &o), WARN);
@@ -102,6 +103,51 @@ struct dnn_mem_t {
 
     template <typename T>
     explicit operator T*() const { return static_cast<T*>(data_); }
+
+    float get_elem(size_t idx) const {
+        float elem = 0.0;
+        switch (dt()) {
+            case mkldnn_s8: elem = static_cast<int8_t *>(data_)[idx]; break;
+            case mkldnn_u8: elem = static_cast<uint8_t *>(data_)[idx]; break;
+            case mkldnn_s16: elem = static_cast<int16_t *>(data_)[idx]; break;
+            case mkldnn_s32: elem = static_cast<int32_t *>(data_)[idx]; break;
+            case mkldnn_f32: elem = static_cast<float *>(data_)[idx]; break;
+            default: assert(!"bad data type");
+        }
+        return elem;
+    }
+
+    void set_elem(size_t idx, float value) {
+        switch (dt()) {
+            case mkldnn_s8: ((int8_t *)data_)[idx] = value; break;
+            case mkldnn_u8: ((uint8_t *)data_)[idx] = value; break;
+            case mkldnn_s16: ((int16_t *)data_)[idx] = value; break;
+            case mkldnn_s32: ((int32_t *)data_)[idx] = value; break;
+            case mkldnn_f32: ((float *)data_)[idx] = value; break;
+            default: assert(!"bad data type");
+        }
+    }
+
+    int get_scale_idx(size_t data_idx, int scale_mask) const {
+        const int ndims = md_.ndims;
+        const auto &dims = md_.dims;
+        int stride = 1;
+        int offset = 0;
+
+        if (scale_mask != 0) {
+            for (int i = 0; i < ndims; ++i) {
+                size_t d = md_.ndims - 1 - i;
+                auto pos = data_idx % dims[d];
+                data_idx /= dims[d];
+                if (scale_mask & (1 << d)) {
+                    offset += pos * stride;
+                    stride *= dims[d];
+                }
+            }
+        }
+
+        return offset;
+    }
 
     /* fields */
 
