@@ -38,6 +38,22 @@ status_t safe_ptr_assign(T * &lhs, T* rhs) {
     return status::success;
 }
 
+template <typename T, typename U> struct is_subset
+{ static constexpr bool value = false; };
+template <typename T> struct is_subset<T, T>
+{ static constexpr bool value = true; };
+template <typename T> struct is_subset<T,
+         typename utils::enable_if<nstl::is_integral<T>::value, float>::type>
+{ static constexpr bool value = true; };
+#define ISSPEC(t1, t2) template <> \
+    struct is_subset<t1, t2> { static constexpr bool value = true; }
+ISSPEC(int16_t, int32_t);
+ISSPEC(int8_t, int32_t);
+ISSPEC(uint8_t, int32_t);
+ISSPEC(int8_t, int16_t);
+ISSPEC(uint8_t, int16_t);
+#undef ISSPEC
+
 namespace types {
 
 inline size_t data_type_size(data_type_t data_type) {

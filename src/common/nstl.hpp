@@ -75,6 +75,13 @@ template<> struct numeric_limits<uint8_t> {
     static constexpr uint8_t max() { return UINT8_MAX; }
 };
 
+template<typename T> struct is_integral
+{ static constexpr bool value = false; };
+template<> struct is_integral<int32_t> { static constexpr bool value = true; };
+template<> struct is_integral<int16_t> { static constexpr bool value = true; };
+template<> struct is_integral<int8_t> { static constexpr bool value = true; };
+template<> struct is_integral<uint8_t> { static constexpr bool value = true; };
+
 // Rationale: MKL-DNN needs container implementations that do not generate
 // dependencies on C++ run-time libraries.
 //

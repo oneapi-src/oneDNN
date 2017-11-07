@@ -37,6 +37,10 @@ inline typename utils::remove_reference<data_t>::type saturate(const acc_t &x)
     return (typename utils::remove_reference<data_t>::type)v;
 }
 
+template <> inline int8_t saturate<int8_t, uint8_t>(const uint8_t &x) {
+    return x <= 127u ? x : 127;
+}
+
 inline int gcd(int a, int b) {
 	a = impl::nstl::abs(a);
 	b = impl::nstl::abs(b);
