@@ -898,8 +898,12 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
         if (jcp.ver == ver_4fma) {
             // reduce_block should be divided by fma_step
             jcp.reduce_block = best_divider(jcp.reduce_dim, 4, 16, true, 4);
-        } else
+        } else {
             jcp.reduce_block = best_divider(jcp.reduce_dim, 7, 16, true);
+            if (jcp.reduce_dim % jcp.reduce_block != 0)
+                jcp.reduce_block = best_divider(jcp.iw, 4, jcp.iw, false);
+        }
+
 
         jcp.load_dim = jcp.oc;
         jcp.load_block = jcp.oc_block;
@@ -984,6 +988,7 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
     }
 
     assert(jcp.bcast_block % jcp.ur == 0);
+    assert(jcp.reduce_dim % jcp.reduce_block == 0);
 
     jcp.ur_tail = jcp.bcast_dim % jcp.ur;
 

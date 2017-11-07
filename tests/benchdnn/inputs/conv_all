@@ -3,3 +3,4 @@
 --batch=conv_resnet_50
 --batch=conv_googlenet_v1
 --batch=conv_googlenet_v2
+--batch=conv_googlenet_v3
