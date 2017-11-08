@@ -93,17 +93,19 @@ int check_reorder(const prb_t *p, res_t *res) {
     /* Step 4: execute mkl-dnn */
     SAFE(mem_dt_in_fmt_in.reorder(mem_dt_in_fmt_ref), WARN);
 
+    auto mkldnn_attr = create_mkldnn_attr(p->attr, count, scales);
+
     mkldnn_primitive_desc_t check_rpd;
     mkldnn_status_t init_status = mkldnn_reorder_primitive_desc_create_v2(
             &check_rpd, mem_dt_in_fmt_in.mpd_, mem_dt_out_fmt_out.mpd_,
-            p->attr.mkldnn_attr);
+            mkldnn_attr);
     if (init_status == mkldnn_unimplemented) {
+        mkldnn_primitive_attr_destroy(mkldnn_attr);
         return res->state = UNIMPLEMENTED, OK;
     }
     SAFE(init_status, WARN);
 
-    SAFE(mem_dt_out_fmt_out.reorder(mem_dt_in_fmt_in, p->attr.mkldnn_attr),
-            WARN);
+    SAFE(mem_dt_out_fmt_out.reorder(mem_dt_in_fmt_in, mkldnn_attr), WARN);
     SAFE(mem_dt_out_fmt_ref.reorder(mem_dt_out_fmt_out), WARN);
 
     /* Step 5: execute benchdnn reorder */
@@ -121,8 +123,8 @@ int check_reorder(const prb_t *p, res_t *res) {
         t.reset();
         while (true) {
             /* FIXME: remove creating of reorder primitive from measuring */
-            SAFE(mem_dt_out_fmt_out.reorder(mem_dt_in_fmt_in,
-                        p->attr.mkldnn_attr), WARN);
+            SAFE(mem_dt_out_fmt_out.reorder(mem_dt_in_fmt_in, mkldnn_attr),
+                    WARN);
             t.stamp();
             const bool stop = false
                 || (fix_times_per_prb && t.times() >= fix_times_per_prb)
@@ -134,6 +136,7 @@ int check_reorder(const prb_t *p, res_t *res) {
     }
 
     /* Step 8: clean up */
+    mkldnn_primitive_attr_destroy(mkldnn_attr);
     zfree(scales);
 
     return OK;

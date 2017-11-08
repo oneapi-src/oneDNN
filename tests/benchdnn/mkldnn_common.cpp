@@ -14,6 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <assert.h>
+#include "mkldnn.h"
+
 #include "mkldnn_common.hpp"
 
 mkldnn_engine_t engine;

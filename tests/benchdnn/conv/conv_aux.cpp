@@ -224,6 +224,28 @@ void prb_t::count_ops() {
     ops = 2 * this->mb * this->oc * this->ic / this->g * sp_ops;
 }
 
+void prb_t::generate_oscales() {
+    if (attr.oscale.policy != attr_t::scale_t::policy_t::PER_OC) return;
+
+    scales = (float *)zmalloc(sizeof(float) * oc, 64);
+    SAFE_V(scales != NULL ? OK : FAIL);
+
+    const float K = 32;
+    /* scale in [1/K .. K], with starting point at oscale.scale */
+    float s[2] = {attr.oscale.scale, attr.oscale.scale/2};
+    for (int i = 0; i < oc; ++i) {
+        int si = i % 2; // 0 -> left, 1 -> right
+        scales[i] = s[si];
+        if (si == 0) {
+            s[si] /= 2.;
+            if (s[si] < 1./K) s[si] *= K*K; // turn around to become ~K
+        } else {
+            s[si] *= 2.;
+            if (s[si] > K) s[si] /= K*K; // turn around to become ~K
+        }
+    }
+}
+
 void prb2str(const prb_t *p, char *buffer, bool canonical) {
     char desc_buf[max_desc_len], attr_buf[max_attr_len];
     char dir_str[32] = {0}, cfg_str[32] = {0}, alg_str[32] = {0},

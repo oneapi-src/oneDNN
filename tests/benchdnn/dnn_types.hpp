@@ -14,10 +14,28 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef _MKLDNN_PROXY_HPP
-#define _MKLDNN_PROXY_HPP
+#ifndef _DNN_TYPES_HPP
+#define _DNN_TYPES_HPP
 
+#include <stdlib.h>
+#include <stddef.h>
+#include <string.h>
+
+#include "common.hpp"
 #include "mkldnn_types.h"
+
+enum dir_t {
+    DIR_UNDEF = 0,
+    FLAG_DAT = 1, FLAG_WEI = 2, FLAG_BIA = 4,
+    FLAG_FWD = 32, FLAG_BWD = 64,
+    FWD_D = FLAG_FWD + FLAG_DAT,
+    FWD_B = FLAG_FWD + FLAG_DAT + FLAG_BIA,
+    BWD_D = FLAG_BWD + FLAG_DAT,
+    BWD_W = FLAG_BWD + FLAG_WEI,
+    BWD_WB = FLAG_BWD + FLAG_WEI + FLAG_BIA,
+};
+dir_t str2dir(const char *str);
+const char *dir2str(dir_t dir);
 
 struct attr_t {
     enum round_mode_t {
@@ -30,13 +48,13 @@ struct attr_t {
         static policy_t str2policy(const char *str);
         static const char *policy2str(policy_t policy);
 
-        policy_t policy = NONE;
-        float scale = 1.;
-
         int str2scale(const char *str, const char **end_s);
         void scale2str(char *buffer, char **end_b) const;
 
         bool is_def() const { return this->policy == NONE; }
+
+        policy_t policy = NONE;
+        float scale = 1.;
     };
 
     struct post_ops_t {
@@ -70,14 +88,15 @@ struct attr_t {
     round_mode_t irmode = NEAREST;
     scale_t oscale;
     post_ops_t post_ops;
-    mkldnn_primitive_attr_t mkldnn_attr = NULL;
 
     bool is_def() const;
-    int mkldnn_attr_recreate();
 };
 
 const size_t max_attr_len = 128;
 int str2attr(attr_t *attr, const char *str);
 void attr2str(const attr_t *attr, char *buffer);
+
+mkldnn_primitive_attr_t create_mkldnn_attr(const attr_t &attr, int scale_cnt,
+        const float *scales);
 
 #endif

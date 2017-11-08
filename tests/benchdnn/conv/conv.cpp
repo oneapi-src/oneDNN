@@ -34,6 +34,15 @@ double get_trust_nz_level(const prb_t *p, int what, bool final_compare) {
     if (!final_compare)
         return p->cfg[what].f_sparsity;
 
+    auto count_relu = [&]() {
+        const auto &po = p->attr.post_ops;
+        int count = 0;
+        for (int i = 0; i < po.len; ++i)
+            count += po.entry[i].kind == attr_t::post_ops_t::kind_t::RELU;
+        count = MAX2(count, p->merge == RELU ? 1 : 0);
+        return count;
+    };
+
     double trust = 0.3; /* why? */
     switch (what) {
         case SRC:
@@ -47,7 +56,7 @@ double get_trust_nz_level(const prb_t *p, int what, bool final_compare) {
             trust = 0.8 * p->cfg[DST].f_sparsity; /* why? */
             break;
         case DST:
-            trust /= p->merge == RELU ? 2. : 1.;
+            trust /= count_relu() == 0 ? 1 : 2;
             break;
     }
 
@@ -409,16 +418,20 @@ inline int init_pd(const prb_t *p, mkldnn_convolution_desc_t &cd,
     DNN_SAFE(cd.accum_data_type == p->cfg[ACC].dt
             ? mkldnn_success : mkldnn_unimplemented, CRIT);
 
+    auto mkldnn_attr = create_mkldnn_attr(p->attr, p->oc, p->scales);
+
     mkldnn_status_t init_status = mkldnn_success;
     if (p->merge == RELU) {
         mkldnn_convolution_relu_desc_t crd;
         DNN_SAFE(mkldnn_convolution_relu_desc_init(&crd, &cd, 0), WARN);
-        init_status = mkldnn_primitive_desc_create_v2(&cpd, &crd,
-                p->attr.mkldnn_attr, engine, NULL);
+        init_status = mkldnn_primitive_desc_create_v2(&cpd, &crd, mkldnn_attr,
+                engine, NULL);
     } else {
-        init_status = mkldnn_primitive_desc_create_v2(&cpd, &cd,
-                p->attr.mkldnn_attr, engine, NULL);
+        init_status = mkldnn_primitive_desc_create_v2(&cpd, &cd, mkldnn_attr,
+                engine, NULL);
     }
+
+    mkldnn_primitive_attr_destroy(mkldnn_attr);
 
     if (init_status == mkldnn_unimplemented)
         return r->state = UNIMPLEMENTED, OK;

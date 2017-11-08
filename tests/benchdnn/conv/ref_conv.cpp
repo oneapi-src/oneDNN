@@ -38,15 +38,14 @@ void compute_ref_fwd(const prb_t *p, dnn_mem_t &src_m,
         }
     };
 
-    auto maybe_scale = [&](float &d) {
+    auto maybe_scale = [&](float &d, int oc) {
         if (!p->attr.oscale.is_def()) {
             using policy_t = attr_t::scale_t::policy_t;
             const auto &s = p->attr.oscale;
             if (s.policy == policy_t::COMMON) {
                 d *= s.scale;
             } else {
-                /* unsupported so far */
-                []() { SAFE(FAIL, CRIT); return 0; }();
+                d *= p->scales[oc];
             }
         }
     };
@@ -89,7 +88,7 @@ void compute_ref_fwd(const prb_t *p, dnn_mem_t &src_m,
             if (p->merge == RELU && conv_res < 0)
                 conv_res = 0;
 
-            maybe_scale(conv_res);
+            maybe_scale(conv_res, g * p->oc / p->g + oc);
             maybe_post_ops(conv_res, dst);
 
             dst = conv_res;

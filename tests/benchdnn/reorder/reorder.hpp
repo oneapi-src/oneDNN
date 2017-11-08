@@ -20,9 +20,9 @@
 #include "mkldnn.h"
 
 #include "common.hpp"
+#include "dnn_types.hpp"
 #include "mkldnn_common.hpp"
 #include "mkldnn_memory.hpp"
-#include "mkldnn_proxy.hpp"
 
 namespace reorder {
 
@@ -53,7 +53,6 @@ struct prb_t {
             attr.irmode = q->irmode;
             attr.oscale.policy = q->policy;
             attr.oscale.scale = q->scale;
-            attr.mkldnn_attr_recreate();
         }
 
     const reorder_conf_t *reorder;
@@ -91,4 +90,5 @@ int dims2str(int ndims, const mkldnn_dims_t dims, char **_buffer, int rem_len);
 void prb2str(const prb_t *p, const res_t *res, char *buffer);
 
 }
+
 #endif

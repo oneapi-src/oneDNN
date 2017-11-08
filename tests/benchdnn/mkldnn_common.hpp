@@ -22,6 +22,7 @@
 #include "mkldnn.h"
 
 #include "common.hpp"
+#include "dnn_types.hpp"
 #include "mkldnn_debug.hpp"
 
 #define DNN_SAFE(f, s) do { \
@@ -38,10 +39,19 @@
     } \
 } while(0)
 
+#define DNN_SAFE_V(f) do { \
+    mkldnn_status_t status = f; \
+    if (status != mkldnn_success) { \
+        print(0, "error [%s:%d]: '%s' -> %s(%d)\n", \
+                __PRETTY_FUNCTION__, __LINE__, \
+                STRINGIFY(f), status2str(status), (int)status); \
+        fflush(0); \
+        exit(2); \
+    } \
+} while(0)
+
 /* aux */
-
 template <mkldnn_data_type_t> struct prec_traits;
-
 template <> struct prec_traits<mkldnn_f32> { typedef float type; };
 template <> struct prec_traits<mkldnn_s32> { typedef int32_t type; };
 template <> struct prec_traits<mkldnn_s16> { typedef int16_t type; };

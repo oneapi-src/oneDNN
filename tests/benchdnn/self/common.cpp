@@ -19,7 +19,6 @@
 
 #include "common.hpp"
 #include "mkldnn_common.hpp"
-#include "mkldnn_proxy.hpp"
 
 #include "self/self.hpp"
 

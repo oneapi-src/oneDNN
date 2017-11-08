@@ -22,9 +22,9 @@
 #include <assert.h>
 
 #include "common.hpp"
+#include "dnn_types.hpp"
 #include "mkldnn_common.hpp"
 #include "mkldnn_memory.hpp"
-#include "mkldnn_proxy.hpp"
 
 namespace conv {
 
@@ -96,10 +96,12 @@ struct prb_t: public desc_t {
     prb_t(const desc_t &desc, dir_t dir, const dt_conf_t *cfg, alg_t alg,
             merge_t merge, const attr_t &attr, int mb = 0)
         : desc_t(desc), dir(dir), cfg(cfg), alg(alg), merge(merge), attr(attr)
-        , ops(0) {
+        , ops(0), scales(NULL) {
         if (mb) this->mb = mb;
         count_ops();
+        generate_oscales();
     }
+    ~prb_t() { if (scales) zfree(scales); }
 
     dir_t dir;
     const dt_conf_t *cfg;
@@ -108,8 +110,14 @@ struct prb_t: public desc_t {
     attr_t attr;
 
     double ops;
+    float *scales;
 
     void count_ops();
+    void generate_oscales();
+
+private:
+    prb_t(const prb_t &) = delete;
+    prb_t &operator=(const prb_t &) = delete;
 };
 const size_t max_prb_len = max_attr_len + max_desc_len + 196;
 void prb2str(const prb_t *p, char *buffer, bool canonical = false);
@@ -176,6 +184,8 @@ inline void inv_dst_off_f(const prb_t *p, size_t off, int &mb, int &g, int &oc,
     mb = off % p->mb; off /= p->mb;
     assert(off == 0);
 }
+
+float oscale(const prb_t *p, int oc);
 
 void compute_ref_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
         dnn_mem_t &bia_m, dnn_mem_t &dst_m);
