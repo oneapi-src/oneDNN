@@ -19,9 +19,9 @@ MKLURLROOT="https://github.com/01org/mkl-dnn/releases/download/v0.11/"
 MKLVERSION="2018.0.1.20171007"
 
 os=`uname`
-if [ "$os" == "Linux" ]; then
+if [ "$os" = "Linux" ]; then
   MKLPACKAGE="mklml_lnx_${MKLVERSION}.tgz"
-elif [ "$os" == "Darwin" ]; then
+elif [ "$os" = "Darwin" ]; then
   MKLPACKAGE="mklml_mac_${MKLVERSION}.tgz"
 else
   echo "Cannot identify operating system. Try downloading package manually."
