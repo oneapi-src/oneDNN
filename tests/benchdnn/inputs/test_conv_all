@@ -40,3 +40,6 @@
 --dir=BWD_WB --batch=conv_all
 --mb=1
 --dir=FWD_B --batch=conv_all
+
+# attributes
+--batch=test_conv_attrs
