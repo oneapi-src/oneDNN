@@ -612,8 +612,6 @@ status_t jit_avx2_conv_bwd_data_kernel_f32::init_conf(jit_conv_conf_t &jcp,
         && jcp.dilate_w == 0
         && jcp.ic % simd_w == 0
         && jcp.oc % simd_w == 0
-        && jcp.t_pad == jcp.l_pad /* Only AlexNet so far */
-        && (jcp.t_pad == 1 || jcp.t_pad == 2) /* Only AlexNet so far */
         && jcp.oh == (jcp.ihp - jcp.kh) / jcp.stride_h + 1
         && jcp.ow == (jcp.iwp - jcp.kw) / jcp.stride_w + 1;
     if (!args_ok) return status::unimplemented;
