@@ -60,7 +60,8 @@ struct _jit_avx2_convolution_fwd_t: public cpu_primitive_t {
 
             return jit_avx2_conv_fwd_kernel_f32::init_conf(jcp_, this->cdesc_(),
                     *this->src_pd_.desc(), *this->weights_pd_.desc(),
-                    *this->dst_pd_.desc(), with_relu, this->negative_slope());
+                    *this->dst_pd_.desc(), *this->attr(),
+                    with_relu, this->negative_slope());
         }
 
         jit_conv_conf_t jcp_;
@@ -87,7 +88,7 @@ struct _jit_avx2_convolution_fwd_t: public cpu_primitive_t {
     _jit_avx2_convolution_fwd_t(const pd_t *pd, const input_vector &inputs,
             const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
-    { kernel_ = new jit_avx2_conv_fwd_kernel_f32(conf_.jcp_); }
+    { kernel_ = new jit_avx2_conv_fwd_kernel_f32(conf_.jcp_, *conf_.attr()); }
     ~_jit_avx2_convolution_fwd_t() { delete kernel_; };
 
     typedef typename prec_traits<data_type::f32>::type data_t;
@@ -110,7 +111,7 @@ struct jit_avx2_convolution_bwd_data_t: public cpu_primitive_t {
     struct pd_t: public cpu_convolution_bwd_data_pd_t {
         pd_t(engine_t *engine,
                 const convolution_desc_t *adesc,
-                const primitive_attr_t * attr,
+                const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
             : cpu_convolution_bwd_data_pd_t(engine, adesc, attr, hint_fwd_pd)
             , jcp_({})

@@ -58,7 +58,8 @@ struct _jit_sse42_convolution_fwd_t: public cpu_primitive_t {
 
             return jit_sse42_conv_fwd_kernel_f32::init_conf(jcp_, this->cdesc_(),
                     *this->src_pd_.desc(), *this->weights_pd_.desc(),
-                    *this->dst_pd_.desc(), with_relu, this->negative_slope());
+                    *this->dst_pd_.desc(), *this->attr(), with_relu,
+                    this->negative_slope());
         }
 
         jit_conv_conf_t jcp_;
@@ -85,7 +86,7 @@ struct _jit_sse42_convolution_fwd_t: public cpu_primitive_t {
     _jit_sse42_convolution_fwd_t(const pd_t *pd, const input_vector &inputs,
             const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
-    { kernel_ = new jit_sse42_conv_fwd_kernel_f32(conf_.jcp_); }
+    { kernel_ = new jit_sse42_conv_fwd_kernel_f32(conf_.jcp_, *conf_.attr()); }
     ~_jit_sse42_convolution_fwd_t() { delete kernel_; };
 
     typedef typename prec_traits<data_type::f32>::type data_t;
@@ -98,7 +99,7 @@ struct _jit_sse42_convolution_fwd_t: public cpu_primitive_t {
 private:
     void execute_forward();
     pd_t conf_;
-     jit_sse42_conv_fwd_kernel_f32 *kernel_;
+    jit_sse42_conv_fwd_kernel_f32 *kernel_;
 };
 
 using jit_sse42_convolution_fwd_t = _jit_sse42_convolution_fwd_t<false>;

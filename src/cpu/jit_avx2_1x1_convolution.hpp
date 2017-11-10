@@ -67,7 +67,8 @@ struct _jit_avx2_1x1_convolution_fwd_t: public cpu_primitive_t {
 
             return jit_avx2_1x1_conv_kernel_f32::init_conf(jcp_,
                     *conv_d, *src_d, *this->weights_pd_.desc(),
-                    *this->dst_pd_.desc(), with_relu, this->negative_slope());
+                    *this->dst_pd_.desc(), *this->attr(),
+                    with_relu, this->negative_slope());
         }
 
         jit_1x1_conv_conf_t jcp_;
@@ -101,7 +102,7 @@ struct _jit_avx2_1x1_convolution_fwd_t: public cpu_primitive_t {
         , kernel_(nullptr), rtus_driver_(nullptr), ws_per_thread_(0)
         , scratch_(nullptr)
     {
-        kernel_ = new jit_avx2_1x1_conv_kernel_f32(conf_.jcp_);
+        kernel_ = new jit_avx2_1x1_conv_kernel_f32(conf_.jcp_, *conf_.attr());
         init_rtus_driver<avx2>(this);
     }
     ~_jit_avx2_1x1_convolution_fwd_t() {
@@ -161,7 +162,7 @@ struct jit_avx2_1x1_convolution_bwd_data_t: public cpu_primitive_t {
 
             return jit_avx2_1x1_conv_kernel_f32::init_conf(jcp_, *conv_d,
                     *diff_src_d, *this->weights_pd_.desc(),
-                    *this->diff_dst_pd_.desc());
+                    *this->diff_dst_pd_.desc(), *this->attr());
         }
 
         // TODO (Roma): structs conf header cleanup
@@ -195,7 +196,7 @@ struct jit_avx2_1x1_convolution_bwd_data_t: public cpu_primitive_t {
         , kernel_(nullptr), rtus_driver_(nullptr), ws_per_thread_(0)
         , scratch_(nullptr)
     {
-        kernel_ = new jit_avx2_1x1_conv_kernel_f32(conf_.jcp_);
+        kernel_ = new jit_avx2_1x1_conv_kernel_f32(conf_.jcp_, *conf_.attr());
         init_rtus_driver<avx2>(this);
     }
     ~jit_avx2_1x1_convolution_bwd_data_t() {
@@ -260,7 +261,7 @@ struct jit_avx2_1x1_convolution_bwd_weights_t: public cpu_primitive_t {
 
             return jit_avx2_1x1_conv_kernel_f32::init_conf(jcp_, *conv_d,
                     *src_d, *this->diff_weights_pd_.desc(),
-                    *this->diff_dst_pd_.desc());
+                    *this->diff_dst_pd_.desc(), *this->attr());
         }
 
         // TODO (Roma): structs conf header cleanup

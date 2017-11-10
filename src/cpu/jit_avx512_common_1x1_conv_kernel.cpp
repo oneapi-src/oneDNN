@@ -19,6 +19,7 @@
 #include "type_helpers.hpp"
 #include "mkldnn_thread.hpp"
 #include "utils.hpp"
+#include "cpu_memory.hpp"
 
 #include "jit_avx512_common_1x1_conv_kernel.hpp"
 
@@ -224,6 +225,14 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(int load_loop_blk,
         Label init_done;
         Label init_zero;
 
+        if (jcp.with_sum) {
+            for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
+                for (int i_ur = 0; i_ur < ur; ++i_ur) {
+                    mic_prefetcht1(output_ptr(i_load, i_ur));
+                }
+            }
+        }
+
         if (jcp.with_bias
             && one_of(jcp.prop_kind, forward_training, forward_inference)) {
             test(reg_reduce_pos_flag, FLAG_REDUCE_FIRST);
@@ -241,7 +250,6 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(int load_loop_blk,
                 auto r = vreg_accum(i_load, i_ur);
                 vpxord(r, r, r);
             }
-
         L(init_done);
     };
 
@@ -271,9 +279,11 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(int load_loop_blk,
     auto store = [=]() {
 
         Label store_noadd;
+        if (!jcp.with_sum) {
+            test(reg_reduce_pos_flag, FLAG_REDUCE_FIRST);
+            jnz(store_noadd, T_NEAR);
+        }
 
-        test(reg_reduce_pos_flag, FLAG_REDUCE_FIRST);
-        jnz(store_noadd, T_NEAR);
         for (int i_ur = 0; i_ur < ur; ++i_ur)
             for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
                 auto r = vreg_accum(i_load, i_ur);
@@ -281,7 +291,6 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(int load_loop_blk,
             }
 
         L(store_noadd);
-
         if (jcp.with_relu) {
             const unsigned char _cmp_lt_os = 1;
             assert(ur * load_loop_blk < 30);
@@ -605,11 +614,38 @@ void jit_avx512_common_1x1_conv_kernel::generate()
     postamble();
 }
 
+bool jit_avx512_common_1x1_conv_kernel::post_ops_ok(
+        jit_1x1_conv_conf_t &jcp, const primitive_attr_t &attr) {
+    using namespace primitive_kind;
+    const auto &p = attr.post_ops_;
+
+    auto is_relu = [&](int idx) {
+        return p.entry_[idx].kind == eltwise
+            && p.entry_[idx].eltwise.scale == 1.
+            && p.entry_[idx].eltwise.alg == alg_kind::eltwise_relu
+            && p.entry_[idx].eltwise.alpha == 0.;
+    };
+
+    switch (p.len_) {
+    case 0: return true; // no post_ops
+    case 1: return true // sum OR relu
+                && !jcp.with_relu
+                && (is_relu(0) || p.contain(sum, 0));
+    case 2: return true // sum->relu
+                && !jcp.with_relu
+                && (p.contain(sum, 0) && is_relu(1));
+    default: return false;
+    }
+
+    return false;
+}
+
 status_t jit_avx512_common_1x1_conv_kernel::init_conf(
         jit_1x1_conv_conf_t &jcp, const convolution_desc_t &cd,
         const memory_desc_wrapper &src_d, const memory_desc_wrapper &weights_d,
-        const memory_desc_wrapper &dst_d, bool with_relu,
-        float relu_negative_slope, int nthreads, bool reduce_src)
+        const memory_desc_wrapper &dst_d, const primitive_attr_t &attr,
+        bool with_relu, float relu_negative_slope,
+        int nthreads, bool reduce_src)
 {
     if (!mayiuse(avx512_common)) return status::unimplemented;
 
@@ -646,6 +682,16 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
     jcp.os = jcp.oh * jcp.ow;
     jcp.is = jcp.ih * jcp.iw;
     jcp.tr_is = rnd_up(jcp.is, 4);
+
+    if (!post_ops_ok(jcp, attr))
+        return status::unimplemented;
+
+    const auto &p = attr.post_ops_;
+    jcp.with_sum = p.find(primitive_kind::sum) != -1;
+    if (!jcp.with_relu) {
+        jcp.with_relu = p.find(primitive_kind::eltwise) != -1;
+        jcp.relu_negative_slope = 0;
+    }
 
     bool args_ok = true
         && jcp.ngroups == 1

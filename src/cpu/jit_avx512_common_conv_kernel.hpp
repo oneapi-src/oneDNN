@@ -29,21 +29,26 @@ namespace cpu {
 
 struct jit_avx512_common_conv_fwd_kernel : public jit_generator {
 
-    jit_avx512_common_conv_fwd_kernel(jit_conv_conf_t ajcp) : jcp(ajcp)
+    jit_avx512_common_conv_fwd_kernel(jit_conv_conf_t ajcp,
+            const primitive_attr_t &attr) : jcp(ajcp), attr_(attr)
     {
         generate();
         jit_ker = (void (*)(jit_conv_call_s *))getCode();
     }
+    static bool post_ops_ok(jit_conv_conf_t &jcp,
+            const primitive_attr_t &attr);
     static status_t init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd,
             cpu_memory_t::pd_t &src_pd,
             cpu_memory_t::pd_t &weights_pd,
             cpu_memory_t::pd_t &dst_pd,
             cpu_memory_t::pd_t &bias_pd,
+            const primitive_attr_t &attr,
             bool with_relu = false,
             float relu_negative_slope = 0.);
 
     jit_conv_conf_t jcp;
+    const primitive_attr_t &attr_;
     void (*jit_ker)(jit_conv_call_s *);
 
 private:

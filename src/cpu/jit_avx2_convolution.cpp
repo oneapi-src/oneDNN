@@ -106,7 +106,7 @@ void _jit_avx2_convolution_fwd_t<with_relu>::execute_forward() {
                         par_conv.flags |= FLAG_IC_FIRST;
                     }
 
-                    if (with_relu && icb + 1 == jcp.nb_ic) {
+                    if (jcp.with_relu && icb + 1 == jcp.nb_ic) {
                         par_conv.flags |= FLAG_IC_LAST;
                     }
 

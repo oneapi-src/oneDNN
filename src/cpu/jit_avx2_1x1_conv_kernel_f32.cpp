@@ -18,6 +18,7 @@
 #include "nstl.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
+#include "cpu_memory.hpp"
 
 #include "jit_avx2_1x1_conv_kernel_f32.hpp"
 
@@ -178,8 +179,11 @@ void jit_avx2_1x1_conv_kernel_f32::reduce_loop(int load_loop_blk, int ur,
         jit_tagged_label store_noadd(
                 "store_noadd", load_loop_tag, bcast_loop_tag);
 
-        test(reg_reduce_pos_flag, FLAG_REDUCE_FIRST);
-        jnz(store_noadd, T_NEAR);
+        if (!jcp.with_sum) {
+            test(reg_reduce_pos_flag, FLAG_REDUCE_FIRST);
+            jnz(store_noadd, T_NEAR);
+        }
+
         for (int j = 0; j < ur; ++j)
             for (int i = 0; i < load_loop_blk; ++i) {
                 auto r = vreg_accum(i, j);
@@ -425,10 +429,36 @@ void jit_avx2_1x1_conv_kernel_f32::generate()
     postamble();
 }
 
+bool jit_avx2_1x1_conv_kernel_f32::post_ops_ok(
+        jit_1x1_conv_conf_t &jcp, const primitive_attr_t &attr) {
+    using namespace primitive_kind;
+    const auto &p = attr.post_ops_;
+
+    auto is_relu = [&](int idx) {
+        return p.entry_[idx].kind == eltwise
+            && p.entry_[idx].eltwise.scale == 1.
+            && p.entry_[idx].eltwise.alg == alg_kind::eltwise_relu
+            && p.entry_[idx].eltwise.alpha == 0.;
+    };
+
+    switch (p.len_) {
+    case 0: return true; // no post_ops
+    case 1: return true // sum OR relu
+                && !jcp.with_relu
+                && (is_relu(0) || p.contain(sum, 0));
+    case 2: return true // sum->relu
+                && !jcp.with_relu
+                && (p.contain(sum, 0) && is_relu(1));
+    default: return false;
+    }
+
+    return false;
+}
+
 status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
         const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &weights_d, const memory_desc_wrapper &dst_d,
-        bool with_relu, float relu_negative_slope)
+        const primitive_attr_t &attr, bool with_relu, float relu_negative_slope)
 {
     if (!mayiuse(avx2)) return status::unimplemented;
 
@@ -465,6 +495,16 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
 
     jcp.os = jcp.oh * jcp.ow;
     jcp.is = jcp.ih * jcp.iw;
+
+    if (!post_ops_ok(jcp, attr))
+        return status::unimplemented;
+
+    const auto &p = attr.post_ops_;
+    jcp.with_sum = p.find(primitive_kind::sum) != -1;
+    if (!jcp.with_relu) {
+        jcp.with_relu = p.find(primitive_kind::eltwise) != -1;
+        jcp.relu_negative_slope = 0;
+    }
 
     constexpr memory_format_t weights_formats[2][2] = {
         { OIhw8i8o, OIhw8o8i },

@@ -77,8 +77,11 @@ void jit_avx512_common_conv_fwd_kernel::store_output(int ur_w)
     if (jcp.with_bias) {
         mov(reg_bias, ptr[param1 + GET_OFF(bias)]);
     }
-    cmp(reg_channel, 0);
-    je(no_update_label, T_NEAR);
+
+    if (!jcp.with_sum) {
+        cmp(reg_channel, 0);
+        je(no_update_label, T_NEAR);
+    }
 
     for (int k = 0; k < jcp.nb_oc_blocking; k++)
         for (int j = 0; j < ur_w; j++) {
@@ -86,7 +89,13 @@ void jit_avx512_common_conv_fwd_kernel::store_output(int ur_w)
             int aux_output_offset = get_output_offset(j, k);
             vadd(zmm, reg_out, aux_output_offset);
         }
-    jmp(relu_label, T_NEAR);
+
+    if (!jcp.with_sum) {
+        jmp(relu_label, T_NEAR);
+    } else {
+        cmp(reg_channel, 0);
+        jne(relu_label, T_NEAR);
+    }
 
     L(no_update_label);
     if (jcp.with_bias) {
@@ -699,10 +708,37 @@ void jit_avx512_common_conv_fwd_kernel::generate()
     postamble();
 }
 
+bool jit_avx512_common_conv_fwd_kernel::post_ops_ok(
+        jit_conv_conf_t &jcp, const primitive_attr_t &attr) {
+    using namespace primitive_kind;
+    const auto &p = attr.post_ops_;
+
+    auto is_relu = [&](int idx) {
+        return p.entry_[idx].kind == eltwise
+            && p.entry_[idx].eltwise.scale == 1.
+            && p.entry_[idx].eltwise.alg == alg_kind::eltwise_relu
+            && p.entry_[idx].eltwise.alpha == 0.;
+    };
+
+    switch (p.len_) {
+    case 0: return true; // no post_ops
+    case 1: return true // sum OR relu
+                && !jcp.with_relu
+                && (is_relu(0) || p.contain(sum, 0));
+    case 2: return true // sum->relu
+                && !jcp.with_relu
+                && (p.contain(sum, 0) && is_relu(1));
+    default: return false;
+    }
+
+    return false;
+}
+
 status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd, cpu_memory_t::pd_t &src_pd,
             cpu_memory_t::pd_t &weights_pd, cpu_memory_t::pd_t &dst_pd,
-            cpu_memory_t::pd_t &bias_pd, bool with_relu, float relu_negative_slope)
+            cpu_memory_t::pd_t &bias_pd, const primitive_attr_t &attr,
+            bool with_relu, float relu_negative_slope)
 {
     using namespace prop_kind;
 
@@ -746,6 +782,16 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     jcp.dilate_w = cd.dilates[1];
     if (jcp.dilate_h != 0 || jcp.dilate_w != 0)
         return status::unimplemented;
+
+    if (!post_ops_ok(jcp, attr))
+        return status::unimplemented;
+
+    const auto &p = attr.post_ops_;
+    jcp.with_sum = p.find(primitive_kind::sum) != -1;
+    if (!jcp.with_relu) {
+        jcp.with_relu = p.find(primitive_kind::eltwise) != -1;
+        jcp.relu_negative_slope = 0;
+    }
 
     // TODO: simplify
     if (jcp.ic % simd_w != 0) {

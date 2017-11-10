@@ -281,7 +281,7 @@ jit_avx2_1x1_convolution_bwd_weights_t::jit_avx2_1x1_convolution_bwd_weights_t(
     : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd), kernel_(nullptr)
     , rtus_driver_(nullptr), ws_per_thread_(0), scratch_(nullptr)
 {
-    kernel_ = new jit_avx2_1x1_conv_kernel_f32(conf_.jcp_);
+    kernel_ = new jit_avx2_1x1_conv_kernel_f32(conf_.jcp_, *conf_.attr());
 
     const auto &jcp = kernel_->jcp;
 

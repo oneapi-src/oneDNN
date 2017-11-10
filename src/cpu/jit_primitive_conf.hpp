@@ -53,6 +53,7 @@ struct jit_conv_conf_t {
     memory_format_t src_fmt;
     bool with_bias, with_relu;
     float relu_negative_slope;
+    bool with_sum;
 
     int ihp, iwp, ohp, owp;
     int nb_ic, ic_block;
@@ -149,6 +150,7 @@ struct jit_1x1_conv_conf_t {
     memory_format_t src_fmt;
     bool with_bias, with_relu;
     float relu_negative_slope;
+    bool with_sum;
 
     int is, os;
     int ic_block, oc_block;

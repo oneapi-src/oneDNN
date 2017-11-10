@@ -420,7 +420,7 @@ jit_avx512_common_1x1_convolution_bwd_weights_t ::
     , scratch_(nullptr), bctx_(nullptr), tr_src_(nullptr)
     , ws_reduction_(nullptr)
 {
-    kernel_ = new jit_avx512_common_1x1_conv_kernel(conf_.jcp_);
+    kernel_ = new jit_avx512_common_1x1_conv_kernel(conf_.jcp_, *conf_.attr());
 
     const auto &jcp = kernel_->jcp;
 

@@ -18,6 +18,7 @@
 #include "nstl.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
+#include "cpu_memory.hpp"
 
 #include "jit_avx2_conv_kernel_f32.hpp"
 
@@ -142,13 +143,26 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(int ur_w,
     jit_tagged_label init_done_label("init", pad_tag, oc_blocks_tag);
     jit_tagged_label init_first_label("first", pad_tag, oc_blocks_tag);
 
-    test(reg_ci_flag, FLAG_IC_FIRST);
-    jne(init_first_label, T_NEAR);
+    if (!jcp.with_sum) {
+        test(reg_ci_flag, FLAG_IC_FIRST);
+        jne(init_first_label, T_NEAR);
+    }
 
     for (int ii = 0; ii < oc_blocks; ii++)
         for (int jj = 0; jj < ur_w; jj++)
             vmovups(Ymm(ur_w * ii + jj), yword[reg_output
                     + sizeof(float) * (ii * oh * ow + jj) * oc_blk]);
+
+    if (jcp.with_sum && jcp.with_bias) {
+        test(reg_ci_flag, FLAG_IC_FIRST);
+        je(init_done_label, T_NEAR);
+
+        for (int ii = 0; ii < oc_blocks; ii++)
+            for (int jj = 0; jj < ur_w; jj++)
+                vaddps(Ymm(ur_w * ii + jj), Ymm(ur_w * ii + jj),
+                    yword[reg_bias + sizeof(float) * ii * oc_blk]);
+    }
+
     jmp(init_done_label);
 
     L(init_first_label);
@@ -333,10 +347,36 @@ void jit_avx2_conv_fwd_kernel_f32::generate()
     this->postamble();
 }
 
+bool jit_avx2_conv_fwd_kernel_f32::post_ops_ok(
+        jit_conv_conf_t &jcp, const primitive_attr_t &attr) {
+    using namespace primitive_kind;
+    const auto &p = attr.post_ops_;
+
+    auto is_relu = [&](int idx) {
+        return p.entry_[idx].kind == eltwise
+            && p.entry_[idx].eltwise.scale == 1.
+            && p.entry_[idx].eltwise.alg == alg_kind::eltwise_relu
+            && p.entry_[idx].eltwise.alpha == 0.;
+    };
+
+    switch (p.len_) {
+    case 0: return true; // no post_ops
+    case 1: return true // sum OR relu
+                && !jcp.with_relu
+                && (is_relu(0) || p.contain(sum, 0));
+    case 2: return true // sum->relu
+                && !jcp.with_relu
+                && (p.contain(sum, 0) && is_relu(1));
+    default: return false;
+    }
+
+    return false;
+}
+
 status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
         const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &weights_d, const memory_desc_wrapper &dst_d,
-        bool with_relu, float relu_negative_slope)
+        const primitive_attr_t &attr, bool with_relu, float relu_negative_slope)
 {
     if (!mayiuse(avx2)) return status::unimplemented;
 
@@ -371,6 +411,16 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     jcp.with_bias = cd.bias_desc.format != memory_format::undef;
     jcp.with_relu = with_relu;
     jcp.relu_negative_slope = relu_negative_slope;
+
+    if (!post_ops_ok(jcp, attr))
+        return status::unimplemented;
+
+    const auto &p = attr.post_ops_;
+    jcp.with_sum = p.find(primitive_kind::sum) != -1;
+    if (!jcp.with_relu) {
+        jcp.with_relu = p.find(primitive_kind::eltwise) != -1;
+        jcp.relu_negative_slope = 0.f;
+    }
 
     const bool flat = jcp.ic == 3;
     const bool mimo = !flat;

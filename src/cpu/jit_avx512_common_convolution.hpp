@@ -67,7 +67,8 @@ struct _jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
 
             return jit_avx512_common_conv_fwd_kernel::init_conf(
                     jcp_, this->cdesc_(), this->src_pd_, this->weights_pd_,
-                    this->dst_pd_, this->bias_pd_, with_relu, this->negative_slope());
+                    this->dst_pd_,this->bias_pd_, *this->attr(),
+                    with_relu, this->negative_slope());
         }
 
         jit_conv_conf_t jcp_;
@@ -77,7 +78,8 @@ struct _jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
             const input_vector &inputs, const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
     {
-        kernel_ = new jit_avx512_common_conv_fwd_kernel(conf_.jcp_);
+        kernel_ = new jit_avx512_common_conv_fwd_kernel(conf_.jcp_,
+                    *conf_.attr());
     }
     ~_jit_avx512_common_convolution_fwd_t() { delete kernel_; };
 
