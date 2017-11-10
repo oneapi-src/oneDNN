@@ -11,3 +11,12 @@
 --attr=irmode=nearest;oscale=common:2.1;post_ops='sum:1.5'
 --cfg=u8s8s8s32  --batch=conv_all
 --cfg=u8s8s32s32 --batch=conv_all
+
+# f32
+--reset --cfg=f32
+--mb=2
+--skip-impl="ref:gemm"      # ! test jit version only
+--allow-unimpl=true
+--dir=FWD_D --attr=post_ops='sum;relu' --batch=conv_all
+--dir=FWD_B --attr=post_ops='sum' --batch=conv_all
+--dir=FWD_B --attr=post_ops='relu' --batch=conv_all
