@@ -227,6 +227,7 @@ void jit_sse42_1x1_conv_kernel_f32::reduce_loop(int load_loop_blk, int ur,
                     mulps(xmm_res_ns, xmm_relu_ns);
                     blendvps(reg_accum(i, j, 0), xmm_res_ns);
                     movups(output_ptr(i, j, 0), reg_accum(i, j, 0));
+                    xorps(xmask, xmask);
                     cmpps(xmask, reg_accum(i, j, 1), _cmp_gt_os);
                     movups(xmm_res_ns, reg_accum(i, j, 1));
                     mulps(xmm_res_ns, xmm_relu_ns);
