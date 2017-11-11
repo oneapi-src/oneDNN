@@ -30,7 +30,7 @@ function(detect_mkl LIBNAME)
     message(STATUS "Detecting Intel(R) MKL: trying ${LIBNAME}")
 
     find_path(MKLINC mkl_cblas.h
-        PATHS ${MKLROOT}/include $ENV{MKLROOT}/include)
+        HINTS ${MKLROOT}/include $ENV{MKLROOT}/include)
     if(NOT MKLINC)
         file(GLOB_RECURSE MKLINC
                 ${CMAKE_CURRENT_SOURCE_DIR}/external/*/mkl_cblas.h)
@@ -59,7 +59,7 @@ function(detect_mkl LIBNAME)
 
     get_filename_component(__mklinc_root "${MKLINC}" PATH)
     find_library(MKLLIB NAMES ${LIBNAME}
-        PATHS   ${MKLROOT}/lib ${MKLROOT}/lib/intel64
+        HINTS   ${MKLROOT}/lib ${MKLROOT}/lib/intel64
                 $ENV{MKLROOT}/lib $ENV{MKLROOT}/lib/intel64
                 ${__mklinc_root}/lib ${__mklinc_root}/lib/intel64)
     if(NOT MKLLIB)
@@ -69,7 +69,7 @@ function(detect_mkl LIBNAME)
     if(WIN32)
         set(MKLREDIST ${MKLINC}/../../redist/)
         find_file(MKLDLL NAMES ${LIBNAME}.dll
-            PATHS
+            HINTS
                 ${MKLREDIST}/mkl
                 ${MKLREDIST}/intel64/mkl
                 ${__mklinc_root}/lib)
@@ -82,7 +82,7 @@ function(detect_mkl LIBNAME)
         get_filename_component(MKLLIBPATH ${MKLLIB} PATH)
         find_library(MKLIOMP5LIB
             NAMES "iomp5" "iomp5md" "libiomp5" "libiomp5md"
-            PATHS   ${MKLLIBPATH}
+            HINTS   ${MKLLIBPATH}
                     ${MKLLIBPATH}/../../lib
                     ${MKLLIBPATH}/../../../lib/intel64
                     ${MKLLIBPATH}/../../compiler/lib
@@ -93,7 +93,7 @@ function(detect_mkl LIBNAME)
         if(WIN32)
             find_file(MKLIOMP5DLL
                 NAMES "libiomp5.dll" "libiomp5md.dll"
-                PATHS ${MKLREDIST}/../compiler ${__mklinc_root}/lib)
+                HINTS ${MKLREDIST}/../compiler ${__mklinc_root}/lib)
             if(NOT MKLIOMP5DLL)
                 return()
             endif()
