@@ -213,15 +213,17 @@ int fill_memory(const prb_t *p, dnn_mem_t &mem, const float *scales,
         const int mask_idx = mem.get_scale_idx(idx, scale_mask);
         const float scale = scales[mask_idx];
 
-        const float gen[5] = {
+        const float gen[7] = {
             (float)max, /* saturate to max of output data type */
             (float)c_src.min, /* saturate to min of output data type */
             (float)1.6 / scale, /* rounding check */
             (float)0.2 / scale, /* saturate to 0 */
+            (float)1.0,
+            (float)2.0,
             (float)scale,
         };
 
-        float value = saturate(gen[idx % 5], c_src.min, max);
+        float value = saturate(gen[idx % 7], c_src.min, max);
         mem.set_elem(idx, value);
     }
 
