@@ -34,6 +34,7 @@ const int int_max_exact = 1<<24;
 const reorder::dt_conf_t conf_f32 = {mkldnn_f32, -int_max_exact, 2*int_max_exact};
 const reorder::dt_conf_t conf_s8 = {mkldnn_s8, INT8_MIN, -2*INT8_MIN};
 const reorder::dt_conf_t conf_u8 = {mkldnn_u8, 0, UINT8_MAX};
+const reorder::dt_conf_t conf_s16 = {mkldnn_s16, INT16_MIN, -2*INT16_MIN};
 const reorder::dt_conf_t conf_s32 = {mkldnn_s32, -int_max_exact, 2*int_max_exact};
 
 static reorder::reorder_conf_t reorders[] = {
@@ -57,6 +58,9 @@ static reorder::q10n_conf_t q10ns[] = {
     { conf_f32, conf_s8, attr_t::round_mode_t::NEAREST,
         attr_t::scale_t::policy_t::COMMON},
     { conf_f32, conf_s8, attr_t::round_mode_t::DOWN,
+        attr_t::scale_t::policy_t::COMMON},
+    /* f32 <-> s16 */
+    { conf_f32, conf_s16, attr_t::round_mode_t::NEAREST,
         attr_t::scale_t::policy_t::COMMON},
     /* s32 <-> s8 */
     { conf_s32, conf_s8, attr_t::round_mode_t::NEAREST,
