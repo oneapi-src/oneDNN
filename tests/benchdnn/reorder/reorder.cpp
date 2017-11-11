@@ -119,12 +119,21 @@ int check_reorder(const prb_t *p, res_t *res) {
 
     /* Step 7: performance measurment */
     if (bench_mode & PERF) {
+        mkldnn_primitive_desc_t perf_r_pd;
+        mkldnn_primitive_t perf_r;
+
+        DNN_SAFE(mkldnn_reorder_primitive_desc_create_v2(&perf_r_pd,
+                mem_dt_in_fmt_in.mpd_, mem_dt_out_fmt_out.mpd_,
+                mkldnn_attr), WARN);
+        mkldnn_primitive_at_t i = {mem_dt_in_fmt_in.p_, 0};
+        const_mkldnn_primitive_t o = mem_dt_out_fmt_out.p_;
+        DNN_SAFE(mkldnn_primitive_create(&perf_r, perf_r_pd, &i, &o), WARN);
+        DNN_SAFE_V(mkldnn_primitive_desc_destroy(perf_r_pd));
+
         auto &t = res->timer;
         t.reset();
         while (true) {
-            /* FIXME: remove creating of reorder primitive from measuring */
-            SAFE(mem_dt_out_fmt_out.reorder(mem_dt_in_fmt_in, mkldnn_attr),
-                    WARN);
+            SAFE(execute(perf_r), WARN);
             t.stamp();
             const bool stop = false
                 || (fix_times_per_prb && t.times() >= fix_times_per_prb)
@@ -133,6 +142,8 @@ int check_reorder(const prb_t *p, res_t *res) {
                         && t.times() >= min_times_per_prb);
             if (stop) break;
         }
+
+        DNN_SAFE_V(mkldnn_primitive_destroy(perf_r));
     }
 
     /* Step 8: clean up */
