@@ -648,9 +648,8 @@ void diff_dst_transform_bwd_data( int image, jit_conv_winograd_conf_t conv,
     for (int tj = 0; tj < conv.jtiles; tj++) {
         for (int ti = 0; ti < conv.itiles; ti++) {
             float *base = &(input(0, 0,
-                        tj * tile_size - conv.t_pad,
-                        ti * tile_size - conv.l_pad, 0));
-            float *tmp = base;
+                        tj * tile_size - t_pad_winograd,
+                        ti * tile_size - l_pad_winograd, 0));
             for (int j = 0; j < alpha; j++) {
                 int ydim = tj * tile_size + j;
                 if ((t_pad_winograd <= ydim) && (ydim < ofhp)) {
@@ -659,7 +658,7 @@ void diff_dst_transform_bwd_data( int image, jit_conv_winograd_conf_t conv,
                         if ((l_pad_winograd <= xdim) && (xdim < ofwp)) {
 #pragma omp simd
                             for (int v = 0; v < 16; v++) {
-                                I[j][i][v] = *(tmp + v);
+                                I[j][i][v] = *(base + v);
                             }
                         } else {
 #pragma omp simd
@@ -667,8 +666,9 @@ void diff_dst_transform_bwd_data( int image, jit_conv_winograd_conf_t conv,
                                 I[j][i][v] = 0.0f;
                             }
                         }
-                        tmp += simd_w;
+                        base += simd_w;
                     }
+                    base -= alpha * simd_w;
                 } else {
                     for (int i = 0; i < alpha; i++) {
 #pragma omp simd
@@ -677,8 +677,7 @@ void diff_dst_transform_bwd_data( int image, jit_conv_winograd_conf_t conv,
                         }
                     }
                 }
-                base += (conv.iw * simd_w);
-                tmp = base;
+                base += (conv.ow * simd_w);
             }
 
             trans_I_4x4_3x3(Iw, I);

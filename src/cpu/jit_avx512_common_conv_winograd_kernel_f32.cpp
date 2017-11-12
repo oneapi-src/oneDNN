@@ -301,13 +301,6 @@ status_t _jit_avx512_common_conv_winograd_data_kernel_f32::init_conf_common(
     jcp.ohp = jcp.oh;
     jcp.owp = jcp.ow;
 
-    // Winograd specific initialization
-    const int tile_size = jcp.alpha - 2;
-    /* Assumption: padding = 1*/
-    jcp.itiles = (jcp.ow + tile_size - 1) / tile_size;
-    jcp.jtiles = (jcp.oh + tile_size - 1) / tile_size;
-    jcp.ntiles = jcp.mb * jcp.itiles * jcp.itiles;
-
     // Checking conditions not supported by these kernels
     if (jcp.ngroups != 1)
         return status::unimplemented;
@@ -534,6 +527,13 @@ status_t jit_avx512_common_conv_winograd_fwd_kernel_f32::init_conf(
 
     if (st != status::success)
         return st;
+    
+    // Winograd specific initialization
+    const int tile_size = jcp.alpha - 2;
+    /* Assumption: padding = 1*/
+    jcp.itiles = (jcp.ow + tile_size - 1) / tile_size;
+    jcp.jtiles = (jcp.oh + tile_size - 1) / tile_size;
+    jcp.ntiles = jcp.mb * jcp.itiles * jcp.jtiles;
 
     jcp.with_bias = cd.bias_desc.format != memory_format::undef;
     jcp.with_relu = with_relu;
@@ -565,6 +565,11 @@ status_t jit_avx512_common_conv_winograd_bwd_data_kernel_f32::init_conf(
     if (st != status::success)
         return st;
 
+    const int tile_size = jcp.alpha - 2;
+    jcp.itiles = (jcp.iw + tile_size - 1) / tile_size;
+    jcp.jtiles = (jcp.ih + tile_size - 1) / tile_size;
+    jcp.ntiles = jcp.mb * jcp.itiles * jcp.jtiles;
+    
     status_t res = init_conf_kernel(jcp, jcp.ic, jcp.ntiles, jcp.oc);
     jcp.oc_simd_block = jcp.dimK_reg_block;
     jcp.oc_block = jcp.dimK_block;
