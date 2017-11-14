@@ -24,14 +24,6 @@
 
 #include "jit_generator.hpp"
 
-#if (defined(__INTEL_COMPILER) && __INTEL_COMPILER <= 1600) || defined(_MSC_VER)
-/* Excluding ICC 16.0 from adding simd because it results in accuracy issues.
- * MSC doesn't support simd in _pragma */
-#    define pragma_simd
-#else
-#    define pragma_simd _Pragma("simd")
-#endif
-
 namespace mkldnn {
 namespace impl {
 namespace cpu {
