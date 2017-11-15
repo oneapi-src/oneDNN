@@ -247,13 +247,13 @@ void _gemm_convolution_bwd_weights_t<run_jit, isa>::execute_backward_weights() {
             balance211(work_amount, nthr, ithr, start, end);
             nd_iterator_init(start, g, jcp.ngroups, oc, jcp.oc);
             for (size_t iwork = start; iwork < end; ++iwork) {
-                data_t *db = &diff_bias[diff_bias_d.off(g*jcp.oc+oc)];
-                *db = data_t(0);
+                data_t db = 0;
                 for (int mb = 0; mb < jcp.mb; ++mb)
                     for (int oh = 0; oh < jcp.oh; ++oh)
-#                       pragma omp simd
+#                       pragma omp simd reduction(+:db)
                         for (int ow = 0; ow < jcp.ow; ++ow)
-                            *db += diff_dst[diff_dst_d.off(mb,g*jcp.oc+oc,oh,ow)];
+                            db += diff_dst[diff_dst_d.off(mb,g*jcp.oc+oc,oh,ow)];
+                diff_bias[diff_bias_d.off(g*jcp.oc+oc)] = db;
                 nd_iterator_step(g, jcp.ngroups, oc, jcp.oc);
             }
         }
