@@ -1,0 +1,8 @@
+# MKLDNN-537
+--reset
+--cfg=f32
+--dir=FWD_D mb2ic16ih7oc16oh7kh5ph2
+--dir=FWD_D mb2ic16ih29oc16oh29kh5ph2
+--cfg=s16s16s32s32
+--dir=FWD_D mb2ic16ih7oc16oh7kh5ph2
+--dir=FWD_D mb2ic16ih29oc16oh29kh5ph2

@@ -9,3 +9,6 @@
 --merge=RELU
 --dir=FWD_B --batch=conv_regression_small_spatial
 --dir=FWD_B --batch=conv_regression_padding
+
+#
+--batch=conv_regression_general
