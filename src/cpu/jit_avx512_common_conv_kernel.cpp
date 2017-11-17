@@ -653,6 +653,10 @@ void jit_avx512_common_conv_fwd_kernel::generate()
     mov(reg_kh, ptr[param1 + GET_OFF(kh_padding)]);
 
     int r_pad = nstl::max(0, (ow - 1) * stride_w + (kw - 1) - (iw + l_pad - 1));
+    int n_oi = ow / ur_w;
+    int r_pad1 = (ur_w * n_oi - 1) * stride_w + kw - 1 - (iw + l_pad - 1);
+    if (r_pad1 > 0) n_oi--;
+
     if (ow == ur_w) {
         mov(reg_inp_prf, ptr[param1 + GET_OFF(src_prf)]);
         mov(reg_out_prf, ptr[param1 + GET_OFF(dst_prf)]);
@@ -660,48 +664,56 @@ void jit_avx512_common_conv_fwd_kernel::generate()
     } else {
         mov(reg_inp_prf, reg_inp);
         mov(reg_out_prf, reg_out);
-        int n_oi = ow / ur_w;
 
-        int r_pad1 = (ur_w * n_oi - 1) * stride_w + kw - 1 - (iw + l_pad - 1);
-        xor_(reg_oi, reg_oi);
-        if (l_pad > 0) {
+        if (n_oi == 0) {
             add(reg_inp_prf, inp_shift_pad);
             add(reg_out_prf, out_shift);
-            compute_loop(ur_w, l_pad, 0);
+            compute_loop(ur_w, l_pad, r_pad1);
             add(reg_inp, inp_shift_pad);
             add(reg_out, out_shift);
-            inc(reg_oi);
-
-            if (r_pad1 > 0)
-                n_oi--;
-        }
-        if ((l_pad <= 0 && n_oi > 0) || (l_pad > 0 && n_oi > 1)) {
-            if (l_pad <= 0 && r_pad1 > 0)
-                n_oi--;
-            Label ow_loop_label;
-            L(ow_loop_label);
-            {
+            if (ur_w_tail != 0) {
                 add(reg_inp_prf, inp_shift);
                 add(reg_out_prf, out_shift);
-                compute_loop(ur_w, 0, 0);
-                add(reg_inp, inp_shift);
+                compute_loop(ur_w_tail, 0, r_pad);
+            }
+        } else {
+            xor_(reg_oi, reg_oi);
+            if (l_pad > 0) {
+                add(reg_inp_prf, inp_shift_pad);
+                add(reg_out_prf, out_shift);
+                compute_loop(ur_w, l_pad, 0);
+                add(reg_inp, inp_shift_pad);
                 add(reg_out, out_shift);
                 inc(reg_oi);
-                cmp(reg_oi, n_oi);
-                jl(ow_loop_label, T_NEAR);
             }
-        }
-        if (r_pad1 > 0) {
-            add(reg_inp_prf, inp_shift);
-            add(reg_out_prf, out_shift);
-            compute_loop(ur_w, 0, r_pad1);
-            add(reg_inp, inp_shift);
-            add(reg_out, out_shift);
-        }
-        if (ur_w_tail != 0) {
-            add(reg_inp_prf, inp_shift);
-            add(reg_out_prf, out_shift);
-            compute_loop(ur_w_tail, 0, r_pad);
+            if ((l_pad <= 0 && n_oi > 0) || (l_pad > 0 && n_oi > 1)) {
+                if (l_pad <= 0 && r_pad1 > 0)
+                    n_oi--;
+                Label ow_loop_label;
+                L(ow_loop_label);
+                {
+                    add(reg_inp_prf, inp_shift);
+                    add(reg_out_prf, out_shift);
+                    compute_loop(ur_w, 0, 0);
+                    add(reg_inp, inp_shift);
+                    add(reg_out, out_shift);
+                    inc(reg_oi);
+                    cmp(reg_oi, n_oi);
+                    jl(ow_loop_label, T_NEAR);
+                }
+            }
+            if (r_pad1 > 0) {
+                add(reg_inp_prf, inp_shift);
+                add(reg_out_prf, out_shift);
+                compute_loop(ur_w, 0, r_pad1);
+                add(reg_inp, inp_shift);
+                add(reg_out, out_shift);
+            }
+            if (ur_w_tail != 0) {
+                add(reg_inp_prf, inp_shift);
+                add(reg_out_prf, out_shift);
+                compute_loop(ur_w_tail, 0, r_pad);
+            }
         }
     }
 
