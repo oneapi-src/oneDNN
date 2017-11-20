@@ -158,4 +158,7 @@ const char *bool2str(bool value);
 
 bool match_regex(const char *str, const char *pattern);
 
+typedef int (*bench_f)(int argc, char **argv, bool main_bench);
+int batch(const char *fname, bench_f bench);
+
 #endif

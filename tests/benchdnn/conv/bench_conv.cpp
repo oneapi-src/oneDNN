@@ -78,12 +78,10 @@ void check_correctness(const desc_t *c) {
     benchdnn_stat.tests++;
 }
 
-int batch(const char *fname);
-
 int bench(int argc, char **argv, bool main_bench) {
     for (int arg = 0; arg < argc; ++arg) {
         if (!strncmp("--batch=", argv[arg], 8))
-            SAFE(batch(argv[arg] + 8), CRIT);
+            SAFE(batch(argv[arg] + 8, bench), CRIT);
         else if (!strncmp("--cfg=", argv[arg], 6))
             cfg = str2cfg(argv[arg] + 6);
         else if (!strncmp("--match=", argv[arg], 8))
@@ -130,93 +128,6 @@ int bench(int argc, char **argv, bool main_bench) {
         for (int n = 0; n < N; ++n)
             check_correctness(&default_list[n]);
     }
-
-    return OK;
-}
-
-#ifdef _WIN32
-#include <windows.h>
-#define PATH_MAX MAX_PATH
-static char *dirname(char *path) {
-    char drive[_MAX_DRIVE];
-    char dir[_MAX_DIR];
-    _splitpath(path, drive, dir, NULL, NULL);
-    path[0] = '\0';
-    if (drive != NULL) strncat(path, drive, _MAX_DRIVE);
-    if (dir != NULL) strncat(path, dir, MAX_PATH);
-    if (path[0] == '\0') strcat(path, ".");
-    return path;
-}
-#else
-#include <libgen.h>
-#endif /* WIN32 */
-
-FILE *open_batch_file(const char *fname) {
-    const int max_paths = 4;
-
-    static int n_paths = 0;
-    static char search_paths[max_paths][PATH_MAX] = {{0}};
-
-    char *fdir = NULL;
-    {
-        char fname_copy[PATH_MAX];
-        strncpy(fname_copy, fname, PATH_MAX);
-        fdir = dirname(fname_copy);
-    }
-
-    bool dir_found = false;
-    for (int n = 0; n_paths < max_paths && n < n_paths; ++n)
-        if (!strcmp(fdir, search_paths[n])) {
-            dir_found = true;
-            break;
-        }
-    if (!dir_found)
-        strcpy(search_paths[n_paths++], fdir);
-
-    FILE *fp = fopen(fname, "r");
-    if (fp) return fp;
-
-    for (int n = 0; n < n_paths; ++n) {
-        char fullname[PATH_MAX];
-        snprintf(fullname, PATH_MAX, "%s/%s", search_paths[n], fname);
-        fp = fopen(fullname, "r");
-        print(50, "batch file used: %s\n", fullname);
-        if (fp) break;
-    }
-
-    return fp;
-}
-
-int batch(const char *fname) {
-    FILE *fp = open_batch_file(fname);
-    SAFE(fp ? OK : FAIL, CRIT);
-
-    const size_t maxlen = 1024;
-    char *opts[8*1024] = {0}, buf[maxlen + 1];
-    char line[1024];
-    int n_opts = 0;
-    while (fgets(line, sizeof(line), fp)) {
-        int offset = 0;
-        const char *l = line;
-        while (sscanf(l, "%s%n", buf, &offset) == 1) {
-            if (buf[0] == '#')
-                break; /* stop reading till eol */
-
-            const size_t len = strnlen(buf, maxlen) + 1;
-            opts[n_opts] = (char *)malloc(len);
-            SAFE(opts[n_opts] ? OK : FAIL, CRIT);
-            strncpy(opts[n_opts], buf, len);
-            ++n_opts;
-
-            l += offset;
-        }
-    }
-    bench(n_opts, opts, false);
-
-    for (int n = 0; n < n_opts; ++n)
-        free(opts[n]);
-
-    fclose(fp);
 
     return OK;
 }
