@@ -227,9 +227,9 @@ void _jit_avx512_common_conv_winograd_data_kernel_f32::gemm_loop_generate(
                     }
                 }
 
+                add(reg_srcA, jcp.dimK_reg_block * 64);
+                add(reg_srcB, jcp.dimN_reg_block * 64);
                 if (jcp.dimK_block > 1) {
-                    add(reg_srcA, jcp.dimK_reg_block * 64);
-                    add(reg_srcB, jcp.dimN_reg_block * 64);
                     sub(reg_dimK_block_loop_cnt, 1);
                     jnz(dimK_block_loop);
                 }

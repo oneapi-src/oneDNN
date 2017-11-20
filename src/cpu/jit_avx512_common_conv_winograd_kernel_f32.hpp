@@ -36,7 +36,7 @@ struct _jit_avx512_common_conv_winograd_data_kernel_f32 : public jit_generator {
                 = (decltype(gemm_loop_ker_first_iter)) this->getCode();
 
         //************** Subsequent iterations kernel **************//
-        if (jcp.nb_ic > 1) {
+        if (jcp.dimK_nb_block > 1) {
             align();
             const Xbyak::uint8 *addr = getCurr();
             this->gemm_loop_generate(false);
