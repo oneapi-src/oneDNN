@@ -36,9 +36,9 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::memory_format;
-using namespace mkldnn::impl::utils;
+namespace {
+
+unsigned int LLC_cache_size = get_cache_size(3, false);
 
 template <typename Telem, size_t Tdims>
 struct array_offset_calculator {
@@ -77,6 +77,24 @@ private:
     Telem *_base_ptr;
     const int _dims[Tdims];
 };
+
+void inline store_output(float *dest, float *data, bool streamout) {
+    const int simd_w = 16;
+#ifdef __INTEL_COMPILER
+    if (streamout)
+        _mm512_stream_ps(dest, *((__m512 *)data));
+    else
+        _mm512_store_ps(dest, *((__m512 *)data));
+#else
+# pragma omp simd
+    for (int v=0; v < simd_w; v++) dest[v] = data[v];
+#endif
+}
+}
+
+using namespace mkldnn::impl::status;
+using namespace mkldnn::impl::memory_format;
+using namespace mkldnn::impl::utils;
 
 void trans_W_4x4_3x3(float Fw_[6][6][16][16], float F[3][3][16][16]) {
     float Fw[6][16];
@@ -410,18 +428,8 @@ pragma_unroll
     }
 }
 
-void inline stream_ps(float *dest, float *data) {
-    const int simd_w = 16;
-#ifdef __INTEL_COMPILER
-    _mm512_stream_ps(dest, *((__m512 *)data));
-#else
-# pragma omp simd
-    for (int v=0; v < simd_w; v++) dest[v] = data[v];
-#endif
-}
-
 void src_transform_fwd(int image, jit_conv_winograd_conf_t conv,
-        float *inp, float *tinp)
+        float *inp, float *tinp, bool streamout = true)
 {
     const int simd_w = 16;
     const int alpha = 6;
@@ -480,12 +488,10 @@ void src_transform_fwd(int image, jit_conv_winograd_conf_t conv,
 
             for (int j = 0; j < alpha; j++) {
                 for (int i = 0; i < alpha; i++) {
-                    stream_ps(
-                            &(output(
-                                    tile_block, j, i,
+                    store_output(&(output(tile_block, j, i,
                                     nb_tile_block_ur, 0, 0,
                                     tile_block_ur, 0)),
-                            Iw[j][i]);
+                                 Iw[j][i], streamout);
                 }
             }
             tile_block_ur++;
@@ -497,6 +503,81 @@ void src_transform_fwd(int image, jit_conv_winograd_conf_t conv,
                 nb_tile_block_ur = 0;
                 tile_block++;
             }
+        }
+    }
+}
+
+void src_transform_fwd_tile(int tile_block, jit_conv_winograd_conf_t conv,
+        float *inp, float *tinp)
+{
+    const int simd_w = 16;
+    const int alpha = 6;
+    const int tile_size = alpha - 2;
+    const int ifwp = conv.iw + conv.l_pad;
+    const int ifhp = conv.ih + conv.t_pad;
+    float Iw[alpha][alpha][simd_w];
+    float I[alpha][alpha][simd_w];
+
+    array_offset_calculator<float, 5> input(inp,
+            conv.mb, conv.ic/simd_w, conv.ih, conv.iw, simd_w);
+    array_offset_calculator<float, 7> output(tinp,
+             alpha, alpha,
+            conv.nb_tile_block_ur, conv.nb_ic, conv.ic_block,
+            conv.tile_block_ur, simd_w);
+
+    int n_tiles = tile_block * conv.nb_tile_block_ur * conv.tile_block_ur;
+
+    for (int nb_tile_block_ur = 0;
+            nb_tile_block_ur < conv.nb_tile_block_ur;
+            nb_tile_block_ur++) {
+
+        for (int tile_block_ur = 0; tile_block_ur < conv.tile_block_ur;
+                tile_block_ur++) {
+
+            int img = n_tiles / (conv.jtiles * conv.itiles);
+            int no_tile = n_tiles % (conv.jtiles * conv.itiles);
+            int ti = no_tile % conv.itiles;
+            int tj = no_tile / conv.itiles;
+
+            for (int j = 0; j < alpha; j++) {
+                int ydim = tj * tile_size + j;
+                if ((conv.t_pad <= ydim) && (ydim < ifhp)) {
+                    for (int i = 0; i < alpha; i++) {
+                        int xdim = ti * tile_size + i;
+                        if ((conv.l_pad <= xdim) && (xdim < ifwp)) {
+#pragma omp simd
+                            for (int v = 0; v < simd_w; v++) {
+                                I[j][i][v] = input(img, 0,
+                                        ydim - conv.t_pad,
+                                        xdim - conv.l_pad, v);
+                            }
+                        } else {
+#pragma omp simd
+                            for (int v = 0; v < simd_w; v++) {
+                                I[j][i][v] = 0.0f;
+                            }
+                        }
+                    }
+                } else {
+                    for (int i = 0; i < alpha; i++) {
+#pragma omp simd
+                        for (int v = 0; v < simd_w; v++) {
+                            I[j][i][v] = 0.0f;
+                        }
+                    }
+                }
+            }
+
+            trans_I_4x4_3x3(Iw, I);
+            for (int j = 0; j < alpha; j++) {
+                for (int i = 0; i < alpha; i++) {
+                    store_output(&(output(j, i,
+                                    nb_tile_block_ur, 0, 0,
+                                    tile_block_ur, 0)),
+                                 Iw[j][i], false);
+                }
+            }
+            n_tiles++;
         }
     }
 }
@@ -515,8 +596,9 @@ void weight_transform_fwd(jit_conv_winograd_conf_t conv, float *wp, float *twp)
             conv.kh, conv.kw,
             ic_simd_block, oc_simd_block);
     array_offset_calculator<float, 8> output(twp,
+            conv.nb_oc,
             alpha, alpha,
-            conv.nb_oc, conv.nb_ic,
+            conv.nb_ic,
             conv.oc_block, conv.ic_block,
             ic_simd_block, oc_simd_block);
     float Fw[alpha][alpha][simd_w][simd_w];
@@ -540,7 +622,7 @@ void weight_transform_fwd(jit_conv_winograd_conf_t conv, float *wp, float *twp)
             for (int v1 = 0; v1 < simd_w; v1++) {
 #pragma omp simd
                 for (int v2 = 0; v2 < simd_w; v2++) {
-                    output(j, i, 0, 0, 0, 0, v1, v2) = Fw[j][i][v1][v2];
+                    output(0, j, i, 0, 0, 0, v1, v2) = Fw[j][i][v1][v2];
                 }
             }
         }
@@ -549,7 +631,7 @@ void weight_transform_fwd(jit_conv_winograd_conf_t conv, float *wp, float *twp)
 
 template <bool with_bias, bool with_relu>
 void dst_transform_fwd(int image, jit_conv_winograd_conf_t conv, float *toutp,
-        float *outp, float *bias)
+        float *outp, float *bias, bool streamout = true)
 {
     const int simd_w = 16;
     const int alpha = 6;
@@ -602,7 +684,7 @@ void dst_transform_fwd(int image, jit_conv_winograd_conf_t conv, float *toutp,
                                              : O[j][i][v];
 
                             }
-                            stream_ps(&(output(0, ydim, xdim, 0)), O[j][i]);
+                            store_output(&(output(0, ydim, xdim, 0)), O[j][i], streamout);
                         }
                     }
                 }
@@ -619,8 +701,76 @@ void dst_transform_fwd(int image, jit_conv_winograd_conf_t conv, float *toutp,
         }
     }
 }
+
+template <bool with_bias, bool with_relu>
+void dst_transform_fwd_tile(int tile_block, jit_conv_winograd_conf_t conv,
+        float *toutp, float *outp, float *bias)
+{
+    const int simd_w = 16;
+    const int alpha = 6;
+    const int tile_size = alpha - 2;
+    float Ow[alpha][alpha][simd_w];
+    float O[tile_size][tile_size][simd_w];
+
+    array_offset_calculator<float, 6> input(toutp,
+            alpha, alpha,
+            conv.nb_tile_block_ur, conv.oc_block,
+            conv.tile_block_ur, simd_w);
+    array_offset_calculator<float, 5> output(outp,
+            conv.mb, conv.oc/simd_w, conv.oh, conv.ow, simd_w);
+
+    int n_tiles = tile_block * conv.nb_tile_block_ur * conv.tile_block_ur;
+    for (int nb_tile_block_ur = 0;
+            nb_tile_block_ur < conv.nb_tile_block_ur;
+            nb_tile_block_ur++) {
+
+        for (int tile_block_ur = 0; tile_block_ur < conv.tile_block_ur;
+                tile_block_ur++) {
+            int img = n_tiles / (conv.jtiles * conv.itiles);
+            int no_tile = n_tiles % (conv.jtiles * conv.itiles);
+            int ti = no_tile % conv.itiles;
+            int tj = no_tile / conv.itiles;
+
+            for (int j = 0; j < alpha; j++) {
+                for (int i = 0; i < alpha; i++) {
+#pragma omp simd
+                    for (int v = 0; v < simd_w; v++) {
+                        Ow[j][i][v] = input(j, i, nb_tile_block_ur, 0,
+                                tile_block_ur, v);
+                    }
+                }
+            }
+
+            trans_O_4x4_3x3(Ow, O);
+
+            for (int j = 0; j < tile_size; j++) {
+                int ydim = tj * tile_size + j;
+                if (ydim < conv.oh) {
+                    for (int i = 0; i < tile_size; i++) {
+                        int xdim = ti * tile_size + i;
+                        if (xdim < conv.ow) {
+#pragma omp simd
+                            for (int v = 0; v < simd_w; v++) {
+                                O[j][i][v] += with_bias ? bias[v] : 0.0f;
+                                O[j][i][v] = (with_relu && O[j][i][v] < 0.0f)
+                                             ? O[j][i][v] * conv.relu_negative_slope
+                                             : O[j][i][v];
+
+                            }
+
+                            store_output(&(output(img, 0, ydim, xdim, 0)),
+                                         O[j][i], true);
+                        }
+                    }
+                }
+            }
+            n_tiles++;
+        }
+    }
+}
+
 void diff_dst_transform_bwd_data( int image, jit_conv_winograd_conf_t conv,
-        float *inp, float *tinp)
+        float *inp, float *tinp, bool streamout = true)
 {
     const int simd_w = 16;
     const int alpha = 6;
@@ -684,10 +834,8 @@ void diff_dst_transform_bwd_data( int image, jit_conv_winograd_conf_t conv,
 
             for (int j = 0; j < alpha; j++) {
                 for (int i = 0; i < alpha; i++) {
-                    stream_ps(
-                            &(output(tile_block, j, i, nb_tile_block_ur,
-                                    0, 0, tile_block_ur, 0)),
-                            Iw[j][i]);
+                    store_output(&(output(tile_block, j, i, nb_tile_block_ur,
+                                    0, 0, tile_block_ur, 0)), Iw[j][i], streamout);
                 }
             }
             tile_block_ur++;
@@ -699,6 +847,81 @@ void diff_dst_transform_bwd_data( int image, jit_conv_winograd_conf_t conv,
                 nb_tile_block_ur = 0;
                 tile_block++;
             }
+        }
+    }
+}
+
+void diff_dst_transform_bwd_data_tile(int tile_block,
+        jit_conv_winograd_conf_t conv, float *inp, float *tinp)
+{
+    const int simd_w = 16;
+    const int alpha = 6;
+    const int tile_size = alpha - 2;
+    const int l_pad_winograd = conv.iw + conv.r_pad - conv.ow;
+    const int t_pad_winograd = conv.ih + conv.b_pad - conv.oh;
+    const int ofwp = conv.ow + l_pad_winograd;
+    const int ofhp = conv.oh + t_pad_winograd;
+    float Iw[alpha][alpha][simd_w];
+    float I[alpha][alpha][simd_w];
+
+    array_offset_calculator<float, 5> input(inp,
+            conv.mb, conv.oc / simd_w, conv.oh, conv.ow, simd_w);
+    array_offset_calculator<float, 7> output(tinp,
+            alpha, alpha, conv.nb_tile_block_ur,
+            conv.nb_oc, conv.oc_block, conv.tile_block_ur, simd_w);
+
+    int n_tiles = tile_block * conv.nb_tile_block_ur * conv.tile_block_ur;
+
+    for (int nb_tile_block_ur = 0;
+            nb_tile_block_ur < conv.nb_tile_block_ur;
+            nb_tile_block_ur++) {
+        for (int tile_block_ur = 0; tile_block_ur < conv.tile_block_ur;
+                tile_block_ur++) {
+
+            int img = n_tiles / (conv.jtiles * conv.itiles);
+            int no_tile = n_tiles % (conv.jtiles * conv.itiles);
+            int ti = no_tile % conv.itiles;
+            int tj = no_tile / conv.itiles;
+
+            for (int j = 0; j < alpha; j++) {
+                int ydim = tj * tile_size + j;
+                if ((t_pad_winograd <= ydim) && (ydim < ofhp)) {
+                    for (int i = 0; i < alpha; i++) {
+                        int xdim = ti * tile_size + i;
+                        if ((l_pad_winograd <= xdim) && (xdim < ofwp)) {
+#pragma omp simd
+                            for (int v = 0; v < 16; v++) {
+                                I[j][i][v] = input(img, 0,
+                                        ydim - t_pad_winograd,
+                                        xdim - l_pad_winograd, v);
+                            }
+                        } else {
+#pragma omp simd
+                            for (int v = 0; v < 16; v++) {
+                                I[j][i][v] = 0.0f;
+                            }
+                        }
+                    }
+                } else {
+                    for (int i = 0; i < alpha; i++) {
+#pragma omp simd
+                        for (int v = 0; v < 16; v++) {
+                            I[j][i][v] = 0.0f;
+                        }
+                    }
+                }
+            }
+
+            trans_I_4x4_3x3(Iw, I);
+
+            for (int j = 0; j < alpha; j++) {
+                for (int i = 0; i < alpha; i++) {
+                    store_output(&(output(j, i, nb_tile_block_ur,
+                                    0, 0, tile_block_ur, 0)),
+                            Iw[j][i], false);
+                }
+            }
+            n_tiles++;
         }
     }
 }
@@ -748,7 +971,7 @@ void weight_transform_bwd_data(jit_conv_winograd_conf_t conv,
 }
 
 void diff_src_transform_bwd_data(int image, jit_conv_winograd_conf_t conv,
-        float *toutp, float *outp)
+        float *toutp, float *outp, bool streamout = true)
 {
     const int simd_w = 16;
     const int alpha = 6;
@@ -794,9 +1017,8 @@ void diff_src_transform_bwd_data(int image, jit_conv_winograd_conf_t conv,
                     for (int i = 0; i < tile_size; i++) {
                         int xdim = ti * tile_size + i;
                         if (xdim < conv.iw) {
-                            stream_ps(
-                                    &(output(0, 0, ydim, xdim, 0)),
-                                    O[j][i]);
+                            store_output(&(output(0, 0, ydim, xdim, 0)),
+                                         O[j][i], streamout);
                         }
                     }
                 }
@@ -810,6 +1032,64 @@ void diff_src_transform_bwd_data(int image, jit_conv_winograd_conf_t conv,
                 nb_tile_block_ur = 0;
                 tile_block++;
             }
+        }
+    }
+}
+
+void diff_src_transform_bwd_data_tile(int tile_block,
+        jit_conv_winograd_conf_t conv, float *toutp, float *outp)
+{
+    const int simd_w = 16;
+    const int alpha = 6;
+    const int tile_size = alpha - 2;
+
+    array_offset_calculator<float, 6> input(toutp,
+            alpha, alpha,
+            conv.nb_tile_block_ur, conv.ic_block,
+            conv.tile_block_ur, simd_w);
+    array_offset_calculator<float, 5> output(outp,
+            conv.mb, conv.ic/simd_w, conv.ih, conv.iw, simd_w);
+
+    float Ow[alpha][alpha][simd_w];
+    float O[tile_size][tile_size][simd_w];
+
+    int n_tiles = tile_block * conv.nb_tile_block_ur * conv.tile_block_ur;
+    for (int nb_tile_block_ur = 0;
+            nb_tile_block_ur < conv.nb_tile_block_ur;
+            nb_tile_block_ur++) {
+
+        for (int tile_block_ur = 0; tile_block_ur < conv.tile_block_ur;
+                tile_block_ur++) {
+            int img = n_tiles / (conv.jtiles * conv.itiles);
+            int no_tile = n_tiles % (conv.jtiles * conv.itiles);
+            int ti = no_tile % conv.itiles;
+            int tj = no_tile / conv.itiles;
+
+            for (int j = 0; j < alpha; j++) {
+                for (int i = 0; i < alpha; i++) {
+#pragma omp simd
+                    for (int v = 0; v < 16; v++) {
+                        Ow[j][i][v] = input( j, i, nb_tile_block_ur, 0,
+                                tile_block_ur, v);
+                    }
+                }
+            }
+
+            trans_O_4x4_3x3(Ow, O);
+
+            for (int j = 0; j < tile_size; j++) {
+                int ydim = tj * tile_size + j;
+                if (ydim < conv.ih) {
+                    for (int i = 0; i < tile_size; i++) {
+                        int xdim = ti * tile_size + i;
+                        if (xdim < conv.iw) {
+                            store_output(&(output(img, 0, ydim, xdim, 0)),
+                                    O[j][i], true);
+                        }
+                    }
+                }
+            }
+            n_tiles++;
         }
     }
 }
@@ -902,11 +1182,10 @@ void diff_src_transform_bwd_weights(int image, jit_conv_winograd_conf_t conv,
             } else {
                 for (int j = 0; j < conv.alpha; j++) {
                     for (int i = 0; i < conv.alpha; i++) {
-                        stream_ps(
-                                &(output(0, j, i,
+                        store_output(&(output(0, j, i,
                                         tile_block, 0,
                                         nb_tile_block_ur, tile_block_ur, 0)),
-                                Iw[j][i]);
+                                     Iw[j][i], true);
                     }
                 }
                 tile_block_ur++;
@@ -1009,13 +1288,11 @@ void diff_dst_transform_bwd_weights(int image, jit_conv_winograd_conf_t conv,
 
             for (int j = 0; j < conv.alpha; j++) {
                 for (int i = 0; i < conv.alpha; i++) {
-                    /*TODO: Try instrinsic for casting into __m512*/
-                    stream_ps(
-                            &(output(0, j, i,
+                    store_output(&(output(0, j, i,
                                     tile_block, 0,
                                     nb_tile_block_ur,
                                     tile_block_ur, 0)),
-                            Iw[j][i]);
+                                 Iw[j][i], true);
                 }
             }
             tile_block_ur++;
@@ -1066,9 +1343,8 @@ void diff_weights_transform_bwd_weights(jit_conv_winograd_conf_t conv,
     for (int j = 0; j < kh; j++) {
         for (int i = 0; i < kw; i++) {
             for (int v = 0; v < conv.ic_simd_block; v++) {
-                stream_ps(
-                        &(output(0, 0, j, i, v, 0)),
-                        F[j][i][v]);
+                store_output(&(output(0, 0, j, i, v, 0)),
+                             F[j][i][v], true);
             }
         }
     }
@@ -1076,7 +1352,8 @@ void diff_weights_transform_bwd_weights(jit_conv_winograd_conf_t conv,
 
 
 template <bool with_relu>
-void _jit_avx512_common_convolution_winograd_fwd_t<with_relu>::execute_forward()
+void _jit_avx512_common_convolution_winograd_fwd_t<with_relu>::
+_execute_forward_W_S_G_D()
 {
     const int simd_w = 16;
     const int alpha = 6;
@@ -1094,40 +1371,38 @@ void _jit_avx512_common_convolution_winograd_fwd_t<with_relu>::execute_forward()
     array_offset_calculator<float, 2> bias((float *)this->input_memory(2),
             jcp.oc/simd_w, simd_w);
 
-    char *base_ptr = scratchpad_buffer_->get();
-    array_offset_calculator<float, 8> M(
-            (float *)(base_ptr + sp_offsets_.mp_offset_),
+    array_offset_calculator<float, 8> M((float *)(scratchpad_->M_ptr()),
             jcp.tile_block, jcp.nb_oc,
             alpha, alpha,
             jcp.nb_tile_block_ur, jcp.oc_block,
             jcp.tile_block_ur, simd_w);
-    array_offset_calculator<float, 8> U(
-            (float *)(base_ptr + sp_offsets_.up_offset_),
+    array_offset_calculator<float, 8> U((float *)(scratchpad_->U_ptr()),
+            jcp.nb_oc,
             alpha, alpha,
-            jcp.nb_oc, jcp.nb_ic,
+            jcp.nb_ic,
             jcp.oc_block, jcp.ic_block,
             simd_w, simd_w);
-    array_offset_calculator<float, 8> V(
-            (float *)(base_ptr + sp_offsets_.vp_offset_),
+    array_offset_calculator<float, 8> V((float *)(scratchpad_->V_ptr()),
             jcp.tile_block, alpha, alpha,
             jcp.nb_tile_block_ur, jcp.nb_ic,
             jcp.ic_block, jcp.tile_block_ur, simd_w);
 
+    bool V_streamout = jcp.ntiles * jcp.ic * alpha * alpha * sizeof(float)
+        > 2 * LLC_cache_size ? true : false;
+
 #pragma omp parallel
     {
-////////////////////  New src_transform //////////////////////
 #pragma omp for nowait collapse(3)
         for (int img = 0; img < jcp.mb; img++) {
             for (int ifm1 = 0; ifm1 < jcp.nb_ic; ifm1++) {
                 for (int ifm2 = 0; ifm2 < jcp.ic_block; ifm2++) {
                     src_transform_fwd(img, jcp,
                             &(src(img, ifm1 * jcp.ic_block + ifm2, 0, 0, 0)),
-                            &(V(0, 0, 0, 0, ifm1, ifm2, 0, 0)));
+                            &(V(0, 0, 0, 0, ifm1, ifm2, 0, 0)), V_streamout);
                 }
             }
         }
 
-//////////////////// New weight_transform ////////////////////
 #pragma omp for nowait collapse(4)
         for (int ofm1 = 0; ofm1 < jcp.nb_oc; ofm1++) {
             for (int ifm1 = 0; ifm1 < jcp.nb_ic; ifm1++) {
@@ -1137,21 +1412,15 @@ void _jit_avx512_common_convolution_winograd_fwd_t<with_relu>::execute_forward()
                                 &(weights(ofm1 * jcp.oc_block + ofm2,
                                         ifm1 * jcp.ic_block + ifm2,
                                         0, 0, 0, 0)),
-                                &(U(0, 0, ofm1, ifm1, ofm2, ifm2, 0, 0)));
+                                &(U(ofm1, 0, 0, ifm1, ofm2, ifm2, 0, 0)));
                     }
                 }
             }
         }
 
 #pragma omp barrier
-        ////////////////////////// New GEMM //////////////////////////
-        // We want the treads on the same tile to work on the same
-        // image chunk to help data locality. We parallelize on
-        // alpha^2 and nb_oc to share the input image in L2 as the
-        // input image is generally larger than the filter and causes
-        // many L2 misses,
+#pragma omp for collapse(5) nowait schedule(static)
         for (int tile_block = 0; tile_block < jcp.tile_block; tile_block++) {
-#pragma omp for collapse(3) nowait schedule(static)
             for (int oj = 0; oj < alpha; oj++) {
                 for (int oi = 0; oi < alpha; oi++) {
                     for (int ofm1 = 0; ofm1 < jcp.nb_oc; ofm1++) {
@@ -1163,8 +1432,7 @@ void _jit_avx512_common_convolution_winograd_fwd_t<with_relu>::execute_forward()
                                             oj, oi,
                                             nb_tile_block_ur, 0,
                                             0, 0)),
-                                    (const float *)&(U(oj, oi,
-                                            ofm1, 0,
+                                    (const float *)&(U(ofm1, oj, oi, 0,
                                             0, 0, 0, 0)),
                                     (const float *)&(V(tile_block, oj, oi,
                                             nb_tile_block_ur, 0,
@@ -1175,8 +1443,7 @@ void _jit_avx512_common_convolution_winograd_fwd_t<with_relu>::execute_forward()
                                                 oj, oi,
                                                 nb_tile_block_ur, 0,
                                                 0, 0)),
-                                        (const float *)&(U(oj, oi,
-                                                ofm1, ifm1,
+                                        (const float *)&(U(ofm1, oj, oi, ifm1,
                                                 0, 0, 0, 0)),
                                         (const float *)&(V(tile_block, oj, oi,
                                                 nb_tile_block_ur, ifm1,
@@ -1189,7 +1456,6 @@ void _jit_avx512_common_convolution_winograd_fwd_t<with_relu>::execute_forward()
         }
 
 #pragma omp barrier
-//////////////////// New output_transform ////////////////////
 #pragma omp for collapse(3)
         for (int img = 0; img < jcp.mb; img++) {
             for (int ofm1 = 0; ofm1 < jcp.nb_oc; ofm1++) {
@@ -1197,21 +1463,134 @@ void _jit_avx512_common_convolution_winograd_fwd_t<with_relu>::execute_forward()
                     output_transform(img, jcp,
                             &(M(0, ofm1, 0, 0, 0, ofm2, 0, 0)),
                             &(dst(img, ofm1 * jcp.oc_block + ofm2, 0, 0, 0)),
-                            &(bias(ofm1 * jcp.oc_block + ofm2, 0)));
+                            &(bias(ofm1 * jcp.oc_block + ofm2, 0)), true);
                 }
             }
         }
     }
 }
 
-template void
-_jit_avx512_common_convolution_winograd_fwd_t<true>::execute_forward();
-template void
-_jit_avx512_common_convolution_winograd_fwd_t<false>::execute_forward();
-
-void jit_avx512_common_convolution_winograd_bwd_data_t::execute_backward_data()
+template <bool with_relu>
+void _jit_avx512_common_convolution_winograd_fwd_t<with_relu>::
+_execute_forward_W_SGD()
 {
     const int simd_w = 16;
+    const int alpha = 6;
+    const auto &jcp = kernel_->jcp;
+
+    auto output_transform_tile = jcp.with_bias
+        ? dst_transform_fwd_tile<true, with_relu>
+        : dst_transform_fwd_tile<false, with_relu>;
+
+    array_offset_calculator<float, 5> src((float *)this->input_memory(0),
+            jcp.mb, jcp.ic/simd_w, jcp.ih, jcp.iw, simd_w);
+    array_offset_calculator<float, 5> dst((float *)this->memory(),
+            jcp.mb, jcp.oc/simd_w, jcp.oh, jcp.ow, simd_w);
+    array_offset_calculator<float, 6> weights((float *)this->input_memory(1),
+            jcp.oc/simd_w, jcp.ic/simd_w, jcp.kh, jcp.kw, simd_w, simd_w);
+    array_offset_calculator<float, 2> bias((float *)this->input_memory(2),
+            jcp.oc/simd_w, simd_w);
+
+    array_offset_calculator<float, 8> U((float *)(scratchpad_->U_ptr()),
+            jcp.nb_oc,
+            alpha, alpha,
+            jcp.nb_ic,
+            jcp.oc_block, jcp.ic_block,
+            simd_w, simd_w);
+
+    array_offset_calculator<float, 8> M((float *)(scratchpad_->M_ptr()),
+            0, jcp.nb_oc, alpha, alpha,
+            jcp.nb_tile_block_ur, jcp.oc_block,
+            jcp.tile_block_ur, simd_w);
+
+    array_offset_calculator<float, 8> V((float *)(scratchpad_->V_ptr()),
+            0, alpha, alpha, jcp.nb_tile_block_ur, jcp.nb_ic,
+            jcp.ic_block, jcp.tile_block_ur, simd_w);
+
+#pragma omp parallel
+    {
+#pragma omp for collapse(4) schedule(static)
+    for (int ofm1 = 0; ofm1 < jcp.nb_oc; ofm1++) {
+        for (int ifm1 = 0; ifm1 < jcp.nb_ic; ifm1++) {
+            for (int ofm2 = 0; ofm2 < jcp.oc_block; ofm2++) {
+                for (int ifm2 = 0; ifm2 < jcp.ic_block; ifm2++) {
+                    weight_transform_fwd(jcp,
+                            &(weights(ofm1 * jcp.oc_block + ofm2,
+                                    ifm1 * jcp.ic_block + ifm2,
+                                    0, 0, 0, 0)),
+                            &(U(ofm1, 0, 0, ifm1, ofm2, ifm2, 0, 0)));
+                }
+            }
+        }
+    }
+
+#pragma omp for schedule(static)
+    for (int tile_block = 0; tile_block < jcp.tile_block; tile_block++) {
+        int ithr = omp_get_thread_num();
+
+        for (int ifm1 = 0; ifm1 < jcp.nb_ic; ifm1++) {
+            for (int ifm2 = 0; ifm2 < jcp.ic_block; ifm2++) {
+                src_transform_fwd_tile(
+                        tile_block, jcp,
+                        &(src(0, ifm1 * jcp.ic_block + ifm2, 0, 0, 0)),
+                        &(V(ithr, 0, 0, 0, ifm1, ifm2, 0, 0)));
+            }
+        }
+
+        for (int oj = 0; oj < alpha; oj++) {
+            for (int oi = 0; oi < alpha; oi++) {
+                for (int ofm1 = 0; ofm1 < jcp.nb_oc; ofm1++) {
+                    for (int nb_tile_block_ur = 0;
+                            nb_tile_block_ur < jcp.nb_tile_block_ur;
+                            nb_tile_block_ur++) {
+                        kernel_->gemm_loop_ker_first_iter(
+                                (float *)&(M(ithr, ofm1, oj, oi,
+                                        nb_tile_block_ur, 0, 0, 0)),
+                                (const float *)&(U(ofm1, oj, oi, 0,
+                                        0, 0, 0, 0)),
+                                (const float *)&(V(ithr, oj, oi,
+                                        nb_tile_block_ur, 0, 0, 0, 0)));
+                        for (int ifm1 = 1; ifm1 < jcp.nb_ic; ifm1++) {
+                            kernel_->gemm_loop_ker(
+                                    (float *)&(M(ithr, ofm1, oj, oi,
+                                            nb_tile_block_ur, 0, 0, 0)),
+                                    (const float *)&(U(ofm1, oj, oi, ifm1,
+                                            0, 0, 0, 0)),
+                                    (const float *)&(V(ithr, oj, oi,
+                                            nb_tile_block_ur, ifm1, 0, 0, 0)));
+                        }
+                    }
+                }
+            }
+        }
+
+        for (int ofm1 = 0; ofm1 < jcp.nb_oc; ofm1++) {
+            for (int ofm2 = 0; ofm2 < jcp.oc_block; ofm2++) {
+                output_transform_tile(tile_block, jcp,
+                        &(M(ithr, ofm1, 0, 0, 0, ofm2, 0, 0)),
+                        &(dst(0, ofm1 * jcp.oc_block + ofm2, 0, 0, 0)),
+                        &(bias(ofm1 * jcp.oc_block + ofm2, 0)));
+            }
+        }
+    }
+    }
+}
+
+template void
+_jit_avx512_common_convolution_winograd_fwd_t<true>:: _execute_forward_W_S_G_D();
+template void
+_jit_avx512_common_convolution_winograd_fwd_t<false>:: _execute_forward_W_S_G_D();
+template void
+_jit_avx512_common_convolution_winograd_fwd_t<true>:: _execute_forward_W_SGD();
+template void
+_jit_avx512_common_convolution_winograd_fwd_t<false>:: _execute_forward_W_SGD();
+
+
+void jit_avx512_common_convolution_winograd_bwd_data_t::
+_execute_backward_data_W_S_G_D()
+{
+    const int simd_w = 16;
+    const int alpha = 6;
     const auto &jcp = kernel_->jcp;
 
     array_offset_calculator<float, 5> diff_src((float *)this->memory(),
@@ -1221,28 +1600,26 @@ void jit_avx512_common_convolution_winograd_bwd_data_t::execute_backward_data()
     array_offset_calculator<float, 6> weights((float *)this->input_memory(1),
             jcp.oc/simd_w, jcp.ic/simd_w, jcp.kh, jcp.kw, simd_w, simd_w);
 
-    char *base_ptr = scratchpad_buffer_->get();
-    array_offset_calculator<float, 8> U(
-            (float *)(base_ptr + sp_offsets_.up_offset_),
-            jcp.alpha, jcp.alpha,
+    array_offset_calculator<float, 8> U((float *)(scratchpad_->U_ptr()),
+            alpha, alpha,
             jcp.nb_ic, jcp.nb_oc,
             jcp.ic_block, jcp.oc_block,
             simd_w, simd_w);
-    array_offset_calculator<float, 8> V(
-            (float *)(base_ptr + sp_offsets_.vp_offset_),
+    array_offset_calculator<float, 8> V((float *)(scratchpad_->V_ptr()),
             jcp.tile_block, jcp.nb_ic,
-            jcp.alpha, jcp.alpha,
+            alpha, alpha,
             jcp.nb_tile_block_ur, jcp.ic_block,
             jcp.tile_block_ur, simd_w);
-    array_offset_calculator<float, 8> M(
-            (float *)(base_ptr + sp_offsets_.mp_offset_),
-            jcp.tile_block, jcp.alpha, jcp.alpha,
+    array_offset_calculator<float, 8> M((float *)(scratchpad_->M_ptr()),
+            jcp.tile_block, alpha, alpha,
             jcp.nb_tile_block_ur, jcp.nb_oc,
             jcp.oc_block, jcp.tile_block_ur, simd_w);
 
+    bool M_streamout = jcp.ntiles * jcp.oc * alpha * alpha * sizeof(float)
+        > 2 * LLC_cache_size ? true : false;
+
 #pragma omp parallel
     {
-//******************** New dst_transform ********************//
 #pragma omp for collapse(3) nowait
         for (int img = 0; img < jcp.mb; img++) {
             for (int ofm1 = 0; ofm1 < jcp.nb_oc; ofm1++) {
@@ -1250,7 +1627,7 @@ void jit_avx512_common_convolution_winograd_bwd_data_t::execute_backward_data()
                     diff_dst_transform_bwd_data(img, jcp,
                             &(diff_dst(img, ofm1 * jcp.oc_block + ofm2,
                                     0, 0, 0)),
-                            &(M(0, 0, 0, 0, ofm1, ofm2, 0, 0)));
+                            &(M(0, 0, 0, 0, ofm1, ofm2, 0, 0)), M_streamout);
                 }
             }
         }
@@ -1271,10 +1648,10 @@ void jit_avx512_common_convolution_winograd_bwd_data_t::execute_backward_data()
         }
 
 #pragma omp barrier
+#pragma omp for collapse(5) nowait schedule(static)
         for (int tile_block = 0; tile_block < jcp.tile_block; tile_block++) {
-#pragma omp for collapse(3) nowait schedule(static)
-            for (int oj = 0; oj < jcp.alpha; oj++) {
-                for (int oi = 0; oi < jcp.alpha; oi++) {
+            for (int oj = 0; oj < alpha; oj++) {
+                for (int oi = 0; oi < alpha; oi++) {
                     for (int ifm1 = 0; ifm1 < jcp.nb_ic; ifm1++) {
                         for (int nb_tile_block_ur = 0;
                                 nb_tile_block_ur < jcp.nb_tile_block_ur;
@@ -1324,6 +1701,105 @@ void jit_avx512_common_convolution_winograd_bwd_data_t::execute_backward_data()
     }
 }
 
+void jit_avx512_common_convolution_winograd_bwd_data_t::
+_execute_backward_data_W_SGD()
+{
+    const int simd_w = 16;
+    const int alpha = 6;
+    const auto &jcp = kernel_->jcp;
+
+    array_offset_calculator<float, 5> diff_src((float *)this->memory(),
+            jcp.mb, jcp.ic/simd_w, jcp.ih, jcp.iw, simd_w);
+    array_offset_calculator<float, 5> diff_dst((float *)this->input_memory(0),
+            jcp.mb, jcp.oc/simd_w, jcp.oh, jcp.ow, simd_w);
+    array_offset_calculator<float, 6> weights((float *)this->input_memory(1),
+            jcp.oc/simd_w, jcp.ic/simd_w, jcp.kh, jcp.kw, simd_w, simd_w);
+
+    array_offset_calculator<float, 8> U((float *)(scratchpad_->U_ptr()),
+            alpha, alpha,
+            jcp.nb_ic, jcp.nb_oc,
+            jcp.ic_block, jcp.oc_block,
+            simd_w, simd_w);
+
+    array_offset_calculator<float, 8> V((float *)(scratchpad_->V_ptr()),
+            0, jcp.nb_ic,
+            alpha, alpha,
+            jcp.nb_tile_block_ur, jcp.ic_block,
+            jcp.tile_block_ur, simd_w);
+
+    array_offset_calculator<float, 8> M((float *)(scratchpad_->M_ptr()),
+            0, alpha, alpha,
+            jcp.nb_tile_block_ur, jcp.nb_oc,
+            jcp.oc_block, jcp.tile_block_ur, simd_w);
+
+#pragma omp parallel
+    {
+#pragma omp for collapse(4) schedule(static)
+    for (int ifm1 = 0; ifm1 < jcp.nb_ic; ifm1++) {
+        for (int ofm1 = 0; ofm1 < jcp.nb_oc; ofm1++) {
+            for (int ofm2 = 0; ofm2 < jcp.oc_block; ofm2++) {
+                for (int ifm2 = 0; ifm2 < jcp.ic_block; ifm2++) {
+                    weight_transform_bwd_data(jcp,
+                            &(weights(ofm1 * jcp.oc_block + ofm2,
+                                    ifm1 * jcp.ic_block + ifm2,
+                                    0, 0, 0, 0)),
+                            &(U(0, 0, ifm1, ofm1, ifm2, ofm2, 0, 0)));
+                }
+            }
+        }
+    }
+
+#pragma omp for schedule(static)
+    for (int tile_block = 0; tile_block < jcp.tile_block; tile_block++) {
+        int ithr = omp_get_thread_num();
+
+        for (int ofm1 = 0; ofm1 < jcp.nb_oc; ofm1++) {
+            for (int ofm2 = 0; ofm2 < jcp.oc_block; ofm2++) {
+                diff_dst_transform_bwd_data_tile(
+                        tile_block, jcp,
+                        &(diff_dst(0, ofm1 * jcp.oc_block + ofm2, 0, 0, 0)),
+                        &(M(ithr, 0, 0, 0, ofm1, ofm2, 0, 0)));
+            }
+        }
+
+        for (int oj = 0; oj < alpha; oj++) {
+            for (int oi = 0; oi < alpha; oi++) {
+                for (int ifm1 = 0; ifm1 < jcp.nb_ic; ifm1++) {
+                    for (int nb_tile_block_ur = 0;
+                            nb_tile_block_ur < jcp.nb_tile_block_ur;
+                            nb_tile_block_ur++) {
+                        kernel_->gemm_loop_ker_first_iter(
+                                (float *)&(V(ithr, ifm1, oj, oi,
+                                        nb_tile_block_ur, 0, 0, 0)),
+                                (const float *)&(U(oj, oi,
+                                        ifm1, 0, 0, 0, 0, 0)),
+                                (const float *)&(M(ithr, oj, oi,
+                                        nb_tile_block_ur, 0, 0, 0, 0)));
+                        for (int ofm1 = 1; ofm1 < jcp.nb_oc; ofm1++) {
+                            kernel_->gemm_loop_ker(
+                                    (float *)&(V(ithr, ifm1, oj, oi,
+                                            nb_tile_block_ur, 0, 0, 0)),
+                                    (const float *)&(U(oj, oi,
+                                            ifm1, ofm1, 0, 0, 0, 0)),
+                                    (const float *)&(M(ithr, oj, oi,
+                                            nb_tile_block_ur, ofm1, 0, 0, 0)));
+                        }
+                    }
+                }
+            }
+        }
+
+        for (int ifm1 = 0; ifm1 < jcp.nb_ic; ifm1++) {
+            for (int ifm2 = 0; ifm2 < jcp.ic_block; ifm2++) {
+                diff_src_transform_bwd_data_tile(tile_block, jcp,
+                        &(V(ithr, ifm1, 0, 0, 0, ifm2, 0, 0)),
+                        &(diff_src(0, ifm1 * jcp.ic_block + ifm2, 0, 0, 0)));
+            }
+        }
+    }
+    }
+}
+
 void jit_avx512_common_convolution_winograd_bwd_weights_t::
        execute_backward_weights()
 {
@@ -1347,23 +1823,21 @@ void jit_avx512_common_convolution_winograd_bwd_weights_t::
     array_offset_calculator<float, 2> diff_bias(
             (float *)this->memory(1), jcp.oc/simd_w, simd_w);
 
-    char *base_ptr = scratchpad_buffer_->get();
-
     array_offset_calculator<float, 8> U(
-            (float *)(base_ptr + sp_offsets_.up_offset_),
+            (float *)(scratchpad_->U_ptr()),
             jcp.nb_ic, jcp.nb_oc,
             jcp.alpha, jcp.alpha,
             jcp.oc_block, jcp.ic_block,
             jcp.ic_simd_block, jcp.oc_simd_block);
 
     array_offset_calculator<float, 8> M(
-            (float *)(base_ptr + sp_offsets_.mp_offset_),
+            (float *)(scratchpad_->M_ptr()),
             jcp.nb_oc, jcp.alpha, jcp.alpha,
             jcp.tile_block, jcp.oc_block,
             jcp.nb_tile_block_ur, jcp.tile_block_ur * jcp.tile_4fma,
             jcp.oc_simd_block);
     array_offset_calculator<float, 8> V(
-            (float *)(base_ptr + sp_offsets_.vp_offset_),
+            (float *)(scratchpad_->V_ptr()),
             jcp.nb_ic, jcp.alpha, jcp.alpha,
             jcp.tile_block, jcp.ic_block,
             jcp.nb_tile_block_ur, jcp.tile_block_ur,
@@ -1372,12 +1846,12 @@ void jit_avx512_common_convolution_winograd_bwd_weights_t::
     const int trans_buffer_size = jcp.alpha * jcp.alpha * jcp.tile_4fma
                                 * jcp.ic_simd_block;
     array_offset_calculator<float, 2> trans_buffer(
-            (float *)(base_ptr + sp_offsets_.diff_src_trans_offset_),
+            (float *)(scratchpad_->src_transpose_ptr()),
             omp_get_max_threads(),
             trans_buffer_size);
 
     array_offset_calculator<float, 2> diff_bias_prv(
-            (float *)(base_ptr + sp_offsets_.biasu_offset_),
+            (float *)(scratchpad_->bias_ptr()),
             omp_get_max_threads(),
             jcp.oc);
 

@@ -24,7 +24,7 @@ namespace impl {
 namespace cpu {
 
 /* convolution */
-enum conv_version_t {ver_unused, ver_fma, ver_4fma, ver_4vnni};
+enum conv_version_t {ver_unused, ver_fma, ver_avx512_core, ver_4fma, ver_4vnni};
 enum conv_loop_order_t {loop_cgn, loop_gnc, loop_ngc};
 enum conv_1x1_loop_order_t {loop_rbl, loop_rlb, loop_lbr, loop_lrb, loop_blr,
                             loop_brl};
@@ -89,6 +89,29 @@ struct jit_conv_conf_t {
 };
 
 
+/*
+   Winograd sched policy:
+
+   Computation Unit:
+   W: weights transform
+   S: src transform
+   D: dst transform
+   G: gemm
+
+   Current policies supported:
+*/
+enum winograd_sched_t {
+    WSCHED_INVALID = 0,
+
+    /* Forward & backward-data */
+    /* W_S_G_D implements discrete transforms */
+    WSCHED_DATA_W_S_G_D,
+    /* W_SGD implements tiled transforms s.t. GEMM could reuse data in L2*/
+    WSCHED_DATA_W_SGD,
+
+    /* Backward-weights */
+    WSCHED_WEI_S_D_G_W,
+};
 struct jit_conv_winograd_conf_t : public jit_conv_conf_t {
     //alpha determines the tile size
     static const int alpha = 6;
@@ -122,6 +145,8 @@ struct jit_conv_winograd_conf_t : public jit_conv_conf_t {
     int dimN_reg_block;
     int dimN_block;
     int dimN_nb_block;
+
+    winograd_sched_t sched_policy;
 };
 
 struct jit_conv_call_s {

@@ -28,16 +28,19 @@
 #define KERNEL_SIZE_THRESHOLD 16
 #endif
 
+#define MIN_REQUIRED_DIMN_REG_BLOCK 14
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::memory_format;
-using namespace mkldnn::impl::utils;
-using namespace Xbyak;
+namespace {
 
-int L1_cache_size = get_cache_size(1, true);
-int L2_cache_size = get_cache_size(2, true);
+using namespace mkldnn::impl::utils;
+
+unsigned int L1_cache_size = get_cache_size(1, true);
+unsigned int L2_cache_size = get_cache_size(2, true);
+unsigned int LLC_data_size = get_cache_size(3, false);
 
 // the test funtion takes jcp, the candidate and the current best.
 // it  returns true if the new candidate is better
@@ -131,6 +134,71 @@ private:
     int prefetch_distance_ = 0;
 };
 
+// utilities to support kernel parameter selection
+bool check_L2_block_per_thread(jit_conv_winograd_conf_t &jcp,
+        int dimN_block, float C2_min, float C2_max) {
+    /* V_L2_block + M_L2_block + W */
+    float block_size = (jcp.alpha * jcp.alpha * (jcp.oc + jcp.ic)
+                     * dimN_block * jcp.dimN_reg_block
+                     + jcp.ic * jcp.oc) * sizeof(float);
+    float L2_lb = C2_min * L2_cache_size;
+    float L2_ub =  C2_max * L2_cache_size;
+    return (block_size > L2_lb && block_size < L2_ub);
+}
+
+bool check_L1_block_gemm(jit_conv_winograd_conf_t &jcp, int dimK_block,
+        int dimM_block, float C1_min, float C1_max) {
+    float gemm_block_size = (dimM_block * jcp.dimM_simd_block * dimK_block
+                             * jcp.dimK_reg_block
+                     + dimK_block * jcp.dimK_reg_block * jcp.dimN_reg_block
+                     + dimM_block * jcp.dimM_simd_block * jcp.dimN_reg_block)
+                     * sizeof(float);
+    float L1_lb = C1_min * L1_cache_size;
+    float L1_ub = C1_max * L1_cache_size;
+    return (gemm_block_size > L1_lb && gemm_block_size < L1_ub);
+}
+
+bool check_cond1(int dimN_reg_block, int dimK_block, int dimK_reg_block,
+        int dimM_block, int dimM_simd_block, float C)
+{
+    float lhs = (dimM_block * dimN_reg_block * dimM_simd_block
+                        + dimM_block * dimK_block * dimK_reg_block
+                                * dimM_simd_block
+                        + dimK_block * dimN_reg_block * dimK_reg_block)
+            * (float)sizeof(float);
+    float rhs = C * L1_cache_size;
+    return (lhs < rhs);
+}
+
+bool check_cond1_bis(int dimN_reg_block, int dimK_block, int dimK_reg_block,
+        int dimM_block, int dimM_simd_block, float C)
+{
+    float lhs = (dimM_block * dimK_block * dimK_reg_block * dimM_simd_block
+                        + dimK_block * dimN_reg_block * dimK_reg_block)
+            * (float)sizeof(float);
+    float rhs = C * L1_cache_size;
+    return (lhs < rhs);
+}
+
+bool check_cond2(int nb_dimN_reg_block, int dimN_reg_block, int dimK_nb_block,
+        int dimK_block, int dimK_reg_block, int dimM_block, int dimM_simd_block,
+        float C)
+{
+    float lhs = (nb_dimN_reg_block * dimM_block * dimN_reg_block * dimM_simd_block
+                      + dimK_nb_block * dimM_block * dimK_block * dimK_reg_block
+                              * dimM_simd_block
+                      + nb_dimN_reg_block * dimK_nb_block * dimK_block
+                              * dimN_reg_block * dimK_reg_block)
+            * (float)sizeof(float);
+    float rhs = C * L2_cache_size;
+    return (lhs < rhs);
+}
+}
+
+using namespace mkldnn::impl::memory_format;
+using namespace mkldnn::impl::utils;
+using namespace Xbyak;
+
 void _jit_avx512_common_conv_winograd_data_kernel_f32::gemm_loop_generate(
         bool is_beta_zero)
 {
@@ -211,8 +279,9 @@ void _jit_avx512_common_conv_winograd_data_kernel_f32::gemm_loop_generate(
                     /* Performing the fmas */
                     for (int tile = 0; tile < jcp.dimN_reg_block; tile++) {
                         Zmm zmm(jcp.zmm_start + tile);
-                        L1_pf.prefetch(
-                                dimK_reg_block * jcp.dimN_reg_block + tile);
+                        if (jcp.ver != ver_avx512_core)
+                            L1_pf.prefetch(
+                                    dimK_reg_block * jcp.dimN_reg_block + tile);
                         if (jcp.ver == ver_4fma)
                             v4fmaddps(zmm, Zmm(current),
                                     EVEX_compress_addr(reg_srcB,
@@ -222,8 +291,9 @@ void _jit_avx512_common_conv_winograd_data_kernel_f32::gemm_loop_generate(
                                     EVEX_compress_addr(reg_srcB,
                                                 64 * tile + dimK_reg_block * 4,
                                                 true));
-                        L2_pf.prefetch(
-                                dimK_reg_block * jcp.dimN_reg_block + tile);
+                        if (jcp.ver != ver_avx512_core)
+                            L2_pf.prefetch(
+                                    dimK_reg_block * jcp.dimN_reg_block + tile);
                     }
                 }
 
@@ -235,10 +305,13 @@ void _jit_avx512_common_conv_winograd_data_kernel_f32::gemm_loop_generate(
                 }
             }
 
-            // We write the results in destination
             for (int tile = 0; tile < jcp.dimN_reg_block; tile++) {
                 Zmm zmm(jcp.zmm_start + tile);
-                if (jcp.dimK_nb_block == 1)
+                // In W_SGD, output will be reused.
+                if (jcp.dimK_nb_block == 1
+                    && jcp.sched_policy == WSCHED_DATA_W_S_G_D
+                    && (jcp.dimN * jcp.dimM * jcp.alpha * jcp.alpha
+                        * sizeof(float) > 2 * LLC_data_size))
                     vmovntps(zword[reg_dstC + 64 * tile], zmm);
                 else
                     vmovups(zword[reg_dstC + 64 * tile], zmm);
@@ -274,6 +347,12 @@ status_t _jit_avx512_common_conv_winograd_data_kernel_f32::init_conf_common(
 
     if (!mayiuse(avx512_common))
         return status::unimplemented;
+    else if (mayiuse(avx512_core))
+        jcp.ver = ver_avx512_core;
+    else if (mayiuse(avx512_mic_4ops))
+        jcp.ver = ver_4fma;
+    else
+        jcp.ver = ver_fma;
 
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
     const int simd_w = 16;
@@ -318,120 +397,90 @@ status_t _jit_avx512_common_conv_winograd_data_kernel_f32::init_conf_common(
     if (dst_d.format() != nChw16c)
         return status::unimplemented;
 
-    jcp.ver = mayiuse(avx512_mic_4ops) ? ver_4fma : ver_fma;
 
     return status::success;
 }
 
-bool check_cond1(int dimN_reg_block, int dimK_block, int dimK_reg_block,
-        int dimM_block, int dimM_simd_block, float C)
-{
-    float lhs = (dimM_block * dimN_reg_block * dimM_simd_block
-                        + dimM_block * dimK_block * dimK_reg_block
-                                * dimM_simd_block
-                        + dimK_block * dimN_reg_block * dimK_reg_block)
-            * (float)sizeof(float);
-    float rhs = C * L1_cache_size;
-    return (lhs < rhs);
+status_t set_wsched_DATA_W_SGD(jit_conv_winograd_conf_t &jcp) {
+
+    if (jcp.ver != ver_avx512_core)
+        return status::unimplemented;
+
+    /* ----------- dimN reg block ---------------------*/
+    auto test_cond_dimN_reg_block = [](jit_conv_winograd_conf_t &jcp,
+            int dimN_reg_block, int current_best) {
+        return (dimN_reg_block >= MIN_REQUIRED_DIMN_REG_BLOCK)
+            && (dimN_reg_block <= jcp.nb_reg)
+            && (dimN_reg_block < current_best);
+    };
+
+    jcp.dimN_reg_block = get_divisor_satisfying_cond(
+            jcp, jcp.dimN, jcp.dimN, test_cond_dimN_reg_block);
+
+    if (jcp.dimN_reg_block >= jcp.nb_reg) {
+        auto test_cond_dimN_reg_block = [](jit_conv_winograd_conf_t &jcp,
+                int dimN_reg_block, int current_best) {
+            return (dimN_reg_block < jcp.nb_reg)
+                    && (dimN_reg_block > current_best);
+        };
+
+        jcp.dimN_reg_block = get_divisor_satisfying_cond(
+                jcp, jcp.dimN, 1, test_cond_dimN_reg_block);
+    }
+
+    /*-------------- L2 blocking for dimN block ---------*/
+
+    auto test_cond_dimN_block = [](jit_conv_winograd_conf_t &jcp,
+            int dimN_block, int current_best) {
+        return check_L2_block_per_thread(jcp, dimN_block, 0.1, 1.3)
+            && (dimN_block > current_best)
+            && ((jcp.dimN / dimN_block / jcp.dimN_reg_block) > 2 * omp_get_max_threads());
+    };
+
+    jcp.dimN_block = get_divisor_satisfying_cond(
+            jcp, jcp.dimN / jcp.dimN_reg_block, 1, test_cond_dimN_block);
+
+    if (check_L2_block_per_thread(jcp, jcp.dimN_block, 0.1, 1.3)
+        && jcp.dimN/ jcp.dimN_block/ jcp.dimN_reg_block > 2 * omp_get_max_threads()) {
+        jcp.dimN_nb_block = jcp.dimN / jcp.dimN_block / jcp.dimN_reg_block;
+
+        /* ------------------- L1 blocking for GEMM --------------*/
+        /* -------------------- Choose dimK block ----------------*/
+        auto test_cond_dimK_block = [](jit_conv_winograd_conf_t &jcp,
+                int dimK_block, int current_best) {
+            return check_L1_block_gemm(jcp, dimK_block, 1, 0.1, 0.6)
+                && (dimK_block > current_best);
+        };
+
+        jcp.dimK_block = get_divisor_satisfying_cond(
+                jcp, jcp.dimK / jcp.dimK_reg_block, 1, test_cond_dimK_block);
+
+        if (check_L1_block_gemm(jcp, jcp.dimK_block, 1, 0.1, 0.6)) {
+            jcp.dimK_nb_block = jcp.dimK / jcp.dimK_block / jcp.dimK_reg_block;
+
+            /* -------------- Choose dimM block -------------------*/
+            auto test_cond_dimM_block = [](jit_conv_winograd_conf_t &jcp,
+                    int dimM_block, int current_best) {
+                return check_L1_block_gemm(jcp, jcp.dimK_block, dimM_block, 0.1, 0.7)
+                    && (dimM_block > current_best);
+            };
+
+            jcp.dimM_block = get_divisor_satisfying_cond(
+                    jcp, jcp.dimM / jcp.dimM_simd_block, 1, test_cond_dimM_block);
+            jcp.dimM_nb_block = jcp.dimM / jcp.dimM_block / jcp.dimM_simd_block;
+
+            jcp.sched_policy = WSCHED_DATA_W_SGD;
+            return status::success;
+        }
+
+    }
+    return status::unimplemented;
+
 }
 
-bool check_cond1_bis(int dimN_reg_block, int dimK_block, int dimK_reg_block,
-        int dimM_block, int dimM_simd_block, float C)
-{
-    float lhs = (dimM_block * dimK_block * dimK_reg_block * dimM_simd_block
-                        + dimK_block * dimN_reg_block * dimK_reg_block)
-            * (float)sizeof(float);
-    float rhs = C * L1_cache_size;
-    return (lhs < rhs);
-}
 
-bool check_cond2(int nb_dimN_reg_block, int dimN_reg_block, int dimK_nb_block,
-        int dimK_block, int dimK_reg_block, int dimM_block, int dimM_simd_block,
-        float C)
-{
-    float lhs = (nb_dimN_reg_block * dimM_block * dimN_reg_block * dimM_simd_block
-                      + dimK_nb_block * dimM_block * dimK_block * dimK_reg_block
-                              * dimM_simd_block
-                      + nb_dimN_reg_block * dimK_nb_block * dimK_block
-                              * dimN_reg_block * dimK_reg_block)
-            * (float)sizeof(float);
-    float rhs = C * L2_cache_size;
-    return (lhs < rhs);
-}
+status_t set_wsched_DATA_W_S_G_D(jit_conv_winograd_conf_t &jcp) {
 
-status_t _jit_avx512_common_conv_winograd_data_kernel_f32::init_conf_kernel(
-        jit_conv_winograd_conf_t &jcp, int dimM, int dimN, int dimK)
-{
-    /*
-     Parameter selection:
-
-     [1] L1_cache condition with stores
-     [dimM_block][dimN_reg_block][simd_w]
-     + [dimM_block][dimK_block][simd_w][simd_w]
-     + [dimK_block][dimN_reg_block][simd_w] < C * L1_cache_size
-
-     [1bis] L1_cache condition with non-temporal stores
-     + [dimM_block][dimK_block][simd_w][simd_w]
-     + [dimK_block][dimN_reg_block][simd_w] < C * L1_cache_size
-
-     [2] L2 cache condition
-     [nb_dimN_reg_block][dimM_block][dimN_reg_block][simd_w]
-     + [dimK_nb_block][dimM_block][dimK_block][simd_w][simd_w]
-     + [nb_dimN_reg_block][dimK_nb_block][dimK_block][dimN_reg_block][simd_w]
-     < C * L2_cache_size
-
-     with C~1/2. C is here to prevent the HW prefetcher from evicting the needed
-     data.
-
-     0) pick dimN_reg_block such that it is just above what is needed
-     ot cover load latencies. Ideally, it should be bigger than 14 to
-     hide latencies.
-
-     1) pick dimK_block. Assuming jcp.dimM_block=1, Check if [1bis]
-     holds with dimK_block = dimK / simd_w.
-
-       i.  If it does, (with the current POR topologies, it should
-       almost always be the case)
-
-         a. pick dimK_block=dimK/simd_w as it enables to stream the
-         output of the GEMM and save some bandwidth for reading and
-         will save some work for the prefetcher.
-
-         b. pick dimM_block as big as possible such that:
-           - [1bis] holds
-
-         c. pick nb_dimN_reg_block such that [2] holds
-
-       ii. If it does not, it is not clear what is the best tradeoff:
-          a. maximize dimK_block to minimize the number of writes?
-          b. maximize dimM_block to maximize L1 cache reuse
-          c. find the best (dimM_block, dimK_block couple) depending on
-            the number of use-per-load and write instructions? What
-            would be the weight to put to each?
-          For now, we will stick with a., but it is worth
-          investigating c. Note that this will come with some
-          maintenance burden as the weights will likely be
-          architecture dependant
-   */
-
-    jcp.dimK_reg_block = 16;
-    jcp.dimM_simd_block = 16;
-
-    // TODO: replace double buffering with nuple buffering to maximize register
-    // usage.
-    // the choice of the number of buffers will then come after choosing
-    // dimN_reg_block
-    // Do we do double buffering?
-    jcp.double_buffering = true;
-    if (jcp.double_buffering)
-        jcp.zmm_start = 2 * ((jcp.ver == ver_4fma) ? 4 : 2);
-    else
-        jcp.zmm_start = 1;
-    jcp.nb_reg = 32 - jcp.zmm_start;
-
-    //******************* Choosing dimN_reg_block *******************//
-    jcp.dimN = dimN;
-#define MIN_REQUIRED_DIMN_REG_BLOCK 14
     auto test_cond_dimN_reg_block = [](jit_conv_winograd_conf_t &jcp,
             int dimN_reg_block, int current_best) {
         return (dimN_reg_block >= MIN_REQUIRED_DIMN_REG_BLOCK)
@@ -453,7 +502,6 @@ status_t _jit_avx512_common_conv_winograd_data_kernel_f32::init_conf_kernel(
     }
 
     //********************* Choosing dimK_block **********************//
-    jcp.dimK = dimK;
     auto test_cond1_dimK_block = [](
             jit_conv_winograd_conf_t &jcp, int dimK_block, int current_best) {
         return check_cond1(jcp.dimN_reg_block, dimK_block, jcp.dimK_reg_block,
@@ -477,7 +525,6 @@ status_t _jit_avx512_common_conv_winograd_data_kernel_f32::init_conf_kernel(
     jcp.dimK_nb_block = (jcp.dimK / jcp.dimK_reg_block) / jcp.dimK_block;
 
     //********************* Choosing dimM_block **********************//
-    jcp.dimM = dimM;
     jcp.dimM_simd_block = 16;
     /*XXX: Why C=0.5 here but C=0.75 for dimK_block?*/
     auto test_cond1_dimM_block = [](
@@ -514,6 +561,37 @@ status_t _jit_avx512_common_conv_winograd_data_kernel_f32::init_conf_kernel(
     jcp.dimN_block = get_divisor_satisfying_cond(
             jcp, jcp.dimN / jcp.dimN_reg_block, 1, test_cond2_dimN_block);
     jcp.dimN_nb_block = jcp.dimN / (jcp.dimN_reg_block * jcp.dimN_block);
+    jcp.sched_policy = WSCHED_DATA_W_S_G_D;
+    return status::success;
+    //return status::unimplemented;
+}
+
+status_t _jit_avx512_common_conv_winograd_data_kernel_f32::init_conf_kernel(
+        jit_conv_winograd_conf_t &jcp, int dimM, int dimN, int dimK)
+{
+    jcp.dimK_reg_block = 16;
+    jcp.dimM_simd_block = 16;
+
+    // TODO: replace double buffering with nuple buffering to maximize register
+    // usage.
+    // the choice of the number of buffers will then come after choosing
+    // dimN_reg_block
+    jcp.double_buffering = true;
+    if (jcp.double_buffering)
+        jcp.zmm_start = 2 * ((jcp.ver == ver_4fma) ? 4 : 2);
+    else
+        jcp.zmm_start = 1;
+    jcp.nb_reg = 32 - jcp.zmm_start;
+
+    jcp.dimN = dimN;
+    jcp.dimK = dimK;
+    jcp.dimM = dimM;
+
+    jcp.sched_policy = WSCHED_INVALID;
+    if (!(set_wsched_DATA_W_SGD(jcp) == status::success))
+        set_wsched_DATA_W_S_G_D(jcp);
+
+    assert(jcp.sched_policy != WSCHED_INVALID);
     return status::success;
 }
 
@@ -527,10 +605,9 @@ status_t jit_avx512_common_conv_winograd_fwd_kernel_f32::init_conf(
 
     if (st != status::success)
         return st;
-    
+
     // Winograd specific initialization
     const int tile_size = jcp.alpha - 2;
-    /* Assumption: padding = 1*/
     jcp.itiles = (jcp.ow + tile_size - 1) / tile_size;
     jcp.jtiles = (jcp.oh + tile_size - 1) / tile_size;
     jcp.ntiles = jcp.mb * jcp.itiles * jcp.jtiles;
@@ -569,7 +646,7 @@ status_t jit_avx512_common_conv_winograd_bwd_data_kernel_f32::init_conf(
     jcp.itiles = (jcp.iw + tile_size - 1) / tile_size;
     jcp.jtiles = (jcp.ih + tile_size - 1) / tile_size;
     jcp.ntiles = jcp.mb * jcp.itiles * jcp.jtiles;
-    
+
     status_t res = init_conf_kernel(jcp, jcp.ic, jcp.ntiles, jcp.oc);
     jcp.oc_simd_block = jcp.dimK_reg_block;
     jcp.oc_block = jcp.dimK_block;
@@ -584,6 +661,7 @@ status_t jit_avx512_common_conv_winograd_bwd_data_kernel_f32::init_conf(
 
     return res;
 }
+
 void jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::transpose_ker_generate()
 {
     auto load_B = [=](int reg_idx, int offset) {
@@ -1056,6 +1134,8 @@ status_t jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::init_conf(
     jcp.dimM_nb_block = (jcp.dimM / jcp.dimM_simd_block) / jcp.dimM_block;
     jcp.oc_block = jcp.dimM_block;
     jcp.nb_oc = jcp.dimM_nb_block;
+
+    jcp.sched_policy = WSCHED_WEI_S_D_G_W;
 
     return status::success;
 }

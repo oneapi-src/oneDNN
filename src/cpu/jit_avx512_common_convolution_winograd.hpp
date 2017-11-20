@@ -30,57 +30,113 @@ namespace cpu {
 
 namespace winograd {
 
-struct winograd_sp_offsets_t {
-    size_t up_offset_ = 0;
-    size_t vp_offset_ = 0;
-    size_t mp_offset_ = 0;
-    size_t diff_src_trans_offset_ = 0; //relevant for only bwdw
-    size_t biasu_offset_;
-};
-
-inline void allocate_winograd_scratchpad(const jit_conv_winograd_conf_t &jcp,
-        winograd_sp_offsets_t &sp_offsets, scratchpad_t *&winograd_scratchpad,
-        bool is_bwdw=false)
-{
-    const size_t up_size = jcp.alpha * jcp.alpha
-        * jcp.ic * jcp.oc * sizeof(float);
-    const size_t vp_size = jcp.alpha * jcp.alpha *
-        (jcp.itiles * jcp.jtiles + jcp.tile_4fma_padding) *
-        jcp.ic * jcp.mb * sizeof(float);
-    const size_t mp_size = jcp.alpha * jcp.alpha *
-            (jcp.itiles * jcp.jtiles + jcp.tile_4fma_padding) *
-            jcp.oc * jcp.mb * sizeof(float);
-
-    /* Allocating memory buffers on a page boundary reduces TLB/page misses */
-    const size_t page_size = 2097152;
-    sp_offsets.up_offset_ = 0;
-    sp_offsets.vp_offset_ = utils::rnd_up(up_size, page_size);
-    sp_offsets.mp_offset_ = sp_offsets.vp_offset_
-                          + utils::rnd_up(vp_size, page_size);
-    size_t sp_size = sp_offsets.mp_offset_ + mp_size;
-
-    if (is_bwdw) {
-        const size_t diff_src_trans_size = jcp.ver == ver_4fma
-                                         ? (omp_get_max_threads()
-                                             * jcp.alpha * jcp.alpha
-                                             * jcp.tile_4fma
-                                             * jcp.ic_simd_block * sizeof(float))
-                                         : 0;
-        sp_offsets.diff_src_trans_offset_ = sp_offsets.mp_offset_
-                                       + utils::rnd_up(mp_size, page_size);
-        sp_size = sp_offsets.diff_src_trans_offset_ + diff_src_trans_size;
-        if (!jcp.with_bias) {
-            sp_size = sp_offsets.diff_src_trans_offset_ + diff_src_trans_size;
-        } else {
-            const size_t biasu_size = omp_get_max_threads() * jcp.oc
-                                    * sizeof(float);
-            sp_offsets.biasu_offset_ = sp_offsets.diff_src_trans_offset_
-                                  + utils::rnd_up(diff_src_trans_size, page_size);
-            sp_size = sp_offsets.biasu_offset_ + biasu_size;
+struct winograd_scratchpad_t {
+    public:
+        winograd_scratchpad_t(const jit_conv_winograd_conf_t &jcp)
+        {
+            get_scratchpad_size_(jcp);
+            allocate_scratchpad_(jcp);
         }
-    }
-    winograd_scratchpad = create_scratchpad(sp_size);
-}
+
+        ~winograd_scratchpad_t() {
+            if (scratchpad_ != nullptr)
+                delete scratchpad_;
+        }
+
+        char *U_ptr() {
+            /* buffer for wei transform U*/
+            return scratchpad_->get() + U_offset_;
+        }
+
+        char *V_ptr() {
+            /* buffer for src transform V*/
+            return scratchpad_->get() + V_offset_;
+        }
+
+        char *M_ptr() {
+            /* buffer for dst transform M*/
+            return scratchpad_->get() + M_offset_;
+        }
+
+        char *bias_ptr() {
+            /* buffer for bias update in bwdw*/
+            return scratchpad_->get() + bias_offset_;
+        }
+
+        char *src_transpose_ptr() {
+            /* buffer for src transpose in bwdw using qfma*/
+            return scratchpad_->get() + src_transpose_offset_;
+        }
+
+        int num_threads(){
+            return nthreads_;
+        }
+
+    private:
+        inline void get_scratchpad_size_(const jit_conv_winograd_conf_t &jcp) {
+            nthreads_ = omp_get_max_threads();
+
+            U_sz_ = jcp.alpha * jcp.alpha * jcp.ic * jcp.oc * sizeof(float);
+            V_sz_ = jcp.alpha * jcp.alpha * jcp.mb * jcp.ic
+                           * (jcp.itiles * jcp.jtiles + jcp.tile_4fma_padding)
+                           * sizeof(float);
+            M_sz_ = jcp.alpha * jcp.alpha * jcp.mb * jcp.oc
+                           * (jcp.itiles * jcp.jtiles + jcp.tile_4fma_padding)
+                           * sizeof(float);
+
+            switch (jcp.sched_policy) {
+            case WSCHED_DATA_W_SGD:
+                V_sz_ = nthreads_ * jcp.alpha * jcp.alpha
+                    * jcp.nb_tile_block_ur * jcp.tile_block_ur
+                    * jcp.ic * sizeof(float);
+                M_sz_ = nthreads_* jcp.alpha * jcp.alpha
+                    * jcp.nb_tile_block_ur * jcp.tile_block_ur
+                    * jcp.oc * sizeof(float);
+                break;
+            case WSCHED_WEI_S_D_G_W:
+                src_transpose_sz_ = jcp.ver == ver_4fma
+                                  ? (nthreads_ * jcp.alpha * jcp.alpha
+                                     * jcp.tile_4fma
+                                     * jcp.ic_simd_block * sizeof(float))
+                                  : 0;
+                bias_sz_ = jcp.with_bias ? nthreads_ * jcp.oc * sizeof(float) : 0;
+                break;
+            default:
+                break;
+            }
+        }
+
+        inline void allocate_scratchpad_(const jit_conv_winograd_conf_t &jcp) {
+            const size_t page_size = 2097152;
+            U_offset_ = 0;
+            V_offset_ = utils::rnd_up(U_sz_, page_size);
+            M_offset_ = V_offset_ + utils::rnd_up(V_sz_, page_size);
+            scratchpad_sz_ = M_offset_ + M_sz_;
+            if (src_transpose_sz_) {
+                src_transpose_offset_ = M_offset_
+                                      + utils::rnd_up(M_sz_, page_size);
+                scratchpad_sz_ = src_transpose_offset_ + src_transpose_sz_;
+            }
+            if (bias_sz_) {
+                bias_offset_ = src_transpose_sz_
+                             ? src_transpose_offset_
+                                 + utils::rnd_up(src_transpose_sz_, page_size)
+                             : M_offset_ + utils::rnd_up(M_sz_, page_size);
+                scratchpad_sz_ = bias_offset_ + bias_sz_;
+            }
+            scratchpad_ = create_scratchpad(scratchpad_sz_);
+        }
+
+        scratchpad_t *scratchpad_;
+        int nthreads_;
+        size_t scratchpad_sz_ = 0, U_sz_ = 0, V_sz_ = 0, M_sz_ = 0,
+               bias_sz_ = 0, src_transpose_sz_ = 0;
+        size_t U_offset_ = 0;
+        size_t V_offset_ = 0;
+        size_t M_offset_ = 0;
+        size_t bias_offset_ = 0;
+        size_t src_transpose_offset_ = 0; // only relevant for bwdw using qfma
+};
 }
 
 template <bool with_relu>
@@ -143,36 +199,48 @@ struct _jit_avx512_common_convolution_winograd_fwd_t : public cpu_primitive_t {
         : cpu_primitive_t(&conf_, inputs, outputs)
         , conf_(*pd)
         , kernel_(nullptr)
-        , scratchpad_buffer_(nullptr)
+        , scratchpad_(nullptr)
     {
         const auto &jcp = conf_.jcp_;
-        kernel_ = new jit_avx512_common_conv_winograd_fwd_kernel_f32(conf_.jcp_);
-        winograd::allocate_winograd_scratchpad(
-                jcp, sp_offsets_, scratchpad_buffer_);
+        kernel_ = new jit_avx512_common_conv_winograd_fwd_kernel_f32(jcp);
+        scratchpad_ = new winograd::winograd_scratchpad_t(jcp);
     }
 
     ~_jit_avx512_common_convolution_winograd_fwd_t()
     {
         delete kernel_;
-        delete scratchpad_buffer_;
+        delete scratchpad_;
     };
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     virtual void execute(event_t *e)
     {
-        execute_forward();
+        const auto &jcp = kernel_->jcp;
+
+        switch (jcp.sched_policy) {
+        case WSCHED_DATA_W_S_G_D:
+            _execute_forward_W_S_G_D();
+            break;
+        case WSCHED_DATA_W_SGD:
+            _execute_forward_W_SGD();
+            break;
+        default:
+            break;
+        }
         e->set_state(event_t::ready);
     }
 
 private:
-    void execute_forward();
+
+    void _execute_forward_W_S_G_D();
+    void _execute_forward_W_SGD();
+
     pd_t conf_;
     jit_avx512_common_conv_winograd_fwd_kernel_f32 *kernel_;
 
     // Buffer required to store transforms in the frequency domain
-    scratchpad_t *scratchpad_buffer_;
-    winograd::winograd_sp_offsets_t sp_offsets_;
+    winograd::winograd_scratchpad_t *scratchpad_;
 };
 
 using jit_avx512_common_convolution_winograd_fwd_t
@@ -234,39 +302,52 @@ struct jit_avx512_common_convolution_winograd_bwd_data_t
         : cpu_primitive_t(&conf_, inputs, outputs)
         , conf_(*pd)
         , kernel_(nullptr)
-        , scratchpad_buffer_(nullptr)
+        , scratchpad_(nullptr)
     {
         const auto &jcp = conf_.jcp_;
         kernel_ = new jit_avx512_common_conv_winograd_bwd_data_kernel_f32(jcp);
-        winograd::allocate_winograd_scratchpad(jcp, sp_offsets_,
-                scratchpad_buffer_);
+        scratchpad_ = new winograd::winograd_scratchpad_t(jcp);
     }
 
     ~jit_avx512_common_convolution_winograd_bwd_data_t()
     {
         delete kernel_;
-        delete scratchpad_buffer_;
+        delete scratchpad_;
     };
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     virtual void execute(event_t *e)
     {
-        switch (conf_.desc()->prop_kind) {
-        case prop_kind::backward_data: execute_backward_data(); break;
-        default: assert(!"invalid prop_kind");
+        const auto &jcp = kernel_->jcp;
+
+        if (conf_.desc()->prop_kind == prop_kind::backward_data) {
+            switch (jcp.sched_policy) {
+            case WSCHED_DATA_W_S_G_D:
+                _execute_backward_data_W_S_G_D();
+                break;
+            case WSCHED_DATA_W_SGD:
+                _execute_backward_data_W_SGD();
+                break;
+            default:
+                break;
+            }
+        } else {
+            assert(!"invalid prop_kind");
         }
+
         e->set_state(event_t::ready);
     }
 
 private:
-    void execute_backward_data();
+    void _execute_backward_data_W_S_G_D();
+    void _execute_backward_data_W_SGD();
+
     pd_t conf_;
     jit_avx512_common_conv_winograd_bwd_data_kernel_f32 *kernel_;
 
     // Buffer required to store transforms in the frequency domain
-    scratchpad_t *scratchpad_buffer_;
-    winograd::winograd_sp_offsets_t sp_offsets_;
+    winograd::winograd_scratchpad_t *scratchpad_;
 };
 
 struct jit_avx512_common_convolution_winograd_bwd_weights_t
@@ -326,19 +407,18 @@ struct jit_avx512_common_convolution_winograd_bwd_weights_t
         : cpu_primitive_t(&conf_, inputs, outputs)
         , conf_(*pd)
         , kernel_(nullptr)
-        , scratchpad_buffer_(nullptr)
+        , scratchpad_(nullptr)
     {
         auto jcp = conf_.jcp_;
         kernel_ = new jit_avx512_common_conv_winograd_bwd_weights_kernel_f32(
-                conf_.jcp_);
-        winograd::allocate_winograd_scratchpad(jcp, sp_offsets_,
-                scratchpad_buffer_, true);
+                jcp);
+        scratchpad_ = new winograd::winograd_scratchpad_t(jcp);
     }
 
     ~jit_avx512_common_convolution_winograd_bwd_weights_t()
     {
         delete kernel_;
-        delete scratchpad_buffer_;
+        delete scratchpad_;
     };
 
     typedef typename prec_traits<data_type::f32>::type data_t;
@@ -358,8 +438,7 @@ private:
     jit_avx512_common_conv_winograd_bwd_weights_kernel_f32 *kernel_;
 
     // Buffer required to store transforms in the frequency domain
-    scratchpad_t *scratchpad_buffer_;
-    winograd::winograd_sp_offsets_t sp_offsets_;
+    winograd::winograd_scratchpad_t *scratchpad_;
 };
 }
 }
