@@ -137,6 +137,7 @@ inline mkldnn::memory::desc create_md(mkldnn::memory::dims dims,
     case f::IOhw16o16i:
     case f::Ohwi8o:
     case f::Ohwi16o:
+    case f::OhIw16o4i:
         ndims = 4; break;
     case f::goihw:
     case f::gOIhw8i8o:
@@ -146,6 +147,7 @@ inline mkldnn::memory::desc create_md(mkldnn::memory::dims dims,
     case f::gOIhw8o8i:
     case f::gOIhw16o16i:
     case f::gIOhw16o16i:
+    case f::gOhIw16o4i:
         ndims = 5; break;
     case f::format_undef:
         ndims = 0; break;
@@ -244,7 +246,7 @@ static void compare_data(mkldnn::memory& ref, mkldnn::memory& dst)
             data_t e = (std::abs(ref) > (data_t)1e-4) ? diff / ref : diff;
             EXPECT_NEAR(e, (data_t)0.0, (data_t)1e-4)
                 << "Index: " << i << " Total: " << num;
-        } else if (data_traits<data_t>::data_type == data_type::s32) {
+        } else {
             EXPECT_EQ(ref, got) << "Index: " << i << " Total: " << num;
         }
     }
@@ -293,6 +295,43 @@ struct test_convolution_sizes_t {
     int dilh, dilw;
 };
 
+struct test_convolution_attr_t {
+    struct scale_t {
+        enum policy_t { NONE = 0, COMMON };
+
+        bool is_def() const { return policy != NONE; }
+
+        scale_t (float s, policy_t p = NONE) :
+            scale(s) { policy = p; }
+
+        policy_t policy;
+        float scale;
+    };
+
+    void mkldnn_attr_recreate() {
+        mkl_attr = mkldnn::primitive_attr();
+        mkl_attr.set_int_output_round_mode(rmode);
+        if (oscale.is_def()) {
+            const int count = 1;
+            const int mask = 0;
+            std::vector<float> s(count, oscale.scale);
+            mkl_attr.set_output_scales(mask, s);
+        }
+    }
+
+    test_convolution_attr_t(mkldnn::round_mode rm, float s,
+        scale_t::policy_t p = scale_t::policy_t::NONE) :
+            rmode(rm), oscale(s, p), mkl_attr() {}
+
+    test_convolution_attr_t() :
+        rmode(mkldnn::round_mode::round_nearest),
+        oscale(1.0), mkl_attr() {}
+
+    mkldnn::round_mode rmode;
+    scale_t oscale;
+    mkldnn::primitive_attr mkl_attr;
+};
+
 struct test_convolution_formats_t {
     mkldnn::memory::format src_format;
     mkldnn::memory::format weights_format;
@@ -305,6 +344,7 @@ struct test_convolution_params_t {
     mkldnn::algorithm aalgorithm;
     const float relu_negative_slope;
     test_convolution_formats_t formats;
+    test_convolution_attr_t attr;
     test_convolution_sizes_t sizes;
 };
 
