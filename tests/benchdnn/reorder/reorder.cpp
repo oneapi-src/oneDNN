@@ -113,8 +113,8 @@ int check_reorder(const prb_t *p, res_t *res) {
 
     /* Step 6: compare results */
     if (bench_mode & CORR) {
-        SAFE(compare(p, mem_test_dt_out_fmt_ref, mem_dt_out_fmt_ref, res),
-                WARN);
+        SAFE(compare(p, mem_test_dt_out_fmt_ref, mem_dt_out_fmt_ref,
+                    scales, count, res), WARN);
     }
 
     /* Step 7: performance measurment */
@@ -286,7 +286,7 @@ int reorder(const prb_t *p, dnn_mem_t &dst, const dnn_mem_t &src,
 }
 
 int compare(const prb_t *p, dnn_mem_t &mem_expected, dnn_mem_t &mem_computed,
-        res_t *r){
+        const float *scales, int count, res_t *r){
     size_t nelems = mem_expected.nelems();
     assert(nelems == mem_computed.nelems());
 
@@ -327,17 +327,28 @@ int compare(const prb_t *p, dnn_mem_t &mem_expected, dnn_mem_t &mem_computed,
     if (r->state == UNTESTED)
         r->state = PASSED; /* optimism */
 
-    if (dt != mkldnn_f32) {
-        if (inf_p == 0 || inf_n == 0 || zeros == 0 || reg == 0) {
-                if (zeros == 0) {
-                    if (dt_min != 0 && dt_max != 0) {
-                        r->state = MISTRUSTED;
-                    }
-                } else {
-                    r->state = MISTRUSTED;
-                }
-            }
+    float max_scale = scales[0];
+    for (int i = 1; i < count; ++i) {
+        if (scales[i] > max_scale) max_scale = scales[i];
     }
+
+    const auto c_src = p->conf_in;
+    const auto c_dst = p->conf_out;
+    const int c_src_max = c_src.min + c_src.range - 1;
+    const int c_dst_max = c_dst.min + c_dst.range - 1;
+
+    bool check_inf_p = (dt != mkldnn_f32 && dt != mkldnn_s32)
+        && (c_src_max * max_scale > c_dst_max) ? true : false;
+    bool check_inf_n = (dt != mkldnn_f32 && dt != mkldnn_s32)
+        && (c_src.min * max_scale < c_dst.min) ? true : false;
+    bool check_zeros = (dt != mkldnn_f32)
+        && (dt_min != 0 && dt_max != 0) ? true : false;
+
+    bool mistrusted = reg == 0
+        || (check_inf_p && inf_p == 0)
+        || (check_inf_n && inf_n == 0)
+        || (check_zeros && zeros == 0);
+    if (mistrusted) r->state = MISTRUSTED;
 
     return r->state == FAILED ? FAIL : OK;
 }

@@ -82,7 +82,7 @@ int fill_memory(const prb_t *p, dnn_mem_t &src, const float *scales,
 int reorder(const prb_t *p, dnn_mem_t &dst, const dnn_mem_t &src,
         const float *scales);
 int compare(const prb_t *p, dnn_mem_t &mem_expected, dnn_mem_t &mem_computed,
-        res_t *r);
+        const float *scale, int count, res_t *r);
 
 void perf_report(const prb_t *p, const res_t *r, const char *pstr);
 
