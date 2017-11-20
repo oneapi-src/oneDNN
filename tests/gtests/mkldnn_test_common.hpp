@@ -250,6 +250,20 @@ static void compare_data(mkldnn::memory& ref, mkldnn::memory& dst)
     }
 }
 
+inline const char *query_impl_info(const_mkldnn_primitive_desc_t pd) {
+    const char *str;
+    mkldnn_primitive_desc_query(pd, mkldnn_query_impl_info_str, 0, &str);
+    return str;
+};
+
+mkldnn_status_t get_conv_impl_status(const_mkldnn_primitive_desc_t pd, const char *match_str){
+    const char* conv_str = query_impl_info(pd);
+
+    if( strstr(conv_str, match_str) != NULL)
+        return mkldnn_status_t::mkldnn_success;
+    return mkldnn_status_t::mkldnn_unimplemented;
+};
+
 struct test_convolution_sizes_t {
     test_convolution_sizes_t(
         int mb,
