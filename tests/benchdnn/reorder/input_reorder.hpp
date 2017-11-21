@@ -39,14 +39,13 @@ const reorder::dt_conf_t conf_s32 = {mkldnn_s32, -int_max_exact, 2*int_max_exact
 
 static reorder::reorder_conf_t reorders[] = {
     /* ndims, dims, fmt_in, fmt_out */
-    {4, {32, 96, 56, 56}, mkldnn_nchw, mkldnn_nchw},
-    {4, {32, 256, 28, 28}, mkldnn_nChw8c, mkldnn_nhwc},
-    {4, {32, 96, 56, 56}, mkldnn_nChw8c, mkldnn_nhwc},
-    {4, {32, 512, 14, 14}, mkldnn_nChw8c, mkldnn_nhwc},
-    {4, {32, 1024, 7, 7}, mkldnn_nChw8c, mkldnn_nhwc},
-    {4, {32, 96, 56, 56}, mkldnn_nChw8c, mkldnn_nhwc},
-    {4, {32, 96, 56, 56}, mkldnn_nchw, mkldnn_nhwc},
-    {4, {1, 8, 4, 4}, mkldnn_hwio, mkldnn_oihw}
+    {4, {2, 64, 13, 13}, mkldnn_nchw, mkldnn_nchw},
+    {4, {2, 64, 13, 13}, mkldnn_nChw8c, mkldnn_nhwc},
+    {4, {2, 64, 13, 13}, mkldnn_nhwc, mkldnn_nChw8c},
+    {4, {2, 64, 13, 13}, mkldnn_nChw16c, mkldnn_nhwc},
+    {4, {2, 64, 13, 13}, mkldnn_nhwc, mkldnn_nChw16c},
+    {4, {2, 64, 13, 13}, mkldnn_nchw, mkldnn_nhwc},
+    {4, {2, 64, 13, 13}, mkldnn_nhwc, mkldnn_nchw}
 };
 
 static reorder::q10n_conf_t q10ns[] = {
@@ -54,19 +53,46 @@ static reorder::q10n_conf_t q10ns[] = {
     /* f32 <-> f32 */
     { conf_f32, conf_f32, attr_t::round_mode_t::NEAREST,
         attr_t::scale_t::policy_t::COMMON},
+    /* u8 <-> u8 */
+    { conf_u8, conf_u8, attr_t::round_mode_t::NEAREST,
+        attr_t::scale_t::policy_t::COMMON},
+    /* s8 <-> s8 */
+    { conf_s8, conf_s8, attr_t::round_mode_t::NEAREST,
+        attr_t::scale_t::policy_t::COMMON},
+    /* s32 <-> s32 */
+    { conf_s32, conf_s32, attr_t::round_mode_t::NEAREST,
+        attr_t::scale_t::policy_t::COMMON},
+    /* s8 <-> u8 */
+    { conf_s8, conf_u8, attr_t::round_mode_t::NEAREST,
+        attr_t::scale_t::policy_t::COMMON},
+    { conf_u8, conf_s8, attr_t::round_mode_t::NEAREST,
+        attr_t::scale_t::policy_t::COMMON},
+    /* f32 <-> s32 */
+    { conf_f32, conf_s32, attr_t::round_mode_t::NEAREST,
+        attr_t::scale_t::policy_t::COMMON},
+    { conf_f32, conf_s32, attr_t::round_mode_t::DOWN,
+        attr_t::scale_t::policy_t::COMMON},
+    { conf_s32, conf_f32, attr_t::round_mode_t::NEAREST,
+        attr_t::scale_t::policy_t::COMMON},
     /* f32 <-> s8 */
     { conf_f32, conf_s8, attr_t::round_mode_t::NEAREST,
         attr_t::scale_t::policy_t::COMMON},
-    { conf_f32, conf_s8, attr_t::round_mode_t::DOWN,
+    { conf_s8, conf_f32, attr_t::round_mode_t::NEAREST,
         attr_t::scale_t::policy_t::COMMON},
-    /* f32 <-> s16 */
-    { conf_f32, conf_s16, attr_t::round_mode_t::NEAREST,
+    /* f32 <-> u8 */
+    { conf_f32, conf_u8, attr_t::round_mode_t::NEAREST,
+        attr_t::scale_t::policy_t::COMMON},
+    { conf_u8, conf_f32, attr_t::round_mode_t::NEAREST,
         attr_t::scale_t::policy_t::COMMON},
     /* s32 <-> s8 */
     { conf_s32, conf_s8, attr_t::round_mode_t::NEAREST,
         attr_t::scale_t::policy_t::COMMON},
+    { conf_s8, conf_s32, attr_t::round_mode_t::NEAREST,
+        attr_t::scale_t::policy_t::COMMON},
     /* s32 <-> u8 */
     { conf_s32, conf_u8, attr_t::round_mode_t::NEAREST,
+        attr_t::scale_t::policy_t::COMMON},
+    { conf_u8, conf_s32, attr_t::round_mode_t::NEAREST,
         attr_t::scale_t::policy_t::COMMON},
 
 #if MASK_SUPPORTED
