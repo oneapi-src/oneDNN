@@ -1,0 +1,90 @@
+/*******************************************************************************
+* Copyright 2017 Intel Corporation
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*     http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*******************************************************************************/
+
+#include "bnorm/bnorm.hpp"
+
+namespace bnorm {
+
+void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &mean,
+        dnn_mem_t &var, const dnn_mem_t &ss, dnn_mem_t &dst) {
+#   pragma omp parallel for
+    for (int c = 0; c < p->ic; ++c) {
+        float smean = ((float *)mean)[c];
+        float svar = ((float *)var)[c];
+        float denom = (float)(sqrt(svar + p->eps));
+
+        float gamma = p->flags & USE_SCALESHIFT ? ((float *)ss)[c] : 1;
+        float beta = p->flags & USE_SCALESHIFT ? ((float *)ss)[p->ic + c] : 0;
+
+        for (int mb = 0; mb < p->mb; ++mb)
+        for (int h = 0; h < p->ih; ++h)
+        for (int w = 0; w < p->iw; ++w) {
+            auto off = data_off(p, mb, c, h, w);
+            ((float *)dst)[off] =
+                gamma * (((float *)src)[off] - smean) / denom + beta;
+        }
+    }
+}
+
+void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
+        const dnn_mem_t &mean, const dnn_mem_t &var, const dnn_mem_t &d_dst,
+        const dnn_mem_t &ss, dnn_mem_t &d_src, dnn_mem_t &d_ss) {
+    const float NHW = p->mb * p->ih * p->iw;
+
+#   pragma omp parallel for
+    for (int c = 0; c < p->ic; ++c) {
+        float smean = ((float *)mean)[c];
+        float svar = ((float *)var)[c];
+        float rcp_denom = 1.f / sqrtf(svar + p->eps);
+
+        float gamma = p->flags & USE_SCALESHIFT ? ((float *)ss)[c] : 1;
+
+        float d_gamma = 0;
+        float d_beta = 0;
+
+        for (int mb = 0; mb < p->mb; ++mb)
+        for (int h = 0; h < p->ih; ++h)
+        for (int w = 0; w < p->iw; ++w) {
+            auto off = data_off(p, mb, c, h, w);
+            auto dd = ((float *)d_dst)[off];
+
+            d_gamma += dd * (((float *)src)[off] - smean);
+            d_beta += dd;
+        }
+        d_gamma *= rcp_denom;
+
+        if ((p->flags & USE_SCALESHIFT) && (p->dir & FLAG_WEI)) {
+            ((float *)d_ss)[c] = d_gamma;
+            ((float *)d_ss)[p->ic + c] = d_beta;
+        }
+
+        for (int mb = 0; mb < p->mb; ++mb)
+        for (int h = 0; h < p->ih; ++h)
+        for (int w = 0; w < p->iw; ++w) {
+            auto off = data_off(p, mb, c, h, w);
+            float ds = ((float *)d_dst)[off];
+
+            if (!(p->flags & GLOB_STATS)) {
+                const float x = ((float *)src)[off] - smean;
+                ds -= (d_beta + x * d_gamma * rcp_denom) / NHW;
+            }
+
+            ((float *)d_src)[off] = rcp_denom * ds * gamma;
+        }
+    }
+}
+
+}

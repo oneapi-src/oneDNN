@@ -37,6 +37,14 @@ if(BENCHDNN_USE_RDPMC)
     add_definitions(-DBENCHDNN_USE_RDPMC)
 endif()
 
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
+    if(WIN32)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Qprec-div")
+    elseif(UNIX OR APPLE)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -prec-div")
+    endif()
+endif()
+
 add_executable(benchdnn ${SOURCES})
 if(WIN32)
     configure_file(${CMAKE_SOURCE_DIR}/config_template.vcxproj.user

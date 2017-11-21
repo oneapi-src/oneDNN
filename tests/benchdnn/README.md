@@ -16,15 +16,15 @@ and inner products of different data types. It also implicitly tests reorders.
 ## Usage (main driver)
 
 **benchdnn** itself is a driver for different implementation specific
-harnesses. So far it has harness for Intel MKL-DNN convolution and inner
-product.
+harnesses. So far it has harness for Intel MKL-DNN convolution, inner product,
+reorder, batch normalization, and harness for testing itself.
 The usage:
 ```
     $ ./benchdnn: [--HARNESS] [--mode=MODE] [-vN|--verbose=N] HARNESS-OPTS
 ```
 where:
 
- - `HARNESS` is either `conv` [default] or `ip`
+ - `HARNESS` is either `conv` [default], `ip`, `reorder`, `bnorm`, or `self`
 
  - `MODE` -- string that contains flags for benchmark mode. Use `C` or `c` for correctness (used by default), and `P` or `p` for performance
 
@@ -270,6 +270,41 @@ attributes/mkldnn_post_ops_t:
 | BWD_{D,W,WB}  | backward wrt data, weights, and weights and bias
 | DIRECT, WINO  | convolution algorithm: direct or Winograd based
 | NONE, RELU    | merged primitives: nothing or ReLU
+
+
+## Usage (batch normalization harness)
+
+The usage:
+```
+    ./benchdnn --bnorm [harness-knobs] bnorm-desc ...
+```
+
+where *harness-knobs* are:
+
+ - `--mb=N` override minibatch that is specified in batch normalization description, default `0` (use mb specified in bnorm-desc)
+ - `--dir={FWD_D (forward data /training), FWD_I (forward data /inference), BWD_D (backward data), BWD_DW (backward data + weights)` direction, default `FWD_D`
+ - `--dt={f32, s32, ...}` base data type, default `f32`
+ - `--fmt={nchw, nChw16c, ...}` data layout, default `nchw`
+ - `--attr="attr_str"` attributes (see in the convolution section above), default `""` (no attributes set)
+ - `--match=regex` check only convolutions that match with regex, default is `".*"`. Notice: Windows may only interpret string arguments surrounded by double quotation marks.
+ - `--skip-impl="str1[:str2]..."` skip implementation (see mkldnn_query_impl_info_str), default `""`
+ - `--perf-template=template-str` set template for performance report (very similar to the convolution one)
+ - `--reset` reset all the parameters set before to default one
+ - `-vN|--verbose=N` verbose level, default `0`
+ - `--batch=file` use options from the given file (see in subdirectory)
+
+and *bnorm-desc* is a batch normalization description. The canonical form is:
+```
+    mbXicXihXiwXepsYnS
+```
+Here X is an integer number, Y is a real number, and S is string (n stands for
+name). Special symbol `_` is ignored, hence maybe used as delimiter. There are
+some implicit rules:
+ - if mb is omitted set mb to 2
+
+ - if iw is omitted set iw to ih (and vice versa)
+
+ - if eps is omitted set eps to 1./16
 
 
 ## Installation

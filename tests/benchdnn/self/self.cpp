@@ -29,6 +29,7 @@ int bench(int argc, char **argv, bool main_bench) {
 
     common();
     conv();
+    bnorm();
 
     auto &bs = benchdnn_stat;
     return bs.tests == bs.passed ? OK : FAIL;

@@ -14,10 +14,12 @@
 dir_t str2dir(const char *str) {
 #define CASE(x) if (!strcasecmp(STRINGIFY(x), str)) return x
     CASE(FWD_D);
+    CASE(FWD_I);
     CASE(FWD_B);
     CASE(BWD_D);
     CASE(BWD_W);
     CASE(BWD_WB);
+    CASE(BWD_DW);
 #undef CASE
     assert(!"unknown dir");
     return DIR_UNDEF;
@@ -26,8 +28,10 @@ dir_t str2dir(const char *str) {
 const char *dir2str(dir_t dir) {
 #define CASE(x) if (dir == x) return STRINGIFY(x)
     CASE(FWD_D);
+    CASE(FWD_I);
     CASE(FWD_B);
     CASE(BWD_D);
+    CASE(BWD_DW);
     CASE(BWD_W);
     CASE(BWD_WB);
 #undef CASE
@@ -42,6 +46,10 @@ const char *data_kind2str(data_kind_t kind) {
     case BIA: return "BIA";
     case DST: return "DST";
     case ACC: return "ACC";
+    case DATA: return "DATA";
+    case MEAN: return "MEAN";
+    case VAR: return "VAR";
+    case SS: return "SS";
     }
     assert(!"incorrect data kind");
     return "incorrect data kind";
