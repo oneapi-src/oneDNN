@@ -46,6 +46,21 @@ const char *dt2str(mkldnn_data_type_t dt) {
     return "unknown data type";
 }
 
+mkldnn_data_type_t str2dt(const char *str) {
+#define CASE(_dt) \
+    if (!strcasecmp(STRINGIFY(_dt), str) \
+            || !strcasecmp(STRINGIFY(CONCAT2(mkldnn_, _dt)), str)) \
+        return CONCAT2(mkldnn_, _dt);
+    CASE(s8);
+    CASE(u8);
+    CASE(s16);
+    CASE(s32);
+    CASE(f32);
+#undef CASE
+    assert(!"unknown data type");
+    return mkldnn_f32;
+}
+
 const char *rmode2str(mkldnn_round_mode_t rmode) {
 #define CASE(_rmode) \
     if (CONCAT2(mkldnn_round_, _rmode) == rmode) return STRINGIFY(_rmode)
