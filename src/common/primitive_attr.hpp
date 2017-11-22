@@ -44,6 +44,13 @@ struct scales_t: public c_compatible {
         return *this;
     }
 
+    bool has_default_values() const {
+        for (int c = 0; c < count_; ++c) {
+            if(scales_[c] != 1.) return false;
+        }
+        return true;
+    }
+
     status_t set(int count, int mask, const float *scales);
     status_t set(float single_scale) { return this->set(1, 0, &single_scale); }
 
@@ -95,6 +102,8 @@ struct mkldnn_post_ops: public mkldnn::impl::c_compatible {
         return -1;
     }
 
+    bool has_default_values() const { return len_ == 0; }
+
     bool contain(mkldnn::impl::primitive_kind_t kind, int index) const
     { return find(kind, index, index + 1) == index; }
 
@@ -110,6 +119,13 @@ struct mkldnn_primitive_attr: public mkldnn::impl::c_compatible {
 
     mkldnn_primitive_attr *clone() const
     { return new mkldnn_primitive_attr(*this); }
+
+    bool has_default_values() const {
+       return true
+            && round_mode_ == mkldnn::impl::round_mode::nearest
+            && output_scales_.has_default_values()
+            && post_ops_.has_default_values() ;
+    }
 
     mkldnn::impl::status_t set_round_mode(
             mkldnn::impl::round_mode_t round_mode);
