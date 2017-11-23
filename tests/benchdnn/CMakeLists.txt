@@ -64,6 +64,16 @@ if(WIN32)
         test_conv.vcxproj.user @ONLY)
     set_property(TARGET test_conv PROPERTY ENVIRONMENT "PATH=${CTESTCONFIG_PATH}")
 endif()
+add_custom_target(test_benchdnn_other
+    COMMAND benchdnn --reorder
+    DEPENDS benchdnn
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+if(WIN32)
+    configure_file(${CMAKE_SOURCE_DIR}/config_template.vcxproj.user
+        test_benchdnn_other.vcxproj.user @ONLY)
+    set_property(TARGET test_benchdnn_other PROPERTY ENVIRONMENT "PATH=${CTESTCONFIG_PATH}")
+endif()
 add_custom_target(test_conv_regression
     COMMAND benchdnn --conv --batch=inputs/test_conv_regression
     DEPENDS benchdnn
