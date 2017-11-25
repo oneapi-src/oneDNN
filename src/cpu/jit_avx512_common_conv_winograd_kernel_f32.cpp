@@ -371,6 +371,8 @@ status_t _jit_avx512_common_conv_winograd_data_kernel_f32::init_conf_common(
     jcp.l_pad = cd.padding[0][1];
     jcp.stride_h = cd.strides[0];
     jcp.stride_w = cd.strides[1];
+    jcp.dilate_h = cd.dilates[0];
+    jcp.dilate_w = cd.dilates[1];
     jcp.r_pad = nstl::max(
             0, (jcp.ow - 1) * jcp.stride_w + jcp.kw - jcp.iw - jcp.l_pad);
     jcp.b_pad = nstl::max(
@@ -384,6 +386,8 @@ status_t _jit_avx512_common_conv_winograd_data_kernel_f32::init_conf_common(
     if (jcp.ngroups != 1)
         return status::unimplemented;
     if ((jcp.kh != 3) || (jcp.kw != 3))
+        return status::unimplemented;
+    if ((jcp.dilate_h != 0) || (jcp.dilate_w != 0))
         return status::unimplemented;
     if ((jcp.stride_h != 1) || (jcp.stride_w != 1))
         return status::unimplemented;
@@ -976,6 +980,8 @@ status_t jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::init_conf(
     jcp.ohp = jcp.oh;
     jcp.owp = jcp.ow;
     jcp.with_bias = (cd.diff_bias_desc.format != memory_format::undef);
+    jcp.dilate_h = cd.dilates[0];
+    jcp.dilate_w = cd.dilates[1];
 
     jcp.ver = mayiuse(avx512_mic_4ops) ? ver_4fma : ver_fma;
 
@@ -989,6 +995,8 @@ status_t jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::init_conf(
     if (jcp.ngroups != 1)
         return status::unimplemented;
     if ((jcp.kh != 3) || (jcp.kw != 3))
+        return status::unimplemented;
+    if ((jcp.dilate_h != 0) || (jcp.dilate_w != 0))
         return status::unimplemented;
     if ((jcp.stride_h != 1) || (jcp.stride_w != 1))
         return status::unimplemented;
