@@ -53,7 +53,8 @@ struct ref_inner_product_fwd_t: public cpu_primitive_t {
                 && desc()->accum_data_type == acc_type
                 && desc()->dst_desc.data_type == dst_type
                 && utils::implication(this->with_bias(),
-                        desc()->bias_desc.data_type == dst_type);
+                        desc()->bias_desc.data_type == dst_type)
+                && attr()->has_default_values();
             return ok ? status::success : status::unimplemented;
         }
     };

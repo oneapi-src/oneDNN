@@ -59,7 +59,8 @@ struct jit_uni_pooling_fwd_t: public cpu_primitive_t {
                 && everyone_is(data_type::f32, src_pd()->desc()->data_type,
                         dst_pd()->desc()->data_type)
                 && everyone_is(desired_fmt, src_pd()->desc()->format,
-                        dst_pd()->desc()->format);
+                        dst_pd()->desc()->format)
+                && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
             bool is_training = desc_.prop_kind == forward_training;

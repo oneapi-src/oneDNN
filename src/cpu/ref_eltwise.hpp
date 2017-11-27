@@ -49,7 +49,8 @@ struct ref_eltwise_fwd_t: public cpu_primitive_t {
                 && utils::one_of(desc()->prop_kind, forward_training,
                         forward_inference)
                 && utils::everyone_is(data_type, desc()->data_desc.data_type)
-                && utils::implication(!is_dense, src_pd()->desc()->ndims == 4);
+                && utils::implication(!is_dense, src_pd()->desc()->ndims == 4)
+                && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
             return status::success;

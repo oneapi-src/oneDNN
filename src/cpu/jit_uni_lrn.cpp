@@ -164,7 +164,8 @@ status_t jit_uni_lrn_fwd_t<isa>::pd_t::init() {
         && data_d.ndims() == 4
         && data_d.dims()[1] % VECTOR_LENGTH == 0
         && data_d.dims()[1] >= 2 * VECTOR_LENGTH
-        && desc()->lrn_beta == 0.75;
+        && desc()->lrn_beta == 0.75
+        && attr()->has_default_values();
     if (!ok) return unimplemented;
 
     if (desc_.prop_kind == forward_training) { ws_pd_ = data_pd_; }

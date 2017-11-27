@@ -47,7 +47,8 @@ struct ref_lrn_fwd_t: public cpu_primitive_t {
                         forward_inference)
                 && utils::one_of(desc()->alg_kind, lrn_across_channels,
                         lrn_within_channel)
-                && utils::everyone_is(data_type, desc()->data_desc.data_type);
+                && utils::everyone_is(data_type, desc()->data_desc.data_type)
+                && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
             if (desc_.prop_kind == forward_training) { ws_pd_ = data_pd_; }

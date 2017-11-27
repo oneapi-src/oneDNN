@@ -55,7 +55,8 @@ struct nchw_pooling_fwd_t: public cpu_primitive_t {
                 && utils::everyone_is(data_type, src_pd()->desc()->data_type,
                         dst_pd()->desc()->data_type)
                 && utils::everyone_is(nchw, src_pd()->desc()->format,
-                        dst_pd()->desc()->format);
+                        dst_pd()->desc()->format)
+                && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
             bool is_training = desc_.prop_kind == forward_training;

@@ -57,7 +57,8 @@ struct jit_uni_batch_normalization_fwd_t: public cpu_primitive_t {
                 && desc()->data_desc.data_type == f32
                 && utils::implication(use_scaleshift(),
                         desc()->data_scaleshift_desc.data_type == f32)
-                && desc()->data_desc.format == desired_fmt;
+                && desc()->data_desc.format == desired_fmt
+                && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
             if (stats_is_src() || is_training()) {
