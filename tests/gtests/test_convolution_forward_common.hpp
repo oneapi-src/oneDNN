@@ -211,25 +211,17 @@ protected:
                 convolution_forward(conv_primitive_desc,
                         c_src, c_weights, c_dst);
 
-            /* Quickfix: Check and pass test when implementation falls
-             * into reference code */
-            mkldnn_status_t status = get_conv_impl_status(
-                    conv_primitive_desc.get(),
-                    "_jit_avx512_core_u8s8s32x_convolution_fwd_t");
+            std::vector<primitive> pipeline;
+            pipeline.push_back(conv);
+            auto s = stream(stream::kind::lazy);
+            s.submit(pipeline).wait();
 
-            if(status == mkldnn_status_t::mkldnn_success) {
-                std::vector<primitive> pipeline;
-                pipeline.push_back(conv);
-                auto s = stream(stream::kind::lazy);
-                s.submit(pipeline).wait();
-
-                auto ref_memory = memory(memory::primitive_desc(c_dst_desc, eng),
-                        ref_dst_data);
-                compute_ref_conv_fwd<data_t_src,data_t_wei,data_t_acc,data_t_dst>(
-                    cd, attr, c_src_desc, c_weights_desc, c_bias_desc, c_dst_desc,
-                    c_src, c_weights, c_bias, ref_memory);
-                compare_data<data_t_dst>(ref_memory, c_dst);
-            }
+            auto ref_memory = memory(memory::primitive_desc(c_dst_desc, eng),
+                    ref_dst_data);
+            compute_ref_conv_fwd<data_t_src,data_t_wei,data_t_acc,data_t_dst>(
+                cd, attr, c_src_desc, c_weights_desc, c_bias_desc, c_dst_desc,
+                c_src, c_weights, c_bias, ref_memory);
+            compare_data<data_t_dst>(ref_memory, c_dst);
         } catch (...) {
             /* Convolution is unimplemented */
         }
