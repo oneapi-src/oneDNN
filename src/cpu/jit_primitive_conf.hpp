@@ -88,7 +88,6 @@ struct jit_conv_conf_t {
     bool large_spatial;
 };
 
-
 /*
    Winograd sched policy:
 
@@ -97,6 +96,16 @@ struct jit_conv_conf_t {
    S: src transform
    D: dst transform
    G: gemm
+
+   Thread grouping by:
+   i: nb_ic
+   o: nb_oc
+   t: tile_block
+   e: element in tile
+
+   Note: 'i' and 'o' are omited if
+   i. not comblined with t or
+   ii. with discrete transforms
 
    Current policies supported:
 */
@@ -111,7 +120,11 @@ enum winograd_sched_t {
 
     /* Backward-weights */
     WSCHED_WEI_S_D_G_W,
+    WSCHED_WEI_S_D_Giot_W,
+    WSCHED_WEI_SDGtWo,
+    WSCHED_WEI_SDGt_W,
 };
+
 struct jit_conv_winograd_conf_t : public jit_conv_conf_t {
     //alpha determines the tile size
     static const int alpha = 6;
