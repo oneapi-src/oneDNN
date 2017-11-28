@@ -71,15 +71,6 @@ status_t cpu_engine_t::view_primitive_desc_create(view_pd_t **view_pd,
             new cpu_view_t::pd_t(this, mpd, dims, offsets));
 }
 
-status_t cpu_engine_t::concat_primitive_desc_create(concat_pd_t **concat_pd,
-        const memory_desc_t *output_d, int n, int concat_dim,
-        const memory_pd_t **input_pds, const primitive_attr_t *attr) {
-    assert(input_pds[0]->engine() == this);
-    auto i_pds = (const cpu_memory_t::pd_t **)input_pds;
-    return safe_ptr_assign<concat_pd_t>(*concat_pd,
-            new cpu_concat_t::pd_t(this, output_d, n, concat_dim, i_pds, attr));
-}
-
 status_t cpu_engine_t::sum_primitive_desc_create(sum_pd_t **sum_pd,
         const memory_desc_t *output_d, int n, const float *scales,
         const memory_pd_t **input_pds, const primitive_attr_t *attr) {

@@ -20,157 +20,101 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
-#include "cpu_primitive.hpp"
-#include "event.hpp"
 #include "memory_pd.hpp"
-#include "reorder_pd.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
-
 #include "cpu_memory.hpp"
-
-/* FIXME: tentative performance fix
- * The idea is that concat is simply a number of reorders.
- * The problem with this approach is omp parallelization: it is much better to
- * have one omp section with all the reorders, and not one omp section per the
- * reorder. `cpu_simple_concat.hpp addresses this problem, but the solution is
- * too stupid and isolated... */
-#include "cpu_simple_concat.hpp"
+#include "cpu_primitive.hpp"
 
 namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl;
-using namespace mkldnn::impl::status;
+#define DECLARE_CPU_CONCAT_PD_T(...) \
+    static status_t create(concat_pd_t **concat_pd, \
+            const memory_desc_t *output_d, int n, int concat_dim, \
+            const memory_pd_t **input_pds, const primitive_attr_t *attr) { \
+        auto _pd = new pd_t(output_d, n, concat_dim, \
+                (const cpu_memory_pd_t **)input_pds, attr); \
+        if (_pd == nullptr) return out_of_memory; \
+        if (_pd->init() != success) { delete _pd; return unimplemented; } \
+        return safe_ptr_assign<concat_pd_t>(*concat_pd, _pd); \
+    } \
+    virtual status_t create_primitive(primitive_t **primitive, \
+            const primitive_at_t *inputs, \
+            const primitive_t **outputs) const override { \
+        primitive_t::input_vector ins(inputs, inputs + n_); \
+        primitive_t::output_vector outs(outputs, outputs + 1); \
+        return safe_ptr_assign<primitive_t>(*primitive, \
+                new (__VA_ARGS__)(this, ins, outs)); \
+    } \
+    virtual pd_t *clone() const override { return nullptr; }
 
-struct cpu_concat_t: public cpu_primitive_t {
-    struct pd_t: public concat_pd_t {
-        pd_t(engine_t *engine, const memory_desc_t *output_d, int n,
-                int concat_dim, const cpu_memory_t::pd_t **input_pds,
-                const primitive_attr_t *attr)
-            : concat_pd_t(engine, n, concat_dim, attr), dst_pd_(engine_)
-        {
+struct cpu_concat_pd_t: public concat_pd_t {
+    using cpu_memory_pd_t = cpu_memory_t::pd_t;
+
+    cpu_concat_pd_t(const memory_desc_t *output_d, int n,
+            int concat_dim, const cpu_memory_pd_t **input_pds,
+            const primitive_attr_t *attr)
+        : concat_pd_t(input_pds[0]->engine(), n, concat_dim, attr),
+        dst_pd_(input_pds[0]->engine()) {
             for (int i = 0; i < n_; ++i)
                 src_pds_.push_back(*input_pds[i]); /* make a copy */
-            dst_pd_ = cpu_memory_t::pd_t(engine, output_d);
-            if (output_d->format == memory_format::any) {
-                /* the stupidest ever heuristics */
-                memory_format_t out_fmt = output_d->format;
-                for (int i = 0; i < n_; ++i)
-                    out_fmt = nstl::max(out_fmt, src_pds_[i].desc()->format);
-                dst_pd_.set_format(out_fmt); /* TODO: check status */
-            } else {
-                dst_pd_ = cpu_memory_t::pd_t(engine, output_d);
-            }
-
-            const int ndims = dst_pd_.desc()->ndims;
-            int current_concat_dim_offset = 0;
-            for (int i = 0; i < n_; ++i) {
-                const int dim = src_pds_[i].desc()->dims[concat_dim];
-                dims_t dims, offsets = {};
-                utils::array_copy(dims, dst_pd_.desc()->dims, ndims);
-                dims[concat_dim] = dim;
-                offsets[concat_dim] = current_concat_dim_offset;
-
-                cpu_view_t::pd_t v_pd(engine_, &dst_pd_, dims, offsets);
-                src_image_pds_.push_back(*v_pd.dst_pd());
-
-                current_concat_dim_offset += dim;
-            }
-
-            use_simple_concat_ =
-                cpu_simple_concat_t<data_type::f32>::applicable(src_pds_,
-                        src_image_pds_, concat_dim);
-            if (use_simple_concat_) return;
-
-            for (int i = 0; i < n_; ++i) {
-                auto r_impls = engine_->get_reorder_implementation_list();
-                for (auto r = r_impls; *r; ++r) {
-                    const primitive_attr_t dummy_attr; /* alpha == 1. */
-                    reorder_pd_t *r_pd;
-                    if ((*r)(&r_pd, &src_pds_[i], &src_image_pds_[i],
-                                &dummy_attr, 0.0) == status::success) {
-                        reorder_pds_.push_back(r_pd);
-                        break;
-                    }
-                }
-            }
+            dst_pd_ = cpu_memory_pd_t(input_pds[0]->engine(), output_d);
         }
-        pd_t(const pd_t &rhs)
-            : concat_pd_t(rhs), use_simple_concat_(rhs.use_simple_concat_)
-            , src_pds_(rhs.src_pds_), src_image_pds_(rhs.src_image_pds_)
-            , dst_pd_(rhs.dst_pd_)
-        {
-            for (size_t i = 0; i < rhs.reorder_pds_.size(); ++i) {
-                reorder_pds_.push_back(
-                        (const reorder_pd_t *)rhs.reorder_pds_[i]->clone());
-            }
+    cpu_concat_pd_t(const cpu_concat_pd_t &rhs)
+        : concat_pd_t(rhs), src_pds_(rhs.src_pds_)
+        , src_image_pds_(rhs.src_image_pds_)
+        , dst_pd_(rhs.dst_pd_) {}
+
+    virtual ~cpu_concat_pd_t() {}
+
+    virtual const cpu_memory_pd_t *src_pd(int index = 0) const override
+    { return index < this->n_ ? &src_pds_[index] : nullptr; }
+    virtual const cpu_memory_pd_t *src_image_pd(int index = 0) const
+    { return index < this->n_ ? &src_image_pds_[index] : nullptr; }
+    virtual const cpu_memory_pd_t *dst_pd(int index = 0) const override
+    { return index == 0 ? &dst_pd_ : nullptr; }
+
+protected:
+    nstl::vector<cpu_memory_pd_t> src_pds_;
+    nstl::vector<cpu_memory_pd_t> src_image_pds_;
+    cpu_memory_pd_t dst_pd_;
+
+    virtual status_t init() {
+        bool ok = set_default_params() == success;
+        if (!ok) return unimplemented;
+
+        const int ndims = dst_pd_.desc()->ndims;
+        int current_concat_dim_offset = 0;
+        for (int i = 0; i < n_; ++i) {
+            const int dim = src_pds_[i].desc()->dims[concat_dim_];
+            dims_t dims, offsets = {};
+            utils::array_copy(dims, dst_pd_.desc()->dims, ndims);
+            dims[concat_dim_] = dim;
+            offsets[concat_dim_] = current_concat_dim_offset;
+
+            cpu_view_t::pd_t v_pd(src_pds_[i].engine(), &dst_pd_, dims,
+                    offsets);
+            src_image_pds_.push_back(*v_pd.dst_pd());
+            current_concat_dim_offset += dim;
         }
 
-        virtual ~pd_t() {
-            for (size_t i = 0; i < reorder_pds_.size(); ++i) {
-                delete reorder_pds_[i];
-            }
-        }
-
-        virtual pd_t *clone() const override { return nullptr; /* FIXME */ }
-        virtual status_t create_primitive(primitive_t **primitive,
-                const primitive_at_t *inputs, const primitive_t **outputs)
-            const override
-        {
-            nstl::vector<primitive_t *> reorders;
-            if (use_simple_concat_ == false) {
-                reorders.resize(n_);
-                for (int i = 0; i < n_; ++i)
-                    CHECK(reorder_pds_[i]->create_primitive(&reorders[i],
-                                &inputs[i], outputs));
-            }
-
-            primitive_t::input_vector ins(inputs, inputs + n_);
-            primitive_t::output_vector outs(outputs, outputs + 1);
-            return safe_ptr_assign<primitive_t>(*primitive,
-                    new cpu_concat_t(this, ins, outs, reorders));
-        }
-
-        virtual const cpu_memory_t::pd_t *src_pd(int index = 0) const override
-        { return index < this->n_ ? &src_pds_[index] : nullptr; }
-        virtual const cpu_memory_t::pd_t *dst_pd(int index = 0) const override
-        { return index == 0 ? &dst_pd_ : nullptr; }
-
-        bool use_simple_concat_; /* FIXME: improve */
-        nstl::vector<cpu_memory_t::pd_t> src_pds_;
-        nstl::vector<cpu_memory_t::pd_t> src_image_pds_;
-        nstl::vector<const reorder_pd_t *> reorder_pds_;
-        cpu_memory_t::pd_t dst_pd_;
-    };
-
-    cpu_concat_t(const pd_t *conf, const input_vector &inputs,
-            const output_vector &outputs,
-            const nstl::vector<primitive_t *> &reorders)
-        : cpu_primitive_t(&conf_, inputs, outputs)
-        , conf_(*conf), reorders_(reorders) {}
-    virtual ~cpu_concat_t() {
-        for (size_t i = 0; i < reorders_.size(); ++i)
-            delete reorders_[i];
+        return success;
     }
 
-    virtual void execute(event_t *e) {
-        if (conf_.use_simple_concat_) {
-            cpu_simple_concat_t<data_type::f32>::execute(conf_.src_pds_,
-                    conf_.src_image_pds_, this);
-        } else {
-            for (size_t i = 0; i < reorders_.size(); ++i) {
-                event_t ei;
-                reorders_[i]->execute(&ei);
+    virtual status_t set_default_params() {
+        if (dst_pd_.desc()->format == memory_format::any) {
+            /* the stupidest ever heuristics */
+            memory_format_t out_fmt = dst_pd_.desc()->format;
+            for (int i = 0; i < n_; ++i) {
+                out_fmt = nstl::max(out_fmt, src_pds_[i].desc()->format);
             }
+            CHECK(dst_pd_.set_format(out_fmt));
         }
-        e->set_state(event_t::ready);
-    }
 
-private:
-    pd_t conf_;
-    nstl::vector<primitive_t *> reorders_;
+        return success;
+    }
 };
 
 }

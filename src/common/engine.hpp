@@ -99,12 +99,16 @@ struct mkldnn_engine: public mkldnn::impl::c_compatible {
             const mkldnn::impl::dims_t offsets)
     { return mkldnn::impl::status::unimplemented; }
 
-    virtual mkldnn::impl::status_t concat_primitive_desc_create(
+    typedef mkldnn::impl::status_t (*concat_primitive_desc_create_f)(
             mkldnn::impl::concat_pd_t **concat_pd,
             const mkldnn::impl::memory_desc_t *output_d, int n, int concat_dim,
             const mkldnn::impl::memory_pd_t **input_pds,
-            const mkldnn::impl::primitive_attr_t *attr)
-    { return mkldnn::impl::status::unimplemented; }
+            const mkldnn::impl::primitive_attr_t *attr);
+
+    /** return the list of concat implementations. engine guarantees to return
+     * a NULL-terminated list */
+    virtual const concat_primitive_desc_create_f*
+        get_concat_implementation_list() const;
 
     virtual mkldnn::impl::status_t sum_primitive_desc_create(
             mkldnn::impl::sum_pd_t **sum_pd,
