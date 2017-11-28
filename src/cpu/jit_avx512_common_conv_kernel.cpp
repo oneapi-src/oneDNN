@@ -1272,6 +1272,7 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma(int ur_w,
     int oc_block = jcp.oc_block;
     int l_pad    = jcp.l_pad;
     int stride_w = jcp.stride_w;
+    int stride_h = jcp.stride_h;
 
     int ker_pipeline_depth = 4;
     assert(ker_reg_base_idx + ker_pipeline_depth <= 32);
@@ -1362,9 +1363,9 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma(int ur_w,
             }
         }
 
-        add(aux_reg_ker, typesize * stride_w * kw * oc_block * ic_block);
+        add(aux_reg_ker, typesize * stride_h * kw * oc_block * ic_block);
         sub(aux_reg_dst, typesize * ow * oc_block);
-        add(aux_reg_ker_prf, typesize * stride_w * kw * oc_block * ic_block);
+        add(aux_reg_ker_prf, typesize * stride_h * kw * oc_block * ic_block);
         sub(aux_reg_dst_prf, typesize * ow * oc_block);
 
         dec(reg_kj);
@@ -1508,8 +1509,6 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
 
     jcp.stride_h = cd.strides[0];
     jcp.stride_w = cd.strides[1];
-    if (jcp.stride_w != jcp.stride_h)
-        return status::unimplemented;
 
     jcp.dilate_h = cd.dilates[0];
     jcp.dilate_w = cd.dilates[1];
