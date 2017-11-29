@@ -20,6 +20,7 @@ ColumnLimit: 80
 
 Language: 'Cpp'
 Standard: 'Cpp11'
+DisableFormat: false
 
 ContinuationIndentWidth: 8
 IndentWidth: 4
