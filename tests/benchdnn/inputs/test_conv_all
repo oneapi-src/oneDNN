@@ -38,8 +38,9 @@
 --dir=FWD_B --batch=conv_all
 --dir=BWD_D --batch=conv_all
 --dir=BWD_WB --batch=conv_all
---mb=1
---dir=FWD_B --batch=conv_all
+
+# dilated
+--batch=test_conv_dilated
 
 # attributes
 --batch=test_conv_attrs

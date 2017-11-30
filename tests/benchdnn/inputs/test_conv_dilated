@@ -1,0 +1,5 @@
+# f32 (full)
+--reset --cfg=f32_full
+--dir=FWD_B --batch=conv_dilated
+--dir=BWD_D --batch=conv_dilated
+--dir=BWD_WB --batch=conv_dilated
