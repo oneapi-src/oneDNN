@@ -57,7 +57,7 @@ status_t mkldnn_reorder_primitive_desc_create_v2(
         attr = &dummy_attr;
 
     for (auto r = e->get_reorder_implementation_list(); *r; ++r) {
-        if ((*r)(r_pd, i_mpd, o_mpd, attr, 0.0) == success) return success;
+        if ((*r)(r_pd, i_mpd, o_mpd, attr) == success) return success;
     }
     return unimplemented;
 }

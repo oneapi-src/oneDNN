@@ -31,10 +31,8 @@ namespace mkldnn {
 namespace impl {
 
 struct reorder_pd_t: public primitive_desc_t {
-    reorder_pd_t(engine_t *engine, const primitive_attr_t *attr,
-            float beta)
-        : primitive_desc_t(engine, attr, primitive_kind::reorder)
-        , beta_(beta) {}
+    reorder_pd_t(engine_t *engine, const primitive_attr_t *attr)
+        : primitive_desc_t(engine, attr, primitive_kind::reorder) {}
     virtual ~reorder_pd_t() {}
 
     virtual const op_desc_t *op_desc() const override { return nullptr; }
@@ -46,10 +44,14 @@ struct reorder_pd_t: public primitive_desc_t {
         assert(attr()->output_scales_.count_ == 1);
         return attr()->output_scales_.scales_[0];
     }
-    float beta() const { return beta_; }
-
-protected:
-    float beta_;
+    float beta() const {
+        int sum_idx = attr()->post_ops_.find(primitive_kind::sum);
+        if (sum_idx == -1) {
+            return 0.0;
+        } else {
+            return attr()->post_ops_.entry_[sum_idx].sum.scale;
+        }
+    }
 };
 
 }

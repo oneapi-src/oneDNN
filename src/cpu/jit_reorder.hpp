@@ -160,14 +160,14 @@ template <JIT_REORDER_TEMPL_DECL, typename spec=void>
 struct jit_reorder_t : public cpu_primitive_t {
     struct pd_t : public cpu_reorder_pd_t {
         pd_t(const cpu_memory_pd_t *input_pd, const cpu_memory_pd_t *output_pd,
-                const primitive_attr_t *attr, float beta)
-            : cpu_reorder_pd_t(input_pd, output_pd, attr, beta) {}
+                const primitive_attr_t *attr)
+            : cpu_reorder_pd_t(input_pd, output_pd, attr) {}
 
         DECLARE_COMMON_PD_T(jit_reorder_t);
 
         static status_t create(reorder_pd_t **reorder_pd,
                 const memory_pd_t *input_pd, const memory_pd_t *output_pd,
-                const primitive_attr_t *attr, float beta) {
+                const primitive_attr_t *attr) {
             assert(input_pd->engine()->kind() == engine_kind::cpu);
             assert(output_pd->engine()->kind() == engine_kind::cpu);
 
@@ -180,7 +180,7 @@ struct jit_reorder_t : public cpu_primitive_t {
                 return impl::status::invalid_arguments;
 
             auto _pd = new pd_t((const cpu_memory_pd_t *)input_pd,
-                    (const cpu_memory_pd_t *)output_pd, attr, beta);
+                    (const cpu_memory_pd_t *)output_pd, attr);
             return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
         }
     };

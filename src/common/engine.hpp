@@ -121,7 +121,7 @@ struct mkldnn_engine: public mkldnn::impl::c_compatible {
             mkldnn::impl::reorder_pd_t **reorder_pd,
             const mkldnn::impl::memory_pd_t *input_memory_pd,
             const mkldnn::impl::memory_pd_t *output_memory_pd,
-            const mkldnn::impl::primitive_attr_t *attr, float beta);
+            const mkldnn::impl::primitive_attr_t *attr);
 
     /** return the list of reorder implementations. engine guarantees to return
      * a NULL-terminated list */
