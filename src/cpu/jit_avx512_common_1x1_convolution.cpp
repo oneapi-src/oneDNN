@@ -436,6 +436,7 @@ jit_avx512_common_1x1_convolution_bwd_weights_t ::
         const size_t tr_src_size =
             jcp.nthr_mb_ * jcp.ngroups * jcp.ic * jcp.tr_is;
         tr_src_ = (data_t *)malloc(tr_src_size * sizeof(data_t), 64);
+#       pragma omp parallel for
         for (size_t i = 0; i < tr_src_size; i++)
             tr_src_[i] = 0;
         jit_transpose4x16_src_t tp = {};
@@ -447,7 +448,6 @@ jit_avx512_common_1x1_convolution_bwd_weights_t ::
     }
 
     init_rtus_driver<avx512_common>(this);
-
 }
 
 void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights()

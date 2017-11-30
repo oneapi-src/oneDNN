@@ -217,6 +217,8 @@ status_t prepare_workspace(
     if (ws_size != 0) {
         *ws = (float*)malloc(ws_size, 64);
         if (*ws == NULL) return status::out_of_memory;
+
+#       pragma omp parallel for
         for (size_t i = 0; i < jcp.im2col_size; ++i) (*ws)[i] = 0.;
     }
     return status::success;
