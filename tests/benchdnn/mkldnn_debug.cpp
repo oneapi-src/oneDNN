@@ -97,3 +97,22 @@ const char *fmt2str(mkldnn_memory_format_t fmt) {
     assert(!"unknown memory format");
     return "unknown memory format";
 }
+
+mkldnn_memory_format_t str2fmt(const char *str) {
+#define CASE(_fmt) do { \
+    if (!strcmp(STRINGIFY(_fmt), str) \
+            || !strcmp("mkldnn_" STRINGIFY(_fmt), str)) \
+        return CONCAT2(mkldnn_, _fmt); \
+} while (0)
+    CASE(x);
+    CASE(nc);
+    CASE(nchw);
+    CASE(nhwc);
+    CASE(nChw8c);
+    CASE(nChw16c);
+    CASE(oihw);
+    CASE(hwio);
+#undef CASE
+    assert(!"unknown memory format");
+    return mkldnn_format_undef;
+}

@@ -32,5 +32,6 @@ mkldnn_round_mode_t str2rmode(const char *str);
 
 /* format */
 const char *fmt2str(mkldnn_memory_format_t fmt);
+mkldnn_memory_format_t str2fmt(const char *str);
 
 #endif
