@@ -29,8 +29,7 @@ namespace mkldnn {
 namespace impl {
 
 status_t scales_t::set(int count, int mask, const float *scales) {
-    if (count != count_)
-        cleanup();
+    cleanup();
 
     count_ = count;
     mask_ = mask;
