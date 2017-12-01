@@ -350,6 +350,7 @@ struct jit_avx512_common_1x1_convolution_bwd_weights_t : public cpu_primitive_t
         free(bctx_);
         free(ws_reduction_);
         free(scratch_);
+        free(tr_src_);
     }
 
     typedef typename prec_traits<data_type::f32>::type data_t;
