@@ -1,0 +1,27 @@
+--skip-impl=ref
+
+--fmt=nChw8c # sse4.2 and avx2
+
+--dir=FWD_D
+--flags=GS --batch=bnorm_topo
+--flags=S  --batch=bnorm_topo
+
+--dir=BWD_DW
+--flags=GS --batch=bnorm_topo
+--flags=S  --batch=bnorm_topo
+
+--dir=BWD_D
+--flags=   --batch=bnorm_topo
+
+--fmt=nChw16c # avx512
+
+--dir=FWD_D
+--flags=GS --batch=bnorm_topo
+--flags=S  --batch=bnorm_topo
+
+--dir=BWD_DW
+--flags=GS --batch=bnorm_topo
+--flags=S  --batch=bnorm_topo
+
+--dir=BWD_D
+--flags=   --batch=bnorm_topo
