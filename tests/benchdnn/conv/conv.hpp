@@ -28,9 +28,6 @@
 
 namespace conv {
 
-enum { SRC = 0, WEI = 1, BIA = 2, DST = 3, ACC = 4, DAT_TOTAL };
-const char *inp_type2str(int what);
-
 enum alg_t { DIRECT, WINO };
 alg_t str2alg(const char *str);
 const char *alg2str(alg_t alg);

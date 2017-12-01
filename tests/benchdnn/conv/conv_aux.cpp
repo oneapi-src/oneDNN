@@ -28,18 +28,6 @@
 
 namespace conv {
 
-const char *inp_type2str(int what) {
-    switch (what) {
-    case SRC: return "SRC";
-    case WEI: return "WEI";
-    case BIA: return "BIA";
-    case DST: return "DST";
-    case ACC: return "ACC";
-    }
-    assert(!"incorrect input type");
-    return "incorrect input type";
-}
-
 alg_t str2alg(const char *str) {
 #define CASE(_alg) if (!strcasecmp(STRINGIFY(_alg), str)) return _alg
     CASE(DIRECT);

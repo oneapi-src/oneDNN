@@ -35,6 +35,18 @@ const char *dir2str(dir_t dir) {
     return "DIR_UNDEF";
 }
 
+const char *data_kind2str(data_kind_t kind) {
+    switch (kind) {
+    case SRC: return "SRC";
+    case WEI: return "WEI";
+    case BIA: return "BIA";
+    case DST: return "DST";
+    case ACC: return "ACC";
+    }
+    assert(!"incorrect data kind");
+    return "incorrect data kind";
+}
+
 attr_t::scale_t::policy_t attr_t::scale_t::str2policy(const char *str) {
 #define CASE(_plc) if (!strcasecmp(STRINGIFY(_plc), str)) return _plc
     CASE(NONE);

@@ -37,6 +37,12 @@ enum dir_t {
 dir_t str2dir(const char *str);
 const char *dir2str(dir_t dir);
 
+typedef int data_kind_t;
+enum {
+    SRC = 0, WEI, BIA, DST, ACC,
+    DAT_TOTAL };
+const char *data_kind2str(data_kind_t kind);
+
 struct attr_t {
     enum round_mode_t {
         NEAREST = (int)mkldnn_round_nearest,
