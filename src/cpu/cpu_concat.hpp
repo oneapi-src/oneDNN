@@ -82,7 +82,9 @@ protected:
     cpu_memory_pd_t dst_pd_;
 
     virtual status_t init() {
-        bool ok = set_default_params() == success;
+        bool ok = true
+            && set_default_params() == success
+            && attr()->has_default_values();
         if (!ok) return unimplemented;
 
         const int ndims = dst_pd_.desc()->ndims;

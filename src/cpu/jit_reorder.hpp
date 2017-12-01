@@ -181,6 +181,8 @@ struct jit_reorder_t : public cpu_primitive_t {
 
             auto _pd = new pd_t((const cpu_memory_pd_t *)input_pd,
                     (const cpu_memory_pd_t *)output_pd, attr);
+            if (_pd == nullptr) return out_of_memory;
+            if (_pd->init() != success) { delete _pd; return unimplemented; }
             return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
         }
     };
