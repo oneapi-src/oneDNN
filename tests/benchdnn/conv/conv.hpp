@@ -193,7 +193,6 @@ void compute_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &diff_wei_m,
 
 void perf_report(const prb_t *p, const res_t *r, const char *pstr);
 
-bool maybe_skip(const char *impl_str);
 int doit(const prb_t *p, res_t *res);
 int bench(int argc, char **argv, bool main_bench = true);
 

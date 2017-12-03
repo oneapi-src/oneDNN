@@ -440,7 +440,7 @@ inline int init_pd(const prb_t *p, mkldnn_convolution_desc_t &cd,
         SAFE(init_status, WARN);
 
     const char *impl_str = query_impl_info(cpd);
-    if (maybe_skip(impl_str)) {
+    if (maybe_skip(skip_impl, impl_str)) {
         print(2, "SKIPPED: mkldnn implementation: %s\n", impl_str);
         DNN_SAFE(mkldnn_primitive_desc_destroy(cpd), WARN);
         return r->state = SKIPPED, OK;

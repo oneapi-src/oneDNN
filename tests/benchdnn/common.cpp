@@ -235,6 +235,43 @@ bool match_regex(const char *str, const char *pattern) {
 }
 #endif /* _WIN32 */
 
+bool maybe_skip(const char *skip_impl, const char *impl_str) {
+    if (skip_impl == NULL || *skip_impl == '\0')
+        return false;
+
+    const size_t max_len = 128;
+    char what[max_len] = {0};
+
+    const char *s_start = skip_impl;
+    while (1) {
+        if (*s_start == '"' || *s_start == '\'')
+            ++s_start;
+
+        const char *s_end = strchr(s_start, ':');
+        size_t len = s_end ? s_end - s_start : strlen(s_start);
+
+        if (s_start[len - 1] == '"' || s_start[len - 1] == '\'')
+            --len;
+
+        SAFE(len < max_len ? OK : FAIL, CRIT);
+        len = MIN2(len, max_len - 1);
+        strncpy(what, s_start, len);
+        what[len] = '\0';
+
+        if (strstr(impl_str, what))
+            return true;
+
+        if (s_end == NULL)
+            break;
+
+        s_start = s_end + 1;
+        if (*s_start == '\0')
+            break;
+    }
+
+    return false;
+}
+
 #ifdef _WIN32
 #include <windows.h>
 #define PATH_MAX MAX_PATH
