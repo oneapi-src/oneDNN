@@ -78,6 +78,11 @@ int main(int argc, char **argv) {
             benchdnn_stat.tests, benchdnn_stat.passed,
             benchdnn_stat.skipped, benchdnn_stat.mistrusted,
             benchdnn_stat.unimplemented, benchdnn_stat.failed);
+    if (bench_mode & PERF) {
+        printf("total perf: min(ms):%g avg(ms):%g\n",
+                benchdnn_stat.ms[benchdnn_timer_t::min],
+                benchdnn_stat.ms[benchdnn_timer_t::avg]);
+    }
 
     return !!benchdnn_stat.failed;
 }

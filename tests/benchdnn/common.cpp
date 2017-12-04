@@ -169,6 +169,12 @@ void parse_result(res_t &res, bool &want_perf_report, bool allow_unimpl,
         assert(!"unknown state");
         { []() { SAFE(FAIL, CRIT); return 0; }(); }
     }
+
+    if (bench_mode & PERF) {
+        using bt = benchdnn_timer_t;
+        for (int mode = 0; mode < (int)bt::n_modes; ++mode)
+            bs.ms[mode] += res.timer.ms((bt::mode_t)mode);
+    }
 }
 
 /* misc */

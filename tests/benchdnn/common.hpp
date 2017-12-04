@@ -90,17 +90,6 @@ const char *bench_mode2str(bench_mode_t mode);
 bench_mode_t str2bench_mode(const char *str);
 extern bench_mode_t bench_mode;
 
-/* global stats */
-struct stat_t {
-    int tests;
-    int passed;
-    int failed;
-    int skipped;
-    int mistrusted;
-    int unimplemented;
-};
-extern stat_t benchdnn_stat;
-
 /* perf */
 extern double max_ms_per_prb; /** maximum time spends per prb in ms */
 extern int min_times_per_prb; /** minimal amount of runs per prb */
@@ -134,6 +123,18 @@ struct benchdnn_timer_t {
     long long ticks_[n_modes], ticks_start_;
     double ms_[n_modes], ms_start_;
 };
+
+/* global stats */
+struct stat_t {
+    int tests;
+    int passed;
+    int failed;
+    int skipped;
+    int mistrusted;
+    int unimplemented;
+    double ms[benchdnn_timer_t::mode_t::n_modes];
+};
+extern stat_t benchdnn_stat;
 
 /* result structure */
 enum res_state_t { UNTESTED = 0, PASSED, SKIPPED, MISTRUSTED, UNIMPLEMENTED,
