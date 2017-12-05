@@ -28,6 +28,7 @@ enum conv_version_t {ver_unused, ver_fma, ver_avx512_core, ver_4fma, ver_4vnni};
 enum conv_loop_order_t {loop_cgn, loop_gnc, loop_ngc};
 enum conv_1x1_loop_order_t {loop_rbl, loop_rlb, loop_lbr, loop_lrb, loop_blr,
                             loop_brl};
+enum conv_kernel_kind_t {embd_bcast, expl_bcast};
 
 enum {
     FLAG_MB_FIRST = 1 << 0, FLAG_MB_LAST = 1 << 1,
@@ -65,6 +66,8 @@ struct jit_conv_conf_t {
     int ur_h, ur_w;
     int ur_w_tail;
     bool is_1stconv;
+    /* fma avx512_core */
+    conv_kernel_kind_t kernel_kind;
     /* 4fma */
     int tr_iw;
     int tr_src_num_guard_elems;

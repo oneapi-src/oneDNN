@@ -106,14 +106,22 @@ private:
         return Xbyak::Zmm(idx);
     }
 
+    inline Xbyak::Zmm zmm_inp(int i_ic, int nb_x_blocking) {
+        int idx = i_ic + nb_x_blocking * jcp.ur_w;
+        assert(idx < 31);
+        return Xbyak::Zmm(idx);
+    }
+
     Xbyak::Reg64 imm_addr64 = r15;
     Xbyak::Xmm xmm_relu_ns = Xbyak::Xmm(30);
     Xbyak::Zmm zmm_relu_ns = Xbyak::Zmm(30);
     Xbyak::Zmm zmm_zero = Xbyak::Zmm(31);
+    Xbyak::Zmm zmm_wei = Xbyak::Zmm(31);
 
     inline void prepare_output(int ur_w);
     inline void store_output(int ur_w);
     inline void compute_loop_fma(int ur_w, int pad_l, int pad_r);
+    inline void compute_loop_fma_core(int ur_w, int pad_l, int pad_r);
     inline void compute_loop_4vnni(int ur_w, int pad_l, int pad_r);
     inline void compute_loop_4fma(int ur_w, int pad_l, int pad_r);
     inline void compute_loop_4fma_1st(int ur_w, int pad_l, int pad_r);
