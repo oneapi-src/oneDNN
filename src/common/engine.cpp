@@ -41,11 +41,13 @@ static inline engine_factory_t *get_engine_factory(engine_kind_t kind) {
 
 using cpd_create_f = mkldnn::impl::engine_t::concat_primitive_desc_create_f;
 using rpd_create_f = mkldnn::impl::engine_t::reorder_primitive_desc_create_f;
+using spd_create_f = mkldnn::impl::engine_t::sum_primitive_desc_create_f;
 using pd_create_f = mkldnn::impl::engine_t::primitive_desc_create_f;
 
 namespace {
 static const cpd_create_f concat_empty_impl_list[] = { nullptr };
 static const rpd_create_f reorder_empty_impl_list[] = { nullptr };
+static const spd_create_f sum_empty_impl_list[] = { nullptr };
 static const pd_create_f empty_impl_list[] = { nullptr };
 }
 
@@ -55,6 +57,9 @@ const cpd_create_f* mkldnn::impl::engine_t::get_concat_implementation_list()
 const rpd_create_f* mkldnn::impl::engine_t::get_reorder_implementation_list()
     const
 { return reorder_empty_impl_list; }
+const spd_create_f* mkldnn::impl::engine_t::get_sum_implementation_list()
+    const
+{ return sum_empty_impl_list; }
 const pd_create_f* mkldnn::impl::engine_t::get_implementation_list() const
 { return empty_impl_list; }
 

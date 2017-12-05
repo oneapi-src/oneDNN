@@ -42,14 +42,13 @@ public:
     virtual status_t view_primitive_desc_create(view_pd_t **view_pd,
             const memory_pd_t *memory_pd, const dims_t dims,
             const dims_t offsets);
-    virtual status_t sum_primitive_desc_create(sum_pd_t **sum_pd,
-            const memory_desc_t *output_d, int n, const float *scales,
-            const memory_pd_t **input_pds, const primitive_attr_t *attr);
 
     virtual const concat_primitive_desc_create_f*
         get_concat_implementation_list() const;
     virtual const reorder_primitive_desc_create_f*
         get_reorder_implementation_list() const;
+    virtual const sum_primitive_desc_create_f*
+        get_sum_implementation_list() const;
     virtual const primitive_desc_create_f* get_implementation_list() const;
 };
 

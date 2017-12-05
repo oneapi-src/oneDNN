@@ -110,12 +110,16 @@ struct mkldnn_engine: public mkldnn::impl::c_compatible {
     virtual const concat_primitive_desc_create_f*
         get_concat_implementation_list() const;
 
-    virtual mkldnn::impl::status_t sum_primitive_desc_create(
+    typedef mkldnn::impl::status_t (*sum_primitive_desc_create_f)(
             mkldnn::impl::sum_pd_t **sum_pd,
             const mkldnn::impl::memory_desc_t *output_d, int n,
             const float *scales, const mkldnn::impl::memory_pd_t **input_pds,
-            const mkldnn::impl::primitive_attr_t *attr)
-    { return mkldnn::impl::status::unimplemented; }
+            const mkldnn::impl::primitive_attr_t *attr);
+
+    /** return the list of sum implementations. engine guarantees to return
+     * a NULL-terminated list */
+    virtual const sum_primitive_desc_create_f*
+        get_sum_implementation_list() const;
 
     typedef mkldnn::impl::status_t (*reorder_primitive_desc_create_f)(
             mkldnn::impl::reorder_pd_t **reorder_pd,

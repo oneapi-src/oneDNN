@@ -286,8 +286,13 @@ status_t mkldnn_sum_primitive_desc_create_v2(primitive_desc_t **sum_pd,
         output_d = &dummy_output_d;
     }
 
-    return i_mpds[0]->engine()->sum_primitive_desc_create(
-            (sum_pd_t**)sum_pd, output_d, n, scales, i_mpds, attr);
+    auto s_pd = reinterpret_cast<sum_pd_t **>(sum_pd);
+
+    for (auto s = engine->get_sum_implementation_list(); *s; ++s) {
+        if ((*s)(s_pd, output_d, n, scales, i_mpds, attr) == success)
+            return success;
+    }
+    return unimplemented;
 }
 
 status_t mkldnn_sum_primitive_desc_create(primitive_desc_t **sum_pd,
