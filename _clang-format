@@ -51,10 +51,10 @@ BinPackParameters: 'true'
 
 BreakBeforeBraces: 'Custom'
 BraceWrapping: {
-    AfterClass: 'false'
+    AfterClass: 'true'
     AfterControlStatement: 'false'
     AfterEnum : 'false'
-    AfterFunction : 'true'
+    AfterFunction : 'false'
     AfterNamespace : 'false'
     AfterStruct : 'false'
     AfterUnion : 'false'
