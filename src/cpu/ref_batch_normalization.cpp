@@ -59,11 +59,18 @@ void ref_batch_normalization_fwd_t<data_type>::execute_forward() {
     const bool save_stats = conf_.is_training();
     const bool calculate_stats = !conf_.stats_is_src();
 
+    const bool with_relu = conf_.with_relu_post_op();
+    auto maybe_post_op = [&](data_t res) {
+        return (with_relu && res < 0) ? 0 : res;
+    };
+
 #   pragma omp parallel for schedule(static)
     for (int c = 0; c < C; ++c) {
         data_t v_mean = calculate_stats ? 0 : mean[c];
         data_t v_variance = calculate_stats ? 0 : variance[c];
-        data_t sqrt_variance = 0;
+
+        data_t sm = use_scaleshift ? scaleshift[scaleshift_d.off(0, c)] : 1;
+        data_t sv = use_scaleshift ? scaleshift[scaleshift_d.off(0, c)] : 0;
 
         if (calculate_stats) {
             for (int n = 0; n < N; ++n)
@@ -80,25 +87,15 @@ void ref_batch_normalization_fwd_t<data_type>::execute_forward() {
             }
             v_variance /= W*H*N;
         }
-        sqrt_variance = static_cast<data_t>(1. / sqrt(v_variance + eps));
+        data_t sqrt_variance =
+            static_cast<data_t>(1. / sqrt(v_variance + eps));
 
-        if (use_scaleshift) {
-            for (int n = 0; n < N; ++n)
-            for (int h = 0; h < H; ++h)
-            for (int w = 0; w < W; ++w) {
-                auto d_off = data_d.off(n,c,h,w);
-                auto sm_off = scaleshift_d.off(0, c);
-                auto sv_off = scaleshift_d.off(1, c);
-                dst[d_off] = scaleshift[sm_off] * (src[d_off] - v_mean) * sqrt_variance +
-                    scaleshift[sv_off];
-            }
-        } else {
-            for (int n = 0; n < N; ++n)
-            for (int h = 0; h < H; ++h)
-            for (int w = 0; w < W; ++w) {
-                auto d_off = data_d.off(n,c,h,w);
-                dst[d_off] = (src[d_off] - v_mean) * sqrt_variance;
-            }
+        for (int n = 0; n < N; ++n)
+        for (int h = 0; h < H; ++h)
+        for (int w = 0; w < W; ++w) {
+            auto d_off = data_d.off(n,c,h,w);
+            data_t bn_res = sm * (src[d_off] - v_mean) * sqrt_variance + sv;
+            dst[d_off] = maybe_post_op(bn_res);
         }
 
         if (calculate_stats) {

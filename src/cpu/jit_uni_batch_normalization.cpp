@@ -473,6 +473,11 @@ struct jit_bnorm_t: public jit_generator {
     }
 
     void forward_channels() {
+        bool with_relu = bdesc_->with_relu_post_op();
+        Vmm v_zero = Vmm(unroll_regs);
+        if (with_relu)
+            uni_vpxor(v_zero, v_zero, v_zero);
+
         Label ch_label;
         L(ch_label); {
             uni_vmovups(vmean, mean_ptr());
@@ -509,6 +514,8 @@ struct jit_bnorm_t: public jit_generator {
                         if (bdesc_->use_scaleshift()) {
                             uni_vfmadd213ps(v, vgamma, vbeta);
                         }
+                        if (with_relu)
+                            uni_vmaxps(v, v, v_zero);
                         uni_vmovntps(vmmword[reg_dst + reg_soff + offt],
                             v);
                     },

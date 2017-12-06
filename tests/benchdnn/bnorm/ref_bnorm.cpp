@@ -20,6 +20,24 @@ namespace bnorm {
 
 void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &mean,
         dnn_mem_t &var, const dnn_mem_t &ss, dnn_mem_t &dst) {
+    auto maybe_post_ops = [&](float &bn_res, float dst) {
+        const auto &ops = p->attr.post_ops;
+        for (int idx = 0; idx < ops.len; ++idx) {
+            using pk = attr_t::post_ops_t::kind_t;
+            const auto &e = ops.entry[idx];
+            switch (e.kind) {
+            case pk::SUM:
+                bn_res += e.sum.scale * dst;
+                break;
+            case pk::RELU:
+                bn_res = e.eltwise.scale * (bn_res < 0 ? 0 : bn_res);
+                break;
+            default:
+                assert(!"unknown attr::post_ops::kind");
+            }
+        }
+    };
+
 #   pragma omp parallel for
     for (int c = 0; c < p->ic; ++c) {
         float smean = ((float *)mean)[c];
@@ -33,8 +51,10 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &mean,
         for (int h = 0; h < p->ih; ++h)
         for (int w = 0; w < p->iw; ++w) {
             auto off = data_off(p, mb, c, h, w);
-            ((float *)dst)[off] =
-                gamma * (((float *)src)[off] - smean) / denom + beta;
+            float res = gamma * (((float *)src)[off] - smean) / denom + beta;
+            float &d = ((float *)dst)[off];
+            maybe_post_ops(res, d);
+            d = res;
         }
     }
 }

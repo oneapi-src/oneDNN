@@ -6,6 +6,11 @@
 --flags=GS --batch=bnorm_topo
 --flags=S  --batch=bnorm_topo
 
+--attr=post_ops='relu'
+--flags=GS --batch=bnorm_topo
+--flags=S  --batch=bnorm_topo
+--attr=
+
 --dir=BWD_DW
 --flags=GS --batch=bnorm_topo
 --flags=S  --batch=bnorm_topo
@@ -18,6 +23,11 @@
 --dir=FWD_D
 --flags=GS --batch=bnorm_topo
 --flags=S  --batch=bnorm_topo
+
+--attr=post_ops='relu'
+--flags=GS --batch=bnorm_topo
+--flags=S  --batch=bnorm_topo
+--attr=
 
 --dir=BWD_DW
 --flags=GS --batch=bnorm_topo

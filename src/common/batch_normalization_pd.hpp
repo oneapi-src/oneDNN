@@ -78,6 +78,11 @@ struct batch_normalization_pd_t: public primitive_desc_t {
     inline int H() const { return desc_.data_desc.dims[2]; }
     inline int W() const { return desc_.data_desc.dims[3]; }
 
+    bool with_relu_post_op() const {
+        const auto &p = this->attr()->post_ops_;
+        return p.len_ == 1 && p.entry_[0].is_relu(true, true);
+    }
+
 protected:
     batch_normalization_desc_t desc_;
     const batch_normalization_fwd_pd_t *hint_fwd_pd_;
