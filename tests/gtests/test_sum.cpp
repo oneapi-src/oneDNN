@@ -25,8 +25,7 @@ struct sum_test_params {
     const engine::kind engine_kind;
     std::vector<memory::format> srcs_format;
     memory::format dst_format;
-    std::vector<memory::dims> srcs_cds;
-    memory::dims dst_cds;
+    memory::dims dims;
     std::vector<float> scale;
 };
 
@@ -80,11 +79,9 @@ protected:
         sum_test_params p
             = ::testing::TestWithParam<sum_test_params>::GetParam();
 
-        for (size_t i = 0; i < p.srcs_cds.size(); i++) {
-            for (size_t dim = 0; dim < p.dst_cds.size(); dim++) {
-                ASSERT_TRUE(p.srcs_cds[i][dim] == p.dst_cds[dim]);
-            }
-        }
+        ASSERT_EQ(p.srcs_format.size(), p.scale.size());
+        const auto num_srcs = p.srcs_format.size();
+
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         auto eng = engine(p.engine_kind, 0);
         memory::data_type data_type = data_traits<data_t>::data_type;
@@ -92,9 +89,9 @@ protected:
 
         std::vector<memory::primitive_desc> srcs_pd;
         std::vector<memory> srcs;
-        for (size_t i = 0; i < p.srcs_cds.size(); i++) {
+        for (size_t i = 0; i < num_srcs; i++) {
             auto desc =
-                memory::desc(p.srcs_cds[i], data_type, p.srcs_format[i]);
+                memory::desc(p.dims, data_type, p.srcs_format[i]);
             auto mpd = memory::primitive_desc(desc, eng);
             auto src_memory = memory(mpd);
             const size_t sz =
@@ -104,7 +101,7 @@ protected:
             srcs.push_back(src_memory);
         }
 
-        auto dst_desc = memory::desc(p.dst_cds, data_type, p.dst_format);
+        auto dst_desc = memory::desc(p.dims, data_type, p.dst_format);
         auto sum_pd = sum::primitive_desc(dst_desc, p.scale, srcs_pd);
         auto dst = memory(sum_pd.dst_primitive_desc());
 
@@ -118,7 +115,7 @@ protected:
         }
 
         std::vector<primitive::at> inputs;
-        for (size_t i = 0; i < p.srcs_cds.size(); i++) {
+        for (size_t i = 0; i < num_srcs; i++) {
             inputs.push_back(srcs[i]);
         }
         auto c = sum(sum_pd, inputs, dst);
@@ -138,49 +135,46 @@ protected:
 };
 
 using sum_test_float = sum_test<float>;
-using sum_test_params_float = sum_test_params;
 
-TEST_P(sum_test_float, TestsSum)
-{
-}
+TEST_P(sum_test_float, TestsSum) {}
 
 INSTANTIATE_TEST_CASE_P(TestSum, sum_test_float, ::testing::Values(
-    sum_test_params_float{engine::kind::cpu,
+    sum_test_params{engine::kind::cpu,
     {memory::format::nchw, memory::format::nchw}, memory::format::nchw,
-    {{2, 8, 2, 2}, {2, 8, 2, 2}}, {2, 8, 2, 2}, {1.0f, 1.0f}},
-    sum_test_params_float{engine::kind::cpu,
+    {2, 8, 2, 2}, {1.0f, 1.0f}},
+    sum_test_params{engine::kind::cpu,
     {memory::format::nChw8c, memory::format::nChw8c}, memory::format::nChw8c,
-    {{2, 16, 3, 4}, {2, 16, 3, 4}}, {2, 16, 3, 4}, {1.0f, 1.0f}},
-    sum_test_params_float{engine::kind::cpu,
+    {2, 16, 3, 4}, {1.0f, 1.0f}},
+    sum_test_params{engine::kind::cpu,
     {memory::format::nchw, memory::format::nchw}, memory::format::nChw8c,
-    {{2, 16, 2, 2}, {2, 16, 2, 2}}, {2, 16, 2, 2}, {1.0f, 1.0f}},
-    sum_test_params_float{engine::kind::cpu,
+    {2, 16, 2, 2}, {1.0f, 1.0f}},
+    sum_test_params{engine::kind::cpu,
     {memory::format::nChw8c, memory::format::nChw8c}, memory::format::nchw,
-    {{2, 16, 3, 4}, {2, 16, 3, 4}}, {2, 16, 3, 4}, {1.0f, 1.0f}},
+    {2, 16, 3, 4}, {1.0f, 1.0f}},
 
-    sum_test_params_float{engine::kind::cpu,
+    sum_test_params{engine::kind::cpu,
     {memory::format::nchw, memory::format::nchw}, memory::format::nchw,
-    {{2, 8, 2, 2}, {2, 8, 2, 2}}, {2, 8, 2, 2}, {2.0f, 3.0f}},
-    sum_test_params_float{engine::kind::cpu,
+    {2, 8, 2, 2}, {2.0f, 3.0f}},
+    sum_test_params{engine::kind::cpu,
     {memory::format::nChw8c, memory::format::nChw8c}, memory::format::nChw8c,
-    {{2, 16, 3, 4}, {2, 16, 3, 4}}, {2, 16, 3, 4}, {2.0f, 3.0f}},
-    sum_test_params_float{engine::kind::cpu,
+    {2, 16, 3, 4}, {2.0f, 3.0f}},
+    sum_test_params{engine::kind::cpu,
     {memory::format::nchw, memory::format::nchw}, memory::format::nChw8c,
-    {{2, 16, 2, 2}, {2, 16, 2, 2}}, {2, 16, 2, 2}, {2.0f, 3.0f}},
-    sum_test_params_float{engine::kind::cpu,
+    {2, 16, 2, 2}, {2.0f, 3.0f}},
+    sum_test_params{engine::kind::cpu,
     {memory::format::nChw8c, memory::format::nChw8c}, memory::format::nchw,
-    {{2, 16, 3, 4}, {2, 16, 3, 4}}, {2, 16, 3, 4}, {2.0f, 3.0f}},
+    {2, 16, 3, 4}, {2.0f, 3.0f}},
 
-    sum_test_params_float{engine::kind::cpu,
+    sum_test_params{engine::kind::cpu,
     {memory::format::nchw, memory::format::nChw8c}, memory::format::nchw,
-    {{5, 8, 3, 3}, {5, 8, 3, 3}}, {5, 8, 3, 3}, {2.0f, 3.0f}},
-    sum_test_params_float{engine::kind::cpu,
+    {5, 8, 3, 3}, {2.0f, 3.0f}},
+    sum_test_params{engine::kind::cpu,
     {memory::format::nchw, memory::format::nChw8c}, memory::format::nchw,
-    {{32, 32, 13, 14}, {32, 32, 13, 14}}, {32, 32, 13, 14}, {2.0f, 3.0f}},
+    {32, 32, 13, 14}, {2.0f, 3.0f}},
 
-    sum_test_params_float{engine::kind::cpu,
+    sum_test_params{engine::kind::cpu,
     {memory::format::nChw16c, memory::format::nChw8c}, memory::format::nChw16c,
-    {{2, 16, 3, 3}, {2, 16, 3, 3}}, {2, 16, 3, 3}, {2.0f, 3.0f}}
+    {2, 16, 3, 3}, {2.0f, 3.0f}}
 ));
 
 }
