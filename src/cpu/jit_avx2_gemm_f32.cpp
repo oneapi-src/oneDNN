@@ -31,8 +31,11 @@ using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::utils;
 
 using namespace Xbyak;
-
+#ifdef _WIN32
+#define STACKSIZE 224
+#else
 #define STACKSIZE 64
+#endif
 #define SIZE 4
 #define OFFSET 32
 #define BASE_SHIFT 2
@@ -2072,6 +2075,15 @@ struct jit_avx2_gemm_f32::xbyak_gemm : public jit_generator {
         mov(ptr[rsp + 48], rdi);
         mov(ptr[rsp + 56], rsi);
 
+#ifdef _WIN32
+        const int xmm_len = 16;
+        const int xmm_to_preserve_start = 6;
+        const int xmm_to_preserve = 10;
+        for (int i = 0; i < xmm_to_preserve; ++i)
+            movdqu(ptr[rsp + 64 + i * xmm_len],
+                    Xbyak::Xmm(xmm_to_preserve_start + i));
+#endif
+
         // Get the registers
         mov(B, ARG_B);
         mov(LDB, ARG_LDB);
@@ -2185,6 +2197,12 @@ struct jit_avx2_gemm_f32::xbyak_gemm : public jit_generator {
         mov(r15, ptr[rsp + 40]);
         mov(rdi, ptr[rsp + 48]);
         mov(rsi, ptr[rsp + 56]);
+
+#ifdef _WIN32
+        for (int i = 0; i < xmm_to_preserve; ++i)
+            movdqu(Xbyak::Xmm(xmm_to_preserve_start + i),
+                    ptr[rsp + 64 + i * xmm_len]);
+#endif
 
         vzeroupper();
         add(rsp, STACKSIZE);
