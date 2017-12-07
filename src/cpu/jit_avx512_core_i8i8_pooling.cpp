@@ -323,7 +323,7 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t::compute_avg_step(int ur_c, int c_tail)
         for (int ll = 0; ll < 4; ll++) {
             vcvtdq2ps(vreg_dst_f32(jj, ll), vreg_dst_s32(jj, ll));
             vfmadd132ps(vreg_dst_f32(jj, ll), vreg_zeros, vreg_tmp);
-            vcvtps2dq(vreg_dst_s32(jj, ll) | T_rz_sae, vreg_dst_f32(jj, ll));
+            vcvtps2dq(vreg_dst_s32(jj, ll) | T_rn_sae, vreg_dst_f32(jj, ll));
 
             store_dst(jj, ll, c_tail);
         }
