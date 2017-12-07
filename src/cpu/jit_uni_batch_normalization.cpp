@@ -784,6 +784,11 @@ struct uni_bnorm_driver_t: public c_compatible {
             for (int i = 0; i < num_barriers; ++i)
                 barrier::ctx_init(&barriers_[i]);
         }
+
+        size_t data_size = bdesc_->MB() * bdesc_->C() * bdesc_->H()
+                * bdesc_->W() * sizeof(data_t);
+        l3_size_ = get_cache_size(3, false);
+        do_blocking_ = (data_size >= l3_size_ / 2 && l3_size_ > 0);
     }
     ~uni_bnorm_driver_t() { free(buf_); free(barriers_); }
 
@@ -807,42 +812,92 @@ struct uni_bnorm_driver_t: public c_compatible {
 
         int C_ithr{0}, C_nthr{0}, N_ithr{0}, N_nthr{0};
         size_t C_blk_s{0}, C_blk_e{0}, N_s{0}, N_e{0};
-        thread_balance(ithr, nthr, C_blks, C_ithr, C_nthr, C_blk_s, C_blk_e,
-                N_ithr, N_nthr, N_s, N_e);
+
+        int C_blks_per_iter{ 1 }, iters{ 1 };
+        if (do_blocking_)
+            cache_balance(nthr, C_blks, C_blks_per_iter, iters);
+
+        thread_balance(ithr, nthr, do_blocking_ ? C_blks_per_iter : C_blks,
+                C_ithr, C_nthr, C_blk_s, C_blk_e, N_ithr, N_nthr, N_s, N_e);
 
         p.N_ithr = N_ithr;
         p.N_nthr = N_nthr;
 
-        size_t C_blks_thr = C_blk_e - C_blk_s;
-        size_t N_thr = N_e - N_s;
+        int last_iter_blks = C_blks - (iters - 1) * C_blks_per_iter;
+        size_t global_C_blk_s;
+        size_t global_barriers_per_iter = C_nthr;
 
-        size_t coff_base = C_blk_s * simd_w;
-        size_t soff_base = C_blk_s * p.spat_size * simd_w + N_s * img_size;
+        for (int it = 0; it < iters; it++) {
+            if (it == iters - 1 && iters > 1) {
+                C_blk_s = C_blk_e = N_s = N_e = 0;
+                thread_balance(ithr, nthr, last_iter_blks, C_ithr, C_nthr,
+                        C_blk_s, C_blk_e, N_ithr, N_nthr, N_s, N_e);
+                p.N_ithr = N_ithr;
+                p.N_nthr = N_nthr;
+            }
 
-        p.coff_max = C_blks_thr * simd_w;
-        p.mean = (use_tmp_stats_ ? sbuf_ : mean) + coff_base;
-        p.var = (use_tmp_stats_ ? sbuf_ + C : var) + coff_base;
-        p.scale_shift = scale_shift + coff_base;
-        p.diff_scale_shift = (use_tmp_diff_scale_shift_
-                ? pbuf_ : diff_scale_shift) + coff_base;
+            global_C_blk_s = do_blocking_ ?
+                    (C_blk_s == -1) ? -1 : it * C_blks_per_iter + C_blk_s :
+                    C_blk_s;
 
-        p.soff_max = N_thr * img_size;
-        p.src = src + soff_base;
-        p.dst = dst + soff_base;
-        p.diff_src = diff_src + soff_base;
-        p.diff_dst = diff_dst + soff_base;
+            size_t C_blks_thr = C_blk_e - C_blk_s;
+            size_t N_thr = N_e - N_s;
 
-        p.mb_stride_Bc = img_size - p.coff_max * p.spat_size;
+            size_t coff_base = global_C_blk_s * simd_w;
+            size_t soff_base
+                    = global_C_blk_s * p.spat_size * simd_w + N_s * img_size;
 
-        p.rbuf1 = rbuf_ + (C_blk_s * N_nthr + p.N_ithr * C_blks_thr) * simd_w;
-        p.rbuf2 = p.rbuf1 + C * N_nthr;
+            p.coff_max = C_blks_thr * simd_w;
+            p.mean = (use_tmp_stats_ ? sbuf_ : mean) + coff_base;
+            p.var = (use_tmp_stats_ ? sbuf_ + C : var) + coff_base;
+            p.scale_shift = scale_shift + coff_base;
+            p.diff_scale_shift
+                    = (use_tmp_diff_scale_shift_ ? pbuf_ : diff_scale_shift)
+                    + coff_base;
 
-        p.barrier = barriers_ + C_ithr;
+            p.soff_max = N_thr * img_size;
+            p.src = src + soff_base;
+            p.dst = dst + soff_base;
+            p.diff_src = diff_src + soff_base;
+            p.diff_dst = diff_dst + soff_base;
 
-        if (p.soff_max != 0 && p.coff_max != 0) ker_(&p);
+            p.mb_stride_Bc = img_size - p.coff_max * p.spat_size;
+
+            p.rbuf1 = rbuf_
+                    + (global_C_blk_s * N_nthr + p.N_ithr * C_blks_thr)
+                            * simd_w;
+            p.rbuf2 = p.rbuf1 + C * N_nthr;
+
+            size_t iter_bariers
+                    = do_blocking_ ? it * global_barriers_per_iter : 0;
+            p.barrier = barriers_ + C_ithr + iter_bariers;
+
+            if (p.soff_max != 0 && p.coff_max != 0)
+                ker_(&p);
+        }
     }
 
 private:
+    inline void cache_balance(
+            int nthr, size_t C_blks, int &C_blks_per_iter, int &iters) {
+        const size_t N = bdesc_->MB();
+        const size_t H = bdesc_->H();
+        const size_t W = bdesc_->W();
+
+        size_t num_tensors = bdesc_->is_fwd() ? 1 : 2;
+        size_t working_set_size
+                = (N * H * W * simd_w * sizeof(data_t)) * num_tensors;
+
+        C_blks_per_iter = l3_size_ / working_set_size;
+
+        if (C_blks_per_iter == 0)
+            C_blks_per_iter = 1;
+        if (C_blks_per_iter > C_blks)
+            C_blks_per_iter = C_blks;
+
+        iters = (C_blks + C_blks_per_iter - 1) / C_blks_per_iter;
+    }
+
     inline void thread_balance(int ithr, int nthr, size_t C_blks, int &C_ithr,
             int &C_nthr, size_t &C_blk_s, size_t &C_blk_e, int &N_ithr,
             int &N_nthr, size_t &N_s, size_t &N_e) const {
@@ -854,8 +909,13 @@ private:
             C_ithr = ithr; C_nthr = nthr;
             balance211(C_blks, C_nthr, C_ithr, C_blk_s, C_blk_e);
         } else {
-            C_nthr = math::gcd(nthr, (int)C_blks);
-            N_nthr = nstl::min((int)N, nthr / C_nthr);
+            if (do_blocking_) {
+                N_nthr = nstl::min((int)N, nthr);
+                C_nthr = nstl::min((int)C_blks, nthr / N_nthr);
+            } else {
+                C_nthr = math::gcd(nthr, (int)C_blks);
+                N_nthr = nstl::min((int)N, nthr / C_nthr);
+            }
             if (ithr < C_nthr * N_nthr) {
                 N_ithr = ithr % N_nthr;
                 C_ithr = ithr / N_nthr;
@@ -875,6 +935,8 @@ private:
     jit_bnorm_t<isa> ker_;
     bool syncable_;
     bool use_tmp_stats_, use_tmp_diff_scale_shift_;
+    bool do_blocking_;
+    size_t l3_size_;
 
     data_t *buf_, *sbuf_, *rbuf_, *pbuf_;
     barrier::ctx_t *barriers_;
