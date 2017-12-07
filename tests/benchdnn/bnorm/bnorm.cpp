@@ -49,7 +49,7 @@ static int prepare_fwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &mean,
     const int L = p->mb * p->ih * p->iw;
     const int logL = (int)ceilf(log2f(L));
 
-    assert(logL <= 0 || (1<<logL-1) < L);
+    assert(logL <= 0 || (1<<(logL-1)) < L);
     assert(L <= (1<<logL));
 
     const int min_flex_bits = 3;
