@@ -132,7 +132,8 @@ struct ref_convolution_bwd_data_t: public cpu_primitive_t {
                 && this->desc()->diff_dst_desc.data_type == diff_dst_type
                 && this->desc()->weights_desc.data_type == wei_type
                 && this->desc()->accum_data_type == acc_type
-                && this->desc()->diff_src_desc.data_type == diff_src_type;
+                && this->desc()->diff_src_desc.data_type == diff_src_type
+                && this->attr()->has_default_values();
             return ok ? status::success : status::unimplemented;
         }
     };
@@ -191,7 +192,8 @@ struct ref_convolution_bwd_weights_t: public cpu_primitive_t {
                 && this->desc()->accum_data_type == acc_type
                 && utils::implication(this->with_bias(),
                         this->desc()->diff_bias_desc.data_type
-                        == diff_wei_type);
+                        == diff_wei_type)
+                && this->attr()->has_default_values();
             return ok ? status::success : status::unimplemented;
         }
     };

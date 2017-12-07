@@ -108,7 +108,8 @@ struct nchw_pooling_bwd_t: public cpu_primitive_t {
                 && utils::everyone_is(data_type, diff_dst_pd()->desc()->data_type,
                         diff_src_pd()->desc()->data_type)
                 && utils::everyone_is(nchw, diff_dst_pd()->desc()->format,
-                        diff_src_pd()->desc()->format);
+                        diff_src_pd()->desc()->format)
+                && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
             if (desc()->alg_kind == pooling_max) {

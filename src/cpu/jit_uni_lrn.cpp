@@ -295,7 +295,8 @@ status_t jit_uni_lrn_bwd_t<isa>::pd_t::init() {
         && utils::everyone_is(data_type::f32, desc()->data_desc.data_type)
         && data_d.ndims() == 4
         && data_d.dims()[1] % VECTOR_LENGTH == 0
-        && desc()->lrn_beta == 0.75;
+        && desc()->lrn_beta == 0.75
+        && attr()->has_default_values();
     if (!ok) return unimplemented;
 
     ws_pd_ = data_pd_;

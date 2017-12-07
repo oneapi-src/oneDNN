@@ -89,7 +89,8 @@ struct ref_lrn_bwd_t: public cpu_primitive_t {
                 && utils::one_of(desc()->prop_kind, backward_data)
                 && utils::one_of(desc()->alg_kind, lrn_across_channels
                         /*, lrn_within_channel */) // not supported yet
-                && utils::everyone_is(data_type, desc()->data_desc.data_type);
+                && utils::everyone_is(data_type, desc()->data_desc.data_type)
+                && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
             return status::success;

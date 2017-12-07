@@ -114,7 +114,8 @@ struct jit_uni_batch_normalization_bwd_t: public cpu_primitive_t {
                 && implication(use_scaleshift(),
                         desc()->data_scaleshift_desc.data_type == f32)
                 && everyone_is(desired_fmt, desc()->diff_data_desc.format,
-                        desc()->data_desc.format);
+                        desc()->data_desc.format)
+                && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
             /* TODO: extra checks required */

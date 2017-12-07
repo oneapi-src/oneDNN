@@ -731,7 +731,8 @@ status_t jit_avx512_common_lrn_bwd_t::pd_t::init() {
         && utils::one_of(desc()->prop_kind, backward, backward_data)
         && utils::everyone_is(data_type::f32, desc()->data_desc.data_type)
         && data_d.ndims() == 4
-        && data_d.dims()[1] % vsize == 0;
+        && data_d.dims()[1] % vsize == 0
+        && attr()->has_default_values();
     if (!ok) return unimplemented;
 
     memory_desc_t ws_d;

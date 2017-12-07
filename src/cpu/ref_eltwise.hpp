@@ -90,10 +90,11 @@ struct ref_eltwise_bwd_t: public cpu_primitive_t {
         virtual status_t init() override {
             using namespace prop_kind;
             assert(engine()->kind() == engine_kind::cpu);
-            bool ok = true
-                && desc()->prop_kind == backward_data
-                && utils::everyone_is(data_type, desc()->data_desc.data_type,
-                        desc()->diff_data_desc.data_type);
+            bool ok = true && desc()->prop_kind == backward_data
+                    && utils::everyone_is(data_type,
+                               desc()->data_desc.data_type,
+                               desc()->diff_data_desc.data_type)
+                    && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
             const bool same_fmt = memory_desc_wrapper(diff_dst_pd())

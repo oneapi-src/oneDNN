@@ -119,7 +119,8 @@ struct gemm_inner_product_bwd_data_t: public cpu_primitive_t {
                 && diff_dst_pd_.desc()->format == nc
                 && memory_desc_wrapper(diff_src_pd()).is_dense()
                 && memory_desc_wrapper(diff_dst_pd()).is_dense()
-                && memory_desc_wrapper(weights_pd()).is_dense();
+                && memory_desc_wrapper(weights_pd()).is_dense()
+                && attr()->has_default_values();
             return ok ? status::success : status::unimplemented;
 #else
             return status::unimplemented;
@@ -174,7 +175,8 @@ struct gemm_inner_product_bwd_weights_t: public cpu_primitive_t {
                 && diff_dst_pd_.desc()->format == nc
                 && memory_desc_wrapper(src_pd()).is_dense()
                 && memory_desc_wrapper(diff_dst_pd()).is_dense()
-                && memory_desc_wrapper(diff_weights_pd()).is_dense();
+                && memory_desc_wrapper(diff_weights_pd()).is_dense()
+                && attr()->has_default_values();
             return ok ? status::success : status::unimplemented;
 #else
             return status::unimplemented;

@@ -98,7 +98,8 @@ struct ref_batch_normalization_bwd_t: public cpu_primitive_t {
                 && utils::everyone_is(data_type, desc()->data_desc.data_type,
                         desc()->diff_data_desc.data_type,
                         desc()->data_desc.data_type,
-                        desc()->data_scaleshift_desc.data_type);
+                        desc()->data_scaleshift_desc.data_type)
+                && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
 
