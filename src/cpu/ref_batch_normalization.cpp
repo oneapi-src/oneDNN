@@ -70,7 +70,7 @@ void ref_batch_normalization_fwd_t<data_type>::execute_forward() {
         data_t v_variance = calculate_stats ? 0 : variance[c];
 
         data_t sm = use_scaleshift ? scaleshift[scaleshift_d.off(0, c)] : 1;
-        data_t sv = use_scaleshift ? scaleshift[scaleshift_d.off(0, c)] : 0;
+        data_t sv = use_scaleshift ? scaleshift[scaleshift_d.off(1, c)] : 0;
 
         if (calculate_stats) {
             for (int n = 0; n < N; ++n)
