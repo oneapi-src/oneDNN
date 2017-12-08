@@ -106,10 +106,9 @@ static inline int float2int(float x) {
 // (Roma)
 
 #ifdef XBYAK64
-constexpr Xbyak::Operand::Code abi_save_regs[] = {
-    Xbyak::Operand::RBX, Xbyak::Operand::RSP, Xbyak::Operand::RBP,
-    Xbyak::Operand::R12, Xbyak::Operand::R13, Xbyak::Operand::R14,
-    Xbyak::Operand::R15,
+constexpr Xbyak::Operand::Code abi_save_gpr_regs[] = {
+    Xbyak::Operand::RBX, Xbyak::Operand::RBP, Xbyak::Operand::R12,
+    Xbyak::Operand::R13, Xbyak::Operand::R14, Xbyak::Operand::R15,
 #ifdef _WIN
     Xbyak::Operand::RDI, Xbyak::Operand::RSI,
 #endif
