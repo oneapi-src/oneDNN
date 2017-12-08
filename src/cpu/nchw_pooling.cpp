@@ -19,6 +19,7 @@
 
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"
+#include "math_utils.hpp"
 #include "nstl.hpp"
 
 #include "nchw_pooling.hpp"
@@ -101,7 +102,7 @@ void nchw_pooling_fwd_t<data_type>::execute_forward() {
             }
         }
 
-        d[0] /= num_summands;
+        d[0] = math::out_round<data_t>((float)d[0] / num_summands);
     };
 
 

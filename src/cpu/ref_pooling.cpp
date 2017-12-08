@@ -19,6 +19,7 @@
 
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"
+#include "math_utils.hpp"
 #include "nstl.hpp"
 
 #include "ref_pooling.hpp"
@@ -99,8 +100,7 @@ void ref_pooling_fwd_t<data_type, acc_type>::execute_forward() {
             }
         }
 
-        dst /= num_summands;
-        d[0] = (data_t)dst;
+        d[0] = math::out_round<data_t>((float)dst / num_summands);
     };
 
     const int MB = conf_.MB();

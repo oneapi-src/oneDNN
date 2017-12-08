@@ -48,6 +48,12 @@ template <> inline void assert_eq<float>(float a, float b) {
     ASSERT_FLOAT_EQ(a, b);
 }
 
+template <typename data_t> inline data_t out_round(float x,
+        mkldnn_round_mode_t rmode = mkldnn_round_nearest)
+{ return (data_t)(rmode == mkldnn_round_down ? floorf(x) : rintf(x)); }
+template <> inline float out_round<float>(float x, mkldnn_round_mode_t rmode)
+{ (void)rmode; return x; }
+
 inline size_t map_index(const mkldnn::memory::desc &md, size_t index) {
     using fmt = mkldnn::memory::format;
     const fmt fwd_weights_g = fmt::gOIhw8i16o2i;

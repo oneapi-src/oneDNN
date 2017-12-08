@@ -116,7 +116,8 @@ void check_pool_fwd(const pool_test_params &p, const memory &src,
 
                     if (p.aalgorithm == pooling_avg_include_padding ||
                         p.aalgorithm == pooling_avg_exclude_padding) {
-                        out_ref /= num_summands;
+                        out_ref = out_round<data_t>(
+                                (float)out_ref / num_summands);
                     }
                     EXPECT_NEAR(out, out_ref, 1e-6);
                     if(p.aalgorithm == pooling_max
