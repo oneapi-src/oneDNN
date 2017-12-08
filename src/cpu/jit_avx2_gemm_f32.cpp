@@ -31,11 +31,7 @@ using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::utils;
 
 using namespace Xbyak;
-#ifdef _WIN32
-#define STACKSIZE 224
-#else
-#define STACKSIZE 64
-#endif
+#define STACKSIZE get_size_of_abi_save_regs()
 #define SIZE 4
 #define OFFSET 32
 #define BASE_SHIFT 2
@@ -2065,24 +2061,7 @@ struct jit_avx2_gemm_f32::xbyak_gemm : public jit_generator {
 
         inLocalLabel();
 
-        sub(rsp, STACKSIZE);
-        mov(ptr[rsp + 0], rbx);
-        mov(ptr[rsp + 8], rbp);
-        mov(ptr[rsp + 16], r12);
-        mov(ptr[rsp + 24], r13);
-        mov(ptr[rsp + 32], r14);
-        mov(ptr[rsp + 40], r15);
-        mov(ptr[rsp + 48], rdi);
-        mov(ptr[rsp + 56], rsi);
-
-#ifdef _WIN32
-        const int xmm_len = 16;
-        const int xmm_to_preserve_start = 6;
-        const int xmm_to_preserve = 10;
-        for (int i = 0; i < xmm_to_preserve; ++i)
-            movdqu(ptr[rsp + 64 + i * xmm_len],
-                    Xbyak::Xmm(xmm_to_preserve_start + i));
-#endif
+        preamble();
 
         // Get the registers
         mov(B, ARG_B);
@@ -2189,25 +2168,9 @@ struct jit_avx2_gemm_f32::xbyak_gemm : public jit_generator {
         // Restore original stack
         mov(rax, ORIG_SP);
         mov(rsp, rax);
-        mov(rbx, ptr[rsp + 0]);
-        mov(rbp, ptr[rsp + 8]);
-        mov(r12, ptr[rsp + 16]);
-        mov(r13, ptr[rsp + 24]);
-        mov(r14, ptr[rsp + 32]);
-        mov(r15, ptr[rsp + 40]);
-        mov(rdi, ptr[rsp + 48]);
-        mov(rsi, ptr[rsp + 56]);
-
-#ifdef _WIN32
-        for (int i = 0; i < xmm_to_preserve; ++i)
-            movdqu(Xbyak::Xmm(xmm_to_preserve_start + i),
-                    ptr[rsp + 64 + i * xmm_len]);
-#endif
 
         vzeroupper();
-        add(rsp, STACKSIZE);
-
-        ret();
+        postamble();
 
         outLocalLabel();
 
