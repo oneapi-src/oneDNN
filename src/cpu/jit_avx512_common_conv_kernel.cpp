@@ -1120,7 +1120,7 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::prepare_output(int ur_w)
             vpxord(zmm, zmm, zmm);
             int aux_src_offset
                 = typesize * (k * jcp.ih * jcp.iw + j) * jcp.ic_block;
-            prefetcht1(EVEX_compress_addr(reg_src_prf, aux_src_offset));
+            mic_prefetcht1(EVEX_compress_addr(reg_src_prf, aux_src_offset));
         }
     }
 }
@@ -1655,20 +1655,11 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
 
     // TODO: can we please have a standard way to compute this?
     jcp.is_1stconv = false;
-    if (jcp.ic % simd_w != 0 ) {
-        if (jcp.ic == 3 || jcp.ic == 1)
-            jcp.is_1stconv = true;
-        else
-            return status::unimplemented;
-    }
+    if (jcp.ic % simd_w != 0 )
+        return status::unimplemented;
 
     jcp.ic_block = (jcp.ic % simd_w) ? jcp.ic : simd_w;
     jcp.nb_ic = jcp.ic / jcp.ic_block;
-
-    if (jcp.is_1stconv) {
-        jcp.ic_block = jcp.ic;
-        jcp.nb_ic = 1;
-    }
 
     jcp.oc_block = simd_w;
     if (jcp.oc % jcp.oc_block)
@@ -1677,9 +1668,6 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
 
     jcp.ur_h = jcp.stride_h;
     jcp.ur_w = jcp.stride_w;
-
-    if (jcp.is_1stconv)
-        return status::unimplemented;
 
     int regs = 28;
     if (jcp.iw <= regs)
@@ -1697,7 +1685,7 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
                                 - jcp.r_pad) / jcp.stride_w);
     if (r_overflow1 > 0) n_oi--;
 
-    if (mayiuse(avx512_mic_4ops) && !jcp.is_1stconv
+    if (mayiuse(avx512_mic_4ops)
            && jcp.stride_w == 1 && jcp.stride_h == 1
            && diff_dst_d.data_type() == data_type::s16
            && weights_d.data_type() == data_type::s16
@@ -1707,8 +1695,8 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
         jcp.ver = ver_4vnni;
         jcp.typesize_in = sizeof(int16_t);
         jcp.typesize_out = sizeof(int32_t);
-    } else if (mayiuse(avx512_common) &&
-            diff_dst_d.data_type() == data_type::f32
+    } else if (mayiuse(avx512_common)
+         && diff_dst_d.data_type() == data_type::f32
          && weights_d.data_type() == data_type::f32
          && diff_src_d.data_type() == data_type::f32) {
         if (weights_d.format() != (with_groups ? gOIhw16o16i : OIhw16o16i))
@@ -1716,7 +1704,7 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
         jcp.ver = ver_fma;
         jcp.typesize_in = sizeof(float);
         jcp.typesize_out = sizeof(float);
-        if (mayiuse(avx512_mic_4ops) && !jcp.is_1stconv
+        if (mayiuse(avx512_mic_4ops)
             && jcp.stride_w == 1 && jcp.stride_h == 1) {
                 jcp.ver = ver_4fma;
             }
