@@ -808,10 +808,10 @@ struct uni_bnorm_driver_t: public c_compatible {
         p.spat_size = H * W;
         p.chan_size = 1.0f * N * p.spat_size;
 
-        size_t C_blks = C / simd_w;
+        int C_blks = C / simd_w;
 
         int C_ithr{0}, C_nthr{0}, N_ithr{0}, N_nthr{0};
-        size_t C_blk_s{0}, C_blk_e{0}, N_s{0}, N_e{0};
+        int C_blk_s{0}, C_blk_e{0}, N_s{0}, N_e{0};
 
         int C_blks_per_iter{ 1 }, iters{ 1 };
         if (do_blocking_)
@@ -824,8 +824,8 @@ struct uni_bnorm_driver_t: public c_compatible {
         p.N_nthr = N_nthr;
 
         int last_iter_blks = C_blks - (iters - 1) * C_blks_per_iter;
-        size_t global_C_blk_s;
-        size_t global_barriers_per_iter = C_nthr;
+        int global_C_blk_s;
+        int global_barriers_per_iter = C_nthr;
 
         for (int it = 0; it < iters; it++) {
             if (it == iters - 1 && iters > 1) {
@@ -840,11 +840,11 @@ struct uni_bnorm_driver_t: public c_compatible {
                     (C_blk_s == -1) ? -1 : it * C_blks_per_iter + C_blk_s :
                     C_blk_s;
 
-            size_t C_blks_thr = C_blk_e - C_blk_s;
-            size_t N_thr = N_e - N_s;
+            int C_blks_thr = C_blk_e - C_blk_s;
+            int N_thr = N_e - N_s;
 
-            size_t coff_base = global_C_blk_s * simd_w;
-            size_t soff_base
+            int coff_base = global_C_blk_s * simd_w;
+            int soff_base
                     = global_C_blk_s * p.spat_size * simd_w + N_s * img_size;
 
             p.coff_max = C_blks_thr * simd_w;
@@ -879,13 +879,13 @@ struct uni_bnorm_driver_t: public c_compatible {
 
 private:
     inline void cache_balance(
-            int nthr, size_t C_blks, int &C_blks_per_iter, int &iters) {
+            int nthr, int C_blks, int &C_blks_per_iter, int &iters) {
         const size_t N = bdesc_->MB();
         const size_t H = bdesc_->H();
         const size_t W = bdesc_->W();
 
-        size_t num_tensors = bdesc_->is_fwd() ? 1 : 2;
-        size_t working_set_size
+        int num_tensors = bdesc_->is_fwd() ? 1 : 2;
+        int working_set_size
                 = (N * H * W * simd_w * sizeof(data_t)) * num_tensors;
 
         C_blks_per_iter = l3_size_ / working_set_size;
@@ -898,10 +898,10 @@ private:
         iters = (C_blks + C_blks_per_iter - 1) / C_blks_per_iter;
     }
 
-    inline void thread_balance(int ithr, int nthr, size_t C_blks, int &C_ithr,
-            int &C_nthr, size_t &C_blk_s, size_t &C_blk_e, int &N_ithr,
-            int &N_nthr, size_t &N_s, size_t &N_e) const {
-        const size_t N = bdesc_->MB();
+    inline void thread_balance(int ithr, int nthr, int C_blks, int &C_ithr,
+            int &C_nthr, int &C_blk_s, int &C_blk_e, int &N_ithr,
+            int &N_nthr, int &N_s, int &N_e) const {
+        const int N = bdesc_->MB();
         if (nthr <= (int)C_blks || !syncable_) {
             C_ithr = ithr; C_nthr = nthr;
             N_ithr = 0; N_nthr = 1;
