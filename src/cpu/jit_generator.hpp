@@ -113,8 +113,6 @@ constexpr Xbyak::Operand::Code abi_save_gpr_regs[] = {
     Xbyak::Operand::RDI, Xbyak::Operand::RSI,
 #endif
 };
-constexpr size_t num_abi_save_regs
-    = sizeof(abi_save_regs) / sizeof(abi_save_regs[0]);
 
 #ifdef _WIN
 static const Xbyak::Reg64 abi_param1(Xbyak::Operand::RCX),
@@ -239,28 +237,39 @@ typedef jit_tagged_label_base<> jit_tagged_label;
 class jit_generator : public Xbyak::CodeGenerator
 {
 private:
-    const int xmm_len = 16;
+    const size_t xmm_len = 16;
 #ifdef _WIN
-    const int xmm_to_preserve_start = 6;
-    const int xmm_to_preserve = 10;
+    const size_t xmm_to_preserve_start = 6;
+    const size_t xmm_to_preserve = 10;
 #else
-    const int xmm_to_preserve_start = 0;
-    const int xmm_to_preserve = 0;
+    const size_t xmm_to_preserve_start = 0;
+    const size_t xmm_to_preserve = 0;
 #endif
+
+    const size_t num_abi_save_gpr_regs
+        = sizeof(abi_save_gpr_regs) / sizeof(abi_save_gpr_regs[0]);
+
+    const size_t size_of_abi_save_regs
+        = num_abi_save_gpr_regs * rax.getBit() / 8
+        + xmm_to_preserve * xmm_len;
 
 public:
     Xbyak::Reg64 param1 = abi_param1;
     const int EVEX_max_8b_offt = 0x200;
     const Xbyak::Reg64 reg_EVEX_max_8b_offt = rbp;
 
+    inline const size_t get_size_of_abi_save_regs() {
+        return size_of_abi_save_regs;
+    }
+
     void preamble() {
         if (xmm_to_preserve) {
             sub(rsp, xmm_to_preserve * xmm_len);
-            for (int i = 0; i < xmm_to_preserve; ++i)
+            for (size_t i = 0; i < xmm_to_preserve; ++i)
                 movdqu(ptr[rsp + i * xmm_len], Xbyak::Xmm(xmm_to_preserve_start + i));
         }
-        for (size_t i = 0; i < num_abi_save_regs; ++i)
-            push(Xbyak::Reg64(abi_save_regs[i]));
+        for (size_t i = 0; i < num_abi_save_gpr_regs; ++i)
+            push(Xbyak::Reg64(abi_save_gpr_regs[i]));
         if (mayiuse(avx512_common)) {
             mov(reg_EVEX_max_8b_offt, 2 * EVEX_max_8b_offt);
         }
@@ -282,10 +291,10 @@ public:
     }
 
     void postamble() {
-        for (size_t i = 0; i < num_abi_save_regs; ++i)
-            pop(Xbyak::Reg64(abi_save_regs[num_abi_save_regs - 1 - i]));
+        for (size_t i = 0; i < num_abi_save_gpr_regs; ++i)
+            pop(Xbyak::Reg64(abi_save_gpr_regs[num_abi_save_gpr_regs - 1 - i]));
         if (xmm_to_preserve) {
-            for (int i = 0; i < xmm_to_preserve; ++i)
+            for (size_t i = 0; i < xmm_to_preserve; ++i)
                 movdqu(Xbyak::Xmm(xmm_to_preserve_start + i), ptr[rsp + i * xmm_len]);
             add(rsp, xmm_to_preserve * xmm_len);
         }
