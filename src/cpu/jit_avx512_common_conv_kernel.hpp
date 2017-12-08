@@ -233,7 +233,11 @@ private:
         assert(i_ic < 4);
         return Xbyak::Zmm(ker_reg_base_idx + i_ic);
     }
-
+    inline Xbyak::Zmm zmm_inp(int i_ic, int nb_x_blocking) {
+        int idx = i_ic + nb_x_blocking * jcp.ur_w;
+        assert(idx < 31);
+        return Xbyak::Zmm(idx);
+    }
     inline Xbyak::Zmm zmm_out(int i_ur, int i_oc) {
         int idx = i_ur + i_oc * jcp.ur_w;
         assert(idx < ker_reg_base_idx);
@@ -246,11 +250,14 @@ private:
             vaddps(zmm, zmm, EVEX_compress_addr(reg, offset));
     }
 
+    Xbyak::Zmm zmm_wei = Xbyak::Zmm(31);
+
     inline void prepare_output(int ur_w);
     inline void store_output(int ur_w);
     inline void compute_loop_4fma(int ur_w, int l_overflow, int r_overflow);
     inline void compute_loop_4vnni(int ur_w, int l_overflow, int r_overflow);
     inline void compute_loop_fma(int ur_w, int l_overflow, int r_overflow);
+    inline void compute_loop_fma_core(int ur_w, int l_overflow, int r_overflow);
     inline void compute_loop(int ur_w, int l_overflow, int r_overflow);
     void generate();
 
