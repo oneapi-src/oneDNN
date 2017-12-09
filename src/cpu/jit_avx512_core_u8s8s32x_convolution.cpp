@@ -720,7 +720,7 @@ status_t jit_avx512_core_u8s8s32x_conv_fwd_ker_t::init_conf(jit_conv_conf_t &c,
         if (c.expl_bcast)
             c.ur_ow_max -= nregs_bcast_src;
         else
-            nregs_bcast_src = 1;
+            nregs_bcast_src = 0; // Bcast is a part of aux registers
         assert(c.ur_ow_max + nregs_bcast_src + nregs_wei + nregs_aux <= nregs);
     }
     /* ideally it would be great to have:
