@@ -166,14 +166,30 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa) {
     return false;
 }
 
+inline unsigned int get_num_physical_cores() {
+    unsigned int data[4];
+
+    cpu.getCpuidEx(0xB, 0, data); // CPUID for SMT Level
+    unsigned int number_logical_proc_smt = (data[1] & 0x7FFF);
+
+    cpu.getCpuidEx(0xB, 1, data); // CPUID for CORE Level
+    unsigned int number_logical_proc_core = (data[1] & 0x7FFF);
+
+    return number_logical_proc_core / number_logical_proc_smt;
+}
+
 inline unsigned int get_cache_size(int level, bool per_core = true){
     unsigned int l = level - 1;
     if (cpu.data_cache_levels == 0)
         throw Xbyak::Error(Xbyak::ERR_INTERNAL);
-    if (l < cpu.data_cache_levels)
-        return cpu.data_cache_size[l] /
-            (per_core ? cpu.cores_sharing_data_cache[l] : 1);
-    else
+    if (l < cpu.data_cache_levels) {
+        if (mayiuse(avx512_core) && level == 3)
+            return cpu.data_cache_size[l]
+                    / (per_core ? get_num_physical_cores() : 1);
+        else
+            return cpu.data_cache_size[l]
+                    / (per_core ? cpu.cores_sharing_data_cache[l] : 1);
+    } else
         return 0;
 }
 
