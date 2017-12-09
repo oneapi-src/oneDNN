@@ -88,6 +88,7 @@ struct jit_avx512_common_1x1_conv_kernel : public jit_generator {
     Xbyak::Xmm xmm_relu_ns = Xbyak::Xmm(30);
     Xbyak::Zmm zmm_relu_ns = Xbyak::Zmm(30);
     Xbyak::Zmm zmm_zero = Xbyak::Zmm(31);
+    Xbyak::Zmm vreg_bcast = Xbyak::Zmm(31);
 
     int bcast_loop_work_offt = 0;
     int stack_space_needed = 16;
