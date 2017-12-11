@@ -61,6 +61,10 @@ struct memory_desc_wrapper: public c_compatible {
     /** returns true if memory descriptor is zero */
     bool is_zero() const { return ndims() == 0; }
 
+    /** return the size of data type (a shortcut) */
+    size_t data_type_size() const
+    { return types::data_type_size(data_type()); }
+
     /** returns the size required to store described memory
      * note: if offset_padding != 0 returns 0 (need to specify the behavior) */
     size_t size() const {
@@ -88,7 +92,7 @@ struct memory_desc_wrapper: public c_compatible {
             if (block > 1)
                 max_size = nstl::max(max_size, size_t(block*strides[1][d]));
         }
-        return max_size * types::data_type_size(data_type());
+        return max_size * data_type_size();
     }
 
     /** returns true if data is dense in memory */
@@ -243,7 +247,7 @@ private:
 inline bool memory_desc_wrapper::is_dense(bool with_padding) const {
     if (utils::one_of(format(), memory_format::undef, memory_format::any))
         return false;
-    return nelems(with_padding)*types::data_type_size(data_type()) == size();
+    return nelems(with_padding) * data_type_size() == size();
 }
 
 inline bool memory_desc_wrapper::operator==(const memory_desc_wrapper &rhs)
