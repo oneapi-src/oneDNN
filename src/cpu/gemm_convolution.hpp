@@ -62,22 +62,22 @@ struct _gemm_convolution_fwd_t: public cpu_primitive_t {
 
             assert(this->engine()->kind() == engine_kind::cpu);
 
-            bool ok = true
-                && _gemm_convolution_implemented<run_jit, isa>()
-                && this->set_default_params() == status::success
-                && utils::one_of(this->cdesc_().prop_kind, forward_training,
-                        forward_inference)
-                && this->cdesc_().alg_kind == alg_kind::convolution_direct
-                && utils::everyone_is(data_type::f32,
-                        this->cdesc_().src_desc.data_type,
-                        this->cdesc_().weights_desc.data_type,
-                        this->cdesc_().dst_desc.data_type)
-                && utils::implication(this->with_bias(),
-                        data_type::f32 == this->cdesc_().bias_desc.data_type)
-                && this->src_pd_.desc()->format == nchw
-                && this->dst_pd_.desc()->format == nchw
-                && this->weights_pd_.desc()->format == (this->with_groups()
-                        ? goihw : oihw);
+            bool ok = true && _gemm_convolution_implemented<run_jit, isa>()
+                    && this->set_default_params() == status::success
+                    && utils::one_of(this->cdesc_().prop_kind, forward_training,
+                               forward_inference)
+                    && this->cdesc_().alg_kind == alg_kind::convolution_direct
+                    && utils::everyone_is(data_type::f32,
+                               this->cdesc_().src_desc.data_type,
+                               this->cdesc_().weights_desc.data_type,
+                               this->cdesc_().dst_desc.data_type)
+                    && utils::implication(this->with_bias(), data_type::f32
+                                       == this->cdesc_().bias_desc.data_type)
+                    && this->src_pd_.desc()->format == nchw
+                    && this->dst_pd_.desc()->format == nchw
+                    && this->weights_pd_.desc()->format
+                            == (this->with_groups() ? goihw : oihw)
+                    && this->is_gemm_conv_format();
             return ok ? status::success : status::unimplemented;
         }
 
@@ -96,6 +96,25 @@ struct _gemm_convolution_fwd_t: public cpu_primitive_t {
             if (this->bias_pd_.desc()->format == any)
                 CHECK(this->bias_pd_.set_format(x));
             return status::success;
+        }
+
+        virtual bool is_gemm_conv_format() const {
+            bool ok = true;
+            auto const &po = this->attr()->post_ops_;
+            switch (po.len_) {
+                using namespace mkldnn::impl::primitive_kind;
+            case 0: // no post_ops
+                break;
+            case 1:
+                ok &= // sum OR relu
+                        (po.entry_[0].is_relu() || po.contain(sum, 0));
+                break;
+            case 2:
+                ok &= // sum->relu
+                        (po.contain(sum, 0) && po.entry_[1].is_relu());
+            default: ok = false;
+            }
+            return ok;
         }
     };
 

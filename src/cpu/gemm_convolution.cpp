@@ -74,28 +74,45 @@ void _gemm_convolution_fwd_t<with_relu, run_jit, isa>::execute_forward() {
             data_t *_dst = dst + (n * jcp.ngroups + g) * dst_step;
             const data_t *_weights = weights + g * weights_g_size;
             data_t *_col = this->ws + (int64_t)ithr * jcp.ic * jcp.ks * jcp.os;
+            const auto &post_ops = conf_.attr()->post_ops_;
+            const auto beta
+                    = (post_ops.find(primitive_kind::sum) >= 0) ? &one : &zero;
+            int entry_idx = -1;
+            for (int idx = 0; idx < post_ops.len_; ++idx) {
+                const auto &e = post_ops.entry_[idx];
+                if (e.is_relu(true, false)) {
+                    entry_idx = idx;
+                    break;
+                }
+            }
+
+            bool do_relu = jcp.with_relu || (entry_idx >= 0);
+            float nslope;
+            if (do_relu)
+                nslope = jcp.with_relu ? jcp.relu_negative_slope :
+                    post_ops.entry_[entry_idx].eltwise.alpha;
 
             if (jcp.need_im2col)
                 jit_gemm_convolution_utils::im2col(jcp, _src, _col);
 
             if (run_jit) {
-                sgemm_->sgemm("N", "N", &M, &N, &K, &one, jcp.need_im2col ?
-                    _col:_src, &M, _weights, &K, &zero, _dst, &M);
+                sgemm_->sgemm("N", "N", &M, &N, &K, &one,
+                        jcp.need_im2col ? _col : _src, &M, _weights, &K,
+                        beta, _dst, &M);
             } else {
                 cblas_sgemm(CblasColMajor, CblasNoTrans, CblasNoTrans, M, N, K,
                     one, jcp.need_im2col ? _col:_src, M, _weights, K, zero,
                     _dst, M);
             }
 
-            if (jcp.with_bias || jcp.with_relu) {
+            if (jcp.with_bias || do_relu) {
                 data_t *d = _dst, b = 0.0;
                 for (int oc = 0; oc < jcp.oc; ++oc) {
                     if(jcp.with_bias) b = bias[g * jcp.oc + oc];
                     for (int oS = 0; oS < jcp.os; ++oS) {
                         if (jcp.with_bias) d[oS] += b;
-                        if (jcp.with_relu)
-                            d[oS] *= (d[oS] > 0)
-                                ? (data_t)1.0 : jcp.relu_negative_slope;
+                        if (do_relu)
+                            d[oS] *= (d[oS] < 0 ? nslope : (data_t)1.0);
                     }
                     d += jcp.os;
                 }
