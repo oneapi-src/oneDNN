@@ -192,8 +192,8 @@ protected:
 using pooling_test_float = pooling_test<float>;
 using pooling_test_s8 = pooling_test<int8_t>;
 using pooling_test_u8 = pooling_test<uint8_t>;
+using pooling_test_s32 = pooling_test<int32_t>;
 using pool_test_params_float = pool_test_params;
-
 TEST_P(pooling_test_s8, TestsPooling)
 {
 }
@@ -299,6 +299,86 @@ INSTANTIATE_TEST_CASE_P(
 
 INSTANTIATE_TEST_CASE_P(
         TestPoolingForwardAvgU8, pooling_test_u8, ::testing::Values(
+            pool_test_params{ prop_kind::forward_inference,
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nhwc, memory::format::nhwc,
+            {2, 128, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1 } },
+            pool_test_params{ prop_kind::forward_inference,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nhwc, memory::format::nhwc,
+            {2, 128, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1 } },
+            pool_test_params{ prop_kind::forward_inference,
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nhwc, memory::format::nhwc,
+            {2, 64, 1, 1, 1, 1, 3, 3, 1, 1, 1, 1 } },
+            pool_test_params{ prop_kind::forward_inference,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nhwc, memory::format::nhwc,
+            {2, 64, 1, 1, 1, 1, 3, 3, 1, 1, 1, 1 } },
+            pool_test_params{ prop_kind::forward_inference,
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nhwc, memory::format::nhwc,
+            {2, 96, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1 } },
+            pool_test_params{ prop_kind::forward_inference,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nhwc, memory::format::nhwc,
+            {2, 96, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1 } },
+            pool_test_params{ prop_kind::forward_inference,
+            engine::kind::cpu, algorithm::pooling_avg_include_padding,
+            memory::format::nhwc, memory::format::nhwc,
+            {2, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1 } },
+            pool_test_params{ prop_kind::forward_inference,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nhwc, memory::format::nhwc,
+            {2, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1 } },
+            pool_test_params{ prop_kind::forward_inference, engine::kind::cpu,
+            algorithm::pooling_avg_include_padding,
+            memory::format::nhwc, memory::format::nhwc,
+            {16, 64, 32, 32, 16, 16, 3, 3, 0, 0, 2, 2 } },
+            pool_test_params{ prop_kind::forward_inference, engine::kind::cpu,
+            algorithm::pooling_avg_exclude_padding,
+            memory::format::nhwc, memory::format::nhwc,
+            {16, 64, 32, 32, 16, 16, 3, 3, 0, 0, 2, 2 } }
+            ));
+
+TEST_P(pooling_test_s32, TestsPooling)
+{
+}
+
+INSTANTIATE_TEST_CASE_P(
+        TestPoolingAlexnetForwardS32, pooling_test_s32, ::testing::Values(
+            pool_test_params{ prop_kind::forward_inference,
+            engine::kind::cpu, algorithm::pooling_max, memory::format::nhwc,
+            memory::format::nhwc, {1, 96, 55, 55, 27, 27, 3, 3, 0, 0, 2, 2 } },
+            pool_test_params{ prop_kind::forward_inference,
+            engine::kind::cpu, algorithm::pooling_max, memory::format::nhwc,
+            memory::format::nhwc, {1, 256, 27, 27, 13, 13, 3, 3, 0, 0, 2, 2 } },
+            pool_test_params{ prop_kind::forward_inference,
+            engine::kind::cpu, algorithm::pooling_max, memory::format::nhwc,
+            memory::format::nhwc, {1, 256, 13, 13, 6, 6, 3, 3, 0, 0, 2, 2 } }
+            ));
+
+INSTANTIATE_TEST_CASE_P(
+        TestPoolingForwardMaxS32, pooling_test_s32, ::testing::Values(
+            pool_test_params{ prop_kind::forward_inference,
+            engine::kind::cpu, algorithm::pooling_max, memory::format::nhwc,
+            memory::format::nhwc, {2, 128, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1 } },
+            pool_test_params{ prop_kind::forward_inference,
+            engine::kind::cpu, algorithm::pooling_max, memory::format::nhwc,
+            memory::format::nhwc, {2, 64, 1, 1, 1, 1, 3, 3, 1, 1, 1, 1 } },
+            pool_test_params{ prop_kind::forward_inference,
+            engine::kind::cpu, algorithm::pooling_max, memory::format::nhwc,
+            memory::format::nhwc, {2, 96, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1 } },
+            pool_test_params{ prop_kind::forward_inference,
+            engine::kind::cpu, algorithm::pooling_max, memory::format::nhwc,
+            memory::format::nhwc, {2, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1 } },
+            pool_test_params{ prop_kind::forward_inference, engine::kind::cpu,
+            algorithm::pooling_max, memory::format::nhwc, memory::format::nhwc,
+            {16, 64, 32, 32, 16, 16, 3, 3, 0, 0, 2, 2 } }
+            ));
+
+INSTANTIATE_TEST_CASE_P(
+        TestPoolingForwardAvgS32, pooling_test_s32, ::testing::Values(
             pool_test_params{ prop_kind::forward_inference,
             engine::kind::cpu, algorithm::pooling_avg_include_padding,
             memory::format::nhwc, memory::format::nhwc,

@@ -46,8 +46,8 @@ struct jit_avx512_core_i8i8_pooling_fwd_t : public cpu_primitive_t {
                 && utils::one_of(desc()->alg_kind, alg_kind::pooling_max,
                         alg_kind::pooling_avg_include_padding,
                         alg_kind::pooling_avg_exclude_padding)
-                && utils::one_of(src_pd()->desc()->data_type, data_type::s8,
-                        data_type::u8)
+                && utils::one_of(src_pd()->desc()->data_type, data_type::s32,
+                        data_type::s8, data_type::u8)
                 && src_pd()->desc()->data_type == dst_pd()->desc()->data_type
                 && utils::everyone_is(memory_format::nhwc,
                         src_pd()->desc()->format, dst_pd()->desc()->format)

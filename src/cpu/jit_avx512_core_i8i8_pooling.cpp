@@ -135,7 +135,13 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t::load_src(int jj, int ll, int c_tail) {
         case pooling_max: {
             auto offset = jj*c_block*sizeof_src_dt();
             if (jj == ur_c - 1 && c_tail) {
-                vmovdqu8(vreg_src(jj) | mask(0), ptr[aux_reg_src_w + offset]);
+                if (jpp.src_dt == data_type::s32) {
+                    vmovups(vreg_src(jj) | mask(0),
+                            ptr[aux_reg_src_w + offset]);
+                } else {
+                    vmovdqu8(vreg_src(jj) | mask(0),
+                            ptr[aux_reg_src_w + offset]);
+                }
             } else {
                 vmovups(vreg_src(jj), ptr[aux_reg_src_w + offset]);
             }
@@ -147,6 +153,10 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t::load_src(int jj, int ll, int c_tail) {
             if (jj == jpp.ur_c - 1 && c_tail) {
                 if (jpp.tail[ll]) {
                     switch (jpp.src_dt) {
+                        case s32:
+                            vmovups(vreg_src_s32(jj, ll) | mask(ll),
+                                    ptr[aux_reg_src_w + offset]);
+                            break;
                         case s8:
                             vpmovsxbd(vreg_src_s32(jj, ll) | mask(ll),
                                     ptr[aux_reg_src_w + offset]);
@@ -160,6 +170,10 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t::load_src(int jj, int ll, int c_tail) {
                 }
             } else {
                 switch (jpp.src_dt) {
+                    case s32:
+                        vmovups(vreg_src_s32(jj, ll),
+                                ptr[aux_reg_src_w + offset]);
+                        break;
                     case s8:
                         vpmovsxbd(vreg_src_s32(jj, ll),
                                 ptr[aux_reg_src_w + offset]);
@@ -188,7 +202,13 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t::store_dst(int jj, int ll,
         case pooling_max: {
             auto offset = jj*c_block*sizeof_dst_dt();
             if (jj == ur_c - 1 && c_tail) {
-                vmovdqu8(ptr[reg_ptr_dst_i8 + offset], vreg_dst(jj) | mask(0));
+                if (jpp.src_dt == data_type::s32) {
+                    vmovups(ptr[reg_ptr_dst_i8 + offset],
+                           vreg_dst(jj) | mask(0));
+                } else {
+                    vmovdqu8(ptr[reg_ptr_dst_i8 + offset],
+                            vreg_dst(jj) | mask(0));
+                }
             } else {
                 vmovups(ptr[reg_ptr_dst_i8 + offset], vreg_dst(jj));
             }
@@ -200,6 +220,10 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t::store_dst(int jj, int ll,
             if (jj == ur_c - 1 && c_tail) {
                 if (jpp.tail[ll]) {
                     switch (jpp.dst_dt) {
+                        case s32:
+                            vmovups(ptr[reg_ptr_dst_i8 + offset],
+                                vreg_dst_s32(jj, ll) | mask(ll));
+                            break;
                         case s8:
                             vpmovdb(ptr[reg_ptr_dst_i8 + offset],
                                 vreg_dst_s32(jj, ll) | mask(ll));
@@ -213,6 +237,10 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t::store_dst(int jj, int ll,
                 }
             } else {
                 switch (jpp.dst_dt) {
+                    case s32:
+                        vmovups(ptr[reg_ptr_dst_i8 + offset],
+                            vreg_dst_s32(jj, ll));
+                        break;
                     case s8:
                         vpmovdb(ptr[reg_ptr_dst_i8 + offset],
                             vreg_dst_s32(jj, ll));
@@ -239,9 +267,8 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t::compute_max_step(int ur_c, int c_tail)
     int iw = jpp.iw;
     int c = jpp.c;
 
-    for (int jj = 0; jj < ur_c; jj++) {
-        vmovdqu8(vreg_dst(jj), vreg_tmp);
-    }
+    for (int jj = 0; jj < ur_c; jj++)
+        vmovups(vreg_dst(jj), vreg_tmp);
 
     mov(aux_reg_src_h, reg_ptr_src_i8);
 
@@ -254,9 +281,15 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t::compute_max_step(int ur_c, int c_tail)
         {
             for (int jj = 0; jj < ur_c; jj++) {
                 load_src(jj, 0, c_tail);
-                vpcmpb(k_cmp_mask, vreg_dst(jj), vreg_src(jj), _cmp_lt_os);
-                vpblendmb(vreg_dst(jj) | k_cmp_mask, vreg_dst(jj),
-                        vreg_src(jj));
+                if (jpp.src_dt == data_type::s32) {
+                    vpcmpd(k_cmp_mask, vreg_dst(jj), vreg_src(jj), _cmp_lt_os);
+                    vpblendmd(vreg_dst(jj) | k_cmp_mask, vreg_dst(jj),
+                            vreg_src(jj));
+                } else {
+                    vpcmpb(k_cmp_mask, vreg_dst(jj), vreg_src(jj), _cmp_lt_os);
+                    vpblendmb(vreg_dst(jj) | k_cmp_mask, vreg_dst(jj),
+                            vreg_src(jj));
+                }
             }
             add(aux_reg_src_w, c * sizeof_src_dt());
             inc(ki);
@@ -269,9 +302,8 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t::compute_max_step(int ur_c, int c_tail)
         jl(l_kh, T_NEAR);
     }
 
-    for (int jj = 0; jj < ur_c; jj++) {
+    for (int jj = 0; jj < ur_c; jj++)
         store_dst(jj, 0, c_tail);
-    }
 }
 
 void jit_avx512_core_i8i8_pool_fwd_ker_t::compute_avg_step(int ur_c, int c_tail)
@@ -282,6 +314,8 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t::compute_avg_step(int ur_c, int c_tail)
 
     int iw = jpp.iw;
     int c = jpp.c;
+
+    int num_ll = jpp.src_dt == data_type::s32 ? 1 : 4;
 
     for (int jj = 0; jj < ur_c; jj++) {
         for (int ll = 0; ll < 4; ll++) {
@@ -302,7 +336,7 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t::compute_avg_step(int ur_c, int c_tail)
         L(l_kw);
         {
             for (int jj = 0; jj < ur_c; jj++) {
-                for (int ll = 0; ll < 4; ll++) {
+                for (int ll = 0; ll < num_ll; ll++) {
                     load_src(jj, ll, c_tail);
                     vpaddd(vreg_dst_s32(jj, ll),
                             vreg_dst_s32(jj, ll), vreg_src_s32(jj, ll));
@@ -320,7 +354,7 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t::compute_avg_step(int ur_c, int c_tail)
     }
 
     for (int jj = 0; jj < ur_c; jj++) {
-        for (int ll = 0; ll < 4; ll++) {
+        for (int ll = 0; ll < num_ll; ll++) {
             vcvtdq2ps(vreg_dst_f32(jj, ll), vreg_dst_s32(jj, ll));
             vfmadd132ps(vreg_dst_f32(jj, ll), vreg_zeros, vreg_tmp);
             vcvtps2dq(vreg_dst_s32(jj, ll) | T_rn_sae, vreg_dst_f32(jj, ll));
@@ -387,6 +421,9 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t::init_tmp_reg() {
             break;
         case pooling_max:
             switch (jpp.src_dt) {
+                case s32:
+                    mov(reg_tmp, nstl::numeric_limits<int32_t>::lowest());
+                    break;
                 case s8:
                     mov(reg_tmp, nstl::numeric_limits<int8_t>::lowest());
                     break;
@@ -397,7 +434,10 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t::init_tmp_reg() {
             }
 
             movq(xmm_tmp, reg_tmp);
-            vpbroadcastb(vreg_tmp, xmm_tmp);
+            if (jpp.src_dt == s32)
+                vpbroadcastd(vreg_tmp, xmm_tmp);
+            else
+                vpbroadcastb(vreg_tmp, xmm_tmp);
             break;
         default: assert(!"unsupported pooling algorithm");
     }
@@ -450,7 +490,10 @@ status_t jit_avx512_core_i8i8_pool_fwd_ker_t::init_conf(jit_pool_conf_t &jpp,
 
     jpp.alg = pd.alg_kind;
 
-    jpp.c_block = 64;
+    jpp.src_dt = pd.src_desc.data_type;
+    jpp.dst_dt = pd.dst_desc.data_type;
+
+    jpp.c_block = 64 / (jpp.src_dt == data_type::s32 ? 4 : 1);
     jpp.c_tail = jpp.c % jpp.c_block;
     jpp.nb_c = jpp.c / jpp.c_block;
     jpp.ur_c = 1;
@@ -476,9 +519,6 @@ status_t jit_avx512_core_i8i8_pool_fwd_ker_t::init_conf(jit_pool_conf_t &jpp,
             break;
         default: return status::unimplemented;
     }
-
-    jpp.src_dt = pd.src_desc.data_type;
-    jpp.dst_dt = pd.dst_desc.data_type;
 
     return status::success;
 }
@@ -528,8 +568,10 @@ void jit_avx512_core_i8i8_pooling_fwd_t::execute_forward() {
             const int kw_end = nstl::min(jpp.kw,
                     jpp.iw + jpp.l_pad - ow * jpp.stride_w);
 
-            p.src_i8 = &src_i8[src_d.blk_off(n, 0, ih, iw)];
-            p.dst_i8 = &dst_i8[dst_d.blk_off(n, 0, oh, ow)];
+            p.src_i8 = &src_i8[
+                src_d.blk_off(n, 0, ih, iw) * src_d.data_type_size()];
+            p.dst_i8 = &dst_i8[
+                dst_d.blk_off(n, 0, oh, ow) * dst_d.data_type_size()];
             p.kw_range = (size_t)(kw_end - kw_start);
             p.kh_range = (size_t)(kh_end - kh_start);
             p.idivider = 1.0f / ((jpp.alg == pooling_avg_exclude_padding) ?
