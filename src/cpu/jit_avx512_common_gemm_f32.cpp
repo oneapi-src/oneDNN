@@ -1333,6 +1333,9 @@ struct jit_avx512_common_gemm_f32::xbyak_gemm : public jit_generator {
         auto subloop = [&](int unroll_m) {
             inLocalLabel();
 
+            Label l_subloop_20x[8], l_subloop_mask_20x[8];
+            Label l_subloop_30x[8], l_subloop_mask_30x[8];
+
             // Create mask
             mov(BO1, rcx);
             mov(rcx, M);
@@ -1396,7 +1399,7 @@ struct jit_avx512_common_gemm_f32::xbyak_gemm : public jit_generator {
                 je(".subloop30", T_NEAR);
             } else {
                 cmp(LL, UNROLL_N);
-                jl(".subloop20x1", T_NEAR);
+                jl(l_subloop_20x[1], T_NEAR);
             }
             align(16);
 
@@ -1408,7 +1411,7 @@ struct jit_avx512_common_gemm_f32::xbyak_gemm : public jit_generator {
 
             sub(I, UNROLL_N);
             cmp(I, UNROLL_N);
-            jl(".subloop20x1", T_NEAR);
+            jl(l_subloop_20x[1], T_NEAR);
             align(16);
 
             L(".subloop11");
@@ -1419,11 +1422,10 @@ struct jit_avx512_common_gemm_f32::xbyak_gemm : public jit_generator {
             align(16);
 
             for (int i = 1; i <= 7; i++) {
-                L((".subloop20x" + std::to_string(i)).c_str());
+                L(l_subloop_20x[i]);
                 cmp(I, i);
                 if (i < 7) {
-                    jne((".subloop20x" + std::to_string(i + 1)).c_str(),
-                            T_NEAR);
+                    jne(l_subloop_20x[i + 1], T_NEAR);
                 } else {
                     jne(".subloop99", T_NEAR);
                 }
@@ -1435,7 +1437,7 @@ struct jit_avx512_common_gemm_f32::xbyak_gemm : public jit_generator {
             if (!isTransA) {
                 L(".subloop30");
                 cmp(I, UNROLL_N);
-                jl(".subloop30x1", T_NEAR);
+                jl(l_subloop_30x[1], T_NEAR);
                 align(16);
 
                 L(".subloop31");
@@ -1446,11 +1448,10 @@ struct jit_avx512_common_gemm_f32::xbyak_gemm : public jit_generator {
                 align(16);
 
                 for (int i = 1; i <= 7; i++) {
-                    L((".subloop30x" + std::to_string(i)).c_str());
+                    L(l_subloop_30x[i]);
                     cmp(I, i);
                     if (i < 7) {
-                        jne((".subloop30x" + std::to_string(i + 1)).c_str(),
-                                T_NEAR);
+                        jne(l_subloop_30x[i + 1], T_NEAR);
                     } else {
                         jne(".subloop99", T_NEAR);
                     }
@@ -1496,7 +1497,7 @@ struct jit_avx512_common_gemm_f32::xbyak_gemm : public jit_generator {
                 je(".subloop30mask", T_NEAR);
             } else {
                 cmp(LL, UNROLL_N);
-                jl(".subloop20x1mask", T_NEAR);
+                jl(l_subloop_mask_20x[1], T_NEAR);
             }
             align(16);
 
@@ -1508,7 +1509,7 @@ struct jit_avx512_common_gemm_f32::xbyak_gemm : public jit_generator {
 
             sub(I, UNROLL_N);
             cmp(I, UNROLL_N);
-            jl(".subloop20x1mask", T_NEAR);
+            jl(l_subloop_mask_20x[1], T_NEAR);
             align(16);
 
             L(".subloop11mask");
@@ -1519,12 +1520,10 @@ struct jit_avx512_common_gemm_f32::xbyak_gemm : public jit_generator {
             align(16);
 
             for (int i = 1; i <= 7; i++) {
-                L((".subloop20x" + std::to_string(i) + "mask").c_str());
+                L(l_subloop_mask_20x[i]);
                 cmp(I, i);
                 if (i < 7) {
-                    jne((".subloop20x" + std::to_string(i + 1) + "mask")
-                                    .c_str(),
-                            T_NEAR);
+                    jne(l_subloop_mask_20x[i + 1], T_NEAR);
                 } else {
                     jne(".subloop99", T_NEAR);
                 }
@@ -1536,7 +1535,7 @@ struct jit_avx512_common_gemm_f32::xbyak_gemm : public jit_generator {
             if (!isTransA) {
                 L(".subloop30mask");
                 cmp(I, UNROLL_N);
-                jl(".subloop30x1mask", T_NEAR);
+                jl(l_subloop_mask_30x[1], T_NEAR);
                 align(16);
 
                 L(".subloop31mask");
@@ -1547,12 +1546,10 @@ struct jit_avx512_common_gemm_f32::xbyak_gemm : public jit_generator {
                 align(16);
 
                 for (int i = 1; i <= 7; i++) {
-                    L((".subloop30x" + std::to_string(i) + "mask").c_str());
+                    L(l_subloop_mask_30x[i]);
                     cmp(I, i);
                     if (i < 7) {
-                        jne((".subloop30x" + std::to_string(i + 1) + "mask")
-                                        .c_str(),
-                                T_NEAR);
+                        jne(l_subloop_mask_30x[i + 1], T_NEAR);
                     } else {
                         jne(".subloop99", T_NEAR);
                     }
