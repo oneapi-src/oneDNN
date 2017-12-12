@@ -130,6 +130,7 @@ inline data_type_t default_accum_data_type(data_type_t src_dt,
     using namespace data_type;
 
     if (one_of(f32, src_dt, dst_dt)) return f32;
+    if (one_of(s32, src_dt, dst_dt)) return s32;
     if (one_of(s16, src_dt, dst_dt)) return s32;
 
     if (one_of(s8, src_dt, dst_dt) || one_of(u8, src_dt, dst_dt)) return s32;
