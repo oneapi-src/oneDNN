@@ -112,6 +112,7 @@ struct _gemm_convolution_fwd_t: public cpu_primitive_t {
             case 2:
                 ok &= // sum->relu
                         (po.contain(sum, 0) && po.entry_[1].is_relu());
+                break;
             default: ok = false;
             }
             return ok;

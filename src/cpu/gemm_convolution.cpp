@@ -87,10 +87,12 @@ void _gemm_convolution_fwd_t<with_relu, run_jit, isa>::execute_forward() {
             }
 
             bool do_relu = jcp.with_relu || (entry_idx >= 0);
-            float nslope;
-            if (do_relu)
-                nslope = jcp.with_relu ? jcp.relu_negative_slope :
-                    post_ops.entry_[entry_idx].eltwise.alpha;
+            float nslope = 0;
+            if (do_relu) {
+                nslope = jcp.with_relu ?
+                        jcp.relu_negative_slope :
+                        post_ops.entry_[entry_idx].eltwise.alpha;
+            }
 
             if (jcp.need_im2col)
                 jit_gemm_convolution_utils::im2col(jcp, _src, _col);
