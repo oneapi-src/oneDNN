@@ -106,11 +106,11 @@ struct _gemm_convolution_fwd_t: public cpu_primitive_t {
             case 0: // no post_ops
                 break;
             case 1:
-                ok &= // sum OR relu
+                ok = ok && // sum OR relu
                         (po.entry_[0].is_relu() || po.contain(sum, 0));
                 break;
             case 2:
-                ok &= // sum->relu
+                ok = ok && // sum->relu
                         (po.contain(sum, 0) && po.entry_[1].is_relu());
                 break;
             default: ok = false;
