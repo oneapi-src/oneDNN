@@ -2146,6 +2146,17 @@ struct batch_normalization_forward : public primitive {
             reset(result);
         }
 
+        primitive_desc(const desc &adesc, const primitive_attr &aattr,
+                const engine &aengine) {
+            mkldnn_primitive_desc_t result;
+            error::wrap_c_api(mkldnn_primitive_desc_create_v2(
+                        &result, &adesc.data, aattr.get(), aengine.get(),
+                        nullptr),
+                    "could not create a batch normalization forward "
+                    "primitive descriptor");
+            reset(result);
+        }
+
         memory::primitive_desc weights_primitive_desc() const {
             memory::primitive_desc adesc;
             mkldnn_primitive_desc_t bndesc;
