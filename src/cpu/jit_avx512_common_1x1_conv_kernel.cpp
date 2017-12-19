@@ -153,7 +153,6 @@ void jit_avx512_common_1x1_conv_kernel::bcast_loop(int load_loop_blk)
     }
 }
 
-
 void jit_avx512_common_1x1_conv_kernel::reduce_loop(int load_loop_blk,
          int ur, int substep, bool wraparound)
 {
@@ -571,7 +570,7 @@ void jit_avx512_common_1x1_conv_kernel::generate()
     Label load_loop_blk[7];
 
     static const int ur_cases_fma_embd_bcast[] = { 2, 4, 5, 8, 14, 28 };
-    static const int ur_cases_fma_expl_bcast[] = { 2, 4, 5, 7, 13, 28 };
+    static const int ur_cases_fma_expl_bcast[] = { 2, 5, 6, 9, 14, 30 };
     static const int ur_cases_4fma[] = {2, 4, 6, 12, 28};
 
     const int size_ur_cases_fma
@@ -792,56 +791,8 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
         return status::unimplemented;
     }
 
-    jcp.ur = 1;
-
-    int max_regs = 28;
-    int min_regs = (jcp.ver == ver_avx512_core) ? 4 : 8;
-
-    int size_treshold;
-    if (jcp.ver == ver_4fma || jcp.ver == ver_4vnni)
-        size_treshold = 28;
-    else
-        size_treshold = 14;
-
-    int ur_step = 1;
-    if (jcp.ver == ver_4fma || jcp.ver == ver_4vnni)
-        ur_step = 4;
-
     const int SMALL_SPATIAL = 7 * 7;
     const int BIG_REDUCE_DIM = 1024;
-
-    if (jcp.ver == ver_avx512_core) {
-        const int spatial
-                = (one_of(jcp.prop_kind, forward_training, forward_inference)) ?
-                jcp.oh :
-                jcp.ih;
-        jcp.ur = nstl::min(7, spatial);
-    }
-    if (jcp.ur < min_regs) {
-        for (int ur_w = max_regs; ur_w >= min_regs; ur_w -= ur_step) {
-            if ((jcp.ih >= size_treshold && jcp.ih % ur_w == 0)
-                    || (jcp.ih < size_treshold && jcp.os % ur_w == 0)) {
-                jcp.ur = ur_w;
-                break;
-            }
-        }
-        if (jcp.ur == 1) {
-            jcp.ur = nstl::min(max_regs, jcp.os);
-            int os_tail = jcp.os % max_regs;
-            for (int i = max_regs; i >= min_regs; i -= ur_step) {
-                int i_tail = jcp.os % i;
-                if (i_tail > os_tail || i_tail == 0) {
-                    jcp.ur = i;
-                    os_tail = i_tail;
-                    if (i_tail == 0)
-                        break;
-                }
-            }
-        }
-        jcp.expl_bcast_ = false;
-    } else {
-        jcp.expl_bcast_ = true;
-    }
 
     int load_blocking{ 0 };
     int load_blocking_max{ 0 };
@@ -859,6 +810,44 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
 
     if (one_of(jcp.prop_kind, forward_training, forward_inference,
                 backward_data)) {
+
+        bool is4ops = (jcp.ver == ver_4fma || jcp.ver == ver_4vnni);
+        int max_regs = is4ops ? 28 : 30;
+        int min_regs = 9;
+        int size_treshold = is4ops ? 28 : 14;
+        int ur_step = is4ops ? 4 : 1;
+        jcp.expl_bcast_ = false;
+        if (jcp.ver == ver_avx512_core) {
+            max_regs = 9;
+            min_regs = 6;
+            jcp.expl_bcast_ = true;
+        }
+        const int spatial
+                = (one_of(jcp.prop_kind, forward_training, forward_inference)) ?
+                jcp.oh :
+                jcp.ih;
+        jcp.ur = 1;
+        for (int ur_w = max_regs; ur_w >= min_regs; ur_w -= ur_step) {
+            if ((spatial >= size_treshold && spatial % ur_w == 0)
+                    || (spatial < size_treshold && jcp.os % ur_w == 0)) {
+                jcp.ur = ur_w;
+                break;
+            }
+        }
+        if (jcp.ur == 1) {
+            jcp.ur = nstl::min(max_regs, jcp.os);
+            int os_tail = jcp.os % max_regs;
+            for (int i = max_regs; i >= min_regs; i -= ur_step) {
+                int i_tail = jcp.os % i;
+                if (i_tail > os_tail || i_tail == 0) {
+                    jcp.ur = i;
+                    os_tail = i_tail;
+                    if (i_tail == 0)
+                        break;
+                }
+            }
+        }
+
         if (one_of(jcp.prop_kind, forward_training, forward_inference)) {
             jcp.reduce_dim = jcp.ic;
             jcp.reduce_block = jcp.ic_block;
@@ -1004,14 +993,21 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
                 jcp.reduce_block = best_divider(jcp.iw, 4, jcp.iw, false);
         }
 
-
         jcp.load_dim = jcp.oc;
         jcp.load_block = jcp.oc_block;
 
         jcp.bcast_dim = jcp.ic;
         jcp.bcast_block = jcp.ic_block;
 
-        jcp.ur = jcp.bcast_block;
+        if (jcp.ver == ver_avx512_core && jcp.reduce_block <= 19) {
+            // if reduce_block is big then generated JIT code may be big
+            // for small values of ur because reduce_loop_unroll = reduce_block
+            jcp.ur = jcp.bcast_block / 2;
+            jcp.expl_bcast_ = true;
+        } else {
+            jcp.ur = jcp.bcast_block;
+            jcp.expl_bcast_ = false;
+        }
 
         jcp.reduce_loop_unroll = jcp.reduce_block;
         jcp.reduce_loop_bcast_step
@@ -1051,19 +1047,26 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
         assert(jcp.bcast_dim % bcast_blocking == 0);
 
         // for reduction balance
-        int max_reduce_blocking = L2_capacity /
-            ((bcast_blocking + load_blocking) * jcp.reduce_block);
-        max_reduce_blocking = nstl::min(max_reduce_blocking,
-            (L1_capacity / (jcp.bcast_block)) / jcp.reduce_block);
 
-        int num_jobs = div_up(jcp.load_dim, load_blocking) *
-                        div_up(jcp.bcast_dim, bcast_blocking);
-        int threads_per_job = nstl::max(1, nthreads / num_jobs);
-        reduce_blocking = div_up(jcp.mb * jcp.reduce_dim, jcp.reduce_block);
-        reduce_blocking = div_up(reduce_blocking, threads_per_job);
-        reduce_blocking = best_divider(reduce_blocking,
+        if (jcp.ver == ver_avx512_core) {
+            reduce_blocking = best_divider(jcp.reduce_dim, 1,
+                    nstl::min(L1_capacity / jcp.ur, jcp.reduce_dim), true);
+        } else {
+            int max_reduce_blocking = L2_capacity
+                    / ((bcast_blocking + load_blocking) * jcp.reduce_block);
+            max_reduce_blocking = nstl::min(max_reduce_blocking,
+                    (L1_capacity / (jcp.bcast_block)) / jcp.reduce_block);
+
+            int num_jobs = div_up(jcp.load_dim, load_blocking)
+                    * div_up(jcp.bcast_dim, bcast_blocking);
+            int threads_per_job = nstl::max(1, nthreads / num_jobs);
+            reduce_blocking = div_up(jcp.mb * jcp.reduce_dim, jcp.reduce_block);
+            reduce_blocking = div_up(reduce_blocking, threads_per_job);
+
+            reduce_blocking = best_divider(reduce_blocking,
                     max_reduce_blocking - 2, max_reduce_blocking, true);
-        reduce_blocking *= jcp.reduce_block;
+            reduce_blocking *= jcp.reduce_block;
+        }
 
         reduce_blocking_max = rnd_dn(reduce_blocking * 3 / 2, jcp.reduce_block);
     } else
@@ -1163,6 +1166,8 @@ void jit_avx512_common_1x1_conv_kernel::balance(jit_1x1_conv_conf_t &jcp,
         const int nthr_oc_b_max = nstl::min(nthr_par, nb_load);
         for (nthr_oc_b = 1; nthr_oc_b <= nthr_oc_b_max; ++nthr_oc_b) {
             nthr_ic_b = nstl::min(nthr_par / nthr_oc_b, nb_bcast);
+            if (nthr_mb * jcp.nthr_g_ * nthr_oc_b * nthr_ic_b < nthreads)
+                continue;
             int mem_cost = calc_mem_cost(nthr_mb, nthr_oc_b, nthr_ic_b);
             if (mem_cost <= best_mem_cost) {
                 best_mem_cost = mem_cost;
