@@ -32,6 +32,11 @@ using namespace mkldnn::impl::utils;
 
 using namespace Xbyak;
 #define STACKSIZE get_size_of_abi_save_regs()
+#if _WIN32
+#define STACK_K_CAPACITY 128
+#else
+#define STACK_K_CAPACITY 8192
+#endif
 #define SIZE 4
 #define OFFSET 32
 #define BASE_SHIFT 2
@@ -76,6 +81,7 @@ struct jit_avx2_gemm_f32::xbyak_gemm : public jit_generator {
         auto ARG_C = ptr[rsp + 32 + stackOffset];
         auto ARG_LDC = ptr[rsp + 40 + stackOffset];
         auto ARG_BIAS = ptr[rsp + 48 + stackOffset];
+        auto ARG_WS = ptr[rsp + 56 + stackOffset];
 
         auto B = r11;
         auto LDB = rbx;
@@ -2081,12 +2087,21 @@ struct jit_avx2_gemm_f32::xbyak_gemm : public jit_generator {
         mov(LDA, ARG_LDA);
 #endif
 
+        cmp(K, STACK_K_CAPACITY);
+        jg(".buffer_in_ws", T_NEAR);
+
         // Create buffer and align to 4kB page
         lea(rax, ptr[K * SIZE]);
         sal(rax, 4);
         add(rax, 256);
         sub(rsp, rax);
         and_(rsp, -4096);
+        jmp(".buffer_allocated", T_NEAR);
+
+        L(".buffer_in_ws");
+        mov(rsp, ARG_WS);
+
+        L(".buffer_allocated");
 
         mov(ORIG_SP, rbp);
         mov(M, ARG_M);
@@ -2181,16 +2196,16 @@ struct jit_avx2_gemm_f32::xbyak_gemm : public jit_generator {
     void operator()(long long int m, long long int n, long long int k,
             const float *alpha, const float *a, long long int lda,
             const float *b, long long int ldb, const float *beta, float *c,
-            long long int ldc, const float *bias)
+            long long int ldc, const float *bias, float *ws)
     {
-        (*ker_)(m, n, k, alpha, a, lda, b, ldb, beta, c, ldc, bias);
+        (*ker_)(m, n, k, alpha, a, lda, b, ldb, beta, c, ldc, bias, ws);
     }
 
 private:
     void (*ker_)(long long int m, long long int n, long long int k,
             const float *alpha, const float *a, long long int lda,
             const float *b, long long int ldb, const float *beta, float *c,
-            long long int ldc, const float *bias);
+            long long int ldc, const float *bias, float *ws);
 };
 
 typedef void (*ker)(long long int, long long int, long long int, float *,
@@ -2199,7 +2214,7 @@ typedef void (*ker)(long long int, long long int, long long int, float *,
 void jit_avx2_gemm_f32::sgemm_nocopy_driver(const char *transa,
         const char *transb, int m, int n, int k, const float *alpha,
         const float *a, int lda, const float *b, int ldb, const float *beta,
-        float *c, int ldc, const float *bias)
+        float *c, int ldc, const float *bias, float *ws)
 {
     bool isTransA = (*transa == 'T' || *transa == 't');
     bool isTransB = (*transb == 'T' || *transb == 't');
@@ -2282,17 +2297,17 @@ void jit_avx2_gemm_f32::sgemm_nocopy_driver(const char *transa,
                         (*ker_b0_)((long long int)sizeM, (long long int)sizeN,
                                 (long long int)sizeK, alpha, curA,
                                 (long long int)lda, curB, (long long int)ldb,
-                                beta, curC, (long long int)ldc, curBias);
+                                beta, curC, (long long int)ldc, curBias, ws);
                     else
                         (*ker_bn_)((long long int)sizeM, (long long int)sizeN,
                                 (long long int)sizeK, alpha, curA,
                                 (long long int)lda, curB, (long long int)ldb,
-                                beta, curC, (long long int)ldc, curBias);
+                                beta, curC, (long long int)ldc, curBias, ws);
                 } else {
                     (*ker_b1_)((long long int)sizeM, (long long int)sizeN,
                             (long long int)sizeK, alpha, curA,
                             (long long int)lda, curB, (long long int)ldb, beta,
-                            curC, (long long int)ldc, curBias);
+                            curC, (long long int)ldc, curBias, ws);
                 }
             }
         }
@@ -2488,13 +2503,21 @@ void jit_avx2_gemm_f32::sgemm(const char *transa, const char *transb,
     if (!ompstatus) return;
 
     float *c_buffers = NULL;
+    float *ws_buffers = NULL;
 
     if (nthr_k > 1) {
         for (int i = 0; i < nthr; i++)
             ompstatus[i * CACHE_LINE_SIZE] = 0;
 
-        c_buffers = (float *)Xbyak::AlignedMalloc(
+        c_buffers = (float *)malloc(
                 nthr_m * nthr_n * (nthr_k - 1) * MB * NB * sizeof(float), 4096);
+    }
+
+    const size_t ws_elems_per_thr = k * 16 + 64;
+    const size_t ws_size_per_thr
+            = utils::rnd_up(ws_elems_per_thr * sizeof(float), 4096);
+    if (k > STACK_K_CAPACITY) {
+        ws_buffers = (float *)malloc(nthr * ws_size_per_thr, 4096);
     }
 
 #pragma omp parallel for num_threads(nthr)
@@ -2506,6 +2529,8 @@ void jit_avx2_gemm_f32::sgemm(const char *transa, const char *transb,
         int cbase, ibase;
         const float *myA, *myB, *myBias = NULL;
         float *myC = C, myBeta;
+        float *ws = ws_buffers ?
+                ws_buffers + ithr_omp * ws_size_per_thr / sizeof(float) : 0;
         int ld = ldc;
 
         if (ithr_omp < nthr_m * nthr_n * nthr_k) {
@@ -2568,7 +2593,7 @@ void jit_avx2_gemm_f32::sgemm(const char *transa, const char *transb,
                 }
 
                 sgemm_nocopy_driver(transa, transb, myM, myN, myK, p_alpha, myA,
-                        lda, myB, ldb, &myBeta, myC, ld, myBias);
+                        lda, myB, ldb, &myBeta, myC, ld, myBias, ws);
 
                 if (nthr_k > 1)
                     ompstatus[(ibase + ithr_omp_k) * CACHE_LINE_SIZE] = 1;
@@ -2612,7 +2637,8 @@ void jit_avx2_gemm_f32::sgemm(const char *transa, const char *transb,
     }
 
     if (nthr_k > 1)
-        Xbyak::AlignedFree(c_buffers);
+        free(c_buffers);
+    free(ws_buffers);
 }
 
 jit_avx2_gemm_f32::jit_avx2_gemm_f32(

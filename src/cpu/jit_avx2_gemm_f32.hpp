@@ -42,7 +42,7 @@ private:
     void sgemm_nocopy_driver(const char *transa, const char *transb, int m,
             int n, int k, const float *alpha, const float *a, int lda,
             const float *b, int ldb, const float *beta, float *c, int ldc,
-            const float *bias = NULL);
+            const float *bias, float *ws);
     inline void partition_unit_diff(
             int ithr, int nthr, int n, int *t_offset, int *t_block);
     inline void sum_two_matrices(
