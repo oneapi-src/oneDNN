@@ -82,8 +82,8 @@ int check_reorder(const prb_t *p, res_t *res) {
             fmt_ref);
 
     /* Step 2: fill scales */
-    int count = 0;
-    SAFE(scales_count(&count, mem_dt_out_fmt_out, p->attr), WARN);
+    int count = 0, mask = 0;
+    SAFE(scales_count(&count, &mask, mem_dt_out_fmt_out, p->attr), WARN);
     float *scales = (float *)zmalloc(sizeof(float) * count, 64);
     SAFE(scales != NULL ? OK : FAIL, CRIT);
     SAFE(fill_scales(p, scales, count), WARN);
@@ -93,7 +93,7 @@ int check_reorder(const prb_t *p, res_t *res) {
     /* Step 4: execute mkl-dnn */
     SAFE(mem_dt_in_fmt_in.reorder(mem_dt_in_fmt_ref), WARN);
 
-    auto mkldnn_attr = create_mkldnn_attr(p->attr, count, scales);
+    auto mkldnn_attr = create_mkldnn_attr(p->attr, count, mask, scales);
 
     mkldnn_primitive_desc_t check_rpd;
     mkldnn_status_t init_status = mkldnn_reorder_primitive_desc_create_v2(
@@ -153,9 +153,11 @@ int check_reorder(const prb_t *p, res_t *res) {
     return OK;
 }
 
-int scales_count(int *count, const dnn_mem_t &memory, const attr_t &attr) {
+int scales_count(int *count, int *mask, const dnn_mem_t &memory,
+        const attr_t &attr) {
     const mkldnn_memory_desc_t &md = memory.md_;
     const int scale_mask = get_scale_mask(md, attr);
+    if (mask) *mask = scale_mask;
 
     int uniq_scales = 1;
     for(int d = 0; d < md.ndims; ++d) {
@@ -187,12 +189,14 @@ int get_scale_mask(const mkldnn_memory_desc_t &md, const attr_t &attr) {
     int scale_mask = 0;
     using P = attr_t::scale_t::policy_t;
     switch (policy) {
-        case P::PER_OC: switch (md.format) {
-                         case mkldnn_oihw:
-                         case mkldnn_hwio: scale_mask = 1 << 0; break;
-                         default: scale_mask = 1 << 1; break;
-                     }
-                     break;
+        case P::PER_OC:
+            switch (md.format) {
+            case mkldnn_oihw:
+            case mkldnn_hwio:
+                scale_mask = 1 << 0; break;
+            default: break;
+            }
+            break;
         case P::COMMON:
         case P::NONE: scale_mask = 0; break;
         default: assert(!"bad scale policy"); return FAIL;

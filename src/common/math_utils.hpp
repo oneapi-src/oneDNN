@@ -64,6 +64,21 @@ inline int gcd(int a, int b) {
 	return b;
 }
 
+template <typename T>
+inline bool is_pow2(const T& v) { return (v & (v - 1)) == 0; }
+
+/** returns floor(log2(v)), aka the position of the leftmost non-0 bit */
+inline int ilog2q(size_t v) {
+    if (v == 0)
+        return -1;
+
+    int p = 0;
+#   define CP(pw) do { if (v >= (1ull << pw)) { v >>= pw; p += pw; } } while(0)
+    CP(32); CP(16); CP(8); CP(4); CP(2); CP(1);
+#   undef CP
+    return p;
+}
+
 }
 }
 }

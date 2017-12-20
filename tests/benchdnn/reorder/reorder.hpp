@@ -75,7 +75,8 @@ int bench(int argc, char **argv);
 int doit(const prb_t *p, res_t *res);
 int check_reorder(const prb_t *p, res_t *r);
 int get_scale_mask(const mkldnn_memory_desc_t &md, const attr_t &attr);
-int scales_count(int *count, const dnn_mem_t &memory, const attr_t &attr);
+int scales_count(int *count, int *mask, const dnn_mem_t &memory,
+        const attr_t &attr);
 int fill_scales(const prb_t *p, float *scales, int count);
 int fill_memory(const prb_t *p, dnn_mem_t &src, const float *scales,
         const attr_t &attr);

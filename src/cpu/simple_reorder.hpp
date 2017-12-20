@@ -21,6 +21,7 @@
 
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"
+#include "math_utils.hpp"
 #include "mkldnn_thread.hpp"
 #include "utils.hpp"
 
@@ -72,7 +73,7 @@ struct reference {};
 #define DECLARE_COMMON_PARAMS() \
         const memory_desc_wrapper &input_d = pd->input_pd(); \
         const memory_desc_wrapper &output_d = pd->output_pd(); \
-        const float alpha = pd->alpha(); \
+        const float alpha = pd->alpha(); MAYBE_UNUSED(alpha); \
         const float beta = pd->beta();
 
 /* specific reorders: common template */
@@ -1463,8 +1464,9 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 {
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
-        return true
-            && basic_attr_check(attr, false);
+        return true &&
+            utils::implication(attr,
+                    math::is_pow2(attr->output_scales_.mask_ + 1));
     }
 
     static status_t execute(const cpu_reorder_pd_t *pd,
@@ -1472,12 +1474,24 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         DECLARE_COMMON_PARAMS();
 
         const size_t nelems = input_d.nelems();
-#       pragma omp parallel for
-        for (size_t e = 0; e < nelems; ++e) {
+
+        const int smask = pd->attr()->output_scales_.mask_;
+        const int ndims_mask = math::ilog2q(smask + 1);
+        const size_t D_mask = utils::array_product(input_d.dims(), ndims_mask);
+        const size_t D_rest = nelems / D_mask;
+
+        const float *scales = pd->attr()->output_scales_.scales_;
+
+#       pragma omp parallel for collapse(2)
+        for (size_t dm = 0; dm < D_mask; ++dm)
+        for (size_t dr = 0; dr < D_rest; ++dr) {
+            const float scale = scales[dm];
+
+            const size_t e = dm * D_rest + dr;
             float i = (float)input[input_d.off_l(e)];
             auto &o = output[output_d.off_l(e)];
 
-            i = alpha * i + (beta ? beta * (float)o : 0);
+            i = scale * i + (beta ? beta * (float)o : 0);
             if (type_o != f32) {
                 switch (pd->attr()->round_mode_) {
                 case round_mode::down: i = floorf(i); break;

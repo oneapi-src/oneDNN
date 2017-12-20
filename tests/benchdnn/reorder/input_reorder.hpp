@@ -20,7 +20,7 @@
 #include "mkldnn_common.hpp"
 #include "reorder/reorder.hpp"
 
-#define MASK_SUPPORTED 0
+#define MASK_SUPPORTED 1
 #define SCALE_SUPPORTED 1
 
 #if SCALE_SUPPORTED
@@ -45,7 +45,9 @@ static reorder::reorder_conf_t reorders[] = {
     {4, {2, 64, 13, 13}, mkldnn_nChw16c, mkldnn_nhwc},
     {4, {2, 64, 13, 13}, mkldnn_nhwc, mkldnn_nChw16c},
     {4, {2, 64, 13, 13}, mkldnn_nchw, mkldnn_nhwc},
-    {4, {2, 64, 13, 13}, mkldnn_nhwc, mkldnn_nchw}
+    {4, {2, 64, 13, 13}, mkldnn_nhwc, mkldnn_nchw},
+    {4, {2, 64, 13, 13}, mkldnn_oihw, mkldnn_oihw},
+    {4, {2, 64, 13, 13}, mkldnn_hwio, mkldnn_oihw},
 };
 
 static reorder::q10n_conf_t q10ns[] = {

@@ -256,7 +256,7 @@ void attr2str(const attr_t *attr, char *buffer) {
 }
 
 mkldnn_primitive_attr_t create_mkldnn_attr(const attr_t &attr, int scale_cnt,
-        const float *scales) {
+        int scale_mask, const float *scales) {
     mkldnn_primitive_attr_t mkldnn_attr = NULL;
     DNN_SAFE_V(mkldnn_primitive_attr_create(&mkldnn_attr));
 
@@ -267,7 +267,8 @@ mkldnn_primitive_attr_t create_mkldnn_attr(const attr_t &attr, int scale_cnt,
     if (!attr.oscale.is_def()) {
         using P = attr_t::scale_t::policy_t;
         int count = attr.oscale.policy == P::COMMON ? 1 : scale_cnt;
-        int mask = attr.oscale.policy == P::PER_OC ? 1 << 1 : 0;
+        if (scale_mask == -1)
+            scale_mask = attr.oscale.policy == P::PER_OC ? 1 << 1 : 0;
 
         float *gen_scs = NULL;
         if (scales == NULL) {
@@ -279,7 +280,7 @@ mkldnn_primitive_attr_t create_mkldnn_attr(const attr_t &attr, int scale_cnt,
         }
 
         DNN_SAFE_V(mkldnn_primitive_attr_set_output_scales(mkldnn_attr, count,
-                    mask, scales));
+                    scale_mask, scales));
 
         if (gen_scs)
             zfree(gen_scs);
