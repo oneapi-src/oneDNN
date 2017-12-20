@@ -34,7 +34,7 @@ using namespace mkldnn::impl::math;
 template <typename out_t>
 inline out_t round_and_saturate(float f, round_mode_t rmode) {
     switch (rmode) {
-    case round_mode::nearest: f = rintf(f); break;
+    case round_mode::nearest: f = nearbyintf(f); break;
     case round_mode::down: f = floorf(f); break;
     }
     return math::saturate<out_t>(f);

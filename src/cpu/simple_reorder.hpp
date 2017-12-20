@@ -1495,7 +1495,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             if (type_o != f32) {
                 switch (pd->attr()->round_mode_) {
                 case round_mode::down: i = floorf(i); break;
-                case round_mode::nearest: i = rintf(i); break;
+                case round_mode::nearest: i = nearbyintf(i); break;
                 }
                 o = saturate<data_t<type_o>>(i);
             } else {

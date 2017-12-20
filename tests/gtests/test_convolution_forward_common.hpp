@@ -98,7 +98,7 @@ void compute_ref_conv_fwd(const test_convolution_sizes_t &c,
                             using R = mkldnn::round_mode;
                             switch (attr.rmode) {
                                 case R::round_down: a_fp = floorf(a_fp); break;
-                                case R::round_nearest: a_fp = rintf(a_fp); break;
+                                case R::round_nearest: a_fp = nearbyintf(a_fp); break;
                             }
                         }
 

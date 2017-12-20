@@ -50,7 +50,7 @@ template <> inline void assert_eq<float>(float a, float b) {
 
 template <typename data_t> inline data_t out_round(float x,
         mkldnn_round_mode_t rmode = mkldnn_round_nearest)
-{ return (data_t)(rmode == mkldnn_round_down ? floorf(x) : rintf(x)); }
+{ return (data_t)(rmode == mkldnn_round_down ? floorf(x) : nearbyintf(x)); }
 template <> inline float out_round<float>(float x, mkldnn_round_mode_t rmode)
 { (void)rmode; return x; }
 

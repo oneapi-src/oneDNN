@@ -88,7 +88,7 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
             using R = attr_t::round_mode_t;
             switch (p->attr.irmode) {
                 case R::DOWN: fp = floorf(fp0); break;
-                case R::NEAREST: fp = rintf(fp0); break;
+                case R::NEAREST: fp = nearbyintf(fp0); break;
                 default:
                     return UNTESTED;
             }
