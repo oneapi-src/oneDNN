@@ -1472,46 +1472,20 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         DECLARE_COMMON_PARAMS();
 
         const size_t nelems = input_d.nelems();
+#       pragma omp parallel for
+        for (size_t e = 0; e < nelems; ++e) {
+            float i = (float)input[input_d.off_l(e)];
+            auto &o = output[output_d.off_l(e)];
 
-        if (type_o != f32) {
-#           if _OPENMP >= 201307
-#           pragma omp parallel for simd schedule(static)
-#           else
-#           pragma omp parallel for
-#           endif
-            for (size_t e = 0; e < nelems; ++e) {
-                float i = (float)input[input_d.off_l(e)];
-                auto &o = output[output_d.off_l(e)];
-
-                i = i * alpha + beta * (float)o;
+            i = alpha * i + (beta ? beta * (float)o : 0);
+            if (type_o != f32) {
                 switch (pd->attr()->round_mode_) {
-                    case round_mode::down: i = floorf(i); break;
-                    case round_mode::nearest: i = rintf(i); break;
+                case round_mode::down: i = floorf(i); break;
+                case round_mode::nearest: i = rintf(i); break;
                 }
                 o = saturate<data_t<type_o>>(i);
-            }
-        } else {
-            if (alpha == 1.0 && beta == 0.0) {
-#               if _OPENMP >= 201307
-#               pragma omp parallel for simd schedule(static)
-#               else
-#               pragma omp parallel for
-#               endif
-                for (size_t e = 0; e < nelems; ++e) {
-                    output[output_d.off_l(e)] =
-                        data_t<type_o>(input[input_d.off_l(e)]);
-                }
             } else {
-#               if _OPENMP >= 201307
-#               pragma omp parallel for simd schedule(static)
-#               else
-#               pragma omp parallel for
-#               endif
-                for (size_t e = 0; e < nelems; ++e) {
-                    output[output_d.off_l(e)] =
-                        data_t<type_o>(alpha * input[input_d.off_l(e)]
-                        + (beta ? beta * output[output_d.off_l(e)] : 0));
-                }
+                o = i;
             }
         }
 
