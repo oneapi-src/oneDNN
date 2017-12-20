@@ -79,6 +79,27 @@ struct reference {};
 template <SIMPLE_REORDER_TEMPL_DECL, typename spec = void>
 struct simple_reorder_impl {};
 
+namespace {
+bool simple_fmt_check(bool order_keep, impl::memory_format_t fmt_i,
+        impl::memory_format_t fmt_o, const memory_desc_wrapper &input_d,
+        const memory_desc_wrapper &output_d) {
+    return input_d.format() == (order_keep ? fmt_i : fmt_o)
+        && output_d.format() == (order_keep ? fmt_o : fmt_i);
+}
+bool simple_attr_check(const primitive_attr_t *attr, bool many_scales_support) {
+    if (many_scales_support)
+        return true;
+    return utils::implication(attr, attr->output_scales_.mask_ == 0);
+}
+#define SIMPLE_IS_APPLICABLE(many_scales_support) \
+    static bool is_applicable(const memory_desc_wrapper &input_d, \
+            const memory_desc_wrapper &output_d, const primitive_attr_t *attr) \
+    { \
+        return simple_fmt_check(order_keep, fmt_i, fmt_o, input_d, output_d) \
+            && simple_attr_check(attr, many_scales_support); \
+    }
+}
+
 /* specific reorders: implementation */
 
 template <SIMPLE_REORDER_TEMPL_DECL>
@@ -87,11 +108,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         fmt_i == nchw && (fmt_o == nChw8c || fmt_o == nChw16c)
     >::type>
 {
-    static bool is_applicable(const memory_desc_wrapper &input_d,
-            const memory_desc_wrapper &output_d) {
-        return input_d.format() == (order_keep ? fmt_i : fmt_o)
-            && output_d.format() == (order_keep ? fmt_o : fmt_i);
-    }
+    SIMPLE_IS_APPLICABLE(false);
 
     static status_t execute(const cpu_reorder_pd_t *pd,
         const data_t<type_i> *input, data_t<type_o> *output) {
@@ -156,11 +173,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         fmt_i == nhwc && (fmt_o == nChw8c || fmt_o == nChw16c)
     >::type>
 {
-    static bool is_applicable(const memory_desc_wrapper &input_d,
-            const memory_desc_wrapper &output_d) {
-        return input_d.format() == (order_keep ? fmt_i : fmt_o)
-            && output_d.format() == (order_keep ? fmt_o : fmt_i);
-    }
+    SIMPLE_IS_APPLICABLE(false);
 
     static status_t execute(const cpu_reorder_pd_t *pd,
         const data_t<type_i> *input, data_t<type_o> *output) {
@@ -277,11 +290,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     typename utils::enable_if<fmt_i == chwn
     && (fmt_o == nChw8c || fmt_o == nChw16c)>::type>
 {
-    static bool is_applicable(const memory_desc_wrapper &input_d,
-            const memory_desc_wrapper &output_d) {
-        return input_d.format() == (order_keep ? fmt_i : fmt_o)
-            && output_d.format() == (order_keep ? fmt_o : fmt_i);
-    }
+    SIMPLE_IS_APPLICABLE(false);
 
     static status_t execute(const cpu_reorder_pd_t *pd,
         const data_t<type_i> *input, data_t<type_o> *output) {
@@ -347,11 +356,7 @@ template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     typename utils::enable_if<fmt_i == nChw8c && fmt_o == nChw16c>::type>
 {
-    static bool is_applicable(const memory_desc_wrapper &input_d,
-            const memory_desc_wrapper &output_d) {
-        return input_d.format() == (order_keep ? fmt_i : fmt_o)
-            && output_d.format() == (order_keep ? fmt_o : fmt_i);
-    }
+    SIMPLE_IS_APPLICABLE(false);
 
     static status_t execute(const cpu_reorder_pd_t *pd,
         const data_t<type_i> *input, data_t<type_o> *output) {
@@ -408,17 +413,13 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         return success;
     }
-
 };
+
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     typename utils::enable_if<fmt_i == nchw && fmt_o == nhwc>::type>
 {
-    static bool is_applicable(const memory_desc_wrapper &input_d,
-            const memory_desc_wrapper &output_d) {
-        return input_d.format() == (order_keep ? fmt_i : fmt_o)
-            && output_d.format() == (order_keep ? fmt_o : fmt_i);
-    }
+    SIMPLE_IS_APPLICABLE(false);
 
     static status_t execute(const cpu_reorder_pd_t *pd,
         const data_t<type_i> *input, data_t<type_o> *output) {
@@ -531,11 +532,7 @@ template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     typename utils::enable_if<fmt_i == hwio && fmt_o == oihw>::type>
 {
-    static bool is_applicable(const memory_desc_wrapper &input_d,
-            const memory_desc_wrapper &output_d) {
-        return input_d.format() == (order_keep ? fmt_i : fmt_o)
-            && output_d.format() == (order_keep ? fmt_o : fmt_i);
-    }
+    SIMPLE_IS_APPLICABLE(false);
 
     static status_t execute(const cpu_reorder_pd_t *pd,
         const data_t<type_i> *input, data_t<type_o> *output) {
@@ -587,11 +584,7 @@ template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     typename utils::enable_if<fmt_i == nchw && fmt_o == chwn>::type>
 {
-    static bool is_applicable(const memory_desc_wrapper &input_d,
-            const memory_desc_wrapper &output_d) {
-        return input_d.format() == (order_keep ? fmt_i : fmt_o)
-            && output_d.format() == (order_keep ? fmt_o : fmt_i);
-    }
+    SIMPLE_IS_APPLICABLE(false);
 
     static status_t execute(const cpu_reorder_pd_t *pd,
         const data_t<type_i> *input, data_t<type_o> *output) {
@@ -654,11 +647,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     typename utils::enable_if<fmt_i == hwio
     && (fmt_o == Ohwi8o || fmt_o == Ohwi16o)>::type>
 {
-    static bool is_applicable(const memory_desc_wrapper &input_d,
-            const memory_desc_wrapper &output_d) {
-        return input_d.format() == (order_keep ? fmt_i : fmt_o)
-            && output_d.format() == (order_keep ? fmt_o : fmt_i);
-    }
+    SIMPLE_IS_APPLICABLE(false);
 
     static status_t execute(const cpu_reorder_pd_t *pd,
         const data_t<type_i> *input, data_t<type_o> *output) {
@@ -722,11 +711,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 && (fmt_o == OIhw8i8o || fmt_o == OIhw16i16o))
     >::type>
 {
-    static bool is_applicable(const memory_desc_wrapper &input_d,
-            const memory_desc_wrapper &output_d) {
-        return input_d.format() == (order_keep ? fmt_i : fmt_o)
-            && output_d.format() == (order_keep ? fmt_o : fmt_i);
-    }
+    SIMPLE_IS_APPLICABLE(false);
 
     static status_t execute(const cpu_reorder_pd_t *pd,
         const data_t<type_i> *input, data_t<type_o> *output) {
@@ -809,11 +794,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                             || fmt_o == IOhw16o16i))
     >::type>
 {
-    static bool is_applicable(const memory_desc_wrapper &input_d,
-            const memory_desc_wrapper &output_d) {
-        return input_d.format() == (order_keep ? fmt_i : fmt_o)
-            && output_d.format() == (order_keep ? fmt_o : fmt_i);
-    }
+    SIMPLE_IS_APPLICABLE(false);
 
     static status_t execute(const cpu_reorder_pd_t *pd,
         const data_t<type_i> *input, data_t<type_o> *output) {
@@ -894,11 +875,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         || (fmt_i == oihw && fmt_o == Oihw16o)
     >::type>
 {
-    static bool is_applicable(const memory_desc_wrapper &input_d,
-            const memory_desc_wrapper &output_d) {
-        return input_d.format() == (order_keep ? fmt_i : fmt_o)
-            && output_d.format() == (order_keep ? fmt_o : fmt_i);
-    }
+    SIMPLE_IS_APPLICABLE(false);
 
     static status_t execute(const cpu_reorder_pd_t *pd,
         const data_t<type_i> *input, data_t<type_o> *output) {
@@ -964,11 +941,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         fmt_i == hwio && (fmt_o == OIhw8i8o || fmt_o == OIhw16i16o)
     >::type>
 {
-    static bool is_applicable(const memory_desc_wrapper &input_d,
-            const memory_desc_wrapper &output_d) {
-        return input_d.format() == (order_keep ? fmt_i : fmt_o)
-            && output_d.format() == (order_keep ? fmt_o : fmt_i);
-    }
+    SIMPLE_IS_APPLICABLE(false);
 
     static status_t execute(const cpu_reorder_pd_t *pd,
         const data_t<type_i> *input, data_t<type_o> *output) {
@@ -1036,11 +1009,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
           || (fmt_i == oihw && (fmt_o == OIhw8i16o2i))
     >::type>
 {
-   static bool is_applicable(const memory_desc_wrapper &input_d,
-            const memory_desc_wrapper &output_d) {
-        return input_d.format() == (order_keep ? fmt_i : fmt_o)
-            && output_d.format() == (order_keep ? fmt_o : fmt_i);
-    }
+    SIMPLE_IS_APPLICABLE(false);
 
     static status_t execute(const cpu_reorder_pd_t *pd,
         const data_t<type_i> *input, data_t<type_o> *output) {
@@ -1123,11 +1092,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         || (fmt_i == OIhw8i16o2i && fmt_o == OIhw8o16i2o)
     >::type>
 {
-    static bool is_applicable(const memory_desc_wrapper &input_d,
-            const memory_desc_wrapper &output_d) {
-        return input_d.format() == (order_keep ? fmt_i : fmt_o)
-            && output_d.format() == (order_keep ? fmt_o : fmt_i);
-    }
+    SIMPLE_IS_APPLICABLE(false);
 
     static status_t execute(const cpu_reorder_pd_t *pd,
         const data_t<type_i> *input, data_t<type_o> *output) {
@@ -1197,11 +1162,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         || (fmt_i == OIhw16i16o && fmt_o == IOhw16o16i)
     >::type>
 {
-    static bool is_applicable(const memory_desc_wrapper &input_d,
-            const memory_desc_wrapper &output_d) {
-        return input_d.format() == (order_keep ? fmt_i : fmt_o)
-            && output_d.format() == (order_keep ? fmt_o : fmt_i);
-    }
+    SIMPLE_IS_APPLICABLE(false);
 
     static status_t execute(const cpu_reorder_pd_t *pd,
         const data_t<type_i> *input, data_t<type_o> *output) {
@@ -1256,11 +1217,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         || (fmt_i == gOihw16o && fmt_o == gOhwi16o)
     >::type>
 {
-    static bool is_applicable(const memory_desc_wrapper &input_d,
-            const memory_desc_wrapper &output_d) {
-        return input_d.format() == (order_keep ? fmt_i : fmt_o)
-            && output_d.format() == (order_keep ? fmt_o : fmt_i);
-    }
+    SIMPLE_IS_APPLICABLE(false);
 
     static status_t execute(const cpu_reorder_pd_t *pd,
         const data_t<type_i> *input, data_t<type_o> *output) {
@@ -1298,6 +1255,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         return success;
     }
 };
+
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     typename utils::enable_if<
@@ -1305,10 +1263,11 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     spec::direct_copy>::type>
 {
     static bool is_applicable(const memory_desc_wrapper &input_d,
-            const memory_desc_wrapper &output_d) {
+            const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
         /* FIXME: is the formula correct? */
         return input_d.similar_to(output_d, true, false, 0)
-            && input_d.is_dense() && output_d.is_dense();
+            && input_d.is_dense() && output_d.is_dense()
+            && simple_attr_check(attr, false);
     }
 
     static status_t execute(const cpu_reorder_pd_t *pd,
@@ -1401,13 +1360,14 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     spec::direct_copy_except_dim_0>::type>
 {
     static bool is_applicable(const memory_desc_wrapper &input_d,
-            const memory_desc_wrapper &output_d) {
+            const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
         auto is_dense_no_0 = [](const memory_desc_wrapper &data_d) {
             return nelems_no_dim_0(data_d) == _size_no_dim_0(data_d);
         };
         /* FIXME: is the formula correct? */
         return input_d.similar_to(output_d, true, false, 1)
-            && is_dense_no_0(input_d) && is_dense_no_0(output_d);
+            && is_dense_no_0(input_d) && is_dense_no_0(output_d)
+            && simple_attr_check(attr, false);
     }
 
     static status_t execute(const cpu_reorder_pd_t *pd,
@@ -1502,8 +1462,9 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     spec::reference>::type>
 {
     static bool is_applicable(const memory_desc_wrapper &input_d,
-            const memory_desc_wrapper &output_d) {
-        return true;
+            const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
+        return true
+            && basic_attr_check(attr, false);
     }
 
     static status_t execute(const cpu_reorder_pd_t *pd,
@@ -1578,7 +1539,7 @@ struct simple_reorder_t: public cpu_primitive_t {
                 && input_pd->desc()->data_type == type_i
                 && output_pd->desc()->data_type == type_o
                 && simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL, spec>::
-                is_applicable(input_pd->desc(), output_pd->desc());
+                is_applicable(input_pd->desc(), output_pd->desc(), attr);
             if (!args_ok)
                 return invalid_arguments;
 

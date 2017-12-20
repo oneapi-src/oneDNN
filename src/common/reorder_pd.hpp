@@ -40,10 +40,7 @@ struct reorder_pd_t: public primitive_desc_t {
     virtual int n_inputs() const override { return 1; }
     virtual int n_outputs() const override { return 1; }
 
-    float alpha() const {
-        assert(attr()->output_scales_.count_ == 1);
-        return attr()->output_scales_.scales_[0];
-    }
+    float alpha() const { return attr()->output_scales_.scales_[0]; }
     float beta() const {
         int sum_idx = attr()->post_ops_.find(primitive_kind::sum);
         if (sum_idx == -1) {

@@ -63,10 +63,10 @@ struct jit_reorder_kernel_f32<JIT_REORDER_TEMPL_INST,
     { jit_ker_(input, output); }
 
     static bool is_applicable(const memory_desc_wrapper &input_d,
-            const memory_desc_wrapper &output_d) {
+            const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
         return mayiuse(avx2)
-            && input_d.format() == (order_keep ? fmt_i : fmt_o)
-            && output_d.format() == (order_keep ? fmt_o : fmt_i);
+            && simple_fmt_check(order_keep, fmt_i, fmt_o, input_d, output_d)
+            && simple_attr_check(attr, false);
     }
 
     jit_reorder_kernel_f32(const cpu_reorder_pd_t &rconf)
@@ -175,7 +175,7 @@ struct jit_reorder_t : public cpu_primitive_t {
                 && input_pd->desc()->data_type == type_i
                 && output_pd->desc()->data_type == type_o
                 && jit_reorder_kernel_f32<JIT_REORDER_TEMPL_INST, spec>::
-                is_applicable(input_pd->desc(), output_pd->desc());
+                is_applicable(input_pd->desc(), output_pd->desc(), attr);
             if (!args_ok)
                 return impl::status::invalid_arguments;
 
