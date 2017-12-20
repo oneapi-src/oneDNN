@@ -2095,7 +2095,7 @@ struct jit_avx2_gemm_f32::xbyak_gemm : public jit_generator {
         sal(rax, 4);
         add(rax, 256);
         sub(rsp, rax);
-        and_(rsp, -4096);
+        and_(rsp, -PAGE_4K);
         jmp(".buffer_allocated", T_NEAR);
 
         L(".buffer_in_ws");
@@ -2509,15 +2509,15 @@ void jit_avx2_gemm_f32::sgemm(const char *transa, const char *transb,
         for (int i = 0; i < nthr; i++)
             ompstatus[i * CACHE_LINE_SIZE] = 0;
 
-        c_buffers = (float *)malloc(
-                nthr_m * nthr_n * (nthr_k - 1) * MB * NB * sizeof(float), 4096);
+        c_buffers = (float *)malloc(nthr_m * nthr_n * (nthr_k - 1) * MB * NB
+                * sizeof(float), PAGE_4K);
     }
 
     const size_t ws_elems_per_thr = k * 16 + 64;
     const size_t ws_size_per_thr
-            = utils::rnd_up(ws_elems_per_thr * sizeof(float), 4096);
+            = utils::rnd_up(ws_elems_per_thr * sizeof(float), PAGE_4K);
     if (k > STACK_K_CAPACITY) {
-        ws_buffers = (float *)malloc(nthr * ws_size_per_thr, 4096);
+        ws_buffers = (float *)malloc(nthr * ws_size_per_thr, PAGE_4K);
     }
 
 #pragma omp parallel for num_threads(nthr)

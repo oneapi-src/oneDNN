@@ -144,7 +144,7 @@ struct winograd_scratchpad_t {
         }
 
         inline void allocate_scratchpad_(const jit_conv_winograd_conf_t &jcp) {
-            const size_t page_size = 2097152;
+            const size_t page_size = PAGE_2M;
             U_offset_ = 0;
             V_offset_ = utils::rnd_up(U_sz_, page_size);
             M_offset_ = V_offset_ + utils::rnd_up(V_sz_, page_size);

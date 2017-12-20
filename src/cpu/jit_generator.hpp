@@ -77,6 +77,11 @@ template <> struct cpu_isa_traits<avx512_mic_4ops>:
 // TODO: move this to jit_generator class?
 namespace {
 
+typedef enum {
+    PAGE_4K = 4096,
+    PAGE_2M = 2097152,
+} cpu_page_size_t;
+
 // TODO: move this somewhere else? Although this is only used by jit kernels
 // (Roma)
 static inline int float2int(float x) {

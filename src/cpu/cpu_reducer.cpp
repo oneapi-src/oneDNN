@@ -301,7 +301,7 @@ void cpu_reducer_t<data_type>::allocate_workspace() {
 
     const size_t ws_size = balancer_.ngroups_ * (balancer_.nthr_per_group_ - 1)
         * ws_per_thread();
-    workspace_ = (data_t *)malloc(ws_size * sizeof(data_t), 4096);
+    workspace_ = (data_t *)malloc(ws_size * sizeof(data_t), PAGE_4K);
 }
 
 template <impl::data_type_t data_type>
