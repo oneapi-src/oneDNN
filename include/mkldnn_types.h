@@ -188,6 +188,9 @@ typedef enum {
     /** 5D weights tensor in the @c oihw format with extra outer dimension for
      * groups. */
     mkldnn_goihw,
+    /** 5D weights tensor in the @c hwio format with extra dimension for
+     * groups that comes after the output channels. */
+    mkldnn_hwigo,
     /** 5D weights tensor in the blocked version of @c goihw format with both
      * input and output channels data laid out in memory in 8-element blocks.
      */
