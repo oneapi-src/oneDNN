@@ -218,6 +218,8 @@ struct jit_1x1_conv_conf_t {
     int load_grp_count;
     conv_1x1_loop_order_t loop_order;
     bool use_vmovntps;
+    /* avx512 core */
+    bool expl_bcast;
     /* 4vnni */
     int typesize_in;
     int typesize_out;
@@ -226,8 +228,6 @@ struct jit_1x1_conv_conf_t {
     bool transpose_src;
     int tr_is;
     int nthr_, nthr_mb_, nthr_g_, nthr_oc_b_, nthr_ic_b_;
-    /* avx512 core */
-    bool expl_bcast_;
 };
 
 struct jit_gemm_conv_conf_t {
