@@ -1132,16 +1132,16 @@ void jit_avx512_common_1x1_conv_kernel::balance(jit_1x1_conv_conf_t &jcp,
 {
     if (nthreads < jcp.ngroups) {
         /* simplification... fortunately it doesn't hurt much */
-        jcp.nthr_ = jcp.nthr_mb_ = jcp.nthr_g_ =
-            jcp.nthr_oc_b_ = jcp.nthr_ic_b_ = 1;
+        jcp.nthr = jcp.nthr_mb = jcp.nthr_g =
+            jcp.nthr_oc_b = jcp.nthr_ic_b = 1;
         return;
     }
     const int nb_bcast = div_up(jcp.bcast_dim, jcp.bcast_block);
     const int nb_load = div_up(jcp.load_dim, jcp.load_block);
     const int nb_reduce = div_up(jcp.reduce_dim, jcp.reduce_block);
 
-    jcp.nthr_g_ = jcp.ngroups;
-    const int nthr = nthreads / jcp.nthr_g_;
+    jcp.nthr_g = jcp.ngroups;
+    const int nthr = nthreads / jcp.nthr_g;
 
     auto calc_mem_cost = [=](int nthr_mb, int nthr_oc_b, int nthr_ic_b) {
         /* calculate per thread memory cost (read/write). high level
@@ -1162,14 +1162,14 @@ void jit_avx512_common_1x1_conv_kernel::balance(jit_1x1_conv_conf_t &jcp,
         }
         return 0
             + bcast_koeff * div_up(jcp.mb * nb_reduce, nthr_mb)
-            * div_up(jcp.ngroups, jcp.nthr_g_)
+            * div_up(jcp.ngroups, jcp.nthr_g)
             * div_up(nb_bcast, nthr_ic_b) * jcp.ic_block * jcp.reduce_block
             / jcp.stride_h / jcp.stride_w /* (n1) */
             + load_koeff * div_up(jcp.mb * nb_reduce, nthr_mb)
-            * div_up(jcp.ngroups, jcp.nthr_g_)
+            * div_up(jcp.ngroups, jcp.nthr_g)
             * div_up(nb_load, nthr_oc_b) * jcp.oc_block * jcp.reduce_block
             + output_koeff /* (n2) */
-            * div_up(jcp.ngroups, jcp.nthr_g_) * div_up(nb_load, nthr_oc_b)
+            * div_up(jcp.ngroups, jcp.nthr_g) * div_up(nb_load, nthr_oc_b)
             * div_up(nb_bcast, nthr_ic_b) * jcp.ic_block
             * jcp.oc_block;
     };
@@ -1184,22 +1184,22 @@ void jit_avx512_common_1x1_conv_kernel::balance(jit_1x1_conv_conf_t &jcp,
         const int nthr_oc_b_max = nstl::min(nthr_par, nb_load);
         for (nthr_oc_b = 1; nthr_oc_b <= nthr_oc_b_max; ++nthr_oc_b) {
             nthr_ic_b = nstl::min(nthr_par / nthr_oc_b, nb_bcast);
-            if (nthr_mb * jcp.nthr_g_ * nthr_oc_b * nthr_ic_b < nthreads)
+            if (nthr_mb * jcp.nthr_g * nthr_oc_b * nthr_ic_b < nthreads)
                 continue;
             int mem_cost = calc_mem_cost(nthr_mb, nthr_oc_b, nthr_ic_b);
             if (mem_cost <= best_mem_cost) {
                 best_mem_cost = mem_cost;
-                jcp.nthr_mb_ = nthr_mb;
-                jcp.nthr_oc_b_ = nthr_oc_b;
-                jcp.nthr_ic_b_ = nthr_ic_b;
+                jcp.nthr_mb = nthr_mb;
+                jcp.nthr_oc_b = nthr_oc_b;
+                jcp.nthr_ic_b = nthr_ic_b;
             }
         }
     }
-    if (jcp.nthr_mb_ > nthreads / 2 && jcp.nthr_mb_ < nthreads)
-        jcp.nthr_mb_ = nstl::min(jcp.mb, nthreads);
+    if (jcp.nthr_mb > nthreads / 2 && jcp.nthr_mb < nthreads)
+        jcp.nthr_mb = nstl::min(jcp.mb, nthreads);
 
-    jcp.nthr_ = jcp.nthr_mb_ * jcp.nthr_g_ * jcp.nthr_oc_b_ * jcp.nthr_ic_b_;
-    assert(jcp.nthr_ <= nthreads);
+    jcp.nthr = jcp.nthr_mb * jcp.nthr_g * jcp.nthr_oc_b * jcp.nthr_ic_b;
+    assert(jcp.nthr <= nthreads);
 }
 
 }
