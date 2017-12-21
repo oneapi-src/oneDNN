@@ -121,7 +121,8 @@ struct _gemm_convolution_fwd_t: public cpu_primitive_t {
 
     _gemm_convolution_fwd_t(const pd_t *pd, const input_vector &inputs,
            const output_vector &outputs)
-        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
+        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd), sgemm_(nullptr)
+        , col_(nullptr)
     {
         using namespace prop_kind;
 
@@ -131,12 +132,13 @@ struct _gemm_convolution_fwd_t: public cpu_primitive_t {
         jit_gemm_convolution_utils::init_conf(conf_.jcp_,
             *(conf_.cdesc()), conf_.src_pd(), conf_.weights_pd(0),
             conf_.dst_pd(), with_relu, conf_.negative_slope());
-        jit_gemm_convolution_utils::prepare_workspace(this->conf_.jcp_,
-            &this->ws, false, 0L);
+        jit_gemm_convolution_utils::prepare_ws_col<data_t>(this->conf_.jcp_,
+                &this->col_);
     }
+
     ~_gemm_convolution_fwd_t() {
         if (run_jit) delete sgemm_;
-        if (this->ws) free(this->ws);
+        free(this->col_);
     };
 
     typedef typename prec_traits<data_type::f32>::type data_t;
@@ -152,7 +154,7 @@ private:
     using jit_uni_gemm_f32 = typename utils::conditional
           <isa == avx2, jit_avx2_gemm_f32, jit_avx512_common_gemm_f32>::type;
     jit_uni_gemm_f32 *sgemm_;
-    data_t *ws;
+    data_t *col_;
 };
 
 using jit_avx512_common_gemm_convolution_fwd_t =
@@ -223,6 +225,7 @@ struct _gemm_convolution_bwd_data_t: public cpu_primitive_t {
     _gemm_convolution_bwd_data_t(const pd_t *pd, const input_vector &inputs,
               const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
+        , sgemm_(nullptr), col_(nullptr)
     {
         using namespace prop_kind;
 
@@ -232,12 +235,13 @@ struct _gemm_convolution_bwd_data_t: public cpu_primitive_t {
         jit_gemm_convolution_utils::init_conf(conf_.jcp_,
             *(conf_.desc()), conf_.diff_src_pd(), conf_.weights_pd(0),
             conf_.diff_dst_pd());
-        jit_gemm_convolution_utils::prepare_workspace(this->conf_.jcp_,
-            &this->ws, true, 0L);
+        jit_gemm_convolution_utils::prepare_ws_col<data_t>(this->conf_.jcp_,
+                &this->col_);
     }
+
     ~_gemm_convolution_bwd_data_t() {
         if (run_jit) delete sgemm_;
-        if (this->ws) free(this->ws);
+        free(this->col_);
     };
 
     typedef typename prec_traits<data_type::f32>::type data_t;
@@ -260,7 +264,7 @@ private:
     using jit_uni_gemm_f32 = typename utils::conditional
           <isa == avx2, jit_avx2_gemm_f32, jit_avx512_common_gemm_f32>::type;
     jit_uni_gemm_f32 *sgemm_;
-    data_t *ws;
+    data_t *col_;
 };
 
 using jit_avx512_common_gemm_convolution_bwd_data_t =
@@ -329,6 +333,8 @@ struct _gemm_convolution_bwd_weights_t: public cpu_primitive_t {
     _gemm_convolution_bwd_weights_t(const pd_t *pd, const input_vector &inputs,
               const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
+        , sgemm_0(nullptr), sgemm_1(nullptr), col_(nullptr)
+        , wei_reduction_(nullptr)
     {
         using namespace prop_kind;
         if (run_jit) {
@@ -340,15 +346,19 @@ struct _gemm_convolution_bwd_weights_t: public cpu_primitive_t {
             *(conf_.desc()), conf_.src_pd(), conf_.diff_weights_pd(0),
             conf_.diff_dst_pd());
         const memory_desc_wrapper weights_d(conf_.diff_weights_pd(0));
-        jit_gemm_convolution_utils::prepare_workspace(this->conf_.jcp_,
-            &this->ws, true, weights_d.size());
+        jit_gemm_convolution_utils::prepare_ws_col<data_t>(this->conf_.jcp_,
+                &this->col_);
+        jit_gemm_convolution_utils::prepare_ws_wei_reduction(this->conf_.jcp_,
+                &this->wei_reduction_, weights_d.size());
     }
+
     ~_gemm_convolution_bwd_weights_t() {
         if (run_jit) {
             delete sgemm_0;
             delete sgemm_1;
         }
-        if (this->ws) free(this->ws);
+        free(this->col_);
+        free(this->wei_reduction_);
      };
 
     typedef typename prec_traits<data_type::f32>::type data_t;
@@ -371,7 +381,7 @@ private:
     using jit_uni_gemm_f32 = typename utils::conditional
           <isa == avx2, jit_avx2_gemm_f32, jit_avx512_common_gemm_f32>::type;
     jit_uni_gemm_f32 *sgemm_0, *sgemm_1;
-    data_t *ws;
+    data_t *col_, *wei_reduction_;
 };
 
 using jit_avx512_common_gemm_convolution_bwd_weights_t =

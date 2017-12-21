@@ -247,7 +247,6 @@ struct jit_gemm_conv_conf_t {
     int is, os, ks;
     int ic_block, oc_block;
     bool need_im2col;
-    size_t im2col_size;
 };
 
 struct jit_1x1_conv_call_s {

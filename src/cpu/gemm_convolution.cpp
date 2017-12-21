@@ -73,7 +73,7 @@ void _gemm_convolution_fwd_t<with_relu, run_jit, isa>::execute_forward() {
             const data_t *_src = src + (n * jcp.ngroups + g) * src_step;
             data_t *_dst = dst + (n * jcp.ngroups + g) * dst_step;
             const data_t *_weights = weights + g * weights_g_size;
-            data_t *_col = this->ws + (int64_t)ithr * jcp.ic * jcp.ks * jcp.os;
+            data_t *_col = this->col_ + (size_t)ithr * jcp.ic * jcp.ks * jcp.os;
             const auto &post_ops = conf_.attr()->post_ops_;
             const auto beta
                     = (post_ops.find(primitive_kind::sum) >= 0) ? &one : &zero;
@@ -159,7 +159,7 @@ void _gemm_convolution_bwd_data_t<run_jit, isa>::execute_backward_data() {
             data_t *_diff_src = diff_src + (n * jcp.ngroups + g)*src_step;
             const data_t *_diff_dst = diff_dst + (n * jcp.ngroups + g)*dst_step;
             const data_t *_weights = weights + g * weights_g_size;
-            data_t *_col = this->ws + ithr * jcp.ic * jcp.ks * jcp.os;
+            data_t *_col = this->col_ + (size_t)ithr * jcp.ic * jcp.ks * jcp.os;
 
             if (run_jit) {
                 sgemm_->sgemm("N", "T", &M, &N, &K, &one, _diff_dst, &M,
@@ -215,8 +215,8 @@ void _gemm_convolution_bwd_weights_t<run_jit, isa>::execute_backward_weights() {
 
             assert(implication((g_end - g_start) > 1, need_reduction == 0));
 
-            data_t *_col = this->ws + ithr * jcp.ic * jcp.ks * jcp.os;
-            data_t *weights_reduce_base = this->ws + jcp.im2col_size
+            data_t *_col = this->col_ + (size_t)ithr * jcp.ic * jcp.ks * jcp.os;
+            data_t *weights_reduce_base = this->wei_reduction_
                     + ithr_g * nthr_mb * weights_g_size;
             data_t *weights_reduce = weights_reduce_base
                     + ithr_mb * weights_g_size;

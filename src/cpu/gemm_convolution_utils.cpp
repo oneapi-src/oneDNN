@@ -197,30 +197,39 @@ void init_conf(
     jcp.need_im2col = !(jcp.oh == jcp.ih && jcp.ow == jcp.iw && jcp.ks == 1);
 }
 
-status_t prepare_workspace(
-        jit_gemm_conv_conf_t &jcp, float **ws, bool is_bwd_weights,
-        const size_t weights_size) {
-    const size_t nthr = omp_get_max_threads();
-    if (jcp.need_im2col) {
-        const size_t sz_per_thread = jcp.ic*jcp.ks*jcp.os;
-        jcp.im2col_size = utils::rnd_up(nthr*sz_per_thread, 16);
-    } else {
-        jcp.im2col_size = 0;
+template <typename src_t>
+status_t prepare_ws_col(jit_gemm_conv_conf_t &jcp, src_t **col) {
+    if (!jcp.need_im2col) {
+        *col = nullptr;
+        return status::success;
     }
-    size_t weights_reduce_size = 0;
-    if (is_bwd_weights && jcp.mb != 1 && nthr != 1) {
-        const size_t sz_per_thread = jcp.ngroups * weights_size;
-        weights_reduce_size = nthr * sz_per_thread;
-    }
-    *ws = 0;
-    const size_t ws_size = sizeof(float)*jcp.im2col_size + weights_reduce_size;
-    if (ws_size != 0) {
-        *ws = (float*)malloc(ws_size, 64);
-        if (*ws == NULL) return status::out_of_memory;
 
-#       pragma omp parallel for
-        for (size_t i = 0; i < jcp.im2col_size; ++i) (*ws)[i] = 0.;
-    }
+    const size_t nthr = omp_get_max_threads();
+    const size_t im2col_sz_per_thr = jcp.os * jcp.ks * jcp.ic;
+    const size_t im2col_sz = nthr * im2col_sz_per_thr;
+
+    *col = (src_t *)malloc(im2col_sz * sizeof(src_t), 64);
+    if (*col == nullptr) return status::out_of_memory;
+
+#   pragma omp parallel for
+    for (size_t i = 0; i < im2col_sz; ++i) (*col)[i] = 0.;
+
+    return status::success;
+}
+
+template status_t prepare_ws_col<float>(jit_gemm_conv_conf_t &jcp,
+        float **col);
+
+status_t prepare_ws_wei_reduction(jit_gemm_conv_conf_t &jcp,
+        float **wei_reduction, size_t wei_sz) {
+    const size_t nthr = omp_get_max_threads();
+    if (jcp.mb == 1 || nthr == 1)
+        return status::success;
+
+    const size_t sz_per_thr = jcp.ngroups * wei_sz; // XXX: why groups?
+    *wei_reduction = (float *)malloc(nthr * sz_per_thr, 64);
+    if (*wei_reduction == nullptr) return status::out_of_memory;
+
     return status::success;
 }
 
