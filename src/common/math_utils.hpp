@@ -27,8 +27,14 @@ namespace impl {
 namespace math {
 
 template <typename data_t, typename acc_t>
-inline typename utils::remove_reference<data_t>::type saturate(const acc_t &x)
-{
+inline typename utils::enable_if<!nstl::is_integral<data_t>::value,
+       typename utils::remove_reference<data_t>::type>::type
+saturate(const acc_t &x) { return x; }
+
+template <typename data_t, typename acc_t>
+inline typename utils::enable_if<nstl::is_integral<data_t>::value,
+       typename utils::remove_reference<data_t>::type>::type
+saturate(const acc_t &x) {
     acc_t v = x;
     if (v < nstl::numeric_limits<data_t>::lowest())
         v = nstl::numeric_limits<data_t>::lowest();
