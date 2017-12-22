@@ -19,9 +19,8 @@ image recognition (AlexNet, VGG, GoogleNet\*, ResNet), semantic
 segmentation (FCNs, SegNet), and object detection topologies (SSD,
 Fast/Faster R-CNN) optimized for wide range of Intel processors.
 
-Functionality related to integer data types `s16s16s32` and `u8s8u8` included
-in this release is experimental and might change without prior notification in
-future releases.
+**WARNING** Functionality related to `s16` data type is experimental 
+and might change without prior notification in future releases.
 
 ## License
 Intel MKL-DNN is licensed under
@@ -52,7 +51,7 @@ We welcome community contributions to Intel MKL-DNN. If you have an idea how to 
 
 We will review your contribution and, if any additional fixes or modifications
 are necessary, may provide feedback to guide you. When accepted, your pull
-request will be merged into our internal and GitHub repositories.
+request will be merged the repository.
 
 ## System Requirements
 Intel MKL-DNN supports Intel(R) 64 architecture processors and is optimized for
