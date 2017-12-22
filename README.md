@@ -10,12 +10,14 @@ convolutional neural networks (CNN) with C and C++ interfaces. We created this
 project to enable the DL community to innovate on Intel(R) processors.
 
 Intel MKL-DNN includes functionality similar to [Intel(R) Math Kernel
-Library (Intel(R) MKL) 2017](https://software.intel.com/en-us/intel-mkl), but is not
-API compatible. We are investigating how to unify the APIs in future Intel MKL releases.
+Library (Intel(R) MKL) 2017](https://software.intel.com/en-us/intel-mkl), 
+but is not API compatible. We are investigating how to unify the APIs in 
+future Intel MKL releases.
 
 This release contains a range of performance critical functions used in modern
-image recognition topologies including Cifar\*, AlexNet\*, VGG\*, 
-GoogleNet\* and ResNet\* optimized for wide range of Intel processors.
+image recognition (AlexNet, VGG, GoogleNet\*, ResNet), semantic
+segmentation (FCNs, SegNet), and object detection topologies (SSD,
+Fast/Faster R-CNN) optimized for wide range of Intel processors.
 
 Functionality related to integer data types `s16s16s32` and `u8s8u8` included
 in this release is experimental and might change without prior notification in
@@ -33,9 +35,8 @@ explained in the tutorial
 * [Intel MKL-DNN: Part 2--Code Build and Walkthrough](https://software.intel.com/en-us/articles/intel-mkl-dnn-part-2-sample-code-build-and-walkthrough)
 
 ## Support
-Please report issues and suggestions via
-[GitHub issues](https://github.com/01org/mkl-dnn/issues) or start a topic on
-[Intel MKL forum](https://software.intel.com/en-us/forums/intel-math-kernel-library).
+Please submit your questions, feature requests and bug reports on
+[GitHub issues](https://github.com/01org/mkl-dnn/issues) page.
 
 ## How to Contribute
 We welcome community contributions to Intel MKL-DNN. If you have an idea how to improve the library:
@@ -96,7 +97,7 @@ or clone the repository to your system
 ```
 
 Ensure that all software dependencies are in place and have at least minimal
-supported version. 
+supported version.
 
 Intel MKL-DNN can take advantage of optimized
 matrix-matrix multiplication (GEMM) function from Intel MKL. The dynamic
