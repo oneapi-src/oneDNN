@@ -166,17 +166,18 @@ undefined behavior resulting in incorrect results or crashes.
 
 Intel MKL-DNN library built with binary dependency will link against Intel OpenMP
 runtime included with Intel MKL small libraries package. Intel OpenMP runtime
-is binary compatible with GNU OpenMP and CLANG OpenMP runtimes and should
-be used in the final application. Here are example linklines for GNU C++ compiler
-and Intel C++ compiler.
+is binary compatible with GNU OpenMP and CLANG OpenMP runtimes and is 
+recommended for the best performance results. Here are example linklines for 
+GNU C++ compiler and Intel C++ compiler.
 ```
-	g++ -std=c++11 -fopenmp -Wl,--as-needed -I${MKLDNNROOT}/include -L${MKLDNNROOT}/lib simple_net.cpp -lmkldnn -lmklml_intel -liomp5
+	g++ -std=c++11 -I${MKLDNNROOT}/include -L${MKLDNNROOT}/lib simple_net.cpp -lmkldnn -lmklml_intel -liomp5
 ```
 ```
 	icpc -std=c++11 -qopenmp -I${MKLDNNROOT}/include -L${MKLDNNROOT}/lib simple_net.cpp -lmkldnn -lmklml_intel
 ```
-In `g++` example option `-Wl,--as-needed` forces linker to resolve OpenMP symbols
-in Intel OpenMP runtime library.
+Using GNU compiler with `-fopenmp` and `-liomp5` options will link the 
+application with both Intel and GNU OpenMP runtime libraries. This will lead
+to undefined behavior of the application.
 
 Intel MKL-DNN library built standalone will use OpenMP runtime supplied by
 the compiler, so as long as both the library and the application use the
