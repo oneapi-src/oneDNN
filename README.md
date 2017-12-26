@@ -54,14 +54,16 @@ are necessary, may provide feedback to guide you. When accepted, your pull
 request will be merged the repository.
 
 ## System Requirements
-Intel MKL-DNN supports Intel(R) 64 architecture processors and is optimized for
+Intel MKL-DNN supports Intel(R) 64 architecture and compatible architectures.
+The library is optimized for the systems based on
 * Intel Atom(R) processor with Intel(R) SSE4.1 support
 * 4th, 5th, 6th and 7th generation Intel(R) Core processor
-* Intel(R) Xeon(R) processor E5 v3 family (code named Haswell)
-* Intel(R) Xeon(R) processor E5 v4 family (code named Broadwell)
-* Intel(R) Xeon(R) Platinum processor family (code name Skylake)
-* Intel(R) Xeon Phi(TM) product family x200 (code named Knights Landing)
-* Future Intel(R) Xeon Phi(TM) processor (code named Knights Mill)
+* Intel(R) Xeon(R) processor E5 v3 family (formerly Haswell)
+* Intel Xeon processor E5 v4 family (formerly Broadwell)
+* Intel Xeon Platinum processor family (formerly Skylake)
+* Intel(R) Xeon Phi(TM) processor x200 product family (formerly Knights Landing)
+* Intel Xeon Phi processor x205 product family (formerly Knights Mill)
+and compatible processors.
 
 The software dependencies are:
 * [Cmake](https://cmake.org/download/) 2.8.0 or later
