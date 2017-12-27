@@ -30,6 +30,7 @@ namespace cpu {
 namespace jit_gemm_convolution_utils {
 
     void im2col (jit_gemm_conv_conf_t &jcp, const float *im, float *col);
+    void im2col_u8(jit_gemm_conv_conf_t &jcp, const uint8_t *im, uint8_t *col);
     void col2im (jit_gemm_conv_conf_t &jcp, const float *col, float *im);
 
     void init_conf(jit_gemm_conv_conf_t &jcp,
@@ -41,6 +42,8 @@ namespace jit_gemm_convolution_utils {
     status_t prepare_ws_col(jit_gemm_conv_conf_t &jcp, src_t **col);
     status_t prepare_ws_wei_reduction(jit_gemm_conv_conf_t &jcp,
             float **wei_reduction, size_t wei_sz);
+    template <typename acc_t>
+    status_t prepare_ws_acc(jit_gemm_conv_conf_t &jcp, acc_t **acc);
 
     void bwd_weights_balance(int ithr, int nthr,
         int ngroups, int mb, int &ithr_g, int &nthr_g, int &ithr_mb,

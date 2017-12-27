@@ -119,6 +119,39 @@ void im2col(
     }
 }
 
+/* col[oh][ow][kh][kw][ic] <-- im2col_u8(im[ih][iw][ic]) */
+void im2col_u8(
+    jit_gemm_conv_conf_t &jcp, const uint8_t *im, uint8_t *col) {
+    int num_thr = (jcp.mb != 1) ? omp_get_max_threads() : 1;
+    MAYBE_UNUSED(num_thr);
+#   pragma omp parallel for collapse(2) num_threads(num_thr)
+    for (int oh = 0; oh < jcp.oh; ++oh) {
+        for (int ow = 0; ow < jcp.ow; ++ow) {
+            for (int kh = 0; kh < jcp.kh; ++kh) {
+                const int ih = oh * jcp.stride_h
+                    - jcp.t_pad + kh * (1 + jcp.dilate_h);
+                if (ih < 0 || ih >= jcp.ih) continue;
+
+                for (int kw = 0; kw < jcp.kw; ++kw) {
+                    const int iw = ow * jcp.stride_w
+                        - jcp.l_pad + kw * (1 + jcp.dilate_w);
+                    if (iw < 0 || iw >= jcp.iw) continue;
+
+                    const size_t col_idx = (((oh * jcp.ow + ow) * jcp.kh + kh)
+                            * jcp.kw + kw) * jcp.ic;
+                    const size_t im_idx
+                        = (ih * jcp.iw + iw) * jcp.ngroups * jcp.ic;
+
+#                   pragma omp simd
+                    for (int ic = 0; ic < jcp.ic; ++ic) {
+                        col[col_idx + ic] = im[im_idx + ic];
+                    }
+                }
+            }
+        }
+    }
+}
+
 void col2im(
     jit_gemm_conv_conf_t &jcp, const float *col, float *im) {
     const size_t col_step = jcp.ks * jcp.os;
@@ -219,6 +252,8 @@ status_t prepare_ws_col(jit_gemm_conv_conf_t &jcp, src_t **col) {
 
 template status_t prepare_ws_col<float>(jit_gemm_conv_conf_t &jcp,
         float **col);
+template status_t prepare_ws_col<uint8_t>(jit_gemm_conv_conf_t &jcp,
+        uint8_t **col);
 
 status_t prepare_ws_wei_reduction(jit_gemm_conv_conf_t &jcp,
         float **wei_reduction, size_t wei_sz) {
@@ -232,6 +267,20 @@ status_t prepare_ws_wei_reduction(jit_gemm_conv_conf_t &jcp,
 
     return status::success;
 }
+
+template <typename acc_t>
+status_t prepare_ws_acc(jit_gemm_conv_conf_t &jcp, acc_t **acc) {
+    const size_t nthr = omp_get_max_threads();
+    const size_t acc_sz_per_thr = jcp.os * jcp.oc;
+    const size_t acc_sz = nthr * acc_sz_per_thr;
+
+    *acc = (int32_t *)malloc(acc_sz * sizeof(acc_t), 64);
+    if (*acc == nullptr) return status::out_of_memory;
+    return status::success;
+}
+
+template status_t prepare_ws_acc<int32_t>(jit_gemm_conv_conf_t &jcp,
+        int32_t **acc);
 
 void bwd_weights_balance(int ithr, int nthr, int ngroups, int mb, int &ithr_g,
         int &nthr_g, int &ithr_mb, int &nthr_mb) {

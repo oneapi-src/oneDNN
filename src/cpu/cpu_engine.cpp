@@ -32,6 +32,7 @@
 #include "cpu/jit_avx512_core_u8s8s32x_convolution.hpp"
 #include "cpu/jit_sse42_convolution.hpp"
 #include "cpu/gemm_convolution.hpp"
+#include "cpu/gemm_u8s8s32x_convolution.hpp"
 #include "cpu/ref_convolution.hpp"
 #include "cpu/jit_uni_eltwise.hpp"
 #include "cpu/ref_eltwise.hpp"
@@ -117,6 +118,10 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(_jit_avx512_core_u8s8s32x_convolution_fwd_t<false, s8>),
     INSTANCE(_jit_avx512_core_u8s8s32x_convolution_fwd_t<false, u8>),
     INSTANCE(jit_avx512_common_convolution_bwd_data_t<s16, s16, s32>),
+    INSTANCE(_gemm_u8s8s32x_convolution_fwd_t<false, s32>),
+    INSTANCE(_gemm_u8s8s32x_convolution_fwd_t<false, u8>),
+    INSTANCE(_gemm_u8s8s32x_convolution_fwd_t<false, s8>),
+    INSTANCE(_gemm_u8s8s32x_convolution_fwd_t<false, f32>),
     INSTANCE(ref_convolution_fwd_t<s16,s16, s32, s32>),
     INSTANCE(ref_convolution_fwd_t<u8, s8, s32, s32>),
     INSTANCE(ref_convolution_fwd_t<u8, s8, s8, s32>),
@@ -212,6 +217,10 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(_jit_avx512_core_u8s8s32x_convolution_fwd_t<true, s8>),
     INSTANCE(_jit_avx512_core_u8s8s32x_convolution_fwd_t<true, u8>),
     INSTANCE(jit_avx512_common_convolution_relu_t<s16, s16, s32>),
+    INSTANCE(_gemm_u8s8s32x_convolution_fwd_t<true, s32>),
+    INSTANCE(_gemm_u8s8s32x_convolution_fwd_t<true, u8>),
+    INSTANCE(_gemm_u8s8s32x_convolution_fwd_t<true, s8>),
+    INSTANCE(_gemm_u8s8s32x_convolution_fwd_t<true, f32>),
     INSTANCE(ref_convolution_relu_t<s16, s16, s32, s32>),
     INSTANCE(ref_convolution_relu_t<u8, s8, s32, s32>),
     INSTANCE(ref_convolution_relu_t<u8, s8, s8, s32>),
