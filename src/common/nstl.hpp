@@ -82,6 +82,11 @@ template<> struct is_integral<int16_t> { static constexpr bool value = true; };
 template<> struct is_integral<int8_t> { static constexpr bool value = true; };
 template<> struct is_integral<uint8_t> { static constexpr bool value = true; };
 
+template <typename T, typename U> struct is_same
+{ static constexpr bool value = false; };
+template <typename T> struct is_same<T, T>
+{ static constexpr bool value = true; };
+
 // Rationale: MKL-DNN needs container implementations that do not generate
 // dependencies on C++ run-time libraries.
 //
