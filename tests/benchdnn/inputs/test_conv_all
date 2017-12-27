@@ -3,22 +3,23 @@
 --mb=2                      # for fwd and bwd_d reduce mb
 --dir=FWD_B --batch=conv_all
 --dir=BWD_D --batch=conv_all
---mb=0                      # for bwd_w use the actual mb
 --dir=BWD_WB --batch=conv_all
+--mb=0                      # for bwd_w use the actual mb for 1 topology
+--dir=BWD_WB --batch=conv_resnet_50
 
 --mb=2
 --merge=RELU                # +relu
---dir=FWD_B --batch=conv_all
+--dir=FWD_B --batch=conv_alexnet
 
 # i8 (skx)
 --reset --dir=FWD_B --mb=2
 --skip-impl="ref:gemm"      # ! test jit version only
 
 --cfg=u8s8u8s32  --batch=conv_all
---cfg=u8s8s8s32  --batch=conv_all
---cfg=u8s8s32s32 --batch=conv_all
+--cfg=u8s8s8s32  --batch=conv_resnet_50
+--cfg=u8s8s32s32 --batch=conv_googlenet_v3
 --merge=RELU
---cfg=u8s8s32s32 --batch=conv_all
+--cfg=u8s8s32s32 --batch=conv_vgg_19
 
 # s16 (knm)
 --reset --mb=2
@@ -28,7 +29,7 @@
 --cfg=s16s32s16s32 --dir=BWD_WB --batch=conv_all
 
 --merge=RELU                # +relu
---cfg=s16s16s32s32 --dir=FWD_B --batch=conv_all
+--cfg=s16s16s32s32 --dir=FWD_B --batch=conv_googlenet_v1
 
 # f32 wino
 --reset --cfg=f32_wino --alg=wino
