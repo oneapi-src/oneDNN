@@ -4,11 +4,11 @@
 --skip-impl="ref:gemm"      # ! test jit version only
 --allow-unimpl=true
 --dir=FWD_B
---attr=irmode=down;oscale=per_oc:2.1;post_ops='sum:1.5;relu'
+--attr=irmode=down;oscale=per_oc:2.25;post_ops='sum:1.5;relu'
 --cfg=u8s8u8s32  --batch=conv_vgg_19
 --cfg=u8s8f32s32 --batch=conv_googlenet_v2
 --dir=FWD_D
---attr=irmode=nearest;oscale=common:2.1;post_ops='sum:1.5'
+--attr=irmode=nearest;oscale=common:2.25;post_ops='sum:1.5'
 --cfg=u8s8s8s32  --batch=conv_googlenet_v3
 --cfg=u8s8s32s32 --batch=conv_alexnet
 
