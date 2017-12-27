@@ -849,7 +849,7 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
                 = (one_of(jcp.prop_kind, forward_training, forward_inference)) ?
                 jcp.oh :
                 jcp.ih;
-        if (jcp.ver == ver_avx512_core) {
+        if (jcp.ver == ver_avx512_core && jcp.mb != 1) {
             max_regs = 9;
             min_regs = 6;
             size_treshold = 14;
