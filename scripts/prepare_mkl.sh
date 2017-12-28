@@ -16,7 +16,7 @@
 #===============================================================================
 
 MKLURLROOT="https://github.com/01org/mkl-dnn/releases/download/v0.11/"
-MKLVERSION="2018.0.1.20171007"
+MKLVERSION="2018.0.1.20171227"
 
 os=`uname`
 if [ "$os" = "Linux" ]; then
