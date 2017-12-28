@@ -1,6 +1,6 @@
 # Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN)
 [![Apache License Version 2.0](https://img.shields.io/badge/license-Apache_2.0-green.svg)](LICENSE)
-![v0.11 beta](https://img.shields.io/badge/v0.11-beta-orange.svg)
+![v0.12 beta](https://img.shields.io/badge/v0.12-beta-orange.svg)
 
 Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN) is an
 open source performance library for Deep Learning (DL) applications intended
