@@ -101,7 +101,7 @@ void compute_ref_fwd(const prb_t *p, dnn_mem_t &src_m,
 
 void compute_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
         dnn_mem_t &wei_m, dnn_mem_t &diff_dst_m) {
-    const int precompute_size = 16;
+    enum { precompute_size = 16 };
     const bool fast = MAX2(p->kh, p->kw) <= precompute_size;
 
     /* pre-computes arrays of oh(ow) and kh(kw) for traversing in kernel */
