@@ -101,6 +101,44 @@ void compute_ref_fwd(const prb_t *p, dnn_mem_t &src_m,
 
 void compute_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
         dnn_mem_t &wei_m, dnn_mem_t &diff_dst_m) {
+    const int precompute_size = 16;
+    const bool fast = MAX2(p->kh, p->kw) <= precompute_size;
+
+    /* pre-computes arrays of oh(ow) and kh(kw) for traversing in kernel */
+    auto precompute_ok = [](int i, int O, int K, int S, int P, int D,
+            int &num, int *_o, int *_k) {
+        assert(K <= precompute_size);
+        num = 0;
+        for (int k = 0; k < K; ++k) {
+            int o = i - k * (D + 1) + P;
+            if (o < 0 || o % S) continue;
+            o /= S;
+            if (o >= O) continue;
+            _k[num] = k;
+            _o[num] = o;
+            ++num;
+        }
+    };
+
+    auto ker_fast = [&](float &ds, int g, int mb, int ic, int ih, int iw) {
+        int kh[precompute_size], oh[precompute_size], num_h;
+        int kw[precompute_size], ow[precompute_size], num_w;
+        precompute_ok(ih, p->oh, p->kh, p->sh, p->ph, p->dh, num_h, oh, kh);
+        precompute_ok(iw, p->ow, p->kw, p->sw, p->pw, p->dw, num_w, ow, kw);
+
+        for (int oc = 0; oc < p->oc/p->g; ++oc) {
+            for (int h = 0; h < num_h; ++h) {
+                for (int w = 0; w < num_w; ++w) {
+
+                    size_t dst_off = dst_off_f(p, mb, g, oc, oh[h], ow[w]);
+                    size_t wei_off = wei_off_f(p, g, oc, ic, kh[h], kw[w]);
+                    ds += ((float*)diff_dst_m)[dst_off]
+                        * ((float*)wei_m)[wei_off];
+                }
+            }
+        }
+    };
+
     auto ker = [&](float &ds, int g, int mb, int ic, int ih, int iw) {
         for (int oc = 0; oc < p->oc/p->g; ++oc) {
             for (int kh = 0; kh < p->kh; ++kh) {
@@ -133,7 +171,10 @@ void compute_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
             size_t src_off = src_off_f(p, mb, g, ic, ih, iw);
             float &ds = ((float*)diff_src_m)[src_off];
             ds = 0;
-            ker(ds, g, mb, ic, ih, iw);
+            if (fast)
+                ker_fast(ds, g, mb, ic, ih, iw);
+            else
+                ker(ds, g, mb, ic, ih, iw);
         }
         }
         }
@@ -143,14 +184,23 @@ void compute_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
 
 void compute_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m,
         dnn_mem_t &diff_wei_m, dnn_mem_t &diff_bia_m, dnn_mem_t &diff_dst_m) {
+    auto compute_bounds = [](int I, int O, int k, int S, int P, int D,
+            int &o_s, int &o_e) {
+        const float tmp = P - k * (D + 1);
+        o_s = MAX2(0, ceilf(tmp / S));
+        o_e = MIN2(O, ceilf((I + tmp) / S));
+    };
+
     auto ker = [&](float &dw, int g, int oc, int ic, int kh, int kw) {
+        int oh_s, oh_e, ow_s, ow_e;
+        compute_bounds(p->ih, p->oh, kh, p->sh, p->ph, p->dh, oh_s, oh_e);
+        compute_bounds(p->iw, p->ow, kw, p->sw, p->pw, p->dw, ow_s, ow_e);
+
         for (int mb = 0; mb < p->mb; ++mb) {
-            for (int oh = 0; oh < p->oh; ++oh) {
-            for (int ow = 0; ow < p->ow; ++ow) {
+            for (int oh = oh_s; oh < oh_e; ++oh) {
+            for (int ow = ow_s; ow < ow_e; ++ow) {
                 const int ih = oh * p->sh - p->ph + kh * (p->dh + 1);
                 const int iw = ow * p->sw - p->pw + kw * (p->dw + 1);
-                if (ih < 0 || ih >= p->ih) continue;
-                if (iw < 0 || iw >= p->iw) continue;
 
                 size_t src_off = src_off_f(p, mb, g, ic, ih, iw);
                 size_t dst_off = dst_off_f(p, mb, g, oc, oh, ow);
