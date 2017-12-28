@@ -36,10 +36,10 @@ inline typename utils::enable_if<nstl::is_integral<data_t>::value,
        typename utils::remove_reference<data_t>::type>::type
 saturate(const acc_t &x) {
     acc_t v = x;
-    if (v < nstl::numeric_limits<data_t>::lowest())
-        v = nstl::numeric_limits<data_t>::lowest();
-    if (v > nstl::numeric_limits<data_t>::max())
-        v = nstl::numeric_limits<data_t>::max();
+    if (v < (acc_t)nstl::numeric_limits<data_t>::lowest())
+        v = (acc_t)nstl::numeric_limits<data_t>::lowest();
+    if (v > (acc_t)nstl::numeric_limits<data_t>::max())
+        v = (acc_t)nstl::numeric_limits<data_t>::max();
     return (typename utils::remove_reference<data_t>::type)v;
 }
 

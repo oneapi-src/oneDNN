@@ -153,7 +153,7 @@ void _gemm_u8s8s32x_convolution_fwd_t<with_relu, dst_type>::execute_forward() {
                 for (int os = 0; os < jcp.os; ++os) {
                 for (int oc = 0; oc < jcp.oc; ++oc) {
                     size_t acc_off = os * jcp.oc + oc;
-                    float d = acc[acc_off];
+                    float d = (float)acc[acc_off];
 
                     if (jcp.with_bias)
                         d += get_bias(g * jcp.oc + oc);
