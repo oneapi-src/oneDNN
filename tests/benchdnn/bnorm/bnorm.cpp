@@ -298,8 +298,8 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
             }
 
             print(0, "[%lu][%s%s][%s] fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                    i, p->dir & FLAG_BWD ? "D_" : "", skind, ind_str,
-                    fp, dt, diff, rel_diff);
+                    (unsigned long)i, p->dir & FLAG_BWD ? "D_" : "", skind,
+                    ind_str, fp, dt, diff, rel_diff);
         }
     }
 

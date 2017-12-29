@@ -128,11 +128,11 @@ struct dnn_mem_t {
         }
     }
 
-    int get_scale_idx(size_t data_idx, int scale_mask) const {
+    size_t get_scale_idx(size_t data_idx, int scale_mask) const {
         const int ndims = md_.ndims;
         const auto &dims = md_.dims;
-        int stride = 1;
-        int offset = 0;
+        size_t stride = 1;
+        size_t offset = 0;
 
         if (scale_mask != 0) {
             for (int i = 0; i < ndims; ++i) {

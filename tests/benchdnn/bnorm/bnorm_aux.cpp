@@ -143,7 +143,7 @@ void prb2str(const prb_t *p, char *buffer, bool canonical) {
     if (!is_attr_def) {
         int len = snprintf(attr_buf, max_attr_len, "--attr=\"");
         attr2str(&p->attr, attr_buf + len);
-        len = strnlen(attr_buf, max_attr_len);
+        len = (int)strnlen(attr_buf, max_attr_len);
         snprintf(attr_buf + len, max_attr_len - len, "\" ");
     }
     snprintf(check_str, sizeof(check_str), "--check-alg=%s ",

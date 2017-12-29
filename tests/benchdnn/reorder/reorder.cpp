@@ -214,7 +214,7 @@ int fill_memory(const prb_t *p, dnn_mem_t &mem, const float *scales,
     const size_t nelems = mem.nelems();
 
     for (size_t idx = 0; idx < nelems; ++idx) {
-        const int mask_idx = mem.get_scale_idx(idx, scale_mask);
+        const size_t mask_idx = mem.get_scale_idx(idx, scale_mask);
         const float scale = scales[mask_idx];
 
         const float gen[7] = {
@@ -264,7 +264,7 @@ int reorder(const prb_t *p, dnn_mem_t &dst, const dnn_mem_t &src,
 
     for (size_t idx = 0; idx < nelems; ++idx) {
         float src_ = src.get_elem(idx);
-        const int scale_idx = dst.get_scale_idx(idx, scale_mask);
+        const size_t scale_idx = dst.get_scale_idx(idx, scale_mask);
 
         const float scale = scales[scale_idx];
 
