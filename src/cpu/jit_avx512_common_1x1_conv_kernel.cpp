@@ -849,7 +849,7 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
                 = (one_of(jcp.prop_kind, forward_training, forward_inference)) ?
                 jcp.oh :
                 jcp.ih;
-        if (jcp.ver == ver_avx512_core && jcp.mb != 1) {
+        if (jcp.ver == ver_avx512_core && jcp.mb > 1) {
             max_regs = 9;
             min_regs = 6;
             size_treshold = 14;
@@ -960,7 +960,7 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
         jcp.load_grp_count = best_divider(
                 nthreads, jcp.load_grp_count, 2 * jcp.load_grp_count, false);
 
-        if (jcp.ver == ver_avx512_core && jcp.bcast_dim <= 64
+        if (jcp.ver == ver_avx512_core && jcp.expl_bcast && jcp.bcast_dim <= 64
                 && jcp.load_dim * jcp.reduce_dim >= L2_size) {
             jcp.load_grp_count = nstl::max(jcp.load_grp_count, 4);
         } else if (jcp.bcast_dim <= 49 && jcp.mb <= nthreads

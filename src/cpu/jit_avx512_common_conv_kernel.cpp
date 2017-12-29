@@ -1042,6 +1042,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
             || ((jcp.kw == 3 && jcp.ow <= 28 && ker_total_size < L1_cache_size)
                 && !(jcp.kw == 3 && jcp.ow == 13 && jcp.ic >= 192)
                 && !(jcp.kw == 3 && jcp.ow == 28 && jcp.ic >= 512))
+            || jcp.mb == 1
             ) {
             jcp.kernel_kind = embd_bcast;
             jcp.ur_w = nstl::min(jcp.ow, regs);
