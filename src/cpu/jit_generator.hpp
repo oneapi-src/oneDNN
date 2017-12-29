@@ -24,6 +24,13 @@
 /* in order to make selinux happy memory that would be marked with X-bit should
  * be obtained with mmap */
 #define XBYAK_USE_MMAP_ALLOCATOR
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+/* turn off `size_t to other-type implicit casting` warning
+ * currently we have a lot of jit-generated instructions that
+ * take uint32_t, but we pass size_t (e.g. due to using sizeof).
+ * FIXME: replace size_t parameters with the appropriate ones */
+#pragma warning (disable: 4267)
+#endif
 #include "xbyak/xbyak.h"
 #include "xbyak/xbyak_util.h"
 
