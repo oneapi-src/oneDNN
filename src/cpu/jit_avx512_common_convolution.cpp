@@ -700,7 +700,7 @@ void jit_avx512_common_convolution_bwd_weights_t::balance() {
         nthr_g_ = 1;
         nthr_oc_b_ = 1;
         nthr_ic_b_ = nstl::min(j.nb_ic, max_threads);
-        nthr_mb_ = max_threads / nthr_ic_b_;
+        nthr_mb_ = nstl::min(max_threads / nthr_ic_b_, j.mb);
         nthr_ = nthr_mb_ * nthr_oc_b_ * nthr_ic_b_ * nthr_g_;
         return;
     }
