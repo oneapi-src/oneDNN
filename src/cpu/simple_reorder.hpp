@@ -1499,7 +1499,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 }
                 o = saturate<data_t<type_o>>(i);
             } else {
-                o = i;
+                o = (data_t<type_o>)i;
             }
         }
 

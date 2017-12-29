@@ -140,7 +140,7 @@ bool check_L2_block_per_thread(jit_conv_winograd_conf_t &jcp,
     /* V_L2_block + M_L2_block + W */
     float block_size = (jcp.alpha * jcp.alpha * (jcp.oc + jcp.ic)
                      * dimN_block * jcp.dimN_reg_block
-                     + jcp.ic * jcp.oc) * sizeof(float);
+                     + jcp.ic * jcp.oc) * (float)sizeof(float);
     float L2_lb = C2_min * L2_cache_size;
     float L2_ub =  C2_max * L2_cache_size;
     return (block_size > L2_lb && block_size < L2_ub);
@@ -152,7 +152,7 @@ bool check_L1_block_gemm(jit_conv_winograd_conf_t &jcp, int dimK_block,
                              * jcp.dimK_reg_block
                      + dimK_block * jcp.dimK_reg_block * jcp.dimN_reg_block
                      + dimM_block * jcp.dimM_simd_block * jcp.dimN_reg_block)
-                     * sizeof(float);
+                     * (float)sizeof(float);
     float L1_lb = C1_min * L1_cache_size;
     float L1_ub = C1_max * L1_cache_size;
     return (gemm_block_size > L1_lb && gemm_block_size < L1_ub);
