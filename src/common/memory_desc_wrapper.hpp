@@ -201,14 +201,14 @@ struct memory_desc_wrapper: public c_compatible {
      * a tuple of block indeces (\param bn, ..., \param b1, \param b0). It is a
      * user responsibility to adjust the result to get offset within blocks */
     template<typename ...Args> inline size_t blk_off(Args... args) const {
-        return _blk_off<Args...>(args...);
+        return _blk_off<sizeof...(args), Args...>(args...);
     }
 
     template<bool skip_first, typename T, typename ...Args>
     inline size_t blk_off(T xn, Args... args) const {
         return skip_first
-            ? _blk_off<Args...>(args...)
-            : _blk_off<T, Args...>(xn, args...);
+            ? blk_off<Args...>(args...)
+            : blk_off<T, Args...>(xn, args...);
     }
 
     /* static functions section */
@@ -228,19 +228,14 @@ private:
                 &dims()[ndims() - n_args]) + logical_offset(args...);
     }
 
-    template<typename ...Void>
+    template<int ORIG_LEN, typename ...Void>
     inline size_t _blk_off() const { return blocking_desc().offset_padding; }
 
-#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-    template<typename T> inline size_t _blk_off(T x0) const {
-        return size_t(x0)*blocking_desc().strides[0][0] + _blk_off();
-    }
-#endif
-
-    template<typename T, typename ...Args>
-    inline size_t _blk_off(Args ...args, T xn) const {
-        return (size_t)(xn)*blocking_desc().strides[0][sizeof...(args)] +
-            _blk_off<Args...>(args...);
+    template<int ORIG_LEN, typename T, typename ...Args>
+    inline size_t _blk_off(T xc, Args ...args) const {
+        constexpr int dc = ORIG_LEN - sizeof...(args) - 1;
+        return size_t(xc) * blocking_desc().strides[0][dc]
+            + _blk_off<ORIG_LEN, Args...>(args...);
     }
 };
 
