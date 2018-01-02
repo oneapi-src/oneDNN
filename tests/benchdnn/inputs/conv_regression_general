@@ -12,3 +12,10 @@
 --dir=FWD_B  mb2_ic32oc32_ih41oh16kh10sh2ph0_iw79ow75kw5sw1pw0n"ds2" mb2_ic32oc32_iw79ow75kw5sw1pw0_ih41oh16kh10sh2ph0n"ds2-swap"
 --dir=BWD_D  mb2_ic32oc32_ih41oh16kh10sh2ph0_iw79ow75kw5sw1pw0n"ds2" mb2_ic32oc32_iw79ow75kw5sw1pw0_ih41oh16kh10sh2ph0n"ds2-swap"
 --dir=BWD_WB mb2_ic32oc32_ih41oh16kh10sh2ph0_iw79ow75kw5sw1pw0n"ds2" mb2_ic32oc32_iw79ow75kw5sw1pw0_ih41oh16kh10sh2ph0n"ds2-swap"
+
+# github #174
+--reset --cfg=f32
+--dir=FWD_B --attr=post_ops='sum:1' mb1_ic4oc4_ih13oh13kh3ph1_n"gemm_acc"
+--dir=FWD_D --attr=post_ops='sum:1' mb1_ic4oc4_ih13oh13kh3ph1_n"gemm_acc"
+--dir=FWD_B --attr=post_ops='sum:1;relu' mb1_ic4oc4_ih13oh13kh3ph1_n"gemm_acc"
+--dir=FWD_D --attr=post_ops='sum:1;relu' mb1_ic4oc4_ih13oh13kh3ph1_n"gemm_acc"

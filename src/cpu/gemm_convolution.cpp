@@ -103,7 +103,7 @@ void _gemm_convolution_fwd_t<with_relu, run_jit, isa>::execute_forward() {
                         beta, _dst, &M);
             } else {
                 cblas_sgemm(CblasColMajor, CblasNoTrans, CblasNoTrans, M, N, K,
-                    one, jcp.need_im2col ? _col:_src, M, _weights, K, zero,
+                    one, jcp.need_im2col ? _col:_src, M, _weights, K, *beta,
                     _dst, M);
             }
 

@@ -126,8 +126,9 @@ struct _gemm_convolution_fwd_t: public cpu_primitive_t {
     {
         using namespace prop_kind;
 
+        const float any_nonzero_value = 1.f;
         if (run_jit)
-            sgemm_ = new jit_uni_gemm_f32('N', 'N', 0.0, false);
+            sgemm_ = new jit_uni_gemm_f32('N', 'N', any_nonzero_value, false);
 
         jit_gemm_convolution_utils::init_conf(conf_.jcp_,
             *(conf_.cdesc()), conf_.src_pd(), conf_.weights_pd(0),
