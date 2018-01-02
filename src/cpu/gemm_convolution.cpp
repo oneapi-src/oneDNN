@@ -32,7 +32,6 @@ using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::utils;
 
-
 template <bool with_relu, bool run_jit, cpu_isa_t isa>
 void _gemm_convolution_fwd_t<with_relu, run_jit, isa>::execute_forward() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
@@ -50,18 +49,36 @@ void _gemm_convolution_fwd_t<with_relu, run_jit, isa>::execute_forward() {
     const int K = jcp.ic * jcp.ks;
     const int N = jcp.oc;
 
+    const auto &post_ops = conf_.attr()->post_ops_;
+
+    float nslope = jcp.with_relu ? jcp.relu_negative_slope : 0.f;
+    int entry_idx = -1;
+    for (int idx = 0; idx < post_ops.len_; ++idx) {
+        const auto &e = post_ops.entry_[idx];
+        if (e.is_relu(true, false)) {
+            entry_idx = idx;
+            nslope = post_ops.entry_[entry_idx].eltwise.alpha;
+            break;
+        }
+    }
+    const bool do_relu = jcp.with_relu || entry_idx >= 0;
+
     const data_t zero = 0.0, one = 1.0;
+    const data_t beta = post_ops.find(primitive_kind::sum) >= 0 ? one : zero;
 
     const size_t work_amount = jcp.ngroups * jcp.mb;
     //Check: Can we use GEMM parallelism or do parallelization by minibatch?
-    int num_thr = ((jcp.oh * jcp.ow) / omp_get_max_threads() < 256 && jcp.mb != 1)
-        ? omp_get_max_threads()
-        : 1;
+    int num_thr =
+        (jcp.oh * jcp.ow) / omp_get_max_threads() < 256 && jcp.mb != 1
+        ? omp_get_max_threads() : 1;
     MAYBE_UNUSED(num_thr);
-#pragma omp parallel num_threads(num_thr)
+
+#   pragma omp parallel num_threads(num_thr)
     {
         const int ithr = omp_get_thread_num();
         const int nthr = omp_get_num_threads();
+
+        data_t *_col = this->col_ + (size_t)ithr * jcp.ic * jcp.ks * jcp.os;
 
         int g{0}, n{0};
         size_t start = 0, end = 0;
@@ -71,28 +88,8 @@ void _gemm_convolution_fwd_t<with_relu, run_jit, isa>::execute_forward() {
 
         for (size_t iwork = start; iwork < end; ++iwork) {
             const data_t *_src = src + (n * jcp.ngroups + g) * src_step;
-            data_t *_dst = dst + (n * jcp.ngroups + g) * dst_step;
             const data_t *_weights = weights + g * weights_g_size;
-            data_t *_col = this->col_ + (size_t)ithr * jcp.ic * jcp.ks * jcp.os;
-            const auto &post_ops = conf_.attr()->post_ops_;
-            const auto beta
-                    = (post_ops.find(primitive_kind::sum) >= 0) ? &one : &zero;
-            int entry_idx = -1;
-            for (int idx = 0; idx < post_ops.len_; ++idx) {
-                const auto &e = post_ops.entry_[idx];
-                if (e.is_relu(true, false)) {
-                    entry_idx = idx;
-                    break;
-                }
-            }
-
-            bool do_relu = jcp.with_relu || (entry_idx >= 0);
-            float nslope = 0;
-            if (do_relu) {
-                nslope = jcp.with_relu ?
-                        jcp.relu_negative_slope :
-                        post_ops.entry_[entry_idx].eltwise.alpha;
-            }
+            data_t *_dst = dst + (n * jcp.ngroups + g) * dst_step;
 
             if (jcp.need_im2col)
                 jit_gemm_convolution_utils::im2col(jcp, _src, _col);
@@ -100,10 +97,10 @@ void _gemm_convolution_fwd_t<with_relu, run_jit, isa>::execute_forward() {
             if (run_jit) {
                 sgemm_->sgemm("N", "N", &M, &N, &K, &one,
                         jcp.need_im2col ? _col : _src, &M, _weights, &K,
-                        beta, _dst, &M);
+                        &beta, _dst, &M);
             } else {
                 cblas_sgemm(CblasColMajor, CblasNoTrans, CblasNoTrans, M, N, K,
-                    one, jcp.need_im2col ? _col:_src, M, _weights, K, *beta,
+                    one, jcp.need_im2col ? _col : _src, M, _weights, K, beta,
                     _dst, M);
             }
 
@@ -113,8 +110,8 @@ void _gemm_convolution_fwd_t<with_relu, run_jit, isa>::execute_forward() {
                     if(jcp.with_bias) b = bias[g * jcp.oc + oc];
                     for (int oS = 0; oS < jcp.os; ++oS) {
                         if (jcp.with_bias) d[oS] += b;
-                        if (do_relu)
-                            d[oS] *= (d[oS] < 0 ? nslope : (data_t)1.0);
+                        if (do_relu && d[oS] < 0)
+                            d[oS] *= nslope;
                     }
                     d += jcp.os;
                 }
