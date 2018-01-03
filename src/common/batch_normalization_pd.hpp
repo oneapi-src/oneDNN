@@ -43,6 +43,7 @@ struct batch_normalization_pd_t: public primitive_desc_t {
     const batch_normalization_desc_t *desc() const { return &desc_; }
     virtual const op_desc_t *op_desc() const override
     { return reinterpret_cast<const op_desc_t *>(this->desc()); }
+    virtual void init_info() override { init_info_bnorm(this, this->info_); }
 
     virtual status_t query(query_t what, int idx, void *result) const override
     {

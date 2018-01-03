@@ -111,6 +111,7 @@ struct concat_pd_t: public primitive_desc_t {
     virtual ~concat_pd_t() {}
 
     virtual const op_desc_t *op_desc() const override { return nullptr; }
+    virtual void init_info() override { init_info_mem(this, this->info_); }
 
     virtual const memory_pd_t *input_pd(int index = 0) const override
     { return index < n_inputs() ? src_pd(index) : nullptr; }
@@ -129,6 +130,7 @@ struct sum_pd_t: public primitive_desc_t {
     virtual ~sum_pd_t() {}
 
     virtual const op_desc_t *op_desc() const override { return nullptr; }
+    virtual void init_info() override { init_info_mem(this, this->info_); }
 
     virtual const memory_pd_t *input_pd(int index = 0) const override
     { return index < n_inputs() ? src_pd(index) : nullptr; }

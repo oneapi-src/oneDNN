@@ -21,6 +21,7 @@
 #include "engine.hpp"
 #include "memory_pd.hpp"
 #include "primitive_desc.hpp"
+#include "reorder_pd.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
@@ -57,7 +58,10 @@ status_t mkldnn_reorder_primitive_desc_create_v2(
         attr = &dummy_attr;
 
     for (auto r = e->get_reorder_implementation_list(); *r; ++r) {
-        if ((*r)(r_pd, i_mpd, o_mpd, attr) == success) return success;
+        if ((*r)(r_pd, i_mpd, o_mpd, attr) == success) {
+            (*r_pd)->init_info();
+            return success;
+        }
     }
     return unimplemented;
 }

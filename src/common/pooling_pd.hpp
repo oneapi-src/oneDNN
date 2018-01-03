@@ -41,6 +41,7 @@ struct pooling_fwd_pd_t: public primitive_desc_t {
     const pooling_desc_t *desc() const { return &desc_; }
     virtual const op_desc_t *op_desc() const override
     { return reinterpret_cast<const op_desc_t *>(this->desc()); }
+    virtual void init_info() override { init_info_pool(this, this->info_); }
 
     virtual const memory_pd_t *input_pd(int index = 0) const override
     { return index == 0 ? src_pd() : nullptr; }
@@ -104,6 +105,7 @@ struct pooling_bwd_pd_t: public primitive_desc_t {
     const pooling_desc_t *desc() const { return &desc_; }
     virtual const op_desc_t *op_desc() const override
     { return reinterpret_cast<const op_desc_t *>(this->desc()); }
+    virtual void init_info() override { init_info_pool(this, this->info_); }
 
     virtual const memory_pd_t *input_pd(int index = 0) const override  {
         if (index == 0) return diff_dst_pd();

@@ -23,6 +23,7 @@
 #include "nstl.hpp"
 #include "type_helpers.hpp"
 #include "primitive_attr.hpp"
+#include "verbose.hpp"
 
 struct mkldnn_primitive_desc: public mkldnn::impl::c_compatible {
     using memory_pd_t = mkldnn::impl::memory_pd_t;
@@ -30,11 +31,11 @@ struct mkldnn_primitive_desc: public mkldnn::impl::c_compatible {
     mkldnn_primitive_desc(mkldnn::impl::engine_t *engine,
             const mkldnn::impl::primitive_attr_t *attr,
             mkldnn::impl::primitive_kind_t kind)
-        : engine_(engine), attr_(*attr), kind_(kind) {}
+        : engine_(engine), attr_(*attr), kind_(kind) { info_[0] = '\0'; }
 
     mkldnn_primitive_desc(mkldnn::impl::engine_t *engine,
             mkldnn::impl::primitive_kind_t kind)
-        : engine_(engine), kind_(kind) {}
+        : engine_(engine), kind_(kind) { info_[0] = '\0'; }
 
     virtual mkldnn_primitive_desc *clone() const = 0;
     virtual ~mkldnn_primitive_desc() {}
@@ -42,6 +43,10 @@ struct mkldnn_primitive_desc: public mkldnn::impl::c_compatible {
     const mkldnn::impl::primitive_attr_t *attr() const { return &attr_; }
     mkldnn::impl::engine_t *engine() const { return engine_; }
     mkldnn::impl::primitive_kind_t kind() const { return kind_; }
+
+    virtual void init_info() {}
+    const char *info() const { return info_; }
+
     virtual const mkldnn::impl::op_desc_t *op_desc() const = 0;
 
 #   define DECLARE_PD_STUB(stub) \
@@ -85,6 +90,7 @@ struct mkldnn_primitive_desc: public mkldnn::impl::c_compatible {
         auto _pd = new pd_t(engine, (const pd_op_desc_t *)adesc, attr, hint);
         if (_pd == nullptr) return out_of_memory;
         if (_pd->init() != success) { delete _pd; return unimplemented; }
+        if (mkldnn_verbose()->level) _pd->init_info();
         *pd = _pd;
         return success;
     }
@@ -93,6 +99,8 @@ protected:
     mkldnn::impl::engine_t *engine_;
     mkldnn::impl::primitive_attr_t attr_;
     mkldnn::impl::primitive_kind_t kind_;
+
+    char info_[MKLDNN_VERBOSE_BUF_LEN];
 };
 
 #define DECLARE_COMMON_PD_T(...) \
@@ -100,10 +108,17 @@ protected:
     virtual status_t create_primitive(primitive_t **primitive, \
             const primitive_at_t *inputs, \
             const primitive_t **outputs) const override { \
+        double ms = get_msec(); \
         primitive_t::input_vector ins(inputs, inputs + this->n_inputs()); \
         primitive_t::output_vector outs(outputs, outputs + this->n_outputs()); \
-        return safe_ptr_assign<primitive_t>(*primitive, \
+        auto ret = safe_ptr_assign<primitive_t>(*primitive, \
                 new (__VA_ARGS__)(this, ins, outs)); \
+        ms = get_msec() - ms; \
+        if (mkldnn_verbose()->level >= 2) { \
+            printf("mkldnn_verbose,create,%s,%g\n", this->info(), ms); \
+            fflush(0); \
+        } \
+        return ret; \
     } \
     virtual const char *name() const override { return __PRETTY_FUNCTION__; }
 

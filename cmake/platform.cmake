@@ -27,6 +27,13 @@ add_definitions(-DMKLDNN_DLL -DMKLDNN_DLL_EXPORTS)
 # C++ standard (see C99 standard 7.18.2 and 7.18.4)
 add_definitions(-D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS)
 
+option(MKLDNN_VERBOSE
+    "allows Intel(R) MKL-DNN be verbose whenever MKLDNN_VERBOSE
+    environment variable set to 1" ON) # enabled by default
+if(NOT MKLDNN_VERBOSE)
+    add_definitions(-DDISABLE_VERBOSE)
+endif()
+
 set(CMAKE_CCXX_FLAGS)
 set(DEF_ARCH_OPT_FLAGS)
 

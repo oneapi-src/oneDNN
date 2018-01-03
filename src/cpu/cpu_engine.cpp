@@ -19,6 +19,7 @@
 #include "cpu_engine.hpp"
 #include "cpu_memory.hpp"
 #include "type_helpers.hpp"
+#include "verbose.hpp"
 
 #include "cpu_concat.hpp"
 #include "cpu_sum.hpp"
@@ -239,7 +240,16 @@ cpu_engine_factory_t engine_factory;
 
 status_t cpu_engine_t::submit(primitive_t *p, event_t *e,
         event_vector &prerequisites) {
-    p->execute(e);
+    /* FIXME: this should live in primitive execute function... */
+    if (mkldnn_verbose()->level) {
+        double ms = get_msec();
+        p->execute(e);
+        ms = get_msec() - ms;
+        printf("mkldnn_verbose,exec,%s,%g\n", p->pd()->info(), ms);
+        fflush(0);
+    } else {
+        p->execute(e);
+    }
     return success;
 }
 

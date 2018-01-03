@@ -46,6 +46,7 @@ namespace status {
 
 using prop_kind_t = mkldnn_prop_kind_t;
 namespace prop_kind {
+    const prop_kind_t undef = mkldnn_prop_kind_undef;
     const prop_kind_t forward_training = mkldnn_forward_training;
     const prop_kind_t forward_inference = mkldnn_forward_inference;
     const prop_kind_t forward_scoring = mkldnn_forward_scoring;

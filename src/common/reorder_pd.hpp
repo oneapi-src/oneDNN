@@ -36,6 +36,7 @@ struct reorder_pd_t: public primitive_desc_t {
     virtual ~reorder_pd_t() {}
 
     virtual const op_desc_t *op_desc() const override { return nullptr; }
+    virtual void init_info() override { init_info_mem(this, this->info_); }
 
     virtual int n_inputs() const override { return 1; }
     virtual int n_outputs() const override { return 1; }

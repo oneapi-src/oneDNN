@@ -230,8 +230,10 @@ status_t mkldnn_concat_primitive_desc_create_v2(primitive_desc_t **concat_pd,
     auto c_pd = reinterpret_cast<concat_pd_t **>(concat_pd);
 
     for (auto c = engine->get_concat_implementation_list(); *c; ++c) {
-        if ((*c)(c_pd, output_d, n, concat_dim, i_mpds, attr) == success)
+        if ((*c)(c_pd, output_d, n, concat_dim, i_mpds, attr) == success) {
+            (*c_pd)->init_info();
             return success;
+        }
     }
     return unimplemented;
 }
@@ -290,8 +292,10 @@ status_t mkldnn_sum_primitive_desc_create_v2(primitive_desc_t **sum_pd,
     auto s_pd = reinterpret_cast<sum_pd_t **>(sum_pd);
 
     for (auto s = engine->get_sum_implementation_list(); *s; ++s) {
-        if ((*s)(s_pd, output_d, n, scales, i_mpds, attr) == success)
+        if ((*s)(s_pd, output_d, n, scales, i_mpds, attr) == success) {
+            (*s_pd)->init_info();
             return success;
+        }
     }
     return unimplemented;
 }

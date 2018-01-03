@@ -48,6 +48,7 @@ struct _convolution_fwd_pd_t: public primitive_desc_t {
     inline const convolution_desc_t *cdesc() const { return &cdesc_(); }
     virtual const op_desc_t *op_desc() const override
     { return reinterpret_cast<const op_desc_t *>(this->desc()); }
+    virtual void init_info() override { init_info_conv(this, this->info_); }
 
     virtual const memory_pd_t *input_pd(int index = 0) const override {
         switch (index) {
@@ -149,6 +150,7 @@ struct convolution_bwd_data_pd_t: public primitive_desc_t {
     const convolution_desc_t *cdesc() const { return desc(); }
     virtual const op_desc_t *op_desc() const override
     { return reinterpret_cast<const op_desc_t *>(this->desc()); }
+    virtual void init_info() override { init_info_conv(this, this->info_); }
 
     virtual const memory_pd_t *input_pd(int index = 0) const override {
         switch (index) {
@@ -231,6 +233,7 @@ struct convolution_bwd_weights_pd_t: public primitive_desc_t {
     const convolution_desc_t *cdesc() const { return desc(); }
     virtual const op_desc_t *op_desc() const override
     { return reinterpret_cast<const op_desc_t *>(this->desc()); }
+    virtual void init_info() override { init_info_conv(this, this->info_); }
 
     virtual const memory_pd_t *input_pd(int index = 0) const override {
         switch (index) {
