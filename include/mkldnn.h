@@ -381,7 +381,7 @@ mkldnn_status_t MKLDNN_API mkldnn_post_ops_get_params_sum(
         const_mkldnn_post_ops_t post_ops, int index, float *scale);
 
 /** Appends eltwise post operation to the @p post_ops with given parameters
- * @p kind, @p alpha and @p beta (@se also mkldnn_eltwise_forward_desc_init and
+ * @p kind, @p alpha and @p beta (@sa mkldnn_eltwise_forward_desc_init and
  * mkldnn_eltwise_desc_t).
  *
  * The kind of this post operation is #mkldnn_eltwise.
