@@ -38,6 +38,10 @@ Intel MKL DNN primitives implement a plain C/C++ application programming
 interface (API) that can be used in the existing C/C++ DNN frameworks, as well
 as in custom DNN applications.
 
+## Extra features
+
+* [Performance profiling](perf_profile.md)
+
 ## Programming Model
 
 Intel MKL-DNN models memory as a primitive similar to an operation
