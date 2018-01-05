@@ -1184,8 +1184,6 @@ void jit_avx512_common_1x1_conv_kernel::balance(jit_1x1_conv_conf_t &jcp,
         const int nthr_oc_b_max = nstl::min(nthr_par, nb_load);
         for (nthr_oc_b = 1; nthr_oc_b <= nthr_oc_b_max; ++nthr_oc_b) {
             nthr_ic_b = nstl::min(nthr_par / nthr_oc_b, nb_bcast);
-            if (nthr_mb * jcp.nthr_g * nthr_oc_b * nthr_ic_b < nthreads)
-                continue;
             int mem_cost = calc_mem_cost(nthr_mb, nthr_oc_b, nthr_ic_b);
             if (mem_cost <= best_mem_cost) {
                 best_mem_cost = mem_cost;
