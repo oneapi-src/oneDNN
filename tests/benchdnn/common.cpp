@@ -89,13 +89,13 @@ void benchdnn_timer_t::stop() {
         ? MIN2(ms_[benchdnn_timer_t::min], d_ms) : d_ms;
     ms_[benchdnn_timer_t::avg] += d_ms;
     ms_[benchdnn_timer_t::max] = times_
-        ? MAX2(ms_[benchdnn_timer_t::min], d_ms) : d_ms;
+        ? MAX2(ms_[benchdnn_timer_t::max], d_ms) : d_ms;
 
     ticks_[benchdnn_timer_t::min] = times_
         ? MIN2(ticks_[benchdnn_timer_t::min], d_ticks) : d_ticks;
     ticks_[benchdnn_timer_t::avg] += d_ticks;
     ticks_[benchdnn_timer_t::max] = times_
-        ? MAX2(ticks_[benchdnn_timer_t::min], d_ticks) : d_ticks;
+        ? MAX2(ticks_[benchdnn_timer_t::max], d_ticks) : d_ticks;
 
     times_++;
 }
