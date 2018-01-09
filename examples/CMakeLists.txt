@@ -63,3 +63,13 @@ if(WIN32)
         simple-training-net-cpp.vcxproj.user @ONLY)
     set_property(TEST simple-training-net-cpp PROPERTY ENVIRONMENT "PATH=${CTESTCONFIG_PATH}")
 endif()
+
+add_executable(simple-net-int8-cpp simple_net_int8.cpp)
+set_property(TARGET simple-net-int8-cpp PROPERTY CXX_STANDARD 11)
+target_link_libraries(simple-net-int8-cpp ${LIB_NAME})
+add_test(simple-net-int8-cpp simple-net-int8-cpp)
+if(WIN32)
+    configure_file(${CMAKE_SOURCE_DIR}/config_template.vcxproj.user
+        simple-net-int8-cpp.vcxproj.user @ONLY)
+    set_property(TEST simple-net-int8-cpp PROPERTY ENVIRONMENT "PATH=${CTESTCONFIG_PATH}")
+endif()
