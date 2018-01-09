@@ -59,6 +59,9 @@ status_t ip_desc_init(inner_product_desc_t *ip_desc, prop_kind_t prop_kind,
 
     /* FIXME: fill-in! */
     bool consistency = true
+        && memory_desc_wrapper(src_desc).nelems()
+        && memory_desc_wrapper(dst_desc).nelems()
+        && memory_desc_wrapper(weights_desc).nelems()
         && one_of(src_desc->ndims, 2, 4)
         && dst_desc->ndims == 2
         && weights_desc->ndims == src_desc->ndims

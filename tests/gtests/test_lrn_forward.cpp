@@ -101,6 +101,8 @@ struct lrn_fwd_test_params {
     memory::format src_format;
     memory::format dst_format;
     test_lrn_desc_t test_ld;
+    bool expect_to_fail;
+    mkldnn_status_t expected_status;
 };
 
 template <typename data_t>
@@ -126,10 +128,6 @@ protected:
         auto l_dst_desc = create_md({ ld.mb, ld.c, ld.h, ld.w },
                 data_type, p.dst_format);
 
-        auto lrn_desc = lrn_forward::desc(p.aprop_kind, p.aalgorithm, l_src_desc,
-                ld.local_size, ld.alpha, ld.beta, ld.k);
-        auto lrn_prim_desc = lrn_forward::primitive_desc(lrn_desc, eng);
-
         auto src_primitive_desc = memory::primitive_desc(l_src_desc, eng);
         auto dst_primitive_desc = memory::primitive_desc(l_dst_desc, eng);
 
@@ -148,24 +146,35 @@ protected:
         fill_data<data_t>(l_src.get_primitive_desc().get_size() / sizeof(data_t),
                 (data_t *)l_src.get_data_handle());
 
-        // Execute
-        std::vector<primitive> pipeline;
-        auto s = stream(stream::kind::lazy);
-        if (with_workspace) {
-            auto workspace_primitive_desc =
-                lrn_prim_desc.workspace_primitive_desc();
-            auto workspace_size = workspace_primitive_desc.get_size();
-            workspace_data = new data_t[workspace_size];
-            auto workspace_memory
-                = memory(workspace_primitive_desc, workspace_data);
-            auto l = lrn_forward(lrn_prim_desc, l_src, workspace_memory, l_dst);
-            pipeline.push_back(l);
-            s.submit(pipeline).wait();
-        } else {
-            auto l = lrn_forward(lrn_prim_desc, l_src, l_dst);
-            pipeline.push_back(l);
-            s.submit(pipeline).wait();
-        }
+        auto test = [&]() {
+            auto lrn_desc = lrn_forward::desc(p.aprop_kind, p.aalgorithm,
+                    l_src_desc, ld.local_size, ld.alpha, ld.beta, ld.k);
+            auto lrn_prim_desc = lrn_forward::primitive_desc(lrn_desc, eng);
+
+            // Execute
+            std::vector<primitive> pipeline;
+            auto s = stream(stream::kind::lazy);
+            if (with_workspace) {
+                auto workspace_primitive_desc =
+                    lrn_prim_desc.workspace_primitive_desc();
+                auto workspace_size = workspace_primitive_desc.get_size();
+                workspace_data = new data_t[workspace_size];
+                auto workspace_memory
+                    = memory(workspace_primitive_desc, workspace_data);
+                auto l
+                    = lrn_forward(lrn_prim_desc, l_src, workspace_memory, l_dst);
+                pipeline.push_back(l);
+                s.submit(pipeline).wait();
+            } else {
+                auto l = lrn_forward(lrn_prim_desc, l_src, l_dst);
+                pipeline.push_back(l);
+                s.submit(pipeline).wait();
+            }
+        };
+
+
+        if (catch_expected_failures(test, p.expect_to_fail, p.expected_status))
+            return;
 
         check_lrn_fwd<data_t>(ld, l_src_desc, l_dst_desc, l_src, l_dst);
     }
@@ -177,6 +186,22 @@ using lrn_fwd_test_params_float = lrn_fwd_test_params;
 TEST_P(lrn_forward_test_float, TestsLRN)
 {
 }
+
+INSTANTIATE_TEST_CASE_P(TestLRNForwardEF, lrn_forward_test_float,
+        ::testing::Values(
+            lrn_fwd_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nchw,
+            memory::format::nchw, { 2, 10, 4, 4, 1.0e-4f, 0.75f, 1.0f, 5, ACROSS } }
+            , lrn_fwd_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nchw,
+            memory::format::nchw, { 2, 10, 4, 4, 1.0e-4f, 0.75f, 1.0f, 5, ACROSS } }
+            , lrn_fwd_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nchw,
+            memory::format::nchw, { 2, 10, 4, 4, 1.0e-4f, 0.75f, 3.0f, 5, ACROSS } }
+            , lrn_fwd_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nchw,
+            memory::format::nchw, { 2, 10, 4, 4, 1.0e-4f, 0.75f, 3.0f, 5, ACROSS } }
+            ));
 
 INSTANTIATE_TEST_CASE_P(TestLRNForward, lrn_forward_test_float,
         ::testing::Values(

@@ -40,6 +40,8 @@ struct lrn_test_params {
     memory::format data_format;
     memory::format diff_data_format;
     test_lrn_desc_t test_ld;
+    bool expect_to_fail;
+    mkldnn_status_t expected_status;
 };
 
 template <typename data_t>
@@ -255,21 +257,26 @@ protected:
         fill_data<data_t>(src->get_primitive_desc().get_size() / sizeof(data_t),
                 (data_t *)src->get_data_handle());
 
-        // Execute
-        std::vector<primitive> pipeline;
-        auto s = stream(stream::kind::lazy);
-        if (is_training) {
-            auto workspace_primitive_desc =
-                lrn_fwd_prim_desc->workspace_primitive_desc();
-            workspace.reset(new memory(workspace_primitive_desc));
-            auto l = lrn_forward(*lrn_fwd_prim_desc, *src, *workspace, *dst);
-            pipeline.push_back(l);
-            s.submit(pipeline).wait();
-        } else {
-            auto l = lrn_forward(*lrn_fwd_prim_desc, *src, *dst);
-            pipeline.push_back(l);
-            s.submit(pipeline).wait();
-        }
+        auto test = [&]() {
+            // Execute
+            std::vector<primitive> pipeline;
+            auto s = stream(stream::kind::lazy);
+            if (is_training) {
+                auto workspace_primitive_desc =
+                    lrn_fwd_prim_desc->workspace_primitive_desc();
+                workspace.reset(new memory(workspace_primitive_desc));
+                auto l = lrn_forward(*lrn_fwd_prim_desc, *src, *workspace, *dst);
+                pipeline.push_back(l);
+                s.submit(pipeline).wait();
+            } else {
+                auto l = lrn_forward(*lrn_fwd_prim_desc, *src, *dst);
+                pipeline.push_back(l);
+                s.submit(pipeline).wait();
+            }
+        };
+
+        if (catch_expected_failures(test, p.expect_to_fail, p.expected_status))
+            return;
 
         check_lrn_fwd<data_t>(p, *src, *dst);
     }
@@ -287,13 +294,18 @@ protected:
         fill_data<data_t>(diff_dst->get_primitive_desc().get_size()
                 / sizeof(data_t), (data_t *)diff_dst->get_data_handle());
 
-        // Execute
-        std::vector<primitive> pipeline;
-        auto s = stream(stream::kind::lazy);
-        auto l = lrn_backward(lrn_prim_desc, *src, *diff_dst, *workspace,
-                *diff_src);
-        pipeline.push_back(l);
-        s.submit(pipeline).wait();
+        auto test = [&]() {
+            // Execute
+            std::vector<primitive> pipeline;
+            auto s = stream(stream::kind::lazy);
+            auto l = lrn_backward(lrn_prim_desc, *src, *diff_dst, *workspace,
+                    *diff_src);
+            pipeline.push_back(l);
+            s.submit(pipeline).wait();
+        };
+
+        if (catch_expected_failures(test, p.expect_to_fail, p.expected_status))
+            return;
 
         check_lrn_bwd<data_t>(p, *src, *diff_dst, *diff_src);
     }
@@ -305,6 +317,22 @@ using lrn_test_params_float = lrn_test_params;
 TEST_P(lrn_test_float, TestsLRN)
 {
 }
+
+INSTANTIATE_TEST_CASE_P(TestLRNForwardEF, lrn_test_float,
+        ::testing::Values(
+            lrn_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nchw,
+            memory::format::nchw, { 2, 10, 4, 4, 1.0e-4f, 0.75f, 1.0f, 5, ACROSS } }
+            , lrn_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nchw,
+            memory::format::nchw, { 2, 10, 4, 4, 1.0e-4f, 0.75f, 1.0f, 5, ACROSS } }
+            , lrn_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nchw,
+            memory::format::nchw, { 2, 10, 4, 4, 1.0e-4f, 0.75f, 3.0f, 5, ACROSS } }
+            , lrn_test_params_float{ prop_kind::forward_scoring,
+            engine::kind::cpu, algorithm::lrn_across_channels, memory::format::nchw,
+            memory::format::nchw, { 2, 10, 4, 4, 1.0e-4f, 0.75f, 3.0f, 5, ACROSS } }
+            ));
 
 INSTANTIATE_TEST_CASE_P(TestLRN, lrn_test_float,
         ::testing::Values(

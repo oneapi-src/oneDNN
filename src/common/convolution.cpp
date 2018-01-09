@@ -83,6 +83,9 @@ status_t conv_desc_init(convolution_desc_t *conv_desc,
     const int g = with_groups ? weights_desc->dims[0] : 1;
 
     bool consistency = true
+        && memory_desc_wrapper(src_desc).nelems()
+        && memory_desc_wrapper(dst_desc).nelems()
+        && memory_desc_wrapper(weights_desc).nelems()
         && src_desc->ndims == 4
         && dst_desc->ndims == 4
         && utils::one_of(weights_desc->ndims, 4, 5)

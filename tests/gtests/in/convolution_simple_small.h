@@ -14,6 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
+INST_TEST_CASE(SimpleSmall_NCHW_expected_failures,
+    PARAMS_EXPECT_FAIL(nchw, oihw, FMT_BIAS, nchw, mkldnn_invalid_arguments,
+        0, 1, 4, 4, 4, 6, 4, 4, 3, 3, 1, 1, 1, 1)
+);
+
 INST_TEST_CASE(SimpleSmall_NCHW,
     PARAMS(nchw, oihw, FMT_BIAS, nchw,
         2, 1, 4, 4, 4, 6, 4, 4, 3, 3, 1, 1, 1, 1),

@@ -87,6 +87,11 @@
     EXPAND_FORMATS(src, weights, bias, dst), /* empty attributes */ {}, \
     {__VA_ARGS__} }
 
+#define PARAMS_EXPECT_FAIL(src, weights, bias, dst, code, ...) \
+    test_convolution_params_t { ENGINE, ALGORITHM, NEGATIVE_SLOPE, \
+    EXPAND_FORMATS(src, weights, bias, dst), /* empty attributes */ {}, \
+    {__VA_ARGS__}, true, code }
+
 #define PARAMS_ATTR(src, weights, bias, dst, round_mode, scale, policy, ...) \
     test_convolution_params_t { ENGINE, ALGORITHM, NEGATIVE_SLOPE, \
     EXPAND_FORMATS(src, weights, bias, dst), \

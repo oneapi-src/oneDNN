@@ -130,12 +130,14 @@ protected:
         fill_data<data_t_src>(c_src.get_primitive_desc().get_size()
                 / sizeof(data_t_src), (data_t_src *)c_src.get_data_handle());
         // TODO: Temporary workaround for testing of convolution + relu
-        data_t_src *src_data = (data_t_src *)c_src.get_data_handle();
-        const int mb_chunk = static_cast<int>(
-            (c_src.get_primitive_desc().get_size() / sizeof(data_t_src))
-            / cd.mb );
-        for (int i = 0; i < cd.mb * mb_chunk; ++i) {
-            if ((i / mb_chunk) % 2) src_data[i] *= (data_t_src)-1.;
+        if (cd.mb) {
+            data_t_src *src_data = (data_t_src *)c_src.get_data_handle();
+            const int mb_chunk = static_cast<int>(
+                (c_src.get_primitive_desc().get_size() / sizeof(data_t_src))
+                / cd.mb );
+            for (int i = 0; i < cd.mb * mb_chunk; ++i) {
+                if ((i / mb_chunk) % 2) src_data[i] *= (data_t_src)-1.;
+            }
         }
 
         fill_data<data_t_wei>(
@@ -163,35 +165,42 @@ protected:
                 ++padR[1];
         }
 
-        auto conv_desc = with_bias ?
-                convolution_forward::desc(prop_kind::forward_scoring,
+        auto test = [&]() {
+            auto conv_desc = with_bias
+                ? convolution_forward::desc(prop_kind::forward_scoring,
                         p.aalgorithm, c_src_desc, c_weights_desc, c_bias_desc,
                         c_dst_desc, { cd.strh, cd.strw }, { cd.dilh, cd.dilw },
-                        { cd.padh, cd.padw }, padR, padding_kind::zero) :
-                convolution_forward::desc(prop_kind::forward_scoring,
+                        { cd.padh, cd.padw }, padR, padding_kind::zero)
+                : convolution_forward::desc(prop_kind::forward_scoring,
                         p.aalgorithm, c_src_desc, c_weights_desc, c_dst_desc,
                         { cd.strh, cd.strw }, { cd.dilh, cd.dilw },
                         { cd.padh, cd.padw }, padR, padding_kind::zero);
 
-        auto conv_relu_desc =
-            convolution_relu_forward::desc(conv_desc, negative_slope);
-        auto conv_primitive_desc = convolution_relu_forward::primitive_desc(
-                conv_relu_desc, eng);
+            auto conv_relu_desc =
+                convolution_relu_forward::desc(conv_desc, negative_slope);
+            auto conv_primitive_desc =
+                convolution_relu_forward::primitive_desc(conv_relu_desc, eng);
 
-        auto conv = with_bias ?
-            convolution_relu_forward(conv_primitive_desc,
-                    c_src, c_weights, c_bias, c_dst) :
-            convolution_relu_forward(conv_primitive_desc,
-                    c_src, c_weights, c_dst);
-        std::vector<primitive> pipeline;
-        pipeline.push_back(conv);
+            auto conv = with_bias
+                ? convolution_relu_forward(conv_primitive_desc,
+                        c_src, c_weights, c_bias, c_dst)
+                : convolution_relu_forward(conv_primitive_desc,
+                        c_src, c_weights, c_dst);
+            std::vector<primitive> pipeline;
+            pipeline.push_back(conv);
 
-        stream(stream::kind::lazy).submit(pipeline).wait();
+            stream(stream::kind::lazy).submit(pipeline).wait();
+        };
+
+        if (catch_expected_failures(test, p.expect_to_fail, p.expected_status))
+            return;
 
         compute_ref_conv_relu_fwd<data_t_src, data_t_wei, data_t_wei,
             data_t_dst>(cd, c_src, c_weights, c_bias, dst_ref, with_bias,
-            negative_slope);
+                    negative_slope);
         compare_data<data_t_dst>(dst_ref, c_dst);
+
+
     }
 };
 

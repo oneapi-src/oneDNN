@@ -354,6 +354,35 @@ struct test_convolution_params_t {
     test_convolution_formats_t formats;
     test_convolution_attr_t attr;
     test_convolution_sizes_t sizes;
+    bool expect_to_fail;
+    mkldnn_status_t expected_status;
 };
+
+template<typename F> bool catch_expected_failures(const F &f,
+        bool expect_to_fail, mkldnn_status_t expected_status)
+{
+    try {
+        f();
+    } catch (const mkldnn::error &e) {
+        // Rethrow the exception if it is not expected or the error status did
+        // not match.
+        if (!(expect_to_fail) || e.status != (expected_status)) {
+            // Ignore unimplemented
+            if (e.status == mkldnn_unimplemented)
+                return true;
+            else
+                throw e;
+        }
+        // Return normally if the failure is expected
+        if (expect_to_fail)
+            return true;
+    }
+
+    // Throw an exception if the failure is expected but did not happen
+    if (expect_to_fail)
+        throw std::exception();
+
+    return false;
+}
 
 #endif

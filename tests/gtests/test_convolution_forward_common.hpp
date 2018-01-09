@@ -190,18 +190,17 @@ protected:
                 ++padR[1];
         }
 
-        auto conv_desc = with_bias ?
-            convolution_forward::desc(aprop_kind, p.aalgorithm,
-                c_src_desc, c_weights_desc, c_bias_desc, c_dst_desc,
-                { cd.strh, cd.strw }, { cd.dilh, cd.dilw },
-                { cd.padh, cd.padw }, padR, padding_kind::zero) :
-            convolution_forward::desc(aprop_kind, p.aalgorithm,
-                c_src_desc, c_weights_desc, c_dst_desc,
-                { cd.strh, cd.strw }, { cd.dilh, cd.dilw },
-                { cd.padh, cd.padw }, padR, padding_kind::zero);
+        auto test = [&]() {
+            auto conv_desc = with_bias ?
+                convolution_forward::desc(aprop_kind, p.aalgorithm,
+                    c_src_desc, c_weights_desc, c_bias_desc, c_dst_desc,
+                    { cd.strh, cd.strw }, { cd.dilh, cd.dilw },
+                    { cd.padh, cd.padw }, padR, padding_kind::zero) :
+                convolution_forward::desc(aprop_kind, p.aalgorithm,
+                    c_src_desc, c_weights_desc, c_dst_desc,
+                    { cd.strh, cd.strw }, { cd.dilh, cd.dilw },
+                    { cd.padh, cd.padw }, padR, padding_kind::zero);
 
-        try{
-            /* NOTE: this try-catch block is ugly... */
             auto conv_primitive_desc = convolution_forward::primitive_desc(
                     conv_desc, attr.mkl_attr, eng);
 
@@ -222,9 +221,10 @@ protected:
                 cd, attr, c_src_desc, c_weights_desc, c_bias_desc, c_dst_desc,
                 c_src, c_weights, c_bias, ref_memory);
             compare_data<data_t_dst>(ref_memory, c_dst);
-        } catch (...) {
-            /* Convolution is unimplemented */
-        }
+        };
+
+        if (catch_expected_failures(test, p.expect_to_fail, p.expected_status))
+            return;
     }
 };
 

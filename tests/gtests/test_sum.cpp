@@ -27,6 +27,8 @@ struct sum_test_params {
     memory::format dst_format;
     memory::dims dims;
     std::vector<float> scale;
+    bool expect_to_fail;
+    mkldnn_status_t expected_status;
 };
 
 
@@ -104,42 +106,55 @@ protected:
             srcs.push_back(src_memory);
         }
 
-        auto dst_desc = memory::desc(p.dims, data_type, p.dst_format);
-        auto sum_pd = sum::primitive_desc(dst_desc, p.scale, srcs_pd);
-        auto dst = memory(sum_pd.dst_primitive_desc());
+        std::shared_ptr<memory> dst;
 
-        data_t *dst_data = (data_t *)dst.get_data_handle();
-        const size_t sz =
-            dst.get_primitive_desc().get_size() / sizeof(data_t);
-        // overwriting dst to prevent false positives for test cases.
+        auto test = [&](){
+            auto dst_desc = memory::desc(p.dims, data_type, p.dst_format);
+            auto sum_pd = sum::primitive_desc(dst_desc, p.scale, srcs_pd);
+            dst.reset(new memory(sum_pd.dst_primitive_desc()));
+
+            ASSERT_EQ(sum_pd.dst_primitive_desc().desc().data.format,
+                    dst_desc.data.format);
+            ASSERT_EQ(sum_pd.dst_primitive_desc().desc().data.ndims,
+                    dst_desc.data.ndims);
+
+            data_t *dst_data = (data_t *)dst->get_data_handle();
+            const size_t sz =
+                dst->get_primitive_desc().get_size() / sizeof(data_t);
+            // overwriting dst to prevent false positives for test cases.
 # pragma omp parallel for
-        for (size_t i = 0; i < sz; i++) {
-            dst_data[i] = -32;
-        }
+            for (size_t i = 0; i < sz; i++) {
+                dst_data[i] = -32;
+            }
 
-        std::vector<primitive::at> inputs;
-        for (size_t i = 0; i < num_srcs; i++) {
-            inputs.push_back(srcs[i]);
-        }
-        auto c = sum(sum_pd, inputs, dst);
+            std::vector<primitive::at> inputs;
+            for (size_t i = 0; i < num_srcs; i++) {
+                inputs.push_back(srcs[i]);
+            }
 
-        ASSERT_EQ(sum_pd.dst_primitive_desc().desc().data.format,
-                dst_desc.data.format);
-        ASSERT_EQ(sum_pd.dst_primitive_desc().desc().data.ndims,
-                dst_desc.data.ndims);
+            auto c = sum(sum_pd, inputs, *dst);
+            std::vector<primitive> pipeline;
+            pipeline.push_back(c);
+            auto s = stream(stream::kind::eager);
+            s.submit(pipeline).wait();
+        };
 
-        std::vector<primitive> pipeline;
-        pipeline.push_back(c);
-        auto s = stream(stream::kind::eager);
-        s.submit(pipeline).wait();
+        if (catch_expected_failures(test, p.expect_to_fail, p.expected_status))
+            return;
 
-        check_data(srcs, p.scale, dst);
+        check_data(srcs, p.scale, *dst);
     }
 };
 
 #define INST_TEST_CASE(test) \
 TEST_P(test, TestsSum) {} \
 INSTANTIATE_TEST_CASE_P(TestSum, test, ::testing::Values( \
+    sum_test_params{engine::kind::cpu, \
+    {memory::format::nchw, memory::format::nchw}, memory::format::nchw, \
+    {0, 8, 2, 2}, {1.0f, 1.0f}, true, mkldnn_invalid_arguments}, \
+    sum_test_params{engine::kind::cpu, \
+    {memory::format::nchw, memory::format::nchw}, memory::format::nchw, \
+    {1, 0, 2, 2}, {1.0f, 1.0f}, true, mkldnn_invalid_arguments}, \
     sum_test_params{engine::kind::cpu, \
     {memory::format::nchw, memory::format::nchw}, memory::format::nchw, \
     {2, 8, 2, 2}, {1.0f, 1.0f}}, \

@@ -73,6 +73,7 @@ status_t bnrm_desc_init(batch_normalization_desc_t *bnrm_desc,
     bd.flags = flags;
 
     bool consistency = true
+        && memory_desc_wrapper(bd.data_desc).nelems()
         && bd.data_desc.ndims == 4;
     if (bd.prop_kind == backward_data)
         consistency = consistency

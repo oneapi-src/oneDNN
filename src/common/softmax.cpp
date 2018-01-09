@@ -18,6 +18,7 @@
 #include "mkldnn.h"
 
 #include "c_types_map.hpp"
+#include "memory_desc_wrapper.hpp"
 #include "utils.hpp"
 
 using namespace mkldnn::impl;
@@ -31,6 +32,7 @@ status_t softmax_desc_init(softmax_desc_t *softmax_desc, prop_kind_t prop_kind,
         const memory_desc_t *data_desc, int softmax_axis) {
     bool args_ok = true
         && !any_null(softmax_desc, data_desc)
+        && memory_desc_wrapper(data_desc).nelems()
         && 0 <= softmax_axis
         && softmax_axis < data_desc->ndims;
     if (!args_ok) return invalid_arguments;

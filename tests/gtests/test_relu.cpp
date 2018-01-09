@@ -28,6 +28,8 @@ struct relu_test_params {
     memory::format diff_format;
     data_t negative_slope;
     memory::dims dims;
+    bool expect_to_fail;
+    mkldnn_status_t expected_status;
 };
 
 template <typename data_t>
@@ -121,16 +123,21 @@ protected:
         fill_data<data_t>(size, (data_t *)src->get_data_handle(),
                 data_t(0), data_t(1));
 
-        auto relu_desc = relu_forward::desc(prop_kind::forward_training,
-                algorithm::eltwise_relu, *data_desc, p.negative_slope);
-        relu_prim_desc.reset(
-                new relu_forward::primitive_desc(relu_desc, *eng));
-        auto relu = relu_forward(*relu_prim_desc, *src, *dst);
+        auto test = [&]() {
+            auto relu_desc = relu_forward::desc(prop_kind::forward_training,
+                    algorithm::eltwise_relu, *data_desc, p.negative_slope);
+            relu_prim_desc.reset(
+                    new relu_forward::primitive_desc(relu_desc, *eng));
+            auto relu = relu_forward(*relu_prim_desc, *src, *dst);
 
-        std::vector<primitive> pipeline;
-        pipeline.push_back(relu);
-        auto s = stream(stream::kind::lazy);
-        s.submit(pipeline).wait();
+            std::vector<primitive> pipeline;
+            pipeline.push_back(relu);
+            auto s = stream(stream::kind::lazy);
+            s.submit(pipeline).wait();
+        };
+
+        if (catch_expected_failures(test, p.expect_to_fail, p.expected_status))
+            return;
 
         check_relu_fwd(p.negative_slope, *data_desc,
             *src, *dst);
@@ -143,18 +150,23 @@ protected:
         fill_data<data_t>(size, (data_t *)diff_dst->get_data_handle(),
                 data_t(0), data_t(1));
 
-        auto relu_bwd_desc = relu_backward::desc(algorithm::eltwise_relu,
-                *diff_data_desc, *data_desc,
-                p.negative_slope);
-        auto relu_bwd_prim_desc = relu_backward::primitive_desc(relu_bwd_desc,
-                *eng, *relu_prim_desc);
-        auto relu_bwd = relu_backward(relu_bwd_prim_desc, *src, *diff_dst,
-                *diff_src);
+        auto test = [&]() {
+            auto relu_bwd_desc = relu_backward::desc(algorithm::eltwise_relu,
+                    *diff_data_desc, *data_desc,
+                    p.negative_slope);
+            auto relu_bwd_prim_desc = relu_backward::primitive_desc(
+                    relu_bwd_desc, *eng, *relu_prim_desc);
+            auto relu_bwd = relu_backward(relu_bwd_prim_desc, *src, *diff_dst,
+                    *diff_src);
 
-        std::vector<primitive> pipeline;
-        pipeline.push_back(relu_bwd);
-        auto s = stream(stream::kind::lazy);
-        s.submit(pipeline).wait();
+            std::vector<primitive> pipeline;
+            pipeline.push_back(relu_bwd);
+            auto s = stream(stream::kind::lazy);
+            s.submit(pipeline).wait();
+        };
+
+        if (catch_expected_failures(test, p.expect_to_fail, p.expected_status))
+            return;
 
         check_relu_bwd(p.negative_slope, *data_desc,
             *src, *diff_dst, *diff_src);
@@ -173,13 +185,23 @@ TEST_P(relu_test_float, TestsReLU)
 
 #define ENGINE engine::kind::cpu
 
-#define PARAMS(data, diff_data, ns, mb, c, h, w) \
+#define PARAMS_EF(data, diff_data, ns, mb, c, h, w, ef, es) \
     relu_test_params_float { ENGINE, \
     EXPAND_FORMATS(data), EXPAND_FORMATS(diff_data), \
-    ns, EXPAND_SIZES(mb, c, h, w) }
+    ns, EXPAND_SIZES(mb, c, h, w), ef, es}
+
+#define PARAMS(data, diff_data, ns, mb, c, h, w) \
+    PARAMS_EF(data, diff_data, ns, mb, c, h, w, false, mkldnn_success)
 
 #define INST_TEST_CASE(str, ...) INSTANTIATE_TEST_CASE_P( \
         str, relu_test_float, ::testing::Values(__VA_ARGS__))
+
+INST_TEST_CASE(SimpleExpectedFails,
+    PARAMS_EF(nchw, nchw, 0.f, 0, 8, 4, 4, true, mkldnn_invalid_arguments),
+    PARAMS_EF(nchw, nchw, 0.f, 2, 0, 4, 4, true, mkldnn_invalid_arguments),
+    PARAMS_EF(nchw, nchw, 0.f, 2, 8, 0, 4, true, mkldnn_invalid_arguments),
+    PARAMS_EF(nchw, nchw, 0.f, 2, 8, 4, 0, true, mkldnn_invalid_arguments)
+);
 
 INST_TEST_CASE(SimpleZeroNegativeSlope_NCHW,
     //PARAMS(nchw, nchw, 0.f, 1, 8, 10000, 10000),  // is a tensor of 3 Gb data ok? YES (330 s runtime, slow)
