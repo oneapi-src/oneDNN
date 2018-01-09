@@ -103,7 +103,7 @@ protected:
     char info_[MKLDNN_VERBOSE_BUF_LEN];
 };
 
-#define DECLARE_COMMON_PD_T(...) \
+#define DECLARE_COMMON_PD_t(impl_name, ...) \
     virtual pd_t *clone() const override { return new pd_t(*this); } \
     virtual status_t create_primitive(primitive_t **primitive, \
             const primitive_at_t *inputs, \
@@ -120,7 +120,9 @@ protected:
         } \
         return ret; \
     } \
-    virtual const char *name() const override { return __PRETTY_FUNCTION__; }
+    virtual const char *name() const override { return impl_name; }
+#define DECLARE_COMMON_PD_T(impl_name, ...) \
+    DECLARE_COMMON_PD_t(impl_name, __VA_ARGS__)
 
 #endif
 

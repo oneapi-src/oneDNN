@@ -25,14 +25,14 @@ This will produce the following output (the line break was added to fit into
 the page width):
 
 ```
-    mkldnn_verbose,exec,reorder,undef,in:f32_nchw out:f32_nChw8c,num:1,2x16x7x7,0.484863
-    mkldnn_verbose,exec,reorder,undef,in:f32_goihw out:f32_gOIhw8i8o,num:1,1x16x16x5x5,0.494141
-    mkldnn_verbose,exec,reorder,undef,in:f32_nchw out:f32_nChw8c,num:1,2x16x7x7,0.478027
-    mkldnn_verbose,exec,reorder,undef,in:f32_x out:f32_x,num:1,16,0.219971
-    mkldnn_verbose,exec,convolution,forward_inference,fsrc:nChw8c fwei:gOIhw8i8o fbia:x \
+    mkldnn_verbose,exec,reorder,simple:any,undef,in:f32_nchw out:f32_nChw8c,num:1,2x16x7x7,0.484863
+    mkldnn_verbose,exec,reorder,simple:any,undef,in:f32_goihw out:f32_gOIhw8i8o,num:1,1x16x16x5x5,0.494141
+    mkldnn_verbose,exec,reorder,simple:any,undef,in:f32_nchw out:f32_nChw8c,num:1,2x16x7x7,0.478027
+    mkldnn_verbose,exec,reorder,simple:any,undef,in:f32_x out:f32_x,num:1,16,0.219971
+    mkldnn_verbose,exec,convolution,jit:avx2,forward_inference,fsrc:nChw8c fwei:gOIhw8i8o fbia:x \
         fdst:nChw8c,alg:convolution_direct,mb2_g1ic16oc16_ih7oh7kh5sh1dh0ph2_iw7ow7kw5sw1dw0pw2,0.0170898
-    mkldnn_verbose,exec,reorder,undef,in:f32_nChw8c out:f32_nchw,num:1,2x16x7x7,0.488037
-    mkldnn_verbose,exec,reorder,undef,in:f32_nChw8c out:f32_nchw,num:1,2x16x7x7,0.00512695
+    mkldnn_verbose,exec,reorder,simple:any,undef,in:f32_nChw8c out:f32_nchw,num:1,2x16x7x7,0.488037
+    mkldnn_verbose,exec,reorder,simple:any,undef,in:f32_nChw8c out:f32_nchw,num:1,2x16x7x7,0.00512695
     0:PASSED __REPRO: ic16ih7oc16oh7kh5ph2nwip
     tests:1 passed:1 skipped:0 mistrusted:0 unimplemented:0 failed:0
 ```
@@ -42,6 +42,7 @@ containing:
 - `mkldnn_verbose`
 - `stage`, e.g. `create` or `exec`
 - `primitive-kind`, e.g. `convolution`, `reorder`, `sum`, ...
+- primitive implementation name
 - propagation-kind, e.g. `forward_training`
 - input/output data info, e.g. data type and data format
 - auxiliary information, e.g. algorithm or number of input

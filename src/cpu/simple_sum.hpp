@@ -32,7 +32,7 @@ struct simple_sum_t: public cpu_primitive_t {
                 const cpu_memory_pd_t **input_pds, const primitive_attr_t *attr)
             : cpu_sum_pd_t(output_d, n, scales, input_pds, attr) {}
 
-        DECLARE_CPU_SUM_PD_T(simple_sum_t);
+        DECLARE_CPU_SUM_PD_T("simple:any", simple_sum_t);
 
         virtual status_t init() override {
             bool ok = true

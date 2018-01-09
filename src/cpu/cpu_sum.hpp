@@ -28,7 +28,7 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-#define DECLARE_CPU_SUM_PD_T(...) \
+#define DECLARE_CPU_SUM_PD_t(impl_name, ...) \
     static status_t create(sum_pd_t **sum_pd, \
             const memory_desc_t *output_d, int n, const float *scales, \
             const memory_pd_t **input_pds, const primitive_attr_t *attr) { \
@@ -46,7 +46,10 @@ namespace cpu {
         return safe_ptr_assign<primitive_t>(*primitive, \
                 new (__VA_ARGS__)(this, ins, outs)); \
     } \
-    virtual pd_t *clone() const override { return nullptr; }
+    virtual pd_t *clone() const override { return nullptr; } \
+    virtual const char *name() const override { return impl_name; }
+#define DECLARE_CPU_SUM_PD_T(impl_name, ...) \
+    DECLARE_CPU_SUM_PD_t(impl_name, __VA_ARGS__)
 
 struct cpu_sum_pd_t: public sum_pd_t {
     using cpu_memory_pd_t = cpu_memory_t::pd_t;

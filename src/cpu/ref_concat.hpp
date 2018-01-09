@@ -71,6 +71,7 @@ struct ref_concat_t: public cpu_primitive_t {
                     new ref_concat_t(this, ins, outs, reorders));
         }
         virtual pd_t *clone() const override { return nullptr; }
+        virtual const char *name() const override { return "ref:any"; }
 
         virtual status_t init() override {
             assert(engine()->kind() == engine_kind::cpu);

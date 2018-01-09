@@ -54,7 +54,9 @@ struct _gemm_convolution_fwd_t: public cpu_primitive_t {
                     hint_fwd_pd)
             , jcp_({}) {}
 
-        DECLARE_COMMON_PD_T(_gemm_convolution_fwd_t<with_relu, run_jit, isa>);
+        DECLARE_COMMON_PD_T(
+                JIT_IMPL_NAME_HELPER("gemm:", isa, "blas"),
+                _gemm_convolution_fwd_t<with_relu, run_jit, isa>);
 
         virtual status_t init() override {
             using namespace prop_kind;
@@ -182,7 +184,9 @@ struct _gemm_convolution_bwd_data_t: public cpu_primitive_t {
             , jcp_({})
         {}
 
-        DECLARE_COMMON_PD_T(_gemm_convolution_bwd_data_t<run_jit, isa>);
+        DECLARE_COMMON_PD_T(
+                JIT_IMPL_NAME_HELPER("gemm:", isa, "blas"),
+                _gemm_convolution_bwd_data_t<run_jit, isa>);
 
         virtual status_t init() override {
             using namespace prop_kind;
@@ -286,7 +290,9 @@ struct _gemm_convolution_bwd_weights_t: public cpu_primitive_t {
             , jcp_({})
         {}
 
-        DECLARE_COMMON_PD_T(_gemm_convolution_bwd_weights_t<run_jit, isa>);
+        DECLARE_COMMON_PD_T(
+                JIT_IMPL_NAME_HELPER("gemm:", isa, "blas"),
+                _gemm_convolution_bwd_weights_t<run_jit, isa>);
 
         virtual status_t init() override {
             using namespace prop_kind;

@@ -39,7 +39,7 @@ struct ref_inner_product_fwd_t: public cpu_primitive_t {
                 const inner_product_fwd_pd_t *hint_fwd_pd)
             : cpu_inner_product_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T(ref_inner_product_fwd_t);
+        DECLARE_COMMON_PD_T("ref:any", ref_inner_product_fwd_t);
 
         virtual status_t init() override {
             using namespace prop_kind;
@@ -96,7 +96,7 @@ struct ref_inner_product_bwd_data_t: public cpu_primitive_t {
             : cpu_inner_product_bwd_data_pd_t(engine, adesc, attr, hint_fwd_pd)
         {}
 
-        DECLARE_COMMON_PD_T(ref_inner_product_bwd_data_t);
+        DECLARE_COMMON_PD_T("ref:any", ref_inner_product_bwd_data_t);
 
         virtual status_t init() override {
             using namespace prop_kind;
@@ -149,7 +149,7 @@ struct ref_inner_product_bwd_weights_t: public cpu_primitive_t {
             : cpu_inner_product_bwd_weights_pd_t(engine, adesc, attr,
                     hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T(ref_inner_product_bwd_weights_t);
+        DECLARE_COMMON_PD_T("ref:any", ref_inner_product_bwd_weights_t);
 
         virtual status_t init() override {
             using namespace prop_kind;

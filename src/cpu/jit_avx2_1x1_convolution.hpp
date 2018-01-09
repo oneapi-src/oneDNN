@@ -43,7 +43,9 @@ struct _jit_avx2_1x1_convolution_fwd_t: public cpu_primitive_t {
                     hint_fwd_pd)
             , jcp_({}), rtus_({}) {}
 
-        DECLARE_COMMON_PD_T(_jit_avx2_1x1_convolution_fwd_t<with_relu>);
+        DECLARE_COMMON_PD_T(
+                JIT_IMPL_NAME_HELPER("jit_1x1:", avx2, ""),
+                _jit_avx2_1x1_convolution_fwd_t<with_relu>);
 
         virtual status_t init() override {
             using namespace prop_kind;
@@ -141,7 +143,9 @@ struct jit_avx2_1x1_convolution_bwd_data_t: public cpu_primitive_t {
             : cpu_convolution_bwd_data_pd_t(engine, adesc, attr, hint_fwd_pd)
             , jcp_({}), rtus_({}) {}
 
-        DECLARE_COMMON_PD_T(jit_avx2_1x1_convolution_bwd_data_t);
+        DECLARE_COMMON_PD_T(
+                JIT_IMPL_NAME_HELPER("jit_1x1:", avx2, ""),
+                jit_avx2_1x1_convolution_bwd_data_t);
 
         virtual status_t init() override {
             using namespace prop_kind;
@@ -238,7 +242,9 @@ struct jit_avx2_1x1_convolution_bwd_weights_t: public cpu_primitive_t {
             : cpu_convolution_bwd_weights_pd_t(engine, adesc, attr, hint_fwd_pd)
             , jcp_({}), rtus_({}) {}
 
-        DECLARE_COMMON_PD_T(jit_avx2_1x1_convolution_bwd_weights_t);
+        DECLARE_COMMON_PD_T(
+                JIT_IMPL_NAME_HELPER("jit_1x1:", avx2, ""),
+                jit_avx2_1x1_convolution_bwd_weights_t);
 
         virtual status_t init() override {
             using namespace prop_kind;

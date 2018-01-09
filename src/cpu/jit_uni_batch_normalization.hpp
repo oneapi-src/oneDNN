@@ -42,7 +42,9 @@ struct jit_uni_batch_normalization_fwd_t: public cpu_primitive_t {
             : cpu_batch_normalization_fwd_pd_t(engine, adesc, attr,
                     hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T(jit_uni_batch_normalization_fwd_t<isa>);
+        DECLARE_COMMON_PD_T(
+                JIT_IMPL_NAME_HELPER("jit:", isa, ""),
+                jit_uni_batch_normalization_fwd_t<isa>);
 
         virtual status_t init() override {
             using namespace prop_kind;
@@ -96,7 +98,9 @@ struct jit_uni_batch_normalization_bwd_t: public cpu_primitive_t {
             : cpu_batch_normalization_bwd_pd_t(engine, adesc, attr,
                     hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T(jit_uni_batch_normalization_bwd_t<isa>);
+        DECLARE_COMMON_PD_T(
+                JIT_IMPL_NAME_HELPER("jit:", isa, ""),
+                jit_uni_batch_normalization_bwd_t<isa>);
 
         virtual status_t init() override {
             using namespace prop_kind;

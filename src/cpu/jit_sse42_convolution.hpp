@@ -38,7 +38,9 @@ struct _jit_sse42_convolution_fwd_t: public cpu_primitive_t {
                     hint_fwd_pd)
             , jcp_({}) {}
 
-        DECLARE_COMMON_PD_T(_jit_sse42_convolution_fwd_t<with_relu>);
+        DECLARE_COMMON_PD_T(
+                JIT_IMPL_NAME_HELPER("jit:", sse42, ""),
+                _jit_sse42_convolution_fwd_t<with_relu>);
 
         virtual status_t init() override {
             using namespace prop_kind;

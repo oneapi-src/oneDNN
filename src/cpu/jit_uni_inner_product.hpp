@@ -41,7 +41,9 @@ struct jit_uni_inner_product_fwd_t : public cpu_primitive_t {
         {
         }
 
-        DECLARE_COMMON_PD_T(jit_uni_inner_product_fwd_t<isa>);
+        DECLARE_COMMON_PD_T(
+                JIT_IMPL_NAME_HELPER("gemm:", isa, ""),
+                jit_uni_inner_product_fwd_t<isa>);
 
         virtual status_t init() override
         {
@@ -112,7 +114,9 @@ struct jit_uni_inner_product_bwd_weights_t : public cpu_primitive_t {
         {
         }
 
-        DECLARE_COMMON_PD_T(jit_uni_inner_product_bwd_weights_t<isa>);
+        DECLARE_COMMON_PD_T(
+                JIT_IMPL_NAME_HELPER("gemm:", isa, ""),
+                jit_uni_inner_product_bwd_weights_t<isa>);
 
         virtual status_t init() override
         {
@@ -180,7 +184,9 @@ struct jit_uni_inner_product_bwd_data_t : public cpu_primitive_t {
         {
         }
 
-        DECLARE_COMMON_PD_T(jit_uni_inner_product_bwd_data_t<isa>);
+        DECLARE_COMMON_PD_T(
+                JIT_IMPL_NAME_HELPER("gemm:", isa, ""),
+                jit_uni_inner_product_bwd_data_t<isa>);
 
         virtual status_t init() override
         {

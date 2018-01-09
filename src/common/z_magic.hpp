@@ -20,6 +20,9 @@
 #define CONCAt2(a,b) a ## b
 #define CONCAT2(a,b) CONCAt2(a,b)
 
+#define STRINGIFy(s) #s
+#define STRINGIFY(s) STRINGIFy(s)
+
 #endif
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

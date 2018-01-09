@@ -36,7 +36,9 @@ struct jit_avx512_core_i8i8_pooling_fwd_t : public cpu_primitive_t {
                 const pooling_fwd_pd_t  *hint_fwd_pd)
         : cpu_pooling_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T(jit_avx512_core_i8i8_pooling_fwd_t);
+        DECLARE_COMMON_PD_T(
+                JIT_IMPL_NAME_HELPER("jit:", avx512_core, ""),
+                jit_avx512_core_i8i8_pooling_fwd_t);
 
         virtual status_t init() override {
             assert(this->engine()->kind() == engine_kind::cpu);

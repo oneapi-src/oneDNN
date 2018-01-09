@@ -40,8 +40,10 @@ struct _jit_avx512_core_u8s8s32x_convolution_fwd_t : public cpu_primitive_t {
             , jcp_({})
         {}
 
-        DECLARE_COMMON_PD_T( _jit_avx512_core_u8s8s32x_convolution_fwd_t<
-                with_relu, dst_data_type>);
+        DECLARE_COMMON_PD_T(
+                JIT_IMPL_NAME_HELPER("jit:", avx512_core, ""),
+                _jit_avx512_core_u8s8s32x_convolution_fwd_t<with_relu,
+                dst_data_type>);
 
         virtual status_t init() override {
             using namespace prop_kind;

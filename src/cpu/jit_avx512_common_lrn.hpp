@@ -20,6 +20,7 @@
 #include "c_types_map.hpp"
 #include "cpu_lrn_pd.hpp"
 #include "cpu_engine.hpp"
+#include "jit_generator.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -31,7 +32,9 @@ struct jit_avx512_common_lrn_fwd_t: public cpu_primitive_t {
                 const primitive_attr_t *attr, const lrn_fwd_pd_t *hint_fwd_pd)
             : cpu_lrn_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T(jit_avx512_common_lrn_fwd_t);
+        DECLARE_COMMON_PD_T(
+                JIT_IMPL_NAME_HELPER("jit:", avx512_common, ""),
+                jit_avx512_common_lrn_fwd_t);
 
         virtual status_t init() override;
     };
@@ -63,7 +66,9 @@ struct jit_avx512_common_lrn_bwd_t: public cpu_primitive_t {
                 const primitive_attr_t *attr, const lrn_fwd_pd_t *hint_fwd_pd)
             : cpu_lrn_bwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T(jit_avx512_common_lrn_bwd_t);
+        DECLARE_COMMON_PD_T(
+                JIT_IMPL_NAME_HELPER("jit:", avx512_common, ""),
+                jit_avx512_common_lrn_bwd_t);
 
         virtual status_t init() override;
     };

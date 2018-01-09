@@ -39,7 +39,9 @@ struct jit_uni_eltwise_fwd_t : public cpu_primitive_t {
                 const eltwise_fwd_pd_t *hint_fwd_pd)
             : cpu_eltwise_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T(jit_uni_eltwise_fwd_t<isa>);
+        DECLARE_COMMON_PD_T(
+                JIT_IMPL_NAME_HELPER("jit:", isa, ""),
+                jit_uni_eltwise_fwd_t<isa>);
 
         virtual status_t init() override;
     };
@@ -70,7 +72,9 @@ struct jit_uni_eltwise_bwd_t : public cpu_primitive_t {
                 const eltwise_fwd_pd_t *hint_fwd_pd)
             : cpu_eltwise_bwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T(jit_uni_eltwise_bwd_t<isa>);
+        DECLARE_COMMON_PD_T(
+                JIT_IMPL_NAME_HELPER("jit:", isa, ""),
+                jit_uni_eltwise_bwd_t<isa>);
 
         virtual status_t init() override;
     };

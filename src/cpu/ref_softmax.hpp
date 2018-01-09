@@ -37,7 +37,7 @@ struct ref_softmax_fwd_t: public cpu_primitive_t {
                 const softmax_fwd_pd_t *hint_fwd_pd)
             : cpu_softmax_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T(ref_softmax_fwd_t);
+        DECLARE_COMMON_PD_T("ref:any", ref_softmax_fwd_t);
 
         virtual status_t init() override {
             using namespace prop_kind;

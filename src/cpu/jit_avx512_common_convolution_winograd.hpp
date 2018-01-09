@@ -187,6 +187,7 @@ struct _jit_avx512_common_convolution_winograd_fwd_t : public cpu_primitive_t {
             , jcp_({}) {}
 
         DECLARE_COMMON_PD_T(
+                JIT_IMPL_NAME_HELPER("jit_wino:", avx512_common, ""),
                 _jit_avx512_common_convolution_winograd_fwd_t<with_relu>);
 
         virtual status_t init() override
@@ -294,7 +295,9 @@ struct jit_avx512_common_convolution_winograd_bwd_data_t
             : cpu_convolution_bwd_data_pd_t(engine, adesc, attr, hint_fwd_pd)
             , jcp_({}) {}
 
-        DECLARE_COMMON_PD_T(jit_avx512_common_convolution_winograd_bwd_data_t);
+        DECLARE_COMMON_PD_T(
+                JIT_IMPL_NAME_HELPER("jit_wino:", avx512_common, ""),
+                jit_avx512_common_convolution_winograd_bwd_data_t);
 
         virtual status_t init() override
         {
@@ -397,7 +400,9 @@ struct jit_avx512_common_convolution_winograd_bwd_weights_t
                     hint_fwd_pd)
             , jcp_({}) {}
 
-        DECLARE_COMMON_PD_T(jit_avx512_common_convolution_winograd_bwd_weights_t);
+        DECLARE_COMMON_PD_T(
+                JIT_IMPL_NAME_HELPER("jit_wino:", avx512_common, ""),
+                jit_avx512_common_convolution_winograd_bwd_weights_t);
 
         virtual status_t init() override
         {

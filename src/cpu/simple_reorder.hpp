@@ -1516,7 +1516,7 @@ struct simple_reorder_t: public cpu_primitive_t {
                 const primitive_attr_t *attr)
             : cpu_reorder_pd_t(input_pd, output_pd, attr) {}
 
-        DECLARE_COMMON_PD_T(simple_reorder_t);
+        DECLARE_COMMON_PD_T("simple:any", simple_reorder_t);
 
         static status_t create(reorder_pd_t **reorder_pd,
                 const memory_pd_t *input_pd, const memory_pd_t *output_pd,

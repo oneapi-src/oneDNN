@@ -34,7 +34,7 @@ struct nhwc_concat_t: public cpu_primitive_t {
             : cpu_concat_pd_t(output_d, n, concat_dim, input_pds, attr)
         {}
 
-        DECLARE_CPU_CONCAT_PD_T(nhwc_concat_t);
+        DECLARE_CPU_CONCAT_PD_T("nhwc:any", nhwc_concat_t);
 
         virtual status_t init() override {
             using namespace mkldnn::impl::memory_format;
