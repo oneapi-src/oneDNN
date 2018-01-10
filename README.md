@@ -2,22 +2,33 @@
 [![Apache License Version 2.0](https://img.shields.io/badge/license-Apache_2.0-green.svg)](LICENSE)
 ![v0.12 beta](https://img.shields.io/badge/v0.12-beta-orange.svg)
 
-Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN) is an
-open source performance library for Deep Learning (DL) applications intended
-for acceleration of DL frameworks on Intel(R) architecture. Intel(R) MKL-DNN
-includes highly vectorized and threaded building blocks for implementation of
-convolutional neural networks (CNN) with C and C++ interfaces. We created this
-project to enable the DL community to innovate on Intel(R) processors.
+Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN) is
+an open source performance library for deep learning applications. The library
+accelerates deep learning applications and framework on Intel(R) architecture. 
+Intel(R) MKL-DNN contains vectorized and threaded building blocks which you can
+use to implement deep neural networks (DNN) with C and C++ interfaces.
 
-Intel MKL-DNN includes functionality similar to [Intel(R) Math Kernel
-Library (Intel(R) MKL) 2017](https://software.intel.com/en-us/intel-mkl), 
-but is not API compatible. We are investigating how to unify the APIs in 
-future Intel MKL releases.
+DNN functionality optimized for Intel architecture is also included in 
+[Intel(R) Math Kernel Library (Intel(R) MKL)](https://software.intel.com/en-us/mkl/features/deep-neural-networks).
+API in this implementation is not compatible with Intel MKL-DNN and does not
+include certain new and experimental features.
 
-This release contains a range of performance critical functions used in modern
-image recognition (AlexNet, VGG, GoogleNet\*, ResNet), semantic
-segmentation (FCNs, SegNet), and object detection topologies (SSD,
-Fast/Faster R-CNN) optimized for wide range of Intel processors.
+This release contains performance critical functions that improve performance of
+the following deep learning topologies and their variations
+
+|Application                   | Topology
+|:---                          |:---
+|Image recognition             | AlexNet, VGG, GoogleNet, ResNet
+|Semantic segmenation          | FCN, SegNet
+|Object detection              | SSD, Faster R-CNN
+
+Intel MKL-DNN is used in the the following software products:
+* [PaddlePaddle\*](http://www.paddlepaddle.org)
+* [Caffe\* Optimized for Intel Architecture](https://github.com/intel/caffe)
+* [Tensorflow\*](https://www.tensorflow.org)
+* [DeepBench](https://github.com/baidu-research/DeepBench)
+* [Intel(R) Computer Vision SDK](https://software.intel.com/en-us/computer-vision-sdk)
+* [Intel(R) Nervana(TM) Graph](https://github.com/NervanaSystems/ngraph)
 
 **WARNING** Functionality related to `s16` data type is experimental 
 and might change without prior notification in future releases.
