@@ -63,8 +63,7 @@ void _gemm_convolution_fwd_t<with_relu, run_jit, isa>::execute_forward() {
     }
     const bool do_relu = jcp.with_relu || entry_idx >= 0;
 
-    const data_t zero = 0.0, one = 1.0;
-    const data_t beta = post_ops.find(primitive_kind::sum) >= 0 ? one : zero;
+    const data_t one = 1.0;
 
     const size_t work_amount = jcp.ngroups * jcp.mb;
     //Check: Can we use GEMM parallelism or do parallelization by minibatch?
@@ -97,11 +96,11 @@ void _gemm_convolution_fwd_t<with_relu, run_jit, isa>::execute_forward() {
             if (run_jit) {
                 sgemm_->sgemm("N", "N", &M, &N, &K, &one,
                         jcp.need_im2col ? _col : _src, &M, _weights, &K,
-                        &beta, _dst, &M);
+                        &this->beta_, _dst, &M);
             } else {
                 cblas_sgemm(CblasColMajor, CblasNoTrans, CblasNoTrans, M, N, K,
-                    one, jcp.need_im2col ? _col : _src, M, _weights, K, beta,
-                    _dst, M);
+                    one, jcp.need_im2col ? _col : _src, M, _weights, K,
+                    this->beta_, _dst, M);
             }
 
             if (jcp.with_bias || do_relu) {

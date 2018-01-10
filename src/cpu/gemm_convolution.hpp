@@ -128,9 +128,12 @@ struct _gemm_convolution_fwd_t: public cpu_primitive_t {
     {
         using namespace prop_kind;
 
-        const float any_nonzero_value = 1.f;
+        const auto &post_ops = conf_.attr()->post_ops_;
+        const data_t one = 1.0, zero = 0.0;
+        beta_ = post_ops.find(primitive_kind::sum) >= 0 ? one : zero;
+
         if (run_jit)
-            sgemm_ = new jit_uni_gemm_f32('N', 'N', any_nonzero_value, false);
+            sgemm_ = new jit_uni_gemm_f32('N', 'N', beta_, false);
 
         jit_gemm_convolution_utils::init_conf(conf_.jcp_,
             *(conf_.cdesc()), conf_.src_pd(), conf_.weights_pd(0),
@@ -158,6 +161,7 @@ private:
           <isa == avx2, jit_avx2_gemm_f32, jit_avx512_common_gemm_f32>::type;
     jit_uni_gemm_f32 *sgemm_;
     data_t *col_;
+    data_t beta_;
 };
 
 using jit_avx512_common_gemm_convolution_fwd_t =
