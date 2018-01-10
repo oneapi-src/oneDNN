@@ -22,36 +22,24 @@
 struct dnn_mem_t {
     dnn_mem_t(): active_(false) {}
 
-    dnn_mem_t(const mkldnn_memory_desc_t &md, void *data = NULL): active_(true)
-    { initialize(md, data); }
+    dnn_mem_t(const mkldnn_memory_desc_t &md, void *data = NULL)
+        : active_(initialize(md, data) == OK) {}
 
     dnn_mem_t(int ndims, const mkldnn_dims_t dims, mkldnn_data_type_t dt,
-            mkldnn_memory_format_t fmt, void *data = NULL): active_(true) {
-        mkldnn_memory_desc_t md;
-        /* is it ugly enough? */
-        [&](){
-            DNN_SAFE(mkldnn_memory_desc_init(&md, ndims, dims, dt, fmt), CRIT);
-            SAFE(initialize(md, data), CRIT);
-            return OK;
-        }();
-    }
+            mkldnn_memory_format_t fmt, void *data = NULL)
+        : active_(initialize(ndims, dims, dt, fmt, data) == OK) {}
 
     dnn_mem_t(const mkldnn_memory_desc_t &md, mkldnn_data_type_t dt,
             mkldnn_memory_format_t fmt = mkldnn_format_undef,
-            void *data = NULL): active_(true) {
-        mkldnn_memory_desc_t xmd;
-        [&](){
-            DNN_SAFE(mkldnn_memory_desc_init(&xmd, md.ndims, md.dims, dt,
-                        fmt != mkldnn_format_undef ? fmt : md.format), CRIT);
-            SAFE(initialize(xmd, data), CRIT);
-            return OK;
-        }();
-    }
+            void *data = NULL)
+        : active_(initialize(md.ndims, md.dims, dt,
+                    (fmt != mkldnn_format_undef ? fmt: md.format), data) == OK)
+    {}
 
     dnn_mem_t(const dnn_mem_t &rhs, mkldnn_data_type_t dt,
             mkldnn_memory_format_t fmt = mkldnn_format_undef,
             void *data = NULL): dnn_mem_t(rhs.md_, dt, fmt, data)
-    { reorder(rhs); }
+    { if (active_) reorder(rhs); }
 
     /* FIXME: ugly RT assert... need better mkldnn memory handling */
     dnn_mem_t &operator=(const dnn_mem_t &rhs)
@@ -175,6 +163,14 @@ private:
         }
         DNN_SAFE(mkldnn_memory_set_data_handle(p_, data_), CRIT);
 
+        return OK;
+    }
+
+    int initialize(int ndims, const mkldnn_dims_t dims, mkldnn_data_type_t dt,
+		    mkldnn_memory_format_t fmt, void* data) {
+        mkldnn_memory_desc_t xmd;
+        DNN_SAFE(mkldnn_memory_desc_init(&xmd, ndims, dims, dt, fmt), CRIT);
+        SAFE(initialize(xmd, data), CRIT);
         return OK;
     }
 
