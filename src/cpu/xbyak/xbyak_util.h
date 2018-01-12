@@ -255,95 +255,121 @@ public:
 	static const Type tMOVBE = uint64(1) << 34; // mobve
 	static const Type tAVX512F = uint64(1) << 35;
 	static const Type tAVX512DQ = uint64(1) << 36;
-	static const Type tAVX512IFMA = uint64(1) << 37;
+	static const Type tAVX512_IFMA = uint64(1) << 37;
+	static const Type tAVX512IFMA = tAVX512_IFMA;
 	static const Type tAVX512PF = uint64(1) << 38;
 	static const Type tAVX512ER = uint64(1) << 39;
 	static const Type tAVX512CD = uint64(1) << 40;
 	static const Type tAVX512BW = uint64(1) << 41;
 	static const Type tAVX512VL = uint64(1) << 42;
-	static const Type tAVX512VBMI = uint64(1) << 43;
+	static const Type tAVX512_VBMI = uint64(1) << 43;
+	static const Type tAVX512VBMI = tAVX512_VBMI; // changed by Intel's manual
 	static const Type tAVX512_4VNNIW = uint64(1) << 44;
 	static const Type tAVX512_4FMAPS = uint64(1) << 45;
 	static const Type tPREFETCHWT1 = uint64(1) << 46;
+	static const Type tPREFETCHW = uint64(1) << 47;
+	static const Type tSHA = uint64(1) << 48;
+	static const Type tMPX = uint64(1) << 49;
+	static const Type tAVX512_VBMI2 = uint64(1) << 50;
+	static const Type tGFNI = uint64(1) << 51;
+	static const Type tVAES = uint64(1) << 52;
+	static const Type tVPCLMULQDQ = uint64(1) << 53;
+	static const Type tAVX512_VNNI = uint64(1) << 54;
+	static const Type tAVX512_BITALG = uint64(1) << 55;
+	static const Type tAVX512_VPOPCNTDQ = uint64(1) << 56;
 
 	Cpu()
 		: type_(NONE)
 		, data_cache_levels(0)
 	{
 		unsigned int data[4];
+		const unsigned int& EAX = data[0];
+		const unsigned int& EBX = data[1];
+		const unsigned int& ECX = data[2];
+		const unsigned int& EDX = data[3];
 		getCpuid(0, data);
-		const unsigned int maxNum = data[0];
+		const unsigned int maxNum = EAX;
 		static const char intel[] = "ntel";
 		static const char amd[] = "cAMD";
-		if (data[2] == get32bitAsBE(amd)) {
+		if (ECX == get32bitAsBE(amd)) {
 			type_ |= tAMD;
 			getCpuid(0x80000001, data);
-			if (data[3] & (1U << 31)) type_ |= t3DN;
-			if (data[3] & (1U << 15)) type_ |= tCMOV;
-			if (data[3] & (1U << 30)) type_ |= tE3DN;
-			if (data[3] & (1U << 22)) type_ |= tMMX2;
-			if (data[3] & (1U << 27)) type_ |= tRDTSCP;
+			if (EDX & (1U << 31)) type_ |= t3DN;
+			if (EDX & (1U << 15)) type_ |= tCMOV;
+			if (EDX & (1U << 30)) type_ |= tE3DN;
+			if (EDX & (1U << 22)) type_ |= tMMX2;
+			if (EDX & (1U << 27)) type_ |= tRDTSCP;
 		}
-		if (data[2] == get32bitAsBE(intel)) {
+		if (ECX == get32bitAsBE(intel)) {
 			type_ |= tINTEL;
 			getCpuid(0x80000001, data);
-			if (data[3] & (1U << 27)) type_ |= tRDTSCP;
-			if (data[2] & (1U << 5)) type_ |= tLZCNT;
+			if (EDX & (1U << 27)) type_ |= tRDTSCP;
+			if (ECX & (1U << 5)) type_ |= tLZCNT;
+			if (ECX & (1U << 8)) type_ |= tPREFETCHW;
 		}
 		getCpuid(1, data);
-		if (data[2] & (1U << 0)) type_ |= tSSE3;
-		if (data[2] & (1U << 9)) type_ |= tSSSE3;
-		if (data[2] & (1U << 19)) type_ |= tSSE41;
-		if (data[2] & (1U << 20)) type_ |= tSSE42;
-		if (data[2] & (1U << 22)) type_ |= tMOVBE;
-		if (data[2] & (1U << 23)) type_ |= tPOPCNT;
-		if (data[2] & (1U << 25)) type_ |= tAESNI;
-		if (data[2] & (1U << 1)) type_ |= tPCLMULQDQ;
-		if (data[2] & (1U << 27)) type_ |= tOSXSAVE;
-		if (data[2] & (1U << 30)) type_ |= tRDRAND;
-		if (data[2] & (1U << 29)) type_ |= tF16C;
+		if (ECX & (1U << 0)) type_ |= tSSE3;
+		if (ECX & (1U << 9)) type_ |= tSSSE3;
+		if (ECX & (1U << 19)) type_ |= tSSE41;
+		if (ECX & (1U << 20)) type_ |= tSSE42;
+		if (ECX & (1U << 22)) type_ |= tMOVBE;
+		if (ECX & (1U << 23)) type_ |= tPOPCNT;
+		if (ECX & (1U << 25)) type_ |= tAESNI;
+		if (ECX & (1U << 1)) type_ |= tPCLMULQDQ;
+		if (ECX & (1U << 27)) type_ |= tOSXSAVE;
+		if (ECX & (1U << 30)) type_ |= tRDRAND;
+		if (ECX & (1U << 29)) type_ |= tF16C;
 
-		if (data[3] & (1U << 15)) type_ |= tCMOV;
-		if (data[3] & (1U << 23)) type_ |= tMMX;
-		if (data[3] & (1U << 25)) type_ |= tMMX2 | tSSE;
-		if (data[3] & (1U << 26)) type_ |= tSSE2;
+		if (EDX & (1U << 15)) type_ |= tCMOV;
+		if (EDX & (1U << 23)) type_ |= tMMX;
+		if (EDX & (1U << 25)) type_ |= tMMX2 | tSSE;
+		if (EDX & (1U << 26)) type_ |= tSSE2;
 
 		if (type_ & tOSXSAVE) {
 			// check XFEATURE_ENABLED_MASK[2:1] = '11b'
 			uint64 bv = getXfeature();
 			if ((bv & 6) == 6) {
-				if (data[2] & (1U << 28)) type_ |= tAVX;
-				if (data[2] & (1U << 12)) type_ |= tFMA;
+				if (ECX & (1U << 28)) type_ |= tAVX;
+				if (ECX & (1U << 12)) type_ |= tFMA;
 				if (((bv >> 5) & 7) == 7) {
 					getCpuidEx(7, 0, data);
-					if (data[1] & (1U << 16)) type_ |= tAVX512F;
+					if (EBX & (1U << 16)) type_ |= tAVX512F;
 					if (type_ & tAVX512F) {
-						if (data[1] & (1U << 17)) type_ |= tAVX512DQ;
-						if (data[1] & (1U << 21)) type_ |= tAVX512IFMA;
-						if (data[1] & (1U << 26)) type_ |= tAVX512PF;
-						if (data[1] & (1U << 27)) type_ |= tAVX512ER;
-						if (data[1] & (1U << 28)) type_ |= tAVX512CD;
-						if (data[1] & (1U << 30)) type_ |= tAVX512BW;
-						if (data[1] & (1U << 31)) type_ |= tAVX512VL;
-						if (data[2] & (1U << 1)) type_ |= tAVX512VBMI;
-						if (data[3] & (1U << 2)) type_ |= tAVX512_4VNNIW;
-						if (data[3] & (1U << 3)) type_ |= tAVX512_4FMAPS;
+						if (EBX & (1U << 17)) type_ |= tAVX512DQ;
+						if (EBX & (1U << 21)) type_ |= tAVX512_IFMA;
+						if (EBX & (1U << 26)) type_ |= tAVX512PF;
+						if (EBX & (1U << 27)) type_ |= tAVX512ER;
+						if (EBX & (1U << 28)) type_ |= tAVX512CD;
+						if (EBX & (1U << 30)) type_ |= tAVX512BW;
+						if (EBX & (1U << 31)) type_ |= tAVX512VL;
+						if (ECX & (1U << 1)) type_ |= tAVX512_VBMI;
+						if (ECX & (1U << 6)) type_ |= tAVX512_VBMI2;
+						if (ECX & (1U << 8)) type_ |= tGFNI;
+						if (ECX & (1U << 9)) type_ |= tVAES;
+						if (ECX & (1U << 10)) type_ |= tVPCLMULQDQ;
+						if (ECX & (1U << 11)) type_ |= tAVX512_VNNI;
+						if (ECX & (1U << 12)) type_ |= tAVX512_BITALG;
+						if (ECX & (1U << 14)) type_ |= tAVX512_VPOPCNTDQ;
+						if (EDX & (1U << 2)) type_ |= tAVX512_4VNNIW;
+						if (EDX & (1U << 3)) type_ |= tAVX512_4FMAPS;
 					}
 				}
 			}
 		}
 		if (maxNum >= 7) {
 			getCpuidEx(7, 0, data);
-			if (type_ & tAVX && data[1] & 0x20) type_ |= tAVX2;
-			if (data[1] & (1U << 3)) type_ |= tBMI1;
-			if (data[1] & (1U << 8)) type_ |= tBMI2;
-			if (data[1] & (1U << 9)) type_ |= tENHANCED_REP;
-			if (data[1] & (1U << 18)) type_ |= tRDSEED;
-			if (data[1] & (1U << 19)) type_ |= tADX;
-			if (data[1] & (1U << 20)) type_ |= tSMAP;
-			if (data[1] & (1U << 4)) type_ |= tHLE;
-			if (data[1] & (1U << 11)) type_ |= tRTM;
-			if (data[2] & (1U << 0)) type_ |= tPREFETCHWT1;
+			if (type_ & tAVX && (EBX & (1U << 5))) type_ |= tAVX2;
+			if (EBX & (1U << 3)) type_ |= tBMI1;
+			if (EBX & (1U << 8)) type_ |= tBMI2;
+			if (EBX & (1U << 9)) type_ |= tENHANCED_REP;
+			if (EBX & (1U << 18)) type_ |= tRDSEED;
+			if (EBX & (1U << 19)) type_ |= tADX;
+			if (EBX & (1U << 20)) type_ |= tSMAP;
+			if (EBX & (1U << 4)) type_ |= tHLE;
+			if (EBX & (1U << 11)) type_ |= tRTM;
+			if (EBX & (1U << 14)) type_ |= tMPX;
+			if (EBX & (1U << 29)) type_ |= tSHA;
+			if (ECX & (1U << 0)) type_ |= tPREFETCHWT1;
 		}
 		setFamily();
 		if ((type_ & tINTEL) == tINTEL)
