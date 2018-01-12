@@ -90,7 +90,7 @@ struct mkldnn_primitive_desc: public mkldnn::impl::c_compatible {
         auto _pd = new pd_t(engine, (const pd_op_desc_t *)adesc, attr, hint);
         if (_pd == nullptr) return out_of_memory;
         if (_pd->init() != success) { delete _pd; return unimplemented; }
-        if (mkldnn_verbose()->level) _pd->init_info();
+        _pd->init_info();
         *pd = _pd;
         return success;
     }

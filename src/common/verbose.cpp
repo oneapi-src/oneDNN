@@ -21,6 +21,8 @@
 #include <sys/time.h>
 #endif
 
+#include "mkldnn.h"
+#include "c_types_map.hpp"
 #include "verbose.hpp"
 
 namespace mkldnn {
@@ -38,8 +40,9 @@ const char *mkldnn_getenv(const char *name) {
 #endif
 }
 
+static verbose_t verbose;
+
 const verbose_t *mkldnn_verbose() {
-    static verbose_t verbose;
 #if !defined(DISABLE_VERBOSE)
     static int initialized = 0;
     if (!initialized) {
@@ -67,4 +70,11 @@ double get_msec() {
 }
 
 }
+}
+
+mkldnn_status_t mkldnn_verbose_set(int level) {
+    using namespace mkldnn::impl::status;
+    if (level < 0 || level > 2) return invalid_arguments;
+    mkldnn::impl::verbose.level = level;
+    return success;
 }
