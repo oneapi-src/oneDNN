@@ -33,7 +33,15 @@ DST=`dirname $0`/../external
 mkdir -p $DST
 DST=`cd $DST;pwd`
 
-curl -L -o "${DST}/${MKLPACKAGE}" "$MKLURL"
+if [ -x "$(command -v curl)" ]; then
+  curl -L -o "${DST}/${MKLPACKAGE}" "$MKLURL"
+elif [ -x "$(command -v wget)" ]; then
+  wget -O "${DST}/${MKLPACKAGE}" "$MKLURL"
+else
+  echo "curl or wget not available"
+  exit 1
+fi
+
 if [ \! $? ]; then
   echo "Download from $MKLURL to $DST failed"
   exit 1
