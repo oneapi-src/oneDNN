@@ -62,12 +62,6 @@ struct jit_bnorm_t: public jit_generator {
     const AddressFrame &vmmword = (isa == sse42) ? xword :
                                   (isa == avx2) ? yword : zword;
 
-    void uni_vpxor(const Xmm& x1, const Xmm& x2, const Operand& op) {
-        if (isa == sse42) pxor(x2, op);
-        else if (isa == avx2) vpxor(x1, x2, op);
-        else vpxord(x1, x2, op);
-    }
-
     const int vlen = isa == sse42 ? 32 : cpu_isa_traits<isa>::vlen;
 
     const batch_normalization_pd_t *bdesc_;
