@@ -498,28 +498,45 @@ struct jit_bnorm_t: public jit_generator {
                 uni_vmovups(vbeta, beta_ptr());
             }
 
-            spat_loop(spat_size, unroll_blocks, unroll_regs,
-                    [](size_t base_reg) {UNUSED(base_reg);},
-                    [=](size_t base_reg, size_t i) {
-                        Vmm v = Vmm(base_reg);
-                        size_t offt = i * vlen;
-                        uni_vmovups(v,
-                            vmmword[reg_src + reg_soff + offt]);
-                        mic_prefetcht0(ptr[reg_src + reg_soff + offt
-                                + t0_pf_offt]);
-                        mic_prefetcht1(ptr[reg_src + reg_soff + offt
-                                + t1_pf_offt]);
-                        uni_vsubps(v, v, vmean);
-                        uni_vmulps(v, v, vsqrtvar);
-                        if (bdesc_->use_scaleshift()) {
-                            uni_vfmadd213ps(v, vgamma, vbeta);
-                        }
-                        if (with_relu)
-                            uni_vmaxps(v, v, v_zero);
-                        uni_vmovntps(vmmword[reg_dst + reg_soff + offt],
-                            v);
-                    },
-                    [](size_t base_reg) {UNUSED(base_reg);});
+            auto compute = [=](bool output_is_aligned) {
+                spat_loop(spat_size, unroll_blocks, unroll_regs,
+                        [](size_t base_reg) {UNUSED(base_reg);},
+                        [=](size_t base_reg, size_t i) {
+                             Vmm v = Vmm(base_reg);
+                             size_t offt = i * vlen;
+                             uni_vmovups(v,
+                                 vmmword[reg_src + reg_soff + offt]);
+                             mic_prefetcht0(ptr[reg_src + reg_soff + offt
+                                     + t0_pf_offt]);
+                             mic_prefetcht1(ptr[reg_src + reg_soff + offt
+                                     + t1_pf_offt]);
+                             uni_vsubps(v, v, vmean);
+                             uni_vmulps(v, v, vsqrtvar);
+                             if (bdesc_->use_scaleshift()) {
+                                 uni_vfmadd213ps(v, vgamma, vbeta);
+                             }
+                             if (with_relu)
+                                 uni_vmaxps(v, v, v_zero);
+                             if (output_is_aligned) {
+                                 uni_vmovntps(
+                                     vmmword[reg_dst + reg_soff + offt], v);
+                             } else {
+                                 uni_vmovups(
+                                     vmmword[reg_dst + reg_soff + offt], v);
+                             }
+                        },
+                        [](size_t base_reg) {UNUSED(base_reg);});
+            };
+
+            Label unaligned_store, end_store;
+            test(reg_dst, vlen - 1);
+            jnz(unaligned_store, T_NEAR);
+            compute(true);
+            jmp(end_store, T_NEAR);
+            L(unaligned_store); {
+                compute(false);
+            }
+            L(end_store);
 
             add(reg_coff, vlen);
             cmp(reg_coff, reg_coff_max);
@@ -688,37 +705,56 @@ struct jit_bnorm_t: public jit_generator {
                 vdivps(vdiff_beta, vdiff_beta, vchan_size);
                 vdivps(vdiff_gamma, vdiff_gamma, vchan_size);
 
-                spat_loop(spat_size, unroll_blocks, unroll_regs,
-                        [=](size_t base_reg) {UNUSED(base_reg);},
-                        [=](size_t base_reg, size_t i) {
-                            Vmm v(base_reg * 2 + 0);
-                            Vmm t(base_reg * 2 + 1);
-                            size_t offt = i * vlen;
-                            vmovups(v, vmmword[reg_diff_dst + reg_soff
-                                    + offt]);
-                            if (!bdesc_->omit_stats()) {
-                                vsubps(v, v, vdiff_beta);
-                                vmovups(t, vmmword[reg_src + reg_soff + offt]);
-                                vsubps(t, vmean, t);
-                                vmulps(t, t, vdiff_gamma);
-                                vaddps(v, v, t);
-                            }
-                            vmulps(v, v, vsqrtvar);
-                            if (bdesc_->use_scaleshift()) {
-                               vmulps(v, v, vgamma);
-                            }
-                            vmovntps(vmmword[reg_diff_src + reg_soff + offt],
-                                    v);
-                            mic_prefetcht0(ptr[reg_diff_dst + reg_soff + offt
-                                    + t0_pf_offt]);
-                            mic_prefetcht0(ptr[reg_src + reg_soff + offt
-                                    + t0_pf_offt]);
-                            mic_prefetcht1(ptr[reg_diff_dst + reg_soff
-                                    + offt + t1_pf_offt]);
-                            mic_prefetcht1(ptr[reg_src + reg_soff + offt
-                                    + t1_pf_offt]);
-                        },
-                        [=](size_t base_reg) {UNUSED(base_reg);});
+                auto compute = [=](bool output_is_aligned) {
+                    spat_loop(spat_size, unroll_blocks, unroll_regs,
+                            [=](size_t base_reg) {UNUSED(base_reg);},
+                            [=](size_t base_reg, size_t i) {
+                                Vmm v(base_reg * 2 + 0);
+                                Vmm t(base_reg * 2 + 1);
+                                size_t offt = i * vlen;
+                                vmovups(v, vmmword[reg_diff_dst + reg_soff
+                                        + offt]);
+                                if (!bdesc_->omit_stats()) {
+                                    vsubps(v, v, vdiff_beta);
+                                    vmovups(t, vmmword[reg_src + reg_soff + offt]);
+                                    vsubps(t, vmean, t);
+                                    vmulps(t, t, vdiff_gamma);
+                                    vaddps(v, v, t);
+                                }
+                                vmulps(v, v, vsqrtvar);
+                                if (bdesc_->use_scaleshift()) {
+                                   vmulps(v, v, vgamma);
+                                }
+                                if (output_is_aligned) {
+                                    vmovntps(
+                                        vmmword[reg_diff_src + reg_soff + offt],
+                                        v);
+                                } else {
+                                    vmovups(
+                                        vmmword[reg_diff_src + reg_soff + offt],
+                                        v);
+                                }
+                                mic_prefetcht0(ptr[reg_diff_dst + reg_soff + offt
+                                        + t0_pf_offt]);
+                                mic_prefetcht0(ptr[reg_src + reg_soff + offt
+                                        + t0_pf_offt]);
+                                mic_prefetcht1(ptr[reg_diff_dst + reg_soff
+                                        + offt + t1_pf_offt]);
+                                mic_prefetcht1(ptr[reg_src + reg_soff + offt
+                                        + t1_pf_offt]);
+                            },
+                            [=](size_t base_reg) {UNUSED(base_reg);});
+                };
+
+                Label unaligned_store, end_store;
+                test(reg_diff_src, vlen - 1);
+                jnz(unaligned_store, T_NEAR);
+                compute(true);
+                jmp(end_store, T_NEAR);
+                L(unaligned_store); {
+                    compute(false);
+                }
+                L(end_store);
 
                 add(reg_coff, vlen);
                 cmp(reg_coff, reg_coff_max);

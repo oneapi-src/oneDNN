@@ -305,17 +305,31 @@ void _jit_avx512_common_conv_winograd_data_kernel_f32::gemm_loop_generate(
                 }
             }
 
-            for (int tile = 0; tile < jcp.dimN_reg_block; tile++) {
-                Zmm zmm(jcp.zmm_start + tile);
-                // In W_SGD, output will be reused.
-                if (jcp.dimK_nb_block == 1
-                    && jcp.sched_policy == WSCHED_DATA_W_S_G_D
-                    && (jcp.dimN * jcp.dimM * jcp.alpha * jcp.alpha
-                        * sizeof(float) > 2 * LLC_data_size))
-                    vmovntps(zword[reg_dstC + 64 * tile], zmm);
-                else
-                    vmovups(zword[reg_dstC + 64 * tile], zmm);
+
+            auto store_output = [=](bool output_is_aligned) {
+                for (int tile = 0; tile < jcp.dimN_reg_block; tile++) {
+                    Zmm zmm(jcp.zmm_start + tile);
+                    // In W_SGD, output will be reused.
+                    if (output_is_aligned
+                        && jcp.dimK_nb_block == 1
+                        && jcp.sched_policy == WSCHED_DATA_W_S_G_D
+                        && (jcp.dimN * jcp.dimM * jcp.alpha * jcp.alpha
+                            * sizeof(float) > 2 * LLC_data_size))
+                        vmovntps(zword[reg_dstC + 64 * tile], zmm);
+                    else
+                        vmovups(zword[reg_dstC + 64 * tile], zmm);
+                }
+            };
+
+            Label unaligned_store, end_store;
+            test(reg_dstC, cpu_isa_traits<avx512_common>::vlen - 1);
+            jnz(unaligned_store, T_NEAR);
+            store_output(true);
+            jmp(end_store, T_NEAR);
+            L(unaligned_store); {
+                store_output(false);
             }
+            L(end_store);
 
             if (jcp.dimM_block > 1) {
                 sub(reg_srcB, jcp.dimK_block * jcp.dimN_reg_block * 64);

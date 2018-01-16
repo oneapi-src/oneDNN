@@ -317,14 +317,26 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(int load_loop_blk,
             L(store_norelu);
         }
 
-        for (int i_ur = 0; i_ur < ur; ++i_ur)
-            for (int i_load = 0; i_load < load_loop_blk; ++i_load)
-                if (jcp.use_vmovntps)
-                    vmovntps(output_ptr(i_load, i_ur),
-                        vreg_accum(i_load, i_ur));
-                else
-                    vmovups(output_ptr(i_load, i_ur),
-                        vreg_accum(i_load, i_ur));
+        auto store_output = [=](bool output_is_aligned) {
+            for (int i_ur = 0; i_ur < ur; ++i_ur)
+                for (int i_load = 0; i_load < load_loop_blk; ++i_load)
+                    if (output_is_aligned && jcp.use_vmovntps)
+                        vmovntps(output_ptr(i_load, i_ur),
+                            vreg_accum(i_load, i_ur));
+                    else
+                        vmovups(output_ptr(i_load, i_ur),
+                            vreg_accum(i_load, i_ur));
+        };
+
+        Label unaligned_store, end_store;
+        test(aux_reg_output_data, cpu_isa_traits<avx512_common>::vlen - 1);
+        jnz(unaligned_store, T_NEAR);
+        store_output(true);
+        jmp(end_store, T_NEAR);
+        L(unaligned_store); {
+            store_output(false);
+        }
+        L(end_store);
     };
 
     auto prefetch_callback = [=](int ur, int i_reduce, int i_ur, int i_load,

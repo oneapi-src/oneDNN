@@ -629,9 +629,18 @@ struct jit_avx512_common_lrn_bwd_t::jit_avx512_common_lrn_kernel_f32:
                  zreg(irb, zws0)));
         IRB_LOOP(vfmadd213ps(zreg(irb, zdiffsrc), zreg(irb, zsrc),
                  zreg(irb, zdiffdst)));
-        IRB_LOOP(vmovntps(EVEX_compress_addr(diffsrc, irb*vlen),
-                 zreg(irb, zdiffsrc)));
 
+        Label unaligned_store, end_store;
+        test(diffsrc, vlen - 1);
+        jnz(unaligned_store, T_NEAR);
+        IRB_LOOP(uni_vmovntps(EVEX_compress_addr(diffsrc, irb*vlen),
+                 zreg(irb, zdiffsrc)));
+        jmp(end_store, T_NEAR);
+        L(unaligned_store); {
+            IRB_LOOP(uni_vmovups(EVEX_compress_addr(diffsrc, irb*vlen),
+                     zreg(irb, zdiffsrc)));
+        }
+        L(end_store);
     }
 
     jit_avx512_common_lrn_kernel_f32(

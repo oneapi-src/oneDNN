@@ -1388,6 +1388,8 @@ _execute_forward_W_S_G_D()
 
     bool V_streamout = jcp.ntiles * jcp.ic * alpha * alpha * sizeof(float)
         > 2 * LLC_cache_size ? true : false;
+    const bool output_is_aligned =
+        ((size_t)&(dst(0, 0, 0, 0, 0))) & (64 - 1) == 0;
 
 #pragma omp parallel
     {
@@ -1462,7 +1464,8 @@ _execute_forward_W_S_G_D()
                     output_transform(img, jcp,
                             &(M(0, ofm1, 0, 0, 0, ofm2, 0, 0)),
                             &(dst(img, ofm1 * jcp.oc_block + ofm2, 0, 0, 0)),
-                            &(bias(ofm1 * jcp.oc_block + ofm2, 0)), true);
+                            &(bias(ofm1 * jcp.oc_block + ofm2, 0)),
+                            output_is_aligned);
                 }
             }
         }
@@ -1616,6 +1619,8 @@ _execute_backward_data_W_S_G_D()
 
     bool M_streamout = jcp.ntiles * jcp.oc * alpha * alpha * sizeof(float)
         > 2 * LLC_cache_size ? true : false;
+    const bool output_is_aligned =
+        ((size_t)&(diff_src(0, 0, 0, 0, 0))) & (64 - 1) == 0;
 
 #pragma omp parallel
     {
@@ -1693,7 +1698,7 @@ _execute_backward_data_W_S_G_D()
                     diff_src_transform_bwd_data(img, jcp,
                             &(V(0, ifm1, 0, 0, 0, ifm2, 0, 0)),
                             &(diff_src(img, ifm1 * jcp.ic_block + ifm2,
-                                    0, 0, 0)));
+                                    0, 0, 0)), output_is_aligned);
                 }
             }
         }
