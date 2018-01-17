@@ -68,10 +68,9 @@ void _gemm_convolution_fwd_t<with_relu, run_jit, isa>::execute_forward() {
     const size_t work_amount = jcp.ngroups * jcp.mb;
     //Check: Can we use GEMM parallelism or do parallelization by minibatch?
     int num_thr =
-        (jcp.oh * jcp.ow) / omp_get_max_threads() < 256 && jcp.mb != 1
-        ? omp_get_max_threads() : 1;
+        (jcp.oh * jcp.ow) / omp_get_max_threads() < 512 &&
+        (jcp.mb != 1 || jcp.ngroups > 2) ? omp_get_max_threads() : 1;
     MAYBE_UNUSED(num_thr);
-
 #   pragma omp parallel num_threads(num_thr)
     {
         const int ithr = omp_get_thread_num();
@@ -138,7 +137,7 @@ void _gemm_convolution_bwd_data_t<run_jit, isa>::execute_backward_data() {
     const data_t zero = 0.0, one = 1.0;
 
     const size_t work_amount = jcp.ngroups * jcp.mb;
-    int num_thr = (jcp.mb != 1) ? omp_get_max_threads() : 1;
+    int num_thr = (jcp.mb != 1 || jcp.ngroups > 2) ? omp_get_max_threads() : 1;
     MAYBE_UNUSED(num_thr);
 #pragma omp parallel num_threads(num_thr)
     {
@@ -190,7 +189,8 @@ void _gemm_convolution_bwd_weights_t<run_jit, isa>::execute_backward_weights() {
     const int M = jcp.ic * jcp.ks;
     const data_t zero = 0.0, one = 1.0;
 
-    int num_thr = (jcp.mb != 1) ? omp_get_max_threads() : 1;
+    int num_thr = (jcp.oh * jcp.ow) / omp_get_max_threads() < 256 &&
+                  (jcp.mb != 1 || jcp.ngroups > 2) ? omp_get_max_threads() : 1;
     MAYBE_UNUSED(num_thr);
 #pragma omp parallel num_threads(num_thr)
     {
