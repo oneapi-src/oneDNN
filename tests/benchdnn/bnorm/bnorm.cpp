@@ -73,7 +73,7 @@ static int prepare_fwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &mean,
     assert((exact_bits - ceilf(log2f(L * density))) / 2 >= flex_bits);
 
     print(6, "check_alg: %s, density = %g, flex_bits = %d\n",
-            check_alg2str(ALG_0), density, flex_bits);
+            check_alg2str(alg), density, flex_bits);
 
 #   pragma omp parallel for
     for (int c = 0; c < p->ic; ++c) {
@@ -100,16 +100,11 @@ static int prepare_fwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &mean,
                 const float f = 1.f * sgn * gen / (1 << flex_bits);
 
                 s[sp] = alg == ALG_0 ? f : m * (1.f + f);
+                if (L % 2 && (mb * p->ih * p->iw + sp == L - 1)) {
+                    s[sp] = m;
+                }
                 v += (s[sp] - m) * (s[sp] - m);
             }
-        }
-
-        if (L % 2 == 1) {
-            /* if L is odd -- fix the last value so that mean == m */
-            const auto off = data_off(p, p->mb - 1, c, p->ih - 1, p->iw - 1);
-            float &s = ((float *)src)[off];
-            v += m * m - (s - m) * (s - m);
-            s = m;
         }
 
         ((float *)var)[c] = v / (p->mb * p->ih * p->iw);
@@ -458,7 +453,7 @@ int doit(const prb_t *p, res_t *r) {
         SAFE(execute(b), WARN);
         if (bench_mode & CORR) {
             compute_ref_fwd(p, data_fp, mean_fp, var_fp, ss_fp, data_fp);
-            if (!(p->flags & GLOB_STATS)) {
+            if (!(p->flags & GLOB_STATS) && !(p->dir & FLAG_INF)) {
                 SAFE(compare(p, MEAN, mean_fp, mean_dt, r), WARN);
                 SAFE(compare(p, VAR, var_fp, var_dt, r), WARN);
             }
