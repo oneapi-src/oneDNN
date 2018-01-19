@@ -815,9 +815,10 @@ struct uni_bnorm_driver_t: public c_compatible {
                 barrier::ctx_init(&barriers_[i]);
         }
 
+        int nthrs = omp_get_max_threads();
         size_t data_size = bdesc_->MB() * bdesc_->C() * bdesc_->H()
                 * bdesc_->W() * sizeof(data_t);
-        l3_size_ = get_cache_size(3, false);
+        l3_size_ = get_cache_size(3, true) * nthrs / 2;
         do_blocking_ = (data_size >= l3_size_ / 2 && l3_size_ > 0);
     }
     ~uni_bnorm_driver_t() { free(buf_); free(barriers_); }
