@@ -1388,8 +1388,9 @@ _execute_forward_W_S_G_D()
 
     bool V_streamout = jcp.ntiles * jcp.ic * alpha * alpha * sizeof(float)
         > 2 * LLC_cache_size ? true : false;
-    const bool output_is_aligned =
-        ((size_t)&(dst(0, 0, 0, 0, 0))) & (64 - 1) == 0;
+
+    const float *output_ptr = &(dst(0, 0, 0, 0, 0));
+    const bool output_is_aligned = ((size_t)output_ptr & (64 - 1)) == 0;
 
 #pragma omp parallel
     {
@@ -1619,8 +1620,9 @@ _execute_backward_data_W_S_G_D()
 
     bool M_streamout = jcp.ntiles * jcp.oc * alpha * alpha * sizeof(float)
         > 2 * LLC_cache_size ? true : false;
-    const bool output_is_aligned =
-        ((size_t)&(diff_src(0, 0, 0, 0, 0))) & (64 - 1) == 0;
+
+    const float *output_ptr = &(diff_src(0, 0, 0, 0, 0));
+    const bool output_is_aligned = ((size_t)output_ptr & (64 - 1)) == 0;
 
 #pragma omp parallel
     {
