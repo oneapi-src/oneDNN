@@ -57,6 +57,10 @@ inline void pick_loop_order(jit_conv_conf_t &jcp) {
     }
 }
 
+inline bool is_1stconv(const jit_conv_conf_t &jcp) {
+    return one_of(jcp.ic, 1, 3);
+}
+
 }
 
 void jit_avx512_common_conv_fwd_kernel::prepare_output(int ur_w)
@@ -882,14 +886,9 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         jcp.relu_negative_slope = 0;
     }
 
-    // TODO: simplify
-    if (jcp.ic % simd_w != 0) {
-        if (jcp.ic == 3 || jcp.ic == 1)
-            jcp.is_1stconv = true;
-        else
-            return status::unimplemented;
-    } else
-        jcp.is_1stconv = false;
+    jcp.is_1stconv = is_1stconv(jcp);
+    if (jcp.ic % simd_w != 0 && !jcp.is_1stconv)
+        return status::unimplemented;
 
     if (dst_d.format() == any)
         CHECK(dst_pd.set_format(nChw16c));
@@ -1734,9 +1733,8 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
 
     const int simd_w = 16;
 
-    // TODO: can we please have a standard way to compute this?
-    jcp.is_1stconv = false;
-    if (jcp.ic % simd_w != 0 )
+    jcp.is_1stconv = is_1stconv(jcp);
+    if (jcp.ic % simd_w != 0)
         return status::unimplemented;
 
     jcp.ic_block = (jcp.ic % simd_w) ? jcp.ic : simd_w;
@@ -3209,13 +3207,12 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
     }
 
     /* check for the 1st convolution */
-    jcp.is_1stconv = jcp.ic % simd_w;
+    jcp.is_1stconv = is_1stconv(jcp);
     if (jcp.is_1stconv) {
         if (src_d.format() == any)
             CHECK(src_pd.set_format(nchw));
 
         const bool src_ok = true
-            && one_of(jcp.ic, 1, 3)
             && implication(jcp.ic == 1, one_of(src_d.format(), nchw, nhwc))
             && implication(jcp.ic != 1, src_d.format() == nchw)
             && jcp.ngroups == 1;
