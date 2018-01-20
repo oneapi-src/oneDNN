@@ -1,3 +1,7 @@
+> Intel MKL-DNN repository will migrate to [https://github.com/intel/mkl-dnn](https://github.com/intel/mkl-dnn) on
+> Wednesday, January 24th. The old address will continue to be available and will redirect to the new repo.
+> Please update your links.
+
 # Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN)
 [![Apache License Version 2.0](https://img.shields.io/badge/license-Apache_2.0-green.svg)](LICENSE)
 ![v0.12 beta](https://img.shields.io/badge/v0.12-beta-orange.svg)
