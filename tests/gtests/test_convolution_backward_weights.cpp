@@ -141,15 +141,15 @@ protected:
                 = create_md({ cd.mb, cd.oc, cd.oh, cd.ow }, data_type,
                         p.formats.dst_format);
 
-        auto c_src = memory({c_src_desc, eng});
-        auto c_diff_weights = memory({c_diff_weights_desc, eng});
-        auto c_diff_bias = memory({c_diff_bias_desc, eng});
-        auto c_diff_dst = memory({c_diff_dst_desc, eng});
+        auto c_src = test_memory(c_src_desc, eng);
+        auto c_diff_weights = test_memory(c_diff_weights_desc, eng);
+        auto c_diff_bias = test_memory(c_diff_bias_desc, eng);
+        auto c_diff_dst = test_memory(c_diff_dst_desc, eng);
 
-        fill_data<data_t>(c_diff_dst.get_primitive_desc().get_size()
-                / sizeof(data_t), (data_t *)c_diff_dst.get_data_handle());
-        fill_data<data_t>(c_src.get_primitive_desc().get_size()
-                / sizeof(data_t), (data_t *)c_src.get_data_handle());
+        fill_data<data_t>(c_diff_dst.get_size() / sizeof(data_t),
+                (data_t *)c_diff_dst.get().get_data_handle());
+        fill_data<data_t>(c_src.get_size() / sizeof(data_t),
+                (data_t *)c_src.get().get_data_handle());
 
         std::vector<int> padR = { cd.padh, cd.padw };
         for (int i = 0; i < 2; ++i) {
@@ -183,7 +183,8 @@ protected:
 
             auto conv_bwd_weights =
                 convolution_backward_weights(conv_bwd_weights_primitive_desc,
-                        c_src, c_diff_dst, c_diff_weights, c_diff_bias);
+                        c_src.get(), c_diff_dst.get(), c_diff_weights.get(),
+                        c_diff_bias.get());
 
             std::vector<primitive> pipeline;
             pipeline.push_back(conv_bwd_weights);
@@ -192,13 +193,13 @@ protected:
             auto ref_diff_weights = memory({c_diff_weights_desc, eng});
             auto ref_diff_bias = memory({c_diff_bias_desc, eng});
 
-            compute_ref_conv_bwd_weights<data_t>(cd, c_src, c_diff_dst,
-                    ref_diff_weights);
-            compare_data<data_t>(ref_diff_weights, c_diff_weights);
+            compute_ref_conv_bwd_weights<data_t>(cd, c_src.get(),
+                    c_diff_dst.get(), ref_diff_weights);
+            compare_data<data_t>(ref_diff_weights, c_diff_weights.get());
 
-            compute_ref_conv_bwd_bias<data_t>(cd, c_diff_dst,
+            compute_ref_conv_bwd_bias<data_t>(cd, c_diff_dst.get(),
                     ref_diff_bias);
-            compare_data<data_t>(ref_diff_bias, c_diff_bias);
+            compare_data<data_t>(ref_diff_bias, c_diff_bias.get());
         };
 
         if (catch_expected_failures(test, p.expect_to_fail, p.expected_status))

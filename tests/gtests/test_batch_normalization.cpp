@@ -217,10 +217,10 @@ void check_bnrm_bwd(const test_bnrm_params_t &p,
 template <typename data_t>
 class bnrm_test : public ::testing::TestWithParam<test_bnrm_params_t> {
 private:
-    std::shared_ptr<memory> src;
-    std::shared_ptr<memory> dst;
-    std::shared_ptr<memory> diff_src;
-    std::shared_ptr<memory> diff_dst;
+    std::shared_ptr<test_memory> src;
+    std::shared_ptr<test_memory> dst;
+    std::shared_ptr<test_memory> diff_src;
+    std::shared_ptr<test_memory> diff_dst;
     std::shared_ptr<memory> weights;
     std::shared_ptr<memory> diff_weights;
     std::shared_ptr<memory> mean;
@@ -249,10 +249,10 @@ protected:
         diff_desc.reset(new memory::desc({ bs.mb, bs.c, bs.h, bs.w },
                     data_type, p.formats.diff_format));
 
-        src.reset(new memory({*data_desc, *eng}));
-        dst.reset(new memory({*data_desc, *eng}));
-        diff_src.reset(new memory({*diff_desc, *eng}));
-        diff_dst.reset(new memory({*diff_desc, *eng}));
+        src.reset(new test_memory(*data_desc, *eng));
+        dst.reset(new test_memory(*data_desc, *eng));
+        diff_src.reset(new test_memory(*diff_desc, *eng));
+        diff_dst.reset(new test_memory(*diff_desc, *eng));
 
         auto training = prop_kind::forward_training;
         auto scoring = prop_kind::forward_scoring;
@@ -292,7 +292,7 @@ protected:
                     new memory(bnrm_prim_desc->variance_primitive_desc()));
         }
 
-        fill(*src);
+        fill(src->get());
         if (useScaleShift) fill(*weights);
         if (useGlobalStats) {
             fill(*mean);
@@ -305,7 +305,8 @@ protected:
         pipeline.push_back(bn);
         stream(stream::kind::lazy).submit(pipeline).wait();
 
-        check_bnrm_fwd<data_t>(p, *src, *mean, *variance, *weights, *dst, flags, pk);
+        check_bnrm_fwd<data_t>(p, src->get(), *mean, *variance, *weights,
+                dst->get(), flags, pk);
     }
 
     void Backward(unsigned flags, prop_kind pk) {
@@ -326,7 +327,7 @@ protected:
                     bnrm_bwd_prim_desc->variance_primitive_desc()));
 
         if (useScaleShift) fill(*weights);
-        fill(*diff_dst);
+        fill(diff_dst->get());
         fill(*mean);
         fill(*variance);
 
@@ -337,7 +338,8 @@ protected:
         stream(stream::kind::lazy).submit(pipeline).wait();
 
         check_bnrm_bwd<data_t>(p,
-                *src, *diff_dst, *mean, *variance, *weights, *diff_src, *diff_weights, flags, pk);
+                src->get(), diff_dst->get(), *mean, *variance, *weights,
+                diff_src->get(), *diff_weights, flags, pk);
     }
 
     void fill(memory &m, data_t mean = 1.) {
@@ -351,23 +353,24 @@ protected:
         if (!isTraining && !useGlobalStats) {
             return useScaleShift
                 ? batch_normalization_forward(*bnrm_prim_desc,
-                    *src, *weights, *dst)
-                : batch_normalization_forward(*bnrm_prim_desc, *src, *dst);
+                    src->get(), *weights, dst->get())
+                : batch_normalization_forward(*bnrm_prim_desc, src->get(),
+                        dst->get());
         } else {
             if (useGlobalStats) {
                 return useScaleShift
                     ? batch_normalization_forward(*bnrm_prim_desc,
-                        *src, (const primitive::at)*mean,
-                        (const primitive::at)*variance, *weights, *dst)
+                        src->get(), (const primitive::at)*mean,
+                        (const primitive::at)*variance, *weights, dst->get())
                     : batch_normalization_forward(*bnrm_prim_desc,
-                        *src, (const primitive::at)*mean,
-                        (const primitive::at)*variance, *dst);
+                        src->get(), (const primitive::at)*mean,
+                        (const primitive::at)*variance, dst->get());
             } else {
                 return useScaleShift
                     ? batch_normalization_forward(*bnrm_prim_desc,
-                        *src, *weights, *dst, *mean, *variance)
+                        src->get(), *weights, dst->get(), *mean, *variance)
                     : batch_normalization_forward(*bnrm_prim_desc,
-                        *src, *dst, *mean, *variance);
+                        src->get(), dst->get(), *mean, *variance);
             }
         }
     }
@@ -377,13 +380,14 @@ protected:
         if (useScaleShift) {
             return pk == prop_kind::backward_data
                 ? batch_normalization_backward(*bnrm_bwd_prim_desc,
-                    *src, *mean, *variance, *diff_dst, *weights, *diff_src)
+                    src->get(), *mean, *variance, diff_dst->get(), *weights,
+                    diff_src->get())
                 : batch_normalization_backward(*bnrm_bwd_prim_desc,
-                    *src, *mean, *variance, *diff_dst, *weights,
-                    *diff_src, *diff_weights);
+                    src->get(), *mean, *variance, diff_dst->get(), *weights,
+                    diff_src->get(), *diff_weights);
         } else {
-            return batch_normalization_backward(*bnrm_bwd_prim_desc,
-                    *src, *mean, *variance, *diff_dst, *diff_src);
+            return batch_normalization_backward(*bnrm_bwd_prim_desc, src->get(),
+                    *mean, *variance, diff_dst->get(), diff_src->get());
         }
     }
 };

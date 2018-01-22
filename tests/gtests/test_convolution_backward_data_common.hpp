@@ -118,17 +118,9 @@ protected:
         auto c_dst_desc_f = create_md({ cd.mb, cd.oc, cd.oh, cd.ow },
                 data_type_diff_src, p.formats.dst_format);
 
-        auto src_primitive_desc = memory::primitive_desc(c_src_desc, eng);
-        auto weights_primitive_desc
-            = memory::primitive_desc(c_weights_desc, eng);
-        auto dst_primitive_desc = memory::primitive_desc(c_dst_desc, eng);
-
-        auto src_primitive_desc_f = memory::primitive_desc(c_src_desc_f, eng);
-        auto dst_primitive_desc_f = memory::primitive_desc(c_dst_desc_f, eng);
-
-        auto c_diff_src = memory(src_primitive_desc);
-        auto c_weights = memory(weights_primitive_desc);
-        auto c_diff_dst = memory(dst_primitive_desc);
+        auto c_diff_src = test_memory(c_src_desc, eng);
+        auto c_weights = test_memory(c_weights_desc, eng);
+        auto c_diff_dst = test_memory(c_dst_desc, eng);
 
         std::vector<int> padR = { cd.padh, cd.padw };
         for (int i = 0; i < 2; ++i) {
@@ -141,12 +133,11 @@ protected:
         }
 
         // Only true for dense format
-        fill_data<data_t_wei>(
-                c_weights.get_primitive_desc().get_size() / sizeof(data_t_wei),
-                (data_t_wei *)c_weights.get_data_handle());
+        fill_data<data_t_wei>(c_weights.get_size() / sizeof(data_t_wei),
+                (data_t_wei *)c_weights.get().get_data_handle());
         fill_data<data_t_diff_dst>(
-                c_diff_dst.get_primitive_desc().get_size() / sizeof(data_t_diff_dst),
-                (data_t_diff_dst *)c_diff_dst.get_data_handle());
+                c_diff_dst.get_size() / sizeof(data_t_diff_dst),
+                (data_t_diff_dst *)c_diff_dst.get().get_data_handle());
 
         auto test = [&]() {
             auto conv_desc = convolution_forward::desc(
@@ -166,7 +157,7 @@ protected:
                         conv_bwd_data_desc, eng, conv_primitive_desc);
             auto conv_bwd_data = convolution_backward_data(
                     conv_bwd_data_primitive_desc,
-                    c_diff_dst, c_weights, c_diff_src);
+                    c_diff_dst.get(), c_weights.get(), c_diff_src.get());
 
             std::vector<primitive> pipeline;
             pipeline.push_back(conv_bwd_data);
@@ -175,8 +166,8 @@ protected:
             auto ref_memory = memory(memory::primitive_desc(c_src_desc, eng));
             compute_ref_conv_bwd_data
                 <data_t_diff_dst, data_t_wei, data_t_acc, data_t_diff_src>(
-                        cd, ref_memory, c_weights, c_diff_dst);
-            compare_data<data_t_diff_src>(ref_memory, c_diff_src);
+                        cd, ref_memory, c_weights.get(), c_diff_dst.get());
+            compare_data<data_t_diff_src>(ref_memory, c_diff_src.get());
         };
 
         if (catch_expected_failures(test, p.expect_to_fail, p.expected_status))

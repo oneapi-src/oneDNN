@@ -385,4 +385,45 @@ template<typename F> bool catch_expected_failures(const F &f,
     return false;
 }
 
+#define TEST_MALLOC_OFFSET 8
+char *test_malloc(size_t size) {
+    void *ptr;
+    const size_t align = 64;
+    const size_t padded_size = TEST_MALLOC_OFFSET + size;
+#ifdef _WIN32
+    ptr = _aligned_malloc(padded_size, align);
+    int rc = ((ptr) ? 0 : errno);
+#else
+    int rc = ::posix_memalign(&ptr, align, padded_size);
+#endif /* _WIN32 */
+    return rc == 0 ? (char*)ptr + TEST_MALLOC_OFFSET: 0;
+}
+
+void test_free(char *ptr) {
+    char *base_ptr = ptr - TEST_MALLOC_OFFSET;
+#ifdef _WIN32
+    _aligned_free(base_ptr);
+#else
+    return ::free(base_ptr);
+#endif /* _WIN32 */
+}
+#undef TEST_MALLOC_OFFSET
+
+class test_memory {
+public:
+    test_memory(const mkldnn::memory::desc &d, const mkldnn::engine &e) {
+        auto pd = mkldnn::memory::primitive_desc(d, e);
+        pd_size_ = pd.get_size();
+        data_.reset(test_malloc(pd_size_), test_free);
+        mem_.reset(new mkldnn::memory(pd, data_.get()));
+    }
+    size_t get_size() const { return pd_size_; }
+    mkldnn::memory &get() { return *mem_; }
+
+private:
+    std::shared_ptr<mkldnn::memory> mem_;
+    std::shared_ptr<char> data_;
+    size_t pd_size_;
+};
+
 #endif

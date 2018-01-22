@@ -194,15 +194,17 @@ void check_lrn_bwd(const lrn_test_params &p, const memory &src,
             }
         }
     }
+
+    delete [] ref_diff_src_ptr;
 }
 
 template <typename data_t>
 class lrn_test : public ::testing::TestWithParam<lrn_test_params> {
 private:
-    std::shared_ptr<memory> src;
-    std::shared_ptr<memory> dst;
-    std::shared_ptr<memory> diff_src;
-    std::shared_ptr<memory> diff_dst;
+    std::shared_ptr<test_memory> src;
+    std::shared_ptr<test_memory> dst;
+    std::shared_ptr<test_memory> diff_src;
+    std::shared_ptr<test_memory> diff_dst;
     std::shared_ptr<memory> workspace;
     std::shared_ptr<memory::desc> src_desc;
     std::shared_ptr<memory::desc> dst_desc;
@@ -251,11 +253,11 @@ protected:
                 p.test_ld.k);
         lrn_fwd_prim_desc.reset(new lrn_forward::primitive_desc(lrn_desc, *eng));
 
-        src.reset(new memory({*src_desc, *eng}));
-        dst.reset(new memory({*dst_desc, *eng}));
+        src.reset(new test_memory(*src_desc, *eng));
+        dst.reset(new test_memory(*dst_desc, *eng));
 
-        fill_data<data_t>(src->get_primitive_desc().get_size() / sizeof(data_t),
-                (data_t *)src->get_data_handle());
+        fill_data<data_t>(src->get_size() / sizeof(data_t),
+                (data_t *)src->get().get_data_handle());
 
         auto test = [&]() {
             // Execute
@@ -265,11 +267,13 @@ protected:
                 auto workspace_primitive_desc =
                     lrn_fwd_prim_desc->workspace_primitive_desc();
                 workspace.reset(new memory(workspace_primitive_desc));
-                auto l = lrn_forward(*lrn_fwd_prim_desc, *src, *workspace, *dst);
+                auto l = lrn_forward(*lrn_fwd_prim_desc, src->get(), *workspace,
+                        dst->get());
                 pipeline.push_back(l);
                 s.submit(pipeline).wait();
             } else {
-                auto l = lrn_forward(*lrn_fwd_prim_desc, *src, *dst);
+                auto l = lrn_forward(*lrn_fwd_prim_desc, src->get(),
+                        dst->get());
                 pipeline.push_back(l);
                 s.submit(pipeline).wait();
             }
@@ -278,7 +282,7 @@ protected:
         if (catch_expected_failures(test, p.expect_to_fail, p.expected_status))
             return;
 
-        check_lrn_fwd<data_t>(p, *src, *dst);
+        check_lrn_fwd<data_t>(p, src->get(), dst->get());
     }
 
     void Backward()
@@ -286,20 +290,26 @@ protected:
         auto lrn_desc = lrn_backward::desc(p.aalgorithm,
                 *src_desc, *diff_dst_desc, p.test_ld.local_size,
                 p.test_ld.alpha, p.test_ld.beta, p.test_ld.k);
-        diff_src.reset(new memory({*diff_src_desc, *eng}));
-        diff_dst.reset(new memory({*diff_dst_desc, *eng}));
+
+        src.reset(new test_memory(*src_desc, *eng));
+        diff_src.reset(new test_memory(*diff_src_desc, *eng));
+        diff_dst.reset(new test_memory(*diff_dst_desc, *eng));
+
         auto lrn_prim_desc = lrn_backward::primitive_desc(lrn_desc, *eng,
                 *lrn_fwd_prim_desc);
 
-        fill_data<data_t>(diff_dst->get_primitive_desc().get_size()
-                / sizeof(data_t), (data_t *)diff_dst->get_data_handle());
+        fill_data<data_t>(src->get_size() / sizeof(data_t),
+                (data_t *)src->get().get_data_handle());
+
+        fill_data<data_t>(diff_dst->get_size() / sizeof(data_t),
+                (data_t *)diff_dst->get().get_data_handle());
 
         auto test = [&]() {
             // Execute
             std::vector<primitive> pipeline;
             auto s = stream(stream::kind::lazy);
-            auto l = lrn_backward(lrn_prim_desc, *src, *diff_dst, *workspace,
-                    *diff_src);
+            auto l = lrn_backward(lrn_prim_desc, src->get(), diff_dst->get(),
+                    *workspace, diff_src->get());
             pipeline.push_back(l);
             s.submit(pipeline).wait();
         };
@@ -307,7 +317,7 @@ protected:
         if (catch_expected_failures(test, p.expect_to_fail, p.expected_status))
             return;
 
-        check_lrn_bwd<data_t>(p, *src, *diff_dst, *diff_src);
+        check_lrn_bwd<data_t>(p, src->get(), diff_dst->get(), diff_src->get());
     }
 };
 

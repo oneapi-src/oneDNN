@@ -128,23 +128,12 @@ protected:
         auto l_dst_desc = create_md({ ld.mb, ld.c, ld.h, ld.w },
                 data_type, p.dst_format);
 
-        auto src_primitive_desc = memory::primitive_desc(l_src_desc, eng);
-        auto dst_primitive_desc = memory::primitive_desc(l_dst_desc, eng);
-
-        auto src_size = src_primitive_desc.get_size();
-        auto dst_size = dst_primitive_desc.get_size();
-
-        // TODO: free
-        data_t *src_data = new data_t[src_size];
-        data_t *workspace_data = nullptr;
-        data_t *dst_data = new data_t[dst_size];
-
-        auto l_src = memory(src_primitive_desc, src_data);
-        auto l_dst = memory(dst_primitive_desc, dst_data);
+        auto l_src = test_memory(l_src_desc, eng);
+        auto l_dst = test_memory(l_dst_desc, eng);
 
         // Only true for dense format
-        fill_data<data_t>(l_src.get_primitive_desc().get_size() / sizeof(data_t),
-                (data_t *)l_src.get_data_handle());
+        fill_data<data_t>(l_src.get_size() / sizeof(data_t),
+                (data_t *)l_src.get().get_data_handle());
 
         auto test = [&]() {
             auto lrn_desc = lrn_forward::desc(p.aprop_kind, p.aalgorithm,
@@ -157,16 +146,13 @@ protected:
             if (with_workspace) {
                 auto workspace_primitive_desc =
                     lrn_prim_desc.workspace_primitive_desc();
-                auto workspace_size = workspace_primitive_desc.get_size();
-                workspace_data = new data_t[workspace_size];
-                auto workspace_memory
-                    = memory(workspace_primitive_desc, workspace_data);
-                auto l
-                    = lrn_forward(lrn_prim_desc, l_src, workspace_memory, l_dst);
+                auto workspace_memory = memory(workspace_primitive_desc);
+                auto l = lrn_forward(lrn_prim_desc, l_src.get(),
+                        workspace_memory, l_dst.get());
                 pipeline.push_back(l);
                 s.submit(pipeline).wait();
             } else {
-                auto l = lrn_forward(lrn_prim_desc, l_src, l_dst);
+                auto l = lrn_forward(lrn_prim_desc, l_src.get(), l_dst.get());
                 pipeline.push_back(l);
                 s.submit(pipeline).wait();
             }
@@ -176,7 +162,8 @@ protected:
         if (catch_expected_failures(test, p.expect_to_fail, p.expected_status))
             return;
 
-        check_lrn_fwd<data_t>(ld, l_src_desc, l_dst_desc, l_src, l_dst);
+        check_lrn_fwd<data_t>(ld, l_src_desc, l_dst_desc, l_src.get(),
+                l_dst.get());
     }
 };
 
