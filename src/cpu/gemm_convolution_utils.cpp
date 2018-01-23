@@ -1079,16 +1079,14 @@ status_t init_conf(conv_gemm_conf_t &jcp,
             CHECK(memory_desc_init_by_tag(src_md, desired_src_tag));
             src_tag = desired_src_tag;
         } else {
-            src_tag = memory_desc_matches_one_of_tag(
-                    src_md, nwc, nhwc, ndhwc, ncw, nchw, ncdhw);
+            src_tag = src_d.mb_stride_relaxed_match(nwc, nhwc, ndhwc, ncw, nchw, ncdhw);
         }
 
         if (dst_d.format_kind() == format_kind::any) {
             CHECK(memory_desc_init_by_tag(dst_md, desired_dst_tag));
             dst_tag = desired_dst_tag;
         } else {
-            dst_tag = memory_desc_matches_one_of_tag(
-                    dst_md, nwc, nhwc, ndhwc, ncw, nchw, ncdhw);
+            dst_tag = dst_d.mb_stride_relaxed_match(nwc, nhwc, ndhwc, ncw, nchw, ncdhw);
         }
 
         if (src_tag == format_tag::undef || dst_tag == format_tag::undef)
