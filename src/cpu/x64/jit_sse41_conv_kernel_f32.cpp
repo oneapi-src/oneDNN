@@ -437,9 +437,9 @@ status_t jit_sse41_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
                                           : pick(ndims - 3, Owi8o, Ohwi8o);
 
     jcp.src_tag
-            = src_d.matches_one_of_tag(dat_tag_ncx, dat_tag_nxc, dat_tag_nCx8c);
+            = src_d.mb_stride_relaxed_match(dat_tag_ncx, dat_tag_nxc, dat_tag_nCx8c);
     jcp.wei_tag = weights_d.matches_one_of_tag(wei_tag_OIxio, wei_tag_Oxio);
-    jcp.dst_tag = dst_d.matches_one_of_tag(dat_tag_nxc, dat_tag_nCx8c);
+    jcp.dst_tag = dst_d.mb_stride_relaxed_match(dat_tag_nxc, dat_tag_nCx8c);
 
     const bool is_data_layout_nxc
             = utils::everyone_is(dat_tag_nxc, jcp.src_tag, jcp.dst_tag);

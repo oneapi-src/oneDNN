@@ -228,10 +228,20 @@ status_t gemm_convolution_fwd_t::execute_forward_ncsp(
 
     const conv_gemm_conf_t &jcp = this->pd()->jcp_;
 
-    const size_t src_step = jcp.ic * jcp.ih * jcp.iw * jcp.id;
+    const memory_desc_wrapper src_d(pd()->src_md());
+    const memory_desc_wrapper dst_d(pd()->dst_md());
+
+    const size_t src_mb_stride = src_d.blk_off(1);
+    const size_t src_grp_stride = src_d.blk_off(0, 1) * jcp.ic;
+
+    const size_t dst_mb_stride = dst_d.blk_off(1);
+    const size_t dst_grp_stride = dst_d.blk_off(0, 1) * jcp.oc;
+
     const size_t weights_oc_size = jcp.ic * jcp.ks;
     const size_t weights_g_size = weights_oc_size * jcp.oc;
     const bool is_problem_3d = pd()->ndims() == 5;
+    src += src_d.off_l(0);
+    dst += dst_d.off_l(0);
 
     assert(IMPLICATION(is_problem_3d,
             jcp.os_block == jcp.os && jcp.ic_block == jcp.ic
@@ -251,7 +261,7 @@ status_t gemm_convolution_fwd_t::execute_forward_ncsp(
         auto inner_ker = [&](int spatial, const im_pos_t &curr, im_pos_t &prev,
                                  im_pos_t &step, const im_pos_t &end) {
             const data_t *_src
-                    = src + (curr.n * jcp.ngroups + curr.g) * src_step;
+                    = src + curr.n * src_mb_stride + curr.g * src_grp_stride;
             step.oc = nstl::min(
                     jcp.oc_block, nstl::min(jcp.oc, end.oc) - curr.oc);
             step.sp = nstl::min(jcp.os_block,
@@ -272,10 +282,9 @@ status_t gemm_convolution_fwd_t::execute_forward_ncsp(
             const data_t one = 1.0;
 
             const dim_t M = jcp.os * jcp.od;
-            const size_t dst_step = jcp.oc * M;
             const dim_t m = step.sp;
             const dim_t LDA = jcp.im2col_sz ? m : M;
-            data_t *_dst = dst + (curr.n * jcp.ngroups + curr.g) * dst_step
+            data_t *_dst = dst + curr.n * dst_mb_stride + curr.g * dst_grp_stride
                     + curr.oc * M + curr.od * jcp.os + curr.sp;
             const dim_t K = step.ic * jcp.ks;
             const dim_t LDB = jcp.ic * jcp.ks;
@@ -519,8 +528,13 @@ status_t gemm_convolution_bwd_data_t::execute_backward_data_ncsp(
     const conv_gemm_conf_t &jcp = this->pd()->jcp_;
 
     const dim_t M = jcp.os * jcp.od;
-    const size_t src_step = (size_t)jcp.ic * jcp.ih * jcp.iw * jcp.id;
-    const size_t dst_step = (size_t)jcp.oc * M;
+    const size_t src_step_to_clean = jcp.ic * jcp.ih * jcp.iw * jcp.id;
+    const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
+    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
+    const size_t src_step = diff_src_d.blk_off(1) / jcp.ngroups;
+    const size_t dst_step = diff_dst_d.blk_off(1) / jcp.ngroups;
+    diff_src += diff_src_d.off_l(0);
+    diff_dst += diff_dst_d.off_l(0);
     const size_t weights_g_size = (size_t)jcp.ic * jcp.oc * jcp.ks;
 
     const dim_t m = jcp.os_block;
@@ -544,7 +558,7 @@ status_t gemm_convolution_bwd_data_t::execute_backward_data_ncsp(
             if (is_problem_3d && jcp.im2col_sz > 0) {
                 // jit_gemm_convolution_utils::col2im_3d() assumes that the
                 // accumulator is initialized by zeroes
-                for (size_t i = 0; i < src_step; i++)
+                for (size_t i = 0; i < src_step_to_clean; i++)
                     _diff_src[i] = (data_t)0;
             }
 

@@ -60,7 +60,7 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
         CHECK(memory_desc_init_by_tag(src_md, def_tag));
         jcp.src_tag = def_tag;
     } else {
-        jcp.src_tag = src_d.matches_one_of_tag(blocked_tag, nxc_tag);
+        jcp.src_tag = src_d.mb_stride_relaxed_match(blocked_tag, nxc_tag);
     }
 
     if (weights_d.format_kind() == format_kind::any) {
@@ -74,7 +74,7 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
         CHECK(memory_desc_init_by_tag(dst_md, def_tag));
         jcp.dst_tag = def_tag;
     } else {
-        jcp.dst_tag = dst_d.matches_one_of_tag(blocked_tag, nxc_tag);
+        jcp.dst_tag = dst_d.mb_stride_relaxed_match(blocked_tag, nxc_tag);
     }
 
     if (jcp.with_bias) {
@@ -319,9 +319,9 @@ status_t jit_uni_dw_conv_bwd_data_kernel<isa, kernel_dt>::init_conf(
     const auto wei_tag = isa == avx512_core ? Goihw16g : Goihw8g;
 
     auto curr_src_tag
-            = diff_src_d.matches_one_of_tag(dat_tag_nxc, dat_tag_blocked);
+            = diff_src_d.mb_stride_relaxed_match(dat_tag_nxc, dat_tag_blocked);
     auto curr_dst_tag
-            = diff_dst_d.matches_one_of_tag(dat_tag_nxc, dat_tag_blocked);
+            = diff_dst_d.mb_stride_relaxed_match(dat_tag_nxc, dat_tag_blocked);
     bool is_data_layout_nxc
             = utils::everyone_is(dat_tag_nxc, curr_src_tag, curr_dst_tag);
     auto dat_tag = is_data_layout_nxc ? dat_tag_nxc : dat_tag_blocked;

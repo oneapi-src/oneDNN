@@ -541,6 +541,12 @@ status_t gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward_ncsp(
 
     const conv_gemm_conf_t &jcp = this->pd()->jcp_;
 
+    const memory_desc_wrapper src_d(pd()->src_md());
+    const memory_desc_wrapper dst_d(pd()->dst_md());
+
+    src += src_d.off_l(0);
+    dst += dst_d.off_l(0);
+
     float *bias = nullptr;
     if (jcp.with_bias) {
         if (pd()->desc()->bias_desc.data_type == data_type::bf16) {

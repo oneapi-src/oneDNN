@@ -614,8 +614,8 @@ status_t jit_sse41_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
 
     const auto dat_tag_nxc = utils::pick(ndims - 3, nwc, nhwc);
     const auto dat_tag_blocked = utils::pick(ndims - 3, nCw8c, nChw8c);
-    jcp.src_tag = src_d.matches_one_of_tag(dat_tag_nxc, dat_tag_blocked);
-    jcp.dst_tag = dst_d.matches_one_of_tag(dat_tag_nxc, dat_tag_blocked);
+    jcp.src_tag = src_d.mb_stride_relaxed_match(dat_tag_nxc, dat_tag_blocked);
+    jcp.dst_tag = dst_d.mb_stride_relaxed_match(dat_tag_nxc, dat_tag_blocked);
     const bool is_data_layout_nxc
             = utils::everyone_is(dat_tag_nxc, jcp.src_tag, jcp.dst_tag);
     const auto dat_tag = is_data_layout_nxc ? dat_tag_nxc : dat_tag_blocked;

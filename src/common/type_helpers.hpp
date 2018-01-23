@@ -199,10 +199,7 @@ inline bool blocking_desc_is_equal(const memory_desc_t &lhs_md,
             && array_cmp(lhs.inner_idxs, rhs.inner_idxs, lhs.inner_nblks);
     if (ignore_strides) return equal;
 
-    // Check the strides.
-    // Note: for dimensions of size `1` the stride doesn't really matter.
     for (int d = 0; d < lhs_md.ndims; ++d) {
-        if (lhs_md.dims[d] == 1 && lhs_md.padded_dims[d] == 1) continue;
         equal = equal && lhs.strides[d] == rhs.strides[d];
     }
 
