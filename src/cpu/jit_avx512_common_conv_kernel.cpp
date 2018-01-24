@@ -1047,7 +1047,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
             jcp.kernel_kind = embd_bcast;
             jcp.ur_w = nstl::min(jcp.ow, regs);
             jcp.nb_ic_blocking = jcp.nb_oc_blocking = 1;
-            if (ker_total_size < L1_cache_size && jcp.ow < 14 && jcp.kh <= 3
+            if (ker_total_size < L1_cache_size && jcp.ow <= 8 && jcp.kh <= 3
                 && jcp.kw <= 3) {
                 if (jcp.nb_oc % try_nb_oc_blocking == 0 && !jcp.is_1stconv) {
                     jcp.nb_oc_blocking = try_nb_oc_blocking;
