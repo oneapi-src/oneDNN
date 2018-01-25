@@ -54,7 +54,7 @@ containing:
 
 To get more information about verbose report format please refer to the
 `verbose_templ()` function in the
-[src/common/verbose.hpp](https://github.com/01org/mkl-dnn/blob/master/src/common/verbose.hpp)
+[src/common/verbose.hpp](https://github.com/intel/mkl-dnn/blob/master/src/common/verbose.hpp)
 file.
 
 ---

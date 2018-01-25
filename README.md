@@ -43,26 +43,26 @@ Intel MKL-DNN is licensed under
 
 ## Documentation
 The latest version of Intel MKL-DNN reference manual is available 
-[GitHub pages](http://01org.github.io/mkl-dnn/). Basic concepts are also
+[GitHub pages](http://intel.github.io/mkl-dnn/). Basic concepts are also
 explained in the tutorial
 * [Intel MKL-DNN: Part 1--Overview and Installation](https://software.intel.com/en-us/articles/intel-mkl-dnn-part-1-library-overview-and-installation)
 * [Intel MKL-DNN: Part 2--Code Build and Walkthrough](https://software.intel.com/en-us/articles/intel-mkl-dnn-part-2-sample-code-build-and-walkthrough)
 
 ## Support
 Please submit your questions, feature requests and bug reports on
-[GitHub issues](https://github.com/01org/mkl-dnn/issues) page.
+[GitHub issues](https://github.com/intel/mkl-dnn/issues) page.
 
 ## How to Contribute
 We welcome community contributions to Intel MKL-DNN. If you have an idea how to improve the library:
 
 * Share your proposal via
- [GitHub issues](https://github.com/01org/mkl-dnn/issues).
+ [GitHub issues](https://github.com/intel/mkl-dnn/issues).
 
 * Ensure you can build the product and run all the examples with your patch
 
 * In the case of a larger feature, create a test
 
-* Submit a [pull request](https://github.com/01org/mkl-dnn/pulls)
+* Submit a [pull request](https://github.com/intel/mkl-dnn/pulls)
 
 We will review your contribution and, if any additional fixes or modifications
 are necessary, may provide feedback to guide you. When accepted, your pull
@@ -105,11 +105,11 @@ The implementation uses OpenMP\* 4.0 SIMD extensions. We recommend using
 Intel(R) Compiler for the best performance results.
 
 ## Installation
-Download [Intel MKL-DNN source code](https://github.com/01org/mkl-dnn/archive/master.zip)
+Download [Intel MKL-DNN source code](https://github.com/intel/mkl-dnn/archive/master.zip)
 or clone the repository to your system
 
 ```
-	git clone https://github.com/01org/mkl-dnn.git
+	git clone https://github.com/intel/mkl-dnn.git
 ```
 
 Ensure that all software dependencies are in place and have at least minimal
@@ -125,7 +125,7 @@ libraries using provided script
 	cd scripts && ./prepare_mkl.sh && cd ..
 ```
 
-or manually from [GitHub release section](https://github.com/01org/mkl-dnn/releases)
+or manually from [GitHub release section](https://github.com/intel/mkl-dnn/releases)
 and unpack it to the `external` directory in the repository root. 
 
 You can choose to build Intel MKL-DNN without binary dependency. The resulting
