@@ -235,12 +235,12 @@ mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_clone(
 mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_destroy(
         mkldnn_primitive_attr_t attr);
 
-/* Returns integer output rounding mode @p round_mode for a given @p attr,
+/** Returns integer output rounding mode @p round_mode for a given @p attr,
  * previously set by mkldnn_primitive_attr_set_int_output_round_mode. */
 mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_get_int_output_round_mode(
         const_mkldnn_primitive_attr_t attr, mkldnn_round_mode_t *round_mode);
 
-/* Sets output rounding mode @p round_mode for integer operations for a given
+/** Sets output rounding mode @p round_mode for integer operations for a given
  * @p attr.
  *
  * The default value is #mkldnn_round_nearest.
@@ -248,7 +248,7 @@ mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_get_int_output_round_mode(
 mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_set_int_output_round_mode(
         mkldnn_primitive_attr_t attr, mkldnn_round_mode_t round_mode);
 
-/* Returns @p count, correspondence scale @p mask, and pointer to a constant
+/** Returns @p count, correspondence scale @p mask, and pointer to a constant
  * floating point array of output @p scales for given @p attr, previously set
  * by mkldnn_primitive_attr_set_output_scales.
  *
@@ -264,7 +264,7 @@ mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_get_output_scales(
         const_mkldnn_primitive_attr_t attr, int *count, int *mask,
         const float **scales);
 
-/* Sets output @p scales for primitive operations. The number of elements @p
+/** Sets output @p scales for primitive operations. The number of elements @p
  * count and correspondence scale @p mask are stored for future use.
  *
  * The @p mask argument defines correspondence between output tensor dimensions
@@ -306,7 +306,7 @@ mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_set_output_scales(
         mkldnn_primitive_attr_t attr, int count, int mask,
         const float *scales);
 
-/* Returns @p post_ops for given attr.
+/** Returns @p post_ops for given attr.
  *
  * @warning
  *      @p post_ops points to the internal @p attr field, so user should not
@@ -317,7 +317,7 @@ mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_set_output_scales(
 mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_get_post_ops(
         const_mkldnn_primitive_attr_t attr, const_mkldnn_post_ops_t *post_ops);
 
-/* Sets configured @p post_ops to an attribute @attr for future use (when
+/** Sets configured @p post_ops to an attribute @attr for future use (when
  * primitive descriptor is being created.
  *
  * @note
