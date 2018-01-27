@@ -1,8 +1,7 @@
 # benchdnn
 
 **benchdnn** is a standalone correctness and performance benchmark for
-[Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN)](
-https://raw.githubusercontent.com/01org/mkl-dnn) library.
+[Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN)](/intel/mkl-dnn) library.
 The purpose of the benchmark is extended and robust correctness verification of
 the primitives provided by MKL-DNN. So far **benchdnn** supports convolutions
 and inner products of different data types. It also implicitly tests reorders.
