@@ -38,10 +38,6 @@ Intel MKL DNN primitives implement a plain C/C++ application programming
 interface (API) that can be used in the existing C/C++ DNN frameworks, as well
 as in custom DNN applications.
 
-## Extra features
-
-* [Performance profiling](perf_profile.md)
-
 ## Programming Model
 
 Intel MKL-DNN models memory as a primitive similar to an operation
@@ -113,6 +109,25 @@ To create an operation primitive:
 3. Create an instance of the primitive and specify the input and output
    primitives.
 
+## Examples
+
+A walk-through example for implementing an AlexNet topology using the c++ API:
+
+* [SimpleNet Example](ex_simplenet.md)
+
+An introductory example to low-precision 8-bit computations:
+
+* [Int8 SimpleNet Example](ex_int8_simplenet.md)
+
+The following examples are available in the /examples directory and provide more details about the API.
+* Creation of forward primitives
+    - C: simple_net.c
+    - C++: simple_net.cpp
+
+* Creation of full training net (forward and backward primitives)
+    - C: simple_training.c
+    - C++: simple_training_net.cpp
+
 ### Performance Considerations
 
 *  Convolution and inner product primitives choose the memory format when you create them with the unspecified memory
@@ -129,7 +144,11 @@ To create an operation primitive:
    might need workspace memory for storing results of intermediate operations
    that help with backward propagation.
 
-### Miscellaneous Operational Details
+The following link provides a guide to MKLDNN verbose mode for profiling execution:
+
+* [Performance profiling](perf_profile.md)
+
+### Operational Details
 
 *  You might need to create a reorder primitive to convert the data from a user
    format to the format preferred by convolution or inner product.
@@ -158,154 +177,6 @@ To create an operation primitive:
   another primitive. For a memory primitive the index is always `0`
   because it does not have a output.
 
-## Example
-
-This C++ API example demonstrates how to build a neural network topology
-block that consists of forward convolution and ReLU.
-
-In this example note:
-
-* how a reorder primitive is created
-* how output from convolution passed as input to ReLU
-
-The steps in the example are:
-
-1. Initialize a CPU engine. The last parameter in the engine() call represents the index of the
-   engine.
-~~~cpp
-using namespace mkldnn;
-auto cpu_engine = engine(engine::cpu, 0);
-~~~
-
-2. Create a vector of primitives that represents the net.
-~~~cpp
-std::vector<primitive> net;
-~~~
-
-3. Allocate input data and create a tensor structure that describes the data.
-~~~cpp
-std::vector<float> src(2 * 3 * 227 * 227);
-memory::dims conv_src_tz = {2, 3, 227, 227};
-/* similarly specify tensor structure for output, weights and bias */
-~~~
-
-4. Create two memory descriptors: one for data in a user format, and one for
-   the convolution input. Choose `nchw` (minibatch-channels-height-width)
-   format for user data and `any` for the convolution data format.
-   The `any` format allows the convolution primitive to choose the data format
-   that is most suitable for its input parameters (convolution kernel
-   sizes, strides, padding, and so on). If the resulting format is different
-   from `nchw`, the user data must be transformed to the format required for
-   the convolution.
-~~~cpp
-auto user_src_md = memory::desc({conv_src_tz},
-    memory::data_type::f32, memory::format::nchw);
-auto conv_src_md = memory::desc({conv_src_tz},
-    memory::data_type::f32, memory::format::any);
-/* similarly create conv_weights_md and conv_dst_md in format::any */
-~~~
-
-5. Create a convolution descriptor by specifying the algorithm, propagation
-   kind, shapes of input, weights, bias, output, convolution strides,
-   padding, and kind of padding.
-~~~cpp
-auto conv_desc = convolution_forward::desc(
-    prop_kind::forward, algorithm::convolution_direct,
-    conv_src_md, /* format::any used here to allow convolution choose a format */
-    conv_weights_md, conv_bias_md, conv_dst_md,
-    {1, 1}, {0, 0}, {0, 0}, padding_kind::zero);
-~~~
-
-6. Create a descriptor of the convolution primitive. Once created, this
-   descriptor has specific formats instead of the `any` format specified
-   in the convolution descriptor.
-~~~cpp
-auto conv_pd = convolution_forward::primitive_desc(conv_desc, cpu_engine);
-~~~
-
-7. Create a memory primitive that contains user data and check whether the user
-   data format differs from the format that the convolution requires. In
-   case it is different, create a reorder primitive that transforms the user data
-   to the convolution format and add it to the net.
-~~~cpp
-auto user_src_memory_descriptor
-    = memory::primitive_desc(user_src_md, engine);
-
-auto user_src_memory = memory(user_src_memory_descriptor, src.data());
-
-/* Check whether a reorder is necessary  */
-auto conv_src_memory = user_src_memory;
-if (memory::primitive_desc(conv_pd.src_primitive_desc())
-        != user_src_memory_descriptor) {
-    /* Yes, a reorder is necessary */
-
-    /* The convolution primitive descriptor contains the descriptor of a memory
-     * primitive it requires as input. Because a pointer to the allocated
-     * memory is not specified, Intel MKL-DNN allocates the memory. */
-    conv_src_memory = memory(conv_pd.src_primitive_desc());
-
-    /* create a reorder between data, make it an input for the convolution */
-    conv_reorder_src = reorder(user_src_memory, conv_src_memory)
-
-    /* put the reorder in the net */
-    net.push_back(conv_reorder_src);
-}
-~~~
-
-8. Create a memory primitive for output.
-~~~cpp
-auto conv_dst_memory = memory(conv_pd.dst_primitive_desc());
-~~~
-
-9. Create a convolution primitive and add it to the net.
-~~~cpp
-/* Note that the conv_reorder_src primitive
- * is an input dependency for the convolution primitive, which means that the
- * convolution primitive will not be executed before the data is ready. */
-auto conv
-        = convolution_forward(conv_pd, conv_src_memory, conv_weights_memory,
-                              conv_user_bias_memory, conv_dst_memory);
-net.push_back(conv);
-~~~
-
-10. Create relu primitive. For better performance keep ReLU
-   (as well as for other operation primitives until another convolution or 
-    inner product is encountered) input data format in the same format as was chosen by 
-   convolution.
-~~~cpp
-auto relu_src_md = conv_pd.dst_primitive_desc().desc();
-
-auto relu_desc = relu_forward::desc(prop_kind::forward, relu_src_md,
-        negative_slope);
-auto relu_dst_memory = memory(relu_pd.dst_primitive_desc());
-~~~
-
-11. Pass the convolution primitive as input to relu. 
-    **Note:** this allows the stream to establish dependencies between primitives.
-~~~cpp
-auto relu = relu_forward(relu_pd, conv, relu_dst_memory);
-net.push_back(relu);
-~~~
-
-12. Finally, create a stream, submit all the primitives, and wait for
-    completion.
-~~~cpp
-mkldnn::stream(mkldnn::stream::kind::eager).submit(net).wait();
-~~~
-
-### Extended Examples
-
-These examples provide more details about using the API. All the examples
-use the topology: Convolution, ReLU, LRN, and pooling.
-
-* Creation of forward primitives
-    - C: simple_net.c 
-    - C++: simple_net.cpp
-  
-* Creation of full training net (forward and backward primitives)
-    - C: simple_training.c
-    - C++: simple_training_net.cpp
-
 --------
-	
+
 [Legal information](legal_information.md)
