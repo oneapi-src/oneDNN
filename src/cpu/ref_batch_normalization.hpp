@@ -60,7 +60,7 @@ struct ref_batch_normalization_fwd_t: public cpu_primitive_t {
                 variance_pd_ = cpu_memory_t::pd_t(engine_, &stats_d);
             }
 
-            if (is_training() && fused_bn_relu())
+            if (is_training() && fuse_bn_relu())
                 bn_init_default_ws(this, this->workspace_pd_, 8);
 
             return status::success;
@@ -106,7 +106,7 @@ struct ref_batch_normalization_bwd_t: public cpu_primitive_t {
                 && hint_fwd_pd_ != nullptr;
             if (!ok) return status::unimplemented;
 
-            if (fused_bn_relu()) {
+            if (fuse_bn_relu()) {
                 bn_init_default_ws(this, this->workspace_pd_, 8);
                 const size_t this_ws_sz
                     = memory_desc_wrapper(this->workspace_pd()).size();

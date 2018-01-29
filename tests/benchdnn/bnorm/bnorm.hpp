@@ -36,6 +36,7 @@ const char* check_alg2str(check_alg_t alg);
 using flags_t = unsigned;
 const flags_t GLOB_STATS = mkldnn_use_global_stats;
 const flags_t USE_SCALESHIFT = mkldnn_use_scaleshift;
+const flags_t FUSED_BN_RELU = mkldnn_fused_bn_relu;
 flags_t str2flags(const char *str);
 const char *flags2str(flags_t flags);
 
@@ -91,7 +92,8 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &mean,
         dnn_mem_t &var, const dnn_mem_t &ss, dnn_mem_t &dst);
 void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
         const dnn_mem_t &mean, const dnn_mem_t &var, const dnn_mem_t &d_dst,
-        const dnn_mem_t &ss, dnn_mem_t &d_src, dnn_mem_t &d_ss);
+        const dnn_mem_t &ss, const dnn_mem_t &rmask, dnn_mem_t &d_src,
+        dnn_mem_t &d_ss);
 
 int doit(const prb_t *p, res_t *res);
 int bench(int argc, char **argv, bool main_bench = true);

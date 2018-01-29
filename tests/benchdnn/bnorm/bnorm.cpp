@@ -129,7 +129,7 @@ static void decompose2(int L, int &k, int &P) {
 }
 
 static int prepare_bwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &d_dst,
-        dnn_mem_t &mean, dnn_mem_t &var, dnn_mem_t &ss) {
+        dnn_mem_t &mean, dnn_mem_t &var, dnn_mem_t &ss, dnn_mem_t &mask) {
     const int exact_bits = 24;
 
     const int L = p->mb * p->ih * p->iw;
@@ -186,6 +186,7 @@ static int prepare_bwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &d_dst,
             const auto off = data_off(p, mb, c, 0, 0);
             float *s = (float *)src + off;
             float *dd = (float *)d_dst + off;
+            float *rmask = (float *)mask + off;
 
             for (int h = 0; h < p->ih; ++h)
             for (int w = 0; w < p->iw; ++w) {
@@ -193,13 +194,17 @@ static int prepare_bwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &d_dst,
                 if (l_base + sp + 2 >= L) continue; /* last 2 are special */
                 const int l = l_base + sp * 7 + c * 19 + mb * 13;
 
+                int rmask_v = 1;
+                if (p->flags & FUSED_BN_RELU)
+                    rmask[sp] = rmask_v = l % 5 != 1;
+
                 const int sgn_dd = db < target_db ? 1 : -1;
                 dd[sp] = sgn_dd * factor_dd * (1 + (l * 3 % 32));
-                db += dd[sp];
+                if (rmask_v) db += dd[sp];
 
                 const int sgn_f = dg < target_dg ? 1 : -1;
                 const float f = sgn_f * factor_f * (2 + (l * 7 % 15));
-                dg += f * dd[sp];
+                if (rmask_v) dg += f * dd[sp];
                 s[sp] = f + m;
             }
         }
@@ -221,6 +226,8 @@ static int prepare_bwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &d_dst,
 
             ((float *)src)[l1] = 1.f;
             ((float *)src)[l0] = -1.f;
+            if (p->flags & FUSED_BN_RELU)
+                ((float *)mask)[l0] = ((float *)mask)[l1] = 1;
 
             float f1 = ((target_db - db) + (target_dg - dg)) /2;
             float f0 = ((target_db - db) - (target_dg - dg)) /2;
@@ -332,6 +339,49 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
     return r->state == FAILED ? FAIL : OK;
 }
 
+int check_fwd_ws(const dnn_mem_t &data_dt, const dnn_mem_t &ws_dt, res_t *r) {
+    /* so far we know ws is just bit-mask of whether value was negative or
+     * positive */
+    const size_t nelems = data_dt.nelems();
+    const float *d = (const float *)data_dt;
+    const uint8_t *ws = (const uint8_t *)ws_dt;
+
+    /* some internal knowledge: either ws element is byte-width (e.g. for ref
+     * implementation) or bit-width (for jitted one) */
+    enum { ws_byte, ws_bit } ws_type;
+    ws_type = ws_dt.size() <= nelems ? ws_bit : ws_byte;
+
+    for (size_t i = 0; i < nelems; i += 8) {
+        for (int j = 0; j < MIN2(8, int(nelems - i)); ++j) {
+            const bool want = *d > 0;
+            const bool bit_set = ws_type == ws_byte ? *ws : !!(*ws & (1<<j));
+
+            const bool ok = bit_set == want;
+            r->errors += !ok;
+
+            bool dump = false
+                || (!ok && (r->errors < 10 || verbose >= 10))
+                || (verbose >= 50 && i < 30);
+            if (dump) {
+                print(0, "[%lu] ws exp:%d got:%d (data:%g:%a)\n",
+                        (unsigned long)i + j, want, bit_set, *d, *d);
+            }
+
+            ++d;
+            if (ws_type == ws_byte) ++ws;
+        }
+        if (ws_type == ws_bit) ++ws;
+    }
+
+    if (r->errors)
+        r->state = FAILED;
+
+    if (r->state == UNTESTED)
+        r->state = PASSED; /* optimism */
+
+    return r->state == FAILED ? FAIL : OK;
+}
+
 static int init_pd(const prb_t *p, mkldnn_batch_normalization_desc_t &bd,
         mkldnn_primitive_desc_t &bpd, res_t *r) {
     mkldnn_memory_desc_t data_d;
@@ -386,6 +436,42 @@ static int init_pd(const prb_t *p, mkldnn_batch_normalization_desc_t &bd,
     return OK;
 }
 
+/** converts benchdnn-understandable mask of {0, 1} to workspace */
+static int cvt_mask_to_ws(const prb_t *p, const dnn_mem_t &mask_fp,
+        dnn_mem_t &ws_dt) {
+    mkldnn_dims_t data_dims = {p->mb, p->ic, p->ih, p->iw};
+
+    dnn_mem_t data(4, data_dims, mkldnn_f32, p->fmt);
+    SAFE(data.reorder(mask_fp), WARN);
+
+    dnn_mem_t mean(1, &p->ic, mkldnn_f32, mkldnn_x);
+    dnn_mem_t var(1, &p->ic, mkldnn_f32, mkldnn_x);
+    for (int c = 0; c < p->ic; ++c) ((float *)mean)[c] = 0.5;
+    for (int c = 0; c < p->ic; ++c) ((float *)var)[c] = 1;
+
+    mkldnn_batch_normalization_desc_t bd;
+    auto flags = (mkldnn_batch_normalization_flag_t)
+        (mkldnn_use_global_stats | mkldnn_fused_bn_relu);
+    DNN_SAFE(mkldnn_batch_normalization_forward_desc_init(&bd,
+                mkldnn_forward_training, &data.md_, 0, flags), WARN);
+
+    mkldnn_primitive_desc_t bpd;
+    DNN_SAFE(mkldnn_primitive_desc_create_v2(&bpd, &bd, NULL, engine, NULL),
+            WARN);
+
+    mkldnn_primitive_t b{};
+    mkldnn_primitive_at_t inputs[3] = {
+        {data.p_, 0}, {mean.p_, 0}, {var.p_, 0}};
+    const_mkldnn_primitive_t outputs[2] = {data.p_, ws_dt.p_};
+    DNN_SAFE(mkldnn_primitive_create(&b, bpd, inputs, outputs), WARN);
+    SAFE(execute(b), WARN);
+
+    mkldnn_primitive_desc_destroy(bpd);
+    mkldnn_primitive_destroy(b);
+
+    return OK;
+}
+
 int doit(const prb_t *p, res_t *r) {
     res_t res_zero{};
     *r = res_zero;
@@ -419,6 +505,18 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t d_ss_fp(2, dims2d, fp, mkldnn_nc),
               d_ss_dt(d_ss_fp.md_);
 
+    dnn_mem_t ws_fp(data_fp.md_);
+    dnn_mem_t *p_ws_dt = NULL;
+    if ((p->flags & FUSED_BN_RELU) && !(p->dir & FLAG_INF)) {
+        const auto ws_pd = mkldnn_primitive_desc_query_pd(bpd,
+                mkldnn_query_workspace_pd, 0);
+        SAFE(ws_pd != NULL ? OK : FAIL, WARN);
+        p_ws_dt = new dnn_mem_t(*mkldnn_primitive_desc_query_memory_d(ws_pd));
+    } else {
+        p_ws_dt = new dnn_mem_t();
+    }
+    dnn_mem_t &ws_dt = *p_ws_dt;
+
     if (p->dir & FLAG_FWD) {
         if (prepare_fwd(p, data_fp, mean_fp, var_fp, ss_fp) != OK)
             return r->state = MISTRUSTED, OK;
@@ -449,6 +547,9 @@ int doit(const prb_t *p, res_t *r) {
             outputs[idx++] = var_dt.p_;
         }
 
+        if (p->flags & FUSED_BN_RELU)
+            outputs[idx++] = ws_dt.p_;
+
         DNN_SAFE(mkldnn_primitive_create(&b, bpd, inputs, outputs), WARN);
         SAFE(execute(b), WARN);
         if (bench_mode & CORR) {
@@ -460,9 +561,12 @@ int doit(const prb_t *p, res_t *r) {
             dnn_mem_t data(data_dt.md_, fp, mkldnn_nchw);
             SAFE(data.reorder(data_dt), WARN);
             SAFE(compare(p, DATA, data_fp, data, r), WARN);
+            if (p->flags & FUSED_BN_RELU)
+                SAFE(check_fwd_ws(data_dt, ws_dt, r), WARN);
         }
     } else {
-        if (prepare_bwd(p, data_fp, d_data_fp, mean_fp, var_fp, ss_fp) != OK)
+        if (prepare_bwd(p, data_fp, d_data_fp, mean_fp, var_fp, ss_fp, ws_fp)
+                != OK)
             return r->state = MISTRUSTED, OK;
 
         mkldnn_primitive_at_t inputs[5];
@@ -486,6 +590,11 @@ int doit(const prb_t *p, res_t *r) {
             inputs[idx++] = {ss_dt.p_, 0};
         }
 
+        if (p->flags & FUSED_BN_RELU) {
+            SAFE(cvt_mask_to_ws(p, ws_fp, ws_dt), WARN);
+            inputs[idx++] = {ws_dt.p_, 0};
+        }
+
         idx = 0;
         outputs[idx++] = d_data_dt.p_; /* always in-place so far... */
         if ((p->flags & USE_SCALESHIFT) && (p->dir & FLAG_WEI))
@@ -495,7 +604,7 @@ int doit(const prb_t *p, res_t *r) {
         SAFE(execute(b), WARN);
         if (bench_mode & CORR) {
             compute_ref_bwd(p, data_fp, mean_fp, var_fp, d_data_fp, ss_fp,
-                    d_data_fp, d_ss_fp);
+                    ws_fp, d_data_fp, d_ss_fp);
             if ((p->flags & USE_SCALESHIFT) && (p->dir & FLAG_WEI))
                 SAFE(compare(p, SS, d_ss_fp, d_ss_dt, r), WARN);
             dnn_mem_t d_data(d_data_dt.md_, fp, mkldnn_nchw);
@@ -518,6 +627,8 @@ int doit(const prb_t *p, res_t *r) {
             if (stop) break;
         }
     }
+
+    delete p_ws_dt;
 
     return OK;
 }

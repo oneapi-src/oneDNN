@@ -96,7 +96,7 @@ void ref_batch_normalization_fwd_t<data_type>::execute_forward() {
         for (int w = 0; w < W; ++w) {
             auto d_off = data_d.off(n,c,h,w);
             data_t bn_res = sm * (src[d_off] - v_mean) * sqrt_variance + sv;
-            if (conf_.fused_bn_relu()) {
+            if (conf_.fuse_bn_relu()) {
                 if (bn_res <= 0) {
                     bn_res = 0;
                     if (ws) ws[d_off] = 0;

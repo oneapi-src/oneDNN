@@ -82,7 +82,7 @@ struct cpu_batch_normalization_fwd_pd_t: public batch_normalization_fwd_pd_t {
     { return index == 0 ? &scaleshift_pd_ : nullptr; }
 
     virtual const cpu_memory_pd_t *workspace_pd(int index = 0) const override {
-        return index == 0 && is_training() && fused_bn_relu()
+        return index == 0 && is_training() && fuse_bn_relu()
             ? &workspace_pd_ : nullptr;
     }
 
@@ -131,7 +131,7 @@ struct cpu_batch_normalization_bwd_pd_t: public batch_normalization_bwd_pd_t {
     { return index == 0 ? &diff_data_pd_ : nullptr; }
 
     virtual const cpu_memory_pd_t *workspace_pd(int index = 0) const override
-    { return index == 0 && fused_bn_relu() ? &workspace_pd_ : nullptr; }
+    { return index == 0 && fuse_bn_relu() ? &workspace_pd_ : nullptr; }
 
 protected:
     cpu_memory_pd_t data_pd_;

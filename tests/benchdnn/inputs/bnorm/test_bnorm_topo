@@ -3,6 +3,7 @@
 --fmt=nChw8c # sse4.2 and avx2
 
 --dir=FWD_D
+--flags=SR --batch=bnorm_topo
 --flags=GS --batch=bnorm_topo
 --flags=S  --batch=bnorm_topo
 
@@ -12,6 +13,7 @@
 --attr=
 
 --dir=BWD_DW
+--flags=SR --batch=bnorm_topo
 --flags=GS --batch=bnorm_topo
 --flags=S  --batch=bnorm_topo
 
@@ -21,6 +23,7 @@
 --fmt=nChw16c # avx512
 
 --dir=FWD_D
+--flags=SR --batch=bnorm_topo
 --flags=GS --batch=bnorm_topo
 --flags=S  --batch=bnorm_topo
 
@@ -30,6 +33,7 @@
 --attr=
 
 --dir=BWD_DW
+--flags=SR --batch=bnorm_topo
 --flags=GS --batch=bnorm_topo
 --flags=S  --batch=bnorm_topo
 

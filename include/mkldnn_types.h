@@ -395,7 +395,7 @@ typedef enum {
      *  - on training primitive requires workspace (required to be able to
      *    perform backward pass)
      */
-    mkldnn_fused_bn_relu = 0x4U,
+    mkldnn_fuse_bn_relu = 0x4U,
 } mkldnn_batch_normalization_flag_t;
 
 /** @} */

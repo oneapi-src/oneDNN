@@ -53,6 +53,7 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &mean,
             auto off = data_off(p, mb, c, h, w);
             float res = gamma * (((float *)src)[off] - smean) / denom + beta;
             float &d = ((float *)dst)[off];
+            if ((p->flags & FUSED_BN_RELU) && res < 0) res = 0;
             maybe_post_ops(res, d);
             d = res;
         }
@@ -61,7 +62,8 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &mean,
 
 void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
         const dnn_mem_t &mean, const dnn_mem_t &var, const dnn_mem_t &d_dst,
-        const dnn_mem_t &ss, dnn_mem_t &d_src, dnn_mem_t &d_ss) {
+        const dnn_mem_t &ss, const dnn_mem_t &rmask, dnn_mem_t &d_src,
+        dnn_mem_t &d_ss) {
     const float NHW = p->mb * p->ih * p->iw;
 
 #   pragma omp parallel for
@@ -79,7 +81,9 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
         for (int h = 0; h < p->ih; ++h)
         for (int w = 0; w < p->iw; ++w) {
             auto off = data_off(p, mb, c, h, w);
-            auto dd = ((float *)d_dst)[off];
+            float dd = ((float *)d_dst)[off];
+            if ((p->flags & FUSED_BN_RELU) && ((float *)rmask)[off] == 0)
+                dd = 0;
 
             d_gamma += dd * (((float *)src)[off] - smean);
             d_beta += dd;
@@ -95,7 +99,10 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
         for (int h = 0; h < p->ih; ++h)
         for (int w = 0; w < p->iw; ++w) {
             auto off = data_off(p, mb, c, h, w);
-            float ds = ((float *)d_dst)[off];
+            float dd = ((float *)d_dst)[off];
+            if ((p->flags & FUSED_BN_RELU) && ((float *)rmask)[off] == 0)
+                dd = 0;
+            float ds = dd;
 
             if (!(p->flags & GLOB_STATS)) {
                 const float x = ((float *)src)[off] - smean;
