@@ -60,9 +60,13 @@ struct jit_uni_batch_normalization_fwd_t: public cpu_primitive_t {
                 && utils::implication(use_scaleshift(),
                         desc()->data_scaleshift_desc.data_type == f32)
                 && desc()->data_desc.format == desired_fmt
-                && !(is_training() && fuse_bn_relu())
                 && (attr()->has_default_values() || this->with_relu_post_op());
             if (!ok) return status::unimplemented;
+
+            if (is_training() && fuse_bn_relu()) {
+                if (isa < avx2) return status::unimplemented;
+                bn_init_default_ws(this, this->workspace_pd_, 1);
+            }
 
             if (stats_is_src() || is_training()) {
                 memory_desc_t stats_d;
@@ -120,9 +124,22 @@ struct jit_uni_batch_normalization_bwd_t: public cpu_primitive_t {
                         desc()->data_scaleshift_desc.data_type == f32)
                 && everyone_is(desired_fmt, desc()->diff_data_desc.format,
                         desc()->data_desc.format)
-                && !fuse_bn_relu()
                 && attr()->has_default_values();
             if (!ok) return status::unimplemented;
+
+            if (fuse_bn_relu()) {
+                if (isa < avx2) return status::unimplemented;
+                bn_init_default_ws(this, this->workspace_pd_, 1);
+                const size_t this_ws_sz
+                    = memory_desc_wrapper(this->workspace_pd()).size();
+
+                bool ws_ok = true
+                    && hint_fwd_pd_->workspace_pd()
+                    && memory_desc_wrapper(hint_fwd_pd_->workspace_pd()).size()
+                            == this_ws_sz;
+                if (!ws_ok)
+                    return status::unimplemented;
+            }
 
             /* TODO: extra checks required */
 
