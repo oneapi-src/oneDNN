@@ -94,6 +94,8 @@ struct jit_t: public jit_generator {
         barrier = reinterpret_cast<decltype(barrier)>(const_cast<uint8_t*>(
                     this->getCode()));
     }
+
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_t)
 };
 
 void barrier(ctx_t *ctx, int nthr) {

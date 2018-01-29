@@ -18,6 +18,7 @@
 #define UTILS_HPP
 
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
 #ifdef WIN32
@@ -258,6 +259,7 @@ struct c_compatible {
 inline void yield_thread() { }
 
 const char *mkldnn_getenv(const char *name);
+FILE *mkldnn_fopen(const char *filename, const char *mode);
 
 }
 }

@@ -33,6 +33,8 @@ struct jit_avx2_conv_fwd_kernel_f32: public jit_generator {
         jit_ker = (void (*)(jit_conv_call_s *))this->getCode();
     }
 
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx2_conv_fwd_kernel_f32)
+
     static bool post_ops_ok(jit_conv_conf_t &jcp,
             const primitive_attr_t &attr);
     static status_t init_conf(jit_conv_conf_t &jcp,
@@ -82,6 +84,8 @@ private:
 };
 
 struct jit_avx2_conv_bwd_data_kernel_f32: public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx2_conv_bwd_data_kernel_f32)
+
     jit_avx2_conv_bwd_data_kernel_f32(jit_conv_conf_t ajcp): jcp(ajcp)
     {
         this->generate();
@@ -123,6 +127,8 @@ private:
 };
 
 struct jit_avx2_conv_bwd_weights_kernel_f32: public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx2_conv_bwd_weights_kernel_f32)
+
     jit_avx2_conv_bwd_weights_kernel_f32(jit_conv_conf_t ajcp): jcp(ajcp)
     {
         this->generate();

@@ -45,6 +45,8 @@ using namespace Xbyak;
 #define UNROLL_N 6
 
 struct jit_avx2_gemm_f32::xbyak_gemm : public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx2_gemm_f32_xbyak_gemm)
+
     xbyak_gemm(char transa, char transb, float beta, bool hasBias = false,
             void *code_ptr = nullptr,
             size_t code_size = 80 * Xbyak::DEFAULT_MAX_CODE_SIZE)

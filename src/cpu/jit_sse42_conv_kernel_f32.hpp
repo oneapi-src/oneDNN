@@ -42,6 +42,7 @@ struct jit_sse42_conv_fwd_kernel_f32: public jit_generator {
             const memory_desc_wrapper &dst_d, const primitive_attr_t &attr,
             bool with_relu = false, float relu_negative_slope = 0.);
 
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_sse42_conv_fwd_kernel_f32)
     jit_conv_conf_t jcp;
     const primitive_attr_t &attr_;
     void (*jit_ker)(jit_conv_call_s *);

@@ -44,6 +44,8 @@ struct _jit_avx512_common_conv_winograd_data_kernel_f32 : public jit_generator {
         }
     }
 
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(_jit_avx512_common_conv_winograd_data_kernel_f32)
+
     static status_t init_conf_common(jit_conv_winograd_conf_t &jcp,
             const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
             const memory_desc_wrapper &weights_d,
@@ -96,6 +98,8 @@ struct jit_avx512_common_conv_winograd_bwd_data_kernel_f32
 
 struct jit_avx512_common_conv_winograd_bwd_weights_kernel_f32
         : public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(_jit_avx512_common_conv_winograd_bwd_weights_kernel_f32)
+
     jit_avx512_common_conv_winograd_bwd_weights_kernel_f32(
             jit_conv_winograd_conf_t ajcp)
         : jcp(ajcp)

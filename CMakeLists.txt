@@ -58,6 +58,7 @@ include("cmake/OpenMP.cmake")
 include("cmake/SDL.cmake")
 include("cmake/MKL.cmake")
 include("cmake/Doxygen.cmake")
+include("cmake/profiling.cmake")
 
 enable_testing()
 

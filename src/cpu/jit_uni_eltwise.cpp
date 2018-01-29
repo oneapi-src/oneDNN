@@ -59,6 +59,8 @@ template <cpu_isa_t isa>
 struct jit_uni_relu_kernel_f32 : public jit_uni_eltwise_kernel_f32,
     public jit_generator
 {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_relu_kernel_f32)
+
     void compute_step(bool vectorize, const int uf, const int shift) {
         for (int i = 0; i < uf; i++) {
             if (vectorize) {
@@ -194,6 +196,8 @@ private:
 template <cpu_isa_t isa>
 struct jit_uni_kernel_fwd_f32: public jit_uni_eltwise_kernel_f32,
     public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_kernel_fwd_f32)
+
     jit_uni_kernel_fwd_f32(const eltwise_desc_t &desc)
         : jit_uni_eltwise_kernel_f32(desc), jit_generator() {
         using namespace alg_kind;

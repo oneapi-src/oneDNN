@@ -64,6 +64,8 @@ struct jit_transpose4x16_src_t {
 };
 
 struct jit_transpose4x16_src : public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_transpose4x16_src)
+
     jit_transpose4x16_src(const jit_1x1_conv_conf_t *aparams,
             jit_transpose4x16_src_t *tparams_)
         : params(aparams), tparams(tparams_)

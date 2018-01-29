@@ -33,6 +33,8 @@ struct jit_avx512_common_1x1_conv_kernel : public jit_generator {
         jit_ker = (void (*)(jit_1x1_conv_call_s *)) this->getCode();
     }
 
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_1x1_conv_kernel)
+
     static bool post_ops_ok(jit_1x1_conv_conf_t &jcp,
                                 const primitive_attr_t &attr);
 

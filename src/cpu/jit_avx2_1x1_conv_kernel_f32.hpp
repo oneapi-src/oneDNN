@@ -26,6 +26,8 @@ namespace impl {
 namespace cpu {
 
 struct jit_avx2_1x1_conv_kernel_f32: public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx2_1x1_conv_kernel_f32)
+
     jit_avx2_1x1_conv_kernel_f32(jit_1x1_conv_conf_t ajcp,
            const primitive_attr_t &attr): jcp(ajcp), attr_(attr)
     {

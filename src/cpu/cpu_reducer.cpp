@@ -111,6 +111,8 @@ template <cpu_isa_t isa>
 struct reducer_2d_driver_f32_t: public reducer_2d_driver_t<data_type::f32>,
     public jit_generator
 {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(reducer_2d_driver_f32_t)
+
     /* cpu specific part */
     using Vmm = typename utils::conditional<isa == avx2, Ymm, Zmm>::type;
     const AddressFrame &vmmword = (isa == avx2) ? yword : zword;

@@ -85,6 +85,8 @@ struct rtus_driver_t: public jit_generator {
 
     void (*ker_)(const call_params_t *p);
 
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(rtus_driver_t)
+
     /* cpu specific part */
     void uni_vpxor(const Xbyak::Xmm& x1, const Xbyak::Xmm& x2,
         const Xbyak::Operand& op) {

@@ -34,12 +34,23 @@
 #include "xbyak/xbyak.h"
 #include "xbyak/xbyak_util.h"
 
+#include "utils.hpp"
+
+#ifdef JIT_PROFILING_VTUNE
+#include "jitprofiling.h"
+#endif
+
 #ifdef _WIN32
 #   define STRUCT_ALIGN(al, ...) __declspec(align(al)) __VA_ARGS__
 #   define OFFSET_SHADOWSPACE 0x28
 #else
 #   define STRUCT_ALIGN(al, ...) __VA_ARGS__ __attribute__((__aligned__(al)))
 #endif
+
+#define DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_name) \
+    const char *name() const override { return STRINGIFY(jit_name); } \
+    const char *source_file() const override { return __FILE__; \
+    }
 
 namespace mkldnn {
 namespace impl {
@@ -696,6 +707,41 @@ public:
         mov(out, tmp);
     }
 
+    void dump_code(const Xbyak::uint8 *code) const {
+        if (code) {
+            static int counter = 0;
+#define MAX_FNAME_LEN 256
+            char fname[MAX_FNAME_LEN + 1];
+            snprintf(fname, MAX_FNAME_LEN, "mkldnn_dump_%s.%d.bin", name(),
+                    counter);
+            counter++;
+
+            FILE *fp = mkldnn_fopen(fname, "w+");
+            // Failure to dump code is not fatal
+            if (fp) {
+                fwrite(code, getSize(), 1, fp);
+                fclose(fp);
+            }
+        }
+#undef MAX_FNAME_LEN
+    }
+
+    void register_code(const Xbyak::uint8 *code) const {
+#ifdef JIT_PROFILING_VTUNE
+        if (iJIT_IsProfilingActive() == iJIT_SAMPLING_ON) {
+            iJIT_Method_Load jmethod = {0};
+            jmethod.method_id = iJIT_GetNewMethodID();
+            jmethod.method_name = (char *)name();
+            jmethod.class_file_name = NULL;
+            jmethod.source_file_name = (char *)source_file();
+            jmethod.method_load_address = (void *)code;
+            jmethod.method_size = getSize();
+
+            iJIT_NotifyEvent(iJVM_EVENT_TYPE_METHOD_LOAD_FINISHED,
+                    (void*)&jmethod);
+        }
+#endif
+    }
 
 public:
     jit_generator(
@@ -705,35 +751,18 @@ public:
     {
     }
 
+    virtual const char *name() const = 0;
+    virtual const char *source_file() const = 0;
+
     // XXX: use normal_case name and update all callees (?)
     const Xbyak::uint8 *getCode() {
         const Xbyak::uint8 *code = CodeGenerator::getCode();
-#ifdef CPU_ENABLE_JIT_DUMP
-        if (code) {
-#define SIMPLE_NAME_COUNTER
-#ifdef SIMPLE_NAME_COUNTER
-            static int counter = 0;
-#define MAX_FNAME_LEN 256
-            char fname[MAX_FNAME_LEN + 1];
-            snprintf(fname, MAX_FNAME_LEN, "mkldnn_jit_dump.%d.bin", counter);
-            counter++;
-#else
-            const char *fname = "mkldnn_jit_dump.bin";
-#endif
-            // TODO (Roma): add a virtual name() function that would be
-            // used to notify profilers like Intel(R) Vtune(TM) Amplifier
-            // about generated code and generate a meaningful file name
-
-            FILE *fp = fopen(fname, "w+");
-            // Failure to dump code is not fatal
-            if (fp) {
-                fwrite(code, getSize(), 1, fp);
-                fclose(fp);
-            }
-        }
+        register_code(code);
+#ifdef MKLDNN_ENABLE_JIT_DUMP
+        dump_code(code);
 #endif
         return code;
-    };
+    }
 
     template<typename F> const F getCode() {
         // XXX (Roma): Xbyak code probably has a bug here

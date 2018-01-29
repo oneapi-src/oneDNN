@@ -110,6 +110,8 @@ struct jit_avx512_common_lrn_fwd_t::jit_avx512_common_lrn_kernel_f32:
 
     float alpha, k;
 
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_lrn_kernel_f32)
+
     void (*ker)(jit_args_fwd_t *);
     void operator()(jit_args_fwd_t *arg) { ker(arg); }
 
@@ -499,6 +501,8 @@ struct jit_avx512_common_lrn_bwd_t::jit_avx512_common_lrn_kernel_f32:
     float nalphabeta;
 
     int use_h_parallelism;
+
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_lrn_kernel_f32)
 
     void (*ker)(jit_args_bwd_t *);
     void operator()(jit_args_bwd_t *arg) { ker(arg); }

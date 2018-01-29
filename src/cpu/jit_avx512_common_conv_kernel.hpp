@@ -35,6 +35,9 @@ struct jit_avx512_common_conv_fwd_kernel : public jit_generator {
         generate();
         jit_ker = (void (*)(jit_conv_call_s *))getCode();
     }
+
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_conv_fwd_kernel)
+
     static bool post_ops_ok(jit_conv_conf_t &jcp,
             const primitive_attr_t &attr);
     static status_t init_conf(jit_conv_conf_t &jcp,
@@ -198,6 +201,8 @@ struct jit_avx512_common_conv_bwd_data_kernel_f32: public jit_generator {
         jit_ker = (void (*)(jit_conv_call_s *))getCode();
     }
 
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_conv_bwd_data_kernel_f32)
+
     static status_t init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd,
             const memory_desc_wrapper &diff_src_d,
@@ -314,6 +319,8 @@ struct jit_avx512_common_conv_bwd_weights_kernel_f32 : public jit_generator {
         generate();
         jit_ker = (void (*)(jit_conv_call_s *))getCode();
     }
+
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_conv_bwd_weights_kernel_f32)
 
     static status_t init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd, cpu_memory_t::pd_t &src_pd,

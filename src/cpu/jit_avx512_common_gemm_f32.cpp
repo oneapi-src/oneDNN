@@ -1702,6 +1702,8 @@ struct jit_avx512_common_gemm_f32::xbyak_gemm : public jit_generator {
                 const_cast<uint8_t *>(this->getCode()));
     }
 
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_gemm_f32_xbyak_gemm)
+
     void operator()(long long int m, long long int n, long long int k,
             const float *alpha, const float *a, long long int lda,
             const float *b, long long int ldb, const float *beta, float *c,

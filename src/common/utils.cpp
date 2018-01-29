@@ -35,5 +35,14 @@ const char *mkldnn_getenv(const char *name) {
 #endif
 }
 
+FILE *mkldnn_fopen(const char *filename, const char *mode) {
+#ifdef _WIN32
+    FILE *fp = NULL;
+    return fopen_s(&fp, filename, mode) ? NULL : fp;
+#else
+    return fopen(filename, mode);
+#endif
+}
+
 }
 }

@@ -58,6 +58,8 @@ template <JIT_REORDER_TEMPL_DECL>
 struct jit_reorder_kernel_f32<JIT_REORDER_TEMPL_INST,
     enable_if_8i8o<fmt_i, fmt_o, type_i, type_o>> : public jit_generator
 {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_reorder_kernel_f32)
+
     void (*jit_ker_)(const data_t<type_i> *input, data_t<type_o> *output);
     void operator()(const data_t<type_i> *input, data_t<type_o> *output)
     { jit_ker_(input, output); }

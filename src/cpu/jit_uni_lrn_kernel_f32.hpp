@@ -83,6 +83,8 @@ struct jit_uni_lrn_fwd_kernel_f32 : public jit_generator {
 
     int stack_space_needed = 11 * 4 * sizeof(float) + 16;
 
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_lrn_fwd_kernel_f32)
+
     /* cpu specific part */
     using Vmm = typename utils::conditional<isa == avx2, Ymm, Zmm>::type;
 
@@ -154,6 +156,8 @@ struct jit_uni_lrn_bwd_kernel_f32 : public jit_generator {
     float nalphabeta;
 
     int use_h_parallelizm;
+
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_lrn_bwd_kernel_f32)
 
     jit_uni_lrn_bwd_kernel_f32(
         const struct nchw8c_across &J,

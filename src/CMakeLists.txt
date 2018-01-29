@@ -32,6 +32,11 @@ include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/cpu/xbyak
     )
 
+if(VTUNEROOT)
+    include_directories(${VTUNEROOT}/include)
+    add_definitions(-DJIT_PROFILING_VTUNE)
+endif()
+
 if(WIN32)
     add_definitions(-D_WIN)
     add_definitions(-DNOMINMAX)

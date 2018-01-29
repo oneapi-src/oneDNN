@@ -57,6 +57,8 @@ struct jit_bnorm_t: public jit_generator {
         barrier::ctx_t *barrier;
     };
 
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_bnorm_t)
+
     /* cpu specific part */
     using Vmm = typename utils::conditional3<isa == sse42, Xmm,
                                              isa == avx2, Ymm, Zmm>::type;

@@ -38,6 +38,8 @@ using namespace mkldnn::impl::types;
 using namespace alg_kind;
 
 struct jit_avx512_core_i8i8_pool_fwd_ker_t: public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_i8i8_pool_fwd_ker_t)
+
     struct call_params_t {
         const char *src_i8;
         const char *dst_i8;

@@ -37,6 +37,7 @@ using namespace mkldnn::impl::utils;
 using namespace mkldnn::impl::types;
 
 struct jit_avx512_core_u8s8s32x_conv_fwd_ker_t: public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_u8s8s32x_conv_fwd_ker_t)
     enum { STATE_FIRST_DST_LOAD = 0x1U };
     enum { EXPL_BCAST_LARGE_SPATIAL_MIN_IW = 38,
            EXPL_BCAST_LARGE_SPATIAL_MIN_UR_W = 4,
