@@ -60,6 +60,9 @@ struct ref_batch_normalization_fwd_t: public cpu_primitive_t {
                 variance_pd_ = cpu_memory_t::pd_t(engine_, &stats_d);
             }
 
+            if (is_training() && fused_bn_relu())
+                bn_init_default_ws(this, this->workspace_pd_, 8);
+
             return status::success;
         }
     };
@@ -99,9 +102,22 @@ struct ref_batch_normalization_bwd_t: public cpu_primitive_t {
                         desc()->diff_data_desc.data_type,
                         desc()->data_desc.data_type,
                         desc()->data_scaleshift_desc.data_type)
-                && attr()->has_default_values();
+                && attr()->has_default_values()
+                && hint_fwd_pd_ != nullptr;
             if (!ok) return status::unimplemented;
 
+            if (fused_bn_relu()) {
+                bn_init_default_ws(this, this->workspace_pd_, 8);
+                const size_t this_ws_sz
+                    = memory_desc_wrapper(this->workspace_pd()).size();
+
+                bool ws_ok = true
+                    && hint_fwd_pd_->workspace_pd()
+                    && memory_desc_wrapper(hint_fwd_pd_->workspace_pd()).size()
+                            == this_ws_sz;
+                if (!ws_ok)
+                    return status::unimplemented;
+            }
 
             bool stats_ok = true
                 && hint_fwd_pd_->mean_pd()->desc()->ndims == 1

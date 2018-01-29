@@ -84,6 +84,9 @@ struct batch_normalization_pd_t: public primitive_desc_t {
         return p.len_ == 1 && p.entry_[0].is_relu(true, true);
     }
 
+    bool fused_bn_relu() const
+    { return desc_.flags & mkldnn_fused_bn_relu; }
+
 protected:
     batch_normalization_desc_t desc_;
     const batch_normalization_fwd_pd_t *hint_fwd_pd_;
@@ -115,6 +118,10 @@ struct batch_normalization_fwd_pd_t: public batch_normalization_pd_t {
             if (index == 1) return mean_pd();
             if (index == 2) return variance_pd();
         }
+
+        if (index == ws_idx() && is_training() && fused_bn_relu())
+            return workspace_pd();
+
         return nullptr;
     }
 
@@ -128,7 +135,9 @@ struct batch_normalization_fwd_pd_t: public batch_normalization_pd_t {
     { return 1 + 2 * stats_is_src() + use_scaleshift(); }
 
     virtual int n_outputs() const override
-    { return 1 + 2 * (!stats_is_src()) * is_training(); }
+    { return 1 + (fused_bn_relu() + 2 * (!stats_is_src())) * is_training(); }
+
+    int ws_idx() const { return !stats_is_src() ? 3 : 1; }
 };
 
 struct batch_normalization_bwd_pd_t: public batch_normalization_pd_t {
@@ -145,6 +154,9 @@ struct batch_normalization_bwd_pd_t: public batch_normalization_pd_t {
         if (index == 2) return variance_pd();
         if (index == 3) return diff_dst_pd();
         if (use_scaleshift() && index == 4) return weights_pd();
+
+        if (index == ws_idx() && fused_bn_relu()) return workspace_pd();
+
         return nullptr;
     }
 
@@ -157,9 +169,12 @@ struct batch_normalization_bwd_pd_t: public batch_normalization_pd_t {
     virtual const memory_pd_t *mean_pd() const { return src_pd(1); }
     virtual const memory_pd_t *variance_pd() const { return src_pd(2); }
 
-    virtual int n_inputs() const override { return 4 + use_scaleshift(); }
+    virtual int n_inputs() const override
+    { return 4 + use_scaleshift() + fused_bn_relu(); }
     virtual int n_outputs() const override
     { return 1 + (desc_.prop_kind == prop_kind::backward); }
+
+    int ws_idx() const { return use_scaleshift() ? 5 : 4; }
 };
 
 }

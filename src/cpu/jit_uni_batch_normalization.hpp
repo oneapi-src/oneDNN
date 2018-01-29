@@ -60,6 +60,7 @@ struct jit_uni_batch_normalization_fwd_t: public cpu_primitive_t {
                 && utils::implication(use_scaleshift(),
                         desc()->data_scaleshift_desc.data_type == f32)
                 && desc()->data_desc.format == desired_fmt
+                && !(is_training() && fused_bn_relu())
                 && (attr()->has_default_values() || this->with_relu_post_op());
             if (!ok) return status::unimplemented;
 
@@ -119,6 +120,7 @@ struct jit_uni_batch_normalization_bwd_t: public cpu_primitive_t {
                         desc()->data_scaleshift_desc.data_type == f32)
                 && everyone_is(desired_fmt, desc()->diff_data_desc.format,
                         desc()->data_desc.format)
+                && !fused_bn_relu()
                 && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 

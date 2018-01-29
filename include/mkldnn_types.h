@@ -387,6 +387,15 @@ typedef enum {
      * #mkldnn_use_global_stats)
      */
     mkldnn_omit_stats = mkldnn_use_global_stats,
+    /** Fuse with ReLU
+     *
+     * If specified:
+     *  - on inference this option behaves the same as if the primitive were
+     *    fused with ReLU via post ops API
+     *  - on training primitive requires workspace (required to be able to
+     *    perform backward pass)
+     */
+    mkldnn_fused_bn_relu = 0x4U,
 } mkldnn_batch_normalization_flag_t;
 
 /** @} */

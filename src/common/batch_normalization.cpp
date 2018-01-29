@@ -63,11 +63,10 @@ status_t bnrm_desc_init(batch_normalization_desc_t *bnrm_desc,
     mkldnn_memory_desc_init(&bd.variance_desc, 1, stats_dims,
             data_desc->data_type, mkldnn_x);
 
-
     bd.batch_norm_epsilon = epsilon;
 
     unsigned bnorm_flags =
-        mkldnn_use_global_stats | mkldnn_omit_stats | mkldnn_use_scaleshift;
+        mkldnn_use_global_stats | mkldnn_use_scaleshift | mkldnn_fused_bn_relu;
     if ((~bnorm_flags & flags) != 0) return invalid_arguments;
 
     bd.flags = flags;

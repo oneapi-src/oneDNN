@@ -45,6 +45,7 @@ void ref_batch_normalization_fwd_t<data_type>::execute_forward() {
         reinterpret_cast<const data_t *>(this->input_memory(idx_scaleshift));
 
     auto dst = reinterpret_cast<data_t*>(this->memory(0));
+    auto ws = reinterpret_cast<uint8_t *>(this->memory(conf_.ws_idx()));
 
     const memory_desc_wrapper data_d(conf_.src_pd());
     const memory_desc_wrapper scaleshift_d(conf_.weights_pd());
@@ -95,6 +96,14 @@ void ref_batch_normalization_fwd_t<data_type>::execute_forward() {
         for (int w = 0; w < W; ++w) {
             auto d_off = data_d.off(n,c,h,w);
             data_t bn_res = sm * (src[d_off] - v_mean) * sqrt_variance + sv;
+            if (conf_.fused_bn_relu()) {
+                if (bn_res <= 0) {
+                    bn_res = 0;
+                    if (ws) ws[d_off] = 0;
+                } else {
+                    if (ws) ws[d_off] = 1;
+                }
+            }
             dst[d_off] = maybe_post_op(bn_res);
         }
 
@@ -116,6 +125,9 @@ void ref_batch_normalization_bwd_t<data_type>::execute_backward() {
     auto variance = reinterpret_cast<const data_t *>(this->input_memory(2));
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(3));
     auto scaleshift = reinterpret_cast<const data_t *>(this->input_memory(4));
+    auto ws = reinterpret_cast<const uint8_t *>(
+            this->input_memory(conf_.ws_idx()));
+
     auto diff_src = reinterpret_cast<data_t*>(this->memory(0));
     auto diff_scaleshift = reinterpret_cast<data_t *>(this->memory(1));
 
@@ -135,7 +147,6 @@ void ref_batch_normalization_bwd_t<data_type>::execute_backward() {
     const bool use_scaleshift = conf_.use_scaleshift();
     const bool calculate_diff_stats = !conf_.omit_stats();
 
-
 #   pragma omp parallel for schedule(static)
     for (int c = 0; c < C; ++c) {
         data_t v_mean = mean[mean_d.off(c)];
@@ -150,9 +161,12 @@ void ref_batch_normalization_bwd_t<data_type>::execute_backward() {
         for (int n = 0; n < N; ++n)
         for (int h = 0; h < H; ++h)
         for (int w = 0; w < W; ++w) {
-            diff_gamma += (src[data_d.off(n, c, h, w)] - v_mean)
-                * diff_dst[diff_data_d.off(n, c, h, w)];
-            diff_beta += diff_dst[diff_data_d.off(n, c, h, w)];
+            const auto s_off = data_d.off(n, c, h, w);
+            data_t dd = diff_dst[diff_data_d.off(n, c, h, w)];
+            if (ws && !ws[s_off]) dd = 0;
+
+            diff_gamma += (src[s_off] - v_mean) * dd;
+            diff_beta += dd;
         }
         diff_gamma *= sqrt_variance;
 
@@ -164,14 +178,19 @@ void ref_batch_normalization_bwd_t<data_type>::execute_backward() {
         for (int n = 0; n < N; ++n)
         for (int h = 0; h < H; ++h)
         for (int w = 0; w < W; ++w) {
-            data_t v_diff_src = diff_dst[diff_data_d.off(n, c, h, w)];
+            const size_t s_off = data_d.off(n, c, h, w);
+            const size_t dd_off = diff_data_d.off(n, c, h, w);
+            data_t dd = diff_dst[dd_off];
+            if (ws && !ws[s_off]) dd = 0;
+
+            data_t v_diff_src = dd;
             if (calculate_diff_stats) {
                 v_diff_src -= diff_beta/(W*H*N) +
-                    (src[data_d.off(n, c, h, w)] - v_mean) *
+                    (src[s_off] - v_mean) *
                     diff_gamma*sqrt_variance/(W*H*N);
             }
             v_diff_src *= gamma*sqrt_variance;
-            diff_src[diff_data_d.off(n, c, h, w)] = v_diff_src;
+            diff_src[dd_off] = v_diff_src;
         }
     }
 }

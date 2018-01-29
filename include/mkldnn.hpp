@@ -274,7 +274,8 @@ inline mkldnn_alg_kind_t convert_to_c(algorithm aalgorithm) {
 enum batch_normalization_flag {
     use_global_stats = mkldnn_use_global_stats,
     use_scale_shift = mkldnn_use_scaleshift,
-    omit_stats = mkldnn_omit_stats
+    omit_stats = mkldnn_omit_stats,
+    fuse_bn_relu = mkldnn_fuse_bn_relu
 };
 
 inline mkldnn_batch_normalization_flag_t convert_to_c(
@@ -2211,6 +2212,18 @@ struct batch_normalization_forward : public primitive {
             return aprimitive_desc;
         }
 
+        memory::primitive_desc workspace_primitive_desc() const {
+            memory::primitive_desc adesc;
+            mkldnn_primitive_desc_t cdesc;
+            const_mkldnn_primitive_desc_t const_cdesc =
+                mkldnn_primitive_desc_query_pd(get(),
+                               mkldnn::convert_to_c(workspace_pd), 0);
+            error::wrap_c_api(mkldnn_primitive_desc_clone(&cdesc, const_cdesc),
+                    "could not clone a workspace primitive descriptor");
+            adesc.reset(cdesc);
+            return adesc;
+        }
+
         memory::primitive_desc dst_primitive_desc() const {
             memory::primitive_desc adesc;
             mkldnn_primitive_desc_t cdesc;
@@ -2254,6 +2267,13 @@ struct batch_normalization_forward : public primitive {
         reset(result);
     }
 
+    /// @warning batch_normalization_forward has 2 constructors with very
+    ///          similar signatures:
+    ///           - (pd, src, weights, dst, mean, variance) // 2 in, 3 out
+    ///           - (pd, src, dst, mean, variance, workspace) // 1 in, 4 out
+    ///          The only way to distinguish between those is to explicitly
+    ///          cast all input parameters to their type, i.e. to
+    ///          const primitive:at &.
     batch_normalization_forward(const primitive_desc &aprimitive_desc,
             const primitive::at &src, const primitive::at &weights,
             const memory &dst, const memory &mean, const memory &variance) {
@@ -2268,12 +2288,68 @@ struct batch_normalization_forward : public primitive {
     }
 
     batch_normalization_forward(const primitive_desc &aprimitive_desc,
+            const primitive::at &src, const primitive::at &weights,
+            const memory &dst, const memory &mean, const memory &variance,
+            const memory &workspace) {
+        mkldnn_primitive_t result;
+        mkldnn_primitive_at_t inputs[] = { src.data, weights.data };
+        const_mkldnn_primitive_t outputs[] = { dst.get(),
+            mean.get(), variance.get(), workspace.get() };
+        error::wrap_c_api(mkldnn_primitive_create(&result,
+                aprimitive_desc.get(), inputs, outputs),
+            "could not create a batch normalization forward primitive");
+        reset(result);
+    }
+
+    batch_normalization_forward(const primitive_desc &aprimitive_desc,
             const primitive::at &src, const memory &dst, const memory &mean,
             const memory &variance) {
         mkldnn_primitive_t result;
         mkldnn_primitive_at_t inputs[] = { src.data };
         const_mkldnn_primitive_t outputs[] = { dst.get(),
             mean.get(), variance.get() };
+        error::wrap_c_api(mkldnn_primitive_create(&result,
+                aprimitive_desc.get(), inputs, outputs),
+            "could not create a batch normalization forward primitive");
+        reset(result);
+    }
+
+    /// @warning batch_normalization_forward has 2 constructors with very
+    ///          similar signatures:
+    ///           - (pd, src, weights, dst, mean, variance) // 2 in, 3 out
+    ///           - (pd, src, dst, mean, variance, workspace) // 1 in, 4 out
+    ///          The only way to distinguish between those is to explicitly
+    ///          cast all input parameters to their type, i.e. to
+    ///          const primitive:at &.
+    /// @note to make users' experience a little bit better this constructor
+    ///       checks if whether parameters match corresponding primitive
+    ///       descriptor, and if they are not -- call the other (proper)
+    ///       constructor. Yeah, this is still very ugly...
+    batch_normalization_forward(const primitive_desc &aprimitive_desc,
+            const primitive::at &src, const memory &dst, const memory &mean,
+            const memory &variance, const memory &workspace) {
+        mkldnn_primitive_t result;
+        mkldnn_primitive_at_t inputs[2] = { src.data };
+        const_mkldnn_primitive_t outputs[4] = { dst.get(),
+            mean.get(), variance.get(), workspace.get() };
+
+        if (1) { // check whether this is the `wrong` constructor
+            const int n_inputs_expected = mkldnn_primitive_desc_query_s32(
+                    aprimitive_desc.get(), mkldnn_query_num_of_inputs_s32, 0);
+            const int n_outputs_expected = mkldnn_primitive_desc_query_s32(
+                    aprimitive_desc.get(), mkldnn_query_num_of_outputs_s32, 0);
+            if (n_inputs_expected == 2 && n_outputs_expected == 3) {
+                // shift parameters, get rid of workspace, and add weights...
+                auto _weights = dst;
+                inputs[1] = {_weights.get(), 0};
+
+                auto _dst = mean, _mean = variance, _variance = workspace;
+                outputs[0] = _dst.get();
+                outputs[1] = _mean.get();
+                outputs[2] = _variance.get();
+                outputs[3] = nullptr;
+            }
+        }
         error::wrap_c_api(mkldnn_primitive_create(&result,
                 aprimitive_desc.get(), inputs, outputs),
             "could not create a batch normalization forward primitive");
@@ -2383,6 +2459,18 @@ struct batch_normalization_backward : public primitive {
             return adesc;
         }
 
+        memory::primitive_desc workspace_primitive_desc() const {
+            memory::primitive_desc adesc;
+            mkldnn_primitive_desc_t cdesc;
+            const_mkldnn_primitive_desc_t const_cdesc =
+                mkldnn_primitive_desc_query_pd(get(),
+                               mkldnn::convert_to_c(workspace_pd), 0);
+            error::wrap_c_api(mkldnn_primitive_desc_clone(&cdesc, const_cdesc),
+                    "could not clone a workspace primitive descriptor");
+            adesc.reset(cdesc);
+            return adesc;
+        }
+
         memory::primitive_desc dst_primitive_desc() const {
             memory::primitive_desc adesc;
             mkldnn_primitive_desc_t cdesc;
@@ -2416,14 +2504,34 @@ struct batch_normalization_backward : public primitive {
         reset(result);
     }
 
-    // Prop_kind == backward_data
+    // Prop_kind == backward (+ws)
+    batch_normalization_backward(const primitive_desc &aprimitive_desc,
+            const primitive::at &src, const primitive::at &mean,
+            const primitive::at &variance, const primitive::at &diff_dst,
+            const primitive::at &weights, const primitive::at &workspace,
+            const memory &diff_src, const memory &diff_weights) {
+        mkldnn_primitive_t result;
+        mkldnn_primitive_at_t inputs[] = { src.data, mean.data, variance.data,
+            diff_dst.data, weights.data, workspace.data };
+        const_mkldnn_primitive_t outputs[] = { diff_src.get(),
+                diff_weights.get() };
+        error::wrap_c_api(mkldnn_primitive_create(&result,
+                aprimitive_desc.get(), inputs, outputs),
+            "could not create a batch normalization backward primitive");
+        reset(result);
+    }
+
+    // Prop_kind == backward_data (+ws or +weights)
+    /// @warning This constructor works for backward_data propagation
+    ///          - w/ weights but w/o workspace, or
+    ///          - w/ workspace but w/o weights
     batch_normalization_backward(const primitive_desc &aprimitive_desc,
             const primitive::at &src, const primitive::at &mean,
             const primitive::at &variance,const primitive::at &diff_dst,
-            const primitive::at &weights,  const memory &diff_src) {
+            const primitive::at &weights_or_workspace, const memory &diff_src) {
         mkldnn_primitive_t result;
-        mkldnn_primitive_at_t inputs[] = { src.data,
-            mean.data, variance.data, diff_dst.data, weights.data };
+        mkldnn_primitive_at_t inputs[] = { src.data, mean.data, variance.data,
+            diff_dst.data, weights_or_workspace.data };
         const_mkldnn_primitive_t outputs[] = { diff_src.get() };
         error::wrap_c_api(mkldnn_primitive_create(&result,
                 aprimitive_desc.get(), inputs, outputs),

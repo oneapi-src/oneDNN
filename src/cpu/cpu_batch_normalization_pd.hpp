@@ -31,6 +31,20 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
+namespace {
+template <typename pd_t> inline void bn_init_default_ws(const pd_t *self,
+        cpu_memory_t::pd_t &ws_pd, size_t bits_per_element) {
+    memory_desc_t ws_d;
+    const size_t src_nelems = memory_desc_wrapper(self->src_pd(0)).nelems();
+    const size_t ws_sz
+        = utils::div_up(src_nelems * bits_per_element, sizeof(uint8_t));
+    dims_t ws_dims = { (dim_t)ws_sz };
+    mkldnn_memory_desc_init(&ws_d, 1, ws_dims, impl::data_type::u8,
+            memory_format::x);
+    ws_pd = cpu_memory_t::pd_t(self->engine(), &ws_d);
+}
+}
+
 struct cpu_batch_normalization_fwd_pd_t: public batch_normalization_fwd_pd_t {
     using cpu_memory_pd_t = cpu_memory_t::pd_t;
 
@@ -42,7 +56,8 @@ struct cpu_batch_normalization_fwd_pd_t: public batch_normalization_fwd_pd_t {
         , data_pd_(engine_, &desc_.data_desc)
         , mean_pd_(engine_)
         , variance_pd_(engine_)
-        , scaleshift_pd_(engine_, &desc_.data_scaleshift_desc) {}
+        , scaleshift_pd_(engine_, &desc_.data_scaleshift_desc)
+        , workspace_pd_(engine_) {}
     virtual ~cpu_batch_normalization_fwd_pd_t() {}
 
     virtual const cpu_memory_pd_t *src_pd(int index = 0) const override {
@@ -66,11 +81,17 @@ struct cpu_batch_normalization_fwd_pd_t: public batch_normalization_fwd_pd_t {
     virtual const cpu_memory_pd_t *weights_pd(int index = 0) const override
     { return index == 0 ? &scaleshift_pd_ : nullptr; }
 
+    virtual const cpu_memory_pd_t *workspace_pd(int index = 0) const override {
+        return index == 0 && is_training() && fused_bn_relu()
+            ? &workspace_pd_ : nullptr;
+    }
+
 protected:
     cpu_memory_pd_t data_pd_;
     cpu_memory_pd_t mean_pd_;
     cpu_memory_pd_t variance_pd_;
     cpu_memory_pd_t scaleshift_pd_;
+    cpu_memory_pd_t workspace_pd_;
 
     virtual status_t init() = 0;
 };
@@ -88,7 +109,8 @@ struct cpu_batch_normalization_bwd_pd_t: public batch_normalization_bwd_pd_t {
         , variance_pd_(engine_, &desc_.variance_desc)
         , diff_data_pd_(engine_, &desc_.diff_data_desc)
         , scaleshift_pd_(engine_, &desc_.data_scaleshift_desc)
-        , diff_scaleshift_pd_(engine_, &desc_.diff_data_scaleshift_desc) {}
+        , diff_scaleshift_pd_(engine_, &desc_.diff_data_scaleshift_desc)
+        , workspace_pd_(engine_) {}
     virtual ~cpu_batch_normalization_bwd_pd_t() {}
 
     virtual const cpu_memory_pd_t *src_pd(int index = 0) const override {
@@ -108,6 +130,9 @@ struct cpu_batch_normalization_bwd_pd_t: public batch_normalization_bwd_pd_t {
     virtual const cpu_memory_pd_t *diff_src_pd(int index = 0) const override
     { return index == 0 ? &diff_data_pd_ : nullptr; }
 
+    virtual const cpu_memory_pd_t *workspace_pd(int index = 0) const override
+    { return index == 0 && fused_bn_relu() ? &workspace_pd_ : nullptr; }
+
 protected:
     cpu_memory_pd_t data_pd_;
     cpu_memory_pd_t mean_pd_;
@@ -115,6 +140,7 @@ protected:
     cpu_memory_pd_t diff_data_pd_;
     cpu_memory_pd_t scaleshift_pd_;
     cpu_memory_pd_t diff_scaleshift_pd_;
+    cpu_memory_pd_t workspace_pd_;
 
     virtual status_t init() = 0;
 };
