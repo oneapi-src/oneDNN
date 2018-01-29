@@ -88,11 +88,8 @@ struct rtus_driver_t: public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(rtus_driver_t)
 
     /* cpu specific part */
-    void uni_vpxor(const Xbyak::Xmm& x1, const Xbyak::Xmm& x2,
-        const Xbyak::Operand& op) {
-        if (isa == avx2 || typesize_ == 2) vpxor(x1, x2, op);
-        else vpxord(x1, x2, op);
-    }
+    using Vmm = typename utils::conditional<isa == avx2, Xbyak::Ymm,
+          Xbyak::Zmm>::type;
 
     Xbyak::Reg64 reg_ws = abi_param1;
     Xbyak::Reg64 reg_src = abi_not_param1;
@@ -108,8 +105,8 @@ struct rtus_driver_t: public jit_generator {
     int src_step_h_, src_step_icb_, ws_step_icb_, vlen_, vlen_shift_;
     bool src_to_ws_;
     size_t typesize_;
-    Xbyak::Ymm reg_zero;
-    Xbyak::Ymm reg_v;
+    Vmm reg_zero;
+    Vmm reg_v;
 
     rtus_driver_t(int iw, int stride_w, int src_step_h,
             int src_step_icb, int ws_step_icb, bool src_to_ws, size_t typesize)
@@ -125,13 +122,9 @@ struct rtus_driver_t: public jit_generator {
             vlen_shift_--;
         }
 
-        if (isa == avx2 || typesize_ == 2) {
-            reg_zero = Ymm(0);
-            reg_v = Ymm(1);
-        } else {
-            reg_zero = Zmm(0);
-            reg_v = Zmm(1);
-        }
+        reg_zero = Vmm(0);
+        reg_v = Vmm(1);
+
         generate();
     }
 

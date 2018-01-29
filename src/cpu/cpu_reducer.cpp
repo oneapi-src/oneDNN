@@ -116,8 +116,6 @@ struct reducer_2d_driver_f32_t: public reducer_2d_driver_t<data_type::f32>,
     /* cpu specific part */
     using Vmm = typename utils::conditional<isa == avx2, Ymm, Zmm>::type;
     const AddressFrame &vmmword = (isa == avx2) ? yword : zword;
-    void uni_vpxor(const Xmm& x1, const Xmm& x2, const Operand& op)
-    { if (isa == avx2) vpxor(x1, x2, op); else vpxord(x1, x2, op); }
     const int vlen = cpu_isa_traits<isa>::vlen;
     const int typesize = sizeof(float);
 
