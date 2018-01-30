@@ -93,7 +93,6 @@ struct jit_bnorm_t: public jit_generator {
     Reg64 reg_dst = rsi;
     Reg64 reg_diff_dst = reg_dst;
 
-    Reg64 simd_iter = reg_dst;
     Reg64 reg_tmp_off = reg_roff;
 
     // Reuse loop counters
