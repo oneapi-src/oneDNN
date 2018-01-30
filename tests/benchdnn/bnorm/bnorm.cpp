@@ -111,7 +111,7 @@ static int prepare_fwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &mean,
 
         if (p->flags & USE_SCALESHIFT) {
             ((float *)ss)[c] = 1.f / 8 * (1 << (c % 7));
-            ((float *)ss)[p->ic + c] = ((float *)ss)[c] / 64;
+            ((float *)ss)[p->ic + c] = ((c % 3) - 1) * ((float *)ss)[c] / 64;
         } else {
             ((float *)ss)[c] = 1;
             ((float *)ss)[p->ic + c] = 0;
