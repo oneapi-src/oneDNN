@@ -59,6 +59,18 @@ void nchw_pooling_fwd_t<data_type>::execute_forward() {
         return (index > offset) ? index - offset : 0;
     };
 
+    auto set_ws = [=](int mb, int c, int oh, int ow, int value) {
+        if (ws) {
+            assert(ws_dt == data_type::u8 || ws_dt == data_type::s32);
+            int offset = mb*C*OH*OW + c*OH*OW + oh*OW + ow;
+            if (ws_dt == data_type::u8) {
+                assert(0 <= value && value <= 255);
+                ws[offset] = value;
+            } else
+                reinterpret_cast<int *>(ws)[offset] = value;
+        }
+    };
+
     auto ker_max = [=](data_t *d, int mb, int c, int oh, int ow) {
         for (int kh = 0; kh < KH; ++kh) {
             for (int kw = 0; kw < KW; ++kw) {
@@ -72,15 +84,7 @@ void nchw_pooling_fwd_t<data_type>::execute_forward() {
                 auto s = src[src_offset];
                 if (s > d[0]) {
                     d[0] = s;
-                    if (ws) {
-                        auto ws_offset = mb*C*OH*OW + c*OH*OW + oh*OW + ow;
-                        if (ws_dt == data_type::u8) {
-                            ws[ws_offset] = kh*KW + kw;
-                        } else {
-                            assert(ws_dt == data_type::s32);
-                            ((int *)ws)[ws_offset] = kh*KW + kw;
-                        }
-                    }
+                    set_ws(mb, c, oh, ow, kh*KW + kw);
                 }
             }
         }
@@ -115,10 +119,7 @@ void nchw_pooling_fwd_t<data_type>::execute_forward() {
                         auto dst_offset = mb*C*OH*OW + c*OH*OW + oh*OW + ow;
                         data_t *d = &dst[dst_offset];
                         d[0] = nstl::numeric_limits<data_t>::lowest();
-                        if (ws) {
-                            ws[ws_d.off(mb, c, oh, ow)] = 0;
-                        }
-
+                        set_ws(mb, c, oh, ow, 0);
                         ker_max(d, mb, c, oh, ow);
                     }
                 }
