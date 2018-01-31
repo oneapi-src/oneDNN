@@ -16,6 +16,7 @@
 
 #include <string.h>
 #ifdef WIN32
+#include <malloc.h>
 #include <windows.h>
 #endif
 
@@ -76,6 +77,27 @@ FILE *mkldnn_fopen(const char *filename, const char *mode) {
     return fopen_s(&fp, filename, mode) ? NULL : fp;
 #else
     return fopen(filename, mode);
+#endif
+}
+
+void *malloc(size_t size, int alignment) {
+    void *ptr;
+
+#ifdef _WIN32
+    ptr = _aligned_malloc(size, alignment);
+    int rc = ptr ? 0 : -1;
+#else
+    int rc = ::posix_memalign(&ptr, alignment, size);
+#endif
+
+    return (rc == 0) ? ptr : 0;
+}
+
+void free(void *p) {
+#ifdef _WIN32
+    _aligned_free(p);
+#else
+    ::free(p);
 #endif
 }
 

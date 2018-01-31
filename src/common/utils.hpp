@@ -21,9 +21,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
-#ifdef WIN32
-#include <malloc.h>
-#endif
 
 namespace mkldnn {
 namespace impl {
@@ -222,26 +219,8 @@ inline bool nd_iterator_jump(U &cur, const U end, W &x, const Y &X,
 
 }
 
-inline void *malloc(size_t size, int alignment) {
-    void *ptr;
-
-#ifdef _WIN32
-    ptr = _aligned_malloc(size, alignment);
-    int rc = ptr ? 0 : -1;
-#else
-    int rc = ::posix_memalign(&ptr, alignment, size);
-#endif
-
-    return (rc == 0) ? ptr : 0;
-}
-
-inline void free(void *p) {
-#ifdef _WIN32
-    _aligned_free(p);
-#else
-    ::free(p);
-#endif
-}
+void *malloc(size_t size, int alignment);
+void free(void *p);
 
 struct c_compatible {
     enum { default_alignment = 64 };
