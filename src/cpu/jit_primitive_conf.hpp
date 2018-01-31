@@ -24,7 +24,8 @@ namespace impl {
 namespace cpu {
 
 /* convolution */
-enum conv_version_t {ver_unused, ver_fma, ver_avx512_core, ver_4fma, ver_4vnni};
+enum conv_version_t {ver_unused, ver_fma, ver_avx512_core, ver_4fma, ver_4vnni,
+                     ver_vnni};
 enum conv_loop_order_t {loop_cgn, loop_gnc, loop_ngc};
 enum conv_1x1_loop_order_t {loop_rbl, loop_rlb, loop_lbr, loop_lrb, loop_blr,
                             loop_brl};

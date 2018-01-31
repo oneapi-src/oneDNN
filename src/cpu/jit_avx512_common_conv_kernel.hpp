@@ -122,15 +122,23 @@ private:
     inline void store_output(int ur_w);
     inline void compute_loop_fma(int ur_w, int pad_l, int pad_r);
     inline void compute_loop_fma_core(int ur_w, int pad_l, int pad_r);
-    inline void compute_loop_4vnni(int ur_w, int pad_l, int pad_r);
+    inline void compute_loop_vnni(int ur_w, int pad_l, int pad_r);
     inline void compute_loop_4fma(int ur_w, int pad_l, int pad_r);
     inline void compute_loop_4fma_1st(int ur_w, int pad_l, int pad_r);
     inline void compute_loop(int ur_w, int pad_l, int pad_r);
 
     void generate();
 
-    inline void vadd(Xbyak::Zmm zmm, reg64_t reg, int offset)   {
+    inline void vpXdpwssd(Xbyak::Zmm zmm1, Xbyak::Zmm zmm2, reg64_t reg,
+        int offset) {
         if (jcp.ver == ver_4vnni)
+            vp4dpwssd(zmm1, zmm2, EVEX_compress_addr(reg, offset, false));
+        else
+            vpdpwssd(zmm1, zmm2, EVEX_compress_addr(reg, offset, true));
+    }
+
+    inline void vadd(Xbyak::Zmm zmm, reg64_t reg, int offset)   {
+        if (jcp.ver == ver_4vnni || jcp.ver == ver_vnni)
             vpaddd(zmm, zmm, EVEX_compress_addr(reg, offset));
         else
             vaddps(zmm, zmm, EVEX_compress_addr(reg, offset));
@@ -138,7 +146,7 @@ private:
 
     inline void vcmp(Xbyak::Opmask kmask,
         Xbyak::Zmm zmm_src1, Xbyak::Zmm zmm_src2, const unsigned char cmp) {
-        if (jcp.ver == ver_4vnni)
+        if (jcp.ver == ver_4vnni || jcp.ver == ver_vnni)
             vpcmpd(kmask, zmm_src1, zmm_src2, cmp);
         else
             vcmpps(kmask, zmm_src1, zmm_src2, cmp);
@@ -146,7 +154,7 @@ private:
 
     inline void vmul(Xbyak::Zmm zmm_dst, Xbyak::Opmask kmask,
                      Xbyak::Zmm zmm_src1, Xbyak::Zmm zmm_src2) {
-        if (jcp.ver == ver_4vnni)
+        if (jcp.ver == ver_4vnni || jcp.ver == ver_vnni)
             vpmulld(zmm_dst | kmask, zmm_src1, zmm_src2);
         else
             vmulps(zmm_dst | kmask, zmm_src1, zmm_src2);
@@ -158,7 +166,7 @@ private:
     }
 
     inline int get_input_offset(int ki, int ic, int oi, int pad_l) {
-        int scale = (jcp.ver == ver_4vnni) ? 2 : 1;
+        int scale = (jcp.ver == ver_4vnni || jcp.ver == ver_vnni) ? 2 : 1;
         int iw_str = !jcp.is_1stconv ? jcp.ic_block : 1;
         int ic_str = !jcp.is_1stconv ? 1 : jcp.iw * jcp.ih;
         return jcp.typesize_in
@@ -166,7 +174,7 @@ private:
     }
 
     inline int get_kernel_offset(int ki,int ic,int n_oc_block,int ker_number) {
-        int scale = (jcp.ver == ver_4vnni) ? 2 : 1;
+        int scale = (jcp.ver == ver_4vnni || jcp.ver == ver_vnni) ? 2 : 1;
         return jcp.typesize_in * jcp.oc_block
             * (n_oc_block * jcp.nb_ic * jcp.ic_block * jcp.kh * jcp.kw
                     + (ic + ker_number) * scale + ki * jcp.ic_block);
