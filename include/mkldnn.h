@@ -253,8 +253,8 @@ mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_set_int_output_round_mode(
  * by mkldnn_primitive_attr_set_output_scales.
  *
  * @warning
- *      @scales array points to the internal @p attr field, so user should not
- *      modify/destroy @p scales.
+ *      @p scales array points to the internal @p attr field, so user should
+ *      not modify/destroy @p scales.
  *
  * @warning
  *      The lifetime of @p scales is same as @p attr it belongs to, so it is
@@ -300,7 +300,7 @@ mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_get_output_scales(
  *      actual primitive descriptor is created, so it is user's responsibility
  *      to set proper values. The following formula must be hold:
  *
- *      count == \prod_{d \in mask} output.dims[d]
+ *      \f[count = \prod\limits_{d \in mask} output.dims[d]\f]
  */
 mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_set_output_scales(
         mkldnn_primitive_attr_t attr, int count, int mask,
@@ -317,7 +317,7 @@ mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_set_output_scales(
 mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_get_post_ops(
         const_mkldnn_primitive_attr_t attr, const_mkldnn_post_ops_t *post_ops);
 
-/** Sets configured @p post_ops to an attribute @attr for future use (when
+/** Sets configured @p post_ops to an attribute @p attr for future use (when
  * primitive descriptor is being created.
  *
  * @note
