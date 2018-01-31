@@ -281,9 +281,10 @@ The usage:
 where *harness-knobs* are:
 
  - `--mb=N` override minibatch that is specified in batch normalization description, default `0` (use mb specified in bnorm-desc)
- - `--dir={FWD_D (forward data /training), FWD_I (forward data /inference), BWD_D (backward data), BWD_DW (backward data + weights)` direction, default `FWD_D`
+ - `--dir={FWD_D (forward data /training), FWD_I (forward data /inference), BWD_D (backward data), BWD_DW (backward data + weights)}` direction, default `FWD_D`
  - `--dt={f32, s32, ...}` base data type, default `f32`
  - `--fmt={nchw, nChw16c, ...}` data layout, default `nchw`
+ - `--flags=[|G|S|R]` batch normalization flags, default `none` (G -- global stats, S -- use scale shift, R -- fuse with ReLU)
  - `--attr="attr_str"` attributes (see in the convolution section above), default `""` (no attributes set)
  - `--match=regex` check only convolutions that match with regex, default is `".*"`. Notice: Windows may only interpret string arguments surrounded by double quotation marks.
  - `--skip-impl="str1[:str2]..."` skip implementation (see mkldnn_query_impl_info_str), default `""`

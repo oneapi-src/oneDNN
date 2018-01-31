@@ -195,7 +195,7 @@ static int prepare_bwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &d_dst,
                 const int l = l_base + sp * 7 + c * 19 + mb * 13;
 
                 int rmask_v = 1;
-                if (p->flags & FUSED_BN_RELU)
+                if (p->flags & FUSE_BN_RELU)
                     rmask[sp] = rmask_v = l % 5 != 1;
 
                 const int sgn_dd = db < target_db ? 1 : -1;
@@ -226,7 +226,7 @@ static int prepare_bwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &d_dst,
 
             ((float *)src)[l1] = 1.f;
             ((float *)src)[l0] = -1.f;
-            if (p->flags & FUSED_BN_RELU)
+            if (p->flags & FUSE_BN_RELU)
                 ((float *)mask)[l0] = ((float *)mask)[l1] = 1;
 
             float f1 = ((target_db - db) + (target_dg - dg)) /2;
@@ -451,7 +451,7 @@ static int cvt_mask_to_ws(const prb_t *p, const dnn_mem_t &mask_fp,
 
     mkldnn_batch_normalization_desc_t bd;
     auto flags = (mkldnn_batch_normalization_flag_t)
-        (mkldnn_use_global_stats | mkldnn_fused_bn_relu);
+        (mkldnn_use_global_stats | mkldnn_fuse_bn_relu);
     DNN_SAFE(mkldnn_batch_normalization_forward_desc_init(&bd,
                 mkldnn_forward_training, &data.md_, 0, flags), WARN);
 
@@ -507,7 +507,7 @@ int doit(const prb_t *p, res_t *r) {
 
     dnn_mem_t ws_fp(data_fp.md_);
     dnn_mem_t *p_ws_dt = NULL;
-    if ((p->flags & FUSED_BN_RELU) && !(p->dir & FLAG_INF)) {
+    if ((p->flags & FUSE_BN_RELU) && !(p->dir & FLAG_INF)) {
         const auto ws_pd = mkldnn_primitive_desc_query_pd(bpd,
                 mkldnn_query_workspace_pd, 0);
         SAFE(ws_pd != NULL ? OK : FAIL, WARN);
@@ -547,7 +547,7 @@ int doit(const prb_t *p, res_t *r) {
             outputs[idx++] = var_dt.p_;
         }
 
-        if (p->flags & FUSED_BN_RELU)
+        if (p->flags & FUSE_BN_RELU)
             outputs[idx++] = ws_dt.p_;
 
         DNN_SAFE(mkldnn_primitive_create(&b, bpd, inputs, outputs), WARN);
@@ -561,7 +561,7 @@ int doit(const prb_t *p, res_t *r) {
             dnn_mem_t data(data_dt.md_, fp, mkldnn_nchw);
             SAFE(data.reorder(data_dt), WARN);
             SAFE(compare(p, DATA, data_fp, data, r), WARN);
-            if (p->flags & FUSED_BN_RELU)
+            if (p->flags & FUSE_BN_RELU)
                 SAFE(check_fwd_ws(data_dt, ws_dt, r), WARN);
         }
     } else {
@@ -590,7 +590,7 @@ int doit(const prb_t *p, res_t *r) {
             inputs[idx++] = {ss_dt.p_, 0};
         }
 
-        if (p->flags & FUSED_BN_RELU) {
+        if (p->flags & FUSE_BN_RELU) {
             SAFE(cvt_mask_to_ws(p, ws_fp, ws_dt), WARN);
             inputs[idx++] = {ws_dt.p_, 0};
         }
