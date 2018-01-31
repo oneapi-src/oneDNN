@@ -29,7 +29,6 @@ struct verbose_t {
     int level;
 };
 
-const char *mkldnn_getenv(const char *name);
 const verbose_t *mkldnn_verbose();
 double get_msec();
 

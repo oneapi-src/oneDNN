@@ -257,6 +257,8 @@ struct c_compatible {
 
 inline void yield_thread() { }
 
+const char *mkldnn_getenv(const char *name);
+
 }
 }
 

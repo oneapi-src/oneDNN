@@ -28,18 +28,6 @@
 namespace mkldnn {
 namespace impl {
 
-const char *mkldnn_getenv(const char *name) {
-#ifdef _WIN32
-#   define ENV_BUFLEN 256
-    static char value[ENV_BUFLEN];
-    int rl = GetEnvironmentVariable(name, value, ENV_BUFLEN);
-    if (rl >= ENV_BUFLEN || rl <= 0) value[0] = '\0';
-    return value;
-#else
-    return getenv(name);
-#endif
-}
-
 static verbose_t verbose;
 
 const verbose_t *mkldnn_verbose() {
