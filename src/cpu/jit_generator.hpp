@@ -51,6 +51,7 @@ typedef enum {
     avx2,
     avx512_common,
     avx512_core,
+    avx512_core_vnni,
     avx512_mic,
     avx512_mic_4ops,
 } cpu_isa_t;
@@ -169,6 +170,13 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa) {
             && cpu.has(Cpu::tAVX512BW)
             && cpu.has(Cpu::tAVX512VL)
             && cpu.has(Cpu::tAVX512DQ);
+    case avx512_core_vnni:
+        return true
+            && cpu.has(Cpu::tAVX512F)
+            && cpu.has(Cpu::tAVX512BW)
+            && cpu.has(Cpu::tAVX512VL)
+            && cpu.has(Cpu::tAVX512DQ)
+            && cpu.has(Cpu::tAVX512_VNNI);
     case avx512_mic:
         return true
             && cpu.has(Cpu::tAVX512F)
