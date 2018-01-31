@@ -65,6 +65,8 @@ template <typename pd_t> static void init_info_bnorm(pd_t *s, char *buffer) {
     snprintf(dat_str, MKLDNN_VERBOSE_DAT_LEN, "fdata:%s fdiff:%s",
             mkldnn_fmt2str(fmt_data), mkldnn_fmt2str(fmt_diff));
 
+    snprintf(aux_str, MKLDNN_VERBOSE_AUX_LEN, "flags:%u", s->desc()->flags);
+
     snprintf(prb_str, MKLDNN_VERBOSE_PRB_LEN,
             "mb%dic%dih%diw%d", s->MB(), s->C(), s->H(), s->W());
 
