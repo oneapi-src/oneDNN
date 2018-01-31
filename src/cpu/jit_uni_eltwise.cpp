@@ -60,8 +60,6 @@ struct jit_uni_relu_kernel_f32 : public jit_uni_eltwise_kernel_f32,
     public jit_generator
 {
     void compute_step(bool vectorize, const int uf, const int shift) {
-        unsigned char _cmp_gt_os = isa == avx512_common ? 14 : 6;
-
         for (int i = 0; i < uf; i++) {
             if (vectorize) {
                 uni_vmovups(Vmm(i + 1), ptr[reg_from + i * shift]);
@@ -84,10 +82,10 @@ struct jit_uni_relu_kernel_f32 : public jit_uni_eltwise_kernel_f32,
                 Vmm mask = Vmm(0);
                 if (is_bwd()) {
                     movups(mask, Vmm(uf + i + 1));
-                    cmpps(mask, vmm_zero, _cmp_gt_os);
+                    cmpps(mask, vmm_zero, _cmp_nle_us);
                 } else {
                     movups(mask, Vmm(i + 1));
-                    cmpps(mask, vmm_zero, _cmp_gt_os);
+                    cmpps(mask, vmm_zero, _cmp_nle_us);
                 }
                 blendvps(Vmm(2 * uf + i + 1), Vmm(i + 1));
             }
@@ -105,9 +103,9 @@ struct jit_uni_relu_kernel_f32 : public jit_uni_eltwise_kernel_f32,
 
                 } else {
                     if (is_bwd())
-                        vcmpps(k_mask, Vmm(uf + i + 1), vmm_zero, _cmp_gt_os);
+                        vcmpps(k_mask, Vmm(uf + i + 1), vmm_zero, _cmp_nle_us);
                     else
-                        vcmpps(k_mask, Vmm(i + 1), vmm_zero, _cmp_gt_os);
+                        vcmpps(k_mask, Vmm(i + 1), vmm_zero, _cmp_nle_us);
                     vblendmps(Vmm(2 * uf + i + 1) | k_mask, Vmm(2 * uf + i + 1),
                               Vmm(i + 1));
                 }
@@ -331,7 +329,6 @@ private:
     const int simd_w = cpu_isa_traits<isa>::vlen / sizeof(float);
     const int vlen   = cpu_isa_traits<isa>::vlen;
 
-    unsigned char _cmp_gt_os = isa == avx512_common ? 14 : 6;
     unsigned char _op_floor = 1;
 
     Reg64 reg_from = rax;
@@ -419,7 +416,7 @@ private:
             vcvtps2dq(Vmm(5) | T_rd_sae, vmm_src);
             vcvtdq2ps(Vmm(5), Vmm(5));
 
-            vcmpps(k_mask_tmp, Vmm(5), vmm_src, _cmp_gt_os);
+            vcmpps(k_mask_tmp, Vmm(5), vmm_src, _cmp_nle_us);
             vmovups(vmm_tmp2 | k_mask_tmp | T_z, zword[imm_addr64 + 0 * vlen]);
 
             // fx = fx - 1 (if there are fraction bits)
@@ -553,7 +550,7 @@ private:
             // early exit if all elems positive
             uni_vmovmskps(reg_mask, vmm_mask);
         } else {
-            vcmpps(k_mask, vmm_src, vmm_zero, _cmp_gt_os);
+            vcmpps(k_mask, vmm_src, vmm_zero, _cmp_nle_us);
             kmovw(reg_mask.cvt32(), k_mask);
         }
         cmp(reg_mask, isa == sse42 ? 0x0f : (isa == avx2 ? 0xff : 0xffff));
@@ -582,12 +579,10 @@ private:
     }
 
     void elu_reminder_body() {
-        const unsigned int _cmp_gt_os_sse = 6;
-
         movss(xmm_src, ptr[reg_from]);
         // compute mask
         movss(xmm_mask, xmm_src);
-        cmpss(xmm_mask, xmm_zero, _cmp_gt_os_sse);
+        cmpss(xmm_mask, xmm_zero, _cmp_nle_us);
 
         // early exit if all elems positive
         movmskps(reg_mask, xmm_mask);
@@ -691,15 +686,13 @@ private:
     }
 
     void sqrt_reminder_body() {
-        const unsigned int _cmp_gt_os_sse = 6;
-
         // load src
         movss(xmm_src, ptr[reg_from]);
 
         // compute mask
         movss(xmm_mask, xmm_src);
         movss(xmm_dst, xmm_zero);
-        cmpss(xmm_mask, xmm_zero, _cmp_gt_os_sse);
+        cmpss(xmm_mask, xmm_zero, _cmp_nle_us);
 
         // early exit if all elements are negative
         movmskps(reg_mask, xmm_mask);

@@ -260,8 +260,6 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t::store_dst(int jj, int ll,
 
 void jit_avx512_core_i8i8_pool_fwd_ker_t::compute_max_step(int ur_c, int c_tail)
 {
-    unsigned char _cmp_lt_os = 1;
-
     Label l_kw, l_kh;
 
     int iw = jpp.iw;

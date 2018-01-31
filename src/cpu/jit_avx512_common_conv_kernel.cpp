@@ -126,7 +126,6 @@ void jit_avx512_common_conv_fwd_kernel::store_output(int ur_w)
         }
         cmp(reg_channel, jcp.nb_ic - 1);
         jl(store_label, T_NEAR);
-        const unsigned char _cmp_lt_os = 1;
         for (int k = 0; k < jcp.nb_oc_blocking; k++)
             for (int j = 0; j < ur_w; j++){
                 Opmask kmask = Opmask(7);

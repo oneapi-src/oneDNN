@@ -220,15 +220,14 @@ void jit_sse42_1x1_conv_kernel_f32::reduce_loop(int load_loop_blk, int ur,
             }
             for (int j = 0; j < ur; ++j) {
                 for (int i = 0; i < load_loop_blk; ++i) {
-                    const unsigned char _cmp_gt_os = 6;
                     xorps(xmask, xmask);
-                    cmpps(xmask, reg_accum(i, j, 0), _cmp_gt_os);
+                    cmpps(xmask, reg_accum(i, j, 0), _cmp_nle_us);
                     movups(xmm_res_ns, reg_accum(i, j, 0));
                     mulps(xmm_res_ns, xmm_relu_ns);
                     blendvps(reg_accum(i, j, 0), xmm_res_ns);
                     movups(output_ptr(i, j, 0), reg_accum(i, j, 0));
                     xorps(xmask, xmask);
-                    cmpps(xmask, reg_accum(i, j, 1), _cmp_gt_os);
+                    cmpps(xmask, reg_accum(i, j, 1), _cmp_nle_us);
                     movups(xmm_res_ns, reg_accum(i, j, 1));
                     mulps(xmm_res_ns, xmm_relu_ns);
                     blendvps(reg_accum(i, j, 1), xmm_res_ns);

@@ -277,6 +277,15 @@ private:
         + xmm_to_preserve * xmm_len;
 
 public:
+    enum {
+        _cmp_eq_oq = 0u,
+        _cmp_lt_os = 1u,
+        _cmp_le_os = 2u,
+        _cmp_neq_uq = 4u,
+        _cmp_nlt_us = 5u,
+        _cmp_nle_us = 6u,
+    };
+
     Xbyak::Reg64 param1 = abi_param1;
     const int EVEX_max_8b_offt = 0x200;
     const Xbyak::Reg64 reg_EVEX_max_8b_offt = rbp;

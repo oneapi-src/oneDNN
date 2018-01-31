@@ -244,10 +244,8 @@ void jit_sse42_conv_fwd_kernel_f32::width_blk_step(int ur_w,
                 const size_t o_off = (ii * oh * ow + jj) * oc_blk;
                 Xmm reg_out = Xmm(ur_w * ii + jj + 1);
 
-                const unsigned char _cmp_gt_os = 6;
-
                 pxor(xmask, xmask);
-                cmpps(xmask, reg_out, _cmp_gt_os);
+                cmpps(xmask, reg_out, _cmp_nle_us);
                 movups(xmm_res_ns, reg_out);
                 mulps(xmm_res_ns, xmm_relu_ns);
                 blendvps(reg_out, xmm_res_ns);

@@ -291,7 +291,6 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(int load_loop_blk,
 
         L(store_noadd);
         if (jcp.with_relu) {
-            const unsigned char _cmp_lt_os = 1;
             assert(ur * load_loop_blk < 30);
 
             Label store_norelu;
