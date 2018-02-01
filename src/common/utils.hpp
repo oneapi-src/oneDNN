@@ -258,7 +258,8 @@ struct c_compatible {
 
 inline void yield_thread() { }
 
-const char *mkldnn_getenv(const char *name);
+int mkldnn_getenv(char *value, const char *name, int len);
+bool mkldnn_jit_dump();
 FILE *mkldnn_fopen(const char *filename, const char *mode);
 
 }

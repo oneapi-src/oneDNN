@@ -759,8 +759,7 @@ public:
         const Xbyak::uint8 *code = CodeGenerator::getCode();
         register_code(code);
 
-        const char *env_dump = mkldnn_getenv("MKLDNN_JIT_DUMP");
-        if (env_dump && atoi(env_dump) == 1)
+        if (mkldnn_jit_dump())
             dump_code(code);
 
         return code;

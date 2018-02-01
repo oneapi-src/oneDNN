@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <string.h>
 #ifdef WIN32
 #include <windows.h>
 #endif
@@ -23,16 +24,50 @@
 namespace mkldnn {
 namespace impl {
 
-const char *mkldnn_getenv(const char *name) {
+int mkldnn_getenv(char *value, const char *name, int length) {
+    int result = 0;
+    int last_idx = 0;
+    if (length > 1) {
+        int value_length = 0;
 #ifdef _WIN32
-#   define ENV_BUFLEN 256
-    static char value[ENV_BUFLEN];
-    int rl = GetEnvironmentVariable(name, value, ENV_BUFLEN);
-    if (rl >= ENV_BUFLEN || rl <= 0) value[0] = '\0';
-    return value;
+        value_length = GetEnvironmentVariable(name, value, length);
+        if (value_length >= length) {
+            result = -value_length;
+        } else {
+            last_idx = value_length;
+            result = value_length;
+        }
 #else
-    return getenv(name);
+        char *buffer = getenv(name);
+        if (buffer != NULL) {
+            value_length = strlen(buffer);
+            if (value_length >= length) {
+                result = -value_length;
+            } else {
+                strncpy(value, buffer, value_length);
+                last_idx = value_length;
+                result = value_length;
+            }
+        }
 #endif
+    }
+    value[last_idx] = '\0';
+    return result;
+}
+
+static bool dump_jit_code;
+
+bool mkldnn_jit_dump() {
+    static bool initialized = false;
+    if (!initialized) {
+        const int len = 2;
+        char env_dump[len] = {0};
+        dump_jit_code =
+            mkldnn_getenv(env_dump, "MKLDNN_JIT_DUMP", len) == 1
+            && atoi(env_dump) == 1;
+        initialized = true;
+    }
+    return dump_jit_code;
 }
 
 FILE *mkldnn_fopen(const char *filename, const char *mode) {
