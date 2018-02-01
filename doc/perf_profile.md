@@ -71,4 +71,59 @@ rate is high.
 
 ---
 
+## Intel(R) VTune(TM) profiling
+
+To collect performance data of JIT-kernels set `VTUNEROOT` environment variable
+to path to VTune before building of Intel MKL-DNN. For example:
+
+```
+    $ export VTUNEROOT=/path/to/vtune
+    $ mkdir -p build && cd build && cmake .. && make
+```
+
+## Dump JIT-kernels
+To dump JIT-kernels set MKLDNN_JIT_DUMP environment variable to `1`. For example:
+
+```
+    $ export MKLDNN_JIT_DUMP=1
+    $ ./simple-net-c
+```
+
+This will produce the following output files:
+    mkldnn_dump_jit_avx2_conv_fwd_kernel_f32.0.bin
+    mkldnn_dump_jit_uni_lrn_fwd_kernel_f32.2.bin
+    mkldnn_dump_jit_uni_lrn_fwd_kernel_f32.3.bin
+    mkldnn_dump_jit_uni_lrn_fwd_kernel_f32.4.bin
+    mkldnn_dump_jit_uni_pool_kernel_f32.5.bin
+    mkldnn_dump_jit_uni_relu_kernel_f32.1.bin
+    
+To open these files any disassembler can be used. For example:
+
+```
+    $ xed -ir mkldnn_dump_jit_avx2_conv_fwd_kernel_f32.0.bin
+    XDIS 0: PUSH      BASE       53                       push ebx
+    XDIS 1: PUSH      BASE       55                       push ebp
+    XDIS 2: BINARY    BASE       41                       inc ecx
+    XDIS 3: PUSH      BASE       54                       push esp
+    XDIS 4: BINARY    BASE       41                       inc ecx
+    XDIS 5: PUSH      BASE       55                       push ebp
+    XDIS 6: BINARY    BASE       41                       inc ecx
+    XDIS 7: PUSH      BASE       56                       push esi
+    XDIS 8: BINARY    BASE       41                       inc ecx
+    XDIS 9: PUSH      BASE       57                       push edi
+    XDIS a: BINARY    BASE       48                       dec eax
+    XDIS b: DATAXFER  BASE       8B07                     mov eax, dword ptr [edi]
+    XDIS d: BINARY    BASE       48                       dec eax
+    XDIS e: DATAXFER  BASE       8B7708                   mov esi, dword ptr [edi+0x8]
+    XDIS 11: BINARY    BASE       48                       dec eax
+    XDIS 12: DATAXFER  BASE       8B5710                   mov edx, dword ptr [edi+0x10]
+    XDIS 15: BINARY    BASE       48                       dec eax
+    XDIS 16: DATAXFER  BASE       8B5F18                   mov ebx, dword ptr [edi+0x18]
+    XDIS 19: BINARY    BASE       48                       dec eax
+    XDIS 1a: DATAXFER  BASE       8B4F40                   mov ecx, dword ptr [edi+0x40]
+    XDIS 1d: BINARY    BASE       44                       inc esp
+    XDIS 1e: DATAXFER  BASE       8B6F70                   mov ebp, dword ptr [edi+0x70]
+    ...
+```
+
 [Legal information](legal_information.md)
