@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2017 Intel Corporation
+* Copyright 2016-2018 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -78,6 +78,8 @@ struct jit_conv_conf_t {
     /* 4vnni */
     int typesize_in;
     int typesize_out;
+    int typesize_bia;
+    int typesize_acc;
     /* avx512_u8s8u8 */
     int ic_nb1, ic_nb2;
     int oc_nb1;
@@ -90,6 +92,7 @@ struct jit_conv_conf_t {
     int src_count;
     bool expl_bcast;
     bool large_spatial;
+    int is_oc_scale;
 };
 
 /*
@@ -175,6 +178,8 @@ struct jit_conv_call_s {
     const void *dst_prf;
     const void *filt_prf;
     const void *bias_prf;
+    const void *scales;
+    const void *acc_s32;
     size_t kh_padding;
     size_t kh_padding_prf;
     size_t kw_padding;
@@ -224,11 +229,15 @@ struct jit_1x1_conv_conf_t {
     /* 4vnni */
     int typesize_in;
     int typesize_out;
-
+    int typesize_bia;
+    int typesize_acc;
     /* 4fma */
     bool transpose_src;
     int tr_is;
     int nthr, nthr_mb, nthr_g, nthr_oc_b, nthr_ic_b;
+    int is_oc_scale;
+    data_type_t bia_dt;
+    data_type_t dst_dt;
 };
 
 struct jit_gemm_conv_conf_t {
@@ -255,6 +264,8 @@ struct jit_1x1_conv_call_s {
     const void *load_data;
     const void *output_data;
     const void *bias_data; // used in forward and backward_weights only
+    const void *acc_s32;
+    const void *scales;
 
     size_t load_dim;
     size_t bcast_dim;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017 Intel Corporation
+* Copyright 2017-2018 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@
 #include "utils.hpp"
 #include "cpu_memory.hpp"
 
+#include "jit_uni_1x1_conv_utils.hpp"
 #include "jit_avx512_common_1x1_conv_kernel.hpp"
 
 #define GET_OFF(field) offsetof(jit_1x1_conv_call_s, field)
@@ -34,33 +35,6 @@ using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::utils;
 
 using namespace Xbyak;
-
-namespace {
-
-float loss_ratio(int amount, int divider)
-{
-    return float(rnd_up(amount, divider) - amount) / rnd_up(amount, divider);
-}
-
-int best_divider(int value, int min_divider, int max_divider,
-                        bool find_max, int step = 1)
-{
-    max_divider = nstl::max(1, nstl::min(max_divider, value));
-    min_divider = nstl::max(1, nstl::min(min_divider, max_divider));
-
-    float min_loss = FLT_MAX;
-    int x_divider = max_divider;
-    for (int divider = max_divider; divider >= min_divider; divider -= step) {
-        const float loss = loss_ratio(value, divider);
-        if ((find_max && loss < min_loss) || (!find_max && loss <= min_loss)) {
-            min_loss = loss;
-            x_divider = divider;
-        }
-    }
-    return x_divider;
-}
-
-}
 
 void jit_avx512_common_1x1_conv_kernel::bcast_loop(int load_loop_blk)
 {
@@ -580,9 +554,9 @@ void jit_avx512_common_1x1_conv_kernel::generate()
 
     Label load_loop_blk[7];
 
-    static const int ur_cases_fma_embd_bcast[] = { 2, 4, 5, 8, 14, 30 };
-    static const int ur_cases_fma_expl_bcast[] = { 2, 5, 6, 9, 14, 30 };
-    static const int ur_cases_4fma[] = {2, 4, 6, 12, 28};
+    static const int ur_cases_fma_embd_bcast[] = { 2, 4, 5, 8, 14, 32 };
+    static const int ur_cases_fma_expl_bcast[] = { 2, 5, 6, 9, 14, 32 };
+    static const int ur_cases_4fma[] = { 2, 4, 6, 12, 32 };
 
     const int size_ur_cases_fma
             = (jcp.ver == ver_avx512_core && jcp.expl_bcast) ?

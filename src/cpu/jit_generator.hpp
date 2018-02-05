@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2017 Intel Corporation
+* Copyright 2016-2018 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -746,7 +746,7 @@ public:
 public:
     jit_generator(
         void *code_ptr = nullptr,
-        size_t code_size = 128 * 1024
+        size_t code_size = 256 * 1024
         ) : Xbyak::CodeGenerator(code_size, code_ptr)
     {
     }

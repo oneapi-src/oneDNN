@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017 Intel Corporation
+* Copyright 2016-2018 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,16 +20,17 @@
 #include "c_types_map.hpp"
 #include "cpu_convolution_pd.hpp"
 #include "cpu_engine.hpp"
+#include "jit_transpose_src_utils.hpp"
+#include "cpu_reducer.hpp"
+#include "cpu_barrier.hpp"
 
-#include "jit_primitive_conf.hpp"
+#include "jit_avx512_core_u8s8s32x_conv_kernel.hpp"
 
 namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-struct jit_avx512_core_u8s8s32x_conv_fwd_ker_t;
-
-template <bool with_relu, data_type_t dst_data_type>
+template <bool with_relu, impl::data_type_t dst_type>
 struct _jit_avx512_core_u8s8s32x_convolution_fwd_t : public cpu_primitive_t {
     struct pd_t : public _cpu_convolution_fwd_pd_t<with_relu> {
         pd_t(engine_t *engine, const typename pd_t::base_desc_t *adesc,
@@ -38,66 +39,64 @@ struct _jit_avx512_core_u8s8s32x_convolution_fwd_t : public cpu_primitive_t {
             : _cpu_convolution_fwd_pd_t<with_relu>(engine, adesc, attr,
                     hint_fwd_pd)
             , jcp_({})
-        {}
-
+        {
+        }
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit:", avx512_core, ""),
                 _jit_avx512_core_u8s8s32x_convolution_fwd_t<with_relu,
-                dst_data_type>);
+                dst_type>);
 
-        virtual status_t init() override {
+        virtual status_t init() override
+        {
             using namespace prop_kind;
             assert(this->engine()->kind() == engine_kind::cpu);
             bool ok = true
-                && this->set_default_params() == status::success
-                && utils::one_of(this->cdesc_().prop_kind, forward_training,
-                        forward_inference)
-                && this->cdesc_().alg_kind == alg_kind::convolution_direct
-                && this->cdesc_().src_desc.data_type == data_type::u8
-                && this->cdesc_().dst_desc.data_type == dst_data_type
-                && this->cdesc_().weights_desc.data_type == data_type::s8
-                && utils::implication(this->with_bias(), utils::one_of(
+                    && utils::one_of(this->cdesc_().prop_kind, forward_training,
+                               forward_inference)
+                    && this->cdesc_().alg_kind == alg_kind::convolution_direct
+                    && this->cdesc_().dst_desc.data_type == dst_type
+                    && utils::implication(this->with_bias(), utils::one_of(
                             this->cdesc_().bias_desc.data_type, data_type::f32,
                             data_type::s32, data_type::s8, data_type::u8))
-                && this->cdesc_().accum_data_type == data_type::s32;
+                    && this->cdesc_().accum_data_type == data_type::s32;
+            if (!ok)
+                return status::unimplemented;
 
-            if (!ok) return status::unimplemented;
-
-            return jit_conf();
+            return jit_avx512_core_u8s8s32x_fwd_kernel::init_conf(
+                    jcp_, this->cdesc_(), this->src_pd_, this->weights_pd_,
+                    this->dst_pd_,this->bias_pd_, *this->attr(),
+                    with_relu, this->negative_slope());
         }
 
         jit_conv_conf_t jcp_;
-
-    protected:
-        status_t jit_conf();
-
-        virtual status_t set_default_params() override {
-            using namespace memory_format;
-
-            if (this->src_pd_.desc()->format == any)
-                CHECK(this->src_pd_.set_format(nhwc));
-            if (this->dst_pd_.desc()->format == any)
-                CHECK(this->dst_pd_.set_format(nhwc));
-            if (this->weights_pd_.desc()->format == any)
-                CHECK(this->weights_pd_.set_format(this->with_groups()
-                            ? gOhIw16o4i : OhIw16o4i));
-            if (this->bias_pd_.desc()->format == any)
-                CHECK(this->bias_pd_.set_format(x));
-
-            return status::success;
-        }
     };
 
     _jit_avx512_core_u8s8s32x_convolution_fwd_t(const pd_t *pd,
-            const input_vector &inputs, const output_vector &outputs);
-    ~_jit_avx512_core_u8s8s32x_convolution_fwd_t();
+            const input_vector &inputs, const output_vector &outputs)
+        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
+    {
+        kernel_ = new jit_avx512_core_u8s8s32x_fwd_kernel(conf_.jcp_,
+                    *conf_.attr());
+
+        const int nthreads = omp_get_max_threads();
+        ws_per_thread_ = conf_.jcp_.oh * conf_.jcp_.ow * conf_.jcp_.oc_block
+                            * conf_.jcp_.nb_oc_blocking;
+        ws_ = (acc_data_t *)malloc(
+                nthreads * ws_per_thread_ * sizeof(acc_data_t), 64);
+    }
+
+    ~_jit_avx512_core_u8s8s32x_convolution_fwd_t() {
+        delete ws_;
+        delete kernel_;
+    };
 
     typedef typename prec_traits<data_type::u8>::type src_data_t;
     typedef typename prec_traits<data_type::s8>::type wei_data_t;
-    typedef typename prec_traits<dst_data_type>::type dst_data_t;
+    typedef typename prec_traits<dst_type>::type dst_data_t;
     typedef typename prec_traits<data_type::s32>::type acc_data_t;
 
-    virtual void execute(event_t *e) {
+    virtual void execute(event_t *e)
+    {
         execute_forward();
         e->set_state(event_t::ready);
     }
@@ -105,14 +104,23 @@ struct _jit_avx512_core_u8s8s32x_convolution_fwd_t : public cpu_primitive_t {
 private:
     void execute_forward();
     pd_t conf_;
-
-    jit_avx512_core_u8s8s32x_conv_fwd_ker_t *ker_;
+    jit_avx512_core_u8s8s32x_fwd_kernel *kernel_;
     size_t ws_per_thread_;
     acc_data_t *ws_;
 };
+
+template <impl::data_type_t dst_type>
+using jit_avx512_core_u8s8s32x_convolution_fwd_t =
+    _jit_avx512_core_u8s8s32x_convolution_fwd_t<false, dst_type>;
+
+template <impl::data_type_t dst_type>
+using jit_avx512_core_u8s8s32x_convolution_relu_t =
+    _jit_avx512_core_u8s8s32x_convolution_fwd_t<true, dst_type>;
 
 }
 }
 }
 
 #endif
+
+// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
