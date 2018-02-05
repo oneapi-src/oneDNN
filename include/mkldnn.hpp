@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2017 Intel Corporation
+* Copyright 2016-2018 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -578,6 +578,7 @@ struct memory: public primitive  {
         IOhw16o16i = mkldnn_IOhw16o16i,
         OIhw8i16o2i = mkldnn_OIhw8i16o2i,
         OIhw8o16i2o = mkldnn_OIhw8o16i2o,
+        OIhw4i16o4i = mkldnn_OIhw4i16o4i,
         Oihw8o = mkldnn_Oihw8o,
         Oihw16o = mkldnn_Oihw16o,
         Ohwi8o = mkldnn_Ohwi8o,
@@ -589,6 +590,7 @@ struct memory: public primitive  {
         gOIhw16i16o = mkldnn_gOIhw16i16o,
         gOIhw8i16o2i = mkldnn_gOIhw8i16o2i,
         gOIhw8o16i2o = mkldnn_gOIhw8o16i2o,
+        gOIhw4i16o4i = mkldnn_gOIhw4i16o4i,
         gOihw8o = mkldnn_gOihw8o,
         gOihw16o = mkldnn_gOihw16o,
         gOhwi8o = mkldnn_gOhwi8o,

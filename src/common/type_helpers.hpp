@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2017 Intel Corporation
+* Copyright 2016-2018 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -75,10 +75,10 @@ inline memory_format_t format_normalize(const memory_format_t fmt) {
     if (utils::one_of(fmt, x, nc, nchw, nhwc, chwn, nChw8c, nChw16c, oi, io,
                 oihw, ihwo, hwio, oIhw8i, oIhw16i, OIhw8i8o, OIhw16i16o,
                 OIhw8i16o2i, OIhw8o16i2o, OIhw8o8i, OIhw16o16i, Oihw8o,
-                Oihw16o, Ohwi8o, Ohwi16o, OhIw16o4i, goihw, hwigo, gOIhw8i8o,
-                gOIhw16i16o, gOIhw8i16o2i, gOIhw8o16i2o, gOIhw8o8i,
+                Oihw16o, Ohwi8o, Ohwi16o, OhIw16o4i, OIhw4i16o4i, goihw, hwigo,
+                gOIhw8i8o, gOIhw16i16o, gOIhw8i16o2i, gOIhw8o16i2o, gOIhw8o8i,
                 gOIhw16o16i, gOihw8o, gOihw16o, gOhwi8o, gOhwi16o, gOhIw16o4i,
-                IOhw16o16i, gIOhw16o16i))
+                IOhw16o16i, gIOhw16o16i, gOIhw4i16o4i))
         return blocked;
     return fmt;
 }

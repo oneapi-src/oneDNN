@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2017 Intel Corporation
+* Copyright 2016-2018 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -56,13 +56,34 @@ template <> inline float out_round<float>(float x, mkldnn_round_mode_t rmode)
 
 inline size_t map_index(const mkldnn::memory::desc &md, size_t index) {
     using fmt = mkldnn::memory::format;
-    const fmt fwd_weights_g = fmt::gOIhw8i16o2i;
-    const fmt fwd_weights = fmt::OIhw8i16o2i;
-    const fmt bwd_weights_g = fmt::gOIhw8o16i2o;
-    const fmt bwd_weights = fmt::OIhw8o16i2o;
 
-    const bool with_groups = (md.data.format == fwd_weights_g)
-                          || (md.data.format == bwd_weights_g);
+    const fmt fwd_weights_g_qvnni = fmt::gOIhw8i16o2i;
+    const fmt fwd_weights_qvnni = fmt::OIhw8i16o2i;
+    const fmt bwd_weights_g_qvnni = fmt::gOIhw8o16i2o;
+    const fmt bwd_weights_qvnni = fmt::OIhw8o16i2o;
+
+    const fmt fwd_weights_g_vnni = fmt::gOIhw4i16o4i;
+    const fmt fwd_weights_vnni = fmt::OIhw4i16o4i;
+
+    const bool with_groups = (md.data.format == fwd_weights_g_qvnni)
+                          || (md.data.format == bwd_weights_g_qvnni)
+                          || (md.data.format == fwd_weights_g_vnni);
+
+    const bool qvnni = (md.data.format == fwd_weights_g_qvnni)
+                    || (md.data.format == bwd_weights_g_qvnni)
+                    || (md.data.format == fwd_weights_qvnni)
+                    || (md.data.format == bwd_weights_qvnni);
+
+    const bool vnni = (md.data.format == fwd_weights_g_vnni)
+                   || (md.data.format == fwd_weights_vnni);
+
+    const bool fwd_wei = (md.data.format == fwd_weights_g_qvnni)
+                      || (md.data.format == fwd_weights_qvnni)
+                      || (md.data.format == fwd_weights_g_vnni)
+                      || (md.data.format == fwd_weights_vnni);
+
+    const bool bwd_wei = (md.data.format == bwd_weights_g_qvnni)
+                      || (md.data.format == bwd_weights_qvnni);
 
     const int ndims = md.data.ndims;
     const int *dims = md.data.dims;
@@ -73,8 +94,8 @@ inline size_t map_index(const mkldnn::memory::desc &md, size_t index) {
     auto *strides_within_block = md.data.layout_desc.blocking.strides[1];
 
     size_t ph_index = 0;
-    size_t oc_16 = 0, ic_2 = 0,
-        oc_2 = 0, ic_16 = 0;
+    size_t oc_lb = 0, ic_sb = 0,
+        oc_sb = 0, ic_lb = 0;
 
     for (int rd = 0; rd < ndims; ++rd) {
         int d = ndims - rd - 1;
@@ -92,25 +113,31 @@ inline size_t map_index(const mkldnn::memory::desc &md, size_t index) {
         size_t cur_pos_block = cur_pos / cur_block;
         size_t cur_pos_within_block = cur_pos % cur_block;
 
-        if (d == (with_groups + 0)) { oc_16 = pos_d % 16; oc_2 = pos_d % 2; }
-        if (d == (with_groups + 1)) { ic_2 = pos_d % 2; ic_16 = pos_d % 16; }
-
+        if (d == (with_groups + 0)) {
+            if (qvnni) { oc_lb = pos_d % 16;  oc_sb = pos_d % 2; }
+            else  if (vnni) { oc_lb = pos_d % 16; }
+        }
+        if (d == (with_groups + 1)) {
+            if (qvnni) { ic_sb = pos_d % 2; ic_lb = pos_d % 16; }
+            else if (vnni) { ic_sb = pos_d % 4; }
+        }
         ph_index += cur_pos_block*strides_block[d];
         ph_index += cur_pos_within_block*strides_within_block[d];
 
         index /= cur_dim;
     }
-    if (md.data.format == fwd_weights_g || md.data.format == fwd_weights) {
+    int scale = (vnni) ? 3 : 1;
+    if (fwd_wei) {
         //ph_index += -16 * ic_2 + oc_16 + ic_2;
-        ph_index += oc_16 + ic_2;
-        EXPECT_GE(ph_index, 16*ic_2);
-        ph_index -= 16*ic_2;
+        ph_index += scale * oc_lb + ic_sb;
+        EXPECT_GE(ph_index, 16 * ic_sb);
+        ph_index -= 16 * ic_sb;
     } else
-        if (md.data.format == bwd_weights_g || md.data.format == bwd_weights) {
+        if (bwd_wei) {
             //ph_index += -16 * oc_2 + ic_16 + oc_2;
-            ph_index += ic_16 + oc_2;
-            EXPECT_GE(ph_index, 16 * oc_2);
-            ph_index -= 16 * oc_2;
+            ph_index += ic_lb + oc_sb;
+            EXPECT_GE(ph_index, 16 * oc_sb);
+            ph_index -= 16 * oc_sb;
         }
     ph_index += md.data.layout_desc.blocking.offset_padding;
 
@@ -139,6 +166,7 @@ inline mkldnn::memory::desc create_md(mkldnn::memory::dims dims,
     case f::OIhw16i16o:
     case f::OIhw8i16o2i:
     case f::OIhw8o16i2o:
+    case f::OIhw4i16o4i:
     case f::OIhw8o8i:
     case f::OIhw16o16i:
     case f::IOhw16o16i:
@@ -152,6 +180,7 @@ inline mkldnn::memory::desc create_md(mkldnn::memory::dims dims,
     case f::gOIhw16i16o:
     case f::gOIhw8i16o2i:
     case f::gOIhw8o16i2o:
+    case f::gOIhw4i16o4i:
     case f::gOIhw8o8i:
     case f::gOIhw16o16i:
     case f::gIOhw16o16i:

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2017 Intel Corporation
+* Copyright 2016-2018 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -71,12 +71,13 @@ struct memory_desc_wrapper: public c_compatible {
         using namespace mkldnn::impl::memory_format;
         if (is_zero() || format() == memory_format::any) return 0;
         assert(utils::one_of(format(), blocked, x, nc, nchw, nhwc, chwn,
-                    nChw8c, nChw16c, oi, io, oihw, ihwo, hwio, oIhw8i, oIhw16i,
-                    OIhw8i8o, OIhw16i16o, OIhw8i16o2i, OIhw8o16i2o, OIhw8o8i,
-                    OIhw16o16i, Oihw8o, Oihw16o, Ohwi8o, Ohwi16o, OhIw16o4i,
-                    goihw, hwigo, gOIhw8i8o, gOIhw16i16o, gOIhw8i16o2i,
-                    gOIhw8o16i2o, gOIhw8o8i, gOIhw16o16i, gOihw8o, gOihw16o,
-                    gOhwi8o, gOhwi16o, gOhIw16o4i, IOhw16o16i, gIOhw16o16i));
+                    nChw8c, nChw16c, oi, io, oihw, ihwo, hwio, hwigo, oIhw8i,
+                    oIhw16i, OIhw8i8o, OIhw16i16o, OIhw8i16o2i, OIhw8o16i2o,
+                    OIhw8o8i, OIhw16o16i, Oihw8o, Oihw16o, Ohwi8o, Ohwi16o,
+                    OhIw16o4i, OIhw4i16o4i, goihw, gOIhw8i8o, gOIhw16i16o,
+                    gOIhw8i16o2i, gOIhw8o16i2o, gOIhw8o8i, gOIhw16o16i, gOihw8o,
+                    gOihw16o, gOhwi8o, gOhwi16o, gOhIw16o4i, IOhw16o16i,
+                    gIOhw16o16i, gOIhw4i16o4i));
 
         if (blocking_desc().offset_padding != 0) return 0;
 
@@ -147,6 +148,13 @@ struct memory_desc_wrapper: public c_compatible {
 
             phys_offset += pos_block * blk.strides[0][d];
             phys_offset += pos_within_block * blk.strides[1][d];
+        }
+        if (format() == gOIhw4i16o4i || format() == OIhw4i16o4i) {
+            // TODO: Fix temporary workaround for formats with double blocking
+            const bool with_groups = format() == gOIhw4i16o4i;
+            const int oc_16 = pos[with_groups + 0] % 16;
+            const int ic_4  = pos[with_groups + 1] % 4;
+            phys_offset += 4 * oc_16 + ic_4 - (oc_16 + 16 * ic_4);
         }
         if (format() == gOIhw8i16o2i || format() == OIhw8i16o2i) {
             // TODO: Fix temporary workaround for formats with double blocking

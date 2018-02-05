@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2017 Intel Corporation
+* Copyright 2016-2018 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1006,11 +1006,12 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     typename utils::enable_if<
-          (fmt_i == goihw && (fmt_o == gOIhw8i16o2i))
-          || (fmt_i == oihw && (fmt_o == OIhw8i16o2i))
+          (fmt_i == goihw && (fmt_o == gOIhw4i16o4i || fmt_o == gOIhw8i16o2i))
+       || (fmt_i == oihw && (fmt_o == OIhw4i16o4i || fmt_o == OIhw8i16o2i))
     >::type>
 {
     SIMPLE_IS_APPLICABLE(false);
+    enum { sblk = fmt_o == OIhw4i16o4i || fmt_o == gOIhw4i16o4i ? 4 : 2 };
 
     static status_t execute(const cpu_reorder_pd_t *pd,
         const data_t<type_i> *input, data_t<type_o> *output) {
@@ -1023,7 +1024,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const int blksize = 16;
 
         auto index = [&](const int ic, const int oc) {
-            return ((ic / 2) * blksize * 2 + 2 * oc + ic % 2);
+            return ((ic / sblk) * blksize * sblk + sblk * oc + ic % sblk);
         };
 
         auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o) {

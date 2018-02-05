@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2017 Intel Corporation
+* Copyright 2016-2018 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -72,6 +72,7 @@ status_t mkldnn_memory_desc_init(memory_desc_t *memory_desc, int ndims,
     case hwio:
     case OIhw8i8o:
     case OIhw16i16o:
+    case OIhw4i16o4i:
     case OIhw8i16o2i:
     case OIhw8o16i2o:
     case OIhw8o8i:
@@ -86,6 +87,7 @@ status_t mkldnn_memory_desc_init(memory_desc_t *memory_desc, int ndims,
     case hwigo:
     case gOIhw8i8o:
     case gOIhw16i16o:
+    case gOIhw4i16o4i:
     case gOIhw8i16o2i:
     case gOIhw8o16i2o:
     case gOIhw8o8i:

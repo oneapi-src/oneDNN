@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2017 Intel Corporation
+* Copyright 2016-2018 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -116,6 +116,7 @@ namespace memory_format {
     const memory_format_t oIhw16i = mkldnn_oIhw16i;
     const memory_format_t OIhw8i8o = mkldnn_OIhw8i8o;
     const memory_format_t OIhw16i16o = mkldnn_OIhw16i16o;
+    const memory_format_t OIhw4i16o4i = mkldnn_OIhw4i16o4i;
     const memory_format_t OIhw8i16o2i = mkldnn_OIhw8i16o2i;
     const memory_format_t OIhw8o16i2o = mkldnn_OIhw8o16i2o;
     const memory_format_t OIhw8o8i = mkldnn_OIhw8o8i;
@@ -130,6 +131,7 @@ namespace memory_format {
     const memory_format_t hwigo = mkldnn_hwigo;
     const memory_format_t gOIhw8i8o = mkldnn_gOIhw8i8o;
     const memory_format_t gOIhw16i16o = mkldnn_gOIhw16i16o;
+    const memory_format_t gOIhw4i16o4i = mkldnn_gOIhw4i16o4i;
     const memory_format_t gOIhw8i16o2i = mkldnn_gOIhw8i16o2i;
     const memory_format_t gOIhw8o16i2o = mkldnn_gOIhw8o16i2o;
     const memory_format_t gOIhw8o8i = mkldnn_gOIhw8o8i;

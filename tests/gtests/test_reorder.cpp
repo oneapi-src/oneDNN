@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2017 Intel Corporation
+* Copyright 2016-2018 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -107,6 +107,7 @@ protected:
 using f32_f32 = std::pair<float, float>;
 using s32_s32 = std::pair<int32_t, int32_t>;
 using s16_s16 = std::pair<int16_t, int16_t>;
+using s8_s8 = std::pair<int8_t, int8_t>;
 
 using reorder_simple_expected_fail_f32_f32 = reorder_simple_test<f32_f32>;
 using reorder_simple_test_data_f32_f32 = reorder_simple_test<f32_f32>;
@@ -114,6 +115,7 @@ using reorder_simple_test_weights_f32_f32 = reorder_simple_test<f32_f32>;
 using reorder_simple_test_weights_f32_f32_IOhw16o16i = reorder_simple_test<f32_f32>;
 using reorder_simple_test_s32_s32 = reorder_simple_test<s32_s32>;
 using reorder_simple_test_s16_s16 = reorder_simple_test<s16_s16>;
+using reorder_simple_test_s8_s8 = reorder_simple_test<s8_s8>;
 
 using eng = engine::kind;
 using fmt = memory::format;
@@ -121,10 +123,12 @@ using fmt = memory::format;
 using test_simple_params_s32_s32 = test_simple_params<s32_s32>;
 using test_simple_params_f32_f32 = test_simple_params<f32_f32>;
 using test_simple_params_s16_s16 = test_simple_params<s16_s16>;
+using test_simple_params_s8_s8 = test_simple_params<s8_s8>;
 
 using cfg_f32= test_simple_params_f32_f32;
 using cfg_s32= test_simple_params_s32_s32;
 using cfg_s16= test_simple_params_s16_s16;
+using cfg_s8= test_simple_params_s8_s8;
 
 TEST_P(reorder_simple_expected_fail_f32_f32, TestsReorder) { }
 INSTANTIATE_TEST_CASE_P(TestReorder, reorder_simple_expected_fail_f32_f32,
@@ -263,4 +267,13 @@ INSTANTIATE_TEST_CASE_P(TestReorder, reorder_simple_test_s16_s16,
             )
         );
 
+TEST_P(reorder_simple_test_s8_s8, TestsReorder) { }
+INSTANTIATE_TEST_CASE_P(TestReorder, reorder_simple_test_s8_s8,
+        ::testing::Values(
+            cfg_s8{eng::cpu, fmt::oihw, fmt::OIhw4i16o4i, {64, 64, 3, 3}},
+            cfg_s8{eng::cpu, fmt::OIhw4i16o4i, fmt::oihw, {64, 64, 3, 3}},
+            cfg_s8{eng::cpu, fmt::goihw, fmt::gOIhw4i16o4i, {2, 64, 64, 3, 3}},
+            cfg_s8{eng::cpu, fmt::gOIhw4i16o4i, fmt::goihw, {2, 64, 64, 3, 3}}
+            )
+        );
 }
