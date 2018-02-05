@@ -138,7 +138,7 @@ private:
 bool check_L2_block_per_thread(jit_conv_winograd_conf_t &jcp,
         int dimN_block, float C2_min, float C2_max) {
     /* V_L2_block + M_L2_block + W */
-    float block_size = (jcp.alpha * jcp.alpha * (jcp.oc + jcp.ic)
+    float block_size = (alpha * alpha * (jcp.oc + jcp.ic)
                      * dimN_block * jcp.dimN_reg_block
                      + jcp.ic * jcp.oc) * (float)sizeof(float);
     float L2_lb = C2_min * L2_cache_size;
@@ -313,7 +313,7 @@ void _jit_avx512_common_conv_winograd_data_kernel_f32::gemm_loop_generate(
                     if (output_is_aligned
                         && jcp.dimK_nb_block == 1
                         && jcp.sched_policy == WSCHED_DATA_W_S_G_D
-                        && (jcp.dimN * jcp.dimM * jcp.alpha * jcp.alpha
+                        && (jcp.dimN * jcp.dimM * alpha * alpha
                             * sizeof(float) > 2 * LLC_data_size))
                         vmovntps(zword[reg_dstC + 64 * tile], zmm);
                     else
@@ -369,7 +369,6 @@ status_t _jit_avx512_common_conv_winograd_data_kernel_f32::init_conf_common(
         jcp.ver = ver_fma;
 
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
-    const int simd_w = 16;
 
     jcp.ngroups = with_groups ? weights_d.dims()[0] : 1;
     jcp.mb = src_d.dims()[0];
@@ -625,7 +624,6 @@ status_t jit_avx512_common_conv_winograd_fwd_kernel_f32::init_conf(
         return st;
 
     // Winograd specific initialization
-    const int tile_size = jcp.alpha - 2;
     jcp.itiles = (jcp.ow + tile_size - 1) / tile_size;
     jcp.jtiles = (jcp.oh + tile_size - 1) / tile_size;
     jcp.ntiles = jcp.mb * jcp.itiles * jcp.jtiles;
@@ -660,7 +658,6 @@ status_t jit_avx512_common_conv_winograd_bwd_data_kernel_f32::init_conf(
     if (st != status::success)
         return st;
 
-    const int tile_size = jcp.alpha - 2;
     jcp.itiles = (jcp.iw + tile_size - 1) / tile_size;
     jcp.jtiles = (jcp.ih + tile_size - 1) / tile_size;
     jcp.ntiles = jcp.mb * jcp.itiles * jcp.jtiles;
@@ -689,10 +686,10 @@ void jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::transpose_ker_gener
     };
 
     int curr = 0;
-    for (int j = 0; j < jcp.alpha; j++) {
-        for (int i = 0; i < jcp.alpha; i++) {
-            int origB_offset = (j * jcp.alpha + i) * jcp.dimK_4fma;
-            int transB_offset = (j * jcp.alpha + i) * jcp.dimK_nb_block *
+    for (int j = 0; j < alpha; j++) {
+        for (int i = 0; i < alpha; i++) {
+            int origB_offset = (j * alpha + i) * jcp.dimK_4fma;
+            int transB_offset = (j * alpha + i) * jcp.dimK_nb_block *
                 jcp.dimN_block * jcp.dimK_block * jcp.dimK_reg_block *
                 jcp.dimK_4fma * jcp.dimN_reg_block;
             for (int tb = 0; tb < jcp.dimK_4fma; tb+=4) {
@@ -703,7 +700,7 @@ void jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::transpose_ker_gener
                 }
                 if (tb + 4 < (jcp.dimK_4fma -1)) {
                     load_B(next, origB_offset + 4);
-                } else if (i < jcp.alpha - 1) {
+                } else if (i < alpha - 1) {
                     load_B(next, origB_offset + jcp.dimK_4fma);
                 }
 
@@ -1120,15 +1117,15 @@ bool set_wsched_WEI_SDGt_W(jit_conv_winograd_conf_t &jcp)
 
     auto blocking_ok = [&]() -> bool {
         // V:tile_block + M:tile_block + U
-        int thread_size = jcp.alpha * jcp.alpha * jcp.oc
+        int thread_size = alpha * alpha * jcp.oc
                         * (jcp.ntiles / tile_block) * sizeof(float)
-                + jcp.alpha * jcp.alpha * jcp.ic * (jcp.ntiles / tile_block)
+                + alpha * alpha * jcp.ic * (jcp.ntiles / tile_block)
                         * sizeof(float)
-                + jcp.alpha * jcp.alpha * jcp.ic * jcp.oc * sizeof(float);
+                + alpha * alpha * jcp.ic * jcp.oc * sizeof(float);
         // V:tile_block + M:tile_block
-        int L2_reuse = jcp.alpha * jcp.alpha * jcp.oc
+        int L2_reuse = alpha * alpha * jcp.oc
                         * (jcp.ntiles / tile_block) * sizeof(float)
-                + jcp.alpha * jcp.alpha * jcp.ic * (jcp.ntiles / tile_block)
+                + alpha * alpha * jcp.ic * (jcp.ntiles / tile_block)
                         * sizeof(float);
         // V:nb_ic + M:nb_tile_block_ur
         // Use M:nb_oc + V:nb_ic as an superset estimation
@@ -1191,16 +1188,16 @@ bool set_wsched_WEI_SDGtWo(jit_conv_winograd_conf_t &jcp)
 
     auto blocking_ok = [&]() -> bool {
         // M:tile_block:nb_oc + V:tile_block + U:nb_oc
-        int thread_size = jcp.alpha * jcp.alpha * (jcp.oc / nb_oc)
+        int thread_size = alpha * alpha * (jcp.oc / nb_oc)
                         * (jcp.ntiles / tile_block) * sizeof(float)
-                + jcp.alpha * jcp.alpha * jcp.ic * (jcp.ntiles / tile_block)
+                + alpha * alpha * jcp.ic * (jcp.ntiles / tile_block)
                         * sizeof(float)
-                + jcp.alpha * jcp.alpha * jcp.ic * (jcp.oc / nb_oc)
+                + alpha * alpha * jcp.ic * (jcp.oc / nb_oc)
                         * sizeof(float);
         // M:tile_block:nb_oc + V:tile_block
-        int L2_reuse = jcp.alpha * jcp.alpha * (jcp.oc / nb_oc)
+        int L2_reuse = alpha * alpha * (jcp.oc / nb_oc)
                         * (jcp.ntiles / tile_block) * sizeof(float)
-                + jcp.alpha * jcp.alpha * jcp.ic * (jcp.ntiles / tile_block)
+                + alpha * alpha * jcp.ic * (jcp.ntiles / tile_block)
                         * sizeof(float);
         // V:nb_ic + M:nb_tile_block_ur
         // Use M:nb_oc + V:nb_ic as an superset estimation
@@ -1268,7 +1265,7 @@ bool set_wsched_WEI_S_D_Giot_W(jit_conv_winograd_conf_t &jcp)
         int L1_reuse
                 = (jcp.ntiles / tile_block) * jcp.oc_simd_block * sizeof(float);
 
-        int work_amount = tile_block * nb_ic * nb_oc * jcp.alpha * jcp.alpha;
+        int work_amount = tile_block * nb_ic * nb_oc * alpha * alpha;
 
         return (jcp.ntiles / tile_block_ur) % tile_block == 0
                 && jcp.ntiles % tile_block_ur == 0
@@ -1312,7 +1309,6 @@ status_t jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::init_conf(
         return status::unimplemented;
 
     const bool with_groups = diff_weights_d.ndims() == src_d.ndims() + 1;
-    const int simd_w = 16;
 
     jcp.ngroups = with_groups ? diff_weights_d.dims()[0] : 1;
     jcp.mb = src_d.dims()[0];
@@ -1350,7 +1346,6 @@ status_t jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::init_conf(
         jcp.ver = ver_fma;
 
     // Winograd specific initialization
-    const int tile_size = jcp.alpha - 2;
     jcp.itiles = (jcp.ow + tile_size - 1) / tile_size;
     jcp.jtiles = (jcp.oh + tile_size - 1) / tile_size;
     jcp.ntiles = jcp.mb * jcp.itiles * jcp.jtiles;

@@ -25,6 +25,12 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
+//alpha determines the output tile_size
+constexpr int alpha = 6;
+constexpr int tile_size = 4;
+//simd length used for vectorization
+constexpr int simd_w = 16;
+
 struct _jit_avx512_common_conv_winograd_data_kernel_f32 : public jit_generator {
     _jit_avx512_common_conv_winograd_data_kernel_f32(
             jit_conv_winograd_conf_t ajcp)
