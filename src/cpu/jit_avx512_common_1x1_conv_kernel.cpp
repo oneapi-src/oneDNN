@@ -580,7 +580,7 @@ void jit_avx512_common_1x1_conv_kernel::generate()
 
     Label load_loop_blk[7];
 
-    static const int ur_cases_fma_embd_bcast[] = { 2, 4, 5, 8, 14, 28 };
+    static const int ur_cases_fma_embd_bcast[] = { 2, 4, 5, 8, 14, 30 };
     static const int ur_cases_fma_expl_bcast[] = { 2, 5, 6, 9, 14, 30 };
     static const int ur_cases_4fma[] = {2, 4, 6, 12, 28};
 
