@@ -117,7 +117,7 @@ struct _jit_avx512_core_u8s8s32x_1x1_convolution_fwd_t : public cpu_primitive_t 
     ~_jit_avx512_core_u8s8s32x_1x1_convolution_fwd_t() {
         delete kernel_;
         delete rtus_driver_;
-        delete ws_;
+        free(ws_);
         free(scratch_);
     }
 
