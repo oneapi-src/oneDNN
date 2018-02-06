@@ -203,7 +203,9 @@ void jit_avx512_core_u8s8s32x_1x1_conv_kernel::reduce_loop(int load_loop_blk,
 
         const auto &p = attr_.post_ops_;
         const int sum_idx = p.find(primitive_kind::sum);
-        const float *p_sum_scale = &p.entry_[sum_idx].sum.scale;
+        const float *p_sum_scale = (sum_idx != -1)
+            ? &p.entry_[sum_idx].sum.scale
+            : nullptr;
 
         if (jcp.with_bias) {
             mov(EVEX_compress_addr(rsp, aux_reg_acc_s32_offt), aux_reg_acc_s32);
@@ -211,7 +213,7 @@ void jit_avx512_core_u8s8s32x_1x1_conv_kernel::reduce_loop(int load_loop_blk,
         }
         mov(EVEX_compress_addr(rsp, reg_bcast_data_off), reg_bcast_data);
         mov(reg_ptr_scales, EVEX_compress_addr(rsp, reg_ptr_sum_scale_off));
-        if (jcp.with_sum && *p_sum_scale != 1.f) {
+        if (p_sum_scale && *p_sum_scale != 1.f) {
             mov(EVEX_compress_addr(rsp, reg_load_data_off), reg_load_data);
             mov(reg_ptr_sum_scale, (size_t)p_sum_scale);
         }
@@ -241,7 +243,7 @@ void jit_avx512_core_u8s8s32x_1x1_conv_kernel::reduce_loop(int load_loop_blk,
                 vmulps(r, r, scale_ptr(i_load));
                 if (maybe_relu(0))
                     vmaxps(r, zmm_zero, r);
-                if (jcp.with_sum) {
+                if (p_sum_scale) { // post_op: sum
                     auto zmm_prev_dst = zmm_bcast;
                     switch (jcp.dst_dt) {
                     case data_type::f32:
@@ -284,7 +286,7 @@ void jit_avx512_core_u8s8s32x_1x1_conv_kernel::reduce_loop(int load_loop_blk,
         if (jcp.with_bias)
             mov(aux_reg_acc_s32, EVEX_compress_addr(rsp, aux_reg_acc_s32_offt));
         mov(reg_bcast_data, EVEX_compress_addr(rsp, reg_bcast_data_off));
-        if (jcp.with_sum && *p_sum_scale != 1.f)
+        if (p_sum_scale && *p_sum_scale != 1.f)
             mov(reg_load_data, EVEX_compress_addr(rsp, reg_load_data_off));
         jmp(l_ret, T_NEAR);
 
@@ -534,9 +536,6 @@ status_t jit_avx512_core_u8s8s32x_1x1_conv_kernel::init_conf(
 
     if (!post_ops_ok(jcp, attr))
         return status::unimplemented;
-
-    const auto &p = attr.post_ops_;
-    jcp.with_sum = p.find(primitive_kind::sum) != -1;
 
     bool args_ok = true
         && jcp.ngroups == 1

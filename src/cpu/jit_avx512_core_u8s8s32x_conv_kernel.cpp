@@ -110,8 +110,10 @@ void jit_avx512_core_u8s8s32x_fwd_kernel::store_output(int ur_w)
 
     const auto &p = attr_.post_ops_;
     const int sum_idx = p.find(primitive_kind::sum);
-    const float *p_sum_scale = &p.entry_[sum_idx].sum.scale;
-    if (jcp.with_sum && *p_sum_scale != 1.f)
+    const float *p_sum_scale = (sum_idx != -1)
+            ? &p.entry_[sum_idx].sum.scale
+            : nullptr;
+    if (p_sum_scale && *p_sum_scale != 1.f)
         mov(reg_ptr_sum_scale, (size_t)p_sum_scale);
 
     vpxord(zmm_zero, zmm_zero, zmm_zero);
@@ -145,7 +147,7 @@ void jit_avx512_core_u8s8s32x_fwd_kernel::store_output(int ur_w)
             vmulps(zmm, zmm, EVEX_compress_addr(reg_ptr_scales, scale_offset));
             if (maybe_relu(0))
                 vmaxps(zmm, zmm_zero, zmm);
-            if (jcp.with_sum) {
+            if (p_sum_scale) { // post_op: sum
                 auto zmm_prev_dst = zmm_bcast;
                 switch (jcp.dst_dt) {
                 case data_type::f32:
@@ -478,9 +480,6 @@ status_t jit_avx512_core_u8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         if (bias_d.format() != x)
             return status::unimplemented;
     }
-
-    const auto &p = attr.post_ops_;
-    jcp.with_sum = p.find(primitive_kind::sum) != -1;
 
     jcp.bia_dt = jcp.with_bias ? cd.bias_desc.data_type : data_type::undef;
     jcp.dst_dt = cd.dst_desc.data_type;
