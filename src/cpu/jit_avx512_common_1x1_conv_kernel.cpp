@@ -1054,6 +1054,9 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
         if (jcp.ver == ver_avx512_core) {
             reduce_blocking = best_divider(jcp.reduce_dim, 1,
                     nstl::min(L1_capacity / jcp.ur, jcp.reduce_dim), true);
+            reduce_blocking =
+                    nstl::max(rnd_dn(reduce_blocking, jcp.reduce_block),
+                                jcp.reduce_block);
         } else {
             int max_reduce_blocking = L2_capacity
                     / ((bcast_blocking + load_blocking) * jcp.reduce_block);
