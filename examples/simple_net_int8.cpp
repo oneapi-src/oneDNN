@@ -41,15 +41,15 @@ void simple_net_int8() {
     auto conv_padding = { 1, 1 };
 
     /* Set Scaling mode for int8 quantizing */
-    const std::vector<float> src_scales = { 1.8 };
-    const std::vector<float> weight_scales = { 2 };
-    const std::vector<float> bias_scales = { 1 };
-    const std::vector<float> dst_scales = { 0.55 };
+    const std::vector<float> src_scales = { 1.8f };
+    const std::vector<float> weight_scales = { 2.0f };
+    const std::vector<float> bias_scales = { 1.0f };
+    const std::vector<float> dst_scales = { 0.55f };
     /* assign halves of vector with arbitrary values */
     std::vector<float> conv_scales(384);
     const int scales_half = 384 / 2;
-    std::fill(conv_scales.begin(), conv_scales.begin() + scales_half, 0.3);
-    std::fill(conv_scales.begin() + scales_half + 1, conv_scales.end(), 0.8);
+    std::fill(conv_scales.begin(), conv_scales.begin() + scales_half, 0.3f);
+    std::fill(conv_scales.begin() + scales_half + 1, conv_scales.end(), 0.8f);
 
     const int src_mask = 0;
     const int weight_mask = 0;
@@ -104,9 +104,9 @@ void simple_net_int8() {
     conv_attr.set_output_scales(conv_mask, conv_scales);
 
     /* AlexNet: execute ReLU as PostOps */
-    const float ops_scale = 1.;
-    const float ops_alpha = 0.; // relu negative slope
-    const float ops_beta = 0.;
+    const float ops_scale = 1.f;
+    const float ops_alpha = 0.f; // relu negative slope
+    const float ops_beta = 0.f;
     post_ops ops;
     ops.append_eltwise(ops_scale, algorithm::eltwise_relu, ops_alpha, ops_beta);
     conv_attr.set_post_ops(ops);

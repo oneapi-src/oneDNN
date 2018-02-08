@@ -121,7 +121,7 @@ void simple_net(int times = 100) {
     /* AlexNet: relu1
      * {batch, 96, 55, 55} -> {batch, 96, 55, 55}
      */
-    const float negative1_slope = 1.0;
+    const float negative1_slope = 1.0f;
 
     /* create relu primitive and add it to net */
     auto relu1_desc = eltwise_forward::desc(prop_kind::forward_inference,
@@ -140,9 +140,9 @@ void simple_net(int times = 100) {
      * beta1: 0.75
      */
     const uint32_t local1_size = 5;
-    const float alpha1 = 0.0001;
-    const float beta1 = 0.75;
-    const float k1 = 1.0;
+    const float alpha1 = 0.0001f;
+    const float beta1 = 0.75f;
+    const float k1 = 1.0f;
 
     /* create lrn primitive and add it to net */
     auto lrn1_desc = lrn_forward::desc(prop_kind::forward_inference,
@@ -256,7 +256,7 @@ void simple_net(int times = 100) {
     /* AlexNet: relu2
     * {batch, 256, 27, 27} -> {batch, 256, 27, 27}
     */
-    const float negative2_slope = 1.0;
+    const float negative2_slope = 1.0f;
 
     /* create relu primitive and add it to net */
     auto relu2_desc = eltwise_forward::desc(prop_kind::forward_inference,
@@ -275,9 +275,9 @@ void simple_net(int times = 100) {
      * beta2: 0.75
      */
     const uint32_t local2_size = 5;
-    const float alpha2 = 0.0001;
-    const float beta2 = 0.75;
-    const float k2 = 1.0;
+    const float alpha2 = 0.0001f;
+    const float beta2 = 0.75f;
+    const float k2 = 1.0f;
 
     /* create lrn primitive and add it to net */
     auto lrn2_desc = lrn_forward::desc(prop_kind::forward_inference,
@@ -393,7 +393,7 @@ void simple_net(int times = 100) {
     /* AlexNet: relu3
     * {batch, 384, 13, 13} -> {batch, 384, 13, 13}
     */
-    const float negative3_slope = 1.0;
+    const float negative3_slope = 1.0f;
 
     /* create relu primitive and add it to net */
     auto relu3_desc = eltwise_forward::desc(prop_kind::forward_inference,
@@ -480,7 +480,7 @@ void simple_net(int times = 100) {
     /* AlexNet: relu4
     * {batch, 384, 13, 13} -> {batch, 384, 13, 13}
     */
-    const float negative4_slope = 1.0;
+    const float negative4_slope = 1.0f;
 
     /* create relu primitive and add it to net */
     auto relu4_desc = eltwise_forward::desc(prop_kind::forward_inference,
@@ -565,7 +565,7 @@ void simple_net(int times = 100) {
     /* AlexNet: relu5
     * {batch, 256, 13, 13} -> {batch, 256, 13, 13}
     */
-    const float negative5_slope = 1.0;
+    const float negative5_slope = 1.0f;
 
     /* create relu primitive and add it to net */
     auto relu5_desc = eltwise_forward::desc(prop_kind::forward_inference,
@@ -803,12 +803,12 @@ void simple_net(int times = 100) {
 
 int main(int argc, char **argv) {
     try {
-        long begin = chrono::duration_cast<chrono::milliseconds>(
+        auto begin = chrono::duration_cast<chrono::milliseconds>(
                              chrono::steady_clock::now().time_since_epoch())
                              .count();
         int times = 1000;
         simple_net(times);
-        long end = chrono::duration_cast<chrono::milliseconds>(
+        auto end = chrono::duration_cast<chrono::milliseconds>(
                            chrono::steady_clock::now().time_since_epoch())
                            .count();
         cout << "Use time " << (end - begin) / (times + 0.0) << "\n";
