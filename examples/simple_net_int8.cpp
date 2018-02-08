@@ -180,9 +180,9 @@ void simple_net_int8() {
 
 int main(int argc, char **argv) {
     try {
-    /* Notes:
-     * On convolution creating: check for MKL dependency execution.
-     * output: warning if not found. */
+        /* Notes:
+         * On convolution creating: check for Intel(R) MKL dependency execution.
+         * output: warning if not found. */
         simple_net_int8();
         std::cout << "Sample-net-int8 example passed!" << std::endl;
     } catch (error &e) {
