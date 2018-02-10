@@ -133,6 +133,9 @@ class Cpu {
 #define value_from_bits(val, base, end) ((val << (sizeof(val)*8-end-1)) >> (sizeof(val)*8-end+base-1))
 	void setCacheHierarchy()
 	{
+		unsigned int cache_type = 42;
+		unsigned int smt_width = 0;
+		unsigned int n_cores;
 		unsigned int data[4];
 
 		if ((type_ & tINTEL) == 0) {
@@ -140,16 +143,30 @@ class Cpu {
 			throw Error(ERR_INTERNAL);
 		}
 
-		/* Note: here we assume the first level of data cache is
-		 * not shared (which is the case for every existing
-		 * architecture) and use this to determine the SMT width */
-		unsigned int cache_type = 42;
-		unsigned int smt_width = 0;
+		// if leaf 11 exists, we use it to get the number of smt cores and cores on socket
+		// If x2APIC is supported, these are the only correct numbers.
+		getCpuidEx(0x0, 0, data);
+		if(data[0] >= 11){
+			getCpuidEx(0xB, 0, data); // CPUID for SMT Level
+			smt_width = (data[1] & 0x7FFF);
+			getCpuidEx(0xB, 1, data); // CPUID for CORE Level
+			n_cores = (data[1] & 0x7FFF);
+		}
+
+		/* Assumptions:
+		 * - the first level of data cache is not shared (which is the
+		 *   case for every existing architecture) and use this to
+		 *   determine the SMT width for arch not supporting leaf 11
+		 * - when leaf 4 reports a number of core less than n_cores
+		 *   on socket reported by leaf 11, then it is a correct number
+		 *   of cores not an upperbound */
+#define min_cores(a,b) ((a) < (b)) ? (a) : (b)
 		for (int i = 0; ((cache_type != NO_CACHE) && (data_cache_levels < max_number_cache_levels)); i++) {
 			getCpuidEx(0x4, i, data);
 			cache_type = value_from_bits(data[0], 0, 4);
 			if ((cache_type == DATA_CACHE) || (cache_type == UNIFIED_CACHE)) {
-				int nb_logical_cores = value_from_bits(data[0], 14, 25) + 1;
+				int nb_logical_cores = min_cores(value_from_bits(data[0], 14, 25) + 1,
+								n_cores);
 				data_cache_size[data_cache_levels] =
 					(value_from_bits(data[1], 22, 31) + 1)
 					* (value_from_bits(data[1], 12, 21) + 1)
@@ -161,6 +178,7 @@ class Cpu {
 				data_cache_levels++;
 			}
 		}
+#undef min_cores
 	}
 #undef value_from_bits
 

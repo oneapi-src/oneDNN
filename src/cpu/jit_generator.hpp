@@ -35,6 +35,7 @@
 #include "xbyak/xbyak_util.h"
 
 #include "utils.hpp"
+#include "mkldnn_thread.hpp"
 
 #ifdef JIT_PROFILING_VTUNE
 #include "jitprofiling.h"
@@ -205,29 +206,25 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa) {
     return false;
 }
 
-inline unsigned int get_num_physical_cores() {
-    unsigned int data[4];
-
-    cpu.getCpuidEx(0xB, 0, data); // CPUID for SMT Level
-    unsigned int number_logical_proc_smt = (data[1] & 0x7FFF);
-
-    cpu.getCpuidEx(0xB, 1, data); // CPUID for CORE Level
-    unsigned int number_logical_proc_core = (data[1] & 0x7FFF);
-
-    return number_logical_proc_core / number_logical_proc_smt;
-}
-
 inline unsigned int get_cache_size(int level, bool per_core = true){
     unsigned int l = level - 1;
-    if (cpu.data_cache_levels == 0)
-        throw Xbyak::Error(Xbyak::ERR_INTERNAL);
+    // Currently, if XByak is not able to fetch the cache topology
+    // we default to 32KB of L1, 512KB of L2 and 1MB of L3 per core.
+    if (cpu.data_cache_levels == 0){
+        const int L1_cache_per_core = 32000;
+        const int L2_cache_per_core = 512000;
+        const int L3_cache_per_core = 1024000;
+        int num_cores = per_core ? 1 : omp_get_max_threads();
+        switch(l){
+        case(0): return L1_cache_per_core * num_cores;
+        case(1): return L2_cache_per_core * num_cores;
+        case(2): return L3_cache_per_core * num_cores;
+        default: return 0;
+        }
+    }
     if (l < cpu.data_cache_levels) {
-        if (mayiuse(avx512_core) && level == 3)
-            return cpu.data_cache_size[l]
-                    / (per_core ? get_num_physical_cores() : 1);
-        else
-            return cpu.data_cache_size[l]
-                    / (per_core ? cpu.cores_sharing_data_cache[l] : 1);
+        return cpu.data_cache_size[l]
+            / (per_core ? cpu.cores_sharing_data_cache[l] : 1);
     } else
         return 0;
 }
