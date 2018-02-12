@@ -26,3 +26,13 @@
 --dir=FWD_D --attr=post_ops='sum:1' mb1_ic4oc4_ih13oh13kh3ph1_n"gemm_acc"
 --dir=FWD_B --attr=post_ops='sum:1;relu' mb1_ic4oc4_ih13oh13kh3ph1_n"gemm_acc"
 --dir=FWD_D --attr=post_ops='sum:1;relu' mb1_ic4oc4_ih13oh13kh3ph1_n"gemm_acc"
+
+# MKLDNN-623
+--reset --cfg=u8s8u8s32 --dir=FWD_D --skip-impl="ref:gemm" mb2ic672ih29iw29oc192kh1kw1sh1sw1ph0pw0n"DENSENET_161:conv3_11/x1"
+--reset --cfg=s16s16s32s32 --skip-impl="ref:gemm" mb2ic672ih29iw29oc192kh1kw1sh1sw1ph0pw0n"DENSENET_161:conv3_11/x1"
+--reset --cfg=s16s16s32s32 --dir=BWD_D --skip-impl="ref:gemm" mb2ic672ih29iw29oc192kh1kw1sh1sw1ph0pw0n"DENSENET_161:conv3_11/x1"
+--reset --cfg=s16s16s32s32 --dir=BWD_WB --skip-impl="ref:gemm" mb2ic672ih29iw29oc192kh1kw1sh1sw1ph0pw0n"DENSENET_161:conv3_11/x1"
+--reset --cfg=f32 --skip-impl="ref:gemm" mb2ic672ih29iw29oc192kh1kw1sh1sw1ph0pw0n"DENSENET_161:conv3_11/x1"
+--reset --cfg=f32 --dir=BWD_D --skip-impl="ref:gemm" mb2ic672ih29iw29oc192kh1kw1sh1sw1ph0pw0n"DENSENET_161:conv3_11/x1"
+--reset --cfg=f32 --dir=BWD_WB --skip-impl="ref:gemm" mb2ic672ih29iw29oc192kh1kw1sh1sw1ph0pw0n"DENSENET_161:conv3_11/x1"
+
