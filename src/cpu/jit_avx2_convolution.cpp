@@ -45,7 +45,46 @@ void _jit_avx2_convolution_fwd_t<with_relu>::execute_forward() {
     const auto &jcp = kernel_->jcp;
 
     int ocb_work = div_up(jcp.nb_oc, jcp.nb_oc_blocking);
+    int gb_work = jcp.nb_g;
     const size_t work_amount = jcp.mb * jcp.ngroups * ocb_work * jcp.oh;
+    const size_t work_amount_dw = jcp.mb * gb_work * jcp.oh;
+
+    auto ker_dw = [&](const int ithr, const int nthr) {
+        size_t start{0}, end{0};
+        balance211(work_amount_dw, nthr, ithr, start, end);
+
+        size_t n{0}, gb{0}, oh{0};
+        nd_iterator_init(start, n, jcp.mb, gb, gb_work, oh, jcp.oh);
+
+        for (size_t iwork = start; iwork < end; ++iwork) {
+            jit_conv_call_s par_conv = {};
+
+            const int ij = oh * jcp.stride_h;
+            const int i_t_overflow = nstl::max(0, jcp.t_pad - ij);
+            const int i_b_overflow = nstl::max(jcp.ih, ij
+                    + (jcp.kh-1) * (jcp.dilate_h+1) - jcp.t_pad+1) - jcp.ih;
+
+            const int ih = nstl::max(ij - jcp.t_pad + div_up(i_t_overflow,
+                           (jcp.dilate_h+1)) * (jcp.dilate_h + 1), 0);
+            par_conv.src = &src[src_d.blk_off(n, gb, ih, 0)];
+            par_conv.dst = &dst[dst_d.blk_off(n, gb, oh, 0)];
+
+            const int wh = div_up(i_t_overflow, (jcp.dilate_h + 1));
+            par_conv.filt = &weights[weights_d.blk_off(gb, 0, 0, wh, 0)];
+
+            if (bias)
+                par_conv.bias = &bias[gb * jcp.g_block];
+
+            par_conv.kw_padding = 0;
+            const int kh_padding = jcp.kh
+                - div_up(i_t_overflow, (jcp.dilate_h + 1))
+                - div_up(i_b_overflow, (jcp.dilate_h + 1));
+            par_conv.kh_padding = nstl::max(0, kh_padding);
+            kernel_->jit_ker(&par_conv);
+
+            nd_iterator_step(n, jcp.mb, gb, gb_work, oh, jcp.oh);
+        }
+    };
 
     auto ker = [&](const int ithr, const int nthr) {
         size_t start{0}, end{0};
@@ -121,7 +160,11 @@ void _jit_avx2_convolution_fwd_t<with_relu>::execute_forward() {
 
 #pragma omp parallel
     {
-        ker(omp_get_thread_num(), omp_get_num_threads());
+        if (jcp.is_dw) {
+           ker_dw(omp_get_thread_num(), omp_get_num_threads());
+        } else {
+           ker(omp_get_thread_num(), omp_get_num_threads());
+        }
     }
 }
 

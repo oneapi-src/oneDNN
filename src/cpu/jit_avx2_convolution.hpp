@@ -73,13 +73,17 @@ struct _jit_avx2_convolution_fwd_t: public cpu_primitive_t {
             using namespace memory_format;
 
             const bool flat = this->IC() == 3;
+            const bool depthwise = this->with_groups()
+                                && this->IC() == this->OC()
+                                && this->IC() == this->G();
             if (this->src_pd_.desc()->format == any)
                 CHECK(this->src_pd_.set_format(flat ? nchw : nChw8c));
             if (this->dst_pd_.desc()->format == any)
                 CHECK(this->dst_pd_.set_format(nChw8c));
             if (this->weights_pd_.desc()->format == any)
                 CHECK(this->weights_pd_.set_format(this->with_groups()
-                            ? (flat ? gOhwi8o : gOIhw8i8o)
+                            ? (flat ? gOhwi8o
+                                    : (depthwise ? Goihw8g : gOIhw8i8o))
                             : (flat ? Ohwi8o : OIhw8i8o)));
             if (this->bias_pd_.desc()->format == any)
                 CHECK(this->bias_pd_.set_format(x));
