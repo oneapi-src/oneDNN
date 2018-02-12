@@ -408,7 +408,7 @@ void jit_avx512_core_u8s8s32x_1x1_conv_kernel::generate()
 
     Label load_loop_blk[7];
 
-    static const int ur_cases_fma_expl_bcast[] = { 2, 5, 6, 9, 14, 30 };
+    static const int ur_cases_fma_expl_bcast[] = { 2, 5, 6, 9, 14, 32 };
     const int size_ur_cases_fma = sizeof(ur_cases_fma_expl_bcast);
     const int *ur_cases_fma = ur_cases_fma_expl_bcast;
     const int *ur_cases = ur_cases_fma;
@@ -581,7 +581,7 @@ status_t jit_avx512_core_u8s8s32x_1x1_conv_kernel::init_conf(
     const int L2_capacity = (L2_size * 3) / 4;
 
     int size_treshold = 28;
-    int max_regs = 9;
+    int max_regs = (jcp.ver == ver_vnni) ? 9 : 8;
     int min_regs = 6;
     jcp.expl_bcast = true;
 
