@@ -1,4 +1,5 @@
-# Performance profiling
+Performance profiling {#perf_profile}
+=====================================
 
 It is often useful to collect information about how much of an application run
 time is spent executing Intel(R) MKL-DNN primitives and which of those take
@@ -126,4 +127,4 @@ To open these files any disassembler can be used. For example:
     ...
 ```
 
-[Legal information](legal_information.md)
+[Legal information](@ref legal_information)

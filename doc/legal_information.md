@@ -1,4 +1,6 @@
-### Legal Information
+Legal Information {#legal_information}
+======================================
+
 No license (express or implied, by estoppel or otherwise) to any intellectual
 property rights is granted by this document.
 

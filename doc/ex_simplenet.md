@@ -1,4 +1,5 @@
-# SimpleNet Example
+SimpleNet Example {#ex_simplenet}
+================================
 
 This C++ API example demonstrates how to build an AlexNet neural
 network topology for forward-pass inference. Some key take-aways
@@ -153,4 +154,4 @@ mkldnn::stream(mkldnn::stream::kind::eager).submit(net).wait();
 ~~~
 ---
 
-[Legal information](legal_information.md)
+[Legal information](@ref legal_information)

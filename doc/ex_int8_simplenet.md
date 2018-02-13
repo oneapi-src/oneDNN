@@ -1,4 +1,5 @@
-# Introduction to Low-Precision 8-bit Integer Computations
+Introduction to Low-Precision 8-bit Integer Computations {#ex_int8_simplenet}
+=============================================================================
 
 > \f$\dagger\f$ Disclaimer: MKLDNN Int8 primitives are a work in progress and not all
 > definitions and configurations have been implemented or included in the documentation.
@@ -355,5 +356,5 @@ The diagram to summarize this example is as follows:
 ![Diagram depicting simple_net_int8 data flow](img_diagram.png)
 
 ---
-[Legal information](legal_information.md)
+[Legal information](@ref legal_information)
 

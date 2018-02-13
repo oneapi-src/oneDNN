@@ -113,11 +113,11 @@ To create an operation primitive:
 
 A walk-through example for implementing an AlexNet topology using the c++ API:
 
-* [SimpleNet Example](ex_simplenet.md)
+* [SimpleNet Example](@ref ex_simplenet)
 
 An introductory example to low-precision 8-bit computations:
 
-* [Int8 SimpleNet Example](ex_int8_simplenet.md)
+* [Int8 SimpleNet Example](@ref ex_int8_simplenet)
 
 The following examples are available in the /examples directory and provide more details about the API.
 * Creation of forward primitives
@@ -146,7 +146,7 @@ The following examples are available in the /examples directory and provide more
 
 The following link provides a guide to MKLDNN verbose mode for profiling execution:
 
-* [Performance profiling](perf_profile.md)
+* [Performance profiling](@ref perf_profile)
 
 ### Operational Details
 
@@ -179,4 +179,4 @@ The following link provides a guide to MKLDNN verbose mode for profiling executi
 
 --------
 
-[Legal information](legal_information.md)
+[Legal information](@ref legal_information)
