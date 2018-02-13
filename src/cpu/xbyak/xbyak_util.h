@@ -129,58 +129,60 @@ class Cpu {
 			displayModel = model;
 		}
 	}
-	static const unsigned int max_number_cache_levels = 10;
-#define value_from_bits(val, base, end) ((val << (sizeof(val)*8-end-1)) >> (sizeof(val)*8-end+base-1))
+	unsigned int extractBit(unsigned int val, unsigned int base, unsigned int end)
+	{
+		return (val >> base) & ((1u << (end - base)) - 1);
+	}
 	void setCacheHierarchy()
 	{
-		unsigned int cache_type = 42;
+		if ((type_ & tINTEL) == 0) return;
+		const unsigned int NO_CACHE = 0;
+		const unsigned int DATA_CACHE = 1;
+//		const unsigned int INSTRUCTION_CACHE = 2;
+		const unsigned int UNIFIED_CACHE = 3;
 		unsigned int smt_width = 0;
-		unsigned int n_cores;
+		unsigned int n_cores = (unsigned int) -1;
 		unsigned int data[4];
 
-		if ((type_ & tINTEL) == 0) {
-			fprintf(stderr, "ERR cache hierarchy querying is not supported\n");
-			throw Error(ERR_INTERNAL);
-		}
-
-		// if leaf 11 exists, we use it to get the number of smt cores and cores on socket
-		// If x2APIC is supported, these are the only correct numbers.
+		/*
+			if leaf 11 exists, we use it to get the number of smt cores and cores on socket
+			If x2APIC is supported, these are the only correct numbers.
+		*/
 		getCpuidEx(0x0, 0, data);
-		if(data[0] >= 11){
+		if (data[0] >= 11) {
 			getCpuidEx(0xB, 0, data); // CPUID for SMT Level
-			smt_width = (data[1] & 0x7FFF);
+			smt_width = data[1] & 0x7FFF;
 			getCpuidEx(0xB, 1, data); // CPUID for CORE Level
-			n_cores = (data[1] & 0x7FFF);
+			n_cores = data[1] & 0x7FFF;
 		}
 
-		/* Assumptions:
-		 * - the first level of data cache is not shared (which is the
-		 *   case for every existing architecture) and use this to
-		 *   determine the SMT width for arch not supporting leaf 11
-		 * - when leaf 4 reports a number of core less than n_cores
-		 *   on socket reported by leaf 11, then it is a correct number
-		 *   of cores not an upperbound */
-#define min_cores(a,b) ((a) < (b)) ? (a) : (b)
-		for (int i = 0; ((cache_type != NO_CACHE) && (data_cache_levels < max_number_cache_levels)); i++) {
+		/*
+			Assumptions:
+			the first level of data cache is not shared (which is the
+			case for every existing architecture) and use this to
+			determine the SMT width for arch not supporting leaf 11.
+			when leaf 4 reports a number of core less than n_cores
+			on socket reported by leaf 11, then it is a correct number
+			of cores not an upperbound.
+		*/
+		for (int i = 0; data_cache_levels < maxNumberCacheLevels; i++) {
 			getCpuidEx(0x4, i, data);
-			cache_type = value_from_bits(data[0], 0, 4);
-			if ((cache_type == DATA_CACHE) || (cache_type == UNIFIED_CACHE)) {
-				int nb_logical_cores = min_cores(value_from_bits(data[0], 14, 25) + 1,
-								n_cores);
+			unsigned int cacheType = extractBit(data[0], 0, 4);
+			if (cacheType == NO_CACHE) break;
+			if (cacheType == DATA_CACHE || cacheType == UNIFIED_CACHE) {
+				unsigned int nb_logical_cores = (std::min)(extractBit(data[0], 14, 25) + 1, n_cores);
 				data_cache_size[data_cache_levels] =
-					(value_from_bits(data[1], 22, 31) + 1)
-					* (value_from_bits(data[1], 12, 21) + 1)
-					* (value_from_bits(data[1], 0, 11) + 1)
+					(extractBit(data[1], 22, 31) + 1)
+					* (extractBit(data[1], 12, 21) + 1)
+					* (extractBit(data[1], 0, 11) + 1)
 					* (data[2] + 1);
-				if ((cache_type == DATA_CACHE) && (smt_width == 0)) smt_width = nb_logical_cores;
+				if (cacheType == DATA_CACHE && smt_width == 0) smt_width = nb_logical_cores;
 				assert(smt_width != 0);
 				cores_sharing_data_cache[data_cache_levels] = nb_logical_cores / smt_width;
 				data_cache_levels++;
 			}
 		}
-#undef min_cores
 	}
-#undef value_from_bits
 
 public:
 	int model;
@@ -191,9 +193,23 @@ public:
 	int displayFamily; // family + extFamily
 	int displayModel; // model + extModel
 
-	unsigned int data_cache_size[max_number_cache_levels];
-	unsigned int cores_sharing_data_cache[max_number_cache_levels];
+	// may I move these members into private?
+	static const unsigned int maxNumberCacheLevels = 10;
+	unsigned int data_cache_size[maxNumberCacheLevels];
+	unsigned int cores_sharing_data_cache[maxNumberCacheLevels];
 	unsigned int data_cache_levels;
+
+	unsigned int getDataCacheLevels() const { return data_cache_levels; }
+	unsigned int getCoresSharingDataCache(unsigned int i) const
+	{
+		if (i >= data_cache_levels) throw  Error(ERR_BAD_PARAMETER);
+		return cores_sharing_data_cache[i];
+	}
+	unsigned int getDataCacheSize(unsigned int i) const
+	{
+		if (i >= data_cache_levels) throw  Error(ERR_BAD_PARAMETER);
+		return data_cache_size[i];
+	}
 
 	/*
 		data[] = { eax, ebx, ecx, edx }
@@ -227,10 +243,6 @@ public:
 #endif
 	}
 	typedef uint64 Type;
-	static const Type NO_CACHE = 0;
-	static const Type DATA_CACHE = 1;
-	static const Type INSTRUCTION_CACHE = 2;
-	static const Type UNIFIED_CACHE = 3;
 
 	static const Type NONE = 0;
 	static const Type tMMX = 1 << 0;
@@ -390,8 +402,7 @@ public:
 			if (ECX & (1U << 0)) type_ |= tPREFETCHWT1;
 		}
 		setFamily();
-		if ((type_ & tINTEL) == tINTEL)
-			setCacheHierarchy();
+		setCacheHierarchy();
 	}
 	void putFamily() const
 	{

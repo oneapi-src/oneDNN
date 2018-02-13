@@ -150,7 +150,7 @@ namespace Xbyak {
 
 enum {
 	DEFAULT_MAX_CODE_SIZE = 4096,
-	VERSION = 0x5600 /* 0xABCD = A.BC(D) */
+	VERSION = 0x5620 /* 0xABCD = A.BC(D) */
 };
 
 #ifndef MIE_INTEGER_TYPE_DEFINED
@@ -601,6 +601,13 @@ struct Mmx : public Reg {
 };
 
 struct EvexModifierRounding {
+	enum {
+		T_RN_SAE = 1,
+		T_RD_SAE = 2,
+		T_RU_SAE = 3,
+		T_RZ_SAE = 4,
+		T_SAE = 5
+	};
 	explicit EvexModifierRounding(int rounding) : rounding(rounding) {}
 	int rounding;
 };
@@ -1518,13 +1525,6 @@ private:
 		if ((a > 0 && a != v) + (b > 0 && b != v) + (c > 0 && c != v) > 0) return Error(err);
 		return v;
 	}
-	enum {
-		T_RN_SAE = 1,
-		T_RD_SAE = 2,
-		T_RU_SAE = 3,
-		T_RZ_SAE = 4,
-		T_SAE = 5
-	};
 	int evex(const Reg& reg, const Reg& base, const Operand *v, int type, int code, bool x = false, bool b = false, int aaa = 0, uint32 VL = 0)
 	{
 		if (!(type & (T_EVEX | T_MUST_EVEX))) throw Error(ERR_EVEX_IS_INVALID);
@@ -1543,7 +1543,7 @@ private:
 		int rounding = verifyDuplicate(reg.getRounding(), base.getRounding(), v ? v->getRounding() : 0, ERR_ROUNDING_IS_ALREADY_SET);
 		int disp8N = 1;
 		if (rounding) {
-			if (rounding == T_SAE){
+			if (rounding == EvexModifierRounding::T_SAE) {
 				verifySAE(base, type); LL = 0;
 			} else {
 				verifyER(base, type); LL = rounding - 1;
@@ -2412,7 +2412,7 @@ public:
 		, st0(0), st1(1), st2(2), st3(3), st4(4), st5(5), st6(6), st7(7)
 		, k0(0), k1(1), k2(2), k3(3), k4(4), k5(5), k6(6), k7(7)
 		, bnd0(0), bnd1(1), bnd2(2), bnd3(3)
-		, T_sae(T_SAE), T_rn_sae(T_RN_SAE), T_rd_sae(T_RD_SAE), T_ru_sae(T_RU_SAE), T_rz_sae(T_RZ_SAE)
+		, T_sae(EvexModifierRounding::T_SAE), T_rn_sae(EvexModifierRounding::T_RN_SAE), T_rd_sae(EvexModifierRounding::T_RD_SAE), T_ru_sae(EvexModifierRounding::T_RU_SAE), T_rz_sae(EvexModifierRounding::T_RZ_SAE)
 		, T_z()
 #ifdef XBYAK64
 		, rax(Operand::RAX), rcx(Operand::RCX), rdx(Operand::RDX), rbx(Operand::RBX), rsp(Operand::RSP), rbp(Operand::RBP), rsi(Operand::RSI), rdi(Operand::RDI), r8(Operand::R8), r9(Operand::R9), r10(Operand::R10), r11(Operand::R11), r12(Operand::R12), r13(Operand::R13), r14(Operand::R14), r15(Operand::R15)
@@ -2538,10 +2538,13 @@ static const Zmm zmm0(0), zmm1(1), zmm2(2), zmm3(3), zmm4(4), zmm5(5), zmm6(6), 
 static const Reg32 eax(Operand::EAX), ecx(Operand::ECX), edx(Operand::EDX), ebx(Operand::EBX), esp(Operand::ESP), ebp(Operand::EBP), esi(Operand::ESI), edi(Operand::EDI);
 static const Reg16 ax(Operand::AX), cx(Operand::CX), dx(Operand::DX), bx(Operand::BX), sp(Operand::SP), bp(Operand::BP), si(Operand::SI), di(Operand::DI);
 static const Reg8 al(Operand::AL), cl(Operand::CL), dl(Operand::DL), bl(Operand::BL), ah(Operand::AH), ch(Operand::CH), dh(Operand::DH), bh(Operand::BH);
-static const AddressFrame ptr(0), byte(8), word(16), dword(32), qword(64);
+static const AddressFrame ptr(0), byte(8), word(16), dword(32), qword(64), xword(128), yword(256), zword(512);
+static const AddressFrame ptr_b(0, true), xword_b(128, true), yword_b(256, true), zword_b(512, true);
 static const Fpu st0(0), st1(1), st2(2), st3(3), st4(4), st5(5), st6(6), st7(7);
 static const Opmask k0(0), k1(1), k2(2), k3(3), k4(4), k5(5), k6(6), k7(7);
 static const BoundsReg bnd0(0), bnd1(1), bnd2(2), bnd3(3);
+static const EvexModifierRounding T_sae(EvexModifierRounding::T_SAE), T_rn_sae(EvexModifierRounding::T_RN_SAE), T_rd_sae(EvexModifierRounding::T_RD_SAE), T_ru_sae(EvexModifierRounding::T_RU_SAE), T_rz_sae(EvexModifierRounding::T_RZ_SAE);
+static const EvexModifierZero T_z;
 #ifdef XBYAK64
 static const Reg64 rax(Operand::RAX), rcx(Operand::RCX), rdx(Operand::RDX), rbx(Operand::RBX), rsp(Operand::RSP), rbp(Operand::RBP), rsi(Operand::RSI), rdi(Operand::RDI), r8(Operand::R8), r9(Operand::R9), r10(Operand::R10), r11(Operand::R11), r12(Operand::R12), r13(Operand::R13), r14(Operand::R14), r15(Operand::R15);
 static const Reg32 r8d(8), r9d(9), r10d(10), r11d(11), r12d(12), r13d(13), r14d(14), r15d(15);
