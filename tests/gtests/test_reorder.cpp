@@ -226,7 +226,9 @@ INSTANTIATE_TEST_CASE_P(TestReorder, reorder_simple_test_weights_f32_f32,
             cfg_f32{eng::cpu, fmt::Ohwi16o, fmt::Oihw16o, {64, 64, 3, 3}},
             cfg_f32{eng::cpu, fmt::Oihw16o, fmt::Ohwi16o, {64, 64, 3, 3}},
             cfg_f32{eng::cpu, fmt::gOhwi16o, fmt::gOihw16o, {2, 64, 64, 3, 3}},
-            cfg_f32{eng::cpu, fmt::gOihw16o, fmt::gOhwi16o, {2, 64, 64, 3, 3}}
+            cfg_f32{eng::cpu, fmt::gOihw16o, fmt::gOhwi16o, {2, 64, 64, 3, 3}},
+            cfg_f32{eng::cpu, fmt::goihw, fmt::Goihw8g, {16, 16, 16, 3, 3}},
+            cfg_f32{eng::cpu, fmt::Goihw8g, fmt::goihw, {16, 16, 16, 3, 3}}
             )
         );
 

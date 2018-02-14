@@ -928,6 +928,72 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     }
 };
 
+
+template <SIMPLE_REORDER_TEMPL_DECL>
+struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
+    typename utils::enable_if<(fmt_i == goihw && fmt_o == Goihw8g)>::type>
+{
+    SIMPLE_IS_APPLICABLE(false);
+
+    static status_t execute(const cpu_reorder_pd_t *pd,
+        const data_t<type_i> *input, data_t<type_o> *output) {
+        DECLARE_COMMON_PARAMS();
+
+        constexpr bool w_groups = fmt_i == goihw;
+
+        const auto &_goihw_d = order_keep ? input_d : output_d;
+        const auto &dims = input_d.dims();
+        const int blksize = 8;
+
+        const int NG = dims[0];
+        constexpr int i_mult = order_keep ? blksize : 1;
+        constexpr int o_mult = order_keep ? 1 : blksize;
+
+#       pragma omp parallel for collapse(5) schedule(static)
+        for (int G = 0; G < NG / blksize; ++G) {
+            for (int oc = 0; oc < dims[1]; ++oc) {
+                for (int ic = 0; ic < dims[2]; ++ic) {
+                    for (int h = 0; h < dims[3]; ++h) {
+                        for (int w = 0; w < dims[4]; ++w) {
+                            auto i = &input[input_d.blk_off<!w_groups>(
+                                   G * i_mult, oc, ic, h, w)];
+                            auto o = &output[output_d.blk_off<!w_groups>(
+                                   G * o_mult, oc, ic, h, w)];
+                            if (alpha == 1.0 && beta == 0.0) {
+                                for (int g = 0; g < blksize; ++g) {
+                                    const auto _goihw_off = g *
+                                        _goihw_d.blocking_desc().strides[0][0];
+                                    if (order_keep) {
+                                        o[g] = data_t<type_o>(i[_goihw_off]);
+                                    } else {
+                                        o[_goihw_off] = data_t<type_o>(i[g]);
+                                    }
+                                }
+                            } else {
+                                for (int g = 0; g < blksize; ++g) {
+                                    const auto _goihw_off = g *
+                                        _goihw_d.blocking_desc().strides[0][0];
+                                    if (order_keep) {
+                                        o[g] = data_t<type_o>(alpha *
+                                             i[_goihw_off] +
+                                             (beta ? beta * o[g] : 0));
+                                   } else {
+                                        o[_goihw_off] = data_t<type_o>(alpha *
+                                             i[g] + (beta ? beta *
+                                             o[_goihw_off] : 0));
+                                   }
+                               }
+                           }
+                        }
+                    }
+                }
+            }
+        }
+
+        return success;
+    }
+};
+
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     typename utils::enable_if<
