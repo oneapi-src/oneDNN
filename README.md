@@ -39,7 +39,10 @@ and might change without prior notification in future releases.
 
 ## License
 Intel MKL-DNN is licensed under
-[Apache License Version 2.0](http://www.apache.org/licenses/LICENSE-2.0).
+[Apache License Version 2.0](http://www.apache.org/licenses/LICENSE-2.0). This
+software includes the following third party components:
+* [Xbyak](https://github.com/herumi/xbyak) distributed under [3-clause BSD licence](src/cpu/xbyak/COPYRIGHT)
+* [gtest](https://github.com/google/googletest) distributed under [3-clause BSD license](tests/gtests/gtest/LICENSE)
 
 ## Documentation
 The latest version of Intel MKL-DNN reference manual is available 
