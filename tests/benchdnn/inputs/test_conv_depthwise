@@ -1,0 +1,14 @@
+# f32
+--reset --cfg=f32
+--mb=2
+--dir=FWD_D
+--batch=conv_mobilenet
+--merge=RELU --batch=conv_mobilenet # +relu
+
+#post-ops
+--reset --cfg=f32
+--mb=2
+--dir=FWD_D
+--attr=post_ops='relu' --batch=conv_mobilenet
+--attr=post_ops='sum' --batch=conv_mobilenet
+--attr=post_ops='sum;relu' --batch=conv_mobilenet

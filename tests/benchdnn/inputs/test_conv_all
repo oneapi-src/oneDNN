@@ -11,6 +11,9 @@
 --merge=RELU                # +relu
 --dir=FWD_B --batch=conv_alexnet
 
+# depthwise
+--batch=test_conv_depthwise
+
 # i8 (skx)
 --reset --dir=FWD_B --mb=2
 --skip-impl="ref:gemm"      # ! test jit version only
