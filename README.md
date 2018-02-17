@@ -27,11 +27,12 @@ the following deep learning topologies and their variations
 |Object detection              | SSD, Faster R-CNN
 
 Intel MKL-DNN is used in the the following software products:
-* [PaddlePaddle\*](http://www.paddlepaddle.org)
 * [Caffe\* Optimized for Intel Architecture](https://github.com/intel/caffe)
-* [Tensorflow\*](https://www.tensorflow.org)
-* [Apache MXNET\*](https://github.com/apache/incubator-mxnet)
 * [DeepBench](https://github.com/baidu-research/DeepBench)
+* [PaddlePaddle\*](http://www.paddlepaddle.org)
+* [Tensorflow\*](https://www.tensorflow.org)
+* [Microsoft\* Cognitive Toolkit (CNTK)](https://www.microsoft.com/en-us/cognitive-toolkit/)
+* [Apache\* MXNet](https://mxnet.apache.org/)
 * [Intel(R) Computer Vision SDK](https://software.intel.com/en-us/computer-vision-sdk)
 * [Intel(R) Nervana(TM) Graph](https://github.com/NervanaSystems/ngraph)
 
@@ -61,11 +62,8 @@ We welcome community contributions to Intel MKL-DNN. If you have an idea how to 
 
 * Share your proposal via
  [GitHub issues](https://github.com/intel/mkl-dnn/issues).
-
 * Ensure you can build the product and run all the examples with your patch
-
 * In the case of a larger feature, create a test
-
 * Submit a [pull request](https://github.com/intel/mkl-dnn/pulls)
 
 We will review your contribution and, if any additional fixes or modifications
@@ -82,6 +80,7 @@ The library is optimized for the systems based on
 * Intel Xeon Platinum processor family (formerly Skylake)
 * Intel(R) Xeon Phi(TM) processor x200 product family (formerly Knights Landing)
 * Intel Xeon Phi processor x205 product family (formerly Knights Mill)
+
 and compatible processors.
 
 The software dependencies are:
