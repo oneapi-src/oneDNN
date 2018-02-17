@@ -99,12 +99,7 @@ void _gemm_u8s8s32x_convolution_fwd_t<with_relu, dst_type>::execute_forward() {
     const bool do_relu = jcp.with_relu || (entry_idx >= 0);
 
     const size_t work_amount = jcp.ngroups * jcp.mb;
-    int num_thr =
-        (jcp.oh * jcp.ow) / omp_get_max_threads() < 64 && jcp.mb != 1
-        ? omp_get_max_threads() : 1;
-    MAYBE_UNUSED(num_thr);
-
-#   pragma omp parallel num_threads(num_thr)
+#   pragma omp parallel num_threads(this->nthr_)
     {
         const int ithr = omp_get_thread_num();
         const int nthr = omp_get_num_threads();

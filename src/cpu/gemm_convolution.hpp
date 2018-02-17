@@ -138,8 +138,13 @@ struct _gemm_convolution_fwd_t: public cpu_primitive_t {
         jit_gemm_convolution_utils::init_conf(conf_.jcp_,
             *(conf_.cdesc()), conf_.src_pd(), conf_.weights_pd(0),
             conf_.dst_pd(), with_relu, conf_.negative_slope());
+
+        nthr_ = this->conf_.jcp_.os / omp_get_max_threads() < 512 &&
+                (this->conf_.jcp_.mb != 1 || this->conf_.jcp_.ngroups > 2) ?
+                omp_get_max_threads() : 1;
+
         jit_gemm_convolution_utils::prepare_ws_col<data_t>(this->conf_.jcp_,
-                &this->col_);
+                &this->col_, nthr_);
     }
 
     ~_gemm_convolution_fwd_t() {
@@ -162,6 +167,7 @@ private:
     jit_uni_gemm_f32 *sgemm_;
     data_t *col_;
     data_t beta_;
+    int nthr_;
 };
 
 using jit_avx512_common_gemm_convolution_fwd_t =
@@ -244,8 +250,12 @@ struct _gemm_convolution_bwd_data_t: public cpu_primitive_t {
         jit_gemm_convolution_utils::init_conf(conf_.jcp_,
             *(conf_.desc()), conf_.diff_src_pd(), conf_.weights_pd(0),
             conf_.diff_dst_pd());
+
+        nthr_ = this->conf_.jcp_.mb != 1 || this->conf_.jcp_.ngroups > 2 ?
+                omp_get_max_threads() : 1;
+
         jit_gemm_convolution_utils::prepare_ws_col<data_t>(this->conf_.jcp_,
-                &this->col_);
+                &this->col_, nthr_);
     }
 
     ~_gemm_convolution_bwd_data_t() {
@@ -274,6 +284,7 @@ private:
           <isa == avx2, jit_avx2_gemm_f32, jit_avx512_common_gemm_f32>::type;
     jit_uni_gemm_f32 *sgemm_;
     data_t *col_;
+    int nthr_;
 };
 
 using jit_avx512_common_gemm_convolution_bwd_data_t =
@@ -357,10 +368,15 @@ struct _gemm_convolution_bwd_weights_t: public cpu_primitive_t {
             *(conf_.desc()), conf_.src_pd(), conf_.diff_weights_pd(0),
             conf_.diff_dst_pd());
         const memory_desc_wrapper weights_d(conf_.diff_weights_pd(0));
+
+        nthr_ = this->conf_.jcp_.os / omp_get_max_threads() < 256 &&
+                (this->conf_.jcp_.mb != 1 || this->conf_.jcp_.ngroups > 2) ?
+                omp_get_max_threads() : 1;
+
         jit_gemm_convolution_utils::prepare_ws_col<data_t>(this->conf_.jcp_,
-                &this->col_);
+                &this->col_, nthr_);
         jit_gemm_convolution_utils::prepare_ws_wei_reduction(this->conf_.jcp_,
-                &this->wei_reduction_, weights_d.size());
+                &this->wei_reduction_, weights_d.size(), nthr_);
     }
 
     ~_gemm_convolution_bwd_weights_t() {
@@ -393,6 +409,7 @@ private:
           <isa == avx2, jit_avx2_gemm_f32, jit_avx512_common_gemm_f32>::type;
     jit_uni_gemm_f32 *sgemm_0, *sgemm_1;
     data_t *col_, *wei_reduction_;
+    int nthr_;
 };
 
 using jit_avx512_common_gemm_convolution_bwd_weights_t =

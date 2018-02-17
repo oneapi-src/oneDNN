@@ -39,11 +39,13 @@ namespace jit_gemm_convolution_utils {
         bool with_relu = false, float relu_negative_slope = -1.0);
 
     template <typename src_t>
-    status_t prepare_ws_col(jit_gemm_conv_conf_t &jcp, src_t **col);
+    status_t prepare_ws_col(jit_gemm_conv_conf_t &jcp, src_t **col,
+            const int nthr);
     status_t prepare_ws_wei_reduction(jit_gemm_conv_conf_t &jcp,
-            float **wei_reduction, size_t wei_sz);
+            float **wei_reduction, size_t wei_sz, const int nthr);
     template <typename acc_t>
-    status_t prepare_ws_acc(jit_gemm_conv_conf_t &jcp, acc_t **acc);
+    status_t prepare_ws_acc(jit_gemm_conv_conf_t &jcp, acc_t **acc,
+            const int nthr);
 
     void bwd_weights_balance(int ithr, int nthr,
         int ngroups, int mb, int &ithr_g, int &nthr_g, int &ithr_mb,

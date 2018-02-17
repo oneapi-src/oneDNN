@@ -120,10 +120,14 @@ struct _gemm_u8s8s32x_convolution_fwd_t: public cpu_primitive_t {
         jit_gemm_convolution_utils::init_conf(conf_.jcp_,
             *(conf_.cdesc()), conf_.src_pd(), conf_.weights_pd(0),
             conf_.dst_pd(), with_relu, conf_.negative_slope());
+
+        nthr_ = this->conf_.jcp_.os / omp_get_max_threads() < 64 &&
+                this->conf_.jcp_.mb != 1 ? omp_get_max_threads() : 1;
+
         jit_gemm_convolution_utils::prepare_ws_col<src_data_t>(
-                this->conf_.jcp_, &this->col_);
+                this->conf_.jcp_, &this->col_, nthr_);
         jit_gemm_convolution_utils::prepare_ws_acc<acc_data_t>(
-                this->conf_.jcp_, &this->acc_);
+                this->conf_.jcp_, &this->acc_, nthr_);
     }
 
     ~_gemm_u8s8s32x_convolution_fwd_t() {
@@ -146,6 +150,7 @@ private:
     pd_t conf_;
     src_data_t *col_;
     acc_data_t *acc_;
+    int nthr_;
 };
 
 }

@@ -231,13 +231,12 @@ void init_conf(
 }
 
 template <typename src_t>
-status_t prepare_ws_col(jit_gemm_conv_conf_t &jcp, src_t **col) {
+status_t prepare_ws_col(jit_gemm_conv_conf_t &jcp, src_t **col, const int nthr) {
     if (!jcp.need_im2col) {
         *col = nullptr;
         return status::success;
     }
 
-    const size_t nthr = omp_get_max_threads();
     const size_t im2col_sz_per_thr = jcp.os * jcp.ks * jcp.ic;
     const size_t im2col_sz = nthr * im2col_sz_per_thr;
 
@@ -251,13 +250,12 @@ status_t prepare_ws_col(jit_gemm_conv_conf_t &jcp, src_t **col) {
 }
 
 template status_t prepare_ws_col<float>(jit_gemm_conv_conf_t &jcp,
-        float **col);
+        float **col, const int nthr);
 template status_t prepare_ws_col<uint8_t>(jit_gemm_conv_conf_t &jcp,
-        uint8_t **col);
+        uint8_t **col, const int nthr);
 
 status_t prepare_ws_wei_reduction(jit_gemm_conv_conf_t &jcp,
-        float **wei_reduction, size_t wei_sz) {
-    const size_t nthr = omp_get_max_threads();
+        float **wei_reduction, size_t wei_sz, const int nthr) {
     if (jcp.mb == 1 || nthr == 1)
         return status::success;
 
@@ -269,8 +267,7 @@ status_t prepare_ws_wei_reduction(jit_gemm_conv_conf_t &jcp,
 }
 
 template <typename acc_t>
-status_t prepare_ws_acc(jit_gemm_conv_conf_t &jcp, acc_t **acc) {
-    const size_t nthr = omp_get_max_threads();
+status_t prepare_ws_acc(jit_gemm_conv_conf_t &jcp, acc_t **acc, const int nthr) {
     const size_t acc_sz_per_thr = jcp.os * jcp.oc;
     const size_t acc_sz = nthr * acc_sz_per_thr;
 
@@ -280,7 +277,7 @@ status_t prepare_ws_acc(jit_gemm_conv_conf_t &jcp, acc_t **acc) {
 }
 
 template status_t prepare_ws_acc<int32_t>(jit_gemm_conv_conf_t &jcp,
-        int32_t **acc);
+        int32_t **acc, const int nthr);
 
 void bwd_weights_balance(int ithr, int nthr, int ngroups, int mb, int &ithr_g,
         int &nthr_g, int &ithr_mb, int &nthr_mb) {
