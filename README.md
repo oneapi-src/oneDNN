@@ -30,6 +30,7 @@ Intel MKL-DNN is used in the the following software products:
 * [PaddlePaddle\*](http://www.paddlepaddle.org)
 * [Caffe\* Optimized for Intel Architecture](https://github.com/intel/caffe)
 * [Tensorflow\*](https://www.tensorflow.org)
+* [Apache MXNET\*](https://github.com/apache/incubator-mxnet)
 * [DeepBench](https://github.com/baidu-research/DeepBench)
 * [Intel(R) Computer Vision SDK](https://software.intel.com/en-us/computer-vision-sdk)
 * [Intel(R) Nervana(TM) Graph](https://github.com/NervanaSystems/ngraph)
