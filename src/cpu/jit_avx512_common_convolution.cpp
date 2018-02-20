@@ -287,25 +287,30 @@ template struct jit_avx512_common_convolution_bwd_data_t<data_type::f32>;
 template struct jit_avx512_common_convolution_bwd_data_t<data_type::s16,
     data_type::s16, data_type::s32>;
 
-jit_avx512_common_convolution_bwd_weights_t::
+template <data_type_t src_type, data_type_t diff_dst_type,
+          data_type_t diff_weights_type>
+jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
+          diff_weights_type>::
 jit_avx512_common_convolution_bwd_weights_t(const pd_t *pd,
         const input_vector &inputs, const output_vector &outputs)
     : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd), kernel_(nullptr)
-    , trans_kernel_(nullptr), acc_ker_(nullptr), reducer_bias_(nullptr)
-    , tr_src_(nullptr), ws_reduction_(nullptr), tr_src_bctx_(nullptr)
+    , trans_kernel_(nullptr), trans_dst_kernel_(nullptr), acc_ker_(nullptr)
+    , reducer_bias_(nullptr), tr_src_(nullptr), tr_diff_dst_(nullptr)
+    , ws_reduction_(nullptr), tr_src_bctx_(nullptr),  tr_diff_dst_bctx_(nullptr)
 {
     const auto &j = conf_.jcp_;
     kernel_ = new jit_avx512_common_conv_bwd_weights_kernel_f32(j);
 
     balance();
 
-    if (j.ver == ver_4fma) {
+    if (utils::one_of(j.ver, ver_4fma, ver_4vnni, ver_vnni)) {
         trans_kernel_ = create_trans_src(&j);
-
+        if (utils::one_of(j.ver, ver_4vnni, ver_vnni))
+            trans_dst_kernel_ = create_trans_dst(&j);
         if (j.is_1stconv) {
             const int tr_src_size =
                 nthr_ / nthr_oc_b_ * j.ih * j.stride_w * j.tr_ld;
-            tr_src_ = (data_t *)malloc(tr_src_size * sizeof(data_t), 64);
+            tr_src_ = (src_data_t *)malloc(tr_src_size * sizeof(src_data_t), 64);
         } else {
             // XXX: See the comment about tr_iw and guarding elements in
             // jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf()
@@ -313,11 +318,11 @@ jit_avx512_common_convolution_bwd_weights_t(const pd_t *pd,
             const int min_tr_src_size_per_thr = j.ih * j.ic_block * j.tr_iw;
             const int tr_src_size = max_nthr * min_tr_src_size_per_thr
                 + j.tr_src_num_guard_elems;
-            tr_src_ = (data_t *)malloc(tr_src_size * sizeof(data_t), 64);
+            tr_src_ = (src_data_t *)malloc(tr_src_size * sizeof(src_data_t), 64);
             /* to avoid NaNs in computations we zero tail num_guard_elems for
              * each possible thread group */
             for (int ithr = 1; ithr <= max_nthr; ++ithr) {
-                data_t *ts = &tr_src_[ithr * min_tr_src_size_per_thr];
+                src_data_t *ts = &tr_src_[ithr * min_tr_src_size_per_thr];
                 for (int i = 0; i < j.tr_src_num_guard_elems; ++i)
                     ts[i] = 0;
             }
@@ -331,32 +336,54 @@ jit_avx512_common_convolution_bwd_weights_t(const pd_t *pd,
             for (int i = 0; i < tr_src_bctx_size; ++i)
                 simple_barrier::ctx_init(&tr_src_bctx_[i]);
         }
+
+        if (utils::one_of(j.ver, ver_4vnni, ver_vnni)) {
+            const size_t tr_diff_dst_size =
+                nthr_mb_ * j.ngroups * j.nb_oc * j.oc_block * j.tr_ow * j.oh;
+            tr_diff_dst_ = (diff_dst_data_t *)malloc(
+                    tr_diff_dst_size * sizeof(diff_dst_data_t), 64);
+
+            /* prepare synchronization contexts */
+            if (nthr_ic_b_ > 1) {
+                const size_t tr_diff_dst_bctx_size = nthr_ / nthr_ic_b_;
+                tr_diff_dst_bctx_ = (simple_barrier::ctx_t *)malloc(
+                        tr_diff_dst_bctx_size * sizeof(simple_barrier::ctx_t),
+                        64);
+                for (size_t i = 0; i < tr_diff_dst_bctx_size; ++i)
+                    simple_barrier::ctx_init(&tr_diff_dst_bctx_[i]);
+            }
+        }
     }
 
     if (nthr_mb_ > 1) {
         const int wei_size = j.ngroups * j.oc * j.ic * j.kh * j.kw;
         const int bia_size = j.ngroups * j.oc;
-        ws_reduction_ = (data_t *)malloc(
-                (nthr_mb_ - 1) * (wei_size + bia_size) * sizeof(data_t), 64);
-        acc_ker_ = new cpu_accumulator_1d_t<data_type::f32>();
+        ws_reduction_ = (diff_weights_data_t *)malloc((nthr_mb_ - 1)
+            * (wei_size + bia_size) * sizeof(diff_weights_data_t), 64);
+        acc_ker_ = new cpu_accumulator_1d_t<diff_weights_type>();
         simple_barrier::ctx_init(&reduction_bctx_);
     }
 
     if (conf_.with_bias()) {
         const size_t max_buffer_size = nthr_ * 3 * 5 * 5 * 16 * 16;
-        reducer_bias_ = new cpu_reducer_t<data_type::f32>(reduce_balancer_t(
+        reducer_bias_ = new cpu_reducer_t<diff_weights_type>(reduce_balancer_t(
                     nthr_, j.oc_block, j.ngroups * j.nb_oc, j.mb,
                     max_buffer_size));
     }
 }
 
-struct jit_avx512_common_convolution_bwd_weights_t::thread_info_t {
-    const data_t *src, *diff_dst;
-    data_t *diff_weights, *diff_bias;
+template <data_type_t src_type, data_type_t diff_dst_type,
+          data_type_t diff_weights_type>
+struct jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
+    diff_weights_type>::thread_info_t {
+    const src_data_t *src;
+    const diff_dst_data_t *diff_dst;
+    const diff_weights_data_t *diff_weights, *diff_bias;
 
     int ithr;
     int ithr_ic_b, ithr_oc_b, ithr_g, ithr_mb;
     int ithr_but_oc;
+    int ithr_but_ic;
 
     int img_start, img_end, img_work;
     int g_start, g_end, g_work;
@@ -365,10 +392,12 @@ struct jit_avx512_common_convolution_bwd_weights_t::thread_info_t {
 
     thread_info_t(const jit_avx512_common_convolution_bwd_weights_t *self,
             int ithr): ithr(ithr) {
-        src = reinterpret_cast<const data_t *>(self->input_memory(0));
-        diff_dst = reinterpret_cast<const data_t *>(self->input_memory(1));
-        diff_weights = reinterpret_cast<data_t *>(self->memory(0));
-        diff_bias = reinterpret_cast<data_t *>(self->memory(1));
+
+        src = reinterpret_cast<const src_data_t *>(self->input_memory(0));
+        diff_dst = reinterpret_cast<const diff_dst_data_t *>(
+            self->input_memory(1));
+        diff_weights = reinterpret_cast<diff_weights_data_t *>(self->memory(0));
+        diff_bias = reinterpret_cast<diff_weights_data_t *>(self->memory(1));
 
         ithr_ic_b = ithr % self->nthr_ic_b_;
         ithr_oc_b = ithr / self->nthr_ic_b_ % self->nthr_oc_b_;
@@ -377,6 +406,9 @@ struct jit_avx512_common_convolution_bwd_weights_t::thread_info_t {
 
         ithr_but_oc = (ithr_mb * self->nthr_g_ + ithr_g) * self->nthr_ic_b_
             + ithr_ic_b;
+
+        ithr_but_ic = (ithr_mb * self->nthr_g_ + ithr_g) * self->nthr_oc_b_
+            + ithr_oc_b;
 
         const auto &jcp = self->kernel_->jcp;
 
@@ -398,8 +430,10 @@ struct jit_avx512_common_convolution_bwd_weights_t::thread_info_t {
     }
 };
 
-void jit_avx512_common_convolution_bwd_weights_t::compute_diff_weights(
-        const thread_info_t *ti) {
+template <data_type_t src_type, data_type_t diff_dst_type,
+          data_type_t diff_weights_type>
+void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
+    diff_weights_type>::compute_diff_weights(const thread_info_t *ti) {
     const memory_desc_wrapper src_d(conf_.src_pd(0));
     const memory_desc_wrapper diff_dst_d(conf_.diff_dst_pd());
     const memory_desc_wrapper diff_weights_d(conf_.diff_weights_pd(0));
@@ -407,11 +441,13 @@ void jit_avx512_common_convolution_bwd_weights_t::compute_diff_weights(
     const auto &jcp = kernel_->jcp;
     const int wei_size = jcp.ngroups * jcp.oc * jcp.ic * jcp.kh * jcp.kw;
 
-    data_t *diff_wei = ti->ithr_mb == 0
-        ? ti->diff_weights : ws_reduction_ + (ti->ithr_mb - 1) * wei_size;
-    data_t *diff_bia = ti->ithr_mb == 0
-        ? ti->diff_bias : ws_reduction_ + (nthr_mb_ - 1) * wei_size
-                + (ti->ithr_mb - 1) * jcp.ngroups * jcp.oc;
+    diff_weights_data_t *diff_wei = ti->ithr_mb == 0
+        ? (diff_weights_data_t*)ti->diff_weights
+        : (diff_weights_data_t*)ws_reduction_ + (ti->ithr_mb - 1) * wei_size;
+    diff_weights_data_t *diff_bia = ti->ithr_mb == 0
+        ? (diff_weights_data_t*)ti->diff_bias
+        : (diff_weights_data_t*)ws_reduction_ + (nthr_mb_ - 1) * wei_size
+          + (ti->ithr_mb - 1) * jcp.ngroups * jcp.oc;
 
     // TODO: use memory descriptor with the same fmt as src (or use a macro :))
     auto tr_src_off = [&](int ithr_mb, int ic, int ij) {
@@ -435,15 +471,15 @@ void jit_avx512_common_convolution_bwd_weights_t::compute_diff_weights(
         ic_b += ti->ic_b_start;
 
         const int _ic = g * jcp.nb_ic + ic_b;
-        data_t *src1 = (data_t*)&ti->src[src_d.blk_off(img, _ic, j)];
-        data_t *tr_src1 = &tr_src_[tr_src_off(ti->ithr_mb, _ic, j)];
+        src_data_t *src1 = (src_data_t*)&ti->src[src_d.blk_off(img, _ic, j)];
+        src_data_t *tr_src1 = &tr_src_[tr_src_off(ti->ithr_mb, _ic, j)];
 
         assert(jcp.ic_block == 16);
         const int src_stride = jcp.iw * jcp.ic_block;
         const int tr_src_stride = jcp.tr_iw * jcp.ic_block;
 
         const int pf_depth = 2;
-        struct { data_t *src, *tr_src; } pf_circ_buf[pf_depth];
+        struct { src_data_t *src, *tr_src; } pf_circ_buf[pf_depth];
 
         for (int iwork = 0; iwork < my_work + pf_depth - 1; iwork++) {
             pf_circ_buf[iwork % pf_depth] = {src1, tr_src1};
@@ -460,6 +496,114 @@ void jit_avx512_common_convolution_bwd_weights_t::compute_diff_weights(
             src1 += src_stride;
             tr_src1 += tr_src_stride;
         }
+#if 0
+        // reference transposition
+        const int l_pad = jcp.l_pad;
+        const int iwlp = l_pad + jcp.iw;
+        const int tr_iw = jcp.tr_iw;
+
+        for (size_t iwork = start; iwork < end; iwork++) {
+#           pragma omp simd
+#           pragma unroll
+            for (int i = 0; i < l_pad; i++)
+                for (int j = 0; j < jcp.ic_block; j++)
+                    tr_src1[j * jcp.tr_iw + i] = (src_data_t)0.0;
+
+#           pragma omp simd
+#           pragma unroll
+            for (int i = l_pad; i < iwlp; i++)
+                for (int j = 0; j < jcp.ic_block; j++)
+                    tr_src1[j * jcp.tr_iw + i]
+                        = (src_data_t)src1[(i - l_pad) * 16 + j];
+
+#           pragma omp simd
+#           pragma unroll
+            for (int i = iwlp; i < tr_iw; i++)
+                for (int j = 0; j < jcp.ic_block; j++)
+                    tr_src1[j * jcp.tr_iw + i] = (src_data_t)0.0;
+
+             src1 += src_stride;
+             tr_src1 += tr_src_stride;
+         }
+#endif
+    };
+
+    auto tr_diff_dst_off = [&](int ithr_mb, int oc, int oj) {
+        const size_t tr_row_size = jcp.tr_ow * jcp.oc_block;
+        const size_t tr_chn_size = tr_row_size * jcp.oh;
+        const size_t tr_img_size = tr_chn_size * jcp.nb_oc * jcp.ngroups;
+        return ti->ithr_mb * tr_img_size + oc * tr_chn_size + oj * tr_row_size;
+    };
+
+    auto diff_dst_trans = [&](int img) {
+        const size_t work_amount = ti->g_work * ti->oc_b_work * jcp.oh;
+
+        size_t start{0}, end{0};
+        balance211(work_amount, nthr_ic_b_, ti->ithr_ic_b, start, end);
+        const int my_work = end - start;
+
+        int g{0}, oc_b{0}, j{0};
+        nd_iterator_init(start, g, ti->g_work, oc_b, ti->oc_b_work, j, jcp.oh);
+        g += ti->g_start;
+        oc_b += ti->oc_b_start;
+        const int oc = g * jcp.nb_oc + oc_b;
+        const diff_dst_data_t *diff_dst1
+            = &ti->diff_dst[diff_dst_d.blk_off(img, oc, j)];
+        diff_dst_data_t *tr_diff_dst1
+            = &tr_diff_dst_[tr_diff_dst_off(img, oc, j)];
+
+
+        assert(jcp.ic_block == 16);
+        const int diff_dst_stride = jcp.ow * jcp.oc_block;
+        const int tr_diff_dst_stride = jcp.tr_ow * jcp.oc_block;
+
+        const int pf_depth = 2;
+        struct { diff_dst_data_t *diff_dst, *tr_diff_dst; }
+            pf_circ_buf[pf_depth];
+
+        for (int iwork = 0; iwork < my_work + pf_depth - 1; iwork++) {
+            pf_circ_buf[iwork % pf_depth]
+                = {(diff_dst_data_t*)diff_dst1, tr_diff_dst1};
+
+            if (iwork >= pf_depth - 1) {
+                int old_idx = (iwork - pf_depth + 1) % pf_depth;
+                jit_trans_dst_t::ctx_t ctx = {};
+                ctx.src = pf_circ_buf[old_idx].diff_dst;
+                ctx.tr_src = pf_circ_buf[old_idx].tr_diff_dst;
+                ctx.src_prf = diff_dst1;
+                ctx.tr_src_prf = tr_diff_dst1;
+                (*trans_dst_kernel_)(&ctx);
+            }
+            diff_dst1 += diff_dst_stride;
+            tr_diff_dst1 += tr_diff_dst_stride;
+        }
+#if 0
+        // reference transposition
+        int r_pad = jcp.ow % 2;
+        for(size_t work = start; work < end; ++work) {
+
+            for (int j = 0; j < jcp.oc_block; ++j) {
+#               pragma unroll
+                for (int i = 0; i < jcp.ow / 2; i++) {
+                    tr_diff_dst1[i*jcp.oc_block*2 + j*2] =
+                       diff_dst1[2*i*jcp.oc_block + j];
+                    tr_diff_dst1[i*jcp.oc_block*2 + j*2 + 1] =
+                       diff_dst1[(2*i+1)*jcp.oc_block + j];
+                }
+                if (r_pad != 0) {
+                    const int last_w = jcp.ow / 2;
+                    tr_diff_dst1[last_w * jcp.oc_block * 2 + j * 2] =
+                       diff_dst1[last_w * jcp.oc_block * 2 + j];
+                    tr_diff_dst1[last_w * jcp.oc_block * 2 + j * 2 + 1] =
+                        diff_dst_data_t{0};
+                }
+
+            }
+
+            diff_dst1 += diff_dst_stride;
+            tr_diff_dst1 += tr_diff_dst_stride;
+        }
+#endif
     };
 
     if (jcp.is_1stconv && jcp.ver == ver_4fma) {
@@ -482,7 +626,7 @@ void jit_avx512_common_convolution_bwd_weights_t::compute_diff_weights(
         if (jcp.with_bias && ti->ithr_ic_b == 0) {
             assert(jcp.oc_block == 16);
             for (int oc_b = ti->ic_b_start; oc_b < ti->oc_b_end; ++oc_b) {
-                data_t *db = &diff_bia[oc_b * 16];
+                diff_weights_data_t *db = &diff_bia[oc_b * 16];
                 for (int o = 0; o < 16; ++o)
                     db[o] = 0;
             }
@@ -521,7 +665,7 @@ void jit_avx512_common_convolution_bwd_weights_t::compute_diff_weights(
         for (int img = ti->img_start; img < ti->img_end; ++img) {
             jit_conv_call_s p = {0};
 
-            if (jcp.ver == ver_4fma) {
+            if (utils::one_of(jcp.ver, ver_4fma, ver_4vnni, ver_vnni)) {
                 /* tr_src[nb_ic][ih][16][~iw~] <- src[nb_ic][ih][iw][16] */
                 using simple_barrier::barrier;
                 if (nthr_oc_b_ > 1)
@@ -531,6 +675,16 @@ void jit_avx512_common_convolution_bwd_weights_t::compute_diff_weights(
                     barrier(&tr_src_bctx_[ti->ithr_but_oc], nthr_oc_b_);
             }
 
+            if (utils::one_of(jcp.ver, ver_4vnni, ver_vnni)) {
+                /* tr_diff_dst[nb_oc][OW][oh][16c][2ow]
+                 *  <- diff_dst[nb_oc][oh][ow][16c] */
+                if (nthr_ic_b_ > 1)
+                    barrier(&tr_diff_dst_bctx_[ti->ithr_but_ic], nthr_ic_b_);
+                diff_dst_trans(img);
+                if (nthr_ic_b_ > 1)
+                    barrier(&tr_diff_dst_bctx_[ti->ithr_but_ic], nthr_ic_b_);
+            }
+
             for (int g = ti->g_start; g < ti->g_end; ++g) {
             for (int oc_b = ti->oc_b_start; oc_b < ti->oc_b_end; ++oc_b) {
             for (int ic_b = ti->ic_b_start; ic_b < ti->ic_b_end; ++ic_b) {
@@ -538,10 +692,12 @@ void jit_avx512_common_convolution_bwd_weights_t::compute_diff_weights(
                 const int _ic = g * jcp.nb_ic + ic_b;
 
                 jit_conv_ker_pipeline(kernel_->jit_ker, p,
-                        (jcp.ver == ver_4fma
+                         (utils::one_of(jcp.ver, ver_4fma, ver_4vnni, ver_vnni)
                          ? &tr_src_[tr_src_off(ti->ithr_mb, _ic, 0)]
                          : &ti->src[src_d.blk_off(img, _ic)]),
-                        &ti->diff_dst[diff_dst_d.blk_off(img, _oc)],
+                         utils::one_of(jcp.ver, ver_4vnni, ver_vnni)
+                         ? &tr_diff_dst_[tr_diff_dst_off(ti->ithr_mb, _oc, 0)]
+                         : &ti->diff_dst[diff_dst_d.blk_off(img, _oc)],
                         diff_wei + wht_blk_off(diff_weights_d, g, oc_b, ic_b),
                         0, (img == ti->img_start), 0);
 
@@ -552,10 +708,12 @@ void jit_avx512_common_convolution_bwd_weights_t::compute_diff_weights(
             const int _oc = ti->g_start * jcp.nb_oc + ti->oc_b_start;
             const int _ic = ti->g_start * jcp.nb_ic + ti->ic_b_start;
             jit_conv_ker_pipeline(kernel_->jit_ker, p,
-                    (jcp.ver == ver_4fma
+                    (utils::one_of(jcp.ver, ver_4fma, ver_4vnni, ver_vnni)
                      ? &tr_src_[tr_src_off(ti->ithr_mb, _ic, 0)]
                      : &ti->src[src_d.blk_off(img + 1, _ic)]),
-                    &ti->diff_dst[diff_dst_d.blk_off(img + 1, _oc)],
+                    utils::one_of(jcp.ver, ver_4vnni, ver_vnni)
+                    ? &tr_diff_dst_[tr_diff_dst_off(ti->ithr_mb, _oc, 0)]
+                    : &ti->diff_dst[diff_dst_d.blk_off(img + 1, _oc)],
                     diff_wei + wht_blk_off(
                         diff_weights_d, ti->g_start,
                         ti->oc_b_start, ti->ic_b_start),
@@ -564,14 +722,17 @@ void jit_avx512_common_convolution_bwd_weights_t::compute_diff_weights(
     }
 }
 
-void jit_avx512_common_convolution_bwd_weights_t::reduce_diff_weights(
-        const thread_info_t *ti) {
+template <data_type_t src_type, data_type_t diff_dst_type,
+          data_type_t diff_weights_type>
+void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
+    diff_weights_type>::reduce_diff_weights(const thread_info_t *ti) {
     const memory_desc_wrapper diff_weights_d(conf_.diff_weights_pd(0));
 
     const auto &jcp = kernel_->jcp;
     const int wei_size = jcp.ngroups * jcp.oc * jcp.ic * jcp.kh * jcp.kw;
     const int bia_size = jcp.ngroups * jcp.oc;
-    const data_t *diff_bias_ws = ws_reduction_ + (nthr_mb_ - 1) * wei_size;
+    const diff_weights_data_t *diff_bias_ws
+        = ws_reduction_ + (nthr_mb_ - 1) * wei_size;
 
     /* diff_weights[:] += sum(ws_reduction_[thr_mb][:]) */
     simple_barrier::barrier(&reduction_bctx_, nthr_);
@@ -600,8 +761,10 @@ void jit_avx512_common_convolution_bwd_weights_t::reduce_diff_weights(
 
             const size_t off
                 = wht_blk_off(diff_weights_d, g, oc_b, ic_b, kh);
-            data_t *d = ti->diff_weights + off;
-            data_t *s = ws_reduction_ + (thr_mb - 1) * wei_size + off;
+            diff_weights_data_t *d
+                = (diff_weights_data_t *)ti->diff_weights + off;
+            diff_weights_data_t *s
+                = ws_reduction_ + (thr_mb - 1) * wei_size + off;
 
             acc_ker_->accumulate(d, s, acc_size);
 
@@ -611,14 +774,17 @@ void jit_avx512_common_convolution_bwd_weights_t::reduce_diff_weights(
 
         if (jcp.with_bias && jcp.is_1stconv && jcp.ver == ver_4fma) {
             if (ti->ithr == 0)
-                acc_ker_->accumulate(ti->diff_bias, diff_bias_ws, bia_size);
+                acc_ker_->accumulate((diff_weights_data_t *)ti->diff_bias,
+                    diff_bias_ws, bia_size);
             diff_bias_ws += bia_size;
         }
     }
 }
 
-void jit_avx512_common_convolution_bwd_weights_t::compute_diff_bias(
-        const thread_info_t *ti) {
+template <data_type_t src_type, data_type_t diff_dst_type,
+          data_type_t diff_weights_type>
+void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
+    diff_weights_type>::compute_diff_bias(const thread_info_t *ti) {
     const memory_desc_wrapper diff_dst_d(conf_.diff_dst_pd());
 
     auto rb = this->reducer_bias_;
@@ -647,8 +813,10 @@ void jit_avx512_common_convolution_bwd_weights_t::compute_diff_bias(
         for (int b_job_loc = 0; b_job_loc < b_njobs; ++b_job_loc) {
             const size_t _oc = g * jcp.nb_oc + ocb;
 
-            const data_t *d_dst = &ti->diff_dst[diff_dst_d.blk_off(img, _oc)];
-            data_t *d_bias = &rb->get_local_ptr(ti->ithr, ti->diff_bias)[
+            const diff_dst_data_t *d_dst
+                = &ti->diff_dst[diff_dst_d.blk_off(img, _oc)];
+            diff_weights_data_t *d_bias = &rb->get_local_ptr(ti->ithr,
+                (diff_weights_data_t *)ti->diff_bias)[
                 b_job_loc * rb->balancer_.job_size_];
 
             if (img == img_start)
@@ -665,10 +833,13 @@ void jit_avx512_common_convolution_bwd_weights_t::compute_diff_bias(
         }
     }
 
-    rb->reduce(ti->ithr, ti->diff_bias);
+    rb->reduce(ti->ithr, (diff_weights_data_t *)ti->diff_bias);
 }
 
-void jit_avx512_common_convolution_bwd_weights_t::execute_backward_weights() {
+template <data_type_t src_type, data_type_t diff_dst_type,
+          data_type_t diff_weights_type>
+void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
+    diff_weights_type>::execute_backward_weights() {
 #   pragma omp parallel num_threads(nthr_)
     {
         int ithr = omp_get_thread_num();
@@ -685,7 +856,10 @@ void jit_avx512_common_convolution_bwd_weights_t::execute_backward_weights() {
     }
 }
 
-void jit_avx512_common_convolution_bwd_weights_t::balance() {
+template <data_type_t src_type, data_type_t diff_dst_type,
+          data_type_t diff_weights_type>
+void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
+    diff_weights_type>::balance() {
     const int max_threads = omp_get_max_threads();
     const auto &j = conf_.jcp_;
 
@@ -718,9 +892,9 @@ void jit_avx512_common_convolution_bwd_weights_t::balance() {
          *      reduction: 1 read from workspace and 1 write to the diff_wei
          *    - but experiments showed 8 works better than 5 or 6... */
 
-        const int src_coef = j.ver == ver_4fma ? 4 : 1;
+        const int src_coef = j.ver == ver_4fma || j.ver == ver_vnni ? 4 : 1;
         const int dst_coef = 1;
-        const int wei_coef = 8;
+        const int wei_coef = j.ver == ver_vnni ? 4 : 8;
 
         return 0
             + src_coef
@@ -755,7 +929,7 @@ void jit_avx512_common_convolution_bwd_weights_t::balance() {
         }
     }
 
-    if (!mayiuse(avx512_mic)) {
+    if (j.ver != ver_vnni && !mayiuse(avx512_mic)) {
         auto calc_comp_cost = [=](int nthr_mb, int nthr_oc_b, int nthr_ic_b) {
             return 1
                 * div_up(j.mb, nthr_mb)
@@ -798,6 +972,10 @@ void jit_avx512_common_convolution_bwd_weights_t::balance() {
     nthr_ = nthr_mb_ * nthr_g_ * nthr_oc_b_ * nthr_ic_b_;
     assert(nthr_ <= max_threads);
 }
+
+template struct jit_avx512_common_convolution_bwd_weights_t<data_type::f32>;
+template struct jit_avx512_common_convolution_bwd_weights_t<data_type::s16,
+    data_type::s16, data_type::s32>;
 
 }
 }

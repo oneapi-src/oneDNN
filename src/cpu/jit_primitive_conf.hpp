@@ -80,6 +80,7 @@ struct jit_conv_conf_t {
     int typesize_out;
     int typesize_bia;
     int typesize_acc;
+    int tr_ow;
     /* avx512_u8s8u8 */
     int ic_nb1, ic_nb2;
     int oc_nb1;

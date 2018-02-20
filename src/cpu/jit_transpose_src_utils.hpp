@@ -56,6 +56,38 @@ struct jit_src_transpose_s {
     const void *tr_src_prf;
 };
 
+struct jit_trans_dst_t {
+    struct ctx_t {
+        const void *src;
+        const void *tr_src;
+        const void *src_prf;
+        const void *tr_src_prf;
+
+        /* 1st conv 4fma: backward by weights */
+        int nthr_oc_b; /* number of threads process given src image */
+        int tr_src_ih_start, tr_src_ih_end; /* thread's transposition bounds */
+        simple_barrier::ctx_t *tr_src_bctx; /* transposition synchronization */
+    };
+
+    jit_trans_dst_t(const jit_conv_conf_t *conf)
+        : conf_(conf), ker_(nullptr) {}
+    virtual ~jit_trans_dst_t() {}
+
+    void operator()(const ctx_t *ctx)
+    { assert(ker_); ker_(ctx); }
+
+    const jit_conv_conf_t *conf_;
+    void (*ker_)(const ctx_t *);
+};
+
+struct jit_dst_transpose_s {
+    int size;
+    const void *src;
+    const void *tr_src;
+    const void *src_prf;
+    const void *tr_src_prf;
+};
+
 struct jit_transpose4x16_src_t {
     int src_pf0_distance;
     int tr_src_pf0_distance;
@@ -112,6 +144,7 @@ private:
 };
 
 jit_trans_src_t *create_trans_src(const jit_conv_conf_t *conf);
+jit_trans_dst_t *create_trans_dst(const jit_conv_conf_t *conf);
 
 }
 }

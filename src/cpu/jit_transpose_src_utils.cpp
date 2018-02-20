@@ -69,28 +69,33 @@ private:
     void generate();
 };
 
-void jit_trans_iw_ic_t::transpose(int nrows, int l_pad, int r_pad, bool nontemporal_stores) {
+void jit_trans_iw_ic_t::transpose(int nrows, int l_pad, int r_pad,
+    bool nontemporal_stores) {
     assert(nrows >= 0 && nrows <= transpose_size);
     static_assert(transpose_size == 16, "Unsupported transpose size");
     if (!nrows)
         return;
 
     auto pf_src_t0 = [=](int i) {
-        if(enable_prefetch) prefetcht0(EVEX_compress_addr(reg_src, (transpose_size + i) * src_stride));
+        if(enable_prefetch) prefetcht0(EVEX_compress_addr(reg_src,
+            (transpose_size + i) * src_stride));
     };
 
     auto pf_tr_src_t0 = [=](int i) {
         int offset = (transpose_size) * typesize + i * tr_src_stride;
         if(enable_prefetch) prefetcht0(EVEX_compress_addr(reg_tr_src, offset));
-        if(enable_prefetch) prefetcht0(EVEX_compress_addr(reg_tr_src, offset + 64));
+        if(enable_prefetch) prefetcht0(EVEX_compress_addr(reg_tr_src,
+            offset + 64));
     };
 
     auto pf_src_t1 = [=](int i) {
-        if(enable_prefetch) prefetcht1(EVEX_compress_addr(reg_src_prf, i * src_stride));
+        if(enable_prefetch) prefetcht1(EVEX_compress_addr(reg_src_prf,
+            i * src_stride));
     };
 
     auto pf_tr_src_t1 = [=](int i) {
-        if(enable_prefetch) prefetchwt1(EVEX_compress_addr(reg_tr_src_prf, i * tr_src_stride));
+        if(enable_prefetch) prefetchwt1(EVEX_compress_addr(reg_tr_src_prf,
+            i * tr_src_stride));
     };
 
     auto src_zmm = [=](int i) {
@@ -325,6 +330,493 @@ void jit_trans_iw_ic_t::generate() {
         transpose(tail, 0, right_pad, nontemporal_stores);
     else
         transpose(tail, left_pad, right_pad, nontemporal_stores);
+
+    postamble();
+}
+
+struct jit_trans_iw_ic_int16_t: public jit_trans_src_t, public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_trans_iw_ic_int16_t)
+    jit_trans_iw_ic_int16_t(const jit_conv_conf_t *conf):
+        jit_trans_src_t(conf) {
+        generate();
+        ker_ = (decltype(ker_))this->getCode();
+    }
+
+private:
+    using reg64_t = const Xbyak::Reg64;
+    using reg32_t = const Xbyak::Reg32;
+    using opmask_t = const Xbyak::Opmask;
+
+    enum { typesize = sizeof(int16_t), transpose_size = 16, small_spatial = 14 };
+    int src_stride, tr_src_stride;
+    int tail;
+    bool enable_prefetch;
+
+    opmask_t kFFFF = k1;
+    opmask_t k5555 = k2;
+    opmask_t kAAAA = k3;
+    opmask_t kAA = k4;
+    opmask_t k55 = k5;
+    opmask_t kCC = k6;
+    opmask_t k33 = k7;
+    opmask_t kTail = k1;
+
+    reg64_t reg_src = r8;
+    reg64_t reg_tr_src = r9;
+    reg64_t reg_src_prf = r10;
+    reg64_t reg_tr_src_prf = r11;
+    reg64_t reg_loop = r12;
+    reg64_t reg_tr_src_tmp = r13;
+    reg32_t regw_tmp = r14d;
+    reg64_t imm_addr64 = rbx;
+    
+    Xbyak::Zmm vidx1 = zmm31;
+    Xbyak::Zmm vidx2 = zmm30;
+    Xbyak::Zmm vidx3 = zmm29;
+    Xbyak::Zmm vidx4 = zmm28;
+    Xbyak::Zmm vidx5 = zmm27;
+    Xbyak::Zmm zmm_tmp  = zmm26;
+    
+
+    void transpose(int nrows, int l_pad, int r_pad, bool nontemporal_stores);
+    void generate();
+};
+
+void jit_trans_iw_ic_int16_t::transpose(int nrows, int l_pad, int r_pad,
+    bool nontemporal_stores) {
+    assert(nrows >= 0 && nrows <= transpose_size);
+    static_assert(transpose_size == 16, "Unsupported transpose size");
+    if (!nrows)
+        return;
+
+    auto src_zmm = [=](int i) {
+        return Zmm(i);
+    };
+
+    auto src_ymm = [=](int i) {
+        assert(i >= 0 && i < 16);
+        return Ymm(i);
+    };
+
+    auto load_ymm = [=](int i) {
+        vmovups(src_ymm(i), EVEX_compress_addr(reg_src, i * src_stride));
+    };
+    
+    auto kmovw = [=](Opmask k, unsigned w) {
+        mov(regw_tmp, w);
+        jit_generator::kmovw(k, regw_tmp);
+    };
+
+    auto store = [=](Zmm r, int i) {
+        
+        auto padding = [=] (Reg64 reg, int pad) {
+            kmovw(kTail, (1 << pad) - 1);
+            auto k = kTail;
+            auto base = reg;
+            base.setOpmaskIdx(k.getIdx(), true);
+
+            auto zmm_zero = zmm_tmp;
+            vpxord(zmm_zero, zmm_zero, zmm_zero);
+            auto addr = EVEX_compress_addr(base, i * tr_src_stride);
+            vmovups(addr, zmm_zero);
+        };
+        
+        int store_tail = (nrows%2) ? nrows+1 : nrows;
+        
+        int store_pad = (l_pad%2) ? l_pad/2 + 1 : l_pad/2;
+        mov(reg_tr_src_tmp, reg_tr_src);
+        if (l_pad > 0) {
+            padding(reg_tr_src, store_pad);
+            add(reg_tr_src_tmp, l_pad * typesize);
+        }
+        if (r_pad > 0) {
+            store_pad = (r_pad%2) ? r_pad/2 + 1 : r_pad/2;
+            int addr_shift = (r_pad%2) ? 1 : 0;
+            add(reg_tr_src_tmp, (nrows - addr_shift) * typesize);
+            padding(reg_tr_src_tmp, store_pad);
+        }
+        
+        mov(reg_tr_src_tmp, reg_tr_src);
+        add(reg_tr_src_tmp, l_pad * typesize);
+        
+        kmovw(kTail, (1 << store_tail/2) - 1);
+        auto k = kTail;
+        auto base = reg_tr_src_tmp;
+        base.setOpmaskIdx(k.getIdx(), true);
+
+        auto addr = EVEX_compress_addr(base, i * tr_src_stride);
+        vmovups(addr, r);
+        
+    };
+    
+    kmovw(kFFFF, 0xffff);
+    //all loads
+    for (int i=0; i<16; i++){
+        vpxord(src_zmm(i), src_zmm(i), src_zmm(i));
+    }
+
+    for (int i = 0; i < nrows/2; i++) {
+        auto src0 = src_ymm(2*i);
+        auto src1 = src_ymm(2*i+1);
+        auto zmm_src0 = src_zmm(2*i);
+        load_ymm(2*i);
+
+        vpunpcklwd(src1, src0,
+            EVEX_compress_addr(reg_src, (2*i+1) * src_stride));
+        vpunpckhwd(src0, src0,
+            EVEX_compress_addr(reg_src, (2*i+1) * src_stride));
+        vinserti64x4(zmm_src0, zmm_src0, src1, 1);
+        vpermps(zmm_src0 | kFFFF, vidx4, zmm_src0);
+    }
+    
+    // for odd numbers we need to mix row with zeroes
+    if (nrows%2) {
+        int i = nrows-1;
+        auto src0 = src_ymm(i);
+        auto src1 = src_ymm(i+1); //zero
+        
+        auto zmm_src0 = src_zmm(i);
+        vpxor(src1, src1, src1);
+        
+        load_ymm(i);
+        vpunpckhwd(src0, src0, src1);
+        vinserti64x4(zmm_tmp, zmm_tmp, src0, 0);
+        vpxor(src0, src0, src0);
+        load_ymm(i);
+        vpunpcklwd(src1, src0, src1);
+        vinserti64x4(zmm_tmp, zmm_tmp, src1, 1);
+        vpxord(zmm_src0, zmm_src0, zmm_src0);
+        vmovups(zmm_src0, zmm_tmp);
+        vpermps(zmm_src0 | kFFFF, vidx4, zmm_src0);
+    }
+
+    // swap 1
+    for (int i=0; i<4; i++) {
+        auto zmm0 = src_zmm(4*i);
+        auto zmm1 = src_zmm(4*i+2);
+        auto tmp0 = src_zmm(4*i+1);
+        auto tmp1 = src_zmm(4*i+3);
+        
+        vmovups(tmp0, zmm0);
+        vmovups(tmp1, zmm1);
+        
+        vpermps(tmp0 | kAAAA, vidx3, zmm1);
+        vpermps(tmp1 | k5555, vidx3, zmm0);
+    }
+    // swap 2
+    int base_idx;
+    base_idx=0;
+    for (int i=0; i<2; i++) {
+        auto zmm0 = src_zmm(base_idx+2*i+1);
+        auto zmm1 = src_zmm(base_idx+2*i+5);
+        
+        auto tmp0 = src_zmm(base_idx+2*i);
+        auto tmp1 = src_zmm(base_idx+2*i+4);
+        
+        vmovupd(tmp0, zmm0);
+        vmovupd(tmp1, zmm1);
+        
+        vpermpd(tmp0 | kAA, vidx2, zmm1);
+        vpermpd(tmp1 | k55, vidx2, zmm0);
+    }
+    base_idx=8;
+    for (int i=0; i<2; i++) {
+        auto zmm0 = src_zmm(base_idx+2*i+1);
+        auto zmm1 = src_zmm(base_idx+2*i+5);
+        
+        auto tmp0 = src_zmm(base_idx+2*i);
+        auto tmp1 = src_zmm(base_idx+2*i+4);
+        
+        vmovupd(tmp0, zmm0);
+        vmovupd(tmp1, zmm1);
+        
+        vpermpd(tmp0 | kAA, vidx2, zmm1);
+        vpermpd(tmp1 | k55, vidx2, zmm0);
+    }
+    
+    // swap 3
+    for (int i=0; i<4; i++) {
+        auto zmm0 = src_zmm(2*i);
+        auto zmm1 = src_zmm(2*i+8);
+        
+        auto tmp0 = src_zmm(2*i+1);
+        auto tmp1 = src_zmm(2*i+9);
+        
+        vmovupd(tmp0, zmm0);
+        vmovupd(tmp1, zmm1);
+        
+        vpermpd(tmp0 | kCC, vidx1, zmm1);
+        vpermpd(tmp1 | k33, vidx1, zmm0);
+    }
+
+    // all stores
+    for (int i=0; i<8; i++)
+        vextracti64x4(src_ymm(2*i), src_zmm(2*i+1), 1);
+       
+    store(src_zmm(1), 0);
+    store(src_zmm(0), 1);
+    store(src_zmm(3), 2);
+    store(src_zmm(2), 3);
+    store(src_zmm(9), 4);
+    store(src_zmm(8), 5);
+    store(src_zmm(11), 6);
+    store(src_zmm(10), 7);
+    store(src_zmm(5), 8);
+    store(src_zmm(4), 9);
+    store(src_zmm(7), 10);
+    store(src_zmm(6), 11);
+    store(src_zmm(13), 12);
+    store(src_zmm(12), 13);
+    store(src_zmm(15), 14);
+    store(src_zmm(14), 15);
+
+}
+
+void jit_trans_iw_ic_int16_t::generate() {
+    preamble();
+
+    alignas(64) static constexpr const int64_t idx1[8]
+        = { 2, 3, 0, 1, 6, 7, 4, 5 };
+    alignas(64) static constexpr const int64_t idx2[8]
+        = { 1, 0, 3, 2, 5, 4, 7, 6 };
+    alignas(64) static constexpr const int32_t idx3[16]
+        = { 1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12, 15, 14 };
+    alignas(64) static constexpr const int32_t idx4[16]
+        = { 8, 10, 12, 14, 0, 2, 4, 6, 9, 11, 13, 15, 1, 3, 5, 7 };
+    alignas(64) static constexpr const int32_t idx5[16]
+        = { 8, 10, 12, 14, 0, 2, 4, 6, 9, 11, 13, 15, 1, 3, 5, 7 };
+    
+    const int ic_block = conf_->ic_block;
+    const int iw = conf_->iw;
+    const int tr_iw = conf_->tr_iw;
+    const int transposes = utils::div_up(iw, transpose_size);
+    int loop_iters = nstl::max(0, transposes - 1);
+    tail = iw - loop_iters * transpose_size;
+
+    src_stride = ic_block * typesize;
+    tr_src_stride = tr_iw * typesize;
+
+    bool nontemporal_stores = false;
+    enable_prefetch = iw > small_spatial ? 1 : 0;
+
+    assert(transpose_size == ic_block);
+    const int src_step = ic_block * transpose_size * typesize;
+    const int tr_src_step = ic_block * typesize;
+
+    const int left_pad = conf_->l_pad;
+    const int right_pad = tr_iw - iw - left_pad;
+    
+    mov(reg_src, ptr [param1 + GET_OFF(src)]);
+    mov(reg_tr_src, ptr [param1 + GET_OFF(tr_src)]);
+    mov(reg_src_prf, ptr [param1 + GET_OFF(src_prf)]);
+    mov(reg_tr_src_prf, ptr [param1 + GET_OFF(tr_src_prf)]);
+
+    auto kmovw = [=](Opmask k, unsigned w) {
+        mov(regw_tmp, w);
+        jit_generator::kmovw(k, regw_tmp);
+    };
+
+    kmovw(kFFFF, 0xffff);
+    kmovw(k5555, 0x5555);
+    kmovw(kAAAA, 0xaaaa);
+    kmovw(kAA, 0xaa);
+    kmovw(k55, 0x55);
+    kmovw(kCC, 0xcc);
+    kmovw(k33, 0x33);
+    
+    auto vmovdqa64 = [=](Zmm z, const int64_t *addr) {
+        mov(imm_addr64, reinterpret_cast<size_t>(addr));
+        jit_generator::vmovdqa64(z, ptr[imm_addr64]);
+    };
+
+    auto vmovdqa32 = [=](Zmm z, const int32_t *addr) {
+        mov(imm_addr64, reinterpret_cast<size_t>(addr));
+        jit_generator::vmovdqa32(z, ptr[imm_addr64]);
+    };
+    
+    vmovdqa64(vidx1, idx1);
+    vmovdqa64(vidx2, idx2);
+    vmovdqa32(vidx3, idx3);
+    vmovdqa32(vidx4, idx4);
+    vmovdqa32(vidx5, idx5);
+
+    if (left_pad > 0 && loop_iters > 0) {
+        loop_iters--;
+        transpose(transpose_size, left_pad, 0, nontemporal_stores);
+        add(reg_src, src_step);
+        add(reg_tr_src, tr_src_step + left_pad * typesize);
+        add(reg_src_prf, src_step);
+        add(reg_tr_src_prf, tr_src_step + left_pad * typesize);
+    }
+
+    if (loop_iters) {
+        mov(reg_loop, loop_iters);
+        L("loop"); {
+            transpose(transpose_size, 0, 0, nontemporal_stores);
+            add(reg_src, src_step);
+            add(reg_tr_src, tr_src_step);
+            add(reg_src_prf, src_step);
+            add(reg_tr_src_prf, tr_src_step);
+            sub(reg_loop, 1);
+            jnz("loop");
+        }
+    }
+    if (transposes > 1)
+        transpose(tail, 0, right_pad, nontemporal_stores);
+    else
+        transpose(tail, left_pad, right_pad, nontemporal_stores);
+
+    postamble();
+    
+}
+
+struct jit_trans_ow_oc_t: public jit_trans_dst_t, public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_trans_ow_oc_t)
+    jit_trans_ow_oc_t(const jit_conv_conf_t *conf): jit_trans_dst_t(conf) {
+        generate();
+        ker_ = (decltype(ker_))this->getCode();
+    }
+
+private:
+    using reg64_t = const Xbyak::Reg64;
+    using reg32_t = const Xbyak::Reg32;
+    using opmask_t = const Xbyak::Opmask;
+    using zmm = const Xbyak::Zmm;
+
+    enum { typesize = sizeof(int16_t), transpose_size = 16, small_spatial = 14 };
+    int src_stride, tr_src_stride;
+    int tail;
+    bool enable_prefetch;
+
+    opmask_t kFF = k1;
+    
+    zmm vidx1 = zmm31;
+
+    reg64_t reg_src = r8;
+    reg64_t reg_tr_src = r9;
+    reg64_t reg_src_prf = r10;
+    reg64_t reg_tr_src_prf = r11;
+    reg64_t reg_loop = r12;
+    reg64_t reg_tr_src_tmp = r13;
+    reg32_t regw_tmp = r14d;
+    reg64_t imm_addr64 = rbx;
+
+    void transpose(int nrows, int l_pad, int r_pad, bool nontemporal_stores);
+    void generate();
+};
+
+void jit_trans_ow_oc_t::transpose(int nrows, int l_pad, int r_pad,
+    bool nontemporal_stores) {
+    assert(nrows >= 0 && nrows <= transpose_size);
+    static_assert(transpose_size == 16, "Unsupported transpose size");
+    if (!nrows)
+        return;
+
+    auto src_zmm = [=](int i) {
+        return Zmm(i);
+    };
+
+    auto src_ymm = [=](int i) {
+        assert(i >= 0 && i < 16);
+        return Ymm(i);
+    };
+
+    auto load_ymm = [=](int i) {
+        vmovups(src_ymm(i), EVEX_compress_addr(reg_src, i * src_stride));
+    };
+    
+
+    auto store = [=](Zmm r, int i) {
+        auto addr = EVEX_compress_addr(reg_tr_src, i * tr_src_stride);
+        if (nontemporal_stores)
+            vmovntps(addr, r);
+        else
+            vmovups(addr, r);
+    };
+    
+    for (int i = 0; i < nrows/2; i++) {
+        auto src0 = src_ymm(2*i);
+        auto src1 = src_ymm(2*i+1);
+        auto zmm_src0 = src_zmm(2*i);
+        load_ymm(2*i);
+        vpunpcklwd(src1, src0,
+            EVEX_compress_addr(reg_src, (2*i+1) * src_stride));
+        vpunpckhwd(src0, src0,
+            EVEX_compress_addr(reg_src, (2*i+1) * src_stride));
+        vinserti64x4(zmm_src0, zmm_src0, src1, 1);
+        vpermpd(zmm_src0 | kFF, vidx1, zmm_src0);
+        store(zmm_src0, 2*i);
+    }
+    if (r_pad > 0) {
+        auto src0 = src_ymm(nrows-1);
+        auto src1 = src_ymm(nrows);
+        auto zmm_src0 = src_zmm(30);
+        load_ymm(nrows-1);
+            
+        vpxor(src1, src1, src1);
+        vpunpckhwd(src1, src0, src1);
+        vinserti64x4(zmm_src0, zmm_src0, src1, 0);
+        vpxor(src1, src1, src1);
+        vpunpcklwd(src0, src0, src1);
+        vinserti64x4(zmm_src0, zmm_src0, src0, 1);
+        vpermpd(zmm_src0 | kFF, vidx1, zmm_src0);
+        store(zmm_src0, nrows-1);
+    }
+}
+
+void jit_trans_ow_oc_t::generate() {
+    preamble();
+
+    alignas(64) static constexpr const int64_t idx1[8]
+          = { 4, 5, 0, 1, 6, 7, 2, 3 };
+    
+    const int oc_block = conf_->oc_block;
+    const int ow = conf_->ow;
+    const int transposes = utils::div_up(ow, transpose_size);
+    int loop_iters = nstl::max(0, transposes - 1);
+    tail = ow - loop_iters * transpose_size;
+
+    src_stride = oc_block * typesize;
+    tr_src_stride = oc_block * typesize;
+    
+    bool nontemporal_stores = false;
+    enable_prefetch = ow > small_spatial ? 1 : 0;
+
+    const int src_step = oc_block * transpose_size * typesize;
+    const int tr_src_step = oc_block * transpose_size * typesize;
+    const int right_pad = ow % 2;
+
+    mov(reg_src, ptr [param1 + GET_OFF(src)]);
+    mov(reg_tr_src, ptr [param1 + GET_OFF(tr_src)]);
+    mov(reg_src_prf, ptr [param1 + GET_OFF(src_prf)]);
+    mov(reg_tr_src_prf, ptr [param1 + GET_OFF(tr_src_prf)]);
+
+    auto kmovw = [=](Opmask k, unsigned w) {
+        mov(regw_tmp, w);
+        jit_generator::kmovw(k, regw_tmp);
+    };
+
+    kmovw(kFF, 0xFF);
+
+    auto vmovdqa64 = [=](Zmm z, const int64_t *addr) {
+        mov(imm_addr64, reinterpret_cast<size_t>(addr));
+        jit_generator::vmovdqa64(z, ptr[imm_addr64]);
+    };
+    
+    vmovdqa64(vidx1, idx1);
+    if (loop_iters) {
+        mov(reg_loop, loop_iters);
+        L("loop"); {
+            transpose(transpose_size, 0, 0, nontemporal_stores);
+            add(reg_src, src_step);
+            add(reg_tr_src, tr_src_step);
+            add(reg_src_prf, src_step);
+            add(reg_tr_src_prf, tr_src_step);
+            sub(reg_loop, 1);
+            jnz("loop");
+        }
+    }   
+    transpose(tail, 0, right_pad, nontemporal_stores);
 
     postamble();
 }
@@ -682,12 +1174,20 @@ void jit_transpose4x16_src::generate()
 jit_trans_src_t *create_trans_src(const jit_conv_conf_t *conf) {
     if (conf->ver == ver_4fma && !conf->is_1stconv)
         return new jit_trans_iw_ic_t(conf);
+    if ((conf->ver == ver_4vnni || conf->ver == ver_vnni) && !conf->is_1stconv)
+        return new jit_trans_iw_ic_int16_t(conf);
     if (conf->ver == ver_4fma && conf->is_1stconv)
         return new jit_trans_iw_x4_4x_t(conf);
     assert(!"unsupported configuration");
     return nullptr;
 }
 
+jit_trans_dst_t *create_trans_dst(const jit_conv_conf_t *conf) {
+    if (conf->ver == ver_4vnni || conf->ver == ver_vnni)
+        return new jit_trans_ow_oc_t(conf);
+    assert(!"unsupported configuration");
+    return nullptr;
+}
 }
 }
 }

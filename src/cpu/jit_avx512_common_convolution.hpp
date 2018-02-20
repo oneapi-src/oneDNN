@@ -199,6 +199,9 @@ private:
     jit_avx512_common_conv_bwd_data_kernel_f32 *kernel_;
 };
 
+template <impl::data_type_t src_type,
+          impl::data_type_t diff_dst_type = src_type,
+          impl::data_type_t diff_weights_type = src_type>
 struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
     struct pd_t: public  cpu_convolution_bwd_weights_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
@@ -216,10 +219,10 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
             bool ok = true
                 && this->desc()->prop_kind == prop_kind::backward_weights
                 && this->desc()->alg_kind == alg_kind::convolution_direct
-                && utils::everyone_is(data_type::f32,
-                        this->desc()->src_desc.data_type,
-                        this->desc()->diff_dst_desc.data_type,
-                        this->desc()->diff_weights_desc.data_type);
+                && this->desc()->src_desc.data_type == src_type
+                && this->desc()->diff_dst_desc.data_type == diff_dst_type
+                && this->desc()->diff_weights_desc.data_type
+                    == diff_weights_type;
             if (!ok) return status::unimplemented;
 
             return jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
@@ -228,6 +231,22 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
         }
 
         jit_conv_conf_t jcp_;
+
+        protected:
+            virtual status_t set_default_params() override {
+                using namespace memory_format;
+
+                if (this->src_pd_.desc()->format == any)
+                    CHECK(this->src_pd_.set_format(nChw16c));
+                if (this->diff_weights_pd_.desc()->format == any)
+                    CHECK(this->diff_weights_pd_.set_format(this->with_groups()
+                    ? gOIhw16o16i : OIhw16o16i)); // gOIhw8o16i2o : OIhw8o16i2o
+                if (this->diff_dst_pd_.desc()->format == any)
+                    CHECK(this->diff_dst_pd_.set_format(nChw16c));
+
+                return status::success;
+            }
+
     };
 
     jit_avx512_common_convolution_bwd_weights_t(const pd_t *pd,
@@ -244,9 +263,12 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
         free(ws_reduction_);
 
         free(tr_src_bctx_);
+        free(tr_diff_dst_bctx_);
     }
 
-    typedef typename prec_traits<data_type::f32>::type data_t;
+    typedef typename prec_traits<src_type>::type src_data_t;
+    typedef typename prec_traits<diff_dst_type>::type diff_dst_data_t;
+    typedef typename prec_traits<diff_weights_type>::type diff_weights_data_t;
 
     virtual void execute(event_t *e) {
         execute_backward_weights();
@@ -266,14 +288,16 @@ private:
 
     jit_avx512_common_conv_bwd_weights_kernel_f32 *kernel_;
     jit_trans_src_t *trans_kernel_;
-    cpu_accumulator_1d_t<data_type::f32> *acc_ker_;
-    cpu_reducer_t<data_type::f32> *reducer_bias_;
+    jit_trans_dst_t *trans_dst_kernel_;
+    cpu_accumulator_1d_t<diff_weights_type> *acc_ker_;
+    cpu_reducer_t<diff_weights_type> *reducer_bias_;
 
-    data_t *tr_src_;
-    data_t *ws_reduction_;
+    src_data_t *tr_src_;
+    diff_dst_data_t *tr_diff_dst_;
+    diff_weights_data_t *ws_reduction_;
 
     int nthr_, nthr_mb_, nthr_g_, nthr_oc_b_, nthr_ic_b_;
-    simple_barrier::ctx_t *tr_src_bctx_, reduction_bctx_;
+    simple_barrier::ctx_t *tr_src_bctx_, *tr_diff_dst_bctx_, reduction_bctx_;
 };
 
 }

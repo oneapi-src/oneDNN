@@ -364,6 +364,10 @@ private:
             int pad_l, int pad_r, int ic_block_step,
             int input_offset, int kernel_offset, int output_offset,
             bool input_wraparound);
+    inline void compute_ic_block_step_vnni(int ur_w,
+            int pad_l, int pad_r, int ic_block_step,
+            int input_offset, int kernel_offset, int output_offset,
+            bool input_wraparound);
     inline void compute_oh_step_common(int ic_block_step, int max_ur_w);
     inline void compute_oh_step_disp();
     inline void compute_oh_loop_common();
