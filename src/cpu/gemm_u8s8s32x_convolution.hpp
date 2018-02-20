@@ -23,12 +23,7 @@
 #include "jit_primitive_conf.hpp"
 #include "gemm_convolution_utils.hpp"
 
-#ifdef USE_MKL
-#include "mkl_version.h"
-#if (INTEL_MKL_VERSION >= 20180000 && __INTEL_MKL_BUILD_DATE >= 20170628)
-#define USE_IGEMM
-#endif
-#endif
+#include "os_blas.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -53,7 +48,7 @@ struct _gemm_u8s8s32x_convolution_fwd_t: public cpu_primitive_t {
             assert(this->engine()->kind() == engine_kind::cpu);
 
             bool ok = true
-#if !defined(USE_IGEMM)
+#if !USE_MKL_IGEMM
                 && false
 #endif
                 && this->set_default_params() == status::success

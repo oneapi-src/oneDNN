@@ -22,7 +22,6 @@
 #include "mkldnn_thread.hpp"
 #include "math_utils.hpp"
 
-#include "os_blas.hpp"
 #include "simple_q10n.hpp"
 
 #include "gemm_u8s8s32x_convolution.hpp"
@@ -36,7 +35,7 @@ using namespace mkldnn::impl::math;
 
 template <bool with_relu, data_type_t dst_type>
 void _gemm_u8s8s32x_convolution_fwd_t<with_relu, dst_type>::execute_forward() {
-#if defined(USE_IGEMM)
+#if USE_MKL_IGEMM
     auto src_base = reinterpret_cast<const src_data_t *>(this->input_memory(0));
     auto wei_base = reinterpret_cast<const wei_data_t *>(this->input_memory(1));
     auto bia_base = reinterpret_cast<const char *>(this->input_memory(2));

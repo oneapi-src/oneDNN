@@ -30,6 +30,11 @@
 
 #if defined(USE_MKL)
 
+#include "mkl_version.h"
+
+#define USE_MKL_IGEMM \
+    (INTEL_MKL_VERSION >= 20180000 && __INTEL_MKL_BUILD_DATE >= 20170628)
+
 #include "mkl_cblas.h"
 #if !defined(USE_CBLAS)
 #define cblas_sgemm(...) assert(!"CBLAS is unavailable")
