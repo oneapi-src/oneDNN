@@ -18,12 +18,12 @@
 #define MKLDNN_HPP
 
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
-#include <assert.h>
 #include <stdlib.h>
 #include <memory>
 #include <vector>
 #include <algorithm>
 #include <iterator>
+#include <string>
 
 #include "mkldnn.h"
 #endif
