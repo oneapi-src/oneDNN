@@ -29,7 +29,7 @@ inline int omp_in_parallel() { return 0; }
 #endif
 
 /* VisualStudio still support omp 2.0 */
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
 #define collapse(x)
 #endif
 
