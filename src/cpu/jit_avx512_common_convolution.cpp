@@ -821,7 +821,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
 
             if (img == img_start)
                 for (int o = 0; o < 16; ++o)
-                    d_bias[o] = 0.;
+                    d_bias[o] = 0;
             for (int hw = 0; hw < jcp.oh * jcp.ow; ++hw) {
 #               pragma omp simd
                 for (int o = 0; o < 16; ++o)
