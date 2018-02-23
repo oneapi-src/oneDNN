@@ -78,8 +78,7 @@ To collect performance data of JIT-kernels set `VTUNEROOT` environment variable
 to path to VTune before building of Intel MKL-DNN. For example:
 
 ```
-    $ export VTUNEROOT=/path/to/vtune
-    $ mkdir -p build && cd build && cmake .. && make
+    $ mkdir -p build && cd build && cmake -DVTUNEROOT=/path/to/vtune .. && make
 ```
 
 ## Dump JIT-kernels
