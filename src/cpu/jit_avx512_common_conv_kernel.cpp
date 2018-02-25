@@ -3578,7 +3578,7 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
             && diff_dst_d.data_type() == data_type::s16))) {
             if (mayiuse(avx512_core_vnni)) jcp.ver = ver_vnni;
             else jcp.ver = ver_4vnni;
-        } else if (mayiuse(avx512_mic)
+        } else if ((mayiuse(avx512_mic) || mayiuse(avx512_core))
                 && utils::everyone_is(data_type::f32,
                     src_d.data_type(), diff_weights_d.data_type(),
                     diff_dst_d.data_type())) {
