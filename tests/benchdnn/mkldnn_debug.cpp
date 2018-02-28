@@ -88,9 +88,11 @@ const char *fmt2str(mkldnn_memory_format_t fmt) {
     CASE(x);
     CASE(nc);
     CASE(nchw);
+    CASE(ncdhw);
     CASE(nhwc);
     CASE(nChw8c);
     CASE(nChw16c);
+    CASE(oidhw);
     CASE(oihw);
     CASE(hwio);
 #undef CASE
@@ -107,9 +109,11 @@ mkldnn_memory_format_t str2fmt(const char *str) {
     CASE(x);
     CASE(nc);
     CASE(nchw);
+    CASE(ncdhw);
     CASE(nhwc);
     CASE(nChw8c);
     CASE(nChw16c);
+    CASE(oidhw);
     CASE(oihw);
     CASE(hwio);
 #undef CASE

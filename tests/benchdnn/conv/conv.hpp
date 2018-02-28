@@ -38,12 +38,12 @@ const char *merge2str(merge_t merge);
 
 struct desc_t {
     int g, mb;
-    int ic, ih, iw;
-    int oc, oh, ow;
-    int kh, kw;
-    int sh, sw;
-    int ph, pw;
-    int dh, dw;
+    int ic, id, ih, iw;
+    int oc, od, oh, ow;
+    int kd, kh, kw;
+    int sd, sh, sw;
+    int pd, ph, pw;
+    int dd, dh, dw;
 
     const char *name;
 };
@@ -124,32 +124,36 @@ extern const char *skip_impl; /* NULL or "" means do not skip anything */
 extern bool allow_unimpl; /* true means do not treat unimplemented as error */
 extern const char *perf_template; /* performance output template */
 
-inline size_t src_off_f(const prb_t *p, int mb, int g, int ic, int ih, int iw)
+inline size_t src_off_f(const prb_t *p, int mb, int g, int ic,
+                        int id, int ih, int iw)
 {
-    return (((size_t)mb * p->ic + g * p->ic/p->g + ic) * p->ih + ih) * p->iw
-        + iw;
+    return ((((size_t)mb * p->ic + g * p->ic/p->g + ic)
+        * p->id + id) * p->ih + ih) * p->iw + iw;
 }
 
 inline void inv_src_off_f(const prb_t *p, size_t off, int &mb, int &g, int &ic,
-        int &ih, int &iw) {
+        int &id, int &ih, int &iw) {
     iw = off % p->iw; off /= p->iw;
     ih = off % p->ih; off /= p->ih;
+    id = off % p->id; off /= p->id;
     ic = off % (p->ic / p->g); off /= (p->ic / p->g);
     g = off % p->g; off /= p->g;
     mb = off % p->mb; off /= p->mb;
     assert(off == 0);
 }
 
-inline size_t wei_off_f(const prb_t *p, int g, int oc, int ic, int kh, int kw)
+inline size_t wei_off_f(const prb_t *p, int g, int oc, int ic,
+                        int kd, int kh, int kw)
 {
-    return ((((size_t)g * p->oc / p->g + oc) * p->ic / p->g + ic) * p->kh + kh)
-        * p->kw + kw;
+    return (((((size_t)g * p->oc / p->g + oc) * p->ic / p->g + ic)
+        * p->kd + kd) * p->kh + kh) * p->kw + kw;
 }
 
 inline void inv_wei_off_f(const prb_t *p, size_t off, int &g, int &oc, int &ic,
-        int &kh, int &kw) {
+        int &kd, int &kh, int &kw) {
     kw = off % p->kw; off /= p->kw;
     kh = off % p->kh; off /= p->kh;
+    kd = off % p->kd; off /= p->kd;
     ic = off % (p->ic / p->g); off /= (p->ic / p->g);
     oc = off % (p->oc / p->g); off /= (p->oc / p->g);
     g = off % p->g; off /= p->g;
@@ -166,16 +170,18 @@ inline void inv_bia_off_f(const prb_t *p, size_t off, int &g, int &oc) {
     assert(off == 0);
 }
 
-inline size_t dst_off_f(const prb_t *p, int mb, int g, int oc, int oh, int ow)
+inline size_t dst_off_f(const prb_t *p, int mb, int g, int oc,
+                        int od, int oh, int ow)
 {
-    return (((size_t)mb * p->oc + g * p->oc/p->g + oc) * p->oh + oh) * p->ow
-        + ow;
+    return ((((size_t)mb * p->oc + g * p->oc/p->g + oc) * p->od + od)
+        * p->oh + oh) * p->ow + ow;
 }
 
 inline void inv_dst_off_f(const prb_t *p, size_t off, int &mb, int &g, int &oc,
-        int &oh, int &ow) {
+        int &od, int &oh, int &ow) {
     ow = off % p->ow; off /= p->ow;
     oh = off % p->oh; off /= p->oh;
+    od = off % p->od; off /= p->od;
     oc = off % (p->oc / p->g); off /= (p->oc / p->g);
     g = off % p->g; off /= p->g;
     mb = off % p->mb; off /= p->mb;

@@ -15,24 +15,28 @@
 *******************************************************************************/
 
 #include "conv/conv.hpp"
-
 namespace conv {
 
 void compute_ref_fwd(const prb_t *p, dnn_mem_t &src_m,
         dnn_mem_t &wei_m, dnn_mem_t &bia_m, dnn_mem_t &dst_m) {
-    auto ker = [&](float &d, int g, int mb, int oc, int oh, int ow) {
+    auto ker = [&](float &d, int g, int mb, int oc, int od, int oh, int ow) {
         for (int ic = 0; ic < p->ic/p->g; ++ic) {
-            for (int kh = 0; kh < p->kh; ++kh) {
-                const int ih = oh * p->sh - p->ph + kh * (p->dh + 1);
-                if (ih < 0 || ih >= p->ih) continue;
+            for (int kd = 0; kd < p->kd; ++kd) {
+                const int id = od * p->sd - p->pd + kd * (p->dd + 1);
+                if (id < 0 || id >= p->id) continue;
+                for (int kh = 0; kh < p->kh; ++kh) {
+                    const int ih = oh * p->sh - p->ph + kh * (p->dh + 1);
+                    if (ih < 0 || ih >= p->ih) continue;
 
-                for (int kw = 0; kw < p->kw; ++kw) {
-                    const int iw = ow * p->sw - p->pw + kw * (p->dw + 1);
-                    if (iw < 0 || iw >= p->iw) continue;
+                    for (int kw = 0; kw < p->kw; ++kw) {
+                        const int iw = ow * p->sw - p->pw + kw * (p->dw + 1);
+                        if (iw < 0 || iw >= p->iw) continue;
 
-                    size_t src_off = src_off_f(p, mb, g, ic, ih, iw);
-                    size_t wei_off = wei_off_f(p, g, oc, ic, kh, kw);
-                    d += ((float*)src_m)[src_off] * ((float*)wei_m)[wei_off];
+                        size_t src_off = src_off_f(p, mb, g, ic, id, ih, iw);
+                        size_t wei_off = wei_off_f(p, g, oc, ic, kd, kh, kw);
+                        d += ((float*)src_m)[src_off]
+                            * ((float*)wei_m)[wei_off];
+                    }
                 }
             }
         }
@@ -67,18 +71,18 @@ void compute_ref_fwd(const prb_t *p, dnn_mem_t &src_m,
             }
         }
     };
-
 #   pragma omp parallel for collapse(5)
     for (int g = 0; g < p->g; ++g) {
     for (int mb = 0; mb < p->mb; ++mb) {
         for (int oc = 0; oc < p->oc/p->g; ++oc) {
+        for (int od = 0; od < p->od; ++od) {
         for (int oh = 0; oh < p->oh; ++oh) {
         for (int ow = 0; ow < p->ow; ++ow) {
-            const size_t dst_off = dst_off_f(p, mb, g, oc, oh, ow);
+            const size_t dst_off = dst_off_f(p, mb, g, oc, od, oh, ow);
             float &dst = ((float*)dst_m)[dst_off];
 
             float conv_res = 0;
-            ker(conv_res, g, mb, oc, oh, ow);
+            ker(conv_res, g, mb, oc, od, oh, ow);
 
             if (p->dir & FLAG_BIA) {
                 const size_t bia_off = bia_off_f(p, g, oc);
@@ -92,6 +96,7 @@ void compute_ref_fwd(const prb_t *p, dnn_mem_t &src_m,
             maybe_post_ops(conv_res, dst);
 
             dst = conv_res;
+        }
         }
         }
         }
@@ -120,61 +125,73 @@ void compute_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
         }
     };
 
-    auto ker_fast = [&](float &ds, int g, int mb, int ic, int ih, int iw) {
+    auto ker_fast = [&](float &ds, int g, int mb, int ic, int id, int ih, int iw) {
+        int kd[precompute_size], od[precompute_size], num_d;
         int kh[precompute_size], oh[precompute_size], num_h;
         int kw[precompute_size], ow[precompute_size], num_w;
+        precompute_ok(id, p->od, p->kd, p->sd, p->pd, p->dd, num_d, od, kd);
         precompute_ok(ih, p->oh, p->kh, p->sh, p->ph, p->dh, num_h, oh, kh);
         precompute_ok(iw, p->ow, p->kw, p->sw, p->pw, p->dw, num_w, ow, kw);
 
         for (int oc = 0; oc < p->oc/p->g; ++oc) {
-            for (int h = 0; h < num_h; ++h) {
-                for (int w = 0; w < num_w; ++w) {
+            for (int d = 0; d < num_d; ++d) {
+                for (int h = 0; h < num_h; ++h) {
+                    for (int w = 0; w < num_w; ++w) {
 
-                    size_t dst_off = dst_off_f(p, mb, g, oc, oh[h], ow[w]);
-                    size_t wei_off = wei_off_f(p, g, oc, ic, kh[h], kw[w]);
-                    ds += ((float*)diff_dst_m)[dst_off]
+                        size_t dst_off = dst_off_f(p, mb, g, oc, od[d], oh[h], ow[w]);
+                        size_t wei_off = wei_off_f(p, g, oc, ic, kd[d], kh[h], kw[w]);
+                        ds += ((float*)diff_dst_m)[dst_off]
                         * ((float*)wei_m)[wei_off];
+                    }
                 }
             }
         }
     };
 
-    auto ker = [&](float &ds, int g, int mb, int ic, int ih, int iw) {
+    auto ker = [&](float &ds, int g, int mb, int ic, int id, int ih, int iw) {
         for (int oc = 0; oc < p->oc/p->g; ++oc) {
-            for (int kh = 0; kh < p->kh; ++kh) {
-                int oh = ih - kh * (p->dh + 1) + p->ph;
-                if (oh < 0 || oh % p->sh) continue;
-                oh /= p->sh;
-                if (oh >= p->oh) continue;
+            for (int kd = 0; kd < p->kd; ++kd) {
+                int od = id - kd * (p->dd + 1) + p->pd;
+                if (od < 0 || od % p->sd) continue;
+                od /= p->sd;
+                if (od >= p->od) continue;
+                for (int kh = 0; kh < p->kh; ++kh) {
+                    int oh = ih - kh * (p->dh + 1) + p->ph;
+                    if (oh < 0 || oh % p->sh) continue;
+                    oh /= p->sh;
+                    if (oh >= p->oh) continue;
 
-                for (int kw = 0; kw < p->kw; ++kw) {
-                    int ow = iw - kw * (p->dw + 1) + p->pw;
-                    if (ow < 0 || ow % p->sw) continue;
-                    ow /= p->sw;
-                    if (ow >= p->ow) continue;
+                    for (int kw = 0; kw < p->kw; ++kw) {
+                        int ow = iw - kw * (p->dw + 1) + p->pw;
+                        if (ow < 0 || ow % p->sw) continue;
+                        ow /= p->sw;
+                        if (ow >= p->ow) continue;
 
-                    size_t dst_off = dst_off_f(p, mb, g, oc, oh, ow);
-                    size_t wei_off = wei_off_f(p, g, oc, ic, kh, kw);
-                    ds += ((float*)diff_dst_m)[dst_off]
+                        size_t dst_off = dst_off_f(p, mb, g, oc, od, oh, ow);
+                        size_t wei_off = wei_off_f(p, g, oc, ic, kd, kh, kw);
+                        ds += ((float*)diff_dst_m)[dst_off]
                         * ((float*)wei_m)[wei_off];
+                    }
                 }
             }
         }
     };
 
-#   pragma omp parallel for collapse(5)
+#   pragma omp parallel for collapse(6)
     for (int g = 0; g < p->g; ++g) {
     for (int mb = 0; mb < p->mb; ++mb) {
         for (int ic = 0; ic < p->ic/p->g; ++ic) {
+        for (int id = 0; id < p->id; ++id) {
         for (int ih = 0; ih < p->ih; ++ih) {
         for (int iw = 0; iw < p->iw; ++iw) {
-            size_t src_off = src_off_f(p, mb, g, ic, ih, iw);
+            size_t src_off = src_off_f(p, mb, g, ic, id, ih, iw);
             float &ds = ((float*)diff_src_m)[src_off];
             ds = 0;
             if (fast)
-                ker_fast(ds, g, mb, ic, ih, iw);
+                ker_fast(ds, g, mb, ic, id, ih, iw);
             else
-                ker(ds, g, mb, ic, ih, iw);
+                ker(ds, g, mb, ic, id, ih, iw);
+        }
         }
         }
         }
@@ -191,36 +208,42 @@ void compute_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m,
         o_e = MIN2(O, ceilf((I + tmp) / S));
     };
 
-    auto ker = [&](float &dw, int g, int oc, int ic, int kh, int kw) {
-        int oh_s, oh_e, ow_s, ow_e;
+    auto ker = [&](float &dw, int g, int oc, int ic, int kd, int kh, int kw) {
+        int od_s, od_e, oh_s, oh_e, ow_s, ow_e;
+        compute_bounds(p->id, p->od, kd, p->sd, p->pd, p->dd, od_s, od_e);
         compute_bounds(p->ih, p->oh, kh, p->sh, p->ph, p->dh, oh_s, oh_e);
         compute_bounds(p->iw, p->ow, kw, p->sw, p->pw, p->dw, ow_s, ow_e);
 
         for (int mb = 0; mb < p->mb; ++mb) {
+            for (int od = od_s; od < od_e; ++od) {
             for (int oh = oh_s; oh < oh_e; ++oh) {
             for (int ow = ow_s; ow < ow_e; ++ow) {
+                const int id = od * p->sd - p->pd + kd * (p->dd + 1);
                 const int ih = oh * p->sh - p->ph + kh * (p->dh + 1);
                 const int iw = ow * p->sw - p->pw + kw * (p->dw + 1);
 
-                size_t src_off = src_off_f(p, mb, g, ic, ih, iw);
-                size_t dst_off = dst_off_f(p, mb, g, oc, oh, ow);
+                size_t src_off = src_off_f(p, mb, g, ic, id, ih, iw);
+                size_t dst_off = dst_off_f(p, mb, g, oc, od, oh, ow);
                 dw += ((float*)diff_dst_m)[dst_off]
                     * ((float*)src_m)[src_off];
+            }
             }
             }
         }
     };
 
-#   pragma omp parallel for collapse(5)
+#   pragma omp parallel for collapse(6)
     for (int g = 0; g < p->g; ++g) {
         for (int oc = 0; oc < p->oc/p->g; ++oc) {
         for (int ic = 0; ic < p->ic/p->g; ++ic) {
+            for (int kd = 0; kd < p->kd; ++kd) {
             for (int kh = 0; kh < p->kh; ++kh) {
             for (int kw = 0; kw < p->kw; ++kw) {
-                size_t wei_off = wei_off_f(p, g, oc, ic, kh, kw);
+                size_t wei_off = wei_off_f(p, g, oc, ic, kd, kh, kw);
                 float &dw = ((float*)diff_wei_m)[wei_off];
                 dw = 0;
-                ker(dw, g, oc, ic, kh, kw);
+                ker(dw, g, oc, ic, kd, kh, kw);
+            }
             }
             }
         }
@@ -237,10 +260,12 @@ void compute_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m,
             db = 0;
 
             for (int mb = 0; mb < p->mb; ++mb) {
+                for (int od = 0; od < p->od; ++od) {
                 for (int oh = 0; oh < p->oh; ++oh) {
                 for (int ow = 0; ow < p->ow; ++ow) {
-                    size_t dst_off = dst_off_f(p, mb, g, oc, oh, ow);
+                    size_t dst_off = dst_off_f(p, mb, g, oc, od, oh, ow);
                     db += ((float*)diff_dst_m)[dst_off];
+                }
                 }
                 }
             }

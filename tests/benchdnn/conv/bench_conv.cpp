@@ -27,8 +27,6 @@
 
 #include "conv/conv.hpp"
 
-#include "conv/input_conv.hpp"
-
 namespace conv {
 
 /* global driver parameters */
@@ -119,14 +117,6 @@ int bench(int argc, char **argv, bool main_bench) {
             }
             check_correctness(&c);
         }
-    }
-
-    /* deprecated? */
-    if (main_bench && benchdnn_stat.tests == 0) {
-        /* use default list of problems */
-        int N = sizeof(default_list) / sizeof(default_list[0]);
-        for (int n = 0; n < N; ++n)
-            check_correctness(&default_list[n]);
     }
 
     return OK;

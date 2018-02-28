@@ -120,6 +120,27 @@ status_t fill_nchw(memory_desc_t &md) {
     return fill_nonblocked(md, perm);
 }
 
+status_t fill_ncdhw(memory_desc_t &md) {
+    if (md.ndims != 5) return invalid_arguments;
+
+    const int perm[5] = {0, 1, 2, 3, 4};
+    return fill_nonblocked(md, perm);
+}
+
+status_t fill_oidhw(memory_desc_t &md) {
+    if (md.ndims != 5) return invalid_arguments;
+
+    const int perm[5] = {0, 1, 2, 3, 4};
+    return fill_nonblocked(md, perm);
+}
+
+status_t fill_goidhw(memory_desc_t &md) {
+    if (md.ndims != 6) return invalid_arguments;
+
+    const int perm[6] = {0, 1, 2, 3, 4, 5};
+    return fill_nonblocked(md, perm);
+}
+
 status_t fill_nhwc(memory_desc_t &md) {
     if (md.ndims != 4) return invalid_arguments;
 
@@ -520,6 +541,9 @@ status_t memory_desc_wrapper::compute_blocking(memory_desc_t &memory_desc)
     case gOhwi16o: return fill_gOhwi16o(memory_desc);
     case Goihw8g: return fill_Goihw8g(memory_desc);
     case gOhIw16o4i: return fill_gOhIw16o4i(memory_desc);
+    case ncdhw: return fill_ncdhw(memory_desc);
+    case oidhw: return fill_oidhw(memory_desc);
+    case goidhw: return fill_goidhw(memory_desc);
     default: break;
     }
 

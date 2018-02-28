@@ -1,3 +1,4 @@
+--batch=conv_3d_unet
 --batch=conv_alexnet
 --batch=conv_vgg_19
 --batch=conv_resnet_50

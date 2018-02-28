@@ -245,6 +245,13 @@ typedef enum {
     /** 5D weights tensor in the @c goihw format with both input and output
      * channels data laid out in memory in 16-element and 4-element blocks. */
     mkldnn_gOhIw16o4i,
+    /** 5D data tensor in the @c ncdhw format. */
+    mkldnn_ncdhw,
+    /** 5D weight tensor in the @c oidhw format. */
+    mkldnn_oidhw,
+    /** 6D weight tensor in the @c goidhw format with extra dimension for
+     * groups */
+    mkldnn_goidhw,
     /** 4D weights tensor in the oihw format with input channels data laid out
      * in memory in 8-element blocks. */
     mkldnn_oIhw8i = mkldnn_nChw8c,

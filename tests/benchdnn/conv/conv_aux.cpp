@@ -78,7 +78,7 @@ int str2desc(desc_t *desc, const char *str) {
      *  - if padding is undefined => compute trivial padding
      */
 
-    d.g = 1; d.mb = 2; d.sh = d.sw = 1; d.dh = d.dw = 0; d.name = "\"wip\"";
+    d.g = 1; d.mb = 2; d.sd = d.sh = d.sw = 1; d.dd = d.dh = d.dw = 0; d.name = "\"wip\"";
 
     const char *s = str;
     assert(s);
@@ -94,12 +94,12 @@ int str2desc(desc_t *desc, const char *str) {
     while (*s) {
         int ok = 0;
         CASE_N(g); CASE_N(mb);
-        CASE_N(ic); CASE_N(ih); CASE_N(iw);
-        CASE_N(oc); CASE_N(oh); CASE_N(ow);
-        CASE_N(kh); CASE_N(kw);
-        CASE_N(sh); CASE_N(sw);
-        CASE_N(ph); CASE_N(pw);
-        CASE_N(dh); CASE_N(dw);
+        CASE_N(ic); CASE_N(id); CASE_N(ih); CASE_N(iw);
+        CASE_N(oc); CASE_N(od); CASE_N(oh); CASE_N(ow);
+        CASE_N(kd); CASE_N(kh); CASE_N(kw);
+        CASE_N(sd); CASE_N(sh); CASE_N(sw);
+        CASE_N(pd); CASE_N(ph); CASE_N(pw);
+        CASE_N(dd); CASE_N(dh); CASE_N(dw);
         if (*s == 'n') { d.name = s + 1; break; }
         if (*s == '_') ++s;
         if (!ok) return FAIL;
@@ -117,6 +117,7 @@ int str2desc(desc_t *desc, const char *str) {
         return ((o - 1) * s - i + ((k - 1) * (d + 1) + 1)) / 2;
     };
 
+    const bool no_d = (d.id | d.kd | d.od | d.pd | d.dd) == 0 && d.sd == 1;
     const bool no_h = (d.ih | d.kh | d.oh | d.ph | d.dh) == 0 && d.sh == 1;
     const bool no_w = (d.iw | d.kw | d.ow | d.pw | d.dw) == 0 && d.sw == 1;
 
@@ -136,7 +137,22 @@ int str2desc(desc_t *desc, const char *str) {
             d.pw = compute_pad(d.ow, d.iw, d.kw, d.pw, d.dw);
     }
 
-    if (no_w) {
+    if (!no_d && d.id) {
+        if (!d.id || !d.kd) return FAIL;
+
+        if (!d.od) d.od = compute_out(d.id, d.kd, d.sd, d.pd, d.dd);
+        else if (!d.pd && d.od != compute_out(d.id, d.kd, d.sd, d.pd, d.dd))
+            d.pd = compute_pad(d.od, d.id, d.kd, d.pd, d.dd);
+    }
+
+    if (no_w && no_h && d.id) {
+        d.iw = d.ih = d.id;
+        d.kw = d.kh = d.kd;
+        d.ow = d.oh = d.od;
+        d.pw = d.ph = d.pd;
+        d.sw = d.sh = d.sd;
+        d.dw = d.dh = d.dd;
+    } else if (no_w) {
         d.iw = d.ih;
         d.kw = d.kh;
         d.ow = d.oh;
@@ -151,6 +167,7 @@ int str2desc(desc_t *desc, const char *str) {
         d.sh = d.sw;
         d.dh = d.dw;
     }
+    if (d.id<1) {d.id = 1; d.kd = 1; d.od = 1; d.sd = 1; d.pd = 0; d.dd = 0;}
 
     *desc = d;
 
@@ -167,8 +184,8 @@ void desc2str(const desc_t *d, char *buffer, bool canonical) {
     if (canonical || d->g != 1) DPRINT("g%d", d->g);
     if (canonical || d->mb != 2) DPRINT("mb%d", d->mb);
 
-    const bool half_form = d->ih == d->iw && d->kh == d->kw && d->oh == d->ow
-        && d->sh == d->sw && d->ph == d->pw && d->dh == d->dw;
+    const bool half_form = (d->ih == d->iw && d->kh == d->kw && d->oh == d->ow
+        && d->sh == d->sw && d->ph == d->pw && d->dh == d->dw) && d->id == 1;
 
     if (!canonical && half_form) {
         DPRINT("ic%dih%doc%doh%dkh%d", d->ic, d->ih, d->oc, d->oh, d->kh);
@@ -176,14 +193,27 @@ void desc2str(const desc_t *d, char *buffer, bool canonical) {
         if (d->ph != 0) DPRINT("ph%d", d->ph);
         if (d->dh != 0) DPRINT("dh%d", d->dh);
     } else {
-        DPRINT("ic%dih%diw%doc%doh%dow%dkh%dkw%d",
+        if( d->id == 1 )
+        {
+            DPRINT("ic%dih%diw%doc%doh%dow%dkh%dkw%d",
                 d->ic, d->ih, d->iw, d->oc, d->oh, d->ow, d->kh, d->kw);
-        if (canonical || d->sh != 1 || d->sw != 1)
-            DPRINT("sh%dsw%d", d->sh, d->sw);
-        if (canonical || d->ph != 0 || d->sh != 0)
-            DPRINT("ph%dpw%d", d->ph, d->pw);
-        if (canonical || d->dh != 0 || d->dw != 0)
-            DPRINT("dh%ddw%d", d->dh, d->dw);
+            if (canonical || d->sh != 1 || d->sw != 1)
+                DPRINT("sh%dsw%d", d->sh, d->sw);
+            if (canonical || d->ph != 0 || d->pw != 0)
+                DPRINT("ph%dpw%d", d->ph, d->pw);
+            if (canonical || d->dh != 0 || d->dw != 0)
+                DPRINT("dh%ddw%d", d->dh, d->dw);
+        } else {
+            DPRINT("ic%did%dih%diw%doc%dod%doh%dow%dkd%dkh%dkw%d",
+                d->ic, d->id, d->ih, d->iw, d->oc, d->od, d->oh, d->ow,
+                d->kd, d->kh, d->kw);
+            if (canonical || d->sh != 1 || d->sw != 1 || d->sd != 1)
+                DPRINT("sd%dsh%dsw%d", d->sd, d->sh, d->sw);
+            if (canonical || d->ph != 0 || d->pw != 0 || d->pd != 0)
+                DPRINT("pd%dph%dpw%d", d->pd, d->ph, d->pw);
+            if (canonical || d->dh != 0 || d->dw != 0 || d->dd != 0)
+                DPRINT("dd%ddh%ddw%d", d->dd, d->dh, d->dw);
+        }
     }
 
     DPRINT("n%s", d->name);
@@ -195,17 +225,23 @@ void prb_t::count_ops() {
     if (ops > 0) return;
 
     double sp_ops = 0;
+    for (int od = 0; od < this->od; ++od) {
     for (int oh = 0; oh < this->oh; ++oh) {
     for (int ow = 0; ow < this->ow; ++ow) {
-        for (int kh = 0; kh < this->kh; ++kh) {
-            const int ih = oh * this->sh - this->ph + kh * (this->dh + 1);
-            if (ih < 0 || ih >= this->ih) continue;
-            for (int kw = 0; kw < this->kw; ++kw) {
-                const int iw = ow * this->sw - this->pw + kw * (this->dw + 1);
-                if (iw < 0 || iw >= this->iw) continue;
-                sp_ops += 1;
+        for (int kd = 0; kd < this->kd; ++kd) {
+            const int id = od * this->sd - this->pd + kd * (this->dd + 1);
+            if (id < 0 || id >= this->id) continue;
+            for (int kh = 0; kh < this->kh; ++kh) {
+                const int ih = oh * this->sh - this->ph + kh * (this->dh + 1);
+                if (ih < 0 || ih >= this->ih) continue;
+                for (int kw = 0; kw < this->kw; ++kw) {
+                    const int iw = ow * this->sw - this->pw + kw * (this->dw + 1);
+                    if (iw < 0 || iw >= this->iw) continue;
+                    sp_ops += 1;
+                }
             }
         }
+    }
     }
     }
 

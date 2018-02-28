@@ -600,6 +600,9 @@ struct memory: public primitive  {
         gOIhw16o16i = mkldnn_gOIhw16o16i,
         gIOhw16o16i = mkldnn_gIOhw16o16i,
         gOhIw16o4i = mkldnn_gOhIw16o4i,
+        ncdhw = mkldnn_ncdhw,
+        oidhw = mkldnn_oidhw,
+        goidhw = mkldnn_goidhw,
     };
 
     /// A memory descriptor.
