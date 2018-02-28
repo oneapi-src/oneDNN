@@ -491,15 +491,6 @@ status_t jit_avx512_core_u8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         ? types::data_type_size(bias_d.data_type())
         : 0;
 
-    for (int ur_w = regs; ur_w > 0; --ur_w)
-        if (jcp.ow % ur_w == 0) {
-            jcp.ur_w = ur_w;
-            break;
-        }
-
-    if (jcp.ur_w == 1)
-        jcp.ur_w = nstl::min(jcp.ow, regs);
-
     jcp.nb_ic = jcp.ic / jcp.ic_block;
     jcp.nb_oc = jcp.oc / jcp.oc_block;
 
