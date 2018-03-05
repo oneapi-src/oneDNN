@@ -65,6 +65,9 @@ void nchw_pooling_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
     const int padF = pd()->padFront();
     const int padT = pd()->padT();
     const int padL = pd()->padL();
+    const int padB = pd()->padB();
+    const int padR = pd()->padR();
+    const int padBack = pd()->padBack();
 
     auto apply_offset = [=](int index, int offset) {
         return (index > offset) ? index - offset : 0;
@@ -87,6 +90,7 @@ void nchw_pooling_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
     };
 
     auto ker_max = [=](data_t *d, int mb, int c, int od, int oh, int ow) {
+        bool is_initialized = false;
         for_(int kd = 0; kd < KD; ++kd)
         for_(int kh = 0; kh < KH; ++kh)
         for (int kw = 0; kw < KW; ++kw) {
@@ -102,25 +106,43 @@ void nchw_pooling_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
                     + (size_t)IW * IH * ID * c + (size_t)IW * IH * id
                     + (size_t)IW * ih + (size_t)iw;
             auto s = src[src_offset];
-            if (s > d[0]) {
+            if (!is_initialized) {
                 d[0] = s;
                 set_ws(mb, c, od, oh, ow, kd * KH * KW + kh * KW + kw);
+                is_initialized = true;
+            } else {
+                if (s > d[0]) {
+                    d[0] = s;
+                    set_ws(mb, c, od, oh, ow, kd * KH * KW + kh * KW + kw);
+                }
             }
         }
     };
 
     auto ker_avg = [=](data_t *d, int mb, int c, int od, int oh, int ow) {
-        auto id_start = apply_offset(od * SD, padF);
-        auto ih_start = apply_offset(oh * SH, padT);
-        auto iw_start = apply_offset(ow * SW, padL);
-        auto id_end = min(od * SD - padF + KD, ID);
-        auto ih_end = min(oh * SH - padT + KH, IH);
-        auto iw_end = min(ow * SW - padL + KW, IW);
+        auto id_start = od*SD - padF;
+        auto ih_start = oh*SH - padT;
+        auto iw_start = ow*SW - padL;
+        auto id_end = nstl::min(od*SD - padF + KD, ID + padBack);
+        auto ih_end = nstl::min(oh*SH - padT + KH, IH + padB);
+        auto iw_end = nstl::min(ow*SW - padL + KW, IW + padR);
 
         auto num_summands = (alg == alg_kind::pooling_avg_include_padding)
                 ? KD * KW * KH
                 : (id_end - id_start) * (ih_end - ih_start)
                         * (iw_end - iw_start);
+
+        id_start = nstl::max(id_start, 0);
+        ih_start = nstl::max(ih_start, 0);
+        iw_start = nstl::max(iw_start, 0);
+
+        id_end = nstl::min(id_end, ID);
+        ih_end = nstl::min(ih_end, IH);
+        iw_end = nstl::min(iw_end, IW);
+
+        if (alg == alg_kind::pooling_avg_exclude_padding)
+            num_summands = (id_end - id_start)*(ih_end - ih_start)*(iw_end - iw_start);
+        if (num_summands == 0) return;
 
         for_(int id = id_start; id < id_end; ++id)
         for_(int ih = ih_start; ih < ih_end; ++ih)
@@ -192,15 +214,14 @@ void nchw_pooling_fwd_t<data_type::bf16>::execute_forward(
     const int padF = pd()->padFront();
     const int padT = pd()->padT();
     const int padL = pd()->padL();
+    const int padB = pd()->padB();
+    const int padR = pd()->padR();
+    const int padBack = pd()->padBack();
 
     const size_t simd_w = 16;
     const size_t src_size = MB * C * ID * IH * IW;
     const size_t blocked_size = src_size / simd_w;
     const size_t tail_size = src_size % simd_w;
-
-    auto apply_offset = [=](int index, int offset) {
-        return (index > offset) ? index - offset : 0;
-    };
 
     auto set_ws = [=](int mb, int c, int od, int oh, int ow, int value) {
         if (ws) {
@@ -219,6 +240,7 @@ void nchw_pooling_fwd_t<data_type::bf16>::execute_forward(
     };
 
     auto ker_max = [=](float *d, int mb, int c, int od, int oh, int ow) {
+        bool is_initialized = false;
         for_(int kd = 0; kd < KD; ++kd)
         for_(int kh = 0; kh < KH; ++kh)
         for (int kw = 0; kw < KW; ++kw) {
@@ -235,25 +257,41 @@ void nchw_pooling_fwd_t<data_type::bf16>::execute_forward(
                     + (size_t)IW * ih + (size_t)iw;
             auto s = bf16cvt_wsp[src_offset];
 
-            if (s > d[0]) {
+            if (!is_initialized) {
                 d[0] = s;
-                set_ws(mb, c, od, oh, ow, kd * KH * KW + kh * KW + kw);
+                set_ws(mb, c, od, oh, ow, kd*KH*KW + kh*KW + kw);
+                is_initialized = true;
+            } else {
+                if (s > d[0]) {
+                    d[0] = s;
+                    set_ws(mb, c, od, oh, ow, kd * KH * KW + kh * KW + kw);
+                }
             }
         }
     };
 
     auto ker_avg = [=](float *d, int mb, int c, int od, int oh, int ow) {
-        auto id_start = apply_offset(od * SD, padF);
-        auto ih_start = apply_offset(oh * SH, padT);
-        auto iw_start = apply_offset(ow * SW, padL);
-        auto id_end = min(od * SD - padF + KD, ID);
-        auto ih_end = min(oh * SH - padT + KH, IH);
-        auto iw_end = min(ow * SW - padL + KW, IW);
+        auto id_start = od*SD - padF;
+        auto ih_start = oh*SH - padT;
+        auto iw_start = ow*SW - padL;
+        auto id_end = nstl::min(od*SD - padF + KD, ID + padBack);
+        auto ih_end = nstl::min(oh*SH - padT + KH, IH + padB);
+        auto iw_end = nstl::min(ow*SW - padL + KW, IW + padR);
 
-        auto num_summands = (alg == alg_kind::pooling_avg_include_padding)
-                ? KD * KW * KH
-                : (id_end - id_start) * (ih_end - ih_start)
-                        * (iw_end - iw_start);
+        // case alg == pooling_avg_include_padding
+        auto num_summands = (id_end - id_start)*(ih_end - ih_start)*(iw_end - iw_start);
+
+        id_start = nstl::max(id_start, 0);
+        ih_start = nstl::max(ih_start, 0);
+        iw_start = nstl::max(iw_start, 0);
+
+        id_end = nstl::min(id_end, ID);
+        ih_end = nstl::min(ih_end, IH);
+        iw_end = nstl::min(iw_end, IW);
+
+        if (alg == alg_kind::pooling_avg_exclude_padding)
+            num_summands = (id_end - id_start)*(ih_end - ih_start)*(iw_end - iw_start);
+        if (num_summands == 0) return;
 
         for_(int id = id_start; id < id_end; ++id)
         for_(int ih = ih_start; ih < ih_end; ++ih)

@@ -105,17 +105,18 @@ status_t pooling_desc_init(pooling_desc_type *pool_desc, prop_kind_t prop_kind,
                                 + 1
                         == dst_desc->dims[i]);
 
-        if (alg_kind == pooling_avg_exclude_padding) {
-            // It's not allowed for pooling window to be totally placed outside
-            // of real source domain for pooling_avg_exclude_padding algorithm
-            // due to 0 / 0 ambiguity
-            consistency = consistency && padding_l[i - 2] < dilated_kernel
-                    && padding_r[i - 2] < dilated_kernel;
-
-            if (dilation)
-                consistency
-                        = consistency && dilation[i - 2] < src_desc->dims[i];
-        }
+// The check is disabled in order to support old behavior
+//        if (alg_kind == pooling_avg_exclude_padding) {
+//            // It's not allowed for pooling window to be totally placed outside
+//            // of real source domain for pooling_avg_exclude_padding algorithm
+//            // due to 0 / 0 ambiguity
+//            consistency = consistency && padding_l[i - 2] < dilated_kernel
+//                    && padding_r[i - 2] < dilated_kernel;
+//
+//            if (dilation)
+//                consistency
+//                        = consistency && dilation[i - 2] < src_desc->dims[i];
+//        }
         // Dilated kernel should fit in source.
         consistency = consistency
                 && dilated_kernel <= src_desc->dims[i] + padding_l[i - 2]

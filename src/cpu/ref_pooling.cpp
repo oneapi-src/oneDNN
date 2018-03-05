@@ -75,6 +75,9 @@ void ref_pooling_fwd_t<src_type, dst_type, acc_type>::execute_forward(
     const int DD = pd()->DD();
     const int DH = pd()->DH();
     const int DW = pd()->DW();
+    const int padB = pd()->padB();
+    const int padR = pd()->padR();
+    const int padBack = pd()->padBack();
 
     auto set_ws = [=](int mb, int oc, int od, int oh, int ow, int value) {
         if (ws) {
@@ -90,6 +93,7 @@ void ref_pooling_fwd_t<src_type, dst_type, acc_type>::execute_forward(
     };
 
     auto ker_max = [=](float &d, int mb, int oc, int od, int oh, int ow) {
+        bool is_initialized = false;
         for (int kd = 0; kd < KD; ++kd) {
             const int id = od * SD - padF + kd * (DD + 1);
             if (id < 0 || id >= ID) continue;
@@ -102,9 +106,15 @@ void ref_pooling_fwd_t<src_type, dst_type, acc_type>::execute_forward(
 
                     const auto off = get_offset(src_d, mb, oc, id, ih, iw);
                     auto s = src[off];
-                    if (s > d) {
+                    if (!is_initialized) {
                         d = s;
-                        set_ws(mb, oc, od, oh, ow, (kd * KH + kh) * KW + kw);
+                        set_ws(mb, oc, od, oh, ow, kd * KH * KW + kh*KW + kw);
+                        is_initialized = true;
+                    } else {
+                        if (s > d) {
+                            d = s;
+                            set_ws(mb, oc, od, oh, ow, kd * KH * KW + kh * KW + kw);
+                        }
                     }
                 }
             }
@@ -127,17 +137,25 @@ void ref_pooling_fwd_t<src_type, dst_type, acc_type>::execute_forward(
                 }
             }
         }
-        int num_summands;
-        if (alg == alg_kind::pooling_avg_include_padding)
-            num_summands = KW * KH * KD;
-        else {
-            auto id_start = od * SD - padF;
-            auto ih_start = oh * SH - padT;
-            auto iw_start = ow * SW - padL;
-            auto id_end = od * SD - padF + (KD - 1) * DD + KD;
-            auto ih_end = oh * SH - padT + (KH - 1) * DH + KH;
-            auto iw_end = ow * SW - padL + (KW - 1) * DW + KW;
 
+        auto id_start = od*SD - padF;
+        auto ih_start = oh*SH - padT;
+        auto iw_start = ow*SW - padL;
+        auto id_end = nstl::min(od*SD - padF + KD, ID + padBack);
+        auto ih_end = nstl::min(oh*SH - padT + KH, IH + padB);
+        auto iw_end = nstl::min(ow*SW - padL + KW, IW + padR);
+
+        // case alg == pooling_avg_include_padding
+        auto num_summands = (ih_end - ih_start)*(iw_end - iw_start)*(id_end - id_start);
+
+        id_start = nstl::max(id_start, 0);
+        ih_start = nstl::max(ih_start, 0);
+        iw_start = nstl::max(iw_start, 0);
+        id_end = nstl::min(id_end, ID);
+        ih_end = nstl::min(ih_end, IH);
+        iw_end = nstl::min(iw_end, IW);
+
+        if (alg == alg_kind::pooling_avg_exclude_padding) {
             auto id_start_excluded
                     = id_start < 0 ? (0 - id_start - 1) / (DD + 1) + 1 : 0;
             auto ih_start_excluded
@@ -152,9 +170,11 @@ void ref_pooling_fwd_t<src_type, dst_type, acc_type>::execute_forward(
                     = iw_end > IW ? (iw_end - IW - 1) / (DW + 1) + 1 : 0;
 
             num_summands = (KD - id_start_excluded - id_end_excluded)
-                    * (KH - ih_start_excluded - ih_end_excluded)
-                    * (KW - iw_start_excluded - iw_end_excluded);
+                           * (KH - ih_start_excluded - ih_end_excluded)
+                           * (KW - iw_start_excluded - iw_end_excluded);
         }
+        if (num_summands == 0) return;
+
         d /= num_summands;
 
         const auto &p = pd()->attr()->post_ops_;
@@ -187,7 +207,7 @@ void ref_pooling_fwd_t<src_type, dst_type, acc_type>::execute_forward(
         parallel_nd(MB, OC, OD, OH, OW,
                 [&](int mb, int oc, int od, int oh, int ow) {
                     auto data_p_off = get_offset(dst_d, mb, oc, od, oh, ow);
-                    float res = numeric_limits<src_data_t >::lowest();
+                    float res = 0.f;
                     set_ws(mb, oc, od, oh, ow, 0);
                     ker_max(res, mb, oc, od, oh, ow);
 

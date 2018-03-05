@@ -237,6 +237,12 @@ inline int calculate_end_padding(int start_padding, int dst_size, int src_size,
             - (src_size + start_padding);
 }
 
+inline int calculate_end_padding_log(int start_padding, int dst_size, int src_size,
+        int spatial_stride, int dilated_filter_size, int end_pad) {
+    return (dst_size - 1) * spatial_stride + dilated_filter_size
+            - (src_size + start_padding + end_pad);
+}
+
 inline status_t init_tag(format_tag_t &tag, const memory_desc_wrapper &mdw,
         const format_tag_t &tag_value) {
     if (mdw.format_kind() == format_kind::any) return status::unimplemented;
@@ -564,7 +570,7 @@ struct jit_pool_conf_t {
     int id, ih, iw, od, oh, ow;
     int stride_d, stride_h, stride_w;
     int kd, kh, kw;
-    int f_pad, t_pad, l_pad;
+    int f_pad, t_pad, l_pad, b_pad, r_pad, back_pad;
     alg_kind_t alg;
     bool is_training;
     bool pad_w_is_null;
