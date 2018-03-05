@@ -130,6 +130,13 @@ struct eltwise_test_params {
     memory::dims dims;
 };
 
+size_t n_elems(const memory::desc &md) {
+    size_t p = 1;
+    for (int i = 0; i < md.data.ndims; ++i)
+        p *= (size_t)(md.data.dims[i]);
+    return p;
+}
+
 template <typename data_t>
 void check_eltwise_fwd(const eltwise_test_params<data_t> &p,
         const memory::desc &md, const memory &src, const memory &dst)
@@ -137,14 +144,10 @@ void check_eltwise_fwd(const eltwise_test_params<data_t> &p,
     data_t *src_data = (data_t *)src.get_data_handle();
     data_t *dst_data = (data_t *)dst.get_data_handle();
 
-    ASSERT_EQ(md.data.ndims, 4);
     ASSERT_EQ(md.data.data_type, memory::data_type::f32); // TODO: type assert
 
-    size_t N = md.data.dims[0];
-    size_t C = md.data.dims[1];
-    size_t H = md.data.dims[2];
-    size_t W = md.data.dims[3];
-    for (size_t i = 0; i < N * C * H * W; ++i) {
+    size_t n = n_elems(md);
+    for (size_t i = 0; i < n; ++i) {
         data_t s = src_data[i];
         data_t ref_d = 0;
         switch (p.alg_kind) {
@@ -181,14 +184,10 @@ void check_eltwise_bwd(const eltwise_test_params<data_t> &p,
     const memory::desc data_d = src.get_primitive_desc().desc();
     const memory::desc diff_data_d = diff_src.get_primitive_desc().desc();
 
-    ASSERT_EQ(md.data.ndims, 4);
     ASSERT_EQ(md.data.data_type, memory::data_type::f32); // TODO: type assert
 
-    size_t N = md.data.dims[0];
-    size_t C = md.data.dims[1];
-    size_t H = md.data.dims[2];
-    size_t W = md.data.dims[3];
-    for (size_t i = 0; i < N * C * H * W; ++i) {
+    size_t n = n_elems(md);
+    for (size_t i = 0; i < n; ++i) {
         data_t ref_s = src_data[map_index(data_d, i)];
         data_t ref_dd = diff_dst_data[map_index(diff_data_d, i)];
         data_t ref_ds = 0;
@@ -229,7 +228,6 @@ private:
     eltwise_test_params<data_t> p;
     std::shared_ptr<engine> eng;
     memory::data_type data_type;
-    int size;
 
 protected:
     virtual void SetUp() {
@@ -238,12 +236,8 @@ protected:
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         eng.reset(new engine(p.engine_kind, 0));
 
-        ASSERT_EQ(p.dims.size(), 4U);
-
         data_type = data_traits<data_t>::data_type;
         ASSERT_EQ(data_type, mkldnn::memory::data_type::f32);
-
-        size = p.dims[0] * p.dims[1] * p.dims[2] * p.dims[3];
 
         Forward();
         Backward();
@@ -257,7 +251,7 @@ protected:
         src.reset(new memory({*data_desc, *eng}));
         dst.reset(new memory({*data_desc, *eng}));
 
-        fill_data<data_t>(size, (data_t *)src->get_data_handle(),
+        fill_data<data_t>(n_elems(*data_desc), (data_t *)src->get_data_handle(),
                 data_t(0), data_t(1));
 
         auto eltwise_desc = eltwise_forward::desc(prop_kind::forward_training,
@@ -278,8 +272,8 @@ protected:
         diff_src.reset(new memory({*diff_data_desc, *eng}));
         diff_dst.reset(new memory({*diff_data_desc, *eng}));
 
-        fill_data<data_t>(size, (data_t *)diff_dst->get_data_handle(),
-                data_t(0), data_t(1));
+        fill_data<data_t>(n_elems(*diff_data_desc),
+                (data_t *)diff_dst->get_data_handle(), data_t(0), data_t(1));
 
         auto eltwise_bwd_desc = eltwise_backward::desc(p.alg_kind,
                 *diff_data_desc, *data_desc, p.alpha, p.beta);
@@ -307,13 +301,14 @@ TEST_P(eltwise_test_float, TestsEltwise)
 #define EXPAND(args) args
 
 #define EXPAND_FORMATS(data) memory::format::data
+#define EXPAND_DIMS(...) { __VA_ARGS__ }
 
 #define ENGINE engine::kind::cpu
 
-#define PARAMS(alg, data, diff_data, alpha, beta, mb, c, h, w) \
+#define PARAMS(alg, data, diff_data, alpha, beta, ...) \
     eltwise_test_params_float { ENGINE, algorithm::alg, \
     EXPAND_FORMATS(data), EXPAND_FORMATS(diff_data), \
-    alpha, beta, {mb, c, h, w} }
+    alpha, beta, EXPAND_DIMS(__VA_ARGS__) }
 
 #define PARAMS_ALL_ALG(...) \
     EXPAND(PARAMS(eltwise_relu, __VA_ARGS__)), \
@@ -385,6 +380,10 @@ INST_TEST_CASE(AlexNet_NCHW,
     PARAMS_ALL_ALG_SDPART(nchw, nchw, 0.f, 0.f, 2, 96, 55, 55),
     PARAMS_ALL_ALG_SDPART(nchw, nchw, 0.f, 0.f, 2, 256, 27, 27),
     PARAMS_ALL_ALG_SDPART(nchw, nchw, 0.f, 0.f, 2, 384, 13, 13)
+);
+
+INST_TEST_CASE(Simple_X,
+    PARAMS_ALL_ALG(x, x, 0.f, 0.f, 55)
 );
 
 }
