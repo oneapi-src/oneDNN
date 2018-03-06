@@ -185,14 +185,14 @@ struct inner_product_bwd_weights_pd_t: public primitive_desc_t {
     virtual const memory_pd_t *input_pd(int index = 0) const override {
         switch (index) {
         case 0: return src_pd();
-        case 1: return with_bias() ? diff_dst_pd(1) : nullptr;
+        case 1: return diff_dst_pd();
         default: return nullptr;
         }
     }
     virtual const memory_pd_t *output_pd(int index = 0) const override {
         switch (index) {
         case 0: return diff_weights_pd(0);
-        case 1: with_bias() ? diff_weights_pd(1) : nullptr;
+        case 1: return with_bias() ? diff_weights_pd(1) : nullptr;
         default: return nullptr;
         }
     }
