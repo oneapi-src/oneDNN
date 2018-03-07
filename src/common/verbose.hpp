@@ -243,11 +243,21 @@ template <typename pd_t> static void init_info_pool(pd_t *s, char *buffer) {
     snprintf(aux_str, MKLDNN_VERBOSE_AUX_LEN,
             "alg:%s", mkldnn_alg_kind2str(s->desc()->alg_kind));
 
-    snprintf(prb_str, MKLDNN_VERBOSE_PRB_LEN,
+    if (s->is_3d())
+    {
+        snprintf(prb_str, MKLDNN_VERBOSE_PRB_LEN,
+            "mb%dic%d_id%dod%dkd%dsd%dpd%d_ih%doh%dkh%dsh%dph%d_iw%dow%dkw%dsw%dpw%d",
+            s->MB(), s->C(),
+            s->ID(), s->OD(), s->KD(), s->KSD(), s->padFront(),
+            s->IH(), s->OH(), s->KH(), s->KSH(), s->padT(),
+            s->IW(), s->OW(), s->KW(), s->KSW(), s->padL());
+    } else {
+        snprintf(prb_str, MKLDNN_VERBOSE_PRB_LEN,
             "mb%dic%d_ih%doh%dkh%dsh%dph%d_iw%dow%dkw%dsw%dpw%d",
             s->MB(), s->C(),
             s->IH(), s->OH(), s->KH(), s->KSH(), s->padT(),
             s->IW(), s->OW(), s->KW(), s->KSW(), s->padL());
+    }
 
     verbose_templ(buffer, s->kind(), s->name(), s->desc()->prop_kind, dat_str,
             aux_str, prb_str);

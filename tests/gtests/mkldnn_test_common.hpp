@@ -174,6 +174,7 @@ inline mkldnn::memory::desc create_md(mkldnn::memory::dims dims,
     case f::Ohwi16o:
     case f::OhIw16o4i:
         ndims = 4; break;
+    case f::ncdhw:
     case f::goihw:
     case f::hwigo:
     case f::gOhwi8o:

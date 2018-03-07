@@ -51,6 +51,7 @@ struct jit_uni_pooling_fwd_t: public cpu_primitive_t {
                 : memory_format::nChw8c;
             assert(engine()->kind() == engine_kind::cpu);
             bool ok = true
+                && desc()->src_desc.ndims == 4
                 && mayiuse(isa)
                 && set_default_params() == status::success
                 && one_of(desc()->prop_kind, forward_training,
@@ -132,6 +133,7 @@ struct jit_uni_pooling_bwd_t: public cpu_primitive_t {
 
             assert(engine()->kind() == engine_kind::cpu);
             bool ok = true
+                && desc()->diff_src_desc.ndims == 4
                 && mayiuse(isa)
                 && set_default_params() == status::success
                 && one_of(desc()->prop_kind, backward, backward_data)

@@ -76,11 +76,11 @@ status_t pooling_desc_init(pooling_desc_t *pool_desc,
     bool consistency = true
         && memory_desc_wrapper(src_desc).nelems()
         && memory_desc_wrapper(dst_desc).nelems()
-        && src_desc->ndims == 4
-        && dst_desc->ndims == 4
+        && utils::one_of(src_desc->ndims, 4, 5)
+        && utils::one_of(dst_desc->ndims, 4, 5)
         && src_desc->dims[0] == dst_desc->dims[0]
         && src_desc->dims[1] == dst_desc->dims[1];
-    for (int i = 2; i <= 3; ++i)
+    for (int i = 2; i < src_desc->ndims; ++i)
         consistency = consistency && (
                 (src_desc->dims[i] - kernel[i - 2] + padding_l[i - 2]
                  + padding_r[i - 2]) / strides[i - 2] + 1

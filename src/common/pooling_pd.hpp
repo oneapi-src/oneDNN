@@ -66,25 +66,43 @@ struct pooling_fwd_pd_t: public primitive_desc_t {
     }
 
     /* common pooling aux functions */
+    inline bool is_3d() const { return desc_.src_desc.ndims == 5; }
 
     inline int MB() const { return desc_.src_desc.dims[0]; }
     inline int C() const { return desc_.src_desc.dims[1]; }
-    inline int IH() const { return desc_.src_desc.dims[2]; }
-    inline int IW() const { return desc_.src_desc.dims[3]; }
-    inline int OH() const { return desc_.dst_desc.dims[2]; }
-    inline int OW() const { return desc_.dst_desc.dims[3]; }
-    inline int KH() const { return desc_.kernel[0]; }
-    inline int KW() const { return desc_.kernel[1]; }
+    inline int ID() const { return is_3d() ? desc_.src_desc.dims[2] : 1; }
+    inline int IH() const { return is_3d()
+        ? desc_.src_desc.dims[3] : desc_.src_desc.dims[2]; }
+    inline int IW() const { return is_3d()
+        ? desc_.src_desc.dims[4] : desc_.src_desc.dims[3]; }
+    inline int OD() const { return is_3d()
+        ? desc_.dst_desc.dims[2] : 1; }
+    inline int OH() const { return is_3d()
+        ? desc_.dst_desc.dims[3] : desc_.dst_desc.dims[2]; }
+    inline int OW() const { return is_3d()
+        ? desc_.dst_desc.dims[4] : desc_.dst_desc.dims[3]; }
+    inline int KD() const { return is_3d() ? desc_.kernel[0] : 1; }
+    inline int KH() const
+    { return is_3d() ? desc_.kernel[1] : desc_.kernel[0]; }
+    inline int KW() const
+    { return is_3d() ? desc_.kernel[2] : desc_.kernel[1]; }
 
-    inline int KSH() const { return desc_.strides[0]; }
-    inline int KSW() const { return desc_.strides[1]; }
+    inline int KSD() const { return is_3d() ? desc_.strides[0] : 1; }
+    inline int KSH() const
+    { return is_3d() ? desc_.strides[1] : desc_.strides[0]; }
+    inline int KSW() const
+    { return is_3d() ? desc_.strides[2] : desc_.strides[1]; }
 
-    inline int padT() const { return desc_.padding[0][0]; }
-    inline int padB() const { return desc_.padding[1][0]; }
-    inline int padL() const { return desc_.padding[0][1]; }
-    inline int padR() const { return desc_.padding[1][1]; }
-
-
+    inline int padFront() const { return is_3d() ? desc_.padding[0][0] : 0; }
+    inline int padBack() const { return is_3d() ? desc_.padding[1][0] : 0; }
+    inline int padT() const { return is_3d()
+        ? desc_.padding[0][1] : desc_.padding[0][0]; }
+    inline int padB() const { return is_3d()
+        ? desc_.padding[1][1] : desc_.padding[1][0]; }
+    inline int padL() const { return is_3d()
+        ? desc_.padding[0][2] : desc_.padding[0][1]; }
+    inline int padR() const { return is_3d()
+        ? desc_.padding[1][2] : desc_.padding[1][1]; }
 protected:
     pooling_desc_t desc_;
     const pooling_fwd_pd_t *hint_fwd_pd_;
@@ -131,23 +149,43 @@ struct pooling_bwd_pd_t: public primitive_desc_t {
 
     /* common pooling aux functions */
 
+    inline bool is_3d() const { return desc_.diff_src_desc.ndims == 5; }
+
     inline int MB() const { return desc_.diff_src_desc.dims[0]; }
     inline int C() const { return desc_.diff_src_desc.dims[1]; }
-    inline int IH() const { return desc_.diff_src_desc.dims[2]; }
-    inline int IW() const { return desc_.diff_src_desc.dims[3]; }
-    inline int OH() const { return desc_.diff_dst_desc.dims[2]; }
-    inline int OW() const { return desc_.diff_dst_desc.dims[3]; }
-    inline int KH() const { return desc_.kernel[0]; }
-    inline int KW() const { return desc_.kernel[1]; }
+    inline int ID() const { return is_3d() ? desc_.diff_src_desc.dims[2] : 1; }
+    inline int IH() const { return is_3d()
+        ? desc_.diff_src_desc.dims[3] : desc_.diff_src_desc.dims[2]; }
+    inline int IW() const { return is_3d()
+        ? desc_.diff_src_desc.dims[4] : desc_.diff_src_desc.dims[3]; }
+    inline int OD() const { return is_3d()
+        ? desc_.diff_dst_desc.dims[2] : 1; }
+    inline int OH() const { return is_3d()
+        ? desc_.diff_dst_desc.dims[3] : desc_.diff_dst_desc.dims[2]; }
+    inline int OW() const { return is_3d()
+        ? desc_.diff_dst_desc.dims[4] : desc_.diff_dst_desc.dims[3]; }
+    inline int KD() const { return is_3d() ? desc_.kernel[0] : 1; }
+    inline int KH() const
+    { return is_3d() ? desc_.kernel[1] : desc_.kernel[0]; }
+    inline int KW() const
+    { return is_3d() ? desc_.kernel[2] : desc_.kernel[1]; }
 
-    inline int KSH() const { return desc_.strides[0]; }
-    inline int KSW() const { return desc_.strides[1]; }
+    inline int KSD() const { return is_3d() ? desc_.strides[0] : 1; }
+    inline int KSH() const
+    { return is_3d() ? desc_.strides[1] : desc_.strides[0]; }
+    inline int KSW() const
+    { return is_3d() ? desc_.strides[2] : desc_.strides[1]; }
 
-    inline int padT() const { return desc_.padding[0][0]; }
-    inline int padB() const { return desc_.padding[1][0]; }
-    inline int padL() const { return desc_.padding[0][1]; }
-    inline int padR() const { return desc_.padding[1][1]; }
-
+    inline int padFront() const { return is_3d() ? desc_.padding[0][0] : 0; }
+    inline int padBack() const { return is_3d() ? desc_.padding[1][0] : 0; }
+    inline int padT() const { return is_3d()
+        ? desc_.padding[0][1] : desc_.padding[0][0]; }
+    inline int padB() const { return is_3d()
+        ? desc_.padding[1][1] : desc_.padding[1][0]; }
+    inline int padL() const { return is_3d()
+        ? desc_.padding[0][2] : desc_.padding[0][1]; }
+    inline int padR() const { return is_3d()
+        ? desc_.padding[1][2] : desc_.padding[1][1]; }
 
 protected:
     pooling_desc_t desc_;

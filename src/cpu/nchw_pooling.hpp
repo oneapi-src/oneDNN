@@ -46,6 +46,7 @@ struct nchw_pooling_fwd_t: public cpu_primitive_t {
             using namespace alg_kind;
             assert(engine()->kind() == engine_kind::cpu);
             bool ok = true
+                && desc()->src_desc.ndims == 4
                 && set_default_params() == status::success
                 && utils::one_of(desc()->prop_kind, forward_training,
                         forward_inference)
@@ -100,6 +101,7 @@ struct nchw_pooling_bwd_t: public cpu_primitive_t {
             using namespace alg_kind;
             assert(engine()->kind() == engine_kind::cpu);
             bool ok = true
+                && desc()->diff_src_desc.ndims == 4
                 && set_default_params() == status::success
                 && utils::one_of(desc()->prop_kind, backward_data)
                 && utils::one_of(desc()->alg_kind, pooling_max,

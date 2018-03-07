@@ -43,6 +43,7 @@ struct jit_avx512_core_i8i8_pooling_fwd_t : public cpu_primitive_t {
         virtual status_t init() override {
             assert(this->engine()->kind() == engine_kind::cpu);
             bool ok = true
+                && desc()->src_desc.ndims == 4
                 && set_default_params() == status::success
                 && desc()->prop_kind == prop_kind::forward_inference
                 && utils::one_of(desc()->alg_kind, alg_kind::pooling_max,
