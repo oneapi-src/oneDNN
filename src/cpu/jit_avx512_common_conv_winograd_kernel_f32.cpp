@@ -19,6 +19,7 @@
 #include "nstl.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
+#include "cpu_memory.hpp"
 
 #include <math.h>
 
@@ -612,12 +613,35 @@ status_t _jit_avx512_common_conv_winograd_data_kernel_f32::init_conf_kernel(
     return status::success;
 }
 
+bool jit_avx512_common_conv_winograd_fwd_kernel_f32::post_ops_ok(
+        jit_conv_conf_t &jcp, const primitive_attr_t &attr) {
+    using namespace primitive_kind;
+    const auto &p = attr.post_ops_;
+
+    auto is_relu = [&](int idx) {
+        return p.entry_[idx].kind == eltwise
+                && p.entry_[idx].eltwise.scale == 1.
+                && p.entry_[idx].eltwise.alg == alg_kind::eltwise_relu
+                && p.entry_[idx].eltwise.alpha == 0.;
+    };
+
+    switch (p.len_) {
+    case 0:
+        return true; // no post_ops
+    case 1:
+        return true // relu
+                && implication(!jcp.with_relu, is_relu(0));
+    default: return false;
+    }
+
+    return false;
+}
+
 status_t jit_avx512_common_conv_winograd_fwd_kernel_f32::init_conf(
         jit_conv_winograd_conf_t &jcp, const convolution_desc_t &cd,
         const memory_desc_wrapper &src_d, const memory_desc_wrapper &weights_d,
-        const memory_desc_wrapper &dst_d, bool with_relu,
-        float relu_negative_slope)
-{
+        const memory_desc_wrapper &dst_d, const primitive_attr_t &attr,
+        bool with_relu, float relu_negative_slope) {
     status_t st = init_conf_common(jcp, cd, src_d, weights_d, dst_d);
 
     if (st != status::success)
@@ -631,6 +655,15 @@ status_t jit_avx512_common_conv_winograd_fwd_kernel_f32::init_conf(
     jcp.with_bias = cd.bias_desc.format != memory_format::undef;
     jcp.with_relu = with_relu;
     jcp.relu_negative_slope = relu_negative_slope;
+
+    if (!post_ops_ok(jcp, attr))
+        return status::unimplemented;
+
+    const auto &p = attr.post_ops_;
+    if (!jcp.with_relu) {
+        jcp.with_relu = p.find(primitive_kind::eltwise) != -1;
+        jcp.relu_negative_slope = 0;
+    }
 
     status_t res = init_conf_kernel(jcp, jcp.oc, jcp.ntiles, jcp.ic);
     jcp.ic_simd_block = jcp.dimK_reg_block;

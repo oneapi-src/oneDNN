@@ -238,8 +238,8 @@ struct _jit_avx512_common_convolution_winograd_fwd_t
 
             return jit_avx512_common_conv_winograd_fwd_kernel_f32::init_conf(
                     jcp_, this->cdesc_(), *this->src_pd_.desc(),
-                    *this->weights_pd_.desc(), *this->dst_pd_.desc(), with_relu,
-                    this->negative_slope());
+                    *this->weights_pd_.desc(), *this->dst_pd_.desc(),
+                    *this->attr(), with_relu, this->negative_slope());
         }
 
         jit_conv_winograd_conf_t jcp_;

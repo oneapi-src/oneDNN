@@ -691,7 +691,7 @@ void output_transform_data(int image, const jit_conv_winograd_conf_t &jcp,
 #pragma omp simd
                                 for (int v = 0; v < simd_w; v++) {
                                     O[j][i][v] += with_bias ? bias[v] : 0.0f;
-                                    O[j][i][v] = (with_relu && O[j][i][v] < 0.0f)
+                                    O[j][i][v] = (jcp.with_relu && O[j][i][v] < 0.0f)
                                                  ? O[j][i][v]
                                                  * jcp.relu_negative_slope
                                                  : O[j][i][v];
@@ -768,7 +768,7 @@ void output_transform_tileblock_data(int tile_block,
 #pragma omp simd
                                 for (int v = 0; v < simd_w; v++) {
                                     O[j][i][v] += with_bias ? bias[v] : 0.0f;
-                                    O[j][i][v] = (with_relu && O[j][i][v] < 0.0f)
+                                    O[j][i][v] = (jcp.with_relu && O[j][i][v] < 0.0f)
                                                  ? O[j][i][v]
                                                  * jcp.relu_negative_slope
                                                  : O[j][i][v];
