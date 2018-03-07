@@ -777,6 +777,7 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
     }
 
     const int SMALL_SPATIAL = 10;
+    const int BIG_SPATIAL = 28;
     const int BIG_REDUCE_DIM = 1024;
     const int BIG_LOAD_DIM = 256;
 
@@ -834,32 +835,17 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
                 = (one_of(jcp.prop_kind, forward_training, forward_inference)) ?
                 jcp.oh :
                 jcp.ih;
-        if (jcp.ver == ver_avx512_core && jcp.mb > 1) {
+        if (jcp.ver == ver_avx512_core && (2 * jcp.mb) / nthreads >= 1) {
             max_regs = 9;
             min_regs = 6;
             size_treshold = 14;
             ur_step = 1;
             jcp.expl_bcast = true;
-            float write_data_per_thr = one_of(jcp.prop_kind, forward_training,
-                                               forward_inference) ?
-                    (float)(sizeof(float)
-                            * (jcp.mb * jcp.oc * jcp.oh * jcp.ow)) :
-                    (float)(sizeof(float)
-                            * (jcp.mb * jcp.ic * jcp.ih * jcp.iw));
-            write_data_per_thr /= nthreads;
-            const float l2_capacity_per_core = (float)get_cache_size(2, true);
-            const float l3_capacity_per_core = (float)get_cache_size(3, true);
 
-            // Assumption: for maximum efficiency we run 1 thread per core
-            if (write_data_per_thr
-                    > l3_capacity_per_core + l2_capacity_per_core) {
-                jcp.use_vmovntps = true;
-            } else {
-                jcp.use_vmovntps = false;
-                if (jcp.load_dim <= BIG_LOAD_DIM && spatial > SMALL_SPATIAL) {
-                    max_regs = 6;
-                    min_regs = 5;
-                }
+            if (jcp.load_dim > 128 && jcp.load_dim < BIG_LOAD_DIM
+                    && spatial > SMALL_SPATIAL && spatial < BIG_SPATIAL) {
+                max_regs = 6;
+                min_regs = 5;
             }
         } else {
             bool is4ops = (jcp.ver == ver_4fma || jcp.ver == ver_4vnni);
@@ -898,6 +884,8 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
         jcp.reduce_loop_bcast_step
                 = jcp.reduce_loop_unroll * jcp.bcast_dim * jcp.typesize_in;
 
+        jcp.bcast_block = jcp.ur;
+
         jcp.bcast_loop_output_step = jcp.ur * jcp.load_block * jcp.typesize_out;
         jcp.bcast_loop_output_substep = -1; // unused
         jcp.bcast_loop_bcast_step = jcp.ur * jcp.reduce_block * jcp.typesize_in;
@@ -913,12 +901,18 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
         int nb_bcast = div_up(jcp.bcast_dim, jcp.bcast_block);
 
         if (jcp.ver == ver_avx512_core && jcp.expl_bcast) {
-            if (jcp.use_vmovntps == true)
-                reduce_blocking = jcp.reduce_dim;
-            else if (jcp.load_dim <= BIG_LOAD_DIM && spatial > SMALL_SPATIAL)
+            if (jcp.load_dim <= BIG_LOAD_DIM && spatial > SMALL_SPATIAL
+                    && spatial < BIG_SPATIAL)
                 reduce_blocking = nstl::min(jcp.reduce_dim, 80);
+            else if (spatial > SMALL_SPATIAL)
+                reduce_blocking = nstl::min(jcp.reduce_dim, 512);
             else
                 reduce_blocking = nstl::min(jcp.reduce_dim, 256);
+            if (jcp.mb > 1
+                    && (spatial >= 28 || (spatial >= 17 && jcp.mb > 112)))
+                jcp.use_vmovntps = true;
+            else
+                jcp.use_vmovntps = false;
         } else {
             int nb_reduce = div_up(jcp.reduce_dim, jcp.reduce_block);
 
