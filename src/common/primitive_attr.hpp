@@ -92,7 +92,7 @@ struct mkldnn_post_ops: public mkldnn::impl::c_compatible {
             return kind == primitive_kind::eltwise
                 && utils::implication(require_scale_one, eltwise.scale == 1.f)
                 && eltwise.alg == alg_kind::eltwise_relu
-                && utils::implication(require_nslope_zero, eltwise.alpha == 0.);
+                && utils::implication(require_nslope_zero, eltwise.alpha == 0.f);
         }
     };
 

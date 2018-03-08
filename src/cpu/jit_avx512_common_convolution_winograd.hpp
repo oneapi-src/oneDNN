@@ -176,15 +176,14 @@ struct winograd_scratchpad_t {
 };
 }
 
-template <bool with_relu, bool is_fwd>
+template <bool is_fwd>
 struct _jit_avx512_common_convolution_winograd_t {
 
     _jit_avx512_common_convolution_winograd_t(
-            const jit_conv_winograd_conf_t &jcp)
-        : kernel_(nullptr)
-        , scratchpad_(nullptr)  {
-            kernel_ = new _jit_avx512_common_conv_winograd_data_kernel_f32(jcp);
-            scratchpad_ = new winograd::winograd_scratchpad_t(jcp);
+            const jit_conv_winograd_conf_t &jcp, const primitive_attr_t *attr)
+        : kernel_(nullptr), scratchpad_(nullptr), attr_(attr) {
+        kernel_ = new _jit_avx512_common_conv_winograd_data_kernel_f32(jcp);
+        scratchpad_ = new winograd::winograd_scratchpad_t(jcp);
         }
 
     ~_jit_avx512_common_convolution_winograd_t() {
@@ -200,11 +199,12 @@ struct _jit_avx512_common_convolution_winograd_t {
         _jit_avx512_common_conv_winograd_data_kernel_f32 *kernel_;
         // Buffer required to store transforms in the frequency domain
         winograd::winograd_scratchpad_t *scratchpad_;
+        const primitive_attr_t *attr_;
 };
 
 template <bool with_relu>
 struct _jit_avx512_common_convolution_winograd_fwd_t
-     : _jit_avx512_common_convolution_winograd_t<with_relu, true>
+     : _jit_avx512_common_convolution_winograd_t<true>
      , public cpu_primitive_t
     {
     struct pd_t : public _cpu_convolution_fwd_pd_t<with_relu> {
@@ -262,12 +262,10 @@ struct _jit_avx512_common_convolution_winograd_fwd_t
     };
 
     _jit_avx512_common_convolution_winograd_fwd_t(const pd_t *pd,
-            const input_vector &inputs,
-            const output_vector &outputs)
-        : _jit_avx512_common_convolution_winograd_t<with_relu, true>(pd->jcp_)
+            const input_vector &inputs, const output_vector &outputs)
+        : _jit_avx512_common_convolution_winograd_t<true>(pd->jcp_, pd->attr())
         , cpu_primitive_t(&conf_, inputs, outputs)
-        , conf_(*pd)
-        {}
+        , conf_(*pd) {}
 
     ~_jit_avx512_common_convolution_winograd_fwd_t(){};
 
@@ -303,7 +301,7 @@ using jit_avx512_common_convolution_winograd_relu_t
         = _jit_avx512_common_convolution_winograd_fwd_t<true>;
 
 struct jit_avx512_common_convolution_winograd_bwd_data_t
-        : _jit_avx512_common_convolution_winograd_t<false, false>,
+        : _jit_avx512_common_convolution_winograd_t<false>,
         public cpu_primitive_t {
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
@@ -356,7 +354,7 @@ struct jit_avx512_common_convolution_winograd_bwd_data_t
 
     jit_avx512_common_convolution_winograd_bwd_data_t(const pd_t *pd,
             const input_vector &inputs, const output_vector &outputs)
-        : _jit_avx512_common_convolution_winograd_t<false, false>(pd->jcp_)
+        : _jit_avx512_common_convolution_winograd_t<false>(pd->jcp_, pd->attr())
         , cpu_primitive_t(&conf_, inputs, outputs)
         , conf_(*pd) {}
 

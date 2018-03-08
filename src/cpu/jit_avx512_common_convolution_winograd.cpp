@@ -58,8 +58,36 @@ void inline store_output(float *dest, const float *data, bool streamout) {
     else
         _mm512_store_ps(dest, *((__m512 *)data));
 #else
-# pragma omp simd
-    for (int v=0; v < simd_w; v++) dest[v] = data[v];
+#pragma omp simd
+    for (int v = 0; v < simd_w; v++)
+        dest[v] = data[v];
+#endif
+}
+
+void inline accum_output(
+        float *dest, float *data, bool streamout, bool with_relu_postsum) {
+#ifdef __INTEL_COMPILER
+    __m512 _data = _mm512_loadu_ps(data);
+    __m512 _dest = _mm512_loadu_ps(dest);
+    _data = _mm512_add_ps(_data, _dest);
+    if (with_relu_postsum)
+        _data = _mm512_max_ps(_data, _mm512_setzero_ps());
+    if (streamout)
+        _mm512_stream_ps(dest, _data);
+    else
+        _mm512_store_ps(dest, _data);
+#else
+#pragma omp simd
+    for (int v = 0; v < simd_w; v++)
+        data[v] += dest[v];
+    if (with_relu_postsum)
+#pragma omp simd
+        for (int v = 0; v < simd_w; v++)
+            if (data[v] < 0.f)
+                data[v] = 0.f;
+#pragma omp simd
+    for (int v = 0; v < simd_w; v++)
+        dest[v] = data[v];
 #endif
 }
 }
@@ -604,14 +632,17 @@ void weight_transform_data(const jit_conv_winograd_conf_t &jcp,
     }
 }
 
-template <bool is_fwd, bool with_bias, bool with_relu>
+template <bool is_fwd, bool with_bias, bool with_relu_presum, bool with_sum>
 void output_transform_data(int image, const jit_conv_winograd_conf_t &jcp,
-        float *toutp, float *pout_b, float *bias, bool streamout = true)
-{
+        const post_ops_t &p_ops, float *toutp, float *pout_b, float *bias,
+        bool streamout = true) {
     float Ow[alpha][alpha][simd_w];
     float O[tile_size][tile_size][simd_w];
     int outw = is_fwd ? jcp.ow : jcp.iw;
     int outh = is_fwd ? jcp.oh : jcp.ih;
+
+    /* Prepare for PostOps */
+    bool with_relu_postsum = p_ops.find(primitive_kind::eltwise, 1) != -1;
 
     array_offset_calculator<float, 8> input(toutp,
             jcp.dimN_nb_block, jcp.dimM_nb_block,
@@ -653,14 +684,19 @@ void output_transform_data(int image, const jit_conv_winograd_conf_t &jcp,
                             if (is_fwd) {
 #pragma omp simd
                                 for (int v = 0; v < simd_w; v++) {
-                                    O[j][i][v] += with_bias ? bias[v] : 0.0f;
-                                    O[j][i][v] = (jcp.with_relu && O[j][i][v] < 0.0f)
-                                                 ? O[j][i][v]
-                                                 * jcp.relu_negative_slope
-                                                 : O[j][i][v];
+                                    O[j][i][v] += with_bias ? bias[v] : 0.f;
+                                    O[j][i][v] = true
+                                        && with_relu_presum && O[j][i][v] < 0.f
+                                                ? O[j][i][v]
+                                                * jcp.relu_negative_slope
+                                                : O[j][i][v];
                                 }
                             }
-                            store_output(pout_i, O[j][i], streamout);
+                            if (with_sum)
+                                accum_output(pout_i, O[j][i], streamout,
+                                        with_relu_postsum);
+                            else
+                                store_output(pout_i, O[j][i], streamout);
                         }
                     }
                 }
@@ -678,15 +714,17 @@ void output_transform_data(int image, const jit_conv_winograd_conf_t &jcp,
     }
 }
 
-template <bool is_fwd, bool with_bias, bool with_relu>
+template <bool is_fwd, bool with_bias, bool with_relu_presum, bool with_sum>
 void output_transform_tileblock_data(int tile_block,
-        const jit_conv_winograd_conf_t& jcp,
-        float *toutp, float *outp, float *bias, bool streamout)
-{
+        const jit_conv_winograd_conf_t &jcp, const post_ops_t &p_ops,
+        float *toutp, float *outp, float *bias, bool streamout) {
     float Ow[alpha][alpha][simd_w];
     float O[tile_size][tile_size][simd_w];
     int outw = is_fwd ? jcp.ow : jcp.iw;
     int outh = is_fwd ? jcp.oh : jcp.ih;
+
+    /* Prepare for PostOps */
+    bool with_relu_postsum = p_ops.find(primitive_kind::eltwise, 1) != -1;
 
     array_offset_calculator<float, 6> input(toutp,
             alpha, alpha,
@@ -730,15 +768,20 @@ void output_transform_tileblock_data(int tile_block,
                             if (is_fwd) {
 #pragma omp simd
                                 for (int v = 0; v < simd_w; v++) {
-                                    O[j][i][v] += with_bias ? bias[v] : 0.0f;
-                                    O[j][i][v] = (jcp.with_relu && O[j][i][v] < 0.0f)
-                                                 ? O[j][i][v]
-                                                 * jcp.relu_negative_slope
-                                                 : O[j][i][v];
+                                    O[j][i][v] += with_bias ? bias[v] : 0.f;
+                                    O[j][i][v] = true
+                                        && with_relu_presum && O[j][i][v] < 0.f
+                                                ? O[j][i][v]
+                                                * jcp.relu_negative_slope
+                                                : O[j][i][v];
 
                                 }
                             }
-                            store_output(pout_i, O[j][i], streamout);
+                            if (with_sum)
+                                accum_output(pout_i, O[j][i], streamout,
+                                        with_relu_postsum);
+                            else
+                                store_output(pout_i, O[j][i], streamout);
                         }
                     }
                 }
@@ -753,7 +796,7 @@ void diff_src_transform_bwd_weights(int image, jit_conv_winograd_conf_t conv,
         float *inp, float *tinp, float *Iw_temp,
         void (*transpose_4fma_ker)(float *, float *))
 {
-    
+
     const int ifwp = conv.iw + conv.l_pad;
     const int ifhp = conv.ih + conv.t_pad;
     float I[alpha][alpha][simd_w];
@@ -878,7 +921,7 @@ template <bool with_bias>
 void diff_dst_transform_bwd_weights(int image, jit_conv_winograd_conf_t conv,
         float *inp, float *tinp, float *dbias)
 {
-    
+
     const int total_tiles = conv.itiles * conv.jtiles + conv.tile_4fma_padding;
     float I[alpha][alpha][simd_w];
     float Iw[alpha][alpha][simd_w];
@@ -1000,21 +1043,36 @@ void diff_weights_transform_bwd_weights(jit_conv_winograd_conf_t conv,
     }
 }
 
+template <bool is_fwd>
+void _jit_avx512_common_convolution_winograd_t<is_fwd>::_execute_data_W_S_G_D(
+        float *inp_ptr, float *out_ptr, float *wei_ptr, float *bias_ptr) {
+    const auto &jcp = kernel_->jcp;
+    const auto &p_ops = attr_->post_ops_;
 
-template<bool with_relu, bool is_fwd>
-void _jit_avx512_common_convolution_winograd_t<with_relu, is_fwd>
-::_execute_data_W_S_G_D(float *inp_ptr, float *out_ptr,
-        float *wei_ptr, float *bias_ptr)
-{
-    const auto &jcp = (this->kernel_)->jcp;
     const int inph = is_fwd ? jcp.ih : jcp.oh;
     const int inpw = is_fwd ? jcp.iw : jcp.ow;
     const int outh = is_fwd ? jcp.oh : jcp.ih;
     const int outw = is_fwd ? jcp.ow : jcp.iw;
 
+    /* Note that jcp.with_relu is true for both fused conv+relu primitive
+     * and conv primitive with PostOps with relu before sum
+     * (PostOps relu after sum is handled later) */
     auto output_transform = jcp.with_bias
-                          ? output_transform_data<is_fwd, true, with_relu>
-                          : output_transform_data<is_fwd, false, with_relu>;
+            ? (jcp.with_relu
+                ? (jcp.with_sum
+                    ? output_transform_data<is_fwd, true, true, true>
+                    : output_transform_data<is_fwd, true, true, false>)
+                : (jcp.with_sum
+                    ? output_transform_data<is_fwd, true, false, true>
+                    : output_transform_data<is_fwd, true, false, false>))
+            : (jcp.with_relu
+                ? (jcp.with_sum
+                    ? output_transform_data<is_fwd, false, true, true>
+                    : output_transform_data<is_fwd, false, true, false>)
+                : (jcp.with_sum
+                    ? output_transform_data<is_fwd, false, false, true>
+                    : output_transform_data<is_fwd, false, false, false>));
+
     /* Notation:
        FWD: dimM:oc, dimN:ntiles, dimK:ic,
        BWD: dimM:ic, dimN:ntiles, dimK:oc,
@@ -1128,7 +1186,7 @@ void _jit_avx512_common_convolution_winograd_t<with_relu, is_fwd>
         for (int img = 0; img < jcp.mb; img++) {
             for (int M_blk1 = 0; M_blk1 < jcp.dimM_nb_block; M_blk1++) {
                 for (int M_blk2 = 0; M_blk2 < jcp.dimM_block; M_blk2++) {
-                    output_transform(img, jcp,
+                    output_transform(img, jcp, p_ops,
                             &(M(0, M_blk1, 0, 0, 0, M_blk2, 0, 0)),
                             &(output(img, M_blk1 * jcp.dimM_block + M_blk2,
                                     0, 0, 0)),
@@ -1141,30 +1199,41 @@ void _jit_avx512_common_convolution_winograd_t<with_relu, is_fwd>
 }
 
 template void
-_jit_avx512_common_convolution_winograd_t<true, true>
-::_execute_data_W_S_G_D(float *, float *, float *, float *);
+_jit_avx512_common_convolution_winograd_t<true>::_execute_data_W_S_G_D(
+        float *, float *, float *, float *);
 template void
-_jit_avx512_common_convolution_winograd_t<false, true>
-::_execute_data_W_S_G_D(float *, float *, float *, float *);
-template void
-_jit_avx512_common_convolution_winograd_t<false, false>
-::_execute_data_W_S_G_D(float *, float *, float *, float *);
+_jit_avx512_common_convolution_winograd_t<false>::_execute_data_W_S_G_D(
+        float *, float *, float *, float *);
 
-template<bool with_relu, bool is_fwd>
-void _jit_avx512_common_convolution_winograd_t<with_relu, is_fwd>::
-_execute_data_W_SGD(float *inp_ptr, float *out_ptr,
-        float *wei_ptr, float *bias_ptr)
-{
-    const auto &jcp = (this->kernel_)->jcp;
+template <bool is_fwd>
+void _jit_avx512_common_convolution_winograd_t<is_fwd>::_execute_data_W_SGD(
+        float *inp_ptr, float *out_ptr, float *wei_ptr, float *bias_ptr) {
+    const auto &jcp = kernel_->jcp;
+    const auto &p_ops = attr_->post_ops_;
 
     const int inph = is_fwd ? jcp.ih : jcp.oh;
     const int inpw = is_fwd ? jcp.iw : jcp.ow;
     const int outh = is_fwd ? jcp.oh : jcp.ih;
     const int outw = is_fwd ? jcp.ow : jcp.iw;
 
+    /* Note that jcp.with_relu is true for both fused conv+relu primitive
+     * and conv primitive with PostOps with relu before sum
+     * (PostOps relu after sum is handled later) */
     auto output_transform_tileblock = jcp.with_bias
-                          ? output_transform_tileblock_data<is_fwd, true, with_relu>
-                          : output_transform_tileblock_data<is_fwd, false, with_relu>;
+            ? (jcp.with_relu
+                ? (jcp.with_sum
+                    ? output_transform_tileblock_data<is_fwd, true, true, true>
+                    : output_transform_tileblock_data<is_fwd, true, true, false>)
+                : (jcp.with_sum
+                    ? output_transform_tileblock_data<is_fwd, true, false, true>
+                    : output_transform_tileblock_data<is_fwd, true, false, false>))
+            : (jcp.with_relu
+                ? (jcp.with_sum
+                    ? output_transform_tileblock_data<is_fwd, false, true, true>
+                    : output_transform_tileblock_data<is_fwd, false, true, false>)
+                : (jcp.with_sum
+                    ? output_transform_tileblock_data<is_fwd, false, false, true>
+                    : output_transform_tileblock_data<is_fwd, false, false, false>));
 
     array_offset_calculator<float, 5> input(inp_ptr,
             jcp.mb, jcp.dimK/jcp.dimK_reg_block, inph, inpw, jcp.dimK_reg_block);
@@ -1264,7 +1333,7 @@ _execute_data_W_SGD(float *inp_ptr, float *out_ptr,
                 float *bias_ptr = is_fwd
                                 ? &(bias(M_blk1 * jcp.dimM_block + M_blk2, 0))
                                 : NULL;
-                output_transform_tileblock(tile_block, jcp,
+                output_transform_tileblock(tile_block, jcp, p_ops,
                         &(M(ithr, M_blk1, 0, 0, 0, M_blk2, 0, 0)),
                         &(output(0, M_blk1 * jcp.dimM_block + M_blk2, 0, 0, 0)),
                         bias_ptr, output_is_aligned);
@@ -1274,12 +1343,12 @@ _execute_data_W_SGD(float *inp_ptr, float *out_ptr,
     }
 }
 
-template void _jit_avx512_common_convolution_winograd_t<true, true>::
-_execute_data_W_SGD(float *, float *, float *, float *);
-template void _jit_avx512_common_convolution_winograd_t<false, true>::
-_execute_data_W_SGD(float *, float *, float *, float *);
-template void _jit_avx512_common_convolution_winograd_t<false, false>::
-_execute_data_W_SGD(float *, float *, float *, float *);
+template void
+_jit_avx512_common_convolution_winograd_t<true>::_execute_data_W_SGD(
+        float *, float *, float *, float *);
+template void
+_jit_avx512_common_convolution_winograd_t<false>::_execute_data_W_SGD(
+        float *, float *, float *, float *);
 
 void jit_avx512_common_convolution_winograd_bwd_weights_t::
 _execute_backward_weights_S_D_G_W()
