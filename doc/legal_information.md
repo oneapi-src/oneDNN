@@ -24,4 +24,4 @@ of Intel Corporation or its subsidiaries in the U.S. and/or other countries.
 
 \* Other names and brands may be claimed as the property of others.
 
-(C) 2016-2017, Intel Corporation.
+(C) 2016-2018, Intel Corporation.
