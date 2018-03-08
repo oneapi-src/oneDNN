@@ -65,8 +65,12 @@ struct eltwise_fwd_pd_t: public primitive_desc_t {
 
     inline int MB() const { return desc_.data_desc.dims[0]; }
     inline int C() const { return desc_.data_desc.dims[1]; }
-    inline int H() const { return desc_.data_desc.dims[2]; }
-    inline int W() const { return desc_.data_desc.dims[3]; }
+    inline int D() const { return desc_.data_desc.ndims == 4
+        ? 1 : desc_.data_desc.dims[2]; }
+    inline int H() const { return desc_.data_desc.ndims == 4
+        ? desc_.data_desc.dims[2] : desc_.data_desc.dims[3]; }
+    inline int W() const { return desc_.data_desc.ndims == 4
+        ? desc_.data_desc.dims[3] : desc_.data_desc.dims[4]; }
 
 protected:
     eltwise_desc_t desc_;
@@ -116,8 +120,12 @@ struct eltwise_bwd_pd_t: public primitive_desc_t {
 
     inline int MB() const { return desc_.data_desc.dims[0]; }
     inline int C() const { return desc_.data_desc.dims[1]; }
-    inline int H() const { return desc_.data_desc.dims[2]; }
-    inline int W() const { return desc_.data_desc.dims[3]; }
+    inline int D() const { return desc_.data_desc.ndims == 4
+        ? 1 : desc_.data_desc.dims[2]; }
+    inline int H() const { return desc_.data_desc.ndims == 4
+        ? desc_.data_desc.dims[2] : desc_.data_desc.dims[3]; }
+    inline int W() const { return desc_.data_desc.ndims == 4
+        ? desc_.data_desc.dims[3] : desc_.data_desc.dims[4]; }
 
 protected:
     eltwise_desc_t desc_;
