@@ -173,38 +173,38 @@ average gigaops (since it corresponds to average time)
 
 ## Examples
 
-Run the default set of f32 forwad convolutions w/ bias and default minibatch:
+Run the set of f32 forward convolutions from inputs/conv_all file w/ bias and default minibatch:
 ```
     $ ./benchdnn --conv \
-        --cfg=f32 --dir=FWD_B
+        --cfg=f32 --dir=FWD_B --batch=inputs/conv_all
 ```
 
 Run the same but with merged ReLU:
 ```
     $ ./benchdnn --conv \
-        --cfg=f32 --dir=FWD_B --merge=RELU
+        --cfg=f32 --dir=FWD_B --merge=RELU --batch=inputs/conv_all
 ```
 
 Run the same as previous but also measure performance:
 ```
     $ ./benchdnn --conv --mode=CORRnPERF \
-        --cfg=f32 --dir=FWD_B --merge=RELU
+        --cfg=f32 --dir=FWD_B --merge=RELU --batch=inputs/conv_all
 ```
 
 > **note**: instead of `CORRnPERF` one can use `CP`, `PC`, `cp`, or `pc`
 
-Run the default set of f32 backward convolutions wrt weights with kh=3 and
+Run a set of f32 backward convolutions wrt weights with kh=3 and
 verbose level set to 2:
 ```
     $ ./benchdnn --conv -v2 \
-        --cfg=f32 --dir=BWD_W --match='.*kh3[^0-9].*'
+        --cfg=f32 --dir=BWD_W --match='.*kh3[^0-9].*' --batch=inputs/conv_all
 ```
 
-Run the default set of u8s8u8s32 backward convolutions wrt data but skip all
+Run a set of u8s8u8s32 backward convolutions wrt data but skip all
 the convolutions that will use reference or gemm-based implementation:
 ```
     $ ./benchdnn --conv \
-        --cfg=u8s8u8s32 --dir=BWD_B --skip-impl='ref:gemm'
+        --cfg=u8s8u8s32 --dir=BWD_B --skip-impl='ref:gemm' --batch=inputs/conv_all
 ```
 
 Run explicitly specified 1st forward convolution (including bias) from Alexnet
@@ -228,14 +228,14 @@ Winograd:
         --alg=WINO   --batch=convs.in
 ```
 
-Run the default set of u8s8u8s32 forward convolutions w/o bias, skipping
+Run a set of u8s8u8s32 forward convolutions w/o bias, skipping
 reference implementations and not triggering unimplemented as an error, with
 one common output scale set to 0.5 with rounding mode set to down
 (via attributes):
 ```
     $ ./benchdnn --conv \
         --cfg=u8s8u8s32 --dir=FWD_D --skip-impl="ref" --allow-unimpl=true \
-        --attr="irmode=down;oscale=common:.5"
+        --attr="irmode=down;oscale=common:.5" --batch=inputs/conv_all
 ```
 
 Almost the same as above (with minor changes), but also add post operation
@@ -244,7 +244,7 @@ attributes/mkldnn_post_ops_t:
 ```
     $ ./benchdnn --conv \
         --cfg=u8s8s32s32 --dir=FWD_B \
-        --attr="oscale=common:.5;post_ops='relu;sum:.3;relu'"
+        --attr="oscale=common:.5;post_ops='relu;sum:.3;relu'" --batch=inputs/conv_all
 ```
 
 
