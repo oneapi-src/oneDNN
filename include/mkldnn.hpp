@@ -897,7 +897,7 @@ struct view : public primitive {
         mkldnn_primitive_t result;
         primitive_desc view_pd(input.get_primitive_desc(), dims,
                 offsets);
-        mkldnn_primitive_at_t inputs[] = { {input.get(), 0} };
+        mkldnn_primitive_at_t inputs[] = { primitive::at(input).data };
         error::wrap_c_api(mkldnn_primitive_create(&result,
                     view_pd.get(), inputs, nullptr),
                 "could not create a view primitive");

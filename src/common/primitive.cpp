@@ -21,6 +21,7 @@
 #include "primitive.hpp"
 #include "engine.hpp"
 #include "type_helpers.hpp"
+#include "utils.hpp"
 
 using namespace mkldnn::impl;
 using namespace mkldnn::impl::status;
@@ -36,10 +37,17 @@ status_t mkldnn_primitive_create(primitive_t **primitive,
         const primitive_t **outputs) {
     if (utils::any_null(primitive, primitive_desc))
         return invalid_arguments;
-    for (int i = 0; i < primitive_desc->n_inputs(); ++i)
-        if (inputs[i].primitive == nullptr ||
-                inputs[i].output_index >= size_t(primitive_desc->n_outputs()))
+    for (int i = 0; i < primitive_desc->n_inputs(); ++i) {
+        const auto i_p = inputs[i].primitive;
+        const auto i_oi = (int)inputs[i].output_index;
+        const bool ok = true
+            && i_p != nullptr
+            && utils::implication(i_p->kind() == memory, i_oi == 0)
+            && utils::implication(i_p->kind() != memory,
+                    i_oi < i_p->pd()->n_outputs());
+        if (!ok)
             return invalid_arguments;
+    }
     for (int i = 0; i < primitive_desc->n_outputs(); ++i)
         if (outputs[i] == nullptr) return invalid_arguments;
     return primitive_desc->create_primitive(primitive, inputs, outputs);

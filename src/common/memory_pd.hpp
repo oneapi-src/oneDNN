@@ -100,7 +100,7 @@ struct view_pd_t: public primitive_desc_t {
     virtual const memory_pd_t *output_pd(int index = 0) const override
     { return index == 0 ? dst_pd() : nullptr; }
     virtual int n_inputs() const override { return 1; }
-    virtual int n_outputs() const override { return 1; }
+    virtual int n_outputs() const override { return 0; }
 };
 
 struct concat_pd_t: public primitive_desc_t {
