@@ -120,6 +120,10 @@ inline memory_desc_t zero_md() {
     return zero;
 }
 
+inline bool is_zero_md(const memory_desc_t *md) {
+    return md == nullptr || *md == zero_md();
+}
+
 inline status_t set_default_format(memory_desc_t &md, memory_format_t fmt) {
     return mkldnn_memory_desc_init(&md, md.ndims, md.dims, md.data_type, fmt);
 }

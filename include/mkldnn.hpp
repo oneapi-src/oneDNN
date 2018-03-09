@@ -749,6 +749,26 @@ struct memory: public primitive  {
     }
 };
 
+inline memory::desc zero_md() {
+    mkldnn_memory_desc_t zero{};
+    zero.primitive_kind = mkldnn_memory;
+    return memory::desc(zero);
+}
+
+inline memory null_memory(engine eng) {
+    mkldnn::memory::desc zero = zero_md();
+    return memory({zero, eng}, nullptr);
+}
+
+inline bool is_null_memory(const const_mkldnn_primitive_t &aprimitive) {
+    const_mkldnn_primitive_desc_t aprimitive_pd;
+    mkldnn_primitive_get_primitive_desc(aprimitive, &aprimitive_pd);
+    const mkldnn_memory_desc_t *aprimitive_md = mkldnn_primitive_desc_query_memory_d(
+        aprimitive_pd);
+
+    return ((aprimitive_md != nullptr) && (aprimitive_md->ndims == 0));
+}
+
 inline bool operator==(mkldnn_data_type_t a, memory::data_type b) {
     return a == memory::convert_to_c(b);
 }

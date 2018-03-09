@@ -178,7 +178,7 @@ status_t mkldnn_memory_get_data_handle(const primitive_t *memory,
 }
 
 status_t mkldnn_memory_set_data_handle(primitive_t *memory, void *handle) {
-    if (any_null(memory, handle) || memory->kind() != primitive_kind::memory)
+    if (any_null(memory) || memory->kind() != primitive_kind::memory)
         return invalid_arguments;
     return memory->set_data_handle(handle);
 }
