@@ -217,6 +217,44 @@ inline bool nd_iterator_jump(U &cur, const U end, W &x, const Y &X,
     return false;
 }
 
+template <typename Telem, size_t Tdims>
+struct array_offset_calculator {
+    template <typename... Targs>
+    array_offset_calculator(Telem *base, Targs... Fargs) : _dims{ Fargs... }
+    {
+        _base_ptr = base;
+    }
+    template <typename... Targs>
+    inline Telem &operator()(Targs... Fargs)
+    {
+        return *(_base_ptr + _offset(1, Fargs...));
+    }
+
+private:
+    template <typename... Targs>
+    inline size_t _offset(size_t const dimension, size_t element)
+    {
+        return element;
+    }
+
+    template <typename... Targs>
+    inline size_t _offset(size_t const dimension, size_t theta, size_t element)
+    {
+        return element + (_dims[dimension] * theta);
+    }
+
+    template <typename... Targs>
+    inline size_t _offset(size_t const dimension, size_t theta, size_t element,
+            Targs... Fargs)
+    {
+        size_t t_prime = element + (_dims[dimension] * theta);
+        return _offset(dimension + 1, t_prime, Fargs...);
+    }
+
+    Telem *_base_ptr;
+    const int _dims[Tdims];
+};
+
 }
 
 void *malloc(size_t size, int alignment);

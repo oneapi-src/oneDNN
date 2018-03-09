@@ -23,6 +23,7 @@
 #include "c_types_map.hpp"
 #include "mkldnn_thread.hpp"
 #include "type_helpers.hpp"
+#include "utils.hpp"
 
 #include "jit_avx512_common_convolution_winograd.hpp"
 
@@ -39,44 +40,6 @@ namespace cpu {
 namespace {
 
 unsigned int LLC_cache_size = get_cache_size(3, false);
-
-template <typename Telem, size_t Tdims>
-struct array_offset_calculator {
-    template <typename... Targs>
-    array_offset_calculator(Telem *base, Targs... Fargs) : _dims{ Fargs... }
-    {
-        _base_ptr = base;
-    }
-    template <typename... Targs>
-    inline Telem &operator()(Targs... Fargs)
-    {
-        return *(_base_ptr + _offset(1, Fargs...));
-    }
-
-private:
-    template <typename... Targs>
-    inline size_t _offset(size_t const dimension, size_t element)
-    {
-        return element;
-    }
-
-    template <typename... Targs>
-    inline size_t _offset(size_t const dimension, size_t theta, size_t element)
-    {
-        return element + (_dims[dimension] * theta);
-    }
-
-    template <typename... Targs>
-    inline size_t _offset(size_t const dimension, size_t theta, size_t element,
-            Targs... Fargs)
-    {
-        size_t t_prime = element + (_dims[dimension] * theta);
-        return _offset(dimension + 1, t_prime, Fargs...);
-    }
-
-    Telem *_base_ptr;
-    const int _dims[Tdims];
-};
 
 void inline load_ps(float *dest, const float *src_mem) {
 #ifdef __INTEL_COMPILER
