@@ -24,6 +24,8 @@
 #include "cpu_concat.hpp"
 #include "cpu_sum.hpp"
 
+#include "cpu/ref_rnn.hpp"
+
 #include "cpu/jit_avx512_core_u8s8s32x_1x1_convolution.hpp"
 #include "cpu/jit_avx512_common_1x1_convolution.hpp"
 #include "cpu/jit_avx512_common_convolution_winograd.hpp"
@@ -82,6 +84,9 @@ using namespace mkldnn::impl::data_type;
 
 #define INSTANCE(...) &primitive_desc_t::create<__VA_ARGS__::pd_t>
 static const pd_create_f cpu_impl_list[] = {
+    /* RNN */
+    INSTANCE(ref_rnn_fwd_t),
+    INSTANCE(ref_rnn_bwd_t),
     /* conv 3d */
     INSTANCE(ref_convolution_3d_fwd_t<f32>),
     INSTANCE(ref_convolution_3d_fwd_t<s16,s16, s32, s32>),

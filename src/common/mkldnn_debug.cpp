@@ -103,6 +103,14 @@ const char *mkldnn_fmt2str(mkldnn_memory_format_t v) {
     if (v == mkldnn_ncdhw) return "ncdhw";
     if (v == mkldnn_oidhw) return "oidhw";
     if (v == mkldnn_goidhw) return "goidhw";
+    if (v == mkldnn_ntc) return "ntc";
+    if (v == mkldnn_tnc) return "tnc";
+    if (v == mkldnn_ldsnc) return "ldsnc";
+    if (v == mkldnn_ldigo) return "ldigo";
+    if (v == mkldnn_ldigo_p) return "ldigo_p";
+    if (v == mkldnn_ldgoi) return "ldgoi";
+    if (v == mkldnn_ldgoi_p) return "ldgoi_p";
+    if (v == mkldnn_ldgo) return "ldgo";
     assert(!"unknown fmt");
     return "unknown fmt";
 }
@@ -138,6 +146,7 @@ const char *mkldnn_prim_kind2str(mkldnn_primitive_kind_t v) {
     if (v == mkldnn_batch_normalization) return "batch_normalization";
     if (v == mkldnn_inner_product) return "inner_product";
     if (v == mkldnn_convolution_relu) return "convolution_relu";
+    if (v == mkldnn_rnn) return "rnn";
     assert(!"unknown prim_kind");
     return "unknown prim_kind";
 }
@@ -161,6 +170,9 @@ const char *mkldnn_alg_kind2str(mkldnn_alg_kind_t v) {
     if (v == mkldnn_pooling_avg) return "pooling_avg";
     if (v == mkldnn_lrn_across_channels) return "lrn_across_channels";
     if (v == mkldnn_lrn_within_channel) return "lrn_within_channel";
+    if (v == mkldnn_vanilla_rnn) return "vanilla_rnn";
+    if (v == mkldnn_vanilla_lstm) return "vanilla_lstm";
+    if (v == mkldnn_vanilla_gru) return "vanilla_gru";
     assert(!"unknown alg_kind");
     return "unknown alg_kind";
 }

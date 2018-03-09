@@ -5,8 +5,9 @@ The Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN) is 
 open source performance library for Deep Learning (DL) applications intended
 for acceleration of DL frameworks on Intel(R) architecture. Intel MKL-DNN
 includes highly vectorized and threaded building blocks for implementation of
-convolutional neural networks (CNN) with C and C++ interfaces. This
-project is created to help the DL community innovate on the Intel(R) processor family.
+convolutional neural networks (CNN) and reccurent neural networks (RNN) with
+C and C++ interfaces. This project is created to help the DL community innovate
+on the Intel(R) processor family.
 
 The library supports the most commonly used primitives necessary to accelerate
 bleeding edge image recognition topologies, including Cifar*, AlexNet*, VGG*,
@@ -26,13 +27,21 @@ operations. The library includes the following classes of functions:
 
 * Activation
     - rectified linear unit neuron activation (ReLU)
-	- softmax
+    - softmax
 
 * Data manipulation
     - reorder (multi-dimensional transposition/conversion),
     - sum,
     - concat
-	- view
+    - view
+
+Also the library contains experimental support of RNN primitives to accelerate
+speech recognition and neural machine translation topologies. The experemental
+support includes the following classes of functions:
+
+* RNN
+    - RNN cell
+    - LSTM cell
 
 Intel MKL DNN primitives implement a plain C/C++ application programming
 interface (API) that can be used in the existing C/C++ DNN frameworks, as well
@@ -127,6 +136,9 @@ The following examples are available in the /examples directory and provide more
 * Creation of full training net (forward and backward primitives)
     - C: simple_training.c
     - C++: simple_training_net.cpp
+
+* Creation of forward propagation of GNMT topology (experimental support)
+    - C++: simple_rnn.cpp
 
 ### Performance Considerations
 

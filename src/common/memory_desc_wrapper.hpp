@@ -70,6 +70,7 @@ struct memory_desc_wrapper: public c_compatible {
     size_t size() const {
         using namespace mkldnn::impl::memory_format;
         if (is_zero() || format() == memory_format::any) return 0;
+
         assert(utils::one_of(format(), blocked, x, nc, nchw, nhwc, chwn,
                     nChw8c, nChw16c, oi, io, oihw, ihwo, hwio, hwigo, oIhw8i,
                     oIhw16i, OIhw8i8o, OIhw16i16o, OIhw8i16o2i, OIhw8o16i2o,
@@ -77,7 +78,8 @@ struct memory_desc_wrapper: public c_compatible {
                     OhIw16o4i, OIhw4i16o4i, goihw, gOIhw8i8o, gOIhw16i16o,
                     gOIhw8i16o2i, gOIhw8o16i2o, gOIhw8o8i, gOIhw16o16i, gOihw8o,
                     gOihw16o, gOhwi8o, gOhwi16o, gOhIw16o4i, IOhw16o16i,
-                    gIOhw16o16i, gOIhw4i16o4i, ncdhw, oidhw, goidhw));
+                    gIOhw16o16i, gOIhw4i16o4i, ncdhw, oidhw, goidhw,
+                    ntc, tnc, ldsnc, ldigo, ldgoi, ldgo));
 
         if (blocking_desc().offset_padding != 0) return 0;
 

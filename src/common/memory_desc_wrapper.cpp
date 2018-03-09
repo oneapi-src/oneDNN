@@ -493,6 +493,46 @@ status_t fill_gOhIw16o4i(memory_desc_t &md) {
     return fill_contiguous_blocked(md, block_dims, perm);
 }
 
+status_t fill_ntc(memory_desc_t &md) {
+    if (md.ndims != 3) return invalid_arguments;
+
+    const int perm[3] = { 1, 0, 2 };
+    return fill_nonblocked(md, perm);
+}
+
+status_t fill_tnc(memory_desc_t &md) {
+    if (md.ndims != 3) return invalid_arguments;
+    const int perm[3] = { 0, 1, 2 };
+    return fill_nonblocked(md, perm);
+}
+
+status_t fill_ldsnc(memory_desc_t &md) {
+    if (md.ndims != 5) return invalid_arguments;
+    const int perm[5] = { 0, 1, 2, 3, 4 };
+    return fill_nonblocked(md, perm);
+}
+
+status_t fill_ldigo(memory_desc_t &md) {
+    if (md.ndims != 5) return invalid_arguments;
+
+    const int perm[5] = { 0, 1, 2, 3, 4 };
+    return fill_nonblocked(md, perm);
+}
+
+status_t fill_ldgoi(memory_desc_t &md) {
+    if (md.ndims != 5) return invalid_arguments;
+
+    const int perm[5] = { 0, 1, 3, 4, 2 };
+    return fill_nonblocked(md, perm);
+}
+
+status_t fill_ldgo(memory_desc_t &md) {
+    if (md.ndims != 4) return invalid_arguments;
+
+    const int perm[4] = { 0, 1, 2, 3 };
+    return fill_nonblocked(md, perm);
+}
+
 }
 
 status_t memory_desc_wrapper::compute_blocking(memory_desc_t &memory_desc)
@@ -544,6 +584,12 @@ status_t memory_desc_wrapper::compute_blocking(memory_desc_t &memory_desc)
     case ncdhw: return fill_ncdhw(memory_desc);
     case oidhw: return fill_oidhw(memory_desc);
     case goidhw: return fill_goidhw(memory_desc);
+    case ntc: return fill_ntc(memory_desc);
+    case tnc: return fill_tnc(memory_desc);
+    case ldsnc: return fill_ldsnc(memory_desc);
+    case ldigo: return fill_ldigo(memory_desc);
+    case ldgoi: return fill_ldgoi(memory_desc);
+    case ldgo: return fill_ldgo(memory_desc);
     default: break;
     }
 

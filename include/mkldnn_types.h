@@ -252,6 +252,26 @@ typedef enum {
     /** 6D weight tensor in the @c goidhw format with extra dimension for
      * groups */
     mkldnn_goidhw,
+    /** 3D data tensor in the format (batch, seq_length, input channels). */
+    mkldnn_ntc,
+    /** 3D data tensor in the format (seq_length, batch, input channels). */
+    mkldnn_tnc,
+    /** 5D states tensor in the format (num_layers, num_directions, num_states,
+     * batch, state channels). */
+    mkldnn_ldsnc,
+    /** 5D weights tensor in the format (num_layers, num_directions,
+     *  input_chanels, num_gates, output_channels). */
+    mkldnn_ldigo,
+    /** 5D weights tensor in the blocked format. */
+    mkldnn_ldigo_p,
+    /** 5D weights tensor in the format (num_layers, num_directions, num_gates,
+     *  output_channels, input_chanels). */
+    mkldnn_ldgoi,
+    /** 5D weights tensor in the blocked format. */
+    mkldnn_ldgoi_p,
+    /** 4D bias tensor in the format (num_layers, num_directions, num_gates,
+     * output_channels). */
+    mkldnn_ldgo,
     /** 4D weights tensor in the oihw format with input channels data laid out
      * in memory in 8-element blocks. */
     mkldnn_oIhw8i = mkldnn_nChw8c,
@@ -327,10 +347,13 @@ typedef enum {
     mkldnn_inner_product,
     /** A convolution primitive merged with relu */
     mkldnn_convolution_relu,
+    /** A rnn primitive. */
+    mkldnn_rnn,
 } mkldnn_primitive_kind_t;
 
 /** Kinds of algorithms. */
 typedef enum {
+    mkldnn_alg_kind_undef,
     /** Direct convolution */
     mkldnn_convolution_direct = 1,
     /** Winograd convolution */
@@ -366,6 +389,12 @@ typedef enum {
     mkldnn_lrn_across_channels = 65,
     /** LRN within a single channel */
     mkldnn_lrn_within_channel = 66,
+    /** RNN cell */
+    mkldnn_vanilla_rnn = 80,
+    /** LSTM cell */
+    mkldnn_vanilla_lstm = 81,
+    /** GRU cell */
+    mkldnn_vanilla_gru = 82,
 } mkldnn_alg_kind_t;
 
 /** Flags for batch-normalization primititve. */
@@ -714,6 +743,86 @@ typedef struct {
     float negative_slope;
 } mkldnn_convolution_relu_desc_t;
 
+/** Flags for RNN cell. */
+typedef enum {
+    mkldnn_rnn_cell_with_relu = 0x1U,
+    mkldnn_rnn_cell_with_clipping = 0x2U,
+} mkldnn_rnn_cell_flags_t;
+
+typedef struct {
+    /** RNN cell kind. Must be one of #mkldnn_vanilla_rnn,
+     * #mkldnn_vanilla_lstm, or #mkldnn_vanilla_gru. */
+    mkldnn_alg_kind_t cell_kind;
+    /** Activation function used. Must be one of #mkldnn_eltwise_relu,
+     * #mkldnn_eltwise_tanh. */
+    mkldnn_alg_kind_t activation_kind;
+    /** RNN cell flags */
+    unsigned int flags;
+    /** alpha is a negative slope parameter (used only if
+     * (flags & #mkldnn_rnn_cell_with_relu) != 0) */
+    float alpha;
+    /** clipping parameter (used only if
+     * (flags & #mkldnn_rnn_cell_with_clipping) != 0) */
+    float clipping;
+} mkldnn_rnn_cell_desc_t;
+
+/** A direction of RNN primitive execution */
+typedef enum {
+    /* Unidirectional execution of RNN primitive from left to right. */
+    mkldnn_unidirectional_left2right,
+    /* Unidirectional execution of RNN primitive from right to left. */
+    mkldnn_unidirectional_right2left,
+    /* Bidirectional execution of RNN primitive with concatenation of the
+     * results. */
+    mkldnn_bidirectional_concat,
+    /* Bidirectional execution of RNN primitive with summation of the
+     * results. */
+    mkldnn_bidirectional_sum,
+    mkldnn_unidirectional = mkldnn_unidirectional_left2right,
+} mkldnn_rnn_direction_t;
+
+/** A descriptor for an rnn operation */
+typedef struct {
+    /** The kind of primitive. Used for self identifying the primitive
+     * descriptor. Must be #mkldnn_rnn. */
+    mkldnn_primitive_kind_t primitive_kind;
+    /** The kind of propagation. Possible values: #mkldnn_forward_training,
+     * #mkldnn_forward_inference, #mkldnn_backward. */
+    mkldnn_prop_kind_t prop_kind;
+    /** The RNN cell desc. */
+    mkldnn_rnn_cell_desc_t cell_desc;
+    /** The direction of RNN primitive execution. */
+    mkldnn_rnn_direction_t direction;
+    /** Source layer memory descriptor. */
+    mkldnn_memory_desc_t src_layer_desc;
+    /** Source iteration memory descriptor. */
+    mkldnn_memory_desc_t src_iter_desc;
+    /** Weights layer memory descriptor. */
+    mkldnn_memory_desc_t weights_layer_desc;
+    /** Weights iteration memory descriptor. */
+    mkldnn_memory_desc_t weights_iter_desc;
+    /** Bias memory descriptor. */
+    mkldnn_memory_desc_t bias_desc;
+    /** Destination layer memory descriptor. */
+    mkldnn_memory_desc_t dst_layer_desc;
+    /** Destination iter memory descriptor. */
+    mkldnn_memory_desc_t dst_iter_desc;
+    /** Source gradient layer memory descriptor. */
+    mkldnn_memory_desc_t diff_src_layer_desc;
+    /** Source gradient iter memory descriptor. */
+    mkldnn_memory_desc_t diff_src_iter_desc;
+    /** Weights gradient layer memory descriptor. */
+    mkldnn_memory_desc_t diff_weights_layer_desc;
+    /** Weights gradient iter memory descriptor. */
+    mkldnn_memory_desc_t diff_weights_iter_desc;
+    /** Bias gradient memory descriptor. */
+    mkldnn_memory_desc_t diff_bias_desc;
+    /** Destination gradient layer memory descriptor. */
+    mkldnn_memory_desc_t diff_dst_layer_desc;
+    /** Destination gradient iteration memory descriptor. */
+    mkldnn_memory_desc_t diff_dst_iter_desc;
+} mkldnn_rnn_desc_t;
+
 /** @} */
 
 /** @addtogroup c_api_engine_types Engine
@@ -898,6 +1007,7 @@ typedef enum {
     mkldnn_query_batch_normalization_d, /**< batch normalization descriptor */
     mkldnn_query_inner_product_d, /**< inner product descriptor */
     mkldnn_query_convolution_relu_d, /**< convolution-relu descriptor */
+    mkldnn_query_rnn_d, /**< rnn descriptor */
 
     /* (memory) primitive descriptor section */
     mkldnn_query_some_pd = 128, /**< stub */

@@ -939,6 +939,75 @@ mkldnn_status_t MKLDNN_API mkldnn_convolution_relu_desc_init(
 
 /** @} */
 
+/** @addtogroup c_api_rnn RNN
+ * A primitive to compute common recurrent layer.
+ * @todo add additional description for the group
+ * @{ */
+
+/**
+ * Initializes a recurrent cell descriptor @p rnn_cell_desc
+ * using @p rnn_cell_desc, @p kind (possible values are
+ *  #mkldnn_vanilla_rnn, #mkldnn_vanilla_lstm, #mkldnn_vanilla_gru),
+ *  @p f (possible values are #mkldnn_eltwise_relu,
+ *   #mkldnn_eltwise_tanh), @p flags, @p alpha, and @p clipping.
+ */
+mkldnn_status_t MKLDNN_API mkldnn_rnn_cell_desc_init(
+        mkldnn_rnn_cell_desc_t *rnn_cell_desc,
+        mkldnn_alg_kind_t kind, mkldnn_alg_kind_t f,
+        unsigned int flags, float alpha, float clipping);
+
+/** Returns the number of gates of a particular @p rnn_cell_desc. */
+int MKLDNN_API mkldnn_rnn_cell_get_gates_count(
+        const mkldnn_rnn_cell_desc_t *rnn_cell_desc);
+
+/** Returns the number of states of a particular @p rnn_cell_desc. */
+int MKLDNN_API mkldnn_rnn_cell_get_states_count(
+        const mkldnn_rnn_cell_desc_t *rnn_cell_desc);
+
+/** Initializes a rnn descriptor @p rnn_desc for forward propagation
+ * using @p prop_kind, @p rnn_cell_desc, @p direction, and memory descriptors.
+ * @note if @p prop_kind equals #mkldnn_forward_training, you need to query a
+ * worskpace memory descriptor before creating the primitive.
+ *
+ * @note all memory descriptors except @p src_iter_desc are allowed to be
+ * initialized with #mkldnn_any value of @p format_kind. */
+mkldnn_status_t MKLDNN_API mkldnn_rnn_forward_desc_init(
+        mkldnn_rnn_desc_t *rnn_desc, mkldnn_prop_kind_t prop_kind,
+        const mkldnn_rnn_cell_desc_t *rnn_cell_desc,
+        const mkldnn_rnn_direction_t direction,
+        const mkldnn_memory_desc_t *src_layer_desc,
+        const mkldnn_memory_desc_t *src_iter_desc,
+        const mkldnn_memory_desc_t *weights_layer_desc,
+        const mkldnn_memory_desc_t *weights_iter_desc,
+        const mkldnn_memory_desc_t *bias_desc,
+        const mkldnn_memory_desc_t *dst_layer_desc,
+        const mkldnn_memory_desc_t *dst_iter_desc);
+
+/** Initializes a rnn descriptor @p rnn_desc for backward propagation
+ * using @p prop_kind, @p rnn_cell_desc, @p direction, and memory descriptors.
+ * @note all memory descriptors are allowed to be initialized with
+ * #mkldnn_any value of @p format_kind. */
+mkldnn_status_t MKLDNN_API mkldnn_rnn_backward_desc_init(
+        mkldnn_rnn_desc_t *rnn_desc, mkldnn_prop_kind_t prop_kind,
+        const mkldnn_rnn_cell_desc_t *rnn_cell_desc,
+        const mkldnn_rnn_direction_t direction,
+        const mkldnn_memory_desc_t *src_layer_desc,
+        const mkldnn_memory_desc_t *src_iter_desc,
+        const mkldnn_memory_desc_t *weights_layer_desc,
+        const mkldnn_memory_desc_t *weights_iter_desc,
+        const mkldnn_memory_desc_t *bias_desc,
+        const mkldnn_memory_desc_t *dst_layer_desc,
+        const mkldnn_memory_desc_t *dst_iter_desc,
+        const mkldnn_memory_desc_t *diff_src_layer_desc,
+        const mkldnn_memory_desc_t *diff_src_iter_desc,
+        const mkldnn_memory_desc_t *diff_weights_layer_desc,
+        const mkldnn_memory_desc_t *diff_weights_iter_desc,
+        const mkldnn_memory_desc_t *diff_bias_desc,
+        const mkldnn_memory_desc_t *diff_dst_layer,
+        const mkldnn_memory_desc_t *diff_dst_iter_desc);
+
+/** @} */
+
 /** @} */
 
 /** @addtogroup c_api_engine Engine operations

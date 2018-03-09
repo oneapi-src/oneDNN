@@ -269,6 +269,24 @@ template <typename pd_t> static void init_info_softmax(pd_t *s, char *buffer) {
             aux_str, prb_str);
 }
 
+/// @todo print meaningful data
+template <typename pd_t> static void init_info_rnn(pd_t *s, char *buffer) {
+    DECL_DAT_AUX_PRB_STRS();
+
+    alg_kind_t alg_kind = s->desc()->cell_desc.cell_kind;
+    snprintf(aux_str, MKLDNN_VERBOSE_AUX_LEN,
+            "alg:%s", mkldnn_alg_kind2str(alg_kind));
+
+    snprintf(prb_str, MKLDNN_VERBOSE_PRB_LEN,
+            "l%dd%dmb%dt%d_ic%dsc%doc%d_wi%dws%d",
+             s->L(), s->D(), s->T(), s->MB(),
+             s->SLC(), s->DIC(), s->DIC(),
+             s->SLC(), s->SIC());
+
+    verbose_templ(buffer, s->kind(), s->name(), s->desc()->prop_kind, dat_str,
+            aux_str, prb_str);
+}
+
 #else /* !defined(DISABLE_VERBOSE) */
 #define MKLDNN_VERBOSE_BUF_LEN 1
 
@@ -285,6 +303,7 @@ DEFINE_STUB(lrn);
 DEFINE_STUB(mem);
 DEFINE_STUB(pool);
 DEFINE_STUB(softmax);
+DEFINE_STUB(rnn);
 #undef DEFINE_STUB
 #endif /* !defined(DISABLE_VERBOSE) */
 

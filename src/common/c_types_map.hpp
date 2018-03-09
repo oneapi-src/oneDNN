@@ -59,6 +59,7 @@ namespace prop_kind {
 
 using alg_kind_t = mkldnn_alg_kind_t;
 namespace alg_kind {
+    const alg_kind_t undef = mkldnn_alg_kind_undef;
     const alg_kind_t convolution_direct = mkldnn_convolution_direct;
     const alg_kind_t convolution_winograd = mkldnn_convolution_winograd;
     const alg_kind_t eltwise_relu = mkldnn_eltwise_relu;
@@ -77,6 +78,9 @@ namespace alg_kind {
     const alg_kind_t pooling_avg_exclude_padding = mkldnn_pooling_avg_exclude_padding;
     const alg_kind_t lrn_across_channels = mkldnn_lrn_across_channels;
     const alg_kind_t lrn_within_channel = mkldnn_lrn_within_channel;
+    const alg_kind_t vanilla_rnn = mkldnn_vanilla_rnn;
+    const alg_kind_t vanilla_lstm = mkldnn_vanilla_lstm;
+    const alg_kind_t vanilla_gru = mkldnn_vanilla_gru;
 }
 
 using data_type_t = mkldnn_data_type_t;
@@ -146,6 +150,14 @@ namespace memory_format {
     const memory_format_t ncdhw = mkldnn_ncdhw;
     const memory_format_t oidhw = mkldnn_oidhw;
     const memory_format_t goidhw = mkldnn_goidhw;
+    const memory_format_t ntc = mkldnn_ntc;
+    const memory_format_t tnc = mkldnn_tnc;
+    const memory_format_t ldsnc = mkldnn_ldsnc;
+    const memory_format_t ldigo = mkldnn_ldigo;
+    const memory_format_t ldigo_p = mkldnn_ldigo_p;
+    const memory_format_t ldgoi = mkldnn_ldgoi;
+    const memory_format_t ldgoi_p = mkldnn_ldgoi_p;
+    const memory_format_t ldgo = mkldnn_ldgo;
 }
 
 using padding_kind_t = mkldnn_padding_kind_t;
@@ -176,6 +188,7 @@ namespace primitive_kind {
     const primitive_kind_t batch_normalization = mkldnn_batch_normalization;
     const primitive_kind_t inner_product = mkldnn_inner_product;
     const primitive_kind_t convolution_relu = mkldnn_convolution_relu;
+    const primitive_kind_t rnn = mkldnn_rnn;
 }
 
 using query_t = mkldnn_query_t;
@@ -203,6 +216,7 @@ namespace query {
     const query_t batch_normalization_d = mkldnn_query_batch_normalization_d;
     const query_t inner_product_d = mkldnn_query_inner_product_d;
     const query_t convolution_relu_d = mkldnn_query_convolution_relu_d;
+    const query_t rnn_d = mkldnn_query_rnn_d;
 
     const query_t some_pd = mkldnn_query_some_pd;
     const query_t input_pd = mkldnn_query_input_pd;
@@ -227,6 +241,10 @@ using lrn_desc_t = mkldnn_lrn_desc_t;
 using batch_normalization_desc_t = mkldnn_batch_normalization_desc_t;
 using inner_product_desc_t = mkldnn_inner_product_desc_t;
 using convolution_relu_desc_t = mkldnn_convolution_relu_desc_t;
+
+using rnn_direction_t = mkldnn_rnn_direction_t;
+using rnn_cell_desc_t = mkldnn_rnn_cell_desc_t;
+using rnn_desc_t = mkldnn_rnn_desc_t;
 
 /* C op_desc_t, which eventually are just (void*) */
 using c_op_desc_t = mkldnn_op_desc_t;
