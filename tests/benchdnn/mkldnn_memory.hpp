@@ -32,9 +32,7 @@ struct dnn_mem_t {
     dnn_mem_t(const mkldnn_memory_desc_t &md, mkldnn_data_type_t dt,
             mkldnn_memory_format_t fmt = mkldnn_format_undef,
             void *data = NULL)
-        : active_(initialize(md.ndims, md.dims, dt,
-                    (fmt != mkldnn_format_undef ? fmt: md.format), data) == OK)
-    {}
+        : active_(initialize(md, dt, fmt, data) == OK) {}
 
     dnn_mem_t(const dnn_mem_t &rhs, mkldnn_data_type_t dt,
             mkldnn_memory_format_t fmt = mkldnn_format_undef,
@@ -146,8 +144,15 @@ struct dnn_mem_t {
     bool is_data_owner_, active_;
 
 private:
-    int initialize(const mkldnn_memory_desc_t &md, void *data) {
-        md_ = md;
+    int initialize(const mkldnn_memory_desc_t &md, mkldnn_data_type_t dt,
+            mkldnn_memory_format_t fmt, void *data) {
+        if (fmt == mkldnn_format_undef) {
+            md_ = md;
+            md_.data_type = dt;
+        } else {
+            DNN_SAFE(mkldnn_memory_desc_init(&md_, md.ndims, md.dims, dt, fmt),
+                    CRIT);
+        }
         DNN_SAFE(mkldnn_memory_primitive_desc_create(&mpd_, &md_, engine),
                 CRIT);
         DNN_SAFE(mkldnn_primitive_create(&p_, mpd_, NULL, NULL), CRIT);
@@ -164,6 +169,10 @@ private:
         DNN_SAFE(mkldnn_memory_set_data_handle(p_, data_), CRIT);
 
         return OK;
+    }
+
+    int initialize(const mkldnn_memory_desc_t &md, void *data) {
+        return initialize(md, md.data_type, mkldnn_format_undef, data);
     }
 
     int initialize(int ndims, const mkldnn_dims_t dims, mkldnn_data_type_t dt,

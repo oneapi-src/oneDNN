@@ -23,7 +23,7 @@ The usage:
 ```
 where:
 
- - `HARNESS` is either `conv` [default], `ip`, `reorder`, `bnorm`, or `self`
+ - `HARNESS` is either `conv` [default], `ip`, `reorder`, `bnorm`, `rnn` or `self`
 
  - `MODE` -- string that contains flags for benchmark mode. Use `C` or `c` for correctness (used by default), and `P` or `p` for performance
 
