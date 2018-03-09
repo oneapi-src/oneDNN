@@ -18,6 +18,7 @@
 #define MATH_UTILS_HPP
 
 #include <stdint.h>
+#include <math.h>
 
 #include "utils.hpp"
 #include "nstl.hpp"
@@ -83,6 +84,107 @@ inline int ilog2q(size_t v) {
     CP(32); CP(16); CP(8); CP(4); CP(2); CP(1);
 #   undef CP
     return p;
+}
+
+/* activation */
+template <typename T, typename A> inline T relu_fwd(T s, A alpha) {
+    return s > 0 ? s : (T)(s * alpha);
+}
+template <typename T, typename A> inline T relu_bwd(T dd, T s, A alpha) {
+    return s > 0 ? dd : (T)(dd * alpha);
+}
+
+template <typename T> inline T tanh_fwd(T s) {
+    const float e = tanhf((float) s);
+    return (T) e;
+}
+template <typename T> inline T tanh_bwd(T dd, T s) {
+    const float e = tanh_fwd<T>((float) s);
+    return (T)(dd * (1 - e * e));
+}
+
+template <typename T, typename A> inline T elu_fwd(T s, A alpha) {
+    return s > 0 ? s : (T)(alpha * (::expm1f((float)s)));
+}
+template <typename T, typename A> inline T elu_bwd(T dd, T s, A alpha) {
+    return (T)(dd * (s > 0 ? 1 : alpha * ::expf((float)s)));
+}
+
+template <typename T>
+inline T square_fwd(T s) {
+    return s * s;
+}
+
+template <typename T>
+inline T square_bwd(T dd, T s) {
+    return dd * 2*s;
+}
+
+template <typename T>
+inline T abs_fwd(T s) {
+    return s > 0 ? s : -s;
+}
+
+template <typename T>
+inline T abs_bwd(T dd, T s) {
+    return s > 0 ? dd : s < 0 ? -dd : 0;
+}
+
+template <typename T>
+inline T sqrt_fwd(T s) {
+    return s > 0 ? (T)(::sqrtf((float)(s))) : 0;
+}
+
+template <typename T>
+inline T sqrt_bwd(T dd, T s) {
+    return s > 0
+        ? (T)(dd / (2 * ::sqrtf((float)(s))))
+        : 0;
+}
+
+template <typename T, typename A>
+inline T linear_fwd(T s, A alpha, A beta) {
+    return (T)(alpha * s + beta);
+}
+
+template <typename T, typename A>
+inline T linear_bwd(T dd, T s, A alpha, A beta) {
+    (void) s;
+    (void) beta;
+    return (T)(dd * alpha);
+}
+
+template <typename T, typename A>
+inline T bounded_relu_fwd(T s, A alpha) {
+    s = s > 0 ? s : 0;
+    return s > alpha ? (T)(alpha) : s;
+}
+
+template <typename T, typename A>
+inline T bounded_relu_bwd(T dd, T s, A alpha) {
+    return dd * (0 < s && s < alpha ? 1 : 0);
+}
+
+template <typename T>
+inline T soft_relu_fwd(T s) {
+    return (T)(::logf(1 + ::expf((float)s)));
+}
+
+template <typename T>
+inline T soft_relu_bwd(T dd, T s) {
+    return (T)(dd / (1 + ::expf((float)(-s))));
+}
+
+template <typename T>
+inline T logistic_fwd(T s) {
+    T v = (T)(::tanhf((float) s/2));
+    return (1 + v)/2;
+}
+
+template <typename T>
+inline T logistic_bwd(T dd, T s) {
+    T v = logistic_fwd<T>(s);
+    return dd * v * (1 - v);
 }
 
 }

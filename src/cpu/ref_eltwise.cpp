@@ -15,10 +15,10 @@
 *******************************************************************************/
 
 #include <assert.h>
-#include <math.h>
 
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"
+#include "math_utils.hpp"
 
 #include "ref_eltwise.hpp"
 
@@ -27,109 +27,7 @@ namespace impl {
 namespace cpu {
 
 using namespace alg_kind;
-
-namespace {
-template <typename T, typename A> inline T relu_fwd(T s, A alpha) {
-    return s > 0 ? s : (T)(s * alpha);
-}
-template <typename T, typename A> inline T relu_bwd(T dd, T s, A alpha) {
-    return s > 0 ? dd : (T)(dd * alpha);
-}
-
-template <typename T> T tanh_fwd(T s) {
-    const float e = ::expf((float)(2 * s)); /* maybe replace with -2*s? */
-    return (T)((e - 1) / (e + 1));
-}
-template <typename T> T tanh_bwd(T dd, T s) {
-    const float e = ::expf((float)(2 * s)); /* maybe replace with -2*s? */
-    const float th = (e - 1.f) / (e + 1.f);
-    return (T)(dd * (1 - th * th));
-}
-
-template <typename T, typename A> T elu_fwd(T s, A alpha) {
-    return s > 0 ? s : (T)(alpha * (::expf((float)s) - 1.f));
-}
-template <typename T, typename A> T elu_bwd(T dd, T s, A alpha) {
-    return (T)(dd * (s > 0 ? 1 : alpha * ::expf((float)s)));
-}
-
-template <typename T>
-T square_fwd(T s) {
-    return s * s;
-}
-
-template <typename T>
-T square_bwd(T dd, T s) {
-    return dd * 2*s;
-}
-
-template <typename T>
-T abs_fwd(T s) {
-    return s > 0 ? s : -s;
-}
-
-template <typename T>
-T abs_bwd(T dd, T s) {
-    return s > 0 ? dd : s < 0 ? -dd : 0;
-}
-
-template <typename T>
-T sqrt_fwd(T s) {
-    return s > 0 ? (T)(::sqrtf((float)(s))) : 0;
-}
-
-template <typename T>
-T sqrt_bwd(T dd, T s) {
-    return s > 0
-        ? (T)(dd / (2 * ::sqrtf((float)(s))))
-        : 0;
-}
-
-template <typename T, typename A>
-T linear_fwd(T s, A alpha, A beta) {
-    return (T)(alpha * s + beta);
-}
-
-template <typename T, typename A>
-T linear_bwd(T dd, T s, A alpha, A beta) {
-    (void) s;
-    (void) beta;
-    return (T)(dd * alpha);
-}
-
-template <typename T, typename A>
-T bounded_relu_fwd(T s, A alpha) {
-    s = s > 0 ? s : 0;
-    return s > alpha ? (T)(alpha) : s;
-}
-
-template <typename T, typename A>
-T bounded_relu_bwd(T dd, T s, A alpha) {
-    return dd * (0 < s && s < alpha ? 1 : 0);
-}
-
-template <typename T>
-T soft_relu_fwd(T s) {
-    return (T)(::logf(1 + ::expf((float)s)));
-}
-
-template <typename T>
-T soft_relu_bwd(T dd, T s) {
-    return (T)(dd / (1 + ::expf((float)(-s))));
-}
-
-template <typename T>
-T logistic_fwd(T s) {
-    T v = (T)(::expf((float)s));
-    return v / (v + 1);
-}
-
-template <typename T>
-T logistic_bwd(T dd, T s) {
-    T v = (T)(::expf((float)(-s)));
-    return dd * v / ((v + 1) * (v + 1));
-}
-}
+using namespace math;
 
 template <impl::data_type_t data_type>
 void ref_eltwise_fwd_t<data_type>::execute_forward_generic() {
