@@ -76,8 +76,15 @@ struct batch_normalization_pd_t: public primitive_desc_t {
 
     inline int MB() const { return desc_.data_desc.dims[0]; }
     inline int C() const { return desc_.data_desc.dims[1]; }
-    inline int H() const { return desc_.data_desc.dims[2]; }
-    inline int W() const { return desc_.data_desc.dims[3]; }
+    inline int D() const { return ndims() == 5 ? desc_.data_desc.dims[2] : 1; }
+    inline int H() const {
+        assert(ndims() == 4 || ndims() == 5);
+        return desc_.data_desc.dims[ndims()-2];
+    }
+    inline int W() const {
+        assert(ndims() == 4 || ndims() == 5);
+        return desc_.data_desc.dims[ndims()-1];
+    }
 
     bool with_relu_post_op() const {
         const auto &p = this->attr()->post_ops_;
@@ -86,6 +93,8 @@ struct batch_normalization_pd_t: public primitive_desc_t {
 
     bool fuse_bn_relu() const
     { return desc_.flags & mkldnn_fuse_bn_relu; }
+
+    inline int ndims() const { return desc_.data_desc.ndims; }
 
 protected:
     batch_normalization_desc_t desc_;

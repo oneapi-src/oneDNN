@@ -56,6 +56,7 @@ struct jit_uni_batch_normalization_fwd_t: public cpu_primitive_t {
             bool ok = true
                 && mayiuse(isa)
                 && is_fwd()
+                && ndims() == 4
                 && desc()->data_desc.data_type == f32
                 && utils::implication(use_scaleshift(),
                         desc()->data_scaleshift_desc.data_type == f32)
@@ -118,6 +119,7 @@ struct jit_uni_batch_normalization_bwd_t: public cpu_primitive_t {
             bool ok = true
                 && mayiuse(isa)
                 && is_bwd()
+                && ndims() == 4
                 && everyone_is(f32, desc()->data_desc.data_type,
                         desc()->diff_data_desc.data_type)
                 && implication(use_scaleshift(),

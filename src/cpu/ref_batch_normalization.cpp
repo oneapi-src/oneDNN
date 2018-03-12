@@ -52,6 +52,7 @@ void ref_batch_normalization_fwd_t<data_type>::execute_forward() {
 
     const int N = conf_.MB();
     const int C = conf_.C();
+    const int D = conf_.D();
     const int H = conf_.H();
     const int W = conf_.W();
 
@@ -64,6 +65,7 @@ void ref_batch_normalization_fwd_t<data_type>::execute_forward() {
     auto maybe_post_op = [&](data_t res) {
         return (with_relu && res < 0) ? 0 : res;
     };
+    const bool is_3d = data_d.ndims() == 5;
 
 #   pragma omp parallel for schedule(static)
     for (int c = 0; c < C; ++c) {
@@ -75,26 +77,33 @@ void ref_batch_normalization_fwd_t<data_type>::execute_forward() {
 
         if (calculate_stats) {
             for (int n = 0; n < N; ++n)
+            for (int d = 0; d < D; ++d)
             for (int h = 0; h < H; ++h)
             for (int w = 0; w < W; ++w)
-                v_mean += src[data_d.off(n, c, h, w)];
-            v_mean /= W*N*H;
+                v_mean += is_3d
+                    ? src[data_d.off(n, c, d, h, w)]
+                    : src[data_d.off(n, c, h, w)];
+            v_mean /= W*N*H*D;
 
             for (int n = 0; n < N; ++n)
+            for (int d = 0; d < D; ++d)
             for (int h = 0; h < H; ++h)
             for (int w = 0; w < W; ++w) {
-                data_t m = src[data_d.off(n,c,h,w)] - v_mean;
+                data_t m = is_3d
+                    ? src[data_d.off(n,c,d,h,w)] - v_mean
+                    : src[data_d.off(n,c,h,w)] - v_mean;
                 v_variance += m*m;
             }
-            v_variance /= W*H*N;
+            v_variance /= W*H*N*D;
         }
         data_t sqrt_variance =
             static_cast<data_t>(1. / sqrt(v_variance + eps));
 
         for (int n = 0; n < N; ++n)
+        for (int d = 0; d < D; ++d)
         for (int h = 0; h < H; ++h)
         for (int w = 0; w < W; ++w) {
-            auto d_off = data_d.off(n,c,h,w);
+            auto d_off = is_3d ? data_d.off(n,c,d,h,w) : data_d.off(n,c,h,w);
             data_t bn_res = sm * (src[d_off] - v_mean) * sqrt_variance + sv;
             if (conf_.fuse_bn_relu()) {
                 if (bn_res <= 0) {
@@ -140,12 +149,15 @@ void ref_batch_normalization_bwd_t<data_type>::execute_backward() {
 
     const int N = conf_.MB();
     const int C = conf_.C();
+    const int D = conf_.D();
     const int H = conf_.H();
     const int W = conf_.W();
 
     const float eps = conf_.desc()->batch_norm_epsilon;
     const bool use_scaleshift = conf_.use_scaleshift();
     const bool calculate_diff_stats = !conf_.omit_stats();
+
+    const bool is_3d = data_d.ndims() == 5;
 
 #   pragma omp parallel for schedule(static)
     for (int c = 0; c < C; ++c) {
@@ -159,10 +171,14 @@ void ref_batch_normalization_bwd_t<data_type>::execute_backward() {
         diff_beta = 0.0;
 
         for (int n = 0; n < N; ++n)
+        for (int d = 0; d < D; ++d)
         for (int h = 0; h < H; ++h)
         for (int w = 0; w < W; ++w) {
-            const auto s_off = data_d.off(n, c, h, w);
-            data_t dd = diff_dst[diff_data_d.off(n, c, h, w)];
+            const auto s_off = is_3d
+                ? data_d.off(n, c, d, h, w) : data_d.off(n, c, h, w);
+            data_t dd = is_3d
+                ? diff_dst[diff_data_d.off(n, c, d, h, w)]
+                : diff_dst[diff_data_d.off(n, c, h, w)];
             if (ws && !ws[s_off]) dd = 0;
 
             diff_gamma += (src[s_off] - v_mean) * dd;
@@ -176,18 +192,21 @@ void ref_batch_normalization_bwd_t<data_type>::execute_backward() {
         }
 
         for (int n = 0; n < N; ++n)
+        for (int d = 0; d < D; ++d)
         for (int h = 0; h < H; ++h)
         for (int w = 0; w < W; ++w) {
-            const size_t s_off = data_d.off(n, c, h, w);
-            const size_t dd_off = diff_data_d.off(n, c, h, w);
+            const size_t s_off = is_3d
+                ? data_d.off(n, c, d, h, w) : data_d.off(n, c, h, w);
+            const size_t dd_off = is_3d
+                ? diff_data_d.off(n, c, d, h, w) : diff_data_d.off(n, c, h, w);
             data_t dd = diff_dst[dd_off];
             if (ws && !ws[s_off]) dd = 0;
 
             data_t v_diff_src = dd;
             if (calculate_diff_stats) {
-                v_diff_src -= diff_beta/(W*H*N) +
+                v_diff_src -= diff_beta/(D*W*H*N) +
                     (src[s_off] - v_mean) *
-                    diff_gamma*sqrt_variance/(W*H*N);
+                    diff_gamma*sqrt_variance/(D*W*H*N);
             }
             v_diff_src *= gamma*sqrt_variance;
             diff_src[dd_off] = v_diff_src;

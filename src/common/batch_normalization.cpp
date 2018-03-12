@@ -73,11 +73,12 @@ status_t bnrm_desc_init(batch_normalization_desc_t *bnrm_desc,
 
     bool consistency = true
         && memory_desc_wrapper(bd.data_desc).nelems()
-        && bd.data_desc.ndims == 4;
+        && utils::one_of(bd.data_desc.ndims, 4, 5);
     if (bd.prop_kind == backward_data)
         consistency = consistency
-            && bd.diff_data_desc.ndims == 4
-            && array_cmp(bd.diff_data_desc.dims, bd.data_desc.dims, 4);
+            && utils::one_of(bd.diff_data_desc.ndims, 4, 5)
+            && array_cmp(bd.diff_data_desc.dims, bd.data_desc.dims,
+                    bd.diff_data_desc.ndims);
     if (!consistency) return invalid_arguments;
 
     *bnrm_desc = bd;

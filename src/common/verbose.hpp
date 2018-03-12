@@ -66,8 +66,14 @@ template <typename pd_t> static void init_info_bnorm(pd_t *s, char *buffer) {
 
     snprintf(aux_str, MKLDNN_VERBOSE_AUX_LEN, "flags:%u", s->desc()->flags);
 
-    snprintf(prb_str, MKLDNN_VERBOSE_PRB_LEN,
+    if (s->ndims() == 5)
+    {
+        snprintf(prb_str, MKLDNN_VERBOSE_PRB_LEN,
+            "mb%dic%did%dih%diw%d", s->MB(), s->C(), s->D(), s->H(), s->W());
+    } else {
+        snprintf(prb_str, MKLDNN_VERBOSE_PRB_LEN,
             "mb%dic%dih%diw%d", s->MB(), s->C(), s->H(), s->W());
+    }
 
     verbose_templ(buffer, s->kind(), s->name(), s->desc()->prop_kind, dat_str,
             aux_str, prb_str);
