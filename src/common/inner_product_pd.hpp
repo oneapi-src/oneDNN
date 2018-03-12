@@ -75,14 +75,26 @@ struct inner_product_fwd_pd_t: public primitive_desc_t {
     { return utils::array_product(&desc_.src_desc.dims[1], ndims() - 1); }
     inline int OC() const { return desc_.dst_desc.dims[1]; }
 
-    inline int IH() const
-    { assert(ndims() == 4); return desc_.src_desc.dims[2]; }
-    inline int IW() const
-    { assert(ndims() == 4); return desc_.src_desc.dims[3]; }
-    inline int KH() const
-    { assert(ndims() == 4); return desc_.weights_desc.dims[2]; }
-    inline int KW() const
-    { assert(ndims() == 4); return desc_.weights_desc.dims[3]; }
+    inline int ID() const
+    { return ndims() == 5 ? desc_.src_desc.dims[2] : 1; }
+    inline int IH() const {
+        assert(ndims() == 4 || ndims() == 5);
+        return desc_.src_desc.dims[ndims()-2];
+    }
+    inline int IW() const {
+        assert(ndims() == 4 || ndims() == 5);
+        return desc_.src_desc.dims[ndims()-1];
+    }
+    inline int KD() const
+    { return ndims() == 5 ? desc_.weights_desc.dims[2] : 1; }
+    inline int KH() const {
+        assert(ndims() == 4 || ndims() == 5);
+        return desc_.weights_desc.dims[ndims()-2];
+    }
+    inline int KW() const {
+        assert(ndims() == 4 || ndims() == 5);
+        return desc_.weights_desc.dims[ndims()-1];
+    }
 
     inline int ndims() const { return desc_.src_desc.ndims; }
     inline bool with_bias() const
@@ -144,14 +156,26 @@ struct inner_product_bwd_data_pd_t: public primitive_desc_t {
     { return utils::array_product(&desc_.diff_src_desc.dims[1], ndims() - 1); }
     inline int OC() const { return desc_.diff_dst_desc.dims[1]; }
 
-    inline int IH() const
-    { assert(ndims() == 4); return desc_.diff_src_desc.dims[2]; }
-    inline int IW() const
-    { assert(ndims() == 4); return desc_.diff_src_desc.dims[3]; }
-    inline int KH() const
-    { assert(ndims() == 4); return desc_.weights_desc.dims[2]; }
-    inline int KW() const
-    { assert(ndims() == 4); return desc_.weights_desc.dims[3]; }
+    inline int ID() const
+    { return ndims() == 5 ? desc_.diff_src_desc.dims[2] : 1; }
+    inline int IH() const {
+        assert(ndims() == 4 || ndims() == 5);
+        return desc_.diff_src_desc.dims[ndims()-2];
+    }
+    inline int IW() const {
+        assert(ndims() == 4 || ndims() == 5);
+        return desc_.diff_src_desc.dims[ndims()-1];
+    }
+    inline int KD() const
+    { return ndims() == 5 ? desc_.weights_desc.dims[2] : 1; }
+    inline int KH() const {
+        assert(ndims() == 4 || ndims() == 5);
+        return desc_.weights_desc.dims[ndims()-2];
+    }
+    inline int KW() const {
+        assert(ndims() == 4 || ndims() == 5);
+        return desc_.weights_desc.dims[ndims()-1];
+    }
 
     inline int ndims() const { return desc_.diff_src_desc.ndims; }
     inline bool with_bias() const
@@ -218,14 +242,26 @@ struct inner_product_bwd_weights_pd_t: public primitive_desc_t {
     { return utils::array_product(&desc_.src_desc.dims[1], ndims() - 1); }
     inline int OC() const { return desc_.diff_dst_desc.dims[1]; }
 
-    inline int IH() const
-    { assert(ndims() == 4); return desc_.src_desc.dims[2]; }
-    inline int IW() const
-    { assert(ndims() == 4); return desc_.src_desc.dims[3]; }
-    inline int KH() const
-    { assert(ndims() == 4); return desc_.src_desc.dims[2]; }
-    inline int KW() const
-    { assert(ndims() == 4); return desc_.src_desc.dims[3]; }
+    inline int ID() const
+    { return ndims() == 5 ? desc_.src_desc.dims[2] : 1; }
+    inline int IH() const {
+        assert(ndims() == 4 || ndims() == 5);
+        return desc_.src_desc.dims[ndims()-2];
+    }
+    inline int IW() const {
+        assert(ndims() == 4 || ndims() == 5);
+        return desc_.src_desc.dims[ndims()-1];
+    }
+    inline int KD() const
+    { return ndims() == 5 ? desc_.src_desc.dims[2] : 1; }
+    inline int KH() const {
+        assert(ndims() == 4 || ndims() == 5);
+        return desc_.src_desc.dims[ndims()-2];
+    }
+    inline int KW() const {
+        assert(ndims() == 4 || ndims() == 5);
+        return desc_.src_desc.dims[ndims()-1];
+    }
 
     inline int ndims() const { return desc_.src_desc.ndims; }
     inline bool with_bias() const

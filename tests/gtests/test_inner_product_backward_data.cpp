@@ -25,12 +25,13 @@ struct test_inner_product_descr_t {
     int mb;
     int ic;
     int oc;
-    int kh, kw;
+    int kd, kh, kw;
 };
 
 template <typename data_t>
-void compute_ref_inner_product_bwd_data(const test_inner_product_descr_t &ipd,
-        const memory &diff_dst, const memory &weights, const memory &diff_src)
+void compute_ref_inner_product_bwd_data(int ndims,
+    const test_inner_product_descr_t &ipd, const memory &diff_dst,
+    const memory &weights, const memory &diff_src)
 {
     data_t *diff_dst_data = (data_t *)diff_dst.get_data_handle();
     data_t *weights_data = (data_t *)weights.get_data_handle();
@@ -40,25 +41,28 @@ void compute_ref_inner_product_bwd_data(const test_inner_product_descr_t &ipd,
     const memory::desc weights_d = weights.get_primitive_desc().desc();
     const memory::desc diff_src_d = diff_src.get_primitive_desc().desc();
 
-    bool has_spatial = ipd.kh > 1 && ipd.kw > 1;
+    bool has_spatial = ipd.kh > 1 || ipd.kw > 1;
+    if (ndims == 5) has_spatial = has_spatial || ipd.kd > 1;
 
 #pragma omp parallel for collapse(2) schedule(static)
     for (int n = 0; n < ipd.mb; n++) {
         for (int ic = 0; ic < ipd.ic; ic++) {
             if (has_spatial) {
-                for (int kh = 0; kh < ipd.kh; ++kh) {
-                    for (int kw = 0; kw < ipd.kw; ++kw) {
-                        int dsidx = n * ipd.ic * ipd.kh * ipd.kw
-                                + ic * ipd.kh * ipd.kw + kh * ipd.kw + kw;
-                        data_t *ds = &diff_src_data[map_index(diff_src_d, dsidx)];
+                for (int kd = 0; kd < ipd.kd; ++kd)
+                for (int kh = 0; kh < ipd.kh; ++kh)
+                for (int kw = 0; kw < ipd.kw; ++kw) {
+                    int dsidx = n * ipd.ic * ipd.kd * ipd.kh * ipd.kw
+                        + ic * ipd.kd * ipd.kh * ipd.kw
+                        + kd * ipd.kh * ipd.kw + kh * ipd.kw + kw;
+                    data_t *ds = &diff_src_data[map_index(diff_src_d, dsidx)];
                         *ds = data_t(0);
-                        for (int oc = 0; oc < ipd.oc; ++oc) {
-                            int ddidx = n * ipd.oc + oc;
-                            int widx = oc * ipd.ic * ipd.kh * ipd.kw
-                                    + ic * ipd.kh * ipd.kw + kh * ipd.kw + kw;
+                    for (int oc = 0; oc < ipd.oc; ++oc) {
+                        int ddidx = n * ipd.oc + oc;
+                        int widx = oc * ipd.ic * ipd.kd * ipd.kh * ipd.kw
+                            + ic * ipd.kd * ipd.kh * ipd.kw
+                            + kd * ipd.kh * ipd.kw + kh * ipd.kw + kw;
                             *ds += diff_dst_data[map_index(diff_dst_d, ddidx)]
                                 * weights_data[map_index(weights_d, widx)];
-                        }
                     }
                 }
             } else {
@@ -81,6 +85,7 @@ struct inprod_test_params {
     memory::format diff_src_format;
     memory::format weights_format;
     memory::format diff_dst_format;
+    int ndims;
     test_inner_product_descr_t test_ipd;
     bool expect_to_fail;
     mkldnn_status_t expected_status;
@@ -94,7 +99,8 @@ protected:
         inprod_test_params p
                 = ::testing::TestWithParam<inprod_test_params>::GetParam();
         test_inner_product_descr_t ipd = p.test_ipd;
-        bool has_spatial = ipd.kh > 1 && ipd.kw > 1;
+        bool has_spatial = ipd.kh > 1 || ipd.kw > 1;
+        if (p.ndims == 5) has_spatial = has_spatial || ipd.kd > 1;
 
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         auto eng = engine(p.engine_kind, 0);
@@ -104,12 +110,16 @@ protected:
         std::shared_ptr<memory> ip_diff_src, ip_diff_dst, ip_weights, diff_src_ref;
 
         auto test = [&]() {
-            auto ip_diff_src_desc = has_spatial ?
-                create_md({ ipd.mb, ipd.ic, ipd.kh, ipd.kw }, data_type,
+            auto ip_diff_src_desc = has_spatial ? p.ndims == 5
+                ? create_md({ ipd.mb, ipd.ic, ipd.kd, ipd.kh, ipd.kw },
+                        data_type, p.diff_src_format)
+                : create_md({ ipd.mb, ipd.ic, ipd.kh, ipd.kw }, data_type,
                         p.diff_src_format) :
-                    create_md({ ipd.mb, ipd.ic }, data_type, p.diff_src_format);
-            auto ip_weights_desc = has_spatial ?
-                create_md({ ipd.oc, ipd.ic, ipd.kh, ipd.kw }, data_type,
+                create_md({ ipd.mb, ipd.ic }, data_type, p.diff_src_format);
+            auto ip_weights_desc = has_spatial ? p.ndims == 5
+                ? create_md({ ipd.oc, ipd.ic, ipd.kd, ipd.kh, ipd.kw },
+                        data_type, p.weights_format)
+                : create_md({ ipd.oc, ipd.ic, ipd.kh, ipd.kw }, data_type,
                         p.weights_format) :
                     create_md({ ipd.oc, ipd.ic }, data_type, p.weights_format);
             auto ip_diff_dst_desc =
@@ -118,8 +128,8 @@ protected:
             // Create inner product forward (hint for backward)
             auto ip_fwd_desc = inner_product_forward::desc(prop_kind::forward,
                     ip_diff_src_desc, ip_weights_desc, ip_diff_dst_desc);
-            auto ip_fwd_pdesc = inner_product_forward::primitive_desc(ip_fwd_desc,
-                    eng);
+            auto ip_fwd_pdesc = inner_product_forward::primitive_desc
+                    (ip_fwd_desc, eng);
 
             // Create inner product backward
             auto ip_desc = inner_product_backward_data::desc(ip_diff_src_desc,
@@ -156,7 +166,7 @@ protected:
         if (catch_expected_failures(test, p.expect_to_fail, p.expected_status))
             return;
 
-        compute_ref_inner_product_bwd_data<data_t>(ipd, *ip_diff_dst,
+        compute_ref_inner_product_bwd_data<data_t>(p.ndims == 5, ipd, *ip_diff_dst,
                 *ip_weights, *diff_src_ref);
         compare_data<data_t>(*diff_src_ref, *ip_diff_src);
     }
@@ -164,6 +174,10 @@ protected:
 
 using inner_product_test_float = inner_product_test_bwd_data<float>;
 using inprod_test_params_float = inprod_test_params;
+
+#define EXPAND_SIZES_3D(...) 5, { __VA_ARGS__ }
+#define EXPAND_SIZES_2D(mb,ic,oc,kh,kw) \
+    4, { mb,ic,oc,1,kh,kw }
 
 TEST_P(inner_product_test_float, TestsInnerProduct)
 {
@@ -174,12 +188,12 @@ INSTANTIATE_TEST_CASE_P(
                 inprod_test_params_float{ engine::kind::cpu,
                         memory::format::any, memory::format::any,
                         memory::format::any,
-                        { 0, 32, 48, 6, 6 },
+                        EXPAND_SIZES_2D( 0, 32, 48, 6, 6 ),
                         true, mkldnn_invalid_arguments},
                 inprod_test_params_float{ engine::kind::cpu,
                         memory::format::any, memory::format::any,
                         memory::format::any,
-                        { 2, 0, 48, 6, 6 },
+                        EXPAND_SIZES_2D( 2, 0, 48, 6, 6 ),
                         true, mkldnn_invalid_arguments}));
 
 INSTANTIATE_TEST_CASE_P(
@@ -188,30 +202,46 @@ INSTANTIATE_TEST_CASE_P(
                 inprod_test_params_float{ engine::kind::cpu,
                         memory::format::any, memory::format::any,
                         memory::format::any,
-                        { 2, 32, 48, 6, 6 } },
+                        EXPAND_SIZES_2D( 2, 32, 48, 6, 6 ) },
                 inprod_test_params_float{ engine::kind::cpu,
                         memory::format::any, memory::format::any,
                         memory::format::any,
-                        { 2, 1024, 48, 2, 2 } },
+                        EXPAND_SIZES_2D( 2, 1024, 48, 2, 2 ) },
                 inprod_test_params_float{ engine::kind::cpu,
                         memory::format::nchw, memory::format::oihw,
                         memory::format::nc,
-                        { 2, 32, 48, 6, 6 } },
+                        EXPAND_SIZES_2D( 2, 32, 48, 6, 6 ) },
                 inprod_test_params_float{ engine::kind::cpu,
                         memory::format::nChw8c, memory::format::oIhw8i,
                         memory::format::nc,
-                        { 2, 32, 48, 6, 6 } },
+                        EXPAND_SIZES_2D( 2, 32, 48, 6, 6 ) },
                 inprod_test_params_float{ engine::kind::cpu,
                         memory::format::nChw16c, memory::format::oIhw16i,
                         memory::format::nc,
-                        { 2, 32, 48, 6, 6 } },
+                        EXPAND_SIZES_2D( 2, 32, 48, 6, 6 ) },
                 inprod_test_params_float{ engine::kind::cpu,
                         memory::format::nc, memory::format::oi,
                         memory::format::nc,
-                        { 2, 32, 1152, 1, 1 } },
+                        EXPAND_SIZES_2D( 2, 32, 1152, 1, 1 ) },
                 inprod_test_params_float{ engine::kind::cpu,
                         memory::format::nc, memory::format::oi,
                         memory::format::nc,
-                        { 2, 2, 4, 1, 1 } }));
+                        EXPAND_SIZES_2D( 2, 2, 4, 1, 1 ) }));
+
+INSTANTIATE_TEST_CASE_P(
+        TestInnerProductBackwardData3D, inner_product_test_float,
+        ::testing::Values(
+                inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::any, memory::format::any,
+                        memory::format::any,
+                        EXPAND_SIZES_3D( 2, 32, 48, 6, 6, 6 ) },
+                inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::any, memory::format::any,
+                        memory::format::any,
+                        EXPAND_SIZES_3D( 2, 1024, 48, 2, 2, 2 ) },
+                inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::ncdhw, memory::format::oidhw,
+                        memory::format::nc,
+                        EXPAND_SIZES_3D( 2, 32, 48, 6, 6, 6 ) }));
 
 }
