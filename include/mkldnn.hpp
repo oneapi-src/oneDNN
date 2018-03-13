@@ -55,7 +55,7 @@ template <typename T> class handle_traits {};
 template <typename T, typename traits=handle_traits<T>> class handle {
 private:
     std::shared_ptr<typename std::remove_pointer<T>::type> _data;
-    handle(const handle &&) {}
+    handle(const handle &&) = delete;
     handle &operator=(const handle &&other) = delete;
 protected:
     /// Constructs a C handle wrapper.
