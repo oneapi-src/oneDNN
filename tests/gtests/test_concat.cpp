@@ -30,7 +30,6 @@ struct concat_test_params {
     memory::dims dst_cds;
 };
 
-
 template <typename data_t>
 class concat_test: public ::testing::TestWithParam<concat_test_params> {
     void check_data(const std::vector<memory> &srcs, const memory &dst,
@@ -40,28 +39,40 @@ class concat_test: public ::testing::TestWithParam<concat_test_params> {
         const auto dst_dims = dst_d.data.dims;
 
         int acc_concat_dim = 0;
+        const auto ndims = dst_d.data.ndims;
 
         for (size_t num = 0; num < srcs.size(); num++) {
             const data_t *src_data = (const data_t *)srcs[num].get_data_handle();
             const auto &src_d = srcs[num].get_primitive_desc().desc();
             const int* src_dims = src_d.data.dims;
-            for (auto n = 0; n < src_dims[0]; n++)
-            for (auto c = 0; c < src_dims[1]; c++)
-            for (auto h = 0; h < src_dims[2]; h++)
-            for (auto w = 0; w < src_dims[3]; w++) {
-                auto src_idx = w
-                    + src_dims[3]*h
-                    + src_dims[2]*src_dims[3]*c
-                    + src_dims[1]*src_dims[2]*src_dims[3]*n;
+
+            auto N = src_dims[0];
+            auto C = src_dims[1];
+            auto D = (ndims == 5) ? src_dims[2] : 1;
+            auto H = src_dims[ndims-2];
+            auto W = src_dims[ndims-1];
+
+            auto DST_C = dst_dims[1];
+            auto DST_D = (ndims == 5) ? dst_dims[2] : 1;
+            auto DST_H = dst_dims[ndims-2];
+            auto DST_W = dst_dims[ndims-1];
+
+            for (auto n = 0; n < N; n++)
+            for (auto c = 0; c < C; c++)
+            for (auto d = 0; d < D; d++)
+            for (auto h = 0; h < H; h++)
+            for (auto w = 0; w < W; w++) {
+                auto src_idx = w + W*h + H*W*d + D*H*W*c + C*D*H*W*n;
 
                 auto adj_dst_dim = [&](int dim, int dim_sz) {
                     if (concat_dim == dim) return dim_sz + acc_concat_dim;
                     return dim_sz;
                 };
-                auto dst_idx = adj_dst_dim(3, w)
-                    + dst_dims[3]*adj_dst_dim(2, h)
-                    + dst_dims[2]*dst_dims[3]*adj_dst_dim(1, c)
-                    + dst_dims[1]*dst_dims[2]*dst_dims[3]*adj_dst_dim(0, n);
+                auto dst_idx = adj_dst_dim(ndims-1, w)
+                    + DST_W*adj_dst_dim(ndims-2, h)
+                    + DST_D*DST_H*DST_W*adj_dst_dim(1, c)
+                    + DST_C*DST_D*DST_H*DST_W*adj_dst_dim(0, n);
+                if (ndims == 5) dst_idx += DST_H*DST_W*adj_dst_dim(2, d);
 
                 EXPECT_NEAR(src_data[map_index(src_d, src_idx)],
                             dst_data[map_index(dst_d, dst_idx)],
@@ -134,6 +145,24 @@ using concat_test_s8 = concat_test<int8_t>;
 TEST_P(concat_test_float, TestsConcat) {}
 TEST_P(concat_test_s8, TestsConcat) {}
 
+INSTANTIATE_TEST_CASE_P(TestConcat3D, concat_test_float, ::testing::Values(
+    concat_test_params{engine::kind::cpu, 0,
+    {memory::format::ncdhw, memory::format::ncdhw}, memory::format::ncdhw,
+    {{2, 8, 3, 4, 5}, {2, 8, 3, 4, 5}}, {4, 8, 3, 4, 5}},
+    concat_test_params{engine::kind::cpu, 1,
+    {memory::format::ncdhw, memory::format::ncdhw}, memory::format::ncdhw,
+    {{2, 8, 3, 4, 5}, {2, 8, 3, 4, 5}}, {2, 16, 3, 4, 5}},
+    concat_test_params{engine::kind::cpu, 2,
+    {memory::format::ncdhw, memory::format::ncdhw}, memory::format::ncdhw,
+    {{2, 8, 3, 4, 5}, {2, 8, 3, 4, 5}}, {2, 8, 6, 4, 5}},
+    concat_test_params{engine::kind::cpu, 3,
+    {memory::format::ncdhw, memory::format::ncdhw}, memory::format::ncdhw,
+    {{2, 8, 3, 4, 5}, {2, 8, 3, 4, 5}}, {2, 8, 3, 8, 5}},
+    concat_test_params{engine::kind::cpu, 4,
+    {memory::format::ncdhw, memory::format::ncdhw}, memory::format::ncdhw,
+    {{2, 8, 3, 4, 5}, {2, 8, 3, 4, 5}}, {2, 8, 3, 4, 10}}
+));
+
 INSTANTIATE_TEST_CASE_P(TestConcat, concat_test_float, ::testing::Values(
     concat_test_params{engine::kind::cpu, 1,
     {memory::format::nchw, memory::format::nchw}, memory::format::nchw,
@@ -181,4 +210,5 @@ INSTANTIATE_TEST_CASE_P(TestConcat, concat_test_s8, ::testing::Values(
     {memory::format::nchw, memory::format::nchw}, memory::format::nchw,
     {{2, 8, 3, 4}, {2, 8, 3, 4}}, {2, 16, 3, 4}}
     ));
+
 }
