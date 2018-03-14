@@ -14,6 +14,11 @@
 # limitations under the License.
 #===============================================================================
 
+option(WITH_EXAMPLE "include examples" ON)
+if (NOT WITH_EXAMPLE)
+    return()
+endif()
+
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
 add_executable(simple-net-c simple_net.c)

@@ -14,6 +14,11 @@
 # limitations under the License.
 #===============================================================================
 
+option(WITH_TEST "include tests" ON)
+if (NOT WITH_TEST)
+    return()
+endif()
+
 if(POLICY CMP0065)
     cmake_policy(SET CMP0065 NEW)
 endif()
