@@ -618,24 +618,19 @@ void jit_avx512_common_1x1_conv_kernel::generate()
 
 bool jit_avx512_common_1x1_conv_kernel::post_ops_ok(
         jit_1x1_conv_conf_t &jcp, const primitive_attr_t &attr) {
-    using namespace primitive_kind;
     const auto &p = attr.post_ops_;
 
-    auto is_relu = [&](int idx) {
-        return p.entry_[idx].kind == eltwise
-            && p.entry_[idx].eltwise.scale == 1.
-            && p.entry_[idx].eltwise.alg == alg_kind::eltwise_relu
-            && p.entry_[idx].eltwise.alpha == 0.;
-    };
+    auto is_relu = [&](int idx) { return p.entry_[idx].is_relu(); };
+    auto is_sum = [&](int idx) { return p.entry_[idx].is_sum(); };
 
     switch (p.len_) {
     case 0: return true; // no post_ops
-    case 1: return true // sum OR relu
-                && !jcp.with_relu
-                && (is_relu(0) || p.contain(sum, 0));
-    case 2: return true // sum->relu
-                && !jcp.with_relu
-                && (p.contain(sum, 0) && is_relu(1));
+    case 1:
+        return true // sum OR relu
+                && !jcp.with_relu && (is_relu(0) || is_sum(0));
+    case 2:
+        return true // sum->relu
+                && !jcp.with_relu && (is_sum(0) && is_relu(1));
     default: return false;
     }
 

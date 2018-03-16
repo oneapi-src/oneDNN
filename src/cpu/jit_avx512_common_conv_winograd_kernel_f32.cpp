@@ -618,10 +618,7 @@ bool jit_avx512_common_conv_winograd_fwd_kernel_f32::post_ops_ok(
     const auto &p = attr.post_ops_;
 
     auto is_relu = [&](int idx) { return p.entry_[idx].is_relu(); };
-    auto is_sum = [&](int idx) {
-        return p.entry_[idx].kind == primitive_kind::sum
-                && p.entry_[idx].sum.scale == 1.f;
-    };
+    auto is_sum = [&](int idx) { return p.entry_[idx].is_sum(); };
 
     switch (p.len_) {
     case 0:
