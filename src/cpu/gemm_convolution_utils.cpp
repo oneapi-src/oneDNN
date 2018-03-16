@@ -154,35 +154,35 @@ void im2col_u8(
 
 void col2im(
     jit_gemm_conv_conf_t &jcp, const float *col, float *im) {
+
     const size_t col_step = jcp.ks * jcp.os;
     const size_t im_step = jcp.ih * jcp.iw;
     const int iS = jcp.ih * jcp.iw;
 
-    int num_thr = (jcp.mb != 1) ? omp_get_max_threads() : 1;
-    MAYBE_UNUSED(num_thr);
-#pragma omp parallel for  num_threads(num_thr)
+#   pragma omp parallel for
     for (int ic = 0; ic < jcp.ic; ++ic) {
-        for (int is = 0; is < iS; ++is) im[is] = 0.;
+        float *im_ = im + ic * im_step;
+        const float *col_ = col + ic * col_step;
+#       pragma omp simd
+        for (int is = 0; is < iS; ++is) im_[is] = 0.;
 
-        for (int oh = 0; oh < jcp.oh; ++oh) {
         for (int kh = 0; kh < jcp.kh; ++kh) {
+        for (int oh = 0; oh < jcp.oh; ++oh) {
             const int ih = oh * jcp.stride_h - jcp.t_pad + kh * (1 + jcp.dilate_h);
             if (ih < 0 || ih >= jcp.ih) continue;
 
-            for (int ow = 0; ow < jcp.ow; ++ow) {
             for (int kw = 0; kw < jcp.kw; ++kw) {
+            for (int ow = 0; ow < jcp.ow; ++ow) {
                 const int iw = ow * jcp.stride_w - jcp.l_pad + kw * (1 + jcp.dilate_w);
                 if (iw < 0 || iw >= jcp.iw) continue;
 
                 const size_t col_idx = ((kh*jcp.kw + kw)*jcp.oh+oh)*jcp.ow+ow;
                 const size_t im_idx = ih*jcp.iw + iw;
-                im[im_idx] += col[col_idx];
+                im_[im_idx] += col_[col_idx];
             }
             }
         }
         }
-        col += col_step;
-        im += im_step;
     }
 }
 
