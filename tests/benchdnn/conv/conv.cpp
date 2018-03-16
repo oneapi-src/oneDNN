@@ -246,7 +246,7 @@ int fill_src(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
     for (int ih = 0; ih < p->ih; ++ih)
     for (int iw = 0; iw < p->iw; ++iw)
     {
-        const int gen = 23 * id + 17 * ih + 13 * iw + 13 * mb + 19 * ic + 1637;
+        const int gen = 5 * id + 17 * ih + 13 * iw + 13 * mb + 19 * ic + 1637;
         const bool non_base = true
             && gen % (p->kd * p->kh * p->kw) <= c.f_sparsity * (p->kd * p->kh * p->kw);
 //            && (17 * ih + 13 * mb) % p->kh == 0
@@ -287,7 +287,7 @@ int fill_wei(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
     for (int kh = 0; kh < p->kh; ++kh)
     for (int kw = 0; kw < p->kw; ++kw)
     {
-        const int gen = 29 * kd + 17 * kh + 13 * kw + 13 * oc + 19 * ic + 38;
+        const int gen = 5 * kd + 17 * kh + 13 * kw + 13 * oc + 19 * ic + 38;
         const bool non_base = true
             && gen % (p->kd * p->kh * p->kw) <= c.f_sparsity * (p->kd * p->kh * p->kw);
 //            && (17 * kh + 13 * oc) % p->kh == 0
@@ -359,7 +359,7 @@ int fill_dst(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
     for (int oh = 0; oh < p->oh; ++oh)
     for (int ow = 0; ow < p->ow; ++ow)
     {
-        const int gen = 31 * od + 19 * oh + 17 * ow + 13 * mb + 13 * oc + 223;
+        const int gen = 7 * od + 19 * oh + 17 * ow + 13 * mb + 13 * oc + 223;
         const bool non_base = true
             && gen % (p->kd * p->kh * p->kw) <= c.f_sparsity * (p->kd * p->kh * p->kw);
 //            && (19 * oh + 13 * mb) % p->kh == 0

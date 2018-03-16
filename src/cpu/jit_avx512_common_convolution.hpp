@@ -73,6 +73,8 @@ struct _jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
                     with_relu, this->negative_slope());
         }
 
+        inline int ndims() { return this->cdesc_().src_desc.ndims; }
+
         jit_conv_conf_t jcp_;
     };
 
@@ -91,12 +93,14 @@ struct _jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
 
     virtual void execute(event_t *e)
     {
-        execute_forward();
+        if (conf_.ndims() == 4) execute_forward();
+        else                    execute_forward_3d();
         e->set_state(event_t::ready);
     }
 
 private:
     void execute_forward();
+    void execute_forward_3d();
     pd_t conf_;
     jit_avx512_common_conv_fwd_kernel *kernel_;
 };
@@ -140,9 +144,30 @@ struct jit_avx512_common_convolution_bwd_data_t: public cpu_primitive_t {
                 && this->desc()->diff_src_desc.data_type == diff_src_type;
             if (!ok) return status::unimplemented;
 
-            return jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(jcp_,
-                    *this->desc(), *this->diff_src_pd_.desc(),
+            return jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
+                    jcp_,*this->desc(), *this->diff_src_pd_.desc(),
                     *this->weights_pd_.desc(), *this->diff_dst_pd_.desc());
+        }
+
+        inline int ndims() { return this->desc()->diff_src_desc.ndims; }
+
+        inline memory_format_t src_format()
+        {
+            using namespace memory_format;
+            return (ndims() == 4) ? nChw16c : nCdhw16c;
+        }
+        inline memory_format_t wei_format()
+        {
+            using namespace memory_format;
+            if (diff_dst_type == data_type::s16
+                && diff_src_type == data_type::s32
+                && wei_type == data_type::s16) {
+                return  this->with_groups() ? gOIhw8o16i2o : OIhw8o16i2o;
+            } else {
+                return (ndims() == 4)
+                    ? this->with_groups() ? gOIhw16o16i : OIhw16o16i
+                    : this->with_groups() ? gOIdhw16o16i : OIdhw16o16i;
+            }
         }
 
         jit_conv_conf_t jcp_;
@@ -152,22 +177,11 @@ struct jit_avx512_common_convolution_bwd_data_t: public cpu_primitive_t {
             using namespace memory_format;
 
             if (this->diff_src_pd_.desc()->format == any)
-                CHECK(this->diff_src_pd_.set_format(nChw16c));
+                CHECK(this->diff_src_pd_.set_format(src_format()));
             if (this->diff_dst_pd_.desc()->format == any)
-                CHECK(this->diff_dst_pd_.set_format(nChw16c));
-            if (this->weights_pd_.desc()->format == any) {
-                if (diff_dst_type == data_type::s16
-                 && diff_src_type == data_type::s32
-                 && wei_type == data_type::s16) {
-                        CHECK(this->weights_pd_.set_format(this->with_groups() ?
-                                    gOIhw8o16i2o : OIhw8o16i2o));
-                 } else if (diff_dst_type == data_type::f32
-                         && diff_src_type == data_type::f32
-                         && wei_type == data_type::f32) {
-                        CHECK(this->weights_pd_.set_format(this->with_groups()
-                                    ? gOIhw16o16i : OIhw16o16i));
-                      }
-            }
+                CHECK(this->diff_dst_pd_.set_format(src_format()));
+            if (this->weights_pd_.desc()->format == any)
+                CHECK(this->weights_pd_.set_format(wei_format()));
             return status::success;
         }
     };
@@ -175,7 +189,9 @@ struct jit_avx512_common_convolution_bwd_data_t: public cpu_primitive_t {
     jit_avx512_common_convolution_bwd_data_t(const pd_t *pd,
             const input_vector &inputs, const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
-    { kernel_ = new jit_avx512_common_conv_bwd_data_kernel_f32(conf_.jcp_); }
+    {
+        kernel_ = new jit_avx512_common_conv_bwd_data_kernel_f32(conf_.jcp_);
+    }
     ~jit_avx512_common_convolution_bwd_data_t() { delete kernel_; };
 
     typedef typename prec_traits<diff_dst_type>::type diff_dst_data_t;
@@ -185,7 +201,8 @@ struct jit_avx512_common_convolution_bwd_data_t: public cpu_primitive_t {
     virtual void execute(event_t *e) {
         switch (conf_.desc()->prop_kind) {
         case prop_kind::backward_data:
-            execute_backward_data();
+            if (conf_.ndims() == 4) execute_backward_data();
+            else                    execute_backward_data_3d();
             break;
         default:
             assert(!"invalid prop_kind");
@@ -195,6 +212,7 @@ struct jit_avx512_common_convolution_bwd_data_t: public cpu_primitive_t {
 
 private:
     void execute_backward_data();
+    void execute_backward_data_3d();
     pd_t conf_;
     jit_avx512_common_conv_bwd_data_kernel_f32 *kernel_;
 };
@@ -230,6 +248,22 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
                     this->diff_bias_pd_, this->diff_dst_pd_);
         }
 
+        inline int ndims() { return this->desc()->src_desc.ndims; }
+
+        inline memory_format_t src_format()
+        {
+            using namespace memory_format;
+            return (ndims() == 4) ? nChw16c : nCdhw16c;
+        }
+        inline memory_format_t wei_format()
+        {
+            using namespace memory_format;
+            return (ndims() == 4)
+                ? this->with_groups() ? gOIhw16o16i : OIhw16o16i
+                : this->with_groups() ? gOIdhw16o16i : OIdhw16o16i;
+        }
+
+
         jit_conv_conf_t jcp_;
 
         protected:
@@ -237,12 +271,11 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
                 using namespace memory_format;
 
                 if (this->src_pd_.desc()->format == any)
-                    CHECK(this->src_pd_.set_format(nChw16c));
+                    CHECK(this->src_pd_.set_format(src_format()));
                 if (this->diff_weights_pd_.desc()->format == any)
-                    CHECK(this->diff_weights_pd_.set_format(this->with_groups()
-                    ? gOIhw16o16i : OIhw16o16i)); // gOIhw8o16i2o : OIhw8o16i2o
+                    CHECK(this->diff_weights_pd_.set_format(wei_format()));
                 if (this->diff_dst_pd_.desc()->format == any)
-                    CHECK(this->diff_dst_pd_.set_format(nChw16c));
+                    CHECK(this->diff_dst_pd_.set_format(src_format()));
 
                 return status::success;
             }
@@ -252,6 +285,7 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
     jit_avx512_common_convolution_bwd_weights_t(const pd_t *pd,
             const input_vector &inputs, const output_vector &outputs);
     ~jit_avx512_common_convolution_bwd_weights_t() {
+
         delete kernel_;
         if (trans_kernel_)
             delete trans_kernel_;
@@ -281,8 +315,11 @@ private:
 
     struct thread_info_t;
     void compute_diff_weights(const thread_info_t *);
+    void compute_diff_weights_3d(const thread_info_t *);
     void reduce_diff_weights(const thread_info_t *);
+    void reduce_diff_weights_3d(const thread_info_t *);
     void compute_diff_bias(const thread_info_t *);
+    void compute_diff_bias_3d(const thread_info_t *);
 
     pd_t conf_;
 

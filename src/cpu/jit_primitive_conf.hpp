@@ -44,14 +44,15 @@ struct jit_conv_conf_t {
     conv_version_t ver;
     conv_loop_order_t loop_order;
 
+    int ndims;
     int mb;
     int ngroups, ic, oc;
-    int ih, iw, oh, ow;
-    int l_pad, t_pad;
-    int r_pad, b_pad;
-    int kh, kw;
-    int stride_h, stride_w;
-    int dilate_h, dilate_w;
+    int id, ih, iw, od, oh, ow;
+    int f_pad, l_pad, t_pad;
+    int back_pad, r_pad, b_pad;
+    int kd, kh, kw;
+    int stride_d, stride_h, stride_w;
+    int dilate_d, dilate_h, dilate_w;
     memory_format_t src_fmt;
     bool with_bias, with_relu;
     float relu_negative_slope;
@@ -184,6 +185,8 @@ struct jit_conv_call_s {
     const void *bias_prf;
     const void *scales;
     const void *acc_s32;
+    size_t kd_padding;
+    size_t kd_padding_prf;
     size_t kh_padding;
     size_t kh_padding_prf;
     size_t kw_padding;

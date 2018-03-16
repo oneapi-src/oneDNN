@@ -102,8 +102,18 @@ const char *mkldnn_fmt2str(mkldnn_memory_format_t v) {
     if (v == mkldnn_oIhw8i) return "oIhw8i";
     if (v == mkldnn_oIhw16i) return "oIhw16i";
     if (v == mkldnn_ncdhw) return "ncdhw";
+    if (v == mkldnn_ndhwc) return "ndhwc";
     if (v == mkldnn_oidhw) return "oidhw";
     if (v == mkldnn_goidhw) return "goidhw";
+    if (v == mkldnn_nCdhw16c) return "nCdhw16c";
+    if (v == mkldnn_OIdhw16i16o) return "OIdhw16i16o";
+    if (v == mkldnn_gOIdhw16i16o) return "gOIdhw16i16o";
+    if (v == mkldnn_OIdhw16o16i) return "OIdhw16o16i";
+    if (v == mkldnn_gOIdhw16o16i) return "gOIdhw16o16i";
+    if (v == mkldnn_Oidhw16o) return "Oidhw16o";
+    if (v == mkldnn_Odhwi16o) return "Odhwi16o";
+    if (v == mkldnn_gOidhw16o) return "gOidhw16o";
+    if (v == mkldnn_gOdhwi16o) return "gOdhwi16o";
     if (v == mkldnn_ntc) return "ntc";
     if (v == mkldnn_tnc) return "tnc";
     if (v == mkldnn_ldsnc) return "ldsnc";

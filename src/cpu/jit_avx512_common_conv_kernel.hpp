@@ -79,6 +79,12 @@ private:
     reg64_t reg_channel = rsi;
     reg64_t reg_bias = rdx;
 
+    reg64_t aux_reg_ker_d = r9;
+    reg64_t aux_reg_inp_d = rbx;
+    reg64_t aux_reg_inp_d_prf = r13;
+    reg64_t aux_reg_ker_d_prf = abi_not_param1;
+    reg64_t reg_ki = r10;
+
     reg64_t reg_kj = rax;
     reg64_t reg_relu_ns = rax;
     reg64_t reg_oi = rbx;
@@ -165,13 +171,13 @@ private:
 
     inline int get_output_offset(int oi, int n_oc_block) {
         return jcp.typesize_out
-            * (n_oc_block * jcp.oh * jcp.ow + oi) * jcp.oc_block;
+            * (n_oc_block * jcp.oh * jcp.ow * jcp.od + oi) * jcp.oc_block;
     }
 
     inline int get_input_offset(int ki, int ic, int oi, int pad_l) {
         int scale = (jcp.ver == ver_4vnni || jcp.ver == ver_vnni) ? 2 : 1;
         int iw_str = !jcp.is_1stconv ? jcp.ic_block : 1;
-        int ic_str = !jcp.is_1stconv ? 1 : jcp.iw * jcp.ih;
+        int ic_str = !jcp.is_1stconv ? 1 : jcp.iw * jcp.ih * jcp.id;
         return jcp.typesize_in
             * ((ki + oi * jcp.stride_w - pad_l) * iw_str + scale * ic * ic_str);
     }
@@ -179,7 +185,7 @@ private:
     inline int get_kernel_offset(int ki,int ic,int n_oc_block,int ker_number) {
         int scale = (jcp.ver == ver_4vnni || jcp.ver == ver_vnni) ? 2 : 1;
         return jcp.typesize_in * jcp.oc_block
-            * (n_oc_block * jcp.nb_ic * jcp.ic_block * jcp.kh * jcp.kw
+            * (n_oc_block * jcp.nb_ic * jcp.ic_block * jcp.kh * jcp.kw * jcp.kd
                     + (ic + ker_number) * scale + ki * jcp.ic_block);
     }
 
@@ -233,6 +239,12 @@ private:
 
     reg64_t aux_reg_dst_prf = rsi;
     reg64_t aux_reg_ker_prf = rdx;
+
+    reg64_t aux_reg_dst_d_prf = r13;
+    reg64_t aux_reg_dst_d = rbx;
+    reg64_t aux_reg_ker_d_prf = abi_not_param1;
+    reg64_t aux_reg_ker_d = r9;
+    reg64_t reg_ki = r10;
 
     reg64_t reg_kj = rax;
     reg64_t reg_oi = rbx;
@@ -347,9 +359,20 @@ private:
     reg64_t reg_ih_count = rbx;
     reg64_t reg_tmp = r14;
 
+    reg64_t ki = r11;
+    reg64_t reg_oi = r12;
+    reg64_t reg_id_count = r13;
+    reg64_t reg_input_d = r15;
+    reg64_t reg_output_d = rbx;
+    reg64_t aux_reg_input = r12;
+    reg64_t aux_reg_kernel = r13;
+    reg64_t reg_bias = rbx;
+
+    inline void bias_kernel();
     inline void maybe_zero_kernel();
     inline void compute_oh_step_unroll_ow_icblock(int ic_block_step,
             int max_ur_w);
+    inline void od_step_comeback_pointers();
     inline void oh_step_comeback_pointers();
     inline void compute_oh_step_unroll_ow(int ic_block_step, int max_ur_w);
     inline void compute_ic_block_step(int ur_w,
@@ -379,7 +402,6 @@ private:
 
     void generate();
 };
-
 
 }
 }

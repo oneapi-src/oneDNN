@@ -130,6 +130,13 @@ typedef enum {
     /** 4D data tensor in the @c nchw format with channels data laid out in
      * memory in 16-element blocks. */
     mkldnn_nChw16c,
+    /** 5D data tensor in the @c ncdhw format. */
+    mkldnn_ncdhw,
+    /** 5D data tensor in the @c ndhwc format typically used in TensorFlow. */
+    mkldnn_ndhwc,
+    /** 5D data tensor in the @c ncdhw format with channels data laid out in
+     * memory in 16-element blocks. */
+    mkldnn_nCdhw16c,
     /** 2D weights tensor in the format (input channels, output channels). */
     mkldnn_oi,
     /** 2D weights tensor in the format (input channels, output channels). */
@@ -143,6 +150,21 @@ typedef enum {
     /** 4D weights tensor in the format (height, width, input channels,
      * output channels). */
     mkldnn_hwio,
+    /** 5D weight tensor in the @c oidhw format. */
+    mkldnn_oidhw,
+   /** 6D weights tensor in the @c oidhw format with output channels data
+    * laid out in memory in 16-element blocks and input channels data
+     * laid out in memory in 4-element blocks blocked by quadruple. */
+    mkldnn_OIdhw16i16o,
+    /** 6D weights tensor in the @c oihw format with both input and output
+     * channels data laid out in memory in 16-element blocks. */
+    mkldnn_OIdhw16o16i,
+    /** 5D weights tensor in the blocked version of @c oidhw format with output
+     * channels data laid out in memory in 16-element blocks. */
+    mkldnn_Oidhw16o,
+    /** 5D weights tensor in the blocked version of @c oidhw format with output
+     * channels data laid out in memory in 16-element blocks. */
+    mkldnn_Odhwi16o,
     /** 4D weights tensor in the @c oihw format with both input and output
      * channels data laid out in memory in 8-element blocks. */
     mkldnn_OIhw8i8o,
@@ -248,13 +270,23 @@ typedef enum {
     /** 5D weights tensor in the @c goihw format with both input and output
      * channels data laid out in memory in 16-element and 4-element blocks. */
     mkldnn_gOhIw16o4i,
-    /** 5D data tensor in the @c ncdhw format. */
-    mkldnn_ncdhw,
-    /** 5D weight tensor in the @c oidhw format. */
-    mkldnn_oidhw,
     /** 6D weight tensor in the @c goidhw format with extra dimension for
      * groups */
     mkldnn_goidhw,
+   /** 6D weights tensor in the @c oidhw format with output channels data
+    * laid out in memory in 16-element blocks and input channels data
+     * laid out in memory in 4-element blocks blocked by quadruple. */
+    mkldnn_gOIdhw16i16o,
+    /** 6D weights tensor in the blocked version of @c goihw format with both
+     * input and output channels data laid out in memory in 16-element blocks.
+     */
+    mkldnn_gOIdhw16o16i,
+    /** 6D weights tensor in the blocked version of @c goidhw format with output
+     * channels data laid out in memory in 16-element blocks. */
+    mkldnn_gOidhw16o,
+    /** 6D weights tensor in the blocked version of @c goidhw format with output
+     * channels data laid out in memory in 16-element blocks. */
+    mkldnn_gOdhwi16o,
     /** 3D data tensor in the format (batch, seq_length, input channels). */
     mkldnn_ntc,
     /** 3D data tensor in the format (seq_length, batch, input channels). */
