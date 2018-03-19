@@ -180,7 +180,7 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
         default: assert(false);
         }
 
-        auto set_pack_funcs = [this](bool packed_gemm, gemm_t &g, bool pack_w,
+        auto set_pack_funcs = [](bool packed_gemm, gemm_t &g, bool pack_w,
                 packing_t &p, free_packed_t &f) {
             g = packed_gemm ? &class_name::packed_gemm : &class_name::gemm;
             p = pack_w ? &class_name::pack_weights :
