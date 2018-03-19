@@ -66,7 +66,8 @@ void compute_attention(float *context_vectors, int src_seq_length_max,
     for (int i = 0; i < src_seq_length_max; i++) {
         for (int j = 0; j < batch * feature_size; j++)
             alignment_model_ptr[i * batch * feature_size + j] = tanhf(
-                    weighted_src_layer.data()[j] + weighted_annotations[j]);
+                    weighted_src_layer.data()[j]
+                    + weighted_annotations[i * batch * feature_size + j]);
     }
 
     // gemv with alignments weights. the resulting alignments are in alignments
