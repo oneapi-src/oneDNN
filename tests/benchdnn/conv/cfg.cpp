@@ -24,7 +24,7 @@
 
 #include "mkldnn_common.hpp"
 
-#include "conv/conv.hpp"
+#include "conv/conv_common.hpp"
 
 namespace conv {
 

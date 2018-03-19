@@ -331,6 +331,8 @@ typedef enum {
     mkldnn_sum,
     /** A convolution primitive. */
     mkldnn_convolution,
+    /** A deconvolution primitive. */
+    mkldnn_deconvolution,
     /** An element-wise primitive. */
     mkldnn_eltwise,
     /** A ReLU primitive, @deprecated. */
@@ -389,6 +391,10 @@ typedef enum {
     mkldnn_lrn_across_channels = 65,
     /** LRN within a single channel */
     mkldnn_lrn_within_channel = 66,
+    /** Direct deconvolution */
+    mkldnn_deconvolution_direct = 71,
+    /** Winograd deconvolution */
+    mkldnn_deconvolution_winograd = 72,
     /** RNN cell */
     mkldnn_vanilla_rnn = 80,
     /** LSTM cell */
@@ -553,6 +559,9 @@ typedef struct {
     /** The accumulator data type. Initialized automatically. */
     mkldnn_data_type_t accum_data_type;
 } mkldnn_convolution_desc_t;
+
+/** A descriptor of a deconvolution operation. */
+typedef mkldnn_convolution_desc_t mkldnn_deconvolution_desc_t;
 
 /** A descriptor of a element-wise operation. */
 typedef struct {
@@ -999,6 +1008,7 @@ typedef enum {
     mkldnn_query_some_d = 64, /**< stub */
     mkldnn_query_memory_d, /**< memory descriptor for memory and view */
     mkldnn_query_convolution_d, /**< convolution descriptor */
+    mkldnn_query_deconvolution_d, /**< deconvolution descriptor */
     mkldnn_query_eltwise_d, /**< eltwise descriptor */
     mkldnn_query_relu_d = mkldnn_query_eltwise_d, /**< @deprecated */
     mkldnn_query_softmax_d, /**< softmax descriptor */

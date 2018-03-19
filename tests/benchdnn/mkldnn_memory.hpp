@@ -146,7 +146,7 @@ struct dnn_mem_t {
 private:
     int initialize(const mkldnn_memory_desc_t &md, mkldnn_data_type_t dt,
             mkldnn_memory_format_t fmt, void *data) {
-        if (fmt == mkldnn_format_undef) {
+        if (fmt == mkldnn_format_undef || fmt == mkldnn_blocked) {
             md_ = md;
             md_.data_type = dt;
         } else {

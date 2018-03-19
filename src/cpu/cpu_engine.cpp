@@ -39,6 +39,7 @@
 #include "cpu/gemm_u8s8s32x_convolution.hpp"
 #include "cpu/ref_convolution_3d.hpp"
 #include "cpu/ref_convolution.hpp"
+#include "cpu/ref_deconvolution.hpp"
 #include "cpu/jit_uni_eltwise.hpp"
 #include "cpu/ref_eltwise.hpp"
 #include "cpu/ref_softmax.hpp"
@@ -151,6 +152,10 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(ref_convolution_fwd_t<u8, s8, u8, s32>),
     INSTANCE(ref_convolution_bwd_data_t<s32, s16, s16, s32>),
     INSTANCE(ref_convolution_bwd_weights_t<s16, s32, s16, s32>),
+    /* deconv */
+    INSTANCE(ref_deconvolution_bwd_weights_t),
+    INSTANCE(ref_deconvolution_bwd_data_t),
+    INSTANCE(ref_deconvolution_fwd_t),
     /* eltwise */
     INSTANCE(jit_uni_eltwise_fwd_t<avx512_common>),
     INSTANCE(jit_uni_eltwise_bwd_t<avx512_common>),

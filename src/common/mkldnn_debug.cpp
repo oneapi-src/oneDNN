@@ -138,6 +138,7 @@ const char *mkldnn_prim_kind2str(mkldnn_primitive_kind_t v) {
     if (v == mkldnn_concat_inplace) return "concat_inplace";
     if (v == mkldnn_sum) return "sum";
     if (v == mkldnn_convolution) return "convolution";
+    if (v == mkldnn_deconvolution) return "deconvolution";
     if (v == mkldnn_eltwise) return "eltwise";
     if (v == mkldnn_relu) return "relu";
     if (v == mkldnn_softmax) return "softmax";
@@ -153,7 +154,9 @@ const char *mkldnn_prim_kind2str(mkldnn_primitive_kind_t v) {
 
 const char *mkldnn_alg_kind2str(mkldnn_alg_kind_t v) {
     if (v == mkldnn_convolution_direct) return "convolution_direct";
+    if (v == mkldnn_deconvolution_direct) return "deconvolution_direct";
     if (v == mkldnn_convolution_winograd) return "convolution_winograd";
+    if (v == mkldnn_deconvolution_winograd) return "deconvolution_winograd";
     if (v == mkldnn_eltwise_relu) return "eltwise_relu";
     if (v == mkldnn_eltwise_tanh) return "eltwise_tanh";
     if (v == mkldnn_eltwise_elu) return "eltwise_elu";

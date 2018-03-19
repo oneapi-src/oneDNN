@@ -60,7 +60,7 @@ const char *merge2str(merge_t merge) {
     return "unknown merge";
 }
 
-int str2desc(desc_t *desc, const char *str) {
+int str2desc(desc_t *desc, const char *str, bool is_deconv) {
     desc_t d{0};
 
     /* canonical form:
@@ -126,7 +126,8 @@ int str2desc(desc_t *desc, const char *str) {
 
         if (!d.oh) d.oh = compute_out(d.ih, d.kh, d.sh, d.ph, d.dh);
         else if (!d.ph && d.oh != compute_out(d.ih, d.kh, d.sh, d.ph, d.dh))
-            d.ph = compute_pad(d.oh, d.ih, d.kh, d.ph, d.dh);
+            d.ph = is_deconv ? compute_pad(d.ih, d.oh, d.kh, d.ph, d.dh) :
+                compute_pad(d.oh, d.ih, d.kh, d.ph, d.dh);
     }
 
     if (!no_w) {
@@ -134,7 +135,8 @@ int str2desc(desc_t *desc, const char *str) {
 
         if (!d.ow) d.ow = compute_out(d.iw, d.kw, d.sw, d.pw, d.dw);
         else if (!d.pw && d.ow != compute_out(d.iw, d.kw, d.sw, d.pw, d.dw))
-            d.pw = compute_pad(d.ow, d.iw, d.kw, d.pw, d.dw);
+            d.pw = is_deconv ? compute_pad(d.iw, d.ow, d.kw, d.pw, d.dw) :
+                compute_pad(d.ow, d.iw, d.kw, d.pw, d.dw);
     }
 
     if (!no_d && d.id) {
@@ -142,7 +144,8 @@ int str2desc(desc_t *desc, const char *str) {
 
         if (!d.od) d.od = compute_out(d.id, d.kd, d.sd, d.pd, d.dd);
         else if (!d.pd && d.od != compute_out(d.id, d.kd, d.sd, d.pd, d.dd))
-            d.pd = compute_pad(d.od, d.id, d.kd, d.pd, d.dd);
+            d.pd = is_deconv? compute_pad(d.id, d.od, d.kd, d.pd, d.dd) :
+                compute_pad(d.od, d.id, d.kd, d.pd, d.dd);
     }
 
     if (no_w && no_h && d.id) {

@@ -28,6 +28,7 @@
 
 #include "self/self.hpp"
 #include "conv/conv.hpp"
+#include "conv/deconv.hpp"
 #include "ip/ip.hpp"
 #include "reorder/reorder.hpp"
 #include "bnorm/bnorm.hpp"
@@ -48,6 +49,7 @@ int main(int argc, char **argv) {
     while (argc > 0) {
         if (!strcmp("--self", argv[0])) prim = SELF;
         else if (!strcmp("--conv", argv[0])) prim = CONV;
+        else if (!strcmp("--deconv", argv[0])) prim = DECONV;
         else if (!strcmp("--ip", argv[0])) prim = IP;
         else if (!strcmp("--reorder", argv[0])) prim = REORDER;
         else if (!strcmp("--bnorm", argv[0])) prim = BNORM;
@@ -69,6 +71,7 @@ int main(int argc, char **argv) {
     switch (prim) {
     case SELF: self::bench(argc, argv); break;
     case CONV: conv::bench(argc, argv); break;
+    case DECONV: deconv::bench(argc, argv); break;
     case IP: ip::bench(argc, argv); break;
     case REORDER: reorder::bench(argc, argv); break;
     case RNN: rnn::bench(argc, argv); break;

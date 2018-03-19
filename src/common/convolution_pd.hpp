@@ -27,6 +27,14 @@
 namespace mkldnn {
 namespace impl {
 
+status_t conv_desc_init(convolution_desc_t *conv_desc,
+        prop_kind_t prop_kind, alg_kind_t alg_kind,
+        const memory_desc_t *src_desc, const memory_desc_t *weights_desc,
+        const memory_desc_t *bias_desc, const memory_desc_t *dst_desc,
+        const dims_t strides, const dims_t dilates,
+        const dims_t padding_l, const dims_t padding_r,
+        padding_kind_t padding_kind);
+
 template <bool with_relu>
 struct _convolution_fwd_pd_t: public primitive_desc_t {
     typedef _convolution_fwd_pd_t base_class;

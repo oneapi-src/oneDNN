@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2018 Intel Corporation
+* Copyright 2018 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,9 +25,10 @@
 #include "mkldnn_common.hpp"
 #include "mkldnn_memory.hpp"
 
-#include "conv/conv.hpp"
+#include "conv/deconv.hpp"
+using namespace conv;
 
-namespace conv {
+namespace deconv {
 
 /* global driver parameters */
 const dt_conf_t *cfg = conf_f32;
@@ -63,7 +64,7 @@ void check_correctness(const desc_t *c) {
     print(1, "run: %s\n", pstr);
 
     res_t res{};
-    const int status = conv::doit(&p, &res);
+    const int status = doit(&p, &res);
     (void)status;
 
     bool want_perf_report = false;
@@ -90,8 +91,6 @@ int bench(int argc, char **argv, bool main_bench) {
             dir = str2dir(argv[arg] + 6);
         else if (!strncmp("--alg=", argv[arg], 6))
             alg = str2alg(argv[arg] + 6);
-        else if (!strncmp("--merge=", argv[arg], 8))
-            merge = str2merge(argv[arg] + 8);
         else if (!strncmp("--attr=", argv[arg], 7))
             SAFE(str2attr(&attr, argv[arg] + 7), CRIT);
         else if (!strncmp("--skip-impl=", argv[arg], 12))
@@ -110,7 +109,7 @@ int bench(int argc, char **argv, bool main_bench) {
             verbose = atoi(argv[arg] + 10);
         else {
             desc_t c;
-            bool is_deconv = 0;
+            bool is_deconv = 1;
             if (str2desc(&c, argv[arg], is_deconv) == FAIL) {
                 fprintf(stderr, "driver: unknown option: `%s`, exiting...\n",
                         argv[arg]);
@@ -119,8 +118,6 @@ int bench(int argc, char **argv, bool main_bench) {
             check_correctness(&c);
         }
     }
-
     return OK;
 }
-
 }

@@ -23,7 +23,7 @@
 #include "mkldnn.h"
 #include "mkldnn_memory.hpp"
 
-#include "conv/conv.hpp"
+#include "conv/conv_common.hpp"
 
 namespace conv {
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2018 Intel Corporation
+* Copyright 2018 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef _CONV_HPP
-#define _CONV_HPP
+#ifndef _DECONV_HPP
+#define _DECONV_HPP
 
 #include <stdint.h>
 #include <limits.h>
@@ -25,13 +25,10 @@
 #include "dnn_types.hpp"
 #include "mkldnn_common.hpp"
 #include "mkldnn_memory.hpp"
-
 #include "conv/conv_common.hpp"
-namespace conv {
 
-int doit(const prb_t *p, res_t *res);
+namespace deconv {
+int doit(const conv::prb_t *p, res_t *res);
 int bench(int argc, char **argv, bool main_bench = true);
-
 }
-
 #endif

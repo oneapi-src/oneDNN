@@ -62,6 +62,8 @@ namespace alg_kind {
     const alg_kind_t undef = mkldnn_alg_kind_undef;
     const alg_kind_t convolution_direct = mkldnn_convolution_direct;
     const alg_kind_t convolution_winograd = mkldnn_convolution_winograd;
+    const alg_kind_t deconvolution_direct = mkldnn_deconvolution_direct;
+    const alg_kind_t deconvolution_winograd = mkldnn_deconvolution_winograd;
     const alg_kind_t eltwise_relu = mkldnn_eltwise_relu;
     const alg_kind_t eltwise_tanh = mkldnn_eltwise_tanh;
     const alg_kind_t eltwise_elu = mkldnn_eltwise_elu;
@@ -181,6 +183,7 @@ namespace primitive_kind {
     const primitive_kind_t concat_inplace = mkldnn_concat_inplace;
     const primitive_kind_t sum = mkldnn_sum;
     const primitive_kind_t convolution = mkldnn_convolution;
+    const primitive_kind_t deconvolution = mkldnn_deconvolution;
     const primitive_kind_t eltwise = mkldnn_eltwise;
     const primitive_kind_t softmax = mkldnn_softmax;
     const primitive_kind_t pooling = mkldnn_pooling;
@@ -209,6 +212,7 @@ namespace query {
     const query_t some_d = mkldnn_query_some_d;
     const query_t memory_d = mkldnn_query_memory_d;
     const query_t convolution_d = mkldnn_query_convolution_d;
+    const query_t deconvolution_d = mkldnn_query_deconvolution_d;
     const query_t eltwise_d = mkldnn_query_eltwise_d;
     const query_t softmax_d = mkldnn_query_softmax_d;
     const query_t pooling_d = mkldnn_query_pooling_d;
@@ -234,6 +238,7 @@ namespace query {
 using blocking_desc_t = mkldnn_blocking_desc_t;
 using memory_desc_t = mkldnn_memory_desc_t;
 using convolution_desc_t = mkldnn_convolution_desc_t;
+using deconvolution_desc_t = mkldnn_deconvolution_desc_t;
 using pooling_desc_t = mkldnn_pooling_desc_t;
 using eltwise_desc_t = mkldnn_eltwise_desc_t;
 using softmax_desc_t = mkldnn_softmax_desc_t;
@@ -255,6 +260,7 @@ struct op_desc_t {
         primitive_kind_t kind;
         memory_desc_t memory;
         convolution_desc_t convolution;
+        deconvolution_desc_t deconvolution;
         pooling_desc_t pooling;
         eltwise_desc_t eltwise;
         softmax_desc_t softmax;

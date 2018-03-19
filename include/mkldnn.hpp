@@ -115,6 +115,7 @@ public:
         concat_inplace = mkldnn_concat_inplace,
         sum = mkldnn_sum,
         convolution = mkldnn_convolution,
+        deconvolution = mkldnn_deconvolution,
         eltwise = mkldnn_eltwise,
         relu = mkldnn_relu,
         softmax = mkldnn_softmax,
@@ -251,6 +252,8 @@ enum algorithm {
     algorithm_undef = mkldnn_alg_kind_undef,
     convolution_direct = mkldnn_convolution_direct,
     convolution_winograd = mkldnn_convolution_winograd,
+    deconvolution_direct = mkldnn_deconvolution_direct,
+    deconvolution_winograd = mkldnn_deconvolution_winograd,
     eltwise_relu = mkldnn_eltwise_relu,
     eltwise_tanh = mkldnn_eltwise_tanh,
     eltwise_elu = mkldnn_eltwise_elu,
@@ -316,6 +319,7 @@ enum query {
 
     memory_d = mkldnn_query_memory_d,
     convolution_d = mkldnn_query_convolution_d,
+    deconvolution_d = mkldnn_query_deconvolution_d,
     eltwise_d = mkldnn_query_eltwise_d,
     relu_d = mkldnn_query_relu_d,
     softmax_d = mkldnn_query_softmax_d,
@@ -1633,6 +1637,364 @@ struct convolution_relu_forward : public primitive {
         error::wrap_c_api(mkldnn_primitive_create(&result,
                 aprimitive_desc.get(), inputs, outputs),
             "could not create a convolution relu forward primitive");
+        reset(result);
+    }
+};
+
+/// @}
+//
+/// @addtogroup cpp_api_deconvolution Deconvolution
+/// @{
+
+struct deconvolution_forward: public primitive {
+    struct desc {
+        mkldnn_deconvolution_desc_t data;
+        desc(prop_kind aprop_kind, algorithm aalgorithm,
+                const memory::desc &src_desc,
+                const memory::desc &weights_desc,
+                const memory::desc &bias_desc,
+                const memory::desc &dst_desc,
+                const memory::dims strides,
+                const memory::dims padding_l,
+                const memory::dims padding_r,
+                const padding_kind apadding_kind) {
+            memory::validate_dims(strides);
+            memory::validate_dims(padding_l);
+            memory::validate_dims(padding_r);
+            error::wrap_c_api(mkldnn_deconvolution_forward_desc_init(&data,
+                        mkldnn::convert_to_c(aprop_kind), convert_to_c(aalgorithm),
+                        &src_desc.data, &weights_desc.data, &bias_desc.data,
+                        &dst_desc.data, &strides[0], &padding_l[0], &padding_r[0],
+                        mkldnn::convert_to_c(apadding_kind)),
+                    "could not create a deconvolution forward descriptor");
+        }
+        desc(prop_kind aprop_kind, algorithm aalgorithm,
+                const memory::desc &src_desc,
+                const memory::desc &weights_desc,
+                const memory::desc &dst_desc,
+                const memory::dims strides,
+                const memory::dims padding_l,
+                const memory::dims padding_r,
+                const padding_kind apadding_kind) {
+            memory::validate_dims(strides);
+            memory::validate_dims(padding_l);
+            memory::validate_dims(padding_r);
+            error::wrap_c_api(mkldnn_deconvolution_forward_desc_init(&data,
+                        mkldnn::convert_to_c(aprop_kind), convert_to_c(aalgorithm),
+                        &src_desc.data, &weights_desc.data, nullptr,
+                        &dst_desc.data, &strides[0], &padding_l[0], &padding_r[0],
+                        mkldnn::convert_to_c(apadding_kind)),
+                    "could not create a deconvolution forward descriptor");
+        }
+    };
+    struct primitive_desc : public handle<mkldnn_primitive_desc_t> {
+        primitive_desc(const desc &adesc, const engine &aengine) {
+            mkldnn_primitive_desc_t result;
+            error::wrap_c_api(mkldnn_primitive_desc_create(
+                        &result, &adesc.data, aengine.get(), nullptr),
+                    "could not create a deconvolution forward primitive descriptor");
+            reset(result);
+        }
+
+        primitive_desc(const desc &adesc, const primitive_attr &aattr,
+                const engine &aengine) {
+            mkldnn_primitive_desc_t result;
+            error::wrap_c_api(mkldnn_primitive_desc_create_v2(
+                        &result, &adesc.data, aattr.get(),
+                        aengine.get(), nullptr),
+                    "could not create a deconvolution forward primitive descriptor");
+            reset(result);
+        }
+
+        memory::primitive_desc src_primitive_desc() const {
+            memory::primitive_desc adesc;
+            mkldnn_primitive_desc_t cdesc;
+            const_mkldnn_primitive_desc_t const_cdesc =
+                mkldnn_primitive_desc_query_pd(get(),
+                               mkldnn::convert_to_c(src_pd), 0);
+            error::wrap_c_api(mkldnn_primitive_desc_clone(&cdesc, const_cdesc),
+                    "could not clone a src primititve descriptor");
+            adesc.reset(cdesc);
+            return adesc;
+        }
+
+        memory::primitive_desc weights_primitive_desc() const {
+            memory::primitive_desc adesc;
+            mkldnn_primitive_desc_t cdesc;
+            const_mkldnn_primitive_desc_t const_cdesc =
+                mkldnn_primitive_desc_query_pd(get(),
+                               mkldnn::convert_to_c(weights_pd), 0);
+            error::wrap_c_api(mkldnn_primitive_desc_clone(&cdesc, const_cdesc),
+                    "could not clone a weights primitive descriptor");
+            adesc.reset(cdesc);
+            return adesc;
+        }
+
+        memory::primitive_desc bias_primitive_desc() const {
+            memory::primitive_desc adesc;
+            mkldnn_primitive_desc_t cdesc;
+            const_mkldnn_primitive_desc_t const_cdesc =
+                mkldnn_primitive_desc_query_pd(get(),
+                               mkldnn::convert_to_c(weights_pd), 1);
+            error::wrap_c_api(mkldnn_primitive_desc_clone(&cdesc, const_cdesc),
+                    "could not clone a bias primitive descriptor");
+            adesc.reset(cdesc);
+            return adesc;
+        }
+
+        memory::primitive_desc dst_primitive_desc() const {
+            memory::primitive_desc adesc;
+            mkldnn_primitive_desc_t cdesc;
+            const_mkldnn_primitive_desc_t const_cdesc =
+                mkldnn_primitive_desc_query_pd(get(),
+                               mkldnn::convert_to_c(dst_pd), 0);
+            error::wrap_c_api(mkldnn_primitive_desc_clone(&cdesc, const_cdesc),
+                    "could not clone a dst primitive descriptor");
+            adesc.reset(cdesc);
+            return adesc;
+        }
+
+        engine get_engine() { return engine::query(*this); }
+    };
+
+    deconvolution_forward(const primitive_desc &aprimitive_desc,
+            const primitive::at &src, const primitive::at &weights,
+            const primitive::at &bias, const memory &dst) {
+        mkldnn_primitive_t result;
+        mkldnn_primitive_at_t inputs[] = { src.data, weights.data,
+                    bias.data };
+        const_mkldnn_primitive_t outputs[] = { dst.get() };
+        error::wrap_c_api(mkldnn_primitive_create(&result,
+                    aprimitive_desc.get(), inputs, outputs),
+                "could not create a deconvolution forward bias primitive");
+        reset(result);
+    }
+
+    deconvolution_forward(const primitive_desc &aprimitive_desc,
+            const primitive::at &src, const primitive::at &weights,
+            const memory &dst) {
+        mkldnn_primitive_t result;
+        mkldnn_primitive_at_t inputs[] = { src.data, weights.data };
+        const_mkldnn_primitive_t outputs[] = { dst.get() };
+        error::wrap_c_api(mkldnn_primitive_create(&result,
+                    aprimitive_desc.get(), inputs, outputs),
+                "could not create a deconvolution forward primitive");
+        reset(result);
+    }
+};
+
+struct deconvolution_backward_data : public primitive {
+    struct desc {
+        mkldnn_deconvolution_desc_t data;
+        desc(algorithm aalgorithm,
+                const memory::desc &diff_src_desc,
+                const memory::desc &weights_desc,
+                const memory::desc &diff_dst_desc,
+                const memory::dims strides,
+                const memory::dims padding_l,
+                const memory::dims padding_r,
+                const padding_kind apadding_kind) {
+            memory::validate_dims(strides);
+            memory::validate_dims(padding_l);
+            memory::validate_dims(padding_r);
+            error::wrap_c_api(mkldnn_deconvolution_backward_data_desc_init(
+                        &data, convert_to_c(aalgorithm), &diff_src_desc.data,
+                        &weights_desc.data, &diff_dst_desc.data,
+                        &strides[0], &padding_l[0], &padding_r[0],
+                        mkldnn::convert_to_c(apadding_kind)),
+                    "could not create a deconvolution backward data descriptor");
+        }
+    };
+    struct primitive_desc : public handle<mkldnn_primitive_desc_t> {
+        primitive_desc(const desc &adesc, const engine &aengine,
+                const deconvolution_forward::primitive_desc
+                    &hint_fwd_primitive_desc) {
+            mkldnn_primitive_desc_t result;
+            error::wrap_c_api(mkldnn_primitive_desc_create(
+                        &result, &adesc.data, aengine.get(),
+                        hint_fwd_primitive_desc.get()),
+                    "could not create a deconvolution backward data primitive descriptor");
+            reset(result);
+        }
+        memory::primitive_desc diff_src_primitive_desc() const {
+            memory::primitive_desc adesc;
+            mkldnn_primitive_desc_t cdesc;
+            const_mkldnn_primitive_desc_t const_cdesc =
+                mkldnn_primitive_desc_query_pd(get(),
+                               mkldnn::convert_to_c(diff_src_pd), 0);
+            error::wrap_c_api(mkldnn_primitive_desc_clone(&cdesc, const_cdesc),
+                    "could not clone a diff_src primititve descriptor");
+            adesc.reset(cdesc);
+            return adesc;
+        }
+
+        memory::primitive_desc weights_primitive_desc() const {
+            memory::primitive_desc adesc;
+            mkldnn_primitive_desc_t cdesc;
+            const_mkldnn_primitive_desc_t const_cdesc =
+                mkldnn_primitive_desc_query_pd(get(),
+                               mkldnn::convert_to_c(weights_pd), 0);
+            error::wrap_c_api(mkldnn_primitive_desc_clone(&cdesc, const_cdesc),
+                    "could not clone a weights primitive descriptor");
+            adesc.reset(cdesc);
+            return adesc;
+        }
+
+        memory::primitive_desc diff_dst_primitive_desc() const {
+            memory::primitive_desc adesc;
+            mkldnn_primitive_desc_t cdesc;
+            const_mkldnn_primitive_desc_t const_cdesc =
+                mkldnn_primitive_desc_query_pd(get(),
+                               mkldnn::convert_to_c(diff_dst_pd), 0);
+            error::wrap_c_api(mkldnn_primitive_desc_clone(&cdesc, const_cdesc),
+                    "could not clone a diff_dst primitive descriptor");
+            adesc.reset(cdesc);
+            return adesc;
+        }
+
+        engine get_engine() { return engine::query(*this); }
+    };
+
+    deconvolution_backward_data(const primitive_desc &aprimitive_desc,
+            const primitive::at &diff_dst, const primitive::at &weights,
+            const memory &diff_src) {
+        mkldnn_primitive_t result;
+        mkldnn_primitive_at_t inputs[] = { diff_dst.data, weights.data  };
+        const_mkldnn_primitive_t outputs[] = { diff_src.get() };
+        error::wrap_c_api(mkldnn_primitive_create(&result,
+                    aprimitive_desc.get(), inputs, outputs),
+                "could not create a deconvolution backward data primitive");
+        reset(result);
+    }
+};
+
+struct deconvolution_backward_weights : public primitive {
+    struct desc {
+        mkldnn_deconvolution_desc_t data;
+        desc(algorithm aalgorithm,
+                const memory::desc &src_desc,
+                const memory::desc &diff_weights_desc,
+                const memory::desc &diff_bias_desc,
+                const memory::desc &diff_dst_desc,
+                const memory::dims strides,
+                const memory::dims padding_l,
+                const memory::dims padding_r,
+                const padding_kind apadding_kind) {
+            memory::validate_dims(strides);
+            memory::validate_dims(padding_l);
+            memory::validate_dims(padding_r);
+            error::wrap_c_api(mkldnn_deconvolution_backward_weights_desc_init(
+                        &data, convert_to_c(aalgorithm), &src_desc.data,
+                        &diff_weights_desc.data, &diff_bias_desc.data,
+                        &diff_dst_desc.data,
+                        &strides[0], &padding_l[0], &padding_r[0],
+                        mkldnn::convert_to_c(apadding_kind)),
+                    "could not create a deconvolution backward weights descriptor");
+        }
+        desc(algorithm aalgorithm,
+                const memory::desc &src_desc,
+                const memory::desc &diff_weights_desc,
+                const memory::desc &diff_dst_desc,
+                const memory::dims strides,
+                const memory::dims padding_l,
+                const memory::dims padding_r,
+                const padding_kind apadding_kind) {
+            memory::validate_dims(strides);
+            memory::validate_dims(padding_l);
+            memory::validate_dims(padding_r);
+            error::wrap_c_api(mkldnn_deconvolution_backward_weights_desc_init(
+                        &data, convert_to_c(aalgorithm), &src_desc.data,
+                        &diff_weights_desc.data, nullptr, &diff_dst_desc.data,
+                        &strides[0], &padding_l[0], &padding_r[0],
+                        mkldnn::convert_to_c(apadding_kind)),
+                    "could not create a deconvolution backward weights descriptor");
+        }
+
+    };
+
+    struct primitive_desc : public handle<mkldnn_primitive_desc_t> {
+        primitive_desc(const desc &adesc, const engine &aengine,
+                const deconvolution_forward::primitive_desc
+                    &hint_fwd_primitive_desc) {
+            mkldnn_primitive_desc_t result;
+            error::wrap_c_api(mkldnn_primitive_desc_create(
+                        &result, &adesc.data, aengine.get(),
+                        hint_fwd_primitive_desc.get()),
+                    "could not create a deconvolution backward weights primitive descriptor");
+            reset(result);
+        }
+        memory::primitive_desc src_primitive_desc() const {
+            memory::primitive_desc adesc;
+            mkldnn_primitive_desc_t cdesc;
+            const_mkldnn_primitive_desc_t const_cdesc =
+                mkldnn_primitive_desc_query_pd(get(),
+                               mkldnn::convert_to_c(src_pd), 0);
+            error::wrap_c_api(mkldnn_primitive_desc_clone(&cdesc, const_cdesc),
+                    "could not clone a src primititve descriptor");
+            adesc.reset(cdesc);
+            return adesc;
+        }
+
+        memory::primitive_desc diff_weights_primitive_desc() const {
+            memory::primitive_desc adesc;
+            mkldnn_primitive_desc_t cdesc;
+            const_mkldnn_primitive_desc_t const_cdesc =
+                mkldnn_primitive_desc_query_pd(get(),
+                               mkldnn::convert_to_c(diff_weights_pd), 0);
+            error::wrap_c_api(mkldnn_primitive_desc_clone(&cdesc, const_cdesc),
+                    "could not clone a diff_weights primitive descriptor");
+            adesc.reset(cdesc);
+            return adesc;
+        }
+
+        memory::primitive_desc diff_bias_primitive_desc() const {
+            memory::primitive_desc adesc;
+            mkldnn_primitive_desc_t cdesc;
+            const_mkldnn_primitive_desc_t const_cdesc =
+                mkldnn_primitive_desc_query_pd(get(),
+                               mkldnn::convert_to_c(diff_weights_pd), 1);
+            error::wrap_c_api(mkldnn_primitive_desc_clone(&cdesc, const_cdesc),
+                    "could not clone a diff_bias primitive descriptor");
+            adesc.reset(cdesc);
+            return adesc;
+        }
+
+        memory::primitive_desc diff_dst_primitive_desc() const {
+            memory::primitive_desc adesc;
+            mkldnn_primitive_desc_t cdesc;
+            const_mkldnn_primitive_desc_t const_cdesc =
+                mkldnn_primitive_desc_query_pd(get(),
+                               mkldnn::convert_to_c(diff_dst_pd), 0);
+            error::wrap_c_api(mkldnn_primitive_desc_clone(&cdesc, const_cdesc),
+                    "could not clone a diff_dst primitive descriptor");
+            adesc.reset(cdesc);
+            return adesc;
+        }
+
+        engine get_engine() { return engine::query(*this); }
+    };
+
+    deconvolution_backward_weights(const primitive_desc &aprimitive_desc,
+            const primitive::at &src, const primitive::at &diff_dst,
+            const memory &diff_weights, const memory &diff_bias) {
+        mkldnn_primitive_t result;
+        mkldnn_primitive_at_t inputs[] = { src.data, diff_dst.data };
+        const_mkldnn_primitive_t outputs[] = { diff_weights.get(),
+                    diff_bias.get() };
+        error::wrap_c_api(mkldnn_primitive_create(&result,
+                    aprimitive_desc.get(), inputs, outputs),
+                "could not create a deconvolution backward weights primitive");
+        reset(result);
+    }
+    deconvolution_backward_weights(const primitive_desc &aprimitive_desc,
+            const primitive::at &src, const primitive::at &diff_dst,
+            const memory &diff_weights) {
+        mkldnn_primitive_t result;
+        mkldnn_primitive_at_t inputs[] = { src.data, diff_dst.data };
+        const_mkldnn_primitive_t outputs[] = { diff_weights.get() };
+        error::wrap_c_api(mkldnn_primitive_create(&result,
+                    aprimitive_desc.get(), inputs, outputs),
+                "could not create a deconvolution backward weights primitive");
         reset(result);
     }
 };
