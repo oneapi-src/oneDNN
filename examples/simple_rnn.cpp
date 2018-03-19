@@ -415,8 +415,7 @@ void simple_net() {
 
     // We initialise dst_layer[0] to the embedding of </s>, which are assumed to
     // be 0 here
-    memset(dst_layer_original_handle, 0.0f,
-            batch * feature_size * sizeof(float));
+    memset(dst_layer_original_handle, 0, batch * feature_size * sizeof(float));
 
     for (int i = 0; i < tgt_seq_length_max; i++) {
         float *dst_layer_handle

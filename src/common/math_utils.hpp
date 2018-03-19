@@ -99,7 +99,7 @@ template <typename T> inline T tanh_fwd(T s) {
     return (T) e;
 }
 template <typename T> inline T tanh_bwd(T dd, T s) {
-    const float e = tanh_fwd<T>((float) s);
+    const float e = tanh_fwd<float>((float) s);
     return (T)(dd * (1 - e * e));
 }
 
