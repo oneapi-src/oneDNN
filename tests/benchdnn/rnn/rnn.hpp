@@ -164,12 +164,11 @@ struct rnn_prb_t : public rnn_desc_t {
             n_states = 2;
             n_gates = 4;
             break;
-        case VANILLA_RNN:
+        default:
             n_weights = 1;
             n_states = 1;
             n_gates = 1;
             break;
-        default: break;
         }
 
         // TODO: recheck below condition
