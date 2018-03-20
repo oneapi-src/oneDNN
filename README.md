@@ -3,7 +3,6 @@
 > Please update your links.
 
 # Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN)
-[![Apache License Version 2.0](https://img.shields.io/badge/license-Apache_2.0-green.svg)](LICENSE)
 ![v0.13 beta](https://img.shields.io/badge/v0.13-beta-orange.svg)
 
 Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN) is
