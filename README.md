@@ -44,11 +44,14 @@ software includes the following third party components:
 * [gtest](https://github.com/google/googletest) distributed under [3-clause BSD license](tests/gtests/gtest/LICENSE)
 
 ## Documentation
-The latest version of Intel MKL-DNN reference manual is available 
-[GitHub pages](http://intel.github.io/mkl-dnn/). Basic concepts are also
-explained in the tutorial
-* [Intel MKL-DNN: Part 1--Overview and Installation](https://software.intel.com/en-us/articles/intel-mkl-dnn-part-1-library-overview-and-installation)
-* [Intel MKL-DNN: Part 2--Code Build and Walkthrough](https://software.intel.com/en-us/articles/intel-mkl-dnn-part-2-sample-code-build-and-walkthrough)
+* [Introduction](https://intel.github.io/mkl-dnn) explains programming model
+and basic concepts
+* [Reference manual](https://intel.github.io/mkl-dnn/modules.html) provides
+detailed functionality description
+* [Examples](https://github.com/intel/mkl-dnn/tree/master/examples) 
+demonstrate use of C and C++ APIs in simple topologies
+* [Tutorial](https://software.intel.com/en-us/articles/intel-mkl-dnn-part-1-library-overview-and-installation) 
+provides step by step installation instructions and an example walkthrough
 
 ## Support
 Please submit your questions, feature requests and bug reports on
