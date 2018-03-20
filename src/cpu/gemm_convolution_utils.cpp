@@ -31,6 +31,88 @@ using namespace mkldnn::impl::utils;
 
 namespace jit_gemm_convolution_utils {
 
+void im2col_3d(jit_gemm_conv_conf_t &jcp, const float *im, float *col, int od) {
+    const size_t OHW = jcp.oh * jcp.ow;
+    const size_t im_step = jcp.ih * jcp.iw * jcp.id;
+    const size_t col_step = jcp.ks * OHW;
+
+    #pragma omp parallel for
+    for (int ic = 0; ic < jcp.ic; ++ic) {
+        const float *im_loc = im + ic * im_step;
+        float *col_loc = col + ic * col_step;
+        int id = od * jcp.stride_d - jcp.f_pad;
+        for (int kd = 0; kd < jcp.kd; ++kd) {
+            float *col_ = col_loc + kd * jcp.kh * jcp.kw * OHW;
+            if (id < 0 || id >= jcp.id) {
+                int ih_ = -jcp.t_pad;
+                for (int kh = 0; kh < jcp.kh; ++kh) {
+                    int ih = ih_;
+                    for (int oh = 0; oh < jcp.oh; ++oh) {
+                        if (ih < 0 || ih >= jcp.ih) {
+                            ih += jcp.stride_h;
+                            continue;
+                        }
+                        int iw_ = -jcp.l_pad;
+                        for (int kw = 0; kw < jcp.kw; ++kw) {
+                            int iw = iw_;
+                            for (int ow = 0; ow < jcp.ow; ++ow) {
+                                if (iw < 0 || iw >= jcp.iw) {
+                                    iw += jcp.stride_w;
+                                    continue;
+                                }
+
+                                const size_t col_idx = kw * OHW + oh * jcp.ow
+                                    + ow;
+
+                                col_[col_idx] = 0;
+                                iw += jcp.stride_w;
+                            }
+                            iw_ += (1 + jcp.dilate_w);
+                        }
+                        ih += jcp.stride_h;
+                    }
+                    ih_ += (1 + jcp.dilate_h);
+                    col_ += jcp.kw * OHW;
+                }
+            } else {
+                const float *im_ = im_loc + id * jcp.ih * jcp.iw;
+                int ih_ = -jcp.t_pad;
+                for (int kh = 0; kh < jcp.kh; ++kh) {
+                    int ih = ih_;
+                    for (int oh = 0; oh < jcp.oh; ++oh) {
+                        if (ih < 0 || ih >= jcp.ih) {
+                            ih += jcp.stride_h;
+                            continue;
+                        }
+                        int iw_ = -jcp.l_pad;
+                        for (int kw = 0; kw < jcp.kw; ++kw) {
+                            int iw = iw_;
+                            for (int ow = 0; ow < jcp.ow; ++ow) {
+                                if (iw < 0 || iw >= jcp.iw) {
+                                    iw += jcp.stride_w;
+                                    continue;
+                                }
+
+                                const size_t col_idx = kw * OHW + oh * jcp.ow
+                                    + ow;
+                                const size_t im_idx = ih * jcp.iw + iw;
+
+                                col_[col_idx] = im_[im_idx];
+                                iw += jcp.stride_w;
+                            }
+                            iw_ += (1 + jcp.dilate_w);
+                        }
+                        ih += jcp.stride_h;
+                    }
+                    ih_ += (1 + jcp.dilate_h);
+                    col_ += jcp.kw * OHW;
+                }
+            }
+            id += (1 + jcp.dilate_d);
+        }
+    }
+}
+
 void im2col(
     jit_gemm_conv_conf_t &jcp, const float *im, float *col) {
     const size_t im_step = jcp.ih * jcp.iw;
@@ -152,6 +234,52 @@ void im2col_u8(
     }
 }
 
+void col2im_3d(
+    jit_gemm_conv_conf_t &jcp, const float *col, float *im, int od) {
+    const size_t col_step = jcp.ks * jcp.os;
+    const size_t im_step = jcp.ih * jcp.iw * jcp.id;
+
+    int num_thr = (jcp.mb != 1) ? omp_get_max_threads() : 1;
+    MAYBE_UNUSED(num_thr);
+#pragma omp parallel for  num_threads(num_thr)
+    for (int ic = 0; ic < jcp.ic; ++ic) {
+        const float *col_ = col;
+        int id = od * jcp.stride_d - jcp.f_pad;
+        for (int kd = 0; kd < jcp.kd; ++kd) {
+        if (id < 0 || id >= jcp.id) {
+            col_ += jcp.kh * jcp.kw * jcp.os;
+            id += (1 + jcp.dilate_d);
+            continue;
+        }
+        float *im_ = im + id * jcp.ih * jcp.iw;
+
+        for (int oh = 0; oh < jcp.oh; ++oh) {
+        for (int kh = 0; kh < jcp.kh; ++kh) {
+            const int ih = oh * jcp.stride_h - jcp.t_pad
+                + kh * (1 + jcp.dilate_h);
+            if (ih < 0 || ih >= jcp.ih) continue;
+
+            for (int ow = 0; ow < jcp.ow; ++ow) {
+            for (int kw = 0; kw < jcp.kw; ++kw) {
+                const int iw = ow * jcp.stride_w - jcp.l_pad
+                    + kw * (1 + jcp.dilate_w);
+                if (iw < 0 || iw >= jcp.iw) continue;
+
+                const size_t col_idx = ((kh*jcp.kw + kw)*jcp.oh+oh)*jcp.ow+ow;
+                const size_t im_idx = ih*jcp.iw + iw;
+                im_[im_idx] += col_[col_idx];
+            }
+            }
+        }
+        }
+        col_ += jcp.kh * jcp.kw * jcp.os;
+        id += (1 + jcp.dilate_d);
+        }
+        col += col_step;
+        im += im_step;
+    }
+}
+
 void col2im(
     jit_gemm_conv_conf_t &jcp, const float *col, float *im) {
 
@@ -194,6 +322,7 @@ void init_conf(
 
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
     jcp.prop_kind = cd.prop_kind;
+    const int ndims = src_d.ndims();
 
     jcp.ngroups = with_groups ? weights_d.dims()[0] : 1;
     jcp.mb = src_d.dims()[0];
@@ -201,22 +330,28 @@ void init_conf(
     jcp.oc = dst_d.dims()[1] / jcp.ngroups;
     jcp.ic = src_d.dims()[1] / jcp.ngroups;
 
-    jcp.ih = src_d.dims()[2];
-    jcp.iw = src_d.dims()[3];
-    jcp.oh = dst_d.dims()[2];
-    jcp.ow = dst_d.dims()[3];
+    jcp.id = (ndims == 4) ? 1 : src_d.dims()[2];
+    jcp.ih = src_d.dims()[ndims - 2];
+    jcp.iw = src_d.dims()[ndims - 1];
+    jcp.od = (ndims == 4) ? 1 : dst_d.dims()[2];
+    jcp.oh = dst_d.dims()[ndims - 2];
+    jcp.ow = dst_d.dims()[ndims - 1];
 
-    jcp.kh = weights_d.dims()[with_groups + 2];
-    jcp.kw = weights_d.dims()[with_groups + 3];
+    jcp.kd = (ndims == 4) ? 1 : weights_d.dims()[with_groups + 2];
+    jcp.kh = weights_d.dims()[with_groups + ndims - 2];
+    jcp.kw = weights_d.dims()[with_groups + ndims - 1];
 
-    jcp.t_pad = cd.padding[0][0];
-    jcp.l_pad = cd.padding[0][1];
+    jcp.f_pad = (ndims == 4) ? 0 : cd.padding[0][0];
+    jcp.t_pad = cd.padding[0][ndims - 4];
+    jcp.l_pad = cd.padding[0][ndims - 3];
 
-    jcp.stride_h = cd.strides[0];
-    jcp.stride_w = cd.strides[1];
+    jcp.stride_d = (ndims == 4) ? 1 : cd.strides[0];
+    jcp.stride_h = cd.strides[ndims - 4];
+    jcp.stride_w = cd.strides[ndims - 3];
 
-    jcp.dilate_h = cd.dilates[0];
-    jcp.dilate_w = cd.dilates[1];
+    jcp.dilate_d = (ndims == 4) ? 0 : cd.dilates[0];
+    jcp.dilate_h = cd.dilates[ndims - 4];
+    jcp.dilate_w = cd.dilates[ndims - 3];
 
     jcp.src_fmt = src_d.format();
     jcp.with_bias
@@ -226,8 +361,9 @@ void init_conf(
     jcp.relu_negative_slope = relu_negative_slope;
 
     jcp.os = jcp.oh * jcp.ow;
-    jcp.ks = jcp.kh * jcp.kw;
-    jcp.need_im2col = !(jcp.oh == jcp.ih && jcp.ow == jcp.iw && jcp.ks == 1);
+    jcp.ks = jcp.kh * jcp.kw * jcp.kd;
+    jcp.need_im2col = !(jcp.oh == jcp.ih && jcp.ow == jcp.iw
+        && jcp.od == jcp.id && jcp.ks == 1);
 }
 
 template <typename src_t>
@@ -236,10 +372,8 @@ status_t prepare_ws_col(jit_gemm_conv_conf_t &jcp, src_t **col, const int nthr) 
         *col = nullptr;
         return status::success;
     }
-
     const size_t im2col_sz_per_thr = jcp.os * jcp.ks * jcp.ic;
     const size_t im2col_sz = nthr * im2col_sz_per_thr;
-
     *col = (src_t *)malloc(im2col_sz * sizeof(src_t), 64);
     if (*col == nullptr) return status::out_of_memory;
 

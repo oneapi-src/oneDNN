@@ -58,6 +58,19 @@ struct _gemm_convolution_fwd_t: public cpu_primitive_t {
                 JIT_IMPL_NAME_HELPER("gemm:", isa, "blas"),
                 _gemm_convolution_fwd_t<with_relu, run_jit, isa>);
 
+        inline memory_format_t src_format()
+        {
+            using namespace memory_format;
+            return (this->cdesc_().src_desc.ndims == 4) ? nchw : ncdhw;
+        }
+        inline memory_format_t wei_format()
+        {
+            using namespace memory_format;
+            return (this->cdesc_().src_desc.ndims == 4)
+                ? this->with_groups() ? goihw : oihw
+                : this->with_groups() ? goidhw : oidhw;
+        }
+
         virtual status_t init() override {
             using namespace prop_kind;
             using namespace memory_format;
@@ -65,21 +78,20 @@ struct _gemm_convolution_fwd_t: public cpu_primitive_t {
             assert(this->engine()->kind() == engine_kind::cpu);
 
             bool ok = true && _gemm_convolution_implemented<run_jit, isa>()
-                    && this->set_default_params() == status::success
-                    && utils::one_of(this->cdesc_().prop_kind, forward_training,
-                               forward_inference)
-                    && this->cdesc_().alg_kind == alg_kind::convolution_direct
-                    && utils::everyone_is(data_type::f32,
-                               this->cdesc_().src_desc.data_type,
-                               this->cdesc_().weights_desc.data_type,
-                               this->cdesc_().dst_desc.data_type)
-                    && utils::implication(this->with_bias(), data_type::f32
-                                       == this->cdesc_().bias_desc.data_type)
-                    && this->src_pd_.desc()->format == nchw
-                    && this->dst_pd_.desc()->format == nchw
-                    && this->weights_pd_.desc()->format
-                            == (this->with_groups() ? goihw : oihw)
-                    && this->is_gemm_conv_format();
+                && this->set_default_params() == status::success
+                && utils::one_of(this->cdesc_().prop_kind, forward_training,
+                           forward_inference)
+                && this->cdesc_().alg_kind == alg_kind::convolution_direct
+                && utils::everyone_is(data_type::f32,
+                           this->cdesc_().src_desc.data_type,
+                           this->cdesc_().weights_desc.data_type,
+                           this->cdesc_().dst_desc.data_type)
+                && utils::implication(this->with_bias(), data_type::f32
+                                   == this->cdesc_().bias_desc.data_type)
+                && this->src_pd_.desc()->format == src_format()
+                && this->dst_pd_.desc()->format == src_format()
+                && this->weights_pd_.desc()->format == wei_format()
+                && this->is_gemm_conv_format();
             return ok ? status::success : status::unimplemented;
         }
 
@@ -89,12 +101,11 @@ struct _gemm_convolution_fwd_t: public cpu_primitive_t {
         virtual status_t set_default_params() override {
             using namespace memory_format;
             if (this->src_pd_.desc()->format == any)
-                CHECK(this->src_pd_.set_format(nchw));
+                CHECK(this->src_pd_.set_format(src_format()));
             if (this->dst_pd_.desc()->format == any)
-                CHECK(this->dst_pd_.set_format(nchw));
+                CHECK(this->dst_pd_.set_format(src_format()));
             if (this->weights_pd_.desc()->format == any)
-                CHECK(this->weights_pd_.set_format(this->with_groups()
-                            ? goihw : oihw));
+                CHECK(this->weights_pd_.set_format(wei_format()));
             if (this->bias_pd_.desc()->format == any)
                 CHECK(this->bias_pd_.set_format(x));
             return status::success;
@@ -140,7 +151,8 @@ struct _gemm_convolution_fwd_t: public cpu_primitive_t {
             conf_.dst_pd(), with_relu, conf_.negative_slope());
 
         nthr_ = this->conf_.jcp_.os / omp_get_max_threads() < 512 &&
-                (this->conf_.jcp_.mb != 1 || this->conf_.jcp_.ngroups > 2) ?
+                utils::implication(this->conf_.jcp_.od == 1,
+                (this->conf_.jcp_.mb != 1 || this->conf_.jcp_.ngroups > 2)) ?
                 omp_get_max_threads() : 1;
 
         jit_gemm_convolution_utils::prepare_ws_col<data_t>(this->conf_.jcp_,
@@ -198,6 +210,19 @@ struct _gemm_convolution_bwd_data_t: public cpu_primitive_t {
                 JIT_IMPL_NAME_HELPER("gemm:", isa, "blas"),
                 _gemm_convolution_bwd_data_t<run_jit, isa>);
 
+        inline memory_format_t src_format()
+        {
+            using namespace memory_format;
+            return (this->desc()->diff_src_desc.ndims == 4) ? nchw : ncdhw;
+        }
+        inline memory_format_t wei_format()
+        {
+            using namespace memory_format;
+            return (this->desc()->diff_src_desc.ndims == 4)
+                ? this->with_groups() ? goihw : oihw
+                : this->with_groups() ? goidhw : oidhw;
+        }
+
         virtual status_t init() override {
             using namespace prop_kind;
             using namespace memory_format;
@@ -214,10 +239,9 @@ struct _gemm_convolution_bwd_data_t: public cpu_primitive_t {
                         this->desc()->diff_src_desc.data_type,
                         this->desc()->weights_desc.data_type,
                         this->desc()->diff_dst_desc.data_type)
-                && this->diff_src_pd_.desc()->format == nchw
-                && this->diff_dst_pd_.desc()->format == nchw
-                && this->weights_pd_.desc()->format == (this->with_groups()
-                        ? goihw : oihw);
+                && this->diff_src_pd_.desc()->format == src_format()
+                && this->diff_dst_pd_.desc()->format == src_format()
+                && this->weights_pd_.desc()->format == wei_format();
             return ok ? status::success : status::unimplemented;
         }
 
@@ -227,12 +251,11 @@ struct _gemm_convolution_bwd_data_t: public cpu_primitive_t {
         virtual status_t set_default_params() override {
             using namespace memory_format;
             if (this->diff_src_pd_.desc()->format == any)
-                CHECK(this->diff_src_pd_.set_format(nchw));
+                CHECK(this->diff_src_pd_.set_format(src_format()));
             if (this->diff_dst_pd_.desc()->format == any)
-                CHECK(this->diff_dst_pd_.set_format(nchw));
+                CHECK(this->diff_dst_pd_.set_format(src_format()));
             if (this->weights_pd_.desc()->format == any)
-                CHECK(this->weights_pd_.set_format(this->with_groups()
-                            ? goihw : oihw));
+                CHECK(this->weights_pd_.set_format(wei_format()));
             return status::success;
         }
     };
@@ -309,6 +332,19 @@ struct _gemm_convolution_bwd_weights_t: public cpu_primitive_t {
                 JIT_IMPL_NAME_HELPER("gemm:", isa, "blas"),
                 _gemm_convolution_bwd_weights_t<run_jit, isa>);
 
+        inline memory_format_t src_format()
+        {
+            using namespace memory_format;
+            return (this->desc()->src_desc.ndims == 4) ? nchw : ncdhw;
+        }
+        inline memory_format_t wei_format()
+        {
+            using namespace memory_format;
+            return (this->desc()->src_desc.ndims == 4)
+                ? this->with_groups() ? goihw : oihw
+                : this->with_groups() ? goidhw : oidhw;
+        }
+
         virtual status_t init() override {
             using namespace prop_kind;
             using namespace memory_format;
@@ -327,10 +363,9 @@ struct _gemm_convolution_bwd_weights_t: public cpu_primitive_t {
                     this->desc()->diff_dst_desc.data_type)
             && utils::implication(this->with_bias(),
                     data_type::f32 == this->desc()->diff_bias_desc.data_type)
-            && this->src_pd_.desc()->format == nchw
-            && this->diff_dst_pd_.desc()->format == nchw
-            && this->diff_weights_pd_.desc()->format == (this->with_groups()
-                    ? goihw : oihw);
+            && this->src_pd_.desc()->format == src_format()
+            && this->diff_dst_pd_.desc()->format == src_format()
+            && this->diff_weights_pd_.desc()->format == wei_format();
             return ok ? status::success : status::unimplemented;
         }
 
@@ -340,12 +375,11 @@ struct _gemm_convolution_bwd_weights_t: public cpu_primitive_t {
         virtual status_t set_default_params() override {
             using namespace memory_format;
             if (this->src_pd_.desc()->format == any)
-                CHECK(this->src_pd_.set_format(nchw));
+                CHECK(this->src_pd_.set_format(src_format()));
             if (this->diff_dst_pd_.desc()->format == any)
-                CHECK(this->diff_dst_pd_.set_format(nchw));
+                CHECK(this->diff_dst_pd_.set_format(src_format()));
             if (this->diff_weights_pd_.desc()->format == any)
-                CHECK(this->diff_weights_pd_.set_format(this->with_groups()
-                            ? goihw : oihw));
+                CHECK(this->diff_weights_pd_.set_format(wei_format()));
             if (this->diff_bias_pd_.desc()->format == any)
                 CHECK(this->diff_bias_pd_.set_format(x));
             return status::success;

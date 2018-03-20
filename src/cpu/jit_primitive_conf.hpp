@@ -249,11 +249,11 @@ struct jit_gemm_conv_conf_t {
 
     int mb;
     int ngroups, ic, oc;
-    int iw, ih, ow, oh;
-    int l_pad, t_pad;
-    int kh, kw;
-    int stride_h, stride_w;
-    int dilate_h, dilate_w;
+    int iw, ih, id, ow, oh, od;
+    int l_pad, t_pad, f_pad;
+    int kh, kw, kd;
+    int stride_h, stride_w, stride_d;
+    int dilate_h, dilate_w, dilate_d;
     memory_format_t src_fmt;
     bool with_bias, with_relu;
     float relu_negative_slope;
