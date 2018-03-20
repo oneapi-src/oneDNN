@@ -112,10 +112,10 @@ status_t MKLDNN_API mkldnn_rnn_forward_desc_init(mkldnn_rnn_desc_t *rnn_desc,
         return invalid_arguments;
 
     int DIC = 0, L = 0;
-    if (weights_layer_desc && weights_layer_desc->ndims) {
+    if (weights_layer_desc->ndims) {
         DIC = weights_layer_desc->dims[4];
         L = weights_layer_desc->dims[0];
-    } else if (weights_iter_desc && weights_iter_desc->ndims) {
+    } else if (weights_iter_desc->ndims) {
         DIC = weights_iter_desc->dims[4];
         L = weights_iter_desc->dims[0];
     } else {
@@ -185,10 +185,10 @@ status_t MKLDNN_API mkldnn_rnn_backward_desc_init(mkldnn_rnn_desc_t *rnn_desc,
         return invalid_arguments;
 
     int DIC = 0, L = 0;
-    if (weights_layer_desc && weights_layer_desc->ndims) {
+    if (weights_layer_desc->ndims) {
         DIC = weights_layer_desc->dims[4];
         L = weights_layer_desc->dims[0];
-    } else if (weights_iter_desc && weights_iter_desc->ndims) {
+    } else if (weights_iter_desc->ndims) {
         DIC = weights_iter_desc->dims[4];
         L = weights_iter_desc->dims[0];
     } else {
