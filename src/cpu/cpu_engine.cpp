@@ -37,7 +37,6 @@
 #include "cpu/jit_sse42_convolution.hpp"
 #include "cpu/gemm_convolution.hpp"
 #include "cpu/gemm_u8s8s32x_convolution.hpp"
-#include "cpu/ref_convolution_3d.hpp"
 #include "cpu/ref_convolution.hpp"
 #include "cpu/ref_deconvolution.hpp"
 #include "cpu/jit_uni_eltwise.hpp"
@@ -89,16 +88,6 @@ static const pd_create_f cpu_impl_list[] = {
     /* RNN */
     INSTANCE(ref_rnn_fwd_t),
     INSTANCE(ref_rnn_bwd_t),
-    /* conv 3d */
-    INSTANCE(ref_convolution_3d_fwd_t<f32>),
-    INSTANCE(ref_convolution_3d_fwd_t<s16,s16, s32, s32>),
-    INSTANCE(ref_convolution_3d_fwd_t<u8, s8, s32, s32>),
-    INSTANCE(ref_convolution_3d_fwd_t<u8, s8, s8, s32>),
-    INSTANCE(ref_convolution_3d_fwd_t<u8, s8, u8, s32>),
-    INSTANCE(ref_convolution_3d_bwd_data_t<f32, f32, f32, f32>),
-    INSTANCE(ref_convolution_3d_bwd_data_t<s32, s16, s16, s32>),
-    INSTANCE(ref_convolution_3d_bwd_weights_t<f32, f32, f32, f32>),
-    INSTANCE(ref_convolution_3d_bwd_weights_t<s16, s32, s16, s32>),
     /* conv */
     INSTANCE(jit_avx512_common_dw_convolution_fwd_t),
     INSTANCE(jit_avx512_common_dw_convolution_bwd_data_t),
