@@ -36,9 +36,6 @@ Intel MKL-DNN is used in the the following software products:
 * [Intel(R) Computer Vision SDK](https://software.intel.com/en-us/computer-vision-sdk)
 * [Intel(R) Nervana(TM) Graph](https://github.com/NervanaSystems/ngraph)
 
-**WARNING** Functionality related to `s16` data type is experimental 
-and might change without prior notification in future releases.
-
 ## License
 Intel MKL-DNN is licensed under
 [Apache License Version 2.0](http://www.apache.org/licenses/LICENSE-2.0). This
@@ -56,6 +53,12 @@ explained in the tutorial
 ## Support
 Please submit your questions, feature requests and bug reports on
 [GitHub issues](https://github.com/intel/mkl-dnn/issues) page.
+
+**WARNING** The following functionality has preview status and might change
+without prior notification in future releases:
+* Convolutions with `s16` data type in source, weights or destination
+* Convolutions and auxillary primitives for 3D spatial data
+* RNN, LSTM and GRU primitives
 
 ## How to Contribute
 We welcome community contributions to Intel MKL-DNN. If you have an idea how to improve the library:
