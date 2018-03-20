@@ -111,7 +111,8 @@ using s8_s8 = std::pair<int8_t, int8_t>;
 
 using reorder_simple_expected_fail_f32_f32 = reorder_simple_test<f32_f32>;
 using reorder_simple_test_data_f32_f32 = reorder_simple_test<f32_f32>;
-using reorder_simple_test_weights_f32_f32 = reorder_simple_test<f32_f32>;
+using reorder_simple_test_weights_f32_f32_0 = reorder_simple_test<f32_f32>;
+using reorder_simple_test_weights_f32_f32_1 = reorder_simple_test<f32_f32>;
 using reorder_simple_test_weights_f32_f32_IOhw16o16i = reorder_simple_test<f32_f32>;
 using reorder_simple_test_s32_s32 = reorder_simple_test<s32_s32>;
 using reorder_simple_test_s16_s16 = reorder_simple_test<s16_s16>;
@@ -176,8 +177,8 @@ INSTANTIATE_TEST_CASE_P(TestReorder, reorder_simple_test_data_f32_f32,
             )
         );
 
-TEST_P(reorder_simple_test_weights_f32_f32, TestsReorder) { }
-INSTANTIATE_TEST_CASE_P(TestReorder, reorder_simple_test_weights_f32_f32,
+TEST_P(reorder_simple_test_weights_f32_f32_0, TestsReorder) { }
+INSTANTIATE_TEST_CASE_P(TestReorder, reorder_simple_test_weights_f32_f32_0,
         ::testing::Values(
             cfg_f32{eng::cpu, fmt::hwio, fmt::oihw, {32, 32, 3, 3}},
             cfg_f32{eng::cpu, fmt::oihw, fmt::hwio, {32, 32, 3, 3}},
@@ -229,6 +230,14 @@ INSTANTIATE_TEST_CASE_P(TestReorder, reorder_simple_test_weights_f32_f32,
             cfg_f32{eng::cpu, fmt::gOihw16o, fmt::gOhwi16o, {2, 64, 64, 3, 3}},
             cfg_f32{eng::cpu, fmt::goihw, fmt::Goihw8g, {16, 16, 16, 3, 3}},
             cfg_f32{eng::cpu, fmt::Goihw8g, fmt::goihw, {16, 16, 16, 3, 3}}
+            )
+        );
+
+TEST_P(reorder_simple_test_weights_f32_f32_1, TestsReorder) { }
+INSTANTIATE_TEST_CASE_P(TestReorder, reorder_simple_test_weights_f32_f32_1,
+        ::testing::Values(
+            cfg_f32{eng::cpu, fmt::goihw, fmt::Goihw16g, {32, 32, 32, 3, 3}},
+            cfg_f32{eng::cpu, fmt::Goihw16g, fmt::goihw, {32, 32, 32, 3, 3}}
             )
         );
 

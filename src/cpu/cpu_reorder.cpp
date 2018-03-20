@@ -117,6 +117,8 @@ static const rpd_create_f cpu_reorder_impl_list[] = {
     simple_reorder_t<f32, gOIhw16i16o, f32, gIOhw16o16i, fmt_order::reverse>::pd_t::create,
     simple_reorder_t<f32, goihw, f32, Goihw8g, fmt_order::keep>::pd_t::create,
     simple_reorder_t<f32, goihw, f32, Goihw8g, fmt_order::reverse>::pd_t::create,
+    simple_reorder_t<f32, goihw, f32, Goihw16g, fmt_order::keep>::pd_t::create,
+    simple_reorder_t<f32, goihw, f32, Goihw16g, fmt_order::reverse>::pd_t::create,
     simple_reorder_t<f32, any, f32, any, fmt_order::any, spec::reference>::pd_t::create,
     /* reorder with quantization */
     simple_reorder_t<f32, any, s32, any, fmt_order::any, spec::direct_copy>::pd_t::create,

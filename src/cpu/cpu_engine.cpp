@@ -55,6 +55,7 @@
 #include "cpu/ref_inner_product.hpp"
 #include "cpu/gemm_inner_product.hpp"
 #include "cpu/jit_uni_inner_product.hpp"
+#include "cpu/jit_uni_dw_convolution.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -99,6 +100,8 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(ref_convolution_3d_bwd_weights_t<f32, f32, f32, f32>),
     INSTANCE(ref_convolution_3d_bwd_weights_t<s16, s32, s16, s32>),
     /* conv */
+    INSTANCE(jit_avx512_common_dw_convolution_fwd_t),
+    INSTANCE(jit_avx512_common_dw_convolution_bwd_data_t),
     INSTANCE(jit_avx512_common_1x1_convolution_fwd_f32_t),
     INSTANCE(jit_avx512_common_1x1_convolution_bwd_data_f32_t),
     INSTANCE(jit_avx512_common_1x1_convolution_bwd_weights_t),
@@ -110,9 +113,13 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(jit_avx512_common_convolution_fwd_t<f32>),
     INSTANCE(jit_avx512_common_convolution_bwd_data_t<f32>),
     INSTANCE(jit_avx512_common_convolution_bwd_weights_t<f32>),
+    INSTANCE(jit_avx2_dw_convolution_fwd_t),
+    INSTANCE(jit_avx2_dw_convolution_bwd_data_t),
     INSTANCE(jit_avx2_1x1_convolution_fwd_t),
     INSTANCE(jit_avx2_1x1_convolution_bwd_data_t),
     INSTANCE(jit_avx2_1x1_convolution_bwd_weights_t),
+    INSTANCE(jit_sse42_dw_convolution_fwd_t),
+    INSTANCE(jit_sse42_dw_convolution_bwd_data_t),
     INSTANCE(jit_sse42_1x1_convolution_fwd_t),
     INSTANCE(jit_avx2_convolution_fwd_t),
     INSTANCE(jit_avx2_convolution_bwd_data_t),
@@ -227,10 +234,13 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(ref_inner_product_bwd_data_t<s32, s16, s16, s32>),
     INSTANCE(ref_inner_product_fwd_t<u8, s8, u8, s32>),
     /* conv_eltwise */
+    INSTANCE(jit_avx512_common_dw_convolution_relu_t),
     INSTANCE(jit_avx512_common_convolution_winograd_relu_t),
     INSTANCE(jit_avx512_common_1x1_convolution_relu_f32_t),
     INSTANCE(jit_avx512_common_convolution_relu_t<f32>),
+    INSTANCE(jit_avx2_dw_convolution_relu_t),
     INSTANCE(jit_avx2_1x1_convolution_relu_t),
+    INSTANCE(jit_sse42_dw_convolution_relu_t),
     INSTANCE(jit_sse42_1x1_convolution_relu_t),
     INSTANCE(jit_avx2_convolution_relu_t),
     INSTANCE(jit_sse42_convolution_relu_t),

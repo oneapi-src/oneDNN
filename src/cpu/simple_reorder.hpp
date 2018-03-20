@@ -931,7 +931,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
-    typename utils::enable_if<(fmt_i == goihw && fmt_o == Goihw8g)>::type>
+    typename utils::enable_if<(fmt_i == goihw && fmt_o == Goihw8g) ||
+                              (fmt_i == goihw && fmt_o == Goihw16g)>::type>
 {
     SIMPLE_IS_APPLICABLE(false);
 
@@ -943,7 +944,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         const auto &_goihw_d = order_keep ? input_d : output_d;
         const auto &dims = input_d.dims();
-        const int blksize = 8;
+        const int blksize = fmt_o == Goihw8g ? 8 : 16;
 
         const int NG = dims[0];
         constexpr int i_mult = order_keep ? blksize : 1;

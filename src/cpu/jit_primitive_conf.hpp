@@ -94,6 +94,8 @@ struct jit_conv_conf_t {
     bool expl_bcast;
     bool large_spatial;
     int is_oc_scale;
+    // dw conv
+    int nb_ch, ch_block, nb_ch_blocking;
 };
 
 /*
@@ -185,6 +187,9 @@ struct jit_conv_call_s {
     size_t channel;
     size_t channel_prf;
     size_t oc_blocks;
+    size_t ur_w;
+    size_t ur_str_w;
+    size_t ch_blocks;
     int flags;
 };
 
