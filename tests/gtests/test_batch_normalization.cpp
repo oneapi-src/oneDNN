@@ -252,16 +252,26 @@ protected:
         ASSERT_EQ(data_type, mkldnn::memory::data_type::f32);
 
         test_bnrm_sizes_t bs = p.sizes;
-        if (p.ndims == 5)
+        bool has_spatial = (p.formats.data_format != mkldnn_nc);
+        if (has_spatial)
         {
-            data_desc.reset(new memory::desc({ bs.mb, bs.c, bs.d, bs.h, bs.w },
+            if (p.ndims == 5)
+            {
+                data_desc.reset(new memory::desc({ bs.mb, bs.c, bs.d, bs.h, bs.w },
+                    data_type, p.formats.data_format));
+                diff_desc.reset(new memory::desc({ bs.mb, bs.c, bs.d, bs.h, bs.w },
+                    data_type, p.formats.diff_format));
+            } else {
+                data_desc.reset(new memory::desc({ bs.mb, bs.c, bs.h, bs.w },
+                    data_type, p.formats.data_format));
+                diff_desc.reset(new memory::desc({ bs.mb, bs.c, bs.h, bs.w },
+                    data_type, p.formats.diff_format));
+            }
+        }
+        else {
+            data_desc.reset(new memory::desc({ bs.mb, bs.c },
                 data_type, p.formats.data_format));
-            diff_desc.reset(new memory::desc({ bs.mb, bs.c, bs.d, bs.h, bs.w },
-                data_type, p.formats.diff_format));
-        } else {
-            data_desc.reset(new memory::desc({ bs.mb, bs.c, bs.h, bs.w },
-                data_type, p.formats.data_format));
-            diff_desc.reset(new memory::desc({ bs.mb, bs.c, bs.h, bs.w },
+            diff_desc.reset(new memory::desc({ bs.mb, bs.c },
                 data_type, p.formats.diff_format));
         }
 
@@ -433,11 +443,20 @@ TEST_P(bnrm_test_float, TestsBnrm)
 
 #define PARAMS_N_3D(...) EXPAND_ARGS(PARAMS_3D(ncdhw, ncdhw, __VA_ARGS__))
 #define PARAMS_N(...) EXPAND_ARGS(PARAMS(nchw, nchw, __VA_ARGS__))
+#define PARAMS_NHWC(...) EXPAND_ARGS(PARAMS(nhwc, nhwc, __VA_ARGS__))
+#define PARAMS_NC(...) EXPAND_ARGS(PARAMS(nc, nc, __VA_ARGS__))
 #define PARAMS_B8(...) EXPAND_ARGS(PARAMS(nChw8c, nChw8c, __VA_ARGS__))
 #define PARAMS_B16(...) EXPAND_ARGS(PARAMS(nChw16c, nChw16c, __VA_ARGS__))
 
 #define INST_TEST_CASE(str, ...) INSTANTIATE_TEST_CASE_P( \
         str, bnrm_test_float, ::testing::Values(__VA_ARGS__))
+
+INST_TEST_CASE(Simple_NC,
+    PARAMS_NC(2, 8, 1, 1, EPS),
+    PARAMS_NC(2, 10, 1, 1, EPS),
+    PARAMS_NC(2, 8, 1, 1, EPS),
+    PARAMS_NC(2, 10, 1, 1, EPS)
+);
 
 INST_TEST_CASE(Simple_NCDHW,
     PARAMS_N_3D(2, 8, 1, 1, 1, EPS),
@@ -451,6 +470,13 @@ INST_TEST_CASE(Simple_NCHW,
     PARAMS_N(2, 10, 1, 1, EPS),
     PARAMS_N(2, 8, 4, 4, EPS),
     PARAMS_N(2, 10, 4, 4, EPS)
+);
+
+INST_TEST_CASE(Simple_NHWC,
+    PARAMS_NHWC(2, 8, 1, 1, EPS),
+    PARAMS_NHWC(2, 10, 1, 1, EPS),
+    PARAMS_NHWC(2, 8, 4, 4, EPS),
+    PARAMS_NHWC(2, 10, 4, 4, EPS)
 );
 
 INST_TEST_CASE(Simple_Blocked,

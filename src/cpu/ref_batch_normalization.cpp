@@ -52,9 +52,14 @@ void ref_batch_normalization_fwd_t<data_type>::execute_forward() {
 
     const int N = conf_.MB();
     const int C = conf_.C();
-    const int D = conf_.D();
-    const int H = conf_.H();
-    const int W = conf_.W();
+    int H = 1, W = 1, D = 1;
+    const bool has_spatial = utils::one_of(data_d.ndims(), 4 ,5);
+    if (has_spatial)
+    {
+        D = conf_.D();
+        H = conf_.H();
+        W = conf_.W();
+    }
 
     const float eps = conf_.desc()->batch_norm_epsilon;
     const bool use_scaleshift = conf_.use_scaleshift();;
@@ -67,6 +72,16 @@ void ref_batch_normalization_fwd_t<data_type>::execute_forward() {
     };
     const bool is_3d = data_d.ndims() == 5;
 
+    auto data_offset = [&] (const memory_desc_wrapper &data_d, int n, int c, int d,
+            int h, int w) {
+        if (has_spatial)
+        {
+            if (is_3d) return data_d.off(n, c, d, h, w);
+            else return data_d.off(n, c, h, w);
+        }
+        else return data_d.off(n, c);
+    };
+
 #   pragma omp parallel for schedule(static)
     for (int c = 0; c < C; ++c) {
         data_t v_mean = calculate_stats ? 0 : mean[c];
@@ -74,28 +89,24 @@ void ref_batch_normalization_fwd_t<data_type>::execute_forward() {
 
         data_t sm = use_scaleshift ? scaleshift[scaleshift_d.off(0, c)] : 1;
         data_t sv = use_scaleshift ? scaleshift[scaleshift_d.off(1, c)] : 0;
-
         if (calculate_stats) {
             for (int n = 0; n < N; ++n)
             for (int d = 0; d < D; ++d)
             for (int h = 0; h < H; ++h)
             for (int w = 0; w < W; ++w)
-                v_mean += is_3d
-                    ? src[data_d.off(n, c, d, h, w)]
-                    : src[data_d.off(n, c, h, w)];
+                v_mean += src[data_offset(data_d, n, c, d, h, w)];
             v_mean /= W*N*H*D;
 
             for (int n = 0; n < N; ++n)
             for (int d = 0; d < D; ++d)
             for (int h = 0; h < H; ++h)
             for (int w = 0; w < W; ++w) {
-                data_t m = is_3d
-                    ? src[data_d.off(n,c,d,h,w)] - v_mean
-                    : src[data_d.off(n,c,h,w)] - v_mean;
+                data_t m = src[data_offset(data_d,n,c,d,h,w)] - v_mean;
                 v_variance += m*m;
             }
             v_variance /= W*H*N*D;
         }
+
         data_t sqrt_variance =
             static_cast<data_t>(1. / sqrt(v_variance + eps));
 
@@ -103,7 +114,7 @@ void ref_batch_normalization_fwd_t<data_type>::execute_forward() {
         for (int d = 0; d < D; ++d)
         for (int h = 0; h < H; ++h)
         for (int w = 0; w < W; ++w) {
-            auto d_off = is_3d ? data_d.off(n,c,d,h,w) : data_d.off(n,c,h,w);
+            auto d_off = data_offset(data_d,n,c,d,h,w);
             data_t bn_res = sm * (src[d_off] - v_mean) * sqrt_variance + sv;
             if (conf_.fuse_bn_relu()) {
                 if (bn_res <= 0) {
@@ -149,15 +160,30 @@ void ref_batch_normalization_bwd_t<data_type>::execute_backward() {
 
     const int N = conf_.MB();
     const int C = conf_.C();
-    const int D = conf_.D();
-    const int H = conf_.H();
-    const int W = conf_.W();
+    int H = 1, W = 1, D = 1;
+    const bool has_spatial = utils::one_of(data_d.ndims(), 4 ,5);
+    if (has_spatial)
+    {
+        D = conf_.D();
+        H = conf_.H();
+        W = conf_.W();
+    }
 
     const float eps = conf_.desc()->batch_norm_epsilon;
     const bool use_scaleshift = conf_.use_scaleshift();
     const bool calculate_diff_stats = !conf_.omit_stats();
 
     const bool is_3d = data_d.ndims() == 5;
+
+    auto data_offset = [&] (const memory_desc_wrapper &data_d, int n, int c, int d,
+            int h, int w) {
+        if (has_spatial)
+        {
+            if (is_3d) return data_d.off(n, c, d, h, w);
+            else return data_d.off(n, c, h, w);
+        }
+        else return data_d.off(n, c);
+    };
 
 #   pragma omp parallel for schedule(static)
     for (int c = 0; c < C; ++c) {
@@ -174,11 +200,8 @@ void ref_batch_normalization_bwd_t<data_type>::execute_backward() {
         for (int d = 0; d < D; ++d)
         for (int h = 0; h < H; ++h)
         for (int w = 0; w < W; ++w) {
-            const auto s_off = is_3d
-                ? data_d.off(n, c, d, h, w) : data_d.off(n, c, h, w);
-            data_t dd = is_3d
-                ? diff_dst[diff_data_d.off(n, c, d, h, w)]
-                : diff_dst[diff_data_d.off(n, c, h, w)];
+            const size_t s_off = data_offset(data_d, n, c, d, h, w);
+            data_t dd = diff_dst[data_offset(diff_data_d, n, c, d, h, w)];
             if (ws && !ws[s_off]) dd = 0;
 
             diff_gamma += (src[s_off] - v_mean) * dd;
@@ -195,10 +218,8 @@ void ref_batch_normalization_bwd_t<data_type>::execute_backward() {
         for (int d = 0; d < D; ++d)
         for (int h = 0; h < H; ++h)
         for (int w = 0; w < W; ++w) {
-            const size_t s_off = is_3d
-                ? data_d.off(n, c, d, h, w) : data_d.off(n, c, h, w);
-            const size_t dd_off = is_3d
-                ? diff_data_d.off(n, c, d, h, w) : diff_data_d.off(n, c, h, w);
+            const size_t s_off = data_offset(data_d, n, c, d, h, w);
+            const size_t dd_off = data_offset(diff_data_d, n, c, d, h, w);
             data_t dd = diff_dst[dd_off];
             if (ws && !ws[s_off]) dd = 0;
 

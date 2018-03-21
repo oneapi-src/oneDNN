@@ -52,6 +52,8 @@
 #include "cpu/ref_lrn.hpp"
 #include "cpu/jit_uni_batch_normalization.hpp"
 #include "cpu/ref_batch_normalization.hpp"
+#include "cpu/ncsp_batch_normalization.hpp"
+#include "cpu/nspc_batch_normalization.hpp"
 #include "cpu/ref_inner_product.hpp"
 #include "cpu/gemm_inner_product.hpp"
 #include "cpu/jit_uni_inner_product.hpp"
@@ -215,6 +217,10 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(jit_uni_batch_normalization_fwd_t<avx2>),
     INSTANCE(jit_uni_batch_normalization_bwd_t<avx2>),
     INSTANCE(jit_uni_batch_normalization_fwd_t<sse42>),
+    INSTANCE(ncsp_batch_normalization_fwd_t),
+    INSTANCE(ncsp_batch_normalization_bwd_t),
+    INSTANCE(nspc_batch_normalization_fwd_t),
+    INSTANCE(nspc_batch_normalization_bwd_t),
     INSTANCE(ref_batch_normalization_fwd_t<f32>),
     INSTANCE(ref_batch_normalization_bwd_t<f32>),
     /* inner product */

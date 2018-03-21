@@ -27,6 +27,7 @@
 #include "cpu_barrier.hpp"
 
 #include "jit_uni_batch_normalization.hpp"
+#include "cpu_batch_normalization_utils.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -942,11 +943,17 @@ struct uni_bnorm_driver_t: public c_compatible {
         int C_blk_s{0}, C_blk_e{0}, N_s{0}, N_e{0};
 
         int C_blks_per_iter{ 1 }, iters{ 1 };
-        if (do_blocking_)
-            cache_balance(nthr, C_blks, C_blks_per_iter, iters);
+        if (do_blocking_) {
+            int num_tensors = bdesc_->is_fwd() ? 1 : 2;
+            size_t working_set_size
+                = (N * H * W * simd_w * sizeof(data_t)) * num_tensors;
+            bnorm_utils::cache_balance(working_set_size, C_blks,
+                C_blks_per_iter, iters);
+        }
 
-        thread_balance(ithr, nthr, do_blocking_ ? C_blks_per_iter : C_blks,
-                C_ithr, C_nthr, C_blk_s, C_blk_e, N_ithr, N_nthr, N_s, N_e);
+        bnorm_utils::thread_balance(do_blocking_, ithr, nthr, N,
+                do_blocking_ ? C_blks_per_iter : C_blks, C_ithr, C_nthr,
+                C_blk_s, C_blk_e, N_ithr, N_nthr, N_s, N_e);
 
         p.N_ithr = N_ithr;
         p.N_nthr = N_nthr;
@@ -958,8 +965,9 @@ struct uni_bnorm_driver_t: public c_compatible {
         for (int it = 0; it < iters; it++) {
             if (it == iters - 1 && iters > 1) {
                 C_blk_s = C_blk_e = N_s = N_e = 0;
-                thread_balance(ithr, nthr, last_iter_blks, C_ithr, C_nthr,
-                        C_blk_s, C_blk_e, N_ithr, N_nthr, N_s, N_e);
+                bnorm_utils::thread_balance(do_blocking_, ithr, nthr, N,
+                        last_iter_blks, C_ithr, C_nthr, C_blk_s, C_blk_e,
+                        N_ithr, N_nthr, N_s, N_e);
                 p.N_ithr = N_ithr;
                 p.N_nthr = N_nthr;
             }
@@ -1007,56 +1015,6 @@ struct uni_bnorm_driver_t: public c_compatible {
     }
 
 private:
-    inline void cache_balance(
-            int nthr, int C_blks, int &C_blks_per_iter, int &iters) {
-        const size_t N = bdesc_->MB();
-        const size_t H = bdesc_->H();
-        const size_t W = bdesc_->W();
-
-        int num_tensors = bdesc_->is_fwd() ? 1 : 2;
-        size_t working_set_size
-                = (N * H * W * simd_w * sizeof(data_t)) * num_tensors;
-
-        C_blks_per_iter = l3_size_ / working_set_size;
-
-        if (C_blks_per_iter == 0)
-            C_blks_per_iter = 1;
-        if (C_blks_per_iter > C_blks)
-            C_blks_per_iter = C_blks;
-
-        iters = (C_blks + C_blks_per_iter - 1) / C_blks_per_iter;
-    }
-
-    inline void thread_balance(int ithr, int nthr, int C_blks, int &C_ithr,
-            int &C_nthr, int &C_blk_s, int &C_blk_e, int &N_ithr,
-            int &N_nthr, int &N_s, int &N_e) const {
-        const int N = bdesc_->MB();
-        if (nthr <= (int)C_blks || !syncable_) {
-            C_ithr = ithr; C_nthr = nthr;
-            N_ithr = 0; N_nthr = 1;
-            N_s = 0; N_e = N;
-            C_ithr = ithr; C_nthr = nthr;
-            balance211(C_blks, C_nthr, C_ithr, C_blk_s, C_blk_e);
-        } else {
-            if (do_blocking_) {
-                N_nthr = nstl::min((int)N, nthr);
-                C_nthr = nstl::min((int)C_blks, nthr / N_nthr);
-            } else {
-                C_nthr = math::gcd(nthr, (int)C_blks);
-                N_nthr = nstl::min((int)N, nthr / C_nthr);
-            }
-            if (ithr < C_nthr * N_nthr) {
-                N_ithr = ithr % N_nthr;
-                C_ithr = ithr / N_nthr;
-                balance211(C_blks, C_nthr, C_ithr, C_blk_s, C_blk_e);
-                balance211(N, N_nthr, N_ithr, N_s, N_e);
-            } else {
-                N_ithr = C_ithr = -ithr;
-                N_s = N_e = C_blk_s = C_blk_e = -1;
-            }
-        }
-    }
-
     const int simd_w = isa == sse42 ? 8 :
         cpu_isa_traits<isa>::vlen / sizeof(data_t);
 
