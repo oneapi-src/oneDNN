@@ -52,9 +52,9 @@ std::vector<float> user_src(batch * 3 * 227 * 227);
    from `nchw`, the user data must be transformed to the format required for
    the convolution (as explained below).
 ~~~cpp
-auto user_src_memory = memory({ { { conv_src_tz }, memory::data_type::f32,
+auto user_src_memory = memory({ { { conv1_src_tz }, memory::data_type::f32,
     memory::format::nchw }, cpu_engine}, user_src.data());
-auto conv_src_md = memory::desc({conv_src_tz},
+auto conv1_src_md = memory::desc({conv1_src_tz},
     memory::data_type::f32, memory::format::any);
 /* similarly create conv_weights_md and conv_dst_md in format::any */
 ~~~
@@ -65,7 +65,7 @@ auto conv_src_md = memory::desc({conv_src_tz},
    -optimized for inference execution and omits computations that are only necessary
    for backward propagation. */
 ~~~cpp
-auto conv_desc = convolution_forward::desc(
+auto conv1_desc = convolution_forward::desc(
     prop_kind::forward_inference, algorithm::convolution_direct,
     conv1_src_md, conv1_weights_md, conv1_bias_md, conv1_dst_md,
     conv1_strides, conv1_padding, padding_kind::zero);
