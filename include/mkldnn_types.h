@@ -680,6 +680,8 @@ typedef struct {
     mkldnn_prop_kind_t prop_kind;
     /** Source and destination memory descriptor. */
     mkldnn_memory_desc_t data_desc;
+    /** Source and Destination of gradient memory descriptor. */
+    mkldnn_memory_desc_t diff_desc;
     /** The axis along which to perform the softmax. */
     int softmax_axis;
 } mkldnn_softmax_desc_t;

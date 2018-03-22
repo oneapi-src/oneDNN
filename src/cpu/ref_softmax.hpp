@@ -105,6 +105,72 @@ private:
     data_t *ws_, *max_, *denom_;
 };
 
+template <impl::data_type_t data_type>
+struct ref_softmax_bwd_t: public cpu_primitive_t {
+    struct pd_t: public cpu_softmax_bwd_pd_t {
+        pd_t(engine_t *engine, const softmax_desc_t *adesc,
+                const primitive_attr_t *attr,
+                const softmax_fwd_pd_t *hint_fwd_pd)
+            : cpu_softmax_bwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+
+        DECLARE_COMMON_PD_T("ref:any", ref_softmax_bwd_t);
+
+        virtual status_t init() override {
+            using namespace prop_kind;
+            assert(engine()->kind() == engine_kind::cpu);
+            bool ok = true
+                && utils::one_of(desc()->prop_kind, backward_data)
+                && diff_src_pd_.desc()->data_type == data_type
+                && diff_dst_pd_.desc()->data_type == data_type
+                && attr()->has_default_values();
+            if (!ok) return status::unimplemented;
+
+            return status::success;
+        }
+    };
+
+    ref_softmax_bwd_t(const pd_t *pd, const input_vector &inputs,
+            const output_vector &outputs)
+        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {
+        auto dims = conf_.desc()->diff_desc.dims;
+        auto axis = conf_.desc()->softmax_axis;
+        auto ndims = conf_.desc()->diff_desc.ndims;
+
+        outer_size_ = utils::array_product(dims, axis);
+        channels_ = dims[axis];
+        inner_size_ = utils::array_product(dims + axis + 1, ndims - axis - 1);
+
+        // Diff desc as well as data desc whould be checked
+        const memory_desc_wrapper data_d(conf_.dst_pd());
+        const memory_desc_wrapper diff_d(conf_.diff_dst_pd());
+        use_dense_ = true
+            && inner_size_ == 1
+            && diff_d == data_d
+            && diff_d.is_dense()
+            && diff_d.blocking_desc().block_dims[axis] == 1
+            && diff_d.blocking_desc().strides[0][axis] == 1;
+    }
+    ~ref_softmax_bwd_t() {}
+    typedef typename prec_traits<data_type>::type data_t;
+
+    virtual void execute(event_t *e) {
+        if (use_dense_) execute_backward_dense();
+        else execute_backward_generic();
+        e->set_state(event_t::ready);
+    }
+
+private:
+    void execute_backward_dense();
+    void execute_backward_generic();
+
+    pd_t conf_;
+    bool use_dense_;
+    int outer_size_, channels_, inner_size_;
+    data_t val_max_, val_denom_;
+    data_t *max_, *denom_;
+};
+
+
 }
 }
 }

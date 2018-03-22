@@ -33,6 +33,7 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_reorder.cpp
                               test_concat.cpp
                               test_softmax_forward.cpp
+                              test_softmax_backward.cpp
                               test_eltwise.cpp
                               test_relu.cpp
                               test_lrn_forward.cpp

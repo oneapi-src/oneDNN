@@ -137,6 +137,62 @@ void ref_softmax_fwd_t<data_type>::_scal(int n, data_t alpha, data_t *x) {
 
 template struct ref_softmax_fwd_t<data_type::f32>;
 
+
+// NC/NCHW softmax for along final axe (1 for NC, 3 for NCHW)
+template <impl::data_type_t data_type>
+void ref_softmax_bwd_t<data_type>::execute_backward_dense() {
+    auto data = reinterpret_cast<const data_t *>(this->input_memory(0));
+    auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
+    auto diff_src = reinterpret_cast<data_t *>(this->memory(0));
+
+#   pragma omp parallel for schedule(static)
+    for (int ou = 0; ou < outer_size_; ou++) {
+        data_t sbr = 0;
+        size_t off = channels_*ou;
+        for (int c = 0; c < channels_; c++) {
+            size_t loff = off + c;
+            data_t ldata = data[loff];
+            sbr += diff_dst[loff]*ldata;
+            diff_src[loff] = ldata;
+        }
+
+        for(int c=0; c < channels_ ; ++c) {
+          size_t loff = off + c;
+          diff_src[loff] *= (diff_dst[loff] - sbr);
+        }
+    }
+}
+
+template <impl::data_type_t data_type>
+void ref_softmax_bwd_t<data_type>::execute_backward_generic() {
+    const size_t dim = channels_ * inner_size_;
+    auto data = reinterpret_cast<const data_t *>(this->input_memory(0));
+    auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
+    auto diff_src = reinterpret_cast<data_t *>(this->memory(0));
+    const memory_desc_wrapper diff_d(conf_.diff_src_pd());
+    const memory_desc_wrapper data_d(conf_.dst_pd());
+
+#   pragma omp parallel for schedule(static)
+    for (int ou = 0; ou < outer_size_; ou++) {
+        for (int in = 0; in < inner_size_; in++) {
+            data_t sbr = 0;
+            for (int c = 0; c < channels_; c++) {
+                size_t off_diff = diff_d.off_l(ou * dim + c * inner_size_ + in);
+                size_t off_data = diff_d.off_l(ou * dim + c * inner_size_ + in);
+                sbr += diff_dst[off_diff]*data[off_data];
+            }
+
+            for(int c=0; c < channels_ ; ++c) {
+              size_t off_diff = diff_d.off_l(ou * dim + c * inner_size_ + in);
+              size_t off_data = data_d.off_l(ou * dim + c * inner_size_ + in);
+              diff_src[off_diff] = data[off_data]*(diff_dst[off_diff] - sbr);
+            }
+        }
+    }
+}
+
+template struct ref_softmax_bwd_t<data_type::f32>;
+
 }
 }
 }

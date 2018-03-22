@@ -2624,6 +2624,57 @@ struct softmax_forward : public primitive {
     }
 };
 
+struct softmax_backward : public primitive {
+    struct desc {
+        mkldnn_softmax_desc_t data;
+        desc(const memory::desc &diff_desc, const memory::desc &data_desc,
+                int softmax_axis) {
+            error::wrap_c_api(mkldnn_softmax_backward_desc_init(&data,
+                        &diff_desc.data, &data_desc.data, softmax_axis),
+                    "could not init a backward softmax descriptor");
+        }
+    };
+
+    struct primitive_desc : public handle<mkldnn_primitive_desc_t> {
+        primitive_desc(const desc &adesc, const engine &aengine,
+                const softmax_forward::primitive_desc &hint_fwd_primitive_desc)
+        {
+            mkldnn_primitive_desc_t result;
+            error::wrap_c_api(mkldnn_primitive_desc_create(
+                        &result, &adesc.data, aengine.get(),
+                        hint_fwd_primitive_desc.get()),
+                    "could not create a backward softmax primitive descriptor");
+            reset(result);
+        }
+
+        memory::primitive_desc diff_src_primitive_desc() const {
+            memory::primitive_desc adesc;
+            mkldnn_primitive_desc_t cdesc;
+            const_mkldnn_primitive_desc_t const_cdesc =
+                mkldnn_primitive_desc_query_pd(get(),
+                        mkldnn::convert_to_c(diff_src_pd), 0);
+            error::wrap_c_api(mkldnn_primitive_desc_clone(&cdesc, const_cdesc),
+                    "could not clone a diff src primitive descriptor");
+            adesc.reset(cdesc);
+            return adesc;
+        }
+
+        engine get_engine() { return engine::query(*this); }
+    };
+
+    softmax_backward(const primitive_desc &aprimitive_desc,
+            const primitive::at &dst, const primitive::at &diff_dst,
+            const memory &diff_src) {
+        mkldnn_primitive_t result;
+        mkldnn_primitive_at_t inputs[] = { dst.data, diff_dst.data };
+        const_mkldnn_primitive_t outputs[] = { diff_src.get() };
+        error::wrap_c_api(mkldnn_primitive_create(&result,
+                    aprimitive_desc.get(), inputs, outputs),
+                "could not create a softmax backward primitive");
+        reset(result);
+    }
+};
+
 /// @}
 
 /// @addtogroup cpp_api_batch_norm Batch normalization

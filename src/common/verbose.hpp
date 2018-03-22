@@ -251,7 +251,8 @@ template <typename pd_t> static void init_info_pool(pd_t *s, char *buffer) {
 template <typename pd_t> static void init_info_softmax(pd_t *s, char *buffer) {
     DECL_DAT_AUX_PRB_STRS();
 
-    auto fmt_data = s->src_pd()->desc()->format;
+    auto fmt_data = (s->desc()->prop_kind == prop_kind::backward_data
+            ? s->diff_src_pd() : s->src_pd())->desc()->format;
     auto fmt_diff = s->desc()->prop_kind == prop_kind::backward_data
         ? s->diff_src_pd()->desc()->format : memory_format::undef;
     snprintf(dat_str, MKLDNN_VERBOSE_DAT_LEN, "fdata:%s fdiff:%s",

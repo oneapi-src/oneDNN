@@ -797,6 +797,13 @@ mkldnn_status_t MKLDNN_API mkldnn_softmax_forward_desc_init(
         mkldnn_softmax_desc_t *softmax_desc, mkldnn_prop_kind_t prop_kind,
         const mkldnn_memory_desc_t *data_desc, int softmax_axis);
 
+/** Initializes a @p softmax_desc for backward propagation using memory
+ * descriptors @p diff_desc and @p data_desc. */
+mkldnn_status_t MKLDNN_API mkldnn_softmax_backward_desc_init(
+        mkldnn_softmax_desc_t *softmax_desc,
+        const mkldnn_memory_desc_t *diff_desc,
+        const mkldnn_memory_desc_t *data_desc, int softmax_axis);
+
 /** @} */
 
 /** @addtogroup c_api_pooling Pooling
