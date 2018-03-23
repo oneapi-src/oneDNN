@@ -129,8 +129,14 @@ library with this functionality is included in the repository. If you choose
 to build Intel MKL-DNN with the binary dependency download Intel MKL small
 libraries using provided script
 
+###### Linux/macOS
 ```
 	cd scripts && ./prepare_mkl.sh && cd ..
+```
+
+###### Windows
+```
+	cd scripts && call prepare_mkl.bat && cd ..
 ```
 
 or manually from [GitHub release section](https://github.com/intel/mkl-dnn/releases)
