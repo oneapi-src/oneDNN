@@ -629,7 +629,7 @@ struct memory: public primitive  {
         ldgoi = mkldnn_ldgoi,
         ldgoi_p = mkldnn_ldgoi_p,
         ldgo = mkldnn_ldgo,
-        format_end = mkldnn_format_end,
+        format_last = mkldnn_format_last,
     };
 
     /// A memory descriptor.

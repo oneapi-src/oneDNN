@@ -272,15 +272,15 @@ typedef enum {
     /** 4D bias tensor in the format (num_layers, num_directions, num_gates,
      * output_channels). */
     mkldnn_ldgo,
+    /** Just a sentinel, not real memory format. Must be changed after new
+     * format is added. */
+    mkldnn_format_last,
     /** 4D weights tensor in the oihw format with input channels data laid out
      * in memory in 8-element blocks. */
     mkldnn_oIhw8i = mkldnn_nChw8c,
     /** 4D weights tensor in the oihw format with input channels data laid out
      * in memory in 16-element blocks. */
     mkldnn_oIhw16i = mkldnn_nChw16c,
-    /** Just as sentinel, not real memory format. May be changed after new
-     * format is added to this list. */
-    mkldnn_format_end = mkldnn_ldgo + 1,
 } mkldnn_memory_format_t;
 
 /** Kinds of padding. Define how to interpret the data in padding regions. */
