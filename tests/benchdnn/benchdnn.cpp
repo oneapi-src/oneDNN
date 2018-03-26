@@ -74,6 +74,7 @@ int main(int argc, char **argv) {
     case DECONV: deconv::bench(argc, argv); break;
     case IP: ip::bench(argc, argv); break;
     case REORDER: reorder::bench(argc, argv); break;
+    case BNORM: bnorm::bench(argc, argv); break;
     case RNN: rnn::bench(argc, argv); break;
     default: fprintf(stderr, "err: unknown driver\n");
     }
