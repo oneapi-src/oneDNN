@@ -1076,16 +1076,16 @@ void _jit_avx512_common_conv_fwd_kernel<Vmm>::generate() {
                     compute_loop(ur_w_tail, 0, r_pad);
                 }
             } else {
-                xor_(reg_oi, reg_oi);
                 if (l_pad > 0) {
+                    n_oi--;
                     add(reg_inp_prf, inp_shift_pad);
                     add(reg_out_prf, out_shift);
                     compute_loop(ur_w, l_pad, 0);
                     add(reg_inp, inp_shift_pad);
                     add(reg_out, out_shift);
-                    inc(reg_oi);
                 }
-                if ((l_pad <= 0 && n_oi > 0) || (l_pad > 0 && n_oi > 1)) {
+                if (n_oi > 0) {
+                    xor_(reg_oi, reg_oi);
                     Label ow_loop_label;
                     L(ow_loop_label);
                     {
