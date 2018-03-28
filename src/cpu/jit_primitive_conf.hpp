@@ -56,12 +56,10 @@ struct jit_conv_conf_t {
     bool with_bias, with_relu;
     float relu_negative_slope;
     bool with_sum;
-    bool is_dw;
 
     int ihp, iwp, ohp, owp;
     int nb_ic, ic_block;
     int nb_oc, oc_block;
-    int nb_g, g_block;
     int nb_ic_blocking, nb_oc_blocking; // blocking of nb_ic and nb_ic
     int nb_ic_blocking_max;
     int nb_ic_L2;
