@@ -54,12 +54,12 @@
 #include "mkldnn_types.h"
 #endif /* DOXYGEN_SHOULD_SKIP_THIS */
 
-/** @addtogroup c_api C API
- *  @{ */
-
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/** @addtogroup c_api C API
+ * @{ */
 
 /** @addtogroup c_api_primitive Primitive operations
  * @{ */
