@@ -143,6 +143,8 @@ struct jit_conv_winograd_conf_t : public jit_conv_conf_t {
     int tile_4fma_padding;
     int tile_4fma;
     int oc_simd_block;
+    int oc_reg_block;
+    int ic_reg_block;
     int tile_block;
     int tile_block_ur;
     int nb_tile_block_ur;
@@ -158,6 +160,7 @@ struct jit_conv_winograd_conf_t : public jit_conv_conf_t {
     int dimK_nb_block;
 
     int dimM;
+    int dimM_reg_block;
     int dimM_simd_block;
     int dimM_block;
     int dimM_nb_block;

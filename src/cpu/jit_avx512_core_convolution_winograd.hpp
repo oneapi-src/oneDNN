@@ -14,15 +14,15 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_AVX512_COMMON_CONVOLUTION_WINOGRAD_HPP
-#define CPU_JIT_AVX512_COMMON_CONVOLUTION_WINOGRAD_HPP
+#ifndef CPU_JIT_AVX512_CORE_CONVOLUTION_WINOGRAD_HPP
+#define CPU_JIT_AVX512_CORE_CONVOLUTION_WINOGRAD_HPP
 
 #include "c_types_map.hpp"
 #include "cpu_convolution_pd.hpp"
 #include "cpu_engine.hpp"
 #include "scratchpad.hpp"
 
-#include "jit_avx512_common_conv_winograd_kernel_f32.hpp"
+#include "jit_avx512_core_conv_winograd_kernel_f32.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -30,15 +30,15 @@ namespace cpu {
 
 namespace winograd {
 
-struct winograd_scratchpad_t {
+struct winograd_scratchpad_avx512_core_t {
     public:
-        winograd_scratchpad_t(const jit_conv_winograd_conf_t &jcp)
+        winograd_scratchpad_avx512_core_t(const jit_conv_winograd_conf_t &jcp)
         {
             get_scratchpad_size_(jcp);
             allocate_scratchpad_(jcp);
         }
 
-        ~winograd_scratchpad_t() {
+        ~winograd_scratchpad_avx512_core_t() {
             if (scratchpad_ != nullptr)
                 delete scratchpad_;
         }
@@ -177,16 +177,16 @@ struct winograd_scratchpad_t {
 }
 
 template <bool is_fwd>
-struct _jit_avx512_common_convolution_winograd_t {
+struct _jit_avx512_core_convolution_winograd_t {
 
-    _jit_avx512_common_convolution_winograd_t(
+    _jit_avx512_core_convolution_winograd_t(
             const jit_conv_winograd_conf_t &jcp, const primitive_attr_t *attr)
         : kernel_(nullptr), scratchpad_(nullptr), attr_(attr) {
-        kernel_ = new _jit_avx512_common_conv_winograd_data_kernel_f32(jcp);
-        scratchpad_ = new winograd::winograd_scratchpad_t(jcp);
+            kernel_ =  new _jit_avx512_core_conv_winograd_data_kernel_f32(jcp);
+            scratchpad_ = new winograd::winograd_scratchpad_avx512_core_t(jcp);
         }
 
-    ~_jit_avx512_common_convolution_winograd_t() {
+    ~_jit_avx512_core_convolution_winograd_t() {
         delete kernel_;
         delete scratchpad_;
     };
@@ -196,15 +196,15 @@ struct _jit_avx512_common_convolution_winograd_t {
                 float *wei_ptr, float *bias_ptr = NULL);
         void _execute_data_W_SGD(float *inp_ptr, float *out_ptr,
                 float *wei_ptr, float *bias_ptr = NULL);
-        _jit_avx512_common_conv_winograd_data_kernel_f32 *kernel_;
+        _jit_avx512_core_conv_winograd_data_kernel_f32 *kernel_;
         // Buffer required to store transforms in the frequency domain
-        winograd::winograd_scratchpad_t *scratchpad_;
+        winograd::winograd_scratchpad_avx512_core_t *scratchpad_;
         const primitive_attr_t *attr_;
 };
 
 template <bool with_relu>
-struct _jit_avx512_common_convolution_winograd_fwd_t
-     : _jit_avx512_common_convolution_winograd_t<true>
+struct _jit_avx512_core_convolution_winograd_fwd_t
+     : _jit_avx512_core_convolution_winograd_t<true>
      , public cpu_primitive_t
     {
     struct pd_t : public _cpu_convolution_fwd_pd_t<with_relu> {
@@ -216,8 +216,8 @@ struct _jit_avx512_common_convolution_winograd_fwd_t
             , jcp_({}) {}
 
         DECLARE_COMMON_PD_T(
-                JIT_IMPL_NAME_HELPER("jit_wino:", avx512_common, ""),
-                _jit_avx512_common_convolution_winograd_fwd_t<with_relu>);
+                JIT_IMPL_NAME_HELPER("jit_wino:", avx512_core, ""),
+                _jit_avx512_core_convolution_winograd_fwd_t<with_relu>);
 
         virtual status_t init() override
         {
@@ -236,7 +236,7 @@ struct _jit_avx512_common_convolution_winograd_fwd_t
             if (!ok)
                 return status::unimplemented;
 
-            return jit_avx512_common_conv_winograd_fwd_kernel_f32::init_conf(
+            return jit_avx512_core_conv_winograd_fwd_kernel_f32::init_conf(
                     jcp_, this->cdesc_(), *this->src_pd_.desc(),
                     *this->weights_pd_.desc(), *this->dst_pd_.desc(),
                     *this->attr(), with_relu, this->negative_slope());
@@ -261,13 +261,13 @@ struct _jit_avx512_common_convolution_winograd_fwd_t
         }
     };
 
-    _jit_avx512_common_convolution_winograd_fwd_t(const pd_t *pd,
+    _jit_avx512_core_convolution_winograd_fwd_t(const pd_t *pd,
             const input_vector &inputs, const output_vector &outputs)
-        : _jit_avx512_common_convolution_winograd_t<true>(pd->jcp_, pd->attr())
+        : _jit_avx512_core_convolution_winograd_t<true>(pd->jcp_, pd->attr())
         , cpu_primitive_t(&conf_, inputs, outputs)
         , conf_(*pd) {}
 
-    ~_jit_avx512_common_convolution_winograd_fwd_t(){};
+    ~_jit_avx512_core_convolution_winograd_fwd_t(){};
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
@@ -295,13 +295,13 @@ private:
     pd_t conf_;
 };
 
-using jit_avx512_common_convolution_winograd_fwd_t
-        = _jit_avx512_common_convolution_winograd_fwd_t<false>;
-using jit_avx512_common_convolution_winograd_relu_t
-        = _jit_avx512_common_convolution_winograd_fwd_t<true>;
+using jit_avx512_core_convolution_winograd_fwd_t
+        = _jit_avx512_core_convolution_winograd_fwd_t<false>;
+using jit_avx512_core_convolution_winograd_relu_t
+        = _jit_avx512_core_convolution_winograd_fwd_t<true>;
 
-struct jit_avx512_common_convolution_winograd_bwd_data_t
-        : _jit_avx512_common_convolution_winograd_t<false>,
+struct jit_avx512_core_convolution_winograd_bwd_data_t
+        : _jit_avx512_core_convolution_winograd_t<false>,
         public cpu_primitive_t {
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
@@ -311,8 +311,8 @@ struct jit_avx512_common_convolution_winograd_bwd_data_t
             , jcp_({}) {}
 
         DECLARE_COMMON_PD_T(
-                JIT_IMPL_NAME_HELPER("jit_wino:", avx512_common, ""),
-                jit_avx512_common_convolution_winograd_bwd_data_t);
+                JIT_IMPL_NAME_HELPER("jit_wino:", avx512_core, ""),
+                jit_avx512_core_convolution_winograd_bwd_data_t);
 
         virtual status_t init() override
         {
@@ -328,7 +328,7 @@ struct jit_avx512_common_convolution_winograd_bwd_data_t
             if (!ok)
                 return status::unimplemented;
 
-            return jit_avx512_common_conv_winograd_bwd_data_kernel_f32::
+            return jit_avx512_core_conv_winograd_bwd_data_kernel_f32::
                     init_conf(jcp_, *this->desc(), *this->diff_src_pd_.desc(),
                             *this->weights_pd_.desc(),
                             *this->diff_dst_pd_.desc());
@@ -352,13 +352,13 @@ struct jit_avx512_common_convolution_winograd_bwd_data_t
         }
     };
 
-    jit_avx512_common_convolution_winograd_bwd_data_t(const pd_t *pd,
+    jit_avx512_core_convolution_winograd_bwd_data_t(const pd_t *pd,
             const input_vector &inputs, const output_vector &outputs)
-        : _jit_avx512_common_convolution_winograd_t<false>(pd->jcp_, pd->attr())
+        : _jit_avx512_core_convolution_winograd_t<false>(pd->jcp_, pd->attr())
         , cpu_primitive_t(&conf_, inputs, outputs)
         , conf_(*pd) {}
 
-    ~jit_avx512_common_convolution_winograd_bwd_data_t(){};
+    ~jit_avx512_core_convolution_winograd_bwd_data_t(){};
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
@@ -392,7 +392,7 @@ private:
     pd_t conf_;
 };
 
-struct jit_avx512_common_convolution_winograd_bwd_weights_t
+struct jit_avx512_core_convolution_winograd_bwd_weights_t
         : public cpu_primitive_t {
     struct pd_t : public cpu_convolution_bwd_weights_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
@@ -403,8 +403,8 @@ struct jit_avx512_common_convolution_winograd_bwd_weights_t
             , jcp_({}) {}
 
         DECLARE_COMMON_PD_T(
-                JIT_IMPL_NAME_HELPER("jit_wino:", avx512_common, ""),
-                jit_avx512_common_convolution_winograd_bwd_weights_t);
+                JIT_IMPL_NAME_HELPER("jit_wino:", avx512_core, ""),
+                jit_avx512_core_convolution_winograd_bwd_weights_t);
 
         virtual status_t init() override
         {
@@ -420,7 +420,7 @@ struct jit_avx512_common_convolution_winograd_bwd_weights_t
             if (!ok)
                 return status::unimplemented;
 
-            return jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::
+            return jit_avx512_core_conv_winograd_bwd_weights_kernel_f32::
                     init_conf(jcp_, *this->desc(), *this->src_pd_.desc(),
                             *this->diff_dst_pd_.desc(),
                             *this->diff_weights_pd_.desc());
@@ -446,7 +446,7 @@ struct jit_avx512_common_convolution_winograd_bwd_weights_t
         }
     };
 
-    jit_avx512_common_convolution_winograd_bwd_weights_t(const pd_t *pd,
+    jit_avx512_core_convolution_winograd_bwd_weights_t(const pd_t *pd,
             const input_vector &inputs, const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs)
         , conf_(*pd)
@@ -454,12 +454,12 @@ struct jit_avx512_common_convolution_winograd_bwd_weights_t
         , scratchpad_(nullptr)
     {
         auto jcp = conf_.jcp_;
-        kernel_ = new jit_avx512_common_conv_winograd_bwd_weights_kernel_f32(
+        kernel_ = new jit_avx512_core_conv_winograd_bwd_weights_kernel_f32(
                 jcp);
-        scratchpad_ = new winograd::winograd_scratchpad_t(jcp);
+        scratchpad_ = new winograd::winograd_scratchpad_avx512_core_t(jcp);
     }
 
-    ~jit_avx512_common_convolution_winograd_bwd_weights_t()
+    ~jit_avx512_core_convolution_winograd_bwd_weights_t()
     {
         delete kernel_;
         delete scratchpad_;
@@ -501,20 +501,11 @@ private:
     void _execute_backward_weights_SDGt_W();
 
     pd_t conf_;
-    jit_avx512_common_conv_winograd_bwd_weights_kernel_f32 *kernel_;
+    jit_avx512_core_conv_winograd_bwd_weights_kernel_f32 *kernel_;
 
     // Buffer required to store transforms in the frequency domain
-    winograd::winograd_scratchpad_t *scratchpad_;
+    winograd::winograd_scratchpad_avx512_core_t *scratchpad_;
 };
-
-void trans_W_4x4_3x3(float Fw_[6][6][16][16], float F[3][3][16][16]);
-void trans_O_4x4_3x3(float Mw[6][6][16], float O[4][4][16]);
-void trans_W_3x3_4x4(float Fw[6][6][16], float F[4][6][16]);
-void trans_O_3x3_4x4(float Mw[6][6][16][16], float M[3][3][16][16]);
-void trans_I_4x4_3x3(float Iw[6][6][16], float I[6][6][16]);
-void trans_W_3x3_4x4_wu(float Fw[6][6][16], float F[4][6][16]);
-void trans_O_3x3_4x4_wu(float Mw[6][6][16][16], float M[3][3][16][16]);
-
 }
 }
 }
