@@ -90,13 +90,20 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_dense() {
     src += data_d.blocking_desc().offset_padding;
     dst += data_d.blocking_desc().offset_padding;
 
+    if (alg_kind == eltwise_relu) {
+        // a fast path for relu as the most popular activation
+#       pragma omp parallel for schedule(static)
+        for (size_t e = 0; e < nelems; ++e)
+            dst[e] = relu_fwd(src[e], alpha);
+        return;
+    }
+
 #   pragma omp parallel for schedule(static)
     for (size_t e = 0; e < nelems; ++e) {
         const data_t s = src[e];
         data_t &d = dst[e];
 
         switch (alg_kind) {
-        case eltwise_relu: d = relu_fwd(s, alpha); break;
         case eltwise_tanh: d = tanh_fwd(s); break;
         case eltwise_elu: d = elu_fwd(s, alpha); break;
         case eltwise_square: d = square_fwd(s); break;
