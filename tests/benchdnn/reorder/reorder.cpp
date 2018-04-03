@@ -272,7 +272,7 @@ int reorder(const prb_t *p, dnn_mem_t &dst, const dnn_mem_t &src,
 
         /* parse round mode and round value*/
         if (dst_dt != mkldnn_f32) {
-            switch (p->attr.irmode) {
+            switch (static_cast<mkldnn_round_mode_t>(p->attr.irmode)) {
                 case attr_t::NEAREST: dst_ = rint(dst_); break;
                 case attr_t::DOWN: dst_ = floorf(dst_); break;
                 default: assert(!"bad int round_mode");
