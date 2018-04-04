@@ -4082,7 +4082,6 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
         jcp.ic_block = simd_w;
         jcp.nb_ic = jcp.ic / jcp.ic_block;
         jcp.src_fmt = src_d.format();
-
         if ((mayiuse(avx512_mic_4ops) || mayiuse(avx512_core_vnni))
             && ndims == 4
             && jcp.stride_w == 1

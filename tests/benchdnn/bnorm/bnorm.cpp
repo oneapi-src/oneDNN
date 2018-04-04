@@ -55,7 +55,7 @@ static int prepare_fwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &mean,
      * ALG_1: mean is set to 2^p, where p \in {-2, -1, ..., 4}
      * ALG_AUTO: choose between ALG_0 and ALG_1 automatically */
     const int exact_bits = 24;
-    const int L = p->mb * p->ih * p->iw;
+    const int L = p->mb * p->id * p->ih * p->iw;
     const int logL = (int)ceilf(log2f(L));
 
     assert(logL <= 0 || (1<<(logL-1)) < L);
@@ -91,12 +91,14 @@ static int prepare_fwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &mean,
         float v = 0; /* current variance */
 
         for (int mb = 0; mb < p->mb; ++mb) {
-            size_t l_base = mb * p->ih * p->iw + c * 239 * 2; // l[0] must be even
-            float *s = (float *)src + data_off(p, mb, c, 0, 0);
+            size_t l_base = mb * p->id * p->ih * p->iw + c * 239 * 2; // l[0] must be even
+            float *s = (float *)src + data_off(p, mb, c, 0, 0, 0);
 
+            for (int d = 0; d < p->id; ++d)
             for (int h = 0; h < p->ih; ++h)
             for (int w = 0; w < p->iw; ++w) {
-                const int sp = h * p->iw + w;
+
+                const int sp = d * p->ih * p->iw + h * p->iw + w;
                 const size_t l = l_base + sp;
 
                 if (alg == ALG_0 && !flip_coin(l/2 * 257ULL, density)) {
@@ -109,14 +111,14 @@ static int prepare_fwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &mean,
                 const float f = 1.f * sgn * gen / (1 << flex_bits);
 
                 s[sp] = alg == ALG_0 ? f : m * (1.f + f);
-                if (L % 2 && (mb * p->ih * p->iw + sp == L - 1)) {
+                if (L % 2 && (mb * p->id * p->ih * p->iw + sp == L - 1)) {
                     s[sp] = m;
                 }
                 v += (s[sp] - m) * (s[sp] - m);
             }
         }
 
-        ((float *)var)[c] = v / (p->mb * p->ih * p->iw);
+        ((float *)var)[c] = v / (p->mb * p->id * p->ih * p->iw);
 
         if (p->flags & USE_SCALESHIFT) {
             ((float *)ss)[c] = 1.f / 8 * (1 << (c % 7));
@@ -141,7 +143,7 @@ static int prepare_bwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &d_dst,
         dnn_mem_t &mean, dnn_mem_t &var, dnn_mem_t &ss, dnn_mem_t &mask) {
     const int exact_bits = 24;
 
-    const int L = p->mb * p->ih * p->iw;
+    const int L = p->mb * p->id * p->ih * p->iw;
     if (L < 2)
         return FAIL;
 
@@ -205,16 +207,18 @@ static int prepare_bwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &d_dst,
 
         float dg = 0, db = 0; /* current d_beta and d_gamma */
         for (int mb = 0; mb < p->mb; ++mb) {
-            const int l_base = mb * p->ih * p->iw;
+            const int l_base = mb * p->id * p->ih * p->iw;
 
-            const auto off = data_off(p, mb, c, 0, 0);
+            const auto off = data_off(p, mb, c, 0, 0, 0);
             float *s = (float *)src + off;
             float *dd = (float *)d_dst + off;
             float *rmask = (float *)mask + off;
 
+            for (int d = 0; d < p->id; ++d)
             for (int h = 0; h < p->ih; ++h)
             for (int w = 0; w < p->iw; ++w) {
-                const int sp = h * p->iw + w;
+
+                const int sp = d * p->ih * p->iw + h * p->iw + w;
                 if (!flip_coin(l_base + sp, density) && l_base + sp + 100 < L) {
                     dd[sp] = 0;
                     s[sp] = m;
@@ -251,10 +255,11 @@ static int prepare_bwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &d_dst,
              *
              * Here l0 -- last index, l1 -- last but one.
              * More over, let's assume src[l1] = 1 and src[l0] = -1. */
-            size_t l0 = data_off(p, p->mb - 1, c, p->ih - 1, p->iw - 1);
+            size_t l0 = data_off(p, p->mb - 1, c, p->id - 1, p->ih - 1,
+                p->iw - 1);
             size_t l1 = l0 - 1;
-            if (p->ih == 1 && p->iw == 1)
-                l1 = data_off(p, p->mb - 2, c, p->ih - 1, p->iw - 1);
+            if (p->id == 1 && p->ih == 1 && p->iw == 1)
+                l1 = data_off(p, p->mb - 2, c, p->id - 1, p->ih - 1, p->iw - 1);
 
             ((float *)src)[l1] = 1.f;
             ((float *)src)[l0] = -1.f;
@@ -294,7 +299,7 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
         || (kind == DATA && (p->dir & FLAG_BWD) && (p->flags | GLOB_STATS));
 
     const size_t nelems = kind == DATA
-        ? (size_t)p->mb * p->ic * p->ih * p->iw
+        ? (size_t)p->mb * p->ic * p->id * p->ih * p->iw
         : (size_t)p->ic * (kind == SS ? 2 : 1);
     r->total += rely_on_norm ? 1 : nelems;
 
@@ -321,9 +326,9 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
             const int ind_str_len = 32;
             char ind_str[ind_str_len] = {'\0'};
             if (kind == DATA) {
-                int mb, c, h, w;
-                inv_data_off(p, i, mb, c, h, w);
-                snprintf(ind_str, ind_str_len, "%d,%d,%d,%d", mb, c, h, w);
+                int mb, c, d, h, w;
+                inv_data_off(p, i, mb, c, d, h, w);
+                snprintf(ind_str, ind_str_len, "%d,%d,%d,%d,%d", mb, c, d,h, w);
             } else if (kind == SS) {
                 snprintf(ind_str, ind_str_len, "%d,%d",
                         (int)i / p->ic, (int)i % p->ic);
@@ -418,8 +423,9 @@ static int init_pd(const prb_t *p, mkldnn_batch_normalization_desc_t &bd,
         mkldnn_primitive_desc_t &bpd, res_t *r) {
     mkldnn_memory_desc_t data_d;
     mkldnn_dims_t data_dims = {p->mb, p->ic, p->ih, p->iw};
-    DNN_SAFE(mkldnn_memory_desc_init(&data_d, 4, data_dims, p->dt, p->fmt),
-            WARN);
+    mkldnn_dims_t data_dims_3d = {p->mb, p->ic, p->id, p->ih, p->iw};
+    DNN_SAFE(mkldnn_memory_desc_init(&data_d, is_bnorm_3d(p) ? 5 : 4,
+        is_bnorm_3d(p) ? data_dims_3d : data_dims, p->dt, p->fmt), WARN);
 
     auto flags = (mkldnn_batch_normalization_flag_t)p->flags;
     if (p->dir & FLAG_FWD) {
@@ -480,8 +486,10 @@ static int init_pd(const prb_t *p, mkldnn_batch_normalization_desc_t &bd,
 static int cvt_mask_to_ws(const prb_t *p, const dnn_mem_t &mask_fp,
         dnn_mem_t &ws_dt) {
     mkldnn_dims_t data_dims = {p->mb, p->ic, p->ih, p->iw};
+    mkldnn_dims_t data_dims_3d = {p->mb, p->ic, p->id, p->ih, p->iw};
 
-    dnn_mem_t data(4, data_dims, mkldnn_f32, p->fmt);
+    dnn_mem_t data(is_bnorm_3d(p) ? 5 : 4,
+        is_bnorm_3d(p) ? data_dims_3d : data_dims, mkldnn_f32, p->fmt);
     SAFE(data.reorder(mask_fp), WARN);
 
     dnn_mem_t mean(1, &p->ic, mkldnn_f32, mkldnn_x);
@@ -529,10 +537,11 @@ int doit(const prb_t *p, res_t *r) {
 
     const mkldnn_dims_t dims1d = {p->ic};
     const mkldnn_dims_t dims2d = {2, p->ic};
+    const auto src_format = is_bnorm_3d(p) ? mkldnn_ncdhw : mkldnn_nchw;
 
-    dnn_mem_t data_fp(data_dt_d, fp, mkldnn_nchw),
+    dnn_mem_t data_fp(data_dt_d, fp, src_format),
               data_dt(data_dt_d);
-    dnn_mem_t d_data_fp(data_dt_d, fp, mkldnn_nchw),
+    dnn_mem_t d_data_fp(data_dt_d, fp, src_format),
               d_data_dt(data_dt_d);
 
     dnn_mem_t mean_fp(1, dims1d, fp, mkldnn_x),
@@ -598,7 +607,7 @@ int doit(const prb_t *p, res_t *r) {
                 SAFE(compare(p, MEAN, mean_fp, mean_dt, r), WARN);
                 SAFE(compare(p, VAR, var_fp, var_dt, r), WARN);
             }
-            dnn_mem_t data(data_dt.md_, fp, mkldnn_nchw);
+            dnn_mem_t data(data_dt.md_, fp, src_format);
             SAFE(data.reorder(data_dt), WARN);
             SAFE(compare(p, DATA, data_fp, data, r), WARN);
             if (p->flags & FUSE_BN_RELU)
@@ -647,7 +656,8 @@ int doit(const prb_t *p, res_t *r) {
                     ws_fp, d_data_fp, d_ss_fp);
             if ((p->flags & USE_SCALESHIFT) && (p->dir & FLAG_WEI))
                 SAFE(compare(p, SS, d_ss_fp, d_ss_dt, r), WARN);
-            dnn_mem_t d_data(d_data_dt.md_, fp, mkldnn_nchw);
+            dnn_mem_t d_data(d_data_dt.md_, fp,
+            is_bnorm_3d(p) ? mkldnn_ncdhw : mkldnn_nchw);
             SAFE(d_data.reorder(d_data_dt), WARN);
             SAFE(compare(p, DATA, d_data_fp, d_data, r), WARN);
         }

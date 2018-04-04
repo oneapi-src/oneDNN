@@ -39,3 +39,23 @@
 
 --dir=BWD_D
 --flags=   --batch=bnorm_topo
+
+--fmt=nCdhw16c # 3D avx512
+
+--dir=FWD_D
+--flags=SR --batch=bnorm_3d
+--flags=GS --batch=bnorm_3d
+--flags=S  --batch=bnorm_3d
+
+--attr=post_ops='relu'
+--flags=GS --batch=bnorm_3d
+--flags=S  --batch=bnorm_3d
+--attr=
+
+--dir=BWD_DW
+--flags=SR --batch=bnorm_3d
+--flags=GS --batch=bnorm_3d
+--flags=S  --batch=bnorm_3d
+
+--dir=BWD_D
+--flags=   --batch=bnorm_3d

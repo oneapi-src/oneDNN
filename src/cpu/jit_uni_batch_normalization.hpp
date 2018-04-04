@@ -49,14 +49,16 @@ struct jit_uni_batch_normalization_fwd_t: public cpu_primitive_t {
         virtual status_t init() override {
             using namespace prop_kind;
             using namespace data_type;
+            using namespace memory_format;
             assert(engine()->kind() == engine_kind::cpu);
-            auto desired_fmt = isa == avx512_common
-                ? memory_format::nChw16c
-                : memory_format::nChw8c;
+            auto desired_fmt = (ndims() == 4)
+                ? isa == avx512_common ? nChw16c : nChw8c
+                : nCdhw16c;
             bool ok = true
                 && mayiuse(isa)
                 && is_fwd()
-                && ndims() == 4
+                && utils::one_of(ndims(), 4, 5)
+                && utils::implication(ndims() == 5, isa == avx512_common)
                 && desc()->data_desc.data_type == f32
                 && utils::implication(use_scaleshift(),
                         desc()->data_scaleshift_desc.data_type == f32)
@@ -73,7 +75,7 @@ struct jit_uni_batch_normalization_fwd_t: public cpu_primitive_t {
                 memory_desc_t stats_d;
                 dims_t stats_dims = { C() };
                 mkldnn_memory_desc_init(&stats_d, 1, stats_dims,
-                        data_type::f32, memory_format::x);
+                        data_type::f32, x);
                 mean_pd_ = cpu_memory_t::pd_t(engine_, &stats_d);
                 variance_pd_ = cpu_memory_t::pd_t(engine_, &stats_d);
             }
@@ -112,14 +114,16 @@ struct jit_uni_batch_normalization_bwd_t: public cpu_primitive_t {
             using namespace prop_kind;
             using namespace data_type;
             using namespace utils;
+            using namespace memory_format;
             assert(engine()->kind() == engine_kind::cpu);
-            auto desired_fmt = isa == avx2
-                ? memory_format::nChw8c
-                : memory_format::nChw16c;
+            auto desired_fmt = (ndims() == 4)
+                ? isa == avx2 ? nChw8c : nChw16c
+                : nCdhw16c;
             bool ok = true
                 && mayiuse(isa)
                 && is_bwd()
-                && ndims() == 4
+                && utils::one_of(ndims(), 4, 5)
+                && utils::implication(ndims() == 5, isa == avx512_common)
                 && everyone_is(f32, desc()->data_desc.data_type,
                         desc()->diff_data_desc.data_type)
                 && implication(use_scaleshift(),

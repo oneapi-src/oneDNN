@@ -99,6 +99,7 @@ int str2desc(desc_t *desc, const char *str) {
         int ok = 0;
         CASE_N(mb, mstrtol);
         CASE_N(ic, mstrtol);
+        CASE_N(id, mstrtol);
         CASE_N(ih, mstrtol);
         CASE_N(iw, mstrtol);
         CASE_N(eps, strtof);
@@ -109,6 +110,7 @@ int str2desc(desc_t *desc, const char *str) {
 #   undef CASE_NN
 #   undef CASE_N
 
+    if (d.id == 0) d.id = 1;
     if (d.ih == 0) d.ih = d.iw;
     if (d.iw == 0) d.iw = d.ih;
     if (d.ic == 0 || d.ih == 0 || d.iw == 0) return FAIL;
@@ -126,8 +128,10 @@ void desc2str(const desc_t *d, char *buffer, bool canonical) {
     } while(0)
 
     if (canonical || d->mb != 2) DPRINT("mb%d", d->mb);
-    DPRINT("ic%dih%d", d->ic, d->ih);
-    if (canonical || d->iw != d->ih) DPRINT("iw%d", d->iw);
+    DPRINT("ic%d", d->ic);
+    if (d->id > 1) DPRINT("id%d", d->id);
+    DPRINT("ih%d", d->ih);
+    if (canonical || d->iw != d->ih || d->id > 1) DPRINT("iw%d", d->iw);
     if (canonical || d->eps != 1.f/16) DPRINT("eps%g", d->eps);
     DPRINT("n%s", d->name);
 
@@ -160,7 +164,9 @@ void prb2str(const prb_t *p, char *buffer, bool canonical) {
             p->check_alg == ALG_AUTO ? "" : check_str,
             p->dir == FWD_B ? "" : dir_str,
             p->dt == mkldnn_f32 ? "" : dt_str,
-            p->fmt == mkldnn_nchw ? "" : fmt_str,
+            is_bnorm_3d(p)
+                ? p->fmt == mkldnn_ncdhw ? "" : fmt_str
+                : p->fmt == mkldnn_nchw ? "" : fmt_str,
             p->flags == (flags_t)0 ? "" : flags_str,
             is_attr_def ? "" : attr_buf,
             desc_buf);

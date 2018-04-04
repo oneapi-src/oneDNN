@@ -94,7 +94,8 @@ void perf_report(const prb_t *p, const res_t *r, const char *pstr) {
         if (c == 'd')
             DPRINT("%s", pstr);
         else if (c == 'D')
-            DPRINT("%d,%d,%d,%d,%g", p->mb, p->ic, p->ih, p->iw, p->eps);
+            DPRINT("%d,%d,%d,%d,%d,%g", p->mb, p->ic, p->id, p->ih, p->iw,
+                p->eps);
         else if (c == 'n')
             DPRINT("%s", p->name);
         else if (c == 'z')

@@ -92,6 +92,7 @@ const char *fmt2str(mkldnn_memory_format_t fmt) {
     CASE(nhwc);
     CASE(nChw8c);
     CASE(nChw16c);
+    CASE(nCdhw16c);
     CASE(oidhw);
     CASE(oihw);
     CASE(hwio);
@@ -113,6 +114,7 @@ mkldnn_memory_format_t str2fmt(const char *str) {
     CASE(nhwc);
     CASE(nChw8c);
     CASE(nChw16c);
+    CASE(nCdhw16c);
     CASE(oidhw);
     CASE(oihw);
     CASE(hwio);

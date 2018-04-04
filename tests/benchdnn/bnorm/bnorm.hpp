@@ -41,7 +41,7 @@ flags_t str2flags(const char *str);
 const char *flags2str(flags_t flags);
 
 struct desc_t {
-    int mb, ic, ih, iw;
+    int mb, ic, id, ih, iw;
     float eps;
     const char *name;
 };
@@ -75,17 +75,23 @@ extern const char *skip_impl; /* NULL or "" means do not skip anything */
 extern const char *perf_template; /* performance output template */
 void perf_report(const prb_t *p, const res_t *r, const char *pstr);
 
-inline size_t data_off(const prb_t *p, int mb, int c, int h, int w) {
-    return (((size_t)mb * p->ic + c) * p->ih + h) * p->iw + w;
+inline size_t data_off(const prb_t *p, int mb, int c, int d, int h, int w) {
+    return ((((size_t)mb * p->ic + c) * p->id + d) * p->ih + h) * p->iw + w;
 }
 
-inline void inv_data_off(const prb_t *p, size_t off, int &mb, int &c, int &h,
-        int &w) {
+inline void inv_data_off(const prb_t *p, size_t off, int &mb, int &c, int &d,
+        int &h, int &w) {
     w = off % p->iw; off /= p->iw;
     h = off % p->ih; off /= p->ih;
+    d = off % p->id; off /= p->id;
     c = off % p->ic; off /= p->ic;
     mb = off % p->mb; off /= p->mb;
     assert(off == 0);
+}
+
+inline bool is_bnorm_3d(const prb_t *p)
+{
+    return (p->id > 1) ? 1 : 0;
 }
 
 void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &mean,

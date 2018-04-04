@@ -442,6 +442,7 @@ TEST_P(bnrm_test_float, TestsBnrm)
     EXPAND_FORMATS(data, diff), EXPAND_SIZES_3D(mb, c, d, h, w), eps, 5 }
 
 #define PARAMS_N_3D(...) EXPAND_ARGS(PARAMS_3D(ncdhw, ncdhw, __VA_ARGS__))
+#define PARAMS_B16_3D(...) EXPAND_ARGS(PARAMS_3D(nCdhw16c, nCdhw16c, __VA_ARGS__))
 #define PARAMS_N(...) EXPAND_ARGS(PARAMS(nchw, nchw, __VA_ARGS__))
 #define PARAMS_NHWC(...) EXPAND_ARGS(PARAMS(nhwc, nhwc, __VA_ARGS__))
 #define PARAMS_NC(...) EXPAND_ARGS(PARAMS(nc, nc, __VA_ARGS__))
@@ -450,6 +451,17 @@ TEST_P(bnrm_test_float, TestsBnrm)
 
 #define INST_TEST_CASE(str, ...) INSTANTIATE_TEST_CASE_P( \
         str, bnrm_test_float, ::testing::Values(__VA_ARGS__))
+
+INST_TEST_CASE(Simple_nCdhw16c,
+    PARAMS_B16_3D(2, 32, 4, 4, 4, EPS),
+    PARAMS_B16_3D(2, 32, 4, 4, 4, EPS),
+    PARAMS_B16_3D(2, 32, 8, 8, 8, EPS),
+    PARAMS_B16_3D(2, 32, 8, 8, 8, EPS),
+    PARAMS_B16_3D(2, 32, 16, 8, 20, EPS),
+    PARAMS_B16_3D(2, 32, 16, 8, 20, EPS),
+    PARAMS_B16_3D(2, 32, 10, 8, 4, EPS),
+    PARAMS_B16_3D(2, 32, 10, 8, 4, EPS)
+);
 
 INST_TEST_CASE(Simple_NC,
     PARAMS_NC(2, 8, 1, 1, EPS),
@@ -615,6 +627,5 @@ INST_TEST_CASE(GoogleNet_Blocked_16,
     PARAMS_B16(2, 48, 7, 7, EPS),
     PARAMS_B16(2, 384, 7, 7, EPS)
 );
-
 
 }

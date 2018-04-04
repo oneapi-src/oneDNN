@@ -199,14 +199,13 @@ void nspc_batch_normalization_bwd_t::execute_backward() {
 
     const int N = conf_.MB();
     const int C = conf_.C();
-    int SP = conf_.H() * conf_.W();
+    int SP = conf_.D() * conf_.H() * conf_.W();
     int nthr = omp_get_max_threads();
     data_t *diff_gamma = diff_scaleshift, *diff_beta = diff_scaleshift + C;
     data_t *ws_reduce = this->stats_reduction_;
 
     const float eps = conf_.desc()->batch_norm_epsilon;
     const bool use_scaleshift = conf_.use_scaleshift();
-    ;
     const bool calculate_diff_stats = !conf_.omit_stats();
 #pragma omp parallel
     {

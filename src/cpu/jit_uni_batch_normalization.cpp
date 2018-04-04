@@ -46,7 +46,8 @@ struct jit_bnorm_t: public jit_generator {
         // keep all sizes at 8 bytes -- jit code expects this
         size_t N_ithr, N_nthr;
         size_t coff_max, soff_max;
-        size_t mb_stride_Bc, spat_size;
+        size_t mb_stride_Bc, spat_size, spat_size_loc;
+        size_t S_s, S_tail;
         data_t chan_size, eps, one;
         const data_t *scale_shift;
         const data_t *mean, *var;
@@ -69,6 +70,7 @@ struct jit_bnorm_t: public jit_generator {
     const int vlen = isa == sse42 ? 32 : cpu_isa_traits<isa>::vlen;
 
     const batch_normalization_pd_t *bdesc_;
+    int is_spatial_thr;
 
     void (*ker)(const call_params_t *);
     void operator()(const call_params_t *p) { (*ker)(p); }
@@ -111,8 +113,8 @@ struct jit_bnorm_t: public jit_generator {
     Label l_relu_mask_avx2;
     Opmask kstore_mask = Opmask(1);
 
-    size_t unroll_blocks = isa == avx512_common ? 4 : 1;
-    size_t unroll_regs = isa == avx512_common ? 4 : 1;
+    size_t unroll_blocks;
+    size_t unroll_regs;
     Vmm vbuf = Vmm(isa == avx512_common ? 20 : 5);
     Vmm vdiff_beta = Vmm(isa == avx512_common ? 21 : 6);
     Vmm vdiff_gamma = Vmm(isa == avx512_common ? 22 : 7);
@@ -140,11 +142,14 @@ struct jit_bnorm_t: public jit_generator {
         stack_off_diff_scale_shift = 48,
         stack_off_ws = 56,
         stack_off_barrier = 64,
-        stack_size_required = 72,
+        stack_off_spat_size_loc = 72,
+        stack_off_s_s = 80,
+        stack_off_s_tail = 88,
+        stack_size_required = 96,
     };
 
     void compute_static_strides() {
-        spat_size = bdesc_->W() * bdesc_->H();
+        spat_size = bdesc_->D() * bdesc_->W() * bdesc_->H();
         chan_data_offt = bdesc_->C() * sizeof(data_t);
 
         if (isa == avx512_mic) {
@@ -191,6 +196,14 @@ struct jit_bnorm_t: public jit_generator {
         mov(ptr[rsp + stack_off_ws], reg_tmp);
         mov(reg_tmp, ptr[reg_param + PARAM_OFF(barrier)]);
         mov(ptr[rsp + stack_off_barrier], reg_tmp);
+        if (is_spatial_thr) {
+            mov(reg_tmp, ptr[reg_param + PARAM_OFF(spat_size_loc)]);
+            mov(ptr[rsp + stack_off_spat_size_loc], reg_tmp);
+            mov(reg_tmp, ptr[reg_param + PARAM_OFF(S_s)]);
+            mov(ptr[rsp + stack_off_s_s], reg_tmp);
+            mov(reg_tmp, ptr[reg_param + PARAM_OFF(S_tail)]);
+            mov(ptr[rsp + stack_off_s_tail], reg_tmp);
+        }
 
         if (bdesc_->is_fwd()) {
             mov(reg_tmp, ptr[reg_param + PARAM_OFF(var)]);
@@ -301,12 +314,15 @@ struct jit_bnorm_t: public jit_generator {
         size_t loop_unroll = len / factor * factor;
         size_t loop_tail = len - loop_unroll;
         size_t num_active_regs = (len < regs) ? len : regs;
-
         for (size_t i = 0; i < num_active_regs; i++)
             init(i);
-
         if (loop_unroll) {
-            mov(reg_ctr, loop_unroll);
+            if (is_spatial_thr) {
+                mov(reg_ctr, ptr[rsp + stack_off_spat_size_loc]);
+                add(reg_soff, ptr[rsp + stack_off_s_s]);
+            } else {
+                mov(reg_ctr, loop_unroll);
+            }
             Label label;
             L(label); {
                 for (size_t i = 0; i < factor; i++) {
@@ -316,6 +332,9 @@ struct jit_bnorm_t: public jit_generator {
                 add(reg_soff, factor * vlen);
                 sub(reg_ctr, factor);
                 jnz(label);
+            }
+            if (is_spatial_thr) {
+                add(reg_soff, ptr[rsp + stack_off_s_tail]);
             }
         }
 
@@ -855,9 +874,14 @@ struct jit_bnorm_t: public jit_generator {
         }
     }
 
-    jit_bnorm_t(const batch_normalization_pd_t *bdesc): bdesc_(bdesc) {
+    jit_bnorm_t(const batch_normalization_pd_t *bdesc, int is_spatial_thr_):
+        bdesc_(bdesc) {
         static_assert(isa == sse42 || isa == avx2 || isa == avx512_common
                 || isa == avx512_mic, "unsupported isa");
+
+        is_spatial_thr = is_spatial_thr_;
+        unroll_blocks = isa == avx512_common && !is_spatial_thr ? 4 : 1;
+        unroll_regs = isa == avx512_common && !is_spatial_thr ? 4 : 1;
 
         preamble();
         compute_static_strides();
@@ -883,9 +907,9 @@ struct jit_bnorm_t: public jit_generator {
 
 template <cpu_isa_t isa>
 struct uni_bnorm_driver_t: public c_compatible {
-    uni_bnorm_driver_t(const batch_normalization_pd_t *bdesc)
-        : bdesc_(bdesc), ker_(bdesc_), syncable_(true), buf_(nullptr)
-        , barriers_(nullptr)
+    uni_bnorm_driver_t(const batch_normalization_pd_t *bdesc,
+        int is_spatial_thr) : bdesc_(bdesc), ker_(bdesc_,is_spatial_thr),
+        syncable_(true), buf_(nullptr), barriers_(nullptr)
     {
         use_tmp_stats_ = !bdesc_->stats_is_src()
             && bdesc_->desc()->prop_kind == prop_kind::forward_inference;
@@ -895,9 +919,10 @@ struct uni_bnorm_driver_t: public c_compatible {
         int num_sbufs = 2 * use_tmp_stats_;
         int num_pbufs = 2 * use_tmp_diff_scale_shift_;
         int num_rbufs = bdesc_->is_fwd() ? 1 : 2;
+        int nthrs = omp_get_max_threads();
 
         int buf_size =
-            (num_sbufs + num_pbufs + num_rbufs * bdesc_->MB()) * bdesc_->C();
+            (num_sbufs + num_pbufs + num_rbufs * nthrs) * bdesc_->C();
         buf_ = (data_t *)malloc(buf_size * sizeof(data_t), 64);
 
         sbuf_ = buf_;
@@ -912,9 +937,8 @@ struct uni_bnorm_driver_t: public c_compatible {
                 barrier::ctx_init(&barriers_[i]);
         }
 
-        int nthrs = omp_get_max_threads();
         size_t data_size = bdesc_->MB() * bdesc_->C() * bdesc_->H()
-                * bdesc_->W() * sizeof(data_t);
+                * bdesc_->W() * bdesc_->D() * sizeof(data_t);
         l3_size_ = get_cache_size(3, true) * nthrs / 2;
         do_blocking_ = (data_size >= l3_size_ / 2 && l3_size_ > 0);
     }
@@ -926,37 +950,44 @@ struct uni_bnorm_driver_t: public c_compatible {
             const uint8_t *ws) {
         size_t N = bdesc_->MB();
         size_t C = bdesc_->C();
+        size_t D = bdesc_->D();
         size_t H = bdesc_->H();
         size_t W = bdesc_->W();
-        size_t img_size = C * H * W;
+        int SP = D * H * W;
+        size_t img_size = C * D * H * W;
+        const int vlen = isa == sse42 ? 32 : cpu_isa_traits<isa>::vlen;
 
         typename jit_bnorm_t<isa>::call_params_t p;
 
         p.eps = bdesc_->desc()->batch_norm_epsilon;
         p.one = 1.0f;
-        p.spat_size = H * W;
+        p.spat_size = D * H * W;
         p.chan_size = 1.0f * N * p.spat_size;
 
         int C_blks = C / simd_w;
 
-        int C_ithr{0}, C_nthr{0}, N_ithr{0}, N_nthr{0};
-        int C_blk_s{0}, C_blk_e{0}, N_s{0}, N_e{0};
+        int C_ithr{0}, C_nthr{0}, N_ithr{0}, N_nthr{0}, S_ithr{0}, S_nthr{0};
+        int C_blk_s{0}, C_blk_e{0}, N_s{0}, N_e{0}, S_s{0}, S_e{0};
 
         int C_blks_per_iter{ 1 }, iters{ 1 };
         if (do_blocking_) {
             int num_tensors = bdesc_->is_fwd() ? 1 : 2;
             size_t working_set_size
-                = (N * H * W * simd_w * sizeof(data_t)) * num_tensors;
+                = (N * D * H * W * simd_w * sizeof(data_t)) * num_tensors;
             bnorm_utils::cache_balance(working_set_size, C_blks,
                 C_blks_per_iter, iters);
         }
 
         bnorm_utils::thread_balance(do_blocking_, ithr, nthr, N,
-                do_blocking_ ? C_blks_per_iter : C_blks, C_ithr, C_nthr,
-                C_blk_s, C_blk_e, N_ithr, N_nthr, N_s, N_e);
+                do_blocking_ ? C_blks_per_iter : C_blks, SP, C_ithr, C_nthr,
+                C_blk_s, C_blk_e, N_ithr, N_nthr, N_s, N_e,
+                S_ithr, S_nthr, S_s, S_e);
 
-        p.N_ithr = N_ithr;
-        p.N_nthr = N_nthr;
+        int SP_N_ithr = N_ithr * S_nthr + S_ithr;
+        int SP_N_nthr = N_nthr * S_nthr;
+
+        p.N_ithr = SP_N_ithr;
+        p.N_nthr = SP_N_nthr;
 
         int last_iter_blks = C_blks - (iters - 1) * C_blks_per_iter;
         int global_C_blk_s;
@@ -966,10 +997,14 @@ struct uni_bnorm_driver_t: public c_compatible {
             if (it == iters - 1 && iters > 1) {
                 C_blk_s = C_blk_e = N_s = N_e = 0;
                 bnorm_utils::thread_balance(do_blocking_, ithr, nthr, N,
-                        last_iter_blks, C_ithr, C_nthr, C_blk_s, C_blk_e,
-                        N_ithr, N_nthr, N_s, N_e);
-                p.N_ithr = N_ithr;
-                p.N_nthr = N_nthr;
+                        last_iter_blks, SP, C_ithr, C_nthr, C_blk_s, C_blk_e,
+                        N_ithr, N_nthr, N_s, N_e, S_ithr, S_nthr, S_s, S_e);
+
+                SP_N_ithr = N_ithr * S_nthr + S_ithr;
+                SP_N_nthr = N_nthr * S_nthr;
+
+                p.N_ithr = SP_N_ithr;
+                p.N_nthr = SP_N_nthr;
             }
 
             global_C_blk_s = do_blocking_ ?
@@ -983,6 +1018,9 @@ struct uni_bnorm_driver_t: public c_compatible {
             size_t soff_base
                     = global_C_blk_s * p.spat_size * simd_w + N_s * img_size;
 
+            p.spat_size_loc = S_e - S_s;
+            p.S_s = S_s * vlen;
+            p.S_tail = (p.spat_size - S_e) * vlen;
             p.coff_max = C_blks_thr * simd_w;
             p.mean = (use_tmp_stats_ ? sbuf_ : mean) + coff_base;
             p.var = (use_tmp_stats_ ? sbuf_ + C : var) + coff_base;
@@ -1001,14 +1039,13 @@ struct uni_bnorm_driver_t: public c_compatible {
             p.mb_stride_Bc = img_size - p.coff_max * p.spat_size;
 
             p.rbuf1 = rbuf_
-                    + (global_C_blk_s * N_nthr + p.N_ithr * C_blks_thr)
+                    + (global_C_blk_s * p.N_nthr + p.N_ithr * C_blks_thr)
                             * simd_w;
-            p.rbuf2 = p.rbuf1 + C * N_nthr;
+            p.rbuf2 = p.rbuf1 + C * p.N_nthr;
 
             size_t iter_bariers
                     = do_blocking_ ? it * global_barriers_per_iter : 0;
             p.barrier = barriers_ + C_ithr + iter_bariers;
-
             if (p.soff_max != 0 && p.coff_max != 0)
                 ker_(&p);
         }
@@ -1026,6 +1063,7 @@ private:
     size_t l3_size_;
 
     data_t *buf_, *sbuf_, *rbuf_, *pbuf_;
+
     barrier::ctx_t *barriers_;
 };
 
@@ -1036,7 +1074,15 @@ jit_uni_batch_normalization_fwd_t<isa>::jit_uni_batch_normalization_fwd_t(
         const pd_t *pd, const input_vector &inputs,
         const output_vector &outputs)
     : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
-{ bnorm_driver_ = new uni_bnorm_driver_t<isa>(&conf_); }
+{
+    int is_spatial_thr = 0;
+    const int simd_w = isa == sse42 ? 8 :
+        cpu_isa_traits<isa>::vlen / sizeof(data_t);
+
+    bnorm_utils::set_spatial_thr(&conf_,simd_w,sizeof(data_t),is_spatial_thr);
+
+    bnorm_driver_ = new uni_bnorm_driver_t<isa>(&conf_,is_spatial_thr);
+}
 
 template <cpu_isa_t isa>
 void jit_uni_batch_normalization_fwd_t<isa>::execute(event_t *e) {
@@ -1072,7 +1118,15 @@ jit_uni_batch_normalization_bwd_t<isa>::jit_uni_batch_normalization_bwd_t(
         const pd_t *pd, const input_vector &inputs,
         const output_vector &outputs)
     : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
-{ bnorm_driver_ = new uni_bnorm_driver_t<isa>(&conf_); }
+{
+    int is_spatial_thr = 0;
+    const int simd_w = isa == sse42 ? 8 :
+        cpu_isa_traits<isa>::vlen / sizeof(data_t);
+
+    bnorm_utils::set_spatial_thr(&conf_,simd_w,sizeof(data_t),is_spatial_thr);
+
+    bnorm_driver_ = new uni_bnorm_driver_t<isa>(&conf_,is_spatial_thr);
+}
 
 template <cpu_isa_t isa>
 void jit_uni_batch_normalization_bwd_t<isa>::execute(event_t *e) {

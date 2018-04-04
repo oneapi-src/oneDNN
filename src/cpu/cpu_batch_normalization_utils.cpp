@@ -40,33 +40,80 @@ namespace bnorm_utils {
 
         iters = (C_blks + C_blks_per_iter - 1) / C_blks_per_iter;
     }
-    void thread_balance(bool do_blocking, int ithr, int nthr, int N, int C_blks,
+
+    void thread_balance(bool do_blocking, int ithr, int nthr, int N,
+            int C_blks, int SP,
             int &C_ithr, int &C_nthr, int &C_blk_s, int &C_blk_e, int &N_ithr,
-            int &N_nthr, int &N_s, int &N_e) {
-        if (nthr <= (int)C_blks) {
+            int &N_nthr, int &N_s, int &N_e,
+            int &S_ithr, int &S_nthr, int &S_s, int &S_e) {
+        if (nthr <= C_blks) {
             C_ithr = ithr; C_nthr = nthr;
             N_ithr = 0; N_nthr = 1;
-            N_s = 0; N_e = N;
+            S_ithr = 0; S_nthr = 1;
+            N_s = 0; N_e = N; S_s = 0; S_e = SP;
             balance211(C_blks, C_nthr, C_ithr, C_blk_s, C_blk_e);
         } else {
             if (do_blocking) {
-                N_nthr = nstl::min((int)N, nthr);
-                C_nthr = nstl::min((int)C_blks, nthr / N_nthr);
+                N_nthr = nstl::min(N, nthr);
+                C_nthr = nstl::min(C_blks, nthr / N_nthr);
+                S_nthr = nstl::min(SP, nthr / (C_nthr * N_nthr));
             } else {
-                C_nthr = math::gcd(nthr, (int)C_blks);
-                N_nthr = nstl::min((int)N, nthr / C_nthr);
+                C_nthr = math::gcd(nthr, C_blks);
+                N_nthr = nstl::min(N, nthr / C_nthr);
+                S_nthr = nstl::min(SP, nthr / (C_nthr * N_nthr));
             }
-            if (ithr < C_nthr * N_nthr) {
-                N_ithr = ithr % N_nthr;
-                C_ithr = ithr / N_nthr;
+            if (S_nthr < 1) S_nthr = 1;
+            if (ithr < C_nthr * N_nthr * S_nthr) {
+                N_ithr = (ithr / S_nthr) % N_nthr ;
+                C_ithr = ithr / (N_nthr * S_nthr);
+                S_ithr = ithr % S_nthr;
                 balance211(C_blks, C_nthr, C_ithr, C_blk_s, C_blk_e);
                 balance211(N, N_nthr, N_ithr, N_s, N_e);
+                balance211(SP, S_nthr, S_ithr, S_s, S_e);
             } else {
-                N_ithr = C_ithr = -ithr;
-                N_s = N_e = C_blk_s = C_blk_e = -1;
+                S_ithr = N_ithr = C_ithr = -ithr;
+                S_s = S_e = N_s = N_e = C_blk_s = C_blk_e = -1;
             }
         }
     }
+
+    void set_spatial_thr(const batch_normalization_pd_t *bdesc,
+        const int simd_w, const int data_size, int &is_spatial_thr) {
+
+        int nthr = omp_get_max_threads();
+        int SP = bdesc->W() * bdesc->D() * bdesc->H();
+
+        size_t data = bdesc->MB() * bdesc->C() * SP * data_size;
+        size_t l3_size_ = get_cache_size(3, true) * nthr / 2;
+        bool do_blocking = (data >= l3_size_ / 2 && l3_size_ > 0);
+        int C_blks_per_iter{ 1 }, iters{ 1 };
+        int C_blks = bdesc->C() / simd_w;
+
+        if (do_blocking) {
+            int num_tensors = bdesc->is_fwd() ? 1 : 2;
+            size_t working_set_size
+                = (bdesc->MB() * SP * simd_w * data_size) * num_tensors;
+            cache_balance(working_set_size, C_blks, C_blks_per_iter, iters);
+        }
+
+        if (nthr <= C_blks) {
+            is_spatial_thr = 0;
+        } else {
+            int S_nthr = 1;
+            if (do_blocking) {
+                int N_nthr = nstl::min(bdesc->MB(), nthr);
+                int C_nthr = nstl::min(C_blks, nthr / N_nthr);
+                S_nthr = nstl::min(SP, nthr / (C_nthr * N_nthr));
+            } else {
+                int C_nthr = math::gcd(nthr, C_blks);
+                int N_nthr = nstl::min(bdesc->MB(), nthr / C_nthr);
+                S_nthr = nstl::min(SP, nthr / (C_nthr * N_nthr));
+            }
+            if (S_nthr < 1) S_nthr = 1;
+            is_spatial_thr = (S_nthr > 1) ? 1 : 0;
+        }
+    }
+
 };
 }
 }

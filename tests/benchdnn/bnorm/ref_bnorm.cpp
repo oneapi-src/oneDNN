@@ -48,14 +48,15 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &mean,
         float beta = p->flags & USE_SCALESHIFT ? ((float *)ss)[p->ic + c] : 0;
 
         for (int mb = 0; mb < p->mb; ++mb)
+        for (int d = 0; d < p->id; ++d)
         for (int h = 0; h < p->ih; ++h)
         for (int w = 0; w < p->iw; ++w) {
-            auto off = data_off(p, mb, c, h, w);
+            auto off = data_off(p, mb, c, d, h, w);
             float res = gamma * (((float *)src)[off] - smean) / denom + beta;
-            float &d = ((float *)dst)[off];
+            float &D = ((float *)dst)[off];
             if ((p->flags & FUSE_BN_RELU) && res < 0) res = 0;
-            maybe_post_ops(res, d);
-            d = res;
+            maybe_post_ops(res, D);
+            D = res;
         }
     }
 }
@@ -64,7 +65,7 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
         const dnn_mem_t &mean, const dnn_mem_t &var, const dnn_mem_t &d_dst,
         const dnn_mem_t &ss, const dnn_mem_t &rmask, dnn_mem_t &d_src,
         dnn_mem_t &d_ss) {
-    const float NHW = p->mb * p->ih * p->iw;
+    const float NHW = p->mb * p->id * p->ih * p->iw;
 
 #   pragma omp parallel for
     for (int c = 0; c < p->ic; ++c) {
@@ -78,9 +79,10 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
         float d_beta = 0;
 
         for (int mb = 0; mb < p->mb; ++mb)
+        for (int d = 0; d < p->id; ++d)
         for (int h = 0; h < p->ih; ++h)
         for (int w = 0; w < p->iw; ++w) {
-            auto off = data_off(p, mb, c, h, w);
+            auto off = data_off(p, mb, c, d, h, w);
             float dd = ((float *)d_dst)[off];
             if ((p->flags & FUSE_BN_RELU) && ((float *)rmask)[off] == 0)
                 dd = 0;
@@ -96,9 +98,10 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
         }
 
         for (int mb = 0; mb < p->mb; ++mb)
+        for (int d = 0; d < p->id; ++d)
         for (int h = 0; h < p->ih; ++h)
         for (int w = 0; w < p->iw; ++w) {
-            auto off = data_off(p, mb, c, h, w);
+            auto off = data_off(p, mb, c, d, h, w);
             float dd = ((float *)d_dst)[off];
             if ((p->flags & FUSE_BN_RELU) && ((float *)rmask)[off] == 0)
                 dd = 0;
