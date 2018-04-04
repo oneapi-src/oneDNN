@@ -122,7 +122,7 @@ void check_pool_fwd(const pool_test_params &p, const memory &src,
                         }
 
                         if (p.aalgorithm == pooling_avg_include_padding) {
-                            num_summands = pd.kw * pd.kh;
+                            num_summands = pd.kw * pd.kh * pd.kd;
                         }
 
                         if (p.aalgorithm == pooling_avg_include_padding ||
@@ -246,6 +246,7 @@ using pool_test_params_float = pool_test_params;
 #define EXPAND_SIZES_3D(...) 5, {__VA_ARGS__}
 #define EXPAND_SIZES_2D(mb,ic,ih,iw,oh,ow,kh,kw,padt,padl,strh,strw) \
     4, {mb,ic,1,ih,iw,1,oh,ow,1,kh,kw,0,padt,padl,1,strh,strw}
+
 
 TEST_P(pooling_test_s8, TestsPooling)
 {
@@ -477,6 +478,28 @@ INSTANTIATE_TEST_CASE_P(
 TEST_P(pooling_test_float, TestsPooling)
 {
 }
+
+INSTANTIATE_TEST_CASE_P(
+        TestPooling3D_nCdhw16c, pooling_test_float, ::testing::Values(
+            pool_test_params{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::pooling_max, memory::format::nCdhw16c,
+            memory::format::nCdhw16c, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 2, 3, 4, 1, 1, 1, 2, 2, 2) },
+            pool_test_params{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding, memory::format::nCdhw16c,
+            memory::format::nCdhw16c, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 4, 3, 2, 1, 1, 1, 2, 2, 2) },
+            pool_test_params{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::pooling_avg_include_padding, memory::format::nCdhw16c,
+            memory::format::nCdhw16c, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 2, 4, 3, 1, 1, 1, 2, 2, 2) },
+            pool_test_params{ prop_kind::forward_inference,
+            engine::kind::cpu, algorithm::pooling_max, memory::format::nCdhw16c,
+            memory::format::nCdhw16c, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 4, 2, 3, 1, 1, 1, 2, 2, 2) },
+            pool_test_params{ prop_kind::forward_inference,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding, memory::format::nCdhw16c,
+            memory::format::nCdhw16c, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 3, 2, 4, 1, 1, 1, 2, 2, 2) },
+            pool_test_params{ prop_kind::forward_inference,
+            engine::kind::cpu, algorithm::pooling_avg_include_padding, memory::format::nCdhw16c,
+            memory::format::nCdhw16c, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 3, 4, 2, 1, 1, 1, 2, 2, 2) }
+            ));
 
 INSTANTIATE_TEST_CASE_P(
         TestPooling3Dunet, pooling_test_float, ::testing::Values(

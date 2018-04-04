@@ -18,7 +18,6 @@
 #include "gtest/gtest.h"
 
 #include "mkldnn.hpp"
-
 namespace mkldnn {
 
 struct test_pool_bwd_desc_t {
@@ -403,6 +402,28 @@ using pool_bwd_test_params_float = pool_bwd_test_params;
 TEST_P(pooling_bwd_test_float, TestsPoolingBackward)
 {
 }
+
+INSTANTIATE_TEST_CASE_P(
+        TestPooling3D_nCdhw16c, pooling_bwd_test_float, ::testing::Values(
+            pool_bwd_test_params_float{
+            engine::kind::cpu, pooling_max, memory::format::nCdhw16c,
+            memory::format::nCdhw16c, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 30, 30, 2, 3, 4, 1, 1, 1, 2, 2, 2) },
+            pool_bwd_test_params_float{
+            engine::kind::cpu, pooling_avg_exclude_padding, memory::format::nCdhw16c,
+            memory::format::nCdhw16c, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 30, 30, 31, 4, 3, 2, 1, 1, 1, 2, 2, 2) },
+            pool_bwd_test_params_float{
+            engine::kind::cpu, pooling_avg_include_padding, memory::format::nCdhw16c,
+            memory::format::nCdhw16c, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 30, 31, 30, 4, 2, 3, 1, 1, 1, 2, 2, 2) },
+            pool_bwd_test_params_float{
+            engine::kind::cpu, pooling_max, memory::format::nCdhw16c,
+            memory::format::nCdhw16c, EXPAND_SIZES_3D(2, 32, 30, 30, 30, 30, 30, 30, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
+            pool_bwd_test_params_float{
+            engine::kind::cpu, pooling_avg_exclude_padding, memory::format::nCdhw16c,
+            memory::format::nCdhw16c, EXPAND_SIZES_3D(2, 32, 30, 30, 30, 30, 30, 30, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
+            pool_bwd_test_params_float{
+            engine::kind::cpu, pooling_avg_include_padding, memory::format::nCdhw16c,
+            memory::format::nCdhw16c, EXPAND_SIZES_3D(2, 32, 30, 30, 30, 30, 30, 30, 3, 3, 3, 1, 1, 1, 1, 1, 1) }
+            ));
 
 INSTANTIATE_TEST_CASE_P(
         TestPoolingBackwardMax3DunetNCDHW, pooling_bwd_test_float, ::testing::Values(

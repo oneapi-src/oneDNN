@@ -87,6 +87,10 @@ private:
     reg64_t tmp_gpr = abi_not_param1;
     reg64_t reg_ker_area_h = rdx;
 
+    reg64_t zero_size = r15;
+    reg64_t ki = r12;
+    reg64_t aux_reg_input_d = r8;
+
     Xbyak::Reg32 reg_shuf_mask = esi;
 
     int prev_kw;

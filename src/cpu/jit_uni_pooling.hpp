@@ -46,12 +46,10 @@ struct jit_uni_pooling_fwd_t: public cpu_primitive_t {
             using namespace prop_kind;
             using namespace alg_kind;
             using namespace utils;
-            auto desired_fmt = isa == avx512_common
-                ? memory_format::nChw16c
-                : memory_format::nChw8c;
             assert(engine()->kind() == engine_kind::cpu);
             bool ok = true
-                && desc()->src_desc.ndims == 4
+                && implication(desc()->src_desc.ndims == 5,
+                        isa == avx512_common)
                 && mayiuse(isa)
                 && set_default_params() == status::success
                 && one_of(desc()->prop_kind, forward_training,
@@ -61,7 +59,7 @@ struct jit_uni_pooling_fwd_t: public cpu_primitive_t {
                         pooling_avg_exclude_padding)
                 && everyone_is(data_type::f32, src_pd()->desc()->data_type,
                         dst_pd()->desc()->data_type)
-                && everyone_is(desired_fmt, src_pd()->desc()->format,
+                && everyone_is(desired_fmt(), src_pd()->desc()->format,
                         dst_pd()->desc()->format)
                 && attr()->has_default_values();
             if (!ok) return status::unimplemented;
@@ -76,16 +74,20 @@ struct jit_uni_pooling_fwd_t: public cpu_primitive_t {
             return jit_uni_pool_kernel_f32<isa>::init_conf(jpp_, desc_,
                     src_pd_.desc(), dst_pd_.desc());
         }
+        inline memory_format_t desired_fmt()
+        {
+            using namespace memory_format;
+            return (desc()->src_desc.ndims == 4)
+                ? isa == avx512_common ? nChw16c : nChw8c
+                : nCdhw16c;
+        }
 
         jit_pool_conf_t jpp_;
 
     protected:
         virtual status_t set_default_params() override {
-            auto desired_fmt = isa == avx512_common
-                ? memory_format::nChw16c
-                : memory_format::nChw8c;
             if (dst_pd_.desc()->format == memory_format::any)
-               CHECK(dst_pd_.set_format(desired_fmt));
+               CHECK(dst_pd_.set_format(desired_fmt()));
             return status::success;
         }
     };
@@ -100,12 +102,14 @@ struct jit_uni_pooling_fwd_t: public cpu_primitive_t {
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     virtual void execute(event_t *e) {
-        execute_forward();
+        if (conf_.jpp_.ndims == 5) execute_forward_3d();
+        else execute_forward();
         e->set_state(event_t::ready);
     }
 
 private:
     void execute_forward();
+    void execute_forward_3d();
     pd_t conf_;
     jit_uni_pool_kernel_f32<isa> *kernel_;
 };
@@ -127,27 +131,24 @@ struct jit_uni_pooling_bwd_t: public cpu_primitive_t {
             using namespace alg_kind;
             using namespace utils;
 
-            auto desired_fmt = isa == avx512_common
-                ? memory_format::nChw16c
-                : memory_format::nChw8c;
-
             assert(engine()->kind() == engine_kind::cpu);
             bool ok = true
-                && desc()->diff_src_desc.ndims == 4
                 && mayiuse(isa)
+                && implication(desc()->diff_src_desc.ndims == 5,
+                        isa == avx512_common)
                 && set_default_params() == status::success
                 && one_of(desc()->prop_kind, backward, backward_data)
                 && one_of(desc()->alg_kind, pooling_max,
                         pooling_avg_include_padding,
                         pooling_avg_exclude_padding)
-                && everyone_is(desired_fmt, diff_src_pd()->desc()->format,
+                && everyone_is(desired_fmt(), diff_src_pd()->desc()->format,
                         diff_dst_pd()->desc()->format)
                 && everyone_is(data_type::f32, diff_src_pd()->desc()->data_type,
                         diff_dst_pd()->desc()->data_type)
                 && utils::implication(desc()->alg_kind == pooling_max,
                         hint_fwd_pd_ && hint_fwd_pd_->workspace_pd()
                         && hint_fwd_pd_->workspace_pd()->desc()->format
-                                == desired_fmt)
+                                == desired_fmt())
                 && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
@@ -158,15 +159,20 @@ struct jit_uni_pooling_bwd_t: public cpu_primitive_t {
                     diff_src_pd_.desc(), diff_dst_pd_.desc());
         }
 
+        inline memory_format_t desired_fmt()
+        {
+            using namespace memory_format;
+            return (desc()->diff_src_desc.ndims == 4)
+                ? isa == avx512_common ? nChw16c : nChw8c
+                : nCdhw16c;
+        }
+
         jit_pool_conf_t jpp_;
 
     protected:
         virtual status_t set_default_params() override {
-            auto desired_fmt = isa == avx512_common
-                ? memory_format::nChw16c
-                : memory_format::nChw8c;
             if (diff_src_pd_.desc()->format == memory_format::any)
-               CHECK(diff_src_pd_.set_format(desired_fmt));
+               CHECK(diff_src_pd_.set_format(desired_fmt()));
            return status::success;
         }
     };
@@ -181,12 +187,14 @@ struct jit_uni_pooling_bwd_t: public cpu_primitive_t {
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     virtual void execute(event_t *e) {
-        execute_backward();
+        if (conf_.jpp_.ndims == 5) execute_backward_3d();
+        else execute_backward();
         e->set_state(event_t::ready);
     }
 
 private:
     void execute_backward();
+    void execute_backward_3d();
     pd_t conf_;
     jit_uni_pool_kernel_f32<isa> *kernel_;
 };

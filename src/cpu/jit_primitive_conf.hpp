@@ -336,15 +336,17 @@ struct jit_1x1_conv_call_s {
 
 /* pooling */
 struct jit_pool_conf_t {
+    int ndims;
     int mb, c;
-    int ih, iw, oh, ow;
-    int stride_h, stride_w;
-    int kh, kw;
-    int t_pad, l_pad;
+    int id, ih, iw, od, oh, ow;
+    int stride_d, stride_h, stride_w;
+    int kd, kh, kw;
+    int f_pad, t_pad, l_pad;
     alg_kind_t alg;
     bool is_training;
     bool pad_w_is_null;
     bool is_backward;
+    bool simple_alg;
     data_type_t ind_dt;
 
     int c_block, c_tail, nb_c;
@@ -364,8 +366,10 @@ struct jit_pool_call_s {
     const float *dst_prf;
     const void *indices_prf;
     size_t oh;
+    size_t kd_padding;
     size_t kh_padding;
     size_t kh_padding_shift;
+    size_t kd_padding_shift;
     size_t kw_padding;
     const float* init_value;
     float ker_area_h;
