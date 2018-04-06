@@ -1,6 +1,9 @@
-### Description
-Briefly describe the problem you encountered. Information on how it impacts 
-your projection will help us prioritize the fix.
+Here's the place for your question, suggestion, a feature request or brief
+description of the problem. If you are submitting a defect report please fill
+the sections below. For everything else feel free to remove everything below
+the line.
+
+-----------------------------------------------------------------------------
 
 ### Environment
 Intel MKL-DNN includes hardware-specific optimizations and may behave 
