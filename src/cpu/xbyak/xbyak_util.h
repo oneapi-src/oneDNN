@@ -141,15 +141,17 @@ class Cpu {
 //		const unsigned int INSTRUCTION_CACHE = 2;
 		const unsigned int UNIFIED_CACHE = 3;
 		unsigned int smt_width = 0;
-		unsigned int n_cores = (unsigned int) -1;
+		unsigned int n_cores = 0;
 		unsigned int data[4];
 
 		/*
 			if leaf 11 exists, we use it to get the number of smt cores and cores on socket
 			If x2APIC is supported, these are the only correct numbers.
+
+			leaf 0xB can be zeroed-out by a hypervisor
 		*/
 		getCpuidEx(0x0, 0, data);
-		if (data[0] >= 11) {
+		if (data[0] >= 0xB) {
 			getCpuidEx(0xB, 0, data); // CPUID for SMT Level
 			smt_width = data[1] & 0x7FFF;
 			getCpuidEx(0xB, 1, data); // CPUID for CORE Level
@@ -170,14 +172,17 @@ class Cpu {
 			unsigned int cacheType = extractBit(data[0], 0, 4);
 			if (cacheType == NO_CACHE) break;
 			if (cacheType == DATA_CACHE || cacheType == UNIFIED_CACHE) {
-				unsigned int nb_logical_cores = (std::min)(extractBit(data[0], 14, 25) + 1, n_cores);
+				unsigned int nb_logical_cores = extractBit(data[0], 14, 25) + 1;
+				if (n_cores != 0) // true only if leaf 0xB is supported and valid
+					nb_logical_cores = (std::min)(nb_logical_cores, n_cores);
+				assert(nb_logical_cores != 0);
 				data_cache_size[data_cache_levels] =
 					(extractBit(data[1], 22, 31) + 1)
 					* (extractBit(data[1], 12, 21) + 1)
 					* (extractBit(data[1], 0, 11) + 1)
 					* (data[2] + 1);
 				if (cacheType == DATA_CACHE && smt_width == 0) smt_width = nb_logical_cores;
-				if (smt_width == 0) smt_width = 1; // avoid possibility of zero division
+				assert(smt_width != 0);
 				cores_sharing_data_cache[data_cache_levels] = nb_logical_cores / smt_width;
 				data_cache_levels++;
 			}
