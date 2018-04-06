@@ -150,7 +150,7 @@ namespace Xbyak {
 
 enum {
 	DEFAULT_MAX_CODE_SIZE = 4096,
-	VERSION = 0x5620 /* 0xABCD = A.BC(D) */
+	VERSION = 0x5631 /* 0xABCD = A.BC(D) */
 };
 
 #ifndef MIE_INTEGER_TYPE_DEFINED
@@ -611,7 +611,7 @@ struct EvexModifierRounding {
 	explicit EvexModifierRounding(int rounding) : rounding(rounding) {}
 	int rounding;
 };
-struct EvexModifierZero{ EvexModifierZero(){} };
+struct EvexModifierZero{EvexModifierZero() {}};
 
 struct Xmm : public Mmx {
 	explicit Xmm(int idx = 0, Kind kind = Operand::XMM, int bit = 128) : Mmx(idx, kind, bit) { }

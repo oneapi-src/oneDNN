@@ -177,7 +177,7 @@ class Cpu {
 					* (extractBit(data[1], 0, 11) + 1)
 					* (data[2] + 1);
 				if (cacheType == DATA_CACHE && smt_width == 0) smt_width = nb_logical_cores;
-				assert(smt_width != 0);
+				if (smt_width == 0) smt_width = 1; // avoid possibility of zero division
 				cores_sharing_data_cache[data_cache_levels] = nb_logical_cores / smt_width;
 				data_cache_levels++;
 			}
