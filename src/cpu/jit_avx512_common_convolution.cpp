@@ -1244,7 +1244,6 @@ template <data_type_t src_type, data_type_t diff_dst_type,
           data_type_t diff_weights_type>
 void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
     diff_weights_type>::compute_diff_bias_3d(const thread_info_t *ti) {
-    const memory_desc_wrapper diff_dst_d(conf_.diff_dst_pd());
 
     const auto &jcp = kernel_->jcp;
 
