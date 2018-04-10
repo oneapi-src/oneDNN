@@ -971,8 +971,8 @@ struct uni_bnorm_driver_t: public c_compatible {
             int C_blks_thr = C_blk_e - C_blk_s;
             int N_thr = N_e - N_s;
 
-            int coff_base = global_C_blk_s * simd_w;
-            int soff_base
+            size_t coff_base = global_C_blk_s * simd_w;
+            size_t soff_base
                     = global_C_blk_s * p.spat_size * simd_w + N_s * img_size;
 
             p.coff_max = C_blks_thr * simd_w;
@@ -1014,7 +1014,7 @@ private:
         const size_t W = bdesc_->W();
 
         int num_tensors = bdesc_->is_fwd() ? 1 : 2;
-        int working_set_size
+        size_t working_set_size
                 = (N * H * W * simd_w * sizeof(data_t)) * num_tensors;
 
         C_blks_per_iter = l3_size_ / working_set_size;
