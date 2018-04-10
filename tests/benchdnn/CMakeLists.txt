@@ -42,6 +42,7 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Qprec-div")
     elseif(UNIX OR APPLE)
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -prec-div")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fp-model precise")
     endif()
 endif()
 

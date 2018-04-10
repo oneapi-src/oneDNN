@@ -46,6 +46,12 @@ if(WIN32)
     endif()
 endif()
 
+if(0)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -prec-div")
+endif()
+endif()
+
 add_library(${TARGET_NAME} SHARED ${HEADERS} ${SOURCES})
 #Add mkldnn.dll to execution PATH
 set(CTESTCONFIG_PATH "${CTESTCONFIG_PATH}\;${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE}" PARENT_SCOPE)

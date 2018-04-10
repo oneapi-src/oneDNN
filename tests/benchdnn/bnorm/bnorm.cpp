@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include <stdlib.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <float.h>
 #include <math.h>
@@ -28,6 +29,14 @@
 #include "bnorm/bnorm.hpp"
 
 namespace bnorm {
+
+/* returns 1 with given probability */
+static int flip_coin(ptrdiff_t seed, float probability) {
+    const ptrdiff_t big_prime = 1000003;
+    const ptrdiff_t prime = 753737;
+    seed *= prime;
+    return (seed % big_prime) < (probability * big_prime);
+}
 
 static int prepare_fwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &mean,
         dnn_mem_t &var, dnn_mem_t &ss) {
@@ -82,20 +91,20 @@ static int prepare_fwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &mean,
         float v = 0; /* current variance */
 
         for (int mb = 0; mb < p->mb; ++mb) {
-            int l_base = mb * p->ih * p->iw + c * 239 * 2; // l[0] must be even
+            size_t l_base = mb * p->ih * p->iw + c * 239 * 2; // l[0] must be even
             float *s = (float *)src + data_off(p, mb, c, 0, 0);
 
             for (int h = 0; h < p->ih; ++h)
             for (int w = 0; w < p->iw; ++w) {
                 const int sp = h * p->iw + w;
-                const int l = l_base + sp;
+                const size_t l = l_base + sp;
 
-                if (alg == ALG_0 && (l/2 * 257) % 379 > density * 379) {
+                if (alg == ALG_0 && !flip_coin(l/2 * 257ULL, density)) {
                     s[sp] = 0;
                     continue;
                 }
 
-                const int gen = l / 2 * 1637 & flex_mask;
+                const size_t gen = (l / 2 * 1637) & flex_mask;
                 const int sgn = l % 2 == 0 ? 1 : -1; /* [a1] */
                 const float f = 1.f * sgn * gen / (1 << flex_bits);
 
@@ -141,7 +150,8 @@ static int prepare_bwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &d_dst,
      *      d_src = func(d_beta / L, d_gamma' / L, ...)
      * try to make d_beta = L / 2^t_beta and d_gamma' = L / 2^t_gamma,
      * where both t_beta and t_gamma are in {1, .., max_k}.
-     * Currently, with no obvious reason, max_k set to 4.
+     * Currently, with no obvious reason, max_k is set to 4 for
+     * reasonably small problems and to 8 for big problems.
      *
      * Here d_gamma' = d_gamma / sqrt(var + eps).
      * We might hope that division by L would be exact in that case,
@@ -155,14 +165,26 @@ static int prepare_bwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &d_dst,
     if (log2P >= exact_bits)
         return FAIL; /* [r1] */
 
-    const int max_k = 4;
+    const int max_k = L > (1<<20) ? 8 : 4;
     if (k > max_k && exact_bits - log2P > max_k + 4) {
         log2P += (k - max_k);
         P <<= k - max_k;
         k = max_k;
     }
 
-    print(5, "prep_bwd: k:%d, P:%d log2P:%d\n", k, P, log2P);
+    const int param_dd_p2 = 7;   // factor_dd <- 2^{0, .., -param_db_p2+1}
+    const int param_dd_gen = 32; // gen_dd <- {1, .., param_dd_gen}
+
+    const int param_f_p2 = 1;    // factor_f <- 2^{-param_dg_p2}
+    const int param_f_gen = 16;  // gen_f <- {2..param_s_gen}
+
+    const float ub_dg = param_dd_gen * param_f_gen / 2 * L;
+    const float ub_db = param_dd_gen * L;
+    const float density = MIN3(1.f, (1<<exact_bits) / ub_dg,
+            (1<<exact_bits) / ub_db);
+
+    print(5, "prep_bwd: k:%d, P:%d log2P:%d, density = %g\n",
+            k, P, log2P, density);
 
 #   pragma omp parallel for
     for (int c = 0; c < p->ic; ++c) {
@@ -172,9 +194,11 @@ static int prepare_bwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &d_dst,
         const float ve_denom = 4.f / (1 << 2 * (c % 3));
         ((float *)var)[c] = ve_denom - p->eps;
 
-        const int db_p2 = (c * 127 % 7);
-        const float factor_dd = 1.f / (1 << db_p2);
-        const float factor_f = 0.5f;
+        const int dd_p2 = (c * 127 % param_dd_p2);
+        const float factor_dd = 1.f / (1 << dd_p2);
+
+        const int f_p2 = 1 + (c % param_f_p2);
+        const float factor_f = 1.f / (1 << f_p2);
 
         const float target_db = factor_dd * P;
         const float target_dg = ve_denom * 2 * target_db;
@@ -191,6 +215,12 @@ static int prepare_bwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &d_dst,
             for (int h = 0; h < p->ih; ++h)
             for (int w = 0; w < p->iw; ++w) {
                 const int sp = h * p->iw + w;
+                if (!flip_coin(l_base + sp, density) && l_base + sp + 100 < L) {
+                    dd[sp] = 0;
+                    s[sp] = m;
+                    rmask[sp] = 1;
+                    continue;
+                }
                 if (l_base + sp + 2 >= L) continue; /* last 2 are special */
                 const int l = l_base + sp * 7 + c * 19 + mb * 13;
 
@@ -199,11 +229,13 @@ static int prepare_bwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &d_dst,
                     rmask[sp] = rmask_v = l % 5 != 1;
 
                 const int sgn_dd = db < target_db ? 1 : -1;
-                dd[sp] = sgn_dd * factor_dd * (1 + (l * 3 % 32));
+                dd[sp] = sgn_dd * factor_dd * (1 + (l * 3 % param_dd_gen));
                 if (rmask_v) db += dd[sp];
 
                 const int sgn_f = dg < target_dg ? 1 : -1;
-                const float f = sgn_f * factor_f * (2 + (l * 7 % 15));
+                const float f =
+                    sgn_f * factor_f * (2 + (l * 7 % (param_f_gen - 1)));
+
                 if (rmask_v) dg += f * dd[sp];
                 s[sp] = f + m;
             }
@@ -431,6 +463,14 @@ static int init_pd(const prb_t *p, mkldnn_batch_normalization_desc_t &bd,
         return r->state = SKIPPED, OK;
     } else {
         print(5, "mkldnn implementation: %s\n", impl_str);
+        if (!strstr(impl_str, "jit")) {
+            print(1, "WARNING: %s",
+                    "accuracy of the implementation being tested "
+                    "depends on the compiler and might give false-positives.\n");
+            print(1, "         %s",
+                    "please consider recompiling the sources with"
+                    " `-prec-div -fp-model precise` for a reliable testing.\n");
+        }
     }
 
     return OK;
