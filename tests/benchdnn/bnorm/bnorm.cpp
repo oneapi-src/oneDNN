@@ -352,7 +352,7 @@ int check_fwd_ws(const dnn_mem_t &data_dt, const dnn_mem_t &ws_dt, res_t *r) {
     ws_type = ws_dt.size() <= nelems ? ws_bit : ws_byte;
 
     for (size_t i = 0; i < nelems; i += 8) {
-        for (int j = 0; j < MIN2(8, int(nelems - i)); ++j) {
+        for (size_t j = 0; j < MIN2(8, nelems - i); ++j) {
             const bool want = *d > 0;
             const bool bit_set = ws_type == ws_byte ? *ws : !!(*ws & (1<<j));
 
@@ -364,7 +364,7 @@ int check_fwd_ws(const dnn_mem_t &data_dt, const dnn_mem_t &ws_dt, res_t *r) {
                 || (verbose >= 50 && i < 30);
             if (dump) {
                 print(0, "[%lu] ws exp:%d got:%d (data:%g:%a)\n",
-                        (unsigned long)i + j, want, bit_set, *d, *d);
+                        (unsigned long)(i + j), want, bit_set, *d, *d);
             }
 
             ++d;
