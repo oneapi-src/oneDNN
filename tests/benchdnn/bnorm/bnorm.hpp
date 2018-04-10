@@ -75,8 +75,8 @@ extern const char *skip_impl; /* NULL or "" means do not skip anything */
 extern const char *perf_template; /* performance output template */
 void perf_report(const prb_t *p, const res_t *r, const char *pstr);
 
-inline int data_off(const prb_t *p, int mb, int c, int h, int w) {
-    return ((mb * p->ic + c) * p->ih + h) * p->iw + w;
+inline size_t data_off(const prb_t *p, int mb, int c, int h, int w) {
+    return (((size_t)mb * p->ic + c) * p->ih + h) * p->iw + w;
 }
 
 inline void inv_data_off(const prb_t *p, size_t off, int &mb, int &c, int &h,
