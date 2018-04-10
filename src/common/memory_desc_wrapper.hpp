@@ -54,7 +54,7 @@ struct memory_desc_wrapper: public c_compatible {
      * is true, and the number of data elements otherwise */
     size_t nelems(bool with_padding = false) const {
         if (is_zero()) return 0;
-        return utils::array_product(with_padding
+    return utils::array_product<int, size_t>(with_padding
                 ? blocking_desc().padding_dims : dims(), ndims());
     }
 

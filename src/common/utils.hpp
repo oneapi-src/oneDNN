@@ -137,9 +137,9 @@ inline T array_product(const T *arr) {
     return product_impl::product_impl(arr, product_impl::int2type<num-1>());
 }
 
-template<typename T>
-inline T array_product(const T *arr, size_t size) {
-    T prod = 1;
+template<typename T, typename R = T>
+inline R array_product(const T *arr, size_t size) {
+    R prod = 1;
     for (size_t i = 0; i < size; ++i) prod *= arr[i];
     return prod;
 }
