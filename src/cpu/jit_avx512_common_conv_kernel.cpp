@@ -3124,7 +3124,7 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32
 {
     // FIXME: use register mapping from the class declaration
     bool ok = one_of(jcp.ver, ver_4fma, ver_4vnni, ver_vnni)
-        && !one_of(1, jcp.kh, jcp.kw)
+        && (jcp.ver == ver_4fma || !one_of(1, jcp.kh, jcp.kw))
         && everyone_is(1, jcp.stride_h, jcp.stride_w);
     if (!ok) return false;
     if (jcp.l_pad != jcp.kw / 2 || jcp.t_pad != jcp.kh / 2)
@@ -3350,7 +3350,7 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32
                     } else {
                         assert(!"unknown convolution version");
                     }
-                        emit_inp_pf(2 * oi4, ic1);
+                        emit_inp_pf(ow_per_oc * oi4, ic1);
                 }
             }
         };
