@@ -330,6 +330,9 @@ protected:
             fill_data<data_t>(
                     src->get_primitive_desc().get_size() / sizeof(data_t),
                     (data_t *)src->get_data_handle());
+            fill_data<data_t>(
+                    dst->get_primitive_desc().get_size() / sizeof(data_t),
+                    (data_t *)dst->get_data_handle());
 
             auto pool = with_workspace
                 ? pooling_forward(*pool_prim_desc, *src, *dst, *workspace)
@@ -374,6 +377,9 @@ protected:
             fill_data<data_t>(
                     diff_dst->get_primitive_desc().get_size()/ sizeof(data_t),
                     (data_t *)diff_dst->get_data_handle());
+            fill_data<data_t>(
+                    diff_src->get_primitive_desc().get_size()/ sizeof(data_t),
+                    (data_t *)diff_src->get_data_handle());
 
             auto pool_bwd = with_workspace
                 ? pooling_backward(pool_bwd_prim_desc, *diff_dst, *workspace,

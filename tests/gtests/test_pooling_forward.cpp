@@ -173,6 +173,8 @@ protected:
 
         fill_data<data_t>(p_src.get_primitive_desc().get_size()/ sizeof(data_t),
                 (data_t *)p_src.get_data_handle());
+        fill_data<data_t>(p_dst.get_primitive_desc().get_size()/ sizeof(data_t),
+                (data_t *)p_dst.get_data_handle());
 
         std::vector<int> padR_2d = { pd.padt, pd.padl };
         std::vector<int> padR_3d = { pd.padf, pd.padt, pd.padl };
