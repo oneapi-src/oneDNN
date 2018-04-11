@@ -58,33 +58,13 @@ struct rnn_pd_t : public primitive_desc_t {
     }
 
     inline int ws_states_size() {
-        int n_layer = L();
-        int n_direction = D();
-        int n_iter = T();
-        int n_states = S();
-        int batch = MB();
-        int s_size = DIC();
-        /// @todo handle the case where !(state_size == hidden_size ==
-        /// input_size)
-        assert(SLC() == DIC());
-
-        return (n_layer + 1) * n_direction * (n_iter + 1) * n_states * batch
-                * s_size;
+        int wic = nstl::max(SLC(), nstl::max(SIC(), DIC()));
+        return (L() + 1) * D() * (T() + 1) * S() * MB() * wic;
     }
 
     inline int ws_diff_states_size() {
-        int n_layer = L();
-        int n_direction = D();
-        int n_iter = T();
-        int n_states = S();
-        int batch = MB();
-        int s_size = DIC();
-        /// @todo handle the case where !(state_size == hidden_size ==
-        /// input_size)
-        assert(SLC() == DIC());
-
-        return (n_layer + 1) * n_direction * (n_iter + 1) * (n_states + 1)
-                * batch * s_size;
+        int wic = nstl::max(SLC(), nstl::max(SIC(), DIC()));
+        return (L() + 1) * D() * (T() + 1) * (S() + 1) * MB() * wic;
     }
 
     inline int ws_gates_size() {
@@ -94,9 +74,6 @@ struct rnn_pd_t : public primitive_desc_t {
         int n_gates = G();
         int batch = MB();
         int s_size = DIC();
-        /// @todo handle the case where !(state_size == hidden_size ==
-        /// input_size)
-        assert(SLC() == DIC());
 
         return n_layer * n_direction * n_iter * batch * n_gates * s_size;
     }
