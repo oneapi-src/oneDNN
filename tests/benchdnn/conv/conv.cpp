@@ -269,7 +269,10 @@ int fill_src(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
 
 int fill_wei(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
     res_t *r) {
-    const bool extra_mem = mem_dt.dt() != mem_fp.dt();
+    const bool wino_s8 = p->alg == WINO && p->cfg[WEI].dt == mkldnn_s8;
+    const bool diff_data_type = mem_dt.dt() != mem_fp.dt();
+    const bool extra_mem = diff_data_type && !wino_s8;
+
     dnn_mem_t *p_mem_00 = extra_mem
         ? new dnn_mem_t(mem_dt.md_, mkldnn_f32,
             is_conv_3d(p) ? mkldnn_goidhw : mkldnn_goihw)

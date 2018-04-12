@@ -43,6 +43,18 @@
 --dir=BWD_D --batch=conv_all
 --dir=BWD_WB --batch=conv_all
 
+# i8 wino
+--reset --alg=wino
+--match=.*kh3[^0-9].*       # only 3x3 convolutions so far
+--allow-unimpl=true         # allow unimplemented for groups > 1
+--mb=2                      # for fwd and bwd_d reduce mb
+--dir=FWD_B
+--cfg=u8s8u8s32_wino  --batch=conv_all
+--cfg=u8s8s8s32_wino  --batch=conv_resnet_50
+--cfg=u8s8s32s32_wino --batch=conv_googlenet_v3
+--merge=RELU
+--cfg=u8s8s32s32_wino --batch=conv_vgg_19
+
 # dilated
 --batch=test_conv_dilated
 
