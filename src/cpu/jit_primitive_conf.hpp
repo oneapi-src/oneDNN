@@ -99,6 +99,54 @@ struct jit_conv_conf_t {
     int nb_ch, ch_block, nb_ch_blocking;
 };
 
+struct jit_conv_conf_u8s8s32x_wino_t {
+    conv_version_t ver;
+
+    int m;
+    int r;
+    int alpha;
+    int tile_h, tile_w;
+
+    int mb;
+    int ngroups, ic, oc;
+    int ih, iw, oh, ow;
+    int l_pad, t_pad;
+    int r_pad, b_pad;
+    int kh, kw;
+    int stride_h, stride_w;
+    int dilate_h, dilate_w;
+
+    int nb_ic, ic_block;
+    int nb_oc, oc_block;
+
+    int w_block_size, h_block_size;
+
+    data_type_t bia_dt;
+    data_type_t dst_dt;
+
+    int is_oc_scale;
+    int typesize_in;
+    int typesize_out;
+    int typesize_bia;
+    int typesize_acc;
+
+    memory_format_t src_fmt;
+    bool with_bias, with_relu;
+    float relu_negative_slope;
+    bool with_sum;
+
+    int xb, yb;
+    int inp_stride;
+    int out_stride;
+    int wei_stride;
+    int bia_stride;
+
+    int M, N, K;
+    int m_block, n_block, k_block;
+    int n2_block, n_chunks;
+    int k2_block, k_chunks;
+};
+
 /*
    Winograd sched policy:
 

@@ -56,6 +56,7 @@
 #include "cpu/gemm_inner_product.hpp"
 #include "cpu/jit_uni_inner_product.hpp"
 #include "cpu/jit_uni_dw_convolution.hpp"
+#include "cpu/jit_avx512_core_u8s8s32x_wino_convolution.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -73,6 +74,9 @@ status_t cpu_engine_t::view_primitive_desc_create(view_pd_t **view_pd,
             const memory_pd_t *memory_pd, const dims_t dims,
             const dims_t offsets) {
     assert(memory_pd->engine() == this);
+    const memory_desc_wrapper mem_d(memory_pd);
+    if (mem_d.is_wino_desc())
+        return unimplemented;
     auto mpd = (const cpu_memory_t::pd_t *)memory_pd;
     /* FIXME: what if failed? */
     return safe_ptr_assign<view_pd_t>(*view_pd,
@@ -131,6 +135,10 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(ref_convolution_bwd_data_t<f32, f32, f32, f32>),
     INSTANCE(ref_convolution_bwd_weights_t<f32, f32, f32, f32>),
     /* conv (int) */
+    INSTANCE(jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<f32>),
+    INSTANCE(jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<s32>),
+    INSTANCE(jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<s8>),
+    INSTANCE(jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<u8>),
     INSTANCE(jit_avx512_common_convolution_fwd_t<s16, s16, s32>),
     INSTANCE(jit_avx512_core_u8s8s32x_1x1_convolution_fwd_t<f32>),
     INSTANCE(jit_avx512_core_u8s8s32x_1x1_convolution_fwd_t<s32>),
@@ -242,6 +250,10 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(jit_avx2_gemm_convolution_relu_t),
     INSTANCE(ref_convolution_relu_t<f32>),
     /* conv_eltwise (int) */
+    INSTANCE(jit_avx512_core_u8s8s32x_wino_convolution_relu_t<f32>),
+    INSTANCE(jit_avx512_core_u8s8s32x_wino_convolution_relu_t<s32>),
+    INSTANCE(jit_avx512_core_u8s8s32x_wino_convolution_relu_t<s8>),
+    INSTANCE(jit_avx512_core_u8s8s32x_wino_convolution_relu_t<u8>),
     INSTANCE(jit_avx512_common_1x1_convolution_relu_s16s16s32_t),
     INSTANCE(jit_avx512_common_convolution_relu_t<s16, s16, s32>),
     INSTANCE(jit_avx512_core_u8s8s32x_1x1_convolution_relu_t<f32>),
