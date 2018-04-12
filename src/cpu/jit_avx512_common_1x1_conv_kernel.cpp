@@ -983,6 +983,10 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
             jcp.reduce_block = best_divider(jcp.reduce_dim, 7, 16, true);
             if (jcp.reduce_dim % jcp.reduce_block != 0)
                 jcp.reduce_block = best_divider(jcp.iw, 4, jcp.iw, false);
+            if (jcp.reduce_block > 256) {
+                jcp.reduce_block = 1;
+            }
+
         }
 
         jcp.load_dim = jcp.oc;
@@ -1039,13 +1043,16 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
         assert(jcp.bcast_dim % bcast_blocking == 0);
 
         // for reduction balance
-
         if (jcp.ver == ver_avx512_core) {
-            reduce_blocking = best_divider(jcp.reduce_dim, 1,
-                    nstl::min(L1_capacity / jcp.ur, jcp.reduce_dim), true);
-            reduce_blocking =
-                    nstl::max(rnd_dn(reduce_blocking, jcp.reduce_block),
-                                jcp.reduce_block);
+            int max_reduce_blocking
+                    = nstl::min(L1_capacity / jcp.ur, jcp.reduce_dim);
+            int min_reduce_blocking = nstl::min(
+                    L1_capacity / jcp.ur, nstl::max(jcp.iw, jcp.ih));
+            reduce_blocking = best_divider(jcp.reduce_dim, min_reduce_blocking,
+                    max_reduce_blocking, true);
+            reduce_blocking
+                    = nstl::max(rnd_dn(reduce_blocking, jcp.reduce_block),
+                            jcp.reduce_block);
         } else {
             int max_reduce_blocking = L2_capacity
                     / ((bcast_blocking + load_blocking) * jcp.reduce_block);
