@@ -122,6 +122,7 @@ const char *mkldnn_fmt2str(mkldnn_memory_format_t v) {
     if (v == mkldnn_ldgoi) return "ldgoi";
     if (v == mkldnn_ldgoi_p) return "ldgoi_p";
     if (v == mkldnn_ldgo) return "ldgo";
+    if (v == mkldnn_wino_fmt) return "wino_fmt";
     assert(!"unknown fmt");
     return "unknown fmt";
 }

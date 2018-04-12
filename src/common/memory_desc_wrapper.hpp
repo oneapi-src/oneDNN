@@ -44,8 +44,21 @@ struct memory_desc_wrapper: public c_compatible {
     const dims_t &dims() const { return _md->dims; }
     data_type_t data_type() const { return _md->data_type; }
     memory_format_t format() const { return _md->format; }
+    bool is_blocking_desc() const {
+        return (format() != memory_format::wino_fmt
+                && format() != memory_format::any
+                && format() != memory_format::undef);
+    }
+    bool is_wino_desc() const {
+        return (format() == memory_format::wino_fmt);
+    }
     const blocking_desc_t &blocking_desc() const {
+        assert(is_blocking_desc());
         return _md->layout_desc.blocking;
+    }
+    const wino_data_t &wino_desc() const {
+        assert(is_wino_desc());
+        return _md->layout_desc.wino_desc;
     }
 
     /* some useful function */
@@ -81,23 +94,26 @@ struct memory_desc_wrapper: public c_compatible {
                     gIOhw16o16i, gOIhw4i16o4i, Goihw8g, Goihw16g, ncdhw, oidhw,
                     goidhw, nCdhw16c, OIdhw16i16o, gOIdhw16i16o, OIdhw16o16i,
                     gOIdhw16o16i, ndhwc, gOidhw16o, Oidhw16o, gOdhwi16o,
-                    Odhwi16o, ntc, tnc, ldsnc, ldigo, ldgoi, ldgo));
+                    Odhwi16o, ntc, tnc, ldsnc, ldigo, ldgoi, ldgo, wino_fmt));
+        if (format() == wino_fmt) {
+            return wino_desc().size;
+        } else {
+            if (blocking_desc().offset_padding != 0) return 0;
 
-        if (blocking_desc().offset_padding != 0) return 0;
+            const auto &block_dims = blocking_desc().block_dims;
+            const auto &strides = blocking_desc().strides;
+            const auto &padding_dims = blocking_desc().padding_dims;
 
-        const auto &block_dims = blocking_desc().block_dims;
-        const auto &strides = blocking_desc().strides;
-        const auto &padding_dims = blocking_desc().padding_dims;
-
-        size_t max_size = 0;
-        for (int d = 0; d < ndims(); ++d) {
-            auto block = block_dims[d];
-            max_size = nstl::max(max_size,
-                    size_t(padding_dims[d]/block)*strides[0][d]);
-            if (block > 1)
-                max_size = nstl::max(max_size, size_t(block*strides[1][d]));
+            size_t max_size = 0;
+            for (int d = 0; d < ndims(); ++d) {
+                auto block = block_dims[d];
+                max_size = nstl::max(max_size,
+                    size_t(padding_dims[d] / block)*strides[0][d]);
+                if (block > 1)
+                    max_size = nstl::max(max_size, size_t(block*strides[1][d]));
+            }
+            return max_size * data_type_size();
         }
-        return max_size * data_type_size();
     }
 
     /** returns true if data is dense in memory */
@@ -139,6 +155,7 @@ struct memory_desc_wrapper: public c_compatible {
     inline size_t off_v(const dims_t pos, bool is_pos_padded = false) const {
         using namespace mkldnn::impl::memory_format;
         assert(format() != memory_format::any);
+        assert(is_blocking_desc());
         const blocking_desc_t &blk = blocking_desc();
         const dims_t &optd = blk.offset_padding_to_data;
 
@@ -181,6 +198,7 @@ struct memory_desc_wrapper: public c_compatible {
      * a scalar \param l_offset. if \param is_pos_padded is true, \param
      * l_offset represents logical offset in already padded area */
     inline size_t off_l(size_t l_offset, bool is_pos_padded = false) const {
+        assert(is_blocking_desc());
         const dims_t &padding_dims = blocking_desc().padding_dims;
         dims_t pos;
         for (int rd = 0; rd < ndims(); ++rd) {
@@ -241,10 +259,14 @@ private:
     }
 
     template<int ORIG_LEN, typename ...Void>
-    inline size_t _blk_off() const { return blocking_desc().offset_padding; }
+    inline size_t _blk_off() const {
+        assert(is_blocking_desc());
+        return blocking_desc().offset_padding;
+    }
 
     template<int ORIG_LEN, typename T, typename ...Args>
     inline size_t _blk_off(T xc, Args ...args) const {
+        assert(is_blocking_desc());
         constexpr int dc = ORIG_LEN - sizeof...(args) - 1;
         return size_t(xc) * blocking_desc().strides[0][dc]
             + _blk_off<ORIG_LEN, Args...>(args...);
@@ -262,11 +284,13 @@ inline bool memory_desc_wrapper::operator==(const memory_desc_wrapper &rhs)
 {
     using namespace impl::types;
     return ndims() == rhs.ndims()
-        && utils::array_cmp(dims(), rhs.dims(), ndims())
-        && data_type() == rhs.data_type()
-        && utils::implication(!utils::one_of(format(), memory_format::any,
-                    memory_format::undef), blocking_desc_is_equal(
-                        blocking_desc(), rhs.blocking_desc(), ndims()));
+            && utils::array_cmp(dims(), rhs.dims(), ndims())
+            && data_type() == rhs.data_type()
+            && utils::implication(is_blocking_desc(),
+                blocking_desc_is_equal(
+                               blocking_desc(), rhs.blocking_desc(), ndims()))
+            && (is_wino_desc()
+                ? wino_desc_is_equal(wino_desc(), rhs.wino_desc()) : true);
 }
 
 inline bool memory_desc_wrapper::similar_to(const memory_desc_wrapper &rhs,
@@ -274,6 +298,8 @@ inline bool memory_desc_wrapper::similar_to(const memory_desc_wrapper &rhs,
     using namespace impl::types;
     using namespace utils;
     if (utils::one_of(format(), memory_format::undef, memory_format::any))
+        return false;
+    if (is_wino_desc() || rhs.is_wino_desc())
         return false;
 
     const int ds = dim_start;

@@ -307,6 +307,8 @@ typedef enum {
     /** 4D bias tensor in the format (num_layers, num_directions, num_gates,
      * output_channels). */
     mkldnn_ldgo,
+    /** General tensor format for integer 8bit winograd convolution. */
+    mkldnn_wino_fmt,
     /** Just a sentinel, not real memory format. Must be changed after new
      * format is added. */
     mkldnn_format_last,
@@ -521,6 +523,26 @@ typedef struct {
     ptrdiff_t offset_padding;
 } mkldnn_blocking_desc_t;
 
+typedef enum {
+    /** Undefined memory format, used for empty memory descriptors. */
+    mkldnn_wino_undef = 0,
+    /** Tensor of weights for integer 8bit winograd convolution. */
+    mkldnn_wino_wei_aaOIoi
+} mkldnn_wino_memory_format_t;
+
+/** Description of tensor of weights for integer 8bit winograd convolution. */
+typedef struct {
+    mkldnn_wino_memory_format_t wino_format;
+    int m;
+    int r;
+    int alpha;
+    int nb_ic;
+    int nb_oc;
+    int ic_block;
+    int oc_block;
+    size_t size;
+} mkldnn_wino_desc_t;
+
 /** @addtogroup c_api_types_op_descs Operation descriptors
  *  @{*/
 
@@ -550,6 +572,8 @@ typedef struct {
         /** Description of the data layout for memory formats that use
          * blocking. */
         mkldnn_blocking_desc_t blocking;
+        /** Tensor of weights for integer 8bit winograd convolution. */
+        mkldnn_wino_desc_t wino_desc;
         /* ... other descriptions possible */
     } layout_desc;
 } mkldnn_memory_desc_t;

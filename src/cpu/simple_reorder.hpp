@@ -66,7 +66,7 @@ struct reference {};
         const memory_desc_wrapper &input_d = pd->input_pd(); \
         const memory_desc_wrapper &output_d = pd->output_pd(); \
         const float alpha = pd->alpha(); MAYBE_UNUSED(alpha); \
-        const float beta = pd->beta();
+        const float beta = pd->beta(); MAYBE_UNUSED(beta);
 
 /* specific reorders: common template */
 template <SIMPLE_REORDER_TEMPL_DECL, typename spec = void>
@@ -1918,9 +1918,9 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 {
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
-        return true &&
-            utils::implication(attr,
-                    math::is_pow2(attr->output_scales_.mask_ + 1));
+        return true && input_d.is_blocking_desc() && output_d.is_blocking_desc()
+                && utils::implication(
+                           attr, math::is_pow2(attr->output_scales_.mask_ + 1));
     }
 
     static status_t execute(const cpu_reorder_pd_t *pd,
@@ -1959,6 +1959,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         return success;
     }
 };
+
 
 /* high level class declaration */
 

@@ -97,6 +97,18 @@ inline bool blocking_desc_is_equal(const blocking_desc_t &lhs,
                 ndims);
 }
 
+inline bool wino_desc_is_equal(const wino_data_t &lhs,
+    const wino_data_t &rhs) {
+    return lhs.wino_format == rhs.wino_format
+        && lhs.alpha == rhs.alpha
+        && lhs.ic_block == rhs.ic_block
+        && lhs.oc_block == rhs.oc_block
+        && lhs.nb_ic == rhs.nb_ic
+        && lhs.nb_oc == rhs.nb_oc
+        && lhs.m == rhs.m
+        && lhs.r == rhs.r;
+}
+
 inline bool operator==(const memory_desc_t &lhs, const memory_desc_t &rhs) {
     assert(lhs.primitive_kind == mkldnn::impl::primitive_kind::memory);
     assert(rhs.primitive_kind == mkldnn::impl::primitive_kind::memory);
@@ -109,6 +121,9 @@ inline bool operator==(const memory_desc_t &lhs, const memory_desc_t &rhs) {
     if (lhs.format == memory_format::blocked)
         return blocking_desc_is_equal(lhs.layout_desc.blocking,
                 rhs.layout_desc.blocking, lhs.ndims);
+    else if (lhs.format == memory_format::wino_fmt)
+        return wino_desc_is_equal(lhs.layout_desc.wino_desc,
+            rhs.layout_desc.wino_desc);
     return true;
 }
 
@@ -157,7 +172,6 @@ inline data_type_t default_accum_data_type(data_type_t src_dt,
     if (one_of(prop_kind, forward_training, forward_inference)) {
         if (src_dt == s16 && wei_dt == s16 && dst_dt == s32)
             return s32;
-
         if (src_dt == u8 && wei_dt == s8 && one_of(dst_dt, f32, s32, s8, u8))
             return s32;
     } else if (prop_kind == backward_data) {

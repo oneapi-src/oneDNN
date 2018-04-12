@@ -708,6 +708,7 @@ status_t memory_desc_wrapper::compute_blocking(memory_desc_t &memory_desc)
     case ldigo: return fill_ldigo(memory_desc);
     case ldgoi: return fill_ldgoi(memory_desc);
     case ldgo: return fill_ldgo(memory_desc);
+    case wino_fmt: return success;
     default: break;
     }
 

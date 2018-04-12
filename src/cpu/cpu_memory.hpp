@@ -83,8 +83,10 @@ struct cpu_view_t: public cpu_primitive_t {
             : view_pd_t(engine), src_pd_(*memory_pd), dst_pd_(engine_)
         {
             const memory_desc_t &src_d = *src_pd_.desc();
+            assert(src_d.format != mkldnn_wino_fmt);
             const auto &src_d_blk = src_d.layout_desc.blocking;
             memory_desc_t dst_d = *src_pd_.desc();
+            assert(dst_d.format != mkldnn_wino_fmt);
             auto &dst_d_blk = dst_d.layout_desc.blocking;
 
             int ndims = dst_d.ndims;

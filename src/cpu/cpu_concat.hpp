@@ -90,6 +90,12 @@ protected:
             && attr()->has_default_values();
         if (!ok) return unimplemented;
 
+        for (int i = 0; i < n_; ++i) {
+            const memory_desc_wrapper i_d(&src_pds_[i]);
+            if (i_d.is_wino_desc())
+                return unimplemented;
+        }
+
         const int ndims = dst_pd_.desc()->ndims;
         int current_concat_dim_offset = 0;
         for (int i = 0; i < n_; ++i) {

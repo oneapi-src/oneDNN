@@ -171,6 +171,7 @@ namespace memory_format {
     const memory_format_t ldgoi = mkldnn_ldgoi;
     const memory_format_t ldgoi_p = mkldnn_ldgoi_p;
     const memory_format_t ldgo = mkldnn_ldgo;
+    const memory_format_t wino_fmt = mkldnn_wino_fmt;
 }
 
 using padding_kind_t = mkldnn_padding_kind_t;
@@ -247,6 +248,7 @@ namespace query {
 }
 
 using blocking_desc_t = mkldnn_blocking_desc_t;
+using wino_data_t = mkldnn_wino_desc_t;
 using memory_desc_t = mkldnn_memory_desc_t;
 using convolution_desc_t = mkldnn_convolution_desc_t;
 using deconvolution_desc_t = mkldnn_deconvolution_desc_t;

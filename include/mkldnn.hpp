@@ -644,6 +644,7 @@ struct memory: public primitive  {
         ldgoi = mkldnn_ldgoi,
         ldgoi_p = mkldnn_ldgoi_p,
         ldgo = mkldnn_ldgo,
+        wino_fmt = mkldnn_wino_fmt,
         format_last = mkldnn_format_last,
     };
 
