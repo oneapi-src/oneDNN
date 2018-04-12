@@ -157,6 +157,7 @@ struct wino_reorder_t : public cpu_primitive_t {
             groups_offset = 0;
         }
         assert(groups == 1); // groups are not supported now
+        MAYBE_UNUSED(groups);
 
         const auto oc = in_dims[0 + groups_offset];
         const auto ic = in_dims[1 + groups_offset];
