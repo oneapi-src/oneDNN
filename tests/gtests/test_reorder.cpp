@@ -57,6 +57,13 @@ class reorder_simple_test:
 {
 protected:
     virtual void SetUp() {
+        test_simple_params<reorder_types> p
+            = ::testing::TestWithParam<decltype(p)>::GetParam();
+        catch_expected_failures([=](){Test();}, p.expect_to_fail,
+                    p.expected_status);
+    }
+
+    void Test() {
         using data_i_t = typename reorder_types::first_type;
         using data_o_t = typename reorder_types::second_type;
 
@@ -89,13 +96,8 @@ protected:
         auto src = memory(mpd_i, src_data);
         auto dst = memory(mpd_o, dst_data);
 
-        auto test = [&]() {
-            auto r = reorder(src, dst);
-            stream(stream::kind::lazy).submit({r}).wait();
-        };
-
-        if (catch_expected_failures(test, p.expect_to_fail, p.expected_status))
-            return;
+        auto r = reorder(src, dst);
+        stream(stream::kind::lazy).submit({r}).wait();
 
         check_reorder(mpd_i.desc(), mpd_o.desc(), src_data, dst_data);
 

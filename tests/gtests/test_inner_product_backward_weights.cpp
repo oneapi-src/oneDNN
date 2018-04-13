@@ -117,10 +117,14 @@ struct inprod_test_params {
 template <typename data_t>
 class inner_product_test_bwd_weights : public ::testing::TestWithParam<inprod_test_params> {
 protected:
-    virtual void SetUp()
-    {
-        inprod_test_params p
-                = ::testing::TestWithParam<inprod_test_params>::GetParam();
+    virtual void SetUp() {
+        auto p = ::testing::TestWithParam<inprod_test_params>::GetParam();
+        catch_expected_failures([=](){Test();}, p.expect_to_fail,
+                    p.expected_status);
+    }
+
+    void Test() {
+        auto p = ::testing::TestWithParam<inprod_test_params>::GetParam();
         test_inner_product_descr_t ipd = p.test_ipd;
 
         bool has_spatial = ipd.kh > 1 || ipd.kw > 1;
@@ -136,76 +140,70 @@ protected:
         std::shared_ptr<memory> ip_src, ip_diff_dst, ip_diff_weights, ip_diff_bias;
         std::shared_ptr<memory> diff_weights_ref, diff_bias_ref;
 
-        auto test = [&]() {
-
-            auto ip_src_desc = has_spatial ? p.ndims == 5
-                ? create_md({ ipd.mb, ipd.ic, ipd.kd, ipd.kh, ipd.kw },
+        auto ip_src_desc = has_spatial ? p.ndims == 5
+            ? create_md({ ipd.mb, ipd.ic, ipd.kd, ipd.kh, ipd.kw },
                     data_type, p.src_format)
-                : create_md({ ipd.mb, ipd.ic, ipd.kh, ipd.kw }, data_type,
-                        p.src_format) :
-                    create_md({ ipd.mb, ipd.ic }, data_type, p.src_format);
-            auto ip_diff_weights_desc = has_spatial ? p.ndims == 5
-                ? create_md({ ipd.oc, ipd.ic, ipd.kd, ipd.kh, ipd.kw },
+            : create_md({ ipd.mb, ipd.ic, ipd.kh, ipd.kw }, data_type,
+                    p.src_format) :
+                create_md({ ipd.mb, ipd.ic }, data_type, p.src_format);
+        auto ip_diff_weights_desc = has_spatial ? p.ndims == 5
+            ? create_md({ ipd.oc, ipd.ic, ipd.kd, ipd.kh, ipd.kw },
                     data_type, p.diff_weights_format)
-                : create_md({ ipd.oc, ipd.ic, ipd.kh, ipd.kw }, data_type,
-                        p.diff_weights_format) :
-                    create_md({ ipd.oc, ipd.ic }, data_type,
+            : create_md({ ipd.oc, ipd.ic, ipd.kh, ipd.kw }, data_type,
+                    p.diff_weights_format) :
+                create_md({ ipd.oc, ipd.ic }, data_type,
                         p.diff_weights_format);
-            auto ip_diff_dst_desc =
-                create_md({ ipd.mb, ipd.oc }, data_type, p.diff_dst_format);
-            auto ip_diff_bias_desc = with_bias ?
-                create_md({ ipd.oc }, data_type, p.diff_bias_format) :
-                create_md({}, data_type, p.diff_bias_format);
+        auto ip_diff_dst_desc =
+            create_md({ ipd.mb, ipd.oc }, data_type, p.diff_dst_format);
+        auto ip_diff_bias_desc = with_bias ?
+            create_md({ ipd.oc }, data_type, p.diff_bias_format) :
+            create_md({}, data_type, p.diff_bias_format);
 
-            // Create inner product forward (hint for backward)
-            auto ip_fwd_desc = inner_product_forward::desc(prop_kind::forward,
-                    ip_src_desc, ip_diff_weights_desc, ip_diff_dst_desc);
-            auto ip_fwd_pdesc = inner_product_forward::primitive_desc
-                (ip_fwd_desc, eng);
+        // Create inner product forward (hint for backward)
+        auto ip_fwd_desc = inner_product_forward::desc(prop_kind::forward,
+                ip_src_desc, ip_diff_weights_desc, ip_diff_dst_desc);
+        auto ip_fwd_pdesc = inner_product_forward::primitive_desc
+            (ip_fwd_desc, eng);
 
-            // Create inner product backward
-            auto ip_desc = with_bias
-                ? inner_product_backward_weights::desc(ip_src_desc,
-                        ip_diff_weights_desc, ip_diff_bias_desc,
-                        ip_diff_dst_desc)
-                : inner_product_backward_weights::desc(ip_src_desc,
-                        ip_diff_weights_desc, ip_diff_dst_desc);
+        // Create inner product backward
+        auto ip_desc = with_bias
+            ? inner_product_backward_weights::desc(ip_src_desc,
+                    ip_diff_weights_desc, ip_diff_bias_desc,
+                    ip_diff_dst_desc)
+            : inner_product_backward_weights::desc(ip_src_desc,
+                    ip_diff_weights_desc, ip_diff_dst_desc);
 
-            auto ip_primitive_desc = inner_product_backward_weights::primitive_desc(
-                    ip_desc, eng, ip_fwd_pdesc);
+        auto ip_primitive_desc = inner_product_backward_weights::primitive_desc(
+                ip_desc, eng, ip_fwd_pdesc);
 
-            ip_src.reset(new memory(ip_primitive_desc.src_primitive_desc()));
-            ip_diff_dst.reset(
+        ip_src.reset(new memory(ip_primitive_desc.src_primitive_desc()));
+        ip_diff_dst.reset(
                 new  memory(ip_primitive_desc.diff_dst_primitive_desc()));
-            ip_diff_weights.reset(
+        ip_diff_weights.reset(
                 new memory(ip_primitive_desc.diff_weights_primitive_desc()));
-            diff_weights_ref.reset(
+        diff_weights_ref.reset(
                 new memory(ip_primitive_desc.diff_weights_primitive_desc()));
-            ip_diff_bias.reset(with_bias
+        ip_diff_bias.reset(with_bias
                 ? new memory(ip_primitive_desc.diff_bias_primitive_desc())
                 : new memory(memory::primitive_desc(ip_diff_bias_desc, eng)));
-            diff_bias_ref.reset(with_bias
+        diff_bias_ref.reset(with_bias
                 ? new memory(ip_primitive_desc.diff_bias_primitive_desc())
                 : new memory(memory::primitive_desc(ip_diff_bias_desc, eng)));
 
-            fill_data<data_t>(
+        fill_data<data_t>(
                 ip_src->get_primitive_desc().get_size() / sizeof(data_t),
                 (data_t *)ip_src->get_data_handle());
-            fill_data<data_t>(
+        fill_data<data_t>(
                 ip_diff_dst->get_primitive_desc().get_size() / sizeof(data_t),
                 (data_t *)ip_diff_dst->get_data_handle());
 
-            auto ip = inner_product_backward_weights(ip_primitive_desc,
-                    *ip_src, *ip_diff_dst, *ip_diff_weights, *ip_diff_bias);
+        auto ip = inner_product_backward_weights(ip_primitive_desc,
+                *ip_src, *ip_diff_dst, *ip_diff_weights, *ip_diff_bias);
 
-            std::vector<primitive> pipeline;
-            pipeline.push_back(ip);
+        std::vector<primitive> pipeline;
+        pipeline.push_back(ip);
 
-            stream(stream::kind::lazy).submit(pipeline).wait();
-        };
-
-        if (catch_expected_failures(test, p.expect_to_fail, p.expected_status))
-            return;
+        stream(stream::kind::lazy).submit(pipeline).wait();
 
         compute_ref_inner_product_bwd_weights<data_t>(p.ndims, ipd, *ip_src,
                 *ip_diff_dst, *diff_weights_ref);

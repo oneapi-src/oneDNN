@@ -86,10 +86,14 @@ struct inprod_test_params {
 template <typename data_t>
 class inner_product_test : public ::testing::TestWithParam<inprod_test_params> {
 protected:
-    virtual void SetUp()
-    {
-        inprod_test_params p
-                = ::testing::TestWithParam<inprod_test_params>::GetParam();
+    virtual void SetUp() {
+        auto p = ::testing::TestWithParam<inprod_test_params>::GetParam();
+        catch_expected_failures([=](){Test();}, p.expect_to_fail,
+                    p.expected_status);
+    }
+
+    void Test() {
+        auto p = ::testing::TestWithParam<inprod_test_params>::GetParam();
         test_inner_product_descr_t ipd = p.test_ipd;
         bool has_spatial = ipd.kh > 1 || ipd.kw > 1;
         if (p.ndims == 5) has_spatial = has_spatial || ipd.kd > 1;
@@ -121,51 +125,46 @@ protected:
 
         std::shared_ptr<memory> ip_src, ip_weights, ip_dst, ip_bias, dst_ref;
 
-        auto test = [&]() {
-            auto ip_desc = with_bias
-                ? inner_product_forward::desc(p.aprop_kind, ip_src_desc,
-                        ip_weights_desc, ip_bias_desc, ip_dst_desc)
-                : inner_product_forward::desc(p.aprop_kind, ip_src_desc,
-                        ip_weights_desc, ip_dst_desc);
+        auto ip_desc = with_bias
+            ? inner_product_forward::desc(p.aprop_kind, ip_src_desc,
+                    ip_weights_desc, ip_bias_desc, ip_dst_desc)
+            : inner_product_forward::desc(p.aprop_kind, ip_src_desc,
+                    ip_weights_desc, ip_dst_desc);
 
-            auto ip_primitive_desc = inner_product_forward::primitive_desc(
-                    ip_desc, eng);
+        auto ip_primitive_desc = inner_product_forward::primitive_desc(
+                ip_desc, eng);
 
-            ip_src.reset(new memory(ip_primitive_desc.src_primitive_desc()));
-            ip_weights.reset(
-                    new memory(ip_primitive_desc.weights_primitive_desc()));
-            ip_bias.reset(with_bias
-                    ? new memory(ip_primitive_desc.bias_primitive_desc())
-                    : new memory(memory::primitive_desc(ip_bias_desc, eng)));
-            ip_dst.reset(new memory(ip_primitive_desc.dst_primitive_desc()));
-            dst_ref.reset(new memory(ip_primitive_desc.dst_primitive_desc()));
+        ip_src.reset(new memory(ip_primitive_desc.src_primitive_desc()));
+        ip_weights.reset(
+                new memory(ip_primitive_desc.weights_primitive_desc()));
+        ip_bias.reset(with_bias
+                ? new memory(ip_primitive_desc.bias_primitive_desc())
+                : new memory(memory::primitive_desc(ip_bias_desc, eng)));
+        ip_dst.reset(new memory(ip_primitive_desc.dst_primitive_desc()));
+        dst_ref.reset(new memory(ip_primitive_desc.dst_primitive_desc()));
 
-            fill_data<data_t>(
+        fill_data<data_t>(
                 ip_src->get_primitive_desc().get_size() / sizeof(data_t),
                 (data_t *)ip_src->get_data_handle());
-            fill_data<data_t>(
+        fill_data<data_t>(
                 ip_weights->get_primitive_desc().get_size() / sizeof(data_t),
                 (data_t *)ip_weights->get_data_handle());
-            if (with_bias) {
-                fill_data<data_t>(
+        if (with_bias) {
+            fill_data<data_t>(
                     ip_bias->get_primitive_desc().get_size() / sizeof(data_t),
                     (data_t *)ip_bias->get_data_handle());
-            }
+        }
 
-            auto ip = with_bias
-                ? inner_product_forward(ip_primitive_desc, *ip_src,
-                        *ip_weights, *ip_bias, *ip_dst)
-                : inner_product_forward(ip_primitive_desc, *ip_src,
-                        *ip_weights, *ip_dst);
+        auto ip = with_bias
+            ? inner_product_forward(ip_primitive_desc, *ip_src,
+                    *ip_weights, *ip_bias, *ip_dst)
+            : inner_product_forward(ip_primitive_desc, *ip_src,
+                    *ip_weights, *ip_dst);
 
-            std::vector<primitive> pipeline;
-            pipeline.push_back(ip);
+        std::vector<primitive> pipeline;
+        pipeline.push_back(ip);
 
-            stream(stream::kind::lazy).submit(pipeline).wait();
-        };
-
-        if (catch_expected_failures(test, p.expect_to_fail, p.expected_status))
-            return;
+        stream(stream::kind::lazy).submit(pipeline).wait();
 
         compute_ref_inner_product_fwd<data_t>(ipd, *ip_src, *ip_weights,
                 *ip_bias, *dst_ref);

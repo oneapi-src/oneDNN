@@ -94,10 +94,14 @@ struct inprod_test_params {
 template <typename data_t>
 class inner_product_test_bwd_data : public ::testing::TestWithParam<inprod_test_params> {
 protected:
-    virtual void SetUp()
-    {
-        inprod_test_params p
-                = ::testing::TestWithParam<inprod_test_params>::GetParam();
+    virtual void SetUp() {
+        auto p = ::testing::TestWithParam<inprod_test_params>::GetParam();
+        catch_expected_failures([=](){Test();}, p.expect_to_fail,
+                    p.expected_status);
+    }
+
+    void Test() {
+        auto p = ::testing::TestWithParam<inprod_test_params>::GetParam();
         test_inner_product_descr_t ipd = p.test_ipd;
         bool has_spatial = ipd.kh > 1 || ipd.kw > 1;
         if (p.ndims == 5) has_spatial = has_spatial || ipd.kd > 1;
@@ -109,62 +113,57 @@ protected:
 
         std::shared_ptr<memory> ip_diff_src, ip_diff_dst, ip_weights, diff_src_ref;
 
-        auto test = [&]() {
-            auto ip_diff_src_desc = has_spatial ? p.ndims == 5
-                ? create_md({ ipd.mb, ipd.ic, ipd.kd, ipd.kh, ipd.kw },
-                        data_type, p.diff_src_format)
-                : create_md({ ipd.mb, ipd.ic, ipd.kh, ipd.kw }, data_type,
-                        p.diff_src_format) :
+        auto ip_diff_src_desc = has_spatial ? p.ndims == 5
+            ? create_md({ ipd.mb, ipd.ic, ipd.kd, ipd.kh, ipd.kw },
+                    data_type, p.diff_src_format)
+            : create_md({ ipd.mb, ipd.ic, ipd.kh, ipd.kw }, data_type,
+                    p.diff_src_format) :
                 create_md({ ipd.mb, ipd.ic }, data_type, p.diff_src_format);
-            auto ip_weights_desc = has_spatial ? p.ndims == 5
-                ? create_md({ ipd.oc, ipd.ic, ipd.kd, ipd.kh, ipd.kw },
-                        data_type, p.weights_format)
-                : create_md({ ipd.oc, ipd.ic, ipd.kh, ipd.kw }, data_type,
-                        p.weights_format) :
-                    create_md({ ipd.oc, ipd.ic }, data_type, p.weights_format);
-            auto ip_diff_dst_desc =
-                create_md({ ipd.mb, ipd.oc }, data_type,p.diff_dst_format);
+        auto ip_weights_desc = has_spatial ? p.ndims == 5
+            ? create_md({ ipd.oc, ipd.ic, ipd.kd, ipd.kh, ipd.kw },
+                    data_type, p.weights_format)
+            : create_md({ ipd.oc, ipd.ic, ipd.kh, ipd.kw }, data_type,
+                    p.weights_format) :
+                create_md({ ipd.oc, ipd.ic }, data_type, p.weights_format);
+        auto ip_diff_dst_desc =
+            create_md({ ipd.mb, ipd.oc }, data_type,p.diff_dst_format);
 
-            // Create inner product forward (hint for backward)
-            auto ip_fwd_desc = inner_product_forward::desc(prop_kind::forward,
-                    ip_diff_src_desc, ip_weights_desc, ip_diff_dst_desc);
-            auto ip_fwd_pdesc = inner_product_forward::primitive_desc
-                    (ip_fwd_desc, eng);
+        // Create inner product forward (hint for backward)
+        auto ip_fwd_desc = inner_product_forward::desc(prop_kind::forward,
+                ip_diff_src_desc, ip_weights_desc, ip_diff_dst_desc);
+        auto ip_fwd_pdesc = inner_product_forward::primitive_desc
+            (ip_fwd_desc, eng);
 
-            // Create inner product backward
-            auto ip_desc = inner_product_backward_data::desc(ip_diff_src_desc,
-                    ip_weights_desc, ip_diff_dst_desc);
+        // Create inner product backward
+        auto ip_desc = inner_product_backward_data::desc(ip_diff_src_desc,
+                ip_weights_desc, ip_diff_dst_desc);
 
-            auto ip_primitive_desc = inner_product_backward_data::primitive_desc(
-                    ip_desc, eng, ip_fwd_pdesc);
+        auto ip_primitive_desc = inner_product_backward_data::primitive_desc(
+                ip_desc, eng, ip_fwd_pdesc);
 
-            ip_diff_src.reset(
-                    new memory(ip_primitive_desc.diff_src_primitive_desc()));
-            ip_weights.reset(
-                    new memory(ip_primitive_desc.weights_primitive_desc()));
-            ip_diff_dst.reset(
-                    new memory(ip_primitive_desc.diff_dst_primitive_desc()));
-            diff_src_ref.reset(
-                    new memory(ip_primitive_desc.diff_src_primitive_desc()));
+        ip_diff_src.reset(
+                new memory(ip_primitive_desc.diff_src_primitive_desc()));
+        ip_weights.reset(
+                new memory(ip_primitive_desc.weights_primitive_desc()));
+        ip_diff_dst.reset(
+                new memory(ip_primitive_desc.diff_dst_primitive_desc()));
+        diff_src_ref.reset(
+                new memory(ip_primitive_desc.diff_src_primitive_desc()));
 
-            fill_data<data_t>(
-                    ip_diff_dst->get_primitive_desc().get_size() / sizeof(data_t),
-                    (data_t *)ip_diff_dst->get_data_handle());
-            fill_data<data_t>(
-                    ip_weights->get_primitive_desc().get_size() / sizeof(data_t),
-                    (data_t *)ip_weights->get_data_handle());
+        fill_data<data_t>(
+                ip_diff_dst->get_primitive_desc().get_size() / sizeof(data_t),
+                (data_t *)ip_diff_dst->get_data_handle());
+        fill_data<data_t>(
+                ip_weights->get_primitive_desc().get_size() / sizeof(data_t),
+                (data_t *)ip_weights->get_data_handle());
 
-            auto ip = inner_product_backward_data(ip_primitive_desc,
-                    *ip_diff_dst, *ip_weights, *ip_diff_src);
+        auto ip = inner_product_backward_data(ip_primitive_desc,
+                *ip_diff_dst, *ip_weights, *ip_diff_src);
 
-            std::vector<primitive> pipeline;
-            pipeline.push_back(ip);
+        std::vector<primitive> pipeline;
+        pipeline.push_back(ip);
 
-            stream(stream::kind::lazy).submit(pipeline).wait();
-        };
-
-        if (catch_expected_failures(test, p.expect_to_fail, p.expected_status))
-            return;
+        stream(stream::kind::lazy).submit(pipeline).wait();
 
         compute_ref_inner_product_bwd_data<data_t>(p.ndims == 5, ipd, *ip_diff_dst,
                 *ip_weights, *diff_src_ref);

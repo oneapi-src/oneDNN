@@ -91,11 +91,14 @@ template <typename data_t_diff_dst, typename data_t_wei,
 class convolution_backward_data_test
             : public ::testing::TestWithParam<test_convolution_params_t> {
 protected:
-    virtual void SetUp()
-    {
-        test_convolution_params_t p
-            = ::testing::TestWithParam<test_convolution_params_t>::GetParam();
+    virtual void SetUp() {
+        auto p = ::testing::TestWithParam<test_convolution_params_t>::GetParam();
+        catch_expected_failures([=](){Test();}, p.expect_to_fail,
+                    p.expected_status);
+    }
 
+    void Test() {
+        auto p = ::testing::TestWithParam<test_convolution_params_t>::GetParam();
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         ASSERT_EQ(p.aalgorithm, convolution_direct);
         auto eng =  engine(p.engine_kind, 0);
@@ -140,39 +143,34 @@ protected:
                 c_diff_dst.get_size() / sizeof(data_t_diff_dst),
                 (data_t_diff_dst *)c_diff_dst.get().get_data_handle());
 
-        auto test = [&]() {
-            auto conv_desc = convolution_forward::desc(
-                    prop_kind::forward_training, p.aalgorithm, c_src_desc_f,
-                    c_weights_desc, c_dst_desc_f,
-                    { cd.strh, cd.strw }, { cd.dilh, cd.dilw },
-                    { cd.padh, cd.padw }, padR, padding_kind::zero);
-            auto conv_primitive_desc = convolution_forward::primitive_desc(
-                    conv_desc, eng);
+        auto conv_desc = convolution_forward::desc(
+                prop_kind::forward_training, p.aalgorithm, c_src_desc_f,
+                c_weights_desc, c_dst_desc_f,
+                { cd.strh, cd.strw }, { cd.dilh, cd.dilw },
+                { cd.padh, cd.padw }, padR, padding_kind::zero);
+        auto conv_primitive_desc = convolution_forward::primitive_desc(
+                conv_desc, eng);
 
-            auto conv_bwd_data_desc = convolution_backward_data::desc(
-                    p.aalgorithm, c_src_desc, c_weights_desc, c_dst_desc,
-                    { cd.strh, cd.strw }, { cd.dilh, cd.dilw },
-                    { cd.padh, cd.padw }, padR, padding_kind::zero);
-            auto conv_bwd_data_primitive_desc
-                = convolution_backward_data::primitive_desc(
-                        conv_bwd_data_desc, eng, conv_primitive_desc);
-            auto conv_bwd_data = convolution_backward_data(
-                    conv_bwd_data_primitive_desc,
-                    c_diff_dst.get(), c_weights.get(), c_diff_src.get());
+        auto conv_bwd_data_desc = convolution_backward_data::desc(
+                p.aalgorithm, c_src_desc, c_weights_desc, c_dst_desc,
+                { cd.strh, cd.strw }, { cd.dilh, cd.dilw },
+                { cd.padh, cd.padw }, padR, padding_kind::zero);
+        auto conv_bwd_data_primitive_desc
+            = convolution_backward_data::primitive_desc(
+                    conv_bwd_data_desc, eng, conv_primitive_desc);
+        auto conv_bwd_data = convolution_backward_data(
+                conv_bwd_data_primitive_desc,
+                c_diff_dst.get(), c_weights.get(), c_diff_src.get());
 
-            std::vector<primitive> pipeline;
-            pipeline.push_back(conv_bwd_data);
-            stream(stream::kind::lazy).submit(pipeline).wait();
+        std::vector<primitive> pipeline;
+        pipeline.push_back(conv_bwd_data);
+        stream(stream::kind::lazy).submit(pipeline).wait();
 
-            auto ref_memory = memory(memory::primitive_desc(c_src_desc, eng));
-            compute_ref_conv_bwd_data
-                <data_t_diff_dst, data_t_wei, data_t_acc, data_t_diff_src>(
-                        cd, ref_memory, c_weights.get(), c_diff_dst.get());
-            compare_data<data_t_diff_src>(ref_memory, c_diff_src.get());
-        };
-
-        if (catch_expected_failures(test, p.expect_to_fail, p.expected_status))
-            return;
+        auto ref_memory = memory(memory::primitive_desc(c_src_desc, eng));
+        compute_ref_conv_bwd_data
+            <data_t_diff_dst, data_t_wei, data_t_acc, data_t_diff_src>(
+                    cd, ref_memory, c_weights.get(), c_diff_dst.get());
+        compare_data<data_t_diff_src>(ref_memory, c_diff_src.get());
     }
 };
 

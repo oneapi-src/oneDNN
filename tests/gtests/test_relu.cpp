@@ -96,7 +96,13 @@ private:
 
 protected:
     virtual void SetUp() {
-        p = ::testing::TestWithParam<relu_test_params<data_t>>::GetParam();
+        p = ::testing::TestWithParam<decltype(p)>::GetParam();
+        catch_expected_failures([=](){Test();}, p.expect_to_fail,
+                p.expected_status);
+    }
+
+    void Test() {
+        p = ::testing::TestWithParam<decltype(p)>::GetParam();
 
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         eng.reset(new engine(p.engine_kind, 0));
@@ -123,21 +129,16 @@ protected:
         fill_data<data_t>(size, (data_t *)src->get_data_handle(),
                 data_t(0), data_t(1));
 
-        auto test = [&]() {
-            auto relu_desc = relu_forward::desc(prop_kind::forward_training,
-                    algorithm::eltwise_relu, *data_desc, p.negative_slope);
-            relu_prim_desc.reset(
-                    new relu_forward::primitive_desc(relu_desc, *eng));
-            auto relu = relu_forward(*relu_prim_desc, *src, *dst);
+        auto relu_desc = relu_forward::desc(prop_kind::forward_training,
+                algorithm::eltwise_relu, *data_desc, p.negative_slope);
+        relu_prim_desc.reset(
+                new relu_forward::primitive_desc(relu_desc, *eng));
+        auto relu = relu_forward(*relu_prim_desc, *src, *dst);
 
-            std::vector<primitive> pipeline;
-            pipeline.push_back(relu);
-            auto s = stream(stream::kind::lazy);
-            s.submit(pipeline).wait();
-        };
-
-        if (catch_expected_failures(test, p.expect_to_fail, p.expected_status))
-            return;
+        std::vector<primitive> pipeline;
+        pipeline.push_back(relu);
+        auto s = stream(stream::kind::lazy);
+        s.submit(pipeline).wait();
 
         check_relu_fwd(p.negative_slope, *data_desc,
             *src, *dst);
@@ -150,23 +151,17 @@ protected:
         fill_data<data_t>(size, (data_t *)diff_dst->get_data_handle(),
                 data_t(0), data_t(1));
 
-        auto test = [&]() {
-            auto relu_bwd_desc = relu_backward::desc(algorithm::eltwise_relu,
-                    *diff_data_desc, *data_desc,
-                    p.negative_slope);
-            auto relu_bwd_prim_desc = relu_backward::primitive_desc(
-                    relu_bwd_desc, *eng, *relu_prim_desc);
-            auto relu_bwd = relu_backward(relu_bwd_prim_desc, *src, *diff_dst,
-                    *diff_src);
+        auto relu_bwd_desc = relu_backward::desc(algorithm::eltwise_relu,
+                *diff_data_desc, *data_desc, p.negative_slope);
+        auto relu_bwd_prim_desc = relu_backward::primitive_desc(
+                relu_bwd_desc, *eng, *relu_prim_desc);
+        auto relu_bwd = relu_backward(relu_bwd_prim_desc, *src, *diff_dst,
+                *diff_src);
 
-            std::vector<primitive> pipeline;
-            pipeline.push_back(relu_bwd);
-            auto s = stream(stream::kind::lazy);
-            s.submit(pipeline).wait();
-        };
-
-        if (catch_expected_failures(test, p.expect_to_fail, p.expected_status))
-            return;
+        std::vector<primitive> pipeline;
+        pipeline.push_back(relu_bwd);
+        auto s = stream(stream::kind::lazy);
+        s.submit(pipeline).wait();
 
         check_relu_bwd(p.negative_slope, *data_desc,
             *src, *diff_dst, *diff_src);

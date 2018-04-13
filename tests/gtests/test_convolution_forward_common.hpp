@@ -119,10 +119,14 @@ template <typename data_t_src, typename data_t_wei,
 class convolution_forward_test
         : public ::testing::TestWithParam<test_convolution_params_t> {
 protected:
-    virtual void SetUp()
-    {
-        test_convolution_params_t p
-            = ::testing::TestWithParam<test_convolution_params_t>::GetParam();
+    virtual void SetUp() {
+        auto p = ::testing::TestWithParam<test_convolution_params_t>::GetParam();
+        catch_expected_failures([=](){Test();}, p.expect_to_fail,
+                    p.expected_status);
+    }
+
+    void Test() {
+        auto p = ::testing::TestWithParam<test_convolution_params_t>::GetParam();
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         ASSERT_EQ(p.aalgorithm, algorithm::convolution_direct);
         auto eng = engine(p.engine_kind, 0);
@@ -180,41 +184,36 @@ protected:
                 ++padR[1];
         }
 
-        auto test = [&]() {
-            auto conv_desc = with_bias ?
-                convolution_forward::desc(aprop_kind, p.aalgorithm,
+        auto conv_desc = with_bias
+            ? convolution_forward::desc(aprop_kind, p.aalgorithm,
                     c_src_desc, c_weights_desc, c_bias_desc, c_dst_desc,
                     { cd.strh, cd.strw }, { cd.dilh, cd.dilw },
-                    { cd.padh, cd.padw }, padR, padding_kind::zero) :
-                convolution_forward::desc(aprop_kind, p.aalgorithm,
+                    { cd.padh, cd.padw }, padR, padding_kind::zero)
+            : convolution_forward::desc(aprop_kind, p.aalgorithm,
                     c_src_desc, c_weights_desc, c_dst_desc,
                     { cd.strh, cd.strw }, { cd.dilh, cd.dilw },
                     { cd.padh, cd.padw }, padR, padding_kind::zero);
 
-            auto conv_primitive_desc = convolution_forward::primitive_desc(
-                    conv_desc, attr.mkl_attr, eng);
+        auto conv_primitive_desc = convolution_forward::primitive_desc(
+                conv_desc, attr.mkl_attr, eng);
 
-            auto conv = with_bias ?
-                convolution_forward(conv_primitive_desc, c_src.get(),
-                        c_weights.get(), c_bias.get(), c_dst.get()) :
-                convolution_forward(conv_primitive_desc, c_src.get(),
-                        c_weights.get(), c_dst.get());
+        auto conv = with_bias ?
+            convolution_forward(conv_primitive_desc, c_src.get(),
+                    c_weights.get(), c_bias.get(), c_dst.get()) :
+            convolution_forward(conv_primitive_desc, c_src.get(),
+                    c_weights.get(), c_dst.get());
 
-            std::vector<primitive> pipeline;
-            pipeline.push_back(conv);
-            auto s = stream(stream::kind::lazy);
-            s.submit(pipeline).wait();
+        std::vector<primitive> pipeline;
+        pipeline.push_back(conv);
+        auto s = stream(stream::kind::lazy);
+        s.submit(pipeline).wait();
 
-            auto ref_memory = memory(memory::primitive_desc(c_dst_desc, eng),
-                    ref_dst_data.get());
-            compute_ref_conv_fwd<data_t_src,data_t_wei,data_t_acc,data_t_dst>(
+        auto ref_memory = memory(memory::primitive_desc(c_dst_desc, eng),
+                ref_dst_data.get());
+        compute_ref_conv_fwd<data_t_src,data_t_wei,data_t_acc,data_t_dst>(
                 cd, attr, c_src_desc, c_weights_desc, c_bias_desc, c_dst_desc,
                 c_src.get(), c_weights.get(), c_bias.get(), ref_memory);
-            compare_data<data_t_dst>(ref_memory, c_dst.get());
-        };
-
-        if (catch_expected_failures(test, p.expect_to_fail, p.expected_status))
-            return;
+        compare_data<data_t_dst>(ref_memory, c_dst.get());
     }
 };
 

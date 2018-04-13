@@ -219,9 +219,14 @@ private:
     bool is_training;
 
 protected:
-    virtual void SetUp()
-    {
-        p = ::testing::TestWithParam<lrn_test_params>::GetParam();
+    virtual void SetUp() {
+        p = ::testing::TestWithParam<decltype(p)>::GetParam();
+        catch_expected_failures([=](){Test();}, p.expect_to_fail,
+                    p.expected_status);
+    }
+
+    void Test() {
+        p = ::testing::TestWithParam<decltype(p)>::GetParam();
 
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         eng.reset(new engine(p.engine_kind, 0));
@@ -246,8 +251,7 @@ protected:
             Backward();
     }
 
-    void Forward()
-    {
+    void Forward() {
         auto lrn_desc = lrn_forward::desc(p.aprop_kind, p.aalgorithm, *src_desc,
                 p.test_ld.local_size, p.test_ld.alpha, p.test_ld.beta,
                 p.test_ld.k);
@@ -259,28 +263,23 @@ protected:
         fill_data<data_t>(src->get_size() / sizeof(data_t),
                 (data_t *)src->get().get_data_handle());
 
-        auto test = [&]() {
-            // Execute
-            std::vector<primitive> pipeline;
-            auto s = stream(stream::kind::lazy);
-            if (is_training) {
-                auto workspace_primitive_desc =
-                    lrn_fwd_prim_desc->workspace_primitive_desc();
-                workspace.reset(new memory(workspace_primitive_desc));
-                auto l = lrn_forward(*lrn_fwd_prim_desc, src->get(), *workspace,
-                        dst->get());
-                pipeline.push_back(l);
-                s.submit(pipeline).wait();
-            } else {
-                auto l = lrn_forward(*lrn_fwd_prim_desc, src->get(),
-                        dst->get());
-                pipeline.push_back(l);
-                s.submit(pipeline).wait();
-            }
-        };
-
-        if (catch_expected_failures(test, p.expect_to_fail, p.expected_status))
-            return;
+        // Execute
+        std::vector<primitive> pipeline;
+        auto s = stream(stream::kind::lazy);
+        if (is_training) {
+            auto workspace_primitive_desc =
+                lrn_fwd_prim_desc->workspace_primitive_desc();
+            workspace.reset(new memory(workspace_primitive_desc));
+            auto l = lrn_forward(*lrn_fwd_prim_desc, src->get(), *workspace,
+                    dst->get());
+            pipeline.push_back(l);
+            s.submit(pipeline).wait();
+        } else {
+            auto l = lrn_forward(*lrn_fwd_prim_desc, src->get(),
+                    dst->get());
+            pipeline.push_back(l);
+            s.submit(pipeline).wait();
+        }
 
         check_lrn_fwd<data_t>(p, src->get(), dst->get());
     }
@@ -304,18 +303,13 @@ protected:
         fill_data<data_t>(diff_dst->get_size() / sizeof(data_t),
                 (data_t *)diff_dst->get().get_data_handle());
 
-        auto test = [&]() {
-            // Execute
-            std::vector<primitive> pipeline;
-            auto s = stream(stream::kind::lazy);
-            auto l = lrn_backward(lrn_prim_desc, src->get(), diff_dst->get(),
-                    *workspace, diff_src->get());
-            pipeline.push_back(l);
-            s.submit(pipeline).wait();
-        };
-
-        if (catch_expected_failures(test, p.expect_to_fail, p.expected_status))
-            return;
+        // Execute
+        std::vector<primitive> pipeline;
+        auto s = stream(stream::kind::lazy);
+        auto l = lrn_backward(lrn_prim_desc, src->get(), diff_dst->get(),
+                *workspace, diff_src->get());
+        pipeline.push_back(l);
+        s.submit(pipeline).wait();
 
         check_lrn_bwd<data_t>(p, src->get(), diff_dst->get(), diff_src->get());
     }

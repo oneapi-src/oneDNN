@@ -32,7 +32,7 @@ struct test_pool_desc_t {
 
 struct pool_test_params {
     prop_kind aprop_kind;
-    const engine::kind engine_kind;
+    engine::kind engine_kind;
     algorithm aalgorithm;
     memory::format src_format;
     memory::format dst_format;
@@ -146,12 +146,15 @@ void check_pool_fwd(const pool_test_params &p, const memory &src,
 
 template <typename data_t>
 class pooling_test : public ::testing::TestWithParam<pool_test_params> {
+    pool_test_params p;
 protected:
-    virtual void SetUp()
-    {
-        pool_test_params p
-                = ::testing::TestWithParam<pool_test_params>::GetParam();
+    virtual void SetUp() {
+        p = ::testing::TestWithParam<decltype(p)>::GetParam();
+        catch_expected_failures([=](){Test();}, p.expect_to_fail,
+                    p.expected_status);
+    }
 
+    void Test() {
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         ASSERT_TRUE(p.aprop_kind == prop_kind::forward_training
                 || p.aprop_kind == prop_kind::forward_scoring);
@@ -199,39 +202,34 @@ protected:
 
         std::shared_ptr<memory> p_workspace;
 
-        auto test = [&]() {
-            auto pool_desc = (p.ndims == 5)
-                ? pooling_forward::desc(p.aprop_kind, p.aalgorithm,
+        auto pool_desc = (p.ndims == 5)
+            ? pooling_forward::desc(p.aprop_kind, p.aalgorithm,
                     p_src_desc, p_dst_desc, {pd.strd, pd.strh, pd.strw},
                     {pd.kd, pd.kh, pd.kw}, {pd.padf, pd.padt, pd.padl}, padR_3d,
                     padding_kind::zero)
-                : pooling_forward::desc(p.aprop_kind, p.aalgorithm,
+            : pooling_forward::desc(p.aprop_kind, p.aalgorithm,
                     p_src_desc, p_dst_desc, {pd.strh, pd.strw}, {pd.kh, pd.kw},
                     {pd.padt, pd.padl}, padR_2d, padding_kind::zero);
 
-            auto pool_prim_desc
-                = pooling_forward::primitive_desc(pool_desc, eng);
+        auto pool_prim_desc
+            = pooling_forward::primitive_desc(pool_desc, eng);
 
-            bool with_workspace = true
-                && p.aprop_kind == prop_kind::forward_training
-                && p.aalgorithm == pooling_max;
-            auto p_workspace_desc = with_workspace
-                ? pool_prim_desc.workspace_primitive_desc()
-                : memory::primitive_desc( {{}, data_type, p.dst_format}, eng);
-            p_workspace.reset(new memory(p_workspace_desc));
+        bool with_workspace = true
+            && p.aprop_kind == prop_kind::forward_training
+            && p.aalgorithm == pooling_max;
+        auto p_workspace_desc = with_workspace
+            ? pool_prim_desc.workspace_primitive_desc()
+            : memory::primitive_desc( {{}, data_type, p.dst_format}, eng);
+        p_workspace.reset(new memory(p_workspace_desc));
 
-            auto pool = with_workspace
-                ? pooling_forward(pool_prim_desc, p_src, p_dst, *p_workspace)
-                : pooling_forward(pool_prim_desc, p_src, p_dst);
+        auto pool = with_workspace
+            ? pooling_forward(pool_prim_desc, p_src, p_dst, *p_workspace)
+            : pooling_forward(pool_prim_desc, p_src, p_dst);
 
-            std::vector<primitive> pipeline;
-            pipeline.push_back(pool);
+        std::vector<primitive> pipeline;
+        pipeline.push_back(pool);
 
-            stream(stream::kind::lazy).submit(pipeline).wait();
-        };
-
-        if (catch_expected_failures(test, p.expect_to_fail, p.expected_status))
-            return;
+        stream(stream::kind::lazy).submit(pipeline).wait();
 
         check_pool_fwd<data_t>(p, p_src, p_dst, *p_workspace);
     }

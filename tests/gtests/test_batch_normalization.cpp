@@ -244,7 +244,7 @@ private:
 
 protected:
     virtual void SetUp() {
-        p = ::testing::TestWithParam<test_bnrm_params_t>::GetParam();
+        p = ::testing::TestWithParam<decltype(p)>::GetParam();
 
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         eng.reset(new engine(p.engine_kind, 0));

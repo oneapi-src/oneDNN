@@ -246,9 +246,13 @@ private:
     memory::data_type data_type;
 
 protected:
-    virtual void SetUp()
-    {
-        p = ::testing::TestWithParam<pool_bwd_test_params>::GetParam();
+    virtual void SetUp() {
+        p = ::testing::TestWithParam<decltype(p)>::GetParam();
+        catch_expected_failures([=](){Test();}, p.expect_to_fail,
+                    p.expected_status);
+    }
+
+    void Test() {
         test_pool_bwd_desc_t pd = p.test_pd;
 
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
@@ -302,50 +306,44 @@ protected:
 
         test_pool_bwd_desc_t pd = p.test_pd;
 
-        auto test = [&]() {
-            auto pool_desc = (p.ndims == 5)
-                ? pooling_forward::desc(prop_kind::forward_training,
+        auto pool_desc = (p.ndims == 5)
+            ? pooling_forward::desc(prop_kind::forward_training,
                     p.aalgorithm, *src_desc, *dst_desc,
                     {pd.strd, pd.strh, pd.strw},
                     {pd.kd, pd.kh, pd.kw}, {pd.padf, pd.padt, pd.padl},
                     padR_3d, padding_kind::zero)
-                : pooling_forward::desc(prop_kind::forward_training,
+            : pooling_forward::desc(prop_kind::forward_training,
                     p.aalgorithm, *src_desc, *dst_desc, {pd.strh, pd.strw},
                     {pd.kh, pd.kw}, {pd.padt, pd.padl}, padR_2d,
                     padding_kind::zero);
 
-            pool_prim_desc.reset(
-                    new pooling_forward::primitive_desc(pool_desc, *eng));
+        pool_prim_desc.reset(
+                new pooling_forward::primitive_desc(pool_desc, *eng));
 
-            bool with_workspace = p.aalgorithm == pooling_max;
-            auto p_workspace_desc = with_workspace
-                ? pool_prim_desc->workspace_primitive_desc()
-                : memory::primitive_desc( {{}, data_type, p.diff_dst_format},
-                        *eng);
+        bool with_workspace = p.aalgorithm == pooling_max;
+        auto p_workspace_desc = with_workspace
+            ? pool_prim_desc->workspace_primitive_desc()
+            : memory::primitive_desc( {{}, data_type, p.diff_dst_format}, *eng);
 
-            src.reset(new memory({*src_desc, *eng}));
-            workspace.reset(new  memory(p_workspace_desc));
-            dst.reset(new memory({*dst_desc, *eng}));
+        src.reset(new memory({*src_desc, *eng}));
+        workspace.reset(new  memory(p_workspace_desc));
+        dst.reset(new memory({*dst_desc, *eng}));
 
-            fill_data<data_t>(
-                    src->get_primitive_desc().get_size() / sizeof(data_t),
-                    (data_t *)src->get_data_handle());
-            fill_data<data_t>(
-                    dst->get_primitive_desc().get_size() / sizeof(data_t),
-                    (data_t *)dst->get_data_handle());
+        fill_data<data_t>(
+                src->get_primitive_desc().get_size() / sizeof(data_t),
+                (data_t *)src->get_data_handle());
+        fill_data<data_t>(
+                dst->get_primitive_desc().get_size() / sizeof(data_t),
+                (data_t *)dst->get_data_handle());
 
-            auto pool = with_workspace
-                ? pooling_forward(*pool_prim_desc, *src, *dst, *workspace)
-                : pooling_forward(*pool_prim_desc, *src, *dst);
+        auto pool = with_workspace
+            ? pooling_forward(*pool_prim_desc, *src, *dst, *workspace)
+            : pooling_forward(*pool_prim_desc, *src, *dst);
 
-            std::vector<primitive> pipeline;
-            pipeline.push_back(pool);
+        std::vector<primitive> pipeline;
+        pipeline.push_back(pool);
 
-            stream(stream::kind::lazy).submit(pipeline).wait();
-        };
-
-        if (catch_expected_failures(test, p.expect_to_fail, p.expected_status))
-            return;
+        stream(stream::kind::lazy).submit(pipeline).wait();
 
         check_pool_fwd<data_t>(p, *src, *dst);
     }
@@ -355,44 +353,39 @@ protected:
         std::shared_ptr<memory> diff_src;
         std::shared_ptr<memory> diff_dst;
 
-        auto test = [&]() {
-            test_pool_bwd_desc_t pd = p.test_pd;
+        test_pool_bwd_desc_t pd = p.test_pd;
 
-            auto pool_bwd_desc = (p.ndims == 5)
-                ? pooling_backward::desc(p.aalgorithm, *src_desc, *dst_desc,
+        auto pool_bwd_desc = (p.ndims == 5)
+            ? pooling_backward::desc(p.aalgorithm, *src_desc, *dst_desc,
                     {pd.strd, pd.strh, pd.strw}, {pd.kd, pd.kh, pd.kw},
                     {pd.padf, pd.padt, pd.padl}, padR_3d, padding_kind::zero)
-                : pooling_backward::desc(p.aalgorithm, *src_desc, *dst_desc,
-                    {pd.strh, pd.strw}, {pd.kh, pd.kw}, {pd.padt, pd.padl},
-                    padR_2d, padding_kind::zero);
+        : pooling_backward::desc(p.aalgorithm, *src_desc, *dst_desc,
+                {pd.strh, pd.strw}, {pd.kh, pd.kw}, {pd.padt, pd.padl},
+                padR_2d, padding_kind::zero);
 
-            auto pool_bwd_prim_desc = pooling_backward::primitive_desc(
-                    pool_bwd_desc, *eng, *pool_prim_desc);
+        auto pool_bwd_prim_desc = pooling_backward::primitive_desc(
+                pool_bwd_desc, *eng, *pool_prim_desc);
 
-            bool with_workspace = p.aalgorithm == pooling_max;
+        bool with_workspace = p.aalgorithm == pooling_max;
 
-            diff_src.reset(new memory({*src_desc, *eng}));
-            diff_dst.reset(new memory({*dst_desc, *eng}));
+        diff_src.reset(new memory({*src_desc, *eng}));
+        diff_dst.reset(new memory({*dst_desc, *eng}));
 
-            fill_data<data_t>(
-                    diff_dst->get_primitive_desc().get_size()/ sizeof(data_t),
-                    (data_t *)diff_dst->get_data_handle());
-            fill_data<data_t>(
-                    diff_src->get_primitive_desc().get_size()/ sizeof(data_t),
-                    (data_t *)diff_src->get_data_handle());
+        fill_data<data_t>(
+                diff_dst->get_primitive_desc().get_size()/ sizeof(data_t),
+                (data_t *)diff_dst->get_data_handle());
+        fill_data<data_t>(
+                diff_src->get_primitive_desc().get_size()/ sizeof(data_t),
+                (data_t *)diff_src->get_data_handle());
 
-            auto pool_bwd = with_workspace
-                ? pooling_backward(pool_bwd_prim_desc, *diff_dst, *workspace,
-                        *diff_src)
-                : pooling_backward(pool_bwd_prim_desc, *diff_dst, *diff_src);
+        auto pool_bwd = with_workspace
+            ? pooling_backward(pool_bwd_prim_desc, *diff_dst, *workspace,
+                    *diff_src)
+            : pooling_backward(pool_bwd_prim_desc, *diff_dst, *diff_src);
 
-            std::vector<primitive> pipeline2 = {pool_bwd};
+        std::vector<primitive> pipeline2 = {pool_bwd};
 
-            stream(stream::kind::lazy).submit(pipeline2).wait();
-        };
-
-        if (catch_expected_failures(test, p.expect_to_fail, p.expected_status))
-            return;
+        stream(stream::kind::lazy).submit(pipeline2).wait();
 
         check_pool_bwd<data_t>(p, *diff_src, *diff_dst, *workspace);
     }

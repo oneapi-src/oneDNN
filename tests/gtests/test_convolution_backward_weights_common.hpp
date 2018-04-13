@@ -123,11 +123,14 @@ template <typename data_t_src, typename data_t_diff_dst,
 class convolution_backward_weights_test
             : public ::testing::TestWithParam<test_convolution_params_t> {
 protected:
-    virtual void SetUp()
-    {
-        test_convolution_params_t p
-                = ::testing::TestWithParam<
-                test_convolution_params_t>::GetParam();
+    virtual void SetUp() {
+        auto p = ::testing::TestWithParam<test_convolution_params_t>::GetParam();
+        catch_expected_failures([=](){Test();}, p.expect_to_fail,
+                    p.expected_status);
+    }
+
+    void Test() {
+        auto p = ::testing::TestWithParam<test_convolution_params_t>::GetParam();
 
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         ASSERT_EQ(p.aalgorithm, convolution_direct);
@@ -182,51 +185,46 @@ protected:
                 ++padR[1];
         }
 
-        auto test = [&]() {
-            auto conv_desc = convolution_forward::desc(
-                    prop_kind::forward_training, p.aalgorithm, c_src_desc,
-                    c_weights_desc_f, c_diff_bias_desc, c_dst_desc_f,
-                    { cd.strh, cd.strw }, { cd.dilh, cd.dilw },
-                    { cd.padh, cd.padw }, padR, padding_kind::zero);
+        auto conv_desc = convolution_forward::desc(
+                prop_kind::forward_training, p.aalgorithm, c_src_desc,
+                c_weights_desc_f, c_diff_bias_desc, c_dst_desc_f,
+                { cd.strh, cd.strw }, { cd.dilh, cd.dilw },
+                { cd.padh, cd.padw }, padR, padding_kind::zero);
 
-            auto conv_bwd_weights_desc = convolution_backward_weights::desc(
-                    p.aalgorithm, c_src_desc, c_diff_weights_desc,
-                    c_diff_bias_desc, c_diff_dst_desc,
-                    { cd.strh, cd.strw }, { cd.dilh, cd.dilw },
-                    { cd.padh, cd.padw }, padR, padding_kind::zero);
+        auto conv_bwd_weights_desc = convolution_backward_weights::desc(
+                p.aalgorithm, c_src_desc, c_diff_weights_desc,
+                c_diff_bias_desc, c_diff_dst_desc,
+                { cd.strh, cd.strw }, { cd.dilh, cd.dilw },
+                { cd.padh, cd.padw }, padR, padding_kind::zero);
 
-            auto conv_primitive_desc = convolution_forward::primitive_desc(
-                    conv_desc, eng);
+        auto conv_primitive_desc = convolution_forward::primitive_desc(
+                conv_desc, eng);
 
-            auto conv_bwd_weights_primitive_desc =
-                convolution_backward_weights::primitive_desc(
-                        conv_bwd_weights_desc, eng, conv_primitive_desc);
+        auto conv_bwd_weights_primitive_desc =
+            convolution_backward_weights::primitive_desc(
+                    conv_bwd_weights_desc, eng, conv_primitive_desc);
 
-            auto conv_bwd_weights =
-                convolution_backward_weights(conv_bwd_weights_primitive_desc,
-                        c_src.get(), c_diff_dst.get(), c_diff_weights.get(),
-                        c_diff_bias.get());
+        auto conv_bwd_weights =
+            convolution_backward_weights(conv_bwd_weights_primitive_desc,
+                    c_src.get(), c_diff_dst.get(), c_diff_weights.get(),
+                    c_diff_bias.get());
 
-            std::vector<primitive> pipeline;
-            pipeline.push_back(conv_bwd_weights);
-            stream(stream::kind::lazy).submit(pipeline).wait();
+        std::vector<primitive> pipeline;
+        pipeline.push_back(conv_bwd_weights);
+        stream(stream::kind::lazy).submit(pipeline).wait();
 
-            auto ref_diff_weights = memory({c_diff_weights_desc, eng});
-            auto ref_diff_bias = memory({c_diff_bias_desc, eng});
+        auto ref_diff_weights = memory({c_diff_weights_desc, eng});
+        auto ref_diff_bias = memory({c_diff_bias_desc, eng});
 
-            compute_ref_conv_bwd_weights<data_t_src, data_t_diff_dst,
-                data_t_diff_weights>(cd, c_src.get(), c_diff_dst.get(),
-                ref_diff_weights);
-            compare_data<data_t_diff_weights>(ref_diff_weights,
+        compute_ref_conv_bwd_weights<data_t_src, data_t_diff_dst,
+            data_t_diff_weights>(cd, c_src.get(), c_diff_dst.get(),
+                    ref_diff_weights);
+        compare_data<data_t_diff_weights>(ref_diff_weights,
                 c_diff_weights.get());
 
-            compute_ref_conv_bwd_bias<data_t_src, data_t_diff_dst,
-                data_t_diff_bias>(cd, c_diff_dst.get(), ref_diff_bias);
-            compare_data<data_t_diff_bias>(ref_diff_bias, c_diff_bias.get());
-        };
-
-        if (catch_expected_failures(test, p.expect_to_fail, p.expected_status))
-            return;
+        compute_ref_conv_bwd_bias<data_t_src, data_t_diff_dst,
+            data_t_diff_bias>(cd, c_diff_dst.get(), ref_diff_bias);
+        compare_data<data_t_diff_bias>(ref_diff_bias, c_diff_bias.get());
     }
 };
 

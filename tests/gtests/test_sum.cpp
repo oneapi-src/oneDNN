@@ -84,6 +84,13 @@ protected:
     virtual void SetUp() {
         sum_test_params p
             = ::testing::TestWithParam<sum_test_params>::GetParam();
+        catch_expected_failures([=](){Test();}, p.expect_to_fail,
+                    p.expected_status);
+    }
+
+    void Test() {
+        sum_test_params p
+            = ::testing::TestWithParam<sum_test_params>::GetParam();
 
         ASSERT_EQ(p.srcs_format.size(), p.scale.size());
         const auto num_srcs = p.srcs_format.size();
@@ -94,6 +101,7 @@ protected:
 
         std::vector<memory::primitive_desc> srcs_pd;
         std::vector<memory> srcs;
+
         for (size_t i = 0; i < num_srcs; i++) {
             auto desc =
                 memory::desc(p.dims, data_type, p.srcs_format[i]);
@@ -108,39 +116,34 @@ protected:
 
         std::shared_ptr<memory> dst;
 
-        auto test = [&](){
-            auto dst_desc = memory::desc(p.dims, data_type, p.dst_format);
-            auto sum_pd = sum::primitive_desc(dst_desc, p.scale, srcs_pd);
-            dst.reset(new memory(sum_pd.dst_primitive_desc()));
+        auto dst_desc = memory::desc(p.dims, data_type, p.dst_format);
+        auto sum_pd = sum::primitive_desc(dst_desc, p.scale, srcs_pd);
+        dst.reset(new memory(sum_pd.dst_primitive_desc()));
 
-            ASSERT_EQ(sum_pd.dst_primitive_desc().desc().data.format,
-                    dst_desc.data.format);
-            ASSERT_EQ(sum_pd.dst_primitive_desc().desc().data.ndims,
-                    dst_desc.data.ndims);
+        ASSERT_EQ(sum_pd.dst_primitive_desc().desc().data.format,
+                dst_desc.data.format);
+        ASSERT_EQ(sum_pd.dst_primitive_desc().desc().data.ndims,
+                dst_desc.data.ndims);
 
-            data_t *dst_data = (data_t *)dst->get_data_handle();
-            const size_t sz =
-                dst->get_primitive_desc().get_size() / sizeof(data_t);
-            // overwriting dst to prevent false positives for test cases.
+        data_t *dst_data = (data_t *)dst->get_data_handle();
+        const size_t sz =
+            dst->get_primitive_desc().get_size() / sizeof(data_t);
+        // overwriting dst to prevent false positives for test cases.
 # pragma omp parallel for
-            for (size_t i = 0; i < sz; i++) {
-                dst_data[i] = -32;
-            }
+        for (size_t i = 0; i < sz; i++) {
+            dst_data[i] = -32;
+        }
 
-            std::vector<primitive::at> inputs;
-            for (size_t i = 0; i < num_srcs; i++) {
-                inputs.push_back(srcs[i]);
-            }
+        std::vector<primitive::at> inputs;
+        for (size_t i = 0; i < num_srcs; i++) {
+            inputs.push_back(srcs[i]);
+        }
 
-            auto c = sum(sum_pd, inputs, *dst);
-            std::vector<primitive> pipeline;
-            pipeline.push_back(c);
-            auto s = stream(stream::kind::eager);
-            s.submit(pipeline).wait();
-        };
-
-        if (catch_expected_failures(test, p.expect_to_fail, p.expected_status))
-            return;
+        auto c = sum(sum_pd, inputs, *dst);
+        std::vector<primitive> pipeline;
+        pipeline.push_back(c);
+        auto s = stream(stream::kind::eager);
+        s.submit(pipeline).wait();
 
         check_data(srcs, p.scale, *dst);
     }
