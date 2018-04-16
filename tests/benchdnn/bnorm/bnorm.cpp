@@ -609,7 +609,7 @@ int doit(const prb_t *p, res_t *r) {
                 != OK)
             return r->state = MISTRUSTED, OK;
 
-        mkldnn_primitive_at_t inputs[5];
+        mkldnn_primitive_at_t inputs[6];
         const_mkldnn_primitive_t outputs[2];
 
         int idx = 0;
