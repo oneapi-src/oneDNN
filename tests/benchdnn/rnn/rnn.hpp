@@ -87,8 +87,10 @@ struct rnn_desc_t {
     alg_t alg;
     activation_t activation;
     mkldnn_rnn_direction_t direction;
-    int h_size;
-    int x_size;
+    int sic;
+    int slc;
+    int dic;
+    int dlc;
     int mb;
     int n_layer;
     int n_iter;
@@ -211,13 +213,13 @@ void compute_ref_bwd(const rnn_prb_t *p, dnn_mem_t &input_m,
 
 // mkldnn_ntc
 inline size_t ntc_off_f(const rnn_prb_t *p, int n, int t, int c) {
-    return ((size_t)n * p->n_iter + t) * p->x_size + c;
+    return ((size_t)n * p->n_iter + t) * p->slc + c;
 }
 
 inline void inv_ntc_off_f(
         const rnn_prb_t *p, size_t off, int &n, int &t, int &c) {
-    c = off % p->x_size;
-    off /= p->x_size;
+    c = off % p->slc;
+    off /= p->slc;
     t = off % p->n_iter;
     off /= p->n_iter;
     n = off % p->mb;
@@ -229,14 +231,14 @@ inline void inv_ntc_off_f(
 inline size_t ldsnc_off_f(
         const rnn_prb_t *p, int l, int d, int s, int n, int c) {
     return ((((size_t)l * p->n_direction + d) * p->n_states + s) * p->mb + n)
-            * p->h_size
+            * p->sic
             + c;
 }
 
 inline void inv_ldsnc_off_f(const rnn_prb_t *p, size_t off, int &l, int &d,
         int &s, int &n, int &c) {
-    c = off % p->h_size;
-    off /= p->h_size;
+    c = off % p->sic;
+    off /= p->sic;
     n = off % p->mb;
     off /= p->mb;
     s = off % p->n_states;
@@ -251,19 +253,18 @@ inline void inv_ldsnc_off_f(const rnn_prb_t *p, size_t off, int &l, int &d,
 // mkldnn_ldigo
 inline size_t ldigo_off_f(
         const rnn_prb_t *p, int l, int d, int w, int ic, int oc) {
-    return ((((size_t)l * p->n_direction + d) * p->n_weights + w)
-                           * (4 * p->x_size)
+    return ((((size_t)l * p->n_direction + d) * p->n_weights + w) * (4 * p->slc)
                    + ic)
-            * p->h_size
+            * p->sic
             + oc;
 }
 
 inline void inv_ldigo_off_f(const rnn_prb_t *p, size_t off, int &l, int &d,
         int &w, int &ic, int &oc) {
-    oc = off % p->h_size;
-    off /= p->h_size;
-    ic = off % (4 * p->x_size);
-    off /= (4 * p->x_size);
+    oc = off % p->sic;
+    off /= p->sic;
+    ic = off % (4 * p->slc);
+    off /= (4 * p->slc);
     w = off % p->n_weights;
     off /= p->n_weights;
     d = off % p->n_direction;
@@ -276,19 +277,18 @@ inline void inv_ldigo_off_f(const rnn_prb_t *p, size_t off, int &l, int &d,
 // mkldnn_ldwOcIc
 inline size_t ldwOcIc_off_f(
         const rnn_prb_t *p, int l, int d, int w, int oc, int ic) {
-    return ((((size_t)l * p->n_direction + d) * p->n_weights + w)
-                           * (4 * p->h_size)
+    return ((((size_t)l * p->n_direction + d) * p->n_weights + w) * (4 * p->sic)
                    + oc)
-            * p->x_size
+            * p->slc
             + ic;
 }
 
 inline void inv_ldwOcIc_off_f(const rnn_prb_t *p, size_t off, int &l, int &d,
         int &w, int &oc, int &ic) {
-    ic = off % p->x_size;
-    off /= p->x_size;
-    oc = off % (4 * p->h_size);
-    off /= (4 * p->h_size);
+    ic = off % p->slc;
+    off /= p->slc;
+    oc = off % (4 * p->sic);
+    off /= (4 * p->sic);
     w = off % p->n_weights;
     off /= p->n_weights;
     d = off % p->n_direction;
@@ -300,13 +300,13 @@ inline void inv_ldwOcIc_off_f(const rnn_prb_t *p, size_t off, int &l, int &d,
 
 // bias: mkldnn_ldgo
 inline size_t ldgo_off_f(const rnn_prb_t *p, int l, int d, int b, int c) {
-    return (((size_t)l * p->n_direction + d) * p->n_gates + b) * p->h_size + c;
+    return (((size_t)l * p->n_direction + d) * p->n_gates + b) * p->sic + c;
 }
 
 inline void inv_ldgo_off_f(
         const rnn_prb_t *p, size_t off, int &l, int &d, int &b, int &c) {
-    c = off % p->h_size;
-    off /= p->h_size;
+    c = off % p->sic;
+    off /= p->sic;
     b = off % p->n_gates;
     off /= p->n_gates;
     d = off % p->n_direction;
@@ -318,13 +318,13 @@ inline void inv_ldgo_off_f(
 
 // dst_last_layer: mkldnn_tnc
 inline size_t tnc_off_f(const rnn_prb_t *p, int s, int t, int n, int c) {
-    return (((size_t)s * p->n_iter + t) * p->mb + n) * p->h_size + c;
+    return (((size_t)s * p->n_iter + t) * p->mb + n) * p->sic + c;
 }
 
 inline void inv_tnc_off_f(
         const rnn_prb_t *p, size_t off, int &s, int &t, int &n, int &c) {
-    c = off % p->h_size;
-    off /= p->h_size;
+    c = off % p->sic;
+    off /= p->sic;
     n = off % p->mb;
     off /= p->mb;
     t = off % p->n_iter;

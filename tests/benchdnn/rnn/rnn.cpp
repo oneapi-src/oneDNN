@@ -69,19 +69,19 @@ inline int init_pd(const rnn_prb_t *p, mkldnn_rnn_desc_t rd[2],
             diff_bias_d, diff_last_layer_d, diff_last_iteration_d;
 
     // dimensions with ref
-    mkldnn_dims_t input_dims = { p->n_iter, p->mb, p->x_size };
+    mkldnn_dims_t input_dims = { p->n_iter, p->mb, p->slc };
     // bidirectional = 2, s for lstm = 2, for all other = 1
     mkldnn_dims_t weights_input_dims
-            = { p->n_layer, p->n_direction, p->x_size, p->n_gates, p->h_size };
+            = { p->n_layer, p->n_direction, p->slc, p->n_gates, p->dic };
     mkldnn_dims_t weights_states_dims
-            = { p->n_layer, p->n_direction, p->h_size, p->n_gates, p->h_size };
+            = { p->n_layer, p->n_direction, p->sic, p->n_gates, p->dic };
     mkldnn_dims_t bias_dims
-            = { p->n_layer, p->n_direction, p->n_gates, p->h_size };
+            = { p->n_layer, p->n_direction, p->n_gates, p->dic };
     // mkldnn_tnc
-    int lastlay_h_size = (p->direction == mkldnn_bidirectional_concat) ?
-            2 * p->h_size :
-            p->h_size;
-    mkldnn_dims_t dst_last_layer_dims = { p->n_iter, p->mb, lastlay_h_size };
+    int lastlay_dlc = (p->direction == mkldnn_bidirectional_concat) ?
+            2 * p->dlc :
+            p->dlc;
+    mkldnn_dims_t dst_last_layer_dims = { p->n_iter, p->mb, lastlay_dlc };
 
     DNN_SAFE(mkldnn_memory_desc_init(
                      &input_d, 3, input_dims, p->cfg_[SRC].dt, mkldnn_tnc),
@@ -92,12 +92,12 @@ inline int init_pd(const rnn_prb_t *p, mkldnn_rnn_desc_t rd[2],
             WARN);
 
     mkldnn_dims_t states_dims
-            = { p->n_layer, p->n_direction, p->n_states, p->mb, p->h_size };
+            = { p->n_layer, p->n_direction, p->n_states, p->mb, p->sic };
     DNN_SAFE(mkldnn_memory_desc_init(
                      &states_d, 5, states_dims, p->cfg_[SRC].dt, mkldnn_ldsnc),
             WARN);
 
-    states_d.layout_desc.blocking.strides[0][3] = p->h_size + the_stride;
+    states_d.layout_desc.blocking.strides[0][3] = p->sic + the_stride;
     states_d.layout_desc.blocking.strides[0][2]
             = states_d.layout_desc.blocking.strides[0][3] * states_d.dims[3]
             + the_stride;
@@ -140,13 +140,13 @@ inline int init_pd(const rnn_prb_t *p, mkldnn_rnn_desc_t rd[2],
             WARN);
 
     mkldnn_dims_t dst_last_iteration_dims
-            = { p->n_layer, p->n_direction, p->n_states, p->mb, p->h_size };
+            = { p->n_layer, p->n_direction, p->n_states, p->mb, p->dic };
     DNN_SAFE(mkldnn_memory_desc_init(&dst_last_iteration_d, 5,
                      dst_last_iteration_dims, p->cfg_[SRC].dt, mkldnn_ldsnc),
             WARN);
 
     dst_last_iteration_d.layout_desc.blocking.strides[0][3]
-            = p->h_size + the_stride;
+            = p->sic + the_stride;
     dst_last_iteration_d.layout_desc.blocking.strides[0][2]
             = dst_last_iteration_d.layout_desc.blocking.strides[0][3]
                     * dst_last_iteration_d.dims[3]

@@ -119,17 +119,15 @@ const char *direction2str(mkldnn_rnn_direction_t direction) {
 void prb2str(const rnn_prb_t *p, const res_t *res, char *buffer) {
     int rem_len = max_prb_len;
 
-    DPRINT("RNN:");
-    DPRINT("alg:%s;", alg2str(p->alg));
-    DPRINT("activation:%s;", activation2str(p->activation));
-    DPRINT("direction:%s;", direction2str(p->direction));
-    DPRINT("h_size:%d;", p->h_size);
-    DPRINT("x_size:%d;", p->x_size);
-    DPRINT("batch:%d;", p->mb);
-    DPRINT("n_layer:%d;", p->n_layer);
-    DPRINT("n_iter:%d;", p->n_iter);
-
-    DPRINT("name:\"%s;\"", p->name);
+    DPRINT("%s(%s,%s)", alg2str(p->alg), activation2str(p->activation), direction2str(p->direction));
+    DPRINT("l%d", p->n_layer);
+    DPRINT("t%d", p->n_iter);
+    DPRINT("m%d", p->mb);
+    DPRINT("sic%d", p->sic);
+    DPRINT("slc%d", p->slc);
+    DPRINT("dic%d", p->dic);
+    DPRINT("dlc%d", p->dlc);
+    DPRINT("n\"%s\"", p->name);
 }
 
 void init_buffer(float *buf, int size, float value) {
