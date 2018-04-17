@@ -215,8 +215,8 @@ template <prop_kind_t aprop>
 gemm_sig(_ref_rnn_common_t<aprop>::packed_gemm) {
 #if USE_MKL_PACKED_GEMM
     cblas_sgemm_compute(CblasColMajor, CblasPacked,
-            is_B_trans ? CblasTrans : CblasNoTrans, m, n, k, a_, padded_m, b_,
-            is_B_trans ? padded_n : padded_k, beta, c_, padded_m);
+            is_B_trans ? CblasTrans : CblasNoTrans, m, n, k, a_, strideA_m, b_,
+            is_B_trans ? strideB_n : strideB_k, beta, c_, strideC_m);
 #else
     UNUSED(m);
     UNUSED(n);
@@ -233,18 +233,21 @@ gemm_sig(_ref_rnn_common_t<aprop>::packed_gemm) {
 template <prop_kind_t aprop>
 gemm_sig(_ref_rnn_common_t<aprop>::gemm) {
     cblas_sgemm(CblasColMajor, CblasNoTrans,
-            is_B_trans ? CblasTrans : CblasNoTrans, m, n, k, 1.0f, a_, padded_m,
-            b_, is_B_trans ? padded_n : k, beta, c_, padded_m);
+            is_B_trans ? CblasTrans : CblasNoTrans, m, n, k, 1.0f, a_,
+            strideA_m, b_, is_B_trans ? strideB_n : strideB_k, beta, c_,
+            strideC_m);
 }
 
 /// @todo template this function on fwd or bwd, if the overhead
 ///  to pass argument for empty function is too big
 template <>
 cell_execution_sig(_ref_rnn_common_t<prop_kind::forward>::cell_execution) {
-    (this->*gemm_input_func)(n_gates * dic, batch, slc, n_gates * dic, batch,
-            wic, w_input_, states_t_lm1_, ws_gates_, false, 0.0f);
-    (this->*gemm_state_func)(n_gates * dic, batch, sic, n_gates * dic, batch,
-            wic, w_state_, states_tm1_l_, ws_gates_, false, 1.0f);
+    (this->*gemm_input_func)(n_gates * dic, batch, slc, n_gates * dic, slc,
+            batch, wic, n_gates * dic, batch, w_input_, states_t_lm1_,
+            ws_gates_, false, 0.0f);
+    (this->*gemm_state_func)(n_gates * dic, batch, sic, n_gates * dic, sic,
+            batch, wic, n_gates * dic, batch, w_state_, states_tm1_l_,
+            ws_gates_, false, 1.0f);
     (this->*elemwise_func)(dic, wic, batch, n_states, n_gates, ws_gates_,
             states_t_l_, states_t_lm1_, states_tm1_l_, diff_states_t_l_,
             diff_states_t_lp1_, diff_states_tp1_l_, bias_);
@@ -257,17 +260,20 @@ cell_execution_sig(_ref_rnn_common_t<prop_kind::backward>::cell_execution) {
             diff_states_t_lp1_, diff_states_tp1_l_, bias_);
 
     /// bwd by data on the cell
-    (this->*gemm_state_func)(sic, batch, n_gates * dic, wic, batch,
-            n_gates * dic, w_state_, ws_gates_, diff_states_t_l_, false, 0.0f);
-    (this->*gemm_input_func)(sic, batch, n_gates * dic, wic, batch,
-            n_gates * dic, w_input_, ws_gates_,
-            diff_states_t_l_ + n_states * (batch * dic), false, 0.0f);
+    (this->*gemm_state_func)(sic, batch, n_gates * dic, sic, n_gates * dic,
+            batch, n_gates * dic, wic, batch, w_state_, ws_gates_,
+            diff_states_t_l_, false, 0.0f);
+    (this->*gemm_input_func)(slc, batch, n_gates * dic, slc, n_gates * dic,
+            batch, n_gates * dic, wic, batch, w_input_, ws_gates_,
+            diff_states_t_l_ + n_states * (batch * wic), false, 0.0f);
 
     /// bwd by weights on the cell
-    gemm(n_gates * slc, dic, batch, n_gates * slc, wic, batch, ws_gates_,
-            states_t_lm1_, diff_w_input_, true, 1.0f);
-    gemm(n_gates * sic, dic, batch, n_gates * sic, wic, batch, ws_gates_,
-            states_tm1_l_, diff_w_state_, true, 1.0f);
+    gemm(n_gates * dic, slc, batch, n_gates * dic, batch, wic, batch,
+            n_gates * dic, slc, ws_gates_, states_t_lm1_, diff_w_input_, true,
+            1.0f);
+    gemm(n_gates * dic, sic, batch, n_gates * dic, batch, wic, batch,
+            n_gates * dic, sic, ws_gates_, states_tm1_l_, diff_w_state_, true,
+            1.0f);
 
 /// bwd by bias we just accumulate diffs from the gates
 #if (_OPENMP == 201307)
@@ -496,28 +502,32 @@ grid_execution_sig(_ref_rnn_common_t<aprop>::wavefront_execution){// (int dic, i
 
 template <>
 void _ref_rnn_common_t<prop_kind::forward>::copy_init_layer(bool lr, bool rl,
-        int n_layer, int n_direction, int n_iter, int batch, int slc, int wic,
-        int n_states, float *ws_states_, float *ws_diff_states_,
+        int n_layer, int n_direction, int n_iter, int batch, int slc, int dlc,
+        int wic, int n_states, float *ws_states_, float *ws_diff_states_,
         const float *xt_, const float *diff_dst_layer_) {
-    AOC<float, 3> ws_states(
-            ws_states_, n_direction, n_iter + 1, n_states * batch * wic);
+    AOC<float, 5> ws_states(
+            ws_states_, n_direction, n_iter + 1, n_states, batch, wic);
     auto xt_d = memory_desc_wrapper(conf_.src_pd(0));
 
 #pragma omp parallel for
     for (int it = 0; it < n_iter; it++) {
         auto xxt = xt_ + xt_d.blk_off(it);
         if (lr)
-            array_copy(&(ws_states(0, it + 1, 0)), xxt, batch * slc);
+            for (int b = 0; b < batch; b++)
+                for (int c = 0; c < slc; c++)
+                    ws_states(0, it + 1, 0, b, c) = *(xxt + b * slc + c);
         if (rl)
-            array_copy(&(ws_states(n_direction - 1, n_iter - it, 0)), xxt,
-                    batch * slc);
+            for (int b = 0; b < batch; b++)
+                for (int c = 0; c < slc; c++)
+                    ws_states(n_direction - 1, n_iter - it, 0, b, c)
+                            = *(xxt + b * slc + c);
     }
 }
 
 template <>
 void _ref_rnn_common_t<prop_kind::backward>::copy_init_layer(bool lr, bool rl,
-        int n_layer, int n_direction, int n_iter, int batch, int slc, int wic,
-        int n_states, float *ws_states_, float *ws_diff_states_,
+        int n_layer, int n_direction, int n_iter, int batch, int slc, int dlc,
+        int wic, int n_states, float *ws_states_, float *ws_diff_states_,
         const float *xt_, const float *diff_dst_layer_) {
     AOC<float, 6> ws_diff_states(ws_diff_states_, n_layer + 1, n_direction,
             n_iter + 1, (n_states + 1), batch, wic);
@@ -530,7 +540,7 @@ void _ref_rnn_common_t<prop_kind::backward>::copy_init_layer(bool lr, bool rl,
             for (int b = 0; b < batch; b++) {
                 auto diff_dst_layer_x
                         = diff_dst_layer_ + diff_dst_layer_d.blk_off(it, b);
-                for (int s = 0; s < slc; s++) {
+                for (int s = 0; s < dlc; s++) {
                     ws_diff_states(n_layer, 0, it, n_states, b, s)
                             = diff_dst_layer_x[s];
                     ws_diff_states(n_layer, 1, it, n_states, b, s)
@@ -572,9 +582,9 @@ void _ref_rnn_common_t<prop_kind::backward>::copy_init_layer(bool lr, bool rl,
 
 template <>
 void _ref_rnn_common_t<prop_kind::forward>::copy_init_iter(int n_layer,
-        int n_direction, int n_states, int batch, int sic, int wic, int n_iter,
-        float *ws_states_, float *ws_diff_states_, const float *firstit_states_,
-        const float *diff_dst_iter_) {
+        int n_direction, int n_states, int batch, int sic, int dic, int wic,
+        int n_iter, float *ws_states_, float *ws_diff_states_,
+        const float *firstit_states_, const float *diff_dst_iter_) {
     AOC<float, 6> ws_states(ws_states_, n_layer + 1, n_direction, n_iter + 1,
             n_states, batch, wic);
     auto firstit_states_d = memory_desc_wrapper(conf_.src_pd(1));
@@ -603,9 +613,9 @@ void _ref_rnn_common_t<prop_kind::forward>::copy_init_iter(int n_layer,
 
 template <>
 void _ref_rnn_common_t<prop_kind::backward>::copy_init_iter(int n_layer,
-        int n_direction, int n_states, int batch, int sic, int wic, int n_iter,
-        float *ws_states_, float *ws_diff_states_, const float *firstit_states_,
-        const float *diff_dst_iter_) {
+        int n_direction, int n_states, int batch, int sic, int dic, int wic,
+        int n_iter, float *ws_states_, float *ws_diff_states_,
+        const float *firstit_states_, const float *diff_dst_iter_) {
     AOC<float, 6> ws_diff_states(ws_diff_states_, n_layer + 1, n_direction,
             n_iter + 1, n_states + 1, batch, wic);
     auto diff_dst_iter_d = memory_desc_wrapper(conf_.diff_dst_pd(1));
@@ -620,7 +630,7 @@ void _ref_rnn_common_t<prop_kind::backward>::copy_init_iter(int n_layer,
                                 diff_dst_iter_
                                         + diff_dst_iter_d.blk_off(
                                                   lay, dir, state, b),
-                                sic);
+                                dic);
                     }
     } else {
 #pragma omp parallel for collapse(4)
@@ -637,7 +647,7 @@ void _ref_rnn_common_t<prop_kind::backward>::copy_init_iter(int n_layer,
 template <>
 void _ref_rnn_common_t<prop_kind::forward>::copy_res_layer(bool lr, bool rl,
         int n_layer, int n_direction, int n_iter, int batch,
-        int n_output_features, int dic, int wic, int n_states,
+        int n_output_features, int slc, int dic, int wic, int n_states,
         mkldnn_rnn_direction_t direction, float *dst_layer_,
         float *diff_src_layer, const float *ws_states_,
         const float *ws_diff_states_) {
@@ -673,7 +683,7 @@ void _ref_rnn_common_t<prop_kind::forward>::copy_res_layer(bool lr, bool rl,
 template <>
 void _ref_rnn_common_t<prop_kind::backward>::copy_res_layer(bool lr, bool rl,
         int n_layer, int n_direction, int n_iter, int batch,
-        int n_output_features, int dic, int wic, int n_states,
+        int n_output_features, int slc, int dic, int wic, int n_states,
         mkldnn_rnn_direction_t direction, float *dst_layer_,
         float *diff_src_layer_, const float *ws_states_,
         const float *ws_diff_states_) {
@@ -684,14 +694,14 @@ void _ref_rnn_common_t<prop_kind::backward>::copy_res_layer(bool lr, bool rl,
     for (int it = 0; it < n_iter; it++) {
         for (int b = 0; b < batch; b++) {
             int dir = 0;
-            for (int s = 0; s < dic; s++) {
+            for (int s = 0; s < slc; s++) {
                 float *dst_addr = diff_src_layer_
                         + diff_src_layer_d.blk_off(
                                   (direction
                                           == mkldnn_unidirectional_right2left) ?
                                           n_iter - 1 - it :
                                           it,
-                                  b, dir * dic + s);
+                                  b, dir * slc + s);
                 float res = ws_diff_states(0, 0, it, n_states, b, s);
                 if (n_direction - 1)
                     res += ws_diff_states(
@@ -704,9 +714,9 @@ void _ref_rnn_common_t<prop_kind::backward>::copy_res_layer(bool lr, bool rl,
 
 template <>
 void _ref_rnn_common_t<prop_kind::forward>::copy_res_iter(int n_layer,
-        int n_direction, int n_states, int batch, int dic, int wic, int n_iter,
-        float *dst_iter_, float *diff_src_iter_, const float *ws_states_,
-        const float *ws_diff_states_) {
+        int n_direction, int n_states, int batch, int sic, int dic, int wic,
+        int n_iter, float *dst_iter_, float *diff_src_iter_,
+        const float *ws_states_, const float *ws_diff_states_) {
     auto dst_iter_d = memory_desc_wrapper(conf_.dst_pd(1));
     AOC<const float, 6> ws_states(ws_states_, n_layer + 1, n_direction,
             n_iter + 1, n_states, batch, wic);
@@ -727,9 +737,9 @@ void _ref_rnn_common_t<prop_kind::forward>::copy_res_iter(int n_layer,
 
 template <>
 void _ref_rnn_common_t<prop_kind::backward>::copy_res_iter(int n_layer,
-        int n_direction, int n_states, int batch, int dic, int wic, int n_iter,
-        float *dst_iter_, float *diff_src_iter_, const float *ws_states_,
-        const float *ws_diff_states_) {
+        int n_direction, int n_states, int batch, int sic, int dic, int wic,
+        int n_iter, float *dst_iter_, float *diff_src_iter_,
+        const float *ws_states_, const float *ws_diff_states_) {
     auto diff_src_iter_d = memory_desc_wrapper(conf_.diff_src_pd(1));
     AOC<const float, 6> ws_diff_states(ws_diff_states_, n_layer + 1,
             n_direction, n_iter + 1, n_states + 1, batch, wic);
@@ -739,7 +749,7 @@ void _ref_rnn_common_t<prop_kind::backward>::copy_res_iter(int n_layer,
             for (int dir = 0; dir < n_direction; dir++)
                 for (int state = 0; state < n_states; state++)
                     for (int b = 0; b < batch; b++)
-                        for (int s = 0; s < dic; s++) {
+                        for (int s = 0; s < sic; s++) {
                             diff_src_iter_[diff_src_iter_d.blk_off(
                                     lay, dir, state, b, s)]
                                     = ws_diff_states(lay, dir, 0, state, b, s);
@@ -836,6 +846,7 @@ void _ref_rnn_common_t<aprop>::execute_() {
     int slc = conf_.SLC();
     int sic = conf_.SIC();
     int dic = conf_.DIC();
+    int dlc = conf_.DLC();
     int wic = nstl::max(slc, nstl::max(sic, dic));
 
     bool is_fwd = aprop == prop_kind::forward;
@@ -919,9 +930,9 @@ void _ref_rnn_common_t<aprop>::execute_() {
             n_gates, batch, dic, slc, ptr_wei_input_, w_input);
 
     // we first need to copy the initial states and input into ws
-    copy_init_layer(is_lr, is_rl, n_layer, n_direction, n_iter, batch, slc, wic,
-            n_states, ws_states_, ws_diff_states_, input, diff_dst_layer);
-    copy_init_iter(n_layer, n_direction, n_states, batch, sic, wic, n_iter,
+    copy_init_layer(is_lr, is_rl, n_layer, n_direction, n_iter, batch, slc, dlc,
+            wic, n_states, ws_states_, ws_diff_states_, input, diff_dst_layer);
+    copy_init_iter(n_layer, n_direction, n_states, batch, sic, dic, wic, n_iter,
             ws_states_, ws_diff_states_, states, diff_dst_iter);
 
     // run the execution on the grid
@@ -932,9 +943,9 @@ void _ref_rnn_common_t<aprop>::execute_() {
 
     // Finally we copy the results to the result buffers
     copy_res_layer(is_lr, is_rl, n_layer, n_direction, n_iter, batch,
-            n_output_features, dic, wic, n_states, conf_.direction(),
+            n_output_features, slc, dic, wic, n_states, conf_.direction(),
             dst_last_layer, diff_src_layer, ws_states_, ws_diff_states_);
-    copy_res_iter(n_layer, n_direction, n_states, batch, dic, wic, n_iter,
+    copy_res_iter(n_layer, n_direction, n_states, batch, sic, dic, wic, n_iter,
             dst_last_iter, diff_src_iter, ws_states_, ws_diff_states_);
 
     // We free the packed weights if they were packed internally

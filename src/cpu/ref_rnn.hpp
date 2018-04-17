@@ -56,10 +56,10 @@ namespace cpu {
             float *ws_gates_, float *diff_weights_layer_,                  \
             float *diff_weights_iter_, float *diff_bias_)
 
-#define gemm_sig(f)                                                       \
-    void f(int m, int n, int k, int padded_m, int padded_n, int padded_k, \
-            const float *a_, float *b_, float *c_, bool is_B_trans,       \
-            float beta)
+#define gemm_sig(f)                                                          \
+    void f(int m, int n, int k, int strideA_m, int strideA_k, int strideB_n, \
+            int strideB_k, int strideC_m, int strideC_n, const float *a_,    \
+            float *b_, float *c_, bool is_B_trans, float beta)
 
 #define packing_sig(f)                                               \
     void f(int n_layer, int n_direction, int n_weights, int n_gates, \
@@ -333,20 +333,20 @@ private:
     float (*activation_func)(float dd, float s, float alpha, float cliping);
 
     void copy_init_layer(bool lr, bool rl, int n_direction, int n_layer,
-            int n_iter, int batch, int slc, int wic, int n_states,
+            int n_iter, int batch, int slc, int dlc, int wic, int n_states,
             float *ws_states_, float *ws_diff_states_, const float *xt_,
             const float *diff_dst_layer);
     void copy_init_iter(int n_layer, int n_direction, int n_states, int batch,
-            int sic, int wic, int n_iter, float *ws_states_,
+            int sic, int dic, int wic, int n_iter, float *ws_states_,
             float *ws_diff_states_, const float *firstit_states_,
             const float *diff_dst_iter);
     void copy_res_layer(bool lr, bool rl, int n_layer, int n_direction,
-            int n_iter, int batch, int n_output_features, int dic, int wic,
-            int n_states, mkldnn_rnn_direction_t direction, float *dst_layer_,
-            float *diff_src_layer, const float *ws_states_,
+            int n_iter, int batch, int n_output_features, int slc, int dlc,
+            int wic, int n_states, mkldnn_rnn_direction_t direction,
+            float *dst_layer_, float *diff_src_layer, const float *ws_states_,
             const float *ws_diff_states_);
     void copy_res_iter(int n_layer, int n_direction, int n_states, int batch,
-            int dic, int wic, int n_iter, float *dst_iter_,
+            int sic, int dic, int wic, int n_iter, float *dst_iter_,
             float *diff_src_iter, const float *ws_states_,
             const float *ws_diff_states_);
 
