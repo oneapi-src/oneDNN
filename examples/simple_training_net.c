@@ -22,7 +22,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include "mkldnn.h"
-#ifdef WIN32
+#ifdef _WIN32
 #include <malloc.h>
 #endif
 
@@ -48,7 +48,7 @@
     } while (0)
 
 void *aligned_malloc(size_t size, size_t alignment) {
-#ifdef WIN32
+#ifdef _WIN32
     return _aligned_malloc(size, alignment);
 #else
     void *p;
@@ -56,7 +56,7 @@ void *aligned_malloc(size_t size, size_t alignment) {
 #endif
 }
 
-#ifdef WIN32
+#ifdef _WIN32
 void _free(void *ptr) {
     _aligned_free(ptr);
 }
