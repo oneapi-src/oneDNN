@@ -35,10 +35,10 @@ namespace conv {
 
 const int int_max_exact = 1<<24;
 const _dt_conf_t conf_f32 = {
-    {mkldnn_f32, -int_max_exact, int_max_exact,  -64,  64, 0, 1, .25, 0.},
+    {mkldnn_f32, -int_max_exact, int_max_exact,  -32,  32, 0, 1, .25, 0.},
     {mkldnn_f32, -int_max_exact, int_max_exact,  -32,  32, 0, 1, 1.0, 0.},
     {mkldnn_f32, -int_max_exact, int_max_exact, -512, 512, 0, 1, 1.0, 0.},
-    {mkldnn_f32, -int_max_exact, int_max_exact,  -64,  64, 0, 1, .25, 0.},
+    {mkldnn_f32, -int_max_exact, int_max_exact,  -32,  32, 0, 1, .25, 0.},
     {mkldnn_f32,},
 };
 
@@ -51,10 +51,10 @@ const _dt_conf_t conf_f32_full = {
 };
 
 const _dt_conf_t conf_f32_wino = {
-    {mkldnn_f32, -int_max_exact, int_max_exact,   0,  16, 3, 1, .25, 1e-5},
-    {mkldnn_f32, -int_max_exact, int_max_exact,   2,  64, 2, 1, .75, 5e-5},
-    {mkldnn_f32, -int_max_exact, int_max_exact,   1, 128, 1, 1, .25,   0.},
-    {mkldnn_f32, -int_max_exact, int_max_exact,   0,  16, 3, 1, .25, 1e-5},
+    {mkldnn_f32, -FLT_MAX, FLT_MAX, -4,  16, 3, 1, .25, 1e-5},
+    {mkldnn_f32, -FLT_MAX, FLT_MAX,  2,  64, 2, 1, .75, 5e-5},
+    {mkldnn_f32, -FLT_MAX, FLT_MAX,  1, 128, 1, 1, .25,   0.},
+    {mkldnn_f32, -FLT_MAX, FLT_MAX,  0,  16, 3, 1, .25, 2e-5},
     {mkldnn_f32,},
 };
 

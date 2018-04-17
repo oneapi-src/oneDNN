@@ -68,7 +68,7 @@ void desc2str(const desc_t *d, char *buffer, bool canonical = false);
  */
 typedef struct dt_conf_t {
     mkldnn_data_type_t dt;
-    int min, max; /* representative */
+    double min, max; /* representative */
     int f_min, f_max; /* fill range */
     int f_base; /* fill base, use 0 */
     int f_step; /* fill step, use 1 */
