@@ -293,7 +293,7 @@ static char *dirname(char *path) {
 }
 #else
 #include <libgen.h>
-#endif /* WIN32 */
+#endif /* _WIN32 */
 
 FILE *open_batch_file(const char *fname) {
     const int max_paths = 4;

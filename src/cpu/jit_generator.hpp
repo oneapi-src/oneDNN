@@ -145,12 +145,12 @@ static inline int float2int(float x) {
 constexpr Xbyak::Operand::Code abi_save_gpr_regs[] = {
     Xbyak::Operand::RBX, Xbyak::Operand::RBP, Xbyak::Operand::R12,
     Xbyak::Operand::R13, Xbyak::Operand::R14, Xbyak::Operand::R15,
-#ifdef _WIN
+#ifdef _WIN32
     Xbyak::Operand::RDI, Xbyak::Operand::RSI,
 #endif
 };
 
-#ifdef _WIN
+#ifdef _WIN32
 static const Xbyak::Reg64 abi_param1(Xbyak::Operand::RCX),
              abi_param2(Xbyak::Operand::RDX),
              abi_param3(Xbyak::Operand::R8),
@@ -277,7 +277,7 @@ class jit_generator : public Xbyak::CodeGenerator
 {
 private:
     const size_t xmm_len = 16;
-#ifdef _WIN
+#ifdef _WIN32
     const size_t xmm_to_preserve_start = 6;
     const size_t xmm_to_preserve = 10;
 #else
