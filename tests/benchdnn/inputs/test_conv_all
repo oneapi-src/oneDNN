@@ -53,7 +53,7 @@
 --cfg=u8s8s8s32_wino  --batch=conv_resnet_50
 --cfg=u8s8s32s32_wino --batch=conv_googlenet_v3
 --merge=RELU
---cfg=u8s8s32s32_wino --batch=conv_vgg_19
+--cfg=u8s8s32s32_wino --batch=conv_googlenet_v2
 
 # dilated
 --batch=test_conv_dilated
