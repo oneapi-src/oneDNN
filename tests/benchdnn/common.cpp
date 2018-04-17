@@ -364,3 +364,10 @@ int batch(const char *fname, bench_f bench) {
 
     return OK;
 }
+
+int flip_coin(ptrdiff_t seed, float probability) {
+    const ptrdiff_t big_prime = 1000003;
+    const ptrdiff_t prime = 753737;
+    seed *= prime;
+    return (seed % big_prime) < (probability * big_prime);
+}

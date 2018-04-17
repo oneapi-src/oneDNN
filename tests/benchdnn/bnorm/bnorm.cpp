@@ -30,14 +30,6 @@
 
 namespace bnorm {
 
-/* returns 1 with given probability */
-static int flip_coin(ptrdiff_t seed, float probability) {
-    const ptrdiff_t big_prime = 1000003;
-    const ptrdiff_t prime = 753737;
-    seed *= prime;
-    return (seed % big_prime) < (probability * big_prime);
-}
-
 static int prepare_fwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &mean,
         dnn_mem_t &var, dnn_mem_t &ss) {
     /** Idea: choose src[] values so that both mean and variance are computed

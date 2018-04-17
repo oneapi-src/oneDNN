@@ -247,10 +247,7 @@ int fill_src(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
     for (int iw = 0; iw < p->iw; ++iw)
     {
         const int gen = 5 * id + 17 * ih + 13 * iw + 13 * mb + 19 * ic + 1637;
-        const bool non_base = true
-            && gen % (p->kd * p->kh * p->kw) <= c.f_sparsity * (p->kd * p->kh * p->kw);
-//            && (17 * ih + 13 * mb) % p->kh == 0
-//            && (13 * iw + 19 * ic) % p->kw == 0;
+        const bool non_base = flip_coin(gen, c.f_sparsity);
         const float value =
             non_base ? c.f_min + gen * c.f_step % range : c.f_base;
 
@@ -291,10 +288,7 @@ int fill_wei(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
     for (int kw = 0; kw < p->kw; ++kw)
     {
         const int gen = 5 * kd + 17 * kh + 13 * kw + 13 * oc + 19 * ic + 38;
-        const bool non_base = true
-            && gen % (p->kd * p->kh * p->kw) <= c.f_sparsity * (p->kd * p->kh * p->kw);
-//            && (17 * kh + 13 * oc) % p->kh == 0
-//            && (13 * kw + 19 * ic) % p->kw == 0;
+        const bool non_base = flip_coin(gen, c.f_sparsity);
         const float value =
             non_base ? c.f_min + gen * c.f_step % range : c.f_base;
 
@@ -325,8 +319,7 @@ int fill_bia(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
     const size_t sz = mem_00.nelems();
     for (size_t i = 0; i < sz; ++i) {
         const int gen = (int)(19 * i);
-        const bool non_base = true
-            && gen % (p->kd * p->kh * p->kw) <= c.f_sparsity * (p->kd * p->kh * p->kw);
+        const bool non_base = flip_coin(gen, c.f_sparsity);
         const float value =
             non_base ? c.f_min + gen * c.f_step % range : c.f_base;
 
@@ -363,10 +356,7 @@ int fill_dst(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
     for (int ow = 0; ow < p->ow; ++ow)
     {
         const int gen = 7 * od + 19 * oh + 17 * ow + 13 * mb + 13 * oc + 223;
-        const bool non_base = true
-            && gen % (p->kd * p->kh * p->kw) <= c.f_sparsity * (p->kd * p->kh * p->kw);
-//            && (19 * oh + 13 * mb) % p->kh == 0
-//            && (17 * ow + 13 * oc) % p->kw == 0;
+        const bool non_base = flip_coin(gen, c.f_sparsity);
         const float value =
             non_base ? c.f_min + gen * c.f_step % range : c.f_base;
 

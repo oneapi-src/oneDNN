@@ -164,4 +164,7 @@ bool maybe_skip(const char *skip_impl, const char *impl_str);
 typedef int (*bench_f)(int argc, char **argv, bool main_bench);
 int batch(const char *fname, bench_f bench);
 
+/* returns 1 with given probability */
+int flip_coin(ptrdiff_t seed, float probability);
+
 #endif
