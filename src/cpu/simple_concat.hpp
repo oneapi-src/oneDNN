@@ -33,19 +33,24 @@ struct simple_concat_t: public cpu_primitive_t {
                 const primitive_attr_t *attr)
             : cpu_concat_pd_t(output_d, n, concat_dim, input_pds, attr)
         {}
-        pd_t(const pd_t &rhs) : cpu_concat_pd_t(rhs) {}
-
+        pd_t(const pd_t &rhs) : cpu_concat_pd_t(rhs) {
+            for (int i = 0; i < sizeof(perm_)/sizeof(perm_[0]); i++) {
+                perm_[i] = rhs.perm_[i];
+                iperm_[i] = rhs.iperm_[i];
+            }
+        }
         DECLARE_CPU_CONCAT_PD_T("simple:any", simple_concat_t);
 
         virtual status_t init() override {
-            auto is_dense_no_0 = [](const memory_desc_wrapper &data_d) {
-                return nelems_no_dim_0(data_d) == _size_no_dim_0(data_d);
+            auto is_dense = [&](const memory_desc_wrapper &data_d) {
+                return nelems_to_concat(concat_dim_, perm_, iperm_, data_d)
+                        == _size_to_concat(concat_dim_, perm_, iperm_, data_d);
             };
-
+            const memory_desc_wrapper dst_d(&dst_pd_);
             bool ok = true
-                && concat_dim_ != 0
                 && cpu_concat_pd_t::init() == success
-                && src_pds_.size() <= max_num_arrs;
+                && src_pds_.size() <= max_num_arrs
+                && dst_d.ndims() <= 6;
 
             if (!ok) return unimplemented;
 
@@ -56,11 +61,26 @@ struct simple_concat_t: public cpu_primitive_t {
                     && utils::everyone_is(data_type, i_d.data_type(),
                             o_d.data_type())
                     && i_d.format() == o_d.format()
-                    && is_dense_no_0(i_d) && is_dense_no_0(o_d);
-                }
+                    && !utils::one_of(i_d.format(), memory_format::blocked,
+                        memory_format::wino_fmt);
+            }
+
+            if (!ok)
+                return unimplemented;
+
+            format_perm(dst_d.ndims(), dst_d.blocking_desc().strides[0], perm_,
+                    iperm_);
+
+            for (size_t i = 0; i < src_pds_.size(); ++i) {
+                const memory_desc_wrapper i_d(&src_pds_[i]);
+                const memory_desc_wrapper o_d(&src_image_pds_[i]);
+                ok = ok && is_dense(i_d) && is_dense(o_d);
+            }
 
             return ok ? success : unimplemented;
         }
+        dims_t perm_;
+        dims_t iperm_;
     };
 
     simple_concat_t(const pd_t *conf, const input_vector &inputs,
@@ -76,22 +96,55 @@ struct simple_concat_t: public cpu_primitive_t {
     typedef typename prec_traits<data_type>::type data_t;
 
 private:
-    static size_t nelems_no_dim_0(const memory_desc_wrapper &data_d) {
-        const int ndims = data_d.ndims();
-        if (ndims <= 1) return 1;
-        return utils::array_product(data_d.dims() + 1, data_d.ndims() - 1);
+    static void format_perm(
+            const int ndims, const stride_t *strides, int *perm, int *iperm) {
+        bool swapped;
+        strides_t strides_tmp;
+        utils::array_copy(strides_tmp, strides, ndims);
+        for (int i = 0; i < ndims; i++)
+            iperm[i] = i;
+        for (int i = 0; i < ndims - 1; i++) {
+            swapped = false;
+            for (int j = 0; j < ndims - i - 1; j++) {
+                if (strides_tmp[j] < strides_tmp[j + 1]) {
+                    nstl::swap(strides_tmp[j], strides_tmp[j + 1]);
+                    nstl::swap(iperm[j], iperm[j + 1]);
+                    swapped = true;
+                }
+            }
+            if (swapped == false)
+                break;
+        }
+        for (int i = 0; i < ndims; i++)
+            perm[iperm[i]] = i;
     }
 
-    static size_t _size_no_dim_0(const memory_desc_wrapper &data_d) {
+    static size_t nelems_to_concat(const int concat_dim, int *perm, int *iperm,
+            const memory_desc_wrapper &data_d) {
+        const int ndims = data_d.ndims();
+        auto &blk = data_d.blocking_desc();
+        int nelems = 1;
+        for (int i = perm[concat_dim]; i < ndims; i++) {
+            nelems *= data_d.dims()[iperm[i]] / blk.block_dims[iperm[i]];
+        }
+        for (int i = 0; i < ndims; i++) {
+            nelems *= blk.block_dims[i];
+        }
+        return nelems;
+    }
+
+    static size_t _size_to_concat(const int concat_dim, int *perm, int *iperm,
+            const memory_desc_wrapper &data_d) {
         size_t max_size = 0;
         auto &blk = data_d.blocking_desc();
-        for (int d = 1; d < data_d.ndims(); ++d) {
-            auto block = blk.block_dims[d];
+        for (int d = perm[concat_dim]; d < data_d.ndims(); ++d) {
+            auto block = blk.block_dims[iperm[d]];
             max_size = nstl::max(max_size,
-                    size_t(blk.padding_dims[d]/block)*blk.strides[0][d]);
+                    size_t(blk.padding_dims[iperm[d]] / block)
+                            * blk.strides[0][iperm[d]]);
             if (block > 1)
                 max_size = nstl::max(max_size,
-                        size_t(block*blk.strides[1][d]));
+                        size_t(block * blk.strides[1][iperm[d]]));
         }
         return max_size;
     }
@@ -99,7 +152,6 @@ private:
     void execute();
     pd_t conf_;
 };
-
 }
 }
 }
