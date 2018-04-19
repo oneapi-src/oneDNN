@@ -194,13 +194,13 @@ ncsp_batch_normalization_bwd_t::ncsp_batch_normalization_bwd_t(const pd_t *pd,
     : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {
     this->stats_reduction_ = (data_t *)malloc(
             conf_.C() * 2 * omp_get_max_threads() * sizeof(data_t), 64);
-    if (!this->memory(1))
+    if (!conf_.use_scaleshift())
         this->tmp_diff_scaleshift_
                 = (data_t *)malloc(conf_.C() * 2 * sizeof(data_t), 64);
 }
 ncsp_batch_normalization_bwd_t::~ncsp_batch_normalization_bwd_t() {
     free(this->stats_reduction_);
-    if (!this->memory(1))
+    if (!conf_.use_scaleshift())
         free(this->tmp_diff_scaleshift_);
 }
 
