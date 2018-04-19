@@ -140,9 +140,10 @@ struct ncsp_batch_normalization_bwd_t : public cpu_primitive_t {
     }
 
 private:
-    data_t *stats_reduction_, *tmp_diff_scaleshift_;
     void execute_backward();
     pd_t conf_;
+
+    data_t *stats_reduction_, *tmp_diff_scaleshift_;
 };
 }
 }

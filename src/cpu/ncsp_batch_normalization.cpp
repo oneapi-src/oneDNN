@@ -189,19 +189,22 @@ void ncsp_batch_normalization_fwd_t::execute_forward() {
         }
     }
 }
+
 ncsp_batch_normalization_bwd_t::ncsp_batch_normalization_bwd_t(const pd_t *pd,
         const input_vector &inputs, const output_vector &outputs)
-    : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {
+    : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
+    , stats_reduction_(nullptr), tmp_diff_scaleshift_(nullptr) {
     this->stats_reduction_ = (data_t *)malloc(
             conf_.C() * 2 * omp_get_max_threads() * sizeof(data_t), 64);
-    if (!conf_.use_scaleshift())
+    if (!(conf_.use_scaleshift()
+                && conf_.desc()->prop_kind == prop_kind::backward))
         this->tmp_diff_scaleshift_
                 = (data_t *)malloc(conf_.C() * 2 * sizeof(data_t), 64);
 }
+
 ncsp_batch_normalization_bwd_t::~ncsp_batch_normalization_bwd_t() {
     free(this->stats_reduction_);
-    if (!conf_.use_scaleshift())
-        free(this->tmp_diff_scaleshift_);
+    free(this->tmp_diff_scaleshift_);
 }
 
 void ncsp_batch_normalization_bwd_t::execute_backward() {
