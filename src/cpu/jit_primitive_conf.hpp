@@ -179,8 +179,8 @@ enum winograd_sched_t {
 
     /* Backward-weights */
     WSCHED_WEI_S_D_G_W,
-    WSCHED_WEI_S_D_Giot_W,
     WSCHED_WEI_SDGtWo,
+    WSCHED_WEI_S_D_Giot_W,
     WSCHED_WEI_SDGt_W,
 };
 
@@ -188,10 +188,10 @@ struct jit_conv_winograd_conf_t : public jit_conv_conf_t {
     int itiles;
     int jtiles;
     int ntiles;
-    int ic_simd_block;
+    int ic_simd_block=16;
     int tile_4fma_padding;
     int tile_4fma;
-    int oc_simd_block;
+    int oc_simd_block=16;
     int oc_reg_block;
     int ic_reg_block;
     int tile_block;
@@ -217,6 +217,7 @@ struct jit_conv_winograd_conf_t : public jit_conv_conf_t {
 
     int dimN;
     int dimN_reg_block;
+    int dimN_bcast_ur;
     int dimN_block;
     int dimN_nb_block;
 

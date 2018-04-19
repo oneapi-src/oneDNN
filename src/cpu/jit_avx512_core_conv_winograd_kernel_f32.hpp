@@ -184,14 +184,11 @@ struct jit_avx512_core_conv_winograd_bwd_weights_kernel_f32
             jit_conv_winograd_conf_t ajcp)
         : jcp(ajcp)
     {
-
         //******************* First iter kernel ********************//
-        {
-            align();
-            const Xbyak::uint8 *addr = getCurr();
-            this->gemm_loop_generate(true);
-            gemm_loop_ker_first_iter = (decltype(gemm_loop_ker_first_iter))addr;
-        }
+        align();
+        const Xbyak::uint8 *addr = getCurr();
+        this->gemm_loop_generate(true);
+        gemm_loop_ker_first_iter = (decltype(gemm_loop_ker_first_iter))addr;
 
         if (jcp.tile_block > 1) {
             align();
@@ -200,12 +197,6 @@ struct jit_avx512_core_conv_winograd_bwd_weights_kernel_f32
             gemm_loop_ker = (decltype(gemm_loop_ker))addr;
         }
 
-        if (jcp.ver == ver_4fma) {
-            align();
-            const Xbyak::uint8 *addr = getCurr();
-            this->transpose_ker_generate();
-            transpose_4fma_ker = (decltype(transpose_4fma_ker))addr;
-        }
     }
 
     static status_t init_conf(jit_conv_winograd_conf_t &jcp,
@@ -216,31 +207,21 @@ struct jit_avx512_core_conv_winograd_bwd_weights_kernel_f32
     jit_conv_winograd_conf_t jcp;
     void (*gemm_loop_ker)(float *, const float *, const float *);
     void (*gemm_loop_ker_first_iter)(float *, const float *, const float *);
-    void (*transpose_4fma_ker)(float *, float *);
 
 private:
     using reg64_t = const Xbyak::Reg64;
     enum { typesize = sizeof(float) };
 
     void gemm_loop_generate(bool is_first_tile);
-    void transpose_ker_generate();
-
-    reg64_t reg_origB = abi_param2;
-    reg64_t reg_transB = abi_param1;
 
     reg64_t reg_dstC = abi_param1;
-    reg64_t reg_srcA_const = abi_param2;
+    reg64_t reg_srcA = abi_param2;
     reg64_t reg_srcB = abi_param3;
 
-    reg64_t reg_sp = rsp;
-    reg64_t reg_srcA = r9;
-    reg64_t reg_nb_ic = r10;
-    reg64_t reg_loop_cpt = r11;
-
-    /* Registers used by new kernel */
-    reg64_t reg_dimM_block_loop_cnt = r10;
+    reg64_t reg_dimM_block_loop_cnt = r9;
+    reg64_t reg_dimN_block_loop_cnt = r10;
+    reg64_t reg_nb_dimN_bcast_ur = r11;
     reg64_t reg_dimK_block_loop_cnt = r12;
-    reg64_t reg_dimN_block_loop_cnt = r11;
 };
 }
 }

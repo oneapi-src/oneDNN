@@ -23,6 +23,7 @@
 #include "scratchpad.hpp"
 
 #include "jit_avx512_core_conv_winograd_kernel_f32.hpp"
+#include <chrono>
 
 namespace mkldnn {
 namespace impl {
@@ -63,11 +64,6 @@ struct winograd_scratchpad_avx512_core_t {
             return scratchpad_->get() + bias_offset_;
         }
 
-        char *src_transpose_ptr() {
-            /* buffer for src transpose in bwdw using qfma*/
-            return scratchpad_->get() + src_transpose_offset_;
-        }
-
         int num_threads(){
             return nthreads_;
         }
@@ -93,50 +89,26 @@ struct winograd_scratchpad_avx512_core_t {
                     * jcp.nb_tile_block_ur * jcp.tile_block_ur
                     * jcp.oc * sizeof(float);
                 break;
-            case WSCHED_WEI_SDGt_W:
-                U_sz_ = nthreads_ * U_sz_;
-                V_sz_ = nthreads_ * alpha * alpha
-                        * (jcp.nb_tile_block_ur * jcp.tile_block_ur
-                                  + jcp.tile_4fma_padding)
-                        * jcp.ic * sizeof(float);
-                M_sz_ = nthreads_ * alpha * alpha
-                        * (jcp.nb_tile_block_ur * jcp.tile_block_ur
-                                  + jcp.tile_4fma_padding)
-                        * jcp.oc * sizeof(float);
-                bias_sz_ = nthreads_ * jcp.oc * sizeof(float);
-                break;
             case WSCHED_WEI_SDGtWo:
-                U_sz_ = nthreads_ * alpha * alpha
-                    * jcp.oc_block * jcp.oc_simd_block * jcp.ic * sizeof(float);
+                U_sz_ = nthreads_
+                    * (alpha * alpha * jcp.ic/jcp.nb_ic * jcp.oc
+                      + jcp.ic * jcp.oc * jcp.kh * jcp.kw)
+                    * sizeof(float);
                 M_sz_ = nthreads_ * alpha * alpha
-                        * (jcp.nb_tile_block_ur * jcp.tile_block_ur
-                                  + jcp.tile_4fma_padding)
-                        * jcp.oc_simd_block * jcp.oc_block * sizeof(float);
+                        * jcp.ntiles / jcp.tile_block
+                        * jcp.oc / jcp.nb_oc * sizeof(float);
+                V_sz_ = nthreads_ * alpha * alpha
+                        * jcp.ntiles / jcp.tile_block
+                        * jcp.ic / jcp.nb_ic
+                        * sizeof(float);
                 bias_sz_ = nthreads_ * jcp.oc * sizeof(float);
                 break;
             case WSCHED_WEI_S_D_Giot_W:
-                U_sz_ = (nthreads_ + 1) * alpha * alpha
-                    * jcp.ic * jcp.oc * sizeof(float);
-                V_sz_ = alpha * alpha
-                    * (jcp.itiles * jcp.jtiles + jcp.tile_4fma_padding)
-                    * jcp.ic * jcp.mb * sizeof(float);
-                M_sz_ = alpha * alpha
-                    * (jcp.itiles * jcp.jtiles + jcp.tile_4fma_padding)
-                    * jcp.oc * jcp.mb * sizeof(float);
+                U_sz_ = (nthreads_ + 1) * alpha * alpha * jcp.ic * jcp.oc
+                      * sizeof(float);
+                M_sz_ = alpha * alpha * jcp.oc * jcp.ntiles * sizeof(float);
+                V_sz_ = alpha * alpha * jcp.ic * jcp.ntiles * sizeof(float);
                 bias_sz_ = nthreads_ * jcp.oc * sizeof(float);
-                src_transpose_sz_ = jcp.ver == ver_4fma
-                    ? (nthreads_ * alpha * alpha
-                        * jcp.tile_4fma
-                        * jcp.ic_simd_block * sizeof(float))
-                    : 0;
-                break;
-            case WSCHED_WEI_S_D_G_W:
-                src_transpose_sz_ = jcp.ver == ver_4fma
-                                  ? (nthreads_ * alpha * alpha
-                                     * jcp.tile_4fma
-                                     * jcp.ic_simd_block * sizeof(float))
-                                  : 0;
-                bias_sz_ = jcp.with_bias ? nthreads_ * jcp.oc * sizeof(float) : 0;
                 break;
             default:
                 break;
@@ -149,16 +121,8 @@ struct winograd_scratchpad_avx512_core_t {
             V_offset_ = utils::rnd_up(U_sz_, page_size);
             M_offset_ = V_offset_ + utils::rnd_up(V_sz_, page_size);
             scratchpad_sz_ = M_offset_ + M_sz_;
-            if (src_transpose_sz_) {
-                src_transpose_offset_ = M_offset_
-                                      + utils::rnd_up(M_sz_, page_size);
-                scratchpad_sz_ = src_transpose_offset_ + src_transpose_sz_;
-            }
             if (bias_sz_) {
-                bias_offset_ = src_transpose_sz_
-                             ? src_transpose_offset_
-                                 + utils::rnd_up(src_transpose_sz_, page_size)
-                             : M_offset_ + utils::rnd_up(M_sz_, page_size);
+                bias_offset_ = M_offset_ + utils::rnd_up(M_sz_, page_size);
                 scratchpad_sz_ = bias_offset_ + bias_sz_;
             }
             scratchpad_ = create_scratchpad(scratchpad_sz_);
@@ -167,12 +131,11 @@ struct winograd_scratchpad_avx512_core_t {
         scratchpad_t *scratchpad_;
         int nthreads_;
         size_t scratchpad_sz_ = 0, U_sz_ = 0, V_sz_ = 0, M_sz_ = 0,
-               bias_sz_ = 0, src_transpose_sz_ = 0;
+               bias_sz_ = 0;
         size_t U_offset_ = 0;
         size_t V_offset_ = 0;
         size_t M_offset_ = 0;
         size_t bias_offset_ = 0;
-        size_t src_transpose_offset_ = 0; // only relevant for bwdw using qfma
 };
 }
 
@@ -486,20 +449,14 @@ struct jit_avx512_core_convolution_winograd_bwd_weights_t
         if (conf_.desc()->prop_kind == prop_kind::backward_weights) {
             const auto &jcp = kernel_->jcp;
             switch (jcp.sched_policy) {
-            case WSCHED_WEI_S_D_G_W:
-                _execute_backward_weights_S_D_G_W();
+            case WSCHED_WEI_SDGtWo:
+                _execute_backward_weights_SDGtWo();
                 break;
             case WSCHED_WEI_S_D_Giot_W:
                 _execute_backward_weights_S_D_Giot_W();
                 break;
-            case WSCHED_WEI_SDGtWo:
-                _execute_backward_weights_SDGtWo();
-                break;
-            case WSCHED_WEI_SDGt_W:
-                _execute_backward_weights_SDGt_W();
-                break;
             default:
-                assert(!"Unknown Winograd schedule policy!");
+                assert(jcp.sched_policy != WSCHED_INVALID);
                 break;
             }
         }
@@ -509,10 +466,8 @@ struct jit_avx512_core_convolution_winograd_bwd_weights_t
     }
 
 private:
-    void _execute_backward_weights_S_D_G_W();
-    void _execute_backward_weights_S_D_Giot_W();
     void _execute_backward_weights_SDGtWo();
-    void _execute_backward_weights_SDGt_W();
+    void _execute_backward_weights_S_D_Giot_W();
 
     pd_t conf_;
     jit_avx512_core_conv_winograd_bwd_weights_kernel_f32 *kernel_;
