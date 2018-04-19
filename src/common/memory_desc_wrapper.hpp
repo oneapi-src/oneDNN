@@ -286,9 +286,10 @@ inline bool memory_desc_wrapper::operator==(const memory_desc_wrapper &rhs)
     return ndims() == rhs.ndims()
             && utils::array_cmp(dims(), rhs.dims(), ndims())
             && data_type() == rhs.data_type()
-            && utils::implication(is_blocking_desc(),
-                blocking_desc_is_equal(
-                               blocking_desc(), rhs.blocking_desc(), ndims()))
+            && (is_blocking_desc()
+                ? blocking_desc_is_equal(
+                    blocking_desc(), rhs.blocking_desc(), ndims())
+                : true)
             && (is_wino_desc()
                 ? wino_desc_is_equal(wino_desc(), rhs.wino_desc()) : true);
 }
