@@ -116,8 +116,11 @@ struct _gemm_u8s8s32x_convolution_fwd_t: public cpu_primitive_t {
             *(conf_.cdesc()), conf_.src_pd(), conf_.weights_pd(0),
             conf_.dst_pd(), with_relu, conf_.negative_slope());
 
-        nthr_ = this->conf_.jcp_.os / omp_get_max_threads() < 64 &&
-                this->conf_.jcp_.mb != 1 ? omp_get_max_threads() : 1;
+        nthr_ = omp_get_max_threads();
+        if (!(utils::everyone_is(1, conf_.jcp_.ic, conf_.jcp_.oc)
+                    && conf_.jcp_.ngroups != 1)
+                && !(conf_.jcp_.os / nthr_ < 64 && conf_.jcp_.mb != 1))
+            nthr_ = 1;
 
         jit_gemm_convolution_utils::prepare_ws_col<src_data_t>(
                 this->conf_.jcp_, &this->col_, nthr_);
