@@ -29,7 +29,8 @@ namespace cpu {
 typedef float data_t;
 nspc_batch_normalization_fwd_t::nspc_batch_normalization_fwd_t(const pd_t *pd,
         const input_vector &inputs, const output_vector &outputs)
-    : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {
+    : cpu_primitive_t(&conf_, inputs, outputs), stats_reduction_(nullptr),
+    tmp_mean_(nullptr), tmp_variance_(nullptr), conf_(*pd) {
     if (!conf_.stats_is_src()) {
         this->stats_reduction_ = (data_t *)malloc(
                 nstl::max(conf_.C(), 16) * omp_get_max_threads() * sizeof(data_t), 64);
@@ -88,7 +89,7 @@ void nspc_batch_normalization_fwd_t::execute_forward() {
 #pragma omp parallel
     {
         int nthr = omp_get_max_threads(), ithr = omp_get_thread_num();
-        int N_s, N_e, C_s, C_e;
+        int N_s = 0, N_e = 0, C_s = 0, C_e = 0;
         balance211(N, nthr, ithr, N_s, N_e);
         balance211(C, nthr, ithr, C_s, C_e);
         data_t *mean_loc = this->tmp_mean_ + nstl::max(C, 16)*ithr;

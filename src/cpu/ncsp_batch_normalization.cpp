@@ -30,7 +30,8 @@ namespace cpu {
 typedef float data_t;
 ncsp_batch_normalization_fwd_t::ncsp_batch_normalization_fwd_t(const pd_t *pd,
         const input_vector &inputs, const output_vector &outputs)
-    : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {
+    : cpu_primitive_t(&conf_, inputs, outputs), stats_reduction_(nullptr),
+    tmp_mean_(nullptr), tmp_variance_(nullptr), conf_(*pd) {
     if (!conf_.stats_is_src()) {
         this->stats_reduction_ = (data_t *)malloc(
                 conf_.C() * omp_get_max_threads() * sizeof(data_t), 64);
