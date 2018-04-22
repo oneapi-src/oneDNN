@@ -206,7 +206,7 @@ struct wino_reorder_t : public cpu_primitive_t {
             auto _out = tmp_wei_f32 + zb * 16;
 
 #pragma omp parallel for
-            for (size_t i = 0; i < size_wspace_; ++i)
+            for (int i = 0; i < size_wspace_; ++i)
                 wspace[i] = 0.f;
 #pragma omp parallel for collapse(3)
             for (int i = 0; i < r; ++i)
