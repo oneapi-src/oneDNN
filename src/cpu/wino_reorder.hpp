@@ -98,6 +98,7 @@ struct wino_reorder_t : public cpu_primitive_t {
         const memory_desc_wrapper input_d(conf_.input_pd());
         const memory_desc_wrapper output_d(conf_.output_pd());
 
+        const int r = output_d.wino_desc().r;
         const int w_alpha = output_d.wino_desc().alpha;
 
         const auto &in_dims = input_d.dims();
@@ -118,11 +119,12 @@ struct wino_reorder_t : public cpu_primitive_t {
 
         size_wino_wei_ = w_alpha * w_alpha * oc * ic;
         size_gmgt_ = w_alpha * w_alpha * oc * ic;
+        size_wspace_ = r * w_alpha * 16;
 
         transp_ = (in_wei_data_t *)malloc(
                 sizeof(in_wei_data_t) * size_gmgt_, 64);
         wspace_ = (in_wei_data_t *)malloc(
-                sizeof(in_wei_data_t) * size_gmgt_, 64);
+                sizeof(in_wei_data_t) * size_wspace_, 64);
         tmp_wei_s8_ = (out_wei_data_t *)malloc(
                 sizeof(out_wei_data_t) * size_wino_wei_, 64);
         tmp_wei_f32_ = (in_wei_data_t *)malloc(
@@ -203,14 +205,18 @@ struct wino_reorder_t : public cpu_primitive_t {
             auto _inp = transp + zb * 16;
             auto _out = tmp_wei_f32 + zb * 16;
 
-            utils::array_set((float *)wspace, 0, size_gmgt_);
+#pragma omp parallel for
+            for (size_t i = 0; i < size_wspace_; ++i)
+                wspace[i] = 0.f;
+#pragma omp parallel for collapse(3)
             for (int i = 0; i < r; ++i)
                 for (int j = 0; j < w_alpha; ++j)
-                    for (int k = 0; k < r; ++k)
                         for (int z = 0; z < 16; ++z)
+                    for (int k = 0; k < r; ++k)
                             wspace[(i * w_alpha + j) * 16 + z]
                                     += _inp[(i * r + k) * Z + z] * g[j * r + k];
 
+#pragma omp parallel for collapse(3)
             for (int i = 0; i < w_alpha; ++i)
                 for (int j = 0; j < w_alpha; ++j)
                     for (int z = 0; z < 16; ++z) {
@@ -292,6 +298,7 @@ private:
     void *tmp_wei_f32_;
     int size_wino_wei_;
     int size_gmgt_;
+    int size_wspace_;
 };
 
 #undef WINO_REORDER_TEMPL_DECL
