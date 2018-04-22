@@ -101,8 +101,20 @@ struct wino_reorder_t : public cpu_primitive_t {
         const int w_alpha = output_d.wino_desc().alpha;
 
         const auto &in_dims = input_d.dims();
-        const auto oc = in_dims[1];
-        const auto ic = in_dims[2];
+        int groups;
+        int groups_offset;
+        if (fmt_i == goihw) {
+            groups = in_dims[0];
+            groups_offset = 1;
+        } else {
+            groups = 1;
+            groups_offset = 0;
+        }
+        assert(groups == 1); // groups are not supported now
+        MAYBE_UNUSED(groups);
+
+        const auto oc = in_dims[0 + groups_offset];
+        const auto ic = in_dims[1 + groups_offset];
 
         size_wino_wei_ = w_alpha * w_alpha * oc * ic;
         size_gmgt_ = w_alpha * w_alpha * oc * ic;
