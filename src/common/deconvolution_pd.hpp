@@ -71,32 +71,40 @@ struct deconvolution_fwd_pd_t : public primitive_desc_t {
     }
 
     /* common conv aux functions */
-
     inline int MB() const { return desc_.src_desc.dims[0]; }
 
     inline int IC() const { return desc_.src_desc.dims[1]; }
     inline int OC() const { return desc_.dst_desc.dims[1]; }
-    inline int G() const {
-        return with_groups() ? desc_.weights_desc.dims[0] : 1;
-    }
+    inline int G() const
+    { return with_groups() ? desc_.weights_desc.dims[0] : 1; }
 
-    inline int IH() const { return desc_.src_desc.dims[2]; }
-    inline int IW() const { return desc_.src_desc.dims[3]; }
-    inline int OH() const { return desc_.dst_desc.dims[2]; }
-    inline int OW() const { return desc_.dst_desc.dims[3]; }
-    inline int KH() const { return desc_.weights_desc.dims[2 + with_groups()]; }
-    inline int KW() const { return desc_.weights_desc.dims[3 + with_groups()]; }
+    inline int ID() const { return (ndims() == 5)
+        ? desc_.src_desc.dims[2] : 1; }
+    inline int IH() const { return desc_.src_desc.dims[ndims()-2]; }
+    inline int IW() const { return desc_.src_desc.dims[ndims()-1]; }
+    inline int OD() const { return (ndims() == 5)
+        ? desc_.dst_desc.dims[2] : 1; }
+    inline int OH() const { return desc_.dst_desc.dims[ndims()-2]; }
+    inline int OW() const { return desc_.dst_desc.dims[ndims()-1]; }
+    inline int KD() const { return (ndims() == 5)
+        ? desc_.weights_desc.dims[2 + with_groups()] : 1; }
+    inline int KH() const
+    { return desc_.weights_desc.dims[ndims() - (2 - with_groups())]; }
+    inline int KW() const
+    { return desc_.weights_desc.dims[ndims() - (1 - with_groups())]; }
 
-    inline int KSH() const { return desc_.strides[0]; }
-    inline int KSW() const { return desc_.strides[1]; }
+    inline int KSD() const { return (ndims() == 5) ? desc_.strides[0] : 1; }
+    inline int KSH() const { return desc_.strides[ndims()-4]; }
+    inline int KSW() const { return desc_.strides[ndims()-3]; }
 
+    inline int KDD() const { return 0; }
     inline int KDH() const { return 0; }
     inline int KDW() const { return 0; }
 
-    inline int padT() const { return desc_.padding[0][0]; }
-    inline int padB() const { return desc_.padding[1][0]; }
-    inline int padL() const { return desc_.padding[0][1]; }
-    inline int padR() const { return desc_.padding[1][1]; }
+    inline int padT() const { return desc_.padding[0][ndims()-4]; }
+    inline int padB() const { return desc_.padding[1][ndims()-4]; }
+    inline int padL() const { return desc_.padding[0][ndims()-3]; }
+    inline int padR() const { return desc_.padding[1][ndims()-3]; }
 
     inline bool with_bias() const {
         return !memory_desc_wrapper(desc_.bias_desc).is_zero();
@@ -104,6 +112,7 @@ struct deconvolution_fwd_pd_t : public primitive_desc_t {
     inline bool with_groups() const {
         return desc_.weights_desc.ndims == desc_.src_desc.ndims + 1;
     }
+    inline int ndims() const { return desc_.src_desc.ndims; }
 
 protected:
     deconvolution_desc_t desc_;
@@ -156,32 +165,40 @@ struct deconvolution_bwd_data_pd_t : public primitive_desc_t {
     }
 
     /* common conv aux functions */
-
     inline int MB() const { return desc_.diff_src_desc.dims[0]; }
 
     inline int IC() const { return desc_.diff_src_desc.dims[1]; }
     inline int OC() const { return desc_.diff_dst_desc.dims[1]; }
-    inline int G() const {
-        return with_groups() ? desc_.weights_desc.dims[0] : 1;
-    }
+    inline int G() const
+    { return with_groups() ? desc_.weights_desc.dims[0] : 1; }
 
-    inline int IH() const { return desc_.diff_src_desc.dims[2]; }
-    inline int IW() const { return desc_.diff_src_desc.dims[3]; }
-    inline int OH() const { return desc_.diff_dst_desc.dims[2]; }
-    inline int OW() const { return desc_.diff_dst_desc.dims[3]; }
-    inline int KH() const { return desc_.weights_desc.dims[2 + with_groups()]; }
-    inline int KW() const { return desc_.weights_desc.dims[3 + with_groups()]; }
+    inline int ID() const { return (ndims() == 5)
+        ? desc_.diff_src_desc.dims[2] : 1; }
+    inline int IH() const { return desc_.diff_src_desc.dims[ndims()-2]; }
+    inline int IW() const { return desc_.diff_src_desc.dims[ndims()-1]; }
+    inline int OD() const { return (ndims() == 5)
+        ? desc_.diff_dst_desc.dims[2] : 1; }
+    inline int OH() const { return desc_.diff_dst_desc.dims[ndims()-2]; }
+    inline int OW() const { return desc_.diff_dst_desc.dims[ndims()-1]; }
+    inline int KD() const { return (ndims() == 5)
+        ? desc_.weights_desc.dims[2 + with_groups()] : 1; }
+    inline int KH() const
+    { return desc_.weights_desc.dims[ndims() - (2 - with_groups())]; }
+    inline int KW() const
+    { return desc_.weights_desc.dims[ndims() - (1 - with_groups())]; }
 
-    inline int KSH() const { return desc_.strides[0]; }
-    inline int KSW() const { return desc_.strides[1]; }
+    inline int KSD() const { return (ndims() == 5) ? desc_.strides[0] : 1; }
+    inline int KSH() const { return desc_.strides[ndims()-4]; }
+    inline int KSW() const { return desc_.strides[ndims()-3]; }
 
+    inline int KDD() const { return 0; }
     inline int KDH() const { return 0; }
     inline int KDW() const { return 0; }
 
-    inline int padT() const { return desc_.padding[0][0]; }
-    inline int padB() const { return desc_.padding[1][0]; }
-    inline int padL() const { return desc_.padding[0][1]; }
-    inline int padR() const { return desc_.padding[1][1]; }
+    inline int padT() const { return desc_.padding[0][ndims()-4]; }
+    inline int padB() const { return desc_.padding[1][ndims()-4]; }
+    inline int padL() const { return desc_.padding[0][ndims()-3]; }
+    inline int padR() const { return desc_.padding[1][ndims()-3]; }
 
     inline bool with_bias() const {
         return !memory_desc_wrapper(desc_.bias_desc).is_zero();
@@ -189,6 +206,7 @@ struct deconvolution_bwd_data_pd_t : public primitive_desc_t {
     inline bool with_groups() const {
         return desc_.weights_desc.ndims == desc_.diff_src_desc.ndims + 1;
     }
+    inline int ndims() const { return desc_.src_desc.ndims; }
 
 protected:
     deconvolution_desc_t desc_;
@@ -244,36 +262,40 @@ struct deconvolution_bwd_weights_pd_t : public primitive_desc_t {
     }
 
     /* common conv aux functions */
-
     inline int MB() const { return desc_.src_desc.dims[0]; }
 
     inline int IC() const { return desc_.src_desc.dims[1]; }
     inline int OC() const { return desc_.diff_dst_desc.dims[1]; }
-    inline int G() const {
-        return with_groups() ? desc_.diff_weights_desc.dims[0] : 1;
-    }
+    inline int G() const
+    { return with_groups() ? desc_.diff_weights_desc.dims[0] : 1; }
 
-    inline int IH() const { return desc_.src_desc.dims[2]; }
-    inline int IW() const { return desc_.src_desc.dims[3]; }
-    inline int OH() const { return desc_.diff_dst_desc.dims[2]; }
-    inline int OW() const { return desc_.diff_dst_desc.dims[3]; }
-    inline int KH() const {
-        return desc_.diff_weights_desc.dims[2 + with_groups()];
-    }
-    inline int KW() const {
-        return desc_.diff_weights_desc.dims[3 + with_groups()];
-    }
+    inline int ID() const { return (ndims() == 5)
+        ? desc_.src_desc.dims[2] : 1; }
+    inline int IH() const { return desc_.src_desc.dims[ndims()-2]; }
+    inline int IW() const { return desc_.src_desc.dims[ndims()-1]; }
+    inline int OD() const { return (ndims() == 5)
+        ? desc_.diff_dst_desc.dims[2] : 1; }
+    inline int OH() const { return desc_.diff_dst_desc.dims[ndims()-2]; }
+    inline int OW() const { return desc_.diff_dst_desc.dims[ndims()-1]; }
+    inline int KD() const { return (ndims() == 5)
+        ? desc_.diff_weights_desc.dims[2 + with_groups()] : 1; }
+    inline int KH() const
+    { return desc_.diff_weights_desc.dims[ndims() - (2 - with_groups())]; }
+    inline int KW() const
+    { return desc_.diff_weights_desc.dims[ndims() - (1 - with_groups())]; }
 
-    inline int KSH() const { return desc_.strides[0]; }
-    inline int KSW() const { return desc_.strides[1]; }
+    inline int KSD() const { return (ndims() == 5) ? desc_.strides[0] : 1; }
+    inline int KSH() const { return desc_.strides[ndims()-4]; }
+    inline int KSW() const { return desc_.strides[ndims()-3]; }
 
+    inline int KDD() const { return 0; }
     inline int KDH() const { return 0; }
     inline int KDW() const { return 0; }
 
-    inline int padT() const { return desc_.padding[0][0]; }
-    inline int padB() const { return desc_.padding[1][0]; }
-    inline int padL() const { return desc_.padding[0][1]; }
-    inline int padR() const { return desc_.padding[1][1]; }
+    inline int padT() const { return desc_.padding[0][ndims()-4]; }
+    inline int padB() const { return desc_.padding[1][ndims()-4]; }
+    inline int padL() const { return desc_.padding[0][ndims()-3]; }
+    inline int padR() const { return desc_.padding[1][ndims()-3]; }
 
     inline bool with_bias() const {
         return !memory_desc_wrapper(desc_.diff_bias_desc).is_zero();
@@ -281,6 +303,7 @@ struct deconvolution_bwd_weights_pd_t : public primitive_desc_t {
     inline bool with_groups() const {
         return desc_.diff_weights_desc.ndims == desc_.diff_dst_desc.ndims + 1;
     }
+    inline int ndims() const { return desc_.src_desc.ndims; }
 
 protected:
     deconvolution_desc_t desc_;

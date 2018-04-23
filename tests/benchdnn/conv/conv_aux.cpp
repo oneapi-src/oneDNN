@@ -109,12 +109,17 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
 
     if (d.ic == 0 || d.oc == 0) return FAIL;
 
-    auto compute_out = [](int i, int k, int s, int p, int d) {
-        return (i - ((k - 1) * (d + 1) + 1) + 2 * p) / s + 1;
+    auto compute_out = [](bool is_deconv, int i, int k, int s, int p, int d) {
+        if (is_deconv)
+            return (i - 1) * s + (k - 1) * (d + 1) + 2 * p + 1;
+        else
+            return (i - ((k - 1) * (d + 1) + 1) + 2 * p) / s + 1;
     };
-    auto compute_pad = [](int o, int i, int k, int s, int d) {
-        /* XXX: is it oK? */
-        return ((o - 1) * s - i + ((k - 1) * (d + 1) + 1)) / 2;
+    auto compute_pad = [](bool is_deconv, int o, int i, int k, int s, int d) {
+        if (is_deconv)
+            return ((i - 1) * s - o + ((k - 1) * (d + 1) + 1)) / 2;
+        else
+            return ((o - 1) * s - i + ((k - 1) * (d + 1) + 1)) / 2;
     };
 
     const bool no_d = (d.id | d.kd | d.od | d.pd | d.dd) == 0 && d.sd == 1;
@@ -124,30 +129,25 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
     if (!no_h) {
         if (!d.ih || !d.kh) return FAIL;
 
-        if (!d.oh) d.oh = compute_out(d.ih, d.kh, d.sh, d.ph, d.dh);
-        else if (!d.ph && d.oh != compute_out(d.ih, d.kh, d.sh, d.ph, d.dh))
-            d.ph = is_deconv
-                ? compute_pad(d.ih, d.oh, d.kh, d.sh, d.dh)
-                : compute_pad(d.oh, d.ih, d.kh, d.sh, d.dh);
+        if (!d.oh) d.oh = compute_out(is_deconv, d.ih, d.kh, d.sh, d.ph, d.dh);
+        else if (!d.ph && d.oh != compute_out(is_deconv, d.ih, d.kh, d.sh, d.ph, d.dh))
+            d.ph = compute_pad(is_deconv, d.oh, d.ih, d.kh, d.sh, d.dh);
     }
 
     if (!no_w) {
         if (!d.iw || !d.kw) return FAIL;
 
-        if (!d.ow) d.ow = compute_out(d.iw, d.kw, d.sw, d.pw, d.dw);
-        else if (!d.pw && d.ow != compute_out(d.iw, d.kw, d.sw, d.pw, d.dw))
-            d.pw = is_deconv
-                ? compute_pad(d.iw, d.ow, d.kw, d.sw, d.dw)
-                : compute_pad(d.ow, d.iw, d.kw, d.sw, d.dw);
+        if (!d.ow) d.ow = compute_out(is_deconv, d.iw, d.kw, d.sw, d.pw, d.dw);
+        else if (!d.pw && d.ow != compute_out(is_deconv, d.iw, d.kw, d.sw, d.pw, d.dw))
+            d.pw = compute_pad(is_deconv, d.ow, d.iw, d.kw, d.sw, d.dw);
     }
 
     if (!no_d && d.id) {
         if (!d.id || !d.kd) return FAIL;
 
-        if (!d.od) d.od = compute_out(d.id, d.kd, d.sd, d.pd, d.dd);
-        else if (!d.pd && d.od != compute_out(d.id, d.kd, d.sd, d.pd, d.dd))
-            d.pd = is_deconv? compute_pad(d.id, d.od, d.kd, d.pd, d.dd) :
-                compute_pad(d.od, d.id, d.kd, d.pd, d.dd);
+        if (!d.od) d.od = compute_out(is_deconv, d.id, d.kd, d.sd, d.pd, d.dd);
+        else if (!d.pd && d.od != compute_out(is_deconv, d.id, d.kd, d.sd, d.pd, d.dd))
+            d.pd = compute_pad(is_deconv, d.od, d.id, d.kd, d.pd, d.dd);
     }
 
     if (no_w && no_h && d.id) {

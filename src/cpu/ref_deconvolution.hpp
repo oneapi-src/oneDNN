@@ -215,13 +215,15 @@ struct ref_deconvolution_fwd_t: public cpu_primitive_t {
             if (conf_.with_bias()) {
                 switch (conf_.dst_pd()->desc()->format) {
                     case memory_format::nchw :
-                        compute_fwd_bias_nchw();
+                    case memory_format::ncdhw :
+                        compute_fwd_bias_ncdhw();
                         break;
                     case memory_format::nChw8c :
-                        compute_fwd_bias_nChwXc<8>();
+                        compute_fwd_bias_nCdhwXc<8>();
                         break;
                     case memory_format::nChw16c :
-                        compute_fwd_bias_nChwXc<16>();
+                    case memory_format::nCdhw16c :
+                        compute_fwd_bias_nCdhwXc<16>();
                         break;
                     default:
                         compute_fwd_bias();
@@ -237,8 +239,8 @@ struct ref_deconvolution_fwd_t: public cpu_primitive_t {
 
 private:
     void compute_fwd_bias();
-    void compute_fwd_bias_nchw();
-    template <int blksize> void compute_fwd_bias_nChwXc();
+    void compute_fwd_bias_ncdhw();
+    template <int blksize> void compute_fwd_bias_nCdhwXc();
     pd_t conf_;
     primitive_t *conv_p_;
 };
@@ -413,13 +415,15 @@ struct ref_deconvolution_bwd_weights_t: public cpu_primitive_t {
             if (conf_.with_bias()) {
                 switch (conf_.diff_dst_pd()->desc()->format) {
                     case memory_format::nchw :
-                        compute_bwd_bias_nchw();
+                    case memory_format::ncdhw :
+                        compute_bwd_bias_ncdhw();
                         break;
                     case memory_format::nChw8c :
-                        compute_bwd_bias_nChwXc<8>();
+                        compute_bwd_bias_nCdhwXc<8>();
                         break;
                     case memory_format::nChw16c :
-                        compute_bwd_bias_nChwXc<16>();
+                    case memory_format::nCdhw16c :
+                        compute_bwd_bias_nCdhwXc<16>();
                         break;
                     default:
                         compute_bwd_bias();
@@ -437,8 +441,8 @@ private:
     pd_t conf_;
     primitive_t *conv_p_;
     void compute_bwd_bias();
-    void compute_bwd_bias_nchw();
-    template <int blksize> void compute_bwd_bias_nChwXc();
+    void compute_bwd_bias_ncdhw();
+    template <int blksize> void compute_bwd_bias_nCdhwXc();
 };
 
 }

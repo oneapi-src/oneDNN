@@ -82,14 +82,16 @@ status_t deconv_desc_init(deconvolution_desc_t *deconv_desc,
     bool consistency = true && memory_desc_wrapper(src_desc).nelems()
             && memory_desc_wrapper(dst_desc).nelems()
             && memory_desc_wrapper(weights_desc).nelems()
-            && src_desc->ndims == 4 && dst_desc->ndims == 4
-            && utils::one_of(weights_desc->ndims, 4, 5)
+            && src_desc->ndims == dst_desc->ndims
+            && utils::one_of(src_desc->ndims, 4, 5)
+            && utils::one_of(weights_desc->ndims, src_desc->ndims,
+                    src_desc->ndims + 1)
             && (with_bias ? bias_desc->ndims == 1 : true)
             && (with_bias ? bias_desc->dims[0] == dst_desc->dims[1] : true)
             && src_desc->dims[0] == dst_desc->dims[0]
             && src_desc->dims[1] == g * weights_desc->dims[with_groups + 1]
             && dst_desc->dims[1] == g * weights_desc->dims[with_groups + 0];
-    for (int i = 2; i <= 3; ++i) {
+    for (int i = 2; i < src_desc->ndims; ++i) {
         int src = src_desc->dims[i];
         int ker = weights_desc->dims[with_groups + i];
         int pad = padding_l[i - 2] + padding_r[i - 2];

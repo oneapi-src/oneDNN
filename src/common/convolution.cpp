@@ -87,9 +87,10 @@ status_t conv_desc_init(convolution_desc_t *conv_desc,
         && memory_desc_wrapper(src_desc).nelems()
         && memory_desc_wrapper(dst_desc).nelems()
         && memory_desc_wrapper(weights_desc).nelems()
+        && src_desc->ndims == dst_desc->ndims
         && utils::one_of(src_desc->ndims, 4, 5)
-        && utils::one_of(dst_desc->ndims, 4, 5)
-        && utils::one_of(weights_desc->ndims, 4, 5, 6)
+        && utils::one_of(weights_desc->ndims, src_desc->ndims,
+                src_desc->ndims + 1)
         && (with_bias ? bias_desc->ndims == 1 : true)
         && (with_bias ? bias_desc->dims[0] == dst_desc->dims[1] : true)
         && src_desc->dims[0] == dst_desc->dims[0]
