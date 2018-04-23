@@ -211,7 +211,7 @@ void nspc_batch_normalization_bwd_t::execute_backward() {
 #pragma omp parallel
     {
         int ithr = omp_get_thread_num();
-        int N_s, N_e, C_s, C_e;
+        int N_s = 0, N_e = 0, C_s = 0, C_e = 0;
         balance211(N, nthr, ithr, N_s, N_e);
         balance211(C, nthr, ithr, C_s, C_e);
 
