@@ -119,7 +119,8 @@ const char *direction2str(mkldnn_rnn_direction_t direction) {
 void prb2str(const rnn_prb_t *p, const res_t *res, char *buffer) {
     int rem_len = max_prb_len;
 
-    DPRINT("%s(%s,%s)", alg2str(p->alg), activation2str(p->activation), direction2str(p->direction));
+    DPRINT("%s(%s,%s)", alg2str(p->alg), activation2str(p->activation),
+            direction2str(p->direction));
     DPRINT("l%d", p->n_layer);
     DPRINT("t%d", p->n_iter);
     DPRINT("m%d", p->mb);
@@ -147,7 +148,7 @@ void gemm(const char *transa, const char *transb, int m, int n, int k,
     array_offset_calculator<const float> pb(b, tr_b ? n : k, ldb);
     array_offset_calculator<float> pc(c, m, ldc);
 
-    print(30, "gemm(m:%d, n:%d, k:%d, lda:%d, ldb:%d, ldc:%d beta:%f)\n", m, n,
+    print(80, "gemm(m:%d, n:%d, k:%d, lda:%d, ldb:%d, ldc:%d beta:%f)\n", m, n,
             k, lda, ldb, ldc, beta);
 #pragma omp parallel for collapse(2)
     for (int im = 0; im < m; im++) {
@@ -290,20 +291,53 @@ int compare_dat(const rnn_prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
             }
         }
 
-#if 0
+#if 1
         /* for debug purposes only: dump the output */
-        if (final_compare && verbose >= 50 && i < 30) {
-            int mb_or_g = 0, g_or_oc = 0, c = 0, h = 0, w = 0;
-            switch (kind) {
-            case SRC: inv_src_off_f(p, i, mb_or_g, g_or_oc, c, h, w); break;
-            case WEI: inv_wei_off_f(p, i, mb_or_g, g_or_oc, c, h, w); break;
-            case BIA: inv_bia_off_f(p, i, mb_or_g, g_or_oc); break;
-            case DST: inv_dst_off_f(p, i, mb_or_g, g_or_oc, c, h, w); break;
-            }
+        if (final_compare && verbose >= 50) {
+            int n = 0, t = 0, c = 0, s = 0, l = 0, d = 0, w = 0, ic = 0, oc = 0,
+                b = 0;
 
-            print(0, "[%4lu][%s][%d,%d,%d,%d,%d] fp:%8g fp0:%8g dt:%8g\n",
-                    (unsigned long)i, skind, mb_or_g, g_or_oc, c, h, w, fp, fp0,
-                    dt);
+            switch (kind) {
+            case input:
+                inv_ntc_off_f(p, i, n, t, c);
+                print(0, "[%4lu][%s][%d,%d,%d] fp:%8g fp0:%8g dt:%8g\n",
+                        (unsigned long)i, skind, n, t, c, fp, fp0, dt);
+                break;
+            case states:
+                inv_ldsnc_off_f(p, i, l, d, s, n, c);
+                print(0, "[%4lu][%s][%d,%d,%d,%d,%d] fp:%8g fp0:%8g dt:%8g\n",
+                        (unsigned long)i, skind, l, d, s, n, c, fp, fp0, dt);
+                break;
+            case weights_input:
+                inv_ldigo_off_f(p, i, l, d, w, ic, oc);
+                print(0, "[%4lu][%s][%d,%d,%d,%d,%d] fp:%8g fp0:%8g dt:%8g\n",
+                        (unsigned long)i, skind, l, d, w, ic, oc, fp, fp0, dt);
+                break;
+            case weights_states:
+                inv_ldigo_off_f(p, i, l, d, w, ic, oc);
+                break;
+                print(0, "[%4lu][%s][%d,%d,%d,%d,%d] fp:%8g fp0:%8g dt:%8g\n",
+                        (unsigned long)i, skind, l, d, w, ic, oc, fp, fp0, dt);
+            case bias:
+                inv_ldgo_off_f(p, i, l, d, b, c);
+                break;
+                print(0, "[%4lu][%s][%d,%d,%d,%d] fp:%8g fp0:%8g dt:%8g\n",
+                        (unsigned long)i, skind, l, d, b, c, fp, fp0, dt);
+            case dst_last_layer:
+                inv_tnc_off_f(p, i, s, t, n, c);
+                print(0, "[%4lu][%s][%d,%d,%d] fp:%8g fp0:%8g dt:%8g\n",
+                        (unsigned long)i, skind, n, t, c, fp, fp0, dt);
+                break;
+            case dst_last_iteration:
+                inv_ldsnc_off_f(p, i, l, d, s, n, c);
+                print(0, "[%4lu][%s][%d,%d,%d,%d,%d] fp:%8g fp0:%8g dt:%8g\n",
+                        (unsigned long)i, skind, l, d, s, n, c, fp, fp0, dt);
+                break;
+            default:
+                print(0, "[%4lu][unknown] fp:%8g fp0:%8g dt:%8g\n",
+                        (unsigned long)i, fp, fp0, dt);
+                break;
+            }
         }
 #endif
 

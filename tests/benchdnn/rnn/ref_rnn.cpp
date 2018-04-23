@@ -37,14 +37,14 @@ void lstm_activation(int dic, int n_gates, int batch,
         for (int ig = 0; ig < 3; ig++) {
             for (int ih = 0; ih < dic; ih++) {
                 pa(ib, ig, ih) = logistic(pa(ib, ig, ih));
-                print(3, "activation 1 a[%d][%d][%d] = %.7f\n", ib, ig, ih,
+                print(80, "activation 1 a[%d][%d][%d] = %.7f\n", ib, ig, ih,
                         pa(ib, ig, ih));
             }
         }
         int ig = 3;
         for (int j = 0; j < dic; j++) {
             pa(ib, ig, j) = tanhf(pa(ib, ig, j));
-            print(3, "activation 2 a[%d][%d][%d] = %.7f\n", ib, ig, j,
+            print(80, "activation 2 a[%d][%d][%d] = %.7f\n", ib, ig, j,
                     pa(ib, ig, j));
         }
     }
@@ -297,14 +297,14 @@ void rnn_linear_fwd(const rnn_prb_t *p, mkldnn_rnn_direction_t direction,
             rnn_layer_direction_t lay_dir, int dir_val, rnn_action_t action) {
         // we first need to copy the initial states and input into ws
         // it simplifies the logic in the following code
-        print(30, "rnn_linear_fwd: call copy_init dir_val = %d\n", dir_val);
+        print(80, "rnn_linear_fwd: call copy_init dir_val = %d\n", dir_val);
         copy_init(alg, sic, slc, dic, wc, batch, n_layer, n_iter, n_states, ws_,
                 src_layer_, src_iter_, iter_dir, lay_dir, dir_val, n_dir);
 
         // We run the grid of computation
         for (int il = 0; il < n_layer; il++) {
             for (int it = 0; it < n_iter; it++) {
-                print(30, "==== layer = %d iter = %d ===\n", il, it);
+                print(80, "==== layer = %d iter = %d ===\n", il, it);
                 int iter = (iter_dir == left2right) ? it + 1 : n_iter - it;
                 int prev_iter = (iter_dir == left2right) ? iter - 1 : iter + 1;
                 int lay = il + 1;
@@ -441,7 +441,7 @@ void lstm_bwd(alg_t alg, int sic, int slc, int dic, int wc, int batch,
 
     for (int ib = 0; ib < batch; ib++)
         for (int ih = 0; ih < dic; ih++) {
-            print(30, "rnn_single_bwd: ib = %d ih = %d\n", ib, ih);
+            print(80, "rnn_single_bwd: ib = %d ih = %d\n", ib, ih);
             float ho = gates(ib, oho, ih);
             float hf = gates(ib, ohf, ih);
             float hc = gates(ib, ohc, ih);
