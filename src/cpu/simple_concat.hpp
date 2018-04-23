@@ -34,7 +34,7 @@ struct simple_concat_t: public cpu_primitive_t {
             : cpu_concat_pd_t(output_d, n, concat_dim, input_pds, attr)
         {}
         pd_t(const pd_t &rhs) : cpu_concat_pd_t(rhs) {
-            for (int i = 0; i < sizeof(perm_)/sizeof(perm_[0]); i++) {
+            for (size_t i = 0; i < sizeof(perm_)/sizeof(perm_[0]); i++) {
                 perm_[i] = rhs.perm_[i];
                 iperm_[i] = rhs.iperm_[i];
             }
