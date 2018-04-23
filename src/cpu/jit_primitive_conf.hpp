@@ -199,6 +199,7 @@ struct jit_conv_winograd_conf_t : public jit_conv_conf_t {
     int nb_tile_block_ur;
 
     bool double_buffering;
+    bool with_relu_postsum;
     int zmm_start;
     int nb_reg;
 
@@ -245,6 +246,21 @@ struct jit_conv_call_s {
     size_t ur_str_w;
     size_t ch_blocks;
     int flags;
+};
+
+struct jit_wino_transform_call_s {
+    size_t tile_block;
+    size_t tile_block_ur;
+    size_t nb_tile_block_ur;
+    size_t tj;
+    size_t ti;
+    void *src;
+    void *dst;
+    void *Mw;
+    void *M;
+    void *T;
+    void *G;
+    void *bias;
 };
 
 struct jit_1x1_conv_conf_t {

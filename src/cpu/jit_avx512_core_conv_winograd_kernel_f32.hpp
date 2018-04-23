@@ -33,9 +33,30 @@ struct _jit_avx512_core_conv_winograd_data_kernel_f32 : public jit_generator {
             jit_conv_winograd_conf_t ajcp)
         : jcp(ajcp)
     {
-        this->gemm_loop_generate();
-        gemm_loop_ker
-                = (decltype(gemm_loop_ker)) this->getCode();
+        {
+            this->weights_transform_data_ker_generate();
+            weights_transform_data_ker
+                    = (decltype(weights_transform_data_ker)) this->getCode();
+        }
+        {
+            align();
+            const Xbyak::uint8 *addr = getCurr();
+            this->input_transform_data_ker_generate();
+            input_transform_data_ker = (decltype(input_transform_data_ker))addr;
+        }
+        {
+            align();
+            const Xbyak::uint8 *addr = getCurr();
+            this->output_transform_data_ker_generate();
+            output_transform_data_ker
+                = (decltype(output_transform_data_ker))addr;
+        }
+        {
+            align();
+            const Xbyak::uint8 *addr = getCurr();
+            this->gemm_loop_generate();
+            gemm_loop_ker = (decltype(gemm_loop_ker))addr;
+        }
     }
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(_jit_avx512_core_conv_winograd_data_kernel_f32)
@@ -50,12 +71,19 @@ struct _jit_avx512_core_conv_winograd_data_kernel_f32 : public jit_generator {
 
     jit_conv_winograd_conf_t jcp;
     void (*gemm_loop_ker)(float *, const float *, const float *, const int);
+    void (*input_transform_data_ker)(jit_wino_transform_call_s *);
+    void (*output_transform_data_ker)(jit_wino_transform_call_s *);
+    void (*weights_transform_data_ker)(jit_wino_transform_call_s *);
 
 protected:
     using reg64_t = const Xbyak::Reg64;
+    using reg32_t = const Xbyak::Reg32;
     enum { typesize = sizeof(float) };
 
     void gemm_loop_generate();
+    void input_transform_data_ker_generate();
+    void output_transform_data_ker_generate();
+    void weights_transform_data_ker_generate();
 
     /* registers used for GEMM */
     reg64_t reg_dstC = abi_param1;
@@ -65,6 +93,61 @@ protected:
 
     reg64_t reg_dimM_block_loop_cnt = r10;
     reg64_t reg_dimK_block_loop_cnt = r11;
+
+    /* registers used for transforms*/
+    reg64_t param = abi_param1;
+
+    /* registers used for output_transform_data_ker */
+    reg64_t oreg_temp = rcx;
+    reg64_t oreg_Ow = r9;
+    reg64_t oreg_src = r11;
+    reg64_t oreg_tile_block = r12;
+    reg64_t oreg_tile_block_ur = r13;
+    reg64_t oreg_nb_tile_block_ur = r14;
+    reg64_t oreg_O = r8;
+    reg64_t oreg_T = r10;
+    reg64_t oreg_dst = r11;
+    reg64_t oreg_ydim = r14;
+    reg64_t oreg_xdim = r15;
+    reg64_t oreg_out_j = r12;
+    reg64_t oreg_bias = rbx;
+    reg64_t imm_addr64 = rax;
+
+    /* registers used for input_transform_data_ker */
+    reg64_t ireg_temp = rcx;
+    reg64_t ireg_jtiles = rax;
+    reg64_t ireg_itiles = rbx;
+    reg64_t ireg_I = r8;
+    reg64_t ireg_src = r13;
+    reg64_t ireg_ydim = r14;
+    reg64_t ireg_xdim = r15;
+    reg64_t ireg_inp_j = r12;
+    reg64_t ireg_inp_i = rdx;
+    reg64_t ireg_mask_j = r11;
+    reg64_t ireg_mask = rsi;
+    reg32_t ireg_mask_32 = esi;
+    reg64_t ireg_zero = r9;
+    reg64_t ireg_Iw = r9;
+    reg64_t ireg_T = r10;
+    reg64_t ireg_tile_block = r12;
+    reg64_t ireg_tile_block_ur = r13;
+    reg64_t ireg_nb_tile_block_ur = r14;
+    reg64_t ireg_output = r15;
+
+    /* registers used for wei transform */
+    reg64_t wreg_temp = rcx;
+    reg64_t wreg_F = r8;
+    reg64_t wreg_src = r9;
+    reg64_t wreg_MT = r15;
+    reg64_t wreg_M = r14;
+    reg64_t wreg_dst = r10;
+    reg64_t wreg_dst_aux = r9;
+    reg64_t wreg_dst_idx = r8;
+    reg64_t wreg_Fw = r11;
+    reg64_t wreg_T = r12;
+    reg64_t wreg_cnt_j = rdx;
+    reg64_t wreg_F_aux = r14;
+    reg64_t wreg_Fw_aux = r15;
 };
 
 struct jit_avx512_core_conv_winograd_fwd_kernel_f32

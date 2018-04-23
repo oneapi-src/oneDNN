@@ -40,18 +40,6 @@ namespace cpu {
 
 namespace {
 
-unsigned int LLC_cache_size = get_cache_size(3, false);
-
-void inline load_ps(float *dest, const float *src_mem) {
-#ifdef __INTEL_COMPILER
-    __m512 *Iv512 = (__m512 *)dest;
-    Iv512[0] = _mm512_load_ps(src_mem);
-#else
-#pragma omp simd
-    for (int v = 0; v < simd_w; v++) dest[v] = src_mem[v];
-#endif
-}
-
 void inline store_output(float *dest, const float *data, bool streamout) {
 #ifdef __INTEL_COMPILER
     if (streamout)
@@ -65,32 +53,6 @@ void inline store_output(float *dest, const float *data, bool streamout) {
 #endif
 }
 
-void inline accum_output(
-        float *dest, float *data, bool streamout, bool with_relu_postsum) {
-#ifdef __INTEL_COMPILER
-    __m512 _data = _mm512_loadu_ps(data);
-    __m512 _dest = _mm512_loadu_ps(dest);
-    _data = _mm512_add_ps(_data, _dest);
-    if (with_relu_postsum)
-        _data = _mm512_max_ps(_data, _mm512_setzero_ps());
-    if (streamout)
-        _mm512_stream_ps(dest, _data);
-    else
-        _mm512_store_ps(dest, _data);
-#else
-#pragma omp simd
-    for (int v = 0; v < simd_w; v++)
-        data[v] += dest[v];
-    if (with_relu_postsum)
-#pragma omp simd
-        for (int v = 0; v < simd_w; v++)
-            if (data[v] < 0.f)
-                data[v] = 0.f;
-#pragma omp simd
-    for (int v = 0; v < simd_w; v++)
-        dest[v] = data[v];
-#endif
-}
 }
 
 using namespace mkldnn::impl::status;
@@ -98,368 +60,6 @@ using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::utils;
 
 namespace {
-template<bool is_fwd>
-void input_transform_data(int image, const jit_conv_winograd_conf_t &jcp,
-        float *inp, float *tinp, bool streamout = true)
-{
-    const int inpw = is_fwd ? jcp.iw : jcp.ow;
-    const int inph = is_fwd ? jcp.ih : jcp.oh;
-    const int l_pad = is_fwd ? jcp.l_pad : jcp.iw + jcp.r_pad - jcp.ow;
-    const int t_pad = is_fwd ? jcp.t_pad : jcp.ih + jcp.t_pad - jcp.oh;
-    const int wp_max = inpw + l_pad;
-    const int hp_max = inph + t_pad;
-    float Iw[alpha][alpha][simd_w];
-    float I[alpha][alpha][simd_w];
-
-    array_offset_calculator<float, 5> input(inp,
-        jcp.mb, jcp.dimK / simd_w, inph, inpw,
-        simd_w);
-    array_offset_calculator<float, 8> output(tinp,
-        jcp.dimN_nb_block, alpha, alpha,
-        jcp.dimN_block, jcp.dimK_nb_block, jcp.dimK_block,
-        jcp.dimN_reg_block, jcp.dimK_reg_block);
-
-    int tile_base_index = image * jcp.itiles * jcp.jtiles;
-    int tile_block_ur = tile_base_index % jcp.tile_block_ur;
-    int nb_tile_block_ur =
-        (tile_base_index / jcp.tile_block_ur) % jcp.nb_tile_block_ur;
-    int tile_block =
-        (tile_base_index / jcp.tile_block_ur) / jcp.nb_tile_block_ur;
-
-    for (int tj = 0; tj < jcp.jtiles; tj++) {
-        for (int ti = 0; ti < jcp.itiles; ti++) {
-            for (int j = 0; j < alpha; j++) {
-                int ydim = tj * tile_size + j;
-                if ((t_pad <= ydim) && (ydim < hp_max)) {
-                    float *pinp_j = inp + (ydim - t_pad) * inpw * 16;
-                    for (int i = 0; i < alpha; i++) {
-                        int xdim = ti * tile_size + i;
-                        if ((l_pad <= xdim) && (xdim < wp_max)) {
-                            float *pinp_i = pinp_j + (xdim - l_pad) * 16;
-                            load_ps(I[j][i], pinp_i);
-                        } else {
-#pragma omp simd
-                            for (int v = 0; v < simd_w; v++) {
-                                I[j][i][v] = 0.0f;
-                            }
-                        }
-                    }
-                } else {
-                    for (int i = 0; i < alpha; i++) {
-#pragma omp simd
-                        for (int v = 0; v < simd_w; v++) {
-                            I[j][i][v] = 0.0f;
-                        }
-                    }
-                }
-            }
-
-            trans_I_4x4_3x3(Iw, I);
-
-            for (int j = 0; j < alpha; j++) {
-                for (int i = 0; i < alpha; i++) {
-                    store_output(&(output(tile_block, j, i,
-                                nb_tile_block_ur, 0, 0,
-                                tile_block_ur, 0)),
-                        Iw[j][i], streamout);
-                }
-            }
-            tile_block_ur++;
-            if (tile_block_ur >= jcp.tile_block_ur) {
-                tile_block_ur = 0;
-                nb_tile_block_ur++;
-            }
-            if (nb_tile_block_ur >= jcp.nb_tile_block_ur) {
-                nb_tile_block_ur = 0;
-                tile_block++;
-            }
-        }
-    }
-}
-
-template <bool is_fwd>
-void input_transform_tileblock_data(int tile_block,
-        const jit_conv_winograd_conf_t &jcp,
-        float *inp, float *tinp)
-{
-    const int inph = is_fwd ? jcp.ih : jcp.oh;
-    const int inpw = is_fwd ? jcp.iw : jcp.ow;
-    const int t_pad = is_fwd ? jcp.t_pad : jcp.ih + jcp.t_pad - jcp.oh;
-    const int l_pad = is_fwd ? jcp.l_pad : jcp.iw + jcp.r_pad - jcp.ow;
-    const int wp_max = inpw + l_pad;
-    const int hp_max = inph + t_pad;
-    float Iw[alpha][alpha][simd_w];
-    float I[alpha][alpha][simd_w];
-
-    array_offset_calculator<float, 5> input(inp,
-        jcp.mb, jcp.dimK / simd_w, inph, inpw, simd_w);
-    array_offset_calculator<float, 7> output(tinp,
-        alpha, alpha,
-        jcp.dimN_block, jcp.dimK_nb_block, jcp.dimK_block,
-        jcp.dimN_reg_block, jcp.dimK_reg_block);
-
-    int tile_index = tile_block * jcp.nb_tile_block_ur * jcp.tile_block_ur;
-
-    for (int nb_tile_block_ur = 0;
-            nb_tile_block_ur < jcp.nb_tile_block_ur;
-            nb_tile_block_ur++) {
-        for (int tile_block_ur = 0; tile_block_ur < jcp.tile_block_ur;
-                tile_block_ur++) {
-
-            int img = tile_index / (jcp.jtiles * jcp.itiles);
-            int ti = tile_index % jcp.itiles;
-            int tj = (tile_index / jcp.itiles) % jcp.jtiles;
-            float *pinp_b = &(input(img, 0, 0, 0, 0));
-
-            for (int j = 0; j < alpha; j++) {
-                int ydim = tj * tile_size + j;
-                if ((t_pad <= ydim) && (ydim < hp_max)) {
-                    float *pinp_j = pinp_b + (ydim - t_pad) * inpw * simd_w;
-                    for (int i = 0; i < alpha; i++) {
-                        int xdim = ti * tile_size + i;
-                        if ((l_pad <= xdim) && (xdim < wp_max)) {
-                            float *pinp_i = pinp_j + (xdim - l_pad) * simd_w;
-                            load_ps(I[j][i], pinp_i);
-                        } else {
-#pragma omp simd
-                            for (int v = 0; v < simd_w; v++) {
-                                I[j][i][v] = 0.0f;
-                            }
-                        }
-                    }
-                } else {
-                    for (int i = 0; i < alpha; i++) {
-#pragma omp simd
-                        for (int v = 0; v < simd_w; v++) {
-                            I[j][i][v] = 0.0f;
-                        }
-                    }
-                }
-            }
-
-            trans_I_4x4_3x3(Iw, I);
-            for (int j = 0; j < alpha; j++) {
-                for (int i = 0; i < alpha; i++) {
-                    store_output(&(output(j, i,
-                                nb_tile_block_ur, 0, 0,
-                                tile_block_ur, 0)),
-                        Iw[j][i], false);
-                }
-            }
-            tile_index++;
-        }
-    }
-}
-
-template <bool is_fwd>
-void weight_transform_data(const jit_conv_winograd_conf_t &jcp,
-        float *wp, float *twp)
-{
-    const int kh = 3;
-    const int kw = 3;
-    array_offset_calculator<float, 6> input(wp,
-        jcp.oc / jcp.oc_simd_block,
-        jcp.ic / jcp.ic_simd_block,
-        jcp.kh, jcp.kw,
-        simd_w, simd_w);
-    array_offset_calculator<float, 8> output(twp,
-        jcp.dimM_nb_block,
-        alpha, alpha,
-        jcp.dimK_nb_block,
-        jcp.dimM_block * jcp.dimM_reg_block, jcp.dimK_block,
-        simd_w, simd_w);
-    float Fw[alpha][alpha][simd_w][simd_w];
-    float F[kh][kw][simd_w][simd_w];
-
-    for (int j = 0; j < kh; j++) {
-        for (int i = 0; i < kw; i++) {
-            for (int v1 = 0; v1 < simd_w; v1++) {
-                float *base_inp = is_fwd
-                    ? &(input(0, 0, j, i, v1, 0))
-                    : &(input(0, 0, 2 - j, 2 - i, v1, 0));
-#pragma omp simd
-                for (int v2 = 0; v2 < simd_w; v2++) {
-                    if (is_fwd)
-                        F[j][i][v1][v2] = *(base_inp + v2);
-                    else
-                        F[j][i][v2][v1] = *(base_inp + v2);
-                }
-            }
-        }
-    }
-
-    trans_W_4x4_3x3(Fw, F);
-
-    for (int j = 0; j < alpha; j++) {
-        for (int i = 0; i < alpha; i++) {
-            for (int v1 = 0; v1 < simd_w; v1++) {
-#pragma omp simd
-                for (int v2 = 0; v2 < simd_w; v2++) {
-                    output(0, j, i, 0, 0, 0, v1, v2) = Fw[j][i][v1][v2];
-                }
-            }
-        }
-    }
-}
-
-template <bool is_fwd, bool with_bias, bool with_relu_presum, bool with_sum>
-void output_transform_data(int image, const jit_conv_winograd_conf_t &jcp,
-        const post_ops_t &p_ops, float *toutp, float *pout_b, float *bias,
-        bool streamout = true) {
-    float Ow[alpha][alpha][simd_w];
-    float O[tile_size][tile_size][simd_w];
-    int outw = is_fwd ? jcp.ow : jcp.iw;
-    int outh = is_fwd ? jcp.oh : jcp.ih;
-
-    /* Prepare for PostOps */
-    bool with_relu_postsum = p_ops.find(primitive_kind::eltwise, 1) != -1;
-
-    array_offset_calculator<float, 8> input(toutp,
-        jcp.dimN_nb_block, jcp.dimM_nb_block,
-        alpha, alpha,
-        jcp.dimN_block, jcp.dimM_block * jcp.dimM_reg_block,
-        jcp.dimN_reg_block, jcp.dimM_simd_block);
-
-    int tile_base_index = image * jcp.itiles * jcp.jtiles;
-    int tile_block_ur = tile_base_index % jcp.tile_block_ur;
-    int nb_tile_block_ur =
-        (tile_base_index / jcp.tile_block_ur) % jcp.nb_tile_block_ur;
-    int tile_block =
-        (tile_base_index / jcp.tile_block_ur) / jcp.nb_tile_block_ur;
-
-    for (int tj = 0; tj < jcp.jtiles; tj++) {
-        for (int ti = 0; ti < jcp.itiles; ti++) {
-            for (int j = 0; j < alpha; j++) {
-                for (int i = 0; i < alpha; i++) {
-#pragma omp simd
-                    for (int v = 0; v < simd_w; v++) {
-                        Ow[j][i][v] = input(tile_block, 0,
-                            j, i,
-                            nb_tile_block_ur, 0,
-                            tile_block_ur, v);
-                    }
-                }
-            }
-
-            trans_O_4x4_3x3(Ow, O);
-
-            for (int j = 0; j < tile_size; j++) {
-                int ydim = tj * tile_size + j;
-                if (ydim < outh) {
-                    float *pout_j = pout_b + ydim * outw * simd_w;
-                    for (int i = 0; i < tile_size; i++) {
-                        int xdim = ti * tile_size + i;
-                        if (xdim < outw) {
-                            float *pout_i = pout_j + xdim * simd_w;
-                            if (is_fwd) {
-#pragma omp simd
-                                for (int v = 0; v < simd_w; v++) {
-                                    O[j][i][v] += with_bias ? bias[v] : 0.f;
-                                    O[j][i][v] = true
-                                        && with_relu_presum && O[j][i][v] < 0.f
-                                                ? O[j][i][v]
-                                                * jcp.relu_negative_slope
-                                                : O[j][i][v];
-                                }
-                            }
-                            if (with_sum)
-                                accum_output(pout_i, O[j][i], streamout,
-                                        with_relu_postsum);
-                            else
-                                store_output(pout_i, O[j][i], streamout);
-                        }
-                    }
-                }
-            }
-            tile_block_ur++;
-            if (tile_block_ur >= jcp.tile_block_ur) {
-                tile_block_ur = 0;
-                nb_tile_block_ur++;
-            }
-            if (nb_tile_block_ur >= jcp.nb_tile_block_ur) {
-                nb_tile_block_ur = 0;
-                tile_block++;
-            }
-        }
-    }
-}
-
-template <bool is_fwd, bool with_bias, bool with_relu_presum, bool with_sum>
-void output_transform_tileblock_data(int tile_block,
-        const jit_conv_winograd_conf_t &jcp, const post_ops_t &p_ops,
-        float *toutp, float *outp, float *bias, bool streamout) {
-    float Ow[alpha][alpha][simd_w];
-    float O[tile_size][tile_size][simd_w];
-    int outw = is_fwd ? jcp.ow : jcp.iw;
-    int outh = is_fwd ? jcp.oh : jcp.ih;
-
-    /* Prepare for PostOps */
-    bool with_relu_postsum = p_ops.find(primitive_kind::eltwise, 1) != -1;
-
-    array_offset_calculator<float, 6> input(toutp,
-        alpha, alpha,
-        jcp.dimN_block, jcp.dimM_block * jcp.dimM_reg_block,
-        jcp.dimN_reg_block, jcp.dimM_simd_block);
-    array_offset_calculator<float, 5> output(outp,
-        jcp.mb, jcp.dimM / jcp.dimM_simd_block, outh, outw,
-        jcp.dimM_simd_block);
-
-    int tile_index = tile_block * jcp.nb_tile_block_ur * jcp.tile_block_ur;
-
-    for (int nb_tile_block_ur = 0;
-        nb_tile_block_ur < jcp.nb_tile_block_ur;
-        nb_tile_block_ur++) {
-
-        for (int tile_block_ur = 0; tile_block_ur < jcp.tile_block_ur;
-            tile_block_ur++) {
-            int img = tile_index / (jcp.jtiles * jcp.itiles);
-            int ti = tile_index % jcp.itiles;
-            int tj = (tile_index / jcp.itiles) % jcp.jtiles;
-
-            for (int j = 0; j < alpha; j++) {
-                for (int i = 0; i < alpha; i++) {
-                    float *pinp_tile = &(input(j, i, nb_tile_block_ur, 0,
-                            tile_block_ur, 0));
-                    load_ps(Ow[j][i], pinp_tile);
-                }
-            }
-
-            trans_O_4x4_3x3(Ow, O);
-
-            float *pout_b = &(output(img, 0, 0, 0, 0));
-            for (int j = 0; j < tile_size; j++) {
-                int ydim = tj * tile_size + j;
-                if (ydim < outh) {
-                    float *pout_j = pout_b + ydim * outw * simd_w;
-                    for (int i = 0; i < tile_size; i++) {
-                        int xdim = ti * tile_size + i;
-                        if (xdim < outw) {
-                            float *pout_i = pout_j + xdim * simd_w;
-                            if (is_fwd) {
-#pragma omp simd
-                                for (int v = 0; v < simd_w; v++) {
-                                    O[j][i][v] += with_bias ? bias[v] : 0.f;
-                                    O[j][i][v] = true
-                                        && with_relu_presum && O[j][i][v] < 0.f
-                                                ? O[j][i][v]
-                                                * jcp.relu_negative_slope
-                                                : O[j][i][v];
-
-                                }
-                            }
-                            if (with_sum)
-                                accum_output(pout_i, O[j][i], streamout,
-                                        with_relu_postsum);
-                            else
-                                store_output(pout_i, O[j][i], streamout);
-                        }
-                    }
-                }
-            }
-            tile_index++;
-        }
-    }
-}
 
 template <bool ver_4fma>
 void diff_src_transform_bwd_weights(int image, jit_conv_winograd_conf_t conv,
@@ -715,6 +315,241 @@ void diff_weights_transform_bwd_weights(jit_conv_winograd_conf_t conv,
 }
 
 template <bool is_fwd>
+void _jit_avx512_core_convolution_winograd_t<is_fwd>
+::weight_transform_data(const jit_conv_winograd_conf_t &jcp,
+        float *wp, float *twp)
+{
+    float G[] = {0.26890756302521f, 0.688403361344538f, 0.119514472455649f,
+                 1.13777777777778f, 0.430252100840336f, 0.179271708683473f};
+    const int kh = 3;
+    const int kw = 3;
+    float Fw[alpha][alpha][simd_w][simd_w];
+    float F[kh][kw][simd_w][simd_w];
+    float T[alpha][3][simd_w];
+    jit_wino_transform_call_s p = {0};
+
+    p.src = wp;
+    p.dst = twp;
+    p.G = G;
+    p.M = F;
+    p.Mw = Fw;
+    p.T = T;
+
+    kernel_->weights_transform_data_ker(&p);
+}
+
+template<bool is_fwd>
+void _jit_avx512_core_convolution_winograd_t<is_fwd>::output_transform_data
+(int image, const jit_conv_winograd_conf_t &jcp,
+    const post_ops_t &p_ops, float *toutp, float *pout_b, float *bias) {
+
+    float G[] = {0.625f, 1.5f, 0.390625f, 2.25f, 0.244140625f, 3.375f};
+    float Ow[alpha][alpha][simd_w];
+    float O[tile_size][tile_size][simd_w];
+    float T[tile_size][alpha][simd_w];
+
+    jit_wino_transform_call_s p = {0};
+    p.src = toutp;
+    p.dst = pout_b;
+    p.G = G;
+    p.M = O;
+    p.Mw = Ow;
+    p.T = T;
+    p.bias = bias;
+
+    int tile_base_index = image * jcp.itiles * jcp.jtiles;
+    int tile_block_ur = tile_base_index % jcp.tile_block_ur;
+    int nb_tile_block_ur =
+        (tile_base_index / jcp.tile_block_ur) % jcp.nb_tile_block_ur;
+    int tile_block =
+        (tile_base_index / jcp.tile_block_ur) / jcp.nb_tile_block_ur;
+
+    for (int tj = 0; tj < jcp.jtiles; tj++) {
+        for (int ti = 0; ti < jcp.itiles; ti++) {
+
+            p.tile_block_ur = tile_block_ur;
+            p.nb_tile_block_ur = nb_tile_block_ur;
+            p.tile_block = tile_block;
+            p.tj = tj;
+            p.ti = ti;
+
+            kernel_->output_transform_data_ker(&p);
+
+            tile_block_ur++;
+            if (tile_block_ur >= jcp.tile_block_ur) {
+                tile_block_ur = 0;
+                nb_tile_block_ur++;
+            }
+            if (nb_tile_block_ur >= jcp.nb_tile_block_ur) {
+                nb_tile_block_ur = 0;
+                tile_block++;
+            }
+        }
+    }
+}
+
+template<bool is_fwd>
+void _jit_avx512_core_convolution_winograd_t<is_fwd>
+::output_transform_tileblock_data(int tile_block,
+    const jit_conv_winograd_conf_t &jcp, const post_ops_t &p_ops,
+    float *toutp, float *outp, float *bias) {
+
+    float G[] = {0.625f, 1.5f, 0.390625f, 2.25f, 0.244140625f, 3.375f};
+    float Ow[alpha][alpha][simd_w];
+    float O[tile_size][tile_size][simd_w];
+    float T[tile_size][alpha][simd_w];
+
+    jit_wino_transform_call_s p = {0};
+    p.src = toutp;
+    p.dst = outp;
+    p.G = G;
+    p.M = O;
+    p.Mw = Ow;
+    p.T = T;
+    p.bias = bias;
+
+    int outw = is_fwd ? jcp.ow : jcp.iw;
+    int outh = is_fwd ? jcp.oh : jcp.ih;
+
+    int tile_index = tile_block * jcp.nb_tile_block_ur * jcp.tile_block_ur;
+
+    for (int nb_tile_block_ur = 0;
+        nb_tile_block_ur < jcp.nb_tile_block_ur;
+        nb_tile_block_ur++) {
+
+        for (int tile_block_ur = 0; tile_block_ur < jcp.tile_block_ur;
+            tile_block_ur++) {
+            int img = tile_index / (jcp.jtiles * jcp.itiles);
+            int ti = tile_index % jcp.itiles;
+            int tj = (tile_index / jcp.itiles) % jcp.jtiles;
+
+            p.tile_block_ur = tile_block_ur;
+            p.nb_tile_block_ur = nb_tile_block_ur;
+            p.tile_block = tile_block;
+            p.tj = tj;
+            p.ti = ti;
+            p.dst = outp + img * (jcp.dimM / jcp.dimM_simd_block)
+                               * outh * outw * jcp.dimM_simd_block;
+
+            kernel_->output_transform_data_ker(&p);
+
+            tile_index++;
+        }
+    }
+}
+
+
+template<bool is_fwd>
+void _jit_avx512_core_convolution_winograd_t<is_fwd>
+    ::input_transform_data(int image, const jit_conv_winograd_conf_t &jcp,
+        float *inp, float *tinp)
+{
+    float G[] = {-2.25f, -0.390625f, 0.87890625f, -2.640625f,
+                 0.625f, -0.625f, 1.5f, -1.5f, -2.640625f};
+
+    float Iw[alpha][alpha][simd_w];
+    float I[alpha][alpha][simd_w];
+    float T[alpha][alpha][simd_w];
+
+    jit_wino_transform_call_s p = {0};
+
+    p.src = inp;
+    p.dst = tinp;
+    p.G = G;
+    p.M = I;
+    p.Mw = Iw;
+    p.T = T;
+
+    int tile_base_index = image * jcp.itiles * jcp.jtiles;
+    int tile_block_ur = tile_base_index % jcp.tile_block_ur;
+    int nb_tile_block_ur =
+        (tile_base_index / jcp.tile_block_ur) % jcp.nb_tile_block_ur;
+    int tile_block =
+        (tile_base_index / jcp.tile_block_ur) / jcp.nb_tile_block_ur;
+
+    for (int tj = 0; tj < jcp.jtiles; tj++) {
+        for (int ti = 0; ti < jcp.itiles; ti++) {
+
+            p.tile_block_ur = tile_block_ur;
+            p.nb_tile_block_ur = nb_tile_block_ur;
+            p.tile_block = tile_block;
+            p.tj = tj;
+            p.ti = ti;
+
+            kernel_->input_transform_data_ker(&p);
+
+            tile_block_ur++;
+            if (tile_block_ur >= jcp.tile_block_ur) {
+                tile_block_ur = 0;
+                nb_tile_block_ur++;
+            }
+            if (nb_tile_block_ur >= jcp.nb_tile_block_ur) {
+                nb_tile_block_ur = 0;
+                tile_block++;
+            }
+        }
+    }
+}
+
+template <bool is_fwd>
+void _jit_avx512_core_convolution_winograd_t<is_fwd>
+    ::input_transform_tileblock_data(int tile_block,
+        const jit_conv_winograd_conf_t &jcp,
+        float *inp, float *tinp)
+{
+    float G[] = {-2.25f, -0.390625f, 0.87890625f, -2.640625f,
+               0.625f, -0.625f, 1.5f, -1.5f, -2.640625f};
+    float Iw[alpha][alpha][simd_w];
+    float I[alpha][alpha][simd_w];
+    float T[alpha][alpha][simd_w];
+
+    const int inph = is_fwd ? jcp.ih : jcp.oh;
+    const int inpw = is_fwd ? jcp.iw : jcp.ow;
+
+    array_offset_calculator<float, 5> input(inp,
+        jcp.mb, jcp.dimK / simd_w, inph, inpw, simd_w);
+    array_offset_calculator<float, 7> output(tinp,
+        alpha, alpha,
+        jcp.dimN_block, jcp.dimK_nb_block, jcp.dimK_block,
+        jcp.dimN_reg_block, jcp.dimK_reg_block);
+
+    jit_wino_transform_call_s p = {0};
+
+    p.dst = tinp;
+    p.G = G;
+    p.M = I;
+    p.Mw = Iw;
+    p.T = T;
+
+
+    int tile_index = tile_block * jcp.nb_tile_block_ur * jcp.tile_block_ur;
+
+    for (int nb_tile_block_ur = 0;
+            nb_tile_block_ur < jcp.nb_tile_block_ur;
+            nb_tile_block_ur++) {
+
+        for (int tile_block_ur = 0; tile_block_ur < jcp.tile_block_ur;
+                tile_block_ur++) {
+
+            int img = tile_index / (jcp.jtiles * jcp.itiles);
+            int ti = tile_index % jcp.itiles;
+            int tj = (tile_index / jcp.itiles) % jcp.jtiles;
+            float *pinp_b = &(input(img, 0, 0, 0, 0));
+
+            p.src = pinp_b;
+            p.tile_block_ur = tile_block_ur;
+            p.nb_tile_block_ur = nb_tile_block_ur;
+            p.tj = tj;
+            p.ti = ti;
+
+            kernel_->input_transform_data_ker(&p);
+
+            tile_index++;
+        }
+    }
+}
+
+template <bool is_fwd>
 void _jit_avx512_core_convolution_winograd_t<is_fwd>::_execute_data_W_S_G_D(
         float *inp_ptr, float *out_ptr, float *wei_ptr, float *bias_ptr) {
     const auto &jcp = kernel_->jcp;
@@ -724,25 +559,6 @@ void _jit_avx512_core_convolution_winograd_t<is_fwd>::_execute_data_W_S_G_D(
     const int inpw = is_fwd ? jcp.iw : jcp.ow;
     const int outh = is_fwd ? jcp.oh : jcp.ih;
     const int outw = is_fwd ? jcp.ow : jcp.iw;
-
-    /* Note that jcp.with_relu is true for both fused conv+relu primitive
-     * and conv primitive with PostOps with relu before sum
-     * (PostOps relu after sum is handled later) */
-    auto output_transform = jcp.with_bias
-            ? (jcp.with_relu
-                ? (jcp.with_sum
-                    ? output_transform_data<is_fwd, true, true, true>
-                    : output_transform_data<is_fwd, true, true, false>)
-                : (jcp.with_sum
-                    ? output_transform_data<is_fwd, true, false, true>
-                    : output_transform_data<is_fwd, true, false, false>))
-            : (jcp.with_relu
-                ? (jcp.with_sum
-                    ? output_transform_data<is_fwd, false, true, true>
-                    : output_transform_data<is_fwd, false, true, false>)
-                : (jcp.with_sum
-                    ? output_transform_data<is_fwd, false, false, true>
-                    : output_transform_data<is_fwd, false, false, false>));
 
     /* Notation:
        FWD: dimM:oc, dimN:ntiles, dimK:ic,
@@ -783,11 +599,6 @@ void _jit_avx512_core_convolution_winograd_t<is_fwd>::_execute_data_W_S_G_D(
             jcp.dimN_block, jcp.dimK_nb_block,
             jcp.dimK_block, jcp.dimN_reg_block, jcp.dimK_reg_block);
 
-    bool V_streamout = jcp.dimN * jcp.dimK * alpha * alpha * sizeof(float)
-        > 2 * LLC_cache_size ? true : false;
-
-    const bool output_is_aligned = ((size_t)out_ptr & (64 - 1)) == 0;
-
 #pragma omp parallel
     {
 #pragma omp for nowait collapse(3)
@@ -795,10 +606,10 @@ void _jit_avx512_core_convolution_winograd_t<is_fwd>::_execute_data_W_S_G_D(
             for (int K_blk1 = 0; K_blk1 < jcp.dimK_nb_block; K_blk1++){
                 for (int K_blk2 = 0; K_blk2 < jcp.dimK_block; K_blk2++){
 
-                    input_transform_data<is_fwd>(img, jcp,
+                    input_transform_data(img, jcp,
                         &(input(img, K_blk1 * jcp.dimK_block + K_blk2,
                                 0, 0, 0)),
-                        &(V(0, 0, 0, 0, K_blk1, K_blk2, 0, 0)), V_streamout);
+                        &(V(0, 0, 0, 0, K_blk1, K_blk2, 0, 0)));
 
                 }
             }
@@ -814,7 +625,7 @@ void _jit_avx512_core_convolution_winograd_t<is_fwd>::_execute_data_W_S_G_D(
                         float *U_base_ptr = is_fwd
                         ? &(U(ofm1, 0, 0, ifm1, ofm2, ifm2, 0, 0))
                         : &(U(ifm1, 0, 0, ofm1, ifm2, ofm2, 0, 0));
-                        weight_transform_data<is_fwd>(jcp,
+                        weight_transform_data(jcp,
                             &(weights(
                                 ofm1 * jcp.oc_block * jcp.oc_reg_block + ofm2,
                                 ifm1 * jcp.ic_block * jcp.ic_reg_block + ifm2,
@@ -854,12 +665,12 @@ void _jit_avx512_core_convolution_winograd_t<is_fwd>::_execute_data_W_S_G_D(
             for (int M_blk1 = 0; M_blk1 < jcp.dimM_nb_block; M_blk1++){
                 for (int M_blk2 = 0;
                      M_blk2 < jcp.dimM_block * jcp.dimM_reg_block; M_blk2++){
-                    output_transform(img, jcp, p_ops,
+                      output_transform_data(img, jcp, p_ops,
                         &(M(0, M_blk1, 0, 0, 0, M_blk2, 0, 0)),
                         &(output(img,M_blk1 * jcp.dimM_block
                             * jcp.dimM_reg_block + M_blk2, 0, 0, 0)),
                         &(bias(M_blk1 * jcp.dimM_block * jcp.dimM_reg_block
-                            + M_blk2, 0)), output_is_aligned);
+                            + M_blk2, 0)));
                 }
             }
         }
@@ -883,25 +694,6 @@ void _jit_avx512_core_convolution_winograd_t<is_fwd>::_execute_data_W_SGD(
     const int inpw = is_fwd ? jcp.iw : jcp.ow;
     const int outh = is_fwd ? jcp.oh : jcp.ih;
     const int outw = is_fwd ? jcp.ow : jcp.iw;
-
-    /* Note that jcp.with_relu is true for both fused conv+relu primitive
-     * and conv primitive with PostOps with relu before sum
-     * (PostOps relu after sum is handled later) */
-    auto output_transform_tileblock = jcp.with_bias
-        ? (jcp.with_relu
-            ? (jcp.with_sum
-                ? output_transform_tileblock_data<is_fwd, true, true, true>
-                : output_transform_tileblock_data<is_fwd, true, true, false>)
-            : (jcp.with_sum
-                ? output_transform_tileblock_data<is_fwd, true, false, true>
-                : output_transform_tileblock_data<is_fwd, true, false, false>))
-        : (jcp.with_relu
-            ? (jcp.with_sum
-                ? output_transform_tileblock_data<is_fwd, false, true, true>
-                : output_transform_tileblock_data<is_fwd, false, true, false>)
-            : (jcp.with_sum
-                ? output_transform_tileblock_data<is_fwd, false, false, true>
-                : output_transform_tileblock_data<is_fwd, false, false, false>));
 
     array_offset_calculator<float, 5> input(inp_ptr,
         jcp.mb, jcp.dimK/jcp.dimK_reg_block, inph, inpw, jcp.dimK_reg_block);
@@ -935,7 +727,6 @@ void _jit_avx512_core_convolution_winograd_t<is_fwd>::_execute_data_W_SGD(
             jcp.dimK_nb_block, jcp.dimK_block,
             jcp.dimN_reg_block, jcp.dimK_reg_block);
 
-    const bool output_is_aligned = ((size_t)out_ptr & (64 - 1)) == 0;
 
 #pragma omp parallel
     {
@@ -948,7 +739,7 @@ void _jit_avx512_core_convolution_winograd_t<is_fwd>::_execute_data_W_SGD(
                     float *U_base_ptr = is_fwd
                                       ? &(U(ofm1, 0, 0, ifm1, ofm2, ifm2, 0, 0))
                                       : &(U(ifm1, 0, 0, ofm1, ifm2, ofm2, 0, 0));
-                    weight_transform_data<is_fwd>(jcp,
+                    weight_transform_data(jcp,
                             &(weights(
                                 ofm1 * jcp.oc_block * jcp.oc_reg_block + ofm2,
                                 ifm1 * jcp.ic_block * jcp.ic_reg_block + ifm2,
@@ -966,7 +757,7 @@ void _jit_avx512_core_convolution_winograd_t<is_fwd>::_execute_data_W_SGD(
         for (int K_blk1 = 0; K_blk1 < jcp.dimK_nb_block; K_blk1++) {
             for (int K_blk2 = 0; K_blk2 < jcp.dimK_block; K_blk2++) {
 
-                input_transform_tileblock_data<is_fwd>(
+                input_transform_tileblock_data(
                         tile_block, jcp,
                         &(input(0, K_blk1 * jcp.dimK_block + K_blk2, 0, 0, 0)),
                         &(V(ithr, 0, 0, 0, K_blk1, K_blk2, 0, 0)));
@@ -995,11 +786,11 @@ void _jit_avx512_core_convolution_winograd_t<is_fwd>::_execute_data_W_SGD(
                     ? &(bias(M_blk1 * jcp.dimM_block * jcp.dimM_reg_block
                         + M_blk2, 0))
                     : NULL;
-                output_transform_tileblock(tile_block, jcp, p_ops,
+                  output_transform_tileblock_data(tile_block, jcp, p_ops,
                         &(M(ithr, M_blk1, 0, 0, 0, M_blk2, 0, 0)),
                         &(output(0, M_blk1 * jcp.dimM_block
                             * jcp.dimM_reg_block + M_blk2, 0, 0, 0)),
-                        bias_ptr, output_is_aligned);
+                        bias_ptr);
             }
         }
     }

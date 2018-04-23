@@ -192,6 +192,20 @@ struct _jit_avx512_core_convolution_winograd_t {
     };
 
     protected:
+        void weight_transform_data(const jit_conv_winograd_conf_t &jcp,
+            float *wp, float *twp);
+        void input_transform_data(int image,
+            const jit_conv_winograd_conf_t &jcp,
+            float *inp, float *tinp);
+        void input_transform_tileblock_data(int tile_block,
+            const jit_conv_winograd_conf_t &jcp,
+            float *inp, float *tinp);
+        void output_transform_data(int image,
+            const jit_conv_winograd_conf_t &jcp,
+            const post_ops_t &p_ops, float *toutp, float *pout_b, float *bias);
+        void output_transform_tileblock_data(int tile_block,
+            const jit_conv_winograd_conf_t &jcp, const post_ops_t &p_ops,
+            float *toutp, float *outp, float *bias);
         void _execute_data_W_S_G_D(float *inp_ptr, float *out_ptr,
                 float *wei_ptr, float *bias_ptr = NULL);
         void _execute_data_W_SGD(float *inp_ptr, float *out_ptr,

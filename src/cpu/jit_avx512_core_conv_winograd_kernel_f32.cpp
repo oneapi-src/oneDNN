@@ -25,6 +25,7 @@
 
 #include "jit_avx512_core_conv_winograd_kernel_f32.hpp"
 
+#define GET_OFF(field) offsetof(jit_wino_transform_call_s, field)
 namespace mkldnn {
 namespace impl {
 namespace cpu {
@@ -372,6 +373,721 @@ void _jit_avx512_core_conv_winograd_data_kernel_f32::gemm_loop_generate()
     ret();
 }
 
+void _jit_avx512_core_conv_winograd_data_kernel_f32
+    ::weights_transform_data_ker_generate()
+{
+    bool is_fwd = one_of(jcp.prop_kind,
+        mkldnn_forward_training, mkldnn_forward_inference);
+    int kh = jcp.kh;
+    int kw = jcp.kw;
+
+    auto zmm_temp = Xbyak::Zmm(31);
+    auto zmm_zero = Xbyak::Zmm(30);
+
+    auto zmm_M = [=](int i) {
+        return Xbyak::Zmm(i);
+    };
+    auto zmm_MT = [=](int i) {
+        return Xbyak::Zmm(i + simd_w);
+    };
+
+    auto zmm_G = [=](int i) {
+        return Xbyak::Zmm(i);
+    };
+    auto zmm_F = [=](int i) {
+        return Xbyak::Zmm(alpha + i);
+    };
+    auto zmm_T = [=](int i) {
+        return Xbyak::Zmm(alpha + 3 + i);
+    };
+    auto zmm_t = [=](int i) {
+        return Xbyak::Zmm(2 * alpha + 3 + i);
+    };
+
+    auto zmm_load = [=](int i) {
+        return Xbyak::Zmm(i);
+    };
+
+    auto init_G = [=]() {
+        mov(wreg_temp, ptr[param1 + GET_OFF(G)]);
+        for (int i = 0; i < alpha; i++) {
+            vbroadcastss(zmm_G(i), ptr[wreg_temp + i * typesize]);
+        }
+        vpxord(zmm_zero, zmm_zero, zmm_zero);
+    };
+
+    auto trans16x16 = [=]() {
+        for (int i = 0; i < simd_w; i+=2 ) {
+            vmovups(zmm_M(i), ptr[wreg_M + i * simd_w * 4]);
+            vmovups(zmm_M(i+1), ptr[wreg_M + (i + 1) * simd_w * 4]);
+            vunpcklps(zmm_MT(i), zmm_M(i), zmm_M(i+1));
+            vunpckhps(zmm_MT(i+1), zmm_M(i), zmm_M(i+1));
+        }
+        for (int i = 0; i < simd_w; i+=4 ) {
+            vunpcklpd(zmm_M(i), zmm_MT(i), zmm_MT(i+2));
+            vunpckhpd(zmm_M(i+1), zmm_MT(i), zmm_MT(i+2));
+            vunpcklpd(zmm_M(i+2), zmm_MT(i+1), zmm_MT(i+3));
+            vunpckhpd(zmm_M(i+3), zmm_MT(i+1), zmm_MT(i+3));
+        }
+        for (int i = 0; i < simd_w; i += 8) {
+            vshuff32x4(zmm_MT(i), zmm_M(i), zmm_M(i + 4), 0x88);
+            vshuff32x4(zmm_MT(i+1), zmm_M(i+1), zmm_M(i + 5), 0x88);
+            vshuff32x4(zmm_MT(i+2), zmm_M(i+2), zmm_M(i + 6), 0x88);
+            vshuff32x4(zmm_MT(i+3), zmm_M(i+3), zmm_M(i + 7), 0x88);
+            vshuff32x4(zmm_MT(i+4), zmm_M(i), zmm_M(i + 4), 0xdd);
+            vshuff32x4(zmm_MT(i+5), zmm_M(i+1), zmm_M(i + 5), 0xdd);
+            vshuff32x4(zmm_MT(i+6), zmm_M(i+2), zmm_M(i + 6), 0xdd);
+            vshuff32x4(zmm_MT(i+7), zmm_M(i+3), zmm_M(i + 7), 0xdd);
+        }
+        {
+            int i = 0;
+            int mask = 0x88;
+            vshuff32x4(zmm_M(0), zmm_MT(i), zmm_MT(i + 8), mask);
+            vmovups(ptr[wreg_MT + 0 * 16 * 4], zmm_M(0));
+            vshuff32x4(zmm_M(1), zmm_MT(i + 1), zmm_MT(i + 9), mask);
+            vmovups(ptr[wreg_MT + 1 * 16 * 4], zmm_M(1));
+            vshuff32x4(zmm_M(2), zmm_MT(i + 2), zmm_MT(i + 10), mask);
+            vmovups(ptr[wreg_MT + 2 * 16 * 4], zmm_M(2));
+            vshuff32x4(zmm_M(3), zmm_MT(i + 3), zmm_MT(i + 11), mask);
+            vmovups(ptr[wreg_MT + 3 * 16 * 4], zmm_M(3));
+            vshuff32x4(zmm_M(4), zmm_MT(i + 4), zmm_MT(i + 12), mask);
+            vmovups(ptr[wreg_MT + 4 * 16 * 4], zmm_M(4));
+            vshuff32x4(zmm_M(5), zmm_MT(i + 5), zmm_MT(i + 13), mask);
+            vmovups(ptr[wreg_MT + 5 * 16 * 4], zmm_M(5));
+            vshuff32x4(zmm_M(6), zmm_MT(i + 6), zmm_MT(i + 14), mask);
+            vmovups(ptr[wreg_MT + 6 * 16 * 4], zmm_M(6));
+            vshuff32x4(zmm_M(7), zmm_MT(i + 7), zmm_MT(i + 15), mask);
+            vmovups(ptr[wreg_MT + 7 * 16 * 4], zmm_M(7));
+            mask = 0xdd;
+            vshuff32x4(zmm_M(8), zmm_MT(i), zmm_MT(i + 8), mask);
+            vmovups(ptr[wreg_MT + 8 * 16 * 4], zmm_M(8));
+            vshuff32x4(zmm_M(9), zmm_MT(i + 1), zmm_MT(i + 9), mask);
+            vmovups(ptr[wreg_MT + 9 * 16 * 4], zmm_M(9));
+            vshuff32x4(zmm_M(10), zmm_MT(i + 2), zmm_MT(i + 10), mask);
+            vmovups(ptr[wreg_MT + 10 * 16 * 4], zmm_M(10));
+            vshuff32x4(zmm_M(11), zmm_MT(i + 3), zmm_MT(i + 11), mask);
+            vmovups(ptr[wreg_MT + 11 * 16 * 4], zmm_M(11));
+            vshuff32x4(zmm_M(12), zmm_MT(i + 4), zmm_MT(i + 12), mask);
+            vmovups(ptr[wreg_MT + 12 * 16 * 4], zmm_M(12));
+            vshuff32x4(zmm_M(13), zmm_MT(i + 5), zmm_MT(i + 13), mask);
+            vmovups(ptr[wreg_MT + 13 * 16 * 4], zmm_M(13));
+            vshuff32x4(zmm_M(14), zmm_MT(i + 6), zmm_MT(i + 14), mask);
+            vmovups(ptr[wreg_MT + 14 * 16 * 4], zmm_M(14));
+            vshuff32x4(zmm_M(15), zmm_MT(i + 7), zmm_MT(i + 15), mask);
+            vmovups(ptr[wreg_MT + 15 * 16 * 4], zmm_M(15));
+        }
+    };
+
+    auto load_src = [=]() {
+        mov(wreg_src, ptr[param1 + GET_OFF(src)]);
+        mov(wreg_F, ptr[param1 + GET_OFF(M)]);
+        for (int j = 0; j < kh; j++) {
+            for (int i = 0; i < kw; i++) {
+                if (is_fwd) {
+                    for (int v1 = 0; v1 < simd_w; v1++) {
+                        int offset_src = (j * kw * simd_w * simd_w
+                            + i * simd_w * simd_w + v1 * simd_w) * typesize;
+                        int offset_F = (j * kw * simd_w * simd_w
+                            + i * simd_w * simd_w  + v1 * simd_w) * typesize;
+                        vmovups(zmm_temp, ptr[wreg_src + offset_src]);
+                        vmovups(ptr[wreg_F + offset_F], zmm_temp);
+                    }
+                } else {
+                    int offset_src = ((2 - j) * kw * simd_w * simd_w
+                        + (2 - i) * simd_w * simd_w) * typesize;
+                    int offset_F = (j * kw * simd_w * simd_w
+                        + i * simd_w * simd_w) * typesize;
+                    lea(wreg_M, ptr[wreg_src + offset_src]);
+                    lea(wreg_MT, ptr[wreg_F + offset_F]);
+                    trans16x16();
+                }
+            }
+        }
+    };
+
+    auto store_dst = [=]() {
+        mov(wreg_dst, ptr[param1 + GET_OFF(dst)]);
+        mov(wreg_Fw, ptr[param1 + GET_OFF(Mw)]);
+
+        Label Loop_j;
+        mov(wreg_cnt_j, 0);
+        mov(wreg_dst_aux, wreg_dst);
+        mov(wreg_Fw_aux, wreg_Fw);
+
+        int dim5 = jcp.dimK_nb_block * (jcp.dimM_block * jcp.dimM_reg_block)
+            * jcp.dimK_block * simd_w * simd_w;
+
+        L(Loop_j);
+        {
+            for (int i = 0; i < alpha; i++) {
+                // touch pages
+                vmovups(zmm_load(0), ptr[wreg_Fw_aux
+                    + (i * simd_w * simd_w) * typesize]);
+                mov(wreg_dst_idx, i * dim5 * typesize);
+                vmovntps(ptr[wreg_dst_aux + wreg_dst_idx], zmm_load(0));
+            }
+            for (int i = 0; i < alpha; i++) {
+                for (int v1 = 1; v1 < simd_w; v1++) {
+                    int offset_Fw = (i * simd_w * simd_w  + v1 * simd_w)
+                        * typesize;
+                    vmovups(zmm_load(v1), ptr[wreg_Fw_aux + offset_Fw]);
+                }
+                mov(wreg_dst_idx, i * dim5 * typesize);
+                for (int v1 = 1; v1 < simd_w; v1++) {
+                    int offset_dst = v1 * simd_w * typesize;
+                    vmovntps(ptr[wreg_dst_aux + wreg_dst_idx + offset_dst],
+                        zmm_load(v1));
+                }
+            }
+            add(wreg_Fw_aux, alpha * simd_w * simd_w * typesize);
+            add(wreg_dst_aux, alpha * dim5 * typesize);
+            add(wreg_cnt_j, 1);
+            cmp(wreg_cnt_j, alpha);
+            jl(Loop_j, T_NEAR);
+        }
+    };
+
+    auto trans_W_4x4_3x3 = [=]() {
+        auto fma4 = [=](Zmm dst, Zmm a, Zmm b, Zmm c) {
+            vmovups(dst, a);
+            vfmadd231ps(dst, b, c);
+        };
+        auto fms4 = [=](Zmm dst, Zmm a, Zmm b, Zmm c) {
+            vmulps(zmm_temp, b, c);
+            vsubps(dst, a, zmm_temp);
+        };
+        auto fnms4 = [=](Zmm dst, Zmm a, Zmm b, Zmm c) {
+            vsubps(dst, zmm_zero, a);
+            vfnmadd231ps(dst, b, c);
+        };
+
+        mov(wreg_Fw, ptr[param1 + GET_OFF(Mw)]);
+        mov(wreg_F, ptr[param1 + GET_OFF(M)]);
+        mov(wreg_T, ptr[param1 + GET_OFF(T)]);
+
+        Label Loop_j;
+        mov(wreg_cnt_j, 0);
+        L(Loop_j);
+            mov(wreg_F_aux, wreg_F);
+            mov(wreg_Fw_aux, wreg_Fw);
+            mov(wreg_temp, wreg_cnt_j);
+            shl(wreg_temp, 4 + 2);
+            lea(wreg_F_aux, ptr[wreg_F + wreg_temp]);
+            lea(wreg_Fw_aux, ptr[wreg_Fw + wreg_temp]);
+
+            for (int i = 0; i < 3; i++) {
+                for (int idx = 0; idx < 3; idx ++) {
+                    vmovups(zmm_F(idx), ptr[wreg_F_aux + (idx * 3 * simd_w
+                        * simd_w + i * simd_w * simd_w) * typesize]);
+                }
+                vmulps(zmm_t(0), zmm_G(0), zmm_F(2));
+                fnms4(zmm_t(1), zmm_t(0), zmm_G(1), zmm_F(0));
+                fma4(zmm_t(2), zmm_t(0), zmm_G(2), zmm_F(0));
+
+                vmulps(zmm_T(0), zmm_G(3), zmm_F(0));
+                fms4(zmm_T(1), zmm_t(1), zmm_G(4), zmm_F(1));
+                fma4(zmm_T(2), zmm_t(1), zmm_G(4), zmm_F(1));
+                fma4(zmm_T(3), zmm_t(2), zmm_G(5), zmm_F(1));
+                fms4(zmm_T(4), zmm_t(2), zmm_G(5), zmm_F(1));
+                vmovaps(zmm_T(5), zmm_F(2));
+
+                for (int idx = 0; idx < 6; idx ++) {
+                    vmovups(ptr[wreg_T + (idx * 3 * simd_w + i * simd_w)
+                        * typesize], zmm_T(idx));
+                }
+            }
+            for (int i = 0; i < 6; i++) {
+
+                for (int idx = 0; idx < 3; idx ++) {
+                    vmovups(zmm_T(idx), ptr[wreg_T
+                        + (i * 3 * simd_w + idx * simd_w) * typesize]);
+                }
+                vmulps(zmm_t(0), zmm_G(0), zmm_T(2));
+                fnms4(zmm_t(1), zmm_t(0), zmm_G(1), zmm_T(0));
+                fma4(zmm_t(2), zmm_t(0), zmm_G(2), zmm_T(0));
+
+                vmulps(zmm_F(0), zmm_G(3), zmm_T(0));
+                fms4(zmm_F(1), zmm_t(1), zmm_G(4), zmm_T(1));
+                fma4(zmm_F(2), zmm_t(1), zmm_G(4), zmm_T(1));
+                fma4(zmm_F(3), zmm_t(2), zmm_G(5), zmm_T(1));
+                fms4(zmm_F(4), zmm_t(2), zmm_G(5), zmm_T(1));
+                vmovaps(zmm_F(5), zmm_T(2));
+
+                for (int l = 0; l < 6; l++) {
+                    vmovups(ptr[wreg_Fw_aux + (i * 6 * simd_w * simd_w
+                        + l * simd_w * simd_w) * typesize], zmm_F(l));
+                }
+            }
+        add(wreg_cnt_j, 1);
+        cmp(wreg_cnt_j, 16);
+        jl(Loop_j, T_NEAR);
+    };
+
+    auto inner_loops = [=]() {
+        load_src();
+        init_G();
+        trans_W_4x4_3x3();
+        store_dst();
+    };
+
+    preamble();
+    inner_loops();
+    postamble();
+}
+
+void _jit_avx512_core_conv_winograd_data_kernel_f32
+    ::output_transform_data_ker_generate()
+{
+    bool is_fwd = one_of(jcp.prop_kind,
+        mkldnn_forward_training, mkldnn_forward_inference);
+    int outw = is_fwd ? jcp.ow : jcp.iw;
+    int outh = is_fwd ? jcp.oh : jcp.ih;
+    bool not_tiled = jcp.sched_policy == WSCHED_DATA_W_S_G_D;
+    bool with_bias = jcp.with_bias;
+    bool with_relu = jcp.with_relu;
+    bool with_relu_postsum = jcp.with_relu_postsum;
+    bool with_sum = jcp.with_sum;
+
+    auto zmm_zero = Xbyak::Zmm(0);
+    auto zmm_temp = Xbyak::Zmm(31);
+    auto zmm_G = [=](int i) {
+        return Xbyak::Zmm(1 + i);
+    };
+    auto zmm_O = [=](int i) {
+        return Xbyak::Zmm(1 + alpha + i);
+    };
+    auto zmm_T = [=](int i) {
+        return Xbyak::Zmm(1 + 2 * alpha + i);
+    };
+    auto zmm_t = [=](int i) {
+        return Xbyak::Zmm(1 + 3 * alpha + i);
+    };
+
+    auto init_G = [=]() {
+        mov(oreg_temp, ptr[param1 + GET_OFF(G)]);
+        for (int i = 0; i < 6; i++) {
+            vbroadcastss(zmm_G(i), ptr[oreg_temp + i * typesize]);
+        }
+    };
+
+    auto load_src = [=]() {
+        mov(oreg_Ow, ptr[param1 + GET_OFF(Mw)]);
+        mov(oreg_src, ptr[param1 + GET_OFF(src)]);
+
+        mov(oreg_nb_tile_block_ur, ptr[param1 + GET_OFF(nb_tile_block_ur)]);
+        imul(oreg_nb_tile_block_ur, oreg_nb_tile_block_ur,
+            (jcp.dimM_block * jcp.dimM_reg_block) * jcp.dimN_reg_block
+            * jcp.dimM_simd_block * typesize);
+        add(oreg_src, oreg_nb_tile_block_ur);
+
+        mov(oreg_tile_block_ur, ptr[param1 + GET_OFF(tile_block_ur)]);
+        imul(oreg_tile_block_ur, oreg_tile_block_ur,
+            jcp.dimM_simd_block * typesize);
+        add(oreg_src, oreg_tile_block_ur);
+
+        if (not_tiled) {
+            mov(oreg_tile_block, ptr[param1 + GET_OFF(tile_block)]);
+            imul(oreg_tile_block, oreg_tile_block,
+                jcp.dimM_nb_block * alpha * alpha * jcp.dimN_block
+                * (jcp.dimM_block * jcp.dimM_reg_block) * jcp.dimN_reg_block
+                * jcp.dimM_simd_block * typesize);
+            add(oreg_src, oreg_tile_block);
+        }
+
+        int last4dim = jcp.dimN_block * (jcp.dimM_block * jcp.dimM_reg_block)
+            * jcp.dimN_reg_block * jcp.dimM_simd_block * typesize;
+        for (int j = 0; j < alpha; j++) {
+            for (int i = 0; i < alpha; i++) {
+                int j_base_offset = j * alpha * last4dim;
+                int i_base_offset = i * last4dim;
+                vmovups(zmm_temp, ptr[oreg_src + j_base_offset + i_base_offset]);
+                vmovups(ptr[oreg_Ow + (j * alpha * simd_w + i * simd_w)
+                    * typesize], zmm_temp);
+            }
+        }
+    };
+
+    auto store_dst = [=]() {
+        vpxord(zmm_zero, zmm_zero, zmm_zero);
+        mov(oreg_dst, ptr[param1 + GET_OFF(dst)]);
+        mov(oreg_O, ptr[param1 + GET_OFF(M)]);
+        mov(oreg_ydim, ptr[param1 + GET_OFF(tj)]);
+        shl(oreg_ydim, 2); // tj * tile_size (==4)
+        mov(oreg_xdim, ptr[param1 + GET_OFF(ti)]);
+        shl(oreg_xdim, 2); // ti * tilesize (==4)
+
+        if (with_bias)
+            mov(oreg_bias, ptr[param1 + GET_OFF(bias)]);
+
+        auto store_one = [=](int j, int i, bool is_aligned) {
+            auto zmm_O = Xbyak::Zmm(31);
+            auto zmm_relu_ns = Xbyak::Zmm(30);
+            auto xmm_relu_ns = Xbyak::Xmm(30);
+            int offset = (j * tile_size * simd_w + i * simd_w) * typesize;
+
+            vmovups(zmm_O, ptr[oreg_O + offset]);
+            if (is_fwd) {
+                if (with_bias) {
+                    vaddps(zmm_O, zmm_O, ptr[oreg_bias]);
+                }
+                if (with_relu) {
+                    Opmask kmask = Opmask(7);
+                    if (jcp.relu_negative_slope == 0) {
+                        zmm_relu_ns = zmm_zero;
+                    } else {
+                        mov(imm_addr64, float2int(jcp.relu_negative_slope));
+                        vmovq(xmm_relu_ns, imm_addr64);
+                        vbroadcastss(zmm_relu_ns, xmm_relu_ns);
+                    }
+                    vcmpps(kmask, zmm_O, zmm_zero, _cmp_lt_os);
+                    vmulps(zmm_O | kmask, zmm_O, zmm_relu_ns);
+                }
+            }
+            if (with_sum) {
+                vaddps(zmm_O, zmm_O, ptr[oreg_out_j + oreg_temp]);
+                if (with_relu_postsum) // orig: with_relu_postsum
+                    vmaxps(zmm_O, zmm_O, zmm_zero);
+            }
+            if (is_aligned)
+                vmovntps(ptr[oreg_out_j + oreg_temp], zmm_O);
+            else
+                vmovups(ptr[oreg_out_j + oreg_temp], zmm_O);
+        };
+
+        auto i_loop = [=](int j, bool is_aligned) {
+            for (int i = 0; i < tile_size; i++) {
+                Label next;
+                mov(oreg_temp, oreg_xdim);
+                add(oreg_temp, i);
+                cmp(oreg_temp, outw);
+                jge(next, T_NEAR);
+                shl(oreg_temp, 4 + 2); // * 16 * 4
+
+                store_one(j, i, is_aligned);
+
+                L(next);
+            }
+        };
+
+
+        for (int j = 0; j < tile_size; j++) {
+            Label next, unaligned;
+            mov(oreg_temp, oreg_ydim);
+            add(oreg_temp, j);
+            cmp(oreg_temp, outh);
+            jge(next, T_NEAR);
+
+            mov(oreg_out_j, oreg_dst);
+            imul(oreg_temp, oreg_temp, outw * simd_w * typesize);
+            add(oreg_out_j, oreg_temp);
+
+            test(oreg_dst, 63);
+            jnz(unaligned, T_NEAR);
+
+            i_loop(j, true);
+            jmp(next, T_NEAR);
+
+            L(unaligned);
+            i_loop(j, false);
+
+            L(next);
+        }
+    };
+
+    auto trans_O_4x4_3x3 = [=]() {
+        auto fma2 = [=](Zmm dst, Zmm v1, Zmm u1, Zmm v2, Zmm u2){
+            vmulps(dst, v1, u1);
+            vfmadd231ps(dst, v2, u2);
+        };
+        mov(oreg_Ow, ptr[param1 + GET_OFF(Mw)]);
+        mov(oreg_T, ptr[param1 + GET_OFF(T)]);
+        mov(oreg_O, ptr[param1 + GET_OFF(M)]);
+
+        for (int i = 0; i < alpha; i++) {
+            for (int j = 0; j < alpha; j++) {
+                vmovups(zmm_O(j), ptr[oreg_Ow + (j * alpha * simd_w
+                    + i * simd_w) * typesize]);
+            }
+
+            vaddps(zmm_t(0), zmm_O(1), zmm_O(2));
+            vaddps(zmm_t(1), zmm_O(3), zmm_O(4));
+            vsubps(zmm_t(2), zmm_O(1), zmm_O(2));
+            vsubps(zmm_t(3), zmm_O(3), zmm_O(4));
+
+            vaddps(zmm_T(0), zmm_t(0), zmm_t(1));
+            vaddps(zmm_T(0), zmm_T(0), zmm_O(0));
+            fma2(zmm_T(1), zmm_t(2), zmm_G(0), zmm_t(3), zmm_G(1));
+            fma2(zmm_T(2), zmm_t(0), zmm_G(2), zmm_t(1), zmm_G(3));
+            fma2(zmm_T(3), zmm_t(2), zmm_G(4), zmm_t(3), zmm_G(5));
+            vaddps(zmm_T(3), zmm_T(3), zmm_O(5));
+
+            for (int j = 0; j < tile_size; j++) {
+                vmovups(ptr[oreg_T + (j * alpha * simd_w
+                    + i * simd_w) * typesize], zmm_T(j));
+            }
+        }
+        for (int j = 0; j < tile_size; j++) {
+            for (int i = 0; i < alpha; i++) {
+                vmovups(zmm_T(i), ptr[oreg_T + (j * alpha * simd_w
+                    + i * simd_w) * typesize]);
+            }
+            vaddps(zmm_t(0), zmm_T(1), zmm_T(2));
+            vaddps(zmm_t(1), zmm_T(3), zmm_T(4));
+            vsubps(zmm_t(2), zmm_T(1), zmm_T(2));
+            vsubps(zmm_t(3), zmm_T(3), zmm_T(4));
+
+            vaddps(zmm_O(0), zmm_t(0), zmm_t(1));
+            vaddps(zmm_O(0), zmm_O(0), zmm_T(0));
+            fma2(zmm_O(1), zmm_t(2), zmm_G(0), zmm_t(3), zmm_G(1));
+            fma2(zmm_O(2), zmm_t(0), zmm_G(2), zmm_t(1), zmm_G(3));
+            fma2(zmm_O(3), zmm_t(2), zmm_G(4), zmm_t(3), zmm_G(5));
+            vaddps(zmm_O(3), zmm_O(3), zmm_T(5));
+
+            for (int i = 0; i < tile_size; i++) {
+                vmovups(ptr[oreg_O + (j * tile_size * simd_w
+                    + i * simd_w) * typesize], zmm_O(i));
+            }
+        }
+    };
+
+    auto inner_loops = [=]() {
+        init_G();
+        load_src();
+        trans_O_4x4_3x3();
+        store_dst();
+    };
+
+    preamble();
+    inner_loops();
+    postamble();
+}
+
+void _jit_avx512_core_conv_winograd_data_kernel_f32
+    ::input_transform_data_ker_generate()
+{
+    bool is_fwd = one_of(jcp.prop_kind,
+        mkldnn_forward_training, mkldnn_forward_inference);
+    int inpw = is_fwd ? jcp.iw : jcp.ow;
+    int inph = is_fwd ? jcp.ih : jcp.oh;
+    int l_pad = is_fwd ? jcp.l_pad : jcp.iw + jcp.r_pad - jcp.ow;
+    int t_pad = is_fwd ? jcp.t_pad : jcp.ih + jcp.t_pad - jcp.oh;
+    int wp_max = inpw + l_pad;
+    int hp_max = inph + t_pad;
+    bool not_tiled = jcp.sched_policy == WSCHED_DATA_W_S_G_D;
+    int G_size = 9;
+
+    auto zmm_zero = Xbyak::Zmm(0);
+    auto zmm_temp = Xbyak::Zmm(31);
+    auto zmm_G = [=](int i) {
+        return Xbyak::Zmm(1 + i);
+    };
+    auto zmm_I = [=](int i) {
+        return Xbyak::Zmm(1 + G_size + i);
+    };
+    auto zmm_T = [=](int i) {
+        return Xbyak::Zmm(1 + G_size + alpha + i);
+    };
+    auto zmm_t = [=](int i) {
+        return Xbyak::Zmm(1 + G_size + 2 * alpha + i);
+    };
+
+    auto init_G = [=]() {
+        mov(ireg_temp, ptr[param1 + GET_OFF(G)]);
+        for (int i = 0; i < G_size; i++) {
+            vbroadcastss(zmm_G(i), ptr[ireg_temp + i * typesize]);
+        }
+    };
+
+    auto load_src = [=]() {
+        mov(ireg_src, ptr[param1 + GET_OFF(src)]); // base addr of inp
+        mov(ireg_I, ptr[param1 + GET_OFF(M)]);
+
+        xor_(ireg_zero,  ireg_zero);
+        vpxord(zmm_zero, zmm_zero, zmm_zero);
+
+        mov(ireg_ydim, ptr[param1 + GET_OFF(tj)]);
+        shl(ireg_ydim, 2); // tj * tile_size (==4)
+        mov(ireg_xdim, ptr[param1 + GET_OFF(ti)]);
+        shl(ireg_xdim, 2); // ti * tilesize (==4)
+
+        for (int j = 0; j < alpha; j++) {
+            mov(ireg_temp, ireg_ydim);
+            add(ireg_temp, j);
+
+            mov(ireg_mask_j, 0xffff);
+            cmp(ireg_temp, t_pad);
+            cmovl(ireg_mask_j, ireg_zero);
+            cmp(ireg_temp, hp_max);
+            cmovge(ireg_mask_j, ireg_zero);
+
+            sub(ireg_temp, t_pad);
+            imul(ireg_temp, ireg_temp, inpw * simd_w * typesize);
+            mov(ireg_inp_j, ireg_src);
+            add(ireg_inp_j, ireg_temp);
+
+            for (int i = 0; i < alpha; i++) {
+
+                mov(ireg_temp, ireg_xdim);
+                add(ireg_temp, i);
+
+                mov(ireg_mask, 0xffff);
+                cmp(ireg_temp, l_pad);
+                cmovl(ireg_mask, ireg_zero);
+                cmp(ireg_temp, wp_max);
+                cmovge(ireg_mask, ireg_zero);
+                and_(ireg_mask, ireg_mask_j);
+
+                sub(ireg_temp, l_pad);
+                shl(ireg_temp, 4 + 2);
+
+                vpxord(zmm_temp, zmm_temp, zmm_temp);
+                Opmask kmask = Opmask(7);
+                kmovw(kmask, ireg_mask_32);
+                vmovups(zmm_temp | kmask, ptr[ireg_inp_j + ireg_temp]);
+                vmovups(ptr[ireg_I + (j * alpha * simd_w + i * simd_w)
+                    * typesize], zmm_temp);
+            }
+        }
+    };
+
+    auto store_Iw = [=]() {
+
+        mov(ireg_Iw, ptr[param1 + GET_OFF(Mw)]);
+        mov(ireg_output, ptr[param1 + GET_OFF(dst)]);
+
+       bool streamout
+          = jcp.dimN * jcp.dimK * alpha * alpha * sizeof(float)
+            > 2 * LLC_data_size
+            ? true : false;
+
+        if (not_tiled) {
+            mov(ireg_tile_block, ptr[param1 + GET_OFF(tile_block)]);
+            imul(ireg_tile_block, ireg_tile_block,
+                alpha * alpha * jcp.dimN_block * jcp.dimK_nb_block
+                * jcp.dimK_block * jcp.dimN_reg_block * jcp.dimK_reg_block
+                * typesize);
+        }
+
+        mov(ireg_nb_tile_block_ur, ptr[param1 + GET_OFF(nb_tile_block_ur)]);
+        imul(ireg_nb_tile_block_ur, ireg_nb_tile_block_ur,
+            jcp.dimK_nb_block * jcp.dimK_block * jcp.dimN_reg_block
+            * jcp.dimK_reg_block * typesize);
+
+        mov(ireg_tile_block_ur, ptr[param1 + GET_OFF(tile_block_ur)]);
+        imul(ireg_tile_block_ur, ireg_tile_block_ur,
+            jcp.dimK_reg_block * typesize);
+
+        add(ireg_output, ireg_nb_tile_block_ur);
+        add(ireg_output, ireg_tile_block_ur);
+        if (not_tiled)
+            add(ireg_output, ireg_tile_block);
+
+        for (int j = 0; j < alpha; j++) {
+            for (int i = 0; i < alpha; i++) {
+                vmovups(zmm_temp,ptr[ireg_Iw + (j * alpha * simd_w
+                    + i * simd_w) * typesize]);
+
+                int j_base_offset =
+                    j * alpha * jcp.dimN_block * jcp.dimK_nb_block
+                    * jcp.dimK_block * jcp.dimN_reg_block * jcp.dimK_reg_block
+                    * typesize;
+                int i_base_offset =
+                    i * jcp.dimN_block * jcp.dimK_nb_block * jcp.dimK_block
+                    * jcp.dimN_reg_block * jcp.dimK_reg_block * typesize;
+
+                if (not_tiled && streamout)
+                    vmovntps(ptr[ireg_output + j_base_offset + i_base_offset],
+                        zmm_temp);
+                else
+                    vmovups(ptr[ireg_output + j_base_offset + i_base_offset],
+                        zmm_temp);
+            }
+        }
+    };
+
+    auto fma4 = [=](Zmm dst, Zmm a, Zmm b, Zmm c) {
+        vmulps(zmm_temp, a, b);
+        vaddps(dst, zmm_temp, c);
+    };
+
+    auto trans_I_4x4_3x3 = [=]() {
+        mov(ireg_Iw, ptr[param1 + GET_OFF(Mw)]);
+        mov(ireg_T, ptr[param1 + GET_OFF(T)]);
+        mov(ireg_I, ptr[param1 + GET_OFF(M)]);
+
+        mov(ireg_output, ptr[param1 + GET_OFF(dst)]); // for prefetch
+        for (int i = 0; i < alpha; i++) {
+            for (int idx = 0; idx < alpha; idx++) {
+                vmovups(zmm_I(idx), ptr[ireg_I + (idx * alpha * simd_w
+                    + i * simd_w) * typesize]);
+                int j_base_offset =
+                    i * alpha * jcp.dimN_block * jcp.dimK_nb_block
+                    * jcp.dimK_block * jcp.dimN_reg_block * jcp.dimK_reg_block
+                    * typesize;
+                int idx_base_offset =
+                    idx * jcp.dimN_block * jcp.dimK_nb_block * jcp.dimK_block
+                    * jcp.dimN_reg_block * jcp.dimK_reg_block * typesize;
+                prefetcht0(ptr[ireg_output + j_base_offset + idx_base_offset]);
+            }
+
+            fma4(zmm_t(0), zmm_I(2), zmm_G(0), zmm_I(4));
+            fma4(zmm_t(1), zmm_I(1), zmm_G(0), zmm_I(3));
+            fma4(zmm_t(2), zmm_I(2), zmm_G(1), zmm_I(4));
+            fma4(zmm_t(3), zmm_I(1), zmm_G(1), zmm_I(3));
+            fma4(zmm_t(4), zmm_I(0), zmm_G(2), zmm_I(4));
+            fma4(zmm_t(5), zmm_I(1), zmm_G(2), zmm_I(5));
+
+            fma4(zmm_T(0), zmm_I(2), zmm_G(3), zmm_t(4));
+            fma4(zmm_T(1), zmm_t(1), zmm_G(4), zmm_t(0));
+            fma4(zmm_T(2), zmm_t(1), zmm_G(5), zmm_t(0));
+            fma4(zmm_T(3), zmm_t(3), zmm_G(6), zmm_t(2));
+            fma4(zmm_T(4), zmm_t(3), zmm_G(7), zmm_t(2));
+            fma4(zmm_T(5), zmm_I(3), zmm_G(8), zmm_t(5));
+
+            for (int idx = 0; idx < alpha; idx++) {
+                vmovups(ptr[ireg_T + (idx * alpha * simd_w + i * simd_w)
+                    * typesize],zmm_T(idx));
+            }
+        }
+        for (int i = 0; i < alpha; i++) {
+            for (int idx = 0; idx < alpha; idx++) {
+                vmovups(zmm_T(idx), ptr[ireg_T + (i * alpha * simd_w + idx
+                    * simd_w) * typesize]);
+            }
+
+            fma4(zmm_t(0), zmm_T(2), zmm_G(0), zmm_T(4));
+            fma4(zmm_t(1), zmm_T(1), zmm_G(0), zmm_T(3));
+            fma4(zmm_t(2), zmm_T(2), zmm_G(1), zmm_T(4));
+            fma4(zmm_t(3), zmm_T(1), zmm_G(1), zmm_T(3));
+            fma4(zmm_t(4), zmm_T(0), zmm_G(2), zmm_T(4));
+            fma4(zmm_t(5), zmm_T(1), zmm_G(2), zmm_T(5));
+
+            fma4(zmm_I(0), zmm_T(2), zmm_G(3), zmm_t(4));
+            fma4(zmm_I(1), zmm_t(1), zmm_G(4), zmm_t(0));
+            fma4(zmm_I(2), zmm_t(1), zmm_G(5), zmm_t(0));
+            fma4(zmm_I(3), zmm_t(3), zmm_G(6), zmm_t(2));
+            fma4(zmm_I(4), zmm_t(3), zmm_G(7), zmm_t(2));
+            fma4(zmm_I(5), zmm_T(3), zmm_G(8), zmm_t(5));
+
+            for (int idx = 0; idx < alpha; idx++) {
+                vmovups(ptr[ireg_Iw + (i * alpha * simd_w + idx * simd_w)
+                    * typesize],zmm_I(idx));
+            }
+        }
+    };
+
+    auto inner_loops = [=]() {
+        init_G();
+        load_src();
+        trans_I_4x4_3x3();
+        store_Iw();
+    };
+
+    preamble();
+    inner_loops();
+    postamble();
+}
+
 status_t _jit_avx512_core_conv_winograd_data_kernel_f32::init_conf_common(
         jit_conv_winograd_conf_t &jcp, const convolution_desc_t &cd,
         const memory_desc_wrapper &src_d, const memory_desc_wrapper &weights_d,
@@ -381,6 +1097,7 @@ status_t _jit_avx512_core_conv_winograd_data_kernel_f32::init_conf_common(
         return status::unimplemented;
     }
     jcp.ver = ver_avx512_core;
+    jcp.prop_kind = cd.prop_kind;
 
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
 
@@ -687,6 +1404,7 @@ status_t jit_avx512_core_conv_winograd_fwd_kernel_f32::init_conf(
         jcp.relu_negative_slope = 0.f;
     }
     jcp.with_sum = p.find(primitive_kind::sum, 0) != -1;
+    jcp.with_relu_postsum = p.find(primitive_kind::eltwise, 1) != -1;
 
     status_t res = init_conf_kernel(jcp, jcp.oc, jcp.ntiles, jcp.ic);
 
