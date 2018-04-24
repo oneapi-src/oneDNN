@@ -45,13 +45,12 @@ void simple_concat_t<data_type>::execute() {
 
     const memory_desc_wrapper o_d(conf_.src_image_pd());
     auto &blk = o_d.blocking_desc();
-    dims_t os = { 0 };
+    strides_t os = { 0 };
     for (int i = 0; i < perm[concat_dim]; i++)
         os[i] = size_t(o_d.blocking_desc().strides[0][iperm[i]]);
     dims_t phys_dims;
-    int max_dims = sizeof(phys_dims)/sizeof(phys_dims[0]);
-    for (int i = 0; i < max_dims; i++)
-        phys_dims[i] = (i < perm[concat_dim]) ?
+    for (size_t i = 0; i < sizeof(phys_dims)/sizeof(phys_dims[0]); i++)
+        phys_dims[i] = (i < (size_t)perm[concat_dim]) ?
                 o_d.dims()[iperm[i]] / blk.block_dims[iperm[i]] :
                 1;
 
