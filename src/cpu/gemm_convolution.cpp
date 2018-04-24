@@ -252,7 +252,7 @@ void _gemm_convolution_bwd_weights_t<run_jit, isa>::execute_backward_weights() {
                     }
                     if (run_jit) {
                         (mb == mb_start && od == 0 ? sgemm_0 :sgemm_1)->sgemm(
-                            "T", "N", &M, &N, &K, &one,
+                            "T", "N", &M, &N, &k, &one,
                             jcp.need_im2col ? _col : _src + od * k,
                             &LDA, _diff_dst, &K,
                             mb == mb_start && od == 0 ? &zero : &one,
