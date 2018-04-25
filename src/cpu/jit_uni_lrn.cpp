@@ -175,9 +175,11 @@ status_t jit_uni_lrn_fwd_t<isa>::pd_t::init() {
         && desc()->local_size == 5
         && one_of(data_d.format(), nChw8c, nchw, nhwc);
 
+    const int jit_max_local_size = 5; // bigger size triggers too big code size
     bool args_ok_within = true
         && desc()->alg_kind == lrn_within_channel
-        && desc()->local_size <= MAX_LOCAL_SIZE
+        && desc()->local_size <= ( jit_max_local_size <= MAX_LOCAL_SIZE
+                                 ? jit_max_local_size : MAX_LOCAL_SIZE)
         && data_d.dims()[2] >= desc()->local_size
         && data_d.dims()[3] >= desc()->local_size
         && one_of(data_d.format(), nChw8c);
