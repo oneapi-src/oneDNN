@@ -747,6 +747,7 @@ public:
         ) : Xbyak::CodeGenerator(code_size, code_ptr)
     {
     }
+    virtual ~jit_generator() {}
 
     virtual const char *name() const = 0;
     virtual const char *source_file() const = 0;
