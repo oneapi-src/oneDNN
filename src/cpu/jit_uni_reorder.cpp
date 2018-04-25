@@ -318,8 +318,8 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
         if (n_jit_loops > 0)
             loop_begin(l_loop[0], reg_cnt[0], n(nfu + 0) / ldu);
 
-        const bool optimized = true
-            && process_unroll_tr8x8(d.len_unroll);
+        const bool optimized = false
+            || process_unroll_tr8x8(d.len_unroll);
         if (!optimized)
             process_unroll_generic(d.len_unroll);
 

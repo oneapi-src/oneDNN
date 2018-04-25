@@ -20,7 +20,6 @@
 #include "cpu_memory.hpp"
 #include "type_helpers.hpp"
 
-#include "cpu/jit_reorder.hpp"
 #include "cpu/jit_uni_reorder.hpp"
 #include "cpu/simple_reorder.hpp"
 #include "cpu/wino_reorder.hpp"
@@ -39,10 +38,6 @@ static const rpd_create_f cpu_reorder_impl_list[] = {
     /* fp32 <-> fp32 */
     simple_reorder_t<f32, any, f32, any, fmt_order::any, spec::direct_copy>::pd_t::create,
     simple_reorder_t<f32, any, f32, any, fmt_order::any, spec::direct_copy_except_dim_0>::pd_t::create,
-    jit_reorder_t<f32, OIhw8i8o, f32, OIhw8o8i, fmt_order::keep>::pd_t::create,
-    jit_reorder_t<f32, OIhw8i8o, f32, OIhw8o8i, fmt_order::reverse>::pd_t::create,
-    jit_reorder_t<f32, gOIhw8i8o, f32, gOIhw8o8i, fmt_order::keep>::pd_t::create,
-    jit_reorder_t<f32, gOIhw8i8o, f32, gOIhw8o8i, fmt_order::reverse>::pd_t::create,
     jit_uni_reorder_create,
     simple_reorder_t<f32, any, f32, any, fmt_order::any, spec::reference>::pd_t::create,
     /* reorder with quantization */
