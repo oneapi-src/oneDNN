@@ -157,6 +157,56 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
         }
     }
 
+    void tr8x8_avx2(int i_off, int o_off) {
+        for (int i = 0; i < 8; i++)
+            vmovups(Ymm(i), i_addr(i_off + i * 8));
+
+        for (int i = 0; i < 8 / 2; i++) {
+            vunpcklps(Ymm(8 + i), Ymm(2 * i), Ymm(2 * i + 1));
+            vunpckhps(Ymm(i), Ymm(2 * i), Ymm(2 * i + 1));
+        }
+
+        const unsigned int lfloat = 0x44;
+        const unsigned int ufloat = 0xee;
+        for (int i = 0; i < 8 / 2; i++) {
+            int j = i % 2 == 0 ? 8 + i : i - 1;
+            vshufps(Ymm(8 / 2 + 2 * i), Ymm(j), Ymm(j + 1), lfloat);
+            vshufps(Ymm(8 / 2 + 2 * i + 1), Ymm(j), Ymm(j + 1), ufloat);
+        }
+
+        const unsigned int lquad = 0x20;
+        for (int i = 0; i < 8 / 2; i++)
+            vperm2f128(Ymm(i), Ymm(8 / 2 + i), Ymm(8 + i), lquad);
+
+        const unsigned int uquad = 0x31;
+        for (int i = 8 / 2; i < 8; i++)
+            vperm2f128(Ymm(i), Ymm(i), Ymm(8 / 2 + i), uquad);
+
+        for (int i = 0; i < 8; i++)
+            vmovups(o_addr(o_off + i * 8), Ymm(i));
+    }
+
+    bool process_unroll_tr8x8(int len) {
+        bool can_do = true
+            && mayiuse(avx2)
+            && prb_.ndims >= 2
+            && utils::everyone_is(8, n(0), n(1))
+            && utils::everyone_is(1, os(0), is(1))
+            && utils::everyone_is(8, os(1), is(0))
+            && prb_.is_alpha == false
+            && prb_.beta == 0.f;
+        if (!can_do) return false;
+
+        const int step_size = n(0) * n(1);
+        int i_off = 0, o_off = 0;
+        for (int off = 0; off < len; off += step_size) {
+            step(off, i_off, o_off, i_off, o_off, step_size);
+            tr8x8_avx2(i_off, o_off);
+        }
+
+        return true;
+    }
+
     void process_unroll_generic(int len) {
         auto init = [&](int reg_unroll, int *i_off, int *o_off) {
             i_off[0] = o_off[0] = 0;
@@ -268,7 +318,10 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
         if (n_jit_loops > 0)
             loop_begin(l_loop[0], reg_cnt[0], n(nfu + 0) / ldu);
 
-        process_unroll_generic(d.len_unroll);
+        const bool optimized = true
+            && process_unroll_tr8x8(d.len_unroll);
+        if (!optimized)
+            process_unroll_generic(d.len_unroll);
 
         if (n_jit_loops > 0)
             loop_end(l_loop[0], reg_cnt[0],
