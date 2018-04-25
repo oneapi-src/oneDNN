@@ -47,7 +47,7 @@ void simple_concat_t<data_type>::execute() {
     auto &blk = o_d.blocking_desc();
     strides_t os = { 0 };
     for (int i = 0; i < perm[concat_dim]; i++)
-        os[i] = size_t(o_d.blocking_desc().strides[0][iperm[i]]);
+        os[i] = o_d.blocking_desc().strides[0][iperm[i]];
     dims_t phys_dims;
     for (size_t i = 0; i < sizeof(phys_dims)/sizeof(phys_dims[0]); i++)
         phys_dims[i] = (i < (size_t)perm[concat_dim]) ?
