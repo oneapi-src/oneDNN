@@ -136,8 +136,9 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
 
         if (!d.ow) d.ow = compute_out(d.iw, d.kw, d.sw, d.pw, d.dw);
         else if (!d.pw && d.ow != compute_out(d.iw, d.kw, d.sw, d.pw, d.dw))
-            d.pw = is_deconv ? compute_pad(d.iw, d.ow, d.kw, d.pw, d.dw) :
-                compute_pad(d.ow, d.iw, d.kw, d.pw, d.dw);
+            d.pw = is_deconv
+                ? compute_pad(d.iw, d.ow, d.kw, d.sw, d.dw)
+                : compute_pad(d.ow, d.iw, d.kw, d.sw, d.dw);
     }
 
     if (!no_d && d.id) {
