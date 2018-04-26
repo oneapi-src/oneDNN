@@ -151,7 +151,6 @@ public:
 inline mkldnn_primitive_kind_t convert_to_c(primitive::kind akind) {
     return static_cast<mkldnn_primitive_kind_t>(akind);
 }
-
 /// Intel(R) MKL-DNN exception class.
 ///
 /// This class captures the status returned by the failed C API function, error
@@ -804,6 +803,26 @@ inline memory null_memory(engine eng) {
     return memory({zero, eng}, nullptr);
 }
 
+inline void check_num_parameters(const const_mkldnn_primitive_desc_t
+    &aprimitive_desc, int n_inputs, int n_outputs,
+    const std::string &prim_name) {
+    const int n_inputs_expected = mkldnn_primitive_desc_query_s32(
+            aprimitive_desc, mkldnn_query_num_of_inputs_s32, 0);
+    const int n_outputs_expected = mkldnn_primitive_desc_query_s32(
+            aprimitive_desc, mkldnn_query_num_of_outputs_s32, 0);
+    if (n_outputs_expected > n_outputs ) {
+        std::string message = "could not create " + prim_name +
+            " primitive, not enought output parameters";
+        throw error(mkldnn_invalid_arguments, message, nullptr);
+    }
+    if (n_inputs_expected > n_inputs ) {
+        std::string message = "could not create " + prim_name +
+            " primitive, not enought input parameters";
+        throw error(mkldnn_invalid_arguments, message, nullptr);
+    }
+}
+
+
 inline bool is_null_memory(const const_mkldnn_primitive_t &aprimitive) {
     const_mkldnn_primitive_desc_t aprimitive_pd;
     mkldnn_primitive_get_primitive_desc(aprimitive, &aprimitive_pd);
@@ -1319,6 +1338,8 @@ struct convolution_forward: public primitive {
         mkldnn_primitive_t result;
         mkldnn_primitive_at_t inputs[] = { src.data, weights.data };
         const_mkldnn_primitive_t outputs[] = { dst.get() };
+        check_num_parameters(aprimitive_desc.get(), 2, 1,
+            "convolution forward");
         error::wrap_c_api(mkldnn_primitive_create(&result,
                     aprimitive_desc.get(), inputs, outputs),
                 "could not create a convolution forward primitive");
@@ -1425,6 +1446,8 @@ struct convolution_backward_data : public primitive {
         mkldnn_primitive_t result;
         mkldnn_primitive_at_t inputs[] = { diff_dst.data, weights.data  };
         const_mkldnn_primitive_t outputs[] = { diff_src.get() };
+        check_num_parameters(aprimitive_desc.get(), 2, 1,
+            "convolution backward data");
         error::wrap_c_api(mkldnn_primitive_create(&result,
                     aprimitive_desc.get(), inputs, outputs),
                 "could not create a convolution backward data primitive");
@@ -1587,6 +1610,8 @@ struct convolution_backward_weights : public primitive {
         mkldnn_primitive_at_t inputs[] = { src.data, diff_dst.data };
         const_mkldnn_primitive_t outputs[] = { diff_weights.get(),
                     diff_bias.get() };
+        check_num_parameters(aprimitive_desc.get(), 2, 2,
+            "convolution backward weights");
         error::wrap_c_api(mkldnn_primitive_create(&result,
                     aprimitive_desc.get(), inputs, outputs),
                 "could not create a convolution backward weights primitive");
@@ -1598,6 +1623,8 @@ struct convolution_backward_weights : public primitive {
         mkldnn_primitive_t result;
         mkldnn_primitive_at_t inputs[] = { src.data, diff_dst.data };
         const_mkldnn_primitive_t outputs[] = { diff_weights.get() };
+        check_num_parameters(aprimitive_desc.get(), 2, 1,
+            "convolution backward weights");
         error::wrap_c_api(mkldnn_primitive_create(&result,
                     aprimitive_desc.get(), inputs, outputs),
                 "could not create a convolution backward weights primitive");
@@ -1636,6 +1663,8 @@ struct convolution_relu_forward : public primitive {
         mkldnn_primitive_at_t inputs[] = { src.data, weights.data,
                 bias.data };
         const_mkldnn_primitive_t outputs[] = { dst.get() };
+        check_num_parameters(aprimitive_desc.get(), 3, 1,
+            "convolution relu forward");
         error::wrap_c_api(mkldnn_primitive_create(&result,
                 aprimitive_desc.get(), inputs, outputs),
             "could not create a convolution relu forward primitive");
@@ -1648,6 +1677,8 @@ struct convolution_relu_forward : public primitive {
         mkldnn_primitive_t result;
         mkldnn_primitive_at_t inputs[] = { src.data, weights.data };
         const_mkldnn_primitive_t outputs[] = { dst.get() };
+        check_num_parameters(aprimitive_desc.get(), 2, 1,
+            "convolution relu forward");
         error::wrap_c_api(mkldnn_primitive_create(&result,
                 aprimitive_desc.get(), inputs, outputs),
             "could not create a convolution relu forward primitive");
@@ -1778,6 +1809,8 @@ struct deconvolution_forward: public primitive {
         mkldnn_primitive_at_t inputs[] = { src.data, weights.data,
                     bias.data };
         const_mkldnn_primitive_t outputs[] = { dst.get() };
+        check_num_parameters(aprimitive_desc.get(), 3, 1,
+            "deconvolution forward");
         error::wrap_c_api(mkldnn_primitive_create(&result,
                     aprimitive_desc.get(), inputs, outputs),
                 "could not create a deconvolution forward bias primitive");
@@ -1790,6 +1823,8 @@ struct deconvolution_forward: public primitive {
         mkldnn_primitive_t result;
         mkldnn_primitive_at_t inputs[] = { src.data, weights.data };
         const_mkldnn_primitive_t outputs[] = { dst.get() };
+        check_num_parameters(aprimitive_desc.get(), 2, 1,
+            "deconvolution forward");
         error::wrap_c_api(mkldnn_primitive_create(&result,
                     aprimitive_desc.get(), inputs, outputs),
                 "could not create a deconvolution forward primitive");
@@ -1875,6 +1910,8 @@ struct deconvolution_backward_data : public primitive {
         mkldnn_primitive_t result;
         mkldnn_primitive_at_t inputs[] = { diff_dst.data, weights.data  };
         const_mkldnn_primitive_t outputs[] = { diff_src.get() };
+        check_num_parameters(aprimitive_desc.get(), 2, 1,
+            "deconvolution backward data");
         error::wrap_c_api(mkldnn_primitive_create(&result,
                     aprimitive_desc.get(), inputs, outputs),
                 "could not create a deconvolution backward data primitive");
@@ -1995,6 +2032,8 @@ struct deconvolution_backward_weights : public primitive {
         mkldnn_primitive_at_t inputs[] = { src.data, diff_dst.data };
         const_mkldnn_primitive_t outputs[] = { diff_weights.get(),
                     diff_bias.get() };
+        check_num_parameters(aprimitive_desc.get(), 2, 2,
+            "deconvolution backward weights");
         error::wrap_c_api(mkldnn_primitive_create(&result,
                     aprimitive_desc.get(), inputs, outputs),
                 "could not create a deconvolution backward weights primitive");
@@ -2006,6 +2045,8 @@ struct deconvolution_backward_weights : public primitive {
         mkldnn_primitive_t result;
         mkldnn_primitive_at_t inputs[] = { src.data, diff_dst.data };
         const_mkldnn_primitive_t outputs[] = { diff_weights.get() };
+        check_num_parameters(aprimitive_desc.get(), 2, 1,
+            "deconvolution backward weights");
         error::wrap_c_api(mkldnn_primitive_create(&result,
                     aprimitive_desc.get(), inputs, outputs),
                 "could not create a deconvolution backward weights primitive");
@@ -2096,6 +2137,7 @@ struct lrn_forward : public primitive {
         mkldnn_primitive_at_t inputs[] = { src.data };
         const_mkldnn_primitive_t outputs[] = { dst.get(),
                 workspace.get() };
+        check_num_parameters(aprimitive_desc.get(), 1, 2, "lrn forward");
         error::wrap_c_api(mkldnn_primitive_create(&result,
                 aprimitive_desc.get(), inputs, outputs),
             "could not create a lrn forward primitive");
@@ -2107,6 +2149,7 @@ struct lrn_forward : public primitive {
         mkldnn_primitive_t result;
         mkldnn_primitive_at_t inputs[] = { src.data };
         const_mkldnn_primitive_t outputs[] = { dst.get() };
+        check_num_parameters(aprimitive_desc.get(), 1, 1, "lrn forward");
         error::wrap_c_api(mkldnn_primitive_create(&result,
                 aprimitive_desc.get(), inputs, outputs),
             "could not create a lrn forward primitive");
@@ -2196,6 +2239,7 @@ struct lrn_backward : public primitive {
         mkldnn_primitive_at_t inputs[] = { src.data, diff_dst.data,
                 workspace.data };
         const_mkldnn_primitive_t outputs[] = { diff_src.get() };
+        check_num_parameters(aprimitive_desc.get(), 3, 1, "lrn backward");
         error::wrap_c_api(mkldnn_primitive_create(&result,
                 aprimitive_desc.get(), inputs, outputs),
             "could not create a lrn backward primitive");
@@ -2208,6 +2252,7 @@ struct lrn_backward : public primitive {
         mkldnn_primitive_t result;
         mkldnn_primitive_at_t inputs[] = { src.data, diff_dst.data };
         const_mkldnn_primitive_t outputs[] = { diff_src.get() };
+        check_num_parameters(aprimitive_desc.get(), 2, 1, "lrn backward");
         error::wrap_c_api(mkldnn_primitive_create(&result,
                 aprimitive_desc.get(), inputs, outputs),
             "could not create a lrn backward primitive");
@@ -2299,6 +2344,7 @@ struct pooling_forward : public primitive {
         mkldnn_primitive_t result;
         mkldnn_primitive_at_t inputs[] = { src.data };
         const_mkldnn_primitive_t outputs[] = { dst.get(), nullptr };
+        check_num_parameters(aprimitive_desc.get(), 1, 1, "pooling forward");
         error::wrap_c_api(mkldnn_primitive_create(&result,
                     aprimitive_desc.get(), inputs, outputs),
                 "could not create a pooling forward primitive");
@@ -2310,6 +2356,7 @@ struct pooling_forward : public primitive {
         mkldnn_primitive_t result;
         mkldnn_primitive_at_t inputs[] = { src.data };
         const_mkldnn_primitive_t outputs[] = { dst.get(), workspace.get() };
+        check_num_parameters(aprimitive_desc.get(), 1, 2, "pooling forward");
         error::wrap_c_api(mkldnn_primitive_create(&result,
                     aprimitive_desc.get(), inputs, outputs),
                 "could not create a pooling forward primitive");
@@ -2385,6 +2432,7 @@ struct pooling_backward : public primitive {
         mkldnn_primitive_t result;
         mkldnn_primitive_at_t inputs[] = { diff_dst.data };
         const_mkldnn_primitive_t outputs[] = { diff_src.get() };
+        check_num_parameters(aprimitive_desc.get(), 1, 1, "pooling backward");
         error::wrap_c_api(mkldnn_primitive_create(&result,
                     aprimitive_desc.get(), inputs, outputs),
                 "could not create a pooling backward primitive");
@@ -2396,6 +2444,7 @@ struct pooling_backward : public primitive {
         mkldnn_primitive_t result;
         mkldnn_primitive_at_t inputs[] = { diff_dst.data, workspace.data };
         const_mkldnn_primitive_t outputs[] = { diff_src.get() };
+        check_num_parameters(aprimitive_desc.get(), 2, 1, "pooling backward");
         error::wrap_c_api(mkldnn_primitive_create(&result,
                     aprimitive_desc.get(), inputs, outputs),
                 "could not create a pooling backward primitive");
@@ -2459,6 +2508,7 @@ struct eltwise_forward : public primitive {
         mkldnn_primitive_t result;
         mkldnn_primitive_at_t inputs[] = { src.data };
         const_mkldnn_primitive_t outputs[] = { dst.get() };
+        check_num_parameters(aprimitive_desc.get(), 1, 1, "eltwise forward");
         error::wrap_c_api(mkldnn_primitive_create(&result,
                 aprimitive_desc.get(), inputs, outputs),
             "could not create a eltwise forward primitive");
@@ -2522,6 +2572,7 @@ struct eltwise_backward : public primitive {
         mkldnn_primitive_t result;
         mkldnn_primitive_at_t inputs[] = { src.data, diff_dst.data };
         const_mkldnn_primitive_t outputs[] = { diff_src.get() };
+        check_num_parameters(aprimitive_desc.get(), 2, 1, "eltwise backward");
         error::wrap_c_api(mkldnn_primitive_create(&result,
                 aprimitive_desc.get(), inputs, outputs),
             "could not create a eltwise backward primitive");
@@ -2565,6 +2616,7 @@ struct softmax_forward : public primitive {
         mkldnn_primitive_t result;
         mkldnn_primitive_at_t inputs[] = { src.data };
         const_mkldnn_primitive_t outputs[] = { dst.get() };
+        check_num_parameters(aprimitive_desc.get(), 1, 1, "softmax forward");
         error::wrap_c_api(mkldnn_primitive_create(&result,
                 aprimitive_desc.get(), inputs, outputs),
             "could not create a softmax forward primitive");
@@ -2700,6 +2752,8 @@ struct batch_normalization_forward : public primitive {
         mkldnn_primitive_at_t inputs[] = { src.data,
             mean.data, variance.data, weights.data };
         const_mkldnn_primitive_t outputs[] = { dst.get() };
+        check_num_parameters(aprimitive_desc.get(), 4, 1,
+            "batch normalization forward");
         error::wrap_c_api(mkldnn_primitive_create(&result,
                 aprimitive_desc.get(), inputs, outputs),
             "could not create a batch normalization forward primitive");
@@ -2713,6 +2767,8 @@ struct batch_normalization_forward : public primitive {
         mkldnn_primitive_at_t inputs[] = { src.data,
             mean.data, variance.data };
         const_mkldnn_primitive_t outputs[] = { dst.get() };
+        check_num_parameters(aprimitive_desc.get(), 3, 1,
+            "batch normalization forward");
         error::wrap_c_api(mkldnn_primitive_create(&result,
                 aprimitive_desc.get(), inputs, outputs),
             "could not create a batch normalization forward primitive");
@@ -2733,6 +2789,8 @@ struct batch_normalization_forward : public primitive {
         mkldnn_primitive_at_t inputs[] = { src.data, weights.data };
         const_mkldnn_primitive_t outputs[] = { dst.get(),
             mean.get(), variance.get() };
+        check_num_parameters(aprimitive_desc.get(), 2, 3,
+            "batch normalization forward");
         error::wrap_c_api(mkldnn_primitive_create(&result,
                 aprimitive_desc.get(), inputs, outputs),
             "could not create a batch normalization forward primitive");
@@ -2747,6 +2805,8 @@ struct batch_normalization_forward : public primitive {
         mkldnn_primitive_at_t inputs[] = { src.data, weights.data };
         const_mkldnn_primitive_t outputs[] = { dst.get(),
             mean.get(), variance.get(), workspace.get() };
+        check_num_parameters(aprimitive_desc.get(), 2, 4,
+            "batch normalization forward");
         error::wrap_c_api(mkldnn_primitive_create(&result,
                 aprimitive_desc.get(), inputs, outputs),
             "could not create a batch normalization forward primitive");
@@ -2760,6 +2820,8 @@ struct batch_normalization_forward : public primitive {
         mkldnn_primitive_at_t inputs[] = { src.data };
         const_mkldnn_primitive_t outputs[] = { dst.get(),
             mean.get(), variance.get() };
+        check_num_parameters(aprimitive_desc.get(), 1, 3,
+            "batch normalization forward");
         error::wrap_c_api(mkldnn_primitive_create(&result,
                 aprimitive_desc.get(), inputs, outputs),
             "could not create a batch normalization forward primitive");
@@ -2814,6 +2876,8 @@ struct batch_normalization_forward : public primitive {
         mkldnn_primitive_t result;
         mkldnn_primitive_at_t inputs[] = { src.data, weights.data };
         const_mkldnn_primitive_t outputs[] = { dst.get() };
+        check_num_parameters(aprimitive_desc.get(), 2, 1,
+            "batch normalization forward");
         error::wrap_c_api(mkldnn_primitive_create(&result,
                 aprimitive_desc.get(), inputs, outputs),
             "could not create a batch normalization forward primitive");
@@ -2825,6 +2889,8 @@ struct batch_normalization_forward : public primitive {
         mkldnn_primitive_t result;
         mkldnn_primitive_at_t inputs[] = { src.data };
         const_mkldnn_primitive_t outputs[] = { dst.get() };
+        check_num_parameters(aprimitive_desc.get(), 1, 1,
+            "batch normalization forward");
         error::wrap_c_api(mkldnn_primitive_create(&result,
                 aprimitive_desc.get(), inputs, outputs),
             "could not create a batch normalization forward primitive");
@@ -2950,6 +3016,8 @@ struct batch_normalization_backward : public primitive {
             mean.data, variance.data, diff_dst.data, weights.data };
         const_mkldnn_primitive_t outputs[] = { diff_src.get(),
                 diff_weights.get() };
+        check_num_parameters(aprimitive_desc.get(), 5, 2,
+            "batch normalization backward");
         error::wrap_c_api(mkldnn_primitive_create(&result,
                 aprimitive_desc.get(), inputs, outputs),
             "could not create a batch normalization backward primitive");
@@ -2967,6 +3035,8 @@ struct batch_normalization_backward : public primitive {
             diff_dst.data, weights.data, workspace.data };
         const_mkldnn_primitive_t outputs[] = { diff_src.get(),
                 diff_weights.get() };
+        check_num_parameters(aprimitive_desc.get(), 6, 2,
+            "batch normalization backward");
         error::wrap_c_api(mkldnn_primitive_create(&result,
                 aprimitive_desc.get(), inputs, outputs),
             "could not create a batch normalization backward primitive");
@@ -2985,6 +3055,8 @@ struct batch_normalization_backward : public primitive {
         mkldnn_primitive_at_t inputs[] = { src.data, mean.data, variance.data,
             diff_dst.data, weights_or_workspace.data };
         const_mkldnn_primitive_t outputs[] = { diff_src.get() };
+        check_num_parameters(aprimitive_desc.get(), 5, 1,
+            "batch normalization backward");
         error::wrap_c_api(mkldnn_primitive_create(&result,
                 aprimitive_desc.get(), inputs, outputs),
             "could not create a batch normalization backward primitive");
@@ -3000,6 +3072,8 @@ struct batch_normalization_backward : public primitive {
         mkldnn_primitive_at_t inputs[] = { src.data,
             mean.data, variance.data, diff_dst.data };
         const_mkldnn_primitive_t outputs[] = { diff_src.get() };
+        check_num_parameters(aprimitive_desc.get(), 4, 1,
+            "batch normalization backward");
         error::wrap_c_api(mkldnn_primitive_create(&result,
                 aprimitive_desc.get(), inputs, outputs),
             "could not create a batch normalization backward primitive");
@@ -3114,6 +3188,8 @@ struct inner_product_forward: public primitive {
         mkldnn_primitive_at_t inputs[] = { src.data, weights.data,
                 bias.data };
         const_mkldnn_primitive_t outputs[] = { dst.get() };
+        check_num_parameters(aprimitive_desc.get(), 3, 1,
+            "inner product forward");
         error::wrap_c_api(mkldnn_primitive_create(&result,
                 aprimitive_desc.get(), inputs, outputs),
             "could not create a inner product forward primitive");
@@ -3126,6 +3202,8 @@ struct inner_product_forward: public primitive {
         mkldnn_primitive_t result;
         mkldnn_primitive_at_t inputs[] = { src.data, weights.data };
         const_mkldnn_primitive_t outputs[] = { dst.get() };
+        check_num_parameters(aprimitive_desc.get(), 2, 1,
+            "inner product forward");
         error::wrap_c_api(mkldnn_primitive_create(&result,
                 aprimitive_desc.get(), inputs, outputs),
             "could not create a inner product forward primitive");
@@ -3203,6 +3281,8 @@ struct inner_product_backward_data: public primitive {
         mkldnn_primitive_t result;
         mkldnn_primitive_at_t inputs[] = { diff_dst.data, weights.data };
         const_mkldnn_primitive_t outputs[] = { diff_src.get() };
+        check_num_parameters(aprimitive_desc.get(), 2, 1,
+            "inner product backward data");
         error::wrap_c_api(mkldnn_primitive_create(&result,
                 aprimitive_desc.get(), inputs, outputs),
             "could not create a inner product backward data primitive");
@@ -3302,6 +3382,8 @@ struct inner_product_backward_weights: public primitive {
         mkldnn_primitive_t result;
         mkldnn_primitive_at_t inputs[] = { src.data, diff_dst.data };
         const_mkldnn_primitive_t outputs[] = { diff_weights.get() };
+        check_num_parameters(aprimitive_desc.get(), 2, 1,
+            "inner product backward weights");
         error::wrap_c_api(mkldnn_primitive_create(&result,
                 aprimitive_desc.get(), inputs, outputs),
             "could not create a inner product backward weights primitive");
@@ -3315,6 +3397,8 @@ struct inner_product_backward_weights: public primitive {
         mkldnn_primitive_at_t inputs[] = { src.data, diff_dst.data };
         const_mkldnn_primitive_t outputs[] =
                 { diff_weights.get(), diff_bias.get()};
+        check_num_parameters(aprimitive_desc.get(), 2, 2,
+            "inner product backward weights");
         error::wrap_c_api(mkldnn_primitive_create(&result,
                 aprimitive_desc.get(), inputs, outputs),
             "could not create a inner product backward weights primitive");
