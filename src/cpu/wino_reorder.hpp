@@ -117,24 +117,19 @@ struct wino_reorder_t : public cpu_primitive_t {
         const auto oc = in_dims[0 + groups_offset];
         const auto ic = in_dims[1 + groups_offset];
 
+        int oc_block = output_d.wino_desc().oc_block;
         size_wino_wei_ = w_alpha * w_alpha * oc * ic;
         size_gmgt_ = w_alpha * w_alpha * oc * ic;
-        size_wspace_ = r * w_alpha * 16;
+        size_wspace_ = r * w_alpha * oc_block;
 
-        transp_ = (in_wei_data_t *)malloc(
-                sizeof(in_wei_data_t) * size_gmgt_, 64);
         wspace_ = (in_wei_data_t *)malloc(
                 sizeof(in_wei_data_t) * size_wspace_, 64);
         tmp_wei_s8_ = (out_wei_data_t *)malloc(
                 sizeof(out_wei_data_t) * size_wino_wei_, 64);
-        tmp_wei_f32_ = (in_wei_data_t *)malloc(
-                sizeof(in_wei_data_t) * size_wino_wei_, 64);
     }
 
     ~wino_reorder_t() {
-        free(transp_);
         free(wspace_);
-        free(tmp_wei_f32_);
         free(tmp_wei_s8_);
     }
 
@@ -142,10 +137,6 @@ struct wino_reorder_t : public cpu_primitive_t {
             const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d, const data_t<type_i> *input,
             data_t<type_o> *output) {
-        const float alpha = conf_.alpha();
-        MAYBE_UNUSED(alpha);
-        const float beta = conf_.beta();
-        MAYBE_UNUSED(beta);
 
         const auto &in_dims = input_d.dims();
 
@@ -178,62 +169,55 @@ struct wino_reorder_t : public cpu_primitive_t {
         const auto kh = in_dims[2 + groups_offset];
         const auto kw = in_dims[3 + groups_offset];
 
-        auto transp = (in_wei_data_t *)transp_;
+        const int smask = conf_.attr()->output_scales_.mask_;
+        const int ndims_mask = math::ilog2q(smask + 1);
+        const size_t D_mask = utils::array_product(input_d.dims(), ndims_mask);
+        const float *scales = conf_.attr()->output_scales_.scales_;
+        assert(D_mask == 1 || D_mask == (size_t)oc);
+
         auto wspace = (in_wei_data_t *)wspace_;
         auto tmp_wei_s8 = (out_wei_data_t *)tmp_wei_s8_;
-        auto tmp_wei_f32 = (in_wei_data_t *)tmp_wei_f32_;
-
-        utils::array_set((out_wei_data_t *)tmp_wei_s8_, 0, size_wino_wei_);
-        utils::array_set((in_wei_data_t *)tmp_wei_f32_, 0, size_wino_wei_);
-
-#pragma omp parallel for collapse(4)
-        for (int ioc = 0; ioc < oc; ioc++)
-            for (int iic = 0; iic < ic; iic++)
-                for (int ih = 0; ih < kh; ih++)
-                    for (int iw = 0; iw < kw; iw++)
-                        transp[ih * kw * ic * oc + iw * ic * oc + iic * oc
-                                + ioc]
-                                = input[ioc * ic * kh * kw + iic * kh * kw
-                                        + ih * kw + iw];
 
         /* transform weights to winograd domain */
         float G[4][3] = { { 1.0, 0.0, 0.0 }, { 0.5, 0.5, 0.5 },
             { 0.5, -0.5, 0.5 }, { 0.0, 0.0, 1.0 } };
         const float *g = (float *)G;
         int Z = oc * ic;
-        for (int zb = 0; zb < Z / 16; ++zb) {
-            auto _inp = transp + zb * 16;
-            auto _out = tmp_wei_f32 + zb * 16;
+        assert(r == kh && r == kw);
+        for (int iic = 0; iic < ic; iic++) {
+            for (int ob = 0; ob < nb_oc; ob++) {
+                auto _inp = input + (ob * oc_block  * ic  + iic) * kh * kw;
+                auto _out = tmp_wei_s8 + (iic * nb_oc + ob) * oc_block;
 
 #pragma omp parallel for
-            for (int i = 0; i < size_wspace_; ++i)
-                wspace[i] = 0.f;
+                for (int i = 0; i < size_wspace_; ++i)
+                    wspace[i] = 0.f;
 #pragma omp parallel for collapse(3)
-            for (int i = 0; i < r; ++i)
-                for (int j = 0; j < w_alpha; ++j)
-                        for (int z = 0; z < 16; ++z)
-                    for (int k = 0; k < r; ++k)
-                            wspace[(i * w_alpha + j) * 16 + z]
-                                    += _inp[(i * r + k) * Z + z] * g[j * r + k];
+                for (int ih = 0; ih < r; ++ih)
+                    for (int j = 0; j < w_alpha; ++j)
+                        for (int ioc = 0; ioc < oc_block; ++ioc)
+                            for (int iw = 0; iw < r; ++iw)
+                                wspace[(ih * w_alpha + j) * oc_block + ioc]
+                                        += _inp[ioc * ic * kh * kw + ih * kw
+                                                   + iw]
+                                        * g[j * r + iw];
 
 #pragma omp parallel for collapse(3)
-            for (int i = 0; i < w_alpha; ++i)
-                for (int j = 0; j < w_alpha; ++j)
-                    for (int z = 0; z < 16; ++z) {
-                        float t = 0;
-                        for (int k = 0; k < r; ++k)
-                            t += g[i * r + k]
-                                    * wspace[(k * w_alpha + j) * 16 + z];
-                        _out[(i * w_alpha + j) * Z + z]
-                                = (in_wei_data_t)t; // TODO: saturate
-                    }
-        }
-
-        /* quantization */
-#pragma omp parallel for
-        for (int i = 0; i < size_wino_wei_; ++i) {
-            tmp_wei_s8[i] = qz_b0<in_wei_data_t, out_wei_data_t>()(
-                    tmp_wei_f32[i], alpha, rmode);
+                for (int i = 0; i < w_alpha; ++i)
+                    for (int j = 0; j < w_alpha; ++j)
+                        for (int ioc = 0; ioc < oc_block; ++ioc) {
+                            const float scale = (D_mask == 1)
+                                ? scales[0]
+                                : scales[ob * oc_block + ioc];
+                            float t = 0;
+                            for (int k = 0; k < r; ++k)
+                                t += g[i * r + k]
+                                * wspace[(k * w_alpha + j) * oc_block + ioc];
+                            _out[(i * w_alpha + j) * Z + ioc]
+                                = qz_b0<in_wei_data_t, out_wei_data_t>()(
+                                (in_wei_data_t)t, scale, rmode);
+                        }
+            }
         }
 
         const auto bias_shift = sizeof(out_wei_data_t) * size_wino_wei_;
@@ -292,13 +276,12 @@ struct wino_reorder_t : public cpu_primitive_t {
 
 private:
     pd_t conf_;
-    void *transp_;
     void *wspace_;
     void *tmp_wei_s8_;
-    void *tmp_wei_f32_;
     int size_wino_wei_;
     int size_gmgt_;
     int size_wspace_;
+    int unsign_val_in_wino_domain;
 };
 
 #undef WINO_REORDER_TEMPL_DECL
