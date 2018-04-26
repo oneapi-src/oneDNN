@@ -54,7 +54,7 @@ struct jit_avx512_core_u8s8s32x_wino_conv_src_trans_t: public jit_generator {
 
     jit_avx512_core_u8s8s32x_wino_conv_src_trans_t(
         jit_conv_conf_u8s8s32x_wino_t ajcp, const primitive_attr_t &attr)
-        : jcp(ajcp), attr_(attr) {
+        : jcp(ajcp), attr_(attr), unsign_val_in_wino_domain(5) {
         generate();
         ker_ = reinterpret_cast<decltype(ker_)>(const_cast<uint8_t*>(getCode()));
     }
@@ -91,6 +91,8 @@ struct jit_avx512_core_u8s8s32x_wino_conv_src_trans_t: public jit_generator {
     Reg64 reg_aux_ptr_dst = r9;
 
     Reg64 reg_ic_block = r8;
+
+    int unsign_val_in_wino_domain;
 };
 void jit_avx512_core_u8s8s32x_wino_conv_src_trans_t::generate() {
     Label ic_block_label;
@@ -151,7 +153,8 @@ void jit_avx512_core_u8s8s32x_wino_conv_src_trans_t::generate() {
 
         for (int i = 0; i < 16; i++) {
             out_offset = sizeof(uint8_t) * (jcp.inp_stride * i);
-            vpsubb(vreg_out(i), vreg_out(i), Xmm(1));
+            if (i != unsign_val_in_wino_domain)
+                vpsubb(vreg_out(i), vreg_out(i), Xmm(1));
             vmovups(EVEX_compress_addr(reg_aux_ptr_dst, out_offset), vreg_out(i));
         }
 
@@ -213,7 +216,7 @@ struct jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t: public jit_generator {
         assert(id_reg_out < jcp.alpha * jcp.alpha + 12);
         return Xmm(31 - id_reg_out);
     }
-    Xmm vreg_tmp(int id) { // 2
+    Zmm vreg_tmp(int id) { // 2
         const int id_reg_tmp = jcp.alpha * jcp.alpha + 12 + id;
         assert(id_reg_tmp < jcp.alpha * jcp.alpha + 14);
         return Zmm(31 - id_reg_tmp);
@@ -885,7 +888,7 @@ void _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu,
                 kernel_->ker_(&gemm_p);
             }
         }
-        { /* transformation from winograd domain to ouptut tesnor */
+        { /* transformation from winograd domain to output tensor */
             for (int y_in_block = 0; y_in_block < jcp.yb; y_in_block += 2) {
             for (int x_in_block = 0; x_in_block < jcp.xb; x_in_block += 2) {
                 unsigned short v_y_masks[2], v_x_masks[2];

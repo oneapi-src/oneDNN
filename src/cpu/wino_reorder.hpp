@@ -93,7 +93,9 @@ struct wino_reorder_t : public cpu_primitive_t {
 
     wino_reorder_t(const pd_t *pd, const input_vector &inputs,
             const output_vector &outputs)
-        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {
+        : cpu_primitive_t(&conf_, inputs, outputs)
+        , conf_(*pd)
+        , unsign_val_in_wino_domain(5) {
 
         const memory_desc_wrapper input_d(conf_.input_pd());
         const memory_desc_wrapper output_d(conf_.output_pd());
@@ -227,9 +229,11 @@ struct wino_reorder_t : public cpu_primitive_t {
         int8_t *s8_output = (int8_t *)(output);
         int32_t *dst_bias = (int32_t *)(output + bias_shift);
         utils::array_set((int32_t *)dst_bias, 0, bias_size);
-#pragma omp parallel for collapse(4)
+
+        int index = 0;
         for (int u_h = 0; u_h < w_alpha; u_h++) {
             for (int u_w = 0; u_w < w_alpha; u_w++) {
+#pragma omp parallel for collapse(2)
                 for (int o = 0; o < nb_oc; o++) {
                     for (int ob = 0; ob < oc_block; ob++) {
                         int u_h_shift = u_h * w_alpha * ic * oc;
@@ -238,7 +242,6 @@ struct wino_reorder_t : public cpu_primitive_t {
                         int u_w_shift_b = u_w * oc;
                         int oc_block_shift = o * oc_block * ic + ob * ic_block;
                         for (int i = 0; i < nb_ic; i++) {
-#pragma omp simd
                             for (int ib = 0; ib < ic_block; ib++) {
                                 int _i = i * ic_block;
                                 int _o = o * oc_block;
@@ -254,12 +257,16 @@ struct wino_reorder_t : public cpu_primitive_t {
                                         = u_h_shift_b + u_w_shift_b + oc_shift;
 
                                 s8_output[dst_offset] = tmp_wei_s8[src_offset];
-                                dst_bias[bias_offset]
-                                        -= 128 * s8_output[dst_offset];
+                                if (index != unsign_val_in_wino_domain)
+                                    dst_bias[bias_offset] -= (128
+                                            * (int32_t)s8_output[dst_offset]);
+                                else
+                                    dst_bias[bias_offset] = 0;
                             }
-                        }
                     }
                 }
+            }
+            index++;
             }
         }
     }
