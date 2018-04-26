@@ -111,6 +111,18 @@ void simple_net_int8() {
     ops.append_eltwise(ops_scale, algorithm::eltwise_relu, ops_alpha, ops_beta);
     conv_attr.set_post_ops(ops);
 
+    /* check if int8 convolution is supported */
+    try {
+        auto conv_prim_desc = convolution_forward::primitive_desc(
+                conv_desc, conv_attr, cpu_engine);
+    } catch (error &e) {
+        if (e.status == mkldnn_unimplemented) {
+            std::cerr << "AVX512-BW support or Intel(R) MKL dependency is "
+            "required for int8 convolution" << std::endl;
+        }
+        throw;
+    }
+
     auto conv_prim_desc = convolution_forward::primitive_desc(
             conv_desc, conv_attr, cpu_engine);
 
@@ -184,7 +196,7 @@ int main(int argc, char **argv) {
          * On convolution creating: check for Intel(R) MKL dependency execution.
          * output: warning if not found. */
         simple_net_int8();
-        std::cout << "Sample-net-int8 example passed!" << std::endl;
+        std::cout << "Simple-net-int8 example passed!" << std::endl;
     } catch (error &e) {
         std::cerr << "status: " << e.status << std::endl;
         std::cerr << "message: " << e.message << std::endl;
