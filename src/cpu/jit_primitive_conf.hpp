@@ -97,6 +97,7 @@ struct jit_conv_conf_t {
     int is_oc_scale;
     // dw conv
     int nb_ch, ch_block, nb_ch_blocking;
+    bool is_depthwise;
 };
 
 struct jit_conv_conf_u8s8s32x_wino_t {
