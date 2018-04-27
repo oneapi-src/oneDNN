@@ -594,6 +594,7 @@ struct memory: public primitive  {
         oihw = mkldnn_oihw,
         ihwo = mkldnn_ihwo,
         hwio = mkldnn_hwio,
+        dhwio = mkldnn_dhwio,
         oidhw = mkldnn_oidhw,
         OIdhw16i16o = mkldnn_OIdhw16i16o,
         OIdhw16o16i = mkldnn_OIdhw16o16i,

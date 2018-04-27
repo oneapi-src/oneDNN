@@ -94,7 +94,8 @@ struct memory_desc_wrapper: public c_compatible {
                     gIOhw16o16i, gOIhw4i16o4i, Goihw8g, Goihw16g, ncdhw, oidhw,
                     goidhw, nCdhw16c, OIdhw16i16o, gOIdhw16i16o, OIdhw16o16i,
                     gOIdhw16o16i, ndhwc, gOidhw16o, Oidhw16o, gOdhwi16o,
-                    Odhwi16o, ntc, tnc, ldsnc, ldigo, ldgoi, ldgo, wino_fmt));
+                    Odhwi16o, ntc, tnc, ldsnc, ldigo, ldgoi, ldgo, wino_fmt,
+                    dhwio));
         if (format() == wino_fmt) {
             return wino_desc().size;
         } else {

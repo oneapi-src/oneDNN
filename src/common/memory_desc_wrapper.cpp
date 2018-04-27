@@ -227,6 +227,13 @@ status_t fill_hwio(memory_desc_t &md) {
     return fill_nonblocked(md, perm);
 }
 
+status_t fill_dhwio(memory_desc_t &md) {
+    if (md.ndims != 5) return invalid_arguments;
+
+    const int perm[5] = {2, 3, 4, 1, 0};
+    return fill_nonblocked(md, perm);
+}
+
 status_t fill_OIhw8i8o(memory_desc_t &md) {
     if (md.ndims != 4) return invalid_arguments;
 
@@ -659,6 +666,7 @@ status_t memory_desc_wrapper::compute_blocking(memory_desc_t &memory_desc)
     case oihw: return fill_oihw(memory_desc);
     case ihwo: return fill_ihwo(memory_desc);
     case hwio: return fill_hwio(memory_desc);
+    case dhwio: return fill_dhwio(memory_desc);
     case OIhw8i8o: return fill_OIhw8i8o(memory_desc);
     case OIhw16i16o: return fill_OIhw16i16o(memory_desc);
     case OIhw4i16o4i: return fill_OIhw4i16o4i(memory_desc);
