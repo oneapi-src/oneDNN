@@ -63,7 +63,7 @@ struct jit_avx512_common_gemm_f32::xbyak_gemm : public jit_generator {
         auto ARG_N = abi_param2;
         auto K = abi_param3;
         auto ARG_ALPHA = abi_param4;
-#if defined(WIN32) && !defined(__GNUC__)
+#ifdef _WIN32
         auto ARG_A = ptr[rsp + OFFSET_SHADOWSPACE + STACKSIZE];
         auto ARG_LDA = qword[rsp + OFFSET_SHADOWSPACE +
             sizeof(float *) + STACKSIZE];
