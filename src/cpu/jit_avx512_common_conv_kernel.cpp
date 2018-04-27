@@ -1182,10 +1182,15 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
     if (jcp.is_1stconv) {
         jcp.ur_w = nstl::min(jcp.ow, regs);
     } else {
-        for (int ur_w = regs; ur_w > 0; --ur_w) {
-            if (jcp.ow % ur_w == 0) {
-                jcp.ur_w = ur_w;
-                break;
+        // avx512_core guard - just to avoid possible regression for other archs
+        if (jcp.ver == ver_fma && mayiuse(avx512_core)) {
+            jcp.ur_w = nstl::min(jcp.ow, regs);
+        } else {
+            for (int ur_w = regs; ur_w > 0; --ur_w) {
+                if (jcp.ow % ur_w == 0) {
+                    jcp.ur_w = ur_w;
+                    break;
+                }
             }
         }
         if (ndims == 5 && jcp.ur_w <= 8) {
