@@ -60,7 +60,10 @@ inline void pick_loop_order(jit_conv_conf_t &jcp) {
 }
 
 inline bool is_1stconv(const jit_conv_conf_t &jcp) {
-    return one_of(jcp.ic, 1, 3);
+    if (mayiuse(avx512_core) && !mayiuse(avx512_core_vnni))
+        return jcp.ic < 16;
+    else
+        return one_of(jcp.ic, 1, 3);
 }
 
 }
