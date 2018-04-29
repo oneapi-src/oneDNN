@@ -2278,6 +2278,18 @@ struct pooling_forward : public primitive {
             return adesc;
         }
 
+        memory::primitive_desc src_primitive_desc() const {
+            memory::primitive_desc adesc;
+            mkldnn_primitive_desc_t cdesc;
+            const_mkldnn_primitive_desc_t const_cdesc =
+                mkldnn_primitive_desc_query_pd(get(),
+                               mkldnn::convert_to_c(src_pd), 0);
+            error::wrap_c_api(mkldnn_primitive_desc_clone(&cdesc, const_cdesc),
+                    "could not clone a src primitive descriptor");
+            adesc.reset(cdesc);
+            return adesc;
+        }
+
         engine get_engine() { return engine::query(*this); }
     };
 
@@ -2348,6 +2360,18 @@ struct pooling_backward : public primitive {
                                mkldnn::convert_to_c(diff_src_pd), 0);
             error::wrap_c_api(mkldnn_primitive_desc_clone(&cdesc, const_cdesc),
                     "could not clone a diff src primitive descriptor");
+            adesc.reset(cdesc);
+            return adesc;
+        }
+
+        memory::primitive_desc diff_dst_primitive_desc() const {
+            memory::primitive_desc adesc;
+            mkldnn_primitive_desc_t cdesc;
+            const_mkldnn_primitive_desc_t const_cdesc =
+                mkldnn_primitive_desc_query_pd(get(),
+                               mkldnn::convert_to_c(diff_dst_pd), 0);
+            error::wrap_c_api(mkldnn_primitive_desc_clone(&cdesc, const_cdesc),
+                    "could not clone a diff dst primitive descriptor");
             adesc.reset(cdesc);
             return adesc;
         }
