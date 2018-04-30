@@ -63,12 +63,20 @@ struct ref_lrn_fwd_t: public cpu_primitive_t {
     typedef typename prec_traits<data_type>::type data_t;
 
     virtual void execute(event_t *e) {
-        execute_forward();
+        using namespace memory_format;
+        switch (conf_.src_pd()->desc()->format) {
+        case nChw16c: execute_forward<nChw16c>(); break;
+        case nChw8c: execute_forward<nChw8c>(); break;
+        case nchw: execute_forward<nchw>(); break;
+        case nhwc: execute_forward<nhwc>(); break;
+        case any: execute_forward<mkldnn_any>(); break;
+        default: break;
+        }
         e->set_state(event_t::ready);
     }
 
 private:
-    void execute_forward();
+    template<memory_format_t fmt>void execute_forward();
     pd_t conf_;
 };
 
@@ -103,12 +111,20 @@ struct ref_lrn_bwd_t: public cpu_primitive_t {
     typedef typename prec_traits<data_type>::type data_t;
 
     virtual void execute(event_t *e) {
-        execute_backward();
+        using namespace memory_format;
+        switch (conf_.src_pd()->desc()->format) {
+        case nChw16c: execute_backward<nChw16c>(); break;
+        case nChw8c: execute_backward<nChw8c>(); break;
+        case nchw: execute_backward<nchw>(); break;
+        case nhwc: execute_backward<nhwc>(); break;
+        case any: execute_backward<mkldnn_any>(); break;
+        default: break;
+        }
         e->set_state(event_t::ready);
     }
 
 private:
-    void execute_backward();
+    template<memory_format_t fmt>void execute_backward();
     pd_t conf_;
 };
 

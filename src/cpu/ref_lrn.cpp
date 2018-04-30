@@ -26,9 +26,22 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
+static inline float fast_negative_powf(float omega, float beta) {
+    float Y;
+    if (beta == 0.75f) {
+        Y = 1.0f / sqrtf(omega);
+        Y *= sqrtf(Y);
+    } else {
+        Y = 1.0f /powf(omega, beta);
+    }
+    return Y;
+};
+
 template <impl::data_type_t data_type>
+template <mkldnn_memory_format_t fmt>
 void ref_lrn_fwd_t<data_type>::execute_forward() {
     using namespace alg_kind;
+    using namespace memory_format;
 
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto dst = reinterpret_cast<data_t*>(this->memory(0));
@@ -36,11 +49,25 @@ void ref_lrn_fwd_t<data_type>::execute_forward() {
 
     const memory_desc_wrapper data_d(conf_.src_pd());
     const memory_desc_wrapper ws_d(conf_.workspace_pd());
+    MAYBE_UNUSED(ws_d);
 
     const int C = conf_.C();
     const int H = conf_.H();
     const int W = conf_.W();
+    const int CHW = C * H * W;
     const bool across_channels = conf_.desc()->alg_kind == lrn_across_channels;
+    constexpr int blksize = fmt == nChw16c ? 16 : 8;
+
+    auto data_off =[&](int mb, int c, int h, int w) {
+        switch (fmt) {
+        case nChw16c:
+        case nChw8c: return (size_t)mb * CHW + c / blksize * H * W * blksize
+                     + h * W * blksize + w * blksize + c % blksize;
+        case nchw: return (size_t)mb * CHW + c * H * W + h * W + w;
+        case nhwc: return (size_t)mb * CHW + h * W * C + w * C + c;
+        default: return (size_t)data_d.off(mb, c, h, w);
+        }
+    };
 
     auto ker = [=](data_t *d, int mb, int oc, int oh, int ow) {
         const float alpha = static_cast<float>(conf_.desc()->lrn_alpha);
@@ -48,49 +75,79 @@ void ref_lrn_fwd_t<data_type>::execute_forward() {
         const float k = static_cast<float>(conf_.desc()->lrn_k);
 
         const int size = conf_.desc()->local_size;
-        const int CSIZE = across_channels ? size : 1;
-        const int HWSIZE = size + 1 - CSIZE;
+        const int half_size = (size - 1) / 2;
 
         float sum = 0;
-        const int summands = across_channels ? size : size * size;
-        for (int c = oc; c < oc + CSIZE; ++c) {
-            if (c < (CSIZE - 1) / 2) continue;
-            if (c >= C + (CSIZE - 1) / 2) continue;
-            for (int h = oh; h < oh + HWSIZE; ++h) {
-                if (h < (HWSIZE - 1) / 2) continue;
-                if (h >= H + (HWSIZE - 1) / 2) continue;
-                for (int w = ow; w < ow + HWSIZE; ++w) {
-                    if (w < (HWSIZE - 1) / 2) continue;
-                    if (w >= W + (HWSIZE - 1) / 2) continue;
-                    const float s = src[data_d.off(mb, c - (CSIZE - 1) / 2,
-                            h - (HWSIZE - 1) / 2, w - (HWSIZE - 1) / 2)];
+        if (across_channels) {
+            const int c_st = nstl::max(oc - half_size + 0, 0);
+            const int c_en = nstl::min(oc + half_size + 1, C);
+
+            for (int c = c_st; c < c_en; ++c) {
+                const float s = src[data_off(mb, c, oh, ow)];
+                sum += s * s;
+            }
+        } else {
+            int h_st = nstl::max(oh - half_size + 0, 0);
+            int h_en = nstl::min(oh + half_size + 1, H);
+            int w_st = nstl::max(ow - half_size + 0, 0);
+            int w_en = nstl::min(ow + half_size + 1, W);
+            for (int h = h_st; h < h_en; ++h) {
+                for (int w = w_st; w < w_en; ++w) {
+                    const float s = src[data_off(mb, oc, h, w)];
                     sum += s * s;
                 }
             }
         }
+        const int summands = across_channels ? size : size * size;
         sum = k + alpha * sum / summands;
+        size_t off = data_off(mb, oc, oh, ow);
         if (ws)
-            ws[ws_d.off(mb, oc, oh, ow)] = static_cast<data_t>(sum);
-        d[0] = static_cast<data_t>(src[data_d.off(mb, oc, oh, ow)]
-                / powf(sum, beta));
+            ws[off] = static_cast<data_t>(sum);
+        d[0] = static_cast<data_t>(src[off] * fast_negative_powf(sum, beta));
     };
 
     const int MB = conf_.MB();
-#   pragma omp parallel for collapse(4) schedule(static)
-    for (int mb = 0; mb < MB; ++mb) {
-        for (int c = 0; c < C; ++c) {
-            for (int h = 0; h < H; ++h) {
-                for (int w = 0; w < W; ++w) {
-                    ker(&dst[data_d.off(mb, c, h, w)], mb, c, h, w);
-                }
-            }
+    if (fmt == nChw16c || fmt == nChw8c) {
+#       pragma omp parallel for collapse(4) schedule(static)
+        for (int mb = 0; mb < MB; ++mb)
+        for (int c = 0; c < C; c += blksize)
+        for (int h = 0; h < H; ++h)
+        for (int w = 0; w < W; ++w)
+        {
+            const size_t off = (size_t)(mb * CHW + c * H * W + (h * W + w)
+                * blksize);
+            # pragma omp simd
+            for (int cc = 0; cc < blksize; ++cc)
+                ker(&dst[off + cc], mb, c + cc, h, w);
+        }
+    } else if (fmt == nhwc) {
+#       pragma omp parallel for collapse(4) schedule(static)
+        for (int mb = 0; mb < MB; ++mb)
+        for (int h = 0; h < H; ++h)
+        for (int w = 0; w < W; ++w)
+        for (int c = 0; c < C; ++c)
+        {
+            const size_t off = (size_t)(mb * CHW + h * W * C + w * C + c);
+            ker(&dst[off], mb, c, h, w);
+        }
+    } else {
+#       pragma omp parallel for collapse(4) schedule(static)
+        for (int mb = 0; mb < MB; ++mb)
+        for (int c = 0; c < C; ++c)
+        for (int h = 0; h < H; ++h)
+        for (int w = 0; w < W; ++w)
+        {
+            const size_t off = data_off(mb, c, h, w);
+            ker(&dst[off], mb, c, h, w);
         }
     }
 }
 
 template <impl::data_type_t data_type>
+template <mkldnn_memory_format_t fmt>
 void ref_lrn_bwd_t<data_type>::execute_backward() {
     using namespace alg_kind;
+    using namespace memory_format;
 
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
@@ -98,72 +155,103 @@ void ref_lrn_bwd_t<data_type>::execute_backward() {
 
     const memory_desc_wrapper data_d(conf_.src_pd());
     const memory_desc_wrapper diff_data_d(conf_.diff_dst_pd());
+    MAYBE_UNUSED(diff_data_d);
 
     const int MB = conf_.MB();
     const int C = conf_.C();
     const int H = conf_.H();
     const int W = conf_.W();
+    const int CHW = C * H * W;
+    constexpr int blksize = fmt == nChw16c ? 16 : 8;
 
     const float alpha = static_cast<float>(conf_.desc()->lrn_alpha);
     const float beta = static_cast<float>(conf_.desc()->lrn_beta);
     const float k = static_cast<float>(conf_.desc()->lrn_k);
     const int kernel_size = conf_.desc()->local_size;
+    const int half_ksize = (kernel_size - 1) / 2;
 
-    auto get_omega = [=](data_t c_k, int kernel_size, int C, const data_t *src,
-            int n, int c, int h, int w) -> float {
-        float sum = 0.0;
-
-        int half_kernel_size = (kernel_size - 1) / 2;
-        int c_start = (c < half_kernel_size) ? 0 : c - half_kernel_size;
-        int c_end = c + kernel_size - half_kernel_size;
-        c_end = c_end < C ? c_end : C;
-        for (int i = c_start; i < c_end; ++i) {
-            const float value = src[data_d.off(n, i, h, w)];
-            sum += value * value;
+    auto data_off =[&](int mb, int c, int h, int w) {
+        switch (fmt) {
+        case nChw16c:
+        case nChw8c: return (size_t)mb * CHW + c/blksize * H * W * blksize
+                     + h * W * blksize + w * blksize + c%blksize;
+        case nchw: return (size_t)mb * CHW + c * H * W + h * W + w;
+        case nhwc: return (size_t)mb * CHW + h * W * C + w * C + c;
+        default: return (size_t)data_d.off(mb, c, h, w);
         }
-        return static_cast<float>(c_k + sum * alpha / kernel_size);
     };
 
     auto ker = [=](data_t *d, int mb, int oc, int oh, int ow) {
-        int ks_start = kernel_size/2 > oc ? kernel_size/2 - oc : 0;
-        int ks_stop = C - oc <= kernel_size/2
-            ? C - oc + kernel_size/2 : kernel_size;
+        const int c_st = nstl::max(oc - half_ksize + 0, 0);
+        const int c_en = nstl::min(oc + half_ksize + 1, C);
 
         float A = 0, B = 0, omega_mid = 0;
-        // intermediate calcs data_t --> float (check if OK for int data_t)
-        for (int ks = ks_start; ks < ks_stop; ks++) {
-            int _t = oc + ks - (kernel_size/2);
-            const float omega
-                = get_omega(k, kernel_size, C, src, mb, _t, oh, ow);
-
-            if (ks == kernel_size/2) omega_mid = omega;
-
-            float t = src[data_d.off(mb, _t, oh, ow)] / powf(omega, beta);
-            B += 1.0f / omega * t * diff_dst[diff_data_d.off(mb, _t, oh, ow)];
+        for (int c = c_st; c < c_en; c++) {
+            float sum = 0.0;
+            for (int i = c_st; i < c_en; ++i) {
+                const float value = src[data_off(mb, i, oh, ow)];
+                sum += value * value;
+            }
+            const float omega = static_cast<float>(k + sum * alpha / kernel_size);
+            if (c == oc) omega_mid = omega;
+            float t = src[data_off(mb, c, oh, ow)]
+                   * fast_negative_powf(omega, beta);
+            B += 1.0f / omega * t * diff_dst[data_off(mb, c, oh, ow)];
         }
 
-        A = 1.0f / powf(omega_mid, beta)
-            * diff_dst[diff_data_d.off(mb, oc, oh, ow)];
-        B *= src[data_d.off(mb, oc, oh, ow)];
+        const size_t off = data_off(mb, oc, oh, ow);
+        A = fast_negative_powf(omega_mid, beta) * diff_dst[off];
+        B *= src[off];
         B *= (2.0f * alpha * beta) / kernel_size;
         *d = static_cast<data_t>(A - B); // final cast down to data_t
     };
 
-#   pragma omp parallel for collapse(4) schedule(static)
-    for (int mb = 0; mb < MB; ++mb) {
-        for (int c = 0; c < C; ++c) {
-            for (int h = 0; h < H; ++h) {
-                for (int w = 0; w < W; ++w) {
-                    ker(&diff_src[diff_data_d.off(mb, c, h, w)], mb, c, h, w);
-                }
-            }
+    if (fmt == nChw16c || fmt == nChw8c) {
+#       pragma omp parallel for collapse(4) schedule(static)
+        for (int mb = 0; mb < MB; ++mb)
+        for (int c = 0; c < C; c += blksize)
+        for (int h = 0; h < H; ++h)
+        for (int w = 0; w < W; ++w)
+        {
+            const size_t off = (size_t)(mb * CHW + c * H * W + (h * W + w)
+                * blksize);
+            # pragma omp simd
+            for (int cc = 0; cc < blksize; ++cc)
+                ker(&diff_src[off + cc], mb, c + cc, h, w);
+        }
+    } else if (fmt == nhwc) {
+#       pragma omp parallel for collapse(4) schedule(static)
+        for (int mb = 0; mb < MB; ++mb)
+        for (int h = 0; h < H; ++h)
+        for (int w = 0; w < W; ++w)
+        for (int c = 0; c < C; ++c)
+        {
+            const size_t off = (size_t)(mb * CHW + h * W * C + w * C + c);
+            ker(&diff_src[off], mb, c, h, w);
+        }
+    } else {
+#       pragma omp parallel for collapse(4) schedule(static)
+        for (int mb = 0; mb < MB; ++mb)
+        for (int c = 0; c < C; ++c)
+        for (int h = 0; h < H; ++h)
+        for (int w = 0; w < W; ++w)
+        {
+            const size_t off = data_off(mb, c, h, w);
+            ker(&diff_src[off], mb, c, h, w);
         }
     }
-
 }
 
-template struct ref_lrn_fwd_t<data_type::f32>;
-template struct ref_lrn_bwd_t<data_type::f32>;
+template void ref_lrn_fwd_t<data_type::f32>::execute_forward<memory_format::nChw16c>();
+template void ref_lrn_fwd_t<data_type::f32>::execute_forward<memory_format::nChw8c>();
+template void ref_lrn_fwd_t<data_type::f32>::execute_forward<memory_format::nchw>();
+template void ref_lrn_fwd_t<data_type::f32>::execute_forward<memory_format::nhwc>();
+template void ref_lrn_fwd_t<data_type::f32>::execute_forward<memory_format::any>();
+template void ref_lrn_bwd_t<data_type::f32>::execute_backward<memory_format::nChw16c>();
+template void ref_lrn_bwd_t<data_type::f32>::execute_backward<memory_format::nChw8c>();
+template void ref_lrn_bwd_t<data_type::f32>::execute_backward<memory_format::nchw>();
+template void ref_lrn_bwd_t<data_type::f32>::execute_backward<memory_format::nhwc>();
+template void ref_lrn_bwd_t<data_type::f32>::execute_backward<memory_format::any>();
 
 }
 }
