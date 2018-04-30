@@ -278,7 +278,7 @@ bool maybe_skip(const char *skip_impl, const char *impl_str) {
     return false;
 }
 
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(__GNUC__)
 #include <windows.h>
 #define PATH_MAX MAX_PATH
 static char *dirname(char *path) {

@@ -41,11 +41,14 @@
 #include "jitprofiling.h"
 #endif
 
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(__GNUC__)
 #   define STRUCT_ALIGN(al, ...) __declspec(align(al)) __VA_ARGS__
-#   define OFFSET_SHADOWSPACE 0x28
 #else
 #   define STRUCT_ALIGN(al, ...) __VA_ARGS__ __attribute__((__aligned__(al)))
+#endif
+
+#if defined(_WIN32)
+#   define OFFSET_SHADOWSPACE 0x28
 #endif
 
 #define DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_name) \

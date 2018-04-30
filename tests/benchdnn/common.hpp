@@ -39,7 +39,7 @@
 #define CONCAt2(a,b) a ## b
 #define CONCAT2(a,b) CONCAt2(a,b)
 
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(__GNUC__) 
 #define strncasecmp _strnicmp
 #define strcasecmp _stricmp
 #define __PRETTY_FUNCTION__ __FUNCSIG__
