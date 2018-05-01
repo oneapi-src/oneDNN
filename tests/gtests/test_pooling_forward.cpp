@@ -79,7 +79,7 @@ void check_pool_fwd(const pool_test_params &p, const memory &src,
                             && p.aprop_kind == prop_kind::forward_training) {
                             out_index = ws_data(map_index(ws_d, oidx));
                         }
-                        data_t out_ref = data_t(0);
+                        typename acc_t<data_t>::type acc_ref = data_t(0);
                         int out_ref_index = 0;
                         bool is_initialized = false;
                         int num_summands = 0;
@@ -103,20 +103,20 @@ void check_pool_fwd(const pool_test_params &p, const memory &src,
                             data_t d = src_data[map_index(src_d, iidx)];
                             if (p.aalgorithm == pooling_max) {
                                 if (!is_initialized) {
-                                    out_ref = d;
+                                    acc_ref = d;
                                     out_ref_index = kd * pd.kw * pd.kh
                                     + kh * pd.kw + kw;
                                     is_initialized = true;
                                 } else {
-                                    if (out_ref < d) {
-                                        out_ref = d;
+                                    if (acc_ref < d) {
+                                        acc_ref = d;
                                         out_ref_index = kd * pd.kw * pd.kh
                                         + kh * pd.kw + kw;
                                     }
                                 }
                             } else if (p.aalgorithm == pooling_avg_include_padding ||
                                 p.aalgorithm == pooling_avg_exclude_padding) {
-                                out_ref += d;
+                                acc_ref += d;
                                 num_summands++;
                             }
                         }
@@ -127,9 +127,11 @@ void check_pool_fwd(const pool_test_params &p, const memory &src,
 
                         if (p.aalgorithm == pooling_avg_include_padding ||
                             p.aalgorithm == pooling_avg_exclude_padding) {
-                            out_ref = out_round<data_t>(
-                                (float)out_ref / num_summands);
+                            acc_ref = out_round<data_t>(
+                                (float)acc_ref / num_summands);
                         }
+
+                        const data_t out_ref = (data_t)acc_ref;
                         EXPECT_NEAR(out, out_ref, 1e-6);
                         if(p.aalgorithm == pooling_max
                             && p.aprop_kind == forward_training) {
@@ -175,9 +177,9 @@ protected:
         auto p_dst = memory({p_dst_desc, eng});
 
         fill_data<data_t>(p_src.get_primitive_desc().get_size()/ sizeof(data_t),
-                (data_t *)p_src.get_data_handle());
+                (data_t *)p_src.get_data_handle(), 1., true);
         fill_data<data_t>(p_dst.get_primitive_desc().get_size()/ sizeof(data_t),
-                (data_t *)p_dst.get_data_handle());
+                (data_t *)p_dst.get_data_handle(), 1., true);
 
         std::vector<int> padR_2d = { pd.padt, pd.padl };
         std::vector<int> padR_3d = { pd.padf, pd.padt, pd.padl };

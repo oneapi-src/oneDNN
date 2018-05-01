@@ -286,7 +286,12 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t::compute_max_step(int ur_c, int c_tail)
                     vpblendmd(vreg_dst(jj) | k_cmp_mask, vreg_dst(jj),
                             vreg_src(jj));
                 } else {
-                    vpcmpb(k_cmp_mask, vreg_dst(jj), vreg_src(jj), _cmp_lt_os);
+                    if (jpp.src_dt == data_type::s8)
+                        vpcmpb(k_cmp_mask, vreg_dst(jj), vreg_src(jj),
+                                _cmp_lt_os);
+                    else
+                        vpcmpub(k_cmp_mask, vreg_dst(jj), vreg_src(jj),
+                                _cmp_lt_os);
                     vpblendmb(vreg_dst(jj) | k_cmp_mask, vreg_dst(jj),
                             vreg_src(jj));
                 }

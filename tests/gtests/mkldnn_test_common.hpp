@@ -54,6 +54,10 @@ template <typename data_t> inline data_t out_round(float x,
 template <> inline float out_round<float>(float x, mkldnn_round_mode_t rmode)
 { (void)rmode; return x; }
 
+template <typename data_t> struct acc_t { typedef data_t type; };
+template<> struct acc_t<int8_t> { typedef int type; };
+template<> struct acc_t<uint8_t> { typedef int type; };
+
 inline size_t map_index(const mkldnn::memory::desc &md, size_t index) {
     using fmt = mkldnn::memory::format;
 
