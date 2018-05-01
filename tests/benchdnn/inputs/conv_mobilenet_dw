@@ -1,6 +1,5 @@
 # mobilenet
 
-mb1ic3ih224iw224oc32oh112ow112kh3kw3sh2sw2ph1pw1n"mobilenet:conv1"
 g32mb1ic32ih112iw112oc32oh112ow112kh3kw3sh1sw1ph1pw1n"mobilenet:conv2_1/dw"
 g64mb1ic64ih112iw112oc64oh56ow56kh3kw3sh2sw2ph1pw1n"mobilenet:conv2_2/dw"
 g128mb1ic128ih56iw56oc128oh56ow56kh3kw3sh1sw1ph1pw1n"mobilenet:conv3_1/dw"
