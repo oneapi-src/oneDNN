@@ -85,14 +85,14 @@ execute_forward()
 
         int n{0}, gb{0}, occ{0}, oh_s{0};
         if (jcp.loop_order == loop_cgn)
-            nd_iterator_init(start,
-                occ, oc_chunks, gb, nb_groups, n, jcp.mb, oh_s, jcp.oh);
+            nd_iterator_init(start, occ, oc_chunks, gb, nb_groups, n, jcp.mb,
+                    oh_s, jcp.oh);
         else if (jcp.loop_order == loop_gnc)
-            nd_iterator_init(start,
-                gb, nb_groups, n, jcp.mb, occ, oc_chunks, oh_s, jcp.oh);
+            nd_iterator_init(start, gb, nb_groups, n, jcp.mb, occ, oc_chunks,
+                    oh_s, jcp.oh);
         else if (jcp.loop_order == loop_ngc)
-            nd_iterator_init(start,
-                n, jcp.mb, gb, nb_groups, occ, oc_chunks, oh_s, jcp.oh);
+            nd_iterator_init(start, n, jcp.mb, gb, nb_groups, occ, oc_chunks,
+                    oh_s, jcp.oh);
         else
             assert(!"unsupported loop order");
         while (start < end) {
@@ -148,14 +148,14 @@ execute_forward()
                 wht_w += wht_ic_stride * jcp.nb_ic_blocking;
             }
             if (jcp.loop_order == loop_cgn)
-                nd_iterator_jump(start, end,
-                  occ, oc_chunks, gb, nb_groups, n, jcp.mb, oh_s, jcp.oh);
+                nd_iterator_jump(start, end, occ, oc_chunks, gb, nb_groups, n,
+                        jcp.mb, oh_s, jcp.oh);
             else if (jcp.loop_order == loop_gnc)
-                nd_iterator_jump(start, end,
-                  gb, nb_groups, n, jcp.mb, occ, oc_chunks, oh_s, jcp.oh);
+                nd_iterator_jump(start, end, gb, nb_groups, n, jcp.mb, occ,
+                        oc_chunks, oh_s, jcp.oh);
             else if (jcp.loop_order == loop_ngc)
-                nd_iterator_jump(start, end,
-                    n, jcp.mb, gb, nb_groups, occ, oc_chunks, oh_s, jcp.oh);
+                nd_iterator_jump(start, end, n, jcp.mb, gb, nb_groups, occ,
+                        oc_chunks, oh_s, jcp.oh);
             else
                 assert(!"unsupported loop order");
         }

@@ -218,8 +218,9 @@ void jit_avx512_core_u8s8s32x_fwd_kernel::compute_loop(int ur_w,
     };
     auto kernel_offset = [=](int ii, int nb_ic, int ic, int ki) {
         return jcp.typesize_in
-            * ((ii * jcp.nb_ic * jcp.kh * jcp.kw + ki ) * ch_block_all
-            + 4 * ic * oc_block + nb_ic * jcp.kh * jcp.kw * ch_block_all);
+                * ((ii * jcp.nb_ic * jcp.kh * jcp.kw + ki) * ch_block_all
+                          + 4 * ic * oc_block
+                          + nb_ic * jcp.kh * jcp.kw * ch_block_all);
     };
     auto compute = [=](Zmm vreg_acc, Zmm vreg_wei, Zmm vreg_src) {
         if (jcp.is_depthwise) {
@@ -252,26 +253,30 @@ void jit_avx512_core_u8s8s32x_fwd_kernel::compute_loop(int ur_w,
             int jj_end = get_ow_end(ur_w, ki, pad_r);
 
             for (int cc = 0; cc < nb_ic_block; cc++) {
-                for (int ic = 0; ic < (jcp.is_depthwise ? 1 : ic_block / 4); ic++) {
+                for (int ic = 0; ic < (jcp.is_depthwise ? 1 : ic_block / 4);
+                        ic++) {
                     for (int jj = jj_start; jj < jj_end; jj++) {
                         int aux_input_offset = input_offset(jj, cc, ic, ki);
                         if (jcp.is_depthwise)
                             vpmovzxbd(zmm_inp(jj, nb_oc_block),
-                                EVEX_compress_addr(aux_reg_inp, aux_input_offset));
+                                    EVEX_compress_addr(
+                                              aux_reg_inp, aux_input_offset));
                         else
                             vpbroadcastd(zmm_inp(jj, nb_oc_block),
-                                EVEX_compress_addr(aux_reg_inp, aux_input_offset));
+                                    EVEX_compress_addr(aux_reg_inp,
+                                                 aux_input_offset));
                     }
 
                     for (int ii = 0; ii < nb_oc_block; ii++) {
                         int aux_kernel_offset = kernel_offset(ii, cc, ic, ki);
                         if (jj_end - jj_start > 0) {
                             if (jcp.is_depthwise)
-                                vpmovsxbd(zmm_wei, EVEX_compress_addr(aux_reg_ker,
-                                    aux_kernel_offset));
+                                vpmovsxbd(
+                                        zmm_wei, EVEX_compress_addr(aux_reg_ker,
+                                                         aux_kernel_offset));
                             else
                                 vmovups(zmm_wei, EVEX_compress_addr(aux_reg_ker,
-                                    aux_kernel_offset));
+                                                         aux_kernel_offset));
                         }
                         for (int jj = jj_start; jj < jj_end; jj++) {
                             compute(zmm_out(jj, ii), zmm_wei,
@@ -460,12 +465,14 @@ status_t jit_avx512_core_u8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         jcp.ch_block = 16;
         jcp.ic_block = 1;
         jcp.oc_block = 1;
-        if (jcp.ngroups % jcp.ch_block != 0) return status::unimplemented;
+        if (jcp.ngroups % jcp.ch_block != 0)
+            return status::unimplemented;
     } else {
         jcp.ch_block = 1;
         jcp.ic_block = 16;
         jcp.oc_block = 16;
-        if (jcp.ic % jcp.ic_block != 0) return status::unimplemented;
+        if (jcp.ic % jcp.ic_block != 0)
+            return status::unimplemented;
     }
 
     jcp.dilate_h = cd.dilates[0];
