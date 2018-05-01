@@ -167,7 +167,7 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t::load_src(int jj, int ll, int c_tail) {
                             vpmovzxbd(vreg_src_s32(jj, ll) | mask(ll),
                                     ptr[aux_reg_src_w + offset]);
                             break;
-                        default: assert(!"unsopported src data type");
+                        default: assert(!"unsupported src data type");
                     }
                 }
             } else {
@@ -184,7 +184,7 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t::load_src(int jj, int ll, int c_tail) {
                         vpmovzxbd(vreg_src_s32(jj, ll),
                                 ptr[aux_reg_src_w + offset]);
                         break;
-                    default: assert(!"unsopported src data type");
+                    default: assert(!"unsupported src data type");
                 }
             }
             break;
