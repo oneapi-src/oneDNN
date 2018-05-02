@@ -17,13 +17,17 @@ API in this implementation is not compatible with Intel MKL-DNN and does not
 include certain new and experimental features.
 
 This release contains performance critical functions that improve performance of
-the following deep learning topologies and their variations
+of the following deep learning topologies and variations of these.
 
-|Application                   | Topology
-|:---                          |:---
-|Image recognition             | AlexNet, VGG, GoogleNet, ResNet
-|Semantic segmenation          | FCN, SegNet
-|Object detection              | SSD, Faster R-CNN
+| Application                               | Example topology
+|:---                                       |:---
+| Image recognition                         | AlexNet, VGG, GoogleNet, ResNet
+| Image segmenation                         | FCN, SegNet
+| Volumetric segmentation                   | 3D-Unet
+| Object detection                          | SSD, Faster R-CNN, Yolo
+| Neural Machine Translation (experimental) | GNMT
+| Speech Recognition (experimental)         | DeepSpeech
+
 
 Intel MKL-DNN is used in the the following software products:
 * [Caffe\* Optimized for Intel Architecture](https://github.com/intel/caffe)
