@@ -103,7 +103,8 @@ void nspc_batch_normalization_fwd_t::execute_forward() {
                 for (int sp = 0; sp < SP; sp++)
 #pragma omp simd
                     for (int c = 0; c < C; c++)
-                        ws_reduce[C * ithr + c] += src[n * SP * C + sp * C + c];
+                        ws_reduce[C * ithr + c] += src[(size_t)n * SP * C
+                            + sp * C + c];
 
 #pragma omp barrier
             for (int c = C_s; c < C_e; c++) {
@@ -122,7 +123,8 @@ void nspc_batch_normalization_fwd_t::execute_forward() {
                 for (int sp = 0; sp < SP; sp++)
 #pragma omp simd
                     for (int c = 0; c < C; c++) {
-                        data_t m = src[n * SP * C + sp * C + c] - mean_loc[c];
+                        data_t m = src[(size_t)n * SP * C + sp * C + c]
+                            - mean_loc[c];
                         ws_reduce[C * ithr + c] += m * m;
                     }
 #pragma omp barrier
@@ -149,19 +151,19 @@ void nspc_batch_normalization_fwd_t::execute_forward() {
                     data_t sm = use_scaleshift ? scaleshift[c] : 1;
                     data_t sv = use_scaleshift ? scaleshift[C + c] : 0;
                     data_t bn_res
-                            = sm * (src[n * SP * C + sp * C + c] - mean_loc[c])
-                                    * sqrt_variance + sv;
+                            = sm * (src[(size_t)n * SP * C + sp * C + c]
+                                    - mean_loc[c]) * sqrt_variance + sv;
                     if (conf_.fuse_bn_relu()) {
                         if (bn_res <= 0) {
                             bn_res = 0;
                             if (ws)
-                                ws[n * SP * C + sp * C + c] = 0;
+                                ws[(size_t)n * SP * C + sp * C + c] = 0;
                         } else {
                             if (ws)
-                                ws[n * SP * C + sp * C + c] = 1;
+                                ws[(size_t)n * SP * C + sp * C + c] = 1;
                         }
                     }
-                    dst[n * SP * C + sp * C + c] = maybe_post_op(bn_res);
+                    dst[(size_t)n * SP * C + sp * C + c] = maybe_post_op(bn_res);
                 }
             }
         }
@@ -227,7 +229,7 @@ void nspc_batch_normalization_bwd_t::execute_backward() {
             for (int sp = 0; sp < SP; sp++)
 #pragma omp simd
                 for (int c = 0; c < C; c++) {
-                    const auto d_off = n * SP * C + sp * C + c;
+                    const size_t d_off = (size_t)n * SP * C + sp * C + c;
                     data_t dd;
                     if (ws)
                         dd = (!ws[d_off]) ? 0 : diff_dst[d_off];
@@ -259,7 +261,7 @@ void nspc_batch_normalization_bwd_t::execute_backward() {
             for (int sp = 0; sp < SP; sp++) {
 #pragma omp simd
                 for (int c = 0; c < C; c++) {
-                    const auto d_off = n * SP * C + sp * C + c;
+                    const size_t d_off = (size_t)n * SP * C + sp * C + c;
                     data_t gamma = use_scaleshift ? scaleshift[c] : 1;
                     data_t sqrt_variance
                             = static_cast<data_t>(1.0f / sqrtf(variance[c] + eps));

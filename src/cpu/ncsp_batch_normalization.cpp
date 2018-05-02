@@ -86,12 +86,12 @@ void ncsp_batch_normalization_fwd_t::execute_forward() {
             = [&](data_t res) { return (with_relu && res < 0) ? 0 : res; };
     const bool has_spatial = utils::one_of(conf_.ndims(), 4, 5);
     int SP = (has_spatial) ? conf_.H() * conf_.W() * conf_.D() : 1;
-    int N = conf_.MB();
-    int C = conf_.C();
+    size_t N = conf_.MB();
+    size_t C = conf_.C();
 
     int nthr = omp_get_max_threads();
-    int l3_size_ = get_cache_size(3, true) * nthr / 2;
-    int data_size = N * C * SP * sizeof(data_t);
+    size_t l3_size_ = get_cache_size(3, true) * nthr / 2;
+    size_t data_size = N * C * SP * sizeof(data_t);
     bool do_blocking = (data_size >= l3_size_ / 2 && l3_size_ > 0);
 #pragma omp parallel
     {
@@ -123,12 +123,12 @@ void ncsp_batch_normalization_fwd_t::execute_forward() {
                 SP_N_ithr = N_ithr * S_nthr + S_ithr;
                 SP_N_nthr = N_nthr * S_nthr;
             }
-            int C_off = it * C_blks_per_iter;
+            size_t C_off = it * C_blks_per_iter;
             if (calculate_stats) {
                 data_t *mean_blk = mean + C_off;
                 data_t *variance_blk = variance + C_off;
                 for (int c = C_blk_s; c < C_blk_e; c++) {
-                    auto off = (c + C_off) * SP;
+                    size_t off = (c + C_off) * SP;
                     data_t sum = 0;
                     for (int n = N_s; n < N_e; ++n)
 #pragma omp simd reduction(+ : sum)
@@ -146,7 +146,7 @@ void ncsp_batch_normalization_fwd_t::execute_forward() {
                 }
 #pragma omp barrier
                 for (int c = C_blk_s; c < C_blk_e; c++) {
-                    auto off = c + C_off;
+                    size_t off = c + C_off;
                     data_t sum = 0.;
                     for (int n = N_s; n < N_e; ++n)
 #pragma omp simd reduction(+ : sum)
@@ -167,7 +167,7 @@ void ncsp_batch_normalization_fwd_t::execute_forward() {
 #pragma omp barrier
             }
             for (int c = C_blk_s; c < C_blk_e; c++) {
-                auto off = c + C_off;
+                size_t off = c + C_off;
                 data_t sm = use_scaleshift ? scaleshift[off] : 1;
                 data_t sv = use_scaleshift ? scaleshift[C + off] : 0;
                 data_t sqrt_variance
@@ -175,7 +175,7 @@ void ncsp_batch_normalization_fwd_t::execute_forward() {
                 for (int n = N_s; n < N_e; ++n)
 #pragma omp simd
                     for (int sp = S_s; sp < S_e; ++sp) {
-                        auto d_off = off * SP + n * C * SP + sp;
+                        size_t d_off = off * SP + n * C * SP + sp;
                         data_t bn_res
                                 = sm * (src[d_off] - mean[off]) * sqrt_variance
                                 + sv;
@@ -229,14 +229,14 @@ void ncsp_batch_normalization_bwd_t::execute_backward() {
 
     const bool has_spatial = utils::one_of(conf_.ndims(), 4, 5);
     int SP = (has_spatial) ? conf_.H() * conf_.W() * conf_.D() : 1;
-    auto C = conf_.C(), N = conf_.MB();
+    size_t C = conf_.C(), N = conf_.MB();
     const bool use_scaleshift = conf_.use_scaleshift();
     const float eps = conf_.desc()->batch_norm_epsilon;
     const bool calculate_diff_stats = !conf_.omit_stats();
 
     int nthr = omp_get_max_threads();
-    int l3_size_ = get_cache_size(3, true) * nthr / 2;
-    int data_size = N * C * SP * sizeof(data_t);
+    size_t l3_size_ = get_cache_size(3, true) * nthr / 2;
+    size_t data_size = N * C * SP * sizeof(data_t);
     bool do_blocking = (data_size >= l3_size_ / 2 && l3_size_ > 0);
 #pragma omp parallel
     {
@@ -267,17 +267,17 @@ void ncsp_batch_normalization_bwd_t::execute_backward() {
                         N_ithr, N_nthr, N_s, N_e, S_ithr, S_nthr, S_s, S_e);
                 balance211(last_iter_blks, nthr, ithr, C_blk_gl_s, C_blk_gl_e);
             }
-            int C_off = it * C_blks_per_iter;
+            size_t C_off = it * C_blks_per_iter;
             data_t *diff_gamma_blk = diff_scaleshift + C_off;
             data_t *diff_beta_blk = diff_scaleshift + C + C_off;
             for (int c = C_blk_s; c < C_blk_e; c++) {
-                auto off = c + C_off;
+                size_t off = c + C_off;
                 data_t diff_gamma = 0.0, diff_beta = 0.0;
                 data_t v_mean = mean[off];
                 for (int n = N_s; n < N_e; ++n)
 #pragma omp simd reduction(+ : diff_gamma, diff_beta)
                     for (int sp = S_s; sp < S_e; ++sp) {
-                        const auto d_off = off * SP + n * C * SP + sp;
+                        const size_t d_off = off * SP + n * C * SP + sp;
                         data_t dd;
                         if (ws)
                             dd = (!ws[d_off]) ? 0 : diff_dst[d_off];
@@ -306,7 +306,7 @@ void ncsp_batch_normalization_bwd_t::execute_backward() {
             }
 #pragma omp barrier
             for (int c = C_blk_s; c < C_blk_e; c++) {
-                auto off = c + C_off;
+                size_t off = c + C_off;
                 data_t gamma = use_scaleshift ? scaleshift[off] : 1;
                 data_t sqrt_variance
                         = static_cast<data_t>(1.0f / sqrtf(variance[off] + eps));
@@ -314,7 +314,7 @@ void ncsp_batch_normalization_bwd_t::execute_backward() {
                 for (int n = N_s; n < N_e; ++n)
 #pragma omp simd
                     for (int sp = S_s; sp < S_e; ++sp) {
-                        const auto d_off = off * SP + n * C * SP + sp;
+                        const size_t d_off = off * SP + n * C * SP + sp;
                         ;
                         data_t v_diff_src;
                         if (ws)
