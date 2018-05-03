@@ -201,6 +201,20 @@ void compute_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m, dnn_mem_t &wei_m,
 void compute_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &diff_wei_m,
         dnn_mem_t &diff_bia_m, dnn_mem_t &diff_dst_m);
 
+void compute_ref_direct_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
+        dnn_mem_t &bia_m, dnn_mem_t &dst_m);
+void compute_ref_direct_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m, dnn_mem_t &wei_m,
+        dnn_mem_t &diff_dst_m);
+void compute_ref_direct_bwd_w(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &diff_wei_m,
+        dnn_mem_t &diff_bia_m, dnn_mem_t &diff_dst_m);
+
+void compute_wino_ref_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
+        dnn_mem_t &bia_m, dnn_mem_t &dst_m);
+void compute_wino_ref_bwd_d(const prb_t *p, dnn_mem_t &idiff_src_m,
+        dnn_mem_t &wei_m, dnn_mem_t &diff_dst_m);
+void compute_wino_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m,
+        dnn_mem_t &diff_wei_m, dnn_mem_t &diff_bia_m, dnn_mem_t &diff_dst_m);
+
 void perf_report(const prb_t *p, const res_t *r, const char *pstr);
 
 int compare_src(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,

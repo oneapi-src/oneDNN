@@ -371,3 +371,13 @@ int flip_coin(ptrdiff_t seed, float probability) {
     seed *= prime;
     return (seed % big_prime) < (probability * big_prime);
 }
+
+int div_up(const int a, const int b){
+    assert (b);
+    return (a + b - 1) / b;
+}
+
+void array_set(char *arr, size_t size) {
+    for (size_t i = 0; i < size; ++i)
+        arr[i] = 0;
+}
