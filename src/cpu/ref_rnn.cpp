@@ -816,11 +816,15 @@ packing_sig(_ref_rnn_common_t<aprop>::no_pack_weights) {
 template <prop_kind_t aprop>
 free_packed_sig(_ref_rnn_common_t<aprop>::free_packed_weights) {
 #if USE_MKL_PACKED_GEMM
+    AOC<float *, 2> weights(weights_, n_layer, n_direction);
     for (int i = 0; i < n_layer; i++) {
-        cblas_sgemm_free(weights_[i]);
+        for (int j = 0; j < n_direction; j++) {
+            cblas_sgemm_free(weights(i, j));
+        }
     }
 #else
     UNUSED(n_layer);
+    UNUSED(n_direction);
     UNUSED(weights_);
     assert(!"packed gemm is disabled");
 #endif
@@ -949,8 +953,8 @@ void _ref_rnn_common_t<aprop>::execute_() {
             dst_last_iter, diff_src_iter, ws_states_, ws_diff_states_);
 
     // We free the packed weights if they were packed internally
-    (this->*weights_state_free_packed_func)(n_layer, ptr_wei_state_);
-    (this->*weights_input_free_packed_func)(n_layer, ptr_wei_input_);
+    (this->*weights_state_free_packed_func)(n_layer, n_direction, ptr_wei_state_);
+    (this->*weights_input_free_packed_func)(n_layer, n_direction, ptr_wei_input_);
 };
 
 template struct _ref_rnn_common_t<prop_kind::forward>;

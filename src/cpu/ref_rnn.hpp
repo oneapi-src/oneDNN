@@ -66,7 +66,7 @@ namespace cpu {
             int batch, int OC_size, int IC_size, float **weights_,   \
             const float *w_)
 
-#define free_packed_sig(f) void f(int n_layer, float **weights_)
+#define free_packed_sig(f) void f(int n_layer, int n_direction, float **weights_)
 
 template <alg_kind_t alg_kind, prop_kind_t prop_kind>
 float activation(float s, float alpha, float cliping, float dd);
