@@ -180,7 +180,8 @@ private:
         int iw_str = !jcp.is_1stconv ? jcp.ic_block : 1;
         int ic_str = !jcp.is_1stconv ? 1 : jcp.iw * jcp.ih * jcp.id;
         return jcp.typesize_in
-            * ((ki + oi * jcp.stride_w - pad_l) * iw_str + scale * ic * ic_str);
+            * ((ki * (jcp.dilate_w + 1) + oi * jcp.stride_w - pad_l) * iw_str
+                + scale * ic * ic_str);
     }
 
     inline int get_kernel_offset(int ki,int ic,int n_oc_block,int ker_number) {
@@ -191,12 +192,13 @@ private:
     }
 
     inline int get_ow_start(int ki, int pad_l) {
-        return nstl::max(0, (pad_l - ki + jcp.stride_w - 1) / jcp.stride_w);
+        return nstl::max(0, utils::div_up(pad_l - ki * (jcp.dilate_w + 1),
+            jcp.stride_w));
     }
 
     inline int get_ow_end(int ur_w, int ki, int pad_r) {
-        return ur_w - nstl::max(0,
-            (ki + pad_r - (jcp.kw - 1) + jcp.stride_w - 1) / jcp.stride_w);
+        return ur_w - nstl::max(0, utils::div_up(pad_r - (jcp.kw - 1 - ki)
+            * (jcp.dilate_w + 1), jcp.stride_w));
     }
 };
 
