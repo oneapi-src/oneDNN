@@ -104,12 +104,14 @@ private:
         return zmm_t(idx);
     }
     int get_ow_start(int ki, int pad_l) {
-        return nstl::max(0, utils::div_up(
-            pad_l - ki * (jcp.dilate_w + 1), jcp.stride_w));
+        return nstl::max(0,
+                utils::div_up(pad_l - ki * (jcp.dilate_w + 1), jcp.stride_w));
     }
     int get_ow_end(int ur_w, int ki, int pad_r) {
-        return ur_w - nstl::max(0, utils::div_up(
-            pad_r - (jcp.kw - 1 - ki) * (jcp.dilate_w + 1), jcp.stride_w));
+        return ur_w - nstl::max(0, utils::div_up(pad_r
+                                                   - (jcp.kw - 1 - ki)
+                                                           * (jcp.dilate_w + 1),
+                                           jcp.stride_w));
     }
     bool maybe_relu(int position);
     void prepare_output(int ur_w);

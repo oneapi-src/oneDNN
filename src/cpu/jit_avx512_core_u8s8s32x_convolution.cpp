@@ -126,8 +126,9 @@ execute_forward()
                 {
                     int dilate_h = jcp.dilate_h + 1;
                     int i_t_overflow = div_up(max(0, -ij), dilate_h);
-                    int i_b_overflow = div_up(max(0, ij - jcp.ih
-                                + (jcp.kh - 1) * dilate_h + 1), dilate_h);
+                    int i_b_overflow = div_up(
+                            max(0, ij - jcp.ih + (jcp.kh - 1) * dilate_h + 1),
+                            dilate_h);
                     int kh_padding = nstl::max(0,
                         jcp.kh - i_t_overflow - i_b_overflow);
 

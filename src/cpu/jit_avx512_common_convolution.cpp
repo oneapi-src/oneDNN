@@ -154,15 +154,17 @@ void _jit_avx512_common_convolution_fwd_t
                     {
                         int dilate_h = jcp.dilate_h + 1;
                         int i_t_overflow = div_up(max(0, -ij), dilate_h);
-                        int i_b_overflow = div_up(max(0, ij - jcp.ih
-                                    + (jcp.kh - 1) * dilate_h + 1), dilate_h);
+                        int i_b_overflow = div_up(
+                                max(0, ij - jcp.ih + (jcp.kh - 1) * dilate_h
+                                                + 1),
+                                dilate_h);
                         int kh_padding = nstl::max(0,
                             jcp.kh - i_t_overflow - i_b_overflow);
 
                         jit_conv_ker_pipeline(kernel_->jit_ker, par_conv,
-                            src_c + i_t_overflow * dilate_h * src_h_stride,
-                            dst_c, wht_w + i_t_overflow * wht_h_stride,
-                            bias_w, icb, kh_padding);
+                                src_c + i_t_overflow * dilate_h * src_h_stride,
+                                dst_c, wht_w + i_t_overflow * wht_h_stride,
+                                bias_w, icb, kh_padding);
 
                         src_c += src_h_stride * jcp.stride_h;
                         dst_c += dst_h_stride;
@@ -252,15 +254,16 @@ void _jit_avx512_common_convolution_fwd_t
 
                 int dilate_d = jcp.dilate_d + 1;
                 int d_t_overflow = div_up(max(0, -id_s), dilate_d);
-                int d_b_overflow = div_up(max(0, id_s - jcp.id
-                            + (jcp.kd - 1) * dilate_d + 1), dilate_d);
+                int d_b_overflow = div_up(
+                        max(0, id_s - jcp.id + (jcp.kd - 1) * dilate_d + 1),
+                        dilate_d);
                 int kd_padding = nstl::max(0,
                     jcp.kd - d_t_overflow - d_b_overflow);
 
                 auto bias_w = bias ? bias + bias_d.blk_off(g_oc) : 0;
                 auto dst_w = dst + dst_d.blk_off(n, g_ocb, od_s, oh_s);
                 auto src_w = src + src_d.blk_off(n, g_icb + icb_l2, id_s, ih_s)
-                    + d_t_overflow * dilate_d * src_d_stride;
+                        + d_t_overflow * dilate_d * src_d_stride;
                 auto wht_w = weights + wht_blk_off(weights_d, g, ocb, icb_l2)
                     + d_t_overflow * wht_d_stride;
 
@@ -273,14 +276,16 @@ void _jit_avx512_common_convolution_fwd_t
                     {
                         int dilate_h = jcp.dilate_h + 1;
                         int i_t_overflow = div_up(max(0, -ij), dilate_h);
-                        int i_b_overflow = div_up(max(0, ij - jcp.ih
-                                    + (jcp.kh - 1) * dilate_h + 1), dilate_h);
+                        int i_b_overflow = div_up(
+                                max(0, ij - jcp.ih + (jcp.kh - 1) * dilate_h
+                                                + 1),
+                                dilate_h);
                         int kh_padding = nstl::max(0,
                             jcp.kh - i_t_overflow - i_b_overflow);
                         jit_conv_3d_ker_pipeline(kernel_->jit_ker, par_conv,
-                            src_c + i_t_overflow * dilate_h * src_h_stride,
-                            dst_c, wht_w + i_t_overflow * wht_h_stride,
-                            bias_w, icb, kh_padding, kd_padding);
+                                src_c + i_t_overflow * dilate_h * src_h_stride,
+                                dst_c, wht_w + i_t_overflow * wht_h_stride,
+                                bias_w, icb, kh_padding, kd_padding);
 
                         src_c += src_h_stride * jcp.stride_h;
                         dst_c += dst_h_stride;

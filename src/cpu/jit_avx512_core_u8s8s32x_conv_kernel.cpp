@@ -210,12 +210,14 @@ void jit_avx512_core_u8s8s32x_fwd_kernel::compute_loop(int ur_w,
     Label kh_label, skip_kh_loop;
 
     int shift_kernel_ptr = jcp.typesize_in * jcp.kw * ch_block_all;
-    int shift_input_ptr = jcp.typesize_in * (jcp.dilate_h + 1) * jcp.iw
-        * jcp.ic * jcp.ngroups;
+    int shift_input_ptr = jcp.typesize_in * (jcp.dilate_h + 1) * jcp.iw * jcp.ic
+            * jcp.ngroups;
 
     auto input_offset = [=](int oi, int nb_ic, int ic, int ki) {
-        return jcp.typesize_in * ((ki * (jcp.dilate_w + 1) + oi * stride_w - pad_l)
-                * jcp.ic * jcp.ngroups + 4 * ic + nb_ic * jcp.ic_block);
+        return jcp.typesize_in
+                * ((ki * (jcp.dilate_w + 1) + oi * stride_w - pad_l) * jcp.ic
+                                  * jcp.ngroups
+                          + 4 * ic + nb_ic * jcp.ic_block);
     };
     auto kernel_offset = [=](int ii, int nb_ic, int ic, int ki) {
         return jcp.typesize_in
@@ -324,12 +326,11 @@ void jit_avx512_core_u8s8s32x_fwd_kernel::generate()
     mov(reg_acc_s32, ptr[param1 + GET_OFF(acc_s32)]);
 
     int r_pad = nstl::max(0, (jcp.ow - 1) * jcp.stride_w
-                           + (jcp.kw - 1) * (jcp.dilate_w + 1)
-                           - (jcp.iw + jcp.l_pad - 1));
+                    + (jcp.kw - 1) * (jcp.dilate_w + 1)
+                    - (jcp.iw + jcp.l_pad - 1));
     int n_oi = jcp.ow / jcp.ur_w;
     int r_pad1 = (jcp.ur_w * n_oi - 1) * jcp.stride_w
-                + (jcp.kw - 1) * (jcp.dilate_w + 1)
-                - (jcp.iw + jcp.l_pad - 1);
+            + (jcp.kw - 1) * (jcp.dilate_w + 1) - (jcp.iw + jcp.l_pad - 1);
     if (r_pad1 > 0) n_oi--;
 
     xor_(reg_oi, reg_oi);
@@ -554,7 +555,8 @@ status_t jit_avx512_core_u8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         return status::unimplemented;
 
     int r_pad_no_tail = nstl::max(0, (jcp.ow - jcp.ur_w_tail - 1) * jcp.stride_w
-                    + (jcp.kw - 1) * (jcp.dilate_w + 1) - (jcp.iw + jcp.l_pad -1));
+                    + (jcp.kw - 1) * (jcp.dilate_w + 1)
+                    - (jcp.iw + jcp.l_pad - 1));
     if (r_pad_no_tail > jcp.ur_w)
         return status::unimplemented;
 
