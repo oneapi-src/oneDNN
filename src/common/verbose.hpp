@@ -275,7 +275,7 @@ template <typename pd_t> static void init_info_rnn(pd_t *s, char *buffer) {
 
     snprintf(prb_str, MKLDNN_VERBOSE_PRB_LEN,
             "l%dd%dmb%dt%d_ic%dsc%doc%d_wi%dws%d",
-             s->L(), s->D(), s->T(), s->MB(),
+             s->L(), s->D(), s->MB(), s->T(),
              s->SLC(), s->DIC(), s->DIC(),
              s->SLC(), s->SIC());
 
