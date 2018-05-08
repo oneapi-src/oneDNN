@@ -79,6 +79,7 @@ status_t cvt_mem_desc_to_layout_desc(const memory_desc_t &md_,
         P(3, md.dims()[3], bd.strides[0][3]);
         return success;
     case OIhw8i16o2i:
+    case OIdhw8i16o2i:
         P(0, md.dims()[0] / 16, bd.strides[0][0]);
         P(0, 16, 2);
         P(1, md.dims()[1] / 16, bd.strides[0][1]);
@@ -86,6 +87,8 @@ status_t cvt_mem_desc_to_layout_desc(const memory_desc_t &md_,
         P(1, 2, 1);
         P(2, md.dims()[2], bd.strides[0][2]);
         P(3, md.dims()[3], bd.strides[0][3]);
+        if (md.format() == OIdhw8i16o2i)
+            P(4, md.dims()[4], bd.strides[0][4]);
         return success;
     case OIhw8o16i2o:
         P(0, md.dims()[0] / 16, bd.strides[0][0]);
@@ -107,6 +110,7 @@ status_t cvt_mem_desc_to_layout_desc(const memory_desc_t &md_,
         P(4, md.dims()[4], bd.strides[0][4]);
         return success;
     case gOIhw8i16o2i:
+    case gOIdhw8i16o2i:
         P(0, md.dims()[0], bd.strides[0][0]);
         P(1, md.dims()[1] / 16, bd.strides[0][1]);
         P(1, 16, 2);
@@ -115,6 +119,8 @@ status_t cvt_mem_desc_to_layout_desc(const memory_desc_t &md_,
         P(2, 2, 1);
         P(3, md.dims()[3], bd.strides[0][3]);
         P(4, md.dims()[4], bd.strides[0][4]);
+        if (md.format() == OIdhw8i16o2i)
+            P(5, md.dims()[5], bd.strides[0][5]);
         return success;
     case gOIhw8o16i2o:
         P(0, md.dims()[0], bd.strides[0][0]);
