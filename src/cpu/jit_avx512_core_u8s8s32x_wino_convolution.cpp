@@ -118,6 +118,7 @@ void jit_avx512_core_u8s8s32x_wino_conv_src_trans_t::generate() {
     for (int i = 0; i < jcp.alpha; i++) {
         kmovw(x_mask(i), ptr[reg_ptr_v_x_masks + sizeof(int16_t) * i]);
     }
+
     mov(reg_ic_block, jcp.ic / load_block);
     L(ic_block_label);
     {
@@ -548,8 +549,10 @@ void jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::generate() {
     mov(reg_aux_wei, reg_ptr_wei);
     mov(reg_aux_dst_b, reg_ptr_dst_b);
 
-    mov (reg_nnb, jcp.n_chunks);
-    L(nnb_loop_label); {
+    if (!jcp.small_mb) {
+        mov (reg_nnb, jcp.n_chunks);
+        L(nnb_loop_label);
+    }
         for (int mb = 0; mb < jcp.M / jcp.m_block; mb++)
         {
             for (int nb2 = 0; nb2 < jcp.n2_block; nb2++) {
@@ -596,13 +599,15 @@ void jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::generate() {
                 }
             }
         }
+    if (!jcp.small_mb) {
         add(reg_aux_dst, jcp.typesize_acc * jcp.n2_block * jcp.n_block);
         add(reg_aux_dst_b, jcp.typesize_acc * jcp.n2_block * jcp.n_block);
         add(reg_aux_wei, jcp.typesize_in * jcp.n2_block * jcp.n_block * jcp.K);
+
+        dec(reg_nnb);
+        cmp(reg_nnb, 0);
+        jg(nnb_loop_label, T_NEAR);
     }
-    dec(reg_nnb);
-    cmp(reg_nnb, 0);
-    jg(nnb_loop_label, T_NEAR);
 
     postamble();
 }
@@ -700,7 +705,18 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
             opt_val = cur_val;
         }
     }
+
+    const int nthreads = omp_get_max_threads();
     jcp.xb = 4;
+    int oh_blocks = (jcp.oh < jcp.yb) ? 1 : (jcp.oh / jcp.yb);
+    int ow_blocks = (jcp.ow < jcp.xb) ? 1 : (jcp.ow / jcp.xb);
+
+    const int work_amount = jcp.mb * oh_blocks * ow_blocks;
+    if (work_amount < nthreads && jcp.ow < 24) {
+        jcp.small_mb = true;
+        jcp.xb = (jcp.ow < 9) ? jcp.yb : 4;
+    } else
+        jcp.small_mb = false;
 
     jcp.inp_stride = jcp.yb * jcp.xb / 4 * jcp.ic;
     jcp.out_stride = jcp.yb * jcp.xb / 4 * jcp.oc;
@@ -817,6 +833,16 @@ _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu,
 template <bool with_relu, data_type_t dst_data_type>
 void _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu,
         dst_data_type>::execute_forward() {
+    const auto &jcp = kernel_->jcp;
+    if (jcp.small_mb)
+        execute_forward_small_mb();
+    else
+        execute_forward_mbN();
+}
+
+template <bool with_relu, data_type_t dst_data_type>
+void _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu,
+        dst_data_type>::execute_forward_mbN() {
     auto src = reinterpret_cast<const src_data_t *>(input_memory(0));
     auto wei = reinterpret_cast<const wei_data_t *>(input_memory(1));
     auto bia = reinterpret_cast<const char *>(input_memory(2));
@@ -919,6 +945,120 @@ void _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu,
             }}
         }
 
+    }}
+    }
+}
+
+template <bool with_relu, data_type_t dst_data_type>
+void _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu,
+        dst_data_type>::execute_forward_small_mb() {
+    auto src = reinterpret_cast<const src_data_t *>(input_memory(0));
+    auto wei = reinterpret_cast<const wei_data_t *>(input_memory(1));
+    auto bia = reinterpret_cast<const char *>(input_memory(2));
+    auto dst = reinterpret_cast<dst_data_t *>(memory(0));
+
+    const auto &jcp = kernel_->jcp;
+    const auto &oscales = conf_.attr()->output_scales_;
+
+    wino_wei_ = wei;
+    dst_bias_ = (const acc_data_t*)(wei + size_wino_wei);
+
+    for (int mb = 0; mb < jcp.mb; mb++) {
+    for (int tile_y = 0; tile_y < jcp.oh; tile_y += jcp.yb) {
+    for (int tile_x = 0; tile_x < jcp.ow; tile_x += jcp.xb) {
+        { /* transformation of input tensor to winograd domain */
+            #pragma omp parallel for collapse(2)
+            for (int y_in_block = 0; y_in_block < jcp.yb; y_in_block += 2) {
+            for (int x_in_block = 0; x_in_block < jcp.xb; x_in_block += 2) {
+                jit_avx512_core_u8s8s32x_wino_conv_src_trans_t::
+                                                call_params_t src_trans_p = {};
+
+                unsigned short v_y_masks[4], v_x_masks[4];
+
+                int y = y_in_block + tile_y;
+                int x = x_in_block + tile_x;
+                int m = (y_in_block / 2) * (jcp.xb / 2) + (x_in_block / 2);
+
+                int v_ys = nstl::max(0, jcp.t_pad - y);
+                int v_ye = nstl::min(jcp.alpha,
+                    nstl::max(0, jcp.ih + jcp.t_pad - y));
+
+                int v_xs = nstl::max(0, jcp.l_pad - x);
+                int v_xe = nstl::min(jcp.alpha,
+                    nstl::max(0, jcp.iw + jcp.l_pad - x));
+
+                #pragma unroll(4)
+                for (int i = 0; i < jcp.alpha; i++) {
+                    v_y_masks[i] = (i < v_ys || i >= v_ye) ? 0 : 0xffff;
+                    v_x_masks[i] = (i < v_xs || i >= v_xe) ? 0 : 0xffff;
+                }
+                auto local_s = src + mb * jcp.ih * jcp.iw * jcp.ic
+                                            + y * jcp.iw * jcp.ic + x * jcp.ic;
+                auto local_w = wino_src_ + m * jcp.ic;
+
+                src_trans_p.src = local_s;
+                src_trans_p.wino_src = local_w;
+                src_trans_p.v_y_masks = v_y_masks;
+                src_trans_p.v_x_masks = v_x_masks;
+
+                src_trans_->ker_(&src_trans_p);
+            }}
+        }
+        {  /* gemms */
+            #pragma omp parallel for collapse(2)
+            for (int tile_ij = 0; tile_ij < 16; tile_ij++) {
+                for (int nnb = 0; nnb < jcp.n_chunks ; nnb++) {
+                    jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::
+                                                    call_params_t gemm_p = {};
+
+                    auto _t_src = wino_src_ + jcp.inp_stride * tile_ij;
+                    auto _t_dst = wino_dst_ + jcp.out_stride * tile_ij;
+                    auto _t_wei = wino_wei_ + jcp.wei_stride * tile_ij;
+                    auto _t_dst_b = dst_bias_ + jcp.bia_stride * tile_ij;
+
+                    gemm_p.src = _t_src;
+                    gemm_p.dst = _t_dst + nnb * jcp.n2_block * jcp.n_block;
+                    gemm_p.wei = _t_wei + nnb * jcp.n2_block * jcp.n_block * jcp.K;
+                    gemm_p.dst_b = _t_dst_b + nnb * jcp.n2_block * jcp.n_block;
+
+                    kernel_->ker_(&gemm_p);
+               }
+            }
+        }
+        { /* transformation from winograd domain to output tensor */
+            #pragma omp parallel for collapse(2)
+            for (int y_in_block = 0; y_in_block < jcp.yb; y_in_block += 2) {
+            for (int x_in_block = 0; x_in_block < jcp.xb; x_in_block += 2) {
+                jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t::
+                                            call_params_t dst_trans_p = {};
+
+                unsigned short v_y_masks[2], v_x_masks[2];
+
+                int y = y_in_block + tile_y;
+                int x = x_in_block + tile_x;
+                int m = (y_in_block / 2) * (jcp.xb / 2) + (x_in_block / 2);
+
+                #pragma unroll(2)
+                for (int i = 0; i < jcp.m; i++) {
+                    v_x_masks[i] = (x + i < jcp.ow) ? 0xffff : 0;
+                    v_y_masks[i] = (y + i < jcp.oh) ? 0xffff : 0;
+                }
+                auto local_d = dst + mb * jcp.oh * jcp.ow * jcp.oc
+                                            + y * jcp.ow * jcp.oc + x * jcp.oc;
+                auto local_w = wino_dst_ + m * jcp.oc;
+
+                auto scales = oscales.scales_;
+                dst_trans_p.dst = local_d;
+                dst_trans_p.wino_dst = local_w;
+                dst_trans_p.v_y_masks = v_y_masks;
+                dst_trans_p.v_x_masks = v_x_masks;
+
+                dst_trans_p.scales = scales;
+                dst_trans_p.bias = bia;
+
+                dst_trans_->ker_(&dst_trans_p);
+            }}
+        }
     }}
     }
 }

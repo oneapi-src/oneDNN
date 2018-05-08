@@ -135,6 +135,7 @@ struct jit_conv_conf_u8s8s32x_wino_t {
     bool with_bias, with_relu;
     float relu_negative_slope;
     bool with_sum;
+    bool small_mb;
 
     int xb, yb;
     int inp_stride;
