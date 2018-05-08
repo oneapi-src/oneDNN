@@ -70,7 +70,7 @@ struct _jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
             return jit_avx512_common_conv_fwd_kernel::init_conf(
                     jcp_, this->cdesc_(), this->src_pd_, this->weights_pd_,
                     this->dst_pd_,this->bias_pd_, *this->attr(),
-                    with_relu, this->negative_slope());
+                    omp_get_max_threads(), with_relu, this->negative_slope());
         }
 
         inline int ndims() { return this->cdesc_().src_desc.ndims; }

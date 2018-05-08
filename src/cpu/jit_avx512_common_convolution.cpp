@@ -93,13 +93,20 @@ void _jit_avx512_common_convolution_fwd_t
     const auto &jcp = kernel_->jcp;
     assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
 
-#   pragma omp parallel
-    {
-        int ithr = omp_get_thread_num(), nthr = omp_get_num_threads();
+    int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
+    int work_amount = jcp.mb * jcp.ngroups * oc_chunks * jcp.oh;
 
-        int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
+    int nthr;
+    if (jcp.aligned_threads)
+        nthr = jcp.aligned_threads;
+    else
+        nthr = omp_get_max_threads();
+
+#pragma omp parallel num_threads(nthr)
+    {
+        int ithr = omp_get_thread_num();
+
         int start, end, start_copy;
-        int work_amount = jcp.mb * jcp.ngroups * oc_chunks * jcp.oh;
         balance211(work_amount, nthr, ithr, start, end);
         start_copy = start;
 

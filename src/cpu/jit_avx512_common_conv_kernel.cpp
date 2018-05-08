@@ -1014,7 +1014,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
             const convolution_desc_t &cd, cpu_memory_t::pd_t &src_pd,
             cpu_memory_t::pd_t &weights_pd, cpu_memory_t::pd_t &dst_pd,
             cpu_memory_t::pd_t &bias_pd, const primitive_attr_t &attr,
-            bool with_relu, float relu_negative_slope)
+            int nthreads, bool with_relu, float relu_negative_slope)
 {
     using namespace prop_kind;
 
@@ -1065,6 +1065,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
 
     jcp.oc_block = simd_w;
     jcp.ic_block = (jcp.ic % simd_w != 0) ? jcp.ic : simd_w;
+    jcp.aligned_threads = 0;
 
     if (jcp.dilate_h != 0 || jcp.dilate_w != 0 || jcp.dilate_d != 0)
         return status::unimplemented;
@@ -1279,6 +1280,38 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
 
         if (jcp.mb == 1) {
             jcp.kernel_kind = embd_bcast;
+            unsigned int inp_size = jcp.mb * (jcp.ih / jcp.stride_h)
+                    * (jcp.iw / jcp.stride_w) * jcp.ic;
+            unsigned int wei_size = jcp.ic * jcp.oc * jcp.kh * jcp.kw;
+
+            // Estimate whether we need to limit the number of threads
+            // and calculate this number. Includes some heuristic.
+            int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
+            int work_amount = jcp.mb * jcp.ngroups * oc_chunks * jcp.oh;
+            int job_size_min = work_amount / nthreads;
+            int job_size_max = div_up(work_amount, nthreads);
+            int ch_max = rnd_up(jcp.oh, job_size_max);
+            int ch_min = (job_size_min == 0)
+                ? jcp.oh
+                : rnd_up(jcp.oh, job_size_min);
+            bool not_aligned_max = ch_max % jcp.oh != 0 && ch_max / jcp.oh < 2
+                    && (jcp.oh != 8 || ch_max / jcp.oh > 1);
+            bool not_aligned_min = ch_min % jcp.oh != 0 && ch_min / jcp.oh < 2
+                    && (jcp.oh != 8 || ch_min / jcp.oh > 1);
+            bool eligible_case = (jcp.stride_h == 1 && jcp.stride_w == 1)
+                    || nthreads > oc_chunks;
+            if (jcp.loop_order == loop_cgn && oc_chunks > 1 && nthreads > 1
+                && wei_size / inp_size > 12
+                && (not_aligned_max || not_aligned_min)
+                && eligible_case) {
+                jcp.aligned_threads = nthreads;
+                for (int i = nthreads; i > 0; i--) {
+                    if (oc_chunks % i == 0 || i % oc_chunks == 0) {
+                        jcp.aligned_threads = i;
+                        break;
+                    }
+                }
+            }
         } else if (jcp.is_1stconv || jcp.kw > 3
             || ((jcp.kw == 3 && jcp.ow <= 28 && ker_total_size < L1_cache_size)
                 && !(jcp.kw == 3 && jcp.ow == 13 && jcp.ic >= 192)
@@ -2122,6 +2155,7 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
     jcp.iwp = jcp.iw + jcp.l_pad + jcp.r_pad;
     jcp.ohp = jcp.oh;
     jcp.owp = jcp.ow;
+    jcp.aligned_threads = 0;
 
     auto src_format = (ndims == 5) ? nCdhw16c : nChw16c;
     auto wei_format = (ndims == 5)
@@ -3961,6 +3995,7 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
     jcp.iwp = jcp.iw + jcp.l_pad + jcp.r_pad;
     jcp.ohp = jcp.oh;
     jcp.owp = jcp.ow;
+    jcp.aligned_threads = 0;
 
     auto src_format = (ndims == 5) ? nCdhw16c : nChw16c;
     auto wei_format = (ndims == 5)
