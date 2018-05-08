@@ -46,10 +46,19 @@ if(WIN32)
     endif()
 endif()
 
-if(0)
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -prec-div")
-endif()
+    # to make computations more stable and to align the jitted code
+    # with the reference one use precise division and square root
+    # by default
+    file(GLOB FILES_REQUIRED_PREC_DIV_SQRT
+        ${CMAKE_CURRENT_SOURCE_DIR}/cpu/*normalization*.cpp)
+    if(WIN32)
+        set_source_files_properties(${FILES_REQUIRED_PREC_DIV_SQRT}
+            PROPERTIES COMPILE_FLAGS "/Qprec-div /Qprec-sqrt")
+    else()
+        set_source_files_properties(${FILES_REQUIRED_PREC_DIV_SQRT}
+            PROPERTIES COMPILE_FLAGS "-prec-div -prec-sqrt")
+    endif()
 endif()
 
 add_library(${TARGET_NAME} SHARED ${HEADERS} ${SOURCES})
