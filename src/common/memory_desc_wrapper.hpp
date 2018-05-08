@@ -95,7 +95,7 @@ struct memory_desc_wrapper: public c_compatible {
                     goidhw, nCdhw16c, OIdhw16i16o, gOIdhw16i16o, OIdhw16o16i,
                     gOIdhw16o16i, ndhwc, gOidhw16o, Oidhw16o, gOdhwi16o,
                     Odhwi16o, ntc, tnc, ldsnc, ldigo, ldgoi, ldgo, wino_fmt,
-                    dhwio));
+                    dhwio, OIdhw8i16o2i, gOIdhw8i16o2i));
         if (format() == wino_fmt) {
             return wino_desc().size;
         } else {
@@ -181,6 +181,13 @@ struct memory_desc_wrapper: public c_compatible {
         if (format() == gOIhw8i16o2i || format() == OIhw8i16o2i) {
             // TODO: Fix temporary workaround for formats with double blocking
             const bool with_groups = format() == gOIhw8i16o2i;
+            const int oc_16 = pos[with_groups + 0] % 16;
+            const int ic_2  = pos[with_groups + 1] % 2;
+            phys_offset += -16 * ic_2 + oc_16 + ic_2;
+        }
+        if (format() == gOIdhw8i16o2i || format() == OIdhw8i16o2i) {
+            // TODO: Fix temporary workaround for formats with double blocking
+            const bool with_groups = format() == gOIdhw8i16o2i;
             const int oc_16 = pos[with_groups + 0] % 16;
             const int ic_2  = pos[with_groups + 1] % 2;
             phys_offset += -16 * ic_2 + oc_16 + ic_2;
