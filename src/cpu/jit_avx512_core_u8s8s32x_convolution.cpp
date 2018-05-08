@@ -124,12 +124,14 @@ execute_forward()
                 for (int oj = oh_s, ij = ih_s;
                         oj < oh_e; ++oj, ij += jcp.stride_h)
                 {
-                    int i_t_overflow = -min(0, ij);
-                    int i_b_overflow = max(jcp.ih, ij + jcp.kh) - jcp.ih;
+                    int dilate_h = jcp.dilate_h + 1;
+                    int i_t_overflow = div_up(max(0, -ij), dilate_h);
+                    int i_b_overflow = div_up(max(0, ij - jcp.ih
+                                + (jcp.kh - 1) * dilate_h + 1), dilate_h);
                     int kh_padding = nstl::max(0,
                         jcp.kh - i_t_overflow - i_b_overflow);
 
-                    p.src = src_c + i_t_overflow * src_h_stride;
+                    p.src = src_c + i_t_overflow * dilate_h * src_h_stride;
                     p.dst = dst_c;
                     p.filt = wht_w + i_t_overflow * wht_h_stride;
                     p.bias = bias_w;
