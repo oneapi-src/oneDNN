@@ -60,7 +60,7 @@ struct scales_t: public c_compatible {
 
 private:
     enum { scales_buf_size = 16 };
-    alignas(64) float scales_buf_[scales_buf_size];
+    float scales_buf_[scales_buf_size];
 
     void cleanup() {
         if (scales_ != scales_buf_ && scales_ != nullptr)
