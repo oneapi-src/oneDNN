@@ -694,7 +694,7 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
     jcp.r = 3;
     jcp.alpha = jcp.m + jcp.r - 1;
 
-    jcp.yb = 0;
+    jcp.yb = 1;
     int opt_val = 14, cur_val = 0;
     for (int i = 14; i >= 8; i -= 2) {
         cur_val = ((jcp.oh / i) * i + i) - jcp.oh;
