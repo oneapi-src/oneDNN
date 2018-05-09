@@ -302,6 +302,9 @@ struct scratchpad_t {
 
 int init_scratchpad(const  prb_t *p, scratchpad_t &sp) {
 
+    if (sp.out_dim != 4 || sp.alpha != 6)
+        return FAIL;
+
     sp.h_tiles = p->dir == FLAG_FWD ? div_up(p->oh, sp.out_dim) :
                                              div_up(p->ih, sp.out_dim);
     sp.w_tiles = p->dir == FLAG_FWD ? div_up(p->ow, sp.out_dim) :
@@ -346,13 +349,16 @@ void compute_wino_ref_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
     array_offset_calculator<float, 6> M(sp._m_ptr, sp.alpha, sp.alpha, p->oc,
             p->mb, sp.h_tiles, sp.w_tiles);
 
-    float I[sp.alpha][6];
+    float I[6][6];
     float F[3][3];
-    float O[sp.out_dim][4];
+    float O[4][4];
 
-    float _v[sp.alpha][6];
+    float _v[6][6];
     float _u[6][6];
-    float _m[sp.alpha][6];
+    float _m[6][6];
+
+    SAFE_V(p->kh == 3);
+    SAFE_V(p->kw == 3);
 
     bool with_bias = p->dir & FLAG_BIA;
     const int t_pad = p->ph;
@@ -516,13 +522,16 @@ void compute_wino_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
     array_offset_calculator<float, 6> M(sp._v_ptr, sp.alpha, sp.alpha, p->ic,
             p->mb, sp.h_tiles, sp.w_tiles);
 
-    float I[sp.alpha][6];
+    float I[6][6];
     float F[3][3];
-    float O[sp.out_dim][4];
+    float O[4][4];
 
-    float _v[sp.alpha][6];
+    float _v[6][6];
     float _u[6][6];
-    float _m[sp.alpha][6];
+    float _m[6][6];
+
+    SAFE_V(p->kh == 3);
+    SAFE_V(p->kw == 3);
 
     const int r_pad = std::max(0, p->ow - 1 + p->kw - p->iw - p->pw);
     const int l_pad = p->iw + r_pad - p->ow;
@@ -654,13 +663,16 @@ void compute_wino_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m,
     array_offset_calculator<float, 6> M(sp._m_ptr, sp.alpha, sp.alpha, p->oc,
             p->mb, sp.h_tiles, sp.w_tiles);
 
-    float I[sp.alpha][6];
+    float I[6][6];
     float F[6][6];
-    float O[sp.out_dim][6];
+    float O[6][6];
 
-    float _v[sp.alpha][6];
+    float _v[6][6];
     float _u[3][3];
-    float _m[sp.alpha][6];
+    float _m[6][6];
+
+    SAFE_V(p->kh == 3);
+    SAFE_V(p->kw == 3);
 
     bool with_bias = p->dir & FLAG_BIA;
     const int t_pad = p->ph;
