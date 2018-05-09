@@ -113,10 +113,3 @@ if(APPLE)
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${_rpath}")
     endforeach()
 endif()
-
-if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    # Although MKL-ML depends on shared object functions such as dlopen and
-    # dladdr it is not linked against libdl. This causes link failures when
-    # MKL-DNN is build with the gold linker (e.g. -fuse-ld=gold).
-    list(APPEND EXTRA_LIBS dl)
-endif()
