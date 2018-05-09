@@ -145,7 +145,7 @@ void nspc_batch_normalization_fwd_t::execute_forward() {
 #pragma omp simd
                 for (int c = 0; c < C; c++) {
                     data_t sqrt_variance = static_cast<data_t>(
-                            1. / sqrt(variance_loc[c] + eps));
+                            1.0f / sqrtf(variance_loc[c] + eps));
                     data_t sm = use_scaleshift ? scaleshift[c] : 1;
                     data_t sv = use_scaleshift ? scaleshift[C + c] : 0;
                     data_t bn_res
@@ -240,7 +240,7 @@ void nspc_batch_normalization_bwd_t::execute_backward() {
 #pragma omp barrier
         for (int c = C_s; c < C_e; c++) {
             data_t sqrt_variance
-                    = static_cast<data_t>(1. / sqrt(variance[c] + eps));
+                    = static_cast<data_t>(1.0f / sqrtf(variance[c] + eps));
             diff_gamma[c] = 0;
             diff_beta[c] = 0;
             for (int n = 0; n < nthr; n++) {
@@ -262,7 +262,7 @@ void nspc_batch_normalization_bwd_t::execute_backward() {
                     const auto d_off = n * SP * C + sp * C + c;
                     data_t gamma = use_scaleshift ? scaleshift[c] : 1;
                     data_t sqrt_variance
-                            = static_cast<data_t>(1. / sqrt(variance[c] + eps));
+                            = static_cast<data_t>(1.0f / sqrtf(variance[c] + eps));
                     data_t v_diff_src;
                     if (ws)
                         v_diff_src = (!ws[d_off]) ? 0 : diff_dst[d_off];

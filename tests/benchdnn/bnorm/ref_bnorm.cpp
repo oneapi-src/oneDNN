@@ -37,12 +37,11 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &mean,
             }
         }
     };
-
 #   pragma omp parallel for
     for (int c = 0; c < p->ic; ++c) {
         float smean = ((float *)mean)[c];
         float svar = ((float *)var)[c];
-        float denom = (float)(sqrt(svar + p->eps));
+        float rcp_denom = (float)(1.0f / (sqrtf(svar + p->eps)));
 
         float gamma = p->flags & USE_SCALESHIFT ? ((float *)ss)[c] : 1;
         float beta = p->flags & USE_SCALESHIFT ? ((float *)ss)[p->ic + c] : 0;
@@ -52,7 +51,7 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &mean,
         for (int h = 0; h < p->ih; ++h)
         for (int w = 0; w < p->iw; ++w) {
             auto off = data_off(p, mb, c, d, h, w);
-            float res = gamma * (((float *)src)[off] - smean) / denom + beta;
+            float res = gamma * (((float *)src)[off] - smean) * rcp_denom + beta;
             float &D = ((float *)dst)[off];
             if ((p->flags & FUSE_BN_RELU) && res < 0) res = 0;
             maybe_post_ops(res, D);

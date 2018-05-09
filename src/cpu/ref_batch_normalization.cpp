@@ -108,7 +108,7 @@ void ref_batch_normalization_fwd_t<data_type>::execute_forward() {
         }
 
         data_t sqrt_variance =
-            static_cast<data_t>(1. / sqrt(v_variance + eps));
+            static_cast<data_t>(1.0f / sqrtf(v_variance + eps));
 
         for (int n = 0; n < N; ++n)
         for (int d = 0; d < D; ++d)
@@ -189,7 +189,7 @@ void ref_batch_normalization_bwd_t<data_type>::execute_backward() {
     for (int c = 0; c < C; ++c) {
         data_t v_mean = mean[mean_d.off(c)];
         data_t v_variance = variance[variance_d.off(c)];
-        data_t sqrt_variance = static_cast<data_t>(1. / sqrt(v_variance + eps));
+        data_t sqrt_variance = static_cast<data_t>(1.0f / sqrtf(v_variance + eps));
         data_t gamma = use_scaleshift ? scaleshift[scaleshift_d.off(0, c)] : 1;
         data_t diff_gamma = data_t(0);
         data_t diff_beta = data_t(0);

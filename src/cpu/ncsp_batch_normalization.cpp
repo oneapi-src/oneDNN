@@ -171,7 +171,7 @@ void ncsp_batch_normalization_fwd_t::execute_forward() {
                 data_t sm = use_scaleshift ? scaleshift[off] : 1;
                 data_t sv = use_scaleshift ? scaleshift[C + off] : 0;
                 data_t sqrt_variance
-                        = static_cast<data_t>(1. / sqrt(variance[off] + eps));
+                        = static_cast<data_t>(1.0f / sqrtf(variance[off] + eps));
                 for (int n = N_s; n < N_e; ++n)
 #pragma omp simd
                     for (int sp = S_s; sp < S_e; ++sp) {
@@ -294,7 +294,7 @@ void ncsp_batch_normalization_bwd_t::execute_backward() {
 #pragma omp barrier
             for (int c = C_blk_gl_s; c < C_blk_gl_e; c++) {
                 data_t sqrt_variance = static_cast<data_t>(
-                        1. / sqrt(variance[c + C_off] + eps));
+                        1.0f / sqrtf(variance[c + C_off] + eps));
                 diff_gamma_blk[c] = 0.;
                 diff_beta_blk[c] = 0.;
                 for (int n = 0; n < SP_N_nthr; n++) {
@@ -309,7 +309,7 @@ void ncsp_batch_normalization_bwd_t::execute_backward() {
                 auto off = c + C_off;
                 data_t gamma = use_scaleshift ? scaleshift[off] : 1;
                 data_t sqrt_variance
-                        = static_cast<data_t>(1. / sqrt(variance[off] + eps));
+                        = static_cast<data_t>(1.0f / sqrtf(variance[off] + eps));
                 data_t v_mean = mean[off];
                 for (int n = N_s; n < N_e; ++n)
 #pragma omp simd
