@@ -940,9 +940,9 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
             int best_lgc = ratio > 1 ? n_lgc : 1;
             auto calc_job_cost = [&](int lb, int tg, float mem_k) {
                 int bb_size = div_up(nb_bcast, tg);
-                float calc_size = (bb_size * jcp.ur) * (lb * jcp.load_block)
-                        * jcp.reduce_dim;
-                float mem_size = (bb_size * jcp.ur + lb * jcp.load_block)
+                float calc_size = (float)(bb_size * jcp.ur)
+                        * (lb * jcp.load_block) * jcp.reduce_dim;
+                float mem_size = (float)(bb_size * jcp.ur + lb * jcp.load_block)
                         * jcp.reduce_dim;
                 return calc_koef * calc_size + mem_k * mem_size;
             };
