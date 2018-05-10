@@ -807,7 +807,7 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_fma_core(int ur_w,
 void jit_avx512_common_conv_fwd_kernel::compute_loop_vnni(
         int ur_w, int pad_l, int pad_r)
 {
-    Label kh_label;
+    Label kh_label, kd_label;
     const int ker_reg_base_idx = 28;
     const int channel_inc = jcp.ver == ver_4vnni ? 4 : 1;
     const int ker_load_number = jcp.ver == ver_4vnni ? 4 : 1;
@@ -816,19 +816,47 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_vnni(
     const int shift_input_ptr
             = jcp.typesize_in * (jcp.dilate_h + 1) * jcp.iw * jcp.ic_block;
 
-    mov(aux_reg_inp, reg_inp);
-    mov(aux_reg_ker, reg_ker);
-    mov(aux_reg_ker_prf, reg_ker_prf);
-    mov(aux_reg_inp_prf, reg_inp_prf);
+    if (jcp.ndims == 4) {
+        mov(aux_reg_inp, reg_inp);
+        mov(aux_reg_ker, reg_ker);
+        mov(aux_reg_ker_prf, reg_ker_prf);
+        mov(aux_reg_inp_prf, reg_inp_prf);
+    }
 
     prepare_output(ur_w);
 
-    Label skip_kh_loop;
-    mov(reg_kj, reg_kh);
+    Label skip_kh_loop, skip_kd_loop;
+
+    if (jcp.ndims == 5) {
+        push(reg_out_prf);
+        push(reg_out);
+
+        mov(reg_ki, ptr[param1 + GET_OFF(kd_padding)]);
+        mov(aux_reg_ker_d, ptr[param1 + GET_OFF(filt)]);
+        mov(aux_reg_inp_d, reg_inp);
+        mov(aux_reg_inp_d_prf, reg_inp_prf);
+        mov(aux_reg_ker_d_prf, reg_ker_prf);
+
+        if (jcp.kd <= jcp.f_pad) {
+            cmp(reg_ki, 0);
+            je(skip_kd_loop, T_NEAR);
+        }
+        L(kd_label);
+        mov(reg_kj, ptr[param1 + GET_OFF(kh_padding)]);
+    } else {
+        mov(reg_kj, reg_kh);
+    }
     if ((jcp.kh - 1) * (jcp.dilate_h + 1) < jcp.t_pad) {
         cmp(reg_kj, 0);
         je(skip_kh_loop, T_NEAR);
     }
+    if (jcp.ndims == 5) {
+        mov(aux_reg_inp, aux_reg_inp_d);
+        mov(aux_reg_ker, aux_reg_ker_d);
+        mov(aux_reg_ker_prf, aux_reg_ker_d_prf);
+        mov(aux_reg_inp_prf, aux_reg_inp_d_prf);
+    }
+
     L(kh_label); {
         for (int ki = 0; ki < jcp.kw; ki++) {
             int ow_start = get_ow_start(ki, pad_l);
@@ -894,6 +922,24 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_vnni(
     }
 
     L(skip_kh_loop);
+
+    if (jcp.ndims == 5) {
+        add(aux_reg_inp_d, jcp.typesize_in * jcp.ih * jcp.iw * jcp.ic_block);
+        add(aux_reg_ker_d, jcp.typesize_in * jcp.kw * jcp.kh * jcp.oc_block
+                * jcp.ic_block);
+        add(aux_reg_inp_d_prf, jcp.typesize_in * jcp.ih * jcp.iw * jcp.ic_block);
+        add(aux_reg_ker_d_prf, jcp.typesize_in * jcp.kw * jcp.kh * jcp.oc_block
+                * jcp.ic_block);
+
+        dec(reg_ki);
+        cmp(reg_ki, 0);
+        jg(kd_label, T_NEAR);
+        L(skip_kd_loop);
+
+        pop(reg_out);
+        pop(reg_out_prf);
+    }
+
     store_output(ur_w);
 }
 
@@ -1157,10 +1203,12 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
         jcp.typesize_in = sizeof(int16_t);
         jcp.typesize_out = sizeof(int32_t);
 
-        const auto w_format = with_groups ? gOIhw8i16o2i : OIhw8i16o2i;
+        const auto w_format = (ndims == 5)
+            ? with_groups ? gOIdhw8i16o2i : OIdhw8i16o2i
+            : with_groups ? gOIhw8i16o2i : OIhw8i16o2i;
         if (weights_d.format() == any)
             CHECK(weights_pd.set_format(w_format));
-        if (!one_of(weights_d.format(), gOIhw8i16o2i, OIhw8i16o2i))
+        if (weights_d.format() != w_format)
             return status::unimplemented;
     } else if (mayiuse(avx512_common) &&
             src_d.data_type() == data_type::f32
