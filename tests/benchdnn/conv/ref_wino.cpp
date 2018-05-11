@@ -667,15 +667,11 @@ void compute_wino_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m,
     SAFE_V(p->kh == 3 ? OK : FAIL);
     SAFE_V(p->kw == 3 ? OK : FAIL);
 
-    const bool with_bias = p->dir & FLAG_BIA;
     const int t_pad = p->ph;
     const int l_pad = p->pw;
     const int wp_max = p->iw + l_pad;
     const int hp_max = p->ih + t_pad;
     const int p_dim = p->mb * sp.h_tiles * sp.w_tiles;
-
-    if (with_bias)
-        array_set((char *)diff_bia_m, sizeof(float) * p->oc);
 
 #pragma omp parallel
     {
@@ -733,12 +729,6 @@ void compute_wino_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m,
                                     size_t dst_off = dst_off_f(
                                             p, img, 0, oc, 0, ydim, xdim);
                                     O[j][k] = ((float *)diff_dst_m)[dst_off];
-                                    if (with_bias && j < sp.out_dim
-                                            && k < sp.out_dim) {
-                                        size_t bia_off = bia_off_f(p, 0, oc);
-                                        ((float *)diff_bia_m)[bia_off] += ((
-                                                float *)diff_dst_m)[dst_off];
-                                    }
                                 } else {
                                     O[j][k] = 0.f;
                                 }
@@ -795,6 +785,9 @@ void compute_wino_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m,
     }
 
     free_scratchpad(&sp);
+
+    if (p->dir & FLAG_BIA)
+        compute_ref_bwd_bias(p, diff_bia_m, diff_dst_m);
 }
 
 }
