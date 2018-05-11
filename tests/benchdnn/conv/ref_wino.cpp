@@ -14,8 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <algorithm>
-
+#include "common.hpp"
 #include "conv/conv_common.hpp"
 
 #if defined(USE_MKL)
@@ -533,7 +532,7 @@ void compute_wino_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
     SAFE_V(p->kh == 3 ? OK : FAIL);
     SAFE_V(p->kw == 3 ? OK : FAIL);
 
-    const int r_pad = std::max(0, p->ow - 1 + p->kw - p->iw - p->pw);
+    const int r_pad = MAX2(0, p->ow - 1 + p->kw - p->iw - p->pw);
     const int l_pad = p->iw + r_pad - p->ow;
     const int t_pad = p->ih + p->ph - p->oh;
     const int wp_max = p->ow + l_pad;
