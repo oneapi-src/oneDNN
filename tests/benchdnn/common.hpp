@@ -51,7 +51,7 @@
 enum { CRIT = 1, WARN = 2 };
 
 #define SAFE(f, s) do { \
-    int status = f; \
+    int status = (f); \
     if (status != OK) { \
         if (s == CRIT || s == WARN) { \
             fprintf(stderr, "@@@ error [%s:%d]: '%s' -> %d\n", \
@@ -64,7 +64,7 @@ enum { CRIT = 1, WARN = 2 };
 } while(0)
 
 #define SAFE_V(f) do { \
-    int status = f; \
+    int status = (f); \
     if (status != OK) { \
         fprintf(stderr, "@@@ error [%s:%d]: '%s' -> %d\n", \
                 __PRETTY_FUNCTION__, __LINE__, STRINGIFY(f), status); \
