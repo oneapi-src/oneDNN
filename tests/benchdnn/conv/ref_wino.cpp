@@ -215,7 +215,7 @@ void trans_O_4x4_3x3(float Mw[6][6], float O[4][4]) {
     }
 }
 
-void trans_W_3x3_4x4(float Fw[6][6], float F[4][6]) {
+void trans_W_3x3_4x4_wu(float Fw[6][6], float F[4][6]) {
     float T[6][4];
     float t0;
     float t1;
@@ -667,12 +667,15 @@ void compute_wino_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m,
     SAFE_V(p->kh == 3 ? OK : FAIL);
     SAFE_V(p->kw == 3 ? OK : FAIL);
 
-    bool with_bias = p->dir & FLAG_BIA;
+    const bool with_bias = p->dir & FLAG_BIA;
     const int t_pad = p->ph;
     const int l_pad = p->pw;
     const int wp_max = p->iw + l_pad;
     const int hp_max = p->ih + t_pad;
     const int p_dim = p->mb * sp.h_tiles * sp.w_tiles;
+
+    if (with_bias)
+        array_set((char *)diff_bia_m, sizeof(float) * p->oc);
 
 #pragma omp parallel
     {
@@ -715,10 +718,7 @@ void compute_wino_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m,
         }
     }
 
-    if (with_bias)
-        array_set((char *)diff_bia_m, sizeof(float) * p->oc);
-
-#pragma omp for collapse(4) private(I, _v)
+#pragma omp for collapse(4) private(O, _m)
     /* diff_dst transform */
     for (int oc = 0; oc < p->oc; oc++) {
         for (int img = 0; img < p->mb; img++) {
@@ -749,7 +749,7 @@ void compute_wino_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m,
                             }
                         }
                     }
-                    trans_W_3x3_4x4(_m, O);
+                    trans_W_3x3_4x4_wu(_m, O);
 
                     /* scatter v:V */
                     for (int j = 0; j < sp.alpha; j++) {
@@ -772,7 +772,7 @@ void compute_wino_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m,
         }
     }
 
-#pragma omp for collapse(2)
+#pragma omp for collapse(2) private(F, _u)
     for (int oc = 0; oc < p->oc; ++oc) {
         for (int ic = 0; ic < p->ic; ++ic) {
             for (int j = 0; j < sp.alpha; j++) {
