@@ -39,7 +39,7 @@
 #define CONCAt2(a,b) a ## b
 #define CONCAT2(a,b) CONCAt2(a,b)
 
-#if defined(_WIN32) && !defined(__GNUC__) 
+#if defined(_WIN32) && !defined(__GNUC__)
 #define strncasecmp _strnicmp
 #define strcasecmp _stricmp
 #define __PRETTY_FUNCTION__ __FUNCSIG__
@@ -169,7 +169,7 @@ int flip_coin(ptrdiff_t seed, float probability);
 
 int div_up(const int a, const int b);
 
-/* set '0' accross *arr:+size */
+/* set '0' across *arr:+size */
 void array_set(char *arr, size_t size);
 
 #endif

@@ -47,7 +47,6 @@ namespace conv {
  * */
 inline void _GEMM(const int m, const int n, const int k, const float *a,
         const int lda, const float *b, const int ldb, float *c, const int ldc) {
-
 #if defined(USE_CBLAS) || defined(USE_MKL)
     cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, n, k, 1.f, a, lda,
             b, ldb, 1.f, c, ldc);
@@ -105,8 +104,7 @@ private:
     const int _dims[Tdims];
 };
 
-void trans_I_4x4_3x3(float Iw[6][6], float I[6][6])
-{
+void trans_I_4x4_3x3(float Iw[6][6], float I[6][6]) {
     float T[6][6];
     float t0;
     float t1;
@@ -147,6 +145,7 @@ void trans_I_4x4_3x3(float Iw[6][6], float I[6][6])
         Iw[i][5] = T[i][3] * -2.640625f + t5;
     }
 }
+
 void trans_W_4x4_3x3(float Fw_[6][6], float F[3][3]) {
     float Fw[6];
     float T[6][3];
@@ -166,6 +165,7 @@ void trans_W_4x4_3x3(float Fw_[6][6], float F[3][3]) {
         T[4][i] = t2 - 0.179271708683473f * F[1][i];
         T[5][i] = F[2][i];
     }
+
     for (int i = 0; i < 6; i++) {
         t0 = 0.26890756302521f * T[i][2];
         t1 = -t0 - 0.688403361344538f * T[i][0];
@@ -201,6 +201,7 @@ void trans_O_4x4_3x3(float Mw[6][6], float O[4][4]) {
         T[2][i] = t0 * 0.390625f + t1 * 2.25f;
         T[3][i] = t2 * 0.244140625f + t3 * 3.375f + Mw[5][i];
     }
+
     for (int i = 0; i < 4; i++) {
         t0 = T[i][1] + T[i][2];
         t1 = T[i][3] + T[i][4];
@@ -214,8 +215,7 @@ void trans_O_4x4_3x3(float Mw[6][6], float O[4][4]) {
     }
 }
 
-void trans_W_3x3_4x4(float Fw[6][6], float F[4][6])
-{
+void trans_W_3x3_4x4(float Fw[6][6], float F[4][6]) {
     float T[6][4];
     float t0;
     float t1;
@@ -237,6 +237,7 @@ void trans_W_3x3_4x4(float Fw[6][6], float F[4][6])
         T[4][i] = t2 - t4;
         T[5][i] = F[3][i];
     }
+
     for (int i = 0; i < 6; i++) {
         t0 = T[i][2] * 0.26890756302521f;
         t1 = T[i][0] * -0.688403361344538f - t0;
@@ -253,38 +254,37 @@ void trans_W_3x3_4x4(float Fw[6][6], float F[4][6])
     }
 }
 
-void trans_O_3x3_4x4_wu(float Mw[6][6], float M[3][3])
-{
+void trans_O_3x3_4x4_wu(float Mw[6][6], float M[3][3]) {
     float T[3][6];
     float t0;
     float t1;
     float t2;
     float M_[3];
 
-        for (int i = 0; i < 6; i++) {
-                t0 = Mw[1][i] + Mw[2][i];
-                t1 = Mw[3][i] + Mw[4][i];
-                t2 = t1 * 2.25f + Mw[5][i];
+    for (int i = 0; i < 6; i++) {
+        t0 = Mw[1][i] + Mw[2][i];
+        t1 = Mw[3][i] + Mw[4][i];
+        t2 = t1 * 2.25f + Mw[5][i];
 
-                T[0][i] = Mw[0][i] + t0 + t1;
-                T[1][i] = 0.625f * (Mw[1][i] - Mw[2][i]) +
-                             1.5f * (Mw[3][i] - Mw[4][i]);
-                T[2][i] = t0 * 0.390625f + t2;
+        T[0][i] = Mw[0][i] + t0 + t1;
+        T[1][i] = 0.625f * (Mw[1][i] - Mw[2][i]) +
+            1.5f * (Mw[3][i] - Mw[4][i]);
+        T[2][i] = t0 * 0.390625f + t2;
+    }
+    for (int i = 0; i < 3; i++) {
+        t0 = T[i][1] + T[i][2];
+        t1 = T[i][3] + T[i][4];
+        t2 = t1 * 2.25f + T[i][5];
+
+        M_[0] = T[i][0] + t0 + t1;
+        M_[1] = 0.625f * (T[i][1] - T[i][2]) +
+            1.5f * (T[i][3] - T[i][4]);
+        M_[2] = t0 * 0.390625f + t2;
+
+        for (int k = 0; k < 3; k++) {
+            M[i][k] = M_[k];
         }
-        for (int i = 0; i < 3; i++) {
-                t0 = T[i][1] + T[i][2];
-                t1 = T[i][3] + T[i][4];
-                t2 = t1 * 2.25f + T[i][5];
-
-                M_[0] = T[i][0] + t0 + t1;
-                M_[1] = 0.625f * (T[i][1] - T[i][2]) +
-                           1.5f * (T[i][3] - T[i][4]);
-                M_[2] = t0 * 0.390625f + t2;
-
-            for (int k = 0; k < 3; k++) {
-                    M[i][k] = M_[k];
-            }
-        }
+    }
 }
 
 struct scratchpad_t {
@@ -300,7 +300,6 @@ struct scratchpad_t {
 };
 
 int init_scratchpad(const  prb_t *p, scratchpad_t &sp) {
-
     if (sp.out_dim != 4 || sp.alpha != 6)
         return FAIL;
 
@@ -329,7 +328,7 @@ int init_scratchpad(const  prb_t *p, scratchpad_t &sp) {
     return OK;
 }
 
-void free_scratchpad(scratchpad_t *sp){
+void free_scratchpad(scratchpad_t *sp) {
     if(sp->_u_ptr != NULL) zfree(sp->_u_ptr);
     if(sp->_v_ptr != NULL) zfree(sp->_v_ptr);
     if(sp->_m_ptr != NULL) zfree(sp->_m_ptr);
@@ -337,7 +336,6 @@ void free_scratchpad(scratchpad_t *sp){
 
 void compute_wino_ref_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
         dnn_mem_t &bia_m, dnn_mem_t &dst_m) {
-
     scratchpad_t sp{};
     SAFE_V(init_scratchpad(p, sp));
 
@@ -505,12 +503,10 @@ void compute_wino_ref_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
     }
 
     free_scratchpad(&sp);
-
 }
 
 void compute_wino_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
         dnn_mem_t &wei_m, dnn_mem_t &diff_dst_m) {
-
     scratchpad_t sp{};
     SAFE_V(init_scratchpad(p, sp));
 
@@ -646,12 +642,10 @@ void compute_wino_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
     }
 
     free_scratchpad(&sp);
-
 }
 
 void compute_wino_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m,
         dnn_mem_t &diff_wei_m, dnn_mem_t &diff_bia_m, dnn_mem_t &diff_dst_m) {
-
     scratchpad_t sp{};
     SAFE_V(init_scratchpad(p, sp));
 
@@ -801,6 +795,6 @@ void compute_wino_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m,
     }
 
     free_scratchpad(&sp);
-
 }
+
 }
