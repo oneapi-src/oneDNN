@@ -357,8 +357,8 @@ void compute_wino_ref_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
     float _u[6][6];
     float _m[6][6];
 
-    SAFE_V(p->kh == 3);
-    SAFE_V(p->kw == 3);
+    SAFE_V(p->kh == 3 ? OK : FAIL);
+    SAFE_V(p->kw == 3 ? OK : FAIL);
 
     bool with_bias = p->dir & FLAG_BIA;
     const int t_pad = p->ph;
@@ -530,8 +530,8 @@ void compute_wino_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
     float _u[6][6];
     float _m[6][6];
 
-    SAFE_V(p->kh == 3);
-    SAFE_V(p->kw == 3);
+    SAFE_V(p->kh == 3 ? OK : FAIL);
+    SAFE_V(p->kw == 3 ? OK : FAIL);
 
     const int r_pad = std::max(0, p->ow - 1 + p->kw - p->iw - p->pw);
     const int l_pad = p->iw + r_pad - p->ow;
@@ -671,8 +671,8 @@ void compute_wino_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m,
     float _u[3][3];
     float _m[6][6];
 
-    SAFE_V(p->kh == 3);
-    SAFE_V(p->kw == 3);
+    SAFE_V(p->kh == 3 ? OK : FAIL);
+    SAFE_V(p->kw == 3 ? OK : FAIL);
 
     bool with_bias = p->dir & FLAG_BIA;
     const int t_pad = p->ph;

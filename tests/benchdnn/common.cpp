@@ -373,7 +373,7 @@ int flip_coin(ptrdiff_t seed, float probability) {
 }
 
 int div_up(const int a, const int b){
-    SAFE_V(b != 0);
+    SAFE_V(b != 0 ? OK : FAIL);
     return (a + b - 1) / b;
 }
 
