@@ -793,7 +793,7 @@ struct memory: public primitive  {
 };
 
 inline memory::desc zero_md() {
-    mkldnn_memory_desc_t zero{};
+    mkldnn_memory_desc_t zero;
     zero.primitive_kind = mkldnn_memory;
     return memory::desc(zero);
 }
