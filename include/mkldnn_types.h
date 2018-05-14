@@ -378,7 +378,7 @@ typedef enum {
     mkldnn_deconvolution,
     /** An element-wise primitive. */
     mkldnn_eltwise,
-    /** A ReLU primitive, @deprecated. */
+    /** A ReLU primitive. @deprecated */
     mkldnn_relu = mkldnn_eltwise,
     /** A Softmax primitive. */
     mkldnn_softmax,
@@ -390,7 +390,7 @@ typedef enum {
     mkldnn_batch_normalization,
     /** An inner product primitive. */
     mkldnn_inner_product,
-    /** A convolution primitive merged with relu */
+    /** A convolution primitive merged with ReLU. @deprecated */
     mkldnn_convolution_relu,
     /** A rnn primitive. */
     mkldnn_rnn,
@@ -476,7 +476,7 @@ typedef enum {
     mkldnn_use_scaleshift = 0x2U,
     /** Omit statistics
      *
-     * @warning: deprecated, use #mkldnn_use_global_stats instead
+     * @deprecated use #mkldnn_use_global_stats instead
      *
      * For time being had an affect on backward propagation only which allowed
      * skipping some computations (the same semantics as
@@ -1083,7 +1083,7 @@ typedef enum {
     mkldnn_query_lrn_d, /**< lrn descriptor */
     mkldnn_query_batch_normalization_d, /**< batch normalization descriptor */
     mkldnn_query_inner_product_d, /**< inner product descriptor */
-    mkldnn_query_convolution_relu_d, /**< convolution-relu descriptor */
+    mkldnn_query_convolution_relu_d, /**< @deprecated */
     mkldnn_query_rnn_d, /**< rnn descriptor */
 
     /* (memory) primitive descriptor section */

@@ -955,11 +955,12 @@ mkldnn_status_t MKLDNN_API mkldnn_batch_normalization_backward_desc_init(
 
 /** @addtogroup c_api_inner_product Inner product
  * A primitive to compute an inner product.
+ *
  * Inner product layer is also known as fully connected layer.
  * with spatial dimension:
- * 
+ *
  * \f[dst[n][oc] = \sum\limits_{ic, kh, kw}
- *                 src[n][ic][kh][kw] \cdot weights[oc][ic][kh][kw] 
+ *                 src[n][ic][kh][kw] \cdot weights[oc][ic][kh][kw]
  *                 + bias[oc]\f]
  * @{ */
 
@@ -1006,13 +1007,16 @@ mkldnn_status_t MKLDNN_API mkldnn_inner_product_backward_weights_desc_init(
 
 /** @} */
 
-/** @addtogroup c_api_convolution_relu Convolution followed by ReLU
+/** @addtogroup c_api_convolution_relu Convolution followed by ReLU (deprecated)
  * A merged primitive to compute a convolution followed by relu.
  * @{ */
 
 /** Initializes a merged convolution-relu descriptor @p conv_relu_desc for
  * forward propagation (supported inference mode only) using convolution
- * descriptor @p conv_desc and ReLU parameter @p negative slope. */
+ * descriptor @p conv_desc and ReLU parameter @p negative slope.
+ *
+ * @deprecated use mkldnn_convolution_desc_init with
+ * mkldnn_post_ops_append_eltwise to append ReLU */
 mkldnn_status_t MKLDNN_API mkldnn_convolution_relu_desc_init(
         mkldnn_convolution_relu_desc_t *conv_relu_desc,
         const mkldnn_convolution_desc_t *conv_desc, float negative_slope);

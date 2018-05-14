@@ -1658,12 +1658,16 @@ struct convolution_backward_weights : public primitive {
     }
 };
 
+/// A merged convolution-relu primitive for inference mode only
+///
+/// @deprecated consider using convolution_forward with post_ops
+/// (e.g. post_ops::append_eltwise(1.f, #eltwise_relu, negative_slope, 0.f)
 struct convolution_relu_forward : public primitive {
     struct desc {
         mkldnn_convolution_relu_desc_t data;
+
         desc(const convolution_forward::desc conv_desc,
-                const float negative_slope)
-        {
+                const float negative_slope) {
             error::wrap_c_api(mkldnn_convolution_relu_desc_init(&data,
                         &conv_desc.data, negative_slope),
                     "could not create a convolution_relu_forward descriptor");
@@ -1682,6 +1686,8 @@ struct convolution_relu_forward : public primitive {
         engine get_engine() { return engine::query(*this); }
     };
 
+    /// @deprecated consider using convolution_forward + post_ops
+    MKLDNN_DEPRECATED
     convolution_relu_forward(const primitive_desc &aprimitive_desc,
             const primitive::at &src, const primitive::at &weights,
             const primitive::at &bias, const memory &dst) {
@@ -1697,6 +1703,8 @@ struct convolution_relu_forward : public primitive {
         reset(result);
     }
 
+    /// @deprecated consider using convolution_forward + post_ops
+    MKLDNN_DEPRECATED
     convolution_relu_forward(const primitive_desc &aprimitive_desc,
             const primitive::at &src, const primitive::at &weights,
             const memory &dst) {
