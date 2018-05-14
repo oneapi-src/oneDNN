@@ -23,6 +23,10 @@ if(POLICY CMP0065)
     cmake_policy(SET CMP0065 NEW)
 endif()
 
+# propagate TEST specific flags
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CMAKE_TEST_CCXX_FLAGS}")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_TEST_CCXX_FLAGS}")
+
 if(UNIX OR APPLE OR MINGW)
     # workaround for Intel Compiler 16.0 that doesn't suppress warning on
     # deprecation with "-Wno-deprecated" compiler flag

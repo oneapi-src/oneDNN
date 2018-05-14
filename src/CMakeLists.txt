@@ -32,6 +32,10 @@ include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/cpu/xbyak
     )
 
+# propagate SRC specific flags
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CMAKE_SRC_CCXX_FLAGS}")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_SRC_CCXX_FLAGS}")
+
 if(VTUNEROOT)
     include_directories(${VTUNEROOT}/include)
     add_definitions(-DJIT_PROFILING_VTUNE)
