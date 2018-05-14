@@ -213,6 +213,8 @@ const_mkldnn_primitive_desc_t primitive::get_primitive_desc() const {
 /// @}
 
 /// @addtogroup cpp_api_enums Common data types and enumerations
+/// A proxy to @ref c_api_types in @ref c_api.
+///
 /// @{
 
 enum round_mode {
@@ -347,6 +349,9 @@ inline mkldnn_query_t convert_to_c(query aquery) {
 /// @}
 
 /// @addtogroup cpp_api_attr Attributes
+/// An extension for controlling primitive behavior.
+///
+/// @sa @ref c_api_attributes in @ref c_api
 /// @{
 
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
@@ -466,6 +471,9 @@ struct primitive_attr: public handle<mkldnn_primitive_attr_t> {
 /// @}
 
 /// @addtogroup cpp_api_engine Engine
+/// Engine operations
+///
+/// @sa @ref c_api_engine in @ref c_api
 /// @{
 
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
@@ -545,6 +553,9 @@ private:
 /// @{
 
 /// @addtogroup cpp_api_memory Memory
+/// A primitive to describe data.
+///
+/// @sa @ref c_api_memory in @ref c_api
 /// @{
 
 /// Memory primitive that describes the data.
@@ -861,6 +872,9 @@ inline bool operator!=(memory::format a, mkldnn_memory_format_t b) {
 /// @}
 
 /// @addtogroup cpp_api_reorder Reorder
+/// A primitive to copy data between memory formats.
+///
+/// @sa @ref c_api_reorder in @ref c_api
 /// @{
 
 struct reorder : public primitive {
@@ -917,6 +931,9 @@ struct reorder : public primitive {
 /// @}
 
 /// @addtogroup cpp_api_view View
+/// A primitive to view on a memory.
+///
+/// @sa mkldnn_view_primitive_desc_create in @ref c_api
 /// @{
 
 struct view : public primitive {
@@ -971,6 +988,9 @@ struct view : public primitive {
 /// @}
 
 /// @addtogroup cpp_api_concat Concat
+/// A primitive to concatenate data by arbitrary dimension
+///
+/// @sa @ref c_api_concat in @ref c_api
 /// @{
 
 struct concat : public primitive {
@@ -1045,6 +1065,9 @@ struct concat : public primitive {
 /// @}
 
 /// @addtogroup cpp_api_sum Sum
+/// A primitive to sum data
+///
+/// @sa @ref c_api_sum in @ref c_api
 /// @{
 
 struct sum : public primitive {
@@ -1161,6 +1184,9 @@ private:
 /// @}
 
 /// @addtogroup cpp_api_convolution Convolution
+/// A primitive to compute convolution using different algorithms.
+///
+/// @sa @ref c_api_convolution in @ref c_api
 /// @{
 
 struct convolution_forward: public primitive {
@@ -1689,6 +1715,9 @@ struct convolution_relu_forward : public primitive {
 /// @}
 //
 /// @addtogroup cpp_api_deconvolution Deconvolution
+/// A primitive to compute deconvolution using different algorithms.
+///
+/// @sa @ref c_api_deconvolution in @ref c_api
 /// @{
 
 struct deconvolution_forward: public primitive {
@@ -2057,6 +2086,10 @@ struct deconvolution_backward_weights : public primitive {
 /// @}
 
 /// @addtogroup cpp_api_lrn LRN
+/// A primitive to perform local response normalization (LRN) across or within
+/// channels.
+///
+/// @sa @ref c_api_lrn in @ref c_api
 /// @{
 
 struct lrn_forward : public primitive {
@@ -2263,6 +2296,9 @@ struct lrn_backward : public primitive {
 /// @}
 
 /// @addtogroup cpp_api_pooling Pooling
+/// A primitive to perform max or average pooling.
+///
+/// @sa @ref c_api_pooling in @ref c_api
 /// @{
 
 struct pooling_forward : public primitive {
@@ -2455,6 +2491,10 @@ struct pooling_backward : public primitive {
 /// @}
 
 /// @addtogroup cpp_api_eltwise Eltwise
+/// A primitive to compute element wise operations like parametric rectifier
+/// linear unit (ReLU).
+///
+/// @sa @ref c_api_eltwise in @ref c_api
 /// @{
 
 struct eltwise_forward : public primitive {
@@ -2585,6 +2625,9 @@ typedef eltwise_backward relu_backward;
 /// @}
 
 /// @addtogroup cpp_api_softmax Softmax
+/// A primitive to perform softmax.
+///
+/// @sa @ref c_api_softmax in @ref c_api
 /// @{
 
 struct softmax_forward : public primitive {
@@ -2678,6 +2721,9 @@ struct softmax_backward : public primitive {
 /// @}
 
 /// @addtogroup cpp_api_batch_norm Batch normalization
+/// A primitive to perform batch normalization.
+///
+/// @sa @ref c_api_batch_normalization in @ref c_api
 /// @{
 
 struct batch_normalization_forward : public primitive {
@@ -3135,6 +3181,9 @@ struct batch_normalization_backward : public primitive {
 /// @}
 
 /// @addtogroup cpp_api_inner_product Inner Product
+/// A primitive to compute an inner product.
+///
+/// @sa @ref c_api_inner_product in @ref c_api
 /// @{
 
 struct inner_product_forward: public primitive {
@@ -3460,6 +3509,9 @@ struct inner_product_backward_weights: public primitive {
 /// @}
 
 /// @addtogroup cpp_api_rnn RNN
+/// A primitive to compute common recurrent layer.
+///
+/// @sa @ref c_api_rnn in @ref c_api
 /// @{
 
 struct rnn_cell {
@@ -3942,6 +3994,9 @@ struct rnn_backward : public primitive {
 /// @} Primitives
 
 /// @addtogroup cpp_api_stream Stream
+/// Execution stream operations
+///
+/// @sa @ref c_api_stream in @ref c_api
 /// @{
 
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
