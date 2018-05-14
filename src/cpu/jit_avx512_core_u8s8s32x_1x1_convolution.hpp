@@ -40,7 +40,7 @@ struct _jit_avx512_core_u8s8s32x_1x1_convolution_fwd_t : public cpu_primitive_t 
                 const typename pd_t::base_class *hint_fwd_pd)
             : _cpu_convolution_fwd_pd_t<with_relu>(engine, adesc, attr,
                     hint_fwd_pd)
-            , jcp_({}), rtus_({}) {}
+            , jcp_(), rtus_() {}
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit_1x1:", avx512_core, ""),

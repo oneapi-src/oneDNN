@@ -42,7 +42,7 @@ status_t eltwise_desc_init(eltwise_desc_t *eltwise_desc, prop_kind_t prop_kind,
         && implication(prop_kind == backward_data, diff_data_desc != nullptr);
     if (!args_ok) return invalid_arguments;
 
-    eltwise_desc_t ed = {};
+    auto ed = eltwise_desc_t();
     ed.primitive_kind = primitive_kind::eltwise;
     ed.prop_kind = prop_kind;
     ed.alg_kind = alg_kind;

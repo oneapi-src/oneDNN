@@ -64,7 +64,7 @@ void _jit_sse42_convolution_fwd_t<with_relu>::execute_forward() {
                 int ocb_num = jcp.nb_oc_blocking;
 
                 for (int icb = icbb; icb < icbb + icb_step; ++icb) {
-                    jit_conv_call_s par_conv = {};
+                    auto par_conv = jit_conv_call_s();
 
                     const int ij = oh * jcp.stride_h;
                     const int i_t_overflow = nstl::max(0, jcp.t_pad - ij);

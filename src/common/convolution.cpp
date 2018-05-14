@@ -46,7 +46,7 @@ status_t conv_desc_init(convolution_desc_t *conv_desc,
 
     if (padding_r == nullptr) padding_r = padding_l;
 
-    convolution_desc_t cd = {};
+    auto cd = convolution_desc_t();
     cd.primitive_kind = primitive_kind::convolution;
     cd.prop_kind = prop_kind;
     cd.alg_kind = alg_kind;

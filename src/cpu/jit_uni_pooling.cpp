@@ -41,7 +41,7 @@ void jit_uni_pooling_fwd_t<isa>::execute_forward() {
     const auto &jpp = conf_.jpp_;
 
     auto ker = [&](int n, int b_c, int oh) {
-        jit_pool_call_s arg = {};
+        auto arg = jit_pool_call_s();
 
         const int ij = oh * jpp.stride_h;
         const int i_t_overflow = nstl::max(0, jpp.t_pad-ij);
@@ -91,7 +91,7 @@ void jit_uni_pooling_fwd_t<isa>::execute_forward_3d() {
 
     auto ker = [&](int n, int b_c, int od, int oh, int id, int d_t_overflow,
             int d_b_overflow) {
-        jit_pool_call_s arg = {};
+        auto arg = jit_pool_call_s();
 
         const int ij = oh * jpp.stride_h;
         const int i_t_overflow = nstl::max(0, jpp.t_pad-ij);
@@ -154,7 +154,7 @@ void jit_uni_pooling_bwd_t<isa>::execute_backward() {
     const auto &jpp = conf_.jpp_;
 
     auto ker = [&](int n, int b_c, int oh) {
-        jit_pool_call_s arg = {};
+        auto arg = jit_pool_call_s();
 
         const int ij = oh * jpp.stride_h;
         const int i_t_overflow = nstl::max(0, jpp.t_pad-ij);
@@ -205,7 +205,7 @@ void jit_uni_pooling_bwd_t<isa>::execute_backward_3d() {
 
     auto ker = [&](int n, int b_c, int od, int oh, int id, int d_t_overflow,
             int d_b_overflow, int zero_size, int kd) {
-        jit_pool_call_s arg = {};
+        auto arg = jit_pool_call_s();
 
         const int ij = oh * jpp.stride_h;
         const int i_t_overflow = nstl::max(0, jpp.t_pad-ij);

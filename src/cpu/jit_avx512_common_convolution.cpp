@@ -110,7 +110,7 @@ void _jit_avx512_common_convolution_fwd_t
         balance211(work_amount, nthr, ithr, start, end);
         start_copy = start;
 
-        jit_conv_call_s par_conv = { 0 };
+        auto par_conv = jit_conv_call_s();
         size_t src_h_stride = src_d.blk_off(0, 0, 1);
         size_t src_c_stride = src_d.blk_off(0, 1);
         size_t dst_h_stride = dst_d.blk_off(0, 0, 1);
@@ -217,7 +217,7 @@ void _jit_avx512_common_convolution_fwd_t
         balance211(work_amount, nthr, ithr, start, end);
         start_copy = start;
 
-        jit_conv_call_s par_conv = { 0 };
+        auto par_conv = jit_conv_call_s();
         size_t src_d_stride = src_d.blk_off(0, 0, 1);
         size_t src_h_stride = src_d.blk_off(0, 0, 0, 1);
         size_t src_c_stride = src_d.blk_off(0, 1);
@@ -343,7 +343,7 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
         balance211(work_amount, nthr, ithr, start, end);
         start_copy = start;
 
-        jit_conv_call_s par_conv = {0};
+        auto par_conv = jit_conv_call_s();
         size_t diff_src_h_stride = diff_src_d.blk_off(0, 0, 1);
         size_t diff_dst_h_stride = diff_dst_d.blk_off(0, 0, 1);
         size_t diff_dst_c_stride = diff_dst_d.blk_off(0, 1);
@@ -458,7 +458,7 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
         balance211(work_amount, nthr, ithr, start, end);
         start_copy = start;
 
-        jit_conv_call_s par_conv = {0};
+        auto par_conv = jit_conv_call_s();
         size_t diff_src_h_stride = diff_src_d.blk_off(0, 0, 0, 1);
         size_t diff_src_d_stride = diff_src_d.blk_off(0, 0, 1);
         size_t diff_dst_h_stride = diff_dst_d.blk_off(0, 0, 0, 1);
@@ -789,7 +789,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
 
             if (iwork >= pf_depth - 1) {
                 int old_idx = (iwork - pf_depth + 1) % pf_depth;
-                jit_trans_src_t::ctx_t ctx = {};
+                auto ctx = jit_trans_src_t::ctx_t();
                 ctx.src = pf_circ_buf[old_idx].src;
                 ctx.tr_src = pf_circ_buf[old_idx].tr_src;
                 ctx.src_prf = src1;
@@ -870,7 +870,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
 
             if (iwork >= pf_depth - 1) {
                 int old_idx = (iwork - pf_depth + 1) % pf_depth;
-                jit_trans_dst_t::ctx_t ctx = {};
+                auto ctx = jit_trans_dst_t::ctx_t();
                 ctx.src = pf_circ_buf[old_idx].diff_dst;
                 ctx.tr_src = pf_circ_buf[old_idx].tr_diff_dst;
                 ctx.src_prf = diff_dst1;
@@ -911,7 +911,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
 
     if (jcp.is_1stconv && jcp.ver == ver_4fma) {
         /* prepare contexts */
-        jit_trans_src_t::ctx_t tr_ctx = {};
+        auto tr_ctx = jit_trans_src_t::ctx_t();
         tr_ctx.tr_src = tr_src_
             + ti->ithr_but_oc * jcp.ih * jcp.stride_w * jcp.tr_ld;
 
@@ -922,7 +922,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
         tr_ctx.tr_src_ih_end = ih_end;
         tr_ctx.tr_src_bctx = tr_src_bctx_ + ti->ithr_but_oc;
 
-        jit_conv_call_s p = {};
+        auto p = jit_conv_call_s();
         p.src = tr_ctx.tr_src;
 
         /* zero diff_bias if applicable */
@@ -966,7 +966,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
         }
     } else {
         for (int img = ti->img_start; img < ti->img_end; ++img) {
-            jit_conv_call_s p = {0};
+            auto p = jit_conv_call_s();
 
             if (utils::one_of(jcp.ver, ver_4fma, ver_4vnni, ver_vnni)) {
                 /* tr_src[nb_ic][ih][16][~iw~] <- src[nb_ic][ih][iw][16] */
@@ -1054,7 +1054,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
     const int img_first = img;
 
     while (img_start < img_end) {
-        jit_conv_call_s p = {0};
+        auto p = jit_conv_call_s();
 
         int work_rem = img_end - img_start;
         const int od_e = od_s + work_rem > jcp.od ? jcp.od : od_s + work_rem;

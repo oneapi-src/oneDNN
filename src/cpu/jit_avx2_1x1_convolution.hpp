@@ -41,7 +41,7 @@ struct _jit_avx2_1x1_convolution_fwd_t: public cpu_primitive_t {
                 const typename pd_t::base_class *hint_fwd_pd)
             : _cpu_convolution_fwd_pd_t<with_relu>(engine, adesc, attr,
                     hint_fwd_pd)
-            , jcp_({}), rtus_({}) {}
+            , jcp_(), rtus_() {}
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit_1x1:", avx2, ""),
@@ -141,7 +141,7 @@ struct jit_avx2_1x1_convolution_bwd_data_t: public cpu_primitive_t {
                 const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
             : cpu_convolution_bwd_data_pd_t(engine, adesc, attr, hint_fwd_pd)
-            , jcp_({}), rtus_({}) {}
+            , jcp_(), rtus_() {}
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit_1x1:", avx2, ""),
@@ -240,7 +240,7 @@ struct jit_avx2_1x1_convolution_bwd_weights_t: public cpu_primitive_t {
                 const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
             : cpu_convolution_bwd_weights_pd_t(engine, adesc, attr, hint_fwd_pd)
-            , jcp_({}), rtus_({}) {}
+            , jcp_(), rtus_() {}
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit_1x1:", avx2, ""),

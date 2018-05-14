@@ -729,7 +729,7 @@ public:
     void register_code(const Xbyak::uint8 *code) const {
 #ifdef JIT_PROFILING_VTUNE
         if (iJIT_IsProfilingActive() == iJIT_SAMPLING_ON) {
-            iJIT_Method_Load jmethod = {0};
+            auto jmethod = iJIT_Method_Load();
             jmethod.method_id = iJIT_GetNewMethodID();
             jmethod.method_name = (char *)name();
             jmethod.class_file_name = NULL;

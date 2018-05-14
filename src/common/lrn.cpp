@@ -40,7 +40,7 @@ status_t lrn_desc_init(lrn_desc_t *lrn_desc,
         && implication(prop_kind == backward_data, diff_data_desc != nullptr);
     if (!args_ok) return invalid_arguments;
 
-    lrn_desc_t ld = {};
+    auto ld = lrn_desc_t();
     ld.primitive_kind = primitive_kind::lrn;
     ld.prop_kind = prop_kind;
     ld.alg_kind = alg_kind;

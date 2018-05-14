@@ -32,6 +32,15 @@ if(UNIX OR APPLE)
         else()
             set(CMAKE_CCXX_FLAGS "${CMAKE_CCXX_FLAGS} -fstack-protector-strong")
         endif()
+
+        # GCC might be very paranoid for partial structure initialization, e.g.
+        #   struct { int a, b; } s = { 0, };
+        # However the behavior is triggered by `Wmissing-field-initializers`
+        # only. To prevent warnings on users' side who use the library and turn
+        # this warning on, let's use it too. Applicable for the library sources
+        # and interfaces only (tests currently rely on that fact heavily)
+        set(CMAKE_SRC_CCXX_FLAGS "${CMAKE_SRC_CCXX_FLAGS} -Wmissing-field-initializers")
+        set(CMAKE_EXAMPLE_CCXX_FLAGS "${CMAKE_EXAMPLE_CCXX_FLAGS} -Wmissing-field-initializers")
     elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
         set(CMAKE_CCXX_FLAGS "${CMAKE_CCXX_FLAGS} -fstack-protector-all")
     elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")

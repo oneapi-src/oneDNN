@@ -512,7 +512,7 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
             if (!args_ok)
                 return impl::status::unimplemented;
 
-            tr::prb_t prb{};
+            auto prb = tr::prb_t();
 
             status_t prb_init_status = prb_init(prb, *imd, *omd, attr);
             if (prb_init_status != success) return prb_init_status;
@@ -571,7 +571,7 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
         tr::node_t *ns = conf_.prb_.nodes + off;
 #       pragma omp parallel for
         for (size_t d0 = 0; d0 < ns[0].n; ++d0) {
-            tr::call_param_t c{};
+            auto c = tr::call_param_t();
             c.in = in + d0 * ns[0].is;
             c.out = out + d0 * ns[0].os;
             c.scales = scales;
@@ -585,7 +585,7 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
 #       pragma omp parallel for collapse(2)
         for (size_t d1 = 0; d1 < ns[1].n; ++d1) {
         for (size_t d0 = 0; d0 < ns[0].n; ++d0) {
-            tr::call_param_t c{};
+            auto c = tr::call_param_t();
             c.in = in + d0 * ns[0].is + d1 * ns[1].is;
             c.out = out + d0 * ns[0].os + d1 * ns[1].os;
             c.scales = scales;
@@ -601,7 +601,7 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
         for (size_t d2 = 0; d2 < ns[2].n; ++d2) {
         for (size_t d1 = 0; d1 < ns[1].n; ++d1) {
         for (size_t d0 = 0; d0 < ns[0].n; ++d0) {
-            tr::call_param_t c{};
+            auto c = tr::call_param_t();
             c.in = in + d0 * ns[0].is + d1 * ns[1].is + d2 * ns[2].is;
             c.out = out + d0 * ns[0].os + d1 * ns[1].os + d2 * ns[2].os;
             c.scales = scales;
@@ -619,7 +619,7 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
         for (size_t d2 = 0; d2 < ns[2].n; ++d2) {
         for (size_t d1 = 0; d1 < ns[1].n; ++d1) {
         for (size_t d0 = 0; d0 < ns[0].n; ++d0) {
-            tr::call_param_t c{};
+            auto c = tr::call_param_t();
             c.in = in + d0 * ns[0].is + d1 * ns[1].is + d2 * ns[2].is
                 + d3 * ns[3].is;
             c.out = out + d0 * ns[0].os + d1 * ns[1].os + d2 * ns[2].os

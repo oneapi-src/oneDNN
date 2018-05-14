@@ -89,9 +89,9 @@ void _jit_avx512_common_1x1_convolution_fwd_t
     {
         int ithr = omp_get_thread_num(), nthr = omp_get_num_threads();
 
-        jit_1x1_conv_call_s p = {};
+        auto p = jit_1x1_conv_call_s();
 
-        rtus_driver_t<avx512_common>::call_params_t rp = {};
+        auto rp = rtus_driver_t<avx512_common>::call_params_t();
 
         const int nb_oc = jcp.nb_load;
         const int nb_ic = jcp.nb_reduce;
@@ -298,8 +298,8 @@ void _jit_avx512_common_1x1_convolution_bwd_data_t
     {
         int ithr = omp_get_thread_num(), nthr = omp_get_num_threads();
 
-        jit_1x1_conv_call_s p = {};
-        rtus_driver_t<avx512_common>::call_params_t rp = {};
+        auto p = jit_1x1_conv_call_s();
+        auto rp = rtus_driver_t<avx512_common>::call_params_t();
 
         int bcast_start{0}, bcast_end{0}, icb_start{0}, icb_end{0};
         balance2D(nthr, ithr, work_amount, bcast_start, bcast_end,
@@ -439,7 +439,7 @@ jit_avx512_common_1x1_convolution_bwd_weights_t ::
 #       pragma omp parallel for
         for (size_t i = 0; i < tr_src_size; i++)
             tr_src_[i] = 0;
-        jit_transpose4x16_src_t tp = {};
+        auto tp = jit_transpose4x16_src_t();
         tp.src_pf0_distance = 4;
         tp.tr_src_pf0_distance = 0;
         tp.src_pf1 = true;
@@ -529,7 +529,7 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights()
 
         const int my_work = end - start;
         for (int iwork = 0; iwork < my_work; iwork++) {
-            jit_src_transpose_s par_trans = {};
+            auto par_trans = jit_src_transpose_s();
             assert(sp_size % 4 == 0 || sp_size % 4 == jcp.is % 4);
             par_trans.size = sp_size;
             par_trans.src = src1;
@@ -638,8 +638,8 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights()
                                 = &diff_dst[diff_dst_d.blk_off(img, _oc_b)];
                         const data_t *local_src = diff_src;
 
-                        jit_1x1_conv_call_s p = {};
-                        rtus_driver_t<avx512_common>::call_params_t rp = {};
+                        auto p = jit_1x1_conv_call_s();
+                        auto rp = rtus_driver_t<avx512_common>::call_params_t();
 
                         p.output_stride
                                 = jcp.ic * jcp.oc_block * jcp.typesize_out;

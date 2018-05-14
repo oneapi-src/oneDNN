@@ -31,7 +31,7 @@ memory_desc_t copy_maybe_null(const memory_desc_t *md) {
 }
 
 rnn_desc_t zero_rnn_desc() {
-    rnn_desc_t rd = {};
+    auto rd = rnn_desc_t();
     rd.src_layer_desc = zero_md();
     rd.src_iter_desc = zero_md();
     rd.weights_layer_desc = zero_md();
@@ -64,7 +64,7 @@ status_t mkldnn_rnn_cell_desc_init(rnn_cell_desc_t *rnn_cell_desc,
     if (!args_ok)
         return status::invalid_arguments;
 
-    mkldnn_rnn_cell_desc_t rcd = {};
+    auto rcd = mkldnn_rnn_cell_desc_t();
 
     rcd.cell_kind = cell_kind;
     rcd.activation_kind = act_f;

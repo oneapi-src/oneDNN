@@ -996,7 +996,7 @@ void jit_uni_eltwise_fwd_t<isa>::execute_forward() {
         start = nstl::min(nelems, start * cache_line);
         end = nstl::min(nelems, end * cache_line);
 
-        jit_args arg = {};
+        auto arg = jit_args();
         arg.from = &src[start];
         arg.for_comparison = &src[start];
         arg.to = &dst[start];
@@ -1067,7 +1067,7 @@ void jit_uni_eltwise_bwd_t<isa>::execute_backward() {
         start = nstl::min(nelems, start * cache_line);
         end = nstl::min(nelems, end * cache_line);
 
-        jit_args arg = {};
+        auto arg = jit_args();
         arg.from = &diff_dst[start];
         arg.to = &diff_src[start];
         arg.for_comparison = &src[start];

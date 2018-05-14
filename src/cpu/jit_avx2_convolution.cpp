@@ -66,7 +66,7 @@ void _jit_avx2_convolution_fwd_t<with_relu>::execute_forward() {
                 int ocb_num = jcp.nb_oc_blocking;
 
                 for (int icb = icbb; icb < icbb + icb_step; ++icb) {
-                    jit_conv_call_s par_conv = {};
+                    auto par_conv = jit_conv_call_s();
 
                     const int ij = oh * jcp.stride_h;
                     const int i_t_overflow = nstl::max(0, jcp.t_pad - ij);
@@ -151,7 +151,7 @@ void jit_avx2_convolution_bwd_data_t::execute_backward_data() {
         for (size_t iwork = start; iwork < end; ++iwork) {
             for (int oc = 0; oc < jcp.nb_oc; ++oc) {
                 for (int ih = 0; ih < jcp.ih; ++ih) {
-                    jit_conv_call_s par_conv = {};
+                    auto par_conv = jit_conv_call_s();
 
                     const int i_t_overflow = nstl::max(0,
                                         jcp.kh - 1 - ih - jcp.t_pad);
@@ -248,7 +248,7 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights() {
                 const size_t _oc = g * jcp.nb_oc + ocb;
                 const size_t _ic = g * jcp.nb_ic + icb;
 
-                jit_conv_call_s par_conv = {};
+                auto par_conv = jit_conv_call_s();
                 par_conv.src = &src[src_d.blk_off(img, _ic)];
                 par_conv.dst = &diff_dst[diff_dst_d.blk_off(img, _oc)];
                 par_conv.filt = &rw->get_local_ptr(ithr, diff_weights)[

@@ -74,7 +74,7 @@ execute_forward()
         int work_amount = jcp.mb * nb_groups * oc_chunks * jcp.oh;
         balance211(work_amount, nthr, ithr, start, end);
 
-        jit_conv_call_s p = { 0 };
+        auto p = jit_conv_call_s();
 
         auto ws_l = ws_ + ithr * ws_per_thread_;
 

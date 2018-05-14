@@ -863,12 +863,12 @@ void _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu,
         auto wino_src = wino_src_ + size_wino_src * ithr;
         auto wino_dst = wino_dst_ + size_wino_dst * ithr;
 
-        jit_avx512_core_u8s8s32x_wino_conv_src_trans_t::
-                                                call_params_t src_trans_p = {};
-        jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t::
-                                                call_params_t dst_trans_p = {};
-        jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::
-                                                call_params_t gemm_p = {};
+        auto src_trans_p = jit_avx512_core_u8s8s32x_wino_conv_src_trans_t
+            ::call_params_t();
+        auto dst_trans_p = jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t
+            ::call_params_t();
+        auto gemm_p = jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
+            ::call_params_t();
 
         { /* transformation of input tensor to winograd domain */
             for (int y_in_block = 0; y_in_block < jcp.yb; y_in_block += 2) {
@@ -970,8 +970,9 @@ void _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu,
             #pragma omp parallel for collapse(2)
             for (int y_in_block = 0; y_in_block < jcp.yb; y_in_block += 2) {
             for (int x_in_block = 0; x_in_block < jcp.xb; x_in_block += 2) {
-                jit_avx512_core_u8s8s32x_wino_conv_src_trans_t::
-                                                call_params_t src_trans_p = {};
+                auto src_trans_p =
+                    jit_avx512_core_u8s8s32x_wino_conv_src_trans_t
+                    ::call_params_t();
 
                 unsigned short v_y_masks[4], v_x_masks[4];
 
@@ -1008,8 +1009,8 @@ void _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu,
             #pragma omp parallel for collapse(2)
             for (int tile_ij = 0; tile_ij < 16; tile_ij++) {
                 for (int nnb = 0; nnb < jcp.n_chunks ; nnb++) {
-                    jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::
-                                                    call_params_t gemm_p = {};
+                    auto gemm_p = jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
+                        ::call_params_t();
 
                     auto _t_src = wino_src_ + jcp.inp_stride * tile_ij;
                     auto _t_dst = wino_dst_ + jcp.out_stride * tile_ij;
@@ -1029,8 +1030,9 @@ void _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu,
             #pragma omp parallel for collapse(2)
             for (int y_in_block = 0; y_in_block < jcp.yb; y_in_block += 2) {
             for (int x_in_block = 0; x_in_block < jcp.xb; x_in_block += 2) {
-                jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t::
-                                            call_params_t dst_trans_p = {};
+                auto dst_trans_p =
+                    jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t
+                    ::call_params_t();
 
                 unsigned short v_y_masks[2], v_x_masks[2];
 

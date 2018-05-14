@@ -55,7 +55,7 @@ void _jit_avx512_core_convolution_winograd_t<is_fwd>
     float Fw[alpha][alpha][simd_w][simd_w];
     float F[kh][kw][simd_w][simd_w];
     float T[alpha][3][simd_w];
-    jit_wino_transform_call_s p = {0};
+    auto p = jit_wino_transform_call_s();
 
     p.src = wp;
     p.dst = twp;
@@ -77,7 +77,7 @@ void _jit_avx512_core_convolution_winograd_t<is_fwd>::output_transform_data
     float O[tile_size][tile_size][simd_w];
     float T[tile_size][alpha][simd_w];
 
-    jit_wino_transform_call_s p = {0};
+    auto p = jit_wino_transform_call_s();
     p.src = toutp;
     p.dst = pout_b;
     p.G = G;
@@ -128,7 +128,7 @@ void _jit_avx512_core_convolution_winograd_t<is_fwd>
     float O[tile_size][tile_size][simd_w];
     float T[tile_size][alpha][simd_w];
 
-    jit_wino_transform_call_s p = {0};
+    auto p = jit_wino_transform_call_s();
     p.src = toutp;
     p.dst = outp;
     p.G = G;
@@ -180,7 +180,7 @@ void _jit_avx512_core_convolution_winograd_t<is_fwd>
     float I[alpha][alpha][simd_w];
     float T[alpha][alpha][simd_w];
 
-    jit_wino_transform_call_s p = {0};
+    auto p = jit_wino_transform_call_s();
 
     p.src = inp;
     p.dst = tinp;
@@ -242,7 +242,7 @@ void _jit_avx512_core_convolution_winograd_t<is_fwd>
         jcp.dimN_block, jcp.dimK_nb_block, jcp.dimK_block,
         jcp.dimN_reg_block, jcp.dimK_reg_block);
 
-    jit_wino_transform_call_s p = {0};
+    auto p = jit_wino_transform_call_s();
 
     p.dst = tinp;
     p.G = G;
@@ -702,7 +702,7 @@ _execute_backward_weights_SDGtWo() {
     array_offset_calculator<float, 2> diff_bias_prv(
             (float *)(scratchpad_->bias_ptr()), nthreads, jcp.oc);
 
-    jit_wino_transform_call_s trans_ker_p = {0};
+    auto trans_ker_p = jit_wino_transform_call_s();
     float I[alpha][alpha][simd_w];
     float T[alpha][alpha][simd_w];
     float G_I_3x3_4x4[9] = {-2.25f, -0.390625f, 0.87890625f, -2.640625f,
@@ -871,7 +871,7 @@ _execute_backward_weights_S_D_Giot_W() {
     size_t input_ends[max_threads_number];
     size_t first_tblk = 0;
 
-    jit_wino_transform_call_s trans_ker_p = {0};
+    auto trans_ker_p = jit_wino_transform_call_s();
     float G_I_3x3_4x4[9] = {-2.25f, -0.390625f, 0.87890625f, -2.640625f,
                0.625f, -0.625f, 1.5f, -1.5f, -2.640625f};
     float G_W_3x3_4x4[8] = {0.26890756302521f, -0.688403361344538f,

@@ -560,7 +560,7 @@ void jit_avx512_core_i8i8_pooling_fwd_t::execute_forward() {
         int n{0}, oh{0}, ow{0};
         nd_iterator_init(start, n, jpp.mb, oh, jpp.oh, ow, jpp.ow);
 
-        jit_avx512_core_i8i8_pool_fwd_ker_t::call_params_t p = {};
+        auto p = jit_avx512_core_i8i8_pool_fwd_ker_t::call_params_t();
 
         for (int iwork = start; iwork < end; ++iwork) {
             const int ih = nstl::max(oh*jpp.stride_h - jpp.t_pad, 0);

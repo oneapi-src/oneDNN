@@ -37,7 +37,7 @@ status_t softmax_desc_init(softmax_desc_t *softmax_desc, prop_kind_t prop_kind,
         && softmax_axis < data_desc->ndims;
     if (!args_ok) return invalid_arguments;
 
-    softmax_desc_t sd = {};
+    auto sd = softmax_desc_t();
     sd.primitive_kind = primitive_kind::softmax;
     sd.prop_kind = prop_kind;
     sd.data_desc = *data_desc;

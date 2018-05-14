@@ -36,7 +36,7 @@ struct _gemm_u8s8s32x_convolution_fwd_t: public cpu_primitive_t {
                 const primitive_attr_t *attr,
                 const typename pd_t::base_class *hint_fwd_pd)
             : _cpu_convolution_fwd_pd_t<with_relu>(engine, adesc, attr,
-                    hint_fwd_pd), jcp_({}) {}
+                    hint_fwd_pd), jcp_() {}
 
         DECLARE_COMMON_PD_T("gemm:blas",
                 _gemm_u8s8s32x_convolution_fwd_t<with_relu, dst_type>);

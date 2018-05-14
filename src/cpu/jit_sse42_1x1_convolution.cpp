@@ -49,7 +49,7 @@ void _jit_sse42_1x1_convolution_fwd_t<with_relu>::execute_forward() {
         // TODO (Roma): remove this restriction
         assert(jcp.stride_w == 1 && jcp.stride_h == 1);
 
-        jit_1x1_conv_call_s par_conv = {};
+        auto par_conv = jit_1x1_conv_call_s();
 
         const int nb_oc = jcp.nb_load;
         const int nb_ic = jcp.nb_reduce;

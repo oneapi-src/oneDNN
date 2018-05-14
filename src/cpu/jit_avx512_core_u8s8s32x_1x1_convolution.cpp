@@ -92,9 +92,9 @@ void _jit_avx512_core_u8s8s32x_1x1_convolution_fwd_t<with_relu, dst_type>::execu
     {
         int ithr = omp_get_thread_num(), nthr = omp_get_num_threads();
 
-        jit_1x1_conv_call_s p = {};
+        auto p = jit_1x1_conv_call_s();
 
-        rtus_driver_t<avx512_common>::call_params_t rp = {};
+        auto rp = rtus_driver_t<avx512_common>::call_params_t();
         const int nb_oc = jcp.nb_load;
         const int nb_ic = jcp.nb_reduce;
         const int nb_ic_blocking = jcp.nb_reduce_blocking;
