@@ -24,6 +24,7 @@
 #include "jit_primitive_conf.hpp"
 
 #include "jit_avx512_common_conv_winograd_kernel_f32.hpp"
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {
@@ -185,18 +186,45 @@ struct jit_avx512_core_conv_winograd_bwd_weights_kernel_f32
         : jcp(ajcp)
     {
         //******************* First iter kernel ********************//
+        this->gemm_loop_generate(true);
+        gemm_loop_ker_first_iter = (decltype(gemm_loop_ker_first_iter))this->getCode();
+        
         align();
         const Xbyak::uint8 *addr = getCurr();
-        this->gemm_loop_generate(true);
-        gemm_loop_ker_first_iter = (decltype(gemm_loop_ker_first_iter))addr;
+        this->src_transform_generate();
+        src_transform = (decltype(src_transform))addr;
 
-        if (jcp.tile_block > 1) {
+        if (jcp.with_bias) {
             align();
-            const Xbyak::uint8 *addr = getCurr();
+            addr = getCurr();
+            this->diff_dst_transform_generate(true);
+            diff_dst_transform_wbias = (decltype(diff_dst_transform_wbias))addr;
+        }
+
+        align();
+        addr = getCurr();
+        this->diff_dst_transform_generate(false);
+        diff_dst_transform = (decltype(diff_dst_transform))addr;
+
+        if (jcp.sched_policy != WSCHED_WEI_SDGtWo && jcp.tile_block > 1) {
+            align();
+            addr = getCurr();
             this->gemm_loop_generate(false);
             gemm_loop_ker = (decltype(gemm_loop_ker))addr;
         }
 
+        align();
+        addr = getCurr();
+        this->diff_weights_transform_generate(true);
+        diff_weights_transform = (decltype(diff_weights_transform))addr;
+
+        if (jcp.sched_policy == WSCHED_WEI_SDGtWo) {
+            align();
+            addr = getCurr();
+            this->diff_weights_transform_generate(false);
+            diff_weights_transform_accum =
+                (decltype(diff_weights_transform_accum))addr;
+        };
     }
 
     static status_t init_conf(jit_conv_winograd_conf_t &jcp,
@@ -207,10 +235,45 @@ struct jit_avx512_core_conv_winograd_bwd_weights_kernel_f32
     jit_conv_winograd_conf_t jcp;
     void (*gemm_loop_ker)(float *, const float *, const float *);
     void (*gemm_loop_ker_first_iter)(float *, const float *, const float *);
+    void (*src_transform)(jit_wino_transform_call_s *);
+    void (*diff_dst_transform)(jit_wino_transform_call_s *);
+    void (*diff_dst_transform_wbias)(jit_wino_transform_call_s *);
+    void (*diff_weights_transform)(jit_wino_transform_call_s *);
+    void (*diff_weights_transform_accum)(jit_wino_transform_call_s *);
 
 private:
     using reg64_t = const Xbyak::Reg64;
+    using reg32_t = const Xbyak::Reg32;
     enum { typesize = sizeof(float) };
+
+    void src_transform_generate();
+    void diff_dst_transform_generate(bool with_bias);
+    void diff_weights_transform_generate(bool first_tile);
+
+    /*registers common to transforms*/
+    reg64_t reg_transp = abi_param1;
+    reg64_t reg_ti = rbx;
+    reg64_t reg_tj = rcx;
+    reg64_t reg_src = r8;
+    reg64_t reg_dst = r9;
+    reg64_t reg_G = rsi; /*TODO: check if this is ok*/
+    reg64_t reg_temp = rsi;
+
+    /*registers common to src/diff_dst transform*/
+    reg64_t reg_I = r10;
+    reg64_t reg_ydim = r11;
+    reg64_t reg_xdim = r12;
+    reg64_t reg_src_offset = r13;
+    reg64_t reg_zero = r14;
+    reg64_t reg_tile_count = r15;
+    reg64_t reg_maski = rsi;
+    reg32_t reg_maski_32 = esi;
+    reg64_t reg_maskj = rdx;
+
+    reg64_t reg_T = rax;
+    reg64_t reg_oc_ur = rax;
+    reg64_t reg_ic_simd = r14;
+    reg64_t reg_bias = r10;
 
     void gemm_loop_generate(bool is_first_tile);
 

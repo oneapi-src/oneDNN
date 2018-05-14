@@ -23,7 +23,6 @@
 #include "scratchpad.hpp"
 
 #include "jit_avx512_core_conv_winograd_kernel_f32.hpp"
-#include <chrono>
 
 namespace mkldnn {
 namespace impl {

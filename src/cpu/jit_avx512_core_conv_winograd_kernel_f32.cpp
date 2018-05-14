@@ -26,6 +26,7 @@
 #include "jit_avx512_core_conv_winograd_kernel_f32.hpp"
 
 #define GET_OFF(field) offsetof(jit_wino_transform_call_s, field)
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {
@@ -1455,6 +1456,639 @@ status_t jit_avx512_core_conv_winograd_bwd_data_kernel_f32::init_conf(
     return res;
 }
 
+void jit_avx512_core_conv_winograd_bwd_weights_kernel_f32::
+src_transform_generate() {
+    constexpr int G_size = 9;
+    const size_t ifwp = jcp.iw + jcp.l_pad;
+    const size_t ifhp = jcp.ih + jcp.t_pad;
+
+    auto zmm_G = [=](int i) {
+        return Xbyak::Zmm(i);
+    };
+    auto zmm_I = [=](int i) {
+        return Xbyak::Zmm(G_size + i);
+    };
+    auto zmm_T = [=](int i) {
+        return Xbyak::Zmm(G_size + alpha + i);
+    };
+    auto zmm_t = [=](int i) {
+        return Xbyak::Zmm(G_size + 2 * alpha + i);
+    };
+
+    auto init_G = [=]() {
+        mov(reg_G, ptr[reg_transp + GET_OFF(G)]);
+        for (int i = 0; i < G_size; i++) {
+            vbroadcastss(zmm_G(i), ptr[reg_G + i * typesize]);
+        }
+    };
+
+    auto load_src = [=]() {
+        mov(reg_I, ptr[reg_transp + GET_OFF(M)]);
+        xor_(reg_zero, reg_zero);
+
+        mov(reg_ydim, reg_tj);
+        shl(reg_ydim, 2); //tj * tile_size(=4)
+
+        for (int j = 0; j < alpha; j++) {
+            /* check if tile index is within physical spatial boundaries*/
+            mov(reg_maskj, 0xffff);
+            cmp(reg_ydim, jcp.t_pad);
+            cmovl(reg_maskj, reg_zero);
+            cmp(reg_ydim, ifhp);
+            cmovge(reg_maskj, reg_zero);
+
+            /*address offset for tile in src*/
+            mov(reg_src_offset, reg_ydim);
+            sub(reg_src_offset, jcp.t_pad); // tj*tile_size - t_pad
+            imul(reg_src_offset, reg_src_offset, jcp.iw);
+
+            mov(reg_xdim, reg_ti);
+            shl(reg_xdim, 2); // xdim = ti * tile_size
+
+            add(reg_src_offset, reg_xdim);
+            sub(reg_src_offset, jcp.l_pad);
+            imul(reg_src_offset, reg_src_offset, simd_w * typesize);
+            for (int i = 0; i < alpha; i++) {
+                /* check if tile index is within physical spatial boundaries*/
+                mov(reg_maski, 0xffff);
+                cmp(reg_xdim, jcp.l_pad);
+                cmovl(reg_maski, reg_zero);
+                cmp(reg_xdim, ifwp);
+                cmovge(reg_maski, reg_zero);
+                and_(reg_maski, reg_maskj);
+
+                Opmask kmask_src = Xbyak::Opmask(7);
+                auto zmm_src = Xbyak::Zmm(31);
+                kmovw(kmask_src, reg_maski_32);
+                vpxord(zmm_src, zmm_src, zmm_src);
+                vmovups(zmm_src | kmask_src, ptr[reg_src + reg_src_offset]);
+                vmovups(ptr[reg_I], zmm_src);
+
+                add(reg_xdim, 1); //xdim = ti * tile_size + i
+                add(reg_src_offset, simd_w * typesize);
+                add(reg_I, simd_w * typesize);
+            }
+            add(reg_ydim, 1);
+        }
+    };
+
+    auto fma4 = [=](Xbyak::Zmm dst, Xbyak::Zmm a, Xbyak::Zmm b, Xbyak::Zmm c) {
+        vmovups(dst, c);
+        vfmadd231ps(dst, a, b);
+    };
+
+    auto trans_I_3x3_4x4 = [=]() {
+        //Use 24 registers
+        mov(reg_I, ptr[reg_transp + GET_OFF(M)]);
+        mov(reg_T, ptr[reg_transp + GET_OFF(T)]);
+        for (int i = 0; i < alpha; i++) {
+            for (int j = 0; j < alpha; j++) {
+                size_t I_off = (j * alpha + i) * simd_w * typesize;
+                vmovups(zmm_I(j), ptr[reg_I + I_off]);
+            }
+
+            fma4(zmm_t(0), zmm_I(2), zmm_G(0), zmm_I(4));
+            fma4(zmm_t(1), zmm_I(1), zmm_G(0), zmm_I(3));
+            fma4(zmm_t(2), zmm_I(2), zmm_G(1), zmm_I(4));
+            fma4(zmm_t(3), zmm_I(1), zmm_G(1), zmm_I(3));
+            fma4(zmm_t(4), zmm_I(0), zmm_G(2), zmm_I(4));
+            fma4(zmm_t(5), zmm_I(1), zmm_G(2), zmm_I(5));
+
+            fma4(zmm_T(0), zmm_I(2), zmm_G(3), zmm_t(4));
+            fma4(zmm_T(1), zmm_t(1), zmm_G(4), zmm_t(0));
+            fma4(zmm_T(2), zmm_t(1), zmm_G(5), zmm_t(0));
+            fma4(zmm_T(3), zmm_t(3), zmm_G(6), zmm_t(2));
+            fma4(zmm_T(4), zmm_t(3), zmm_G(7), zmm_t(2));
+            fma4(zmm_T(5), zmm_I(3), zmm_G(8), zmm_t(5));
+
+            for (int j = 0; j < alpha; j++) {
+                vmovups(ptr[reg_T + (j * alpha + i) * simd_w * typesize],
+                        zmm_T(j));
+            }
+
+        }
+
+        for (int j = 0; j < alpha; j++) {
+            for (int i = 0; i < alpha; i++) {
+                vmovups(zmm_T(i), ptr[reg_T + (j * alpha + i) * simd_w * typesize]);
+            }
+
+            fma4(zmm_t(0), zmm_T(2), zmm_G(0), zmm_T(4));
+            fma4(zmm_t(1), zmm_T(1), zmm_G(0), zmm_T(3));
+            fma4(zmm_t(2), zmm_T(2), zmm_G(1), zmm_T(4));
+            fma4(zmm_t(3), zmm_T(1), zmm_G(1), zmm_T(3));
+            fma4(zmm_t(4), zmm_T(0), zmm_G(2), zmm_T(4));
+            fma4(zmm_t(5), zmm_T(1), zmm_G(2), zmm_T(5));
+
+            fma4(zmm_I(0), zmm_T(2), zmm_G(3), zmm_t(4));
+            fma4(zmm_I(1), zmm_t(1), zmm_G(4), zmm_t(0));
+            fma4(zmm_I(2), zmm_t(1), zmm_G(5), zmm_t(0));
+            fma4(zmm_I(3), zmm_t(3), zmm_G(6), zmm_t(2));
+            fma4(zmm_I(4), zmm_t(3), zmm_G(7), zmm_t(2));
+            fma4(zmm_I(5), zmm_T(3), zmm_G(8), zmm_t(5));
+
+            for (int i = 0; i < alpha; i++) {
+                size_t dst_off = (j * alpha * jcp.ic_block
+                    * jcp.nb_tile_block_ur * jcp.tile_block_ur
+                    + i * jcp.ic_block * jcp.nb_tile_block_ur * jcp.tile_block_ur)
+                    * simd_w * typesize;
+                vmovups(ptr[reg_dst + dst_off], zmm_I(i));
+            }
+        }
+    };
+
+    auto compute_transform_SDGtWo = [=]() {
+        mov(reg_ti, ptr[reg_transp + GET_OFF(ti)]);
+        mov(reg_tj, ptr[reg_transp + GET_OFF(tj)]);
+        mov(reg_src, ptr[reg_transp + GET_OFF(src)]);
+        mov(reg_dst, ptr[reg_transp + GET_OFF(dst)]);
+        xor_(reg_tile_count, reg_tile_count);
+        Label loop_mb, loop_jtiles, loop_itiles, done;
+        L(loop_mb);
+        {
+            L(loop_jtiles);
+            {
+                L(loop_itiles);
+                {
+                    load_src();
+
+                    trans_I_3x3_4x4();
+
+                    add(reg_tile_count, 1);
+                    cmp(reg_tile_count, jcp.nb_tile_block_ur * jcp.tile_block_ur);
+                    jge(done);
+
+                    add(reg_dst, simd_w * typesize);
+                    add(reg_ti, 1);
+                    cmp(reg_ti, jcp.itiles);
+                    jl(loop_itiles);
+                }
+                xor_(reg_ti, reg_ti);
+                add(reg_tj, 1);
+                cmp(reg_tj, jcp.jtiles);
+                jl(loop_jtiles);
+            }
+            xor_(reg_tj, reg_tj);
+            add(reg_src, jcp.ic * jcp.iw * jcp.ih * typesize);
+            jmp(loop_mb);
+        }
+        L(done);
+    };
+
+    auto compute_transform = [=]() {
+        mov(reg_src, ptr[reg_transp + GET_OFF(src)]);
+        xor_(reg_ti, reg_ti);
+        xor_(reg_tj, reg_tj);
+
+        mov(reg_dst, ptr[reg_transp + GET_OFF(dst)]);
+        mov(reg_tile_count, ptr[reg_transp + GET_OFF(tile_count)]);
+        imul(reg_temp, reg_tile_count, simd_w * typesize);
+        add(reg_dst, reg_temp);
+
+        Label loop_jtiles, loop_itiles, next_tile_block, next_tile;
+        L(loop_jtiles);
+
+        {
+            L(loop_itiles);
+            {
+                load_src();
+
+                trans_I_3x3_4x4();
+
+                add(reg_tile_count, 1);
+                cmp(reg_tile_count, jcp.nb_tile_block_ur * jcp.tile_block_ur);
+                jge(next_tile_block);
+                add(reg_dst, simd_w * typesize);
+                jmp(next_tile);
+
+                L(next_tile_block);
+                sub(reg_dst, (jcp.nb_tile_block_ur * jcp.tile_block_ur - 1)
+                        * simd_w * typesize);
+                size_t tblk_off = alpha * alpha * jcp.ic_block
+                    * jcp.nb_tile_block_ur * jcp.tile_block_ur
+                    * simd_w * typesize;
+                add(reg_dst, tblk_off);
+                xor_(reg_tile_count, reg_tile_count);
+
+                L(next_tile);
+                add(reg_ti, 1);
+                cmp(reg_ti, jcp.itiles);
+                jl(loop_itiles);
+            }
+            xor_(reg_ti, reg_ti);
+            add(reg_tj, 1);
+            cmp(reg_tj, jcp.jtiles);
+            jl(loop_jtiles);
+        }
+    };
+
+    preamble();
+    init_G();
+    if (jcp.sched_policy == WSCHED_WEI_SDGtWo)
+        compute_transform_SDGtWo();
+    else
+        compute_transform();
+    postamble();
+}
+
+void jit_avx512_core_conv_winograd_bwd_weights_kernel_f32::
+diff_dst_transform_generate(bool with_bias) {
+
+    constexpr int G_size = 8;
+    auto zmm_G = [](int i) {
+        return Xbyak::Zmm(31);
+    };
+
+    auto zmm_src = [=](int j, int i) {
+        return Xbyak::Zmm(G_size + j * 4 + i);
+    };
+
+    auto zmm_bias = Xbyak::Zmm(31);
+
+    auto load_src = [=]() {
+        if (with_bias) vmovups(zmm_bias, ptr[reg_bias]);
+        mov(reg_ydim, reg_tj);
+        shl(reg_ydim, 2); //tj * tile_size(=4)
+        for (int j = 0; j < tile_size; j++) {
+            /* check if tile index is within physical spatial boundaries*/
+            mov(reg_maskj, 0xffff);
+            cmp(reg_ydim, jcp.oh);
+            cmovge(reg_maskj, reg_zero);
+
+            /*address offset for tile in src*/
+            mov(reg_src_offset, reg_ydim);
+            imul(reg_src_offset, reg_src_offset, jcp.ow);
+
+            mov(reg_xdim, reg_ti);
+            shl(reg_xdim, 2); // xdim = ti * tile_size
+
+            add(reg_src_offset, reg_xdim);
+            imul(reg_src_offset, reg_src_offset, simd_w * typesize);
+            for (int i = 0; i < tile_size; i++) {
+                /* check if tile index is within physical spatial boundaries*/
+                mov(reg_maski, 0xffff);
+                cmp(reg_xdim, jcp.ow);
+                cmovge(reg_maski, reg_zero);
+                and_(reg_maski, reg_maskj);
+
+                Opmask kmask_src = Xbyak::Opmask(7);
+                kmovw(kmask_src, reg_maski_32);
+                vpxord(zmm_src(j, i), zmm_src(j, i), zmm_src(j, i));
+                vmovups(zmm_src(j, i) | kmask_src, ptr[reg_src + reg_src_offset]);
+                if (with_bias) vaddps(zmm_bias | kmask_src, zmm_bias,
+                        ptr[reg_src + reg_src_offset]);
+
+                add(reg_xdim, 1); //xdim = ti * tile_size + i
+                add(reg_src_offset, simd_w * typesize);
+            }
+            add(reg_ydim, 1);
+        }
+        if(with_bias) vmovups(ptr[reg_bias], zmm_bias);
+    };
+
+    auto zmm_t = [=](int i) {
+        return Xbyak::Zmm(G_size + 16 + i);
+    };
+
+    auto zmm_T = [=](int j, int i) {
+        return Xbyak::Zmm(j * 4 + i);
+    };
+
+    auto movps = [=](Xbyak::Reg64 reg_dst, size_t dst_off, Xbyak::Zmm a) {
+        if (jcp.sched_policy == WSCHED_WEI_SDGtWo)
+            vmovups(ptr[reg_dst + dst_off], a);
+        else
+            vmovntps(ptr[reg_dst + dst_off], a);
+    };
+
+    auto trans_W_3x3_4x4 = [=]() {
+        mov(reg_G, ptr[reg_transp + GET_OFF(G)]);
+        for (int i = 0; i < tile_size; i++) {
+            vbroadcastss(zmm_G(0), ptr[reg_G]);
+            vmulps(zmm_t(0), zmm_src(2, i), zmm_G(0));
+
+            vbroadcastss(zmm_G(1), ptr[reg_G + typesize]);
+            vmovups(zmm_t(1), zmm_t(0));
+            vfmsub231ps(zmm_t(1), zmm_src(0, i), zmm_G(1));
+
+            vbroadcastss(zmm_G(2), ptr[reg_G + 2 * typesize]);
+            vmovups(zmm_t(2), zmm_t(0));
+            vfmadd231ps(zmm_t(2), zmm_src(0, i), zmm_G(2));
+
+            vbroadcastss(zmm_G(3), ptr[reg_G + 3 * typesize]);
+            vmulps(zmm_t(3), zmm_src(1, i), zmm_G(3));
+
+            vbroadcastss(zmm_G(4), ptr[reg_G + 4 * typesize]);
+            vfmadd231ps(zmm_t(3), zmm_src(3, i), zmm_G(4));
+
+            vbroadcastss(zmm_G(5), ptr[reg_G + 5 * typesize]);
+            vmulps(zmm_t(4), zmm_src(1, i), zmm_G(5));
+
+            vbroadcastss(zmm_G(6), ptr[reg_G + 6 * typesize]);
+            vfmadd231ps(zmm_t(4), zmm_src(3, i), zmm_G(6));
+
+            vbroadcastss(zmm_G(7), ptr[reg_G + 7 * typesize]);
+            vmulps(zmm_T(0, i), zmm_src(0, i), zmm_G(7));
+            vsubps(zmm_T(1, i), zmm_t(1), zmm_t(3));
+            vaddps(zmm_T(2, i), zmm_t(1), zmm_t(3));
+            vaddps(zmm_T(3, i), zmm_t(2), zmm_t(4));
+            vsubps(zmm_T(4, i), zmm_t(2), zmm_t(4));
+            vmovups(zmm_T(5, i), zmm_src(3, i));
+        }
+
+        for (int j = 0; j < alpha; j++) {
+            vbroadcastss(zmm_G(0), ptr[reg_G]);
+            vmulps(zmm_t(0), zmm_T(j, 2), zmm_G(0));
+
+            vbroadcastss(zmm_G(1), ptr[reg_G + typesize]);
+            vmovups(zmm_t(1), zmm_t(0));
+            vfmsub231ps(zmm_t(1), zmm_T(j, 0), zmm_G(1));
+
+            vbroadcastss(zmm_G(2), ptr[reg_G + 2 * typesize]);
+            vmovups(zmm_t(2), zmm_t(0));
+            vfmadd231ps(zmm_t(2), zmm_T(j, 0), zmm_G(2));
+
+            vbroadcastss(zmm_G(3), ptr[reg_G + 3 * typesize]);
+            vmulps(zmm_t(3), zmm_T(j, 1), zmm_G(3));
+
+            vbroadcastss(zmm_G(4), ptr[reg_G + 4 * typesize]);
+            vfmadd231ps(zmm_t(3), zmm_T(j, 3), zmm_G(4));
+
+            vbroadcastss(zmm_G(5), ptr[reg_G + 5 * typesize]);
+            vmulps(zmm_t(4), zmm_T(j, 1), zmm_G(5));
+
+            vbroadcastss(zmm_G(6), ptr[reg_G + 6 * typesize]);
+            vfmadd231ps(zmm_t(4), zmm_T(j, 3), zmm_G(6));
+
+            vbroadcastss(zmm_G(7), ptr[reg_G + 7 * typesize]);
+            vmulps(zmm_t(0), zmm_T(j, 0), zmm_G(7));
+            vsubps(zmm_t(5), zmm_t(1), zmm_t(3));
+            vaddps(zmm_t(1), zmm_t(1), zmm_t(3));
+            vaddps(zmm_t(6), zmm_t(2), zmm_t(4));
+            vsubps(zmm_t(2), zmm_t(2), zmm_t(4));
+            vmovups(zmm_t(3), zmm_T(j, 3));
+
+            size_t alpha_offset = jcp.oc/jcp.nb_oc * jcp.ntiles/jcp.tile_block
+                * typesize;
+            size_t dst_off = (j * alpha * alpha_offset);
+            movps(reg_dst, dst_off, zmm_t(0));
+            dst_off += alpha_offset;
+            movps(reg_dst, dst_off, zmm_t(5));
+            dst_off += alpha_offset;
+            movps(reg_dst, dst_off, zmm_t(1));
+            dst_off += alpha_offset;
+            movps(reg_dst, dst_off, zmm_t(6));
+            dst_off += alpha_offset;
+            movps(reg_dst, dst_off, zmm_t(2));
+            dst_off += alpha_offset;
+            movps(reg_dst, dst_off, zmm_t(3));
+        }
+
+    };
+    auto compute_transform_SDGtWo = [=]() {
+        mov(reg_src, ptr[reg_transp + GET_OFF(src)]);
+        mov(reg_dst, ptr[reg_transp + GET_OFF(dst)]);
+        if (with_bias) mov(reg_bias, ptr[reg_transp + GET_OFF(bias)]);
+
+        xor_(reg_zero, reg_zero);
+        xor_(reg_oc_ur, reg_oc_ur);
+        Label loop_mb, loop_jtiles, loop_itiles, loop_oc_ur, tiles_done;
+
+        L(loop_oc_ur);
+        {
+            mov(reg_ti, ptr[reg_transp + GET_OFF(ti)]);
+            mov(reg_tj, ptr[reg_transp + GET_OFF(tj)]);
+            xor_(reg_tile_count, reg_tile_count);
+            L(loop_mb);
+            {
+                L(loop_jtiles);
+                {
+                    L(loop_itiles);
+                    {
+                        load_src();
+
+                        trans_W_3x3_4x4();
+
+                        add(reg_tile_count, 1);
+                        cmp(reg_tile_count, jcp.nb_tile_block_ur * jcp.tile_block_ur);
+                        jge(tiles_done);
+
+                        add(reg_dst, jcp.oc_reg_block * simd_w * typesize);
+                        add(reg_ti, 1);
+                        cmp(reg_ti, jcp.itiles);
+                        jl(loop_itiles);
+                    }
+                    xor_(reg_ti, reg_ti);
+                    add(reg_tj, 1);
+                    cmp(reg_tj, jcp.jtiles);
+                    jl(loop_jtiles);
+                }
+                xor_(reg_tj, reg_tj);
+                add(reg_src, jcp.oc * jcp.ow * jcp.oh * typesize);
+                jmp(loop_mb);
+            }
+
+            L(tiles_done);
+            mov(reg_dst, ptr[reg_transp + GET_OFF(dst)]);
+            add(reg_dst, simd_w * typesize);
+            mov(reg_src, ptr[reg_transp + GET_OFF(src)]);
+            add(reg_src, jcp.oh * jcp.ow * simd_w * typesize);
+
+            if (with_bias) add(reg_bias, simd_w * typesize);
+            add(reg_oc_ur, 1);
+            cmp(reg_oc_ur, jcp.oc_reg_block);
+            jl(loop_oc_ur);
+        }
+    };
+
+    auto compute_transform = [=]() {
+        mov(reg_src, ptr[reg_transp + GET_OFF(src)]);
+        mov(reg_G, ptr[reg_transp + GET_OFF(G)]);
+        if (with_bias) mov(reg_bias, ptr[reg_transp + GET_OFF(bias)]);
+
+        mov(reg_dst, ptr[reg_transp + GET_OFF(dst)]);
+        mov(reg_tile_count, ptr[reg_transp + GET_OFF(tile_count)]);
+        imul(reg_temp, reg_tile_count, jcp.oc_reg_block * simd_w * typesize);
+        add(reg_dst, reg_temp);
+
+        xor_(reg_zero, reg_zero);
+        xor_(reg_oc_ur, reg_oc_ur);
+        Label loop_mb, loop_jtiles, loop_itiles, loop_oc_ur, next_tile_block, next_tile;
+
+        L(loop_oc_ur);
+        {
+            xor_(reg_ti, reg_ti);
+            xor_(reg_tj, reg_tj);
+
+            L(loop_jtiles);
+            {
+                L(loop_itiles);
+                {
+                    load_src();
+
+                    trans_W_3x3_4x4();
+
+                    add(reg_tile_count, 1);
+                    cmp(reg_tile_count, jcp.nb_tile_block_ur * jcp.tile_block_ur);
+                    jge(next_tile_block);
+                    add(reg_dst, jcp.oc_reg_block * simd_w * typesize);
+                    jmp(next_tile);
+
+                    L(next_tile_block);
+                    sub(reg_dst, (jcp.nb_tile_block_ur * jcp.tile_block_ur - 1)
+                            * jcp.oc_reg_block * simd_w * typesize);
+                    size_t tblk_off = alpha * alpha * jcp.oc/jcp.nb_oc
+                        * jcp.ntiles/jcp.tile_block * typesize;
+                    add(reg_dst, tblk_off);
+                    xor_(reg_tile_count, reg_tile_count);
+
+                    L(next_tile);
+                    add(reg_ti, 1);
+                    cmp(reg_ti, jcp.itiles);
+                    jl(loop_itiles);
+                }
+                xor_(reg_ti, reg_ti);
+                add(reg_tj, 1);
+                cmp(reg_tj, jcp.jtiles);
+                jl(loop_jtiles);
+            }
+
+            mov(reg_dst, ptr[reg_transp + GET_OFF(dst)]);
+            mov(reg_tile_count, ptr[reg_transp + GET_OFF(tile_count)]);
+            imul(reg_temp, reg_tile_count, jcp.oc_reg_block * simd_w * typesize);
+            add(reg_dst, reg_temp);
+            add(reg_dst, simd_w * typesize);
+            mov(reg_src, ptr[reg_transp + GET_OFF(src)]);
+            add(reg_src, jcp.oh * jcp.ow * simd_w * typesize);
+
+            if (with_bias) add(reg_bias, simd_w * typesize);
+            add(reg_oc_ur, 1);
+            cmp(reg_oc_ur, jcp.oc_reg_block);
+            jl(loop_oc_ur);
+        }
+    };
+
+    preamble();
+    if (jcp.sched_policy == WSCHED_WEI_SDGtWo) {
+        compute_transform_SDGtWo();
+    } else {
+        compute_transform();
+    }
+    postamble();
+}
+
+void jit_avx512_core_conv_winograd_bwd_weights_kernel_f32::
+diff_weights_transform_generate(bool first_tile) {
+    int G_size = 4;
+
+    auto zmm_G = [](int i) {
+        return Xbyak::Zmm(i);
+    };
+
+    auto init_G = [=]() {
+        mov(reg_G, ptr[reg_transp + GET_OFF(G)]);
+        for (int i = 0; i  < G_size; i++)
+            vbroadcastss(zmm_G(i), ptr[reg_G + i * typesize]);
+    };
+
+    auto zmm_src = [=](int i) {
+        return Xbyak::Zmm(G_size + i);
+    };
+
+    auto load_src = [=](int i) {
+        for (int j = 0; j < alpha; j++) {
+            size_t alpha_offset = jcp.oc_block * jcp.oc_reg_block
+                * jcp.ic_block * simd_w * simd_w * typesize;
+            size_t src_off = (j * alpha + i) * alpha_offset;
+            vmovups(zmm_src(j), EVEX_compress_addr(reg_src, src_off));
+        }
+    };
+
+    auto zmm_t = [=](int i) {
+        return Xbyak::Zmm(G_size + 6 + i);
+    };
+
+    auto zmm_T = [=](int j, int i) {
+        return Xbyak::Zmm(G_size + 6 + 3 + j * 6 + i);
+    };
+
+    auto zmm_dst = [=](int i) {
+        return Xbyak::Zmm(G_size + i);
+    };
+
+    auto zmm_temp = Xbyak::Zmm(31);
+
+    auto store_dst = [=](int j) {
+        for (int i = 0; i < jcp.kw; i++) {
+            size_t dst_off = (j * jcp.kw + i) * simd_w * simd_w * typesize;
+
+            if (!first_tile) {
+                vmovups(zmm_temp, EVEX_compress_addr(reg_dst, dst_off));
+                vaddps(zmm_dst(i), zmm_dst(i), zmm_temp);
+            }
+            vmovntps(EVEX_compress_addr(reg_dst, dst_off), zmm_dst(i));
+        }
+    };
+
+    auto compute_transform = [=] () {
+        mov(reg_src, ptr[reg_transp + GET_OFF(src)]);
+        mov(reg_dst, ptr[reg_transp + GET_OFF(dst)]);
+
+        xor_(reg_ic_simd, reg_ic_simd);
+        Label loop_ic_simd;
+        L(loop_ic_simd);
+        {
+            for (int i = 0; i < alpha; i++) {
+                load_src(i);
+
+                vaddps(zmm_t(0), zmm_src(1), zmm_src(2));
+                vaddps(zmm_t(1), zmm_src(3), zmm_src(4));
+                vmovups(zmm_t(2), zmm_src(5));
+                vfmadd231ps(zmm_t(2), zmm_t(1), zmm_G(0));
+
+                vaddps(zmm_T(0, i), zmm_src(0), zmm_t(0));
+                vaddps(zmm_T(0, i), zmm_T(0, i), zmm_t(1));
+                vsubps(zmm_T(1, i), zmm_src(1), zmm_src(2));
+                vmulps(zmm_T(1, i), zmm_T(1, i), zmm_G(1));
+                vsubps(zmm_temp, zmm_src(3), zmm_src(4));
+                vfmadd231ps(zmm_T(1, i), zmm_temp, zmm_G(2));
+                vmovups(zmm_T(2, i), zmm_t(2));
+                vfmadd231ps(zmm_T(2, i), zmm_t(0), zmm_G(3));
+            }
+
+            for (int j = 0; j < jcp.kh; j++) {
+                vaddps(zmm_t(0), zmm_T(j, 1), zmm_T(j, 2));
+                vaddps(zmm_t(1), zmm_T(j, 3), zmm_T(j, 4));
+                vmovups(zmm_t(2), zmm_T(j, 5));
+                vfmadd231ps(zmm_t(2), zmm_t(1), zmm_G(0));
+
+                vaddps(zmm_dst(0), zmm_T(j, 0), zmm_t(0));
+                vaddps(zmm_dst(0), zmm_dst(0), zmm_t(1));
+                vsubps(zmm_dst(1), zmm_T(j, 1), zmm_T(j, 2));
+                vmulps(zmm_dst(1), zmm_dst(1), zmm_G(1));
+                vsubps(zmm_temp, zmm_T(j, 3), zmm_T(j, 4));
+                vfmadd231ps(zmm_dst(1), zmm_temp, zmm_G(2));
+                vmovups(zmm_dst(2), zmm_t(2));
+                vfmadd231ps(zmm_dst(2), zmm_t(0), zmm_G(3));
+
+                store_dst(j);
+            }
+
+            add(reg_src, jcp.oc_reg_block * simd_w * typesize);
+            add(reg_dst, simd_w * typesize);
+            add(reg_ic_simd, 1);
+            cmp(reg_ic_simd, simd_w);
+            jl(loop_ic_simd);
+        }
+    };
+    preamble();
+    push(reg_EVEX_max_8b_offt);
+    mov(reg_EVEX_max_8b_offt, 2 * EVEX_max_8b_offt);
+    init_G();
+    compute_transform();
+    pop(reg_EVEX_max_8b_offt);
+    postamble();
+}
 
 void jit_avx512_core_conv_winograd_bwd_weights_kernel_f32::gemm_loop_generate(
         bool is_first_tile)
@@ -1613,7 +2247,6 @@ void set_jcp_WEI_params(jit_conv_winograd_conf_t &jcp) {
     jcp.oc_reg_block = jcp.dimM_reg_block;
     jcp.oc_block = jcp.dimM_block;
     jcp.nb_oc = jcp.dimM_nb_block;
-
     /*N params*/
     jcp.dimN_nb_block = jcp.dimN / jcp.dimN_block / jcp.dimN_reg_block;
     jcp.ic_block = jcp.dimN_block;

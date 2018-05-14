@@ -256,6 +256,7 @@ struct jit_wino_transform_call_s {
     size_t tile_block;
     size_t tile_block_ur;
     size_t nb_tile_block_ur;
+    size_t tile_count;
     size_t tj;
     size_t ti;
     void *src;
