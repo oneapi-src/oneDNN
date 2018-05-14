@@ -724,6 +724,17 @@ mkldnn_status_t MKLDNN_API mkldnn_deconvolution_backward_weights_desc_init(
 /** @addtogroup c_api_eltwise Eltwise
  * A primitive to compute element wise operations like parametric rectifier
  * linear unit (ReLU).
+ *
+ * Both forward and backward passes support in-place operation, i.e. src
+ * and dst point to the same memory for forward, and diff_dst and diff_src
+ * point to the same memory for backward pass.
+ *
+ * @warning Since for backward pass original src is required, in-place forward
+ * pass in general cannot be applied during training. However for some kinds of
+ * element wise operations (namely ReLU with alpha parameter equals 0) dst and
+ * src can be interchangeable for the backward pass, which allows performing
+ * in-place forward even for training.
+ *
  * @{ */
 
 /** Initializes a @p eltwise_desc for forward propagation using @p prop_kind
@@ -895,17 +906,23 @@ mkldnn_status_t MKLDNN_API mkldnn_lrn_backward_desc_init(
 /** @} */
 
 /** @addtogroup c_api_batch_normalization Batch Normalization
- * A primitive to perform batch normalization
+ * A primitive to perform batch normalization.
+ *
  * \f[dst[n][c][h][w] = \gamma[c] \frac{src[n][c][h][w] - \mu[c]}
  *                      {\sqrt{\sigma[c] + eps}} + \beta[c],\f]
  *
  * where \f$\gamma[c], \beta[c]\f$ are weights and bias for a channel and,
  *
  * \f$\mu[c] = \frac{1}{NHW} \sum\limits_{whn} src[n][c][h][w]\f$,
- * \f$\sigma[c] = \frac{1}{NHW} \sum\limits_{whn} 
+ * \f$\sigma[c] = \frac{1}{NHW} \sum\limits_{whn}
  *                              (src[n][c][h][w] - \mu[c])^2\f$,
  *
  * and eps is a constant to improve numerical stability.
+ *
+ * Both forward and backward passes support in-place operation, i.e. src
+ * and dst point to the same memory for forward, and diff_dst and diff_src
+ * point to the same memory for backward pass.
+ *
  * @{ */
 
 /** Initializes a batch normalization descriptor @p bnrm_desc for forward
