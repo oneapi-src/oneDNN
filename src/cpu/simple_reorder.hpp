@@ -1361,13 +1361,13 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     >::type>
 {
     SIMPLE_IS_APPLICABLE(false);
-    enum { sblk = fmt_o == OIhw4i16o4i || fmt_o == gOIhw4i16o4i ? 4 : 2 };
 
     static status_t execute(const cpu_reorder_pd_t *pd,
         const data_t<type_i> *input, data_t<type_o> *output) {
         DECLARE_COMMON_PARAMS();
 
         constexpr bool w_groups = fmt_i == goihw;
+        int sblk = fmt_o == OIhw4i16o4i || fmt_o == gOIhw4i16o4i ? 4 : 2;
 
         const auto &_g_oihw_d = order_keep ? input_d : output_d;
         const auto &dims = input_d.dims();
