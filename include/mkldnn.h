@@ -667,8 +667,8 @@ mkldnn_dilated_convolution_backward_weights_desc_init(
 
 /** @addtogroup c_api_deconvolution Deconvolution
  * A primitive to compute deconvolution using different algorithms.
- * something goes here.
- *  * @{ */
+ *
+ * @{ */
 
 
 /** Initializes a deconvolution descriptor @p deconv_desc for forward propagation
@@ -818,7 +818,7 @@ mkldnn_status_t MKLDNN_API mkldnn_softmax_backward_desc_init(
 /** @} */
 
 /** @addtogroup c_api_pooling Pooling
- * A primitive to perform max, min, or average pooling.
+ * A primitive to perform max or average pooling.
  * 
  * Max pooling:
  * \f[dst[n][oc][oh][ow] =
