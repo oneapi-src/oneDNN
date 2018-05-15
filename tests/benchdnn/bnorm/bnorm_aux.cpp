@@ -154,6 +154,7 @@ void prb2str(const prb_t *p, char *buffer, bool canonical) {
     bool is_attr_def = p->attr.is_def();
     if (!is_attr_def) {
         int len = snprintf(attr_buf, max_attr_len, "--attr=\"");
+        SAFE_V(len >= 0 ? OK : FAIL);
         attr2str(&p->attr, attr_buf + len);
         len = (int)strnlen(attr_buf, max_attr_len);
         snprintf(attr_buf + len, max_attr_len - len, "\" ");
