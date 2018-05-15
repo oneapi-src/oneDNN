@@ -719,7 +719,8 @@ public:
             FILE *fp = mkldnn_fopen(fname, "w+");
             // Failure to dump code is not fatal
             if (fp) {
-                fwrite(code, getSize(), 1, fp);
+                size_t unused = fwrite(code, getSize(), 1, fp);
+                UNUSED(unused);
                 fclose(fp);
             }
         }
