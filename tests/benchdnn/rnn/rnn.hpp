@@ -166,6 +166,11 @@ struct rnn_prb_t : public rnn_desc_t {
             n_states = 2;
             n_gates = 4;
             break;
+        case VANILLA_GRU:
+            n_weights = 1;
+            n_states = 1;
+            n_gates = 3;
+            break;
         default:
             n_weights = 1;
             n_states = 1;

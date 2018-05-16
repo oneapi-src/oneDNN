@@ -158,13 +158,24 @@ static rnn::rnn_desc_t rnns[] = {
             1024, 128, 7, 2, "GNMT-enc-unidir" },
     { VANILLA_LSTM, TANH, mkldnn_unidirectional_left2right, 2, 1, 1, 1, 1, 1, 1,
             "GNMT-dec-1" },
-
     { VANILLA_LSTM, TANH, mkldnn_unidirectional_left2right, 2, 1, 1, 1, 2, 1, 1,
             "GNMT-dec-mb2" },
     { VANILLA_LSTM, TANH, mkldnn_unidirectional_left2right, 2, 1, 1, 1, 1, 2, 1,
             "GNMT-dec-l2" },
+    { VANILLA_LSTM, TANH, mkldnn_unidirectional_left2right, 1, 2, 1, 1, 1, 1, 2,
+            "GNMT-dec-i2" },
     { VANILLA_LSTM, TANH, mkldnn_unidirectional_left2right, 2048, 1024, 1024,
             1024, 128, 8, 1, "GNMT-dec" },
+    { VANILLA_GRU, TANH, mkldnn_unidirectional_left2right, 1, 1, 1, 1, 1, 1, 1,
+            "exp-gru-0" },
+    { VANILLA_GRU, TANH, mkldnn_unidirectional_right2left, 1, 2, 1, 1, 1, 1, 4,
+            "exp-gru-1" },
+    { VANILLA_GRU, TANH, mkldnn_bidirectional_concat, 4, 4, 4, 4, 8, 5, 5,
+            "exp-gru-1" },
+    { VANILLA_GRU, TANH, mkldnn_bidirectional_sum, 512, 512, 512, 512, 128, 2, 2,
+            "exp-gru-2" },
+    { VANILLA_GRU, TANH, mkldnn_unidirectional_left2right, 512, 1024, 512, 512, 128, 1, 7,
+            "exp-gru-3" },
 };
 
 } // namespace rnn

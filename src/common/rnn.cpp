@@ -139,7 +139,9 @@ status_t MKLDNN_API mkldnn_rnn_forward_desc_init(mkldnn_rnn_desc_t *rnn_desc,
                                && L == dst_iter_desc->dims[0])
             && implication(!is_zero_md(bias_desc), L == bias_desc->dims[0])
             && implication(
-                       !is_zero_md(src_iter_desc), L == src_iter_desc->dims[0]);
+                       !is_zero_md(src_iter_desc), L == src_iter_desc->dims[0])
+            && implication(rnn_cell_desc->cell_kind == alg_kind::vanilla_gru,
+                       DIC == weights_iter_desc->dims[2]);
     if (!args_ok)
         return invalid_arguments;
 
@@ -222,7 +224,9 @@ status_t MKLDNN_API mkldnn_rnn_backward_desc_init(mkldnn_rnn_desc_t *rnn_desc,
                                && L == dst_iter_desc->dims[0])
             && implication(!is_zero_md(bias_desc), L == bias_desc->dims[0])
             && implication(
-                       !is_zero_md(src_iter_desc), L == src_iter_desc->dims[0]);
+                       !is_zero_md(src_iter_desc), L == src_iter_desc->dims[0])
+            && implication(rnn_cell_desc->cell_kind == alg_kind::vanilla_gru,
+                       DIC == weights_iter_desc->dims[2]);
     if (!args_ok)
         return invalid_arguments;
 

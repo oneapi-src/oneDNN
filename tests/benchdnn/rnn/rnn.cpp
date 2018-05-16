@@ -185,7 +185,6 @@ inline int init_pd(const rnn_prb_t *p, mkldnn_rnn_desc_t rd[2],
                          &diff_last_iteration_d),
                 WARN);
     }
-
     mkldnn_status_t init_status = mkldnn_success;
     for (int i = 0; i < 1 + (int)is_bwd; i++) {
         init_status = mkldnn_primitive_desc_create(
@@ -231,7 +230,8 @@ int doit(const rnn_prb_t *p, res_t *r) {
 
     const auto fp = mkldnn_f32;
 
-    if (p->alg != VANILLA_LSTM && p->alg != VANILLA_RNN) {
+    if (p->alg != VANILLA_LSTM && p->alg != VANILLA_RNN
+        && p->alg != VANILLA_GRU) {
         printf("p->alg: %d\n", (int)p->alg);
         r->state = UNIMPLEMENTED;
         return OK;
