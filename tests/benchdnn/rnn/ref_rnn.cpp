@@ -223,7 +223,7 @@ void copy_init(alg_t alg, int sic, int slc, int dic, int wc, int batch,
     }
 }
 
-void copy_res(int sic, int slc, int dic, int dlc, int wc, int batch,
+void copy_res(alg_t alg, int sic, int slc, int dic, int dlc, int wc, int batch,
         int n_layer, int n_iter, int n_states, float *lastit_states_,
         float *lastlay_states_, const float *ws_,
         mkldnn_rnn_direction_t direction, rnn_iter_direction_t iter_dir,
@@ -238,7 +238,6 @@ void copy_res(int sic, int slc, int dic, int dlc, int wc, int batch,
     AOC<float> lastlay_states(lastlay_states_, n_iter, batch, lastlay_c);
     AOC<const float> ws(
             ws_, n_layer + 2, n_dir, n_iter + 2, n_states + is_bwd, batch, wc);
-
     for (int it = 0; it < n_iter; it++) {
         for (int nb = 0; nb < batch; nb++) {
             // copy H to last layer states
@@ -255,9 +254,11 @@ void copy_res(int sic, int slc, int dic, int dlc, int wc, int batch,
     int it_source = (iter_dir == left2right) ? n_iter : 1;
 
     for (int lay = 0; lay < n_layer; lay++) {
-        copy(batch, lastiter_c, wc, lastiter_c,
-                &ws(lay + 1, dir_val, it_source, C, 0, 0),
-                &lastit_states(lay, dir_val, C, 0, 0));
+        if (alg == VANILLA_LSTM) {
+            copy(batch, lastiter_c, wc, lastiter_c,
+                    &ws(lay + 1, dir_val, it_source, C, 0, 0),
+                    &lastit_states(lay, dir_val, C, 0, 0));
+        }
         copy(batch, lastiter_c, wc, lastiter_c,
                 &ws(lay + 1, dir_val, it_source, H, 0, 0),
                 &lastit_states(lay, dir_val, H, 0, 0));
@@ -322,7 +323,7 @@ void rnn_linear_fwd(const rnn_prb_t *p, mkldnn_rnn_direction_t direction,
         }
 
         // Finally we copy the results to the result buffers
-        copy_res(sic, slc, dic, dlc, wc, batch, n_layer, n_iter, n_states,
+        copy_res(alg, sic, slc, dic, dlc, wc, batch, n_layer, n_iter, n_states,
                 dst_iter_, dst_layer_, ws_, direction, iter_dir, lay_dir,
                 dir_val, n_dir, action);
     };
@@ -604,7 +605,7 @@ void rnn_linear_bwd(const rnn_prb_t *p, mkldnn_rnn_direction_t direction,
         }
 
         // Finally we copy the results to the result buffers
-        copy_res(sic, slc, dic, dlc, wc, batch, n_layer, n_iter, n_states,
+        copy_res(alg, sic, slc, dic, dlc, wc, batch, n_layer, n_iter, n_states,
                 diff_src_iter_, diff_src_layer_, wsb_, direction, iter_dir,
                 lay_dir, dir_val, n_dir, action, true);
     };
