@@ -27,18 +27,28 @@ endif()
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CMAKE_TEST_CCXX_FLAGS}")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_TEST_CCXX_FLAGS}")
 
+set(SUPPRESS_SOME_WARNINGS)
 if(UNIX OR APPLE OR MINGW)
     # workaround for Intel Compiler 16.0 that doesn't suppress warning on
     # deprecation with "-Wno-deprecated" compiler flag
     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel" AND
             CMAKE_CXX_COMPILER_VERSION VERSION_LESS "17.0")
-        set(SUPPRESS_DEPRECATE_WARNS "-diag-disable:1478")
+        set(SUPPRESS_SOME_WARNINGS "-diag-disable:1478")
     else()
-        set(SUPPRESS_DEPRECATE_WARNS "-Wno-deprecated-declarations")
+        set(SUPPRESS_SOME_WARNINGS "-Wno-deprecated-declarations")
     endif()
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SUPPRESS_DEPRECATE_WARNS}")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SUPPRESS_DEPRECATE_WARNS}")
+elseif(WIN32 AND NOT MINGW)
+    if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
+        # 1478: deprecated functions
+        set(SUPPRESS_SOME_WARNINGS "/Qdiag-disable:1478")
+    else()
+        # c4244: conversion with possible loss of data
+        # c4996: unsafe / deprecated functions
+        set(SUPPRESS_SOME_WARNINGS "/wd4996 /wd4244")
+    endif()
 endif()
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SUPPRESS_SOME_WARNINGS}")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SUPPRESS_SOME_WARNINGS}")
 
 #add_executable(api-check-c api_check.c)
 #target_link_libraries(api-check-c ${LIB_NAME} ${EXTRA_LIBS})
@@ -58,14 +68,6 @@ if(WIN32)
     set_property(TEST api-c PROPERTY ENVIRONMENT "PATH=${CTESTCONFIG_PATH}")
     configure_file(${CMAKE_SOURCE_DIR}/config_template.vcxproj.user
         api-c.vcxproj.user @ONLY)
-endif()
-
-if(WIN32 AND NOT MINGW)
-    # c4244: conversion with possible loss of data
-    # c4996: unsafe / deprecated functions
-    set(SUPPRESS_SOME_WARNINGS "/wd4996 /wd4244")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SUPPRESS_SOME_WARNINGS}")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SUPPRESS_SOME_WARNINGS}")
 endif()
 
 if(UNIX OR APPLE OR MINGW)
