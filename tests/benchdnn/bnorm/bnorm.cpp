@@ -602,7 +602,7 @@ int doit(const prb_t *p, res_t *r) {
             dnn_mem_t data(data_dt.md_, fp, src_format);
             SAFE(data.reorder(data_dt), WARN);
             SAFE(compare(p, DATA, data_fp, data, r), WARN);
-            if (p->flags & FUSE_BN_RELU)
+            if ((p->flags & FUSE_BN_RELU) && !(p->dir & FLAG_INF))
                 SAFE(check_fwd_ws(data_dt, ws_dt, r), WARN);
         }
     } else {
