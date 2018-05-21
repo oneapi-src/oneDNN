@@ -1939,9 +1939,9 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma(
         }
 
         add(aux_reg_ker, typesize * stride_h * kw * oc_block * ic_block);
-        sub(aux_reg_dst, typesize * ow * oc_block);
+        sub(aux_reg_dst, typesize * (jcp.dilate_h + 1) * ow * oc_block);
         add(aux_reg_ker_prf, typesize * stride_h * kw * oc_block * ic_block);
-        sub(aux_reg_dst_prf, typesize * ow * oc_block);
+        sub(aux_reg_dst_prf, typesize * (jcp.dilate_h + 1) * ow * oc_block);
 
         dec(reg_kj);
         cmp(reg_kj, 0);
@@ -1983,7 +1983,7 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma_core(
     Label kh_label, skip_kh_loop, kd_label, skip_kd_loop;
 
     int shift_ker_ptr = typesize * kw * oc_block * ic_block;
-    int shift_dst_ptr = typesize * ow * oc_block;
+    int shift_dst_ptr = typesize * (jcp.dilate_h + 1) * ow * oc_block;
 
     auto output_offset = [=](int oi, int oc, int ki) {
         return typesize * (((oi + jcp.l_pad - ki)/stride_w) * oc_block + oc);
@@ -2015,7 +2015,7 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma_core(
     } else {
         mov(reg_kj, reg_kh);
     }
-    if (jcp.kh <= jcp.t_pad) {
+    if ((jcp.kh - 1) * (jcp.dilate_h + 1) < jcp.t_pad) {
         cmp(reg_kj, 0);
         je(skip_kh_loop, T_NEAR);
     }
@@ -2227,13 +2227,14 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
     jcp.dilate_d = (ndims == 5) ? cd.dilates[0] : 0;
     jcp.dilate_h = cd.dilates[ndims-4];
     jcp.dilate_w = cd.dilates[ndims-3];
-    if (jcp.dilate_h != 0 || jcp.dilate_w != 0 || jcp.dilate_d != 0)
+    if (jcp.dilate_w != 0 || jcp.dilate_d != 0
+            || (jcp.dilate_h != 0 && jcp.stride_h != 1))
         return status::unimplemented;
 
     jcp.r_pad = nstl::max(0, (jcp.ow - 1) * jcp.stride_w + jcp.kw - jcp.iw
                           - jcp.l_pad);
-    jcp.b_pad = nstl::max(0, (jcp.oh - 1) * jcp.stride_h + jcp.kh - jcp.ih
-                          - jcp.t_pad);
+    jcp.b_pad = (jcp.oh - 1) * jcp.stride_h + (jcp.kh - 1) * (jcp.dilate_h + 1)
+            - (jcp.ih + jcp.t_pad - 1);
     jcp.back_pad = nstl::max(0, (jcp.od - 1) * jcp.stride_d + jcp.kd - jcp.id
                           - jcp.f_pad);
 
@@ -2317,6 +2318,8 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
     } else {
         return status::unimplemented;
     }
+    if (jcp.dilate_h != 0 && jcp.ver != ver_fma)
+        return status::unimplemented;
 
     jcp.nb_ic_blocking = jcp.nb_oc_blocking = 1;
     if (jcp.ver == ver_4vnni) {

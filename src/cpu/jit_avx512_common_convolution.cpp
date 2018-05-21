@@ -350,6 +350,8 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
         size_t wht_h_stride = wht_blk_off(weights_d, 0, 0, 0, 1);
         size_t wht_oc_stride = wht_blk_off(weights_d, 0, 1);
 
+        bool is_fast_path = jcp.dilate_h == 0 && jcp.stride_h == 1;
+
         for (int ocb_l2 = 0; ocb_l2 < jcp.nb_oc; ocb_l2 += jcp.nb_oc_L2) {
             start = start_copy;
             int n{0}, g{0}, icc{0}, ih_s{0};
@@ -379,7 +381,7 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
                       ocb < min(jcp.nb_oc, ocb_l2 + jcp.nb_oc_L2); ++ocb) {
                     for (int ij = ih_s; ij < ih_e; ++ij) {
                         int oj, k_len, k_lo;
-                        if (jcp.stride_h == 1) { // fast path
+                        if (is_fast_path) { // dilate == 0 && stride == 1
                             int i_t_overflow = max(0, jcp.kh - 1 - ij
                                 - jcp.t_pad);
                             int i_b_overflow = max(0, jcp.kh - jcp.ih + ij
@@ -387,15 +389,25 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
                             k_len = jcp.kh - i_t_overflow - i_b_overflow;
                             k_lo = i_b_overflow;
                             oj = ij + jcp.t_pad - i_b_overflow;
-                        } else {
-                            int b_pad = jcp.stride_h * (jcp.oh - 1) + jcp.kh
-                                - jcp.ih - jcp.t_pad;
+                        } else if (jcp.dilate_h != 0) { // stride == 1
+                            int dilate_h = jcp.dilate_h + 1;
+                            // Note: use div_up to account for "holes" in filter
+                            int i_t_overflow
+                                = div_up(max(0, (jcp.kh - 1) * dilate_h
+                                        - ij - jcp.t_pad), dilate_h);
+                            int i_b_overflow
+                                = div_up(max(0, (jcp.kh - 1) * dilate_h + 1
+                                        - jcp.ih + ij - jcp.b_pad), dilate_h);
+                            k_len = jcp.kh - i_t_overflow - i_b_overflow;
+                            k_lo = i_b_overflow;
+                            oj = ij + jcp.t_pad - i_b_overflow * dilate_h;
+                        } else { // dilate == 0
                             int i_t_overflow = max(0, (jcp.kh - 1 - ij
                                 - jcp.t_pad) / jcp.stride_h);
                             int i_b_overflow = max(0, (jcp.kh - jcp.ih + ij
-                                - b_pad) / jcp.stride_h);
+                                - jcp.b_pad) / jcp.stride_h);
                             int overflow_kh_hi = jcp.kh - 1 - abs((jcp.ih - 1
-                                + b_pad - ij) % jcp.stride_h);
+                                + jcp.b_pad - ij) % jcp.stride_h);
                             int overflow_kh_lo = (ij + jcp.t_pad)
                                 % jcp.stride_h;
 
@@ -468,6 +480,8 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
         size_t wht_d_stride = wht_blk_off(weights_d, 0, 0, 0, 1);
         size_t wht_oc_stride = wht_blk_off(weights_d, 0, 1);
 
+        bool is_fast_path_h = jcp.dilate_h == 0 && jcp.stride_h == 1;
+
         for (int ocb_l2 = 0; ocb_l2 < jcp.nb_oc; ocb_l2 += jcp.nb_oc_L2) {
             start = start_copy;
             int n{0}, g{0}, icc{0}, ih_s{0}, id_s{0};
@@ -530,7 +544,7 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
                       ocb < min(jcp.nb_oc, ocb_l2 + jcp.nb_oc_L2); ++ocb) {
                     for (int ij = ih_s; ij < ih_e; ++ij) {
                         int oj, k_len, k_lo;
-                        if (jcp.stride_h == 1) { // fast path
+                        if (is_fast_path_h) { // dilate == 0 && stride == 1
                             int i_t_overflow = max(0, jcp.kh - 1 - ij
                                 - jcp.t_pad);
                             int i_b_overflow = max(0, jcp.kh - jcp.ih + ij
@@ -538,15 +552,25 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
                             k_len = jcp.kh - i_t_overflow - i_b_overflow;
                             k_lo = i_b_overflow;
                             oj = ij + jcp.t_pad - i_b_overflow;
-                        } else {
-                            int b_pad = jcp.stride_h * (jcp.oh - 1) + jcp.kh
-                                - jcp.ih - jcp.t_pad;
+                        } else if (jcp.dilate_h != 0) { // stride == 1
+                            int dilate_h = jcp.dilate_h + 1;
+                            // Note: use div_up to account for "holes" in filter
+                            int i_t_overflow
+                                = div_up(max(0, (jcp.kh - 1) * dilate_h
+                                        - ij - jcp.t_pad), dilate_h);
+                            int i_b_overflow
+                                = div_up(max(0, (jcp.kh - 1) * dilate_h + 1
+                                        - jcp.ih + ij - jcp.b_pad), dilate_h);
+                            k_len = jcp.kh - i_t_overflow - i_b_overflow;
+                            k_lo = i_b_overflow;
+                            oj = ij + jcp.t_pad - i_b_overflow * dilate_h;
+                        } else { // dilate == 0
                             int i_t_overflow = max(0, (jcp.kh - 1 - ij
                                 - jcp.t_pad) / jcp.stride_h);
                             int i_b_overflow = max(0, (jcp.kh - jcp.ih + ij
-                                - b_pad) / jcp.stride_h);
+                                - jcp.b_pad) / jcp.stride_h);
                             int overflow_kh_hi = jcp.kh - 1 - abs((jcp.ih - 1
-                                + b_pad - ij) % jcp.stride_h);
+                                + jcp.b_pad - ij) % jcp.stride_h);
                             int overflow_kh_lo = (ij + jcp.t_pad)
                                 % jcp.stride_h;
 
