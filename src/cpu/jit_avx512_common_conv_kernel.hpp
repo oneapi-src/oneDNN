@@ -308,7 +308,6 @@ private:
             res += jcp.stride_w;
 
         return res;
-
     }
 
     inline int get_iw_end(int ur_w, int ki, int r_overflow)

@@ -1475,7 +1475,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
 void jit_avx512_common_conv_bwd_data_kernel_f32::prepare_output(int ur_w)
 {
     for (int k = 0; k < jcp.nb_ic_blocking; k++) {
-        for (int j = 0; j  < ur_w; j++) {
+        for (int j = 0; j < ur_w; j++) {
             Zmm zmm = zmm_out(j, k);
             vpxord(zmm, zmm, zmm);
             int aux_src_offset
@@ -1663,7 +1663,7 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_4fma(
             kernel_loads(ki, oc, kk);
 
             for (int ii = get_iw_start(ki, l_overflow), prf_count_t1 = 0;
-                    ii  < get_iw_end(ur_w, ki, r_overflow); ii++) {
+                    ii < get_iw_end(ur_w, ki, r_overflow); ii++) {
                 int aux_dst_offset = typesize
                     * ((ii + jcp.l_pad - ki) * oc_block + oc);
                 v4fmaddps(zmm_out(ii, kk), zmm_ker(0),
@@ -1762,7 +1762,7 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_vnni(
                         }
                     }
 
-                    for (int jj = jj_start, prf_count = 0; jj  < jj_end; jj++) {
+                    for (int jj = jj_start, prf_count = 0; jj < jj_end; jj++) {
                         int aux_dst_offset = jcp.typesize_in
                             * ((jj + jcp.l_pad - ki) * oc_block + 2 * oc);
                         if (jcp.kernel_kind == expl_bcast) {
@@ -1812,12 +1812,12 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma(
 {
     Label kh_label, kd_label, skip_kd_loop;
     Label store_output_label;
-    int kw    = jcp.kw;
-    int ow    = jcp.ow;
+    int kw = jcp.kw;
+    int ow = jcp.ow;
 
     int ic_block = jcp.ic_block;
     int oc_block = jcp.oc_block;
-    int l_pad    = jcp.l_pad;
+    int l_pad = jcp.l_pad;
     int dilate_w = jcp.dilate_w + 1;
     int stride_w = jcp.stride_w;
     int stride_h = jcp.stride_h;
@@ -1898,7 +1898,7 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma(
                 auto zmm_kernel = zmm_ker(step % ker_pipeline_depth);
 
                 int jj_start = get_iw_start(ki, l_overflow);
-                int jj_end   = get_iw_end(ur_w, ki, r_overflow);
+                int jj_end = get_iw_end(ur_w, ki, r_overflow);
                 assert(stride_w != 1
                         || jj_start == nstl::max(0,
                             l_overflow - (kw - 1 - ki) * dilate_w));
@@ -1906,7 +1906,7 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma(
                         || jj_end == ur_w - nstl::max(0,
                             r_overflow - ki * dilate_w));
 
-                for (int jj = jj_start; jj  < jj_end; jj += stride_w) {
+                for (int jj = jj_start; jj < jj_end; jj += stride_w) {
                     assert((jj + l_pad - ki * dilate_w) % stride_w == 0);
                     int aux_dst_offset = typesize *
                         (((jj + l_pad - ki * dilate_w)
@@ -2109,14 +2109,14 @@ inline void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop(
 
 void jit_avx512_common_conv_bwd_data_kernel_f32::generate()
 {
-    int iw    = jcp.iw;
-    int kw    = jcp.kw;
-    int ur_w      = jcp.ur_w;
-    int ic_block  = jcp.ic_block;
-    int oc_block  = jcp.oc_block;
+    int iw = jcp.iw;
+    int kw = jcp.kw;
+    int ur_w = jcp.ur_w;
+    int ic_block = jcp.ic_block;
+    int oc_block = jcp.oc_block;
     int ur_w_tail = jcp.ur_w_tail;
     int dilate_w = jcp.dilate_w + 1;
-    int stride_w  = jcp.stride_w;
+    int stride_w = jcp.stride_w;
 
     int dst_shift = jcp.typesize_in * (ur_w / stride_w) * ic_block;
     int src_shift = jcp.typesize_out * ur_w * oc_block;
@@ -2163,7 +2163,7 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::generate()
             inc(reg_oi);
         }
         if ((l_overflow <= 0 && n_oi > 0)
-            || (l_overflow >  0 && n_oi > 1)) {
+            || (l_overflow > 0 && n_oi > 1)) {
             Label ow_loop_label;
             L(ow_loop_label); {
                 compute_loop(ur_w, 0, 0);
@@ -2351,7 +2351,7 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
                         break;
                     }
             jcp.ur_w = 31 / (jcp.nb_ic_blocking + 1);
-            if (jcp.iw < jcp.ur_w)  jcp.ur_w = jcp.iw;
+            if (jcp.iw < jcp.ur_w) jcp.ur_w = jcp.iw;
         }
     }
     if (jcp.ver == ver_4fma) {
@@ -2369,7 +2369,7 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
     jcp.loop_order = loop_gnc;
 
     bool large_code_size = (jcp.ur_w != jcp.ow)
-         && ((l_overflow <= 0 && n_oi > 0) ||(l_overflow >  0 && n_oi > 1))
+         && ((l_overflow <= 0 && n_oi > 0) ||(l_overflow > 0 && n_oi > 1))
          && (r_overflow1 > 0) && (l_overflow > 0);
     if (large_code_size) {
         const int max_code_size = 24 * 1024;
@@ -2423,7 +2423,7 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
                         break;
                     }
             jcp.ur_w = 31 / (jcp.nb_ic_blocking + 1);
-            if (jcp.iw < jcp.ur_w)  jcp.ur_w = jcp.iw;
+            if (jcp.iw < jcp.ur_w) jcp.ur_w = jcp.iw;
         }
     }
     jcp.ur_w_tail = jcp.iw % jcp.ur_w;
@@ -2508,7 +2508,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_ic_block_step_fma(
     int output_offset, bool input_wraparound)
 {
 
-    int kw  = jcp.kw;
+    int kw = jcp.kw;
     int ic_block = jcp.ic_block;
     int oc_block = jcp.oc_block;
     for (int i_kw = 0; i_kw < kw; i_kw++)
@@ -2536,7 +2536,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_ic_block_step_fma(
                 EVEX_compress_addr(reg_output, typesize * (i_ur + 3) * oc_block
                 + output_offset));
 
-        for (int  i_kw = 0; i_kw < kw; i_kw++) {
+        for (int i_kw = 0; i_kw < kw; i_kw++) {
             int i_iw = i_ur * jcp.stride_w + i_kw;
             if (i_iw - pad_l < 0 || i_iw > (ur_w - 1) * jcp.stride_w + kw - 1
                 - pad_r) continue;
@@ -2570,7 +2570,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_ic_block_step_4fma(
 
     assert(jcp.ver == ver_4fma);
 
-    int kw  = jcp.kw;
+    int kw = jcp.kw;
     int ic_block = jcp.ic_block;
     int oc_block = jcp.oc_block;
 
@@ -2642,7 +2642,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_ic_block_step_4fma(
             prefetcht0(out_addr(i_ur + i + 4));
         }
 
-        for (int  i_kw = 0; i_kw < kw; i_kw++)
+        for (int i_kw = 0; i_kw < kw; i_kw++)
             for (int i_ic = 0; i_ic < ic_block_step; i_ic++) {
                 int i_iw = i_ur + i_kw;
                 v4fmaddps(zmm_ker(i_kw, i_ic),
@@ -2668,7 +2668,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_ic_block_step_vnni(
     // TODO: add prefetches to fma version as well
     assert(jcp.ver == ver_4vnni || jcp.ver == ver_vnni);
 
-    int kw  = jcp.kw;
+    int kw = jcp.kw;
     int ic_block = jcp.ic_block;
     int oc_block = jcp.oc_block;
 
@@ -2748,7 +2748,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_ic_block_step_vnni(
             mic_prefetcht0(out_addr(2 * i_ur + i + 4));
         }
 
-        for (int  i_kw = 0; i_kw < kw; i_kw++)
+        for (int i_kw = 0; i_kw < kw; i_kw++)
             for (int i_ic = 0; i_ic < ic_block_step; i_ic++) {
                 int i_iw = 2 * i_ur + i_kw;
                 if (jcp.ver == ver_4vnni)
@@ -2888,7 +2888,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32
                 : (utils::one_of(jcp.ver, ver_4fma, ver_4vnni, ver_vnni)
                    ? jcp.tr_iw : 1);
             add(reg_input, jcp.typesize_in * ic_block_step * inp_icblk_stride);
-            add(reg_kernel,  jcp.typesize_out * ic_block_step * oc_block);
+            add(reg_kernel, jcp.typesize_out * ic_block_step * oc_block);
             add(b_ic, ic_block_step);
             cmp(b_ic, jcp.ic_block);
             jl(ic_block_label, T_NEAR);
@@ -2933,7 +2933,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32
 
     int ur_w = nstl::min(ow, max_ur_w);
     int ur_w_trips = ow / ur_w;
-    int ur_w_tail  = ow % ur_w;
+    int ur_w_tail = ow % ur_w;
     if ((ur_w_tail == 0 && r_pad != 0)
         || r_pad >= ur_w_tail) {
         if (ur_w_trips > 1) {
@@ -3239,7 +3239,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32
         cmp(reg_oj, jcp.oh);
         jge(oh_bpad_label_end, T_NEAR);
 
-        mov(reg_kh,  jcp.ihp - b_pad);
+        mov(reg_kh, jcp.ihp - b_pad);
         sub(reg_kh, reg_ih_count);
         L(oh_bpad_label);
         {

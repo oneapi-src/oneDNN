@@ -504,7 +504,7 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
 
                 int work_rem = end - start;
                 int ih_e = ih_s + work_rem > jcp.ih ? jcp.ih : ih_s + work_rem;
-                int d_len=0, d_lo=0, d_oj=0;
+                int d_len = 0, d_lo = 0, d_oj = 0;
                 if (is_fast_path_d) { // dilate == 0 && stride == 1
                     int d_t_overflow = max(0, jcp.kd - 1 - id_s
                             - jcp.f_pad);
