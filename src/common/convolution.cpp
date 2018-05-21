@@ -101,12 +101,18 @@ status_t conv_desc_init(convolution_desc_t *conv_desc,
         int src = src_desc->dims[i];
         int ker = weights_desc->dims[with_groups + i];
         int dil = cd.dilates[i - 2];
-        int pad = padding_l[i - 2] + padding_r[i - 2];
+        int pad_l = padding_l[i - 2];
+        int pad_r = padding_r[i - 2];
         int str = strides[i - 2];
         int dst = dst_desc->dims[i];
+        int ker_range = 1 + (ker - 1) * (dil + 1);
 
-        consistency = consistency &&
-            (src - ((ker - 1) * (dil + 1) + 1) + pad) / str + 1 == dst;
+        if (str < 1) return invalid_arguments;
+        consistency = consistency
+            && dil >= 0
+            && pad_l >= 0
+            && pad_r + str > 0
+            && (src - ker_range + pad_l + pad_r) / str + 1 == dst;
     }
     if (!consistency) return invalid_arguments;
 
