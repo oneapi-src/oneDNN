@@ -1948,10 +1948,12 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma(
         jg(kh_label, T_NEAR);
     }
     if (jcp.ndims == 5) {
-        sub(aux_reg_dst_d, typesize * (jcp.oh * ow) * ic_block);
+        sub(aux_reg_dst_d,
+                typesize * (jcp.dilate_d + 1) * jcp.oh * ow * ic_block);
         add(aux_reg_ker_d, typesize * jcp.stride_d * jcp.kw * jcp.kh
                 * oc_block * ic_block);
-        sub(aux_reg_dst_d_prf, typesize * (jcp.oh * ow) * ic_block);
+        sub(aux_reg_dst_d_prf,
+                typesize * (jcp.dilate_d + 1) * jcp.oh * ow * ic_block);
         add(aux_reg_ker_d_prf, typesize * jcp.stride_d * jcp.kw * jcp.kh
                 * oc_block * ic_block);
 
@@ -2063,7 +2065,8 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma_core(
     L(skip_kh_loop);
 
     if (jcp.ndims == 5) {
-        sub(aux_reg_dst_d, typesize * (jcp.oh * ow) * ic_block);
+        sub(aux_reg_dst_d,
+                typesize * (jcp.dilate_d + 1) * jcp.oh * ow * ic_block);
         add(aux_reg_ker_d, typesize * jcp.kw * jcp.kh * oc_block * ic_block);
 
         dec(reg_ki);
@@ -2227,7 +2230,8 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
     jcp.dilate_d = (ndims == 5) ? cd.dilates[0] : 0;
     jcp.dilate_h = cd.dilates[ndims-4];
     jcp.dilate_w = cd.dilates[ndims-3];
-    if (jcp.dilate_w != 0 || jcp.dilate_d != 0
+    if (jcp.dilate_w != 0
+            || (jcp.dilate_d != 0 && jcp.stride_d != 1)
             || (jcp.dilate_h != 0 && jcp.stride_h != 1))
         return status::unimplemented;
 
@@ -2235,8 +2239,8 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
                           - jcp.l_pad);
     jcp.b_pad = (jcp.oh - 1) * jcp.stride_h + (jcp.kh - 1) * (jcp.dilate_h + 1)
             - (jcp.ih + jcp.t_pad - 1);
-    jcp.back_pad = nstl::max(0, (jcp.od - 1) * jcp.stride_d + jcp.kd - jcp.id
-                          - jcp.f_pad);
+    jcp.back_pad = (jcp.od - 1) * jcp.stride_d
+            + (jcp.kd - 1) * (jcp.dilate_d + 1) - (jcp.id + jcp.f_pad - 1);
 
     jcp.ihp = jcp.ih + jcp.t_pad + jcp.b_pad;
     jcp.iwp = jcp.iw + jcp.l_pad + jcp.r_pad;
@@ -2318,7 +2322,8 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
     } else {
         return status::unimplemented;
     }
-    if (jcp.dilate_h != 0 && jcp.ver != ver_fma)
+    if (!utils::everyone_is(0, jcp.dilate_d, jcp.dilate_h)
+            && jcp.ver != ver_fma)
         return status::unimplemented;
 
     jcp.nb_ic_blocking = jcp.nb_oc_blocking = 1;

@@ -480,6 +480,7 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
         size_t wht_d_stride = wht_blk_off(weights_d, 0, 0, 0, 1);
         size_t wht_oc_stride = wht_blk_off(weights_d, 0, 1);
 
+        bool is_fast_path_d = jcp.dilate_d == 0 && jcp.stride_d == 1;
         bool is_fast_path_h = jcp.dilate_h == 0 && jcp.stride_h == 1;
 
         for (int ocb_l2 = 0; ocb_l2 < jcp.nb_oc; ocb_l2 += jcp.nb_oc_L2) {
@@ -504,7 +505,7 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
                 int work_rem = end - start;
                 int ih_e = ih_s + work_rem > jcp.ih ? jcp.ih : ih_s + work_rem;
                 int d_len=0, d_lo=0, d_oj=0;
-                if (jcp.stride_d == 1) { // fast path
+                if (is_fast_path_d) { // dilate == 0 && stride == 1
                     int d_t_overflow = max(0, jcp.kd - 1 - id_s
                             - jcp.f_pad);
                     int d_b_overflow = max(0, jcp.kd - jcp.id + id_s
@@ -512,15 +513,23 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
                     d_len = jcp.kd - d_t_overflow - d_b_overflow;
                     d_lo = d_b_overflow;
                     d_oj = id_s + jcp.f_pad - d_b_overflow;
-                } else {
-                    int b_pad = jcp.stride_d * (jcp.od - 1) + jcp.kd
-                        - jcp.id - jcp.f_pad;
+                } else if (jcp.dilate_d != 0) { // stride == 1
+                    int dilate_d = jcp.dilate_d + 1;
+                    // Note: use div_up to account for "holes" in filter
+                    int d_t_overflow = div_up(max(0, (jcp.kd - 1) * dilate_d
+                                - id_s - jcp.f_pad), dilate_d);
+                    int d_b_overflow = div_up(max(0, (jcp.kd - 1) * dilate_d + 1
+                                - jcp.id + id_s - jcp.back_pad), dilate_d);
+                    d_len = jcp.kd - d_t_overflow - d_b_overflow;
+                    d_lo = d_b_overflow;
+                    d_oj = id_s + jcp.f_pad - d_b_overflow * dilate_d;
+                } else { // dilate == 0
                     int d_t_overflow = max(0, (jcp.kd - 1 - id_s
                                 - jcp.f_pad) / jcp.stride_d);
                     int d_b_overflow = max(0, (jcp.kd - jcp.id + id_s
-                                - b_pad) / jcp.stride_d);
+                                - jcp.back_pad) / jcp.stride_d);
                     int overflow_kd_hi = jcp.kd - 1 - abs((jcp.id - 1
-                                + b_pad - id_s) % jcp.stride_d);
+                                + jcp.back_pad - id_s) % jcp.stride_d);
                     int overflow_kd_lo = (id_s + jcp.f_pad)
                         % jcp.stride_d;
 
