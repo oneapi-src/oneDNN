@@ -108,6 +108,7 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
 #   undef CASE_N
 
     if (d.ic == 0 || d.oc == 0) return FAIL;
+    if (d.sd <= 0 || d.sh <= 0 || d.sw <= 0) return FAIL;
 
     auto compute_out = [](bool is_deconv, int i, int k, int s, int p, int d) {
         if (is_deconv)
