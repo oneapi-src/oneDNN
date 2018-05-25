@@ -47,6 +47,7 @@
 #include "cpu/jit_avx512_core_i8i8_pooling.hpp"
 #include "cpu/ref_pooling.hpp"
 #include "cpu/nchw_pooling.hpp"
+#include "cpu/nhwc_pooling.hpp"
 #include "cpu/jit_avx512_common_lrn.hpp"
 #include "cpu/jit_uni_lrn.hpp"
 #include "cpu/ref_lrn.hpp"
@@ -194,6 +195,8 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(jit_uni_pooling_bwd_t<sse42>),
     INSTANCE(nchw_pooling_fwd_t<f32>),
     INSTANCE(nchw_pooling_bwd_t<f32>),
+    INSTANCE(nhwc_pooling_fwd_t<f32>),
+    INSTANCE(nhwc_pooling_bwd_t<f32>),
     INSTANCE(ref_pooling_fwd_t<f32>),
     INSTANCE(ref_pooling_bwd_t<f32>),
     /* pool (int) */
