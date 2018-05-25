@@ -30,10 +30,10 @@ namespace impl {
 namespace cpu {
 
 namespace nhwc_pooling{
-    size_t strided_offset(const int  _n, const int _sn,
-                          const int  _d, const int _sd,
-                          const int  _h, const int _sh,
-                          const int  _w, const int _sw);
+    size_t strided_offset(const int _n, const size_t _sn,
+                          const int _d, const size_t _sd,
+                          const int _h, const size_t _sh,
+                          const int _w, const size_t _sw);
 }
 
 template <impl::data_type_t data_type>
