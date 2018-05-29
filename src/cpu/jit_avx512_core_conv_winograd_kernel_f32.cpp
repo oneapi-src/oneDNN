@@ -371,6 +371,7 @@ void _jit_avx512_core_conv_winograd_data_kernel_f32::gemm_loop_generate()
 
     /* Postamble */
     pop(reg_EVEX_max_8b_offt);
+    uni_vzeroupper();
     ret();
 }
 
@@ -2235,6 +2236,7 @@ void jit_avx512_core_conv_winograd_bwd_weights_kernel_f32::gemm_loop_generate(
     /* Postamble */
     pop(reg_dimK_block_loop_cnt);
     pop(reg_EVEX_max_8b_offt);
+    uni_vzeroupper();
     ret();
 }
 

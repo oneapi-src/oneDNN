@@ -227,6 +227,7 @@ struct rtus_driver_t: public jit_generator {
         pop(rdi);
 #endif
 
+        uni_vzeroupper();
         ret();
         this->ker_ = reinterpret_cast<decltype(ker_)>(const_cast<uint8_t*>(
                     this->getCode()));

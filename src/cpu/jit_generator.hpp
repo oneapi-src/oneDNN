@@ -63,6 +63,7 @@ namespace cpu {
 typedef enum {
     isa_any,
     sse42,
+    avx,
     avx2,
     avx512_common,
     avx512_core,
@@ -78,11 +79,14 @@ template <> struct cpu_isa_traits<sse42> {
     static constexpr int vlen = 16;
     static constexpr int n_vregs = 16;
 };
-template <> struct cpu_isa_traits<avx2> {
+template <> struct cpu_isa_traits<avx> {
     static constexpr int vlen_shift = 5;
     static constexpr int vlen = 32;
     static constexpr int n_vregs = 16;
 };
+template <> struct cpu_isa_traits<avx2>:
+    public cpu_isa_traits<avx> {};
+
 template <> struct cpu_isa_traits<avx512_common> {
     static constexpr int vlen_shift = 6;
     static constexpr int vlen = 64;
@@ -175,6 +179,8 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa) {
     switch (cpu_isa) {
     case sse42:
         return cpu.has(Cpu::tSSE42);
+    case avx:
+        return cpu.has(Cpu::tAVX);
     case avx2:
         return cpu.has(Cpu::tAVX2);
     case avx512_common:
@@ -341,6 +347,11 @@ public:
             prefetcht2(a);
     }
 
+    void uni_vzeroupper() {
+        if (mayiuse(avx) && !mayiuse(avx512_mic))
+            vzeroupper();
+    }
+
     void postamble() {
         for (size_t i = 0; i < num_abi_save_gpr_regs; ++i)
             pop(Xbyak::Reg64(abi_save_gpr_regs[num_abi_save_gpr_regs - 1 - i]));
@@ -349,6 +360,7 @@ public:
                 movdqu(Xbyak::Xmm(xmm_to_preserve_start + i), ptr[rsp + i * xmm_len]);
             add(rsp, xmm_to_preserve * xmm_len);
         }
+        uni_vzeroupper();
         ret();
     }
 
