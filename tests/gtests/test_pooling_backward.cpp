@@ -62,9 +62,9 @@ void check_pool_fwd(const pool_bwd_test_params &p, const memory &src,
             for (int od = 0; od < pd.od; od++)
             for (int oh = 0; oh < pd.oh; oh++)
             for (int ow = 0; ow < pd.ow; ow++) {
-                int oidx = n * pd.c * pd.od * pd.oh * pd.ow
-                    + c * pd.od * pd.oh * pd.ow + od * pd.oh * pd.ow
-                    + oh * pd.ow + ow;
+                size_t oidx = (size_t)n * pd.c * pd.od * pd.oh * pd.ow
+                        + (size_t)c * pd.od * pd.oh * pd.ow
+                        + (size_t)od * pd.oh * pd.ow + (size_t)oh * pd.ow + ow;
                 data_t out = dst_data[map_index(dst_d, oidx)];
                 data_t out_ref = data_t(0);
                 bool is_initialized = false;
@@ -84,9 +84,10 @@ void check_pool_fwd(const pool_bwd_test_params &p, const memory &src,
                     for (int id = id_start; id < id_end; ++id)
                     for (int ih = ih_start; ih < ih_end; ++ih)
                     for (int iw = iw_start; iw < iw_end; ++iw) {
-                        int iidx = n * pd.c * pd.id * pd.ih * pd.iw
-                                    + c * pd.id * pd.ih * pd.iw
-                                    + id * pd.ih * pd.iw + ih * pd.iw + iw;
+                        size_t iidx = (size_t)n * pd.c * pd.id * pd.ih * pd.iw
+                                + (size_t)c * pd.id * pd.ih * pd.iw
+                                + (size_t)id * pd.ih * pd.iw
+                                + (size_t)ih * pd.iw + iw;
 
                         data_t d = src_data[map_index(src_d, iidx)];
                         if (p.aalgorithm == pooling_max) {
@@ -133,7 +134,8 @@ void check_pool_bwd(const pool_bwd_test_params &p, const memory &diff_src,
     const memory::desc ws_d = ws.get_primitive_desc().desc();
 
     auto pd = p.test_pd;
-    data_t *ref_diff_src = new data_t[pd.mb*pd.c*pd.id*pd.ih*pd.iw];
+    data_t *ref_diff_src
+            = new data_t[(size_t)pd.mb * pd.c * pd.id * pd.ih * pd.iw];
 
     auto apply_offset = [=](int index, int offset) {
         return (index > offset) ? index - offset : 0;
@@ -145,9 +147,10 @@ void check_pool_bwd(const pool_bwd_test_params &p, const memory &diff_src,
             for (int id = 0; id < pd.id; id++) {
                 for (int ih = 0; ih < pd.ih; ih++) {
                     for (int iw = 0; iw < pd.iw; iw++) {
-                        int iidx = n * pd.c * pd.id * pd.ih * pd.iw
-                        + c * pd.id * pd.ih * pd.iw + id * pd.ih * pd.iw
-                        + ih * pd.iw + iw;
+                        size_t iidx = (size_t)n * pd.c * pd.id * pd.ih * pd.iw
+                                + (size_t)c * pd.id * pd.ih * pd.iw
+                                + (size_t)id * pd.ih * pd.iw
+                                + (size_t)ih * pd.iw + iw;
                         ref_diff_src[iidx] = 0.;
                     }
                 }
@@ -161,9 +164,9 @@ void check_pool_bwd(const pool_bwd_test_params &p, const memory &diff_src,
             for (int od = 0; od < pd.od; od++)
             for (int oh = 0; oh < pd.oh; oh++)
             for (int ow = 0; ow < pd.ow; ow++) {
-                int oidx = n * pd.c * pd.od * pd.oh * pd.ow
-                    + c * pd.od * pd.oh * pd.ow + od * pd.oh * pd.ow
-                    + oh * pd.ow + ow;
+                size_t oidx = (size_t)n * pd.c * pd.od * pd.oh * pd.ow
+                        + (size_t)c * pd.od * pd.oh * pd.ow
+                        + (size_t)od * pd.oh * pd.ow + (size_t)oh * pd.ow + ow;
                 data_t diff_dst = diff_dst_data[map_index(diff_dst_d, oidx)];
                 if (p.aalgorithm == pooling_max) {
                     int kw_max = ws_data(map_index(ws_d, oidx)) % pd.kw;
@@ -178,9 +181,10 @@ void check_pool_bwd(const pool_bwd_test_params &p, const memory &diff_src,
                         if (iw < 0 || iw >= pd.iw) continue;
                         if (ih < 0 || ih >= pd.ih) continue;
                         if (id < 0 || id >= pd.id) continue;
-                        int iidx = n * pd.c * pd.id * pd.ih * pd.iw
-                        + c * pd.id * pd.ih * pd.iw + id * pd.ih * pd.iw
-                        + ih * pd.iw + iw;
+                        size_t iidx = (size_t)n * pd.c * pd.id * pd.ih * pd.iw
+                                + (size_t)c * pd.id * pd.ih * pd.iw
+                                + (size_t)id * pd.ih * pd.iw
+                                + (size_t)ih * pd.iw + iw;
 
                         if (kh == kh_max && kw == kw_max && kd == kd_max)
                             ref_diff_src[iidx] += diff_dst;
@@ -205,9 +209,11 @@ void check_pool_bwd(const pool_bwd_test_params &p, const memory &diff_src,
                     for (int id = id_start; id < id_end; id++) {
                         for (int ih = ih_start; ih < ih_end; ih++) {
                             for (int iw = iw_start; iw < iw_end; iw++) {
-                                int iidx = n * pd.c * pd.id * pd.ih * pd.iw
-                                + c * pd.id * pd.ih * pd.iw + id * pd.ih * pd.iw
-                                + ih * pd.iw + iw;
+                                size_t iidx = (size_t)n * pd.c * pd.id * pd.ih
+                                                * pd.iw
+                                        + (size_t)c * pd.id * pd.ih * pd.iw
+                                        + (size_t)id * pd.ih * pd.iw
+                                        + (size_t)ih * pd.iw + iw;
                                 ref_diff_src[iidx] += diff_dst / num_summands;
                             }
                         }
@@ -223,9 +229,10 @@ void check_pool_bwd(const pool_bwd_test_params &p, const memory &diff_src,
             for (auto id = 0; id < pd.id; id++)
                 for (auto ih = 0; ih < pd.ih; ih++)
                     for (auto iw = 0; iw < pd.iw; iw++) {
-                        int iidx = n * pd.c * pd.id * pd.ih * pd.iw
-                            + c * pd.id * pd.ih * pd.iw
-                            + id * pd.ih * pd.iw + ih * pd.iw + iw;
+                        size_t iidx = (size_t)n * pd.c * pd.id * pd.ih * pd.iw
+                                + (size_t)c * pd.id * pd.ih * pd.iw
+                                + (size_t)id * pd.ih * pd.iw
+                                + (size_t)ih * pd.iw + iw;
                         EXPECT_NEAR(ref_diff_src[iidx],
                         diff_src_data[map_index(diff_src_d, iidx)],
                         1e-5f);

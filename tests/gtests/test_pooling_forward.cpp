@@ -70,9 +70,10 @@ void check_pool_fwd(const pool_test_params &p, const memory &src,
             for (int od = 0; od < pd.od; od++) {
                 for (int oh = 0; oh < pd.oh; oh++) {
                     for (int ow = 0; ow < pd.ow; ow++) {
-                        int oidx = n * pd.c * pd.od * pd.oh * pd.ow
-                        + c * pd.od * pd.oh * pd.ow + od * pd.oh * pd.ow
-                        + oh * pd.ow + ow;
+                        size_t oidx = (size_t)n * pd.c * pd.od * pd.oh * pd.ow
+                                + (size_t)c * pd.od * pd.oh * pd.ow
+                                + (size_t)od * pd.oh * pd.ow
+                                + (size_t)oh * pd.ow + ow;
                         data_t out = dst_data[map_index(dst_d, oidx)];
                         int out_index = -1;
                         if(p.aalgorithm == pooling_max
@@ -96,9 +97,11 @@ void check_pool_fwd(const pool_test_params &p, const memory &src,
                             if (ih < 0 || ih >= pd.ih) continue;
                             if (iw < 0 || iw >= pd.iw) continue;
 
-                            int iidx = n * pd.c * pd.id * pd.ih * pd.iw
-                                + c * pd.id * pd.ih * pd.iw
-                                + id * pd.ih * pd.iw + ih * pd.iw + iw;
+                            size_t iidx
+                                    = (size_t)n * pd.c * pd.id * pd.ih * pd.iw
+                                    + (size_t)c * pd.id * pd.ih * pd.iw
+                                    + (size_t)id * pd.ih * pd.iw
+                                    + (size_t)ih * pd.iw + iw;
 
                             data_t d = src_data[map_index(src_d, iidx)];
                             if (p.aalgorithm == pooling_max) {
