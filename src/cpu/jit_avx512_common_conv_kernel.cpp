@@ -1819,6 +1819,7 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma(
     int ic_block = jcp.ic_block;
     int oc_block = jcp.oc_block;
     int l_pad    = jcp.l_pad;
+    int dilate_w = jcp.dilate_w + 1;
     int stride_w = jcp.stride_w;
     int stride_h = jcp.stride_h;
 
@@ -1899,14 +1900,17 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma(
 
                 int jj_start = get_iw_start(ki, l_overflow);
                 int jj_end   = get_iw_end(ur_w, ki, r_overflow);
-                assert(stride_w != 1 ||
-                        jj_start == nstl::max(0, l_overflow - (kw - 1) + ki));
-                assert(stride_w != 1 ||
-                        jj_end == ur_w - nstl::max(0, r_overflow - ki));
+                assert(stride_w != 1
+                        || jj_start == nstl::max(0,
+                            l_overflow - (kw - 1 - ki) * dilate_w));
+                assert(stride_w != 1
+                        || jj_end == ur_w - nstl::max(0,
+                            r_overflow - ki * dilate_w));
 
                 for (int jj = jj_start; jj  < jj_end; jj += stride_w) {
-                    assert((jj + l_pad - ki) % stride_w == 0);
-                    int aux_dst_offset = typesize * (((jj + l_pad - ki)
+                    assert((jj + l_pad - ki * dilate_w) % stride_w == 0);
+                    int aux_dst_offset = typesize *
+                        (((jj + l_pad - ki * dilate_w)
                                 / stride_w) * jcp.oc_block + oc);
                     vfmadd231ps(zmm_out(jj, 0), zmm_kernel,
                         EVEX_compress_addr(aux_reg_dst, aux_dst_offset, true));
@@ -1978,6 +1982,7 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma_core(
 {
     int kw = jcp.kw;
     int ow = jcp.ow;
+    int dilate_w = jcp.dilate_w + 1;
     int stride_w = jcp.stride_w;
     int ic_block = jcp.ic_block;
     int oc_block = jcp.oc_block;
@@ -1988,7 +1993,8 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma_core(
     int shift_dst_ptr = typesize * (jcp.dilate_h + 1) * ow * oc_block;
 
     auto output_offset = [=](int oi, int oc, int ki) {
-        return typesize * (((oi + jcp.l_pad - ki)/stride_w) * oc_block + oc);
+        return typesize *
+            (((oi + jcp.l_pad - ki * dilate_w) / stride_w) * oc_block + oc);
     };
     auto kernel_offset = [=](int icb, int oc, int ki) {
         int blk_idx = icb * jcp.kh * jcp.kw * jcp.kd + ki;
@@ -2105,13 +2111,12 @@ inline void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop(
 void jit_avx512_common_conv_bwd_data_kernel_f32::generate()
 {
     int iw    = jcp.iw;
-    int ow    = jcp.ow;
     int kw    = jcp.kw;
-    int l_pad = jcp.l_pad;
     int ur_w      = jcp.ur_w;
     int ic_block  = jcp.ic_block;
     int oc_block  = jcp.oc_block;
     int ur_w_tail = jcp.ur_w_tail;
+    int dilate_w = jcp.dilate_w + 1;
     int stride_w  = jcp.stride_w;
 
     int dst_shift = jcp.typesize_in * (ur_w / stride_w) * ic_block;
@@ -2128,14 +2133,15 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::generate()
     mov(reg_dst_prf, ptr[param + GET_OFF(dst_prf)]);
     mov(reg_ker_prf, ptr[param + GET_OFF(filt_prf)]);
 
-    int l_overflow = nstl::max(0, ((kw - 1) - l_pad) / stride_w);
-    int r_pad      = nstl::max(0, (stride_w * (ow - 1) + kw - iw - l_pad));
-    int r_overflow = nstl::max(0, ((kw - 1) - r_pad) / stride_w);
-    int n_oi = iw / ur_w;
-    int r_overflow1 = nstl::max(0, ((kw - 1) - (iw - ur_w * n_oi)
-                - r_pad) / stride_w);
+    int l_overflow = nstl::max(0, ((kw - 1) * dilate_w - jcp.l_pad) / stride_w);
+    int r_overflow = nstl::max(0, ((kw - 1) * dilate_w
+                    - nstl::max(0, jcp.r_pad)) / stride_w);
+    int r_overflow1 = nstl::max(0, ((kw - 1) * dilate_w
+                    - nstl::max(0, jcp.r_pad) - ur_w_tail) / stride_w);
 
+    int n_oi = iw / ur_w;
     if (r_overflow1 > 0) n_oi--;
+
     if (ur_w == iw) {
         compute_loop(ur_w, l_overflow, r_overflow);
     } else if (n_oi == 0) {
@@ -2230,13 +2236,13 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
     jcp.dilate_d = (ndims == 5) ? cd.dilates[0] : 0;
     jcp.dilate_h = cd.dilates[ndims-4];
     jcp.dilate_w = cd.dilates[ndims-3];
-    if (jcp.dilate_w != 0
+    if ((jcp.dilate_w != 0 && jcp.stride_w != 1)
             || (jcp.dilate_d != 0 && jcp.stride_d != 1)
             || (jcp.dilate_h != 0 && jcp.stride_h != 1))
         return status::unimplemented;
 
-    jcp.r_pad = nstl::max(0, (jcp.ow - 1) * jcp.stride_w + jcp.kw - jcp.iw
-                          - jcp.l_pad);
+    jcp.r_pad = (jcp.ow - 1) * jcp.stride_w + (jcp.kw - 1) * (jcp.dilate_w + 1)
+            - (jcp.iw + jcp.l_pad - 1);
     jcp.b_pad = (jcp.oh - 1) * jcp.stride_h + (jcp.kh - 1) * (jcp.dilate_h + 1)
             - (jcp.ih + jcp.t_pad - 1);
     jcp.back_pad = (jcp.od - 1) * jcp.stride_d
@@ -2286,10 +2292,11 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
                 break;
             }
     }
-    int n_oi  = (jcp.iw / jcp.ur_w);
-    int l_overflow  = nstl::max(0, ((jcp.kw - 1) - jcp.l_pad) / jcp.stride_w);
-    int r_overflow1 = nstl::max(0, ((jcp.kw - 1) - (jcp.iw - jcp.ur_w * n_oi)
-                                - jcp.r_pad) / jcp.stride_w);
+    int l_overflow = nstl::max(0, ((jcp.kw - 1) * (jcp.dilate_w + 1)
+                    - jcp.l_pad) / jcp.stride_w);
+    int r_overflow1 = nstl::max(0, ((jcp.kw - 1) * (jcp.dilate_w + 1)
+                    - nstl::max(0, jcp.r_pad) - jcp.iw % jcp.ur_w) / jcp.stride_w);
+    int n_oi = jcp.iw / jcp.ur_w;
     if (r_overflow1 > 0) n_oi--;
 
     if ((mayiuse(avx512_mic_4ops) || mayiuse(avx512_core_vnni))
@@ -2322,7 +2329,7 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
     } else {
         return status::unimplemented;
     }
-    if (!utils::everyone_is(0, jcp.dilate_d, jcp.dilate_h)
+    if (!utils::everyone_is(0, jcp.dilate_d, jcp.dilate_h, jcp.dilate_w)
             && jcp.ver != ver_fma)
         return status::unimplemented;
 
@@ -2429,8 +2436,8 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
 
     if (l_overflow * jcp.stride_w > jcp.ur_w)
         return status::unimplemented;
-    int r_overflow_no_tail = nstl::max(0, (jcp.kw - 1 - jcp.ur_w_tail
-                - jcp.r_pad) / jcp.stride_w);
+    int r_overflow_no_tail = nstl::max(0, ((jcp.kw - 1) * (jcp.dilate_w + 1)
+                    - nstl::max(0, jcp.r_pad) - jcp.ur_w_tail) / jcp.stride_w);
     if (r_overflow_no_tail * jcp.stride_w > jcp.ur_w)
         return status::unimplemented;
     if ((jcp.iw > jcp.ur_w) && (jcp.ur_w % jcp.stride_w != 0))

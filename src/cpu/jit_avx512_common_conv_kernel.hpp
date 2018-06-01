@@ -301,10 +301,9 @@ private:
 
     inline int get_iw_start(int ki, int l_overflow)
     {
-        int r_pad = jcp.stride_w * (jcp.ow - 1) + jcp.kw - jcp.iw - jcp.l_pad;
-        int k_max = jcp.kw - 1 - (jcp.iw - 1 + r_pad) % jcp.stride_w
-            - l_overflow * jcp.stride_w;
-        int res = ki - k_max;
+        int res = (jcp.iw - 1 + jcp.r_pad) % jcp.stride_w
+                + l_overflow * jcp.stride_w
+                - (jcp.kw - 1 - ki) * (jcp.dilate_w + 1);
         while (res < 0)
             res += jcp.stride_w;
 
@@ -314,14 +313,10 @@ private:
 
     inline int get_iw_end(int ur_w, int ki, int r_overflow)
     {
-        if (ur_w == jcp.ur_w_tail) {
-            int r_pad = nstl::min(0, jcp.stride_w * (jcp.ow - 1) + jcp.kw
-                    - jcp.iw - jcp.l_pad);
-            ur_w += r_pad;
-        }
-        int k_min = (ur_w - 1 + jcp.l_pad) % jcp.stride_w + r_overflow
-            * jcp.stride_w;
-        int res = k_min - ki;
+        if (ur_w == jcp.ur_w_tail)
+            ur_w += nstl::min(0, jcp.r_pad);
+        int res = (ur_w - 1 + jcp.l_pad) % jcp.stride_w
+                + r_overflow * jcp.stride_w - ki * (jcp.dilate_w + 1);
         while (res < 0)
             res += jcp.stride_w;
 
