@@ -2277,16 +2277,16 @@ void jit_avx2_gemm_f32::sgemm_nocopy_driver(const char *transa,
                 }
 
                 if (!isTransA) {
-                    curA = a + Bm + Bk * lda;
+                    curA = a + Bm + (size_t)Bk * lda;
                 } else {
-                    curA = a + Bk + Bm * lda;
+                    curA = a + Bk + (size_t)Bm * lda;
                 }
                 if (!isTransB) {
-                    curB = b + Bk + Bn * ldb;
+                    curB = b + Bk + (size_t)Bn * ldb;
                 } else {
-                    curB = b + Bn + Bk * ldb;
+                    curB = b + Bn + (size_t)Bk * ldb;
                 }
-                curC = c + Bm + Bn * ldc;
+                curC = c + Bm + (size_t)Bn * ldc;
                 if (bias != NULL) {
                     if (Bk == 0) {
                         curBias = bias + Bm;
