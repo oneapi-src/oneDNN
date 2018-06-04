@@ -1133,7 +1133,6 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
     jcp.src_fmt = src_d.format();
     jcp.with_relu = with_relu;
     jcp.relu_negative_slope = relu_negative_slope;
-    jcp.ur_h = 1;
 
     jcp.dilate_d = (ndims == 5) ? cd.dilates[0] : 0;
     jcp.dilate_h = cd.dilates[ndims-4];
@@ -2248,10 +2247,6 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
     jcp.back_pad = (jcp.od - 1) * jcp.stride_d
             + (jcp.kd - 1) * (jcp.dilate_d + 1) - (jcp.id + jcp.f_pad - 1);
 
-    jcp.ihp = jcp.ih + jcp.t_pad + jcp.b_pad;
-    jcp.iwp = jcp.iw + jcp.l_pad + jcp.r_pad;
-    jcp.ohp = jcp.oh;
-    jcp.owp = jcp.ow;
     jcp.aligned_threads = 0;
 
     auto src_format = (ndims == 5) ? nCdhw16c : nChw16c;
@@ -2279,7 +2274,6 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
         return status::unimplemented;
     jcp.nb_oc = jcp.oc / jcp.oc_block;
 
-    jcp.ur_h = jcp.stride_h;
     jcp.ur_w = jcp.stride_w;
 
     int regs = 28;
