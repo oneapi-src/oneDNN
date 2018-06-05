@@ -1267,7 +1267,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
                 }
             }
         }
-        if (ndims == 5 && jcp.ur_w <= 8) {
+        if ((ndims == 5 && jcp.ur_w <= 8) || (jcp.ur_w <= 1)) {
             jcp.ur_w = nstl::min(jcp.ow, regs);
         }
     }
