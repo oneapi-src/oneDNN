@@ -63,7 +63,7 @@ struct jit_sse41_convolution_fwd_t : public primitive_t {
         bool set_default_formats() {
             using namespace format_tag;
 
-            const bool flat = IC() == 3;
+            const bool flat = IC() == 3 || IC() == 1;
             auto src_tag = flat
                     ? utils::pick(ndims() - 3, ncw, nchw, ncdhw)
                     : utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);

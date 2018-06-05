@@ -395,7 +395,7 @@ status_t jit_sse41_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     jcp.with_eltwise = eltwise_ind != -1;
     if (jcp.with_eltwise) jcp.eltwise = p.entry_[eltwise_ind].eltwise;
 
-    const bool flat = jcp.ic == 3;
+    const bool flat = jcp.ic == 3 || jcp.ic == 1;
     const bool mimo = !flat;
 
     bool args_ok = true
