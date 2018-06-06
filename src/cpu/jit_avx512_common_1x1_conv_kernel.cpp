@@ -1156,10 +1156,10 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
 void jit_avx512_common_1x1_conv_kernel::balance(jit_1x1_conv_conf_t &jcp,
         int nthreads)
 {
+    // initialize jcp reduction threading properties
+    jcp.nthr = jcp.nthr_mb = jcp.nthr_g = jcp.nthr_oc_b = jcp.nthr_ic_b = 1;
     if (nthreads < jcp.ngroups) {
         /* simplification... fortunately it doesn't hurt much */
-        jcp.nthr = jcp.nthr_mb = jcp.nthr_g =
-            jcp.nthr_oc_b = jcp.nthr_ic_b = 1;
         return;
     }
     const int nb_bcast = div_up(jcp.bcast_dim, jcp.bcast_block);
@@ -1187,21 +1187,21 @@ void jit_avx512_common_1x1_conv_kernel::balance(jit_1x1_conv_conf_t &jcp,
             output_koeff = 8;
         }
         return 0
-            + bcast_koeff * div_up(jcp.mb * nb_reduce, nthr_mb)
+            + (size_t)bcast_koeff * div_up(jcp.mb * nb_reduce, nthr_mb)
             * div_up(jcp.ngroups, jcp.nthr_g)
             * div_up(nb_bcast, nthr_ic_b) * jcp.ic_block * jcp.reduce_block
             / jcp.stride_h / jcp.stride_w /* (n1) */
-            + load_koeff * div_up(jcp.mb * nb_reduce, nthr_mb)
+            + (size_t)load_koeff * div_up(jcp.mb * nb_reduce, nthr_mb)
             * div_up(jcp.ngroups, jcp.nthr_g)
             * div_up(nb_load, nthr_oc_b) * jcp.oc_block * jcp.reduce_block
-            + output_koeff /* (n2) */
+            + (size_t)output_koeff /* (n2) */
             * div_up(jcp.ngroups, jcp.nthr_g) * div_up(nb_load, nthr_oc_b)
             * div_up(nb_bcast, nthr_ic_b) * jcp.ic_block
             * jcp.oc_block;
     };
 
     int nthr_mb = 1, nthr_oc_b = 1, nthr_ic_b = 1;
-    int best_mem_cost = calc_mem_cost(nthr_mb, nthr_oc_b, nthr_ic_b);
+    auto best_mem_cost = calc_mem_cost(nthr_mb, nthr_oc_b, nthr_ic_b);
 
     /* step 1: find the best thread distribution with lowest memory cost */
     const int nthr_mb_max = nstl::min(nthr, jcp.mb * nb_reduce);
@@ -1210,7 +1210,7 @@ void jit_avx512_common_1x1_conv_kernel::balance(jit_1x1_conv_conf_t &jcp,
         const int nthr_oc_b_max = nstl::min(nthr_par, nb_load);
         for (nthr_oc_b = 1; nthr_oc_b <= nthr_oc_b_max; ++nthr_oc_b) {
             nthr_ic_b = nstl::min(nthr_par / nthr_oc_b, nb_bcast);
-            int mem_cost = calc_mem_cost(nthr_mb, nthr_oc_b, nthr_ic_b);
+            auto mem_cost = calc_mem_cost(nthr_mb, nthr_oc_b, nthr_ic_b);
             if (mem_cost <= best_mem_cost) {
                 best_mem_cost = mem_cost;
                 jcp.nthr_mb = nthr_mb;
