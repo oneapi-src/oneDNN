@@ -830,7 +830,7 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
                 = (one_of(jcp.prop_kind, forward_training, forward_inference)) ?
                 jcp.oh :
                 jcp.ih;
-        if (jcp.ver == ver_avx512_core && (2 * jcp.mb) / nthreads >= 1) {
+        if (jcp.ver == ver_avx512_core && (8 * jcp.mb) / nthreads >= 1) {
             max_regs = 9;
             min_regs = 6;
             size_treshold = 14;
@@ -903,8 +903,9 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
                 reduce_blocking = nstl::min(jcp.reduce_dim, 512);
             else
                 reduce_blocking = nstl::min(jcp.reduce_dim, 256);
-            if (jcp.mb > 1
-                    && (spatial >= 28 || (spatial >= 17 && jcp.mb > 112)))
+
+            if ((jcp.mb > 28 && spatial >= 28)
+                    || (jcp.mb > 112 && spatial >= 17))
                 jcp.use_vmovntps = true;
             else
                 jcp.use_vmovntps = false;
@@ -932,14 +933,15 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
         int load_size = jcp.load_dim * jcp.reduce_dim;
         int bcast_size = jcp.mb * jcp.ngroups * jcp.bcast_dim * jcp.reduce_dim;
 
-        if (jcp.mb == 1 && nb_load * nb_bcast > nthreads) {
+        if (jcp.ver == ver_avx512_core && nthreads <= 28 && jcp.mb < nthreads
+                && nb_load * nb_bcast > nthreads) {
             // Some heuristic here
             float calc_koef = 0.01, best_cost = FLT_MAX;
             int n_lgc = nthreads;
             float ratio = (float)load_size / (float)bcast_size;
             int best_lgc = ratio > 1 ? n_lgc : 1;
             auto calc_job_cost = [&](int lb, int tg, float mem_k) {
-                int bb_size = div_up(nb_bcast, tg);
+                int bb_size = jcp.mb * div_up(nb_bcast, tg);
                 float calc_size = (float)(bb_size * jcp.ur)
                         * (lb * jcp.load_block) * jcp.reduce_dim;
                 float mem_size = (float)(bb_size * jcp.ur + lb * jcp.load_block)
