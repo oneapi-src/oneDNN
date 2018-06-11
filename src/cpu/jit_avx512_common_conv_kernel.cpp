@@ -3122,8 +3122,8 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32
     const int inp_mult = jcp.is_1stconv ? 1 : jcp.ic_block;
     int iw = utils::one_of(jcp.ver, ver_4fma, ver_4vnni, ver_vnni) ? jcp.tr_iw
         : jcp.iw;
-    Label oh_label, oh_label_end, oh_tpad_label, oh_bpad_label,
-        oh_bpad_label_end, od_label, od_label_end;
+    Label oh_label, oh_label_end, oh_tpad_label, oh_tpad_tail_label,
+            oh_bpad_label, oh_bpad_label_end, od_label, od_label_end;
 
     maybe_zero_kernel();
     if (jcp.ndims == 5 && jcp.with_bias) bias_kernel();
@@ -3150,34 +3150,58 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32
     xor_(reg_ih_count, reg_ih_count);
     xor_(reg_oj, reg_oj);
     if (t_pad > 0) {
-        assert(jcp.kh <= t_pad + jcp.ih); /* [bwd_w:r1] */
         mov(reg_kh, jcp.kh <= t_pad + jcp.ih ? jcp.kh - t_pad : jcp.ih);
         add(reg_kernel, jcp.typesize_out * t_pad * jcp.kw * jcp.ic_block
             * jcp.oc_block);
+        // generate loop to process kernel while it remains within t_pad + ih
+        if (jcp.kh < t_pad + jcp.ih) {
+            L(oh_tpad_label); {
+                compute_oh_step_disp();
+                add(reg_output, jcp.typesize_in * ow * jcp.oc_block);
+                sub(reg_kernel, jcp.typesize_out * stride_h * jcp.kw
+                                * jcp.ic_block * jcp.oc_block);
 
-        L(oh_tpad_label); {
-            compute_oh_step_disp();
-            add(reg_output, jcp.typesize_in * ow * jcp.oc_block);
-            sub(reg_kernel, jcp.typesize_out * stride_h * jcp.kw * jcp.ic_block
-                * jcp.oc_block);
+                inc(reg_oj);
+                add(reg_ih_count, stride_h);
+                add(reg_kh, stride_h);
 
-            inc(reg_oj);
-            add(reg_ih_count, stride_h);
-            add(reg_kh, stride_h);
-
-            /* the overlap between input and kernel may not reach kernel size.
-             * so far we do not support that (until we put constant here) */
-            const int final_inp_ker_overlap = jcp.kh; /* [bwd_w:r2] */
-            cmp(reg_kh, final_inp_ker_overlap);
-            jl(oh_tpad_label, T_NEAR);
+                // at least jcp.ih cells of kernel ultimately overlap with input
+                const int final_inp_ker_overlap = nstl::min(jcp.kh, jcp.ih);
+                cmp(reg_kh, final_inp_ker_overlap);
+                jl(oh_tpad_label, T_NEAR);
+            }
         }
-        if (t_pad % stride_h != 0) {
-            int inp_corr = stride_h -  t_pad % stride_h;
-            add(reg_kernel, jcp.typesize_out * inp_corr * jcp.kw * jcp.ic_block
-                * jcp.oc_block);
-            add(reg_input, jcp.typesize_in * inp_corr * iw * inp_mult);
-        }
+        // need second loop to process kernel if it is larger than the input
+        if (jcp.kh >= jcp.ih + (t_pad % stride_h == 0 ? stride_h :
+                                                        t_pad % stride_h)) {
+            mov(reg_kh, jcp.ih);
+            L(oh_tpad_tail_label); {
+                compute_oh_step_disp();
+                add(reg_output, jcp.typesize_in * ow * jcp.oc_block);
+                sub(reg_kernel, jcp.typesize_out * stride_h * jcp.kw
+                                * jcp.ic_block * jcp.oc_block);
 
+                inc(reg_oj);
+                add(reg_ih_count, stride_h);
+
+                cmp(reg_ih_count, nstl::min(t_pad, jcp.oh * stride_h));
+                jl(oh_tpad_tail_label, T_NEAR);
+            }
+        }
+        // correct any excess shifts to kernel and input
+        if (t_pad <= jcp.oh * stride_h) {
+            // kernel has moved beyond padding (adjust for stride effects)
+            if (t_pad % stride_h != 0) {
+                int inp_corr = stride_h - t_pad % stride_h;
+                add(reg_kernel, jcp.typesize_out * inp_corr * jcp.kw
+                                * jcp.ic_block * jcp.oc_block);
+                add(reg_input, jcp.typesize_in * inp_corr * iw * inp_mult);
+            }
+        } else {
+            // kernel still overlaps padding (complete reset)
+            sub(reg_kernel, jcp.typesize_out * (t_pad - jcp.oh * stride_h)
+                            * jcp.kw * jcp.ic_block * jcp.oc_block);
+        }
     }
 
     cmp(reg_ih_count, jcp.ihp - b_pad - jcp.kh + 1);
@@ -4117,9 +4141,7 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
      * but ideally the check should belong to a specific kernel... */
     const bool boundaries_ok = true
         && jcp.t_pad <= jcp.kh / 2
-        && jcp.b_pad <= jcp.kh / 2
-        && jcp.kh <= jcp.t_pad + jcp.ih /* [bwd_w:r1] */
-        && jcp.kh <= jcp.ih; /* [bwd_w:r2] */
+        && jcp.b_pad <= jcp.kh / 2;
     if (!boundaries_ok)
         return status::unimplemented;
 
