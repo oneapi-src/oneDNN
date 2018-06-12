@@ -106,19 +106,20 @@ void ncsp_batch_normalization_fwd_t::execute_forward() {
         } else
             C_blks_per_iter = C;
         int last_iter_blks = C - (iters - 1) * C_blks_per_iter;
-
-        bnorm_utils::thread_balance(do_blocking, ithr, nthr, N,
-                C_blks_per_iter, SP, C_ithr, C_nthr, C_blk_s, C_blk_e, N_ithr,
-                N_nthr, N_s, N_e, S_ithr, S_nthr, S_s, S_e);
+        bool spatial_thr_allowed
+                = bnorm_utils::thread_balance(do_blocking, true, ithr, nthr, N,
+                        C_blks_per_iter, SP, C_ithr, C_nthr, C_blk_s, C_blk_e,
+                        N_ithr, N_nthr, N_s, N_e, S_ithr, S_nthr, S_s, S_e);
         balance211(C_blks_per_iter, nthr, ithr, C_blk_gl_s, C_blk_gl_e);
         int SP_N_ithr = N_ithr * S_nthr + S_ithr;
         int SP_N_nthr = N_nthr * S_nthr;
         for (int it = 0; it < iters; ++it) {
             if (it == iters - 1 && iters > 1) {
                 S_s = S_e = C_blk_s = C_blk_e = N_s = N_e = 0;
-                bnorm_utils::thread_balance(do_blocking, ithr, nthr, N,
-                        last_iter_blks, SP, C_ithr, C_nthr, C_blk_s, C_blk_e,
-                        N_ithr, N_nthr, N_s, N_e, S_ithr, S_nthr, S_s, S_e);
+                spatial_thr_allowed = bnorm_utils::thread_balance(do_blocking,
+                        spatial_thr_allowed, ithr, nthr, N, last_iter_blks, SP,
+                        C_ithr, C_nthr, C_blk_s, C_blk_e, N_ithr, N_nthr, N_s,
+                        N_e, S_ithr, S_nthr, S_s, S_e);
                 balance211(last_iter_blks, nthr, ithr, C_blk_gl_s, C_blk_gl_e);
                 SP_N_ithr = N_ithr * S_nthr + S_ithr;
                 SP_N_nthr = N_nthr * S_nthr;
@@ -251,10 +252,10 @@ void ncsp_batch_normalization_bwd_t::execute_backward() {
         } else
             C_blks_per_iter = C;
         int last_iter_blks = C - (iters - 1) * C_blks_per_iter;
-
-        bnorm_utils::thread_balance(do_blocking, ithr, nthr, N,
-                C_blks_per_iter, SP, C_ithr, C_nthr, C_blk_s, C_blk_e, N_ithr,
-                N_nthr, N_s, N_e, S_ithr, S_nthr, S_s, S_e);
+        bool spatial_thr_allowed
+                = bnorm_utils::thread_balance(do_blocking, true, ithr, nthr, N,
+                        C_blks_per_iter, SP, C_ithr, C_nthr, C_blk_s, C_blk_e,
+                        N_ithr, N_nthr, N_s, N_e, S_ithr, S_nthr, S_s, S_e);
         balance211(C_blks_per_iter, nthr, ithr, C_blk_gl_s, C_blk_gl_e);
         int SP_N_ithr = N_ithr * S_nthr + S_ithr;
         int SP_N_nthr = N_nthr * S_nthr;
@@ -262,9 +263,10 @@ void ncsp_batch_normalization_bwd_t::execute_backward() {
         for (int it = 0; it < iters; ++it) {
             if (it == iters - 1 && iters > 1) {
                 C_blk_s = C_blk_e = N_s = N_e = 0;
-                bnorm_utils::thread_balance(do_blocking, ithr, nthr, N,
-                        last_iter_blks, SP, C_ithr, C_nthr, C_blk_s, C_blk_e,
-                        N_ithr, N_nthr, N_s, N_e, S_ithr, S_nthr, S_s, S_e);
+                spatial_thr_allowed = bnorm_utils::thread_balance(do_blocking,
+                        spatial_thr_allowed, ithr, nthr, N, last_iter_blks, SP,
+                        C_ithr, C_nthr, C_blk_s, C_blk_e, N_ithr, N_nthr, N_s,
+                        N_e, S_ithr, S_nthr, S_s, S_e);
                 balance211(last_iter_blks, nthr, ithr, C_blk_gl_s, C_blk_gl_e);
             }
             size_t C_off = it * C_blks_per_iter;

@@ -978,9 +978,9 @@ struct uni_bnorm_driver_t: public c_compatible {
                 C_blks_per_iter, iters);
         }
 
-        bnorm_utils::thread_balance(do_blocking_, ithr, nthr, N,
-                do_blocking_ ? C_blks_per_iter : C_blks, SP, C_ithr, C_nthr,
-                C_blk_s, C_blk_e, N_ithr, N_nthr, N_s, N_e,
+        bool spatial_thr_allowed = bnorm_utils::thread_balance(do_blocking_,
+                true, ithr, nthr, N, do_blocking_ ? C_blks_per_iter : C_blks,
+                SP, C_ithr, C_nthr, C_blk_s, C_blk_e, N_ithr, N_nthr, N_s, N_e,
                 S_ithr, S_nthr, S_s, S_e);
 
         int SP_N_ithr = N_ithr * S_nthr + S_ithr;
@@ -996,9 +996,10 @@ struct uni_bnorm_driver_t: public c_compatible {
         for (int it = 0; it < iters; it++) {
             if (it == iters - 1 && iters > 1) {
                 C_blk_s = C_blk_e = N_s = N_e = 0;
-                bnorm_utils::thread_balance(do_blocking_, ithr, nthr, N,
-                        last_iter_blks, SP, C_ithr, C_nthr, C_blk_s, C_blk_e,
-                        N_ithr, N_nthr, N_s, N_e, S_ithr, S_nthr, S_s, S_e);
+                spatial_thr_allowed = bnorm_utils::thread_balance(do_blocking_,
+                        spatial_thr_allowed, ithr, nthr, N, last_iter_blks, SP,
+                        C_ithr, C_nthr, C_blk_s, C_blk_e, N_ithr, N_nthr, N_s,
+                        N_e, S_ithr, S_nthr, S_s, S_e);
 
                 SP_N_ithr = N_ithr * S_nthr + S_ithr;
                 SP_N_nthr = N_nthr * S_nthr;

@@ -41,11 +41,10 @@ namespace bnorm_utils {
         iters = (C_blks + C_blks_per_iter - 1) / C_blks_per_iter;
     }
 
-    void thread_balance(bool do_blocking, int ithr, int nthr, int N,
-            int C_blks, int SP,
-            int &C_ithr, int &C_nthr, int &C_blk_s, int &C_blk_e, int &N_ithr,
-            int &N_nthr, int &N_s, int &N_e,
-            int &S_ithr, int &S_nthr, int &S_s, int &S_e) {
+    bool thread_balance(bool do_blocking, bool spatial_thr_allowed, int ithr,
+            int nthr, int N, int C_blks, int SP, int &C_ithr, int &C_nthr,
+            int &C_blk_s, int &C_blk_e, int &N_ithr, int &N_nthr, int &N_s,
+            int &N_e, int &S_ithr, int &S_nthr, int &S_s, int &S_e) {
         if (nthr <= C_blks) {
             C_ithr = ithr; C_nthr = nthr;
             N_ithr = 0; N_nthr = 1;
@@ -62,6 +61,10 @@ namespace bnorm_utils {
                 N_nthr = nstl::min(N, nthr / C_nthr);
                 S_nthr = nstl::min(SP, nthr / (C_nthr * N_nthr));
             }
+
+            if (!spatial_thr_allowed)
+                S_nthr = 1;
+
             if (S_nthr < 1) S_nthr = 1;
             if (ithr < C_nthr * N_nthr * S_nthr) {
                 N_ithr = (ithr / S_nthr) % N_nthr ;
@@ -75,6 +78,17 @@ namespace bnorm_utils {
                 S_s = S_e = N_s = N_e = C_blk_s = C_blk_e = -1;
             }
         }
+
+        // spatial_thr_allowed is meant to help maintain
+        // consistent decisions about spatial threading
+        // between mutiple invocations of this routine.
+        // It is caller's responsibility to check the
+        // return value and pass it as a flag to the
+        // next call if needed.
+        if (S_nthr == 1)
+            spatial_thr_allowed = false;
+
+        return spatial_thr_allowed;
     }
 
     void set_spatial_thr(const batch_normalization_pd_t *bdesc,
@@ -95,6 +109,10 @@ namespace bnorm_utils {
                 = (bdesc->MB() * SP * simd_w * data_size) * num_tensors;
             cache_balance(working_set_size, C_blks, C_blks_per_iter, iters);
         }
+
+        // Spatial threading decision made in this function shall be consistent
+        // with thread_balance() behavior.
+        C_blks = do_blocking ? C_blks_per_iter : C_blks;
 
         if (nthr <= C_blks) {
             is_spatial_thr = 0;
