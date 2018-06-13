@@ -534,14 +534,16 @@ status_t jit_avx512_core_u8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         jcp.nb_ic_blocking = (!(jcp.nb_ic % 4))
                             ? 4
                             : (!(jcp.nb_ic % 2)) ? 2 : 1;
-    jcp.nb_oc_blocking = 4;
-    if (jcp.nb_oc < jcp.nb_oc_blocking) jcp.nb_oc_blocking = jcp.nb_oc;
-    if (jcp.nb_oc % jcp.nb_oc_blocking != 0)
-        for (int i = jcp.nb_oc_blocking; i > 0; i--)
-            if (jcp.nb_oc % i == 0) {
-                jcp.nb_oc_blocking = i;
-                break;
-            }
+
+    // If OC blocking is incommensurate with the number of OC blocks (general
+    // requirement for all convolutions), or if it results in an unrolling
+    // factor smaller than the left padding (special requirement for SSD:fc6),
+    // then search for a smaller OC blocking that satisfies both constraints.
+    jcp.nb_oc_blocking = nstl::min(4, jcp.nb_oc);
+    for (; jcp.nb_oc_blocking > 1; jcp.nb_oc_blocking--)
+        if (jcp.nb_oc % jcp.nb_oc_blocking == 0
+                && jcp.l_pad <= regs / (jcp.nb_oc_blocking + 1))
+            break;
 
     jcp.ur_w = regs / (jcp.nb_oc_blocking + 1);
     if (jcp.ow < jcp.ur_w)  jcp.ur_w = jcp.ow;
