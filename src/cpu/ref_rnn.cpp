@@ -117,7 +117,9 @@ elemwise_sig(_ref_rnn_common_t<prop_kind::forward>::lstm_elemwise) {
 
 #pragma omp parallel for
     for (int i = 0; i < batch; i++) {
+#ifndef _MSC_VER
 #pragma omp simd
+#endif // _MSC_VER
         for (int j = 0; j < dic; j++) {
             ws_gates(i, 0, j) = logistic_fwd(ws_gates(i, 0, j) + bias(0, j));
             ws_gates(i, 1, j) = logistic_fwd(ws_gates(i, 1, j) + bias(1, j));
@@ -148,7 +150,9 @@ elemwise_sig(_ref_rnn_common_t<prop_kind::backward>::lstm_elemwise) {
 
 #pragma omp parallel for
     for (int i = 0; i < batch; i++) {
+#ifndef _MSC_VER
 #pragma omp simd
+#endif // _MSC_VER
         for (int j = 0; j < dic; j++) {
             float Ct = states_t_l(1, i, j);
             /// @todo save it in the workspace in fwd pass or recompute it to
@@ -279,7 +283,9 @@ cell_execution_sig(_ref_rnn_common_t<prop_kind::forward>::cell_execution_gru) {
     // 3. activation zt and rt + elemwise multiplication rt,ht-1
 #pragma omp parallel for
     for (int i = 0; i < batch; i++) {
+#ifndef _MSC_VER
 #pragma omp simd
+#endif // _MSC_VER
         for (int j = 0; j < dic; j++) {
             ws_gates(i, 0, j) = logistic_fwd(ws_gates(i, 0, j) + bias(0, j));
             ws_gates(i, 1, j) = logistic_fwd(ws_gates(i, 1, j) + bias(1, j));
@@ -295,7 +301,9 @@ cell_execution_sig(_ref_rnn_common_t<prop_kind::forward>::cell_execution_gru) {
     // 5. activation h~t + calculate ht
 #pragma omp parallel for
     for (int i = 0; i < batch; i++) {
+#ifndef _MSC_VER
 #pragma omp simd
+#endif // _MSC_VER
         for (int j = 0; j < dic; j++) {
             ws_gates(i, 2, j) = tanh_fwd(ws_gates(i, 2, j) + bias(2, j));
             states_t_l(i, j) = states_tm1_l(i, j) * ws_gates(i, 0, j) +
@@ -326,7 +334,9 @@ cell_execution_sig(_ref_rnn_common_t<prop_kind::backward>::cell_execution_gru) {
     // dht-1 (part) = dh * G0
 #pragma omp parallel for
     for (int i = 0; i < batch; i++) {
+#ifndef _MSC_VER
 #pragma omp simd
+#endif // _MSC_VER
         for (int j = 0; j < dic; j++) {
             float h = states_tm1_l(i, j);
             float dHt = diff_states_tp1_l(0, i, j)
@@ -354,7 +364,9 @@ cell_execution_sig(_ref_rnn_common_t<prop_kind::backward>::cell_execution_gru) {
     //h * G1 (required for dWh)
 #pragma omp parallel for
     for (int i = 0; i < batch; i++) {
+#ifndef _MSC_VER
 #pragma omp simd
+#endif // _MSC_VER
         for (int j = 0; j < dic; j++) {
             float h = states_tm1_l(i, j);
             float G1 =  ws_gates(i, 1, j);
