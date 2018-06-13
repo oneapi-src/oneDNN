@@ -35,6 +35,8 @@
 
 #include "ref_rnn.hpp"
 
+#include "mkldnn_thread.hpp"
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {

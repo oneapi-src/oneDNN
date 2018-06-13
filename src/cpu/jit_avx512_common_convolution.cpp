@@ -806,20 +806,26 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
         const int tr_iw = jcp.tr_iw;
 
         for (size_t iwork = start; iwork < end; iwork++) {
-#           pragma omp simd
+#ifndef _MSC_VER
+#pragma omp simd
+#endif // _MSC_VER
 #           pragma unroll
             for (int i = 0; i < l_pad; i++)
                 for (int j = 0; j < jcp.ic_block; j++)
                     tr_src1[j * jcp.tr_iw + i] = (src_data_t)0.0;
 
-#           pragma omp simd
+#ifndef _MSC_VER
+#pragma omp simd
+#endif // _MSC_VER
 #           pragma unroll
             for (int i = l_pad; i < iwlp; i++)
                 for (int j = 0; j < jcp.ic_block; j++)
                     tr_src1[j * jcp.tr_iw + i]
                         = (src_data_t)src1[(i - l_pad) * 16 + j];
 
-#           pragma omp simd
+#ifndef _MSC_VER
+#pragma omp simd
+#endif // _MSC_VER
 #           pragma unroll
             for (int i = iwlp; i < tr_iw; i++)
                 for (int j = 0; j < jcp.ic_block; j++)
@@ -1245,7 +1251,9 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
                 for (int o = 0; o < 16; ++o)
                     d_bias[o] = 0;
             for (int hw = 0; hw < jcp.oh * jcp.ow * jcp.od; ++hw) {
-#               pragma omp simd
+#ifndef _MSC_VER
+#pragma omp simd
+#endif // _MSC_VER
                 for (int o = 0; o < 16; ++o)
                     d_bias[o] += d_dst[o];
                 d_dst += 16;

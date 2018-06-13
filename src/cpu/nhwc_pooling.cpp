@@ -24,6 +24,8 @@
 
 #include "nhwc_pooling.hpp"
 
+#include "mkldnn_thread.hpp"
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {

@@ -625,13 +625,17 @@ void array_sum(size_t num_arrs, float *output,
             size_t start_e = nb * block_size;
             size_t end_e = start_e + block_size;
             if (!reduce_to_first) {
-#               pragma omp simd
+#ifndef _MSC_VER
+#pragma omp simd
+#endif // _MSC_VER
                 for (size_t e = start_e; e < end_e; e++) {
                     output[e] = input_ptrs[0][e];
                 }
             }
             for (size_t a = 1; a < num_arrs; a++) {
-#               pragma omp simd
+#ifndef _MSC_VER
+#pragma omp simd
+#endif // _MSC_VER
                 for (size_t e = start_e; e < end_e; e++) {
                     output[e] += input_ptrs[a][e];
                 }
@@ -642,13 +646,17 @@ void array_sum(size_t num_arrs, float *output,
             size_t start_e = nelems - tail;
             size_t end_e = nelems;
             if (!reduce_to_first) {
-#               pragma omp simd
+#ifndef _MSC_VER
+#pragma omp simd
+#endif // _MSC_VER
                 for (size_t e = start_e; e < end_e; e++) {
                     output[e] = input_ptrs[0][e];
                 }
             }
             for (size_t a = 1; a < num_arrs; a++) {
-#               pragma omp simd
+#ifndef _MSC_VER
+#pragma omp simd
+#endif // _MSC_VER
                 for (size_t e = start_e; e < end_e; e++) {
                     output[e] += input_ptrs[a][e];
                 }
