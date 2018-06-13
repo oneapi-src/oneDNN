@@ -554,22 +554,30 @@ void subarray_sum(size_t num_arrs, float *output, size_t nelems,
             size_t end_e = start_e + block_size;
             size_t input_start = max(start_e, min(input_starts[0], end_e));
             size_t input_end = max(start_e, min(input_ends[0], end_e));
+#ifndef _MSC_VER
 #pragma omp simd
+#endif // _MSC_VER
             for (size_t e = start_e; e < input_start; e++) {
                 output[e] = 0.f;
             }
+#ifndef _MSC_VER
 #pragma omp simd
+#endif // _MSC_VER
             for (size_t e = input_start; e < input_end; e++) {
                 output[e] = input_ptrs[0][e];
             }
+#ifndef _MSC_VER
 #pragma omp simd
+#endif // _MSC_VER
             for (size_t e = input_end; e < end_e; e++) {
                 output[e] = 0.f;
             }
             for (size_t a = 1; a < num_arrs; a++) {
                 input_start = max(start_e, input_starts[a]);
                 input_end = min(input_ends[a], end_e);
+#ifndef _MSC_VER
 #pragma omp simd
+#endif // _MSC_VER
                 for (size_t e = input_start; e < input_end; e++) {
                     output[e] += input_ptrs[a][e];
                 }
@@ -581,22 +589,30 @@ void subarray_sum(size_t num_arrs, float *output, size_t nelems,
             size_t end_e = nelems;
             size_t input_start = max(start_e, min(input_starts[0], end_e));
             size_t input_end = max(start_e, min(input_ends[0], end_e));
+#ifndef _MSC_VER
 #pragma omp simd
+#endif // _MSC_VER
             for (size_t e = start_e; e < input_start; e++) {
                 output[e] = 0.f;
             }
+#ifndef _MSC_VER
 #pragma omp simd
+#endif // _MSC_VER
             for (size_t e = input_start; e < input_end; e++) {
                 output[e] = input_ptrs[0][e];
             }
+#ifndef _MSC_VER
 #pragma omp simd
+#endif // _MSC_VER
             for (size_t e = input_end; e < end_e; e++) {
                 output[e] = 0.f;
             }
             for (size_t a = 1; a < num_arrs; a++) {
                 input_start = max(start_e, input_starts[a]);
                 input_end = min(input_ends[a], end_e);
+#ifndef _MSC_VER
 #pragma omp simd
+#endif // _MSC_VER
                 for (size_t e = input_start; e < input_end; e++) {
                     output[e] += input_ptrs[a][e];
                 }
@@ -625,13 +641,17 @@ void array_sum(size_t num_arrs, float *output,
             size_t start_e = nb * block_size;
             size_t end_e = start_e + block_size;
             if (!reduce_to_first) {
-#               pragma omp simd
+#ifndef _MSC_VER
+#pragma omp simd
+#endif // _MSC_VER
                 for (size_t e = start_e; e < end_e; e++) {
                     output[e] = input_ptrs[0][e];
                 }
             }
             for (size_t a = 1; a < num_arrs; a++) {
-#               pragma omp simd
+#ifndef _MSC_VER
+#pragma omp simd
+#endif // _MSC_VER
                 for (size_t e = start_e; e < end_e; e++) {
                     output[e] += input_ptrs[a][e];
                 }
@@ -642,13 +662,17 @@ void array_sum(size_t num_arrs, float *output,
             size_t start_e = nelems - tail;
             size_t end_e = nelems;
             if (!reduce_to_first) {
-#               pragma omp simd
+#ifndef _MSC_VER
+#pragma omp simd
+#endif // _MSC_VER
                 for (size_t e = start_e; e < end_e; e++) {
                     output[e] = input_ptrs[0][e];
                 }
             }
             for (size_t a = 1; a < num_arrs; a++) {
-#               pragma omp simd
+#ifndef _MSC_VER
+#pragma omp simd
+#endif // _MSC_VER
                 for (size_t e = start_e; e < end_e; e++) {
                     output[e] += input_ptrs[a][e];
                 }
@@ -719,7 +743,9 @@ _execute_backward_weights_SDGtWo() {
         for (int ithr = 0; ithr < nthreads; ithr++) {
             for (int ofm = 0; ofm < jcp.oc / simd_w; ofm++) {
                 float *pdbias = &(diff_bias_prv(ithr, ofm * simd_w));
+#ifndef _MSC_VER
 #pragma omp simd
+#endif // _MSC_VER
                 for (int v = 0; v < simd_w; v++) {
                     pdbias[v] = 0.0f;
                 }
@@ -1021,13 +1047,17 @@ _execute_backward_weights_S_D_Giot_W() {
         for (int ofm1 = 0; ofm1 < jcp.oc / simd_w; ++ofm1) {
             float* pbias = &(diff_bias(ofm1 * simd_w));
             float *pbias_prv = &(diff_bias_prv(0, ofm1 * simd_w));
+#ifndef _MSC_VER
 #pragma omp simd
+#endif // _MSC_VER
             for (int ofm2 = 0; ofm2 < simd_w; ++ofm2) {
                 pbias[ofm2] = pbias_prv[ofm2];
             }
             for (int ithr = 1; ithr < nthreads; ++ithr) {
                 pbias_prv = &(diff_bias_prv(ithr, ofm1 * simd_w));
+#ifndef _MSC_VER
 #pragma omp simd
+#endif // _MSC_VER
                 for (int ofm2 = 0; ofm2 < simd_w; ++ofm2) {
                     pbias[ofm2] += pbias_prv[ofm2];
                 }

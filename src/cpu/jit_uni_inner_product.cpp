@@ -114,13 +114,17 @@ void jit_uni_inner_product_bwd_weights_t<isa>::execute_backward_weights()
             oc_st = oc_st * blksize;
             oc_e = oc_e * blksize;
 
-#           pragma omp simd
+#ifndef _MSC_VER
+#pragma omp simd
+#endif // _MSC_VER
             for (int oc = oc_st; oc < oc_e; ++oc) {
                 diff_bias[oc] = diff_dst[oc];
             }
 
             for (int mb = 1; mb < MB; ++mb) {
-#               pragma omp simd
+#ifndef _MSC_VER
+#pragma omp simd
+#endif // _MSC_VER
                 for (int oc = oc_st; oc < oc_e; ++oc) {
                     diff_bias[oc] += diff_dst[mb * OC + oc];
                 }

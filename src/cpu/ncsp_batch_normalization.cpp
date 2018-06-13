@@ -131,7 +131,9 @@ void ncsp_batch_normalization_fwd_t::execute_forward() {
                     size_t off = (c + C_off) * SP;
                     data_t sum = 0;
                     for (int n = N_s; n < N_e; ++n)
+#ifndef _MSC_VER
 #pragma omp simd reduction(+ : sum)
+#endif // _MSC_VER
                         for (int sp = S_s; sp < S_e; ++sp) {
                             sum += src[off + n * C * SP + sp];
                         }
@@ -149,7 +151,9 @@ void ncsp_batch_normalization_fwd_t::execute_forward() {
                     size_t off = c + C_off;
                     data_t sum = 0.;
                     for (int n = N_s; n < N_e; ++n)
+#ifndef _MSC_VER
 #pragma omp simd reduction(+ : sum)
+#endif // _MSC_VER
                         for (int sp = S_s; sp < S_e; ++sp) {
                             data_t m = src[off * SP + n * C * SP + sp]
                                     - mean[off];
@@ -173,7 +177,9 @@ void ncsp_batch_normalization_fwd_t::execute_forward() {
                 data_t sqrt_variance
                         = static_cast<data_t>(1.0f / sqrtf(variance[off] + eps));
                 for (int n = N_s; n < N_e; ++n)
+#ifndef _MSC_VER
 #pragma omp simd
+#endif // _MSC_VER
                     for (int sp = S_s; sp < S_e; ++sp) {
                         size_t d_off = off * SP + n * C * SP + sp;
                         data_t bn_res
@@ -275,7 +281,9 @@ void ncsp_batch_normalization_bwd_t::execute_backward() {
                 data_t diff_gamma = 0.0, diff_beta = 0.0;
                 data_t v_mean = mean[off];
                 for (int n = N_s; n < N_e; ++n)
+#ifndef _MSC_VER
 #pragma omp simd reduction(+ : diff_gamma, diff_beta)
+#endif // _MSC_VER
                     for (int sp = S_s; sp < S_e; ++sp) {
                         const size_t d_off = off * SP + n * C * SP + sp;
                         data_t dd;
@@ -312,7 +320,9 @@ void ncsp_batch_normalization_bwd_t::execute_backward() {
                         = static_cast<data_t>(1.0f / sqrtf(variance[off] + eps));
                 data_t v_mean = mean[off];
                 for (int n = N_s; n < N_e; ++n)
+#ifndef _MSC_VER
 #pragma omp simd
+#endif // _MSC_VER
                     for (int sp = S_s; sp < S_e; ++sp) {
                         const size_t d_off = off * SP + n * C * SP + sp;
                         ;

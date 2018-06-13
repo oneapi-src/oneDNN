@@ -114,7 +114,9 @@ private:
     {
         assert(!((use_workspace == false) ^ (!ws))); // ensure ws pointer exists
 
+#ifndef _MSC_VER
 #pragma omp simd
+#endif // _MSC_VER
         for (int oc = 0; oc < n; ++oc) {
             auto s = src[oc];
             data_t mv = dst[oc];

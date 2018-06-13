@@ -150,7 +150,7 @@ void _gemm_convolution_bwd_data_t<run_jit, isa>::execute_backward_data() {
 
         if (jcp.id > 1) {
         #pragma omp for
-        for (size_t i = 0; i < jcp.ngroups*jcp.mb*src_step; ++i)
+        for (long i = 0; i < jcp.ngroups*jcp.mb*src_step; ++i)
             diff_src[i] = 0.;
         }
 
@@ -295,7 +295,9 @@ void _gemm_convolution_bwd_weights_t<run_jit, isa>::execute_backward_weights() {
                     size_t offset = offset_ + mb*jcp.ngroups*dst_step;
                     for (int od = 0; od < jcp.od; ++od)
                     for (int oh = 0; oh < jcp.oh; ++oh)
-#                   pragma omp simd reduction(+:db)
+#ifndef _MSC_VER
+                    #pragma omp simd reduction(+:db)
+#endif // _MSC_VER
                     for (int ow = 0; ow < jcp.ow; ++ow)
                     {
                         db += diff_dst[offset];
