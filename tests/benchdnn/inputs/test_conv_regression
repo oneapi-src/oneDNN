@@ -11,4 +11,4 @@
 --dir=FWD_B --batch=conv_regression_padding
 
 #
---batch=conv_regression_general
+--batch=test_conv_regression_general
