@@ -57,6 +57,9 @@ void ncsp_batch_normalization_fwd_t::execute_forward() {
     auto dst = reinterpret_cast<data_t *>(this->memory(0));
     const bool calculate_stats = !conf_.stats_is_src();
     const bool save_stats = conf_.is_training();
+    const bool is_training = conf_.is_training();
+    const bool fuse_bn_relu = conf_.fuse_bn_relu();
+
     data_t *mean, *variance;
     if (!calculate_stats) {
         mean = reinterpret_cast<data_t *>(
@@ -180,13 +183,13 @@ void ncsp_batch_normalization_fwd_t::execute_forward() {
                         data_t bn_res
                                 = sm * (src[d_off] - mean[off]) * sqrt_variance
                                 + sv;
-                        if (conf_.fuse_bn_relu()) {
+                        if (fuse_bn_relu) {
                             if (bn_res <= 0) {
                                 bn_res = 0;
-                                if (ws)
+                                if (is_training)
                                     ws[d_off] = 0;
                             } else {
-                                if (ws)
+                                if (is_training)
                                     ws[d_off] = 1;
                             }
                         }
@@ -234,6 +237,7 @@ void ncsp_batch_normalization_bwd_t::execute_backward() {
     const bool use_scaleshift = conf_.use_scaleshift();
     const float eps = conf_.desc()->batch_norm_epsilon;
     const bool calculate_diff_stats = !conf_.omit_stats();
+    const bool fuse_bn_relu = conf_.fuse_bn_relu();
 
     int nthr = omp_get_max_threads();
     size_t l3_size_ = get_cache_size(3, true) * nthr / 2;
@@ -281,7 +285,7 @@ void ncsp_batch_normalization_bwd_t::execute_backward() {
                     for (int sp = S_s; sp < S_e; ++sp) {
                         const size_t d_off = off * SP + n * C * SP + sp;
                         data_t dd;
-                        if (ws)
+                        if (fuse_bn_relu)
                             dd = (!ws[d_off]) ? 0 : diff_dst[d_off];
                         else
                             dd = diff_dst[d_off];
@@ -319,7 +323,7 @@ void ncsp_batch_normalization_bwd_t::execute_backward() {
                         const size_t d_off = off * SP + n * C * SP + sp;
                         ;
                         data_t v_diff_src;
-                        if (ws)
+                        if (fuse_bn_relu)
                             v_diff_src = (!ws[d_off]) ? 0 : diff_dst[d_off];
                         else
                             v_diff_src = diff_dst[d_off];

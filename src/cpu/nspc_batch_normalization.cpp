@@ -52,6 +52,8 @@ nspc_batch_normalization_fwd_t::~nspc_batch_normalization_fwd_t() {
 void nspc_batch_normalization_fwd_t::execute_forward() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     const bool save_stats = conf_.is_training();
+    const bool is_training = conf_.is_training();
+    const bool fuse_bn_relu = conf_.fuse_bn_relu();
     const bool calculate_stats = !conf_.stats_is_src();
     const bool with_relu = conf_.with_relu_post_op();
     data_t *mean, *variance;
@@ -153,13 +155,13 @@ void nspc_batch_normalization_fwd_t::execute_forward() {
                     data_t bn_res
                             = sm * (src[(size_t)n * SP * C + sp * C + c]
                                     - mean_loc[c]) * sqrt_variance + sv;
-                    if (conf_.fuse_bn_relu()) {
+                    if (fuse_bn_relu) {
                         if (bn_res <= 0) {
                             bn_res = 0;
-                            if (ws)
+                            if (is_training)
                                 ws[(size_t)n * SP * C + sp * C + c] = 0;
                         } else {
-                            if (ws)
+                            if (is_training)
                                 ws[(size_t)n * SP * C + sp * C + c] = 1;
                         }
                     }
@@ -209,6 +211,7 @@ void nspc_batch_normalization_bwd_t::execute_backward() {
     const float eps = conf_.desc()->batch_norm_epsilon;
     const bool use_scaleshift = conf_.use_scaleshift();
     const bool calculate_diff_stats = !conf_.omit_stats();
+    const bool fuse_bn_relu = conf_.fuse_bn_relu();
 #pragma omp parallel
     {
         int ithr = omp_get_thread_num();
@@ -231,7 +234,7 @@ void nspc_batch_normalization_bwd_t::execute_backward() {
                 for (int c = 0; c < C; c++) {
                     const size_t d_off = (size_t)n * SP * C + sp * C + c;
                     data_t dd;
-                    if (ws)
+                    if (fuse_bn_relu)
                         dd = (!ws[d_off]) ? 0 : diff_dst[d_off];
                     else
                         dd = diff_dst[d_off];
@@ -266,7 +269,7 @@ void nspc_batch_normalization_bwd_t::execute_backward() {
                     data_t sqrt_variance
                             = static_cast<data_t>(1.0f / sqrtf(variance[c] + eps));
                     data_t v_diff_src;
-                    if (ws)
+                    if (fuse_bn_relu)
                         v_diff_src = (!ws[d_off]) ? 0 : diff_dst[d_off];
                     else
                         v_diff_src = diff_dst[d_off];

@@ -64,6 +64,8 @@ void ref_batch_normalization_fwd_t<data_type>::execute_forward() {
     const float eps = conf_.desc()->batch_norm_epsilon;
     const bool use_scaleshift = conf_.use_scaleshift();;
     const bool save_stats = conf_.is_training();
+    const bool is_training = conf_.is_training();
+    const bool fuse_bn_relu = conf_.fuse_bn_relu();
     const bool calculate_stats = !conf_.stats_is_src();
 
     const bool with_relu = conf_.with_relu_post_op();
@@ -116,12 +118,14 @@ void ref_batch_normalization_fwd_t<data_type>::execute_forward() {
         for (int w = 0; w < W; ++w) {
             auto d_off = data_offset(data_d,n,c,d,h,w);
             data_t bn_res = sm * (src[d_off] - v_mean) * sqrt_variance + sv;
-            if (conf_.fuse_bn_relu()) {
+            if (fuse_bn_relu) {
                 if (bn_res <= 0) {
                     bn_res = 0;
-                    if (ws) ws[d_off] = 0;
+                    if (is_training)
+                        ws[d_off] = 0;
                 } else {
-                    if (ws) ws[d_off] = 1;
+                    if (is_training)
+                        ws[d_off] = 1;
                 }
             }
             dst[d_off] = maybe_post_op(bn_res);
@@ -172,6 +176,7 @@ void ref_batch_normalization_bwd_t<data_type>::execute_backward() {
     const float eps = conf_.desc()->batch_norm_epsilon;
     const bool use_scaleshift = conf_.use_scaleshift();
     const bool calculate_diff_stats = !conf_.omit_stats();
+    const bool fuse_bn_relu = conf_.fuse_bn_relu();
 
     const bool is_3d = data_d.ndims() == 5;
 
@@ -202,7 +207,8 @@ void ref_batch_normalization_bwd_t<data_type>::execute_backward() {
         for (int w = 0; w < W; ++w) {
             const size_t s_off = data_offset(data_d, n, c, d, h, w);
             data_t dd = diff_dst[data_offset(diff_data_d, n, c, d, h, w)];
-            if (ws && !ws[s_off]) dd = 0;
+            if (fuse_bn_relu && !ws[s_off])
+                dd = 0;
 
             diff_gamma += (src[s_off] - v_mean) * dd;
             diff_beta += dd;
@@ -221,7 +227,8 @@ void ref_batch_normalization_bwd_t<data_type>::execute_backward() {
             const size_t s_off = data_offset(data_d, n, c, d, h, w);
             const size_t dd_off = data_offset(diff_data_d, n, c, d, h, w);
             data_t dd = diff_dst[dd_off];
-            if (ws && !ws[s_off]) dd = 0;
+            if (fuse_bn_relu && !ws[s_off])
+                dd = 0;
 
             data_t v_diff_src = dd;
             if (calculate_diff_stats) {
