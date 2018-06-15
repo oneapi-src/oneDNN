@@ -101,7 +101,8 @@ void nspc_batch_normalization_fwd_t::execute_forward() {
 
             for (int n = N_s; n < N_e; n++)
                 for (int sp = 0; sp < SP; sp++)
-#pragma omp simd
+
+PRAGMA_OMP_SIMD()
                     for (int c = 0; c < C; c++)
                         ws_reduce[C * ithr + c] += src[(size_t)n * SP * C
                             + sp * C + c];
@@ -121,7 +122,8 @@ void nspc_batch_normalization_fwd_t::execute_forward() {
 
             for (int n = N_s; n < N_e; n++)
                 for (int sp = 0; sp < SP; sp++)
-#pragma omp simd
+
+PRAGMA_OMP_SIMD()
                     for (int c = 0; c < C; c++) {
                         data_t m = src[(size_t)n * SP * C + sp * C + c]
                             - mean_loc[c];
@@ -144,7 +146,8 @@ void nspc_batch_normalization_fwd_t::execute_forward() {
 
         for (int n = N_s; n < N_e; n++) {
             for (int sp = 0; sp < SP; sp++) {
-#pragma omp simd
+
+PRAGMA_OMP_SIMD()
                 for (int c = 0; c < C; c++) {
                     data_t sqrt_variance = static_cast<data_t>(
                             1.0f / sqrtf(variance_loc[c] + eps));
@@ -227,7 +230,8 @@ void nspc_batch_normalization_bwd_t::execute_backward() {
 
         for (int n = N_s; n < N_e; n++)
             for (int sp = 0; sp < SP; sp++)
-#pragma omp simd
+
+PRAGMA_OMP_SIMD()
                 for (int c = 0; c < C; c++) {
                     const size_t d_off = (size_t)n * SP * C + sp * C + c;
                     data_t dd;
@@ -259,7 +263,8 @@ void nspc_batch_normalization_bwd_t::execute_backward() {
 
         for (int n = N_s; n < N_e; n++) {
             for (int sp = 0; sp < SP; sp++) {
-#pragma omp simd
+
+PRAGMA_OMP_SIMD()
                 for (int c = 0; c < C; c++) {
                     const size_t d_off = (size_t)n * SP * C + sp * C + c;
                     data_t gamma = use_scaleshift ? scaleshift[c] : 1;

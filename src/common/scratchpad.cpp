@@ -16,6 +16,8 @@
 
 #include "scratchpad.hpp"
 
+#include "mkldnn_thread.hpp"
+
 namespace mkldnn {
 namespace impl {
 
@@ -51,41 +53,97 @@ private:
   scratchpad
 */
 
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+// MSVC only supports <= OMP 2.0. Declaring static members
+// to be threadprivate is only supported in OMP >= 3.0.
+// As such, we need to implement this ourselves here.
 struct global_scratchpad_t : public scratchpad_t {
-    global_scratchpad_t(size_t size) {
-        if (size > size_) {
-            if (scratchpad_ != nullptr) free(scratchpad_);
-            size_ = size;
-            scratchpad_ = (char *) malloc(size, page_size);
-            assert(scratchpad_ != nullptr);
-        }
-        reference_count_++;
-    }
+	global_scratchpad_t(size_t size) {
+		int tid = omp_get_thread_num();
+		if (size > tls_[tid].size_) {
+			if (tls_[tid].scratchpad_ != nullptr) free(tls_[tid].scratchpad_);
+			tls_[tid].size_ = size;
+			tls_[tid].scratchpad_ = (char *)malloc(size, page_size);
+			assert(scratchpad_ != nullptr);
+		}
+		tls_[tid].reference_count_++;
+	}
+	~global_scratchpad_t() {
+		int tid = omp_get_thread_num();
+		tls_[tid].reference_count_--;
+		if (tls_[tid].reference_count_ == 0) {
+			free(tls_[tid].scratchpad_);
+			tls_[tid].scratchpad_ = nullptr;
+			tls_[tid].size_ = 0;
+		}
+	}
 
-    ~global_scratchpad_t() {
-        reference_count_--;
-        if (reference_count_ == 0) {
-            free(scratchpad_);
-            scratchpad_ = nullptr;
-            size_ = 0;
-        }
-    }
+	void* operator new(size_t i)
+	{
+		return _aligned_malloc(i, 64);
+	}
 
-    virtual char *get() const {
-        return scratchpad_;
-    }
+	void operator delete(void* p)
+	{
+		_aligned_free(p);
+	}
+
+	virtual char *get() const {
+		return tls_[omp_get_thread_num()].scratchpad_;
+	}
 
 private:
-    static char *scratchpad_;
-    static size_t size_;
-    static unsigned int reference_count_;
+	struct omp_2_fallback_member_tls
+	{
+		static char *scratchpad_;
+		static size_t size_;
+		static unsigned int reference_count_;
+
+		char padding_[64 - (sizeof(scratchpad_) + sizeof(size_) + sizeof(reference_count_))];
+	};
+
+	__declspec(align(64)) omp_2_fallback_member_tls tls_[MAX_THREAD];
+};
+
+char *global_scratchpad_t::omp_2_fallback_member_tls::scratchpad_ = nullptr;
+size_t global_scratchpad_t::omp_2_fallback_member_tls::size_ = 0;
+unsigned int global_scratchpad_t::omp_2_fallback_member_tls::reference_count_ = 0;
+#else
+struct global_scratchpad_t : public scratchpad_t {
+	global_scratchpad_t(size_t size) {
+		if (size > size_) {
+			if (scratchpad_ != nullptr) free(scratchpad_);
+			size_ = size;
+			scratchpad_ = (char *)malloc(size, page_size);
+			assert(scratchpad_ != nullptr);
+		}
+		reference_count_++;
+	}
+
+	~global_scratchpad_t() {
+		reference_count_--;
+		if (reference_count_ == 0) {
+			free(scratchpad_);
+			scratchpad_ = nullptr;
+			size_ = 0;
+		}
+	}
+
+	virtual char *get() const {
+		return scratchpad_;
+	}
+
+private:
+	static char *scratchpad_;
+	static size_t size_;
+	static unsigned int reference_count_;
 #pragma omp threadprivate(scratchpad_, size_, reference_count_)
 };
 
 char *global_scratchpad_t::scratchpad_ = nullptr;
 size_t global_scratchpad_t::size_ = 0;
 unsigned int global_scratchpad_t::reference_count_ = 0;
-
+#endif // #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
 
 /*
    Scratchpad creation routine

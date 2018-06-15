@@ -21,6 +21,8 @@
 
 #include "ref_convolution.hpp"
 
+#include "mkldnn_thread.hpp"
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {

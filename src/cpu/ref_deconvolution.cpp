@@ -20,6 +20,8 @@
 #include "math_utils.hpp"
 #include "ref_deconvolution.hpp"
 
+#include "mkldnn_thread.hpp"
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {
@@ -73,7 +75,8 @@ void ref_deconvolution_fwd_t::compute_fwd_bias_ncdhw() {
 #   pragma omp parallel for collapse(2) schedule(static)
     for (int mb = 0; mb < MB; ++mb) {
         for (int oc = 0; oc < OC; ++oc) {
-#           pragma omp simd
+
+PRAGMA_OMP_SIMD()
             for (int sp = 0; sp < SP; ++sp) {
                 auto offset = ((mb * OC + oc) * SP + sp );
                 dst[offset] += bias[oc];
@@ -98,7 +101,8 @@ void ref_deconvolution_fwd_t::compute_fwd_bias_nCdhwXc() {
             for (int sp = 0; sp < SP; ++sp) {
                 auto offset = ((mb * OC + oc*blksize)
                     * SP + sp * blksize) ;
-#               pragma omp simd
+
+PRAGMA_OMP_SIMD()
                 for (int i=0; i<blksize; i++)
                     dst[offset + i] += bias[oc*blksize + i];
             }
@@ -159,7 +163,8 @@ void ref_deconvolution_bwd_weights_t::compute_bwd_bias_ncdhw() {
     for (int oc = 0; oc < OC; ++oc) {
         data_t db = 0;
         for (int mb = 0; mb < MB; ++mb) {
-#           pragma omp simd
+
+PRAGMA_OMP_SIMD()
             for (int sp = 0; sp < SP; ++sp) {
                 auto offset = (mb * OC + oc) * SP + sp;
                 db += diff_dst[offset];
@@ -187,12 +192,14 @@ void ref_deconvolution_bwd_weights_t::compute_bwd_bias_nCdhwXc() {
         for (int mb = 0; mb < MB; ++mb) {
             for (int sp = 0; sp < SP; ++sp) {
                 auto offset = (mb * OC + oc*blksize) * SP + sp * blksize;
-#               pragma omp simd
+
+PRAGMA_OMP_SIMD()
                 for (int i = 0; i<blksize; i++)
                     db[i] += diff_dst[offset+i];
             }
         }
-#       pragma omp simd
+
+PRAGMA_OMP_SIMD()
         for (int i = 0; i<blksize; i++)
             diff_bias[oc*blksize+i] = db[i];
     }

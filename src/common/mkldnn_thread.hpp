@@ -21,16 +21,39 @@
 
 #if defined(_OPENMP)
 #include <omp.h>
-#else
-inline int omp_get_max_threads() { return 1; }
-inline int omp_get_num_threads() { return 1; }
-inline int omp_get_thread_num() { return 0; }
-inline int omp_in_parallel() { return 0; }
-#endif
 
 /* VisualStudio still support omp 2.0 */
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-#define collapse(x)
+#ifndef MAX_THREAD
+#	define MAX_THREAD 64
+#endif // #ifndef MAX_THREAD
+
+#	define collapse(x)
+
+	// nop that doesn't produce warnings.
+	// PRAGMA_OMP_SIMD(x) will flood 4003
+	// warnings where no arg is supplied
+	// beyond omp simd.
+#	define PRAGMA_OMP_SIMD(...)
+#	define PRAGMA_OMP_SIMD_CLAUSE(...)
+#else
+#	define _PRAGMA_OMP_CONCAT(x) _Pragma(#x)
+#	define PRAGMA_OMP_SIMD() _Pragma("omp simd")
+#	define PRAGMA_OMP_SIMD_CLAUSE(x) _PRAGMA_OMP_CONCAT(omp simd x)
+#endif // defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+#else
+inline int omp_get_max_threads() {
+    return 1;
+}
+inline int omp_get_num_threads() {
+    return 1;
+}
+inline int omp_get_thread_num() {
+    return 0;
+}
+inline int omp_in_parallel() {
+    return 0;
+}
 #endif
 
 namespace mkldnn {
@@ -56,8 +79,8 @@ inline void balance211(T n, U team, U tid, T &n_start, T &n_end) {
     n_end += n_start;
 }
 
-}
-}
+} // namespace impl
+} // namespace mkldnn
 
 #endif
 

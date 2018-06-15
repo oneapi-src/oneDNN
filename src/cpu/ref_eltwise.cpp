@@ -22,6 +22,8 @@
 
 #include "ref_eltwise.hpp"
 
+#include "mkldnn_thread.hpp"
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {
@@ -82,7 +84,7 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_dense() {
 
     const memory_desc_wrapper data_d(conf_.src_pd());
 
-    const size_t nelems = data_d.nelems();
+    const ptrdiff_t nelems = static_cast <ptrdiff_t>(data_d.nelems());
     const auto alg_kind = conf_.desc()->alg_kind;
     const float alpha = conf_.desc()->alpha;
     const float beta  = conf_.desc()->beta;
@@ -93,13 +95,13 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_dense() {
     if (alg_kind == eltwise_relu) {
         // a fast path for relu as the most popular activation
 #       pragma omp parallel for schedule(static)
-        for (size_t e = 0; e < nelems; ++e)
+        for (ptrdiff_t e = 0; e < nelems; ++e)
             dst[e] = relu_fwd(src[e], alpha);
         return;
     }
 
 #   pragma omp parallel for schedule(static)
-    for (size_t e = 0; e < nelems; ++e) {
+    for (ptrdiff_t e = 0; e < nelems; ++e) {
         const data_t s = src[e];
         data_t &d = dst[e];
 
@@ -180,7 +182,7 @@ void ref_eltwise_bwd_t<data_type>::execute_backward_dense() {
     const memory_desc_wrapper data_d(conf_.src_pd());
     const memory_desc_wrapper diff_data_d(conf_.diff_src_pd());
 
-    const size_t nelems = data_d.nelems();
+    const ptrdiff_t nelems = static_cast<ptrdiff_t>(data_d.nelems());
     const auto alg_kind = conf_.desc()->alg_kind;
     const float alpha = conf_.desc()->alpha;
     const float beta = conf_.desc()->beta;
@@ -190,7 +192,7 @@ void ref_eltwise_bwd_t<data_type>::execute_backward_dense() {
     diff_src += diff_data_d.blocking_desc().offset_padding;
 
 #   pragma omp parallel for schedule(static)
-    for (size_t e = 0; e < nelems; ++e) {
+    for (ptrdiff_t e = 0; e < nelems; ++e) {
         const data_t dd = diff_dst[e];
         const data_t s = src[e];
         data_t &ds = diff_src[e];
