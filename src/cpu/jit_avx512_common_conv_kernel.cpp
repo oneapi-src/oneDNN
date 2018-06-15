@@ -705,14 +705,15 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_fma_core(int ur_w,
     Label kh_label, skip_kh_loop, kd_label, skip_kd_loop;
     int shift_kernel_ptr = jcp.typesize_in * jcp.kw * jcp.oc_block
         * jcp.ic_block;
-    int shift_input_ptr = jcp.typesize_in * (jcp.dilate_h + 1) * jcp.iw
-            * (!jcp.is_1stconv ? ic_block : 1);
     int inp_mul = !jcp.is_1stconv ? ic_block : 1;
+    int shift_input_ptr = jcp.typesize_in * (jcp.dilate_h + 1) * jcp.iw
+        * inp_mul;
+
 
     auto input_offset = [=](int oi, int ic, int ki) {
         return jcp.typesize_in
-                * ((ki * (jcp.dilate_w + 1) + oi * stride_w - pad_l) * ic_block
-                          + ic);
+                * ((ki * (jcp.dilate_w + 1) + oi * stride_w - pad_l) * inp_mul
+                    + ic * (!jcp.is_1stconv ? 1 : jcp.iw * jcp.ih * jcp.id));
     };
 
     if (jcp.ndims == 4) {
@@ -955,7 +956,8 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop(int ur_w,
         else
             compute_loop_4fma(ur_w, pad_l, pad_r);
     else if (jcp.ver == ver_fma)
-        if (jcp.is_1stconv || mayiuse(avx512_mic))
+        if ((jcp.is_1stconv && jcp.kernel_kind != expl_bcast)
+                || mayiuse(avx512_mic))
             compute_loop_fma(ur_w, pad_l, pad_r);
         else
             if (jcp.kernel_kind == embd_bcast && jcp.nb_oc_blocking == 1)
@@ -1352,6 +1354,11 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
         unsigned int ker_total_size = ker_inp_size + ker_out_size
             + ker_wei_size;
 
+        bool embd_bcast_condition = true
+            && (jcp.kw == 3 && jcp.ow <= 28 && ker_total_size < L1_cache_size)
+            && !(jcp.kw == 3 && jcp.ow == 13 && jcp.ic >= 192)
+            && !(jcp.kw == 3 && jcp.ow == 28 && jcp.ic >= 512);
+
         if (jcp.mb == 1) {
             jcp.kernel_kind = embd_bcast;
             unsigned int inp_size = jcp.mb * (jcp.ih / jcp.stride_h)
@@ -1386,10 +1393,12 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
                     }
                 }
             }
-        } else if (jcp.is_1stconv || jcp.kw > 3
-            || ((jcp.kw == 3 && jcp.ow <= 28 && ker_total_size < L1_cache_size)
-                && !(jcp.kw == 3 && jcp.ow == 13 && jcp.ic >= 192)
-                && !(jcp.kw == 3 && jcp.ow == 28 && jcp.ic >= 512))
+        } else if (jcp.kw > 3
+            || (jcp.stride_w == 1 && jcp.stride_h == 1
+                && embd_bcast_condition)
+            || ((jcp.stride_w != 1 || jcp.stride_h != 1)
+                && ((jcp.mb <= 16 && (jcp.oc <= 192 || jcp.oh <= 10)
+                     && embd_bcast_condition)))
             ) {
             jcp.kernel_kind = embd_bcast;
             jcp.ur_w = nstl::min(jcp.ow, regs);
