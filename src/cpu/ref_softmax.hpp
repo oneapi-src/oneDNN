@@ -43,7 +43,8 @@ struct ref_softmax_fwd_t: public cpu_primitive_t {
             using namespace prop_kind;
             assert(engine()->kind() == engine_kind::cpu);
             bool ok = true
-                && utils::one_of(desc()->prop_kind, forward_inference)
+                && utils::one_of(desc()->prop_kind, forward_inference,
+                        forward_training)
                 && data_pd_.desc()->data_type == data_type
                 && attr()->has_default_values();
             if (!ok) return status::unimplemented;
