@@ -76,7 +76,7 @@ struct jit_avx512_core_u8s8s32x_wino_conv_src_trans_t: public jit_generator {
     Opmask y_mask = Opmask(1);
     Opmask r_mask = Opmask(2);
     Opmask x_mask(int id) {
-        assert (id < 4);
+        assert(id < 4);
         return Opmask(3 + id);
     }
 
@@ -231,7 +231,7 @@ struct jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t: public jit_generator {
     Opmask y_mask = Opmask(1);
     Opmask r_mask = Opmask(2);
     Opmask x_mask(int id) {
-        assert (id < 4);
+        assert(id < 4);
         return Opmask(3 + id);
     }
     Reg64 reg_ptr_src = r14;
@@ -332,7 +332,7 @@ void jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t::generate() {
 
                 Zmm zmm = vreg_out(i);
                 Xmm xmm = xmm_out(i);
-                vcvtdq2ps (zmm, zmm);
+                vcvtdq2ps(zmm, zmm);
                 if (jcp.with_bias)
                     vaddps(zmm, zmm, vreg_bias);
                 vmulps(zmm, zmm, ptr [reg_ptr_scales]);
@@ -465,7 +465,7 @@ struct jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t: public jit_generator {
         return Zmm(31 - id_reg_out);
     }
     Zmm vreg_wei(int i) {
-        assert (31 - jcp.n2_block * jcp.m_block - i > 2);
+        assert(31 - jcp.n2_block * jcp.m_block - i > 2);
         return Zmm(31 - jcp.n2_block * jcp.m_block - i);
     }
 
@@ -550,7 +550,7 @@ void jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::generate() {
     mov(reg_aux_dst_b, reg_ptr_dst_b);
 
     if (!jcp.small_mb) {
-        mov (reg_nnb, jcp.n_chunks);
+        mov(reg_nnb, jcp.n_chunks);
         L(nnb_loop_label);
     }
         for (int mb = 0; mb < jcp.M / jcp.m_block; mb++)

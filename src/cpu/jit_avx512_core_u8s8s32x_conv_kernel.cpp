@@ -141,7 +141,7 @@ void jit_avx512_core_u8s8s32x_fwd_kernel::store_output(int ur_w)
 
             Xmm xmm = xmm_out(j, k);
             Zmm zmm = zmm_out(j, k);
-            vcvtdq2ps (zmm, zmm);
+            vcvtdq2ps(zmm, zmm);
             if (jcp.with_bias)
                 vaddps(zmm, zmm, zmm_bias);
             vmulps(zmm, zmm, EVEX_compress_addr(reg_ptr_scales, scale_offset));

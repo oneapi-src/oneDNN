@@ -29,13 +29,13 @@ namespace cpu {
 
 namespace jit_gemm_convolution_utils {
 
-    void im2col_3d (jit_gemm_conv_conf_t &jcp, const float *im, float *col,
+    void im2col_3d(jit_gemm_conv_conf_t &jcp, const float *im, float *col,
         int od);
-    void im2col (jit_gemm_conv_conf_t &jcp, const float *im, float *col);
+    void im2col(jit_gemm_conv_conf_t &jcp, const float *im, float *col);
     void im2col_u8(jit_gemm_conv_conf_t &jcp, const uint8_t *im, uint8_t *col);
-    void col2im_3d (jit_gemm_conv_conf_t &jcp, const float *col, float *im,
+    void col2im_3d(jit_gemm_conv_conf_t &jcp, const float *col, float *im,
         int od);
-    void col2im (jit_gemm_conv_conf_t &jcp, const float *col, float *im);
+    void col2im(jit_gemm_conv_conf_t &jcp, const float *col, float *im);
 
     void init_conf(jit_gemm_conv_conf_t &jcp,
         const convolution_desc_t &cd, const memory_desc_wrapper &src_d,

@@ -68,7 +68,7 @@ void jit_uni_pooling_fwd_t<isa>::execute_forward() {
     for (int n = 0; n < jpp.mb; ++n) {
         for (int b_c = 0; b_c < jpp.nb_c; ++b_c) {
             for (int oh = 0; oh < jpp.oh; ++oh) {
-                ker (n, b_c, oh);
+                ker(n, b_c, oh);
             }
         }
     }
@@ -130,7 +130,7 @@ void jit_uni_pooling_fwd_t<isa>::execute_forward_3d() {
                     -jpp.id;
                 const int id = nstl::max(ik - jpp.f_pad, 0);
                 for (int oh = 0; oh < jpp.oh; ++oh) {
-                    ker (n, b_c, od, oh, id, d_t_overflow, d_b_overflow);
+                    ker(n, b_c, od, oh, id, d_t_overflow, d_b_overflow);
                 }
             }
         }
@@ -182,7 +182,7 @@ void jit_uni_pooling_bwd_t<isa>::execute_backward() {
     for (int n = 0; n < jpp.mb; ++n) {
         for (int b_c = 0; b_c < jpp.nb_c; ++b_c) {
             for (int oh = 0; oh < jpp.oh; ++oh) {
-                ker (n, b_c, oh);
+                ker(n, b_c, oh);
             }
         }
     }
@@ -212,7 +212,7 @@ void jit_uni_pooling_bwd_t<isa>::execute_backward_3d() {
         const int i_b_overflow = nstl::max(jpp.ih, ij+jpp.kh-jpp.t_pad)-jpp.ih;
         const int ih = nstl::max(ij - jpp.t_pad, 0);
 
-        arg.src = &diff_src[diff_src_d.blk_off(n, b_c, id+kd, ih)];
+        arg.src = &diff_src[diff_src_d.blk_off(n, b_c, id + kd, ih)];
         arg.dst = &diff_dst[diff_dst_d.blk_off(n, b_c, od, oh)];
         if (indices) {
             const size_t ind_off = indices_d.blk_off(n, b_c, od, oh);
@@ -247,7 +247,7 @@ void jit_uni_pooling_bwd_t<isa>::execute_backward_3d() {
                     int zero_s = jpp.stride_d - d_t_overflow - (nstl::max(
                             jpp.id, ik + jpp.stride_d - jpp.f_pad) - jpp.id);
                     for (int oh = 0; oh < jpp.oh; ++oh) {
-                        ker (n, b_c, od, oh, id, d_t_overflow, d_b_overflow,
+                        ker(n, b_c, od, oh, id, d_t_overflow, d_b_overflow,
                                 (oh == 0) ? zero_s : 0, 0);
                     }
                 }
@@ -269,10 +269,11 @@ void jit_uni_pooling_bwd_t<isa>::execute_backward_3d() {
                     const int d_t_overflow = nstl::max(0, jpp.f_pad-ik);
                     const int d_b_overflow = nstl::max(jpp.id, ik + jpp.kd
                             - jpp.f_pad) - jpp.id;
-                    if ( kd >= jpp.kd - d_t_overflow - d_b_overflow ) continue;
+                    if (kd >= jpp.kd - d_t_overflow - d_b_overflow)
+                        continue;
                     const int id = nstl::max(ik - jpp.f_pad, 0);
                     for (int oh = 0; oh < jpp.oh; ++oh) {
-                        ker (n, b_c, od, oh, id, d_t_overflow, d_b_overflow,
+                        ker(n, b_c, od, oh, id, d_t_overflow, d_b_overflow,
                                 0, kd);
                     }
                 }
