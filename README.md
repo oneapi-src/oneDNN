@@ -29,7 +29,7 @@ of the following deep learning topologies and variations of these.
 | Speech Recognition (experimental)         | DeepSpeech
 
 
-Intel MKL-DNN is used in the the following software products:
+Intel MKL-DNN is used in the following software products:
 * [Caffe\* Optimized for Intel Architecture](https://github.com/intel/caffe)
 * [DeepBench](https://github.com/baidu-research/DeepBench)
 * [PaddlePaddle\*](http://www.paddlepaddle.org)
