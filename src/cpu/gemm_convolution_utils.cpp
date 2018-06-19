@@ -223,8 +223,7 @@ void im2col_u8(
                             * jcp.kw + kw) * jcp.ic;
                     const size_t im_idx
                         = (ih * jcp.iw + iw) * jcp.ngroups * jcp.ic;
-
-#                   pragma omp simd
+                    PRAGMA_OMP_SIMD()
                     for (int ic = 0; ic < jcp.ic; ++ic) {
                         col[col_idx + ic] = im[im_idx + ic];
                     }
@@ -291,7 +290,7 @@ void col2im(
     for (int ic = 0; ic < jcp.ic; ++ic) {
         float *im_ = im + ic * im_step;
         const float *col_ = col + ic * col_step;
-#       pragma omp simd
+        PRAGMA_OMP_SIMD()
         for (int is = 0; is < iS; ++is) im_[is] = 0.;
 
         for (int kh = 0; kh < jcp.kh; ++kh) {
@@ -372,13 +371,14 @@ status_t prepare_ws_col(jit_gemm_conv_conf_t &jcp, src_t **col, const int nthr) 
         *col = nullptr;
         return status::success;
     }
-    const size_t im2col_sz_per_thr = jcp.os * jcp.ks * jcp.ic;
-    const size_t im2col_sz = nthr * im2col_sz_per_thr;
+    const ptrdiff_t im2col_sz_per_thr = (ptrdiff_t)jcp.os * jcp.ks * jcp.ic;
+    const ptrdiff_t im2col_sz = nthr * im2col_sz_per_thr;
     *col = (src_t *)malloc(im2col_sz * sizeof(src_t), 64);
     if (*col == nullptr) return status::out_of_memory;
 
 #   pragma omp parallel for
-    for (size_t i = 0; i < im2col_sz; ++i) (*col)[i] = (src_t)0;
+    for (ptrdiff_t i = 0; i < im2col_sz; ++i)
+        (*col)[i] = (src_t)0;
 
     return status::success;
 }

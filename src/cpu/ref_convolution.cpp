@@ -16,6 +16,7 @@
 
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"
+#include "mkldnn_thread.hpp"
 #include "mkldnn_traits.hpp"
 #include "math_utils.hpp"
 

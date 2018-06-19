@@ -129,8 +129,8 @@ protected:
         const size_t sz =
             dst->get_primitive_desc().get_size() / sizeof(data_t);
         // overwriting dst to prevent false positives for test cases.
-# pragma omp parallel for
-        for (size_t i = 0; i < sz; i++) {
+#       pragma omp parallel for
+        for (ptrdiff_t i = 0; i < (ptrdiff_t)sz; i++) {
             dst_data[i] = -32;
         }
 

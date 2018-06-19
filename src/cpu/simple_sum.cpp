@@ -52,12 +52,13 @@ void simple_sum_t<data_type>::execute() {
         for (size_t nb = start; nb < end; ++nb) {
             size_t start_e = nb * block_size;
             size_t end_e = start_e + block_size;
-#           pragma omp simd
+
+            PRAGMA_OMP_SIMD()
             for (size_t e = start_e; e < end_e; e++) {
                 output[e] = data_t(scales[0] * input_ptrs[0][e]);
             }
             for (int a = 1; a < num_arrs; a++) {
-#               pragma omp simd
+                PRAGMA_OMP_SIMD()
                 for (size_t e = start_e; e < end_e; e++) {
                     output[e] += data_t(scales[a] * input_ptrs[a][e]);
                 }
@@ -67,12 +68,13 @@ void simple_sum_t<data_type>::execute() {
         if (tail != 0 && ithr == nthr - 1) {
             size_t start_e = nelems - tail;
             size_t end_e = nelems;
-#           pragma omp simd
+
+            PRAGMA_OMP_SIMD()
             for (size_t e = start_e; e < end_e; e++) {
                 output[e] = data_t(scales[0] * input_ptrs[0][e]);
             }
             for (int a = 1; a < num_arrs; a++) {
-#               pragma omp simd
+                PRAGMA_OMP_SIMD()
                 for (size_t e = start_e; e < end_e; e++) {
                     output[e] += data_t(scales[a] * input_ptrs[a][e]);
                 }

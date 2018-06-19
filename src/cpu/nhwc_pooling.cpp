@@ -20,6 +20,7 @@
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"
 #include "math_utils.hpp"
+#include "mkldnn_thread.hpp"
 #include "nstl.hpp"
 
 #include "nhwc_pooling.hpp"
@@ -338,7 +339,7 @@ void nhwc_pooling_bwd_t<data_type>::execute_backward() {
                                                        ow, ws_w_stride);
                 const int index = kd * KH * KW + kh * KW + kw;
 
-#pragma omp simd
+                PRAGMA_OMP_SIMD()
                 for (int oc = 0; oc < OC; ++oc) {
                     const int index_from_ws =
                                     (MEM_D(ws).data_type() == data_type::u8)
@@ -373,7 +374,8 @@ void nhwc_pooling_bwd_t<data_type>::execute_backward() {
                 auto num_summands = (alg == pooling_avg_include_padding)
                   ? KW*KH*KD
                   : (ih_end - ih_start)*(iw_end - iw_start)*(id_end - id_start);
-#pragma omp simd
+
+                PRAGMA_OMP_SIMD()
                 for (int oc = 0; oc < OC; ++oc) {
                     const data_t d = diff_dst[dst_offset_init + oc];
                     // Check if kernel windows are disjoint, in this case

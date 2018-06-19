@@ -570,7 +570,7 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
             const float *scales) {
         tr::node_t *ns = conf_.prb_.nodes + off;
 #       pragma omp parallel for
-        for (size_t d0 = 0; d0 < ns[0].n; ++d0) {
+        for (ptrdiff_t d0 = 0; d0 < (ptrdiff_t)ns[0].n; ++d0) {
             auto c = tr::call_param_t();
             c.in = in + d0 * ns[0].is;
             c.out = out + d0 * ns[0].os;
@@ -583,8 +583,8 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
             const float *scales) {
         tr::node_t *ns = conf_.prb_.nodes + off;
 #       pragma omp parallel for collapse(2)
-        for (size_t d1 = 0; d1 < ns[1].n; ++d1) {
-        for (size_t d0 = 0; d0 < ns[0].n; ++d0) {
+        for (ptrdiff_t d1 = 0; d1 < (ptrdiff_t)ns[1].n; ++d1) {
+        for (ptrdiff_t d0 = 0; d0 < (ptrdiff_t)ns[0].n; ++d0) {
             auto c = tr::call_param_t();
             c.in = in + d0 * ns[0].is + d1 * ns[1].is;
             c.out = out + d0 * ns[0].os + d1 * ns[1].os;
@@ -598,9 +598,9 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
             const float *scales) {
         tr::node_t *ns = conf_.prb_.nodes + off;
 #       pragma omp parallel for collapse(3)
-        for (size_t d2 = 0; d2 < ns[2].n; ++d2) {
-        for (size_t d1 = 0; d1 < ns[1].n; ++d1) {
-        for (size_t d0 = 0; d0 < ns[0].n; ++d0) {
+        for (ptrdiff_t d2 = 0; d2 < (ptrdiff_t)ns[2].n; ++d2) {
+        for (ptrdiff_t d1 = 0; d1 < (ptrdiff_t)ns[1].n; ++d1) {
+        for (ptrdiff_t d0 = 0; d0 < (ptrdiff_t)ns[0].n; ++d0) {
             auto c = tr::call_param_t();
             c.in = in + d0 * ns[0].is + d1 * ns[1].is + d2 * ns[2].is;
             c.out = out + d0 * ns[0].os + d1 * ns[1].os + d2 * ns[2].os;
@@ -615,10 +615,10 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
             const float *scales) {
         tr::node_t *ns = conf_.prb_.nodes + off;
 #       pragma omp parallel for collapse(4)
-        for (size_t d3 = 0; d3 < ns[3].n; ++d3) {
-        for (size_t d2 = 0; d2 < ns[2].n; ++d2) {
-        for (size_t d1 = 0; d1 < ns[1].n; ++d1) {
-        for (size_t d0 = 0; d0 < ns[0].n; ++d0) {
+        for (ptrdiff_t d3 = 0; d3 < (ptrdiff_t)ns[3].n; ++d3) {
+        for (ptrdiff_t d2 = 0; d2 < (ptrdiff_t)ns[2].n; ++d2) {
+        for (ptrdiff_t d1 = 0; d1 < (ptrdiff_t)ns[1].n; ++d1) {
+        for (ptrdiff_t d0 = 0; d0 < (ptrdiff_t)ns[0].n; ++d0) {
             auto c = tr::call_param_t();
             c.in = in + d0 * ns[0].is + d1 * ns[1].is + d2 * ns[2].is
                 + d3 * ns[3].is;

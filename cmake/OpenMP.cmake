@@ -26,6 +26,7 @@ include("cmake/MKL.cmake")
 
 if(WIN32 AND ${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
     add_definitions(/Qpar)
+    add_definitions(/openmp)
 else()
     find_package(OpenMP)
     #newer version for findOpenMP (>= v. 3.9)

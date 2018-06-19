@@ -18,20 +18,24 @@
 #define MKLDNN_THREAD_HPP
 
 #include "utils.hpp"
+#include "z_magic.hpp"
 
 #if defined(_OPENMP)
 #include <omp.h>
-#else
+#else // defined(_OPENMP)
 inline int omp_get_max_threads() { return 1; }
 inline int omp_get_num_threads() { return 1; }
 inline int omp_get_thread_num() { return 0; }
 inline int omp_in_parallel() { return 0; }
 #endif
 
-/* VisualStudio still support omp 2.0 */
+/* MSVC still supports omp 2.0 only */
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-#define collapse(x)
-#endif
+#   define collapse(x)
+#   define PRAGMA_OMP_SIMD(...)
+#else
+#   define PRAGMA_OMP_SIMD(...) PRAGMA_MACRO(CHAIN2(omp, simd __VA_ARGS__))
+#endif // defined(_MSC_VER) && !defined(__INTEL_COMPILER)
 
 namespace mkldnn {
 namespace impl {
@@ -56,8 +60,8 @@ inline void balance211(T n, U team, U tid, T &n_start, T &n_end) {
     n_end += n_start;
 }
 
-}
-}
+} // namespace impl
+} // namespace mkldnn
 
 #endif
 

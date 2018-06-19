@@ -18,6 +18,7 @@
 #include <math.h>
 
 #include "c_types_map.hpp"
+#include "mkldnn_thread.hpp"
 #include "type_helpers.hpp"
 
 #include "ref_lrn.hpp"
@@ -116,7 +117,7 @@ void ref_lrn_fwd_t<data_type>::execute_forward() {
         {
             const size_t off = (size_t)(mb * CHW + c * H * W + (h * W + w)
                 * blksize);
-            # pragma omp simd
+            PRAGMA_OMP_SIMD()
             for (int cc = 0; cc < blksize; ++cc)
                 ker(&dst[off + cc], mb, c + cc, h, w);
         }
@@ -215,7 +216,7 @@ void ref_lrn_bwd_t<data_type>::execute_backward() {
         {
             const size_t off = (size_t)(mb * CHW + c * H * W + (h * W + w)
                 * blksize);
-            # pragma omp simd
+            PRAGMA_OMP_SIMD()
             for (int cc = 0; cc < blksize; ++cc)
                 ker(&diff_src[off + cc], mb, c + cc, h, w);
         }

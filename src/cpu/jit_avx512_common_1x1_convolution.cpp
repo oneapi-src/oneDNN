@@ -433,11 +433,11 @@ jit_avx512_common_1x1_convolution_bwd_weights_t ::
                         jcp.ngroups * jcp.nb_load, jcp.mb, max_buffer_size));
     }
     if (jcp.transpose_src) {
-        const size_t tr_src_size =
-            jcp.nthr_mb * jcp.ngroups * jcp.ic * jcp.tr_is;
+        const ptrdiff_t tr_src_size = (ptrdiff_t)jcp.nthr_mb
+            * (ptrdiff_t)jcp.ngroups * (ptrdiff_t)jcp.ic * jcp.tr_is;
         tr_src_ = (data_t *)malloc(tr_src_size * sizeof(data_t), 64);
 #       pragma omp parallel for
-        for (size_t i = 0; i < tr_src_size; i++)
+        for (ptrdiff_t i = 0; i < tr_src_size; i++)
             tr_src_[i] = 0;
         auto tp = jit_transpose4x16_src_t();
         tp.src_pf0_distance = 4;
@@ -759,7 +759,7 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights()
                         d_bias[o] = 0.;
 
                 for (int hw = 0; hw < jcp.oh * jcp.ow; ++hw) {
-#                   pragma omp simd
+                    PRAGMA_OMP_SIMD()
                     for (int o = 0; o < 16; ++o)
                         d_bias[o] += d_dst[o];
                     d_dst += 16;

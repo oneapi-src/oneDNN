@@ -24,6 +24,10 @@
 
 #include "gtest/gtest.h"
 
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+#define collapse(x)
+#endif
+
 #include "mkldnn.hpp"
 
 template <typename data_t> struct data_traits { };
@@ -237,7 +241,7 @@ static void fill_data(const size_t size, data_t *data, data_t mean,
         data_t deviation, double sparsity = 1.)
 {
 #   pragma omp parallel for schedule(static)
-    for (size_t n = 0; n < size; n++) {
+    for (ptrdiff_t n = 0; n < (ptrdiff_t)size; n++) {
         data[n] = set_value<data_t>(n, mean, deviation, sparsity);
     }
 }
@@ -247,7 +251,7 @@ static void fill_data(const size_t size, data_t *data, double sparsity = 1.,
         bool init_negs = false)
 {
 #   pragma omp parallel for schedule(static)
-    for (size_t n = 0; n < size; n++) {
+    for (ptrdiff_t n = 0; n < (ptrdiff_t)size; n++) {
         data[n] = set_value<data_t>(n, data_t(1), data_t(2e-1), sparsity);
 
         if (init_negs && n%4 == 0U)

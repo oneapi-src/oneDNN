@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "mkldnn_thread.hpp"
+
 #include "simple_concat.hpp"
 
 namespace mkldnn {
@@ -60,7 +62,7 @@ void simple_concat_t<data_type>::execute() {
             const data_t *i = &input_ptrs[a][0];
             data_t *o = &output_ptrs[a][0];
 #           pragma omp parallel for
-            for (size_t e = 0; e < nelems_to_copy[a]; ++e)
+            for (ptrdiff_t e = 0; e < (ptrdiff_t)nelems_to_copy[a]; ++e)
                 o[e] = i[e];
         }
         break;
@@ -80,7 +82,8 @@ void simple_concat_t<data_type>::execute() {
                                         + os[2] * n2 + os[3] * n3 + os[4] * n4;
                                 const data_t *i = &input_ptrs[a][in_off];
                                 data_t *o = &output_ptrs[a][out_off];
-#                               pragma omp simd
+
+                                PRAGMA_OMP_SIMD()
                                 for (size_t e = 0; e < nelems_to_copy[a]; ++e)
                                     o[e] = i[e];
                             }
