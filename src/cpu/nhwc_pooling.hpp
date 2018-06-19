@@ -22,10 +22,9 @@
 #include "c_types_map.hpp"
 #include "cpu_engine.hpp"
 #include "cpu_pooling_pd.hpp"
+#include "mkldnn_thread.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
-
-#include "mkldnn_thread.hpp"
 
 namespace mkldnn {
 namespace impl {

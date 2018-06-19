@@ -18,11 +18,10 @@
 #include <math.h>
 
 #include "c_types_map.hpp"
+#include "mkldnn_thread.hpp"
 #include "type_helpers.hpp"
 
 #include "ref_lrn.hpp"
-
-#include "mkldnn_thread.hpp"
 
 namespace mkldnn {
 namespace impl {

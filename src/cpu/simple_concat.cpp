@@ -14,9 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "simple_concat.hpp"
-
 #include "mkldnn_thread.hpp"
+
+#include "simple_concat.hpp"
 
 namespace mkldnn {
 namespace impl {

@@ -19,10 +19,9 @@
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"
 #include "math_utils.hpp"
+#include "mkldnn_thread.hpp"
 
 #include "ref_eltwise.hpp"
-
-#include "mkldnn_thread.hpp"
 
 namespace mkldnn {
 namespace impl {

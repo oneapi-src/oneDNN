@@ -30,12 +30,11 @@
  */
 #include "c_types_map.hpp"
 #include "math_utils.hpp"
+#include "mkldnn_thread.hpp"
 #include "mkldnn_traits.hpp"
 #include "type_helpers.hpp"
 
 #include "ref_rnn.hpp"
-
-#include "mkldnn_thread.hpp"
 
 namespace mkldnn {
 namespace impl {
