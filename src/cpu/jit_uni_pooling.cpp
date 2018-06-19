@@ -261,7 +261,7 @@ void jit_uni_pooling_bwd_t<isa>::execute_backward_3d() {
             diff_src[i] = 0.;
 
         for (int kd = 0; kd < jpp.kd; ++kd) {
-#       pragma omp parallel for collapse(3) schedule(static)
+#       pragma omp parallel for collapse(2) schedule(static)
         for (int n = 0; n < jpp.mb; ++n) {
             for (int b_c = 0; b_c < jpp.nb_c; ++b_c) {
                 for (int od = 0; od < jpp.od; ++od) {
