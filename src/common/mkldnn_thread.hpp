@@ -21,12 +21,18 @@
 
 #if defined(_OPENMP)
 #include <omp.h>
+#else // defined(_OPENMP)
+inline int omp_get_max_threads() { return 1; }
+inline int omp_get_num_threads() { return 1; }
+inline int omp_get_thread_num() { return 0; }
+inline int omp_in_parallel() { return 0; }
+#endif
 
-/* VisualStudio still support omp 2.0 */
+/* MSVC still supports omp 2.0 only */
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-#ifndef MAX_THREAD
-#	define MAX_THREAD 64
-#endif // #ifndef MAX_THREAD
+#   ifndef MAX_THREAD
+#	    define MAX_THREAD 64
+#   endif
 
 #	define collapse(x)
 
@@ -41,20 +47,6 @@
 #	define PRAGMA_OMP_SIMD() _Pragma("omp simd")
 #	define PRAGMA_OMP_SIMD_CLAUSE(x) _PRAGMA_OMP_CONCAT(omp simd x)
 #endif // defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-#else
-inline int omp_get_max_threads() {
-    return 1;
-}
-inline int omp_get_num_threads() {
-    return 1;
-}
-inline int omp_get_thread_num() {
-    return 0;
-}
-inline int omp_in_parallel() {
-    return 0;
-}
-#endif
 
 namespace mkldnn {
 namespace impl {
