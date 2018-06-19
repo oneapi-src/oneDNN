@@ -30,10 +30,6 @@ inline int omp_in_parallel() { return 0; }
 
 /* MSVC still supports omp 2.0 only */
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-#   ifndef MAX_THREAD
-#       define MAX_THREAD 64
-#   endif
-
 #	define collapse(x)
 
 	// nop that doesn't produce warnings.
