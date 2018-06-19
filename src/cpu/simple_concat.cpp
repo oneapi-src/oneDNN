@@ -83,7 +83,7 @@ void simple_concat_t<data_type>::execute() {
                                 const data_t *i = &input_ptrs[a][in_off];
                                 data_t *o = &output_ptrs[a][out_off];
 
-PRAGMA_OMP_SIMD()
+                                PRAGMA_OMP_SIMD()
                                 for (size_t e = 0; e < nelems_to_copy[a]; ++e)
                                     o[e] = i[e];
                             }

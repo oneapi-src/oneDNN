@@ -227,15 +227,13 @@ void ref_inner_product_bwd_weights_t<data_type>::execute_backward_weights() {
             oc_st = oc_st * blksize;
             oc_e = oc_e * blksize;
 
-
-PRAGMA_OMP_SIMD()
+            PRAGMA_OMP_SIMD()
             for (int oc = oc_st; oc < oc_e; ++oc) {
                 diff_bias[oc] = diff_dst[oc];
             }
 
             for (int mb = 1; mb < MB; ++mb) {
-
-PRAGMA_OMP_SIMD()
+                PRAGMA_OMP_SIMD()
                 for (int oc = oc_st; oc < oc_e; ++oc) {
                     diff_bias[oc] += diff_dst[mb * OC + oc];
                 }

@@ -223,7 +223,7 @@ void im2col_u8(
                             * jcp.kw + kw) * jcp.ic;
                     const size_t im_idx
                         = (ih * jcp.iw + iw) * jcp.ngroups * jcp.ic;
-PRAGMA_OMP_SIMD()
+                    PRAGMA_OMP_SIMD()
                     for (int ic = 0; ic < jcp.ic; ++ic) {
                         col[col_idx + ic] = im[im_idx + ic];
                     }
@@ -290,7 +290,7 @@ void col2im(
     for (int ic = 0; ic < jcp.ic; ++ic) {
         float *im_ = im + ic * im_step;
         const float *col_ = col + ic * col_step;
-PRAGMA_OMP_SIMD()
+        PRAGMA_OMP_SIMD()
         for (int is = 0; is < iS; ++is) im_[is] = 0.;
 
         for (int kh = 0; kh < jcp.kh; ++kh) {

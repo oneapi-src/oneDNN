@@ -112,8 +112,7 @@ private:
             unsigned char *ws, const size_t ws_offset, const data_type_t ws_dt,
             const int index) {
         assert(!((use_workspace == false) ^ (!ws))); // ensure ws pointer exists
-
-PRAGMA_OMP_SIMD()
+        PRAGMA_OMP_SIMD()
         for (int oc = 0; oc < n; ++oc) {
             auto s = src[oc];
             data_t mv = dst[oc];
