@@ -120,13 +120,13 @@ inline void jit_uni_pool_kernel_f32<isa>::maybe_recalculate_divisor(int jj,
 
 template <cpu_isa_t isa>
 inline void jit_uni_pool_kernel_f32<isa>::avg_step(int ur_w, int pad_l,
-        int pad_r, const char* kh_label) {
+        int pad_r) {
 
     int iw = jpp.iw;
     int kw = jpp.kw;
     int stride_w = jpp.stride_w;
     int c_block = jpp.c_block;
-    Label kd_label;
+    Label kd_label, kh_label;
 
     for (int jj = 0; jj < ur_w; jj++) {
         if (jpp.is_backward) {
@@ -201,12 +201,12 @@ inline void jit_uni_pool_kernel_f32<isa>::avg_step(int ur_w, int pad_l,
 
 template <cpu_isa_t isa>
 inline void jit_uni_pool_kernel_f32<isa>::max_step_fwd(int ur_w, int pad_l,
-        int pad_r, const char *kh_label) {
+        int pad_r) {
     int iw = jpp.iw;
     int kw = jpp.kw;
     int stride_w = jpp.stride_w;
     int c_block = jpp.c_block;
-    Label kd_label;
+    Label kd_label, kh_label;
 
     mov(tmp_gpr, float2int(nstl::numeric_limits<float>::lowest()));
     movq(xmm_tmp, tmp_gpr);
@@ -329,13 +329,13 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_fwd(int ur_w, int pad_l,
 
 template <cpu_isa_t isa>
 inline void jit_uni_pool_kernel_f32<isa>::max_step_bwd(int ur_w, int pad_l,
-        int pad_r, const char *kh_label) {
+        int pad_r) {
 
     int iw = jpp.iw;
     int kw = jpp.kw;
     int stride_w = jpp.stride_w;
     int c_block = jpp.c_block;
-    Label kd_label;
+    Label kd_label, kh_label;
 
     for (int jj = 0; jj < ur_w; jj++) {
         uni_vmovups(vreg(jj), ptr[reg_output + sizeof(float)*jj*c_block]);
@@ -528,18 +528,16 @@ void jit_uni_pool_kernel_f32<isa>::generate() {
     if (l_pad > 0) {
         n_oi--;
         if (n_oi < 0 && r_pad1 > 0) {
-            step(ur_w, l_pad, r_pad1, ".kh_loop_oimain_padwl");
+            step(ur_w, l_pad, r_pad1);
         } else  {
-            step(ur_w, l_pad, 0, ".kh_loop_oimain_padwl");
+            step(ur_w, l_pad, 0);
         }
 
         if (isa == sse42) {
             if (n_oi < 0 && r_pad1 > 0) {
-                step_high_half(ur_w, l_pad, r_pad1,
-                    ".kh_loop_oimain_padwl_high_half");
+                step_high_half(ur_w, l_pad, r_pad1);
             } else  {
-                step_high_half(ur_w, l_pad, 0,
-                    ".kh_loop_oimain_padwl_high_half");
+                step_high_half(ur_w, l_pad, 0);
             }
         }
 
@@ -560,11 +558,12 @@ void jit_uni_pool_kernel_f32<isa>::generate() {
 
     xor_(oi_iter, oi_iter);
     if (n_oi > 0) {
-        L(".ow_loop"); {
-            step(ur_w, 0, 0, ".kh_loop_oimain");
+        Label ow_loop;
+        L(ow_loop); {
+            step(ur_w, 0, 0);
 
             if (isa == sse42) {
-                step_high_half(ur_w, 0, 0, ".kh_loop_oimain_high_half");
+                step_high_half(ur_w, 0, 0);
             }
 
             if (isa == sse42) {
@@ -584,15 +583,16 @@ void jit_uni_pool_kernel_f32<isa>::generate() {
             }
 
             inc(oi_iter);
-            cmp(oi_iter, n_oi); jl(".ow_loop", T_NEAR);
-        } L(".ow_loop_end");
+            cmp(oi_iter, n_oi);
+            jl(ow_loop, T_NEAR);
+        }
     }
 
     if (r_pad1 > 0 && n_oi >= 0) {
-        step(ur_w, 0, r_pad1, ".kh_loop_oimain_padwr");
+        step(ur_w, 0, r_pad1);
 
         if (isa == sse42) {
-            step_high_half(ur_w, 0, r_pad1, ".kh_loop_oimain_padwr_high_half");
+            step_high_half(ur_w, 0, r_pad1);
         }
 
         if (isa == sse42) {
@@ -611,10 +611,10 @@ void jit_uni_pool_kernel_f32<isa>::generate() {
     }
 
     if (ur_w_tail != 0) {
-        step(ur_w_tail, 0, r_pad, ".kh_loop_oitail");
+        step(ur_w_tail, 0, r_pad);
 
         if (isa == sse42) {
-            step_high_half(ur_w_tail, 0, r_pad, ".kh_loop_oitail_high_half");
+            step_high_half(ur_w_tail, 0, r_pad);
         }
     }
 

@@ -97,31 +97,31 @@ private:
     void (*jit_ker)(jit_pool_call_s *);
 
     void maybe_recalculate_divisor(int jj, int ur_w, int pad_l, int pad_r);
-    void avg_step(int ur_w, int pad_l, int pad_r, const char *kh_label);
-    void max_step_fwd(int ur_w, int pad_l, int pad_r, const char *kh_label);
-    void max_step_bwd(int ur_w, int pad_l, int pad_r, const char *kh_label);
+    void avg_step(int ur_w, int pad_l, int pad_r);
+    void max_step_fwd(int ur_w, int pad_l, int pad_r);
+    void max_step_bwd(int ur_w, int pad_l, int pad_r);
 
     void maybe_zero_diff_src();
 
-    void step(int ur_w, int pad_l, int pad_r, const char *kh_label) {
+    void step(int ur_w, int pad_l, int pad_r) {
         if (jpp.alg == alg_kind::pooling_max) {
             if(jpp.is_backward)
-                max_step_bwd(ur_w, pad_l, pad_r, kh_label);
+                max_step_bwd(ur_w, pad_l, pad_r);
             else
-                max_step_fwd(ur_w, pad_l, pad_r, kh_label);
+                max_step_fwd(ur_w, pad_l, pad_r);
         }
         else
-            avg_step(ur_w, pad_l, pad_r, kh_label);
+            avg_step(ur_w, pad_l, pad_r);
     }
 
-    void step_high_half(int ur_w, int pad_l, int pad_r, const char *kh_label) {
+    void step_high_half(int ur_w, int pad_l, int pad_r) {
         add(reg_input, sizeof(float) * 4);
         add(reg_output, sizeof(float) * 4);
         if (jpp.alg == alg_kind::pooling_max &&
                 (jpp.is_training || jpp.is_backward))
             add(reg_index, types::data_type_size(jpp.ind_dt) * 4);
 
-        step(ur_w, pad_l, pad_r, kh_label);
+        step(ur_w, pad_l, pad_r);
     }
 
     void generate();
