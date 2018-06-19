@@ -24,6 +24,11 @@
 
 #include "mkldnn.hpp"
 
+// MSVC doesn't support collapse clause in omp parallel
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+#define collapse(x)
+#endif
+
 using namespace mkldnn;
 
 const int batch = 128;
