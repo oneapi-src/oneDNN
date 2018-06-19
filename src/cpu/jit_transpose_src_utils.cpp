@@ -316,14 +316,15 @@ void jit_trans_iw_ic_t::generate() {
 
     if (loop_iters) {
         mov(reg_loop, loop_iters);
-        L("loop"); {
+        Label loop;
+        L(loop); {
             transpose(transpose_size, 0, 0, nontemporal_stores);
             add(reg_src, src_step);
             add(reg_tr_src, tr_src_step);
             add(reg_src_prf, src_step);
             add(reg_tr_src_prf, tr_src_step);
             sub(reg_loop, 1);
-            jnz("loop");
+            jnz(loop);
         }
     }
     if (transposes > 1)
@@ -369,14 +370,14 @@ private:
     reg64_t reg_tr_src_tmp = r13;
     reg32_t regw_tmp = r14d;
     reg64_t imm_addr64 = rbx;
-    
+
     Xbyak::Zmm vidx1 = zmm31;
     Xbyak::Zmm vidx2 = zmm30;
     Xbyak::Zmm vidx3 = zmm29;
     Xbyak::Zmm vidx4 = zmm28;
     Xbyak::Zmm vidx5 = zmm27;
     Xbyak::Zmm zmm_tmp  = zmm26;
-    
+
 
     void transpose(int nrows, int l_pad, int r_pad, bool nontemporal_stores);
     void generate();
@@ -401,14 +402,14 @@ void jit_trans_iw_ic_int16_t::transpose(int nrows, int l_pad, int r_pad,
     auto load_ymm = [=](int i) {
         vmovups(src_ymm(i), EVEX_compress_addr(reg_src, i * src_stride));
     };
-    
+
     auto kmovw = [=](Opmask k, unsigned w) {
         mov(regw_tmp, w);
         jit_generator::kmovw(k, regw_tmp);
     };
 
     auto store = [=](Zmm r, int i) {
-        
+
         auto padding = [=] (Reg64 reg, int pad) {
             kmovw(kTail, (1 << pad) - 1);
             auto k = kTail;
@@ -420,9 +421,9 @@ void jit_trans_iw_ic_int16_t::transpose(int nrows, int l_pad, int r_pad,
             auto addr = EVEX_compress_addr(base, i * tr_src_stride);
             vmovups(addr, zmm_zero);
         };
-        
+
         int store_tail = (nrows%2) ? nrows+1 : nrows;
-        
+
         int store_pad = (l_pad%2) ? l_pad/2 + 1 : l_pad/2;
         mov(reg_tr_src_tmp, reg_tr_src);
         if (l_pad > 0) {
@@ -435,10 +436,10 @@ void jit_trans_iw_ic_int16_t::transpose(int nrows, int l_pad, int r_pad,
             add(reg_tr_src_tmp, (nrows - addr_shift) * typesize);
             padding(reg_tr_src_tmp, store_pad);
         }
-        
+
         mov(reg_tr_src_tmp, reg_tr_src);
         add(reg_tr_src_tmp, l_pad * typesize);
-        
+
         kmovw(kTail, (1 << store_tail/2) - 1);
         auto k = kTail;
         auto base = reg_tr_src_tmp;
@@ -446,9 +447,9 @@ void jit_trans_iw_ic_int16_t::transpose(int nrows, int l_pad, int r_pad,
 
         auto addr = EVEX_compress_addr(base, i * tr_src_stride);
         vmovups(addr, r);
-        
+
     };
-    
+
     kmovw(kFFFF, 0xffff);
     //all loads
     for (int i=0; i<16; i++){
@@ -468,16 +469,16 @@ void jit_trans_iw_ic_int16_t::transpose(int nrows, int l_pad, int r_pad,
         vinserti64x4(zmm_src0, zmm_src0, src1, 1);
         vpermps(zmm_src0 | kFFFF, vidx4, zmm_src0);
     }
-    
+
     // for odd numbers we need to mix row with zeroes
     if (nrows%2) {
         int i = nrows-1;
         auto src0 = src_ymm(i);
         auto src1 = src_ymm(i+1); //zero
-        
+
         auto zmm_src0 = src_zmm(i);
         vpxor(src1, src1, src1);
-        
+
         load_ymm(i);
         vpunpckhwd(src0, src0, src1);
         vinserti64x4(zmm_tmp, zmm_tmp, src0, 0);
@@ -496,10 +497,10 @@ void jit_trans_iw_ic_int16_t::transpose(int nrows, int l_pad, int r_pad,
         auto zmm1 = src_zmm(4*i+2);
         auto tmp0 = src_zmm(4*i+1);
         auto tmp1 = src_zmm(4*i+3);
-        
+
         vmovups(tmp0, zmm0);
         vmovups(tmp1, zmm1);
-        
+
         vpermps(tmp0 | kAAAA, vidx3, zmm1);
         vpermps(tmp1 | k5555, vidx3, zmm0);
     }
@@ -509,13 +510,13 @@ void jit_trans_iw_ic_int16_t::transpose(int nrows, int l_pad, int r_pad,
     for (int i=0; i<2; i++) {
         auto zmm0 = src_zmm(base_idx+2*i+1);
         auto zmm1 = src_zmm(base_idx+2*i+5);
-        
+
         auto tmp0 = src_zmm(base_idx+2*i);
         auto tmp1 = src_zmm(base_idx+2*i+4);
-        
+
         vmovupd(tmp0, zmm0);
         vmovupd(tmp1, zmm1);
-        
+
         vpermpd(tmp0 | kAA, vidx2, zmm1);
         vpermpd(tmp1 | k55, vidx2, zmm0);
     }
@@ -523,28 +524,28 @@ void jit_trans_iw_ic_int16_t::transpose(int nrows, int l_pad, int r_pad,
     for (int i=0; i<2; i++) {
         auto zmm0 = src_zmm(base_idx+2*i+1);
         auto zmm1 = src_zmm(base_idx+2*i+5);
-        
+
         auto tmp0 = src_zmm(base_idx+2*i);
         auto tmp1 = src_zmm(base_idx+2*i+4);
-        
+
         vmovupd(tmp0, zmm0);
         vmovupd(tmp1, zmm1);
-        
+
         vpermpd(tmp0 | kAA, vidx2, zmm1);
         vpermpd(tmp1 | k55, vidx2, zmm0);
     }
-    
+
     // swap 3
     for (int i=0; i<4; i++) {
         auto zmm0 = src_zmm(2*i);
         auto zmm1 = src_zmm(2*i+8);
-        
+
         auto tmp0 = src_zmm(2*i+1);
         auto tmp1 = src_zmm(2*i+9);
-        
+
         vmovupd(tmp0, zmm0);
         vmovupd(tmp1, zmm1);
-        
+
         vpermpd(tmp0 | kCC, vidx1, zmm1);
         vpermpd(tmp1 | k33, vidx1, zmm0);
     }
@@ -552,7 +553,7 @@ void jit_trans_iw_ic_int16_t::transpose(int nrows, int l_pad, int r_pad,
     // all stores
     for (int i=0; i<8; i++)
         vextracti64x4(src_ymm(2*i), src_zmm(2*i+1), 1);
-       
+
     store(src_zmm(1), 0);
     store(src_zmm(0), 1);
     store(src_zmm(3), 2);
@@ -585,7 +586,7 @@ void jit_trans_iw_ic_int16_t::generate() {
         = { 8, 10, 12, 14, 0, 2, 4, 6, 9, 11, 13, 15, 1, 3, 5, 7 };
     alignas(64) static constexpr const int32_t idx5[16]
         = { 8, 10, 12, 14, 0, 2, 4, 6, 9, 11, 13, 15, 1, 3, 5, 7 };
-    
+
     const int ic_block = conf_->ic_block;
     const int iw = conf_->iw;
     const int tr_iw = conf_->tr_iw;
@@ -605,7 +606,7 @@ void jit_trans_iw_ic_int16_t::generate() {
 
     const int left_pad = conf_->l_pad;
     const int right_pad = tr_iw - iw - left_pad;
-    
+
     mov(reg_src, ptr [param1 + GET_OFF(src)]);
     mov(reg_tr_src, ptr [param1 + GET_OFF(tr_src)]);
     mov(reg_src_prf, ptr [param1 + GET_OFF(src_prf)]);
@@ -623,7 +624,7 @@ void jit_trans_iw_ic_int16_t::generate() {
     kmovw(k55, 0x55);
     kmovw(kCC, 0xcc);
     kmovw(k33, 0x33);
-    
+
     auto vmovdqa64 = [=](Zmm z, const int64_t *addr) {
         mov(imm_addr64, reinterpret_cast<size_t>(addr));
         jit_generator::vmovdqa64(z, ptr[imm_addr64]);
@@ -633,7 +634,7 @@ void jit_trans_iw_ic_int16_t::generate() {
         mov(imm_addr64, reinterpret_cast<size_t>(addr));
         jit_generator::vmovdqa32(z, ptr[imm_addr64]);
     };
-    
+
     vmovdqa64(vidx1, idx1);
     vmovdqa64(vidx2, idx2);
     vmovdqa32(vidx3, idx3);
@@ -651,14 +652,15 @@ void jit_trans_iw_ic_int16_t::generate() {
 
     if (loop_iters) {
         mov(reg_loop, loop_iters);
-        L("loop"); {
+        Label loop;
+        L(loop); {
             transpose(transpose_size, 0, 0, nontemporal_stores);
             add(reg_src, src_step);
             add(reg_tr_src, tr_src_step);
             add(reg_src_prf, src_step);
             add(reg_tr_src_prf, tr_src_step);
             sub(reg_loop, 1);
-            jnz("loop");
+            jnz(loop);
         }
     }
     if (transposes > 1)
@@ -667,7 +669,7 @@ void jit_trans_iw_ic_int16_t::generate() {
         transpose(tail, left_pad, right_pad, nontemporal_stores);
 
     postamble();
-    
+
 }
 
 struct jit_trans_ow_oc_t: public jit_trans_dst_t, public jit_generator {
@@ -689,7 +691,7 @@ private:
     bool enable_prefetch;
 
     opmask_t kFF = k1;
-    
+
     zmm vidx1 = zmm31;
 
     reg64_t reg_src = r8;
@@ -724,7 +726,7 @@ void jit_trans_ow_oc_t::transpose(int nrows, int l_pad, int r_pad,
     auto load_ymm = [=](int i) {
         vmovups(src_ymm(i), EVEX_compress_addr(reg_src, i * src_stride));
     };
-    
+
 
     auto store = [=](Zmm r, int i) {
         auto addr = EVEX_compress_addr(reg_tr_src, i * tr_src_stride);
@@ -733,7 +735,7 @@ void jit_trans_ow_oc_t::transpose(int nrows, int l_pad, int r_pad,
         else
             vmovups(addr, r);
     };
-    
+
     for (int i = 0; i < nrows/2; i++) {
         auto src0 = src_ymm(2*i);
         auto src1 = src_ymm(2*i+1);
@@ -752,7 +754,7 @@ void jit_trans_ow_oc_t::transpose(int nrows, int l_pad, int r_pad,
         auto src1 = src_ymm(nrows);
         auto zmm_src0 = src_zmm(30);
         load_ymm(nrows-1);
-            
+
         vpxor(src1, src1, src1);
         vpunpckhwd(src1, src0, src1);
         vinserti64x4(zmm_src0, zmm_src0, src1, 0);
@@ -769,7 +771,7 @@ void jit_trans_ow_oc_t::generate() {
 
     alignas(64) static constexpr const int64_t idx1[8]
           = { 4, 5, 0, 1, 6, 7, 2, 3 };
-    
+
     const int oc_block = conf_->oc_block;
     const int ow = conf_->ow;
     const int transposes = utils::div_up(ow, transpose_size);
@@ -778,7 +780,7 @@ void jit_trans_ow_oc_t::generate() {
 
     src_stride = oc_block * typesize;
     tr_src_stride = oc_block * typesize;
-    
+
     bool nontemporal_stores = false;
     enable_prefetch = ow > small_spatial ? 1 : 0;
 
@@ -802,20 +804,21 @@ void jit_trans_ow_oc_t::generate() {
         mov(imm_addr64, reinterpret_cast<size_t>(addr));
         jit_generator::vmovdqa64(z, ptr[imm_addr64]);
     };
-    
+
     vmovdqa64(vidx1, idx1);
     if (loop_iters) {
         mov(reg_loop, loop_iters);
-        L("loop"); {
+        Label loop;
+        L(loop); {
             transpose(transpose_size, 0, 0, nontemporal_stores);
             add(reg_src, src_step);
             add(reg_tr_src, tr_src_step);
             add(reg_src_prf, src_step);
             add(reg_tr_src_prf, tr_src_step);
             sub(reg_loop, 1);
-            jnz("loop");
+            jnz(loop);
         }
-    }   
+    }
     transpose(tail, 0, right_pad, nontemporal_stores);
 
     postamble();
