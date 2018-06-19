@@ -58,7 +58,8 @@ status_t mkldnn_rnn_cell_desc_init(rnn_cell_desc_t *rnn_cell_desc,
     using namespace mkldnn::impl::alg_kind;
 
     bool args_ok = true
-            && one_of(cell_kind, vanilla_rnn, vanilla_lstm, vanilla_gru)
+            && one_of(cell_kind, vanilla_rnn, vanilla_lstm, vanilla_gru,
+                    gru_linear_before_reset)
             && implication(cell_kind == vanilla_rnn,
                        one_of(act_f, eltwise_relu, eltwise_tanh));
     if (!args_ok)
@@ -81,6 +82,7 @@ int mkldnn_rnn_cell_get_gates_count(const rnn_cell_desc_t *rnn_cell_desc) {
     switch (rnn_cell_desc->cell_kind) {
     case mkldnn::impl::alg_kind::vanilla_rnn: return 1;
     case mkldnn::impl::alg_kind::vanilla_gru: return 3;
+    case mkldnn::impl::alg_kind::gru_linear_before_reset: return 3;
     case mkldnn::impl::alg_kind::vanilla_lstm: return 4;
     default: assert(!"unknown cell kind"); return 0;
     }
@@ -91,6 +93,7 @@ int mkldnn_rnn_cell_get_states_count(const rnn_cell_desc_t *rnn_cell_desc) {
     switch (rnn_cell_desc->cell_kind) {
     case mkldnn::impl::alg_kind::vanilla_rnn: return 1;
     case mkldnn::impl::alg_kind::vanilla_gru: return 1;
+    case mkldnn::impl::alg_kind::gru_linear_before_reset: return 1;
     case mkldnn::impl::alg_kind::vanilla_lstm: return 2;
     default: assert(!"unknown cell kind"); return 0;
     }

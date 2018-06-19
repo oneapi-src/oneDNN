@@ -27,6 +27,7 @@ The table below summarizes the list of supported functions and their variants.
 |                   | 3D inner product         | x             | x              |                |
 | RNN (experimental)| Vanilla RNN cell         | x             | x              |                |
 |                   | LSTM cell                | x             | x              |                |
+|                   | GRU cell                 | x             | x              |                |
 | Pooling           | 2D maximum pooling       | x             | x              | x              |
 |                   | 2D average pooling       | x             | x              | x              |
 |                   | 3D maximum pooling       | x             | x              |                |

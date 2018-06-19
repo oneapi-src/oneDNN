@@ -452,6 +452,15 @@ typedef enum {
     mkldnn_vanilla_lstm = 81,
     /** GRU cell */
     mkldnn_vanilla_gru = 82,
+    /** GRU cell with linear before reset
+     *
+     * Modification of original GRU cell. Differs from #mkldnn_vanilla_gru
+     * in how the new memory gate is calculated:
+     * \f[ c_t = tanh(W_c*x_t + b_{c_h} + r_t*(U_c*h_{t-1}+b_{c_h})) \f]
+     * Primitive expects 4 biases on input:
+     * \f$[b_{u}, b_{r}, b_{c_x}, b_{c_h}]\f$
+     * */
+    mkldnn_gru_linear_before_reset = 83,
 } mkldnn_alg_kind_t;
 
 /** Flags for batch-normalization primititve. */
@@ -835,7 +844,8 @@ typedef enum {
 
 typedef struct {
     /** RNN cell kind. Must be one of #mkldnn_vanilla_rnn,
-     * #mkldnn_vanilla_lstm, or #mkldnn_vanilla_gru. */
+     * #mkldnn_vanilla_lstm, #mkldnn_vanilla_gru
+     * or #mkldnn_gru_linear_before_reset. */
     mkldnn_alg_kind_t cell_kind;
     /** Activation function used. Must be one of #mkldnn_eltwise_relu,
      * #mkldnn_eltwise_tanh. */

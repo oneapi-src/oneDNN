@@ -274,6 +274,7 @@ enum algorithm {
     vanilla_rnn = mkldnn_vanilla_rnn,
     vanilla_lstm = mkldnn_vanilla_lstm,
     vanilla_gru = mkldnn_vanilla_gru,
+    gru_linear_before_reset = mkldnn_gru_linear_before_reset
 };
 
 inline mkldnn_alg_kind_t convert_to_c(algorithm aalgorithm) {

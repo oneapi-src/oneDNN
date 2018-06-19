@@ -1031,7 +1031,8 @@ mkldnn_status_t MKLDNN_API mkldnn_convolution_relu_desc_init(
 /**
  * Initializes a recurrent cell descriptor @p rnn_cell_desc
  * using @p rnn_cell_desc, @p kind (possible values are
- *  #mkldnn_vanilla_rnn, #mkldnn_vanilla_lstm, #mkldnn_vanilla_gru),
+ *  #mkldnn_vanilla_rnn, #mkldnn_vanilla_lstm, #mkldnn_vanilla_gru,
+ *  #mkldnn_gru_linear_before_reset),
  *  @p f (possible values are #mkldnn_eltwise_relu,
  *   #mkldnn_eltwise_tanh), @p flags, @p alpha, and @p clipping.
  */

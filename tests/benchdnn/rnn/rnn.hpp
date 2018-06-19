@@ -29,7 +29,7 @@
 
 namespace rnn {
 
-enum alg_t { VANILLA_RNN, VANILLA_LSTM, VANILLA_GRU };
+enum alg_t { VANILLA_RNN, VANILLA_LSTM, VANILLA_GRU, GRU_LINEAR_BEFORE_RESET };
 alg_t str2alg(const char *str);
 const char *alg2str(alg_t alg);
 mkldnn_alg_kind_t alg2kind(alg_t alg);
@@ -167,6 +167,11 @@ struct rnn_prb_t : public rnn_desc_t {
             n_gates = 4;
             break;
         case VANILLA_GRU:
+            n_weights = 1;
+            n_states = 1;
+            n_gates = 3;
+            break;
+        case GRU_LINEAR_BEFORE_RESET:
             n_weights = 1;
             n_states = 1;
             n_gates = 3;

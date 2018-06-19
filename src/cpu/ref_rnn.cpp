@@ -229,14 +229,14 @@ cell_execution_sig(_ref_rnn_common_t<prop_kind::forward>::cell_execution) {
             ws_gates_, false, 1.0f);
     (this->*elemwise_func)(dic, wic, batch, n_states, n_gates, ws_gates_,
             states_t_l_, states_t_lm1_, states_tm1_l_, diff_states_t_l_,
-            diff_states_t_lp1_, diff_states_tp1_l_, bias_);
+            diff_states_t_lp1_, diff_states_tp1_l_, bias_, ws_grid_, ws_cell_);
 }
 
 template <>
 cell_execution_sig(_ref_rnn_common_t<prop_kind::backward>::cell_execution) {
     (this->*elemwise_func)(dic, wic, batch, n_states, n_gates, ws_gates_,
             states_t_l_, states_t_lm1_, states_tm1_l_, diff_states_t_l_,
-            diff_states_t_lp1_, diff_states_tp1_l_, bias_);
+            diff_states_t_lp1_, diff_states_tp1_l_, bias_, ws_grid_, ws_cell_);
 
     /// bwd by data on the cell
     (this->*gemm_state_func)(sic, batch, n_gates * dic, sic, n_gates * dic,
@@ -299,6 +299,123 @@ cell_execution_sig(_ref_rnn_common_t<prop_kind::forward>::cell_execution_gru) {
             ws_gates(i, 2, j) = tanh_fwd(ws_gates(i, 2, j) + bias(2, j));
             states_t_l(i, j) = states_tm1_l(i, j) * ws_gates(i, 0, j) +
                 (1.0f - ws_gates(i, 0, j)) * ws_gates(i, 2, j);
+        }
+    }
+}
+
+template <>
+elemwise_sig(_ref_rnn_common_t<prop_kind::forward>::gru_lbr_elemwise) {
+    bool is_training = conf_.is_training();
+    AOC<float, 3> ws_gates(ws_gates_, batch, n_gates, dic);
+    AOC<float, 2> ws_Wh_b(ws_grid_, batch, dic);
+    AOC<const float, 2> bias(bias_, n_gates + 1, dic);
+    AOC<float, 2> states_t_l(states_t_l_, batch, wic);
+    AOC<float, 2> states_tm1_l(states_tm1_l_, batch, wic);
+    AOC<float, 3> ws_gemm_state(ws_cell_, batch, n_gates, dic);
+#pragma omp parallel for
+    for (int i = 0; i < batch; i++) {
+        PRAGMA_OMP_SIMD()
+        for (int j = 0; j < dic; j++) {
+            float Wh_b = ws_gemm_state(i, 2, j) + bias(3, j);
+            ws_gates(i, 0, j) = logistic_fwd(ws_gates(i, 0, j) +
+                ws_gemm_state(i, 0, j) + bias(0, j));
+            ws_gates(i, 1, j) = logistic_fwd(ws_gates(i, 1, j) +
+                ws_gemm_state(i, 1, j) + bias(1, j));
+            ws_gates(i, 2, j) = tanh_fwd(ws_gates(i, 2, j) +
+                ws_gates(i, 1, j) * Wh_b + bias(2, j));
+            states_t_l(i, j) = states_tm1_l(i, j) * ws_gates(i, 0, j) +
+                (1.0f - ws_gates(i, 0, j)) * ws_gates(i, 2, j);
+            if (is_training) ws_Wh_b(i, j) = Wh_b;
+        }
+    }
+}
+
+template <>
+cell_execution_sig(_ref_rnn_common_t<prop_kind::forward>::cell_execution_gru_lbr) {
+    (this->*gemm_input_func)(n_gates * dic, batch, slc, n_gates * dic, slc,
+            batch, wic, n_gates * dic, batch, w_input_[0], states_t_lm1_,
+            ws_gates_, false, 0.0f);
+    (this->*gemm_state_func)(n_gates * dic, batch, sic, n_gates * dic, sic,
+            batch, wic, n_gates * dic, batch, w_state_[0], states_tm1_l_,
+            ws_cell_, false, 0.0f);
+    (this->*elemwise_func)(dic, wic, batch, n_states, n_gates, ws_gates_,
+            states_t_l_, states_t_lm1_, states_tm1_l_, diff_states_t_l_,
+            diff_states_t_lp1_, diff_states_tp1_l_, bias_, ws_grid_, ws_cell_);
+}
+
+template <>
+elemwise_sig(_ref_rnn_common_t<prop_kind::backward>::gru_lbr_elemwise) {
+    AOC<float, 3> ws_gates(ws_gates_, batch, n_gates, dic);
+    AOC<const float, 2> states_tm1_l(states_tm1_l_, batch, wic);
+    AOC<float, 3> diff_states_t_l(diff_states_t_l_, n_states + 1, batch, wic);//dht-1 dxt
+    AOC<float, 3> diff_states_tp1_l(
+            diff_states_tp1_l_, n_states + 1, batch, wic);
+    AOC<float, 3> diff_states_t_lp1(
+            diff_states_t_lp1_, n_states + 1, batch, wic);
+    AOC<float, 3> ws_gates_r(ws_cell_, batch, n_gates, dic);
+    AOC<float, 2> ws_Wh_b(ws_grid_, batch, dic);
+
+    // 1. calculate dG1 dG2 dG3
+    // dG0 = (dht - G2) * dht * (1 - G0) * G0
+    // dG1 = (W*h + b) * dG2 * (1 - G1) * G1
+    // dG2 = (1 - G0) * dht * (1 - G2*G2)
+#pragma omp parallel for
+    for (int i = 0; i < batch; i++) {
+        PRAGMA_OMP_SIMD()
+        for (int j = 0; j < dic; j++) {
+            float h = states_tm1_l(i, j);
+            float dHt = diff_states_tp1_l(0, i, j)
+                    + diff_states_t_lp1(n_states, i, j);
+            float dG0 = (h - ws_gates(i, 2, j))
+                    * logistic_bwd(dHt, ws_gates(i, 0, j));
+            float dG2 = (1.0f - ws_gates(i, 0, j)) * dHt;
+            float dG1
+                    = ws_Wh_b(i, j) * logistic_bwd(dG2, ws_gates(i, 1, j));
+            dG2 *= tanh_bwd(1.0f, ws_gates(i, 2, j));
+
+            diff_states_t_l(0, i, j) = dHt * ws_gates(i, 0, j);
+            ws_gates(i, 2, j) = dG2;
+            ws_gates_r(i, 2, j) = dG2 * ws_gates(i, 1, j);
+            ws_gates(i, 0, j) = ws_gates_r(i, 0, j) = dG0;
+            ws_gates(i, 1, j) = ws_gates_r(i, 1, j) = dG1;
+        }
+    }
+}
+
+template <>
+cell_execution_sig(_ref_rnn_common_t<prop_kind::backward>::cell_execution_gru_lbr) {
+    AOC<float, 2> diff_bias(diff_bias_, n_gates + 1, dic);
+    AOC<float, 3> ws_gates_r(ws_cell_, batch, n_gates, dic);
+
+    (this->*elemwise_func)(dic, wic, batch, n_states, n_gates, ws_gates_,
+            states_t_l_, states_t_lm1_, states_tm1_l_, diff_states_t_l_,
+            diff_states_t_lp1_, diff_states_tp1_l_, bias_, ws_grid_, ws_cell_);
+
+    //  dx = dG * Wx^t
+    (this->*gemm_input_func)(slc, batch, n_gates * dic, slc, n_gates * dic,
+            batch, n_gates * dic, wic, batch, w_input_[0], ws_gates_,
+            diff_states_t_l_ + n_states * (batch * wic), false, 0.0f);
+    // dh +=  dGr * Wh^t
+    (this->*gemm_state_func)(sic, batch, n_gates * dic, sic, n_gates * dic,
+            batch, n_gates * dic, wic, batch, w_state_[0], ws_cell_,
+            diff_states_t_l_, false, 1.0f);
+    // dWx +=  dG^t * x
+    gemm(n_gates * dic, slc, batch, n_gates * dic, batch, wic, batch,
+            n_gates * dic, slc, ws_gates_, states_t_lm1_, diff_w_input_, true,
+            1.0f);
+    // dWh += dGr^t * h
+    gemm(n_gates * dic, sic, batch, n_gates * dic, batch, wic, batch,
+            n_gates * dic, sic, ws_cell_, states_tm1_l_, diff_w_state_, true,
+            1.0f);
+
+    // db1-3 += e * dG
+    // db4 += e * (r * dG2)
+    gates_reduction(n_gates, dic, batch, ws_gates_, diff_bias_);
+
+#pragma omp parallel for
+    for (int j = 0; j < dic; j++) {
+        for (int i = 0; i < batch; i++) {
+            diff_bias_[3 * dic + j] += ws_gates_r(i, 2, j);
         }
     }
 }
@@ -402,12 +519,13 @@ grid_execution_sig(_ref_rnn_common_t<aprop>::linear_execution) {
             n_parts_wei_i);
     AOC<float *, 3> weights_states(weights_states_, n_layer, n_direction,
             n_parts_wei_st);
-    AOC<const float, 3> bias(bias_, n_layer, n_direction, n_gates * dic);
+    AOC<const float, 3> bias(bias_, n_layer, n_direction, n_bias * dic);
     AOC<float, 3> diff_weights_layer(
             diff_weights_layer_, n_layer, n_direction, slc * n_gates * dic);
     AOC<float, 3> diff_weights_iter(
             diff_weights_iter_, n_layer, n_direction, sic * n_gates * dic);
-    AOC<float, 3> diff_bias(diff_bias_, n_layer, n_direction, n_gates * dic);
+    AOC<float, 3> diff_bias(diff_bias_, n_layer, n_direction, n_bias * dic);
+    AOC<float, 4> ws_grid(ws_grid_, n_layer, n_direction, n_iter, ws_per_cell);
 
     // We run the grid of computation
     for (int dir = 0; dir < n_direction; dir++) {
@@ -434,7 +552,9 @@ grid_execution_sig(_ref_rnn_common_t<aprop>::linear_execution) {
                         &(diff_weights_layer(lay, dir, 0)),
                         &(diff_weights_iter(lay, dir, 0)),
                         &(diff_bias(lay, dir, 0)),
-                        &(ws_gates(lay, dir, iter, 0)));
+                        &(ws_gates(lay, dir, iter, 0)),
+                        &(ws_grid(lay, dir, iter, 0)),
+                        ws_cell_);
             }
         }
     }
@@ -961,6 +1081,7 @@ void _ref_rnn_common_t<aprop>::execute_() {
     int n_direction = conf_.D();
     int n_iter = conf_.T();
     int n_gates = conf_.G();
+    int n_bias = n_gates + conf_.is_lbr();
     int n_states = conf_.S();
     int n_weights_input = conf_.SLC();
     int n_weights_state = conf_.SIC();
@@ -970,11 +1091,13 @@ void _ref_rnn_common_t<aprop>::execute_() {
     int dic = conf_.DIC();
     int dlc = conf_.DLC();
     int wic = nstl::max(slc, nstl::max(sic, dic));
-    bool is_gru = conf_.cell_kind() == alg_kind::vanilla_gru;
-    int n_parts_wei_st = is_gru ? 2 : 1, n_parts_wei_i = 1;
+    bool is_orig_gru = conf_.cell_kind()
+        == alg_kind::vanilla_gru;
+    int n_parts_wei_st = is_orig_gru ? 2 : 1, n_parts_wei_i = 1;
     int parts_wei_st = n_gates, parts_wei_i = n_gates,
         parts_wei_st_gru[2] = {2, 1};
     bool is_fwd = aprop == prop_kind::forward;
+    int ws_per_cell = conf_.ws_per_cell();
 
     int input_idx = 0;
     int output_idx = 0;
@@ -1009,11 +1132,13 @@ void _ref_rnn_common_t<aprop>::execute_() {
             reinterpret_cast<const float *>(this->input_memory(input_idx++));
 
     // if no workspace was provided we use the scratchpad
-    if (use_scratchpad_) {
+    if (use_scratchpad_for_ws_) {
         ws_gates_ = ((float *)scratchpad_->get());
         ws_states_ = ((float *)scratchpad_->get()) + ws_states_offset_;
         ws_diff_states_
                 = ((float *)scratchpad_->get()) + ws_diff_states_offset_;
+        ws_grid_ = ((float *)scratchpad_->get()) + ws_grid_comp_offset_;
+        ws_cell_ = ((float *)scratchpad_->get()) + ws_cell_comp_offset_;
     } else {
         float *ws_ptr = is_fwd ?
                 reinterpret_cast<float *>(this->memory(output_idx++)) :
@@ -1022,6 +1147,8 @@ void _ref_rnn_common_t<aprop>::execute_() {
         ws_gates_ = ws_ptr + ws_gates_offset_;
         ws_states_ = ws_ptr + ws_states_offset_;
         ws_diff_states_ = ws_ptr + ws_diff_states_offset_;
+        ws_grid_ = ws_ptr + ws_grid_comp_offset_;
+        ws_cell_ = use_scratchpad_ ? ((float *)scratchpad_->get()) : nullptr;
     }
 
     auto diff_src_layer = is_fwd ?
@@ -1051,7 +1178,7 @@ void _ref_rnn_common_t<aprop>::execute_() {
     // we pack the weights if we are using the packed API
     (this->*weights_state_pack_func)(n_layer, n_direction, n_weights_state,
             n_gates, batch, dic, sic, ptr_wei_state_, n_parts_wei_st,
-            (is_gru ? parts_wei_st_gru : &parts_wei_st), w_state);
+            (is_orig_gru ? parts_wei_st_gru : &parts_wei_st), w_state);
     (this->*weights_input_pack_func)(n_layer, n_direction, n_weights_input,
             n_gates, batch, dic, slc, ptr_wei_input_, n_parts_wei_i,
             &parts_wei_i, w_input);
@@ -1065,10 +1192,10 @@ void _ref_rnn_common_t<aprop>::execute_() {
 
     // run the execution on the grid
     (this->*grid_computation)(dic, slc, sic, wic, batch, n_layer, n_direction,
-            n_iter, n_gates, n_states, ptr_wei_input_, n_parts_wei_i,
+            n_iter, n_gates, n_states, n_bias, ptr_wei_input_, n_parts_wei_i,
             ptr_wei_state_, n_parts_wei_st, (float *)bias, ws_states_,
-            ws_diff_states_, ws_gates_, diff_weights_layer, diff_weights_iter,
-            diff_bias);
+            ws_diff_states_, ws_gates_, ws_cell_, ws_grid_, ws_per_cell,
+            diff_weights_layer, diff_weights_iter, diff_bias);
 
     // Finally we copy the results to the result buffers
     copy_res_layer(is_lr, is_rl, n_layer, n_direction, n_iter, batch,

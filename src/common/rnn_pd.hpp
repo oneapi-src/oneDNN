@@ -57,17 +57,17 @@ struct rnn_pd_t : public primitive_desc_t {
                 prop_kind::backward);
     }
 
-    inline int ws_states_size() {
+    inline size_t ws_states_size() {
         int wic = nstl::max(SLC(), nstl::max(SIC(), DIC()));
-        return (L() + 1) * D() * (T() + 1) * S() * MB() * wic;
+        return (size_t)(L() + 1) * D() * (T() + 1) * S() * MB() * wic;
     }
 
-    inline int ws_diff_states_size() {
+    inline size_t ws_diff_states_size() {
         int wic = nstl::max(SLC(), nstl::max(SIC(), DIC()));
-        return (L() + 1) * D() * (T() + 1) * (S() + 1) * MB() * wic;
+        return (size_t)(L() + 1) * D() * (T() + 1) * (S() + 1) * MB() * wic;
     }
 
-    inline int ws_gates_size() {
+    inline size_t ws_gates_size() {
         int n_layer = L();
         int n_direction = D();
         int n_iter = T();
@@ -75,24 +75,68 @@ struct rnn_pd_t : public primitive_desc_t {
         int batch = MB();
         int s_size = DIC();
 
-        return n_layer * n_direction * n_iter * batch * n_gates * s_size;
+        return (size_t)n_layer * n_direction * n_iter * batch * n_gates
+                * s_size;
     }
 
-    inline void set_ws_offsets(int &ws_gates_offset, int &ws_states_offset,
-            int &ws_diff_states_offset) {
-        const int page_size = 4096; // 2097152;
+    inline size_t ws_cell_comp_size() {
+        int n_gates = G();
+        int batch = MB();
+        int s_size = DIC();
+        return (size_t)is_lbr() * n_gates * batch * s_size;
+    }
+
+    inline size_t ws_grid_comp_size() {
+        int n_layer = L();
+        int n_direction = D();
+        int n_iter = T();
+        int batch = MB();
+        int s_size = DIC();
+        return (size_t)is_lbr() * is_training() * n_layer * n_direction * n_iter
+                * batch * s_size;
+    }
+
+    inline int ws_per_cell() {
+        int batch = MB();
+        int s_size = DIC();
+        return is_lbr() * is_training() * batch * s_size;
+    }
+
+    inline void set_offsets(size_t &ws_gates_offset, size_t &ws_states_offset,
+            size_t &ws_diff_states_offset, size_t &ws_grid_comp_offset,
+            size_t &ws_cell_comp_offset) {
+        const size_t page_size = 4096; // 2097152;
         ws_gates_offset
                 = 0; // assumes the workspace base pointer is page aligned
         ws_states_offset = utils::rnd_up(ws_gates_size(), page_size);
         ws_diff_states_offset
                 = utils::rnd_up(ws_states_offset + ws_states_size(), page_size);
+        ws_grid_comp_offset = utils::rnd_up(ws_diff_states_offset
+                + ws_diff_states_size(), page_size);
+
+        ws_cell_comp_offset = utils::rnd_up(ws_grid_comp_offset
+                + ws_grid_comp_size(), page_size);
     }
 
-    inline int get_ws_size() {
-        int ws_gates_offset, ws_states_offset, ws_diff_states_offset;
-        set_ws_offsets(
-                ws_gates_offset, ws_states_offset, ws_diff_states_offset);
-        return ws_diff_states_offset + ws_diff_states_size();
+    inline size_t get_ws_size() {
+        size_t ws_gates_offset, ws_states_offset, ws_diff_states_offset,
+            ws_grid_comp_offset, ws_cell_comp_offset;
+        set_offsets(
+                ws_gates_offset, ws_states_offset, ws_diff_states_offset,
+                ws_grid_comp_offset, ws_cell_comp_offset);
+        return ws_grid_comp_offset + ws_grid_comp_size();
+    }
+
+    inline size_t get_scratchpad_size() {
+        size_t ws_gates_offset, ws_states_offset, ws_diff_states_offset,
+            ws_grid_comp_offset, ws_cell_comp_offset;
+        set_offsets(
+                ws_gates_offset, ws_states_offset, ws_diff_states_offset,
+                ws_grid_comp_offset, ws_cell_comp_offset);
+        if (desc_.prop_kind == prop_kind::forward_inference)
+            return ws_cell_comp_offset + ws_cell_comp_size();
+        else
+            return ws_cell_comp_size();
     }
 
     int T() const { return desc_.src_layer_desc.dims[0]; }
@@ -129,6 +173,11 @@ struct rnn_pd_t : public primitive_desc_t {
     mkldnn::impl::alg_kind_t activation_kind() const {
         return desc_.cell_desc.activation_kind;
     }
+
+    bool is_lbr() const {
+        return cell_kind() == mkldnn_gru_linear_before_reset;
+    }
+
     mkldnn_rnn_direction_t direction() const { return desc_.direction; }
 
 protected:

@@ -33,6 +33,7 @@ alg_t str2alg(const char *str) {
     CASE(VANILLA_RNN);
     CASE(VANILLA_LSTM);
     CASE(VANILLA_GRU);
+    CASE(GRU_LINEAR_BEFORE_RESET);
 #undef CASE
     assert(!"unknown algorithm");
     return VANILLA_RNN;
@@ -45,6 +46,8 @@ const char *alg2str(alg_t alg) {
         return "VANILLA_LSTM";
     if (alg == VANILLA_GRU)
         return "VANILLA_GRU";
+    if (alg == GRU_LINEAR_BEFORE_RESET)
+        return "GRU_LINEAR_BEFORE_RESET";
     assert(!"unknown algorithm");
     return "unknown algorithm";
 }
@@ -56,6 +59,8 @@ mkldnn_alg_kind_t alg2kind(alg_t alg) {
         return mkldnn_vanilla_lstm;
     if (alg == VANILLA_GRU)
         return mkldnn_vanilla_gru;
+    if (alg == GRU_LINEAR_BEFORE_RESET)
+        return mkldnn_gru_linear_before_reset;
     assert(!"unknown algorithm");
     return mkldnn_alg_kind_undef;
 }

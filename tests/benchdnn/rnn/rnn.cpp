@@ -60,7 +60,7 @@ int fill_memory(const rnn_prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem1,
 inline int init_pd(const rnn_prb_t *p, mkldnn_rnn_desc_t rd[2],
         mkldnn_primitive_desc_t rpd[2], res_t *r) {
     const bool is_bwd = p->prop_ == mkldnn_backward;
-
+    const bool is_gru_lbr = p->alg == GRU_LINEAR_BEFORE_RESET;
     int the_stride = 1;
     /// @todo we need to add stride support for diff_* tensors too
     mkldnn_memory_desc_t input_d, states_d, weights_input_d, weights_states_d,
@@ -76,7 +76,7 @@ inline int init_pd(const rnn_prb_t *p, mkldnn_rnn_desc_t rd[2],
     mkldnn_dims_t weights_states_dims
             = { p->n_layer, p->n_direction, p->sic, p->n_gates, p->dic };
     mkldnn_dims_t bias_dims
-            = { p->n_layer, p->n_direction, p->n_gates, p->dic };
+            = { p->n_layer, p->n_direction, p->n_gates + is_gru_lbr, p->dic };
     // mkldnn_tnc
     int lastlay_dlc = (p->direction == mkldnn_bidirectional_concat) ?
             2 * p->dlc :
@@ -231,7 +231,7 @@ int doit(const rnn_prb_t *p, res_t *r) {
     const auto fp = mkldnn_f32;
 
     if (p->alg != VANILLA_LSTM && p->alg != VANILLA_RNN
-        && p->alg != VANILLA_GRU) {
+        && p->alg != VANILLA_GRU && p->alg != GRU_LINEAR_BEFORE_RESET) {
         printf("p->alg: %d\n", (int)p->alg);
         r->state = UNIMPLEMENTED;
         return OK;
