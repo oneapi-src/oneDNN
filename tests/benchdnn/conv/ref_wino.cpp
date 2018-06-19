@@ -346,14 +346,6 @@ void compute_wino_ref_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
     array_offset_calculator<float, 6> M(sp._m_ptr, sp.alpha, sp.alpha, p->oc,
             p->mb, sp.h_tiles, sp.w_tiles);
 
-    float I[6][6];
-    float F[3][3];
-    float O[4][4];
-
-    float _v[6][6];
-    float _u[6][6];
-    float _m[6][6];
-
     SAFE_V(p->kh == 3 ? OK : FAIL);
     SAFE_V(p->kw == 3 ? OK : FAIL);
 
@@ -366,7 +358,15 @@ void compute_wino_ref_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
 
 #pragma omp parallel
     {
-#pragma omp for collapse(4) private(I, _v)
+    float I[6][6];
+    float F[3][3];
+    float O[4][4];
+
+    float _v[6][6];
+    float _u[6][6];
+    float _m[6][6];
+
+#pragma omp for collapse(4)
     /* src_transform v <- B_t * d * B */
     for (int img = 0; img < p->mb; img++) {
         for (int c = 0; c < p->ic; c++) {
@@ -405,7 +405,7 @@ void compute_wino_ref_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
         }
     }
 
-#pragma omp for collapse(2) private(F, _u)
+#pragma omp for collapse(2)
     /* wei_transform u <- G * g * G_t */
     for (int oc = 0; oc < p->oc; ++oc) {
         for (int ic = 0; ic < p->ic; ++ic) {
@@ -437,7 +437,7 @@ void compute_wino_ref_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
         }
     }
 
-#pragma omp for collapse(4) private(O, _m)
+#pragma omp for collapse(4)
     /* Y = A_t *m * A */
     for (int oc = 0; oc < p->oc; ++oc) {
         for (int img = 0; img < p->mb; ++img) {
@@ -517,14 +517,6 @@ void compute_wino_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
     array_offset_calculator<float, 6> M(sp._v_ptr, sp.alpha, sp.alpha, p->ic,
             p->mb, sp.h_tiles, sp.w_tiles);
 
-    float I[6][6];
-    float F[3][3];
-    float O[4][4];
-
-    float _v[6][6];
-    float _u[6][6];
-    float _m[6][6];
-
     SAFE_V(p->kh == 3 ? OK : FAIL);
     SAFE_V(p->kw == 3 ? OK : FAIL);
 
@@ -537,7 +529,15 @@ void compute_wino_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
 
 #pragma omp parallel
     {
-#pragma omp for collapse(4) private(I, _v)
+    float I[6][6];
+    float F[3][3];
+    float O[4][4];
+
+    float _v[6][6];
+    float _u[6][6];
+    float _m[6][6];
+
+#pragma omp for collapse(4)
     /* diff_src transform v <- B_t * d * B */
     for (int img = 0; img < p->mb; img++) {
         for (int c = 0; c < p->oc; c++) {
@@ -577,7 +577,7 @@ void compute_wino_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
         }
     }
 
-#pragma omp for collapse(2) private(F, _u)
+#pragma omp for collapse(2)
     /* wei_transform u <- G * g * G_t */
     for (int ic = 0; ic < p->ic; ++ic) {
         for (int oc = 0; oc < p->oc; ++oc) {
@@ -609,7 +609,7 @@ void compute_wino_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
         }
     }
 
-#pragma omp for collapse(4) private(O, _m)
+#pragma omp for collapse(4)
     /* diff_dst: Y = A_t *m * A */
     for (int c = 0; c < p->ic; ++c) {
         for (int img = 0; img < p->mb; ++img) {
@@ -656,14 +656,6 @@ void compute_wino_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m,
     array_offset_calculator<float, 6> M(sp._m_ptr, sp.alpha, sp.alpha, p->oc,
             p->mb, sp.h_tiles, sp.w_tiles);
 
-    float I[6][6];
-    float F[6][6];
-    float O[6][6];
-
-    float _v[6][6];
-    float _u[3][3];
-    float _m[6][6];
-
     SAFE_V(p->kh == 3 ? OK : FAIL);
     SAFE_V(p->kw == 3 ? OK : FAIL);
 
@@ -675,7 +667,15 @@ void compute_wino_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m,
 
 #pragma omp parallel
     {
-#pragma omp for collapse(4) private(I, _v)
+    float I[6][6];
+    float F[6][6];
+    float O[6][6];
+
+    float _v[6][6];
+    float _u[3][3];
+    float _m[6][6];
+
+#pragma omp for collapse(4)
     /* src transform v <- B_t * d * B */
     for (int img = 0; img < p->mb; img++) {
         for (int hfm = 0; hfm < sp.h_tiles; hfm++) {
@@ -714,7 +714,7 @@ void compute_wino_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m,
         }
     }
 
-#pragma omp for collapse(4) private(O, _m)
+#pragma omp for collapse(4)
     /* diff_dst transform */
     for (int oc = 0; oc < p->oc; oc++) {
         for (int img = 0; img < p->mb; img++) {
@@ -762,7 +762,7 @@ void compute_wino_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m,
         }
     }
 
-#pragma omp for collapse(2) private(F, _u)
+#pragma omp for collapse(2)
     for (int oc = 0; oc < p->oc; ++oc) {
         for (int ic = 0; ic < p->ic; ++ic) {
             for (int j = 0; j < sp.alpha; j++) {
