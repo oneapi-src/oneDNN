@@ -254,13 +254,14 @@ void jit_uni_pooling_bwd_t<isa>::execute_backward_3d() {
             }
         }
     } else {
-        ptrdiff_t nelems = jpp.mb * jpp.c * jpp.id * jpp.ih * jpp.iw;
-		#pragma omp parallel for
+        ptrdiff_t nelems = (ptrdiff_t)jpp.mb * (ptrdiff_t)jpp.c
+            * (ptrdiff_t)jpp.id * (ptrdiff_t)jpp.ih * (ptrdiff_t)jpp.iw;
+#       pragma omp parallel for
         for (ptrdiff_t i = 0; i < nelems; ++i)
             diff_src[i] = 0.;
 
         for (int kd = 0; kd < jpp.kd; ++kd) {
-		#pragma omp parallel for collapse(3) schedule(static)
+#       pragma omp parallel for collapse(3) schedule(static)
         for (int n = 0; n < jpp.mb; ++n) {
             for (int b_c = 0; b_c < jpp.nb_c; ++b_c) {
                 for (int od = 0; od < jpp.od; ++od) {
