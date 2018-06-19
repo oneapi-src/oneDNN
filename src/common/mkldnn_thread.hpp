@@ -18,6 +18,7 @@
 #define MKLDNN_THREAD_HPP
 
 #include "utils.hpp"
+#include "z_magic.hpp"
 
 #if defined(_OPENMP)
 #include <omp.h>
@@ -39,9 +40,10 @@ inline int omp_in_parallel() { return 0; }
 #	define PRAGMA_OMP_SIMD(...)
 #	define PRAGMA_OMP_SIMD_CLAUSE(...)
 #else
-#	define _PRAGMA_OMP_CONCAT(x) _Pragma(#x)
-#	define PRAGMA_OMP_SIMD() _Pragma("omp simd")
-#	define PRAGMA_OMP_SIMD_CLAUSE(x) _PRAGMA_OMP_CONCAT(omp simd x)
+// #    define _PRAGMA_MACRO(x) _Pragma(#x)
+// #    define PRAGMA_OMP_SIMD() _Pragma("omp simd")
+#	define PRAGMA_OMP_SIMD(...) PRAGMA_MACRO(CHAIN2(omp, simd __VA_ARGS__))
+#	define PRAGMA_OMP_SIMD_CLAUSE(...) PRAGMA_MACRO(CHAIN2(omp, simd __VA_ARGS__))
 #endif // defined(_MSC_VER) && !defined(__INTEL_COMPILER)
 
 namespace mkldnn {

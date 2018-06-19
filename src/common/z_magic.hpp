@@ -17,11 +17,17 @@
 #ifndef Z_MAGIC_HPP
 #define Z_MAGIC_HPP
 
+#define CHAIn2(a,b) a b
+#define CHAIN2(a,b) CHAIn2(a,b)
+
 #define CONCAt2(a,b) a ## b
 #define CONCAT2(a,b) CONCAt2(a,b)
 
 #define STRINGIFy(s) #s
 #define STRINGIFY(s) STRINGIFy(s)
+
+#define PRAGMA_MACRo(x) _Pragma(#x)
+#define PRAGMA_MACRO(x) PRAGMA_MACRo(x)
 
 #endif
 
