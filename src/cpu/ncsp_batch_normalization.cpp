@@ -131,7 +131,7 @@ void ncsp_batch_normalization_fwd_t::execute_forward() {
                     size_t off = (c + C_off) * SP;
                     data_t sum = 0;
                     for (int n = N_s; n < N_e; ++n)
-                        PRAGMA_OMP_SIMD_CLAUSE(reduction(+ : sum))
+                        PRAGMA_OMP_SIMD(reduction(+ : sum))
                         for (int sp = S_s; sp < S_e; ++sp) {
                             sum += src[off + n * C * SP + sp];
                         }
@@ -149,7 +149,7 @@ void ncsp_batch_normalization_fwd_t::execute_forward() {
                     size_t off = c + C_off;
                     data_t sum = 0.;
                     for (int n = N_s; n < N_e; ++n)
-                        PRAGMA_OMP_SIMD_CLAUSE(reduction(+ : sum))
+                        PRAGMA_OMP_SIMD(reduction(+ : sum))
                         for (int sp = S_s; sp < S_e; ++sp) {
                             data_t m = src[off * SP + n * C * SP + sp]
                                     - mean[off];
@@ -275,7 +275,7 @@ void ncsp_batch_normalization_bwd_t::execute_backward() {
                 data_t diff_gamma = 0.0, diff_beta = 0.0;
                 data_t v_mean = mean[off];
                 for (int n = N_s; n < N_e; ++n)
-                    PRAGMA_OMP_SIMD_CLAUSE(reduction(+ : diff_gamma, diff_beta))
+                    PRAGMA_OMP_SIMD(reduction(+ : diff_gamma, diff_beta))
                     for (int sp = S_s; sp < S_e; ++sp) {
                         const size_t d_off = off * SP + n * C * SP + sp;
                         data_t dd;

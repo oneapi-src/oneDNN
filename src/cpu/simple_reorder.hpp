@@ -368,7 +368,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o,
                 const int nsize) {
             if (alpha == 1.0 && beta == 0) {
-                PRAGMA_OMP_SIMD_CLAUSE(collapse(2))
+                PRAGMA_OMP_SIMD(collapse(2))
                 for (int n = 0; n < nsize; n++) {
                     for (int c = 0; c < blksize; ++c) {
                         o[n * o_st[0] + c * co_mult] =
@@ -376,7 +376,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                     }
                 }
             } else {
-                PRAGMA_OMP_SIMD_CLAUSE(collapse(2))
+                PRAGMA_OMP_SIMD(collapse(2))
                 for (int n = 0; n < nsize; n++) {
                     for (int c = 0; c < blksize; ++c) {
                         o[n * o_st[0] + c * co_mult] = data_t<type_o>(
@@ -657,7 +657,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o,
                 const int nrows, const int ncols) {
             if (alpha == 1.0 && beta == 0) {
-                PRAGMA_OMP_SIMD_CLAUSE(collapse(2))
+                PRAGMA_OMP_SIMD(collapse(2))
                 for (int row = 0; row < nrows; ++row) {
                     for (int col = 0; col < ncols; ++col) {
                         const auto o_idx = row * ostrides[0]
@@ -668,7 +668,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                     }
                 }
             } else {
-                PRAGMA_OMP_SIMD_CLAUSE(collapse(2))
+                PRAGMA_OMP_SIMD(collapse(2))
                 for (int row = 0; row < nrows; ++row) {
                     for (int col = 0; col < ncols; ++col) {
                         const auto o_idx = row * ostrides[0]
@@ -717,7 +717,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o) {
             if (alpha == 1.0 && beta == 0) {
-                PRAGMA_OMP_SIMD_CLAUSE(collapse(2))
+                PRAGMA_OMP_SIMD(collapse(2))
                 for (int O = 0; O < dims[0] / blksize; ++O) {
                     for (int oc = 0; oc < blksize; ++oc) {
                         if (order_keep) {
@@ -730,7 +730,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                     }
                 }
             } else {
-                PRAGMA_OMP_SIMD_CLAUSE(collapse(2))
+                PRAGMA_OMP_SIMD(collapse(2))
                 for (int O = 0; O < dims[0] / blksize; ++O) {
                     for (int oc = 0; oc < blksize; ++oc) {
                         const auto dst_off = order_keep ? O * os[0] + oc :
@@ -1305,7 +1305,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o) {
             if (alpha == 1.0 && beta == 0.0) {
-                PRAGMA_OMP_SIMD_CLAUSE(collapse(2))
+                PRAGMA_OMP_SIMD(collapse(2))
                 for (int ic = 0; ic < blksize; ++ic) {
                     for (int oc = 0; oc < blksize; ++oc) {
                         if (order_keep) {
@@ -1318,7 +1318,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                     }
                 }
             } else {
-                PRAGMA_OMP_SIMD_CLAUSE(collapse(2))
+                PRAGMA_OMP_SIMD(collapse(2))
                 for (int ic = 0; ic < blksize; ++ic) {
                     for (int oc = 0; oc < blksize; ++oc) {
                         const auto dst_off = order_keep ? ic * blksize + oc :

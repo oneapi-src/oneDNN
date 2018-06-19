@@ -296,7 +296,7 @@ void _gemm_convolution_bwd_weights_t<run_jit, isa>::execute_backward_weights() {
                     size_t offset = offset_ + mb*jcp.ngroups*dst_step;
                     for (int od = 0; od < jcp.od; ++od)
                     for (int oh = 0; oh < jcp.oh; ++oh)
-                    PRAGMA_OMP_SIMD_CLAUSE(reduction(+:db))
+                    PRAGMA_OMP_SIMD(reduction(+:db))
                     for (int ow = 0; ow < jcp.ow; ++ow)
                     {
                         db += diff_dst[offset];

@@ -31,19 +31,10 @@ inline int omp_in_parallel() { return 0; }
 
 /* MSVC still supports omp 2.0 only */
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-#	define collapse(x)
-
-	// nop that doesn't produce warnings.
-	// PRAGMA_OMP_SIMD(x) will flood 4003
-	// warnings where no arg is supplied
-	// beyond omp simd.
-#	define PRAGMA_OMP_SIMD(...)
-#	define PRAGMA_OMP_SIMD_CLAUSE(...)
+#   define collapse(x)
+#   define PRAGMA_OMP_SIMD(...)
 #else
-// #    define _PRAGMA_MACRO(x) _Pragma(#x)
-// #    define PRAGMA_OMP_SIMD() _Pragma("omp simd")
-#	define PRAGMA_OMP_SIMD(...) PRAGMA_MACRO(CHAIN2(omp, simd __VA_ARGS__))
-#	define PRAGMA_OMP_SIMD_CLAUSE(...) PRAGMA_MACRO(CHAIN2(omp, simd __VA_ARGS__))
+#   define PRAGMA_OMP_SIMD(...) PRAGMA_MACRO(CHAIN2(omp, simd __VA_ARGS__))
 #endif // defined(_MSC_VER) && !defined(__INTEL_COMPILER)
 
 namespace mkldnn {
