@@ -149,9 +149,10 @@ void _gemm_convolution_bwd_data_t<run_jit, isa>::execute_backward_data() {
         data_t *_col = this->col_ + (size_t)ithr * jcp.ic * jcp.ks * jcp.os;
 
         if (jcp.id > 1) {
-        #pragma omp for
-        for (long i = 0; i < jcp.ngroups*jcp.mb*src_step; ++i)
-            diff_src[i] = 0.;
+            ptrdiff_t diff_src_sz = (ptrdiff_t)(work_amount * src_step);
+            #pragma omp for
+            for (ptrdiff_t i = 0; i < diff_src_sz; ++i)
+                diff_src[i] = 0.;
         }
 
         int g{0}, n{0};

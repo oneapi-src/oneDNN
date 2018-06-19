@@ -51,8 +51,8 @@ void simple_concat_t<data_type>::execute() {
     for (int i = 0; i < perm[concat_dim]; i++)
         os[i] = o_d.blocking_desc().strides[0][iperm[i]];
     dims_t phys_dims;
-    for (ptrdiff_t i = 0; i < sizeof(phys_dims) / sizeof(phys_dims[0]); i++)
-        phys_dims[i] = (i < perm[concat_dim]) ?
+    for (size_t i = 0; i < sizeof(phys_dims)/sizeof(phys_dims[0]); i++)
+        phys_dims[i] = (i < (size_t)perm[concat_dim]) ?
                 o_d.dims()[iperm[i]] / blk.block_dims[iperm[i]] :
                 1;
 
@@ -62,7 +62,7 @@ void simple_concat_t<data_type>::execute() {
             const data_t *i = &input_ptrs[a][0];
             data_t *o = &output_ptrs[a][0];
 #           pragma omp parallel for
-            for (ptrdiff_t e = 0; e < static_cast<ptrdiff_t>(nelems_to_copy[a]); ++e)
+            for (ptrdiff_t e = 0; e < (ptrdiff_t)nelems_to_copy[a]; ++e)
                 o[e] = i[e];
         }
         break;
