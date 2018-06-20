@@ -1001,11 +1001,9 @@ struct uni_bnorm_driver_t: public c_compatible {
                         C_ithr, C_nthr, C_blk_s, C_blk_e, N_ithr, N_nthr, N_s,
                         N_e, S_ithr, S_nthr, S_s, S_e);
 
-                SP_N_ithr = N_ithr * S_nthr + S_ithr;
-                SP_N_nthr = N_nthr * S_nthr;
-
-                p.N_ithr = SP_N_ithr;
-                p.N_nthr = SP_N_nthr;
+                // Update call parameters for JIT, last iteration
+                p.N_ithr = N_ithr * S_nthr + S_ithr;
+                p.N_nthr = N_nthr * S_nthr;
             }
 
             global_C_blk_s = do_blocking_ ?
@@ -1039,10 +1037,14 @@ struct uni_bnorm_driver_t: public c_compatible {
 
             p.mb_stride_Bc = img_size - p.coff_max * p.spat_size;
 
+            // use SP_N_nthr which is the same as p.N_nthr except maybe for
+            // the last iteration.
             p.rbuf1 = rbuf_
-                    + (global_C_blk_s * p.N_nthr + p.N_ithr * C_blks_thr)
+                    + ((it * C_blks_per_iter) * SP_N_nthr + C_blk_s * p.N_nthr
+                              + p.N_ithr * C_blks_thr)
                             * simd_w;
-            p.rbuf2 = p.rbuf1 + C * p.N_nthr;
+            // rbuf1 and rbuf2 have to be disjoint
+            p.rbuf2 = p.rbuf1 + C * nthr;
 
             size_t iter_bariers
                     = do_blocking_ ? it * global_barriers_per_iter : 0;
