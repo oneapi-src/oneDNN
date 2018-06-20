@@ -663,10 +663,149 @@ struct jit_bnorm_t: public jit_generator {
         }
     }
 
+    void backward_sh_channels() {
+        Label sh_channels;
+        L(sh_channels); {
+            vmovups(vmean, mean_ptr());
+            vmovups(Vmm(0), vmmword[reg_rbuf1 + reg_coff]);
+            vmovups(Vmm(1), vmmword[reg_rbuf2 + reg_coff]);
+            spat_loop(spat_size, 1, 1,
+                    [=](size_t base_reg) {
+                        if (base_reg > 0) {
+                            for (int i = 0; i < 2; i++) {
+                                Vmm v(base_reg * 5 + i);
+                                uni_vpxor(v, v, v);
+                            }
+                        }
+                    },
+                    [=](size_t base_reg, size_t i) {
+                        Vmm o0 = Vmm(base_reg * 5 + 0);
+                        Vmm o1 = Vmm(base_reg * 5 + 1);
+                        Vmm t1 = Vmm(base_reg * 5 + 2);
+                        Vmm t2 = Vmm(base_reg * 5 + 3);
+                        Vmm t3 = Vmm(base_reg * 5 + 4);
+                        size_t offt = i * vlen;
+                        vmovups(t1, vmmword[reg_src + reg_soff + offt]);
+                        vmovups(t2, vmmword[reg_diff_dst + reg_soff
+                                + offt]);
+                        if (with_relu) {
+                            if (isa == avx512_common)
+                                bwd_process_relu_avx512_common(t2, offt);
+                            else if (isa == avx2)
+                                bwd_process_relu_avx2(t2, offt, t3);
+                        }
+                        vsubps(t3, vmean, t1);
+                        vfnmadd231ps(o0, t3, t2);
+                        vaddps(o1, t2);
+                        mic_prefetcht0(ptr[reg_diff_dst + reg_soff + offt
+                                + t0_pf_offt]);
+                        mic_prefetcht0(ptr[reg_src + reg_soff + offt
+                                + t0_pf_offt]);
+                        mic_prefetcht1(ptr[reg_diff_dst + reg_soff + offt
+                                + t1_pf_offt]);
+                        mic_prefetcht1(ptr[reg_src + reg_soff + offt
+                                + t1_pf_offt]);
+                    },
+                    [=](size_t base_reg) {
+                        Vmm b0 = Vmm(0);
+                        Vmm b1 = Vmm(1);
+                        if (base_reg) {
+                            vaddps(b0, b0, Vmm(base_reg * 5 + 0));
+                            vaddps(b1, b1, Vmm(base_reg * 5 + 1));
+                        }
+                    });
+            vmovups(vmmword[reg_rbuf1 + reg_coff], Vmm(0));
+            vmovups(vmmword[reg_rbuf2 + reg_coff], Vmm(1));
+            add(reg_coff, vlen);
+            cmp(reg_coff, reg_coff_max);
+            jne(sh_channels);
+        }
+    }
+
+    void backward_diff_channels() {
+        Label diff_channels;
+        L(diff_channels); {
+            vmovups(vmean, mean_ptr());
+            vmovups(vsqrtvar, var_ptr());
+            vaddps(vsqrtvar, vsqrtvar, veps);
+            vsqrtps(vsqrtvar, vsqrtvar);
+            vdivps(vsqrtvar, vone, vsqrtvar);
+            if (bdesc_->use_scaleshift()) {
+                vmovups(vgamma, gamma_ptr());
+            }
+            vmovups(vdiff_gamma, diff_gamma_ptr());
+            vmovups(vdiff_beta, diff_beta_ptr());
+            vmulps(vdiff_gamma, vdiff_gamma, vsqrtvar);
+            vdivps(vdiff_beta, vdiff_beta, vchan_size);
+            vdivps(vdiff_gamma, vdiff_gamma, vchan_size);
+
+            auto compute = [=](bool output_is_aligned) {
+                spat_loop(spat_size, unroll_blocks, unroll_regs,
+                        [=](size_t base_reg) {UNUSED(base_reg);},
+                        [=](size_t base_reg, size_t i) {
+                            Vmm v(base_reg * 2 + 0);
+                            Vmm t(base_reg * 2 + 1);
+                            size_t offt = i * vlen;
+                            vmovups(v, vmmword[reg_diff_dst + reg_soff
+                                    + offt]);
+                            if (with_relu) {
+                                if (isa == avx512_common)
+                                    bwd_process_relu_avx512_common(v, offt);
+                                else if (isa == avx2)
+                                    bwd_process_relu_avx2(v, offt, t);
+                            }
+                            if (!bdesc_->omit_stats()) {
+                                vsubps(v, v, vdiff_beta);
+                                vmovups(t, vmmword[reg_src + reg_soff + offt]);
+                                vsubps(t, vmean, t);
+                                vmulps(t, t, vdiff_gamma);
+                                vaddps(v, v, t);
+                            }
+                            vmulps(v, v, vsqrtvar);
+                            if (bdesc_->use_scaleshift()) {
+                               vmulps(v, v, vgamma);
+                            }
+                            if (output_is_aligned) {
+                                vmovntps(
+                                    vmmword[reg_diff_src + reg_soff + offt],
+                                    v);
+                            } else {
+                                vmovups(
+                                    vmmword[reg_diff_src + reg_soff + offt],
+                                    v);
+                            }
+                            mic_prefetcht0(ptr[reg_diff_dst + reg_soff + offt
+                                    + t0_pf_offt]);
+                            mic_prefetcht0(ptr[reg_src + reg_soff + offt
+                                    + t0_pf_offt]);
+                            mic_prefetcht1(ptr[reg_diff_dst + reg_soff
+                                    + offt + t1_pf_offt]);
+                            mic_prefetcht1(ptr[reg_src + reg_soff + offt
+                                    + t1_pf_offt]);
+                        },
+                        [=](size_t base_reg) {UNUSED(base_reg);});
+            };
+
+            Label unaligned_store, end_store;
+            test(reg_diff_src, vlen - 1);
+            jnz(unaligned_store, T_NEAR);
+            compute(true);
+            jmp(end_store, T_NEAR);
+            L(unaligned_store); {
+                compute(false);
+            }
+            L(end_store);
+
+            add(reg_coff, vlen);
+            cmp(reg_coff, reg_coff_max);
+            jne(diff_channels);
+        }
+    }
+
     void backward() {
         uni_vpxor(Vmm(0), Vmm(0), Vmm(0));
         xor_(reg_coff, reg_coff);
-        Label zero_rbuf, sh_spatial, sh_channels;
+        Label zero_rbuf, sh_spatial;
 
         L(zero_rbuf); {
             vmovups(vmmword[reg_rbuf1 + reg_coff], Vmm(0));
@@ -684,61 +823,7 @@ struct jit_bnorm_t: public jit_generator {
         xor_(reg_soff, reg_soff);
         L(sh_spatial); {
             xor_(reg_coff, reg_coff);
-            L(sh_channels); {
-                vmovups(vmean, mean_ptr());
-                vmovups(Vmm(0), vmmword[reg_rbuf1 + reg_coff]);
-                vmovups(Vmm(1), vmmword[reg_rbuf2 + reg_coff]);
-                spat_loop(spat_size, 1, 1,
-                        [=](size_t base_reg) {
-                            if (base_reg > 0) {
-                                for (int i = 0; i < 2; i++) {
-                                    Vmm v(base_reg * 5 + i);
-                                    uni_vpxor(v, v, v);
-                                }
-                            }
-                        },
-                        [=](size_t base_reg, size_t i) {
-                            Vmm o0 = Vmm(base_reg * 5 + 0);
-                            Vmm o1 = Vmm(base_reg * 5 + 1);
-                            Vmm t1 = Vmm(base_reg * 5 + 2);
-                            Vmm t2 = Vmm(base_reg * 5 + 3);
-                            Vmm t3 = Vmm(base_reg * 5 + 4);
-                            size_t offt = i * vlen;
-                            vmovups(t1, vmmword[reg_src + reg_soff + offt]);
-                            vmovups(t2, vmmword[reg_diff_dst + reg_soff
-                                    + offt]);
-                            if (with_relu) {
-                                if (isa == avx512_common)
-                                    bwd_process_relu_avx512_common(t2, offt);
-                                else if (isa == avx2)
-                                    bwd_process_relu_avx2(t2, offt, t3);
-                            }
-                            vsubps(t3, vmean, t1);
-                            vfnmadd231ps(o0, t3, t2);
-                            vaddps(o1, t2);
-                            mic_prefetcht0(ptr[reg_diff_dst + reg_soff + offt
-                                    + t0_pf_offt]);
-                            mic_prefetcht0(ptr[reg_src + reg_soff + offt
-                                    + t0_pf_offt]);
-                            mic_prefetcht1(ptr[reg_diff_dst + reg_soff + offt
-                                    + t1_pf_offt]);
-                            mic_prefetcht1(ptr[reg_src + reg_soff + offt
-                                    + t1_pf_offt]);
-                        },
-                        [=](size_t base_reg) {
-                            Vmm b0 = Vmm(0);
-                            Vmm b1 = Vmm(1);
-                            if (base_reg) {
-                                vaddps(b0, b0, Vmm(base_reg * 5 + 0));
-                                vaddps(b1, b1, Vmm(base_reg * 5 + 1));
-                            }
-                        });
-                vmovups(vmmword[reg_rbuf1 + reg_coff], Vmm(0));
-                vmovups(vmmword[reg_rbuf2 + reg_coff], Vmm(1));
-                add(reg_coff, vlen);
-                cmp(reg_coff, reg_coff_max);
-                jne(sh_channels);
-            }
+            backward_sh_channels();
             add(reg_soff, reg_mb_stride_Bc);
             cmp(reg_soff, reg_soff_max);
             jne(sh_spatial);
@@ -791,83 +876,7 @@ struct jit_bnorm_t: public jit_generator {
         Label diff_spatial;
         L(diff_spatial); {
             xor_(reg_coff, reg_coff);
-            Label diff_channels;
-            L(diff_channels); {
-                vmovups(vmean, mean_ptr());
-                vmovups(vsqrtvar, var_ptr());
-                vaddps(vsqrtvar, vsqrtvar, veps);
-                vsqrtps(vsqrtvar, vsqrtvar);
-                vdivps(vsqrtvar, vone, vsqrtvar);
-                if (bdesc_->use_scaleshift()) {
-                    vmovups(vgamma, gamma_ptr());
-                }
-                vmovups(vdiff_gamma, diff_gamma_ptr());
-                vmovups(vdiff_beta, diff_beta_ptr());
-                vmulps(vdiff_gamma, vdiff_gamma, vsqrtvar);
-                vdivps(vdiff_beta, vdiff_beta, vchan_size);
-                vdivps(vdiff_gamma, vdiff_gamma, vchan_size);
-
-                auto compute = [=](bool output_is_aligned) {
-                    spat_loop(spat_size, unroll_blocks, unroll_regs,
-                            [=](size_t base_reg) {UNUSED(base_reg);},
-                            [=](size_t base_reg, size_t i) {
-                                Vmm v(base_reg * 2 + 0);
-                                Vmm t(base_reg * 2 + 1);
-                                size_t offt = i * vlen;
-                                vmovups(v, vmmword[reg_diff_dst + reg_soff
-                                        + offt]);
-                                if (with_relu) {
-                                    if (isa == avx512_common)
-                                        bwd_process_relu_avx512_common(v, offt);
-                                    else if (isa == avx2)
-                                        bwd_process_relu_avx2(v, offt, t);
-                                }
-                                if (!bdesc_->omit_stats()) {
-                                    vsubps(v, v, vdiff_beta);
-                                    vmovups(t, vmmword[reg_src + reg_soff + offt]);
-                                    vsubps(t, vmean, t);
-                                    vmulps(t, t, vdiff_gamma);
-                                    vaddps(v, v, t);
-                                }
-                                vmulps(v, v, vsqrtvar);
-                                if (bdesc_->use_scaleshift()) {
-                                   vmulps(v, v, vgamma);
-                                }
-                                if (output_is_aligned) {
-                                    vmovntps(
-                                        vmmword[reg_diff_src + reg_soff + offt],
-                                        v);
-                                } else {
-                                    vmovups(
-                                        vmmword[reg_diff_src + reg_soff + offt],
-                                        v);
-                                }
-                                mic_prefetcht0(ptr[reg_diff_dst + reg_soff + offt
-                                        + t0_pf_offt]);
-                                mic_prefetcht0(ptr[reg_src + reg_soff + offt
-                                        + t0_pf_offt]);
-                                mic_prefetcht1(ptr[reg_diff_dst + reg_soff
-                                        + offt + t1_pf_offt]);
-                                mic_prefetcht1(ptr[reg_src + reg_soff + offt
-                                        + t1_pf_offt]);
-                            },
-                            [=](size_t base_reg) {UNUSED(base_reg);});
-                };
-
-                Label unaligned_store, end_store;
-                test(reg_diff_src, vlen - 1);
-                jnz(unaligned_store, T_NEAR);
-                compute(true);
-                jmp(end_store, T_NEAR);
-                L(unaligned_store); {
-                    compute(false);
-                }
-                L(end_store);
-
-                add(reg_coff, vlen);
-                cmp(reg_coff, reg_coff_max);
-                jne(diff_channels);
-            }
+            backward_diff_channels();
             add(reg_soff, reg_mb_stride_Bc);
             cmp(reg_soff, reg_soff_max);
             jne(diff_spatial);
