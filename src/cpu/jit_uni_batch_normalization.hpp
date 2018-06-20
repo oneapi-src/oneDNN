@@ -117,7 +117,7 @@ struct jit_uni_batch_normalization_bwd_t: public cpu_primitive_t {
             using namespace memory_format;
             assert(engine()->kind() == engine_kind::cpu);
             auto desired_fmt = (ndims() == 4)
-                ? isa == avx2 ? nChw8c : nChw16c
+                ? utils::one_of(isa, sse42, avx2) ? nChw8c : nChw16c
                 : nCdhw16c;
             bool ok = true
                 && mayiuse(isa)
