@@ -126,15 +126,12 @@ protected:
         auto c_weights = test_memory(c_weights_desc, eng);
         auto c_diff_dst = test_memory(c_dst_desc, eng);
 
-        std::vector<int> padR = { cd.padh, cd.padw };
-        for (int i = 0; i < 2; ++i) {
-            if ((cd.ih - ((cd.kh - 1) * (cd.dilh + 1) + 1) + cd.padh + padR[0])
-                / cd.strh + 1 != cd.oh)
-                ++padR[0];
-            if ((cd.iw - ((cd.kw - 1) * (cd.dilw + 1) + 1) + cd.padw + padR[1])
-                / cd.strw + 1 != cd.ow)
-                ++padR[1];
-        }
+        std::vector<int> padR = {
+            (cd.oh - 1) * cd.strh + (cd.kh - 1) * (cd.dilh + 1)
+            - (cd.padh + cd.ih - 1),
+            (cd.ow - 1) * cd.strw + (cd.kw - 1) * (cd.dilw + 1)
+            - (cd.padw + cd.iw - 1)
+        };
 
         // Only true for dense format
         fill_data<data_t_wei>(c_weights.get_size() / sizeof(data_t_wei),

@@ -175,15 +175,12 @@ protected:
         fill_data<data_t_src>(c_src.get_size() / sizeof(data_t_src),
             (data_t_src *)c_src.get().get_data_handle());
 
-        std::vector<int> padR = { cd.padh, cd.padw };
-        for (int i = 0; i < 2; ++i) {
-            if ((cd.ih - ((cd.kh - 1) * (cd.dilh + 1) + 1) + cd.padh + padR[0])
-                / cd.strh + 1 != cd.oh)
-                ++padR[0];
-            if ((cd.iw - ((cd.kw - 1) * (cd.dilw + 1) + 1) + cd.padw + padR[1])
-                / cd.strw + 1 != cd.ow)
-                ++padR[1];
-        }
+        std::vector<int> padR = {
+            (cd.oh - 1) * cd.strh + (cd.kh - 1) * (cd.dilh + 1)
+            - (cd.padh + cd.ih - 1),
+            (cd.ow - 1) * cd.strw + (cd.kw - 1) * (cd.dilw + 1)
+            - (cd.padw + cd.iw - 1)
+        };
 
         auto conv_desc = convolution_forward::desc(
                 prop_kind::forward_training, p.aalgorithm, c_src_desc,

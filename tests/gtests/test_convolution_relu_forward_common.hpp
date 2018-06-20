@@ -157,15 +157,12 @@ protected:
                     (data_t_dst *)c_bias.get_data_handle(), 1., true);
         }
 
-        std::vector<int> padR = { cd.padh, cd.padw };
-        for (int i = 0; i < 2; ++i) {
-            if ((cd.ih - ((cd.kh - 1) * (cd.dilh + 1) + 1) + cd.padh + padR[0])
-                / cd.strh + 1 != cd.oh)
-                ++padR[0];
-            if ((cd.iw - ((cd.kw - 1) * (cd.dilw + 1) + 1) + cd.padw + padR[1])
-                / cd.strw + 1 != cd.ow)
-                ++padR[1];
-        }
+        std::vector<int> padR = {
+            (cd.oh - 1) * cd.strh + (cd.kh - 1) * (cd.dilh + 1)
+            - (cd.padh + cd.ih - 1),
+            (cd.ow - 1) * cd.strw + (cd.kw - 1) * (cd.dilw + 1)
+            - (cd.padw + cd.iw - 1)
+        };
 
         auto conv_desc = with_bias
             ? convolution_forward::desc(prop_kind::forward_scoring,
