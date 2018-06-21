@@ -36,7 +36,7 @@ Intel MKL-DNN is used in the following software products:
 * [Tensorflow\*](https://www.tensorflow.org)
 * [Microsoft\* Cognitive Toolkit (CNTK)](https://www.microsoft.com/en-us/cognitive-toolkit/)
 * [Apache\* MXNet](https://mxnet.apache.org/)
-* [Intel(R) Computer Vision SDK](https://software.intel.com/en-us/computer-vision-sdk)
+* [OpenVINO(TM) toolkit](https://software.intel.com/en-us/openvino-toolkit)
 * [Intel(R) Nervana(TM) Graph](https://github.com/NervanaSystems/ngraph)
 
 ## License
