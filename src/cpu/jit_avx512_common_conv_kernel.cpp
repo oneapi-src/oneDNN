@@ -3299,7 +3299,10 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32
         }
     }
 
-    if (h_block_size < nstl::max(1, jcp.t_pad))
+    // NB1: t_pad <= oh_block_size and b_pad <= last_oh_block_size (see below)
+    if (h_block_size < nstl::max(1, jcp.t_pad)
+            || jcp.b_pad > (jcp.oh % h_block_size == 0 ? h_block_size
+                                                       : jcp.oh % h_block_size))
         return false;
 
     // check that we can use simple arithmetic for prefetch address
@@ -3576,12 +3579,12 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32
         int last_oh_block_size
             = jcp.oh - rnd_up(jcp.oh - h_block_size, h_block_size);
         int oh_block_size = (is_last_block) ? last_oh_block_size : h_block_size;
-        // NB: this is correct because we only support t_pad = kh / 2 and thus
-        // ih == oh
-        int ih_block_size
-            = oh_block_size + (!is_first_block + !is_last_block) * jcp.t_pad;
+        // NB1: t_pad <= oh_block_size and b_pad <= last_oh_block_size
+        int ih_block_size = oh_block_size - 1 + jcp.kh
+                - is_first_block * jcp.t_pad - is_last_block * jcp.b_pad;
 
         L(kh_loop); {
+            // determine starting indices for this block
             if (is_first_block) {
                 xor_(reg_tmp, reg_tmp);
                 mov(reg_ohs, jcp.t_pad);
@@ -3596,6 +3599,7 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32
                 mov(reg_ihs, reg_kh);
             }
 
+            // determine effective size of block based on padding
             mov(reg_tmp, oh_block_size);
             sub(reg_tmp, reg_ohs);
             mov(reg_h, ih_block_size);
