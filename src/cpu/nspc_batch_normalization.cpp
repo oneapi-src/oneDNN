@@ -22,6 +22,13 @@
 #include "nspc_batch_normalization.hpp"
 #include "type_helpers.hpp"
 
+// clang6 generates incorrect code with OMP_SIMD in some particular cases
+#if (defined __clang_major__) && (__clang_major__ == 6)
+#define SAFE_TO_USE_OMP_SIMD 0
+#else
+#define SAFE_TO_USE_OMP_SIMD 1
+#endif
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {
@@ -146,7 +153,9 @@ void nspc_batch_normalization_fwd_t::execute_forward() {
 
         for (int n = N_s; n < N_e; n++) {
             for (int sp = 0; sp < SP; sp++) {
+#if SAFE_TO_USE_OMP_SIMD
                 PRAGMA_OMP_SIMD()
+#endif
                 for (int c = 0; c < C; c++) {
                     data_t sqrt_variance = static_cast<data_t>(
                             1.0f / sqrtf(variance_loc[c] + eps));
@@ -230,7 +239,9 @@ void nspc_batch_normalization_bwd_t::execute_backward() {
 
         for (int n = N_s; n < N_e; n++)
             for (int sp = 0; sp < SP; sp++)
+#if SAFE_TO_USE_OMP_SIMD
                 PRAGMA_OMP_SIMD()
+#endif
                 for (int c = 0; c < C; c++) {
                     const size_t d_off = (size_t)n * SP * C + sp * C + c;
                     data_t dd;
@@ -262,7 +273,9 @@ void nspc_batch_normalization_bwd_t::execute_backward() {
 
         for (int n = N_s; n < N_e; n++) {
             for (int sp = 0; sp < SP; sp++) {
+#if SAFE_TO_USE_OMP_SIMD
                 PRAGMA_OMP_SIMD()
+#endif
                 for (int c = 0; c < C; c++) {
                     const size_t d_off = (size_t)n * SP * C + sp * C + c;
                     data_t gamma = use_scaleshift ? scaleshift[c] : 1;

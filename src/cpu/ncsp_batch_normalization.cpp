@@ -23,6 +23,13 @@
 #include "ncsp_batch_normalization.hpp"
 #include "type_helpers.hpp"
 
+// clang6 generates incorrect code with OMP_SIMD in some particular cases
+#if (defined __clang_major__) && (__clang_major__ == 6)
+#define SAFE_TO_USE_OMP_SIMD 0
+#else
+#define SAFE_TO_USE_OMP_SIMD 1
+#endif
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {
@@ -177,7 +184,9 @@ void ncsp_batch_normalization_fwd_t::execute_forward() {
                 data_t sqrt_variance
                         = static_cast<data_t>(1.0f / sqrtf(variance[off] + eps));
                 for (int n = N_s; n < N_e; ++n)
+#if SAFE_TO_USE_OMP_SIMD
                     PRAGMA_OMP_SIMD()
+#endif
                     for (int sp = S_s; sp < S_e; ++sp) {
                         size_t d_off = off * SP + n * C * SP + sp;
                         data_t bn_res
@@ -318,7 +327,9 @@ void ncsp_batch_normalization_bwd_t::execute_backward() {
                         = static_cast<data_t>(1.0f / sqrtf(variance[off] + eps));
                 data_t v_mean = mean[off];
                 for (int n = N_s; n < N_e; ++n)
+#if SAFE_TO_USE_OMP_SIMD
                     PRAGMA_OMP_SIMD()
+#endif
                     for (int sp = S_s; sp < S_e; ++sp) {
                         const size_t d_off = off * SP + n * C * SP + sp;
                         ;
