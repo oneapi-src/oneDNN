@@ -488,6 +488,20 @@ public:
         vdivps(x, op1, op2);
     }
 
+    void uni_vdivps(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
+                    const Xbyak::Operand &op2, const Xbyak::Xmm &buf) {
+        movups(buf, op1);
+        divps(buf, op2);
+        if (x.getIdx() != buf.getIdx()) {
+            movups(x, buf);
+        }
+    }
+
+    void uni_vdivps(const Xbyak::Ymm &x, const Xbyak::Operand &op1,
+                    const Xbyak::Operand &op2, const Xbyak::Ymm &buf) {
+        vdivps(x, op1, op2);
+    }
+
     void uni_vaddps(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
                     const Xbyak::Operand &op2 = Xbyak::Operand()) {
         assert(x.getIdx() == op1.getIdx());
