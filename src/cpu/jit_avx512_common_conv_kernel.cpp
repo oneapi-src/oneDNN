@@ -3618,8 +3618,8 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32
             // zeroed. Those who have byte-aligned their data will suffer the
             // consiquences :(
             // TODO: move the flag to a mask register? (Roma)
-            test(reg_tmp, 1);
-            jnz(skip_ker_zeroing, T_NEAR);
+            test(reg_ker, 1);
+            jz(skip_ker_zeroing, T_NEAR);
 
             Label zeroing_loop;
             vpxord(zmm0, zmm0, zmm0);
