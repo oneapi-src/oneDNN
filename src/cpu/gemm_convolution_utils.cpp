@@ -377,7 +377,7 @@ status_t prepare_ws_col(jit_gemm_conv_conf_t &jcp, src_t **col, const int nthr) 
     if (*col == nullptr) return status::out_of_memory;
 
 #   pragma omp parallel for
-    for (ptrdiff_t i = 0; i < im2col_sz; ++i)
+    for (size_t i = 0; i < im2col_sz; ++i)
         (*col)[i] = (src_t)0;
 
     return status::success;
