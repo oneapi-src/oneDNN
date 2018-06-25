@@ -174,12 +174,11 @@ protected:
                     (data_t_dst *)c_bias.get().get_data_handle());
         }
 
-        std::vector<int> padR = {
-            (cd.oh - 1) * cd.strh + (cd.kh - 1) * (cd.dilh + 1) + 1
-            - cd.padh - cd.ih,
-            (cd.ow - 1) * cd.strw + (cd.kw - 1) * (cd.dilw + 1) + 1
-            - cd.padw - cd.iw
-        };
+        int b_pad = (cd.oh - 1) * cd.strh + (cd.kh - 1) * (cd.dilh + 1)
+                    - (cd.padh + cd.ih - 1);
+        int r_pad = (cd.ow - 1) * cd.strw + (cd.kw - 1) * (cd.dilw + 1)
+                    - (cd.padw + cd.iw - 1);
+        std::vector<int> padR = { b_pad, r_pad };
 
         auto conv_desc = with_bias
             ? convolution_forward::desc(aprop_kind, p.aalgorithm,
