@@ -38,6 +38,7 @@ Intel MKL-DNN is used in the following software products:
 * [Apache\* MXNet](https://mxnet.apache.org/)
 * [Intel(R) Computer Vision SDK](https://software.intel.com/en-us/computer-vision-sdk)
 * [Intel(R) Nervana(TM) Graph](https://github.com/NervanaSystems/ngraph)
+* [Menoh\*](https://github.com/pfnet-research/menoh)
 
 ## License
 Intel MKL-DNN is licensed under
