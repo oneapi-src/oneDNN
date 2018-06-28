@@ -55,18 +55,18 @@ void ref_lrn_fwd_t<data_type>::execute_forward() {
     const int C = conf_.C();
     const int H = conf_.H();
     const int W = conf_.W();
-    const int CHW = C * H * W;
+    const size_t stride_mb = data_d.blocking_desc().strides[0][0];
     const bool across_channels = conf_.desc()->alg_kind == lrn_across_channels;
     constexpr int blksize = fmt == nChw16c ? 16 : 8;
 
-    auto data_off =[&](int mb, int c, int h, int w) {
+    auto data_off = [&](int mb, int c, int h, int w) -> size_t {
         switch (fmt) {
         case nChw16c:
-        case nChw8c: return (size_t)mb * CHW + c / blksize * H * W * blksize
+        case nChw8c: return mb * stride_mb + c / blksize * H * W * blksize
                      + h * W * blksize + w * blksize + c % blksize;
-        case nchw: return (size_t)mb * CHW + c * H * W + h * W + w;
-        case nhwc: return (size_t)mb * CHW + h * W * C + w * C + c;
-        default: return (size_t)data_d.off(mb, c, h, w);
+        case nchw: return mb * stride_mb + c * H * W + h * W + w;
+        case nhwc: return mb * stride_mb + h * W * C + w * C + c;
+        default: return data_d.off(mb, c, h, w);
         }
     };
 
@@ -115,10 +115,10 @@ void ref_lrn_fwd_t<data_type>::execute_forward() {
         for (int h = 0; h < H; ++h)
         for (int w = 0; w < W; ++w)
         {
-            const size_t off = (size_t)(mb * CHW + c * H * W + (h * W + w)
-                * blksize);
+            const size_t off = mb * stride_mb + c * H * W
+                + (h * W + w) * blksize;
             PRAGMA_OMP_SIMD()
-            for (int cc = 0; cc < blksize; ++cc)
+            for (int cc = 0; cc < nstl::min(blksize, C - c); ++cc)
                 ker(&dst[off + cc], mb, c + cc, h, w);
         }
     } else if (fmt == nhwc) {
@@ -128,7 +128,7 @@ void ref_lrn_fwd_t<data_type>::execute_forward() {
         for (int w = 0; w < W; ++w)
         for (int c = 0; c < C; ++c)
         {
-            const size_t off = (size_t)(mb * CHW + h * W * C + w * C + c);
+            const size_t off = mb * stride_mb + h * W * C + w * C + c;
             ker(&dst[off], mb, c, h, w);
         }
     } else {
@@ -162,7 +162,7 @@ void ref_lrn_bwd_t<data_type>::execute_backward() {
     const int C = conf_.C();
     const int H = conf_.H();
     const int W = conf_.W();
-    const int CHW = C * H * W;
+    const size_t stride_mb = data_d.blocking_desc().strides[0][0];
     constexpr int blksize = fmt == nChw16c ? 16 : 8;
 
     const float alpha = static_cast<float>(conf_.desc()->lrn_alpha);
@@ -171,14 +171,14 @@ void ref_lrn_bwd_t<data_type>::execute_backward() {
     const int kernel_size = conf_.desc()->local_size;
     const int half_ksize = (kernel_size - 1) / 2;
 
-    auto data_off =[&](int mb, int c, int h, int w) {
+    auto data_off = [&](int mb, int c, int h, int w) -> size_t {
         switch (fmt) {
         case nChw16c:
-        case nChw8c: return (size_t)mb * CHW + c/blksize * H * W * blksize
+        case nChw8c: return mb * stride_mb + c/blksize * H * W * blksize
                      + h * W * blksize + w * blksize + c%blksize;
-        case nchw: return (size_t)mb * CHW + c * H * W + h * W + w;
-        case nhwc: return (size_t)mb * CHW + h * W * C + w * C + c;
-        default: return (size_t)data_d.off(mb, c, h, w);
+        case nchw: return mb * stride_mb + c * H * W + h * W + w;
+        case nhwc: return mb * stride_mb + h * W * C + w * C + c;
+        default: return data_d.off(mb, c, h, w);
         }
     };
 
@@ -217,10 +217,10 @@ void ref_lrn_bwd_t<data_type>::execute_backward() {
         for (int h = 0; h < H; ++h)
         for (int w = 0; w < W; ++w)
         {
-            const size_t off = (size_t)(mb * CHW + c * H * W + (h * W + w)
-                * blksize);
+            const size_t off = mb * stride_mb + c * H * W +
+                (h * W + w) * blksize;
             PRAGMA_OMP_SIMD()
-            for (int cc = 0; cc < blksize; ++cc)
+            for (int cc = 0; cc < nstl::min(blksize, C - c); ++cc)
                 ker(&diff_src[off + cc], mb, c + cc, h, w);
         }
     } else if (fmt == nhwc) {
@@ -230,7 +230,7 @@ void ref_lrn_bwd_t<data_type>::execute_backward() {
         for (int w = 0; w < W; ++w)
         for (int c = 0; c < C; ++c)
         {
-            const size_t off = (size_t)(mb * CHW + h * W * C + w * C + c);
+            const size_t off = mb * stride_mb + h * W * C + w * C + c;
             ker(&diff_src[off], mb, c, h, w);
         }
     } else {
