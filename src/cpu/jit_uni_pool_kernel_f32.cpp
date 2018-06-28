@@ -46,7 +46,11 @@ status_t jit_uni_pool_kernel_f32<isa>::init_conf(jit_pool_conf_t &jpp,
 
     jpp.ndims = ndims;
     jpp.mb = src_d.dims()[0];
-    jpp.c = src_d.dims()[1];
+
+    jpp.c = utils::rnd_up(src_d.dims()[1], simd_w);
+    if (jpp.c > src_d.blocking_desc().padding_dims[1])
+        return status::unimplemented;
+
     jpp.id = (ndims == 5) ? src_d.dims()[2] : 1;
     jpp.ih = src_d.dims()[ndims-2];
     jpp.iw = src_d.dims()[ndims-1];
