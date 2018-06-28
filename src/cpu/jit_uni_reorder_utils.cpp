@@ -70,74 +70,74 @@ status_t cvt_mem_desc_to_layout_desc(const memory_desc_t &md_,
     case wino_fmt:
         return invalid_arguments;
     case OIhw4i16o4i:
-        P(0, md.dims()[0] / 16, bd.strides[0][0]);
+        P(0, bd.padding_dims[0] / 16, bd.strides[0][0]);
         P(0, 16, 4);
-        P(1, md.dims()[1] / 16, bd.strides[0][1]);
+        P(1, bd.padding_dims[1] / 16, bd.strides[0][1]);
         P(1, 4, 16*4);
         P(1, 4, 1);
-        P(2, md.dims()[2], bd.strides[0][2]);
-        P(3, md.dims()[3], bd.strides[0][3]);
+        P(2, bd.padding_dims[2], bd.strides[0][2]);
+        P(3, bd.padding_dims[3], bd.strides[0][3]);
         return success;
     case OIhw8i16o2i:
     case OIdhw8i16o2i:
-        P(0, md.dims()[0] / 16, bd.strides[0][0]);
+        P(0, bd.padding_dims[0] / 16, bd.strides[0][0]);
         P(0, 16, 2);
-        P(1, md.dims()[1] / 16, bd.strides[0][1]);
+        P(1, bd.padding_dims[1] / 16, bd.strides[0][1]);
         P(1, 8, 16*2);
         P(1, 2, 1);
-        P(2, md.dims()[2], bd.strides[0][2]);
-        P(3, md.dims()[3], bd.strides[0][3]);
+        P(2, bd.padding_dims[2], bd.strides[0][2]);
+        P(3, bd.padding_dims[3], bd.strides[0][3]);
         if (md.format() == OIdhw8i16o2i)
-            P(4, md.dims()[4], bd.strides[0][4]);
+            P(4, bd.padding_dims[4], bd.strides[0][4]);
         return success;
     case OIhw8o16i2o:
-        P(0, md.dims()[0] / 16, bd.strides[0][0]);
+        P(0, bd.padding_dims[0] / 16, bd.strides[0][0]);
         P(0, 8, 16*2);
         P(0, 2, 1);
-        P(1, md.dims()[1] / 16, bd.strides[0][1]);
+        P(1, bd.padding_dims[1] / 16, bd.strides[0][1]);
         P(1, 16, 2);
-        P(2, md.dims()[2], bd.strides[0][2]);
-        P(3, md.dims()[3], bd.strides[0][3]);
+        P(2, bd.padding_dims[2], bd.strides[0][2]);
+        P(3, bd.padding_dims[3], bd.strides[0][3]);
         return success;
     case gOIhw4i16o4i:
-        P(0, md.dims()[0], bd.strides[0][0]);
-        P(1, md.dims()[1] / 16, bd.strides[0][1]);
+        P(0, bd.padding_dims[0], bd.strides[0][0]);
+        P(1, bd.padding_dims[1] / 16, bd.strides[0][1]);
         P(1, 16, 4);
-        P(2, md.dims()[2] / 16, bd.strides[0][2]);
+        P(2, bd.padding_dims[2] / 16, bd.strides[0][2]);
         P(2, 4, 16*4);
         P(2, 4, 1);
-        P(3, md.dims()[3], bd.strides[0][3]);
-        P(4, md.dims()[4], bd.strides[0][4]);
+        P(3, bd.padding_dims[3], bd.strides[0][3]);
+        P(4, bd.padding_dims[4], bd.strides[0][4]);
         return success;
     case gOIhw8i16o2i:
     case gOIdhw8i16o2i:
-        P(0, md.dims()[0], bd.strides[0][0]);
-        P(1, md.dims()[1] / 16, bd.strides[0][1]);
+        P(0, bd.padding_dims[0], bd.strides[0][0]);
+        P(1, bd.padding_dims[1] / 16, bd.strides[0][1]);
         P(1, 16, 2);
-        P(2, md.dims()[2] / 16, bd.strides[0][2]);
+        P(2, bd.padding_dims[2] / 16, bd.strides[0][2]);
         P(2, 8, 16*2);
         P(2, 2, 1);
-        P(3, md.dims()[3], bd.strides[0][3]);
-        P(4, md.dims()[4], bd.strides[0][4]);
+        P(3, bd.padding_dims[3], bd.strides[0][3]);
+        P(4, bd.padding_dims[4], bd.strides[0][4]);
         if (md.format() == OIdhw8i16o2i)
-            P(5, md.dims()[5], bd.strides[0][5]);
+            P(5, bd.padding_dims[5], bd.strides[0][5]);
         return success;
     case gOIhw8o16i2o:
-        P(0, md.dims()[0], bd.strides[0][0]);
-        P(1, md.dims()[1] / 16, bd.strides[0][1]);
+        P(0, bd.padding_dims[0], bd.strides[0][0]);
+        P(1, bd.padding_dims[1] / 16, bd.strides[0][1]);
         P(1, 8, 16*2);
         P(1, 2, 1);
-        P(2, md.dims()[2] / 16, bd.strides[0][2]);
+        P(2, bd.padding_dims[2] / 16, bd.strides[0][2]);
         P(2, 16, 2);
-        P(3, md.dims()[3], bd.strides[0][3]);
-        P(4, md.dims()[4], bd.strides[0][4]);
+        P(3, bd.padding_dims[3], bd.strides[0][3]);
+        P(4, bd.padding_dims[4], bd.strides[0][4]);
         return success;
     default: break;
     }
 
     /* regular blocked format */
     for (int d = 0; d < md.ndims(); ++d) {
-        P(d, md.dims()[d] / bd.block_dims[d], bd.strides[0][d]);
+        P(d, bd.padding_dims[d] / bd.block_dims[d], bd.strides[0][d]);
         if (bd.block_dims[d] != 1)
             P(d, bd.block_dims[d], bd.strides[1][d]);
     }
@@ -147,6 +147,22 @@ status_t cvt_mem_desc_to_layout_desc(const memory_desc_t &md_,
 
 status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
         const primitive_attr_t *attr) {
+    auto im_d = memory_desc_wrapper(imd);
+    auto om_d = memory_desc_wrapper(omd);
+
+    if (!im_d.is_blocking_desc() || !om_d.is_blocking_desc())
+        return unimplemented;
+
+    /* padding_dim consistency check */
+    for (int d = 0; d < im_d.ndims(); ++d) {
+        const auto pdim = im_d.blocking_desc().padding_dims[d];
+        bool ok = true
+            && pdim == om_d.blocking_desc().padding_dims[d]
+            && pdim % im_d.blocking_desc().block_dims[d] == 0
+            && pdim % om_d.blocking_desc().block_dims[d] == 0;
+            if (!ok) return unimplemented;
+    }
+
     layout_desc_t ild, old;
     status_t status = cvt_mem_desc_to_layout_desc(imd, ild);
     if (status != success) return status;
