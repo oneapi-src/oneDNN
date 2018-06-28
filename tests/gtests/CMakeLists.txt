@@ -29,6 +29,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}
 file(GLOB PRIM_TEST_CASES_SRC
                               test_iface_pd_iter.cpp
                               test_iface_attr.cpp
+                              test_memory.cpp
                               test_sum.cpp
                               test_reorder.cpp
                               test_concat.cpp

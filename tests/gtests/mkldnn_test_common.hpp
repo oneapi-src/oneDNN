@@ -66,7 +66,8 @@ template <typename data_t> struct acc_t { typedef data_t type; };
 template<> struct acc_t<int8_t> { typedef int type; };
 template<> struct acc_t<uint8_t> { typedef int type; };
 
-inline size_t map_index(const mkldnn::memory::desc &md, size_t index) {
+inline size_t map_index(const mkldnn::memory::desc &md, size_t index,
+    bool with_padding = true) {
     using fmt = mkldnn::memory::format;
 
     const fmt fwd_weights_g_qvnni = fmt::gOIhw8i16o2i;
@@ -114,7 +115,7 @@ inline size_t map_index(const mkldnn::memory::desc &md, size_t index) {
 
         EXPECT_LE(dims[d], pdims[d]);
 
-        int cur_dim = dims[d];
+        int cur_dim = with_padding ? pdims[d] : dims[d];
         EXPECT_GT(cur_dim, 0);
         int cur_block = md.data.layout_desc.blocking.block_dims[d];
 
@@ -154,6 +155,54 @@ inline size_t map_index(const mkldnn::memory::desc &md, size_t index) {
     ph_index += md.data.layout_desc.blocking.offset_padding;
 
     return ph_index;
+}
+
+#define MAX_NDIMS 12
+// check_zero_tail - check on zero or set to zero padded memory
+template <typename data_t>
+void check_zero_tail(int set_zero_flag, mkldnn::memory &src) {
+
+    data_t *src_data = (data_t *)src.get_data_handle();
+
+    const mkldnn::memory::desc src_d = src.get_primitive_desc().desc();
+    const int ndims = src_d.data.ndims;
+    const int *dims = src_d.data.dims;
+    const int *pdims = src_d.data.layout_desc.blocking.padding_dims;
+
+    size_t idx[MAX_NDIMS] = {}, str[MAX_NDIMS] = {};
+    size_t nelems = 1;
+    int tail_flag = 0;
+    for (int i = 0; i < ndims; ++i) {
+        if (dims[ndims-i-1] != pdims[ndims-i-1]) tail_flag = 1;
+        nelems *= pdims[ndims-i-1];
+        idx[i] = 0;
+        str[i] = (i==0) ? 1 : str[i-1] * pdims[ndims-i];
+    }
+    if (tail_flag == 0) return;
+
+    for (size_t i = 0; i < nelems; ++i) {
+        size_t off = 0;
+        bool flag = 0;
+        for (int j = 0; j < ndims; ++j) {
+            off += idx[j] * str[j];
+            if (idx[j] >= (size_t)dims[ndims-j-1]) flag = 1;
+        }
+        if (flag == 1) {
+            size_t blk_off = map_index(src_d,off);
+            if (set_zero_flag) {
+                src_data[blk_off] = 0.0;
+            } else {
+                EXPECT_EQ(src_data[blk_off], 0.0) << " blk_off = " << blk_off
+                << "off = " << off;
+            }
+        }
+        /*Update idx*/
+        for (int j = 0; j < ndims; ++j) {
+            idx[j] ++;
+            if (idx[j] < (size_t)pdims[ndims-j-1]) break;
+            idx[j] = 0;
+        }
+    }
 }
 
 inline mkldnn::memory::desc create_md(mkldnn::memory::dims dims,

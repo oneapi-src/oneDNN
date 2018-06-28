@@ -28,6 +28,8 @@ struct concat_test_params {
     memory::format dst_format;
     std::vector<memory::dims> srcs_cds;
     memory::dims dst_cds;
+    bool expect_to_fail;
+    mkldnn_status_t expected_status;
 };
 
 template <typename data_t>
@@ -37,6 +39,7 @@ class concat_test: public ::testing::TestWithParam<concat_test_params> {
         const data_t *dst_data = (const data_t *)dst.get_data_handle();
         const auto &dst_d = dst.get_primitive_desc().desc();
         const auto dst_dims = dst_d.data.dims;
+        const int* dst_pdims = dst_d.data.layout_desc.blocking.padding_dims;
 
         int acc_concat_dim = 0;
         const auto ndims = dst_d.data.ndims;
@@ -45,14 +48,16 @@ class concat_test: public ::testing::TestWithParam<concat_test_params> {
             const data_t *src_data = (const data_t *)srcs[num].get_data_handle();
             const auto &src_d = srcs[num].get_primitive_desc().desc();
             const int* src_dims = src_d.data.dims;
+            const int* src_pdims = src_d.data.layout_desc.blocking.padding_dims;
 
             auto N = src_dims[0];
             auto C = src_dims[1];
+            auto C_PADDED = src_pdims[1];
             auto D = (ndims == 5) ? src_dims[2] : 1;
             auto H = src_dims[ndims-2];
             auto W = src_dims[ndims-1];
 
-            auto DST_C = dst_dims[1];
+            auto DST_C_PADDED = dst_pdims[1];
             auto DST_D = (ndims == 5) ? dst_dims[2] : 1;
             auto DST_H = dst_dims[ndims-2];
             auto DST_W = dst_dims[ndims-1];
@@ -62,7 +67,7 @@ class concat_test: public ::testing::TestWithParam<concat_test_params> {
             for (auto d = 0; d < D; d++)
             for (auto h = 0; h < H; h++)
             for (auto w = 0; w < W; w++) {
-                auto src_idx = w + W*h + H*W*d + D*H*W*c + C*D*H*W*n;
+                auto src_idx = w + W*h + H*W*d + D*H*W*c + C_PADDED*D*H*W*n;
 
                 auto adj_dst_dim = [&](int dim, int dim_sz) {
                     if (concat_dim == dim) return dim_sz + acc_concat_dim;
@@ -71,9 +76,8 @@ class concat_test: public ::testing::TestWithParam<concat_test_params> {
                 auto dst_idx = adj_dst_dim(ndims-1, w)
                     + DST_W*adj_dst_dim(ndims-2, h)
                     + DST_D*DST_H*DST_W*adj_dst_dim(1, c)
-                    + DST_C*DST_D*DST_H*DST_W*adj_dst_dim(0, n);
+                    + DST_C_PADDED*DST_D*DST_H*DST_W*adj_dst_dim(0, n);
                 if (ndims == 5) dst_idx += DST_H*DST_W*adj_dst_dim(2, d);
-
                 EXPECT_NEAR(src_data[map_index(src_d, src_idx)],
                             dst_data[map_index(dst_d, dst_idx)],
                             1e-7);
@@ -85,6 +89,13 @@ class concat_test: public ::testing::TestWithParam<concat_test_params> {
 
 protected:
     virtual void SetUp() {
+        concat_test_params p
+            = ::testing::TestWithParam<decltype(p)>::GetParam();
+        catch_expected_failures([=](){Test();}, p.expect_to_fail,
+                    p.expected_status);
+    }
+
+    virtual void Test() {
         concat_test_params p
             = ::testing::TestWithParam<concat_test_params>::GetParam();
 
@@ -111,6 +122,7 @@ protected:
             auto src_memory = memory(mpd);
             const size_t sz = src_memory.get_primitive_desc().get_size() / sizeof(data_t);
             fill_data<data_t>(sz, (data_t *)src_memory.get_data_handle());
+            check_zero_tail<data_t>(1, src_memory);
             srcs_pd.push_back(mpd);
             srcs.push_back(src_memory);
         }
@@ -118,6 +130,9 @@ protected:
         auto dst_desc = memory::desc(p.dst_cds, data_type, p.dst_format);
         auto concat_pd = concat::primitive_desc(dst_desc, static_cast<int>(p.concat_dimension), srcs_pd);
         auto dst = memory(concat_pd.dst_primitive_desc());
+        fill_data<data_t>(dst.get_primitive_desc().get_size() / sizeof(data_t),
+            (data_t *)dst.get_data_handle());
+        check_zero_tail<data_t>(1, dst);
 
         std::vector<primitive::at> inputs;
         for (size_t i = 0; i < p.srcs_cds.size(); i++) {
@@ -136,6 +151,7 @@ protected:
         s.submit(pipeline).wait();
 
         check_data(srcs, dst, static_cast<int>(p.concat_dimension));
+        check_zero_tail<data_t>(0, dst);
     }
 };
 
@@ -144,6 +160,21 @@ using concat_test_s8 = concat_test<int8_t>;
 
 TEST_P(concat_test_float, TestsConcat) {}
 TEST_P(concat_test_s8, TestsConcat) {}
+
+using fmt = memory::format;
+
+INSTANTIATE_TEST_CASE_P(TestConcat_padded, concat_test_float, ::testing::Values(
+    concat_test_params{engine::kind::cpu, 1, {fmt::nChw16c, fmt::nChw16c}, fmt::nChw16c, {{4, 25, 5, 5}, {4, 45, 5, 5}}, {4, 70,  5,  5}, true, mkldnn_unimplemented},
+    concat_test_params{engine::kind::cpu, 1, {fmt::nChw16c, fmt::nChw16c}, fmt::nchw,    {{4, 25, 5, 5}, {4, 45, 5, 5}}, {4, 70,  5,  5}},
+    concat_test_params{engine::kind::cpu, 1, {fmt::nChw16c, fmt::nChw16c}, fmt::nChw16c, {{4,  4, 5, 5}, {4,  6, 5, 5}}, {4, 10,  5,  5}, true, mkldnn_unimplemented},
+    concat_test_params{engine::kind::cpu, 1, {fmt::nChw16c, fmt::nChw16c}, fmt::nchw,    {{4,  4, 5, 5}, {4,  6, 5, 5}}, {4, 10,  5,  5}},
+    concat_test_params{engine::kind::cpu, 1, {fmt::nchw,    fmt::nChw16c}, fmt::nChw16c, {{4, 25, 5, 5}, {4, 45, 5, 5}}, {4, 70,  5,  5}, true, mkldnn_unimplemented},
+    concat_test_params{engine::kind::cpu, 1, {fmt::nchw,    fmt::nChw16c}, fmt::nchw,    {{4, 25, 5, 5}, {4, 45, 5, 5}}, {4, 70,  5,  5}},
+    // right border
+    concat_test_params{engine::kind::cpu, 1, {fmt::nChw16c, fmt::nChw16c}, fmt::nChw16c, {{4, 16, 5, 5}, {4,  3, 5, 5}}, {4, 19,  5,  5}},
+    // not over channels
+    concat_test_params{engine::kind::cpu, 2, {fmt::nChw16c, fmt::nChw16c}, fmt::nchw,    {{4, 25, 5, 5}, {4, 25, 5, 5}}, {4, 25, 10,  5}}
+));
 
 INSTANTIATE_TEST_CASE_P(TestConcat3D, concat_test_float, ::testing::Values(
     concat_test_params{engine::kind::cpu, 0,

@@ -36,16 +36,18 @@ void compute_ref_conv_bwd_bias(const test_convolution_sizes_t &c,
     const memory::desc bias_d = diff_bias.get_primitive_desc().desc();
     const memory::desc dst_d = diff_dst.get_primitive_desc().desc();
 
+    size_t padded_oc = dst_d.data.layout_desc.blocking.padding_dims[1];
+
 #   pragma omp parallel for collapse(2) schedule(static)
     for (int g = 0; g < c.ng; ++g) {
         for (int oc = 0; oc < c.oc / c.ng; ++oc) {
-            int bidx = g * c.oc / c.ng + oc;
+            size_t bidx = g * padded_oc / c.ng + oc;
             diff_bias_data[map_index(bias_d, bidx)] = 0.0;
             for (int mb = 0; mb < c.mb; ++mb) {
                 for (int oh = 0; oh < c.oh; ++oh) {
                     for (int ow = 0; ow < c.ow; ++ow) {
-                        int oidx = mb * c.oc * c.oh * c.ow
-                                + g * c.oc / c.ng * c.oh * c.ow
+                        size_t oidx = mb * padded_oc * c.oh * c.ow
+                                + g * padded_oc / c.ng * c.oh * c.ow
                                 + oc * c.oh * c.ow + oh * c.ow + ow;
                         diff_bias_data[map_index(bias_d, bidx)]
                             += diff_dst_data[map_index(dst_d, oidx)];
@@ -71,14 +73,18 @@ void compute_ref_conv_bwd_weights(const test_convolution_sizes_t &c,
     const memory::desc weights_d = diff_weights.get_primitive_desc().desc();
     const memory::desc dst_d = diff_dst.get_primitive_desc().desc();
 
+    size_t padded_ic = src_d.data.layout_desc.blocking.padding_dims[1];
+    size_t padded_oc = dst_d.data.layout_desc.blocking.padding_dims[1];
+
 #   pragma omp parallel for collapse(5) schedule(static)
     for (int g = 0; g < c.ng; ++g) {
         for (int oc = 0; oc < c.oc / c.ng; oc++) {
             for (int ic = 0; ic < c.ic / c.ng; ++ic) {
                 for (int kh = 0; kh < c.kh; kh++) {
                     for (int kw = 0; kw < c.kw; kw++) {
-                        int widx = g * c.oc / c.ng * c.ic / c.ng * c.kh * c.kw
-                                + oc * c.ic / c.ng * c.kh * c.kw
+                        size_t widx = g * padded_oc / c.ng * padded_ic / c.ng *
+                                c.kh * c.kw
+                                + oc * padded_ic / c.ng * c.kh * c.kw
                                 + ic * c.kh * c.kw + kh * c.kw + kw;
                         diff_weights_data[map_index(weights_d, widx)] = 0.0;
                         for (int mb = 0; mb < c.mb; ++mb) {
@@ -98,12 +104,12 @@ void compute_ref_conv_bwd_weights(const test_convolution_sizes_t &c,
                                             * (1 + c.dilh);
                                     int iw = ow * c.strw - c.padw + kw
                                             * (1 + c.dilw);
-                                    int sidx = mb * c.ic * c.ih * c.iw
-                                            + g * c.ic / c.ng * c.ih * c.iw
-                                            + ic * c.ih * c.iw + ih * c.iw + iw;
-                                    int didx = mb * c.oc * c.oh * c.ow
-                                            + g * c.oc / c.ng * c.oh * c.ow
-                                            + oc * c.oh * c.ow + oh * c.ow + ow;
+                                    size_t sidx = mb * padded_ic * c.ih * c.iw
+                                        + g * padded_ic / c.ng * c.ih * c.iw
+                                        + ic * c.ih * c.iw + ih * c.iw + iw;
+                                    size_t didx = mb * padded_oc * c.oh * c.ow
+                                        + g * padded_oc / c.ng * c.oh * c.ow
+                                        + oc * c.oh * c.ow + oh * c.ow + ow;
 
                                     diff_weights_data[map_index(weights_d, widx)]
                                         += src_data[map_index(src_d, sidx)]
@@ -174,6 +180,13 @@ protected:
             (data_t_diff_dst *)c_diff_dst.get().get_data_handle());
         fill_data<data_t_src>(c_src.get_size() / sizeof(data_t_src),
             (data_t_src *)c_src.get().get_data_handle());
+        fill_data<data_t_diff_weights>(
+            c_diff_weights.get_size() / sizeof(data_t_diff_weights),
+            (data_t_diff_weights *)c_diff_weights.get().get_data_handle());
+
+        check_zero_tail<data_t_diff_dst>(1, c_diff_dst.get());
+        check_zero_tail<data_t_src>(1, c_src.get());
+        check_zero_tail<data_t_diff_weights>(1, c_diff_weights.get());
 
         std::vector<int> padR = {
             right_padding(cd.ih, cd.oh, cd.kh, cd.padh, cd.strh, cd.dilh),
@@ -214,11 +227,14 @@ protected:
         compute_ref_conv_bwd_weights<data_t_src, data_t_diff_dst,
             data_t_diff_weights>(cd, c_src.get(), c_diff_dst.get(),
                     ref_diff_weights);
+        check_zero_tail<data_t_diff_weights>(1, ref_diff_weights);
         compare_data<data_t_diff_weights>(ref_diff_weights,
                 c_diff_weights.get());
+        check_zero_tail<data_t_diff_weights>(1, c_diff_weights.get());
 
         compute_ref_conv_bwd_bias<data_t_src, data_t_diff_dst,
             data_t_diff_bias>(cd, c_diff_dst.get(), ref_diff_bias);
+
         compare_data<data_t_diff_bias>(ref_diff_bias, c_diff_bias.get());
     }
 };

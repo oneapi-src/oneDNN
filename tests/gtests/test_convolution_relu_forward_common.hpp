@@ -37,19 +37,22 @@ void compute_ref_conv_relu_fwd(const test_convolution_sizes_t &c,
     const memory::desc weights_d = weights.get_primitive_desc().desc();
     const memory::desc dst_d = dst.get_primitive_desc().desc();
 
+    size_t padded_ic = src_d.data.layout_desc.blocking.padding_dims[1];
+    size_t padded_oc = dst_d.data.layout_desc.blocking.padding_dims[1];
+
 #pragma omp parallel for collapse(5) schedule(static)
     for (int n = 0; n < c.mb; n++) {
         for (int g = 0; g < c.ng; g++) {
             for (int oc = 0; oc < c.oc / c.ng; oc++) {
                 for (int oh = 0; oh < c.oh; oh++) {
                     for (int ow = 0; ow < c.ow; ow++) {
-                        int oidx = n * c.oc * c.oh * c.ow
-                                + g * c.oc / c.ng * c.oh * c.ow
+                        size_t oidx = n * padded_oc * c.oh * c.ow
+                                + g * padded_oc / c.ng * c.oh * c.ow
                                 + oc * c.oh * c.ow + oh * c.ow + ow;
                         dst_data[map_index(dst_d, oidx)] = bias_data ?
                                 bias_data[map_index(
                                         bias.get_primitive_desc().desc(),
-                                        g * c.oc / c.ng + oc)] :
+                                        g * padded_oc / c.ng + oc)] :
                                 data_t_dst{0};
                         for (int ic = 0; ic < c.ic / c.ng; ic++) {
                             for (int kh = 0; kh < c.kh; kh++) {
@@ -60,13 +63,13 @@ void compute_ref_conv_relu_fwd(const test_convolution_sizes_t &c,
                                           - c.padh + kh * (1 + c.dilh);
                                     if (iw < 0 || iw >= c.iw) continue;
                                     if (ih < 0 || ih >= c.ih) continue;
-                                    int iidx = n * c.ic * c.ih * c.iw
-                                            + g * c.ic / c.ng * c.ih * c.iw
+                                    size_t iidx = n * padded_ic * c.ih * c.iw
+                                            + g * padded_ic / c.ng * c.ih * c.iw
                                             + ic * c.ih * c.iw + ih * c.iw + iw;
-                                    int widx = g * c.oc / c.ng * c.ic
+                                    size_t widx = g * padded_oc / c.ng * padded_ic
                                                     / c.ng * c.kh * c.kw
-                                            + oc * c.ic / c.ng * c.kh * c.kw
-                                            + ic * c.kh * c.kw + kh * c.kw + kw;
+                                        + oc * padded_ic / c.ng * c.kh * c.kw
+                                        + ic * c.kh * c.kw + kh * c.kw + kw;
 
                                     dst_data[map_index(dst_d, oidx)]
                                             += src_data[map_index(src_d, iidx)]
@@ -145,6 +148,9 @@ protected:
         fill_data<data_t_wei>(
                 c_weights.get_primitive_desc().get_size()
                 / sizeof(data_t_wei),(data_t_wei *)c_weights.get_data_handle());
+        fill_data<data_t_dst>(
+                c_dst.get_primitive_desc().get_size()
+                / sizeof(data_t_dst),(data_t_dst *)c_dst.get_data_handle());
 
         bool with_bias = p.formats.bias_format != memory::format::format_undef;
         auto c_bias_desc = with_bias ?
@@ -156,6 +162,9 @@ protected:
                     c_bias.get_primitive_desc().get_size() / sizeof(data_t_dst),
                     (data_t_dst *)c_bias.get_data_handle(), 1., true);
         }
+        check_zero_tail<data_t_src>(1, c_src);
+        check_zero_tail<data_t_wei>(1, c_weights);
+        check_zero_tail<data_t_dst>(1, c_dst);
 
         std::vector<int> padR = {
             right_padding(cd.ih, cd.oh, cd.kh, cd.padh, cd.strh, cd.dilh),
@@ -190,8 +199,9 @@ protected:
         compute_ref_conv_relu_fwd<data_t_src, data_t_wei, data_t_wei,
             data_t_dst>(cd, c_src, c_weights, c_bias, dst_ref, with_bias,
                     negative_slope);
+        check_zero_tail<data_t_dst>(1, dst_ref);
         compare_data<data_t_dst>(dst_ref, c_dst);
-
+        check_zero_tail<data_t_dst>(0, c_dst);
 
     }
 };

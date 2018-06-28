@@ -63,6 +63,9 @@ void check_bnrm_fwd(const test_bnrm_params_t &p,
     test_bnrm_sizes_t bp = p.sizes;
     data_t eps = static_cast<data_t>(1.e-4 * bp.mb * bp.d * bp.h * bp.w);
 
+    size_t padded_c = src.get_primitive_desc().desc().data.layout_desc
+        .blocking.padding_dims[1];
+
 #pragma omp parallel for
     for (int c = 0; c < bp.c; c++) {
         data_t ref_mean = calculate_stats ? data_t(0) : mean_data[c];
@@ -72,7 +75,7 @@ void check_bnrm_fwd(const test_bnrm_params_t &p,
                 for (int d = 0; d < bp.d; d++)
                 for (int h = 0; h < bp.h; h++)
                 for (int w = 0; w < bp.w; w++) {
-                    int sidx = n * bp.c * bp.d * bp.h * bp.w
+                    size_t sidx = n * padded_c * bp.d * bp.h * bp.w
                         + c * bp.d * bp.h * bp.w
                         + d * bp.h * bp.w + h * bp.w + w;
                 ref_mean += src_data[map_index(src_d, sidx)];
@@ -88,7 +91,7 @@ void check_bnrm_fwd(const test_bnrm_params_t &p,
             for (int d = 0; d < bp.d; d++)
             for (int h = 0; h < bp.h; h++)
                 for (int w = 0; w < bp.w; w++) {
-                    int sidx = n * bp.c * bp.d * bp.h * bp.w
+                    size_t sidx = n * padded_c * bp.d * bp.h * bp.w
                     + c * bp.d * bp.h * bp.w + d * bp.h * bp.w + h * bp.w + w;
                     data_t tmp = src_data[map_index(src_d, sidx)] - ref_mean;
                     ref_variance += tmp * tmp;
@@ -109,7 +112,7 @@ void check_bnrm_fwd(const test_bnrm_params_t &p,
             for (int d = 0; d < bp.d; d++)
             for (int h = 0; h < bp.h; h++)
                 for (int w = 0; w < bp.w; w++) {
-                    int sdidx = n * bp.c * bp.d * bp.h * bp.w
+                    size_t sdidx = n * padded_c * bp.d * bp.h * bp.w
                     + c * bp.d * bp.h * bp.w + d * bp.h * bp.w + h * bp.w + w;
                     data_t ref_dst = weights_data[map_index(weights_d, c)]
                             * (src_data[map_index(src_d, sdidx)]
@@ -125,7 +128,7 @@ void check_bnrm_fwd(const test_bnrm_params_t &p,
             for (int d = 0; d < bp.d; d++)
             for (int h = 0; h < bp.h; h++)
                 for (int w = 0; w < bp.w; w++) {
-                    int sdidx = n * bp.c * bp.d * bp.h * bp.w
+                    size_t sdidx = n * padded_c * bp.d * bp.h * bp.w
                     + c * bp.d * bp.h * bp.w + d * bp.h * bp.w + h * bp.w + w;
                     data_t ref_dst = (src_data[map_index(src_d, sdidx)]
                             - ref_mean) * ref_rsqrt_variance;
@@ -166,6 +169,7 @@ void check_bnrm_bwd(const test_bnrm_params_t &p,
 
     const data_t eps = static_cast<data_t>(1.e-4 * bp.mb * bp.d * bp.h * bp.w);
 
+    size_t padded_c = src.get_primitive_desc().desc().data.layout_desc.blocking.padding_dims[1];
 #pragma omp parallel for
     for (int c = 0; c < bp.c; c++) {
         data_t ref_diff_gamma = data_t(0);
@@ -181,7 +185,7 @@ void check_bnrm_bwd(const test_bnrm_params_t &p,
         for (int d = 0; d < bp.d; d++)
         for (int h = 0; h < bp.h; h++)
         for (int w = 0; w < bp.w; w++) {
-            int sidx = n * bp.c * bp.d * bp.h * bp.w + c * bp.d * bp.h * bp.w
+            size_t sidx = n * padded_c * bp.d * bp.h * bp.w + c * bp.d * bp.h * bp.w
                     + d * bp.h * bp.w + h * bp.w + w;
             ref_diff_gamma += (src_data[map_index(src_d, sidx)] - v_mean)
                 * diff_dst_data[map_index(diff_dst_d, sidx)];
@@ -205,7 +209,7 @@ void check_bnrm_bwd(const test_bnrm_params_t &p,
         for (int d = 0; d < bp.d; d++)
         for (int h = 0; h < bp.h; h++)
             for (int w = 0; w < bp.w; w++) {
-                int sidx = n * bp.c * bp.d * bp.h * bp.w
+                size_t sidx = n * padded_c * bp.d * bp.h * bp.w
                     + c * bp.d * bp.h * bp.w + d * bp.h * bp.w + h * bp.w + w;
                 data_t ref_diff_src = diff_dst_data[map_index(diff_dst_d, sidx)];
                 if (calculate_diff_stats) {
@@ -298,6 +302,7 @@ protected:
         Backward(use_scale_shift, backward_data);
         Backward(use_scale_shift | omit_stats, backward);
         Backward(use_scale_shift | omit_stats, backward_data);
+
     }
 
     void Forward(unsigned flags, prop_kind pk) {
@@ -319,11 +324,14 @@ protected:
         }
 
         fill(src->get());
+        fill(dst->get());
         if (useScaleShift) fill(*weights);
         if (useGlobalStats) {
             fill(*mean);
             fill(*variance);
         }
+        check_zero_tail<data_t>(1, src->get());
+        check_zero_tail<data_t>(1, dst->get());
 
         auto bn = createBnrmFwd(isTraining, useGlobalStats, useScaleShift);
 
@@ -331,8 +339,11 @@ protected:
         pipeline.push_back(bn);
         stream(stream::kind::lazy).submit(pipeline).wait();
 
+        check_zero_tail<data_t>(0, dst->get());
+
         check_bnrm_fwd<data_t>(p, src->get(), *mean, *variance, *weights,
                 dst->get(), flags, pk);
+
     }
 
     void Backward(unsigned flags, prop_kind pk) {
@@ -353,9 +364,12 @@ protected:
                     bnrm_bwd_prim_desc->variance_primitive_desc()));
 
         if (useScaleShift) fill(*weights);
+        fill(diff_src->get());
         fill(diff_dst->get());
         fill(*mean);
         fill(*variance);
+        check_zero_tail<data_t>(1, diff_src->get());
+        check_zero_tail<data_t>(1, diff_dst->get());
 
         auto bnrm_bwd = createBnrmBwd(useScaleShift, pk);
 
@@ -366,6 +380,7 @@ protected:
         check_bnrm_bwd<data_t>(p,
                 src->get(), diff_dst->get(), *mean, *variance, *weights,
                 diff_src->get(), *diff_weights, flags, pk);
+        check_zero_tail<data_t>(0, diff_src->get());
     }
 
     void fill(memory &m, data_t mean = 1.) {
@@ -451,6 +466,21 @@ TEST_P(bnrm_test_float, TestsBnrm)
 
 #define INST_TEST_CASE(str, ...) INSTANTIATE_TEST_CASE_P( \
         str, bnrm_test_float, ::testing::Values(__VA_ARGS__))
+
+INST_TEST_CASE(Simple_Blocked_padded,
+    PARAMS_B16(1, 27, 9, 10, EPS),
+    PARAMS_B16(1, 12, 10, 9, EPS),
+    PARAMS_B16(4, 20, 12, 12, EPS),
+    PARAMS_B16(4, 9, 16, 16, EPS)
+);
+
+INST_TEST_CASE(Simple_nCdhw16c_padded,
+    PARAMS_B16_3D(2, 12, 16, 8, 20, EPS),
+    PARAMS_B16_3D(2, 9, 16, 8, 20, EPS),
+    PARAMS_B16_3D(2, 23, 10, 8, 4, EPS),
+    PARAMS_B16_3D(2, 27, 10, 8, 4, EPS)
+);
+
 
 INST_TEST_CASE(Simple_nCdhw16c,
     PARAMS_B16_3D(2, 32, 4, 4, 4, EPS),

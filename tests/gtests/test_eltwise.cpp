@@ -132,8 +132,9 @@ struct eltwise_test_params {
 
 size_t n_elems(const memory::desc &md) {
     size_t p = 1;
+    const int *pdims = md.data.layout_desc.blocking.padding_dims;
     for (int i = 0; i < md.data.ndims; ++i)
-        p *= (size_t)(md.data.dims[i]);
+        p *= (size_t)(pdims[i]);
     return p;
 }
 
@@ -163,14 +164,30 @@ void check_eltwise_fwd(const eltwise_test_params<data_t> &p,
         case eltwise_logistic:    ref_d = logistic_fwd(s);                break;
         default: assert(!"unknown alg_kind");
         }
+        dst_data[i] = ref_d;
+    }
+}
+
+template <typename data_t>
+void compare_eltwise_fwd(const eltwise_test_params<data_t> &p,
+        const memory::desc &md, const memory &dst, const memory &ref_dst)
+{
+    data_t *ref_dst_data = (data_t *)ref_dst.get_data_handle();
+    data_t *dst_data = (data_t *)dst.get_data_handle();
+
+    ASSERT_EQ(md.data.data_type, memory::data_type::f32); // TODO: type assert
+
+    size_t n = n_elems(md);
+    for (size_t i = 0; i < n; ++i) {
         if (p.alg_kind == eltwise_soft_relu){
-            EXPECT_NEAR(dst_data[i], ref_d, 2.e-6);
+            EXPECT_NEAR(dst_data[i], ref_dst_data[i], 2.e-6);
         }
         else{
-            EXPECT_NEAR(dst_data[i], ref_d, 1.e-6);
+            EXPECT_NEAR(dst_data[i], ref_dst_data[i], 1.e-6);
         }
     }
 }
+
 
 template <typename data_t>
 void check_eltwise_bwd(const eltwise_test_params<data_t> &p,
@@ -220,6 +237,7 @@ private:
     std::shared_ptr<memory> src;
     std::shared_ptr<memory> diff_src;
     std::shared_ptr<memory> dst;
+    std::shared_ptr<memory> ref_dst;
     std::shared_ptr<memory> diff_dst;
     std::shared_ptr<memory> workspace;
     std::shared_ptr<memory::desc> data_desc;
@@ -250,9 +268,11 @@ protected:
             p.diff_format));
         src.reset(new memory({*data_desc, *eng}));
         dst.reset(new memory({*data_desc, *eng}));
+        ref_dst.reset(new memory({*data_desc, *eng}));
 
         fill_data<data_t>(n_elems(*data_desc), (data_t *)src->get_data_handle(),
                 data_t(0), data_t(1));
+        check_zero_tail<data_t>(1, *src);
 
         auto eltwise_desc = eltwise_forward::desc(prop_kind::forward_training,
                 p.alg_kind, *data_desc, p.alpha, p.beta);
@@ -264,8 +284,11 @@ protected:
         pipeline.push_back(eltwise);
         auto s = stream(stream::kind::lazy);
         s.submit(pipeline).wait();
+        check_zero_tail<data_t>(0, *dst);
+        check_eltwise_fwd(p, *data_desc, *src, *ref_dst);
+        check_zero_tail<data_t>(1, *ref_dst);
+        compare_eltwise_fwd(p, *data_desc, *dst, *ref_dst);
 
-        check_eltwise_fwd(p, *data_desc, *src, *dst);
     }
 
     void Backward() {
@@ -274,6 +297,7 @@ protected:
 
         fill_data<data_t>(n_elems(*diff_data_desc),
                 (data_t *)diff_dst->get_data_handle(), data_t(0), data_t(1));
+        check_zero_tail<data_t>(1, *diff_dst);
 
         auto eltwise_bwd_desc = eltwise_backward::desc(p.alg_kind,
                 *diff_data_desc, *data_desc, p.alpha, p.beta);
@@ -287,6 +311,7 @@ protected:
         auto s = stream(stream::kind::lazy);
         s.submit(pipeline).wait();
 
+        check_zero_tail<data_t>(0, *diff_src);
         check_eltwise_bwd(p, *data_desc, *src, *diff_dst, *diff_src);
     }
 };
@@ -326,6 +351,20 @@ TEST_P(eltwise_test_float, TestsEltwise)
 
 #define INST_TEST_CASE(str, ...) INSTANTIATE_TEST_CASE_P( \
         str, eltwise_test_float, ::testing::Values(__VA_ARGS__))
+
+INST_TEST_CASE(Simple_blocked_3d_padded,
+    PARAMS_ALL_ALG(nCdhw16c, nCdhw16c, 0.1f, 0.2f, 4, 15, 2, 2, 2),
+    PARAMS_ALL_ALG_SDPART(nCdhw16c, nCdhw16c, 0.1f, 0.2f, 4, 27, 2, 2, 2),
+    PARAMS_ALL_ALG(nCdhw16c, nCdhw16c, 0.1f, 0.2f, 4, 23, 2, 2, 2),
+    PARAMS_ALL_ALG_SDPART(nCdhw16c, nCdhw16c, 0.1f, 0.2f, 4, 23, 7, 7, 7)
+);
+
+INST_TEST_CASE(Simple_blocked_padded,
+    PARAMS_ALL_ALG(nChw16c, nChw16c, 0.1f, 0.2f, 4, 15, 2, 2),
+    PARAMS_ALL_ALG_SDPART(nChw16c, nChw16c, 0.1f, 0.2f, 4, 27, 2, 2),
+    PARAMS_ALL_ALG(nChw16c, nChw16c, 0.1f, 0.2f, 4, 23, 2, 2),
+    PARAMS_ALL_ALG_SDPART(nChw16c, nChw16c, 0.1f, 0.2f, 4, 17, 7, 7)
+);
 
 INST_TEST_CASE(Simple_NCDHW,
     PARAMS_ALL_ALG(ncdhw, ncdhw, 0.f, 0.f, 2, 32, 28, 28, 28),

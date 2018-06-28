@@ -61,9 +61,10 @@ void compute_ref_inner_product_bwd_weights(int ndims,
     const memory::desc diff_weights_d = diff_weights.get_primitive_desc().desc();
     const memory::desc diff_dst_d = diff_dst.get_primitive_desc().desc();
 
+    const int padded_ic = src_d.data.layout_desc.blocking.padding_dims[1];
+
     bool has_spatial = ipd.kh > 1 || ipd.kw > 1;
     if (ndims == 5) has_spatial = has_spatial || ipd.kd > 1;
-
 #   pragma omp parallel for collapse(2) schedule(static)
     for (int oc = 0; oc < ipd.oc; ++oc) {
         for (int ic = 0; ic < ipd.ic; ++ic) {
@@ -71,7 +72,7 @@ void compute_ref_inner_product_bwd_weights(int ndims,
                 for (int kd = 0; kd < ipd.kd; ++kd)
                 for (int kh = 0; kh < ipd.kh; ++kh)
                 for (int kw = 0; kw < ipd.kw; ++kw) {
-                    int dwidx = oc * ipd.ic * ipd.kd * ipd.kh * ipd.kw
+                    int dwidx = oc * padded_ic * ipd.kd * ipd.kh * ipd.kw
                         + ic * ipd.kd * ipd.kh * ipd.kw
                         + kd * ipd.kh * ipd.kw + kh * ipd.kw + kw;
                     data_t *dw = &diff_weights_data[map_index(diff_weights_d,
@@ -79,7 +80,7 @@ void compute_ref_inner_product_bwd_weights(int ndims,
                         *dw = data_t(0);
                     for (int n = 0; n < ipd.mb; ++n) {
                         int ddidx = n * ipd.oc + oc;
-                        int sidx = n * ipd.ic * ipd.kd * ipd.kh * ipd.kw
+                        int sidx = n * padded_ic * ipd.kd * ipd.kh * ipd.kw
                             + ic * ipd.kd * ipd.kh * ipd.kw
                             + kd * ipd.kh * ipd.kw + kh * ipd.kw + kw;
                         *dw += diff_dst_data[map_index(diff_dst_d, ddidx)] *
@@ -196,6 +197,12 @@ protected:
         fill_data<data_t>(
                 ip_diff_dst->get_primitive_desc().get_size() / sizeof(data_t),
                 (data_t *)ip_diff_dst->get_data_handle());
+        fill_data<data_t>(
+            ip_diff_weights->get_primitive_desc().get_size() / sizeof(data_t),
+            (data_t *)ip_diff_weights->get_data_handle());
+
+        check_zero_tail<data_t>(1, *ip_src);
+        check_zero_tail<data_t>(1, *ip_diff_dst);
 
         auto ip = inner_product_backward_weights(ip_primitive_desc,
                 *ip_src, *ip_diff_dst, *ip_diff_weights, *ip_diff_bias);
@@ -207,7 +214,11 @@ protected:
 
         compute_ref_inner_product_bwd_weights<data_t>(p.ndims, ipd, *ip_src,
                 *ip_diff_dst, *diff_weights_ref);
+        check_zero_tail<data_t>(1, *diff_weights_ref);
+
         compare_data<data_t>(*diff_weights_ref, *ip_diff_weights);
+
+        check_zero_tail<data_t>(0, *ip_diff_weights);
 
         if (with_bias) {
             compute_ref_inner_product_bwd_bias<data_t>(ipd, *ip_diff_dst,
@@ -227,6 +238,18 @@ using inprod_test_params_float = inprod_test_params;
 TEST_P(inner_product_test_float, TestsInnerProduct)
 {
 }
+INSTANTIATE_TEST_CASE_P(
+        TestInnerProductBackwardWeightsNoBias_padded, inner_product_test_float,
+        ::testing::Values(
+                inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::nChw16c, memory::format::oIhw16i,
+                        memory::format::format_undef, memory::format::nc,
+                        EXPAND_SIZES_2D( 2, 17, 5, 3, 3 ) },
+                inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::nChw16c, memory::format::oIhw16i,
+                        memory::format::format_undef, memory::format::nc,
+                        EXPAND_SIZES_2D( 2, 10, 5, 3, 3 ) } ));
+
 INSTANTIATE_TEST_CASE_P(
         TestInnerProductBackwardWeightsNoBias, inner_product_test_float,
         ::testing::Values(
