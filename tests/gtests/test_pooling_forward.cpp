@@ -80,7 +80,14 @@ void check_pool_fwd(const pool_test_params &p, const memory &src,
                             && p.aprop_kind == prop_kind::forward_training) {
                             out_index = ws_data(map_index(ws_d, oidx));
                         }
-                        typename acc_t<data_t>::type acc_ref = data_t(0);
+                        // match implementation for pooling_max: padding
+                        // is done with lowest value and not zero, it
+                        // affects the case when kernel slips into
+                        // the padding area entirely
+                        typename acc_t<data_t>::type acc_ref
+                                = (p.aalgorithm == pooling_max) ?
+                                std::numeric_limits<data_t>::lowest() :
+                                data_t(0);
                         int out_ref_index = 0;
                         bool is_initialized = false;
                         int num_summands = 0;
@@ -483,6 +490,22 @@ INSTANTIATE_TEST_CASE_P(
 TEST_P(pooling_test_float, TestsPooling)
 {
 }
+
+INSTANTIATE_TEST_CASE_P(
+        TestPoolingForwardMaxKernelSlipsToPadding, pooling_test_float, ::testing::Values(
+            pool_test_params{ prop_kind::forward_training, engine::kind::cpu,
+            algorithm::pooling_max, memory::format::nchw,
+            memory::format::nchw, EXPAND_SIZES_2D( 1, 16, 10, 10, 6, 6, 5, 5, 10, 10, 5, 5 ) },
+            pool_test_params{ prop_kind::forward_training, engine::kind::cpu,
+            algorithm::pooling_max, memory::format::nchw,
+            memory::format::nhwc, EXPAND_SIZES_2D( 1, 16, 10, 10, 6, 6, 5, 5, 10, 10, 5, 5 ) },
+            pool_test_params{ prop_kind::forward_training, engine::kind::cpu,
+            algorithm::pooling_max, memory::format::nchw,
+            memory::format::nChw8c, EXPAND_SIZES_2D( 1, 16, 10, 10, 6, 6, 5, 5, 10, 10, 5, 5 ) },
+            pool_test_params{ prop_kind::forward_training, engine::kind::cpu,
+            algorithm::pooling_max, memory::format::nchw,
+            memory::format::nChw16c, EXPAND_SIZES_2D( 1, 16, 10, 10, 6, 6, 5, 5, 10, 10, 5, 5 ) }
+            ));
 
 INSTANTIATE_TEST_CASE_P(
         TestPooling3D_nCdhw16c, pooling_test_float, ::testing::Values(

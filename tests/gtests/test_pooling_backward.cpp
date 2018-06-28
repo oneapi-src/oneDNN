@@ -66,7 +66,14 @@ void check_pool_fwd(const pool_bwd_test_params &p, const memory &src,
                         + (size_t)c * pd.od * pd.oh * pd.ow
                         + (size_t)od * pd.oh * pd.ow + (size_t)oh * pd.ow + ow;
                 data_t out = dst_data[map_index(dst_d, oidx)];
-                data_t out_ref = data_t(0);
+
+                // match implementation for pooling_max: padding
+                // is done with lowest value and not zero, it
+                // affects the case when kernel slips into
+                // the padding area entirely
+                data_t out_ref = (p.aalgorithm == pooling_max) ?
+                        std::numeric_limits<data_t>::lowest() :
+                        data_t(0);
                 bool is_initialized = false;
 
                 auto id_start = apply_offset(od*pd.strd, pd.padf);
@@ -408,6 +415,22 @@ using pool_bwd_test_params_float = pool_bwd_test_params;
 TEST_P(pooling_bwd_test_float, TestsPoolingBackward)
 {
 }
+
+INSTANTIATE_TEST_CASE_P(
+        TestPoolingBackwardMaxKernelSlipsToPadding, pooling_bwd_test_float, ::testing::Values(
+            pool_bwd_test_params_float{ engine::kind::cpu,
+            pooling_max, memory::format::nchw,
+            memory::format::nchw, EXPAND_SIZES_2D( 1, 16, 10, 10, 6, 6, 5, 5, 10, 10, 5, 5 ) },
+            pool_bwd_test_params_float{ engine::kind::cpu,
+            pooling_max, memory::format::nhwc,
+            memory::format::nhwc, EXPAND_SIZES_2D( 1, 16, 10, 10, 6, 6, 5, 5, 10, 10, 5, 5 ) },
+            pool_bwd_test_params_float{ engine::kind::cpu,
+            pooling_max, memory::format::nChw8c,
+            memory::format::nChw8c, EXPAND_SIZES_2D( 1, 16, 10, 10, 6, 6, 5, 5, 10, 10, 5, 5 ) },
+            pool_bwd_test_params_float{ engine::kind::cpu,
+            pooling_max, memory::format::nChw16c,
+            memory::format::nChw16c, EXPAND_SIZES_2D( 1, 16, 10, 10, 6, 6, 5, 5, 10, 10, 5, 5 ) }
+            ));
 
 INSTANTIATE_TEST_CASE_P(
         TestPooling3D_nCdhw16c, pooling_bwd_test_float, ::testing::Values(
