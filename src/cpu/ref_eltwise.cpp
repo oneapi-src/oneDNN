@@ -31,6 +31,54 @@ using namespace alg_kind;
 using namespace math;
 
 template <impl::data_type_t data_type>
+void ref_eltwise_fwd_t<data_type>::execute_forward_nCspBc_padded() {
+    auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
+    auto dst = reinterpret_cast<data_t*>(this->memory(0));
+
+    const memory_desc_wrapper data_d(conf_.src_pd());
+    const blocking_desc_t &blk = data_d.blocking_desc();
+    const int block = blk.block_dims[1];
+
+    const int MB = conf_.MB();
+    const int C = conf_.C() / block;
+    const int C_PADDED = blk.padding_dims[1] / block;
+    const int tail = conf_.C() % block;
+    const int SP = conf_.D() * conf_.H() * conf_.W();
+    const auto alg_kind = conf_.desc()->alg_kind;
+    const float alpha = conf_.desc()->alpha;
+    const float beta = conf_.desc()->beta;
+
+    auto ker = [=] (data_t &d, data_t s) {
+        switch (alg_kind) {
+            case eltwise_linear: d = linear_fwd(s, alpha, beta); break;
+            case eltwise_bounded_relu:
+                d = bounded_relu_fwd(s, alpha); break;
+            case eltwise_soft_relu: d = soft_relu_fwd(s); break;
+            case eltwise_logistic: d = logistic_fwd(s); break;
+            default: assert(!"unknown eltwise alg_kind");
+        }
+    };
+
+    // FIXME: integer overflow?
+
+#   pragma omp parallel for collapse(3) schedule(static)
+    for (int n = 0; n < MB; ++n) {
+        for (int c = 0; c < C_PADDED; ++c) {
+            for (int sp = 0; sp < SP; ++sp) {
+                auto d_off = (n*C_PADDED*SP + c*SP + sp) * block;
+                if (c < C) {
+                    for (int v = 0; v < block; v++)
+                        ker(dst[d_off + v], src[d_off + v]);
+                } else {
+                    for (int v = 0; v < tail; v++)
+                        ker(dst[d_off + v], src[d_off + v]);
+                }
+            }
+        }
+    }
+}
+
+template <impl::data_type_t data_type>
 void ref_eltwise_fwd_t<data_type>::execute_forward_generic() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto dst = reinterpret_cast<data_t*>(this->memory(0));
@@ -83,7 +131,7 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_dense() {
 
     const memory_desc_wrapper data_d(conf_.src_pd());
 
-    const ptrdiff_t nelems = static_cast <ptrdiff_t>(data_d.nelems());
+    const ptrdiff_t nelems = static_cast<ptrdiff_t>(data_d.nelems(true));
     const auto alg_kind = conf_.desc()->alg_kind;
     const float alpha = conf_.desc()->alpha;
     const float beta  = conf_.desc()->beta;
@@ -181,7 +229,7 @@ void ref_eltwise_bwd_t<data_type>::execute_backward_dense() {
     const memory_desc_wrapper data_d(conf_.src_pd());
     const memory_desc_wrapper diff_data_d(conf_.diff_src_pd());
 
-    const ptrdiff_t nelems = static_cast<ptrdiff_t>(data_d.nelems());
+    const ptrdiff_t nelems = static_cast<ptrdiff_t>(data_d.nelems(true));
     const auto alg_kind = conf_.desc()->alg_kind;
     const float alpha = conf_.desc()->alpha;
     const float beta = conf_.desc()->beta;
