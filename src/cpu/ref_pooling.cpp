@@ -253,6 +253,15 @@ void ref_pooling_bwd_t<data_type, acc_type>::execute_backward() {
         const int ih = oh * SH - padT + kh;
         const int iw = ow * SW - padL + kw;
 
+        // If padding area could fit the kernel,
+        // then input displacement would be out of bounds.
+        // No need to back propagate there as padding is
+        // virtual in pooling_max case.
+        if (ih < 0 || ih >= IH)
+            return;
+        if (iw < 0 || iw >= IW)
+            return;
+
         diff_src[diff_src_d.off(mb, oc, ih, iw)] += d[0];
     };
 
@@ -294,6 +303,17 @@ void ref_pooling_bwd_t<data_type, acc_type>::execute_backward() {
         const int id = od * SD - padF + kd;
         const int ih = oh * SH - padT + kh;
         const int iw = ow * SW - padL + kw;
+
+        // If padding area could fit the kernel,
+        // then input displacement would be out of bounds.
+        // No need to back propagate there as padding is
+        // virtual in pooling_max case.
+        if (id < 0 || id >= ID)
+            return;
+        if (ih < 0 || ih >= IH)
+            return;
+        if (iw < 0 || iw >= IW)
+            return;
 
         diff_src[diff_src_d.off(mb, oc, id, ih, iw)] += d[0];
     };

@@ -192,6 +192,15 @@ void nchw_pooling_bwd_t<data_type>::execute_backward() {
         const int ih = oh * SH - padT + kh;
         const int iw = ow * SW - padL + kw;
 
+        // If padding area could fit the kernel,
+        // then input displacement would be out of bounds.
+        // No need to back propagate there as padding is
+        // virtual in pooling_max case.
+        if (ih < 0 || ih >= IH)
+            return;
+        if (iw < 0 || iw >= IW)
+            return;
+
         auto diff_src_offset = mb*C*IH*IW + c*IH*IW + ih*IW + iw;
         diff_src[diff_src_offset] += d[0];
     };
