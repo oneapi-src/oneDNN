@@ -122,6 +122,16 @@ struct memory_desc_wrapper: public c_compatible {
     /** returns true if memory desc is fully defined */
     bool is_defined() const { return format() != memory_format::any; }
 
+    /** returns true if the only (potentially) padded dim is \param dim */
+    bool only_padded_dim(int dim) const {
+        assert(is_blocking_desc());
+        const auto pdims = blocking_desc().padding_dims;
+        for (int d = 0; d < ndims(); ++d)
+            if (d != dim && dims()[d] != pdims[d])
+                return false;
+        return true;
+    }
+
     /* comparison section */
 
     inline bool operator==(const memory_desc_wrapper &rhs) const;
