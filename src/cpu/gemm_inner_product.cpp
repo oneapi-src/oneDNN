@@ -94,7 +94,7 @@ void gemm_inner_product_fwd_t<data_type>::execute_forward() {
     // TODO: consistency checks
     const cblas_int MB = conf_.MB();
     const cblas_int OC = conf_.OC();
-    const cblas_int IC = conf_.IC_total();
+    const cblas_int IC = conf_.IC_total_padded();
 
     cblas_gemm<data_type>(CblasColMajor, CblasTrans, CblasNoTrans, OC, MB, IC,
             1.0, weights, IC, src, IC, 0.0, dst, OC);
@@ -115,7 +115,7 @@ void gemm_inner_product_bwd_data_t<data_type>::execute_backward_data() {
     // TODO: consistency checks
     const cblas_int MB = conf_.MB();
     const cblas_int OC = conf_.OC();
-    const cblas_int IC = conf_.IC_total();
+    const cblas_int IC = conf_.IC_total_padded();
 
     cblas_gemm<data_type>(CblasColMajor, CblasNoTrans, CblasNoTrans, IC, MB, OC,
             1.0, weights, IC, diff_dst, OC, 0.0, diff_src, IC);
@@ -134,11 +134,10 @@ void gemm_inner_product_bwd_weights_t<data_type>::execute_backward_weights() {
     const memory_desc_wrapper diff_bias_d(conf_.diff_weights_pd(1));
 
     diff_dst += diff_dst_d.blocking_desc().offset_padding;
-
     // TODO: consistency checks
     const cblas_int MB = conf_.MB();
     const cblas_int OC = conf_.OC();
-    const cblas_int IC = conf_.IC_total();
+    const cblas_int IC = conf_.IC_total_padded();
 
     cblas_gemm<data_type>(CblasColMajor, CblasNoTrans, CblasTrans, IC, OC, MB,
             1.0, src, IC, diff_dst, OC, 0.0, diff_weights, IC);

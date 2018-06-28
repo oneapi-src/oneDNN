@@ -47,40 +47,22 @@ struct jit_uni_inner_product_fwd_t : public cpu_primitive_t {
 
         virtual status_t init() override
         {
-            using namespace prop_kind;
-            using namespace memory_format;
             using namespace utils;
 
             assert(engine()->kind() == engine_kind::cpu);
-            auto desired_data_fmt = isa == avx2
-                ? memory_format::nChw8c
-                : memory_format::nChw16c;
-            auto desired_weight_fmt = isa == avx2
-                ? memory_format::oIhw8i
-                : memory_format::oIhw16i;
             bool ok = true
-                    && mayiuse(isa)
-                    && this->set_default_params() == status::success
-                    && one_of(desc()->prop_kind, forward_training,
-                               forward_inference)
-                    && everyone_is(data_type::f32, desc()->src_desc.data_type,
-                               desc()->weights_desc.data_type,
-                               desc()->dst_desc.data_type)
-                    && implication(this->with_bias(),
-                               data_type::f32 == desc()->bias_desc.data_type)
-                    && implication(src_pd_.desc()->format == desired_data_fmt,
-                               weights_pd_.desc()->format == desired_weight_fmt)
-                    && implication(src_pd_.desc()->format == nchw,
-                               weights_pd_.desc()->format == oihw)
-                    && implication(src_pd_.desc()->format == ncdhw,
-                               weights_pd_.desc()->format == oidhw)
-                    && implication(src_pd_.desc()->format == nc,
-                               weights_pd_.desc()->format == oi)
-                    && dst_pd_.desc()->format == nc
-                    && memory_desc_wrapper(src_pd()).is_dense()
-                    && memory_desc_wrapper(dst_pd()).is_dense()
-                    && memory_desc_wrapper(weights_pd()).is_dense()
-                    && attr()->has_default_values();
+                && mayiuse(isa)
+                && this->set_default_params() == status::success
+                && one_of(desc()->prop_kind, prop_kind::forward_training,
+                        prop_kind::forward_inference)
+                && everyone_is(data_type::f32, desc()->src_desc.data_type,
+                        desc()->weights_desc.data_type,
+                        desc()->dst_desc.data_type)
+                && attr()->has_default_values()
+                && implication(this->with_bias(),
+                        data_type::f32 == desc()->bias_desc.data_type)
+                && dense_gemm_consitency_check(src_pd(), weights_pd(),
+                        dst_pd());
             return ok ? status::success : status::unimplemented;
         }
     };
@@ -122,38 +104,22 @@ struct jit_uni_inner_product_bwd_weights_t : public cpu_primitive_t {
 
         virtual status_t init() override
         {
-            using namespace prop_kind;
-            using namespace memory_format;
             using namespace utils;
             assert(engine()->kind() == engine_kind::cpu);
-            auto desired_data_fmt = isa == avx2
-                ? memory_format::nChw8c
-                : memory_format::nChw16c;
-            auto desired_weight_fmt = isa == avx2
-                ? memory_format::oIhw8i
-                : memory_format::oIhw16i;
-            bool ok = true && mayiuse(isa)
-                    && this->set_default_params() == status::success
-                    && desc()->prop_kind == backward_weights
-                    && everyone_is(data_type::f32, desc()->src_desc.data_type,
-                               desc()->diff_weights_desc.data_type,
-                               desc()->diff_dst_desc.data_type)
-                    && implication(this->with_bias(), data_type::f32
-                                       == desc()->diff_bias_desc.data_type)
-                    && implication(src_pd_.desc()->format == desired_data_fmt,
-                               diff_weights_pd_.desc()->format
-                                       == desired_weight_fmt)
-                    && implication(src_pd_.desc()->format == nchw,
-                               diff_weights_pd_.desc()->format == oihw)
-                    && implication(src_pd_.desc()->format == ncdhw,
-                               diff_weights_pd_.desc()->format == oidhw)
-                    && implication(src_pd_.desc()->format == nc,
-                               diff_weights_pd_.desc()->format == oi)
-                    && diff_dst_pd_.desc()->format == nc
-                    && memory_desc_wrapper(src_pd()).is_dense()
-                    && memory_desc_wrapper(diff_dst_pd()).is_dense()
-                    && memory_desc_wrapper(diff_weights_pd()).is_dense()
-                    && attr()->has_default_values();
+
+            bool ok = true
+                && mayiuse(isa)
+                && this->set_default_params() == status::success
+                && desc()->prop_kind == prop_kind::backward_weights
+                && everyone_is(data_type::f32, desc()->src_desc.data_type,
+                        desc()->diff_weights_desc.data_type,
+                        desc()->diff_dst_desc.data_type)
+                && attr()->has_default_values()
+                && implication(this->with_bias(), data_type::f32
+                        == desc()->diff_bias_desc.data_type)
+                && dense_gemm_consitency_check(src_pd(), diff_weights_pd(),
+                        diff_dst_pd());
+
             return ok ? status::success : status::unimplemented;
         }
     };
@@ -194,40 +160,20 @@ struct jit_uni_inner_product_bwd_data_t : public cpu_primitive_t {
 
         virtual status_t init() override
         {
-            using namespace prop_kind;
-            using namespace memory_format;
             using namespace utils;
             assert(engine()->kind() == engine_kind::cpu);
 
-            auto desired_data_fmt = isa == avx2
-                ? memory_format::nChw8c
-                : memory_format::nChw16c;
-
-            auto desired_weight_fmt = isa == avx2
-                ? memory_format::oIhw8i
-                : memory_format::oIhw16i;
-
-            bool ok = true && mayiuse(isa)
-                    && this->set_default_params() == status::success
-                    && desc()->prop_kind == backward_data
-                    && everyone_is(data_type::f32,
-                               desc()->diff_src_desc.data_type,
-                               desc()->weights_desc.data_type,
-                               desc()->diff_dst_desc.data_type)
-                    && implication(
-                               diff_src_pd_.desc()->format == desired_data_fmt,
-                               weights_pd_.desc()->format == desired_weight_fmt)
-                    && implication(diff_src_pd_.desc()->format == nchw,
-                               weights_pd_.desc()->format == oihw)
-                    && implication(diff_src_pd_.desc()->format == ncdhw,
-                               weights_pd_.desc()->format == oidhw)
-                    && implication(diff_src_pd_.desc()->format == nc,
-                               weights_pd_.desc()->format == oi)
-                    && diff_dst_pd_.desc()->format == nc
-                    && memory_desc_wrapper(diff_src_pd()).is_dense()
-                    && memory_desc_wrapper(diff_dst_pd()).is_dense()
-                    && memory_desc_wrapper(weights_pd()).is_dense()
-                    && attr()->has_default_values();
+            bool ok = true
+                && mayiuse(isa)
+                && this->set_default_params() == status::success
+                && desc()->prop_kind == prop_kind::backward_data
+                && everyone_is(data_type::f32,
+                        desc()->diff_src_desc.data_type,
+                        desc()->weights_desc.data_type,
+                        desc()->diff_dst_desc.data_type)
+                && attr()->has_default_values()
+                && dense_gemm_consitency_check(diff_src_pd(), weights_pd(),
+                        diff_dst_pd());
             return ok ? status::success : status::unimplemented;
         }
     };

@@ -31,6 +31,28 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
+namespace {
+inline bool dense_gemm_consitency_check(const memory_desc_wrapper &src_d,
+        const memory_desc_wrapper &wei_d, const memory_desc_wrapper &dst_d) {
+    using namespace memory_format;
+    using namespace utils;
+    return true
+        && implication(src_d.format() == nChw8c, wei_d.format() == oIhw8i)
+        && implication(src_d.format() == nChw16c, wei_d.format() == oIhw16i)
+        && implication(src_d.format() == nchw, wei_d.format() == oihw)
+        && implication(src_d.format() == ncdhw, wei_d.format() == oidhw)
+        && implication(src_d.format() == nc, wei_d.format() == oi)
+        && dst_d.format() == nc
+        && src_d.only_padded_dim(1)
+        && wei_d.only_padded_dim(1)
+        && src_d.blocking_desc().padding_dims[1]
+            == wei_d.blocking_desc().padding_dims[1]
+        && src_d.is_dense(true)
+        && dst_d.is_dense()
+        && wei_d.is_dense(true);
+}
+}
+
 struct cpu_inner_product_fwd_pd_t: public inner_product_fwd_pd_t {
     using cpu_memory_pd_t = cpu_memory_t::pd_t;
 
@@ -52,6 +74,16 @@ struct cpu_inner_product_fwd_pd_t: public inner_product_fwd_pd_t {
         if (index == 0) return &weights_pd_;
         if (index == 1 && with_bias()) return &bias_pd_;
         return nullptr;
+    }
+
+    int IC_total_padded() const {
+        auto src_md = memory_desc_wrapper(src_pd());
+
+        assert(src_md.is_blocking_desc());
+        if (!src_md.is_blocking_desc()) return -1;
+
+        return utils::array_product(src_md.blocking_desc().padding_dims + 1,
+                ndims() - 1);
     }
 
 protected:
@@ -99,6 +131,16 @@ struct cpu_inner_product_bwd_data_pd_t: public inner_product_bwd_data_pd_t {
     { return index == 0 ? &diff_dst_pd_ : nullptr; }
     virtual const cpu_memory_pd_t *weights_pd(int index = 0) const override
     { return index == 0 ? &weights_pd_ : nullptr; }
+
+    int IC_total_padded() const {
+        auto diff_src_md = memory_desc_wrapper(diff_src_pd());
+
+        assert(diff_src_md.is_blocking_desc());
+        if (!diff_src_md.is_blocking_desc()) return -1;
+
+        return utils::array_product(
+                diff_src_md.blocking_desc().padding_dims + 1, ndims() - 1);
+    }
 
 protected:
     cpu_memory_pd_t diff_src_pd_, diff_dst_pd_;
@@ -148,6 +190,16 @@ struct cpu_inner_product_bwd_weights_pd_t: public inner_product_bwd_weights_pd_t
             if (index == 1 && this->with_bias()) return &diff_bias_pd_;
             return  nullptr;
         }
+
+    int IC_total_padded() const {
+        auto src_md = memory_desc_wrapper(src_pd());
+
+        assert(src_md.is_blocking_desc());
+        if (!src_md.is_blocking_desc()) return -1;
+
+        return utils::array_product(src_md.blocking_desc().padding_dims + 1,
+                ndims() - 1);
+    }
 
 protected:
     cpu_memory_pd_t src_pd_;

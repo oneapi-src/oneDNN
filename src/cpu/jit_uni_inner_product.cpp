@@ -57,7 +57,7 @@ void jit_uni_inner_product_fwd_t<isa>::execute_forward()
     // TODO: consistency checks
     int MB = conf_.MB();
     int OC = conf_.OC();
-    int IC = conf_.IC_total();
+    int IC = conf_.IC_total_padded();
 
     float alpha = 1.0, beta = 0.0;
     sgemm_->sgemm("T", "N", &OC, &MB, &IC, &alpha, weights, &IC, src, &IC, &beta,
@@ -94,7 +94,7 @@ void jit_uni_inner_product_bwd_weights_t<isa>::execute_backward_weights()
     // TODO: consistency checks
     int MB = conf_.MB();
     int OC = conf_.OC();
-    int IC = conf_.IC_total();
+    int IC = conf_.IC_total_padded();
 
     float alpha = 1.0, beta = 0.0;
     sgemm_->sgemm("N", "T", &IC, &OC, &MB, &alpha, src, &IC, diff_dst, &OC, &beta,
@@ -163,7 +163,7 @@ void jit_uni_inner_product_bwd_data_t<isa>::execute_backward_data()
     // TODO: consistency checks
     int MB = conf_.MB();
     int OC = conf_.OC();
-    int IC = conf_.IC_total();
+    int IC = conf_.IC_total_padded();
 
     float alpha = 1.0, beta = 0.0;
 
