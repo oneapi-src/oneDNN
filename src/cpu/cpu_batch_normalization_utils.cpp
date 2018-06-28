@@ -96,12 +96,15 @@ namespace bnorm_utils {
 
         int nthr = omp_get_max_threads();
         int SP = bdesc->W() * bdesc->D() * bdesc->H();
+        int C_PADDED = memory_desc_wrapper(bdesc->src_pd())
+            .blocking_desc().padding_dims[1];
+        assert(C_PADDED % simd_w == 0);
 
-        size_t data = bdesc->MB() * bdesc->C() * SP * data_size;
+        size_t data = bdesc->MB() * C_PADDED * SP * data_size;
         size_t l3_size_ = get_cache_size(3, true) * nthr / 2;
         bool do_blocking = (data >= l3_size_ / 2 && l3_size_ > 0);
         int C_blks_per_iter{ 1 }, iters{ 1 };
-        int C_blks = bdesc->C() / simd_w;
+        int C_blks = C_PADDED / simd_w;
 
         if (do_blocking) {
             int num_tensors = bdesc->is_fwd() ? 1 : 2;

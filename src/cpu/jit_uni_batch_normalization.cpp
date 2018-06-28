@@ -48,6 +48,7 @@ struct jit_bnorm_t: public jit_generator {
         size_t coff_max, soff_max;
         size_t mb_stride_Bc, spat_size, spat_size_loc;
         size_t S_s, S_tail;
+        size_t is_cblk_tail;
         data_t chan_size, eps, one;
         const data_t *scale_shift;
         const data_t *mean, *var;
@@ -113,6 +114,10 @@ struct jit_bnorm_t: public jit_generator {
     Label l_relu_mask_avx2;
     Opmask kstore_mask = Opmask(1);
 
+    // channel tail processing
+    Opmask ktail_mask = Opmask(2);
+    Opmask kis_cblk_tail = Opmask(3);
+
     size_t unroll_blocks;
     size_t unroll_regs;
     Vmm vbuf = Vmm(isa == avx512_common ? 20 : 5);
@@ -147,6 +152,11 @@ struct jit_bnorm_t: public jit_generator {
         stack_off_s_tail = 88,
         stack_size_required = 96,
     };
+
+    bool is_c_padded() const {
+        const memory_desc_wrapper data_d(bdesc_->src_pd());
+        return bdesc_->C() != data_d.blocking_desc().padding_dims[1];
+    }
 
     void compute_static_strides() {
         spat_size = bdesc_->D() * bdesc_->W() * bdesc_->H();
@@ -217,6 +227,19 @@ struct jit_bnorm_t: public jit_generator {
 #       undef PARAM_OFF
     }
 
+    void prepare_tail_mask_avx512_common() {
+        if (!is_c_padded()) return;
+
+        const int tail = bdesc_->C() % (int)(vlen / sizeof(float));
+        const int mask = (1 << tail) - 1;
+
+        Reg32 regw_tmp = reg_tmp.cvt32();
+        mov(regw_tmp, mask);
+        kmovw(ktail_mask, regw_tmp);
+        mov(regw_tmp, ptr[reg_param + offsetof(call_params_t, is_cblk_tail)]);
+        kmovw(kis_cblk_tail, regw_tmp);
+    }
+
     void prepare_relu() {
         with_relu = bdesc_->is_fwd()
             ? bdesc_->with_relu_post_op() || bdesc_->fuse_bn_relu()
@@ -275,6 +298,42 @@ struct jit_bnorm_t: public jit_generator {
         shl(reg_soff, 5);
     }
 
+    void uni_vmovups_maybe_tail_avx512_common(const Operand &dst,
+            const Operand &src, Label &l_no_mask, Label &l_ret) {
+        Label l_mask;
+        kortestw(kis_cblk_tail, kis_cblk_tail);
+        jz(l_no_mask);
+
+        lea(reg_tmp, ptr[reg_coff + vlen]);
+        cmp(reg_tmp, reg_coff_max);
+        jl(l_no_mask);
+
+        L(l_mask);
+        if (dst.isMEM())
+            uni_vmovups(dst.getAddress() | ktail_mask | T_z, Vmm(src.getIdx()));
+        else
+            uni_vmovups(Vmm(dst.getIdx()) | ktail_mask | T_z, src.getAddress());
+
+        jmp(l_ret);
+    }
+
+    void uni_vmovups_maybe_tail(const Operand &dst, const Operand &src) {
+        Label l_no_mask, l_ret;
+
+        if (is_c_padded()) {
+            assert(isa == avx512_common);
+            uni_vmovups_maybe_tail_avx512_common(dst, src, l_no_mask, l_ret);
+        }
+
+        L(l_no_mask);
+        if (dst.isMEM())
+            uni_vmovups(dst.getAddress(), Vmm(src.getIdx()));
+        else
+            uni_vmovups(Vmm(dst.getIdx()), src.getAddress());
+
+        L(l_ret);
+    }
+
     void barrier() {
         mov(reg_nnthr, ptr[rsp + stack_off_N_nthr]);
         mov(reg_bar, ptr[rsp + stack_off_barrier]);
@@ -297,7 +356,7 @@ struct jit_bnorm_t: public jit_generator {
     Address diff_beta_ptr(size_t offt = 0) {
         return vmmword[reg_diff_scale_shift + reg_coff + offt
             + 1 * chan_data_offt];
-    }
+     }
 
     Address gamma_ptr(size_t offt = 0) {
         return vmmword[reg_scale_shift + reg_coff + offt + 0 * chan_data_offt];
@@ -389,7 +448,7 @@ struct jit_bnorm_t: public jit_generator {
     void var_channels() {
         Label ch_label;
         L(ch_label); {
-            uni_vmovups(vmean, mean_ptr());
+            uni_vmovups_maybe_tail(vmean, mean_ptr());
             uni_vmovups(Vmm(0), vmmword[reg_rbuf1 + reg_coff]);
             spat_loop(spat_size, unroll_blocks, unroll_regs,
                     [=](size_t base_reg) {
@@ -490,7 +549,7 @@ struct jit_bnorm_t: public jit_generator {
                     jnz(mean_reduction_thrs);
                 }
                 uni_vdivps(Vmm(1), Vmm(1), vchan_size);
-                uni_vmovups(mean_ptr(), Vmm(1));
+                uni_vmovups_maybe_tail(mean_ptr(), Vmm(1));
 
                 add(reg_coff, isa == sse42 ? vlen / 2 : vlen);
 
@@ -547,7 +606,7 @@ struct jit_bnorm_t: public jit_generator {
                     jnz(var_reduction_thrs);
                 }
                 uni_vdivps(Vmm(1), Vmm(1), vchan_size);
-                uni_vmovups(var_ptr(), Vmm(1));
+                uni_vmovups_maybe_tail(var_ptr(), Vmm(1));
                 add(reg_coff, isa == sse42 ? vlen / 2 : vlen);
 
                 cmp(reg_coff, reg_coff_max);
@@ -561,8 +620,8 @@ struct jit_bnorm_t: public jit_generator {
     void forward_channels() {
         Label ch_label;
         L(ch_label); {
-            uni_vmovups(vmean, mean_ptr());
-            uni_vmovups(vsqrtvar, var_ptr());
+            uni_vmovups_maybe_tail(vmean, mean_ptr());
+            uni_vmovups_maybe_tail(vsqrtvar, var_ptr());
             uni_vaddps(vsqrtvar, vsqrtvar, veps);
             uni_vsqrtps(vsqrtvar, vsqrtvar);
 
@@ -575,8 +634,8 @@ struct jit_bnorm_t: public jit_generator {
             }
 
             if (bdesc_->use_scaleshift()) {
-                uni_vmovups(vgamma, gamma_ptr());
-                uni_vmovups(vbeta, beta_ptr());
+                uni_vmovups_maybe_tail(vgamma, gamma_ptr());
+                uni_vmovups_maybe_tail(vbeta, beta_ptr());
             }
 
             auto compute = [=](bool output_is_aligned) {
@@ -666,7 +725,7 @@ struct jit_bnorm_t: public jit_generator {
     void backward_sh_channels() {
         Label sh_channels;
         L(sh_channels); {
-            uni_vmovups(vmean, mean_ptr());
+            uni_vmovups_maybe_tail(vmean, mean_ptr());
             uni_vmovups(Vmm(0), vmmword[reg_rbuf1 + reg_coff]);
             uni_vmovups(Vmm(1), vmmword[reg_rbuf2 + reg_coff]);
             spat_loop(spat_size, 1, 1,
@@ -731,16 +790,15 @@ struct jit_bnorm_t: public jit_generator {
     void backward_diff_channels() {
         Label diff_channels;
         L(diff_channels); {
-            uni_vmovups(vmean, mean_ptr());
-            uni_vmovups(vsqrtvar, var_ptr());
+            uni_vmovups_maybe_tail(vmean, mean_ptr());
+            uni_vmovups_maybe_tail(vsqrtvar, var_ptr());
             uni_vaddps(vsqrtvar, vsqrtvar, veps);
             uni_vsqrtps(vsqrtvar, vsqrtvar);
             uni_vdivps(vsqrtvar, vone, vsqrtvar, vbuf);
-            if (bdesc_->use_scaleshift()) {
-                uni_vmovups(vgamma, gamma_ptr());
-            }
-            uni_vmovups(vdiff_gamma, diff_gamma_ptr());
-            uni_vmovups(vdiff_beta, diff_beta_ptr());
+            if (bdesc_->use_scaleshift())
+                uni_vmovups_maybe_tail(vgamma, gamma_ptr());
+            uni_vmovups_maybe_tail(vdiff_gamma, diff_gamma_ptr());
+            uni_vmovups_maybe_tail(vdiff_beta, diff_beta_ptr());
             uni_vmulps(vdiff_gamma, vdiff_gamma, vsqrtvar);
             uni_vdivps(vdiff_beta, vdiff_beta, vchan_size);
             uni_vdivps(vdiff_gamma, vdiff_gamma, vchan_size);
@@ -859,7 +917,7 @@ struct jit_bnorm_t: public jit_generator {
             mov(reg_tmp, ptr[rsp + stack_off_N_ithr]);
             cmp(reg_tmp, 0);
             Label sh_reduction_channels;
-            jne(no_sh_reduction);
+            jne(no_sh_reduction, T_NEAR);
 
             mov(reg_nnthr, ptr[rsp + stack_off_N_nthr]);
             xor_(reg_coff, reg_coff);
@@ -867,7 +925,7 @@ struct jit_bnorm_t: public jit_generator {
                 mov(reg_roff, reg_coff);
                 uni_vpxor(Vmm(0), Vmm(0), Vmm(0));
                 uni_vpxor(Vmm(1), Vmm(1), Vmm(1));
-                uni_vmovups(vsqrtvar, var_ptr());
+                uni_vmovups_maybe_tail(vsqrtvar, var_ptr());
                 uni_vaddps(vsqrtvar, vsqrtvar, veps);
                 uni_vsqrtps(vsqrtvar, vsqrtvar);
                 uni_vdivps(vsqrtvar, vone, vsqrtvar, vbuf);
@@ -881,8 +939,8 @@ struct jit_bnorm_t: public jit_generator {
                     jnz(sh_reduction_thrs);
                 }
                 uni_vmulps(Vmm(0), Vmm(0), vsqrtvar);
-                uni_vmovups(diff_gamma_ptr(), Vmm(0));
-                uni_vmovups(diff_beta_ptr(), Vmm(1));
+                uni_vmovups_maybe_tail(diff_gamma_ptr(), Vmm(0));
+                uni_vmovups_maybe_tail(diff_beta_ptr(), Vmm(1));
                 add(reg_coff, isa == sse42 ? vlen / 2 : vlen);
                 cmp(reg_coff, reg_coff_max);
                 jne(sh_reduction_channels);
@@ -932,6 +990,10 @@ struct jit_bnorm_t: public jit_generator {
         unroll_regs = isa == avx512_common && !is_spatial_thr ? 4 : 1;
 
         preamble();
+
+        if (isa == avx512_common)
+            prepare_tail_mask_avx512_common();
+
         compute_static_strides();
         sub(rsp, stack_size_required);
         load_common_params();
@@ -968,16 +1030,17 @@ struct uni_bnorm_driver_t: public c_compatible {
         int num_pbufs = 2 * use_tmp_diff_scale_shift_;
         int num_rbufs = bdesc_->is_fwd() ? 1 : 2;
         int nthrs = omp_get_max_threads();
+        int C_PADDED = memory_desc_wrapper(bdesc_->src_pd()).blocking_desc()
+            .padding_dims[1];
 
-        int buf_size =
-            (num_sbufs + num_pbufs + num_rbufs * nthrs) * bdesc_->C();
+        int buf_size = (num_sbufs + num_pbufs + num_rbufs * nthrs) * C_PADDED;
         buf_ = (data_t *)malloc(buf_size * sizeof(data_t), 64);
 
         sbuf_ = buf_;
-        pbuf_ = sbuf_ + num_sbufs * bdesc_->C();
-        rbuf_ = pbuf_ + num_pbufs * bdesc_->C();
+        pbuf_ = sbuf_ + num_sbufs * C_PADDED;
+        rbuf_ = pbuf_ + num_pbufs * C_PADDED;
 
-        int num_barriers = bdesc_->C() / simd_w;
+        int num_barriers = C_PADDED / simd_w;
         if (syncable_) {
             barriers_ = (barrier::ctx_t *)malloc(
                     num_barriers * sizeof(barrier::ctx_t), 64);
@@ -985,7 +1048,7 @@ struct uni_bnorm_driver_t: public c_compatible {
                 barrier::ctx_init(&barriers_[i]);
         }
 
-        size_t data_size = bdesc_->MB() * bdesc_->C() * bdesc_->H()
+        size_t data_size = bdesc_->MB() * C_PADDED * bdesc_->H()
                 * bdesc_->W() * bdesc_->D() * sizeof(data_t);
         l3_size_ = get_cache_size(3, true) * nthrs / 2;
         do_blocking_ = (data_size >= l3_size_ / 2 && l3_size_ > 0);
@@ -998,11 +1061,13 @@ struct uni_bnorm_driver_t: public c_compatible {
             const uint8_t *ws) {
         size_t N = bdesc_->MB();
         size_t C = bdesc_->C();
+        size_t C_PADDED = memory_desc_wrapper(bdesc_->src_pd()).blocking_desc()
+            .padding_dims[1];
         size_t D = bdesc_->D();
         size_t H = bdesc_->H();
         size_t W = bdesc_->W();
         int SP = D * H * W;
-        size_t img_size = C * D * H * W;
+        size_t img_size = C_PADDED * D * H * W;
         const int vlen = isa == sse42 ? 32 : cpu_isa_traits<isa>::vlen;
 
         typename jit_bnorm_t<isa>::call_params_t p;
@@ -1012,7 +1077,7 @@ struct uni_bnorm_driver_t: public c_compatible {
         p.spat_size = D * H * W;
         p.chan_size = 1.0f * N * p.spat_size;
 
-        int C_blks = C / simd_w;
+        int C_blks = C_PADDED / simd_w;
 
         int C_ithr{0}, C_nthr{0}, N_ithr{0}, N_nthr{0}, S_ithr{0}, S_nthr{0};
         int C_blk_s{0}, C_blk_e{0}, N_s{0}, N_e{0}, S_s{0}, S_e{0};
@@ -1070,7 +1135,7 @@ struct uni_bnorm_driver_t: public c_compatible {
             p.S_tail = (p.spat_size - S_e) * vlen;
             p.coff_max = C_blks_thr * simd_w;
             p.mean = (use_tmp_stats_ ? sbuf_ : mean) + coff_base;
-            p.var = (use_tmp_stats_ ? sbuf_ + C : var) + coff_base;
+            p.var = (use_tmp_stats_ ? sbuf_ + C_PADDED : var) + coff_base;
             p.scale_shift = scale_shift + coff_base;
             p.diff_scale_shift
                     = (use_tmp_diff_scale_shift_ ? pbuf_ : diff_scale_shift)
@@ -1092,7 +1157,9 @@ struct uni_bnorm_driver_t: public c_compatible {
                               + p.N_ithr * C_blks_thr)
                             * simd_w;
             // rbuf1 and rbuf2 have to be disjoint
-            p.rbuf2 = p.rbuf1 + C * nthr;
+            p.rbuf2 = p.rbuf1 + C_PADDED * nthr;
+            p.is_cblk_tail =
+                (size_t)((it * C_blks_per_iter + C_blk_e) * simd_w) > C;
 
             size_t iter_bariers
                     = do_blocking_ ? it * global_barriers_per_iter : 0;

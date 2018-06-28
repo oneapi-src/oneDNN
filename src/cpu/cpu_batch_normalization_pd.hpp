@@ -35,7 +35,8 @@ namespace {
 template <typename pd_t> inline void bn_init_default_ws(const pd_t *self,
         cpu_memory_t::pd_t &ws_pd, size_t bits_per_element) {
     memory_desc_t ws_d;
-    const size_t src_nelems = memory_desc_wrapper(self->src_pd(0)).nelems();
+    const size_t src_nelems
+        = memory_desc_wrapper(self->src_pd(0)).nelems(true);
     const size_t ws_sz
         = utils::div_up(src_nelems * bits_per_element, sizeof(uint8_t));
     dim_t mb = memory_desc_wrapper(self->src_pd(0)).dims()[0];
