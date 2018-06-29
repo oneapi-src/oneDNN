@@ -288,26 +288,17 @@ protected:
             dst_desc.reset(new memory::desc(
                 { pd.mb, pd.c, pd.oh, pd.ow }, data_type, p.diff_dst_format));
         }
-        padR_2d = { pd.padt, pd.padl };
-        padR_3d = { pd.padf, pd.padt, pd.padl };
-        if (p.ndims == 5)
-        {
-            for (int i = 0; i < 3; ++i) {
-            if ((pd.id + pd.padf + padR_3d[0] - pd.kd)/pd.strd + 1 < pd.od)
-                ++padR_3d[0];
-            if ((pd.ih + pd.padt + padR_3d[1] - pd.kh)/pd.strh + 1 < pd.oh)
-                ++padR_3d[1];
-            if ((pd.iw + pd.padl + padR_3d[2] - pd.kw)/pd.strw + 1 < pd.ow)
-                ++padR_3d[2];
-            }
-        } else {
-            for (int i = 0; i < 2; ++i) {
-            if ((pd.ih + pd.padt + padR_2d[0] - pd.kh)/pd.strh + 1 < pd.oh)
-                ++padR_2d[0];
-            if ((pd.iw + pd.padl + padR_2d[1] - pd.kw)/pd.strw + 1 < pd.ow)
-                ++padR_2d[1];
-            }
-        }
+
+        // calculate right padding exactly
+        padR_2d = {
+            (pd.oh - 1) * pd.strh + pd.kh - pd.padt - pd.ih,
+            (pd.ow - 1) * pd.strw + pd.kw - pd.padl - pd.iw
+        };
+        padR_3d = {
+            (pd.od - 1) * pd.strd + pd.kd - pd.padf - pd.id,
+            (pd.oh - 1) * pd.strh + pd.kh - pd.padt - pd.ih,
+            (pd.ow - 1) * pd.strw + pd.kw - pd.padl - pd.iw
+        };
 
         Forward();
         Backward();
@@ -468,7 +459,7 @@ INSTANTIATE_TEST_CASE_P(
             ));
 
 INSTANTIATE_TEST_CASE_P(
-        TestPoolingForwardEF, pooling_bwd_test_float, ::testing::Values(
+        TestPoolingBackwardEF, pooling_bwd_test_float, ::testing::Values(
             pool_bwd_test_params_float{ engine::kind::cpu,
             pooling_max, memory::format::nchw,
             memory::format::nchw, EXPAND_SIZES_2D( 2, 0, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1 ),
@@ -480,14 +471,6 @@ INSTANTIATE_TEST_CASE_P(
             pool_bwd_test_params_float{ engine::kind::cpu,
             pooling_max, memory::format::nchw,
             memory::format::nchw, EXPAND_SIZES_2D( 2, 4, 0, 4, 4, 4, 3, 3, 1, 1, 1, 1 ),
-            true, mkldnn_invalid_arguments},
-            pool_bwd_test_params_float{ engine::kind::cpu,
-            pooling_max, memory::format::nchw,
-            memory::format::nchw, EXPAND_SIZES_2D( 2, 4, 4, 4, 7, 7, 3, 3, 1, 1, 1, 1 ),
-            true, mkldnn_invalid_arguments},
-            pool_bwd_test_params_float{ engine::kind::cpu,
-            pooling_max, memory::format::nchw,
-            memory::format::nchw, EXPAND_SIZES_2D( 2, 4, 4, 4, 4, 2, 3, 3, 1, 1, 1, 1 ),
             true, mkldnn_invalid_arguments}
             ));
 
