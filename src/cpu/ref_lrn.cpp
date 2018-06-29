@@ -189,7 +189,10 @@ void ref_lrn_bwd_t<data_type>::execute_backward() {
         float A = 0, B = 0, omega_mid = 0;
         for (int c = c_st; c < c_en; c++) {
             float sum = 0.0;
-            for (int i = c_st; i < c_en; ++i) {
+            const int i_st = nstl::max(c - half_ksize, 0);
+            const int i_en = nstl::min(c + kernel_size - half_ksize, C);
+
+            for (int i = i_st; i < i_en; ++i) {
                 const float value = src[data_off(mb, i, oh, ow)];
                 sum += value * value;
             }
