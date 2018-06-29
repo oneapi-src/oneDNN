@@ -73,14 +73,8 @@ protected:
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         auto eng = engine(p.engine_kind, 0);
 
-        const size_t nelems_i = std::accumulate(p.dims.begin(), p.dims.end(),
+        const size_t nelems = std::accumulate(p.dims.begin(), p.dims.end(),
                 size_t(1), std::multiplies<size_t>());
-        const size_t nelems_o = std::accumulate(p.dims.begin(), p.dims.end(),
-                size_t(1), std::multiplies<size_t>());
-        ASSERT_EQ(nelems_i, nelems_o);
-
-        auto src_data = new data_i_t[nelems_i];
-        auto dst_data = new data_o_t[nelems_o];
 
         memory::data_type prec_i = data_traits<data_i_t>::data_type;
         memory::data_type prec_o = data_traits<data_o_t>::data_type;
@@ -89,8 +83,11 @@ protected:
         auto mpd_o = memory::primitive_desc({p.dims, prec_o, p.fmt_o},
                 eng);
 
+        auto src_data = new data_i_t[mpd_i.get_size()];
+        auto dst_data = new data_o_t[mpd_o.get_size()];
+
         /* initialize input data */
-        for (size_t i = 0; i < nelems_i; ++i)
+        for (size_t i = 0; i < nelems; ++i)
             src_data[map_index(mpd_i.desc(), i)] = data_i_t(i);
 
         auto src = memory(mpd_i, src_data);
