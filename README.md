@@ -31,7 +31,7 @@ of the following deep learning topologies and variations of these.
 
 Intel MKL-DNN is used in the following software products:
 * [Caffe\* Optimized for Intel Architecture](https://github.com/intel/caffe)
-* [Chainer](https://chainer.org)
+* [Chainer\*](https://chainer.org)
 * [DeepBench](https://github.com/baidu-research/DeepBench)
 * [PaddlePaddle\*](http://www.paddlepaddle.org)
 * [Tensorflow\*](https://www.tensorflow.org)
