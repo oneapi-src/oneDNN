@@ -75,13 +75,12 @@ inline memory_format_t format_normalize(const memory_format_t fmt) {
     if (utils::one_of(fmt, x, nc, nchw, nhwc, chwn, nChw8c, nChw16c, oi, io,
                 oihw, ihwo, hwio, oIhw8i, oIhw16i, OIhw8i8o, OIhw16i16o,
                 OIhw8i16o2i, OIdhw8i16o2i, OIhw8o16i2o, OIhw8o8i, OIhw16o16i,
-                Oihw8o, Oihw16o, Ohwi8o, Ohwi16o, OIhw4i16o4i, goihw, hwigo,
-                gOIhw8i8o, gOIhw16i16o, gOIhw8i16o2i, gOIdhw8i16o2i,
-                gOIhw8o16i2o, gOIhw8o8i, gOIhw16o16i, gOihw8o, gOihw16o,
-                gOhwi8o, gOhwi16o, IOhw16o16i, gIOhw16o16i, gOIhw4i16o4i,
-                ncdhw, oidhw, goidhw, nCdhw16c, OIdhw16i16o, gOIdhw16i16o,
-                OIdhw16o16i, gOIdhw16o16i, ndhwc, gOidhw16o, Oidhw16o,
-                gOdhwi16o, Odhwi16o))
+                Oihw16o, Ohwi8o, Ohwi16o, OIhw4i16o4i, goihw, hwigo, gOIhw8i8o,
+                gOIhw16i16o, gOIhw8i16o2i, gOIdhw8i16o2i, gOIhw8o16i2o,
+                gOIhw8o8i, gOIhw16o16i, gOihw16o, gOhwi8o, gOhwi16o,
+                IOhw16o16i, gIOhw16o16i, gOIhw4i16o4i, ncdhw, oidhw, goidhw,
+                nCdhw16c, OIdhw16i16o, gOIdhw16i16o, OIdhw16o16i, gOIdhw16o16i,
+                ndhwc, gOidhw16o, Oidhw16o, gOdhwi16o, Odhwi16o))
         return blocked;
     return fmt;
 }
