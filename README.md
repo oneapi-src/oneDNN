@@ -38,6 +38,7 @@ Intel MKL-DNN is used in the following software products:
 * [Apache\* MXNet](https://mxnet.apache.org/)
 * [OpenVINO(TM) toolkit](https://software.intel.com/en-us/openvino-toolkit)
 * [Intel(R) Nervana(TM) Graph](https://github.com/NervanaSystems/ngraph)
+* [Menoh\*](https://github.com/pfnet-research/menoh)
 
 ## License
 Intel MKL-DNN is licensed under
