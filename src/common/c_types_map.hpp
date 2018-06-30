@@ -143,7 +143,6 @@ namespace memory_format {
     const memory_format_t Oihw16o = mkldnn_Oihw16o;
     const memory_format_t Ohwi8o = mkldnn_Ohwi8o;
     const memory_format_t Ohwi16o = mkldnn_Ohwi16o;
-    const memory_format_t OhIw16o4i = mkldnn_OhIw16o4i;
     const memory_format_t goihw = mkldnn_goihw;
     const memory_format_t hwigo = mkldnn_hwigo;
     const memory_format_t gOIhw8i8o = mkldnn_gOIhw8i8o;
@@ -161,7 +160,6 @@ namespace memory_format {
     const memory_format_t gOhwi16o = mkldnn_gOhwi16o;
     const memory_format_t Goihw8g = mkldnn_Goihw8g;
     const memory_format_t Goihw16g = mkldnn_Goihw16g;
-    const memory_format_t gOhIw16o4i = mkldnn_gOhIw16o4i;
     const memory_format_t goidhw = mkldnn_goidhw;
     const memory_format_t gOIdhw16i16o = mkldnn_gOIdhw16i16o;
     const memory_format_t gOIdhw16o16i = mkldnn_gOIdhw16o16i;
