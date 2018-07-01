@@ -77,13 +77,12 @@ status_t cpu_engine_t::view_primitive_desc_create(view_pd_t **view_pd,
             const memory_pd_t *memory_pd, const dims_t dims,
             const dims_t offsets) {
     assert(memory_pd->engine() == this);
-    const memory_desc_wrapper mem_d(memory_pd);
-    if (mem_d.is_wino_desc())
-        return unimplemented;
-    auto mpd = (const cpu_memory_t::pd_t *)memory_pd;
-    /* FIXME: what if failed? */
-    return safe_ptr_assign<view_pd_t>(*view_pd,
-            new cpu_view_t::pd_t(this, mpd, dims, offsets));
+    cpu_view_t::pd_t *cpu_vpd = nullptr;
+    status_t status = cpu_view_t::pd_t::create(&cpu_vpd,
+            (const cpu_memory_t::pd_t *)memory_pd, dims, offsets);
+    if (status != success) return status;
+    *view_pd = cpu_vpd;
+    return success;
 }
 
 using pd_create_f = mkldnn::impl::engine_t::primitive_desc_create_f;

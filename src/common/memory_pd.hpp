@@ -75,7 +75,6 @@ struct memory_pd_t: public primitive_desc_t {
     { return memory_desc_wrapper(desc_).size(); }
 
     virtual status_t set_format(memory_format_t fmt) {
-        assert(desc_.format == memory_format::any);
         memory_desc_t md = desc_;
         md.format = fmt;
         status_t status = memory_desc_wrapper::compute_blocking(md);

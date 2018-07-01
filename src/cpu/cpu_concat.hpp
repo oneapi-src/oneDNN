@@ -112,8 +112,9 @@ protected:
             dims[concat_dim_] = dim;
             offsets[concat_dim_] = current_concat_dim_offset;
 
-            cpu_view_t::pd_t v_pd(src_pds_[i].engine(), &dst_pd_, dims,
-                    offsets);
+            cpu_view_t::pd_t v_pd(src_pds_[i].engine());
+            status_t status = v_pd.init(&dst_pd_, dims, offsets);
+            if (status != success) return status;
             src_image_pds_.push_back(*v_pd.dst_pd());
             current_concat_dim_offset += dim;
         }

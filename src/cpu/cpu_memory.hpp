@@ -78,35 +78,67 @@ private:
 
 struct cpu_view_t: public cpu_primitive_t {
     struct pd_t: public view_pd_t {
-        pd_t(engine_t *engine, const cpu_memory_t::pd_t *memory_pd,
-                const dims_t dims, const dims_t offsets)
-            : view_pd_t(engine), src_pd_(*memory_pd), dst_pd_(engine_)
-        {
+        pd_t(engine_t *engine)
+            : view_pd_t(engine), src_pd_(engine), dst_pd_(engine) {}
+        virtual ~pd_t() {}
+
+        status_t init(const cpu_memory_t::pd_t *src_pd, const dims_t dims,
+                const dims_t offsets) {
+            using namespace memory_format;
+            using namespace status;
+
+            if (src_pd->engine() != engine()) return invalid_arguments;
+
+            src_pd_ = *src_pd;
             const memory_desc_t &src_d = *src_pd_.desc();
-            assert(src_d.format != mkldnn_wino_fmt);
+            if (src_d.format == wino_fmt) return unimplemented;
             const auto &src_d_blk = src_d.layout_desc.blocking;
-            memory_desc_t dst_d = *src_pd_.desc();
-            assert(dst_d.format != mkldnn_wino_fmt);
+
+            memory_desc_t dst_d = src_d;
             auto &dst_d_blk = dst_d.layout_desc.blocking;
 
-            int ndims = dst_d.ndims;
+            const int ndims = dst_d.ndims;
             for (int d = 0; d < ndims; ++d) {
-                /* very limited functionaly for now */
-                assert(src_d.dims[d] == src_d_blk.padding_dims[d]);
-                assert(dims[d] % src_d_blk.block_dims[d] == 0);
-                assert(offsets[d] % src_d_blk.block_dims[d] == 0);
-                assert(src_d_blk.offset_padding_to_data[d] == 0);
+                /* very limited functionality for now */
+                const bool ok = true
+                    && offsets[d] % src_d_blk.block_dims[d] == 0 /* [r1] */
+                    && src_d_blk.offset_padding_to_data[d] == 0
+                    && (false
+                            || dims[d] % src_d_blk.block_dims[d] == 0
+                            || dims[d] < src_d_blk.block_dims[d]);
+                if (!ok)
+                    return unimplemented;
+
+                const bool is_right_border
+                    = offsets[d] + dims[d] == src_d.dims[d];
 
                 dst_d.dims[d] = dims[d];
-
-                dst_d_blk.padding_dims[d] = dst_d.dims[d];
+                dst_d_blk.padding_dims[d] = is_right_border
+                    ? src_d_blk.padding_dims[d] - offsets[d]
+                    : dst_d.dims[d];
+                dst_d_blk.offset_padding_to_data[d] =
+                    src_d_blk.offset_padding_to_data[d];
                 dst_d_blk.offset_padding +=
-                    offsets[d] / src_d_blk.block_dims[d] * dst_d_blk.strides[0][d];
+                    offsets[d] / src_d_blk.block_dims[d] /* [r1] */
+                    * dst_d_blk.strides[0][d];
             }
 
-            dst_pd_ = cpu_memory_t::pd_t(engine_, &dst_d);
+            dst_pd_ = cpu_memory_t::pd_t(engine(), &dst_d);
+            return success;
         }
-        virtual ~pd_t() {}
+
+        static status_t create(pd_t **cpu_view_pd,
+                const cpu_memory_t::pd_t *src_pd, const dims_t dims,
+                const dims_t offsets) {
+            pd_t *pd;
+            status_t status = safe_ptr_assign<pd_t>(pd,
+                    new pd_t(src_pd->engine()));
+            if (status != success) return status;
+            status = pd->init(src_pd, dims, offsets);
+            if (status != success) return status;
+            *cpu_view_pd = pd;
+            return success;
+        }
 
         virtual pd_t *clone() const override { return new pd_t(*this); }
         virtual status_t create_primitive(primitive_t **primitive,
@@ -126,6 +158,10 @@ struct cpu_view_t: public cpu_primitive_t {
 
         cpu_memory_t::pd_t src_pd_;
         cpu_memory_t::pd_t dst_pd_;
+
+    protected:
+        pd_t(const cpu_memory_t::pd_t &src_pd, const cpu_memory_t::pd_t &dst_pd)
+            : view_pd_t(src_pd.engine()), src_pd_(src_pd), dst_pd_(dst_pd) {}
     };
 
     cpu_view_t(const pd_t *conf, const input_vector &inputs)
