@@ -58,6 +58,10 @@ template <typename data_t> inline data_t out_round(float x,
 template <> inline float out_round<float>(float x, mkldnn_round_mode_t rmode)
 { (void)rmode; return x; }
 
+inline int right_padding(int i, int o, int k, int p, int s, int d = 0) {
+    return (o - 1) * s + (k - 1) * (d + 1) - (p + i - 1);
+}
+
 template <typename data_t> struct acc_t { typedef data_t type; };
 template<> struct acc_t<int8_t> { typedef int type; };
 template<> struct acc_t<uint8_t> { typedef int type; };

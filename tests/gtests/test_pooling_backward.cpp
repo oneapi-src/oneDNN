@@ -291,13 +291,13 @@ protected:
 
         // calculate right padding exactly
         padR_2d = {
-            (pd.oh - 1) * pd.strh + pd.kh - pd.padt - pd.ih,
-            (pd.ow - 1) * pd.strw + pd.kw - pd.padl - pd.iw
+            right_padding(pd.ih, pd.oh, pd.kh, pd.padt, pd.strh),
+            right_padding(pd.iw, pd.ow, pd.kw, pd.padl, pd.strw)
         };
         padR_3d = {
-            (pd.od - 1) * pd.strd + pd.kd - pd.padf - pd.id,
-            (pd.oh - 1) * pd.strh + pd.kh - pd.padt - pd.ih,
-            (pd.ow - 1) * pd.strw + pd.kw - pd.padl - pd.iw
+            right_padding(pd.id, pd.od, pd.kd, pd.padf, pd.strd),
+            right_padding(pd.ih, pd.oh, pd.kh, pd.padt, pd.strh),
+            right_padding(pd.iw, pd.ow, pd.kw, pd.padl, pd.strw)
         };
 
         Forward();
