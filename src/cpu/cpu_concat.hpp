@@ -123,16 +123,49 @@ protected:
     }
 
     virtual status_t set_default_params() {
-        if (dst_pd_.desc()->format == memory_format::any) {
-            /* the stupidest ever heuristics */
-            memory_format_t out_fmt = dst_pd_.desc()->format;
-            for (int i = 0; i < n_; ++i) {
-                out_fmt = nstl::max(out_fmt, src_pds_[i].desc()->format);
-            }
-            CHECK(dst_pd_.set_format(out_fmt));
+        if (dst_pd_.desc()->format != memory_format::any)
+            return status::success;
+
+        const int ndims = dst_pd_.desc()->ndims;
+        const auto fallback_dst_fmt = types::flat_memory_format(ndims);
+
+        /* the stupidest ever heuristics */
+        memory_format_t desired_dst_fmt = dst_pd_.desc()->format;
+        for (int i = 0; i < n_; ++i)
+            desired_dst_fmt = nstl::max(desired_dst_fmt,
+                    src_pds_[i].desc()->format);
+
+        /* try to create dst with the desired format */
+        status_t status = dst_pd_.set_format(desired_dst_fmt);
+        if (status != status::success) {
+            /* if fail use fallback flat layout */
+            return dst_pd_.set_format(fallback_dst_fmt);
         }
 
-        return success;
+        /* check if we can create view for the dst with the desired format */
+        bool desired_format_ok = true;
+        int current_concat_dim_offset = 0;
+        for (int i = 0; i < n_; ++i) {
+            const int dim = src_pds_[i].desc()->dims[concat_dim_];
+            dims_t dims, offsets = {};
+            utils::array_copy(dims, dst_pd_.desc()->dims, ndims);
+            dims[concat_dim_] = dim;
+            offsets[concat_dim_] = current_concat_dim_offset;
+
+            cpu_view_t::pd_t v_pd(src_pds_[i].engine());
+            if (v_pd.init(&dst_pd_, dims, offsets) != success) {
+                desired_format_ok = false;
+                break;
+            }
+            current_concat_dim_offset += dim;
+        }
+
+        if (!desired_format_ok) {
+            /* if fail use fallback flat layout */
+            return dst_pd_.set_format(fallback_dst_fmt);
+        }
+
+        return status::success;
     }
 };
 
