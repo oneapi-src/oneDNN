@@ -70,6 +70,17 @@ inline size_t data_type_size(data_type_t data_type) {
     return 0; /* not supposed to be reachable */
 }
 
+inline memory_format_t flat_memory_format(int ndims) {
+    switch (ndims) {
+    case 1: return memory_format::x;
+    case 2: return memory_format::nc;
+    case 4: return memory_format::nchw;
+    case 5: return memory_format::ncdhw;
+    default: return memory_format::undef;
+    }
+    return memory_format::undef;
+}
+
 inline memory_format_t format_normalize(const memory_format_t fmt) {
     using namespace memory_format;
     if (utils::one_of(fmt, x, nc, nchw, nhwc, chwn, nChw8c, nChw16c, oi, io,
