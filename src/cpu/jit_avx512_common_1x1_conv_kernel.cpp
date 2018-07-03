@@ -647,14 +647,24 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
     if (!mayiuse(avx512_common)) return status::unimplemented;
 
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
+    const int simd_w = cpu_isa_traits<avx512_common>::vlen / sizeof(float);
 
     jcp.prop_kind = cd.prop_kind;
 
     jcp.ngroups = with_groups ? weights_d.dims()[0] : 1;
     jcp.mb = src_d.dims()[0];
 
+    jcp.oc_without_padding = dst_d.dims()[1] / jcp.ngroups;
     jcp.oc = dst_d.dims()[1] / jcp.ngroups;
     jcp.ic = src_d.dims()[1] / jcp.ngroups;
+
+    bool ok_to_pad_channels = true
+        && jcp.ngroups == 1
+        && src_d.data_type() == data_type::f32;
+    if (ok_to_pad_channels) {
+        jcp.oc = rnd_up(jcp.oc, simd_w);
+        jcp.ic = rnd_up(jcp.ic, simd_w);
+    }
 
     jcp.ih = src_d.dims()[2];
     jcp.iw = src_d.dims()[3];
@@ -692,12 +702,9 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
 
     bool args_ok = true
         && jcp.ngroups == 1
-        && src_d.format() == nChw16c
-        && one_of(cd.bias_desc.format, memory_format::undef, any, x)
-        && dst_d.format() == nChw16c;
+        && everyone_is(nChw16c, src_d.format(), dst_d.format())
+        && one_of(cd.bias_desc.format, memory_format::undef, any, x);
     if (!args_ok) return status::unimplemented;
-
-    const int simd_w = 16;
 
     args_ok = true
         && jcp.oc % simd_w == 0 && jcp.ic % simd_w == 0
@@ -770,6 +777,14 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
     } else {
         return status::unimplemented;
     }
+
+    /* once all the formats are set, check the padding consistency */
+    args_ok = true
+        && jcp.ic <= src_d.blocking_desc().padding_dims[1]
+        && jcp.oc <= dst_d.blocking_desc().padding_dims[1]
+        && jcp.ic <= weights_d.blocking_desc().padding_dims[with_groups + 1]
+        && jcp.oc <= weights_d.blocking_desc().padding_dims[with_groups + 0];
+    if (!args_ok) return status::unimplemented;
 
     const int SMALL_SPATIAL = 10;
     const int BIG_SPATIAL = 28;

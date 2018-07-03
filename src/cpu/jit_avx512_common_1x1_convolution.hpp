@@ -116,16 +116,27 @@ struct _jit_avx512_common_1x1_convolution_fwd_t : public cpu_primitive_t {
                                           const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
         , kernel_(nullptr), rtus_driver_(nullptr), ws_per_thread_(0)
-        , scratch_(nullptr)
+        , scratch_(nullptr), padded_bias_(nullptr)
     {
         kernel_ = new jit_avx512_common_1x1_conv_kernel(conf_.jcp_,
                     *conf_.attr());
+
         init_rtus_driver<avx512_common>(this);
+
+        if (conf_.want_padded_bias()) {
+            const auto &j = conf_.jcp_;
+            assert(j.ngroups == 1);
+            padded_bias_ = (dst_data_t *)malloc(sizeof(dst_data_t) * j.oc, 64);
+            for (int oc = j.oc_without_padding; oc < j.oc; ++oc)
+                padded_bias_[oc] = 0;
+        }
     }
+
     ~_jit_avx512_common_1x1_convolution_fwd_t() {
         delete kernel_;
         delete rtus_driver_;
         free(scratch_);
+        free(padded_bias_);
     }
 
     typedef typename prec_traits<src_type>::type src_data_t;
@@ -145,6 +156,7 @@ struct _jit_avx512_common_1x1_convolution_fwd_t : public cpu_primitive_t {
     rtus_driver_t<avx512_common> *rtus_driver_;
     size_t ws_per_thread_;
     src_data_t *scratch_;
+    dst_data_t *padded_bias_;
 };
 
 using jit_avx512_common_1x1_convolution_fwd_f32_t
@@ -357,6 +369,7 @@ struct jit_avx512_common_1x1_convolution_bwd_weights_t : public cpu_primitive_t
         free(ws_reduction_);
         free(scratch_);
         free(tr_src_);
+        free(padded_bias_);
     }
 
     typedef typename prec_traits<data_type::f32>::type data_t;
@@ -385,6 +398,7 @@ struct jit_avx512_common_1x1_convolution_bwd_weights_t : public cpu_primitive_t
     rtus_driver_t<avx512_common> *rtus_driver_;
     size_t ws_per_thread_;
     data_t *scratch_;
+    data_t *padded_bias_;
 
     simple_barrier::ctx_t *bctx_;
     data_t *tr_src_;

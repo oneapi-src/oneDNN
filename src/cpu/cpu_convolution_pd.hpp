@@ -56,6 +56,13 @@ struct _cpu_convolution_fwd_pd_t: public _convolution_fwd_pd_t<with_relu> {
         return nullptr;
     }
 
+    bool want_padded_bias() const {
+        if (!this->with_bias()) return false;
+        memory_desc_wrapper dst_d(&dst_pd_);
+        if (!dst_d.is_blocking_desc()) return false;
+        return this->OC() != dst_d.blocking_desc().padding_dims[1];
+    }
+
 protected:
     cpu_memory_pd_t src_pd_, dst_pd_;
     cpu_memory_pd_t weights_pd_, bias_pd_;
@@ -163,6 +170,13 @@ struct cpu_convolution_bwd_weights_pd_t: public convolution_bwd_weights_pd_t {
             if (index == 1 && this->with_bias()) return &diff_bias_pd_;
             return  nullptr;
         }
+
+    bool want_padded_bias() const {
+        if (!this->with_bias()) return false;
+        memory_desc_wrapper diff_dst_d(&diff_dst_pd_);
+        if (!diff_dst_d.is_blocking_desc()) return false;
+        return OC() != diff_dst_d.blocking_desc().padding_dims[1];
+    }
 
 protected:
     cpu_memory_pd_t src_pd_;

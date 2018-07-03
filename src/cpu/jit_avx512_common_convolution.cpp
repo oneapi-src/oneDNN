@@ -88,7 +88,6 @@ void _jit_avx512_common_convolution_fwd_t
     const memory_desc_wrapper src_d(conf_.src_pd());
     const memory_desc_wrapper dst_d(conf_.dst_pd());
     const memory_desc_wrapper weights_d(conf_.weights_pd(0));
-    const memory_desc_wrapper bias_d(conf_.weights_pd(1));
 
     const auto &jcp = kernel_->jcp;
     assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
@@ -101,6 +100,12 @@ void _jit_avx512_common_convolution_fwd_t
         nthr = jcp.aligned_threads;
     else
         nthr = omp_get_max_threads();
+
+    if (conf_.want_padded_bias()) {
+        for (int oc = 0; oc < jcp.oc_without_padding; ++oc)
+            padded_bias_[oc] = bias[oc];
+        bias = padded_bias_;
+    }
 
 #pragma omp parallel num_threads(nthr)
     {
@@ -140,7 +145,7 @@ void _jit_avx512_common_convolution_fwd_t
                 int ih_s = -jcp.t_pad + oh_s * jcp.stride_h;
                 int oh_e = oh_s + work_rem > jcp.oh ? jcp.oh : oh_s + work_rem;
 
-                auto bias_w = bias ? bias + bias_d.blk_off(g_oc) : 0;
+                auto bias_w = bias ? bias + g_oc : nullptr;
                 auto dst_w = dst + dst_d.blk_off(n, g_ocb, oh_s);
                 auto src_w = src + src_d.blk_off(n, g_icb + icb_l2, ih_s);
                 auto wht_w = weights + wht_blk_off(weights_d, g, ocb, icb_l2);
@@ -631,8 +636,9 @@ jit_avx512_common_convolution_bwd_weights_t(const pd_t *pd,
         const input_vector &inputs, const output_vector &outputs)
     : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd), kernel_(nullptr)
     , trans_kernel_(nullptr), trans_dst_kernel_(nullptr), acc_ker_(nullptr)
-    , reducer_bias_(nullptr), tr_src_(nullptr), tr_diff_dst_(nullptr)
-    , ws_reduction_(nullptr), tr_src_bctx_(nullptr),  tr_diff_dst_bctx_(nullptr)
+    , reducer_bias_(nullptr), padded_bias_(nullptr), tr_src_(nullptr)
+    , tr_diff_dst_(nullptr), ws_reduction_(nullptr), tr_src_bctx_(nullptr)
+    , tr_diff_dst_bctx_(nullptr)
 {
     const auto &j = conf_.jcp_;
     kernel_ = new jit_avx512_common_conv_bwd_weights_kernel_f32(j);
@@ -705,6 +711,9 @@ jit_avx512_common_convolution_bwd_weights_t(const pd_t *pd,
         reducer_bias_ = new cpu_reducer_t<diff_weights_type>(reduce_balancer_t(
                     nthr_, j.oc_block, j.ngroups * j.nb_oc, j.mb,
                     max_buffer_size));
+        if (conf_.want_padded_bias())
+            padded_bias_ = (diff_weights_data_t *)
+                malloc(sizeof(diff_weights_data_t) * j.oc, 64);
     }
 }
 
@@ -714,7 +723,8 @@ struct jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
     diff_weights_type>::thread_info_t {
     const src_data_t *src;
     const diff_dst_data_t *diff_dst;
-    const diff_weights_data_t *diff_weights, *diff_bias;
+    const diff_weights_data_t *diff_weights;
+    diff_weights_data_t *diff_bias;
 
     int ithr;
     int ithr_ic_b, ithr_oc_b, ithr_g, ithr_mb;
@@ -733,7 +743,9 @@ struct jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
         diff_dst = reinterpret_cast<const diff_dst_data_t *>(
             self->input_memory(1));
         diff_weights = reinterpret_cast<diff_weights_data_t *>(self->memory(0));
-        diff_bias = reinterpret_cast<diff_weights_data_t *>(self->memory(1));
+        diff_bias = self->conf_.want_padded_bias()
+            ? self->padded_bias_
+            : reinterpret_cast<diff_weights_data_t *>(self->memory(1));
 
         ithr_ic_b = ithr % self->nthr_ic_b_;
         ithr_oc_b = ithr / self->nthr_ic_b_ % self->nthr_oc_b_;
@@ -1288,7 +1300,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
         }
     }
 
-    rb->reduce(ti->ithr, (diff_weights_data_t *)ti->diff_bias);
+    rb->reduce(ti->ithr, ti->diff_bias);
 }
 
 template <data_type_t src_type, data_type_t diff_dst_type,
@@ -1298,19 +1310,17 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
 
     const auto &jcp = kernel_->jcp;
 
-    const int wei_size = jcp.ngroups * jcp.oc * jcp.ic * jcp.kh * jcp.kw
-        * jcp.kd;
+    const size_t wei_size = (size_t)jcp.ngroups * jcp.oc * jcp.ic * jcp.kh
+        * jcp.kw * jcp.kd;
     const int bia_size = jcp.ngroups * jcp.oc;
     const diff_weights_data_t *diff_bias_ws
-            = ws_reduction_ + (nthr_mb_ - 1) * wei_size;
+            = ws_reduction_ + (size_t)(nthr_mb_ - 1) * wei_size;
 
     #pragma omp barrier
     if (ti->ithr == 0)
     {
         for (int thr_mb = 1; thr_mb < nthr_mb_; ++thr_mb) {
-
-            acc_ker_->accumulate((diff_weights_data_t *)ti->diff_bias,
-                diff_bias_ws, bia_size);
+            acc_ker_->accumulate(ti->diff_bias, diff_bias_ws, bia_size);
             diff_bias_ws += bia_size;
         }
     }
@@ -1337,6 +1347,14 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
             if (nthr_mb_ > 1) reduce_diff_weights_3d(&thread_info);
             if (conf_.with_bias()) compute_diff_bias_3d(&thread_info);
         }
+    }
+
+    /* TODO: put that into compute_diff_bias() */
+    if (conf_.want_padded_bias()) {
+        auto diff_bias_in
+            = reinterpret_cast<diff_weights_data_t *>(this->memory(1));
+        for (int oc = 0; oc < conf_.jcp_.oc_without_padding; ++oc)
+            diff_bias_in[oc] = this->padded_bias_[oc];
     }
 }
 

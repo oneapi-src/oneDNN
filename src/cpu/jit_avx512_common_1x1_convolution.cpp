@@ -72,6 +72,12 @@ void _jit_avx512_common_1x1_convolution_fwd_t
     const memory_desc_wrapper weights_d(conf_.weights_pd(0));
 
     const auto &jcp = kernel_->jcp;
+    if (conf_.want_padded_bias()) {
+        assert(jcp.ngroups == 1);
+        for (int oc = 0; oc < jcp.oc_without_padding; ++oc)
+            padded_bias_[oc] = bias[oc];
+        bias = padded_bias_;
+    }
 
     const int work_amount = jcp.mb * jcp.ngroups * jcp.nb_bcast;
 
@@ -409,8 +415,8 @@ jit_avx512_common_1x1_convolution_bwd_weights_t ::
     : cpu_primitive_t(&conf_, inputs, outputs)
     , conf_(*pd), kernel_(nullptr), acc_ker_(nullptr), reducer_bias_(nullptr)
     , trans_kernel_(nullptr), rtus_driver_(nullptr), ws_per_thread_(0)
-    , scratch_(nullptr), bctx_(nullptr), tr_src_(nullptr)
-    , ws_reduction_(nullptr)
+    , scratch_(nullptr), padded_bias_(nullptr), bctx_(nullptr)
+    , tr_src_(nullptr), ws_reduction_(nullptr)
 {
     kernel_ = new jit_avx512_common_1x1_conv_kernel(conf_.jcp_, *conf_.attr());
 
@@ -431,7 +437,13 @@ jit_avx512_common_1x1_convolution_bwd_weights_t ::
         reducer_bias_ = new cpu_reducer_t<data_type::f32>(
                 reduce_balancer_t(jcp.nthr, jcp.oc_block,
                         jcp.ngroups * jcp.nb_load, jcp.mb, max_buffer_size));
+
+        if (conf_.want_padded_bias()) {
+            assert(jcp.ngroups == 1);
+            padded_bias_ = (data_t *)malloc(sizeof(data_t) * jcp.oc, 64);
+        }
     }
+
     if (jcp.transpose_src) {
         const ptrdiff_t tr_src_size = (ptrdiff_t)jcp.nthr_mb
             * (ptrdiff_t)jcp.ngroups * (ptrdiff_t)jcp.ic * jcp.tr_is;
@@ -455,15 +467,14 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights()
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto diff_weights = reinterpret_cast<data_t *>(this->memory(0));
-    auto diff_bias = reinterpret_cast<data_t *>(this->memory(1));
+    auto diff_bias_in = reinterpret_cast<data_t *>(this->memory(1));
+    data_t *diff_bias = conf_.want_padded_bias() ? padded_bias_ : diff_bias_in;
 
     const memory_desc_wrapper diff_dst_d(conf_.diff_dst_pd());
     const memory_desc_wrapper src_d(conf_.src_pd());
     const memory_desc_wrapper diff_weights_d(conf_.diff_weights_pd(0));
-    const memory_desc_wrapper diff_bias_d(conf_.diff_weights_pd(1));
 
     const auto &jcp = kernel_->jcp;
-
     const int wei_size = jcp.ngroups * jcp.oc * jcp.ic;
 
     simple_barrier::ctx_t reduction_barrier;
@@ -778,6 +789,13 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights()
         ker(ithr, jcp.nthr);
         if (conf_.with_bias())
             ker_bias(ithr, jcp.nthr);
+    }
+
+    /* TODO: put this in ker_bias */
+    if (conf_.want_padded_bias()) {
+        assert(jcp.ngroups == 1);
+        for (int oc = 0; oc < jcp.oc_without_padding; ++oc)
+            diff_bias_in[oc] = diff_bias[oc];
     }
 }
 
