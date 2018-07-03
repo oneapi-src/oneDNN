@@ -63,7 +63,7 @@ struct cpu_memory_t: public cpu_primitive_t {
     }
     virtual mkldnn::impl::status_t set_data_handle(void *handle) {
         data_ = static_cast<char *>(handle);
-        return success;
+        return zero_pad();
     }
 
     virtual char *memory(size_t output_index = 0) const
@@ -74,6 +74,10 @@ struct cpu_memory_t: public cpu_primitive_t {
 private:
     pd_t conf_;
     char *data_;
+
+    template <mkldnn::impl::data_type_t>
+    mkldnn::impl::status_t typed_zero_pad();
+    mkldnn::impl::status_t zero_pad();
 };
 
 struct cpu_view_t: public cpu_primitive_t {
