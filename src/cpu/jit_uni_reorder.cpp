@@ -255,9 +255,19 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
 
                 /* dst <-- beta * dst + xmm[:] */
                 assert(prb_.beta == 0.f || prb_.beta == 1.f);
-                if (prb_.beta == 1.f)
-                    for (int ur = 0; ur < reg_unroll; ur += 4)
-                        addps(Xmm(ur), o_addr(o_off[ur]));
+                if (prb_.beta == 1.f) {
+		    /* non VEX instructions do not support unaligned
+                       memory for instructions other than
+                       movups. Because register 1 is unused, we load
+                       there and then call addps */
+		  for (int ur = 0; ur < reg_unroll; ur += 4)
+		      if (mayiuse(avx))
+		          vaddps(Xmm(ur), o_addr(o_off[ur]));
+		      else {
+		          movups(Xmm(1), o_addr(o_off[ur]));
+		          addps(Xmm(ur), Xmm(1));
+		      }
+		}
 
                 for (int ur = 0; ur < reg_unroll; ur += 4)
                     movups(o_addr(o_off[ur]), Xmm(ur));
