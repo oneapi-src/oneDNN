@@ -193,11 +193,10 @@ protected:
         bias.reset(new test_memory(*dec_bias_desc, *eng));
         dst.reset(new test_memory(*dec_dst_desc, *eng));
 
-        int b_pad = (dd.ih - 1) * dd.strh + (dd.kh - 1) * (dd.dilh + 1)
-                    - (dd.padh + dd.oh - 1);
-        int r_pad = (dd.iw - 1) * dd.strw + (dd.kw - 1) * (dd.dilw + 1)
-                    - (dd.padw + dd.ow - 1);
-        padR = { b_pad, r_pad };
+        padR = {
+            right_padding(dd.oh, dd.ih, dd.kh, dd.padh, dd.strh, dd.dilh),
+            right_padding(dd.ow, dd.iw, dd.kw, dd.padw, dd.strw, dd.dilw)
+        };
         Forward();
         BackwardData();
         BackwardWeights();

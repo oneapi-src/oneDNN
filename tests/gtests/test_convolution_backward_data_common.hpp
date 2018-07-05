@@ -126,11 +126,10 @@ protected:
         auto c_weights = test_memory(c_weights_desc, eng);
         auto c_diff_dst = test_memory(c_dst_desc, eng);
 
-        int b_pad = (cd.oh - 1) * cd.strh + (cd.kh - 1) * (cd.dilh + 1)
-                    - (cd.padh + cd.ih - 1);
-        int r_pad = (cd.ow - 1) * cd.strw + (cd.kw - 1) * (cd.dilw + 1)
-                    - (cd.padw + cd.iw - 1);
-        std::vector<int> padR = { b_pad, r_pad };
+        std::vector<int> padR = {
+            right_padding(cd.ih, cd.oh, cd.kh, cd.padh, cd.strh, cd.dilh),
+            right_padding(cd.iw, cd.ow, cd.kw, cd.padw, cd.strw, cd.dilw)
+        };
 
         // Only true for dense format
         fill_data<data_t_wei>(c_weights.get_size() / sizeof(data_t_wei),

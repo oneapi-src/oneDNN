@@ -175,11 +175,10 @@ protected:
         fill_data<data_t_src>(c_src.get_size() / sizeof(data_t_src),
             (data_t_src *)c_src.get().get_data_handle());
 
-        int b_pad = (cd.oh - 1) * cd.strh + (cd.kh - 1) * (cd.dilh + 1)
-                    - (cd.padh + cd.ih - 1);
-        int r_pad = (cd.ow - 1) * cd.strw + (cd.kw - 1) * (cd.dilw + 1)
-                    - (cd.padw + cd.iw - 1);
-        std::vector<int> padR = { b_pad, r_pad };
+        std::vector<int> padR = {
+            right_padding(cd.ih, cd.oh, cd.kh, cd.padh, cd.strh, cd.dilh),
+            right_padding(cd.iw, cd.ow, cd.kw, cd.padw, cd.strw, cd.dilw)
+        };
 
         auto conv_desc = convolution_forward::desc(
                 prop_kind::forward_training, p.aalgorithm, c_src_desc,
