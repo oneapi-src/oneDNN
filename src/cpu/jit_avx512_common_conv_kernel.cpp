@@ -1382,7 +1382,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
             bool eligible_case = (jcp.stride_h == 1 && jcp.stride_w == 1)
                     || nthreads > oc_chunks;
             if (jcp.loop_order == loop_cgn && oc_chunks > 1 && nthreads > 1
-                && wei_size / inp_size > 12
+                && wei_size / inp_size > 24
                 && (not_aligned_max || not_aligned_min)
                 && eligible_case) {
                 jcp.aligned_threads = nthreads;
