@@ -60,6 +60,10 @@ int fill_memory(const rnn_prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem1,
 inline int init_pd(const rnn_prb_t *p, mkldnn_rnn_desc_t rd[2],
         mkldnn_primitive_desc_t rpd[2], res_t *r) {
     const bool is_bwd = p->prop_ == mkldnn_backward;
+    // If we are testing backward, we have to first run forward
+    // training first in order to generate a valid workspace.
+    auto fwd_prop = is_bwd ? mkldnn_forward_training : mkldnn_forward_inference;
+
     const bool is_gru_lbr = p->alg == GRU_LINEAR_BEFORE_RESET;
     int the_stride = 1;
     /// @todo we need to add stride support for diff_* tensors too
@@ -165,17 +169,18 @@ inline int init_pd(const rnn_prb_t *p, mkldnn_rnn_desc_t rd[2],
 
     mkldnn_rnn_cell_desc_t rcd;
     DNN_SAFE(mkldnn_rnn_cell_desc_init(&rcd, kind, f, 0U, 0, 0), WARN);
-    // if (p->prop_ == mkldnn_forward)
+    // Initializing the forward pass
+    // When inference, we use forward_inference
+    // When training, we use forward_training
     {
-        DNN_SAFE(mkldnn_rnn_forward_desc_init(&rd[0], mkldnn_forward, &rcd,
+        DNN_SAFE(mkldnn_rnn_forward_desc_init(&rd[0], fwd_prop, &rcd,
                          p->direction, &input_d, &states_d, &weights_input_d,
                          &weights_states_d, &bias_d, &dst_last_layer_d,
                          &dst_last_iteration_d),
                 WARN);
     }
-    // else
+
     if (is_bwd) {
-        // TODO:
         DNN_SAFE(mkldnn_rnn_backward_desc_init(&rd[1], p->prop_, &rcd,
                          p->direction, &input_d, &states_d, &weights_input_d,
                          &weights_states_d, &bias_d, &dst_last_layer_d,
@@ -335,12 +340,13 @@ int doit(const rnn_prb_t *p, res_t *r) {
         diff_last_layer_fp = new dnn_mem_t(diff_dst_layer_dt_d, fp, mkldnn_tnc);
         diff_last_iteration_fp
                 = new dnn_mem_t(diff_dst_iter_dt_d, fp, mkldnn_ldsnc);
-    }
 
-    const auto ws_pd = mkldnn_primitive_desc_query_pd(
-            rpd[0], mkldnn_query_workspace_pd, 0);
-    SAFE(ws_pd != NULL ? OK : FAIL, WARN);
-    workspace_dt = new dnn_mem_t(*mkldnn_primitive_desc_query_memory_d(ws_pd));
+        const auto ws_pd = mkldnn_primitive_desc_query_pd(
+                rpd[0], mkldnn_query_workspace_pd, 0);
+        SAFE(ws_pd != NULL ? OK : FAIL, WARN);
+        workspace_dt
+                = new dnn_mem_t(*mkldnn_primitive_desc_query_memory_d(ws_pd));
+    }
 
     SAFE(fill_memory(p, input, *input_dt, *input_fp), WARN);
     SAFE(fill_memory(p, states, *states_dt, *states_fp), WARN);
@@ -379,13 +385,13 @@ int doit(const rnn_prb_t *p, res_t *r) {
                 WARN);
     }
 
-    // if (p->prop_ == mkldnn_forward)
+    // Running the forward pass
     {
         mkldnn_primitive_at_t inputs[] = { { input_dt->p_, 0 },
             { states_dt->p_, 0 }, { weights_input_dt->p_, 0 },
             { weights_states_dt->p_, 0 }, { bias_dt->p_, 0 } };
         const_mkldnn_primitive_t outputs[] = { dst_last_layer_dt->p_,
-            dst_last_iteration_dt->p_, workspace_dt->p_ };
+            dst_last_iteration_dt->p_, workspace_dt ? workspace_dt->p_ : 0 };
 #ifdef CALL_MKLDNN_RNN
         DNN_SAFE(mkldnn_primitive_create(&c, rpd[0], inputs, outputs), WARN);
         SAFE(execute(c), WARN);
@@ -406,7 +412,8 @@ int doit(const rnn_prb_t *p, res_t *r) {
                          *dst_last_iteration_fp, r, true),
                     WARN);
         }
-    } // else
+    }
+
     if (is_bwd) {
         mkldnn_primitive_at_t inputs[] = {
             { input_dt->p_, 0 }, { states_dt->p_, 0 },
