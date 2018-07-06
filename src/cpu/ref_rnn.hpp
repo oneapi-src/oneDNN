@@ -170,13 +170,16 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
                                || (this->L() == 1))
                     && (this->SIC() == this->DIC() || (this->T() == 1));
 
-            // initialize the workspace_pd
-            dims_t ws_dims = { (dim_t)this->get_ws_size() };
-            memory_desc_t ws_d;
-            mkldnn_memory_desc_init(
-                    &ws_d, 1, ws_dims, impl::data_type::f32, memory_format::x);
-            this->ws_pd_ = cpu_memory_t::pd_t(this->engine(), &ws_d);
-            return ok ? status::success : status::unimplemented;
+            // initialize the workspace_pd if needed
+	    if (this->desc()->prop_kind != forward_inference){
+	        dims_t ws_dims = { (dim_t)this->get_ws_size() };
+	        memory_desc_t ws_d;
+	        mkldnn_memory_desc_init(
+                        &ws_d, 1, ws_dims, impl::data_type::f32, memory_format::x);
+                this->ws_pd_ = cpu_memory_t::pd_t(this->engine(), &ws_d);
+	    }
+
+	    return ok ? status::success : status::unimplemented;
         }
     };
 
@@ -289,21 +292,7 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
         //   = TODO: allocate only n_layer_wav * batch * n_gates * dic for
         //   wavefront execution (inference)
 
-        switch (conf_.desc()->prop_kind) {
-        case prop_kind::forward_inference:
-            use_scratchpad_for_ws_ = (memory(conf_.ws_idx()) == nullptr);
-            break;
-        case prop_kind::forward_training:
-            use_scratchpad_for_ws_ = (memory(conf_.ws_idx()) == nullptr);
-            assert(use_scratchpad_for_ws_ == false);
-            break;
-        case prop_kind::backward:
-            use_scratchpad_for_ws_ = (input_memory(conf_.ws_idx()) == nullptr);
-            assert(use_scratchpad_for_ws_ == false);
-            break;
-        default: assert(!"invalid prop_kind");
-        }
-
+	use_scratchpad_for_ws_ = (conf_.desc()->prop_kind == prop_kind::forward_inference);
         use_scratchpad_ = use_scratchpad_for_ws_ || conf_.is_lbr();
         if (use_scratchpad_)
             scratchpad_ =
