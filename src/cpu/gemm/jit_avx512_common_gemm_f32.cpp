@@ -1839,7 +1839,9 @@ void jit_avx512_common_gemm_f32::sgemm(const char *transa, const char *transb,
         const float *A, const int *p_lda, const float *B, const int *p_ldb,
         const float *p_beta, float *C, const int *p_ldc, const float *bias)
 {
-    assert(*transa == transa_ && *transb == transb_ && *p_beta == beta_);
+    if (beta_ == 0. || beta_ == 1.)
+        assert(*p_beta == beta_);
+    assert((one_of(*transa, 'T', 't') == one_of(transa_, 'T', 't')));
 
     int nthr = (omp_in_parallel()) ? 1 : omp_get_max_threads();
     int m = *p_m;
