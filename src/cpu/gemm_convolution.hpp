@@ -20,8 +20,8 @@
 #include "c_types_map.hpp"
 #include "cpu_convolution_pd.hpp"
 #include "cpu_engine.hpp"
-#include "jit_avx2_gemm_f32.hpp"
-#include "jit_avx512_common_gemm_f32.hpp"
+#include "gemm/jit_avx2_gemm_f32.hpp"
+#include "gemm/jit_avx512_common_gemm_f32.hpp"
 #include "jit_primitive_conf.hpp"
 #include "gemm_convolution_utils.hpp"
 

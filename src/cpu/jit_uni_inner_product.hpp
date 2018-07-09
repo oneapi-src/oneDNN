@@ -22,8 +22,8 @@
 #include "c_types_map.hpp"
 #include "cpu_engine.hpp"
 #include "cpu_inner_product_pd.hpp"
-#include "jit_avx2_gemm_f32.hpp"
-#include "jit_avx512_common_gemm_f32.hpp"
+#include "gemm/jit_avx2_gemm_f32.hpp"
+#include "gemm/jit_avx512_common_gemm_f32.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 

@@ -18,8 +18,8 @@
 #include "type_helpers.hpp"
 #include "mkldnn_thread.hpp"
 
-#include "jit_avx2_gemm_f32.hpp"
-#include "jit_avx512_common_gemm_f32.hpp"
+#include "gemm/jit_avx2_gemm_f32.hpp"
+#include "gemm/jit_avx512_common_gemm_f32.hpp"
 #include "jit_uni_inner_product.hpp"
 
 namespace mkldnn {
