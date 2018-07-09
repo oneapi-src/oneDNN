@@ -45,8 +45,8 @@ struct nchw_pooling_fwd_t: public cpu_primitive_t {
             using namespace prop_kind;
             using namespace alg_kind;
             assert(engine()->kind() == engine_kind::cpu);
+            auto src_format = src_pd()->desc()->format;
             bool ok = true
-                && desc()->src_desc.ndims == 4
                 && set_default_params() == status::success
                 && utils::one_of(desc()->prop_kind, forward_training,
                         forward_inference)
@@ -55,8 +55,8 @@ struct nchw_pooling_fwd_t: public cpu_primitive_t {
                         pooling_avg_exclude_padding)
                 && utils::everyone_is(data_type, src_pd()->desc()->data_type,
                         dst_pd()->desc()->data_type)
-                && utils::everyone_is(nchw, src_pd()->desc()->format,
-                        dst_pd()->desc()->format)
+                && utils::one_of(src_format, nchw, ncdhw)
+                && (src_format == dst_pd()->desc()->format)
                 && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
@@ -100,17 +100,18 @@ struct nchw_pooling_bwd_t: public cpu_primitive_t {
             using namespace prop_kind;
             using namespace alg_kind;
             assert(engine()->kind() == engine_kind::cpu);
+            auto diff_dst_format = diff_dst_pd()->desc()->format;
             bool ok = true
-                && desc()->diff_src_desc.ndims == 4
                 && set_default_params() == status::success
                 && utils::one_of(desc()->prop_kind, backward_data)
                 && utils::one_of(desc()->alg_kind, pooling_max,
                         pooling_avg_include_padding,
                         pooling_avg_exclude_padding)
-                && utils::everyone_is(data_type, diff_dst_pd()->desc()->data_type,
+                && utils::everyone_is(data_type,
+                        diff_dst_pd()->desc()->data_type,
                         diff_src_pd()->desc()->data_type)
-                && utils::everyone_is(nchw, diff_dst_pd()->desc()->format,
-                        diff_src_pd()->desc()->format)
+                && utils::one_of(diff_dst_format, nchw, ncdhw)
+                && (diff_dst_format == diff_src_pd()->desc()->format)
                 && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
