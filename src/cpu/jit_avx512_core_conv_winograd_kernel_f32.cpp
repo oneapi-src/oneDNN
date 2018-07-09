@@ -1106,6 +1106,7 @@ status_t _jit_avx512_core_conv_winograd_data_kernel_f32::init_conf_common(
     jcp.ngroups = with_groups ? weights_d.dims()[0] : 1;
     jcp.mb = src_d.dims()[0];
     jcp.oc = dst_d.dims()[1] / jcp.ngroups;
+    jcp.oc_without_padding = jcp.oc;
     jcp.ic = src_d.dims()[1] / jcp.ngroups;
     jcp.ih = src_d.dims()[2];
     jcp.iw = src_d.dims()[3];
@@ -1128,6 +1129,12 @@ status_t _jit_avx512_core_conv_winograd_data_kernel_f32::init_conf_common(
     jcp.ohp = jcp.oh;
     jcp.owp = jcp.ow;
 
+    bool ok_to_pad_channels = jcp.ngroups == 1;
+    if (ok_to_pad_channels) {
+        jcp.oc = rnd_up(jcp.oc, simd_w);
+        jcp.ic = rnd_up(jcp.ic, simd_w);
+    }
+
     // Checking conditions not supported by these kernels
     if (jcp.ngroups != 1)
         return status::unimplemented;
@@ -1146,6 +1153,13 @@ status_t _jit_avx512_core_conv_winograd_data_kernel_f32::init_conf_common(
         return status::unimplemented;
     if (dst_d.format() != nChw16c)
         return status::unimplemented;
+
+    bool layout_consistency = true
+        && jcp.ic <= src_d.blocking_desc().padding_dims[1]
+        && jcp.oc <= dst_d.blocking_desc().padding_dims[1]
+        && jcp.ic <= weights_d.blocking_desc().padding_dims[with_groups + 1]
+        && jcp.oc <= weights_d.blocking_desc().padding_dims[with_groups + 0];
+    if (!layout_consistency) return status::unimplemented;
 
     return status::success;
 }
@@ -2424,6 +2438,7 @@ status_t jit_avx512_core_conv_winograd_bwd_weights_kernel_f32::init_conf(
     jcp.mb = src_d.dims()[0];
     jcp.ngroups = with_groups ? diff_weights_d.dims()[0] : 1;
     jcp.oc = diff_dst_d.dims()[1] / jcp.ngroups;
+    jcp.oc_without_padding = jcp.oc;
     jcp.ic = src_d.dims()[1] / jcp.ngroups;
     jcp.ih = src_d.dims()[2];
     jcp.iw = src_d.dims()[3];
@@ -2447,6 +2462,12 @@ status_t jit_avx512_core_conv_winograd_bwd_weights_kernel_f32::init_conf(
     jcp.dilate_h = cd.dilates[0];
     jcp.dilate_w = cd.dilates[1];
 
+    bool ok_to_pad_channels = jcp.ngroups == 1;
+    if (ok_to_pad_channels) {
+        jcp.oc = rnd_up(jcp.oc, simd_w);
+        jcp.ic = rnd_up(jcp.ic, simd_w);
+    }
+
     // Winograd specific initialization
     jcp.itiles = (jcp.ow + tile_size - 1) / tile_size;
     jcp.jtiles = (jcp.oh + tile_size - 1) / tile_size;
@@ -2469,6 +2490,13 @@ status_t jit_avx512_core_conv_winograd_bwd_weights_kernel_f32::init_conf(
         return status::unimplemented;
     if (diff_dst_d.format() != nChw16c)
         return status::unimplemented;
+
+    bool layout_consistency = true
+        && jcp.ic <= src_d.blocking_desc().padding_dims[1]
+        && jcp.oc <= diff_dst_d.blocking_desc().padding_dims[1]
+        && jcp.ic <= diff_weights_d.blocking_desc().padding_dims[with_groups + 1]
+        && jcp.oc <= diff_weights_d.blocking_desc().padding_dims[with_groups + 0];
+    if (!layout_consistency) return status::unimplemented;
 
     /******************Kernel blocking Parameters ***********/
     jcp.ic_simd_block = simd_w;
