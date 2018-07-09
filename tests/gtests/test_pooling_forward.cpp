@@ -549,7 +549,29 @@ INSTANTIATE_TEST_CASE_P(
             ));
 
 INSTANTIATE_TEST_CASE_P(
-        TestPooling3Dunet, pooling_test_float, ::testing::Values(
+        TestPooling3D_ndhwc, pooling_test_float, ::testing::Values(
+            pool_test_params{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::pooling_max, memory::format::ndhwc,
+            memory::format::ndhwc, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 2, 3, 4, 1, 1, 1, 2, 2, 2) },
+            pool_test_params{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding, memory::format::ndhwc,
+            memory::format::ndhwc, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 4, 3, 2, 1, 1, 1, 2, 2, 2) },
+            pool_test_params{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::pooling_avg_include_padding, memory::format::ndhwc,
+            memory::format::ndhwc, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 2, 4, 3, 1, 1, 1, 2, 2, 2) },
+            pool_test_params{ prop_kind::forward_inference,
+            engine::kind::cpu, algorithm::pooling_max, memory::format::ndhwc,
+            memory::format::ndhwc, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 4, 2, 3, 1, 1, 1, 2, 2, 2) },
+            pool_test_params{ prop_kind::forward_inference,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding, memory::format::ndhwc,
+            memory::format::ndhwc, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 3, 2, 4, 1, 1, 1, 2, 2, 2) },
+            pool_test_params{ prop_kind::forward_inference,
+            engine::kind::cpu, algorithm::pooling_avg_include_padding, memory::format::ndhwc,
+            memory::format::ndhwc, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 3, 4, 2, 1, 1, 1, 2, 2, 2) }
+            ));
+
+INSTANTIATE_TEST_CASE_P(
+        TestPooling3Dunet_ncdhw, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_inference,
             engine::kind::cpu, algorithm::pooling_max, memory::format::ncdhw,
             memory::format::ncdhw, EXPAND_SIZES_3D(1, 64, 64, 64, 64, 64, 64, 64, 2, 2, 2, 0, 0, 0, 1, 1, 1) },
@@ -559,6 +581,19 @@ INSTANTIATE_TEST_CASE_P(
             pool_test_params{ prop_kind::forward_inference,
             engine::kind::cpu, algorithm::pooling_max, memory::format::ncdhw,
             memory::format::ncdhw, EXPAND_SIZES_3D(1, 256, 12, 12, 12, 12, 12, 12, 2, 2, 2, 0, 0, 0, 1, 1, 1) }
+            ));
+
+INSTANTIATE_TEST_CASE_P(
+        TestPooling3Dunet_ndhwc, pooling_test_float, ::testing::Values(
+            pool_test_params{ prop_kind::forward_inference,
+            engine::kind::cpu, algorithm::pooling_max, memory::format::ndhwc,
+            memory::format::ndhwc, EXPAND_SIZES_3D(1, 64, 64, 64, 64, 64, 64, 64, 2, 2, 2, 0, 0, 0, 1, 1, 1) },
+            pool_test_params{ prop_kind::forward_inference,
+            engine::kind::cpu, algorithm::pooling_max, memory::format::ndhwc,
+            memory::format::ndhwc, EXPAND_SIZES_3D(1, 128, 28, 28, 28, 28, 28, 28, 2, 2, 2, 0, 0, 0, 1, 1, 1) },
+            pool_test_params{ prop_kind::forward_inference,
+            engine::kind::cpu, algorithm::pooling_max, memory::format::ndhwc,
+            memory::format::ndhwc, EXPAND_SIZES_3D(1, 256, 12, 12, 12, 12, 12, 12, 2, 2, 2, 0, 0, 0, 1, 1, 1) }
             ));
 
 INSTANTIATE_TEST_CASE_P(
