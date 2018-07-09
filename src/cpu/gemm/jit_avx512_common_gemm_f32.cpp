@@ -19,6 +19,7 @@
 #include "mkldnn_thread.hpp"
 #include "utils.hpp"
 
+#include "gemm_utils.hpp"
 #include "jit_avx512_common_gemm_f32.hpp"
 
 #define CACHE_LINE_SIZE 16
@@ -1833,230 +1834,13 @@ void jit_avx512_common_gemm_f32::sgemm_nocopy_driver(const char *transa,
     return;
 }
 
-// Partition n values as equally as possible among nthr threads
-// and set the offset (t_offset) and number of values (t_block) for ithr
-// Assumption: 0 <= ithr < nthr
-inline void jit_avx512_common_gemm_f32::partition_unit_diff(
-        int ithr, int nthr, int n, int *t_offset, int *t_block)
-{
-    int band = n / nthr;
-    if (band == 0)
-        band = 1;
-    int tail = n - band * nthr;
-    if (tail < 0)
-        tail = 0;
-
-    if (ithr < tail) {
-        band++;
-        *t_offset = band * ithr;
-        *t_block = band;
-    } else {
-        *t_offset = band * ithr + tail;
-        *t_block = band;
-    }
-
-    if (*t_offset >= n) {
-        *t_offset = 0;
-        *t_block = 0;
-    }
-
-    if (*t_offset + *t_block > n) {
-        *t_block = n - *t_offset;
-    }
-}
-
-// Sum the m*n values from p_src into p_dst, assuming the two-dimensional
-// arrays have leading dimensions ld_src and ld_dst, respectively
-inline void jit_avx512_common_gemm_f32::sum_two_matrices(
-        int m, int n, float *p_src, int ld_src, float *p_dst, int ld_dst)
-{
-    int i, j;
-    for (j = 0; j < n; j++) {
-        for (i = 0; i < m; i++) {
-            p_dst[i + j * ld_dst] += p_src[i + j * ld_src];
-        }
-    }
-}
-
-#define BM_NOCOPY_AVX512_COMMON 32
-#define BN_NOCOPY_AVX512_COMMON 64
-#define BK_NOCOPY_AVX512_COMMON 192
-#define BN_LARGE_NOCOPY_AVX512_COMMON 192
-#define BM_SMALL_NOCOPY_AVX512_COMMON 16
-#define BN_SMALL_NOCOPY_AVX512_COMMON 1
-#define BK_SMALL_NOCOPY_AVX512_COMMON 4
-// Determine number of threads for each dimension of a 3-D partitioning
-// algorithm based on input parameters
-// m/n/k - First/second/third parameter for GEMM
-// nthrs - total available number of threads
-// nthrs_m/nthrs_n/nthrs_k - number of threads to use in each dimension
-// BM/BN/BK - blocking values
-inline void jit_avx512_common_gemm_f32::calc_nthr_nocopy_avx512_common(int m,
-        int n, int k, int nthrs, int *nthrs_m, int *nthrs_n, int *nthrs_k,
-        int *BM, int *BN, int *BK)
-{
-    int nthr, nthr_m, nthr_n, nthr_k;
-    int MB, NB, KB;
-    nthr = nthrs;
-
-    int counter = 0;
-    float ratio_float = 1.;
-    int ratio = 1;
-    nthr = nthrs;
-    int nthr_m_gt_n;
-
-    /* Partition along K dimension if there is enough K and there is not enough
-     * M/N */
-    if (n <= 2 * BN_NOCOPY_AVX512_COMMON &&
-            m <= 2 * BM_NOCOPY_AVX512_COMMON * nthr) {
-        nthr_k = k / BK_NOCOPY_AVX512_COMMON;
-        if (nthr_k > nthr / 4)
-            nthr_k = nthr / 4;
-        if (nthr_k < 1)
-            nthr_k = 1;
-
-        while ((nthr_k > 1) && (nthr % nthr_k)) {
-            nthr_k--;
-        }
-        nthr /= nthr_k;
-    } else {
-        nthr_k = 1;
-    }
-    nthr_m = (m + BM_NOCOPY_AVX512_COMMON - 1) / BM_NOCOPY_AVX512_COMMON;
-    nthr_n = (n + BN_NOCOPY_AVX512_COMMON - 1) / BN_NOCOPY_AVX512_COMMON;
-
-    if (nthr_m < 1)
-        nthr_m = 1;
-    if (nthr_n < 1)
-        nthr_n = 1;
-
-    nthr_m_gt_n = nthr_m > nthr_n ? 1 : 0;
-    ratio_float = (float)nthr_m / nthr_n;
-
-    if (nthr_m_gt_n)
-        ratio = (int)ratio_float;
-    else
-        ratio = (int)(1. / ratio_float);
-
-    // scale down nthr_m and nthr_n if they are too large
-    while (nthr_m * nthr_n > 4 * nthr) {
-        nthr_m /= 2;
-        nthr_n /= 2;
-    }
-
-    if (nthr_m < 1)
-        nthr_m = 1;
-    if (nthr_n < 1)
-        nthr_n = 1;
-
-    // Simple partition reduction
-    counter = 0;
-    while (nthr_m * nthr_n > nthr) {
-        if (nthr_m > nthr_n) {
-            if (counter < ratio)
-                nthr_m--;
-            else {
-                nthr_n--;
-                counter = -1;
-            }
-        } else {
-            if (counter < ratio)
-                nthr_n--;
-            else {
-                nthr_m--;
-                counter = -1;
-            }
-        }
-        counter++;
-    }
-
-    // Simple partition increment
-    counter = 0;
-    while (nthr_m * nthr_n < 0.95 * nthr) {
-        if (nthr_m > nthr_n) {
-            if (counter < ratio)
-                nthr_m++;
-            else {
-                nthr_n++;
-                counter = -1;
-            }
-        } else {
-            if (counter < ratio)
-                nthr_n++;
-            else {
-                nthr_m++;
-                counter = -1;
-            }
-        }
-        counter++;
-    }
-
-    // if nothing works out, then this should work
-    if ((nthr_m * nthr_n > nthr)) {
-
-        if (nthr_m <= nthr_n) {
-            nthr_m = (int)sqrt((double)nthr);
-            if (nthr_m > (m + BM_SMALL_NOCOPY_AVX512_COMMON - 1)
-                            / BM_SMALL_NOCOPY_AVX512_COMMON)
-                nthr_m = (m + BM_SMALL_NOCOPY_AVX512_COMMON - 1)
-                        / BM_SMALL_NOCOPY_AVX512_COMMON;
-            nthr_n = nthr / nthr_m;
-
-            while ((nthr_m > 1) && (nthr_m * nthr_n != nthr)) {
-                nthr_m--;
-                nthr_n = nthr / nthr_m;
-            }
-        } else {
-            nthr_n = (int)sqrt((double)nthr);
-            if (nthr_n > (n + BN_SMALL_NOCOPY_AVX512_COMMON - 1)
-                            / BN_SMALL_NOCOPY_AVX512_COMMON)
-                nthr_n = (n + BN_SMALL_NOCOPY_AVX512_COMMON - 1)
-                        / BN_SMALL_NOCOPY_AVX512_COMMON;
-            nthr_m = nthr / nthr_n;
-
-            while ((nthr_n > 1) && (nthr_m * nthr_n != nthr)) {
-                nthr_n--;
-                nthr_m = nthr / nthr_n;
-            }
-        }
-    }
-
-    MB = (m + nthr_m - 1) / nthr_m + BM_SMALL_NOCOPY_AVX512_COMMON - 1;
-    MB -= MB % BM_SMALL_NOCOPY_AVX512_COMMON;
-    NB = (n + nthr_n - 1) / nthr_n + BN_SMALL_NOCOPY_AVX512_COMMON - 1;
-    NB -= NB % BN_SMALL_NOCOPY_AVX512_COMMON;
-    KB = (k + nthr_k - 1) / nthr_k + BK_SMALL_NOCOPY_AVX512_COMMON - 1;
-    KB -= KB % BK_SMALL_NOCOPY_AVX512_COMMON;
-
-    if (MB * nthr_m > m)
-        nthr_m = (m + MB - 1) / MB;
-    if (NB * nthr_n > n)
-        nthr_n = (n + NB - 1) / NB;
-    if (KB * nthr_k > k)
-        nthr_k = (k + KB - 1) / KB;
-
-    *nthrs_m = nthr_m;
-    *nthrs_n = nthr_n;
-    *nthrs_k = nthr_k;
-
-    *BM = MB;
-    *BN = NB;
-    *BK = KB;
-}
-#undef BM_NOCOPY_AVX512_COMMON
-#undef BN_NOCOPY_AVX512_COMMON
-#undef BK_NOCOPY_AVX512_COMMON
-#undef BN_LARGE_NOCOPY_AVX512_COMMON
-#undef BM_SMALL_NOCOPY_AVX512_COMMON
-#undef BN_SMALL_NOCOPY_AVX512_COMMON
-#undef BK_SMALL_NOCOPY_AVX512_COMMON
-
 void jit_avx512_common_gemm_f32::sgemm(const char *transa, const char *transb,
         const int *p_m, const int *p_n, const int *p_k, const float *p_alpha,
         const float *A, const int *p_lda, const float *B, const int *p_ldb,
         const float *p_beta, float *C, const int *p_ldc, const float *bias)
 {
     assert(*transa == transa_ && *transb == transb_ && *p_beta == beta_);
+
     int nthr = (omp_in_parallel()) ? 1 : omp_get_max_threads();
     int m = *p_m;
     int n = *p_n;
@@ -2072,7 +1856,7 @@ void jit_avx512_common_gemm_f32::sgemm(const char *transa, const char *transb,
     assert(nthr <= nthrs_);
 
     // Determine threading partitioning
-    calc_nthr_nocopy_avx512_common(
+    gemm_utils::calc_nthr_nocopy_avx512_common(
             m, n, k, nthr, &nthr_m, &nthr_n, &nthr_k, &MB, &NB, &KB);
 
     // May not happen, but just in case
@@ -2186,7 +1970,7 @@ void jit_avx512_common_gemm_f32::sgemm(const char *transa, const char *transb,
                 // sum matrices partitioned along K dimension
                 int n1, n2;
 
-                partition_unit_diff(ithr_omp_k, nthr_k, myN, &n1, &n2);
+                gemm_utils::partition_unit_diff(ithr_omp_k, nthr_k, myN, &n1, &n2);
 
                 if (ithr_omp_k > 0) {
 
@@ -2197,7 +1981,7 @@ void jit_avx512_common_gemm_f32::sgemm(const char *transa, const char *transb,
                     };
 
                     /* my cache is hot */
-                    sum_two_matrices(myM, n2, myC, MB,
+                    gemm_utils::sum_two_matrices(myM, n2, myC, MB,
                             &C[m_from + (n_from + n1) * ldc], ldc);
                 }
 
@@ -2210,7 +1994,7 @@ void jit_avx512_common_gemm_f32::sgemm(const char *transa, const char *transb,
                         while (ompstatus[(ibase + ik) * CACHE_LINE_SIZE] != 1) {
                         };
 
-                        sum_two_matrices(myM, n2, myC, MB,
+                        gemm_utils::sum_two_matrices(myM, n2, myC, MB,
                                 &C[m_from + (n_from + n1) * ldc], ldc);
                     }
                 }

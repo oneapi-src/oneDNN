@@ -43,13 +43,6 @@ private:
             int n, int k, const float *alpha, const float *a, int lda,
             const float *b, int ldb, const float *beta, float *c, int ldc,
             const float *bias, float *ws);
-    inline void partition_unit_diff(
-            int ithr, int nthr, int n, int *t_offset, int *t_block);
-    inline void sum_two_matrices(
-            int m, int n, float *p_src, int ld_src, float *p_dst, int ld_dst);
-    inline void calc_nthr_nocopy_avx512_common(int m, int n, int k, int nthrs,
-            int *nthrs_m, int *nthrs_n, int *nthrs_k, int *BM, int *BN,
-            int *BK);
 
     char transa_, transb_;
     float beta_;
