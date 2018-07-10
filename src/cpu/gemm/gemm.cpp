@@ -26,6 +26,14 @@
 #include "nstl.hpp"
 #include "os_blas.hpp"
 
+/* USE_MKL      USE_CBLAS       effect
+ * -------      ---------       ------
+ * yes          yes             use Intel(R) MKL CBLAS
+ * yes          no              use jit
+ * no           yes             system-dependent CBLAS
+ * no           no              use jit
+ */
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {
@@ -132,7 +140,6 @@ mkldnn_status_t extended_sgemm(const char *transa, const char *transb,
         return status;
     if (*M == 0 || *N == 0 || *K == 0)
         return mkldnn_success;
-
     int trA = *transa == 't' || *transa == 'T';
     int trB = *transb == 't' || *transb == 'T';
 #ifdef USE_CBLAS

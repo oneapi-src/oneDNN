@@ -24,7 +24,7 @@
 #include "cpu_engine.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
-
+#include "gemm/gemm.hpp"
 namespace mkldnn {
 namespace impl {
 namespace cpu {
@@ -37,10 +37,9 @@ struct gemm_inner_product_fwd_t: public cpu_primitive_t {
                 const inner_product_fwd_pd_t *hint_fwd_pd)
             : cpu_inner_product_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T("gemm:blas", gemm_inner_product_fwd_t);
+        DECLARE_COMMON_PD_T(GEMM_IMPL_STR, gemm_inner_product_fwd_t);
 
         virtual status_t init() override {
-#ifdef USE_CBLAS
             using namespace utils;
             assert(engine()->kind() == engine_kind::cpu);
 
@@ -57,9 +56,6 @@ struct gemm_inner_product_fwd_t: public cpu_primitive_t {
                 && dense_gemm_consitency_check(src_pd(), weights_pd(),
                         dst_pd());
             return ok ? status::success : status::unimplemented;
-#else
-            return status::unimplemented;
-#endif
         }
     };
 
@@ -87,10 +83,9 @@ struct gemm_inner_product_bwd_data_t: public cpu_primitive_t {
             : cpu_inner_product_bwd_data_pd_t(engine, adesc, attr,
                     hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T("gemm:blas", gemm_inner_product_bwd_data_t);
+        DECLARE_COMMON_PD_T(GEMM_IMPL_STR, gemm_inner_product_bwd_data_t);
 
         virtual status_t init() override {
-#ifdef USE_CBLAS
             using namespace utils;
             assert(engine()->kind() == engine_kind::cpu);
 
@@ -104,9 +99,6 @@ struct gemm_inner_product_bwd_data_t: public cpu_primitive_t {
                 && dense_gemm_consitency_check(diff_src_pd(), weights_pd(),
                         diff_dst_pd());
             return ok ? status::success : status::unimplemented;
-#else
-            return status::unimplemented;
-#endif
         }
     };
 
@@ -134,10 +126,9 @@ struct gemm_inner_product_bwd_weights_t: public cpu_primitive_t {
             : cpu_inner_product_bwd_weights_pd_t(engine, adesc, attr,
                     hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T("gemm:blas", gemm_inner_product_bwd_weights_t);
+        DECLARE_COMMON_PD_T(GEMM_IMPL_STR, gemm_inner_product_bwd_weights_t);
 
         virtual status_t init() override {
-#ifdef USE_CBLAS
             using namespace utils;
             assert(engine()->kind() == engine_kind::cpu);
             bool ok = true
@@ -151,9 +142,6 @@ struct gemm_inner_product_bwd_weights_t: public cpu_primitive_t {
                         diff_dst_pd());
 
             return ok ? status::success : status::unimplemented;
-#else
-            return status::unimplemented;
-#endif
         }
     };
 
