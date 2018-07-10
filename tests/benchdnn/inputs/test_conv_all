@@ -60,3 +60,6 @@
 
 # attributes
 --batch=test_conv_attrs
+
+# tails
+--batch=test_conv_tails
