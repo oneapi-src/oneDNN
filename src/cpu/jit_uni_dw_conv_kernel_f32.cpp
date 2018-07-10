@@ -349,6 +349,8 @@ status_t jit_uni_dw_conv_fwd_kernel_f32<isa>::init_conf(jit_conv_conf_t &jcp,
 {
     if (!mayiuse(isa)) return status::unimplemented;
 
+    const int simd_w = isa == avx512_common ? 16 : 8;
+
     jcp.prop_kind = cd.prop_kind;
 
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
@@ -358,6 +360,7 @@ status_t jit_uni_dw_conv_fwd_kernel_f32<isa>::init_conf(jit_conv_conf_t &jcp,
     jcp.mb = src_d.dims()[0];
 
     jcp.oc = dst_d.dims()[1];
+    jcp.oc_without_padding = jcp.oc;
     jcp.ic = src_d.dims()[1];
 
     jcp.ih = src_d.dims()[2];
@@ -397,19 +400,31 @@ status_t jit_uni_dw_conv_fwd_kernel_f32<isa>::init_conf(jit_conv_conf_t &jcp,
         }
     }
 
+    bool ok_to_pad_channels = true
+        && jcp.oc == jcp.ngroups
+        && jcp.ic == jcp.ngroups
+        && isa == avx512_common;
+    if (ok_to_pad_channels) {
+        jcp.oc = rnd_up(jcp.oc, simd_w);
+        jcp.ic = rnd_up(jcp.oc, simd_w);
+        jcp.ngroups = rnd_up(jcp.ngroups, simd_w);
+    }
+
     auto desired_act_fmt = isa == avx512_common ? nChw16c : nChw8c;
     auto desired_wei_fmt = isa == avx512_common ? Goihw16g : Goihw8g;
 
     bool args_ok = true
         && jcp.oc == jcp.ngroups
         && jcp.ic == jcp.ngroups
+        && jcp.ngroups % simd_w == 0
         && src_d.format() == desired_act_fmt
         && weights_d.format() == desired_wei_fmt
         && one_of(cd.bias_desc.format, memory_format::undef, any, x)
-        && dst_d.format() == desired_act_fmt;
+        && dst_d.format() == desired_act_fmt
+        && jcp.ic <= src_d.blocking_desc().padding_dims[1]
+        && jcp.oc <= dst_d.blocking_desc().padding_dims[1]
+        && jcp.ngroups <= weights_d.blocking_desc().padding_dims[0];
     if (!args_ok) return status::unimplemented;
-
-    const int simd_w = isa == avx512_common ? 16 : 8;
 
     jcp.ur_w = isa == avx512_common ? 6 : isa == avx2 ? 4 : 3;
 
@@ -627,6 +642,8 @@ status_t jit_uni_dw_conv_bwd_data_kernel_f32<isa>::init_conf(
         const memory_desc_wrapper &diff_dst_d) {
     if (!mayiuse(isa)) return status::unimplemented;
 
+    const int simd_w = isa == avx512_common ? 16 : 8;
+
     const bool with_groups = weights_d.ndims() == diff_src_d.ndims() + 1;
     if (!with_groups) return status::unimplemented;
 
@@ -634,6 +651,7 @@ status_t jit_uni_dw_conv_bwd_data_kernel_f32<isa>::init_conf(
     jcp.mb = diff_src_d.dims()[0];
 
     jcp.oc = diff_dst_d.dims()[1];
+    jcp.oc_without_padding = jcp.oc;
     jcp.ic = diff_src_d.dims()[1];
 
     jcp.ih = diff_src_d.dims()[2];
@@ -655,27 +673,38 @@ status_t jit_uni_dw_conv_bwd_data_kernel_f32<isa>::init_conf(
     jcp.dilate_h = cd.dilates[0];
     jcp.dilate_w = cd.dilates[1];
 
-    const int simd_w = isa == avx512_common ? 16 : 8;
-
     jcp.ihp = jcp.ih + jcp.t_pad + jcp.b_pad;
     jcp.iwp = jcp.iw + jcp.l_pad + jcp.r_pad;
 
     jcp.src_fmt = diff_src_d.format();
 
+    bool ok_to_pad_channels = true
+        && jcp.oc == jcp.ngroups
+        && jcp.ic == jcp.ngroups
+        && isa == avx512_common;
+    if (ok_to_pad_channels) {
+        jcp.oc = rnd_up(jcp.oc, simd_w);
+        jcp.ic = rnd_up(jcp.oc, simd_w);
+        jcp.ngroups = rnd_up(jcp.ngroups, simd_w);
+    }
+
     auto desired_act_fmt = isa == avx512_common ? nChw16c : nChw8c;
     auto desired_wei_fmt = isa == avx512_common ? Goihw16g : Goihw8g;
 
     bool args_ok = true
-                   && diff_src_d.format() == desired_act_fmt
-                   && weights_d.format() == desired_wei_fmt
-                   && diff_dst_d.format() == desired_act_fmt
-                   && jcp.ngroups % simd_w == 0
-                   && jcp.oc == jcp.ngroups
-                   && jcp.ic == jcp.ngroups
-                   && jcp.dilate_h == 0
-                   && jcp.dilate_w == 0
-                   && jcp.oh == (jcp.ihp - jcp.kh) / jcp.stride_h + 1
-                   && jcp.ow == (jcp.iwp - jcp.kw) / jcp.stride_w + 1;
+        && jcp.oc == jcp.ngroups
+        && jcp.ic == jcp.ngroups
+        && jcp.ngroups % simd_w == 0
+        && jcp.dilate_h == 0
+        && jcp.dilate_w == 0
+        && diff_src_d.format() == desired_act_fmt
+        && weights_d.format() == desired_wei_fmt
+        && diff_dst_d.format() == desired_act_fmt
+        && jcp.oh == (jcp.ihp - jcp.kh) / jcp.stride_h + 1
+        && jcp.ow == (jcp.iwp - jcp.kw) / jcp.stride_w + 1
+        && jcp.ic <= diff_src_d.blocking_desc().padding_dims[1]
+        && jcp.oc <= diff_dst_d.blocking_desc().padding_dims[1]
+        && jcp.ngroups <= weights_d.blocking_desc().padding_dims[0];
     if (!args_ok) return status::unimplemented;
 
     jcp.ur_w = isa == avx512_common ? 6 : isa == avx2 ? 4 : 3;

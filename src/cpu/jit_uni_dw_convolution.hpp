@@ -86,10 +86,21 @@ struct _jit_uni_dw_convolution_fwd_t: public cpu_primitive_t {
     };
 
     _jit_uni_dw_convolution_fwd_t(const pd_t *pd, const input_vector &inputs,
-                                    const output_vector &outputs)
-            : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
-    { kernel_ = new jit_uni_dw_conv_fwd_kernel_f32<isa>(conf_.jcp_); }
-    ~_jit_uni_dw_convolution_fwd_t() { delete kernel_; };
+            const output_vector &outputs)
+        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
+        , padded_bias_(nullptr) {
+        kernel_ = new jit_uni_dw_conv_fwd_kernel_f32<isa>(conf_.jcp_);
+        if (conf_.want_padded_bias()) {
+            padded_bias_ = (float *)malloc(sizeof(float) * conf_.jcp_.oc, 64);
+            for (int c = conf_.jcp_.oc_without_padding; c < conf_.jcp_.oc; ++c)
+                padded_bias_[c] = 0;
+        }
+    }
+
+    ~_jit_uni_dw_convolution_fwd_t() {
+        delete kernel_;
+        free(padded_bias_);
+    }
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
@@ -102,6 +113,7 @@ private:
     void execute_forward();
     pd_t conf_;
     jit_uni_dw_conv_fwd_kernel_f32<isa> *kernel_;
+    float *padded_bias_;
 };
 
 using jit_avx512_common_dw_convolution_fwd_t =
