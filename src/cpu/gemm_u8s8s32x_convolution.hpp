@@ -23,7 +23,7 @@
 #include "jit_primitive_conf.hpp"
 #include "gemm_convolution_utils.hpp"
 
-#include "os_blas.hpp"
+#include "gemm/os_blas.hpp"
 
 namespace mkldnn {
 namespace impl {

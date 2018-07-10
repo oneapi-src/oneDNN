@@ -26,7 +26,7 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-#include "os_blas.hpp"
+#include "gemm/os_blas.hpp"
 
 namespace mkldnn {
 namespace impl {

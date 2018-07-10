@@ -156,7 +156,7 @@ void gemm_ithr(const int M, const int N, const int K, const float alpha,
 void ref_gemm(const char *transa_, const char *transb_, const int *M_,
         const int *N_, const int *K_, const float *alpha_, const float *A,
         const int *lda_, const float *B, const int *ldb_, const float *beta_,
-        float *C, const int *ldc_) {
+        float *C, const int *ldc_, const float *bias) {
     bool isTransA = (*transa_ == 'T' || *transa_ == 't');
     bool isTransB = (*transb_ == 'T' || *transb_ == 't');
     const int M = *M_, N = *N_, K = *K_, lda = *lda_, ldb = *ldb_, ldc = *ldc_;
@@ -265,6 +265,14 @@ void ref_gemm(const char *transa_, const char *transb_, const int *M_,
                 myC = myC + offset * MB;
                 gemm_utils::sum_two_matrices(myM, block, myC, MB,
                         &C[m_from + (n_from + offset) * ldc], ldc);
+            }
+        }
+    }
+    if (bias) {
+#       pragma omp parallel for collapse(2)
+        for (int i = 0; i < N; i++) {
+            for (int j = 0; j < M; j++) {
+                C[i*ldc + j] += bias[j];
             }
         }
     }
