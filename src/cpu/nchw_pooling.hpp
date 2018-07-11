@@ -111,6 +111,7 @@ struct nchw_pooling_bwd_t: public cpu_primitive_t {
                         diff_dst_pd()->desc()->data_type,
                         diff_src_pd()->desc()->data_type)
                 && utils::one_of(diff_dst_format, nchw, ncdhw)
+                && diff_dst_format == nchw
                 && (diff_dst_format == diff_src_pd()->desc()->format)
                 && attr()->has_default_values();
             if (!ok) return status::unimplemented;
@@ -119,7 +120,8 @@ struct nchw_pooling_bwd_t: public cpu_primitive_t {
                 bool ws_ok = true
                     && hint_fwd_pd_
                     && hint_fwd_pd_->workspace_pd()
-                    && utils::one_of(hint_fwd_pd_->workspace_pd()->desc()->format,
+                    && utils::one_of(
+                            hint_fwd_pd_->workspace_pd()->desc()->format,
                             nchw, nChw8c, nChw16c);
                 if (!ws_ok) return status::unimplemented;
 
