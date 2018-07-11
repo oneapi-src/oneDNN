@@ -691,6 +691,27 @@ mkldnn_status_t MKLDNN_API mkldnn_deconvolution_forward_desc_init(
         const mkldnn_dims_t padding_l, const mkldnn_dims_t padding_r,
         mkldnn_padding_kind_t padding_kind);
 
+/** Initializes a dilated deconvolution descriptor @p deconv_desc for forward
+ * propagation using @p prop_kind (possible values are #mkldnn_forward_training
+ * or #mkldnn_forward_inference), @p alg_kind, memory descriptors, @p strides,
+ * @p dilates, @p padding_l, @p padding_r, and @p padding_kind. In order to
+ * create a dilated deconvolution without bias, @p bias_desc should be either
+ * @c NULL or point to a descriptor with memory format equals to
+ * #mkldnn_format_undef.
+ *
+ * @note if @p padding_r is @c NULL, the padding is supposed to be symmetric
+ *
+ * @note memory descriptors are allowed to be initialized with #mkldnn_any
+ * value of @p format_kind. */
+mkldnn_status_t MKLDNN_API mkldnn_dilated_deconvolution_forward_desc_init(
+        mkldnn_deconvolution_desc_t *conv_desc, mkldnn_prop_kind_t prop_kind,
+        mkldnn_alg_kind_t alg_kind, const mkldnn_memory_desc_t *src_desc,
+        const mkldnn_memory_desc_t *weights_desc,
+        const mkldnn_memory_desc_t *bias_desc,
+        const mkldnn_memory_desc_t *dst_desc, const mkldnn_dims_t strides,
+        const mkldnn_dims_t dilates, const mkldnn_dims_t padding_l,
+        const mkldnn_dims_t padding_r, mkldnn_padding_kind_t padding_kind);
+
 /** Initializes a deconvolution descriptor @p conv_desc for backward propagation
  * with respect to data using @p alg_kind, memory descriptors, @p strides, @p
  * padding_l, @p padding_r, and @p padding_kind.
@@ -704,6 +725,20 @@ mkldnn_status_t MKLDNN_API mkldnn_deconvolution_backward_data_desc_init(
         const mkldnn_memory_desc_t *diff_dst_desc, const mkldnn_dims_t strides,
         const mkldnn_dims_t padding_l, const mkldnn_dims_t padding_r,
         mkldnn_padding_kind_t padding_kind);
+
+/** Initializes a dilated deconvolution descriptor @p conv_desc for backward
+ * propagation with respect to data using @p alg_kind, memory descriptors, @p
+ * strides, @p dilates, @p padding_l, @p padding_r, and @p padding_kind.
+ *
+ * @note memory descriptors are allowed to be initialized with #mkldnn_any
+ * value of @p format_kind. */
+mkldnn_status_t MKLDNN_API mkldnn_dilated_deconvolution_backward_data_desc_init(
+        mkldnn_deconvolution_desc_t *conv_desc, mkldnn_alg_kind_t alg_kind,
+        const mkldnn_memory_desc_t *diff_src_desc,
+        const mkldnn_memory_desc_t *weights_desc,
+        const mkldnn_memory_desc_t *diff_dst_desc, const mkldnn_dims_t strides,
+        const mkldnn_dims_t dilates, const mkldnn_dims_t padding_l,
+        const mkldnn_dims_t padding_r, mkldnn_padding_kind_t padding_kind);
 
 /** Initializes a deconvolution descriptor @p conv_desc for backward propagation
  * with respect to weights using @p alg_kind, memory descriptors, @p strides,
@@ -719,6 +754,22 @@ mkldnn_status_t MKLDNN_API mkldnn_deconvolution_backward_weights_desc_init(
         const mkldnn_memory_desc_t *diff_dst_desc, const mkldnn_dims_t strides,
         const mkldnn_dims_t padding_l, const mkldnn_dims_t padding_r,
         mkldnn_padding_kind_t padding_kind);
+
+/** Initializes a dilated deconvolution descriptor @p conv_desc for backward
+ * propagation with respect to weights using @p alg_kind, memory descriptors,
+ * @p strides, @p dilates, @p padding_l, @p padding_r, and @p padding_kind.
+ *
+ * @note memory descriptors are allowed to be initialized with #mkldnn_any
+ * value of @p format_kind. */
+mkldnn_status_t MKLDNN_API mkldnn_dilated_deconvolution_backward_weights_desc_init(
+        mkldnn_deconvolution_desc_t *conv_desc, mkldnn_alg_kind_t alg_kind,
+        const mkldnn_memory_desc_t *src_desc,
+        const mkldnn_memory_desc_t *diff_weights_desc,
+        const mkldnn_memory_desc_t *diff_bias_desc,
+        const mkldnn_memory_desc_t *diff_dst_desc, const mkldnn_dims_t strides,
+        const mkldnn_dims_t dilates, const mkldnn_dims_t padding_l,
+        const mkldnn_dims_t padding_r, mkldnn_padding_kind_t padding_kind);
+
 /** @} */
 
 /** @addtogroup c_api_eltwise Eltwise
