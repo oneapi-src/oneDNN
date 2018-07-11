@@ -38,10 +38,10 @@ endif()
 set(CMAKE_CCXX_FLAGS)
 set(DEF_ARCH_OPT_FLAGS)
 
-if(WIN32 AND NOT MINGW)
+if(MSVC)
     set(USERCONFIG_PLATFORM "x64")
-    set(CMAKE_CCXX_FLAGS "${CMAKE_CCXX_FLAGS} /MP")
-    if(MSVC)
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+        set(CMAKE_CCXX_FLAGS "${CMAKE_CCXX_FLAGS} /MP")
         set(CMAKE_CCXX_FLAGS "${CMAKE_CCXX_FLAGS} /wd4800") # int -> bool
         set(CMAKE_CCXX_FLAGS "${CMAKE_CCXX_FLAGS} /wd4068") # unknown pragma
         set(CMAKE_CCXX_FLAGS "${CMAKE_CCXX_FLAGS} /wd4305") # double -> float
@@ -51,6 +51,12 @@ if(WIN32 AND NOT MINGW)
         set(DEF_ARCH_OPT_FLAGS "-QxHOST")
         # disable: loop was not vectorized with "simd"
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Qdiag-disable:15552")
+    endif()
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        # Clang cannot vectorize some loops with #pragma omp simd and gets
+        # very upset. Tell it that it's okay and that we love it
+        # unconditionnaly.
+        set(CMAKE_CCXX_FLAGS "${CMAKE_CCXX_FLAGS} -Wno-pass-failed")
     endif()
 elseif(UNIX OR APPLE OR MINGW)
     set(CMAKE_CCXX_FLAGS "${CMAKE_CCXX_FLAGS} -Wall -Werror -Wno-unknown-pragmas")

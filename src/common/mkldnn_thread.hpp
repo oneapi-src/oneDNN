@@ -30,7 +30,7 @@ inline int omp_in_parallel() { return 0; }
 #endif
 
 /* MSVC still supports omp 2.0 only */
-#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+#if defined(_MSC_VER) && !defined(__clang__) && !defined(__INTEL_COMPILER)
 #   define collapse(x)
 #   define PRAGMA_OMP_SIMD(...)
 #else
