@@ -62,7 +62,7 @@ struct nhwc_pooling_fwd_t: public cpu_primitive_t {
                 && utils::everyone_is(data_type,
                         src_pd()->desc()->data_type,
                         dst_pd()->desc()->data_type)
-                && utils::one_of(src_format, nchw, ndhwc)
+                && utils::one_of(src_format, nhwc, ndhwc)
                 && (src_format == dst_pd()->desc()->format)
                 && attr()->has_default_values();
             if (!ok) return status::unimplemented;
@@ -210,7 +210,9 @@ struct nhwc_pooling_bwd_t: public cpu_primitive_t {
                 bool ws_ok = true
                     && hint_fwd_pd_
                     && hint_fwd_pd_->workspace_pd()
-                    && hint_fwd_pd_->workspace_pd()->desc()->format == nhwc
+                    && utils::one_of(
+                            hint_fwd_pd_->workspace_pd()->desc()->format,
+                            nhwc, ndhwc)
                     && hint_fwd_pd_->workspace_pd()->engine()->kind()
                             == engine_kind::cpu;
                 if (!ws_ok) return status::unimplemented;
