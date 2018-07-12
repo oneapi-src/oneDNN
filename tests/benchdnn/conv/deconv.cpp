@@ -82,8 +82,10 @@ inline int init_pd(const prb_t *p, mkldnn_deconvolution_desc_t &cd,
     DNN_SAFE(mkldnn_memory_desc_init(&dst_d, ndims,
         is_deconv_3d(p) ? dst_3d_dims : dst_dims, p->cfg[DST].dt, mkldnn_any), WARN);
     int strides_2d[] = {p->sh, p->sw};
+    int dilates_2d[] = {p->dh, p->dw};
     int padding_2d[] = {p->ph, p->pw};
     int strides_3d[] = {p->sd, p->sh, p->sw};
+    int dilates_3d[] = {p->dd, p->dh, p->dw};
     int padding_3d[] = {p->pd, p->ph, p->pw};
 
     auto bph = [&](int ih, int oh, int kh, int sh, int ph, int dh) {
@@ -98,6 +100,7 @@ inline int init_pd(const prb_t *p, mkldnn_deconvolution_desc_t &cd,
         bph(p->ow, p->iw, p->kw, p->sw, p->pw, p->dw)};
 
     int *strides = is_deconv_3d(p) ? strides_3d : strides_2d;
+    int *dilates = is_deconv_3d(p) ? dilates_3d : dilates_2d;
     int *padding = is_deconv_3d(p) ? padding_3d : padding_2d;
     int *padding_r = is_deconv_3d(p) ? padding_r_3d : padding_r_2d;
     mkldnn_alg_kind_t alg = mkldnn_deconvolution_direct;
@@ -105,20 +108,20 @@ inline int init_pd(const prb_t *p, mkldnn_deconvolution_desc_t &cd,
 
     switch (p->dir) {
     case FWD_D: case FWD_B:
-        DNN_SAFE(mkldnn_deconvolution_forward_desc_init(&cd,
+        DNN_SAFE(mkldnn_dilated_deconvolution_forward_desc_init(&cd,
                     mkldnn_forward_inference, alg, &src_d, &wei_d,
                     p->dir == FWD_D ? NULL : &bia_d, &dst_d, strides,
-                    padding, padding_r, mkldnn_padding_zero), WARN);
+                    dilates, padding, padding_r, mkldnn_padding_zero), WARN);
         break;
     case BWD_D:
-        DNN_SAFE(mkldnn_deconvolution_backward_data_desc_init(&cd, alg,
-                    &src_d, &wei_d, &dst_d, strides, padding,
+        DNN_SAFE(mkldnn_dilated_deconvolution_backward_data_desc_init(&cd, alg,
+                    &src_d, &wei_d, &dst_d, strides, dilates, padding,
                     padding_r, mkldnn_padding_zero), WARN);
         break;
     case BWD_W: case BWD_WB:
-        DNN_SAFE(mkldnn_deconvolution_backward_weights_desc_init(&cd,
+        DNN_SAFE(mkldnn_dilated_deconvolution_backward_weights_desc_init(&cd,
                     alg, &src_d, &wei_d, p->dir == BWD_W ? NULL : &bia_d,
-                    &dst_d, strides,  padding, padding_r,
+                    &dst_d, strides, dilates,  padding, padding_r,
                     mkldnn_padding_zero), WARN);
         break;
     default: DNN_SAFE(mkldnn_invalid_arguments, CRIT);
