@@ -18,8 +18,9 @@
 #include <limits.h>
 #include <assert.h>
 
-#include "common.hpp"
+#include "mkldnn.h"
 
+#include "common.hpp"
 const char *bench_mode2str(bench_mode_t mode) {
     const char *modes[] = {
         "MODE_UNDEF", "CORR", "PERF", "CORR+PERF"
@@ -383,4 +384,17 @@ int div_up(const int a, const int b){
 void array_set(char *arr, size_t size) {
     for (size_t i = 0; i < size; ++i)
         arr[i] = 0;
+}
+
+void gemm(const char *layout, const char *transa, const char *transb,
+        int m, int n, int k, const float alpha, const float *a, const int lda,
+        const float *b, const int ldb, const float beta, float *c,
+        const int ldc ) {
+    if (*layout == 'F') {
+        mkldnn_sgemm(transa, transb, &m, &n, &k, &alpha, a, &lda, b, &ldb,
+                &beta, c, &ldc);
+    } else {
+        mkldnn_sgemm(transb, transa, &n, &m, &k, &alpha, b, &ldb, a, &lda,
+                &beta, c, &ldc);
+    }
 }

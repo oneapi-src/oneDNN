@@ -17,54 +17,7 @@
 #include "common.hpp"
 #include "conv/conv_common.hpp"
 
-#if defined(USE_MKL)
- #include "mkl_cblas.h"
- #include "mkl_version.h"
- #if !defined(USE_CBLAS)
-  // cblas_unavailable
- #endif /* !defined (USE_CBLAS) */
-#else /* defined(USE_MKL) */
- #if defined(_SX)
-  extern "C" {
-   #include "cblas.h" // CHECK: does SX also have a fortran API sgemm?
-  }
- #elif defined(USE_CBLAS)
-  #include "cblas.h" // Maybe a system/cmake cblas works for you?
- #else
-  // cblas_unavailable
- #endif /* defined(_SX)*/
-#endif /* defined(USE_MKL) */
-
 namespace conv {
-
-/*
- * C := op(A)*op(B) + C
- *
- * Where each matrix has the dimensions:
- *  A [m:k]
- *  B [k:n]
- *  C [m:n]
- * */
-inline void _GEMM(const int m, const int n, const int k, const float *a,
-        const int lda, const float *b, const int ldb, float *c, const int ldc) {
-#if defined(USE_CBLAS) || defined(USE_MKL)
-    cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, n, k, 1.f, a, lda,
-            b, ldb, 1.f, c, ldc);
-#else
-    float sum;
-
-    for (int i = 0; i < m; ++i) {
-        for (int j = 0; j < n; ++j) {
-            sum = 0.0;
-            for (int l = 0; l < k; ++l) {
-                // lda = k, ldb = n, ldc = n
-                sum += a[i * lda + l] * b[ldb * l + j];
-            }
-            c[ldc * i + j] += sum;
-        }
-    }
-#endif /* USE_MKL */
-}
 
 template <typename Telem, size_t Tdims>
 struct array_offset_calculator {
@@ -431,8 +384,9 @@ void compute_wino_ref_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
     /* M = U * V */
     for (int j = 0; j < sp.alpha; ++j) {
         for (int k = 0; k < sp.alpha; ++k) {
-            _GEMM(p->oc, p_dim, p->ic, (float *)&(U(j, k, 0, 0)), p->ic,
-                    (float *)&(V(j, k, 0, 0, 0, 0)), p_dim,
+            gemm("C", "N", "N", p->oc, p_dim, p->ic, 1.0,
+                    (float *)&(U(j, k, 0, 0)), p->ic,
+                    (float *)&(V(j, k, 0, 0, 0, 0)), p_dim, 1.0,
                     (float *)&(M(j, k, 0, 0, 0, 0)), p_dim);
         }
     }
@@ -603,8 +557,9 @@ void compute_wino_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
     /* M = U * V */
     for (int j = 0; j < sp.alpha; ++j) {
         for (int k = 0; k < sp.alpha; ++k) {
-            _GEMM(p->ic, p_dim, p->oc, (float *)&(U(j, k, 0, 0)), p->oc,
-                    (float *)&(V(j, k, 0, 0, 0, 0)), p_dim,
+            gemm("C", "N", "N", p->ic, p_dim, p->oc, 1.0,
+                    (float *)&(U(j, k, 0, 0)), p->oc,
+                    (float *)&(V(j, k, 0, 0, 0, 0)), p_dim, 1.0,
                     (float *)&(M(j, k, 0, 0, 0, 0)), p_dim);
         }
     }
@@ -756,8 +711,9 @@ void compute_wino_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m,
     /* GeMM U = M * V */
     for (int j = 0; j < sp.alpha; ++j) {
         for (int k = 0; k < sp.alpha; ++k) {
-            _GEMM(p->oc, p->ic, p_dim, (float *)&(M(j, k, 0, 0, 0, 0)), p_dim,
-                    (float *)&(V(j, k, 0, 0, 0, 0)), p->ic,
+            gemm("C", "N", "N", p->oc, p->ic, p_dim, 1.0,
+                    (float *)&(M(j, k, 0, 0, 0, 0)), p_dim,
+                    (float *)&(V(j, k, 0, 0, 0, 0)), p->ic, 1.0,
                     (float *)&(U(j, k, 0, 0)), p->ic);
         }
     }

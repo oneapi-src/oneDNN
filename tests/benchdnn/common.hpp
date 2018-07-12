@@ -176,4 +176,11 @@ int div_up(const int a, const int b);
 /* set '0' across *arr:+size */
 void array_set(char *arr, size_t size);
 
+/* wrapper to mkldnn_sgemm
+ * layout = 'F' - column major
+ * layout = 'C' - row major*/
+void gemm(const char *layout, const char *transa, const char *transb,
+        int m, int n, int k, const float alpha, const float *a, const int lda,
+        const float *b, const int ldb, const float beta, float *c,
+        const int ldc );
 #endif
