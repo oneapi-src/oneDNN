@@ -84,17 +84,12 @@ struct memory_desc_wrapper: public c_compatible {
         using namespace mkldnn::impl::memory_format;
         if (is_zero() || format() == memory_format::any) return 0;
 
-        assert(utils::one_of(format(), blocked, x, nc, nchw, nhwc, chwn,
-                    nChw8c, nChw16c, oi, io, oihw, ihwo, hwio, hwigo, oIhw8i,
-                    oIhw16i, OIhw8i8o, OIhw16i16o, OIhw8i16o2i, OIhw8o16i2o,
-                    OIhw8o8i, OIhw16o16i, Oihw16o, Ohwi8o, Ohwi16o,
-                    OIhw4i16o4i, goihw, gOIhw8i8o, gOIhw16i16o, gOIhw8i16o2i,
-                    gOIhw8o16i2o, gOIhw8o8i, gOIhw16o16i, gOihw16o, gOhwi8o,
-                    gOhwi16o, IOhw16o16i, gIOhw16o16i, gOIhw4i16o4i, Goihw8g,
-                    Goihw16g, ncdhw, oidhw, goidhw, nCdhw16c, OIdhw16i16o,
-                    gOIdhw16i16o, OIdhw16o16i, gOIdhw16o16i, ndhwc, gOidhw16o,
-                    Oidhw16o, gOdhwi16o, Odhwi16o, ntc, tnc, ldsnc, ldigo,
-                    ldgoi, ldgo, wino_fmt, dhwio, OIdhw8i16o2i, gOIdhw8i16o2i));
+        assert((false
+                    || types::format_normalize(format()) == blocked
+                    || types::is_format_double_blocked(format())
+                    || format() == wino_fmt)
+                && "unknown format");
+
         if (format() == wino_fmt) {
             return wino_desc().size;
         } else {

@@ -77,84 +77,21 @@ status_t mkldnn_memory_desc_init(memory_desc_t *memory_desc, int ndims,
     md.format = format;
 
     status_t status = success;
-    switch (format) {
-    case any:
-        break;
-    /* semidefined blocked format */
-    case x:
-    case nc:
-    case nchw:
-    case nhwc:
-    case chwn:
-    case nChw8c:
-    case nChw16c:
-    case ncdhw:
-    case ndhwc:
-    case nCdhw16c:
-    case oi:
-    case io:
-    case oihw:
-    case ihwo:
-    case hwio:
-    case dhwio:
-    case oidhw:
-    case OIdhw16i16o:
-    case OIdhw16o16i:
-    case Oidhw16o:
-    case Odhwi16o:
-    case OIhw8i8o:
-    case OIhw16i16o:
-    case OIhw4i16o4i:
-    case OIhw8i16o2i:
-    case OIdhw8i16o2i:
-    case OIhw8o16i2o:
-    case OIhw8o8i:
-    case OIhw16o16i:
-    case IOhw16o16i:
-    case Oihw16o:
-    case Ohwi8o:
-    case Ohwi16o:
-    case goihw:
-    case hwigo:
-    case gOIhw8i8o:
-    case gOIhw16i16o:
-    case gOIhw4i16o4i:
-    case gOIhw8i16o2i:
-    case gOIdhw8i16o2i:
-    case gOIhw8o16i2o:
-    case gOIhw8o8i:
-    case gOIhw16o16i:
-    case gIOhw16o16i:
-    case gOihw16o:
-    case gOhwi8o:
-    case gOhwi16o:
-    case Goihw8g:
-    case Goihw16g:
-    case goidhw:
-    case gOIdhw16i16o:
-    case gOIdhw16o16i:
-    case gOidhw16o:
-    case gOdhwi16o:
-    case ntc:
-    case tnc:
-    case ldsnc:
-    case ldigo:
-    case ldgoi:
-    case ldgo:
+    if (one_of(format, memory_format::undef, blocked, ldigo_p, ldgoi_p,
+                wino_fmt)) {
+        status = invalid_arguments;
+    } else if (format == any) {
+        // nop
+    } else if (types::format_normalize(format) == blocked) {
         status = memory_desc_wrapper::compute_blocking(md);
-        break;
-    case wino_fmt:
-        status = status::success;
-        break;
-    /* not enough information */
-    case memory_format::undef:
-    case blocked:
-    default:
-        return invalid_arguments;
+    } else {
+        assert(!"unreachable");
+        status = invalid_arguments;
     }
 
     if (status == success)
         *memory_desc = md;
+
     return status;
 }
 

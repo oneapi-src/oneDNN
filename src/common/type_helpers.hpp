@@ -83,17 +83,81 @@ inline memory_format_t flat_memory_format(int ndims) {
 
 inline memory_format_t format_normalize(const memory_format_t fmt) {
     using namespace memory_format;
-    if (utils::one_of(fmt, x, nc, nchw, nhwc, chwn, nChw8c, nChw16c, oi, io,
-                oihw, ihwo, hwio, oIhw8i, oIhw16i, OIhw8i8o, OIhw16i16o,
-                OIhw8i16o2i, OIdhw8i16o2i, OIhw8o16i2o, OIhw8o8i, OIhw16o16i,
-                Oihw16o, Ohwi8o, Ohwi16o, OIhw4i16o4i, goihw, hwigo, gOIhw8i8o,
-                gOIhw16i16o, gOIhw8i16o2i, gOIdhw8i16o2i, gOIhw8o16i2o,
-                gOIhw8o8i, gOIhw16o16i, gOihw16o, gOhwi8o, gOhwi16o,
-                IOhw16o16i, gIOhw16o16i, gOIhw4i16o4i, ncdhw, oidhw, goidhw,
-                nCdhw16c, OIdhw16i16o, gOIdhw16i16o, OIdhw16o16i, gOIdhw16o16i,
-                ndhwc, gOidhw16o, Oidhw16o, gOdhwi16o, Odhwi16o))
-        return blocked;
-    return fmt;
+    /* FIXME: double blocked formats are special cases -- the blocking
+     *        structure doesn't correctly describe memory layout (wrt
+     *        the strides within blocks). Though as long as the code
+     *        uses memory_desc_wrapper::off() or explicit offset
+     *        calculations everything should be fine. */
+    const bool is_blocked = utils::one_of(fmt, blocked,
+            x,
+            nc,
+            nchw,
+            nhwc,
+            chwn,
+            nChw8c,
+            nChw16c,
+            ncdhw,
+            ndhwc,
+            nCdhw16c,
+            oi,
+            io,
+            oihw,
+            ihwo,
+            hwio,
+            dhwio,
+            oidhw,
+            OIdhw16i16o,
+            OIdhw16o16i,
+            Oidhw16o,
+            Odhwi16o,
+            oIhw8i,
+            oIhw16i,
+            OIhw8i8o,
+            OIhw16i16o,
+            OIhw4i16o4i,
+            OIhw8i16o2i,
+            OIdhw8i16o2i,
+            OIhw8o16i2o,
+            OIhw8o8i,
+            OIhw16o16i,
+            IOhw16o16i,
+            Oihw16o,
+            Ohwi8o,
+            Ohwi16o,
+            goihw,
+            hwigo,
+            gOIhw8i8o,
+            gOIhw16i16o,
+            gOIhw4i16o4i,
+            gOIhw8i16o2i,
+            gOIdhw8i16o2i,
+            gOIhw8o16i2o,
+            gOIhw8o8i,
+            gOIhw16o16i,
+            gIOhw16o16i,
+            gOihw16o,
+            gOhwi8o,
+            gOhwi16o,
+            Goihw8g,
+            Goihw16g,
+            goidhw,
+            gOIdhw16i16o,
+            gOIdhw16o16i,
+            gOidhw16o,
+            gOdhwi16o,
+            ntc,
+            tnc,
+            ldsnc,
+            ldigo,
+            ldgoi,
+            ldgo);
+    return is_blocked ? blocked : fmt;
+}
+
+inline bool is_format_double_blocked(memory_format_t fmt) {
+    using namespace memory_format;
+    return utils::one_of(OIhw8i16o2i, OIdhw8i16o2i, OIhw8o16i2o, OIhw4i16o4i,
+            gOIhw8i16o2i, gOIdhw8i16o2i, gOIhw8o16i2o,gOIhw4i16o4i);
 }
 
 inline bool blocking_desc_is_equal(const blocking_desc_t &lhs,
