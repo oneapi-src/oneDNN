@@ -159,6 +159,7 @@ struct ref_deconvolution_fwd_t: public cpu_primitive_t {
                 if (!utils::one_of(md->format, gOIhw8i16o2i, OIhw8i16o2i,
                     gOIhw8o16i2o, OIhw8o16i2o, gOIhw4i16o4i, OIhw4i16o4i))
                     return success;
+                delete conv_pd_;
             }
             return unimplemented;
 
@@ -273,6 +274,7 @@ struct ref_deconvolution_bwd_data_t: public cpu_primitive_t {
                 if (!utils::one_of(md->format, gOIhw8i16o2i, OIhw8i16o2i,
                     gOIhw8o16i2o, OIhw8o16i2o, gOIhw4i16o4i, OIhw4i16o4i))
                     return success;
+                delete conv_pd_;
             }
             return unimplemented;
         };
@@ -360,6 +362,7 @@ struct ref_deconvolution_bwd_weights_t: public cpu_primitive_t {
                 if (!utils::one_of(md->format, gOIhw8i16o2i, OIhw8i16o2i,
                     gOIhw8o16i2o, OIhw8o16i2o, gOIhw4i16o4i, OIhw4i16o4i))
                     return success;
+                delete conv_pd_;
             }
             return unimplemented;
         };
