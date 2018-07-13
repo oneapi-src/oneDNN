@@ -144,6 +144,7 @@ struct ref_deconvolution_fwd_t: public cpu_primitive_t {
 
         status_t init_convolution(){
             using namespace memory_format;
+            using namespace types;
             convolution_desc_t cd;
             status_t status;
 
@@ -154,10 +155,10 @@ struct ref_deconvolution_fwd_t: public cpu_primitive_t {
                 &(this->attr_), nullptr);
             while (++it != it.end()) {
                 conv_pd_ = *it;
-                const memory_desc_t *md = conv_pd_->weights_pd()->desc();
-                /* double blocked format is not supported */
-                if (!utils::one_of(md->format, gOIhw8i16o2i, OIhw8i16o2i,
-                    gOIhw8o16i2o, OIhw8o16i2o, gOIhw4i16o4i, OIhw4i16o4i))
+                auto wei_fmt =
+                    format_normalize(conv_pd_->weights_pd()->desc()->format);
+                /* only weights in non-double-blocked format are supported */
+                if (wei_fmt == blocked && !is_format_double_blocked(wei_fmt))
                     return success;
                 delete conv_pd_;
             }
@@ -259,6 +260,7 @@ struct ref_deconvolution_bwd_data_t: public cpu_primitive_t {
 
         status_t init_convolution(){
             using namespace memory_format;
+            using namespace types;
             convolution_desc_t cd;
             status_t status;
 
@@ -269,10 +271,10 @@ struct ref_deconvolution_bwd_data_t: public cpu_primitive_t {
                 &(this->attr_), nullptr);
              while (++it != it.end()) {
                 conv_pd_ = *it;
-                const memory_desc_t *md = conv_pd_->weights_pd()->desc();
-                /* double blocked format is not supported */
-                if (!utils::one_of(md->format, gOIhw8i16o2i, OIhw8i16o2i,
-                    gOIhw8o16i2o, OIhw8o16i2o, gOIhw4i16o4i, OIhw4i16o4i))
+                auto wei_fmt =
+                    format_normalize(conv_pd_->weights_pd()->desc()->format);
+                /* only weights in non-double-blocked format are supported */
+                if (wei_fmt == blocked && !is_format_double_blocked(wei_fmt))
                     return success;
                 delete conv_pd_;
             }
@@ -347,6 +349,7 @@ struct ref_deconvolution_bwd_weights_t: public cpu_primitive_t {
 
         status_t init_convolution(){
             using namespace memory_format;
+            using namespace types;
             convolution_desc_t cd;
             status_t status;
 
@@ -357,10 +360,10 @@ struct ref_deconvolution_bwd_weights_t: public cpu_primitive_t {
                 &(this->attr_), nullptr);
              while (++it != it.end()) {
                 conv_pd_ = *it;
-                const memory_desc_t *md = conv_pd_->diff_weights_pd()->desc();
-                /* double blocked format is not supported */
-                if (!utils::one_of(md->format, gOIhw8i16o2i, OIhw8i16o2i,
-                    gOIhw8o16i2o, OIhw8o16i2o, gOIhw4i16o4i, OIhw4i16o4i))
+                auto wei_fmt = format_normalize(
+                        conv_pd_->diff_weights_pd()->desc()->format);
+                /* only weights in non-double-blocked format are supported */
+                if (wei_fmt == blocked && !is_format_double_blocked(wei_fmt))
                     return success;
                 delete conv_pd_;
             }
