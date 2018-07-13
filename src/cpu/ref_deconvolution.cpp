@@ -100,8 +100,10 @@ void ref_deconvolution_fwd_t::compute_fwd_bias_nCdhwXc() {
             for (int sp = 0; sp < SP; ++sp) {
                 auto offset = mb * stride_mb + oc * SP + sp * blksize;
 
+                const int blk = nstl::min(blksize, OC - oc);
+
                 PRAGMA_OMP_SIMD()
-                for (int i = 0; i < blksize; ++i)
+                for (int i = 0; i < blk; ++i)
                     dst[offset + i] += bias[oc + i];
             }
         }
@@ -195,8 +197,10 @@ void ref_deconvolution_bwd_weights_t::compute_bwd_bias_nCdhwXc() {
             }
         }
 
+        const int blk = nstl::min(blksize, OC - oc);
+
         PRAGMA_OMP_SIMD()
-        for (int i = 0; i < blksize; ++i)
+        for (int i = 0; i < blk; ++i)
             diff_bias[oc + i] = db[i];
     }
 }
