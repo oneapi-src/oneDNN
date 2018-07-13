@@ -257,6 +257,55 @@ typed_zero_pad_weights(const memory_desc_wrapper &m_d,
 }
 
 template <data_type_t dt>
+void typed_zero_pad_generic_blocked(const memory_desc_wrapper &m_d,
+        typename prec_traits<dt>::type *data) {
+    const int ndims = m_d.ndims();
+    const auto &dims = m_d.dims();
+    const auto &pdims = m_d.blocking_desc().padding_dims;
+
+    const ptrdiff_t nelems = (ptrdiff_t)m_d.nelems(true);
+
+    /* [D_0] .. [D_k][D_k+1] .. [D_ndim - 1]
+     *            |  \                     /
+     *            |   ---------------------
+     *           has        contiguous
+     *         padding
+     *
+     * step     <-- D_k+1 * ... * D_ndims-1
+     * step_dim <-- k
+     */
+
+    ptrdiff_t step = 1;
+    int step_dim = ndims - 1;
+    for (; step_dim >= 0; --step_dim) {
+        if (dims[step_dim] != pdims[step_dim]) break;
+        step *= dims[step_dim];
+    }
+
+    assert(step_dim >= 0 && "no zero padding is required");
+    if (step_dim < 0) return;
+
+#   pragma omp parallel for
+    for (ptrdiff_t e = 0; e < nelems; e += step) {
+        bool need_zero = false;
+
+        ptrdiff_t idx = e / step;
+        for (int d = step_dim; d >= 0; --d) {
+            if (idx % pdims[d] >= dims[d]) {
+                need_zero = true;
+                break;
+            }
+            idx /= pdims[d];
+        }
+
+        if (!need_zero) continue;
+
+        for (ptrdiff_t e0 = 0; e0 < step; ++e0)
+            data[m_d.off_l(e + e0, true)] = 0;
+    }
+}
+
+template <data_type_t dt>
 status_t cpu_memory_t::typed_zero_pad() {
     const memory_desc_wrapper mpd(&conf_);
 
@@ -314,6 +363,12 @@ status_t cpu_memory_t::typed_zero_pad() {
     MAYBE_WEIGHTS(Goihw8g);
     MAYBE_WEIGHTS(Goihw16g);
 #   undef MAYBE_WEIGHTS
+
+    // the last line of defence
+    if (types::format_normalize(fmt) == blocked) {
+        typed_zero_pad_generic_blocked<dt>(mpd, data);
+        return success;
+    }
 
     return unimplemented;
 }
