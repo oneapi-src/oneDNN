@@ -1106,7 +1106,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
         const int id_s = od_s * jcp.stride_d;
         const int idp = jcp.id + jcp.f_pad + jcp.back_pad;
 
-        if (id_s < idp - jcp.back_pad - jcp.kd + 1) {
+        if (id_s < idp - jcp.back_pad - (jcp.kd - 1) * (jcp.dilate_d)) {
             for (int g = ti->g_start; g < ti->g_end; ++g) {
             for (int oc_b = ti->oc_b_start; oc_b < ti->oc_b_end; ++oc_b) {
             for (int ic_b = ti->ic_b_start; ic_b < ti->ic_b_end; ++ic_b) {

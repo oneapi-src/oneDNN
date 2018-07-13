@@ -2496,7 +2496,8 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::od_step_comeback_pointers()
         int inp_mult = jcp.is_1stconv ? 1 : jcp.ic_block;
         int iw = (utils::one_of(jcp.ver, ver_4fma, ver_4vnni, ver_vnni))
             ? jcp.tr_iw : jcp.iw;
-        sub(aux_reg_input, jcp.typesize_in * jcp.ih * iw * inp_mult);
+        sub(aux_reg_input,
+                jcp.typesize_in * (jcp.dilate_d + 1) * jcp.ih * iw * inp_mult);
         sub(aux_reg_kernel,
             jcp.typesize_out * jcp.kh * jcp.kw * jcp.ic_block * jcp.oc_block);
         dec(kj);
@@ -2513,7 +2514,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::oh_step_comeback_pointers()
         int inp_mult = jcp.is_1stconv ? 1 : jcp.ic_block;
         int iw = (utils::one_of(jcp.ver, ver_4fma, ver_4vnni, ver_vnni))
             ? jcp.tr_iw : jcp.iw;
-        sub(reg_input, jcp.typesize_in * iw * inp_mult);
+        sub(reg_input, jcp.typesize_in * (jcp.dilate_h + 1) * iw * inp_mult);
         sub(reg_kernel,
             jcp.typesize_out * jcp.kw * jcp.ic_block * jcp.oc_block);
         dec(kj);
@@ -2557,9 +2558,9 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_ic_block_step_fma(
                 + output_offset));
 
         for (int i_kw = 0; i_kw < kw; i_kw++) {
-            int i_iw = i_ur * jcp.stride_w + i_kw;
-            if (i_iw - pad_l < 0 || i_iw > (ur_w - 1) * jcp.stride_w + kw - 1
-                - pad_r) continue;
+            int i_iw = i_ur * jcp.stride_w + i_kw * (jcp.dilate_w + 1);
+            if (i_iw - pad_l < 0 || i_iw > (ur_w - 1) * jcp.stride_w +
+                    (kw - 1) * (jcp.dilate_w + 1) - pad_r) continue;
             for (int i_ic = 0; i_ic < ic_block_step; i_ic++) {
                 const int i_offset = input_offset
                     + typesize * (jcp.ver == ver_4fma
@@ -2829,8 +2830,8 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32
         ? jcp.tr_iw : jcp.iw;
     int ow = (jcp.ver == ver_4vnni || jcp.ver == ver_vnni) ? jcp.tr_ow : jcp.ow;
 
-    int r_pad = nstl::max(0, (ow - 1) * jcp.stride_w + jcp.kw - 1
-        - (jcp.iw + jcp.l_pad - 1));
+    int r_pad = nstl::max(0, (ow - 1) * jcp.stride_w
+            + (jcp.kw - 1) * (jcp.dilate_w + 1) - (jcp.iw + jcp.l_pad - 1));
     int l_pad = jcp.l_pad;
 
     if (jcp.ndims == 5) {
@@ -2853,7 +2854,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32
                 input_offset, jcp.typesize_out * i_b_ic * jcp.oc_block, 0,
                 i_b_ic + ic_block_step >= jcp.ic_block);
         }
-        add(reg_input, jcp.typesize_in * iw * inp_mul);
+        add(reg_input, jcp.typesize_in * (jcp.dilate_h + 1) * iw * inp_mul);
         add(reg_kernel, jcp.typesize_out * (jcp.kw) * ic_block * oc_block);
         dec(kj);
         cmp(kj, 0);
@@ -2861,7 +2862,8 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32
     }
 
     if (jcp.ndims == 5) {
-        add(aux_reg_input, jcp.typesize_in * jcp.ih * iw * inp_mul);
+        add(aux_reg_input,
+                jcp.typesize_in * (jcp.dilate_d + 1) * jcp.ih * iw * inp_mul);
         add(aux_reg_kernel, jcp.typesize_out * jcp.kh * jcp.kw * ic_block
             * oc_block);
         dec(ki);
@@ -2884,7 +2886,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32
     int ow = (jcp.ver == ver_4vnni || jcp.ver == ver_vnni) ? jcp.tr_ow : jcp.ow;
 
     int r_pad = nstl::max(0,
-        (ow - 1) * jcp.stride_w + jcp.kw - 1
+        (ow - 1) * jcp.stride_w + (jcp.kw - 1) * (jcp.dilate_w + 1)
         - (jcp.iw + jcp.l_pad - 1));
     int l_pad = jcp.l_pad;
 
@@ -2916,9 +2918,10 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32
 
         if (jcp.is_1stconv) {
             sub(reg_input, jcp.typesize_in * jcp.ih*jcp.iw*jcp.id * ic_block);
-            add(reg_input, jcp.typesize_in * jcp.iw);
+            add(reg_input, jcp.typesize_in * (jcp.dilate_h + 1) * jcp.iw);
         } else if (!utils::one_of(jcp.ver, ver_4fma, ver_4vnni, ver_vnni)) {
-            add(reg_input, jcp.typesize_in * (jcp.iw - 1) * ic_block);
+            add(reg_input, jcp.typesize_in
+                    * ((jcp.dilate_h + 1) * jcp.iw - 1) * ic_block);
         }
         add(reg_kernel, jcp.typesize_out * (jcp.kw - 1) * ic_block * oc_block);
         dec(kj);
@@ -2926,8 +2929,8 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32
         jg(kh_label, T_NEAR);
     }
     if (jcp.ndims == 5) {
-        add(aux_reg_input, jcp.typesize_in * jcp.ih * jcp.iw
-            * ((jcp.is_1stconv) ? 1 : ic_block));
+        add(aux_reg_input, jcp.typesize_in * (jcp.dilate_d + 1) * jcp.ih
+                * jcp.iw * (jcp.is_1stconv ? 1 : ic_block));
         add(aux_reg_kernel, jcp.typesize_out * jcp.kh * jcp.kw * ic_block
             * oc_block);
         dec(ki);
@@ -2946,8 +2949,8 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32
     int oc_block = jcp.oc_block;
 
     int ow = (jcp.ver == ver_4vnni || jcp.ver == ver_vnni) ? jcp.tr_ow : jcp.ow;
-    int r_pad = nstl::max(0, (ow - 1) * jcp.stride_w + jcp.kw - 1
-        - (jcp.iw + jcp.l_pad - 1));
+    int r_pad = nstl::max(0, (ow - 1) * jcp.stride_w
+            + (jcp.kw - 1) * (jcp.dilate_w + 1) - (jcp.iw + jcp.l_pad - 1));
     int l_pad = (jcp.ver == ver_4fma || jcp.ver == ver_4vnni
                  || jcp.ver == ver_vnni) ? 0 : jcp.l_pad;
 
@@ -3023,9 +3026,10 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32
         }
         if (jcp.is_1stconv) {
             sub(reg_input, jcp.typesize_in * jcp.ih*jcp.iw*jcp.id * ic_block);
-            add(reg_input, jcp.typesize_in * jcp.iw);
+            add(reg_input, jcp.typesize_in * (jcp.dilate_h + 1) * jcp.iw);
         } else if (!utils::one_of(jcp.ver, ver_4fma, ver_4vnni, ver_vnni)) {
-            add(reg_input, jcp.typesize_in * (jcp.iw - 1) * ic_block);
+            add(reg_input, jcp.typesize_in
+                    * ((jcp.dilate_h + 1 ) * jcp.iw - 1) * ic_block);
         }
         add(reg_kernel, jcp.typesize_out * (jcp.kw - 1) * ic_block * oc_block);
         dec(kj);
@@ -3033,15 +3037,14 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32
         jg(kh_label, T_NEAR);
     }
     if (jcp.ndims == 5) {
-        add(aux_reg_input, jcp.typesize_in * jcp.ih * jcp.iw *
-                ((jcp.is_1stconv) ? 1 : ic_block ));
+        add(aux_reg_input, jcp.typesize_in * (jcp.dilate_d + 1) * jcp.ih
+                * jcp.iw * (jcp.is_1stconv ? 1 : ic_block));
         add(aux_reg_kernel, jcp.typesize_out * jcp.kh * jcp.kw * ic_block
             * oc_block);
         dec(ki);
         cmp(ki, 0);
         jg(kd_label, T_NEAR);
     }
-
 }
 
 void jit_avx512_common_conv_bwd_weights_kernel_f32
@@ -3140,19 +3143,19 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::bias_kernel()
 void jit_avx512_common_conv_bwd_weights_kernel_f32
     ::compute_oh_loop_common()
 {
-    int back_pad = nstl::max(0, (jcp.od - 1) * jcp.stride_d + jcp.kd - 1
-        - (jcp.id + jcp.f_pad - 1));
-
-    int b_pad = nstl::max(0, (jcp.oh - 1) * jcp.stride_h + jcp.kh - 1
-        - (jcp.ih + jcp.t_pad - 1));
+    int back_pad = jcp.back_pad;
+    int b_pad = jcp.b_pad;
     int t_pad = jcp.t_pad;
+    bool is_dilated = jcp.dilate_h != 0;
+    int dilate_h = jcp.dilate_h + 1;
     int stride_h = jcp.stride_h;
-    int idp = jcp.id + jcp.f_pad + jcp.back_pad;
+    int idp = jcp.id + jcp.f_pad + back_pad;
     const int inp_mult = jcp.is_1stconv ? 1 : jcp.ic_block;
     int iw = utils::one_of(jcp.ver, ver_4fma, ver_4vnni, ver_vnni) ? jcp.tr_iw
         : jcp.iw;
     Label oh_label, oh_label_end, oh_tpad_label, oh_tpad_tail_label,
-            oh_bpad_label, oh_bpad_label_end, od_label, od_label_end;
+            oh_bpad_label, oh_bpad_label_end, od_label, od_label_end,
+            oh_dilate_label_shift, oh_dilate_label_noshift, oh_dilate_label_end;
 
     maybe_zero_kernel();
     if (jcp.ndims == 5 && jcp.with_bias) bias_kernel();
@@ -3179,30 +3182,60 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32
     xor_(reg_ih_count, reg_ih_count);
     xor_(reg_oj, reg_oj);
     if (t_pad > 0) {
-        mov(reg_kh, jcp.kh <= t_pad + jcp.ih ? jcp.kh - t_pad : jcp.ih);
-        add(reg_kernel, jcp.typesize_out * t_pad * jcp.kw * jcp.ic_block
+        const int kh_range = 1 + (jcp.kh - 1) * dilate_h;
+        const int overflow
+            = nstl::max(0, jcp.kh - div_up(t_pad + jcp.ih, dilate_h));
+        const int underflow = div_up(t_pad, dilate_h);
+        const int initial_inp_ker_overlap = jcp.kh - overflow - underflow;
+        mov(reg_kh, initial_inp_ker_overlap);
+        add(reg_kernel, jcp.typesize_out * underflow * jcp.kw * jcp.ic_block
             * jcp.oc_block);
         // generate loop to process kernel while it remains within t_pad + ih
-        if (jcp.kh < t_pad + jcp.ih) {
+        if (kh_range < t_pad + jcp.ih) {
+            if (is_dilated) {
+                const int tail = t_pad % dilate_h;
+                const int shift = tail == 0 ? 0 : dilate_h - tail;
+                mov(reg_tmp, shift);
+                if (tail != 0)
+                    add(reg_input, jcp.typesize_in * shift * iw * inp_mult);
+            }
             L(oh_tpad_label); {
                 compute_oh_step_disp();
                 add(reg_output, jcp.typesize_in * ow * jcp.oc_block);
+                if (is_dilated) {
+                    inc(reg_tmp);
+                    cmp(reg_tmp, dilate_h);
+                    jl(oh_dilate_label_shift, T_NEAR);
+                    // unshift input as new kernel element enters
+                    sub(reg_input, jcp.typesize_in * (dilate_h - 1) * iw * inp_mult);
+                    xor_(reg_tmp, reg_tmp);
+                }
+                // kernel overlap only changes when (t_pad + oj) % dilate_h == 0
                 sub(reg_kernel, jcp.typesize_out * stride_h * jcp.kw
                                 * jcp.ic_block * jcp.oc_block);
-
+                add(reg_kh, stride_h);
+                if (is_dilated) {
+                    jmp(oh_dilate_label_noshift, T_NEAR);
+                    L(oh_dilate_label_shift);
+                    // shift input as old kernel element progresses
+                    add(reg_input, jcp.typesize_in * stride_h * iw * inp_mult);
+                    L(oh_dilate_label_noshift);
+                }
                 inc(reg_oj);
                 add(reg_ih_count, stride_h);
-                add(reg_kh, stride_h);
 
-                // at least jcp.ih cells of kernel ultimately overlap with input
-                const int final_inp_ker_overlap = nstl::min(jcp.kh, jcp.ih);
+                // final number of kernel elements that overlap with input
+                const int final_inp_ker_overlap
+                    = nstl::min(jcp.kh, div_up(jcp.ih, dilate_h));
                 cmp(reg_kh, final_inp_ker_overlap);
                 jl(oh_tpad_label, T_NEAR);
             }
         }
         // need second loop to process kernel if it is larger than the input
-        if (jcp.kh >= jcp.ih + (t_pad % stride_h == 0 ? stride_h :
+        // (does not apply to dilations as they must have unit stride)
+        if (kh_range >= jcp.ih + (t_pad % stride_h == 0 ? stride_h :
                                                         t_pad % stride_h)) {
+            assert(!is_dilated);
             mov(reg_kh, jcp.ih);
             L(oh_tpad_tail_label); {
                 compute_oh_step_disp();
@@ -3218,9 +3251,12 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32
             }
         }
         // correct any excess shifts to kernel and input
+        // (does not apply to dilations as they must have unit stride,
+        //  kernel must fit inside input, and padding is smaller than input)
         if (t_pad <= jcp.oh * stride_h) {
             // kernel has moved beyond padding (adjust for stride effects)
             if (t_pad % stride_h != 0) {
+                assert(!is_dilated);
                 int inp_corr = stride_h - t_pad % stride_h;
                 add(reg_kernel, jcp.typesize_out * inp_corr * jcp.kw
                                 * jcp.ic_block * jcp.oc_block);
@@ -3228,12 +3264,13 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32
             }
         } else {
             // kernel still overlaps padding (complete reset)
+            assert(!is_dilated);
             sub(reg_kernel, jcp.typesize_out * (t_pad - jcp.oh * stride_h)
                             * jcp.kw * jcp.ic_block * jcp.oc_block);
         }
     }
 
-    cmp(reg_ih_count, jcp.ihp - b_pad - jcp.kh + 1);
+    cmp(reg_ih_count, jcp.ihp - b_pad - (jcp.kh - 1) * dilate_h);
     jge(oh_label_end, T_NEAR);
     cmp(reg_oj, jcp.oh);
     jge(oh_label, T_NEAR);
@@ -3247,7 +3284,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32
         inc(reg_oj);
         add(reg_ih_count, stride_h);
 
-        cmp(reg_ih_count, jcp.ihp - b_pad - jcp.kh + 1);
+        cmp(reg_ih_count, jcp.ihp - b_pad - (jcp.kh - 1) * dilate_h);
         jge(oh_label_end, T_NEAR);
 
         cmp(reg_oj, jcp.oh);
@@ -3259,17 +3296,29 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32
         cmp(reg_oj, jcp.oh);
         jge(oh_bpad_label_end, T_NEAR);
 
-        mov(reg_kh, jcp.ihp - b_pad);
-        sub(reg_kh, reg_ih_count);
+        if (is_dilated) {
+            mov(reg_kh, jcp.kh - 1); // assumes unit stride for dilations
+            mov(reg_tmp, 0);
+        } else {
+            mov(reg_kh, jcp.ihp - b_pad);
+            sub(reg_kh, reg_ih_count);
+        }
         L(oh_bpad_label);
         {
             compute_oh_step_disp();
             add(reg_input, jcp.typesize_in * stride_h * iw * inp_mult);
             add(reg_output, jcp.typesize_in * ow * jcp.oc_block);
-
+            if (is_dilated) {
+                inc(reg_tmp);
+                cmp(reg_tmp, dilate_h);
+                jl(oh_dilate_label_end, T_NEAR);
+                xor_(reg_tmp, reg_tmp);
+            }
             sub(reg_kh, stride_h);
             cmp(reg_kh, 0);
             jle(oh_bpad_label_end, T_NEAR);
+            if (is_dilated)
+                L(oh_dilate_label_end);
 
             inc(reg_oj);
             cmp(reg_oj, jcp.oh);
@@ -3290,7 +3339,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32
         dec(reg_oi);
         add(reg_id_count, jcp.stride_d);
 
-        cmp(reg_id_count, idp - back_pad - jcp.kd + 1);
+        cmp(reg_id_count, idp - back_pad - (jcp.kd - 1) * (jcp.dilate_d + 1));
         jge(od_label_end, T_NEAR);
 
         cmp(reg_oi, 0);
@@ -3306,6 +3355,7 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32
     // FIXME: use register mapping from the class declaration
     bool ok = one_of(jcp.ver, ver_4fma, ver_4vnni, ver_vnni)
         && (jcp.ver == ver_4fma || !one_of(1, jcp.kh, jcp.kw))
+        && everyone_is(0, jcp.dilate_h, jcp.dilate_w)
         && everyone_is(1, jcp.stride_h, jcp.stride_w);
     if (!ok) return false;
     if (jcp.l_pad != jcp.kw / 2 || jcp.t_pad != jcp.kh / 2)
@@ -3865,7 +3915,8 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32
 bool  jit_avx512_common_conv_bwd_weights_kernel_f32
     ::flat_4ops_compute() {
     const auto &j = jcp;
-    const bool ok = j.ver == ver_4fma && j.is_1stconv;
+    const bool ok = j.ver == ver_4fma && j.is_1stconv
+        && everyone_is(0, j.dilate_h, j.dilate_w);
     if (!ok) return false;
 
     Reg64 reg_ptr_tr_src = r8;
@@ -4121,15 +4172,24 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
     jcp.dilate_d = (ndims == 5) ? cd.dilates[0] : 0;
     jcp.dilate_h = cd.dilates[ndims-4];
     jcp.dilate_w = cd.dilates[ndims-3];
-    if (jcp.dilate_h != 0 || jcp.dilate_w != 0 || jcp.dilate_d != 0)
+
+    const int kh_range = 1 + (jcp.kh - 1) * (jcp.dilate_h + 1);
+    bool ok = true
+        // general condition to simplify dilations
+        && implication(jcp.dilate_d != 0, jcp.stride_d == 1)
+        && implication(jcp.dilate_h != 0, jcp.stride_h == 1)
+        && implication(jcp.dilate_w != 0, jcp.stride_w == 1)
+        // special condition to simplify dilations in compute_oh_loop_common
+        && implication(jcp.dilate_h != 0, kh_range <= jcp.ih);
+    if (!ok)
         return status::unimplemented;
 
-    jcp.r_pad = nstl::max(0, (jcp.ow - 1) * jcp.stride_w + jcp.kw - jcp.iw
-        - jcp.l_pad);
-    jcp.b_pad = nstl::max(0, (jcp.oh - 1) * jcp.stride_h + jcp.kh - jcp.ih
-        - jcp.t_pad);
-    jcp.back_pad = nstl::max(0, (jcp.od - 1) * jcp.stride_d + jcp.kd - jcp.id
-        - jcp.f_pad);
+    jcp.r_pad = nstl::max(0, (jcp.ow - 1) * jcp.stride_w
+            + (jcp.kw - 1) * (jcp.dilate_w + 1) - (jcp.iw + jcp.l_pad - 1));
+    jcp.b_pad = nstl::max(0, (jcp.oh - 1) * jcp.stride_h
+            + (jcp.kh - 1) * (jcp.dilate_h + 1) - (jcp.ih + jcp.t_pad - 1));
+    jcp.back_pad = nstl::max(0, (jcp.od - 1) * jcp.stride_d
+            + (jcp.kd - 1) * (jcp.dilate_d + 1) - (jcp.id + jcp.f_pad - 1));
 
     if ( ndims == 5 )
         if (jcp.f_pad != 0 || jcp.back_pad != 0)
@@ -4180,9 +4240,10 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
     /* kernel applicability check wrt boundaries
      * the conditions are quite general across the kernels we have,
      * but ideally the check should belong to a specific kernel... */
+    const int max_pad = ((jcp.kh - 1) * (jcp.dilate_h + 1) + 1) / 2;
     const bool boundaries_ok = true
-        && jcp.t_pad <= jcp.kh / 2
-        && jcp.b_pad <= jcp.kh / 2;
+        && jcp.t_pad <= max_pad
+        && jcp.b_pad <= max_pad;
     if (!boundaries_ok)
         return status::unimplemented;
 
@@ -4222,6 +4283,7 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
         const bool use_4fma = true
             && ndims == 4
             && mayiuse(avx512_mic_4ops)
+            && everyone_is(0, jcp.dilate_d, jcp.dilate_h, jcp.dilate_w)
             && everyone_is(0, jcp.l_pad, jcp.r_pad, jcp.t_pad, jcp.b_pad)
             && jcp.kw <= 28 - jcp.with_bias
             && jcp.stride_w == 4
@@ -4272,6 +4334,7 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
         if ((mayiuse(avx512_mic_4ops) || mayiuse(avx512_core_vnni))
             && ndims == 4
             && jcp.stride_w == 1
+            && everyone_is(0, jcp.dilate_d, jcp.dilate_h, jcp.dilate_w)
             && ((src_d.data_type() == data_type::s16
             && diff_weights_d.data_type() == data_type::s32
             && diff_dst_d.data_type() == data_type::s16))) {
@@ -4282,7 +4345,8 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
                     src_d.data_type(), diff_weights_d.data_type(),
                     diff_dst_d.data_type())) {
             jcp.ver = ver_fma;
-            if (ndims == 4 && mayiuse(avx512_mic_4ops) && jcp.stride_w == 1) {
+            if (ndims == 4 && mayiuse(avx512_mic_4ops) && jcp.stride_w == 1 &&
+                    everyone_is(0, jcp.dilate_d, jcp.dilate_h, jcp.dilate_w)) {
                 jcp.ver = ver_4fma;
             }
         } else {
