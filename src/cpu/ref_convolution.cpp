@@ -151,11 +151,13 @@ void ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
     auto diff_dst = reinterpret_cast<const diff_dst_data_t*>(
             this->input_memory(0));
     auto weights = reinterpret_cast<const wei_data_t*>(this->input_memory(1));
+    auto bias = reinterpret_cast<const char *>(this->input_memory(2));
     auto diff_src = reinterpret_cast<diff_src_data_t*>(this->memory());
 
     const memory_desc_wrapper diff_dst_d(conf_.diff_dst_pd());
     const memory_desc_wrapper diff_src_d(conf_.diff_src_pd());
     const memory_desc_wrapper weights_d(conf_.weights_pd(0));
+    const memory_desc_wrapper bias_d(conf_.weights_pd(1));
 
     const bool with_groups = conf_.with_groups();
 
@@ -226,6 +228,19 @@ void ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
             }
         }
     };
+    auto get_bias = [=, &bias](size_t off) -> acc_data_t {
+#       define CASE(dt) case dt: \
+            return (acc_data_t)(*((const prec_traits<dt>::type *)bias + off))
+        switch (conf_.desc()->bias_desc.data_type) {
+        CASE(data_type::s8);
+        CASE(data_type::u8);
+        CASE(data_type::s32);
+        CASE(data_type::f32);
+        default: assert(!"unimplemented");
+        }
+#       undef CASE
+        return 0;
+    };
 
 #   pragma omp parallel for collapse(6) schedule(static)
     for (int g = 0; g < G; ++g) {
@@ -237,7 +252,9 @@ void ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
                             auto ds_idx = (ndims == 5)
                                 ? diff_src_d.off(mb, g*IC + ic, id, ih, iw)
                                 : diff_src_d.off(mb, g*IC + ic, ih, iw);
-                            acc_data_t a = acc_data_t(0);
+                            acc_data_t a = bias
+                                ? get_bias(bias_d.off(g*IC + ic))
+                                : (acc_data_t)0;
                             ker(a, g, mb, ic, id, ih, iw);
                             diff_src[ds_idx] = saturate<diff_src_data_t>(a);
                         }
@@ -394,6 +411,11 @@ template struct _ref_convolution_fwd_t<true, u8, s8, u8, s32>;
 
 template struct ref_convolution_bwd_data_t<f32, f32, f32, f32>;
 template struct ref_convolution_bwd_data_t<s32, s16, s16, s32>;
+
+template struct ref_convolution_bwd_data_t<f32, s8, u8, s32>;
+template struct ref_convolution_bwd_data_t<s32, s8, u8, s32>;
+template struct ref_convolution_bwd_data_t<s8, s8, u8, s32>;
+template struct ref_convolution_bwd_data_t<u8, s8, u8, s32>;
 
 template struct ref_convolution_bwd_weights_t<f32, f32, f32, f32>;
 template struct ref_convolution_bwd_weights_t<s16, s32, s16, s32>;

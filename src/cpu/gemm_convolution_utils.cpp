@@ -235,6 +235,61 @@ void im2col_u8(
     }
 }
 
+/* im[ih][iw][ic] <-- col2im_s32(col[oh][ow][kh][kw][ic]) */
+void col2im_s32(
+    jit_gemm_conv_conf_t &jcp, const int32_t *col, int32_t *im) {
+    int num_thr = (jcp.mb != 1) ? omp_get_max_threads() : 1;
+
+#   pragma omp parallel for num_threads(num_thr)
+    for (int ithr = 0; ithr < num_thr; ithr++)
+    {
+        int h_nthr = nstl::min(jcp.ih, num_thr);
+        int w_nthr = nstl::min(jcp.iw, num_thr/h_nthr);
+        int h_ithr = 1, h_s = 0, h_e = 0, w_ithr = 1, w_s = 0, w_e = 0;
+        if (ithr < h_nthr * w_nthr) {
+            h_ithr = ithr / w_nthr;
+            w_ithr = ithr % w_nthr;
+            balance211(jcp.ih, h_nthr, h_ithr, h_s, h_e);
+            balance211(jcp.iw, w_nthr, w_ithr, w_s, w_e);
+        } else {
+            h_ithr = w_ithr = -ithr;
+            h_s = h_e = w_s = w_e = -1;
+        }
+        for (int ih = h_s; ih < h_e; ++ih) {
+            for (int iw = w_s; iw < w_e; ++iw) {
+#               pragma omp simd
+                for (int ic = 0; ic < jcp.ic; ++ic) {
+                    im[(ih * jcp.iw + iw) * jcp.ic + ic] = 0;
+                }
+            }
+        }
+        for (int oh = 0; oh < jcp.oh; ++oh) {
+            for (int ow = 0; ow < jcp.ow; ++ow) {
+                for (int kh = 0; kh < jcp.kh; ++kh) {
+                    const int ih = oh * jcp.stride_h
+                        - jcp.t_pad + kh * (1 + jcp.dilate_h);
+                    if (ih < h_s || ih >= h_e) continue;
+
+                    for (int kw = 0; kw < jcp.kw; ++kw) {
+                        const int iw = ow * jcp.stride_w
+                            - jcp.l_pad + kw * (1 + jcp.dilate_w);
+                        if (iw < w_s || iw >= w_e) continue;
+
+                        const size_t col_idx = (((oh * jcp.ow + ow) * jcp.kh
+                                + kh) * jcp.kw + kw) * jcp.ic;
+                        const size_t im_idx
+                            = (ih * jcp.iw + iw) * jcp.ic;
+#                       pragma omp simd
+                        for (int ic = 0; ic < jcp.ic; ++ic) {
+                            im[im_idx + ic] += col[col_idx + ic];
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 void col2im_3d(
     jit_gemm_conv_conf_t &jcp, const float *col, float *im, int od) {
     const size_t col_step = jcp.ks * jcp.os;
@@ -361,30 +416,33 @@ void init_conf(
     jcp.with_relu = with_relu;
     jcp.relu_negative_slope = relu_negative_slope;
 
+    jcp.is = jcp.ih * jcp.iw;
     jcp.os = jcp.oh * jcp.ow;
     jcp.ks = jcp.kh * jcp.kw * jcp.kd;
     jcp.im2col_sz = !(jcp.oh == jcp.ih && jcp.ow == jcp.iw
                             && jcp.od == jcp.id && jcp.ks == 1)
         ? (ptrdiff_t)jcp.ic * jcp.ks * jcp.os
         : 0;
+
+    bool do_outer_threading = false;
     bool is_int8_conv = (cd.src_desc.data_type == u8
             && cd.weights_desc.data_type == s8);
-    if(utils::one_of(jcp.prop_kind, forward_training, forward_inference))
-        jcp.nthr = (is_int8_conv)
-            ? (!(utils::everyone_is(1, jcp.ic, jcp.oc) && jcp.ngroups != 1)
-                && !(jcp.os / max_threads < 64 && jcp.mb != 1))
-                ? 1
-                : max_threads
-            : jcp.os / max_threads < 512 && utils::implication(jcp.od == 1,
-                        (jcp.mb != 1 || jcp.ngroups > 2)) ? max_threads : 1;
-    else if (jcp.prop_kind == backward_data)
-        jcp.nthr = (jcp.mb != 1 || jcp.ngroups > 2) ? max_threads : 1;
-    else if (jcp.prop_kind == backward_weights)
-        jcp.nthr = jcp.os / max_threads < 256 &&
-                    (jcp.mb != 1 || jcp.ngroups > 2) ? max_threads : 1;
-    else
-        jcp.nthr = 1;
-
+    if (is_int8_conv) {
+        bool is_depthwise =
+                utils::everyone_is(1, jcp.ic, jcp.oc) && jcp.ngroups != 1;
+        do_outer_threading
+                = (is_depthwise || (jcp.os / max_threads < 64 && jcp.mb != 1));
+    } else {
+        if (utils::one_of(jcp.prop_kind, forward_training, forward_inference))
+            do_outer_threading = jcp.os / max_threads < 512
+                && utils::implication(jcp.od == 1, (jcp.mb != 1 || jcp.ngroups > 2));
+        else if (jcp.prop_kind == backward_data)
+            do_outer_threading = (jcp.mb != 1 || jcp.ngroups > 2);
+        else //(jcp.prop_kind == backward_weights)
+            do_outer_threading = jcp.os / max_threads < 256
+                       && (jcp.mb != 1 || jcp.ngroups > 2);
+    }
+    jcp.nthr = do_outer_threading ? max_threads : 1;
     jcp.need_wei_reduction = (jcp.mb != 1 && jcp.nthr != 1);
 }
 

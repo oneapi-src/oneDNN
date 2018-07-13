@@ -72,8 +72,6 @@ inline int init_pd(const prb_t *p, mkldnn_deconvolution_desc_t &cd,
     mkldnn_dims_t dst_dims = {p->mb, p->oc, p->oh, p->ow};
     mkldnn_dims_t dst_3d_dims = {p->mb, p->oc, p->od, p->oh, p->ow};
 
-    assert(p->cfg[SRC].dt == p->cfg[DST].dt);
-
     DNN_SAFE(mkldnn_memory_desc_init(&src_d, ndims,
         is_deconv_3d(p) ? src_3d_dims : src_dims, p->cfg[SRC].dt, mkldnn_any), WARN);
     DNN_SAFE(mkldnn_memory_desc_init(&wei_d, ndims + 1,
@@ -231,9 +229,9 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t &bia_fp = *p_bia_fp, &zero_fp = *p_zero_fp;
 
     /* fill memory + reorders <-> */
-    SAFE(fill_src(&p_tr, dst_dt, dst_fp, r), WARN);
+    SAFE(fill_dst(p, dst_dt, dst_fp, r), WARN);
     SAFE(fill_wei(p, wei_dt, wei_fp, r), WARN);
-    SAFE(fill_dst(&p_tr, src_dt, src_fp, r), WARN);
+    SAFE(fill_src(p, src_dt, src_fp, r), WARN);
 
     SAFE(transpose_data_wei(p, wei_fp, wei_tr_fp), WARN);
     if (p->dir & FLAG_BIA)
@@ -246,13 +244,10 @@ int doit(const prb_t *p, res_t *r) {
         DNN_SAFE(mkldnn_primitive_create(&c, dpd, inputs, outputs), WARN);
         SAFE(execute(c), WARN);
         if (bench_mode & CORR) {
-            compute_ref_bwd_d(&p_tr, dst_fp, wei_tr_fp, src_fp);
+            compute_ref_bwd_d(&p_tr, dst_fp, wei_tr_fp, bia_fp, src_fp);
             dnn_mem_t dst(dst_dt, fp, src_format);
             SAFE(dst.reorder(dst_dt), WARN);
-            if (p->dir & FLAG_BIA) {
-                compute_bias_fwd(p, bia_fp, dst_fp);
-            }
-           SAFE(compare_dst(p, dst, dst_fp, r, true), WARN);
+            SAFE(compare_dst(p, dst, dst_fp, r, true), WARN);
         }
     } else if (p->dir == BWD_D) {
         mkldnn_primitive_at_t inputs[3] = { {dst_dt.p_, 0}, {wei_dt.p_, 0}, };

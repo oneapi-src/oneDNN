@@ -184,7 +184,7 @@ struct convolution_bwd_data_pd_t: public primitive_desc_t {
     virtual const memory_pd_t *output_pd(int index = 0) const override
     { return index == 0 ? diff_src_pd() : nullptr; }
 
-    virtual int n_inputs() const override { return 2; }
+    virtual int n_inputs() const override { return 2 + with_bias(); }
     virtual int n_outputs() const override { return 1; }
 
     virtual status_t query(query_t what, int idx, void *result) const override
@@ -244,6 +244,7 @@ struct convolution_bwd_data_pd_t: public primitive_desc_t {
     { return desc_.weights_desc.ndims == desc_.diff_src_desc.ndims + 1; }
 
     inline int ndims() const { return desc_.diff_src_desc.ndims; }
+    virtual bool support_bias() const { return false; }
 
 protected:
     convolution_desc_t desc_;

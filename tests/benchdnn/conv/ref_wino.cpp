@@ -460,7 +460,7 @@ void compute_wino_ref_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
 }
 
 void compute_wino_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
-        dnn_mem_t &wei_m, dnn_mem_t &diff_dst_m) {
+        dnn_mem_t &wei_m, dnn_mem_t &bia_m, dnn_mem_t &diff_dst_m) {
     scratchpad_t sp{};
     SAFE_V(init_scratchpad(p, sp));
 
@@ -480,6 +480,8 @@ void compute_wino_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
     const int wp_max = p->ow + l_pad;
     const int hp_max = p->oh + t_pad;
     const int p_dim = p->mb * sp.h_tiles * sp.w_tiles;
+
+    bool with_bias = p->dir & FLAG_BIA;
 
 #pragma omp parallel
     {
@@ -577,6 +579,8 @@ void compute_wino_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
                     }
                     trans_O_4x4_3x3(_m, O);
 
+                    float bia = with_bias ? ((float *)bia_m)[c] : 0.f;
+
                     for (int j = 0; j < sp.out_dim; j++) {
                         int ydim = hfm * sp.out_dim + j;
                         if (ydim < p->ih) {
@@ -585,7 +589,8 @@ void compute_wino_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
                                 if (xdim < p->iw) {
                                     size_t src_off = src_off_f(
                                             p, img, 0, c, 0, ydim, xdim);
-                                    ((float *)diff_src_m)[src_off] = O[j][k];
+                                    ((float *)diff_src_m)[src_off] = O[j][k]
+                                            + bia;
                                 }
                             }
                         }

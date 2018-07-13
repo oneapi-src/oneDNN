@@ -21,6 +21,7 @@
 #include <string.h>
 
 #include "c_types_map.hpp"
+#include "cpu_convolution_pd.hpp"
 #include "cpu_deconvolution_pd.hpp"
 #include "cpu_engine.hpp"
 #include "type_helpers.hpp"
@@ -98,14 +99,12 @@ static status_t conv_descr_create(const deconvolution_desc_t *dd,
         src_md = &dd->dst_desc;
         dst_md = &dd->src_desc;
         d_weights_d = dd->weights_desc;
-    }
-    else if( utils::one_of(dd->prop_kind, backward, backward_data) ) {
+    } else if (dd->prop_kind == backward_data) {
         prop_kind = forward_training;
         src_md = &dd->diff_dst_desc;
         dst_md = &dd->diff_src_desc;
         d_weights_d = dd->weights_desc;
-    }
-    else {
+    } else {
         prop_kind = dd->prop_kind;
         src_md = &dd->diff_dst_desc;
         dst_md = &dd->src_desc;
@@ -123,10 +122,9 @@ static status_t conv_descr_create(const deconvolution_desc_t *dd,
             return unimplemented;
         CHECK( compute_blocked_format(with_groups, &d_weights_d, &c_weights_d));
     }
-    return conv_desc_init(cd, prop_kind, alg_kind,
-            src_md, &(c_weights_d),
-            ( (utils::one_of(dd->prop_kind, backward, backward_data))?
-            (&(dd->bias_desc)): nullptr ), dst_md, dd->strides, dd->dilates,
+    return conv_desc_init(cd, prop_kind, alg_kind, src_md, &(c_weights_d),
+            (prop_kind != backward_weights ? &(dd->bias_desc) : nullptr),
+            dst_md, dd->strides, dd->dilates,
             dd->padding[0], dd->padding[1], dd->padding_kind);
 }
 
@@ -155,31 +153,37 @@ struct ref_deconvolution_fwd_t: public cpu_primitive_t {
                 &(this->attr_), nullptr);
             while (++it != it.end()) {
                 conv_pd_ = *it;
+                conv_supports_bias_ = static_cast<cpu_convolution_bwd_data_pd_t *>
+                    (conv_pd_)->support_bias();
+                bool output_f32 = utils::everyone_is(data_type::f32,
+                        desc()->accum_data_type,
+                        desc()->dst_desc.data_type);
                 auto wei_fmt =
                     format_normalize(conv_pd_->weights_pd()->desc()->format);
-                /* only weights in non-double-blocked format are supported */
-                if (wei_fmt == blocked && !is_format_double_blocked(wei_fmt))
+
+                bool ok = true
+                    /* only weights in non-double-blocked format are supported */
+                    && (wei_fmt == blocked && !is_format_double_blocked(wei_fmt))
+                    /* deconv reference code can process only f32 bias */
+                    && utils::implication(with_bias(),
+                            conv_supports_bias_ || output_f32);
+                if (ok)
                     return success;
                 delete conv_pd_;
             }
             return unimplemented;
-
         };
         virtual status_t init() override {
             using namespace prop_kind;
-            using namespace data_type;
             assert(this->engine()->kind() == engine_kind::cpu);
             bool ok = true
                 && utils::one_of(this->desc()->prop_kind, forward_training,
                         forward_inference)
-                && utils::everyone_is(data_type::f32,
-                        this->desc()->src_desc.data_type,
-                        this->desc()->weights_desc.data_type,
-                        this->desc()->dst_desc.data_type)
                 && utils::one_of(this->desc()->alg_kind,
                         alg_kind::deconvolution_direct,
                         alg_kind::deconvolution_winograd)
-               && this->attr()->has_default_values();
+                && attr()->post_ops_.has_default_values();
+
             if (ok) {
                 CHECK(init_convolution());
                 if (weights_pd_.desc()->format == memory_format::any)
@@ -201,20 +205,19 @@ struct ref_deconvolution_fwd_t: public cpu_primitive_t {
             else return status::unimplemented;
         }
         primitive_desc_t *conv_pd_;
+        bool conv_supports_bias_;
     };
 
     ref_deconvolution_fwd_t(const pd_t *pd, const input_vector &inputs,
             const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {}
 
-    typedef typename prec_traits<data_type::f32>::type data_t;
-
     virtual void execute(event_t *e) {
         switch (conf_.desc()->prop_kind) {
         case prop_kind::forward_training:
         case prop_kind::forward_inference:
             (conv_p_)->execute(e);
-            if (conf_.with_bias()) {
+            if (conf_.with_bias() && !conf_.conv_supports_bias_) {
                 switch (conf_.dst_pd()->desc()->format) {
                     case memory_format::nchw :
                     case memory_format::ncdhw :
@@ -294,6 +297,7 @@ struct ref_deconvolution_bwd_data_t: public cpu_primitive_t {
                 && utils::one_of(this->desc()->alg_kind,
                         alg_kind::deconvolution_direct,
                         alg_kind::deconvolution_winograd);
+
             if (ok) {
                 CHECK(init_convolution());
                 if (weights_pd_.desc()->format == memory_format::any)

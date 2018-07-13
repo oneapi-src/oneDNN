@@ -566,7 +566,7 @@ int doit(const prb_t *p, res_t *r) {
         DNN_SAFE(mkldnn_primitive_create(&c, cpd, inputs, outputs), WARN);
         SAFE(execute(c), WARN);
         if (bench_mode & CORR) {
-            compute_ref_bwd_d(p, src_fp, wei_fp, dst_fp);
+            compute_ref_bwd_d(p, src_fp, wei_fp, bia_fp, dst_fp);
             dnn_mem_t src(src_dt, fp, src_format);
             SAFE(src.reorder(src_dt), WARN);
             SAFE(compare_src(p, src, src_fp, r, true), WARN);

@@ -135,6 +135,8 @@ struct ref_convolution_bwd_data_t: public cpu_primitive_t {
                 && this->attr()->has_default_values();
             return ok ? status::success : status::unimplemented;
         }
+
+        virtual bool support_bias() const override { return true; }
     };
 
     ref_convolution_bwd_data_t(const pd_t *pd, const input_vector &inputs,

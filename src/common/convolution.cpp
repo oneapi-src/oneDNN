@@ -82,6 +82,9 @@ status_t conv_desc_init(convolution_desc_t *conv_desc,
             weights_desc->data_type, dst_desc->data_type, prop_kind);
 
     const int g = with_groups ? weights_desc->dims[0] : 1;
+    const int bias_dim = prop_kind == backward_data
+        ? src_desc->dims[1]
+        : dst_desc->dims[1];
 
     bool consistency = true
         && memory_desc_wrapper(src_desc).nelems()
@@ -92,7 +95,7 @@ status_t conv_desc_init(convolution_desc_t *conv_desc,
         && utils::one_of(weights_desc->ndims, src_desc->ndims,
                 src_desc->ndims + 1)
         && (with_bias ? bias_desc->ndims == 1 : true)
-        && (with_bias ? bias_desc->dims[0] == dst_desc->dims[1] : true)
+        && (with_bias ? bias_desc->dims[0] == bias_dim : true)
         && src_desc->dims[0] == dst_desc->dims[0]
         && src_desc->dims[1] == g * weights_desc->dims[with_groups + 1]
         && dst_desc->dims[1] == g * weights_desc->dims[with_groups + 0];

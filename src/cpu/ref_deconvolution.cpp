@@ -26,6 +26,8 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
+typedef float data_t;
+
 void ref_deconvolution_fwd_t::compute_fwd_bias() {
     auto bias = reinterpret_cast<const data_t *>(this->input_memory(2));
     auto dst = reinterpret_cast<data_t *>(this->memory());

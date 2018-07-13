@@ -27,11 +27,11 @@ void compute_ref_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
 }
 
 void compute_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m, dnn_mem_t &wei_m,
-        dnn_mem_t &diff_dst_m) {
+        dnn_mem_t &bia_m, dnn_mem_t &diff_dst_m) {
     if (p->alg == WINO && p->cfg[SRC].dt == mkldnn_f32) {
-        compute_wino_ref_bwd_d(p, diff_src_m, wei_m, diff_dst_m);
+        compute_wino_ref_bwd_d(p, diff_src_m, wei_m, bia_m, diff_dst_m);
     } else {
-        compute_ref_direct_bwd_d(p, diff_src_m, wei_m, diff_dst_m);
+        compute_ref_direct_bwd_d(p, diff_src_m, wei_m, bia_m, diff_dst_m);
     }
 }
 
@@ -132,7 +132,7 @@ void compute_ref_direct_fwd(const prb_t *p, dnn_mem_t &src_m,
 }
 
 void compute_ref_direct_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
-        dnn_mem_t &wei_m, dnn_mem_t &diff_dst_m) {
+        dnn_mem_t &wei_m, dnn_mem_t &bia_m, dnn_mem_t &diff_dst_m) {
     enum { precompute_size = 16 };
     const bool fast = MAX2(p->kh, p->kw) <= precompute_size;
 
@@ -204,6 +204,18 @@ void compute_ref_direct_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
         }
     };
 
+    auto maybe_scale = [&](float &ds, int ic) {
+        if (!p->attr.oscale.is_def()) {
+            using policy_t = attr_t::scale_t::policy_t;
+            const auto &s = p->attr.oscale;
+            if (s.policy == policy_t::COMMON) {
+                ds *= s.scale;
+            } else {
+                ds *= p->scales[ic];
+            }
+        }
+    };
+
 #   pragma omp parallel for collapse(6)
     for (int g = 0; g < p->g; ++g) {
     for (int mb = 0; mb < p->mb; ++mb) {
@@ -218,6 +230,12 @@ void compute_ref_direct_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
                 ker_fast(ds, g, mb, ic, id, ih, iw);
             else
                 ker(ds, g, mb, ic, id, ih, iw);
+
+            if (p->dir & FLAG_BIA) {
+                const size_t bia_off = (size_t)g * p->ic / p->g + ic;
+                ds += ((float*)bia_m)[bia_off];
+            }
+            maybe_scale(ds, g * p->ic / p->g + ic);
         }
         }
         }
@@ -306,26 +324,5 @@ void compute_ref_direct_bwd_w(const prb_t *p, dnn_mem_t &src_m,
     compute_ref_bwd_weights(p, src_m, diff_wei_m, diff_dst_m);
     if (!(p->dir & FLAG_BIA)) return;
     compute_ref_bwd_bias(p, diff_bia_m, diff_dst_m);
-}
-
-void compute_bias_fwd(const prb_t *p, dnn_mem_t &bia_m,
-    dnn_mem_t &dst_m) {
-#   pragma omp parallel for collapse(5)
-    for (int g = 0; g < p->g; ++g) {
-    for (int mb = 0; mb < p->mb; ++mb) {
-        for (int oc = 0; oc < p->oc/p->g; ++oc) {
-        for (int od = 0; od < p->od; ++od) {
-        for (int oh = 0; oh < p->oh; ++oh) {
-        for (int ow = 0; ow < p->ow; ++ow) {
-            const size_t dst_off = dst_off_f(p, mb, g, oc, od, oh, ow);
-            float &dst = ((float*)dst_m)[dst_off];
-            const size_t bia_off = bia_off_f(p, g, oc);
-            dst += ((float*)bia_m)[bia_off];
-        }
-        }
-        }
-        }
-    }
-    }
 }
 }
