@@ -304,7 +304,8 @@ FILE *open_batch_file(const char *fname) {
     char *fdir = NULL;
     {
         char fname_copy[PATH_MAX];
-        strncpy(fname_copy, fname, PATH_MAX);
+        strncpy(fname_copy, fname, PATH_MAX - 1);
+        fname_copy[PATH_MAX - 1] = '\0';
         fdir = dirname(fname_copy);
     }
 
