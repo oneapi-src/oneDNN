@@ -315,8 +315,10 @@ FILE *open_batch_file(const char *fname) {
             dir_found = true;
             break;
         }
-    if (!dir_found)
+    if (!dir_found) {
+        SAFE_V(n_paths < max_paths ? OK : FAIL);
         strcpy(search_paths[n_paths++], fdir);
+    }
 
     FILE *fp = fopen(fname, "r");
     if (fp) return fp;
