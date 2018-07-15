@@ -322,8 +322,8 @@ FILE *open_batch_file(const char *fname) {
     if (fp) return fp;
 
     for (int n = 0; n < n_paths; ++n) {
-        char fullname[PATH_MAX];
-        snprintf(fullname, PATH_MAX, "%s/%s", search_paths[n], fname);
+        char fullname[PATH_MAX + 2];
+        snprintf(fullname, PATH_MAX + 2, "%s/%s", search_paths[n], fname);
         fp = fopen(fullname, "r");
         print(50, "batch file used: %s\n", fullname);
         if (fp) break;
