@@ -42,7 +42,7 @@ endif()
 
 set(PROJECT_NAME "Intel(R) MKL-DNN")
 set(PROJECT_FULL_NAME "Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN)")
-set(PROJECT_VERSION "0.14")
+set(PROJECT_VERSION "0.15")
 
 set(LIB_NAME mkldnn)
 
