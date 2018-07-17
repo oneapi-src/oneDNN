@@ -112,8 +112,8 @@ int doit(int lazy) {
     };
 
     const_mkldnn_primitive_t c3_dsts[1];
-	CHECK(mkldnn_memory_create(&c3_dst, &c3_dst_pd, dst));
-	c3_dsts[0] = c3_dst;
+    CHECK(mkldnn_memory_create(&c3_dst, &c3_dst_pd, dst));
+    c3_dsts[0] = c3_dst;
 
     /* create a convolution */
     mkldnn_convolution_desc_t c3_desc;

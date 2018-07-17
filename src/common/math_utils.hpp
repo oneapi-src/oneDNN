@@ -59,16 +59,16 @@ out_round(float v, round_mode_t rmode = round_mode::nearest)
 { UNUSED(rmode); return v; }
 
 inline int gcd(int a, int b) {
-	a = impl::nstl::abs(a);
-	b = impl::nstl::abs(b);
-	if (a < b) { int x = a; a = b; b = x; }
+    a = impl::nstl::abs(a);
+    b = impl::nstl::abs(b);
+    if (a < b) { int x = a; a = b; b = x; }
 
-	if (b == 0) return a;
+    if (b == 0) return a;
 
-	int r;
-	while ((r = a % b) != 0) { a = b; b = r; }
+    int r;
+    while ((r = a % b) != 0) { a = b; b = r; }
 
-	return b;
+    return b;
 }
 
 template <typename T>
