@@ -245,19 +245,31 @@ void prb_normalize(prb_t &p) {
 }
 
 void prb_simplify(prb_t &p) {
+#if defined(__GNUC__) && __GNUC__ >= 4
+/* GCC produces bogus array subscript is above array bounds warning for
+ * the `p.nodes[j - 1] = p.nodes[j]` line below, so disable it for now. */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds"
+#endif
     for (int d = 0; d < p.ndims - 1; ++d) {
         auto &this_node = p.nodes[d + 0];
         auto &next_node = p.nodes[d + 1];
-        bool fold = true
-            && next_node.is == (ptrdiff_t)this_node.n * this_node.is
-            && next_node.os == (ptrdiff_t)this_node.n * this_node.os;
+        const bool fold = false
+            || next_node.n == (size_t)1 // trivial case, just drop next node
+            || (true // or real folding if possible
+                    && next_node.is == (ptrdiff_t)this_node.n * this_node.is
+                    && next_node.os == (ptrdiff_t)this_node.n * this_node.os);
         if (fold) {
             this_node.n *= next_node.n;
             for (int j = d + 2; j < p.ndims; ++j)
                 p.nodes[j - 1] = p.nodes[j];
             --p.ndims;
+            --d; // make another try
         }
     }
+#if defined(__GNUC__) && __GNUC__ >= 4
+#pragma GCC diagnostic pop
+#endif
 }
 
 void prb_node_split(prb_t &p, int dim, size_t n1) {
