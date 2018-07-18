@@ -172,6 +172,13 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
     p.itype = ild.dt;
     p.otype = old.dt;
 
+    p.scale_type = attr->output_scales_.has_default_values()
+        ? scale_type_t::NONE
+        : (attr->output_scales_.mask_ == 0
+                ? scale_type_t::COMMON
+                : scale_type_t::MANY);
+    if (p.scale_type == scale_type_t::MANY) return unimplemented;
+
     int ndims = 0;
 
     int i_pos = 0; /* state for input  -- current dimension */
@@ -218,9 +225,6 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
     dims_t zero_pos = {0};
     p.ioff = memory_desc_wrapper(imd).off_v(zero_pos);
     p.ooff = memory_desc_wrapper(omd).off_v(zero_pos);
-
-    p.is_alpha = attr->output_scales_.scales_[0] != 1.f;
-    if (attr->output_scales_.mask_ != 0) return unimplemented;
 
     const int sum_idx = attr->post_ops_.find(primitive_kind::sum);
     p.beta = sum_idx == -1 ? 0.f : attr->post_ops_.entry_[sum_idx].sum.scale;

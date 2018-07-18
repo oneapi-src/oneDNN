@@ -193,7 +193,7 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
             && utils::everyone_is(8, n(0), n(1))
             && utils::everyone_is(1, os(0), is(1))
             && utils::everyone_is(8, os(1), is(0))
-            && prb_.is_alpha == false
+            && prb_.scale_type == scale_type_t::NONE
             && prb_.beta == 0.f;
         if (!can_do) return false;
 
@@ -248,10 +248,10 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
                 for (int ur = 0; ur < reg_unroll; ur += 4)
                     unpcklpd(Xmm(ur), Xmm(ur + 2));
 
-                /* xmm <-- alpha * xmm[:] */
-                if (prb_.is_alpha)
+                /* xmm <-- scale * xmm[:] */
+                if (prb_.scale_type == scale_type_t::COMMON)
                     for (int ur = 0; ur < reg_unroll; ur += 4)
-                        mulps(Xmm(ur), xmm_alpha);
+                        mulps(Xmm(ur), xmm_scale);
 
                 /* dst <-- beta * dst + xmm[:] */
                 assert(prb_.beta == 0.f || prb_.beta == 1.f);
@@ -272,10 +272,10 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
                 for (int ur = 0; ur < reg_unroll; ur += 4)
                     movups(o_addr(o_off[ur]), Xmm(ur));
             } else {
-                /* xmm[0] <-- alpha * xmm[0] */
-                if (prb_.is_alpha)
+                /* xmm[0] <-- scale * xmm[0] */
+                if (prb_.scale_type == scale_type_t::COMMON)
                     for (int ur = 0; ur < reg_unroll; ++ur)
-                        mulss(Xmm(ur), xmm_alpha);
+                        mulss(Xmm(ur), xmm_scale);
 
                 /* dst <-- beta * dst + xmm[0] */
                 assert(prb_.beta == 0.f || prb_.beta == 1.f);
@@ -360,10 +360,10 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
 
         preamble();
 #       define PARAM(x) ptr[abi_param1 + offsetof(call_param_t, x)]
-        if (prb_.is_alpha) {
-            auto reg_ptr_alpha_tmp = reg_ptr_in;
-            mov(reg_ptr_alpha_tmp, PARAM(scales));
-            movups(xmm_alpha, ptr[reg_ptr_alpha_tmp]);
+        if (prb_.scale_type == scale_type_t::COMMON) {
+            auto reg_ptr_scale_tmp = reg_ptr_in;
+            mov(reg_ptr_scale_tmp, PARAM(scale));
+            movups(xmm_scale, ptr[reg_ptr_scale_tmp]);
         }
         mov(reg_ptr_in, PARAM(in));
         mov(reg_ptr_out, PARAM(out));
@@ -383,7 +383,7 @@ private:
     Reg64 reg_off_in = r8;
     Reg64 reg_off_out = r9;
 
-    Xmm xmm_alpha = xmm15;
+    Xmm xmm_scale = xmm15;
 };
 
 status_t kernel_t::desc_init(kernel_t::desc_t &desc, const prb_t &prb,
@@ -571,26 +571,26 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
     ~jit_uni_reorder_t() { delete kernel_; }
 
     void omp_driver_0d(int off, const float *in, float *out,
-            const float *scales) {
-        tr::call_param_t c{in, out, scales};
+            const float *scale) {
+        tr::call_param_t c{in, out, scale};
         (*kernel_)(&c);
     }
 
     void omp_driver_1d(int off, const float *in, float *out,
-            const float *scales) {
+            const float *scale) {
         tr::node_t *ns = conf_.prb_.nodes + off;
 #       pragma omp parallel for
         for (ptrdiff_t d0 = 0; d0 < (ptrdiff_t)ns[0].n; ++d0) {
             auto c = tr::call_param_t();
             c.in = in + d0 * ns[0].is;
             c.out = out + d0 * ns[0].os;
-            c.scales = scales;
+            c.scale = scale;
             (*kernel_)(&c);
         }
     }
 
     void omp_driver_2d(int off, const float *in, float *out,
-            const float *scales) {
+            const float *scale) {
         tr::node_t *ns = conf_.prb_.nodes + off;
 #       pragma omp parallel for collapse(2)
         for (ptrdiff_t d1 = 0; d1 < (ptrdiff_t)ns[1].n; ++d1) {
@@ -598,14 +598,14 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
             auto c = tr::call_param_t();
             c.in = in + d0 * ns[0].is + d1 * ns[1].is;
             c.out = out + d0 * ns[0].os + d1 * ns[1].os;
-            c.scales = scales;
+            c.scale = scale;
             (*kernel_)(&c);
         }
         }
     }
 
     void omp_driver_3d(int off, const float *in, float *out,
-            const float *scales) {
+            const float *scale) {
         tr::node_t *ns = conf_.prb_.nodes + off;
 #       pragma omp parallel for collapse(3)
         for (ptrdiff_t d2 = 0; d2 < (ptrdiff_t)ns[2].n; ++d2) {
@@ -614,7 +614,7 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
             auto c = tr::call_param_t();
             c.in = in + d0 * ns[0].is + d1 * ns[1].is + d2 * ns[2].is;
             c.out = out + d0 * ns[0].os + d1 * ns[1].os + d2 * ns[2].os;
-            c.scales = scales;
+            c.scale = scale;
             (*kernel_)(&c);
         }
         }
@@ -622,7 +622,7 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
     }
 
     void omp_driver_4d(int off, const float *in, float *out,
-            const float *scales) {
+            const float *scale) {
         tr::node_t *ns = conf_.prb_.nodes + off;
 #       pragma omp parallel for collapse(4)
         for (ptrdiff_t d3 = 0; d3 < (ptrdiff_t)ns[3].n; ++d3) {
@@ -634,7 +634,7 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
                 + d3 * ns[3].is;
             c.out = out + d0 * ns[0].os + d1 * ns[1].os + d2 * ns[2].os
                 + d3 * ns[3].os;
-            c.scales = scales;
+            c.scale = scale;
             (*kernel_)(&c);
         }
         }
@@ -642,7 +642,7 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
         }
     }
 
-    void omp_driver(const float *in, float *out, const float *scales) {
+    void omp_driver(const float *in, float *out, const float *scale) {
         in += conf_.prb_.ioff;
         out += conf_.prb_.ooff;
 
@@ -654,11 +654,11 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
         assert(ndims - ndims_ker <= ndims_driver_max);
 
         switch (ndims - ndims_ker) {
-        case 0: omp_driver_0d(ndims_ker, in, out, scales); break;
-        case 1: omp_driver_1d(ndims_ker, in, out, scales); break;
-        case 2: omp_driver_2d(ndims_ker, in, out, scales); break;
-        case 3: omp_driver_3d(ndims_ker, in, out, scales); break;
-        case 4: omp_driver_4d(ndims_ker, in, out, scales); break;
+        case 0: omp_driver_0d(ndims_ker, in, out, scale); break;
+        case 1: omp_driver_1d(ndims_ker, in, out, scale); break;
+        case 2: omp_driver_2d(ndims_ker, in, out, scale); break;
+        case 3: omp_driver_3d(ndims_ker, in, out, scale); break;
+        case 4: omp_driver_4d(ndims_ker, in, out, scale); break;
         default: assert(!"unimplemented");
         }
     }

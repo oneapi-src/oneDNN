@@ -39,6 +39,8 @@ struct node_t {
     ptrdiff_t os;
 };
 
+enum class scale_type_t { NONE, COMMON, MANY };
+
 struct prb_t {
     data_type_t itype;
     data_type_t otype;
@@ -46,7 +48,7 @@ struct prb_t {
     node_t nodes[max_ndims];
     ptrdiff_t ioff;
     ptrdiff_t ooff;
-    bool is_alpha;
+    scale_type_t scale_type;
     float beta;
 };
 
@@ -77,7 +79,7 @@ void prb_dump(const prb_t &p);
 struct call_param_t {
     const void *in;
     void *out;
-    const float *scales;
+    const float *scale;
 };
 
 struct kernel_t {
