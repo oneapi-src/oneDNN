@@ -33,6 +33,7 @@
 #include "mkldnn_thread.hpp"
 #include "mkldnn_traits.hpp"
 #include "type_helpers.hpp"
+#include "gemm/gemm.hpp"
 
 #include "ref_rnn.hpp"
 
@@ -197,10 +198,10 @@ gemm_sig(_ref_rnn_common_t<aprop>::packed_gemm) {
 
 template <prop_kind_t aprop>
 gemm_sig(_ref_rnn_common_t<aprop>::gemm) {
-    cblas_sgemm(CblasColMajor, CblasNoTrans,
-            is_B_trans ? CblasTrans : CblasNoTrans, m, n, k, 1.0f, a_,
-            strideA_m, b_, is_B_trans ? strideB_n : strideB_k, beta, c_,
-            strideC_m);
+    float alpha = 1.f;
+    extended_sgemm("N", is_B_trans ? "T" : "N", &m, &n, &k, &alpha,
+            a_, &strideA_m, b_, is_B_trans ? &strideB_n : &strideB_k, &beta,
+            c_, &strideC_m);
 }
 
 template <prop_kind_t aprop>
