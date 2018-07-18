@@ -3634,7 +3634,7 @@ struct rnn_forward : public primitive {
             return adesc;
         }
 
-        memory::primitive_desc weights_src_iter_primitive_desc() const {
+        memory::primitive_desc weights_iter_primitive_desc() const {
             memory::primitive_desc adesc;
             mkldnn_primitive_desc_t cdesc;
             const_mkldnn_primitive_desc_t const_cdesc =
@@ -3972,28 +3972,28 @@ struct rnn_backward : public primitive {
         mkldnn_primitive_at_t inputs[10];
         const_mkldnn_primitive_t outputs[5];
         int idx=0;
-        inputs[idx] = src_layer.data;
+        inputs[idx++] = src_layer.data;
         if (!is_null_memory(src_iter.data.primitive))
             inputs[idx++] = src_iter.data;
         inputs[idx++] = weights_layer.data;
         inputs[idx++] = weights_iter.data;
         if (!is_null_memory(bias.data.primitive))
             inputs[idx++] = bias.data;
-        inputs[idx] = dst_layer.data;
+        inputs[idx++] = dst_layer.data;
         if (!is_null_memory(dst_iter.data.primitive))
             inputs[idx++] = dst_iter.data;
-        inputs[idx] = diff_dst_layer.data;
+        inputs[idx++] = diff_dst_layer.data;
         if (!is_null_memory(diff_dst_iter.data.primitive))
             inputs[idx++] = diff_dst_iter.data;
-        inputs[idx] = workspace.data;
+        inputs[idx++] = workspace.data;
 
         idx = 0;
-        outputs[idx] = diff_src_layer.get();
+        outputs[idx++] = diff_src_layer.get();
         if (!is_null_memory(diff_src_iter.get()))
             outputs[idx++] = diff_src_iter.get();
-        outputs[idx] = diff_weights_layer.get();
-        outputs[idx] = diff_weights_iter.get();
-        if (!is_null_memory(diff_bias.get())) outputs[idx] = diff_bias.get();
+        outputs[idx++] = diff_weights_layer.get();
+        outputs[idx++] = diff_weights_iter.get();
+        if (!is_null_memory(diff_bias.get())) outputs[idx++] = diff_bias.get();
         error::wrap_c_api(mkldnn_primitive_create(&result,
                     aprimitive_desc.get(), inputs, outputs),
                 "could not create an RNN backward primitive");
