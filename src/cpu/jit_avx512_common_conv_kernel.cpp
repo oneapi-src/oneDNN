@@ -2056,7 +2056,7 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma_core(
                     if (jj_end - jj_start > 0)
                         vmovups(zmm_wei, EVEX_compress_addr(aux_reg_ker,
                             aux_kernel_offset));
-                    for (int jj = jj_start; jj < jj_end; jj++)
+                    for (int jj = jj_start; jj < jj_end; jj += stride_w)
                         if (jcp.kernel_kind == expl_bcast)
                             vfmadd231ps(zmm_out(jj, ii),
                                 zmm_inp(jj, nb_ic_block), zmm_wei);
