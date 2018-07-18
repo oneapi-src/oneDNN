@@ -177,7 +177,19 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
         : (attr->output_scales_.mask_ == 0
                 ? scale_type_t::COMMON
                 : scale_type_t::MANY);
-    if (p.scale_type == scale_type_t::MANY) return unimplemented;
+
+    ptrdiff_t ss[max_ndims] = {0};
+    if (p.scale_type == scale_type_t::MANY) {
+        ptrdiff_t last_ss = 1;
+        for (int d = old.ndims - 1; d >=0; --d) {
+            assert((d == 0 || old.id[d - 1] <= old.id[d])
+                    && "logical dimensions should be in ascending order");
+            if (attr->output_scales_.mask_ & (1 << old.id[d])) {
+                ss[d] = last_ss;
+                last_ss *= old.dims[d];
+            }
+        }
+    }
 
     int ndims = 0;
 
@@ -197,6 +209,7 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
             p.nodes[ndims].n = ild.dims[i_pos];
             p.nodes[ndims].is = ild.strides[i_pos];
             p.nodes[ndims].os = old.strides[o_pos];
+            p.nodes[ndims].ss = ss[o_pos];
             ++ndims;
             ++i_pos;
             ++o_pos;
@@ -206,6 +219,7 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
             p.nodes[ndims].n = ild.dims[i_pos];
             p.nodes[ndims].is = ild.strides[i_pos];
             p.nodes[ndims].os = old.strides[o_pos] * factor;
+            p.nodes[ndims].ss = ss[o_pos] * factor;
             ++ndims;
             ++i_pos;
             old.dims[o_pos] = factor;
@@ -215,6 +229,7 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
             p.nodes[ndims].n = old.dims[o_pos];
             p.nodes[ndims].is = ild.strides[i_pos] * factor;
             p.nodes[ndims].os = old.strides[o_pos];
+            p.nodes[ndims].ss = ss[o_pos];
             ++ndims;
             ++o_pos;
             ild.dims[i_pos] = factor;
@@ -262,7 +277,8 @@ void prb_simplify(prb_t &p) {
             || next_node.n == (size_t)1 // trivial case, just drop next node
             || (true // or real folding if possible
                     && next_node.is == (ptrdiff_t)this_node.n * this_node.is
-                    && next_node.os == (ptrdiff_t)this_node.n * this_node.os);
+                    && next_node.os == (ptrdiff_t)this_node.n * this_node.os
+                    && next_node.ss == (ptrdiff_t)this_node.n * this_node.ss);
         if (fold) {
             this_node.n *= next_node.n;
             for (int j = d + 2; j < p.ndims; ++j)
@@ -289,6 +305,7 @@ void prb_node_split(prb_t &p, int dim, size_t n1) {
     p.nodes[dim + 1].n = p.nodes[dim].n / n1;
     p.nodes[dim + 1].is = p.nodes[dim].is * n1;
     p.nodes[dim + 1].os = p.nodes[dim].os * n1;
+    p.nodes[dim + 1].ss = p.nodes[dim].ss * n1;
 
     p.nodes[dim].n = n1;
 }
@@ -326,7 +343,8 @@ void prb_dump(const prb_t &p) {
     printf("@@@ type:%s:%s ndims:%d ", mkldnn_dt2str(p.itype),
             mkldnn_dt2str(p.otype), p.ndims);
     for (int d = 0; d < p.ndims; ++d)
-        printf("[%zu:%td:%td]", p.nodes[d].n, p.nodes[d].is, p.nodes[d].os);
+        printf("[%zu:%td:%td:%td]",
+                p.nodes[d].n, p.nodes[d].is, p.nodes[d].os, p.nodes[d].ss);
     printf(" off:%zu:%zu\n", p.ioff, p.ooff);
 }
 

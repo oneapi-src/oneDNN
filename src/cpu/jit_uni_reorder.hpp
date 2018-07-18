@@ -35,8 +35,9 @@ constexpr int max_ndims = TENSOR_MAX_DIMS;
 
 struct node_t {
     size_t n;
-    ptrdiff_t is;
-    ptrdiff_t os;
+    ptrdiff_t is; // input stride
+    ptrdiff_t os; // output stride
+    ptrdiff_t ss; // scale stride
 };
 
 enum class scale_type_t { NONE, COMMON, MANY };

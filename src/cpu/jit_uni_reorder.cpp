@@ -36,6 +36,11 @@
 #endif
 #define DEBUG(...) DEBUg(__VA_ARGS__)
 
+#ifdef _WIN32
+/* seems like s_addr is a reserved macro on Windows */
+#undef s_addr
+#endif
+
 using namespace Xbyak;
 using namespace mkldnn::impl::types;
 
@@ -108,7 +113,6 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
             && utils::one_of(p.otype, f32, s32, s8, u8)
             && utils::everyone_is(0, p.ioff, p.ooff) /* do we need this? */
             && utils::one_of(p.beta, 0.f, 1.f) /* anything else? */
-            && p.scale_type != scale_type_t::MANY
             && simple_impl_desc_init(p, nullptr)
             && utils::implication(!utils::everyone_is(f32, p.itype, p.otype),
                     mayiuse(avx512_core));
@@ -129,6 +133,7 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
     int n(int d) { assert(d < prb_.ndims); return (int)prb_.nodes[d].n; }
     int is(int d) { assert(d < prb_.ndims); return (int)prb_.nodes[d].is; }
     int os(int d) { assert(d < prb_.ndims); return (int)prb_.nodes[d].os; }
+    int ss(int d) { assert(d < prb_.ndims); return (int)prb_.nodes[d].ss; }
 
     Address i_addr(int i_off)
     { return ptr[reg_ptr_in + reg_off_in + i_off * itype_sz]; }
@@ -136,10 +141,14 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
     Address o_addr(int o_off)
     { return ptr[reg_ptr_out + reg_off_out + o_off * otype_sz]; }
 
-    void step(int off, int prev_i_off, int prev_o_off, int &i_off, int &o_off,
-            int step_size = 1) {
+    Address s_addr(int s_off)
+    { return ptr[reg_ptr_scale + reg_off_scale + s_off * stype_sz]; }
+
+    void step(int off, int prev_i_off, int prev_o_off, int prev_s_off,
+            int &i_off, int &o_off, int &s_off, int step_size = 1) {
         i_off = prev_i_off;
         o_off = prev_o_off;
+        s_off = prev_s_off;
 
         if (off == 0) return;
 
@@ -152,15 +161,24 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
         for (int d = start_dim; d < prb_.ndims; ++d) {
             i_off += is(d);
             o_off += os(d);
+            s_off += ss(d);
 
             if (off % n(d)) break;
 
             i_off += - n(d) * is(d);
             o_off += - n(d) * os(d);
+            s_off += - n(d) * ss(d);
             off /= n(d);
 
             if (off == 0) break; /* FIXME: is it really required? */
         }
+    }
+
+    void step(int off, int prev_i_off, int prev_o_off, int &i_off, int &o_off,
+            int step_size = 1) {
+        int dummy = 0;
+        step(off, prev_i_off, prev_o_off, dummy, i_off, o_off, dummy,
+                step_size);
     }
 
     void tr8x8_avx2(int i_off, int o_off) {
@@ -215,7 +233,7 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
     }
 
     void process_unroll_generic_step(int reg_unroll, const int *i_off,
-            const int *o_off) {
+            const int *o_off, const int *s_off) {
         using namespace data_type;
 
         auto cvt2ps = [=](const Xmm &dst, const Operand &src, data_type_t idt) {
@@ -337,6 +355,40 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
             if (prb_.scale_type == scale_type_t::COMMON) {
                 for (int ur = 0; ur < reg_unroll; ur += ur_step)
                     mulps(Xmm(ur), xmm_scale);
+            } else if (prb_.scale_type == scale_type_t::MANY) {
+                enum class scale_load_type_t { bcast, load, gather };
+
+                for (int ur = 0; ur < reg_unroll; ur += ur_step) {
+                    scale_load_type_t scale_load_type =
+                        scale_load_type_t::bcast; // the best case
+
+                    for (int r = ur + 1; r < ur + ur_step; ++r)
+                        if (s_off[r] != s_off[r - 1] + 0)
+                            scale_load_type = scale_load_type_t::load;
+
+                    if (scale_load_type == scale_load_type_t::bcast) {
+                        vbroadcastss(xmm_scale, s_addr(s_off[ur]));
+                        mulps(Xmm(ur), xmm_scale);
+                        continue;
+                    }
+
+                    // bcast doesn't work, the next try -- load
+                    for (int r = ur + 1; r < ur + ur_step; ++r)
+                        if (s_off[r] != s_off[r - 1] + 1)
+                            scale_load_type = scale_load_type_t::gather;
+
+                    if (scale_load_type == scale_load_type_t::load) {
+                        vmovups(xmm_scale, s_addr(s_off[ur]));
+                        mulps(Xmm(ur), xmm_scale);
+                        continue;
+                    }
+
+                    // load doesn't work as well
+                    // so gather the scale factors one by one
+                    for (int r = ur; r < ur + ur_step; ++r)
+                        pinsrd(xmm_scale, s_addr(s_off[r]), r - ur);
+                    mulps(Xmm(ur), xmm_scale);
+                }
             }
 
             /* dst <-- beta * dst + xmm[:] */
@@ -361,9 +413,14 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
             }
         } else {
             /* xmm[0] <-- scale * xmm[0] */
-            if (prb_.scale_type == scale_type_t::COMMON)
+            if (prb_.scale_type == scale_type_t::COMMON) {
                 for (int ur = 0; ur < reg_unroll; ur += ur_step)
                     mulss(Xmm(ur), xmm_scale);
+            } else if (prb_.scale_type == scale_type_t::MANY) {
+                for (int ur = 0; ur < reg_unroll; ur += ur_step) {
+                    mulss(Xmm(ur), s_addr(s_off[ur]));
+                }
+            }
 
             /* dst <-- beta * dst + xmm[0] */
             assert(prb_.beta == 0.f || prb_.beta == 1.f);
@@ -388,31 +445,30 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
     }
 
     void process_unroll_generic(int len) {
-        auto init = [&](int reg_unroll, int *i_off, int *o_off) {
-            i_off[0] = o_off[0] = 0;
-            for (int ur = 1; ur < reg_unroll; ++ur)
-                step(ur, i_off[ur-1], o_off[ur-1], i_off[ur], o_off[ur]);
-        };
-
         const int blk = 8;
 
-        int i_off[blk] = {0};
-        int o_off[blk] = {0};
+        int i_off[2 * blk] = {0};
+        int o_off[2 * blk] = {0};
+        int s_off[2 * blk] = {0};
+
+        int curr = 0; // will switch between 0 and 1
 
         for (int off = 0; off < len; off += blk) {
             const int reg_unroll = nstl::min(off + blk, len) - off;
 
             /* compute offsets */
-            if (off == 0) {
-                init(reg_unroll, i_off, o_off);
-            } else {
-                step(off, i_off[blk-1], o_off[blk-1], i_off[0], o_off[0]);
-                for (int ur = 1; ur < reg_unroll; ++ur)
-                    step(off + ur, i_off[ur-1], o_off[ur-1], i_off[ur],
-                            o_off[ur]);
+            for (int ur = off != 0 ? 0 : 1; ur < reg_unroll; ++ur) {
+                const int ur_c = curr * blk + ur;
+                const int ur_p = (ur_c - 1 + 2 * blk) % (2 * blk); // prev ur
+                step(off + ur,
+                        i_off[ur_p], o_off[ur_p], s_off[ur_p],
+                        i_off[ur_c], o_off[ur_c], s_off[ur_c]);
             }
 
-            process_unroll_generic_step(reg_unroll, i_off, o_off);
+            process_unroll_generic_step(reg_unroll, i_off + curr * blk,
+                    o_off + curr * blk, s_off + curr * blk);
+
+            curr = 1 - curr;
         }
     }
 
@@ -421,14 +477,19 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
         L(l);
     }
 
-    void loop_end(Label &l, Reg64 reg_cnt, int len, int i_step, int o_step) {
+    void loop_end(Label &l, Reg64 reg_cnt, int len,
+            int i_step, int o_step, int s_step) {
         add(reg_off_in, i_step * itype_sz);
         add(reg_off_out, o_step * otype_sz);
+        if (prb_.scale_type == scale_type_t::MANY)
+            add(reg_off_scale, s_step * stype_sz);
         dec(reg_cnt);
         jnz(l);
 
         sub(reg_off_in, len * i_step * itype_sz);
         sub(reg_off_out, len * o_step * otype_sz);
+        if (prb_.scale_type == scale_type_t::MANY)
+            sub(reg_off_scale, len * s_step * stype_sz);
     }
 
     bool simple_impl() {
@@ -442,6 +503,8 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
 
         xor_(reg_off_in, reg_off_in);
         xor_(reg_off_out, reg_off_out);
+        if (prb_.scale_type == scale_type_t::MANY)
+            xor_(reg_off_scale, reg_off_scale);
 
         Label l_loop[3];
         Reg64 reg_cnt[3] = {r15, r14, r13};
@@ -462,15 +525,16 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
 
         if (n_jit_loops > 0)
             loop_end(l_loop[0], reg_cnt[0],
-                    n(nfu + 0) / ldu, is(nfu + 0) * ldu, os(nfu + 0) * ldu);
+                    n(nfu + 0) / ldu, is(nfu + 0) * ldu, os(nfu + 0) * ldu,
+                    ss(nfu + 0) * ldu);
 
         if (n_jit_loops > 1)
             loop_end(l_loop[1], reg_cnt[1],
-                    n(nfu + 1), is(nfu + 1), os(nfu + 1));
+                    n(nfu + 1), is(nfu + 1), os(nfu + 1), ss(nfu + 1));
 
         if (n_jit_loops > 2)
             loop_end(l_loop[2], reg_cnt[2],
-                    n(nfu + 2), is(nfu + 2), os(nfu + 2));
+                    n(nfu + 2), is(nfu + 2), os(nfu + 2), ss(nfu + 2));
 
         return true;
     }
@@ -484,6 +548,7 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
         : kernel_t(desc), jit_generator() {
         itype_sz = data_type_size(prb_.itype);
         otype_sz = data_type_size(prb_.otype);
+        stype_sz = sizeof(float);
 
         preamble();
 #       define PARAM(x) ptr[abi_param1 + offsetof(call_param_t, x)]
@@ -491,6 +556,8 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
             auto reg_ptr_scale_tmp = reg_ptr_in;
             mov(reg_ptr_scale_tmp, PARAM(scale));
             movups(xmm_scale, ptr[reg_ptr_scale_tmp]);
+        } else if (prb_.scale_type == scale_type_t::MANY) {
+            mov(reg_ptr_scale, PARAM(scale));
         }
         mov(reg_ptr_in, PARAM(in));
         mov(reg_ptr_out, PARAM(out));
@@ -514,12 +581,15 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
 private:
     int itype_sz;
     int otype_sz;
+    int stype_sz;
 
     Reg64 reg_ptr_in = rsi;
     Reg64 reg_ptr_out = rdx;
+    Reg64 reg_ptr_scale = rcx;
 
     Reg64 reg_off_in = r8;
     Reg64 reg_off_out = r9;
+    Reg64 reg_off_scale = r10;
 
     Reg64 reg_tmp = rax;
 
@@ -720,7 +790,7 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
             auto c = tr::call_param_t();
             c.in = in + d0 * ns[0].is * data_type_size(conf_.prb_.itype);
             c.out = out + d0 * ns[0].os * data_type_size(conf_.prb_.otype);
-            c.scale = scale;
+            c.scale = scale + d0 * ns[0].ss;
             (*kernel_)(&c);
         }
     }
@@ -736,7 +806,7 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
                 * data_type_size(conf_.prb_.itype);
             c.out = out + (d0 * ns[0].os + d1 * ns[1].os)
                 * data_type_size(conf_.prb_.otype);
-            c.scale = scale;
+            c.scale = scale + d0 * ns[0].ss + d1 * ns[1].ss;
             (*kernel_)(&c);
         }
     }
@@ -753,7 +823,7 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
                 * data_type_size(conf_.prb_.itype);
             c.out = out + (d0 * ns[0].os + d1 * ns[1].os + d2 * ns[2].os)
                 * data_type_size(conf_.prb_.otype);
-            c.scale = scale;
+            c.scale = scale + d0 * ns[0].ss + d1 * ns[1].ss + d2 * ns[2].ss;
             (*kernel_)(&c);
         }
     }
@@ -771,7 +841,8 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
                     + d3 * ns[3].is) * data_type_size(conf_.prb_.itype);
             c.out = out + (d0 * ns[0].os + d1 * ns[1].os + d2 * ns[2].os
                     + d3 * ns[3].os) * data_type_size(conf_.prb_.otype);
-            c.scale = scale;
+            c.scale = scale + d0 * ns[0].ss + d1 * ns[1].ss + d2 * ns[2].ss
+                + d3 * ns[3].ss;
             (*kernel_)(&c);
         }
     }
