@@ -239,11 +239,8 @@ void prb_normalize(prb_t &p) {
                         && p.nodes[j].n < p.nodes[min_pos].n);
             if (new_min) min_pos = j;
         }
-        if (min_pos != d) {
-            nstl::swap(p.nodes[d].n, p.nodes[min_pos].n);
-            nstl::swap(p.nodes[d].is, p.nodes[min_pos].is);
-            nstl::swap(p.nodes[d].os, p.nodes[min_pos].os);
-        }
+        if (min_pos != d)
+            nstl::swap(p.nodes[d], p.nodes[min_pos]);
     }
 }
 
