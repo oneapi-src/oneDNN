@@ -570,50 +570,54 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
     }
     ~jit_uni_reorder_t() { delete kernel_; }
 
-    void omp_driver_0d(int off, const float *in, float *out,
-            const float *scale) {
+    void omp_driver_0d(int off, const char *in, char *out, const float *scale) {
         tr::call_param_t c{in, out, scale};
         (*kernel_)(&c);
     }
 
-    void omp_driver_1d(int off, const float *in, float *out,
-            const float *scale) {
+    void omp_driver_1d(int off, const char *in, char *out, const float *scale) {
         tr::node_t *ns = conf_.prb_.nodes + off;
 #       pragma omp parallel for
         for (ptrdiff_t d0 = 0; d0 < (ptrdiff_t)ns[0].n; ++d0) {
             auto c = tr::call_param_t();
-            c.in = in + d0 * ns[0].is;
-            c.out = out + d0 * ns[0].os;
+            c.in = in + d0 * ns[0].is * data_type_size(conf_.prb_.itype);
+            c.out = out + d0 * ns[0].os * data_type_size(conf_.prb_.otype);
             c.scale = scale;
             (*kernel_)(&c);
         }
     }
 
-    void omp_driver_2d(int off, const float *in, float *out,
-            const float *scale) {
+    void omp_driver_2d(int off, const char *in, char *out, const float *scale) {
         tr::node_t *ns = conf_.prb_.nodes + off;
 #       pragma omp parallel for collapse(2)
         for (ptrdiff_t d1 = 0; d1 < (ptrdiff_t)ns[1].n; ++d1) {
         for (ptrdiff_t d0 = 0; d0 < (ptrdiff_t)ns[0].n; ++d0) {
             auto c = tr::call_param_t();
-            c.in = in + d0 * ns[0].is + d1 * ns[1].is;
-            c.out = out + d0 * ns[0].os + d1 * ns[1].os;
+            c.in = in
+                + (d0 * ns[0].is + d1 * ns[1].is)
+                * data_type_size(conf_.prb_.itype);
+            c.out = out
+                + (d0 * ns[0].os + d1 * ns[1].os)
+                * data_type_size(conf_.prb_.otype);
             c.scale = scale;
             (*kernel_)(&c);
         }
         }
     }
 
-    void omp_driver_3d(int off, const float *in, float *out,
-            const float *scale) {
+    void omp_driver_3d(int off, const char *in, char *out, const float *scale) {
         tr::node_t *ns = conf_.prb_.nodes + off;
 #       pragma omp parallel for collapse(3)
         for (ptrdiff_t d2 = 0; d2 < (ptrdiff_t)ns[2].n; ++d2) {
         for (ptrdiff_t d1 = 0; d1 < (ptrdiff_t)ns[1].n; ++d1) {
         for (ptrdiff_t d0 = 0; d0 < (ptrdiff_t)ns[0].n; ++d0) {
             auto c = tr::call_param_t();
-            c.in = in + d0 * ns[0].is + d1 * ns[1].is + d2 * ns[2].is;
-            c.out = out + d0 * ns[0].os + d1 * ns[1].os + d2 * ns[2].os;
+            c.in = in
+                + (d0 * ns[0].is + d1 * ns[1].is + d2 * ns[2].is)
+                * data_type_size(conf_.prb_.itype);
+            c.out = out
+                + (d0 * ns[0].os + d1 * ns[1].os + d2 * ns[2].os)
+                * data_type_size(conf_.prb_.otype);
             c.scale = scale;
             (*kernel_)(&c);
         }
@@ -621,8 +625,7 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
         }
     }
 
-    void omp_driver_4d(int off, const float *in, float *out,
-            const float *scale) {
+    void omp_driver_4d(int off, const char *in, char *out, const float *scale) {
         tr::node_t *ns = conf_.prb_.nodes + off;
 #       pragma omp parallel for collapse(4)
         for (ptrdiff_t d3 = 0; d3 < (ptrdiff_t)ns[3].n; ++d3) {
@@ -630,10 +633,12 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
         for (ptrdiff_t d1 = 0; d1 < (ptrdiff_t)ns[1].n; ++d1) {
         for (ptrdiff_t d0 = 0; d0 < (ptrdiff_t)ns[0].n; ++d0) {
             auto c = tr::call_param_t();
-            c.in = in + d0 * ns[0].is + d1 * ns[1].is + d2 * ns[2].is
-                + d3 * ns[3].is;
-            c.out = out + d0 * ns[0].os + d1 * ns[1].os + d2 * ns[2].os
-                + d3 * ns[3].os;
+            c.in = in
+                + (d0 * ns[0].is + d1 * ns[1].is + d2 * ns[2].is + d3 * ns[3].is)
+                * data_type_size(conf_.prb_.itype);
+            c.out = out
+                + (d0 * ns[0].os + d1 * ns[1].os + d2 * ns[2].os + d3 * ns[3].os)
+                * data_type_size(conf_.prb_.otype);
             c.scale = scale;
             (*kernel_)(&c);
         }
@@ -642,9 +647,9 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
         }
     }
 
-    void omp_driver(const float *in, float *out, const float *scale) {
-        in += conf_.prb_.ioff;
-        out += conf_.prb_.ooff;
+    void omp_driver(const char *in, char *out, const float *scale) {
+        in += conf_.prb_.ioff * data_type_size(conf_.prb_.itype);
+        out += conf_.prb_.ooff * data_type_size(conf_.prb_.otype);
 
         DEBUG({ printf("prb : "); tr::prb_dump(conf_.prb_); });
         DEBUG({ printf("ker : "); tr::prb_dump(conf_.ker_desc_.prb); });
@@ -664,8 +669,8 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
     }
 
     virtual void execute(event_t *e) {
-        auto in = reinterpret_cast<const float *>(input_memory(0));
-        auto out = reinterpret_cast<float *>(memory());
+        auto in = reinterpret_cast<const char *>(input_memory(0));
+        auto out = reinterpret_cast<char *>(memory());
 
         omp_driver(in, out, conf_.attr()->output_scales_.scales_);
 
