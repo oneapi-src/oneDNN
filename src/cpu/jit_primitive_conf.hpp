@@ -101,7 +101,7 @@ struct jit_conv_conf_t {
     int aligned_threads;
 };
 
-struct jit_conv_conf_u8s8s32x_wino_t {
+struct jit_conv_conf_2x3_wino_t {
     conv_version_t ver;
 
     int m;

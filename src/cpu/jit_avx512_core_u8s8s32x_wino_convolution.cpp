@@ -41,7 +41,7 @@ struct jit_avx512_core_u8s8s32x_wino_conv_src_trans_t: public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(
             jit_avx512_core_u8s8s32x_wino_conv_src_trans_t)
 
-    jit_conv_conf_u8s8s32x_wino_t jcp;
+    jit_conv_conf_2x3_wino_t jcp;
     const primitive_attr_t &attr_;
 
     struct call_params_t {
@@ -53,7 +53,7 @@ struct jit_avx512_core_u8s8s32x_wino_conv_src_trans_t: public jit_generator {
     void (*ker_)(const call_params_t *);
 
     jit_avx512_core_u8s8s32x_wino_conv_src_trans_t(
-        jit_conv_conf_u8s8s32x_wino_t ajcp, const primitive_attr_t &attr)
+        jit_conv_conf_2x3_wino_t ajcp, const primitive_attr_t &attr)
         : jcp(ajcp), attr_(attr), unsign_val_in_wino_domain(5) {
         generate();
         ker_ = reinterpret_cast<decltype(ker_)>(const_cast<uint8_t*>(getCode()));
@@ -174,7 +174,7 @@ struct jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t: public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(
             jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t)
 
-    jit_conv_conf_u8s8s32x_wino_t jcp;
+    jit_conv_conf_2x3_wino_t jcp;
     const primitive_attr_t &attr_;
 
     struct call_params_t {
@@ -189,7 +189,7 @@ struct jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t: public jit_generator {
     void (*ker_)(const call_params_t *);
 
     jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t(
-        jit_conv_conf_u8s8s32x_wino_t ajcp, const primitive_attr_t &attr)
+        jit_conv_conf_2x3_wino_t ajcp, const primitive_attr_t &attr)
         : jcp(ajcp), attr_(attr) {
         generate();
         ker_ = reinterpret_cast<decltype(ker_)>(const_cast<uint8_t*>(getCode()));
@@ -428,7 +428,7 @@ void jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t::generate() {
 /// GEMM kernel ////////////////////////////////////////////////////////////////
 struct jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t: public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t)
-    jit_conv_conf_u8s8s32x_wino_t jcp;
+    jit_conv_conf_2x3_wino_t jcp;
     const primitive_attr_t &attr_;
 
     struct call_params_t {
@@ -440,11 +440,11 @@ struct jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t: public jit_generator {
     void (*ker_)(const call_params_t *);
 
     void generate();
-    static bool post_ops_ok(jit_conv_conf_u8s8s32x_wino_t &jcp,
+    static bool post_ops_ok(jit_conv_conf_2x3_wino_t &jcp,
                             const primitive_attr_t &attr);
 
     jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t(
-        jit_conv_conf_u8s8s32x_wino_t ajcp, const primitive_attr_t &attr)
+        jit_conv_conf_2x3_wino_t ajcp, const primitive_attr_t &attr)
         : jcp(ajcp), attr_(attr)
     {
         generate();
@@ -452,7 +452,7 @@ struct jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t: public jit_generator {
     }
 
     static status_t init_conf(
-            jit_conv_conf_u8s8s32x_wino_t &jcp, const convolution_desc_t &cd,
+            jit_conv_conf_2x3_wino_t &jcp, const convolution_desc_t &cd,
             cpu_memory_t::pd_t &src_pd, cpu_memory_t::pd_t &weights_pd,
             cpu_memory_t::pd_t &dst_pd, cpu_memory_t::pd_t &bias_pd,
             const primitive_attr_t &attr,
@@ -489,7 +489,7 @@ struct jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t: public jit_generator {
 
 };
 bool jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::post_ops_ok(
-        jit_conv_conf_u8s8s32x_wino_t &jcp, const primitive_attr_t &attr) {
+        jit_conv_conf_2x3_wino_t &jcp, const primitive_attr_t &attr) {
     using namespace primitive_kind;
     const auto &p = attr.post_ops_;
 
@@ -612,7 +612,7 @@ void jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::generate() {
     postamble();
 }
 status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
-::init_conf(jit_conv_conf_u8s8s32x_wino_t &jcp,
+::init_conf(jit_conv_conf_2x3_wino_t &jcp,
             const convolution_desc_t &cd, cpu_memory_t::pd_t &src_pd,
             cpu_memory_t::pd_t &wei_pd, cpu_memory_t::pd_t &dst_pd,
             cpu_memory_t::pd_t &bias_pd, const primitive_attr_t &attr,

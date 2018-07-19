@@ -85,7 +85,7 @@ struct _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t : public cpu_primitive_t
             return jit_conf_result;
         }
 
-        jit_conv_conf_u8s8s32x_wino_t jcp_;
+        jit_conv_conf_2x3_wino_t jcp_;
 
     protected:
         status_t jit_conf(memory_desc_t& expect_wei_md);
