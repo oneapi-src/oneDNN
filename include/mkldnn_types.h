@@ -546,20 +546,25 @@ typedef struct {
 typedef enum {
     /** Undefined memory format, used for empty memory descriptors. */
     mkldnn_wino_undef = 0,
-    /** Tensor of weights for integer 8bit winograd convolution. */
-    mkldnn_wino_wei_aaOIoi
+    /** Tensors of weights for 2x3 winograd convolutions. */
+    mkldnn_wino_wei_aaOIoi,
+    mkldnn_wino_wei_aaOio,
+    mkldnn_wino_wei_aaOBiOo,
+    /** Tensor of weights for 4x3 convolution. */
+    mkldnn_wino_wei_OBaaIBOIio
 } mkldnn_wino_memory_format_t;
 
 /** Description of tensor of weights for integer 8bit winograd convolution. */
 typedef struct {
     mkldnn_wino_memory_format_t wino_format;
-    int m;
     int r;
     int alpha;
-    int nb_ic;
-    int nb_oc;
+    int ic;
+    int oc;
     int ic_block;
     int oc_block;
+    int ic2_block;
+    int oc2_block;
     size_t size;
 } mkldnn_wino_desc_t;
 

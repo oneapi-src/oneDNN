@@ -176,11 +176,12 @@ inline bool wino_desc_is_equal(const wino_data_t &lhs,
     const wino_data_t &rhs) {
     return lhs.wino_format == rhs.wino_format
         && lhs.alpha == rhs.alpha
+        && lhs.ic == rhs.ic
+        && lhs.oc == rhs.oc
         && lhs.ic_block == rhs.ic_block
         && lhs.oc_block == rhs.oc_block
-        && lhs.nb_ic == rhs.nb_ic
-        && lhs.nb_oc == rhs.nb_oc
-        && lhs.m == rhs.m
+        && lhs.ic2_block == rhs.ic2_block
+        && lhs.oc2_block == rhs.oc2_block
         && lhs.r == rhs.r;
 }
 

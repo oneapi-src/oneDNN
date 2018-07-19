@@ -759,13 +759,14 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
     expect_wei_md.data_type = data_type::s8;
     mkldnn_wino_desc_t &wd = expect_wei_md.layout_desc.wino_desc;
     wd.wino_format = mkldnn_wino_wei_aaOIoi;
-    wd.m = jcp.m;
     wd.r = jcp.r;
     wd.alpha = jcp.alpha;
-    wd.nb_ic = jcp.nb_ic;
-    wd.nb_oc = jcp.nb_oc;
+    wd.ic = jcp.ic;
+    wd.oc = jcp.oc;
     wd.ic_block = jcp.ic_block;
     wd.oc_block = jcp.oc_block;
+    wd.oc2_block = jcp.n2_block;
+    wd.ic2_block = 1;
     size_t max_size = types::data_type_size(data_type::s8) *
                         jcp.alpha * jcp.alpha * jcp.ic * jcp.oc;
     max_size += types::data_type_size(data_type::s32) *
