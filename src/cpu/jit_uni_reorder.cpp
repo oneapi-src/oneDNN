@@ -100,12 +100,18 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
     }
 
     static bool applicable(const prb_t &p) {
+        using namespace data_type;
+
         bool ok = true
-            && utils::everyone_is(data_type::f32, p.itype, p.otype)
             && p.ndims > 0
+            && utils::one_of(p.itype, f32, s32, s8, u8)
+            && utils::one_of(p.otype, f32, s32, s8, u8)
             && utils::everyone_is(0, p.ioff, p.ooff) /* do we need this? */
             && utils::one_of(p.beta, 0.f, 1.f) /* anything else? */
-            && simple_impl_desc_init(p, nullptr);
+            && p.scale_type != scale_type_t::MANY
+            && simple_impl_desc_init(p, nullptr)
+            && utils::implication(!utils::everyone_is(f32, p.itype, p.otype),
+                    mayiuse(avx512_core));
         if (!ok) return false;
 
         const ptrdiff_t max_stride = (1LL<<31) - 1;
@@ -190,6 +196,7 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
         bool can_do = true
             && mayiuse(avx2)
             && prb_.ndims >= 2
+            && utils::everyone_is(4, itype_sz, otype_sz)
             && utils::everyone_is(8, n(0), n(1))
             && utils::everyone_is(1, os(0), is(1))
             && utils::everyone_is(8, os(1), is(0))
@@ -205,6 +212,179 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
         }
 
         return true;
+    }
+
+    void process_unroll_generic_step(int reg_unroll, const int *i_off,
+            const int *o_off) {
+        using namespace data_type;
+
+        auto cvt2ps = [=](const Xmm &dst, const Operand &src, data_type_t idt) {
+            Xmm dst_pure = Xmm(dst.getIdx());
+            switch (idt) {
+            case f32:
+                if (src.isMEM() || src.getIdx() != dst.getIdx())
+                    vmovups(dst, src);
+                break;
+            case s32: vcvtdq2ps(dst, src); break;
+            case s8: vpmovsxbd(dst, src); vcvtdq2ps(dst_pure, dst); break;
+            case u8: vpmovzxbd(dst, src); vcvtdq2ps(dst_pure, dst); break;
+            default: assert(!"unreachable");
+            }
+        };
+
+        auto cvt2int = [=](const Xmm &xmm, data_type_t odt, data_type_t idt) {
+            switch (odt) {
+            case s32:
+                if (idt == f32) vcvtps2dq(xmm, xmm);
+                else if (idt == s8) vpmovsxbd(xmm, xmm);
+                else if (idt == u8) vpmovzxbd(xmm, xmm);
+                break;
+            case s8:
+                if (idt == f32) vcvtps2dq(xmm, xmm);
+                if (idt == f32 || idt == s32) vpmovsdb(xmm, xmm);
+                if (idt == u8) vpminub(xmm, xmm, xmm_127b);
+                break;
+            case u8:
+                if (idt == f32) vcvtps2dq(xmm, xmm);
+                if (idt == f32 || idt == s32) {
+                    vpmaxsd(xmm, xmm, xmm_zero);
+                    vpmovusdb(xmm, xmm);
+                }
+                if (idt == s8) vpmaxsb(xmm, xmm, xmm_zero);
+                break;
+            default: assert(!"unreachable");
+            }
+        };
+
+        auto load = [=](const Xmm &xmm, const Address &addr, int size) {
+            switch (size) {
+            case 16: movups(xmm, addr); break;
+            case 4: movss(xmm, addr); break;
+            case 1: pinsrb(xmm, addr, 0x0); break;
+            default: assert(!"unreachable");
+            }
+        };
+
+        auto store = [=](const Address &addr, const Xmm &xmm, int size) {
+            switch (size) {
+            case 16: movups(addr, xmm); break;
+            case 4: movss(addr, xmm); break;
+            case 1: pextrb(addr, xmm, 0x0); break;
+            default: assert(!"unreachable");
+            }
+        };
+
+        /* check whether loading 4 values at once is possible */
+        const bool can_load_xmm = true
+            && is(0) == 1
+            && n(0) % 4 == 0
+            && reg_unroll % 4 == 0
+            && mayiuse(avx);
+        const int load_step = can_load_xmm ? 4 : 1;
+
+        for (int ur = 0; ur < reg_unroll; ur += load_step)
+            load(Xmm(ur), i_addr(i_off[ur]), load_step * itype_sz);
+
+        /* check whether storing 4 values at once is possible */
+        const bool can_store_xmm = true
+            && os(0) == 1
+            && n(0) % 4 == 0 /* TODO: relax to support [2, 2, ...] */
+            && reg_unroll % 4 == 0;
+        const int ur_step = can_store_xmm ? 4 : 1;
+
+        if (can_load_xmm && !can_store_xmm) {
+            /* scatter elements of xmm into 4 xmms */
+            if (itype_sz == 4) {
+                for (int ur = 0; ur < reg_unroll; ur += load_step)
+                    for (int r = 1; r < load_step; ++r)
+                        vshufps(Xmm(ur + r), Xmm(ur), Xmm(ur), r);
+            } else {
+                for (int ur = 0; ur < reg_unroll; ur += load_step)
+                    for (int r = 1; r < load_step; ++r)
+                        vpalignr(Xmm(ur + r), Xmm(ur), Xmm(ur), r);
+            }
+        }
+
+        if (!can_load_xmm && can_store_xmm) {
+            assert(ur_step == 4);
+            /* gather 0th elements of each 4 xmms into one xmm */
+            if (itype_sz == 4) {
+                for (int ur = 0; ur < reg_unroll; ur += 2)
+                    unpcklps(Xmm(ur), Xmm(ur + 1));
+                for (int ur = 0; ur < reg_unroll; ur += 4)
+                    unpcklpd(Xmm(ur), Xmm(ur + 2));
+            } else {
+                for (int ur = 0; ur < reg_unroll; ur += 2)
+                    punpcklbw(Xmm(ur), Xmm(ur + 1));
+                for (int ur = 0; ur < reg_unroll; ur += 4)
+                    punpcklwd(Xmm(ur), Xmm(ur + 2));
+            }
+        }
+
+        const bool interim_f32 = false
+            || utils::one_of(f32, prb_.itype, prb_.otype)
+            || prb_.scale_type != scale_type_t::NONE
+            || prb_.beta != 0.f;
+
+        /* xmm[:] <-- (f32)xmm[:] */
+        if (interim_f32)
+            for (int ur = 0; ur < reg_unroll; ur += ur_step)
+                cvt2ps(Xmm(ur), Xmm(ur), prb_.itype);
+
+        /* scale and beta processing */
+        if (can_store_xmm) {
+            /* xmm <-- scale * xmm[:] */
+            if (prb_.scale_type == scale_type_t::COMMON) {
+                for (int ur = 0; ur < reg_unroll; ur += ur_step)
+                    mulps(Xmm(ur), xmm_scale);
+            }
+
+            /* dst <-- beta * dst + xmm[:] */
+            assert(prb_.beta == 0.f || prb_.beta == 1.f);
+            if (prb_.beta == 1.f) {
+                for (int ur = 0; ur < reg_unroll; ur += ur_step) {
+                    if (prb_.otype == f32) {
+                        /* non VEX instructions do not support unaligned
+                         * memory for instructions other than movups. */
+                        if (mayiuse(avx)) {
+                            vaddps(Xmm(ur), o_addr(o_off[ur]));
+                        } else {
+                            /* register xmm(1) is unused */
+                            movups(Xmm(1), o_addr(o_off[ur]));
+                            addps(Xmm(ur), Xmm(1));
+                        }
+                    } else {
+                        cvt2ps(Xmm(1), o_addr(o_off[ur]), prb_.otype);
+                        vaddps(Xmm(ur), Xmm(1));
+                    }
+                }
+            }
+        } else {
+            /* xmm[0] <-- scale * xmm[0] */
+            if (prb_.scale_type == scale_type_t::COMMON)
+                for (int ur = 0; ur < reg_unroll; ur += ur_step)
+                    mulss(Xmm(ur), xmm_scale);
+
+            /* dst <-- beta * dst + xmm[0] */
+            assert(prb_.beta == 0.f || prb_.beta == 1.f);
+            if (prb_.beta == 1.f) {
+                for (int ur = 0; ur < reg_unroll; ur += ur_step) {
+                    if (prb_.otype == f32) {
+                        addss(Xmm(ur), o_addr(o_off[ur]));
+                    } else {
+                        vmovss(xmm_tmp, o_addr(o_off[ur]));
+                        cvt2ps(xmm_tmp, xmm_tmp, prb_.otype);
+                        addps(Xmm(ur), xmm_tmp);
+                    }
+                }
+            }
+        }
+
+        for (int ur = 0; ur < reg_unroll; ur += ur_step) {
+            if (prb_.otype != f32)
+                cvt2int(Xmm(ur), prb_.otype, interim_f32 ? f32 : prb_.itype);
+            store(o_addr(o_off[ur]), Xmm(ur), ur_step * otype_sz);
+        }
     }
 
     void process_unroll_generic(int len) {
@@ -232,60 +412,7 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
                             o_off[ur]);
             }
 
-            for (int ur = 0; ur < reg_unroll; ++ur)
-                movss(Xmm(ur), i_addr(i_off[ur]));
-
-            /* check whether storing 4 values at once is possible */
-            const bool can_store_xmm = true
-                && os(0) == 1
-                && n(0) % 4 == 0 /* TODO: relax to support [2, 2, ...] */
-                && reg_unroll % 4 == 0;
-
-            if (can_store_xmm) {
-                /* gather 0th elements of each 4 xmms into one xmm */
-                for (int ur = 0; ur < reg_unroll; ur += 2)
-                    unpcklps(Xmm(ur), Xmm(ur + 1));
-                for (int ur = 0; ur < reg_unroll; ur += 4)
-                    unpcklpd(Xmm(ur), Xmm(ur + 2));
-
-                /* xmm <-- scale * xmm[:] */
-                if (prb_.scale_type == scale_type_t::COMMON)
-                    for (int ur = 0; ur < reg_unroll; ur += 4)
-                        mulps(Xmm(ur), xmm_scale);
-
-                /* dst <-- beta * dst + xmm[:] */
-                assert(prb_.beta == 0.f || prb_.beta == 1.f);
-                if (prb_.beta == 1.f) {
-                    /* non VEX instructions do not support unaligned memory
-                     * for instructions other than movups. Because register
-                     * 1 is unused, we load there and then call addps */
-                    for (int ur = 0; ur < reg_unroll; ur += 4) {
-                        if (mayiuse(avx)) {
-                            vaddps(Xmm(ur), o_addr(o_off[ur]));
-                        } else {
-                            movups(Xmm(1), o_addr(o_off[ur]));
-                            addps(Xmm(ur), Xmm(1));
-                        }
-                    }
-                }
-
-                for (int ur = 0; ur < reg_unroll; ur += 4)
-                    movups(o_addr(o_off[ur]), Xmm(ur));
-            } else {
-                /* xmm[0] <-- scale * xmm[0] */
-                if (prb_.scale_type == scale_type_t::COMMON)
-                    for (int ur = 0; ur < reg_unroll; ++ur)
-                        mulss(Xmm(ur), xmm_scale);
-
-                /* dst <-- beta * dst + xmm[0] */
-                assert(prb_.beta == 0.f || prb_.beta == 1.f);
-                if (prb_.beta == 1.f)
-                    for (int ur = 0; ur < reg_unroll; ++ur)
-                        addss(Xmm(ur), o_addr(o_off[ur]));
-
-                for (int ur = 0; ur < reg_unroll; ++ur)
-                    movss(o_addr(o_off[ur]), Xmm(ur));
-            }
+            process_unroll_generic_step(reg_unroll, i_off, o_off);
         }
     }
 
@@ -368,6 +495,17 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
         mov(reg_ptr_in, PARAM(in));
         mov(reg_ptr_out, PARAM(out));
 #       undef PARAM
+
+        if (mayiuse(avx512_core)) {
+            vxorps(xmm_zero, xmm_zero, xmm_zero);
+
+            if (prb_.itype == data_type::u8 && prb_.otype == data_type::s8) {
+                mov(reg_tmp.cvt32(), 0x7f7f7f7f);
+                movd(xmm_127b, reg_tmp.cvt32());
+                vbroadcastss(xmm_127b, xmm_127b);
+            }
+        }
+
         impl();
         postamble();
         ker_ = (void (*)(const call_param_t *))getCode();
@@ -383,7 +521,12 @@ private:
     Reg64 reg_off_in = r8;
     Reg64 reg_off_out = r9;
 
+    Reg64 reg_tmp = rax;
+
     Xmm xmm_scale = xmm15;
+    Xmm xmm_zero = xmm14;
+    Xmm xmm_127b = xmm13; // TODO: unite with xmm_zero
+    Xmm xmm_tmp = xmm12;
 };
 
 status_t kernel_t::desc_init(kernel_t::desc_t &desc, const prb_t &prb,
@@ -516,12 +659,6 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
             const memory_desc_t *imd = input_pd->desc();
             const memory_desc_t *omd = output_pd->desc();
 
-            bool args_ok = true
-                && imd->data_type == data_type::f32
-                && omd->data_type == data_type::f32;
-            if (!args_ok)
-                return impl::status::unimplemented;
-
             auto prb = tr::prb_t();
 
             status_t prb_init_status = prb_init(prb, *imd, *omd, attr);
@@ -577,8 +714,9 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
 
     void omp_driver_1d(int off, const char *in, char *out, const float *scale) {
         tr::node_t *ns = conf_.prb_.nodes + off;
-#       pragma omp parallel for
-        for (ptrdiff_t d0 = 0; d0 < (ptrdiff_t)ns[0].n; ++d0) {
+#       pragma omp for
+        for (ptrdiff_t d0 = 0; d0 < (ptrdiff_t)ns[0].n; ++d0)
+        {
             auto c = tr::call_param_t();
             c.in = in + d0 * ns[0].is * data_type_size(conf_.prb_.itype);
             c.out = out + d0 * ns[0].os * data_type_size(conf_.prb_.otype);
@@ -589,61 +727,52 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
 
     void omp_driver_2d(int off, const char *in, char *out, const float *scale) {
         tr::node_t *ns = conf_.prb_.nodes + off;
-#       pragma omp parallel for collapse(2)
-        for (ptrdiff_t d1 = 0; d1 < (ptrdiff_t)ns[1].n; ++d1) {
-        for (ptrdiff_t d0 = 0; d0 < (ptrdiff_t)ns[0].n; ++d0) {
+#       pragma omp for collapse(2)
+        for (ptrdiff_t d1 = 0; d1 < (ptrdiff_t)ns[1].n; ++d1)
+        for (ptrdiff_t d0 = 0; d0 < (ptrdiff_t)ns[0].n; ++d0)
+        {
             auto c = tr::call_param_t();
-            c.in = in
-                + (d0 * ns[0].is + d1 * ns[1].is)
+            c.in = in + (d0 * ns[0].is + d1 * ns[1].is)
                 * data_type_size(conf_.prb_.itype);
-            c.out = out
-                + (d0 * ns[0].os + d1 * ns[1].os)
+            c.out = out + (d0 * ns[0].os + d1 * ns[1].os)
                 * data_type_size(conf_.prb_.otype);
             c.scale = scale;
             (*kernel_)(&c);
-        }
         }
     }
 
     void omp_driver_3d(int off, const char *in, char *out, const float *scale) {
         tr::node_t *ns = conf_.prb_.nodes + off;
-#       pragma omp parallel for collapse(3)
-        for (ptrdiff_t d2 = 0; d2 < (ptrdiff_t)ns[2].n; ++d2) {
-        for (ptrdiff_t d1 = 0; d1 < (ptrdiff_t)ns[1].n; ++d1) {
-        for (ptrdiff_t d0 = 0; d0 < (ptrdiff_t)ns[0].n; ++d0) {
+#       pragma omp for collapse(3)
+        for (ptrdiff_t d2 = 0; d2 < (ptrdiff_t)ns[2].n; ++d2)
+        for (ptrdiff_t d1 = 0; d1 < (ptrdiff_t)ns[1].n; ++d1)
+        for (ptrdiff_t d0 = 0; d0 < (ptrdiff_t)ns[0].n; ++d0)
+        {
             auto c = tr::call_param_t();
-            c.in = in
-                + (d0 * ns[0].is + d1 * ns[1].is + d2 * ns[2].is)
+            c.in = in + (d0 * ns[0].is + d1 * ns[1].is + d2 * ns[2].is)
                 * data_type_size(conf_.prb_.itype);
-            c.out = out
-                + (d0 * ns[0].os + d1 * ns[1].os + d2 * ns[2].os)
+            c.out = out + (d0 * ns[0].os + d1 * ns[1].os + d2 * ns[2].os)
                 * data_type_size(conf_.prb_.otype);
             c.scale = scale;
             (*kernel_)(&c);
-        }
-        }
         }
     }
 
     void omp_driver_4d(int off, const char *in, char *out, const float *scale) {
         tr::node_t *ns = conf_.prb_.nodes + off;
-#       pragma omp parallel for collapse(4)
-        for (ptrdiff_t d3 = 0; d3 < (ptrdiff_t)ns[3].n; ++d3) {
-        for (ptrdiff_t d2 = 0; d2 < (ptrdiff_t)ns[2].n; ++d2) {
-        for (ptrdiff_t d1 = 0; d1 < (ptrdiff_t)ns[1].n; ++d1) {
-        for (ptrdiff_t d0 = 0; d0 < (ptrdiff_t)ns[0].n; ++d0) {
+#       pragma omp for collapse(4)
+        for (ptrdiff_t d3 = 0; d3 < (ptrdiff_t)ns[3].n; ++d3)
+        for (ptrdiff_t d2 = 0; d2 < (ptrdiff_t)ns[2].n; ++d2)
+        for (ptrdiff_t d1 = 0; d1 < (ptrdiff_t)ns[1].n; ++d1)
+        for (ptrdiff_t d0 = 0; d0 < (ptrdiff_t)ns[0].n; ++d0)
+        {
             auto c = tr::call_param_t();
-            c.in = in
-                + (d0 * ns[0].is + d1 * ns[1].is + d2 * ns[2].is + d3 * ns[3].is)
-                * data_type_size(conf_.prb_.itype);
-            c.out = out
-                + (d0 * ns[0].os + d1 * ns[1].os + d2 * ns[2].os + d3 * ns[3].os)
-                * data_type_size(conf_.prb_.otype);
+            c.in = in + (d0 * ns[0].is + d1 * ns[1].is + d2 * ns[2].is
+                    + d3 * ns[3].is) * data_type_size(conf_.prb_.itype);
+            c.out = out + (d0 * ns[0].os + d1 * ns[1].os + d2 * ns[2].os
+                    + d3 * ns[3].os) * data_type_size(conf_.prb_.otype);
             c.scale = scale;
             (*kernel_)(&c);
-        }
-        }
-        }
         }
     }
 
@@ -658,13 +787,23 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
         int ndims_ker = conf_.ker_desc_.prb.ndims;
         assert(ndims - ndims_ker <= ndims_driver_max);
 
-        switch (ndims - ndims_ker) {
-        case 0: omp_driver_0d(ndims_ker, in, out, scale); break;
-        case 1: omp_driver_1d(ndims_ker, in, out, scale); break;
-        case 2: omp_driver_2d(ndims_ker, in, out, scale); break;
-        case 3: omp_driver_3d(ndims_ker, in, out, scale); break;
-        case 4: omp_driver_4d(ndims_ker, in, out, scale); break;
-        default: assert(!"unimplemented");
+        if (ndims - ndims_ker == 0) {
+            set_rnd_mode(conf_.attr()->round_mode_);
+            omp_driver_0d(ndims_ker, in, out, scale);
+            restore_rnd_mode();
+        } else {
+#           pragma omp parallel
+            {
+                set_rnd_mode(conf_.attr()->round_mode_);
+                switch (ndims - ndims_ker) {
+                case 1: omp_driver_1d(ndims_ker, in, out, scale); break;
+                case 2: omp_driver_2d(ndims_ker, in, out, scale); break;
+                case 3: omp_driver_3d(ndims_ker, in, out, scale); break;
+                case 4: omp_driver_4d(ndims_ker, in, out, scale); break;
+                default: assert(!"unimplemented");
+                }
+                restore_rnd_mode();
+            }
         }
     }
 
