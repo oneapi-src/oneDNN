@@ -212,9 +212,9 @@ struct _jit_avx512_core_convolution_winograd_fwd_t
             if (!ok)
                 return status::unimplemented;
 
-            return jit_avx512_core_conv_winograd_fwd_kernel_f32::init_conf(
-                    jcp_, this->cdesc_(), *this->src_pd_.desc(),
-                    *this->weights_pd_.desc(), *this->dst_pd_.desc(),
+            return jit_avx512_core_conv_winograd_fwd_kernel_f32::init_conf(jcp_,
+                    this->cdesc_(), this->src_pd_,
+                    this->weights_pd_, this->dst_pd_,
                     *this->attr(), with_relu, this->negative_slope());
         }
 
@@ -228,7 +228,8 @@ struct _jit_avx512_core_convolution_winograd_fwd_t
                 CHECK(this->src_pd_.set_format(nChw16c));
             if (this->dst_pd_.desc()->format == any)
                 CHECK(this->dst_pd_.set_format(nChw16c));
-            if (this->weights_pd_.desc()->format == any)
+            if (this->weights_pd_.desc()->format == any
+                    && (this->cdesc_().prop_kind != mkldnn_forward_inference))
                 CHECK(this->weights_pd_.set_format(
                         this->with_groups() ? gOIhw16i16o : OIhw16i16o));
             if (this->bias_pd_.desc()->format == any)
