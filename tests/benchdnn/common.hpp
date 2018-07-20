@@ -45,7 +45,7 @@
 #define __PRETTY_FUNCTION__ __FUNCSIG__
 #endif
 
-#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+#if defined(_MSC_VER) && !defined(__clang__) && !defined(__INTEL_COMPILER)
 #define collapse(x)
 #endif
 
