@@ -91,6 +91,9 @@ struct jit_avx512_core_u8s8s32x_1x1_conv_kernel: public jit_generator {
     reg64_t aux_reg_output_data = abi_not_param1;
     reg64_t reduce_loop_iter = abi_param1;
 
+    reg64_t reg_last_load = r8;
+    mask_t ktail_mask = k6;
+
     mask_t vmask = k7;
 
     Xbyak::Zmm zmm_tmp = Xbyak::Zmm(28);
@@ -104,13 +107,16 @@ struct jit_avx512_core_u8s8s32x_1x1_conv_kernel: public jit_generator {
     int reg_bcast_data_off = 24;
     int reg_load_data_off = 32;
     int reg_ptr_sum_scale_off = 40;
-    int stack_space_needed = 48;
+    int reg_last_load_off = 48;
+    int stack_space_needed = 56;
 
     void bcast_loop(int load_loop_blk);
     void reduce_loop(int load_loop_blk, int ur, int substep, bool wraparound);
 
     void generate();
     static void balance(jit_1x1_conv_conf_t &jcp, int nthreads);
+    void cvt2ps(data_type_t type_in, zmm_t zmm_in, const Xbyak::Operand &op,
+        bool mask_flag);
 };
 }
 }

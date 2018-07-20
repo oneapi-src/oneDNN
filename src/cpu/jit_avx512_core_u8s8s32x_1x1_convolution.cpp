@@ -133,16 +133,28 @@ void _jit_avx512_core_u8s8s32x_1x1_convolution_fwd_t<with_relu, dst_type>::execu
                 jcp.nb_load_blocking_max);
             p.load_dim = this_block_size(ocb * jcp.oc_block,
                 ocb_end * jcp.oc_block, load_step * jcp.oc_block);
+
+            if (ocb + load_step >= nb_oc)
+                p.first_last_flag |= FLAG_OC_LAST;
+            else
+                p.first_last_flag &= ~FLAG_OC_LAST;
+
         };
 
         auto init_reduce = [&](int icb)
         {
             const int nb_ic_blocking_step =
                 nstl::min(icb + nb_ic_blocking, nb_ic) - icb;
-            p.reduce_pos_flag = 0
-                | (icb == 0 ? FLAG_REDUCE_FIRST : 0)
-                | (icb + nb_ic_blocking_step >= nb_ic
-                        ? FLAG_REDUCE_LAST : 0);
+
+            if (icb == 0)
+                p.first_last_flag |= FLAG_REDUCE_FIRST;
+            else
+                p.first_last_flag &= ~FLAG_REDUCE_FIRST;
+
+            if (icb + nb_ic_blocking_step >= nb_ic)
+                p.first_last_flag |= FLAG_REDUCE_LAST;
+            else
+                p.first_last_flag &= ~FLAG_REDUCE_LAST;
 
             p.reduce_dim = this_block_size(icb * jcp.ic_block,
                 jcp.ic, nb_ic_blocking_step * jcp.ic_block);

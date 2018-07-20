@@ -46,7 +46,7 @@ struct jit_conv_conf_t {
 
     int ndims;
     int mb;
-    int ngroups, ic, oc, oc_without_padding;
+    int ngroups, ic, oc, oc_without_padding, ic_without_padding;
     int id, ih, iw, od, oh, ow;
     int f_pad, l_pad, t_pad;
     int back_pad, r_pad, b_pad;
@@ -273,7 +273,7 @@ struct jit_1x1_conv_conf_t {
     conv_version_t ver;
 
     int mb;
-    int ngroups, ic, oc, oc_without_padding;
+    int ngroups, ic, oc, oc_without_padding, ic_without_padding;
     int iw, ih, ow, oh;
     int l_pad, t_pad;
     int kh, kw;
@@ -355,7 +355,7 @@ struct jit_1x1_conv_call_s {
 
     size_t output_stride; // used in backward_weights only
 
-    size_t reduce_pos_flag;
+    size_t first_last_flag;
 };
 
 /* pooling */

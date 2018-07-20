@@ -138,6 +138,7 @@ execute_forward()
                     p.bias = bias_w;
                     p.acc_s32 = ws_c;
                     p.channel = icb;
+                    p.oc_blocks = jcp.is_depthwise ? gb : ocb;
                     p.kh_padding = kh_padding;
                     p.scales = scales;
 

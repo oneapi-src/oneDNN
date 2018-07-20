@@ -110,7 +110,7 @@ void _jit_avx2_1x1_convolution_fwd_t<with_relu>::execute_forward() {
                 p.bias_data = &bias[_ocb * jcp.oc_block];
 
                 for (int icb = 0; icb < nb_ic; icb += nb_ic_blocking) {
-                    p.reduce_pos_flag = 0
+                    p.first_last_flag = 0
                         | (icb == 0 ? FLAG_REDUCE_FIRST : 0)
                         | (icb + nb_ic_blocking >= nb_ic
                                 ? FLAG_REDUCE_LAST : 0);
@@ -245,7 +245,7 @@ void jit_avx2_1x1_convolution_bwd_data_t::execute_backward_data() {
                         ? weights_d.blk_off(g, ocb, icb)
                         : weights_d.blk_off(ocb, icb)];
 
-                    p.reduce_pos_flag = ocb == 0 ? FLAG_REDUCE_FIRST : 0;
+                    p.first_last_flag = ocb == 0 ? FLAG_REDUCE_FIRST : 0;
 
                     p.reduce_dim = this_block_size(ocb * jcp.oc_block, jcp.oc,
                             nb_oc_blocking * jcp.oc_block);
@@ -376,7 +376,7 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights() {
                     p.reduce_dim = sp_step;
                     rp.os = p.reduce_dim;
 
-                    p.reduce_pos_flag = sp == sp_start && first_image
+                    p.first_last_flag = sp == sp_start && first_image
                         ? FLAG_REDUCE_FIRST : 0;
 
                     p.load_data = diff_dst

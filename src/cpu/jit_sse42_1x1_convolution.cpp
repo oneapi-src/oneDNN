@@ -95,7 +95,7 @@ void _jit_sse42_1x1_convolution_fwd_t<with_relu>::execute_forward() {
                 par_conv.bias_data = &bias[_ocb * jcp.oc_block];
 
                 for (int icb = 0; icb < nb_ic; icb += nb_ic_blocking) {
-                    par_conv.reduce_pos_flag = 0
+                    par_conv.first_last_flag = 0
                         | (icb == 0) * FLAG_REDUCE_FIRST
                         | (icb + nb_ic_blocking >= nb_ic) * FLAG_REDUCE_LAST;
 

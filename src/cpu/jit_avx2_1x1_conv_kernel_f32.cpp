@@ -353,7 +353,7 @@ void jit_avx2_1x1_conv_kernel_f32::generate()
     mov(reg_load_loop_work, ptr[param1 + GET_OFF(load_dim)]);
     mov(reg_bcast_loop_work, ptr[param1 + GET_OFF(bcast_dim)]);
     mov(reg_reduce_loop_work, ptr[param1 + GET_OFF(reduce_dim)]);
-    mov(reg_reduce_pos_flag, ptr[param1 + GET_OFF(reduce_pos_flag)]);
+    mov(reg_reduce_pos_flag, ptr[param1 + GET_OFF(first_last_flag)]);
     if (jcp.prop_kind == backward_weights)
         mov(reg_output_stride, ptr[param1 + GET_OFF(output_stride)]);
 

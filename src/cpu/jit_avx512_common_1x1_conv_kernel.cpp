@@ -517,7 +517,7 @@ void jit_avx512_common_1x1_conv_kernel::generate()
     mov(reg_bcast_loop_work, ptr[param1 + GET_OFF(bcast_dim)]);
     mov(EVEX_compress_addr(rsp, bcast_loop_work_offt), reg_bcast_loop_work);
     mov(reg_reduce_loop_work, ptr[param1 + GET_OFF(reduce_dim)]);
-    mov(reg_reduce_pos_flag, ptr[param1 + GET_OFF(reduce_pos_flag)]);
+    mov(reg_reduce_pos_flag, ptr[param1 + GET_OFF(first_last_flag)]);
     if (one_of(jcp.prop_kind, forward_training, forward_inference))
         mov(reg_relu_ns, reinterpret_cast<size_t>(&jcp.relu_negative_slope));
     if (jcp.prop_kind == backward_weights)

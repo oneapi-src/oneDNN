@@ -143,7 +143,7 @@ void _jit_avx512_common_1x1_convolution_fwd_t
         {
             const int nb_ic_blocking_step =
                 nstl::min(icb + nb_ic_blocking, nb_ic) - icb;
-            p.reduce_pos_flag = 0
+            p.first_last_flag = 0
                 | (icb == 0 ? FLAG_REDUCE_FIRST : 0)
                 | (icb + nb_ic_blocking_step >= nb_ic
                         ? FLAG_REDUCE_LAST : 0);
@@ -383,7 +383,7 @@ void _jit_avx512_common_1x1_convolution_bwd_data_t
                             ? weights_d.blk_off(g, ocb, icb)
                             : weights_d.blk_off(ocb, icb)];
 
-                        p.reduce_pos_flag = ocb == 0 ? FLAG_REDUCE_FIRST : 0;
+                        p.first_last_flag = ocb == 0 ? FLAG_REDUCE_FIRST : 0;
 
                         p.reduce_dim = this_block_size(ocb * jcp.oc_block,
                             jcp.oc, nb_oc_blocking_step * jcp.oc_block);
@@ -664,7 +664,7 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights()
                         p.reduce_dim = sp_b_step * jcp.reduce_block;
                         rp.os = p.reduce_dim;
 
-                        p.reduce_pos_flag = 0
+                        p.first_last_flag = 0
                             | (mb_sp_b == mb_sp_b_start ? FLAG_REDUCE_FIRST : 0)
                             | (sp_b_end == sp_nb ? FLAG_SP_LAST : 0);
 

@@ -1369,18 +1369,33 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         constexpr bool w_groups = fmt_i == goihw;
         int sblk = fmt_o == OIhw4i16o4i || fmt_o == gOIhw4i16o4i ? 4 : 2;
 
+        constexpr int is_3d = false;
+
         const auto &_g_oihw_d = order_keep ? input_d : output_d;
         const auto &dims = input_d.dims();
+        const auto &pdims = order_keep
+            ? output_d.blocking_desc().padding_dims
+            : input_d.blocking_desc().padding_dims;
+
         const int blksize = 16;
+        const int G = w_groups ? dims[0] : 1;
+        const int OC = dims[w_groups + 0];
+        const int NB_OC = pdims[w_groups + 0] / blksize;
+        const int IC = dims[w_groups + 1];
+        const int NB_IC = pdims[w_groups + 1] / blksize;
+        //const int D = is_3d ? dims[w_groups + 2] : 1;
+        const int H = dims[w_groups + 2 + is_3d];
+        const int W = dims[w_groups + 3 + is_3d];
 
         auto index = [&](const int ic, const int oc) {
             return ((ic / sblk) * blksize * sblk + sblk * oc + ic % sblk);
         };
 
-        auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o) {
+        auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o,
+                const int oc_block, const int ic_block) {
             if (alpha == 1.0 && beta == 0.0) {
-                for (int ic = 0; ic < blksize; ++ic) {
-                for (int oc = 0; oc < blksize; ++oc) {
+                for (int ic = 0; ic < ic_block; ++ic) {
+                for (int oc = 0; oc < oc_block; ++oc) {
                     const auto _g_oihw_off =
                         oc * _g_oihw_d.blocking_desc().strides[0][w_groups + 0]
                       + ic * _g_oihw_d.blocking_desc().strides[0][w_groups + 1];
@@ -1394,8 +1409,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 }
                 }
             } else {
-                for (int ic = 0; ic < blksize; ++ic) {
-                for (int oc = 0; oc < blksize; ++oc) {
+                for (int ic = 0; ic < ic_block; ++ic) {
+                for (int oc = 0; oc < oc_block; ++oc) {
                     const auto _g_oihw_off =
                         oc * _g_oihw_d.blocking_desc().strides[0][w_groups + 0]
                       + ic * _g_oihw_d.blocking_desc().strides[0][w_groups + 1];
@@ -1413,25 +1428,22 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             }
         };
 
-        const int _G = w_groups ? dims[0] : 1;
+        constexpr int i_mult = order_keep ? blksize : 1;
+        constexpr int o_mult = order_keep ? 1 : blksize;
 
 #       pragma omp parallel for collapse(5) schedule(static)
-        for (int g = 0; g < _G; ++g) {
-            for (int O = 0; O < dims[w_groups + 0] / blksize; ++O) {
-                for (int I = 0; I < dims[w_groups + 1] / blksize; ++I) {
-                    for (int h = 0; h < dims[w_groups + 2]; ++h) {
-                        for (int w = 0; w < dims[w_groups + 3]; ++w) {
-                            constexpr int i_mult = order_keep ? blksize : 1;
-                            constexpr int o_mult = order_keep ? 1 : blksize;
-                            auto i = &input[input_d.blk_off<!w_groups>(g,
-                                    i_mult * O, i_mult * I, h, w)];
-                            auto o = &output[output_d.blk_off<!w_groups>(
-                                    g, o_mult * O, o_mult * I, h, w)];
-                            ker(i, o);
-                        }
-                    }
-                }
-            }
+        for (int g = 0; g < G; ++g)
+        for (int O = 0; O < NB_OC; ++O)
+        for (int I = 0; I < NB_IC; ++I)
+        for (int h = 0; h < H; ++h)
+        for (int w = 0; w < W; ++w) {
+            auto i = &input[input_d.blk_off<!w_groups>(g,
+                    i_mult * O, i_mult * I, h, w)];
+            auto o = &output[output_d.blk_off<!w_groups>(
+                    g, o_mult * O, o_mult * I, h, w)];
+            const int oc_block = nstl::min(blksize, OC - O * blksize);
+            const int ic_block = nstl::min(blksize, IC - I * blksize);
+            ker(i, o, oc_block, ic_block);
         }
         return success;
     }

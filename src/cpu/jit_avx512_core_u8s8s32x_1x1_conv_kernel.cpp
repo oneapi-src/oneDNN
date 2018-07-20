@@ -96,9 +96,9 @@ void jit_avx512_core_u8s8s32x_1x1_conv_kernel::bcast_loop(int load_loop_blk)
                     - (num_substeps - 1) * jcp.bcast_loop_bcast_substep);
                 int output_offset = jcp.bcast_loop_output_step
                     - (num_substeps - 1) * jcp.bcast_loop_output_substep;
+
                 add(aux_reg_output_data, output_offset);
-                int ws_offset = (output_offset / jcp.typesize_out)
-                    * jcp.typesize_acc;
+                int ws_offset = jcp.ur * jcp.oc * jcp.typesize_acc;
                 add(aux_reg_acc_s32, ws_offset);
             }
         }
@@ -117,6 +117,20 @@ void jit_avx512_core_u8s8s32x_1x1_conv_kernel::bcast_loop(int load_loop_blk)
     }
 }
 
+void jit_avx512_core_u8s8s32x_1x1_conv_kernel::cvt2ps(data_type_t type_in,
+        zmm_t zmm_in, const Xbyak::Operand &op, bool mask_flag) {
+    zmm_t zmm = mask_flag ? zmm_in | ktail_mask | T_z : zmm_in;
+    switch (type_in) {
+    case data_type::f32:
+    case data_type::s32: vmovups(zmm, op); break;
+    case data_type::s8: vpmovsxbd(zmm, op); break;
+    case data_type::u8: vpmovzxbd(zmm, op); break;
+    default: assert(!"unsupported data type");
+    }
+    if (type_in != data_type::f32)
+        vcvtdq2ps(zmm_in, zmm_in);
+}
+
 void jit_avx512_core_u8s8s32x_1x1_conv_kernel::reduce_loop(int load_loop_blk,
          int ur, int substep, bool wraparound)
 {
@@ -126,10 +140,6 @@ void jit_avx512_core_u8s8s32x_1x1_conv_kernel::reduce_loop(int load_loop_blk,
 
     auto vreg_accum = [=](int i_load, int i_ur) {
         return Zmm(i_ur * load_loop_blk + i_load);
-    };
-
-    auto xreg_accum = [=](int i_load, int i_ur) {
-        return Xmm(i_ur * load_loop_blk + i_load);
     };
 
     auto bias_ptr = [=](int i_load) {
@@ -146,7 +156,7 @@ void jit_avx512_core_u8s8s32x_1x1_conv_kernel::reduce_loop(int load_loop_blk,
         assert(i_reduce <= jcp.reduce_loop_unroll);
         assert(jcp.reduce_loop_unroll == jcp.reduce_block);
 
-        int offt = (jcp.reduce_dim * i_ur + i_reduce);
+        int offt = (jcp.ic_without_padding * i_ur + i_reduce);
 
         return EVEX_compress_addr(aux_reg_bcast_data, jcp.typesize_in * offt,
                                 bcast);
@@ -165,7 +175,7 @@ void jit_avx512_core_u8s8s32x_1x1_conv_kernel::reduce_loop(int load_loop_blk,
 
     auto output_ptr = [=](int i_load, int i_ur) {
         return EVEX_compress_addr(aux_reg_output_data,
-            jcp.typesize_out * (jcp.load_dim * i_ur + i_load * jcp.load_block));
+            jcp.typesize_out * (jcp.oc_without_padding * i_ur + i_load * jcp.load_block));
     };
 
     auto acc_s32_ptr = [=](int i_load, int i_ur) {
@@ -195,7 +205,7 @@ void jit_avx512_core_u8s8s32x_1x1_conv_kernel::reduce_loop(int load_loop_blk,
         L(l_ret);
     };
 
-    auto store = [=]() {
+    auto store = [=](const bool mask_flag_in) {
         Label l_update_acc, l_ret;
 
         test(reg_reduce_pos_flag, FLAG_REDUCE_LAST);
@@ -219,44 +229,27 @@ void jit_avx512_core_u8s8s32x_1x1_conv_kernel::reduce_loop(int load_loop_blk,
         }
         vpxord(zmm_zero, zmm_zero, zmm_zero);
         for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
+            const bool mask_flag = mask_flag_in && i_load == load_loop_blk - 1;
             auto zmm_bias = zmm_tmp;
-            if (jcp.with_bias) {
-                switch (jcp.bia_dt) {
-                case data_type::f32:
-                case data_type::s32: vmovups(zmm_bias,
-                                        bias_ptr(i_load)); break;
-                case data_type::s8: vpmovsxbd(zmm_bias,
-                                        bias_ptr(i_load)); break;
-                case data_type::u8: vpmovzxbd(zmm_bias,
-                                        bias_ptr(i_load)); break;
-                default: assert(!"unsupported bias data type");
-                }
-                if (jcp.bia_dt != data_type::f32)
-                    vcvtdq2ps(zmm_bias, zmm_bias);
-            }
+            if (jcp.with_bias)
+                cvt2ps(jcp.bia_dt, zmm_bias, bias_ptr(i_load), mask_flag);
+
             for (int i_ur = 0; i_ur < ur; ++i_ur) {
                 auto r = vreg_accum(i_load, i_ur);
-                auto x = xreg_accum(i_load, i_ur);
                 vcvtdq2ps(r, r);
                 if (jcp.with_bias)
                     vaddps(r, r, zmm_bias);
-                vmulps(r, r, scale_ptr(i_load));
+
+                zmm_t mask_zmm = mask_flag ? r | ktail_mask | T_z : r;
+                vmulps(mask_zmm, r, scale_ptr(i_load));
                 if (maybe_relu(0))
                     vmaxps(r, zmm_zero, r);
                 if (p_sum_scale) { // post_op: sum
                     auto zmm_prev_dst = zmm_bcast;
-                    switch (jcp.dst_dt) {
-                    case data_type::f32:
-                    case data_type::s32: vmovups(zmm_prev_dst,
-                                            output_ptr(i_load, i_ur)); break;
-                    case data_type::s8: vpmovsxbd(zmm_prev_dst,
-                                            output_ptr(i_load, i_ur)); break;
-                    case data_type::u8: vpmovzxbd(zmm_prev_dst,
-                                            output_ptr(i_load, i_ur)); break;
-                    default: assert(!"unsupported dst data type");
-                    }
-                    if (jcp.dst_dt != data_type::f32)
-                        vcvtdq2ps(zmm_prev_dst, zmm_prev_dst);
+
+                    cvt2ps(jcp.dst_dt, zmm_prev_dst, output_ptr(i_load, i_ur),
+                        mask_flag);
+
                     if (*p_sum_scale == 1.f)
                         vaddps(r, zmm_prev_dst);
                     else
@@ -272,13 +265,15 @@ void jit_avx512_core_u8s8s32x_1x1_conv_kernel::reduce_loop(int load_loop_blk,
                     } else
                         assert(!"unimplemented");
                 }
+                zmm_t r_zmm = mask_flag ? r | ktail_mask : r;
                 switch (jcp.dst_dt) {
                 case data_type::f32:
-                case data_type::s32: vmovups(output_ptr(i_load, i_ur), r); break;
-                case data_type::s8: vpmovsdb(x, r);
-                                    vmovups(output_ptr(i_load, i_ur), x); break;
-                case data_type::u8: vpmovusdb(x, r);
-                                    vmovups(output_ptr(i_load, i_ur), x); break;
+                case data_type::s32:
+                    vmovups(output_ptr(i_load, i_ur), r_zmm); break;
+                case data_type::s8:
+                    vpmovsdb(output_ptr(i_load, i_ur), r_zmm); break;
+                case data_type::u8:
+                    vpmovusdb(output_ptr(i_load, i_ur), r_zmm); break;
                 default: assert(!"unknown dst_dt");
                 }
             }
@@ -314,7 +309,10 @@ void jit_avx512_core_u8s8s32x_1x1_conv_kernel::reduce_loop(int load_loop_blk,
 
     auto fma_block = [=](bool last_block) {
         int reduce_step = 4;
-        for (int i_reduce = 0; i_reduce < jcp.reduce_loop_unroll;
+        int loop_unroll = last_block && jcp.ic != jcp.ic_without_padding
+            ? rnd_up(jcp.ic_without_padding % jcp.ic_block, reduce_step)
+            : jcp.reduce_loop_unroll;
+        for (int i_reduce = 0; i_reduce < loop_unroll;
                 i_reduce += reduce_step) {
             for (int i_load = 0; i_load < load_loop_blk; ++i_load)
                 vmovups(vreg_load(i_load), load_ptr(i_reduce, i_load));
@@ -349,9 +347,48 @@ void jit_avx512_core_u8s8s32x_1x1_conv_kernel::reduce_loop(int load_loop_blk,
     }
 
     L(reduce_loop_tail);
-    fma_block(true);
+    if (jcp.ic != jcp.ic_without_padding) {
+        Label common_ic_label, end_fma_block;
 
-    store();
+        test(reg_reduce_pos_flag, FLAG_REDUCE_LAST);
+        jz(common_ic_label, T_NEAR); // LAST input channel
+
+        fma_block(true);
+        jmp(end_fma_block, T_NEAR);
+
+        L(common_ic_label);
+        fma_block(false);
+
+        L(end_fma_block);
+    } else {
+        fma_block(false);
+    }
+
+    if (jcp.oc_without_padding != jcp.oc) {
+        Label end_store, common_store;
+        mov(EVEX_compress_addr(rsp, reg_bcast_data_off), reg_bcast_data);
+
+        /*Check if it is the last load_loop_blk*/
+        sub(reg_load_loop_work, load_loop_blk * jcp.load_loop_iter_step);
+        cmp(reg_load_loop_work, 0);
+        jg(common_store, T_NEAR);
+
+        /*Check if it is the last ocb*/
+        test(reg_reduce_pos_flag, FLAG_OC_LAST);
+        jz(common_store, T_NEAR);
+
+        store(true);
+        jmp(end_store, T_NEAR);
+
+        L(common_store);
+        store(false);
+
+        L(end_store);
+
+        add(reg_load_loop_work, load_loop_blk * jcp.load_loop_iter_step);
+    } else {
+        store(false);
+    }
 }
 
 void jit_avx512_core_u8s8s32x_1x1_conv_kernel::generate()
@@ -364,6 +401,15 @@ void jit_avx512_core_u8s8s32x_1x1_conv_kernel::generate()
     vpbroadcastw(zmm_one, _t);
 
     sub(rsp, stack_space_needed);
+
+    if (jcp.oc_without_padding != jcp.oc) {
+        int tail_size = jcp.oc_without_padding % jcp.oc_block;
+        int mask = (1 << tail_size) - 1;
+        Reg32 regw_tmp = reg_last_load.cvt32();
+        mov(regw_tmp, mask);
+        kmovw(ktail_mask, regw_tmp);
+    }
+
     if (jcp.with_bias) {
         mov(reg_bias_data, ptr[param1 + GET_OFF(bias_data)]);
         mov(EVEX_compress_addr(rsp, reg_bias_data_offt), reg_bias_data);
@@ -379,7 +425,7 @@ void jit_avx512_core_u8s8s32x_1x1_conv_kernel::generate()
     mov(reg_bcast_loop_work, ptr[param1 + GET_OFF(bcast_dim)]);
     mov(EVEX_compress_addr(rsp, bcast_loop_work_offt), reg_bcast_loop_work);
     mov(reg_reduce_loop_work, ptr[param1 + GET_OFF(reduce_dim)]);
-    mov(reg_reduce_pos_flag, ptr[param1 + GET_OFF(reduce_pos_flag)]);
+    mov(reg_reduce_pos_flag, ptr[param1 + GET_OFF(first_last_flag)]);
 
 
     auto load_loop_body = [=](int load_loop_blk) {
@@ -468,7 +514,7 @@ bool jit_avx512_core_u8s8s32x_1x1_conv_kernel::post_ops_ok(
             && p.entry_[idx].eltwise.alpha == 0.;
     };
 
-   switch (p.len_) {
+    switch (p.len_) {
     case 0: return true;
     case 1: return true
                 && implication(jcp.with_relu, p.contain(sum, 0))
@@ -512,7 +558,9 @@ status_t jit_avx512_core_u8s8s32x_1x1_conv_kernel::init_conf(
     jcp.ngroups = with_groups ? weights_d.dims()[0] : 1;
     jcp.mb = src_d.dims()[0];
     jcp.oc = dst_d.dims()[1] / jcp.ngroups;
+    jcp.oc_without_padding = jcp.oc;
     jcp.ic = src_d.dims()[1] / jcp.ngroups;
+    jcp.ic_without_padding = jcp.ic;
     jcp.ih = src_d.dims()[2];
     jcp.iw = src_d.dims()[3];
     jcp.oh = dst_d.dims()[2];
@@ -545,6 +593,9 @@ status_t jit_avx512_core_u8s8s32x_1x1_conv_kernel::init_conf(
     if (!args_ok) return status::unimplemented;
 
     const int simd_w = 16;
+
+    jcp.oc = rnd_up(jcp.oc, simd_w);
+    jcp.ic = rnd_up(jcp.ic, simd_w);
 
     args_ok = true
         && jcp.oc % simd_w == 0 && jcp.ic % simd_w == 0
@@ -625,9 +676,9 @@ status_t jit_avx512_core_u8s8s32x_1x1_conv_kernel::init_conf(
     jcp.reduce_loop_load_step
             = jcp.reduce_loop_unroll * jcp.load_block * jcp.typesize_in;
 
-    jcp.bcast_loop_output_step = jcp.ur * jcp.load_dim * jcp.typesize_out;
+    jcp.bcast_loop_output_step = jcp.ur * jcp.oc_without_padding * jcp.typesize_out;
     jcp.bcast_loop_output_substep = -1; // unused
-    jcp.bcast_loop_bcast_step = jcp.ur * jcp.reduce_dim * jcp.typesize_in;
+    jcp.bcast_loop_bcast_step = jcp.ur * jcp.ic_without_padding * jcp.typesize_in;
     jcp.bcast_loop_bcast_substep = -1; // unused
 
     jcp.load_loop_load_step
