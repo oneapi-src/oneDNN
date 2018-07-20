@@ -59,6 +59,7 @@
 #include "cpu/gemm_inner_product.hpp"
 #include "cpu/jit_uni_dw_convolution.hpp"
 #include "cpu/jit_avx512_core_u8s8s32x_wino_convolution.hpp"
+#include "cpu/jit_avx512_core_fp32_wino_conv_2x3.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -102,6 +103,7 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(jit_avx512_common_1x1_convolution_bwd_weights_t),
     INSTANCE(jit_avx512_common_1x1_convolution_fwd_s16s16s32_t),
     INSTANCE(jit_avx512_common_1x1_convolution_bwd_data_s16s16s32_t),
+    INSTANCE(jit_avx512_core_fp32_wino_conv_2x3_fwd_t),
     INSTANCE(jit_avx512_core_convolution_winograd_fwd_t),
     INSTANCE(jit_avx512_core_convolution_winograd_bwd_data_t),
     INSTANCE(jit_avx512_core_convolution_winograd_bwd_weights_t),
