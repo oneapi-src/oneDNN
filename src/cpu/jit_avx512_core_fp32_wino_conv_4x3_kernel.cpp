@@ -23,7 +23,7 @@
 
 #include <math.h>
 
-#include "jit_avx512_core_conv_winograd_kernel_f32.hpp"
+#include "jit_avx512_core_fp32_wino_conv_4x3_kernel.hpp"
 
 #define GET_OFF(field) offsetof(jit_wino_transform_call_s, field)
 
@@ -203,7 +203,7 @@ using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::utils;
 using namespace Xbyak;
 
-void _jit_avx512_core_conv_winograd_data_kernel_f32::gemm_loop_generate()
+void _jit_avx512_core_fp32_wino_conv_4x3_data_kernel::gemm_loop_generate()
 {
     // for (int dimM_block =0; dimM_block < jcp.dimM_block; dimM_block++)
     // for (int dimM_reg_block =0; dimM_reg_block < jcp.dimM_reg_block;
@@ -372,7 +372,7 @@ void _jit_avx512_core_conv_winograd_data_kernel_f32::gemm_loop_generate()
     ret();
 }
 
-void _jit_avx512_core_conv_winograd_data_kernel_f32
+void _jit_avx512_core_fp32_wino_conv_4x3_data_kernel
     ::weights_transform_data_ker_generate()
 {
     bool is_fwd = one_of(jcp.prop_kind,
@@ -634,7 +634,7 @@ void _jit_avx512_core_conv_winograd_data_kernel_f32
     postamble();
 }
 
-void _jit_avx512_core_conv_winograd_data_kernel_f32
+void _jit_avx512_core_fp32_wino_conv_4x3_data_kernel
     ::output_transform_data_ker_generate()
 {
     bool is_fwd = one_of(jcp.prop_kind,
@@ -861,7 +861,7 @@ void _jit_avx512_core_conv_winograd_data_kernel_f32
     postamble();
 }
 
-void _jit_avx512_core_conv_winograd_data_kernel_f32
+void _jit_avx512_core_fp32_wino_conv_4x3_data_kernel
     ::input_transform_data_ker_generate()
 {
     bool is_fwd = one_of(jcp.prop_kind,
@@ -1087,7 +1087,7 @@ void _jit_avx512_core_conv_winograd_data_kernel_f32
     postamble();
 }
 
-status_t _jit_avx512_core_conv_winograd_data_kernel_f32::init_conf_common(
+status_t _jit_avx512_core_fp32_wino_conv_4x3_data_kernel::init_conf_common(
         jit_conv_winograd_conf_t &jcp, const convolution_desc_t &cd,
         const memory_desc_wrapper &src_d, const memory_desc_wrapper &weights_d,
         const memory_desc_wrapper &dst_d)
@@ -1339,7 +1339,7 @@ status_t set_wsched_DATA_W_S_G_D_avx512_core(jit_conv_winograd_conf_t &jcp) {
     return status::success;
 }
 
-status_t _jit_avx512_core_conv_winograd_data_kernel_f32::init_conf_kernel(
+status_t _jit_avx512_core_fp32_wino_conv_4x3_data_kernel::init_conf_kernel(
         jit_conv_winograd_conf_t &jcp, int dimM, int dimN, int dimK)
 {
     jcp.nb_reg = 32;
@@ -1362,7 +1362,7 @@ status_t _jit_avx512_core_conv_winograd_data_kernel_f32::init_conf_kernel(
     return status::success;
 }
 
-bool jit_avx512_core_conv_winograd_fwd_kernel_f32::post_ops_ok(
+bool jit_avx512_core_fp32_wino_conv_4x3_fwd_kernel::post_ops_ok(
         jit_conv_conf_t &jcp, const primitive_attr_t &attr) {
     const auto &p = attr.post_ops_;
 
@@ -1393,7 +1393,7 @@ bool jit_avx512_core_conv_winograd_fwd_kernel_f32::post_ops_ok(
     return false;
 }
 
-status_t jit_avx512_core_conv_winograd_fwd_kernel_f32::init_conf(
+status_t jit_avx512_core_fp32_wino_conv_4x3_fwd_kernel::init_conf(
         jit_conv_winograd_conf_t &jcp, const convolution_desc_t &cd,
         const cpu_memory_t::pd_t &src_pd, cpu_memory_t::pd_t &weights_pd,
         const cpu_memory_t::pd_t &dst_pd, const primitive_attr_t &attr,
@@ -1472,7 +1472,7 @@ status_t jit_avx512_core_conv_winograd_fwd_kernel_f32::init_conf(
     return res;
 }
 
-status_t jit_avx512_core_conv_winograd_bwd_data_kernel_f32::init_conf(
+status_t jit_avx512_core_fp32_wino_conv_4x3_bwd_data_kernel::init_conf(
         jit_conv_winograd_conf_t &jcp, const convolution_desc_t &cd,
         const memory_desc_wrapper &diff_src_d,
         const memory_desc_wrapper &weights_d,
@@ -1504,7 +1504,7 @@ status_t jit_avx512_core_conv_winograd_bwd_data_kernel_f32::init_conf(
     return res;
 }
 
-void jit_avx512_core_conv_winograd_bwd_weights_kernel_f32::
+void jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_kernel::
 src_transform_generate() {
     constexpr int G_size = 9;
     const size_t ifwp = jcp.iw + jcp.l_pad;
@@ -1739,7 +1739,7 @@ src_transform_generate() {
     postamble();
 }
 
-void jit_avx512_core_conv_winograd_bwd_weights_kernel_f32::
+void jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_kernel::
 diff_dst_transform_generate(bool with_bias) {
 
     constexpr int G_size = 8;
@@ -2025,7 +2025,7 @@ diff_dst_transform_generate(bool with_bias) {
     postamble();
 }
 
-void jit_avx512_core_conv_winograd_bwd_weights_kernel_f32::
+void jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_kernel::
 diff_weights_transform_generate(bool first_tile) {
     int G_size = 4;
 
@@ -2138,7 +2138,7 @@ diff_weights_transform_generate(bool first_tile) {
     postamble();
 }
 
-void jit_avx512_core_conv_winograd_bwd_weights_kernel_f32::gemm_loop_generate(
+void jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_kernel::gemm_loop_generate(
         bool is_first_tile)
 {
     auto zmm_srcA = [=]() {
@@ -2457,7 +2457,7 @@ status_t set_wsched_WEI_S_D_Giot_W(jit_conv_winograd_conf_t &jcp) {
     return status::success;
 }
 } // namespace
-status_t jit_avx512_core_conv_winograd_bwd_weights_kernel_f32::init_conf(
+status_t jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_kernel::init_conf(
         jit_conv_winograd_conf_t &jcp, const convolution_desc_t &cd,
         const memory_desc_wrapper &src_d, const memory_desc_wrapper &diff_dst_d,
         const memory_desc_wrapper &diff_weights_d) {

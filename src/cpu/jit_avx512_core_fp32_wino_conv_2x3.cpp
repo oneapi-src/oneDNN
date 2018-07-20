@@ -27,7 +27,6 @@
 #include "jit_avx512_core_fp32_wino_conv_2x3.hpp"
 #include "jit_generator.hpp"
 
-//#include <string.h>
 namespace mkldnn {
 namespace impl {
 namespace cpu {
@@ -55,7 +54,8 @@ struct jit_avx512_core_fp32_wino_conv_2x3_src_trans_t: public jit_generator {
         jit_conv_conf_2x3_wino_t ajcp, const primitive_attr_t &attr)
         : jcp(ajcp) {
         generate();
-        ker_ = reinterpret_cast<decltype(ker_)>(const_cast<uint8_t*>(getCode()));
+        ker_ =
+            reinterpret_cast<decltype(ker_)>(const_cast<uint8_t*>(getCode()));
     }
 
     void generate();
@@ -99,13 +99,13 @@ void jit_avx512_core_fp32_wino_conv_2x3_src_trans_t::generate() {
     int out_offset = 0, inp_offset = 0;
     preamble();
 
-#   define READ_PARAM(reg, field) \
+#define READ_PARAM(reg, field) \
         mov(reg, ptr[abi_param1 + offsetof(call_params_t, field)])
     READ_PARAM(reg_aux_ptr_src, src);
     READ_PARAM(reg_aux_ptr_dst, wino_src);
     READ_PARAM(reg_ptr_v_y_masks, v_y_masks);
     READ_PARAM(reg_ptr_v_x_masks, v_x_masks);
-#   undef READ_PARAM
+#undef READ_PARAM
 
     for (int i = 0; i < jcp.alpha; i++) {
         kmovw(x_mask(i), ptr[reg_ptr_v_x_masks + sizeof(int16_t) * i]);
@@ -277,24 +277,24 @@ void jit_avx512_core_fp32_wino_conv_2x3_dst_trans_t::generate() {
         if (p_sum_scale && *p_sum_scale != 1.f)
             mov(reg_ptr_sum_scale, (size_t)p_sum_scale);
 
-        for(int i = 0; i < 16; i++) {
+        for (int i = 0; i < 16; i++) {
             int internal_offset = sizeof(float) * jcp.out_stride * i;
             vmovups(vreg_inp(i),
                 EVEX_compress_addr(reg_aux_ptr_src, internal_offset));
         }
-        for(int y = 0; y < jcp.alpha; y++) {
-            vaddps(vreg_tmp(0), vreg_inp(y*4 + 0), vreg_inp(y*4 + 1));
-            vaddps(vreg_stg(y*2), vreg_tmp(0), vreg_inp(y*4 + 2));
+        for (int y = 0; y < jcp.alpha; y++) {
+            vaddps(vreg_tmp(0), vreg_inp(y * 4 + 0), vreg_inp(y * 4 + 1));
+            vaddps(vreg_stg(y * 2), vreg_tmp(0), vreg_inp(y * 4 + 2));
 
-            vsubps(vreg_tmp(1), vreg_inp(y*4 + 1), vreg_inp(y*4 + 2));
-            vsubps(vreg_stg(y*2+1), vreg_tmp(1), vreg_inp(y*4 + 3));
+            vsubps(vreg_tmp(1), vreg_inp(y * 4 + 1), vreg_inp(y * 4 + 2));
+            vsubps(vreg_stg(y * 2+1), vreg_tmp(1), vreg_inp(y * 4 + 3));
         }
-        for(int x = 0; x < jcp.m; x++) {
-            vaddps(vreg_tmp(0), vreg_stg(x), vreg_stg(x+2*1));
-            vaddps(vreg_out(x), vreg_tmp(0), vreg_stg(x+2*2));
+        for (int x = 0; x < jcp.m; x++) {
+            vaddps(vreg_tmp(0), vreg_stg(x), vreg_stg(x+2 * 1));
+            vaddps(vreg_out(x), vreg_tmp(0), vreg_stg(x+2 * 2));
 
-            vsubps(vreg_tmp(1), vreg_stg(x+2*1), vreg_stg(x+2*2));
-            vsubps(vreg_out(x+2), vreg_tmp(1), vreg_stg(x+2*3));
+            vsubps(vreg_tmp(1), vreg_stg(x+2 * 1), vreg_stg(x+2 * 2));
+            vsubps(vreg_out(x+2), vreg_tmp(1), vreg_stg(x+2 * 3));
         }
 
 
@@ -302,9 +302,9 @@ void jit_avx512_core_fp32_wino_conv_2x3_dst_trans_t::generate() {
             auto bias_addr = ptr [ reg_ptr_bias ];
             vmovups(vreg_bias, bias_addr);
         }
-        for(int y = 0; y < jcp.m; y++) {
+        for (int y = 0; y < jcp.m; y++) {
             kmovw(y_mask, ptr[ reg_ptr_v_y_masks + sizeof(int16_t) * y ]);
-            for(int x = 0; x < jcp.m; x++) {
+            for (int x = 0; x < jcp.m; x++) {
                 kandw(r_mask, y_mask, x_mask(x));
 
                 int i = y * jcp.m + x;
@@ -335,14 +335,14 @@ void jit_avx512_core_fp32_wino_conv_2x3_dst_trans_t::generate() {
                     vmaxps(zmm, vreg_zero, zmm);
                 }
 
-                vmovups(addr,  zmm | r_mask);
+                vmovups(addr, zmm | r_mask);
             }
         }
     };
 
     preamble();
 
-#   define READ_PARAM(reg, field) \
+#define READ_PARAM(reg, field) \
         mov(reg, ptr[abi_param1 + offsetof(call_params_t, field)])
     READ_PARAM(reg_aux_ptr_src, wino_dst);
     READ_PARAM(reg_aux_ptr_dst, dst);
@@ -350,7 +350,7 @@ void jit_avx512_core_fp32_wino_conv_2x3_dst_trans_t::generate() {
     READ_PARAM(reg_ptr_v_x_masks, v_x_masks);
     READ_PARAM(reg_ptr_bias, bias);
     READ_PARAM(reg_ptr_scales, scales);
-#   undef READ_PARAM
+#undef READ_PARAM
 
     for (int i = 0; i < jcp.alpha * jcp.alpha; i++)
         vxorps(vreg_inp(i), vreg_inp(i), vreg_inp(i));
@@ -374,7 +374,7 @@ void jit_avx512_core_fp32_wino_conv_2x3_dst_trans_t::generate() {
     cmp(reg_oc_block, 0);
     jg(oc_block_label, T_NEAR);
 
-    sub(reg_ptr_scales, jcp.is_oc_scale *  sizeof(float) * load_block);
+    sub(reg_ptr_scales, jcp.is_oc_scale * sizeof(float) * load_block);
     sub(reg_ptr_bias, oc_blocks * jcp.typesize_bia * load_block);
 
     postamble();
@@ -529,7 +529,7 @@ void jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t::generate() {
                             EVEX_compress_addr(reg_aux_src2, inp_offset));
                         for (int nb2 = 0; nb2 < jcp.n2_block; nb2++)
                             vfmadd231ps(vreg_out(nb2, m), vreg_wei(nb2),
-                                vreg_src); 
+                                vreg_src);
                     } else {
                         vfmadd231ps(vreg_out(0, m), vreg_wei(0),
                             EVEX_compress_addr(reg_aux_src2, inp_offset, true));
@@ -713,7 +713,8 @@ status_t jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t ::init_conf(
     int Z = ic + oc;
     int Y = ic * oc;
     const int L3_cap_per_core = get_cache_size(3, true) / sizeof(float);
-        /*Selecting xb and yb blocking*/
+
+    /* Selecting xb and yb blocking */
     int min_yb = jcp.alpha;
     int min_xb = jcp.alpha;
     int max_yb = nstl::max(min_yb, rnd_up(ih, 2));
@@ -731,7 +732,7 @@ status_t jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t ::init_conf(
 
             int M, m_block, n2_b;
             float reg_eff, thr_eff, par_eff, mem_eff, req_mem;
-            
+
             find_m_n2_blocks(ix, iy, M, m_block, n2_b, reg_eff);
 
             /* outer parallelization */
@@ -763,7 +764,7 @@ status_t jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t ::init_conf(
             req_mem = (float)aa * oc_per_thr * ic + M_per_thr * M * Z;
             if (req_mem > L2_cap)
                 mem_eff = 0.1f;
-            par_eff = 1 / ( 2.f * nblocks);
+            par_eff = 1 / (2.f * nblocks);
 
             float inner_eff = thr_eff + work_eff + mem_eff + par_eff;
 
@@ -884,7 +885,6 @@ void _jit_avx512_core_fp32_wino_conv_2x3_fwd_t<
 template <bool with_relu>
 void _jit_avx512_core_fp32_wino_conv_2x3_fwd_t<with_relu>
 ::execute_forward_mbN() {
-    //    printf("execute_forward_mbN\n"); fflush(0);
     auto src = reinterpret_cast<const float *>(input_memory(0));
     auto wei = reinterpret_cast<const float *>(input_memory(1));
     auto bia = reinterpret_cast<const char *>(input_memory(2));
@@ -904,10 +904,12 @@ void _jit_avx512_core_fp32_wino_conv_2x3_fwd_t<with_relu>
                 auto wino_src = wino_src_ + size_wino_src * ithr;
                 auto wino_dst = wino_dst_ + size_wino_dst * ithr;
 
-                auto src_trans_p = jit_avx512_core_fp32_wino_conv_2x3_src_trans_t
-                    ::call_params_t();
-                auto dst_trans_p = jit_avx512_core_fp32_wino_conv_2x3_dst_trans_t
-                    ::call_params_t();
+                auto src_trans_p =
+                    jit_avx512_core_fp32_wino_conv_2x3_src_trans_t
+                        ::call_params_t();
+                auto dst_trans_p =
+                    jit_avx512_core_fp32_wino_conv_2x3_dst_trans_t
+                        ::call_params_t();
                 auto gemm_p = jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t ::
                         call_params_t();
 
@@ -1053,11 +1055,11 @@ void _jit_avx512_core_fp32_wino_conv_2x3_fwd_t<with_relu>
 
             src_trans_->ker_(&src_trans_p);
         }}
-        
+
         /* gemms */
         #pragma omp parallel for collapse(2)
         for (int tile_ij = 0; tile_ij < 16; tile_ij++) {
-        for (int nnb = 0; nnb < jcp.n_chunks ; nnb++) {
+        for (int nnb = 0; nnb < jcp.n_chunks; nnb++) {
             auto gemm_p = jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t ::
                     call_params_t();
 

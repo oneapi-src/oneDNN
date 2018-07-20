@@ -26,7 +26,7 @@
 #include "utils.hpp"
 
 #include "jit_avx512_common_convolution_winograd.hpp"
-#include "jit_avx512_core_convolution_winograd.hpp"
+#include "jit_avx512_core_fp32_wino_conv_4x3.hpp"
 
 #ifndef _MSC_VER
 #define pragma_unroll _Pragma("unroll")
@@ -44,7 +44,7 @@ using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::utils;
 
 template <bool is_fwd>
-void _jit_avx512_core_convolution_winograd_t<is_fwd>
+void _jit_avx512_core_fp32_wino_conv_4x3_t<is_fwd>
 ::weight_transform_data(const jit_conv_winograd_conf_t &jcp,
         float *wp, float *twp)
 {
@@ -68,7 +68,7 @@ void _jit_avx512_core_convolution_winograd_t<is_fwd>
 }
 
 template<bool is_fwd>
-void _jit_avx512_core_convolution_winograd_t<is_fwd>::output_transform_data
+void _jit_avx512_core_fp32_wino_conv_4x3_t<is_fwd>::output_transform_data
 (int image, const jit_conv_winograd_conf_t &jcp,
     const post_ops_t &p_ops, float *toutp, float *pout_b, float *bias) {
 
@@ -118,7 +118,7 @@ void _jit_avx512_core_convolution_winograd_t<is_fwd>::output_transform_data
 }
 
 template<bool is_fwd>
-void _jit_avx512_core_convolution_winograd_t<is_fwd>
+void _jit_avx512_core_fp32_wino_conv_4x3_t<is_fwd>
 ::output_transform_tileblock_data(int tile_block,
     const jit_conv_winograd_conf_t &jcp, const post_ops_t &p_ops,
     float *toutp, float *outp, float *bias) {
@@ -169,7 +169,7 @@ void _jit_avx512_core_convolution_winograd_t<is_fwd>
 
 
 template<bool is_fwd>
-void _jit_avx512_core_convolution_winograd_t<is_fwd>
+void _jit_avx512_core_fp32_wino_conv_4x3_t<is_fwd>
     ::input_transform_data(int image, const jit_conv_winograd_conf_t &jcp,
         float *inp, float *tinp)
 {
@@ -221,7 +221,7 @@ void _jit_avx512_core_convolution_winograd_t<is_fwd>
 }
 
 template <bool is_fwd>
-void _jit_avx512_core_convolution_winograd_t<is_fwd>
+void _jit_avx512_core_fp32_wino_conv_4x3_t<is_fwd>
     ::input_transform_tileblock_data(int tile_block,
         const jit_conv_winograd_conf_t &jcp,
         float *inp, float *tinp)
@@ -279,7 +279,7 @@ void _jit_avx512_core_convolution_winograd_t<is_fwd>
 }
 
 template <bool is_fwd>
-void _jit_avx512_core_convolution_winograd_t<is_fwd>::_execute_data_W_S_G_D(
+void _jit_avx512_core_fp32_wino_conv_4x3_t<is_fwd>::_execute_data_W_S_G_D(
         float *inp_ptr, float *out_ptr, float *wei_ptr, float *bias_ptr) {
     const auto &jcp = kernel_->jcp;
     const auto &p_ops = attr_->post_ops_;
@@ -420,14 +420,14 @@ void _jit_avx512_core_convolution_winograd_t<is_fwd>::_execute_data_W_S_G_D(
 }
 
 template void
-_jit_avx512_core_convolution_winograd_t<true>::_execute_data_W_S_G_D(
+_jit_avx512_core_fp32_wino_conv_4x3_t<true>::_execute_data_W_S_G_D(
         float *, float *, float *, float *);
 template void
-_jit_avx512_core_convolution_winograd_t<false>::_execute_data_W_S_G_D(
+_jit_avx512_core_fp32_wino_conv_4x3_t<false>::_execute_data_W_S_G_D(
         float *, float *, float *, float *);
 
 template <bool is_fwd>
-void _jit_avx512_core_convolution_winograd_t<is_fwd>::_execute_data_W_SGD(
+void _jit_avx512_core_fp32_wino_conv_4x3_t<is_fwd>::_execute_data_W_SGD(
         float *inp_ptr, float *out_ptr, float *wei_ptr, float *bias_ptr) {
     const auto &jcp = kernel_->jcp;
     const auto &p_ops = attr_->post_ops_;
@@ -549,10 +549,10 @@ void _jit_avx512_core_convolution_winograd_t<is_fwd>::_execute_data_W_SGD(
 }
 
 template void
-_jit_avx512_core_convolution_winograd_t<true>::_execute_data_W_SGD(
+_jit_avx512_core_fp32_wino_conv_4x3_t<true>::_execute_data_W_SGD(
         float *, float *, float *, float *);
 template void
-_jit_avx512_core_convolution_winograd_t<false>::_execute_data_W_SGD(
+_jit_avx512_core_fp32_wino_conv_4x3_t<false>::_execute_data_W_SGD(
         float *, float *, float *, float *);
 
 namespace {
@@ -690,7 +690,7 @@ void array_sum(size_t num_arrs, float *output,
 }
 } //bwdw namespace
 
-void jit_avx512_core_convolution_winograd_bwd_weights_t::
+void jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_t::
 _execute_backward_weights_SDGtWo() {
     const auto &jcp = kernel_->jcp;
     const int nthreads = scratchpad_->num_threads();
@@ -847,7 +847,7 @@ _execute_backward_weights_SDGtWo() {
     }
 }
 
-void jit_avx512_core_convolution_winograd_bwd_weights_t::
+void jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_t::
 _execute_backward_weights_S_D_Giot_W() {
     const auto &jcp = kernel_->jcp;
     const int nthreads = scratchpad_->num_threads();

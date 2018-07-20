@@ -338,7 +338,7 @@ struct wino_reorder_t : public cpu_primitive_t {
 
         transform(conf_.input_pd()->desc(), input);
 
-        /* reorder to winograd domain*/
+        /* reorder to winograd domain */
         switch (wino_format_) {
         case mkldnn_wino_wei_aaOIoi: reorder_to_aaOIoi(output); break;
         case mkldnn_wino_wei_aaOio: reorder_to_aaOio(output); break;

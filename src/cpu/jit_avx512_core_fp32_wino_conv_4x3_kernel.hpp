@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef JIT_AVX512_CORE_CONV_WINOGRAD_KERNEL_F32_HPP
-#define JIT_AVX512_CORE_CONV_WINOGRAD_KERNEL_F32_HPP
+#ifndef JIT_AVX512_CORE_FP32_WINO_CONV_4x3_KERNEL_HPP
+#define JIT_AVX512_CORE_FP32_WINO_CONV_4x3_KERNEL_HPP
 
 #include "c_types_map.hpp"
 #include "cpu_memory.hpp"
@@ -29,11 +29,11 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-struct _jit_avx512_core_conv_winograd_data_kernel_f32 : public jit_generator {
-    _jit_avx512_core_conv_winograd_data_kernel_f32(
+struct _jit_avx512_core_fp32_wino_conv_4x3_data_kernel
+    : public jit_generator {
+    _jit_avx512_core_fp32_wino_conv_4x3_data_kernel(
             jit_conv_winograd_conf_t ajcp)
-        : jcp(ajcp)
-    {
+        : jcp(ajcp) {
         {
             this->weights_transform_data_ker_generate();
             weights_transform_data_ker
@@ -60,7 +60,7 @@ struct _jit_avx512_core_conv_winograd_data_kernel_f32 : public jit_generator {
         }
     }
 
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(_jit_avx512_core_conv_winograd_data_kernel_f32)
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(_jit_avx512_core_fp32_wino_conv_4x3_data_kernel)
 
     static status_t init_conf_common(jit_conv_winograd_conf_t &jcp,
             const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
@@ -151,10 +151,10 @@ protected:
     reg64_t wreg_Fw_aux = r15;
 };
 
-struct jit_avx512_core_conv_winograd_fwd_kernel_f32
-        : _jit_avx512_core_conv_winograd_data_kernel_f32 {
-    using _jit_avx512_core_conv_winograd_data_kernel_f32::
-            _jit_avx512_core_conv_winograd_data_kernel_f32;
+struct jit_avx512_core_fp32_wino_conv_4x3_fwd_kernel
+        : _jit_avx512_core_fp32_wino_conv_4x3_data_kernel {
+    using _jit_avx512_core_fp32_wino_conv_4x3_data_kernel::
+            _jit_avx512_core_fp32_wino_conv_4x3_data_kernel;
 
     static bool post_ops_ok(jit_conv_conf_t &jcp, const primitive_attr_t &attr);
 
@@ -165,10 +165,10 @@ struct jit_avx512_core_conv_winograd_fwd_kernel_f32
             float relu_negative_slope);
 };
 
-struct jit_avx512_core_conv_winograd_bwd_data_kernel_f32
-        : public _jit_avx512_core_conv_winograd_data_kernel_f32 {
-    using _jit_avx512_core_conv_winograd_data_kernel_f32::
-            _jit_avx512_core_conv_winograd_data_kernel_f32;
+struct jit_avx512_core_fp32_wino_conv_4x3_bwd_data_kernel
+        : public _jit_avx512_core_fp32_wino_conv_4x3_data_kernel {
+    using _jit_avx512_core_fp32_wino_conv_4x3_data_kernel::
+            _jit_avx512_core_fp32_wino_conv_4x3_data_kernel;
 
     static status_t init_conf(jit_conv_winograd_conf_t &jcp,
             const convolution_desc_t &cd, const memory_desc_wrapper &diff_src_d,
@@ -176,12 +176,12 @@ struct jit_avx512_core_conv_winograd_bwd_data_kernel_f32
             const memory_desc_wrapper &diff_dst_d);
 };
 
-struct jit_avx512_core_conv_winograd_bwd_weights_kernel_f32
+struct jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_kernel
         : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(
         _jit_avx512_core_conv_winograd_bwd_weights_kernel_f32)
 
-    jit_avx512_core_conv_winograd_bwd_weights_kernel_f32(
+    jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_kernel(
             jit_conv_winograd_conf_t ajcp)
         : jcp(ajcp)
     {
