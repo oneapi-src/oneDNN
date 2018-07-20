@@ -76,63 +76,63 @@ struct winograd_scratchpad_t {
         inline void get_scratchpad_size_(const jit_conv_winograd_conf_t &jcp) {
             nthreads_ = omp_get_max_threads();
 
-            U_sz_ = alpha * alpha * jcp.ic * jcp.oc * sizeof(float);
-            V_sz_ = alpha * alpha * jcp.mb * jcp.ic
+            U_sz_ = (size_t)alpha * alpha * jcp.ic * jcp.oc * sizeof(float);
+            V_sz_ = (size_t)alpha * alpha * jcp.mb * jcp.ic
                            * (jcp.itiles * jcp.jtiles + jcp.tile_4fma_padding)
                            * sizeof(float);
-            M_sz_ = alpha * alpha * jcp.mb * jcp.oc
+            M_sz_ = (size_t)alpha * alpha * jcp.mb * jcp.oc
                            * (jcp.itiles * jcp.jtiles + jcp.tile_4fma_padding)
                            * sizeof(float);
 
             switch (jcp.sched_policy) {
             case WSCHED_DATA_W_SGD:
-                V_sz_ = nthreads_ * alpha * alpha
+                V_sz_ = (size_t)nthreads_ * alpha * alpha
                     * jcp.nb_tile_block_ur * jcp.tile_block_ur
                     * jcp.ic * sizeof(float);
-                M_sz_ = nthreads_* alpha * alpha
+                M_sz_ = (size_t)nthreads_* alpha * alpha
                     * jcp.nb_tile_block_ur * jcp.tile_block_ur
                     * jcp.oc * sizeof(float);
                 break;
             case WSCHED_WEI_SDGt_W:
-                U_sz_ = nthreads_ * U_sz_;
-                V_sz_ = nthreads_ * alpha * alpha
+                U_sz_ = (size_t)nthreads_ * U_sz_;
+                V_sz_ = (size_t)nthreads_ * alpha * alpha
                         * (jcp.nb_tile_block_ur * jcp.tile_block_ur
                                   + jcp.tile_4fma_padding)
                         * jcp.ic * sizeof(float);
-                M_sz_ = nthreads_ * alpha * alpha
+                M_sz_ = (size_t)nthreads_ * alpha * alpha
                         * (jcp.nb_tile_block_ur * jcp.tile_block_ur
                                   + jcp.tile_4fma_padding)
                         * jcp.oc * sizeof(float);
                 bias_sz_ = nthreads_ * jcp.oc * sizeof(float);
                 break;
             case WSCHED_WEI_SDGtWo:
-                U_sz_ = nthreads_ * alpha * alpha
+                U_sz_ = (size_t)nthreads_ * alpha * alpha
                     * jcp.oc_block * jcp.oc_simd_block * jcp.ic * sizeof(float);
-                M_sz_ = nthreads_ * alpha * alpha
+                M_sz_ = (size_t)nthreads_ * alpha * alpha
                         * (jcp.nb_tile_block_ur * jcp.tile_block_ur
                                   + jcp.tile_4fma_padding)
                         * jcp.oc_simd_block * jcp.oc_block * sizeof(float);
                 bias_sz_ = nthreads_ * jcp.oc * sizeof(float);
                 break;
             case WSCHED_WEI_S_D_Giot_W:
-                U_sz_ = (nthreads_ + 1) * alpha * alpha
+                U_sz_ = (size_t)(nthreads_ + 1) * alpha * alpha
                     * jcp.ic * jcp.oc * sizeof(float);
-                V_sz_ = alpha * alpha
+                V_sz_ = (size_t)alpha * alpha
                     * (jcp.itiles * jcp.jtiles + jcp.tile_4fma_padding)
                     * jcp.ic * jcp.mb * sizeof(float);
-                M_sz_ = alpha * alpha
+                M_sz_ = (size_t)alpha * alpha
                     * (jcp.itiles * jcp.jtiles + jcp.tile_4fma_padding)
                     * jcp.oc * jcp.mb * sizeof(float);
                 bias_sz_ = nthreads_ * jcp.oc * sizeof(float);
                 src_transpose_sz_ = jcp.ver == ver_4fma
-                    ? (nthreads_ * alpha * alpha
+                    ? ((size_t)nthreads_ * alpha * alpha
                         * jcp.tile_4fma
                         * jcp.ic_simd_block * sizeof(float))
                     : 0;
                 break;
             case WSCHED_WEI_S_D_G_W:
                 src_transpose_sz_ = jcp.ver == ver_4fma
-                                  ? (nthreads_ * alpha * alpha
+                                  ? ((size_t)nthreads_ * alpha * alpha
                                      * jcp.tile_4fma
                                      * jcp.ic_simd_block * sizeof(float))
                                   : 0;
