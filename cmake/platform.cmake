@@ -40,7 +40,7 @@ set(DEF_ARCH_OPT_FLAGS)
 
 if(MSVC)
     set(USERCONFIG_PLATFORM "x64")
-    if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    if(${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
         set(CMAKE_CCXX_FLAGS "${CMAKE_CCXX_FLAGS} /MP")
         set(CMAKE_CCXX_FLAGS "${CMAKE_CCXX_FLAGS} /wd4800") # int -> bool
         set(CMAKE_CCXX_FLAGS "${CMAKE_CCXX_FLAGS} /wd4068") # unknown pragma
@@ -48,6 +48,7 @@ if(MSVC)
         set(CMAKE_CCXX_FLAGS "${CMAKE_CCXX_FLAGS} /wd4551") # UNUSED(func)
     endif()
     if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
+        set(CMAKE_CCXX_FLAGS "${CMAKE_CCXX_FLAGS} /MP")
         set(DEF_ARCH_OPT_FLAGS "-QxHOST")
         # disable: loop was not vectorized with "simd"
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Qdiag-disable:15552")
