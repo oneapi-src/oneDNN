@@ -1843,9 +1843,9 @@ diff_dst_transform_generate(bool with_bias) {
             vsubps(zmm_t(2), zmm_t(2), zmm_t(4));
             vmovups(zmm_t(3), zmm_T(j, 3));
 
-            size_t alpha_offset = jcp.oc/jcp.nb_oc * jcp.ntiles/jcp.tile_block
-                * typesize;
-            size_t dst_off = (j * alpha * alpha_offset);
+            int alpha_offset = (jcp.oc / jcp.nb_oc)
+                * (jcp.ntiles / jcp.tile_block) * typesize;
+            int dst_off = j * alpha * alpha_offset;
             movps(reg_dst, dst_off, zmm_t(0));
             dst_off += alpha_offset;
             movps(reg_dst, dst_off, zmm_t(5));
@@ -1952,8 +1952,8 @@ diff_dst_transform_generate(bool with_bias) {
                     L(next_tile_block);
                     sub(reg_dst, (jcp.nb_tile_block_ur * jcp.tile_block_ur - 1)
                             * jcp.oc_reg_block * simd_w * typesize);
-                    size_t tblk_off = alpha * alpha * jcp.oc/jcp.nb_oc
-                        * jcp.ntiles/jcp.tile_block * typesize;
+                    int tblk_off = alpha * alpha * (jcp.oc/jcp.nb_oc)
+                        * (jcp.ntiles/jcp.tile_block) * typesize;
                     add(reg_dst, tblk_off);
                     xor_(reg_tile_count, reg_tile_count);
 
