@@ -342,16 +342,13 @@ void _jit_avx512_common_conv_winograd_data_kernel_f32::gemm_loop_generate(
     };
 
     /* Preamble */
-    // register used to handle long fma encoding
-    push(reg_EVEX_max_8b_offt);
-    mov(reg_EVEX_max_8b_offt, 2 * EVEX_max_8b_offt);
+    preamble();
 
     /* kernel */
     inner_loops();
 
     /* Postamble */
-    pop(reg_EVEX_max_8b_offt);
-    uni_vzeroupper();
+    postamble();
     ret();
 }
 
@@ -741,6 +738,7 @@ void jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::transpose_ker_gener
         }
     };
 
+    preamble();
     int curr = 0;
     for (int j = 0; j < alpha; j++) {
         for (int i = 0; i < alpha; i++) {
@@ -789,7 +787,7 @@ void jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::transpose_ker_gener
             }
         }
     }
-    uni_vzeroupper();
+    postamble();
     ret();
 }
 void jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::gemm_loop_generate(
@@ -956,16 +954,12 @@ void jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::gemm_loop_generate(
 
     /* Preamble */
     // register used to handle long fma encoding
-    push(reg_EVEX_max_8b_offt);
-    push(reg_dimK_block_loop_cnt);
-    mov(reg_EVEX_max_8b_offt, 2 * EVEX_max_8b_offt);
+    preamble();
     mov(reg_srcA, reg_srcA_const);
     inner_loops();
 
     /* Postamble */
-    pop(reg_dimK_block_loop_cnt);
-    pop(reg_EVEX_max_8b_offt);
-    uni_vzeroupper();
+    postamble();
     ret();
 }
 
