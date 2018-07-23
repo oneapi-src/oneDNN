@@ -48,6 +48,10 @@ template <> inline int8_t saturate<int8_t, uint8_t>(const uint8_t &x) {
     return x <= 127u ? x : 127;
 }
 
+template <> inline uint8_t saturate<uint8_t, int8_t>(const int8_t &x) {
+    return x >= 0 ? x : 0;
+}
+
 template <typename out_t>
 inline typename utils::enable_if<nstl::is_integral<out_t>::value, out_t>::type
 out_round(float v, round_mode_t rmode = round_mode::nearest)
