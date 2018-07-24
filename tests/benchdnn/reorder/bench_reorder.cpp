@@ -23,6 +23,24 @@
 
 namespace reorder {
 
+void check(const prb_t *p) {
+    res_t res{};
+    char pstr[max_prb_len];
+    prb2str(p, &res, pstr);
+
+    int status = reorder::doit(p, &res);
+
+    prb2str(p, &res, pstr);
+    bool want_perf_report = false;
+
+    parse_result(res, want_perf_report, false, status, pstr);
+
+    if (bench_mode & PERF)
+        perf_report(p, &res, pstr);
+
+    benchdnn_stat.tests++;
+}
+
 int bench(int argc, char **argv) {
     const int num_r = sizeof(reorders) / sizeof(reorders[0]);
     const int num_q = sizeof(q10ns) / sizeof(q10ns[0]);
@@ -46,44 +64,6 @@ int bench(int argc, char **argv) {
     }
 
     return OK;
-}
-
-void check(const prb_t *p) {
-    res_t res{};
-    char pstr[max_prb_len];
-    prb2str(p, &res, pstr);
-
-    int status = reorder::doit(p, &res);
-
-    prb2str(p, &res, pstr);
-    bool want_perf_report = false;
-
-    parse_result(res, want_perf_report, false, status, pstr);
-
-    if (bench_mode & PERF)
-        perf_report(p, &res, pstr);
-
-    benchdnn_stat.tests++;
-}
-
-void perf_report(const prb_t *p, const res_t *r, const char *pstr) {
-    const auto &t = r->timer;
-    const int max_len = 400;
-    char buffer[max_len], *buf = buffer;
-    int rem_len = max_len - 1;
-
-    #   define DPRINT(...) do { \
-        int l = snprintf(buf, rem_len, __VA_ARGS__); \
-        buf += l; rem_len -= l; \
-    } while(0)
-
-    DPRINT("perf,");
-    DPRINT("%s,", pstr);
-    DPRINT("min_ms=%g,", t.ms(benchdnn_timer_t::min));
-    DPRINT("max_ms=%g", t.ms(benchdnn_timer_t::max));
-
-#   undef DPRINT
-    print(0, "%s\n", buffer);
 }
 
 }

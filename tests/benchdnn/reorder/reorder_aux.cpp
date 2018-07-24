@@ -47,4 +47,18 @@ void prb2str(const prb_t *p, const res_t *res, char *buffer) {
     attr2str(&p->attr, buffer);
 }
 
+void perf_report(const prb_t *p, const res_t *r, const char *pstr) {
+    const auto &t = r->timer;
+    const int max_len = 400;
+    char buf[max_len], *buffer = buf;
+    int rem_len = max_len - 1;
+
+    DPRINT("perf,");
+    DPRINT("%s,", pstr);
+    DPRINT("min_ms=%g,", t.ms(benchdnn_timer_t::min));
+    DPRINT("max_ms=%g", t.ms(benchdnn_timer_t::max));
+
+    print(0, "%s\n", buf);
+}
+
 }
