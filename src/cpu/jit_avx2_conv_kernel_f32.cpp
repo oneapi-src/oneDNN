@@ -449,6 +449,7 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     jcp.mb = src_d.dims()[0];
 
     jcp.oc = dst_d.dims()[1] / jcp.ngroups;
+    jcp.oc_without_padding = jcp.oc;
     jcp.ic = src_d.dims()[1] / jcp.ngroups;
 
     jcp.id = (ndims == 5) ? src_d.dims()[2] : 1;
@@ -490,6 +491,15 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     const int simd_w = 8;
     const bool flat = jcp.ic < simd_w;
     const bool mimo = !flat;
+
+    bool ok_to_pad_channels = true
+        && jcp.ngroups == 1;
+
+    if (ok_to_pad_channels) {
+        jcp.oc = rnd_up(jcp.oc, simd_w);
+        if (mimo)
+            jcp.ic = rnd_up(jcp.ic, simd_w);
+    }
 
     bool args_ok = true
         && implication(flat, one_of(src_d.format(), nchw, nhwc, ncdhw, ndhwc)
@@ -720,6 +730,7 @@ status_t jit_avx2_conv_bwd_data_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     jcp.mb = diff_src_d.dims()[0];
 
     jcp.oc = diff_dst_d.dims()[1] / jcp.ngroups;
+    jcp.oc_without_padding = jcp.oc;
     jcp.ic = diff_src_d.dims()[1] / jcp.ngroups;
 
     jcp.id = (ndims == 5) ? diff_src_d.dims()[2] : 1;
@@ -753,6 +764,14 @@ status_t jit_avx2_conv_bwd_data_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     jcp.iwp = jcp.iw + 2 * jcp.l_pad;
     jcp.ohp = jcp.oh; /* do we really need */
     jcp.owp = jcp.ow; /* padded output ??? */
+
+    bool ok_to_pad_channels = true
+        && jcp.ngroups == 1;
+
+    if (ok_to_pad_channels) {
+        jcp.oc = rnd_up(jcp.oc, simd_w);
+        jcp.ic = rnd_up(jcp.ic, simd_w);
+    }
 
     jcp.ic_block = (jcp.ic % simd_w) ? 1 : simd_w;
     jcp.nb_ic = jcp.ic / jcp.ic_block;
@@ -838,6 +857,7 @@ status_t jit_avx2_conv_bwd_weights_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     jcp.mb = src_d.dims()[0];
 
     jcp.oc = diff_dst_d.dims()[1] / jcp.ngroups;
+    jcp.oc_without_padding = jcp.oc;
     jcp.ic = src_d.dims()[1] / jcp.ngroups;
 
     jcp.id = (ndims == 5) ? src_d.dims()[2] : 1;
@@ -879,6 +899,14 @@ status_t jit_avx2_conv_bwd_weights_kernel_f32::init_conf(jit_conv_conf_t &jcp,
         if (jcp.f_pad != 0 || back_pad != 0)
             return status::unimplemented;
 
+    bool ok_to_pad_channels = true
+        && jcp.ngroups == 1;
+
+    if (ok_to_pad_channels) {
+        jcp.oc = rnd_up(jcp.oc, simd_w);
+        if (mimo)
+            jcp.ic = rnd_up(jcp.ic, simd_w);
+    }
 
     bool args_ok = true
         && implication(flat, one_of(src_d.format(), nchw, nhwc, ncdhw, ndhwc)

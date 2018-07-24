@@ -467,6 +467,7 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
     jcp.mb = src_d.dims()[0];
 
     jcp.oc = dst_d.dims()[1] / jcp.ngroups;
+    jcp.oc_without_padding = jcp.oc;
     jcp.ic = src_d.dims()[1] / jcp.ngroups;
 
     jcp.ih = src_d.dims()[2];
@@ -508,6 +509,11 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
     memory_format_t weights_format
         = weights_formats[with_groups][jcp.prop_kind == backward_data];
 
+    const int simd_w = 8;
+
+    jcp.oc = rnd_up(jcp.oc, simd_w);
+    jcp.ic = rnd_up(jcp.ic, simd_w);
+
     bool args_ok = true
         && jcp.ngroups == 1
         && src_d.format() == nChw8c
@@ -515,8 +521,6 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
         && one_of(cd.bias_desc.format, memory_format::undef, any, x)
         && dst_d.format() == nChw8c;
     if (!args_ok) return status::unimplemented;
-
-    const int simd_w = 8;
 
     args_ok = true
         && jcp.oc % simd_w == 0 && jcp.ic % simd_w == 0

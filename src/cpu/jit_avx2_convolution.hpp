@@ -98,8 +98,23 @@ struct _jit_avx2_convolution_fwd_t: public cpu_primitive_t {
     _jit_avx2_convolution_fwd_t(const pd_t *pd, const input_vector &inputs,
             const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
-    { kernel_ = new jit_avx2_conv_fwd_kernel_f32(conf_.jcp_, *conf_.attr()); }
-    ~_jit_avx2_convolution_fwd_t() { delete kernel_; };
+          , padded_bias_(nullptr)
+    {
+        kernel_ = new jit_avx2_conv_fwd_kernel_f32(conf_.jcp_, *conf_.attr());
+
+        if (conf_.want_padded_bias()) {
+            const auto &j = conf_.jcp_;
+            assert(j.ngroups == 1);
+            padded_bias_ = (data_t *)malloc(sizeof(data_t) * j.oc, 64);
+            for (int oc = j.oc_without_padding; oc < j.oc; ++oc)
+                padded_bias_[oc] = 0;
+        }
+
+    }
+    ~_jit_avx2_convolution_fwd_t() {
+        delete kernel_;
+        free(padded_bias_);
+    };
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
@@ -112,6 +127,7 @@ private:
     void execute_forward();
     pd_t conf_;
     jit_avx2_conv_fwd_kernel_f32 *kernel_;
+    data_t *padded_bias_;
 };
 
 using jit_avx2_convolution_fwd_t = _jit_avx2_convolution_fwd_t<false>;
@@ -256,6 +272,7 @@ struct jit_avx2_convolution_bwd_weights_t: public cpu_primitive_t {
             const input_vector &inputs, const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
         , kernel_(nullptr), reducer_weights_(nullptr), reducer_bias_(nullptr)
+        , padded_bias_(nullptr)
     {
         kernel_ = new jit_avx2_conv_bwd_weights_kernel_f32(conf_.jcp_);
 
@@ -269,9 +286,16 @@ struct jit_avx2_convolution_bwd_weights_t: public cpu_primitive_t {
             reducer_bias_ = new cpu_reducer_t<data_type::f32>(
                     reduce_balancer_t(max_threads, j.oc_block,
                         j.ngroups * j.nb_oc, j.mb, max_buffer_size));
+
+            if (conf_.want_padded_bias())
+                padded_bias_ = (data_t *)
+                    malloc(sizeof(data_t) * j.oc, 64);
         }
     }
-    ~jit_avx2_convolution_bwd_weights_t() { delete kernel_; };
+    ~jit_avx2_convolution_bwd_weights_t() {
+        delete kernel_;
+        free(padded_bias_);
+    };
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
@@ -285,6 +309,7 @@ private:
     pd_t conf_;
     jit_avx2_conv_bwd_weights_kernel_f32 *kernel_;
     cpu_reducer_t<data_type::f32> *reducer_weights_, *reducer_bias_;
+    data_t *padded_bias_;
 };
 
 }

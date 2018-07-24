@@ -102,15 +102,25 @@ struct _jit_avx2_1x1_convolution_fwd_t: public cpu_primitive_t {
             const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
         , kernel_(nullptr), rtus_driver_(nullptr), ws_per_thread_(0)
-        , scratch_(nullptr)
+        , scratch_(nullptr), padded_bias_(nullptr)
     {
         kernel_ = new jit_avx2_1x1_conv_kernel_f32(conf_.jcp_, *conf_.attr());
         init_rtus_driver<avx2>(this);
+
+        if (conf_.want_padded_bias()) {
+            const auto &j = conf_.jcp_;
+            assert(j.ngroups == 1);
+            padded_bias_ = (data_t *)malloc(sizeof(data_t) * j.oc, 64);
+            for (int oc = j.oc_without_padding; oc < j.oc; ++oc)
+                padded_bias_[oc] = 0;
+        }
+
     }
     ~_jit_avx2_1x1_convolution_fwd_t() {
         delete kernel_;
         delete rtus_driver_;
         free(scratch_);
+        free(padded_bias_);
     }
 
     typedef typename prec_traits<data_type::f32>::type data_t;
@@ -129,6 +139,7 @@ private:
     rtus_driver_t<avx2> *rtus_driver_;
     size_t ws_per_thread_;
     data_t *scratch_;
+    data_t *padded_bias_;
 };
 
 using jit_avx2_1x1_convolution_fwd_t = _jit_avx2_1x1_convolution_fwd_t<false>;
@@ -306,6 +317,7 @@ struct jit_avx2_1x1_convolution_bwd_weights_t: public cpu_primitive_t {
         delete reducer_weights_;
         delete reducer_bias_;
         free(scratch_);
+        free(padded_bias_);
     }
 
     typedef typename prec_traits<data_type::f32>::type data_t;
@@ -332,6 +344,7 @@ private:
     rtus_driver_t<avx2> *rtus_driver_;
     size_t ws_per_thread_;
     data_t *scratch_;
+    data_t *padded_bias_;
 };
 
 }

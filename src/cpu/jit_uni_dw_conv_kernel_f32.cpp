@@ -403,7 +403,7 @@ status_t jit_uni_dw_conv_fwd_kernel_f32<isa>::init_conf(jit_conv_conf_t &jcp,
     bool ok_to_pad_channels = true
         && jcp.oc == jcp.ngroups
         && jcp.ic == jcp.ngroups
-        && isa == avx512_common;
+        && one_of(isa, avx512_common, avx2);
     if (ok_to_pad_channels) {
         jcp.oc = rnd_up(jcp.oc, simd_w);
         jcp.ic = rnd_up(jcp.oc, simd_w);
@@ -681,7 +681,7 @@ status_t jit_uni_dw_conv_bwd_data_kernel_f32<isa>::init_conf(
     bool ok_to_pad_channels = true
         && jcp.oc == jcp.ngroups
         && jcp.ic == jcp.ngroups
-        && isa == avx512_common;
+        && one_of(isa, avx512_common, avx2);
     if (ok_to_pad_channels) {
         jcp.oc = rnd_up(jcp.oc, simd_w);
         jcp.ic = rnd_up(jcp.oc, simd_w);

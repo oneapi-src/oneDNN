@@ -147,6 +147,12 @@ void _jit_avx2_1x1_convolution_fwd_t<with_relu>::execute_forward() {
         }
     };
 
+    if (conf_.want_padded_bias()) {
+        for (int oc = 0; oc < jcp.oc_without_padding; ++oc)
+            padded_bias_[oc] = bias[oc];
+        bias = padded_bias_;
+    }
+
 #   pragma omp parallel
     {
         ker(omp_get_thread_num(), omp_get_num_threads());
@@ -272,6 +278,7 @@ jit_avx2_1x1_convolution_bwd_weights_t::jit_avx2_1x1_convolution_bwd_weights_t(
         const output_vector &outputs)
     : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd), kernel_(nullptr)
     , rtus_driver_(nullptr), ws_per_thread_(0), scratch_(nullptr)
+    , padded_bias_(nullptr)
 {
     kernel_ = new jit_avx2_1x1_conv_kernel_f32(conf_.jcp_, *conf_.attr());
 
@@ -303,8 +310,11 @@ jit_avx2_1x1_convolution_bwd_weights_t::jit_avx2_1x1_convolution_bwd_weights_t(
 
     reducer_bias_ = !conf_.with_bias() ? nullptr
         : new cpu_reducer_t<data_type::f32>(reduce_balancer_t(max_threads,
-                    oc_block, conf_.G() * conf_.OC() / oc_block,
-                    conf_.MB(), max_buffer_size));
+                    oc_block, jcp.ngroups * jcp.oc / oc_block,
+                    jcp.mb, max_buffer_size));
+
+    if (conf_.want_padded_bias())
+        padded_bias_ = (data_t *)malloc(sizeof(data_t) * jcp.oc, 64);
 
     init_rtus_driver<avx2>(this);
 }
@@ -313,7 +323,8 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto diff_weights = reinterpret_cast<data_t *>(this->memory(0));
-    auto diff_bias = reinterpret_cast<data_t *>(this->memory(1));
+    auto diff_bias_in = reinterpret_cast<data_t *>(this->memory(1));
+    data_t *diff_bias = conf_.want_padded_bias() ? padded_bias_ : diff_bias_in;
 
     const memory_desc_wrapper diff_dst_d(conf_.diff_dst_pd());
     const memory_desc_wrapper src_d(conf_.src_pd());
@@ -528,6 +539,14 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights() {
         if (conf_.with_bias())
             ker_bias(ithr, nthr);
     }
+
+    /* TODO: put this in ker_bias */
+    if (conf_.want_padded_bias()) {
+        assert(jcp.ngroups == 1);
+        for (int oc = 0; oc < jcp.oc_without_padding; ++oc)
+            diff_bias_in[oc] = diff_bias[oc];
+    }
+
 }
 
 }
