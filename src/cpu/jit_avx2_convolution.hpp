@@ -75,13 +75,20 @@ struct _jit_avx2_convolution_fwd_t: public cpu_primitive_t {
             const int simd_w = 8;
             const bool flat = this->IC() < simd_w;
             if (this->src_pd_.desc()->format == any)
-                CHECK(this->src_pd_.set_format(flat ? nchw : nChw8c));
+                CHECK(this->src_pd_.set_format(this->ndims() == 4
+                            ? flat ? nchw : nChw8c
+                            : flat ? ncdhw : nCdhw8c));
             if (this->dst_pd_.desc()->format == any)
-                CHECK(this->dst_pd_.set_format(nChw8c));
+                CHECK(this->dst_pd_.set_format(this->ndims() == 4
+                        ? nChw8c : nCdhw8c));
             if (this->weights_pd_.desc()->format == any)
-                CHECK(this->weights_pd_.set_format(this->with_groups()
+                CHECK(this->weights_pd_.set_format(this->ndims() == 4
+                        ? this->with_groups()
                             ? (flat ? gOhwi8o : gOIhw8i8o)
-                            : (flat ? Ohwi8o : OIhw8i8o)));
+                            : (flat ? Ohwi8o : OIhw8i8o)
+                        : this->with_groups()
+                            ? (flat ? gOdhwi8o : gOIdhw8i8o)
+                            : (flat ? Odhwi8o : OIdhw8i8o)));
             if (this->bias_pd_.desc()->format == any)
                 CHECK(this->bias_pd_.set_format(x));
             return status::success;
@@ -149,12 +156,15 @@ struct jit_avx2_convolution_bwd_data_t: public cpu_primitive_t {
             using namespace memory_format;
 
             if (this->diff_src_pd_.desc()->format == any)
-                CHECK(this->diff_src_pd_.set_format(nChw8c));
+                CHECK(this->diff_src_pd_.set_format(this->ndims() == 4
+                            ? nChw8c : nCdhw8c));
             if (this->diff_dst_pd_.desc()->format == any)
-                CHECK(this->diff_dst_pd_.set_format(nChw8c));
+                CHECK(this->diff_dst_pd_.set_format(this->ndims() == 4
+                            ? nChw8c : nCdhw8c));
             if (this->weights_pd_.desc()->format == any)
-                CHECK(this->weights_pd_.set_format(this->with_groups()
-                            ? gOIhw8o8i : OIhw8o8i));
+                CHECK(this->weights_pd_.set_format(this->ndims() == 4
+                            ? this->with_groups() ? gOIhw8o8i : OIhw8o8i
+                            : this->with_groups() ? gOIdhw8o8i : OIdhw8o8i));
             return status::success;
         }
     };
@@ -222,13 +232,20 @@ struct jit_avx2_convolution_bwd_weights_t: public cpu_primitive_t {
             const bool flat = this->IC() == 3;
 
             if (this->src_pd_.desc()->format == any)
-                CHECK(this->src_pd_.set_format(flat ? nchw : nChw8c));
+                CHECK(this->src_pd_.set_format(this->ndims() == 4
+                            ? flat ? nchw : nChw8c
+                            : flat ? ncdhw : nCdhw8c));
             if (this->diff_dst_pd_.desc()->format == any)
-                CHECK(this->diff_dst_pd_.set_format(nChw8c));
+                CHECK(this->diff_dst_pd_.set_format(this->ndims() == 4
+                            ? nChw8c : nCdhw8c));
             if (this->diff_weights_pd_.desc()->format == any)
-                CHECK(this->diff_weights_pd_.set_format(this->with_groups()
+                CHECK(this->diff_weights_pd_.set_format(this->ndims() == 4
+                        ? this->with_groups()
                             ? (flat ? gOhwi8o : gOIhw8i8o)
-                            : (flat ? Ohwi8o : OIhw8i8o)));
+                            : (flat ? Ohwi8o : OIhw8i8o)
+                        : this->with_groups()
+                            ? (flat ? gOdhwi8o : gOIdhw8i8o)
+                            : (flat ? Odhwi8o : OIdhw8i8o)));
             if (this->diff_bias_pd_.desc()->format == any)
                 CHECK(this->diff_bias_pd_.set_format(x));
             return status::success;
@@ -246,8 +263,8 @@ struct jit_avx2_convolution_bwd_weights_t: public cpu_primitive_t {
         const size_t max_buffer_size = 1<<21; /* just a heuristic */
         const auto &j = conf_.jcp_;
         reducer_weights_ = new cpu_reducer_t<data_type::f32>(reduce_balancer_t(
-                    max_threads, j.kh * j.kw * j.ic_block * j.oc_block,
-                    j.ngroups * j.nb_ic * j.nb_oc, j.mb, max_buffer_size));
+                max_threads, j.kd * j.kh * j.kw * j.ic_block * j.oc_block,
+                j.ngroups * j.nb_ic * j.nb_oc, j.mb * j.od, max_buffer_size));
         if (conf_.with_bias()) {
             reducer_bias_ = new cpu_reducer_t<data_type::f32>(
                     reduce_balancer_t(max_threads, j.oc_block,

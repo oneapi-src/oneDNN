@@ -224,6 +224,7 @@ struct ref_deconvolution_fwd_t: public cpu_primitive_t {
                         compute_fwd_bias_ncdhw();
                         break;
                     case memory_format::nChw8c :
+                    case memory_format::nCdhw8c :
                         compute_fwd_bias_nCdhwXc<8>();
                         break;
                     case memory_format::nChw16c :

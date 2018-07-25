@@ -58,7 +58,7 @@ struct jit_conv_conf_t {
     float relu_negative_slope;
     bool with_sum;
 
-    int ihp, iwp, ohp, owp;
+    int idp, ihp, iwp, ohp, owp;
     int nb_ic, ic_block;
     int nb_oc, oc_block;
     int nb_ic_blocking, nb_oc_blocking; // blocking of nb_ic and nb_ic
