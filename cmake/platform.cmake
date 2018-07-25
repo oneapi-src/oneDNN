@@ -35,6 +35,16 @@ if(NOT MKLDNN_VERBOSE)
     add_definitions(-DDISABLE_VERBOSE)
 endif()
 
+option(MKLDNN_ENABLE_CONCURRENT_EXEC
+    "disables sharing a common scratchpad between primitives.
+    This option must be turned on if there is a possibility of
+    concurrent execution of primitives that were created in the same thread.
+    CAUTION: enabling this option increases memory consumption"
+    OFF) #disabled by default
+if(MKLDNN_ENABLE_CONCURRENT_EXEC)
+    add_definitions(-DMKLDNN_ENABLE_CONCURRENT_EXEC)
+endif()
+
 set(CMAKE_CCXX_FLAGS)
 set(DEF_ARCH_OPT_FLAGS)
 
