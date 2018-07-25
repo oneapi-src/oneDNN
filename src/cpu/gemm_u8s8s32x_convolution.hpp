@@ -109,8 +109,8 @@ struct _gemm_u8s8s32x_convolution_fwd_t: public cpu_primitive_t {
 
     _gemm_u8s8s32x_convolution_fwd_t(const pd_t *pd, const input_vector &inputs,
            const output_vector &outputs)
-        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd), col_(nullptr)
-        , acc_(nullptr)
+        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
+        , scratchpad_(nullptr)
     {
         jit_gemm_convolution_utils::init_conf(conf_.jcp_,
             *(conf_.cdesc()), conf_.src_pd(), conf_.weights_pd(0),
@@ -122,15 +122,18 @@ struct _gemm_u8s8s32x_convolution_fwd_t: public cpu_primitive_t {
                 && !(conf_.jcp_.os / nthr_ < 64 && conf_.jcp_.mb != 1))
             nthr_ = 1;
 
-        jit_gemm_convolution_utils::prepare_ws_col<src_data_t>(
-                this->conf_.jcp_, &this->col_, nthr_);
-        jit_gemm_convolution_utils::prepare_ws_acc<acc_data_t>(
-                this->conf_.jcp_, &this->acc_, nthr_);
+        size_t col_size = (size_t)conf_.jcp_.os * conf_.jcp_.ks
+                            * conf_.jcp_.ic * sizeof(src_data_t);
+        size_t acc_size = (size_t)conf_.jcp_.os * conf_.jcp_.oc
+                            * sizeof(acc_data_t);
+        size_t size = col_size + acc_size;
+
+        jit_gemm_convolution_utils::prepare_scratchpad(this->conf_.jcp_,
+                &this->scratchpad_, size, nthr_);
     }
 
     ~_gemm_u8s8s32x_convolution_fwd_t() {
-        free(this->col_);
-        free(this->acc_);
+        delete this->scratchpad_;
     };
 
     typedef typename prec_traits<data_type::u8>::type src_data_t;
@@ -146,8 +149,7 @@ struct _gemm_u8s8s32x_convolution_fwd_t: public cpu_primitive_t {
 private:
     void execute_forward();
     pd_t conf_;
-    src_data_t *col_;
-    acc_data_t *acc_;
+    scratchpad_t *scratchpad_;
     int nthr_;
 };
 

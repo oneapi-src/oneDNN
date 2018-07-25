@@ -65,13 +65,19 @@ void _gemm_convolution_fwd_t<with_relu>::execute_forward() {
 
     const data_t one = 1.0;
 
+    data_t *col = (data_t *)this->scratchpad_->get();
+
     const size_t work_amount = jcp.ngroups * jcp.mb * jcp.od;
 #   pragma omp parallel num_threads(this->nthr_)
     {
         const int ithr = omp_get_thread_num();
         const int nthr = omp_get_num_threads();
 
-        data_t *_col = this->col_ + (size_t)ithr * jcp.ic * jcp.ks * jcp.os;
+        const ptrdiff_t im2col_sz = (ptrdiff_t)jcp.ic * jcp.ks * jcp.os;
+        data_t *_col = col + (ptrdiff_t)ithr * im2col_sz;
+
+        # pragma omp parallel for if(this->nthr_ == 1)
+        for (ptrdiff_t i = 0; i < im2col_sz; ++i) _col[i] = (data_t)0;
 
         int g{0}, n{0}, od{0};
         size_t start = 0, end = 0;
@@ -131,13 +137,19 @@ void gemm_convolution_bwd_data_t::execute_backward_data() {
     const int LDC = jcp.need_im2col ? m : M;
     const data_t zero = 0.0, one = 1.0;
 
-    const size_t work_amount = jcp.ngroups * jcp.mb;
+    data_t *col = (data_t *)this->scratchpad_->get();
+
+    const size_t work_amount = (size_t)jcp.ngroups * jcp.mb;
 #pragma omp parallel num_threads(this->nthr_)
     {
         const int ithr = omp_get_thread_num();
         const int nthr = omp_get_num_threads();
 
-        data_t *_col = this->col_ + (size_t)ithr * jcp.ic * jcp.ks * jcp.os;
+        const ptrdiff_t im2col_sz = (ptrdiff_t)jcp.ic * jcp.ks * jcp.os;
+        data_t *_col = col + (ptrdiff_t)ithr * im2col_sz;
+
+        # pragma omp parallel for if(this->nthr_ == 1)
+        for (ptrdiff_t i = 0; i < im2col_sz; ++i) _col[i] = (data_t)0;
 
         if (jcp.id > 1) {
             ptrdiff_t diff_src_sz = (ptrdiff_t)(work_amount * src_step);
@@ -194,6 +206,16 @@ void gemm_convolution_bwd_weights_t::execute_backward_weights() {
     const int M = jcp.ic * jcp.ks;
     const int LDA = jcp.need_im2col ? k : K;
     const data_t zero = 0.0, one = 1.0;
+
+    data_t *_scratchpad = (data_t *)this->scratchpad_->get();
+
+    data_t *col = _scratchpad;
+    data_t *wei_reduction = nullptr;
+    if (jcp.need_im2col && (conf_.jcp_.mb != 1 || nthr_ != 1)) {
+        ptrdiff_t offset = (ptrdiff_t)jcp.os * jcp.ks * jcp.ic * this->nthr_;
+        wei_reduction =  _scratchpad + offset;
+    }
+
 #pragma omp parallel num_threads(this->nthr_)
     {
         const int ithr = omp_get_thread_num();
@@ -213,11 +235,16 @@ void gemm_convolution_bwd_weights_t::execute_backward_weights() {
 
             assert(implication((g_end - g_start) > 1, need_reduction == 0));
 
-            data_t *_col = this->col_ + (size_t)ithr * jcp.ic * jcp.ks * jcp.os;
-            data_t *weights_reduce_base = this->wei_reduction_
+            ptrdiff_t im2col_sz = (ptrdiff_t)jcp.ic * jcp.ks * jcp.os;
+            data_t *_col = col + (ptrdiff_t)ithr * im2col_sz;
+            data_t *weights_reduce_base = wei_reduction
                     + ithr_g * nthr_mb * weights_g_size;
             data_t *weights_reduce = weights_reduce_base
                     + ithr_mb * weights_g_size;
+
+            # pragma omp parallel for if(this->nthr_ == 1)
+            for (ptrdiff_t i = 0; i < im2col_sz; ++i) _col[i] = (data_t)0;
+
             for (size_t g = g_start; g < g_end; ++g) {
                 data_t *_diff_weights = need_reduction
                         ? weights_reduce : (diff_weights + g * weights_g_size);
@@ -268,10 +295,10 @@ void gemm_convolution_bwd_weights_t::execute_backward_weights() {
             nd_iterator_init(start, g, jcp.ngroups, oc, jcp.oc);
             for (size_t iwork = start; iwork < end; ++iwork) {
                 data_t db = 0;
-                size_t offset_ = g*dst_step + oc * K;
+                size_t offset_ = (size_t)g*dst_step + (size_t)oc * K;
                 for (int mb = 0; mb < jcp.mb; ++mb)
                 {
-                    size_t offset = offset_ + mb*jcp.ngroups*dst_step;
+                    size_t offset = offset_ + (size_t)mb*jcp.ngroups*dst_step;
                     for (int od = 0; od < jcp.od; ++od)
                     for (int oh = 0; oh < jcp.oh; ++oh)
                     PRAGMA_OMP_SIMD(reduction(+:db))

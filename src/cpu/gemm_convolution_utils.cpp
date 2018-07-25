@@ -365,53 +365,13 @@ void init_conf(
         && jcp.od == jcp.id && jcp.ks == 1);
 }
 
-template <typename src_t>
-status_t prepare_ws_col(jit_gemm_conv_conf_t &jcp, src_t **col, const int nthr) {
-    if (!jcp.need_im2col) {
-        *col = nullptr;
-        return status::success;
-    }
-    const ptrdiff_t im2col_sz_per_thr = (ptrdiff_t)jcp.os * jcp.ks * jcp.ic;
-    const ptrdiff_t im2col_sz = nthr * im2col_sz_per_thr;
-    *col = (src_t *)malloc(im2col_sz * sizeof(src_t), 64);
-    if (*col == nullptr) return status::out_of_memory;
-
-#   pragma omp parallel for
-    for (ptrdiff_t i = 0; i < im2col_sz; ++i)
-        (*col)[i] = (src_t)0;
+status_t prepare_scratchpad(jit_gemm_conv_conf_t &jcp,
+                scratchpad_t **scratchpad_, size_t size, const int nthr) {
+    *scratchpad_ = create_scratchpad(nthr * size);
+    if (*scratchpad_ == nullptr) return status::out_of_memory;
 
     return status::success;
 }
-
-template status_t prepare_ws_col<float>(jit_gemm_conv_conf_t &jcp,
-        float **col, const int nthr);
-template status_t prepare_ws_col<uint8_t>(jit_gemm_conv_conf_t &jcp,
-        uint8_t **col, const int nthr);
-
-status_t prepare_ws_wei_reduction(jit_gemm_conv_conf_t &jcp,
-        float **wei_reduction, size_t wei_sz, const int nthr) {
-    if (jcp.mb == 1 || nthr == 1)
-        return status::success;
-
-    const size_t sz_per_thr = jcp.ngroups * wei_sz; // XXX: why groups?
-    *wei_reduction = (float *)malloc(nthr * sz_per_thr, 64);
-    if (*wei_reduction == nullptr) return status::out_of_memory;
-
-    return status::success;
-}
-
-template <typename acc_t>
-status_t prepare_ws_acc(jit_gemm_conv_conf_t &jcp, acc_t **acc, const int nthr) {
-    const size_t acc_sz_per_thr = jcp.os * jcp.oc;
-    const size_t acc_sz = nthr * acc_sz_per_thr;
-
-    *acc = (int32_t *)malloc(acc_sz * sizeof(acc_t), 64);
-    if (*acc == nullptr) return status::out_of_memory;
-    return status::success;
-}
-
-template status_t prepare_ws_acc<int32_t>(jit_gemm_conv_conf_t &jcp,
-        int32_t **acc, const int nthr);
 
 void bwd_weights_balance(int ithr, int nthr, int ngroups, int mb, int &ithr_g,
         int &nthr_g, int &ithr_mb, int &nthr_mb) {

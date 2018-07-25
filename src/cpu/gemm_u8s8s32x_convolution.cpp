@@ -98,13 +98,26 @@ void _gemm_u8s8s32x_convolution_fwd_t<with_relu, dst_type>::execute_forward() {
     const bool do_relu = jcp.with_relu || (entry_idx >= 0);
 
     const size_t work_amount = jcp.ngroups * jcp.mb;
+
+    char *_scratchpad = (char *)this->scratchpad_->get();
+    src_data_t *_col = (src_data_t *)_scratchpad;
+
+    ptrdiff_t offset = (ptrdiff_t)conf_.jcp_.os * conf_.jcp_.ks * conf_.jcp_.ic
+        * sizeof(src_data_t) * this->nthr_;
+    acc_data_t *_acc = (acc_data_t *)(_scratchpad + offset);
+
 #   pragma omp parallel num_threads(this->nthr_)
     {
         const int ithr = omp_get_thread_num();
         const int nthr = omp_get_num_threads();
 
-        src_data_t *col = this->col_ + (size_t)ithr * jcp.os * jcp.ks * jcp.ic;
-        acc_data_t *acc = this->acc_ + (size_t)ithr * jcp.os * jcp.oc;
+        const ptrdiff_t im2col_sz = (ptrdiff_t)jcp.os * jcp.ks * jcp.ic;
+        src_data_t *col = _col + (ptrdiff_t)ithr * im2col_sz;
+
+        # pragma omp parallel for if(this->nthr_ == 1)
+        for (ptrdiff_t i = 0; i < im2col_sz; ++i) col[i] = (src_data_t)0;
+
+        acc_data_t *acc = _acc + (ptrdiff_t)ithr * jcp.os * jcp.oc;
 
         int n{0}, g{0};
         size_t start = 0, end = 0;
