@@ -75,9 +75,9 @@ inline float saturate(float value, float min, float max) {
 
 int fill_memory(const prb_t *p, dnn_mem_t &mem, const float *scales,
         const attr_t &attr) {
-    const auto c_src = p->conf_in;
-    const int range = c_src.range;
-    const int max = c_src.min + range - 1;
+    const dt_conf_t c_src = p->conf_in;
+    const int range = c_src->range;
+    const int max = c_src->min + range - 1;
     int scale_mask = get_scale_mask(mem.md_, attr);
 
     const size_t nelems = mem.nelems();
@@ -88,7 +88,7 @@ int fill_memory(const prb_t *p, dnn_mem_t &mem, const float *scales,
 
         const float gen[7] = {
             (float)max, /* saturate to max of output data type */
-            (float)c_src.min, /* saturate to min of output data type */
+            (float)c_src->min, /* saturate to min of output data type */
             (float)1.6 / scale, /* rounding check */
             (float)0.2 / scale, /* saturate to 0 */
             (float)1.0,
@@ -96,7 +96,7 @@ int fill_memory(const prb_t *p, dnn_mem_t &mem, const float *scales,
             (float)scale,
         };
 
-        float value = saturate(gen[idx % 7], c_src.min, max);
+        float value = saturate(gen[idx % 7], c_src->min, max);
         mem.set_elem(idx, value);
     }
 
@@ -202,15 +202,15 @@ int compare(const prb_t *p, dnn_mem_t &mem_expected, dnn_mem_t &mem_computed,
         if (scales[i] > max_scale) max_scale = scales[i];
     }
 
-    const auto c_src = p->conf_in;
-    const auto c_dst = p->conf_out;
-    const int c_src_max = c_src.min + c_src.range - 1;
-    const int c_dst_max = c_dst.min + c_dst.range - 1;
+    dt_conf_t c_src = p->conf_in;
+    dt_conf_t c_dst = p->conf_out;
+    const int c_src_max = c_src->min + c_src->range - 1;
+    const int c_dst_max = c_dst->min + c_dst->range - 1;
 
     bool check_inf_p = (dt != mkldnn_f32 && dt != mkldnn_s32)
         && (c_src_max * max_scale > c_dst_max) ? true : false;
     bool check_inf_n = (dt != mkldnn_f32 && dt != mkldnn_s32)
-        && (c_src.min * max_scale < c_dst.min) ? true : false;
+        && (c_src->min * max_scale < c_dst->min) ? true : false;
     bool check_zeros = (dt != mkldnn_f32)
         && (dt_min != 0 && dt_max != 0) ? true : false;
 
@@ -251,14 +251,16 @@ int check_reorder(const prb_t *p, res_t *res) {
  * 8. clean up
  */
 
-    const reorder_conf_t *r = p->reorder;
+    const reorder_conf_t &r = p->reorder;
+    const int ndims = (int)r.dims.size();
+    const int *dims = &r.dims[0];
 
     mkldnn_memory_format_t fmt_ref;
-    switch (r->ndims) {
+    switch (ndims) {
         case 1: fmt_ref = mkldnn_x; break;
         case 2: fmt_ref = mkldnn_nc; break;
         case 4:
-                switch (r->fmt_in) {
+                switch (r.fmt_in) {
                     case mkldnn_oihw:
                     case mkldnn_hwio: fmt_ref = mkldnn_oihw; break;
                     default: fmt_ref = mkldnn_nchw;
@@ -270,12 +272,11 @@ int check_reorder(const prb_t *p, res_t *res) {
     }
 
     /* Step 1: create memory */
-    dnn_mem_t mem_dt_in_fmt_ref(r->ndims, r->dims, p->conf_in.dt, fmt_ref);
-    dnn_mem_t mem_dt_in_fmt_in(r->ndims, r->dims, p->conf_in.dt, r->fmt_in);
-    dnn_mem_t mem_dt_out_fmt_out(r->ndims, r->dims, p->conf_out.dt, r->fmt_out);
-    dnn_mem_t mem_dt_out_fmt_ref(r->ndims, r->dims, p->conf_out.dt, fmt_ref);
-    dnn_mem_t mem_test_dt_out_fmt_ref(r->ndims, r->dims, p->conf_out.dt,
-            fmt_ref);
+    dnn_mem_t mem_dt_in_fmt_ref(ndims, dims, p->conf_in->dt, fmt_ref);
+    dnn_mem_t mem_dt_in_fmt_in(ndims, dims, p->conf_in->dt, r.fmt_in);
+    dnn_mem_t mem_dt_out_fmt_out(ndims, dims, p->conf_out->dt, r.fmt_out);
+    dnn_mem_t mem_dt_out_fmt_ref(ndims, dims, p->conf_out->dt, fmt_ref);
+    dnn_mem_t mem_test_dt_out_fmt_ref(ndims, dims, p->conf_out->dt, fmt_ref);
 
     /* Step 2: fill scales */
     int count = 0, mask = 0;
