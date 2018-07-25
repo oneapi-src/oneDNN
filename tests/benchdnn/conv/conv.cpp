@@ -420,10 +420,13 @@ inline int init_pd(const prb_t *p, mkldnn_convolution_desc_t &cd,
     if (p->alg == WINO) alg = mkldnn_convolution_winograd;
 
     switch (p->dir) {
-    case FWD_D: case FWD_B:
+    case FWD_D: case FWD_B: case FWD_I:
         DNN_SAFE(mkldnn_dilated_convolution_forward_desc_init(&cd,
-                    mkldnn_forward_inference, alg, &src_d, &wei_d,
-                    p->dir == FWD_D ? NULL : &bia_d, &dst_d,
+                    p->dir == FWD_I
+                        ? mkldnn_forward_inference
+                        : mkldnn_forward_training,
+                    alg, &src_d, &wei_d,
+                    p->dir == FWD_B ? &bia_d : NULL, &dst_d,
                     strides, dilates, padding, padding_r,
                     mkldnn_padding_zero), WARN);
         break;
