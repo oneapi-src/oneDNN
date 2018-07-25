@@ -135,6 +135,9 @@ typedef enum {
     /** 5D data tensor in the @c ndhwc format typically used in TensorFlow. */
     mkldnn_ndhwc,
     /** 5D data tensor in the @c ncdhw format with channels data laid out in
+     * memory in 8-element blocks. */
+    mkldnn_nCdhw8c,
+    /** 5D data tensor in the @c ncdhw format with channels data laid out in
      * memory in 16-element blocks. */
     mkldnn_nCdhw16c,
     /** 2D weights tensor in the format (input channels, output channels). */
@@ -155,6 +158,18 @@ typedef enum {
     mkldnn_dhwio,
     /** 5D weight tensor in the @c oidhw format. */
     mkldnn_oidhw,
+   /** 6D weights tensor in the @c oidhw format with output channels data
+    * laid out in memory in 8-element blocks and input channels data
+     * laid out in memory in 8-element blocks blocked by quadruple. */
+    mkldnn_OIdhw8i8o,
+    /** 6D weights tensor in the @c oihw format with both input and output
+     * channels data laid out in memory in 8-element blocks. */
+    mkldnn_OIdhw8o8i,
+    /** 5D weights tensor in the blocked version of @c oidhw format with output
+     * channels data laid out in memory in 8-element blocks. */
+    mkldnn_Odhwi8o,
+    /** 4D weights tensor in the @c oihw format with both input and output
+     * channels data laid out in memory in 8-element blocks. */
    /** 6D weights tensor in the @c oidhw format with output channels data
     * laid out in memory in 16-element blocks and input channels data
      * laid out in memory in 4-element blocks blocked by quadruple. */
@@ -224,6 +239,16 @@ typedef enum {
     /** 5D weights tensor in the @c hwio format with extra dimension for
      * groups that comes after the output channels. */
     mkldnn_hwigo,
+    /** 6D weights tensor in the @c oidhw format with output channels data
+     * laid out in memory in 8-element blocks and input channels data
+     * laid out in memory in 8-element blocks blocked by quadruple. */
+    mkldnn_gOIdhw8i8o,
+    /** 6D weights tensor in the @c oihw format with both input and output
+     * channels data laid out in memory in 8-element blocks. */
+    mkldnn_gOIdhw8o8i,
+    /** 5D weights tensor in the blocked version of @c oidhw format with output
+     * channels data laid out in memory in 8-element blocks. */
+    mkldnn_gOdhwi8o,
     /** 5D weights tensor in the blocked version of @c goihw format with both
      * input and output channels data laid out in memory in 8-element blocks.
      */
@@ -329,6 +354,12 @@ typedef enum {
     /** 4D weights tensor in the oihw format with input channels data laid out
      * in memory in 16-element blocks. */
     mkldnn_oIhw16i = mkldnn_nChw16c,
+    /** 5D weights tensor in the oihw format with input channels data laid out
+     * in memory in 8-element blocks. */
+    mkldnn_oIdhw8i = mkldnn_nCdhw8c,
+    /** 5D weights tensor in the oihw format with input channels data laid out
+     * in memory in 16-element blocks. */
+    mkldnn_oIdhw16i = mkldnn_nCdhw16c,
 } mkldnn_memory_format_t;
 
 /** Kinds of padding. Define how to interpret the data in padding regions. */
