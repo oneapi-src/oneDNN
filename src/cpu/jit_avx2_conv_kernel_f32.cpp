@@ -862,18 +862,18 @@ status_t jit_avx2_conv_bwd_weights_kernel_f32::init_conf(jit_conv_conf_t &jcp,
 
     int back_pad = nstl::max(0, (jcp.od - 1) * jcp.stride_d + jcp.kd - jcp.id
         - jcp.f_pad);
-    if ( ndims == 5 )
+    if (ndims == 5)
         if (jcp.f_pad != 0 || back_pad != 0)
             return status::unimplemented;
 
 
     bool args_ok = true
         && implication(flat, one_of(src_d.format(), nchw, nhwc, ncdhw, ndhwc)
-                && one_of(diff_weights_d.format(), Ohwi8o, gOhwi8o
-                    , Odhwi8o, gOdhwi8o))
+                && one_of(diff_weights_d.format(), Ohwi8o, gOhwi8o,
+                    Odhwi8o, gOdhwi8o))
         && implication(mimo, one_of(src_d.format(), nChw8c, nCdhw8c)
-                && one_of(diff_weights_d.format(), OIhw8i8o, gOIhw8i8o
-                    , OIdhw8i8o, gOIdhw8i8o))
+                && one_of(diff_weights_d.format(), OIhw8i8o, gOIhw8i8o,
+                    OIdhw8i8o, gOIdhw8i8o))
         && one_of(cd.bias_desc.format, memory_format::undef, any, x)
         && one_of(diff_dst_d.format(), nChw8c, nCdhw8c)
         && implication(mimo, jcp.ic % simd_w == 0)
@@ -881,8 +881,8 @@ status_t jit_avx2_conv_bwd_weights_kernel_f32::init_conf(jit_conv_conf_t &jcp,
         && jcp.kw < 14
         && jcp.kh <= jcp.t_pad + jcp.ih /* [bwd_w:r1] */
         && jcp.kh <= jcp.ih /* [bwd_w:r2] */
-        && jcp.kd <= jcp.f_pad + jcp.id /* [bwd_w:r1] */
-        && jcp.kd <= jcp.id /* [bwd_w:r2] */
+        && jcp.kd <= jcp.f_pad + jcp.id
+        && jcp.kd <= jcp.id
         && jcp.t_pad < jcp.kh /* XXX: must fix the kernel! */
         && jcp.dilate_d == 0
         && jcp.dilate_h == 0

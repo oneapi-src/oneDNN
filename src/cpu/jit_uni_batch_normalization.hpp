@@ -53,12 +53,11 @@ struct jit_uni_batch_normalization_fwd_t: public cpu_primitive_t {
             assert(engine()->kind() == engine_kind::cpu);
             auto desired_fmt = (ndims() == 4)
                 ? isa == avx512_common ? nChw16c : nChw8c
-                : nCdhw16c;
+                : isa == avx512_common ? nCdhw16c : nCdhw8c;
             bool ok = true
                 && mayiuse(isa)
                 && is_fwd()
                 && utils::one_of(ndims(), 4, 5)
-                && utils::implication(ndims() == 5, isa == avx512_common)
                 && desc()->data_desc.data_type == f32
                 && utils::implication(use_scaleshift(),
                         desc()->data_scaleshift_desc.data_type == f32)
@@ -118,12 +117,11 @@ struct jit_uni_batch_normalization_bwd_t: public cpu_primitive_t {
             assert(engine()->kind() == engine_kind::cpu);
             auto desired_fmt = (ndims() == 4)
                 ? utils::one_of(isa, sse42, avx2) ? nChw8c : nChw16c
-                : nCdhw16c;
+                : utils::one_of(isa, sse42, avx2) ? nCdhw8c : nCdhw16c;
             bool ok = true
                 && mayiuse(isa)
                 && is_bwd()
                 && utils::one_of(ndims(), 4, 5)
-                && utils::implication(ndims() == 5, isa == avx512_common)
                 && everyone_is(f32, desc()->data_desc.data_type,
                         desc()->diff_data_desc.data_type)
                 && implication(use_scaleshift(),

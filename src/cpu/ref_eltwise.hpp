@@ -52,7 +52,8 @@ struct ref_eltwise_fwd_t: public cpu_primitive_t {
                 || (src_d.is_dense(true) && is_zero_preserved());
 
             use_nCspBc_padded_ = !use_dense_
-                && one_of(desc()->data_desc.format, nChw8c, nChw16c, nCdhw16c)
+                && one_of(desc()->data_desc.format, nChw8c, nChw16c,
+                    nCdhw8c, nCdhw16c)
                 && src_d.only_padded_dim(1)
                 && src_d.is_dense(true);
 
