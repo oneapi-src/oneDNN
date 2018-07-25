@@ -456,8 +456,7 @@ struct jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t: public jit_generator {
             cpu_memory_t::pd_t &src_pd, cpu_memory_t::pd_t &weights_pd,
             cpu_memory_t::pd_t &dst_pd, cpu_memory_t::pd_t &bias_pd,
             const primitive_attr_t &attr,
-            bool with_relu, float relu_negative_slope,
-            memory_desc_t& expect_wei_md);
+            bool with_relu, float relu_negative_slope);
 
     Zmm vreg_out(int n, int m) {
         const int id_reg_out = n * jcp.m_block + m;
@@ -616,8 +615,7 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
             const convolution_desc_t &cd, cpu_memory_t::pd_t &src_pd,
             cpu_memory_t::pd_t &wei_pd, cpu_memory_t::pd_t &dst_pd,
             cpu_memory_t::pd_t &bias_pd, const primitive_attr_t &attr,
-            bool with_relu, float relu_negative_slope,
-            memory_desc_t& expect_wei_md) {
+            bool with_relu, float relu_negative_slope) {
     const memory_desc_wrapper src_d(&src_pd);
     const memory_desc_wrapper wei_d(&wei_pd);
     const memory_desc_wrapper dst_d(&dst_pd);
@@ -755,6 +753,8 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
 
     /* re-create weights primitive descriptor
                                     and set weights wino_blocking */
+    memory_desc_t expect_wei_md = *(wei_pd.desc());
+
     expect_wei_md.format = mkldnn_wino_fmt;
     expect_wei_md.data_type = data_type::s8;
     mkldnn_wino_desc_t &wd = expect_wei_md.layout_desc.wino_desc;
@@ -773,17 +773,23 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
                                 jcp.alpha * jcp.alpha * jcp.oc;
     wd.size = max_size;
 
+    cpu_memory_t::pd_t new_weights_pd(wei_pd.engine(), &expect_wei_md);
+    if (wei_pd.desc()->format == any)
+        wei_pd = new_weights_pd;
+    if (!wei_pd.is_equal(&new_weights_pd))
+        return status::unimplemented;
+
     return status::success;
 }
 ////////////////////////////////////////////////////////////////////////////////
 
 template <bool with_relu, data_type_t dst_data_type>
 status_t _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu,
-        dst_data_type>::pd_t::jit_conf(memory_desc_t& expect_wei_md) {
+        dst_data_type>::pd_t::jit_conf() {
     return jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::init_conf(
             jcp_, this->cdesc_(), this->src_pd_, this->weights_pd_,
             this->dst_pd_,this->bias_pd_, *this->attr(),
-            with_relu, this->negative_slope(), expect_wei_md);
+            with_relu, this->negative_slope());
 }
 
 template <bool with_relu, data_type_t dst_data_type>

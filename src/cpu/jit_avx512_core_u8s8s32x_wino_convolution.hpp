@@ -73,22 +73,13 @@ struct _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t : public cpu_primitive_t
 
             if (!ok) return status::unimplemented;
 
-            memory_desc_t expect_wei_md = *(this->weights_pd_.desc());
-            status_t jit_conf_result = jit_conf(expect_wei_md);
-            if (jit_conf_result == success) {
-                cpu_memory_t::pd_t new_weights_pd(this->engine_, &expect_wei_md);
-                if (this->weights_pd_.desc()->format == any)
-                    this->weights_pd_ = new_weights_pd;
-                if (!this->weights_pd_.is_equal(&new_weights_pd))
-                    return status::unimplemented;
-            }
-            return jit_conf_result;
+            return jit_conf();
         }
 
         jit_conv_conf_2x3_wino_t jcp_;
 
     protected:
-        status_t jit_conf(memory_desc_t& expect_wei_md);
+        status_t jit_conf();
 
         virtual status_t set_default_params() override {
             using namespace memory_format;
