@@ -238,6 +238,7 @@ using inprod_test_params_float = inprod_test_params;
 TEST_P(inner_product_test_float, TestsInnerProduct)
 {
 }
+
 INSTANTIATE_TEST_CASE_P(
         TestInnerProductBackwardWeightsNoBias_padded, inner_product_test_float,
         ::testing::Values(
@@ -342,6 +343,13 @@ INSTANTIATE_TEST_CASE_P(
                 inprod_test_params_float{ engine::kind::cpu,
                         memory::format::ncdhw, memory::format::oidhw,
                         memory::format::x, memory::format::nc,
-                        EXPAND_SIZES_3D( 2, 32, 48, 6, 6, 6 ) }));
-
+                        EXPAND_SIZES_3D( 2, 32, 48, 6, 6, 6 ) },
+                inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::nCdhw8c, memory::format::oIdhw8i,
+                        memory::format::x, memory::format::nc,
+                        EXPAND_SIZES_3D( 2, 32, 48, 6, 6, 6 ) },
+                inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::nCdhw16c, memory::format::oIdhw16i,
+                        memory::format::x, memory::format::nc,
+                        EXPAND_SIZES_3D( 2, 32, 1000, 6, 6, 6 ) }));
 }

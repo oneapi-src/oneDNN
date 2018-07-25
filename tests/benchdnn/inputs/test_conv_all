@@ -64,3 +64,6 @@
 
 # tails
 --batch=test_conv_tails
+
+# 3D conv
+--batch=test_conv_3d

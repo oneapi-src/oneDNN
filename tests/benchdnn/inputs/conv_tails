@@ -48,3 +48,13 @@ ic25oc24_ih13oh13kh1ph0_n"tails_conv_1x1:17"
 ic27oc30_ih13oh13kh1ph0_n"tails_conv_1x1:18"
 ic28oc20_ih13oh13kh1ph0_n"tails_conv_1x1:19"
 ic29oc65_ih13oh13kh1ph0_n"tails_conv_1x1:20"
+
+# 3d conv common
+ic32oc13_ih13oh12kh3ph0_id13od11kd3pd0_n"tails_conv_3d:1"
+ic64oc33_ih13oh13kh3ph1_id13od11kd3pd0_n"tails_conv_3d:2"
+
+ic17oc16_ih13oh12kh3ph0_id13od11kd3pd0_n"tails_conv_3d:3"
+ic35oc32_ih13oh13kh3ph1_id13od11kd3pd0_n"tails_conv_3d:4"
+
+ic47oc37_ih13oh12kh3ph0_id13od11kd3pd0_n"tails_conv_3d:5"
+ic27oc19_ih13oh13kh3ph1_id13od11kd3pd0_n"tails_conv_3d:6"

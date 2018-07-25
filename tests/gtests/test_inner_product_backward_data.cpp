@@ -192,6 +192,38 @@ TEST_P(inner_product_test_float, TestsInnerProduct)
 }
 
 INSTANTIATE_TEST_CASE_P(
+        TestInnerProductBackwardData_nCdhw8c, inner_product_test_float,
+        ::testing::Values(
+                inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::nCdhw8c, memory::format::oIdhw8i,
+                        memory::format::nc,
+                        EXPAND_SIZES_3D( 2, 9, 4, 2, 2, 2) },
+                inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::nCdhw8c, memory::format::oIdhw8i,
+                        memory::format::nc,
+                        EXPAND_SIZES_3D( 2, 17, 16, 2, 2, 2) },
+                inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::nCdhw8c, memory::format::oIdhw8i,
+                        memory::format::nc,
+                        EXPAND_SIZES_3D( 2, 29, 7, 2, 2, 2) }));
+
+INSTANTIATE_TEST_CASE_P(
+        TestInnerProductBackwardData_nCdhw16c, inner_product_test_float,
+        ::testing::Values(
+                inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::nCdhw16c, memory::format::oIdhw16i,
+                        memory::format::nc,
+                        EXPAND_SIZES_3D( 2, 9, 4, 2, 2, 2) },
+                inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::nCdhw16c, memory::format::oIdhw16i,
+                        memory::format::nc,
+                        EXPAND_SIZES_3D( 2, 17, 16, 2, 2, 2) },
+                inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::nCdhw16c, memory::format::oIdhw16i,
+                        memory::format::nc,
+                        EXPAND_SIZES_3D( 2, 29, 7, 2, 2, 2) }));
+
+INSTANTIATE_TEST_CASE_P(
         TestInnerProductBackwardData_padded, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{ engine::kind::cpu,

@@ -248,8 +248,15 @@ INSTANTIATE_TEST_CASE_P(
                 inprod_test_params_float{ prop_kind::forward, engine::kind::cpu,
                         memory::format::ncdhw, memory::format::oidhw,
                         memory::format::format_undef, memory::format::nc,
+                        EXPAND_SIZES_3D( 2, 32, 48, 6, 6, 6 ) },
+                inprod_test_params_float{ prop_kind::forward, engine::kind::cpu,
+                        memory::format::nCdhw8c, memory::format::oIdhw8i,
+                        memory::format::x, memory::format::nc,
+                        EXPAND_SIZES_3D( 2, 32, 48, 6, 6, 6 ) },
+                inprod_test_params_float{ prop_kind::forward, engine::kind::cpu,
+                        memory::format::nCdhw16c, memory::format::oIdhw16i,
+                        memory::format::x, memory::format::nc,
                         EXPAND_SIZES_3D( 2, 32, 48, 6, 6, 6 ) }));
-
 
 INSTANTIATE_TEST_CASE_P(
         TestInnerProductForwardEF, inner_product_test_float,

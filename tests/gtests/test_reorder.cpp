@@ -112,6 +112,8 @@ using s8_s8 = std::pair<int8_t, int8_t>;
 using reorder_simple_expected_fail_f32_f32 = reorder_simple_test<f32_f32>;
 using reorder_padded_test_data_f32_f32 = reorder_simple_test<f32_f32>;
 using reorder_padded_test_weights_f32_f32 = reorder_simple_test<f32_f32>;
+using reorder_3d_test_data_f32_f32 = reorder_simple_test<f32_f32>;
+using reorder_3d_test_weights_f32_f32 = reorder_simple_test<f32_f32>;
 using reorder_simple_test_data_f32_f32 = reorder_simple_test<f32_f32>;
 using reorder_simple_test_weights_f32_f32_0 = reorder_simple_test<f32_f32>;
 using reorder_simple_test_weights_f32_f32_1 = reorder_simple_test<f32_f32>;
@@ -179,6 +181,19 @@ INSTANTIATE_TEST_CASE_P(TestReorder, reorder_padded_test_data_f32_f32,
             )
         );
 
+TEST_P(reorder_3d_test_data_f32_f32, TestsReorder) { }
+INSTANTIATE_TEST_CASE_P(TestReorder, reorder_3d_test_data_f32_f32,
+        ::testing::Values(
+            cfg_f32{eng::cpu, fmt::ncdhw, fmt::nCdhw16c, {2, 32, 2, 3, 4}},
+            cfg_f32{eng::cpu, fmt::nCdhw16c, fmt::ncdhw, {2, 32, 2, 3, 4}},
+            cfg_f32{eng::cpu, fmt::nCdhw8c, fmt::ncdhw, {2, 32, 2, 3, 4}},
+            cfg_f32{eng::cpu, fmt::ndhwc, fmt::nCdhw16c, {3, 32, 2, 3, 4}},
+            cfg_f32{eng::cpu, fmt::nCdhw16c, fmt::ndhwc, {3, 32, 2, 3, 4}},
+            cfg_f32{eng::cpu, fmt::ndhwc, fmt::nCdhw8c, {3, 32, 2, 3, 4}},
+            cfg_f32{eng::cpu, fmt::nCdhw8c, fmt::ndhwc, {3, 32, 2, 3, 4}}
+            )
+        );
+
 TEST_P(reorder_padded_test_weights_f32_f32, TestsReorder) { }
 INSTANTIATE_TEST_CASE_P(TestReorder, reorder_padded_test_weights_f32_f32,
         ::testing::Values(
@@ -209,6 +224,23 @@ INSTANTIATE_TEST_CASE_P(TestReorder, reorder_padded_test_weights_f32_f32,
             // gOIdhw16o16i
             cfg_f32{eng::cpu, fmt::goidhw, fmt::gOIdhw16o16i, {2, 17, 23, 2, 2, 3}},
             cfg_f32{eng::cpu, fmt::gOIdhw16o16i, fmt::goidhw, {2, 17, 23, 3, 2, 3}}
+));
+
+TEST_P(reorder_3d_test_weights_f32_f32, TestsReorder) { }
+INSTANTIATE_TEST_CASE_P(TestReorder, reorder_3d_test_weights_f32_f32,
+        ::testing::Values(
+            cfg_f32{eng::cpu, fmt::oidhw, fmt::OIdhw8i8o, {16, 24, 2, 3, 3}},
+            cfg_f32{eng::cpu, fmt::OIdhw8i8o, fmt::oidhw, {16, 24, 2, 3, 3}},
+            cfg_f32{eng::cpu, fmt::oidhw, fmt::OIdhw8o8i, {16, 24, 2, 3, 3}},
+            cfg_f32{eng::cpu, fmt::OIdhw8o8i, fmt::oidhw, {16, 24, 2, 3, 3}},
+            cfg_f32{eng::cpu, fmt::dhwio, fmt::OIdhw8i8o, {16, 24, 2, 3, 3}},
+            cfg_f32{eng::cpu, fmt::OIdhw8i8o, fmt::dhwio, {16, 24, 2, 3, 3}},
+            cfg_f32{eng::cpu, fmt::goidhw, fmt::gOdhwi8o, {2, 16, 24, 2, 2, 3}},
+            cfg_f32{eng::cpu, fmt::gOdhwi8o, fmt::goidhw, {2, 16, 24, 3, 2, 3}},
+            cfg_f32{eng::cpu, fmt::goidhw, fmt::gOIdhw8i8o, {2, 16, 24, 2, 2, 3}},
+            cfg_f32{eng::cpu, fmt::gOIdhw8i8o, fmt::goidhw, {2, 16, 24, 3, 2, 3}},
+            cfg_f32{eng::cpu, fmt::goidhw, fmt::gOIdhw8o8i, {2, 16, 24, 2, 2, 3}},
+            cfg_f32{eng::cpu, fmt::gOIdhw8o8i, fmt::goidhw, {2, 16, 24, 3, 2, 3}}
 ));
 
 TEST_P(reorder_simple_test_data_f32_f32, TestsReorder) { }
