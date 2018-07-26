@@ -122,10 +122,10 @@ void initialize() {
         gemm_impl[i][1][0] = new gemm_impl_t('t', 'n', (bool)i, false);
         gemm_impl[i][1][1] = new gemm_impl_t('t', 't', (bool)i, false);
     }
-    gemm_bias_impl[0][0] = new gemm_impl_t('n', 'n', false, true);
-    gemm_bias_impl[0][1] = new gemm_impl_t('n', 't', false, true);
-    gemm_bias_impl[1][0] = new gemm_impl_t('t', 'n', false, true);
-    gemm_bias_impl[1][1] = new gemm_impl_t('t', 't', false, true);
+    gemm_bias_impl[0][0] = new gemm_impl_t('n', 'n', true, true);
+    gemm_bias_impl[0][1] = new gemm_impl_t('n', 't', true, true);
+    gemm_bias_impl[1][0] = new gemm_impl_t('t', 'n', true, true);
+    gemm_bias_impl[1][1] = new gemm_impl_t('t', 't', true, true);
 }
 
 mkldnn_status_t extended_sgemm(const char *transa, const char *transb,
