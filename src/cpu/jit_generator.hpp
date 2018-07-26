@@ -75,11 +75,13 @@ typedef enum {
 template <cpu_isa_t> struct cpu_isa_traits {}; /* ::vlen -> 32 (for avx2) */
 
 template <> struct cpu_isa_traits<sse42> {
+    typedef Xbyak::Xmm Vmm;
     static constexpr int vlen_shift = 4;
     static constexpr int vlen = 16;
     static constexpr int n_vregs = 16;
 };
 template <> struct cpu_isa_traits<avx> {
+    typedef Xbyak::Ymm Vmm;
     static constexpr int vlen_shift = 5;
     static constexpr int vlen = 32;
     static constexpr int n_vregs = 16;
@@ -88,6 +90,7 @@ template <> struct cpu_isa_traits<avx2>:
     public cpu_isa_traits<avx> {};
 
 template <> struct cpu_isa_traits<avx512_common> {
+    typedef Xbyak::Zmm Vmm;
     static constexpr int vlen_shift = 6;
     static constexpr int vlen = 64;
     static constexpr int n_vregs = 32;
