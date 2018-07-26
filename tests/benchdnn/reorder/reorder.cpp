@@ -16,6 +16,7 @@
 
 #include <stdlib.h>
 
+#include "dnn_types.hpp"
 #include "mkldnn_common.hpp"
 #include "mkldnn_memory.hpp"
 
@@ -24,22 +25,26 @@
 namespace reorder {
 
 int get_scale_mask(const mkldnn_memory_desc_t &md, const attr_t &attr) {
-    const auto policy = attr.oscale.policy;
-    int scale_mask = 0;
     using P = attr_t::scale_t::policy_t;
+    const auto policy = attr.oscale.policy;
+
+    const bool is_data = fmt2data_kind(md.format) == DATA;
+    const bool is_gwei = fmt2data_kind(md.format) == GWEI;
+
+    int scale_mask = 0;
+
     switch (policy) {
-        case P::PER_OC:
-            switch (md.format) {
-            case mkldnn_oihw:
-            case mkldnn_hwio:
-                scale_mask = 1 << 0; break;
-            default: break;
-            }
-            break;
-        case P::COMMON:
-        case P::NONE: scale_mask = 0; break;
-        default: assert(!"bad scale policy"); return FAIL;
+    case P::PER_OC:
+        if (md.ndims < 2) SAFE_V(FAIL);
+        scale_mask = is_data
+            ? 1 << 1
+            : (is_gwei ? (1 << 0) + (1 << 1) : 1 << 0);
+        break;
+    case P::COMMON:
+    case P::NONE: scale_mask = 0; break;
+    default: SAFE_V(FAIL);
     }
+
     return scale_mask;
 }
 
@@ -256,19 +261,23 @@ int check_reorder(const prb_t *p, res_t *res) {
     const int *dims = &r.dims[0];
 
     mkldnn_memory_format_t fmt_ref;
+    const bool is_data = fmt2data_kind(r.fmt_in) == DATA;
+    const bool is_gwei = fmt2data_kind(r.fmt_in) == GWEI;
+
     switch (ndims) {
-        case 1: fmt_ref = mkldnn_x; break;
-        case 2: fmt_ref = mkldnn_nc; break;
-        case 4:
-                switch (r.fmt_in) {
-                    case mkldnn_oihw:
-                    case mkldnn_hwio: fmt_ref = mkldnn_oihw; break;
-                    default: fmt_ref = mkldnn_nchw;
-                }
-                break;
-        default:
-                assert(!"bad ndims");
-                return FAIL;
+    case 1: assert(is_data); fmt_ref = mkldnn_x; break;
+    case 2: fmt_ref = is_data ? mkldnn_nc : mkldnn_oi; break;
+    case 3: assert(is_data); fmt_ref = mkldnn_tnc; break;
+    case 4: fmt_ref = is_data ? mkldnn_nchw : mkldnn_oihw; break;
+    case 5:
+            fmt_ref = is_data
+                ? mkldnn_ncdhw
+                : (is_gwei ? mkldnn_goihw : mkldnn_oidhw);
+            break;
+    case 6: assert(!is_data);
+            fmt_ref = is_gwei ? mkldnn_goidhw : mkldnn_ldigo;
+            break;
+    default: assert(!"bad ndims"); return FAIL;
     }
 
     /* Step 1: create memory */
