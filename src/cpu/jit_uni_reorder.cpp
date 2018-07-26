@@ -667,7 +667,8 @@ static void prb_thread_kernel_balance(tr::prb_t &prb, int &ndims_ker_max) {
 
     /* sz_drv_min is the minimal size for the parallel
      * driver required for good parallelization */
-    const size_t sz_drv_min = nstl::min<size_t>(1024,
+    const size_t sz_drv_min = nstl::min<size_t>(
+            16 * omp_get_max_threads(),
             utils::div_up(sz_total, 1024));
 
     /* kdims -- # of dimensions processed by a kernel
@@ -688,11 +689,11 @@ static void prb_thread_kernel_balance(tr::prb_t &prb, int &ndims_ker_max) {
      * It might happen that for chosen kdims the sz_ker_cur is too small
      * (less than tr::ker_prb_size_min). In that case try to split the
      * innermost driver dimension into two, to increase sz_ker_cur. */
-    bool want_split = true
+    bool want_borrow_ker_from_drv = true
         && kdims < prb.ndims
         && sz_ker_cur < tr::ker_prb_size_min
         && sz_drv_cur > sz_drv_min;
-    if (want_split) {
+    if (want_borrow_ker_from_drv) {
         /* sz_want_borrow is the minimal sz, so that:
          *  o) sz_ker_cur * sz_want_borrow >= tr::ker_prb_size_min
          *  o) current innermost driver dimension is divisible by
@@ -708,11 +709,29 @@ static void prb_thread_kernel_balance(tr::prb_t &prb, int &ndims_ker_max) {
         if (sz_want_borrow != prb.nodes[kdims].n)
             prb_node_split(prb, kdims, sz_want_borrow);
         kdims += 1;
-        DEBUG({ printf("split: "); prb_dump(prb);
-                printf("ndims_ker_max = %d\n", kdims); });
+    }
+
+    /* On the other hand it might happen that for chosen kdims
+     * the sz_drv_cur is too small (less than sz_drv_min). In that case
+     * try to split the outermost kernel dimension into two, to increase
+     * sz_drv_cur. */
+    bool want_borrow_drv_from_ker = true
+        && sz_ker_cur > tr::ker_prb_size_min
+        && sz_drv_cur < sz_drv_min;
+    if (want_borrow_drv_from_ker) {
+        size_t sz_want_borrow = utils::div_up(sz_drv_min, sz_drv_cur);
+        for (; prb.nodes[kdims - 1].n % sz_want_borrow; ++sz_want_borrow);
+        if (sz_want_borrow != prb.nodes[kdims - 1].n)
+            prb_node_split(prb, kdims - 1,
+                    prb.nodes[kdims - 1].n / sz_want_borrow);
     }
 
     ndims_ker_max = kdims;
+
+    if (want_borrow_ker_from_drv || want_borrow_drv_from_ker) {
+        DEBUG({ printf("split: "); prb_dump(prb);
+                printf("ndims_ker_max = %d\n", ndims_ker_max); });
+    }
 }
 
 struct jit_uni_reorder_t : public cpu_primitive_t {
