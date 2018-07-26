@@ -233,6 +233,52 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
         return true;
     }
 
+    template <cpu_isa_t isa>
+    bool process_direct_copy(int len) {
+        using namespace data_type;
+
+        using Vmm = typename cpu_isa_traits<isa>::Vmm;
+        const int simd_w = cpu_isa_traits<isa>::vlen / itype_sz;
+
+        bool can_do = true
+            && mayiuse(isa)
+            && utils::everyone_is(1, os(0), is(0))
+            && (false
+                    || prb_.itype == prb_.otype
+                    || (prb_.itype == s32 && prb_.otype == f32)
+                    || (prb_.itype == f32 && prb_.otype == s32)
+                    )
+            && len % simd_w == 0
+            && n(0) % len == 0
+            && prb_.scale_type == scale_type_t::NONE
+            && prb_.beta == 0.f;
+        if (!can_do) return false;
+
+        for (int off = 0; off < len;) {
+            const int unroll = nstl::min(16, (len - off) / simd_w);
+
+            for (int ur = 0; ur < unroll; ++ur)
+                uni_vmovups(Vmm(ur), i_addr(off + ur * simd_w));
+
+            if (prb_.itype != prb_.otype) {
+                for (int ur = 0; ur < unroll; ++ur) {
+                    if (prb_.itype == s32 && prb_.otype == f32)
+                        uni_vcvtdq2ps(Vmm(ur), Vmm(ur));
+                    else if (prb_.itype == f32 && prb_.otype == s32)
+                        uni_vcvtps2dq(Vmm(ur), Vmm(ur));
+                    else assert(!"unreachable");
+                }
+            }
+
+            for (int ur = 0; ur < unroll; ++ur)
+                uni_vmovups(o_addr(off + ur * simd_w), Vmm(ur));
+
+            off += unroll * simd_w;
+        }
+
+        return true;
+    }
+
     void process_unroll_generic_step(int reg_unroll, const int *i_off,
             const int *o_off, const int *s_off) {
         using namespace data_type;
@@ -538,6 +584,8 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
             loop_begin(l_loop[0], reg_cnt[0], n(nfu + 0) / ldu);
 
         const bool optimized = false
+            || process_direct_copy<avx>(d.len_unroll)
+            || process_direct_copy<sse42>(d.len_unroll)
             || process_unroll_tr8x8(d.len_unroll);
         if (!optimized)
             process_unroll_generic(d.len_unroll);
