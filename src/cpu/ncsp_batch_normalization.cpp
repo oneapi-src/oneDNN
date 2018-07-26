@@ -281,6 +281,8 @@ void ncsp_batch_normalization_bwd_t::execute_backward() {
                         C_ithr, C_nthr, C_blk_s, C_blk_e, N_ithr, N_nthr, N_s,
                         N_e, S_ithr, S_nthr, S_s, S_e);
                 balance211(last_iter_blks, nthr, ithr, C_blk_gl_s, C_blk_gl_e);
+                SP_N_ithr = N_ithr * S_nthr + S_ithr;
+                SP_N_nthr = N_nthr * S_nthr;
             }
             size_t C_off = it * C_blks_per_iter;
             data_t *diff_gamma_blk = diff_scaleshift + C_off;
