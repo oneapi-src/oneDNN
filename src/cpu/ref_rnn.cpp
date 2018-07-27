@@ -1095,7 +1095,7 @@ void _ref_rnn_common_t<aprop>::execute_() {
     auto diff_dst_layer = is_fwd ?
             nullptr :
             reinterpret_cast<const float *>(this->input_memory(input_idx++));
-    auto diff_dst_iter = is_fwd || !conf_.with_src_iter() ?
+    auto diff_dst_iter = is_fwd || !conf_.with_dst_iter() ?
             nullptr :
             reinterpret_cast<const float *>(this->input_memory(input_idx++));
 
