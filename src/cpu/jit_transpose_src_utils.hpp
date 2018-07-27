@@ -80,14 +80,6 @@ struct jit_trans_dst_t {
     void (*ker_)(const ctx_t *);
 };
 
-struct jit_dst_transpose_s {
-    int size;
-    const void *src;
-    const void *tr_src;
-    const void *src_prf;
-    const void *tr_src_prf;
-};
-
 struct jit_transpose4x16_src_t {
     int src_pf0_distance;
     int tr_src_pf0_distance;
