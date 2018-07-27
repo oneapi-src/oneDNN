@@ -2221,9 +2221,15 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 {
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
-        return true && input_d.is_blocking_desc() && output_d.is_blocking_desc()
-                && utils::implication(
-                           attr, math::is_pow2(attr->output_scales_.mask_ + 1));
+        /* supported smask: 0x0...011..10...0,
+         * i.e. 1 should be contiguous */
+        int smask = attr ? attr->output_scales_.mask_ : 0;
+        for (; smask > 0 && !(smask & 0x1); smask >>= 1);
+        for (; smask > 0 && smask & 0x1; smask >>= 1);
+        return true
+            && input_d.is_blocking_desc()
+            && output_d.is_blocking_desc()
+            && smask == 0;
     }
 
     static status_t execute(const cpu_reorder_pd_t *pd,
@@ -2231,19 +2237,29 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         DECLARE_COMMON_PARAMS();
 
         const size_t nelems = input_d.nelems();
-        const int smask = pd->attr()->output_scales_.mask_;
-        const int ndims_mask = math::ilog2q(smask + 1);
-        const ptrdiff_t D_mask = utils::array_product(input_d.dims(), ndims_mask);
-        const ptrdiff_t D_rest = nelems / D_mask;
+
+        int ndims_start = 0, ndims_mask = 0;
+        int smask = pd->attr()->output_scales_.mask_;
+        for (; smask > 0 && !(smask & 0x1); smask >>= 1) ++ndims_start;
+        for (; smask > 0 && smask & 0x1; smask >>= 1) ++ndims_mask;
+        assert(smask == 0);
+
+        const ptrdiff_t D_start
+            = utils::array_product(input_d.dims(), ndims_start);
+        const ptrdiff_t D_mask
+            = utils::array_product(input_d.dims() + ndims_start, ndims_mask);
+        const ptrdiff_t D_rest = nelems / D_start / D_mask;
 
         const float *scales = pd->attr()->output_scales_.scales_;
 
-#       pragma omp parallel for collapse(2)
+#       pragma omp parallel for collapse(3)
+        for (ptrdiff_t ds = 0; ds < D_start; ++ds)
         for (ptrdiff_t dm = 0; dm < D_mask; ++dm)
-        for (ptrdiff_t dr = 0; dr < D_rest; ++dr) {
+        for (ptrdiff_t dr = 0; dr < D_rest; ++dr)
+        {
             const float scale = scales[dm];
 
-            const size_t e = dm * D_rest + dr;
+            const size_t e = (ds * D_mask + dm) * D_rest + dr;
             float i = (float)input[input_d.off_l(e)];
             auto &o = output[output_d.off_l(e)];
 
