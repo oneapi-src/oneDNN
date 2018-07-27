@@ -3984,7 +3984,7 @@ struct rnn_backward : public primitive {
                 mkldnn_primitive_desc_query_pd(get(),
                                mkldnn::convert_to_c(diff_src_pd), 1);
             error::wrap_c_api(mkldnn_primitive_desc_clone(&cdesc, const_cdesc),
-                    "could not clone a src iter primitive descriptor");
+                    "could not clone a diff_src iter primitive descriptor");
             adesc.reset(cdesc);
             return adesc;
         }
