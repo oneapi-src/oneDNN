@@ -49,7 +49,7 @@ struct jit_trans_src_t {
 };
 
 struct jit_src_transpose_s {
-    int size;
+    size_t size;
     const void *src;
     const void *tr_src;
     const void *src_prf;

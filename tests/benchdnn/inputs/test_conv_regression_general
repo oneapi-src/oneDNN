@@ -41,3 +41,6 @@
 
 # MKLDNN-860
 --reset --dir=BWD_WB --cfg=f32_wino --alg=wino mb2ic16ih13oc16oh13kh3ph1
+
+# MKLDNN-854
+--reset --dir=BWD_W mb2_ic32oc16_ih13oh13kh1
