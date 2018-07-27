@@ -141,6 +141,9 @@ The following examples are available in the /examples directory and provide more
 * Creation of forward propagation of GNMT topology (experimental support)
     - C++: simple_rnn.cpp
 
+* Training RNN with sequences of variable length
+    - C++: simple_rnn_training.cpp
+
 ### Performance Considerations
 
 *  Convolution and inner product primitives choose the memory format when you create them with the unspecified memory
