@@ -2414,6 +2414,10 @@ status_t set_wsched_WEI_S_D_Giot_W(jit_conv_winograd_conf_t &jcp) {
             }
         }
     }
+    jcp.dimK_reg_block = 1;
+    jcp.dimK_block = 1;
+    jcp.sched_policy = WSCHED_WEI_S_D_Giot_W;
+    set_jcp_WEI_params(jcp);
     return status::success;
 }
 } // namespace

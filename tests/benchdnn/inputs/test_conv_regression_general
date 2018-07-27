@@ -38,3 +38,6 @@
 
 # MKLDNN-671
 --reset --dir=BWD_D ic2ih1iw9oc3oh1ow4kh1kw3sh1sw2n"wip"
+
+# MKLDNN-860
+--reset --dir=BWD_WB --cfg=f32_wino --alg=wino mb2ic16ih13oc16oh13kh3ph1
