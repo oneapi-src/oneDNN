@@ -102,20 +102,19 @@ void _gemm_u8s8s32x_convolution_fwd_t<with_relu, dst_type>::execute_forward() {
     char *_scratchpad = (char *)this->scratchpad_->get();
     src_data_t *_col = (src_data_t *)_scratchpad;
 
-    ptrdiff_t offset = (ptrdiff_t)conf_.jcp_.os * conf_.jcp_.ks * conf_.jcp_.ic
-        * sizeof(src_data_t) * this->nthr_;
+    ptrdiff_t offset = (ptrdiff_t)jcp.im2col_sz
+                                   * sizeof(src_data_t) * jcp.nthr;
     acc_data_t *_acc = (acc_data_t *)(_scratchpad + offset);
 
-#   pragma omp parallel num_threads(this->nthr_)
+#   pragma omp parallel num_threads(jcp.nthr)
     {
         const int ithr = omp_get_thread_num();
         const int nthr = omp_get_num_threads();
 
-        const ptrdiff_t im2col_sz = (ptrdiff_t)jcp.os * jcp.ks * jcp.ic;
-        src_data_t *col = _col + (ptrdiff_t)ithr * im2col_sz;
+        src_data_t *col = _col + (ptrdiff_t)ithr * jcp.im2col_sz;
 
-        # pragma omp parallel for if(this->nthr_ == 1)
-        for (ptrdiff_t i = 0; i < im2col_sz; ++i) col[i] = (src_data_t)0;
+        # pragma omp parallel for if(jcp.nthr == 1)
+        for (ptrdiff_t i = 0; i < jcp.im2col_sz; ++i) col[i] = (src_data_t)0;
 
         acc_data_t *acc = _acc + (ptrdiff_t)ithr * jcp.os * jcp.oc;
 
@@ -131,7 +130,7 @@ void _gemm_u8s8s32x_convolution_fwd_t<with_relu, dst_type>::execute_forward() {
             const wei_data_t *wei = wei_base + g * wei_g_stride;
             dst_data_t *dst = dst_base + n * dst_mb_stride + g * dst_g_stride;
 
-            if (jcp.need_im2col)
+            if (jcp.im2col_sz)
                 jit_gemm_convolution_utils::im2col_u8(jcp, src, col);
 
             const int M = jcp.oc;
@@ -142,7 +141,7 @@ void _gemm_u8s8s32x_convolution_fwd_t<with_relu, dst_type>::execute_forward() {
 
             cblas_gemm_s8u8s32(CblasColMajor, CblasNoTrans, CblasNoTrans,
                     CblasFixOffset, M, N, K, 1., wei, M * jcp.ngroups, off_a,
-                    jcp.need_im2col ? col : src, K, off_b, 0., acc, M, &off_c);
+                    jcp.im2col_sz ? col : src, K, off_b, 0., acc, M, &off_c);
 
             if (use_fast_path) {
 #               if _OPENMP >= 201307

@@ -47,7 +47,7 @@ void _gemm_convolution_fwd_t<with_relu>::execute_forward() {
     const int K = jcp.ic * jcp.ks;
     const int N = jcp.oc;
     const int m = jcp.os;
-    const int LDA = jcp.need_im2col ? m : M;
+    const int LDA = jcp.im2col_sz ? m : M;
 
     const auto &post_ops = conf_.attr()->post_ops_;
 
@@ -65,19 +65,20 @@ void _gemm_convolution_fwd_t<with_relu>::execute_forward() {
 
     const data_t one = 1.0;
 
-    data_t *col = (data_t *)this->scratchpad_->get();
+    data_t *col = (jcp.im2col_sz)
+        ? (data_t *)this->scratchpad_->get()
+        : nullptr;
 
     const size_t work_amount = jcp.ngroups * jcp.mb * jcp.od;
-#   pragma omp parallel num_threads(this->nthr_)
+#   pragma omp parallel num_threads(jcp.nthr)
     {
         const int ithr = omp_get_thread_num();
         const int nthr = omp_get_num_threads();
 
-        const ptrdiff_t im2col_sz = (ptrdiff_t)jcp.ic * jcp.ks * jcp.os;
-        data_t *_col = col + (ptrdiff_t)ithr * im2col_sz;
+        data_t *_col = col + (ptrdiff_t)ithr * jcp.im2col_sz;
 
-        # pragma omp parallel for if(this->nthr_ == 1)
-        for (ptrdiff_t i = 0; i < im2col_sz; ++i) _col[i] = (data_t)0;
+        # pragma omp parallel for if(jcp.nthr == 1)
+        for (ptrdiff_t i = 0; i < jcp.im2col_sz; ++i) _col[i] = (data_t)0;
 
         int g{0}, n{0}, od{0};
         size_t start = 0, end = 0;
@@ -90,8 +91,7 @@ void _gemm_convolution_fwd_t<with_relu>::execute_forward() {
             const data_t *_weights = weights + g * weights_g_size;
             data_t *_dst = dst + (n * jcp.ngroups + g) * dst_step;
 
-            if (jcp.need_im2col)
-            {
+            if (jcp.im2col_sz) {
                 if (jcp.id == 1)
                     jit_gemm_convolution_utils::im2col(jcp, _src, _col);
                 else
@@ -99,7 +99,7 @@ void _gemm_convolution_fwd_t<with_relu>::execute_forward() {
             }
 
             extended_sgemm("N", "N", &m, &N, &K, &one,
-                    jcp.need_im2col ? _col : _src + od * m, &LDA, _weights, &K,
+                    jcp.im2col_sz ? _col : _src + od * m, &LDA, _weights, &K,
                     &this->beta_, _dst + od * m, &M);
 
             if (jcp.with_bias || do_relu) {
@@ -134,22 +134,23 @@ void gemm_convolution_bwd_data_t::execute_backward_data() {
     const int m = jcp.os;
     const int K = jcp.oc;
     const int N = jcp.ic * jcp.ks;
-    const int LDC = jcp.need_im2col ? m : M;
+    const int LDC = jcp.im2col_sz ? m : M;
     const data_t zero = 0.0, one = 1.0;
 
-    data_t *col = (data_t *)this->scratchpad_->get();
+    data_t *col = (jcp.im2col_sz)
+        ? (data_t *)this->scratchpad_->get()
+        : nullptr;
 
     const size_t work_amount = (size_t)jcp.ngroups * jcp.mb;
-#pragma omp parallel num_threads(this->nthr_)
+#pragma omp parallel num_threads(jcp.nthr)
     {
         const int ithr = omp_get_thread_num();
         const int nthr = omp_get_num_threads();
 
-        const ptrdiff_t im2col_sz = (ptrdiff_t)jcp.ic * jcp.ks * jcp.os;
-        data_t *_col = col + (ptrdiff_t)ithr * im2col_sz;
+        data_t *_col = col + (ptrdiff_t)ithr * jcp.im2col_sz;
 
-        # pragma omp parallel for if(this->nthr_ == 1)
-        for (ptrdiff_t i = 0; i < im2col_sz; ++i) _col[i] = (data_t)0;
+        # pragma omp parallel for if(jcp.nthr == 1)
+        for (ptrdiff_t i = 0; i < jcp.im2col_sz; ++i) _col[i] = (data_t)0;
 
         if (jcp.id > 1) {
             ptrdiff_t diff_src_sz = (ptrdiff_t)(work_amount * src_step);
@@ -172,10 +173,9 @@ void gemm_convolution_bwd_data_t::execute_backward_data() {
 
                 extended_sgemm("N", "T", &m, &N, &K, &one, _diff_dst, &M,
                     _weights, &N, &zero,
-                    jcp.need_im2col ? _col:_diff_src + od * m, &LDC);
+                    jcp.im2col_sz ? _col:_diff_src + od * m, &LDC);
 
-                if (jcp.need_im2col)
-                {
+                if (jcp.im2col_sz) {
                     if (jcp.id == 1)
                         jit_gemm_convolution_utils::col2im(jcp, _col,
                             _diff_src);
@@ -204,19 +204,19 @@ void gemm_convolution_bwd_weights_t::execute_backward_weights() {
     const int k = jcp.os;
     const int N = jcp.oc;
     const int M = jcp.ic * jcp.ks;
-    const int LDA = jcp.need_im2col ? k : K;
+    const int LDA = jcp.im2col_sz ? k : K;
     const data_t zero = 0.0, one = 1.0;
 
-    data_t *_scratchpad = (data_t *)this->scratchpad_->get();
-
-    data_t *col = _scratchpad;
-    data_t *wei_reduction = nullptr;
-    if (jcp.need_im2col && (conf_.jcp_.mb != 1 || nthr_ != 1)) {
-        ptrdiff_t offset = (ptrdiff_t)jcp.os * jcp.ks * jcp.ic * this->nthr_;
-        wei_reduction =  _scratchpad + offset;
+    data_t *col = nullptr, *wei_reduction = nullptr;
+    ptrdiff_t wei_offset = 0;
+    if (jcp.im2col_sz) {
+        col = (data_t *)this->scratchpad_->get();
+        wei_offset = jcp.im2col_sz * jcp.nthr;
     }
+    if (jcp.need_wei_reduction)
+        wei_reduction = (data_t *)this->scratchpad_->get() + wei_offset;
 
-#pragma omp parallel num_threads(this->nthr_)
+#pragma omp parallel num_threads(jcp.nthr)
     {
         const int ithr = omp_get_thread_num();
         const int nthr = omp_get_num_threads();
@@ -235,15 +235,14 @@ void gemm_convolution_bwd_weights_t::execute_backward_weights() {
 
             assert(implication((g_end - g_start) > 1, need_reduction == 0));
 
-            ptrdiff_t im2col_sz = (ptrdiff_t)jcp.ic * jcp.ks * jcp.os;
-            data_t *_col = col + (ptrdiff_t)ithr * im2col_sz;
+            data_t *_col = col + (ptrdiff_t)ithr * jcp.im2col_sz;
             data_t *weights_reduce_base = wei_reduction
                     + ithr_g * nthr_mb * weights_g_size;
             data_t *weights_reduce = weights_reduce_base
                     + ithr_mb * weights_g_size;
 
-            # pragma omp parallel for if(this->nthr_ == 1)
-            for (ptrdiff_t i = 0; i < im2col_sz; ++i) _col[i] = (data_t)0;
+            # pragma omp parallel for if(jcp.nthr == 1)
+            for (ptrdiff_t i = 0; i < jcp.im2col_sz; ++i) _col[i] = (data_t)0;
 
             for (size_t g = g_start; g < g_end; ++g) {
                 data_t *_diff_weights = need_reduction
@@ -254,8 +253,7 @@ void gemm_convolution_bwd_weights_t::execute_backward_weights() {
                     const data_t *_diff_dst = diff_dst
                             + (mb*jcp.ngroups+g)*dst_step + od * k;
 
-                    if (jcp.need_im2col)
-                    {
+                    if (jcp.im2col_sz) {
                         if (jcp.id == 1)
                             jit_gemm_convolution_utils::im2col(jcp, _src, _col);
                         else
@@ -265,7 +263,7 @@ void gemm_convolution_bwd_weights_t::execute_backward_weights() {
 
                     extended_sgemm(
                         "T", "N", &M, &N, &k, &one,
-                        jcp.need_im2col ? _col : _src + od * k,
+                        jcp.im2col_sz ? _col : _src + od * k,
                         &LDA, _diff_dst, &K,
                         mb == mb_start && od == 0 ? &zero : &one,
                         _diff_weights, &M);

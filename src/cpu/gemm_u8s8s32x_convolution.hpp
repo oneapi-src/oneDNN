@@ -114,22 +114,15 @@ struct _gemm_u8s8s32x_convolution_fwd_t: public cpu_primitive_t {
     {
         jit_gemm_convolution_utils::init_conf(conf_.jcp_,
             *(conf_.cdesc()), conf_.src_pd(), conf_.weights_pd(0),
-            conf_.dst_pd(), with_relu, conf_.negative_slope());
+            conf_.dst_pd(), omp_get_max_threads(), with_relu, conf_.negative_slope());
 
-        nthr_ = omp_get_max_threads();
-        if (!(utils::everyone_is(1, conf_.jcp_.ic, conf_.jcp_.oc)
-                    && conf_.jcp_.ngroups != 1)
-                && !(conf_.jcp_.os / nthr_ < 64 && conf_.jcp_.mb != 1))
-            nthr_ = 1;
-
-        size_t col_size = (size_t)conf_.jcp_.os * conf_.jcp_.ks
-                            * conf_.jcp_.ic * sizeof(src_data_t);
+        size_t col_size = (size_t)conf_.jcp_.im2col_sz * sizeof(src_data_t);
         size_t acc_size = (size_t)conf_.jcp_.os * conf_.jcp_.oc
                             * sizeof(acc_data_t);
         size_t size = col_size + acc_size;
 
         jit_gemm_convolution_utils::prepare_scratchpad(this->conf_.jcp_,
-                &this->scratchpad_, size, nthr_);
+                &this->scratchpad_, size, this->conf_.jcp_.nthr);
     }
 
     ~_gemm_u8s8s32x_convolution_fwd_t() {

@@ -28,6 +28,8 @@ namespace cpu {
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::utils;
+using namespace prop_kind;
+using namespace data_type;
 
 namespace jit_gemm_convolution_utils {
 
@@ -316,7 +318,7 @@ void col2im(
 void init_conf(
     jit_gemm_conv_conf_t &jcp, const convolution_desc_t &cd,
     const memory_desc_wrapper &src_d, const memory_desc_wrapper &weights_d,
-    const memory_desc_wrapper &dst_d,
+    const memory_desc_wrapper &dst_d, int max_threads,
     bool with_relu, float relu_negative_slope) {
 
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
@@ -361,15 +363,39 @@ void init_conf(
 
     jcp.os = jcp.oh * jcp.ow;
     jcp.ks = jcp.kh * jcp.kw * jcp.kd;
-    jcp.need_im2col = !(jcp.oh == jcp.ih && jcp.ow == jcp.iw
-        && jcp.od == jcp.id && jcp.ks == 1);
+    jcp.im2col_sz = !(jcp.oh == jcp.ih && jcp.ow == jcp.iw
+                            && jcp.od == jcp.id && jcp.ks == 1)
+        ? (ptrdiff_t)jcp.ic * jcp.ks * jcp.os
+        : 0;
+    bool is_int8_conv = (cd.src_desc.data_type == u8
+            && cd.weights_desc.data_type == s8);
+    if(utils::one_of(jcp.prop_kind, forward_training, forward_inference))
+        jcp.nthr = (is_int8_conv)
+            ? (!(utils::everyone_is(1, jcp.ic, jcp.oc) && jcp.ngroups != 1)
+                && !(jcp.os / max_threads < 64 && jcp.mb != 1))
+                ? 1
+                : max_threads
+            : jcp.os / max_threads < 512 && utils::implication(jcp.od == 1,
+                        (jcp.mb != 1 || jcp.ngroups > 2)) ? max_threads : 1;
+    else if (jcp.prop_kind == backward_data)
+        jcp.nthr = (jcp.mb != 1 || jcp.ngroups > 2) ? max_threads : 1;
+    else if (jcp.prop_kind == backward_weights)
+        jcp.nthr = jcp.os / max_threads < 256 &&
+                    (jcp.mb != 1 || jcp.ngroups > 2) ? max_threads : 1;
+    else
+        jcp.nthr = 1;
+
+    jcp.need_wei_reduction = (jcp.mb != 1 && jcp.nthr != 1);
 }
 
 status_t prepare_scratchpad(jit_gemm_conv_conf_t &jcp,
                 scratchpad_t **scratchpad_, size_t size, const int nthr) {
-    *scratchpad_ = create_scratchpad(nthr * size);
-    if (*scratchpad_ == nullptr) return status::out_of_memory;
-
+    if (size > 0) {
+        *scratchpad_ = create_scratchpad(nthr * size);
+        if (*scratchpad_ == nullptr) return status::out_of_memory;
+    } else {
+        *scratchpad_ = nullptr;
+    }
     return status::success;
 }
 

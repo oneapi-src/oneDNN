@@ -335,7 +335,10 @@ struct jit_gemm_conv_conf_t {
 
     int is, os, ks;
     int ic_block, oc_block;
-    bool need_im2col;
+
+    int nthr;
+    ptrdiff_t im2col_sz;
+    bool need_wei_reduction;
 };
 
 struct jit_1x1_conv_call_s {
