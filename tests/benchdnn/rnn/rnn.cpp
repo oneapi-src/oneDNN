@@ -18,7 +18,8 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-
+#include <random>
+#include "omp.h"
 #include "mkldnn.h"
 
 #include "mkldnn_common.hpp"
@@ -40,20 +41,23 @@ int fill_memory(const rnn_prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem1,
 #else
     const size_t nelems = mem2.nelems();
 #endif
+    size_t nchunks = omp_get_max_threads();
+    size_t chunk_size = (nelems + nchunks - 1) / nchunks;
 
-    //    const auto &c = p->cfg_[kind];
-    //    const int range = c.f_max - c.f_min + 1;
+#pragma omp parallel
+    {
+    size_t idx_start = omp_get_thread_num() * chunk_size;
+    size_t idx_end = std::min(idx_start + chunk_size, nelems);
 
-    for (size_t idx = 0; idx < nelems; ++idx) {
+    std::minstd_rand msr;
+    std::uniform_real_distribution<float> gen(-1, 1);
+    msr.discard(idx_start);
 
-        // const size_t gen = idx + 1637;
-        // const bool non_base = true;
-        float value = 1.0f;
-        /// non_base ? c.f_min + int(gen * c.f_step) % range : c.f_base;
-        mem2.set_elem(idx, value);
+    for (size_t idx = idx_start; idx < idx_end; ++idx)
+        mem2.set_elem(idx, gen(msr));
     }
-    mem1.reorder(mem2);
 
+    mem1.reorder(mem2);
     return OK;
 }
 
