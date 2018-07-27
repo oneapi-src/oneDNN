@@ -64,7 +64,7 @@ endif()
 
 file(COPY inputs DESTINATION .)
 add_custom_target(test_conv
-    COMMAND benchdnn --conv --batch=inputs/test_conv_all
+    COMMAND benchdnn -v1 --conv --batch=inputs/test_conv_all
     DEPENDS benchdnn
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
@@ -84,7 +84,7 @@ if(WIN32)
     set_property(TARGET test_benchdnn_other PROPERTY ENVIRONMENT "PATH=${CTESTCONFIG_PATH}")
 endif()
 add_custom_target(test_conv_regression
-    COMMAND benchdnn --conv --batch=inputs/test_conv_regression
+    COMMAND benchdnn -v1 --conv --batch=inputs/test_conv_regression
     DEPENDS benchdnn
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
