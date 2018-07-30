@@ -336,6 +336,26 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
         }
 
         if (can_load_xmm && !can_store_xmm) {
+            const bool fast_return = true // transposition on the fly
+                && prb_.scale_type != scale_type_t::MANY
+                && prb_.beta == 0.f;
+            if (fast_return) {
+                for (int ur = 0; ur < reg_unroll; ur += load_step) {
+                    if (prb_.scale_type == scale_type_t::COMMON)
+                        mulps(Xmm(ur), xmm_scale);
+                    if (prb_.otype != f32)
+                        cvt2int(Xmm(ur), prb_.otype,
+                                interim_f32 ? f32 : prb_.itype);
+                    for (int r = 0; r < load_step; ++r) {
+                        if (otype_sz == 4)
+                            pextrd(o_addr(o_off[ur + r]), Xmm(ur), r);
+                        else
+                            pextrb(o_addr(o_off[ur + r]), Xmm(ur), r);
+                    }
+                }
+                return;
+            }
+
             /* scatter elements of xmm into 4 xmms */
             if (itype_sz == 4 || interim_f32) {
                 for (int ur = 0; ur < reg_unroll; ur += load_step)
