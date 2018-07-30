@@ -647,12 +647,19 @@ static void prb_block_for_cache(tr::prb_t &prb) {
         /* TODO: improve the logic around here */
         int j = 1;
         for (; j < prb.ndims && prb.nodes[j].is != 1; ++j);
+        if (j == prb.ndims) return;
 
-        if (j == 1 || j == prb.ndims) return;
+        /* it makes sense to re-prioritize sequential read over
+         * sequential write if the former would not trash the
+         * cache, i.e. is == 1 and os % 2^smth != 0. Smth is
+         * set to 2 at the moment */
+        const int move_to = prb.nodes[j].os % 4 != 0 ? 0 : 1;
+        if (j == move_to) return;
+
         if (prb.nodes[j].n > 16 && prb.nodes[j].n % 16 == 0)
             prb_node_split(prb, j, 16);
 
-        prb_node_move(prb, j, 1);
+        prb_node_move(prb, j, move_to);
         DEBUG({ printf("cache: "); prb_dump(prb); });
     }
 }
