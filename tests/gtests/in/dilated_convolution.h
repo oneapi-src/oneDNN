@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-INST_TEST_CASE(SimpleSmall_NCHW_Dilution,
+INST_TEST_CASE(SimpleSmall_NCHW_Dilation,
      PARAMS(nchw, oihw, FMT_BIAS, nchw,
          2, 1, 4, 8, 8, 6, 8, 8, 3, 3, 2, 2, 1, 1, 1, 1),
      PARAMS(nchw, oihw, FMT_BIAS, nchw,
@@ -45,7 +45,7 @@ INST_TEST_CASE(SimpleSmall_NCHW_Dilution,
          2, 1, 8, 8, 8, 8, 8, 2, 3, 3, 1, 1, 1, 3, 0, 2)
 );
 
-INST_TEST_CASE(SimpleSmall_Blocked_Dilution,
+INST_TEST_CASE(SimpleSmall_Blocked_Dilation,
     PARAMS(FMT_DATA_BLOCKED, FMT_WEIGHTS_BLOCKED, FMT_BIAS, FMT_DATA_BLOCKED,
         2, 1, 32, 15, 15, 32, 11, 11, 3, 3, 0, 0, 1, 1, 1, 1),
     PARAMS(FMT_DATA_BLOCKED, FMT_WEIGHTS_BLOCKED, FMT_BIAS, FMT_DATA_BLOCKED,
@@ -72,7 +72,7 @@ INST_TEST_CASE(SimpleSmall_Blocked_Dilution,
         2, 1, 32, 8, 8, 32, 8, 2, 3, 3, 1, 1, 1, 3, 0, 2)
 );
 
-INST_TEST_CASE(SimpleSmall_Blocked16_Dilution,
+INST_TEST_CASE(SimpleSmall_Blocked16_Dilation,
     PARAMS(FMT_DATA_BLOCKED16, FMT_WEIGHTS_BLOCKED16, FMT_BIAS, FMT_DATA_BLOCKED16,
         2, 1, 32, 15, 15, 32, 11, 11, 3, 3, 0, 0, 1, 1, 1, 1),
     PARAMS(FMT_DATA_BLOCKED16, FMT_WEIGHTS_BLOCKED16, FMT_BIAS, FMT_DATA_BLOCKED16,
@@ -99,7 +99,7 @@ INST_TEST_CASE(SimpleSmall_Blocked16_Dilution,
         2, 1, 32, 8, 8, 32, 8, 2, 3, 3, 1, 1, 1, 3, 0, 2)
 );
 
-INST_TEST_CASE(PERF_NCHW_Dilution,
+INST_TEST_CASE(PERF_NCHW_Dilation,
     PARAMS(nchw, oihw, FMT_BIAS, nchw,
         2, 1, 3, 227, 227, 96, 111, 111, 5, 5, 1, 1, 2, 2, 1, 1),
     PARAMS(nchw, oihw, FMT_BIAS, nchw,
@@ -118,7 +118,7 @@ INST_TEST_CASE(PERF_NCHW_Dilution,
         2, 2, 128, 21, 21, 256, 3, 13, 5, 5, 0, 0, 2, 1, 3, 1)
 );
 
-INST_TEST_CASE(PERF_Blocked_Dilution,
+INST_TEST_CASE(PERF_Blocked_Dilation,
     PARAMS(nchw, Ohwi8o, FMT_BIAS, FMT_DATA_BLOCKED,
         2, 1, 3, 227, 227, 96, 111, 111, 5, 5, 1, 1, 2, 2, 1, 1),
     PARAMS(nchw, Ohwi8o, FMT_BIAS, FMT_DATA_BLOCKED,
@@ -137,7 +137,7 @@ INST_TEST_CASE(PERF_Blocked_Dilution,
         2, 2, 128, 21, 21, 256, 3, 13, 5, 5, 0, 0, 2, 1, 3, 1)
 );
 
-INST_TEST_CASE(PERF_Blocked16_Dilution,
+INST_TEST_CASE(PERF_Blocked16_Dilation,
     PARAMS(nchw, Ohwi8o, FMT_BIAS, FMT_DATA_BLOCKED16,
         2, 1, 3, 227, 227, 96, 111, 111, 5, 5, 1, 1, 2, 2, 1, 1),
     PARAMS(nchw, Ohwi8o, FMT_BIAS, FMT_DATA_BLOCKED,
