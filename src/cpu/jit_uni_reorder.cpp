@@ -294,19 +294,23 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
         };
 
         /* check whether loading 4 values at once is possible */
-        const bool can_load_xmm = true
-            && is(0) == 1
-            && n(0) % 4 == 0
-            && reg_unroll % 4 == 0
-            && mayiuse(avx);
+        bool can_load_xmm = mayiuse(avx) && reg_unroll % 4 == 0;
+        for (int ur = 1; ur < reg_unroll; ++ur)
+            if (i_off[ur] != i_off[ur - 1] + 1)
+                can_load_xmm = false;
         const int load_step = can_load_xmm ? 4 : 1;
 
         /* check whether storing 4 values at once is possible */
-        const bool can_store_xmm = true
-            && os(0) == 1
-            && n(0) % 4 == 0 /* TODO: relax to support [2, 2, ...] */
-            && reg_unroll % 4 == 0;
+        bool can_store_xmm = reg_unroll % 4 == 0;
+        for (int ur = 1; ur < reg_unroll; ++ur)
+            if (o_off[ur] != o_off[ur - 1] + 1)
+                can_store_xmm = false;
         const int ur_step = can_store_xmm ? 4 : 1;
+
+        const bool interim_f32 = false
+            || utils::one_of(f32, prb_.itype, prb_.otype)
+            || prb_.scale_type != scale_type_t::NONE
+            || prb_.beta != 0.f;
 
         if (!can_load_xmm && can_store_xmm) {
             assert(ur_step == 4);
@@ -324,9 +328,16 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
                 load(Xmm(ur), i_addr(i_off[ur]), load_step * itype_sz);
         }
 
+        /* xmm[:] <-- (f32)xmm[:] */
+        if (interim_f32) {
+            const int cvt_step = nstl::max(load_step, ur_step);
+            for (int ur = 0; ur < reg_unroll; ur += cvt_step)
+                cvt2ps(Xmm(ur), Xmm(ur), prb_.itype);
+        }
+
         if (can_load_xmm && !can_store_xmm) {
             /* scatter elements of xmm into 4 xmms */
-            if (itype_sz == 4) {
+            if (itype_sz == 4 || interim_f32) {
                 for (int ur = 0; ur < reg_unroll; ur += load_step)
                     for (int r = 1; r < load_step; ++r)
                         vshufps(Xmm(ur + r), Xmm(ur), Xmm(ur), r);
@@ -336,16 +347,6 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
                         vpalignr(Xmm(ur + r), Xmm(ur), Xmm(ur), r);
             }
         }
-
-        const bool interim_f32 = false
-            || utils::one_of(f32, prb_.itype, prb_.otype)
-            || prb_.scale_type != scale_type_t::NONE
-            || prb_.beta != 0.f;
-
-        /* xmm[:] <-- (f32)xmm[:] */
-        if (interim_f32)
-            for (int ur = 0; ur < reg_unroll; ur += ur_step)
-                cvt2ps(Xmm(ur), Xmm(ur), prb_.itype);
 
         /* scale and beta processing */
         if (can_store_xmm) {
