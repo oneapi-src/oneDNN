@@ -151,9 +151,6 @@ protected:
         fill_data<data_t>(
                 ip_weights->get_primitive_desc().get_size() / sizeof(data_t),
                 (data_t *)ip_weights->get_data_handle());
-        fill_data<data_t>(
-                ip_dst->get_primitive_desc().get_size() / sizeof(data_t),
-                (data_t *)ip_dst->get_data_handle());
         if (with_bias) {
             fill_data<data_t>(
                     ip_bias->get_primitive_desc().get_size() / sizeof(data_t),
@@ -203,7 +200,15 @@ INSTANTIATE_TEST_CASE_P(
                 inprod_test_params_float{ prop_kind::forward, engine::kind::cpu,
                         memory::format::nChw16c, memory::format::oIhw16i,
                         memory::format::format_undef, memory::format::nc,
-                        EXPAND_SIZES_2D( 4, 20, 15, 5, 5 ) } ));
+                        EXPAND_SIZES_2D( 4, 20, 15, 5, 5 ) },
+                inprod_test_params_float{ prop_kind::forward, engine::kind::cpu,
+                        memory::format::nChw8c, memory::format::oIhw8i,
+                        memory::format::format_undef, memory::format::nc,
+                        EXPAND_SIZES_2D( 4, 6, 15, 5, 5 ) },
+                inprod_test_params_float{ prop_kind::forward, engine::kind::cpu,
+                        memory::format::nChw8c, memory::format::oIhw8i,
+                        memory::format::format_undef, memory::format::nc,
+                        EXPAND_SIZES_2D( 4, 10, 5, 5, 5 ) } ));
 
 INSTANTIATE_TEST_CASE_P(
         TestInnerProductForwardNoBias, inner_product_test_float,

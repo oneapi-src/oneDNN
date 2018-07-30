@@ -197,9 +197,6 @@ protected:
         fill_data<data_t>(
                 ip_diff_dst->get_primitive_desc().get_size() / sizeof(data_t),
                 (data_t *)ip_diff_dst->get_data_handle());
-        fill_data<data_t>(
-            ip_diff_weights->get_primitive_desc().get_size() / sizeof(data_t),
-            (data_t *)ip_diff_weights->get_data_handle());
 
         check_zero_tail<data_t>(1, *ip_src);
         check_zero_tail<data_t>(1, *ip_diff_dst);
@@ -249,7 +246,15 @@ INSTANTIATE_TEST_CASE_P(
                 inprod_test_params_float{ engine::kind::cpu,
                         memory::format::nChw16c, memory::format::oIhw16i,
                         memory::format::format_undef, memory::format::nc,
-                        EXPAND_SIZES_2D( 2, 10, 5, 3, 3 ) } ));
+                        EXPAND_SIZES_2D( 2, 10, 5, 3, 3 ) },
+                inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::nChw8c, memory::format::oIhw8i,
+                        memory::format::format_undef, memory::format::nc,
+                        EXPAND_SIZES_2D( 2, 17, 5, 3, 3 ) },
+                inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::nChw8c, memory::format::oIhw8i,
+                        memory::format::format_undef, memory::format::nc,
+                        EXPAND_SIZES_2D( 2, 5, 15, 3, 3 ) } ));
 
 INSTANTIATE_TEST_CASE_P(
         TestInnerProductBackwardWeightsNoBias, inner_product_test_float,

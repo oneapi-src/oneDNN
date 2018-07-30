@@ -223,7 +223,17 @@ INSTANTIATE_TEST_CASE_P(TestReorder, reorder_padded_test_weights_f32_f32,
             cfg_f32{eng::cpu, fmt::gOIdhw16i16o, fmt::goidhw, {2, 17, 23, 3, 2, 3}},
             // gOIdhw16o16i
             cfg_f32{eng::cpu, fmt::goidhw, fmt::gOIdhw16o16i, {2, 17, 23, 2, 2, 3}},
-            cfg_f32{eng::cpu, fmt::gOIdhw16o16i, fmt::goidhw, {2, 17, 23, 3, 2, 3}}
+            cfg_f32{eng::cpu, fmt::gOIdhw16o16i, fmt::goidhw, {2, 17, 23, 3, 2, 3}},
+            // Oihw16o
+            cfg_f32{eng::cpu, fmt::oihw, fmt::Oihw16o, {17, 23, 2, 3}},
+            cfg_f32{eng::cpu, fmt::Oihw16o, fmt::oihw, {17, 23, 2, 3}},
+            // OIhw8i8o
+            cfg_f32{eng::cpu, fmt::oihw, fmt::OIhw8i8o, {17, 23, 2, 3}},
+            cfg_f32{eng::cpu, fmt::OIhw8i8o, fmt::oihw, {17, 23, 2, 3}},
+            cfg_f32{eng::cpu, fmt::oihw, fmt::OIhw8o8i, {17, 23, 2, 3}},
+            cfg_f32{eng::cpu, fmt::OIhw8o8i, fmt::oihw, {17, 23, 2, 3}},
+            cfg_f32{eng::cpu, fmt::hwio, fmt::OIhw8i8o, {17, 23, 2, 3}},
+            cfg_f32{eng::cpu, fmt::OIhw8i8o, fmt::hwio, {17, 23, 2, 3}}
 ));
 
 TEST_P(reorder_3d_test_weights_f32_f32, TestsReorder) { }

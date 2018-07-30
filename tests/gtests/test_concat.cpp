@@ -166,14 +166,22 @@ using fmt = memory::format;
 INSTANTIATE_TEST_CASE_P(TestConcat_padded, concat_test_float, ::testing::Values(
     concat_test_params{engine::kind::cpu, 1, {fmt::nChw16c, fmt::nChw16c}, fmt::nChw16c, {{4, 25, 5, 5}, {4, 45, 5, 5}}, {4, 70,  5,  5}, true, mkldnn_unimplemented},
     concat_test_params{engine::kind::cpu, 1, {fmt::nChw16c, fmt::nChw16c}, fmt::nchw,    {{4, 25, 5, 5}, {4, 45, 5, 5}}, {4, 70,  5,  5}},
+    concat_test_params{engine::kind::cpu, 1, {fmt::nChw8c,  fmt::nChw8c},  fmt::nchw,    {{4, 25, 5, 5}, {4, 45, 5, 5}}, {4, 70,  5,  5}},
+    concat_test_params{engine::kind::cpu, 1, {fmt::nChw16c, fmt::nChw8c},  fmt::nchw,    {{4, 25, 5, 5}, {4, 45, 5, 5}}, {4, 70,  5,  5}},
+    concat_test_params{engine::kind::cpu, 1, {fmt::nChw8c,  fmt::nChw16c}, fmt::nchw,    {{4, 25, 5, 5}, {4, 45, 5, 5}}, {4, 70,  5,  5}},
     concat_test_params{engine::kind::cpu, 1, {fmt::nChw16c, fmt::nChw16c}, fmt::nChw16c, {{4,  4, 5, 5}, {4,  6, 5, 5}}, {4, 10,  5,  5}, true, mkldnn_unimplemented},
     concat_test_params{engine::kind::cpu, 1, {fmt::nChw16c, fmt::nChw16c}, fmt::nchw,    {{4,  4, 5, 5}, {4,  6, 5, 5}}, {4, 10,  5,  5}},
     concat_test_params{engine::kind::cpu, 1, {fmt::nchw,    fmt::nChw16c}, fmt::nChw16c, {{4, 25, 5, 5}, {4, 45, 5, 5}}, {4, 70,  5,  5}, true, mkldnn_unimplemented},
     concat_test_params{engine::kind::cpu, 1, {fmt::nchw,    fmt::nChw16c}, fmt::nchw,    {{4, 25, 5, 5}, {4, 45, 5, 5}}, {4, 70,  5,  5}},
     // right border
     concat_test_params{engine::kind::cpu, 1, {fmt::nChw16c, fmt::nChw16c}, fmt::nChw16c, {{4, 16, 5, 5}, {4,  3, 5, 5}}, {4, 19,  5,  5}},
+    concat_test_params{engine::kind::cpu, 1, {fmt::nChw16c, fmt::nChw16c}, fmt::nChw8c, {{4, 16, 5, 5}, {4,  3, 5, 5}}, {4, 19,  5,  5}},
+    concat_test_params{engine::kind::cpu, 1, {fmt::nChw8c,  fmt::nChw8c},  fmt::nChw8c, {{4, 8, 5, 5}, {4,  3, 5, 5}}, {4, 11,  5,  5}},
+    concat_test_params{engine::kind::cpu, 1, {fmt::nChw8c,  fmt::nChw16c}, fmt::nChw16c, {{4, 8, 5, 5}, {4,  3, 5, 5}}, {4, 11,  5,  5}},
     // not over channels
-    concat_test_params{engine::kind::cpu, 2, {fmt::nChw16c, fmt::nChw16c}, fmt::nchw,    {{4, 25, 5, 5}, {4, 25, 5, 5}}, {4, 25, 10,  5}}
+    concat_test_params{engine::kind::cpu, 2, {fmt::nChw16c, fmt::nChw16c}, fmt::nchw,    {{4, 25, 5, 5}, {4, 25, 5, 5}}, {4, 25, 10,  5}},
+    concat_test_params{engine::kind::cpu, 2, {fmt::nChw8c,  fmt::nChw8c},  fmt::nchw,    {{4, 25, 5, 5}, {4, 25, 5, 5}}, {4, 25, 10,  5}},
+    concat_test_params{engine::kind::cpu, 2, {fmt::nChw8c,  fmt::nChw16c}, fmt::nchw,    {{4, 25, 5, 5}, {4, 25, 5, 5}}, {4, 25, 10,  5}}
 ));
 
 INSTANTIATE_TEST_CASE_P(TestConcat3D, concat_test_float, ::testing::Values(

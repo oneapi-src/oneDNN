@@ -468,7 +468,7 @@ TEST_P(bnrm_test_float, TestsBnrm)
 #define INST_TEST_CASE(str, ...) INSTANTIATE_TEST_CASE_P( \
         str, bnrm_test_float, ::testing::Values(__VA_ARGS__))
 
-INST_TEST_CASE(Simple_Blocked_padded,
+INST_TEST_CASE(Simple_nChw16c_padded,
     PARAMS_B16(1, 27, 9, 10, EPS),
     PARAMS_B16(1, 12, 10, 9, EPS),
     PARAMS_B16(4, 20, 12, 12, EPS),
@@ -480,6 +480,13 @@ INST_TEST_CASE(Simple_nCdhw16c_padded,
     PARAMS_B16_3D(2, 9, 16, 8, 20, EPS),
     PARAMS_B16_3D(2, 23, 10, 8, 4, EPS),
     PARAMS_B16_3D(2, 27, 10, 8, 4, EPS)
+);
+
+INST_TEST_CASE(Simple_nChw8c_padded,
+    PARAMS_B8(1, 27, 9, 10, EPS),
+    PARAMS_B8(1, 12, 10, 9, EPS),
+    PARAMS_B8(4, 20, 12, 12, EPS),
+    PARAMS_B8(4, 7, 16, 16, EPS)
 );
 
 
