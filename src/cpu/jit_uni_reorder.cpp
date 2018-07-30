@@ -114,6 +114,7 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
             && utils::everyone_is(0, p.ioff, p.ooff) /* do we need this? */
             && utils::one_of(p.beta, 0.f, 1.f) /* anything else? */
             && simple_impl_desc_init(p, nullptr)
+            && mayiuse(sse42)
             && utils::implication(!utils::everyone_is(f32, p.itype, p.otype),
                     mayiuse(avx512_core));
         if (!ok) return false;
@@ -300,15 +301,28 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
             && mayiuse(avx);
         const int load_step = can_load_xmm ? 4 : 1;
 
-        for (int ur = 0; ur < reg_unroll; ur += load_step)
-            load(Xmm(ur), i_addr(i_off[ur]), load_step * itype_sz);
-
         /* check whether storing 4 values at once is possible */
         const bool can_store_xmm = true
             && os(0) == 1
             && n(0) % 4 == 0 /* TODO: relax to support [2, 2, ...] */
             && reg_unroll % 4 == 0;
         const int ur_step = can_store_xmm ? 4 : 1;
+
+        if (!can_load_xmm && can_store_xmm) {
+            assert(ur_step == 4);
+            /* load with stride */
+            for (int ur = 0; ur < reg_unroll; ur += ur_step) {
+                for (int r = 0; r < ur_step; ++r) {
+                    if (itype_sz == 4)
+                        pinsrd(Xmm(ur), i_addr(i_off[ur + r]), r);
+                    else
+                        pinsrb(Xmm(ur), i_addr(i_off[ur + r]), r);
+                }
+            }
+        } else {
+            for (int ur = 0; ur < reg_unroll; ur += load_step)
+                load(Xmm(ur), i_addr(i_off[ur]), load_step * itype_sz);
+        }
 
         if (can_load_xmm && !can_store_xmm) {
             /* scatter elements of xmm into 4 xmms */
@@ -320,22 +334,6 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
                 for (int ur = 0; ur < reg_unroll; ur += load_step)
                     for (int r = 1; r < load_step; ++r)
                         vpalignr(Xmm(ur + r), Xmm(ur), Xmm(ur), r);
-            }
-        }
-
-        if (!can_load_xmm && can_store_xmm) {
-            assert(ur_step == 4);
-            /* gather 0th elements of each 4 xmms into one xmm */
-            if (itype_sz == 4) {
-                for (int ur = 0; ur < reg_unroll; ur += 2)
-                    unpcklps(Xmm(ur), Xmm(ur + 1));
-                for (int ur = 0; ur < reg_unroll; ur += 4)
-                    unpcklpd(Xmm(ur), Xmm(ur + 2));
-            } else {
-                for (int ur = 0; ur < reg_unroll; ur += 2)
-                    punpcklbw(Xmm(ur), Xmm(ur + 1));
-                for (int ur = 0; ur < reg_unroll; ur += 4)
-                    punpcklwd(Xmm(ur), Xmm(ur + 2));
             }
         }
 
