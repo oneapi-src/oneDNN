@@ -2855,7 +2855,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32
                 i_b_ic + ic_block_step >= jcp.ic_block);
         }
         add(reg_input, jcp.typesize_in * (jcp.dilate_h + 1) * iw * inp_mul);
-        add(reg_kernel, jcp.typesize_out * (jcp.kw) * ic_block * oc_block);
+        add(reg_kernel, jcp.typesize_out * jcp.kw * ic_block * oc_block);
         dec(kj);
         cmp(kj, 0);
         jg(kh_label, T_NEAR);
@@ -2917,7 +2917,8 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32
         }
 
         if (jcp.is_1stconv) {
-            sub(reg_input, jcp.typesize_in * jcp.ih*jcp.iw*jcp.id * ic_block);
+            sub(reg_input,
+                    jcp.typesize_in * jcp.id * jcp.ih * jcp.iw * ic_block);
             add(reg_input, jcp.typesize_in * (jcp.dilate_h + 1) * jcp.iw);
         } else if (!utils::one_of(jcp.ver, ver_4fma, ver_4vnni, ver_vnni)) {
             add(reg_input, jcp.typesize_in
@@ -3025,7 +3026,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32
             jl(ic_block_label, T_NEAR);
         }
         if (jcp.is_1stconv) {
-            sub(reg_input, jcp.typesize_in * jcp.ih*jcp.iw*jcp.id * ic_block);
+            sub(reg_input, jcp.typesize_in * jcp.id * jcp.ih * jcp.iw * ic_block);
             add(reg_input, jcp.typesize_in * (jcp.dilate_h + 1) * jcp.iw);
         } else if (!utils::one_of(jcp.ver, ver_4fma, ver_4vnni, ver_vnni)) {
             add(reg_input, jcp.typesize_in
@@ -3333,8 +3334,8 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32
         pop(reg_output_d);
         pop(reg_input_d);
 
-        add(reg_input_d, jcp.typesize_in *jcp.stride_d*jcp.ih * iw * inp_mult);
-        add(reg_output_d, jcp.typesize_in * ow * jcp.oh * jcp.oc_block);
+        add(reg_input_d, jcp.typesize_in * jcp.stride_d * jcp.ih * iw * inp_mult);
+        add(reg_output_d, jcp.typesize_in * jcp.oh * ow * jcp.oc_block);
 
         dec(reg_oi);
         add(reg_id_count, jcp.stride_d);
@@ -3912,7 +3913,7 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32
     return true;
 }
 
-bool  jit_avx512_common_conv_bwd_weights_kernel_f32
+bool jit_avx512_common_conv_bwd_weights_kernel_f32
     ::flat_4ops_compute() {
     const auto &j = jcp;
     const bool ok = j.ver == ver_4fma && j.is_1stconv
