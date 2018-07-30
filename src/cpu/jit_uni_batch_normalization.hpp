@@ -69,6 +69,9 @@ struct jit_uni_batch_normalization_fwd_t: public cpu_primitive_t {
                 if (isa < avx2) return status::unimplemented;
                 bn_init_default_ws(this, this->workspace_pd_, 1);
             }
+            if (memory_desc_wrapper(&data_pd_).blocking_desc()
+                .padding_dims[1] != this->C() && isa < avx2)
+                return status::unimplemented;
 
             if (stats_is_src() || is_training()) {
                 memory_desc_t stats_d;
@@ -130,6 +133,9 @@ struct jit_uni_batch_normalization_bwd_t: public cpu_primitive_t {
                         desc()->data_desc.format)
                 && attr()->has_default_values();
             if (!ok) return status::unimplemented;
+            if (memory_desc_wrapper(&data_pd_).blocking_desc()
+                .padding_dims[1] != this->C() && isa < avx2)
+                return status::unimplemented;
 
             if (fuse_bn_relu()) {
                 if (isa < avx2) return status::unimplemented;

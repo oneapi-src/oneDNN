@@ -116,7 +116,6 @@ struct jit_bnorm_t: public jit_generator {
 
     // channel tail processing
     Opmask ktail_mask = Opmask(2);
-    Opmask kis_cblk_tail = Opmask(3);
 
     size_t unroll_blocks;
     size_t unroll_regs;
@@ -126,11 +125,11 @@ struct jit_bnorm_t: public jit_generator {
     Vmm vsqrtvar = Vmm(isa == avx512_common ? 23 : 8);
     Vmm vone = Vmm(isa == avx512_common ? 24 : 9);
     Vmm vmean = Vmm(isa == avx512_common ? 25 : 10);
-    Vmm vvar = Vmm(isa == avx512_common ? 26 : 11);
-    Vmm vgamma = Vmm(isa == avx512_common ? 27 : 12);
-    Vmm vbeta = Vmm(isa == avx512_common ? 28 : 13);
-    Vmm veps = Vmm(isa == avx512_common ? 29 : 14);
-    Vmm vchan_size = Vmm(isa == avx512_common ? 31 : 15);
+    Vmm vgamma = Vmm(isa == avx512_common ? 26 : 11);
+    Vmm vbeta = Vmm(isa == avx512_common ? 27 : 12);
+    Vmm veps = Vmm(isa == avx512_common ? 28 : 13);
+    Vmm vchan_size = Vmm(isa == avx512_common ? 29 : 14);
+    Vmm vtail_mask = Vmm(isa == avx512_common ? 30 : 15);
 
     size_t t0_pf_offt;
     size_t t1_pf_offt;
@@ -150,7 +149,8 @@ struct jit_bnorm_t: public jit_generator {
         stack_off_spat_size_loc = 72,
         stack_off_s_s = 80,
         stack_off_s_tail = 88,
-        stack_size_required = 96,
+        stack_off_is_cblk_tail = 96,
+        stack_size_required = 104,
     };
 
     bool is_c_padded() const {
@@ -214,6 +214,10 @@ struct jit_bnorm_t: public jit_generator {
             mov(reg_tmp, ptr[reg_param + PARAM_OFF(S_tail)]);
             mov(ptr[rsp + stack_off_s_tail], reg_tmp);
         }
+        if (is_c_padded()) {
+            mov(reg_tmp, ptr[reg_param + PARAM_OFF(is_cblk_tail)]);
+            mov(ptr[rsp + stack_off_is_cblk_tail], reg_tmp);
+        }
 
         if (bdesc_->is_fwd()) {
             mov(reg_tmp, ptr[reg_param + PARAM_OFF(var)]);
@@ -236,8 +240,18 @@ struct jit_bnorm_t: public jit_generator {
         Reg32 regw_tmp = reg_tmp.cvt32();
         mov(regw_tmp, mask);
         kmovw(ktail_mask, regw_tmp);
-        mov(regw_tmp, ptr[reg_param + offsetof(call_params_t, is_cblk_tail)]);
-        kmovw(kis_cblk_tail, regw_tmp);
+    }
+
+    void prepare_tail_mask_avx2_common() {
+        if (!is_c_padded()) return;
+
+        const int tail = bdesc_->C() % (int)(vlen / sizeof(float));
+        static const uint32_t mask[16] = {0xffffffff, 0xffffffff, 0xffffffff,
+                0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff,
+                0, 0, 0, 0, 0, 0, 0, 0};
+
+        mov(reg_tmp, reinterpret_cast<size_t>(&mask[8 - tail]));
+        vmovups(vtail_mask, ptr[reg_tmp]);
     }
 
     void prepare_relu() {
@@ -298,17 +312,18 @@ struct jit_bnorm_t: public jit_generator {
         shl(reg_soff, 5);
     }
 
-    void uni_vmovups_maybe_tail_avx512_common(const Operand &dst,
-            const Operand &src, Label &l_no_mask, Label &l_ret) {
-        Label l_mask;
-        kortestw(kis_cblk_tail, kis_cblk_tail);
-        jz(l_no_mask);
+    void uni_vmovups_tail_avx2_common(const Operand &dst,
+            const Operand &src, Label &l_ret) {
+        if (dst.isMEM()) {
+            vmaskmovps(dst.getAddress(), vtail_mask, Vmm(src.getIdx()));
+        } else {
+            vmaskmovps(Vmm(dst.getIdx()), vtail_mask, src.getAddress());
+        }
+        jmp(l_ret);
+    }
 
-        lea(reg_tmp, ptr[reg_coff + vlen]);
-        cmp(reg_tmp, reg_coff_max);
-        jl(l_no_mask);
-
-        L(l_mask);
+    void uni_vmovups_tail_avx512_common(const Operand &dst,
+            const Operand &src, Label &l_ret) {
         if (dst.isMEM())
             uni_vmovups(dst.getAddress() | ktail_mask | T_z, Vmm(src.getIdx()));
         else
@@ -321,10 +336,19 @@ struct jit_bnorm_t: public jit_generator {
         Label l_no_mask, l_ret;
 
         if (is_c_padded()) {
-            assert(isa == avx512_common);
-            uni_vmovups_maybe_tail_avx512_common(dst, src, l_no_mask, l_ret);
-        }
+            mov(reg_tmp, ptr[rsp + stack_off_is_cblk_tail]);
+            cmp(reg_tmp, 0);
+            jz(l_no_mask);
 
+            lea(reg_tmp, ptr[reg_coff + vlen]);
+            cmp(reg_tmp, reg_coff_max);
+            jl(l_no_mask);
+            assert(one_of(isa, avx512_common, avx2));
+            if (isa == avx512_common)
+                uni_vmovups_tail_avx512_common(dst, src, l_ret);
+            else if (isa == avx2)
+                uni_vmovups_tail_avx2_common(dst, src, l_ret);
+        }
         L(l_no_mask);
         if (dst.isMEM())
             uni_vmovups(dst.getAddress(), Vmm(src.getIdx()));
@@ -993,6 +1017,8 @@ struct jit_bnorm_t: public jit_generator {
 
         if (isa == avx512_common)
             prepare_tail_mask_avx512_common();
+        else if (isa == avx2)
+            prepare_tail_mask_avx2_common();
 
         compute_static_strides();
         sub(rsp, stack_size_required);
