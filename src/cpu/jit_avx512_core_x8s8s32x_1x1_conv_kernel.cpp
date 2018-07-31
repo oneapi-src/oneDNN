@@ -578,9 +578,6 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
     if (!post_ops_ok(jcp, attr))
         return status::unimplemented;
 
-    jcp.with_relu = false;
-    jcp.relu_negative_slope = 0.f;
-
     bool args_ok = true
         && jcp.ngroups == 1
         && src_d.format() == nhwc

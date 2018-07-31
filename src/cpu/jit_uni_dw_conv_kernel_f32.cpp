@@ -178,41 +178,9 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_filter_unrolled(
 template <cpu_isa_t isa>
 void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_activation(
         int ur_ch_blocks, int ur_w) {
-    if (this->jcp.with_relu) {
-        uni_vpxor(vmm_zero, vmm_zero, vmm_zero);
-        if (jcp.relu_negative_slope == 0) {
-            vmm_relu_ns = vmm_zero;
-        } else {
-            mov(imm_addr64, float2int(jcp.relu_negative_slope));
-            movq(xmm_relu_ns, imm_addr64);
-            uni_vbroadcastss(vmm_relu_ns, xmm_relu_ns);
-        }
-
+    if (this->jcp.with_eltwise) {
         int repeats = isa == sse42 ? 2 : 1;
-        for (int i = 0; i < repeats; i++) {
-            for (int ch = 0; ch < ur_ch_blocks; ch++) {
-                for (int ow = 0; ow < ur_w; ow++) {
-                    Vmm vmm_dst = get_acc_reg(i*ur_ch_blocks*ur_w
-                        + ch*ur_w + ow);
-
-                    if (isa == sse42) {
-                        pxor(vmm_mask, vmm_mask);
-                        cmpps(vmm_mask, vmm_dst, _cmp_gt_os);
-                        movups(vmm_res_ns, vmm_dst);
-                        mulps(vmm_res_ns, vmm_relu_ns);
-                        blendvps(vmm_dst, vmm_res_ns);
-                    } else if (isa == avx2) {
-                        vcmpgtps(vmm_mask, vmm_dst, vmm_zero);
-                        vmulps(vmm_res_ns, vmm_relu_ns, vmm_dst);
-                        vblendvps(vmm_dst, vmm_res_ns, vmm_dst, vmm_mask);
-                    } else if (isa == avx512_common) {
-                        Opmask kmask = Opmask(7);
-                        vcmpps(kmask, vmm_dst, vmm_zero, _cmp_lt_os);
-                        vmulps(vmm_dst | kmask, vmm_dst, vmm_relu_ns);
-                    }
-                }
-            }
-        }
+        eltwise_injector_->compute_vector_range(4, repeats * ur_w * ur_ch_blocks + 4);
     }
 }
 
@@ -321,6 +289,9 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::generate() {
     L(exit_label);
 
     this->postamble();
+
+    if (jcp.with_eltwise)
+        eltwise_injector_->prepare_table();
 }
 
 template <cpu_isa_t isa>
@@ -328,13 +299,13 @@ bool jit_uni_dw_conv_fwd_kernel_f32<isa>::post_ops_ok(
         jit_conv_conf_t &jcp, const primitive_attr_t &attr) {
     const auto &p = attr.post_ops_;
 
-    auto is_relu = [&](int idx) { return p.entry_[idx].is_relu(); };
+    auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(); };
     auto is_sum = [&](int idx) { return p.entry_[idx].is_sum(); };
 
     switch (p.len_) {
     case 0: return true; // no post_ops
-    case 1: return is_relu(0) || is_sum(0); // sum OR relu
-    case 2: return is_sum(0) && is_relu(1); // sum->relu
+    case 1: return is_eltwise(0) || is_sum(0); // sum OR eltwise
+    case 2: return is_sum(0) && is_eltwise(1); // sum -> eltwise
     default: return false;
     }
 
@@ -391,9 +362,9 @@ status_t jit_uni_dw_conv_fwd_kernel_f32<isa>::init_conf(jit_conv_conf_t &jcp,
     const auto &p = attr.post_ops_;
     jcp.with_sum = p.find(primitive_kind::sum) != -1;
     const int eltwise_ind = p.find(primitive_kind::eltwise);
-    jcp.with_relu = eltwise_ind != -1;
-    jcp.relu_negative_slope = jcp.with_relu
-                            ? p.entry_[eltwise_ind].eltwise.alpha : 0.f;
+    jcp.with_eltwise = eltwise_ind != -1;
+    if (jcp.with_eltwise)
+        jcp.eltwise = p.entry_[eltwise_ind].eltwise;
 
     bool ok_to_pad_channels = true
         && jcp.oc == jcp.ngroups

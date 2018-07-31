@@ -18,9 +18,10 @@
 #define JIT_SSE42_1x1_CONV_KERNEL_F32_HPP
 
 #include "c_types_map.hpp"
+#include "cpu_memory.hpp"
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
-#include "cpu_memory.hpp"
+#include "jit_uni_eltwise.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -28,9 +29,19 @@ namespace cpu {
 
 struct jit_sse42_1x1_conv_kernel_f32: public jit_generator {
     jit_sse42_1x1_conv_kernel_f32(jit_1x1_conv_conf_t ajcp,
-            const primitive_attr_t &attr): jcp(ajcp), attr_(attr) {
+            const primitive_attr_t &attr)
+        : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr)
+    {
+        if (jcp.with_eltwise)
+            eltwise_injector_ = new jit_uni_eltwise_injector_f32<sse42>(this,
+                    jcp.eltwise);
+
         this->generate();
         jit_ker = (void (*)(jit_1x1_conv_call_s *))this->getCode();
+    }
+
+    ~jit_sse42_1x1_conv_kernel_f32() {
+        delete eltwise_injector_;
     }
 
     static bool post_ops_ok(jit_1x1_conv_conf_t &jcp,
@@ -76,9 +87,8 @@ private:
     int stack_space_needed = 8;
 
     xmm_t reg_bcast = xmm_t(15);
-    Xbyak::Xmm xmm_relu_ns = Xbyak::Xmm(14);
-    Xbyak::Xmm xmm_res_ns = Xbyak::Xmm(13);
-    Xbyak::Xmm xmask = Xbyak::Xmm(0);
+
+    jit_uni_eltwise_injector_f32<sse42> *eltwise_injector_;
 
     void generate_bcast_loop(int load_loop_blk);
     void generate_reduce_loop(int load_loop_blk, int ur);

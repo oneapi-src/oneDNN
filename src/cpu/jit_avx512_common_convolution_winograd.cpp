@@ -691,7 +691,7 @@ void output_transform_data(int image, const jit_conv_winograd_conf_t &jcp,
                                     O[j][i][v] = true
                                         && with_relu_presum && O[j][i][v] < 0.f
                                                 ? O[j][i][v]
-                                                * jcp.relu_negative_slope
+                                                * jcp.eltwise.alpha
                                                 : O[j][i][v];
                                 }
                             }
@@ -775,7 +775,7 @@ void output_transform_tileblock_data(int tile_block,
                                     O[j][i][v] = true
                                         && with_relu_presum && O[j][i][v] < 0.f
                                                 ? O[j][i][v]
-                                                * jcp.relu_negative_slope
+                                                * jcp.eltwise.alpha
                                                 : O[j][i][v];
 
                                 }
@@ -1058,18 +1058,18 @@ void _jit_avx512_common_convolution_winograd_t<is_fwd>::_execute_data_W_S_G_D(
     const int outh = is_fwd ? jcp.oh : jcp.ih;
     const int outw = is_fwd ? jcp.ow : jcp.iw;
 
-    /* Note that jcp.with_relu is true for both fused conv+relu primitive
+    /* Note that jcp.with_eltwise is true for both fused conv+relu primitive
      * and conv primitive with PostOps with relu before sum
      * (PostOps relu after sum is handled later) */
     auto output_transform = jcp.with_bias
-            ? (jcp.with_relu
+            ? (jcp.with_eltwise
                 ? (jcp.with_sum
                     ? output_transform_data<is_fwd, true, true, true>
                     : output_transform_data<is_fwd, true, true, false>)
                 : (jcp.with_sum
                     ? output_transform_data<is_fwd, true, false, true>
                     : output_transform_data<is_fwd, true, false, false>))
-            : (jcp.with_relu
+            : (jcp.with_eltwise
                 ? (jcp.with_sum
                     ? output_transform_data<is_fwd, false, true, true>
                     : output_transform_data<is_fwd, false, true, false>)
@@ -1213,18 +1213,18 @@ void _jit_avx512_common_convolution_winograd_t<is_fwd>::_execute_data_W_SGD(
     const int outh = is_fwd ? jcp.oh : jcp.ih;
     const int outw = is_fwd ? jcp.ow : jcp.iw;
 
-    /* Note that jcp.with_relu is true for both fused conv+relu primitive
+    /* Note that jcp.with_eltwise is true for both fused conv+relu primitive
      * and conv primitive with PostOps with relu before sum
      * (PostOps relu after sum is handled later) */
     auto output_transform_tileblock = jcp.with_bias
-            ? (jcp.with_relu
+            ? (jcp.with_eltwise
                 ? (jcp.with_sum
                     ? output_transform_tileblock_data<is_fwd, true, true, true>
                     : output_transform_tileblock_data<is_fwd, true, true, false>)
                 : (jcp.with_sum
                     ? output_transform_tileblock_data<is_fwd, true, false, true>
                     : output_transform_tileblock_data<is_fwd, true, false, false>))
-            : (jcp.with_relu
+            : (jcp.with_eltwise
                 ? (jcp.with_sum
                     ? output_transform_tileblock_data<is_fwd, false, true, true>
                     : output_transform_tileblock_data<is_fwd, false, true, false>)

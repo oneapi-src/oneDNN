@@ -29,6 +29,20 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
+struct ref_eltwise_scalar_fwd_t {
+public:
+    ref_eltwise_scalar_fwd_t(alg_kind_t alg, float alpha, float beta);
+
+    // note that eltwise.scale is ignored
+    ref_eltwise_scalar_fwd_t(const post_ops_t::entry_t::eltwise_t &eltwise);
+
+    float compute_scalar(float s);
+
+    const alg_kind_t alg_;
+    const float alpha_;
+    const float beta_;
+};
+
 template <impl::data_type_t data_type>
 struct ref_eltwise_fwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_eltwise_fwd_pd_t {

@@ -226,22 +226,6 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(int load_loop_blk,
         L(init_done);
     };
 
-    auto vcmp = [=](Xbyak::Opmask kmask,
-        Xbyak::Zmm zmm_src1, Xbyak::Zmm zmm_src2, const unsigned char cmp) {
-        if (jcp.ver == ver_4vnni)
-            vpcmpd(kmask, zmm_src1, zmm_src2, cmp);
-        else
-            vcmpps(kmask, zmm_src1, zmm_src2, cmp);
-    };
-
-    auto vmul = [=](Xbyak::Zmm zmm_dst, Xbyak::Opmask kmask,
-                     Xbyak::Zmm zmm_src1, Xbyak::Zmm zmm_src2) {
-        if (jcp.ver == ver_4vnni)
-            vpmulld(zmm_dst | kmask, zmm_src1, zmm_src2);
-        else
-            vmulps(zmm_dst | kmask, zmm_src1, zmm_src2);
-    };
-
     auto vadd = [=](const Xmm& x1, const Xmm& x2, const Operand& op) {
         if (jcp.ver == ver_4vnni)
             vpaddd(x1, x2, op);
@@ -264,30 +248,26 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(int load_loop_blk,
             }
 
         L(store_noadd);
-        if (jcp.with_relu) {
-            assert(ur * load_loop_blk <= 30);
-
-            Label store_norelu;
+        if (jcp.with_eltwise) {
+            Label store_noeltwise;
             test(reg_reduce_pos_flag, FLAG_REDUCE_LAST);
-            jz(store_norelu, T_NEAR);
+            jz(store_noeltwise, T_NEAR);
 
-            vpxord(zmm_zero, zmm_zero, zmm_zero);
-            if (jcp.relu_negative_slope == 0) {
-                zmm_relu_ns = zmm_zero;
-            } else {
-                mov(imm_addr64, float2int((float)jcp.relu_negative_slope));
-                vmovq(xmm_relu_ns, imm_addr64);
-                vbroadcastss(zmm_relu_ns, xmm_relu_ns);
-            }
+            if (jcp.ver == ver_4vnni) {
+                zmm_t zmm_zero = vreg_bcast;
+                vpxord(zmm_zero, zmm_zero, zmm_zero);
 
-            for (int i_ur = 0; i_ur < ur; ++i_ur)
+                for (int i_ur = 0; i_ur < ur; ++i_ur)
                 for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
-                    vcmp(vmask, vreg_accum(i_load, i_ur), zmm_zero,
-                        _cmp_lt_os);
-                    vmul(vreg_accum(i_load, i_ur), vmask,
-                        vreg_accum(i_load, i_ur), zmm_relu_ns);
+                    Zmm zmm = vreg_accum(i_load, i_ur);
+                    vpcmpd(k1, zmm, zmm_zero, _cmp_lt_os);
+                    vpmulld(zmm | k1, zmm, zmm_zero);
+                }
+            } else {
+                eltwise_injector_->compute_vector_range(0, ur * load_loop_blk);
             }
-            L(store_norelu);
+
+            L(store_noeltwise);
         }
 
         auto store_output = [=](bool output_is_aligned) {
@@ -519,7 +499,7 @@ void jit_avx512_common_1x1_conv_kernel::generate()
     mov(reg_reduce_loop_work, ptr[param1 + GET_OFF(reduce_dim)]);
     mov(reg_reduce_pos_flag, ptr[param1 + GET_OFF(first_last_flag)]);
     if (one_of(jcp.prop_kind, forward_training, forward_inference))
-        mov(reg_relu_ns, reinterpret_cast<size_t>(&jcp.relu_negative_slope));
+        mov(reg_relu_ns, reinterpret_cast<size_t>(&jcp.eltwise.alpha));
     if (jcp.prop_kind == backward_weights)
         mov(reg_output_stride, ptr[param1 + GET_OFF(output_stride)]);
 
@@ -614,19 +594,22 @@ void jit_avx512_common_1x1_conv_kernel::generate()
     add(rsp, stack_space_needed);
 
     postamble();
+
+    if (jcp.with_eltwise)
+        eltwise_injector_->prepare_table();
 }
 
 bool jit_avx512_common_1x1_conv_kernel::post_ops_ok(
         jit_1x1_conv_conf_t &jcp, const primitive_attr_t &attr) {
     const auto &p = attr.post_ops_;
 
-    auto is_relu = [&](int idx) { return p.entry_[idx].is_relu(); };
+    auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(); };
     auto is_sum = [&](int idx) { return p.entry_[idx].is_sum(); };
 
     switch (p.len_) {
     case 0: return true; // no post_ops
-    case 1: return is_relu(0) || is_sum(0); // sum OR relu
-    case 2: return is_sum(0) && is_relu(1); // sum->relu
+    case 1: return is_eltwise(0) || is_sum(0); // sum OR eltwise
+    case 2: return is_sum(0) && is_eltwise(1); // sum -> eltwise
     default: return false;
     }
 
@@ -689,14 +672,12 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
 
     const auto &p = attr.post_ops_;
     jcp.with_sum = p.find(primitive_kind::sum) != -1;
-    jcp.with_relu = p.find(primitive_kind::eltwise) != -1;
-    jcp.relu_negative_slope = 0.f;
-
-    if (everyone_is(1, jcp.with_relu,
-                    src_d.data_type() == data_type::s16,
-                    weights_d.data_type() == data_type::s16,
-                    dst_d.data_type() == data_type::s32))
-        return status::unimplemented;
+    const int eltwise_ind = p.find(primitive_kind::eltwise);
+    jcp.with_eltwise = eltwise_ind != -1;
+    if (jcp.with_eltwise) {
+        jcp.eltwise = p.entry_[eltwise_ind].eltwise;
+        if (dst_d.data_type() == data_type::s32) return status::unimplemented;
+    }
 
     bool args_ok = true
         && jcp.ngroups == 1

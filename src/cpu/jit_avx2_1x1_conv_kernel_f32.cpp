@@ -171,7 +171,7 @@ void jit_avx2_1x1_conv_kernel_f32::generate_reduce_loop(
     };
 
     auto store = [=]() {
-        Label store_done, store_noadd;
+        Label store_noadd;
 
         if (!jcp.with_sum) {
             test(reg_reduce_pos_flag, FLAG_REDUCE_FIRST);
@@ -186,32 +186,15 @@ void jit_avx2_1x1_conv_kernel_f32::generate_reduce_loop(
 
         L(store_noadd);
 
-        if (jcp.with_relu) {
+        if (jcp.with_eltwise) {
             assert(ur * load_loop_blk < 14);
 
             Label store_norelu;
             test(reg_reduce_pos_flag, FLAG_REDUCE_LAST);
             jz(store_norelu, T_NEAR);
 
-            vxorps(vzero, vzero, vzero);
-            if (jcp.relu_negative_slope == 0) {
-               ymm_relu_ns = vzero;
-            } else {
-               mov(imm_addr64, float2int(jcp.relu_negative_slope));
-               movq(xmm_relu_ns, imm_addr64);
-               uni_vbroadcastss(ymm_relu_ns, xmm_relu_ns);
-            }
+            eltwise_injector_->compute_vector_range(0, ur * load_loop_blk);
 
-            for (int j = 0; j < ur; ++j)
-                for (int i = 0; i < load_loop_blk; ++i) {
-                    vcmpgtps(vmask, vreg_accum(i, j), vzero);
-                    vmulps(ymm_res_ns, ymm_relu_ns, vreg_accum(i, j));
-                    vblendvps(vreg_accum(i, j), ymm_res_ns,
-                             vreg_accum(i, j), vmask);
-                    vmovups(output_ptr(i, j), vreg_accum(i, j));
-                }
-
-            jmp(store_done, T_NEAR);
             L(store_norelu);
         }
 
@@ -219,8 +202,6 @@ void jit_avx2_1x1_conv_kernel_f32::generate_reduce_loop(
             for (int i = 0; i < load_loop_blk; ++i) {
                 vmovups(output_ptr(i, j), vreg_accum(i, j));
             }
-
-        L(store_done);
     };
 
     auto fma_block = [=](bool last_block) {
@@ -230,9 +211,8 @@ void jit_avx2_1x1_conv_kernel_f32::generate_reduce_loop(
                     if (mayiuse(avx2))
                         vfmadd231ps(vreg_accum(i, j), vreg_load(i), vreg_bcast);
                     else { // Intel(R) Advanced Vector Extensions (Intel(R) AVX) support
-                        auto tmp = vmask;
-                        vmulps(tmp, vreg_bcast, vreg_load(i));
-                        vaddps(vreg_accum(i, j), vreg_accum(i, j), tmp);
+                        vmulps(vtmp, vreg_bcast, vreg_load(i));
+                        vaddps(vreg_accum(i, j), vreg_accum(i, j), vtmp);
                     }
                     if (j == ur - 1 && !(last_block
                                 && u == jcp.reduce_loop_unroll - 1))
@@ -421,19 +401,22 @@ void jit_avx2_1x1_conv_kernel_f32::generate()
         add(rsp, 8);
 
     postamble();
+
+    if (jcp.with_eltwise)
+        eltwise_injector_->prepare_table();
 }
 
 bool jit_avx2_1x1_conv_kernel_f32::post_ops_ok(
         jit_1x1_conv_conf_t &jcp, const primitive_attr_t &attr) {
     const auto &p = attr.post_ops_;
 
-    auto is_relu = [&](int idx) { return p.entry_[idx].is_relu(); };
+    auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(); };
     auto is_sum = [&](int idx) { return p.entry_[idx].is_sum(); };
 
     switch (p.len_) {
     case 0: return true; // no post_ops
-    case 1: return is_relu(0) || is_sum(0); // sum OR relu
-    case 2: return is_sum(0) && is_relu(1); // sum->relu
+    case 1: return is_eltwise(0) || is_sum(0); // sum OR eltwise
+    case 2: return is_sum(0) && is_eltwise(1); // sum -> eltwise
     default: return false;
     }
 
@@ -486,8 +469,13 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
 
     const auto &p = attr.post_ops_;
     jcp.with_sum = p.find(primitive_kind::sum) != -1;
-    jcp.with_relu = p.find(primitive_kind::eltwise) != -1;
-    jcp.relu_negative_slope = 0;
+    const int eltwise_ind = p.find(primitive_kind::eltwise);
+    jcp.with_eltwise = eltwise_ind != -1;
+    if (jcp.with_eltwise) {
+        jcp.eltwise = p.entry_[eltwise_ind].eltwise;
+        if (!mayiuse(avx2) && jcp.eltwise.alg != alg_kind::eltwise_relu)
+            return status::unimplemented;
+    }
 
     const int is_bwd_d = jcp.prop_kind == backward_data;
     memory_format_t weights_format = with_groups

@@ -101,7 +101,7 @@ status_t jit_avx512_core_u8s8s32x_deconv_fwd_kernel::init_conf(jit_conv_conf_t &
     jcp.stride_h = cd.strides[0];
     jcp.stride_w = cd.strides[1];
     jcp.src_fmt = src_d.format();
-    jcp.with_relu = false;/*TODO: support post-ops*/
+    jcp.with_eltwise = false; /* TODO: support post-ops */
 
     if (jcp.is_depthwise) {
         jcp.ch_block = 16;

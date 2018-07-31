@@ -339,7 +339,8 @@ static void fill_data(const size_t size, data_t *data, double sparsity = 1.,
 }
 
 template <typename data_t>
-static void compare_data(mkldnn::memory& ref, mkldnn::memory& dst)
+static void compare_data(mkldnn::memory& ref, mkldnn::memory& dst,
+        data_t threshold = (data_t)1e-4)
 {
     using data_type = mkldnn::memory::data_type;
 
@@ -374,8 +375,8 @@ static void compare_data(mkldnn::memory& ref, mkldnn::memory& dst)
 
         if (data_traits<data_t>::data_type == data_type::f32) {
             data_t diff = got - ref;
-            data_t e = (std::abs(ref) > (data_t)1e-4) ? diff / ref : diff;
-            EXPECT_NEAR(e, (data_t)0.0, (data_t)1e-4)
+            data_t e = (std::abs(ref) > threshold) ? diff / ref : diff;
+            EXPECT_NEAR(e, (data_t)0.0, threshold)
                 << "Index: " << i << " Total: " << num;
         } else {
             EXPECT_EQ(ref, got) << "Index: " << i << " Total: " << num;
@@ -474,6 +475,19 @@ struct test_convolution_params_t {
     const mkldnn::engine::kind engine_kind;
     mkldnn::algorithm aalgorithm;
     const float relu_negative_slope;
+    test_convolution_formats_t formats;
+    test_convolution_attr_t attr;
+    test_convolution_sizes_t sizes;
+    bool expect_to_fail;
+    mkldnn_status_t expected_status;
+};
+
+struct test_convolution_eltwise_params_t {
+    const mkldnn::algorithm alg;
+    const mkldnn::engine::kind engine_kind;
+    mkldnn::algorithm aalgorithm;
+    const float eltwise_alpha;
+    const float eltwise_beta;
     test_convolution_formats_t formats;
     test_convolution_attr_t attr;
     test_convolution_sizes_t sizes;

@@ -123,7 +123,7 @@ void jit_avx2_convolution_fwd_t::execute_forward() {
                         par_conv.flags |= FLAG_IC_FIRST;
                     }
 
-                    if (jcp.with_relu && icb + 1 == jcp.nb_ic) {
+                    if (jcp.with_eltwise && icb + 1 == jcp.nb_ic) {
                         par_conv.flags |= FLAG_IC_LAST;
                     }
 
@@ -157,6 +157,9 @@ void jit_avx2_convolution_fwd_t::execute_forward() {
     }
 
     parallel(0, ker);
+
+    if (conf_.wants_zero_pad_dst())
+        output_memory_primitive(0)->zero_pad();
 }
 
 void jit_avx2_convolution_bwd_data_t::execute_backward_data() {

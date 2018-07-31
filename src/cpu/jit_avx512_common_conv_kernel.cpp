@@ -94,7 +94,7 @@ void jit_avx512_common_conv_fwd_kernel::prepare_output(int ur_w)
 
 void jit_avx512_common_conv_fwd_kernel::store_output(int ur_w)
 {
-    Label no_update_label, store_label, relu_label;
+    Label no_update_label, store_label, eltwise_label;
 
     mov(reg_channel, ptr[param1 + GET_OFF(channel)]);
     if (jcp.with_bias) {
@@ -115,10 +115,10 @@ void jit_avx512_common_conv_fwd_kernel::store_output(int ur_w)
         }
 
     if (!jcp.with_sum) {
-        jmp(relu_label, T_NEAR);
+        jmp(eltwise_label, T_NEAR);
     } else {
         cmp(reg_channel, 0);
-        jne(relu_label, T_NEAR);
+        jne(eltwise_label, T_NEAR);
     }
 
     L(no_update_label);
@@ -133,25 +133,31 @@ void jit_avx512_common_conv_fwd_kernel::store_output(int ur_w)
         }
     }
 
-    L(relu_label);
-    if (jcp.with_relu) {
-        vpxord(zmm_zero, zmm_zero, zmm_zero);
-        if (jcp.relu_negative_slope == 0 || jcp.ver == ver_4vnni) {
-            zmm_relu_ns = zmm_zero;
-        } else {
-            mov(imm_addr64, float2int(jcp.relu_negative_slope));
-            vmovq(xmm_relu_ns, imm_addr64);
-            vbroadcastss(zmm_relu_ns, xmm_relu_ns);
-        }
+    L(eltwise_label);
+    if (jcp.with_eltwise) {
         cmp(reg_channel, jcp.nb_ic - 1);
         jl(store_label, T_NEAR);
-        for (int k = 0; k < jcp.nb_oc_blocking; k++)
-            for (int j = 0; j < ur_w; j++){
-                Opmask kmask = Opmask(7);
+
+        if (jcp.ver == ver_4vnni || jcp.ver == ver_vnni) {
+            Xbyak::Zmm zmm_zero = zmm_wei;
+            vpxord(zmm_zero, zmm_zero, zmm_zero);
+
+            for (int k = 0; k < jcp.nb_oc_blocking; k++)
+            for (int j = 0; j < ur_w; j++) {
                 Zmm zmm = zmm_out(j, k);
-                vcmp(kmask, zmm, zmm_zero, _cmp_lt_os);
-                vmul(zmm, kmask, zmm, zmm_relu_ns);
+                vpcmpd(k1, zmm, zmm_zero, _cmp_lt_os);
+                vpmulld(zmm | k1, zmm, zmm_zero);
             }
+        } else {
+            if (ur_w == jcp.ur_w) {
+                eltwise_injector_->compute_vector_range(0,
+                        jcp.nb_oc_blocking * jcp.ur_w);
+            } else {
+                for (int k = 0; k < jcp.nb_oc_blocking; k++)
+                    eltwise_injector_->compute_vector_range(k * jcp.ur_w,
+                            k * jcp.ur_w + ur_w);
+            }
+        }
     }
 
     L(store_label);
@@ -1258,19 +1264,22 @@ void jit_avx512_common_conv_fwd_kernel::generate()
         L(end_label);
     }
     postamble();
+
+    if (jcp.with_eltwise)
+        eltwise_injector_->prepare_table();
 }
 
 bool jit_avx512_common_conv_fwd_kernel::post_ops_ok(
         jit_conv_conf_t &jcp, const primitive_attr_t &attr) {
     const auto &p = attr.post_ops_;
 
-    auto is_relu = [&](int idx) { return p.entry_[idx].is_relu(); };
+    auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(); };
     auto is_sum = [&](int idx) { return p.entry_[idx].is_sum(); };
 
     switch (p.len_) {
     case 0: return true; // no post_ops
-    case 1: return is_relu(0) || is_sum(0); // sum OR relu
-    case 2: return is_sum(0) && is_relu(1); // sum->relu
+    case 1: return is_eltwise(0) || is_sum(0); // sum OR eltwise
+    case 2: return is_sum(0) && is_eltwise(1); // sum -> eltwise
     default: return false;
     }
 
@@ -1359,14 +1368,12 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
 
     const auto &p = attr.post_ops_;
     jcp.with_sum = p.find(primitive_kind::sum) != -1;
-    jcp.with_relu = p.find(primitive_kind::eltwise) != -1;
-    jcp.relu_negative_slope = 0.f;
-
-    if (everyone_is(1, jcp.with_relu, jcp.relu_negative_slope == 0,
-                    src_d.data_type() == data_type::s16,
-                    weights_d.data_type() == data_type::s16,
-                    dst_d.data_type() == data_type::s32))
-        return status::unimplemented;
+    const int eltwise_ind = p.find(primitive_kind::eltwise);
+    jcp.with_eltwise = eltwise_ind != -1;
+    if (jcp.with_eltwise) {
+        jcp.eltwise = p.entry_[eltwise_ind].eltwise;
+        if (dst_d.data_type() == data_type::s32) return status::unimplemented;
+    }
 
     auto src_format = jcp.is_1stconv
         ? pick(ndims - 3, ncw, nchw, ncdhw)

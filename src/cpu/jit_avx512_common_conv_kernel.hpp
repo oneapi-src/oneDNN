@@ -22,6 +22,7 @@
 
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
+#include "jit_uni_eltwise.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -30,10 +31,19 @@ namespace cpu {
 struct jit_avx512_common_conv_fwd_kernel : public jit_generator {
 
     jit_avx512_common_conv_fwd_kernel(jit_conv_conf_t ajcp,
-            const primitive_attr_t &attr) : jcp(ajcp), attr_(attr)
+            const primitive_attr_t &attr)
+        : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr)
     {
+        if (jcp.with_eltwise)
+            eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(
+                    this, jcp.eltwise);
+
         generate();
         jit_ker = (void (*)(jit_conv_call_s *))getCode();
+    }
+
+    ~jit_avx512_common_conv_fwd_kernel() {
+        delete eltwise_injector_;
     }
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_conv_fwd_kernel)
@@ -125,10 +135,9 @@ private:
     }
 
     Xbyak::Reg64 imm_addr64 = r15;
-    Xbyak::Xmm xmm_relu_ns = Xbyak::Xmm(30);
-    Xbyak::Zmm zmm_relu_ns = Xbyak::Zmm(30);
-    Xbyak::Zmm zmm_zero = Xbyak::Zmm(31);
     Xbyak::Zmm zmm_wei = Xbyak::Zmm(31);
+
+    jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
 
     inline void prepare_output(int ur_w);
     inline void store_output(int ur_w);
@@ -154,22 +163,6 @@ private:
             vpaddd(zmm, zmm, op);
         else
             vaddps(zmm, zmm, op);
-    }
-
-    inline void vcmp(Xbyak::Opmask kmask,
-        Xbyak::Zmm zmm_src1, Xbyak::Zmm zmm_src2, const unsigned char cmp) {
-        if (jcp.ver == ver_4vnni || jcp.ver == ver_vnni)
-            vpcmpd(kmask, zmm_src1, zmm_src2, cmp);
-        else
-            vcmpps(kmask, zmm_src1, zmm_src2, cmp);
-    }
-
-    inline void vmul(Xbyak::Zmm zmm_dst, Xbyak::Opmask kmask,
-                     Xbyak::Zmm zmm_src1, Xbyak::Zmm zmm_src2) {
-        if (jcp.ver == ver_4vnni || jcp.ver == ver_vnni)
-            vpmulld(zmm_dst | kmask, zmm_src1, zmm_src2);
-        else
-            vmulps(zmm_dst | kmask, zmm_src1, zmm_src2);
     }
 
     inline size_t get_output_offset(int oi, int n_oc_block) {

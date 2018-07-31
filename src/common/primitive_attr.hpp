@@ -78,23 +78,31 @@ private:
 
 struct mkldnn_post_ops: public mkldnn::impl::c_compatible {
     struct entry_t {
+        struct eltwise_t {
+            mkldnn::impl::alg_kind_t alg;
+            float scale, alpha, beta;
+        };
+
         mkldnn::impl::primitive_kind_t kind;
         union {
             struct { float scale; } sum;
-            struct {
-                mkldnn::impl::alg_kind_t alg;
-                float scale, alpha, beta;
-            } eltwise;
+            eltwise_t eltwise;
         };
+
+        bool is_eltwise(bool require_scale_one = true) const {
+            using namespace mkldnn::impl;
+            return kind == primitive_kind::eltwise
+                && IMPLICATION(require_scale_one, eltwise.scale == 1.f);
+        }
 
         bool is_relu(bool require_scale_one = true,
                 bool require_nslope_zero = true) const {
             using namespace mkldnn::impl;
-            return kind == primitive_kind::eltwise
-                && IMPLICATION(require_scale_one, eltwise.scale == 1.f)
+            return is_eltwise(require_scale_one)
                 && eltwise.alg == alg_kind::eltwise_relu
                 && IMPLICATION(require_nslope_zero, eltwise.alpha == 0.f);
         }
+
         bool is_sum(bool require_scale_one = true) const {
             using namespace mkldnn::impl;
             return kind == primitive_kind::sum

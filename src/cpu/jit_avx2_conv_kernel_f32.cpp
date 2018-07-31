@@ -76,9 +76,8 @@ void jit_avx2_conv_fwd_kernel_f32::oh_step_unroll_kw(int ur_w,
                         vfmadd231ps(Ymm(ur_w * ii + jj),
                                 Ymm(oc_blocks * ur_w + jj), ymm15);
                     else { // Intel(R) Advanced Vector Extensions (Intel(R) AVX) support
-                        Ymm tmp = ymask;
-                        vmulps(tmp, ymm15, Ymm(oc_blocks * ur_w + jj));
-                        vaddps(Ymm(ur_w * ii + jj), Ymm(ur_w * ii + jj), tmp);
+                        vmulps(ytmp, ymm15, Ymm(oc_blocks * ur_w + jj));
+                        vaddps(Ymm(ur_w * ii + jj), Ymm(ur_w * ii + jj), ytmp);
                     }
             }
         }
@@ -130,9 +129,8 @@ void jit_avx2_conv_fwd_kernel_f32::oh_step_nopad(int ur_w,
                         vfmadd231ps(Ymm(ur_w * ii + jj),
                                 Ymm(oc_blocks * ur_w + jj), ymm15);
                     else { // Intel AVX support
-                        Ymm tmp = ymask;
-                        vmulps(tmp, ymm15, Ymm(oc_blocks * ur_w + jj));
-                        vaddps(Ymm(ur_w * ii + jj), Ymm(ur_w * ii + jj), tmp);
+                        vmulps(ytmp, ymm15, Ymm(oc_blocks * ur_w + jj));
+                        vaddps(Ymm(ur_w * ii + jj), Ymm(ur_w * ii + jj), ytmp);
                     }
             }
         }
@@ -275,40 +273,17 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(int ur_w,
         pop(reg_output);
     }
 
+    Label regular_store;
 
-    Label done, regular_store;
-
-    if (this->jcp.with_relu) {
-        assert(oc_blocks * ur_w < 15);
+    if (jcp.with_eltwise) {
         test(reg_ci_flag, FLAG_IC_LAST);
         je(regular_store, T_NEAR);
 
-        vxorps(yzero, yzero, yzero);
-        if (jcp.relu_negative_slope == 0) {
-           ymm_relu_ns = yzero;
-        } else {
-           mov(imm_addr64, float2int(jcp.relu_negative_slope));
-           movq(xmm_relu_ns, imm_addr64);
-           uni_vbroadcastss(ymm_relu_ns, xmm_relu_ns);
-        }
+        eltwise_injector_->compute_vector_range(0, oc_blocks * ur_w);
 
-        for (int ii = 0; ii < oc_blocks; ii++) {
-            for (int jj = 0; jj < ur_w; jj++) {
-                const size_t o_off = sizeof(float) * ((size_t)ii * od * oh * ow
-                        + jj) * oc_blk;
-                Ymm reg_out = Ymm(ur_w * ii + jj);
-
-                vcmpgtps(ymask, reg_out, yzero);
-                vmulps(ymm_res_ns, ymm_relu_ns, reg_out);
-                vblendvps(reg_out, ymm_res_ns, reg_out, ymask);
-                vmovups(make_safe_addr(reg_output, o_off, reg_long_offt),
-                        reg_out);
-            }
-        }
-
-        jmp(done);
         L(regular_store);
     }
+
     for (int ii = 0; ii < oc_blocks; ii++) {
         for (int jj = 0; jj < ur_w; jj++) {
             const size_t o_off
@@ -317,7 +292,6 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(int ur_w,
             vmovups(make_safe_addr(reg_output, o_off, reg_long_offt), reg_out);
         }
     }
-    L(done);
 }
 
 inline void jit_avx2_conv_fwd_kernel_f32::solve_common(
@@ -419,19 +393,22 @@ void jit_avx2_conv_fwd_kernel_f32::generate()
     }
 
     this->postamble();
+
+    if (jcp.with_eltwise)
+        eltwise_injector_->prepare_table();
 }
 
 bool jit_avx2_conv_fwd_kernel_f32::post_ops_ok(
         jit_conv_conf_t &jcp, const primitive_attr_t &attr) {
     const auto &p = attr.post_ops_;
 
-    auto is_relu = [&](int idx) { return p.entry_[idx].is_relu(); };
+    auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(); };
     auto is_sum = [&](int idx) { return p.entry_[idx].is_sum(); };
 
     switch (p.len_) {
     case 0: return true; // no post_ops
-    case 1: return is_relu(0) || is_sum(0); // sum OR relu
-    case 2: return is_sum(0) && is_relu(1); // sum->relu
+    case 1: return is_eltwise(0) || is_sum(0); // sum OR eltwise
+    case 2: return is_sum(0) && is_eltwise(1); // sum -> eltwise
     default: return false;
     }
 
@@ -490,8 +467,13 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
 
     const auto &p = attr.post_ops_;
     jcp.with_sum = p.find(primitive_kind::sum) != -1;
-    jcp.with_relu = p.find(primitive_kind::eltwise) != -1;
-    jcp.relu_negative_slope = 0.f;
+    const int eltwise_ind = p.find(primitive_kind::eltwise);
+    jcp.with_eltwise = eltwise_ind != -1;
+    if (jcp.with_eltwise) {
+        jcp.eltwise = p.entry_[eltwise_ind].eltwise;
+        if (!mayiuse(avx2) && jcp.eltwise.alg != alg_kind::eltwise_relu)
+            return status::unimplemented;
+    }
 
     const int simd_w = 8;
     const bool flat = jcp.ic < simd_w;

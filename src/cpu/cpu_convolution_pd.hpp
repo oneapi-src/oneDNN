@@ -55,11 +55,24 @@ struct cpu_convolution_fwd_pd_t: public convolution_fwd_pd_t {
         return nullptr;
     }
 
-    bool want_padded_bias() const {
-        if (!this->with_bias()) return false;
+    bool has_padded_dst() const {
         memory_desc_wrapper dst_d(&dst_pd_);
         if (!dst_d.is_blocking_desc()) return false;
         return this->OC() != dst_d.blocking_desc().padding_dims[1];
+    }
+
+    bool want_padded_bias() const {
+        if (!this->with_bias()) return false;
+        return has_padded_dst();
+    }
+
+    bool wants_zero_pad_dst(bool jit_impl = true) const {
+        if (!has_padded_dst()) return false;
+        const auto &po = this->attr()->post_ops_;
+        int idx;
+        if ((idx = po.find(primitive_kind::eltwise)) == -1) return false;
+        return !math::eltwise_fwd_preserves_zero(po.entry_[idx].eltwise.alg,
+                jit_impl);
     }
 
 protected:

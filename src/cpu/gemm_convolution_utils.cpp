@@ -366,9 +366,6 @@ void init_conf(
         = cd.bias_desc.format != memory_format::undef
         || cd.diff_bias_desc.format != memory_format::undef;
 
-    jcp.with_relu = false;
-    jcp.relu_negative_slope = -1.0;
-
     jcp.is = jcp.ih * jcp.iw;
     jcp.os = jcp.oh * jcp.ow;
     jcp.ks = jcp.kh * jcp.kw * jcp.kd;

@@ -169,6 +169,8 @@ public:
         _cmp_neq_uq = 4u,
         _cmp_nlt_us = 5u,
         _cmp_nle_us = 6u,
+
+        _op_floor = 1u,
     };
 
     Xbyak::Reg64 param1 = abi_param1;

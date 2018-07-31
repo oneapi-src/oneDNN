@@ -19,6 +19,8 @@
 
 #include <stdint.h>
 
+#include "common/primitive_attr.hpp"
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {
@@ -63,9 +65,11 @@ struct jit_conv_conf_t {
     int stride_d, stride_h, stride_w;
     int dilate_d, dilate_h, dilate_w;
     memory_format_t src_fmt;
-    bool with_bias, with_relu;
-    float relu_negative_slope;
+    bool with_bias;
     bool with_sum;
+    bool with_eltwise;
+
+    post_ops_t::entry_t::eltwise_t eltwise;
 
     int idp, ihp, iwp, ohp, owp;
     int nb_ic, ic_block;
@@ -150,9 +154,7 @@ struct jit_conv_conf_2x3_wino_t {
     int typesize_acc;
 
     memory_format_t src_fmt;
-    bool with_bias, with_relu;
-    float relu_negative_slope;
-    bool with_sum;
+    bool with_bias;
     bool small_mb;
 
     int xb, yb;
@@ -337,9 +339,11 @@ struct jit_1x1_conv_conf_t {
     int kh, kw;
     int stride_h, stride_w;
     memory_format_t src_fmt;
-    bool with_bias, with_relu;
-    float relu_negative_slope;
+    bool with_bias;
     bool with_sum;
+    bool with_eltwise;
+
+    post_ops_t::entry_t::eltwise_t eltwise;
 
     int is, os;
     int ic_block, oc_block;
@@ -390,8 +394,7 @@ struct jit_gemm_conv_conf_t {
     int stride_h, stride_w, stride_d;
     int dilate_h, dilate_w, dilate_d;
     memory_format_t src_fmt;
-    bool with_bias, with_relu;
-    float relu_negative_slope;
+    bool with_bias;
 
     int is, os, ks;
     int ic_block, oc_block;

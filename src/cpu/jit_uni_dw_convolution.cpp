@@ -132,6 +132,9 @@ void _jit_uni_dw_convolution_fwd_t<isa>::execute_forward() {
             kernel_->jit_ker(&par_conv);
         }
     });
+
+    if (conf_.wants_zero_pad_dst())
+        output_memory_primitive(0)->zero_pad();
 }
 
 template void _jit_uni_dw_convolution_fwd_t<avx512_common>::execute_forward();

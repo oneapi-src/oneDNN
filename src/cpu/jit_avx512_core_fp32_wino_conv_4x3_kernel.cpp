@@ -643,7 +643,7 @@ void _jit_avx512_core_fp32_wino_conv_4x3_data_kernel
     int outh = is_fwd ? jcp.oh : jcp.ih;
     bool not_tiled = jcp.sched_policy == WSCHED_DATA_W_S_G_D;
     bool with_bias = jcp.with_bias;
-    bool with_relu = jcp.with_relu;
+    bool with_relu = jcp.with_eltwise;
     bool with_relu_postsum = jcp.with_relu_postsum;
     bool with_sum = jcp.with_sum;
 
@@ -731,10 +731,10 @@ void _jit_avx512_core_fp32_wino_conv_4x3_data_kernel
                 }
                 if (with_relu) {
                     Opmask kmask = Opmask(7);
-                    if (jcp.relu_negative_slope == 0) {
+                    if (jcp.eltwise.alpha == 0) {
                         zmm_relu_ns = zmm_zero;
                     } else {
-                        mov(imm_addr64, float2int(jcp.relu_negative_slope));
+                        mov(imm_addr64, float2int(jcp.eltwise.alpha));
                         vmovq(xmm_relu_ns, imm_addr64);
                         vbroadcastss(zmm_relu_ns, xmm_relu_ns);
                     }
@@ -1403,10 +1403,13 @@ status_t jit_avx512_core_fp32_wino_conv_4x3_fwd_kernel::init_conf(
         return status::unimplemented;
 
     const auto &p = attr.post_ops_;
+    const int eltwise_ind = p.find(primitive_kind::eltwise, 0, 1);
+    jcp.with_eltwise = eltwise_ind != 1;
+    if (jcp.with_eltwise)
+        jcp.eltwise = p.entry_[eltwise_ind].eltwise;
+
     jcp.with_sum = p.find(primitive_kind::sum, 0) != -1;
     jcp.with_relu_postsum = p.find(primitive_kind::eltwise, 1) != -1;
-    jcp.with_relu = p.find(primitive_kind::eltwise, 0, 1) != -1;
-    jcp.relu_negative_slope = 0.f;
 
     status_t res = init_conf_kernel(jcp, jcp.oc, jcp.ntiles, jcp.ic);
 

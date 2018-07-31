@@ -59,6 +59,7 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_convolution_forward_s16s16s32.cpp
                               test_convolution_forward_u8s8s32.cpp
                               test_convolution_forward_u8s8fp.cpp
+                              test_convolution_eltwise_forward_f32.cpp
                               test_convolution_backward_data_f32.cpp
                               test_convolution_backward_data_s16s16s32.cpp
                               test_convolution_backward_weights_f32.cpp

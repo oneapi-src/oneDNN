@@ -30,6 +30,35 @@ namespace cpu {
 using namespace alg_kind;
 using namespace math;
 
+ref_eltwise_scalar_fwd_t::ref_eltwise_scalar_fwd_t(alg_kind_t alg, float alpha,
+        float beta): alg_(alg), alpha_(alpha), beta_(beta) {
+    assert(utils::one_of(alg_, eltwise_relu, eltwise_tanh, eltwise_elu,
+                eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
+                eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic));
+}
+
+ref_eltwise_scalar_fwd_t::ref_eltwise_scalar_fwd_t(
+        const post_ops_t::entry_t::eltwise_t &eltwise)
+    : ref_eltwise_scalar_fwd_t(eltwise.alg, eltwise.alpha, eltwise.beta) {}
+
+float ref_eltwise_scalar_fwd_t::compute_scalar(float s) {
+    switch (alg_) {
+        case eltwise_relu: return relu_fwd(s, alpha_);
+        case eltwise_tanh: return tanh_fwd(s);
+        case eltwise_elu: return elu_fwd(s, alpha_);
+        case eltwise_square: return square_fwd(s);
+        case eltwise_abs: return abs_fwd(s);
+        case eltwise_sqrt: return sqrt_fwd(s);
+        case eltwise_linear: return linear_fwd(s, alpha_, beta_);
+        case eltwise_bounded_relu: return bounded_relu_fwd(s, alpha_);
+        case eltwise_soft_relu: return soft_relu_fwd(s);
+        case eltwise_logistic: return logistic_fwd(s);
+        default: assert(!"unknown eltwise alg_kind");
+    }
+
+    return 0.f;
+}
+
 template <impl::data_type_t data_type>
 void ref_eltwise_fwd_t<data_type>::execute_forward_nCspBc_padded() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));

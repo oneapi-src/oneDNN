@@ -21,6 +21,7 @@
 #include "utils.hpp"
 #include "type_helpers.hpp"
 #include "mkldnn_thread.hpp"
+#include "ref_eltwise.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -47,19 +48,6 @@ void gemm_convolution_fwd_t::execute_forward() {
     const int N = jcp.oc;
     const int m = jcp.os;
     const int LDA = jcp.im2col_sz ? m : M;
-
-    const auto &post_ops = conf_.attr()->post_ops_;
-    float nslope = 0.f;
-    int entry_idx = -1;
-    for (int idx = 0; idx < post_ops.len_; ++idx) {
-        const auto &e = post_ops.entry_[idx];
-        if (e.is_relu(true, false)) {
-            entry_idx = idx;
-            nslope = post_ops.entry_[entry_idx].eltwise.alpha;
-            break;
-        }
-    }
-    const bool do_relu = entry_idx >= 0;
 
     data_t *col = jcp.im2col_sz ? (data_t *)this->scratchpad_->get() : nullptr;
 
@@ -93,14 +81,33 @@ void gemm_convolution_fwd_t::execute_forward() {
                     jcp.im2col_sz ? _col : _src + od * m, &LDA, _weights, &K,
                     &this->beta_, _dst + od * m, &M);
 
-            if (jcp.with_bias || do_relu) {
-                data_t *d = _dst + od * m, b = 0.0;
+            data_t *d = _dst + od * m;
+            if (eltwise_) {
+                // fast branch for ReLU case
+                if (eltwise_->alg_ == alg_kind::eltwise_relu) {
+                    for (int oc = 0; oc < jcp.oc; ++oc) {
+                        data_t b = jcp.with_bias ? bias[g * jcp.oc + oc] : 0;
+                        for (int oS = 0; oS < m; ++oS) {
+                            d[oS] += b;
+                            if (d[oS] < 0) d[oS] *= eltwise_->alpha_;
+                        }
+                        d += M;
+                    }
+                } else {
+                    for (int oc = 0; oc < jcp.oc; ++oc) {
+                        data_t b = jcp.with_bias ? bias[g * jcp.oc + oc] : 0;
+                        for (int oS = 0; oS < m; ++oS) {
+                            d[oS] += b;
+                            d[oS] = eltwise_->compute_scalar(d[oS]);
+                        }
+                        d += M;
+                    }
+                }
+            } else if (jcp.with_bias) {
                 for (int oc = 0; oc < jcp.oc; ++oc) {
-                    if(jcp.with_bias) b = bias[g * jcp.oc + oc];
+                    data_t b = bias[g * jcp.oc + oc];
                     for (int oS = 0; oS < m; ++oS) {
-                        if (jcp.with_bias) d[oS] += b;
-                        if (do_relu && d[oS] < 0)
-                            d[oS] *= nslope;
+                        d[oS] += b;
                     }
                     d += M;
                 }

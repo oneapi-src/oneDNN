@@ -83,6 +83,9 @@ void jit_avx512_common_1x1_convolution_fwd_t
     parallel(0, [&](const int ithr, const int nthr) {
         execute_forward_thr(ithr, nthr, src, weights, bias, dst);
     });
+
+    if (conf_.wants_zero_pad_dst())
+        output_memory_primitive(0)->zero_pad();
 }
 
 template <data_type_t src_type, data_type_t wei_type,

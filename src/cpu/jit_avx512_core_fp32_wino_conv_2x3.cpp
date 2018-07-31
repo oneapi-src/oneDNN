@@ -446,14 +446,9 @@ bool jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t::post_ops_ok(
     using namespace primitive_kind;
     const auto &p = attr.post_ops_;
 
-    auto is_relu = [&](int idx) {
-        return p.entry_[idx].kind == eltwise
-            && p.entry_[idx].eltwise.scale == 1.
-            && p.entry_[idx].eltwise.alg == alg_kind::eltwise_relu
-            && p.entry_[idx].eltwise.alpha == 0.;
-    };
+    auto is_relu = [&](int idx) { return p.entry_[idx].is_relu(); };
 
-   switch (p.len_) {
+    switch (p.len_) {
     case 0: return true;
     case 1: return is_relu(0) || p.contain(sum, 0);
     case 2: return (p.contain(sum, 0) && is_relu(1)) ||
@@ -609,10 +604,6 @@ status_t jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t ::init_conf(
 
     if (!post_ops_ok(jcp, attr))
         return status::unimplemented;
-
-    const auto &p = attr.post_ops_;
-    jcp.with_relu = p.find(primitive_kind::eltwise) != -1;
-    jcp.relu_negative_slope = 0.f;
 
     bool ok_to_pad_channels = jcp.ngroups == 1;
     if (ok_to_pad_channels) {

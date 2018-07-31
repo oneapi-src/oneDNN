@@ -18,9 +18,10 @@
 #define JIT_AVX2_CONV_KERNEL_F32_HPP
 
 #include "c_types_map.hpp"
+#include "cpu_memory.hpp"
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
-#include "cpu_memory.hpp"
+#include "jit_uni_eltwise.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -28,10 +29,19 @@ namespace cpu {
 
 struct jit_avx2_conv_fwd_kernel_f32: public jit_generator {
     jit_avx2_conv_fwd_kernel_f32(jit_conv_conf_t ajcp,
-            const primitive_attr_t &attr): jcp(ajcp), attr_(attr)
+            const primitive_attr_t &attr)
+        : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr)
     {
+        if (jcp.with_eltwise)
+            eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx2>(this,
+                    jcp.eltwise);
+
         this->generate();
         jit_ker = (void (*)(jit_conv_call_s *))this->getCode();
+    }
+
+    ~jit_avx2_conv_fwd_kernel_f32() {
+        delete eltwise_injector_;
     }
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx2_conv_fwd_kernel_f32)
@@ -70,11 +80,9 @@ private:
     reg64_t reg_long_offt = r15;
     Xbyak::Reg32 reg_ci_flag = r13d;
 
-    Xbyak::Xmm xmm_relu_ns = Xbyak::Xmm(13);
-    Xbyak::Ymm ymm_relu_ns = Xbyak::Ymm(13);
-    Xbyak::Ymm ymm_res_ns = Xbyak::Ymm(12);
-    Xbyak::Ymm yzero = Xbyak::Ymm(15);
-    Xbyak::Ymm ymask = Xbyak::Ymm(14);
+    Xbyak::Ymm ytmp = Xbyak::Ymm(14);
+
+    jit_uni_eltwise_injector_f32<avx2> *eltwise_injector_;
 
     inline void oh_step_unroll_kw(int ur_w, int pad_l, int pad_r,
             int oc_blocks);

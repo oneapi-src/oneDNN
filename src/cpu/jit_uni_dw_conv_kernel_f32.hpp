@@ -20,6 +20,7 @@
 #include "c_types_map.hpp"
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
+#include "jit_uni_eltwise.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -29,9 +30,19 @@ template <cpu_isa_t isa>
 struct jit_uni_dw_conv_fwd_kernel_f32: public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_dw_conv_fwd_kernel_f32)
 
-    jit_uni_dw_conv_fwd_kernel_f32(jit_conv_conf_t ajcp): jcp(ajcp) {
+    jit_uni_dw_conv_fwd_kernel_f32(jit_conv_conf_t ajcp)
+        : jcp(ajcp), eltwise_injector_(nullptr)
+    {
+        if (jcp.with_eltwise)
+            eltwise_injector_ = new jit_uni_eltwise_injector_f32<isa>(this,
+                    jcp.eltwise);
+
         this->generate();
         jit_ker = (void (*)(jit_conv_call_s *))this->getCode();
+    }
+
+    ~jit_uni_dw_conv_fwd_kernel_f32() {
+        delete eltwise_injector_;
     }
 
     static bool post_ops_ok(jit_conv_conf_t &jcp,
@@ -80,15 +91,7 @@ private:
     inline void store_dst(int ur_ch_blocks, int ur_w);
     inline void loop_body(int ur_ch_blocks);
 
-    // activation fusing
-    Vmm vmm_mask = Vmm(0);
-    Vmm vmm_res_ns = Vmm(1);
-    Xbyak::Xmm xmm_relu_ns = Xbyak::Xmm(2);
-    Vmm vmm_relu_ns = Vmm(2);
-    Vmm vmm_zero = Vmm(3);
-
-    const unsigned char _cmp_gt_os = 6;
-    const unsigned char _cmp_lt_os = 1;
+    jit_uni_eltwise_injector_f32<isa> *eltwise_injector_;
 
     void generate();
 };

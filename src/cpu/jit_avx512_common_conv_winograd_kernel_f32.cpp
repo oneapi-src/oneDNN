@@ -663,9 +663,10 @@ status_t jit_avx512_common_conv_winograd_fwd_kernel_f32::init_conf(
         return status::unimplemented;
 
     const auto &p = attr.post_ops_;
+    const int eltwise_ind = p.find(primitive_kind::eltwise, 0, 1);
+    jcp.with_eltwise = eltwise_ind != -1;
+    if (jcp.with_eltwise) jcp.eltwise = p.entry_[eltwise_ind].eltwise;
     jcp.with_sum = p.find(primitive_kind::sum, 0) != -1;
-    jcp.with_relu = p.find(primitive_kind::eltwise, 0, 1) != -1;
-    jcp.relu_negative_slope = jcp.with_relu ? p.entry_[0].eltwise.alpha : 0.f;
 
     status_t res = init_conf_kernel(jcp, jcp.oc, jcp.ntiles, jcp.ic);
     jcp.ic_simd_block = jcp.dimK_reg_block;

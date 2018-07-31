@@ -694,6 +694,7 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     jcp.stride_w = cd.strides[1];
     jcp.src_fmt = src_d.format();
     jcp.with_bias = cd.bias_desc.format != memory_format::undef;
+
     jcp.ur_h = 1;
 
     jcp.dilate_h = cd.dilates[0];
@@ -728,9 +729,6 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
 
     if (!post_ops_ok(jcp, attr))
         return status::unimplemented;
-
-    jcp.with_relu = false;
-    jcp.relu_negative_slope = 0.f;
 
     jcp.ver = ver_avx512_core;
     if (mayiuse(avx512_core_vnni))

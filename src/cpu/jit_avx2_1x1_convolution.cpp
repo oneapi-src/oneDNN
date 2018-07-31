@@ -159,6 +159,9 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward() {
     }
 
     parallel(0, ker);
+
+    if (conf_.wants_zero_pad_dst())
+        output_memory_primitive(0)->zero_pad();
 }
 
 /* convolution backward wtr data */

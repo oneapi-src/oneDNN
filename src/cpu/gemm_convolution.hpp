@@ -23,6 +23,7 @@
 #include "gemm_convolution_utils.hpp"
 #include "gemm/gemm.hpp"
 #include "scratchpad.hpp"
+#include "ref_eltwise.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -98,14 +99,14 @@ struct gemm_convolution_fwd_t: public cpu_primitive_t {
 
         virtual bool is_gemm_conv_format() const {
             auto const &po = this->attr()->post_ops_;
-            auto is_relu = [&](int idx) { return po.entry_[idx].is_relu(); };
+            auto is_eltwise = [&](int idx)
+            { return po.entry_[idx].is_eltwise(); };
             auto is_sum = [&](int idx) { return po.entry_[idx].is_sum(); };
 
             switch (po.len_) {
-                using namespace mkldnn::impl::primitive_kind;
             case 0: return true; // no post_ops
-            case 1: return is_relu(0) || is_sum(0); // sum OR relu
-            case 2: return is_sum(0) && is_relu(1); // sum->relu
+            case 1: return is_eltwise(0) || is_sum(0); // sum OR eltwise
+            case 2: return is_sum(0) && is_eltwise(1); // sum -> eltwise
             default: return false;
             }
             return false;
@@ -115,7 +116,7 @@ struct gemm_convolution_fwd_t: public cpu_primitive_t {
     gemm_convolution_fwd_t(const pd_t *pd, const input_vector &inputs,
            const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
-        , scratchpad_(nullptr)
+        , scratchpad_(nullptr), eltwise_(nullptr)
     {
         using namespace prop_kind;
 
@@ -130,10 +131,15 @@ struct gemm_convolution_fwd_t: public cpu_primitive_t {
         size_t size = (size_t)conf_.jcp_.im2col_sz * sizeof(data_t);
         jit_gemm_convolution_utils::prepare_scratchpad(this->conf_.jcp_,
                 &this->scratchpad_, size, this->conf_.jcp_.nthr);
+
+        const int entry_idx = post_ops.find(primitive_kind::eltwise);
+        if (entry_idx != -1) eltwise_ = new ref_eltwise_scalar_fwd_t(
+                post_ops.entry_[entry_idx].eltwise);
     }
 
     ~gemm_convolution_fwd_t() {
         delete this->scratchpad_;
+        delete eltwise_;
     };
 
     typedef typename prec_traits<data_type::f32>::type data_t;
@@ -148,6 +154,8 @@ private:
     pd_t conf_;
     scratchpad_t *scratchpad_;
     data_t beta_;
+
+    ref_eltwise_scalar_fwd_t* eltwise_;
 };
 
 struct gemm_convolution_bwd_data_t: public cpu_primitive_t {

@@ -109,6 +109,10 @@ struct jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
             execute_forward_3d();
         else
             assert(false);
+
+        if (conf_.wants_zero_pad_dst())
+            output_memory_primitive(0)->zero_pad();
+
         e->set_state(event_t::ready);
     }
 

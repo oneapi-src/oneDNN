@@ -31,6 +31,570 @@ namespace cpu {
 
 using namespace Xbyak;
 
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::injector_preamble(size_t start_idx,
+        size_t end_idx) {
+    preserved_vecs_count = 0;
+    vecs_to_preserve = (size_t)aux_vecs_count(alg_);
+    start_idx_tail = start_idx;
+
+    // For sse42 mask register has to be Xmm(0)
+    if (isa == sse42 && vecs_to_preserve > 0) {
+        size_t idx = 0;
+        assert(idx < start_idx);
+        preserved_vec_idxs[preserved_vecs_count++] = idx;
+    }
+
+    for (size_t idx = preserved_vecs_count; idx < vecs_count; idx++) {
+        if (preserved_vecs_count >= vecs_to_preserve) break;
+        if (start_idx <= idx && idx < end_idx) continue;
+
+        preserved_vec_idxs[preserved_vecs_count++] = idx;
+    }
+
+    size_t preserved_vecs_count_tail = vecs_to_preserve - preserved_vecs_count;
+    for (size_t i = 0; i < preserved_vecs_count_tail; i++) {
+        preserved_vec_idxs[preserved_vecs_count++] = start_idx_tail++;
+    }
+
+    assert(preserved_vecs_count == vecs_to_preserve);
+
+    if (save_state_) {
+        h->push(p_table);
+
+        if (preserved_vecs_count)
+            h->sub(h->rsp, preserved_vecs_count * vlen);
+
+        for (size_t i = 0; i < preserved_vecs_count; ++i)
+            h->uni_vmovups(h->ptr[h->rsp + i * vlen],
+                    Vmm(preserved_vec_idxs[i]));
+
+        load_table_addr();
+    }
+
+    assign_regs();
+}
+
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::injector_preamble_tail(size_t start_idx)
+{
+    size_t tail_vecs_to_preserve = start_idx_tail - start_idx;
+    if (tail_vecs_to_preserve == 0) return;
+
+    const int idx_off = vecs_to_preserve - tail_vecs_to_preserve;
+
+    if (save_state_) {
+        if (idx_off)
+            h->add(h->rsp, idx_off * vlen);
+
+        for (size_t i = 0; i < tail_vecs_to_preserve; ++i)
+            h->uni_vmovups(Vmm(preserved_vec_idxs[idx_off + i]),
+                    h->ptr[h->rsp + i * vlen]);
+    }
+
+    for (size_t i = 0; i < tail_vecs_to_preserve; ++i)
+        preserved_vec_idxs[idx_off + i] += tail_vecs_to_preserve;
+
+    if (save_state_) {
+        for (size_t i = 0; i < tail_vecs_to_preserve; ++i)
+            h->uni_vmovups(h->ptr[h->rsp + i * vlen],
+                    Vmm(preserved_vec_idxs[idx_off + i]));
+
+        if (idx_off)
+            h->sub(h->rsp, idx_off * vlen);
+    }
+
+    assign_regs();
+}
+
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::injector_postamble() {
+    if (!save_state_) return;
+
+    for (size_t i = 0; i < preserved_vecs_count; ++i)
+        h->uni_vmovups(Vmm(preserved_vec_idxs[i]),
+                h->ptr[h->rsp + i * vlen]);
+
+    if (preserved_vecs_count)
+        h->add(h->rsp, preserved_vecs_count * vlen);
+
+    h->pop(p_table);
+}
+
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::assign_regs() {
+    vmm_mask = Vmm(preserved_vec_idxs[0]);
+    vmm_aux0 = Vmm(preserved_vec_idxs[0]);
+    vmm_aux1 = Vmm(preserved_vec_idxs[1]);
+    vmm_aux2 = Vmm(preserved_vec_idxs[2]);
+    vmm_aux3 = Vmm(preserved_vec_idxs[3]);
+}
+
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::exp_compute_vector(const Vmm &vmm_src) {
+    h->uni_vminps(vmm_src, vmm_src, table_val(10));
+    h->uni_vmaxps(vmm_src, vmm_src, table_val(11));
+    h->uni_vmovups(vmm_aux0, vmm_src);
+    //calculate exp(x)
+    // fx = x * log2ef + 0.5
+    h->uni_vmulps(vmm_src, vmm_src, table_val(2));
+    h->uni_vaddps(vmm_src, vmm_src, table_val(1));
+
+    // tmp = floorf(fx)
+    if (isa == avx512_common) {
+        h->vcvtps2dq(vmm_aux1 | h->T_rd_sae, vmm_src);
+        h->vcvtdq2ps(vmm_aux1, vmm_aux1);
+
+        h->vcmpps(k_mask, vmm_aux1, vmm_src, _cmp_nle_us);
+        h->vmovups(vmm_aux3 | k_mask | h->T_z, table_val(0));
+
+        h->uni_vsubps(vmm_aux1, vmm_aux1, vmm_aux3);
+    } else {
+        h->uni_vroundps(vmm_aux1, vmm_src, _op_floor);
+    }
+
+    //keep fx for further computations
+    h->uni_vmovups(vmm_src, vmm_aux1); //vmm_src = fx
+
+    //x = x - fx * ln2
+    h->uni_vfnmadd231ps(vmm_aux0, vmm_aux1, table_val(3));
+
+    // compute 2^n
+    h->uni_vcvtps2dq(vmm_aux1, vmm_src);
+    h->uni_vpaddd(vmm_aux1, vmm_aux1, table_val(4));
+    h->uni_vpslld(vmm_aux1, vmm_aux1, 23); //Vmm(6) = 2^-fx
+
+    // y = p5
+    h->uni_vmovups(vmm_src, table_val(9));
+    // y = y * x + p4
+    h->uni_vfmadd213ps(vmm_src, vmm_aux0, table_val(8));
+    // y = y * x + p3
+    h->uni_vfmadd213ps(vmm_src, vmm_aux0, table_val(7));
+    // y = y * x + p2
+    h->uni_vfmadd213ps(vmm_src, vmm_aux0, table_val(6));
+    // y = y * x + p1
+    h->uni_vfmadd213ps(vmm_src, vmm_aux0, table_val(0));
+    // y = y * x + p0
+    h->uni_vfmadd213ps(vmm_src, vmm_aux0, table_val(5));  //exp(q)
+    // y = y * 2^n
+    h->uni_vmulps(vmm_src, vmm_src, vmm_aux1);
+}
+
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::relu_compute_vector(const Vmm &vmm_src)
+{
+    const int alpha_off = 0, zero_off = 1;
+
+    h->uni_vmovups(vmm_aux1, vmm_src);
+    if (isa == sse42) {
+        h->movups(vmm_mask, vmm_src);
+        h->mulps(vmm_src, table_val(alpha_off));
+        h->cmpps(vmm_mask, table_val(zero_off), _cmp_nle_us);
+        h->blendvps(vmm_src, vmm_aux1);
+    } else if (isa == avx2) {
+        h->vmulps(vmm_src, vmm_src, table_val(alpha_off));
+        h->vcmpgtps(vmm_mask, vmm_aux1, table_val(zero_off));
+        h->vblendvps(vmm_src, vmm_src, vmm_aux1, vmm_mask);
+    } else if (isa == avx512_common) {
+        h->vmulps(vmm_src, vmm_src, table_val(alpha_off));
+        h->vcmpps(k_mask, vmm_aux1, table_val(zero_off), _cmp_nle_us);
+        h->vblendmps(vmm_src | k_mask, vmm_src, vmm_aux1);
+    }
+}
+
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::relu_zero_ns_compute_vector(
+        const Vmm &vmm_src) {
+    const int zero_off = 1;
+    h->uni_vmaxps(vmm_src, vmm_src, table_val(zero_off));
+}
+
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::elu_compute_vector(const Vmm &vmm_src) {
+    const int alpha_off = 12, zero_off = 13;
+
+    // compute exponent
+    h->uni_vmovups(vmm_aux2, vmm_src);
+    exp_compute_vector(vmm_src);
+
+    // alpha * (exp(x) - 1)
+    h->uni_vsubps(vmm_src, vmm_src, table_val(0));
+    h->uni_vmulps(vmm_src, vmm_src, table_val(alpha_off));
+
+    // combine with mask
+    if (isa == sse42) {
+        h->pxor(vmm_mask, vmm_mask);
+        h->cmpps(vmm_mask,  vmm_aux2, _cmp_le_os);
+        h->blendvps(vmm_src, vmm_aux2);
+    } else if (isa == avx2) {
+        h->uni_vcmpgtps(vmm_mask, vmm_aux2, table_val(zero_off));
+        h->uni_vblendvps(vmm_src, vmm_src, vmm_aux2, vmm_mask);
+    } else if (isa == avx512_common) {
+        h->vcmpps(k_mask, vmm_aux2, table_val(zero_off), _cmp_nle_us);
+        h->vblendmps(vmm_src | k_mask, vmm_src, vmm_aux2);
+    }
+}
+
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::tanh_compute_vector(const Vmm &vmm_src)
+{
+    // compute exp(2x)
+    h->uni_vaddps(vmm_src, vmm_src, vmm_src);
+    exp_compute_vector(vmm_src);
+    // dup exp(2x)
+    h->uni_vmovups(vmm_aux0, vmm_src);
+    // (exp(2x) - 1)
+    h->uni_vsubps(vmm_src, vmm_src, table_val(0));
+    // (exp(2x) + 1)
+    h->uni_vaddps(vmm_aux0, vmm_aux0, table_val(0));
+    // y = (exp(2x) - 1) / (exp(2x) + 1)
+    h->uni_vdivps(vmm_src, vmm_src, vmm_aux0);
+}
+
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::square_compute_vector(
+        const Vmm &vmm_src) {
+    h->uni_vmulps(vmm_src, vmm_src, vmm_src);
+}
+
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::abs_compute_vector(const Vmm &vmm_src) {
+    // compute abs(x) = _mm_and_ps(x, 01111..111));
+    h->uni_vandps(vmm_src, vmm_src, table_val(0));
+}
+
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::sqrt_compute_vector(const Vmm &vmm_src)
+{
+    if (isa == avx512_common) {
+        h->vcmpps(k_mask, vmm_src, table_val(0), _cmp_nle_us);
+        h->uni_vsqrtps(vmm_aux1, vmm_src);
+        h->uni_vmovups(vmm_src, table_val(0));
+        h->vblendmps(vmm_src | k_mask, vmm_src, vmm_aux1);
+    } else {
+        h->uni_vmovups(vmm_mask, vmm_src);
+        h->uni_vcmpgtps(vmm_mask, vmm_mask, table_val(0));
+        h->uni_vsqrtps(vmm_aux1, vmm_src);
+        h->uni_vmovups(vmm_src, table_val(0));
+        h->uni_vblendvps(vmm_src, vmm_src, vmm_aux1, vmm_mask);
+    }
+}
+
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::linear_compute_vector(
+        const Vmm &vmm_src) {
+    // compute x = alpha * x + beta;
+    h->uni_vmovups(vmm_aux0, table_val(0));
+    h->uni_vfmadd213ps(vmm_src, vmm_aux0, table_val(1));
+}
+
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::bounded_relu_compute_vector(
+        const Vmm &vmm_src) {
+    // compute bounded relu */
+    h->uni_vmaxps(vmm_src, vmm_src, table_val(1));
+    h->uni_vminps(vmm_src, vmm_src, table_val(0));
+}
+
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::soft_relu_compute_vector(
+        const Vmm &vmm_src) {
+    // duplicate src
+    h->uni_vmovups(vmm_aux2, vmm_src);
+
+    h->uni_vminps(vmm_src, vmm_src, table_val(24));
+    h->uni_vmaxps(vmm_src, vmm_src, table_val(25));
+    h->uni_vmovups(vmm_aux1, vmm_src);
+    // calculate exp(x)
+    // fx = x * log2ef + 0.5
+    h->uni_vmulps(vmm_src, vmm_src, table_val(2));
+    h->uni_vaddps(vmm_src, vmm_src, table_val(1));
+
+    // tmp = floorf(fx)
+    if (isa == avx512_common) {
+        h->vcvtps2dq(vmm_aux0 | h->T_rd_sae, vmm_src);
+        h->vcvtdq2ps(vmm_aux0, vmm_aux0);
+
+        h->vcmpps(k_mask, vmm_aux0, vmm_src, _cmp_nle_us);
+        h->vmovups(vmm_aux3 | k_mask | h->T_z, table_val(0));
+
+        h->vsubps(vmm_aux0, vmm_aux0, vmm_aux3);
+    } else {
+        h->uni_vroundps(vmm_aux0, vmm_src, _op_floor);
+    }
+
+    // keep fx for further computations
+    h->uni_vmovups(vmm_src, vmm_aux0); //vmm_src = fx
+    // calculation fx * ln2
+    h->uni_vmulps(vmm_aux0, vmm_aux0, table_val(3));
+    // x = x - fx * ln2
+    h->uni_vsubps(vmm_aux1, vmm_aux1, vmm_aux0);
+    // y = p5
+    h->uni_vmovups(vmm_aux3, table_val(22));
+    // y = y * x + p4
+    h->uni_vfmadd213ps(vmm_aux3, vmm_aux1, table_val(21));
+    // y = y * x + p3
+    h->uni_vfmadd213ps(vmm_aux3, vmm_aux1, table_val(20));
+    // y = y * x + p2
+    h->uni_vfmadd213ps(vmm_aux3, vmm_aux1, table_val(19));
+    // y = y * x + p1
+    h->uni_vfmadd213ps(vmm_aux3, vmm_aux1, table_val(0));
+    // y = y * x + p0
+    h->uni_vfmadd213ps(vmm_aux3, vmm_aux1, table_val(17));
+
+    // compute 2^(-n)
+    if (isa == avx512_common) {
+        h->vmulps(vmm_aux1, vmm_src, table_val(23));
+        h->vcvtps2dq(vmm_aux1, vmm_aux1);
+    } else {
+        h->uni_vcvtps2dq(vmm_aux1, vmm_src);
+        h->uni_vpsignd(vmm_aux1, vmm_aux1, table_val(23));
+    }
+
+    h->uni_vpaddd(vmm_aux1, vmm_aux1, table_val(4));
+    h->uni_vpslld(vmm_aux1, vmm_aux1, 23); //vmm_aux1 = 2^-fx
+    // calculate ln(1 + y)
+    h->uni_vaddps(vmm_aux3, vmm_aux3, vmm_aux1);
+    // x = y; y is free; keep x for further computations
+    h->uni_vmovups(vmm_src, vmm_aux3);
+    // frexp()
+    h->uni_vpsrld(vmm_src, vmm_src, 23);
+    h->uni_vcvtdq2ps(vmm_src, vmm_src);
+    // got n. where n is x = 2^n * y. y = 0.5 .. 1
+    h->uni_vsubps(vmm_src, vmm_src, table_val(5));
+
+    h->uni_vandps(vmm_aux3, vmm_aux3, table_val(6));
+    // got y. (mantisa)  0.5 < y < 1
+    h->uni_vorps(vmm_aux3, vmm_aux3, table_val(7));
+    // y  = y - 1
+    h->uni_vsubps(vmm_aux3, vmm_aux3, table_val(0));
+    // y = p8
+    h->uni_vmovups(vmm_aux1, table_val(16));
+    // y = y * x + p7
+    h->uni_vfmadd213ps(vmm_aux1, vmm_aux3, table_val(15));
+    // y = y * x + p6
+    h->uni_vfmadd213ps(vmm_aux1, vmm_aux3, table_val(14));
+    // y = y * x + p5
+    h->uni_vfmadd213ps(vmm_aux1, vmm_aux3, table_val(13));
+    // y = y * x + p4
+    h->uni_vfmadd213ps(vmm_aux1, vmm_aux3, table_val(12));
+    // y = y * x + p3
+    h->uni_vfmadd213ps(vmm_aux1, vmm_aux3, table_val(11));
+    // y = y * x + p2
+    h->uni_vfmadd213ps(vmm_aux1, vmm_aux3, table_val(10));
+    // y = y * x + p1
+    h->uni_vfmadd213ps(vmm_aux1, vmm_aux3, table_val(9));
+    // y = y * x + p0 ; p0 = 0
+    h->uni_vfmadd213ps(vmm_aux1, vmm_aux3, table_val(8));
+    //calculate ln(2) * n
+    h->uni_vmulps(vmm_src, vmm_src, table_val(3));
+    h->uni_vaddps(vmm_aux1, vmm_aux1, vmm_src);
+    h->uni_vaddps(vmm_aux1, vmm_aux1, vmm_aux0);
+
+    // get vmm_mask = src > max logf
+    h->uni_vmovups(vmm_mask, vmm_aux2);
+    if (isa == avx512_common) {
+        // y = (x < max log f) ? soft_relu(x) : x
+        h->vcmpps(k_mask, vmm_mask, table_val(24), _cmp_nle_us);
+        h->vblendmps(vmm_aux1 | k_mask, vmm_aux1, vmm_aux2);
+    } else {
+        // y = (x < max log f) ? soft_relu(x) : x
+        h->uni_vcmpgtps(vmm_mask, vmm_mask, table_val(24));
+        h->uni_vblendvps(vmm_aux1, vmm_aux1, vmm_aux2, vmm_mask);
+    }
+
+    h->uni_vmovups(vmm_src, vmm_aux1);
+}
+
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::logistic_compute_vector(
+        const Vmm &vmm_src) {
+    exp_compute_vector(vmm_src);
+    // dup exp(x)
+    h->uni_vmovups(vmm_aux0, vmm_src);
+    // (exp(x) + 1)
+    h->uni_vaddps(vmm_aux0, vmm_aux0, table_val(0));
+    // y = exp(x) / (exp(x) + 1)
+    h->uni_vdivps(vmm_src, vmm_src, vmm_aux0);
+}
+
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::relu_prepare_table() {
+    for (size_t d = 0; d < vlen / sizeof(float); ++d) h->dd(float2int(alpha_));
+    for (size_t d = 0; d < vlen / sizeof(float); ++d) h->dd(0);
+}
+
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::elu_prepare_table() {
+    const unsigned int cvals[] = {
+            0x3f800000, // [0] 1.0f
+            0x3f000000, // [1] 0.5f
+            0x3fb8aa3b, // [2] log2ef = 1.44269502f
+            0x3f317218, // [3] ln2f =   0.69314718f
+            0x0000007f, // [4] 0x7f
+            // exp(x) polynom
+            0x3f800001, // [5] p0 = 1.0000001f
+            0x3efffe85, // [6] p2 = 0.4999887f
+            0x3e2aaa3e, // [7] p3 = 0.16666505f
+            0x3d2bb1b1, // [8] p4 = 0.041917507f
+            0x3c091ec1, // [9] p5 = 0.008369149f
+            0x42b0c0a5, //[10] max logf = 88.3762589f
+            0xc1766666  //[11] min logf = -14.5f
+    };
+
+    for (size_t i = 0; i < sizeof(cvals) / sizeof(cvals[0]); ++i) {
+        for (size_t d = 0; d < vlen / sizeof(float); ++d) h->dd(cvals[i]);
+    }
+
+    for (size_t d = 0; d < vlen / sizeof(float); ++d) h->dd(float2int(alpha_));
+    for (size_t d = 0; d < vlen / sizeof(float); ++d) h->dd(0);
+}
+
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::soft_relu_prepare_table() {
+    const unsigned int cvals[] = {
+            0x3f800000, // [0] 1.0f
+            0x3f000000, // [1] 0.5f
+            0x3fb8aa3b, // [2] log2ef = 1.44269502f
+            0x3f317218, // [3] ln2f =   0.69314718f
+            0x0000007f, // [4] 0x7f
+            0x42fc0000, // [5] 126
+            0x807fffff, // [6] and with (to get 0.5 * mantissa)
+            0x3f000000, // [7] or with (to get 0.5 * mantissa)
+            // ln(1 + x) polynomial
+            0xb2b4637d, // [8]  p0 = 0.0000000244f
+            0x3f7fff8e, // [9]  p1 = 0.9999976971f
+            0xbf001759, //[10]  p2 = -0.5002478215f
+            0x3ea70608, //[11]  p3 = 0.3272714505f
+            0xbea3d7bf, //[12]  p4 = -0.3153830071f
+            0xbe361d04, //[13]  p5 = -0.1701777461f
+            0xbfa8f1e6, //[14]  p6 = -1.3254635147f
+            0xbfe1e812, //[15]  p7 = -1.7971917960f
+            0xbfc4d30e, //[16]  p8 = -1.5652673123f
+            // exp(x) polynomial
+            0x3f800001, //[17]  p0 = 1.0000001f
+            0x3f800000, //[18]  p1 = 1.0f
+            0x3efffe85, //[19]  p2 = 0.4999887f
+            0x3e2aaa3e, //[20]  p3 = 0.16666505f
+            0x3d2bb1b1, //[21]  p4 = 0.041917507f
+            0x3c091ec1, //[22]  p5 = 0.008369149f
+            0xbf800000, //[23] is required for sign changing
+            0x42b0c0a5, //[24] max logf = 88.3762589f
+            0xc1766666  //[25] min logf = -14.5f
+    };
+
+    for (size_t i = 0; i < sizeof(cvals) / sizeof(cvals[0]); ++i) {
+        for (size_t d = 0; d < vlen / sizeof(float); ++d) {
+            h->dd(cvals[i]);
+        }
+    }
+}
+
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::abs_prepare_table() {
+    for (size_t d = 0; d < vlen / sizeof(float); ++d) h->dd(0x7fffffff);
+}
+
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::sqrt_prepare_table() {
+    for (size_t d = 0; d < vlen / sizeof(float); ++d) h->dd(0);
+}
+
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::linear_prepare_table() {
+    for (size_t d = 0; d < vlen / sizeof(float); ++d) h->dd(float2int(alpha_));
+    for (size_t d = 0; d < vlen / sizeof(float); ++d) h->dd(float2int(beta_));
+}
+
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::bounded_relu_prepare_table() {
+    for (size_t d = 0; d < vlen / sizeof(float); ++d) h->dd(float2int(alpha_));
+    for (size_t d = 0; d < vlen / sizeof(float); ++d) h->dd(0);
+}
+
+template <cpu_isa_t isa>
+int jit_uni_eltwise_injector_f32<isa>::aux_vecs_count(alg_kind_t alg_) {
+    switch (alg_) {
+    case alg_kind::eltwise_relu: return (alpha_ == 0.f) ? 0 : 2;
+    case alg_kind::eltwise_elu: return 4;
+    case alg_kind::eltwise_tanh: return 4;
+    case alg_kind::eltwise_square: return 0;
+    case alg_kind::eltwise_abs: return 0;
+    case alg_kind::eltwise_sqrt: return 2;
+    case alg_kind::eltwise_linear: return 1;
+    case alg_kind::eltwise_bounded_relu: return 0;
+    case alg_kind::eltwise_soft_relu: return 4;
+    case alg_kind::eltwise_logistic: return 4;
+    default: assert(!"unsupported eltwise algorithm");
+    }
+
+    return 0;
+}
+
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::compute_body(size_t start_idx,
+        size_t end_idx) {
+    using namespace alg_kind;
+    for (size_t idx = start_idx; idx < end_idx; idx++) {
+        switch (alg_) {
+        case eltwise_relu:
+            if (alpha_ == 0.f) relu_zero_ns_compute_vector(Vmm(idx));
+            else relu_compute_vector(Vmm(idx));
+            break;
+        case eltwise_elu: elu_compute_vector(Vmm(idx)); break;
+        case eltwise_tanh: tanh_compute_vector(Vmm(idx)); break;
+        case eltwise_square: square_compute_vector(Vmm(idx)); break;
+        case eltwise_abs: abs_compute_vector(Vmm(idx)); break;
+        case eltwise_sqrt: sqrt_compute_vector(Vmm(idx)); break;
+        case eltwise_linear: linear_compute_vector(Vmm(idx)); break;
+        case eltwise_bounded_relu: bounded_relu_compute_vector(Vmm(idx)); break;
+        case eltwise_soft_relu: soft_relu_compute_vector(Vmm(idx)); break;
+        case eltwise_logistic: logistic_compute_vector(Vmm(idx)); break;
+        default: assert(!"unsupported eltwise algorithm");
+        }
+    }
+}
+
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::compute_vector_range(size_t start_idx,
+        size_t end_idx) {
+    assert(start_idx < end_idx && end_idx <= vecs_count);
+
+    injector_preamble(start_idx, end_idx);
+    compute_body(start_idx_tail, end_idx);
+    injector_preamble_tail(start_idx);
+    compute_body(start_idx, start_idx_tail);
+    injector_postamble();
+}
+
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::prepare_table() {
+    using namespace alg_kind;
+
+    h->align(64);
+    h->L(l_table);
+
+    switch (alg_) {
+        case eltwise_relu: relu_prepare_table(); break;
+        case eltwise_elu:
+        case eltwise_tanh:
+        case eltwise_logistic:
+            elu_prepare_table(); break;
+        case eltwise_soft_relu: soft_relu_prepare_table(); break;
+        case eltwise_abs: abs_prepare_table(); break;
+        case eltwise_sqrt: sqrt_prepare_table(); break;
+        case eltwise_linear: linear_prepare_table(); break;
+        case eltwise_bounded_relu: bounded_relu_prepare_table(); break;
+        case eltwise_square: break;
+        default: assert(!"unsupported eltwise algorithm");
+    }
+}
+
+template struct jit_uni_eltwise_injector_f32<avx512_common>;
+template struct jit_uni_eltwise_injector_f32<avx2>;
+template struct jit_uni_eltwise_injector_f32<sse42>;
+
+
 struct jit_args {
     const float *from;
     const float *for_comparison;
@@ -200,6 +764,10 @@ struct jit_uni_kernel_fwd_f32: public jit_uni_eltwise_kernel_f32,
 
     jit_uni_kernel_fwd_f32(const eltwise_desc_t &desc)
         : jit_uni_eltwise_kernel_f32(desc), jit_generator() {
+
+        eltwise_injector_ = new jit_uni_eltwise_injector_f32<isa>(this,
+                desc.alg_kind, desc.alpha, desc.beta, false, r9, Opmask(1));
+
         using namespace alg_kind;
 
         assert(is_bwd() == false);
@@ -207,82 +775,13 @@ struct jit_uni_kernel_fwd_f32: public jit_uni_eltwise_kernel_f32,
                     eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
                     eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic));
 
-        typedef void (jit_uni_kernel_fwd_f32<isa>::*func_t)();
-        func_t prepare_const, vectorized_body, reminder_body, prepare_table;
-
-        switch(desc.alg_kind) {
-        case eltwise_tanh:
-            prepare_const = &jit_uni_kernel_fwd_f32<isa>::exp_prepare_const;
-            vectorized_body = &jit_uni_kernel_fwd_f32<isa>::tanh_vectorized_body;
-            reminder_body = &jit_uni_kernel_fwd_f32<isa>::tanh_reminder_body;
-            prepare_table = &jit_uni_kernel_fwd_f32<isa>::exp_prepare_table;
-            break;
-        case eltwise_elu:
-            prepare_const = &jit_uni_kernel_fwd_f32<isa>::elu_prepare_const;
-            vectorized_body = &jit_uni_kernel_fwd_f32<isa>::elu_vectorized_body;
-            reminder_body = &jit_uni_kernel_fwd_f32<isa>::elu_reminder_body;
-            prepare_table = &jit_uni_kernel_fwd_f32<isa>::exp_prepare_table;
-            break;
-        case eltwise_square:
-            prepare_const = &jit_uni_kernel_fwd_f32<isa>::not_prepare_const;
-            vectorized_body = &jit_uni_kernel_fwd_f32<isa>::square_vectorized_body;
-            reminder_body = &jit_uni_kernel_fwd_f32<isa>::square_reminder_body;
-            prepare_table = &jit_uni_kernel_fwd_f32<isa>::not_prepare_table;
-            break;
-        case eltwise_abs:
-            prepare_const = &jit_uni_kernel_fwd_f32<isa>::abs_prepare_const;
-            vectorized_body = &jit_uni_kernel_fwd_f32<isa>::abs_vectorized_body;
-            reminder_body = &jit_uni_kernel_fwd_f32<isa>::abs_reminder_body;
-            prepare_table = &jit_uni_kernel_fwd_f32<isa>::not_prepare_table;
-            break;
-        case eltwise_sqrt:
-            prepare_const = &jit_uni_kernel_fwd_f32<isa>::sqrt_prepare_const;
-            vectorized_body = &jit_uni_kernel_fwd_f32<isa>::sqrt_vectorized_body;
-            reminder_body = &jit_uni_kernel_fwd_f32<isa>::sqrt_reminder_body;
-            prepare_table = &jit_uni_kernel_fwd_f32<isa>::not_prepare_table;
-            break;
-        case eltwise_linear:
-            prepare_const = &jit_uni_kernel_fwd_f32<isa>::linear_prepare_const;
-            vectorized_body = &jit_uni_kernel_fwd_f32<isa>::linear_vectorized_body;
-            reminder_body = &jit_uni_kernel_fwd_f32<isa>::linear_reminder_body;
-            prepare_table = &jit_uni_kernel_fwd_f32<isa>::not_prepare_table;
-            break;
-        case eltwise_bounded_relu:
-            prepare_const = &jit_uni_kernel_fwd_f32<isa>::bounded_relu_prepare_const;
-            vectorized_body = &jit_uni_kernel_fwd_f32<isa>::bounded_relu_vectorized_body;
-            reminder_body = &jit_uni_kernel_fwd_f32<isa>::bounded_relu_reminder_body;
-            prepare_table = &jit_uni_kernel_fwd_f32<isa>::not_prepare_table;
-            break;
-        case eltwise_soft_relu:
-            prepare_const = &jit_uni_kernel_fwd_f32<isa>::exp_prepare_const;
-            vectorized_body = &jit_uni_kernel_fwd_f32<isa>::soft_relu_vectorized_body;
-            reminder_body = &jit_uni_kernel_fwd_f32<isa>::soft_relu_reminder_body;
-            prepare_table = &jit_uni_kernel_fwd_f32<isa>::soft_relu_prepare_table;
-            break;
-        case eltwise_logistic:
-            prepare_const = &jit_uni_kernel_fwd_f32<isa>::exp_prepare_const;
-            vectorized_body = &jit_uni_kernel_fwd_f32<isa>::logistic_vectorized_body;
-            reminder_body = &jit_uni_kernel_fwd_f32<isa>::logistic_reminder_body;
-            prepare_table = &jit_uni_kernel_fwd_f32<isa>::exp_prepare_table;
-            break;
-        default:
-            assert(!"unknown eltwise alg_kind");
-            prepare_const = NULL;
-            vectorized_body = NULL;
-            reminder_body = NULL;
-            prepare_table = NULL;
-            // XXX: handle this case better....
-        }
-
         preamble();
 
         Reg64 param = abi_param1;
         mov(reg_from, ptr[param + GET_OFF(from)]);
         mov(reg_to, ptr[param + GET_OFF(to)]);
         mov(reg_work_amount, ptr[param + GET_OFF(work_amount)]);
-
-        assert(prepare_const);
-        (this->*prepare_const)();
+        eltwise_injector_->load_table_addr();
 
         Label reminder_loop_start, reminder_loop_end;
         Label vectorized_loop_start, vectorized_loop_end;
@@ -292,8 +791,9 @@ struct jit_uni_kernel_fwd_f32: public jit_uni_eltwise_kernel_f32,
 
         L(vectorized_loop_start);
 
-        assert(vectorized_body);
-        (this->*vectorized_body)();
+        uni_vmovups(vmm_src, ptr[reg_from]);
+        eltwise_injector_->compute_vector(vmm_src.getIdx());
+        uni_vmovups(ptr[reg_to], vmm_src);
 
         add(reg_from, vlen);
         add(reg_to, vlen);
@@ -309,8 +809,9 @@ struct jit_uni_kernel_fwd_f32: public jit_uni_eltwise_kernel_f32,
         cmp(reg_work_amount, 0);
         jle(reminder_loop_end, T_NEAR);
 
-        assert(reminder_body);
-        (this->*reminder_body)();
+        movss(xmm_src, ptr[reg_from]);
+        eltwise_injector_->compute_vector(xmm_src.getIdx());
+        movss(ptr[reg_to], xmm_src);
 
         add(reg_from, sizeof(float));
         add(reg_to, sizeof(float));
@@ -322,12 +823,12 @@ struct jit_uni_kernel_fwd_f32: public jit_uni_eltwise_kernel_f32,
 
         postamble();
 
-        // prepare consts for exp calculation
-        assert(prepare_table);
-        (this->*prepare_table)();
+        eltwise_injector_->prepare_table();
 
         ker_ = (decltype(ker_))this->getCode();
     }
+
+    ~jit_uni_kernel_fwd_f32() { delete eltwise_injector_; }
 
 private:
     using Vmm = typename utils::conditional3<isa == sse42, Xmm,
@@ -336,623 +837,15 @@ private:
     const int simd_w = cpu_isa_traits<isa>::vlen / sizeof(float);
     const int vlen   = cpu_isa_traits<isa>::vlen;
 
-    unsigned char _op_floor = 1;
-
     Reg64 reg_from = rax;
     Reg64 reg_to = r8;
     Reg64 reg_work_amount = rsi;
     Reg64 imm_addr64 = rbx;
-    Reg64 reg_mask = r9;
-
-    Opmask k_mask = Opmask(1);
-    Opmask k_mask_tmp = Opmask(2);
-
-    Xmm xmm_mask = Xmm(0);
-    Vmm vmm_mask = Vmm(0);
 
     Xmm xmm_src = Xmm(1);
     Vmm vmm_src = Vmm(1);
 
-    Xmm xmm_dst = Xmm(2);
-    Vmm vmm_dst = Vmm(2);
-
-    Vmm vmm_tmp2 = Vmm(12);
-
-    Xmm xmm_alpha = Xmm(13);
-    Vmm vmm_alpha = Vmm(13);
-    Xmm xmm_beta  = Xmm(14);
-    Vmm vmm_beta  = Vmm(14);
-
-    Xmm xmm_one = Xmm(11);
-    Vmm vmm_one = Vmm(11);
-
-    Xmm xmm_zero = Xmm(15);
-    Vmm vmm_zero = Vmm(15);
-
-    Label l_table;
-
-    void not_prepare_table() {}
-
-    void not_prepare_const() {}
-
-    void exp_prepare_table() {
-        const unsigned int cvals[] = {
-            0x3f800000, // [0] 1.0f
-            0x3f000000, // [1] 0.5f
-            0x3fb8aa3b, // [2] log2ef = 1.44269502f
-            0x3f317218, // [3] ln2f =   0.69314718f
-            0x0000007f, // [4] 0x7f
-            // exp(x) polynomial
-            0x3f800001, // [5] p0 = 1.0000001f
-            0x3efffe85, // [6] p2 = 0.4999887f
-            0x3e2aaa3e, // [7] p3 = 0.16666505f
-            0x3d2bb1b1, // [8] p4 = 0.041917507f
-            0x3c091ec1, // [9] p5 = 0.008369149f
-            0x42b0c0a5, //[10] max logf = 88.3762589f
-            0xc1766666  //[11] min logf = -14.5f
-        };
-
-        align(64);
-        L(l_table);
-        for (size_t i = 0; i < sizeof(cvals) / sizeof(cvals[0]); ++i) {
-            for (size_t d = 0; d < vlen / sizeof(float); ++d) {
-                dd(cvals[i]);
-            }
-        }
-    }
-
-    void exp_prepare_const() {
-        // required for exp calculation
-        mov(imm_addr64, l_table);
-        uni_vmovups(vmm_one, ptr[imm_addr64 + 0 * vlen]);
-    }
-
-    void exp_vectorized() {
-        uni_vminps(vmm_src, vmm_src, ptr[imm_addr64 + 10 * vlen]);
-        uni_vmaxps(vmm_src, vmm_src, ptr[imm_addr64 + 11 * vlen]);
-        uni_vmovups(Vmm(8), vmm_src);
-        // calculate exp(x)
-        // fx = x * log2ef + 0.5
-        uni_vmulps(vmm_src, vmm_src, ptr[imm_addr64 + 2 * vlen]);
-        uni_vaddps(vmm_src, vmm_src, ptr[imm_addr64 + 1 * vlen]);
-
-        // tmp = floorf(fx)
-        if (isa < avx512_common) {
-            uni_vroundps(Vmm(5), vmm_src, _op_floor);
-        } else {
-            vcvtps2dq(Vmm(5) | T_rd_sae, vmm_src);
-            vcvtdq2ps(Vmm(5), Vmm(5));
-
-            vcmpps(k_mask_tmp, Vmm(5), vmm_src, _cmp_nle_us);
-            vmovups(vmm_tmp2 | k_mask_tmp | T_z, zword[imm_addr64 + 0 * vlen]);
-
-            // fx = fx - 1 (if there are fraction bits)
-            uni_vsubps(Vmm(5), Vmm(5), vmm_tmp2);
-        }
-        // keep fx for further computations
-        uni_vmovups(vmm_src, Vmm(5)); //vmm_src = fx
-        // x = x - fx * ln2
-        uni_vfnmadd231ps(Vmm(8), Vmm(5), ptr[imm_addr64 + 3 * vlen]);
-        // y = p5
-        uni_vmovups(vmm_dst, ptr[imm_addr64 + 9 * vlen]);
-        // y = y * x + p4
-        uni_vfmadd213ps(vmm_dst, Vmm(8), ptr[imm_addr64 + 8 * vlen]);
-        // y = y * x + p3
-        uni_vfmadd213ps(vmm_dst, Vmm(8), ptr[imm_addr64 + 7 * vlen]);
-        // y = y * x + p2
-        uni_vfmadd213ps(vmm_dst, Vmm(8), ptr[imm_addr64 + 6 * vlen]);
-        // y = y * x + p1
-        uni_vfmadd213ps(vmm_dst, Vmm(8), vmm_one);
-        // y = y * x + p0
-        uni_vfmadd213ps(vmm_dst, Vmm(8), ptr[imm_addr64 + 5 * vlen]);  //exp(q)
-        // compute 2^n
-        uni_vcvtps2dq(Vmm(6), vmm_src);
-        uni_vpaddd(Vmm(6), Vmm(6), ptr[imm_addr64 + 4 * vlen]);
-        uni_vpslld(Vmm(6), Vmm(6), 23); //Vmm(6) = 2^-fx
-        // y = y * 2^n
-        uni_vmulps(vmm_dst, vmm_dst, Vmm(6));
-    }
-
-    void exp_scalar() {
-        minss(xmm_src, ptr[imm_addr64 + 10 * vlen]);
-        maxss(xmm_src, ptr[imm_addr64 + 11 * vlen]);
-        movups(Xmm(8), xmm_src);
-        //calculate exp(x)
-        // fx = x * log2ef + 0.5
-        mulss(xmm_src, ptr[imm_addr64 + 2 * vlen]);
-        addss(xmm_src, ptr[imm_addr64 + 1 * vlen]);
-        // tmp = floorf(fx)
-        roundss(Xmm(5), xmm_src, _op_floor);
-        //keep fx for further computations
-        movups(xmm_src, Xmm(5)); //xmm_src = fx
-        //calculation fx * ln2
-        mulss(Xmm(5), ptr[imm_addr64 + 3 * vlen]);
-        //x = x - fx * ln2
-        subss(Xmm(8), Xmm(5));
-        // y = p5
-        movups(xmm_dst, ptr[imm_addr64 + 9 * vlen]);
-        // y = y * x + p4
-        mulss(xmm_dst, Xmm(8));
-        addss(xmm_dst, ptr[imm_addr64 + 8 * vlen]);
-
-        // y = y * x + p3
-        mulss(xmm_dst, Xmm(8));
-        addss(xmm_dst, ptr[imm_addr64 + 7 * vlen]);
-        // y = y * x + p2
-        mulss(xmm_dst, Xmm(8));
-        addss(xmm_dst, ptr[imm_addr64 + 6 * vlen]);
-
-        // y = y * x + p1
-        mulss(xmm_dst, Xmm(8));
-        addss(xmm_dst, xmm_one);
-
-        // y = y * x + p0
-        mulss(xmm_dst, Xmm(8));
-        addss(xmm_dst, ptr[imm_addr64 + 5 * vlen]); //exp(q)
-        // compute 2^n
-        cvtps2dq(Xmm(6), xmm_src);
-        paddd(Xmm(6), ptr[imm_addr64 + 4 * vlen]);
-        pslld(Xmm(6), 23); //Xmm(6) = 2^-fx
-        // y = y * 2^n
-        mulps(xmm_dst, Xmm(6));
-    }
-
-    void tanh_vectorized_body() {
-        uni_vmovups(vmm_src, ptr[reg_from]);
-
-        // compute exp(2x)
-        uni_vaddps(vmm_src, vmm_src, vmm_src);
-        exp_vectorized();
-
-        // dup exp(2x)
-        uni_vmovups(Vmm(14), vmm_dst);
-        // (exp(2x) - 1)
-        uni_vsubps(vmm_dst, vmm_dst, vmm_one);
-        // (exp(2x) + 1)
-        uni_vaddps(Vmm(14), Vmm(14), vmm_one);
-        // y = (exp(2x) - 1) / (exp(2x) + 1)
-        uni_vdivps(vmm_dst, vmm_dst, Vmm(14));
-
-        // store result
-        uni_vmovups(ptr[reg_to], vmm_dst);
-    }
-
-    void tanh_reminder_body() {
-        movss(xmm_src, ptr[reg_from]);
-
-        // compute exp(2x)
-        addps(xmm_src, xmm_src);
-        exp_scalar();
-
-        movaps(Xmm(14), xmm_dst);
-        // (exp(2x) - 1)
-        subss(xmm_dst, xmm_one);
-        // (exp(2x) + 1)
-        addss(Xmm(14), ptr[imm_addr64 + 0 * vlen]);
-        // y = (exp(2x) - 1) / (exp(2x) + 1)
-        divss(xmm_dst, Xmm(14));
-
-        // store result
-        movss(ptr[reg_to], xmm_dst);
-    }
-
-    void elu_prepare_const() {
-        mov(imm_addr64, float2int(desc_.alpha));
-        movq(xmm_alpha, imm_addr64);
-        uni_vbroadcastss(vmm_alpha, xmm_alpha);
-
-        uni_vpxor(vmm_zero, vmm_zero, vmm_zero);
-
-        //need for exp calculation
-        mov(imm_addr64, l_table);
-        uni_vmovups(vmm_one, ptr[imm_addr64 + 0 * vlen]);
-    }
-
-    void elu_vectorized_body() {
-        Label exit, early_exit;
-
-        uni_vmovups(vmm_src, ptr[reg_from]);
-        // compute mask
-        if (isa < avx512_common) {
-            uni_vmovups(vmm_mask, vmm_src);
-            uni_vcmpgtps(vmm_mask, vmm_mask, vmm_zero);
-            // early exit if all elems positive
-            uni_vmovmskps(reg_mask, vmm_mask);
-        } else {
-            vcmpps(k_mask, vmm_src, vmm_zero, _cmp_nle_us);
-            kmovw(reg_mask.cvt32(), k_mask);
-        }
-        cmp(reg_mask, isa == sse42 ? 0x0f : (isa == avx2 ? 0xff : 0xffff));
-        je(early_exit, T_NEAR);
-
-        // compute exponent
-        uni_vmovups(Vmm(10), vmm_src);
-        exp_vectorized();
-
-        // alpha * (exp(x) - 1)
-        uni_vsubps(vmm_dst, vmm_dst, vmm_one);
-        uni_vmulps(vmm_dst, vmm_dst, vmm_alpha);
-        // combine with mask
-        if (isa < avx512_common)
-            uni_vblendvps(vmm_dst, vmm_dst, Vmm(10), vmm_mask);
-        else
-            vblendmps(vmm_dst | k_mask, vmm_dst, Vmm(10));
-        // store result
-        uni_vmovups(ptr[reg_to], vmm_dst);
-        jmp(exit, T_NEAR);
-
-        L(early_exit);
-        uni_vmovups(ptr[reg_to], vmm_src);
-
-        L(exit);
-    }
-
-    void elu_reminder_body() {
-        Label reminder_exit, reminder_early_exit;
-
-        movss(xmm_src, ptr[reg_from]);
-        // compute mask
-        movss(xmm_mask, xmm_src);
-        cmpss(xmm_mask, xmm_zero, _cmp_nle_us);
-
-        // early exit if all elems positive
-        movmskps(reg_mask, xmm_mask);
-        cmp(reg_mask, 0x01);
-        je(reminder_early_exit, T_NEAR);
-
-        // compute exponent
-        movss(Xmm(10), xmm_src);
-        exp_scalar();
-        // alpha * (exp(x) - 1)
-        subss(xmm_dst, xmm_one);
-        mulss(xmm_dst, xmm_alpha);
-        // combine with mask (in xmm0)
-        blendvps(xmm_dst, Xmm(10));
-        // store result
-        movss(ptr[reg_to], xmm_dst);
-        jmp(reminder_exit, T_NEAR);
-
-        L(reminder_early_exit);
-        movss(ptr[reg_to], xmm_src);
-
-        L(reminder_exit);
-    }
-
-    void square_vectorized_body() {
-        //load src
-        uni_vmovups(vmm_src, ptr[reg_from]);
-
-        // compute x*x
-        uni_vmulps(vmm_src, vmm_src, vmm_src);
-
-        // store result
-        uni_vmovups(ptr[reg_to], vmm_src);
-    }
-
-    void square_reminder_body() {
-        //load src
-        movss(xmm_src, ptr[reg_from]);
-
-        // compute x*x
-        mulss(xmm_src, xmm_src);
-
-        // store result
-        movss(ptr[reg_to], xmm_src);
-    }
-
-    void abs_prepare_const() {
-        mov(imm_addr64, 0x7fffffff);
-        movq(xmm_one, imm_addr64);
-        uni_vbroadcastss(vmm_one, xmm_one);
-    }
-
-    void abs_vectorized_body() {
-        //load src
-        uni_vmovups(vmm_src, ptr[reg_from]);
-
-        // compute abs(x) = _mm_and_ps(x, 01111..111));
-        uni_vandps(vmm_src, vmm_src, vmm_one);
-
-        // store result
-        uni_vmovups(ptr[reg_to], vmm_src);
-    }
-
-    void abs_reminder_body() {
-        //load src
-        movss(xmm_src, ptr[reg_from]);
-
-        // compute abs(x)
-        andps(xmm_src, xmm_one);
-
-        // store result
-        movss(ptr[reg_to], xmm_src);
-    }
-
-    void sqrt_prepare_const() {
-        uni_vpxor(vmm_zero, vmm_zero, vmm_zero);
-    }
-
-    void sqrt_vectorized_body() {
-        Label early_exit;
-
-        //load src
-        uni_vmovups(vmm_src, ptr[reg_from]);
-
-        uni_vmovups(vmm_mask, vmm_src);
-        uni_vmovups(vmm_dst, vmm_zero);
-        uni_vcmpgtps(vmm_mask, vmm_mask, vmm_zero);
-
-        // early exit if all elems are negative
-        uni_vmovmskps(reg_mask, vmm_mask);
-        cmp(reg_mask, 0);
-        je(early_exit, T_NEAR);
-
-        // compute sqrt(x)
-        uni_vsqrtps(vmm_src, vmm_src);
-
-        // blend
-        uni_vblendvps(vmm_dst, vmm_dst, vmm_src, vmm_mask);
-
-        // store result
-        L(early_exit);
-        uni_vmovups(ptr[reg_to], vmm_dst);
-    }
-
-    void sqrt_reminder_body() {
-        Label reminder_early_exit;
-
-        // load src
-        movss(xmm_src, ptr[reg_from]);
-
-        // compute mask
-        movss(xmm_mask, xmm_src);
-        movss(xmm_dst, xmm_zero);
-        cmpss(xmm_mask, xmm_zero, _cmp_nle_us);
-
-        // early exit if all elements are negative
-        movmskps(reg_mask, xmm_mask);
-        cmp(reg_mask, 0);
-        je(reminder_early_exit, T_NEAR);
-
-        // compute sqrt(x)
-        sqrtss(xmm_src, xmm_src);
-
-        // blend
-        blendvps(xmm_dst, xmm_src);
-
-        // store result
-        L(reminder_early_exit);
-        movss(ptr[reg_to], xmm_dst);
-    }
-
-    void linear_prepare_const() {
-        mov(imm_addr64, float2int(desc_.alpha));
-        movq(xmm_alpha, imm_addr64);
-        uni_vbroadcastss(vmm_alpha, xmm_alpha);
-
-        mov(imm_addr64, float2int(desc_.beta));
-        movq(xmm_beta, imm_addr64);
-        uni_vbroadcastss(vmm_beta, xmm_beta);
-
-        uni_vpxor(vmm_zero, vmm_zero, vmm_zero);
-    }
-
-    void linear_vectorized_body() {
-        // load src
-        uni_vmovups(vmm_src, ptr[reg_from]);
-
-        // compute x = alpha * x + beta;
-        uni_vfmadd213ps(vmm_src, vmm_alpha, vmm_beta);
-
-        // store result
-        uni_vmovups(ptr[reg_to], vmm_src);
-    }
-
-    void linear_reminder_body() {
-        // load src
-        movss(xmm_src, ptr[reg_from]);
-
-        // compute x = alpha * x + beta;
-        mulss(xmm_src, xmm_alpha);
-        addss(xmm_src, xmm_beta);
-
-        // store result
-        movss(ptr[reg_to], xmm_src);
-    }
-
-    void bounded_relu_prepare_const() {
-        mov(imm_addr64, float2int(desc_.alpha));
-        movq(xmm_alpha, imm_addr64);
-        uni_vbroadcastss(vmm_alpha, xmm_alpha);
-
-        uni_vpxor(vmm_zero, vmm_zero, vmm_zero);
-    }
-
-    void bounded_relu_vectorized_body() {
-        uni_vmovups(vmm_src, ptr[reg_from]);
-        // compute bounded relu */
-        uni_vmaxps(vmm_src, vmm_src, vmm_zero);
-        uni_vminps(vmm_src, vmm_src, vmm_alpha);
-        // store result
-        uni_vmovups(ptr[reg_to], vmm_src);
-    }
-
-    void bounded_relu_reminder_body() {
-        movss(xmm_src, ptr[reg_from]);
-        // compute bounded relu */
-        maxps(xmm_src, xmm_zero);
-        minps(xmm_src, xmm_alpha);
-        // store result
-        movss(ptr[reg_to], xmm_src);
-    }
-
-    void soft_relu_prepare_table() {
-        const unsigned int cvals[] = {
-            0x3f800000, // [0] 1.0f
-            0x3f000000, // [1] 0.5f
-            0x3fb8aa3b, // [2] log2ef = 1.44269502f
-            0x3f317218, // [3] ln2f =   0.69314718f
-            0x0000007f, // [4] 0x7f
-            0x42fc0000, // [5] 126
-            0x807fffff, // [6] and with (to get 0.5 * mantissa)
-            0x3f000000, // [7] or with (to get 0.5 * mantissa)
-            // ln(1 + x) polynomial
-            0xb2b4637d, // [8]  p0 = 0.0000000244f
-            0x3f7fff8e, // [9]  p1 = 0.9999976971f
-            0xbf001759, //[10]  p2 = -0.5002478215f
-            0x3ea70608, //[11]  p3 = 0.3272714505f
-            0xbea3d7bf, //[12]  p4 = -0.3153830071f
-            0xbe361d04, //[13]  p5 = -0.1701777461f
-            0xbfa8f1e6, //[14]  p6 = -1.3254635147f
-            0xbfe1e812, //[15]  p7 = -1.7971917960f
-            0xbfc4d30e, //[16]  p8 = -1.5652673123f
-            // exp(x) polynomial
-            0x3f800001, //[17]  p0 = 1.0000001f
-            0x3f800000, //[18]  p1 = 1.0f
-            0x3efffe85, //[19]  p2 = 0.4999887f
-            0x3e2aaa3e, //[20]  p3 = 0.16666505f
-            0x3d2bb1b1, //[21]  p4 = 0.041917507f
-            0x3c091ec1, //[22]  p5 = 0.008369149f
-            0xbf800000, //[23] is required for sign changing
-            0x42b0c0a5, //[24] max logf = 88.3762589f
-            0xc1766666  //[25] min logf = -14.5f
-        };
-
-        align(64);
-        L(l_table);
-        for (size_t i = 0; i < sizeof(cvals) / sizeof(cvals[0]); ++i) {
-            for (size_t d = 0; d < vlen / sizeof(float); ++d) {
-                dd(cvals[i]);
-            }
-        }
-    }
-
-    void soft_relu_vectorized() {
-        // duplicate src
-        uni_vmovups(Vmm(9), Vmm(1));
-        // get vmm_mask = src > max logf
-        uni_vmovups(Vmm(3), ptr[imm_addr64 + 24 * vlen]);
-        uni_vmovups(vmm_mask, Vmm(1));
-        uni_vcmpgtps(vmm_mask, vmm_mask, Vmm(3));
-
-        uni_vminps(Vmm(1), Vmm(1), Vmm(3));
-        uni_vmaxps(Vmm(1), Vmm(1), ptr[imm_addr64 + 25 * vlen]);
-        uni_vmovups(Vmm(8), Vmm(1));
-        // calculate exp(x)
-        // fx = x * log2ef + 0.5
-        uni_vmulps(Vmm(1), Vmm(1), ptr[imm_addr64 + 2 * vlen]);
-        uni_vaddps(Vmm(1), Vmm(1), ptr[imm_addr64 + 1 * vlen]);
-        // tmp = floorf(fx)
-        uni_vroundps(Vmm(5), Vmm(1), _op_floor);
-        // keep fx for further computations
-        uni_vmovups(Vmm(1), Vmm(5)); //Vmm(1) = fx
-        // calculation fx * ln2
-        uni_vmulps(Vmm(5), Vmm(5), ptr[imm_addr64 + 3 * vlen]);
-        // x = x - fx * ln2
-        uni_vsubps(Vmm(8), Vmm(8), Vmm(5));
-        // y = p5
-        uni_vmovups(Vmm(3), ptr[imm_addr64 + 22 * vlen]);
-        // y = y * x + p4
-        uni_vfmadd213ps(Vmm(3), Vmm(8), ptr[imm_addr64 + 21 * vlen]);
-        // y = y * x + p3
-        uni_vfmadd213ps(Vmm(3), Vmm(8), ptr[imm_addr64 + 20 * vlen]);
-        // y = y * x + p2
-        uni_vfmadd213ps(Vmm(3), Vmm(8), ptr[imm_addr64 + 19 * vlen]);
-        // y = y * x + p1
-        uni_vfmadd213ps(Vmm(3), Vmm(8), vmm_one);
-        // y = y * x + p0
-        uni_vfmadd213ps(Vmm(3), Vmm(8), ptr[imm_addr64 + 17 * vlen]);  //exp(q)
-        // compute 2^(-n)
-        uni_vcvtps2dq(Vmm(6), Vmm(1));
-        uni_vpsignd(Vmm(6),Vmm(6), ptr[imm_addr64 + 23 * vlen]);
-        uni_vpaddd(Vmm(6), Vmm(6), ptr[imm_addr64 + 4 * vlen]);
-        uni_vpslld(Vmm(6), Vmm(6), 23); //Vmm(6) = 2^-fx
-        // calculate ln(1 + y)
-        uni_vaddps(Vmm(3), Vmm(3), Vmm(6));
-        // x = y; y is free; keep x for further computations
-        uni_vmovups(Vmm(1), Vmm(3));
-        // frexp()
-        uni_vpsrld(Vmm(1), Vmm(1), 23);
-        uni_vcvtdq2ps(Vmm(1), Vmm(1));
-        // got n. where n is x = 2^n * y. y = 0.5 .. 1
-        uni_vsubps(Vmm(1), Vmm(1), ptr[imm_addr64 + 5 * vlen]);
-
-        uni_vandps(Vmm(3), Vmm(3), ptr[imm_addr64 + 6 * vlen]);
-        // got y. (mantisa)  0.5 < y < 1
-        uni_vorps(Vmm(3), Vmm(3), ptr[imm_addr64 + 7 * vlen]);
-        // y  = y - 1
-        uni_vsubps(Vmm(3), Vmm(3), vmm_one);
-        // y = p8
-        uni_vmovups(Vmm(8), ptr[imm_addr64 + 16 * vlen]);
-        // y = y * x + p7
-        uni_vfmadd213ps(Vmm(8), Vmm(3), ptr[imm_addr64 + 15 * vlen]);
-        // y = y * x + p6
-        uni_vfmadd213ps(Vmm(8), Vmm(3), ptr[imm_addr64 + 14 * vlen]);
-        // y = y * x + p5
-        uni_vfmadd213ps(Vmm(8), Vmm(3), ptr[imm_addr64 + 13 * vlen]);
-        // y = y * x + p4
-        uni_vfmadd213ps(Vmm(8), Vmm(3), ptr[imm_addr64 + 12 * vlen]);
-        // y = y * x + p3
-        uni_vfmadd213ps(Vmm(8), Vmm(3), ptr[imm_addr64 + 11 * vlen]);
-        // y = y * x + p2
-        uni_vfmadd213ps(Vmm(8), Vmm(3), ptr[imm_addr64 + 10 * vlen]);
-        // y = y * x + p1
-        uni_vfmadd213ps(Vmm(8), Vmm(3), ptr[imm_addr64 + 9 * vlen]);
-        // y = y * x + p0 ; p0 = 0
-        uni_vfmadd213ps(Vmm(8), Vmm(3), ptr[imm_addr64 + 8 * vlen]);
-        //calculate ln(2) * n
-        uni_vmulps(Vmm(1), Vmm(1), ptr[imm_addr64 + 3 * vlen]);
-        uni_vaddps(Vmm(8), Vmm(8), Vmm(1));
-        uni_vaddps(Vmm(8), Vmm(8), Vmm(5));
-        // y = (x < max log f) ? soft_relu(x) : x
-        uni_vblendvps(Vmm(8), Vmm(8), Vmm(9), vmm_mask);
-    }
-
-    void soft_relu_vectorized_body() {
-        uni_vmovups(Vmm(1), ptr[reg_from]);
-        // compute soft relu */
-        soft_relu_vectorized();
-        // store result
-        uni_vmovups(ptr[reg_to], Vmm(8));
-    }
-
-    void soft_relu_reminder_body() {
-        movss(Xmm(1), ptr[reg_from]);
-        soft_relu_vectorized();
-        // store result
-        movss(ptr[reg_to], Xmm(8));
-    }
-
-    void logistic_vectorized_body() {
-        uni_vmovups(vmm_src, ptr[reg_from]);
-
-        // compute exp(x)
-        exp_vectorized();
-        // dup exp(x)
-        uni_vmovups(Vmm(14), vmm_dst);
-        // (exp(x) + 1)
-        uni_vaddps(Vmm(14), Vmm(14), vmm_one);
-        // y = exp(x) / (exp(x) + 1)
-        uni_vdivps(vmm_dst, vmm_dst, Vmm(14));
-
-        // store result
-        uni_vmovups(ptr[reg_to], vmm_dst);
-    }
-
-    void logistic_reminder_body() {
-        movss(xmm_src, ptr[reg_from]);
-
-        exp_scalar();
-
-        movaps(Xmm(14), xmm_dst);
-        // (exp(x) + 1)
-        addss(Xmm(14), xmm_one);
-        // y = exp(x) / (exp(x) + 1)
-        divss(xmm_dst, Xmm(14));
-
-        // store result
-        movss(ptr[reg_to], xmm_dst);
-    }
+    jit_uni_eltwise_injector_f32<isa> *eltwise_injector_;
 };
 
 } /* namespace */

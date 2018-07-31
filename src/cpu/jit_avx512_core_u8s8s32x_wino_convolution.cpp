@@ -534,12 +534,7 @@ bool jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::post_ops_ok(
     using namespace primitive_kind;
     const auto &p = attr.post_ops_;
 
-    auto is_relu = [&](int idx) {
-        return p.entry_[idx].kind == eltwise
-            && p.entry_[idx].eltwise.scale == 1.
-            && p.entry_[idx].eltwise.alg == alg_kind::eltwise_relu
-            && p.entry_[idx].eltwise.alpha == 0.;
-    };
+    auto is_relu = [&](int idx) { return p.entry_[idx].is_relu(); };
 
     switch (p.len_) {
     case 0: return true;
@@ -711,10 +706,6 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
 
     if (!post_ops_ok(jcp, attr))
         return status::unimplemented;
-
-    const auto &p = attr.post_ops_;
-    jcp.with_relu = p.find(primitive_kind::eltwise) != -1;
-    jcp.relu_negative_slope = 0.f;
 
     jcp.bia_dt = jcp.with_bias ? cd.bias_desc.data_type : data_type::undef;
     jcp.dst_dt = cd.dst_desc.data_type;
