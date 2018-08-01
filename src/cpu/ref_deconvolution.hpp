@@ -39,7 +39,7 @@
         auto ret = safe_ptr_assign<primitive_t>(*primitive, \
                                 new (__VA_ARGS__)(this, ins, outs)); \
         primitive_t *conv_primitive; \
-        if (utils::one_of(this->desc()->prop_kind, backward, backward_weights)) {\
+        if (this->desc()->prop_kind == backward_weights) {\
             primitive_at_t conv_inputs[2];\
             conv_inputs[0] = inputs[1];\
             conv_inputs[1] = inputs[0];\
@@ -286,8 +286,7 @@ struct ref_deconvolution_bwd_data_t: public cpu_primitive_t {
             using namespace data_type;
             assert(this->engine()->kind() == engine_kind::cpu);
             bool ok = true
-                && utils::one_of(this->desc()->prop_kind, backward,
-                        backward_data)
+                && this->desc()->prop_kind == backward_data
                 && utils::everyone_is(data_type::f32,
                         this->desc()->diff_src_desc.data_type,
                         this->desc()->weights_desc.data_type,
@@ -321,7 +320,6 @@ struct ref_deconvolution_bwd_data_t: public cpu_primitive_t {
 
     virtual void execute(event_t *e) {
         switch (conf_.desc()->prop_kind) {
-        case prop_kind::backward:
         case prop_kind::backward_data:
             (conv_p_)->execute(e);
             break;
@@ -374,8 +372,7 @@ struct ref_deconvolution_bwd_weights_t: public cpu_primitive_t {
             using namespace prop_kind;
             assert(this->engine()->kind() == engine_kind::cpu);
             bool ok = true
-                && utils::one_of(this->desc()->prop_kind, backward,
-                        backward_weights)
+                && this->desc()->prop_kind == backward_weights
                 && utils::everyone_is(data_type::f32,
                         this->desc()->src_desc.data_type,
                         this->desc()->diff_weights_desc.data_type,
@@ -415,7 +412,6 @@ struct ref_deconvolution_bwd_weights_t: public cpu_primitive_t {
 
     virtual void execute(event_t *e) {
         switch (conf_.desc()->prop_kind) {
-        case prop_kind::backward:
         case prop_kind::backward_weights:
             (conv_p_)->execute(e);
             if (conf_.with_bias()) {

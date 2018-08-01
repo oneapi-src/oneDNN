@@ -192,7 +192,7 @@ struct gemm_convolution_bwd_data_t: public cpu_primitive_t {
 
             bool ok = true
                 && this->set_default_params() == status::success
-                && utils::one_of(this->desc()->prop_kind, backward_data)
+                && this->desc()->prop_kind == backward_data
                 && this->desc()->alg_kind == alg_kind::convolution_direct
                 && utils::everyone_is(data_type::f32,
                         this->desc()->diff_src_desc.data_type,
@@ -291,7 +291,7 @@ struct gemm_convolution_bwd_weights_t: public cpu_primitive_t {
 
             bool ok = true
             && this->set_default_params() == status::success
-            && utils::one_of(this->desc()->prop_kind, backward_weights)
+            && this->desc()->prop_kind == backward_weights
             && this->desc()->alg_kind == alg_kind::convolution_direct
             && utils::everyone_is(data_type::f32,
                     this->desc()->src_desc.data_type,
