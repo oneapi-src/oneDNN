@@ -402,6 +402,9 @@ template struct _ref_convolution_fwd_t<false, f32>;
 template struct _ref_convolution_fwd_t<true, f32>;
 template struct _ref_convolution_fwd_t<false, s16, s16, s32, s32>;
 template struct _ref_convolution_fwd_t<true, s16, s16, s32, s32>;
+
+template struct _ref_convolution_fwd_t<false, u8, s8, f32, s32>;
+template struct _ref_convolution_fwd_t<true, u8, s8, f32, s32>;
 template struct _ref_convolution_fwd_t<false, u8, s8, s32, s32>;
 template struct _ref_convolution_fwd_t<true, u8, s8, s32, s32>;
 template struct _ref_convolution_fwd_t<false, u8, s8, s8, s32>;

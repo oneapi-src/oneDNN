@@ -156,6 +156,7 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(_gemm_u8s8s32x_convolution_bwd_data_t<s8>),
     INSTANCE(_gemm_u8s8s32x_convolution_bwd_data_t<f32>),
     INSTANCE(ref_convolution_fwd_t<s16,s16, s32, s32>),
+    INSTANCE(ref_convolution_fwd_t<u8, s8, f32, s32>),
     INSTANCE(ref_convolution_fwd_t<u8, s8, s32, s32>),
     INSTANCE(ref_convolution_fwd_t<u8, s8, s8, s32>),
     INSTANCE(ref_convolution_fwd_t<u8, s8, u8, s32>),
