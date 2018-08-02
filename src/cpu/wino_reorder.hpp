@@ -21,9 +21,6 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-template <impl::data_type_t type>
-using data_t = typename prec_traits<type>::type;
-
 template <impl::data_type_t type_i, impl::memory_format_t fmt_i,
         impl::data_type_t type_o, impl::memory_format_t fmt_o, bool order_keep>
 struct wino_reorder_t : public cpu_primitive_t {
@@ -127,7 +124,7 @@ struct wino_reorder_t : public cpu_primitive_t {
     }
 
     void transform(const memory_desc_wrapper &input_d,
-        const data_t<type_i> *__restrict input) {
+        const in_wei_data_t *__restrict input) {
 
         round_mode_t rmode = conf_.attr()->round_mode_;
         const int smask = conf_.attr()->output_scales_.mask_;
@@ -206,7 +203,7 @@ struct wino_reorder_t : public cpu_primitive_t {
         }}
     }
 
-    void reorder_to_aaOIoi(data_t<type_o> *__restrict output) {
+    void reorder_to_aaOIoi(out_wei_data_t *__restrict output) {
         int32_t *__restrict dst_bias = nullptr;
         if (type_o == s8) {
             const auto bias_shift = sizeof(out_wei_data_t) * size_wino_wei_;
@@ -253,7 +250,7 @@ struct wino_reorder_t : public cpu_primitive_t {
         }}
     }
 
-    void reorder_to_aaOio(data_t<type_o> *__restrict output) {
+    void reorder_to_aaOio(out_wei_data_t *__restrict output) {
 #pragma omp parallel for collapse(3)
         for (int u_h = 0; u_h < w_alpha_; u_h++) {
         for (int u_w = 0; u_w < w_alpha_; u_w++) {
@@ -273,7 +270,7 @@ struct wino_reorder_t : public cpu_primitive_t {
         }}}}}}
     }
 
-    void reorder_to_aaOBiOo(data_t<type_o> *__restrict output) {
+    void reorder_to_aaOBiOo(out_wei_data_t *__restrict output) {
         int oc_chunks = nb_oc_ / oc2_block_;
 #pragma omp parallel for collapse(3)
         for (int u_h = 0; u_h < w_alpha_; u_h++) {
@@ -301,7 +298,7 @@ struct wino_reorder_t : public cpu_primitive_t {
         }}}}
     }
 
-    void reorder_to_OBaaIBOIio(data_t<type_o> *__restrict output) {
+    void reorder_to_OBaaIBOIio(out_wei_data_t *__restrict output) {
         int ic_chunks = nb_ic_ / ic2_block_;
         int oc_chunks = nb_oc_ / oc2_block_;
 
@@ -333,8 +330,8 @@ struct wino_reorder_t : public cpu_primitive_t {
     }
 
     virtual void execute(event_t *e) {
-        auto input = reinterpret_cast<const data_t<type_i> *>(input_memory(0));
-        auto output = reinterpret_cast<data_t<type_o> *>(memory());
+        auto input = reinterpret_cast<const in_wei_data_t *>(input_memory(0));
+        auto output = reinterpret_cast<out_wei_data_t *>(memory());
 
         transform(conf_.input_pd()->desc(), input);
 
