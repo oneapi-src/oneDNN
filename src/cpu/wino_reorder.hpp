@@ -150,8 +150,10 @@ struct wino_reorder_t : public cpu_primitive_t {
             g = (float *)G_2x2_3x3;
         else if (wino_format_ == mkldnn_wino_wei_OBaaIBOIio)
             g = (float *)G_4x4_3x3;
-        else
+        else {
             assert("Unknown winograd weights target layout");
+            return;
+        }
 
         int Z = oc_ * ic_;
         assert(r_ == kh_ && r_ == kw_);
