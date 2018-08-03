@@ -817,7 +817,14 @@ private:
     }
 
     void soft_relu_vectorized() {
-        uni_vminps(Vmm(1), Vmm(1), ptr[imm_addr64 + 24 * vlen]);
+        // duplicate src
+        uni_vmovups(Vmm(9), Vmm(1));
+        // get vmm_mask = src > max logf
+        uni_vmovups(Vmm(3), ptr[imm_addr64 + 24 * vlen]);
+        uni_vmovups(vmm_mask, Vmm(1));
+        uni_vcmpgtps(vmm_mask, vmm_mask, Vmm(3));
+
+        uni_vminps(Vmm(1), Vmm(1), Vmm(3));
         uni_vmaxps(Vmm(1), Vmm(1), ptr[imm_addr64 + 25 * vlen]);
         uni_vmovups(Vmm(8), Vmm(1));
         // calculate exp(x)
@@ -886,6 +893,8 @@ private:
         uni_vmulps(Vmm(1), Vmm(1), ptr[imm_addr64 + 3 * vlen]);
         uni_vaddps(Vmm(8), Vmm(8), Vmm(1));
         uni_vaddps(Vmm(8), Vmm(8), Vmm(5));
+        // y = (x < max log f) ? soft_relu(x) : x
+        uni_vblendvps(Vmm(8), Vmm(8), Vmm(9), vmm_mask);
     }
 
     void soft_relu_vectorized_body() {
