@@ -27,28 +27,37 @@ endif()
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CMAKE_TEST_CCXX_FLAGS}")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_TEST_CCXX_FLAGS}")
 
-set(SUPPRESS_SOME_WARNINGS)
+set(CMAKE_TEST_CCXX_NOWARN_FLAGS)
+
+# propagate no warning flags
+set(CMAKE_TEST_CCXX_NOWARN_FLAGS
+    "${CMAKE_TEST_CCXX_NOWARN_FLAGS} ${CMAKE_CCXX_NOWARN_FLAGS}")
+
 if(UNIX OR APPLE OR MINGW)
     # workaround for Intel Compiler 16.0 that doesn't suppress warning on
     # deprecation with "-Wno-deprecated" compiler flag
     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel" AND
             CMAKE_CXX_COMPILER_VERSION VERSION_LESS "17.0")
-        set(SUPPRESS_SOME_WARNINGS "-diag-disable:1478")
+        set(CMAKE_TEST_CCXX_NOWARN_FLAGS
+            "${CMAKE_TEST_CCXX_NOWARN_FLAGS} -diag-disable:1478")
     else()
-        set(SUPPRESS_SOME_WARNINGS "-Wno-deprecated-declarations")
+        set(CMAKE_TEST_CCXX_NOWARN_FLAGS
+            "${CMAKE_TEST_CCXX_NOWARN_FLAGS} -Wno-deprecated-declarations")
     endif()
 elseif(WIN32 AND NOT MINGW)
     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
         # 1478: deprecated functions
-        set(SUPPRESS_SOME_WARNINGS "/Qdiag-disable:1478")
+        set(CMAKE_TEST_CCXX_NOWARN_FLAGS
+            "${CMAKE_TEST_CCXX_NOWARN_FLAGS} /Qdiag-disable:1478")
     else()
         # c4244: conversion with possible loss of data
         # c4996: unsafe / deprecated functions
-        set(SUPPRESS_SOME_WARNINGS "/wd4996 /wd4244")
+        set(CMAKE_TEST_CCXX_NOWARN_FLAGS
+            "${CMAKE_TEST_CCXX_NOWARN_FLAGS} /wd4996 /wd4244")
     endif()
 endif()
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SUPPRESS_SOME_WARNINGS}")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SUPPRESS_SOME_WARNINGS}")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CMAKE_TEST_CCXX_NOWARN_FLAGS}")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_TEST_CCXX_NOWARN_FLAGS}")
 
 #add_executable(api-check-c api_check.c)
 #target_link_libraries(api-check-c ${LIB_NAME} ${EXTRA_LIBS})

@@ -46,28 +46,35 @@ if(MKLDNN_ENABLE_CONCURRENT_EXEC)
 endif()
 
 set(CMAKE_CCXX_FLAGS)
+set(CMAKE_CCXX_NOWARN_FLAGS)
 set(DEF_ARCH_OPT_FLAGS)
 
 if(MSVC)
     set(USERCONFIG_PLATFORM "x64")
     if(${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
         set(CMAKE_CCXX_FLAGS "${CMAKE_CCXX_FLAGS} /MP")
-        set(CMAKE_CCXX_FLAGS "${CMAKE_CCXX_FLAGS} /wd4800") # int -> bool
-        set(CMAKE_CCXX_FLAGS "${CMAKE_CCXX_FLAGS} /wd4068") # unknown pragma
-        set(CMAKE_CCXX_FLAGS "${CMAKE_CCXX_FLAGS} /wd4305") # double -> float
-        set(CMAKE_CCXX_FLAGS "${CMAKE_CCXX_FLAGS} /wd4551") # UNUSED(func)
+        # int -> bool
+        set(CMAKE_CCXX_NOWARN_FLAGS "${CMAKE_CCXX_NOWARN_FLAGS} /wd4800")
+        # unknown pragma
+        set(CMAKE_CCXX_NOWARN_FLAGS "${CMAKE_CCXX_NOWARN_FLAGS} /wd4068")
+        # double -> float
+        set(CMAKE_CCXX_NOWARN_FLAGS "${CMAKE_CCXX_NOWARN_FLAGS} /wd4305")
+        # UNUSED(func)
+        set(CMAKE_CCXX_NOWARN_FLAGS "${CMAKE_CCXX_NOWARN_FLAGS} /wd4551")
     endif()
     if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
         set(CMAKE_CCXX_FLAGS "${CMAKE_CCXX_FLAGS} /MP")
         set(DEF_ARCH_OPT_FLAGS "-QxHOST")
         # disable: loop was not vectorized with "simd"
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Qdiag-disable:15552")
+        set(CMAKE_CCXX_NOWARN_FLAGS
+            "${CMAKE_CCXX_NOWARN_FLAGS} -Qdiag-disable:15552")
     endif()
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         # Clang cannot vectorize some loops with #pragma omp simd and gets
         # very upset. Tell it that it's okay and that we love it
         # unconditionnaly.
-        set(CMAKE_CCXX_FLAGS "${CMAKE_CCXX_FLAGS} -Wno-pass-failed")
+        set(CMAKE_CCXX_NOWARN_FLAGS
+            "${CMAKE_CCXX_NOWARN_FLAGS} -Wno-pass-failed")
     endif()
 elseif(UNIX OR APPLE OR MINGW)
     set(CMAKE_CCXX_FLAGS "${CMAKE_CCXX_FLAGS} -Wall -Werror -Wno-unknown-pragmas")
@@ -79,23 +86,27 @@ elseif(UNIX OR APPLE OR MINGW)
         # Clang cannot vectorize some loops with #pragma omp simd and gets
         # very upset. Tell it that it's okay and that we love it
         # unconditionnaly.
-        set(CMAKE_CCXX_FLAGS "${CMAKE_CCXX_FLAGS} -Wno-pass-failed")
+        set(CMAKE_CCXX_NOWARN_FLAGS
+            "${CMAKE_CCXX_NOWARN_FLAGS} -Wno-pass-failed")
     elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
         if(NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS 5.0)
             set(DEF_ARCH_OPT_FLAGS "-march=native -mtune=native")
         endif()
         if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 6.0)
             # suppress warning on assumptions made regarding overflow (#146)
-            set(CMAKE_CCXX_FLAGS "${CMAKE_CCXX_FLAGS} -Wno-strict-overflow")
+            set(CMAKE_CCXX_NOWARN_FLAGS
+                "${CMAKE_CCXX_NOWARN_FLAGS} -Wno-strict-overflow")
         endif()
     elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
         set(DEF_ARCH_OPT_FLAGS "-xHOST")
         # workaround for Intel Compiler 16.0 that produces error caused
         # by pragma omp simd collapse(..)
         if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "17.0")
-            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -diag-disable:13379")
+            set(CMAKE_CCXX_NOWARN_FLAGS
+                "${CMAKE_CCXX_NOWARN_FLAGS} -diag-disable:13379")
         endif()
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -diag-disable:15552")
+        set(CMAKE_CCXX_NOWARN_FLAGS
+            "${CMAKE_CCXX_NOWARN_FLAGS} -diag-disable:15552")
     endif()
 endif()
 

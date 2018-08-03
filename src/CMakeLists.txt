@@ -36,6 +36,10 @@ include_directories(
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CMAKE_SRC_CCXX_FLAGS}")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_SRC_CCXX_FLAGS}")
 
+# propagate no warning flags
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CMAKE_CCXX_NOWARN_FLAGS}")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_CCXX_NOWARN_FLAGS}")
+
 if(VTUNEROOT)
     include_directories(${VTUNEROOT}/include)
     add_definitions(-DJIT_PROFILING_VTUNE)
