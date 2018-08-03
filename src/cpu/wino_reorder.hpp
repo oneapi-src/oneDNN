@@ -21,8 +21,7 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-template <impl::data_type_t type_i, impl::memory_format_t fmt_i,
-        impl::data_type_t type_o, impl::memory_format_t fmt_o, bool order_keep>
+template <data_type_t type_i, data_type_t type_o>
 struct wino_reorder_t : public cpu_primitive_t {
     struct pd_t : public cpu_reorder_pd_t {
         pd_t(const cpu_memory_pd_t *input_pd, const cpu_memory_pd_t *output_pd,
@@ -40,15 +39,15 @@ struct wino_reorder_t : public cpu_primitive_t {
 
             bool args_ok = true && input_pd->desc()->data_type == type_i
                     && output_pd->desc()->data_type == type_o
-                    && input_pd->desc()->format == fmt_i
-                    && output_pd->desc()->format == fmt_o
+                    && one_of(input_pd->desc()->format, goihw, oihw)
+                    && output_pd->desc()->format == wino_fmt
                     && one_of(output_d.wino_desc().wino_format,
                                mkldnn_wino_wei_aaOIoi, mkldnn_wino_wei_aaOio,
                                mkldnn_wino_wei_aaOBiOo,
                                mkldnn_wino_wei_OBaaIBOIio);
 
             if (!args_ok)
-                return impl::status::invalid_arguments;
+                return status::invalid_arguments;
 
             auto _pd = new pd_t((const cpu_memory_pd_t *)input_pd,
                     (const cpu_memory_pd_t *)output_pd, attr);
@@ -62,15 +61,14 @@ struct wino_reorder_t : public cpu_primitive_t {
         }
     };
 
-    typedef typename prec_traits<type_i>::type in_wei_data_t;
-    typedef typename prec_traits<type_o>::type out_wei_data_t;
+private:
+    typedef typename prec_traits<type_i>::type in_data_t;
+    typedef typename prec_traits<type_o>::type out_data_t;
+    const int unsign_val_in_wino_domain_ = 5;
 
-    wino_reorder_t(const pd_t *pd, const input_vector &inputs,
-            const output_vector &outputs)
-        : cpu_primitive_t(&conf_, inputs, outputs)
-        , conf_(*pd)
-        , unsign_val_in_wino_domain(5) {
-
+    wino_reorder_t(const pd_t *pd,
+            const input_vector &inputs, const output_vector &outputs)
+        : cpu_primitive_t(pd, inputs, outputs), conf_(*pd) {
         const memory_desc_wrapper input_d(conf_.input_pd());
         const memory_desc_wrapper output_d(conf_.output_pd());
 
@@ -81,7 +79,7 @@ struct wino_reorder_t : public cpu_primitive_t {
         const auto &in_dims = input_d.dims();
         int groups;
         int groups_offset;
-        if (fmt_i == goihw) {
+        if (input_d.format() == goihw) {
             groups = in_dims[0];
             groups_offset = 1;
         } else {
@@ -112,10 +110,9 @@ struct wino_reorder_t : public cpu_primitive_t {
         size_wino_wei_ = w_alpha_ * w_alpha_ * oc_ * ic_;
         size_wspace_ = r_ * w_alpha_ * oc_block_;
 
-        wspace_ = (in_wei_data_t *)malloc(
-                sizeof(in_wei_data_t) * size_wspace_, 64);
-        tmp_wei_ = (out_wei_data_t *)malloc(
-                sizeof(out_wei_data_t) * size_wino_wei_, 64);
+        wspace_ = (in_data_t *)malloc(sizeof(in_data_t) * size_wspace_, 64);
+        tmp_wei_ =
+                (out_data_t *)malloc(sizeof(out_data_t) * size_wino_wei_, 64);
     }
 
     ~wino_reorder_t() {
@@ -123,8 +120,8 @@ struct wino_reorder_t : public cpu_primitive_t {
         free(tmp_wei_);
     }
 
-    void transform(const memory_desc_wrapper &input_d,
-        const in_wei_data_t *__restrict input) {
+    void transform(const in_data_t *__restrict input) {
+        const memory_desc_wrapper input_d(conf_.input_pd()->desc());
 
         round_mode_t rmode = conf_.attr()->round_mode_;
         const int smask = conf_.attr()->output_scales_.mask_;
@@ -160,9 +157,9 @@ struct wino_reorder_t : public cpu_primitive_t {
 
         for (int iic = 0; iic < ic_; iic++) {
         for (int ob = 0; ob < nb_oc_; ob++) {
-            const in_wei_data_t *__restrict _inp
+            const in_data_t *__restrict _inp
                     = input + (ob * oc_block_ * or_ic_ + iic) * kh_ * kw_;
-            out_wei_data_t *__restrict _out
+            out_data_t *__restrict _out
                     = tmp_wei_ + (iic * nb_oc_ + ob) * oc_block_;
 
 #pragma omp parallel for
@@ -176,7 +173,7 @@ struct wino_reorder_t : public cpu_primitive_t {
             for (int iw = 0; iw < r_; ++iw) {
                 int inp_oc = ob * oc_block_ + ioc;
                 int inp_ic = iic;
-                in_wei_data_t inp_v = (inp_ic < or_ic_ && inp_oc < or_oc_)
+                in_data_t inp_v = (inp_ic < or_ic_ && inp_oc < or_oc_)
                     ? _inp[ioc * or_ic_ * kh_ * kw_ + ih * kw_ + iw]
                     : 0.f;
                 wspace_[(ih * w_alpha_ + j) * oc_block_ + ioc]
@@ -192,23 +189,23 @@ struct wino_reorder_t : public cpu_primitive_t {
                     t += g[i * r_ + k]
                             * wspace_[(k * w_alpha_ + j) * oc_block_ + ioc];
                 if (type_o == s8) {
-                    const float scale = (D_mask == 1) ?
-                            scales[0] :
-                            scales[ob * oc_block_ + ioc];
+                    const float scale = (D_mask == 1)
+                        ? scales[0]
+                        : scales[ob * oc_block_ + ioc];
                     _out[(i * w_alpha_ + j) * Z + ioc]
-                            = qz_b0<in_wei_data_t, out_wei_data_t>()(
-                                    (in_wei_data_t)t, scale, rmode);
+                            = qz_b0<in_data_t, out_data_t>()(
+                                    (in_data_t)t, scale, rmode);
                 } else {
-                    _out[(i * w_alpha_ + j) * Z + ioc] = (out_wei_data_t)t;
+                    _out[(i * w_alpha_ + j) * Z + ioc] = (out_data_t)t;
                 }
             }
         }}
     }
 
-    void reorder_to_aaOIoi(out_wei_data_t *__restrict output) {
+    void reorder_to_aaOIoi(out_data_t *__restrict output) {
         int32_t *__restrict dst_bias = nullptr;
         if (type_o == s8) {
-            const auto bias_shift = sizeof(out_wei_data_t) * size_wino_wei_;
+            const auto bias_shift = sizeof(out_data_t) * size_wino_wei_;
             const size_t bias_size = w_alpha_ * w_alpha_ * oc_;
 
             dst_bias = (int32_t *)(output + bias_shift);
@@ -232,15 +229,15 @@ struct wino_reorder_t : public cpu_primitive_t {
                     int ic_shift = (_i + i) * oc_;
                     int oc_shift = (_o + o);
                     int ic_block_shift = ib * oc_block_ * ic_block_ + i;
-                    int src_offset
-                            = u_h_shift + u_w_shift + ic_shift + oc_shift;
+                    int src_offset =
+                            u_h_shift + u_w_shift + ic_shift + oc_shift;
                     int dst_offset = u_h_shift + u_w_shift + oc_block_shift
                             + ic_block_shift;
 
                     output[dst_offset] = tmp_wei_[src_offset];
                     if (type_o == s8) {
                         int bias_offset = u_h_shift_b + u_w_shift_b + oc_shift;
-                        if (index != unsign_val_in_wino_domain)
+                        if (index != unsign_val_in_wino_domain_)
                             dst_bias[bias_offset]
                                     -= (128 * (int32_t)output[dst_offset]);
                         else
@@ -252,7 +249,7 @@ struct wino_reorder_t : public cpu_primitive_t {
         }}
     }
 
-    void reorder_to_aaOio(out_wei_data_t *__restrict output) {
+    void reorder_to_aaOio(out_data_t *__restrict output) {
 #pragma omp parallel for collapse(3)
         for (int u_h = 0; u_h < w_alpha_; u_h++) {
         for (int u_w = 0; u_w < w_alpha_; u_w++) {
@@ -272,27 +269,26 @@ struct wino_reorder_t : public cpu_primitive_t {
         }}}}}}
     }
 
-    void reorder_to_aaOBiOo(out_wei_data_t *__restrict output) {
+    void reorder_to_aaOBiOo(out_data_t *__restrict output) {
         int oc_chunks = nb_oc_ / oc2_block_;
 #pragma omp parallel for collapse(3)
         for (int u_h = 0; u_h < w_alpha_; u_h++) {
         for (int u_w = 0; u_w < w_alpha_; u_w++) {
         for (int occ = 0; occ < oc_chunks; occ++) {
         for (int ib = 0; ib < nb_ic_; ib++) {
-            out_wei_data_t *__restrict wei_ptr = output
+            out_data_t *__restrict wei_ptr = output
                     + (((u_h * w_alpha_ + u_w) * oc_chunks + occ) * nb_ic_ + ib)
                             * oc2_block_ * ic_block_ * oc_block_;
             int wei_offset = 0;
             for (int i = 0; i < ic_block_; i++) {
             for (int ob2 = 0; ob2 < oc2_block_; ob2++) {
                 for (int o = 0; o < oc_block_; o++) {
-
                     int icp = ib * ic_block_ + i;
-                    int ocp = occ * oc2_block_ * oc_block_ + ob2 * oc_block_
-                            + o;
+                    int ocp =
+                            occ * oc2_block_ * oc_block_ + ob2 * oc_block_ + o;
 
                     int src_offset = u_h * w_alpha_ * ic_ * oc_
-                            + u_w * ic_ * oc_ + icp * oc_ + ocp;
+                                        + u_w * ic_ * oc_ + icp * oc_ + ocp;
                     wei_ptr[wei_offset + o] = tmp_wei_[src_offset];
                 }
                 wei_offset += oc_block_;
@@ -300,7 +296,7 @@ struct wino_reorder_t : public cpu_primitive_t {
         }}}}
     }
 
-    void reorder_to_OBaaIBOIio(out_wei_data_t *__restrict output) {
+    void reorder_to_OBaaIBOIio(out_data_t *__restrict output) {
         int ic_chunks = nb_ic_ / ic2_block_;
         int oc_chunks = nb_oc_ / oc2_block_;
 
@@ -320,9 +316,9 @@ struct wino_reorder_t : public cpu_primitive_t {
                 int wei_offset = ((((((occ * w_alpha_ + u_h) * w_alpha_ + u_w)
                                                     * ic_chunks
                                             + icc) * oc2_block_
-                                           + ob) * ic2_block_
-                                          + ib) * ic_block_
-                                         + i)
+                                            + ob) * ic2_block_
+                                            + ib) * ic_block_
+                                            + i)
                         * oc_block_;
 
                 for (int o = 0; o < oc_block_; o++)
@@ -332,10 +328,10 @@ struct wino_reorder_t : public cpu_primitive_t {
     }
 
     virtual void execute(event_t *e) {
-        auto input = reinterpret_cast<const in_wei_data_t *>(input_memory(0));
-        auto output = reinterpret_cast<out_wei_data_t *>(memory());
+        auto input = reinterpret_cast<const in_data_t *>(input_memory(0));
+        auto output = reinterpret_cast<out_data_t *>(memory());
 
-        transform(conf_.input_pd()->desc(), input);
+        transform(input);
 
         /* reorder to winograd domain */
         switch (wino_format_) {
@@ -349,18 +345,16 @@ struct wino_reorder_t : public cpu_primitive_t {
         e->set_state(event_t::ready);
     }
 
-private:
     pd_t conf_;
     int r_, w_alpha_;
     int ic_, oc_, or_ic_, or_oc_, kh_, kw_;
     int oc_block_, ic_block_, oc2_block_, ic2_block_;
     int nb_oc_, nb_ic_;
     mkldnn_wino_memory_format_t wino_format_;
-    in_wei_data_t *__restrict wspace_;
-    out_wei_data_t *__restrict tmp_wei_;
+    in_data_t *__restrict wspace_;
+    out_data_t *__restrict tmp_wei_;
     int size_wino_wei_;
     int size_wspace_;
-    int unsign_val_in_wino_domain;
 };
 
 } // namespace cpu
