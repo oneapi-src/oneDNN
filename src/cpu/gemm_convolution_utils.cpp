@@ -257,7 +257,7 @@ void col2im_s32(
         }
         for (int ih = h_s; ih < h_e; ++ih) {
             for (int iw = w_s; iw < w_e; ++iw) {
-#               pragma omp simd
+                PRAGMA_OMP_SIMD()
                 for (int ic = 0; ic < jcp.ic; ++ic) {
                     im[(ih * jcp.iw + iw) * jcp.ic + ic] = 0;
                 }
@@ -279,7 +279,7 @@ void col2im_s32(
                                 + kh) * jcp.kw + kw) * jcp.ic;
                         const size_t im_idx
                             = (ih * jcp.iw + iw) * jcp.ic;
-#                       pragma omp simd
+                        PRAGMA_OMP_SIMD()
                         for (int ic = 0; ic < jcp.ic; ++ic) {
                             im[im_idx + ic] += col[col_idx + ic];
                         }
