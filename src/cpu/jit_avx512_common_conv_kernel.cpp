@@ -1153,6 +1153,11 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
         jcp.oc = rnd_up(jcp.oc, jcp.oc_block);
         jcp.ic = rnd_up(jcp.ic, jcp.ic_block);
     }
+    bool args_ok = true
+        && jcp.oc % jcp.oc_block == 0
+        && jcp.ic % jcp.ic_block == 0;
+    if (!args_ok)
+        return status::unimplemented;
 
     if (!post_ops_ok(jcp, attr))
         return status::unimplemented;
@@ -1432,9 +1437,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
 
     jcp.ur_w_tail = jcp.ow % jcp.ur_w;
 
-    bool args_ok = true
-        && jcp.oc % jcp.oc_block == 0
-        && jcp.ic % jcp.ic_block == 0
+    args_ok = true
         && jcp.l_pad <= jcp.ur_w
         && jcp.ic <= src_d.blocking_desc().padding_dims[1]
         && jcp.oc <= dst_d.blocking_desc().padding_dims[1]
