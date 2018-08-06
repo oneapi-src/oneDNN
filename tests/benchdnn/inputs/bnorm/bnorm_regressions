@@ -1,8 +1,5 @@
 # vim:ft=benchdnn
 
-# Large minibatch
-mb3072ic64ih112
-
 # Blocking bugs
 mb2ic251ih28 # 2-core system w/ 1.5MB LLC slices
 mb2ic64ih224 # 2-core system w/ 2.5MB LLC slices
