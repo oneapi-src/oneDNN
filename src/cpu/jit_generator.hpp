@@ -17,6 +17,7 @@
 #ifndef CPU_JIT_AVX2_GENERATOR_HPP
 #define CPU_JIT_AVX2_GENERATOR_HPP
 
+#include <limits.h>
 #include <type_traits>
 
 #define XBYAK64
@@ -376,6 +377,7 @@ public:
         using Xbyak::Address;
         using Xbyak::RegExp;
 
+        assert(raw_offt <= INT_MAX);
         auto offt = static_cast<int>(raw_offt);
 
         int scale = 0;
@@ -396,6 +398,45 @@ public:
             return zword_b [re];
         else
             return zword [re];
+    }
+
+    Xbyak::Address make_safe_addr(const Xbyak::Reg64 &reg_out, size_t offt,
+        const Xbyak::Reg64 &tmp_reg, bool bcast = false) {
+        if (offt > INT_MAX) {
+            mov(tmp_reg, offt);
+            return bcast ? ptr_b[reg_out + tmp_reg] : ptr[reg_out + tmp_reg];
+        } else {
+            return bcast ? ptr_b[reg_out + offt] : ptr[reg_out + offt];
+        }
+    }
+
+    Xbyak::Address EVEX_compress_addr_safe(const Xbyak::Reg64 &base,
+        size_t raw_offt, const Xbyak::Reg64 &reg_offt, bool bcast = false) {
+        if (raw_offt > INT_MAX) {
+            return make_safe_addr(base, raw_offt, reg_offt, bcast);
+        } else {
+            return EVEX_compress_addr(base, raw_offt, bcast);
+        }
+    }
+
+    void safe_add(const Xbyak::Reg64 &base, size_t raw_offt,
+        const Xbyak::Reg64 &reg_offt) {
+        if (raw_offt > INT_MAX) {
+            mov(reg_offt, raw_offt);
+            add(base, reg_offt);
+        } else {
+            add(base, raw_offt);
+        }
+    }
+
+    void safe_sub(const Xbyak::Reg64 &base, size_t raw_offt,
+        const Xbyak::Reg64 &reg_offt) {
+        if (raw_offt > INT_MAX) {
+            mov(reg_offt, raw_offt);
+            sub(base, reg_offt);
+        } else {
+            sub(base, raw_offt);
+        }
     }
 
     // Provide overrides for custom jit_tagged_label and C strings rather than

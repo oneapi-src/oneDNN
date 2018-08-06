@@ -105,6 +105,9 @@ private:
     reg64_t aux1_reg_inp = rbx;
     reg64_t aux_reg_out = abi_not_param1;
 
+    reg64_t reg_long_offt = r11;
+    reg64_t reg_out_long_offt = r14;
+
     inline Xbyak::Zmm zmm_ker(int i_ic) {
         assert(i_ic < 4);
         return Xbyak::Zmm(ker_reg_base_idx + i_ic);
@@ -139,19 +142,19 @@ private:
 
     void generate();
 
-    inline void vpXdpwssd(Xbyak::Zmm zmm1, Xbyak::Zmm zmm2, reg64_t reg,
-        int offset) {
+    inline void vpXdpwssd(Xbyak::Zmm zmm1, Xbyak::Zmm zmm2,
+        const Xbyak::Address& op) {
         if (jcp.ver == ver_4vnni)
-            vp4dpwssd(zmm1, zmm2, EVEX_compress_addr(reg, offset, false));
+            vp4dpwssd(zmm1, zmm2, op);
         else
-            vpdpwssd(zmm1, zmm2, EVEX_compress_addr(reg, offset, true));
+            vpdpwssd(zmm1, zmm2, op);
     }
 
-    inline void vadd(Xbyak::Zmm zmm, reg64_t reg, int offset) {
+    inline void vadd(Xbyak::Zmm zmm, const Xbyak::Operand& op) {
         if (jcp.ver == ver_4vnni || jcp.ver == ver_vnni)
-            vpaddd(zmm, zmm, EVEX_compress_addr(reg, offset));
+            vpaddd(zmm, zmm, op);
         else
-            vaddps(zmm, zmm, EVEX_compress_addr(reg, offset));
+            vaddps(zmm, zmm, op);
     }
 
     inline void vcmp(Xbyak::Opmask kmask,
@@ -170,17 +173,17 @@ private:
             vmulps(zmm_dst | kmask, zmm_src1, zmm_src2);
     }
 
-    inline int get_output_offset(int oi, int n_oc_block) {
-        return jcp.typesize_out
-            * (n_oc_block * jcp.oh * jcp.ow * jcp.od + oi) * jcp.oc_block;
+    inline size_t get_output_offset(int oi, int n_oc_block) {
+        return (size_t)jcp.typesize_out * ((size_t)n_oc_block * jcp.oh
+            * jcp.ow * jcp.od + oi) * jcp.oc_block;
     }
 
-    inline int get_input_offset(int ki, int ic, int oi, int pad_l) {
-        int scale = (jcp.ver == ver_4vnni || jcp.ver == ver_vnni) ? 2 : 1;
-        int iw_str = !jcp.is_1stconv ? jcp.ic_block : 1;
-        int ic_str = !jcp.is_1stconv ? 1 : jcp.iw * jcp.ih * jcp.id;
-        return jcp.typesize_in
-                * ((ki * (jcp.dilate_w + 1) + oi * jcp.stride_w - pad_l)
+    inline size_t get_input_offset(int ki, int ic, int oi, int pad_l) {
+        size_t scale = (jcp.ver == ver_4vnni || jcp.ver == ver_vnni) ? 2 : 1;
+        size_t iw_str = !jcp.is_1stconv ? jcp.ic_block : 1;
+        size_t ic_str = !jcp.is_1stconv ? 1 : (size_t)jcp.iw * jcp.ih * jcp.id;
+        return (size_t)jcp.typesize_in
+                * ((size_t)(ki * (jcp.dilate_w + 1) + oi * jcp.stride_w - pad_l)
                                   * iw_str
                           + scale * ic * ic_str);
     }
@@ -259,6 +262,7 @@ private:
     reg64_t reg_channel = rsi;
 
     reg64_t reg_tmp = rbp;
+    reg64_t reg_long_offt = r14;
 
     inline Xbyak::Zmm zmm_ker(int i_ic) {
         assert(i_ic < 4);
@@ -281,11 +285,11 @@ private:
         else
             vpdpwssd(zmm1, zmm2, EVEX_compress_addr(reg, offset, true));
     }
-    inline void vadd(Xbyak::Zmm zmm, reg64_t reg, int offset) {
+    inline void vadd(Xbyak::Zmm zmm, const Xbyak::Operand& op) {
         if (jcp.ver == ver_4vnni || jcp.ver == ver_vnni)
-            vpaddd(zmm, zmm, EVEX_compress_addr(reg, offset));
+            vpaddd(zmm, zmm, op);
         else
-            vaddps(zmm, zmm, EVEX_compress_addr(reg, offset));
+            vaddps(zmm, zmm, op);
     }
 
     Xbyak::Zmm zmm_wei = Xbyak::Zmm(31);
@@ -358,6 +362,7 @@ private:
     reg64_t reg_oj = r15;
     reg64_t reg_ih_count = rbx;
     reg64_t reg_tmp = r14;
+    reg64_t reg_long_offt = r14;
 
     reg64_t ki = r11;
     reg64_t reg_oi = r12;
