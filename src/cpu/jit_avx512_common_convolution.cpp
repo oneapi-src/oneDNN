@@ -212,6 +212,12 @@ void _jit_avx512_common_convolution_fwd_t
     const auto &jcp = kernel_->jcp;
     assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
 
+    if (conf_.want_padded_bias()) {
+        for (int oc = 0; oc < jcp.oc_without_padding; ++oc)
+            padded_bias_[oc] = bias[oc];
+        bias = padded_bias_;
+    }
+
 #   pragma omp parallel
     {
         int ithr = omp_get_thread_num(), nthr = omp_get_num_threads();
