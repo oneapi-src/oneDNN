@@ -312,8 +312,8 @@ private:
 
     inline int get_iw_end(int ur_w, int ki, int r_overflow)
     {
-        if (ur_w == jcp.ur_w_tail)
-            ur_w += nstl::min(0, jcp.r_pad);
+        if (utils::one_of(ur_w, jcp.iw, jcp.ur_w_tail))
+            ur_w += nstl::min(0, jcp.r_pad); // remove negative padding
         int res = (ur_w - 1 + jcp.l_pad) % jcp.stride_w
                 + r_overflow * jcp.stride_w - ki * (jcp.dilate_w + 1);
         while (res < 0)
