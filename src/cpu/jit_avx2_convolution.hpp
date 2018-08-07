@@ -72,7 +72,8 @@ struct _jit_avx2_convolution_fwd_t: public cpu_primitive_t {
         virtual status_t set_default_params() override {
             using namespace memory_format;
 
-            const bool flat = this->IC() == 3;
+            const int simd_w = 8;
+            const bool flat = this->IC() < simd_w;
             if (this->src_pd_.desc()->format == any)
                 CHECK(this->src_pd_.set_format(flat ? nchw : nChw8c));
             if (this->dst_pd_.desc()->format == any)

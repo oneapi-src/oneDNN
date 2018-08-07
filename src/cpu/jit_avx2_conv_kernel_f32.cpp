@@ -423,7 +423,8 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
         jcp.relu_negative_slope = 0.f;
     }
 
-    const bool flat = jcp.ic == 3;
+    const int simd_w = 8;
+    const bool flat = jcp.ic < simd_w;
     const bool mimo = !flat;
 
     bool args_ok = true
@@ -434,8 +435,6 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
         && one_of(cd.bias_desc.format, memory_format::undef, any, x)
         && dst_d.format() == nChw8c;
     if (!args_ok) return status::unimplemented;
-
-    const int simd_w = 8;
 
     jcp.ur_h = 1; /* no code-unrolling by h so far */
     jcp.ur_w = 3;
