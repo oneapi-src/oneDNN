@@ -172,7 +172,7 @@ inline T bounded_relu_bwd(T dd, T s, A alpha) {
 template <typename T>
 inline T soft_relu_fwd(T s) {
     float max_logf = 8.872284e+01; //::logf(FLT_MAX)
-    return s < max_logf ? (T)(::logf(1 + ::expf((float)s))) : s;
+    return s < max_logf ? (T)(::log1pf(::expf((float)s))) : s;
 }
 
 template <typename T>

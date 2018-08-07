@@ -97,7 +97,7 @@ T bounded_relu_bwd(T dd, T s, A alpha) {
 
 template <typename T>
 T soft_relu_fwd(T s) {
-    return s < (T)logf(FLT_MAX) ? logf(1 + ::expf(s)) : s;
+    return s < (T)logf(FLT_MAX) ? log1pf(::expf(s)) : s;
 }
 
 template <typename T>
