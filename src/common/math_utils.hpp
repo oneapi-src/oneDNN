@@ -104,7 +104,7 @@ template <typename T> inline T tanh_fwd(T s) {
 }
 template <typename T> inline T tanh_bwd(T dd, T s) {
     const float e = tanh_fwd<float>((float) s);
-    return (T)(dd * (1 - e * e));
+    return (T)(dd * (1 - e) * (1 + e));
 }
 
 template <typename T, typename A> inline T elu_fwd(T s, A alpha) {

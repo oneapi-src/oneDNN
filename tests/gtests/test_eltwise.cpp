@@ -32,7 +32,7 @@ template <typename T> T tanh_fwd(T s) {
 }
 template <typename T> T tanh_bwd(T dd, T s) {
     const float th = ::tanhf((float)s);
-    return static_cast<T>(dd * (1 - th * th));
+    return static_cast<T>(dd * (1 - th) * (1 + th));
 }
 
 template <typename T, typename A> T elu_fwd(T s, A alpha) {
