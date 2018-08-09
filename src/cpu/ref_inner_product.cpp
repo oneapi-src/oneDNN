@@ -17,6 +17,8 @@
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"
 #include "mkldnn_thread.hpp"
+#include "mkldnn_traits.hpp"
+#include "math_utils.hpp"
 
 #include "ref_inner_product.hpp"
 
@@ -24,7 +26,7 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::data_type;
+using math::saturate;
 
 template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type,
          data_type_t acc_type>
@@ -32,7 +34,7 @@ void ref_inner_product_fwd_t<src_type, wei_type, dst_type, acc_type>
         ::execute_forward() {
     auto src = reinterpret_cast<const src_data_t *>(this->input_memory(0));
     auto weights = reinterpret_cast<const wei_data_t *>(this->input_memory(1));
-    auto bias = reinterpret_cast<const dst_data_t *>(this->input_memory(2));
+    auto bias = reinterpret_cast<const char *>(this->input_memory(2));
     auto dst = reinterpret_cast<dst_data_t *>(this->memory());
 
     const memory_desc_wrapper src_d(conf_.src_pd());
@@ -75,19 +77,36 @@ void ref_inner_product_fwd_t<src_type, wei_type, dst_type, acc_type>
         }
     };
 
+    auto get_bias = [=, &bias](size_t off) -> acc_data_t {
+#       define CASE(dt) case dt: \
+            return (acc_data_t)(*((const prec_traits<dt>::type *)bias + off))
+        switch (conf_.desc()->bias_desc.data_type) {
+        CASE(data_type::s8);
+        CASE(data_type::u8);
+        CASE(data_type::s32);
+        CASE(data_type::f32);
+        default: assert(!"unimplemented");
+        }
+#       undef CASE
+        return 0;
+    };
+
     parallel_nd(MB, OC, [&](int mb, int oc) {
-        acc_data_t a = bias ? bias[bias_d.off(oc)] : (dst_data_t)0;
+        acc_data_t a = bias ? get_bias(bias_d.off(oc)) : (acc_data_t)0;
         if (src_has_spatial) {
             ker_has_spatial(a, mb, oc);
         } else {
             ker_no_spatial(a, mb, oc);
         }
-        dst[dst_d.off(mb, oc)] = (dst_data_t)a;
+        dst[dst_d.off(mb, oc)] = saturate<dst_data_t>(a);
     });
 }
-
+using namespace data_type;
 template struct ref_inner_product_fwd_t<f32>;
 template struct ref_inner_product_fwd_t<s16, s16, s32, s32>;
+template struct ref_inner_product_fwd_t<u8, s8, f32, s32>;
+template struct ref_inner_product_fwd_t<u8, s8, s32, s32>;
+template struct ref_inner_product_fwd_t<u8, s8, s8, s32>;
 template struct ref_inner_product_fwd_t<u8, s8, u8, s32>;
 
 template <data_type_t diff_src_type, data_type_t wei_type,
