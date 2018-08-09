@@ -155,9 +155,7 @@ void _gemm_u8s8s32x_convolution_fwd_t<with_relu, dst_type>::execute_forward() {
                     dst[o] = qz_a1b0<float, dst_data_t>()(d, rmode);
                 }
             } else {
-#               pragma omp parallel for collapse(2)
-                for (int os = 0; os < jcp.os; ++os) {
-                for (int oc = 0; oc < jcp.oc; ++oc) {
+                parallel_nd(jcp.os, jcp.oc, [&](int os, int oc) {
                     size_t acc_off = os * jcp.oc + oc;
                     float d = (float)acc[acc_off];
 
@@ -170,8 +168,7 @@ void _gemm_u8s8s32x_convolution_fwd_t<with_relu, dst_type>::execute_forward() {
                     if (do_sum) d += sum_scale * dst[dst_off];
                     if (do_relu && d < 0) d *= nslope;
                     dst[dst_off] = qz_a1b0<float, dst_data_t>()(d, rmode);
-                }
-                }
+                });
             }
             nd_iterator_step(n, jcp.mb, g, jcp.ngroups);
         }
@@ -264,18 +261,15 @@ void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data() {
             if (jcp.im2col_sz)
                 jit_gemm_convolution_utils::col2im_s32(jcp, col, acc);
 
-#           pragma omp parallel for collapse(2)
-            for (int is = 0; is < jcp.is; ++is) {
-                for (int ic = 0; ic < jcp.ic; ++ic) {
-                    float d = (float)acc[is * jcp.ic + ic];
-                    if (jcp.with_bias)
-                        d += get_bias(g * jcp.ic + ic);
-                    d *= scales[(g * jcp.ic + ic) * scale_idx_mult];
-                    const size_t diff_src_off = is * diff_src_os_stride + ic;
-                    diff_src[diff_src_off] =
-                        qz_a1b0<float, diff_src_data_t>()(d, rmode);
-                }
-            }
+            parallel_nd(jcp.is, jcp.ic, [&](int is, int ic) {
+                float d = (float)acc[is * jcp.ic + ic];
+                if (jcp.with_bias)
+                    d += get_bias(g * jcp.ic + ic);
+                d *= scales[(g * jcp.ic + ic) * scale_idx_mult];
+                const size_t diff_src_off = is * diff_src_os_stride + ic;
+                diff_src[diff_src_off] =
+                    qz_a1b0<float, diff_src_data_t>()(d, rmode);
+            });
             nd_iterator_step(n, jcp.mb, g, jcp.ngroups);
         }
     }

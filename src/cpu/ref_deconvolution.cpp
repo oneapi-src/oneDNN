@@ -41,24 +41,14 @@ void ref_deconvolution_fwd_t::compute_fwd_bias() {
     const int OC = conf_.OC() / G;
     const int ndims = conf_.desc()->src_desc.ndims;
 
-#   pragma omp parallel for collapse(6) schedule(static)
-    for (int mb = 0; mb < MB; ++mb) {
-        for (int g = 0; g < G; ++g) {
-            for (int oc = 0; oc < OC; ++oc) {
-                for (int od = 0; od < OD; ++od) {
-                    for (int oh = 0; oh < OH; ++oh) {
-                        for (int ow = 0; ow < OW; ++ow) {
-                            auto b = bias[g * OC + oc];
-                            if (ndims == 5)
-                                dst[dst_d.off(mb, g*OC + oc, od, oh, ow)] += b;
-                            else
-                                dst[dst_d.off(mb, g*OC + oc, oh, ow)] += b;
-                        }
-                    }
-                }
-            }
-        }
-    }
+    parallel_nd(MB, G, OC, OD, OH, OW,
+        [&](int mb, int g, int oc, int od, int oh, int ow) {
+            auto b = bias[g * OC + oc];
+            if (ndims == 5)
+                dst[dst_d.off(mb, g*OC + oc, od, oh, ow)] += b;
+            else
+                dst[dst_d.off(mb, g*OC + oc, oh, ow)] += b;
+    });
 }
 
 void ref_deconvolution_fwd_t::compute_fwd_bias_ncdhw() {
@@ -71,16 +61,13 @@ void ref_deconvolution_fwd_t::compute_fwd_bias_ncdhw() {
     const int OC = conf_.OC();
     const int SP = conf_.OW()*conf_.OH()*conf_.OD();
 
-#   pragma omp parallel for collapse(2) schedule(static)
-    for (int mb = 0; mb < MB; ++mb) {
-        for (int oc = 0; oc < OC; ++oc) {
-            PRAGMA_OMP_SIMD()
-            for (int sp = 0; sp < SP; ++sp) {
-                auto offset = (size_t)(mb * OC + oc) * SP + sp;
-                dst[offset] += bias[oc];
-            }
+    parallel_nd(MB, OC, [&](int mb, int oc) {
+        PRAGMA_OMP_SIMD()
+        for (int sp = 0; sp < SP; ++sp) {
+            auto offset = (size_t)(mb * OC + oc) * SP + sp;
+            dst[offset] += bias[oc];
         }
-    }
+    });
 }
 
 template <int blksize>
@@ -96,20 +83,16 @@ void ref_deconvolution_fwd_t::compute_fwd_bias_nCdhwXc() {
 
     const ptrdiff_t stride_mb = dst_d.blocking_desc().strides[0][0];
 
-#   pragma omp parallel for collapse(3) schedule(static)
-    for (int mb = 0; mb < MB; ++mb) {
-        for (int oc = 0; oc < OC; oc += blksize) {
-            for (int sp = 0; sp < SP; ++sp) {
-                auto offset = mb * stride_mb + oc * SP + sp * blksize;
+    parallel_nd(MB, utils::div_up(OC, blksize), SP,
+        [&](int mb, int oc_blk, int sp) {
+        int oc = oc_blk * blksize;
+        auto offset = mb * stride_mb + oc * SP + sp * blksize;
+        const int blk = nstl::min(blksize, OC - oc);
 
-                const int blk = nstl::min(blksize, OC - oc);
-
-                PRAGMA_OMP_SIMD()
-                for (int i = 0; i < blk; ++i)
-                    dst[offset + i] += bias[oc + i];
-            }
-        }
-    }
+        PRAGMA_OMP_SIMD()
+        for (int i = 0; i < blk; ++i)
+            dst[offset + i] += bias[oc + i];
+    });
 }
 
 void ref_deconvolution_bwd_weights_t::compute_bwd_bias() {
@@ -125,27 +108,24 @@ void ref_deconvolution_bwd_weights_t::compute_bwd_bias() {
     const int OD = conf_.OD();
     const int ndims = conf_.desc()->src_desc.ndims;
 
-#   pragma omp parallel for collapse(2) schedule(static)
-    for (int g = 0; g < G; ++g) {
-        for (int oc = 0; oc < OC; ++oc) {
-            data_t db = 0;
-            for (int mb = 0; mb < MB; ++mb) {
-                for (int od = 0; od < OD; ++od) {
-                    for (int oh = 0; oh < OH; ++oh) {
-                        for (int ow = 0; ow < OW; ++ow) {
-                            if (ndims == 5)
-                                db += diff_dst[
-                                    diff_dst_d.off(mb, g*OC + oc, od, oh, ow)];
-                            else
-                                db += diff_dst[
-                                    diff_dst_d.off(mb, g*OC + oc, oh, ow)];
-                        }
+    parallel_nd(G, OC, [&](int g, int oc) {
+        data_t db = 0;
+        for (int mb = 0; mb < MB; ++mb) {
+            for (int od = 0; od < OD; ++od) {
+                for (int oh = 0; oh < OH; ++oh) {
+                    for (int ow = 0; ow < OW; ++ow) {
+                        if (ndims == 5)
+                            db += diff_dst[
+                                diff_dst_d.off(mb, g*OC + oc, od, oh, ow)];
+                        else
+                            db += diff_dst[
+                                diff_dst_d.off(mb, g*OC + oc, oh, ow)];
                     }
                 }
             }
-            diff_bias[g * OC + oc] = db;
         }
-    }
+        diff_bias[g * OC + oc] = db;
+    });
 }
 
 void ref_deconvolution_bwd_weights_t::compute_bwd_bias_ncdhw() {

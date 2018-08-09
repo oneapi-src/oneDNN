@@ -90,61 +90,49 @@ void jit_uni_lrn_fwd_t<isa>::execute_forward() {
     auto dfmt = conf_.src_pd()->desc()->format;
 
     if (dfmt == nChw8c && ls == 5 && ak == lrn_across_channels) {
-#       pragma omp parallel for collapse(2) schedule(static)
-        for (int n = 0; n < N; ++n) {
-            for (int c8 = 0; c8 < C / VECTOR_LENGTH; ++c8) {
-                jit_args_fwd_t args;
-                args.src = &src[n*HW*C + c8 * HW * VECTOR_LENGTH];
-                args.dst = &dst[n*HW*C + c8 * HW * VECTOR_LENGTH];
-                args.scratch = &ws[n*HW*C + c8 * HW * VECTOR_LENGTH];
-                if (c8 == 0)
-                    (*ker_first_)(&args);
-                else if (c8 == C / VECTOR_LENGTH - 1)
-                    (*ker_last_)(&args);
-                else
-                    (*ker_)(&args);
-            }
-        }
+        parallel_nd(N, C / VECTOR_LENGTH, [&](int n, int c8) {
+            jit_args_fwd_t args;
+            args.src = &src[n*HW*C + c8 * HW * VECTOR_LENGTH];
+            args.dst = &dst[n*HW*C + c8 * HW * VECTOR_LENGTH];
+            args.scratch = &ws[n*HW*C + c8 * HW * VECTOR_LENGTH];
+            if (c8 == 0)
+                (*ker_first_)(&args);
+            else if (c8 == C / VECTOR_LENGTH - 1)
+                (*ker_last_)(&args);
+            else
+                (*ker_)(&args);
+        });
     }
     else if (dfmt == nChw8c && ak == lrn_within_channel) {
-#       pragma omp parallel for collapse(2) schedule(static)
-        for (int n = 0; n < N; ++n) {
-            for (int c8 = 0; c8 < C / VECTOR_LENGTH; ++c8) {
-                jit_args_fwd_t args;
-                args.src = &src[n*HW*C + c8 * HW * VECTOR_LENGTH];
-                args.dst = &dst[n*HW*C + c8 * HW * VECTOR_LENGTH];
-                args.scratch = &ws[n*HW*C + c8 * HW * VECTOR_LENGTH];
-                (*ker_)(&args);
-            }
-        }
+        parallel_nd(N, C / VECTOR_LENGTH, [&](int n, int c8) {
+            jit_args_fwd_t args;
+            args.src = &src[n*HW*C + c8 * HW * VECTOR_LENGTH];
+            args.dst = &dst[n*HW*C + c8 * HW * VECTOR_LENGTH];
+            args.scratch = &ws[n*HW*C + c8 * HW * VECTOR_LENGTH];
+            (*ker_)(&args);
+        });
     }
     else if (dfmt == nchw && ls == 5 && ak == lrn_across_channels) {
-#       pragma omp parallel for collapse(2) schedule(static)
-        for (int n = 0; n < N; ++n) {
-            for (int hw8 = 0; hw8 < (HW + VECTOR_LENGTH - 1) / VECTOR_LENGTH;
-                ++hw8) {
-                jit_args_fwd_t args;
-                args.src = &src[n*HW*C + hw8 * VECTOR_LENGTH];
-                args.dst = &dst[n*HW*C + hw8 * VECTOR_LENGTH];
-                args.scratch = &ws[n*HW*C + hw8 * VECTOR_LENGTH];
-                if ((hw8 + 1)*VECTOR_LENGTH > HW)
-                    (*ker_last_)(&args);
-                else
-                    (*ker_)(&args);
-            }
-        }
+        parallel_nd(N, (HW + VECTOR_LENGTH - 1) / VECTOR_LENGTH,
+            [&](int n, int hw8) {
+            jit_args_fwd_t args;
+            args.src = &src[n*HW*C + hw8 * VECTOR_LENGTH];
+            args.dst = &dst[n*HW*C + hw8 * VECTOR_LENGTH];
+            args.scratch = &ws[n*HW*C + hw8 * VECTOR_LENGTH];
+            if ((hw8 + 1)*VECTOR_LENGTH > HW)
+                (*ker_last_)(&args);
+            else
+                (*ker_)(&args);
+        });
     }
     else { // nhwc
-#       pragma omp parallel for collapse(2) schedule(static)
-        for (int n = 0; n < N; ++n) {
-            for (int hw = 0; hw < HW; ++hw) {
-                jit_args_fwd_t args;
-                args.src = &src[n*HW*C + hw * C];
-                args.dst = &dst[n*HW*C + hw * C];
-                args.scratch = &ws[n*HW*C + hw * C];
-                (*ker_)(&args);
-            }
-        }
+        parallel_nd(N, HW, [&](int n, int hw) {
+            jit_args_fwd_t args;
+            args.src = &src[n*HW*C + hw * C];
+            args.dst = &dst[n*HW*C + hw * C];
+            args.scratch = &ws[n*HW*C + hw * C];
+            (*ker_)(&args);
+        });
     }
 }
 
@@ -236,49 +224,41 @@ void jit_uni_lrn_bwd_t<isa>::execute_backward() {
 
     int use_h_parallelizm = 0; // XXX
     if (use_h_parallelizm) {
-#       pragma omp parallel for collapse(3) schedule(static)
-        for (int n = 0; n < N; ++n) {
-            for (int c8 = 0; c8 < C / VECTOR_LENGTH; ++c8) {
-                for (int h = 0; h < H; ++h) {
-                    auto offset = n*C*H*W + c8*H*W*VECTOR_LENGTH
-                        + h*W*VECTOR_LENGTH;
-                    jit_args_bwd_t args;
-                    args.src = &src[offset];
-                    args.diff_dst = &diff_dst[offset];
-                    args.scratch = &ws[offset];
-                    args.diff_src = &diff_src[offset];
-                    if (C / VECTOR_LENGTH == 1)
-                        (*ker_)(&args);
-                    else if (c8 == 0)
-                        (*ker_first_)(&args);
-                    else if (c8 == C / VECTOR_LENGTH - 1)
-                        (*ker_last_)(&args);
-                    else
-                        (*ker_)(&args);
-                }
-            }
-        }
+        parallel_nd(N, C / VECTOR_LENGTH, H, [&](int n, int c8, int h) {
+            auto offset = n*C*H*W + c8*H*W*VECTOR_LENGTH
+                + h*W*VECTOR_LENGTH;
+            jit_args_bwd_t args;
+            args.src = &src[offset];
+            args.diff_dst = &diff_dst[offset];
+            args.scratch = &ws[offset];
+            args.diff_src = &diff_src[offset];
+            if (C / VECTOR_LENGTH == 1)
+                (*ker_)(&args);
+            else if (c8 == 0)
+                (*ker_first_)(&args);
+            else if (c8 == C / VECTOR_LENGTH - 1)
+                (*ker_last_)(&args);
+            else
+                (*ker_)(&args);
+        });
     }
     else {
-#       pragma omp parallel for collapse(2) schedule(static)
-        for (int n = 0; n < N; ++n) {
-            for (int c8 = 0; c8 < C / VECTOR_LENGTH; ++c8) {
-                auto offset = n*C*H*W + c8*H*W*VECTOR_LENGTH;
-                jit_args_bwd_t args;
-                args.src = &src[offset];
-                args.diff_dst = &diff_dst[offset];
-                args.scratch = &ws[offset];
-                args.diff_src = &diff_src[offset];
-                if (C / VECTOR_LENGTH == 1)
-                    (*ker_)(&args);
-                else if (c8 == 0)
-                    (*ker_first_)(&args);
-                else if (c8 == C / VECTOR_LENGTH - 1)
-                    (*ker_last_)(&args);
-                else
-                    (*ker_)(&args);
-            }
-        }
+        parallel_nd(N, C / VECTOR_LENGTH, [&](int n, int c8) {
+            auto offset = n*C*H*W + c8*H*W*VECTOR_LENGTH;
+            jit_args_bwd_t args;
+            args.src = &src[offset];
+            args.diff_dst = &diff_dst[offset];
+            args.scratch = &ws[offset];
+            args.diff_src = &diff_src[offset];
+            if (C / VECTOR_LENGTH == 1)
+                (*ker_)(&args);
+            else if (c8 == 0)
+                (*ker_first_)(&args);
+            else if (c8 == C / VECTOR_LENGTH - 1)
+                (*ker_last_)(&args);
+            else
+                (*ker_)(&args);
+        });
     }
 }
 

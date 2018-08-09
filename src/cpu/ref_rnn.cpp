@@ -635,7 +635,7 @@ struct reversed_indexer : wavefront_indexer {
         default: return -1;
         }
     }
-    
+
 private:
     original_indexer wd;
 };
@@ -669,7 +669,7 @@ grid_execution_sig(_ref_rnn_common_t<aprop>::wavefront_execution){// (int dic, i
         : (((exec_dir == b2t_l2r) || (exec_dir == b2t_r2l)) //nlayer is maxdim, we look for b2t
            ? (wavefront_indexer) wi_b2t_l2r_maxdim(n_layer)
            : (wavefront_indexer) wi_t2b_r2l_maxdim(n_layer));
-    
+
     wavefront_indexer wi_mindim = (!is_niter_maxdim)
         ? (((exec_dir == b2t_l2r) || (exec_dir == t2b_l2r)) //niter is mindim, we look for l2r
            ? (wavefront_indexer) wi_b2t_l2r_mindim(n_iter)
@@ -677,7 +677,7 @@ grid_execution_sig(_ref_rnn_common_t<aprop>::wavefront_execution){// (int dic, i
         : (((exec_dir == b2t_l2r) || (exec_dir == b2t_r2l)) //nlayer is mindim, we look for b2t
            ? (wavefront_indexer) wi_b2t_l2r_mindim(n_layer)
            : (wavefront_indexer) wi_t2b_r2l_mindim(n_layer));
-    
+
     // auto get_offset = [=](wavefront_loop_index idx, int i, int j){
     //     int dim_min = wi_mindim.get(idx, i,j);
     //     int dim_max = wi_maxdim.get(idx, i,j);
@@ -762,47 +762,38 @@ void _ref_rnn_common_t<prop_kind::backward>::copy_init_layer(bool lr, bool rl,
 
     switch (conf_.direction()) {
     case mkldnn_bidirectional_concat:
-#pragma omp parallel for collapse(2)
-        for (int it = 0; it < n_iter; it++) {
-            for (int b = 0; b < batch; b++) {
-                auto diff_dst_layer_x
-                        = diff_dst_layer_ + diff_dst_layer_d.blk_off(it, b);
-                for (int s = 0; s < dlc; s++) {
-                    ws_diff_states(n_layer, 0, it, n_states, b, s)
-                            = diff_dst_layer_x[s];
-                    ws_diff_states(n_layer, 1, it, n_states, b, s)
-                            = diff_dst_layer_x[dic + s];
-                }
+        parallel_nd(n_iter, batch, [&](int it, int b) {
+            auto diff_dst_layer_x
+            = diff_dst_layer_ + diff_dst_layer_d.blk_off(it, b);
+            for (int s = 0; s < dlc; s++) {
+                ws_diff_states(n_layer, 0, it, n_states, b, s)
+                    = diff_dst_layer_x[s];
+                ws_diff_states(n_layer, 1, it, n_states, b, s)
+                    = diff_dst_layer_x[dic + s];
             }
-        }
+        });
         break;
     case mkldnn_bidirectional_sum:
-#pragma omp parallel for collapse(2)
-        for (int it = 0; it < n_iter; it++) {
-            for (int b = 0; b < batch; b++) {
-                auto diff_dst_layer_x
-                        = diff_dst_layer_ + diff_dst_layer_d.blk_off(it, b);
-                for (int s = 0; s < dic; s++) {
-                    ws_diff_states(n_layer, 0, it, n_states, b, s)
-                            = diff_dst_layer_x[s];
-                    ws_diff_states(n_layer, 1, it, n_states, b, s)
-                            = diff_dst_layer_x[s];
-                }
+        parallel_nd(n_iter, batch, [&](int it, int b) {
+            auto diff_dst_layer_x
+            = diff_dst_layer_ + diff_dst_layer_d.blk_off(it, b);
+            for (int s = 0; s < dic; s++) {
+                ws_diff_states(n_layer, 0, it, n_states, b, s)
+                    = diff_dst_layer_x[s];
+                ws_diff_states(n_layer, 1, it, n_states, b, s)
+                    = diff_dst_layer_x[s];
             }
-        }
+        });
         break;
     default: // assumes default is always unidirectional
-#pragma omp parallel for collapse(2)
-        for (int it = 0; it < n_iter; it++) {
-            for (int b = 0; b < batch; b++) {
-                auto diff_dst_layer_x
-                        = diff_dst_layer_ + diff_dst_layer_d.blk_off(it, b);
-                for (int s = 0; s < dic; s++) {
-                    ws_diff_states(n_layer, 0, it, n_states, b, s)
-                            = diff_dst_layer_x[s];
-                }
+        parallel_nd(n_iter, batch, [&](int it, int b) {
+            auto diff_dst_layer_x
+                    = diff_dst_layer_ + diff_dst_layer_d.blk_off(it, b);
+            for (int s = 0; s < dic; s++) {
+                ws_diff_states(n_layer, 0, it, n_states, b, s)
+                        = diff_dst_layer_x[s];
             }
-        }
+        });
         break;
     }
 }
@@ -816,25 +807,21 @@ void _ref_rnn_common_t<prop_kind::forward>::copy_init_iter(int n_layer,
             n_states, batch, wic);
     auto firstit_states_d = memory_desc_wrapper(conf_.src_pd(1));
     if (firstit_states_) {
-#pragma omp parallel for collapse(2)
-        for (int lay = 0; lay < n_layer; lay++)
-            for (int dir = 0; dir < n_direction; dir++)
-                for (int state = 0; state < n_states; state++)
-                    for (int b = 0; b < batch; ++b) {
-                        array_copy(&(ws_states(lay + 1, dir, 0, state, b, 0)),
-                                firstit_states_
-                                        + firstit_states_d.blk_off(
-                                                  lay, dir, state, b),
-                                sic);
-                    }
+        parallel_nd(n_layer, n_direction, [&](int lay, int dir) {
+            for (int state = 0; state < n_states; state++)
+                for (int b = 0; b < batch; ++b) {
+                    array_copy(&(ws_states(lay + 1, dir, 0, state, b, 0)),
+                        firstit_states_ + firstit_states_d.blk_off(
+                        lay, dir, state, b), sic);
+                }
+        });
     } else {
-#pragma omp parallel for collapse(2)
-        for (int lay = 0; lay < n_layer; lay++)
-            for (int dir = 0; dir < n_direction; dir++)
-                for (int state = 0; state < n_states; state++)
-                    for (int i = 0; i < batch; i++)
-                        for (int j = 0; j < sic; j++)
-                            ws_states(lay + 1, dir, 0, state, i, j) = 0.0f;
+        parallel_nd(n_layer, n_direction, [&](int lay, int dir) {
+            for (int state = 0; state < n_states; state++)
+                for (int i = 0; i < batch; i++)
+                    for (int j = 0; j < sic; j++)
+                        ws_states(lay + 1, dir, 0, state, i, j) = 0.0f;
+        });
     }
 }
 
@@ -847,27 +834,18 @@ void _ref_rnn_common_t<prop_kind::backward>::copy_init_iter(int n_layer,
             n_iter + 1, n_states + 1, batch, wic);
     auto diff_dst_iter_d = memory_desc_wrapper(conf_.diff_dst_pd(1));
     if (diff_dst_iter_) {
-#pragma omp parallel for collapse(4)
-        for (int lay = 0; lay < n_layer; lay++)
-            for (int dir = 0; dir < n_direction; dir++)
-                for (int state = 0; state < n_states; state++)
-                    for (int b = 0; b < batch; ++b) {
-                        array_copy(&(ws_diff_states(
-                                           lay, dir, n_iter, state, b, 0)),
-                                diff_dst_iter_
-                                        + diff_dst_iter_d.blk_off(
-                                                  lay, dir, state, b),
-                                dic);
-                    }
+        parallel_nd(n_layer, n_direction, n_states, batch,
+            [&](int lay, int dir, int state, int b) {
+            array_copy(&(ws_diff_states(lay, dir, n_iter, state, b, 0)),
+                diff_dst_iter_ + diff_dst_iter_d.blk_off(lay, dir, state, b),
+                dic);
+        });
     } else {
-#pragma omp parallel for collapse(4)
-        for (int lay = 0; lay < n_layer; lay++)
-            for (int dir = 0; dir < n_direction; dir++)
-                for (int state = 0; state < n_states; state++)
-                    for (int i = 0; i < batch; i++)
-                        for (int j = 0; j < dic; j++)
-                            ws_diff_states(lay, dir, n_iter, state, i, j)
-                                    = 0.0f;
+        parallel_nd(n_layer, n_direction, n_states, batch,
+            [&](int lay, int dir, int state, int i) {
+            for (int j = 0; j < dic; j++)
+                ws_diff_states(lay, dir, n_iter, state, i, j) = 0.0f;
+        });
     }
 }
 
@@ -881,30 +859,28 @@ void _ref_rnn_common_t<prop_kind::forward>::copy_res_layer(bool lr, bool rl,
     auto dst_layer_d = memory_desc_wrapper(conf_.dst_pd(0));
     AOC<const float, 6> ws_states(ws_states_, n_layer + 1, n_direction,
             n_iter + 1, n_states, batch, wic);
-#pragma omp parallel for collapse(2)
-    for (int it = 0; it < n_iter; it++) {
-        for (int b = 0; b < batch; b++) {
-            int dir = 0;
-            if (lr) {
-                for (int s = 0; s < dic; s++)
-                    dst_layer_[dst_layer_d.blk_off(it, b, dir * dic + s)]
-                            = ws_states(n_layer, dir, it + 1, 0, b, s);
-                dir = 1;
-            }
-            if (rl) {
-                for (int s = 0; s < dic; s++)
-                    switch (direction) {
-                    case mkldnn_bidirectional_sum:
-                        dst_layer_[dst_layer_d.blk_off(it, b, s)] += ws_states(
-                                n_layer, dir, n_iter - it, 0, b, s);
-                        break;
-                    default:
-                        dst_layer_[dst_layer_d.blk_off(it, b, dir * dic + s)]
-                                = ws_states(n_layer, dir, n_iter - it, 0, b, s);
-                    }
-            }
+
+    parallel_nd(n_iter, batch, [&](int it, int b) {
+        int dir = 0;
+        if (lr) {
+            for (int s = 0; s < dic; s++)
+                dst_layer_[dst_layer_d.blk_off(it, b, dir * dic + s)]
+                        = ws_states(n_layer, dir, it + 1, 0, b, s);
+            dir = 1;
         }
-    }
+        if (rl) {
+            for (int s = 0; s < dic; s++)
+                switch (direction) {
+                case mkldnn_bidirectional_sum:
+                    dst_layer_[dst_layer_d.blk_off(it, b, s)] += ws_states(
+                            n_layer, dir, n_iter - it, 0, b, s);
+                    break;
+                default:
+                    dst_layer_[dst_layer_d.blk_off(it, b, dir * dic + s)]
+                            = ws_states(n_layer, dir, n_iter - it, 0, b, s);
+                }
+        }
+    });
 }
 
 template <>
@@ -917,26 +893,24 @@ void _ref_rnn_common_t<prop_kind::backward>::copy_res_layer(bool lr, bool rl,
     auto diff_src_layer_d = memory_desc_wrapper(conf_.diff_src_pd(0));
     AOC<const float, 6> ws_diff_states(ws_diff_states_, n_layer + 1,
             n_direction, n_iter + 1, n_states + 1, batch, wic);
-#pragma omp parallel for collapse(2)
-    for (int it = 0; it < n_iter; it++) {
-        for (int b = 0; b < batch; b++) {
-            int dir = 0;
-            for (int s = 0; s < slc; s++) {
-                float *dst_addr = diff_src_layer_
-                        + diff_src_layer_d.blk_off(
-                                  (direction
-                                          == mkldnn_unidirectional_right2left) ?
-                                          n_iter - 1 - it :
-                                          it,
-                                  b, dir * slc + s);
-                float res = ws_diff_states(0, 0, it, n_states, b, s);
-                if (n_direction - 1)
-                    res += ws_diff_states(
-                            0, 1, n_iter - 1 - it, n_states, b, s);
-                dst_addr[0] = res;
-            }
+
+    parallel_nd(n_iter, batch, [&](int it, int b) {
+        int dir = 0;
+        for (int s = 0; s < slc; s++) {
+            float *dst_addr = diff_src_layer_
+                    + diff_src_layer_d.blk_off(
+                              (direction
+                                      == mkldnn_unidirectional_right2left) ?
+                                      n_iter - 1 - it :
+                                      it,
+                              b, dir * slc + s);
+            float res = ws_diff_states(0, 0, it, n_states, b, s);
+            if (n_direction - 1)
+                res += ws_diff_states(
+                        0, 1, n_iter - 1 - it, n_states, b, s);
+            dst_addr[0] = res;
         }
-    }
+    });
 }
 
 template <>
@@ -948,17 +922,13 @@ void _ref_rnn_common_t<prop_kind::forward>::copy_res_iter(int n_layer,
     AOC<const float, 6> ws_states(ws_states_, n_layer + 1, n_direction,
             n_iter + 1, n_states, batch, wic);
     if (dst_iter_) {
-#pragma omp parallel for collapse(4)
-        for (int lay = 0; lay < n_layer; lay++) {
-            for (int dir = 0; dir < n_direction; dir++)
-                for (int state = 0; state < n_states; state++)
-                    for (int b = 0; b < batch; b++)
-                        for (int s = 0; s < dic; s++) {
-                            dst_iter_[dst_iter_d.blk_off(lay, dir, state, b, s)]
-                                    = ws_states(
-                                            lay + 1, dir, n_iter, state, b, s);
-                        }
-        }
+        parallel_nd(n_layer, n_direction, n_states, batch,
+            [&](int lay, int dir, int state, int b) {
+            for (int s = 0; s < dic; s++) {
+                dst_iter_[dst_iter_d.blk_off(lay, dir, state, b, s)]
+                        = ws_states(lay + 1, dir, n_iter, state, b, s);
+            }
+        });
     }
 }
 
@@ -971,17 +941,14 @@ void _ref_rnn_common_t<prop_kind::backward>::copy_res_iter(int n_layer,
     AOC<const float, 6> ws_diff_states(ws_diff_states_, n_layer + 1,
             n_direction, n_iter + 1, n_states + 1, batch, wic);
     if (diff_src_iter_) {
-#pragma omp parallel for collapse(4)
-        for (int lay = 0; lay < n_layer; lay++) {
-            for (int dir = 0; dir < n_direction; dir++)
-                for (int state = 0; state < n_states; state++)
-                    for (int b = 0; b < batch; b++)
-                        for (int s = 0; s < sic; s++) {
-                            diff_src_iter_[diff_src_iter_d.blk_off(
-                                    lay, dir, state, b, s)]
-                                    = ws_diff_states(lay, dir, 0, state, b, s);
-                        }
-        }
+        parallel_nd(n_layer, n_direction, n_states, batch,
+            [&](int lay, int dir, int state, int b) {
+            for (int s = 0; s < sic; s++) {
+                diff_src_iter_[diff_src_iter_d.blk_off(
+                        lay, dir, state, b, s)]
+                        = ws_diff_states(lay, dir, 0, state, b, s);
+            }
+        });
     }
 }
 

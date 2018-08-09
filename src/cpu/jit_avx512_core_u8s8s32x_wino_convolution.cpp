@@ -861,10 +861,11 @@ void _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu,
     wino_wei_ = wei;
     dst_bias_ = (const acc_data_t*)(wei + size_wino_wei);
 
-#pragma omp parallel for collapse(3)
-    for (int mb = 0; mb < jcp.mb; mb++) {
-    for (int tile_y = 0; tile_y < jcp.oh; tile_y += jcp.yb) {
-    for (int tile_x = 0; tile_x < jcp.ow; tile_x += jcp.xb) {
+    parallel_nd(jcp.mb, div_up(jcp.oh, jcp.yb), div_up(jcp.ow, jcp.xb),
+        [&](int mb, int tile_y_b, int tile_x_b) {
+
+        int tile_y = tile_y_b * jcp.yb;
+        int tile_x = tile_x_b * jcp.xb;
 
         int ithr = omp_get_thread_num();
         auto wino_src = wino_src_ + size_wino_src * ithr;
@@ -951,9 +952,7 @@ void _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu,
                 dst_trans_->ker_(&dst_trans_p);
             }}
         }
-
-    }}
-    }
+    });
 }
 
 template <bool with_relu, data_type_t dst_data_type>
@@ -974,9 +973,12 @@ void _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu,
     for (int tile_y = 0; tile_y < jcp.oh; tile_y += jcp.yb) {
     for (int tile_x = 0; tile_x < jcp.ow; tile_x += jcp.xb) {
         { /* transformation of input tensor to winograd domain */
-            #pragma omp parallel for collapse(2)
-            for (int y_in_block = 0; y_in_block < jcp.yb; y_in_block += 2) {
-            for (int x_in_block = 0; x_in_block < jcp.xb; x_in_block += 2) {
+
+            parallel_nd(div_up(jcp.yb, 2), div_up(jcp.xb, 2),
+                [&](int y_in_block_b, int x_in_block_b) {
+
+                int y_in_block = y_in_block_b * 2;
+                int x_in_block = x_in_block_b * 2;
                 auto src_trans_p =
                     jit_avx512_core_u8s8s32x_wino_conv_src_trans_t
                     ::call_params_t();
@@ -1010,33 +1012,32 @@ void _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu,
                 src_trans_p.v_x_masks = v_x_masks;
 
                 src_trans_->ker_(&src_trans_p);
-            }}
+            });
         }
         {  /* gemms */
-            #pragma omp parallel for collapse(2)
-            for (int tile_ij = 0; tile_ij < 16; tile_ij++) {
-                for (int nnb = 0; nnb < jcp.n_chunks ; nnb++) {
-                    auto gemm_p = jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
-                        ::call_params_t();
+            parallel_nd(16, jcp.n_chunks, [&](int tile_ij, int nnb) {
+                auto gemm_p = jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
+                    ::call_params_t();
 
-                    auto _t_src = wino_src_ + jcp.inp_stride * tile_ij;
-                    auto _t_dst = wino_dst_ + jcp.out_stride * tile_ij;
-                    auto _t_wei = wino_wei_ + jcp.wei_stride * tile_ij;
-                    auto _t_dst_b = dst_bias_ + jcp.bia_stride * tile_ij;
+                auto _t_src = wino_src_ + jcp.inp_stride * tile_ij;
+                auto _t_dst = wino_dst_ + jcp.out_stride * tile_ij;
+                auto _t_wei = wino_wei_ + jcp.wei_stride * tile_ij;
+                auto _t_dst_b = dst_bias_ + jcp.bia_stride * tile_ij;
 
-                    gemm_p.src = _t_src;
-                    gemm_p.dst = _t_dst + nnb * jcp.n2_block * jcp.n_block;
-                    gemm_p.wei = _t_wei + nnb * jcp.n2_block * jcp.n_block * jcp.K;
-                    gemm_p.dst_b = _t_dst_b + nnb * jcp.n2_block * jcp.n_block;
+                gemm_p.src = _t_src;
+                gemm_p.dst = _t_dst + nnb * jcp.n2_block * jcp.n_block;
+                gemm_p.wei = _t_wei + nnb * jcp.n2_block * jcp.n_block * jcp.K;
+                gemm_p.dst_b = _t_dst_b + nnb * jcp.n2_block * jcp.n_block;
 
-                    kernel_->ker_(&gemm_p);
-               }
-            }
+                kernel_->ker_(&gemm_p);
+            });
         }
         { /* transformation from winograd domain to output tensor */
-            #pragma omp parallel for collapse(2)
-            for (int y_in_block = 0; y_in_block < jcp.yb; y_in_block += 2) {
-            for (int x_in_block = 0; x_in_block < jcp.xb; x_in_block += 2) {
+            parallel_nd(div_up(jcp.yb, 2), div_up(jcp.xb, 2),
+                [&](int y_in_block_b, int x_in_block_b) {
+                int y_in_block = y_in_block_b * 2;
+                int x_in_block = x_in_block_b * 2;
+
                 auto dst_trans_p =
                     jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t
                     ::call_params_t();
@@ -1066,7 +1067,7 @@ void _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu,
                 dst_trans_p.bias = bia;
 
                 dst_trans_->ker_(&dst_trans_p);
-            }}
+            });
         }
     }}
     }

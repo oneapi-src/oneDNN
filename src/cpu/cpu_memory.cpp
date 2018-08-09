@@ -47,15 +47,13 @@ typename utils::enable_if<fmt == nChw8c || fmt == nChw16c || fmt == nCdhw16c
     assert(c_tail_start != 0);
     const size_t sp_rest = utils::array_product(dims + 3, m_d.ndims() - 3);
 
-#   pragma omp parallel for collapse(2) schedule(static)
-    for (int n = 0; n < dims[0]; ++n)
-    for (int sp0 = 0; sp0 < dims[2]; ++sp0) {
+    parallel_nd(dims[0], dims[2], [&](int n, int sp0) {
         auto *d = &data[m_d.blk_off(n, C, sp0)];
         for (size_t sp = 0; sp < sp_rest; ++sp) {
             for (int c = c_tail_start; c < blksize; ++c)
                 d[sp * blksize + c] = 0;
         }
-    }
+    });
 }
 
 template <data_type_t dt, memory_format_t fmt>
@@ -65,7 +63,7 @@ typename utils::enable_if<false
 || fmt == gOidhw16o || fmt == gOdhwi16o
 >::type typed_zero_pad_weights(const memory_desc_wrapper &m_d,
         typename prec_traits<dt>::type *data) {
-    constexpr int w_groups = false
+    static constexpr int w_groups = false
         || fmt == gOhwi8o || fmt == gOihw16o || fmt == gOhwi16o
         || fmt == gOidhw16o || fmt == gOdhwi16o;
 
@@ -87,18 +85,14 @@ typename utils::enable_if<false
 
     const int oc_tail = pdims[w_groups + 0] - dims[w_groups + 0];
 
-#   pragma omp parallel for collapse(5)
-    for (int g = 0; g < G; ++g)
-    for (int ic = 0; ic < IC; ++ic)
-    for (int d = 0; d < D; ++d)
-    for (int h = 0; h < H; ++h)
-    for (int w = 0; w < W; ++w) {
+    parallel_nd(G, IC, D, H, W,
+        [&](int g, int ic, int d, int h, int w) {
         auto x = &data[is_3d
             ? m_d.blk_off<!w_groups>(g, NB_OC - 1, ic, d, h, w)
             : m_d.blk_off<!w_groups>(g, NB_OC - 1, ic, h, w) ];
         for (int oc = blksize - oc_tail; oc < blksize; ++oc)
             x[oc] = 0;
-    }
+    });
 }
 
 template <data_type_t dt, memory_format_t fmt>
@@ -107,7 +101,7 @@ typed_zero_pad_weights(const memory_desc_wrapper &m_d,
         typename prec_traits<dt>::type *data) {
     constexpr int blksize = fmt == oIhw8i ? 8 : 16;
 
-    constexpr int w_groups = 0;
+    static constexpr int w_groups = 0;
     constexpr int is_3d = 0;
 
     const auto &dims = m_d.dims();
@@ -122,18 +116,14 @@ typed_zero_pad_weights(const memory_desc_wrapper &m_d,
 
     const int ic_tail = pdims[w_groups + 1] - dims[w_groups + 1];
 
-#   pragma omp parallel for collapse(5)
-    for (int g = 0; g < G; ++g)
-    for (int oc = 0; oc < OC; ++oc)
-    for (int d = 0; d < D; ++d)
-    for (int h = 0; h < H; ++h)
-    for (int w = 0; w < W; ++w) {
+    parallel_nd(G, OC, D, H, W,
+        [&](int g, int oc, int d, int h, int w) {
         auto x = &data[is_3d
             ? m_d.blk_off<!w_groups>(g, oc, NB_IC - 1, d, h, w)
             : m_d.blk_off<!w_groups>(g, oc, NB_IC - 1, h, w) ];
         for (int ic = blksize - ic_tail; ic < blksize; ++ic)
             x[ic] = 0;
-    }
+    });
 }
 
 template <data_type_t dt, memory_format_t fmt>
@@ -149,7 +139,7 @@ typename utils::enable_if<false
 >::type typed_zero_pad_weights(const memory_desc_wrapper &m_d,
         typename prec_traits<dt>::type *data) {
     using data_t = typename prec_traits<dt>::type;
-    constexpr int w_groups = false
+    static constexpr int w_groups = false
         || fmt == gOIhw8i8o || fmt == gOIhw16i16o || fmt == gOIhw4i16o4i
         || fmt == gOIhw8i16o2i || fmt == gOIdhw8i16o2i || fmt == gOIhw8o16i2o
         || fmt == gOIhw8o8i || fmt == gOIhw16o16i || fmt == gIOhw16o16i
@@ -204,31 +194,23 @@ typename utils::enable_if<false
     const int ic_tail = pdims[w_groups + 1] - dims[w_groups + 1];
 
     if (ic_tail) {
-#       pragma omp parallel for collapse(5)
-        for (int g = 0; g < G; ++g)
-        for (int nb_oc = 0; nb_oc < NB_OC; ++nb_oc)
-        for (int d = 0; d < D; ++d)
-        for (int h = 0; h < H; ++h)
-        for (int w = 0; w < W; ++w) {
+        parallel_nd(G, NB_OC, D, H, W,
+            [&](int g, int nb_oc, int d, int h, int w) {
             auto x = &data[is_3d
                 ? m_d.blk_off<!w_groups>(g, nb_oc, NB_IC - 1, d, h, w)
                 : m_d.blk_off<!w_groups>(g, nb_oc, NB_IC - 1, h, w) ];
             ker(x, 0, ic_tail);
-        }
+        });
     }
 
     if (oc_tail) {
-#       pragma omp parallel for collapse(5)
-        for (int g = 0; g < G; ++g)
-        for (int nb_ic = 0; nb_ic < NB_IC; ++nb_ic)
-        for (int d = 0; d < D; ++d)
-        for (int h = 0; h < H; ++h)
-        for (int w = 0; w < W; ++w) {
+        parallel_nd(G, NB_IC, D, H, W,
+            [&](int g, int nb_ic, int d, int h, int w) {
             auto x = &data[is_3d
                 ? m_d.blk_off<!w_groups>(g, NB_OC - 1, nb_ic, d, h, w)
                 : m_d.blk_off<!w_groups>(g, NB_OC - 1, nb_ic, h, w) ];
             ker(x, oc_tail, 0);
-        }
+        });
     }
 }
 

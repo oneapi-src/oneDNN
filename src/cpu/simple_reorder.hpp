@@ -142,18 +142,14 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 }
             }
         };
-#       pragma omp parallel for collapse(3) schedule(static)
-        for (int n = 0; n < dims[0]; ++n) {
-            for (int C = 0; C < dims[1] / blksize; ++C) {
-                for (int h = 0; h < dims[2]; ++h) {
-                    constexpr int i_c_mult = order_keep ? blksize : 1;
-                    constexpr int o_c_mult = order_keep ? 1 : blksize;
-                    auto i = &input[input_d.blk_off(n, i_c_mult * C, h)];
-                    auto o = &output[output_d.blk_off(n, o_c_mult * C, h)];
-                    ker(i, o);
-                }
-            }
-        }
+        parallel_nd(dims[0], dims[1] / blksize, dims[2],
+            [&](int n, int C, int h) {
+            constexpr int i_c_mult = order_keep ? blksize : 1;
+            constexpr int o_c_mult = order_keep ? 1 : blksize;
+            auto i = &input[input_d.blk_off(n, i_c_mult * C, h)];
+            auto o = &output[output_d.blk_off(n, o_c_mult * C, h)];
+            ker(i, o);
+        });
 
         return success;
     }
@@ -206,19 +202,16 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 }
             }
         };
-#       pragma omp parallel for collapse(3) schedule(static)
-        for (int n = 0; n < dims[0]; ++n) {
-            for (int C = 0; C < dims[1] / blksize; ++C) {
-                for (int d = 0; d < dims[2]; ++d)
-                for (int h = 0; h < dims[3]; ++h) {
-                    constexpr int i_c_mult = order_keep ? blksize : 1;
-                    constexpr int o_c_mult = order_keep ? 1 : blksize;
-                    auto i = &input[input_d.blk_off(n, i_c_mult * C, d, h)];
-                    auto o = &output[output_d.blk_off(n, o_c_mult * C, d, h)];
-                    ker(i, o);
-                }
+        parallel_nd(dims[0], dims[1] / blksize, dims[2],
+            [&](int n, int C, int d) {
+            for (int h = 0; h < dims[3]; ++h) {
+                constexpr int i_c_mult = order_keep ? blksize : 1;
+                constexpr int o_c_mult = order_keep ? 1 : blksize;
+                auto i = &input[input_d.blk_off(n, i_c_mult * C, d, h)];
+                auto o = &output[output_d.blk_off(n, o_c_mult * C, d, h)];
+                ker(i, o);
             }
-        }
+        });
         return success;
     }
 };
@@ -326,16 +319,11 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             }
         };
 
-#       pragma omp parallel for collapse(3) schedule(static)
-        for (int n = 0; n < dims[0]; ++n) {
-            for (int h = 0; h < dims[2]; ++h) {
-                for (int w = 0; w < dims[3]; ++w) {
-                    auto i = &input[input_d.blk_off(n, 0, h, w)];
-                    auto o = &output[output_d.blk_off(n, 0, h, w)];
-                    ker(i, o);
-                }
-            }
-        }
+        parallel_nd(dims[0], dims[2], dims[3], [&](int n, int h, int w) {
+            auto i = &input[input_d.blk_off(n, 0, h, w)];
+            auto o = &output[output_d.blk_off(n, 0, h, w)];
+            ker(i, o);
+        });
 
         return success;
     }
@@ -387,22 +375,17 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             }
         };
 
-#       pragma omp parallel for collapse(4) schedule(static)
-        for (int C = 0; C < dims[1] / blksize; ++C) {
-            for (int h = 0; h < dims[2]; ++h) {
-                for (int n = 0; n < dims[0]; n += tsize) {
-                    for (int w = 0; w < dims[3]; ++w) {
-                        const int nsize =
-                            n + tsize > dims[0] ? dims[0] - n : tsize;
-                        auto i = &input[n * i_st[0] + C * i_mult * i_st[1]
-                            + h * i_st[2] + w * i_st[3]];
-                        auto o = &output[n * o_st[0] + C * o_mult * o_st[1]
-                            + h * o_st[2] + w * o_st[3]];
-                        ker(i, o, nsize);
-                    }
-                }
-            }
-        }
+        parallel_nd(dims[1] / blksize, dims[2], div_up(dims[0], tsize), dims[3],
+            [&](int C, int h, int n_blk, int w) {
+            int n = n_blk * tsize;
+            const int nsize =
+                n + tsize > dims[0] ? dims[0] - n : tsize;
+            auto i = &input[n * i_st[0] + C * i_mult * i_st[1]
+                + h * i_st[2] + w * i_st[3]];
+            auto o = &output[n * o_st[0] + C * o_mult * o_st[1]
+                + h * o_st[2] + w * o_st[3]];
+            ker(i, o, nsize);
+        });
 
         return success;
     }
@@ -430,7 +413,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o) {
             if (alpha == 1.0 && beta == 0.0) {
-                for (int blk = 0; blk < 2; ++blk){
+                for (int blk = 0; blk < 2; ++blk) {
                     const int i_blk = order_keep ? blk * (int)stride_8c[1]
                         : blk * blksize_8c;
                     const int o_blk = order_keep ? blk * blksize_8c
@@ -440,7 +423,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                     }
                 }
             } else {
-                for (int blk = 0; blk < 2; ++blk){
+                for (int blk = 0; blk < 2; ++blk) {
                     const int i_blk = order_keep ? blk * (int)stride_8c[1]
                         : blk * blksize_8c;
                     const int o_blk = order_keep ? blk * blksize_8c
@@ -454,18 +437,12 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             }
         };
 
-#       pragma omp parallel for collapse(4) schedule(static)
-        for (int n = 0; n < dims[0]; ++n) {
-            for (int C = 0; C < dims[1] / blksize_16c; ++C) {
-                for (int h = 0; h < dims[2]; ++h) {
-                    for (int w = 0; w < dims[3]; ++w) {
-                        auto i = &input[input_d.blk_off(n, C * ic_mult, h, w)];
-                        auto o = &output[output_d.blk_off(n, C * oc_mult, h, w)];
-                        ker(i,o);
-                    }
-                }
-            }
-        }
+        parallel_nd(dims[0], dims[1] / blksize_16c, dims[2], dims[3],
+            [&](int n, int C, int h, int w) {
+            auto i = &input[input_d.blk_off(n, C * ic_mult, h, w)];
+            auto o = &output[output_d.blk_off(n, C * oc_mult, h, w)];
+            ker(i,o);
+        });
 
         return success;
     }
@@ -571,14 +548,11 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             }
         };
 
-#       pragma omp parallel for collapse(2) schedule(static)
-        for (int n = 0; n < dims[0]; ++n) {
-            for (int h = 0; h < dims[2]; ++h) {
-                auto i = &input[input_d.blk_off(n, 0, h)];
-                auto o = &output[output_d.blk_off(n, 0, h)];
-                ker(i, o);
-            }
-        }
+        parallel_nd(dims[0], dims[2], [&](int n, int h) {
+            auto i = &input[input_d.blk_off(n, 0, h)];
+            auto o = &output[output_d.blk_off(n, 0, h)];
+            ker(i, o);
+        });
 
         return success;
     }
@@ -623,14 +597,11 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             }
         };
 
-#       pragma omp parallel for collapse(2) schedule(static)
-        for (int ic = 0; ic < dims[1]; ++ic) {
-            for (int kh = 0; kh < dims[2]; ++kh) {
-                auto i = &input[input_d.blk_off(0, ic, kh)];
-                auto o = &output[output_d.blk_off(0, ic, kh)];
-                ker(i, o);
-            }
-        }
+        parallel_nd(dims[1], dims[2], [&](int ic, int kh) {
+            auto i = &input[input_d.blk_off(0, ic, kh)];
+            auto o = &output[output_d.blk_off(0, ic, kh)];
+            ker(i, o);
+        });
 
         return success;
     }
@@ -682,17 +653,17 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             }
         };
 
-#       pragma omp parallel for collapse(2) schedule(static)
-        for (int r = 0; r < dims[0]; r += tsize) {
-            for (int c = 0; c < CHW; c += tsize) {
-                const int nrows =
-                    r + tsize > dims[0] ? dims[0] - r : tsize;
-                const int ncols = c + tsize > CHW ? CHW - c : tsize;
-                auto i = &input[r * istrides[0] + c * istrides[3]];
-                auto o = &output[r * ostrides[0] + c * ostrides[3]];
-                ker(i, o, nrows, ncols);
-            }
-        }
+        parallel_nd(div_up(dims[0], tsize), div_up(CHW, tsize),
+            [&](int r_blk, int c_blk) {
+            int r = r_blk * tsize;
+            int c = c_blk * tsize;
+            const int nrows =
+                r + tsize > dims[0] ? dims[0] - r : tsize;
+            const int ncols = c + tsize > CHW ? CHW - c : tsize;
+            auto i = &input[r * istrides[0] + c * istrides[3]];
+            auto o = &output[r * ostrides[0] + c * ostrides[3]];
+            ker(i, o, nrows, ncols);
+        });
 
         return success;
     }
@@ -744,16 +715,12 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             }
         };
 
-#       pragma omp parallel for collapse(3) schedule(static)
-        for (int h = 0; h < dims[2]; ++h) {
-            for (int w = 0; w < dims[3]; ++w) {
-                for (int ic = 0; ic < dims[1]; ++ic) {
-                    auto i = &input[input_d.blk_off(0, ic, h, w)];
-                    auto o = &output[output_d.blk_off(0, ic, h, w)];
-                    ker(i, o);
-                }
-            }
-        }
+        parallel_nd(dims[2], dims[3], dims[1],
+            [&](int h, int w, int ic) {
+            auto i = &input[input_d.blk_off(0, ic, h, w)];
+            auto o = &output[output_d.blk_off(0, ic, h, w)];
+            ker(i, o);
+        });
 
         return success;
     }
@@ -818,24 +785,17 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         const int _G = w_groups ? dims[0] : 1;
 
-#       pragma omp parallel for collapse(5) schedule(static)
-        for (int g = 0; g < _G; ++g) {
-            for (int O = 0; O < dims[w_groups + 0] / blksize; ++O) {
-                for (int I = 0; I < dims[w_groups + 1] / blksize; ++I) {
-                    for (int h = 0; h < dims[w_groups + 2]; ++h) {
-                        for (int w = 0; w < dims[w_groups + 3]; ++w) {
-                            constexpr int i_mult = order_keep ? blksize : 1;
-                            constexpr int o_mult = order_keep ? 1 : blksize;
-                            auto i = &input[input_d.blk_off<!w_groups>(g,
-                                    i_mult * O, i_mult * I, h, w)];
-                            auto o = &output[output_d.blk_off<!w_groups>(
-                                    g, o_mult * O, o_mult * I, h, w)];
-                            ker(i, o);
-                        }
-                    }
-                }
-            }
-        }
+        parallel_nd(_G, dims[w_groups + 0] / blksize,
+            dims[w_groups + 1] / blksize, dims[w_groups + 2],
+            dims[w_groups + 3], [&](int g, int O, int I, int h, int w) {
+            constexpr int i_mult = order_keep ? blksize : 1;
+            constexpr int o_mult = order_keep ? 1 : blksize;
+            auto i = &input[input_d.blk_off<!w_groups>(g,
+                    i_mult * O, i_mult * I, h, w)];
+            auto o = &output[output_d.blk_off<!w_groups>(
+                    g, o_mult * O, o_mult * I, h, w)];
+            ker(i, o);
+        });
 
         return success;
     }
@@ -897,24 +857,19 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         };
 
         const int _G = w_groups ? dims[0] : 1;
-#       pragma omp parallel for collapse(5) schedule(static)
-        for (int g = 0; g < _G; ++g) {
-            for (int O = 0; O < dims[w_groups + 0] / blksize; ++O) {
-                for (int I = 0; I < dims[w_groups + 1] / blksize; ++I) {
-                    for (int d = 0; d < dims[w_groups + 2]; ++d)
-                    for (int h = 0; h < dims[w_groups + 3]; ++h)
-                    for (int w = 0; w < dims[w_groups + 4]; ++w) {
-                            constexpr int i_mult = order_keep ? blksize : 1;
-                            constexpr int o_mult = order_keep ? 1 : blksize;
-                            auto i = &input[input_d.blk_off<!w_groups>(g,
-                                    i_mult * O, i_mult * I, d, h, w)];
-                            auto o = &output[output_d.blk_off<!w_groups>(
-                                    g, o_mult * O, o_mult * I, d, h, w)];
-                            ker(i, o);
-                    }
-                }
+        parallel_nd(_G, dims[w_groups + 0] / blksize,
+            dims[w_groups + 1] / blksize, dims[w_groups + 2],
+            dims[w_groups + 3], [&](int g, int O, int I, int d, int h) {
+            for (int w = 0; w < dims[w_groups + 4]; ++w) {
+                    constexpr int i_mult = order_keep ? blksize : 1;
+                    constexpr int o_mult = order_keep ? 1 : blksize;
+                    auto i = &input[input_d.blk_off<!w_groups>(g,
+                            i_mult * O, i_mult * I, d, h, w)];
+                    auto o = &output[output_d.blk_off<!w_groups>(
+                            g, o_mult * O, o_mult * I, d, h, w)];
+                    ker(i, o);
             }
-        }
+        });
 
         return success;
     }
@@ -980,24 +935,17 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         const int _G = w_groups ? dims[0] : 1;
 
-#       pragma omp parallel for collapse(5) schedule(static)
-        for (int g = 0; g < _G; ++g) {
-            for (int O = 0; O < dims[w_groups + 0] / blksize; ++O) {
-                for (int I = 0; I < dims[w_groups + 1] / blksize; ++I) {
-                    for (int h = 0; h < dims[w_groups + 2]; ++h) {
-                        for (int w = 0; w < dims[w_groups + 3]; ++w) {
-                            constexpr int i_mult = order_keep ? blksize : 1;
-                            constexpr int o_mult = order_keep ? 1 : blksize;
-                            auto i = &input[input_d.blk_off<!w_groups>(g,
-                                    i_mult * O, i_mult * I, h, w)];
-                            auto o = &output[output_d.blk_off<!w_groups>(
-                                    g, o_mult * O, o_mult * I, h, w)];
-                            ker(i, o);
-                        }
-                    }
-                }
-            }
-        }
+        parallel_nd(_G, dims[w_groups + 0] / blksize,
+            dims[w_groups + 1] / blksize, dims[w_groups + 2],
+            dims[w_groups + 3], [&](int g, int O, int I, int h, int w) {
+            constexpr int i_mult = order_keep ? blksize : 1;
+            constexpr int o_mult = order_keep ? 1 : blksize;
+            auto i = &input[input_d.blk_off<!w_groups>(g,
+                    i_mult * O, i_mult * I, h, w)];
+            auto o = &output[output_d.blk_off<!w_groups>(
+                    g, o_mult * O, o_mult * I, h, w)];
+            ker(i, o);
+        });
 
         return success;
     }
@@ -1060,26 +1008,19 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         const int _G = w_groups ? dims[0] : 1;
 
-#       pragma omp parallel for collapse(5) schedule(static)
-        for (int g = 0; g < _G; ++g) {
-            for (int O = 0; O < dims[w_groups + 0] / blksize; ++O) {
-                for (int I = 0; I < dims[w_groups + 1] / blksize; ++I) {
-                    for (int d = 0; d < dims[w_groups + 2]; ++d) {
-                    for (int h = 0; h < dims[w_groups + 3]; ++h) {
-                        for (int w = 0; w < dims[w_groups + 4]; ++w) {
-                            constexpr int i_mult = order_keep ? blksize : 1;
-                            constexpr int o_mult = order_keep ? 1 : blksize;
-                            auto i = &input[input_d.blk_off<!w_groups>(g,
-                                    i_mult * O, i_mult * I, d, h, w)];
-                            auto o = &output[output_d.blk_off<!w_groups>(
-                                    g, o_mult * O, o_mult * I, d, h, w)];
-                            ker(i, o);
-                        }
-                    }
-                    }
-                }
+        parallel_nd(_G, dims[w_groups + 0] / blksize,
+            dims[w_groups + 1] / blksize, dims[w_groups + 2],
+            dims[w_groups + 3], [&](int g, int O, int I, int d, int h) {
+            for (int w = 0; w < dims[w_groups + 4]; ++w) {
+                constexpr int i_mult = order_keep ? blksize : 1;
+                constexpr int o_mult = order_keep ? 1 : blksize;
+                auto i = &input[input_d.blk_off<!w_groups>(g,
+                        i_mult * O, i_mult * I, d, h, w)];
+                auto o = &output[output_d.blk_off<!w_groups>(
+                        g, o_mult * O, o_mult * I, d, h, w)];
+                ker(i, o);
             }
-        }
+        });
 
         return success;
     }
@@ -1109,44 +1050,35 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         constexpr int i_mult = order_keep ? blksize : 1;
         constexpr int o_mult = order_keep ? 1 : blksize;
 
-#       pragma omp parallel for collapse(5) schedule(static)
-        for (int g = 0; g < _G; ++g) {
-            for (int O = 0; O < dims[w_groups + 0] / blksize; ++O) {
-                for (int i = 0; i < dims[w_groups + 1]; ++i) {
-                    for (int h = 0; h < dims[w_groups + 2]; ++h) {
-                        for (int w = 0; w < dims[w_groups + 3]; ++w) {
-                            auto inp = &input [input_d.blk_off<!w_groups>(g,
-                                    i_mult * O, i, h, w)];
-                            auto out = &output[output_d.blk_off<!w_groups>(g,
-                                    o_mult * O, i, h, w)];
-                            if (alpha == 1.0 && beta == 0.0) {
-                                for (int oc = 0; oc < blksize; ++oc) {
-                                    const auto off = oc * strd_oc;
-                                    if (order_keep) {
-                                        out[oc] = data_t<type_o>(inp[off]);
-                                    } else {
-                                        out[off] = data_t<type_o>(inp[oc]);
-                                    }
-                                }
-                            } else {
-                                for (int oc = 0; oc < blksize; ++oc) {
-                                    const auto off = oc * strd_oc;
-                                    if (order_keep) {
-                                        out[oc] = data_t<type_o>(
-                                                alpha * inp[off] + (beta
-                                                    ? beta * out[oc] : 0));
-                                    } else {
-                                        out[off] = data_t<type_o>(
-                                                alpha * inp[oc] + (beta
-                                                    ? beta * out[off] : 0));
-                                    }
-                                }
-                            }
-                        }
+        parallel_nd(_G, dims[w_groups + 0] / blksize, dims[w_groups + 1],
+            dims[w_groups + 2], dims[w_groups + 3],
+            [&](int g, int O, int i, int h, int w) {
+            auto inp = &input [input_d.blk_off<!w_groups>(g,
+                    i_mult * O, i, h, w)];
+            auto out = &output[output_d.blk_off<!w_groups>(g,
+                    o_mult * O, i, h, w)];
+            if (alpha == 1.0 && beta == 0.0) {
+                for (int oc = 0; oc < blksize; ++oc) {
+                    const auto off = oc * strd_oc;
+                    if (order_keep) {
+                        out[oc] = data_t<type_o>(inp[off]);
+                    } else {
+                        out[off] = data_t<type_o>(inp[oc]);
+                    }
+                }
+            } else {
+                for (int oc = 0; oc < blksize; ++oc) {
+                    const auto off = oc * strd_oc;
+                    if (order_keep) {
+                        out[oc] = data_t<type_o>(alpha * inp[off] + (beta
+                                    ? beta * out[oc] : 0));
+                    } else {
+                        out[off] = data_t<type_o>(alpha * inp[oc] + (beta
+                                    ? beta * out[off] : 0));
                     }
                 }
             }
-        }
+        });
 
         return success;
     }
@@ -1176,45 +1108,37 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         constexpr int i_mult = order_keep ? blksize : 1;
         constexpr int o_mult = order_keep ? 1 : blksize;
 
-#       pragma omp parallel for collapse(6) schedule(static)
-        for (int g = 0; g < _G; ++g) {
-            for (int O = 0; O < dims[w_groups + 0] / blksize; ++O) {
-                for (int i = 0; i < dims[w_groups + 1]; ++i) {
-                    for (int d = 0; d < dims[w_groups + 2]; ++d)
-                    for (int h = 0; h < dims[w_groups + 3]; ++h) {
-                        for (int w = 0; w < dims[w_groups + 4]; ++w) {
-                            auto inp = &input [input_d.blk_off<!w_groups>(g,
-                                    i_mult * O, i, d, h, w)];
-                            auto out = &output[output_d.blk_off<!w_groups>(g,
-                                    o_mult * O, i, d, h, w)];
-                            if (alpha == 1.0 && beta == 0.0) {
-                                for (int oc = 0; oc < blksize; ++oc) {
-                                    const auto off = oc * strd_oc;
-                                    if (order_keep) {
-                                        out[oc] = data_t<type_o>(inp[off]);
-                                    } else {
-                                        out[off] = data_t<type_o>(inp[oc]);
-                                    }
-                                }
-                            } else {
-                                for (int oc = 0; oc < blksize; ++oc) {
-                                    const auto off = oc * strd_oc;
-                                    if (order_keep) {
-                                        out[oc] = data_t<type_o>(
-                                                alpha * inp[off] + (beta
-                                                    ? beta * out[oc] : 0));
-                                    } else {
-                                        out[off] = data_t<type_o>(
-                                                alpha * inp[oc] + (beta
-                                                    ? beta * out[off] : 0));
-                                    }
-                                }
-                            }
+        parallel_nd(_G, dims[w_groups + 0] / blksize, dims[w_groups + 1],
+            dims[w_groups + 2], dims[w_groups + 3], dims[w_groups + 4],
+            [&](int g, int O, int i, int d, int h, int w) {
+                auto inp = &input [input_d.blk_off<!w_groups>(g,
+                        i_mult * O, i, d, h, w)];
+                auto out = &output[output_d.blk_off<!w_groups>(g,
+                        o_mult * O, i, d, h, w)];
+                if (alpha == 1.0 && beta == 0.0) {
+                    for (int oc = 0; oc < blksize; ++oc) {
+                        const auto off = oc * strd_oc;
+                        if (order_keep) {
+                            out[oc] = data_t<type_o>(inp[off]);
+                        } else {
+                            out[off] = data_t<type_o>(inp[oc]);
+                        }
+                    }
+                } else {
+                    for (int oc = 0; oc < blksize; ++oc) {
+                        const auto off = oc * strd_oc;
+                        if (order_keep) {
+                            out[oc] = data_t<type_o>(
+                                    alpha * inp[off] + (beta
+                                        ? beta * out[oc] : 0));
+                        } else {
+                            out[off] = data_t<type_o>(
+                                    alpha * inp[oc] + (beta
+                                        ? beta * out[off] : 0));
                         }
                     }
                 }
-            }
-        }
+        });
 
         return success;
     }
@@ -1241,46 +1165,36 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         constexpr int i_mult = order_keep ? blksize : 1;
         constexpr int o_mult = order_keep ? 1 : blksize;
 
-#       pragma omp parallel for collapse(5) schedule(static)
-        for (int G = 0; G < NG / blksize; ++G) {
-            for (int oc = 0; oc < dims[1]; ++oc) {
-                for (int ic = 0; ic < dims[2]; ++ic) {
-                    for (int h = 0; h < dims[3]; ++h) {
-                        for (int w = 0; w < dims[4]; ++w) {
-                            auto i = &input[input_d.blk_off<!w_groups>(
-                                   G * i_mult, oc, ic, h, w)];
-                            auto o = &output[output_d.blk_off<!w_groups>(
-                                   G * o_mult, oc, ic, h, w)];
-                            if (alpha == 1.0 && beta == 0.0) {
-                                for (int g = 0; g < blksize; ++g) {
-                                    const auto _goihw_off = g *
-                                        _goihw_d.blocking_desc().strides[0][0];
-                                    if (order_keep) {
-                                        o[g] = data_t<type_o>(i[_goihw_off]);
-                                    } else {
-                                        o[_goihw_off] = data_t<type_o>(i[g]);
-                                    }
-                                }
-                            } else {
-                                for (int g = 0; g < blksize; ++g) {
-                                    const auto _goihw_off = g *
-                                        _goihw_d.blocking_desc().strides[0][0];
-                                    if (order_keep) {
-                                        o[g] = data_t<type_o>(alpha *
-                                             i[_goihw_off] +
-                                             (beta ? beta * o[g] : 0));
-                                   } else {
-                                        o[_goihw_off] = data_t<type_o>(alpha *
-                                             i[g] + (beta ? beta *
-                                             o[_goihw_off] : 0));
-                                   }
-                               }
-                           }
-                        }
+        parallel_nd(NG / blksize, dims[1], dims[2], dims[3], dims[4],
+            [&](int G, int oc, int ic, int h, int w) {
+            auto i = &input[input_d.blk_off<!w_groups>(
+                   G * i_mult, oc, ic, h, w)];
+            auto o = &output[output_d.blk_off<!w_groups>(
+                   G * o_mult, oc, ic, h, w)];
+            if (alpha == 1.0 && beta == 0.0) {
+                for (int g = 0; g < blksize; ++g) {
+                    const auto _goihw_off = g *
+                        _goihw_d.blocking_desc().strides[0][0];
+                    if (order_keep) {
+                        o[g] = data_t<type_o>(i[_goihw_off]);
+                    } else {
+                        o[_goihw_off] = data_t<type_o>(i[g]);
                     }
                 }
-            }
-        }
+            } else {
+                for (int g = 0; g < blksize; ++g) {
+                    const auto _goihw_off = g *
+                        _goihw_d.blocking_desc().strides[0][0];
+                    if (order_keep) {
+                        o[g] = data_t<type_o>(alpha * i[_goihw_off] +
+                             (beta ? beta * o[g] : 0));
+                   } else {
+                        o[_goihw_off] = data_t<type_o>(alpha *
+                             i[g] + (beta ? beta * o[_goihw_off] : 0));
+                   }
+               }
+           }
+        });
 
         return success;
     }
@@ -1332,22 +1246,16 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             }
         };
 
-#       pragma omp parallel for collapse(4) schedule(static)
-        for (int h = 0; h < dims[2]; ++h) {
-            for (int w = 0; w < dims[3]; ++w) {
-                for (int O = 0; O < dims[0] / blksize; ++O) {
-                    for (int I = 0; I < dims[1] / blksize; ++I) {
-                        constexpr int i_mult = order_keep ? blksize : 1;
-                        constexpr int o_mult = order_keep ? 1 : blksize;
-                        auto i = &input[input_d.blk_off(
-                                i_mult * O, i_mult * I, h, w)];
-                        auto o = &output[output_d.blk_off(
-                                o_mult * O, o_mult * I, h, w)];
-                        ker(i, o);
-                    }
-                }
-            }
-        }
+        parallel_nd(dims[2], dims[3], dims[0] / blksize, dims[1] / blksize,
+            [&](int h, int w, int O, int I) {
+            constexpr int i_mult = order_keep ? blksize : 1;
+            constexpr int o_mult = order_keep ? 1 : blksize;
+            auto i = &input[input_d.blk_off(
+                    i_mult * O, i_mult * I, h, w)];
+            auto o = &output[output_d.blk_off(
+                    o_mult * O, o_mult * I, h, w)];
+            ker(i, o);
+        });
 
         return success;
     }
@@ -1366,7 +1274,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const data_t<type_i> *input, data_t<type_o> *output) {
         DECLARE_COMMON_PARAMS();
 
-        constexpr bool w_groups = fmt_i == goihw;
+        static constexpr bool w_groups = fmt_i == goihw;
         int sblk = fmt_o == OIhw4i16o4i || fmt_o == gOIhw4i16o4i ? 4 : 2;
 
         constexpr int is_3d = false;
@@ -1431,12 +1339,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         constexpr int i_mult = order_keep ? blksize : 1;
         constexpr int o_mult = order_keep ? 1 : blksize;
 
-#       pragma omp parallel for collapse(5) schedule(static)
-        for (int g = 0; g < G; ++g)
-        for (int O = 0; O < NB_OC; ++O)
-        for (int I = 0; I < NB_IC; ++I)
-        for (int h = 0; h < H; ++h)
-        for (int w = 0; w < W; ++w) {
+        parallel_nd(G, NB_OC, NB_IC, H, W,
+            [&](int g, int O, int I, int h, int w) {
             auto i = &input[input_d.blk_off<!w_groups>(g,
                     i_mult * O, i_mult * I, h, w)];
             auto o = &output[output_d.blk_off<!w_groups>(
@@ -1444,7 +1348,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             const int oc_block = nstl::min(blksize, OC - O * blksize);
             const int ic_block = nstl::min(blksize, IC - I * blksize);
             ker(i, o, oc_block, ic_block);
-        }
+        });
         return success;
     }
 };
@@ -1462,7 +1366,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const data_t<type_i> *input, data_t<type_o> *output) {
         DECLARE_COMMON_PARAMS();
 
-        constexpr bool w_groups = fmt_i == gOIhw8i16o2i;
+        static constexpr bool w_groups = fmt_i == gOIhw8i16o2i;
 
         const auto &dims = input_d.dims();
         const int blksize = 16;
@@ -1494,22 +1398,13 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         const int _G = w_groups ? dims[0] : 1;
 
-#       pragma omp parallel for collapse(5) schedule(static)
-        for (int g = 0; g < _G; ++g) {
-            for (int o = 0; o < dims[w_groups + 0] / blksize; ++o) {
-                for (int i = 0; i < dims[w_groups + 1] / blksize; ++i) {
-                    for (int h = 0; h < dims[w_groups + 2]; ++h) {
-                        for (int w = 0; w < dims[w_groups + 3]; ++w) {
-                            auto i_ptr = &input[input_d.blk_off<!w_groups>(g,
-                                    o, i, h, w)];
-                            auto o_ptr = &output[output_d.blk_off<!w_groups>(g,
-                                    o, i, h, w)];
-                            ker(i_ptr, o_ptr);
-                        }
-                    }
-                }
-            }
-        }
+        parallel_nd(_G, dims[w_groups + 0] / blksize,
+            dims[w_groups + 1] / blksize, dims[w_groups + 2],
+            dims[w_groups + 3], [&](int g, int o, int i, int h, int w) {
+            auto i_ptr = &input[input_d.blk_off<!w_groups>(g, o, i, h, w)];
+            auto o_ptr = &output[output_d.blk_off<!w_groups>(g, o, i, h, w)];
+            ker(i_ptr, o_ptr);
+        });
 
         return success;
     }
@@ -1553,22 +1448,15 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         const int _G = w_groups ? dims[0] : 1;
 
-#       pragma omp parallel for collapse(5) schedule(static)
-        for (int g = 0; g < _G; ++g) {
-            for (int o = 0; o < dims[w_groups + 0] / blksize; ++o) {
-                for (int i = 0; i < dims[w_groups + 1] / blksize; ++i) {
-                    for (int h = 0; h < dims[w_groups + 2]; ++h) {
-                        for (int w = 0; w < dims[w_groups + 3]; ++w) {
-                            auto i_ptr = &input[input_d.blk_off<!w_groups>(g,
-                                    o, i, h, w)];
-                            auto o_ptr = &output[output_d.blk_off<!w_groups>(g,
-                                    o, i, h, w)];
-                            ker(i_ptr, o_ptr);
-                        }
-                    }
-                }
-            }
-        }
+        parallel_nd(_G, dims[w_groups + 0] / blksize,
+            dims[w_groups + 1] / blksize, dims[w_groups + 2],
+            dims[w_groups + 3], [&](int g, int o, int i, int h, int w) {
+            auto i_ptr = &input[input_d.blk_off<!w_groups>(g,
+                    o, i, h, w)];
+            auto o_ptr = &output[output_d.blk_off<!w_groups>(g,
+                    o, i, h, w)];
+            ker(i_ptr, o_ptr);
+        });
 
         return success;
     }
@@ -1607,24 +1495,17 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         const int _G = w_groups ? dims[0] : 1;
 
-#       pragma omp parallel for collapse(5) schedule(static)
-        for (int g = 0; g < _G; ++g) {
-            for (int o = 0; o < dims[w_groups + 0] / blksize; ++o) {
-                for (int i = 0; i < dims[w_groups + 1] / blksize; ++i) {
-                    for (int d = 0; d < dims[w_groups + 2]; ++d) {
-                    for (int h = 0; h < dims[w_groups + 3]; ++h) {
-                        for (int w = 0; w < dims[w_groups + 4]; ++w) {
-                            auto i_ptr = &input[input_d.blk_off<!w_groups>(g,
-                                    o, i, d, h, w)];
-                            auto o_ptr = &output[output_d.blk_off<!w_groups>(g,
-                                    o, i, d, h, w)];
-                            ker(i_ptr, o_ptr);
-                        }
-                    }
-                    }
-                }
+        parallel_nd(_G, dims[w_groups + 0] / blksize,
+            dims[w_groups + 1] / blksize, dims[w_groups + 2],
+            dims[w_groups + 3], [&](int g, int o, int i, int d, int h) {
+            for (int w = 0; w < dims[w_groups + 4]; ++w) {
+                auto i_ptr = &input[input_d.blk_off<!w_groups>(g,
+                        o, i, d, h, w)];
+                auto o_ptr = &output[output_d.blk_off<!w_groups>(g,
+                        o, i, d, h, w)];
+                ker(i_ptr, o_ptr);
             }
-        }
+        });
 
         return success;
     }
@@ -1650,27 +1531,20 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         const int _G = w_groups ? dims[0] : 1;
 
-#       pragma omp parallel for collapse(5) schedule(static)
-        for (int g = 0; g < _G; ++g) {
-            for (int o = 0; o < dims[w_groups + 0] / blksize; ++o) {
-                for (int i = 0; i < dims[w_groups + 1]; ++i) {
-                    for (int h = 0; h < dims[w_groups + 2]; ++h) {
-                        for (int w = 0; w < dims[w_groups + 3]; ++w) {
-                            auto i_ptr = &input[input_d.blk_off<!w_groups>(g,
-                                    o, i, h, w)];
-                            auto o_ptr = &output[output_d.blk_off<!w_groups>(g,
-                                    o, i, h, w)];
-                            for (int oc = 0; oc < blksize; ++oc) {
-                                o_ptr[oc] = (alpha == 1.0 && beta == 0.0)
-                                    ? data_t<type_o>(i_ptr[oc])
-                                    : data_t<type_o>(alpha * i_ptr[oc]
-                                        + (beta ? beta * o_ptr[oc] : 0));
-                            }
-                        }
-                    }
-                }
+        parallel_nd(_G, dims[w_groups + 0] / blksize, dims[w_groups + 1],
+            dims[w_groups + 2], dims[w_groups + 3],
+            [&](int g, int o, int i, int h, int w) {
+            auto i_ptr = &input[input_d.blk_off<!w_groups>(g,
+                    o, i, h, w)];
+            auto o_ptr = &output[output_d.blk_off<!w_groups>(g,
+                    o, i, h, w)];
+            for (int oc = 0; oc < blksize; ++oc) {
+                o_ptr[oc] = (alpha == 1.0 && beta == 0.0)
+                    ? data_t<type_o>(i_ptr[oc])
+                    : data_t<type_o>(alpha * i_ptr[oc]
+                        + (beta ? beta * o_ptr[oc] : 0));
             }
-        }
+        });
 
         return success;
     }
@@ -1696,28 +1570,20 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         const int _G = w_groups ? dims[0] : 1;
 
-#       pragma omp parallel for collapse(6) schedule(static)
-        for (int g = 0; g < _G; ++g) {
-            for (int o = 0; o < dims[w_groups + 0] / blksize; ++o) {
-                for (int i = 0; i < dims[w_groups + 1]; ++i) {
-                    for (int d = 0; d < dims[w_groups + 2]; ++d)
-                    for (int h = 0; h < dims[w_groups + 3]; ++h) {
-                        for (int w = 0; w < dims[w_groups + 4]; ++w) {
-                            auto i_ptr = &input[input_d.blk_off<!w_groups>(g,
-                                    o, i, d, h, w)];
-                            auto o_ptr = &output[output_d.blk_off<!w_groups>(g,
-                                    o, i, d, h, w)];
-                            for (int oc = 0; oc < blksize; ++oc) {
-                                o_ptr[oc] = (alpha == 1.0 && beta == 0.0)
-                                    ? data_t<type_o>(i_ptr[oc])
-                                    : data_t<type_o>(alpha * i_ptr[oc]
-                                        + (beta ? beta * o_ptr[oc] : 0));
-                            }
-                        }
-                    }
-                }
+        parallel_nd(_G, dims[w_groups + 0] / blksize, dims[w_groups + 1],
+            dims[w_groups + 2], dims[w_groups + 3], dims[w_groups + 4],
+            [&](int g, int o, int i, int d, int h, int w) {
+            auto i_ptr = &input[input_d.blk_off<!w_groups>(g,
+                    o, i, d, h, w)];
+            auto o_ptr = &output[output_d.blk_off<!w_groups>(g,
+                    o, i, d, h, w)];
+            for (int oc = 0; oc < blksize; ++oc) {
+                o_ptr[oc] = (alpha == 1.0 && beta == 0.0)
+                    ? data_t<type_o>(i_ptr[oc])
+                    : data_t<type_o>(alpha * i_ptr[oc]
+                        + (beta ? beta * o_ptr[oc] : 0));
             }
-        }
+        });
 
         return success;
     }
@@ -1793,11 +1659,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         constexpr int i_c_mult = order_keep ? blksize : 1;
         constexpr int o_c_mult = order_keep ? 1 : blksize;
 
-#       pragma omp parallel for collapse(4) schedule(static)
-        for (int n = 0; n < dims[0]; ++n)
-        for (int nb_c = 0; nb_c < pdims[1] / blksize; ++nb_c)
-        for (int d = 0; d < D; ++d)
-        for (int h = 0; h < H; ++h) {
+        parallel_nd(dims[0], pdims[1] / blksize, D, H,
+            [&](int n, int nb_c, int d, int h) {
             auto i = &input[is_3d
                 ? input_d.blk_off(n, i_c_mult * nb_c, d, h)
                 : input_d.blk_off(n, i_c_mult * nb_c, h)];
@@ -1806,7 +1669,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 : output_d.blk_off(n, o_c_mult * nb_c, h)];
             const int c_block = nstl::min(blksize, C - nb_c * blksize);
             ker(i, o, c_block);
-        }
+        });
 
         return success;
     }
@@ -1836,7 +1699,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const data_t<type_i> *input, data_t<type_o> *output) {
         DECLARE_COMMON_PARAMS();
 
-        constexpr bool w_groups = false
+        static constexpr bool w_groups = false
             || fmt_o == gOIhw16i16o || fmt_o == gOIdhw16i16o
             || fmt_o == gOIhw16o16i || fmt_o == gOIdhw16o16i
             || fmt_o == gIOhw16o16i;
@@ -1903,13 +1766,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         constexpr int i_mult = order_keep ? blksize : 1;
         constexpr int o_mult = order_keep ? 1 : blksize;
 
-#       pragma omp parallel for collapse(6) schedule(static)
-        for (int g = 0; g < G; ++g)
-        for (int nb_oc = 0; nb_oc < NB_OC; ++nb_oc)
-        for (int nb_ic = 0; nb_ic < NB_IC; ++nb_ic)
-        for (int d = 0; d < D; ++d)
-        for (int h = 0; h < H; ++h)
-        for (int w = 0; w < W; ++w) {
+        parallel_nd(G, NB_OC, NB_IC, D, H, W,
+            [&](int g, int nb_oc, int nb_ic, int d, int h, int w) {
             auto i = &input[is_3d
                 ? input_d.blk_off<!w_groups>(g, i_mult * nb_oc, i_mult * nb_ic, d, h, w)
                 : input_d.blk_off<!w_groups>(g, i_mult * nb_oc, i_mult * nb_ic, h, w)];
@@ -1919,7 +1777,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             const int oc_block = nstl::min(blksize, OC - nb_oc * blksize);
             const int ic_block = nstl::min(blksize, IC - nb_ic * blksize);
             ker(i, o, oc_block, ic_block);
-        }
+        });
 
         return success;
     }
@@ -1950,7 +1808,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         constexpr int blksize = 16;
 
-        constexpr bool w_groups = fmt_o == gOihw16o || fmt_o == gOhwi16o
+        static constexpr bool w_groups = fmt_o == gOihw16o || fmt_o == gOhwi16o
             || fmt_o == gOidhw16o || fmt_o == gOdhwi16o;
         constexpr int is_3d = false
             || fmt_o == gOidhw16o || fmt_o == Oidhw16o
@@ -1973,13 +1831,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         constexpr int o_mult = order_keep ? 1 : blksize;
         const auto strd_oc = flat_d.blocking_desc().strides[0][w_groups];
 
-#       pragma omp parallel for collapse(6) schedule(static)
-        for (int g = 0; g < G; ++g)
-        for (int nb_oc = 0; nb_oc < pdims[w_groups + 0] / blksize; ++nb_oc)
-        for (int ic = 0; ic < IC; ++ic)
-        for (int d = 0; d < D; ++d)
-        for (int h = 0; h < H; ++h)
-        for (int w = 0; w < W; ++w) {
+        parallel_nd(G, pdims[w_groups + 0] / blksize, IC, D, H, W,
+            [&](int g, int nb_oc, int ic, int d, int h, int w) {
             auto inp = &input[is_3d
                 ? input_d.blk_off<!w_groups>(g, i_mult * nb_oc, ic, d, h, w)
                 : input_d.blk_off<!w_groups>(g, i_mult * nb_oc, ic, h, w)];
@@ -2008,7 +1861,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                     }
                 }
             }
-        }
+        });
 
         return success;
     }
@@ -2252,11 +2105,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         const float *scales = pd->attr()->output_scales_.scales_;
 
-#       pragma omp parallel for collapse(3)
-        for (ptrdiff_t ds = 0; ds < D_start; ++ds)
-        for (ptrdiff_t dm = 0; dm < D_mask; ++dm)
-        for (ptrdiff_t dr = 0; dr < D_rest; ++dr)
-        {
+        parallel_nd(D_start, D_mask, D_rest,
+            [&](ptrdiff_t ds, ptrdiff_t dm, ptrdiff_t dr) {
             const float scale = scales[dm];
 
             const size_t e = (ds * D_mask + dm) * D_rest + dr;
@@ -2273,7 +2123,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             } else {
                 o = (data_t<type_o>)i;
             }
-        }
+        });
 
         return success;
     }

@@ -208,9 +208,10 @@ void im2col_u8(
     jit_gemm_conv_conf_t &jcp, const uint8_t *im, uint8_t *col) {
     int num_thr = (jcp.mb != 1) ? omp_get_max_threads() : 1;
     MAYBE_UNUSED(num_thr);
-#   pragma omp parallel for collapse(2) num_threads(num_thr)
-    for (int oh = 0; oh < jcp.oh; ++oh) {
-        for (int ow = 0; ow < jcp.ow; ++ow) {
+#pragma omp parallel num_threads(num_thr)
+    {
+        parallel_nd_in_omp(jcp.oh, jcp.ow,
+            [&](int oh, int ow) {
             for (int kh = 0; kh < jcp.kh; ++kh) {
                 const int ih = oh * jcp.stride_h
                     - jcp.t_pad + kh * (1 + jcp.dilate_h);
@@ -231,7 +232,7 @@ void im2col_u8(
                     }
                 }
             }
-        }
+        });
     }
 }
 

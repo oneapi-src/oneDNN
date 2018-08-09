@@ -269,12 +269,9 @@ void ref_gemm(const char *transa_, const char *transb_, const int *M_,
         }
     }
     if (bias) {
-#       pragma omp parallel for collapse(2)
-        for (int i = 0; i < N; i++) {
-            for (int j = 0; j < M; j++) {
-                C[i*ldc + j] += bias[j];
-            }
-        }
+        parallel_nd(N, M, [&](int i, int j) {
+            C[i*ldc + j] += bias[j];
+        });
     }
     free(ws_buffers);
     free(c_buffers);

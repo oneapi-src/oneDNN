@@ -343,79 +343,62 @@ void _jit_avx512_core_fp32_wino_conv_4x3_t<is_fwd>::_execute_data_W_S_G_D(
 
 #pragma omp parallel
     {
-#pragma omp for nowait collapse(3)
-        for (int img = 0; img < jcp.mb; img++){
-            for (int K_blk1 = 0; K_blk1 < jcp.dimK_nb_block; K_blk1++){
-                for (int K_blk2 = 0; K_blk2 < jcp.dimK_block; K_blk2++){
 
-                    input_transform_data(img, jcp,
-                        &(input(img, K_blk1 * jcp.dimK_block + K_blk2,
-                                0, 0, 0)),
+        parallel_nd_in_omp(jcp.mb, jcp.dimK_nb_block, jcp.dimK_block,
+                [&](int img, int K_blk1, int K_blk2) {
+                input_transform_data(img, jcp,
+                    &(input(img, K_blk1 * jcp.dimK_block + K_blk2,
+                            0, 0, 0)),
                         &(V(0, 0, 0, 0, K_blk1, K_blk2, 0, 0)));
-
-                }
-            }
-        }
+                });
 
         if (jcp.prop_kind != prop_kind::forward_inference) {
-#pragma omp for nowait collapse(4) schedule(static)
-            for (int ofm1 = 0; ofm1 < jcp.nb_oc; ofm1++) {
-            for (int ifm1 = 0; ifm1 < jcp.nb_ic; ifm1++) {
-            for (int ofm2 = 0; ofm2 < jcp.oc_block * jcp.oc_reg_block; ofm2++) {
-            for (int ifm2 = 0; ifm2 < jcp.ic_block * jcp.ic_reg_block; ifm2++) {
-                float *U_base_ptr = is_fwd
-                    ? &(U(ofm1, 0, 0, ifm1, ofm2, ifm2, 0, 0))
-                    : &(U(ifm1, 0, 0, ofm1, ifm2, ofm2, 0, 0));
-                weight_transform_data(jcp,
-                    &(weights(ofm1 * jcp.oc_block * jcp.oc_reg_block + ofm2,
-                              ifm1 * jcp.ic_block * jcp.ic_reg_block + ifm2,
-                              0, 0, 0, 0)), U_base_ptr);
-            }}}}
+            parallel_nd_in_omp(jcp.nb_oc, jcp.nb_ic, (jcp.oc_block * jcp.oc_reg_block),
+                (jcp.ic_block * jcp.ic_reg_block),
+                [&](int ofm1, int ifm1, int ofm2, int ifm2) {
+                    float *U_base_ptr = is_fwd
+                        ? &(U(ofm1, 0, 0, ifm1, ofm2, ifm2, 0, 0))
+                        : &(U(ifm1, 0, 0, ofm1, ifm2, ofm2, 0, 0));
+                    weight_transform_data(jcp,
+                        &(weights(
+                                ofm1 * jcp.oc_block * jcp.oc_reg_block + ofm2,
+                                ifm1 * jcp.ic_block * jcp.ic_reg_block + ifm2,
+                                0, 0, 0, 0)),
+                        U_base_ptr);
+            });
         }
 
 #pragma omp barrier
 
-#pragma omp for collapse(4) nowait schedule(static)
-        for (int N_blk1 = 0; N_blk1 < jcp.dimN_nb_block; N_blk1++){
-            for (int oj = 0; oj < alpha; oj++){
-                for (int oi = 0; oi < alpha; oi++){
-                    for (int M_blk1 = 0; M_blk1 < jcp.dimM_nb_block; M_blk1++){
-                        for (int K_blk1 = 0; K_blk1 < jcp.dimK_nb_block;
-                             K_blk1++)
-                        for (int N_blk2 = 0; N_blk2 < jcp.dimN_block; N_blk2++)
-                            kernel_->gemm_loop_ker(
-                                    (float *)&(M(N_blk1, M_blk1, oj, oi,
-                                        N_blk2, 0, 0, 0)),
-                                    (const float *)&(U(M_blk1, oj, oi,
-                                        K_blk1, 0, 0, 0, 0)),
-                                    (const float *)&(V(N_blk1, oj, oi,
-                                        N_blk2, K_blk1, 0, 0, 0)), K_blk1);
-                    }
-                }
-            }
-        }
+        parallel_nd_in_omp(jcp.dimN_nb_block, alpha, alpha, jcp.dimM_nb_block,
+            [&](int N_blk1, int oj, int oi, int M_blk1) {
+            for (int K_blk1 = 0; K_blk1 < jcp.dimK_nb_block;
+                 K_blk1++)
+            for (int N_blk2 = 0; N_blk2 < jcp.dimN_block; N_blk2++)
+                kernel_->gemm_loop_ker(
+                        (float *)&(M(N_blk1, M_blk1, oj, oi,
+                            N_blk2, 0, 0, 0)),
+                        (const float *)&(U(M_blk1, oj, oi,
+                            K_blk1, 0, 0, 0, 0)),
+                        (const float *)&(V(N_blk1, oj, oi,
+                            N_blk2, K_blk1, 0, 0, 0)), K_blk1);
+        });
 
 #pragma omp barrier
 
-#pragma omp for collapse(3)
-        for (int img = 0; img < jcp.mb; img++){
-            for (int M_blk1 = 0; M_blk1 < jcp.dimM_nb_block; M_blk1++){
-                for (int M_blk2 = 0;
-                        M_blk2 < jcp.dimM_block * jcp.dimM_reg_block; M_blk2++)
-                {
-                    const int M_blk =
-                        M_blk1 * jcp.dimM_block  * jcp.dimM_reg_block + M_blk2;
+        parallel_nd_in_omp(jcp.mb, jcp.dimM_nb_block, (jcp.dimM_block * jcp.dimM_reg_block),
+                    [&](int img, int M_blk1, int M_blk2) {
+            const int M_blk =
+                M_blk1 * jcp.dimM_block  * jcp.dimM_reg_block + M_blk2;
 
-                    float *bias_ptr = want_padded_bias
-                        && M_blk == jcp.dimM / jcp.dimM_simd_block - 1
-                        ? last_slice_bias : &bias(M_blk, 0);
+            float *bias_ptr = want_padded_bias
+                && M_blk == jcp.dimM / jcp.dimM_simd_block - 1
+                ? last_slice_bias : &bias(M_blk, 0);
+            output_transform_data(img, jcp, p_ops,
+                    &(M(0, M_blk1, 0, 0, 0, M_blk2, 0, 0)),
+                    &(output(img, M_blk, 0, 0, 0)), bias_ptr);
+        });
 
-                    output_transform_data(img, jcp, p_ops,
-                            &(M(0, M_blk1, 0, 0, 0, M_blk2, 0, 0)),
-                            &(output(img, M_blk, 0, 0, 0)), bias_ptr);
-                }
-            }
-        }
     }
 }
 
@@ -481,24 +464,24 @@ void _jit_avx512_core_fp32_wino_conv_4x3_t<is_fwd>::_execute_data_W_SGD(
             last_slice_bias[oc] = bias(jcp.dimM / jcp.dimM_simd_block - 1, oc);
     }
 
+    if (jcp.prop_kind != prop_kind::forward_inference) {
+
+        parallel_nd(jcp.nb_oc, jcp.nb_ic, (jcp.oc_block * jcp.oc_reg_block), (jcp.ic_block * jcp.ic_reg_block),
+                    [&](int ofm1, int ifm1, int ofm2, int ifm2) {
+            float *U_base_ptr = is_fwd
+                              ? &(U(ofm1, 0, 0, ifm1, ofm2, ifm2, 0, 0))
+                              : &(U(ifm1, 0, 0, ofm1, ifm2, ofm2, 0, 0));
+            weight_transform_data(jcp,
+                    &(weights(
+                        ofm1 * jcp.oc_block * jcp.oc_reg_block + ofm2,
+                        ifm1 * jcp.ic_block * jcp.ic_reg_block + ifm2,
+                        0, 0, 0, 0)),
+                    U_base_ptr);
+        });
+    }
+
 #pragma omp parallel
     {
-    if (jcp.prop_kind != prop_kind::forward_inference) {
-#pragma omp for collapse(4) schedule(static)
-        for (int ofm1 = 0; ofm1 < jcp.nb_oc; ofm1++) {
-        for (int ifm1 = 0; ifm1 < jcp.nb_ic; ifm1++) {
-        for (int ofm2 = 0; ofm2 < jcp.oc_block * jcp.oc_reg_block; ofm2++) {
-        for (int ifm2 = 0; ifm2 < jcp.ic_block * jcp.ic_reg_block; ifm2++) {
-            float *U_base_ptr = is_fwd
-                                ? &(U(ofm1, 0, 0, ifm1, ofm2, ifm2, 0, 0))
-                                : &(U(ifm1, 0, 0, ofm1, ifm2, ofm2, 0, 0));
-            weight_transform_data(jcp,
-                    &(weights(ofm1 * jcp.oc_block * jcp.oc_reg_block + ofm2,
-                              ifm1 * jcp.ic_block * jcp.ic_reg_block + ifm2,
-                              0, 0, 0, 0)),
-                    U_base_ptr);
-        }}}}
-    }
 
     int ithr = omp_get_thread_num();
 
@@ -746,16 +729,14 @@ _execute_backward_weights_SDGtWo() {
 #pragma omp parallel firstprivate(trans_ker_p, I, T)
 {
     if (jcp.with_bias) {
-#pragma omp for nowait collapse(2)
-        for (int ithr = 0; ithr < nthreads; ithr++) {
-            for (int ofm = 0; ofm < jcp.oc / simd_w; ofm++) {
+        parallel_nd_in_omp(nthreads, jcp.oc / simd_w,
+            [&](int ithr, int ofm){
                 float *pdbias = &(diff_bias_prv(ithr, ofm * simd_w));
                 PRAGMA_OMP_SIMD()
                 for (int v = 0; v < simd_w; v++) {
                     pdbias[v] = 0.0f;
                 }
-            }
-        }
+        });
     }
 
     int ithr = omp_get_thread_num();
@@ -916,104 +897,88 @@ _execute_backward_weights_S_D_Giot_W() {
 #pragma omp parallel firstprivate(first_tblk, trans_ker_p, I, T)
 {
     if (jcp.with_bias) {
-#pragma omp for nowait collapse(2)
-        for (int ithr = 0; ithr < nthreads; ++ithr) {
-            for (int ofm = 0; ofm < jcp.oc; ++ofm) {
-                diff_bias_prv(ithr, ofm) = 0.0f;
-            }
-        }
+        parallel_nd_in_omp(nthreads, jcp.oc, [&](int ithr, int ofm) {
+            diff_bias_prv(ithr, ofm) = 0.0f;
+        });
     }
 
     trans_ker_p.G = G_I_3x3_4x4;
     trans_ker_p.M = I;
     trans_ker_p.T = T;
-#pragma omp for collapse(3) nowait
-    for (int ifm1 = 0; ifm1 < jcp.nb_ic; ++ifm1) {
-         for (int ifm2 = 0; ifm2 < jcp.ic_block; ++ifm2) {
-             for (int img = 0; img < jcp.mb; img++) {
-                 size_t ifm = ifm1 * jcp.ic_block + ifm2;
-                 size_t tile_base_index = img * (jcp.itiles * jcp.jtiles);
-                 size_t tblk3 = tile_base_index  % jcp.tile_block_ur;
-                 size_t tblk2 = (tile_base_index / jcp.tile_block_ur)
-                     % jcp.nb_tile_block_ur;
-                 size_t tblk1 = (tile_base_index / jcp.tile_block_ur)
-                     / jcp.nb_tile_block_ur;
-                 trans_ker_p.tile_count = tblk2 * jcp.tile_block_ur + tblk3;
-                 trans_ker_p.src = (float *)&(src(img, ifm, 0, 0, 0));
-                 trans_ker_p.dst = (float *)&(V(ifm1, tblk1, 0, 0, ifm2, 0, 0, 0));
-                 kernel_->src_transform(&trans_ker_p);
-             }
-         }
-    }
+
+    parallel_nd_in_omp(jcp.nb_ic, jcp.ic_block, jcp.mb,
+        [&](int ifm1, int ifm2, int img){
+         size_t ifm = ifm1 * jcp.ic_block + ifm2;
+         size_t tile_base_index = img * (jcp.itiles * jcp.jtiles);
+         size_t tblk3 = tile_base_index  % jcp.tile_block_ur;
+         size_t tblk2 = (tile_base_index / jcp.tile_block_ur)
+             % jcp.nb_tile_block_ur;
+         size_t tblk1 = (tile_base_index / jcp.tile_block_ur)
+             / jcp.nb_tile_block_ur;
+         trans_ker_p.tile_count = tblk2 * jcp.tile_block_ur + tblk3;
+         trans_ker_p.src = (float *)&(src(img, ifm, 0, 0, 0));
+         trans_ker_p.dst = (float *)&(V(ifm1, tblk1, 0, 0, ifm2, 0, 0, 0));
+         kernel_->src_transform(&trans_ker_p);
+    });
 
     int ithr = omp_get_thread_num();
     trans_ker_p.G = G_W_3x3_4x4;
-#pragma omp for collapse(3)
-    for (int ofm1 = 0; ofm1 < jcp.nb_oc; ++ofm1) {
-        for (int ofm2 = 0; ofm2 < jcp.oc_block; ++ofm2) {
-            for (int img = 0; img < jcp.mb; ++img) {
-                int ofm = (ofm1 * jcp.oc_block + ofm2) * jcp.oc_reg_block;
-                size_t tile_base_index = img * (jcp.itiles * jcp.jtiles);
-                size_t tblk3 = tile_base_index  % jcp.tile_block_ur;
-                size_t tblk2 = (tile_base_index / jcp.tile_block_ur)
-                    % jcp.nb_tile_block_ur;
-                size_t tblk1 = (tile_base_index / jcp.tile_block_ur)
-                    / jcp.nb_tile_block_ur;
-                trans_ker_p.tile_count = tblk2 * jcp.tile_block_ur + tblk3;
-                trans_ker_p.src = (float *)&(diff_dst(img, ofm, 0, 0, 0));
-                trans_ker_p.dst = (float *)&(M(ofm1, tblk1, 0, 0, ofm2, 0, 0, 0, 0));
-                if (jcp.with_bias) {
-                    trans_ker_p.bias = (float *)&(diff_bias_prv(ithr, ofm * simd_w));
-                    kernel_->diff_dst_transform_wbias(&trans_ker_p);
-                } else {
-                    kernel_->diff_dst_transform(&trans_ker_p);
-                }
-            }
+    parallel_nd_in_omp(jcp.nb_oc, jcp.oc_block, jcp.mb,
+        [&](int ofm1, int ofm2, int img){
+        int ofm = (ofm1 * jcp.oc_block + ofm2) * jcp.oc_reg_block;
+        size_t tile_base_index = img * (jcp.itiles * jcp.jtiles);
+        size_t tblk3 = tile_base_index  % jcp.tile_block_ur;
+        size_t tblk2 = (tile_base_index / jcp.tile_block_ur)
+            % jcp.nb_tile_block_ur;
+        size_t tblk1 = (tile_base_index / jcp.tile_block_ur)
+            / jcp.nb_tile_block_ur;
+        trans_ker_p.tile_count = tblk2 * jcp.tile_block_ur + tblk3;
+        trans_ker_p.src = (float *)&(diff_dst(img, ofm, 0, 0, 0));
+        trans_ker_p.dst = (float *)&(M(ofm1, tblk1, 0, 0, ofm2, 0, 0, 0, 0));
+        if (jcp.with_bias) {
+            trans_ker_p.bias = (float *)&(diff_bias_prv(ithr, ofm * simd_w));
+            kernel_->diff_dst_transform_wbias(&trans_ker_p);
+        } else {
+            kernel_->diff_dst_transform(&trans_ker_p);
         }
-    }
+    });
 
-#pragma omp for collapse(5) nowait schedule(static)
-    for (int ifm1 = 0; ifm1 < jcp.nb_ic; ++ifm1) {
-        for (int ofm1 = 0; ofm1 < jcp.nb_oc; ++ofm1) {
-            for (int oj = 0; oj < alpha; ++oj) {
-                for (int oi = 0; oi < alpha; ++oi) {
-                    for (int tblk1 = 0; tblk1 < jcp.tile_block; ++tblk1) {
-                        if (first_tblk == 0) {
-                            input_starts[ithr] =
-                                (float *)&(Us(ithr, ifm1, ofm1, oj, oi, 0, 0, 0,
-                                            0, 0))
-                                - (float *)&(Us(ithr, 0, 0, 0, 0, 0, 0,
-                                            0, 0, 0));
-                            input_ends[ithr] = input_starts[ithr]
-                                    + jcp.oc_block * jcp.ic_block
-                                      * jcp.ic_simd_block * jcp.oc_reg_block
-                                      * jcp.oc_simd_block;
-                        }
-                        else if (tblk1 == 0) {
-                            input_ends[ithr] += jcp.oc_block * jcp.ic_block
-                                * jcp.ic_simd_block * jcp.oc_reg_block
-                                * jcp.oc_simd_block;
-                        }
+    #pragma omp barrier
 
-                        if (first_tblk == 0 || tblk1 == 0) {
-                            kernel_->gemm_loop_ker_first_iter(
-                                    &(Us(ithr, ifm1, ofm1, oj, oi,
-                                            0, 0, 0, 0, 0)),
-                                    &(M(ofm1, tblk1, oj, oi, 0, 0, 0, 0, 0)),
-                                    &(V(ifm1, tblk1, oj, oi, 0, 0, 0, 0)));
-                        } else {
-                            kernel_->gemm_loop_ker(
-                                    &(Us(ithr, ifm1, ofm1, oj, oi,
-                                            0, 0, 0, 0, 0)),
-                                    &(M(ofm1, tblk1, oj, oi, 0, 0, 0, 0, 0)),
-                                    &(V(ifm1, tblk1, oj, oi, 0, 0, 0, 0)));
-                        }
-                        ++first_tblk;
-                    }
-                }
-            }
+    parallel_nd_in_omp(jcp.nb_ic, jcp.nb_oc, alpha, alpha, jcp.tile_block,
+        [&](int ifm1, int ofm1, int oj, int oi, int tblk1){
+        if (first_tblk == 0) {
+            input_starts[ithr] =
+                (float *)&(Us(ithr, ifm1, ofm1, oj, oi, 0, 0, 0,
+                            0, 0))
+                - (float *)&(Us(ithr, 0, 0, 0, 0, 0, 0,
+                            0, 0, 0));
+            input_ends[ithr] = input_starts[ithr]
+                    + jcp.oc_block * jcp.ic_block
+                      * jcp.ic_simd_block * jcp.oc_reg_block
+                      * jcp.oc_simd_block;
         }
-    }
+        else if (tblk1 == 0) {
+            input_ends[ithr] += jcp.oc_block * jcp.ic_block
+                * jcp.ic_simd_block * jcp.oc_reg_block
+                * jcp.oc_simd_block;
+        }
+
+        if (first_tblk == 0 || tblk1 == 0) {
+            kernel_->gemm_loop_ker_first_iter(
+                    &(Us(ithr, ifm1, ofm1, oj, oi,
+                            0, 0, 0, 0, 0)),
+                    &(M(ofm1, tblk1, oj, oi, 0, 0, 0, 0, 0)),
+                    &(V(ifm1, tblk1, oj, oi, 0, 0, 0, 0)));
+        } else {
+            kernel_->gemm_loop_ker(
+                    &(Us(ithr, ifm1, ofm1, oj, oi,
+                            0, 0, 0, 0, 0)),
+                    &(M(ofm1, tblk1, oj, oi, 0, 0, 0, 0, 0)),
+                    &(V(ifm1, tblk1, oj, oi, 0, 0, 0, 0)));
+        }
+        ++first_tblk;
+    });
 }
 
     // Reduce diff-weights
@@ -1028,24 +993,19 @@ _execute_backward_weights_S_D_Giot_W() {
     }
 
     trans_ker_p.G = G_O_3x3_4x4;
-#pragma omp parallel for collapse(5) firstprivate(trans_ker_p)
-    for (int ifm1 = 0; ifm1 < jcp.nb_ic; ++ifm1) {
-        for (int ofm1 = 0; ofm1 < jcp.nb_oc; ++ofm1) {
-            for (int ofm2 = 0; ofm2 < jcp.oc_block; ++ofm2) {
-                for (int ifm2 = 0; ifm2 < jcp.ic_block; ++ifm2) {
-                    for (int ofm3 = 0;  ofm3 < jcp.oc_reg_block; ++ofm3) {
-                        int ofm = (ofm1 * jcp.oc_block + ofm2)
-                            * jcp.oc_reg_block + ofm3;
-                        int ifm = ifm1 * jcp.ic_block + ifm2;
-                        trans_ker_p.src = (float *)&(U(ifm1, ofm1, 0, 0,
-                                    ofm2, ifm2, 0, ofm3, 0));
-                        trans_ker_p.dst = (float *)&(diff_weights(ofm, ifm,
-                                    0, 0, 0, 0));
-                        kernel_->diff_weights_transform(&trans_ker_p);
-                    }
-                }
-            }
-        }
+#pragma omp parallel firstprivate(trans_ker_p)
+    {
+        parallel_nd_in_omp(jcp.nb_ic, jcp.nb_oc, jcp.oc_block, jcp.ic_block, jcp.oc_reg_block,
+            [&](int ifm1, int ofm1, int ofm2, int ifm2, int ofm3){
+            int ofm = (ofm1 * jcp.oc_block + ofm2)
+                * jcp.oc_reg_block + ofm3;
+            int ifm = ifm1 * jcp.ic_block + ifm2;
+            trans_ker_p.src = (float *)&(U(ifm1, ofm1, 0, 0,
+                        ofm2, ifm2, 0, ofm3, 0));
+            trans_ker_p.dst = (float *)&(diff_weights(ofm, ifm,
+                        0, 0, 0, 0));
+            kernel_->diff_weights_transform(&trans_ker_p);
+        });
     }
 
     if (jcp.with_bias) {

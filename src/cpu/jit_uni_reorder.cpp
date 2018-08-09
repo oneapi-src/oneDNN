@@ -890,10 +890,8 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
 
     void omp_driver_2d(int off, const char *in, char *out, const float *scale) {
         tr::node_t *ns = conf_.prb_.nodes + off;
-#       pragma omp for collapse(2)
-        for (ptrdiff_t d1 = 0; d1 < (ptrdiff_t)ns[1].n; ++d1)
-        for (ptrdiff_t d0 = 0; d0 < (ptrdiff_t)ns[0].n; ++d0)
-        {
+        parallel_nd_in_omp((ptrdiff_t)ns[1].n, (ptrdiff_t)ns[0].n,
+            [&](ptrdiff_t d1, ptrdiff_t d0) {
             auto c = tr::call_param_t();
             c.in = in + (d0 * ns[0].is + d1 * ns[1].is)
                 * data_type_size(conf_.prb_.itype);
@@ -901,16 +899,13 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
                 * data_type_size(conf_.prb_.otype);
             c.scale = scale + d0 * ns[0].ss + d1 * ns[1].ss;
             (*kernel_)(&c);
-        }
+        });
     }
 
     void omp_driver_3d(int off, const char *in, char *out, const float *scale) {
         tr::node_t *ns = conf_.prb_.nodes + off;
-#       pragma omp for collapse(3)
-        for (ptrdiff_t d2 = 0; d2 < (ptrdiff_t)ns[2].n; ++d2)
-        for (ptrdiff_t d1 = 0; d1 < (ptrdiff_t)ns[1].n; ++d1)
-        for (ptrdiff_t d0 = 0; d0 < (ptrdiff_t)ns[0].n; ++d0)
-        {
+        parallel_nd_in_omp((ptrdiff_t)ns[2].n, (ptrdiff_t)ns[1].n,
+            (ptrdiff_t)ns[0].n, [&](ptrdiff_t d2, ptrdiff_t d1, ptrdiff_t d0) {
             auto c = tr::call_param_t();
             c.in = in + (d0 * ns[0].is + d1 * ns[1].is + d2 * ns[2].is)
                 * data_type_size(conf_.prb_.itype);
@@ -918,17 +913,14 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
                 * data_type_size(conf_.prb_.otype);
             c.scale = scale + d0 * ns[0].ss + d1 * ns[1].ss + d2 * ns[2].ss;
             (*kernel_)(&c);
-        }
+        });
     }
 
     void omp_driver_4d(int off, const char *in, char *out, const float *scale) {
         tr::node_t *ns = conf_.prb_.nodes + off;
-#       pragma omp for collapse(4)
-        for (ptrdiff_t d3 = 0; d3 < (ptrdiff_t)ns[3].n; ++d3)
-        for (ptrdiff_t d2 = 0; d2 < (ptrdiff_t)ns[2].n; ++d2)
-        for (ptrdiff_t d1 = 0; d1 < (ptrdiff_t)ns[1].n; ++d1)
-        for (ptrdiff_t d0 = 0; d0 < (ptrdiff_t)ns[0].n; ++d0)
-        {
+        parallel_nd_in_omp((ptrdiff_t)ns[3].n, (ptrdiff_t)ns[2].n,
+            (ptrdiff_t)ns[1].n, (ptrdiff_t)ns[0].n,
+            [&](ptrdiff_t d3, ptrdiff_t d2, ptrdiff_t d1, ptrdiff_t d0) {
             auto c = tr::call_param_t();
             c.in = in + (d0 * ns[0].is + d1 * ns[1].is + d2 * ns[2].is
                     + d3 * ns[3].is) * data_type_size(conf_.prb_.itype);
@@ -937,7 +929,7 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
             c.scale = scale + d0 * ns[0].ss + d1 * ns[1].ss + d2 * ns[2].ss
                 + d3 * ns[3].ss;
             (*kernel_)(&c);
-        }
+        });
     }
 
     void omp_driver(const char *in, char *out, const float *scale) {
