@@ -41,7 +41,7 @@ void ref_deconvolution_fwd_t::compute_fwd_bias() {
     const int OC = conf_.OC() / G;
     const int ndims = conf_.desc()->src_desc.ndims;
 
-#   pragma omp parallel for collapse(5) schedule(static)
+#   pragma omp parallel for collapse(6) schedule(static)
     for (int mb = 0; mb < MB; ++mb) {
         for (int g = 0; g < G; ++g) {
             for (int oc = 0; oc < OC; ++oc) {
@@ -96,7 +96,7 @@ void ref_deconvolution_fwd_t::compute_fwd_bias_nCdhwXc() {
 
     const ptrdiff_t stride_mb = dst_d.blocking_desc().strides[0][0];
 
-#   pragma omp parallel for collapse(2) schedule(static)
+#   pragma omp parallel for collapse(3) schedule(static)
     for (int mb = 0; mb < MB; ++mb) {
         for (int oc = 0; oc < OC; oc += blksize) {
             for (int sp = 0; sp < SP; ++sp) {
