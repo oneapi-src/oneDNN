@@ -41,8 +41,6 @@ using namespace Xbyak;
 #define OFFSET 32
 #define BASE_SHIFT 2
 #define SECOND_FETCH 14
-#define UNROLL_M 16
-#define UNROLL_N 6
 
 struct jit_avx2_gemm_f32::xbyak_gemm : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx2_gemm_f32_xbyak_gemm)
@@ -52,6 +50,12 @@ struct jit_avx2_gemm_f32::xbyak_gemm : public jit_generator {
             size_t code_size = 80 * Xbyak::DEFAULT_MAX_CODE_SIZE)
         : jit_generator(code_ptr, code_size)
     {
+        const bool is_avx2 = mayiuse(avx2);
+        assert(implication(!is_avx2, mayiuse(avx)));
+
+        const int UNROLL_M = is_avx2 ? 16 : 8;
+        const int UNROLL_N = 6;
+
         bool isTransA = (transa == 'T' || transa == 't');
         bool isTransB = (transb == 'T' || transb == 't');
         bool isBeta0 = (beta == 0.0);
@@ -213,7 +217,7 @@ struct jit_avx2_gemm_f32::xbyak_gemm : public jit_generator {
                                                 * SIZE],
                                 xmm1);
                     }
-                } else {
+                } else if (is_avx2) {
                     for (int i = 0; i < 2; i++) {
                         vmovaps(xmm4, xmm3);
                         vgatherqps(xmm0,
@@ -259,9 +263,41 @@ struct jit_avx2_gemm_f32::xbyak_gemm : public jit_generator {
                     }
 
                     lea(BO2, ptr[BO2 + LDA * 4]);
+                } else {
+                    vxorps(xmm4, xmm4, xmm4);
+                    lea(BO2, ptr[BO1 + LDA * 4]);
+
+                    auto el_cp = [&](int section, int ld_step) {
+                        RegExp src_addr = section == 0 ? BO1 : BO2;
+                        if (ld_step == 1 || ld_step == 2)
+                            src_addr = src_addr + LDA * ld_step;
+                        else if (ld_step == 3)
+                            src_addr = src_addr + CO1;
+                        src_addr = src_addr - OFFSET * SIZE;
+
+                        vmovups(Xmm(ld_step % 2), ptr[src_addr]);
+                        RegExp dst_addr = AO1
+                            + (ld_step + section * 4 - OFFSET) * SIZE;
+                        for (int off = 0; off < 4; ++off)
+                            pextrd(ptr[dst_addr + unroll_m * off * SIZE],
+                                    Xmm(ld_step % 2), off);
+                    };
+
+                    Label l_end;
+                    el_cp(0, 0); cmp(M, 4 * 0 + 0 + 1); je(l_end, T_NEAR);
+                    el_cp(0, 1); cmp(M, 4 * 0 + 1 + 1); je(l_end, T_NEAR);
+                    el_cp(0, 2); cmp(M, 4 * 0 + 2 + 1); je(l_end, T_NEAR);
+                    el_cp(0, 3); cmp(M, 4 * 0 + 3 + 1); je(l_end, T_NEAR);
+                    el_cp(1, 0); cmp(M, 4 * 1 + 0 + 1); je(l_end, T_NEAR);
+                    el_cp(1, 1); cmp(M, 4 * 1 + 1 + 1); je(l_end, T_NEAR);
+                    el_cp(1, 2);
+                    L(l_end);
+
+                    lea(BO2, ptr[BO2 + LDA * 4]);
                 }
 
                 if (unroll_m >= 16) {
+                    assert(is_avx2);
                     if (isLoad2Unmasked) {
                         for (int i = 0; i < 2; i++) {
                             vmovups(xmm0, ptr[BO2 + (0 * 8 - OFFSET) * SIZE]);
@@ -402,16 +438,9 @@ struct jit_avx2_gemm_f32::xbyak_gemm : public jit_generator {
                         vunpcklps(Xmm(i + 1), Xmm(i + 1), Xmm(0));
                     }
                     vunpcklpd(xmm1, xmm1, xmm2);
-                } else {
-                    vmovaps(xmm4, xmm3);
-                    vgatherqps(xmm1, ptr[BO1 + ymm7 + (0 * 8 - OFFSET) * SIZE],
-                            xmm4);
-                    lea(BO2, ptr[BO1 + LDA * 4]);
-                }
-                vmovups(ptr[AO1 + (unroll_m * 0 + 0 * 4 - OFFSET) * SIZE],
-                        xmm1);
+                    vmovups(ptr[AO1 + (unroll_m * 0 + 0 * 4 - OFFSET) * SIZE],
+                            xmm1);
 
-                if (isLoad1Unmasked) {
                     for (int i = 0; i < 2; i++) {
                         vmovss(Xmm(i + 1), ptr[BO2 + (0 * 8 - OFFSET) * SIZE]);
                         vmovss(xmm0,
@@ -420,16 +449,55 @@ struct jit_avx2_gemm_f32::xbyak_gemm : public jit_generator {
                         vunpcklps(Xmm(i + 1), Xmm(i + 1), Xmm(0));
                     }
                     vunpcklpd(xmm1, xmm1, xmm2);
-                } else {
+                    vmovups(ptr[AO1 + (unroll_m * 0 + 1 * 4 - OFFSET) * SIZE],
+                            xmm1);
+                } else if (is_avx2) {
+                    vmovaps(xmm4, xmm3);
+                    vgatherqps(xmm1, ptr[BO1 + ymm7 + (0 * 8 - OFFSET) * SIZE],
+                            xmm4);
+                    lea(BO2, ptr[BO1 + LDA * 4]);
+                    vmovups(ptr[AO1 + (unroll_m * 0 + 0 * 4 - OFFSET) * SIZE],
+                            xmm1);
+
                     vextractf128(xmm4, ymm3, 1);
                     vgatherqps(xmm1, ptr[BO2 + ymm7 + (0 * 8 - OFFSET) * SIZE],
                             xmm4);
                     lea(BO2, ptr[BO2 + LDA * 4]);
+                    vmovups(ptr[AO1 + (unroll_m * 0 + 1 * 4 - OFFSET) * SIZE],
+                            xmm1);
+                } else {
+                    vxorps(xmm4, xmm4, xmm4);
+                    lea(BO2, ptr[BO1 + LDA * 4]);
+
+                    auto el_cp = [&](int section, int ld_step) {
+                        RegExp src_addr = section == 0 ? BO1 : BO2;
+                        if (ld_step == 1 || ld_step == 2)
+                            src_addr = src_addr + LDA * ld_step;
+                        else if (ld_step == 3)
+                            src_addr = src_addr + CO1;
+                        src_addr = src_addr - OFFSET * SIZE;
+
+                        vmovss(xmm1, ptr[src_addr]);
+                        RegExp dst_addr = AO1
+                            + (ld_step + section * 4 - OFFSET) * SIZE;
+                        movss(ptr[dst_addr], xmm1);
+                    };
+
+                    Label l_end;
+                    el_cp(0, 0); cmp(M, 4 * 0 + 0 + 1); je(l_end, T_NEAR);
+                    el_cp(0, 1); cmp(M, 4 * 0 + 1 + 1); je(l_end, T_NEAR);
+                    el_cp(0, 2); cmp(M, 4 * 0 + 2 + 1); je(l_end, T_NEAR);
+                    el_cp(0, 3); cmp(M, 4 * 0 + 3 + 1); je(l_end, T_NEAR);
+                    el_cp(1, 0); cmp(M, 4 * 1 + 0 + 1); je(l_end, T_NEAR);
+                    el_cp(1, 1); cmp(M, 4 * 1 + 1 + 1); je(l_end, T_NEAR);
+                    el_cp(1, 2);
+                    L(l_end);
+
+                    lea(BO2, ptr[BO2 + LDA * 4]);
                 }
-                vmovups(ptr[AO1 + (unroll_m * 0 + 1 * 4 - OFFSET) * SIZE],
-                        xmm1);
 
                 if (unroll_m >= 16) {
+                    assert(is_avx2);
                     if (isLoad2Unmasked) {
                         for (int i = 0; i < 2; i++) {
                             vmovss(Xmm(i + 1),
@@ -486,7 +554,14 @@ struct jit_avx2_gemm_f32::xbyak_gemm : public jit_generator {
         auto fma = [&](bool useFma, Ymm reg0, Ymm reg1, Ymm reg2,
                 bool overWrite = false) {
             if (useFma) {
-                vfmadd231ps(reg2, reg1, reg0);
+                if (is_avx2) {
+                    vfmadd231ps(reg2, reg1, reg0);
+                } else {
+                    assert(UNROLL_M == 8);
+                    auto tent_vreg = overWrite ? reg1 : ymm1;
+                    vmulps(tent_vreg, reg1, reg0);
+                    vaddps(reg2, reg2, tent_vreg);
+                }
             } else {
                 if (!overWrite) {
                     vmulps(ymm15, reg1, reg0);
@@ -2125,7 +2200,7 @@ struct jit_avx2_gemm_f32::xbyak_gemm : public jit_generator {
             mov(dword[rsp + 88 + i * 4], i);
         }
 
-        if (isTransA) {
+        if (isTransA && is_avx2) {
             movq(xmm0, LDA);
             vpbroadcastq(ymm1, xmm0);
             vinsertf128(ymm0, ymm0, xmm0, 1);
@@ -2157,27 +2232,41 @@ struct jit_avx2_gemm_f32::xbyak_gemm : public jit_generator {
         L(".main0");
         cmp(M, 0);
         jle(".main999", T_NEAR);
-        cmp(M, 8);
-        jle(".main2", T_NEAR);
 
-        sub(M, 8);
-        vbroadcastss(VMASK, M);
-        vpcmpgtd(VMASK, VMASK, MASK);
+        if (UNROLL_M > 8) {
+            cmp(M, 8);
+            jle(".main2", T_NEAR);
 
-        subloop(16, true, false);
-        jmp(".main999", T_NEAR);
-        align(16);
+            sub(M, 8);
+            vbroadcastss(VMASK, M);
+            vpcmpgtd(VMASK, VMASK, MASK);
 
-        L(".main2");
-        cmp(M, 8);
-        jne(".main3", T_NEAR);
-        subloop(8, true, true);
-        jmp(".main999", T_NEAR);
+            subloop(16, true, false);
+            jmp(".main999", T_NEAR);
+            align(16);
+
+            L(".main2");
+            cmp(M, 8);
+            jne(".main3", T_NEAR);
+            subloop(8, true, true);
+            jmp(".main999", T_NEAR);
+        }
+
         align(16);
 
         L(".main3");
         vbroadcastss(VMASK, M);
-        vpcmpgtd(VMASK, VMASK, MASK);
+        if (is_avx2) {
+            vpcmpgtd(VMASK, VMASK, MASK);
+        } else {
+            auto xmask = Xmm(VMASK.getIdx());
+            auto xmm_tmp = xmm4;
+
+            vextractf128(xmm_tmp, VMASK, 1);
+            vpcmpgtd(xmask, xmask, MASK);
+            vpcmpgtd(xmm_tmp, xmm_tmp, dword[rsp + 88 + 4 * 4]); // MASK + 4
+            vinsertf128(VMASK, VMASK, xmm_tmp, 1);
+        }
         subloop(8, false, false);
         align(16);
 
