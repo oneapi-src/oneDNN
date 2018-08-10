@@ -727,8 +727,8 @@ struct memory: public primitive  {
         }
 
         bool operator==(const primitive_desc &other) const {
-            return static_cast<bool>(mkldnn_memory_primitive_desc_equal(get(),
-                        other.get()));
+            return (0 == mkldnn_memory_primitive_desc_equal(get(),
+                        other.get())) ? false : true;
         }
 
         bool operator!=(const primitive_desc &other) const {
