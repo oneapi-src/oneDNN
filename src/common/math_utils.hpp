@@ -30,7 +30,9 @@ namespace math {
 template <typename data_t, typename acc_t>
 inline typename utils::enable_if<!nstl::is_integral<data_t>::value,
        typename utils::remove_reference<data_t>::type>::type
-saturate(const acc_t &x) { return static_cast<data_t>(x); }
+saturate(const acc_t &x) {
+    return (typename utils::remove_reference<data_t>::type)x;
+}
 
 template <typename data_t, typename acc_t>
 inline typename utils::enable_if<nstl::is_integral<data_t>::value,
