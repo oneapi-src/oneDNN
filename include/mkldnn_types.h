@@ -382,6 +382,8 @@ typedef enum {
     mkldnn_view,
     /** A reorder primitive.*/
     mkldnn_reorder,
+    /** A shuffle primitive.*/
+    mkldnn_shuffle,
     /** A (out-of-place) concat primitive. */
     mkldnn_concat,
     /** A (in-place) concat primitive. */
@@ -672,6 +674,23 @@ typedef struct {
 
 /** A descriptor of a deconvolution operation. */
 typedef mkldnn_convolution_desc_t mkldnn_deconvolution_desc_t;
+
+/** A descriptor of a shuffle operation. */
+typedef struct {
+    /** The kind of primitive. Used for self identifying the primitive
+     * descriptor. Must be #mkldnn_convolution. */
+    mkldnn_primitive_kind_t primitive_kind;
+    /** The kind of propagation. Possible values: #mkldnn_forward_training,
+     * #mkldnn_forward_inference, #mkldnn_backward_data*/
+    mkldnn_prop_kind_t prop_kind;
+    /** Source and destination memory descriptor.
+     *  and source and destination gradient memory descriptor. */
+    mkldnn_memory_desc_t data_desc;
+    /** axis for shuffling. */
+    int axis;
+    /** number of groups in group convolution */
+    int group_size;
+} mkldnn_shuffle_desc_t;
 
 /** A descriptor of a element-wise operation. */
 typedef struct {
@@ -1124,6 +1143,7 @@ typedef enum {
     mkldnn_query_memory_d, /**< memory descriptor for memory and view */
     mkldnn_query_convolution_d, /**< convolution descriptor */
     mkldnn_query_deconvolution_d, /**< deconvolution descriptor */
+    mkldnn_query_shuffle_d, /**< shuffle descriptor */
     mkldnn_query_eltwise_d, /**< eltwise descriptor */
     mkldnn_query_relu_d = mkldnn_query_eltwise_d, /**< @deprecated */
     mkldnn_query_softmax_d, /**< softmax descriptor */

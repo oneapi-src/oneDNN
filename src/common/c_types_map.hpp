@@ -232,6 +232,7 @@ namespace primitive_kind {
     const primitive_kind_t sum = mkldnn_sum;
     const primitive_kind_t convolution = mkldnn_convolution;
     const primitive_kind_t deconvolution = mkldnn_deconvolution;
+    const primitive_kind_t shuffle = mkldnn_shuffle;
     const primitive_kind_t eltwise = mkldnn_eltwise;
     const primitive_kind_t softmax = mkldnn_softmax;
     const primitive_kind_t pooling = mkldnn_pooling;
@@ -262,6 +263,7 @@ namespace query {
     const query_t memory_d = mkldnn_query_memory_d;
     const query_t convolution_d = mkldnn_query_convolution_d;
     const query_t deconvolution_d = mkldnn_query_deconvolution_d;
+    const query_t shuffle_d = mkldnn_query_shuffle_d;
     const query_t eltwise_d = mkldnn_query_eltwise_d;
     const query_t softmax_d = mkldnn_query_softmax_d;
     const query_t pooling_d = mkldnn_query_pooling_d;
@@ -289,6 +291,7 @@ using wino_data_t = mkldnn_wino_desc_t;
 using memory_desc_t = mkldnn_memory_desc_t;
 using convolution_desc_t = mkldnn_convolution_desc_t;
 using deconvolution_desc_t = mkldnn_deconvolution_desc_t;
+using shuffle_desc_t = mkldnn_shuffle_desc_t;
 using pooling_desc_t = mkldnn_pooling_desc_t;
 using eltwise_desc_t = mkldnn_eltwise_desc_t;
 using softmax_desc_t = mkldnn_softmax_desc_t;
@@ -311,6 +314,7 @@ struct op_desc_t {
         memory_desc_t memory;
         convolution_desc_t convolution;
         deconvolution_desc_t deconvolution;
+        shuffle_desc_t shuffle;
         pooling_desc_t pooling;
         eltwise_desc_t eltwise;
         softmax_desc_t softmax;
@@ -332,6 +336,7 @@ struct op_desc_t {
 
     DECL_CTOR_AND_CONVERTERS(memory_desc_t, memory);
     DECL_CTOR_AND_CONVERTERS(convolution_desc_t, convolution);
+    DECL_CTOR_AND_CONVERTERS(shuffle_desc_t, shuffle);
     DECL_CTOR_AND_CONVERTERS(pooling_desc_t, pooling);
     DECL_CTOR_AND_CONVERTERS(eltwise_desc_t, eltwise);
     DECL_CTOR_AND_CONVERTERS(softmax_desc_t, softmax);
@@ -366,6 +371,7 @@ struct view_pd_t;
 struct concat_pd_t;
 struct sum_pd_t;
 struct reorder_pd_t;
+struct shuffle_pd_t;
 
 }
 }

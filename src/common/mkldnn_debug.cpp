@@ -186,6 +186,7 @@ const char *mkldnn_prim_kind2str(mkldnn_primitive_kind_t v) {
     if (v == mkldnn_memory) return "memory";
     if (v == mkldnn_view) return "view";
     if (v == mkldnn_reorder) return "reorder";
+    if (v == mkldnn_shuffle) return "shuffle";
     if (v == mkldnn_concat) return "concat";
     if (v == mkldnn_concat_inplace) return "concat_inplace";
     if (v == mkldnn_sum) return "sum";

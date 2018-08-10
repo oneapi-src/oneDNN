@@ -1033,6 +1033,42 @@ mkldnn_status_t MKLDNN_API mkldnn_dilated_deconvolution_backward_weights_desc_in
 
 /** @} */
 
+/** @addtogroup c_api_shuffle Shuffle
+ * A primitive to shuffle data along the axis.
+ * @{ */
+
+/** Initializes a @p shuffle_desc for forward propagation using @p prop_kind,
+ * @p memory descriptor @p data_desc, @p axis and @p group
+ * number.
+ *
+ * Order of inputs:
+ *  - src (#mkldnn_query_src_pd, 0)
+ *
+ * Order of outputs:
+ *  - dst (#mkldnn_query_dst_pd, 0)
+ *
+ */
+mkldnn_status_t MKLDNN_API mkldnn_shuffle_forward_desc_init(
+        mkldnn_shuffle_desc_t *shuffle_desc, mkldnn_prop_kind_t prop_kind,
+        const mkldnn_memory_desc_t *data_desc, int axis, int group_size);
+
+/** Initializes a @p shuffle_desc for backward propagation using @p memory
+ * descriptor @p diff_data_desc, @p axis and @p group number.
+ *
+ *
+ * Order of inputs:
+ *  - diff_dst (#mkldnn_query_diff_dst_pd, 0)
+ *
+ * Order of outputs:
+ *  - diff_src (#mkldnn_query_diff_src_pd, 0)
+ *
+ */
+mkldnn_status_t MKLDNN_API mkldnn_shuffle_backward_desc_init(
+        mkldnn_shuffle_desc_t *shuffle_desc,
+        const mkldnn_memory_desc_t *diff_data_desc, int axis, int group_size);
+
+/** @} */
+
 /** @addtogroup c_api_eltwise Eltwise
  * A primitive to compute element wise operations like parametric rectifier
  * linear unit (ReLU).

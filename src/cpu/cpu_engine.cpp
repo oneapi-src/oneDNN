@@ -40,6 +40,7 @@
 #include "cpu/gemm_u8s8s32x_convolution.hpp"
 #include "cpu/ref_convolution.hpp"
 #include "cpu/ref_deconvolution.hpp"
+#include "cpu/ref_shuffle.hpp"
 #include "cpu/jit_uni_eltwise.hpp"
 #include "cpu/ref_eltwise.hpp"
 #include "cpu/ref_softmax.hpp"
@@ -174,6 +175,9 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(ref_deconvolution_bwd_weights_t),
     INSTANCE(ref_deconvolution_bwd_data_t),
     INSTANCE(ref_deconvolution_fwd_t),
+    /* shuffle */
+    INSTANCE(ref_shuffle_t<4>), /* f32 or s32 */
+    INSTANCE(ref_shuffle_t<1>), /* s8 or u8 */
     /* eltwise */
     INSTANCE(jit_uni_eltwise_fwd_t<avx512_common>),
     INSTANCE(jit_uni_eltwise_bwd_t<avx512_common>),

@@ -120,6 +120,7 @@ public:
         sum = mkldnn_sum,
         convolution = mkldnn_convolution,
         deconvolution = mkldnn_deconvolution,
+        shuffle = mkldnn_shuffle,
         eltwise = mkldnn_eltwise,
         relu = mkldnn_relu,
         softmax = mkldnn_softmax,
@@ -327,6 +328,7 @@ enum query {
     memory_d = mkldnn_query_memory_d,
     convolution_d = mkldnn_query_convolution_d,
     deconvolution_d = mkldnn_query_deconvolution_d,
+    shuffle_d = mkldnn_query_shuffle_d,
     eltwise_d = mkldnn_query_eltwise_d,
     relu_d = mkldnn_query_relu_d,
     softmax_d = mkldnn_query_softmax_d,
@@ -3256,6 +3258,80 @@ struct rnn_backward : public primitive {
 };
 
 /// @}
+
+/// @addtogroup cpp_api_shuffle Shuffle
+/// A primitive to shuffle data along the axis.
+///
+/// @sa @ref c_api_shuffle in @ref c_api
+/// @{
+
+struct shuffle_forward : public primitive {
+    struct desc {
+        mkldnn_shuffle_desc_t data;
+        desc(prop_kind aprop_kind, const memory::desc &data_desc,
+                int axis, int group_size) {
+            error::wrap_c_api(mkldnn_shuffle_forward_desc_init(&data,
+                        mkldnn::convert_to_c(aprop_kind), &data_desc.data,
+                        axis, group_size),
+                    "could not create a shuffle forward descriptor");
+        }
+    };
+
+    struct primitive_desc : public mkldnn::primitive_desc {
+        primitive_desc(const desc &desc, const engine &e)
+            : mkldnn::primitive_desc(&desc.data, nullptr, e, nullptr) {}
+
+        REG_QUERY_MPD(src, src, 0);
+        REG_QUERY_MPD(dst, dst, 0);
+    };
+
+    shuffle_forward(const primitive_desc &aprimitive_desc,
+            const primitive::at &src, const memory &dst) {
+        mkldnn_primitive_t result;
+        mkldnn_primitive_at_t inputs[] = { src.data };
+        const_mkldnn_primitive_t outputs[] = { dst.get() };
+        check_num_parameters(aprimitive_desc.get(), 1, 1, "shuffle forward");
+        error::wrap_c_api(mkldnn_primitive_create(&result,
+            aprimitive_desc.get(), inputs, outputs),
+            "could not create a shuffle forward primitive");
+        reset(result);
+    }
+};
+
+struct shuffle_backward : public primitive {
+    struct desc {
+        mkldnn_shuffle_desc_t data;
+        desc(const memory::desc &diff_data_desc, int axis, int group_size) {
+            error::wrap_c_api(mkldnn_shuffle_backward_desc_init(&data,
+                        &diff_data_desc.data, axis, group_size),
+                    "could not create a shuffle backward descriptor");
+        }
+    };
+
+    struct primitive_desc : public mkldnn::primitive_desc {
+        primitive_desc(const desc &desc, const engine &e,
+                const shuffle_forward::primitive_desc &hint_fwd_pd)
+            : mkldnn::primitive_desc(&desc.data, nullptr, e, hint_fwd_pd.get()) {}
+
+        REG_QUERY_MPD(diff_src, diff_src, 0);
+        REG_QUERY_MPD(diff_dst, diff_dst, 0);
+    };
+
+    shuffle_backward(const primitive_desc &aprimitive_desc,
+            const primitive::at &diff_dst, const memory &diff_src) {
+        mkldnn_primitive_t result;
+        mkldnn_primitive_at_t inputs[] = { diff_dst.data};
+        const_mkldnn_primitive_t outputs[] = { diff_src.get() };
+        check_num_parameters(aprimitive_desc.get(), 1, 1, "shuffle backward");
+        error::wrap_c_api(mkldnn_primitive_create(&result,
+            aprimitive_desc.get(), inputs, outputs),
+            "could not create a shuffle backward primitive");
+        reset(result);
+    }
+};
+
+/// @}
+
 /// @} Primitives
 
 /// @addtogroup cpp_api_stream Stream
