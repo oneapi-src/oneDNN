@@ -166,7 +166,7 @@ void ref_gemm(const char *transa_, const char *transb_, const int *M_,
     int nthr_m, nthr_n, nthr_k;
     int MB, NB, KB;
     // thread ballancing over M, N, K & size of blocking dimensions
-    gemm_utils::calc_nthr_nocopy_avx2(
+    gemm_utils::calc_nthr_nocopy_avx(
             M, N, K, max_nthr, &nthr_m, &nthr_n, &nthr_k, &MB, &NB, &KB);
 
     float *c_buffers = nullptr, *ws_buffers = nullptr;

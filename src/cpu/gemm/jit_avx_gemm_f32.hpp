@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef JIT_AVX2_GEMM_F32_HPP
-#define JIT_AVX2_GEMM_F32_HPP
+#ifndef JIT_AVX_GEMM_F32_HPP
+#define JIT_AVX_GEMM_F32_HPP
 
 #include "c_types_map.hpp"
 #include "../jit_generator.hpp"
@@ -24,16 +24,16 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-class jit_avx2_gemm_f32 {
+class jit_avx_gemm_f32 {
 public:
     void sgemm(const char *transa, const char *transb, const int *M,
             const int *N, const int *K, const float *alpha, const float *A,
             const int *lda, const float *B, const int *ldb, const float *beta,
             float *C, const int *ldc, const float *bias = NULL);
 
-    jit_avx2_gemm_f32(
+    jit_avx_gemm_f32(
             char transa, char transb, float beta, bool hasBias = false);
-    ~jit_avx2_gemm_f32();
+    ~jit_avx_gemm_f32();
 
 private:
     typedef void (*ker)(long long int, long long int, long long int, float *,

@@ -19,7 +19,7 @@
 #include "mkldnn_thread.hpp"
 #include "utils.hpp"
 #include "gemm_utils.hpp"
-#include "jit_avx2_gemm_f32.hpp"
+#include "jit_avx_gemm_f32.hpp"
 
 #define CACHE_LINE_SIZE 16
 
@@ -42,8 +42,8 @@ using namespace Xbyak;
 #define BASE_SHIFT 2
 #define SECOND_FETCH 14
 
-struct jit_avx2_gemm_f32::xbyak_gemm : public jit_generator {
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx2_gemm_f32_xbyak_gemm)
+struct jit_avx_gemm_f32::xbyak_gemm : public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx_gemm_f32_xbyak_gemm)
 
     xbyak_gemm(char transa, char transb, float beta, bool hasBias = false,
             void *code_ptr = nullptr,
@@ -2302,7 +2302,7 @@ private:
 typedef void (*ker)(long long int, long long int, long long int, float *,
         float *, long long int, float *, long long int, float *, float *,
         long long int, float *);
-void jit_avx2_gemm_f32::sgemm_nocopy_driver(const char *transa,
+void jit_avx_gemm_f32::sgemm_nocopy_driver(const char *transa,
         const char *transb, int m, int n, int k, const float *alpha,
         const float *a, int lda, const float *b, int ldb, const float *beta,
         float *c, int ldc, const float *bias, float *ws)
@@ -2405,7 +2405,7 @@ void jit_avx2_gemm_f32::sgemm_nocopy_driver(const char *transa,
     }
     return;
 }
-void jit_avx2_gemm_f32::sgemm(const char *transa, const char *transb,
+void jit_avx_gemm_f32::sgemm(const char *transa, const char *transb,
         const int *p_m, const int *p_n, const int *p_k, const float *p_alpha,
         const float *A, const int *p_lda, const float *B, const int *p_ldb,
         const float *p_beta, float *C, const int *p_ldc, const float *bias)
@@ -2429,7 +2429,7 @@ void jit_avx2_gemm_f32::sgemm(const char *transa, const char *transb,
     assert(nthr <= nthrs_);
 
     // Determine threading partitioning
-    gemm_utils::calc_nthr_nocopy_avx2(
+    gemm_utils::calc_nthr_nocopy_avx(
             m, n, k, nthr, &nthr_m, &nthr_n, &nthr_k, &MB, &NB, &KB);
 
     // May not happen, but just in case
@@ -2580,7 +2580,7 @@ void jit_avx2_gemm_f32::sgemm(const char *transa, const char *transb,
     free(ws_buffers);
 }
 
-jit_avx2_gemm_f32::jit_avx2_gemm_f32(
+jit_avx_gemm_f32::jit_avx_gemm_f32(
         char transa, char transb, float beta, bool hasBias)
 {
     transa_ = transa;
@@ -2607,7 +2607,7 @@ jit_avx2_gemm_f32::jit_avx2_gemm_f32(
     assert(ompstatus_);
 }
 
-jit_avx2_gemm_f32::~jit_avx2_gemm_f32()
+jit_avx_gemm_f32::~jit_avx_gemm_f32()
 {
     delete ker_bn_;
     if (beta_ != 1.0)

@@ -19,7 +19,7 @@
 
 #include "verbose.hpp"
 
-#include "jit_avx2_gemm_f32.hpp"
+#include "jit_avx_gemm_f32.hpp"
 #include "jit_avx512_common_gemm_f32.hpp"
 #include "gemm.hpp"
 #include "../jit_generator.hpp"
@@ -77,9 +77,9 @@ struct gemm_impl_t {
                     transa, transb, zero_beta ? zero : arbitrary_float,
                     with_bias);
         }
-        else if (mayiuse(avx2)) {
-            isa_ = avx2;
-            ker_ = (void *)new jit_avx2_gemm_f32(
+        else if (mayiuse(avx)) {
+            isa_ = avx;
+            ker_ = (void *)new jit_avx_gemm_f32(
                     transa, transb, zero_beta ? zero : arbitrary_float,
                     with_bias);
         }
@@ -90,8 +90,8 @@ struct gemm_impl_t {
             const int *lda, const float *B, const int *ldb, const float *beta,
             float *C, const int *ldc, const float *bias = nullptr) {
         switch (isa_) {
-            case avx2:
-                ((jit_avx2_gemm_f32*)ker_)->sgemm(transa, transb, M, N, K,
+            case avx:
+                ((jit_avx_gemm_f32*)ker_)->sgemm(transa, transb, M, N, K,
                     alpha, A, lda, B, ldb, beta, C, ldc, bias);
                 break;
             case avx512_common:
