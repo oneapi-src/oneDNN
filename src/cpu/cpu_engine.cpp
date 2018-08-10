@@ -57,6 +57,7 @@
 #include "cpu/nspc_batch_normalization.hpp"
 #include "cpu/ref_inner_product.hpp"
 #include "cpu/gemm_inner_product.hpp"
+#include "cpu/gemm_u8s8s32x_inner_product.hpp"
 #include "cpu/jit_uni_dw_convolution.hpp"
 #include "cpu/jit_avx512_core_u8s8s32x_wino_convolution.hpp"
 #include "cpu/jit_avx512_core_fp32_wino_conv_2x3.hpp"
@@ -239,6 +240,10 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(ref_inner_product_bwd_data_t<f32, f32, f32, f32>),
     INSTANCE(ref_inner_product_bwd_weights_t<f32>),
     /* inner product (int) */
+    INSTANCE(gemm_u8s8s32x_inner_product_fwd_t<u8>),
+    INSTANCE(gemm_u8s8s32x_inner_product_fwd_t<s8>),
+    INSTANCE(gemm_u8s8s32x_inner_product_fwd_t<s32>),
+    INSTANCE(gemm_u8s8s32x_inner_product_fwd_t<f32>),
     INSTANCE(ref_inner_product_fwd_t<u8, s8, u8, s32>),
     INSTANCE(ref_inner_product_fwd_t<u8, s8, s8, s32>),
     INSTANCE(ref_inner_product_fwd_t<u8, s8, s32, s32>),
