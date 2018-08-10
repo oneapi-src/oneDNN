@@ -207,7 +207,9 @@ gemm_sig(_ref_rnn_common_t<aprop>::gemm) {
 template <prop_kind_t aprop>
 void _ref_rnn_common_t<aprop>::gates_reduction(int n_gates, int dic, int batch,
         const float *ws_gates_, float *diff_bias_) {
-#if (_OPENMP >= 201307)
+#if (_OPENMP >= 201307) \
+    /* icc 17.0 has a problem with simd collapse */ \
+    && !((defined __INTEL_COMPILER) && (__INTEL_COMPILER == 1700))
 #pragma omp parallel for simd collapse(2)
 #else
 #pragma omp parallel for collapse(2) ///@todo block k on simd-width
