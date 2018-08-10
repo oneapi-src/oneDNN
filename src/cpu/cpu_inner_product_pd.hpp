@@ -43,7 +43,9 @@ inline bool dense_gemm_consitency_check(const memory_desc_wrapper &src_d,
         && implication(src_d.format() == nCdhw16c, wei_d.format() == oIdhw16i)
         && implication(src_d.format() == nchw, wei_d.format() == oihw)
         && implication(src_d.format() == ncdhw, wei_d.format() == oidhw)
-        && implication(src_d.format() == nc, wei_d.format() == oi)
+        && implication(src_d.format() == nhwc, wei_d.format() == hwio)
+        && implication(src_d.format() == ndhwc, wei_d.format() == dhwio)
+        && implication(src_d.format() == nc, one_of(wei_d.format(), oi, io))
         && dst_d.format() == nc
         && src_d.only_padded_dim(1)
         && wei_d.only_padded_dim(1)

@@ -41,9 +41,12 @@ void gemm_inner_product_fwd_t<data_type>::execute_forward() {
     const int OC = conf_.OC();
     const int IC = conf_.IC_total_padded();
 
+    bool wei_tr = !utils::one_of(conf_.weights_pd()->desc()->format,
+             hwio, dhwio, io);
+
     float alpha = 1.0, beta = 0.0;
-    extended_sgemm("T", "N", &OC, &MB, &IC, &alpha, weights, &IC, src, &IC,
-            &beta, dst, &OC, bias);
+    extended_sgemm(wei_tr ? "T" : "N", "N", &OC, &MB, &IC, &alpha, weights,
+            wei_tr ? &IC : &OC, src, &IC, &beta, dst, &OC, bias);
 }
 
 template <impl::data_type_t data_type>
@@ -56,9 +59,12 @@ void gemm_inner_product_bwd_data_t<data_type>::execute_backward_data() {
     const int OC = conf_.OC();
     const int IC = conf_.IC_total_padded();
 
+    bool wei_tr = utils::one_of(conf_.weights_pd()->desc()->format,
+             hwio, dhwio, io);
+
     float alpha = 1.0, beta = 0.0;
-    extended_sgemm("N", "N", &IC, &MB, &OC, &alpha, weights, &IC, diff_dst,
-            &OC, &beta, diff_src, &IC);
+    extended_sgemm(wei_tr ? "T" : "N", "N", &IC, &MB, &OC, &alpha, weights,
+            wei_tr ? &OC : &IC, diff_dst, &OC, &beta, diff_src, &IC);
 }
 
 template <impl::data_type_t data_type>
@@ -77,9 +83,16 @@ void gemm_inner_product_bwd_weights_t<data_type>::execute_backward_weights() {
     const int OC = conf_.OC();
     const int IC = conf_.IC_total_padded();
 
+    bool wei_tr = utils::one_of(conf_.diff_weights_pd()->desc()->format,
+             hwio, dhwio, io);
+
     float alpha = 1.0, beta = 0.0;
-    extended_sgemm("N", "T", &IC, &OC, &MB, &alpha, src, &IC, diff_dst, &OC,
-            &beta, diff_weights, &IC);
+    if (wei_tr)
+        extended_sgemm("N", "T", &OC, &IC, &MB, &alpha, diff_dst, &OC, src, &IC,
+                &beta, diff_weights, &OC);
+    else
+        extended_sgemm("N", "T", &IC, &OC, &MB, &alpha, src, &IC, diff_dst, &OC,
+                &beta, diff_weights, &IC);
 
     if (diff_bias) {
         diff_bias += diff_bias_d.blocking_desc().offset_padding;

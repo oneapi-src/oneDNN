@@ -265,6 +265,14 @@ INSTANTIATE_TEST_CASE_P(
                         memory::format::any,
                         EXPAND_SIZES_2D( 2, 1024, 48, 2, 2 ) },
                 inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::nhwc, memory::format::hwio,
+                        memory::format::nc,
+                        EXPAND_SIZES_2D( 2, 32, 48, 6, 6 ) },
+                inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::nhwc, memory::format::oihw,
+                        memory::format::nc,
+                        EXPAND_SIZES_2D( 2, 32, 48, 6, 6 ) },
+                inprod_test_params_float{ engine::kind::cpu,
                         memory::format::nchw, memory::format::oihw,
                         memory::format::nc,
                         EXPAND_SIZES_2D( 2, 32, 48, 6, 6 ) },
@@ -283,7 +291,11 @@ INSTANTIATE_TEST_CASE_P(
                 inprod_test_params_float{ engine::kind::cpu,
                         memory::format::nc, memory::format::oi,
                         memory::format::nc,
-                        EXPAND_SIZES_2D( 2, 2, 4, 1, 1 ) }));
+                        EXPAND_SIZES_2D( 2, 2, 4, 1, 1 ) },
+                inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::nc, memory::format::io,
+                        memory::format::nc,
+                        EXPAND_SIZES_2D( 2, 8, 16, 1, 1 ) }));
 
 INSTANTIATE_TEST_CASE_P(
         TestInnerProductBackwardData3D, inner_product_test_float,
@@ -299,6 +311,10 @@ INSTANTIATE_TEST_CASE_P(
                 inprod_test_params_float{ engine::kind::cpu,
                         memory::format::ncdhw, memory::format::oidhw,
                         memory::format::nc,
-                        EXPAND_SIZES_3D( 2, 32, 48, 6, 6, 6 ) }));
+                        EXPAND_SIZES_3D( 2, 32, 48, 6, 6, 6 ) },
+                inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::ndhwc, memory::format::dhwio,
+                        memory::format::nc,
+                        EXPAND_SIZES_3D( 2, 16, 48, 3, 3, 3 ) }));
 
 }
