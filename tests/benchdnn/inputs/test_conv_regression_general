@@ -44,3 +44,6 @@
 
 # MKLDNN-854
 --reset --dir=BWD_W mb2_ic32oc16_ih13oh13kh1
+
+# MKLDNN-930
+--reset mb2ic3ih300oc32oh150kh3sh2
