@@ -979,13 +979,11 @@ void jit_avx512_common_conv_fwd_kernel::generate()
     int ur_w_tail = jcp.ur_w_tail;
     int dilate_w = jcp.dilate_w + 1;
     int stride_w = jcp.stride_w;
-    int ic_block = jcp.ic_block;
-    int oc_block = jcp.oc_block;
 
-    int inp_mult = !jcp.is_1stconv ? ic_block : 1;
+    int inp_mult = jcp.is_1stconv ? 1 : jcp.ic_block;
     int inp_shift_pad = jcp.typesize_in * (ur_w * stride_w - l_pad) * inp_mult;
-    int inp_shift = jcp.typesize_in * (ur_w * stride_w * inp_mult);
-    int out_shift = jcp.typesize_out * (ur_w * oc_block);
+    int inp_shift = jcp.typesize_in * ur_w * stride_w * inp_mult;
+    int out_shift = jcp.typesize_out * ur_w * jcp.oc_block;
 
     preamble();
     mov(reg_inp, ptr[param1 + GET_OFF(src)]);
