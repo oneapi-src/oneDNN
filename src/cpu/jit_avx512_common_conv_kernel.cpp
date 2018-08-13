@@ -1031,8 +1031,6 @@ void jit_avx512_common_conv_fwd_kernel::generate()
                 inc(reg_oi);
             }
             if ((l_pad <= 0 && n_oi > 0) || (l_pad > 0 && n_oi > 1)) {
-                if (l_pad <= 0 && r_pad1 > 0)
-                    n_oi--;
                 Label ow_loop_label;
                 L(ow_loop_label);
                 {
