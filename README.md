@@ -21,13 +21,14 @@ of the following deep learning topologies and variations of these.
 
 | Application                               | Example topology
 |:---                                       |:---
-| Image recognition                         | AlexNet, VGG, GoogleNet, ResNet
-| Image segmenation                         | FCN, SegNet
+| Image recognition                         | AlexNet, VGG, GoogleNet, ResNet, MobileNet
+| Image segmenation                         | FCN, SegNet, MaskRCNN, U-Net
 | Volumetric segmentation                   | 3D-Unet
 | Object detection                          | SSD, Faster R-CNN, Yolo
 | Neural Machine Translation (experimental) | GNMT
 | Speech Recognition (experimental)         | DeepSpeech
-
+| Adversarial Networks                      | DCGAN, 3DGAN
+| Reinforcement Learning                    | A3C
 
 Intel MKL-DNN is used in the following software products:
 * [Caffe\* Optimized for Intel Architecture](https://github.com/intel/caffe)
