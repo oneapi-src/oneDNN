@@ -47,3 +47,4 @@
 
 # MKLDNN-930
 --reset mb2ic3ih300oc32oh150kh3sh2
+--reset --cfg=u8s8u8s32 mb2ic3ih84oc16oh42kh3sh2
