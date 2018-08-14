@@ -419,8 +419,6 @@ void jit_avx512_core_u8s8s32x_fwd_kernel::generate()
                 inc(reg_oi);
             }
             if ((jcp.l_pad <= 0 && n_oi > 0) || (jcp.l_pad > 0 && n_oi > 1)) {
-                if (jcp.l_pad <= 0 && r_pad1 > 0)
-                    n_oi--;
                 Label ow_loop_label;
                 L(ow_loop_label); {
                     compute_loop(jcp.ur_w, 0, 0);
