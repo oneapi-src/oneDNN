@@ -44,9 +44,21 @@ void gemm_inner_product_fwd_t<data_type>::execute_forward() {
     bool wei_tr = !utils::one_of(conf_.weights_pd()->desc()->format,
              hwio, dhwio, io);
 
+    const auto &post_ops = conf_.attr()->post_ops_;
+    const bool do_relu = post_ops.len_ == 1;
+
     float alpha = 1.0, beta = 0.0;
     extended_sgemm(wei_tr ? "T" : "N", "N", &OC, &MB, &IC, &alpha, weights,
             wei_tr ? &IC : &OC, src, &IC, &beta, dst, &OC, bias);
+
+    if (do_relu) {
+        float nslope = post_ops.entry_[0].eltwise.alpha;
+        parallel_nd(MB, OC, [&](int mb, int oc) {
+            size_t dst_off = mb * OC + oc;
+            if (dst[dst_off] < 0)
+                dst[dst_off] *= nslope;
+        });
+    }
 }
 
 template <impl::data_type_t data_type>

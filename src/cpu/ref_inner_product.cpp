@@ -50,6 +50,10 @@ void ref_inner_product_fwd_t<src_type, wei_type, dst_type, acc_type>
 
     const bool is_3d = src_d.ndims() == 5;
 
+    const auto &post_ops = conf_.attr()->post_ops_;
+    const bool do_relu = post_ops.len_ == 1;
+    const float nslope = do_relu ? post_ops.entry_[0].eltwise.alpha : 0.f;
+
     auto ker_has_spatial = [=](acc_data_t &d, int mb, int oc) {
         const int KD = conf_.KD();
         const int KH = conf_.KH();
@@ -98,7 +102,12 @@ void ref_inner_product_fwd_t<src_type, wei_type, dst_type, acc_type>
         } else {
             ker_no_spatial(a, mb, oc);
         }
-        dst[dst_d.off(mb, oc)] = saturate<dst_data_t>(a);
+        if (do_relu && a < (acc_data_t)0) {
+            float ds = (float)a * nslope;
+            dst[dst_d.off(mb, oc)] = saturate<dst_data_t>(ds);
+        } else {
+            dst[dst_d.off(mb, oc)] = saturate<dst_data_t>(a);
+        }
     });
 }
 using namespace data_type;

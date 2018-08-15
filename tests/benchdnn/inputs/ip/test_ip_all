@@ -12,4 +12,5 @@
 
 # relu
 --reset --dir=FWD_B --mb=2 --attr=post_ops='relu'
+--batch=ip_all
 --cfg=u8s8s32s32  --batch=ip_all

@@ -56,7 +56,10 @@ struct ref_inner_product_fwd_t: public cpu_primitive_t {
                 && utils::implication(with_bias(),
                             utils::one_of(desc()->bias_desc.data_type,
                                 f32, s32, s8, u8))
-                && attr()->has_default_values();
+                && attr()->output_scales_.has_default_values()
+                && attr()->post_ops_.len_ <= 1
+                && utils::implication(attr()->post_ops_.len_ == 1,
+                        attr()->post_ops_.entry_[0].is_relu(true, false));
             return ok ? status::success : status::unimplemented;
         }
     };
