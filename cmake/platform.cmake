@@ -28,23 +28,6 @@ add_definitions(-DMKLDNN_DLL -DMKLDNN_DLL_EXPORTS)
 # C++ standard (see C99 standard 7.18.2 and 7.18.4)
 add_definitions(-D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS)
 
-option(MKLDNN_VERBOSE
-    "allows Intel(R) MKL-DNN be verbose whenever MKLDNN_VERBOSE
-    environment variable set to 1" ON) # enabled by default
-if(NOT MKLDNN_VERBOSE)
-    add_definitions(-DDISABLE_VERBOSE)
-endif()
-
-option(MKLDNN_ENABLE_CONCURRENT_EXEC
-    "disables sharing a common scratchpad between primitives.
-    This option must be turned on if there is a possibility of
-    concurrent execution of primitives that were created in the same thread.
-    CAUTION: enabling this option increases memory consumption"
-    OFF) #disabled by default
-if(MKLDNN_ENABLE_CONCURRENT_EXEC)
-    add_definitions(-DMKLDNN_ENABLE_CONCURRENT_EXEC)
-endif()
-
 set(CMAKE_CCXX_FLAGS)
 set(CMAKE_CCXX_NOWARN_FLAGS)
 set(DEF_ARCH_OPT_FLAGS)
@@ -124,7 +107,7 @@ if(UNIX OR APPLE OR MINGW)
     endif()
 endif()
 
-if(NOT DEFINED ARCH_OPT_FLAGS)
+if(ARCH_OPT_FLAGS STREQUAL "HostOpts")
     set(ARCH_OPT_FLAGS "${DEF_ARCH_OPT_FLAGS}")
 endif()
 

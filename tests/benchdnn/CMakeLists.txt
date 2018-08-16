@@ -29,10 +29,6 @@ include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/reorder
     )
 
-option(BENCHDNN_USE_RDPMC
-    "enables rdpms counter to report precise cpu frequency.
-     CAUTION: may not work on all cpus (hence disable by default)"
-    OFF) # disabled by default
 if(BENCHDNN_USE_RDPMC)
     add_definitions(-DBENCHDNN_USE_RDPMC)
 endif()

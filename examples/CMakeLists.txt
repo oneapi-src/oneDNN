@@ -14,7 +14,6 @@
 # limitations under the License.
 #===============================================================================
 
-option(WITH_EXAMPLE "include examples" ON)
 if (NOT WITH_EXAMPLE)
     return()
 endif()
