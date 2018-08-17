@@ -1,4 +1,7 @@
 /*******************************************************************************
+* This modification is made by (c) YANDEX LLC 2018.
+* Copyright and license info of original source code is available below.
+*
 * Copyright 2016-2018 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -345,7 +348,11 @@ public:
     }
     void uni_vpxor(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
                    const Xbyak::Operand &op) {
-        vpxor(x1, x2, op);
+        if (mayiuse(avx2)) {
+            vpxor(x1, x2, op);
+        } else {
+            vxorps(x1, x2, op);
+        }
     }
     void uni_vpxor(const Xbyak::Zmm &x1, const Xbyak::Zmm &x2,
                    const Xbyak::Operand &op) {
@@ -398,7 +405,14 @@ public:
         shufps(x, x, 0x0);
     }
     void uni_vbroadcastss(const Xbyak::Ymm &x, const Xbyak::Operand &op) {
-        vbroadcastss(x, op);
+        if (mayiuse(avx2)) {
+            vbroadcastss(x, op);
+        } else {
+            Xbyak::Xmm t(x.getIdx());
+            if (t.getIdx() != op.getIdx()) movss(t, op);
+            vinsertf128(x, x, t, 1);
+            vshufps(x, x, x, 0);
+        }
     }
 
     void uni_vpbroadcastd(const Xbyak::Xmm &x, const Xbyak::Operand &op) {
@@ -406,7 +420,14 @@ public:
         pshufd(x, x, 0x0);
     }
     void uni_vpbroadcastd(const Xbyak::Ymm &x, const Xbyak::Operand &op) {
-        vpbroadcastd(x, op);
+        if (mayiuse(avx2)) {
+            vpbroadcastd(x, op);
+        } else {
+            Xbyak::Xmm t(x.getIdx());
+            if (t.getIdx() != op.getIdx()) movsd(t, op);
+            vinsertf128(x, x, t, 1);
+            vshufps(x, x, x, 0);
+        }
     }
 
     void uni_vdivps(const Xbyak::Xmm &x, const Xbyak::Operand &op1,

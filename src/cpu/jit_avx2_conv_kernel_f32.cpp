@@ -1,4 +1,7 @@
 /*******************************************************************************
+* This modification is made by (c) YANDEX LLC 2018.
+* Copyright and license info of original source code is available below.
+*
 * Copyright 2016-2018 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -71,8 +74,14 @@ void jit_avx2_conv_fwd_kernel_f32::oh_step_unroll_kw(int ur_w,
                         + ki * ic_blk * oc_blk + ifm2 * oc_blk;
                 vmovups(ymm15, ptr[aux_reg_kernel + sizeof(float) * ker_off]);
                 for (int jj = jj_start; jj < jj_end; jj++)
-                    vfmadd231ps(Ymm(ur_w * ii + jj),
-                            Ymm(oc_blocks * ur_w + jj), ymm15);
+                    if (mayiuse(avx2))
+                        vfmadd231ps(Ymm(ur_w * ii + jj),
+                                Ymm(oc_blocks * ur_w + jj), ymm15);
+                    else { // AVX support
+                        Ymm tmp = ymm14; // guaranteed to be free -- see init
+                        vmulps(tmp, ymm15, Ymm(oc_blocks * ur_w + jj));
+                        vaddps(Ymm(ur_w * ii + jj), Ymm(ur_w * ii + jj), tmp);
+                    }
             }
         }
     }
@@ -119,8 +128,14 @@ void jit_avx2_conv_fwd_kernel_f32::oh_step_nopad(int ur_w,
                 vmovups(ymm15, ptr[aux_reg_kernel
                         + sizeof(float) * aux_kernel_offset]);
                 for (int jj = jj_start; jj < jj_end; jj++)
-                    vfmadd231ps(Ymm(ur_w * ii + jj),
-                            Ymm(oc_blocks * ur_w + jj), ymm15);
+                    if (mayiuse(avx2))
+                        vfmadd231ps(Ymm(ur_w * ii + jj),
+                                Ymm(oc_blocks * ur_w + jj), ymm15);
+                    else { // AVX support
+                        Ymm tmp = ymm14;
+                        vmulps(tmp, ymm15, Ymm(oc_blocks * ur_w + jj));
+                        vaddps(Ymm(ur_w * ii + jj), Ymm(ur_w * ii + jj), tmp);
+                    }
             }
         }
         add(aux_reg_kernel, sizeof(float) * oc_blk * ic_blk);
@@ -189,7 +204,7 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(int ur_w,
     } else {
         for (int ii = 0; ii < oc_blocks; ii++)
             for (int jj = 0; jj < ur_w; jj++)
-                vpxor(Ymm(ur_w * ii + jj), Ymm(ur_w * ii + jj), Ymm(ur_w * ii + jj));
+                uni_vpxor(Ymm(ur_w * ii + jj), Ymm(ur_w * ii + jj), Ymm(ur_w * ii + jj));
     }
 
     L(init_done_label);
@@ -281,17 +296,51 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(int ur_w,
            uni_vbroadcastss(ymm_relu_ns, xmm_relu_ns);
         }
 
-        for (int ii = 0; ii < oc_blocks; ii++) {
-            for (int jj = 0; jj < ur_w; jj++) {
-                const size_t o_off = sizeof(float) * ((size_t)ii * od * oh * ow
+        if (mayiuse(avx2)) {
+            for (int ii = 0; ii < oc_blocks; ii++) {
+                for (int jj = 0; jj < ur_w; jj++) {
+                    const size_t o_off = sizeof(float) * ((size_t)ii * od * oh * ow
                         + jj) * oc_blk;
-                Ymm reg_out = Ymm(ur_w * ii + jj);
+                    Ymm reg_out = Ymm(ur_w * ii + jj);
 
-                vcmpgtps(ymask, reg_out, yzero);
-                vmulps(ymm_res_ns, ymm_relu_ns, reg_out);
-                vblendvps(reg_out, ymm_res_ns, reg_out, ymask);
-                vmovups(make_safe_addr(reg_output, o_off, reg_long_offt),
+                    vcmpgtps(ymask, reg_out, yzero);
+                    vmulps(ymm_res_ns, ymm_relu_ns, reg_out);
+                    vblendvps(reg_out, ymm_res_ns, reg_out, ymask);
+                    vmovups(make_safe_addr(reg_output, o_off, reg_long_offt),
                         reg_out);
+                }
+            }
+        } else if (jcp.relu_negative_slope == 0) {
+            for (int ii = 0; ii < oc_blocks; ii++) {
+                for (int jj = 0; jj < ur_w; jj++) {
+                    const size_t o_off = sizeof(float) * ((size_t)ii * od * oh * ow
+                        + jj) * oc_blk;
+                    Ymm reg_out = Ymm(ur_w * ii + jj);
+                    vmaxps(reg_out, yzero, reg_out);
+                    vmovups(make_safe_addr(reg_output, o_off, reg_long_offt),
+                        reg_out);
+                }
+            }
+        } else {
+            reg64_t slope_imm_addr64 = r15;
+            size_t slope_addr = reinterpret_cast<size_t>(&jcp.relu_negative_slope);
+            mov(slope_imm_addr64, (slope_addr + jit_conv_conf_t::align_mask_64) & ~jit_conv_conf_t::align_mask_64); // ensure slope_imm_addr64 is aligned to 64 bytes
+            Ymm yzero = ymm15;
+            vxorps(yzero, yzero, yzero);
+            for (int ii = 0; ii < oc_blocks; ii++) {
+                for (int jj = 0; jj < ur_w; jj++) {
+                    const size_t o_off = sizeof(float) * ((size_t)ii * od * oh * ow
+                        + jj) * oc_blk;
+                    Ymm reg_out = Ymm(ur_w * ii + jj);
+
+                    vminps(ymm14, yzero, reg_out);
+                    vmaxps(reg_out, yzero, reg_out);
+                    vmulps(ymm14, ymm14, yword[slope_imm_addr64]);
+                    vaddps(reg_out, ymm14, reg_out);
+
+                    vmovups(make_safe_addr(reg_output, o_off, reg_long_offt),
+                        reg_out);
+                }
             }
         }
 
@@ -437,7 +486,7 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
         const memory_desc_wrapper &weights_d, const memory_desc_wrapper &dst_d,
         const primitive_attr_t &attr, bool with_relu, float relu_negative_slope)
 {
-    if (!mayiuse(avx2)) return status::unimplemented;
+    if (!mayiuse(avx2) && !mayiuse(avx)) return status::unimplemented;
 
     jcp.prop_kind = cd.prop_kind;
 
@@ -503,10 +552,30 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
 
     jcp.ur_h = 1; /* no code-unrolling by h so far */
     jcp.ur_w = 3;
-    if (jcp.ow < jcp.ur_w) jcp.ur_w = jcp.ow;
-    jcp.ur_w_tail = jcp.ow % jcp.ur_w;
+
+    jcp.oc_block = simd_w;
+    jcp.nb_oc = jcp.oc / jcp.oc_block;
 
     jcp.nb_oc_blocking = 4; /* the optimal value for the kernel */
+
+    if (!mayiuse(avx2)) {
+        // AVX kernel needs 2 temporary YMMs -- can assign only 14 YMMs
+        if ((jcp.nb_oc_blocking + 1) * jcp.ur_w >= 15) {
+            // current register assignment requires >= 15 YMMs
+            // adjust one of nb_oc_block, ur_w preserving to ur_w >= l_pad
+            if (jcp.ur_w > jcp.l_pad && jcp.ur_w > 1)
+                jcp.ur_w -= 1;
+            else
+                for (int b = 3; b > 1; b--)
+                    if (jcp.nb_oc % b == 0) {
+                        jcp.nb_oc_blocking = b;
+                        break;
+                    }
+        }
+    }
+
+    if (jcp.ow < jcp.ur_w) jcp.ur_w = jcp.ow;
+    jcp.ur_w_tail = jcp.ow % jcp.ur_w;
 
     args_ok = true
         && jcp.oc % simd_w == 0
@@ -534,9 +603,6 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
 
     jcp.ic_block = (jcp.ic % simd_w != 0) ? jcp.ic : simd_w;
     jcp.nb_ic = jcp.ic / jcp.ic_block;
-
-    jcp.oc_block = simd_w;
-    jcp.nb_oc = jcp.oc / jcp.oc_block;
 
     if (one_of(jcp.prop_kind, forward_training, forward_inference)) {
         jcp.nb_ic_blocking = 12;

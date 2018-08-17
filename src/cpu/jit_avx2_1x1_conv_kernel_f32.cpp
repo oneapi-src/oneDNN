@@ -1,4 +1,7 @@
 /*******************************************************************************
+* This modification is made by (c) YANDEX LLC 2018.
+* Copyright and license info of original source code is available below.
+*
 * Copyright 2016-2018 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -209,14 +212,38 @@ void jit_avx2_1x1_conv_kernel_f32::reduce_loop(int load_loop_blk, int ur,
                uni_vbroadcastss(ymm_relu_ns, xmm_relu_ns);
             }
 
-            for (int j = 0; j < ur; ++j)
-                for (int i = 0; i < load_loop_blk; ++i) {
-                    vcmpgtps(vmask, vreg_accum(i, j), vzero);
-                    vmulps(ymm_res_ns, ymm_relu_ns, vreg_accum(i, j));
-                    vblendvps(vreg_accum(i, j), ymm_res_ns,
-                             vreg_accum(i, j), vmask);
-                    vmovups(output_ptr(i, j), vreg_accum(i, j));
+            if (mayiuse(avx2)) {
+                for (int j = 0; j < ur; ++j) {
+                    for (int i = 0; i < load_loop_blk; ++i) {
+                        vcmpgtps(vmask, vreg_accum(i, j), vzero);
+                        vmulps(ymm_res_ns, ymm_relu_ns, vreg_accum(i, j));
+                        vblendvps(vreg_accum(i, j), ymm_res_ns,
+                                 vreg_accum(i, j), vmask);
+                        vmovups(output_ptr(i, j), vreg_accum(i, j));
+                    }
                 }
+            } else if (jcp.relu_negative_slope == 0) {
+                for (int j = 0; j < ur; ++j) {
+                    for (int i = 0; i < load_loop_blk; ++i) {
+                        vmaxps(vreg_accum(i, j), vzero, vreg_accum(i, j));
+                        vmovups(output_ptr(i, j), vreg_accum(i, j));
+                    }
+                }
+            } else {
+                reg64_t slope_imm_addr64 = r15;
+                size_t slope_addr = reinterpret_cast<size_t>(&jcp.relu_negative_slope);
+                mov(slope_imm_addr64, (slope_addr + jit_1x1_conv_conf_t::align_mask_64) & ~jit_1x1_conv_conf_t::align_mask_64); // ensure slope_imm_addr64 is aligned to 64 bytes
+                Ymm vzero = ymm15;
+                for (int j = 0; j < ur; ++j) {
+                    for (int i = 0; i < load_loop_blk; ++i) {
+                        vminps(ymm14, vzero, vreg_accum(i, j));
+                        vmaxps(vreg_accum(i, j), vzero, vreg_accum(i, j));
+                        vmulps(ymm14, ymm14, yword[slope_imm_addr64]);
+                        vaddps(vreg_accum(i, j), ymm14, vreg_accum(i, j));
+                        vmovups(output_ptr(i, j), vreg_accum(i, j));
+                    }
+                }
+            }
 
             jmp(store_done, T_NEAR);
             L(store_norelu);
@@ -234,7 +261,13 @@ void jit_avx2_1x1_conv_kernel_f32::reduce_loop(int load_loop_blk, int ur,
         for (int u = 0; u < jcp.reduce_loop_unroll; ++u) {
             for (int j = 0; j < ur; ++j) {
                 for (int i = 0; i < load_loop_blk; ++i) {
-                    vfmadd231ps(vreg_accum(i, j), vreg_load(i), vreg_bcast);
+                    if (mayiuse(avx2))
+                        vfmadd231ps(vreg_accum(i, j), vreg_load(i), vreg_bcast);
+                    else { // AVX support
+                        Ymm tmp = ymm14;
+                        vmulps(tmp, vreg_bcast, vreg_load(i));
+                        vaddps(vreg_accum(i, j), vreg_accum(i, j), tmp);
+                    }
                     if (j == ur - 1 && !(last_block
                                 && u == jcp.reduce_loop_unroll - 1))
                         vmovups(vreg_load(i), load_ptr(u + 1, i));
@@ -455,7 +488,7 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
         const memory_desc_wrapper &weights_d, const memory_desc_wrapper &dst_d,
         const primitive_attr_t &attr, bool with_relu, float relu_negative_slope)
 {
-    if (!mayiuse(avx2)) return status::unimplemented;
+    if (!mayiuse(avx2) && !mayiuse(avx)) return status::unimplemented;
 
     // TODO (Roma): this code is duplicated from the generic kernel; maybe the
     // configuration struct could do some stuff below
@@ -527,7 +560,7 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
 
     jcp.ic_block = jcp.oc_block = simd_w;
 
-    jcp.ur = 4;
+    jcp.ur = mayiuse(avx2) ? 4 : 3; // AVX support
 
     int load_blocking{ 0 };
     int load_blocking_max{ 0 };

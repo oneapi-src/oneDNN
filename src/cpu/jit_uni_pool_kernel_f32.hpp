@@ -1,4 +1,7 @@
 /*******************************************************************************
+* This modification is made by (c) YANDEX LLC 2018.
+* Copyright and license info of original source code is available below.
+*
 * Copyright 2017-2018 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -125,6 +128,20 @@ private:
     }
 
     void generate();
+
+    void avx_vpadd1(Ymm& y0, const Xmm& x1, Xmm& xtmp) {
+        assert(y0.getIdx() != x1.getIdx());
+        vextractf128(xtmp, y0, 0);
+        vpaddd(xtmp, xtmp, x1);
+        vinsertf128(y0, y0, xtmp, 0);
+        vextractf128(xtmp, y0, 1);
+        vpaddd(xtmp, xtmp, x1);
+        vinsertf128(y0, y0, xtmp, 1);
+    }
+
+    void avx_vpadd1(Xmm& x0, const Xmm& x1, Xmm&) {
+        paddd(x0, x1);
+    }
 };
 
 }

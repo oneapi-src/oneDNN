@@ -1,4 +1,7 @@
 /*******************************************************************************
+* This modification is made by (c) YANDEX LLC 2018.
+* Copyright and license info of original source code is available below.
+*
 * Copyright 2017-2018 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -272,8 +275,13 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_fwd(int ur_w, int pad_l,
                                   vreg(2*ur_w+jj), vmm_k_offset);
                 }
             }
-            if (jpp.is_training)
-                uni_vpaddd(vmm_k_offset, vmm_k_offset, vmm_one);
+            if (jpp.is_training) {
+                if (mayiuse(avx2)) {
+                    uni_vpaddd(vmm_k_offset, vmm_k_offset, vmm_one);
+                } else {
+                    avx_vpadd1(vmm_k_offset, vmm_one, xmm_tmp);
+                }
+            }
         }
         add(aux_reg_input,  sizeof(float) * iw * c_block);
         inc(kj);
@@ -288,7 +296,12 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_fwd(int ur_w, int pad_l,
             mov(tmp_gpr, ptr[this->param1 + GET_OFF(kd_padding_shift)]);
             movq(xmm_tmp, tmp_gpr);
             uni_vpbroadcastd(vmm_tmp, xmm_tmp);
-            uni_vpaddd(vmm_k_offset, vmm_k_offset, vmm_tmp);
+            if (mayiuse(avx2)) {
+                uni_vpaddd(vmm_k_offset, vmm_k_offset, vmm_tmp);
+            } else {
+                Xmm t(vmm_mask.getIdx());
+                avx_vpadd1(vmm_k_offset, xmm_tmp, t);
+            }
         }
 
         dec(ki);
@@ -315,10 +328,20 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_fwd(int ur_w, int pad_l,
                         movd(xmm_tmp, reg_shuf_mask);
                         uni_vpbroadcastd(vmm_tmp, xmm_tmp);
                     }
-                    vpshufb(y, y, vmm_tmp);
-                    movd(ptr[reg_index + step_index], x);
-                    vperm2i128(y, y, y, 0x1u);
-                    movd(ptr[reg_index + step_index + 4], x);
+                    if (mayiuse(avx2)) {
+                        vpshufb(y, y, vmm_tmp);
+                        movd(ptr[reg_index + step_index], x);
+                        vperm2i128(y, y, y, 0x1u);
+                        movd(ptr[reg_index + step_index + 4], x);
+                    } else {
+                        Xmm t(vmm_mask.getIdx());
+                        vextractf128(t, y, 0);
+                        vpshufb(t, t, xmm_tmp);
+                        movd(ptr[reg_index + step_index], t);
+                        vextractf128(t, y, 1);
+                        vpshufb(t, t, xmm_tmp); // ymm_tmp[:128]==ymm_tmp[127:0]
+                        movd(ptr[reg_index + step_index + 4], t);
+                    }
                 } else {
                     auto v = vreg(2 * ur_w + jj);
                     vpmovusdb(x, v);
