@@ -1,7 +1,4 @@
 /*******************************************************************************
-* This modification is made by (c) YANDEX LLC 2018.
-* Copyright and license info of original source code is available below.
-*
 * Copyright 2016-2018 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -42,23 +39,6 @@ enum {
     FLAG_REDUCE_FIRST = 1<<8, FLAG_REDUCE_LAST = 1<<9,
 };
 
-struct relu_negative_slope_s {
-    alignas(16) float items[32]; // enough space to align at 64
-    relu_negative_slope_s& operator =(float slope) {
-        for (float& item : items) {
-            item = slope;
-        }
-        return *this;
-    }
-    template <typename T>
-    bool operator ==(T slope) const {
-        return items[0] == slope;
-    }
-    operator float() const {
-        return items[0];
-    }
-};
-
 struct jit_conv_conf_t {
     prop_kind_t prop_kind;
     conv_version_t ver;
@@ -75,8 +55,7 @@ struct jit_conv_conf_t {
     int dilate_d, dilate_h, dilate_w;
     memory_format_t src_fmt;
     bool with_bias, with_relu;
-    relu_negative_slope_s relu_negative_slope;
-    static const constexpr size_t align_mask_64 = 63;
+    float relu_negative_slope;
     bool with_sum;
 
     int idp, ihp, iwp, ohp, owp;
@@ -301,8 +280,7 @@ struct jit_1x1_conv_conf_t {
     int stride_h, stride_w;
     memory_format_t src_fmt;
     bool with_bias, with_relu;
-    relu_negative_slope_s relu_negative_slope;
-    static const constexpr size_t align_mask_64 = 63;
+    float relu_negative_slope;
     bool with_sum;
 
     int is, os;

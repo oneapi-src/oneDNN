@@ -222,24 +222,11 @@ void jit_avx2_1x1_conv_kernel_f32::reduce_loop(int load_loop_blk, int ur,
                         vmovups(output_ptr(i, j), vreg_accum(i, j));
                     }
                 }
-            } else if (jcp.relu_negative_slope == 0) {
-                for (int j = 0; j < ur; ++j) {
-                    for (int i = 0; i < load_loop_blk; ++i) {
-                        vmaxps(vreg_accum(i, j), vzero, vreg_accum(i, j));
-                        vmovups(output_ptr(i, j), vreg_accum(i, j));
-                    }
-                }
             } else {
-                reg64_t slope_imm_addr64 = r15;
-                size_t slope_addr = reinterpret_cast<size_t>(&jcp.relu_negative_slope);
-                mov(slope_imm_addr64, (slope_addr + jit_1x1_conv_conf_t::align_mask_64) & ~jit_1x1_conv_conf_t::align_mask_64); // ensure slope_imm_addr64 is aligned to 64 bytes
-                Ymm vzero = ymm15;
+                assert(jcp.relu_negative_slope == 0);
                 for (int j = 0; j < ur; ++j) {
                     for (int i = 0; i < load_loop_blk; ++i) {
-                        vminps(ymm14, vzero, vreg_accum(i, j));
                         vmaxps(vreg_accum(i, j), vzero, vreg_accum(i, j));
-                        vmulps(ymm14, ymm14, yword[slope_imm_addr64]);
-                        vaddps(vreg_accum(i, j), ymm14, vreg_accum(i, j));
                         vmovups(output_ptr(i, j), vreg_accum(i, j));
                     }
                 }
@@ -489,6 +476,7 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
         const primitive_attr_t &attr, bool with_relu, float relu_negative_slope)
 {
     if (!mayiuse(avx2) && !mayiuse(avx)) return status::unimplemented;
+    if (!mayiuse(avx2) && relu_negative_slope != 0.0) return status::unimplemented;
 
     // TODO (Roma): this code is duplicated from the generic kernel; maybe the
     // configuration struct could do some stuff below
