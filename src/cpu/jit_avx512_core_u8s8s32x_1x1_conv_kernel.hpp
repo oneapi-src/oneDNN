@@ -77,8 +77,6 @@ struct jit_avx512_core_u8s8s32x_1x1_conv_kernel: public jit_generator {
     reg64_t reg_ptr_sum_scale = r10;
     reg64_t reg_reduce_loop_work = r11;
     reg64_t reg_bias_data = r12;
-    reg64_t aux_reg_acc_s32 = r12;
-    reg64_t reg_acc_s32 = r13;
     reg64_t reg_scratch = r13;
     reg64_t aux_reg_bcast_data = r14;
     reg64_t aux_reg_load_data = r15;
@@ -103,12 +101,11 @@ struct jit_avx512_core_u8s8s32x_1x1_conv_kernel: public jit_generator {
 
     int bcast_loop_work_offt = 0;
     int reg_bias_data_offt = 8;
-    int aux_reg_acc_s32_offt = 16;
-    int reg_bcast_data_off = 24;
-    int reg_load_data_off = 32;
-    int reg_ptr_sum_scale_off = 40;
-    int reg_last_load_off = 48;
-    int stack_space_needed = 56;
+    int reg_bcast_data_off = 16;
+    int reg_load_data_off = 24;
+    int reg_ptr_sum_scale_off = 32;
+    int reg_last_load_off = 40;
+    int stack_space_needed = 48;
 
     void bcast_loop(int load_loop_blk);
     void reduce_loop(int load_loop_blk, int ur, int substep, bool wraparound);
