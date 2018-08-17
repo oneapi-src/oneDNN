@@ -197,6 +197,7 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
         default: assert(false);
         }
 
+	merge_gemm_layer = (aprop == prop_kind::forward) && (conf_.MB() < 128);
         auto set_pack_funcs = [](bool packed_gemm, gemm_t &g, bool pack_w,
                 packing_t &p, free_packed_t &f) {
             g = packed_gemm ? &class_name::packed_gemm : &class_name::gemm;
@@ -215,7 +216,6 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
 
         const bool is_weights_input_packed = USE_MKL_PACKED_GEMM
                 && conf_.desc()->weights_layer_desc.format == packed_format;
-
         set_pack_funcs(weights_pack_cond || is_weights_input_packed,
                 gemm_input_func, weights_pack_cond && !is_weights_input_packed,
                 weights_input_pack_func, weights_input_free_packed_func);
@@ -378,6 +378,8 @@ private:
     execution_direction exec_dir;
     grid_execution_f grid_computation;
     cell_execution_f cell_func;
+
+    bool merge_gemm_layer;
 
     packing_t weights_input_pack_func;
     packing_t weights_state_pack_func;

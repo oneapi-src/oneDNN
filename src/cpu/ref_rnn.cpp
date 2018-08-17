@@ -237,9 +237,11 @@ void _ref_rnn_common_t<aprop>::gates_reduction(int n_gates, int dic, int wic, in
 ///  to pass argument for empty function is too big
 template <>
 cell_execution_sig(_ref_rnn_common_t<prop_kind::forward>::cell_execution) {
-    (this->*gemm_input_func)(n_gates * dic, batch, slc, conf_.GC(), slc,
-            batch, wic, conf_.GC(), batch, w_input_[0], states_t_lm1_,
-            ws_gates_, false, 0.0f);
+    if (!merge_gemm_layer) {
+        (this->*gemm_input_func)(n_gates * dic, batch, slc, conf_.GC(), slc,
+                batch, wic, conf_.GC(), batch, w_input_[0], states_t_lm1_,
+                ws_gates_, false, 0.0f);
+    }
     (this->*gemm_state_func)(n_gates * dic, batch, sic, conf_.GC(), sic,
             batch, wic, conf_.GC(), batch, w_state_[0], states_tm1_l_,
             ws_gates_, false, 1.0f);
@@ -282,9 +284,11 @@ cell_execution_sig(_ref_rnn_common_t<prop_kind::forward>::cell_execution_gru) {
     AOC<float, 2> states_tm1_l(states_tm1_l_, batch, wic);
 
     // 1. gemm Wx[0-2],x
-    (this->*gemm_input_func)(n_gates * dic, batch, slc, conf_.GC(), slc,
-            batch, wic, conf_.GC(), batch, w_input_[0], states_t_lm1_,
-            ws_gates_, false, 0.0f);
+    if (!merge_gemm_layer) {
+        (this->*gemm_input_func)(n_gates * dic, batch, slc, conf_.GC(), slc,
+                batch, wic, conf_.GC(), batch, w_input_[0], states_t_lm1_,
+                ws_gates_, false, 0.0f);
+    }
 
     // 2. gemm Wh[0-1],h
     (this->*gemm_state_func)((n_gates - 1)*dic, batch, sic, conf_.GC(), sic,
@@ -345,9 +349,11 @@ elemwise_sig(_ref_rnn_common_t<prop_kind::forward>::gru_lbr_elemwise) {
 
 template <>
 cell_execution_sig(_ref_rnn_common_t<prop_kind::forward>::cell_execution_gru_lbr) {
-    (this->*gemm_input_func)(n_gates * dic, batch, slc, conf_.GC(), slc,
-            batch, wic, conf_.GC(), batch, w_input_[0], states_t_lm1_,
-            ws_gates_, false, 0.0f);
+    if (!merge_gemm_layer) {
+        (this->*gemm_input_func)(n_gates * dic, batch, slc, conf_.GC(), slc,
+                batch, wic, conf_.GC(), batch, w_input_[0], states_t_lm1_,
+                ws_gates_, false, 0.0f);
+    }
     (this->*gemm_state_func)(n_gates * dic, batch, sic, conf_.GC(), sic,
             batch, wic, conf_.GC(), batch, w_state_[0], states_tm1_l_,
             ws_cell_, false, 0.0f);
@@ -540,15 +546,16 @@ grid_execution_sig(_ref_rnn_common_t<aprop>::linear_execution) {
     // We run the grid of computation
     for (int dir = 0; dir < n_direction; dir++) {
         for (int j = 0; j < n_layer; j++) {
+            int lay = (aprop == prop_kind::forward) ? j : n_layer - j - 1;
+            if ((aprop == prop_kind::forward) && merge_gemm_layer) {
+                /* Assumption: merge_gemm_layer happens only on forward */
+                (this->*gemm_input_func)(n_gates * dic, batch * n_iter, slc, conf_.GC(), slc,
+                        batch * n_iter, wic, conf_.GC(), batch * n_iter,
+                        weights_input(lay, dir, 0), &(ws_states(lay, dir, 0, 1, 0)),
+                        &(ws_gates(lay, dir, 0, 0)), false, 0.0f);
+            }
             for (int i = 0; i < n_iter; i++) {
-                int lay, iter;
-                if (aprop == prop_kind::forward) {
-                    lay = j;
-                    iter = i;
-                } else { // backward
-                    lay = n_layer - j - 1;
-                    iter = n_iter - i - 1;
-                }
+                int iter = (aprop == prop_kind::forward) ? i : n_iter - i - 1;
                 (this->*cell_func)(dic, slc, sic, wic, batch, n_gates, n_states, n_iter + 1,
                         &(ws_states(lay + 1, dir, 0, iter + 1, 0)),
                         &(ws_diff_states(lay, dir, 0, iter, 0)),
