@@ -52,14 +52,14 @@ struct jit_uni_pool_kernel_f32: public jit_generator {
             const memory_desc_wrapper &dst_d);
 
 private:
-    using Vmm = typename utils::conditional3<isa == sse42, Xmm, isa == avx2,
+    using Vmm = typename utils::conditional3<isa == sse42, Xmm, isa == avx,
                                              Ymm, Zmm>::type;
     Xmm xreg(int idx) { return Xmm((isa == avx512_common ? 31 : 15) - idx); }
     Ymm yreg(int idx) { return Ymm(xreg(idx).getIdx()); }
     Vmm vreg(int idx) { return Vmm(xreg(idx).getIdx()); }
 
     const AddressFrame &vmmword = (isa == sse42) ? xword :
-                                  (isa == avx2) ? yword : zword;
+                                  (isa == avx) ? yword : zword;
 
     Xmm vmm_mask = Xmm(0);
     Xmm xmm_ker_area_h = Xmm(2);

@@ -259,7 +259,7 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_fwd(int ur_w, int pad_l,
                     blendvps(vreg(jj), vreg(ur_w+jj));
                     if (jpp.is_training)
                         blendvps(vreg(2*ur_w+jj), vmm_k_offset);
-                } else if (isa == avx2) {
+                } else if (isa == avx) {
                     vcmpps(vreg(3*ur_w+jj), vreg(jj), vreg(ur_w+jj),
                            _cmp_lt_os);
                     vblendvps(vreg(jj), vreg(jj), vreg(ur_w+jj),
@@ -322,7 +322,7 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_fwd(int ur_w, int pad_l,
                 if (isa == sse42) {
                     for (int i = 0; i < 4; ++i)
                         pextrb(ptr[reg_index + step_index + i], x, 4*i);
-                } else if (isa == avx2) {
+                } else if (isa == avx) {
                     auto y = yreg(2 * ur_w + jj);
                     if (jj == 0) {
                         movd(xmm_tmp, reg_shuf_mask);
@@ -374,7 +374,7 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_bwd(int ur_w, int pad_l,
                 movd(xreg(ur_w+jj), ptr[reg_index + step_index]);
                 pmovzxbd(vreg(ur_w+jj), xreg(ur_w+jj));
             } else {
-                if (isa == avx2)
+                if (mayiuse(avx2))
                     movq(xreg(ur_w+jj), ptr[reg_index + step_index]);
                 else
                     vmovups(vreg(ur_w+jj) | k_index_mask,
@@ -420,7 +420,7 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_bwd(int ur_w, int pad_l,
                     pcmpeqd(vreg(3*ur_w+jj), vmm_k_offset);
                     addps(vreg(2*ur_w+jj), vreg(jj));
                     maskmovdqu(vreg(2*ur_w+jj), vreg(3*ur_w+jj));
-                } else if (isa == avx2) {
+                } else if (isa == avx) {
                     vpcmpeqd(vreg(3*ur_w+jj), vreg(ur_w+jj), vmm_k_offset);
                     vaddps(vreg(2*ur_w+jj), vreg(2*ur_w+jj), vreg(jj));
                     vmaskmovps(vmmword[aux_reg_input + input_offset],
@@ -530,7 +530,7 @@ void jit_uni_pool_kernel_f32<isa>::generate() {
         movq(xmm_one, tmp_gpr);
         uni_vpbroadcastd(vmm_one, xmm_one);
 
-        if (isa == avx2) {
+        if (isa == avx) {
             mov(reg_shuf_mask, 0x0c080400);
         } else if (isa >= avx512_common) {
             mov(tmp_gpr.cvt32(), 0x000f);
@@ -649,7 +649,7 @@ void jit_uni_pool_kernel_f32<isa>::generate() {
 }
 
 template struct jit_uni_pool_kernel_f32<sse42>;
-template struct jit_uni_pool_kernel_f32<avx2>;
+template struct jit_uni_pool_kernel_f32<avx>;
 template struct jit_uni_pool_kernel_f32<avx512_common>;
 
 }

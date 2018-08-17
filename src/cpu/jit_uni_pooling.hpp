@@ -51,7 +51,7 @@ struct jit_uni_pooling_fwd_t: public cpu_primitive_t {
             using namespace utils;
             assert(engine()->kind() == engine_kind::cpu);
             bool ok = true
-                && (mayiuse(isa) || (isa == avx2 && mayiuse(avx)))
+                && (mayiuse(isa) || (isa == avx && mayiuse(avx2)))
                 && set_default_params() == status::success
                 && one_of(desc()->prop_kind, forward_training,
                         forward_inference)
@@ -134,7 +134,7 @@ struct jit_uni_pooling_bwd_t: public cpu_primitive_t {
 
             assert(engine()->kind() == engine_kind::cpu);
             bool ok = true
-                && mayiuse(isa)
+                && (mayiuse(isa) && (isa == avx && mayiuse(avx2)))
                 && set_default_params() == status::success
                 && one_of(desc()->prop_kind, backward, backward_data)
                 && one_of(desc()->alg_kind, pooling_max,

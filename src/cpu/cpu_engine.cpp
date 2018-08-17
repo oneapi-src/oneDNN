@@ -193,8 +193,8 @@ static const pd_create_f cpu_impl_list[] = {
     /* pool */
     INSTANCE(jit_uni_pooling_fwd_t<avx512_common>),
     INSTANCE(jit_uni_pooling_bwd_t<avx512_common>),
-    INSTANCE(jit_uni_pooling_fwd_t<avx2>),
-    INSTANCE(jit_uni_pooling_bwd_t<avx2>),
+    INSTANCE(jit_uni_pooling_fwd_t<avx>),
+    INSTANCE(jit_uni_pooling_bwd_t<avx>),
     INSTANCE(jit_uni_pooling_fwd_t<sse42>),
     INSTANCE(jit_uni_pooling_bwd_t<sse42>),
     INSTANCE(nchw_pooling_fwd_t<f32>),
