@@ -103,7 +103,7 @@ typed_zero_pad_weights(const memory_desc_wrapper &m_d,
         typename prec_traits<dt>::type *data) {
     constexpr int blksize = fmt == oIhw8i || fmt == oIdhw8i ? 8 : 16;
 
-    constexpr int w_groups = 0;
+    static constexpr int w_groups = 0;
     constexpr int is_3d = fmt == oIdhw8i || fmt == oIdhw16i;
 
     const auto &dims = m_d.dims();
