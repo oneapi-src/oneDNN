@@ -41,6 +41,8 @@ option(MKLDNN_ENABLE_CONCURRENT_EXEC
 # Building properties and scope
 # =============================
 
+set(MKLDNN_LIBRARY_TYPE "SHARED" CACHE STRING
+    "specifies whether Intel(R) MKL-DNN library should be SHARED or STATIC")
 option(WITH_EXAMPLE "builds examples"  ON)
 option(WITH_TEST "builds tests" ON)
 
