@@ -69,7 +69,6 @@ private:
     reg64_t aux_reg_inp = r11;
     reg64_t reg_ptr_sum_scale = r11;
     reg64_t aux_reg_ker = r12;
-    reg64_t reg_acc_s32 = r13;
     reg64_t reg_scratch = r14;
     reg64_t reg_kj   = rax;
     reg64_t reg_ptr_scales = rax;
@@ -77,10 +76,10 @@ private:
     reg64_t reg_bias = rdx;
     reg64_t reg_kh   = abi_not_param1;
     reg64_t param    = abi_param1;
-    reg64_t reg_channel = r15;
     reg64_t reg_tmp = rbp;
     reg64_t imm_addr64 = r15;
     reg64_t reg_oc_blocks = rsi;
+    reg64_t reg_icb = reg_bias;
 
     Xbyak::Opmask ktail_mask = Xbyak::Opmask(2);
 
