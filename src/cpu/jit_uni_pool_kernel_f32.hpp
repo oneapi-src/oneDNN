@@ -77,7 +77,7 @@ private:
     reg64_t aux_reg_input  = r9;
     reg64_t reg_index      = r10;
     reg64_t reg_output     = r12;
-    reg64_t reg_arr_init   = r13;
+    reg64_t reg_kd_pad_shift = r13;
     reg64_t dst_ptr        = abi_param1;
 
     reg64_t kj      = r14;

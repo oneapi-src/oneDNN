@@ -368,8 +368,12 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_bwd(int ur_w, int pad_l,
     if (jpp.simple_alg && jpp.ndims == 5) {
         push(reg_input);
         push(reg_output);
+        /*Save this->param1 as it is used in maskmovdqu*/
+        if (isa == sse42)
+            push(this->param1);
         mov(aux_reg_input_d, reg_input);
         mov(ki, ptr[this->param1 + GET_OFF(kd_padding)]);
+        mov(reg_kd_pad_shift, ptr[this->param1 + GET_OFF(kd_padding_shift)]);
         L(kd_label);
         mov(aux_reg_input, aux_reg_input_d);
     } else {
@@ -421,7 +425,7 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_bwd(int ur_w, int pad_l,
     {
         add(aux_reg_input_d,  sizeof(float) * jpp.ih * iw * c_block);
 
-        mov(tmp_gpr, ptr[this->param1 + GET_OFF(kd_padding_shift)]);
+        mov(tmp_gpr, reg_kd_pad_shift);
         movq(xmm_tmp, tmp_gpr);
         uni_vpbroadcastd(vmm_tmp, xmm_tmp);
         uni_vpaddd(vmm_k_offset, vmm_k_offset, vmm_tmp);
@@ -429,6 +433,8 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_bwd(int ur_w, int pad_l,
         dec(ki);
         cmp(ki, 0);
         jg(kd_label, T_NEAR);
+        if (isa == sse42)
+            pop(this->param1);
         pop(reg_output);
         pop(reg_input);
     }
