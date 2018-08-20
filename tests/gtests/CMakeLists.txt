@@ -22,7 +22,16 @@ set(MAIN_SRC_GTEST main.cpp)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}
                     ${CMAKE_CURRENT_SOURCE_DIR}/gtest
                     ${CMAKE_CURRENT_SOURCE_DIR}/in
+                    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/common
+                    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/cpu
                     )
+if(WIN32)
+    # Correct 'jnl' macro/jit issue
+    if(${CMAKE_CXX_COMPILER_ID} STREQUAL "Intel")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Qlong-double")
+    endif()
+endif()
+
 # TODO: enable me!
 #file(GLOB API_TEST_CASES_SRC api_tests/*.cpp)
 #file(GLOB PRIM_TEST_CASES_SRC test_*.cpp)
