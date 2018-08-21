@@ -343,7 +343,7 @@ struct jit_bnorm_t: public jit_generator {
             lea(reg_tmp, ptr[reg_coff + vlen]);
             cmp(reg_tmp, reg_coff_max);
             jl(l_no_mask);
-            assert(one_of(isa, avx512_common, avx2));
+            assert(isa == avx512_common || isa == avx2);
             if (isa == avx512_common)
                 uni_vmovups_tail_avx512_common(dst, src, l_ret);
             else if (isa == avx2)
