@@ -1,8 +1,6 @@
 /*******************************************************************************
-* This modification is made by (c) YANDEX LLC 2018.
-* Copyright and license info of original source code is available below.
-*
 * Copyright 2016-2018 Intel Corporation
+* Copyright 2018 YANDEX LLC
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -296,32 +294,22 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(int ur_w,
            uni_vbroadcastss(ymm_relu_ns, xmm_relu_ns);
         }
 
-        if (mayiuse(avx2)) {
-            for (int ii = 0; ii < oc_blocks; ii++) {
-                for (int jj = 0; jj < ur_w; jj++) {
-                    const size_t o_off = sizeof(float) * ((size_t)ii * od * oh * ow
-                        + jj) * oc_blk;
-                    Ymm reg_out = Ymm(ur_w * ii + jj);
+        for (int ii = 0; ii < oc_blocks; ii++) {
+            for (int jj = 0; jj < ur_w; jj++) {
+                const size_t o_off = sizeof(float) * ((size_t)ii * od * oh * ow
+                    + jj) * oc_blk;
+                Ymm reg_out = Ymm(ur_w * ii + jj);
 
+                if (mayiuse(avx2)) {
                     vcmpgtps(ymask, reg_out, yzero);
                     vmulps(ymm_res_ns, ymm_relu_ns, reg_out);
                     vblendvps(reg_out, ymm_res_ns, reg_out, ymask);
-                    vmovups(make_safe_addr(reg_output, o_off, reg_long_offt),
-                        reg_out);
-                }
-            }
-        } else {
-            assert(jcp.relu_negative_slope == 0);
-            for (int ii = 0; ii < oc_blocks; ii++) {
-                for (int jj = 0; jj < ur_w; jj++) {
-                    const size_t o_off = sizeof(float) * ((size_t)ii * od * oh * ow
-                        + jj) * oc_blk;
-                    Ymm reg_out = Ymm(ur_w * ii + jj);
-
+                } else {
+                    assert(jcp.relu_negative_slope == 0);
                     vmaxps(reg_out, yzero, reg_out);
-                    vmovups(make_safe_addr(reg_output, o_off, reg_long_offt),
-                        reg_out);
                 }
+                vmovups(make_safe_addr(reg_output, o_off, reg_long_offt),
+                    reg_out);
             }
         }
 
@@ -467,7 +455,7 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
         const memory_desc_wrapper &weights_d, const memory_desc_wrapper &dst_d,
         const primitive_attr_t &attr, bool with_relu, float relu_negative_slope)
 {
-    if (!mayiuse(avx2) && !mayiuse(avx)) return status::unimplemented;
+    if (!mayiuse(avx)) return status::unimplemented;
     if (!mayiuse(avx2) && relu_negative_slope != 0.0) return status::unimplemented;
 
     jcp.prop_kind = cd.prop_kind;

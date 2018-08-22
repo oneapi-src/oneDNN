@@ -1,7 +1,4 @@
 /*******************************************************************************
-* This modification is made by (c) YANDEX LLC 2018.
-* Copyright and license info of original source code is available below.
-*
 * Copyright 2017-2018 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -51,7 +48,7 @@ struct jit_uni_pooling_fwd_t: public cpu_primitive_t {
             using namespace utils;
             assert(engine()->kind() == engine_kind::cpu);
             bool ok = true
-                && (mayiuse(isa) || (isa == avx && mayiuse(avx2)))
+                && mayiuse(isa)
                 && set_default_params() == status::success
                 && one_of(desc()->prop_kind, forward_training,
                         forward_inference)
@@ -134,7 +131,7 @@ struct jit_uni_pooling_bwd_t: public cpu_primitive_t {
 
             assert(engine()->kind() == engine_kind::cpu);
             bool ok = true
-                && (mayiuse(isa) && (isa == avx && mayiuse(avx2)))
+                && mayiuse(isa)
                 && set_default_params() == status::success
                 && one_of(desc()->prop_kind, backward, backward_data)
                 && one_of(desc()->alg_kind, pooling_max,

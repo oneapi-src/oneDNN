@@ -1,8 +1,6 @@
 /*******************************************************************************
-* This modification is made by (c) YANDEX LLC 2018.
-* Copyright and license info of original source code is available below.
-*
 * Copyright 2017-2018 Intel Corporation
+* Copyright 2018 YANDEX LLC
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -276,10 +274,10 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_fwd(int ur_w, int pad_l,
                 }
             }
             if (jpp.is_training) {
-                if (mayiuse(avx2)) {
-                    uni_vpaddd(vmm_k_offset, vmm_k_offset, vmm_one);
-                } else {
+                if (isa == avx && !mayiuse(avx2)) {
                     avx_vpadd1(vmm_k_offset, vmm_one, xmm_tmp);
+                } else {
+                    uni_vpaddd(vmm_k_offset, vmm_k_offset, vmm_one);
                 }
             }
         }
@@ -296,11 +294,11 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_fwd(int ur_w, int pad_l,
             mov(tmp_gpr, ptr[this->param1 + GET_OFF(kd_padding_shift)]);
             movq(xmm_tmp, tmp_gpr);
             uni_vpbroadcastd(vmm_tmp, xmm_tmp);
-            if (mayiuse(avx2)) {
-                uni_vpaddd(vmm_k_offset, vmm_k_offset, vmm_tmp);
-            } else {
+            if (isa == avx && !mayiuse(avx2)) {
                 Xmm t(vmm_mask.getIdx());
                 avx_vpadd1(vmm_k_offset, xmm_tmp, t);
+            } else {
+                uni_vpaddd(vmm_k_offset, vmm_k_offset, vmm_tmp);
             }
         }
 
@@ -373,12 +371,16 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_bwd(int ur_w, int pad_l,
             if (isa == sse42) {
                 movd(xreg(ur_w+jj), ptr[reg_index + step_index]);
                 pmovzxbd(vreg(ur_w+jj), xreg(ur_w+jj));
+            } else if (isa == avx) {
+                movq(xreg(ur_w+jj), ptr[reg_index + step_index]);
+                if (!mayiuse(avx2)) {
+                    avx_pmovzxbd(vreg(ur_w+jj), xreg(ur_w+jj), xmm_tmp);
+                } else {
+                    vpmovzxbd(vreg(ur_w+jj), xreg(ur_w+jj));
+                }
             } else {
-                if (mayiuse(avx2))
-                    movq(xreg(ur_w+jj), ptr[reg_index + step_index]);
-                else
-                    vmovups(vreg(ur_w+jj) | k_index_mask,
-                            ptr[reg_index + step_index]);
+                vmovups(vreg(ur_w+jj) | k_index_mask,
+                        ptr[reg_index + step_index]);
                 vpmovzxbd(vreg(ur_w+jj), xreg(ur_w+jj));
             }
         } else {
@@ -421,10 +423,17 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_bwd(int ur_w, int pad_l,
                     addps(vreg(2*ur_w+jj), vreg(jj));
                     maskmovdqu(vreg(2*ur_w+jj), vreg(3*ur_w+jj));
                 } else if (isa == avx) {
-                    vpcmpeqd(vreg(3*ur_w+jj), vreg(ur_w+jj), vmm_k_offset);
-                    vaddps(vreg(2*ur_w+jj), vreg(2*ur_w+jj), vreg(jj));
-                    vmaskmovps(vmmword[aux_reg_input + input_offset],
-                            vreg(3*ur_w+jj), vreg(2*ur_w+jj));
+                    if (mayiuse(avx2)) {
+                        vpcmpeqd(vreg(3*ur_w+jj), vreg(ur_w+jj), vmm_k_offset);
+                        vaddps(vreg(2*ur_w+jj), vreg(2*ur_w+jj), vreg(jj));
+                        vmaskmovps(vmmword[aux_reg_input + input_offset],
+                                vreg(3*ur_w+jj), vreg(2*ur_w+jj));
+                    } else {
+                        avx_pcmpeqd(vreg(3*ur_w+jj), vreg(ur_w+jj), vmm_k_offset, xmm_tmp);
+                        vaddps(vreg(2*ur_w+jj), vreg(2*ur_w+jj), vreg(jj));
+                        vmaskmovps(vmmword[aux_reg_input + input_offset],
+                                vreg(3*ur_w+jj), vreg(2*ur_w+jj));
+                    }
                 } else {
                     vpcmpeqd(k_store_mask, vreg(ur_w+jj), vmm_k_offset);
                     vblendmps(vmm_tmp | k_store_mask | T_z, vreg(jj), vreg(jj));
@@ -433,7 +442,11 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_bwd(int ur_w, int pad_l,
                         sizeof(float)*aux_input_offset], vreg(2*ur_w+jj));
                 }
             }
-            uni_vpaddd(vmm_k_offset, vmm_k_offset, vmm_one);
+            if (isa == avx && !mayiuse(avx2)) {
+                avx_vpadd1(vmm_k_offset, vmm_one, xmm_tmp);
+            } else {
+                uni_vpaddd(vmm_k_offset, vmm_k_offset, vmm_one);
+            }
         }
         add(aux_reg_input,  sizeof(float) * iw * c_block);
         inc(kj);
@@ -447,7 +460,12 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_bwd(int ur_w, int pad_l,
         mov(tmp_gpr, ptr[this->param1 + GET_OFF(kd_padding_shift)]);
         movq(xmm_tmp, tmp_gpr);
         uni_vpbroadcastd(vmm_tmp, xmm_tmp);
-        uni_vpaddd(vmm_k_offset, vmm_k_offset, vmm_tmp);
+        if (isa == avx && !mayiuse(avx2)) {
+            Xmm t(vmm_mask.getIdx());
+            avx_vpadd1(vmm_k_offset, vmm_tmp, t);
+        } else {
+            uni_vpaddd(vmm_k_offset, vmm_k_offset, vmm_tmp);
+        }
 
         dec(ki);
         cmp(ki, 0);
