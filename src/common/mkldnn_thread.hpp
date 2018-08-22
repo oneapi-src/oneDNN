@@ -64,9 +64,9 @@ inline void balance211(T n, U team, U tid, T &n_start, T &n_end) {
 Threading based on nd_iterator.
 "Copy-paste" approach because of performance issues under Intel Compiler:
 More aggressive usage of templates/lambda usually causes performance degradation
-on Xeon Phi.
+on Intel(R) Xeon Phi(TM).
 In particular, #pagma opm parallel if(cond) may bring significant performance
-issue on KNL.
+issue on Intel Xeon Phi.
 */
 template <typename T0, typename T1, typename F>
 void parallel_nd(const T0 D0, const T1 D1, F f) {
