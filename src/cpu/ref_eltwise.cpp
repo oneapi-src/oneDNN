@@ -79,6 +79,9 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_generic() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto dst = reinterpret_cast<data_t*>(this->memory(0));
 
+    /* fast return */
+    if (conf_.has_zero_dim_memory()) return;
+
     const memory_desc_wrapper data_d(conf_.src_pd());
 
     const int MB = conf_.MB();
@@ -162,6 +165,9 @@ void ref_eltwise_bwd_t<data_type>::execute_backward_generic() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto diff_src = reinterpret_cast<data_t*>(this->memory(0));
+
+    /* fast return */
+    if (conf_.has_zero_dim_memory()) return;
 
     const memory_desc_wrapper data_d(conf_.src_pd());
     const memory_desc_wrapper diff_data_d(conf_.diff_src_pd());

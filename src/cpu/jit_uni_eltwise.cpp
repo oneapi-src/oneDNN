@@ -954,13 +954,14 @@ status_t jit_uni_eltwise_fwd_t<isa>::pd_t::init() {
     bool ok = true && mayiuse(isa)
         && utils::one_of(desc()->prop_kind, prop_kind::forward_training,
                 prop_kind::forward_inference)
+        && utils::everyone_is(data_type::f32, desc()->data_desc.data_type)
+        && !has_zero_dim_memory()
         && utils::implication(isa > avx2, utils::one_of(desc()->alg_kind,
                 eltwise_relu, eltwise_elu))
         && utils::implication(isa == sse42 || isa == avx2, utils::one_of(
                     desc()->alg_kind, eltwise_relu, eltwise_tanh, eltwise_elu,
                     eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
                     eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic))
-        && utils::everyone_is(data_type::f32, desc()->data_desc.data_type)
         && memory_desc_wrapper(src_pd()).is_dense()
         && attr()->has_default_values();
 
@@ -1025,10 +1026,11 @@ status_t jit_uni_eltwise_bwd_t<isa>::pd_t::init() {
     assert(engine()->kind() == engine_kind::cpu);
 
     bool ok = true
-        && mayiuse(isa)
         && desc()->prop_kind == prop_kind::backward_data
         && utils::one_of(desc()->alg_kind, alg_kind::eltwise_relu)
         && src_pd()->desc()->data_type == data_type::f32
+        && !has_zero_dim_memory()
+        && mayiuse(isa)
         && memory_desc_wrapper(src_pd()).is_dense()
         && memory_desc_wrapper(diff_dst_pd()) == memory_desc_wrapper(src_pd())
         && attr()->has_default_values();
