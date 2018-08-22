@@ -258,6 +258,7 @@ void jit_avx512_core_u8s8s32x_1x1_conv_kernel::reduce_loop(int load_loop_blk,
 
     auto fma_block = [=](bool last_block) {
         int reduce_step = 4;
+        int tail_size = jcp.ic_without_padding % reduce_step;
         int loop_unroll = last_block && jcp.ic != jcp.ic_without_padding
             ? rnd_up(jcp.ic_without_padding % jcp.ic_block, reduce_step)
             : jcp.reduce_loop_unroll;
@@ -266,7 +267,15 @@ void jit_avx512_core_u8s8s32x_1x1_conv_kernel::reduce_loop(int load_loop_blk,
             for (int i_load = 0; i_load < load_loop_blk; ++i_load)
                 vmovups(vreg_load(i_load), load_ptr(i_reduce, i_load));
             for (int i_ur = 0; i_ur < ur; ++i_ur) {
-                vpbroadcastd(zmm_bcast, bcast_ptr(i_reduce, i_ur, false));
+                if (last_block && tail_size != 0) {
+                    Xmm xmm_bcast = Xmm(zmm_bcast.getIdx());
+                    for (int r = 0; r < tail_size; ++r)
+                        vpinsrb(xmm_bcast, xmm_bcast, ptr[aux_reg_bcast_data
+                        + jcp.ic_without_padding * i_ur + i_reduce + r], r);
+                    vpbroadcastd(zmm_bcast, xmm_bcast);
+                } else {
+                    vpbroadcastd(zmm_bcast, bcast_ptr(i_reduce, i_ur, false));
+                }
                 for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
                     compute(vreg_accum(i_load, i_ur),
                                 vreg_load(i_load), zmm_bcast);

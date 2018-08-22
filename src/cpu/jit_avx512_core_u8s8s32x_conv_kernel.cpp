@@ -220,24 +220,35 @@ void jit_avx512_core_u8s8s32x_fwd_kernel::compute_ker(int ur_w,
         for (int ki = 0; ki < kw; ki++) {
             int jj_start = get_ow_start(ki, pad_l);
             int jj_end = get_ow_end(ur_w, ki, pad_r);
-
+            int tail_size = jcp.ic_without_padding % 4;
             /* Skip the last loads of input if (ic%16)/4 < ic_block/4 */
             int icb = jcp.is_depthwise
                 ? 1
                 : (last_ic_block_flag)
-                    ? (jcp.ic_without_padding % ic_block) / 4 + 1
+                    ? div_up((jcp.ic_without_padding % ic_block), 4)
                     : ic_block / 4;
             for (int ic = 0; ic < icb; ic++) {
                 for (int jj = jj_start; jj < jj_end; jj++) {
                     int aux_input_offset = input_offset(jj, ic, ki);
-                    if (jcp.is_depthwise)
+                    if (jcp.is_depthwise) {
                         vpmovzxbd(zmm_inp(jj, nb_oc_block),
                                 EVEX_compress_addr(
                                           aux_reg_inp, aux_input_offset));
-                    else
-                        vpbroadcastd(zmm_inp(jj, nb_oc_block),
+                    } else {
+                        if (last_ic_block_flag && tail_size != 0
+                            && ic == icb - 1) {
+                            Xmm xmm_tmp =
+                                Xmm(zmm_inp(jj, nb_oc_block).getIdx());
+                            for (int r = 0; r < tail_size; ++r)
+                                vpinsrb(xmm_tmp,xmm_tmp, ptr[aux_reg_inp
+                                    + aux_input_offset + r], r);
+                            vpbroadcastd(zmm_inp(jj, nb_oc_block), xmm_tmp);
+                        } else {
+                            vpbroadcastd(zmm_inp(jj, nb_oc_block),
                                 EVEX_compress_addr(aux_reg_inp,
                                              aux_input_offset));
+                        }
+                    }
                 }
 
                 for (int ii = 0; ii < nb_oc_block; ii++) {
