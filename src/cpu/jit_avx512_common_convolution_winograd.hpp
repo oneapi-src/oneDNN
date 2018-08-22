@@ -227,6 +227,7 @@ struct _jit_avx512_common_convolution_winograd_fwd_t
                     && utils::one_of(this->cdesc_().prop_kind, forward_training,
                                forward_inference)
                     && this->cdesc_().alg_kind == alg_kind::convolution_winograd
+                    && !this->has_zero_dim_memory()
                     && utils::everyone_is(data_type::f32,
                                this->cdesc_().src_desc.data_type,
                                this->cdesc_().weights_desc.data_type,
@@ -321,6 +322,7 @@ struct jit_avx512_common_convolution_winograd_bwd_data_t
             bool ok = true && this->set_default_params() == status::success
                     && utils::one_of(this->desc()->prop_kind, backward_data)
                     && this->desc()->alg_kind == alg_kind::convolution_winograd
+                    && !this->has_zero_dim_memory()
                     && utils::everyone_is(data_type::f32,
                                this->desc()->diff_src_desc.data_type,
                                this->desc()->weights_desc.data_type,
@@ -413,6 +415,7 @@ struct jit_avx512_common_convolution_winograd_bwd_weights_t
             bool ok = true && this->set_default_params() == status::success
                     && utils::one_of(this->desc()->prop_kind, backward_weights)
                     && this->desc()->alg_kind == alg_kind::convolution_winograd
+                    && !this->has_zero_dim_memory()
                     && utils::everyone_is(data_type::f32,
                                this->desc()->src_desc.data_type,
                                this->desc()->diff_dst_desc.data_type,

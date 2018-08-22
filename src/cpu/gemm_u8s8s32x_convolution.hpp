@@ -56,6 +56,7 @@ struct _gemm_u8s8s32x_convolution_fwd_t: public cpu_primitive_t {
                         prop_kind::forward_training,
                         prop_kind::forward_inference)
                 && this->cdesc_().alg_kind == alg_kind::convolution_direct
+                && !this->has_zero_dim_memory()
                 && this->cdesc_().src_desc.data_type == u8
                 && this->cdesc_().dst_desc.data_type == dst_type
                 && this->cdesc_().weights_desc.data_type == s8
@@ -173,6 +174,7 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t: public cpu_primitive_t {
                 && this->set_default_params() == status::success
                 && this->desc()->prop_kind == prop_kind::backward_data
                 && this->desc()->alg_kind == alg_kind::convolution_direct
+                && !this->has_zero_dim_memory()
                 && this->desc()->diff_src_desc.data_type == dst_type
                 && this->desc()->diff_dst_desc.data_type == u8
                 && this->desc()->weights_desc.data_type == s8

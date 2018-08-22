@@ -54,6 +54,7 @@ struct _jit_avx512_core_u8s8s32x_convolution_fwd_t : public cpu_primitive_t {
                     && utils::one_of(this->cdesc_().prop_kind, forward_training,
                                forward_inference)
                     && this->cdesc_().alg_kind == alg_kind::convolution_direct
+                    && !this->has_zero_dim_memory()
                     && this->cdesc_().dst_desc.data_type == dst_type
                     && utils::implication(this->with_bias(), utils::one_of(
                             this->cdesc_().bias_desc.data_type, data_type::f32,

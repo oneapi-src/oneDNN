@@ -83,9 +83,7 @@ status_t deconv_desc_init(deconvolution_desc_t *deconv_desc,
             weights_desc->data_type, dst_desc->data_type, prop_kind);
 
     const int g = with_groups ? weights_desc->dims[0] : 1;
-    bool consistency = true && memory_desc_wrapper(src_desc).nelems()
-            && memory_desc_wrapper(dst_desc).nelems()
-            && memory_desc_wrapper(weights_desc).nelems()
+    bool consistency = true
             && src_desc->ndims == dst_desc->ndims
             && utils::one_of(src_desc->ndims, 4, 5)
             && utils::one_of(weights_desc->ndims, src_desc->ndims,

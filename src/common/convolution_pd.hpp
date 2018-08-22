@@ -131,6 +131,12 @@ struct _convolution_fwd_pd_t: public primitive_desc_t {
 
     inline int ndims() const { return cdesc_().src_desc.ndims; }
 
+    bool has_zero_dim_memory() const {
+        return false
+            || memory_desc_wrapper(cdesc_().src_desc).has_zero_dim()
+            || memory_desc_wrapper(cdesc_().dst_desc).has_zero_dim();
+    }
+
 protected:
     base_desc_t desc_;
     const _convolution_fwd_pd_t *hint_fwd_pd_;
@@ -246,6 +252,12 @@ struct convolution_bwd_data_pd_t: public primitive_desc_t {
     inline int ndims() const { return desc_.diff_src_desc.ndims; }
     virtual bool support_bias() const { return false; }
 
+    bool has_zero_dim_memory() const {
+        return false
+            || memory_desc_wrapper(desc_.diff_src_desc).has_zero_dim()
+            || memory_desc_wrapper(desc_.diff_dst_desc).has_zero_dim();
+    }
+
 protected:
     convolution_desc_t desc_;
     const convolution_fwd_pd_t *hint_fwd_pd_;
@@ -347,6 +359,12 @@ struct convolution_bwd_weights_pd_t: public primitive_desc_t {
     { return desc_.diff_weights_desc.ndims == desc_.diff_dst_desc.ndims + 1; }
 
     inline int ndims() const { return desc_.src_desc.ndims; }
+
+    bool has_zero_dim_memory() const {
+        return false
+            || memory_desc_wrapper(desc_.src_desc).has_zero_dim()
+            || memory_desc_wrapper(desc_.diff_dst_desc).has_zero_dim();
+    }
 
 protected:
     convolution_desc_t desc_;

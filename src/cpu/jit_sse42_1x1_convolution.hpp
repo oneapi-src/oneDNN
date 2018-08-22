@@ -54,6 +54,7 @@ struct _jit_sse42_1x1_convolution_fwd_t: public cpu_primitive_t {
                 && utils::one_of(this->cdesc_().prop_kind, forward_training,
                         forward_inference)
                 && this->cdesc_().alg_kind == alg_kind::convolution_direct
+                && !this->has_zero_dim_memory()
                 && utils::everyone_is(data_type::f32,
                         this->cdesc_().src_desc.data_type,
                         this->cdesc_().weights_desc.data_type,

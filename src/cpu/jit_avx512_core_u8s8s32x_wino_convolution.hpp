@@ -62,6 +62,7 @@ struct _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t : public cpu_primitive_t
                 && utils::one_of(this->cdesc_().prop_kind,
                                     forward_training, forward_inference)
                 && this->cdesc_().alg_kind == alg_kind::convolution_winograd
+                && !this->has_zero_dim_memory()
                 && this->cdesc_().src_desc.data_type == data_type::u8
                 && this->cdesc_().dst_desc.data_type == dst_data_type
                 && this->cdesc_().weights_desc.data_type == data_type::s8
