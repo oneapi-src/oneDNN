@@ -44,7 +44,7 @@ bool memory_desc_sanity_check(int ndims,const dims_t dims,
         && format != memory_format::undef;
     if (!ok) return false;
     for (int d = 0; d < ndims; ++d)
-        if (dims[d] <= 0) return false;
+        if (dims[d] < 0) return false;
 
     return true;
 }
@@ -118,7 +118,7 @@ status_t mkldnn_view_primitive_desc_create(primitive_desc_t **view_pd,
 
     memory_desc_wrapper md(*mpd->desc());
     for (int d = 0; d < md.ndims(); ++d) {
-        if (dims[d] <= 0 || offsets[d] < 0
+        if (dims[d] < 0 || offsets[d] < 0
                 || (offsets[d] + dims[d] > md.dims()[d]))
             return invalid_arguments;
     }

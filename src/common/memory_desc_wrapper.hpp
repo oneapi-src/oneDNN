@@ -74,6 +74,9 @@ struct memory_desc_wrapper: public c_compatible {
     /** returns true if memory descriptor is zero */
     bool is_zero() const { return ndims() == 0; }
 
+    /** returns true if memory descriptor contains zero as one of its dim */
+    bool has_zero_dim() const { return nelems() == 0; }
+
     /** return the size of data type (a shortcut) */
     size_t data_type_size() const
     { return types::data_type_size(data_type()); }
@@ -82,7 +85,8 @@ struct memory_desc_wrapper: public c_compatible {
      * note: if offset_padding != 0 returns 0 (need to specify the behavior) */
     size_t size() const {
         using namespace mkldnn::impl::memory_format;
-        if (is_zero() || format() == memory_format::any) return 0;
+        if (is_zero() || has_zero_dim() || format() == memory_format::any)
+            return 0;
 
         assert((false
                     || types::format_normalize(format()) == blocked
