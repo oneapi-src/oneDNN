@@ -58,48 +58,28 @@ struct rnn_pd_t : public primitive_desc_t {
     }
 
     inline size_t ws_states_size() {
-        int wic = nstl::max(SLC(), nstl::max(SIC(), DIC()));
-        return (size_t)(L() + 1) * D() * (T() + 1) * S() * MB() * wic;
+        return (size_t)(L() + 1) * D() * (T() + 1) * S() * MB() * WIC();
     }
 
     inline size_t ws_diff_states_size() {
-        int wic = nstl::max(SLC(), nstl::max(SIC(), DIC()));
-        return (size_t)(L() + 1) * D() * (T() + 1) * (S() + 1) * MB() * wic;
+        return (size_t)(L() + 1) * D() * (T() + 1) * (S() + 1) * MB() * WIC();
     }
 
     inline size_t ws_gates_size() {
-        int n_layer = L();
-        int n_direction = D();
-        int n_iter = T();
-        int n_gates = G();
-        int batch = MB();
-        int s_size = DIC();
-
-        return (size_t)n_layer * n_direction * n_iter * batch * n_gates
-                * s_size;
+        return (size_t) L() * D() * T() * MB() * G() * WIC();
     }
 
     inline size_t ws_cell_comp_size() {
-        int n_gates = G();
-        int batch = MB();
-        int s_size = DIC();
-        return (size_t)is_lbr() * n_gates * batch * s_size;
+        return (size_t)is_lbr() * G() * MB() * WIC();
     }
 
     inline size_t ws_grid_comp_size() {
-        int n_layer = L();
-        int n_direction = D();
-        int n_iter = T();
-        int batch = MB();
-        int s_size = DIC();
-        return (size_t)is_lbr() * is_training() * n_layer * n_direction * n_iter
-                * batch * s_size;
+        return (size_t)is_lbr() * is_training() * L() * D() * T()
+	    * MB() * WIC();
     }
 
     inline int ws_per_cell() {
-        int batch = MB();
-        int s_size = DIC();
-        return is_lbr() * is_training() * batch * s_size;
+        return is_lbr() * is_training() * MB() * WIC();
     }
 
     inline void set_offsets(size_t &ws_gates_offset, size_t &ws_states_offset,
@@ -152,6 +132,15 @@ struct rnn_pd_t : public primitive_desc_t {
     int DIC() const { return desc_.weights_layer_desc.dims[4]; }
 
     int DLC() const { return desc_.dst_layer_desc.dims[2]; }
+
+    int WIC() {
+        // wic will be the leading dimension of our B matrices, so we want them
+        // to be 64-byte aligned, and not divisible by 256 to avoid 4K aliasing
+        // effects
+        size_t wic = utils::rnd_up(nstl::max(SLC(), nstl::max(SIC(), DIC())), 64/sizeof(float));
+	wic = (wic % 256 == 0) ? wic + 64/sizeof(float) : wic;
+	return wic;
+    }
 
     int S() const { return mkldnn_rnn_cell_get_states_count(&desc_.cell_desc); }
 

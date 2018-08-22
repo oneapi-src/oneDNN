@@ -1077,7 +1077,8 @@ void _ref_rnn_common_t<aprop>::execute_() {
     int sic = conf_.SIC();
     int dic = conf_.DIC();
     int dlc = conf_.DLC();
-    int wic = nstl::max(slc, nstl::max(sic, dic));
+    int wic = conf_.WIC();
+
     bool is_orig_gru = conf_.cell_kind()
         == alg_kind::vanilla_gru;
     int n_parts_wei_st = is_orig_gru ? 2 : 1, n_parts_wei_i = 1;
@@ -1200,6 +1201,8 @@ void _ref_rnn_common_t<aprop>::execute_() {
 
 template struct _ref_rnn_common_t<prop_kind::forward>;
 template struct _ref_rnn_common_t<prop_kind::backward>;
+
+#undef AOC
 }
 }
 }

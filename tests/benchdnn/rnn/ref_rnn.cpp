@@ -473,7 +473,6 @@ void rnn_bwd(alg_t alg, activation_t f, int sic, int slc, int dic, int wc,
         const float *weights_iter_h_, const float *bias_,
         const float *dst_iter_h_, const float *gates_,
         const float *diff_dst_layer_, const float *diff_dst_iter_h_) {
-
     AOC<const float> diff_dst_layer(diff_dst_layer_, batch, wc);
     AOC<const float> diff_dst_iter_h(diff_dst_iter_h_, batch, wc);
     AOC<const float> gates(gates_, batch, n_gates, dic);
@@ -510,7 +509,6 @@ void lstm_bwd(alg_t alg, int sic, int slc, int dic, int wc, int batch,
         const float *diff_dst_layer_, const float *diff_dst_iter_h_,
         const float *diff_dst_iter_c_) {
     // TODO: check sic and slc as last dimension in arrays and cycles
-
     // input
     AOC<const float> diff_dst_layer(diff_dst_layer_, batch, wc);
     AOC<const float> diff_dst_iter_c(diff_dst_iter_c_, batch, wc);
