@@ -47,6 +47,9 @@ void ref_batch_normalization_fwd_t<data_type>::execute_forward() {
     auto dst = reinterpret_cast<data_t*>(this->memory(0));
     auto ws = reinterpret_cast<uint8_t *>(this->memory(conf_.ws_idx()));
 
+    /* fast return */
+    if (this->conf_.has_zero_dim_memory()) return;
+
     const memory_desc_wrapper data_d(conf_.src_pd());
     const memory_desc_wrapper scaleshift_d(conf_.weights_pd());
 
@@ -162,8 +165,20 @@ void ref_batch_normalization_bwd_t<data_type>::execute_backward() {
     const memory_desc_wrapper mean_d(conf_.mean_pd());
     const memory_desc_wrapper variance_d(conf_.variance_pd());
 
-    const int N = conf_.MB();
     const int C = conf_.C();
+
+    /* fast return */
+    if (this->conf_.has_zero_dim_memory()) {
+        if (diff_scaleshift) {
+            for (int c = 0; c < C; ++c) {
+                diff_scaleshift[diff_scaleshift_d.off(0, c)] = 0;
+                diff_scaleshift[diff_scaleshift_d.off(1, c)] = 0;
+            }
+        }
+        return;
+    }
+
+    const int N = conf_.MB();
     int H = 1, W = 1, D = 1;
     const bool has_spatial = utils::one_of(data_d.ndims(), 4 ,5);
     if (has_spatial)
