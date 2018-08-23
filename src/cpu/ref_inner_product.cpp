@@ -187,8 +187,6 @@ void ref_inner_product_bwd_weights_t<data_type>::execute_backward_weights() {
     const memory_desc_wrapper diff_weights_d(conf_.diff_weights_pd(0));
     const memory_desc_wrapper diff_bias_d(conf_.diff_weights_pd(1));
 
-    diff_dst += diff_dst_d.blocking_desc().offset_padding;
-
     const int MB = conf_.MB();
     const int OC = conf_.OC();
     const int IC = conf_.IC();
@@ -234,39 +232,13 @@ void ref_inner_product_bwd_weights_t<data_type>::execute_backward_weights() {
 
     if (diff_bias) {
         diff_bias += diff_bias_d.blocking_desc().offset_padding;
-        constexpr int blksize = 8;
-        int OC_blocks = OC / blksize;
-        int rem_OC = OC % blksize;
-#       pragma omp parallel
-        {
-            const int ithr = omp_get_thread_num();
-            const int nthr = omp_get_num_threads();
-            int oc_st{0}, oc_e{0};
-            balance211(OC_blocks, nthr, ithr, oc_st, oc_e);
-            oc_st = oc_st * blksize;
-            oc_e = oc_e * blksize;
 
-            PRAGMA_OMP_SIMD()
-            for (int oc = oc_st; oc < oc_e; ++oc) {
-                diff_bias[oc] = diff_dst[oc];
-            }
-
-            for (int mb = 1; mb < MB; ++mb) {
-                PRAGMA_OMP_SIMD()
-                for (int oc = oc_st; oc < oc_e; ++oc) {
-                    diff_bias[oc] += diff_dst[mb * OC + oc];
-                }
-            }
-
-            if (rem_OC != 0 && ithr == nthr-1) {
-                for (int oc = OC_blocks * blksize; oc < OC; oc++)
-                    diff_bias[oc] = diff_dst[oc];
-                for (int mb = 1; mb < MB; ++mb) {
-                    for (int oc = OC_blocks * blksize; oc < OC; oc++) {
-                        diff_bias[oc] += diff_dst[mb * OC + oc];
-                    }
-                }
-            }
+#       pragma omp parallel for
+        for (int oc = 0; oc < OC; ++oc) {
+            data_t *db = &diff_bias[oc];
+            *db = data_t(0);
+            for (int mb = 0; mb < MB; ++mb)
+                *db += diff_dst[diff_dst_d.off(mb, oc)];
         }
     }
 }
