@@ -77,7 +77,7 @@ void compute_ref_inner_product_bwd_weights(int ndims,
                         + kd * ipd.kh * ipd.kw + kh * ipd.kw + kw;
                     data_t *dw = &diff_weights_data[map_index(diff_weights_d,
                         dwidx)];
-                        *dw = data_t(0);
+                    *dw = data_t(0);
                     for (int n = 0; n < ipd.mb; ++n) {
                         int ddidx = n * ipd.oc + oc;
                         int sidx = n * padded_ic * ipd.kd * ipd.kh * ipd.kw
@@ -237,6 +237,33 @@ TEST_P(inner_product_test_float, TestsInnerProduct)
 }
 
 INSTANTIATE_TEST_CASE_P(
+        TestInnerProductBackwardWeightsZeroDim, inner_product_test_float,
+        ::testing::Values(
+                inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::any, memory::format::any,
+                        memory::format::any, memory::format::any,
+                        EXPAND_SIZES_2D( 0, 32, 48, 6, 6 )}));
+
+INSTANTIATE_TEST_CASE_P(
+        TestInnerProductBackwardWeightsEF, inner_product_test_float,
+        ::testing::Values(
+                inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::any, memory::format::any,
+                        memory::format::any, memory::format::any,
+                        EXPAND_SIZES_2D( 2, 0, 48, 6, 6 ),
+                        true, mkldnn_invalid_arguments},
+                inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::any, memory::format::any,
+                        memory::format::any, memory::format::any,
+                        EXPAND_SIZES_2D( -1, 32, 48, 6, 6 ),
+                        true, mkldnn_invalid_arguments},
+                inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::any, memory::format::any,
+                        memory::format::any, memory::format::any,
+                        EXPAND_SIZES_2D( 2, -1, 48, 6, 6 ),
+                        true, mkldnn_invalid_arguments}));
+
+INSTANTIATE_TEST_CASE_P(
         TestInnerProductBackwardWeightsNoBias_padded, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{ engine::kind::cpu,
@@ -299,20 +326,6 @@ INSTANTIATE_TEST_CASE_P(
                         memory::format::nc, memory::format::io,
                         memory::format::format_undef, memory::format::nc,
                         EXPAND_SIZES_2D( 2, 8, 16, 1, 1 ) }));
-
-INSTANTIATE_TEST_CASE_P(
-        TestInnerProductBackwardWeightsEF, inner_product_test_float,
-        ::testing::Values(
-                inprod_test_params_float{ engine::kind::cpu,
-                        memory::format::any, memory::format::any,
-                        memory::format::any, memory::format::any,
-                        EXPAND_SIZES_2D( 0, 32, 48, 6, 6 ),
-                        true, mkldnn_invalid_arguments},
-                inprod_test_params_float{ engine::kind::cpu,
-                        memory::format::any, memory::format::any,
-                        memory::format::any, memory::format::any,
-                        EXPAND_SIZES_2D( 2, 0, 48, 6, 6 ),
-                        true, mkldnn_invalid_arguments}));
 
 INSTANTIATE_TEST_CASE_P(
         TestInnerProductBackwardWeights, inner_product_test_float,

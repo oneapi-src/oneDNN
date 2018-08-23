@@ -55,6 +55,7 @@ struct gemm_u8s8s32x_inner_product_fwd_t: public cpu_primitive_t {
                 && this->set_default_params() == status::success
                 && one_of(desc()->prop_kind, prop_kind::forward_training,
                         prop_kind::forward_inference)
+                && !has_zero_dim_memory()
                 && this->desc()->src_desc.data_type == u8
                 && this->desc()->dst_desc.data_type == dst_type
                 && this->desc()->weights_desc.data_type == s8

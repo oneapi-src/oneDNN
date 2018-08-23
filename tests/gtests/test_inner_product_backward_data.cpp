@@ -189,6 +189,33 @@ TEST_P(inner_product_test_float, TestsInnerProduct)
 }
 
 INSTANTIATE_TEST_CASE_P(
+        TestInnerProductBackwardZeroDim, inner_product_test_float,
+        ::testing::Values(
+                inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::any, memory::format::any,
+                        memory::format::any,
+                        EXPAND_SIZES_2D( 0, 32, 48, 6, 6 )}));
+
+INSTANTIATE_TEST_CASE_P(
+        TestInnerProductBackwardDataEF, inner_product_test_float,
+        ::testing::Values(
+                inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::any, memory::format::any,
+                        memory::format::any,
+                        EXPAND_SIZES_2D( 2, 0, 48, 6, 6 ),
+                        true, mkldnn_invalid_arguments},
+                inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::any, memory::format::any,
+                        memory::format::any,
+                        EXPAND_SIZES_2D( -1, 32, 48, 6, 6 ),
+                        true, mkldnn_invalid_arguments},
+                inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::any, memory::format::any,
+                        memory::format::any,
+                        EXPAND_SIZES_2D( 2, -1, 48, 6, 6 ),
+                        true, mkldnn_invalid_arguments}));
+
+INSTANTIATE_TEST_CASE_P(
         TestInnerProductBackwardData_nCdhw8c, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{ engine::kind::cpu,
@@ -247,20 +274,6 @@ INSTANTIATE_TEST_CASE_P(
                         memory::format::nChw8c, memory::format::oIhw8i,
                         memory::format::nc,
                         EXPAND_SIZES_2D( 2, 33, 7, 2, 2 ) }));
-
-INSTANTIATE_TEST_CASE_P(
-        TestInnerProductBackwardDataEF, inner_product_test_float,
-        ::testing::Values(
-                inprod_test_params_float{ engine::kind::cpu,
-                        memory::format::any, memory::format::any,
-                        memory::format::any,
-                        EXPAND_SIZES_2D( 0, 32, 48, 6, 6 ),
-                        true, mkldnn_invalid_arguments},
-                inprod_test_params_float{ engine::kind::cpu,
-                        memory::format::any, memory::format::any,
-                        memory::format::any,
-                        EXPAND_SIZES_2D( 2, 0, 48, 6, 6 ),
-                        true, mkldnn_invalid_arguments}));
 
 INSTANTIATE_TEST_CASE_P(
         TestInnerProductBackwardData, inner_product_test_float,

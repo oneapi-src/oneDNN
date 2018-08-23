@@ -25,6 +25,7 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 #include "gemm/gemm.hpp"
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {
@@ -47,6 +48,7 @@ struct gemm_inner_product_fwd_t: public cpu_primitive_t {
                 && this->set_default_params() == status::success
                 && one_of(desc()->prop_kind, prop_kind::forward_training,
                         prop_kind::forward_inference)
+                && !has_zero_dim_memory()
                 && everyone_is(data_type, desc()->src_desc.data_type,
                         desc()->weights_desc.data_type,
                         desc()->dst_desc.data_type)
@@ -95,6 +97,7 @@ struct gemm_inner_product_bwd_data_t: public cpu_primitive_t {
             bool ok = true
                 && this->set_default_params() == status::success
                 && desc()->prop_kind == prop_kind::backward_data
+                && !has_zero_dim_memory()
                 && everyone_is(data_type, desc()->diff_src_desc.data_type,
                         desc()->weights_desc.data_type,
                         desc()->diff_dst_desc.data_type)
@@ -137,6 +140,7 @@ struct gemm_inner_product_bwd_weights_t: public cpu_primitive_t {
             bool ok = true
                 && this->set_default_params() == status::success
                 && desc()->prop_kind == prop_kind::backward_weights
+                && !has_zero_dim_memory()
                 && everyone_is(data_type, desc()->src_desc.data_type,
                         desc()->diff_weights_desc.data_type,
                         desc()->diff_dst_desc.data_type)
