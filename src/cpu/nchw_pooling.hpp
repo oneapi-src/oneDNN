@@ -53,6 +53,7 @@ struct nchw_pooling_fwd_t: public cpu_primitive_t {
                 && utils::one_of(desc()->alg_kind, pooling_max,
                         pooling_avg_include_padding,
                         pooling_avg_exclude_padding)
+                && !has_zero_dim_memory()
                 && utils::everyone_is(data_type, src_pd()->desc()->data_type,
                         dst_pd()->desc()->data_type)
                 && utils::one_of(src_format, nchw, ncdhw)
@@ -107,6 +108,7 @@ struct nchw_pooling_bwd_t: public cpu_primitive_t {
                 && utils::one_of(desc()->alg_kind, pooling_max,
                         pooling_avg_include_padding,
                         pooling_avg_exclude_padding)
+                && !has_zero_dim_memory()
                 && utils::everyone_is(data_type,
                         diff_dst_pd()->desc()->data_type,
                         diff_src_pd()->desc()->data_type)

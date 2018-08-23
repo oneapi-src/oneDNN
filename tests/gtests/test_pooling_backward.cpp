@@ -412,6 +412,35 @@ TEST_P(pooling_bwd_test_float, TestsPoolingBackward)
 }
 
 INSTANTIATE_TEST_CASE_P(
+        TestPoolingBackwardZeroDim, pooling_bwd_test_float, ::testing::Values(
+            pool_bwd_test_params_float{ engine::kind::cpu,
+            pooling_max, memory::format::nchw,
+            memory::format::nchw, EXPAND_SIZES_2D( 2, 0, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1 )},
+            pool_bwd_test_params_float{ engine::kind::cpu,
+            pooling_max, memory::format::nchw,
+            memory::format::nchw, EXPAND_SIZES_2D( 0, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1 )},
+            pool_bwd_test_params_float{ engine::kind::cpu,
+            pooling_max, memory::format::nchw,
+            memory::format::nchw, EXPAND_SIZES_2D( 2, 4, 0, 4, 4, 4, 3, 3, 1, 1, 1, 1 )}
+            ));
+
+INSTANTIATE_TEST_CASE_P(
+        TestPoolingBackwardEF, pooling_bwd_test_float, ::testing::Values(
+            pool_bwd_test_params_float{ engine::kind::cpu,
+            pooling_max, memory::format::nchw,
+            memory::format::nchw, EXPAND_SIZES_2D( 2, -4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1 ),
+            true, mkldnn_invalid_arguments},
+            pool_bwd_test_params_float{ engine::kind::cpu,
+            pooling_max, memory::format::nchw,
+            memory::format::nchw, EXPAND_SIZES_2D( -2, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1 ),
+            true, mkldnn_invalid_arguments},
+            pool_bwd_test_params_float{ engine::kind::cpu,
+            eltwise_square, memory::format::nchw,
+            memory::format::nchw, EXPAND_SIZES_2D( 2, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1 ),
+            true, mkldnn_invalid_arguments}
+            ));
+
+INSTANTIATE_TEST_CASE_P(
         TestPooling_nChw16c_padded, pooling_bwd_test_float, ::testing::Values(
             pool_bwd_test_params_float{
             engine::kind::cpu, pooling_max, memory::format::nChw16c,
@@ -583,22 +612,6 @@ INSTANTIATE_TEST_CASE_P(
             pool_bwd_test_params_float{ engine::kind::cpu,
             pooling_max, memory::format::ndhwc,
             memory::format::ndhwc, EXPAND_SIZES_3D(1, 256, 12, 12, 12, 12, 12, 12, 2, 2, 2, 0, 0, 0, 1, 1, 1) }
-            ));
-
-INSTANTIATE_TEST_CASE_P(
-        TestPoolingBackwardEF, pooling_bwd_test_float, ::testing::Values(
-            pool_bwd_test_params_float{ engine::kind::cpu,
-            pooling_max, memory::format::nchw,
-            memory::format::nchw, EXPAND_SIZES_2D( 2, 0, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1 ),
-            true, mkldnn_invalid_arguments},
-            pool_bwd_test_params_float{ engine::kind::cpu,
-            pooling_max, memory::format::nchw,
-            memory::format::nchw, EXPAND_SIZES_2D( 0, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1 ),
-            true, mkldnn_invalid_arguments},
-            pool_bwd_test_params_float{ engine::kind::cpu,
-            pooling_max, memory::format::nchw,
-            memory::format::nchw, EXPAND_SIZES_2D( 2, 4, 0, 4, 4, 4, 3, 3, 1, 1, 1, 1 ),
-            true, mkldnn_invalid_arguments}
             ));
 
 INSTANTIATE_TEST_CASE_P(

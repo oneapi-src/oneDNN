@@ -55,6 +55,7 @@ struct jit_uni_pooling_fwd_t: public cpu_primitive_t {
                 && one_of(desc()->alg_kind, pooling_max,
                         pooling_avg_include_padding,
                         pooling_avg_exclude_padding)
+                && !has_zero_dim_memory()
                 && everyone_is(data_type::f32, src_pd()->desc()->data_type,
                         dst_pd()->desc()->data_type)
                 && everyone_is(desired_fmt(), src_pd()->desc()->format,
@@ -137,6 +138,7 @@ struct jit_uni_pooling_bwd_t: public cpu_primitive_t {
                 && one_of(desc()->alg_kind, pooling_max,
                         pooling_avg_include_padding,
                         pooling_avg_exclude_padding)
+                && !has_zero_dim_memory()
                 && everyone_is(desired_fmt(), diff_src_pd()->desc()->format,
                         diff_dst_pd()->desc()->format)
                 && everyone_is(data_type::f32, diff_src_pd()->desc()->data_type,

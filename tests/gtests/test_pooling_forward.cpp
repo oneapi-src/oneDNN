@@ -486,6 +486,35 @@ TEST_P(pooling_test_float, TestsPooling)
 }
 
 INSTANTIATE_TEST_CASE_P(
+        TestPoolingForwardZeroDim, pooling_test_float, ::testing::Values(
+            pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::pooling_max, memory::format::nchw,
+            memory::format::nchw,  EXPAND_SIZES_2D( 2, 0, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1 )},
+            pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::pooling_max, memory::format::nhwc,
+            memory::format::nhwc,  EXPAND_SIZES_2D( 0, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1 )},
+            pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::pooling_max, memory::format::nchw,
+            memory::format::nchw,  EXPAND_SIZES_2D( 2, 4, 0, 4, 4, 4, 3, 3, 1, 1, 1, 1 )}
+            ));
+
+INSTANTIATE_TEST_CASE_P(
+        TestPoolingForwardEF, pooling_test_float, ::testing::Values(
+            pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::pooling_max, memory::format::nchw,
+            memory::format::nchw,  EXPAND_SIZES_2D( 2, -4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1 ),
+            true, mkldnn_invalid_arguments},
+            pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::pooling_max, memory::format::nchw,
+            memory::format::nchw,  EXPAND_SIZES_2D( -1, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1 ),
+            true, mkldnn_invalid_arguments},
+            pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::eltwise_square, memory::format::nchw,
+            memory::format::nchw,  EXPAND_SIZES_2D( 2, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1 ),
+            true, mkldnn_invalid_arguments}
+            ));
+
+INSTANTIATE_TEST_CASE_P(
         TestPooling_nChw16c_with_padded, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw16c,
@@ -676,22 +705,6 @@ INSTANTIATE_TEST_CASE_P(
             pool_test_params{ prop_kind::forward_inference,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nCdhw16c,
             memory::format::nCdhw16c, EXPAND_SIZES_3D(1, 256, 12, 12, 12, 12, 12, 12, 2, 2, 2, 0, 0, 0, 1, 1, 1) }
-            ));
-
-INSTANTIATE_TEST_CASE_P(
-        TestPoolingForwardEF, pooling_test_float, ::testing::Values(
-            pool_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, algorithm::pooling_max, memory::format::nchw,
-            memory::format::nchw,  EXPAND_SIZES_2D( 2, 0, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1 ),
-            true, mkldnn_invalid_arguments},
-            pool_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, algorithm::pooling_max, memory::format::nchw,
-            memory::format::nchw,  EXPAND_SIZES_2D( 0, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1 ),
-            true, mkldnn_invalid_arguments},
-            pool_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, algorithm::pooling_max, memory::format::nchw,
-            memory::format::nchw,  EXPAND_SIZES_2D( 2, 4, 0, 4, 4, 4, 3, 3, 1, 1, 1, 1 ),
-            true, mkldnn_invalid_arguments}
             ));
 
 INSTANTIATE_TEST_CASE_P(
