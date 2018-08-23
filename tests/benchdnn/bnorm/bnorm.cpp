@@ -375,11 +375,15 @@ int check_fwd_ws(const dnn_mem_t &data_dt, const dnn_mem_t &ws_dt, res_t *r) {
     const float *d = (const float *)data_dt;
     const uint8_t *ws = (const uint8_t *)ws_dt;
 
-    /* some internal knowledge: either ws element is byte-width (e.g. for ref
-     * implementation) or bit-width (for jitted one) */
+    /* some internal knowledge: flags in ws are either stored as bytes (e.g.
+     * for the ref implementation) or as bits (e.g. for the jitted one); in
+     * the first case the ws memory has fewer elements than the data memory */
     enum { ws_byte, ws_bit } ws_type;
-    ws_type = ws_dt.size() <= nelems ? ws_bit : ws_byte;
+    ws_type = ws_dt.nelems() < nelems ? ws_bit : ws_byte;
 
+    /* more internal knowledge: data_dt and ws_dt are expected to have exactly
+     * the same data layout, and data_dt padded regions are expected to be
+     * zero, and the respective ws_dt elements should be set accordingly */
     for (size_t i = 0; i < nelems; i += 8) {
         for (size_t j = 0; j < MIN2(8, nelems - i); ++j) {
             const bool want = *d > 0;
