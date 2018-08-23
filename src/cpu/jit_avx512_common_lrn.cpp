@@ -328,6 +328,7 @@ status_t jit_avx512_common_lrn_fwd_t::pd_t::init() {
     const memory_desc_wrapper data_d(data_pd_.desc());
     bool ok = true
         && one_of(desc()->prop_kind, forward_training, forward_inference)
+        && !has_zero_dim_memory()
         && everyone_is(data_type::f32, desc()->data_desc.data_type)
         && data_d.ndims() == 4
         && data_d.dims()[1] % vsize == 0
@@ -743,6 +744,7 @@ status_t jit_avx512_common_lrn_bwd_t::pd_t::init() {
     bool ok = true
         && utils::one_of(desc()->prop_kind, backward, backward_data)
         && utils::everyone_is(data_type::f32, desc()->data_desc.data_type)
+        && !has_zero_dim_memory()
         && data_d.ndims() == 4
         && data_d.dims()[1] % vsize == 0
         && attr()->has_default_values();

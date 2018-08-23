@@ -149,6 +149,7 @@ status_t jit_uni_lrn_fwd_t<isa>::pd_t::init() {
     bool ok = true
         && one_of(desc()->prop_kind, forward_training, forward_inference)
         && everyone_is(data_type::f32, desc()->data_desc.data_type)
+        && !has_zero_dim_memory()
         && data_d.ndims() == 4
         && data_d.dims()[1] % VECTOR_LENGTH == 0
         && data_d.dims()[1] >= 2 * VECTOR_LENGTH
@@ -275,6 +276,7 @@ status_t jit_uni_lrn_bwd_t<isa>::pd_t::init() {
     bool ok = true
         && utils::one_of(desc()->prop_kind, backward, backward_data)
         && utils::everyone_is(data_type::f32, desc()->data_desc.data_type)
+        && !has_zero_dim_memory()
         && data_d.ndims() == 4
         && data_d.dims()[1] % VECTOR_LENGTH == 0
         && desc()->lrn_beta == 0.75
