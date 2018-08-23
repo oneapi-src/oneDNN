@@ -70,9 +70,11 @@ issue on Intel Xeon Phi.
 */
 template <typename T0, typename T1, typename F>
 void parallel_nd(const T0 D0, const T1 D1, F f) {
-#pragma omp parallel
+    const size_t work_amount = (size_t)D0 * D1;
+    if (work_amount == 0) return;
+
+#   pragma omp parallel
     {
-        size_t work_amount = (size_t)D0 * D1;
         const int ithr = omp_get_thread_num();
         const int nthr = omp_get_num_threads();
         size_t start{0}, end{0};
@@ -85,11 +87,14 @@ void parallel_nd(const T0 D0, const T1 D1, F f) {
         }
     }
 }
+
 template <typename T0, typename T1, typename T2, typename F>
 void parallel_nd(const T0 D0, const T1 D1, const T2 D2, F f) {
-#pragma omp parallel
+    const size_t work_amount = (size_t)D0 * D1 * D2;
+    if (work_amount == 0) return;
+
+#   pragma omp parallel
     {
-        size_t work_amount = (size_t)D0 * D1 * D2;
         const int ithr = omp_get_thread_num();
         const int nthr = omp_get_num_threads();
         size_t start{0}, end{0};
@@ -102,11 +107,14 @@ void parallel_nd(const T0 D0, const T1 D1, const T2 D2, F f) {
         }
     }
 }
+
 template <typename T0, typename T1, typename T2, typename T3, typename F>
 void parallel_nd(const T0 D0, const T1 D1, const T2 D2, const T3 D3, F f) {
-#pragma omp parallel
+    const size_t work_amount = (size_t)D0 * D1 * D2 * D3;
+    if (work_amount == 0) return;
+
+#   pragma omp parallel
     {
-        size_t work_amount = (size_t)D0 * D1 * D2 * D3;
         const int ithr = omp_get_thread_num();
         const int nthr = omp_get_num_threads();
         size_t start{0}, end{0};
@@ -119,13 +127,16 @@ void parallel_nd(const T0 D0, const T1 D1, const T2 D2, const T3 D3, F f) {
         }
     }
 }
+
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
     typename F>
 void parallel_nd(const T0 D0, const T1 D1, const T2 D2, const T3 D3,
         const T4 D4, F f) {
-#pragma omp parallel
+    const size_t work_amount = (size_t)D0 * D1 * D2 * D3 * D4;
+    if (work_amount == 0) return;
+
+#   pragma omp parallel
     {
-        size_t work_amount = (size_t)D0 * D1 * D2 * D3 * D4;
         const int ithr = omp_get_thread_num();
         const int nthr = omp_get_num_threads();
         size_t start{0}, end{0};
@@ -138,13 +149,16 @@ void parallel_nd(const T0 D0, const T1 D1, const T2 D2, const T3 D3,
         }
     }
 }
+
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
     typename T5, typename F>
 void parallel_nd(const T0 D0, const T1 D1, const T2 D2, const T3 D3,
         const T4 D4, const T5 D5, F f) {
-#pragma omp parallel
+    const size_t work_amount = (size_t)D0 * D1 * D2 * D3 * D4 * D5;
+    if (work_amount == 0) return;
+
+#   pragma omp parallel
     {
-        size_t work_amount = (size_t)D0 * D1 * D2 * D3 * D4 * D5;
         const int ithr = omp_get_thread_num();
         const int nthr = omp_get_num_threads();
         size_t start{0}, end{0};
@@ -164,7 +178,9 @@ void parallel_nd(const T0 D0, const T1 D1, const T2 D2, const T3 D3,
 
 template <typename T0, typename T1, typename F>
 void parallel_nd_in_omp(const T0 D0, const T1 D1, F f) {
-    size_t work_amount = (size_t)D0 * D1;
+    const size_t work_amount = (size_t)D0 * D1;
+    if (work_amount == 0) return;
+
     const int ithr = omp_get_thread_num();
     const int nthr = omp_get_num_threads();
     size_t start{0}, end{0};
@@ -178,7 +194,9 @@ void parallel_nd_in_omp(const T0 D0, const T1 D1, F f) {
 }
 template <typename T0, typename T1, typename T2, typename F>
 void parallel_nd_in_omp(const T0 D0, const T1 D1, const T2 D2, F f) {
-    size_t work_amount = (size_t)D0 * D1 * D2;
+    const size_t work_amount = (size_t)D0 * D1 * D2;
+    if (work_amount == 0) return;
+
     const int ithr = omp_get_thread_num();
     const int nthr = omp_get_num_threads();
     size_t start{0}, end{0};
@@ -193,7 +211,9 @@ void parallel_nd_in_omp(const T0 D0, const T1 D1, const T2 D2, F f) {
 template <typename T0, typename T1, typename T2, typename T3, typename F>
 void parallel_nd_in_omp(const T0 D0, const T1 D1, const T2 D2, const T3 D3,
     F f) {
-    size_t work_amount = (size_t)D0 * D1 * D2 * D3;
+    const size_t work_amount = (size_t)D0 * D1 * D2 * D3;
+    if (work_amount == 0) return;
+
     const int ithr = omp_get_thread_num();
     const int nthr = omp_get_num_threads();
     size_t start{0}, end{0};
@@ -205,11 +225,14 @@ void parallel_nd_in_omp(const T0 D0, const T1 D1, const T2 D2, const T3 D3,
         utils::nd_iterator_step(d0, D0, d1, D1, d2, D2, d3, D3);
     }
 }
+
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
     typename F>
 void parallel_nd_in_omp(const T0 D0, const T1 D1, const T2 D2, const T3 D3,
     const T4 D4, F f) {
-    size_t work_amount = (size_t)D0 * D1 * D2 * D3 * D4;
+    const size_t work_amount = (size_t)D0 * D1 * D2 * D3 * D4;
+    if (work_amount == 0) return;
+
     const int ithr = omp_get_thread_num();
     const int nthr = omp_get_num_threads();
     size_t start{0}, end{0};
@@ -221,11 +244,14 @@ void parallel_nd_in_omp(const T0 D0, const T1 D1, const T2 D2, const T3 D3,
         utils::nd_iterator_step(d0, D0, d1, D1, d2, D2, d3, D3, d4, D4);
     }
 }
+
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
     typename T5, typename F>
 void parallel_nd_in_omp(const T0 D0, const T1 D1, const T2 D2, const T3 D3,
     const T4 D4, const T5 D5, F f) {
-    size_t work_amount = (size_t)D0 * D1 * D2 * D3 * D4 * D5;
+    const size_t work_amount = (size_t)D0 * D1 * D2 * D3 * D4 * D5;
+    if (work_amount == 0) return;
+
     const int ithr = omp_get_thread_num();
     const int nthr = omp_get_num_threads();
     size_t start{0}, end{0};
