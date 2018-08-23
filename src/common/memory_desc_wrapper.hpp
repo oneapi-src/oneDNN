@@ -103,9 +103,10 @@ struct memory_desc_wrapper: public c_compatible {
             for (int d = 0; d < ndims(); ++d) {
                 auto block = block_dims[d];
                 max_size = nstl::max(max_size,
-                    size_t(padding_dims[d] / block)*strides[0][d]);
+                    size_t(padding_dims[d] / block) * strides[0][d]);
                 if (block > 1)
-                    max_size = nstl::max(max_size, size_t(block*strides[1][d]));
+                    max_size = nstl::max(max_size,
+                            size_t(block * strides[1][d]));
             }
             return max_size * data_type_size();
         }
