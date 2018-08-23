@@ -243,9 +243,6 @@ status_t mkldnn_sum_primitive_desc_create_v2(primitive_desc_t **sum_pd,
         if (input_pds[i] == nullptr ||
                 input_pds[i]->kind() != primitive_kind::memory)
             return invalid_arguments;
-        auto input_mpd_i = reinterpret_cast<const memory_pd_t *>(input_pds[i]);
-        if (memory_desc_wrapper(input_mpd_i).nelems() == 0)
-            return invalid_arguments;
     }
 
     const primitive_attr_t dummy_attr;

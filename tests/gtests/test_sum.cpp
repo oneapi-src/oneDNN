@@ -149,18 +149,31 @@ protected:
     }
 };
 
+/* corner cases */
+#define CASE_CC(ifmt0, ifmt1, ofmt, dims_, ef, st) \
+    sum_test_params{engine::kind::cpu, \
+        {memory::format::ifmt0, memory::format::ifmt1}, memory::format::ofmt, \
+        memory::dims dims_, {1.0f, 1.0f}, ef, st}
+
 #define INST_TEST_CASE(test) \
 TEST_P(test, TestsSum) {} \
 INSTANTIATE_TEST_CASE_P(TestSum, test, ::testing::Values( \
     sum_test_params{engine::kind::cpu, \
     {memory::format::nchw, memory::format::nChw8c}, memory::format::nchw, \
+    {0, 7, 4, 4}, {1.0f, 1.0f}}, \
+    sum_test_params{engine::kind::cpu, \
+    {memory::format::nchw, memory::format::nChw8c}, memory::format::nchw, \
+    {1, 0, 4, 4}, {1.0f, 1.0f}}, \
+    sum_test_params{engine::kind::cpu, \
+    {memory::format::nchw, memory::format::nChw8c}, memory::format::nchw, \
+    {1, 8, 0, 4}, {1.0f, 1.0f}}, \
+    sum_test_params{engine::kind::cpu, \
+    {memory::format::nchw, memory::format::nChw8c}, memory::format::nchw, \
+    {-1, 8, 4, 4}, {1.0f, 1.0f}, true, mkldnn_invalid_arguments}, \
+    \
+    sum_test_params{engine::kind::cpu, \
+    {memory::format::nchw, memory::format::nChw8c}, memory::format::nchw, \
     {1, 1024, 38, 50}, {1.0f, 1.0f}}, \
-    sum_test_params{engine::kind::cpu, \
-    {memory::format::nchw, memory::format::nchw}, memory::format::nchw, \
-    {0, 8, 2, 2}, {1.0f, 1.0f}, true, mkldnn_invalid_arguments}, \
-    sum_test_params{engine::kind::cpu, \
-    {memory::format::nchw, memory::format::nchw}, memory::format::nchw, \
-    {1, 0, 2, 2}, {1.0f, 1.0f}, true, mkldnn_invalid_arguments}, \
     sum_test_params{engine::kind::cpu, \
     {memory::format::nchw, memory::format::nchw}, memory::format::nchw, \
     {2, 8, 2, 2}, {1.0f, 1.0f}}, \
@@ -200,6 +213,16 @@ INSTANTIATE_TEST_CASE_P(TestSum, test, ::testing::Values( \
 using sum_test_float = sum_test<float,float>;
 using sum_test_u8 = sum_test<uint8_t,float>;
 using sum_test_s32 = sum_test<int32_t,float>;
+
+using sum_cc_f32 = sum_test<float,float>;
+TEST_P(sum_cc_f32, TestSumCornerCases) {}
+INSTANTIATE_TEST_CASE_P(TestSumCornerCases, sum_cc_f32, ::testing::Values(
+    CASE_CC(nchw, nChw8c, nchw, ({0, 7, 4, 4}), false, mkldnn_success),
+    CASE_CC(nchw, nChw8c, nchw, ({1, 0, 4, 4}), false, mkldnn_success),
+    CASE_CC(nchw, nChw8c, nchw, ({1, 8, 0, 4}), false, mkldnn_success),
+    CASE_CC(nchw, nChw8c, nchw, ({-1, 8, 4, 4}), true, mkldnn_invalid_arguments)
+    ));
+#undef CASE_CC
 
 INST_TEST_CASE(sum_test_float)
 INST_TEST_CASE(sum_test_u8)
