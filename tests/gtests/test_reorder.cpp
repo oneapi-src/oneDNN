@@ -109,7 +109,7 @@ using s32_s32 = std::pair<int32_t, int32_t>;
 using s16_s16 = std::pair<int16_t, int16_t>;
 using s8_s8 = std::pair<int8_t, int8_t>;
 
-using reorder_simple_expected_fail_f32_f32 = reorder_simple_test<f32_f32>;
+using reorder_simple_corner_cases_f32_f32 = reorder_simple_test<f32_f32>;
 using reorder_padded_test_data_f32_f32 = reorder_simple_test<f32_f32>;
 using reorder_padded_test_weights_f32_f32 = reorder_simple_test<f32_f32>;
 using reorder_3d_test_data_f32_f32 = reorder_simple_test<f32_f32>;
@@ -135,23 +135,17 @@ using cfg_s32= test_simple_params_s32_s32;
 using cfg_s16= test_simple_params_s16_s16;
 using cfg_s8= test_simple_params_s8_s8;
 
-TEST_P(reorder_simple_expected_fail_f32_f32, TestsReorder) { }
-INSTANTIATE_TEST_CASE_P(TestReorder, reorder_simple_expected_fail_f32_f32,
+TEST_P(reorder_simple_corner_cases_f32_f32, TestsReorder) { }
+INSTANTIATE_TEST_CASE_P(TestReorder, reorder_simple_corner_cases_f32_f32,
         ::testing::Values(
-            cfg_f32{eng::cpu, fmt::nchw, fmt::nchw, {0, 16, 8, 8},
-                true, mkldnn_invalid_arguments},
-            cfg_f32{eng::cpu, fmt::nchw, fmt::nChw8c, {0, 16, 8, 8},
-                true, mkldnn_invalid_arguments},
-            cfg_f32{eng::cpu, fmt::nchw, fmt::nChw16c, {0, 16, 8, 8},
-                true, mkldnn_invalid_arguments},
-            cfg_f32{eng::cpu, fmt::OIhw8o8i, fmt::oihw, {32, 0, 3, 3},
-                true, mkldnn_invalid_arguments},
-            cfg_f32{eng::cpu, fmt::OIhw8i8o, fmt::OIhw8o8i, {0, 32, 3, 3},
-                true, mkldnn_invalid_arguments},
-            cfg_f32{eng::cpu, fmt::OIhw16o16i, fmt::oihw, {32, 32, 0, 3},
-                true, mkldnn_invalid_arguments},
-            cfg_f32{eng::cpu, fmt::OIhw16i16o, fmt::OIhw16o16i, {32, 32, 3, 0},
-                true, mkldnn_invalid_arguments}
+            cfg_f32{eng::cpu, fmt::nchw, fmt::nc, {2, 16, 8, 8}, true, mkldnn_invalid_arguments},
+            cfg_f32{eng::cpu, fmt::nchw, fmt::nchw, {0, 16, 8, 8}},
+            cfg_f32{eng::cpu, fmt::nchw, fmt::nChw8c, {0, 5, 8, 8}},
+            cfg_f32{eng::cpu, fmt::nchw, fmt::nChw16c, {0, 5, 8, 8}},
+            cfg_f32{eng::cpu, fmt::OIhw8o8i, fmt::oihw, {13, 0, 3, 3}},
+            cfg_f32{eng::cpu, fmt::OIhw8i8o, fmt::OIhw8o8i, {0, 32, 3, 3}},
+            cfg_f32{eng::cpu, fmt::OIhw16o16i, fmt::oihw, {16, 31, 0, 3}},
+            cfg_f32{eng::cpu, fmt::OIhw16i16o, fmt::OIhw16o16i, {32, 16, 3, 0}}
             )
         );
 

@@ -150,7 +150,12 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
     auto im_d = memory_desc_wrapper(imd);
     auto om_d = memory_desc_wrapper(omd);
 
-    if (!im_d.is_blocking_desc() || !om_d.is_blocking_desc())
+    bool ok = true
+        && im_d.is_blocking_desc()
+        && om_d.is_blocking_desc()
+        && !im_d.has_zero_dim()
+        && !om_d.has_zero_dim();
+    if (!ok)
         return unimplemented;
 
     /* padding_dim consistency check */
