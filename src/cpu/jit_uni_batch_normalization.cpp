@@ -776,7 +776,8 @@ struct jit_bnorm_t: public jit_generator {
                                 bwd_process_relu_avx512_common(t2, offt);
                             else if (isa == avx2)
                                 bwd_process_relu_avx2(t2, offt, t3);
-                            assert(false);
+                            else
+                                assert(false);
                         }
                         uni_vsubps(t3, vmean, t1, t3);
                         if (isa == sse42) {
@@ -842,7 +843,8 @@ struct jit_bnorm_t: public jit_generator {
                                     bwd_process_relu_avx512_common(v, offt);
                                 else if (isa == avx2)
                                     bwd_process_relu_avx2(v, offt, t);
-                                assert(false);
+                                else
+                                    assert(false);
                             }
                             if (!bdesc_->omit_stats()) {
                                 uni_vsubps(v, v, vdiff_beta);
