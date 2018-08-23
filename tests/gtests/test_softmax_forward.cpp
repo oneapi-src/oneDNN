@@ -42,6 +42,7 @@ void check_softmax_fwd(prop_kind aprop_kind, memory &src, memory &dst, int axis)
 
     int MB = dst_pd.data.dims[0];
     int C = dst_pd.data.dims[1];
+    if (MB*C == 0) return;
 
     if (dst_pd.data.ndims == 2) {
         if (axis == 1) {
@@ -67,6 +68,7 @@ void check_softmax_fwd(prop_kind aprop_kind, memory &src, memory &dst, int axis)
     } else {
         int H = dst_pd.data.dims[2];
         int W = dst_pd.data.dims[3];
+        if (H*W == 0) return;
 
         auto off = [=](int n, int c, int h, int w)
         {
@@ -194,8 +196,15 @@ TEST_P(softmax_forward_test_float, TestsSoftmax) { }
 INSTANTIATE_TEST_CASE_P(TestSoftmaxForward, softmax_forward_test_float,
         ::testing::Values(
             softmax_fwd_test_params_float{prop_kind::forward_scoring,
-            engine::kind::cpu, memory::format::nchw, {2, 0, 128, 256}, 0,
+            engine::kind::cpu, memory::format::nchw, {2, -2, 128, 256}, 0,
             true, mkldnn_invalid_arguments},
+            softmax_fwd_test_params_float{prop_kind::forward_scoring,
+            engine::kind::cpu, memory::format::nchw, {2, 2, 128, 256}, 5,
+            true, mkldnn_invalid_arguments},
+            softmax_fwd_test_params_float{prop_kind::forward_scoring,
+            engine::kind::cpu, memory::format::nchw, {2, 0, 5, 5}, 0},
+            softmax_fwd_test_params_float{prop_kind::forward_scoring,
+            engine::kind::cpu, memory::format::nchw, {2, 0, 5, 5}, 1},
             softmax_fwd_test_params_float{prop_kind::forward_scoring,
             engine::kind::cpu, memory::format::nchw, {2, 19, 128, 256}, 0},
             softmax_fwd_test_params_float{prop_kind::forward_scoring,
