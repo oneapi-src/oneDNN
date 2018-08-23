@@ -99,6 +99,7 @@ static const pd_create_f cpu_impl_list[] = {
     /* conv */
     INSTANCE(jit_avx512_common_dw_convolution_fwd_t),
     INSTANCE(jit_avx512_common_dw_convolution_bwd_data_t),
+    INSTANCE(jit_avx512_common_dw_convolution_bwd_weights_t),
     INSTANCE(jit_avx512_common_1x1_convolution_fwd_f32_t),
     INSTANCE(jit_avx512_common_1x1_convolution_bwd_data_f32_t),
     INSTANCE(jit_avx512_common_1x1_convolution_bwd_weights_t),

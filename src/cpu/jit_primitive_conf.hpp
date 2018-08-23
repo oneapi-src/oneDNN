@@ -37,6 +37,14 @@ enum {
     FLAG_IC_FIRST = 1 << 4, FLAG_IC_LAST = 1 << 5,
     FLAG_SP_FIRST = 1 << 6, FLAG_SP_LAST = 1 << 7,
     FLAG_REDUCE_FIRST = 1<<8, FLAG_REDUCE_LAST = 1<<9,
+    FLAG_ZERO_FILTER = 1 << 0, /* Controls whether the inner kernel skips
+                                   loading weights-data from memory; this
+                                   needs to happen on the first Group/16
+                                   iteration. */
+    FLAG_ZERO_BIAS = 1 << 1, /* Controls whether the inner kernel skip
+                               loading bias data from memory */
+    FLAG_COMPUTE_BIAS = 1 << 2, /* Controls bias computation during execution
+                                    pass */
 };
 
 struct jit_conv_conf_t {
@@ -100,6 +108,9 @@ struct jit_conv_conf_t {
     int nb_ch, ch_block, nb_ch_blocking;
     bool is_depthwise;
     int aligned_threads;
+    // large spatial
+    int oh_blk_size;
+    int ow_blk_size;
 };
 
 struct jit_conv_conf_2x3_wino_t {
@@ -251,6 +262,26 @@ struct jit_conv_call_s {
     size_t ur_str_w;
     size_t ch_blocks;
     int flags;
+};
+
+struct jit_dw_conv_call_s {
+    const void *input;
+    const void *output;
+    const void *filter;
+    const void *bias;
+    union {
+        size_t table_flags; /* This allows both bytes to be read simultaneously
+                               */
+        struct {
+            unsigned char
+                    table_idx; /* Indicates the table entry for the
+                                        JIT-generated values that control the
+                                        inner loop execution. The entry is
+                                        determined by the oh_block exectuion. */
+            unsigned char
+                    exec_flag; /* Flags passed by driver execution to inner kernel */
+        };
+    };
 };
 
 struct jit_wino_transform_call_s {
