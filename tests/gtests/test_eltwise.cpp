@@ -107,8 +107,8 @@ T soft_relu_bwd(T dd, T s) {
 
 template <typename T>
 T logistic_fwd(T s) {
-    T v = (T)(::tanhf((float)s / 2));
-    return (1 + v) / 2;
+    T v = (T)(::expf(- (float)s));
+    return 1 / (1 + v);
 }
 
 template <typename T>
