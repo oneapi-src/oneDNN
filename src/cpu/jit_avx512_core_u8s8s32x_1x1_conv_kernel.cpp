@@ -267,7 +267,8 @@ void jit_avx512_core_u8s8s32x_1x1_conv_kernel::reduce_loop(int load_loop_blk,
             for (int i_load = 0; i_load < load_loop_blk; ++i_load)
                 vmovups(vreg_load(i_load), load_ptr(i_reduce, i_load));
             for (int i_ur = 0; i_ur < ur; ++i_ur) {
-                if (last_block && tail_size != 0) {
+                if (last_block && tail_size != 0
+                    && i_reduce == loop_unroll - reduce_step) {
                     Xmm xmm_bcast = Xmm(zmm_bcast.getIdx());
                     for (int r = 0; r < tail_size; ++r)
                         vpinsrb(xmm_bcast, xmm_bcast, ptr[aux_reg_bcast_data
