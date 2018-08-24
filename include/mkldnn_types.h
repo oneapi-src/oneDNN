@@ -576,7 +576,7 @@ typedef enum {
     mkldnn_wino_wei_OBaaIBOIio
 } mkldnn_wino_memory_format_t;
 
-/** Description of tensor of weights for integer 8bit winograd convolution. */
+/** Description of tensor of weights for winograd 2x3 convolution. */
 typedef struct {
     mkldnn_wino_memory_format_t wino_format;
     int r;
@@ -587,6 +587,7 @@ typedef struct {
     int oc_block;
     int ic2_block;
     int oc2_block;
+    float adj_scale;
     size_t size;
 } mkldnn_wino_desc_t;
 

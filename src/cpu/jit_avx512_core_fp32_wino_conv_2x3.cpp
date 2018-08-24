@@ -826,6 +826,7 @@ status_t jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t ::init_conf(
     wd.oc_block = jcp.oc_block;
     wd.oc2_block = jcp.n2_block;
     wd.ic2_block = 1;
+    wd.adj_scale = 1.f;
     size_t max_size = sizeof(float) * jcp.alpha * jcp.alpha * jcp.ic * jcp.oc;
     wd.size = max_size;
 

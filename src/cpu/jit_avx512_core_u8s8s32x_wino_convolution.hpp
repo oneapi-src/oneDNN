@@ -129,6 +129,7 @@ private:
     acc_data_t *wino_dst_;
 
     void *workspace;
+    mkldnn::impl::scales_t updated_output_scales_;
 };
 
 template <impl::data_type_t dst_type>

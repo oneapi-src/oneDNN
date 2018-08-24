@@ -1460,6 +1460,7 @@ status_t jit_avx512_core_fp32_wino_conv_4x3_fwd_kernel::init_conf(
         wd.oc2_block = jcp.dimM_block * jcp.dimM_reg_block;
         size_t max_size = sizeof(float) * wd.alpha * wd.alpha * jcp.ic * jcp.oc;
         wd.size = max_size;
+        wd.adj_scale = 1.f;
 
         cpu_memory_t::pd_t new_weights_pd(
             weights_pd.engine(), &expect_wei_md);

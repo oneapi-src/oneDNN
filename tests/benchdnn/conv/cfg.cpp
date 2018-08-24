@@ -147,33 +147,33 @@ const _dt_conf_t conf_s8s8u8s32 = {
 };
 
 const _dt_conf_t conf_u8s8f32s32_wino = {
-    {mkldnn_u8,          0, UINT8_MAX,    0,   8, 0, 1, .25, 0.},
-    {mkldnn_s8,   INT8_MIN,  INT8_MAX,   -8,   3, 0, 4, .25, 0.},
-    {mkldnn_f32, INT32_MIN, INT32_MAX,   -8,  32, 0, 1, .25, 0.},
+    {mkldnn_u8,          0, UINT8_MAX,    0,   239, 0, 4, .25, 0.},
+    {mkldnn_s8,   INT8_MIN,  INT8_MAX,   -72,   71, 0, 9, .25, 0.},
+    {mkldnn_f32, INT32_MIN, INT32_MAX,   -9,  32, 0, 9, .25, 0.},
     {mkldnn_f32, INT32_MIN, INT32_MAX, -255, 255, 0, 1, .25, 0.},
     {mkldnn_s32,},
 };
 
 const _dt_conf_t conf_u8s8s32s32_wino = {
-    {mkldnn_u8,          0, UINT8_MAX,    0,   8, 0, 1, .25, 0.},
-    {mkldnn_s8,   INT8_MIN,  INT8_MAX,   -8,   3, 0, 4, .25, 0.},
-    {mkldnn_f32, INT32_MIN, INT32_MAX,   -8,  32, 0, 1, .25, 0.},
+    {mkldnn_u8,          0, UINT8_MAX,    0,   239, 0, 4, .25, 0.},
+    {mkldnn_s8,   INT8_MIN,  INT8_MAX,   -72,   71, 0, 9, .25, 0.},
+    {mkldnn_f32, INT32_MIN, INT32_MAX,   -9,  32, 0, 9, .25, 0.},
     {mkldnn_s32, INT32_MIN, INT32_MAX, -255, 255, 0, 1, .25, 0.},
     {mkldnn_s32,},
 };
 
 const _dt_conf_t conf_u8s8s8s32_wino = {
-    {mkldnn_u8,          0, UINT8_MAX,    0,   8, 0, 1, .25, 0.},
-    {mkldnn_s8,   INT8_MIN,  INT8_MAX,   -8,   3, 0, 4, .25, 0.},
-    {mkldnn_f32, INT32_MIN, INT32_MAX,   -8,  32, 0, 1, .25, 0.},
+    {mkldnn_u8,          0, UINT8_MAX,    0,   239, 0, 4, .25, 0.},
+    {mkldnn_s8,   INT8_MIN,  INT8_MAX,   -72,   71, 0, 9, .25, 0.},
+    {mkldnn_f32, INT32_MIN, INT32_MAX,   -9,  32, 0, 9, .25, 0.},
     {mkldnn_s8,   INT8_MIN,  INT8_MAX, -127, 127, 0, 1, .25, 0.},
     {mkldnn_s32,},
 };
 
 const _dt_conf_t conf_u8s8u8s32_wino = {
-    {mkldnn_u8,          0, UINT8_MAX,    0,   8, 0, 1, .25, 0.},
-    {mkldnn_s8,   INT8_MIN,  INT8_MAX,   -8,   3, 0, 4, .25, 0.},
-    {mkldnn_f32, INT32_MIN, INT32_MAX,   -8,  32, 0, 1, .25, 0.},
+    {mkldnn_u8,          0, UINT8_MAX,    0,   239, 0, 4, .25, 0.},
+    {mkldnn_s8,   INT8_MIN,  INT8_MAX,   -72,   71, 0, 9, .25, 0.},
+    {mkldnn_f32, INT32_MIN, INT32_MAX,   -9,  32, 0, 9, .25, 0.},
     {mkldnn_u8,          0, UINT8_MAX,    0, 255, 0, 1, .25, 0.},
     {mkldnn_s32,},
 };
