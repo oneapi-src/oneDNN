@@ -121,14 +121,6 @@ protected:
         auto diff_src = memory(diff_mem_prim_desc, src_diff.get());
         auto diff_dst = memory(diff_mem_prim_desc, dst_diff.get());
 
-        // Fill the softmax forward input
-        fill_data<data_t>(data_mem_prim_desc.get_size(),
-                (data_t *)src.get_data_handle(), data_t(0), data_t(1));
-
-        // Fill the softmax backward diffs eg. data diff that comes from upper primitive/layer
-        fill_data<data_t>(diff_mem_prim_desc.get_size(),
-                (data_t *)diff_dst.get_data_handle(), data_t(0), data_t(1));
-
         // Create softmax backward descriptor
         // before forward so its exceptions can be tested
         auto softmax_desc
@@ -146,13 +138,23 @@ protected:
             = softmax_backward::primitive_desc(softmax_desc, eng, softmax_fwd_pdesc);
         auto softmax_bwd = softmax_backward(softmax_prim_desc, dst, diff_dst, diff_src);
 
-        std::vector<primitive> pipeline;
-        pipeline.push_back(softmax);
-        pipeline.push_back(softmax_bwd);
-        auto s = stream(stream::kind::lazy);
-        s.submit(pipeline).wait();
+        auto test_with_given_fill = [&](data_t mean, data_t var) {
+            // Fill the softmax forward input
+            fill_data<data_t>(data_mem_prim_desc.get_size(),
+                    (data_t *)src.get_data_handle(), mean, var);
 
-        check_softmax_bwd<data_t>(dst, diff_dst, diff_src, p.axis);
+            // Fill the softmax backward diffs
+            // eg. data diff that comes from upper primitive/layer
+            fill_data<data_t>(diff_mem_prim_desc.get_size(),
+                    (data_t *)diff_dst.get_data_handle(), data_t(0), data_t(1));
+
+            stream(stream::kind::lazy).submit({softmax, softmax_bwd}).wait();
+            check_softmax_bwd<data_t>(dst, diff_dst, diff_src, p.axis);
+        };
+
+        test_with_given_fill(-200, 1);
+        test_with_given_fill(   0, 1);
+        test_with_given_fill( 200, 1);
     }
 };
 

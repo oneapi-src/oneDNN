@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include <assert.h>
+#include <float.h>
 #include <math.h>
 
 #include "c_types_map.hpp"
@@ -59,7 +60,7 @@ void ref_softmax_fwd_t<data_type>::execute_forward_generic() {
     const size_t dim = channels_ * inner_size_;
 
     for (int ou = 0; ou < outer_size_; ou++) {
-        utils::array_set(max_, 0, inner_size_);
+        utils::array_set(max_, -FLT_MAX, inner_size_);
         utils::array_set(denom_, 0, inner_size_);
 
         for (int c = 0; c < channels_; c++) {

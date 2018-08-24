@@ -171,21 +171,23 @@ protected:
         auto src = memory(mem_prim_desc, src_data);
         auto dst = memory(mem_prim_desc, dst_data);
 
-        fill_data<data_t>(mem_prim_desc.get_size(),
-                (data_t *)src.get_data_handle(), data_t(0), data_t(1));
-
         auto softmax_desc = softmax_forward::desc(p.aprop_kind, mem_desc,
                     p.axis);
         auto softmax_prim_desc
             = softmax_forward::primitive_desc(softmax_desc, eng);
         auto softmax = softmax_forward(softmax_prim_desc, src, dst);
 
-        std::vector<primitive> pipeline;
-        pipeline.push_back(softmax);
-        auto s = stream(stream::kind::lazy);
-        s.submit(pipeline).wait();
+        auto test_with_given_fill = [&](data_t mean, data_t var) {
+            fill_data<data_t>(mem_prim_desc.get_size(),
+                    (data_t *)src.get_data_handle(), mean, var);
 
-        check_softmax_fwd<data_t>(p.aprop_kind, src, dst, p.axis);
+            stream(stream::kind::lazy).submit({softmax}).wait();
+            check_softmax_fwd<data_t>(p.aprop_kind, src, dst, p.axis);
+        };
+
+        test_with_given_fill(-200, 1);
+        test_with_given_fill(   0, 1);
+        test_with_given_fill( 200, 1);
     }
 };
 
