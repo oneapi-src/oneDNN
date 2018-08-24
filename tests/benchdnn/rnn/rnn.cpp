@@ -47,7 +47,7 @@ int fill_memory(const rnn_prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem1,
 #pragma omp parallel
     {
     size_t idx_start = omp_get_thread_num() * chunk_size;
-    size_t idx_end = std::min(idx_start + chunk_size, nelems);
+    size_t idx_end = MIN2(idx_start + chunk_size, nelems);
 
     std::minstd_rand msr;
     std::uniform_real_distribution<float> gen(-1, 1);
