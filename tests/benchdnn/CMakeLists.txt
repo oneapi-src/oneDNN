@@ -59,10 +59,7 @@ endif()
 # add_test(benchdnn benchdnn)
 
 file(COPY inputs DESTINATION .)
-
-add_custom_target(test_conv DEPENDS test_benchdnn_conv)
-add_custom_target(test_conv_regression DEPENDS test_benchdnn_regression)
-add_custom_target(test_benchdnn_conv
+add_custom_target(test_conv
     COMMAND benchdnn -v1 --conv --batch=inputs/test_conv_all
     DEPENDS benchdnn
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
@@ -71,6 +68,17 @@ if(WIN32)
     configure_file(${CMAKE_SOURCE_DIR}/config_template.vcxproj.user
         test_conv.vcxproj.user @ONLY)
     set_property(TARGET test_conv PROPERTY ENVIRONMENT "PATH=${CTESTCONFIG_PATH}")
+endif()
+
+add_custom_target(test_benchdnn_conv
+    COMMAND benchdnn -v1 --conv --batch=inputs/test_conv_all
+    DEPENDS benchdnn
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+if(WIN32)
+    configure_file(${CMAKE_SOURCE_DIR}/config_template.vcxproj.user
+        test_benchdnn_conv.vcxproj.user @ONLY)
+    set_property(TARGET test_benchdnn_conv PROPERTY ENVIRONMENT "PATH=${CTESTCONFIG_PATH}")
 endif()
 
 add_custom_target(test_benchdnn_deconv
