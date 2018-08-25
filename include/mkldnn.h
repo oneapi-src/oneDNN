@@ -892,7 +892,7 @@ mkldnn_status_t MKLDNN_API mkldnn_relu_backward_desc_init(
  *
  * \f[dst[u][c][in] =
  *    \frac{\exp(src[ou][c][in]) - \max\limits_{c}(src[ou][c][in])}
- *    {\sum\limits_{c}\{\exp(src[ou][c][in]) 
+ *    {\sum\limits_{c}\{\exp(src[ou][c][in])
  *    - \max\limits_{c}(src[ou][c][in])\}},\f]
  *
  * where \f$ou, iu\f$ are outer and inner sizes repectively, defined
@@ -917,7 +917,7 @@ mkldnn_status_t MKLDNN_API mkldnn_softmax_backward_desc_init(
 
 /** @addtogroup c_api_pooling Pooling
  * A primitive to perform max or average pooling.
- * 
+ *
  * Max pooling:
  * \f[dst[n][oc][oh][ow] =
  *     \max\limits_{kw,kh}
@@ -966,8 +966,8 @@ mkldnn_status_t MKLDNN_API mkldnn_pooling_backward_desc_init(
 
 /** @addtogroup c_api_lrn LRN
  * A primitive to perform local response normalization (LRN) across or within
- * channels. 
- * 
+ * channels.
+ *
  * LRN accross channels:
  * \f[dst[n][c][h][w] = \left\{k + \frac{\alpha}{n_{l}}
  *                      \sum\limits_{i=-(n_{l}-1)/2}^{(n_{l}+1)/2}
