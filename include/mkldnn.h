@@ -1040,15 +1040,24 @@ mkldnn_status_t MKLDNN_API mkldnn_lrn_backward_desc_init(
  * and dst point to the same memory for forward, and diff_dst and diff_src
  * point to the same memory for backward pass.
  *
+ * Batch normalization supports different flavors controlled by
+ * mkldnn_batch_normalization_desc_t. For example batch normalization can
+ * compute the mean and variance on its own or can take them as inputs.
+ * It can either perform scaling and shifting using gamma and beta parameters
+ * or not. Optionally it can also perform a fused ReLU, which in case of
+ * training would also require a workspace.
+ *
+ * @sa mkldnn_batch_normalization_desc_t
  * @{ */
 
 /** Initializes a batch normalization descriptor @p bnrm_desc for forward
  * propagation using @p prop_kind, (possible values are
  * #mkldnn_forward_training or #mkldnn_forward_inference), memory descriptor
- * @p data_desc, normalization parameter @p epsilon and flags (possible values
- * are #mkldnn_use_global_stats and #mkldnn_use_scaleshift).
+ * @p data_desc, normalization parameter @p epsilon and @p flags set using bit
+ * flags of type mkldnn_batch_normalization_desc_t.
  *
- * @sa mkldnn_batch_normalization_desc_t */
+ * @sa mkldnn_batch_normalization_desc_t
+ */
 mkldnn_status_t MKLDNN_API mkldnn_batch_normalization_forward_desc_init(
         mkldnn_batch_normalization_desc_t *bnrm_desc,
         mkldnn_prop_kind_t prop_kind, const mkldnn_memory_desc_t *data_desc,
@@ -1057,10 +1066,11 @@ mkldnn_status_t MKLDNN_API mkldnn_batch_normalization_forward_desc_init(
 /** Initializes a batch normalization descriptor @p bnrm_desc for backward
  * propagation with respect to data and scale-shift parameters using memory
  * descriptors @p data_desc and @p diff_data_desc, and normalization parameter
- * @p epsilon and flags (possible values are #mkldnn_use_global_stats and
- * #mkldnn_use_scaleshift).
+ * @p epsilon and @p flags set using bit flags of type
+ * mkldnn_batch_normalization_desc_t.
  *
- * @sa mkldnn_batch_normalization_desc_t */
+ * @sa mkldnn_batch_normalization_desc_t
+ */
 mkldnn_status_t MKLDNN_API mkldnn_batch_normalization_backward_desc_init(
         mkldnn_batch_normalization_desc_t *bnrm_desc,
         mkldnn_prop_kind_t prop_kind,
