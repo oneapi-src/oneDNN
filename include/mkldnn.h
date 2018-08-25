@@ -146,27 +146,74 @@ mkldnn_status_t MKLDNN_API mkldnn_primitive_desc_destroy(
 
 /** Queries primitive descriptor
  *
- * @sa mkldnn_query_t */
+ * One of the most typical use cases is to query a convolution primitive
+ * descriptor created with source, weights and destination formats equal
+ * to #mkldnn_any about the corresponding memory primitive descriptors
+ * (@p what equals #mkldnn_query_src_pd, #mkldnn_query_weights_pd, and
+ * #mkldnn_query_dst_pd respectively) to be able to prepare memory and
+ * create reorders if required.
+ *
+ * Another quite typical use case is to query an operation primitive
+ * descriptor for a workspace (@p what equals #mkldnn_query_workspace_pd).
+ * Returned status #mkldnn_not_required indicates that workspace is
+ * not required.
+ *
+ * Few other possibilities:
+ *  - query a memory primitive descriptor for the underlying memory
+ *    descriptor (#mkldnn_query_memory_d)
+ *  - query an operation primitive descriptor for the underlying operation
+ *    descriptor (#mkldnn_query_convolution_d, #mkldnn_query_eltwise_d,
+ *    #mkldnn_query_rnn_d, etc)
+ *  - query an operation primitive descriptor for the implementation
+ *    information string (#mkldnn_query_impl_info_str)
+ *  - query an operation primitive descriptor for the number of inputs and
+ *    outputs (#mkldnn_query_num_of_inputs_s32 and
+ *    #mkldnn_query_num_of_outputs_s32 respectively)
+ *
+ * @sa mkldnn_query_t for more options
+ */
 mkldnn_status_t MKLDNN_API mkldnn_primitive_desc_query(
         const_mkldnn_primitive_desc_t primitive_desc, mkldnn_query_t what,
         int index, void *result);
 
 /** Queries primitive descriptor for memory descriptor
  *
- * @returns NULL in case of any error */
+ * @returns NULL in case of any error (in particular if queried entity is
+ * not of type mkldnn_memory_desc_t).
+ *
+ * This is just a specialized version of mkldnn_primitive_desc_query
+ * used for convenience.
+ */
 const mkldnn_memory_desc_t MKLDNN_API *mkldnn_primitive_desc_query_memory_d(
         const_mkldnn_primitive_desc_t primitive_desc);
 
 /** Queries primitive descriptor for primitive descriptor
  *
- * @returns NULL in case of any error */
+ * @returns NULL in case of any error (in particular if queried entity is
+ * not of type const_mkldnn_primitive_desc_t).
+ *
+ * This is just a specialized version of mkldnn_primitive_desc_query
+ * used for convenience.
+ *
+ * Example: query an operation primitive descriptor for a workspace
+ *         (@p what equals #mkldnn_query_workspace_pd). Returned
+ *         NULL indicates the primitive does not require a workspace.
+ *         Otherwise a user should prepare the workspace and pass it
+ *         to the corresponding primitive.
+ */
 const_mkldnn_primitive_desc_t MKLDNN_API mkldnn_primitive_desc_query_pd(
         const_mkldnn_primitive_desc_t primitive_desc, mkldnn_query_t what,
         int index);
 
 /** Queries primitive descriptor for signed 32bit int
  *
- * @returns 0 in case of any error */
+ * @returns 0 in case of any error (in particular if queried entity is
+ * not of type int32_t). Note that 0 might also be the actual returned
+ * value.
+ *
+ * This is just a specialized version of mkldnn_primitive_desc_query
+ * used for convenience.
+ */
 int MKLDNN_API mkldnn_primitive_desc_query_s32(
         const_mkldnn_primitive_desc_t primitive_desc, mkldnn_query_t what,
         int index);
