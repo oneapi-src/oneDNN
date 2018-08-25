@@ -931,6 +931,13 @@ mkldnn_status_t MKLDNN_API mkldnn_softmax_backward_desc_init(
  * where \f$p_l, p_r\f$ are @p padding_l and @p padding_r
  * respectively and output spatial dimensions are calculated
  * similarly as done in convolution.
+ *
+ * During training max pooling requires workspace on forward
+ * (#mkldnn_forward_training) and backward (#mkldnn_backward) passes to
+ * save indices where maximum was found. Workspace layout is opaque and
+ * the indices cannot be restored from it. However one can use backward
+ * pooling to perform up-sampling (used in some detection topologies).
+ *
  * @{ */
 
 /** Initializes a pooling descriptor @p pool_desc for forward propagation using
@@ -981,6 +988,18 @@ mkldnn_status_t MKLDNN_API mkldnn_pooling_backward_desc_init(
  *                      src[n][c][h][w],\f]
  *
  * where \f$n_{l}\f$ is the @p local_size.
+ *
+ * During training LRN might or might not require workspace on forward
+ * (#mkldnn_forward_training) and backward (#mkldnn_backward) passes. The
+ * behavior is implementation specific. Optimized implementations typically
+ * require workspace and use it to save some intermediate results from the
+ * forward pass that accelerate computations on the backward pass.
+ *
+ * To check whether workspace is required one should query the LRN primitive
+ * descriptor for the workspace (#mkldnn_query_workspace_pd). Success would
+ * indicate the workspace is required and its description would be returned.
+ * @sa mkldnn_primitive_desc_query and mkldnn_primitive_desc_query_pd
+ *
  * @{ */
 
 /** Initializes an @p lrn_desc for forward propagation using @p prop_kind
