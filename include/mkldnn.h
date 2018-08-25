@@ -1179,7 +1179,11 @@ int MKLDNN_API mkldnn_rnn_cell_get_states_count(
 /** Initializes a rnn descriptor @p rnn_desc for forward propagation
  * using @p prop_kind, @p rnn_cell_desc, @p direction, and memory descriptors.
  * @note if @p prop_kind equals #mkldnn_forward_training, you need to query a
- * worskpace memory descriptor before creating the primitive.
+ * workspace memory descriptor before creating the primitive.
+ *
+ * @p src_iter_desc, @p bias_desc, and @p dst_iter_desc are allowed to be
+ * either NULL or point to a zero memory descriptor that would indicate
+ * RNN primitive should not use them.
  *
  * @note all memory descriptors except @p src_iter_desc are allowed to be
  * initialized with #mkldnn_any value of @p format_kind. */
@@ -1198,7 +1202,14 @@ mkldnn_status_t MKLDNN_API mkldnn_rnn_forward_desc_init(
 /** Initializes a rnn descriptor @p rnn_desc for backward propagation
  * using @p prop_kind, @p rnn_cell_desc, @p direction, and memory descriptors.
  * @note all memory descriptors are allowed to be initialized with
- * #mkldnn_any value of @p format_kind. */
+ * #mkldnn_any value of @p format_kind.
+ *
+ * @p src_iter_desc (simultaneously with @p diff_src_iter_desc),
+ * @p bias_desc (simultaneously with @p diff_bias_desc), and
+ * @p dst_iter_desc (simultaneously with @p diff_src_iter_desc) are allowed
+ * to be either NULL or point to a zero memory descriptor that would indicate
+ * RNN primitive should not use them.
+ */
 mkldnn_status_t MKLDNN_API mkldnn_rnn_backward_desc_init(
         mkldnn_rnn_desc_t *rnn_desc, mkldnn_prop_kind_t prop_kind,
         const mkldnn_rnn_cell_desc_t *rnn_cell_desc,
