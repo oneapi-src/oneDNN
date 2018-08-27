@@ -91,6 +91,9 @@ inline memory_format_t format_normalize(const memory_format_t fmt) {
     const bool is_blocked = utils::one_of(fmt, blocked,
             x,
             nc,
+            ncw,
+            nwc,
+            nCw16c,
             nchw,
             nhwc,
             chwn,
@@ -102,6 +105,13 @@ inline memory_format_t format_normalize(const memory_format_t fmt) {
             nCdhw16c,
             oi,
             io,
+            oiw,
+            wio,
+            OIw16i16o,
+            OIw16o16i,
+            Oiw16o,
+            Owi16o,
+            OIw8i16o2i,
             oihw,
             ihwo,
             hwio,
@@ -130,6 +140,12 @@ inline memory_format_t format_normalize(const memory_format_t fmt) {
             Oihw16o,
             Ohwi8o,
             Ohwi16o,
+            goiw,
+            gOIw16i16o,
+            gOIw16o16i,
+            gOiw16o,
+            gOwi16o,
+            gOIw8i16o2i,
             goihw,
             hwigo,
             gOIhw8i8o,
@@ -165,8 +181,9 @@ inline memory_format_t format_normalize(const memory_format_t fmt) {
 
 inline bool is_format_double_blocked(memory_format_t fmt) {
     using namespace memory_format;
-    return utils::one_of(OIhw8i16o2i, OIdhw8i16o2i, OIhw8o16i2o, OIhw4i16o4i,
-            gOIhw8i16o2i, gOIdhw8i16o2i, gOIhw8o16i2o,gOIhw4i16o4i);
+    return utils::one_of(OIw8i16o2i, OIhw8i16o2i, OIdhw8i16o2i, OIhw8o16i2o,
+            OIhw4i16o4i, gOIw8i16o2i, gOIhw8i16o2i, gOIdhw8i16o2i, gOIhw8o16i2o,
+            gOIhw4i16o4i);
 }
 
 inline bool blocking_desc_is_equal(const blocking_desc_t &lhs,

@@ -187,6 +187,13 @@ struct memory_desc_wrapper: public c_compatible {
             const int ic_4  = pos[with_groups + 1] % 4;
             phys_offset += 4 * oc_16 + ic_4 - (oc_16 + 16 * ic_4);
         }
+        if (format() == gOIw8i16o2i || format() == OIw8i16o2i) {
+            // TODO: Fix temporary workaround for formats with double blocking
+            const bool with_groups = format() == gOIw8i16o2i;
+            const int oc_16 = pos[with_groups + 0] % 16;
+            const int ic_2  = pos[with_groups + 1] % 2;
+            phys_offset += -16 * ic_2 + oc_16 + ic_2;
+        }
         if (format() == gOIhw8i16o2i || format() == OIhw8i16o2i) {
             // TODO: Fix temporary workaround for formats with double blocking
             const bool with_groups = format() == gOIhw8i16o2i;
