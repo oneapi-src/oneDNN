@@ -106,13 +106,20 @@ struct _jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
 
     virtual void execute(event_t *e)
     {
-        if (conf_.ndims() == 4) execute_forward();
-        else                    execute_forward_3d();
+        if (conf_.ndims() == 3)
+            execute_forward_1d();
+        else if (conf_.ndims() == 4)
+            execute_forward_2d();
+        else if (conf_.ndims() == 5)
+            execute_forward_3d();
+        else
+            assert(false);
         e->set_state(event_t::ready);
     }
 
 private:
-    void execute_forward();
+    void execute_forward_1d();
+    void execute_forward_2d();
     void execute_forward_3d();
     pd_t conf_;
     jit_avx512_common_conv_fwd_kernel *kernel_;
@@ -169,7 +176,7 @@ struct jit_avx512_common_convolution_bwd_data_t: public cpu_primitive_t {
         inline memory_format_t src_format()
         {
             using namespace memory_format;
-            return (ndims() == 4) ? nChw16c : nCdhw16c;
+            return utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c);
         }
         inline memory_format_t wei_format()
         {
@@ -179,9 +186,11 @@ struct jit_avx512_common_convolution_bwd_data_t: public cpu_primitive_t {
                 && wei_type == data_type::s16) {
                 return  this->with_groups() ? gOIhw8o16i2o : OIhw8o16i2o;
             } else {
-                return (ndims() == 4)
-                    ? this->with_groups() ? gOIhw16o16i : OIhw16o16i
-                    : this->with_groups() ? gOIdhw16o16i : OIdhw16o16i;
+                return this->with_groups()
+                    ? utils::pick(ndims() - 3, gOIw16o16i, gOIhw16o16i,
+                          gOIdhw16o16i)
+                    : utils::pick(ndims() - 3, OIw16o16i, OIhw16o16i,
+                          OIdhw16o16i);
             }
         }
 
@@ -216,8 +225,14 @@ struct jit_avx512_common_convolution_bwd_data_t: public cpu_primitive_t {
     virtual void execute(event_t *e) {
         switch (conf_.desc()->prop_kind) {
         case prop_kind::backward_data:
-            if (conf_.ndims() == 4) execute_backward_data();
-            else                    execute_backward_data_3d();
+            if (conf_.ndims() == 3)
+                execute_backward_data_1d();
+            else if (conf_.ndims() == 4)
+                execute_backward_data_2d();
+            else if (conf_.ndims() == 5)
+                execute_backward_data_3d();
+            else
+                assert(false);
             break;
         default:
             assert(!"invalid prop_kind");
@@ -226,7 +241,8 @@ struct jit_avx512_common_convolution_bwd_data_t: public cpu_primitive_t {
     }
 
 private:
-    void execute_backward_data();
+    void execute_backward_data_1d();
+    void execute_backward_data_2d();
     void execute_backward_data_3d();
     pd_t conf_;
     jit_avx512_common_conv_bwd_data_kernel_f32 *kernel_;
@@ -269,14 +285,16 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
         inline memory_format_t src_format()
         {
             using namespace memory_format;
-            return (ndims() == 4) ? nChw16c : nCdhw16c;
+            return utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c);
         }
         inline memory_format_t wei_format()
         {
             using namespace memory_format;
-            return (ndims() == 4)
-                ? this->with_groups() ? gOIhw16o16i : OIhw16o16i
-                : this->with_groups() ? gOIdhw16o16i : OIdhw16o16i;
+            return this->with_groups()
+                ? utils::pick(ndims() - 3, gOIw16o16i, gOIhw16o16i,
+                      gOIdhw16o16i)
+                : utils::pick(ndims() - 3, OIw16o16i, OIhw16o16i,
+                      OIdhw16o16i);
         }
 
 

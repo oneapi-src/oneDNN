@@ -170,7 +170,7 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma_1st(int ur_w,
 
     prepare_output(ur_w);
 
-    if (jcp.ndims == 4) {
+    if (one_of(jcp.ndims, 3, 4)) {
         mov(aux_reg_inp, reg_inp);
         mov(aux_reg_ker, reg_ker);
         mov(aux_reg_inp_prf, reg_inp_prf);
@@ -302,6 +302,13 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma(int ur_w,
     int ow_end_ipref = get_ow_end(ur_w, 0, pad_r);
 
     assert(jcp.oc % jcp.nb_oc_blocking == 0);
+
+    if (one_of(jcp.ndims, 3, 4)) {
+        mov(aux_reg_inp, reg_inp);
+        mov(aux_reg_ker, reg_ker);
+        mov(aux_reg_ker_prf, reg_ker_prf);
+        mov(aux_reg_inp_prf, reg_inp_prf);
+    }
 
     auto kernel_offset = [=](int ocb, int ic, int ki) {
         int blk_idx = ocb * jcp.nb_ic * jcp.kh * jcp.kw * jcp.kd + ki;
@@ -557,7 +564,7 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_fma(int ur_w,
 
     prepare_output(ur_w);
 
-    if (jcp.ndims == 4) {
+    if (one_of(jcp.ndims, 3, 4)) {
         mov(aux_reg_inp, reg_inp);
         mov(aux_reg_ker, reg_ker);
         mov(aux_reg_inp_prf, reg_inp_prf);
@@ -737,7 +744,7 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_fma_core(int ur_w,
 
     prepare_output(ur_w);
 
-    if (jcp.ndims == 4) {
+    if (one_of(jcp.ndims, 3, 4)) {
         mov(aux_reg_inp, reg_inp);
         mov(aux_reg_ker, reg_ker);
     }
@@ -846,7 +853,7 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_vnni(
 
     prepare_output(ur_w);
 
-    if (jcp.ndims == 4) {
+    if (one_of(jcp.ndims, 3, 4)) {
         mov(aux_reg_inp, reg_inp);
         mov(aux_reg_ker, reg_ker);
         mov(aux_reg_ker_prf, reg_ker_prf);
@@ -1141,26 +1148,26 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
     jcp.oc_without_padding = jcp.oc;
     jcp.ic = src_d.dims()[1] / jcp.ngroups;
     jcp.id = (ndims == 5) ? src_d.dims()[2] : 1;
-    jcp.ih = src_d.dims()[ndims-2];
+    jcp.ih = (ndims == 3) ? 1 : src_d.dims()[ndims-2];
     jcp.iw = src_d.dims()[ndims-1];
     jcp.od = (ndims == 5) ? dst_d.dims()[2] : 1;
-    jcp.oh = dst_d.dims()[ndims-2];
+    jcp.oh = (ndims == 3) ? 1 : dst_d.dims()[ndims-2];
     jcp.ow = dst_d.dims()[ndims-1];
     jcp.kd = (ndims == 5) ? weights_d.dims()[with_groups + 2] : 1;
-    jcp.kh = weights_d.dims()[with_groups + ndims-2];
+    jcp.kh = (ndims == 3) ? 1 : weights_d.dims()[with_groups + ndims-2];
     jcp.kw = weights_d.dims()[with_groups + ndims-1];
     jcp.f_pad = (ndims == 5) ? cd.padding[0][0] : 0;
-    jcp.t_pad = cd.padding[0][ndims-4];
+    jcp.t_pad = (ndims == 3) ? 0 : cd.padding[0][ndims-4];
     jcp.l_pad = cd.padding[0][ndims-3];
     jcp.stride_d = (ndims == 5) ? cd.strides[0] : 1;
-    jcp.stride_h = cd.strides[ndims-4];
+    jcp.stride_h = (ndims == 3) ? 1 : cd.strides[ndims-4];
     jcp.stride_w = cd.strides[ndims-3];
     jcp.src_fmt = src_d.format();
     jcp.with_relu = with_relu;
     jcp.relu_negative_slope = relu_negative_slope;
 
     jcp.dilate_d = (ndims == 5) ? cd.dilates[0] : 0;
-    jcp.dilate_h = cd.dilates[ndims-4];
+    jcp.dilate_h = (ndims == 3) ? 0 : cd.dilates[ndims-4];
     jcp.dilate_w = cd.dilates[ndims-3];
 
     jcp.b_pad = (jcp.oh - 1) * jcp.stride_h + (jcp.kh - 1) * (jcp.dilate_h + 1)
@@ -1198,13 +1205,13 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
         jcp.relu_negative_slope = 0;
     }
 
-    auto src_format = (ndims == 5)
-        ? (jcp.is_1stconv) ? ncdhw : nCdhw16c
-        : (jcp.is_1stconv) ? nchw : nChw16c;
-    auto dst_format = (ndims == 5) ? nCdhw16c : nChw16c;
-    auto wei_format = (ndims == 5)
-        ? (with_groups) ? gOIdhw16i16o : OIdhw16i16o
-        : (with_groups) ? gOIhw16i16o : OIhw16i16o;
+    auto src_format = jcp.is_1stconv
+        ? pick(ndims - 3, ncw, nchw, ncdhw)
+        : pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
+    auto dst_format = pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
+    auto wei_format = with_groups
+        ? pick(ndims - 3, gOIw16i16o, gOIhw16i16o, gOIdhw16i16o)
+        : pick(ndims - 3, OIw16i16o, OIhw16i16o, OIdhw16i16o);
 
     if (src_d.format() == any)
         CHECK(src_pd.set_format(src_format));
@@ -1240,9 +1247,9 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
         jcp.typesize_in = sizeof(int16_t);
         jcp.typesize_out = sizeof(int32_t);
 
-        const auto w_format = (ndims == 5)
-            ? with_groups ? gOIdhw8i16o2i : OIdhw8i16o2i
-            : with_groups ? gOIhw8i16o2i : OIhw8i16o2i;
+        const auto w_format = with_groups
+            ? pick(ndims - 3, gOIw8i16o2i, gOIhw8i16o2i, gOIdhw8i16o2i)
+            : pick(ndims - 3, OIw8i16o2i, OIhw8i16o2i, OIdhw8i16o2i);
         if (weights_d.format() == any)
             CHECK(weights_pd.set_format(w_format));
         if (weights_d.format() != w_format)
@@ -1264,17 +1271,17 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
                 || (jcp.kw < 7 && jcp.kh < 7))
                 jcp.ver = ver_fma;
             if (jcp.ver == ver_4fma) {
-                const auto w_format = (ndims == 5)
-                    ? (with_groups) ? gOidhw16o : Oidhw16o
-                    : (with_groups) ? gOihw16o : Oihw16o;
+                const auto w_format = with_groups
+                    ? pick(ndims - 3, gOiw16o, gOihw16o, gOidhw16o)
+                    : pick(ndims - 3, Oiw16o, Oihw16o, gOidhw16o);
                 if (weights_d.format() == any)
                     CHECK(weights_pd.set_format(w_format));
                 if (weights_d.format() != w_format)
                     return status::unimplemented;
             } else {
-                const auto w_format = (ndims == 5)
-                    ? (with_groups) ? gOdhwi16o : Odhwi16o
-                    : (with_groups) ? gOhwi16o : Ohwi16o;
+                const auto w_format = with_groups
+                    ? pick(ndims - 3, gOwi16o, gOhwi16o, gOdhwi16o)
+                    : pick(ndims - 3, Owi16o, Ohwi16o, Odhwi16o);
                 if (weights_d.format() == any)
                     CHECK(weights_pd.set_format(w_format));
                 if (weights_d.format() != w_format)
@@ -1581,6 +1588,13 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_4fma(
     int iw_end_ipref = get_iw_end(ur_w, 0, r_overflow);
 
     bool check_last_kh = (jcp.kh > 3);
+
+    if (one_of(jcp.ndims, 3, 4)) {
+        mov(aux_reg_dst, reg_dst);
+        mov(aux_reg_ker, reg_ker);
+        mov(aux_reg_dst_prf, reg_dst_prf);
+        mov(aux_reg_ker_prf, reg_ker_prf);
+    }
 
     auto kernel_offset = [=](int icb, int oc, int ki) {
         int blk_idx = icb * jcp.kh * jcp.kw * jcp.kd + ki;
@@ -1889,7 +1903,7 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma(
 
     prepare_output(ur_w);
 
-    if (jcp.ndims == 4) {
+    if (one_of(jcp.ndims, 3, 4)) {
         mov(aux_reg_dst, reg_dst);
         mov(aux_reg_ker, reg_ker);
 
@@ -2057,7 +2071,7 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma_core(
 
     prepare_output(ur_w);
 
-    if (jcp.ndims == 4) {
+    if (one_of(jcp.ndims, 3, 4)) {
         mov(aux_reg_dst, reg_dst);
         mov(aux_reg_ker, reg_ker);
     }
@@ -2267,26 +2281,26 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
     jcp.ic = diff_src_d.dims()[1] / jcp.ngroups;
 
     jcp.id = (ndims == 5) ? diff_src_d.dims()[2] : 1;
-    jcp.ih = diff_src_d.dims()[ndims-2];
+    jcp.ih = (ndims == 3) ? 1 : diff_src_d.dims()[ndims-2];
     jcp.iw = diff_src_d.dims()[ndims-1];
     jcp.od = (ndims == 5) ? diff_dst_d.dims()[2] : 1;
-    jcp.oh = diff_dst_d.dims()[ndims-2];
+    jcp.oh = (ndims == 3) ? 1 : diff_dst_d.dims()[ndims-2];
     jcp.ow = diff_dst_d.dims()[ndims-1];
 
     jcp.kd = (ndims == 5) ? weights_d.dims()[with_groups + 2] : 1;
-    jcp.kh = weights_d.dims()[with_groups + ndims - 2];
+    jcp.kh = (ndims == 3) ? 1 : weights_d.dims()[with_groups + ndims - 2];
     jcp.kw = weights_d.dims()[with_groups + ndims - 1];
 
     jcp.f_pad = (ndims == 5) ? cd.padding[0][0] : 0;
-    jcp.t_pad = cd.padding[0][ndims-4];
+    jcp.t_pad = (ndims == 3) ? 0 : cd.padding[0][ndims-4];
     jcp.l_pad = cd.padding[0][ndims-3];
 
     jcp.stride_d = (ndims == 5) ? cd.strides[0] : 1;
-    jcp.stride_h = cd.strides[ndims-4];
+    jcp.stride_h = (ndims == 3) ? 1 : cd.strides[ndims-4];
     jcp.stride_w = cd.strides[ndims-3];
 
     jcp.dilate_d = (ndims == 5) ? cd.dilates[0] : 0;
-    jcp.dilate_h = cd.dilates[ndims-4];
+    jcp.dilate_h = (ndims == 3) ? 0 : cd.dilates[ndims-4];
     jcp.dilate_w = cd.dilates[ndims-3];
     if ((jcp.dilate_w != 0 && jcp.stride_w != 1)
             || (jcp.dilate_d != 0 && jcp.stride_d != 1)
@@ -2316,11 +2330,10 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
         jcp.ic = rnd_up(jcp.ic, jcp.ic_block);
     }
 
-    auto src_format = (ndims == 5) ? nCdhw16c : nChw16c;
-    auto wei_format = (ndims == 5)
-        ? (with_groups) ? gOIdhw16o16i : OIdhw16o16i
-        : (with_groups) ? gOIhw16o16i : OIhw16o16i;
-
+    auto src_format = pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
+    auto wei_format = with_groups
+        ? pick(ndims - 3, gOIw16o16i, gOIhw16o16i, gOIdhw16o16i)
+        : pick(ndims - 3, OIw16o16i, OIhw16o16i, OIdhw16o16i);
     bool args_ok = true
         && jcp.oc % jcp.oc_block == 0
         && jcp.ic % jcp.ic_block == 0
@@ -4207,26 +4220,26 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
     jcp.ic = src_d.dims()[1] / jcp.ngroups;
 
     jcp.id = (ndims == 5) ? src_d.dims()[2] : 1;
-    jcp.ih = src_d.dims()[ndims-2];
+    jcp.ih = (ndims == 3) ? 1 : src_d.dims()[ndims-2];
     jcp.iw = src_d.dims()[ndims-1];
     jcp.od = (ndims == 5) ? diff_dst_d.dims()[2] : 1;
-    jcp.oh = diff_dst_d.dims()[ndims-2];
+    jcp.oh = (ndims == 3) ? 1 : diff_dst_d.dims()[ndims-2];
     jcp.ow = diff_dst_d.dims()[ndims-1];
 
     jcp.kd = (ndims == 5) ? diff_weights_d.dims()[with_groups + 2] : 1;
-    jcp.kh = diff_weights_d.dims()[with_groups + ndims-2];
+    jcp.kh = (ndims == 3) ? 1 : diff_weights_d.dims()[with_groups + ndims-2];
     jcp.kw = diff_weights_d.dims()[with_groups + ndims-1];
 
     jcp.f_pad = (ndims == 5) ? cd.padding[0][0] : 0;
-    jcp.t_pad = cd.padding[0][ndims-4];
+    jcp.t_pad = (ndims == 3) ? 0 : cd.padding[0][ndims-4];
     jcp.l_pad = cd.padding[0][ndims-3];
 
     jcp.stride_d = (ndims == 5) ? cd.strides[0] : 1;
-    jcp.stride_h = cd.strides[ndims-4];
+    jcp.stride_h = (ndims == 3) ? 1 : cd.strides[ndims-4];
     jcp.stride_w = cd.strides[ndims-3];
 
     jcp.dilate_d = (ndims == 5) ? cd.dilates[0] : 0;
-    jcp.dilate_h = cd.dilates[ndims-4];
+    jcp.dilate_h = (ndims == 3) ? 0 : cd.dilates[ndims-4];
     jcp.dilate_w = cd.dilates[ndims-3];
 
     const int kh_range = 1 + (jcp.kh - 1) * (jcp.dilate_h + 1);
@@ -4272,11 +4285,10 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
     if (jcp.oc % jcp.oc_block)
         return status::unimplemented;
 
-    auto src_format = (ndims == 5) ? nCdhw16c : nChw16c;
-    auto wei_format = (ndims == 5)
-        ? (with_groups) ? gOIdhw16i16o : OIdhw16i16o
-        : (with_groups) ? gOIhw16i16o : OIhw16i16o;
-
+    auto src_format = pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
+    auto wei_format = with_groups
+        ? pick(ndims - 3, gOIw16i16o, gOIhw16i16o, gOIdhw16i16o)
+        : pick(ndims - 3, gOIw16i16o, gOIhw16i16o, gOIdhw16i16o);
     /* conditions on bias memory */
     jcp.with_bias = cd.diff_bias_desc.format != memory_format::undef;
     if (jcp.with_bias) {
@@ -4313,7 +4325,7 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
     }
 
     if (jcp.is_1stconv) {
-        const auto want_src_format = (ndims == 5) ? ncdhw : nchw;
+        const auto want_src_format = pick(ndims - 3, ncw, nchw, ncdhw);
         if (src_d.format() == any)
             CHECK(src_pd.set_format(want_src_format));
 
@@ -4323,7 +4335,7 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
                 diff_dst_d.data_type())
             && one_of(jcp.ic, 1, 3)
             && implication(jcp.ic == 1, one_of(src_d.format(), want_src_format,
-                (ndims == 5) ? ndhwc : nhwc))
+                pick(ndims - 3, nwc, nhwc, ndhwc)))
             && implication(jcp.ic != 1, src_d.format() == want_src_format)
             && jcp.ngroups == 1;
         if (!src_ok)
@@ -4333,11 +4345,11 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
                     jcp.stride_w), 16);
         const int kh_step = nstl::max((28 - jcp.with_bias) / jcp.kw, 1);
         const int kh_step_rem = jcp.kh % kh_step;
-        const auto want_4fma_wfmt = (ndims == 5)
-            ? with_groups ? gOidhw16o : Oidhw16o
-            : with_groups ? gOihw16o : Oihw16o;
+        const auto want_4fma_wfmt = with_groups
+            ? pick(ndims - 3, gOiw16o, gOihw16o, gOidhw16o)
+            : pick(ndims - 3, Oiw16o, Oihw16o, Oidhw16o);
         const bool use_4fma = true
-            && ndims == 4
+            && one_of(ndims, 3, 4)
             && mayiuse(avx512_mic_4ops)
             && mkldnn_thr_syncable()
             && everyone_is(0, jcp.dilate_d, jcp.dilate_h, jcp.dilate_w)
@@ -4360,9 +4372,9 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
             jcp.ver = ver_fma;
             jcp.ic_block = jcp.ic;
 
-            const auto want_wfmt = (ndims == 5)
-                ? with_groups ? gOdhwi16o : Odhwi16o
-                : with_groups ? gOhwi16o : Ohwi16o;
+            const auto want_wfmt = with_groups
+                ? pick(ndims - 3, gOwi16o, gOhwi16o, gOdhwi16o)
+                : pick(ndims - 3, Owi16o, Ohwi16o, Odhwi16o);
             if (diff_weights_d.format() == any)
                 CHECK(diff_weights_pd.set_format(want_wfmt));
             if (diff_weights_d.format() != want_wfmt)
@@ -4390,7 +4402,7 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
         jcp.src_fmt = src_d.format();
         if ((mayiuse(avx512_mic_4ops) || mayiuse(avx512_core_vnni))
             && mkldnn_thr_syncable()
-            && ndims == 4
+            && one_of(ndims, 3, 4)
             && jcp.stride_w == 1
             && everyone_is(0, jcp.dilate_d, jcp.dilate_h, jcp.dilate_w)
             && ((src_d.data_type() == data_type::s16
@@ -4403,7 +4415,7 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
                     src_d.data_type(), diff_weights_d.data_type(),
                     diff_dst_d.data_type())) {
             jcp.ver = ver_fma;
-            if (ndims == 4 && mayiuse(avx512_mic_4ops) && jcp.stride_w == 1 &&
+            if (one_of(ndims, 3, 4) && mayiuse(avx512_mic_4ops) && jcp.stride_w == 1 &&
                     everyone_is(0, jcp.dilate_d, jcp.dilate_h, jcp.dilate_w) &&
                     mkldnn_thr_syncable()) {
                 jcp.ver = ver_4fma;
