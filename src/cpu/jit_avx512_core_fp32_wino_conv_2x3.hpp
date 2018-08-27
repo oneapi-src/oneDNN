@@ -125,6 +125,7 @@ private:
 
     float *wino_src_;
     float *wino_dst_;
+    float *padded_bias_;
 };
 
 using jit_avx512_core_fp32_wino_conv_2x3_fwd_t =

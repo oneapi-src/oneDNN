@@ -110,7 +110,7 @@ struct jit_conv_conf_2x3_wino_t {
     int tile_h, tile_w;
 
     int mb;
-    int ngroups, ic, oc;
+    int ngroups, ic, oc, oc_without_padding;
     int ih, iw, oh, ow;
     int l_pad, t_pad;
     int r_pad, b_pad;
