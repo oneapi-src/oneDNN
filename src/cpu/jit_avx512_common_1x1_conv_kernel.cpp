@@ -936,6 +936,29 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
             reduce_blocking *= jcp.reduce_block;
         }
 
+        // Check input data cache aliasing.
+        // For other ISA constants may be updated.
+        // 64 * 1024 is chosen due to 1MB L2 16-way cache.
+        // 7 is empirical value. It is about half of 16.
+        // So we leave about half of the set for other data - weights, dst
+        int way_size = (64 * 1024) / jcp.typesize_in;
+        int max_hits = 7;
+        if (jcp.bcast_dim * reduce_blocking > way_size * max_hits) {
+            int nrb = reduce_blocking / simd_w;
+            int sp = jcp.bcast_dim;
+            int wl = way_size / simd_w;
+            for (int start_off = 0; start_off < jcp.ur; start_off++) {
+                for (int off = start_off, hits = 0; off < sp * nrb; off += wl) {
+                    if (off % sp >= jcp.ur || ++hits < max_hits)
+                        continue;
+                    int max_r_blocking = simd_w * nstl::max(1, (off + wl) / sp);
+                    reduce_blocking
+                            = nstl::min(reduce_blocking, max_r_blocking);
+                    break;
+                }
+            }
+        }
+
         if (reduce_blocking < jcp.reduce_dim) {
             jcp.use_vmovntps = false;
             if (jcp.prop_kind == backward_data)
