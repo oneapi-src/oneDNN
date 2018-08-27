@@ -231,7 +231,7 @@ void jit_avx512_core_u8s8s32x_fwd_kernel::compute_ker(int ur_w,
             /* Skip the last loads of input if (ic%16)/4 < ic_block/4 */
             int icb = jcp.is_depthwise
                 ? 1
-                : (last_ic_block_flag)
+                : (last_ic_block_flag != no_last_block)
                     ? div_up((jcp.ic_without_padding % ic_block), 4)
                     : ic_block / 4;
             for (int ic = 0; ic < icb; ic++) {
@@ -242,8 +242,8 @@ void jit_avx512_core_u8s8s32x_fwd_kernel::compute_ker(int ur_w,
                                 EVEX_compress_addr(
                                           aux_reg_inp, aux_input_offset));
                     } else {
-                        if (last_ic_block_flag && tail_size != 0
-                            && ic == icb - 1) {
+                        if (last_ic_block_flag == last_sp_block
+                                && tail_size != 0 && ic == icb - 1) {
                             Xmm xmm_tmp =
                                 Xmm(zmm_inp(jj, nb_oc_block).getIdx());
                             for (int r = 0; r < tail_size; ++r)
@@ -286,7 +286,7 @@ void jit_avx512_core_u8s8s32x_fwd_kernel::compute_ker(int ur_w,
 }
 
 void jit_avx512_core_u8s8s32x_fwd_kernel::compute_loop(int ur_w,
-    int pad_l, int pad_r)
+    int pad_l, int pad_r, bool is_last_sp_block)
 {
     prepare_output(ur_w);
 
@@ -300,15 +300,16 @@ void jit_avx512_core_u8s8s32x_fwd_kernel::compute_loop(int ur_w,
         cmp(reg_icb, 1); // The last IC block
         jne(common_ker, T_NEAR);
 
-        compute_ker(ur_w, pad_l, pad_r, 1);
+        compute_ker(ur_w, pad_l, pad_r, is_last_sp_block ? last_sp_block
+                                                         : last_ic_block);
         jmp(end_ker, T_NEAR);
 
         L(common_ker);
-        compute_ker(ur_w, pad_l, pad_r, 0);
+        compute_ker(ur_w, pad_l, pad_r, no_last_block);
 
         L(end_ker);
     } else {
-        compute_ker(ur_w, pad_l, pad_r, 0);
+        compute_ker(ur_w, pad_l, pad_r, no_last_block);
     }
     // End of IC Loop
     int inp_step = jcp.ic_block;
@@ -383,22 +384,22 @@ void jit_avx512_core_u8s8s32x_fwd_kernel::generate()
     int n_oi = jcp.ow / jcp.ur_w;
     int r_pad1 = (jcp.ur_w * n_oi - 1) * jcp.stride_w
             + (jcp.kw - 1) * (jcp.dilate_w + 1) - (jcp.iw + jcp.l_pad - 1);
-    if (r_pad1 > 0) n_oi--;
+    if (r_pad1 > 0 || jcp.ur_w_tail == 0) n_oi--;
 
     xor_(reg_oi, reg_oi);
     if (jcp.ow == jcp.ur_w) {
-        compute_loop(jcp.ur_w, jcp.l_pad, r_pad);
+        compute_loop(jcp.ur_w, jcp.l_pad, r_pad, true);
     } else {
         if (n_oi == 0) {
-            compute_loop(jcp.ur_w, jcp.l_pad, r_pad1);
+            compute_loop(jcp.ur_w, jcp.l_pad, r_pad1, jcp.ur_w_tail == 0);
             add(reg_inp, inp_shift_pad);
             add(reg_out, out_shift);
             if (jcp.ur_w_tail != 0) {
-                compute_loop(jcp.ur_w_tail, 0, r_pad);
+                compute_loop(jcp.ur_w_tail, 0, r_pad, true);
             }
         } else {
             if (jcp.l_pad > 0) {
-                compute_loop(jcp.ur_w, jcp.l_pad, 0);
+                compute_loop(jcp.ur_w, jcp.l_pad, 0, false);
                 add(reg_inp, inp_shift_pad);
                 add(reg_out, out_shift);
 
@@ -407,7 +408,7 @@ void jit_avx512_core_u8s8s32x_fwd_kernel::generate()
             if ((jcp.l_pad <= 0 && n_oi > 0) || (jcp.l_pad > 0 && n_oi > 1)) {
                 Label ow_loop_label;
                 L(ow_loop_label); {
-                    compute_loop(jcp.ur_w, 0, 0);
+                    compute_loop(jcp.ur_w, 0, 0, false);
                     add(reg_inp, inp_shift);
                     add(reg_out, out_shift);
 
@@ -416,13 +417,13 @@ void jit_avx512_core_u8s8s32x_fwd_kernel::generate()
                     jl(ow_loop_label, T_NEAR);
                 }
             }
-            if (r_pad1 > 0) {
-                compute_loop(jcp.ur_w, 0, r_pad1);
+            if (r_pad1 > 0 || jcp.ur_w_tail == 0) {
+                compute_loop(jcp.ur_w, 0, r_pad1, jcp.ur_w_tail == 0);
                 add(reg_inp, inp_shift);
                 add(reg_out, out_shift);
             }
             if (jcp.ur_w_tail != 0) {
-                compute_loop(jcp.ur_w_tail, 0, r_pad);
+                compute_loop(jcp.ur_w_tail, 0, r_pad, true);
             }
         }
     }

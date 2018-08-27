@@ -62,6 +62,11 @@ private:
         typesize = sizeof(float),
         ker_reg_base_idx = 28,
     };
+    enum {
+        no_last_block,
+        last_ic_block,
+        last_sp_block,
+    };
 
     reg64_t reg_inp = r8;
     reg64_t reg_ker = r9;
@@ -119,7 +124,7 @@ private:
     void prepare_output(int ur_w);
     void store_output(int ur_w, int last_oc_block_flag);
     void compute_ker(int ur_w, int pad_l, int pad_r, int last_ic_block_flag);
-    void compute_loop(int ur_w, int pad_l, int pad_r);
+    void compute_loop(int ur_w, int pad_l, int pad_r, bool is_last_spatial_block);
     void generate();
     void cvt2ps(data_type_t type_in, zmm_t zmm_in, const Xbyak::Operand &op,
         bool mask_flag);
