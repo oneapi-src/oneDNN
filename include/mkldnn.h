@@ -454,7 +454,83 @@ mkldnn_status_t MKLDNN_API mkldnn_post_ops_get_params_eltwise(
 /** @} */
 
 /** @addtogroup c_api_memory Memory
- * A primitive to describe data.
+ * A primitive to describe and store data.
+ *
+ * The library supports various data types and formats. Memory hierarchy
+ * consists of three levels of abstraction:
+ * 1. **Memory descriptor** -- engine agnostic logical description of data
+ *      (number of dimensions, dimensions themselves and data type), and
+ *      optionally the format/layout that describes the physical representation
+ *      of data in memory. If the format/layout is not known yet one can pass
+ *      #mkldnn_any. This approach is used to allow compute intensive
+ *      primitives to specify the most appropriate layout on their own with
+ *      users required to reorder the data if the incoming layout doesn't match
+ *      the primitive's selection. Memory descriptor can be created with
+ *      mkldnn_memory_desc_init() function or by directly filling the
+ *      mkldnn_memory_desc_t structure. The later requires deep knowledge of
+ *      how the physical data representation is mapped to the structure. The
+ *      @ref understanding_memory_formats topic should shed some light on that.
+ * 2. **Memory primitive descriptor** -- logical description of data that is
+ *      fully defined, i.e. cannot contain #mkldnn_any as a format. It also
+ *      has the engine specified. A memory primitive descriptor is created by
+ *      calling mkldnn_memory_primitive_desc_create() with two arguments: an
+ *      mkldnn_memory_desc_t and an mkldnn_engine_t. It has the same type as
+ *      other primitive descriptors and can be:
+ *      - queried to return the underlying memory descriptor using
+ *        mkldnn_primitive_desc_query() and
+ *        mkldnn_primitive_desc_query_memory_d().
+ *      - compared with another memory primitive descriptor using
+ *        mkldnn_memory_primitive_desc_equal(). This is especially useful when
+ *        checking whether a primitive requires reorder from user's data layout
+ *        to the primitive's one.
+ *      - queried to return the size of the data using
+ *        mkldnn_memory_primitive_desc_get_size(). As described in
+ *        @ref understanding_memory_formats the size of data sometimes cannot
+ *        be computed as a product of dimensions times the size of data type.
+ *        So users are encouraged to use this function to have better code
+ *        portability.
+ * 3. **Memory primitive** or simply **memory** -- a pseudo-primitive that is
+ *      defined by a memory primitive descriptor and a handle to the data
+ *      itself (in case of CPU engine the handle is simply a pointer `void*`).
+ *      The data handle can be queried using mkldnn_memory_get_data_handle()
+ *      and be set using mkldnn_memory_set_data_handle(). The latter function
+ *      always sets the memory in the padding region to zero which is the
+ *      invariant maintained by all the primitives in Intel MKL-DNN. See
+ *      @ref understanding_memory_formats for more details.
+ *      A memory primitive can be created using mkldnn_primitive_create() with
+ *      empty inputs and outputs. In this case, the memory primitive's data
+ *      handle needs to be set manually using mkldnn_memory_set_data_handle().
+ *
+ * Along with ordinary memory with all dimensions being positive, Intel
+ * MKL-DNN supports *zero-volume* memory with one or more dimensions set to
+ * zero. This is to support NumPy\* convention.
+ * If a *zero-volume* memory is passed to a primitive, the primitive would
+ * not perform any computations on this memory. For example:
+ *  - Convolution with `(0 batch, 3 input channels, 13 height, 13 width)`
+ *    source and `(16 output channels, 3 inputs, channel, 3 height, 3 width)`
+ *    weights would produce `(0 batch, 16 ouput channels, 11 height, 11 width)`
+ *    destination (assuming strides are `1` and paddings are zero) and perform
+ *    zero multiply-add operations.
+ *  - Concatenation of 3 memories of shapes `(3, 4, 13, 13)`, `(3, 0, 13, 13)`,
+ *    and `(3, 1, 13, 13)` along the second axis would produce the output of
+ *    the shape `(3, 5, 13, 13)`, effectively ignoring the second input
+ *    (however if user created a concatenation primitive descriptor with 3
+ *    inputs they should also provide all 3 memories to the concatenation
+ *    primitive, including the one with zero second dimension).
+ *  - However, Intel MKL-DNN would return an error when attempting to create a
+ *    convolution with *zero-volume* memory passed for weights because such
+ *    convolution is not well-defined:
+ *    ~~~
+ *    dst(1, 16, 11, 11) <-- src(1, 0, 13, 13) (*) wei(16, 0, 3, 3)
+ *    ~~~
+ *    Should the values in the destination be zeroes or just not accessed at
+ *    all? Moreover, backward pass w.r.t. weights in such cases is not
+ *    well-defined as well.
+ *
+ *  Data handle of *zero-volume* memory is never accessed and hence can be
+ *  unset (NULL in case of CPU engine).
+ *
+ * @sa @ref understanding_memory_formats
  * @{ */
 
 /** Initializes a @p memory_desc memory descriptor using @p ndims, @p dims, @p

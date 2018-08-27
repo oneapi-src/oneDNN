@@ -554,9 +554,9 @@ private:
 /// @{
 
 /// @addtogroup cpp_api_memory Memory
-/// A primitive to describe data.
+/// A primitive to describe and store data.
 ///
-/// @sa @ref c_api_memory in @ref c_api
+/// For more information please refer to @ref c_api_memory in @ref c_api
 /// @{
 
 /// Memory primitive that describes the data.
