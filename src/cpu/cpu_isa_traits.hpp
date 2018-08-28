@@ -132,12 +132,13 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa) {
 #include "z_magic.hpp"
 #define JIT_IMPL_NAME_HELPER(prefix, isa, suffix_if_any) \
     (isa == sse42 ? prefix STRINGIFY(sse42) : \
+    (isa == avx ? prefix STRINGIFY(avx) : \
     (isa == avx2 ? prefix STRINGIFY(avx2) : \
     (isa == avx512_common ? prefix STRINGIFY(avx512_common) : \
     (isa == avx512_core ? prefix STRINGIFY(avx512_core) : \
     (isa == avx512_mic ? prefix STRINGIFY(avx512_mic) : \
     (isa == avx512_mic_4ops ? prefix STRINGIFY(avx512_mic_4ops) : \
-    prefix suffix_if_any))))))
+    prefix suffix_if_any)))))))
 
 }
 }

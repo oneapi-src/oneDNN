@@ -269,8 +269,8 @@ void jit_uni_pooling_bwd_t<isa>::execute_backward_3d() {
 
 template struct jit_uni_pooling_fwd_t<sse42>;
 template struct jit_uni_pooling_bwd_t<sse42>;
-template struct jit_uni_pooling_fwd_t<avx2>;
-template struct jit_uni_pooling_bwd_t<avx2>;
+template struct jit_uni_pooling_fwd_t<avx>;
+template struct jit_uni_pooling_bwd_t<avx>;
 template struct jit_uni_pooling_fwd_t<avx512_common>;
 template struct jit_uni_pooling_bwd_t<avx512_common>;
 
