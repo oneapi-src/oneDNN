@@ -76,7 +76,7 @@ void jit_avx2_conv_fwd_kernel_f32::oh_step_unroll_kw(int ur_w,
                         vfmadd231ps(Ymm(ur_w * ii + jj),
                                 Ymm(oc_blocks * ur_w + jj), ymm15);
                     else { // AVX support
-                        Ymm tmp = ymm14; // guaranteed to be free -- see init
+                        Ymm tmp = ymask;
                         vmulps(tmp, ymm15, Ymm(oc_blocks * ur_w + jj));
                         vaddps(Ymm(ur_w * ii + jj), Ymm(ur_w * ii + jj), tmp);
                     }
@@ -130,7 +130,7 @@ void jit_avx2_conv_fwd_kernel_f32::oh_step_nopad(int ur_w,
                         vfmadd231ps(Ymm(ur_w * ii + jj),
                                 Ymm(oc_blocks * ur_w + jj), ymm15);
                     else { // AVX support
-                        Ymm tmp = ymm14;
+                        Ymm tmp = ymask;
                         vmulps(tmp, ymm15, Ymm(oc_blocks * ur_w + jj));
                         vaddps(Ymm(ur_w * ii + jj), Ymm(ur_w * ii + jj), tmp);
                     }

@@ -249,7 +249,7 @@ void jit_avx2_1x1_conv_kernel_f32::reduce_loop(int load_loop_blk, int ur,
                     if (mayiuse(avx2))
                         vfmadd231ps(vreg_accum(i, j), vreg_load(i), vreg_bcast);
                     else { // AVX support
-                        Ymm tmp = ymm14;
+                        auto tmp = vmask;
                         vmulps(tmp, vreg_bcast, vreg_load(i));
                         vaddps(vreg_accum(i, j), vreg_accum(i, j), tmp);
                     }
