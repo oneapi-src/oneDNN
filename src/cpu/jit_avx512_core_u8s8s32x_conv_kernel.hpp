@@ -75,12 +75,12 @@ private:
     reg64_t reg_ptr_sum_scale = r11;
     reg64_t aux_reg_ker = r12;
     reg64_t reg_scratch = r14;
-    reg64_t reg_kj   = rax;
+    reg64_t reg_kj = rax;
     reg64_t reg_ptr_scales = rax;
-    reg64_t reg_oi   = rbx;
+    reg64_t reg_oi = rbx;
     reg64_t reg_bias = rdx;
-    reg64_t reg_kh   = abi_not_param1;
-    reg64_t param    = abi_param1;
+    reg64_t reg_kh = abi_not_param1;
+    reg64_t param = abi_param1;
     reg64_t reg_tmp = rbp;
     reg64_t imm_addr64 = r15;
     reg64_t reg_oc_blocks = rsi;
@@ -124,7 +124,8 @@ private:
     void prepare_output(int ur_w);
     void store_output(int ur_w, int last_oc_block_flag);
     void compute_ker(int ur_w, int pad_l, int pad_r, int last_ic_block_flag);
-    void compute_loop(int ur_w, int pad_l, int pad_r, bool is_last_spatial_block);
+    void compute_loop(
+            int ur_w, int pad_l, int pad_r, bool is_last_spatial_block);
     void generate();
     void cvt2ps(data_type_t type_in, zmm_t zmm_in, const Xbyak::Operand &op,
         bool mask_flag);
