@@ -228,6 +228,9 @@ void jit_avx512_core_u8s8s32x_1x1_conv_kernel::reduce_loop(int load_loop_blk,
                     } else
                         assert(!"unimplemented");
                 }
+            }
+            for (int i_ur = 0; i_ur < ur; ++i_ur) {
+                auto r = vreg_accum(i_load, i_ur);
                 zmm_t r_zmm = mask_flag ? r | ktail_mask : r;
                 switch (jcp.dst_dt) {
                 case data_type::f32:

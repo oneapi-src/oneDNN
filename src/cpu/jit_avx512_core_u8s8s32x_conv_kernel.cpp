@@ -154,6 +154,14 @@ void jit_avx512_core_u8s8s32x_fwd_kernel::store_output(int ur_w,
                 else
                     assert(!"unimplemented");
             }
+        }
+
+        for (int j = 0; j < ur_w; j++) {
+            int aux_output_offset = jcp.typesize_out * (k * jcp.oc_block
+                + j * jcp.oc_without_padding * jcp.ngroups);
+            auto addr = EVEX_compress_addr(reg_out, aux_output_offset);
+
+            Zmm zmm = zmm_out(j, k);
             zmm_t r_zmm = mask_flag ? zmm | ktail_mask : zmm;
             switch (jcp.dst_dt) {
             case data_type::f32:
