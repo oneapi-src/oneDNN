@@ -210,25 +210,14 @@ void jit_avx2_1x1_conv_kernel_f32::reduce_loop(int load_loop_blk, int ur,
                uni_vbroadcastss(ymm_relu_ns, xmm_relu_ns);
             }
 
-            if (mayiuse(avx2)) {
-                for (int j = 0; j < ur; ++j) {
-                    for (int i = 0; i < load_loop_blk; ++i) {
-                        vcmpgtps(vmask, vreg_accum(i, j), vzero);
-                        vmulps(ymm_res_ns, ymm_relu_ns, vreg_accum(i, j));
-                        vblendvps(vreg_accum(i, j), ymm_res_ns,
-                                 vreg_accum(i, j), vmask);
-                        vmovups(output_ptr(i, j), vreg_accum(i, j));
-                    }
+            for (int j = 0; j < ur; ++j)
+                for (int i = 0; i < load_loop_blk; ++i) {
+                    vcmpgtps(vmask, vreg_accum(i, j), vzero);
+                    vmulps(ymm_res_ns, ymm_relu_ns, vreg_accum(i, j));
+                    vblendvps(vreg_accum(i, j), ymm_res_ns,
+                             vreg_accum(i, j), vmask);
+                    vmovups(output_ptr(i, j), vreg_accum(i, j));
                 }
-            } else {
-                assert(jcp.relu_negative_slope == 0);
-                for (int j = 0; j < ur; ++j) {
-                    for (int i = 0; i < load_loop_blk; ++i) {
-                        vmaxps(vreg_accum(i, j), vzero, vreg_accum(i, j));
-                        vmovups(output_ptr(i, j), vreg_accum(i, j));
-                    }
-                }
-            }
 
             jmp(store_done, T_NEAR);
             L(store_norelu);
@@ -474,7 +463,6 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
         const primitive_attr_t &attr, bool with_relu, float relu_negative_slope)
 {
     if (!mayiuse(avx)) return status::unimplemented;
-    if (!mayiuse(avx2) && relu_negative_slope != 0.0) return status::unimplemented;
 
     // TODO (Roma): this code is duplicated from the generic kernel; maybe the
     // configuration struct could do some stuff below

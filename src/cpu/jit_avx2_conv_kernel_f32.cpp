@@ -300,14 +300,9 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(int ur_w,
                         + jj) * oc_blk;
                 Ymm reg_out = Ymm(ur_w * ii + jj);
 
-                if (mayiuse(avx2)) {
-                    vcmpgtps(ymask, reg_out, yzero);
-                    vmulps(ymm_res_ns, ymm_relu_ns, reg_out);
-                    vblendvps(reg_out, ymm_res_ns, reg_out, ymask);
-                } else {
-                    assert(jcp.relu_negative_slope == 0);
-                    vmaxps(reg_out, yzero, reg_out);
-                }
+                vcmpgtps(ymask, reg_out, yzero);
+                vmulps(ymm_res_ns, ymm_relu_ns, reg_out);
+                vblendvps(reg_out, ymm_res_ns, reg_out, ymask);
                 vmovups(make_safe_addr(reg_output, o_off, reg_long_offt),
                         reg_out);
             }
@@ -456,7 +451,6 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
         const primitive_attr_t &attr, bool with_relu, float relu_negative_slope)
 {
     if (!mayiuse(avx)) return status::unimplemented;
-    if (!mayiuse(avx2) && relu_negative_slope != 0.0) return status::unimplemented;
 
     jcp.prop_kind = cd.prop_kind;
 
