@@ -425,15 +425,12 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_bwd(int ur_w, int pad_l,
                 } else if (isa == avx) {
                     if (mayiuse(avx2)) {
                         vpcmpeqd(vreg(3*ur_w+jj), vreg(ur_w+jj), vmm_k_offset);
-                        vaddps(vreg(2*ur_w+jj), vreg(2*ur_w+jj), vreg(jj));
-                        vmaskmovps(vmmword[aux_reg_input + input_offset],
-                                vreg(3*ur_w+jj), vreg(2*ur_w+jj));
                     } else {
                         avx_pcmpeqd(vreg(3*ur_w+jj), vreg(ur_w+jj), vmm_k_offset, xmm_tmp);
-                        vaddps(vreg(2*ur_w+jj), vreg(2*ur_w+jj), vreg(jj));
-                        vmaskmovps(vmmword[aux_reg_input + input_offset],
-                                vreg(3*ur_w+jj), vreg(2*ur_w+jj));
                     }
+                    vaddps(vreg(2*ur_w+jj), vreg(2*ur_w+jj), vreg(jj));
+                    vmaskmovps(vmmword[aux_reg_input + input_offset],
+                            vreg(3*ur_w+jj), vreg(2*ur_w+jj));
                 } else {
                     vpcmpeqd(k_store_mask, vreg(ur_w+jj), vmm_k_offset);
                     vblendmps(vmm_tmp | k_store_mask | T_z, vreg(jj), vreg(jj));
