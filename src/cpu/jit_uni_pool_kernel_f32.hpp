@@ -138,6 +138,7 @@ private:
     }
 
     void avx_vpadd1(const Xmm& x0, const Xmm& x1, const Xmm&) {
+        assert(false /*function should not be used*/);
         paddd(x0, x1);
     }
 
@@ -150,6 +151,7 @@ private:
     }
 
     void avx_pmovzxbd(const Xmm& x0, const Xmm& x1, const Xmm&) {
+        assert(false /*function should not be used*/);
         pmovzxbd(x0, x1);
     }
 
@@ -167,6 +169,7 @@ private:
     }
 
     void avx_pcmpeqd(const Xmm& x0, const Xmm& x1, const Xmm&, const Xmm&) {
+        assert(false /*function should not be used*/);
         pcmpeqd(x0, x1);
     }
 };
