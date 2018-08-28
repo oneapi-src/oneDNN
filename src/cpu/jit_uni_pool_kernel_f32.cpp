@@ -667,7 +667,7 @@ void jit_uni_pool_kernel_f32<isa>::generate() {
 }
 
 template struct jit_uni_pool_kernel_f32<sse42>;
-template struct jit_uni_pool_kernel_f32<avx>;
+template struct jit_uni_pool_kernel_f32<avx>; // implements both <avx> and <avx2>
 template struct jit_uni_pool_kernel_f32<avx512_common>;
 
 }
