@@ -74,7 +74,7 @@ struct _jit_avx512_core_u8s8s32x_1x1_convolution_fwd_t : public cpu_primitive_t 
                     *conv_d, *src_d, *this->weights_pd_.desc(),
                     *this->dst_pd_.desc(), *this->bias_pd_.desc(), *this->attr(),
                     with_relu, this->negative_slope(),
-                    omp_get_max_threads(), rtus_.reduce_src_);
+                    mkldnn_get_max_threads(), rtus_.reduce_src_);
         }
 
         jit_1x1_conv_conf_t jcp_;

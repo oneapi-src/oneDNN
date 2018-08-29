@@ -77,7 +77,7 @@ struct _jit_avx512_common_1x1_convolution_fwd_t : public cpu_primitive_t {
                     *conv_d, *src_d, *this->weights_pd_.desc(),
                     *this->dst_pd_.desc(), *this->attr(),
                     with_relu, this->negative_slope(),
-                    omp_get_max_threads(), rtus_.reduce_src_);
+                    mkldnn_get_max_threads(), rtus_.reduce_src_);
         }
 
         jit_1x1_conv_conf_t jcp_;
@@ -206,7 +206,7 @@ struct _jit_avx512_common_1x1_convolution_bwd_data_t : public cpu_primitive_t {
             return jit_avx512_common_1x1_conv_kernel::init_conf(jcp_,
                             *conv_d, *diff_src_d, *this->weights_pd_.desc(),
                             *this->diff_dst_pd_.desc(), *this->attr(),
-                            omp_get_max_threads(), rtus_.reduce_src_);
+                            mkldnn_get_max_threads(), rtus_.reduce_src_);
         }
 
         // TODO (Roma): structs conf header cleanup
@@ -329,7 +329,7 @@ struct jit_avx512_common_1x1_convolution_bwd_weights_t : public cpu_primitive_t
             return jit_avx512_common_1x1_conv_kernel::init_conf(jcp_,
                             *conv_d, *src_d, *this->diff_weights_pd_.desc(),
                             *this->diff_dst_pd_.desc(), *this->attr(),
-                            omp_get_max_threads(), rtus_.reduce_src_);
+                            mkldnn_get_max_threads(), rtus_.reduce_src_);
         }
 
         // TODO (Roma): structs conf header cleanup

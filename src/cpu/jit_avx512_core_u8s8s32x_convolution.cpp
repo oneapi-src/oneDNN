@@ -63,7 +63,7 @@ execute_forward()
 
 #   pragma omp parallel
     {
-        int ithr = omp_get_thread_num(), nthr = omp_get_num_threads();
+        int ithr = mkldnn_get_thread_num(), nthr = mkldnn_get_num_threads();
 
         int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
         int nb_groups = jcp.nb_ch;

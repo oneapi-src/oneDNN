@@ -1292,7 +1292,7 @@ void _jit_avx512_common_convolution_winograd_t<is_fwd>::_execute_data_W_SGD(
 
 #pragma omp barrier
 
-    int ithr = omp_get_thread_num();
+    int ithr = mkldnn_get_thread_num();
 
 #pragma omp for schedule(static)
     for (int tile_block = 0; tile_block < jcp.tile_block; tile_block++) {
@@ -1416,7 +1416,7 @@ _execute_backward_weights_S_D_G_W()
 
     array_offset_calculator<float, 2> diff_bias_prv(
             (float *)(scratchpad_->bias_ptr()),
-            omp_get_max_threads(),
+            mkldnn_get_max_threads(),
             jcp.oc);
 
 #pragma omp parallel num_threads(nthreads)
@@ -1434,7 +1434,7 @@ _execute_backward_weights_S_D_G_W()
             }
         }
 
-        const int ithread = omp_get_thread_num();
+        const int ithread = mkldnn_get_thread_num();
 
         parallel_nd_in_omp(jcp.mb, jcp.nb_ic, jcp.ic_block,
             [&](int img, int ifm1, int ifm2) {
@@ -1712,8 +1712,8 @@ void array_sum(int num_arrs, float *output,
 
 #pragma omp parallel
     {
-        const int ithr = omp_get_thread_num();
-        const int nthr = omp_get_num_threads();
+        const int ithr = mkldnn_get_thread_num();
+        const int nthr = mkldnn_get_num_threads();
         size_t start{ 0 }, end{ 0 };
         balance211(blocks_number, nthr, ithr, start, end);
 
@@ -1763,8 +1763,8 @@ void subarray_sum(int num_arrs, float *output, size_t nelems,
 
 #pragma omp parallel
     {
-        const int ithr = omp_get_thread_num();
-        const int nthr = omp_get_num_threads();
+        const int ithr = mkldnn_get_thread_num();
+        const int nthr = mkldnn_get_num_threads();
         size_t start{ 0 }, end{ 0 };
         balance211(blocks_number, nthr, ithr, start, end);
 
@@ -1909,7 +1909,7 @@ _execute_backward_weights_S_D_Giot_W()
 
 #pragma omp parallel
     {
-        const int ithread = omp_get_thread_num();
+        const int ithread = mkldnn_get_thread_num();
         parallel_nd_in_omp(jcp.mb, jcp.nb_ic, jcp.ic_block,
             [&](int img, int ifm1, int ifm2) {
                 float *transb = jcp.ver == ver_4fma
@@ -1928,7 +1928,7 @@ _execute_backward_weights_S_D_Giot_W()
     {
         parallel_nd_in_omp(jcp.mb, jcp.nb_oc, jcp.oc_block,
             [&](int img, int ofm1, int ofm2) {
-                const int ithread = omp_get_thread_num();
+                const int ithread = mkldnn_get_thread_num();
                 float *dbias = jcp.with_bias
                     ? &(diff_bias_prv(ithread,
                         simd_w * (ofm1 * jcp.oc_block + ofm2)))
@@ -1946,7 +1946,7 @@ _execute_backward_weights_S_D_Giot_W()
     {
         parallel_nd_in_omp(jcp.nb_ic, jcp.nb_oc, alpha, alpha, jcp.tile_block,
             [&](int ifm1, int ofm1, int oj, int oi, int tile_block) {
-                int ithr = omp_get_thread_num();
+                int ithr = mkldnn_get_thread_num();
                 if (th_counter == 0) {
                     input_starts[ithr] = (float *)&(Us(ithr, ifm1, ofm1,
                             oj, oi, 0, 0, 0, 0)) - (float *)&(Us(ithr, 0, 0,
@@ -2081,7 +2081,7 @@ _execute_backward_weights_SDGtWo()
 #pragma omp parallel firstprivate(th_counter) num_threads(nthreads)
 #pragma omp for nowait
         for (int tile_block = 0; tile_block < jcp.tile_block; tile_block++) {
-            int ithr = omp_get_thread_num();
+            int ithr = mkldnn_get_thread_num();
             for (int ifm1 = 0; ifm1 < jcp.nb_ic; ++ifm1) {
                 for (int ifm2 = 0; ifm2 < jcp.ic_block; ++ifm2) {
                     diff_src_transform_bwd_weights_ver_tile(tile_block, jcp,
@@ -2229,7 +2229,7 @@ _execute_backward_weights_SDGt_W()
 #pragma omp parallel firstprivate(th_counter) num_threads(nthreads)
 #pragma omp for nowait
     for (int tile_block = 0; tile_block < jcp.tile_block; tile_block++) {
-        int ithr = omp_get_thread_num();
+        int ithr = mkldnn_get_thread_num();
 
         for (int ifm1 = 0; ifm1 < jcp.nb_ic; ++ifm1) {
             for (int ifm2 = 0; ifm2 < jcp.ic_block; ++ifm2) {

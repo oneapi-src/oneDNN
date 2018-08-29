@@ -742,7 +742,7 @@ static void prb_thread_kernel_balance(tr::prb_t &prb, int &ndims_ker_max) {
     /* sz_drv_min is the minimal size for the parallel
      * driver required for good parallelization */
     const size_t sz_drv_min = nstl::min<size_t>(
-            16 * omp_get_max_threads(),
+            16 * mkldnn_get_max_threads(),
             utils::div_up(sz_total, 1024));
 
     /* kdims -- # of dimensions processed by a kernel

@@ -28,7 +28,7 @@ namespace cpu {
 namespace bnorm_utils {
     void cache_balance(size_t working_set_size, int C_blks, int &C_blks_per_iter,
             int &iters) {
-        int nthrs = omp_get_max_threads();
+        int nthrs = mkldnn_get_max_threads();
         int l3_size = get_cache_size(3, true) * nthrs / 2;
 
         C_blks_per_iter = l3_size / working_set_size;
@@ -94,7 +94,7 @@ namespace bnorm_utils {
     void set_spatial_thr(const batch_normalization_pd_t *bdesc,
         const int simd_w, const int data_size, int &is_spatial_thr) {
 
-        int nthr = omp_get_max_threads();
+        int nthr = mkldnn_get_max_threads();
         int SP = bdesc->W() * bdesc->D() * bdesc->H();
         int C_PADDED = memory_desc_wrapper(bdesc->src_pd())
             .blocking_desc().padding_dims[1];

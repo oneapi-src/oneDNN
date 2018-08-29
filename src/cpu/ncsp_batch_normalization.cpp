@@ -41,7 +41,7 @@ ncsp_batch_normalization_fwd_t::ncsp_batch_normalization_fwd_t(const pd_t *pd,
     tmp_mean_(nullptr), tmp_variance_(nullptr), conf_(*pd) {
     if (!conf_.stats_is_src()) {
         this->stats_reduction_ = (data_t *)malloc(
-                conf_.C() * omp_get_max_threads() * sizeof(data_t), 64);
+                conf_.C() * mkldnn_get_max_threads() * sizeof(data_t), 64);
         if (!conf_.is_training()) {
             this->tmp_mean_ = (data_t *)malloc(conf_.C() * sizeof(data_t), 64);
             this->tmp_variance_
@@ -99,13 +99,13 @@ void ncsp_batch_normalization_fwd_t::execute_forward() {
     size_t N = conf_.MB();
     size_t C = conf_.C();
 
-    int nthr = omp_get_max_threads();
+    int nthr = mkldnn_get_max_threads();
     size_t l3_size_ = get_cache_size(3, true) * nthr / 2;
     size_t data_size = N * C * SP * sizeof(data_t);
     bool do_blocking = (data_size >= l3_size_ / 2 && l3_size_ > 0);
 #pragma omp parallel
     {
-        int C_blks_per_iter = 1, iters = 1, ithr = omp_get_thread_num();
+        int C_blks_per_iter = 1, iters = 1, ithr = mkldnn_get_thread_num();
         int C_ithr = 0, C_nthr = 0, N_ithr = 0, N_nthr = 0, N_s = 0, N_e = 0;
         int S_ithr = 0, S_nthr = 0, S_s = 0, S_e = 0;
         int C_blk_gl_s = 0, C_blk_gl_e = 0, C_blk_s = 0, C_blk_e = 0;
@@ -214,7 +214,7 @@ ncsp_batch_normalization_bwd_t::ncsp_batch_normalization_bwd_t(const pd_t *pd,
     : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
     , stats_reduction_(nullptr), tmp_diff_scaleshift_(nullptr) {
     this->stats_reduction_ = (data_t *)malloc(
-            conf_.C() * 2 * omp_get_max_threads() * sizeof(data_t), 64);
+            conf_.C() * 2 * mkldnn_get_max_threads() * sizeof(data_t), 64);
     if (!(conf_.use_scaleshift()
                 && conf_.desc()->prop_kind == prop_kind::backward))
         this->tmp_diff_scaleshift_
@@ -248,13 +248,13 @@ void ncsp_batch_normalization_bwd_t::execute_backward() {
     const bool calculate_diff_stats = !conf_.omit_stats();
     const bool fuse_bn_relu = conf_.fuse_bn_relu();
 
-    int nthr = omp_get_max_threads();
+    int nthr = mkldnn_get_max_threads();
     size_t l3_size_ = get_cache_size(3, true) * nthr / 2;
     size_t data_size = N * C * SP * sizeof(data_t);
     bool do_blocking = (data_size >= l3_size_ / 2 && l3_size_ > 0);
 #pragma omp parallel
     {
-        int C_blks_per_iter = 1, iters = 1, ithr = omp_get_thread_num();
+        int C_blks_per_iter = 1, iters = 1, ithr = mkldnn_get_thread_num();
         int C_ithr = 0, C_nthr = 0, N_ithr = 0, N_nthr = 0, N_s = 0, N_e = 0;
         int S_ithr = 0, S_nthr = 0, S_s = 0, S_e = 0;
         int C_blk_gl_s = 0, C_blk_gl_e = 0, C_blk_s = 0, C_blk_e = 0;

@@ -1056,7 +1056,7 @@ struct uni_bnorm_driver_t: public c_compatible {
         int num_sbufs = 2 * use_tmp_stats_;
         int num_pbufs = 2 * use_tmp_diff_scale_shift_;
         int num_rbufs = bdesc_->is_fwd() ? 1 : 2;
-        int nthrs = omp_get_max_threads();
+        int nthrs = mkldnn_get_max_threads();
         int C_PADDED = memory_desc_wrapper(bdesc_->src_pd()).blocking_desc()
             .padding_dims[1];
 
@@ -1247,7 +1247,7 @@ void jit_uni_batch_normalization_fwd_t<isa>::execute(event_t *e) {
 
 #   pragma omp parallel
     {
-        bnorm_driver_->exec(omp_get_thread_num(), omp_get_num_threads(), src,
+        bnorm_driver_->exec(mkldnn_get_thread_num(), mkldnn_get_num_threads(), src,
                 nullptr, dst, nullptr, scale_shift, nullptr, mean, var, ws);
     }
     e->set_state(event_t::ready);
@@ -1287,7 +1287,7 @@ void jit_uni_batch_normalization_bwd_t<isa>::execute(event_t *e) {
 
 #   pragma omp parallel
     {
-        bnorm_driver_->exec(omp_get_thread_num(), omp_get_num_threads(), src,
+        bnorm_driver_->exec(mkldnn_get_thread_num(), mkldnn_get_num_threads(), src,
                 diff_src, nullptr, diff_dst, scale_shift, diff_scale_shift,
                 mean, var, ws);
     }

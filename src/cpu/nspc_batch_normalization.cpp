@@ -40,11 +40,11 @@ nspc_batch_normalization_fwd_t::nspc_batch_normalization_fwd_t(const pd_t *pd,
     tmp_mean_(nullptr), tmp_variance_(nullptr), conf_(*pd) {
     if (!conf_.stats_is_src()) {
         this->stats_reduction_ = (data_t *)malloc(
-                nstl::max(conf_.C(), 16) * omp_get_max_threads() * sizeof(data_t), 64);
-        this->tmp_mean_ = (data_t *)malloc(omp_get_max_threads() *
+                nstl::max(conf_.C(), 16) * mkldnn_get_max_threads() * sizeof(data_t), 64);
+        this->tmp_mean_ = (data_t *)malloc(mkldnn_get_max_threads() *
                 nstl::max(conf_.C(), 16) * sizeof(data_t), 64);
         this->tmp_variance_
-                = (data_t *)malloc(omp_get_max_threads() *
+                = (data_t *)malloc(mkldnn_get_max_threads() *
                        nstl::max(conf_.C(), 16) * sizeof(data_t), 64);
     }
 }
@@ -97,7 +97,7 @@ void nspc_batch_normalization_fwd_t::execute_forward() {
             = [&](data_t res) { return (with_relu && res < 0) ? 0 : res; };
 #pragma omp parallel
     {
-        int nthr = omp_get_max_threads(), ithr = omp_get_thread_num();
+        int nthr = mkldnn_get_max_threads(), ithr = mkldnn_get_thread_num();
         int N_s = 0, N_e = 0, C_s = 0, C_e = 0;
         balance211(N, nthr, ithr, N_s, N_e);
         balance211(C, nthr, ithr, C_s, C_e);
@@ -185,9 +185,9 @@ nspc_batch_normalization_bwd_t::nspc_batch_normalization_bwd_t(const pd_t *pd,
         const input_vector &inputs, const output_vector &outputs)
     : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {
     this->stats_reduction_ = (data_t *)malloc(
-            conf_.C() * 2 * omp_get_max_threads() * sizeof(data_t), 64);
+            conf_.C() * 2 * mkldnn_get_max_threads() * sizeof(data_t), 64);
     this->tmp_diff_scaleshift_
-            = (data_t *)malloc((omp_get_max_threads() + 1) * conf_.C() * 2 *
+            = (data_t *)malloc((mkldnn_get_max_threads() + 1) * conf_.C() * 2 *
                     sizeof(data_t), 64);
 }
 nspc_batch_normalization_bwd_t::~nspc_batch_normalization_bwd_t() {
@@ -213,7 +213,7 @@ void nspc_batch_normalization_bwd_t::execute_backward() {
     const int N = conf_.MB();
     const int C = conf_.C();
     int SP = conf_.D() * conf_.H() * conf_.W();
-    int nthr = omp_get_max_threads();
+    int nthr = mkldnn_get_max_threads();
     data_t *diff_gamma = diff_scaleshift, *diff_beta = diff_scaleshift + C;
     data_t *ws_reduce = this->stats_reduction_;
 
@@ -223,7 +223,7 @@ void nspc_batch_normalization_bwd_t::execute_backward() {
     const bool fuse_bn_relu = conf_.fuse_bn_relu();
 #pragma omp parallel
     {
-        int ithr = omp_get_thread_num();
+        int ithr = mkldnn_get_thread_num();
         int N_s = 0, N_e = 0, C_s = 0, C_e = 0;
         balance211(N, nthr, ithr, N_s, N_e);
         balance211(C, nthr, ithr, C_s, C_e);

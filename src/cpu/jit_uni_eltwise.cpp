@@ -1017,7 +1017,7 @@ void jit_uni_eltwise_fwd_t<isa>::execute_forward() {
 
 #   pragma omp parallel
     {
-        ker(omp_get_thread_num(), omp_get_num_threads());
+        ker(mkldnn_get_thread_num(), mkldnn_get_num_threads());
     }
 }
 
@@ -1089,7 +1089,7 @@ void jit_uni_eltwise_bwd_t<isa>::execute_backward() {
 
 #   pragma omp parallel
     {
-        ker(omp_get_thread_num(), omp_get_num_threads());
+        ker(mkldnn_get_thread_num(), mkldnn_get_num_threads());
     }
 }
 

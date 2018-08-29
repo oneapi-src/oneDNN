@@ -704,7 +704,7 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
         }
     }
 
-    const int nthreads = omp_get_max_threads();
+    const int nthreads = mkldnn_get_max_threads();
     jcp.xb = 4;
     int oh_blocks = (jcp.oh < jcp.yb) ? 1 : (jcp.oh / jcp.yb);
     int ow_blocks = (jcp.ow < jcp.xb) ? 1 : (jcp.ow / jcp.xb);
@@ -798,7 +798,7 @@ _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu, dst_data_type>::
                 const input_vector &inputs, const output_vector &outputs)
     : cpu_primitive_t(&conf_, inputs, outputs)
     , conf_(*pd) {
-    const int nthreads = omp_get_max_threads();
+    const int nthreads = mkldnn_get_max_threads();
     kernel_ = new jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t(
             conf_.jcp_, *conf_.attr());
     src_trans_ = new jit_avx512_core_u8s8s32x_wino_conv_src_trans_t(
@@ -867,7 +867,7 @@ void _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu,
         int tile_y = tile_y_b * jcp.yb;
         int tile_x = tile_x_b * jcp.xb;
 
-        int ithr = omp_get_thread_num();
+        int ithr = mkldnn_get_thread_num();
         auto wino_src = wino_src_ + size_wino_src * ithr;
         auto wino_dst = wino_dst_ + size_wino_dst * ithr;
 

@@ -72,8 +72,8 @@ void _gemm_convolution_fwd_t<with_relu>::execute_forward() {
     const size_t work_amount = jcp.ngroups * jcp.mb * jcp.od;
 #   pragma omp parallel num_threads(jcp.nthr)
     {
-        const int ithr = omp_get_thread_num();
-        const int nthr = omp_get_num_threads();
+        const int ithr = mkldnn_get_thread_num();
+        const int nthr = mkldnn_get_num_threads();
 
         data_t *_col = col + (ptrdiff_t)ithr * jcp.im2col_sz;
 
@@ -144,8 +144,8 @@ void gemm_convolution_bwd_data_t::execute_backward_data() {
     const size_t work_amount = (size_t)jcp.ngroups * jcp.mb;
 #pragma omp parallel num_threads(jcp.nthr)
     {
-        const int ithr = omp_get_thread_num();
-        const int nthr = omp_get_num_threads();
+        const int ithr = mkldnn_get_thread_num();
+        const int nthr = mkldnn_get_num_threads();
 
         data_t *_col = col + (ptrdiff_t)ithr * jcp.im2col_sz;
 
@@ -218,8 +218,8 @@ void gemm_convolution_bwd_weights_t::execute_backward_weights() {
 
 #pragma omp parallel num_threads(jcp.nthr)
     {
-        const int ithr = omp_get_thread_num();
-        const int nthr = omp_get_num_threads();
+        const int ithr = mkldnn_get_thread_num();
+        const int nthr = mkldnn_get_num_threads();
 
         int ithr_g, nthr_g, ithr_mb, nthr_mb;
         size_t g_start{0}, g_end{0}, mb_start{0}, mb_end{0};
@@ -285,8 +285,8 @@ void gemm_convolution_bwd_weights_t::execute_backward_weights() {
         const size_t work_amount = jcp.ngroups * jcp.oc;
     #pragma omp parallel
         {
-            const int ithr = omp_get_thread_num();
-            const int nthr = omp_get_num_threads();
+            const int ithr = mkldnn_get_thread_num();
+            const int nthr = mkldnn_get_num_threads();
             int g{0}, oc{0};
             size_t start = 0, end = 0;
             balance211(work_amount, nthr, ithr, start, end);

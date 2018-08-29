@@ -483,7 +483,7 @@ void _jit_avx512_core_fp32_wino_conv_4x3_t<is_fwd>::_execute_data_W_SGD(
 #pragma omp parallel
     {
 
-    int ithr = omp_get_thread_num();
+    int ithr = mkldnn_get_thread_num();
 
 #pragma omp for schedule(static)
     for (int tile_block = 0; tile_block < jcp.tile_block; tile_block++) {
@@ -549,8 +549,8 @@ void subarray_sum(size_t num_arrs, float *output, size_t nelems,
 
 #pragma omp parallel
     {
-        const int ithr = omp_get_thread_num();
-        const int nthr = omp_get_num_threads();
+        const int ithr = mkldnn_get_thread_num();
+        const int nthr = mkldnn_get_num_threads();
         size_t start{ 0 }, end{ 0 };
         balance211(blocks_number, nthr, ithr, start, end);
 
@@ -631,8 +631,8 @@ void array_sum(size_t num_arrs, float *output,
 
 #pragma omp parallel
     {
-        const size_t ithr = omp_get_thread_num();
-        const size_t nthr = omp_get_num_threads();
+        const size_t ithr = mkldnn_get_thread_num();
+        const size_t nthr = mkldnn_get_num_threads();
         size_t start{ 0 }, end{ 0 };
         balance211(blocks_number, nthr, ithr, start, end);
 
@@ -739,7 +739,7 @@ _execute_backward_weights_SDGtWo() {
         });
     }
 
-    int ithr = omp_get_thread_num();
+    int ithr = mkldnn_get_thread_num();
     for (int ifm1 = 0; ifm1 < jcp.nb_ic; ++ifm1) {
         int first_tblk = 0;
 #pragma omp for
@@ -921,7 +921,7 @@ _execute_backward_weights_S_D_Giot_W() {
          kernel_->src_transform(&trans_ker_p);
     });
 
-    int ithr = omp_get_thread_num();
+    int ithr = mkldnn_get_thread_num();
     trans_ker_p.G = G_W_3x3_4x4;
     parallel_nd_in_omp(jcp.nb_oc, jcp.oc_block, jcp.mb,
         [&](int ofm1, int ofm2, int img){

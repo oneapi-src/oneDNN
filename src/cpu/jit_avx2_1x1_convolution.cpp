@@ -155,7 +155,7 @@ void _jit_avx2_1x1_convolution_fwd_t<with_relu>::execute_forward() {
 
 #   pragma omp parallel
     {
-        ker(omp_get_thread_num(), omp_get_num_threads());
+        ker(mkldnn_get_thread_num(), mkldnn_get_num_threads());
     }
 }
 
@@ -267,7 +267,7 @@ void jit_avx2_1x1_convolution_bwd_data_t::execute_backward_data() {
 
 #   pragma omp parallel
     {
-        ker(omp_get_thread_num(), omp_get_num_threads());
+        ker(mkldnn_get_thread_num(), mkldnn_get_num_threads());
     }
 }
 
@@ -299,7 +299,7 @@ jit_avx2_1x1_convolution_bwd_weights_t::jit_avx2_1x1_convolution_bwd_weights_t(
     const int njobs_x = bcast_work;
     const int njobs_y = jcp.ngroups * load_work;
 
-    const int max_threads = omp_get_max_threads();
+    const int max_threads = mkldnn_get_max_threads();
     const size_t max_buffer_size = max_threads * job_size * 8;
 
     reducer_weights_ = new cpu_reducer_2d_t<data_type::f32>(
@@ -533,8 +533,8 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights() {
 
 #   pragma omp parallel
     {
-        int ithr = omp_get_thread_num();
-        int nthr = omp_get_num_threads();
+        int ithr = mkldnn_get_thread_num();
+        int nthr = mkldnn_get_num_threads();
         ker(ithr, nthr);
         if (conf_.with_bias())
             ker_bias(ithr, nthr);

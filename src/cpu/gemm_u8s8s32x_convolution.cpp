@@ -108,8 +108,8 @@ void _gemm_u8s8s32x_convolution_fwd_t<with_relu, dst_type>::execute_forward() {
 
 #   pragma omp parallel num_threads(jcp.nthr)
     {
-        const int ithr = omp_get_thread_num();
-        const int nthr = omp_get_num_threads();
+        const int ithr = mkldnn_get_thread_num();
+        const int nthr = mkldnn_get_num_threads();
 
         src_data_t *col = _col + (ptrdiff_t)ithr * jcp.im2col_sz;
 
@@ -228,8 +228,8 @@ void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data() {
 
 #   pragma omp parallel num_threads(jcp.nthr)
     {
-        const int ithr = omp_get_thread_num();
-        const int nthr = omp_get_num_threads();
+        const int ithr = mkldnn_get_thread_num();
+        const int nthr = mkldnn_get_num_threads();
 
         acc_data_t *col = _col + (ptrdiff_t)ithr * jcp.im2col_sz;
         acc_data_t *acc = _acc + (ptrdiff_t)ithr * jcp.is * jcp.ic;

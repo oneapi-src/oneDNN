@@ -1843,7 +1843,7 @@ void jit_avx512_common_gemm_f32::sgemm(const char *transa, const char *transb,
         assert(*p_beta == beta_);
     assert((one_of(*transa, 'T', 't') == one_of(transa_, 'T', 't')));
 
-    int nthr = (omp_in_parallel()) ? 1 : omp_get_max_threads();
+    int nthr = (mkldnn_in_parallel()) ? 1 : mkldnn_get_max_threads();
     int m = *p_m;
     int n = *p_n;
     int k = *p_k;
@@ -2031,7 +2031,7 @@ jit_avx512_common_gemm_f32::jit_avx512_common_gemm_f32(
         ker_b0_ = ker_bn_;
     }
 
-    nthrs_ = omp_get_max_threads();
+    nthrs_ = mkldnn_get_max_threads();
     ompstatus_ = (unsigned int *)malloc(
         sizeof(unsigned int *) * nthrs_ * CACHE_LINE_SIZE, 64);
     assert(ompstatus_);

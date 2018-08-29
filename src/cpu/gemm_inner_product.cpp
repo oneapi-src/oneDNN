@@ -113,8 +113,8 @@ void gemm_inner_product_bwd_weights_t<data_type>::execute_backward_weights() {
         int rem_OC = OC % blksize;
 #       pragma omp parallel
         {
-            const int ithr = omp_get_thread_num();
-            const int nthr = omp_get_num_threads();
+            const int ithr = mkldnn_get_thread_num();
+            const int nthr = mkldnn_get_num_threads();
             int oc_st{0}, oc_e{0};
             balance211(OC_blocks, nthr, ithr, oc_st, oc_e);
             oc_st = oc_st * blksize;

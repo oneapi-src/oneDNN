@@ -146,7 +146,7 @@ void _jit_uni_dw_convolution_fwd_t<isa, with_relu>::execute_forward() {
 
     #pragma omp parallel
     {
-        ker(omp_get_thread_num(), omp_get_num_threads());
+        ker(mkldnn_get_thread_num(), mkldnn_get_num_threads());
     }
 }
 
@@ -271,7 +271,7 @@ void _jit_uni_dw_convolution_bwd_data_t<isa>::execute_backward_data() {
 
     #pragma omp parallel
     {
-        ker(omp_get_thread_num(), omp_get_num_threads());
+        ker(mkldnn_get_thread_num(), mkldnn_get_num_threads());
     }
 }
 

@@ -114,7 +114,7 @@ inline unsigned int get_cache_size(int level, bool per_core = true){
         const int L1_cache_per_core = 32000;
         const int L2_cache_per_core = 512000;
         const int L3_cache_per_core = 1024000;
-        int num_cores = per_core ? 1 : omp_get_max_threads();
+        int num_cores = per_core ? 1 : mkldnn_get_max_threads();
         switch(l){
         case(0): return L1_cache_per_core * num_cores;
         case(1): return L2_cache_per_core * num_cores;

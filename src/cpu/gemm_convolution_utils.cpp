@@ -124,8 +124,8 @@ void im2col(
         const size_t work_amount = jcp.oh * jcp.kh;
         #pragma omp parallel
         {
-            const int ithr = omp_get_thread_num();
-            const int nthr = omp_get_num_threads();
+            const int ithr = mkldnn_get_thread_num();
+            const int nthr = mkldnn_get_num_threads();
 
             size_t start = 0, end = 0;
             int oh = 0, kh = 0;
@@ -158,8 +158,8 @@ void im2col(
         const size_t work_amount = jcp.ic;
         #pragma omp parallel
         {
-            const int ithr = omp_get_thread_num();
-            const int nthr = omp_get_num_threads();
+            const int ithr = mkldnn_get_thread_num();
+            const int nthr = mkldnn_get_num_threads();
 
             size_t start = 0, end = 0, ic = 0;
             balance211(work_amount, nthr, ithr, start, end);
@@ -206,7 +206,7 @@ void im2col(
 /* col[oh][ow][kh][kw][ic] <-- im2col_u8(im[ih][iw][ic]) */
 void im2col_u8(
     jit_gemm_conv_conf_t &jcp, const uint8_t *im, uint8_t *col) {
-    int num_thr = (jcp.mb != 1) ? omp_get_max_threads() : 1;
+    int num_thr = (jcp.mb != 1) ? mkldnn_get_max_threads() : 1;
     MAYBE_UNUSED(num_thr);
 #pragma omp parallel num_threads(num_thr)
     {
@@ -239,7 +239,7 @@ void im2col_u8(
 /* im[ih][iw][ic] <-- col2im_s32(col[oh][ow][kh][kw][ic]) */
 void col2im_s32(
     jit_gemm_conv_conf_t &jcp, const int32_t *col, int32_t *im) {
-    int num_thr = (jcp.mb != 1) ? omp_get_max_threads() : 1;
+    int num_thr = (jcp.mb != 1) ? mkldnn_get_max_threads() : 1;
 
 #   pragma omp parallel for num_threads(num_thr)
     for (int ithr = 0; ithr < num_thr; ithr++)
@@ -296,7 +296,7 @@ void col2im_3d(
     const size_t col_step = jcp.ks * jcp.os;
     const size_t im_step = jcp.ih * jcp.iw * jcp.id;
 
-    int num_thr = (jcp.mb != 1) ? omp_get_max_threads() : 1;
+    int num_thr = (jcp.mb != 1) ? mkldnn_get_max_threads() : 1;
     MAYBE_UNUSED(num_thr);
 #pragma omp parallel for  num_threads(num_thr)
     for (int ic = 0; ic < jcp.ic; ++ic) {

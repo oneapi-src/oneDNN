@@ -74,7 +74,7 @@ struct winograd_scratchpad_t {
 
     private:
         inline void get_scratchpad_size_(const jit_conv_winograd_conf_t &jcp) {
-            nthreads_ = omp_get_max_threads();
+            nthreads_ = mkldnn_get_max_threads();
 
             U_sz_ = (size_t)alpha * alpha * jcp.ic * jcp.oc * sizeof(float);
             V_sz_ = (size_t)alpha * alpha * jcp.mb * jcp.ic

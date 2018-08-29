@@ -659,7 +659,7 @@ status_t jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t ::init_conf(
     auto wei_sz = (float)aa * ic * oc;
     auto inp_sz = (float)mb * ih * iw * ic;
     auto sp_sz = (float)mb * ih * iw;
-    const int nthr = omp_get_max_threads();
+    const int nthr = mkldnn_get_max_threads();
 
     /* Heuristics here. Numbers '28','196' is an observation from data. */
     if (wei_sz / inp_sz > 5)
@@ -848,7 +848,7 @@ _jit_avx512_core_fp32_wino_conv_2x3_fwd_t<with_relu>::
                 const input_vector &inputs, const output_vector &outputs)
     : cpu_primitive_t(&conf_, inputs, outputs)
     , conf_(*pd) {
-    const int nthreads = omp_get_max_threads();
+    const int nthreads = mkldnn_get_max_threads();
     kernel_ = new jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t(
             conf_.jcp_, *conf_.attr());
     src_trans_ = new jit_avx512_core_fp32_wino_conv_2x3_src_trans_t(
@@ -922,7 +922,7 @@ void _jit_avx512_core_fp32_wino_conv_2x3_fwd_t<with_relu>
         int tile_y = tile_y_b * jcp.yb;
         int tile_x = tile_x_b * jcp.xb;
 
-        int ithr = omp_get_thread_num();
+        int ithr = mkldnn_get_thread_num();
         auto wino_src = wino_src_ + size_wino_src * ithr;
         auto wino_dst = wino_dst_ + size_wino_dst * ithr;
 

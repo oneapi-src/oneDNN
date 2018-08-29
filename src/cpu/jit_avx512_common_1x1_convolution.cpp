@@ -93,7 +93,7 @@ void _jit_avx512_common_1x1_convolution_fwd_t
 
 #   pragma omp parallel
     {
-        int ithr = omp_get_thread_num(), nthr = omp_get_num_threads();
+        int ithr = mkldnn_get_thread_num(), nthr = mkldnn_get_num_threads();
 
         auto p = jit_1x1_conv_call_s();
 
@@ -302,7 +302,7 @@ void _jit_avx512_common_1x1_convolution_bwd_data_t
 
 #   pragma omp parallel
     {
-        int ithr = omp_get_thread_num(), nthr = omp_get_num_threads();
+        int ithr = mkldnn_get_thread_num(), nthr = mkldnn_get_num_threads();
 
         auto p = jit_1x1_conv_call_s();
         auto rp = rtus_driver_t<avx512_common>::call_params_t();
@@ -784,8 +784,8 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights()
 
 #pragma omp parallel num_threads(jcp.nthr)
     {
-        int ithr = omp_get_thread_num();
-        assert(jcp.nthr == omp_get_num_threads());
+        int ithr = mkldnn_get_thread_num();
+        assert(jcp.nthr == mkldnn_get_num_threads());
         ker(ithr, jcp.nthr);
         if (conf_.with_bias())
             ker_bias(ithr, jcp.nthr);

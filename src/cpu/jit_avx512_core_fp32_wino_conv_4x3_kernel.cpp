@@ -136,7 +136,7 @@ bool check_L2_block_per_thread(jit_conv_winograd_conf_t &jcp,
         int dimN_block, float C2_min, float C2_max) {
     float block_size = alpha * alpha * (2*(jcp.oc + jcp.ic)
         * dimN_block * jcp.dimN_reg_block
-        + div_up(jcp.ic * jcp.oc,omp_get_max_threads())) * (float)sizeof(float);
+        + div_up(jcp.ic * jcp.oc,mkldnn_get_max_threads())) * (float)sizeof(float);
     float L2_lb = C2_min * L2_cache_size;
     float L2_ub = C2_max * L2_cache_size;
     return (block_size > L2_lb && block_size < L2_ub);
@@ -1209,7 +1209,7 @@ status_t set_wsched_DATA_W_SGD_avx512_core(jit_conv_winograd_conf_t &jcp) {
         return check_L2_block_per_thread(jcp, dimN_block, 0.1, 2.0)
             && (dimN_block > current_best)
             && ((jcp.dimN / dimN_block / jcp.dimN_reg_block)
-            >= 1.5 * omp_get_max_threads());
+            >= 1.5 * mkldnn_get_max_threads());
     };
 
     jcp.dimN_block = get_divisor_satisfying_cond(
@@ -1217,7 +1217,7 @@ status_t set_wsched_DATA_W_SGD_avx512_core(jit_conv_winograd_conf_t &jcp) {
     jcp.dimN_nb_block = jcp.dimN / jcp.dimN_block / jcp.dimN_reg_block;
 
     if (check_L2_block_per_thread(jcp, jcp.dimN_block, 0.1, 3.2)
-        && (jcp.dimN_nb_block >= 1.5 * omp_get_max_threads())) {
+        && (jcp.dimN_nb_block >= 1.5 * mkldnn_get_max_threads())) {
 
         /* ------------------- L1 blocking for GEMM --------------*/
         /* -------------------- Choose dimK block ----------------*/
@@ -2310,7 +2310,7 @@ status_t set_wsched_WEI_SDGtWo(jit_conv_winograd_conf_t &jcp) {
     auto test_MV_large_enough = [](jit_conv_winograd_conf_t &jcp) {
         size_t M_sz = alpha * alpha * jcp.dimM * jcp.dimK * sizeof(float);
         size_t V_sz = alpha * alpha * jcp.dimN * jcp.dimK * sizeof(float);
-        size_t nthreads = omp_get_max_threads();
+        size_t nthreads = mkldnn_get_max_threads();
         return (((V_sz + M_sz) / nthreads) >= 2 * L2_cache_size)
             && (jcp.dimK / nthreads >= 1.0);
     };
@@ -2320,7 +2320,7 @@ status_t set_wsched_WEI_SDGtWo(jit_conv_winograd_conf_t &jcp) {
         size_t L1_block_M  = jcp.dimM_reg_block * jcp.dimM_simd_block * dimK_block_ur * sizeof(float);
         size_t L1_block_N = jcp.dimN_reg_block * dimK_block_ur * sizeof(float);
         size_t M_L2_block = alpha * alpha * jcp.dimM * dimK_block_ur * sizeof(float);
-        size_t nthreads = omp_get_max_threads();
+        size_t nthreads = mkldnn_get_max_threads();
         bool load_balance=true;
         if (!(jcp.dimK % nthreads)) {
             load_balance = ((jcp.dimK / dimK_block_ur) % nthreads == 0);
@@ -2415,7 +2415,7 @@ status_t set_wsched_WEI_S_D_Giot_W(jit_conv_winograd_conf_t &jcp) {
         size_t nb_N_blk = jcp.dimN/N_blk/jcp.dimN_reg_block;
         size_t nb_M_blk = jcp.dimM/M_blk/jcp.dimM_reg_block/jcp.dimM_simd_block;
         size_t nb_K_blk = jcp.dimK / K_blk_ur;
-        size_t nthreads = omp_get_max_threads();
+        size_t nthreads = mkldnn_get_max_threads();
         bool load_balance = (nb_K_blk * nb_N_blk * nb_M_blk) >= nthreads;
         if (!(nb_K_blk % nthreads)) {
             load_balance = load_balance && (nb_K_blk % nthreads == 0);

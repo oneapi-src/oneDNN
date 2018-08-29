@@ -457,7 +457,7 @@ void jit_avx512_common_lrn_fwd_t::execute_forward() {
 
 # pragma omp parallel
     {
-        ker(omp_get_thread_num(), omp_get_num_threads());
+        ker(mkldnn_get_thread_num(), mkldnn_get_num_threads());
     }
 }
 
@@ -877,7 +877,7 @@ void jit_avx512_common_lrn_bwd_t::execute_backward() {
 
 # pragma omp parallel
     {
-        ker(omp_get_thread_num(), omp_get_num_threads());
+        ker(mkldnn_get_thread_num(), mkldnn_get_num_threads());
     }
 }
 

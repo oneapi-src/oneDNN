@@ -590,7 +590,7 @@ void jit_avx512_core_i8i8_pooling_fwd_t::execute_forward() {
 
 #   pragma omp parallel
     {
-        ker(omp_get_thread_num(), omp_get_num_threads());
+        ker(mkldnn_get_thread_num(), mkldnn_get_num_threads());
     }
 }
 

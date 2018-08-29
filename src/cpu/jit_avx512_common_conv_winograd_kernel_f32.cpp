@@ -463,14 +463,14 @@ status_t set_wsched_DATA_W_SGD_avx512_common(jit_conv_winograd_conf_t &jcp) {
             int dimN_block, int current_best) {
         return check_L2_block_per_thread(jcp, dimN_block, 0.1, 1.3)
             && (dimN_block > current_best)
-            && ((jcp.dimN / dimN_block / jcp.dimN_reg_block) > 2 * omp_get_max_threads());
+            && ((jcp.dimN / dimN_block / jcp.dimN_reg_block) > 2 * mkldnn_get_max_threads());
     };
 
     jcp.dimN_block = get_divisor_satisfying_cond(
             jcp, jcp.dimN / jcp.dimN_reg_block, 1, test_cond_dimN_block);
 
     if (check_L2_block_per_thread(jcp, jcp.dimN_block, 0.1, 1.3)
-        && jcp.dimN/ jcp.dimN_block/ jcp.dimN_reg_block > 2 * omp_get_max_threads()) {
+        && jcp.dimN/ jcp.dimN_block/ jcp.dimN_reg_block > 2 * mkldnn_get_max_threads()) {
         jcp.dimN_nb_block = jcp.dimN / jcp.dimN_block / jcp.dimN_reg_block;
 
         /* ------------------- L1 blocking for GEMM --------------*/
@@ -1190,7 +1190,7 @@ bool set_wsched_WEI_SDGt_W_avx512_common(jit_conv_winograd_conf_t &jcp)
                 && (jcp.ntiles / tile_block) % tile_block_ur == 0
                 && is_in_L2_range(thread_size, TC2, TC2_max)
                 && is_in_L2_range(L2_reuse, C2, C2_max)
-                && tile_block > T * omp_get_max_threads()
+                && tile_block > T * mkldnn_get_max_threads()
                 && nb_oc_simd_block % nb_oc == 0
                 && nb_ic_simd_block % nb_ic == 0
                 && is_in_L1_range(L1_reuse, C1, C1_max);
@@ -1262,7 +1262,7 @@ bool set_wsched_WEI_SDGtWo_avx512_common(jit_conv_winograd_conf_t &jcp)
                 && (jcp.ntiles / tile_block) % tile_block_ur == 0
                 && is_in_L2_range(thread_size, TC2, TC2_max)
                 && is_in_L2_range(L2_reuse, C2, C2_max)
-                && tile_block > T * omp_get_max_threads()
+                && tile_block > T * mkldnn_get_max_threads()
                 && nb_oc_simd_block % nb_oc == 0
                 && nb_ic_simd_block % nb_ic == 0
                 && is_in_L1_range(L1_reuse, C1, C1_max);
@@ -1325,7 +1325,7 @@ bool set_wsched_WEI_S_D_Giot_W_avx512_common(jit_conv_winograd_conf_t &jcp)
                 && nb_ic_simd_block % nb_ic == 0
                 && is_in_L2_range(L2_reuse, C2, C2_max)
                 && is_in_L1_range(L1_reuse, C1, C1_max)
-                && work_amount > T * omp_get_max_threads();
+                && work_amount > T * mkldnn_get_max_threads();
     };
 
     for (T = T0; T >= T_min; --T) {

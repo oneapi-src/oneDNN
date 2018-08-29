@@ -156,7 +156,7 @@ void _jit_avx2_convolution_fwd_t<with_relu>::execute_forward() {
 
 #pragma omp parallel
     {
-        ker(omp_get_thread_num(), omp_get_num_threads());
+        ker(mkldnn_get_thread_num(), mkldnn_get_num_threads());
     }
 }
 
@@ -251,7 +251,7 @@ void jit_avx2_convolution_bwd_data_t::execute_backward_data() {
 
 #pragma omp parallel
     {
-        ker(omp_get_thread_num(), omp_get_num_threads());
+        ker(mkldnn_get_thread_num(), mkldnn_get_num_threads());
     }
 }
 
@@ -378,8 +378,8 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights() {
 
 #   pragma omp parallel
     {
-        int ithr = omp_get_thread_num();
-        int nthr = omp_get_num_threads();
+        int ithr = mkldnn_get_thread_num();
+        int nthr = mkldnn_get_num_threads();
         ker(ithr, nthr);
         if (conf_.with_bias())
             ker_bias(ithr, nthr);

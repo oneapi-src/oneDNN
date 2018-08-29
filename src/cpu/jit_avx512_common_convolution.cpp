@@ -99,7 +99,7 @@ void _jit_avx512_common_convolution_fwd_t
     if (jcp.aligned_threads)
         nthr = jcp.aligned_threads;
     else
-        nthr = omp_get_max_threads();
+        nthr = mkldnn_get_max_threads();
 
     if (conf_.want_padded_bias()) {
         for (int oc = 0; oc < jcp.oc_without_padding; ++oc)
@@ -109,7 +109,7 @@ void _jit_avx512_common_convolution_fwd_t
 
 #pragma omp parallel num_threads(nthr)
     {
-        int ithr = omp_get_thread_num();
+        int ithr = mkldnn_get_thread_num();
 
         int start, end, start_copy;
         balance211(work_amount, nthr, ithr, start, end);
@@ -220,7 +220,7 @@ void _jit_avx512_common_convolution_fwd_t
 
 #   pragma omp parallel
     {
-        int ithr = omp_get_thread_num(), nthr = omp_get_num_threads();
+        int ithr = mkldnn_get_thread_num(), nthr = mkldnn_get_num_threads();
 
         int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
         int start, end, start_copy;
@@ -346,7 +346,7 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
 
 #   pragma omp parallel
     {
-        int ithr = omp_get_thread_num(), nthr = omp_get_num_threads();
+        int ithr = mkldnn_get_thread_num(), nthr = mkldnn_get_num_threads();
 
         int start, end, start_copy;
         int ic_chunks = jcp.nb_ic / jcp.nb_ic_blocking;
@@ -473,7 +473,7 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
 
 #   pragma omp parallel
     {
-        int ithr = omp_get_thread_num(), nthr = omp_get_num_threads();
+        int ithr = mkldnn_get_thread_num(), nthr = mkldnn_get_num_threads();
 
         int start, end, start_copy;
         int ic_chunks = jcp.nb_ic / jcp.nb_ic_blocking;
@@ -1339,8 +1339,8 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
     diff_weights_type>::execute_backward_weights() {
 #   pragma omp parallel num_threads(nthr_)
     {
-        int ithr = omp_get_thread_num();
-        assert(nthr_ == omp_get_num_threads());
+        int ithr = mkldnn_get_thread_num();
+        assert(nthr_ == mkldnn_get_num_threads());
 
         thread_info_t thread_info(this, ithr);
 
@@ -1368,7 +1368,7 @@ template <data_type_t src_type, data_type_t diff_dst_type,
           data_type_t diff_weights_type>
 void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
     diff_weights_type>::balance() {
-    const int max_threads = omp_get_max_threads();
+    const int max_threads = mkldnn_get_max_threads();
     const auto &j = conf_.jcp_;
 
     nthr_ = nthr_mb_ = nthr_g_ = nthr_oc_b_ = nthr_ic_b_ = 1;

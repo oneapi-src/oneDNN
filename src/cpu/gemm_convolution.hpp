@@ -129,7 +129,7 @@ struct _gemm_convolution_fwd_t: public cpu_primitive_t {
 
         jit_gemm_convolution_utils::init_conf(conf_.jcp_,
             *(conf_.cdesc()), conf_.src_pd(), conf_.weights_pd(0),
-            conf_.dst_pd(), omp_get_max_threads(), with_relu,
+            conf_.dst_pd(), mkldnn_get_max_threads(), with_relu,
             conf_.negative_slope());
 
         size_t size = (size_t)conf_.jcp_.im2col_sz * sizeof(data_t);
@@ -230,7 +230,7 @@ struct gemm_convolution_bwd_data_t: public cpu_primitive_t {
 
         jit_gemm_convolution_utils::init_conf(conf_.jcp_,
             *(conf_.desc()), conf_.diff_src_pd(), conf_.weights_pd(0),
-            conf_.diff_dst_pd(), omp_get_max_threads());
+            conf_.diff_dst_pd(), mkldnn_get_max_threads());
 
         size_t size = (size_t)conf_.jcp_.im2col_sz * sizeof(data_t);
         jit_gemm_convolution_utils::prepare_scratchpad(this->conf_.jcp_,
@@ -334,7 +334,7 @@ struct gemm_convolution_bwd_weights_t: public cpu_primitive_t {
 
         jit_gemm_convolution_utils::init_conf(conf_.jcp_,
             *(conf_.desc()), conf_.src_pd(), conf_.diff_weights_pd(0),
-            conf_.diff_dst_pd(), omp_get_max_threads());
+            conf_.diff_dst_pd(), mkldnn_get_max_threads());
         const memory_desc_wrapper weights_d(conf_.diff_weights_pd(0));
 
         size_t size = (size_t)conf_.jcp_.im2col_sz  * sizeof(data_t);

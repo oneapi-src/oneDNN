@@ -90,7 +90,7 @@ void _jit_avx512_core_u8s8s32x_1x1_convolution_fwd_t<with_relu, dst_type>::execu
 
 #   pragma omp parallel
     {
-        int ithr = omp_get_thread_num(), nthr = omp_get_num_threads();
+        int ithr = mkldnn_get_thread_num(), nthr = mkldnn_get_num_threads();
 
         auto p = jit_1x1_conv_call_s();
 

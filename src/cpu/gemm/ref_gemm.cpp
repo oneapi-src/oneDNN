@@ -162,7 +162,7 @@ void ref_gemm(const char *transa_, const char *transb_, const int *M_,
     const int M = *M_, N = *N_, K = *K_, lda = *lda_, ldb = *ldb_, ldc = *ldc_;
     const float alpha = *alpha_, beta = *beta_;
 
-    int max_nthr = omp_in_parallel() ? 1 : omp_get_max_threads();
+    int max_nthr = mkldnn_in_parallel() ? 1 : mkldnn_get_max_threads();
     int nthr_m, nthr_n, nthr_k;
     int MB, NB, KB;
     // thread ballancing over M, N, K & size of blocking dimensions
@@ -191,7 +191,7 @@ void ref_gemm(const char *transa_, const char *transb_, const int *M_,
     }
 #   pragma omp parallel num_threads(nthr)
     {
-        int ithr_omp = omp_get_thread_num();
+        int ithr_omp = mkldnn_get_thread_num();
         int nthr_mn = nthr_m * nthr_n;
         int ithr_omp_mn = ithr_omp % nthr_mn;
         int ithr_omp_m = ithr_omp_mn % nthr_m;

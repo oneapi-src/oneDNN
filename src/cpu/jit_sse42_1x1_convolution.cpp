@@ -122,7 +122,7 @@ void _jit_sse42_1x1_convolution_fwd_t<with_relu>::execute_forward() {
 
 #   pragma omp parallel
     {
-        ker(omp_get_thread_num(), omp_get_num_threads());
+        ker(mkldnn_get_thread_num(), mkldnn_get_num_threads());
     }
 }
 

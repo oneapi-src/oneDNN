@@ -44,8 +44,8 @@ void simple_sum_t<data_type>::execute() {
     const auto &scales = conf_.scales_;
 #pragma omp parallel
     {
-        const int ithr = omp_get_thread_num();
-        const int nthr = omp_get_num_threads();
+        const int ithr = mkldnn_get_thread_num();
+        const int nthr = mkldnn_get_num_threads();
         size_t start{0}, end{0};
         balance211(blocks_number, nthr, ithr, start, end);
 

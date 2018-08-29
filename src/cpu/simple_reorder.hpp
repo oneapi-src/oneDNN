@@ -1898,8 +1898,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
 #       pragma omp parallel
         {
-            const int ithr = omp_get_thread_num();
-            const int nthr = omp_get_num_threads();
+            const int ithr = mkldnn_get_thread_num();
+            const int nthr = mkldnn_get_num_threads();
             size_t start{0}, end{0};
             balance211(num_blocks, nthr, ithr, start, end);
             start = start * block_size;
@@ -1997,8 +1997,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         if (alpha == 1.0 && beta == 0.0) {
 #           pragma omp parallel
             {
-                const int ithr = omp_get_thread_num();
-                const int nthr = omp_get_num_threads();
+                const int ithr = mkldnn_get_thread_num();
+                const int nthr = mkldnn_get_num_threads();
                 size_t n{0}, dim1_s{0};
                 size_t start{0}, end{0};
                 balance211(work_amount, nthr, ithr, start, end);
@@ -2018,8 +2018,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         } else {
 #           pragma omp parallel
             {
-                const int ithr = omp_get_thread_num();
-                const int nthr = omp_get_num_threads();
+                const int ithr = mkldnn_get_thread_num();
+                const int nthr = mkldnn_get_num_threads();
                 size_t n{0}, dim1_s{0};
                 size_t start{0}, end{0};
                 balance211(work_amount, nthr, ithr, start, end);

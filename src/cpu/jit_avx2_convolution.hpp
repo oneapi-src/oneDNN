@@ -279,7 +279,7 @@ struct jit_avx2_convolution_bwd_weights_t: public cpu_primitive_t {
     {
         kernel_ = new jit_avx2_conv_bwd_weights_kernel_f32(conf_.jcp_);
 
-        const int max_threads = omp_get_max_threads();
+        const int max_threads = mkldnn_get_max_threads();
         const size_t max_buffer_size = 1<<21; /* just a heuristic */
         const auto &j = conf_.jcp_;
         reducer_weights_ = new cpu_reducer_t<data_type::f32>(reduce_balancer_t(
