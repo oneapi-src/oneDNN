@@ -2061,10 +2061,8 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma_core(
     } else {
         mov(reg_kj, reg_kh);
     }
-    if ((jcp.kh - 1) * (jcp.dilate_h + 1) < jcp.t_pad) {
-        cmp(reg_kj, 0);
-        je(skip_kh_loop, T_NEAR);
-    }
+    cmp(reg_kj, 0);
+    je(skip_kh_loop, T_NEAR);
 
     if (jcp.ndims == 5) {
         mov(aux_reg_dst, aux_reg_dst_d);
