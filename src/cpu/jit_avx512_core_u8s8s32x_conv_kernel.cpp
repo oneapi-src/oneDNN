@@ -194,17 +194,16 @@ void jit_avx512_core_u8s8s32x_fwd_kernel::compute_ker(int ur_w,
                     + 4 * ic * oc_block);
     };
     auto compute = [=](Zmm vreg_acc, Zmm vreg_wei, Zmm vreg_src) {
-        if (jcp.is_depthwise) {
+        if (jcp.ver == ver_vnni) {
+            // also okay for depthwise since src is zero-extended
+            vpdpbusd(vreg_acc, vreg_src, vreg_wei);
+        } else if (jcp.is_depthwise) {
             vpmulld(zmm_tmp, vreg_src, vreg_wei);
             vpaddd(vreg_acc, vreg_acc, zmm_tmp);
         } else {
-            if (jcp.ver == ver_vnni) {
-                vpdpbusd(vreg_acc, vreg_src, vreg_wei);
-            } else {
-                vpmaddubsw(zmm_tmp, vreg_src, vreg_wei);
-                vpmaddwd(zmm_tmp, zmm_tmp, zmm_one);
-                vpaddd(vreg_acc, vreg_acc, zmm_tmp);
-            }
+            vpmaddubsw(zmm_tmp, vreg_src, vreg_wei);
+            vpmaddwd(zmm_tmp, zmm_tmp, zmm_one);
+            vpaddd(vreg_acc, vreg_acc, zmm_tmp);
         }
     };
 
