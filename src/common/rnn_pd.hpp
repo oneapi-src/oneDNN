@@ -66,20 +66,19 @@ struct rnn_pd_t : public primitive_desc_t {
     }
 
     inline size_t ws_gates_size() {
-        return (size_t) L() * D() * T() * MB() * G() * WIC();
+        return (size_t) L() * D() * T() * MB() * GC();
     }
 
     inline size_t ws_cell_comp_size() {
-        return (size_t)is_lbr() * G() * MB() * WIC();
+        return (size_t)is_lbr() * MB() * GC();
     }
 
     inline size_t ws_grid_comp_size() {
-        return (size_t)is_lbr() * is_training() * L() * D() * T()
-	    * MB() * WIC();
+        return (size_t)is_lbr() * is_training() * L() * D() * T() * MB() * DIC();
     }
 
     inline int ws_per_cell() {
-        return is_lbr() * is_training() * MB() * WIC();
+        return is_lbr() *  MB() * DIC();
     }
 
     inline void set_offsets(size_t &ws_gates_offset, size_t &ws_states_offset,
@@ -140,6 +139,15 @@ struct rnn_pd_t : public primitive_desc_t {
         size_t wic = utils::rnd_up(nstl::max(SLC(), nstl::max(SIC(), DIC())), 64/sizeof(float));
 	wic = (wic % 256 == 0) ? wic + 64/sizeof(float) : wic;
 	return wic;
+    }
+
+    int GC() {
+        // gc will be the leading dimension of our C matrices, so we want them
+        // to be 64-byte aligned, and not divisible by 256 to limit 4K aliasing
+        // effects
+        size_t gc = utils::rnd_up(G() * DIC(), 64/sizeof(float));
+        gc = (gc % 256 == 0) ? gc + 64/sizeof(float) : gc;
+        return gc;
     }
 
     int S() const { return mkldnn_rnn_cell_get_states_count(&desc_.cell_desc); }

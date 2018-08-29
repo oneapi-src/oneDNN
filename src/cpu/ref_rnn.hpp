@@ -352,7 +352,7 @@ private:
             int sic, int dic, int wic, int n_iter, float *dst_iter_,
             float *diff_src_iter, const float *ws_states_,
             const float *ws_diff_states_);
-    void gates_reduction(int n_gates, int dic, int batch,
+    void gates_reduction(int n_gates, int dic, int wic, int batch,
             const float *ws_gates_, float *diff_bias_);
     pd_t conf_;
     bool use_scratchpad_;
