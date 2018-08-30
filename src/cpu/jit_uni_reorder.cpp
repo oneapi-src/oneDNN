@@ -875,23 +875,23 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
         (*kernel_)(&c);
     }
 
-    void omp_driver_1d(int off, const char *in, char *out, const float *scale) {
+    void omp_driver_1d(int ithr, int nthr, int off, const char *in, char *out,
+            const float *scale) {
         tr::node_t *ns = conf_.prb_.nodes + off;
-#       pragma omp for
-        for (ptrdiff_t d0 = 0; d0 < (ptrdiff_t)ns[0].n; ++d0)
-        {
+        for_nd(ithr, nthr, (ptrdiff_t)ns[0].n, [&](ptrdiff_t d0) {
             auto c = tr::call_param_t();
             c.in = in + d0 * ns[0].is * data_type_size(conf_.prb_.itype);
             c.out = out + d0 * ns[0].os * data_type_size(conf_.prb_.otype);
             c.scale = scale + d0 * ns[0].ss;
             (*kernel_)(&c);
-        }
+        });
     }
 
-    void omp_driver_2d(int off, const char *in, char *out, const float *scale) {
+    void omp_driver_2d(int ithr, int nthr, int off, const char *in, char *out,
+            const float *scale) {
         tr::node_t *ns = conf_.prb_.nodes + off;
-        parallel_nd_in_omp((ptrdiff_t)ns[1].n, (ptrdiff_t)ns[0].n,
-            [&](ptrdiff_t d1, ptrdiff_t d0) {
+        for_nd(ithr, nthr, (ptrdiff_t)ns[1].n, (ptrdiff_t)ns[0].n,
+                [&](ptrdiff_t d1, ptrdiff_t d0) {
             auto c = tr::call_param_t();
             c.in = in + (d0 * ns[0].is + d1 * ns[1].is)
                 * data_type_size(conf_.prb_.itype);
@@ -902,10 +902,12 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
         });
     }
 
-    void omp_driver_3d(int off, const char *in, char *out, const float *scale) {
+    void omp_driver_3d(int ithr, int nthr, int off, const char *in, char *out,
+            const float *scale) {
         tr::node_t *ns = conf_.prb_.nodes + off;
-        parallel_nd_in_omp((ptrdiff_t)ns[2].n, (ptrdiff_t)ns[1].n,
-            (ptrdiff_t)ns[0].n, [&](ptrdiff_t d2, ptrdiff_t d1, ptrdiff_t d0) {
+        for_nd(ithr, nthr, (ptrdiff_t)ns[2].n, (ptrdiff_t)ns[1].n,
+                (ptrdiff_t)ns[0].n,
+                [&](ptrdiff_t d2, ptrdiff_t d1, ptrdiff_t d0) {
             auto c = tr::call_param_t();
             c.in = in + (d0 * ns[0].is + d1 * ns[1].is + d2 * ns[2].is)
                 * data_type_size(conf_.prb_.itype);
@@ -916,11 +918,12 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
         });
     }
 
-    void omp_driver_4d(int off, const char *in, char *out, const float *scale) {
+    void omp_driver_4d(int ithr, int nthr, int off, const char *in, char *out,
+            const float *scale) {
         tr::node_t *ns = conf_.prb_.nodes + off;
-        parallel_nd_in_omp((ptrdiff_t)ns[3].n, (ptrdiff_t)ns[2].n,
-            (ptrdiff_t)ns[1].n, (ptrdiff_t)ns[0].n,
-            [&](ptrdiff_t d3, ptrdiff_t d2, ptrdiff_t d1, ptrdiff_t d0) {
+        for_nd(ithr, nthr, (ptrdiff_t)ns[3].n, (ptrdiff_t)ns[2].n,
+                (ptrdiff_t)ns[1].n, (ptrdiff_t)ns[0].n,
+                [&](ptrdiff_t d3, ptrdiff_t d2, ptrdiff_t d1, ptrdiff_t d0) {
             auto c = tr::call_param_t();
             c.in = in + (d0 * ns[0].is + d1 * ns[1].is + d2 * ns[2].is
                     + d3 * ns[3].is) * data_type_size(conf_.prb_.itype);
@@ -950,12 +953,14 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
         } else {
 #           pragma omp parallel
             {
+                const int ithr = mkldnn_get_thread_num();
+                const int nthr = mkldnn_get_num_threads();
                 set_rnd_mode(conf_.attr()->round_mode_);
                 switch (ndims - ndims_ker) {
-                case 1: omp_driver_1d(ndims_ker, in, out, scale); break;
-                case 2: omp_driver_2d(ndims_ker, in, out, scale); break;
-                case 3: omp_driver_3d(ndims_ker, in, out, scale); break;
-                case 4: omp_driver_4d(ndims_ker, in, out, scale); break;
+                case 1: omp_driver_1d(ithr, nthr, ndims_ker, in, out, scale); break;
+                case 2: omp_driver_2d(ithr, nthr, ndims_ker, in, out, scale); break;
+                case 3: omp_driver_3d(ithr, nthr, ndims_ker, in, out, scale); break;
+                case 4: omp_driver_4d(ithr, nthr, ndims_ker, in, out, scale); break;
                 default: assert(!"unimplemented");
                 }
                 restore_rnd_mode();

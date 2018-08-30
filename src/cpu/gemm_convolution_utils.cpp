@@ -204,14 +204,8 @@ void im2col(
 }
 
 /* col[oh][ow][kh][kw][ic] <-- im2col_u8(im[ih][iw][ic]) */
-void im2col_u8(
-    jit_gemm_conv_conf_t &jcp, const uint8_t *im, uint8_t *col) {
-    int num_thr = (jcp.mb != 1) ? mkldnn_get_max_threads() : 1;
-    MAYBE_UNUSED(num_thr);
-#pragma omp parallel num_threads(num_thr)
-    {
-        parallel_nd_in_omp(jcp.oh, jcp.ow,
-            [&](int oh, int ow) {
+void im2col_u8(jit_gemm_conv_conf_t &jcp, const uint8_t *im, uint8_t *col) {
+    parallel_nd(jcp.oh, jcp.ow, [&](int oh, int ow) {
             for (int kh = 0; kh < jcp.kh; ++kh) {
                 const int ih = oh * jcp.stride_h
                     - jcp.t_pad + kh * (1 + jcp.dilate_h);
@@ -232,8 +226,8 @@ void im2col_u8(
                     }
                 }
             }
-        });
-    }
+        }
+    );
 }
 
 /* im[ih][iw][ic] <-- col2im_s32(col[oh][ow][kh][kw][ic]) */
