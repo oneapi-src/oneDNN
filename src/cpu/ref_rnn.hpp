@@ -33,7 +33,7 @@ namespace impl {
 namespace cpu {
 
 #define elemwise_sig(f)                                                 \
-    void f(int dic, int wic, int batch, int n_states, int n_gates,      \
+    void f(int dic, int wic, int batch, int n_states, int iter_stride, int n_gates, \
             float *ws_gates_, float *states_t_l_, float *states_t_lm1_, \
             float *states_tm1_l_, float *diff_states_t_l_,              \
             float *diff_states_t_lp1_, float *diff_states_tp1_l_,       \
@@ -41,7 +41,7 @@ namespace cpu {
 
 #define cell_execution_sig(f)                                                 \
     void f(int dic, int slc, int sic, int wic, int batch, int n_gates,        \
-            int n_states, float *states_t_l_, float *diff_states_t_l_,        \
+            int n_states, int iter_stride, float *states_t_l_, float *diff_states_t_l_, \
             float **w_input_, float **w_state_, const float *bias_,           \
             float *states_t_lm1_, float *states_tm1_l_,                       \
             float *diff_states_t_lp1_, float *diff_states_tp1_l_,             \
