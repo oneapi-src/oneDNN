@@ -1009,8 +1009,7 @@ _execute_backward_weights_S_D_Giot_W() {
     }
 
     if (jcp.with_bias) {
-#pragma omp parallel for
-        for (int ofm1 = 0; ofm1 < jcp.oc / simd_w; ++ofm1) {
+        parallel_nd(jcp.oc / simd_w, [&](int ofm1) {
             float* pbias = &(diff_bias(ofm1 * simd_w));
             float *pbias_prv = &(diff_bias_prv(0, ofm1 * simd_w));
 
@@ -1029,7 +1028,7 @@ _execute_backward_weights_S_D_Giot_W() {
                     pbias[ofm2] += pbias_prv[ofm2];
                 }
             }
-        }
+        });
     }
 }
 

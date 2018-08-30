@@ -19,6 +19,7 @@
 
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"
+#include "mkldnn_thread.hpp"
 
 #include "ref_batch_normalization.hpp"
 
@@ -87,8 +88,7 @@ void ref_batch_normalization_fwd_t<data_type>::execute_forward() {
         else return data_d.off(n, c);
     };
 
-#   pragma omp parallel for schedule(static)
-    for (int c = 0; c < C; ++c) {
+    parallel_nd(C, [&](int c) {
         data_t v_mean = calculate_stats ? 0 : mean[c];
         data_t v_variance = calculate_stats ? 0 : variance[c];
 
@@ -140,7 +140,7 @@ void ref_batch_normalization_fwd_t<data_type>::execute_forward() {
                 variance[c] = v_variance;
             }
         }
-    }
+    });
 }
 
 template struct ref_batch_normalization_fwd_t<data_type::f32>;
@@ -205,8 +205,7 @@ void ref_batch_normalization_bwd_t<data_type>::execute_backward() {
         else return data_d.off(n, c);
     };
 
-#   pragma omp parallel for schedule(static)
-    for (int c = 0; c < C; ++c) {
+    parallel_nd(C, [&](int c) {
         data_t v_mean = mean[mean_d.off(c)];
         data_t v_variance = variance[variance_d.off(c)];
         data_t sqrt_variance = static_cast<data_t>(1.0f / sqrtf(v_variance + eps));
@@ -254,7 +253,7 @@ void ref_batch_normalization_bwd_t<data_type>::execute_backward() {
             v_diff_src *= gamma*sqrt_variance;
             diff_src[dd_off] = v_diff_src;
         }
-    }
+    });
 }
 
 template struct ref_batch_normalization_bwd_t<data_type::f32>;

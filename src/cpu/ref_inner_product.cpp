@@ -233,13 +233,12 @@ void ref_inner_product_bwd_weights_t<data_type>::execute_backward_weights() {
     if (diff_bias) {
         diff_bias += diff_bias_d.blocking_desc().offset_padding;
 
-#       pragma omp parallel for
-        for (int oc = 0; oc < OC; ++oc) {
+        parallel_nd(OC, [&](int oc) {
             data_t *db = &diff_bias[oc];
             *db = data_t(0);
             for (int mb = 0; mb < MB; ++mb)
                 *db += diff_dst[diff_dst_d.off(mb, oc)];
-        }
+        });
     }
 }
 

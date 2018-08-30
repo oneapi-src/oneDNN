@@ -162,9 +162,7 @@ private:
             out_data_t *__restrict _out
                     = tmp_wei_ + (iic * nb_oc_ + ob) * oc_block_;
 
-#pragma omp parallel for
-            for (int i = 0; i < size_wspace_; ++i)
-                wspace_[i] = 0.f;
+            parallel_nd(size_wspace_, [&](int i) { wspace_[i] = 0.f; });
 
             parallel_nd(r_, w_alpha_, oc_block_,
                 [&](int ih, int j, int ioc) {

@@ -61,9 +61,8 @@ void simple_concat_t<data_type>::execute() {
         for (int a = 0; a < num_arrs; ++a) {
             const data_t *i = &input_ptrs[a][0];
             data_t *o = &output_ptrs[a][0];
-#           pragma omp parallel for
-            for (ptrdiff_t e = 0; e < (ptrdiff_t)nelems_to_copy[a]; ++e)
-                o[e] = i[e];
+            parallel_nd((ptrdiff_t)nelems_to_copy[a],
+                    [&](ptrdiff_t e) { o[e] = i[e]; });
         }
         break;
     }

@@ -240,11 +240,10 @@ typed_zero_pad_weights(const memory_desc_wrapper &m_d,
 
     auto *d = &data[m_d.blk_off(G)];
 
-#   pragma omp parallel for schedule(static)
-    for (ptrdiff_t s = 0; s < sz_rest; ++s) {
+    parallel_nd(sz_rest, [&](ptrdiff_t s) {
         for (int g = g_tail_start; g < blksize; ++g)
             d[s * blksize + g] = 0;
-    }
+    });
 }
 
 template <data_type_t dt>
@@ -276,8 +275,7 @@ void typed_zero_pad_generic_blocked(const memory_desc_wrapper &m_d,
     assert(step_dim >= 0 && "no zero padding is required");
     if (step_dim < 0) return;
 
-#   pragma omp parallel for
-    for (ptrdiff_t e = 0; e < nelems; e += step) {
+    parallel_nd(nelems, [&](ptrdiff_t e) {
         bool need_zero = false;
 
         ptrdiff_t idx = e / step;
@@ -289,11 +287,11 @@ void typed_zero_pad_generic_blocked(const memory_desc_wrapper &m_d,
             idx /= pdims[d];
         }
 
-        if (!need_zero) continue;
-
-        for (ptrdiff_t e0 = 0; e0 < step; ++e0)
-            data[m_d.off_l(e + e0, true)] = 0;
-    }
+        if (need_zero) {
+            for (ptrdiff_t e0 = 0; e0 < step; ++e0)
+                data[m_d.off_l(e + e0, true)] = 0;
+        }
+    });
 }
 
 template <data_type_t dt>

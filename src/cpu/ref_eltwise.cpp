@@ -134,14 +134,13 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_dense() {
 
     if (alg_kind == eltwise_relu) {
         // a fast path for relu as the most popular activation
-#       pragma omp parallel for schedule(static)
-        for (ptrdiff_t e = 0; e < nelems; ++e)
+        parallel_nd(nelems, [&](ptrdiff_t e) {
             dst[e] = relu_fwd(src[e], alpha);
+        });
         return;
     }
 
-#   pragma omp parallel for schedule(static)
-    for (ptrdiff_t e = 0; e < nelems; ++e) {
+    parallel_nd(nelems, [&](ptrdiff_t e) {
         const data_t s = src[e];
         data_t &d = dst[e];
 
@@ -157,7 +156,7 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_dense() {
         case eltwise_logistic: d = logistic_fwd(s); break;
         default: assert(!"unknown eltwise alg_kind");
         }
-    }
+    });
 }
 
 template <impl::data_type_t data_type>
@@ -228,8 +227,7 @@ void ref_eltwise_bwd_t<data_type>::execute_backward_dense() {
     diff_dst += diff_data_d.blocking_desc().offset_padding;
     diff_src += diff_data_d.blocking_desc().offset_padding;
 
-#   pragma omp parallel for schedule(static)
-    for (ptrdiff_t e = 0; e < nelems; ++e) {
+    parallel_nd(nelems, [&](ptrdiff_t e) {
         const data_t dd = diff_dst[e];
         const data_t s = src[e];
         data_t &ds = diff_src[e];
@@ -247,7 +245,7 @@ void ref_eltwise_bwd_t<data_type>::execute_backward_dense() {
         case eltwise_logistic: ds = logistic_bwd(dd, s); break;
         default: assert(!"unknown eltwise alg_kind");
         }
-    }
+    });
 }
 
 template struct ref_eltwise_fwd_t<data_type::f32>;

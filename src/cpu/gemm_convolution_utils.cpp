@@ -38,8 +38,7 @@ void im2col_3d(jit_gemm_conv_conf_t &jcp, const float *im, float *col, int od) {
     const size_t im_step = jcp.ih * jcp.iw * jcp.id;
     const size_t col_step = jcp.ks * OHW;
 
-    #pragma omp parallel for
-    for (int ic = 0; ic < jcp.ic; ++ic) {
+    parallel_nd(jcp.ic, [&](int ic) {
         const float *im_loc = im + ic * im_step;
         float *col_loc = col + ic * col_step;
         int id = od * jcp.stride_d - jcp.f_pad;
@@ -112,7 +111,7 @@ void im2col_3d(jit_gemm_conv_conf_t &jcp, const float *im, float *col, int od) {
             }
             id += (1 + jcp.dilate_d);
         }
-    }
+    });
 }
 
 void im2col(
@@ -235,9 +234,10 @@ void col2im_s32(
     jit_gemm_conv_conf_t &jcp, const int32_t *col, int32_t *im) {
     int num_thr = (jcp.mb != 1) ? mkldnn_get_max_threads() : 1;
 
-#   pragma omp parallel for num_threads(num_thr)
-    for (int ithr = 0; ithr < num_thr; ithr++)
+#   pragma omp parallel num_threads(num_thr)
     {
+        const int ithr = mkldnn_get_thread_num();
+
         int h_nthr = nstl::min(jcp.ih, num_thr);
         int w_nthr = nstl::min(jcp.iw, num_thr/h_nthr);
         int h_ithr = 1, h_s = 0, h_e = 0, w_ithr = 1, w_s = 0, w_e = 0;
@@ -285,50 +285,43 @@ void col2im_s32(
     }
 }
 
-void col2im_3d(
-    jit_gemm_conv_conf_t &jcp, const float *col, float *im, int od) {
-    const size_t col_step = jcp.ks * jcp.os;
-    const size_t im_step = jcp.ih * jcp.iw * jcp.id;
+void col2im_3d(jit_gemm_conv_conf_t &jcp, const float *col, float *im, int od) {
+    parallel_nd(jcp.ic, [&](int ic) {
+        const float *col_ = col + (size_t)ic * jcp.ks * jcp.os;
+        float *im_ic = im + (size_t)ic * jcp.ih * jcp.iw * jcp.id;
 
-    int num_thr = (jcp.mb != 1) ? mkldnn_get_max_threads() : 1;
-    MAYBE_UNUSED(num_thr);
-#pragma omp parallel for  num_threads(num_thr)
-    for (int ic = 0; ic < jcp.ic; ++ic) {
-        const float *col_ = col;
         int id = od * jcp.stride_d - jcp.f_pad;
         for (int kd = 0; kd < jcp.kd; ++kd) {
-        if (id < 0 || id >= jcp.id) {
+            if (id < 0 || id >= jcp.id) {
+                col_ += jcp.kh * jcp.kw * jcp.os;
+                id += (1 + jcp.dilate_d);
+                continue;
+            }
+
+            float *im_ = im_ic + id * jcp.ih * jcp.iw;
+
+            for (int oh = 0; oh < jcp.oh; ++oh) {
+            for (int kh = 0; kh < jcp.kh; ++kh) {
+                const int ih = oh * jcp.stride_h - jcp.t_pad
+                    + kh * (1 + jcp.dilate_h);
+                if (ih < 0 || ih >= jcp.ih) continue;
+
+                for (int ow = 0; ow < jcp.ow; ++ow) {
+                for (int kw = 0; kw < jcp.kw; ++kw) {
+                    const int iw = ow * jcp.stride_w - jcp.l_pad
+                        + kw * (1 + jcp.dilate_w);
+                    if (iw < 0 || iw >= jcp.iw) continue;
+
+                    const size_t col_idx = ((kh*jcp.kw + kw)*jcp.oh+oh)*jcp.ow+ow;
+                    const size_t im_idx = ih*jcp.iw + iw;
+                    im_[im_idx] += col_[col_idx];
+                }}
+            }}
+
             col_ += jcp.kh * jcp.kw * jcp.os;
             id += (1 + jcp.dilate_d);
-            continue;
         }
-        float *im_ = im + id * jcp.ih * jcp.iw;
-
-        for (int oh = 0; oh < jcp.oh; ++oh) {
-        for (int kh = 0; kh < jcp.kh; ++kh) {
-            const int ih = oh * jcp.stride_h - jcp.t_pad
-                + kh * (1 + jcp.dilate_h);
-            if (ih < 0 || ih >= jcp.ih) continue;
-
-            for (int ow = 0; ow < jcp.ow; ++ow) {
-            for (int kw = 0; kw < jcp.kw; ++kw) {
-                const int iw = ow * jcp.stride_w - jcp.l_pad
-                    + kw * (1 + jcp.dilate_w);
-                if (iw < 0 || iw >= jcp.iw) continue;
-
-                const size_t col_idx = ((kh*jcp.kw + kw)*jcp.oh+oh)*jcp.ow+ow;
-                const size_t im_idx = ih*jcp.iw + iw;
-                im_[im_idx] += col_[col_idx];
-            }
-            }
-        }
-        }
-        col_ += jcp.kh * jcp.kw * jcp.os;
-        id += (1 + jcp.dilate_d);
-        }
-        col += col_step;
-        im += im_step;
-    }
+    });
 }
 
 void col2im(
@@ -338,8 +331,7 @@ void col2im(
     const size_t im_step = jcp.ih * jcp.iw;
     const int iS = jcp.ih * jcp.iw;
 
-#   pragma omp parallel for
-    for (int ic = 0; ic < jcp.ic; ++ic) {
+    parallel_nd(jcp.ic, [&](int ic) {
         float *im_ = im + ic * im_step;
         const float *col_ = col + ic * col_step;
         PRAGMA_OMP_SIMD()
@@ -362,7 +354,7 @@ void col2im(
             }
         }
         }
-    }
+    });
 }
 
 void init_conf(

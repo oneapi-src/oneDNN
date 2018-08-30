@@ -448,9 +448,7 @@ jit_avx512_common_1x1_convolution_bwd_weights_t ::
         const ptrdiff_t tr_src_size = (ptrdiff_t)jcp.nthr_mb
             * (ptrdiff_t)jcp.ngroups * (ptrdiff_t)jcp.ic * jcp.tr_is;
         tr_src_ = (data_t *)malloc(tr_src_size * sizeof(data_t), 64);
-#       pragma omp parallel for
-        for (ptrdiff_t i = 0; i < tr_src_size; i++)
-            tr_src_[i] = 0;
+        parallel_nd(tr_src_size, [&](ptrdiff_t i) { tr_src_[i] = 0; });
         auto tp = jit_transpose4x16_src_t();
         tp.src_pf0_distance = 4;
         tp.tr_src_pf0_distance = 0;

@@ -2459,8 +2459,10 @@ void jit_avx_gemm_f32::sgemm(const char *transa, const char *transb,
         ws_buffers = (float *)malloc(nthr * ws_size_per_thr, PAGE_4K);
     }
 
-#pragma omp parallel for num_threads(nthr)
-    for (int ithr_omp = 0; ithr_omp < nthr; ithr_omp++) {
+#   pragma omp parallel num_threads(nthr)
+    {
+        const int ithr_omp = mkldnn_get_thread_num();
+
         int ithr_omp_m, ithr_omp_n, ithr_omp_k, ithr_omp_mn;
         int m_from, m_to, myM;
         int n_from, n_to, myN;

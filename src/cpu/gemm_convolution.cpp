@@ -65,9 +65,10 @@ void _gemm_convolution_fwd_t<with_relu>::execute_forward() {
 
     const data_t one = 1.0;
 
-    data_t *col = (jcp.im2col_sz)
-        ? (data_t *)this->scratchpad_->get()
-        : nullptr;
+    data_t *col = jcp.im2col_sz ? (data_t *)this->scratchpad_->get() : nullptr;
+
+    parallel_nd(jcp.im2col_sz * jcp.nthr,
+            [&](ptrdiff_t i) { col[i] = (data_t)0; });
 
     const size_t work_amount = jcp.ngroups * jcp.mb * jcp.od;
 #   pragma omp parallel num_threads(jcp.nthr)
@@ -76,9 +77,6 @@ void _gemm_convolution_fwd_t<with_relu>::execute_forward() {
         const int nthr = mkldnn_get_num_threads();
 
         data_t *_col = col + (ptrdiff_t)ithr * jcp.im2col_sz;
-
-        # pragma omp parallel for if(jcp.nthr == 1)
-        for (ptrdiff_t i = 0; i < jcp.im2col_sz; ++i) _col[i] = (data_t)0;
 
         int g{0}, n{0}, od{0};
         size_t start = 0, end = 0;
@@ -137,9 +135,10 @@ void gemm_convolution_bwd_data_t::execute_backward_data() {
     const int LDC = jcp.im2col_sz ? m : M;
     const data_t zero = 0.0, one = 1.0;
 
-    data_t *col = (jcp.im2col_sz)
-        ? (data_t *)this->scratchpad_->get()
-        : nullptr;
+    data_t *col = jcp.im2col_sz ? (data_t *)this->scratchpad_->get() : nullptr;
+
+    parallel_nd(jcp.im2col_sz * jcp.nthr,
+            [&](ptrdiff_t i) { col[i] = (data_t)0; });
 
     const size_t work_amount = (size_t)jcp.ngroups * jcp.mb;
 #pragma omp parallel num_threads(jcp.nthr)
@@ -148,9 +147,6 @@ void gemm_convolution_bwd_data_t::execute_backward_data() {
         const int nthr = mkldnn_get_num_threads();
 
         data_t *_col = col + (ptrdiff_t)ithr * jcp.im2col_sz;
-
-        # pragma omp parallel for if(jcp.nthr == 1)
-        for (ptrdiff_t i = 0; i < jcp.im2col_sz; ++i) _col[i] = (data_t)0;
 
         if (jcp.id > 1) {
             ptrdiff_t diff_src_sz = (ptrdiff_t)(work_amount * src_step);
@@ -216,6 +212,9 @@ void gemm_convolution_bwd_weights_t::execute_backward_weights() {
     if (jcp.need_wei_reduction)
         wei_reduction = (data_t *)this->scratchpad_->get() + wei_offset;
 
+    parallel_nd(jcp.im2col_sz * jcp.nthr,
+            [&](ptrdiff_t i) { col[i] = (data_t)0; });
+
 #pragma omp parallel num_threads(jcp.nthr)
     {
         const int ithr = mkldnn_get_thread_num();
@@ -240,9 +239,6 @@ void gemm_convolution_bwd_weights_t::execute_backward_weights() {
                     + ithr_g * nthr_mb * weights_g_size;
             data_t *weights_reduce = weights_reduce_base
                     + ithr_mb * weights_g_size;
-
-            # pragma omp parallel for if(jcp.nthr == 1)
-            for (ptrdiff_t i = 0; i < jcp.im2col_sz; ++i) _col[i] = (data_t)0;
 
             for (size_t g = g_start; g < g_end; ++g) {
                 data_t *_diff_weights = need_reduction

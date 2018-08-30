@@ -138,8 +138,7 @@ void ref_deconvolution_bwd_weights_t::compute_bwd_bias_ncdhw() {
     const int MB = conf_.MB();
     const int SP = conf_.OH()*conf_.OW()*conf_.OD();
 
-#   pragma omp parallel for schedule(static)
-    for (int oc = 0; oc < OC; ++oc) {
+    parallel_nd(OC, [&](int oc) {
         data_t db = 0;
         for (int mb = 0; mb < MB; ++mb) {
             PRAGMA_OMP_SIMD()
@@ -149,7 +148,7 @@ void ref_deconvolution_bwd_weights_t::compute_bwd_bias_ncdhw() {
             }
         }
         diff_bias[oc] = db;
-    }
+    });
 }
 
 template <int blksize>
@@ -165,13 +164,12 @@ void ref_deconvolution_bwd_weights_t::compute_bwd_bias_nCdhwXc() {
 
     const ptrdiff_t stride_mb = diff_dst_d.blocking_desc().strides[0][0];
 
-#   pragma omp parallel for schedule(static)
-    for (int oc = 0; oc < OC; oc += blksize) {
+    parallel_nd(utils::div_up(OC, blksize), [&](int ocb) {
         data_t db[blksize] = {0};
 
         for (int mb = 0; mb < MB; ++mb) {
             for (int sp = 0; sp < SP; ++sp) {
-                auto offset = mb * stride_mb + oc * SP + sp * blksize;
+                auto offset = mb * stride_mb + (ocb * SP + sp) * blksize;
 
                 PRAGMA_OMP_SIMD()
                 for (int i = 0; i < blksize; ++i)
@@ -179,12 +177,12 @@ void ref_deconvolution_bwd_weights_t::compute_bwd_bias_nCdhwXc() {
             }
         }
 
-        const int blk = nstl::min(blksize, OC - oc);
+        const int blk = nstl::min(blksize, OC - ocb * blksize);
 
         PRAGMA_OMP_SIMD()
         for (int i = 0; i < blk; ++i)
-            diff_bias[oc + i] = db[i];
-    }
+            diff_bias[ocb * blksize + i] = db[i];
+    });
 }
 
 template void ref_deconvolution_fwd_t::compute_fwd_bias_nCdhwXc<8>();

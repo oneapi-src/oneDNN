@@ -106,16 +106,15 @@ void _gemm_u8s8s32x_convolution_fwd_t<with_relu, dst_type>::execute_forward() {
                                    * sizeof(src_data_t) * jcp.nthr;
     acc_data_t *_acc = (acc_data_t *)(_scratchpad + offset);
 
+    parallel_nd(jcp.im2col_sz * jcp.nthr,
+            [&](ptrdiff_t i) { _col[i] = (src_data_t)0; });
+
 #   pragma omp parallel num_threads(jcp.nthr)
     {
         const int ithr = mkldnn_get_thread_num();
         const int nthr = mkldnn_get_num_threads();
 
         src_data_t *col = _col + (ptrdiff_t)ithr * jcp.im2col_sz;
-
-        # pragma omp parallel for if(jcp.nthr == 1)
-        for (ptrdiff_t i = 0; i < jcp.im2col_sz; ++i) col[i] = (src_data_t)0;
-
         acc_data_t *acc = _acc + (ptrdiff_t)ithr * jcp.os * jcp.oc;
 
         int n{0}, g{0};
@@ -144,16 +143,18 @@ void _gemm_u8s8s32x_convolution_fwd_t<with_relu, dst_type>::execute_forward() {
                     jcp.im2col_sz ? col : src, K, off_b, 0., acc, M, &off_c);
 
             if (use_fast_path) {
-#               if _OPENMP >= 201307
-#               pragma omp parallel for simd
-#               else
-#               pragma omp parallel for
-#               endif
-                for (int o = 0; o < jcp.os * jcp.oc; ++o) {
+                auto body = [&](int o) {
                     float d = fast_path_alpha * acc[o] + sum_scale * dst[o];
                     if (do_relu && d < 0) d *= nslope;
                     dst[o] = qz_a1b0<float, dst_data_t>()(d, rmode);
-                }
+                };
+
+#               if _OPENMP >= 201307
+#               pragma omp parallel for simd
+                for (int o = 0; o < jcp.os * jcp.oc; ++o) body(o);
+#               else
+                parallel_nd(jcp.os * jcp.oc, body);
+#               endif
             } else {
                 parallel_nd(jcp.os, jcp.oc, [&](int os, int oc) {
                     size_t acc_off = os * jcp.oc + oc;
