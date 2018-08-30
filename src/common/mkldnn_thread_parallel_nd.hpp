@@ -33,6 +33,13 @@ namespace impl {
 
 /* for_nd section */
 
+template <typename T0, typename F>
+void for_nd(const int ithr, const int nthr, const T0 &D0, F f) {
+    T0 d0{0}, end{0};
+    balance211(D0, nthr, ithr, d0, end);
+    for (; d0 < end; ++d0) f(d0);
+}
+
 template <typename T0, typename T1, typename F>
 void for_nd(const int ithr, const int nthr, const T0 &D0, const T1 &D1, F f) {
     const size_t work_amount = (size_t)D0 * D1;
