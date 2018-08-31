@@ -226,6 +226,13 @@ inline bool nd_iterator_jump(U &cur, const U end, W &x, const Y &X,
     return false;
 }
 
+template <typename T>
+inline T pick(size_t i, const T &x0) { return x0; }
+template <typename T, typename ...Args>
+inline T pick(size_t i, const T &x0, Args &&... args) {
+    return i == 0 ? x0 : pick(i - 1, utils::forward<Args>(args)...);
+}
+
 template <typename Telem, size_t Tdims>
 struct array_offset_calculator {
     template <typename... Targs>
