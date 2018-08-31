@@ -331,17 +331,23 @@ typedef enum {
      * batch, state channels). */
     mkldnn_ldsnc,
     /** 5D weights tensor in the format (num_layers, num_directions,
-     *  input_chanels, num_gates, output_channels). */
+     *  input_chanels, num_gates, output_channels).
+     *  For LSTM cells, the gates order is forget, input, output and candidate gate.
+     *  For GRU cells, the gates order is update, reset and output gate. */
     mkldnn_ldigo,
     /** 5D weights tensor in the blocked format. */
     mkldnn_ldigo_p,
     /** 5D weights tensor in the format (num_layers, num_directions, num_gates,
-     *  output_channels, input_chanels). */
+     *  output_channels, input_chanels).
+     *  For LSTM cells, the gates order is forget, input, output and candidate gate.
+     *  For GRU cells, the gates order is update, reset and output gate. */
     mkldnn_ldgoi,
     /** 5D weights tensor in the blocked format. */
     mkldnn_ldgoi_p,
     /** 4D bias tensor in the format (num_layers, num_directions, num_gates,
-     * output_channels). */
+     * output_channels).
+     * For LSTM cells, the gates order is forget, input, output and candidate gate.
+     * For GRU cells, the gates order is update, reset and output gate. */
     mkldnn_ldgo,
     /** General tensor format for integer 8bit winograd convolution. */
     mkldnn_wino_fmt,
@@ -617,8 +623,15 @@ typedef struct {
     mkldnn_primitive_kind_t primitive_kind;
     /** Number of dimensions */
     int ndims;
-    /** Dimensions in the following order: mini-batch, channel, spatial. For
-     * example: <code>{N, C, H, W}</code>. */
+    /** Dimensions in the following order:
+     * - CNN data tensors:  mini-batch, channel, spatial
+     *   (<code>{N, C, [D,] H, W}</code>)
+     * - CNN weight tensors: group (optional), output channel, input channel,
+     *   spatial (<code>{[G,] O, I, [D,] H, W}<code>)
+     * - RNN data tensors: time, mini-batch, channels (<code>{T, N, C}</code>)
+     *   or layers, directions, states, mini-batch, channels (<code>{L, D, S, N, C}</code>)
+     * - RNN weight tensor: layers, directions, input channel, gates, output channels
+     *   (<code>{L, D, I, G, O}</code>). */
     mkldnn_dims_t dims;
     /** Data type of the tensor elements. */
     mkldnn_data_type_t data_type;
