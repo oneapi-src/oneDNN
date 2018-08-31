@@ -109,12 +109,9 @@ void gemm_inner_product_bwd_weights_t<data_type>::execute_backward_weights() {
     if (diff_bias) {
         diff_bias += diff_bias_d.blocking_desc().offset_padding;
         constexpr int blksize = 8;
-        int OC_blocks = OC / blksize;
-        int rem_OC = OC % blksize;
-#       pragma omp parallel
-        {
-            const int ithr = mkldnn_get_thread_num();
-            const int nthr = mkldnn_get_num_threads();
+        const int OC_blocks = OC / blksize;
+        const int rem_OC = OC % blksize;
+        parallel(0, [&](const int ithr, const int nthr) {
             int oc_st{0}, oc_e{0};
             balance211(OC_blocks, nthr, ithr, oc_st, oc_e);
             oc_st = oc_st * blksize;
@@ -141,7 +138,7 @@ void gemm_inner_product_bwd_weights_t<data_type>::execute_backward_weights() {
                     }
                 }
             }
-        }
+        });
     }
 }
 

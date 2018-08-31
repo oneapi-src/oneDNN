@@ -17,8 +17,10 @@
 #include "mkldnn_types.h"
 
 #include "c_types_map.hpp"
-#include "utils.hpp"
 #include "type_helpers.hpp"
+#include "mkldnn_thread.hpp"
+#include "utils.hpp"
+
 #include "gemm_convolution_utils.hpp"
 
 namespace mkldnn {
@@ -114,91 +116,49 @@ void im2col_3d(jit_gemm_conv_conf_t &jcp, const float *im, float *col, int od) {
     });
 }
 
-void im2col(
-    jit_gemm_conv_conf_t &jcp, const float *im, float *col) {
-    const size_t im_step = jcp.ih * jcp.iw;
-    const size_t col_step = jcp.ks * jcp.os;
+void im2col(jit_gemm_conv_conf_t &jcp, const float *im, float *col) {
+    if (jcp.ic == 1) {
+        parallel_nd(jcp.kh, jcp.oh, [&](int kh, int oh) {
+            const int ih = oh * jcp.stride_h - jcp.t_pad + kh * (1 + jcp.dilate_h);
+            if (ih < 0 || ih >= jcp.ih) return;
 
-    auto im2col_1st = [&](const float *im, float *col) {
-        const size_t work_amount = jcp.oh * jcp.kh;
-        #pragma omp parallel
-        {
-            const int ithr = mkldnn_get_thread_num();
-            const int nthr = mkldnn_get_num_threads();
+            for (int kw = 0; kw < jcp.kw; ++kw) {
+            for (int ow = 0; ow < jcp.ow; ++ow) {
+                const int iw = ow * jcp.stride_w - jcp.l_pad + kw * (1 + jcp.dilate_w);
+                if (iw < 0 || iw >= jcp.iw) continue;
 
-            size_t start = 0, end = 0;
-            int oh = 0, kh = 0;
-            balance211(work_amount, nthr, ithr, start, end);
-            nd_iterator_init(start, kh, jcp.kh, oh, jcp.oh);
+                const size_t col_idx = ((kh*jcp.kw + kw)*jcp.oh+oh)*jcp.ow+ow;
+                const size_t im_idx = ih*jcp.iw + iw;
+                col[col_idx] = im[im_idx];
+            }}
+        });
+    } else {
+        const size_t im_step = jcp.ih * jcp.iw;
+        const size_t col_step = jcp.ks * jcp.os;
 
-            for (size_t iwork = start; iwork < end; ++iwork)
-            {
-                const int ih = oh * jcp.stride_h - jcp.t_pad + kh * (1 + jcp.dilate_h);
-                if (ih < 0 || ih >= jcp.ih) {
-                    nd_iterator_step(kh, jcp.kh, oh, jcp.oh);
-                    continue;
-                }
-
-                for (int kw = 0; kw < jcp.kw; ++kw) {
-                for (int ow = 0; ow < jcp.ow; ++ow) {
-                    const int iw = ow * jcp.stride_w - jcp.l_pad + kw * (1 + jcp.dilate_w);
-                    if (iw < 0 || iw >= jcp.iw) continue;
-
-                    const size_t col_idx = ((kh*jcp.kw + kw)*jcp.oh+oh)*jcp.ow+ow;
-                    const size_t im_idx = ih*jcp.iw + iw;
-                    col[col_idx] = im[im_idx];
-                }}
-                nd_iterator_step(kh, jcp.kh, oh, jcp.oh);
-            }
-        }
-    };
-
-    auto im2col_common = [&](const float *im, float *col) {
-        const size_t work_amount = jcp.ic;
-        #pragma omp parallel
-        {
-            const int ithr = mkldnn_get_thread_num();
-            const int nthr = mkldnn_get_num_threads();
-
-            size_t start = 0, end = 0, ic = 0;
-            balance211(work_amount, nthr, ithr, start, end);
-            nd_iterator_init(start, ic, jcp.ic);
-
+        parallel_nd(jcp.ic, [&](int ic) {
             const float *im_ = im + ic * im_step;
             float *col_ = col + ic * col_step;
 
-            for (size_t iwork = start; iwork < end; ++iwork)
-            {
-                for (int kh = 0; kh < jcp.kh; ++kh) {
-                for (int oh = 0; oh < jcp.oh; ++oh) {
-                    const int ih = oh * jcp.stride_h
-                                   - jcp.t_pad + kh * (1 + jcp.dilate_h);
-                    if (ih < 0 || ih >= jcp.ih) continue;
+            for (int kh = 0; kh < jcp.kh; ++kh) {
+            for (int oh = 0; oh < jcp.oh; ++oh) {
+                const int ih = oh * jcp.stride_h
+                               - jcp.t_pad + kh * (1 + jcp.dilate_h);
+                if (ih < 0 || ih >= jcp.ih) continue;
 
-                    for (int kw = 0; kw < jcp.kw; ++kw) {
-                    for (int ow = 0; ow < jcp.ow; ++ow) {
-                        const int iw = ow * jcp.stride_w
-                                       - jcp.l_pad + kw * (1 + jcp.dilate_w);
-                        if (iw < 0 || iw >= jcp.iw) continue;
+                for (int kw = 0; kw < jcp.kw; ++kw) {
+                for (int ow = 0; ow < jcp.ow; ++ow) {
+                    const int iw = ow * jcp.stride_w
+                                   - jcp.l_pad + kw * (1 + jcp.dilate_w);
+                    if (iw < 0 || iw >= jcp.iw) continue;
 
-                        const size_t col_idx = ((kh * jcp.kw + kw) * jcp.oh+oh)
-                                               * jcp.ow + ow;
-                        const size_t im_idx = ih*jcp.iw + iw;
-                        col_[col_idx] = im_[im_idx];
-                    }}
+                    const size_t col_idx = ((kh * jcp.kw + kw) * jcp.oh+oh)
+                                           * jcp.ow + ow;
+                    const size_t im_idx = ih*jcp.iw + iw;
+                    col_[col_idx] = im_[im_idx];
                 }}
-                im_ += im_step;
-                col_ += col_step;
-
-                nd_iterator_step(ic, jcp.ic);
-            }
-        }
-    };
-
-    if (jcp.ic != 1) {
-        im2col_common(im, col);
-    } else {
-        im2col_1st(im, col);
+            }}
+        });
     }
 }
 
@@ -230,16 +190,10 @@ void im2col_u8(jit_gemm_conv_conf_t &jcp, const uint8_t *im, uint8_t *col) {
 }
 
 /* im[ih][iw][ic] <-- col2im_s32(col[oh][ow][kh][kw][ic]) */
-void col2im_s32(
-    jit_gemm_conv_conf_t &jcp, const int32_t *col, int32_t *im) {
-    int num_thr = (jcp.mb != 1) ? mkldnn_get_max_threads() : 1;
-
-#   pragma omp parallel num_threads(num_thr)
-    {
-        const int ithr = mkldnn_get_thread_num();
-
-        int h_nthr = nstl::min(jcp.ih, num_thr);
-        int w_nthr = nstl::min(jcp.iw, num_thr/h_nthr);
+void col2im_s32(jit_gemm_conv_conf_t &jcp, const int32_t *col, int32_t *im) {
+    parallel(0, [&](const int ithr, const int nthr) {
+        int h_nthr = nstl::min(jcp.ih, nthr);
+        int w_nthr = nstl::min(jcp.iw, nthr / h_nthr);
         int h_ithr = 1, h_s = 0, h_e = 0, w_ithr = 1, w_s = 0, w_e = 0;
         if (ithr < h_nthr * w_nthr) {
             h_ithr = ithr / w_nthr;
@@ -250,6 +204,7 @@ void col2im_s32(
             h_ithr = w_ithr = -ithr;
             h_s = h_e = w_s = w_e = -1;
         }
+
         for (int ih = h_s; ih < h_e; ++ih) {
             for (int iw = w_s; iw < w_e; ++iw) {
                 PRAGMA_OMP_SIMD()
@@ -258,6 +213,8 @@ void col2im_s32(
                 }
             }
         }
+
+        // TODO: reduce region: [0.. oh] --> [h_s * sh .. h_e * sh]
         for (int oh = 0; oh < jcp.oh; ++oh) {
             for (int ow = 0; ow < jcp.ow; ++ow) {
                 for (int kh = 0; kh < jcp.kh; ++kh) {
@@ -282,7 +239,7 @@ void col2im_s32(
                 }
             }
         }
-    }
+    });
 }
 
 void col2im_3d(jit_gemm_conv_conf_t &jcp, const float *col, float *im, int od) {
@@ -430,7 +387,8 @@ void init_conf(
                        && (jcp.mb != 1 || jcp.ngroups > 2);
     }
     jcp.nthr = do_outer_threading ? max_threads : 1;
-    jcp.need_wei_reduction = (jcp.mb != 1 && jcp.nthr != 1);
+    jcp.need_wei_reduction = mkldnn_thr_syncable()
+        ? (jcp.mb != 1 && jcp.nthr != 1) : false;
 }
 
 status_t prepare_scratchpad(jit_gemm_conv_conf_t &jcp,

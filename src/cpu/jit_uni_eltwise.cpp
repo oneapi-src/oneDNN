@@ -997,7 +997,7 @@ void jit_uni_eltwise_fwd_t<isa>::execute_forward() {
     src += data_d.blocking_desc().offset_padding;
     dst += data_d.blocking_desc().offset_padding;
 
-    auto ker = [&](const int ithr, const int nthr) {
+    parallel(0, [&](const int ithr, const int nthr) {
         size_t start{0}, end{0};
 
         const int cache_line = 16;
@@ -1013,12 +1013,7 @@ void jit_uni_eltwise_fwd_t<isa>::execute_forward() {
         arg.work_amount = end - start;
         if (arg.work_amount)
             (*kernel_)(&arg);
-    };
-
-#   pragma omp parallel
-    {
-        ker(mkldnn_get_thread_num(), mkldnn_get_num_threads());
-    }
+    });
 }
 
 template <cpu_isa_t isa>
@@ -1069,7 +1064,7 @@ void jit_uni_eltwise_bwd_t<isa>::execute_backward() {
     diff_dst += diff_data_d.blocking_desc().offset_padding;
     diff_src += diff_data_d.blocking_desc().offset_padding;
 
-    auto ker = [&](const int ithr, const int nthr) {
+    parallel(0, [&](const int ithr, const int nthr) {
         size_t start{0}, end{0};
 
         const int cache_line = 16;
@@ -1085,12 +1080,7 @@ void jit_uni_eltwise_bwd_t<isa>::execute_backward() {
         arg.work_amount = end - start;
         if (arg.work_amount)
             (*kernel_)(&arg);
-    };
-
-#   pragma omp parallel
-    {
-        ker(mkldnn_get_thread_num(), mkldnn_get_num_threads());
-    }
+    });
 }
 
 template struct jit_uni_eltwise_fwd_t<sse42>;

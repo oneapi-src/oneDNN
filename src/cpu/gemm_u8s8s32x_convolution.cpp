@@ -109,11 +109,7 @@ void _gemm_u8s8s32x_convolution_fwd_t<with_relu, dst_type>::execute_forward() {
     parallel_nd(jcp.im2col_sz * jcp.nthr,
             [&](ptrdiff_t i) { _col[i] = (src_data_t)0; });
 
-#   pragma omp parallel num_threads(jcp.nthr)
-    {
-        const int ithr = mkldnn_get_thread_num();
-        const int nthr = mkldnn_get_num_threads();
-
+    parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         src_data_t *col = _col + (ptrdiff_t)ithr * jcp.im2col_sz;
         acc_data_t *acc = _acc + (ptrdiff_t)ithr * jcp.os * jcp.oc;
 
@@ -173,7 +169,7 @@ void _gemm_u8s8s32x_convolution_fwd_t<with_relu, dst_type>::execute_forward() {
             }
             nd_iterator_step(n, jcp.mb, g, jcp.ngroups);
         }
-    }
+    });
 #endif
 }
 
@@ -227,11 +223,7 @@ void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data() {
                                     * sizeof(acc_data_t) * jcp.nthr;
     acc_data_t *_acc = (acc_data_t *)(_scratchpad + offset);
 
-#   pragma omp parallel num_threads(jcp.nthr)
-    {
-        const int ithr = mkldnn_get_thread_num();
-        const int nthr = mkldnn_get_num_threads();
-
+    parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         acc_data_t *col = _col + (ptrdiff_t)ithr * jcp.im2col_sz;
         acc_data_t *acc = _acc + (ptrdiff_t)ithr * jcp.is * jcp.ic;
 
@@ -273,7 +265,7 @@ void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data() {
             });
             nd_iterator_step(n, jcp.mb, g, jcp.ngroups);
         }
-    }
+    });
 #endif
 }
 

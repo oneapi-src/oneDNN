@@ -21,6 +21,7 @@
 #include "cpu_convolution_pd.hpp"
 #include "cpu_engine.hpp"
 #include "scratchpad.hpp"
+#include "mkldnn_thread.hpp"
 
 #include "jit_avx512_common_conv_winograd_kernel_f32.hpp"
 
@@ -233,7 +234,8 @@ struct _jit_avx512_common_convolution_winograd_fwd_t
                                this->cdesc_().weights_desc.data_type,
                                this->cdesc_().dst_desc.data_type)
                     && utils::implication(this->with_bias(), data_type::f32
-                                       == this->cdesc_().bias_desc.data_type);
+                                       == this->cdesc_().bias_desc.data_type)
+                    && mkldnn_thr_syncable();
             if (!ok)
                 return status::unimplemented;
 
@@ -326,7 +328,8 @@ struct jit_avx512_common_convolution_winograd_bwd_data_t
                     && utils::everyone_is(data_type::f32,
                                this->desc()->diff_src_desc.data_type,
                                this->desc()->weights_desc.data_type,
-                               this->desc()->diff_dst_desc.data_type);
+                               this->desc()->diff_dst_desc.data_type)
+                    && mkldnn_thr_syncable();
             if (!ok)
                 return status::unimplemented;
 
@@ -419,7 +422,8 @@ struct jit_avx512_common_convolution_winograd_bwd_weights_t
                     && utils::everyone_is(data_type::f32,
                                this->desc()->src_desc.data_type,
                                this->desc()->diff_dst_desc.data_type,
-                               this->desc()->diff_weights_desc.data_type);
+                               this->desc()->diff_weights_desc.data_type)
+                    && mkldnn_thr_syncable();
             if (!ok)
                 return status::unimplemented;
 

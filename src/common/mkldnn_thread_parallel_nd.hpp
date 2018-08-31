@@ -20,6 +20,10 @@
 /* This header must be included by mkldnn_thread.hpp only */
 
 /* Functions:
+ *  - parallel(nthr, f)              - executes f in parallel using at most
+ *                                     nthr threads. If nthr equals 0
+ *                                     mkldnn_get_max_threads() threads is
+ *                                     used
  *  - for_nd(ithr, nthr, dims..., f) - multidimensional for loop for already
  *                                     created threads
  *  - parallel_nd(dims..., f)        - creates a parallel section and then
@@ -30,6 +34,17 @@
 
 namespace mkldnn {
 namespace impl {
+
+/* general parallelization */
+template <typename F>
+void parallel(int nthr, F f) {
+    const int _nthr = nthr > 0 ? nthr : mkldnn_get_max_threads();
+    if (_nthr == 1) { f(0, 1); return; }
+#   pragma omp parallel num_threads(_nthr)
+    {
+        f(mkldnn_get_thread_num(), mkldnn_get_num_threads());
+    }
+}
 
 /* for_nd section */
 

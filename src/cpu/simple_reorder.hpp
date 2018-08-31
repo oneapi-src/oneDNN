@@ -1896,10 +1896,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const auto num_blocks = nelems / block_size;
         const auto rem_elems = nelems % block_size;
 
-#       pragma omp parallel
-        {
-            const int ithr = mkldnn_get_thread_num();
-            const int nthr = mkldnn_get_num_threads();
+        parallel(0, [&](const int ithr, const int nthr) {
             size_t start{0}, end{0};
             balance211(num_blocks, nthr, ithr, start, end);
             start = start * block_size;
@@ -1959,7 +1956,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                    }
                }
             }
-        }
+        });
         return success;
     }
 };
@@ -1995,10 +1992,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const size_t work_amount = N * nelems_no_d0;
 
         if (alpha == 1.0 && beta == 0.0) {
-#           pragma omp parallel
-            {
-                const int ithr = mkldnn_get_thread_num();
-                const int nthr = mkldnn_get_num_threads();
+            parallel(0, [&](const int ithr, const int nthr) {
                 size_t n{0}, dim1_s{0};
                 size_t start{0}, end{0};
                 balance211(work_amount, nthr, ithr, start, end);
@@ -2014,12 +2008,9 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                     }
                     nd_iterator_jump(start, end, n, N, dim1_s, nelems_no_d0);
                 }
-            }
+            });
         } else {
-#           pragma omp parallel
-            {
-                const int ithr = mkldnn_get_thread_num();
-                const int nthr = mkldnn_get_num_threads();
+            parallel(0, [&](const int ithr, const int nthr) {
                 size_t n{0}, dim1_s{0};
                 size_t start{0}, end{0};
                 balance211(work_amount, nthr, ithr, start, end);
@@ -2037,7 +2028,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                     }
                     nd_iterator_jump(start, end, n, N, dim1_s, nelems_no_d0);
                 }
-            }
+            });
         }
 
         return success;

@@ -154,10 +154,7 @@ void _jit_avx2_convolution_fwd_t<with_relu>::execute_forward() {
         bias = padded_bias_;
     }
 
-#pragma omp parallel
-    {
-        ker(mkldnn_get_thread_num(), mkldnn_get_num_threads());
-    }
+    parallel(0, ker);
 }
 
 template void _jit_avx2_convolution_fwd_t<true>::execute_forward();
@@ -249,10 +246,7 @@ void jit_avx2_convolution_bwd_data_t::execute_backward_data() {
         }
     };
 
-#pragma omp parallel
-    {
-        ker(mkldnn_get_thread_num(), mkldnn_get_num_threads());
-    }
+    parallel(0, ker);
 }
 
 void jit_avx2_convolution_bwd_weights_t::execute_backward_weights() {
@@ -376,14 +370,12 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights() {
         rb->reduce(ithr, diff_bias);
     };
 
-#   pragma omp parallel
-    {
-        int ithr = mkldnn_get_thread_num();
-        int nthr = mkldnn_get_num_threads();
+
+    parallel(0, [&](const int ithr, const int nthr) {
         ker(ithr, nthr);
         if (conf_.with_bias())
             ker_bias(ithr, nthr);
-    }
+    });
 
     /* TODO: put this in ker_bias */
     if (conf_.want_padded_bias()) {

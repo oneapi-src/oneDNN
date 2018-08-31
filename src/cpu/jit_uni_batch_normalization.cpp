@@ -1046,7 +1046,7 @@ template <cpu_isa_t isa>
 struct uni_bnorm_driver_t: public c_compatible {
     uni_bnorm_driver_t(const batch_normalization_pd_t *bdesc,
         int is_spatial_thr) : bdesc_(bdesc), ker_(bdesc_,is_spatial_thr),
-        syncable_(true), buf_(nullptr), barriers_(nullptr)
+        buf_(nullptr), barriers_(nullptr)
     {
         use_tmp_stats_ = !bdesc_->stats_is_src()
             && bdesc_->desc()->prop_kind == prop_kind::forward_inference;
@@ -1068,7 +1068,7 @@ struct uni_bnorm_driver_t: public c_compatible {
         rbuf_ = pbuf_ + num_pbufs * C_PADDED;
 
         int num_barriers = C_PADDED / simd_w;
-        if (syncable_) {
+        if (mkldnn_thr_syncable()) {
             barriers_ = (barrier::ctx_t *)malloc(
                     num_barriers * sizeof(barrier::ctx_t), 64);
             for (int i = 0; i < num_barriers; ++i)
@@ -1125,6 +1125,7 @@ struct uni_bnorm_driver_t: public c_compatible {
 
         int SP_N_ithr = N_ithr * S_nthr + S_ithr;
         int SP_N_nthr = N_nthr * S_nthr;
+        assert(utils::implication(!mkldnn_thr_syncable(), SP_N_nthr == 1));
 
         p.N_ithr = SP_N_ithr;
         p.N_nthr = SP_N_nthr;
@@ -1202,7 +1203,6 @@ private:
 
     const batch_normalization_pd_t *bdesc_;
     jit_bnorm_t<isa> ker_;
-    bool syncable_;
     bool use_tmp_stats_, use_tmp_diff_scale_shift_;
     bool do_blocking_;
     size_t l3_size_;
@@ -1245,11 +1245,10 @@ void jit_uni_batch_normalization_fwd_t<isa>::execute(event_t *e) {
         reinterpret_cast<const data_t *>(this->input_memory(idx_scale_shift));
     auto ws = reinterpret_cast<uint8_t *>(this->memory(conf_.ws_idx()));
 
-#   pragma omp parallel
-    {
-        bnorm_driver_->exec(mkldnn_get_thread_num(), mkldnn_get_num_threads(), src,
+    parallel(0, [&](const int ithr, const int nthr) {
+        bnorm_driver_->exec(ithr, nthr, src,
                 nullptr, dst, nullptr, scale_shift, nullptr, mean, var, ws);
-    }
+    });
     e->set_state(event_t::ready);
 }
 
@@ -1285,12 +1284,11 @@ void jit_uni_batch_normalization_bwd_t<isa>::execute(event_t *e) {
     auto ws = reinterpret_cast<const uint8_t *>(
             this->input_memory(conf_.ws_idx()));
 
-#   pragma omp parallel
-    {
-        bnorm_driver_->exec(mkldnn_get_thread_num(), mkldnn_get_num_threads(), src,
+    parallel(0, [&](const int ithr, const int nthr) {
+        bnorm_driver_->exec(ithr, nthr, src,
                 diff_src, nullptr, diff_dst, scale_shift, diff_scale_shift,
                 mean, var, ws);
-    }
+    });
     e->set_state(event_t::ready);
 }
 

@@ -45,7 +45,7 @@ void _jit_sse42_convolution_fwd_t<with_relu>::execute_forward() {
     int ocb_work = div_up(jcp.nb_oc, jcp.nb_oc_blocking);
     const size_t work_amount = jcp.mb * jcp.ngroups * ocb_work * jcp.oh;
 
-    auto ker = [&](const int ithr, const int nthr) {
+    parallel(0, [&](const int ithr, const int nthr) {
         size_t start{ 0 }, end{ 0 };
         balance211(work_amount, nthr, ithr, start, end);
 
@@ -115,12 +115,7 @@ void _jit_sse42_convolution_fwd_t<with_relu>::execute_forward() {
             }
             icbb += icb_step;
         }
-    };
-
-#pragma omp parallel
-    {
-        ker(mkldnn_get_thread_num(), mkldnn_get_num_threads());
-    }
+    });
 }
 
 template void _jit_sse42_convolution_fwd_t<true>::execute_forward();

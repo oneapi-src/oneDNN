@@ -107,10 +107,7 @@ void _jit_avx512_common_convolution_fwd_t
         bias = padded_bias_;
     }
 
-#pragma omp parallel num_threads(nthr)
-    {
-        int ithr = mkldnn_get_thread_num();
-
+    parallel(nthr, [&](const int ithr, const int nthr) {
         int start, end, start_copy;
         balance211(work_amount, nthr, ithr, start, end);
         start_copy = start;
@@ -191,7 +188,7 @@ void _jit_avx512_common_convolution_fwd_t
 
         jit_conv_ker_pipeline(kernel_->jit_ker, par_conv,
                 src, dst, weights, bias, 0, 0);
-    }
+    });
 }
 
 template <bool with_relu, data_type_t src_type, data_type_t wei_type,
@@ -218,10 +215,7 @@ void _jit_avx512_common_convolution_fwd_t
         bias = padded_bias_;
     }
 
-#   pragma omp parallel
-    {
-        int ithr = mkldnn_get_thread_num(), nthr = mkldnn_get_num_threads();
-
+    parallel(0, [&](const int ithr, const int nthr) {
         int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
         int start, end, start_copy;
         int work_amount = jcp.mb * jcp.ngroups * oc_chunks * jcp.od * jcp.oh;
@@ -319,7 +313,7 @@ void _jit_avx512_common_convolution_fwd_t
         }
         jit_conv_3d_ker_pipeline(kernel_->jit_ker, par_conv,
                 src, dst, weights, bias, 0, 0, 0);
-    }
+    });
 }
 
 template struct _jit_avx512_common_convolution_fwd_t<false, data_type::f32>;
@@ -344,10 +338,7 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
 
     const auto &jcp = kernel_->jcp;
 
-#   pragma omp parallel
-    {
-        int ithr = mkldnn_get_thread_num(), nthr = mkldnn_get_num_threads();
-
+    parallel(0, [&](const int ithr, const int nthr) {
         int start, end, start_copy;
         int ic_chunks = jcp.nb_ic / jcp.nb_ic_blocking;
         int work_amount = jcp.ngroups * jcp.mb * ic_chunks * jcp.ih;
@@ -453,7 +444,7 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
 
         jit_conv_ker_pipeline(kernel_->jit_ker, par_conv,
                 diff_src, diff_dst, weights, 0, 0, 1);
-    }
+    });
 }
 
 template <data_type_t diff_dst_type, data_type_t wei_type,
@@ -471,10 +462,7 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
 
     const auto &jcp = kernel_->jcp;
 
-#   pragma omp parallel
-    {
-        int ithr = mkldnn_get_thread_num(), nthr = mkldnn_get_num_threads();
-
+    parallel(0, [&](const int ithr, const int nthr) {
         int start, end, start_copy;
         int ic_chunks = jcp.nb_ic / jcp.nb_ic_blocking;
         int work_amount = jcp.ngroups * jcp.mb * ic_chunks * jcp.id * jcp.ih;
@@ -627,7 +615,7 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
 
         jit_conv_3d_ker_pipeline(kernel_->jit_ker, par_conv,
                 diff_src, diff_dst, weights, 0, 0, 1, 1);
-    }
+    });
 }
 
 template struct jit_avx512_common_convolution_bwd_data_t<data_type::f32>;
@@ -966,6 +954,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
         tr_ctx.tr_src = tr_src_
             + ti->ithr_but_oc * jcp.ih * jcp.stride_w * jcp.tr_ld;
 
+        assert(utils::implication(!mkldnn_thr_syncable(), nthr_oc_b_ == 1));
         tr_ctx.nthr_oc_b = nthr_oc_b_;
         int ih_start{0}, ih_end{0};
         balance211(jcp.ih, nthr_oc_b_, ti->ithr_oc_b, ih_start, ih_end);
@@ -1094,7 +1083,6 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
         ? (diff_weights_data_t*)ti->diff_bias
         : (diff_weights_data_t*)ws_reduction_ + (nthr_mb_ - 1) * wei_size
           + (ti->ithr_mb - 1) * jcp.ngroups * jcp.oc;
-
 
     const int inp_mult = jcp.is_1stconv ? 1 : jcp.ic_block;
     const int input_step = jcp.stride_d * jcp.ih * jcp.iw * inp_mult;
@@ -1322,7 +1310,8 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
     const diff_weights_data_t *diff_bias_ws
             = ws_reduction_ + (size_t)(nthr_mb_ - 1) * wei_size;
 
-    #pragma omp barrier
+    if (nthr_mb_ > 1) mkldnn_thr_barrier();
+
     if (ti->ithr == 0)
     {
         for (int thr_mb = 1; thr_mb < nthr_mb_; ++thr_mb) {
@@ -1332,15 +1321,12 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
     }
 }
 
-
 template <data_type_t src_type, data_type_t diff_dst_type,
           data_type_t diff_weights_type>
 void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
     diff_weights_type>::execute_backward_weights() {
-#   pragma omp parallel num_threads(nthr_)
-    {
-        int ithr = mkldnn_get_thread_num();
-        assert(nthr_ == mkldnn_get_num_threads());
+    parallel(nthr_, [&](const int ithr, const int nthr) {
+        assert(nthr_ == nthr);
 
         thread_info_t thread_info(this, ithr);
 
@@ -1353,7 +1339,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
             if (nthr_mb_ > 1) reduce_diff_weights_3d(&thread_info);
             if (conf_.with_bias()) compute_diff_bias_3d(&thread_info);
         }
-    }
+    });
 
     /* TODO: put that into compute_diff_bias() */
     if (conf_.want_padded_bias()) {
@@ -1375,6 +1361,13 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
 
     if (max_threads < j.ngroups) {
         /* simplification... fortunately it doesn't hurt much */
+        return;
+    }
+
+    if (!mkldnn_thr_syncable()
+            && utils::one_of(j.ver, ver_4fma, ver_4vnni, ver_vnni)) {
+        // should not happen -- the driver is not ready
+        // for TBB-like non-synchronous threading yet
         return;
     }
 
@@ -1426,7 +1419,6 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
         const int nthr_par = nthr / nthr_mb;
         const int nthr_oc_b_max = nstl::min(nthr_par, j.nb_oc);
         for (int nthr_oc_b = 1; nthr_oc_b <= nthr_oc_b_max; ++nthr_oc_b) {
-
             int nthr_ic_b = nstl::min(nthr_par / nthr_oc_b, j.nb_ic);
 
             int mem_cost = calc_mem_cost(nthr_mb, nthr_oc_b, nthr_ic_b);
@@ -1437,6 +1429,8 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
                 nthr_ic_b_ = nthr_ic_b;
             }
         }
+
+        if (!mkldnn_thr_syncable()) { assert(nthr_mb == 1); break; }
     }
 
     if (j.ver != ver_vnni && !mayiuse(avx512_mic)) {
@@ -1473,6 +1467,8 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
                     nthr_ic_b_ = nthr_ic_b;
                 }
             }
+
+            if (!mkldnn_thr_syncable()) { assert(nthr_mb == 1); break; }
         }
     }
 
@@ -1480,6 +1476,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
         nthr_mb_ = min(j.mb * j.od, max_threads);
     nthr_ = nthr_mb_ * nthr_g_ * nthr_oc_b_ * nthr_ic_b_;
     assert(nthr_ <= max_threads);
+    assert(utils::implication(!mkldnn_thr_syncable(), nthr_mb_ == 1));
 }
 
 template struct jit_avx512_common_convolution_bwd_weights_t<data_type::f32>;

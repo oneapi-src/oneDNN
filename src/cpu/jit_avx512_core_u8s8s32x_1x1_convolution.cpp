@@ -88,10 +88,7 @@ void _jit_avx512_core_u8s8s32x_1x1_convolution_fwd_t<with_relu, dst_type>::execu
         return remaining < tail_step ? remaining : default_step;
     };
 
-#   pragma omp parallel
-    {
-        int ithr = mkldnn_get_thread_num(), nthr = mkldnn_get_num_threads();
-
+    parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         auto p = jit_1x1_conv_call_s();
 
         auto rp = rtus_driver_t<avx512_common>::call_params_t();
@@ -237,7 +234,7 @@ void _jit_avx512_core_u8s8s32x_1x1_convolution_fwd_t<with_relu, dst_type>::execu
         } else {
             assert(!"unsupported loop order");
         }
-    }
+    });
 }
 
 template struct _jit_avx512_core_u8s8s32x_1x1_convolution_fwd_t<false, data_type::u8>;

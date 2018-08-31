@@ -45,7 +45,7 @@ namespace bnorm_utils {
             int nthr, int N, int C_blks, int SP, int &C_ithr, int &C_nthr,
             int &C_blk_s, int &C_blk_e, int &N_ithr, int &N_nthr, int &N_s,
             int &N_e, int &S_ithr, int &S_nthr, int &S_s, int &S_e) {
-        if (nthr <= C_blks) {
+        if (nthr <= C_blks || !mkldnn_thr_syncable()) {
             C_ithr = ithr; C_nthr = nthr;
             N_ithr = 0; N_nthr = 1;
             S_ithr = 0; S_nthr = 1;
@@ -93,6 +93,7 @@ namespace bnorm_utils {
 
     void set_spatial_thr(const batch_normalization_pd_t *bdesc,
         const int simd_w, const int data_size, int &is_spatial_thr) {
+        if (!mkldnn_thr_syncable()) { is_spatial_thr = 0; return; }
 
         int nthr = mkldnn_get_max_threads();
         int SP = bdesc->W() * bdesc->D() * bdesc->H();

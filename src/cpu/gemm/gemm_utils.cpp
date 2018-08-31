@@ -39,7 +39,7 @@ void calc_nthr_nocopy_avx(int m, int n, int k,
         int nthrs, int *nthrs_m, int *nthrs_n, int *nthrs_k, int *BM, int *BN,
         int *BK)
 {
-    int nthr, nthr_m, nthr_n, nthr_k, nthr_other;
+    int nthr, nthr_m, nthr_n, nthr_k;
     int MB, NB, KB;
 
     nthr = nthrs;
@@ -47,14 +47,17 @@ void calc_nthr_nocopy_avx(int m, int n, int k,
     nthr_n = (n + BN_NOCOPY_AVX - 1) / BN_NOCOPY_AVX;
     nthr_k = 1;
 
-    // Partition along K dimension if there is not enough parallelism along M or
-    // N.
-    nthr_other = nthr_k = 1;
-    while ((nthr_m * nthr_n * nthr_other < nthr)
-            && (k / (nthr_other + 1) > BK_NOCOPY_AVX)) {
-        nthr_other++;
-        if ((nthr / nthr_other) * nthr_other > 0.9 * nthr)
-            nthr_k = nthr_other;
+    // Partition along K dimension
+    //  - if threading allows having barriers (e.g. OMP)
+    //  - if there is not enough parallelism along M or N
+    if (mkldnn_thr_syncable()) {
+        int nthr_other = nthr_k = 1;
+        while ((nthr_m * nthr_n * nthr_other < nthr)
+                && (k / (nthr_other + 1) > BK_NOCOPY_AVX)) {
+            nthr_other++;
+            if ((nthr / nthr_other) * nthr_other > 0.9 * nthr)
+                nthr_k = nthr_other;
+        }
     }
     nthr /= nthr_k;
 
@@ -147,7 +150,7 @@ void calc_nthr_nocopy_avx512_common(int m,
         int n, int k, int nthrs, int *nthrs_m, int *nthrs_n, int *nthrs_k,
         int *BM, int *BN, int *BK)
 {
-    int nthr, nthr_m, nthr_n, nthr_k;
+    int nthr, nthr_m, nthr_n, nthr_k = 1;
     int MB, NB, KB;
     nthr = nthrs;
 
@@ -157,22 +160,25 @@ void calc_nthr_nocopy_avx512_common(int m,
     nthr = nthrs;
     int nthr_m_gt_n;
 
-    /* Partition along K dimension if there is enough K and there is not enough
-     * M/N */
-    if (n <= 2 * BN_NOCOPY_AVX512_COMMON &&
-            m <= 2 * BM_NOCOPY_AVX512_COMMON * nthr) {
-        nthr_k = k / BK_NOCOPY_AVX512_COMMON;
-        if (nthr_k > nthr / 4)
-            nthr_k = nthr / 4;
-        if (nthr_k < 1)
-            nthr_k = 1;
+    // Partition along K dimension
+    //  - if threading allows having barriers (e.g. OMP)
+    //  - if there is not enough parallelism along M or N
+    if (mkldnn_thr_syncable()) {
+        if (n <= 2 * BN_NOCOPY_AVX512_COMMON &&
+                m <= 2 * BM_NOCOPY_AVX512_COMMON * nthr) {
+            nthr_k = k / BK_NOCOPY_AVX512_COMMON;
+            if (nthr_k > nthr / 4)
+                nthr_k = nthr / 4;
+            if (nthr_k < 1)
+                nthr_k = 1;
 
-        while ((nthr_k > 1) && (nthr % nthr_k)) {
-            nthr_k--;
+            while ((nthr_k > 1) && (nthr % nthr_k)) {
+                nthr_k--;
+            }
+            nthr /= nthr_k;
+        } else {
+            nthr_k = 1;
         }
-        nthr /= nthr_k;
-    } else {
-        nthr_k = 1;
     }
     nthr_m = (m + BM_NOCOPY_AVX512_COMMON - 1) / BM_NOCOPY_AVX512_COMMON;
     nthr_n = (n + BN_NOCOPY_AVX512_COMMON - 1) / BN_NOCOPY_AVX512_COMMON;

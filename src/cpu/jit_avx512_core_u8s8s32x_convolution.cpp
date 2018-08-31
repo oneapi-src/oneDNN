@@ -61,10 +61,7 @@ execute_forward()
 
     const auto &oscales = conf_.attr()->output_scales_;
 
-#   pragma omp parallel
-    {
-        int ithr = mkldnn_get_thread_num(), nthr = mkldnn_get_num_threads();
-
+    parallel(0, [&](const int ithr, const int nthr) {
         int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
         int nb_groups = jcp.nb_ch;
         int group_block = jcp.ch_block;
@@ -146,7 +143,7 @@ execute_forward()
             else
                 assert(!"unsupported loop order");
         }
-    }
+    });
 }
 
 template struct _jit_avx512_core_u8s8s32x_convolution_fwd_t<false, data_type::u8>;

@@ -25,15 +25,21 @@
 #endif
 
 #if defined(_OPENMP)
+#define MKLDNN_THR_SYNC 1
 inline int mkldnn_get_max_threads() { return omp_get_max_threads(); }
 inline int mkldnn_get_num_threads() { return omp_get_num_threads(); }
 inline int mkldnn_get_thread_num() { return omp_get_thread_num(); }
 inline int mkldnn_in_parallel() { return omp_in_parallel(); }
+inline void mkldnn_thr_barrier() {
+#   pragma omp barrier
+}
 #else // defined(_OPENMP)
+#define MKLDNN_THR_SYNC 1
 inline int mkldnn_get_max_threads() { return 1; }
 inline int mkldnn_get_num_threads() { return 1; }
 inline int mkldnn_get_thread_num() { return 0; }
 inline int mkldnn_in_parallel() { return 0; }
+inline void mkldnn_thr_barrier() {}
 #endif
 
 /* MSVC still supports omp 2.0 only */
@@ -46,6 +52,8 @@ inline int mkldnn_in_parallel() { return 0; }
 
 namespace mkldnn {
 namespace impl {
+
+inline bool mkldnn_thr_syncable() { return MKLDNN_THR_SYNC == 1; }
 
 template <typename T, typename U>
 inline void balance211(T n, U team, U tid, T &n_start, T &n_end) {

@@ -45,7 +45,7 @@ void _jit_sse42_1x1_convolution_fwd_t<with_relu>::execute_forward() {
 
     const int work_amount = jcp.mb * jcp.ngroups * jcp.nb_bcast;
 
-    auto ker = [&](const int ithr, const int nthr) {
+    parallel(0, [&](const int ithr, const int nthr) {
         // TODO (Roma): remove this restriction
         assert(jcp.stride_w == 1 && jcp.stride_h == 1);
 
@@ -118,12 +118,7 @@ void _jit_sse42_1x1_convolution_fwd_t<with_relu>::execute_forward() {
 
             iwork += bcast_step;
         }
-    };
-
-#   pragma omp parallel
-    {
-        ker(mkldnn_get_thread_num(), mkldnn_get_num_threads());
-    }
+    });
 }
 
 template void _jit_sse42_1x1_convolution_fwd_t<true>::execute_forward();

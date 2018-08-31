@@ -88,16 +88,15 @@ void nspc_batch_normalization_fwd_t::execute_forward() {
 
     const int N = conf_.MB();
     const int C = conf_.C();
-    int SP = conf_.H() * conf_.W() * conf_.D();
+    const int SP = conf_.H() * conf_.W() * conf_.D();
 
     const float eps = conf_.desc()->batch_norm_epsilon;
     const bool use_scaleshift = conf_.use_scaleshift();
-    ;
     auto maybe_post_op
             = [&](data_t res) { return (with_relu && res < 0) ? 0 : res; };
-#pragma omp parallel
-    {
-        int nthr = mkldnn_get_max_threads(), ithr = mkldnn_get_thread_num();
+
+    assert(mkldnn_thr_syncable());
+    parallel(0, [&](const int ithr, const int nthr) {
         int N_s = 0, N_e = 0, C_s = 0, C_e = 0;
         balance211(N, nthr, ithr, N_s, N_e);
         balance211(C, nthr, ithr, C_s, C_e);
@@ -115,14 +114,17 @@ void nspc_batch_normalization_fwd_t::execute_forward() {
                         ws_reduce[C * ithr + c] += src[(size_t)n * SP * C
                             + sp * C + c];
 
-#pragma omp barrier
+            mkldnn_thr_barrier();
+
             for (int c = C_s; c < C_e; c++) {
                 mean[c] = 0;
                 for (int n = 0; n < nthr; n++)
                     mean[c] += ws_reduce[C * n + c];
                 mean[c] /= SP * N;
             }
-#pragma omp barrier
+
+            mkldnn_thr_barrier();
+
             for (int c = 0; c < C; c++) {
                 mean_loc[c] = mean[c];
                 ws_reduce[C * ithr + c] = 0.;
@@ -136,14 +138,18 @@ void nspc_batch_normalization_fwd_t::execute_forward() {
                             - mean_loc[c];
                         ws_reduce[C * ithr + c] += m * m;
                     }
-#pragma omp barrier
+
+            mkldnn_thr_barrier();
+
             for (int c = C_s; c < C_e; c++) {
                 variance[c] = 0;
                 for (int n = 0; n < nthr; n++)
                     variance[c] += ws_reduce[C * n + c];
                 variance[c] /= SP * N;
             }
-#pragma omp barrier
+
+            mkldnn_thr_barrier();
+
             for (int c = 0; c < C; c++)
                 variance_loc[c] = variance[c];
         } else {
@@ -178,7 +184,7 @@ void nspc_batch_normalization_fwd_t::execute_forward() {
                 }
             }
         }
-    }
+    });
 }
 
 nspc_batch_normalization_bwd_t::nspc_batch_normalization_bwd_t(const pd_t *pd,
@@ -212,8 +218,7 @@ void nspc_batch_normalization_bwd_t::execute_backward() {
 
     const int N = conf_.MB();
     const int C = conf_.C();
-    int SP = conf_.D() * conf_.H() * conf_.W();
-    int nthr = mkldnn_get_max_threads();
+    const int SP = conf_.D() * conf_.H() * conf_.W();
     data_t *diff_gamma = diff_scaleshift, *diff_beta = diff_scaleshift + C;
     data_t *ws_reduce = this->stats_reduction_;
 
@@ -221,9 +226,9 @@ void nspc_batch_normalization_bwd_t::execute_backward() {
     const bool use_scaleshift = conf_.use_scaleshift();
     const bool calculate_diff_stats = !conf_.omit_stats();
     const bool fuse_bn_relu = conf_.fuse_bn_relu();
-#pragma omp parallel
-    {
-        int ithr = mkldnn_get_thread_num();
+
+    assert(mkldnn_thr_syncable());
+    parallel(0, [&](const int ithr, const int nthr) {
         int N_s = 0, N_e = 0, C_s = 0, C_e = 0;
         balance211(N, nthr, ithr, N_s, N_e);
         balance211(C, nthr, ithr, C_s, C_e);
@@ -253,7 +258,8 @@ void nspc_batch_normalization_bwd_t::execute_backward() {
                     ws_reduce[C * nthr + C * ithr + c] += dd;
                 }
 
-#pragma omp barrier
+        mkldnn_thr_barrier();
+
         for (int c = C_s; c < C_e; c++) {
             data_t sqrt_variance
                     = static_cast<data_t>(1.0f / sqrtf(variance[c] + eps));
@@ -265,7 +271,9 @@ void nspc_batch_normalization_bwd_t::execute_backward() {
             }
             diff_gamma[c] *= sqrt_variance;
         }
-#pragma omp barrier
+
+        mkldnn_thr_barrier();
+
         for (int c = 0; c < C; c++) {
             diff_gamma_loc[c] = diff_gamma[c];
             diff_beta_loc[c] = diff_beta[c];
@@ -296,7 +304,7 @@ void nspc_batch_normalization_bwd_t::execute_backward() {
                 }
             }
         }
-    }
+    });
 }
 }
 }

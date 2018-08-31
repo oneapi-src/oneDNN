@@ -951,10 +951,7 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
             omp_driver_0d(ndims_ker, in, out, scale);
             restore_rnd_mode();
         } else {
-#           pragma omp parallel
-            {
-                const int ithr = mkldnn_get_thread_num();
-                const int nthr = mkldnn_get_num_threads();
+            parallel(0, [&](const int ithr, const int nthr) {
                 set_rnd_mode(conf_.attr()->round_mode_);
                 switch (ndims - ndims_ker) {
                 case 1: omp_driver_1d(ithr, nthr, ndims_ker, in, out, scale); break;
@@ -964,7 +961,7 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
                 default: assert(!"unimplemented");
                 }
                 restore_rnd_mode();
-            }
+            });
         }
     }
 

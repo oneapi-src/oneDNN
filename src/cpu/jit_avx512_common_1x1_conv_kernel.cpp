@@ -763,6 +763,7 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
                    the src transposition overhead exceed the benefit from 4fma
                 */
                 && ((jcp.is * jcp.ic) / jcp.oc <= 2048)
+                && mkldnn_thr_syncable()
                 )
         {
             jcp.transpose_src = true;
@@ -1258,6 +1259,8 @@ void jit_avx512_common_1x1_conv_kernel::balance(jit_1x1_conv_conf_t &jcp,
                 jcp.nthr_ic_b = nthr_ic_b;
             }
         }
+
+        if (!mkldnn_thr_syncable()) { assert(nthr_mb == 1); break; }
     }
     if (jcp.nthr_mb > nthreads / 2 && jcp.nthr_mb < nthreads)
         jcp.nthr_mb = nstl::min(jcp.mb, nthreads);

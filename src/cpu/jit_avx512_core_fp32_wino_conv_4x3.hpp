@@ -208,7 +208,8 @@ struct _jit_avx512_core_fp32_wino_conv_4x3_fwd_t
                                this->cdesc_().weights_desc.data_type,
                                this->cdesc_().dst_desc.data_type)
                     && utils::implication(this->with_bias(), data_type::f32
-                                       == this->cdesc_().bias_desc.data_type);
+                                       == this->cdesc_().bias_desc.data_type)
+                    && mkldnn_thr_syncable();
             if (!ok)
                 return status::unimplemented;
 
@@ -301,7 +302,8 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_data_t
                     && utils::everyone_is(data_type::f32,
                                this->desc()->diff_src_desc.data_type,
                                this->desc()->weights_desc.data_type,
-                               this->desc()->diff_dst_desc.data_type);
+                               this->desc()->diff_dst_desc.data_type)
+                    && mkldnn_thr_syncable();
             if (!ok)
                 return status::unimplemented;
 
@@ -393,7 +395,8 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_t
                     && utils::everyone_is(data_type::f32,
                                this->desc()->src_desc.data_type,
                                this->desc()->diff_dst_desc.data_type,
-                               this->desc()->diff_weights_desc.data_type);
+                               this->desc()->diff_weights_desc.data_type)
+                    && mkldnn_thr_syncable();
             if (!ok)
                 return status::unimplemented;
 

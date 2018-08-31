@@ -91,10 +91,7 @@ void _jit_avx512_common_1x1_convolution_fwd_t
         return remaining < tail_step ? remaining : default_step;
     };
 
-#   pragma omp parallel
-    {
-        int ithr = mkldnn_get_thread_num(), nthr = mkldnn_get_num_threads();
-
+    parallel(0, [&](const int ithr, const int nthr) {
         auto p = jit_1x1_conv_call_s();
 
         auto rp = rtus_driver_t<avx512_common>::call_params_t();
@@ -252,7 +249,7 @@ void _jit_avx512_common_1x1_convolution_fwd_t
         } else {
             assert(!"unsupported loop order");
         }
-    }
+    });
 }
 
 template struct _jit_avx512_common_1x1_convolution_fwd_t<true, data_type::f32>;
@@ -300,10 +297,7 @@ void _jit_avx512_common_1x1_convolution_bwd_data_t
         return remaining < tail_step ? remaining : default_step;
     };
 
-#   pragma omp parallel
-    {
-        int ithr = mkldnn_get_thread_num(), nthr = mkldnn_get_num_threads();
-
+    parallel(0, [&](const int ithr, const int nthr) {
         auto p = jit_1x1_conv_call_s();
         auto rp = rtus_driver_t<avx512_common>::call_params_t();
 
@@ -395,7 +389,7 @@ void _jit_avx512_common_1x1_convolution_bwd_data_t
                 }
             }
         }
-    }
+    });
 }
 
 template struct _jit_avx512_common_1x1_convolution_bwd_data_t<data_type::f32>;
@@ -421,11 +415,6 @@ jit_avx512_common_1x1_convolution_bwd_weights_t ::
     kernel_ = new jit_avx512_common_1x1_conv_kernel(conf_.jcp_, *conf_.attr());
 
     const auto &jcp = kernel_->jcp;
-
-    bctx_ = (simple_barrier::ctx_t *)malloc(
-            jcp.nthr * sizeof(simple_barrier::ctx_t), 64);
-    for (int i = 0; i < jcp.nthr; ++i)
-        simple_barrier::ctx_init(&bctx_[i]);
 
     const int wei_size = jcp.ngroups * jcp.oc * jcp.ic;
     ws_reduction_ =
@@ -455,6 +444,11 @@ jit_avx512_common_1x1_convolution_bwd_weights_t ::
         tp.src_pf1 = true;
         tp.tr_src_pf1 = false;
         trans_kernel_ = new jit_transpose4x16_src(&jcp, &tp);
+
+        bctx_ = (simple_barrier::ctx_t *)malloc(
+                jcp.nthr * sizeof(simple_barrier::ctx_t), 64);
+        for (int i = 0; i < jcp.nthr; ++i)
+            simple_barrier::ctx_init(&bctx_[i]);
     }
 
     init_rtus_driver<avx512_common>(this);
@@ -553,6 +547,9 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights()
     };
 
     auto ker = [&](const int ithr, const int nthr) {
+        assert(nthr == jcp.nthr);
+        assert(utils::implication(!mkldnn_thr_syncable(), jcp.nthr_mb == 1));
+
         const int ithr_ic_b = ithr % jcp.nthr_ic_b;
         const int ithr_oc_b = ithr / jcp.nthr_ic_b % jcp.nthr_oc_b;
         const int ithr_g = ithr / jcp.nthr_ic_b / jcp.nthr_oc_b % jcp.nthr_g;
@@ -733,6 +730,7 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights()
             }
         }
     };
+
     auto ker_bias = [&](int ithr, int nthr) {
         auto rb = this->reducer_bias_;
         assert(nthr == rb->balancer_.nthr_);
@@ -780,14 +778,11 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights()
         rb->reduce(ithr, diff_bias);
     };
 
-#pragma omp parallel num_threads(jcp.nthr)
-    {
-        int ithr = mkldnn_get_thread_num();
-        assert(jcp.nthr == mkldnn_get_num_threads());
+    parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         ker(ithr, jcp.nthr);
         if (conf_.with_bias())
             ker_bias(ithr, jcp.nthr);
-    }
+    });
 
     /* TODO: put this in ker_bias */
     if (conf_.want_padded_bias()) {

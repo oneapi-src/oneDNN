@@ -2431,6 +2431,7 @@ void jit_avx_gemm_f32::sgemm(const char *transa, const char *transb,
     // Determine threading partitioning
     gemm_utils::calc_nthr_nocopy_avx(
             m, n, k, nthr, &nthr_m, &nthr_n, &nthr_k, &MB, &NB, &KB);
+    assert(utils::implication(!mkldnn_thr_syncable(), nthr_k == 1));
 
     // May not happen, but just in case
     if (nthr < nthr_m * nthr_n * nthr_k)
@@ -2459,11 +2460,8 @@ void jit_avx_gemm_f32::sgemm(const char *transa, const char *transb,
         ws_buffers = (float *)malloc(nthr * ws_size_per_thr, PAGE_4K);
     }
 
-#   pragma omp parallel num_threads(nthr)
-    {
-        const int ithr_omp = mkldnn_get_thread_num();
-
-        int ithr_omp_m, ithr_omp_n, ithr_omp_k, ithr_omp_mn;
+    parallel(nthr, [&](const int ithr, const int nthr) {
+        int ithr_m, ithr_n, ithr_k, ithr_mn;
         int m_from, m_to, myM;
         int n_from, n_to, myN;
         int k_from, k_to, myK;
@@ -2471,42 +2469,42 @@ void jit_avx_gemm_f32::sgemm(const char *transa, const char *transb,
         const float *myA, *myB, *myBias = NULL;
         float *myC = C, myBeta;
         float *ws = ws_buffers ?
-                ws_buffers + ithr_omp * ws_size_per_thr / sizeof(float) : 0;
+                ws_buffers + ithr * ws_size_per_thr / sizeof(float) : 0;
         int ld = ldc;
 
-        if (ithr_omp < nthr_m * nthr_n * nthr_k) {
+        if (ithr < nthr_m * nthr_n * nthr_k) {
 
-            ithr_omp_mn = ithr_omp % nthr_mn;
-            ithr_omp_m = ithr_omp_mn % nthr_m;
-            ithr_omp_n = ithr_omp_mn / nthr_m;
-            ithr_omp_k = ithr_omp / nthr_mn;
+            ithr_mn = ithr % nthr_mn;
+            ithr_m = ithr_mn % nthr_m;
+            ithr_n = ithr_mn / nthr_m;
+            ithr_k = ithr / nthr_mn;
 
-            /* swap ithr_omp_k for performance improvement */
-            if (ithr_omp_k == 0)
-                ithr_omp_k = nthr_k - 1;
-            else if (ithr_omp_k == nthr_k - 1)
-                ithr_omp_k = 0;
+            /* swap ithr_k for performance improvement */
+            if (ithr_k == 0)
+                ithr_k = nthr_k - 1;
+            else if (ithr_k == nthr_k - 1)
+                ithr_k = 0;
 
-            m_from = MB * (ithr_omp_m);
-            m_to = MB * (ithr_omp_m + 1);
+            m_from = MB * (ithr_m);
+            m_to = MB * (ithr_m + 1);
             if (m_to > m)
                 m_to = m;
             myM = m_to - m_from;
 
-            n_from = NB * (ithr_omp_n);
-            n_to = NB * (ithr_omp_n + 1);
+            n_from = NB * (ithr_n);
+            n_to = NB * (ithr_n + 1);
             if (n_to > n)
                 n_to = n;
             myN = n_to - n_from;
 
-            k_from = KB * (ithr_omp_k);
-            k_to = KB * (ithr_omp_k + 1);
+            k_from = KB * (ithr_k);
+            k_to = KB * (ithr_k + 1);
             if (k_to > k)
                 k_to = k;
             myK = k_to - k_from;
 
-            cbase = (ithr_omp_m + nthr_m * ithr_omp_n) * (nthr_k - 1);
-            ibase = (ithr_omp_m + nthr_m * ithr_omp_n) * nthr_k;
+            cbase = (ithr_m + nthr_m * ithr_n) * (nthr_k - 1);
+            ibase = (ithr_m + nthr_m * ithr_n) * nthr_k;
 
             if ((myM > 0) && (myN > 0)) {
 
@@ -2520,14 +2518,14 @@ void jit_avx_gemm_f32::sgemm(const char *transa, const char *transb,
                 } else {
                     myB = &(B[n_from + k_from * ldb]);
                 }
-                if (ithr_omp_k == 0) {
+                if (ithr_k == 0) {
                     myC = &(C[m_from + n_from * ldc]);
                     myBeta = beta;
                     ld = ldc;
                     if (hasBias_)
                         myBias = &(bias[m_from]);
                 } else {
-                    myC = c_buffers + MB * NB * (cbase + ithr_omp_k - 1);
+                    myC = c_buffers + MB * NB * (cbase + ithr_k - 1);
                     myBeta = 0.0;
                     ld = MB;
                     myBias = NULL;
@@ -2537,7 +2535,7 @@ void jit_avx_gemm_f32::sgemm(const char *transa, const char *transb,
                         lda, myB, ldb, &myBeta, myC, ld, myBias, ws);
 
                 if (nthr_k > 1)
-                    ompstatus[(ibase + ithr_omp_k) * CACHE_LINE_SIZE] = 1;
+                    ompstatus[(ibase + ithr_k) * CACHE_LINE_SIZE] = 1;
             }
 
             if (nthr_k > 1) {
@@ -2545,11 +2543,11 @@ void jit_avx_gemm_f32::sgemm(const char *transa, const char *transb,
                 // sum matrices partitioned along K dimension
                 int n1, n2;
 
-                gemm_utils::partition_unit_diff(ithr_omp_k, nthr_k, myN, &n1, &n2);
+                gemm_utils::partition_unit_diff(ithr_k, nthr_k, myN, &n1, &n2);
 
-                if (ithr_omp_k > 0) {
+                if (ithr_k > 0) {
 
-                    myC = c_buffers + MB * NB * (cbase + ithr_omp_k - 1);
+                    myC = c_buffers + MB * NB * (cbase + ithr_k - 1);
                     myC = myC + n1 * MB;
                     /* need to wait until main thread finishes */
                     while (ompstatus[ibase * CACHE_LINE_SIZE] != 1) {
@@ -2561,7 +2559,7 @@ void jit_avx_gemm_f32::sgemm(const char *transa, const char *transb,
                 }
 
                 for (int ik = 1; ik < nthr_k; ++ik) {
-                    if (ik != ithr_omp_k) {
+                    if (ik != ithr_k) {
 
                         myC = c_buffers + MB * NB * (cbase + ik - 1);
                         myC = myC + n1 * MB;
@@ -2575,7 +2573,7 @@ void jit_avx_gemm_f32::sgemm(const char *transa, const char *transb,
                 }
             }
         }
-    }
+    });
 
     if (nthr_k > 1)
         free(c_buffers);

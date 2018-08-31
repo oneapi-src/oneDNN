@@ -4331,6 +4331,7 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
         const bool use_4fma = true
             && ndims == 4
             && mayiuse(avx512_mic_4ops)
+            && mkldnn_thr_syncable()
             && everyone_is(0, jcp.dilate_d, jcp.dilate_h, jcp.dilate_w)
             && everyone_is(0, jcp.l_pad, jcp.r_pad, jcp.t_pad, jcp.b_pad)
             && jcp.kw <= 28 - jcp.with_bias
@@ -4380,6 +4381,7 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
         jcp.nb_ic = jcp.ic / jcp.ic_block;
         jcp.src_fmt = src_d.format();
         if ((mayiuse(avx512_mic_4ops) || mayiuse(avx512_core_vnni))
+            && mkldnn_thr_syncable()
             && ndims == 4
             && jcp.stride_w == 1
             && everyone_is(0, jcp.dilate_d, jcp.dilate_h, jcp.dilate_w)
@@ -4394,7 +4396,8 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
                     diff_dst_d.data_type())) {
             jcp.ver = ver_fma;
             if (ndims == 4 && mayiuse(avx512_mic_4ops) && jcp.stride_w == 1 &&
-                    everyone_is(0, jcp.dilate_d, jcp.dilate_h, jcp.dilate_w)) {
+                    everyone_is(0, jcp.dilate_d, jcp.dilate_h, jcp.dilate_w) &&
+                    mkldnn_thr_syncable()) {
                 jcp.ver = ver_4fma;
             }
         } else {

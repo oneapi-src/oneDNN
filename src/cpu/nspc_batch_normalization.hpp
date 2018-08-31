@@ -44,6 +44,9 @@ struct nspc_batch_normalization_fwd_t : public cpu_primitive_t {
             using namespace data_type;
             assert(engine()->kind() == engine_kind::cpu);
             bool ok = true
+                /* the algorithm requires barriers while switching
+                 * between parallelization over N and C dimensions */
+                && mkldnn_thr_syncable()
                 && is_fwd()
                 && !has_zero_dim_memory()
                 && desc()->data_desc.data_type == f32
@@ -102,6 +105,9 @@ struct nspc_batch_normalization_bwd_t : public cpu_primitive_t {
             using namespace data_type;
             assert(engine()->kind() == engine_kind::cpu);
             bool ok = true
+                /* the algorithm requires barriers while switching
+                 * between parallelization over N and C dimensions */
+                && mkldnn_thr_syncable()
                 && is_bwd()
                 && !has_zero_dim_memory()
                 && desc()->data_desc.data_type == f32
