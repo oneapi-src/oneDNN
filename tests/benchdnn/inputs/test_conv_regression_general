@@ -48,3 +48,6 @@
 # MKLDNN-930
 --reset mb2ic3ih300oc32oh150kh3sh2
 --reset --cfg=u8s8u8s32 mb2ic3ih84oc16oh42kh3sh2
+
+# MKLDNN-949
+--reset --dir=BWD_D mb2_g1ic1oc2_ih3oh1kh2sh1dh1ph0_iw5ow3kw2sw1dw1pw0
