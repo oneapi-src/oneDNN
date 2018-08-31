@@ -1368,7 +1368,8 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
 
     if (one_of(jcp.ver, ver_4vnni, ver_4fma) && !jcp.is_1stconv) {
         if (jcp.kw == 3 && jcp.kh == 3 && jcp.ow == 7 && jcp.oh == 7) {
-            jcp.nb_oc_blocking = 2;
+            if (jcp.nb_oc % 2 == 0)
+                jcp.nb_oc_blocking = 2;
         } else {
             for (int i = jcp.nb_oc; i > 0; i--)
                 if (i * jcp.ur_w <= regs && jcp.nb_oc % i == 0) {
