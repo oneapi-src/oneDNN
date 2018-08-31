@@ -191,7 +191,7 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma_1st(int ur_w,
         mov(aux_reg_inp_d, reg_inp);
         mov(aux_reg_inp_d_prf, reg_inp_prf);
 
-        if ((jcp.kd - 1) * (jcp.dilate_d + 1) < jcp.f_pad) {
+        if ((jcp.kd - 1) * (jcp.dilate_d + 1) < nstl::max(jcp.f_pad, jcp.back_pad)) {
             cmp(reg_ki, 0);
             je(skip_kd_loop, T_NEAR);
         }
@@ -199,7 +199,7 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma_1st(int ur_w,
     }
     mov(reg_kj, reg_kh);
     Label skip_kh_loop;
-    if ((jcp.kh - 1) * (jcp.dilate_h + 1) < jcp.t_pad) {
+    if ((jcp.kh - 1) * (jcp.dilate_h + 1) < nstl::max(jcp.t_pad, jcp.b_pad)) {
         cmp(reg_kj, 0);
         je(skip_kh_loop, T_NEAR);
     }
@@ -348,7 +348,7 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma(int ur_w,
         mov(aux_reg_inp_d_prf, reg_inp_prf);
         mov(aux_reg_ker_d_prf, reg_ker_prf);
 
-        if ((jcp.kd - 1) * (jcp.dilate_d + 1) < jcp.f_pad) {
+        if ((jcp.kd - 1) * (jcp.dilate_d + 1) < nstl::max(jcp.f_pad, jcp.back_pad)) {
             cmp(reg_ki, 0);
             je(skip_kd_loop, T_NEAR);
         }
@@ -358,7 +358,7 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma(int ur_w,
         mov(reg_kj, reg_kh);
     }
     Label skip_kh_loop;
-    if ((jcp.kh - 1) * (jcp.dilate_h + 1) < jcp.t_pad) {
+    if ((jcp.kh - 1) * (jcp.dilate_h + 1) < nstl::max(jcp.t_pad, jcp.b_pad)) {
         cmp(reg_kj, 0);
         je(skip_kh_loop, T_NEAR);
     }
@@ -579,7 +579,7 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_fma(int ur_w,
         mov(aux_reg_inp_d_prf, reg_inp_prf);
         mov(aux_reg_ker_d_prf, reg_ker_prf);
 
-        if ((jcp.kd - 1) * (jcp.dilate_d + 1) < jcp.f_pad) {
+        if ((jcp.kd - 1) * (jcp.dilate_d + 1) < nstl::max(jcp.f_pad, jcp.back_pad)) {
             cmp(reg_ki, 0);
             je(skip_kd_loop, T_NEAR);
         }
@@ -589,7 +589,7 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_fma(int ur_w,
         mov(reg_kj, reg_kh);
     }
     Label skip_kh_loop;
-    if ((jcp.kh - 1) * (jcp.dilate_h + 1) < jcp.t_pad) {
+    if ((jcp.kh - 1) * (jcp.dilate_h + 1) < nstl::max(jcp.t_pad, jcp.b_pad)) {
         cmp(reg_kj, 0);
         je(skip_kh_loop, T_NEAR);
     }
@@ -749,7 +749,7 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_fma_core(int ur_w,
         mov(aux_reg_ker_d, ptr[param1 + GET_OFF(filt)]);
         mov(aux_reg_inp_d, reg_inp);
 
-        if ((jcp.kd - 1) * (jcp.dilate_d + 1) < jcp.f_pad) {
+        if ((jcp.kd - 1) * (jcp.dilate_d + 1) < nstl::max(jcp.f_pad, jcp.back_pad)) {
             cmp(reg_ki, 0);
             je(skip_kd_loop, T_NEAR);
         }
@@ -758,7 +758,7 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_fma_core(int ur_w,
     } else {
         mov(reg_kj, reg_kh);
     }
-    if ((jcp.kh - 1) * (jcp.dilate_h + 1) < jcp.t_pad) {
+    if ((jcp.kh - 1) * (jcp.dilate_h + 1) < nstl::max(jcp.t_pad, jcp.b_pad)) {
         cmp(reg_kj, 0);
         je(skip_kh_loop, T_NEAR);
     }
@@ -865,7 +865,7 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_vnni(
         mov(aux_reg_inp_d_prf, reg_inp_prf);
         mov(aux_reg_ker_d_prf, reg_ker_prf);
 
-        if (jcp.kd <= jcp.f_pad) {
+        if ((jcp.kd - 1) * (jcp.dilate_d + 1) < nstl::max(jcp.f_pad, jcp.back_pad)) {
             cmp(reg_ki, 0);
             je(skip_kd_loop, T_NEAR);
         }
@@ -874,7 +874,7 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_vnni(
     } else {
         mov(reg_kj, reg_kh);
     }
-    if ((jcp.kh - 1) * (jcp.dilate_h + 1) < jcp.t_pad) {
+    if ((jcp.kh - 1) * (jcp.dilate_h + 1) < nstl::max(jcp.t_pad, jcp.b_pad)) {
         cmp(reg_kj, 0);
         je(skip_kh_loop, T_NEAR);
     }
@@ -1162,6 +1162,11 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
     jcp.dilate_d = (ndims == 5) ? cd.dilates[0] : 0;
     jcp.dilate_h = cd.dilates[ndims-4];
     jcp.dilate_w = cd.dilates[ndims-3];
+
+    jcp.b_pad = (jcp.oh - 1) * jcp.stride_h + (jcp.kh - 1) * (jcp.dilate_h + 1)
+            - (jcp.ih + jcp.t_pad - 1);
+    jcp.back_pad = (jcp.od - 1) * jcp.stride_d
+            + (jcp.kd - 1) * (jcp.dilate_d + 1) - (jcp.id + jcp.f_pad - 1);
 
     jcp.is_1stconv = is_1stconv(jcp);
 

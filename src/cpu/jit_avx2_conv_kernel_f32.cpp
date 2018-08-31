@@ -236,7 +236,7 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(int ur_w,
         mov(aux_reg_kernel, aux_reg_ker_d);
     }
 
-    if (jcp.kh <= jcp.t_pad) {
+    if ((jcp.kh - 1) * (jcp.dilate_h + 1) < nstl::max(jcp.t_pad, jcp.b_pad)) {
         cmp(kj, 0);
         je(skip_kh_loop, T_NEAR);
     }
@@ -485,6 +485,9 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     jcp.dilate_d = (ndims == 5) ? cd.dilates[0] : 0;
     jcp.dilate_h = cd.dilates[ndims-4];
     jcp.dilate_w = cd.dilates[ndims-3];
+
+    jcp.b_pad = (jcp.oh - 1) * jcp.stride_h + (jcp.kh - 1) * (jcp.dilate_h + 1)
+            - (jcp.ih + jcp.t_pad - 1);
 
     jcp.src_fmt = src_d.format();
     jcp.with_bias = cd.bias_desc.format != memory_format::undef;

@@ -219,7 +219,7 @@ void jit_avx512_core_u8s8s32x_fwd_kernel::compute_ker(int ur_w,
     mov(aux_reg_ker, reg_ker);
 
     mov(reg_kj, reg_kh);
-    if ((jcp.kh - 1) * (jcp.dilate_h + 1) < jcp.t_pad) {
+    if ((jcp.kh - 1) * (jcp.dilate_h + 1) < nstl::max(jcp.t_pad, jcp.b_pad)) {
         cmp(reg_kj, 0);
         je(skip_kh_loop, T_NEAR);
     }
@@ -531,6 +531,9 @@ status_t jit_avx512_core_u8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
 
     jcp.dilate_h = cd.dilates[0];
     jcp.dilate_w = cd.dilates[1];
+
+    jcp.b_pad = (jcp.oh - 1) * jcp.stride_h + (jcp.kh - 1) * (jcp.dilate_h + 1)
+            - (jcp.ih + jcp.t_pad - 1);
 
     if (!post_ops_ok(jcp, attr))
         return status::unimplemented;
