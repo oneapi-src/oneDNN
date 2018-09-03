@@ -71,7 +71,7 @@ struct jit_bnorm_t: public jit_generator {
     const int vlen = isa == sse42 ? 32 : cpu_isa_traits<isa>::vlen;
 
     const batch_normalization_pd_t *bdesc_;
-    int is_spatial_thr;
+    int is_spatial_thr_;
 
     void (*ker)(const call_params_t *);
     void operator()(const call_params_t *p) { (*ker)(p); }
@@ -206,7 +206,7 @@ struct jit_bnorm_t: public jit_generator {
         mov(ptr[rsp + stack_off_ws], reg_tmp);
         mov(reg_tmp, ptr[reg_param + PARAM_OFF(barrier)]);
         mov(ptr[rsp + stack_off_barrier], reg_tmp);
-        if (is_spatial_thr) {
+        if (is_spatial_thr_) {
             mov(reg_tmp, ptr[reg_param + PARAM_OFF(spat_size_loc)]);
             mov(ptr[rsp + stack_off_spat_size_loc], reg_tmp);
             mov(reg_tmp, ptr[reg_param + PARAM_OFF(S_s)]);
@@ -400,7 +400,7 @@ struct jit_bnorm_t: public jit_generator {
         for (size_t i = 0; i < num_active_regs; i++)
             init(i);
         if (loop_unroll) {
-            if (is_spatial_thr) {
+            if (is_spatial_thr_) {
                 mov(reg_ctr, ptr[rsp + stack_off_spat_size_loc]);
                 add(reg_soff, ptr[rsp + stack_off_s_s]);
             } else {
@@ -416,7 +416,7 @@ struct jit_bnorm_t: public jit_generator {
                 sub(reg_ctr, factor);
                 jnz(label);
             }
-            if (is_spatial_thr) {
+            if (is_spatial_thr_) {
                 add(reg_soff, ptr[rsp + stack_off_s_tail]);
             }
         }
@@ -1006,14 +1006,13 @@ struct jit_bnorm_t: public jit_generator {
         }
     }
 
-    jit_bnorm_t(const batch_normalization_pd_t *bdesc, int is_spatial_thr_):
-        bdesc_(bdesc) {
+    jit_bnorm_t(const batch_normalization_pd_t *bdesc, int is_spatial_thr):
+        bdesc_(bdesc), is_spatial_thr_(is_spatial_thr) {
         static_assert(isa == sse42 || isa == avx2 || isa == avx512_common
                 || isa == avx512_mic, "unsupported isa");
 
-        is_spatial_thr = is_spatial_thr_;
-        unroll_blocks = isa == avx512_common && !is_spatial_thr ? 4 : 1;
-        unroll_regs = isa == avx512_common && !is_spatial_thr ? 4 : 1;
+        unroll_blocks = isa == avx512_common && !is_spatial_thr_ ? 4 : 1;
+        unroll_regs = isa == avx512_common && !is_spatial_thr_ ? 4 : 1;
 
         preamble();
 
