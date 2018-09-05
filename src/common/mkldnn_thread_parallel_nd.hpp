@@ -38,12 +38,18 @@ namespace impl {
 /* general parallelization */
 template <typename F>
 void parallel(int nthr, F f) {
-    const int _nthr = nthr > 0 ? nthr : mkldnn_get_max_threads();
-    if (_nthr == 1) { f(0, 1); return; }
-#   pragma omp parallel num_threads(_nthr)
-    {
-        f(mkldnn_get_thread_num(), mkldnn_get_num_threads());
-    }
+    if (nthr == 0) nthr = mkldnn_get_max_threads();
+#if MKLDNN_THR == MKLDNN_THR_SEQ
+    assert(nthr == 1);
+    f(0, 1);
+#elif MKLDNN_THR == MKLDNN_THR_OMP
+    if (nthr == 1) { f(0, 1); return; }
+#   pragma omp parallel num_threads(nthr)
+    f(mkldnn_get_thread_num(), mkldnn_get_num_threads());
+#elif MKLDNN_THR == MKLDNN_THR_TBB
+    if (nthr == 1) { f(0, 1); return; }
+    tbb::parallel_for(0, nthr, [&](int ithr) { f(ithr, nthr); });
+#endif
 }
 
 /* for_nd section */
@@ -139,17 +145,85 @@ void for_nd(const int ithr, const int nthr, const T0 &D0, const T1 &D1,
 
 /* parallel_nd and parallel_nd_in_omp section */
 
+#if MKLDNN_THR != MKLDNN_THR_TBB
 template <typename ...Args>
 void parallel_nd(Args &&...args) {
+#if MKLDNN_THR == MKLDNN_THR_SEQ
+    for_nd(0, 1, utils::forward<Args>(args)...);
+#elif MKLDNN_THR == MKLDNN_THR_OMP
 #   pragma omp parallel
     for_nd(mkldnn_get_thread_num(), mkldnn_get_num_threads(),
             utils::forward<Args>(args)...);
+#endif
 }
+#else // MKLDNN_THR != MKLDNN_THR_TBB
+
+// gcc 4.8 has a bug with passing parameter pack to lambdas.
+// So have to explicitly instantiate all the cases.
+
+template <typename T0, typename F>
+void parallel_nd(const T0 &D0, F f) {
+    const int nthr = mkldnn_get_max_threads();
+    tbb::parallel_for(0, nthr, [&](int ithr) {
+        for_nd(ithr, nthr, D0, f);
+    });
+}
+
+template <typename T0, typename T1, typename F>
+void parallel_nd(const T0 &D0, const T1 &D1, F f) {
+    const int nthr = mkldnn_get_max_threads();
+    tbb::parallel_for(0, nthr, [&](int ithr) {
+        for_nd(ithr, nthr, D0, D1, f);
+    });
+}
+
+template <typename T0, typename T1, typename T2, typename F>
+void parallel_nd(const T0 &D0, const T1 &D1, const T2 &D2, F f) {
+    const int nthr = mkldnn_get_max_threads();
+    tbb::parallel_for(0, nthr, [&](int ithr) {
+        for_nd(ithr, nthr, D0, D1, D2, f);
+    });
+}
+
+template <typename T0, typename T1, typename T2, typename T3, typename F>
+void parallel_nd(const T0 &D0, const T1 &D1, const T2 &D2, const T3 &D3, F f) {
+    const int nthr = mkldnn_get_max_threads();
+    tbb::parallel_for(0, nthr, [&](int ithr) {
+        for_nd(ithr, nthr, D0, D1, D2, D3, f);
+    });
+}
+
+template <typename T0, typename T1, typename T2, typename T3, typename T4,
+         typename F>
+void parallel_nd(const T0 &D0, const T1 &D1, const T2 &D2, const T3 &D3,
+        const T4 &D4, F f) {
+    const int nthr = mkldnn_get_max_threads();
+    tbb::parallel_for(0, nthr, [&](int ithr) {
+        for_nd(ithr, nthr, D0, D1, D2, D3, D4, f);
+    });
+}
+
+template <typename T0, typename T1, typename T2, typename T3, typename T4,
+         typename T5, typename F>
+void parallel_nd(const T0 &D0, const T1 &D1, const T2 &D2, const T3 &D3,
+        const T4 &D4, const T5 &D5, F f) {
+    const int nthr = mkldnn_get_max_threads();
+    tbb::parallel_for(0, nthr, [&](int ithr) {
+        for_nd(ithr, nthr, D0, D1, D2, D3, D4, D5, f);
+    });
+}
+#endif
 
 template <typename ...Args>
 void parallel_nd_in_omp(Args &&...args) {
+#if MKLDNN_THR == MKLDNN_THR_SEQ
+    for_nd(0, 1, utils::forward<Args>(args)...);
+#elif MKLDNN_THR == MKLDNN_THR_OMP
     for_nd(mkldnn_get_thread_num(), mkldnn_get_num_threads(),
             utils::forward<Args>(args)...);
+#elif MKLDNN_THR == MKLDNN_THR_TBB
+    assert(!"unsupported parallel_nd_in_omp()");
+#endif
 }
 
 } // namespace impl

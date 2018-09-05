@@ -46,6 +46,12 @@ set(MKLDNN_LIBRARY_TYPE "SHARED" CACHE STRING
 option(WITH_EXAMPLE "builds examples"  ON)
 option(WITH_TEST "builds tests" ON)
 
+set(MKLDNN_THREADING "OMP" CACHE STRING
+    "specifies threading type; supports OMP (default), or TBB.
+    If Intel(R) Threading Building Blocks (Intel(R) TBB) one should also
+    set TBBROOT (either environement variable or CMake option) to the library
+    location")
+
 # =============
 # Optimizations
 # =============

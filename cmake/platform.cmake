@@ -90,6 +90,9 @@ elseif(UNIX OR MINGW)
         endif()
         set(CMAKE_CCXX_NOWARN_FLAGS
             "${CMAKE_CCXX_NOWARN_FLAGS} -diag-disable:15552")
+        # disable `was not vectorized: vectorization seems inefficient` remark
+        set(CMAKE_CCXX_NOWARN_FLAGS
+            "${CMAKE_CCXX_NOWARN_FLAGS} -diag-disable:15335")
     endif()
 endif()
 

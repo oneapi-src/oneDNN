@@ -20,12 +20,26 @@
 #include "utils.hpp"
 #include "z_magic.hpp"
 
-#if defined(_OPENMP)
-#include <omp.h>
+#define MKLDNN_THR_SEQ 0
+#define MKLDNN_THR_OMP 1
+#define MKLDNN_THR_TBB 2
+
+#if !defined(MKLDNN_THR)
+#define MKLDNN_THR MKLDNN_THR_SEQ
 #endif
 
-#if defined(_OPENMP)
+#if MKLDNN_THR == MKLDNN_THR_SEQ
 #define MKLDNN_THR_SYNC 1
+inline int mkldnn_get_max_threads() { return 1; }
+inline int mkldnn_get_num_threads() { return 1; }
+inline int mkldnn_get_thread_num() { return 0; }
+inline int mkldnn_in_parallel() { return 0; }
+inline void mkldnn_thr_barrier() {}
+
+#elif MKLDNN_THR == MKLDNN_THR_OMP
+#include <omp.h>
+#define MKLDNN_THR_SYNC 1
+
 inline int mkldnn_get_max_threads() { return omp_get_max_threads(); }
 inline int mkldnn_get_num_threads() { return omp_get_num_threads(); }
 inline int mkldnn_get_thread_num() { return omp_get_thread_num(); }
@@ -33,13 +47,18 @@ inline int mkldnn_in_parallel() { return omp_in_parallel(); }
 inline void mkldnn_thr_barrier() {
 #   pragma omp barrier
 }
-#else // defined(_OPENMP)
-#define MKLDNN_THR_SYNC 1
-inline int mkldnn_get_max_threads() { return 1; }
-inline int mkldnn_get_num_threads() { return 1; }
-inline int mkldnn_get_thread_num() { return 0; }
+
+#elif MKLDNN_THR == MKLDNN_THR_TBB
+#include "tbb/parallel_for.h"
+#define MKLDNN_THR_SYNC 0
+
+inline int mkldnn_get_max_threads()
+{ return tbb::this_task_arena::max_concurrency(); }
+inline int mkldnn_get_num_threads() { return mkldnn_get_max_threads(); }
+inline int mkldnn_get_thread_num()
+{ return tbb::this_task_arena::current_thread_index(); }
 inline int mkldnn_in_parallel() { return 0; }
-inline void mkldnn_thr_barrier() {}
+inline void mkldnn_thr_barrier() { assert(!"no barrier in TBB"); }
 #endif
 
 /* MSVC still supports omp 2.0 only */
