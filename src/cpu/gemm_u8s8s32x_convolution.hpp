@@ -142,6 +142,10 @@ struct _gemm_u8s8s32x_convolution_fwd_t: public cpu_primitive_t {
 
 private:
     void execute_forward();
+    void execute_forward_thr(const int ithr, const int nthr,
+            const src_data_t *src_base, const wei_data_t *wei_base,
+            const char *bia_base, dst_data_t *dst_base,
+            char *scratchpad);
     pd_t conf_;
     scratchpad_t *scratchpad_;
     int nthr_;
@@ -245,6 +249,10 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t: public cpu_primitive_t {
 
 private:
     void execute_backward_data();
+    void execute_backward_data_thr(const int ithr, const int nthr,
+            const diff_dst_data_t *diff_dst_base, const wei_data_t *wei_base,
+            const char *bia_base, diff_src_data_t *diff_src_base,
+            char *scratchpad);
     pd_t conf_;
     scratchpad_t *scratchpad_;
 };

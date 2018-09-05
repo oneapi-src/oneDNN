@@ -151,6 +151,9 @@ struct _jit_avx512_common_1x1_convolution_fwd_t : public cpu_primitive_t {
 
   private:
     void execute_forward();
+    void execute_forward_thr(const int ithr, const int nthr,
+            const src_data_t *src, const wei_data_t *weights,
+            const dst_data_t *bias, dst_data_t *dst);
     pd_t conf_;
     jit_avx512_common_1x1_conv_kernel *kernel_;
     /* reduction to unit stride */
