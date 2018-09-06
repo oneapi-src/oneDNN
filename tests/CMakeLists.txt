@@ -58,15 +58,6 @@ endif()
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CMAKE_TEST_CCXX_NOWARN_FLAGS}")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_TEST_CCXX_NOWARN_FLAGS}")
 
-#add_executable(api-check-c api_check.c)
-#target_link_libraries(api-check-c ${LIB_NAME} ${EXTRA_LIBS})
-#add_test(api-check-c api-check-c)
-
-# add_executable(simple_convolution-c simple_convolution.c)
-# set_property(TARGET simple_convolution-c PROPERTY C_STANDARD 99)
-# target_link_libraries(simple_convolution-c ${LIB_NAME} ${EXTRA_LIBS})
-# add_test(simple_convolution-c simple_convolution-c)
-
 add_executable(api-c api.c)
 set_property(TARGET api-c PROPERTY C_STANDARD 99)
 target_link_libraries(api-c ${LIB_NAME} ${EXTRA_LIBS})
