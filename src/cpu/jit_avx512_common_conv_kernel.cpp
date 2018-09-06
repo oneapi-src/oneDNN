@@ -1266,9 +1266,8 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
 
         if (jcp.is_1stconv) {
             // TODO: fix & remove constraints below
-            if (jcp.l_pad != 0 || jcp.r_pad != 0
-                || jcp.b_pad != 0 || jcp.t_pad != 0
-                || (jcp.kw < 7 && jcp.kh < 7))
+            if (implication(everyone_is(0, jcp.l_pad, jcp.t_pad),
+                        nstl::max(jcp.kw, jcp.kh) < 7))
                 jcp.ver = ver_fma;
             if (jcp.ver == ver_4fma) {
                 const auto w_format = with_groups
