@@ -123,6 +123,9 @@ typedef enum {
     /** 3D data tensor in the @c nwc format */
     mkldnn_nwc,
     /** 3D data tensor in the @c ncw format with channels data laid out in
+     * memory in 8-element blocks. */
+    mkldnn_nCw8c,
+    /** 3D data tensor in the @c ncw format with channels data laid out in
      * memory in 16-element blocks. */
     mkldnn_nCw16c,
     /** 4D data tensor in the @c nchw format typically used in Caffe. */
@@ -157,6 +160,16 @@ typedef enum {
     /** 3D weights tensor in the format (width, input channels,
      * output channels). */
     mkldnn_wio,
+    /** 3D weights tensor in the format (output channels, width, input
+     * channels) with output channels data laid out in memory in 8-element
+     * blocks. */
+    mkldnn_Owi8o,
+    /** 3D weights tensor in the @c oiw format with both input and output
+     * channels data laid out in memory in 8-element blocks. */
+    mkldnn_OIw8i8o,
+    /** 3D weights tensor in the @c oiw format with both input and output
+     * channels data laid out in memory in 8-element blocks. */
+    mkldnn_OIw8o8i,
     /** 3D weights tensor in the @c oiw format with both input and output
      * channels data laid out in memory in 16-element blocks. */
     mkldnn_OIw16i16o,
@@ -267,6 +280,17 @@ typedef enum {
     /** 4D weights tensor in the @c oiw format with extra outer dimension for
      * groups. */
     mkldnn_goiw,
+    /** 4D weights tensor in the blocked version of @c goiw format with output
+     * channels data laid out in memory in 8-element blocks. */
+    mkldnn_gOwi8o,
+    /** 4D weights tensor in the blocked version of @c goiw format with both
+     * input and output channels data laid out in memory in 8-element blocks.
+     */
+    mkldnn_gOIw8o8i,
+    /** 4D weights tensor in the blocked version of @c goiw format with both
+     * input and output channels data laid out in memory in 8-element blocks.
+     */
+    mkldnn_gOIw8i8o,
     /** 4D weights tensor in the blocked version of @c goiw format with both
      * input and output channels data laid out in memory in 16-element blocks.
      */
