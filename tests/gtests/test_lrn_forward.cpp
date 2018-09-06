@@ -83,16 +83,10 @@ void check_lrn_fwd(const test_lrn_desc_t &ld,
     };
 
     const int N = ld.mb;
-#   pragma omp parallel for collapse(4) schedule(static)
-    for (int n = 0; n < N; ++n) {
-        for (int c = 0; c < padded_c; ++c) {
-            for (int h = 0; h < H; ++h) {
-                for (int w = 0; w < W; ++w) {
-                    ker(&dst_ptr[map_index(dst_d,off(n, c, h, w))], n, c, h, w);
-                }
-            }
-        }
-    }
+    mkldnn::impl::parallel_nd(N, padded_c, H, W,
+        [&](int n, int c, int h, int w)
+        { ker(&dst_ptr[map_index(dst_d,off(n, c, h, w))], n, c, h, w); }
+    );
 }
 
 struct lrn_fwd_test_params {

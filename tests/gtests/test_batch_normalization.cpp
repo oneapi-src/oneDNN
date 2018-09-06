@@ -70,8 +70,7 @@ void check_bnrm_fwd(const test_bnrm_params_t &p,
     size_t padded_c = src.get_primitive_desc().desc().data.layout_desc
         .blocking.padding_dims[1];
 
-#pragma omp parallel for
-    for (int c = 0; c < bp.c; c++) {
+    mkldnn::impl::parallel_nd(bp.c, [&](int c) {
         data_t ref_mean = calculate_stats ? data_t(0) : mean_data[c];
         data_t ref_variance = calculate_stats ? data_t(0) : variance_data[c];
         if (calculate_stats) {
@@ -142,7 +141,7 @@ void check_bnrm_fwd(const test_bnrm_params_t &p,
                     EXPECT_NEAR((out - ref_dst) / norm_max, 0., eps);
                 }
         }
-    }
+    });
 }
 
 template <typename data_t>
@@ -185,8 +184,7 @@ void check_bnrm_bwd(const test_bnrm_params_t &p,
     const data_t eps = static_cast<data_t>(1.e-4 * bp.mb * bp.d * bp.h * bp.w);
 
     size_t padded_c = src.get_primitive_desc().desc().data.layout_desc.blocking.padding_dims[1];
-#pragma omp parallel for
-    for (int c = 0; c < bp.c; c++) {
+    mkldnn::impl::parallel_nd(bp.c, [&](int c) {
         data_t ref_diff_gamma = data_t(0);
         data_t ref_diff_beta = data_t(0);
 
@@ -238,7 +236,7 @@ void check_bnrm_bwd(const test_bnrm_params_t &p,
                 if (norm_max < eps) norm_max = data_t(1);
                 EXPECT_NEAR((out_diff_src - ref_diff_src) / norm_max, 0., eps);
             }
-    }
+    });
 }
 
 template <typename data_t>

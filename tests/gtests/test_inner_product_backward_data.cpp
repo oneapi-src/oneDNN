@@ -44,40 +44,38 @@ void compute_ref_inner_product_bwd_data(int ndims,
     bool has_spatial = ipd.kh > 1 || ipd.kw > 1;
     if (ndims == 5) has_spatial = has_spatial || ipd.kd > 1;
     const int padded_ic = diff_src_d.data.layout_desc.blocking.padding_dims[1];
-#pragma omp parallel for collapse(2) schedule(static)
-    for (int n = 0; n < ipd.mb; n++) {
-        for (int ic = 0; ic < ipd.ic; ic++) {
-            if (has_spatial) {
-                for (int kd = 0; kd < ipd.kd; ++kd)
-                for (int kh = 0; kh < ipd.kh; ++kh)
-                for (int kw = 0; kw < ipd.kw; ++kw) {
-                    int dsidx = n * padded_ic * ipd.kd * ipd.kh * ipd.kw
-                        + ic * ipd.kd * ipd.kh * ipd.kw
-                        + kd * ipd.kh * ipd.kw + kh * ipd.kw + kw;
-                    data_t *ds = &diff_src_data[map_index(diff_src_d, dsidx)];
-                        *ds = data_t(0);
-                    for (int oc = 0; oc < ipd.oc; ++oc) {
-                        int ddidx = n * ipd.oc + oc;
-                        int widx = oc * padded_ic * ipd.kd * ipd.kh * ipd.kw
-                            + ic * ipd.kd * ipd.kh * ipd.kw
-                            + kd * ipd.kh * ipd.kw + kh * ipd.kw + kw;
-                            *ds += diff_dst_data[map_index(diff_dst_d, ddidx)]
-                                * weights_data[map_index(weights_d, widx)];
-                    }
-                }
-            } else {
-                int dsidx = n * ipd.ic + ic;
+
+    mkldnn::impl::parallel_nd(ipd.mb, ipd.ic, [&](int n, int ic) {
+        if (has_spatial) {
+            for (int kd = 0; kd < ipd.kd; ++kd)
+            for (int kh = 0; kh < ipd.kh; ++kh)
+            for (int kw = 0; kw < ipd.kw; ++kw) {
+                int dsidx = n * padded_ic * ipd.kd * ipd.kh * ipd.kw
+                    + ic * ipd.kd * ipd.kh * ipd.kw
+                    + kd * ipd.kh * ipd.kw + kh * ipd.kw + kw;
                 data_t *ds = &diff_src_data[map_index(diff_src_d, dsidx)];
-                *ds = data_t(0);
+                    *ds = data_t(0);
                 for (int oc = 0; oc < ipd.oc; ++oc) {
                     int ddidx = n * ipd.oc + oc;
-                    int widx = oc * ipd.ic + ic;
-                    *ds += diff_dst_data[map_index(diff_dst_d, ddidx)]
-                        * weights_data[map_index(weights_d, widx)];
+                    int widx = oc * padded_ic * ipd.kd * ipd.kh * ipd.kw
+                        + ic * ipd.kd * ipd.kh * ipd.kw
+                        + kd * ipd.kh * ipd.kw + kh * ipd.kw + kw;
+                        *ds += diff_dst_data[map_index(diff_dst_d, ddidx)]
+                            * weights_data[map_index(weights_d, widx)];
                 }
             }
+        } else {
+            int dsidx = n * ipd.ic + ic;
+            data_t *ds = &diff_src_data[map_index(diff_src_d, dsidx)];
+            *ds = data_t(0);
+            for (int oc = 0; oc < ipd.oc; ++oc) {
+                int ddidx = n * ipd.oc + oc;
+                int widx = oc * ipd.ic + ic;
+                *ds += diff_dst_data[map_index(diff_dst_d, ddidx)]
+                    * weights_data[map_index(weights_d, widx)];
+            }
         }
-    }
+    });
 }
 
 struct inprod_test_params {

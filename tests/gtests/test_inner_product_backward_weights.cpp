@@ -38,14 +38,13 @@ void compute_ref_inner_product_bwd_bias(const test_inner_product_descr_t &ipd,
     const memory::desc diff_bias_d = diff_bias.get_primitive_desc().desc();
     const memory::desc diff_dst_d = diff_dst.get_primitive_desc().desc();
 
-#   pragma omp parallel for schedule(static)
-    for (int oc = 0; oc < ipd.oc; ++oc) {
+    mkldnn::impl::parallel_nd(ipd.oc, [&](int oc) {
         data_t *db = &diff_bias_data[map_index(diff_bias_d, oc)];
         *db = data_t(0);
         for (int n = 0; n < ipd.mb; ++n) {
             *db += diff_dst_data[map_index(diff_dst_d, n*ipd.oc + oc)];
         }
-    }
+    });
 }
 
 template <typename data_t>
@@ -65,42 +64,39 @@ void compute_ref_inner_product_bwd_weights(int ndims,
 
     bool has_spatial = ipd.kh > 1 || ipd.kw > 1;
     if (ndims == 5) has_spatial = has_spatial || ipd.kd > 1;
-#   pragma omp parallel for collapse(2) schedule(static)
-    for (int oc = 0; oc < ipd.oc; ++oc) {
-        for (int ic = 0; ic < ipd.ic; ++ic) {
-            if (has_spatial) {
-                for (int kd = 0; kd < ipd.kd; ++kd)
-                for (int kh = 0; kh < ipd.kh; ++kh)
-                for (int kw = 0; kw < ipd.kw; ++kw) {
-                    int dwidx = oc * padded_ic * ipd.kd * ipd.kh * ipd.kw
-                        + ic * ipd.kd * ipd.kh * ipd.kw
-                        + kd * ipd.kh * ipd.kw + kh * ipd.kw + kw;
-                    data_t *dw = &diff_weights_data[map_index(diff_weights_d,
-                        dwidx)];
-                    *dw = data_t(0);
-                    for (int n = 0; n < ipd.mb; ++n) {
-                        int ddidx = n * ipd.oc + oc;
-                        int sidx = n * padded_ic * ipd.kd * ipd.kh * ipd.kw
-                            + ic * ipd.kd * ipd.kh * ipd.kw
-                            + kd * ipd.kh * ipd.kw + kh * ipd.kw + kw;
-                        *dw += diff_dst_data[map_index(diff_dst_d, ddidx)] *
-                            src_data[map_index(src_d, sidx)];
-                    }
-                }
-            } else {
-                int dwidx = oc * ipd.ic + ic;
+    mkldnn::impl::parallel_nd(ipd.oc, ipd.ic, [&](int oc, int ic) {
+        if (has_spatial) {
+            for (int kd = 0; kd < ipd.kd; ++kd)
+            for (int kh = 0; kh < ipd.kh; ++kh)
+            for (int kw = 0; kw < ipd.kw; ++kw) {
+                int dwidx = oc * padded_ic * ipd.kd * ipd.kh * ipd.kw
+                    + ic * ipd.kd * ipd.kh * ipd.kw
+                    + kd * ipd.kh * ipd.kw + kh * ipd.kw + kw;
                 data_t *dw = &diff_weights_data[map_index(diff_weights_d,
                     dwidx)];
                 *dw = data_t(0);
                 for (int n = 0; n < ipd.mb; ++n) {
                     int ddidx = n * ipd.oc + oc;
-                    int sidx = n * ipd.ic + ic;
+                    int sidx = n * padded_ic * ipd.kd * ipd.kh * ipd.kw
+                        + ic * ipd.kd * ipd.kh * ipd.kw
+                        + kd * ipd.kh * ipd.kw + kh * ipd.kw + kw;
                     *dw += diff_dst_data[map_index(diff_dst_d, ddidx)] *
                         src_data[map_index(src_d, sidx)];
                 }
             }
+        } else {
+            int dwidx = oc * ipd.ic + ic;
+            data_t *dw = &diff_weights_data[map_index(diff_weights_d,
+                dwidx)];
+            *dw = data_t(0);
+            for (int n = 0; n < ipd.mb; ++n) {
+                int ddidx = n * ipd.oc + oc;
+                int sidx = n * ipd.ic + ic;
+                *dw += diff_dst_data[map_index(diff_dst_d, ddidx)] *
+                    src_data[map_index(src_d, sidx)];
+            }
         }
-    }
+    });
 }
 
 struct inprod_test_params {

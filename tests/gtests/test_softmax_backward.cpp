@@ -51,10 +51,7 @@ void check_softmax_bwd(memory& dst, memory& diff_dst, memory &diff_src, int axis
     int IN = 1;
     for (int d = axis + 1; d < ndims; ++d) IN *= diff_dst_pd.data.dims[d];
 
-#   pragma omp parallel for collapse(2)
-    for (int ou = 0; ou < OU; ++ou)
-    for (int in = 0; in < IN; ++in)
-    {
+    mkldnn::impl::parallel_nd(OU, IN, [&](int ou, int in) {
         const int idx_start = ou * C * IN + in;
 
         float sbr = 0.0;
@@ -70,7 +67,7 @@ void check_softmax_bwd(memory& dst, memory& diff_dst, memory &diff_src, int axis
             diff_src_ref_ptr[off_dd] =
                 dst_ptr[off_d] * (diff_dst_ptr[off_dd] - sbr);
         }
-    }
+    });
 
     // Actual check
     for (int i=0; i < OU*C*IN; ++i)

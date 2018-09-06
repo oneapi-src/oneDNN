@@ -96,16 +96,10 @@ void check_lrn_fwd(const lrn_test_params &p, const memory &src, const memory &ds
     };
 
     const int N = p.test_ld.mb;
-#   pragma omp parallel for collapse(4) schedule(static)
-    for (int n = 0; n < N; ++n) {
-        for (int c = 0; c < padded_c; ++c) {
-            for (int h = 0; h < H; ++h) {
-                for (int w = 0; w < W; ++w) {
-                    ker(&dst_ptr[map_index(dst_d,off(n, c, h, w))], n, c, h, w);
-                }
-            }
-        }
-    }
+    mkldnn::impl::parallel_nd(N, padded_c, H, W,
+        [&](int n, int c, int h, int w)
+        { ker(&dst_ptr[map_index(dst_d,off(n, c, h, w))], n, c, h, w); }
+    );
 }
 
 template <typename data_t>
@@ -178,24 +172,16 @@ void check_lrn_bwd(const lrn_test_params &p, const memory &src,
         *d = A - B;
     };
 
-#   pragma omp parallel for collapse(4) schedule(static)
-    for (int mb = 0; mb < MB; ++mb) {
-        for (int c = 0; c < C; ++c) {
-            for (int h = 0; h < H; ++h) {
-                for (int w = 0; w < W; ++w) {
-                    ker(&ref_diff_src_ptr[map_index(diff_src_d, off(mb, c, h, w))],
-                            mb, c, h, w);
-                    auto A = ref_diff_src_ptr[map_index(diff_src_d, off(mb, c, h, w))];
-                    auto B = diff_src_ptr[map_index(diff_src_d, off(mb, c, h, w))];
-                    data_t eps = static_cast<data_t>( 1.e-6*((2*(2*local_size + 3) + 6)*local_size
-                        + (2*local_size + 3) + 9) );
-                    data_t norm_max = std::max(fabs(A), fabs(B));
-                    if (norm_max < eps) norm_max = 1.;
-                    EXPECT_NEAR(A, B, eps*norm_max);
-                }
-            }
-        }
-    }
+    mkldnn::impl::parallel_nd(MB, C, H, W, [&](int mb, int c, int h, int w) {
+        ker(&ref_diff_src_ptr[map_index(diff_src_d, off(mb, c, h, w))], mb, c, h, w);
+        auto A = ref_diff_src_ptr[map_index(diff_src_d, off(mb, c, h, w))];
+        auto B = diff_src_ptr[map_index(diff_src_d, off(mb, c, h, w))];
+        data_t eps = static_cast<data_t>( 1.e-6*((2*(2*local_size + 3) + 6)*local_size
+            + (2*local_size + 3) + 9) );
+        data_t norm_max = std::max(fabs(A), fabs(B));
+        if (norm_max < eps) norm_max = 1.;
+        EXPECT_NEAR(A, B, eps*norm_max);
+    });
 
     delete [] ref_diff_src_ptr;
 }

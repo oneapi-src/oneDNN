@@ -32,6 +32,10 @@ set(CMAKE_TEST_CCXX_NOWARN_FLAGS)
 set(CMAKE_TEST_CCXX_NOWARN_FLAGS
     "${CMAKE_TEST_CCXX_NOWARN_FLAGS} ${CMAKE_CCXX_NOWARN_FLAGS}")
 
+# allow tests to include internal header files with, e.g.
+# include "src/common/mkldnn_thread.hpp"
+include_directories(${CMAKE_SOURCE_DIR})
+
 if(UNIX OR MINGW)
     # workaround for Intel Compiler 16.0 that doesn't suppress warning on
     # deprecation with "-Wno-deprecated" compiler flag

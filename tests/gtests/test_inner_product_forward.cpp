@@ -47,29 +47,26 @@ void compute_ref_inner_product_fwd(test_inner_product_descr_t ipd, memory &src,
 
     const int padded_ic = src_d.data.layout_desc.blocking.padding_dims[1];
 
-#pragma omp parallel for collapse(2) schedule(static)
-    for (int n = 0; n < ipd.mb; n++) {
-        for (int oc = 0; oc < ipd.oc; oc++) {
-            int oidx = n * ipd.oc + oc;
-            dst_data[map_index(dst_d, oidx)] = bias_data ?
-                    bias_data[map_index(bias_d, oc)] : data_t{0};
-            for (int ic = 0; ic < ipd.ic; ic++) {
-                for (int kd = 0; kd < ipd.kd; kd++)
-                for (int kh = 0; kh < ipd.kh; kh++)
-                for (int kw = 0; kw < ipd.kw; kw++) {
-                    int iidx = n * padded_ic * ipd.kd * ipd.kh * ipd.kw
-                            + ic * ipd.kd * ipd.kh * ipd.kw
-                            + kd * ipd.kh * ipd.kw + kh * ipd.kw + kw;
-                    int widx = oc * padded_ic * ipd.kd * ipd.kh * ipd.kw
-                            + ic * ipd.kd * ipd.kh * ipd.kw
-                            + kd * ipd.kh * ipd.kw + kh * ipd.kw + kw;
-                    dst_data[map_index(dst_d, oidx)]
-                            += src_data[map_index(src_d, iidx)]
-                            * weights_data[map_index(weights_d, widx)];
-                }
+    mkldnn::impl::parallel_nd(ipd.mb, ipd.oc, [&](int n, int oc) {
+        int oidx = n * ipd.oc + oc;
+        dst_data[map_index(dst_d, oidx)] = bias_data ?
+                bias_data[map_index(bias_d, oc)] : data_t{0};
+        for (int ic = 0; ic < ipd.ic; ic++) {
+            for (int kd = 0; kd < ipd.kd; kd++)
+            for (int kh = 0; kh < ipd.kh; kh++)
+            for (int kw = 0; kw < ipd.kw; kw++) {
+                int iidx = n * padded_ic * ipd.kd * ipd.kh * ipd.kw
+                        + ic * ipd.kd * ipd.kh * ipd.kw
+                        + kd * ipd.kh * ipd.kw + kh * ipd.kw + kw;
+                int widx = oc * padded_ic * ipd.kd * ipd.kh * ipd.kw
+                        + ic * ipd.kd * ipd.kh * ipd.kw
+                        + kd * ipd.kh * ipd.kw + kh * ipd.kw + kw;
+                dst_data[map_index(dst_d, oidx)]
+                        += src_data[map_index(src_d, iidx)]
+                        * weights_data[map_index(weights_d, widx)];
             }
         }
-    }
+    });
 }
 
 struct inprod_test_params {
