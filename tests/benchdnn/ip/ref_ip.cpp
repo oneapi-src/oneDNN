@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "src/common/mkldnn_thread.hpp"
+
 #include "ip/ip.hpp"
 
 namespace ip {
@@ -55,19 +57,16 @@ void compute_ref_fwd(const prb_t *p, dnn_mem_t &src_m,
         }
     };
 
-#   pragma omp parallel for collapse(2)
-    for (int mb = 0; mb < p->mb; ++mb) {
-        for (int oc = 0; oc < p->oc; ++oc) {
-            size_t dst_off = dst_off_f(p, mb, oc);
-            float &d = ((float *)dst_m)[dst_off];
-            if (p->dir & FLAG_BIA) {
-                size_t bia_off = bia_off_f(p, oc);
-                d += ((float *)bia_m)[bia_off];
-            }
-            maybe_scale(d, oc);
-            maybe_post_ops(d);
+    mkldnn::impl::parallel_nd(p->mb, p->oc, [&](int mb, int oc) {
+        size_t dst_off = dst_off_f(p, mb, oc);
+        float &d = ((float *)dst_m)[dst_off];
+        if (p->dir & FLAG_BIA) {
+            size_t bia_off = bia_off_f(p, oc);
+            d += ((float *)bia_m)[bia_off];
         }
-    }
+        maybe_scale(d, oc);
+        maybe_post_ops(d);
+    });
 }
 
 void compute_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
@@ -90,19 +89,18 @@ void compute_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m,
 
     gemm("C", "T", "N", M, N, K, 1.f, (float *)diff_dst_m, M, (float *)src_m, N,
         0.f, (float *)diff_wei_m, N);
- 
-    if (p->dir & FLAG_BIA) {
-#       pragma omp parallel for
-        for (int oc = 0; oc < p->oc; ++oc) {
-            size_t bia_off = bia_off_f(p, oc);
-            float &db = ((float *)diff_bia_m)[bia_off];
-            db = 0;
-            for (int mb = 0; mb < p->mb; ++mb) {
-                size_t dst_off = dst_off_f(p, mb, oc);
-                db += ((float *)diff_dst_m)[dst_off];
-            }
+
+    if (!(p->dir & FLAG_BIA)) return;
+
+    mkldnn::impl::parallel_nd(p->oc, [&](int oc) {
+        size_t bia_off = bia_off_f(p, oc);
+        float &db = ((float *)diff_bia_m)[bia_off];
+        db = 0;
+        for (int mb = 0; mb < p->mb; ++mb) {
+            size_t dst_off = dst_off_f(p, mb, oc);
+            db += ((float *)diff_dst_m)[dst_off];
         }
-    }
+    });
 }
 
 }

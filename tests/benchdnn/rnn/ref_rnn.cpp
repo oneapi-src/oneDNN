@@ -16,6 +16,8 @@
 
 #include <stdlib.h>
 
+#include "src/common/mkldnn_thread.hpp"
+
 #include "rnn/rnn.hpp"
 #include "rnn/rnn_aux.hpp"
 
@@ -32,8 +34,7 @@ void lstm_activation(int dic, int n_gates, int batch,
         //    float a[batch][n_gates * wc]
         float *a) {
     AOC<float> pa(a, batch, n_gates, dic);
-#pragma omp parallel for
-    for (int ib = 0; ib < batch; ib++) {
+    mkldnn::impl::parallel_nd(batch, [&](int ib) {
         for (int ig = 0; ig < 3; ig++) {
             for (int ih = 0; ih < dic; ih++) {
                 pa(ib, ig, ih) = logistic(pa(ib, ig, ih));
@@ -47,7 +48,7 @@ void lstm_activation(int dic, int n_gates, int batch,
             print(80, "activation 2 a[%d][%d][%d] = %.7f\n", ib, ig, j,
                     pa(ib, ig, j));
         }
-    }
+    });
 }
 
 float activation(activation_t f, float x, bool is_fwd = true) {
@@ -238,12 +239,13 @@ void copy(int dimc, int dimr, int ld_src, int ld_dst, const float *src_,
         float *dst_, rnn_action_t action = action_copy) {
     AOC<const float> src(src_, dimc, ld_src);
     AOC<float> dst(dst_, dimc, ld_dst);
-#pragma omp parallel for
-    for (int i = 0; i < dimc; i++)
+
+    mkldnn::impl::parallel_nd(dimc, [&](int i) {
         for (int j = 0; j < dimr; j++) {
-            dst(i, j) = (action == action_sum) ? dst(i, j) + src(i, j) :
-                                                 src(i, j);
+            dst(i, j) = action == action_sum
+                    ? dst(i, j) + src(i, j) : src(i, j);
         }
+    });
 }
 
 /* FIXME: separate copy_init ???

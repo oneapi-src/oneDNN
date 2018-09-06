@@ -19,16 +19,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <random>
-#if defined(_OPENMP)
-#include <omp.h>
-#else // defined(_OPENMP)
-inline int omp_get_max_threads() { return 1; }
-inline int omp_get_num_threads() { return 1; }
-inline int omp_get_thread_num() { return 0; }
-inline int omp_in_parallel() { return 0; }
-#endif
 
 #include "mkldnn.h"
+
+#include "src/common/mkldnn_thread.hpp"
 
 #include "mkldnn_common.hpp"
 #include "mkldnn_memory.hpp"
@@ -49,21 +43,20 @@ int fill_memory(const rnn_prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem1,
 #else
     const size_t nelems = mem2.nelems();
 #endif
-    size_t nchunks = omp_get_max_threads();
+    size_t nchunks = mkldnn_get_max_threads();
     size_t chunk_size = (nelems + nchunks - 1) / nchunks;
 
-#pragma omp parallel
-    {
-    size_t idx_start = omp_get_thread_num() * chunk_size;
-    size_t idx_end = MIN2(idx_start + chunk_size, nelems);
+    mkldnn::impl::parallel(0, [&](int ithr, int nthr) {
+        size_t idx_start = ithr * chunk_size;
+        size_t idx_end = MIN2(idx_start + chunk_size, nelems);
 
-    std::minstd_rand msr;
-    std::uniform_real_distribution<float> gen(-1, 1);
-    msr.discard(idx_start);
+        std::minstd_rand msr;
+        std::uniform_real_distribution<float> gen(-1, 1);
+        msr.discard(idx_start);
 
-    for (size_t idx = idx_start; idx < idx_end; ++idx)
-        mem2.set_elem(idx, gen(msr));
-    }
+        for (size_t idx = idx_start; idx < idx_end; ++idx)
+            mem2.set_elem(idx, gen(msr));
+    });
 
     mem1.reorder(mem2);
     return OK;

@@ -21,6 +21,8 @@
 
 #include "mkldnn.h"
 
+#include "src/common/mkldnn_thread.hpp"
+
 #include "mkldnn_common.hpp"
 #include "mkldnn_memory.hpp"
 
@@ -43,18 +45,13 @@ inline bool is_deconv_3d(const prb_t *p)
 }
 
 inline int transpose_data_wei(const prb_t *p, dnn_mem_t &wei, dnn_mem_t &wei_tr) {
-#   pragma omp parallel for collapse(5)
-    for (int g = 0; g < p->g; ++g)
-    for (int oc = 0; oc < p->oc / p->g; ++oc)
-    for (int ic = 0; ic < p->ic / p->g; ++ic)
-    for (int kd = 0; kd < p->kd; ++kd)
-    for (int kh = 0; kh < p->kh; ++kh)
-    for (int kw = 0; kw < p->kw; ++kw)
-    {
+    mkldnn::impl::parallel_nd(
+        p->g, p->oc / p->g, p->ic / p->g, p->kd, p->kh, p->kw,
+        [&](int g, int oc, int ic, int kd, int kh, int kw) {
         size_t idx = (((((size_t)g * p->ic / p->g + ic) * p->oc / p->g + oc)
         * p->kd + kd) * p->kh + kh) * p->kw + kw;
         ((float*)wei_tr)[idx] = ((float*)wei)[wei_off_f(p, g, oc, ic, kd, kh, kw)];
-    }
+    });
 
     return OK;
 }

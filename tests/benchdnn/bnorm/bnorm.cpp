@@ -22,6 +22,8 @@
 
 #include "mkldnn.h"
 
+#include "src/common/mkldnn_thread.hpp"
+
 #include "mkldnn_common.hpp"
 #include "mkldnn_memory.hpp"
 #include "norm.hpp"
@@ -76,8 +78,7 @@ static int prepare_fwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &mean,
     print(6, "check_alg: %s, density = %g, flex_bits = %d\n",
             check_alg2str(alg), density, flex_bits);
 
-#   pragma omp parallel for
-    for (int c = 0; c < p->ic; ++c) {
+    mkldnn::impl::parallel_nd(p->ic, [&](int c) {
         const float m = ((float *)mean)[c] =
             alg == ALG_0 ? 0.f : 0.25f * (1 << (c % 7));
         float v = 0; /* current variance */
@@ -119,7 +120,7 @@ static int prepare_fwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &mean,
             ((float *)ss)[c] = 1;
             ((float *)ss)[p->ic + c] = 0;
         }
-    }
+    });
 
     return OK;
 }
@@ -180,8 +181,7 @@ static int prepare_bwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &d_dst,
     print(5, "prep_bwd: k:%d, P:%d log2P:%d, density = %g\n",
             k, P, log2P, density);
 
-#   pragma omp parallel for
-    for (int c = 0; c < p->ic; ++c) {
+    mkldnn::impl::parallel_nd(p->ic, [&](int c) {
         const float m = ((float *)mean)[c] = c % 2;
 
         /* var + eps \in {1/4, 1, 4} */
@@ -272,7 +272,7 @@ static int prepare_bwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &d_dst,
             ((float *)ss)[c] = 1;
             ((float *)ss)[p->ic + c] = 0;
         }
-    }
+    });
 
     return OK;
 }
