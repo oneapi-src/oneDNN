@@ -58,32 +58,16 @@ endif()
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CMAKE_TEST_CCXX_NOWARN_FLAGS}")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_TEST_CCXX_NOWARN_FLAGS}")
 
-add_executable(api-c api.c)
-set_property(TARGET api-c PROPERTY C_STANDARD 99)
-target_link_libraries(api-c ${LIB_NAME} ${EXTRA_LIBS})
-add_test(api-c api-c)
-
-if(WIN32)
-    set_property(TEST api-c PROPERTY ENVIRONMENT "PATH=${CTESTCONFIG_PATH}")
-    configure_file(${CMAKE_SOURCE_DIR}/config_template.vcxproj.user
-        api-c.vcxproj.user @ONLY)
-endif()
+register_exe(api-c api.c "test")
 
 if(UNIX OR APPLE OR MINGW)
     set(test_c_symbols "${CMAKE_CURRENT_BINARY_DIR}/test_c_symbols.c")
-    add_executable(test_c_symbols-c ${test_c_symbols})
     add_custom_command(
         OUTPUT ${test_c_symbols}
         COMMAND /bin/bash ${CMAKE_CURRENT_SOURCE_DIR}/generate_c_symbols_refs.sh
         ${CMAKE_CURRENT_SOURCE_DIR}/.. ${test_c_symbols}
     )
-    target_link_libraries(test_c_symbols-c ${LIB_NAME} ${EXTRA_LIBS})
-    add_test(test_c_symbols-c test_c_symbols-c)
-    if(MINGW)
-        configure_file(${CMAKE_SOURCE_DIR}/config_template.vcxproj.user
-            test_c_symbols-c.vcxproj.user @ONLY)
-        set_property(TEST test_c_symbols-c PROPERTY ENVIRONMENT "PATH=${CTESTCONFIG_PATH}")
-    endif()
+    register_exe(test_c_symbols-c ${test_c_symbols} "test")
 # elseif(WIN32)
 # No Windows support for: test_c_symbols.c
 endif()

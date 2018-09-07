@@ -33,8 +33,6 @@ if(WIN32)
 endif()
 
 # TODO: enable me!
-#file(GLOB API_TEST_CASES_SRC api_tests/*.cpp)
-#file(GLOB PRIM_TEST_CASES_SRC test_*.cpp)
 file(GLOB PRIM_TEST_CASES_SRC
                               test_iface_pd_iter.cpp
                               test_iface_attr.cpp
@@ -68,26 +66,12 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_convolution_backward_weights_s16s16s32.cpp
                               test_deconvolution.cpp
                               test_gemm.cpp
-                              ) #temporary
+                              )
 
 foreach(TEST_FILE ${PRIM_TEST_CASES_SRC})
-    get_filename_component (TEST_FILE_WE ${TEST_FILE} NAME_WE)
+    get_filename_component(TEST_FILE_WE ${TEST_FILE} NAME_WE)
     set(CURR_APP_NAME ${TEST_FILE_WE})
-    add_executable(${CURR_APP_NAME} ${MAIN_SRC_GTEST} ${TEST_FILE})
-    target_link_libraries(${CURR_APP_NAME}
-        ${LIB_NAME} mkldnn_gtest ${EXTRA_LIBS})
-    add_test(${CURR_APP_NAME} ${CURR_APP_NAME})
-    if(WIN32)
-        set_property(TEST ${CURR_APP_NAME} PROPERTY ENVIRONMENT "PATH=${CTESTCONFIG_PATH}")
-        configure_file(${CMAKE_SOURCE_DIR}/config_template.vcxproj.user
-            ${CURR_APP_NAME}.vcxproj.user @ONLY)
-    endif()
+    register_exe(${CURR_APP_NAME} "${MAIN_SRC_GTEST};${TEST_FILE}" "test" "mkldnn_gtest")
 endforeach()
-
-# we need to have either this or the add_test above; disabling for now...
-# add_custom_command(TARGET ${APP_NAME}
-#                   POST_BUILD
-#                   WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-#                   COMMAND ${APP_NAME} )
 
 # vim: et ts=4 sw=4
