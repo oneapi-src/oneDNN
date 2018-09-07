@@ -32,7 +32,7 @@ set(CMAKE_TEST_CCXX_NOWARN_FLAGS)
 set(CMAKE_TEST_CCXX_NOWARN_FLAGS
     "${CMAKE_TEST_CCXX_NOWARN_FLAGS} ${CMAKE_CCXX_NOWARN_FLAGS}")
 
-if(UNIX OR APPLE OR MINGW)
+if(UNIX OR MINGW)
     # workaround for Intel Compiler 16.0 that doesn't suppress warning on
     # deprecation with "-Wno-deprecated" compiler flag
     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel" AND
@@ -60,7 +60,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_TEST_CCXX_NOWARN_FLAGS}")
 
 register_exe(api-c api.c "test")
 
-if(UNIX OR APPLE OR MINGW)
+if(UNIX OR MINGW)
     set(test_c_symbols "${CMAKE_CURRENT_BINARY_DIR}/test_c_symbols.c")
     add_custom_command(
         OUTPUT ${test_c_symbols}

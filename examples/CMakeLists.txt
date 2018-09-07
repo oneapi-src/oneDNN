@@ -26,7 +26,7 @@ include_directories(${CMAKE_SOURCE_DIR}/include)
 
 register_exe(simple-net-c simple_net.c "test")
 register_exe(simple-net-cpp simple_net.cpp "test")
-if(UNIX OR APPLE)
+if(UNIX)
     set(LIBM m)
 endif()
 register_exe(simple-training-net-c simple_training_net.c "test" ${LIBM})
