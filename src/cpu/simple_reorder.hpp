@@ -1627,7 +1627,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         constexpr int is_1d = utils::one_of(fmt_o, nCw8c, nCw16c);
         constexpr int is_3d = fmt_o == nCdhw16c;
 
-        const int blksize = utils::one_of(fmt_o, nCw8c, nChw8c) ? 8 : 16;
+        constexpr int blksize = utils::one_of(fmt_o, nCw8c, nChw8c) ? 8 : 16;
 
         const auto &flat_d = order_keep ? input_d : output_d;
         const auto &dims = input_d.dims();
@@ -1675,8 +1675,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             }
         };
 
-        const int i_c_mult = order_keep ? blksize : 1;
-        const int o_c_mult = order_keep ? 1 : blksize;
+        constexpr int i_c_mult = order_keep ? blksize : 1;
+        constexpr int o_c_mult = order_keep ? 1 : blksize;
 
         parallel_nd(dims[0], pdims[1] / blksize, D, H,
             [&](int n, int nb_c, int d, int h) {

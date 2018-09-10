@@ -74,6 +74,7 @@ inline memory_format_t flat_memory_format(int ndims) {
     switch (ndims) {
     case 1: return memory_format::x;
     case 2: return memory_format::nc;
+    case 3: return memory_format::ncw;
     case 4: return memory_format::nchw;
     case 5: return memory_format::ncdhw;
     default: return memory_format::undef;
@@ -116,6 +117,8 @@ inline memory_format_t format_normalize(const memory_format_t fmt) {
             Oiw16o,
             Owi16o,
             OIw8i16o2i,
+            OIw8o16i2o,
+            IOw16o16i,
             oihw,
             ihwo,
             hwio,
@@ -153,6 +156,8 @@ inline memory_format_t format_normalize(const memory_format_t fmt) {
             gOiw16o,
             gOwi16o,
             gOIw8i16o2i,
+            gOIw8o16i2o,
+            gIOw16o16i,
             goihw,
             hwigo,
             gOIhw8i8o,
@@ -188,9 +193,9 @@ inline memory_format_t format_normalize(const memory_format_t fmt) {
 
 inline bool is_format_double_blocked(memory_format_t fmt) {
     using namespace memory_format;
-    return utils::one_of(OIw8i16o2i, OIhw8i16o2i, OIdhw8i16o2i, OIhw8o16i2o,
-            OIhw4i16o4i, gOIw8i16o2i, gOIhw8i16o2i, gOIdhw8i16o2i, gOIhw8o16i2o,
-            gOIhw4i16o4i);
+    return utils::one_of(OIw8o16i2o, OIw8i16o2i, OIhw8i16o2i, OIdhw8i16o2i,
+            OIhw8o16i2o, OIhw4i16o4i, gOIw8o16i2o, gOIw8i16o2i, gOIhw8i16o2i,
+            gOIdhw8i16o2i, gOIhw8o16i2o, gOIhw4i16o4i);
 }
 
 inline bool blocking_desc_is_equal(const blocking_desc_t &lhs,

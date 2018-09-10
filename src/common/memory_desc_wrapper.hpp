@@ -215,6 +215,13 @@ struct memory_desc_wrapper: public c_compatible {
             const int oc_2  = pos[with_groups + 0] % 2;
             phys_offset += -16 * oc_2 + ic_16 + oc_2;
         }
+        if (format() == gOIw8o16i2o || format() == OIw8o16i2o) {
+            // TODO: Fix temporary workaround for formats with double blocking
+            const bool with_groups = format() == gOIw8o16i2o;
+            const int ic_16 = pos[with_groups + 1] % 16;
+            const int oc_2  = pos[with_groups + 0] % 2;
+            phys_offset += -16 * oc_2 + ic_16 + oc_2;
+        }
         return phys_offset;
     }
 

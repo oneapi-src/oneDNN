@@ -84,6 +84,8 @@ const char *mkldnn_fmt2str(mkldnn_memory_format_t v) {
     if (v == mkldnn_Oiw16o) return "Oiw16o";
     if (v == mkldnn_Owi16o) return "Owi16o";
     if (v == mkldnn_OIw8i16o2i) return "OIw8i16o2i";
+    if (v == mkldnn_IOw16o16i) return "IOw16o16i";
+    if (v == mkldnn_OIw8o16i2o) return "OIw8o16i2o";
     if (v == mkldnn_oihw) return "oihw";
     if (v == mkldnn_ihwo) return "ihwo";
     if (v == mkldnn_hwio) return "hwio";
@@ -120,6 +122,8 @@ const char *mkldnn_fmt2str(mkldnn_memory_format_t v) {
     if (v == mkldnn_gOiw16o) return "gOiw16o";
     if (v == mkldnn_gOwi16o) return "gOwi16o";
     if (v == mkldnn_gOIw8i16o2i) return "gOIw8i16o2i";
+    if (v == mkldnn_gIOw16o16i) return "gIOw16o16i";
+    if (v == mkldnn_gOIw8o16i2o) return "gOIw8o16i2o";
     if (v == mkldnn_goihw) return "goihw";
     if (v == mkldnn_hwigo) return "hwigo";
     if (v == mkldnn_gOIhw8i8o) return "gOIhw8i8o";

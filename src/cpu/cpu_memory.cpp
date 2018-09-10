@@ -28,6 +28,11 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
+#define wht_blk_off(f, g, o, i, d, h, w) \
+    is_1d ? (f).blk_off<!w_groups>(g, o, i, w) \
+    : is_3d ? (f).blk_off<!w_groups>(g, o, i, d, h, w) \
+    : (f).blk_off<!w_groups>(g, o, i, h, w)
+
 using namespace mkldnn::impl;
 using namespace mkldnn::impl::data_type;
 using namespace mkldnn::impl::status;
@@ -38,7 +43,7 @@ typename utils::enable_if<false
 || fmt == nCw8c || fmt == nCw16c || fmt == nChw8c || fmt == nChw16c
 || fmt == nCdhw8c || fmt == nCdhw16c>::type typed_zero_pad_data(
     const memory_desc_wrapper &m_d, typename prec_traits<dt>::type *data) {
-    const int blksize = utils::one_of(fmt, nCw8c, nChw8c, nCdhw8c) ? 8 : 16;
+    constexpr int blksize = utils::one_of(fmt, nCw8c, nChw8c, nCdhw8c) ? 8 : 16;
 
     const auto &dims = m_d.dims();
     const auto &pdims = m_d.blocking_desc().padding_dims;
@@ -66,15 +71,15 @@ typename utils::enable_if<false
 || fmt == gOdhwi16o || fmt == gOdhwi8o
 >::type typed_zero_pad_weights(const memory_desc_wrapper &m_d,
         typename prec_traits<dt>::type *data) {
-    static constexpr int w_groups = false
-        || fmt == gOiw16o || fmt == gOwi16o || fmt == gOhwi8o
-        || fmt == gOwi8o  || fmt == gOihw16o || fmt == gOhwi16o
-        || fmt == gOidhw16o || fmt == gOdhwi16o || fmt == gOdhwi8o;
+    static constexpr int w_groups = utils::one_of(fmt, gOiw16o, gOwi16o,
+        gOhwi8o, gOwi8o, gOihw16o, gOhwi16o, gOidhw16o, gOdhwi16o, gOdhwi8o);
 
-    const int is_1d = m_d.ndims() - w_groups == 3;
-    const int is_3d = m_d.ndims() - w_groups == 5;
+    constexpr int is_1d = utils::one_of(fmt, Oiw16o, Owi16o, gOiw16o, gOwi16o,
+        gOwi8o, Owi8o);
+    constexpr int is_3d = utils::one_of(fmt, Oidhw16o, Odhwi16o, Odhwi8o,
+        gOidhw16o, gOdhwi16o, gOdhwi8o);
 
-    const int blksize = utils::one_of(fmt, Owi8o, gOwi8o, Ohwi8o, gOhwi8o,
+    constexpr int blksize = utils::one_of(fmt, Owi8o, gOwi8o, Ohwi8o, gOhwi8o,
         Odhwi8o, gOdhwi8o) ? 8 : 16;
 
     const auto &dims = m_d.dims();
@@ -91,10 +96,7 @@ typename utils::enable_if<false
 
     parallel_nd(G, IC, D, H, W,
         [&](int g, int ic, int d, int h, int w) {
-        auto x = &data[utils::pick(1 - is_1d + is_3d,
-            m_d.blk_off<!w_groups>(g, NB_OC - 1, ic, w),
-            m_d.blk_off<!w_groups>(g, NB_OC - 1, ic, h, w),
-            m_d.blk_off<!w_groups>(g, NB_OC - 1, ic, d, h, w))];
+        auto x = &data[wht_blk_off(m_d, g, NB_OC - 1, ic, d, h, w)];
         for (int oc = blksize - oc_tail; oc < blksize; ++oc)
             x[oc] = 0;
     });
@@ -105,10 +107,10 @@ typename utils::enable_if<fmt == oIhw8i || fmt == oIhw16i
     || fmt == oIdhw8i || fmt == oIdhw16i>::type
 typed_zero_pad_weights(const memory_desc_wrapper &m_d,
         typename prec_traits<dt>::type *data) {
-    const int blksize = utils::one_of(fmt, oIhw8i, oIdhw8i) ? 8 : 16;
+    constexpr int blksize = utils::one_of(fmt, oIhw8i, oIdhw8i) ? 8 : 16;
 
     static constexpr int w_groups = 0;
-    const int is_3d = utils::one_of(fmt, oIdhw8i, oIdhw16i);
+    constexpr int is_3d = utils::one_of(fmt, oIdhw8i, oIdhw16i);
 
     const auto &dims = m_d.dims();
     const auto &pdims = m_d.blocking_desc().padding_dims;
@@ -135,12 +137,13 @@ typed_zero_pad_weights(const memory_desc_wrapper &m_d,
 template <data_type_t dt, memory_format_t fmt>
 typename utils::enable_if<false
 || fmt == IOhw16o16i || fmt == gIOhw16o16i
+|| fmt == IOw16o16i || fmt == gIOw16o16i
 || fmt == OIdhw16i16o || fmt == OIdhw16o16i || fmt == OIhw8i8o
 || fmt == OIw8i8o || fmt == gOIw8i8o || fmt == OIw8o8i || fmt == gOIw8o8i
 || fmt == OIhw16i16o || fmt == OIhw4i16o4i || fmt == OIhw8i16o2i
 || fmt == OIdhw8i16o2i || fmt == OIhw8o16i2o || fmt == OIhw8o8i
 || fmt == OIhw16o16i || fmt == OIdhw8i8o || fmt == OIdhw8o8i
-|| fmt == gOIhw8i8o
+|| fmt == gOIhw8i8o || fmt == OIw8o16i2o || fmt == gOIw8o16i2o
 || fmt == gOIhw16i16o || fmt == gOIhw4i16o4i || fmt == gOIhw8i16o2i
 || fmt == gOIdhw8i16o2i || fmt == gOIhw8o16i2o || fmt == gOIhw8o8i
 || fmt == gOIhw16o16i || fmt == gOIdhw16i16o || fmt == gOIdhw16o16i
@@ -150,20 +153,21 @@ typename utils::enable_if<false
 >::type typed_zero_pad_weights(const memory_desc_wrapper &m_d,
         typename prec_traits<dt>::type *data) {
     using data_t = typename prec_traits<dt>::type;
-    static constexpr int w_groups = false
-        || fmt == gOIhw8i8o || fmt == gOIhw16i16o || fmt == gOIhw4i16o4i
-        || fmt == gOIhw8i16o2i || fmt == gOIdhw8i16o2i || fmt == gOIhw8o16i2o
-        || fmt == gOIhw8o8i || fmt == gOIhw16o16i || fmt == gIOhw16o16i
-        || fmt == gOIdhw16i16o || fmt == gOIdhw16o16i || fmt == gOIdhw8i8o
-        || fmt == gOIdhw8o8i || fmt == gOIw8i16o2i || fmt == gOIw8i8o
-        || fmt == gOIw8o8i;
+    static constexpr int w_groups = utils::one_of(fmt, gOIhw8i8o, gOIhw16i16o,
+        gOIhw4i16o4i, gOIhw8i16o2i, gOIdhw8i16o2i, gOIhw8o16i2o, gOIhw8o8i,
+        gOIhw16o16i, gIOhw16o16i, gOIdhw16i16o, gOIdhw16o16i, gOIdhw8i8o,
+        gOIdhw8o8i, gOIw8i16o2i, gOIw8i8o, gOIw8o8i, gOIw8o16i2o, gIOw16o16i);
 
-    const int is_1d = m_d.ndims() - w_groups == 3;
-    const int is_3d = m_d.ndims() - w_groups == 5;
+    constexpr int is_1d = utils::one_of(fmt, IOw16o16i, gIOw16o16i, OIw8i8o,
+        gOIw8i8o, OIw8o8i, gOIw8o8i, OIw8o16i2o, gOIw8o16i2o, OIw8i16o2i,
+        gOIw8i16o2i, OIw16i16o, OIw16o16i, gOIw16i16o, gOIw16o16i);
+    constexpr int is_3d = utils::one_of(fmt, OIdhw16i16o, OIdhw16o16i,
+        OIdhw8i16o2i, OIdhw8i8o, OIdhw8o8i, gOIdhw8i16o2i,
+        gOIdhw16i16o, gOIdhw16o16i, gOIdhw8i8o, gOIdhw8o8i);
 
-    const int blksize = utils::one_of(fmt, OIw8o8i, gOIw8o8i, OIw8i8o, gOIw8i8o,
-        OIhw8o8i, gOIhw8o8i, OIhw8i8o, gOIhw8i8o, OIdhw8o8i, gOIdhw8o8i,
-        OIdhw8i8o, gOIdhw8i8o) ? 8 : 16;
+    constexpr int blksize = utils::one_of(fmt, OIw8o8i, gOIw8o8i, OIw8i8o,
+        gOIw8i8o, OIhw8o8i, gOIhw8o8i, OIhw8i8o, gOIhw8i8o, OIdhw8o8i,
+        gOIdhw8o8i, OIdhw8i8o, gOIdhw8i8o) ? 8 : 16;
 
     const auto &dims = m_d.dims();
     const auto &pdims = m_d.blocking_desc().padding_dims;
@@ -183,7 +187,8 @@ typename utils::enable_if<false
             return ((ic / 2) * blksize * 2 + 2 * oc + ic % 2);
         else if (utils::one_of(fmt, OIhw4i16o4i, gOIhw4i16o4i))
             return ((ic / 4) * blksize * 4 + oc * 4 + ic % 4);
-        else if (utils::one_of(fmt, OIhw8o16i2o, gOIhw8o16i2o))
+        else if (utils::one_of(fmt, OIhw8o16i2o, gOIhw8o16i2o, OIw8o16i2o,
+                gOIw8o16i2o))
             return ((oc / 2) * blksize * 2 + 2 * ic + oc % 2);
         else if (utils::one_of(fmt,
                      OIw8i8o, gOIw8i8o, OIw16i16o, gOIw16i16o,
@@ -211,10 +216,7 @@ typename utils::enable_if<false
     if (ic_tail) {
         parallel_nd(G, NB_OC, D, H, W,
             [&](int g, int nb_oc, int d, int h, int w) {
-            auto x = &data[utils::pick(1 - is_1d + is_3d,
-                m_d.blk_off<!w_groups>(g, nb_oc, NB_IC - 1, w),
-                m_d.blk_off<!w_groups>(g, nb_oc, NB_IC - 1, h, w),
-                m_d.blk_off<!w_groups>(g, nb_oc, NB_IC - 1, d, h, w))];
+            auto x = &data[wht_blk_off(m_d, g, nb_oc, NB_IC - 1, d, h, w)];
             ker(x, 0, ic_tail);
         });
     }
@@ -222,10 +224,7 @@ typename utils::enable_if<false
     if (oc_tail) {
         parallel_nd(G, NB_IC, D, H, W,
             [&](int g, int nb_ic, int d, int h, int w) {
-            auto x = &data[utils::pick(1 - is_1d + is_3d,
-                m_d.blk_off<!w_groups>(g, NB_OC - 1, nb_ic, w),
-                m_d.blk_off<!w_groups>(g, NB_OC - 1, nb_ic, h, w),
-                m_d.blk_off<!w_groups>(g, NB_OC - 1, nb_ic, d, h, w))];
+            auto x = &data[wht_blk_off(m_d, g, NB_OC - 1, nb_ic, d, h, w)];
             ker(x, oc_tail, 0);
         });
     }
@@ -348,6 +347,8 @@ status_t cpu_memory_t::typed_zero_pad() {
     MAYBE_WEIGHTS(Oiw16o);
     MAYBE_WEIGHTS(Owi16o);
     MAYBE_WEIGHTS(OIw8i16o2i);
+    MAYBE_WEIGHTS(OIw8o16i2o);
+    MAYBE_WEIGHTS(IOw16o16i);
     MAYBE_WEIGHTS(OIhw8i16o2i);
     MAYBE_WEIGHTS(OIdhw8i16o2i);
     MAYBE_WEIGHTS(OIhw8o16i2o);
@@ -368,6 +369,8 @@ status_t cpu_memory_t::typed_zero_pad() {
     MAYBE_WEIGHTS(gOiw16o);
     MAYBE_WEIGHTS(gOwi16o);
     MAYBE_WEIGHTS(gOIw8i16o2i);
+    MAYBE_WEIGHTS(gOIw8o16i2o);
+    MAYBE_WEIGHTS(gIOw16o16i);
     MAYBE_WEIGHTS(gOIhw8i16o2i);
     MAYBE_WEIGHTS(gOIdhw8i16o2i);
     MAYBE_WEIGHTS(gOIhw8o16i2o);
