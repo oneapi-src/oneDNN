@@ -74,27 +74,40 @@ static const rpd_create_f cpu_reorder_impl_list[] = {
     jit_uni_reorder_create,
 
     /* fp32: flat <-> blocked with tail */
-    REG_SR_BIDIR(f32, any, f32, nChw16c),
-    REG_SR_BIDIR(f32, any, f32, nCdhw16c),
+    REG_SR_BIDIR(f32, any, f32, nCw16c),
+    REG_SR_BIDIR(f32, any, f32, Oiw16o),
+    REG_SR_BIDIR(f32, any, f32, Owi16o),
+    REG_SR_BIDIR(f32, any, f32, OIw16o16i),
+    REG_SR_BIDIR(f32, any, f32, OIw16i16o),
+    REG_SR_BIDIR(f32, any, f32, IOw16o16i),
+    REG_SR_BIDIR(f32, any, f32, gOiw16o),
+    REG_SR_BIDIR(f32, any, f32, gOwi16o),
+    REG_SR_BIDIR(f32, any, f32, gOIw16o16i),
+    REG_SR_BIDIR(f32, any, f32, gOIw16i16o),
+    REG_SR_BIDIR(f32, any, f32, gIOw16o16i),
 
+    REG_SR_BIDIR(f32, any, f32, nChw16c),
     REG_SR_BIDIR(f32, any, f32, Oihw16o),
     REG_SR_BIDIR(f32, any, f32, Ohwi16o),
-    REG_SR_BIDIR(f32, any, f32, Oidhw16o),
-    REG_SR_BIDIR(f32, any, f32, Odhwi16o),
     REG_SR_BIDIR(f32, any, f32, OIhw16o16i),
     REG_SR_BIDIR(f32, any, f32, OIhw16i16o),
-    REG_SR_BIDIR(f32, any, f32, OIdhw16o16i),
-    REG_SR_BIDIR(f32, any, f32, OIdhw16i16o),
     REG_SR_BIDIR(f32, any, f32, IOhw16o16i),
     REG_SR_BIDIR(f32, any, f32, gOihw16o),
     REG_SR_BIDIR(f32, any, f32, gOhwi16o),
-    REG_SR_BIDIR(f32, any, f32, gOidhw16o),
-    REG_SR_BIDIR(f32, any, f32, gOdhwi16o),
     REG_SR_BIDIR(f32, any, f32, gOIhw16o16i),
     REG_SR_BIDIR(f32, any, f32, gOIhw16i16o),
+    REG_SR_BIDIR(f32, any, f32, gIOhw16o16i),
+
+    REG_SR_BIDIR(f32, any, f32, nCdhw16c),
+    REG_SR_BIDIR(f32, any, f32, Oidhw16o),
+    REG_SR_BIDIR(f32, any, f32, Odhwi16o),
+    REG_SR_BIDIR(f32, any, f32, OIdhw16o16i),
+    REG_SR_BIDIR(f32, any, f32, OIdhw16i16o),
+    REG_SR_BIDIR(f32, any, f32, gOidhw16o),
+    REG_SR_BIDIR(f32, any, f32, gOdhwi16o),
     REG_SR_BIDIR(f32, any, f32, gOIdhw16o16i),
     REG_SR_BIDIR(f32, any, f32, gOIdhw16i16o),
-    REG_SR_BIDIR(f32, any, f32, gIOhw16o16i),
+
 
     /* int: flat <-> blocked with tail */
     REG_SR_BIDIR(f32, nhwc, s32, nChw16c),
@@ -124,6 +137,12 @@ static const rpd_create_f cpu_reorder_impl_list[] = {
 
     /* s16 <-> s16 */
     REG_SR_DIRECT_COPY(s16, s16),
+
+    REG_SR_BIDIR(s16, oiw, s16, OIw8i16o2i),
+    REG_SR_BIDIR(s16, goiw, s16, gOIw8i16o2i),
+    REG_SR_BIDIR(s16, OIw8i16o2i, s16, OIw8o16i2o),
+    REG_SR_BIDIR(s16, gOIw8i16o2i, s16, gOIw8o16i2o),
+
     REG_SR_BIDIR(s16, oihw, s16, OIhw8i16o2i),
     REG_SR_BIDIR(s16, goihw, s16, gOIhw8i16o2i),
     REG_SR_BIDIR(s16, OIhw8i16o2i, s16, OIhw8o16i2o),
