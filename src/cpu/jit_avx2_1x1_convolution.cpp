@@ -32,6 +32,11 @@ using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::utils;
 
+#define data_blk_off(f, n, c, h, w) \
+    ((ndims == 3) \
+    ? (f).blk_off(n, c, w) \
+    : (f).blk_off(n, c, h, w))
+
 /* convolution forward */
 
 template <bool with_relu>
@@ -48,11 +53,12 @@ void _jit_avx2_1x1_convolution_fwd_t<with_relu>::execute_forward() {
     const auto &jcp = kernel_->jcp;
 
     const int work_amount = jcp.mb * jcp.ngroups * jcp.nb_bcast;
+    const int ndims = dst_d.ndims();
 
-    const int stride_h = conf_.cdesc()->strides[0];
-    const int stride_w = conf_.cdesc()->strides[1];
-    const int pad_t = conf_.cdesc()->padding[0][0];
-    const int pad_l = conf_.cdesc()->padding[0][1];
+    const int stride_h = (ndims == 3) ? 1 : conf_.cdesc()->strides[0];
+    const int stride_w = conf_.cdesc()->strides[ndims - 3];
+    const int pad_t = (ndims == 3) ? 0 : conf_.cdesc()->padding[0][0];
+    const int pad_l = conf_.cdesc()->padding[0][ndims - 3];
 
     auto step = [](int default_step, int remaining, int tail_step) {
         assert(default_step <= tail_step);
@@ -103,8 +109,8 @@ void _jit_avx2_1x1_convolution_fwd_t<with_relu>::execute_forward() {
                 const int _ocb = g * nb_oc + ocb;
                 p.load_dim = this_block_size(ocb * jcp.oc_block, jcp.oc,
                         load_step * jcp.oc_block);
+                const size_t dst_off = data_blk_off(dst_d, n, _ocb, oh, ow);
 
-                const size_t dst_off = dst_d.blk_off(n, _ocb, oh, ow);
                 p.output_data = &dst[dst_off];
 
                 p.bias_data = &bias[_ocb * jcp.oc_block];
@@ -129,13 +135,13 @@ void _jit_avx2_1x1_convolution_fwd_t<with_relu>::execute_forward() {
                             + _icb * jcp.is * jcp.ic_block;
 
                         if (ocb == 0) {
-                            rp.src = src + src_d.blk_off(n, _icb, ih, iw);
+                            rp.src = src + data_blk_off(src_d, n, _icb, ih, iw);
                             rtus_driver_->ker_(&rp);
                         }
 
                         p.bcast_data = rp.ws;
                     } else
-                        p.bcast_data = src + src_d.blk_off(n, _icb, ih, iw);
+                        p.bcast_data = src + data_blk_off(src_d, n, _icb, ih, iw);
 
                     kernel_->jit_ker(&p);
                 }
@@ -174,11 +180,12 @@ void jit_avx2_1x1_convolution_bwd_data_t::execute_backward_data() {
 
     // TODO (Roma): remove this restriction
     assert(jcp.stride_w == 1 && jcp.stride_h == 1);
+    const int ndims = diff_dst_d.ndims();
 
-    const int stride_h = conf_.desc()->strides[0];
-    const int stride_w = conf_.desc()->strides[1];
-    const int pad_t = conf_.desc()->padding[0][0];
-    const int pad_l = conf_.desc()->padding[0][1];
+    const int stride_h = (ndims == 3) ? 1 : conf_.desc()->strides[0];
+    const int stride_w = conf_.desc()->strides[ndims - 3];
+    const int pad_t = (ndims == 3) ? 0 : conf_.desc()->padding[0][0];
+    const int pad_l = conf_.desc()->padding[0][ndims - 3];
 
     const int nb_ic = jcp.nb_load;
     const int nb_oc = jcp.nb_reduce;
@@ -230,8 +237,7 @@ void jit_avx2_1x1_convolution_bwd_data_t::execute_backward_data() {
                 rp.iw_start = iw;
 
                 const int _icb = g * nb_ic + icb;
-                rp.src = diff_src + diff_src_d.blk_off(n, _icb, ih, iw);
-
+                rp.src = diff_src + data_blk_off(diff_src_d, n, _icb, ih, iw);
                 if (conf_.rtus_.reduce_src_) {
                     rp.ws = scratch_ + ithr * ws_per_thread_;
                     p.output_data = rp.ws;
@@ -241,7 +247,8 @@ void jit_avx2_1x1_convolution_bwd_data_t::execute_backward_data() {
                 for (int ocb = 0; ocb < jcp.nb_reduce;
                         ocb += jcp.nb_reduce_blocking) {
                     const int _ocb = g * nb_oc + ocb;
-                    size_t diff_dst_off = diff_dst_d.blk_off(n, _ocb, oh, ow);
+                    size_t diff_dst_off = data_blk_off(diff_dst_d, n, _ocb, oh,
+                        ow);
                     p.bcast_data = &diff_dst[diff_dst_off];
 
                     p.load_data = &weights[conf_.with_groups()
@@ -327,6 +334,7 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights() {
 
     const auto &jcp = kernel_->jcp;
 
+    const int ndims = diff_dst_d.ndims();
     // TODO (Roma): remove this restriction
     assert(jcp.stride_w == 1 && jcp.stride_h == 1);
 
@@ -341,10 +349,10 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights() {
     const int sp_dim = jcp.reduce_dim;
     const int mb_sp_work = jcp.mb * sp_dim;
 
-    const int stride_h = conf_.desc()->strides[0];
-    const int stride_w = conf_.desc()->strides[1];
-    const int pad_t = conf_.desc()->padding[0][0];
-    const int pad_l = conf_.desc()->padding[0][1];
+    const int stride_h = (ndims == 3) ? 1 : conf_.desc()->strides[0];
+    const int stride_w = conf_.desc()->strides[ndims - 3];
+    const int pad_t = (ndims == 3) ? 0 : conf_.desc()->padding[0][0];
+    const int pad_l = conf_.desc()->padding[0][ndims - 3];
 
     auto step = [](int default_step, int remaining, int tail_step) {
         assert(default_step <= tail_step);
@@ -397,9 +405,13 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights() {
 
                         rp.ws = scratch_ + ithr * ws_per_thread_
                             + (ic_b * jcp.is + sp) * jcp.ic_block;
-                        rp.src = src
-                            + ih * src_d.blocking_desc().strides[0][2]
-                            + iw * src_d.blocking_desc().strides[0][3];
+                        if (ndims == 3)
+                            rp.src = src
+                                + iw * src_d.blocking_desc().strides[0][2];
+                        else
+                            rp.src = src
+                                + ih * src_d.blocking_desc().strides[0][2]
+                                + iw * src_d.blocking_desc().strides[0][3];
 
                         if (oc_b == 0)
                             rtus_driver_->ker_(&rp);
