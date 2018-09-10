@@ -1486,6 +1486,14 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
 
     jcp.nb_ic_L2 = jcp.nb_ic;
 
+    const int L2_size = get_cache_size(2, true) / sizeof(float);
+    // Source and output data needs to fit in L2,
+    // leaving some space for weights and prefetching.
+    int h_L2 = int(((0.6f * L2_size) / simd_w
+                           - nstl::min(0, jcp.kh - jcp.stride_h) * jcp.iw)
+            / (jcp.stride_h * jcp.iw + jcp.ow));
+    jcp.h_blocking = nstl::max(1, nstl::min(jcp.oh, h_L2));
+
     // TODO check for 4vnni
     if (jcp.ver == ver_4fma) {
         for (int divf = 2, temp_nb = jcp.nb_ic_L2; divf <= jcp.nb_ic;

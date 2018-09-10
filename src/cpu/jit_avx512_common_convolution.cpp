@@ -139,40 +139,49 @@ void _jit_avx512_common_convolution_fwd_t
                 int g_icb = g * jcp.nb_ic;
 
                 int work_rem = end - start;
-                int ih_s = -jcp.t_pad + oh_s * jcp.stride_h;
                 int oh_e = oh_s + work_rem > jcp.oh ? jcp.oh : oh_s + work_rem;
-
                 auto bias_w = bias ? bias + g_oc : nullptr;
-                auto dst_w = dst + dst_d.blk_off(n, g_ocb, oh_s);
-                auto src_w = src + src_d.blk_off(n, g_icb + icb_l2, ih_s);
-                auto wht_w = weights + wht_blk_off(weights_d, g, ocb, icb_l2);
 
-                for (int icb = icb_l2;
-                     icb < min(jcp.nb_ic, icb_l2 + jcp.nb_ic_L2); ++icb) {
-                    auto src_c = src_w;
-                    auto dst_c = dst_w;
-                    for (int oj = oh_s, ij = ih_s;
-                            oj < oh_e; ++oj, ij += jcp.stride_h)
-                    {
-                        int dilate_h = jcp.dilate_h + 1;
-                        int i_t_overflow = div_up(max(0, -ij), dilate_h);
-                        int i_b_overflow = div_up(
-                                max(0, ij - jcp.ih + (jcp.kh - 1) * dilate_h
-                                                + 1),
-                                dilate_h);
-                        int kh_padding = nstl::max(0,
-                            jcp.kh - i_t_overflow - i_b_overflow);
+                for (int oh_b = oh_s; oh_b < oh_e; oh_b += jcp.h_blocking) {
+                    int ih_b = -jcp.t_pad + oh_b * jcp.stride_h;
+                    auto dst_w = dst + dst_d.blk_off(n, g_ocb, oh_b);
+                    auto src_w = src + src_d.blk_off(n, g_icb + icb_l2, ih_b);
+                    auto wht_w
+                            = weights + wht_blk_off(weights_d, g, ocb, icb_l2);
 
-                        jit_conv_ker_pipeline(kernel_->jit_ker, par_conv,
-                                src_c + i_t_overflow * dilate_h * src_h_stride,
-                                dst_c, wht_w + i_t_overflow * wht_h_stride,
-                                bias_w, icb, kh_padding);
+                    for (int icb = icb_l2;
+                            icb < min(jcp.nb_ic, icb_l2 + jcp.nb_ic_L2);
+                            ++icb) {
+                        auto src_c = src_w;
+                        auto dst_c = dst_w;
+                        for (int oj = oh_b, ij = ih_b;
+                                oj < min(oh_e, oh_b + jcp.h_blocking);
+                                ++oj, ij += jcp.stride_h) {
+                            int dilate_h = jcp.dilate_h + 1;
+                            int i_t_overflow = div_up(max(0, -ij), dilate_h);
+                            int i_b_overflow = div_up(
+                                    max(0,
+                                            ij - jcp.ih
+                                                    + (jcp.kh - 1) * dilate_h
+                                                    + 1),
+                                    dilate_h);
+                            int kh_padding = nstl::max(
+                                    0, jcp.kh - i_t_overflow - i_b_overflow);
 
-                        src_c += src_h_stride * jcp.stride_h;
-                        dst_c += dst_h_stride;
+                            auto aux_src = src_c
+                                    + i_t_overflow * dilate_h * src_h_stride;
+                            auto aux_wht = wht_w + i_t_overflow * wht_h_stride;
+
+                            jit_conv_ker_pipeline(kernel_->jit_ker, par_conv,
+                                    aux_src, dst_c, aux_wht, bias_w, icb,
+                                    kh_padding);
+
+                            src_c += src_h_stride * jcp.stride_h;
+                            dst_c += dst_h_stride;
+                        }
+                        src_w += src_c_stride;
+                        wht_w += wht_ic_stride;
                     }
-                    src_w += src_c_stride;
-                    wht_w += wht_ic_stride;
                 }
 
                 if (jcp.loop_order == loop_cgn)

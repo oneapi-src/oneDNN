@@ -64,6 +64,7 @@ struct jit_conv_conf_t {
     int nb_ic_blocking, nb_oc_blocking; // blocking of nb_ic and nb_ic
     int nb_ic_blocking_max;
     int nb_ic_L2;
+    int h_blocking;
     int nb_oc_L2;
     int ur_h, ur_w;
     int ur_w_tail;
