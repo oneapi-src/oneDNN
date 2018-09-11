@@ -310,7 +310,7 @@ const impl_list_map_t regular_impl_list_map {
     {{f32, u8, 0}, {
         rnn_data_reorder_t<f32, u8>::pd_t::create,
 
-        REG_FAST_DIRECT_COPY_COMMA(f32, u8)
+//        REG_FAST_DIRECT_COPY_COMMA(f32, u8)
 
         DNNL_X64_ONLY(x64::jit_uni_reorder_create,)
 
