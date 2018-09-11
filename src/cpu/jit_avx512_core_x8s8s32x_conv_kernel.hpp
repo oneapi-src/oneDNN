@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_AVX512_CORE_U8S8S32X_CONV_KERNEL_HPP
-#define CPU_JIT_AVX512_CORE_U8S8S32X_CONV_KERNEL_HPP
+#ifndef CPU_JIT_AVX512_CORE_X8S8S32X_CONV_KERNEL_HPP
+#define CPU_JIT_AVX512_CORE_X8S8S32X_CONV_KERNEL_HPP
 
 #include "c_types_map.hpp"
 #include "cpu_memory.hpp"
@@ -27,12 +27,12 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-struct jit_avx512_core_u8s8s32x_fwd_kernel : public jit_generator {
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_u8s8s32x_conv_fwd_ker_t)
+struct jit_avx512_core_x8s8s32x_fwd_kernel : public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_x8s8s32x_conv_fwd_ker_t)
 
     enum { STATE_FIRST_DST_LOAD = 0x1U };
 
-    jit_avx512_core_u8s8s32x_fwd_kernel(jit_conv_conf_t ajcp,
+    jit_avx512_core_x8s8s32x_fwd_kernel(jit_conv_conf_t ajcp,
             const primitive_attr_t &attr) : jcp(ajcp), attr_(attr)
     {
         generate();
@@ -76,22 +76,25 @@ private:
     reg64_t aux_reg_ker = r12;
     reg64_t reg_scratch = r14;
     reg64_t reg_kj = rax;
+    reg64_t reg_overflow = rax;
     reg64_t reg_ptr_scales = rax;
     reg64_t reg_oi = rbx;
     reg64_t reg_bias = rdx;
+    reg64_t reg_compensation = reg_scratch;
     reg64_t reg_kh = abi_not_param1;
     reg64_t param = abi_param1;
     reg64_t reg_tmp = rbp;
     reg64_t imm_addr64 = r15;
     reg64_t reg_oc_blocks = rsi;
     reg64_t reg_icb = reg_bias;
+    reg64_t reg_bias_alpha = reg_kh;
 
     Xbyak::Opmask ktail_mask = Xbyak::Opmask(2);
 
     zmm_t zmm_tmp = zmm_t(28);
     zmm_t zmm_one = zmm_t(29);
     zmm_t zmm_scales = zmm_t(30);
-    zmm_t zmm_bcast = zmm_t(30);
+    zmm_t zmm_shift = zmm_t(30);
     zmm_t zmm_zero = zmm_t(31);
     zmm_t zmm_wei = zmm_t(31);
 
@@ -110,6 +113,12 @@ private:
         assert(idx < 31);
         return zmm_t(idx);
     }
+    zmm_t zmm_bias_alpha() {
+        return zmm_t(jcp.nb_oc_blocking * jcp.ur_w);
+    }
+    xmm_t xmm_bias_alpha() {
+        return xmm_t(jcp.nb_oc_blocking * jcp.ur_w);
+    }
     int get_ow_start(int ki, int pad_l) {
         return nstl::max(0,
                 utils::div_up(pad_l - ki * (jcp.dilate_w + 1), jcp.stride_w));
@@ -123,8 +132,10 @@ private:
     bool maybe_relu(int position);
     void prepare_output(int ur_w);
     void store_output(int ur_w, int last_oc_block_flag);
-    void compute_ker(int ur_w, int pad_l, int pad_r, int last_ic_block_flag);
-    void compute_loop(
+    void compute_ker(int ur_w, int pad_l, int pad_r, int last_ic_block_flag,
+                                                        bool h_padded = false);
+    void kh_loop(int ur_w, int pad_l, int pad_r, int last_ic_block_flag);
+    void icb_loop(
             int ur_w, int pad_l, int pad_r, bool is_last_spatial_block);
     void generate();
     void cvt2ps(data_type_t type_in, zmm_t zmm_in, const Xbyak::Operand &op,

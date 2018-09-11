@@ -22,7 +22,7 @@
 #include "cpu_memory.hpp"
 
 #include "jit_uni_1x1_conv_utils.hpp"
-#include "jit_avx512_core_u8s8s32x_1x1_conv_kernel.hpp"
+#include "jit_avx512_core_x8s8s32x_1x1_conv_kernel.hpp"
 
 #define GET_OFF(field) offsetof(jit_1x1_conv_call_s, field)
 
@@ -35,7 +35,7 @@ using namespace mkldnn::impl::utils;
 
 using namespace Xbyak;
 
-bool jit_avx512_core_u8s8s32x_1x1_conv_kernel::maybe_relu(int position)
+bool jit_avx512_core_x8s8s32x_1x1_conv_kernel::maybe_relu(int position)
 {
     using namespace primitive_kind;
     const auto &p = attr_.post_ops_;
@@ -61,13 +61,13 @@ bool jit_avx512_core_u8s8s32x_1x1_conv_kernel::maybe_relu(int position)
     return false;
 }
 
-void jit_avx512_core_u8s8s32x_1x1_conv_kernel::bcast_loop(int load_loop_blk)
+void jit_avx512_core_x8s8s32x_1x1_conv_kernel::bcast_loop(int load_loop_blk)
 {
     mov(aux1_reg_bcast_data, reg_bcast_data);
     mov(aux_reg_bcast_data, reg_bcast_data);
 
     mov(aux_reg_output_data, reg_output_data);
-    mov(bcast_loop_iter, EVEX_compress_addr(rsp, bcast_loop_work_offt));
+    mov(bcast_loop_iter, EVEX_compress_addr(rsp, bcast_loop_work_off));
 
     Label bcast_loop;
     Label bcast_loop_tail;
@@ -109,7 +109,7 @@ void jit_avx512_core_u8s8s32x_1x1_conv_kernel::bcast_loop(int load_loop_blk)
     }
 }
 
-void jit_avx512_core_u8s8s32x_1x1_conv_kernel::cvt2ps(data_type_t type_in,
+void jit_avx512_core_x8s8s32x_1x1_conv_kernel::cvt2ps(data_type_t type_in,
         zmm_t zmm_in, const Xbyak::Operand &op, bool mask_flag) {
     zmm_t zmm = mask_flag ? zmm_in | ktail_mask | T_z : zmm_in;
     switch (type_in) {
@@ -123,7 +123,7 @@ void jit_avx512_core_u8s8s32x_1x1_conv_kernel::cvt2ps(data_type_t type_in,
         vcvtdq2ps(zmm_in, zmm_in);
 }
 
-void jit_avx512_core_u8s8s32x_1x1_conv_kernel::reduce_loop(int load_loop_blk,
+void jit_avx512_core_x8s8s32x_1x1_conv_kernel::reduce_loop(int load_loop_blk,
          int ur, int substep, bool wraparound)
 {
     auto vreg_load = [=](int i_load) {
@@ -134,10 +134,23 @@ void jit_avx512_core_u8s8s32x_1x1_conv_kernel::reduce_loop(int load_loop_blk,
         return Zmm(i_ur * load_loop_blk + i_load);
     };
 
+    auto zmm_bias_alpha = [=]() {
+        return Zmm(ur * load_loop_blk);
+    };
+
+    auto xmm_bias_alpha = [=]() {
+        return Xmm(ur * load_loop_blk);
+    };
     auto bias_ptr = [=](int i_load) {
         return EVEX_compress_addr(reg_bias_data,
                                   jcp.typesize_bia * jcp.oc_block * i_load);
     };
+
+    auto comp_ptr = [=](int i_load) {
+        return EVEX_compress_addr(reg_comp_data,
+                                  sizeof(int32_t) * jcp.oc_block * i_load);
+    };
+
     auto scale_ptr = [=](int i_load) {
         return EVEX_compress_addr(reg_ptr_scales,
                     jcp.is_oc_scale * (sizeof(float) * jcp.oc_block * i_load));
@@ -167,7 +180,8 @@ void jit_avx512_core_u8s8s32x_1x1_conv_kernel::reduce_loop(int load_loop_blk,
 
     auto output_ptr = [=](int i_load, int i_ur) {
         return EVEX_compress_addr(aux_reg_output_data,
-            jcp.typesize_out * (jcp.oc_without_padding * i_ur + i_load * jcp.load_block));
+            jcp.typesize_out * (jcp.oc_without_padding * i_ur
+                                + i_load * jcp.load_block));
     };
 
     auto init = [=]() {
@@ -176,6 +190,12 @@ void jit_avx512_core_u8s8s32x_1x1_conv_kernel::reduce_loop(int load_loop_blk,
                 auto r = vreg_accum(i_load, i_ur);
                 vpxord(r, r, r);
             }
+        if (jcp.signed_input) {
+            xor_(reg_scratch, reg_scratch);
+            Reg8 _t8 = reg_scratch.cvt8();
+            mov(_t8, (int8_t)-128);
+            vpbroadcastb(zmm_shift, _t8);
+        }
     };
 
     auto store = [=](const bool mask_flag_in) {
@@ -190,25 +210,45 @@ void jit_avx512_core_u8s8s32x_1x1_conv_kernel::reduce_loop(int load_loop_blk,
             mov(EVEX_compress_addr(rsp, reg_load_data_off), reg_load_data);
             mov(reg_ptr_sum_scale, (size_t)p_sum_scale);
         }
-        vpxord(zmm_zero, zmm_zero, zmm_zero);
+        if (jcp.signed_input && jcp.ver != ver_vnni) {
+            mov(reg_scratch, float2int(jcp.wei_adj_scale));
+            vmovq(xmm_bias_alpha(), reg_scratch);
+            vbroadcastss(zmm_bias_alpha(), xmm_bias_alpha());
+        }
         for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
             const bool mask_flag = mask_flag_in && i_load == load_loop_blk - 1;
             auto zmm_bias = zmm_tmp;
-            if (jcp.with_bias)
+            auto zmm_comp = zmm_bcast;
+            if (jcp.with_bias) {
+                if (jcp.signed_input)
+                    mov(reg_bias_data,
+                        EVEX_compress_addr(rsp,reg_bias_data_off));
                 cvt2ps(jcp.bia_dt, zmm_bias, bias_ptr(i_load), mask_flag);
+                if (jcp.signed_input && jcp.ver != ver_vnni)
+                    vmulps(zmm_bias, zmm_bias, zmm_bias_alpha());
+            }
+            if (jcp.signed_input) {
+                mov(reg_comp_data, EVEX_compress_addr(rsp, reg_comp_data_off));
+                cvt2ps(data_type::s32, zmm_comp, comp_ptr(i_load), mask_flag);
+            }
 
             for (int i_ur = 0; i_ur < ur; ++i_ur) {
                 auto r = vreg_accum(i_load, i_ur);
                 vcvtdq2ps(r, r);
+                if (jcp.signed_input)
+                    vaddps(r, r, zmm_comp);
                 if (jcp.with_bias)
                     vaddps(r, r, zmm_bias);
 
                 zmm_t mask_zmm = mask_flag ? r | ktail_mask | T_z : r;
                 vmulps(mask_zmm, r, scale_ptr(i_load));
-                if (maybe_relu(0))
+                if (maybe_relu(0)) {
+                    vpxord(zmm_zero, zmm_zero, zmm_zero);
                     vmaxps(r, zmm_zero, r);
+                }
                 if (p_sum_scale) { // post_op: sum
-                    auto zmm_prev_dst = zmm_bcast;
+                    vpxord(zmm_zero, zmm_zero, zmm_zero);
+                    auto zmm_prev_dst = zmm_zero;
 
                     cvt2ps(jcp.dst_dt, zmm_prev_dst, output_ptr(i_load, i_ur),
                         mask_flag);
@@ -218,8 +258,10 @@ void jit_avx512_core_u8s8s32x_1x1_conv_kernel::reduce_loop(int load_loop_blk,
                     else
                         vfmadd231ps(r, zmm_prev_dst, zword_b[reg_ptr_sum_scale]);
                 }
-                if (maybe_relu(1))
+                if (maybe_relu(1)) {
+                    vpxord(zmm_zero, zmm_zero, zmm_zero);
                     vmaxps(r, zmm_zero, r);
+                }
                 if (jcp.dst_dt != data_type::f32) {
                     if (attr_.round_mode_ == round_mode::nearest) {
                         vcvtps2dq(r | T_rn_sae, r);
@@ -280,6 +322,8 @@ void jit_avx512_core_u8s8s32x_1x1_conv_kernel::reduce_loop(int load_loop_blk,
                 } else {
                     vpbroadcastd(zmm_bcast, bcast_ptr(i_reduce, i_ur, false));
                 }
+                if (jcp.signed_input)
+                    vpsubb(zmm_bcast, zmm_bcast, zmm_shift);
                 for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
                     compute(vreg_accum(i_load, i_ur),
                                 vreg_load(i_load), zmm_bcast);
@@ -342,7 +386,7 @@ void jit_avx512_core_u8s8s32x_1x1_conv_kernel::reduce_loop(int load_loop_blk,
     }
 }
 
-void jit_avx512_core_u8s8s32x_1x1_conv_kernel::generate()
+void jit_avx512_core_x8s8s32x_1x1_conv_kernel::generate()
 {
     preamble();
 
@@ -363,7 +407,11 @@ void jit_avx512_core_u8s8s32x_1x1_conv_kernel::generate()
 
     if (jcp.with_bias)
         mov(reg_bias_data, ptr[param1 + GET_OFF(bias_data)]);
-
+    if (jcp.signed_input) {
+        mov(EVEX_compress_addr(rsp, reg_bias_data_off), reg_bias_data);
+        mov(reg_comp_data, ptr[param1 + GET_OFF(compensation)]);
+        mov(EVEX_compress_addr(rsp, reg_comp_data_off), reg_comp_data);
+    }
     mov(reg_ptr_scales, ptr[param1 + GET_OFF(scales)]);
     mov(EVEX_compress_addr(rsp, reg_ptr_sum_scale_off), reg_ptr_scales);
     mov(reg_bcast_data, ptr[param1 + GET_OFF(bcast_data)]);
@@ -372,7 +420,7 @@ void jit_avx512_core_u8s8s32x_1x1_conv_kernel::generate()
 
     mov(reg_load_loop_work, ptr[param1 + GET_OFF(load_dim)]);
     mov(reg_bcast_loop_work, ptr[param1 + GET_OFF(bcast_dim)]);
-    mov(EVEX_compress_addr(rsp, bcast_loop_work_offt), reg_bcast_loop_work);
+    mov(EVEX_compress_addr(rsp, bcast_loop_work_off), reg_bcast_loop_work);
     mov(reg_reduce_loop_work, ptr[param1 + GET_OFF(reduce_dim)]);
     mov(reg_reduce_pos_flag, ptr[param1 + GET_OFF(first_last_flag)]);
 
@@ -380,9 +428,20 @@ void jit_avx512_core_u8s8s32x_1x1_conv_kernel::generate()
     auto load_loop_body = [=](int load_loop_blk) {
         bcast_loop(load_loop_blk);
         add(reg_load_data, load_loop_blk * jcp.load_loop_load_step);
-        if (jcp.with_bias)
+        if (jcp.with_bias) {
+            if (jcp.signed_input)
+                mov(reg_bias_data, EVEX_compress_addr(rsp, reg_bias_data_off));
             add(reg_bias_data,
                 load_loop_blk * jcp.load_block * jcp.typesize_bia);
+            if (jcp.signed_input)
+                mov(EVEX_compress_addr(rsp, reg_bias_data_off), reg_bias_data);
+        }
+        if (jcp.signed_input) {
+            mov(reg_comp_data, EVEX_compress_addr(rsp, reg_comp_data_off));
+            add(reg_comp_data,
+                load_loop_blk * jcp.load_block * sizeof(int32_t));
+            mov(EVEX_compress_addr(rsp, reg_comp_data_off), reg_comp_data);
+        }
         mov(EVEX_compress_addr(rsp, reg_bcast_data_off), reg_bcast_data);
         mov(reg_ptr_scales, EVEX_compress_addr(rsp, reg_ptr_sum_scale_off));
         add(reg_ptr_scales,
@@ -446,7 +505,7 @@ void jit_avx512_core_u8s8s32x_1x1_conv_kernel::generate()
     postamble();
 }
 
-bool jit_avx512_core_u8s8s32x_1x1_conv_kernel::post_ops_ok(
+bool jit_avx512_core_x8s8s32x_1x1_conv_kernel::post_ops_ok(
         jit_1x1_conv_conf_t &jcp, const primitive_attr_t &attr) {
     using namespace primitive_kind;
     const auto &p = attr.post_ops_;
@@ -477,7 +536,7 @@ bool jit_avx512_core_u8s8s32x_1x1_conv_kernel::post_ops_ok(
     return false;
 }
 
-status_t jit_avx512_core_u8s8s32x_1x1_conv_kernel::init_conf(
+status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
         jit_1x1_conv_conf_t &jcp, const convolution_desc_t &cd,
         const memory_desc_wrapper &src_d, const memory_desc_wrapper &weights_d,
         const memory_desc_wrapper &dst_d, const memory_desc_wrapper &bias_d,
@@ -487,14 +546,15 @@ status_t jit_avx512_core_u8s8s32x_1x1_conv_kernel::init_conf(
     if (!mayiuse(avx512_core)) return status::unimplemented;
 
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
-    if (src_d.data_type() != data_type::u8
+    if (!one_of(src_d.data_type(), data_type::u8, data_type::s8)
         || weights_d.data_type() != data_type::s8
         || !one_of(dst_d.data_type(),
             data_type::f32, data_type::s32, data_type::s8, data_type::u8))
         return status::unimplemented;
-    if (!one_of(weights_d.format(), gOIhw4i16o4i, OIhw4i16o4i))
+    if (!one_of(weights_d.format(), gOIhw4i16o4i, OIhw4i16o4i,
+                gOIhw4i16o4i_s8s8, OIhw4i16o4i_s8s8)) {
         return status::unimplemented;
-
+    }
     jcp.ver = ver_avx512_core;
     if (mayiuse(avx512_core_vnni))
         jcp.ver = ver_vnni;
@@ -521,6 +581,8 @@ status_t jit_avx512_core_u8s8s32x_1x1_conv_kernel::init_conf(
     jcp.relu_negative_slope = relu_negative_slope;
     if (!implication(with_relu, relu_negative_slope == 0.))
         return status::unimplemented;
+
+    jcp.signed_input = (src_d.data_type() == data_type::s8) ? true : false;
 
     jcp.os = jcp.oh * jcp.ow;
     jcp.is = jcp.ih * jcp.iw;
@@ -718,6 +780,8 @@ status_t jit_avx512_core_u8s8s32x_1x1_conv_kernel::init_conf(
     const auto &oscales = attr.output_scales_;
     jcp.is_oc_scale = oscales.mask_ == 1 << 1;
     assert(utils::implication(!jcp.is_oc_scale, oscales.mask_ == 0));
+
+    jcp.wei_adj_scale = (jcp.signed_input) ? (1.0 / 2.0) : 1.0;
 
     return status::success;
 }

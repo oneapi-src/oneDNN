@@ -111,6 +111,9 @@ struct jit_conv_conf_t {
     // large spatial
     int oh_blk_size;
     int ow_blk_size;
+    // s8s8 convolution
+    bool signed_input;
+    float wei_adj_scale;
 };
 
 struct jit_conv_conf_2x3_wino_t {
@@ -250,6 +253,7 @@ struct jit_conv_call_s {
     const void *bias_prf;
     const void *scales;
     const void *acc_s32;
+    const void *compensation;
     size_t kd_padding;
     size_t kd_padding_prf;
     size_t kh_padding;
@@ -261,6 +265,8 @@ struct jit_conv_call_s {
     size_t ur_w;
     size_t ur_str_w;
     size_t ch_blocks;
+    size_t t_overflow;
+    size_t b_overflow;
     int flags;
 };
 
@@ -349,6 +355,8 @@ struct jit_1x1_conv_conf_t {
     int is_oc_scale;
     data_type_t bia_dt;
     data_type_t dst_dt;
+    bool signed_input;
+    float wei_adj_scale;
 };
 
 struct jit_gemm_conv_conf_t {
@@ -380,6 +388,7 @@ struct jit_1x1_conv_call_s {
     const void *bias_data; // used in forward and backward_weights only
     const void *acc_s32;
     const void *scales;
+    const void *compensation;
 
     size_t load_dim;
     size_t bcast_dim;

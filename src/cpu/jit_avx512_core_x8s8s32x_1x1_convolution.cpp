@@ -22,7 +22,7 @@
 #include "type_helpers.hpp"
 #include "jit_generator.hpp"
 
-#include "jit_avx512_core_u8s8s32x_1x1_convolution.hpp"
+#include "jit_avx512_core_x8s8s32x_1x1_convolution.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -56,8 +56,9 @@ void balance2D(U nthr, U ithr, T ny, T &ny_start, T &ny_end,
 }
 
 /* convolution forward */
-template <bool with_relu, data_type_t dst_type>
-void _jit_avx512_core_u8s8s32x_1x1_convolution_fwd_t<with_relu, dst_type>::execute_forward()
+template <bool with_relu, data_type_t src_type, data_type_t dst_type>
+void _jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t
+                              <with_relu, src_type, dst_type>::execute_forward()
 {
     auto src = reinterpret_cast<const src_data_t *>(this->input_memory(0));
     auto weights =
@@ -69,8 +70,8 @@ void _jit_avx512_core_u8s8s32x_1x1_convolution_fwd_t<with_relu, dst_type>::execu
     });
 }
 
-template <bool with_relu, data_type_t dst_type>
-void _jit_avx512_core_u8s8s32x_1x1_convolution_fwd_t<with_relu, dst_type>
+template <bool with_relu, data_type_t src_type, data_type_t dst_type>
+void _jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<with_relu, src_type, dst_type>
 ::execute_forward_thr(const int ithr, const int nthr, const src_data_t *src,
         const wei_data_t *weights, const char *bias, dst_data_t *dst) {
     const memory_desc_wrapper src_d(conf_.src_pd());
@@ -90,6 +91,12 @@ void _jit_avx512_core_u8s8s32x_1x1_convolution_fwd_t<with_relu, dst_type>
     const int pad_l = conf_.cdesc()->padding[0][1];
 
     const auto &oscales = conf_.attr()->output_scales_;
+
+    int offset = jcp.ngroups * (jcp.oc / jcp.oc_block) * (jcp.ic / jcp.ic_block)
+        * jcp.oc_block * jcp.ic_block;
+    wei_data_t *w = const_cast<wei_data_t *>(weights);
+    int32_t* compensation = (jcp.signed_input)
+        ? reinterpret_cast<int32_t *>(w + offset) : 0;
 
     auto step = [](int default_step, int remaining, int tail_step) {
         assert(default_step <= tail_step);
@@ -164,7 +171,11 @@ void _jit_avx512_core_u8s8s32x_1x1_convolution_fwd_t<with_relu, dst_type>
             ? weights_d.blk_off(g, ocb, icb)
             : weights_d.blk_off(ocb, icb)];
         p.bias_data = &bias[_ocb * jcp.oc_block * bia_dt_size];
-        p.scales = &oscales.scales_[jcp.is_oc_scale * _ocb * jcp.oc_block];
+        p.compensation = (jcp.signed_input)
+            ? &compensation[_ocb * jcp.oc_block] : 0;
+        p.scales = (jcp.signed_input && jcp.ver != ver_vnni)
+            ? &local_scales_[jcp.is_oc_scale * _ocb * jcp.oc_block]
+            : &oscales.scales_[jcp.is_oc_scale * _ocb * jcp.oc_block];
         if (conf_.rtus_.reduce_src_) {
             rp.ws = scratch_ + ithr * ws_per_thread_
                 + _icb * jcp.is * jcp.ic_block;
@@ -244,19 +255,38 @@ void _jit_avx512_core_u8s8s32x_1x1_convolution_fwd_t<with_relu, dst_type>
     }
 }
 
-
-template struct _jit_avx512_core_u8s8s32x_1x1_convolution_fwd_t<false, data_type::u8>;
-template struct _jit_avx512_core_u8s8s32x_1x1_convolution_fwd_t<true, data_type::u8>;
-
-template struct _jit_avx512_core_u8s8s32x_1x1_convolution_fwd_t<false, data_type::s8>;
-template struct _jit_avx512_core_u8s8s32x_1x1_convolution_fwd_t<true, data_type::s8>;
-
-template struct _jit_avx512_core_u8s8s32x_1x1_convolution_fwd_t<false, data_type::s32>;
-template struct _jit_avx512_core_u8s8s32x_1x1_convolution_fwd_t<true, data_type::s32>;
-
-template struct _jit_avx512_core_u8s8s32x_1x1_convolution_fwd_t<false, data_type::f32>;
-template struct _jit_avx512_core_u8s8s32x_1x1_convolution_fwd_t<true, data_type::f32>;
-
+template struct _jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<false,
+                                                  data_type::u8, data_type::u8>;
+template struct _jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<true,
+                                                  data_type::u8, data_type::u8>;
+template struct _jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<false,
+                                                  data_type::s8, data_type::u8>;
+template struct _jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<true,
+                                                  data_type::s8, data_type::u8>;
+template struct _jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<false,
+                                                  data_type::u8, data_type::s8>;
+template struct _jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<true,
+                                                  data_type::u8, data_type::s8>;
+template struct _jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<false,
+                                                  data_type::s8, data_type::s8>;
+template struct _jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<true,
+                                                  data_type::s8, data_type::s8>;
+template struct _jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<false,
+                                                 data_type::u8, data_type::s32>;
+template struct _jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<true,
+                                                 data_type::u8, data_type::s32>;
+template struct _jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<false,
+                                                 data_type::s8, data_type::s32>;
+template struct _jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<true,
+                                                 data_type::s8, data_type::s32>;
+template struct _jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<false,
+                                                 data_type::u8, data_type::f32>;
+template struct _jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<true,
+                                                 data_type::u8, data_type::f32>;
+template struct _jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<false,
+                                                 data_type::s8, data_type::f32>;
+template struct _jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<true,
+                                                 data_type::s8, data_type::f32>;
 }
 }
 }
