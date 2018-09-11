@@ -67,8 +67,8 @@ struct memory_desc_wrapper: public c_compatible {
      * is true, and the number of data elements otherwise */
     size_t nelems(bool with_padding = false) const {
         if (is_zero()) return 0;
-    return utils::array_product<int, size_t>(with_padding
-                ? blocking_desc().padding_dims : dims(), ndims());
+        return (utils::array_product<int, size_t>(with_padding
+                ? blocking_desc().padding_dims : dims(), ndims()));
     }
 
     /** returns true if memory descriptor is zero */
@@ -80,6 +80,35 @@ struct memory_desc_wrapper: public c_compatible {
     /** return the size of data type (a shortcut) */
     size_t data_type_size() const
     { return types::data_type_size(data_type()); }
+
+    /** return the size of data type of additional buffer */
+    size_t additional_buffer_data_size() const {
+        using namespace mkldnn::impl::memory_format;
+        return (utils::one_of(format(), gOIhw4i16o4i_s8s8, OIhw4i16o4i_s8s8))
+            ? sizeof(int32_t) : 0;
+    }
+
+    /** return true if memory format has additional buffer */
+    bool is_additional_buffer() const {
+        using namespace mkldnn::impl::memory_format;
+        return (utils::one_of(format(), gOIhw4i16o4i_s8s8, OIhw4i16o4i_s8s8))
+            ? true : false;
+    }
+
+    /** returns the size of additional buffer */
+    size_t additional_buffer_size() const {
+        using namespace mkldnn::impl::memory_format;
+        const auto &padding_dims = blocking_desc().padding_dims;
+        switch(format()) {
+            case gOIhw4i16o4i_s8s8:
+                return size_t(padding_dims[0]) * size_t(padding_dims[1])
+                    * additional_buffer_data_size();
+            case OIhw4i16o4i_s8s8:
+                return size_t(padding_dims[0]) * additional_buffer_data_size();
+            default:
+                return 0;
+        }
+    }
 
     /** returns the size required to store described memory
      * note: if offset_padding != 0 returns 0 (need to specify the behavior) */
@@ -112,7 +141,7 @@ struct memory_desc_wrapper: public c_compatible {
                     max_size = nstl::max(max_size,
                             size_t(block * strides[1][d]));
             }
-            return max_size * data_type_size();
+            return max_size * data_type_size() + additional_buffer_size();;
         }
     }
 
@@ -187,9 +216,11 @@ struct memory_desc_wrapper: public c_compatible {
             phys_offset += pos_block * blk.strides[0][d];
             phys_offset += pos_within_block * blk.strides[1][d];
         }
-        if (format() == gOIhw4i16o4i || format() == OIhw4i16o4i) {
+        if (utils::one_of(format(), gOIhw4i16o4i, OIhw4i16o4i, gOIhw4i16o4i_s8s8,
+                            OIhw4i16o4i_s8s8)) {
             // TODO: Fix temporary workaround for formats with double blocking
-            const bool with_groups = format() == gOIhw4i16o4i;
+            const bool with_groups = (format() == gOIhw4i16o4i
+                                      || format() == gOIhw4i16o4i_s8s8);
             const int oc_16 = pos[with_groups + 0] % 16;
             const int ic_4  = pos[with_groups + 1] % 4;
             phys_offset += 4 * oc_16 + ic_4 - (oc_16 + 16 * ic_4);

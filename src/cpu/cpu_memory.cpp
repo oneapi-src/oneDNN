@@ -135,7 +135,6 @@ typed_zero_pad_weights(const memory_desc_wrapper &m_d,
     constexpr int is_1d = format_traits<fmt>::ndims_sp == 1;
     constexpr int is_3d = format_traits<fmt>::ndims_sp == 3;
     constexpr int blksize = format_traits<fmt>::blk_size;
-
     const auto &dims = m_d.dims();
     const auto &pdims = m_d.blocking_desc().padding_dims;
 
@@ -292,6 +291,7 @@ status_t cpu_memory_t::typed_zero_pad() {
     MAYBE_WEIGHTS(OIhw8i8o);
     MAYBE_WEIGHTS(OIhw16i16o);
     MAYBE_WEIGHTS(OIhw4i16o4i);
+    MAYBE_WEIGHTS(OIhw4i16o4i_s8s8);
     MAYBE_WEIGHTS(Owi8o);
     MAYBE_WEIGHTS(OIw8i8o);
     MAYBE_WEIGHTS(OIw8o8i);
@@ -314,6 +314,7 @@ status_t cpu_memory_t::typed_zero_pad() {
     MAYBE_WEIGHTS(gOIhw8i8o);
     MAYBE_WEIGHTS(gOIhw16i16o);
     MAYBE_WEIGHTS(gOIhw4i16o4i);
+    MAYBE_WEIGHTS(gOIhw4i16o4i_s8s8);
     MAYBE_WEIGHTS(gOwi8o);
     MAYBE_WEIGHTS(gOIw8i8o);
     MAYBE_WEIGHTS(gOIw8o8i);

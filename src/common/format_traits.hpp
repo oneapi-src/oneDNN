@@ -40,14 +40,15 @@ enum class block_format_t {
     _16c, _16g, _16i, _16o,
     _16i16o, _16o16i,
     _8i16o2i, _8o16i2o,
-    _4i16o4i,
+    _4i16o4i, _4i16o4i_s8s8,
 };
 
 template <block_format_t f> struct block_format_traits {
     using bf = block_format_t;
     static constexpr int levels = f == bf::_
         ? 0
-        : utils::one_of(f, bf::_8i16o2i, bf::_8o16i2o, bf::_4i16o4i) ? 2 : 1;
+        : utils::one_of(f, bf::_8i16o2i, bf::_8o16i2o,
+                           bf::_4i16o4i, bf::_4i16o4i_s8s8) ? 2 : 1;
     static constexpr int blk_ndims = f == bf::_
         ? 0
         : utils::one_of(f, bf::_8c, bf::_8g, bf::_8i, bf::_8o, bf::_16c,
@@ -129,6 +130,7 @@ DECL_TRAITS(oIhw16i, wei, _16i, 4, 2);
 DECL_TRAITS(OIhw8i8o, wei, _8i8o, 4, 2);
 DECL_TRAITS(OIhw16i16o, wei, _16i16o, 4, 2);
 DECL_TRAITS(OIhw4i16o4i, wei, _4i16o4i, 4, 2);
+DECL_TRAITS(OIhw4i16o4i_s8s8, wei, _4i16o4i_s8s8, 4, 2);
 DECL_TRAITS(OIhw8i16o2i, wei, _8i16o2i, 4, 2);
 DECL_TRAITS(OIhw8o16i2o, wei, _8o16i2o, 4, 2);
 DECL_TRAITS(OIhw8o8i, wei, _8o8i, 4, 2);
@@ -171,6 +173,7 @@ DECL_TRAITS(hwigo, gwei, _, 5, 2);
 DECL_TRAITS(gOIhw8i8o, gwei, _8i8o, 5, 2);
 DECL_TRAITS(gOIhw16i16o, gwei, _16i16o, 5, 2);
 DECL_TRAITS(gOIhw4i16o4i, gwei, _4i16o4i, 5, 2);
+DECL_TRAITS(gOIhw4i16o4i_s8s8, gwei, _4i16o4i_s8s8, 5, 2);
 DECL_TRAITS(gOIhw8i16o2i, gwei, _8i16o2i, 5, 2);
 DECL_TRAITS(gOIdhw8i16o2i, gwei, _8i16o2i, 5, 2);
 DECL_TRAITS(gOIhw8o16i2o, gwei, _8o16i2o, 5, 2);
@@ -208,12 +211,13 @@ template <block_format_t f>
 constexpr int OI_blk_off(int oc, int ic) {
     using bf = block_format_t;
     static_assert(utils::one_of(f, bf::_8i8o, bf::_8o8i, bf::_16i16o,
-                bf::_16o16i, bf::_8i16o2i, bf::_8o16i2o, bf::_4i16o4i),
+                bf::_16o16i, bf::_8i16o2i, bf::_8o16i2o,
+                bf::_4i16o4i, bf::_4i16o4i_s8s8),
             "unexpected blocked format");
 #   define blksize block_format_traits<f>::blk_size
     return f == bf::_8i16o2i
         ? (ic / 2) * blksize * 2 + 2 * oc + ic % 2
-        : f == bf::_4i16o4i
+        : (f == bf::_4i16o4i || f == bf::_4i16o4i_s8s8)
         ? (ic / 4) * blksize * 4 + oc * 4 + ic % 4
         : f == bf::_8o16i2o
         ? (oc / 2) * blksize * 2 + 2 * ic + oc % 2

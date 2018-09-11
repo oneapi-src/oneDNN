@@ -138,6 +138,7 @@ inline memory_format_t format_normalize(const memory_format_t fmt) {
             OIhw8i8o,
             OIhw16i16o,
             OIhw4i16o4i,
+            OIhw4i16o4i_s8s8,
             OIhw8i16o2i,
             OIdhw8i16o2i,
             OIhw8o16i2o,
@@ -163,6 +164,7 @@ inline memory_format_t format_normalize(const memory_format_t fmt) {
             gOIhw8i8o,
             gOIhw16i16o,
             gOIhw4i16o4i,
+            gOIhw4i16o4i_s8s8,
             gOIhw8i16o2i,
             gOIdhw8i16o2i,
             gOIhw8o16i2o,
@@ -194,8 +196,9 @@ inline memory_format_t format_normalize(const memory_format_t fmt) {
 inline bool is_format_double_blocked(memory_format_t fmt) {
     using namespace memory_format;
     return utils::one_of(OIw8o16i2o, OIw8i16o2i, OIhw8i16o2i, OIdhw8i16o2i,
-            OIhw8o16i2o, OIhw4i16o4i, gOIw8o16i2o, gOIw8i16o2i, gOIhw8i16o2i,
-            gOIdhw8i16o2i, gOIhw8o16i2o, gOIhw4i16o4i);
+            OIhw8o16i2o, OIhw4i16o4i, OIhw4i16o4i_s8s8, gOIw8o16i2o, gOIw8i16o2i,
+            gOIhw8i16o2i, gOIdhw8i16o2i, gOIhw8o16i2o, gOIhw4i16o4i,
+            gOIhw4i16o4i_s8s8);
 }
 
 inline bool blocking_desc_is_equal(const blocking_desc_t &lhs,
@@ -286,7 +289,8 @@ inline data_type_t default_accum_data_type(data_type_t src_dt,
     if (one_of(prop_kind, forward_training, forward_inference)) {
         if (src_dt == s16 && wei_dt == s16 && dst_dt == s32)
             return s32;
-        if (src_dt == u8 && wei_dt == s8 && one_of(dst_dt, f32, s32, s8, u8))
+        if ((src_dt == u8 || src_dt == s8)
+            && wei_dt == s8 && one_of(dst_dt, f32, s32, s8, u8))
             return s32;
     } else if (prop_kind == backward_data) {
         if (src_dt == s32 && wei_dt == s16 && dst_dt == s16)

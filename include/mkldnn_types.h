@@ -266,6 +266,11 @@ typedef enum {
     mkldnn_OIhw8i8o /** blocked weights format */,
     mkldnn_OIhw16i16o /** blocked weights format */,
     mkldnn_OIhw4i16o4i /** blocked weights format */,
+    /** blocked weights format with additional buffer
+     * with size equal to the number of output channels
+     * and containing the values:
+     * O[i:0,OC] = -128 * SUM(j:0,IC;h:0,H;w:0,W)(weights(i,j,h,w))*/
+    mkldnn_OIhw4i16o4i_s8s8,
     mkldnn_OIhw8i16o2i /** blocked weights format */,
     mkldnn_OIhw8o16i2o /** blocked weights format */,
     mkldnn_OIhw8o8i /** blocked weights format */,
@@ -305,6 +310,11 @@ typedef enum {
     mkldnn_gOIhw8i8o /** blocked weights format */,
     mkldnn_gOIhw16i16o /** blocked weights format */,
     mkldnn_gOIhw4i16o4i /** blocked weights format */,
+    /** blocked weights format with additional buffer
+     * with size equal to the number of output channels
+     * and containing the values:
+     * O[i:0,OC] = -128 * SUM(j:0,IC;h:0,H;w:0,W)(weights(i,j,h,w))*/
+    mkldnn_gOIhw4i16o4i_s8s8,
     mkldnn_gOIhw8i16o2i /** blocked weights format */,
     mkldnn_gOIhw8o16i2o /** blocked weights format */,
     mkldnn_gOIhw8o8i /** blocked weights format */,
