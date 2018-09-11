@@ -26,11 +26,11 @@
 #include "utils.hpp"
 
 #include "format_traits.hpp"
-
 #include "cpu_reorder_pd.hpp"
 #include "cpu_primitive.hpp"
 
 #include "simple_q10n.hpp"
+#include "cpu_isa_traits.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -92,6 +92,105 @@ bool simple_attr_check(const primitive_attr_t *attr, bool many_scales_support) {
 }
 
 /* specific reorders: implementation */
+template <SIMPLE_REORDER_TEMPL_DECL>
+struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
+    typename utils::enable_if<
+          (fmt_i == goihw && fmt_o == gOIhw4i16o4i_s8s8)
+       || (fmt_i == oihw && fmt_o == OIhw4i16o4i_s8s8)
+    >::type>
+{
+    static bool is_applicable(const memory_desc_wrapper &input_d,
+            const memory_desc_wrapper &output_d, const primitive_attr_t *attr)
+    {
+        const size_t D_mask = utils::array_product(input_d.dims(),
+                                math::ilog2q(attr->output_scales_.mask_ + 1));
+        const int oc = (input_d.dims()[(fmt_i == goihw) + 0]);
+        const int g = (fmt_i == goihw) ? (input_d.dims()[0]) : 1;
+
+        return input_d.format() == fmt_i
+            && output_d.format() == fmt_o
+            && input_d.data_type() == f32
+            && output_d.data_type() == s8
+            && (D_mask == 1 || D_mask == (size_t)g * oc);
+    }
+
+    static status_t execute(const cpu_reorder_pd_t *pd,
+        const data_t<type_i> *input, data_t<type_o> *output) {
+        DECLARE_COMMON_PARAMS();
+
+        static constexpr bool w_groups = fmt_i == goihw;
+        const int blksize = 16;
+        const int sblk = 4;
+
+        const auto &_g_oihw_d = order_keep ? input_d : output_d;
+        const auto &dims = input_d.dims();
+        const auto &pdims = order_keep
+            ? output_d.blocking_desc().padding_dims
+            : input_d.blocking_desc().padding_dims;
+
+        const int G = w_groups ? dims[0] : 1;
+        const int OC = dims[w_groups + 0];
+        const int NB_OC = pdims[w_groups + 0] / blksize;
+        const int IC = dims[w_groups + 1];
+        const int NB_IC = pdims[w_groups + 1] / blksize;
+        const int H = dims[w_groups + 2];
+        const int W = dims[w_groups + 3];
+
+        const float *scales = pd->attr()->output_scales_.scales_;
+        round_mode_t rmode = pd->attr()->round_mode_;
+        const size_t D_mask = utils::array_product(input_d.dims(),
+                            math::ilog2q(pd->attr()->output_scales_.mask_ + 1));
+
+        float adj_scale = (mayiuse(avx512_core_vnni)) ? 1.0 : (1.0 / 2.0);
+
+        auto index = [&](const int ic, const int oc) {
+            return ((ic / sblk) * blksize * sblk + sblk * oc + ic % sblk);
+        };
+
+        auto ker = [&](const data_t<type_i> *inp, data_t<type_o> *out,
+            int32_t *c, const float *s, const int oc_block, const int ic_block) {
+            for (int ic = 0; ic < ic_block; ++ic) {
+            for (int oc = 0; oc < oc_block; ++oc) {
+                const auto _g_oihw_off =
+                    oc * _g_oihw_d.blocking_desc().strides[0][w_groups + 0]
+                  + ic * _g_oihw_d.blocking_desc().strides[0][w_groups + 1];
+                out[index(ic, oc)]
+                    = qz_b0<data_t<type_i>, data_t<type_o>>()(
+                            inp[_g_oihw_off], s[oc] * adj_scale, rmode);
+                c[oc] -= (128 * (int32_t)(out[index(ic, oc)]));
+            }
+            }
+        };
+
+        constexpr int i_mult = blksize;
+        constexpr int o_mult = 1;
+
+        size_t offset = G * pdims[w_groups+0] * pdims[w_groups+1] * H * W;
+        int32_t *cp = reinterpret_cast<int32_t *>(output + offset);
+        parallel_nd(G * NB_OC * blksize, [&](int i) {
+            cp[i] = 0;
+        });
+
+        parallel_nd(G, NB_OC, [&](int g, int O) {
+            for (int I = 0; I < NB_IC; I++)
+                for (int h = 0; h < H; h++)
+                for (int w = 0; w < W; w++) {
+                    auto i = &input[input_d.blk_off<!w_groups>(g,
+                            i_mult * O, i_mult * I, h, w)];
+                    auto o = &output[output_d.blk_off<!w_groups>(
+                            g, o_mult * O, o_mult * I, h, w)];
+                    const int oc_block = nstl::min(blksize, OC - O * blksize);
+                    const int ic_block = nstl::min(blksize, IC - I * blksize);
+
+                    int _offset = (g * NB_OC + O) * blksize;
+                    ker(i, o, (order_keep) ? &cp[_offset] : nullptr,
+                            &scales[(D_mask == 1) ? 0 : _offset],
+                                        oc_block, ic_block);
+                }
+        });
+        return success;
+    }
+};
 
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
