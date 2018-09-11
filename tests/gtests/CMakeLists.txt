@@ -36,6 +36,7 @@ endif()
 file(GLOB PRIM_TEST_CASES_SRC
                               test_iface_pd_iter.cpp
                               test_iface_attr.cpp
+                              test_mkldnn_threading.cpp
                               test_memory.cpp
                               test_sum.cpp
                               test_reorder.cpp
