@@ -150,7 +150,7 @@ static rnn::rnn_desc_t rnns[] = {
             "exp4" },
     { VANILLA_LSTM, TANH, mkldnn_bidirectional_sum, 1, 1, 1, 1, 1, 2, 2,
             "exp5.2" },
-    { VANILLA_LSTM, TANH, mkldnn_bidirectional_concat, 1, 1, 1, 1, 1, 1, 1,
+    { VANILLA_LSTM, TANH, mkldnn_bidirectional_concat, 1, 1, 1, 1, 1, 2, 2,
             "exp6.2" },
     { VANILLA_LSTM, TANH, mkldnn_bidirectional_concat, 512, 512, 512, 512, 128,
             1, 1, "GNMT-enc-bidir" },

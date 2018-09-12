@@ -325,7 +325,7 @@ void copy_res(alg_t alg, int sic, int slc, int dic, int dlc, int wc, int batch,
             auto to = &lastlay_states(
                     it, nb, (action == action_concat) && (!is_bwd) ? dlc : 0);
 
-            copy(1, lastlay_c, wc, lastlay_c, from, to, action);
+            copy(1, dlc, wc, lastlay_c, from, to, action);
         }
     }
 
