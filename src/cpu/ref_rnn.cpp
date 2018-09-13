@@ -774,7 +774,7 @@ void _ref_rnn_common_t<prop_kind::backward>::copy_init_layer(bool lr, bool rl,
             for (int s = 0; s < dlc; s++) {
                 ws_diff_states(n_layer, 0, it, n_states, b, s)
                     = diff_dst_layer_x[s];
-                ws_diff_states(n_layer, 1, it, n_states, b, s)
+                ws_diff_states(n_layer, 1, n_iter - it - 1, n_states, b, s)
                     = diff_dst_layer_x[dic + s];
             }
         });
@@ -786,12 +786,12 @@ void _ref_rnn_common_t<prop_kind::backward>::copy_init_layer(bool lr, bool rl,
             for (int s = 0; s < dic; s++) {
                 ws_diff_states(n_layer, 0, it, n_states, b, s)
                     = diff_dst_layer_x[s];
-                ws_diff_states(n_layer, 1, it, n_states, b, s)
+                ws_diff_states(n_layer, 1, n_iter - it - 1, n_states, b, s)
                     = diff_dst_layer_x[s];
             }
         });
         break;
-    default: // assumes default is always unidirectional
+    case mkldnn_unidirectional_left2right:
         parallel_nd(n_iter, batch, [&](int it, int b) {
             auto diff_dst_layer_x
                     = diff_dst_layer_ + diff_dst_layer_d.blk_off(it, b);
@@ -800,6 +800,19 @@ void _ref_rnn_common_t<prop_kind::backward>::copy_init_layer(bool lr, bool rl,
                         = diff_dst_layer_x[s];
             }
         });
+        break;
+    case mkldnn_unidirectional_right2left:
+        parallel_nd(n_iter, batch, [&](int it, int b) {
+            auto diff_dst_layer_x
+                    = diff_dst_layer_ + diff_dst_layer_d.blk_off(n_iter - it - 1, b);
+            for (int s = 0; s < dic; s++) {
+                ws_diff_states(n_layer, 0, it, n_states, b, s)
+                        = diff_dst_layer_x[s];
+            }
+        });
+        break;
+    default:
+        assert(!"Unsupported direction");
         break;
     }
 }
