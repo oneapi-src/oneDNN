@@ -256,6 +256,8 @@ int doit(const rnn_prb_t *p, res_t *r) {
     dnn_mem_t *dst_last_layer_dt = nullptr;
     dnn_mem_t *dst_last_iteration_dt = nullptr;
 
+    dnn_mem_t *bwd_weights_input_dt = nullptr;
+    dnn_mem_t *bwd_weights_states_dt = nullptr;
     dnn_mem_t *dst_diff_input_dt = nullptr;
     dnn_mem_t *dst_diff_states_dt = nullptr;
     dnn_mem_t *dst_diff_weights_input_dt = nullptr;
@@ -297,6 +299,8 @@ int doit(const rnn_prb_t *p, res_t *r) {
     auto &dst_last_layer_dt_d = rd[0].dst_layer_desc;
     auto &dst_last_iteration_dt_d = rd[0].dst_iter_desc;
 
+    auto &bwd_weights_input_dt_d = rd[1].weights_layer_desc;
+    auto &bwd_weights_states_dt_d = rd[1].weights_iter_desc;
     auto &diff_src_layer_dt_d = rd[1].diff_src_layer_desc;
     auto &diff_src_iter_dt_d = rd[1].diff_src_iter_desc;
     auto &diff_weights_layer_dt_d = rd[1].diff_weights_layer_desc;
@@ -314,6 +318,8 @@ int doit(const rnn_prb_t *p, res_t *r) {
     dst_last_iteration_dt = new dnn_mem_t(dst_last_iteration_dt_d, fp);
 
     if (is_bwd) {
+        bwd_weights_input_dt = new dnn_mem_t(bwd_weights_input_dt_d, fp);
+        bwd_weights_states_dt = new dnn_mem_t(bwd_weights_states_dt_d, fp);
         dst_diff_input_dt = new dnn_mem_t(diff_src_layer_dt_d, fp);
         dst_diff_states_dt = new dnn_mem_t(diff_src_iter_dt_d, fp);
         dst_diff_weights_input_dt = new dnn_mem_t(diff_weights_layer_dt_d, fp);
@@ -366,6 +372,8 @@ int doit(const rnn_prb_t *p, res_t *r) {
             WARN);
 
     if (is_bwd) {
+        SAFE(bwd_weights_states_dt->reorder(*weights_states_dt), WARN);
+        SAFE(bwd_weights_input_dt->reorder(*weights_input_dt), WARN);
         SAFE(fill_memory(
                      p, dst_diff_input, *dst_diff_input_dt, *dst_diff_input_fp),
                 WARN);
@@ -421,7 +429,7 @@ int doit(const rnn_prb_t *p, res_t *r) {
     if (is_bwd) {
         mkldnn_primitive_at_t inputs[] = {
             { input_dt->p_, 0 }, { states_dt->p_, 0 },
-            { weights_input_dt->p_, 0 }, { weights_states_dt->p_, 0 },
+            { bwd_weights_input_dt->p_, 0 }, { bwd_weights_states_dt->p_, 0 },
             { bias_dt->p_, 0 }, { dst_last_layer_dt->p_, 0 },
             { dst_last_iteration_dt->p_, 0 }, { diff_last_layer_dt->p_, 0 },
             { diff_last_iteration_dt->p_, 0 }, { workspace_dt->p_, 0 },
@@ -512,6 +520,8 @@ int doit(const rnn_prb_t *p, res_t *r) {
     delete dst_last_iteration_fp;
 
     if (is_bwd) {
+        delete bwd_weights_input_dt;
+        delete bwd_weights_states_dt;
         delete dst_diff_input_fp;
         delete dst_diff_states_fp;
         delete dst_diff_weights_input_fp;
