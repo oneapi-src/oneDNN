@@ -216,7 +216,7 @@ float drelu(float x) {
     return float(x > 0);
 }
 float dtanhf(float x) {
-    return (1 - (tanhf(x) * tanhf(x)));
+    return (1 - tanhf(x)) * (1 + tanhf(x));
 }
 
 int compare_dat(const rnn_prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
