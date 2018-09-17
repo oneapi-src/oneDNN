@@ -22,6 +22,7 @@
 #include "c_types_map.hpp"
 #include "cpu_engine.hpp"
 #include "cpu_rnn_pd.hpp"
+#include "cpu_isa_traits.hpp"
 #include "scratchpad.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
@@ -291,6 +292,10 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
         //   = TODO: allocate only n_layer_wav * batch * n_gates * dic for
         //   wavefront execution (inference)
 
+        use_jit_sgemm_ = ((aprop == prop_kind::forward_inference)
+            || (conf_.is_training() && conf_.DIC() < 500))
+            && !mayiuse(avx512_mic);
+
         use_scratchpad_for_ws_ = (conf_.desc()->prop_kind == prop_kind::forward_inference);
         use_scratchpad_ = use_scratchpad_for_ws_ || conf_.is_lbr();
         if (use_scratchpad_)
@@ -380,6 +385,7 @@ private:
     cell_execution_f cell_func;
 
     bool merge_gemm_layer;
+    bool use_jit_sgemm_;
 
     packing_t weights_input_pack_func;
     packing_t weights_state_pack_func;

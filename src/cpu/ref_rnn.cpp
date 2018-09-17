@@ -209,7 +209,7 @@ gemm_sig(_ref_rnn_common_t<aprop>::gemm) {
     float alpha = 1.f;
     extended_sgemm("N", is_B_trans ? "T" : "N", &m, &n, &k, &alpha,
             a_, &strideA_m, b_, is_B_trans ? &strideB_n : &strideB_k, &beta,
-            c_, &strideC_m);
+            c_, &strideC_m, nullptr, use_jit_sgemm_);
 }
 
 template <prop_kind_t aprop>

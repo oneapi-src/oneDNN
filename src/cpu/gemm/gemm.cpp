@@ -132,7 +132,7 @@ mkldnn_status_t extended_sgemm(const char *transa, const char *transb,
         const int *M, const int *N, const int *K, const float *alpha,
         const float *A, const int *lda, const float *B, const int *ldb,
         const float *beta, float *C, const int *ldc,
-        const float *bias) {
+        const float *bias, const bool force_jit_gemm) {
     //Check input
     mkldnn_status_t status = check_gemm_input(transa, transb, M, N, K,
             lda, ldb, ldc, alpha, beta, bias != nullptr);
@@ -143,20 +143,22 @@ mkldnn_status_t extended_sgemm(const char *transa, const char *transb,
     int trA = *transa == 't' || *transa == 'T';
     int trB = *transb == 't' || *transb == 'T';
 #ifdef USE_CBLAS
-    //Call cblas
-    CBLAS_TRANSPOSE Cblas_trA = trA ? CblasTrans : CblasNoTrans;
-    CBLAS_TRANSPOSE Cblas_trB = trB ? CblasTrans : CblasNoTrans;
-    cblas_sgemm(CblasColMajor, Cblas_trA, Cblas_trB,
-            *M, *N, *K, *alpha, A, *lda, B, *ldb, *beta, C, *ldc);
-    //Add bias if necessary (bias is applied to columns of C)
-    if (bias) {
-        cblas_int incx = 1, incy = 1;
-        parallel_nd(*N, [&](int n) {
-            cblas_saxpy(*M, 1.0, bias, incx, C + n*(*ldc), incy);
-        });
+    if (!force_jit_gemm) {
+        //Call cblas
+        CBLAS_TRANSPOSE Cblas_trA = trA ? CblasTrans : CblasNoTrans;
+        CBLAS_TRANSPOSE Cblas_trB = trB ? CblasTrans : CblasNoTrans;
+        cblas_sgemm(CblasColMajor, Cblas_trA, Cblas_trB,
+                *M, *N, *K, *alpha, A, *lda, B, *ldb, *beta, C, *ldc);
+        //Add bias if necessary (bias is applied to columns of C)
+        if (bias) {
+            cblas_int incx = 1, incy = 1;
+            parallel_nd(*N, [&](int n) {
+                cblas_saxpy(*M, 1.0, bias, incx, C + n*(*ldc), incy);
+            });
+        }
+        return mkldnn_success;
     }
-    return mkldnn_success;
-#else
+#endif
     //Generate jit kernel and call sgemm with bias
     volatile static int initialized = 0;
     if (!initialized) {
@@ -176,7 +178,6 @@ mkldnn_status_t extended_sgemm(const char *transa, const char *transb,
                 transa, transb, M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
 
     return mkldnn_success;
-#endif
 }
 
 }

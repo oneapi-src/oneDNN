@@ -22,7 +22,7 @@ mkldnn_status_t extended_sgemm(const char *transa, const char *transb,
         const int *M, const int *N, const int *K, const float *alpha,
         const float *A, const int *lda, const float *B, const int *ldb,
         const float *beta, float *C, const int *ldc,
-        const float *bias = nullptr);
+        const float *bias = nullptr, bool force_jit_gemm = false);
 void ref_gemm(const char *transa, const char *transb, const int *M,
         const int *N, const int *K, const float *alpha, const float *A,
         const int *lda, const float *B, const int *ldb, const float *beta,
