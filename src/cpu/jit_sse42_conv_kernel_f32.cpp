@@ -81,10 +81,9 @@ void jit_sse42_conv_fwd_kernel_f32::oh_step_unroll_kw(int ur_w,
 }
 
 void jit_sse42_conv_fwd_kernel_f32::oh_step_nopad(int ur_w,
-        int pad_l, int pad_r, char pad_tag,
-        int oc_blocks, char oc_blocks_tag)
+        int pad_l, int pad_r, int oc_blocks)
 {
-    jit_tagged_label kw_label("kw", pad_tag, oc_blocks_tag);
+    Label kw_loop;
 
     int iw = jcp.iw;
     int ih = jcp.ih;
@@ -97,7 +96,7 @@ void jit_sse42_conv_fwd_kernel_f32::oh_step_nopad(int ur_w,
     int oc_blk = jcp.oc_block;
 
     xor_(ki_iter, ki_iter);
-    L(kw_label);
+    L(kw_loop);
     {
         int jj_start = 0;
         int jj_end = ur_w;
@@ -131,13 +130,12 @@ void jit_sse42_conv_fwd_kernel_f32::oh_step_nopad(int ur_w,
 
         inc(ki_iter);
         cmp(ki_iter, kw);
-        jl(kw_label, T_NEAR);
+        jl(kw_loop, T_NEAR);
     }
 }
 
 void jit_sse42_conv_fwd_kernel_f32::width_blk_step(int ur_w,
-        int pad_l, int pad_r, char pad_tag,
-        int oc_blocks, char oc_blocks_tag)
+        int pad_l, int pad_r, int oc_blocks)
 {
     int iw = jcp.iw;
     int kw = jcp.kw;
@@ -157,15 +155,15 @@ void jit_sse42_conv_fwd_kernel_f32::width_blk_step(int ur_w,
     mov(aux_reg_input, reg_input);
     mov(aux_reg_kernel, reg_kernel);
 
-    jit_tagged_label init_simd_iter_label("simd_iter", pad_tag, oc_blocks_tag);
-    jit_tagged_label init_done_label("init", pad_tag, oc_blocks_tag);
-    jit_tagged_label init_first_label("first", pad_tag, oc_blocks_tag);
+    Label init_simd_iter_loop;
+    Label init_done;
+    Label init_first;
 
-    L(init_simd_iter_label);
+    L(init_simd_iter_loop);
 
     if (!jcp.with_sum) {
         test(reg_ci_flag, FLAG_IC_FIRST);
-        jne(init_first_label, T_NEAR);
+        jne(init_first, T_NEAR);
     }
 
     for (int ii = 0; ii < oc_blocks; ii++)
@@ -175,7 +173,7 @@ void jit_sse42_conv_fwd_kernel_f32::width_blk_step(int ur_w,
 
     if (jcp.with_sum && jcp.with_bias) {
         test(reg_ci_flag, FLAG_IC_FIRST);
-        je(init_done_label, T_NEAR);
+        je(init_done, T_NEAR);
 
         for (int ii = 0; ii < oc_blocks; ii++)
             for (int jj = 0; jj < ur_w; jj++)
@@ -183,9 +181,9 @@ void jit_sse42_conv_fwd_kernel_f32::width_blk_step(int ur_w,
                     xword[reg_bias + sizeof(float) * ii * oc_blk]);
     }
 
-    jmp(init_done_label);
+    jmp(init_done);
 
-    L(init_first_label);
+    L(init_first);
     if (this->jcp.with_bias) {
         for (int ii = 0; ii < oc_blocks; ii++)
             for (int jj = 0; jj < ur_w; jj++)
@@ -197,7 +195,7 @@ void jit_sse42_conv_fwd_kernel_f32::width_blk_step(int ur_w,
                 pxor(Xmm(ur_w * ii + jj + 1), Xmm(ur_w * ii + jj + 1));
     }
 
-    L(init_done_label);
+    L(init_done);
 
     Label skip_kh_loop;
     mov(kj, reg_kh);
@@ -205,12 +203,11 @@ void jit_sse42_conv_fwd_kernel_f32::width_blk_step(int ur_w,
         cmp(kj, 0);
         je(skip_kh_loop, T_NEAR);
     }
-    jit_tagged_label kh_label("kh", pad_tag, oc_blocks_tag);
-    L(kh_label);
+    Label kh_loop;
+    L(kh_loop);
     {
         if (jcp.kw >= 5 && pad_l == 0 && pad_r == 0) {
-            oh_step_nopad(ur_w, pad_l, pad_r, pad_tag, oc_blocks,
-                          oc_blocks_tag);
+            oh_step_nopad(ur_w, pad_l, pad_r, oc_blocks);
             sub(aux_reg_input, sizeof(float) * kw * inp_off);
             add(aux_reg_input, sizeof(float) * iw * inp_mult);
         } else {
@@ -221,18 +218,18 @@ void jit_sse42_conv_fwd_kernel_f32::width_blk_step(int ur_w,
 
         dec(kj);
         cmp(kj, 0);
-        jg(kh_label, T_NEAR);
+        jg(kh_loop, T_NEAR);
     }
 
     L(skip_kh_loop);
 
-    jit_tagged_label done_label("done", pad_tag, oc_blocks_tag);
-    jit_tagged_label regular_store_label("store", pad_tag, oc_blocks_tag);
+    Label done;
+    Label regular_store;
 
     if (jcp.with_relu) {
         assert(oc_blocks * ur_w < 15);
         test(reg_ci_flag, FLAG_IC_LAST);
-        je(regular_store_label, T_NEAR);
+        je(regular_store, T_NEAR);
 
         pxor(xzero, xzero);
         if (jcp.relu_negative_slope == 0) {
@@ -256,8 +253,8 @@ void jit_sse42_conv_fwd_kernel_f32::width_blk_step(int ur_w,
             }
         }
 
-        jmp(done_label);
-        L(regular_store_label);
+        jmp(done);
+        L(regular_store);
     }
 
     for (int ii = 0; ii < oc_blocks; ii++) {
@@ -269,7 +266,7 @@ void jit_sse42_conv_fwd_kernel_f32::width_blk_step(int ur_w,
         }
     }
 
-    L(done_label);
+    L(done);
 
     mov(aux_reg_kernel, reg_kernel);
     mov(aux_reg_input, reg_input);
@@ -279,14 +276,13 @@ void jit_sse42_conv_fwd_kernel_f32::width_blk_step(int ur_w,
 
     inc(simd_iter);
     cmp(simd_iter, 2);
-    jl(init_simd_iter_label, T_NEAR);
+    jl(init_simd_iter_loop, T_NEAR);
 
     sub(reg_output, sizeof(float) * 8);
     sub(reg_bias,   sizeof(float) * 8);
 }
 
-inline void jit_sse42_conv_fwd_kernel_f32::solve_common(
-        int oc_blocks, char oc_blocks_tag)
+inline void jit_sse42_conv_fwd_kernel_f32::solve_common(int oc_blocks)
 {
     int ur_w = jcp.ur_w;
     int ur_w_tail = jcp.ur_w_tail;
@@ -309,41 +305,36 @@ inline void jit_sse42_conv_fwd_kernel_f32::solve_common(
     if (l_pad > 0) {
         n_oi--;
         if (n_oi < 0 && r_pad1 > 0)
-            width_blk_step(ur_w, l_pad, r_pad1,
-                           'l', oc_blocks, oc_blocks_tag); // "lrpad"
+            width_blk_step(ur_w, l_pad, r_pad1, oc_blocks); // "lrpad"
         else
-            width_blk_step(ur_w, l_pad, 0,
-                           'l', oc_blocks, oc_blocks_tag); // "lpad"
+            width_blk_step(ur_w, l_pad, 0, oc_blocks); // "lpad"
         add(reg_input, sizeof(float) * (ur_w * str_w - l_pad) * inp_mult);
         add(reg_output, sizeof(float) * ur_w * oc_blk);
     }
 
-    jit_tagged_label ow_loop_label("ow", oc_blocks_tag);
+    Label ow_loop;
     xor_(oi_iter, oi_iter);
 
     if (n_oi > 0) {
-        L(ow_loop_label);
+        L(ow_loop);
 
-        width_blk_step(ur_w, 0, 0,
-                       'm', oc_blocks, oc_blocks_tag); // "middle"
+        width_blk_step(ur_w, 0, 0, oc_blocks); // "middle"
         add(reg_input, sizeof(float) * ur_w * str_w * inp_mult);
         add(reg_output, sizeof(float) * ur_w * oc_blk);
 
         inc(oi_iter);
         cmp(oi_iter, n_oi);
-        jl(ow_loop_label, T_NEAR);
+        jl(ow_loop, T_NEAR);
     }
 
     if (r_pad1 > 0 && n_oi >=0) {
-        width_blk_step(ur_w, 0, r_pad1,
-                       'r', oc_blocks, oc_blocks_tag); // "rpad"
+        width_blk_step(ur_w, 0, r_pad1, oc_blocks); // "rpad"
         add(reg_input, sizeof(float) * ur_w * str_w * inp_mult);
         add(reg_output, sizeof(float) * ur_w * oc_blk);
     }
 
     if (ur_w_tail != 0)
-        width_blk_step(ur_w_tail, 0, r_pad,
-                       't', oc_blocks, oc_blocks_tag); // "tail"
+        width_blk_step(ur_w_tail, 0, r_pad, oc_blocks); // "tail"
 }
 
 void jit_sse42_conv_fwd_kernel_f32::generate()
@@ -360,23 +351,22 @@ void jit_sse42_conv_fwd_kernel_f32::generate()
     mov(reg_oc_blocks, ptr[this->param1 + GET_OFF(oc_blocks)]);
 
     int nb_oc_tail = jcp.nb_oc % jcp.nb_oc_blocking;
-    const char *tail_label = ".tail";
-    const char *exit_label = ".exit";
+    Label tail, exit;
 
     cmp(reg_oc_blocks, jcp.nb_oc_blocking);
-    jne(nb_oc_tail ? tail_label : exit_label, T_NEAR);
+    jne(nb_oc_tail ? tail : exit, T_NEAR);
 
-    solve_common(jcp.nb_oc_blocking, '0' + jcp.nb_oc_blocking);
-    jmp(exit_label, T_NEAR);
+    solve_common(jcp.nb_oc_blocking);
+    jmp(exit, T_NEAR);
 
     if (nb_oc_tail) {
-        L(tail_label);
+        L(tail);
         cmp(reg_oc_blocks, nb_oc_tail);
-        jne(exit_label, T_NEAR);
-        solve_common(nb_oc_tail, '0' + nb_oc_tail);
+        jne(exit, T_NEAR);
+        solve_common(nb_oc_tail);
     }
 
-    L(exit_label);
+    L(exit);
 
     this->postamble();
 }
