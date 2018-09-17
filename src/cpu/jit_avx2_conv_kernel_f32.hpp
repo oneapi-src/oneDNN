@@ -20,6 +20,7 @@
 #include "c_types_map.hpp"
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
+#include "cpu_memory.hpp"
 
 namespace mkldnn {
 namespace impl {
