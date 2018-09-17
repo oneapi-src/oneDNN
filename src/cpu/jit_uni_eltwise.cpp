@@ -284,10 +284,13 @@ struct jit_uni_kernel_fwd_f32: public jit_uni_eltwise_kernel_f32,
         assert(prepare_const);
         (this->*prepare_const)();
 
-        cmp(reg_work_amount, simd_w);
-        jl("reminder_loop_start", T_NEAR);
+        Label reminder_loop_start, reminder_loop_end;
+        Label vectorized_loop_start, vectorized_loop_end;
 
-        L("vectorized_loop_start");
+        cmp(reg_work_amount, simd_w);
+        jl(reminder_loop_start, T_NEAR);
+
+        L(vectorized_loop_start);
 
         assert(vectorized_body);
         (this->*vectorized_body)();
@@ -297,14 +300,14 @@ struct jit_uni_kernel_fwd_f32: public jit_uni_eltwise_kernel_f32,
 
         sub(reg_work_amount, simd_w);
         cmp(reg_work_amount, simd_w);
-        jge("vectorized_loop_start", T_NEAR);
+        jge(vectorized_loop_start, T_NEAR);
 
-        L("vectorized_loop_end");
+        L(vectorized_loop_end);
 
-        L("reminder_loop_start");
+        L(reminder_loop_start);
 
         cmp(reg_work_amount, 0);
-        jle("reminder_loop_end", T_NEAR);
+        jle(reminder_loop_end, T_NEAR);
 
         assert(reminder_body);
         (this->*reminder_body)();
@@ -313,9 +316,9 @@ struct jit_uni_kernel_fwd_f32: public jit_uni_eltwise_kernel_f32,
         add(reg_to, sizeof(float));
 
         dec(reg_work_amount);
-        jmp("reminder_loop_start", T_NEAR);
+        jmp(reminder_loop_start, T_NEAR);
 
-        L("reminder_loop_end");
+        L(reminder_loop_end);
 
         postamble();
 
@@ -546,6 +549,8 @@ private:
     }
 
     void elu_vectorized_body() {
+        Label exit, early_exit;
+
         uni_vmovups(vmm_src, ptr[reg_from]);
         // compute mask
         if (isa < avx512_common) {
@@ -558,7 +563,7 @@ private:
             kmovw(reg_mask.cvt32(), k_mask);
         }
         cmp(reg_mask, isa == sse42 ? 0x0f : (isa == avx2 ? 0xff : 0xffff));
-        je("early_exit", T_NEAR);
+        je(early_exit, T_NEAR);
 
         // compute exponent
         uni_vmovups(Vmm(10), vmm_src);
@@ -574,15 +579,17 @@ private:
             vblendmps(vmm_dst | k_mask, vmm_dst, Vmm(10));
         // store result
         uni_vmovups(ptr[reg_to], vmm_dst);
-        jmp("exit", T_NEAR);
+        jmp(exit, T_NEAR);
 
-        L("early_exit");
+        L(early_exit);
         uni_vmovups(ptr[reg_to], vmm_src);
 
-        L("exit");
+        L(exit);
     }
 
     void elu_reminder_body() {
+        Label reminder_exit, reminder_early_exit;
+
         movss(xmm_src, ptr[reg_from]);
         // compute mask
         movss(xmm_mask, xmm_src);
@@ -591,7 +598,7 @@ private:
         // early exit if all elems positive
         movmskps(reg_mask, xmm_mask);
         cmp(reg_mask, 0x01);
-        je("reminder_early_exit", T_NEAR);
+        je(reminder_early_exit, T_NEAR);
 
         // compute exponent
         movss(Xmm(10), xmm_src);
@@ -603,12 +610,12 @@ private:
         blendvps(xmm_dst, Xmm(10));
         // store result
         movss(ptr[reg_to], xmm_dst);
-        jmp("reminder_exit", T_NEAR);
+        jmp(reminder_exit, T_NEAR);
 
-        L("reminder_early_exit");
+        L(reminder_early_exit);
         movss(ptr[reg_to], xmm_src);
 
-        L("reminder_exit");
+        L(reminder_exit);
     }
 
     void square_vectorized_body() {
@@ -666,6 +673,8 @@ private:
     }
 
     void sqrt_vectorized_body() {
+        Label early_exit;
+
         //load src
         uni_vmovups(vmm_src, ptr[reg_from]);
 
@@ -676,7 +685,7 @@ private:
         // early exit if all elems are negative
         uni_vmovmskps(reg_mask, vmm_mask);
         cmp(reg_mask, 0);
-        je("early_exit", T_NEAR);
+        je(early_exit, T_NEAR);
 
         // compute sqrt(x)
         uni_vsqrtps(vmm_src, vmm_src);
@@ -685,11 +694,13 @@ private:
         uni_vblendvps(vmm_dst, vmm_dst, vmm_src, vmm_mask);
 
         // store result
-        L("early_exit");
+        L(early_exit);
         uni_vmovups(ptr[reg_to], vmm_dst);
     }
 
     void sqrt_reminder_body() {
+        Label reminder_early_exit;
+
         // load src
         movss(xmm_src, ptr[reg_from]);
 
@@ -701,7 +712,7 @@ private:
         // early exit if all elements are negative
         movmskps(reg_mask, xmm_mask);
         cmp(reg_mask, 0);
-        je("reminder_early_exit", T_NEAR);
+        je(reminder_early_exit, T_NEAR);
 
         // compute sqrt(x)
         sqrtss(xmm_src, xmm_src);
@@ -710,7 +721,7 @@ private:
         blendvps(xmm_dst, xmm_src);
 
         // store result
-        L("reminder_early_exit");
+        L(reminder_early_exit);
         movss(ptr[reg_to], xmm_dst);
     }
 
