@@ -51,10 +51,10 @@ const _dt_conf_t conf_f32_full = {
 };
 
 const _dt_conf_t conf_f32_wino = {
-    {mkldnn_f32, -FLT_MAX, FLT_MAX, -4,  16, 3, 1, .25, 1e-5},
-    {mkldnn_f32, -FLT_MAX, FLT_MAX,  2,  64, 2, 1, .75, 5e-5},
-    {mkldnn_f32, -FLT_MAX, FLT_MAX,  1, 128, 1, 1, .25,   0.},
-    {mkldnn_f32, -FLT_MAX, FLT_MAX,  0,  16, 3, 1, .25, 2e-5},
+    {mkldnn_f32, -FLT_MAX, FLT_MAX,  -16, 128, 3, 1, .25, 1e-5},
+    {mkldnn_f32, -FLT_MAX, FLT_MAX,  2,  64, 2, 1, .75, 6e-6},
+    {mkldnn_f32, -FLT_MAX, FLT_MAX,  1, 128, 1, 1, .25,  2e-7},
+    {mkldnn_f32, -FLT_MAX, FLT_MAX, -16, 128, 3, 1, .25, 2e-5},
     {mkldnn_f32,},
 };
 

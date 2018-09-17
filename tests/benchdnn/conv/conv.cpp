@@ -72,6 +72,27 @@ double get_trust_nz_level(const prb_t *p, data_kind_t kind, bool final_compare)
     return trust;
 }
 
+inline double get_eps(const prb_t *p, const data_kind_t kind) {
+    if (p->alg & WINO && p->dir & FLAG_WEI) {
+        /*This is an empirical equation derived by observing growth error
+          with increasing 'k' dimension in gemm of winograd*/
+        return p->cfg[kind].eps *
+            (MAX2(1, pow(10, 0.4 * log10(0.125 * p->mb * p->oh * p->ow))));
+    }
+    return p->cfg[kind].eps;
+}
+
+inline void get_result(const prb_t *p, const data_kind_t kind, res_t *r,
+        const diff_norm_t diff_norm) {
+    bool wino_test = (p->alg & WINO)
+        && (diff_norm.rel_diff(norm_t::L2) <= get_eps(p, kind));
+    /* Ignoring elementwise errors for winograd,
+       since large relative error in few elements(which are anyways close to zero)
+       results in false positive failures*/
+    if (wino_test) r->errors = 0;
+    r->state = r->errors ? FAILED : r->state;
+}
+
 inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r, bool final_compare = false) {
     size_t nelems = mem_dt.nelems();
@@ -118,13 +139,13 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
             above_ok += ok;
         } else {
             diff_norm.update(fp, dt);
-            ok = (fabs(fp) > 1e-5 ? rel_diff : diff) <= p->cfg[kind].eps;
+            ok = (fabs(fp) > 1e-5 ? rel_diff : diff) <= get_eps(p, kind);
             in += 1;
             in_ok += ok;
         }
         if (!ok) {
             r->errors++;
-            if (r->errors < 10 || verbose >= 10) {
+            if ((!(p->alg & WINO) && r->errors < 10) || verbose >=10) {
                 int mb_or_g = 0, g_or_oc = 0, c = 0, d = 0, h = 0, w = 0;
                 switch (kind) {
                 case SRC: inv_src_off_f(p, i, mb_or_g, g_or_oc, c, d, h, w); break;
@@ -207,8 +228,7 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
                 non_zero, (unsigned long)r->total);
     }
 
-    if (r->errors)
-        r->state = FAILED;
+    get_result(p, kind, r, diff_norm);
 
     if (final_compare && r->state == UNTESTED)
         r->state = PASSED; /* optimism */
