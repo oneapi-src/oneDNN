@@ -619,7 +619,7 @@ void _ref_rnn_common_t<prop_kind::backward>::copy_init_layer(bool lr, bool rl,
         parallel_nd(n_iter, batch, [&](int it, int b) {
             auto diff_dst_layer_x
             = diff_dst_layer_ + diff_dst_layer_d.blk_off(it, b);
-            for (int s = 0; s < dlc; s++) {
+            for (int s = 0; s < dic; s++) {
                 ws_diff_states(n_layer, 0, n_states, it, b, s)
                     = diff_dst_layer_x[s];
                 ws_diff_states(n_layer, 1, n_states, n_iter - it - 1, b, s)
