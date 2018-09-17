@@ -20,6 +20,7 @@
 #include "c_types_map.hpp"
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
+#include "cpu_memory.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -90,10 +91,9 @@ private:
     Xbyak::Xmm xmm_res_ns = Xbyak::Xmm(13);
     Xbyak::Xmm xmask = Xbyak::Xmm(0);
 
-    void bcast_loop(int load_loop_blk, char load_loop_tag);
-    void reduce_loop(int load_loop_blk, int ur, char load_loop_tag,
-            char bcast_loop_tag);
-    void diff_bias_loop(int load_loop_blk, char load_loop_tag);
+    void generate_bcast_loop(int load_loop_blk);
+    void generate_reduce_loop(int load_loop_blk, int ur);
+    void generate_diff_bias_loop(int load_loop_blk);
 
     void generate();
 };
