@@ -67,7 +67,8 @@ namespace cpu {
 #define packing_sig(f)                                               \
     void f(int n_layer, int n_direction, int n_weights, int n_gates, \
             int batch, int OC_size, int IC_size, float **weights_,   \
-            int n_parts, int *gates_per_part, const float *w_)
+            int n_parts, int *gates_per_part, const float *w_,       \
+            float * scratch_mem, bool do_copy)
 
 #define free_packed_sig(f) void f(int n_layer, int n_direction, int n_parts, \
             float **weights_)
@@ -207,16 +208,20 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
             f = pack_w ? &class_name::free_packed_weights :
                              &class_name::free_no_packed_weights;
         };
+#ifdef USE_MKL_PACKED_GEMM
+        const bool weights_pack_cond =
+            (conf_.T() > 1) && (conf_.MB() == 32) &&
+            (conf_.SIC() == 512) &&(conf_.SLC() == 512) && (conf_.DIC() == 512);
+#else
+        const bool weights_pack_cond = false;
+#endif
 
-        const bool weights_pack_cond = USE_MKL_PACKED_GEMM && conf_.T() > 1;
-        const bool is_weights_state_packed = USE_MKL_PACKED_GEMM
-                && conf_.desc()->weights_iter_desc.format == packed_format;
+        const bool is_weights_state_packed = conf_.desc()->weights_iter_desc.format == packed_format;
         set_pack_funcs(weights_pack_cond || is_weights_state_packed,
                 gemm_state_func, weights_pack_cond && !is_weights_state_packed,
                 weights_state_pack_func, weights_state_free_packed_func);
 
-        const bool is_weights_input_packed = USE_MKL_PACKED_GEMM
-                && conf_.desc()->weights_layer_desc.format == packed_format;
+        const bool is_weights_input_packed = conf_.desc()->weights_layer_desc.format == packed_format;
         set_pack_funcs(weights_pack_cond || is_weights_input_packed,
                 gemm_input_func, weights_pack_cond && !is_weights_input_packed,
                 weights_input_pack_func, weights_input_free_packed_func);
@@ -266,10 +271,6 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
         /// wavefront
         grid_computation = &class_name::linear_execution;
 
-        conf_.set_offsets(
-                ws_gates_offset_, ws_states_offset_, ws_diff_states_offset_,
-                ws_grid_comp_offset_, ws_cell_comp_offset_);
-
         // we need to allocate memory for:
         // - the states to compute a pass.
         // - the intermediate results from the gates.
@@ -296,11 +297,27 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
             || (conf_.is_training() && conf_.DIC() < 500))
             && !mayiuse(avx512_mic);
 
-        use_scratchpad_for_ws_ = (conf_.desc()->prop_kind == prop_kind::forward_inference);
-        use_scratchpad_ = use_scratchpad_for_ws_ || conf_.is_lbr();
-        if (use_scratchpad_)
-            scratchpad_ =
-                create_scratchpad(conf_.get_scratchpad_size() * sizeof(float));
+        copy_weights_layer_ = conf_.WL_LD() != conf_.W_GLD();
+        copy_weights_iter_ = conf_.WI_LD() != conf_.W_GLD();
+
+        copy_diff_weights_layer_ = (aprop == prop_kind::backward)
+            && (conf_.DWL_LD() != conf_.DW_GLD());
+        copy_diff_weights_iter_ =  (aprop == prop_kind::backward)
+            && (conf_.DWI_LD() != conf_.DW_GLD());
+
+        use_workspace_ = (conf_.desc()->prop_kind != prop_kind::forward_inference);
+
+        size_t scratchpad_size = conf_.set_offsets(use_workspace_,
+            ws_gates_offset_, ws_states_offset_,  ws_diff_states_offset_,
+            ws_grid_comp_offset_,
+            conf_.is_lbr(), ws_cell_comp_offset_,
+            copy_weights_layer_, ws_weights_layer_offset_,
+            copy_weights_iter_, ws_weights_iter_offset_,
+            copy_diff_weights_layer_, ws_diff_weights_layer_offset_,
+            copy_diff_weights_iter_, ws_diff_weights_iter_offset_);
+
+        scratchpad_ =
+            create_scratchpad(scratchpad_size * sizeof(float));
 
         int max_nparts = (conf_.cell_kind() == alg_kind::vanilla_gru) ? 2 : 1;
         int ptr_wei_sz = conf_.L() * conf_.D() * max_nparts;
@@ -308,8 +325,7 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
         ptr_wei_state_ = (float **)malloc(sizeof(float *) * ptr_wei_sz, 64);
     }
     ~_ref_rnn_common_t() {
-        if (use_scratchpad_)
-            delete scratchpad_;
+        delete scratchpad_;
         free(ptr_wei_input_);
         free(ptr_wei_state_);
     }
@@ -360,13 +376,16 @@ private:
     void gates_reduction(int n_gates, int dic, int wic, int batch,
             const float *ws_gates_, float *diff_bias_);
     pd_t conf_;
-    bool use_scratchpad_;
-    bool use_scratchpad_for_ws_;
+    bool use_workspace_;
     scratchpad_t *scratchpad_;
 
     size_t ws_gates_offset_;
     size_t ws_states_offset_;
+    size_t ws_weights_layer_offset_;
+    size_t ws_weights_iter_offset_;
     size_t ws_diff_states_offset_;
+    size_t ws_diff_weights_layer_offset_;
+    size_t ws_diff_weights_iter_offset_;
     size_t ws_grid_comp_offset_;
     size_t ws_cell_comp_offset_;
 
@@ -375,6 +394,10 @@ private:
     float *ws_diff_states_;
     float *ws_cell_;
     float *ws_grid_;
+    float *ws_weights_layer_;
+    float *ws_weights_iter_;
+    float *ws_diff_weights_layer_;
+    float *ws_diff_weights_iter_;
     int n_output_features;
 
     float **ptr_wei_input_;
@@ -384,6 +407,10 @@ private:
     grid_execution_f grid_computation;
     cell_execution_f cell_func;
 
+    bool copy_weights_layer_;
+    bool copy_weights_iter_;
+    bool copy_diff_weights_layer_;
+    bool copy_diff_weights_iter_;
     bool merge_gemm_layer;
     bool use_jit_sgemm_;
 

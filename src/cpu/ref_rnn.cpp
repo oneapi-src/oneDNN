@@ -28,6 +28,7 @@
   only the cell execution function should be impacted
 
  */
+
 #include "c_types_map.hpp"
 #include "math_utils.hpp"
 #include "mkldnn_thread.hpp"
@@ -187,7 +188,7 @@ elemwise_sig(_ref_rnn_common_t<prop_kind::backward>::lstm_elemwise) {
 
 template <prop_kind_t aprop>
 gemm_sig(_ref_rnn_common_t<aprop>::packed_gemm) {
-#if USE_MKL_PACKED_GEMM
+#if (USE_MKL_PACKED_GEMM)
     cblas_sgemm_compute(CblasColMajor, CblasPacked,
             is_B_trans ? CblasTrans : CblasNoTrans, m, n, k, a_, strideA_m, b_,
             is_B_trans ? strideB_n : strideB_k, beta, c_, strideC_m);
@@ -257,10 +258,10 @@ cell_execution_sig(_ref_rnn_common_t<prop_kind::backward>::cell_execution) {
             diff_states_t_lp1_, diff_states_tp1_l_, bias_, ws_grid_, ws_cell_);
 
     /// bwd by data on the cell
-    (this->*gemm_state_func)(sic, batch, n_gates * dic, sic, n_gates * dic,
+    (this->*gemm_state_func)(sic, batch, n_gates * dic, wic, n_gates * dic,
             batch, conf_.GC(), wic, batch, w_state_[0], ws_gates_,
             diff_states_t_l_, false, 0.0f);
-    (this->*gemm_input_func)(slc, batch, n_gates * dic, slc, n_gates * dic,
+    (this->*gemm_input_func)(slc, batch, n_gates * dic, wic, n_gates * dic,
             batch, conf_.GC(), wic, batch, w_input_[0], ws_gates_,
             diff_states_t_l_ + n_states * iter_stride * (batch * wic), false, 0.0f);
 
@@ -410,7 +411,7 @@ cell_execution_sig(_ref_rnn_common_t<prop_kind::backward>::cell_execution_gru_lb
             diff_states_t_lp1_, diff_states_tp1_l_, bias_, ws_grid_, ws_cell_);
 
     //  dx = dG * Wx^t
-    (this->*gemm_input_func)(slc, batch, n_gates * dic, slc, n_gates * dic,
+    (this->*gemm_input_func)(slc, batch, n_gates * dic, wic, n_gates * dic,
             batch, conf_.GC(), wic, batch, w_input_[0], ws_gates_,
             diff_states_t_l_ + n_states * iter_stride * (batch * wic), false, 0.0f);
 
@@ -514,7 +515,7 @@ cell_execution_sig(_ref_rnn_common_t<prop_kind::backward>::cell_execution_gru) {
     (this->*gemm_state_func)(sic, batch, (n_gates - 1) * dic, wic, n_gates * dic,
             batch, conf_.GC(), wic, batch, w_state_[0], ws_gates_,
             diff_states_t_l_, false, 1.0f);
-    (this->*gemm_input_func)(slc, batch, n_gates * dic, slc, n_gates * dic,
+    (this->*gemm_input_func)(slc, batch, n_gates * dic, wic, n_gates * dic,
             batch, conf_.GC(), wic, batch, w_input_[0], ws_gates_,
             &(diff_states_t_l(n_states, 0, 0, 0)), false, 0.0f);
 
@@ -820,25 +821,25 @@ void _ref_rnn_common_t<prop_kind::backward>::copy_res_iter(int n_layer,
 
 template <prop_kind_t aprop>
 packing_sig(_ref_rnn_common_t<aprop>::pack_weights) {
-#if USE_MKL_PACKED_GEMM
+#if (USE_MKL_PACKED_GEMM)
     AOC<const float, 5> w(
             w_, n_layer, n_direction, IC_size, n_gates, OC_size);
     AOC<float *, 3> weights(weights_, n_layer, n_direction, n_parts);
-    int m = 0, n = 0, k = 0, ldA = 0;
+    int m = 0, n = 0, k = 0;
     auto transA = CblasNoTrans;
     bool is_fwd = aprop == prop_kind::forward;
     if (is_fwd) {
         m = n_gates * OC_size;
         n = batch;
         k = IC_size;
+        //todo: do a transposition if ldgoi
         transA = CblasNoTrans;
-        ldA = m;
     } else {
         m = IC_size;
         n = batch;
         k = n_gates * OC_size;
-        transA = CblasTrans;
-        ldA = k;
+        //TODO: do a transposition if ldigo
+        transA = CblasNoTrans;
     }
     for (int i = 0; i < n_layer; i++) {
         for (int d = 0; d < n_direction; d++) {
@@ -848,7 +849,7 @@ packing_sig(_ref_rnn_common_t<aprop>::pack_weights) {
                 int g = (p > 0) ? gates_per_part[p - 1] : 0;
                 weights(i, d, p) = cblas_sgemm_alloc(CblasAMatrix, m_p, n, k_p);
                 cblas_sgemm_pack(CblasColMajor, CblasAMatrix, transA, m_p, n,
-                        k_p, 1.0f, &(w(i, d, 0, g, 0)), ldA, weights(i, d, p));
+                        k_p, 1.0f, &(w(i, d, 0, g, 0)), m, weights(i, d, p));
             }
         }
     }
@@ -870,22 +871,66 @@ packing_sig(_ref_rnn_common_t<aprop>::pack_weights) {
 
 template <prop_kind_t aprop>
 packing_sig(_ref_rnn_common_t<aprop>::no_pack_weights) {
-    AOC<const float, 5> w(
-            w_, n_layer, n_direction, OC_size, n_gates, IC_size);
+    AOC<const float, 3> w(
+            w_, n_layer, n_direction, IC_size * n_gates * OC_size);
     AOC<float *, 3> weights(weights_, n_layer, n_direction, n_parts);
-    for (int i = 0; i < n_layer; i++) {
-        for (int d = 0; d < n_direction; d++) {
-            weights(i, d, 0) = (float *)&(w(i, d, 0, 0, 0));
-            for (int p = 1; p < n_parts; p++) {
-                weights(i, d, p) = (float *)&(w(i, d, 0, gates_per_part[p-1], 0));
-            }
-        }
+    int m = 0, n = 0, ldA = 0;
+
+    bool is_fwd = aprop == prop_kind::forward;
+    if (is_fwd) {
+        m = n_gates * OC_size;
+        n = IC_size;
+        ldA = conf_.GC();
+    } else {
+        m = IC_size;
+        n = n_gates * OC_size;
+        ldA = conf_.WIC();
     }
+
+    if (!do_copy) {
+        for (int i=0; i < n_layer; i++)
+            for (int d = 0; d < n_direction; d++) {
+                weights(i, d, 0) = (float *) &(w(i, d, 0));
+                for (int p = 1; p < n_parts; p++) {
+                    size_t offset = is_fwd
+                        ? gates_per_part[p - 1] * OC_size
+                        : gates_per_part[p - 1] * OC_size * conf_.WIC();
+                    weights(i, d, p) = (float *) &w(i, d, offset);
+                }
+            }
+        return;
+    }
+
+    /* We always assume
+       - column major
+       - alpha = 1.0f
+    */
+    auto copy_matrix = [](char trans, int nrows, int ncols,
+            const float *src, const int ld_src, float *dst, const int ld_dst){
+        for (int i = 0; i < ncols; i++)
+            for (int j = 0; j < nrows; j++)
+                dst[i * ld_dst + j] = src[i * ld_src + j];
+    };
+
+    AOC<float, 3> tmp(scratch_mem, n_layer, n_direction, ldA * n);
+    mkldnn::impl::parallel_nd(n_layer, n_direction, [&](int i, int d) {
+            auto src_mat = &(w(i, d, 0));
+            auto dst_mat = &(tmp(i, d, 0));
+            copy_matrix('N', m, n, src_mat, m, dst_mat, ldA);
+            weights(i, d, 0) = &tmp(i, d, 0);
+            for (int p = 1; p < n_parts; p++) {
+                size_t offset = is_fwd
+                    ? gates_per_part[p - 1] * OC_size
+                    : gates_per_part[p - 1] * OC_size * conf_.WIC();
+                weights(i, d, p) = &tmp(i, d, offset);
+            }
+        });
 }
+
 
 template <prop_kind_t aprop>
 free_packed_sig(_ref_rnn_common_t<aprop>::free_packed_weights) {
-#if USE_MKL_PACKED_GEMM
+#if (USE_MKL_PACKED_GEMM)
     AOC<float *, 3> weights(weights_, n_layer, n_direction, n_parts);
     for (int i = 0; i < n_layer; i++)
         for (int j = 0; j < n_direction; j++)
@@ -902,10 +947,7 @@ free_packed_sig(_ref_rnn_common_t<aprop>::free_packed_weights) {
 
 template <prop_kind_t aprop>
 free_packed_sig(_ref_rnn_common_t<aprop>::free_no_packed_weights) {
-    UNUSED(n_layer);
-    UNUSED(n_direction);
-    UNUSED(n_parts);
-    UNUSED(weights_);
+    // IN this case, only scratchpad is used, so no free necessary
 }
 
 //********************* Execution function *********************//
@@ -966,25 +1008,21 @@ void _ref_rnn_common_t<aprop>::execute_() {
             nullptr :
             reinterpret_cast<const float *>(this->input_memory(input_idx++));
 
+    // fetchihg buffers from the workspace
     // if no workspace was provided we use the scratchpad
-    if (use_scratchpad_for_ws_) {
-        ws_gates_ = ((float *)scratchpad_->get());
-        ws_states_ = ((float *)scratchpad_->get()) + ws_states_offset_;
-        ws_diff_states_
-                = ((float *)scratchpad_->get()) + ws_diff_states_offset_;
-        ws_grid_ = ((float *)scratchpad_->get()) + ws_grid_comp_offset_;
-        ws_cell_ = ((float *)scratchpad_->get()) + ws_cell_comp_offset_;
-    } else {
-        float *ws_ptr = is_fwd ?
-                reinterpret_cast<float *>(this->memory(output_idx++)) :
-                const_cast<float *>(reinterpret_cast<const float *>(
-                        this->input_memory(input_idx++)));
-        ws_gates_ = ws_ptr + ws_gates_offset_;
-        ws_states_ = ws_ptr + ws_states_offset_;
-        ws_diff_states_ = ws_ptr + ws_diff_states_offset_;
-        ws_grid_ = ws_ptr + ws_grid_comp_offset_;
-        ws_cell_ = use_scratchpad_ ? ((float *)scratchpad_->get()) : nullptr;
-    }
+    float *scratch_ptr = ((float *)scratchpad_->get());
+    float *ws_ptr = nullptr;
+    if (use_workspace_)
+        ws_ptr = is_fwd ?
+            reinterpret_cast<float *>(this->memory(output_idx++)) :
+            const_cast<float *>(reinterpret_cast<const float *>(
+                    this->input_memory(input_idx++)));
+    float *base_ptr = use_workspace_ ? ws_ptr : scratch_ptr;
+    ws_gates_ = base_ptr + ws_gates_offset_;
+    ws_states_ = base_ptr + ws_states_offset_;
+    ws_diff_states_ = base_ptr + ws_diff_states_offset_;
+    ws_grid_ = base_ptr + ws_grid_comp_offset_;
+    ws_cell_ = base_ptr + ws_cell_comp_offset_;
 
     auto diff_src_layer = is_fwd ?
             nullptr :
@@ -1002,21 +1040,43 @@ void _ref_rnn_common_t<aprop>::execute_() {
             nullptr :
             reinterpret_cast<float *>(this->memory(output_idx++));
 
-    // initialize diff_states to 0
-    if (aprop == prop_kind::backward)
+    // Fetching extra buffers from scratchpad
+    ws_weights_layer_ = scratch_ptr + ws_weights_layer_offset_;
+    ws_weights_iter_ = scratch_ptr + ws_weights_iter_offset_;
+    ws_diff_weights_layer_ = scratch_ptr + ws_diff_weights_layer_offset_;
+    ws_diff_weights_iter_ = scratch_ptr + ws_diff_weights_iter_offset_;
+
+
+// initialize diff_states to 0
+    if (aprop == prop_kind::backward) {
         array_set(ws_diff_states_, 0.0f, conf_.ws_diff_states_size());
+        // TODO: add a variable to check if good_ld_copy is necessary
+        if (copy_diff_weights_layer_) {
+            parallel_nd(conf_.ws_diff_weights_layer_size(), [&](int i) {
+                ws_diff_weights_layer_[i] = 0.;
+            });
+        } else
+            ws_diff_weights_layer_ = diff_weights_layer;
+        if (copy_diff_weights_iter_) {
+            parallel_nd(conf_.ws_diff_weights_iter_size(), [&](int i) {
+                ws_diff_weights_iter_[i] = 0.;
+            });
+        } else
+            ws_diff_weights_iter_ = diff_weights_iter;
+    }
 
     // TODO: implement without copies
     bool is_lr = !one_of(exec_dir, b2t_r2l, t2b_r2l);
     bool is_rl = !one_of(exec_dir, b2t_l2r, t2b_l2r);
-
     // we pack the weights if we are using the packed API
     (this->*weights_state_pack_func)(n_layer, n_direction, n_weights_state,
             n_gates, batch, dic, sic, ptr_wei_state_, n_parts_wei_st,
-            (is_orig_gru ? parts_wei_st_gru : &parts_wei_st), w_state);
+            (is_orig_gru ? parts_wei_st_gru : &parts_wei_st), w_state,
+            ws_weights_iter_, copy_weights_iter_);
     (this->*weights_input_pack_func)(n_layer, n_direction, n_weights_input,
             n_gates, batch, dic, slc, ptr_wei_input_, n_parts_wei_i,
-            &parts_wei_i, w_input);
+            &parts_wei_i, w_input,
+            ws_weights_layer_, copy_weights_layer_);
 
     // we first need to copy the initial states and input into ws
     copy_init_layer(is_lr, is_rl, n_layer, n_direction, n_iter, batch, slc, dic,
@@ -1030,7 +1090,7 @@ void _ref_rnn_common_t<aprop>::execute_() {
             n_iter, n_gates, n_states, n_bias, ptr_wei_input_, n_parts_wei_i,
             ptr_wei_state_, n_parts_wei_st, (float *)bias, ws_states_,
             ws_diff_states_, ws_gates_, ws_cell_, ws_grid_, ws_per_cell,
-            diff_weights_layer, diff_weights_iter, diff_bias);
+            ws_diff_weights_layer_, ws_diff_weights_iter_, diff_bias);
 
     // Finally we copy the results to the result buffers
     copy_res_layer(is_lr, is_rl, n_layer, n_direction, n_iter, batch,
@@ -1038,6 +1098,39 @@ void _ref_rnn_common_t<aprop>::execute_() {
             dst_last_layer, diff_src_layer, ws_states_, ws_diff_states_);
     copy_res_iter(n_layer, n_direction, n_states, batch, sic, dic, wic, n_iter,
             dst_last_iter, diff_src_iter, ws_states_, ws_diff_states_);
+
+    // copy of the diff weights if bwd
+    if (aprop == prop_kind::backward){
+        // TODO: write an impl of matcopy in MKL-DNN
+        // TODO: support ldgoi using the trans parameters
+        AOC<float, 3> diff_weights_layer_aoc(diff_weights_layer, n_layer, n_direction, slc * n_gates * dic);
+        AOC<float, 3> diff_weights_iter_aoc(diff_weights_iter, n_layer, n_direction, sic * n_gates * dic);
+        AOC<float, 3> ws_diff_weights_layer_aoc(ws_diff_weights_layer_, n_layer, n_direction, slc * conf_.GC());
+        AOC<float, 3> ws_diff_weights_iter_aoc(ws_diff_weights_iter_, n_layer, n_direction, sic * conf_.GC());
+
+        /*
+           - assumes column major and non transposed matrices
+           - computes B = A + B
+        */
+        auto inplace_matadd = [=](const int nrows, const int ncols,
+                const float *A, const int ldA, float *B, const int ldB){
+            for(int i = 0; i < ncols; i++)
+                for(int j = 0; j < nrows; j++)
+                    B[i * ldB + j] += A[i * ldA + j];
+        };
+        mkldnn::impl::parallel_nd(n_layer, n_direction, [&](int i, int d) {
+            auto wei_lay = &(diff_weights_layer_aoc(i, d, 0));
+            auto wei_it = &(diff_weights_iter_aoc(i, d, 0));
+            auto ws_wei_lay = &(ws_diff_weights_layer_aoc(i, d, 0));
+            auto ws_wei_it = &(ws_diff_weights_iter_aoc(i, d, 0));
+            if (copy_diff_weights_layer_)
+                inplace_matadd(n_gates*dic, slc, ws_wei_lay, conf_.GC(),
+                        wei_lay, n_gates*dic);
+            if (copy_diff_weights_iter_)
+                inplace_matadd(n_gates*dic, sic, ws_wei_it, conf_.GC(),
+                        wei_it, n_gates*dic);
+        });
+    }
 
     // We free the packed weights if they were packed internally
     (this->*weights_state_free_packed_func)(n_layer, n_direction,

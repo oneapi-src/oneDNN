@@ -70,6 +70,26 @@ struct rnn_pd_t : public primitive_desc_t {
         return (size_t)(L() + 1) * D() * (T() + 1) * (S() + 1) * MB() * S_GLD();
     }
 
+    inline size_t ws_weights_layer_size() {
+        size_t ld = is_fwd() ? G_GLD() : S_GLD();
+        size_t not_ld =  is_fwd() ? SLC() : G() * DIC();
+        return (size_t)(L() * D() * ld * not_ld);
+    }
+
+    inline size_t ws_weights_iter_size() {
+        size_t ld = is_fwd() ? G_GLD() : S_GLD();
+        size_t not_ld =  is_fwd() ? SIC() : G() * DIC();
+        return (size_t)(L() * D() * ld * not_ld);
+    }
+
+    inline size_t ws_diff_weights_layer_size() {
+        return (size_t)(L() * D() * SLC() * GC());
+    }
+
+    inline size_t ws_diff_weights_iter_size() {
+        return (size_t)(L() * D() * SIC() * GC());
+    }
+
     inline size_t ws_gates_size() {
         return (size_t) L() * D() * T() * MB() * GC();
     }
@@ -86,41 +106,107 @@ struct rnn_pd_t : public primitive_desc_t {
         return is_lbr() *  MB() * DIC();
     }
 
-    inline void set_offsets(size_t &ws_gates_offset, size_t &ws_states_offset,
-            size_t &ws_diff_states_offset, size_t &ws_grid_comp_offset,
-            size_t &ws_cell_comp_offset) {
+    // returns the scratchpad size if use_workspace is true
+    // returns the workspace size if use_workspace is false,
+    // and all scratchpad boolean are false
+    inline size_t set_offsets( bool use_workspace,
+        size_t &ws_gates_offset, size_t &ws_states_offset,
+        size_t &ws_diff_states_offset, size_t &ws_grid_comp_offset,
+        bool use_ws_cell_comp, size_t &ws_cell_comp_offset,
+        bool copy_weights_layer_, size_t &ws_weights_layer_offset,
+        bool copy_weights_iter_, size_t &ws_weights_iter_offset,
+        bool copy_diff_weights_layer, size_t &ws_diff_weights_layer_offset,
+        bool copy_diff_weights_iter, size_t &ws_diff_weights_iter_offset) {
         const size_t page_size = 4096; // 2097152;
-        ws_gates_offset
-                = 0; // assumes the workspace base pointer is page aligned
-        ws_states_offset = utils::rnd_up(ws_gates_size(), page_size);
-        ws_diff_states_offset
-                = utils::rnd_up(ws_states_offset + ws_states_size(), page_size);
-        ws_grid_comp_offset = utils::rnd_up(ws_diff_states_offset
-                + ws_diff_states_size(), page_size);
+        size_t current_offset;
 
-        ws_cell_comp_offset = utils::rnd_up(ws_grid_comp_offset
-                + ws_grid_comp_size(), page_size);
+        /* Mandatory workspaces: go to workspace if use_workspace, scratchpad otherwise */
+        current_offset = 0;  // assumes the workspace base pointer is page aligned
+        ws_gates_offset = current_offset;
+        current_offset += ws_gates_size();
+
+        current_offset = utils::rnd_up(current_offset, page_size);
+        ws_states_offset = current_offset;
+        current_offset += ws_states_size();
+
+        current_offset = utils::rnd_up(current_offset, page_size);
+        ws_diff_states_offset = current_offset;
+        current_offset += ws_diff_states_size();
+
+        current_offset = utils::rnd_up(current_offset, page_size);
+        ws_grid_comp_offset = current_offset;
+        current_offset += ws_grid_comp_size();
+
+        // ws_cell_comp is optional
+        if (use_ws_cell_comp) {
+            current_offset = utils::rnd_up(current_offset, page_size);
+            ws_cell_comp_offset = current_offset;
+            current_offset += ws_cell_comp_size();
+        }
+
+        /* Optional scratchpads */
+        // Assumes the scratchpad base pointer is page aligned.
+        // If use_workspace, the following goes to scratchpad alone,
+        // otherwise, all goes to scratchpad and continue incrementing offset
+        current_offset = use_workspace ? 0 : current_offset;
+
+        if (copy_weights_layer_) {
+            current_offset = utils::rnd_up(current_offset, page_size);
+            ws_weights_layer_offset = current_offset;
+            current_offset += ws_weights_layer_size();
+        }
+
+        if (copy_weights_iter_) {
+            current_offset = utils::rnd_up(current_offset, page_size);
+            ws_weights_iter_offset = current_offset;
+            current_offset += ws_weights_iter_size();
+        }
+
+        if (copy_diff_weights_layer) {
+            current_offset = utils::rnd_up(current_offset, page_size);
+            ws_diff_weights_layer_offset = current_offset;
+            current_offset += ws_diff_weights_iter_size();
+        }
+
+        if (copy_diff_weights_iter) {
+            current_offset = utils::rnd_up(current_offset, page_size);
+            ws_diff_weights_iter_offset = current_offset;
+            current_offset += ws_diff_weights_layer_size();
+        }
+
+        return current_offset;
     }
 
     inline size_t get_ws_size() {
-        size_t ws_gates_offset, ws_states_offset, ws_diff_states_offset,
-            ws_grid_comp_offset, ws_cell_comp_offset;
-        set_offsets(
-                ws_gates_offset, ws_states_offset, ws_diff_states_offset,
-                ws_grid_comp_offset, ws_cell_comp_offset);
-        return ws_grid_comp_offset + ws_grid_comp_size();
+        size_t ws_gates_offset, ws_states_offset,
+            ws_diff_states_offset,ws_grid_comp_offset,
+            ws_cell_comp_offset, ws_weights_layer_offset,
+            ws_weights_iter_offset, ws_diff_weights_layer_offset,
+            ws_diff_weights_iter_offset;
+        return set_offsets( false,
+                     ws_gates_offset, ws_states_offset,
+                     ws_diff_states_offset, ws_grid_comp_offset,
+                     is_lbr(), ws_cell_comp_offset,
+                     false, ws_weights_layer_offset,
+                     false, ws_weights_iter_offset,
+                     false, ws_diff_weights_layer_offset,
+                     false, ws_diff_weights_iter_offset);
     }
 
-    inline size_t get_scratchpad_size() {
-        size_t ws_gates_offset, ws_states_offset, ws_diff_states_offset,
-            ws_grid_comp_offset, ws_cell_comp_offset;
-        set_offsets(
-                ws_gates_offset, ws_states_offset, ws_diff_states_offset,
-                ws_grid_comp_offset, ws_cell_comp_offset);
-        if (desc_.prop_kind == prop_kind::forward_inference)
-            return ws_cell_comp_offset + ws_cell_comp_size();
-        else
-            return ws_cell_comp_size();
+    inline size_t get_scratchpad_size(bool use_workspace) {
+        size_t ws_gates_offset, ws_states_offset,
+            ws_diff_states_offset,ws_grid_comp_offset,
+            ws_cell_comp_offset, ws_weights_layer_offset,
+            ws_weights_iter_offset, ws_diff_weights_layer_offset,
+            ws_diff_weights_iter_offset;
+        return set_offsets(use_workspace,
+                     ws_gates_offset, ws_states_offset,
+                     ws_diff_states_offset, ws_grid_comp_offset,
+                     false, ws_cell_comp_offset,
+                     false, ws_weights_layer_offset,
+                     false, ws_weights_iter_offset,
+                     false, ws_diff_weights_layer_offset,
+                     false, ws_diff_weights_iter_offset);
     }
 
     int T() const { return desc_.src_layer_desc.dims[0]; }
