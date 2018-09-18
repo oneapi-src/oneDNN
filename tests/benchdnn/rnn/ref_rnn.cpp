@@ -256,14 +256,15 @@ void copy(int dimc, int dimr, int ld_src, int ld_dst, const float *src_,
  * fwd: ws keeps {h, c} for every cell
  * bwd: wsb keeps {dh, dc, dx} for every cell
  */
-void copy_init(alg_t alg, int sic, int slc, int dic, int wc, int batch,
+void copy_init(alg_t alg, int sic, int slc, int dic, int dlc, int wc, int batch,
         int n_layer, int n_iter, int n_states, float *ws_,
         const float *src_layer_, const float *firstit_states_,
         rnn_iter_direction_t iter_dir, rnn_layer_direction_t lay_dir,
-        int dir_val, int n_dir, bool is_bwd = false) {
+        int dir_val, int n_dir, bool is_bwd = false, bool is_concat = false) {
     AOC<float> ws(
             ws_, n_layer + 2, n_dir, n_iter + 2, n_states + is_bwd, batch, wc);
-    AOC<const float> src_layer(src_layer_, n_iter, batch, is_bwd ? dic : slc);
+    auto c_stride = is_bwd ? (is_concat ? 2 * dlc : dlc) : slc;
+    AOC<const float> src_layer(src_layer_, n_iter, batch * c_stride);
     AOC<const float> firstit_states(firstit_states_, n_layer, n_dir, n_states,
             batch, is_bwd ? dic : sic);
 
@@ -272,7 +273,7 @@ void copy_init(alg_t alg, int sic, int slc, int dic, int wc, int batch,
 
     if (!is_bwd) {
         for (int it = 0; it < n_iter; it++)
-            copy(batch, slc, slc, wc, &src_layer(it, 0, 0),
+            copy(batch, slc, slc, wc, &src_layer(it, 0),
                     &ws(lay_dest, dir_val, it + 1, H, 0, 0));
 
         for (int lay = 0; lay < n_layer; lay++) {
@@ -286,7 +287,8 @@ void copy_init(alg_t alg, int sic, int slc, int dic, int wc, int batch,
         }
     } else {
         for (int it = 0; it < n_iter; it++)
-            copy(batch, dic, dic, wc, &src_layer(it, 0, 0),
+            copy(batch, dic, c_stride, wc,
+                    &src_layer(it, dir_val * is_concat * dlc),
                     &ws(lay_dest, dir_val, it + 1, n_states, 0, 0));
 
         for (int lay = 0; lay < n_layer; lay++) {
@@ -381,7 +383,7 @@ void rnn_linear_fwd(const rnn_prb_t *p, mkldnn_rnn_direction_t direction,
         // we first need to copy the initial states and input into ws
         // it simplifies the logic in the following code
         print(80, "rnn_linear_fwd: call copy_init dir_val = %d\n", dir_val);
-        copy_init(alg, sic, slc, dic, wc, batch, n_layer, n_iter, n_states, ws_,
+        copy_init(alg, sic, slc, dic, dlc, wc, batch, n_layer, n_iter, n_states, ws_,
                 src_layer_, src_iter_, iter_dir, lay_dir, dir_val, n_dir);
 
         // We run the grid of computation
@@ -843,9 +845,9 @@ void rnn_linear_bwd(const rnn_prb_t *p, mkldnn_rnn_direction_t direction,
             rnn_layer_direction_t lay_dir, int dir_val, rnn_action_t action) {
         // we first need to copy the initial states and input into ws
         // it simplifies the logic in the following code
-        copy_init(alg, sic, slc, dic, wc, batch, n_layer, n_iter, n_states,
+        copy_init(alg, sic, slc, dic, dlc, wc, batch, n_layer, n_iter, n_states,
                 wsb_, diff_dst_layer_, diff_dst_iter_, iter_dir, lay_dir,
-                dir_val, n_dir, true);
+                dir_val, n_dir, true, direction == mkldnn_bidirectional_concat);
 
         // We run the grid of computation
         for (int j = n_layer - 1; j >= 0; j--) {
