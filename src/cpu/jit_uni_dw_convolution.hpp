@@ -222,6 +222,7 @@ using jit_avx2_dw_convolution_bwd_data_t =
 using jit_sse42_dw_convolution_bwd_data_t =
     _jit_uni_dw_convolution_bwd_data_t<sse42>;
 
+template <cpu_isa_t isa>
 struct _jit_uni_dw_convolution_bwd_weights_t: public cpu_primitive_t {
     struct pd_t: public cpu_convolution_bwd_weights_pd_t {
         pd_t(engine_t *engine,
@@ -232,8 +233,8 @@ struct _jit_uni_dw_convolution_bwd_weights_t: public cpu_primitive_t {
             , jcp_() {}
 
         DECLARE_COMMON_PD_T(
-                JIT_IMPL_NAME_HELPER("jit_dw:", avx512_common, ""),
-                _jit_uni_dw_convolution_bwd_weights_t);
+                JIT_IMPL_NAME_HELPER("jit_dw:", isa, ""),
+                _jit_uni_dw_convolution_bwd_weights_t<isa>);
 
         virtual status_t init() override {
             using namespace prop_kind;
@@ -250,7 +251,7 @@ struct _jit_uni_dw_convolution_bwd_weights_t: public cpu_primitive_t {
 
             if (!ok) return status::unimplemented;
 
-            return jit_uni_dw_conv_bwd_weights_kernel_f32::init_conf(jcp_,
+            return jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::init_conf(jcp_,
                         *this->desc(), *this->src_pd_.desc(),
                         *this->diff_weights_pd_.desc(), *this->diff_dst_pd_.desc());
         }
@@ -261,12 +262,15 @@ struct _jit_uni_dw_convolution_bwd_weights_t: public cpu_primitive_t {
         virtual status_t set_default_params() override {
 
             using namespace memory_format;
+            auto desired_act_fmt = isa == avx512_common ? nChw16c : nChw8c;
+            auto desired_wei_fmt = isa == avx512_common ? Goihw16g : Goihw8g;
+
             if (this->src_pd_.desc()->format == any)
-                CHECK(this->src_pd_.set_format(nChw16c));
+                CHECK(this->src_pd_.set_format(desired_act_fmt));
             if (this->diff_dst_pd_.desc()->format == any)
-                CHECK(this->diff_dst_pd_.set_format(nChw16c));
+                CHECK(this->diff_dst_pd_.set_format(desired_act_fmt));
             if (this->diff_weights_pd_.desc()->format == any)
-                CHECK(this->diff_weights_pd_.set_format(Goihw16g));
+                CHECK(this->diff_weights_pd_.set_format(desired_wei_fmt));
             if (this->diff_bias_pd_.desc()->format == any)
                 CHECK(this->diff_bias_pd_.set_format(x));
 
@@ -296,7 +300,7 @@ private:
     void execute_backward_weights();
 
     pd_t conf_;
-    jit_uni_dw_conv_bwd_weights_kernel_f32 *kernel_;
+    jit_uni_dw_conv_bwd_weights_kernel_f32<isa> *kernel_;
 
     data_t *ws_reduction_;
     data_t *bias_reduction_;
@@ -315,7 +319,11 @@ private:
 };
 
 using jit_avx512_common_dw_convolution_bwd_weights_t =
-    _jit_uni_dw_convolution_bwd_weights_t;
+    _jit_uni_dw_convolution_bwd_weights_t<avx512_common>;
+using jit_avx2_dw_convolution_bwd_weights_t =
+    _jit_uni_dw_convolution_bwd_weights_t<avx2>;
+using jit_sse42_dw_convolution_bwd_weights_t =
+    _jit_uni_dw_convolution_bwd_weights_t<sse42>;
 
 }
 }

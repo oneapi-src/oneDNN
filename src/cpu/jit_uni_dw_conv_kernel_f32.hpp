@@ -144,6 +144,7 @@ private:
     void generate();
 };
 
+template <cpu_isa_t isa>
 struct jit_uni_dw_conv_bwd_weights_kernel_f32 : public jit_generator {
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_dw_conv_bwd_weights_kernel_f32)
@@ -162,20 +163,27 @@ struct jit_uni_dw_conv_bwd_weights_kernel_f32 : public jit_generator {
     void (*jit_ker)(jit_dw_conv_call_s *);
 
 private:
-    using Vmm = Xbyak::Zmm;
+    //using Vmm = Xbyak::Zmm;
+    using Vmm = typename utils::conditional3<isa == sse42, Xbyak::Xmm,
+            isa == avx2, Xbyak::Ymm, Xbyak::Zmm>::type;
     using reg64_t = const Xbyak::Reg64;
     using te_size
             = unsigned char; /* set the 'table_entry' data size. For this
                                 implementation, only values > 255 are needed. */
+    const int simd_w = cpu_isa_traits<isa>::vlen / sizeof(float);
+    const int reg_repeats = (isa == sse42) ? 2 : 1;
     inline void write_table(te_size data) { db(data); }
-    const Xbyak::AddressFrame &vmmword = zword;
+    //const Xbyak::AddressFrame &vmmword = zword;
+    const Xbyak::AddressFrame &vmmword
+            = (isa == sse42) ? xword : (isa == avx2) ? yword : zword;
 
     /* XXX: offset between input and accummulators is 3, therefore, assume 'kw'
      * is no larger than 3*/
-    inline Vmm get_bias_reg() { return Vmm(0); }
+    inline Vmm get_bias_reg(int idx = 0) { return Vmm(idx); }
     inline Vmm get_output_reg(int idx) { return Vmm(idx + 1); }
-    inline Vmm get_input_reg(int idx) { return Vmm(idx + 5); }
-    inline Vmm get_acc_reg(int idx) { return Vmm(idx + 2); }
+    inline Vmm get_input_reg(int idx) { return Vmm(idx + 4 * reg_repeats + 1); }
+    inline Vmm get_acc_reg(int idx) { return Vmm(idx + 1 * reg_repeats + 1); }
+    inline Vmm get_aux_reg() { return Vmm(0); }
 
     reg64_t tmp_reg_idx_input = r8;
     reg64_t tmp_reg_kh_input = r9;

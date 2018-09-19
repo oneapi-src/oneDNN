@@ -251,14 +251,15 @@ template void _jit_uni_dw_convolution_bwd_data_t<avx2>
 template void _jit_uni_dw_convolution_bwd_data_t<sse42>
     ::execute_backward_data();
 
-_jit_uni_dw_convolution_bwd_weights_t::_jit_uni_dw_convolution_bwd_weights_t(
-        const pd_t *pd, const input_vector &inputs,
-        const output_vector &outputs)
+template <cpu_isa_t isa>
+_jit_uni_dw_convolution_bwd_weights_t<isa>::
+        _jit_uni_dw_convolution_bwd_weights_t(const pd_t *pd,
+                const input_vector &inputs, const output_vector &outputs)
     : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {
 
     const auto &jcp = conf_.jcp_;
 
-    kernel_ = new jit_uni_dw_conv_bwd_weights_kernel_f32(jcp);
+    kernel_ = new jit_uni_dw_conv_bwd_weights_kernel_f32<isa>(jcp);
 
     const int max_threads
             = (mkldnn_in_parallel()) ? 1 : mkldnn_get_max_threads();
@@ -301,8 +302,8 @@ _jit_uni_dw_convolution_bwd_weights_t::_jit_uni_dw_convolution_bwd_weights_t(
         }
     }
 }
-
-void _jit_uni_dw_convolution_bwd_weights_t::execute_backward_weights() {
+template <cpu_isa_t isa>
+void _jit_uni_dw_convolution_bwd_weights_t<isa>::execute_backward_weights() {
 
     auto src
             = (data_t *)reinterpret_cast<const data_t *>(this->input_memory(0));
@@ -318,7 +319,8 @@ void _jit_uni_dw_convolution_bwd_weights_t::execute_backward_weights() {
 
     const int oh_blk_size = jcp.oh_blk_size;
 
-    const int simd_w = jcp.ch_block;
+    //const int simd_w = jcp.ch_block;
+    const int ch_block = jcp.ch_block;
 
     auto set_kernel_params = [&](jit_dw_conv_call_s *conv_params,
             const int batch, const int group, const int oh_block,
@@ -331,15 +333,15 @@ void _jit_uni_dw_convolution_bwd_weights_t::execute_backward_weights() {
         conv_params->exec_flag = exec_flag;
 
         size_t diff_dst_off
-                = ((batch * (jcp.ngroups / simd_w) + group) * jcp.oh + oh_block)
+                = ((batch * (jcp.ngroups / ch_block) + group) * jcp.oh + oh_block)
                 * jcp.ow;
 
-        size_t src_off = ((batch * (jcp.ngroups / simd_w) + group) * jcp.ih
+        size_t src_off = ((batch * (jcp.ngroups / ch_block) + group) * jcp.ih
                               + ih_block - negative_padding_offset)
                 * jcp.iw;
 
-        conv_params->output = &diff_dst[diff_dst_off * simd_w];
-        conv_params->input = &src[src_off * simd_w];
+        conv_params->output = &diff_dst[diff_dst_off * ch_block];
+        conv_params->input = &src[src_off * ch_block];
     };
 
     parallel(nthr_, [&](const int ithr, const int nthr_) {
@@ -373,10 +375,10 @@ void _jit_uni_dw_convolution_bwd_weights_t::execute_backward_weights() {
             unsigned char zero_bias_flag = jcp.with_bias ? ~FLAG_ZERO_BIAS : 0;
 
             size_t diff_wei_off = g * jcp.kh * jcp.kw;
-            conv_params.filter = &diff_wei[diff_wei_off * simd_w];
+            conv_params.filter = &diff_wei[diff_wei_off * ch_block];
 
             if (jcp.with_bias)
-                conv_params.bias = &diff_bias[g * simd_w];
+                conv_params.bias = &diff_bias[g * ch_block];
 
             for (int mb = mb_start; mb < mb_end; ++mb) {
 
@@ -458,8 +460,8 @@ void _jit_uni_dw_convolution_bwd_weights_t::execute_backward_weights() {
                 /* Reduction on Bias */
                 if (jcp.with_bias) {
                     PRAGMA_OMP_SIMD()
-                    for (int g_block = 0; g_block < 16; ++g_block) {
-                        size_t bias_offset = g * simd_w + g_block;
+                    for (int g_block = 0; g_block < ch_block; ++g_block) {
+                        size_t bias_offset = g * ch_block + g_block;
                         diff_bias[bias_offset] += bias_reduction_[b_accum_offset
                                 + bias_offset];
                     }
@@ -470,10 +472,10 @@ void _jit_uni_dw_convolution_bwd_weights_t::execute_backward_weights() {
 
                             size_t wei_offset = (g * jcp.kh + kh) * jcp.kw + kw;
                             PRAGMA_OMP_SIMD()
-                            for (int g_block = 0; g_block < simd_w; ++g_block) {
-                                diff_weights[wei_offset * simd_w + g_block]
+                            for (int g_block = 0; g_block < ch_block; ++g_block) {
+                                diff_weights[wei_offset * ch_block + g_block]
                                         += ws_reduction_[mb_accum_offset
-                                                + wei_offset * simd_w
+                                                + wei_offset * ch_block
                                                 + g_block];
                             }
                         }
@@ -483,7 +485,24 @@ void _jit_uni_dw_convolution_bwd_weights_t::execute_backward_weights() {
         }
     }
 }
-}
-}
 
+template _jit_uni_dw_convolution_bwd_weights_t<avx512_common>::
+        _jit_uni_dw_convolution_bwd_weights_t(const pd_t *pd,
+                const input_vector &inputs, const output_vector &outputs);
+template _jit_uni_dw_convolution_bwd_weights_t<avx2>::
+        _jit_uni_dw_convolution_bwd_weights_t(const pd_t *pd,
+                const input_vector &inputs, const output_vector &outputs);
+template _jit_uni_dw_convolution_bwd_weights_t<sse42>::
+        _jit_uni_dw_convolution_bwd_weights_t(const pd_t *pd,
+                const input_vector &inputs, const output_vector &outputs);
+
+template void _jit_uni_dw_convolution_bwd_weights_t<avx512_common>::
+        execute_backward_weights();
+template void _jit_uni_dw_convolution_bwd_weights_t<avx2>::
+        execute_backward_weights();
+template void _jit_uni_dw_convolution_bwd_weights_t<sse42>::
+        execute_backward_weights();
+
+}
+}
 }

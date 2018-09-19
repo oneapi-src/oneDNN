@@ -722,37 +722,50 @@ template struct jit_uni_dw_conv_bwd_data_kernel_f32<avx512_common>;
 template struct jit_uni_dw_conv_bwd_data_kernel_f32<avx2>;
 template struct jit_uni_dw_conv_bwd_data_kernel_f32<sse42>;
 
-inline void jit_uni_dw_conv_bwd_weights_kernel_f32::zero_filter() {
-    for (int i = 0; i < jcp.kw; ++i) {
-        Vmm vmm_acc = get_acc_reg(i);
-        uni_vpxor(vmm_acc, vmm_acc, vmm_acc);
+template <cpu_isa_t isa>
+inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::zero_filter() {
+    for (int r = 0; r < reg_repeats; ++r) {
+        for (int i = 0; i < jcp.kw; ++i) {
+            Vmm vmm_acc = get_acc_reg(r * jcp.kw + i);
+            uni_vpxor(vmm_acc, vmm_acc, vmm_acc);
+        }
     }
 }
 
-inline void jit_uni_dw_conv_bwd_weights_kernel_f32::load_filter() {
-    const int simd_w = jcp.ch_block;
-    for (int i = 0; i < jcp.kw; ++i) {
-        int off_filter = i * simd_w;
-        Vmm vmm_acc = get_acc_reg(i);
+template <cpu_isa_t isa>
+inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::load_filter() {
+    for (int r = 0; r < reg_repeats; ++r) {
+        const int reg_set = r * jcp.kw;
+        for (int i = 0; i < jcp.kw; ++i) {
+            int off_filter = (reg_set + i) * simd_w;
+            Vmm vmm_acc = get_acc_reg(reg_set + i);
+            uni_vmovups(vmm_acc,
+                    vmmword[tmp_reg_filter + off_filter * sizeof(float)]);
+        }
+    }
+}
+
+template <cpu_isa_t isa>
+inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::zero_bias() {
+    for (int r = 0; r < reg_repeats; ++r) {
+        Vmm vmm_bias = get_bias_reg(r);
+        uni_vpxor(vmm_bias, vmm_bias, vmm_bias);
+    }
+}
+
+template <cpu_isa_t isa>
+inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::load_bias() {
+    for (int r = 0; r < reg_repeats; ++r) {
+        Vmm vmm_bias = get_bias_reg(r);
         uni_vmovups(
-                vmm_acc, vmmword[tmp_reg_filter + off_filter * sizeof(float)]);
+                vmm_bias, vmmword[reg_bias_baddr + r * simd_w * sizeof(float)]);
     }
 }
 
-inline void jit_uni_dw_conv_bwd_weights_kernel_f32::zero_bias() {
-    Vmm vmm_bias = get_bias_reg();
-    uni_vpxor(vmm_bias, vmm_bias, vmm_bias);
-}
-
-inline void jit_uni_dw_conv_bwd_weights_kernel_f32::load_bias() {
-    Vmm vmm_bias = get_bias_reg();
-    uni_vmovups(vmm_bias, vmmword[reg_bias_baddr]);
-}
-
-inline void jit_uni_dw_conv_bwd_weights_kernel_f32::compute_ow_step_unroll(
+template <cpu_isa_t isa>
+inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_step_unroll(
         int l_pad, int r_pad, int pad_offset, int ow_block) {
     const int pad = nstl::max(jcp.l_pad, jcp.r_pad);
-    const int simd_w = jcp.ch_block;
     const int iw_overlap = jcp.iw + jcp.kw - 1 - jcp.l_pad - jcp.r_pad;
     const int unroll_w = nstl::min(jcp.ur_w, iw_overlap);
     const int right_border = iw_overlap - ow_block;
@@ -762,71 +775,91 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32::compute_ow_step_unroll(
             = nstl::max(jcp.kw - jcp.stride_w - l_pad, 0);
 
     /* LOAD initial input registers, then cascade LOADs and FMAs*/
-    for (int i = 0; i < input_preamble_count; i++) {
-        int off_input = (i - pad_offset) * simd_w;
-        Vmm vmm_input = get_input_reg(i + l_pad);
-        uni_vmovups(
-                vmm_input, ptr[tmp_reg_idx_input + off_input * sizeof(float)]);
-    }
-
-    for (int i = 0; i < unroll_w; ++i) {
-        int off_output = i * simd_w;
-        Vmm vmm_output = get_output_reg(0);
-        uni_vmovups(vmm_output,
-                ptr[tmp_reg_idx_output + off_output * sizeof(float)]);
-
-        /* Cascade 'input' loads for the corresponding FMAs */
-        for (int c = 0; c < nstl::min(jcp.stride_w, jcp.kw); ++c) {
-            int input_load_overlap = i * jcp.stride_w + input_preamble_count;
-            int off_input = (c + input_load_overlap - pad_offset) * simd_w;
-            Vmm vmm_input
-                    = get_input_reg((c + input_load_overlap + l_pad) % jcp.kw);
+    for (int r = 0; r < reg_repeats; ++r) {
+        for (int i = 0; i < input_preamble_count; i++) {
+            int off_input = ((i - pad_offset) * reg_repeats + r) * simd_w;
+            Vmm vmm_input = get_input_reg((i + l_pad) * reg_repeats + r);
             uni_vmovups(vmm_input,
                     ptr[tmp_reg_idx_input + off_input * sizeof(float)]);
         }
 
-        for (int j = 0; j < jcp.kw; ++j) {
+        for (int i = 0; i < unroll_w; ++i) {
+            int off_output = (i * reg_repeats + r) * simd_w;
+            Vmm vmm_output = get_output_reg(r);
+            uni_vmovups(vmm_output,
+                    ptr[tmp_reg_idx_output + off_output * sizeof(float)]);
 
-            /* Don't apply FMAs that fall into the padded region */
-            if (i + j < l_pad || i + j - pad >= right_border)
-                continue;
-            Vmm vmm_input = get_input_reg((i * jcp.stride_w + j) % jcp.kw);
-            Vmm vmm_acc = get_acc_reg(j);
-            uni_vfmadd231ps(vmm_acc, vmm_input, vmm_output);
+            int input_load_overlap = i * jcp.stride_w + input_preamble_count;
+
+            /* Cascade 'input' loads for the corresponding FMAs */
+            const int cascade_input = nstl::min(jcp.stride_w, jcp.kw);
+            for (int c = 0; c < cascade_input; ++c) {
+                int off_input
+                        = ((c + input_load_overlap - pad_offset) * reg_repeats
+                                  + r)
+                        * simd_w;
+                Vmm vmm_input = get_input_reg(
+                        ((c + input_load_overlap + l_pad) % jcp.kw)
+                                * reg_repeats
+                        + r);
+                uni_vmovups(vmm_input,
+                        ptr[tmp_reg_idx_input + off_input * sizeof(float)]);
+            }
+
+            for (int j = 0; j < jcp.kw; ++j) {
+
+                /* Don't apply FMAs that fall into the padded region */
+                if (i + j < l_pad || i + j - pad >= right_border)
+                    continue;
+                Vmm vmm_input = get_input_reg(
+                        ((i * jcp.stride_w + j) % jcp.kw) * reg_repeats + r);
+                Vmm vmm_acc = get_acc_reg(j * reg_repeats + r);
+                Vmm vmm_aux = isa == sse42 ? get_aux_reg() : vmm_input;
+                if( isa == sse42 ) uni_vmovups(vmm_aux, vmm_input);
+                uni_vfmadd231ps(vmm_acc, vmm_aux, vmm_output);
+            }
         }
     }
 }
 
-inline void jit_uni_dw_conv_bwd_weights_kernel_f32::compute_bias_step_unroll(
+template <cpu_isa_t isa>
+inline void
+jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_bias_step_unroll(
         const int unroll_w) {
-
-    const int simd_w = jcp.ch_block;
-
-    for (int i = 0; i < unroll_w; ++i) {
-
-        Vmm vmm_bias = get_bias_reg();
-        int off_output = i * simd_w;
-        uni_vaddps(vmm_bias, vmm_bias,
-                vmmword[tmp_reg_idx_output + off_output * sizeof(float)]);
+    for (int r = 0; r < reg_repeats; ++r) {
+        for (int i = 0; i < unroll_w; ++i) {
+            Vmm vmm_bias = get_bias_reg(r);
+            int off_output = (i * reg_repeats + r) * simd_w;
+            uni_vaddps(vmm_bias, vmm_bias,
+                    vmmword[tmp_reg_idx_output + off_output * sizeof(float)]);
+        }
     }
 }
 
-inline void jit_uni_dw_conv_bwd_weights_kernel_f32::store_filter() {
-    const int simd_w = jcp.ch_block;
-    for (int i = 0; i < jcp.kw; ++i) {
-        int off_filter = i * simd_w;
-        Vmm vmm_acc = get_acc_reg(i);
+template <cpu_isa_t isa>
+inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::store_filter() {
+    for (int r = 0; r < reg_repeats; ++r) {
+        const int reg_set = r * jcp.kw;
+        for (int i = 0; i < jcp.kw; ++i) {
+            int off_filter = (i + reg_set) * simd_w;
+            Vmm vmm_acc = get_acc_reg(i + reg_set);
+            uni_vmovups(vmmword[tmp_reg_filter + off_filter * sizeof(float)],
+                    vmm_acc);
+        }
+    }
+}
+
+template <cpu_isa_t isa>
+inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::store_bias() {
+    for (int r = 0; r < reg_repeats; ++r) {
+        Vmm vmm_bias = get_bias_reg(r);
         uni_vmovups(
-                vmmword[tmp_reg_filter + off_filter * sizeof(float)], vmm_acc);
+                vmmword[reg_bias_baddr + r * simd_w * sizeof(float)], vmm_bias);
     }
 }
 
-inline void jit_uni_dw_conv_bwd_weights_kernel_f32::store_bias() {
-    Vmm vmm_bias = get_bias_reg();
-    uni_vmovups(vmmword[reg_bias_baddr], vmm_bias);
-}
-
-inline void jit_uni_dw_conv_bwd_weights_kernel_f32::create_h_bounds_table() {
+template <cpu_isa_t isa>
+inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::create_h_bounds_table() {
     /* Bounds are stored on an 8-bit sized element.
      * XXX: potential issues if bounds exceed 255.
      */
@@ -898,7 +931,8 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32::create_h_bounds_table() {
     }
 }
 
-inline void jit_uni_dw_conv_bwd_weights_kernel_f32::compute_bias_loop() {
+template <cpu_isa_t isa>
+inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_bias_loop() {
 
     Label oh_label;
     Label ow_blk_label;
@@ -906,7 +940,7 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32::compute_bias_loop() {
     const int oh_block_size = jcp.oh_blk_size;
     const int ow_unroll = jcp.ur_w;
     const int ow_block_count = jcp.ow / ow_unroll;
-    const int simd_w = jcp.ch_block;
+    const int ch_offset = jcp.ch_block;
 
     mov(tmp_reg_idx_output, reg_output_baddr);
 
@@ -920,7 +954,7 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32::compute_bias_loop() {
 
             compute_bias_step_unroll(ow_unroll);
 
-            add(tmp_reg_idx_output, ow_unroll * simd_w * sizeof(float));
+            add(tmp_reg_idx_output, ow_unroll * ch_offset * sizeof(float));
 
             inc(iter_ow_blk);
             cmp(iter_ow_blk, ow_block_count);
@@ -933,8 +967,10 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32::compute_bias_loop() {
     }
 }
 
-inline void jit_uni_dw_conv_bwd_weights_kernel_f32::compute_kh_loop(int l_pad,
-        int r_pad, int pad_offset, bool first_iteration, int ow_block) {
+template <cpu_isa_t isa>
+inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_kh_loop(
+        int l_pad, int r_pad, int pad_offset, bool first_iteration,
+        int ow_block) {
 
     Label kh_label;
     Label oh_label;
@@ -947,7 +983,7 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32::compute_kh_loop(int l_pad,
     const int end_bound_table_off
             = 2 * table_row_count * jcp.kh * sizeof(te_size);
 
-    const int simd_w = jcp.ch_block;
+    const int ch_offset = jcp.ch_block;
 
     const bool handle_padding = (jcp.t_pad > 0) || (jcp.b_pad > 0);
 
@@ -1005,7 +1041,7 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32::compute_kh_loop(int l_pad,
             /* skip 'oh' row that intersects with top padding */
             xor_(reg_tmp_off, reg_tmp_off);
             mov(reg_tmp_off, iter_oh);
-            imul(reg_tmp_off, reg_tmp_off, jcp.ow * simd_w * sizeof(float));
+            imul(reg_tmp_off, reg_tmp_off, jcp.ow * ch_offset * sizeof(float));
             add(tmp_reg_idx_output, reg_tmp_off);
 
             /* forward the input address by 'stride_h' */
@@ -1013,7 +1049,7 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32::compute_kh_loop(int l_pad,
                 xor_(reg_tmp_off, reg_tmp_off);
                 mov(reg_tmp_off, iter_oh);
                 imul(reg_tmp_off, reg_tmp_off,
-                        (jcp.stride_h - 1) * jcp.iw * simd_w * sizeof(float));
+                        (jcp.stride_h - 1) * jcp.iw * ch_offset * sizeof(float));
                 add(tmp_reg_idx_input, reg_tmp_off);
             }
         }
@@ -1024,8 +1060,8 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32::compute_kh_loop(int l_pad,
             compute_ow_step_unroll(l_pad, r_pad, pad_offset, ow_block);
 
             add(tmp_reg_idx_input,
-                    jcp.stride_h * jcp.iw * simd_w * sizeof(float));
-            add(tmp_reg_idx_output, jcp.ow * simd_w * sizeof(float));
+                    jcp.stride_h * jcp.iw * ch_offset * sizeof(float));
+            add(tmp_reg_idx_output, jcp.ow * ch_offset * sizeof(float));
 
             inc(iter_oh);
             if (handle_padding) {
@@ -1041,19 +1077,19 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32::compute_kh_loop(int l_pad,
 
         store_filter();
 
-        add(tmp_reg_filter, jcp.kw * simd_w * sizeof(float));
+        add(tmp_reg_filter, jcp.kw * ch_offset * sizeof(float));
 
         if (handle_padding) {
             xor_(kh_offset, kh_offset);
             mov(kh_offset_lb, byte[reg_bound_table_addr + ih_table_off]);
             /* increase 'ih' row in regards to 'kh'. */
-            imul(kh_offset, kh_offset, jcp.iw * simd_w * sizeof(float));
+            imul(kh_offset, kh_offset, jcp.iw * ch_offset * sizeof(float));
             add(tmp_reg_kh_input, kh_offset);
 
             /* increase bound_table idx for the next 'kh' value in table*/
             add(reg_bound_table_addr, sizeof(te_size));
         } else {
-            add(tmp_reg_kh_input, jcp.iw * simd_w * sizeof(float));
+            add(tmp_reg_kh_input, jcp.iw * ch_offset * sizeof(float));
         }
 
         inc(iter_kh);
@@ -1062,14 +1098,16 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32::compute_kh_loop(int l_pad,
     }
 }
 
-inline void jit_uni_dw_conv_bwd_weights_kernel_f32::compute_ow_block_unroll() {
+template <cpu_isa_t isa>
+inline void
+jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_block_unroll() {
 
     Label skip_load_bias;
 
     /* Only apply zero_filter (xor'ing accum_reg) on the left edge */
     bool zero_filter_1st_iter = true;
 
-    const int simd_w = jcp.ch_block;
+    const int ch_offset = jcp.ch_block;
 
     const int ow_block_size = jcp.ow_blk_size;
     const int iw_block_size = jcp.ow_blk_size * jcp.stride_w;
@@ -1111,8 +1149,8 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32::compute_ow_block_unroll() {
         w_unrolled_loop_count--;
 
         if (w_unrolled_loop_count >= 1) {
-            add(reg_output_baddr, ow_block_size * simd_w * sizeof(float));
-            add(reg_input_baddr, iw_block_size * simd_w * sizeof(float));
+            add(reg_output_baddr, ow_block_size * ch_offset * sizeof(float));
+            add(reg_input_baddr, iw_block_size * ch_offset * sizeof(float));
         }
     }
 
@@ -1138,8 +1176,8 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32::compute_ow_block_unroll() {
         mov(reg_exec_flag, FLAG_ZERO_FILTER);
 
         if (do_ow_blk_loop || handle_padding) {
-            add(reg_output_baddr, ow_block_size * simd_w * sizeof(float));
-            add(reg_input_baddr, iw_block_size * simd_w * sizeof(float));
+            add(reg_output_baddr, ow_block_size * ch_offset * sizeof(float));
+            add(reg_input_baddr, iw_block_size * ch_offset * sizeof(float));
         }
 
         if (do_ow_blk_loop) {
@@ -1161,7 +1199,8 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32::compute_ow_block_unroll() {
     }
 }
 
-void jit_uni_dw_conv_bwd_weights_kernel_f32::generate() {
+template <cpu_isa_t isa>
+void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::generate() {
     preamble();
 
     mov(reg_input_baddr,
@@ -1183,12 +1222,14 @@ void jit_uni_dw_conv_bwd_weights_kernel_f32::generate() {
     create_h_bounds_table();
 }
 
-status_t jit_uni_dw_conv_bwd_weights_kernel_f32::init_conf(jit_conv_conf_t &jcp,
-        const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
+template <cpu_isa_t isa>
+status_t jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::init_conf(
+        jit_conv_conf_t &jcp, const convolution_desc_t &cd,
+        const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &diff_weights_d,
         const memory_desc_wrapper &diff_dst_d) {
 
-    if (!mayiuse(avx512_common))
+    if (!mayiuse(isa))
         return status::unimplemented;
 
     jcp.ngroups = diff_weights_d.dims()[0];
@@ -1202,7 +1243,7 @@ status_t jit_uni_dw_conv_bwd_weights_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     if (!jcp.is_depthwise)
         return status::unimplemented;
 
-    const int simd_w = cpu_isa_traits<avx512_common>::vlen / sizeof(float);
+    jcp.ch_block = isa == avx512_common ? 16 : 8;
 
     jcp.mb = src_d.dims()[0];
 
@@ -1235,12 +1276,16 @@ status_t jit_uni_dw_conv_bwd_weights_kernel_f32::init_conf(jit_conv_conf_t &jcp,
 
     jcp.with_bias = cd.diff_bias_desc.format != memory_format::undef;
 
+    auto desired_act_fmt = isa == avx512_common ? nChw16c : nChw8c;
+    auto desired_wei_fmt = isa == avx512_common ? Goihw16g : Goihw8g;
+
     bool args_ok = true
-                   && src_d.format() == nChw16c
-                   && diff_weights_d.format() == Goihw16g
-                   && diff_dst_d.format() == nChw16c
+                   && src_d.format() == desired_act_fmt
+                   && diff_weights_d.format() == desired_wei_fmt
+                   && diff_dst_d.format() == desired_act_fmt
                    && one_of(cd.bias_desc.format, memory_format::undef, any, x)
-                   && jcp.ngroups % simd_w == 0
+                   //&& jcp.ngroups % simd_w == 0
+                   && jcp.ngroups % jcp.ch_block == 0
                    && jcp.dilate_h == 0
                    && jcp.dilate_w == 0
                    && jcp.kw <= 3
@@ -1255,7 +1300,6 @@ status_t jit_uni_dw_conv_bwd_weights_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     if (!ok)
         return status::unimplemented;
 
-    jcp.ch_block = simd_w;
     jcp.nb_ch = jcp.ngroups / jcp.ch_block;
 
     /* Values for block size to try; order gives priority */
@@ -1278,10 +1322,16 @@ status_t jit_uni_dw_conv_bwd_weights_kernel_f32::init_conf(jit_conv_conf_t &jcp,
         return status::unimplemented;
 
     jcp.oh_blk_size = block_size_h;
+
     jcp.ur_w = jcp.ow_blk_size = block_size_w;
 
     return status::success;
 }
+
+template struct jit_uni_dw_conv_bwd_weights_kernel_f32<avx512_common>;
+template struct jit_uni_dw_conv_bwd_weights_kernel_f32<avx2>;
+template struct jit_uni_dw_conv_bwd_weights_kernel_f32<sse42>;
+
 }
 }
 }
