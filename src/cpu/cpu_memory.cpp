@@ -38,10 +38,17 @@ using namespace mkldnn::impl::data_type;
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::memory_format;
 
+/* This and other similar structires below are workaround for bug in MSVC
+ * that doesn't allow to use constexpr function inside enable_if
+ */
+template<memory_format_t fmt> struct is_data_blocked_fmt {
+    static constexpr bool value =
+    utils::one_of(fmt, nCw8c, nCw16c, nChw8c, nChw16c, nCdhw8c, nCdhw16c);
+};
+
 template <data_type_t dt, memory_format_t fmt>
-typename utils::enable_if<false
-|| fmt == nCw8c || fmt == nCw16c || fmt == nChw8c || fmt == nChw16c
-|| fmt == nCdhw8c || fmt == nCdhw16c>::type typed_zero_pad_data(
+typename utils::enable_if<is_data_blocked_fmt<fmt>::value
+>::type typed_zero_pad_data(
     const memory_desc_wrapper &m_d, typename prec_traits<dt>::type *data) {
     constexpr int blksize = utils::one_of(fmt, nCw8c, nChw8c, nCdhw8c) ? 8 : 16;
 
@@ -62,13 +69,16 @@ typename utils::enable_if<false
     });
 }
 
+template<memory_format_t fmt> struct is_wei_O_blocked_fmt {
+    static constexpr bool value =
+    utils::one_of(fmt,
+        Oiw16o, Owi16o, Ohwi8o, Oihw16o, Ohwi16o, Oidhw16o, Odhwi16o, Odhwi8o,
+        gOiw16o, gOwi16o, gOhwi8o, gOwi8o, Owi8o, gOihw16o, gOhwi16o, gOidhw16o,
+        gOdhwi16o, gOdhwi8o);
+};
+
 template <data_type_t dt, memory_format_t fmt>
-typename utils::enable_if<false
-|| fmt == Oiw16o || fmt == Owi16o || fmt == Ohwi8o || fmt == Oihw16o
-|| fmt == Ohwi16o || fmt == Oidhw16o || fmt == Odhwi16o || fmt == Odhwi8o
-|| fmt == gOiw16o || fmt == gOwi16o || fmt == gOhwi8o || fmt == gOwi8o
-|| fmt == Owi8o || fmt == gOihw16o || fmt == gOhwi16o || fmt == gOidhw16o
-|| fmt == gOdhwi16o || fmt == gOdhwi8o
+typename utils::enable_if<is_wei_O_blocked_fmt<fmt>::value
 >::type typed_zero_pad_weights(const memory_desc_wrapper &m_d,
         typename prec_traits<dt>::type *data) {
     static constexpr int w_groups = utils::one_of(fmt, gOiw16o, gOwi16o,
@@ -102,9 +112,14 @@ typename utils::enable_if<false
     });
 }
 
+template<memory_format_t fmt> struct is_wei_I_blocked_fmt {
+    static constexpr bool value =
+    utils::one_of(fmt, oIhw8i, oIhw16i, oIdhw8i, oIdhw16i);
+};
+
 template <data_type_t dt, memory_format_t fmt>
-typename utils::enable_if<fmt == oIhw8i || fmt == oIhw16i
-    || fmt == oIdhw8i || fmt == oIdhw16i>::type
+typename utils::enable_if<is_wei_I_blocked_fmt<fmt>::value
+>::type
 typed_zero_pad_weights(const memory_desc_wrapper &m_d,
         typename prec_traits<dt>::type *data) {
     constexpr int blksize = utils::one_of(fmt, oIhw8i, oIdhw8i) ? 8 : 16;
@@ -134,22 +149,21 @@ typed_zero_pad_weights(const memory_desc_wrapper &m_d,
     });
 }
 
+template<memory_format_t fmt> struct is_wei_IO_blocked_fmt {
+    static constexpr bool value =
+    utils::one_of(fmt,
+        IOhw16o16i, gIOhw16o16i, IOw16o16i, gIOw16o16i, OIdhw16i16o,
+        OIdhw16o16i, OIhw8i8o, OIw8i8o, gOIw8i8o, OIw8o8i, gOIw8o8i, OIhw16i16o,
+        OIhw4i16o4i, OIhw8i16o2i, OIdhw8i16o2i, OIhw8o16i2o, OIhw8o8i,
+        OIhw16o16i, OIdhw8i8o, OIdhw8o8i, gOIhw8i8o, OIw8o16i2o, gOIw8o16i2o,
+        gOIhw16i16o, gOIhw4i16o4i, gOIhw8i16o2i, gOIdhw8i16o2i, gOIhw8o16i2o,
+        gOIhw8o8i, gOIhw16o16i, gOIdhw16i16o, gOIdhw16o16i, gOIdhw8i8o,
+        gOIdhw8o8i, OIw8i16o2i, gOIw8i16o2i, OIw16i16o, OIw16o16i, gOIw16i16o,
+        gOIw16o16i);
+};
+
 template <data_type_t dt, memory_format_t fmt>
-typename utils::enable_if<false
-|| fmt == IOhw16o16i || fmt == gIOhw16o16i
-|| fmt == IOw16o16i || fmt == gIOw16o16i
-|| fmt == OIdhw16i16o || fmt == OIdhw16o16i || fmt == OIhw8i8o
-|| fmt == OIw8i8o || fmt == gOIw8i8o || fmt == OIw8o8i || fmt == gOIw8o8i
-|| fmt == OIhw16i16o || fmt == OIhw4i16o4i || fmt == OIhw8i16o2i
-|| fmt == OIdhw8i16o2i || fmt == OIhw8o16i2o || fmt == OIhw8o8i
-|| fmt == OIhw16o16i || fmt == OIdhw8i8o || fmt == OIdhw8o8i
-|| fmt == gOIhw8i8o || fmt == OIw8o16i2o || fmt == gOIw8o16i2o
-|| fmt == gOIhw16i16o || fmt == gOIhw4i16o4i || fmt == gOIhw8i16o2i
-|| fmt == gOIdhw8i16o2i || fmt == gOIhw8o16i2o || fmt == gOIhw8o8i
-|| fmt == gOIhw16o16i || fmt == gOIdhw16i16o || fmt == gOIdhw16o16i
-|| fmt == gOIdhw8i8o || fmt == gOIdhw8o8i || fmt == OIw8i16o2i
-|| fmt == gOIw8i16o2i || fmt == OIw16i16o || fmt == OIw16o16i
-|| fmt == gOIw16i16o || fmt == gOIw16o16i
+typename utils::enable_if<is_wei_IO_blocked_fmt<fmt>::value
 >::type typed_zero_pad_weights(const memory_desc_wrapper &m_d,
         typename prec_traits<dt>::type *data) {
     using data_t = typename prec_traits<dt>::type;
@@ -230,8 +244,12 @@ typename utils::enable_if<false
     }
 }
 
+template<memory_format_t fmt> struct is_wei_G_blocked_fmt {
+    static constexpr bool value = utils::one_of(fmt, Goihw8g, Goihw16g);
+};
+
 template <data_type_t dt, memory_format_t fmt>
-typename utils::enable_if<fmt == Goihw8g || fmt == Goihw16g>::type
+typename utils::enable_if<is_wei_G_blocked_fmt<fmt>::value>::type
 typed_zero_pad_weights(const memory_desc_wrapper &m_d,
         typename prec_traits<dt>::type *data) {
     constexpr int blksize = fmt == Goihw8g ? 8 : 16;

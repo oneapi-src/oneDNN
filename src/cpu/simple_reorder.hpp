@@ -1604,11 +1604,18 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     }
 };
 
+/* This and other similar structires below are workaround for bug in MSVC
+ * that doesn't allow to use constexpr function inside enable_if
+ */
+template<memory_format_t fmt> struct is_data_blocked_fmt {
+    static constexpr bool value =
+    utils::one_of(fmt, nCw8c, nCw16c, nChw8c, nChw16c, nCdhw16c);
+};
+
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     typename utils::enable_if<
-        fmt_i == any && (fmt_o == nCw8c || fmt_o == nCw16c || fmt_o == nChw8c
-        || fmt_o == nChw16c || fmt_o == nCdhw16c)
+        fmt_i == any && is_data_blocked_fmt<fmt_o>::value
     >::type>
 {
     static bool is_applicable(const memory_desc_wrapper &input_d,
@@ -1698,19 +1705,18 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     }
 };
 
+template<memory_format_t fmt> struct is_wei_IO_blocked_fmt {
+    static constexpr bool value =
+    utils::one_of(fmt,
+        OIw16o16i, gOIw16o16i, OIw16i16o, gOIw16i16o, IOw16o16i, gIOw16o16i,
+        OIhw16i16o, gOIhw16i16o, OIdhw16i16o, gOIdhw16i16o, OIhw16o16i,
+        gOIhw16o16i, OIdhw16o16i, gOIdhw16o16i, IOhw16o16i, gIOhw16o16i);
+};
+
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
-    typename utils::enable_if<fmt_i == any &&
-    (false
-     || fmt_o == OIw16o16i || fmt_o == gOIw16o16i
-     || fmt_o == OIw16i16o || fmt_o == gOIw16i16o
-     || fmt_o == IOw16o16i || fmt_o == gIOw16o16i
-     || fmt_o == OIhw16i16o || fmt_o == gOIhw16i16o
-     || fmt_o == OIdhw16i16o || fmt_o == gOIdhw16i16o
-     || fmt_o == OIhw16o16i || fmt_o == gOIhw16o16i
-     || fmt_o == OIdhw16o16i || fmt_o == gOIdhw16o16i
-     || fmt_o == IOhw16o16i || fmt_o == gIOhw16o16i
-     )>::type>
+    typename utils::enable_if<fmt_i == any && is_wei_IO_blocked_fmt<fmt_o
+    >::value>::type>
 {
     static bool is_applicable(const memory_desc_wrapper &input_d,
         const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
@@ -1810,17 +1816,17 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     }
 };
 
+template<memory_format_t fmt> struct is_wei_O_blocked_fmt {
+    static constexpr bool value =
+    utils::one_of(fmt,
+        Oiw16o, Owi16o, Oihw16o, Ohwi16o, Oidhw16o, Odhwi16o, gOiw16o,
+        gOwi16o, gOihw16o, gOhwi16o, gOidhw16o, gOdhwi16o);
+};
+
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
-    typename utils::enable_if<fmt_i == any &&
-    (false
-     || fmt_o == Oiw16o || fmt_o == Owi16o
-     || fmt_o == Oihw16o || fmt_o == Ohwi16o
-     || fmt_o == Oidhw16o || fmt_o == Odhwi16o
-     || fmt_o == gOiw16o || fmt_o == gOwi16o
-     || fmt_o == gOihw16o || fmt_o == gOhwi16o
-     || fmt_o == gOidhw16o || fmt_o == gOdhwi16o
-     )>::type>
+    typename utils::enable_if<fmt_i == any && is_wei_O_blocked_fmt<fmt_o
+    >::value>::type>
 {
     static bool is_applicable(const memory_desc_wrapper &input_d,
         const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
