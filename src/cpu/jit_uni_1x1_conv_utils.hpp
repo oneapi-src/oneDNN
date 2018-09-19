@@ -166,6 +166,8 @@ struct rtus_driver_t: public jit_generator {
 
         cmp(reg_cur_iw, iw_);
         jl(skip_h_step);
+        /* for 1d convolution the loop over h should be skipped */
+        if (src_step_icb_ == iw_) jmp(skip_h_step);
 
         if (src_to_ws_) {
             add(reg_cur_src, (src_step_h_ - iw_) * vlen_);
