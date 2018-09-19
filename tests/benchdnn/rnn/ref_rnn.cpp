@@ -585,11 +585,11 @@ void gru_bwd(alg_t alg, activation_t f, int sic, int slc, int dic, int wc,
     AOC<const float> diff_dst_layer(diff_dst_layer_, batch, wc);
     AOC<const float> diff_dst_iter_h(diff_dst_iter_h_, batch, wc);
     AOC<const float> gates(gates_, batch, n_gates, dic);
-    AOC<const float> weights_layer(weights_layer_, dic, n_gates, slc);
-    AOC<const float> weights_iter_h(weights_iter_h_, dic, n_gates, sic);
+    AOC<const float> weights_layer(weights_layer_, slc, n_gates, dic);
+    AOC<const float> weights_iter_h(weights_iter_h_, sic, n_gates, dic);
 
     AOC<float> diff_src_iter(diff_src_iter_, batch, wc);
-    AOC<float> diff_weights_iter_h(diff_weights_iter_h_, dic, n_gates, sic);
+    AOC<float> diff_weights_iter_h(diff_weights_iter_h_, sic, n_gates, dic);
     AOC<float> b_gates(b_gates_, batch, n_gates, dic);
 
     float *dhr_ = ws_local_;
@@ -666,8 +666,8 @@ void gru_lbr_bwd(alg_t alg, activation_t f, int sic, int slc, int dic, int wc,
     AOC<const float> diff_dst_layer(diff_dst_layer_, batch, wc);
     AOC<const float> diff_dst_iter_h(diff_dst_iter_h_, batch, wc);
     AOC<const float> gates(gates_, batch, n_gates, dic);
-    AOC<const float> weights_layer(weights_layer_, dic, n_gates, slc);
-    AOC<const float> weights_iter_h(weights_iter_h_, dic, n_gates, sic);
+    AOC<const float> weights_layer(weights_layer_, slc, n_gates, dic);
+    AOC<const float> weights_iter_h(weights_iter_h_, sic, n_gates, dic);
     AOC<const float> bias(bias_, n_gates + 1, dic);
 
     AOC<float> diff_src_iter(diff_src_iter_, batch, wc);
@@ -684,7 +684,7 @@ void gru_lbr_bwd(alg_t alg, activation_t f, int sic, int slc, int dic, int wc,
             Wh_b(ib, ih) = bias(3, ih);
 
     gemm("C", "N", "N", batch, dic, sic, 1.0, src_iter_, wc,
-            &weights_iter_h(0, 2, 0), dic, 1.0, Wh_b_, dic);
+            &weights_iter_h(0, 2, 0), n_gates * dic, 1.0, Wh_b_, dic);
 
 
 // dc = (1 - u) * dh; dc^ = dtanhf(c) * dc;
