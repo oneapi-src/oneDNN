@@ -57,12 +57,17 @@ struct rnn_pd_t : public primitive_desc_t {
                 prop_kind::backward);
     }
 
+    inline bool is_fwd() const {
+        return utils::one_of(desc_.prop_kind, prop_kind::forward_training,
+                prop_kind::forward_inference);
+    }
+
     inline size_t ws_states_size() {
-        return (size_t)(L() + 1) * D() * (T() + 1) * S() * MB() * WIC();
+        return (size_t)(L() + 1) * D() * (T() + 1) * S() * MB() * S_GLD();
     }
 
     inline size_t ws_diff_states_size() {
-        return (size_t)(L() + 1) * D() * (T() + 1) * (S() + 1) * MB() * WIC();
+        return (size_t)(L() + 1) * D() * (T() + 1) * (S() + 1) * MB() * S_GLD();
     }
 
     inline size_t ws_gates_size() {
@@ -132,22 +137,88 @@ struct rnn_pd_t : public primitive_desc_t {
 
     int DLC() const { return desc_.dst_layer_desc.dims[2]; }
 
+    int get_good_ld(int dim){
+        // we want matrices leading dimentions to be 64-byte aligned,
+        // and not divisible by 256 to avoid 4K aliasing effects
+        int ld = utils::rnd_up(dim, 64/sizeof(float));
+        return (ld % 256 == 0) ? ld + 64/sizeof(float) : ld;
+    }
+
     int WIC() {
-        // wic will be the leading dimension of our B matrices, so we want them
-        // to be 64-byte aligned, and not divisible by 256 to avoid 4K aliasing
-        // effects
-        size_t wic = utils::rnd_up(nstl::max(SLC(), nstl::max(SIC(), DIC())), 64/sizeof(float));
-	wic = (wic % 256 == 0) ? wic + 64/sizeof(float) : wic;
-	return wic;
+        // wic will be the leading dimension of our B matrices
+        return get_good_ld(nstl::max(SLC(), nstl::max(SIC(), DIC())));
     }
 
     int GC() {
-        // gc will be the leading dimension of our C matrices, so we want them
-        // to be 64-byte aligned, and not divisible by 256 to limit 4K aliasing
-        // effects
-        size_t gc = utils::rnd_up(G() * DIC(), 64/sizeof(float));
-        gc = (gc % 256 == 0) ? gc + 64/sizeof(float) : gc;
-        return gc;
+        // gc will be the leading dimension of our C matrices
+        return get_good_ld(G() * DIC());
+    }
+
+    /* replacement functions for meaningless WIC and GC:
+       - LD stands for leading dimension
+       - GLD stands for good leading dimension
+       - NLD stands for not leading dimension (so the other dim)
+    */
+    int G_GLD() {
+        // good leading dimension for the gates
+        // C matrices for fwd, B matrices for bwd
+        return get_good_ld(G() * DIC());
+    }
+
+    int S_GLD() {
+        // good leading dimension for the states
+        // B matrices for fwd, B matrices for bwd_w, C matrices for bwd_d
+        return get_good_ld(nstl::max(SLC(), nstl::max(SIC(), DIC())));
+    }
+
+    int W_GLD() {
+        // good leading dimension for the weights
+        return is_fwd() ? G_GLD() : S_GLD();
+    }
+
+    int DW_GLD() {
+        // good leading dimension for the diff weights
+        return G_GLD();
+    }
+
+    int get_weights_ld(int feature_dim) {
+        return is_fwd() ? G() * DIC() : feature_dim;
+    }
+
+    int get_weights_nld(int feature_dim) {
+        return !(is_fwd()) ? G() * DIC() : feature_dim;
+    }
+
+    int WL_LD() {
+        return get_weights_ld(SLC());
+    }
+
+    int WI_LD() {
+        return get_weights_ld(SIC());
+    }
+
+    int DWL_LD() {
+        return G() * DIC();
+    }
+
+    int DWI_LD() {
+        return G() * DIC();
+    }
+
+    int WL_NLD() {
+        return get_weights_nld(SLC());
+    }
+
+    int WI_NLD() {
+        return get_weights_nld(SIC());
+    }
+
+    int DWL_NLD() {
+        return SLC();
+    }
+
+    int DWI_NLD() {
+        return SIC();
     }
 
     int S() const { return mkldnn_rnn_cell_get_states_count(&desc_.cell_desc); }
