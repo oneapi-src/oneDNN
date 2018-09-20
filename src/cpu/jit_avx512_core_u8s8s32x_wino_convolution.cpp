@@ -861,16 +861,15 @@ _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu, dst_data_type>::
     dst_trans_ = new jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t(
             conf_.jcp_, *conf_.attr());
 
-    int wino_size_offset
-            = (conf_.jcp_.yb / 2) * (conf_.jcp_.xb / 2) + (conf_.jcp_.xb);
+    int wino_size_offset = (conf_.jcp_.yb / 2) * (conf_.jcp_.xb / 2);
     size_wino_wei = conf_.jcp_.alpha * conf_.jcp_.alpha * conf_.jcp_.oc
                         * conf_.jcp_.ic;
     size_wino_src = (conf_.jcp_.ic * 16) * (wino_size_offset);
     size_wino_dst = (conf_.jcp_.oc * 16) * (wino_size_offset);
 
-    size_t workspace_size = nthreads
-                    * (sizeof(src_data_t) * size_wino_src
-                     + sizeof(acc_data_t) * size_wino_dst);
+    size_t workspace_size = (conf_.jcp_.small_mb ? 1 : nthreads)
+            * (sizeof(src_data_t) * size_wino_src
+                                    + sizeof(acc_data_t) * size_wino_dst);
 
     workspace = malloc(workspace_size, 4096);
     char *_t = static_cast<char *>(workspace);
@@ -878,7 +877,8 @@ _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu, dst_data_type>::
     size_t shift = 0;
     wino_src_ = (src_data_t *)(_t + shift);
 
-    shift += nthreads * sizeof(src_data_t) * size_wino_src;
+    shift += (conf_.jcp_.small_mb ? 1 : nthreads) * sizeof(src_data_t)
+            * size_wino_src;
     wino_dst_ = (acc_data_t *)(_t + shift);
 
     updated_output_scales_ = conf_.attr()->output_scales_;
