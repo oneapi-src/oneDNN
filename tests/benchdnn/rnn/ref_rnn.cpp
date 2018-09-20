@@ -218,7 +218,7 @@ void rnn_cell_fwd(alg_t alg, activation_t f, int sic, int slc, int dic, int wc,
         gru_fwd(sic, slc, dic, wc, batch, n_gates, dst_iter_h, gates,
                 weights_layer, weights_iter, bias, src_layer, src_iter_h);
         break;
-    case GRU_LINEAR_BEFORE_RESET:
+    case LBR_GRU:
         gru_lbr_fwd(sic, slc, dic, wc, batch, n_gates, dst_iter_h, gates,
                 weights_layer, weights_iter, bias, src_layer, src_iter_h,
                 ws_local_);
@@ -349,13 +349,13 @@ void rnn_linear_fwd(const rnn_prb_t *p, mkldnn_rnn_direction_t direction,
         const float *bias_, float *dst_iter_, float *dst_layer_, float *ws_,
         float *gates_) {
 
-    const alg_t alg = p->alg;
+    const alg_t alg = p->alg_;
     const int sic = p->sic;
     const int slc = p->slc;
     const int dic = p->dic;
     const int dlc = p->dlc;
     const int wc = max(sic, max(slc, dic));
-    bool is_lbr = p->alg == GRU_LINEAR_BEFORE_RESET;
+    bool is_lbr = p->alg_ == LBR_GRU;
 
     const int batch = p->mb;
     const int n_gates = p->n_gates;
@@ -363,7 +363,7 @@ void rnn_linear_fwd(const rnn_prb_t *p, mkldnn_rnn_direction_t direction,
     const int n_layer = p->n_layer;
     const int n_iter = p->n_iter;
     const int n_dir = p->n_direction;
-    activation_t f = p->activation;
+    activation_t f = p->activation_;
 
     AOC<const float> bias(bias_, n_layer, n_dir, (n_gates + is_lbr) * dic);
     AOC<const float> weights_layer(
@@ -767,7 +767,7 @@ void rnn_cell_bwd(alg_t alg, activation_t f, int sic, int slc, int dic, int wc,
                 weights_iter, bias, dst_iter_h, gates, diff_dst_layer,
                 diff_dst_iter_h, ws_local_);
         break;
-    case GRU_LINEAR_BEFORE_RESET:
+    case LBR_GRU:
         gru_lbr_bwd(alg, f, sic, slc, dic, wc, batch, n_gates, diff_src_layer,
                 diff_src_iter_h, diff_weights_layer, diff_weights_iter,
                 diff_bias, b_gates, src_layer, src_iter_h, weights_layer,
@@ -784,13 +784,13 @@ void rnn_linear_bwd(const rnn_prb_t *p, mkldnn_rnn_direction_t direction,
         float *diff_weights_layer_, float *diff_weights_iter_h_,
         float *diff_bias_, float *ws_, const float *gates_) {
 
-    const alg_t alg = p->alg;
+    const alg_t alg = p->alg_;
     const int sic = p->sic;
     const int slc = p->slc;
     const int dic = p->dic;
     const int dlc = p->dlc;
     const int wc = max(sic, max(slc, dic));
-    bool is_lbr = p->alg == GRU_LINEAR_BEFORE_RESET;
+    bool is_lbr = p->alg_ == LBR_GRU;
 
     const int batch = p->mb;
     const int n_gates = p->n_gates;
@@ -798,7 +798,7 @@ void rnn_linear_bwd(const rnn_prb_t *p, mkldnn_rnn_direction_t direction,
     const int n_layer = p->n_layer;
     const int n_iter = p->n_iter;
     const int n_dir = p->n_direction;
-    activation_t f = p->activation;
+    activation_t f = p->activation_;
 
     const int X = n_states;
 
@@ -828,8 +828,8 @@ void rnn_linear_bwd(const rnn_prb_t *p, mkldnn_rnn_direction_t direction,
             wsb_, n_layer + 2, n_dir, n_iter + 2, n_states + 1, batch, wc);
 
     int ws_local_size;
-    switch (p->alg) {
-        case GRU_LINEAR_BEFORE_RESET:
+    switch (p->alg_) {
+        case LBR_GRU:
             ws_local_size = batch * (n_gates + 1) * dic;
             break;
         case VANILLA_GRU:

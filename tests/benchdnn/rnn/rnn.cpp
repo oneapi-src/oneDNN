@@ -68,8 +68,7 @@ inline int init_pd(const rnn_prb_t *p, mkldnn_rnn_desc_t rd[2],
     // If we are testing backward, we have to first run forward
     // training first in order to generate a valid workspace.
     auto fwd_prop = is_bwd ? mkldnn_forward_training : mkldnn_forward_inference;
-
-    const bool is_gru_lbr = p->alg == GRU_LINEAR_BEFORE_RESET;
+    const bool is_gru_lbr = p->alg_ == LBR_GRU;
     int the_stride = 1;
     /// @todo we need to add stride support for diff_* tensors too
     mkldnn_memory_desc_t input_d, states_d, weights_input_d, weights_states_d,
@@ -87,7 +86,7 @@ inline int init_pd(const rnn_prb_t *p, mkldnn_rnn_desc_t rd[2],
     mkldnn_dims_t bias_dims
             = { p->n_layer, p->n_direction, p->n_gates + is_gru_lbr, p->dic };
     // mkldnn_tnc
-    int lastlay_dlc = (p->direction == mkldnn_bidirectional_concat) ?
+    int lastlay_dlc = (p->direction_ == mkldnn_bidirectional_concat) ?
             2 * p->dlc :
             p->dlc;
     mkldnn_dims_t dst_last_layer_dims = { p->n_iter, p->mb, lastlay_dlc };
@@ -169,8 +168,8 @@ inline int init_pd(const rnn_prb_t *p, mkldnn_rnn_desc_t rd[2],
                      dst_last_iteration_dims, p->cfg_[SRC].dt, mkldnn_any),
             WARN);
 
-    mkldnn_alg_kind_t kind = alg2kind(p->alg);
-    mkldnn_alg_kind_t f = activation2kind(p->activation);
+    mkldnn_alg_kind_t kind = alg2kind(p->alg_);
+    mkldnn_alg_kind_t f = activation2kind(p->activation_);
 
     mkldnn_rnn_cell_desc_t rcd;
     DNN_SAFE(mkldnn_rnn_cell_desc_init(&rcd, kind, f, 0U, 0, 0), WARN);
@@ -179,7 +178,7 @@ inline int init_pd(const rnn_prb_t *p, mkldnn_rnn_desc_t rd[2],
     // When training, we use forward_training
     {
         DNN_SAFE(mkldnn_rnn_forward_desc_init(&rd[0], fwd_prop, &rcd,
-                         p->direction, &input_d, &states_d, &weights_input_d,
+                         p->direction_, &input_d, &states_d, &weights_input_d,
                          &weights_states_d, &bias_d, &dst_last_layer_d,
                          &dst_last_iteration_d),
                 WARN);
@@ -187,7 +186,7 @@ inline int init_pd(const rnn_prb_t *p, mkldnn_rnn_desc_t rd[2],
 
     if (is_bwd) {
         DNN_SAFE(mkldnn_rnn_backward_desc_init(&rd[1], p->prop_, &rcd,
-                         p->direction, &input_d, &states_d, &weights_input_d,
+                         p->direction_, &input_d, &states_d, &weights_input_d,
                          &weights_states_d, &bias_d, &dst_last_layer_d,
                          &dst_last_iteration_d, &diff_input_d, &diff_states_d,
                          &diff_weights_input_d, &diff_weights_states_d,
@@ -240,9 +239,9 @@ int doit(const rnn_prb_t *p, res_t *r) {
 
     const auto fp = mkldnn_f32;
 
-    if (p->alg != VANILLA_LSTM && p->alg != VANILLA_RNN
-        && p->alg != VANILLA_GRU && p->alg != GRU_LINEAR_BEFORE_RESET) {
-        printf("p->alg: %d\n", (int)p->alg);
+    if (p->alg_ != VANILLA_LSTM && p->alg_ != VANILLA_RNN
+        && p->alg_ != VANILLA_GRU && p->alg_ != LBR_GRU) {
+        printf("p->alg_: %d\n", (int)p->alg_);
         r->state = UNIMPLEMENTED;
         return OK;
     }
@@ -404,7 +403,7 @@ int doit(const rnn_prb_t *p, res_t *r) {
         if ((p->prop_ == mkldnn_forward) && (bench_mode & CORR)) {
             compute_ref_fwd(p, *input_fp, *states_fp, *weights_input_fp,
                     *weights_states_fp, *bias_fp, *dst_last_layer_fp,
-                    *dst_last_iteration_fp, p->direction);
+                    *dst_last_iteration_fp, p->direction_);
             dnn_mem_t dst_last_layer(*dst_last_layer_dt, fp, mkldnn_tnc);
             dnn_mem_t dst_last_iteration(
                     *dst_last_iteration_dt, fp, mkldnn_ldsnc);
@@ -443,7 +442,7 @@ int doit(const rnn_prb_t *p, res_t *r) {
                     *dst_last_iteration_fp, *dst_diff_input_fp,
                     *dst_diff_states_fp, *dst_diff_weights_input_fp,
                     *dst_diff_weights_states_fp, *dst_diff_bias_fp,
-                    p->direction);
+                    p->direction_);
 
             dnn_mem_t dst_last_layer(*dst_last_layer_dt, fp, mkldnn_tnc);
             dnn_mem_t dst_last_iteration(

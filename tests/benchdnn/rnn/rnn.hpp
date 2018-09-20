@@ -29,7 +29,7 @@
 
 namespace rnn {
 
-enum alg_t { VANILLA_RNN, VANILLA_LSTM, VANILLA_GRU, GRU_LINEAR_BEFORE_RESET };
+enum alg_t { VANILLA_RNN, VANILLA_LSTM, VANILLA_GRU, LBR_GRU };
 alg_t str2alg(const char *str);
 const char *alg2str(alg_t alg);
 mkldnn_alg_kind_t alg2kind(alg_t alg);
@@ -38,6 +38,9 @@ enum activation_t { RELU, LOGISTIC, TANH };
 activation_t str2activation(const char *str);
 const char *activation2str(activation_t alg);
 mkldnn_alg_kind_t activation2kind(activation_t alg);
+
+mkldnn_rnn_direction_t str2direction(const char *str);
+const char *direction2str(mkldnn_rnn_direction_t direction);
 
 const int H = 0;
 const int C = 1;
@@ -84,9 +87,6 @@ private:
 };
 
 struct rnn_desc_t {
-    alg_t alg;
-    activation_t activation;
-    mkldnn_rnn_direction_t direction;
     int sic;
     int slc;
     int dic;
@@ -96,6 +96,7 @@ struct rnn_desc_t {
     int n_iter;
     const char *name;
 };
+int str2desc(rnn_desc_t *desc, const char *str);
 
 enum rnn_data_kind_t {
     input,
@@ -158,8 +159,10 @@ extern const _dt_conf_t conf_f32;
 
 struct rnn_prb_t : public rnn_desc_t {
     rnn_prb_t(const rnn_desc_t desc, const dt_conf_t *cfg,
-            mkldnn_prop_kind_t prop)
-        : rnn_desc_t(desc), cfg_(cfg), prop_(prop) {
+            mkldnn_prop_kind_t prop, alg_t alg,
+            mkldnn_rnn_direction_t direction, activation_t activation)
+        : rnn_desc_t(desc), cfg_(cfg), prop_(prop), alg_(alg),
+        direction_(direction), activation_(activation){
         switch (alg) {
         case VANILLA_LSTM:
             n_weights = 1;
@@ -171,7 +174,7 @@ struct rnn_prb_t : public rnn_desc_t {
             n_states = 1;
             n_gates = 3;
             break;
-        case GRU_LINEAR_BEFORE_RESET:
+        case LBR_GRU:
             n_weights = 1;
             n_states = 1;
             n_gates = 3;
@@ -193,6 +196,9 @@ struct rnn_prb_t : public rnn_desc_t {
 
     const dt_conf_t *cfg_;
     mkldnn_prop_kind_t prop_;
+    alg_t alg_;
+    mkldnn_rnn_direction_t direction_;
+    activation_t activation_;
     int n_direction; // 1 for unidirectional, 2 for bidirectional
 
     int n_weights, n_states, n_gates;
@@ -347,8 +353,8 @@ inline void inv_tnc_off_f(
 void perf_report(const rnn_prb_t *p, const res_t *r, const char *pstr);
 
 int doit(const rnn_prb_t *p, res_t *res);
-void check(const rnn_prb_t *p);
-int bench(int argc, char **argv);
+void check(rnn_desc_t *p);
+int bench(int argc, char **argv, bool main_bench = true);
 } // namespace rnn
 
 #endif
