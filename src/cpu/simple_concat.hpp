@@ -62,7 +62,8 @@ struct simple_concat_t: public cpu_primitive_t {
                             o_d.data_type())
                     && i_d.format() == o_d.format()
                     && !utils::one_of(i_d.format(), memory_format::blocked,
-                        memory_format::wino_fmt);
+                        memory_format::wino_fmt)
+                    && !i_d.is_additional_buffer();
             }
 
             if (!ok)
