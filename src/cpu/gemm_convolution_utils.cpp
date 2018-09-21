@@ -323,34 +323,35 @@ void init_conf(
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
     jcp.prop_kind = cd.prop_kind;
     const int ndims = src_d.ndims();
+    const int is_1d = ndims == 3;
+    const int is_3d = ndims == 5;
 
     jcp.ngroups = with_groups ? weights_d.dims()[0] : 1;
     jcp.mb = src_d.dims()[0];
 
     jcp.oc = dst_d.dims()[1] / jcp.ngroups;
     jcp.ic = src_d.dims()[1] / jcp.ngroups;
-
-    jcp.id = (ndims == 4) ? 1 : src_d.dims()[2];
-    jcp.ih = src_d.dims()[ndims - 2];
+    jcp.id = is_3d ? src_d.dims()[2] : 1;
+    jcp.ih = is_1d ? 1 : src_d.dims()[ndims - 2];
     jcp.iw = src_d.dims()[ndims - 1];
-    jcp.od = (ndims == 4) ? 1 : dst_d.dims()[2];
-    jcp.oh = dst_d.dims()[ndims - 2];
+    jcp.od = is_3d ? dst_d.dims()[2] : 1;
+    jcp.oh = is_1d ? 1 : dst_d.dims()[ndims - 2];
     jcp.ow = dst_d.dims()[ndims - 1];
 
-    jcp.kd = (ndims == 4) ? 1 : weights_d.dims()[with_groups + 2];
-    jcp.kh = weights_d.dims()[with_groups + ndims - 2];
+    jcp.kd = is_3d ? weights_d.dims()[with_groups + 2] : 1;
+    jcp.kh = is_1d ? 1 : weights_d.dims()[with_groups + ndims - 2];
     jcp.kw = weights_d.dims()[with_groups + ndims - 1];
 
-    jcp.f_pad = (ndims == 4) ? 0 : cd.padding[0][0];
-    jcp.t_pad = cd.padding[0][ndims - 4];
+    jcp.f_pad = is_3d ? cd.padding[0][0] : 0;
+    jcp.t_pad = is_1d ? 0 : cd.padding[0][ndims - 4];
     jcp.l_pad = cd.padding[0][ndims - 3];
 
-    jcp.stride_d = (ndims == 4) ? 1 : cd.strides[0];
-    jcp.stride_h = cd.strides[ndims - 4];
+    jcp.stride_d = is_3d ? 1 : cd.strides[0];
+    jcp.stride_h = is_1d ? 1 : cd.strides[ndims - 4];
     jcp.stride_w = cd.strides[ndims - 3];
 
-    jcp.dilate_d = (ndims == 4) ? 0 : cd.dilates[0];
-    jcp.dilate_h = cd.dilates[ndims - 4];
+    jcp.dilate_d = is_3d ? cd.dilates[0] : 0;
+    jcp.dilate_h = is_1d ? 0 : cd.dilates[ndims - 4];
     jcp.dilate_w = cd.dilates[ndims - 3];
 
     jcp.src_fmt = src_d.format();

@@ -27,3 +27,8 @@ mb1ic32iw121oc32kw6pw3sw1n"conv1d:18"
 mb1ic512iw32oc512kw5pw1sw1n"conv1d:19"
 mb1ic512iw100oc512kw2pw2sw1n"conv1d:20"
 mb1ic512iw121oc512kw6pw3sw1n"conv1d:21"
+
+ic8oc8_iw5ow2kw3sw1dw2pw3n"conv1d_gemm:1"
+ic32oc8_iw8ow2kw3sw1dw2pw0n"conv1d_gemm:2"
+ic512oc1024_iw19ow19kw3sw1dw5pw6n"conv1d_gemm:3"
+ic256oc512_iw15ow15kw3sw1dw5pw6n"conv1d_gemm:4"
