@@ -22,6 +22,10 @@ endif()
 append(CMAKE_C_FLAGS "${CMAKE_EXAMPLE_CCXX_FLAGS}")
 append(CMAKE_CXX_FLAGS "${CMAKE_EXAMPLE_CCXX_FLAGS}")
 
+# propagate sanitizer flags
+append(CMAKE_C_FLAGS "${CMAKE_CCXX_SANITIZER_FLAGS}")
+append(CMAKE_CXX_FLAGS "${CMAKE_CCXX_SANITIZER_FLAGS}")
+
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
 set_if(UNIX LIBM m)

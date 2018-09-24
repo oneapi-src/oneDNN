@@ -31,6 +31,10 @@ set(CMAKE_TEST_CCXX_NOWARN_FLAGS)
 # propagate no warning flags
 append(CMAKE_TEST_CCXX_NOWARN_FLAGS "${CMAKE_CCXX_NOWARN_FLAGS}")
 
+# propagate sanitizer flags
+append(CMAKE_C_FLAGS "${CMAKE_CCXX_SANITIZER_FLAGS}")
+append(CMAKE_CXX_FLAGS "${CMAKE_CCXX_SANITIZER_FLAGS}")
+
 # allow tests to include internal header files with, e.g.
 # include "src/common/mkldnn_thread.hpp"
 include_directories(${CMAKE_SOURCE_DIR})

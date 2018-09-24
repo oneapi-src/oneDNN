@@ -128,6 +128,15 @@ set(VTUNEROOT "" CACHE STRING
 # Miscellaneous
 # =============
 
+set(MKLDNN_USE_CLANG_SANITIZER "" CACHE STRING
+    "instructs build system to use a Clang sanitizer. Possible values:
+    Address: enables MemorySanitizer
+    Memory: enables MemorySanitizer
+    MemoryWithOrigin: enables MemorySanitizer with origin tracking
+    Undefined: enables UndefinedBehaviourSanitizer
+    This feature is experimental and is only available on Linux.")
+
+
 option(BENCHDNN_USE_RDPMC
     "enables rdpms counter to report precise cpu frequency in benchdnn.
      CAUTION: may not work on all cpus (hence disabled by default)"
