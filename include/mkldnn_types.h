@@ -84,13 +84,39 @@ typedef enum {
 
 /** Memory format specification.
  *
- * Intel(R) MKL-DNN uses the following notation for memory format names:
+ * Intel MKL-DNN formats describe physical data layout. The physical layout
+ * is described as a sequence of the dimensions as they are laid out in the
+ * memory (from the outer-most to the inner-most). Note that this order
+ * doesn't affect the logical order of the dimensions that is kept in the
+ * `dims` field of mkldnn_memory_desc_t structure. The logical order of the
+ * dimensions is specified by the type of tensor.
+ *
+ * For example, CNN 5D tensor always has its logical dimensions in order
+ * `(batch, channels, depth, height, width)`, while physical layout might
+ * be #mkldnn_ncdhw or #mkldnn_ndhwc:
+ *
+ * ~~~cpp
+ * int batch = 2, channels = 16, depth = 13, height = 13, width = 13;
+ *
+ * int ndims = 5; // 5D tensor
+ * mkldnn_dims_t dims = {batch, channels, depth, height, width};
+ *
+ * mkldnn_memory_desc_t data_in_ncdhw;
+ * mkldnn_memory_desc_init(&data_in_ncdhw, 5, dims, mlkdnn_ncdhw);
+ *
+ * // note that in both cases dims passed are the same
+ * mkldnn_memory_desc_t data_in_ndhwc;
+ * mkldnn_memory_desc_init(&data_in_ndhwc, 5, dims, mlkdnn_ndhwc);
+ * ~~~
+ *
+ * The following notation for memory format names:
  *  - @c 'n' denotes the mini-batch dimension
  *  - @c 'c' denotes a channels dimension
  *  - When there are multiple channel dimensions (for example, in convolution
  *    weights tensor), @c 'i' and @c 'o' denote dimensions of input and output
  *    channels
- *  - @c 'h' and @c 'w' denote spatial width and height
+ *  - @c 'd', @c 'h', and @c 'w' denote spatial depth, height, and width
+ *    respectively
  *  - Upper-case letters indicate that the data is laid out in blocks
  *    for a particular dimension. In such cases, the format name contains both
  *    upper- and lower-case letters for that dimension with lower-case letter
@@ -103,6 +129,8 @@ typedef enum {
  *    Channel designations can be different. For example: both the @c
  *    'mkldnn_nc' and @c 'mkldnn_io' formats can be used to describe a 2D
  *    tensor.
+ *
+ * @sa @ref understanding_memory_formats
  */
 typedef enum {
     /** Undefined memory format, used for empty memory descriptors. */
@@ -118,345 +146,197 @@ typedef enum {
     mkldnn_x,
     /** 2D data tensor. */
     mkldnn_nc,
-    /** 3D data tensor in the @c ncw format */
+    /** 3D data tensor with the physical layout @c ncw.
+     * Logical dimensions come in the order: (n, c, w) */
     mkldnn_ncw,
-    /** 3D data tensor in the @c nwc format */
+    /** 3D data tensor with the physical layout @c nwc.
+     * Logical dimensions come in the order: (n, c, w) */
     mkldnn_nwc,
-    /** 3D data tensor in the @c ncw format with channels data laid out in
-     * memory in 8-element blocks. */
-    mkldnn_nCw8c,
-    /** 3D data tensor in the @c ncw format with channels data laid out in
-     * memory in 16-element blocks. */
-    mkldnn_nCw16c,
-    /** 4D data tensor in the @c nchw format typically used in Caffe. */
+    /** 4D data tensor with the physical layout @c nchw, used in Caffe.
+     * Logical dimensions come in the order: (n, c, h, w) */
     mkldnn_nchw,
-    /** 4D data tensor in the @c nhwc format typically used in TensorFlow. */
+    /** 4D data tensor with the physical layout @c nhwc, used in TensorFlow.
+     * Logical dimensions come in the order: (n, c, h, w) */
     mkldnn_nhwc,
-    /** 4D data tensor in the @c chwn format typically used in Neon. */
+    /** 4D data tensor with the physical layout @c chwn, used in Neon.
+     * Logical dimensions come in the order: (n, c, h, w) */
     mkldnn_chwn,
-    /** 4D data tensor in the @c nchw format with channels data laid out in
-     * memory in 8-element blocks. */
-    mkldnn_nChw8c,
-    /** 4D data tensor in the @c nchw format with channels data laid out in
-     * memory in 16-element blocks. */
-    mkldnn_nChw16c,
-    /** 5D data tensor in the @c ncdhw format. */
+    /** 5D data tensor with the physical layout @c ncdhw.
+     * Logical dimensions come in the order: (n, c, d, h, w) */
     mkldnn_ncdhw,
-    /** 5D data tensor in the @c ndhwc format typically used in TensorFlow. */
+    /** 5D data tensor with the physical layout @c ndhwc, used in TensorFlow.
+     * Logical dimensions come in the order: (n, c, d, h, w) */
     mkldnn_ndhwc,
-    /** 5D data tensor in the @c ncdhw format with channels data laid out in
-     * memory in 8-element blocks. */
-    mkldnn_nCdhw8c,
-    /** 5D data tensor in the @c ncdhw format with channels data laid out in
-     * memory in 16-element blocks. */
-    mkldnn_nCdhw16c,
-    /** 2D weights tensor in the format (input channels, output channels). */
+    /** 2D weights tensor with physical layout @c oi.
+     * Logical dimensions come in the order: (o, i) */
     mkldnn_oi,
-    /** 2D weights tensor in the format (input channels, output channels). */
+    /** 2D weights tensor with physical layout @c io.
+     * Logical dimensions come in the order: (o, i) */
     mkldnn_io,
-    /** 3D weights tensor in the format (output channels, input channels,
-     * width). */
+    /** 3D weights tensor with physical layout @c oiw.
+     * Logical dimensions come in the order: (o, i, w) */
     mkldnn_oiw,
-    /** 3D weights tensor in the format (width, input channels,
-     * output channels). */
+    /** 3D weights tensor with physical layout @c wio.
+     * Logical dimensions come in the order: (o, i, w) */
     mkldnn_wio,
-    /** 3D weights tensor in the format (output channels, width, input
-     * channels) with output channels data laid out in memory in 8-element
-     * blocks. */
-    mkldnn_Owi8o,
-    /** 3D weights tensor in the @c oiw format with both input and output
-     * channels data laid out in memory in 8-element blocks. */
-    mkldnn_OIw8i8o,
-    /** 3D weights tensor in the @c oiw format with both input and output
-     * channels data laid out in memory in 8-element blocks. */
-    mkldnn_OIw8o8i,
-    /** 3D weights tensor in the @c oiw format with both input and output
-     * channels data laid out in memory in 16-element blocks. */
-    mkldnn_OIw16i16o,
-    /** 3D weights tensor in the @c oiw format with both input and output
-     * channels data laid out in memory in 16-element blocks. */
-    mkldnn_OIw16o16i,
-    /** 3D weights tensor in the format (output channels, input channels,
-     * width) with output channels data laid out in memory in
-     * 16-element blocks. */
-    mkldnn_Oiw16o,
-    /** 3D weights tensor in the format (output channels, width, input
-     * channels) with output channels data laid out in memory in 16-element
-     * blocks. */
-    mkldnn_Owi16o,
-    /** 3D weights tensor in the @c oiw format with output channels data
-     * laid out in memory in 16-element blocks and input channels data
-     * laid out in memory in 8-element blocks blocked by pairs. */
-    mkldnn_OIw8i16o2i,
-    /** 3D weights tensor in the @c oiw format with input channels data
-     * laid out in memory in 16-element blocks and output channels data
-     * laid out in memory in 8-element blocks blocked by pairs. */
-    mkldnn_OIw8o16i2o,
-    /** 3D weights tensor in the @c oiw format with both input and output
-     * channels data laid out in memory in 16-element blocks. */
-    mkldnn_IOw16o16i,
-    /** 4D weights tensor in the format (input channels, output channels,
-     * width, height). */
+    /** 4D weights tensor with physical layout @c oihw, used in Caffe.
+     * Logical dimensions come in the order: (o, i, h, w) */
     mkldnn_oihw,
-    /** 4D weights tensor in the format (input channels, height, width,
-     * output channels). */
-    mkldnn_ihwo,
-    /** 4D weights tensor in the format (height, width, input channels,
-     * output channels). */
+    /** 4D weights tensor with physical layout @c hwio, used in TensorFlow.
+     * Logical dimensions come in the order: (o, i, h, w) */
     mkldnn_hwio,
-    /** 5D weights tensor in the format (depth, height, width, input channels,
-     * output channels). */
-    mkldnn_dhwio,
-    /** 5D weight tensor in the @c oidhw format. */
+    /** 4D weights tensor with physical layout @c ihwo.
+     * Logical dimensions come in the order: (o, i, h, w) */
+    mkldnn_ihwo,
+    /** 5D weights tensor with physical layout @c iodhw, used in Caffe.
+     * Logical dimensions come in the order: (o, i, d, h, w) */
     mkldnn_oidhw,
-   /** 6D weights tensor in the @c oidhw format with output channels data
-    * laid out in memory in 8-element blocks and input channels data
-     * laid out in memory in 8-element blocks blocked by quadruple. */
-    mkldnn_OIdhw8i8o,
-    /** 6D weights tensor in the @c oihw format with both input and output
-     * channels data laid out in memory in 8-element blocks. */
-    mkldnn_OIdhw8o8i,
-    /** 5D weights tensor in the blocked version of @c oidhw format with output
-     * channels data laid out in memory in 8-element blocks. */
-    mkldnn_Odhwi8o,
-    /** 4D weights tensor in the @c oihw format with both input and output
-     * channels data laid out in memory in 8-element blocks. */
-   /** 6D weights tensor in the @c oidhw format with output channels data
-    * laid out in memory in 16-element blocks and input channels data
-     * laid out in memory in 4-element blocks blocked by quadruple. */
-    mkldnn_OIdhw16i16o,
-    /** 6D weights tensor in the @c oihw format with both input and output
-     * channels data laid out in memory in 16-element blocks. */
-    mkldnn_OIdhw16o16i,
-    /** 5D weights tensor in the blocked version of @c oidhw format with output
-     * channels data laid out in memory in 16-element blocks. */
-    mkldnn_Oidhw16o,
-    /** 5D weights tensor in the blocked version of @c oidhw format with output
-     * channels data laid out in memory in 16-element blocks. */
-    mkldnn_Odhwi16o,
-    /** 4D weights tensor in the @c oihw format with both input and output
-     * channels data laid out in memory in 8-element blocks. */
-    mkldnn_OIhw8i8o,
-    /** 4D weights tensor in the @c oihw format with both input and output
-     * channels data laid out in memory in 16-element blocks. */
-    mkldnn_OIhw16i16o,
-    /** 4D weights tensor in the @c oihw format with output channels data
-     * laid out in memory in 16-element blocks and input channels data
-     * laid out in memory in 4-element blocks blocked by quadruple. */
-    mkldnn_OIhw4i16o4i,
-    /** 4D weights tensor in the @c oihw format with output channels data
-     * laid out in memory in 16-element blocks and input channels data
-     * laid out in memory in 8-element blocks blocked by pairs. */
-    mkldnn_OIhw8i16o2i,
-    /** 5D weights tensor in the @c oidhw format with output channels data
-     * laid out in memory in 16-element blocks and input channels data
-     * laid out in memory in 8-element blocks blocked by pairs. */
-    mkldnn_OIdhw8i16o2i,
-    /** 4D weights tensor in the @c oihw format with input channels data
-     * laid out in memory in 16-element blocks and output channels data
-     * laid out in memory in 8-element blocks blocked by pairs. */
-    mkldnn_OIhw8o16i2o,
-    /** 4D weights tensor in the @c oihw format with both input and output
-     * channels data laid out in memory in 8-element blocks. */
-    mkldnn_OIhw8o8i,
-    /** 4D weights tensor in the @c oihw format with both input and output
-     * channels data laid out in memory in 16-element blocks. */
-    mkldnn_OIhw16o16i,
-    /** 4D weights tensor in the @c oihw format with both input and output
-     * channels data laid out in memory in 16-element blocks. */
-    mkldnn_IOhw16o16i,
-    /** 4D weights tensor in the format (output channels, input channels,
-     * height, width) with output channels data laid out in memory in 8-element
-     * blocks. */
-    mkldnn_Oihw8o,
-    /** 4D weights tensor in the format (output channels, input channels,
-     * height, width) with output channels data laid out in memory in
-     * 16-element blocks. */
-    mkldnn_Oihw16o,
-    /** 4D weights tensor in the format (output channels, width, height, input
-     * channels) with output channels data laid out in memory in 8-element
-     * blocks. */
-    mkldnn_Ohwi8o,
-    /** 4D weights tensor in the format (output channels, width, height, input
-     * channels) with output channels data laid out in memory in 16-element
-     * blocks. */
-    mkldnn_Ohwi16o,
-    /** 4D weights tensor in the @c oihw format with both input and output
-     * channels data laid out in memory in 16-element and 4-element blocks. */
-    mkldnn_OhIw16o4i,
-    /** 4D weights tensor in the @c oiw format with extra outer dimension for
-     * groups. */
+    /** 5D weights tensor with physical layout @c dhwio, used in TensorFlow.
+     * Logical dimensions come in the order: (o, i, d, h, w) */
+    mkldnn_dhwio,
+    /** 4D grouped weights tensor with the physical layout @c goiw.
+     * Logical dimensions come in the order: (g, o, i, w) */
     mkldnn_goiw,
-    /** 4D weights tensor in the blocked version of @c goiw format with output
-     * channels data laid out in memory in 8-element blocks. */
-    mkldnn_gOwi8o,
-    /** 4D weights tensor in the blocked version of @c goiw format with both
-     * input and output channels data laid out in memory in 8-element blocks.
-     */
-    mkldnn_gOIw8o8i,
-    /** 4D weights tensor in the blocked version of @c goiw format with both
-     * input and output channels data laid out in memory in 8-element blocks.
-     */
-    mkldnn_gOIw8i8o,
-    /** 4D weights tensor in the blocked version of @c goiw format with both
-     * input and output channels data laid out in memory in 16-element blocks.
-     */
-    mkldnn_gOIw16i16o,
-    /** 4D weights tensor in the blocked version of @c goiw format with both
-     * input and output channels data laid out in memory in 16-element blocks.
-     */
-    mkldnn_gOIw16o16i,
-    /** 4D weights tensor in the blocked version of @c goiw format with output
-     * channels data laid out in memory in 16-element blocks. */
-    mkldnn_gOiw16o,
-    /** 4D weights tensor in the blocked version of @c goiw format with output
-     * channels data laid out in memory in 16-element blocks. */
-    mkldnn_gOwi16o,
-    /** 4D weights tensor in the @c goiw format with output channels data
-     * laid out in memory in 16-element blocks and input channels data
-     * laid out in memory in 8-element blocks blocked by pairs. */
-    mkldnn_gOIw8i16o2i,
-    /** 4D weights tensor in the @c goiw format with input channels data
-     * laid out in memory in 16-element blocks and output channels data
-     * laid out in memory in 8-element blocks blocked by pairs. */
-    mkldnn_gOIw8o16i2o,
-    /** 4D weights tensor in the blocked version of @c goiw format with both
-     * input and output channels data laid out in memory in 16-element blocks.
-     */
-    mkldnn_gIOw16o16i,
-    /** 5D weights tensor in the @c oihw format with extra outer dimension for
-     * groups. */
+    /** 5D grouped weights tensor with the physical layout @c goihw,
+     * used in Caffe.
+     * Logical dimensions come in the order: (g, o, i, h, w) */
     mkldnn_goihw,
-    /** 5D weights tensor in the @c hwio format with extra dimension for
-     * groups that comes after the output channels. */
+    /** 5D grouped weights tensor with the physical layout @c hwigo,
+     * used in TensorFlow.
+     * Logical dimensions come in the order: (g, o, i, h, w) */
     mkldnn_hwigo,
-    /** 6D weights tensor in the @c oidhw format with output channels data
-     * laid out in memory in 8-element blocks and input channels data
-     * laid out in memory in 8-element blocks blocked by quadruple. */
-    mkldnn_gOIdhw8i8o,
-    /** 6D weights tensor in the @c oihw format with both input and output
-     * channels data laid out in memory in 8-element blocks. */
-    mkldnn_gOIdhw8o8i,
-    /** 5D weights tensor in the blocked version of @c oidhw format with output
-     * channels data laid out in memory in 8-element blocks. */
-    mkldnn_gOdhwi8o,
-    /** 5D weights tensor in the blocked version of @c goihw format with both
-     * input and output channels data laid out in memory in 8-element blocks.
-     */
-    mkldnn_gOIhw8i8o,
-    /** 5D weights tensor in the blocked version of @c goihw format with both
-     * input and output channels data laid out in memory in 16-element blocks.
-     */
-    mkldnn_gOIhw16i16o,
-    /** 5D weights tensor in the @c oihw format with output channels data
-     * laid out in memory in 16-element blocks and input channels data
-     * laid out in memory in 4-element blocks blocked by quadruple. */
-    mkldnn_gOIhw4i16o4i,
-    /** 5D weights tensor in the @c oihw format with output channels data
-     * laid out in memory in 16-element blocks and input channels data
-     * laid out in memory in 8-element blocks blocked by pairs. */
-    mkldnn_gOIhw8i16o2i,
-    /** 6D weights tensor in the @c oidhw format with output channels data
-     * laid out in memory in 16-element blocks and input channels data
-     * laid out in memory in 8-element blocks blocked by pairs. */
-    mkldnn_gOIdhw8i16o2i,
-    /** 5D weights tensor in the @c oihw format with input channels data
-     * laid out in memory in 16-element blocks and output channels data
-     * laid out in memory in 8-element blocks blocked by pairs. */
-    mkldnn_gOIhw8o16i2o,
-    /** 5D weights tensor in the blocked version of @c goihw format with both
-     * input and output channels data laid out in memory in 8-element blocks.
-     */
-    mkldnn_gOIhw8o8i,
-    /** 5D weights tensor in the blocked version of @c goihw format with both
-     * input and output channels data laid out in memory in 16-element blocks.
-     */
-    mkldnn_gOIhw16o16i,
-    /** 5D weights tensor in the blocked version of @c goihw format with both
-     * input and output channels data laid out in memory in 16-element blocks.
-     */
-    mkldnn_gIOhw16o16i,
-    /** 5D weights tensor in the blocked version of @c goihw format with output
-     * channels data laid out in memory in 8-element blocks. */
-    mkldnn_gOihw8o,
-    /** 5D weights tensor in the blocked version of @c goihw format with output
-     * channels data laid out in memory in 16-element blocks. */
-    mkldnn_gOihw16o,
-    /** 5D weights tensor in the blocked version of @c goihw format with output
-     * channels data laid out in memory in 8-element blocks. */
-    mkldnn_gOhwi8o,
-    /** 5D weights tensor in the blocked version of @c goihw format with output
-     * channels data laid out in memory in 16-element blocks. */
-    mkldnn_gOhwi16o,
-    /** 5D weights tensor in the blocked version of @c goihw format with group
-     * data laid out in memory in 8-element blocks. */
-    mkldnn_Goihw8g,
-    /** 5D weights tensor in the blocked version of @c goihw format with group
-     * data laid out in memory in 16-element blocks. */
-    mkldnn_Goihw16g,
-    /** 5D weights tensor in the @c goihw format with both input and output
-     * channels data laid out in memory in 16-element and 4-element blocks. */
-    mkldnn_gOhIw16o4i,
-    /** 6D weight tensor in the @c goidhw format with extra dimension for
-     * groups */
+    /** 6D grouped weights tensor with the physical layout @c goidhw,
+     * used in Caffe.
+     * Logical dimensions come in the order: (g, o, i, d, h, w) */
     mkldnn_goidhw,
-   /** 6D weights tensor in the @c oidhw format with output channels data
-    * laid out in memory in 16-element blocks and input channels data
-     * laid out in memory in 4-element blocks blocked by quadruple. */
-    mkldnn_gOIdhw16i16o,
-    /** 6D weights tensor in the blocked version of @c goihw format with both
-     * input and output channels data laid out in memory in 16-element blocks.
-     */
-    mkldnn_gOIdhw16o16i,
-    /** 6D weights tensor in the blocked version of @c goidhw format with output
-     * channels data laid out in memory in 16-element blocks. */
-    mkldnn_gOidhw16o,
-    /** 6D weights tensor in the blocked version of @c goidhw format with output
-     * channels data laid out in memory in 16-element blocks. */
-    mkldnn_gOdhwi16o,
-    /** 3D data tensor in the format (batch, seq_length, input channels). */
+    /** 3D RNN data tensor in the format (batch, seq_length, input channels). */
     mkldnn_ntc,
-    /** 3D data tensor in the format (seq_length, batch, input channels). */
+    /** 3D RNN data tensor in the format (seq_length, batch, input channels). */
     mkldnn_tnc,
-    /** 5D states tensor in the format (num_layers, num_directions, num_states,
-     * batch, state channels). */
+    /** 5D RNN states tensor in the format (num_layers, num_directions,
+     * num_states, batch, state channels). */
     mkldnn_ldsnc,
-    /** 5D weights tensor in the format (num_layers, num_directions,
-     *  input_chanels, num_gates, output_channels).
-     *  For LSTM cells, the gates order is forget, input, output and candidate gate.
-     *  For GRU cells, the gates order is update, reset and output gate. */
+    /** 5D RNN weights tensor in the format (num_layers, num_directions,
+     *  input_channels, num_gates, output_channels).
+     *
+     *  - For LSTM cells, the gates order is forget, input, output
+     *    and candidate gate.
+     *  - For GRU cells, the gates order is update, reset and output gate. */
     mkldnn_ldigo,
-    /** 5D weights tensor in the blocked format. */
-    mkldnn_ldigo_p,
-    /** 5D weights tensor in the format (num_layers, num_directions, num_gates,
-     *  output_channels, input_chanels).
-     *  For LSTM cells, the gates order is forget, input, output and candidate gate.
-     *  For GRU cells, the gates order is update, reset and output gate. */
+    /** 5D RNN weights tensor in the format (num_layers, num_directions,
+     * num_gates, output_channels, input_channels).
+     *
+     *  - For LSTM cells, the gates order is forget, input, output
+     *    and candidate gate.
+     *  - For GRU cells, the gates order is update, reset and output gate. */
     mkldnn_ldgoi,
-    /** 5D weights tensor in the blocked format. */
-    mkldnn_ldgoi_p,
-    /** 4D bias tensor in the format (num_layers, num_directions, num_gates,
-     * output_channels).
-     * For LSTM cells, the gates order is forget, input, output and candidate gate.
-     * For GRU cells, the gates order is update, reset and output gate. */
+    /** 4D RNN bias tensor in the format (num_layers, num_directions,
+     * num_gates, output_channels).
+     *
+     * - For LSTM cells, the gates order is forget, input, output
+     *   and candidate gate.
+     * - For GRU cells, the gates order is update, reset and output gate. */
     mkldnn_ldgo,
-    /** General tensor format for integer 8bit winograd convolution. */
-    mkldnn_wino_fmt,
+
+    /* Opaque data types, are not to be used explicitly */
+
+    /* data */
+    mkldnn_nCw8c /** blocked data format */,
+    mkldnn_nCw16c /** blocked data format */,
+    mkldnn_nChw8c /** blocked data format */,
+    mkldnn_nChw16c /** blocked data format */,
+    mkldnn_nCdhw8c /** blocked data format */,
+    mkldnn_nCdhw16c /** blocked data format */,
+
+    /* weights, 3D */
+    mkldnn_Owi8o /** blocked weights format */,
+    mkldnn_OIw8i8o /** blocked weights format */,
+    mkldnn_OIw8o8i /** blocked weights format */,
+    mkldnn_OIw16i16o /** blocked weights format */,
+    mkldnn_OIw16o16i /** blocked weights format */,
+    mkldnn_Oiw16o /** blocked weights format */,
+    mkldnn_Owi16o /** blocked weights format */,
+    mkldnn_OIw8i16o2i /** blocked weights format */,
+    mkldnn_OIw8o16i2o /** blocked weights format */,
+    mkldnn_IOw16o16i /** blocked weights format */,
+
+    /* weights, 4D */
+    mkldnn_oIhw8i /** blocked weights format */,
+    mkldnn_oIhw16i /** blocked weights format */,
+    mkldnn_OIhw8i8o /** blocked weights format */,
+    mkldnn_OIhw16i16o /** blocked weights format */,
+    mkldnn_OIhw4i16o4i /** blocked weights format */,
+    mkldnn_OIhw8i16o2i /** blocked weights format */,
+    mkldnn_OIhw8o16i2o /** blocked weights format */,
+    mkldnn_OIhw8o8i /** blocked weights format */,
+    mkldnn_OIhw16o16i /** blocked weights format */,
+    mkldnn_IOhw16o16i /** blocked weights format */,
+    mkldnn_Oihw8o /** blocked weights format */,
+    mkldnn_Oihw16o /** blocked weights format */,
+    mkldnn_Ohwi8o /** blocked weights format */,
+    mkldnn_Ohwi16o /** blocked weights format */,
+    mkldnn_OhIw16o4i /** blocked weights format */,
+
+    /* weights, 5D */
+    mkldnn_oIdhw8i /** blocked weights format */,
+    mkldnn_oIdhw16i /** blocked weights format */,
+    mkldnn_OIdhw8i8o /** blocked weights format */,
+    mkldnn_OIdhw8o8i /** blocked weights format */,
+    mkldnn_Odhwi8o /** blocked weights format */,
+    mkldnn_OIdhw16i16o /** blocked weights format */,
+    mkldnn_OIdhw16o16i /** blocked weights format */,
+    mkldnn_Oidhw16o /** blocked weights format */,
+    mkldnn_Odhwi16o /** blocked weights format */,
+    mkldnn_OIdhw8i16o2i /** blocked weights format */,
+
+    /* weights w/ groups, 4D */
+    mkldnn_gOwi8o /** blocked weights format */,
+    mkldnn_gOIw8o8i /** blocked weights format */,
+    mkldnn_gOIw8i8o /** blocked weights format */,
+    mkldnn_gOIw16i16o /** blocked weights format */,
+    mkldnn_gOIw16o16i /** blocked weights format */,
+    mkldnn_gOiw16o /** blocked weights format */,
+    mkldnn_gOwi16o /** blocked weights format */,
+    mkldnn_gOIw8i16o2i /** blocked weights format */,
+    mkldnn_gOIw8o16i2o /** blocked weights format */,
+    mkldnn_gIOw16o16i /** blocked weights format */,
+
+    /* weights w/ groups, 5D */
+    mkldnn_gOIhw8i8o /** blocked weights format */,
+    mkldnn_gOIhw16i16o /** blocked weights format */,
+    mkldnn_gOIhw4i16o4i /** blocked weights format */,
+    mkldnn_gOIhw8i16o2i /** blocked weights format */,
+    mkldnn_gOIhw8o16i2o /** blocked weights format */,
+    mkldnn_gOIhw8o8i /** blocked weights format */,
+    mkldnn_gOIhw16o16i /** blocked weights format */,
+    mkldnn_gIOhw16o16i /** blocked weights format */,
+    mkldnn_gOihw8o /** blocked weights format */,
+    mkldnn_gOihw16o /** blocked weights format */,
+    mkldnn_gOhwi8o /** blocked weights format */,
+    mkldnn_gOhwi16o /** blocked weights format */,
+    mkldnn_Goihw8g /** blocked weights format */,
+    mkldnn_Goihw16g /** blocked weights format */,
+    mkldnn_gOhIw16o4i /** blocked weights format */,
+
+    /* weights w/ groups, 6D */
+    mkldnn_gOIdhw8i8o /** blocked weights format */,
+    mkldnn_gOIdhw8o8i /** blocked weights format */,
+    mkldnn_gOdhwi8o /** blocked weights format */,
+    mkldnn_gOIdhw8i16o2i /** blocked weights format */,
+    mkldnn_gOIdhw16i16o /** blocked weights format */,
+    mkldnn_gOIdhw16o16i /** blocked weights format */,
+    mkldnn_gOidhw16o /** blocked weights format */,
+    mkldnn_gOdhwi16o /** blocked weights format */,
+
+    mkldnn_wino_fmt /** Weights format used in 8bit Winograd convolution */,
+
+    /* RNN packed weights */
+    mkldnn_ldigo_p /** RNN packed weights (unused) */,
+    mkldnn_ldgoi_p /** RNN packed weights (unused) */,
+
     /** Just a sentinel, not real memory format. Must be changed after new
      * format is added. */
     mkldnn_format_last,
-    /** 4D weights tensor in the oihw format with input channels data laid out
-     * in memory in 8-element blocks. */
-    mkldnn_oIhw8i = mkldnn_nChw8c,
-    /** 4D weights tensor in the oihw format with input channels data laid out
-     * in memory in 16-element blocks. */
-    mkldnn_oIhw16i = mkldnn_nChw16c,
-    /** 5D weights tensor in the oihw format with input channels data laid out
-     * in memory in 8-element blocks. */
-    mkldnn_oIdhw8i = mkldnn_nCdhw8c,
-    /** 5D weights tensor in the oihw format with input channels data laid out
-     * in memory in 16-element blocks. */
-    mkldnn_oIdhw16i = mkldnn_nCdhw16c,
 } mkldnn_memory_format_t;
 
 /** Kinds of padding. Define how to interpret the data in padding regions. */
@@ -654,7 +534,9 @@ typedef int mkldnn_dims_t[TENSOR_MAX_DIMS];
 /** A type to describe strides within a tensor. */
 typedef ptrdiff_t mkldnn_strides_t[TENSOR_MAX_DIMS];
 
-/** Generic description of blocked data layout for most memory formats. */
+/** Generic description of blocked data layout for most memory formats.
+ *
+ * @sa @ref understanding_memory_formats */
 typedef struct {
     /** Block size for each of the dimensions. */
     mkldnn_dims_t block_dims;
@@ -715,14 +597,20 @@ typedef struct {
     /** Number of dimensions */
     int ndims;
     /** Dimensions in the following order:
-     * - CNN data tensors:  mini-batch, channel, spatial
-     *   (<code>{N, C, [D,] H, W}</code>)
+     * - CNN data tensors: mini-batch, channel, spatial
+     *   (<code>{N, C, [[D,] H,] W}</code>)
      * - CNN weight tensors: group (optional), output channel, input channel,
-     *   spatial (<code>{[G,] O, I, [D,] H, W}</code>)
+     *   spatial (<code>{[G,] O, I, [[D,] H,] W}</code>)
      * - RNN data tensors: time, mini-batch, channels (<code>{T, N, C}</code>)
      *   or layers, directions, states, mini-batch, channels (<code>{L, D, S, N, C}</code>)
      * - RNN weight tensor: layers, directions, input channel, gates, output channels
-     *   (<code>{L, D, I, G, O}</code>). */
+     *   (<code>{L, D, I, G, O}</code>).
+     *
+     * @note
+     *    The order of dimensions does not depend on the memory format, so
+     *    no matter whether the data is laid in #mkldnn_nchw or #mkldnn_nhwc
+     *    the dims for 4D CN data tensor would be <code>{N, C, H, W}</code>
+     */
     mkldnn_dims_t dims;
     /** Data type of the tensor elements. */
     mkldnn_data_type_t data_type;

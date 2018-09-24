@@ -968,8 +968,8 @@ status_t memory_desc_wrapper::compute_blocking(memory_desc_t &memory_desc)
     case nchw: return fill_nchw(memory_desc);
     case nhwc: return fill_nhwc(memory_desc);
     case chwn: return fill_chwn(memory_desc);
-    case nChw8c: return fill_nChw8c(memory_desc);
-    case nChw16c: return fill_nChw16c(memory_desc);
+    case nChw8c: case oIhw8i: return fill_nChw8c(memory_desc);
+    case nChw16c: case oIhw16i: return fill_nChw16c(memory_desc);
     case oi: return fill_oi(memory_desc);
     case io: return fill_io(memory_desc);
     case oiw: return fill_oiw(memory_desc);
@@ -1031,8 +1031,8 @@ status_t memory_desc_wrapper::compute_blocking(memory_desc_t &memory_desc)
     case ndhwc: return fill_ndhwc(memory_desc);
     case oidhw: return fill_oidhw(memory_desc);
     case goidhw: return fill_goidhw(memory_desc);
-    case nCdhw8c: return fill_nCdhw8c(memory_desc);
-    case nCdhw16c: return fill_nCdhw16c(memory_desc);
+    case nCdhw8c: case oIdhw8i: return fill_nCdhw8c(memory_desc);
+    case nCdhw16c: case oIdhw16i: return fill_nCdhw16c(memory_desc);
     case OIdhw16i16o: return fill_OIdhw16i16o(memory_desc);
     case gOIdhw16i16o: return fill_gOIdhw16i16o(memory_desc);
     case OIdhw8i8o: return fill_OIdhw8i8o(memory_desc);
