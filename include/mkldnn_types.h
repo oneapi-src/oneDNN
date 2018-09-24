@@ -718,7 +718,7 @@ typedef struct {
      * - CNN data tensors:  mini-batch, channel, spatial
      *   (<code>{N, C, [D,] H, W}</code>)
      * - CNN weight tensors: group (optional), output channel, input channel,
-     *   spatial (<code>{[G,] O, I, [D,] H, W}<code>)
+     *   spatial (<code>{[G,] O, I, [D,] H, W}</code>)
      * - RNN data tensors: time, mini-batch, channels (<code>{T, N, C}</code>)
      *   or layers, directions, states, mini-batch, channels (<code>{L, D, S, N, C}</code>)
      * - RNN weight tensor: layers, directions, input channel, gates, output channels
