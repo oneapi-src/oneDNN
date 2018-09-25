@@ -199,7 +199,11 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
         default: assert(false);
         }
 
-	merge_gemm_layer = (aprop == prop_kind::forward) && (conf_.MB() < 128);
+        merge_gemm_layer = ((aprop == prop_kind::forward) && (conf_.MB() < 128))
+            || (aprop == prop_kind::backward);
+        merge_gemm_iter = (aprop == prop_kind::backward)
+                && (!utils::one_of(conf_.cell_kind(), alg_kind::vanilla_gru,
+                            alg_kind::gru_linear_before_reset));
         auto set_pack_funcs = [](bool packed_gemm, gemm_t &g, bool pack_w,
                 packing_t &p, free_packed_t &f) {
             g = packed_gemm ? &class_name::packed_gemm : &class_name::gemm;
@@ -412,6 +416,7 @@ private:
     bool copy_diff_weights_layer_;
     bool copy_diff_weights_iter_;
     bool merge_gemm_layer;
+    bool merge_gemm_iter;
     bool use_jit_sgemm_;
 
     packing_t weights_input_pack_func;

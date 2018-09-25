@@ -261,18 +261,22 @@ cell_execution_sig(_ref_rnn_common_t<prop_kind::backward>::cell_execution) {
     (this->*gemm_state_func)(sic, batch, n_gates * dic, wic, n_gates * dic,
             batch, conf_.GC(), wic, batch, w_state_[0], ws_gates_,
             diff_states_t_l_, false, 0.0f);
-    (this->*gemm_input_func)(slc, batch, n_gates * dic, wic, n_gates * dic,
-            batch, conf_.GC(), wic, batch, w_input_[0], ws_gates_,
-            diff_states_t_l_ + n_states * iter_stride * (batch * wic), false, 0.0f);
 
-    /// bwd by weights on the cell
-    gemm(n_gates * dic, slc, batch, conf_.GC(), batch, wic, batch,
-         conf_.GC(), slc, ws_gates_, states_t_lm1_, diff_w_input_, true,
-            1.0f);
-    gemm(n_gates * dic, sic, batch, conf_.GC(), batch, wic, batch,
-         conf_.GC(), sic, ws_gates_, states_tm1_l_, diff_w_state_, true,
-            1.0f);
+    if (!merge_gemm_layer) {
+        (this->*gemm_input_func)(slc, batch, n_gates * dic, wic, n_gates * dic,
+                batch, conf_.GC(), wic, batch, w_input_[0], ws_gates_,
+                diff_states_t_l_ + n_states * iter_stride * (batch * wic), false, 0.0f);
 
+        /// bwd by weights on the cell
+        gemm(n_gates * dic, slc, batch, conf_.GC(), batch, wic, batch,
+                conf_.GC(), slc, ws_gates_, states_t_lm1_, diff_w_input_, true,
+                1.0f);
+    }
+
+    if (!merge_gemm_iter)
+        gemm(n_gates * dic, sic, batch, conf_.GC(), batch, wic, batch,
+                conf_.GC(), sic, ws_gates_, states_tm1_l_, diff_w_state_, true,
+                1.0f);
     /// bwd by bias we just accumulate diffs from the gates
     gates_reduction(n_gates, dic, wic, batch, ws_gates_, diff_bias_);
 }
@@ -410,19 +414,21 @@ cell_execution_sig(_ref_rnn_common_t<prop_kind::backward>::cell_execution_gru_lb
             states_t_l_, states_t_lm1_, states_tm1_l_, diff_states_t_l_,
             diff_states_t_lp1_, diff_states_tp1_l_, bias_, ws_grid_, ws_cell_);
 
-    //  dx = dG * Wx^t
-    (this->*gemm_input_func)(slc, batch, n_gates * dic, wic, n_gates * dic,
-            batch, conf_.GC(), wic, batch, w_input_[0], ws_gates_,
-            diff_states_t_l_ + n_states * iter_stride * (batch * wic), false, 0.0f);
-
+    if (!merge_gemm_layer) {
+         //  dx = dG * Wx^t
+        (this->*gemm_input_func)(slc, batch, n_gates * dic, wic, n_gates * dic,
+                batch, conf_.GC(), wic, batch, w_input_[0], ws_gates_,
+                diff_states_t_l_ + n_states * iter_stride * (batch * wic), false, 0.0f);
+        // dWx +=  dG^t * x
+        gemm(n_gates * dic, slc, batch, conf_.GC(), batch, wic, batch,
+                conf_.GC(), slc, ws_gates_, states_t_lm1_, diff_w_input_, true,
+                1.0f);
+    }
     // dh +=  dGr * Wh^t
     (this->*gemm_state_func)(sic, batch, n_gates * dic, wic, n_gates * dic,
                              batch, conf_.GC(), wic, batch, w_state_[0], ws_cell_,
             diff_states_t_l_, false, 1.0f);
-    // dWx +=  dG^t * x
-    gemm(n_gates * dic, slc, batch, conf_.GC(), batch, wic, batch,
-            conf_.GC(), slc, ws_gates_, states_t_lm1_, diff_w_input_, true,
-            1.0f);
+
     // dWh += dGr^t * h
     gemm(n_gates * dic, sic, batch, conf_.GC(), batch, wic, batch,
             conf_.GC(), sic, ws_cell_, states_tm1_l_, diff_w_state_, true,
@@ -498,11 +504,7 @@ cell_execution_sig(_ref_rnn_common_t<prop_kind::backward>::cell_execution_gru) {
     });
 
     //4. calculate diff weights
-    //dWx += [dG0 dG1 dG2] * [x]
     //dWh1 += dG1 * h, dWh2 += dG2 * h, dWh3 += dG3 * (G1(*)h)
-    gemm(n_gates * dic, slc, batch, conf_.GC(), batch, wic, batch,
-            conf_.GC(), slc, ws_gates_, states_t_lm1_, diff_w_input_, true,
-            1.0f);
     gemm((n_gates - 1) * dic, sic, batch, conf_.GC(), batch, wic, batch,
             conf_.GC(), sic, ws_gates_, states_tm1_l_, diff_w_state_, true,
             1.0f);
@@ -510,14 +512,21 @@ cell_execution_sig(_ref_rnn_common_t<prop_kind::backward>::cell_execution_gru) {
             &(ws_gates(0, 2 * dic)), hG1_, &(diff_w_state(0, 2 * dic)), true, 1.0f);
 
     //5. calculate diff states
-    //dx = dG2 * W2x + dG1 * W1x + dG0 * W0x
     //dht-1 += dG1 * W1h + dG0 * W0h
     (this->*gemm_state_func)(sic, batch, (n_gates - 1) * dic, wic, n_gates * dic,
             batch, conf_.GC(), wic, batch, w_state_[0], ws_gates_,
             diff_states_t_l_, false, 1.0f);
-    (this->*gemm_input_func)(slc, batch, n_gates * dic, wic, n_gates * dic,
-            batch, conf_.GC(), wic, batch, w_input_[0], ws_gates_,
-            &(diff_states_t_l(n_states, 0, 0, 0)), false, 0.0f);
+
+    if (!merge_gemm_layer) {
+        //dWx += [dG0 dG1 dG2] * [x]
+        gemm(n_gates * dic, slc, batch, conf_.GC(), batch, wic, batch,
+                conf_.GC(), slc, ws_gates_, states_t_lm1_, diff_w_input_, true,
+                1.0f);
+        //dx = dG2 * W2x + dG1 * W1x + dG0 * W0x
+        (this->*gemm_input_func)(slc, batch, n_gates * dic, wic, n_gates * dic,
+                batch, conf_.GC(), wic, batch, w_input_[0], ws_gates_,
+                &(diff_states_t_l(n_states, 0, 0, 0)), false, 0.0f);
+    }
 
     //6. calculate diff bias
     gates_reduction(n_gates, dic, wic, batch, ws_gates_, diff_bias_);
@@ -573,6 +582,25 @@ grid_execution_sig(_ref_rnn_common_t<aprop>::linear_execution) {
                         &(ws_gates(lay, dir, iter, 0)),
                         &(ws_grid(lay, dir, iter, 0)),
                         ws_cell_);
+            }
+            if ((aprop == prop_kind::backward) && merge_gemm_layer) {
+                (this->*gemm_input_func)(slc, batch * n_iter, n_gates * dic,
+                        wic, n_gates * dic, batch * n_iter, conf_.GC(), wic,
+                        batch * n_iter, weights_input(lay, dir, 0),
+                        &(ws_gates(lay, dir, 0, 0)),
+                        &(ws_diff_states(lay, dir, n_states, 0, 0)), false, 0.0f);
+                gemm(n_gates * dic, slc, batch * n_iter, conf_.GC(),
+                        batch * n_iter, wic, batch * n_iter, conf_.GC(), slc,
+                        &(ws_gates(lay, dir, 0, 0)),
+                        &(ws_states(lay, dir, 0, 1, 0)),
+                        &(diff_weights_layer(lay, dir, 0)), true, 1.0f);
+            }
+            if ((aprop == prop_kind::backward) && merge_gemm_iter) {
+                gemm(n_gates * dic, sic, batch * n_iter, conf_.GC(),
+                        batch * n_iter, wic, batch * n_iter, conf_.GC(), sic,
+                        &(ws_gates(lay, dir, 0, 0)),
+                        &(ws_states(lay + 1, dir, 0, 0, 0)),
+                        &(diff_weights_iter(lay, dir, 0)), true, 1.0f);
             }
         }
     }
