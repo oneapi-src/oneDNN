@@ -22,35 +22,27 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
+#include "format_traits.hpp"
+
 #include "cpu_memory.hpp"
 
 namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-#define wht_blk_off(f, g, o, i, d, h, w) \
-    is_1d ? (f).blk_off<!w_groups>(g, o, i, w) \
-    : is_3d ? (f).blk_off<!w_groups>(g, o, i, d, h, w) \
-    : (f).blk_off<!w_groups>(g, o, i, h, w)
-
 using namespace mkldnn::impl;
 using namespace mkldnn::impl::data_type;
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::memory_format;
 
-/* This and other similar structires below are workaround for bug in MSVC
- * that doesn't allow to use constexpr function inside enable_if
- */
-template<memory_format_t fmt> struct is_data_blocked_fmt {
-    static constexpr bool value =
-    utils::one_of(fmt, nCw8c, nCw16c, nChw8c, nChw16c, nCdhw8c, nCdhw16c);
-};
+using dk = data_kind_t;
+using bf = block_format_t;
 
 template <data_type_t dt, memory_format_t fmt>
-typename utils::enable_if<is_data_blocked_fmt<fmt>::value
->::type typed_zero_pad_data(
+typename utils::enable_if<format_traits<fmt>::data_kind == dk::data>::type
+typed_zero_pad_data(
     const memory_desc_wrapper &m_d, typename prec_traits<dt>::type *data) {
-    constexpr int blksize = utils::one_of(fmt, nCw8c, nChw8c, nCdhw8c) ? 8 : 16;
+    constexpr int blksize = format_traits<fmt>::blk_size;
 
     const auto &dims = m_d.dims();
     const auto &pdims = m_d.blocking_desc().padding_dims;
@@ -69,28 +61,16 @@ typename utils::enable_if<is_data_blocked_fmt<fmt>::value
     });
 }
 
-template<memory_format_t fmt> struct is_wei_O_blocked_fmt {
-    static constexpr bool value =
-    utils::one_of(fmt,
-        Oiw16o, Owi16o, Ohwi8o, Oihw16o, Ohwi16o, Oidhw16o, Odhwi16o, Odhwi8o,
-        gOiw16o, gOwi16o, gOhwi8o, gOwi8o, Owi8o, gOihw16o, gOhwi16o, gOidhw16o,
-        gOdhwi16o, gOdhwi8o);
-};
-
 template <data_type_t dt, memory_format_t fmt>
-typename utils::enable_if<is_wei_O_blocked_fmt<fmt>::value
+typename utils::enable_if<false
+|| format_traits<fmt>::blk_fmt == bf::_8o
+|| format_traits<fmt>::blk_fmt == bf::_16o
 >::type typed_zero_pad_weights(const memory_desc_wrapper &m_d,
         typename prec_traits<dt>::type *data) {
-    static constexpr int w_groups = utils::one_of(fmt, gOiw16o, gOwi16o,
-        gOhwi8o, gOwi8o, gOihw16o, gOhwi16o, gOidhw16o, gOdhwi16o, gOdhwi8o);
-
-    constexpr int is_1d = utils::one_of(fmt, Oiw16o, Owi16o, gOiw16o, gOwi16o,
-        gOwi8o, Owi8o);
-    constexpr int is_3d = utils::one_of(fmt, Oidhw16o, Odhwi16o, Odhwi8o,
-        gOidhw16o, gOdhwi16o, gOdhwi8o);
-
-    constexpr int blksize = utils::one_of(fmt, Owi8o, gOwi8o, Ohwi8o, gOhwi8o,
-        Odhwi8o, gOdhwi8o) ? 8 : 16;
+    static constexpr int w_groups = format_traits<fmt>::data_kind == dk::gwei;
+    constexpr int is_1d = format_traits<fmt>::ndims_sp == 1;
+    constexpr int is_3d = format_traits<fmt>::ndims_sp == 3;
+    constexpr int blksize = format_traits<fmt>::blk_size;
 
     const auto &dims = m_d.dims();
     const auto &pdims = m_d.blocking_desc().padding_dims;
@@ -106,26 +86,23 @@ typename utils::enable_if<is_wei_O_blocked_fmt<fmt>::value
 
     parallel_nd(G, IC, D, H, W,
         [&](int g, int ic, int d, int h, int w) {
-        auto x = &data[wht_blk_off(m_d, g, NB_OC - 1, ic, d, h, w)];
+        auto x = &data[wei_blk_off_like_gwei3D<fmt>(m_d,
+                g, NB_OC - 1, ic, d, h, w)];
         for (int oc = blksize - oc_tail; oc < blksize; ++oc)
             x[oc] = 0;
     });
 }
 
-template<memory_format_t fmt> struct is_wei_I_blocked_fmt {
-    static constexpr bool value =
-    utils::one_of(fmt, oIhw8i, oIhw16i, oIdhw8i, oIdhw16i);
-};
-
 template <data_type_t dt, memory_format_t fmt>
-typename utils::enable_if<is_wei_I_blocked_fmt<fmt>::value
->::type
-typed_zero_pad_weights(const memory_desc_wrapper &m_d,
+typename utils::enable_if<false
+|| format_traits<fmt>::blk_fmt == bf::_8i
+|| format_traits<fmt>::blk_fmt == bf::_16i
+>::type typed_zero_pad_weights(const memory_desc_wrapper &m_d,
         typename prec_traits<dt>::type *data) {
-    constexpr int blksize = utils::one_of(fmt, oIhw8i, oIdhw8i) ? 8 : 16;
-
-    static constexpr int w_groups = 0;
-    constexpr int is_3d = utils::one_of(fmt, oIdhw8i, oIdhw16i);
+    static constexpr int w_groups = format_traits<fmt>::data_kind == dk::gwei;
+    constexpr int is_1d = format_traits<fmt>::ndims_sp == 1;
+    constexpr int is_3d = format_traits<fmt>::ndims_sp == 3;
+    constexpr int blksize = format_traits<fmt>::blk_size;
 
     const auto &dims = m_d.dims();
     const auto &pdims = m_d.blocking_desc().padding_dims;
@@ -134,54 +111,30 @@ typed_zero_pad_weights(const memory_desc_wrapper &m_d,
     const int OC = dims[w_groups + 0];
     const int NB_IC = pdims[w_groups + 1] / blksize;
     const int D = is_3d ? dims[w_groups + 2] : 1;
-    const int H = dims[w_groups + 2 + is_3d];
+    const int H = is_1d ? 1 : dims[w_groups + 2 + is_3d];
     const int W = dims[w_groups + 3 + is_3d];
 
     const int ic_tail = pdims[w_groups + 1] - dims[w_groups + 1];
 
     parallel_nd(G, OC, D, H, W,
         [&](int g, int oc, int d, int h, int w) {
-        auto x = &data[is_3d
-            ? m_d.blk_off<!w_groups>(g, oc, NB_IC - 1, d, h, w)
-            : m_d.blk_off<!w_groups>(g, oc, NB_IC - 1, h, w) ];
+        auto x = &data[wei_blk_off_like_gwei3D<fmt>(m_d,
+                g, oc, NB_IC - 1, d, h, w)];
         for (int ic = blksize - ic_tail; ic < blksize; ++ic)
             x[ic] = 0;
     });
 }
 
-template<memory_format_t fmt> struct is_wei_IO_blocked_fmt {
-    static constexpr bool value =
-    utils::one_of(fmt,
-        IOhw16o16i, gIOhw16o16i, IOw16o16i, gIOw16o16i, OIdhw16i16o,
-        OIdhw16o16i, OIhw8i8o, OIw8i8o, gOIw8i8o, OIw8o8i, gOIw8o8i, OIhw16i16o,
-        OIhw4i16o4i, OIhw8i16o2i, OIdhw8i16o2i, OIhw8o16i2o, OIhw8o8i,
-        OIhw16o16i, OIdhw8i8o, OIdhw8o8i, gOIhw8i8o, OIw8o16i2o, gOIw8o16i2o,
-        gOIhw16i16o, gOIhw4i16o4i, gOIhw8i16o2i, gOIdhw8i16o2i, gOIhw8o16i2o,
-        gOIhw8o8i, gOIhw16o16i, gOIdhw16i16o, gOIdhw16o16i, gOIdhw8i8o,
-        gOIdhw8o8i, OIw8i16o2i, gOIw8i16o2i, OIw16i16o, OIw16o16i, gOIw16i16o,
-        gOIw16o16i);
-};
-
 template <data_type_t dt, memory_format_t fmt>
-typename utils::enable_if<is_wei_IO_blocked_fmt<fmt>::value
->::type typed_zero_pad_weights(const memory_desc_wrapper &m_d,
+typename utils::enable_if<
+block_format_traits<format_traits<fmt>::blk_fmt>::blk_ndims == 2>::type
+typed_zero_pad_weights(const memory_desc_wrapper &m_d,
         typename prec_traits<dt>::type *data) {
     using data_t = typename prec_traits<dt>::type;
-    static constexpr int w_groups = utils::one_of(fmt, gOIhw8i8o, gOIhw16i16o,
-        gOIhw4i16o4i, gOIhw8i16o2i, gOIdhw8i16o2i, gOIhw8o16i2o, gOIhw8o8i,
-        gOIhw16o16i, gIOhw16o16i, gOIdhw16i16o, gOIdhw16o16i, gOIdhw8i8o,
-        gOIdhw8o8i, gOIw8i16o2i, gOIw8i8o, gOIw8o8i, gOIw8o16i2o, gIOw16o16i);
-
-    constexpr int is_1d = utils::one_of(fmt, IOw16o16i, gIOw16o16i, OIw8i8o,
-        gOIw8i8o, OIw8o8i, gOIw8o8i, OIw8o16i2o, gOIw8o16i2o, OIw8i16o2i,
-        gOIw8i16o2i, OIw16i16o, OIw16o16i, gOIw16i16o, gOIw16o16i);
-    constexpr int is_3d = utils::one_of(fmt, OIdhw16i16o, OIdhw16o16i,
-        OIdhw8i16o2i, OIdhw8i8o, OIdhw8o8i, gOIdhw8i16o2i,
-        gOIdhw16i16o, gOIdhw16o16i, gOIdhw8i8o, gOIdhw8o8i);
-
-    constexpr int blksize = utils::one_of(fmt, OIw8o8i, gOIw8o8i, OIw8i8o,
-        gOIw8i8o, OIhw8o8i, gOIhw8o8i, OIhw8i8o, gOIhw8i8o, OIdhw8o8i,
-        gOIdhw8o8i, OIdhw8i8o, gOIdhw8i8o) ? 8 : 16;
+    static constexpr int w_groups = format_traits<fmt>::data_kind == dk::gwei;
+    constexpr int is_1d = format_traits<fmt>::ndims_sp == 1;
+    constexpr int is_3d = format_traits<fmt>::ndims_sp == 3;
+    constexpr int blksize = format_traits<fmt>::blk_size;
 
     const auto &dims = m_d.dims();
     const auto &pdims = m_d.blocking_desc().padding_dims;
@@ -193,35 +146,17 @@ typename utils::enable_if<is_wei_IO_blocked_fmt<fmt>::value
     const int H = is_1d ? 1 : dims[w_groups + 2 + is_3d];
     const int W = dims[w_groups + 3 - is_1d + is_3d];
 
-    auto index = [&](const int ic, const int oc) {
-        if (utils::one_of(fmt,
-                    OIw8i16o2i, gOIw8i16o2i,
-                    OIhw8i16o2i, gOIhw8i16o2i,
-                    OIdhw8i16o2i, gOIdhw8i16o2i))
-            return ((ic / 2) * blksize * 2 + 2 * oc + ic % 2);
-        else if (utils::one_of(fmt, OIhw4i16o4i, gOIhw4i16o4i))
-            return ((ic / 4) * blksize * 4 + oc * 4 + ic % 4);
-        else if (utils::one_of(fmt, OIhw8o16i2o, gOIhw8o16i2o, OIw8o16i2o,
-                gOIw8o16i2o))
-            return ((oc / 2) * blksize * 2 + 2 * ic + oc % 2);
-        else if (utils::one_of(fmt,
-                     OIw8i8o, gOIw8i8o, OIw16i16o, gOIw16i16o,
-                     OIhw8i8o, gOIhw8i8o, OIhw16i16o, gOIhw16i16o,
-                     OIdhw8i8o, gOIdhw8i8o, OIdhw16i16o, gOIdhw16i16o))
-            return (ic * blksize + oc);
-        else
-            return (oc * blksize + ic);
-    };
-
     auto ker = [&](data_t *d, const int oc_tail, const int ic_tail) {
+#       define blk_off OI_blk_off<format_traits<fmt>::blk_fmt>
         int oc = 0;
         for (; oc < blksize - oc_tail; ++oc) {
             for (int ic = blksize - ic_tail; ic < blksize; ++ic)
-                d[index(ic, oc)] = 0;
+                d[blk_off(oc, ic)] = 0;
         }
         for (; oc < blksize; ++oc)
             for (int ic = 0; ic < blksize; ++ic)
-                d[index(ic, oc)] = 0;
+                d[blk_off(oc, ic)] = 0;
+#       undef blk_off
     };
 
     const int oc_tail = pdims[w_groups + 0] - dims[w_groups + 0];
@@ -230,7 +165,8 @@ typename utils::enable_if<is_wei_IO_blocked_fmt<fmt>::value
     if (ic_tail) {
         parallel_nd(G, NB_OC, D, H, W,
             [&](int g, int nb_oc, int d, int h, int w) {
-            auto x = &data[wht_blk_off(m_d, g, nb_oc, NB_IC - 1, d, h, w)];
+            auto x = &data[wei_blk_off_like_gwei3D<fmt>(m_d,
+                    g, nb_oc, NB_IC - 1, d, h, w)];
             ker(x, 0, ic_tail);
         });
     }
@@ -238,21 +174,20 @@ typename utils::enable_if<is_wei_IO_blocked_fmt<fmt>::value
     if (oc_tail) {
         parallel_nd(G, NB_IC, D, H, W,
             [&](int g, int nb_ic, int d, int h, int w) {
-            auto x = &data[wht_blk_off(m_d, g, NB_OC - 1, nb_ic, d, h, w)];
+            auto x = &data[wei_blk_off_like_gwei3D<fmt>(m_d,
+                    g, NB_OC - 1, nb_ic, d, h, w)];
             ker(x, oc_tail, 0);
         });
     }
 }
 
-template<memory_format_t fmt> struct is_wei_G_blocked_fmt {
-    static constexpr bool value = utils::one_of(fmt, Goihw8g, Goihw16g);
-};
-
 template <data_type_t dt, memory_format_t fmt>
-typename utils::enable_if<is_wei_G_blocked_fmt<fmt>::value>::type
-typed_zero_pad_weights(const memory_desc_wrapper &m_d,
+typename utils::enable_if<false
+|| format_traits<fmt>::blk_fmt == bf::_8g
+|| format_traits<fmt>::blk_fmt == bf::_16g
+>::type typed_zero_pad_weights(const memory_desc_wrapper &m_d,
         typename prec_traits<dt>::type *data) {
-    constexpr int blksize = fmt == Goihw8g ? 8 : 16;
+    constexpr int blksize = format_traits<fmt>::blk_size;
 
     const auto &dims = m_d.dims();
     const auto &pdims = m_d.blocking_desc().padding_dims;
