@@ -61,7 +61,7 @@ status_t mkldnn_rnn_cell_desc_init(rnn_cell_desc_t *rnn_cell_desc,
             && one_of(cell_kind, vanilla_rnn, vanilla_lstm, vanilla_gru,
                     gru_linear_before_reset)
             && implication(cell_kind == vanilla_rnn,
-                       one_of(act_f, eltwise_relu, eltwise_tanh));
+                    one_of(act_f, eltwise_relu, eltwise_tanh, eltwise_logistic));
     if (!args_ok)
         return status::invalid_arguments;
 

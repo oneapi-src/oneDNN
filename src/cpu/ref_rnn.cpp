@@ -72,6 +72,18 @@ float activation<alg_kind::eltwise_tanh, prop_kind::backward>(
     return tanh_bwd<float>(dd, s);
 }
 
+template <>
+float activation<alg_kind::eltwise_logistic, prop_kind::forward>(
+        float dd, float s, float alpha, float cliping) {
+    return logistic_fwd<float>(s);
+}
+
+template <>
+float activation<alg_kind::eltwise_logistic, prop_kind::backward>(
+        float dd, float s, float alpha, float cliping) {
+    return logistic_bwd<float>(dd, s);
+}
+
 //************************* Cell execution *************************//
 /// @todo shall this be templated on activation function to enable svml calls
 /// particularly?

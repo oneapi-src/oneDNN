@@ -235,6 +235,9 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
             case alg_kind::eltwise_tanh:
                 activation_func = &activation<alg_kind::eltwise_tanh, aprop>;
                 break;
+            case alg_kind::eltwise_logistic:
+                activation_func = &activation<alg_kind::eltwise_logistic, aprop>;
+                break;
             default: break;
             }
             break;
