@@ -317,6 +317,7 @@ struct op_desc_t {
         batch_normalization_desc_t batch_normalization;
         inner_product_desc_t inner_product;
         convolution_relu_desc_t convolution_relu;
+        rnn_desc_t rnn;
     };
 
     op_desc_t(const primitive_kind_t &_): kind(_) {}
@@ -337,6 +338,7 @@ struct op_desc_t {
     DECL_CTOR_AND_CONVERTERS(batch_normalization_desc_t, batch_normalization);
     DECL_CTOR_AND_CONVERTERS(inner_product_desc_t, inner_product);
     DECL_CTOR_AND_CONVERTERS(convolution_relu_desc_t, convolution_relu);
+    DECL_CTOR_AND_CONVERTERS(rnn_desc_t, rnn);
 
 #   undef DECL_CTOR_AND_CONVERTERS
 };
