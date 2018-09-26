@@ -74,6 +74,12 @@ static const rpd_create_f cpu_reorder_impl_list[] = {
     jit_uni_reorder_create,
 
     /* fp32: flat <-> blocked with tail */
+    REG_SR_BIDIR(f32, any, f32, nCw8c),
+    REG_SR_BIDIR(f32, any, f32, OIw8i8o),
+    REG_SR_BIDIR(f32, any, f32, OIw8o8i),
+    REG_SR_BIDIR(f32, any, f32, gOIw8i8o),
+    REG_SR_BIDIR(f32, any, f32, gOIw8o8i),
+
     REG_SR_BIDIR(f32, any, f32, nCw16c),
     REG_SR_BIDIR(f32, any, f32, OIw16o16i),
     REG_SR_BIDIR(f32, any, f32, OIw16i16o),
@@ -81,6 +87,14 @@ static const rpd_create_f cpu_reorder_impl_list[] = {
     REG_SR_BIDIR(f32, any, f32, gOIw16o16i),
     REG_SR_BIDIR(f32, any, f32, gOIw16i16o),
     REG_SR_BIDIR(f32, any, f32, gIOw16o16i),
+
+    REG_SR_BIDIR(f32, any, f32, nChw8c),
+    REG_SR_BIDIR(f32, any, f32, Ohwi8o),
+    REG_SR_BIDIR(f32, any, f32, OIhw8i8o),
+    REG_SR_BIDIR(f32, any, f32, OIhw8o8i),
+    REG_SR_BIDIR(f32, any, f32, gOhwi8o),
+    REG_SR_BIDIR(f32, any, f32, gOIhw8i8o),
+    REG_SR_BIDIR(f32, any, f32, gOIhw8o8i),
 
     REG_SR_BIDIR(f32, any, f32, nChw16c),
     REG_SR_BIDIR(f32, any, f32, Oihw16o),
@@ -93,6 +107,14 @@ static const rpd_create_f cpu_reorder_impl_list[] = {
     REG_SR_BIDIR(f32, any, f32, gOIhw16o16i),
     REG_SR_BIDIR(f32, any, f32, gOIhw16i16o),
     REG_SR_BIDIR(f32, any, f32, gIOhw16o16i),
+
+    REG_SR_BIDIR(f32, any, f32, nCdhw8c),
+    REG_SR_BIDIR(f32, any, f32, Odhwi8o),
+    REG_SR_BIDIR(f32, any, f32, OIdhw8i8o),
+    REG_SR_BIDIR(f32, any, f32, OIdhw8o8i),
+    REG_SR_BIDIR(f32, any, f32, gOdhwi8o),
+    REG_SR_BIDIR(f32, any, f32, gOIdhw8i8o),
+    REG_SR_BIDIR(f32, any, f32, gOIdhw8o8i),
 
     REG_SR_BIDIR(f32, any, f32, nCdhw16c),
     REG_SR_BIDIR(f32, any, f32, Oidhw16o),
