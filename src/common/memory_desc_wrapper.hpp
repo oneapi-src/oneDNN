@@ -132,6 +132,13 @@ struct memory_desc_wrapper: public c_compatible {
         return true;
     }
 
+    /** returns true if memory desc has blocked layout and block dims are 1s */
+    bool is_plain() const {
+        if (!is_blocking_desc()) return false;
+        return
+            utils::array_product(blocking_desc().block_dims, ndims()) == 1;
+    }
+
     /* comparison section */
 
     inline bool operator==(const memory_desc_wrapper &rhs) const;
