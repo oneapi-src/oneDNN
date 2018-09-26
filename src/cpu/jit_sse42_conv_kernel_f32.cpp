@@ -491,9 +491,9 @@ status_t jit_sse42_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
 
     // kernel needs 1 temporary YMM register
     const int num_avail_regs = 15;
-    if (r_pad_no_tail > jcp.ur_w) {
+    if (r_pad_no_tail > jcp.ur_w * jcp.stride_w && jcp.ow / jcp.ur_w > 1) {
         /* recalculate ur_w, nb_oc_blocking and ur_w_tail */
-        jcp.ur_w = nstl::min(r_pad_no_tail + 1,
+        jcp.ur_w = nstl::min(r_pad_no_tail / jcp.stride_w + jcp.ur_w_tail,
                 nstl::min(jcp.ow, num_avail_regs / 2));
         jcp.nb_oc_blocking = (num_avail_regs - jcp.ur_w) / jcp.ur_w;
         jcp.ur_w_tail = jcp.ow % jcp.ur_w;
