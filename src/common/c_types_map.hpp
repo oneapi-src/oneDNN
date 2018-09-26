@@ -258,6 +258,7 @@ namespace query {
     const query_t impl_info_str = mkldnn_query_impl_info_str;
 
     const query_t some_d = mkldnn_query_some_d;
+    const query_t op_d = mkldnn_query_op_d;
     const query_t memory_d = mkldnn_query_memory_d;
     const query_t convolution_d = mkldnn_query_convolution_d;
     const query_t deconvolution_d = mkldnn_query_deconvolution_d;

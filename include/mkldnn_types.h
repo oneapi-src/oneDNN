@@ -1087,6 +1087,7 @@ typedef struct {
  *      *_s64                        | ptrdiff_t *
  *      *_f64                        | double *
  *      *_str                        | const char **
+ *      #mkldnn_query_op_d           | const_mkldnn_op_desc_t *
  *      *_md                         | const mkldnn_memory_desc_t **
  *      *_${op}_d                    | const mkldnn_${op}_desc_t **
  *      *_pd                         | const_mkldnn_primitive_desc_t *
@@ -1119,6 +1120,7 @@ typedef enum {
 
     /* memory and op descriptor section */
     mkldnn_query_some_d = 64, /**< stub */
+    mkldnn_query_op_d, /**< op descriptor */
     mkldnn_query_memory_d, /**< memory descriptor for memory and view */
     mkldnn_query_convolution_d, /**< convolution descriptor */
     mkldnn_query_deconvolution_d, /**< deconvolution descriptor */

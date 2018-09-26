@@ -319,6 +319,7 @@ enum query {
 
     impl_info_str = mkldnn_query_impl_info_str,
 
+    op_d = mkldnn_query_op_d,
     memory_d = mkldnn_query_memory_d,
     convolution_d = mkldnn_query_convolution_d,
     deconvolution_d = mkldnn_query_deconvolution_d,
