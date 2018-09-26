@@ -551,7 +551,7 @@ private:
 
 /// @}
 
-/// @addtogroup cpp_api_primitives Primitives
+/// @addtogroup cpp_api_memory_related Memory and memory related operations
 /// @{
 
 /// @addtogroup cpp_api_memory Memory
@@ -1223,6 +1223,11 @@ private:
 };
 
 /// @}
+
+/// @}
+
+/// @addtogroup cpp_api_primitives Primitives
+/// @{
 
 /// @addtogroup cpp_api_convolution Convolution
 /// A primitive to compute convolution using different algorithms.
