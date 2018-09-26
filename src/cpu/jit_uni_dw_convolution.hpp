@@ -302,11 +302,11 @@ private:
     pd_t conf_;
     jit_uni_dw_conv_bwd_weights_kernel_f32<isa> *kernel_;
 
-    data_t *ws_reduction_;
-    data_t *bias_reduction_;
+    data_t *ws_reduction_ = nullptr;
+    data_t *bias_reduction_ = nullptr;
 
     /* Used when executing a parallel reduction */
-    cpu_accumulator_1d_t<data_type::f32> *acc_ker_;
+    cpu_accumulator_1d_t<data_type::f32> *acc_ker_ = nullptr;
     simple_barrier::ctx_t reduction_bctx_;
 
     /* For parallel implementation details see '.cpp' file in the
