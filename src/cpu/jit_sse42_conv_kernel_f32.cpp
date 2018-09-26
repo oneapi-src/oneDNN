@@ -489,18 +489,22 @@ status_t jit_sse42_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     int r_pad_no_tail = nstl::max(0, (jcp.ow - jcp.ur_w_tail - 1) * jcp.stride_w
         + (jcp.kw - 1) * (jcp.dilate_w + 1) - (jcp.iw + jcp.l_pad - 1));
 
+    // kernel needs 1 temporary YMM register
+    const int num_avail_regs = 15;
     if (r_pad_no_tail > jcp.ur_w) {
         /* recalculate ur_w, nb_oc_blocking and ur_w_tail */
-        jcp.ur_w = r_pad_no_tail + 1;
-        jcp.nb_oc_blocking = ((16 - 1)-jcp.ur_w)/jcp.ur_w;
+        jcp.ur_w = nstl::min(r_pad_no_tail + 1,
+                nstl::min(jcp.ow, num_avail_regs / 2));
+        jcp.nb_oc_blocking = (num_avail_regs - jcp.ur_w) / jcp.ur_w;
         jcp.ur_w_tail = jcp.ow % jcp.ur_w;
         /* check again ... */
         r_pad_no_tail = nstl::max(0, (jcp.ow - jcp.ur_w_tail - 1) * jcp.stride_w
             + (jcp.kw - 1) * (jcp.dilate_w + 1) - (jcp.iw + jcp.l_pad - 1));
-        if ((r_pad_no_tail > jcp.ur_w) || (jcp.ow < jcp.ur_w))
+        if (jcp.ur_w < nstl::max(jcp.l_pad, r_pad_no_tail))
             return status::unimplemented;
     }
-    if (jcp.l_pad > jcp.ur_w) return status::unimplemented;
+    assert(jcp.nb_oc_blocking > 0);
+    assert(jcp.ur_w * (jcp.nb_oc_blocking + 1) <= num_avail_regs);
 
     jcp.ic_block = (jcp.ic % simd_w != 0) ? jcp.ic : simd_w;
     jcp.nb_ic = jcp.ic / jcp.ic_block;
