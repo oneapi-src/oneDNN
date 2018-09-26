@@ -537,10 +537,12 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
 
     jcp.nb_oc_blocking = 4; /* the optimal value for the kernel */
 
+    // AVX and AVX2 kernels need 2 and 1 temporary YMMs, respectively
+    // Thus, we can only assign 14 or 15 YMMs for data storage
+    const int num_avail_regs = mayiuse(avx2) ? 15 : 14;
     if (!mayiuse(avx2)) {
-        // AVX kernel needs 2 temporary YMMs -- can assign only 14 YMMs
-        if ((jcp.nb_oc_blocking + 1) * jcp.ur_w >= 15) {
-            // current register assignment requires >= 15 YMMs
+        if ((jcp.nb_oc_blocking + 1) * jcp.ur_w > num_avail_regs) {
+            // current register assignment requires more YMMs than available
             // adjust one of nb_oc_block, ur_w preserving to ur_w >= l_pad
             if (jcp.ur_w > jcp.l_pad && jcp.ur_w > 1)
                 jcp.ur_w -= 1;
@@ -569,16 +571,18 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
 
     if (r_pad_no_tail > jcp.ur_w) {
         /* recalculate ur_w, nb_oc_blocking and ur_w_tail */
-        jcp.ur_w = r_pad_no_tail + 1;
-        jcp.nb_oc_blocking = ((16 - 1)-jcp.ur_w)/jcp.ur_w;
+        jcp.ur_w = nstl::min(r_pad_no_tail + 1,
+                nstl::min(jcp.ow, num_avail_regs / 2));
+        jcp.nb_oc_blocking = (num_avail_regs - jcp.ur_w) / jcp.ur_w;
         jcp.ur_w_tail = jcp.ow % jcp.ur_w;
         /* check again ... */
         r_pad_no_tail = nstl::max(0, (jcp.ow - jcp.ur_w_tail - 1) * jcp.stride_w
             + (jcp.kw - 1) * (jcp.dilate_w + 1) - (jcp.iw + jcp.l_pad - 1));
-        if ((r_pad_no_tail > jcp.ur_w) || (jcp.ow < jcp.ur_w))
+        if (jcp.ur_w < nstl::max(jcp.l_pad, r_pad_no_tail))
             return status::unimplemented;
     }
-    if (jcp.l_pad > jcp.ur_w) return status::unimplemented;
+    assert(jcp.nb_oc_blocking > 0);
+    assert(jcp.ur_w * (jcp.nb_oc_blocking + 1) <= num_avail_regs);
 
     jcp.ic_block = (jcp.ic % simd_w != 0) ? jcp.ic : simd_w;
     jcp.nb_ic = jcp.ic / jcp.ic_block;
