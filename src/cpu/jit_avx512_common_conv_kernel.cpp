@@ -1273,7 +1273,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
             if (jcp.ver == ver_4fma) {
                 const auto w_format = with_groups
                     ? pick(ndims - 3, gOiw16o, gOihw16o, gOidhw16o)
-                    : pick(ndims - 3, Oiw16o, Oihw16o, gOidhw16o);
+                    : pick(ndims - 3, Oiw16o, Oihw16o, Oidhw16o);
                 if (weights_d.format() == any)
                     CHECK(weights_pd.set_format(w_format));
                 if (weights_d.format() != w_format)
@@ -4288,7 +4288,7 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
     auto src_format = pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
     auto wei_format = with_groups
         ? pick(ndims - 3, gOIw16i16o, gOIhw16i16o, gOIdhw16i16o)
-        : pick(ndims - 3, gOIw16i16o, gOIhw16i16o, gOIdhw16i16o);
+        : pick(ndims - 3, OIw16i16o, OIhw16i16o, OIdhw16i16o);
     /* conditions on bias memory */
     jcp.with_bias = cd.diff_bias_desc.format != memory_format::undef;
     if (jcp.with_bias) {
