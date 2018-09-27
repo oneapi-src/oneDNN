@@ -185,8 +185,8 @@ int str2desc(rnn_desc_t *desc, const char *str) {
 void prb2str(const rnn_prb_t *p, const res_t *res, char *buffer) {
     int rem_len = max_prb_len;
 
-    DPRINT("%s,%s,%s,", alg2str(p->alg_), activation2str(p->activation_),
-            direction2str(p->direction_));
+    DPRINT("%s,%s,%s,", alg2str(p->alg), activation2str(p->activation),
+            direction2str(p->direction));
     DPRINT("l%d", p->n_layer);
     DPRINT("t%d", p->n_iter);
     DPRINT("mb%d", p->mb);
@@ -238,7 +238,7 @@ int compare_dat(const rnn_prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
         const float diff = fabsf(fp - dt);
         const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
 
-        const bool ok = (fabs(fp) > 1e-5 ? rel_diff : diff) <= p->cfg_[kind].eps;
+        const bool ok = (fabs(fp) > 1e-5 ? rel_diff : diff) <= p->cfg[kind].eps;
 
         if (!ok) {
             r->errors++;

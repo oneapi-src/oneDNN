@@ -351,21 +351,21 @@ void rnn_linear_fwd(const rnn_prb_t *p, mkldnn_rnn_direction_t direction,
         const float *bias_, float *dst_iter_, float *dst_layer_, float *ws_,
         float *gates_) {
 
-    const alg_t alg = p->alg_;
+    const alg_t alg = p->alg;
     const int sic = p->sic;
     const int slc = p->slc;
     const int dic = p->dic;
     const int dlc = p->dlc;
     const int wc = max(sic, max(slc, dic));
-    bool is_lbr = p->alg_ == LBR_GRU;
+    bool is_lbr = p->alg == LBR_GRU;
 
     const int batch = p->mb;
-    const int n_gates = p->n_gates;
-    const int n_states = p->n_states;
+    const int n_gates = p->n_gates();
+    const int n_states = p->n_states();
     const int n_layer = p->n_layer;
     const int n_iter = p->n_iter;
-    const int n_dir = p->n_direction;
-    activation_t f = p->activation_;
+    const int n_dir = p->n_directions();
+    activation_t f = p->activation;
 
     AOC<const float> bias(bias_, n_layer, n_dir, (n_gates + is_lbr) * dic);
     AOC<const float> weights_layer(
@@ -446,11 +446,11 @@ void compute_ref_fwd(const rnn_prb_t *p, dnn_mem_t &src_layer_m,
             || direction == mkldnn_bidirectional_concat);
 
     const int wc = max(p->sic, max(p->slc, p->dic));
-    int ws_size = (p->n_layer + 2) * p->n_direction * (p->n_iter + 2)
-            * p->n_states * p->mb * wc;
+    int ws_size = (p->n_layer + 2) * p->n_directions() * (p->n_iter + 2)
+            * p->n_states() * p->mb * wc;
     auto *ws = new float[ws_size];
-    int gates_size = p->n_layer * p->n_direction * p->n_iter * p->mb
-            * p->n_gates * p->dic;
+    int gates_size = p->n_layer * p->n_directions() * p->n_iter * p->mb
+            * p->n_gates() * p->dic;
     auto *gates = new float[gates_size];
 
     rnn_linear_fwd(p, direction, (float *)src_iter_m, (float *)src_layer_m,
@@ -784,21 +784,21 @@ void rnn_linear_bwd(const rnn_prb_t *p, mkldnn_rnn_direction_t direction,
         float *diff_weights_layer_, float *diff_weights_iter_h_,
         float *diff_bias_, float *ws_, const float *gates_) {
 
-    const alg_t alg = p->alg_;
+    const alg_t alg = p->alg;
     const int sic = p->sic;
     const int slc = p->slc;
     const int dic = p->dic;
     const int dlc = p->dlc;
     const int wc = max(sic, max(slc, dic));
-    bool is_lbr = p->alg_ == LBR_GRU;
+    bool is_lbr = p->alg == LBR_GRU;
 
     const int batch = p->mb;
-    const int n_gates = p->n_gates;
-    const int n_states = p->n_states;
+    const int n_gates = p->n_gates();
+    const int n_states = p->n_states();
     const int n_layer = p->n_layer;
     const int n_iter = p->n_iter;
-    const int n_dir = p->n_direction;
-    activation_t f = p->activation_;
+    const int n_dir = p->n_directions();
+    activation_t f = p->activation;
 
     const int X = n_states;
 
@@ -828,7 +828,7 @@ void rnn_linear_bwd(const rnn_prb_t *p, mkldnn_rnn_direction_t direction,
             wsb_, n_layer + 2, n_dir, n_iter + 2, n_states + 1, batch, wc);
 
     int ws_local_size;
-    switch (p->alg_) {
+    switch (p->alg) {
         case LBR_GRU:
             ws_local_size = batch * (n_gates + 1) * dic;
             break;
@@ -929,12 +929,12 @@ void compute_ref_bwd(const rnn_prb_t *p, dnn_mem_t &input_m,
 
     assert(p->dlc == p->dic);
     int wc = max(p->sic, max(p->slc, p->dic));
-    int ws_size = (p->n_layer + 2) * p->n_direction * (p->n_iter + 2)
-            * p->n_states * p->mb * wc;
+    int ws_size = (p->n_layer + 2) * p->n_directions() * (p->n_iter + 2)
+            * p->n_states() * p->mb * wc;
     auto *ws = new float[ws_size];
     init_buffer(ws, ws_size, -55.); // ??!! Temporary. For debug.
-    int gates_size = p->n_layer * p->n_direction * p->n_iter * p->mb
-            * p->n_gates * p->dic;
+    int gates_size = p->n_layer * p->n_directions() * p->n_iter * p->mb
+            * p->n_gates() * p->dic;
     auto *gates = new float[gates_size];
 
     rnn_linear_fwd(p, direction, (float *)states_m, (float *)input_m,

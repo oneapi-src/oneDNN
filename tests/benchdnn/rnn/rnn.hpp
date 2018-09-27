@@ -161,47 +161,29 @@ struct rnn_prb_t : public rnn_desc_t {
     rnn_prb_t(const rnn_desc_t desc, const dt_conf_t *cfg,
             mkldnn_prop_kind_t prop, alg_t alg,
             mkldnn_rnn_direction_t direction, activation_t activation)
-        : rnn_desc_t(desc), cfg_(cfg), prop_(prop), alg_(alg),
-        direction_(direction), activation_(activation){
-        switch (alg) {
-        case VANILLA_LSTM:
-            n_weights = 1;
-            n_states = 2;
-            n_gates = 4;
-            break;
-        case VANILLA_GRU:
-            n_weights = 1;
-            n_states = 1;
-            n_gates = 3;
-            break;
-        case LBR_GRU:
-            n_weights = 1;
-            n_states = 1;
-            n_gates = 3;
-            break;
-        default:
-            n_weights = 1;
-            n_states = 1;
-            n_gates = 1;
-            break;
-        }
-
-        // TODO: recheck below condition
-        if (direction == mkldnn_bidirectional_concat
-                || direction == mkldnn_bidirectional_sum)
-            n_direction = 2;
-        else
-            n_direction = 1;
+        : rnn_desc_t(desc), cfg(cfg), prop(prop), alg(alg),
+        direction(direction), activation(activation){
     }
 
-    const dt_conf_t *cfg_;
-    mkldnn_prop_kind_t prop_;
-    alg_t alg_;
-    mkldnn_rnn_direction_t direction_;
-    activation_t activation_;
-    int n_direction; // 1 for unidirectional, 2 for bidirectional
+    int n_directions() const {
+        return (direction == mkldnn_bidirectional_concat
+                       || direction == mkldnn_bidirectional_sum) ?
+                2 :
+                1;
+    }
+    int n_weights() const { return 1; }
+    int n_states() const { return alg == VANILLA_LSTM ? 2 : 1; }
+    int n_gates() const {
+        return alg == VANILLA_LSTM ?
+                4 :
+                (alg == VANILLA_GRU || alg == LBR_GRU ? 3 : 1);
+    }
 
-    int n_weights, n_states, n_gates;
+    const dt_conf_t *cfg;
+    mkldnn_prop_kind_t prop;
+    alg_t alg;
+    mkldnn_rnn_direction_t direction;
+    activation_t activation;
 
 private:
     rnn_prb_t(const rnn_prb_t &) = delete;
@@ -246,7 +228,8 @@ inline void inv_ntc_off_f(
 // mkldnn_ldsnc
 inline size_t ldsnc_off_f(
         const rnn_prb_t *p, int l, int d, int s, int n, int c) {
-    return ((((size_t)l * p->n_direction + d) * p->n_states + s) * p->mb + n)
+    return ((((size_t)l * p->n_directions() + d) * p->n_states() + s) * p->mb
+                   + n)
             * p->sic
             + c;
 }
@@ -257,10 +240,10 @@ inline void inv_ldsnc_off_f(const rnn_prb_t *p, size_t off, int &l, int &d,
     off /= p->sic;
     n = off % p->mb;
     off /= p->mb;
-    s = off % p->n_states;
-    off /= p->n_states;
-    d = off % p->n_direction;
-    off /= p->n_direction;
+    s = off % p->n_states();
+    off /= p->n_states();
+    d = off % p->n_directions();
+    off /= p->n_directions();
     l = off % p->n_layer;
     off /= p->n_layer;
     assert(off == 0);
@@ -269,7 +252,8 @@ inline void inv_ldsnc_off_f(const rnn_prb_t *p, size_t off, int &l, int &d,
 // mkldnn_ldigo
 inline size_t ldigo_off_f(
         const rnn_prb_t *p, int l, int d, int w, int ic, int oc) {
-    return ((((size_t)l * p->n_direction + d) * p->n_weights + w) * (4 * p->slc)
+    return ((((size_t)l * p->n_directions() + d) * p->n_weights() + w)
+                           * (4 * p->slc)
                    + ic)
             * p->sic
             + oc;
@@ -281,10 +265,10 @@ inline void inv_ldigo_off_f(const rnn_prb_t *p, size_t off, int &l, int &d,
     off /= p->sic;
     ic = off % (4 * p->slc);
     off /= (4 * p->slc);
-    w = off % p->n_weights;
-    off /= p->n_weights;
-    d = off % p->n_direction;
-    off /= p->n_direction;
+    w = off % p->n_weights();
+    off /= p->n_weights();
+    d = off % p->n_directions();
+    off /= p->n_directions();
     l = off % p->n_layer;
     off /= p->n_layer;
     assert(off == 0);
@@ -293,7 +277,8 @@ inline void inv_ldigo_off_f(const rnn_prb_t *p, size_t off, int &l, int &d,
 // mkldnn_ldwOcIc
 inline size_t ldwOcIc_off_f(
         const rnn_prb_t *p, int l, int d, int w, int oc, int ic) {
-    return ((((size_t)l * p->n_direction + d) * p->n_weights + w) * (4 * p->sic)
+    return ((((size_t)l * p->n_directions() + d) * p->n_weights() + w)
+                           * (4 * p->sic)
                    + oc)
             * p->slc
             + ic;
@@ -305,10 +290,10 @@ inline void inv_ldwOcIc_off_f(const rnn_prb_t *p, size_t off, int &l, int &d,
     off /= p->slc;
     oc = off % (4 * p->sic);
     off /= (4 * p->sic);
-    w = off % p->n_weights;
-    off /= p->n_weights;
-    d = off % p->n_direction;
-    off /= p->n_direction;
+    w = off % p->n_weights();
+    off /= p->n_weights();
+    d = off % p->n_directions();
+    off /= p->n_directions();
     l = off % p->n_layer;
     off /= p->n_layer;
     assert(off == 0);
@@ -316,17 +301,18 @@ inline void inv_ldwOcIc_off_f(const rnn_prb_t *p, size_t off, int &l, int &d,
 
 // bias: mkldnn_ldgo
 inline size_t ldgo_off_f(const rnn_prb_t *p, int l, int d, int b, int c) {
-    return (((size_t)l * p->n_direction + d) * p->n_gates + b) * p->sic + c;
+    return (((size_t)l * p->n_directions() + d) * p->n_gates() + b) * p->sic
+            + c;
 }
 
 inline void inv_ldgo_off_f(
         const rnn_prb_t *p, size_t off, int &l, int &d, int &b, int &c) {
     c = off % p->sic;
     off /= p->sic;
-    b = off % p->n_gates;
-    off /= p->n_gates;
-    d = off % p->n_direction;
-    off /= p->n_direction;
+    b = off % p->n_gates();
+    off /= p->n_gates();
+    d = off % p->n_directions();
+    off /= p->n_directions();
     l = off % p->n_layer;
     off /= p->n_layer;
     assert(off == 0);
@@ -345,8 +331,8 @@ inline void inv_tnc_off_f(
     off /= p->mb;
     t = off % p->n_iter;
     off /= p->n_iter;
-    s = off % p->n_states;
-    off /= p->n_states;
+    s = off % p->n_states();
+    off /= p->n_states();
     assert(off == 0);
 }
 
