@@ -48,6 +48,10 @@ set(LIB_NAME mkldnn)
 
 project(${PROJECT_NAME} C CXX)
 
+if (NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
+    message("FATAL_ERROR" "Intel(R) MKL-DNN supports 64 bit platforms only")
+endif()
+
 if("${CMAKE_BUILD_TYPE}" STREQUAL "")
     message(STATUS "CMAKE_BUILD_TYPE is unset, defaulting to Release")
     set(CMAKE_BUILD_TYPE "Release")

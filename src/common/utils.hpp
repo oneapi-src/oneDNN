@@ -27,6 +27,9 @@
 namespace mkldnn {
 namespace impl {
 
+// Sanity check for 64 bits
+static_assert(sizeof(void*) == 8, "Intel(R) MKL-DNN supports 64 bit only");
+
 #define UNUSED(x) ((void)x)
 #define MAYBE_UNUSED(x) UNUSED(x)
 
