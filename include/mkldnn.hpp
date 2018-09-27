@@ -3175,6 +3175,7 @@ struct rnn_backward : public primitive {
     };
 
     struct primitive_desc : public mkldnn::primitive_desc {
+        MKLDNN_DEPRECATED
         primitive_desc(const desc &desc, const engine &e)
             : mkldnn::primitive_desc(&desc.data, nullptr, e, nullptr) {}
 
