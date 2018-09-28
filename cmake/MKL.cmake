@@ -79,14 +79,6 @@ function(detect_mkl LIBNAME)
         endif()
     endif()
 
-    if(UNIX AND LIBNAME MATCHES "mklml.*")
-        # Although MKL-ML depends on shared object functions such as dlopen and
-        # dladdr it is not linked against libdl. This causes link failures when
-        # MKL-DNN is build with the gold linker (e.g. -fuse-ld=gold).
-        list(APPEND EXTRA_LIBS dl)
-        set(EXTRA_LIBS "${EXTRA_LIBS}" PARENT_SCOPE)
-    endif()
-
     if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
         get_filename_component(MKLLIBPATH ${MKLLIB} PATH)
         find_library(MKLIOMP5LIB
