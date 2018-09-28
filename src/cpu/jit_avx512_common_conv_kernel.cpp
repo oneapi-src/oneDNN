@@ -1511,6 +1511,13 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
                     break;
                 }
         }
+        if (jcp.ver == ver_4fma
+            && is_1D_conv(jcp) && one_of(jcp.ndims, 3, 4)) {
+            if (jcp.nb_oc % 2 == 0) {
+                jcp.nb_oc_blocking = 2;
+                jcp.ur_w = nstl::min(jcp.ow, regs / jcp.nb_oc_blocking);
+            }
+        }
     }
 
     if (jcp.ver == ver_fma && mayiuse(avx512_core)) {
