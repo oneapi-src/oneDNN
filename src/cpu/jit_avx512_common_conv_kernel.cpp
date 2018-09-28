@@ -303,13 +303,6 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma(int ur_w,
 
     assert(jcp.oc % jcp.nb_oc_blocking == 0);
 
-    if (one_of(jcp.ndims, 3, 4)) {
-        mov(aux_reg_inp, reg_inp);
-        mov(aux_reg_ker, reg_ker);
-        mov(aux_reg_ker_prf, reg_ker_prf);
-        mov(aux_reg_inp_prf, reg_inp_prf);
-    }
-
     auto kernel_offset = [=](int ocb, int ic, int ki) {
         int blk_idx = ocb * jcp.nb_ic * jcp.kh * jcp.kw * jcp.kd + ki;
         int blk_offset = blk_idx * jcp.oc_block * jcp.ic_block;
@@ -338,7 +331,7 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma(int ur_w,
 
     prepare_output(ur_w);
 
-    if (jcp.ndims == 4) {
+    if (one_of(jcp.ndims, 3, 4)) {
         mov(aux_reg_inp, reg_inp);
         mov(aux_reg_ker, reg_ker);
         mov(aux_reg_ker_prf, reg_ker_prf);
@@ -1587,14 +1580,6 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_4fma(
     int iw_end_ipref = get_iw_end(ur_w, 0, r_overflow);
 
     bool check_last_kh = (jcp.kh > 3);
-
-    if (one_of(jcp.ndims, 3, 4)) {
-        mov(aux_reg_dst, reg_dst);
-        mov(aux_reg_ker, reg_ker);
-        mov(aux_reg_dst_prf, reg_dst_prf);
-        mov(aux_reg_ker_prf, reg_ker_prf);
-    }
-
     auto kernel_offset = [=](int icb, int oc, int ki) {
         int blk_idx = icb * jcp.kh * jcp.kw * jcp.kd + ki;
         int blk_offset = blk_idx * jcp.oc_block * jcp.ic_block;
@@ -1620,7 +1605,7 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_4fma(
 
     prepare_output(ur_w);
 
-    if (jcp.ndims == 4) {
+    if (one_of(jcp.ndims, 3, 4)) {
         mov(aux_reg_dst, reg_dst);
         mov(aux_reg_ker, reg_ker);
         mov(aux_reg_dst_prf, reg_dst_prf);
