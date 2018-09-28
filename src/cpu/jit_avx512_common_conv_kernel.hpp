@@ -70,6 +70,7 @@ private:
     reg64_t reg_inp_prf = r11;
     reg64_t reg_ker_prf = r12;
     reg64_t reg_out_prf = r13;
+    reg64_t reg_owb = r12;
 
     reg64_t aux_reg_inp = r14;
     reg64_t aux_reg_ker = r15;

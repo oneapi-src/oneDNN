@@ -44,18 +44,16 @@ inline void pick_loop_order(jit_conv_conf_t &jcp) {
                 forward_training, forward_inference, backward_data));
     auto w = (jcp.prop_kind == backward_data) ? jcp.iw : jcp.ow;
     auto h = (jcp.prop_kind == backward_data) ? jcp.ih : jcp.oh;
-    switch (jcp.ver) {
-    case ver_fma:
-        jcp.loop_order = loop_cgn;
-    case ver_4vnni:
-    case ver_vnni:
-        // TBD: Tune on HW
-    case ver_4fma:
-        jcp.loop_order
-            = (w <= small_spatial && h <= small_spatial) ? loop_cgn : loop_gnc;
-        break;
-    default:
-        assert(!"unsupported convolution version");
+
+    // ow-threading is currently implemented for forward only
+    // TODO: single code for fwd and bwd after ow-thr for bwd
+    // meaningless switch was removed
+    if (jcp.prop_kind == backward_data) {
+        jcp.loop_order = (w <= small_spatial && h <= small_spatial)
+            ? loop_cgn : loop_gnc;
+    } else {
+        jcp.loop_order = (w <= small_spatial && h <= small_spatial)
+            ? loop_cwgn : loop_gncw;
     }
 }
 
@@ -65,7 +63,15 @@ inline bool is_1stconv(const jit_conv_conf_t &jcp) {
     else
         return one_of(jcp.ic, 1, 3);
 }
-
+inline bool is_1D_conv(const jit_conv_conf_t &jcp) {
+    return (jcp.ih == 1 && jcp.kh == 1);
+}
+inline bool is_ow_threading_available(const jit_conv_conf_t &jcp) {
+    return (is_1D_conv(jcp) && one_of(jcp.ndims, 3, 4)
+        && !(jcp.ver == ver_fma && mayiuse(avx512_mic)));
+}
+inline bool is_ow_threading_on(const jit_conv_conf_t &jcp) {
+    return (jcp.nb_ow > 1);
 }
 
 void jit_avx512_common_conv_fwd_kernel::prepare_output(int ur_w)
@@ -1001,6 +1007,8 @@ void jit_avx512_common_conv_fwd_kernel::generate()
 {
     int iw = jcp.iw;
     int ow = jcp.ow;
+    int ow_block = jcp.ow_block;
+    int nb_ow = jcp.nb_ow;
     int kw = jcp.kw;
     int l_pad = jcp.l_pad;
     int ur_w = jcp.ur_w;
@@ -1011,6 +1019,7 @@ void jit_avx512_common_conv_fwd_kernel::generate()
     int inp_mult = jcp.is_1stconv ? 1 : jcp.ic_block;
     int inp_shift_pad = jcp.typesize_in * (ur_w * stride_w - l_pad) * inp_mult;
     int inp_shift = jcp.typesize_in * ur_w * stride_w * inp_mult;
+    int inp_shift_pad_second_block = -1 * jcp.typesize_in * l_pad * inp_mult;
     int out_shift = jcp.typesize_out * ur_w * jcp.oc_block;
 
     preamble();
@@ -1025,66 +1034,192 @@ void jit_avx512_common_conv_fwd_kernel::generate()
     int n_oi = ow / ur_w;
     int r_pad1 = (ur_w * n_oi - 1) * stride_w + (kw - 1) * dilate_w
             - (iw + l_pad - 1);
-    if (r_pad1 > 0) n_oi--;
 
-    if (ow == ur_w) {
-        mov(reg_inp_prf, ptr[param1 + GET_OFF(src_prf)]);
-        mov(reg_out_prf, ptr[param1 + GET_OFF(dst_prf)]);
-        compute_loop(ur_w, l_pad, r_pad);
-    } else {
-        //TODO: potentially suboptimal
-        mov(reg_inp_prf, reg_inp);
-        mov(reg_out_prf, reg_out);
-        if (n_oi == 0) {
-            add(reg_inp_prf, inp_shift_pad);
-            add(reg_out_prf, out_shift);
-            compute_loop(ur_w, l_pad, r_pad1);
-            add(reg_inp, inp_shift_pad);
-            add(reg_out, out_shift);
-            if (ur_w_tail != 0) {
-                add(reg_inp_prf, inp_shift);
-                add(reg_out_prf, out_shift);
-                compute_loop(ur_w_tail, 0, r_pad);
-            }
+    if (!is_ow_threading_on(jcp)) {
+        // ow is being processed as a whole - with left and right paddings
+        if (r_pad1 > 0) n_oi--;
+
+        if (ow == ur_w) {
+            mov(reg_inp_prf, ptr[param1 + GET_OFF(src_prf)]);
+            mov(reg_out_prf, ptr[param1 + GET_OFF(dst_prf)]);
+            compute_loop(ur_w, l_pad, r_pad);
         } else {
-            xor_(reg_oi, reg_oi);
-            if (l_pad > 0) {
+            mov(reg_inp_prf, reg_inp);
+            mov(reg_out_prf, reg_out);
+            if (n_oi == 0) {
                 add(reg_inp_prf, inp_shift_pad);
                 add(reg_out_prf, out_shift);
-                compute_loop(ur_w, l_pad, 0);
+                compute_loop(ur_w, l_pad, r_pad1);
                 add(reg_inp, inp_shift_pad);
                 add(reg_out, out_shift);
-                inc(reg_oi);
-            }
-            if ((l_pad <= 0 && n_oi > 0) || (l_pad > 0 && n_oi > 1)) {
-                Label ow_loop_label;
-                L(ow_loop_label);
-                {
+                if (ur_w_tail != 0) {
                     add(reg_inp_prf, inp_shift);
                     add(reg_out_prf, out_shift);
-                    compute_loop(ur_w, 0, 0);
-                    add(reg_inp, inp_shift);
+                    compute_loop(ur_w_tail, 0, r_pad);
+                }
+            } else {
+                xor_(reg_oi, reg_oi);
+                if (l_pad > 0) {
+                    add(reg_inp_prf, inp_shift_pad);
+                    add(reg_out_prf, out_shift);
+                    compute_loop(ur_w, l_pad, 0);
+                    add(reg_inp, inp_shift_pad);
                     add(reg_out, out_shift);
                     inc(reg_oi);
-                    cmp(reg_oi, n_oi);
-                    jl(ow_loop_label, T_NEAR);
+                }
+                if ((l_pad <= 0 && n_oi > 0) || (l_pad > 0 && n_oi > 1)) {
+                    Label ow_loop_label;
+                    L(ow_loop_label);
+                    {
+                        add(reg_inp_prf, inp_shift);
+                        add(reg_out_prf, out_shift);
+                        compute_loop(ur_w, 0, 0);
+                        add(reg_inp, inp_shift);
+                        add(reg_out, out_shift);
+                        inc(reg_oi);
+                        cmp(reg_oi, n_oi);
+                        jl(ow_loop_label, T_NEAR);
+                    }
+                }
+                if (r_pad1 > 0) {
+                    add(reg_inp_prf, inp_shift);
+                    add(reg_out_prf, out_shift);
+                    compute_loop(ur_w, 0, r_pad1);
+                    add(reg_inp, inp_shift);
+                    add(reg_out, out_shift);
+                }
+                if (ur_w_tail != 0) {
+                    add(reg_inp_prf, inp_shift);
+                    add(reg_out_prf, out_shift);
+                    compute_loop(ur_w_tail, 0, r_pad);
                 }
             }
-            if (r_pad1 > 0) {
-                add(reg_inp_prf, inp_shift);
-                add(reg_out_prf, out_shift);
-                compute_loop(ur_w, 0, r_pad1);
-                add(reg_inp, inp_shift);
-                add(reg_out, out_shift);
-            }
-            if (ur_w_tail != 0) {
-                add(reg_inp_prf, inp_shift);
-                add(reg_out_prf, out_shift);
-                compute_loop(ur_w_tail, 0, r_pad);
-            }
         }
-    }
+    } else {
+        // ow block is only processed.
+        // Number of block is passed as parameter owb,
+        // and padding processing depends on this number.
 
+        Label end_label, last_oi_label, middle_ow_blocks_label, tail_label;
+        Label oi_loop_label, oi_loop_start_label, oi_loop_end_label;
+
+        assert(ow_block % ur_w == 0);
+        int n_oi_not_last_ow_block = ow_block / ur_w;
+        // to simplify code (and general regs usage),
+        // size of ow block must be >= 2 * ur_w
+        assert(n_oi_not_last_ow_block > 1);
+        int n_oi_next_last_ow_block = n_oi_not_last_ow_block;
+        int n_oi_first_ow_block = n_oi_not_last_ow_block;
+
+        int n_oi_last_ow_block = (ow - ow_block * (nb_ow-1)) / ur_w;
+
+        // prepare right padding
+        bool next_last_ow_block_padded = r_pad1 > 0 && n_oi_last_ow_block == 0;
+        bool first_ow_block_padded = next_last_ow_block_padded && jcp.nb_ow == 2;
+        bool last_ow_block_padded = r_pad1 > 0 && n_oi_last_ow_block > 0;
+
+        if (last_ow_block_padded) n_oi_last_ow_block--;
+        else if (first_ow_block_padded) n_oi_first_ow_block--;
+        else if (next_last_ow_block_padded) n_oi_next_last_ow_block--;
+
+        mov(reg_owb, ptr[param1 + GET_OFF(owb)]);
+        cmp(reg_owb, 0); // is that the first ow-block ?
+        jg(middle_ow_blocks_label, T_NEAR);
+
+        // the first ow block, compute left padding
+
+        mov(reg_oi, n_oi_first_ow_block);
+        mov(reg_inp_prf, reg_inp);
+        mov(reg_out_prf, reg_out);
+
+        if (l_pad > 0) {
+            mov(reg_ker_prf, ptr[param1 + GET_OFF(filt_prf)]);
+            add(reg_inp_prf, inp_shift_pad);
+            add(reg_out_prf, out_shift);
+            compute_loop(ur_w, l_pad, 0);
+            add(reg_inp, inp_shift_pad);
+            add(reg_out, out_shift);
+            dec(reg_oi);
+        }
+        jmp(oi_loop_label, T_NEAR);
+
+        // middle or last ow block entry
+
+        L(middle_ow_blocks_label);
+
+        if (l_pad > 0) {
+            // just to consider left padding, not compute
+            add(reg_inp, inp_shift_pad_second_block);
+            add(reg_inp_prf, inp_shift_pad_second_block);
+        }
+
+        // set number of iteration for oi-loop
+        cmp(reg_owb, jcp.nb_ow - 1); // last ow-block ?
+        mov(reg_oi, n_oi_last_ow_block);
+        je(oi_loop_label, T_NEAR);
+        cmp(reg_owb, jcp.nb_ow - 2); // next to last ow-block ?
+        mov(reg_oi, n_oi_next_last_ow_block);
+        je(oi_loop_label, T_NEAR);
+        mov(reg_oi, n_oi_not_last_ow_block); // other middle ow-blocks
+
+        // oi loop w/o padding
+        L(oi_loop_label);
+        mov(reg_ker_prf, ptr[param1 + GET_OFF(filt_prf)]);
+        L(oi_loop_start_label);
+            cmp(reg_oi, 0);
+            jle(oi_loop_end_label, T_NEAR);
+
+            add(reg_inp_prf, inp_shift);
+            add(reg_out_prf, out_shift);
+            compute_loop(ur_w, 0, 0);
+            add(reg_inp, inp_shift);
+            add(reg_out, out_shift);
+            dec(reg_oi);
+            jmp(oi_loop_start_label, T_NEAR);
+        L(oi_loop_end_label);
+
+        mov(reg_owb, ptr[param1 + GET_OFF(owb)]);
+
+        cmp(reg_owb, 0); // first ow-block ?
+        if (first_ow_block_padded) {
+            je(last_oi_label, T_NEAR);
+        } else {
+            je(end_label, T_NEAR);
+        }
+        cmp(reg_owb, jcp.nb_ow - 2); // next to last ow-block ?
+        jl(end_label, T_NEAR);
+        if (next_last_ow_block_padded) {
+            je(last_oi_label, T_NEAR);
+        } else {
+            je(end_label, T_NEAR);
+        }
+        // that is last block
+        if (!last_ow_block_padded) {
+            jmp(tail_label, T_NEAR);
+        }
+
+        // last oi block with right padding
+        L(last_oi_label);
+        mov(reg_ker_prf, ptr[param1 + GET_OFF(filt_prf)]);
+        add(reg_inp_prf, inp_shift);
+        add(reg_out_prf, out_shift);
+        compute_loop(ur_w, 0, r_pad1);
+        add(reg_inp, inp_shift);
+        add(reg_out, out_shift);
+
+        mov(reg_owb, ptr[param1 + GET_OFF(owb)]);
+        cmp(reg_owb, jcp.nb_ow - 1); // last ow_block?
+        jl(end_label, T_NEAR);
+
+        L(tail_label);
+        mov(reg_ker_prf, ptr[param1 + GET_OFF(filt_prf)]);
+        if (ur_w_tail != 0) {
+            add(reg_inp_prf, inp_shift);
+            add(reg_out_prf, out_shift);
+            compute_loop(ur_w_tail, 0, r_pad);
+        }
+        L(end_label);
+    }
     postamble();
 }
 
@@ -1466,6 +1601,21 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
 
     jcp.ur_w_tail = jcp.ow % jcp.ur_w;
 
+    jcp.ow_block = jcp.ow;
+    if (is_ow_threading_available(jcp)) {
+        const int L1_part = get_cache_size(1) * 5 / 8;
+        int size_src_chunk = typesize * jcp.ic_block * jcp.ur_w;
+        int size_dst_chunk = typesize
+            * jcp.oc_block * jcp.nb_oc_blocking * jcp.ur_w;
+        int size_wei_chunk = typesize
+            * jcp.oc_block * jcp.ic_block * jcp.nb_oc_blocking * jcp.kw;
+        int nurw = (L1_part - size_wei_chunk)
+            / (size_dst_chunk + size_src_chunk);
+        // current design of generate() requires ow_block >= 2 * ur_w
+        jcp.ow_block = jcp.ur_w * nstl::max(2, nurw);
+    }
+    jcp.nb_ow = div_up(jcp.ow, jcp.ow_block);
+
     args_ok = true
         && jcp.l_pad <= jcp.ur_w
         && jcp.ic <= src_d.blocking_desc().padding_dims[1]
@@ -1495,25 +1645,29 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
 
     // TODO check for 4vnni
     if (jcp.ver == ver_4fma) {
-        for (int divf = 2, temp_nb = jcp.nb_ic_L2; divf <= jcp.nb_ic;
-              divf++) {
-            size_t l2_src
-                = (size_t)jcp.iw * jcp.ic_block * jcp.ih * temp_nb * jcp.id;
-            size_t l2_dst = (size_t)jcp.ow * jcp.oc_block * jcp.nb_oc_blocking
-                * jcp.oh * jcp.od;
-            size_t l2_filt = (size_t)jcp.kw * jcp.oc_block * jcp.ic_block
-                * jcp.kh * jcp.nb_oc_blocking * temp_nb * jcp.kd;
-            if (4 * (l2_src + l2_dst + l2_filt) > KNx_L2_EFFECTIVE_CAPACITY) {
-                if (jcp.kh == 3 && jcp.oh == 7) {
-                    jcp.nb_ic_L2 = 1;
+        if (!is_ow_threading_on(jcp)) {
+            for (int divf = 2, temp_nb = jcp.nb_ic_L2; divf <= jcp.nb_ic;
+                  divf++) {
+                size_t l2_src
+                    = (size_t)jcp.iw * jcp.ic_block * jcp.ih * temp_nb * jcp.id;
+                size_t l2_dst = (size_t)jcp.ow * jcp.oc_block * jcp.nb_oc_blocking
+                    * jcp.oh * jcp.od;
+                size_t l2_filt = (size_t)jcp.kw * jcp.oc_block * jcp.ic_block
+                    * jcp.kh * jcp.nb_oc_blocking * temp_nb * jcp.kd;
+                if (4 * (l2_src + l2_dst + l2_filt) > KNx_L2_EFFECTIVE_CAPACITY) {
+                    if (jcp.kh == 3 && jcp.oh == 7) {
+                        jcp.nb_ic_L2 = 1;
+                        break;
+                    }
+                    temp_nb = (jcp.nb_ic_L2 % divf == 0 ? jcp.nb_ic_L2 / divf
+                                    : jcp.nb_ic_L2);
+                } else {
+                    jcp.nb_ic_L2 = temp_nb;
                     break;
                 }
-                temp_nb = (jcp.nb_ic_L2 % divf == 0 ? jcp.nb_ic_L2 / divf
-                                : jcp.nb_ic_L2);
-            } else {
-                jcp.nb_ic_L2 = temp_nb;
-                break;
             }
+        } else {
+            jcp.nb_ic_L2 = 2; /* according to performance data*/
         }
     }
     return status::success;

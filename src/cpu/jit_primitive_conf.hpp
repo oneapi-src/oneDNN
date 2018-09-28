@@ -26,7 +26,7 @@ namespace cpu {
 /* convolution */
 enum conv_version_t {ver_unused, ver_fma, ver_avx512_core, ver_4fma, ver_4vnni,
                      ver_vnni};
-enum conv_loop_order_t {loop_cgn, loop_gnc, loop_ngc};
+enum conv_loop_order_t {loop_cgn, loop_gnc, loop_ngc, loop_gncw, loop_cwgn};
 enum conv_1x1_loop_order_t {loop_rbl, loop_rlb, loop_lbr, loop_lrb, loop_blr,
                             loop_brl};
 enum conv_kernel_kind_t {embd_bcast, expl_bcast};
@@ -69,6 +69,7 @@ struct jit_conv_conf_t {
     int idp, ihp, iwp, ohp, owp;
     int nb_ic, ic_block;
     int nb_oc, oc_block;
+    int nb_ow, ow_block;
     int nb_ic_blocking, nb_oc_blocking; // blocking of nb_ic and nb_ic
     int nb_ic_blocking_max;
     int nb_ic_L2;
@@ -258,6 +259,8 @@ struct jit_conv_call_s {
     size_t kd_padding_prf;
     size_t kh_padding;
     size_t kh_padding_prf;
+    size_t owb;
+    size_t owb_prf;
     size_t kw_padding;
     size_t channel;
     size_t channel_prf;
