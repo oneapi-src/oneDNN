@@ -89,6 +89,8 @@ struct winograd_scratchpad_avx512_core_t {
                     * jcp.oc * sizeof(float);
                 break;
             case WSCHED_WEI_SDGtWo:
+                nthreads_ = nstl::min(mkldnn_get_max_threads(), jcp.tile_block);
+
                 U_sz_ = nthreads_
                     * (alpha * alpha * jcp.oc * (jcp.ic / jcp.nb_ic)
                       + jcp.ic * jcp.oc * jcp.kh * jcp.kw)
