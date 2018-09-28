@@ -22,6 +22,15 @@
 #include <stdlib.h>
 #include <assert.h>
 
+#define MSAN_ENABLED 0
+#if defined(__has_feature)
+#if __has_feature(memory_sanitizer)
+#undef MSAN_ENABLED
+#define MSAN_ENABLED 1
+#include <sanitizer/msan_interface.h>
+#endif
+#endif
+
 #include "c_types_map.hpp"
 
 namespace mkldnn {
@@ -300,6 +309,13 @@ FILE *mkldnn_fopen(const char *filename, const char *mode);
 
 void set_rnd_mode(round_mode_t rnd_mode);
 void restore_rnd_mode();
+
+constexpr int msan_enabled = MSAN_ENABLED;
+inline void msan_unpoison(void *ptr, size_t size) {
+#if MSAN_ENABLED
+    __msan_unpoison(ptr, size);
+#endif
+}
 
 }
 }

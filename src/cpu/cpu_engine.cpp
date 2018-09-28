@@ -334,6 +334,23 @@ const pd_create_f* cpu_engine_t::get_implementation_list() const {
 
 cpu_engine_factory_t engine_factory;
 
+namespace {
+// XXX: this is a huge hammer. This disables all and any msan checks on
+// primitives outputs.
+//
+// A proper approach would be an implementation-specific unpoisoning.
+void unpoison_outputs(primitive_t *p)
+{
+    for(auto o: p->outputs()) {
+        assert(o->kind() == primitive_kind::memory);
+        void *p;
+        o->get_data_handle(&p);
+        size_t s = ((memory_pd_t *)o->pd())->get_size();
+        msan_unpoison(p, s);
+    }
+}
+}
+
 status_t cpu_engine_t::submit(primitive_t *p, event_t *e,
         event_vector &prerequisites) {
     /* FIXME: this should live in primitive execute function... */
@@ -346,6 +363,8 @@ status_t cpu_engine_t::submit(primitive_t *p, event_t *e,
     } else {
         p->execute(e);
     }
+    if (msan_enabled)
+        unpoison_outputs(p);
     return success;
 }
 
