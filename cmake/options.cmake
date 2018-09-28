@@ -67,7 +67,7 @@ set(ARCH_OPT_FLAGS "HostOpts" CACHE STRING
       architectures.
 
     - For GNU* Compiler Collection version 5 and newer the default options are
-      `-march=native -mtune=native` which behaves similarly to the descriprion
+      `-march=native -mtune=native` which behaves similarly to the description
       above.
 
     - For all other cases there are no special optimizations flags.

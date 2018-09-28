@@ -181,10 +181,21 @@ user can also pass Intel MKL-DNN specific ones:
 |MKLDNN_THREADING       | **OMP**, TBB       | Defines threading type
 |WITH_EXAMPLE           | **ON**, OFF        | Controls building examples
 |WITH_TEST              | **ON**, OFF        | Controls building tests
+|ARCH_OPT_FLAGS (\*)    | *compiler flags*   | Specifies compiler optimization flags
 |VTUNEROOT              | *path*             | Enables integration with Intel(R) Vtune(tm) Amplifier
 
 Please check [cmake/options.cmake](cmake/options.cmake) for more options
 and details.
+
+> (\*) **WARNING**
+>
+> By default Intel MKL-DNN is built specifically for the processor type of the
+> compiling machine (e.g. `-march=native` in case of GCC). While this option
+> gives better performance, the resulting library can only be run on systems
+> that are instruction-set compatible with the compiling machine.
+>
+> Hence if Intel MKL-DNN is to be shipped to other platforms (e.g. built by
+> Linux distribution maintainers) consider setting ARCH_OPT_FLAGS to "".
 
 Intel MKL-DNN includes unit tests implemented using the googletest framework. To validate your build, run:
 
