@@ -210,7 +210,8 @@ private:
 
 struct jit_avx512_common_conv_bwd_data_kernel_f32: public jit_generator {
 
-    jit_avx512_common_conv_bwd_data_kernel_f32(jit_conv_conf_t ajcp): jcp(ajcp)
+    jit_avx512_common_conv_bwd_data_kernel_f32(jit_conv_conf_t ajcp, bool ifclear = false)
+        : jcp(ajcp), clear(ifclear)
     {
         generate();
         jit_ker = (void (*)(jit_conv_call_s *))getCode();
@@ -264,6 +265,8 @@ private:
     reg64_t reg_tmp = rbp;
     reg64_t reg_long_offt = r14;
 
+    bool clear;
+
     inline Xbyak::Zmm zmm_ker(int i_ic) {
         assert(i_ic < 4);
         return Xbyak::Zmm(ker_reg_base_idx + i_ic);
@@ -299,6 +302,7 @@ private:
     inline void compute_loop_4fma(int ur_w, int l_overflow, int r_overflow);
     inline void compute_loop_vnni(int ur_w, int l_overflow, int r_overflow);
     inline void compute_loop_fma(int ur_w, int l_overflow, int r_overflow);
+    inline void compute_loop_fma_sparse(int ur_w, int l_overflow, int r_overflow);
     inline void compute_loop_fma_core(int ur_w, int l_overflow, int r_overflow);
     inline void compute_loop(int ur_w, int l_overflow, int r_overflow);
     void generate();
