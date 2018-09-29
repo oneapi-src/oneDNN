@@ -91,14 +91,14 @@ struct mkldnn_post_ops: public mkldnn::impl::c_compatible {
                 bool require_nslope_zero = true) const {
             using namespace mkldnn::impl;
             return kind == primitive_kind::eltwise
-                && utils::implication(require_scale_one, eltwise.scale == 1.f)
+                && IMPLICATION(require_scale_one, eltwise.scale == 1.f)
                 && eltwise.alg == alg_kind::eltwise_relu
-                && utils::implication(require_nslope_zero, eltwise.alpha == 0.f);
+                && IMPLICATION(require_nslope_zero, eltwise.alpha == 0.f);
         }
         bool is_sum(bool require_scale_one = true) const {
             using namespace mkldnn::impl;
             return kind == primitive_kind::sum
-                && utils::implication(require_scale_one, sum.scale == 1.f);
+                && IMPLICATION(require_scale_one, sum.scale == 1.f);
         }
     };
 

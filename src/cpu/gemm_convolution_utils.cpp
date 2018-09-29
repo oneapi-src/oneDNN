@@ -395,7 +395,7 @@ void init_conf(
     } else {
         if (utils::one_of(jcp.prop_kind, forward_training, forward_inference))
             do_outer_threading = jcp.os / max_threads < 512
-                && utils::implication(jcp.od == 1, (jcp.mb != 1 || jcp.ngroups > 2));
+                && IMPLICATION(jcp.od == 1, (jcp.mb != 1 || jcp.ngroups > 2));
         else if (jcp.prop_kind == backward_data)
             do_outer_threading = (jcp.mb != 1 || jcp.ngroups > 2);
         else //(jcp.prop_kind == backward_weights)

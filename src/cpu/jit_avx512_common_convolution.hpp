@@ -59,7 +59,7 @@ struct _jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
                     && this->cdesc_().src_desc.data_type == src_type
                     && this->cdesc_().weights_desc.data_type == wei_type
                     && this->cdesc_().dst_desc.data_type == dst_type
-                    && utils::implication(this->with_bias(), dst_type
+                    && IMPLICATION(this->with_bias(), dst_type
                                        == this->cdesc_().bias_desc.data_type)
                     && !(with_relu && this->negative_slope()!= 0.
                                    && dst_type == data_type::s32

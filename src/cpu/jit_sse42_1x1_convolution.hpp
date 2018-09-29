@@ -59,7 +59,7 @@ struct _jit_sse42_1x1_convolution_fwd_t: public cpu_primitive_t {
                         this->cdesc_().src_desc.data_type,
                         this->cdesc_().weights_desc.data_type,
                         this->cdesc_().dst_desc.data_type)
-                && utils::implication(this->with_bias(),
+                && IMPLICATION(this->with_bias(),
                         data_type::f32 == this->cdesc_().bias_desc.data_type);
             if (!ok) return status::unimplemented;
 

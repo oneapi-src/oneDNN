@@ -94,7 +94,7 @@ bool simple_fmt_check(bool order_keep, impl::memory_format_t fmt_i,
 bool simple_attr_check(const primitive_attr_t *attr, bool many_scales_support) {
     if (many_scales_support)
         return true;
-    return utils::implication(attr, attr->output_scales_.mask_ == 0);
+    return IMPLICATION(attr, attr->output_scales_.mask_ == 0);
 }
 }
 

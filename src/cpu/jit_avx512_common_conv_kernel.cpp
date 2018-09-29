@@ -1432,7 +1432,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
         if (jcp.is_1stconv) {
             // TODO: fix & remove constraints below
             bool not_for_4fma
-                    = implication(everyone_is(0, jcp.l_pad, jcp.t_pad),
+                    = IMPLICATION(everyone_is(0, jcp.l_pad, jcp.t_pad),
                             nstl::max(jcp.kw, jcp.kh) < 7);
             bool is_dilated
                     = !everyone_is(0, jcp.dilate_d, jcp.dilate_h, jcp.dilate_w);
@@ -4431,11 +4431,11 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
     const int kh_range = 1 + (jcp.kh - 1) * (jcp.dilate_h + 1);
     bool ok = true
         // general condition to simplify dilations
-        && implication(jcp.dilate_d != 0, jcp.stride_d == 1)
-        && implication(jcp.dilate_h != 0, jcp.stride_h == 1)
-        && implication(jcp.dilate_w != 0, jcp.stride_w == 1)
+        && IMPLICATION(jcp.dilate_d != 0, jcp.stride_d == 1)
+        && IMPLICATION(jcp.dilate_h != 0, jcp.stride_h == 1)
+        && IMPLICATION(jcp.dilate_w != 0, jcp.stride_w == 1)
         // special condition to simplify dilations in compute_oh_loop_common
-        && implication(jcp.dilate_h != 0, kh_range <= jcp.ih);
+        && IMPLICATION(jcp.dilate_h != 0, kh_range <= jcp.ih);
     if (!ok)
         return status::unimplemented;
 
@@ -4520,9 +4520,9 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
                 src_d.data_type(), diff_weights_d.data_type(),
                 diff_dst_d.data_type())
             && one_of(jcp.ic, 1, 3)
-            && implication(jcp.ic == 1, one_of(src_d.format(), want_src_format,
+            && IMPLICATION(jcp.ic == 1, one_of(src_d.format(), want_src_format,
                 pick(ndims - 3, nwc, nhwc, ndhwc)))
-            && implication(jcp.ic != 1, src_d.format() == want_src_format)
+            && IMPLICATION(jcp.ic != 1, src_d.format() == want_src_format)
             && jcp.ngroups == 1;
         if (!src_ok)
             return status::unimplemented;
@@ -4543,8 +4543,8 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
             && jcp.kw <= 28 - jcp.with_bias
             && jcp.stride_w == 4
             && tr_ld / simd_w <= 4 /* [bwd_w:tr_src:r1] */
-            && implication(jcp.with_bias, kh_step_rem == 1) /* [bwd_w:b:r1] */
-            && implication(diff_weights_d.format() != any,
+            && IMPLICATION(jcp.with_bias, kh_step_rem == 1) /* [bwd_w:b:r1] */
+            && IMPLICATION(diff_weights_d.format() != any,
                     diff_weights_d.format() == want_4fma_wfmt);
 
         if (use_4fma) {

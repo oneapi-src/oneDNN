@@ -77,7 +77,7 @@ status_t jit_uni_pool_kernel_f32<isa>::init_conf(jit_pool_conf_t &jpp,
     jpp.ind_dt = pooling_index_data_type(&pd);
 
     jpp.simple_alg = jpp.is_training
-        || utils::implication(jpp.is_backward, jpp.kd <= jpp.stride_d);
+        || IMPLICATION(jpp.is_backward, jpp.kd <= jpp.stride_d);
 
     jpp.c_block = simd_w;
 

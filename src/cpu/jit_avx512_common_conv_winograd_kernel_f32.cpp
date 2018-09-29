@@ -636,12 +636,12 @@ bool jit_avx512_common_conv_winograd_fwd_kernel_f32::post_ops_ok(
         return true; // no post_ops
     case 1:
         return true // relu or sum
-                && implication(jcp.with_relu, is_sum(0))
-                && implication(!jcp.with_relu, is_relu(0) || is_sum(0));
+                && IMPLICATION(jcp.with_relu, is_sum(0))
+                && IMPLICATION(!jcp.with_relu, is_relu(0) || is_sum(0));
     case 2:
         return true // sum->relu or relu->sum
-                && implication(jcp.with_relu, is_sum(0) && is_relu(1))
-                && implication(!jcp.with_relu, false
+                && IMPLICATION(jcp.with_relu, is_sum(0) && is_relu(1))
+                && IMPLICATION(!jcp.with_relu, false
                                    || (is_sum(0) && is_relu(1))
                                    || (is_relu(0) && is_sum(1)));
     case 3:

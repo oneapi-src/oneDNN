@@ -386,11 +386,11 @@ inline bool memory_desc_wrapper::similar_to(const memory_desc_wrapper &rhs,
         && dim_start <= ndims() /* guard */
         && array_cmp(dims() + ds, rhs.dims() + ds, ndims() - ds)
         && format_normalize(format()) == format_normalize(rhs.format())
-        && implication(with_data_type, data_type() == rhs.data_type())
+        && IMPLICATION(with_data_type, data_type() == rhs.data_type())
         && array_cmp(blk.block_dims + ds, r_blk.block_dims + ds, ndims() - ds)
         && array_cmp(blk.strides[0] + ds, r_blk.strides[0] + ds, ndims() - ds)
         && array_cmp(blk.strides[1] + ds, r_blk.strides[1] + ds, ndims() - ds)
-        && implication(with_padding,
+        && IMPLICATION(with_padding,
                 array_cmp(blk.padding_dims + ds, r_blk.padding_dims + ds,
                     ndims() - ds)
                 && array_cmp(blk.offset_padding_to_data + ds,

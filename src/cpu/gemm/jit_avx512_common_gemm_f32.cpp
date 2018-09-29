@@ -1860,7 +1860,7 @@ void jit_avx512_common_gemm_f32::sgemm(const char *transa, const char *transb,
     // Determine threading partitioning
     gemm_utils::calc_nthr_nocopy_avx512_common(
             m, n, k, nthr, &nthr_m, &nthr_n, &nthr_k, &MB, &NB, &KB);
-    assert(utils::implication(!mkldnn_thr_syncable(), nthr_k == 1));
+    assert(IMPLICATION(!mkldnn_thr_syncable(), nthr_k == 1));
 
     // May not happen, but just in case
     if (nthr < nthr_m * nthr_n * nthr_k)

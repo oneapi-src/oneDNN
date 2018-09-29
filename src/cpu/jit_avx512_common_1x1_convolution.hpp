@@ -63,9 +63,9 @@ struct _jit_avx512_common_1x1_convolution_fwd_t : public cpu_primitive_t {
                 && this->cdesc_().src_desc.data_type == src_type
                 && this->cdesc_().weights_desc.data_type == wei_type
                 && this->cdesc_().dst_desc.data_type == dst_type
-                && implication(this->with_bias(),
+                && IMPLICATION(this->with_bias(),
                     dst_type == this->cdesc_().bias_desc.data_type)
-                && implication(with_relu && dst_type == data_type::s32
+                && IMPLICATION(with_relu && dst_type == data_type::s32
                     && everyone_is(data_type::s16, src_type, wei_type),
                     this->negative_slope() == 0.);
             if (!ok) return status::unimplemented;
@@ -330,7 +330,7 @@ struct jit_avx512_common_1x1_convolution_bwd_weights_t : public cpu_primitive_t
                         this->desc()->src_desc.data_type,
                         this->desc()->diff_weights_desc.data_type,
                         this->desc()->diff_dst_desc.data_type)
-                && utils::implication(this->with_bias(),
+                && IMPLICATION(this->with_bias(),
                         data_type::f32 == desc()->diff_bias_desc.data_type);
             if (!ok) return status::unimplemented;
 

@@ -165,7 +165,7 @@ struct ref_deconvolution_fwd_t: public cpu_primitive_t {
                     /* only weights in non-double-blocked format are supported */
                     && (wei_fmt == blocked && !is_format_double_blocked(wei_fmt))
                     /* deconv reference code can process only f32 bias */
-                    && utils::implication(with_bias(),
+                    && IMPLICATION(with_bias(),
                             conv_supports_bias_ || output_f32);
                 if (ok)
                     return success;

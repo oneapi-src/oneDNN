@@ -115,7 +115,7 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
             && utils::one_of(p.beta, 0.f, 1.f) /* anything else? */
             && simple_impl_desc_init(p, nullptr)
             && mayiuse(sse42)
-            && utils::implication(!utils::everyone_is(f32, p.itype, p.otype),
+            && IMPLICATION(!utils::everyone_is(f32, p.itype, p.otype),
                     mayiuse(avx512_core));
         if (!ok) return false;
 

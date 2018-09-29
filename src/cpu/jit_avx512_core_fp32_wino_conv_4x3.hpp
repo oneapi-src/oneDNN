@@ -209,7 +209,7 @@ struct _jit_avx512_core_fp32_wino_conv_4x3_fwd_t
                                this->cdesc_().src_desc.data_type,
                                this->cdesc_().weights_desc.data_type,
                                this->cdesc_().dst_desc.data_type)
-                    && utils::implication(this->with_bias(), data_type::f32
+                    && IMPLICATION(this->with_bias(), data_type::f32
                                        == this->cdesc_().bias_desc.data_type)
                     && mkldnn_thr_syncable();
             if (!ok)

@@ -51,7 +51,7 @@ struct jit_avx_gemm_f32::xbyak_gemm : public jit_generator {
         : jit_generator(code_ptr, code_size)
     {
         const bool is_avx2 = mayiuse(avx2);
-        assert(implication(!is_avx2, mayiuse(avx)));
+        assert(IMPLICATION(!is_avx2, mayiuse(avx)));
 
         const int UNROLL_M = is_avx2 ? 16 : 8;
         const int UNROLL_N = 6;
@@ -2431,7 +2431,7 @@ void jit_avx_gemm_f32::sgemm(const char *transa, const char *transb,
     // Determine threading partitioning
     gemm_utils::calc_nthr_nocopy_avx(
             m, n, k, nthr, &nthr_m, &nthr_n, &nthr_k, &MB, &NB, &KB);
-    assert(utils::implication(!mkldnn_thr_syncable(), nthr_k == 1));
+    assert(IMPLICATION(!mkldnn_thr_syncable(), nthr_k == 1));
 
     // May not happen, but just in case
     if (nthr < nthr_m * nthr_n * nthr_k)

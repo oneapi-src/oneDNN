@@ -48,6 +48,8 @@ static_assert(sizeof(void*) == 8, "Intel(R) MKL-DNN supports 64 bit only");
     return status; \
 } while (0)
 
+#define IMPLICATION(cause, effect) (!(cause) || !!(effect))
+
 #ifdef _WIN32
 #define __PRETTY_FUNCTION__ __FUNCSIG__
 #endif
@@ -125,8 +127,6 @@ constexpr bool one_of(T val, P item, Args... item_others) {
 
 template <typename... Args>
 inline bool any_null(Args... ptrs) { return one_of(nullptr, ptrs...); }
-
-inline bool implication(bool cause, bool effect) { return !cause || effect; }
 
 template<typename T>
 inline void array_copy(T *dst, const T *src, size_t size) {

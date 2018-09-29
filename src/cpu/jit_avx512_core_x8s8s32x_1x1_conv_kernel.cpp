@@ -520,11 +520,11 @@ bool jit_avx512_core_x8s8s32x_1x1_conv_kernel::post_ops_ok(
     switch (p.len_) {
     case 0: return true;
     case 1: return true
-                && implication(jcp.with_relu, p.contain(sum, 0))
-                && implication(!jcp.with_relu, is_relu(0) || p.contain(sum, 0));
+                && IMPLICATION(jcp.with_relu, p.contain(sum, 0))
+                && IMPLICATION(!jcp.with_relu, is_relu(0) || p.contain(sum, 0));
     case 2: return true
-                && implication(jcp.with_relu, p.contain(sum, 0) && is_relu(1))
-                && implication(!jcp.with_relu, false
+                && IMPLICATION(jcp.with_relu, p.contain(sum, 0) && is_relu(1))
+                && IMPLICATION(!jcp.with_relu, false
                         || (p.contain(sum, 0) && is_relu(1))
                         || (p.contain(sum, 1) && is_relu(0)));
     case 3: return true
@@ -579,7 +579,7 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
     jcp.with_bias = cd.bias_desc.format != memory_format::undef;
     jcp.with_relu = with_relu;
     jcp.relu_negative_slope = relu_negative_slope;
-    if (!implication(with_relu, relu_negative_slope == 0.))
+    if (!IMPLICATION(with_relu, relu_negative_slope == 0.))
         return status::unimplemented;
 
     jcp.signed_input = (src_d.data_type() == data_type::s8) ? true : false;
@@ -779,7 +779,7 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
 
     const auto &oscales = attr.output_scales_;
     jcp.is_oc_scale = oscales.mask_ == 1 << 1;
-    assert(utils::implication(!jcp.is_oc_scale, oscales.mask_ == 0));
+    assert(IMPLICATION(!jcp.is_oc_scale, oscales.mask_ == 0));
 
     jcp.wei_adj_scale = (jcp.signed_input) ? (1.f / 2.f) : 1.f;
 

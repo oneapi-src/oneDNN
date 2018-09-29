@@ -123,8 +123,8 @@ status_t jit_avx512_core_u8s8s32x_deconv_fwd_kernel::init_conf(jit_conv_conf_t &
     jcp.dilate_h = cd.dilates[0];
     jcp.dilate_w = cd.dilates[1];
 
-    if (!implication(jcp.dilate_h, jcp.stride_h == 1)
-            || !implication(jcp.dilate_w, jcp.stride_w == 1))
+    if (!IMPLICATION(jcp.dilate_h, jcp.stride_h == 1)
+            || !IMPLICATION(jcp.dilate_w, jcp.stride_w == 1))
             return status::unimplemented;
 
     /*bottom and right :padding*/

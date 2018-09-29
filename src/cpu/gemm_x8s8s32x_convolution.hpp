@@ -60,7 +60,7 @@ struct _gemm_x8s8s32x_convolution_fwd_t: public cpu_primitive_t {
                 && this->cdesc_().src_desc.data_type == src_type
                 && this->cdesc_().dst_desc.data_type == dst_type
                 && this->cdesc_().weights_desc.data_type == s8
-                && utils::implication(this->with_bias(), utils::one_of(
+                && IMPLICATION(this->with_bias(), utils::one_of(
                             this->cdesc_().bias_desc.data_type, f32, s32, s8,
                             u8))
                 && this->cdesc_().accum_data_type == data_type::s32
@@ -186,7 +186,7 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t: public cpu_primitive_t {
                 && this->desc()->diff_src_desc.data_type == dst_type
                 && this->desc()->diff_dst_desc.data_type == u8
                 && this->desc()->weights_desc.data_type == s8
-                && utils::implication(this->with_bias(), utils::one_of(
+                && IMPLICATION(this->with_bias(), utils::one_of(
                             this->desc()->bias_desc.data_type, f32, s32, s8,
                             u8))
                 && this->desc()->accum_data_type == data_type::s32

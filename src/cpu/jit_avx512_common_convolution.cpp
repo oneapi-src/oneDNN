@@ -1177,7 +1177,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
         tr_ctx.tr_src = tr_src_
             + ti->ithr_but_oc * jcp.ih * jcp.stride_w * jcp.tr_ld;
 
-        assert(utils::implication(!mkldnn_thr_syncable(), nthr_oc_b_ == 1));
+        assert(IMPLICATION(!mkldnn_thr_syncable(), nthr_oc_b_ == 1));
         tr_ctx.nthr_oc_b = nthr_oc_b_;
         int ih_start{0}, ih_end{0};
         balance211(jcp.ih, nthr_oc_b_, ti->ithr_oc_b, ih_start, ih_end);
@@ -1701,7 +1701,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
         nthr_mb_ = min(j.mb * j.od, max_threads);
     nthr_ = nthr_mb_ * nthr_g_ * nthr_oc_b_ * nthr_ic_b_;
     assert(nthr_ <= max_threads);
-    assert(utils::implication(!mkldnn_thr_syncable(), nthr_mb_ == 1));
+    assert(IMPLICATION(!mkldnn_thr_syncable(), nthr_mb_ == 1));
 }
 
 template struct jit_avx512_common_convolution_bwd_weights_t<data_type::f32>;

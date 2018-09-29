@@ -120,10 +120,10 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
                     && one_of(cell_kind, alg_kind::vanilla_rnn,
                                alg_kind::vanilla_lstm, alg_kind::vanilla_gru,
                                alg_kind::gru_linear_before_reset)
-                    && implication(aprop == prop_kind::forward,
+                    && IMPLICATION(aprop == prop_kind::forward,
                                one_of(this->desc()->prop_kind, forward_training,
                                        forward_inference))
-                    && implication(aprop == backward,
+                    && IMPLICATION(aprop == backward,
                                one_of(this->desc()->prop_kind, backward))
                     && this->set_default_params() == status::success;
             if (!ok)

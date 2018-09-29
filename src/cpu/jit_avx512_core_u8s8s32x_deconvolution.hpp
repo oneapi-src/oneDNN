@@ -148,7 +148,7 @@ struct _jit_avx512_core_u8s8s32x_deconvolution_fwd_t : public cpu_primitive_t {
                             prop_kind::forward_inference)
                 && this->desc()->alg_kind & alg_kind::deconvolution_direct
                 && this->desc()->dst_desc.data_type == dst_type
-                && utils::implication(this->with_bias(), utils::one_of(
+                && IMPLICATION(this->with_bias(), utils::one_of(
                             this->desc()->bias_desc.data_type, data_type::f32,
                             data_type::s32, data_type::s8, data_type::u8))
                 && this->desc()->accum_data_type == data_type::s32;

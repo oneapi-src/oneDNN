@@ -460,9 +460,9 @@ status_t jit_sse42_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     const bool mimo = !flat;
 
     bool args_ok = true
-        && implication(flat, one_of(src_d.format(), ncw, nwc, nchw, nhwc)
+        && IMPLICATION(flat, one_of(src_d.format(), ncw, nwc, nchw, nhwc)
                 && one_of(weights_d.format(), Owi8o, gOwi8o, Ohwi8o, gOhwi8o))
-        && implication(mimo, one_of(src_d.format(), nCw8c, nChw8c)
+        && IMPLICATION(mimo, one_of(src_d.format(), nCw8c, nChw8c)
                 && one_of(weights_d.format(), OIw8i8o, gOIw8i8o, OIhw8i8o,
                     gOIhw8i8o))
         && one_of(cd.bias_desc.format, memory_format::undef, any, x)
@@ -481,9 +481,9 @@ status_t jit_sse42_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     args_ok = true
         && jcp.oc % simd_w == 0
         && jcp.l_pad <= jcp.ur_w
-        && implication(jcp.kw > 7, (jcp.t_pad == 0 && jcp.l_pad == 0)
+        && IMPLICATION(jcp.kw > 7, (jcp.t_pad == 0 && jcp.l_pad == 0)
                 || (jcp.stride_w == 1 && jcp.stride_h == 1))
-        && implication(mimo, jcp.ic % simd_w == 0);
+        && IMPLICATION(mimo, jcp.ic % simd_w == 0);
     if (!args_ok) return status::unimplemented;
 
     int r_pad_no_tail = nstl::max(0, (jcp.ow - jcp.ur_w_tail - 1) * jcp.stride_w

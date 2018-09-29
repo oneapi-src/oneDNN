@@ -60,7 +60,7 @@ struct _jit_avx2_1x1_convolution_fwd_t: public cpu_primitive_t {
                         this->cdesc_().src_desc.data_type,
                         this->cdesc_().weights_desc.data_type,
                         this->cdesc_().dst_desc.data_type)
-                && utils::implication(this->with_bias(),
+                && IMPLICATION(this->with_bias(),
                         data_type::f32 == this->cdesc_().bias_desc.data_type);
             if (!ok) return status::unimplemented;
 
@@ -277,7 +277,7 @@ struct jit_avx2_1x1_convolution_bwd_weights_t: public cpu_primitive_t {
                         this->desc()->src_desc.data_type,
                         this->desc()->diff_weights_desc.data_type,
                         this->desc()->diff_dst_desc.data_type)
-                && utils::implication(this->with_bias(),
+                && IMPLICATION(this->with_bias(),
                         data_type::f32 == desc()->diff_bias_desc.data_type);
             if (!ok) return status::unimplemented;
 

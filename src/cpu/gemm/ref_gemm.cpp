@@ -173,7 +173,7 @@ void ref_gemm(const char *transa_, const char *transb_, const int *M_,
     // thread balancing over M, N, K & size of blocking dimensions
     gemm_utils::calc_nthr_nocopy_avx(
             M, N, K, max_nthr, &nthr_m, &nthr_n, &nthr_k, &MB, &NB, &KB);
-    assert(utils::implication(!mkldnn_thr_syncable(), nthr_k == 1));
+    assert(IMPLICATION(!mkldnn_thr_syncable(), nthr_k == 1));
 
     float *c_buffers = nullptr, *ws_buffers = nullptr;
     if (nthr_k > 1) {

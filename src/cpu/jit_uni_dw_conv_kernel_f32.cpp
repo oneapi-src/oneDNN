@@ -1293,10 +1293,10 @@ status_t jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::init_conf(
                    && jcp.ow == (jcp.iwp - jcp.kw) / jcp.stride_w + 1;
     if (!args_ok) return status::unimplemented;
 
-    /* Note: this implication-check does not allow 'negative padding' execution
+    /* Note: this IMPLICATION-check does not allow 'negative padding' execution
      */
-    bool ok = true && utils::implication(jcp.r_pad > 0, jcp.r_pad == jcp.l_pad)
-            && utils::implication(jcp.b_pad > 0, jcp.b_pad == jcp.t_pad);
+    bool ok = true && IMPLICATION(jcp.r_pad > 0, jcp.r_pad == jcp.l_pad)
+            && IMPLICATION(jcp.b_pad > 0, jcp.b_pad == jcp.t_pad);
     if (!ok)
         return status::unimplemented;
 
