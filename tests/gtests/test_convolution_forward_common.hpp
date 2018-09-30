@@ -154,8 +154,7 @@ protected:
         auto c_bias = test_memory(c_bias_desc, eng);
         auto c_dst = test_memory(c_dst_desc, eng);
 
-        std::shared_ptr<data_t_dst>
-            ref_dst_data(new data_t_dst[c_dst.get_size()]);
+        std::vector<data_t_dst> ref_dst_data(c_dst.get_size());
 
         // Only true for dense format
         fill_data<data_t_dst>(c_dst.get_size() / sizeof(data_t_dst),
@@ -202,7 +201,7 @@ protected:
         s.submit(pipeline).wait();
 
         auto ref_memory = memory(memory::primitive_desc(c_dst_desc, eng),
-                ref_dst_data.get());
+                &ref_dst_data[0]);
         compute_ref_conv_fwd<data_t_src,data_t_wei,data_t_acc,data_t_dst>(
                 cd, attr, c_src_desc, c_weights_desc, c_bias_desc, c_dst_desc,
                 c_src.get(), c_weights.get(), c_bias.get(), ref_memory);
