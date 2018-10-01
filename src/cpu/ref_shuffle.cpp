@@ -40,22 +40,8 @@ void ref_shuffle_t<data_type_size>::execute_() {
     auto input = reinterpret_cast<const data_t*>(this->input_memory(0));
     auto output = reinterpret_cast<data_t*>(this->memory(0));
 
-    int axis = conf_.desc()->axis;
-    int axis_size = conf_.desc()->data_desc.dims[axis];
-    int rev_transposed[axis_size];
-    int transpose_row, transpose_col;
-
-    if (conf_.is_fwd()) {
-        transpose_row = conf_.desc()->group_size;
-        transpose_col = axis_size / transpose_row;
-    } else {
-        transpose_col = conf_.desc()->group_size;
-        transpose_row = axis_size / transpose_col;
-    }
-
-    parallel_nd(transpose_col, transpose_row, [&](int i, int j) {
-            rev_transposed[j * transpose_col + i] = i * transpose_row + j;
-    });
+    const int axis = conf_.axis();
+    const int axis_size = conf_.axis_size();
 
     const int MB = conf_.MB();
     const int C = conf_.C();
@@ -83,20 +69,21 @@ void ref_shuffle_t<data_type_size>::execute_() {
             PRAGMA_OMP_SIMD()
             for (int cc = 0; cc < nstl::min(blksize, C - cb); ++cc)
             {
-                int input_c = rev_transposed[cb + cc];
+                int input_c = rev_transposed_[cb + cc];
                 const size_t input_off = off + input_c / blksize * SP * blksize
                                            + input_c % blksize;
                 output[output_off + cc] = input[input_off];
             }
         }
 #else
-        parallel_nd(MB, C/blksize, SP, [&](int mb, int c, int sp) {
+        parallel_nd(MB, utils::div_up(C, blksize), SP, [&](int mb, int c,
+                  int sp) {
             const size_t off = mb * stride_mb + sp * blksize;
-            const size_t cb = c * blksize;
+            const int cb = c * blksize;
             const size_t output_off = off + cb * SP;
             for (int cc = 0; cc < nstl::min(blksize, C - cb); ++cc)
             {
-                int input_c = rev_transposed[cb + cc];
+                int input_c = rev_transposed_[cb + cc];
                 const size_t input_off = off + input_c / blksize * SP * blksize
                                            + input_c % blksize;
                 output[output_off + cc] = input[input_off];
@@ -108,12 +95,12 @@ void ref_shuffle_t<data_type_size>::execute_() {
             const size_t off = mb * stride_mb + sp * C;
             PRAGMA_OMP_SIMD()
             for (int c = 0; c < C; ++c)
-                output[off + c] = input[off + rev_transposed[c]];
+                output[off + c] = input[off + rev_transposed_[c]];
         });
     } else if (axis == 1 && one_of(fmt, nchw, ncdhw)) {
         parallel_nd(MB, C, [&](int mb, int c) {
             const size_t output_off = mb * stride_mb + c * SP;
-            const size_t input_off = mb * stride_mb + rev_transposed[c] * SP;
+            const size_t input_off = mb * stride_mb + rev_transposed_[c] * SP;
             PRAGMA_OMP_SIMD()
             for (int sp = 0; sp < SP; ++sp) {
                 output[output_off + sp] = input[input_off + sp];
@@ -127,11 +114,12 @@ void ref_shuffle_t<data_type_size>::execute_() {
                                          ndims - axis - 1);
         const size_t dim = axis_size * inner_size;
 
-        parallel_nd(outer_size, axis_size, inner_size, [&](int ou, int a, int in)
+        parallel_nd(outer_size, axis_size, inner_size, [&](size_t ou, int a,
+               size_t in)
         {
             const size_t off = ou * dim + in;
             auto &o = output[data_d.off_l(off + a * inner_size)];
-            o = input[data_d.off_l(off + rev_transposed[a] * inner_size)];
+            o = input[data_d.off_l(off + rev_transposed_[a] * inner_size)];
         });
     }
 }

@@ -78,6 +78,7 @@ struct shuffle_pd_t: public primitive_desc_t {
     inline int W() const { return ndims() >= 3 ?
                                   desc_.data_desc.dims[ndims() - 1] : 1; }
     inline int axis() const { return desc_.axis; }
+    inline int axis_size() const { return desc_.data_desc.dims[axis()]; }
     inline int group_size() const { return desc_.group_size; }
 
 protected:

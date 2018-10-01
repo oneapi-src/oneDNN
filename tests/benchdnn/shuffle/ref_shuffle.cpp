@@ -23,9 +23,9 @@ void compute_shuffle(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &dst)
 {
     const int axis = p->a;
     const int group_size = p->g;
-    const int ndims = p->dims.size();
+    const int ndims = (int)p->dims.size();
     const int axis_size = p->dims[axis];
-    int inner_size = 1, outer_size = 1;
+    size_t inner_size = 1, outer_size = 1;
 
     auto transpose = [=] (int a) {
         int R, C;
@@ -42,13 +42,13 @@ void compute_shuffle(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &dst)
     };
 
     for (int i = 0; i < axis ; ++i)
-        outer_size *= p->dims[i];
+        outer_size *= (size_t)p->dims[i];
     for (int i = axis + 1; i < ndims; ++i)
-        inner_size *= p->dims[i];
+        inner_size *= (size_t)p->dims[i];
     const size_t dim = axis_size * inner_size;
 
-    mkldnn::impl::parallel_nd(outer_size, axis_size, inner_size, [&](int ou,
-           int a, int in) {
+    mkldnn::impl::parallel_nd(outer_size, axis_size, inner_size,
+           [&](size_t ou, int a, size_t in) {
         auto src_off = ou * dim + a * inner_size + in;
         auto dst_off = ou * dim + transpose(a) * inner_size + in;
         dst.set_elem(dst_off, src.get_elem(src_off));

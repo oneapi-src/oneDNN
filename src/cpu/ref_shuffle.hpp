@@ -55,7 +55,21 @@ struct ref_shuffle_t : public cpu_primitive_t {
 
     ref_shuffle_t(const pd_t *pd, const input_vector &inputs,
             const output_vector &outputs)
-        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {}
+        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
+    {
+        const int axis_size = conf_.axis_size();
+        const int group_size = conf_.group_size();
+        const int transpose_row = conf_.is_fwd() ? group_size
+                                                 : axis_size / group_size;
+        const int transpose_col = conf_.is_fwd() ? axis_size / group_size
+                                                 : group_size;
+        rev_transposed_ = (int *)malloc(axis_size * sizeof(int), 64);
+        parallel_nd(transpose_col, transpose_row, [&](int i, int j) {
+            rev_transposed_[j * transpose_col + i] = i * transpose_row + j;
+        });
+    }
+
+    ~ref_shuffle_t() { free(rev_transposed_); }
 
     typedef typename typesize_traits<data_type_size>::type data_t;
 
@@ -79,6 +93,7 @@ struct ref_shuffle_t : public cpu_primitive_t {
 private:
     template<memory_format_t fmt>void execute_();
     pd_t conf_;
+    int *rev_transposed_;
 };
 
 }

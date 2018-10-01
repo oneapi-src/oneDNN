@@ -47,7 +47,7 @@ void check_shuffle(const shuffle_test_params &p, const memory &input,
     auto dims = in_d.data.dims;
     auto ndims = in_d.data.ndims;
     const int axis = p.axis;
-    int inner_size = 1, outer_size = 1;
+    size_t inner_size = 1, outer_size = 1;
     const int axis_size = dims[axis];
     const int padded_axis = in_d.data.layout_desc.blocking.padding_dims[axis];
 
@@ -59,13 +59,13 @@ void check_shuffle(const shuffle_test_params &p, const memory &input,
     };
 
     for (int i = 0; i < axis ; ++i)
-        outer_size *= dims[i];
+        outer_size *= (size_t)dims[i];
     for (int i = axis + 1; i < ndims; ++i)
-        inner_size *= dims[i];
+        inner_size *= (size_t)dims[i];
     const size_t dim = padded_axis * inner_size;
 
-    mkldnn::impl::parallel_nd(outer_size, axis_size, inner_size, [&](int ou,
-           int a, int in) {
+    mkldnn::impl::parallel_nd(outer_size, axis_size, inner_size,
+           [&](size_t ou, int a, size_t in) {
         data_t refout = in_ptr[map_index(in_d, ou*dim +
                                  rev_transpose(a)*inner_size + in)];
         data_t out = out_ptr[map_index(out_d, ou*dim + a*inner_size + in)];
@@ -201,7 +201,7 @@ INSTANTIATE_TEST_CASE_P(TestShuffle_nChw16c_Tail,
             , shuffle_test_params_float{ prop_kind::forward_training,
             engine::kind::cpu, memory::format::nChw16c, {2, 34, 4, 4}, 2, 2 }
             , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nChw16c, {2, 12, 1, 1}, 1, 2 }
+            engine::kind::cpu, memory::format::nChw16c, {2, 12, 10, 10}, 1, 2 }
             ));
 
 INSTANTIATE_TEST_CASE_P(TestShuffle_NCHW, shuffle_test_float,

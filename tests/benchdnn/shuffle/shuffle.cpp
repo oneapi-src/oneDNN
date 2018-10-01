@@ -86,7 +86,7 @@ static int init_pd(const prb_t *p, mkldnn_shuffle_desc_t &sd,
 
     mkldnn_memory_desc_t data_d;
     mkldnn_dims_t data_dims;
-    const int ndims = p->dims.size();
+    const int ndims = (int)p->dims.size();
 
     for (int i = 0; i < ndims; ++i) data_dims[i] = p->dims[i];
     DNN_SAFE(mkldnn_memory_desc_init(&data_d, ndims, data_dims, p->dt, p->fmt),
@@ -137,7 +137,7 @@ int doit(const prb_t *p, res_t *r) {
     const auto fp = p->dt;
     auto &src_dt_d = sd.data_desc;
 
-    const int ndims = p->dims.size();
+    const int ndims = (int)p->dims.size();
     const auto src_format = (ndims == 1)
            ? mkldnn_x
            : (ndims == 2)
