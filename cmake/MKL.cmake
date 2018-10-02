@@ -88,6 +88,16 @@ function(detect_mkl LIBNAME)
 
     find_path(MKLINC mkl_cblas.h
         HINTS ${MKLROOT}/include $ENV{MKLROOT}/include)
+
+    # skip full Intel MKL while looking for Intel MKL-ML
+    if (MKLINC AND LIBNAME MATCHES "mklml")
+        get_filename_component(__mklinc_root "${MKLINC}" PATH)
+        find_library(tmp_MKLLIB NAMES "mkl_rt"
+            HINTS ${__mklinc_root}/lib/intel64)
+        set_if(tmp_MKLLIB MKLINC "")
+        unset(tmp_MKLLIB CACHE)
+    endif()
+
     if(NOT MKLINC)
         file(GLOB_RECURSE MKLINC
                 ${CMAKE_CURRENT_SOURCE_DIR}/external/*/mkl_cblas.h)
