@@ -156,7 +156,7 @@ void _gemm_u8s8s32x_convolution_fwd_t<with_relu, dst_type>
                 dst[o] = qz_a1b0<float, dst_data_t>()(d, rmode);
             };
 
-#           if _OPENMP >= 201307
+#           if MKLDNN_THR == MKLDNN_THR_OMP && _OPENMP >= 201307
 #           pragma omp parallel for simd
             for (int o = 0; o < jcp.os * jcp.oc; ++o) body(o);
 #           else

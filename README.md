@@ -176,13 +176,13 @@ cmake options such as `CMAKE_INSTALL_PREFIX` or `CMAKE_BUILD_TYPE`,
 user can also pass Intel MKL-DNN specific ones:
 
 |Option                 | Possible Values (defaults in bold) | Description
-|:---                   |:---                | :---
-|MKLDNN_LIBRARY_TYPE    | **SHARED**, STATIC | Defines resulting library type
-|MKLDNN_THREADING       | **OMP**, TBB       | Defines threading type
-|WITH_EXAMPLE           | **ON**, OFF        | Controls building examples
-|WITH_TEST              | **ON**, OFF        | Controls building tests
-|ARCH_OPT_FLAGS (\*)    | *compiler flags*   | Specifies compiler optimization flags
-|VTUNEROOT              | *path*             | Enables integration with Intel(R) Vtune(tm) Amplifier
+|:---                   |:---                               | :---
+|MKLDNN_LIBRARY_TYPE    | **SHARED**, STATIC                | Defines resulting library type
+|MKLDNN_THREADING       | **OMP**, OMP:INTEL, OMP:COMP, TBB | Defines threading type
+|WITH_EXAMPLE           | **ON**, OFF                       | Controls building examples
+|WITH_TEST              | **ON**, OFF                       | Controls building tests
+|ARCH_OPT_FLAGS (\*)    | *compiler flags*                  | Specifies compiler optimization flags
+|VTUNEROOT              | *path*                            | Enables integration with Intel(R) Vtune(tm) Amplifier
 
 Please check [cmake/options.cmake](cmake/options.cmake) for more options
 and details.

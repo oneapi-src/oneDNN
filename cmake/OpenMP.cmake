@@ -24,20 +24,53 @@ set(OpenMP_cmake_included true)
 
 include("cmake/MKL.cmake")
 
+if (APPLE AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    # OSX Clang doesn't have OpenMP by default.
+    # But we still want to build the library.
+    set(_omp_severity "WARNING")
+else()
+    set(_omp_severity "FATAL_ERROR")
+endif()
+
+
 macro(forbid_link_compiler_omp_rt)
     if (NOT WIN32)
         set_if(OpenMP_C_FOUND CMAKE_C_CREATE_SHARED_LIBRARY_FORBIDDEN_FLAGS ${OpenMP_C_FLAGS})
         set_if(OpenMP_CXX_FOUND CMAKE_CXX_CREATE_SHARED_LIBRARY_FORBIDDEN_FLAGS ${OpenMP_CXX_FLAGS})
+        if (NOT APPLE)
+            set (CMAKE_SHARED_LINKER_FLAGS "-Wl,--as-needed")
+        endif()
     endif()
 endmacro()
 
 macro(use_intel_omp_rt)
+    # fast return
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
+        return()
+    endif()
+
     # Do not link with compiler-native OpenMP library if Intel MKL is present.
     # Rationale: Intel MKL comes with Intel OpenMP library which is compatible
     # with all libraries shipped with compilers that Intel MKL-DNN supports.
-    if(HAVE_MKL AND NOT WIN32 AND NOT CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
+    if(HAVE_MKL)
         forbid_link_compiler_omp_rt()
-        list(APPEND EXTRA_LIBS ${MKLIOMP5LIB})
+        if (UNIX AND NOT APPLE AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+            # For some reasons Clang ignores `-fopenmp=libiomp5` switch and
+            # links against libomp.so anyways.
+            # The workaround is to set the full path to libiomp5.so
+            add_library(libiomp5 SHARED IMPORTED)
+            set_property(TARGET libiomp5 PROPERTY IMPORTED_LOCATION "${MKLIOMP5LIB}")
+            list(APPEND EXTRA_LIBS libiomp5)
+        else()
+            list(APPEND EXTRA_LIBS ${MKLIOMP5LIB})
+        endif()
+    else()
+        if (MKLDNN_THREADING STREQUAL "OMP:INTEL")
+            message(${_omp_severity} "Intel OpenMP runtime could not be found. "
+                "Please either use OpenMP runtime that comes with the compiler "
+                "(via -DMKLDNN_THREADING={OMP,OMP:COMP}), or "
+                "install Intel MKL / Intel MKL-ML (e.g. scripts/prepare_mkl.sh)")
+        endif()
     endif()
 endmacro()
 
@@ -66,12 +99,21 @@ else()
     append_if(OpenMP_CXX_FOUND CMAKE_CXX_FLAGS "${OpenMP_CXX_FLAGS}")
 endif()
 
-if (MKLDNN_THREADING STREQUAL "OMP")
-    if (NOT OpenMP_CXX_FOUND)
-        message(FATAL_ERROR "OpenMP library could not be found")
+if (MKLDNN_THREADING MATCHES "OMP")
+    if (OpenMP_CXX_FOUND)
+        add_definitions(-DMKLDNN_THR=MKLDNN_THR_OMP)
+    else()
+        message(${_omp_severity} "OpenMP library could not be found. "
+            "Proceeding might lead to highly sub-optimal performance.")
+        add_definitions(-DMKLDNN_THR=MKLDNN_THR_SEQ)
     endif()
-    add_definitions(-DMKLDNN_THR=MKLDNN_THR_OMP)
-    use_intel_omp_rt()
+
+    if (MKLDNN_THREADING STREQUAL "OMP:COMP")
+        set(MKLIOMP5LIB "")
+        set(MKLIOMP5DLL "")
+    else()
+        use_intel_omp_rt()
+    endif()
 else()
     # Compilation happens with OpenMP to enable `#pragma omp simd`
     # but during linkage OpenMP dependency should be avoided

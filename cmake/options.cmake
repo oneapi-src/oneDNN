@@ -47,9 +47,20 @@ option(WITH_EXAMPLE "builds examples"  ON)
 option(WITH_TEST "builds tests" ON)
 
 set(MKLDNN_THREADING "OMP" CACHE STRING
-    "specifies threading type; supports OMP (default), or TBB.
-    If Intel(R) Threading Building Blocks (Intel(R) TBB) one should also
-    set TBBROOT (either environement variable or CMake option) to the library
+    "specifies threading type; supports OMP (default), OMP:COMP, OMP:INTEL, or TBB.
+
+    When OpenMP is used a user can choose what runtime to use:
+    - native OpenMP runtime that comes with the compiler (OMP:COMP), or
+    - Intel OpenMP runtime that is compatible with all the compilers that
+      Intel MKL-DNN supports (OMP:INTEL). This option requires Intel MKL
+      be installed or Intel MKL-ML library be downloaded. This option doesn't
+      work with MSVC (w/o Intel Compiler).
+    The default option is OMP, which gives a preference to OMP:INTEL, but if
+    neither Intel MKL is installed nor Intel MKL-ML is available then fallback
+    to OMP:COMP.
+
+    To use Intel(R) Threading Building Blocks (Intel(R) TBB) one should also
+    set TBBROOT (either environment variable or CMake option) to the library
     location")
 
 # =============
