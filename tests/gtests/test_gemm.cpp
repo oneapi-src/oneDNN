@@ -87,11 +87,12 @@ protected:
         size_t sizeA = !tr_a ? p.lda * p.K : p.lda * p.M,
                 sizeB = !tr_b ? p.ldb * p.N : p.ldb * p.K,
                 sizeC = p.ldc * p.N;
-        float *A = nullptr, *B = nullptr, *C = nullptr, *C_ref = nullptr;
-        A = (float *)test_malloc(sizeA*sizeof(float));
-        B = (float *)test_malloc(sizeB*sizeof(float));
-        C = (float *)test_malloc(sizeC*sizeof(float));
-        C_ref = (float *)test_malloc(sizeC*sizeof(float));
+        std::vector<float> vA(sizeA);
+        std::vector<float> vB(sizeB);
+        std::vector<float> vC(sizeC);
+        std::vector<float> vC_ref(sizeC);
+
+        float *A = &vA[0], *B = &vB[0], *C = &vC[0], *C_ref = &vC_ref[0];
 
         fill_data<float>(sizeA, A);
         fill_data<float>(sizeB, B);
@@ -107,11 +108,6 @@ protected:
         ref_gemm(&p.transA, &p.transB, p.M, p.N, p.K, p.alpha, A, p.lda,
                 B, p.ldb, p.beta, C_ref, p.ldc);
         compare(p.M, p.N, p.ldc, C, C_ref);
-
-        test_free((char *)A);
-        test_free((char *)B);
-        test_free((char *)C);
-        test_free((char *)C_ref);
     }
 };
 TEST_P(sgemm_test, TestSGEMM) {}
