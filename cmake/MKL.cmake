@@ -23,12 +23,68 @@ if(MKL_cmake_included)
 endif()
 set(MKL_cmake_included true)
 
+# set SKIP_THIS_MKL to true if given configuration is not supported
+function(maybe_skip_this_mkl LIBNAME)
+    # Optimism...
+    set(SKIP_THIS_MKL False PARENT_SCOPE)
+
+    # Both mklml_intel and mklml_gnu are OpenMP based.
+    # So in case of TBB link with Intel MKL (RT library) and either set:
+    #   MKL_THREADING_LAYER=tbb
+    # to make Intel MKL use TBB threading as well, or
+    #   MKL_THREADING_LAYER=sequential
+    # to make Intel MKL be sequential.
+    if (MKLDNN_THREADING STREQUAL "TBB" AND LIBNAME MATCHES "mklml")
+        set(SKIP_THIS_MKL True PARENT_SCOPE)
+    endif()
+
+    # user doesn't want Intel MKL at all
+    if (MKLDNN_USE_MKL STREQUAL "NONE")
+        set(SKIP_THIS_MKL True PARENT_SCOPE)
+    endif()
+
+    # user specifies Intel MKL-ML should be used
+    if (MKLDNN_USE_MKL STREQUAL "ML")
+        if (LIBNAME STREQUAL "mkl_rt")
+            set(SKIP_THIS_MKL True PARENT_SCOPE)
+        endif()
+    endif()
+
+    # user specifies full Intel MKL should be used
+    if (MKLDNN_USE_MKL STREQUAL "FULL")
+        if (LIBNAME MATCHES "mklml")
+            set(SKIP_THIS_MKL True PARENT_SCOPE)
+        endif()
+    endif()
+
+    # avoid using Intel MKL-ML that is not compatible with compiler's OpenMP RT
+    if (MKLDNN_THREADING STREQUAL "OMP:COMP")
+        if ((LIBNAME STREQUAL "mklml_intel" OR LIBNAME STREQUAL "mklml")
+                AND (NOT CMAKE_CXX_COMPILER_ID STREQUAL "Intel"))
+            set(SKIP_THIS_MKL True PARENT_SCOPE)
+        elseif (LIBNAME STREQUAL "mklml_gnu"
+                AND (NOT CMAKE_CXX_COMPILER_ID STREQUAL "GNU"))
+            set(SKIP_THIS_MKL True PARENT_SCOPE)
+        endif()
+    elseif (MKLDNN_THREADING STREQUAL "OMP:INTEL")
+       if (LIBNAME STREQUAL "mklml_gnu")
+           set(SKIP_THIS_MKL True PARENT_SCOPE)
+       endif()
+    endif()
+endfunction()
+
 function(detect_mkl LIBNAME)
     if(HAVE_MKL)
         return()
     endif()
 
-    message(STATUS "Detecting Intel(R) MKL: trying ${LIBNAME}")
+    maybe_skip_this_mkl(${LIBNAME})
+    set_if(SKIP_THIS_MKL MAYBE_SKIP_MSG "... skipped")
+    message(STATUS "Detecting Intel(R) MKL: trying ${LIBNAME}${MAYBE_SKIP_MSG}")
+
+    if (SKIP_THIS_MKL)
+        return()
+    endif()
 
     find_path(MKLINC mkl_cblas.h
         HINTS ${MKLROOT}/include $ENV{MKLROOT}/include)
@@ -142,16 +198,9 @@ function(detect_mkl LIBNAME)
     set(MKLIOMP5DLL "${MKLIOMP5DLL}" PARENT_SCOPE)
 endfunction()
 
-# Both mklml_intel and mklml_gnu are OpenMP based.
-# So in case of TBB link with Intel MKL (RT library) and either set:
-#   MKL_THREADING_LAYER=tbb
-# to make Intel MKL use TBB threading as well, or
-#   MKL_THREADING_LAYER=sequential
-# to make Intel MKL be sequential.
-if(NOT MKLDNN_THREADING STREQUAL "TBB")
-    detect_mkl("mklml_intel")
-    detect_mkl("mklml")
-endif()
+detect_mkl("mklml_intel")
+detect_mkl("mklml_gnu")
+detect_mkl("mklml")
 detect_mkl("mkl_rt")
 
 if(HAVE_MKL)
@@ -166,6 +215,14 @@ if(HAVE_MKL)
         message(STATUS "${MSG} dll ${MKLDLL}")
     endif()
 else()
+    if (MKLDNN_USE_MKL STREQUAL "NONE")
+        return()
+    endif()
+
+    if (NOT MKLDNN_USE_MKL STREQUAL "DEF")
+        set(FAIL_WITHOUT_MKL True)
+    endif()
+
     if(DEFINED ENV{FAIL_WITHOUT_MKL} OR DEFINED FAIL_WITHOUT_MKL)
         set(SEVERITY "FATAL_ERROR")
     else()

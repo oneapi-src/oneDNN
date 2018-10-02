@@ -179,6 +179,7 @@ user can also pass Intel MKL-DNN specific ones:
 |:---                   |:---                               | :---
 |MKLDNN_LIBRARY_TYPE    | **SHARED**, STATIC                | Defines resulting library type
 |MKLDNN_THREADING       | **OMP**, OMP:INTEL, OMP:COMP, TBB | Defines threading type
+|MKLDNN_USE_MKL         | **DEF**, NONE, ML, FULL           | Defines binary dependency on Intel MKL
 |WITH_EXAMPLE           | **ON**, OFF                       | Controls building examples
 |WITH_TEST              | **ON**, OFF                       | Controls building tests
 |ARCH_OPT_FLAGS (\*)    | *compiler flags*                  | Specifies compiler optimization flags

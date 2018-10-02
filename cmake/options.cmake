@@ -63,6 +63,29 @@ set(MKLDNN_THREADING "OMP" CACHE STRING
     set TBBROOT (either environment variable or CMake option) to the library
     location")
 
+set(MKLDNN_USE_MKL "DEF" CACHE STRING
+    "specifies what Intel MKL library to use; supports DEF (default), NONE, ML, FULL.
+
+    By default (DEF) cmakes tries to find Intel MKL-ML library, then full
+    Intel MKL library, or just builds Intel MKL-DNN w/o any binary dependency.
+
+    To build Intel MKL-DNN w/o any dependencies on Intel MKL / Intel MKL-ML
+    use NONE. Note that building system would not be able to use Intel OpenMP
+    runtime that comes with Intel MKL or Intel MKL-ML, and would be available
+    only if Intel Compiler is used.
+
+    To force Intel MKL-DNN to use Intel MKL-ML use ML. Depending on the
+    threading the build system would choose between libmklml_intel or
+    libmklml_gnu.
+
+    To force Intel MKL-DNN to use the full Intel MKL pass FULL to cmake.
+    Currently Intel MKL-DNN would be built against Intel MKL RT (libmkl_rt).
+    Caution: Intel MKL RT allows setting the threading layer using environment
+             variable MKL_THREADING_LAYER. By default Intel MKL would use
+             OpenMP. If Intel MKL-DNN is built with TBB it is recommended to
+             set MKL_THREADING_LAYER to `tbb` or `sequential`, to avoid
+             conflict between OpenMP and TBB thread pools.")
+
 # =============
 # Optimizations
 # =============
