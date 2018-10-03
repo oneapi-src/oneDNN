@@ -33,12 +33,12 @@ include_directories(
     )
 
 # propagate SRC specific flags
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CMAKE_SRC_CCXX_FLAGS}")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_SRC_CCXX_FLAGS}")
+append(CMAKE_C_FLAGS "${CMAKE_SRC_CCXX_FLAGS}")
+append(CMAKE_CXX_FLAGS "${CMAKE_SRC_CCXX_FLAGS}")
 
 # propagate no warning flags
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CMAKE_CCXX_NOWARN_FLAGS}")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_CCXX_NOWARN_FLAGS}")
+append(CMAKE_C_FLAGS "${CMAKE_CCXX_NOWARN_FLAGS}")
+append(CMAKE_CXX_FLAGS "${CMAKE_CCXX_NOWARN_FLAGS}")
 
 if(NOT MKLDNN_VERBOSE)
     add_definitions(-DDISABLE_VERBOSE)
@@ -58,7 +58,7 @@ if(WIN32)
     add_definitions(-DNOMINMAX)
     # Correct 'jnl' macro/jit issue
     if(${CMAKE_CXX_COMPILER_ID} STREQUAL "Intel")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Qlong-double")
+        append(CMAKE_CXX_FLAGS "/Qlong-double")
     endif()
 endif()
 
