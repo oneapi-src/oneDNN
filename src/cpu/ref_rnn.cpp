@@ -131,12 +131,12 @@ elemwise_sig(_ref_rnn_common_t<prop_kind::forward>::lstm_elemwise) {
         for (int j = 0; j < dic; j++) {
             ws_gates(i, 0 * dic + j) = logistic_fwd(ws_gates(i, 0 * dic + j) + bias(0, j));
             ws_gates(i, 1 * dic + j) = logistic_fwd(ws_gates(i, 1 * dic + j) + bias(1, j));
-            ws_gates(i, 2 * dic + j) = logistic_fwd(ws_gates(i, 2 * dic + j) + bias(2, j));
-            ws_gates(i, 3 * dic + j) = tanh_fwd(ws_gates(i, 3 * dic + j) + bias(3, j));
+            ws_gates(i, 2 * dic + j) = tanh_fwd(ws_gates(i, 2 * dic + j) + bias(2, j));
+            ws_gates(i, 3 * dic + j) = logistic_fwd(ws_gates(i, 3 * dic + j) + bias(3, j));
 
-            float tmp = ws_gates(i, 0 * dic + j) * states_tm1_l(1, 0, i, j)
-                    + ws_gates(i, 1 * dic + j) * ws_gates(i, 3 * dic + j);
-            states_t_l(0, 0, i, j) = ws_gates(i, 2 * dic + j) * tanh_fwd(tmp);
+            float tmp = ws_gates(i, 1 * dic + j) * states_tm1_l(1, 0, i, j)
+                    + ws_gates(i, 0 * dic + j) * ws_gates(i, 2 * dic + j);
+            states_t_l(0, 0, i, j) = ws_gates(i, 3 * dic + j) * tanh_fwd(tmp);
             states_t_l(1, 0, i, j) = tmp;
         }
     });
@@ -167,16 +167,16 @@ elemwise_sig(_ref_rnn_common_t<prop_kind::backward>::lstm_elemwise) {
             float dHt = diff_states_tp1_l(0, 0, i, j)
             + diff_states_t_lp1(n_states, 0, i, j);
             float dCt = diff_states_tp1_l(1, 0, i, j)
-                    + one_m_square(tanhCt) * ws_gates(i, 2 * dic + j) * dHt;
+                    + one_m_square(tanhCt) * ws_gates(i, 3 * dic + j) * dHt;
 
-            float dG0 = states_tm1_l(1, 0, i, j)
-                    * logistic_bwd(dCt, ws_gates(i, 0 * dic + j));
-            float dG1
-                    = ws_gates(i, 3 * dic + j) * logistic_bwd(dCt, ws_gates(i, 1 * dic + j));
-            float dG2 = logistic_bwd(tanhCt * dHt, ws_gates(i, 2 * dic + j));
-            float dG3 = ws_gates(i, 1 * dic + j) * tanh_bwd(dCt, ws_gates(i, 3 * dic + j));
+            float dG1 = states_tm1_l(1, 0, i, j)
+                    * logistic_bwd(dCt, ws_gates(i, 1 * dic + j));
+            float dG0
+                    = ws_gates(i, 2 * dic + j) * logistic_bwd(dCt, ws_gates(i, 0 * dic + j));
+            float dG3 = logistic_bwd(tanhCt * dHt, ws_gates(i, 3 * dic + j));
+            float dG2 = ws_gates(i, 0 * dic + j) * tanh_bwd(dCt, ws_gates(i, 2 * dic + j));
 
-            diff_states_t_l(1, 0, i, j) = dCt * ws_gates(i, 0 * dic + j);
+            diff_states_t_l(1, 0, i, j) = dCt * ws_gates(i, 1 * dic + j);
 
             ws_gates(i, 0 * dic + j) = dG0;
             ws_gates(i, 1 * dic + j) = dG1;

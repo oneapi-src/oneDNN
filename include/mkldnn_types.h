@@ -219,22 +219,22 @@ typedef enum {
     /** 5D RNN weights tensor in the format (num_layers, num_directions,
      *  input_channels, num_gates, output_channels).
      *
-     *  - For LSTM cells, the gates order is forget, input, output
-     *    and candidate gate.
+     *  - For LSTM cells, the gates order is input, forget, candidate
+     *    and output gate.
      *  - For GRU cells, the gates order is update, reset and output gate. */
     mkldnn_ldigo,
     /** 5D RNN weights tensor in the format (num_layers, num_directions,
      * num_gates, output_channels, input_channels).
      *
-     *  - For LSTM cells, the gates order is forget, input, output
-     *    and candidate gate.
+     *  - For LSTM cells, the gates order is input, forget, candidate
+     *    and output gate.
      *  - For GRU cells, the gates order is update, reset and output gate. */
     mkldnn_ldgoi,
     /** 4D RNN bias tensor in the format (num_layers, num_directions,
      * num_gates, output_channels).
      *
-     * - For LSTM cells, the gates order is forget, input, output
-     *   and candidate gate.
+     *  - For LSTM cells, the gates order is input, forget, candidate
+     *    and output gate.
      * - For GRU cells, the gates order is update, reset and output gate. */
     mkldnn_ldgo,
 

@@ -35,18 +35,15 @@ void lstm_activation(int dic, int n_gates, int batch,
         float *a) {
     AOC<float> pa(a, batch, n_gates, dic);
     mkldnn::impl::parallel_nd(batch, [&](int ib) {
-        for (int ig = 0; ig < 3; ig++) {
-            for (int ih = 0; ih < dic; ih++) {
-                pa(ib, ig, ih) = logistic(pa(ib, ig, ih));
+        for (int ih = 0; ih < dic; ih++) {
+            pa(ib, 0, ih) = logistic(pa(ib, 0, ih));
+            pa(ib, 1, ih) = logistic(pa(ib, 1, ih));
+            pa(ib, 2, ih) = tanhf(pa(ib, 2, ih));
+            pa(ib, 3, ih) = logistic(pa(ib, 3, ih));
+            for (int ig = 0; ig < 4; ig++) {
                 print(80, "activation 1 a[%d][%d][%d] = %.7f\n", ib, ig, ih,
                         pa(ib, ig, ih));
             }
-        }
-        int ig = 3;
-        for (int j = 0; j < dic; j++) {
-            pa(ib, ig, j) = tanhf(pa(ib, ig, j));
-            print(80, "activation 2 a[%d][%d][%d] = %.7f\n", ib, ig, j,
-                    pa(ib, ig, j));
         }
     });
 }
@@ -178,10 +175,10 @@ void lstm_fwd(int sic, int slc, int dic, int wc, int batch, int n_gates,
     AOC<const float> src_iter_c(src_iter_c_, batch, wc);
     AOC<float> gates(gates_, batch, n_gates, dic);
 
-    const int ohf = 0;
-    const int ohi = 1;
-    const int oho = 2;
-    const int ohc = 3;
+    const int ohi = 0;
+    const int ohf = 1;
+    const int ohc = 2;
+    const int oho = 3;
 
     gemm("C", "N", "N", batch, n_gates * dic, slc, 1.0, src_layer_, wc,
             weights_layer_, n_gates * dic, 0.0, gates_, n_gates * dic);
@@ -521,10 +518,10 @@ void lstm_bwd(alg_t alg, int sic, int slc, int dic, int wc, int batch,
     AOC<float> diff_src_iter_c(diff_src_iter_c_, batch, wc);
     AOC<float> b_gates(b_gates_, batch, n_gates, dic);
 
-    const int ohf = 0;
-    const int ohi = 1;
-    const int oho = 2;
-    const int ohc = 3;
+    const int ohi = 0;
+    const int ohf = 1;
+    const int ohc = 2;
+    const int oho = 3;
 
     for (int ib = 0; ib < batch; ib++)
         for (int ih = 0; ih < dic; ih++) {
