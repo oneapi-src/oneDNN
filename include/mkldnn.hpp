@@ -188,7 +188,7 @@ struct error: public std::exception {
     ///                        caused the error.
 
     static void wrap_c_api(mkldnn_status_t status,
-            std::string message,
+            const std::string &message,
             mkldnn_primitive_t *error_primitive = 0)
     {
         if (status != mkldnn_success) {
