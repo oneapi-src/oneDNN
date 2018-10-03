@@ -16,9 +16,7 @@
 
 cmake_minimum_required(VERSION 2.8)
 
-# Use old-style version handling
-if(POLICY CMP0048)
-    cmake_policy(SET CMP0048 OLD)
+if(POLICY CMP0054)
     cmake_policy(SET CMP0054 OLD)
 endif()
 
@@ -46,7 +44,12 @@ set(PROJECT_VERSION "0.16")
 
 set(LIB_NAME mkldnn)
 
-project(${PROJECT_NAME} C CXX)
+if (CMAKE_VERSION VERSION_LESS 3.0)
+    project(${PROJECT_NAME} C CXX)
+else()
+    cmake_policy(SET CMP0048 NEW)
+    project(${PROJECT_NAME} VERSION "${PROJECT_VERSION}" LANGUAGES C CXX)
+endif()
 
 if (NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
     message("FATAL_ERROR" "Intel(R) MKL-DNN supports 64 bit platforms only")
