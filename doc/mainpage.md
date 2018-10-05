@@ -18,7 +18,8 @@ The table below summarizes the list of supported functions and their variants.
 
 | Primitive class   | Primitive                | fp32 training | fp32 inference | int8 inference |
 | :---------------- | :----------------------- | :-----------: | :------------: | :------------: |
-| Convolution       | 2D direct convolution    | x             | x              | x              |
+| Convolution       | 1D direct convolution    | x             | x              |                |
+|                   | 2D direct convolution    | x             | x              | x              |
 |                   | 2D direct deconvolution  | x             | x              | x              |
 |                   | 2D winograd convolution  | x             | x              | x              |
 |                   | 3D direct convolution    | x             | x              |                |
