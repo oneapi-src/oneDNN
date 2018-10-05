@@ -151,35 +151,19 @@ int doit(const prb_t *p, res_t *r) {
 
     SAFE(fill_memory(p, data_fp), WARN);
 
-    if (p->dir & FLAG_FWD) {
-        mkldnn_primitive_at_t inputs[1];
-        const_mkldnn_primitive_t outputs[1];
-        SAFE(data_dt.reorder(data_fp), WARN);
-        inputs[0] = {data_dt.p_, 0};
-        outputs[0] = d_data_dt.p_;
-        DNN_SAFE(mkldnn_primitive_create(&s, spd, inputs, outputs), WARN);
-        SAFE(execute(s), WARN);
-        if (bench_mode & CORR) {
-            compute_shuffle(p, data_fp, d_data_fp);
-            dnn_mem_t data(d_data_dt.md_, fp, src_format);
-            SAFE(data.reorder(d_data_dt), WARN);
-            SAFE(compare(p, d_data_fp, data, r), WARN);
-        }
-    } else if (p->dir == BWD_D) {
-        mkldnn_primitive_at_t inputs[1];
-        const_mkldnn_primitive_t outputs[1];
-        SAFE(data_dt.reorder(data_fp), WARN);
-        inputs[0] = {data_dt.p_, 0};
-        outputs[0] = d_data_dt.p_;
-        DNN_SAFE(mkldnn_primitive_create(&s, spd, inputs, outputs), WARN);
-        DNN_SAFE_V(mkldnn_primitive_desc_destroy(spd));
-        SAFE(execute(s), WARN);
-        if (bench_mode & CORR) {
-            compute_shuffle(p, data_fp, d_data_fp);
-            dnn_mem_t data(d_data_dt.md_, fp, src_format);
-            SAFE(data.reorder(d_data_dt), WARN);
-            SAFE(compare(p, d_data_fp, data, r), WARN);
-        }
+    mkldnn_primitive_at_t inputs[1];
+    const_mkldnn_primitive_t outputs[1];
+    SAFE(data_dt.reorder(data_fp), WARN);
+    inputs[0] = {data_dt.p_, 0};
+    outputs[0] = d_data_dt.p_;
+    DNN_SAFE(mkldnn_primitive_create(&s, spd, inputs, outputs), WARN);
+    DNN_SAFE_V(mkldnn_primitive_desc_destroy(spd));
+    SAFE(execute(s), WARN);
+    if (bench_mode & CORR) {
+        compute_shuffle(p, data_fp, d_data_fp);
+        dnn_mem_t data(d_data_dt.md_, fp, src_format);
+        SAFE(data.reorder(d_data_dt), WARN);
+        SAFE(compare(p, d_data_fp, data, r), WARN);
     }
 
     if (bench_mode & PERF) {
