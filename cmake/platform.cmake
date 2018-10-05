@@ -90,8 +90,8 @@ elseif(UNIX OR MINGW)
 endif()
 
 if(WIN32)
-    set(CTESTCONFIG_PATH "$ENV{PATH}")
-    string(REPLACE ";" "\;" CTESTCONFIG_PATH "${CTESTCONFIG_PATH}")
+    string(REPLACE ";" "\;" ENV_PATH "$ENV{PATH}")
+    set(CTESTCONFIG_PATH "${CTESTCONFIG_PATH}\;${MKLDLLPATH}\;${ENV_PATH}")
 endif()
 
 if(UNIX OR MINGW)

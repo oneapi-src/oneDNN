@@ -66,9 +66,9 @@ set(CMAKE_TEST_CCXX_FLAGS)      # TESTS specifics
 
 include("cmake/utils.cmake")
 include("cmake/options.cmake")
-include("cmake/platform.cmake")
 include("cmake/OpenMP.cmake")
 include("cmake/TBB.cmake")
+include("cmake/platform.cmake")
 include("cmake/SDL.cmake")
 include("cmake/MKL.cmake")
 include("cmake/Doxygen.cmake")
