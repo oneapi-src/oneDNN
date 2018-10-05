@@ -3311,6 +3311,7 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma_sparse(
     assert(nr >= kw);
     assert(ic_block == 16); // needed for specific optimization
     assert(typesize == 4);
+    assert(abi_not_param1 == rcx);
 
     int ic_buffs = nr / kw;
     int rem_ic_buffs = nb_ic % ic_buffs;
@@ -3419,11 +3420,11 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma_sparse(
 
 
             Reg64 mask_reg = reg_oi;
-            Reg32 oc_itr_reg = reg_kh.cvt32();
+            Reg32 popcnt_reg = reg_kh.cvt32();
+            Reg32 oc_itr_reg = aux_reg_ker.cvt32();
             Reg64 lzcnt_reg = reg_channel;
 
             kmovw(mask_reg.cvt32(), k7);
-            popcnt(oc_itr_reg, mask_reg.cvt32());
 
             if (oi < ow - 1) { // pipelined
                 size_t aux_dst_offset = typesize * (oi + 1) * oc_block;
@@ -3490,8 +3491,26 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma_sparse(
             }
 
 
-            Label oc_loop_end_label;
-            jz(oc_loop_end_label, T_NEAR);
+            Label oc_loop_end_label, oc_loop_skip_label, oc_loop_start_label;
+            jecxz(oc_loop_skip_label); // convoluted, I know...
+
+            mov(oc_itr_reg, popcnt_reg);
+            if (oi < ow - 1) {
+                kmovw(popcnt_reg, k7);
+                popcnt(popcnt_reg, popcnt_reg);
+            }
+
+            jmp(oc_loop_start_label);
+            L(oc_loop_skip_label);
+
+            if (oi < ow - 1) {
+                kmovw(popcnt_reg, k7);
+                popcnt(popcnt_reg, popcnt_reg);
+            }
+
+            jmp(oc_loop_end_label, T_NEAR);
+            L(oc_loop_start_label);
+
 
             tzcnt(lzcnt_reg.cvt32(), mask_reg.cvt32());
             inc(lzcnt_reg.cvt32());
@@ -3564,11 +3583,11 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma_sparse(
 
             Reg64 aux_reg_src = aux_reg_ker;
             Reg64 mask_reg = reg_oi;
-            Reg32 oc_itr_reg = reg_kh.cvt32();
+            Reg32 popcnt_reg = reg_kh.cvt32();
+            Reg32 oc_itr_reg = reg_dst.cvt32();
             Reg64 lzcnt_reg = reg_channel;
 
             kmovw(mask_reg.cvt32(), k7);
-            popcnt(oc_itr_reg, mask_reg.cvt32());
 
             size_t aux_dst_offset = typesize * (idx + 1) * oc_block;
             vcmpps(k7, zmm_zero, EVEX_compress_addr_safe(aux_reg_dst, aux_dst_offset, // pipelined
@@ -3616,8 +3635,22 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma_sparse(
                 }
             }
 
-            Label oc_loop_end_label;
-            jz(oc_loop_end_label, T_NEAR);
+            Label oc_loop_end_label, oc_loop_skip_label, oc_loop_start_label;
+            jecxz(oc_loop_skip_label); // convoluted, I know...
+            
+            mov(oc_itr_reg, popcnt_reg);            
+            kmovw(popcnt_reg, k7);
+            popcnt(popcnt_reg, popcnt_reg);
+
+            jmp(oc_loop_start_label);
+            L(oc_loop_skip_label);
+            
+            kmovw(popcnt_reg, k7);
+            popcnt(popcnt_reg, popcnt_reg);
+
+            jmp(oc_loop_end_label, T_NEAR);
+            L(oc_loop_start_label);
+
 
             tzcnt(lzcnt_reg.cvt32(), mask_reg.cvt32());
             inc(lzcnt_reg.cvt32());
@@ -3716,6 +3749,8 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma_sparse(
                     << " niter:" << niter << endl;
 
                 vcmpps(k7, zmm_zero, ptr[reg_dst], 4);
+                kmovw(reg_kh.cvt32(), k7);
+                popcnt(reg_kh.cvt32(), reg_kh.cvt32());
 
                 for (int oi = 0; oi < l_ow; oi++) {
                     comp_unrolled(oi, cur_ic_buffs);
@@ -3725,6 +3760,8 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma_sparse(
                 Reg64 aux_reg_src = aux_reg_ker;
 
                 mov(ow_itr_reg, niter);
+
+                push(reg_dst);
 
                 mov(aux_reg_dst, reg_dst);
                 mov(aux_reg_src, reg_src);
@@ -3751,6 +3788,7 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma_sparse(
 
                 }
 
+                pop(reg_dst);
 
                 for (int oi = rr_ow; oi < ow; oi++) {
                     comp_unrolled(oi, cur_ic_buffs);
@@ -3761,6 +3799,8 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma_sparse(
                 cout << "fully unrolled" << endl;
 
                 vcmpps(k7, zmm_zero, ptr[reg_dst], 4);
+                kmovw(reg_kh.cvt32(), k7);
+                popcnt(reg_kh.cvt32(), reg_kh.cvt32());
 
                 for (int oi = 0; oi < ow; oi++) {
                     comp_unrolled(oi, cur_ic_buffs);
