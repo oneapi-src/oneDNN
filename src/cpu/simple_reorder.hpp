@@ -141,7 +141,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const size_t D_mask = utils::array_product(input_d.dims(),
                             math::ilog2q(pd->attr()->output_scales_.mask_ + 1));
 
-        float adj_scale = (mayiuse(avx512_core_vnni)) ? 1.0 : (1.0 / 2.0);
+        float adj_scale = (mayiuse(avx512_core_vnni)) ? 1.f : (1.f / 2.f);
 
         auto index = [&](const int ic, const int oc) {
             return ((ic / sblk) * blksize * sblk + sblk * oc + ic % sblk);

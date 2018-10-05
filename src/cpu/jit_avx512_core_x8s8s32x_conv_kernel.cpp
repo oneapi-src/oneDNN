@@ -703,7 +703,7 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
 
     assert(utils::implication(!jcp.is_oc_scale, oscales.mask_ == 0));
 
-    jcp.wei_adj_scale = (jcp.signed_input) ? (1.0 / 2.0) : 1.0;
+    jcp.wei_adj_scale = (jcp.signed_input) ? (1.f / 2.f) : 1.f;
 
     return status::success;
 }

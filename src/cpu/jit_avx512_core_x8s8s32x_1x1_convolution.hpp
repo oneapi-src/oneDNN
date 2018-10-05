@@ -122,7 +122,7 @@ struct _jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public cpu_primitive_t 
             local_scales_ = (float *)malloc(sizeof(float) * scales_size, 64);
             for (size_t i = 0; i < scales_size; i++) {
                 local_scales_[i] = conf_.attr()->output_scales_.scales_[i] *
-                                        (1.0 / conf_.jcp_.wei_adj_scale);
+                                        (1.f / conf_.jcp_.wei_adj_scale);
             }
         }
     }
