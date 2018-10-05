@@ -66,21 +66,14 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
     # to make computations more stable and to align the jitted code
     # with the reference one use precise division and square root
     # by default
-    file(GLOB FILES_REQUIRED_PREC_SQRT
+    file(GLOB FILES_REQUIRED_PREC_DIV_SQRT
         ${CMAKE_CURRENT_SOURCE_DIR}/cpu/*normalization*.cpp)
-    file(GLOB FILES_REQUIRED_PREC_DIV
-        ${CMAKE_CURRENT_SOURCE_DIR}/cpu/*normalization*.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/cpu/ref_rnn.cpp)
     if(WIN32)
-        set_source_files_properties(${FILES_REQUIRED_PREC_SQRT}
-            PROPERTIES COMPILE_FLAGS "/Qprec-sqrt")
-        set_source_files_properties(${FILES_REQUIRED_PREC_DIV}
-            PROPERTIES COMPILE_FLAGS "/Qprec-div")
+        set_source_files_properties(${FILES_REQUIRED_PREC_DIV_SQRT}
+            PROPERTIES COMPILE_FLAGS "/Qprec-div /Qprec-sqrt")
     else()
-        set_source_files_properties(${FILES_REQUIRED_PREC_SQRT}
-            PROPERTIES COMPILE_FLAGS "-prec-sqrt")
-        set_source_files_properties(${FILES_REQUIRED_PREC_DIV}
-            PROPERTIES COMPILE_FLAGS "-prec-div")
+        set_source_files_properties(${FILES_REQUIRED_PREC_DIV_SQRT}
+            PROPERTIES COMPILE_FLAGS "-prec-div -prec-sqrt")
     endif()
 endif()
 

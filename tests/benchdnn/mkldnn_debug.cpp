@@ -76,9 +76,6 @@ mkldnn_memory_format_t str2fmt(const char *str) {
 } while (0)
     CASE(x);
     CASE(nc);
-    CASE(ncw);
-    CASE(nwc);
-    CASE(nCw16c);
     CASE(nchw);
     CASE(nhwc);
     CASE(chwn);
@@ -86,13 +83,6 @@ mkldnn_memory_format_t str2fmt(const char *str) {
     CASE(nChw16c);
     CASE(oi);
     CASE(io);
-    CASE(oiw);
-    CASE(wio);
-    CASE(OIw16i16o);
-    CASE(OIw16o16i);
-    CASE(Oiw16o);
-    CASE(Owi16o);
-    CASE(OIw8i16o2i);
     CASE(oihw);
     CASE(ihwo);
     CASE(hwio);
@@ -109,15 +99,8 @@ mkldnn_memory_format_t str2fmt(const char *str) {
     CASE(Oihw16o);
     CASE(Ohwi8o);
     CASE(Ohwi16o);
-    CASE(goiw);
     CASE(goihw);
     CASE(hwigo);
-    CASE(goiw);
-    CASE(gOIw16i16o);
-    CASE(gOIw16o16i);
-    CASE(gOiw16o);
-    CASE(gOwi16o);
-    CASE(gOIw8i16o2i);
     CASE(gOIhw8i8o);
     CASE(gOIhw16i16o);
     CASE(gOIhw8i16o2i);

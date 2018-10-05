@@ -130,6 +130,9 @@ void gemm_convolution_bwd_data_t::execute_backward_data() {
     const int LDC = jcp.im2col_sz ? m : M;
     data_t *col = jcp.im2col_sz ? (data_t *)this->scratchpad_->get() : nullptr;
 
+    parallel_nd(jcp.im2col_sz * jcp.nthr,
+            [&](ptrdiff_t i) { col[i] = (data_t)0; });
+
     const size_t work_amount = (size_t)jcp.ngroups * jcp.mb;
 
     if (jcp.id > 1) {

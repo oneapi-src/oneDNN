@@ -53,7 +53,7 @@ void jit_sse42_conv_fwd_kernel_f32::oh_step_unroll_kw(int ur_w,
         for (int ifm2 = 0; ifm2 < ic_blk; ifm2++) {
             for (int jj = jj_start; jj < jj_end; jj++) {
                 int inp_off;
-                if (one_of(jcp.src_fmt, ncw, nchw))
+                if (jcp.src_fmt == nchw)
                     inp_off = ifm2*ih*iw + (ki*dilate_w + jj*stride_w - pad_l);
                 else
                     inp_off = (ki*dilate_w + jj*stride_w - pad_l)*ic_blk + ifm2;
@@ -104,7 +104,7 @@ void jit_sse42_conv_fwd_kernel_f32::oh_step_nopad(int ur_w,
         for (int ifm2 = 0; ifm2 < ic_blk; ifm2++) {
             for (int jj = jj_start; jj < jj_end; jj++) {
                 int inp_off;
-                if (one_of(jcp.src_fmt, ncw, nchw))
+                if (jcp.src_fmt == nchw)
                     inp_off = ifm2 * ih * iw + (jj * stride_w - pad_l);
                 else
                     inp_off = (jj * stride_w - pad_l) * ic_blk + ifm2;
@@ -126,7 +126,7 @@ void jit_sse42_conv_fwd_kernel_f32::oh_step_nopad(int ur_w,
             }
         }
         add(aux_reg_kernel, sizeof(float) * oc_blk * ic_blk);
-        add(aux_reg_input, sizeof(float) * (one_of(jcp.src_fmt, ncw, nchw) ?
+        add(aux_reg_input, sizeof(float) * (jcp.src_fmt == nchw ?
             dilate_w : ic_blk * dilate_w));
 
         inc(ki_iter);
@@ -147,10 +147,8 @@ void jit_sse42_conv_fwd_kernel_f32::width_blk_step(int ur_w,
     int dilate_w = jcp.dilate_w + 1;
     int ic_blk = jcp.ic_block;
     int oc_blk = jcp.oc_block;
-    const int inp_mult = one_of(jcp.src_fmt, ncw, nchw)
-        ? dilate_h : ic_blk * dilate_h;
-    const int inp_off = one_of(jcp.src_fmt, ncw, nchw)
-        ? dilate_w : ic_blk * dilate_w;
+    const int inp_mult = jcp.src_fmt == nchw ? dilate_h : ic_blk * dilate_h;
+    const int inp_off = jcp.src_fmt == nchw ? dilate_w : ic_blk * dilate_w;
 
     xor_(simd_iter, simd_iter);
 
@@ -297,7 +295,7 @@ inline void jit_sse42_conv_fwd_kernel_f32::solve_common(
     int oc_blk = jcp.oc_block;
     int dilate_w = jcp.dilate_w + 1;
     int str_w = jcp.stride_w;
-    const int inp_mult = one_of(jcp.src_fmt, ncw, nchw) ? 1 : ic_blk;
+    const int inp_mult = jcp.src_fmt == nchw ? 1 : ic_blk;
 
     int l_pad = jcp.l_pad;
     int r_pad = nstl::max(0, (int(jcp.ow) - 1) * str_w + (kw - 1) * dilate_w
@@ -413,8 +411,6 @@ status_t jit_sse42_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     jcp.prop_kind = cd.prop_kind;
 
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
-    const int ndims = src_d.ndims();
-    jcp.ndims = ndims;
 
     jcp.ngroups = with_groups ? weights_d.dims()[0] : 1;
     jcp.mb = src_d.dims()[0];
@@ -422,22 +418,22 @@ status_t jit_sse42_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     jcp.oc = dst_d.dims()[1] / jcp.ngroups;
     jcp.ic = src_d.dims()[1] / jcp.ngroups;
 
-    jcp.ih = (ndims == 3) ? 1 : src_d.dims()[2];
-    jcp.iw = src_d.dims()[ndims - 1];
-    jcp.oh = (ndims == 3) ? 1 : dst_d.dims()[2];
-    jcp.ow = dst_d.dims()[ndims - 1];
+    jcp.ih = src_d.dims()[2];
+    jcp.iw = src_d.dims()[3];
+    jcp.oh = dst_d.dims()[2];
+    jcp.ow = dst_d.dims()[3];
 
-    jcp.kh = (ndims == 3) ? 1 : weights_d.dims()[with_groups + 2];
-    jcp.kw = weights_d.dims()[with_groups + ndims - 1];
+    jcp.kh = weights_d.dims()[with_groups + 2];
+    jcp.kw = weights_d.dims()[with_groups + 3];
 
-    jcp.t_pad = (ndims == 3) ? 0 : cd.padding[0][0];
-    jcp.l_pad = cd.padding[0][ndims - 3];
+    jcp.t_pad = cd.padding[0][0];
+    jcp.l_pad = cd.padding[0][1];
 
-    jcp.stride_h = (ndims == 3) ? 1 : cd.strides[0];
-    jcp.stride_w = cd.strides[ndims - 3];
+    jcp.stride_h = cd.strides[0];
+    jcp.stride_w = cd.strides[1];
 
-    jcp.dilate_h = (ndims == 3) ? 0 : cd.dilates[0];
-    jcp.dilate_w = cd.dilates[ndims - 3];
+    jcp.dilate_h = cd.dilates[0];
+    jcp.dilate_w = cd.dilates[1];
     jcp.b_pad = (jcp.oh - 1) * jcp.stride_h + (jcp.kh - 1) * (jcp.dilate_h + 1)
             - (jcp.ih + jcp.t_pad - 1);
 
@@ -460,13 +456,12 @@ status_t jit_sse42_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     const bool mimo = !flat;
 
     bool args_ok = true
-        && implication(flat, one_of(src_d.format(), ncw, nwc, nchw, nhwc)
-                && one_of(weights_d.format(), Owi8o, gOwi8o, Ohwi8o, gOhwi8o))
-        && implication(mimo, one_of(src_d.format(), nCw8c, nChw8c)
-                && one_of(weights_d.format(), OIw8i8o, gOIw8i8o, OIhw8i8o,
-                    gOIhw8i8o))
+        && implication(flat, one_of(src_d.format(), nchw, nhwc)
+                && one_of(weights_d.format(), Ohwi8o, gOhwi8o))
+        && implication(mimo, src_d.format() == nChw8c
+                && one_of(weights_d.format(), OIhw8i8o, gOIhw8i8o))
         && one_of(cd.bias_desc.format, memory_format::undef, any, x)
-        && one_of(dst_d.format(), nCw8c, nChw8c);
+        && dst_d.format() == nChw8c;
     if (!args_ok) return status::unimplemented;
 
     const int simd_w = 8; // 2 SSE vectors processing at once

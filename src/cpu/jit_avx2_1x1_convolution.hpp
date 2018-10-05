@@ -84,15 +84,12 @@ struct _jit_avx2_1x1_convolution_fwd_t: public cpu_primitive_t {
         virtual status_t set_default_params() override {
             using namespace memory_format;
             if (this->src_pd_.desc()->format == any)
-                CHECK(this->src_pd_.set_format(utils::pick(this->ndims() - 3,
-                    nCw8c, nChw8c)));
+                CHECK(this->src_pd_.set_format(nChw8c));
             if (this->dst_pd_.desc()->format == any)
-                CHECK(this->dst_pd_.set_format(utils::pick(this->ndims() - 3,
-                    nCw8c, nChw8c)));
+                CHECK(this->dst_pd_.set_format(nChw8c));
             if (this->weights_pd_.desc()->format == any)
                 CHECK(this->weights_pd_.set_format(this->with_groups()
-                    ? utils::pick(this->ndims() - 3, gOIw8i8o, gOIhw8i8o)
-                    : utils::pick(this->ndims() - 3, OIw8i8o, OIhw8i8o)));
+                            ? gOIhw8i8o : OIhw8i8o));
             if (this->bias_pd_.desc()->format == any)
                 CHECK(this->bias_pd_.set_format(x));
             return status::success;
@@ -197,15 +194,12 @@ struct jit_avx2_1x1_convolution_bwd_data_t: public cpu_primitive_t {
             using namespace memory_format;
 
             if (this->diff_src_pd_.desc()->format == any)
-                CHECK(this->diff_src_pd_.set_format(utils::pick(
-                    this->ndims() - 3, nCw8c, nChw8c)));
+                CHECK(this->diff_src_pd_.set_format(nChw8c));
             if (this->diff_dst_pd_.desc()->format == any)
-                CHECK(this->diff_dst_pd_.set_format(utils::pick(
-                    this->ndims() - 3, nCw8c, nChw8c)));
+                CHECK(this->diff_dst_pd_.set_format(nChw8c));
             if (this->weights_pd_.desc()->format == any)
                 CHECK(this->weights_pd_.set_format(this->with_groups()
-                    ? utils::pick(this->ndims() - 3, gOIw8o8i, gOIhw8o8i)
-                    : utils::pick(this->ndims() - 3, OIw8o8i, OIhw8o8i)));
+                            ? gOIhw8o8i : OIhw8o8i));
             return status::success;
         }
     };
@@ -303,15 +297,12 @@ struct jit_avx2_1x1_convolution_bwd_weights_t: public cpu_primitive_t {
             using namespace memory_format;
 
             if (this->src_pd_.desc()->format == any)
-                CHECK(this->src_pd_.set_format(utils::pick(this->ndims() - 3,
-                    nCw8c, nChw8c)));
+                CHECK(this->src_pd_.set_format(nChw8c));
             if (this->diff_dst_pd_.desc()->format == any)
-                CHECK(this->diff_dst_pd_.set_format(utils::pick(
-                    this->ndims() - 3, nCw8c, nChw8c)));
+                CHECK(this->diff_dst_pd_.set_format(nChw8c));
             if (this->diff_weights_pd_.desc()->format == any)
                 CHECK(this->diff_weights_pd_.set_format(this->with_groups()
-                    ? utils::pick(this->ndims() - 3, gOIw8i8o, gOIhw8i8o)
-                    : utils::pick(this->ndims() - 3, OIw8i8o, OIhw8i8o)));
+                            ? gOIhw8i8o : OIhw8i8o));
             if (this->diff_bias_pd_.desc()->format == any)
                 CHECK(this->diff_bias_pd_.set_format(x));
             return status::success;

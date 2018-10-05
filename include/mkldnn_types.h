@@ -118,16 +118,6 @@ typedef enum {
     mkldnn_x,
     /** 2D data tensor. */
     mkldnn_nc,
-    /** 3D data tensor in the @c ncw format */
-    mkldnn_ncw,
-    /** 3D data tensor in the @c nwc format */
-    mkldnn_nwc,
-    /** 3D data tensor in the @c ncw format with channels data laid out in
-     * memory in 8-element blocks. */
-    mkldnn_nCw8c,
-    /** 3D data tensor in the @c ncw format with channels data laid out in
-     * memory in 16-element blocks. */
-    mkldnn_nCw16c,
     /** 4D data tensor in the @c nchw format typically used in Caffe. */
     mkldnn_nchw,
     /** 4D data tensor in the @c nhwc format typically used in TensorFlow. */
@@ -154,47 +144,6 @@ typedef enum {
     mkldnn_oi,
     /** 2D weights tensor in the format (input channels, output channels). */
     mkldnn_io,
-    /** 3D weights tensor in the format (output channels, input channels,
-     * width). */
-    mkldnn_oiw,
-    /** 3D weights tensor in the format (width, input channels,
-     * output channels). */
-    mkldnn_wio,
-    /** 3D weights tensor in the format (output channels, width, input
-     * channels) with output channels data laid out in memory in 8-element
-     * blocks. */
-    mkldnn_Owi8o,
-    /** 3D weights tensor in the @c oiw format with both input and output
-     * channels data laid out in memory in 8-element blocks. */
-    mkldnn_OIw8i8o,
-    /** 3D weights tensor in the @c oiw format with both input and output
-     * channels data laid out in memory in 8-element blocks. */
-    mkldnn_OIw8o8i,
-    /** 3D weights tensor in the @c oiw format with both input and output
-     * channels data laid out in memory in 16-element blocks. */
-    mkldnn_OIw16i16o,
-    /** 3D weights tensor in the @c oiw format with both input and output
-     * channels data laid out in memory in 16-element blocks. */
-    mkldnn_OIw16o16i,
-    /** 3D weights tensor in the format (output channels, input channels,
-     * width) with output channels data laid out in memory in
-     * 16-element blocks. */
-    mkldnn_Oiw16o,
-    /** 3D weights tensor in the format (output channels, width, input
-     * channels) with output channels data laid out in memory in 16-element
-     * blocks. */
-    mkldnn_Owi16o,
-    /** 3D weights tensor in the @c oiw format with output channels data
-     * laid out in memory in 16-element blocks and input channels data
-     * laid out in memory in 8-element blocks blocked by pairs. */
-    mkldnn_OIw8i16o2i,
-    /** 3D weights tensor in the @c oiw format with input channels data
-     * laid out in memory in 16-element blocks and output channels data
-     * laid out in memory in 8-element blocks blocked by pairs. */
-    mkldnn_OIw8o16i2o,
-    /** 3D weights tensor in the @c oiw format with both input and output
-     * channels data laid out in memory in 16-element blocks. */
-    mkldnn_IOw16o16i,
     /** 4D weights tensor in the format (input channels, output channels,
      * width, height). */
     mkldnn_oihw,
@@ -284,46 +233,6 @@ typedef enum {
     /** 4D weights tensor in the @c oihw format with both input and output
      * channels data laid out in memory in 16-element and 4-element blocks. */
     mkldnn_OhIw16o4i,
-    /** 4D weights tensor in the @c oiw format with extra outer dimension for
-     * groups. */
-    mkldnn_goiw,
-    /** 4D weights tensor in the blocked version of @c goiw format with output
-     * channels data laid out in memory in 8-element blocks. */
-    mkldnn_gOwi8o,
-    /** 4D weights tensor in the blocked version of @c goiw format with both
-     * input and output channels data laid out in memory in 8-element blocks.
-     */
-    mkldnn_gOIw8o8i,
-    /** 4D weights tensor in the blocked version of @c goiw format with both
-     * input and output channels data laid out in memory in 8-element blocks.
-     */
-    mkldnn_gOIw8i8o,
-    /** 4D weights tensor in the blocked version of @c goiw format with both
-     * input and output channels data laid out in memory in 16-element blocks.
-     */
-    mkldnn_gOIw16i16o,
-    /** 4D weights tensor in the blocked version of @c goiw format with both
-     * input and output channels data laid out in memory in 16-element blocks.
-     */
-    mkldnn_gOIw16o16i,
-    /** 4D weights tensor in the blocked version of @c goiw format with output
-     * channels data laid out in memory in 16-element blocks. */
-    mkldnn_gOiw16o,
-    /** 4D weights tensor in the blocked version of @c goiw format with output
-     * channels data laid out in memory in 16-element blocks. */
-    mkldnn_gOwi16o,
-    /** 4D weights tensor in the @c goiw format with output channels data
-     * laid out in memory in 16-element blocks and input channels data
-     * laid out in memory in 8-element blocks blocked by pairs. */
-    mkldnn_gOIw8i16o2i,
-    /** 4D weights tensor in the @c goiw format with input channels data
-     * laid out in memory in 16-element blocks and output channels data
-     * laid out in memory in 8-element blocks blocked by pairs. */
-    mkldnn_gOIw8o16i2o,
-    /** 4D weights tensor in the blocked version of @c goiw format with both
-     * input and output channels data laid out in memory in 16-element blocks.
-     */
-    mkldnn_gIOw16o16i,
     /** 5D weights tensor in the @c oihw format with extra outer dimension for
      * groups. */
     mkldnn_goihw,

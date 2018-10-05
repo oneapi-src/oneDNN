@@ -467,7 +467,6 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
     // TODO (Roma): this code is duplicated from the generic kernel; maybe the
     // configuration struct could do some stuff below
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
-    const int ndims = src_d.ndims();
 
     jcp.prop_kind = cd.prop_kind;
 
@@ -478,19 +477,19 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
     jcp.oc_without_padding = jcp.oc;
     jcp.ic = src_d.dims()[1] / jcp.ngroups;
 
-    jcp.ih = (ndims == 3) ? 1 : src_d.dims()[2];
-    jcp.iw = src_d.dims()[ndims - 1];
-    jcp.oh = (ndims == 3) ? 1 : dst_d.dims()[2];
-    jcp.ow = dst_d.dims()[ndims - 1];
+    jcp.ih = src_d.dims()[2];
+    jcp.iw = src_d.dims()[3];
+    jcp.oh = dst_d.dims()[2];
+    jcp.ow = dst_d.dims()[3];
 
-    jcp.kh = (ndims == 3) ? 1 : weights_d.dims()[with_groups + 2];
-    jcp.kw = weights_d.dims()[with_groups + ndims - 1];
+    jcp.kh = weights_d.dims()[with_groups + 2];
+    jcp.kw = weights_d.dims()[with_groups + 3];
 
-    jcp.t_pad = (ndims == 3) ? 0 : cd.padding[0][0];
-    jcp.l_pad = cd.padding[0][ndims - 3];
+    jcp.t_pad = cd.padding[0][0];
+    jcp.l_pad = cd.padding[0][1];
 
-    jcp.stride_h = (ndims == 3) ? 1 : cd.strides[0];
-    jcp.stride_w = cd.strides[ndims - 3];
+    jcp.stride_h = cd.strides[0];
+    jcp.stride_w = cd.strides[1];
 
     jcp.src_fmt = src_d.format();
     jcp.with_bias = cd.bias_desc.format != memory_format::undef;
@@ -510,12 +509,12 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
         jcp.relu_negative_slope = 0;
     }
 
-    const int is_bwd_d = jcp.prop_kind == backward_data;
-    memory_format_t weights_format = with_groups
-        ? utils::pick(2 * ndims - 6 + is_bwd_d, gOIw8i8o, gOIw8o8i, gOIhw8i8o,
-            gOIhw8o8i)
-        : utils::pick(2 * ndims - 6 + is_bwd_d, OIw8i8o, OIw8o8i, OIhw8i8o,
-            OIhw8o8i);
+    constexpr memory_format_t weights_formats[2][2] = {
+        { OIhw8i8o, OIhw8o8i },
+        { gOIhw8i8o, gOIhw8o8i }
+    };
+    memory_format_t weights_format
+        = weights_formats[with_groups][jcp.prop_kind == backward_data];
 
     const int simd_w = 8;
 
@@ -524,10 +523,10 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
 
     bool args_ok = true
         && jcp.ngroups == 1
-        && one_of(src_d.format(), nCw8c, nChw8c)
+        && src_d.format() == nChw8c
         && weights_d.format() == weights_format
         && one_of(cd.bias_desc.format, memory_format::undef, any, x)
-        && one_of(dst_d.format(), nCw8c, nChw8c);
+        && dst_d.format() == nChw8c;
     if (!args_ok) return status::unimplemented;
 
     args_ok = true
