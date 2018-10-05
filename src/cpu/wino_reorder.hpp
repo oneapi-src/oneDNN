@@ -68,7 +68,7 @@ private:
 
     wino_reorder_t(const pd_t *pd,
             const input_vector &inputs, const output_vector &outputs)
-        : cpu_primitive_t(pd, inputs, outputs), conf_(*pd) {
+        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {
         const memory_desc_wrapper input_d(conf_.input_pd());
         const memory_desc_wrapper output_d(conf_.output_pd());
 
