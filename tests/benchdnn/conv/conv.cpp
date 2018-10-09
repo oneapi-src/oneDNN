@@ -39,7 +39,10 @@ inline bool is_conv_3d(const prb_t *p)
 
 inline bool is_conv_1d(const prb_t *p)
 {
-    return (!is_conv_3d(p) && p->ih == 1 && p->kh == 1) ? 1 : 0;
+    return (!is_conv_3d(p) && p->ih == 1 && p->kh == 1
+                   && p->cfg[SRC].dt != mkldnn_s8 // temporary workaround until
+                   && p->cfg[SRC].dt != mkldnn_u8) // int8 jit supports 1d
+            ? 1 : 0;
 }
 
 double get_trust_nz_level(const prb_t *p, data_kind_t kind, bool final_compare)
