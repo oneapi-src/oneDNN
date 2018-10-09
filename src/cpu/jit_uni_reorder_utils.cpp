@@ -67,6 +67,8 @@ status_t cvt_mem_desc_to_layout_desc(const memory_desc_t &md_,
     switch (md.format()) {
     case memory_format::undef:
     case memory_format::any:
+    case hwio_s8s8:
+    case hwigo_s8s8:
     case gOIhw4i16o4i_s8s8:
     case OIhw4i16o4i_s8s8:
     case wino_fmt:

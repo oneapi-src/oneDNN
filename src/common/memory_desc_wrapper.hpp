@@ -84,14 +84,16 @@ struct memory_desc_wrapper: public c_compatible {
     /** return the size of data type of additional buffer */
     size_t additional_buffer_data_size() const {
         using namespace mkldnn::impl::memory_format;
-        return (utils::one_of(format(), gOIhw4i16o4i_s8s8, OIhw4i16o4i_s8s8))
+        return (utils::one_of(format(), hwio_s8s8, hwigo_s8s8,
+                    gOIhw4i16o4i_s8s8, OIhw4i16o4i_s8s8))
             ? sizeof(int32_t) : 0;
     }
 
     /** return true if memory format has additional buffer */
     bool is_additional_buffer() const {
         using namespace mkldnn::impl::memory_format;
-        return (utils::one_of(format(), gOIhw4i16o4i_s8s8, OIhw4i16o4i_s8s8))
+        return (utils::one_of(format(), hwio_s8s8, hwigo_s8s8,
+                    gOIhw4i16o4i_s8s8, OIhw4i16o4i_s8s8))
             ? true : false;
     }
 
@@ -100,9 +102,11 @@ struct memory_desc_wrapper: public c_compatible {
         using namespace mkldnn::impl::memory_format;
         const auto &padding_dims = blocking_desc().padding_dims;
         switch(format()) {
+            case hwigo_s8s8:
             case gOIhw4i16o4i_s8s8:
                 return size_t(padding_dims[0]) * size_t(padding_dims[1])
                     * additional_buffer_data_size();
+            case hwio_s8s8:
             case OIhw4i16o4i_s8s8:
                 return size_t(padding_dims[0]) * additional_buffer_data_size();
             default:
