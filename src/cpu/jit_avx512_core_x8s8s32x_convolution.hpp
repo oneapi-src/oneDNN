@@ -67,6 +67,7 @@ struct _jit_avx512_core_x8s8s32x_convolution_fwd_t : public cpu_primitive_t {
             return jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(
                     jcp_, this->cdesc_(), this->src_pd_, this->weights_pd_,
                     this->dst_pd_,this->bias_pd_, *this->attr(),
+                    mkldnn_get_max_threads(),
                     with_relu, this->negative_slope());
         }
 

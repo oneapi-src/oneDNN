@@ -47,6 +47,7 @@ struct jit_avx512_core_x8s8s32x_fwd_kernel : public jit_generator {
             cpu_memory_t::pd_t &dst_pd,
             cpu_memory_t::pd_t &bias_pd,
             const primitive_attr_t &attr,
+            int nthreads,
             bool with_relu = false,
             float relu_negative_slope = 0.);
 
@@ -74,6 +75,8 @@ private:
     reg64_t aux_reg_inp = r11;
     reg64_t reg_ptr_sum_scale = r11;
     reg64_t aux_reg_ker = r12;
+    reg64_t reg_owb = r12;
+
     reg64_t reg_scratch = r14;
     reg64_t reg_kj = rax;
     reg64_t reg_overflow = rax;

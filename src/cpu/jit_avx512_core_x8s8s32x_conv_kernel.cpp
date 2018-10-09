@@ -35,9 +35,9 @@ using namespace Xbyak;
 namespace {
 void pick_loop_order(jit_conv_conf_t &jcp)
 {
-    jcp.loop_order = loop_cgn;
+    jcp.loop_order = loop_cwgn;
     if (jcp.ngroups > 1)
-        jcp.loop_order = loop_ngc;
+        jcp.loop_order = loop_ngcw;
 }
 }
 
@@ -428,6 +428,8 @@ void jit_avx512_core_x8s8s32x_fwd_kernel::generate()
 {
     int inp_shift_pad = jcp.typesize_in * (jcp.ur_w * jcp.stride_w - jcp.l_pad)
         * jcp.ic_without_padding * jcp.ngroups;
+    int inp_shift_pad_second_block = -1 * jcp.typesize_in * jcp.l_pad
+        * jcp.ic_without_padding * jcp.ngroups;
     int inp_shift = jcp.typesize_in *
                         (jcp.ur_w * jcp.stride_w * jcp.ic_without_padding
                          * jcp.ngroups);
@@ -460,52 +462,169 @@ void jit_avx512_core_x8s8s32x_fwd_kernel::generate()
                     - (jcp.iw + jcp.l_pad - 1));
     int n_oi = jcp.ow / jcp.ur_w;
     int r_pad1 = (jcp.ur_w * n_oi - 1) * jcp.stride_w
-            + (jcp.kw - 1) * (jcp.dilate_w + 1) - (jcp.iw + jcp.l_pad - 1);
-    if (r_pad1 > 0 || jcp.ur_w_tail == 0)
-        n_oi--;
+        + (jcp.kw - 1) * (jcp.dilate_w + 1) - (jcp.iw + jcp.l_pad - 1);
 
-    xor_(reg_oi, reg_oi);
-    if (jcp.ow == jcp.ur_w) {
-        icb_loop(jcp.ur_w, jcp.l_pad, r_pad, true);
-    } else {
-        if (n_oi == 0) {
-            icb_loop(jcp.ur_w, jcp.l_pad, r_pad1, jcp.ur_w_tail == 0);
-            add(reg_inp, inp_shift_pad);
-            add(reg_out, out_shift);
-            if (jcp.ur_w_tail != 0) {
-                icb_loop(jcp.ur_w_tail, 0, r_pad, true);
-            }
+    if (jcp.nb_ow == 1) {
+        if (r_pad1 > 0 || jcp.ur_w_tail == 0)
+            n_oi--;
+
+        xor_(reg_oi, reg_oi);
+        if (jcp.ow == jcp.ur_w) {
+            icb_loop(jcp.ur_w, jcp.l_pad, r_pad, true);
         } else {
-            if (jcp.l_pad > 0) {
-                icb_loop(jcp.ur_w, jcp.l_pad, 0, false);
+            if (n_oi == 0) {
+                icb_loop(jcp.ur_w, jcp.l_pad, r_pad1, jcp.ur_w_tail == 0);
                 add(reg_inp, inp_shift_pad);
                 add(reg_out, out_shift);
-
-                inc(reg_oi);
-            }
-            if ((jcp.l_pad <= 0 && n_oi > 0) || (jcp.l_pad > 0 && n_oi > 1)) {
-                Label ow_loop_label;
-                L(ow_loop_label); {
-                    icb_loop(jcp.ur_w, 0, 0, false);
-                    add(reg_inp, inp_shift);
+                if (jcp.ur_w_tail != 0) {
+                    icb_loop(jcp.ur_w_tail, 0, r_pad, true);
+                }
+            } else {
+                if (jcp.l_pad > 0) {
+                    icb_loop(jcp.ur_w, jcp.l_pad, 0, false);
+                    add(reg_inp, inp_shift_pad);
                     add(reg_out, out_shift);
 
                     inc(reg_oi);
-                    cmp(reg_oi, n_oi);
-                    jl(ow_loop_label, T_NEAR);
+                }
+                if ((jcp.l_pad <= 0 && n_oi > 0) || (jcp.l_pad > 0 && n_oi > 1))
+                {
+                    Label ow_loop_label;
+                    L(ow_loop_label); {
+                        icb_loop(jcp.ur_w, 0, 0, false);
+                        add(reg_inp, inp_shift);
+                        add(reg_out, out_shift);
+
+                        inc(reg_oi);
+                        cmp(reg_oi, n_oi);
+                        jl(ow_loop_label, T_NEAR);
+                    }
+                }
+                if (r_pad1 > 0 || jcp.ur_w_tail == 0) {
+                    icb_loop(jcp.ur_w, 0, r_pad1, jcp.ur_w_tail == 0);
+                    add(reg_inp, inp_shift);
+                    add(reg_out, out_shift);
+                }
+                if (jcp.ur_w_tail != 0) {
+                    icb_loop(jcp.ur_w_tail, 0, r_pad, true);
                 }
             }
-            if (r_pad1 > 0 || jcp.ur_w_tail == 0) {
-                icb_loop(jcp.ur_w, 0, r_pad1, jcp.ur_w_tail == 0);
-                add(reg_inp, inp_shift);
-                add(reg_out, out_shift);
-            }
-            if (jcp.ur_w_tail != 0) {
-                icb_loop(jcp.ur_w_tail, 0, r_pad, true);
-            }
         }
-    }
+    } else {
+        // ow block is only processed.
+        // Number of block is passed as parameter owb,
+        // and padding processing depends on this number.
+        Label end_label, last_oi_label, middle_ow_blocks_label, tail_label,
+            oi_loop_label, oi_loop_end_label;
 
+        assert(jcp.ow_block % jcp.ur_w == 0);
+        int n_oi_not_last_ow_block = jcp.ow_block / jcp.ur_w;
+        // to simplify code (and general regs usage),
+        // size of ow block must be >= 2 * ur_w
+        assert(n_oi_not_last_ow_block > 1);
+        int n_oi_next_last_ow_block = n_oi_not_last_ow_block;
+        int n_oi_first_ow_block = n_oi_not_last_ow_block;
+        int n_oi_last_ow_block
+            = (jcp.ow - jcp.ow_block * (jcp.nb_ow - 1)) / jcp.ur_w;
+        // prepare right padding
+        bool next_last_ow_block_padded = r_pad1 > 0 && n_oi_last_ow_block == 0;
+        bool first_ow_block_padded
+                = next_last_ow_block_padded && jcp.nb_ow == 2;
+        bool last_ow_block_padded
+                = (r_pad1 > 0 || jcp.ur_w_tail == 0) && n_oi_last_ow_block > 0;
+
+        if (last_ow_block_padded) n_oi_last_ow_block--;
+        else if (first_ow_block_padded) n_oi_first_ow_block--;
+        else if (next_last_ow_block_padded) n_oi_next_last_ow_block--;
+
+        mov(reg_owb, ptr[param1 + GET_OFF(owb)]);
+        cmp(reg_owb, 0); // is that the first ow-block ?
+        jg(middle_ow_blocks_label, T_NEAR);
+
+        // the first ow block, compute left padding
+        mov(reg_oi, n_oi_first_ow_block);
+        if (jcp.l_pad > 0) {
+            icb_loop(jcp.ur_w, jcp.l_pad, 0, false);
+            add(reg_inp, inp_shift_pad);
+            add(reg_out, out_shift);
+
+            dec(reg_oi);
+        }
+        jmp(oi_loop_label, T_NEAR);
+
+        // middle or last ow block entry
+        L(middle_ow_blocks_label);
+
+        if (jcp.l_pad > 0) {
+            // just to consider left padding, not compute
+            add(reg_inp, inp_shift_pad_second_block);
+        }
+
+        // set number of iteration for oi-loop
+        if (n_oi_last_ow_block != n_oi_not_last_ow_block) {
+            cmp(reg_owb, jcp.nb_ow - 1); // last ow-block ?
+            mov(reg_oi, n_oi_last_ow_block);
+            je(oi_loop_label, T_NEAR);
+        }
+
+        if (n_oi_next_last_ow_block != n_oi_not_last_ow_block) {
+            cmp(reg_owb, jcp.nb_ow - 2); // next to last ow-block ?
+
+            mov(reg_oi, n_oi_next_last_ow_block);
+            je(oi_loop_label, T_NEAR);
+        }
+        mov(reg_oi, n_oi_not_last_ow_block); // other middle ow-blocks
+
+        // oi loop w/o padding
+        L(oi_loop_label); {
+            cmp(reg_oi, 0);
+            jle(oi_loop_end_label, T_NEAR);
+
+            icb_loop(jcp.ur_w, 0, 0, false);
+
+            add(reg_inp, inp_shift);
+            add(reg_out, out_shift);
+            dec(reg_oi);
+
+            jmp(oi_loop_label, T_NEAR);
+        }
+        L(oi_loop_end_label);
+
+        mov(reg_owb, ptr[param1 + GET_OFF(owb)]);
+        cmp(reg_owb, 0); // first ow-block ?
+        if (first_ow_block_padded)
+            je(last_oi_label, T_NEAR);
+        else
+            je(end_label, T_NEAR);
+
+        cmp(reg_owb, jcp.nb_ow - 2); // next to last ow-block ?
+        jl(end_label, T_NEAR);
+        if (next_last_ow_block_padded)
+            je(last_oi_label, T_NEAR);
+        else
+            je(end_label, T_NEAR);
+
+        // that is last block
+        if (!last_ow_block_padded)
+            jmp(tail_label, T_NEAR);
+
+        // last oi block with right padding
+        L(last_oi_label);
+        icb_loop(jcp.ur_w, 0, r_pad1, jcp.ur_w_tail == 0);
+        add(reg_inp, inp_shift);
+        add(reg_out, out_shift);
+
+        mov(reg_owb, ptr[param1 + GET_OFF(owb)]);
+        cmp(reg_owb, jcp.nb_ow - 1); // last ow_block?
+        jl(end_label, T_NEAR);
+
+        // ur_w tail
+        L(tail_label);
+        if (jcp.ur_w_tail != 0) {
+            icb_loop(jcp.ur_w_tail, 0, r_pad, true);
+        }
+        L(end_label);
+    }
     postamble();
 }
 
@@ -545,7 +664,7 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd, cpu_memory_t::pd_t &src_pd,
             cpu_memory_t::pd_t &weights_pd, cpu_memory_t::pd_t &dst_pd,
             cpu_memory_t::pd_t &bias_pd, const primitive_attr_t &attr,
-            bool with_relu, float relu_negative_slope)
+            int nthreads, bool with_relu, float relu_negative_slope)
 {
     using namespace prop_kind;
 
@@ -680,6 +799,30 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     if (jcp.ow < jcp.ur_w)
         jcp.ur_w = jcp.ow;
     jcp.ur_w_tail = jcp.ow % jcp.ur_w;
+
+    jcp.ow_block = jcp.ow;
+    int base_work_amount
+            = jcp.mb * jcp.nb_ch * jcp.oh * (jcp.nb_oc / jcp.nb_oc_blocking);
+    float best_thr_eff
+            = (float)base_work_amount / rnd_up(base_work_amount, nthreads);
+    int max_nb_ow = div_up(jcp.ow, 2 * jcp.ur_w);
+    for (int nb_ow = 1; nb_ow <= max_nb_ow; nb_ow++) {
+        int ow_block
+                = nstl::min(rnd_up(div_up(jcp.ow, nb_ow), jcp.ur_w), jcp.ow);
+        if (ow_block < jcp.nb_oc_blocking * jcp.oc_block && best_thr_eff > 0.8f)
+            break;
+        if (div_up(jcp.ow, ow_block) != nb_ow)
+            continue;
+        auto work_amount = base_work_amount * nb_ow;
+        float thr_eff = (float)work_amount / rnd_up(work_amount, nthreads);
+        if (ow_block >= 2 * jcp.ur_w && thr_eff > 1.1f * best_thr_eff) {
+            jcp.ow_block = ow_block;
+            best_thr_eff = thr_eff;
+        }
+        if (best_thr_eff > 0.9f)
+            break;
+    }
+    jcp.nb_ow = div_up(jcp.ow, jcp.ow_block);
 
     bool args_ok = true
         && jcp.oc % jcp.oc_block == 0
