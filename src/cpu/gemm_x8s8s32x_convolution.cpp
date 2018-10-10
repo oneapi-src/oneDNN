@@ -24,7 +24,7 @@
 
 #include "simple_q10n.hpp"
 
-#include "gemm_u8s8s32x_convolution.hpp"
+#include "gemm_x8s8s32x_convolution.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -33,8 +33,9 @@ namespace cpu {
 using namespace mkldnn::impl::utils;
 using namespace mkldnn::impl::math;
 
-template <bool with_relu, data_type_t dst_type>
-void _gemm_u8s8s32x_convolution_fwd_t<with_relu, dst_type>::execute_forward() {
+template <bool with_relu, data_type_t src_type, data_type_t dst_type>
+void _gemm_x8s8s32x_convolution_fwd_t<with_relu, src_type,
+        dst_type>::execute_forward() {
     auto src_base = reinterpret_cast<const src_data_t *>(this->input_memory(0));
     auto wei_base = reinterpret_cast<const wei_data_t *>(this->input_memory(1));
     auto bia_base = reinterpret_cast<const char *>(this->input_memory(2));
@@ -43,9 +44,10 @@ void _gemm_u8s8s32x_convolution_fwd_t<with_relu, dst_type>::execute_forward() {
     jit_gemm_conv_conf_t &jcp = this->conf_.jcp_;
 
     char *scratchpad = (char *)this->scratchpad_->get();
-    src_data_t *col = (src_data_t *)scratchpad;
-    parallel_nd(jcp.im2col_sz * jcp.nthr,
-            [&](ptrdiff_t i) { col[i] = (src_data_t)0; });
+    uint8_t *col = (uint8_t *)scratchpad;
+    parallel_nd(jcp.im2col_sz * jcp.nthr, [&](ptrdiff_t i) {
+        col[i] = jcp.signed_input ? (uint8_t)128 : (uint8_t)0;
+    });
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         execute_forward_thr(ithr, nthr, src_base, wei_base, bia_base,
@@ -53,9 +55,9 @@ void _gemm_u8s8s32x_convolution_fwd_t<with_relu, dst_type>::execute_forward() {
     });
 }
 
-template <bool with_relu, data_type_t dst_type>
-void _gemm_u8s8s32x_convolution_fwd_t<with_relu, dst_type>
-::execute_forward_thr(const int ithr, const int nthr,
+template <bool with_relu, data_type_t src_type, data_type_t dst_type>
+void _gemm_x8s8s32x_convolution_fwd_t<with_relu, src_type,
+        dst_type>::execute_forward_thr(const int ithr, const int nthr,
         const src_data_t *src_base, const wei_data_t *wei_base,
         const char *bia_base, dst_data_t *dst_base, char *scratchpad) {
 #if USE_MKL_IGEMM
@@ -97,7 +99,7 @@ void _gemm_u8s8s32x_convolution_fwd_t<with_relu, dst_type>
         && scale_idx_mult == 0
         && jcp.ngroups == 1
         && !jcp.with_bias;
-    const float fast_path_alpha = scales[0];
+    const float fast_path_alpha = scales[0] / jcp.wei_adj_scale;
 
     const auto &post_ops = conf_.attr()->post_ops_;
     const bool do_sum = post_ops.contain(primitive_kind::sum, 0);
@@ -115,13 +117,15 @@ void _gemm_u8s8s32x_convolution_fwd_t<with_relu, dst_type>
     }
     const bool do_relu = jcp.with_relu || (entry_idx >= 0);
 
-    src_data_t *_col = (src_data_t *)scratchpad;
-    ptrdiff_t offset = (ptrdiff_t)jcp.im2col_sz
-                                   * sizeof(src_data_t) * jcp.nthr;
+    uint8_t *_col = (uint8_t *)scratchpad;
+    ptrdiff_t offset = (ptrdiff_t)jcp.im2col_sz * sizeof(uint8_t) * jcp.nthr;
     acc_data_t *_acc = (acc_data_t *)(scratchpad + offset);
 
-    src_data_t *col = _col + (ptrdiff_t)ithr * jcp.im2col_sz;
+    uint8_t *col = _col + (ptrdiff_t)ithr * jcp.im2col_sz;
     acc_data_t *acc = _acc + (ptrdiff_t)ithr * jcp.os * jcp.oc;
+
+    offset = (ptrdiff_t)jcp.ngroups * jcp.ks * jcp.ic * jcp.oc;
+    const int32_t *_wei_comp = (const int32_t *)(wei_base + offset);
 
     int n{0}, g{0};
     size_t start = 0, end = 0;
@@ -135,19 +139,23 @@ void _gemm_u8s8s32x_convolution_fwd_t<with_relu, dst_type>
             + g * src_g_stride;
         const wei_data_t *wei = wei_base + g * wei_g_stride;
         dst_data_t *dst = dst_base + n * dst_mb_stride + g * dst_g_stride;
+        const int32_t *wei_comp = _wei_comp + g * jcp.oc;
 
         if (jcp.im2col_sz)
-            jit_gemm_convolution_utils::im2col_u8(jcp, src, col);
+            jit_gemm_convolution_utils::im2col_u8<src_data_t>(jcp, src, col);
 
         const int M = jcp.oc;
         const int K = jcp.ks * jcp.ic;
         const int N = jcp.os;
+        const CBLAS_OFFSET offsetc
+                = jcp.signed_input ? CblasColOffset : CblasFixOffset;
         const int8_t off_a = 0, off_b = 0;
         const int32_t off_c = 0;
 
-        cblas_gemm_s8u8s32(CblasColMajor, CblasNoTrans, CblasNoTrans,
-                CblasFixOffset, M, N, K, 1., wei, M * jcp.ngroups, off_a,
-                jcp.im2col_sz ? col : src, K, off_b, 0., acc, M, &off_c);
+        cblas_gemm_s8u8s32(CblasColMajor, CblasNoTrans, CblasNoTrans, offsetc,
+                M, N, K, 1.0f, wei, M * jcp.ngroups, off_a,
+                jcp.im2col_sz ? col : (uint8_t *)src, K, off_b, 0.0f, acc, M,
+                jcp.signed_input ? wei_comp : &off_c);
 
         if (use_fast_path) {
             auto body = [&](int o) {
@@ -166,6 +174,8 @@ void _gemm_u8s8s32x_convolution_fwd_t<with_relu, dst_type>
             parallel_nd(jcp.os, jcp.oc, [&](const int os, const int oc) {
                 const size_t acc_off = os * jcp.oc + oc;
                 float d = (float)acc[acc_off];
+                if (jcp.signed_input)
+                    d /= jcp.wei_adj_scale;
 
                 if (jcp.with_bias)
                     d += get_bias(g * jcp.oc + oc);
@@ -292,14 +302,23 @@ void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>
 
 using namespace data_type;
 
-template struct _gemm_u8s8s32x_convolution_fwd_t<true, f32>;
-template struct _gemm_u8s8s32x_convolution_fwd_t<true, s32>;
-template struct _gemm_u8s8s32x_convolution_fwd_t<true, s8>;
-template struct _gemm_u8s8s32x_convolution_fwd_t<true, u8>;
-template struct _gemm_u8s8s32x_convolution_fwd_t<false, f32>;
-template struct _gemm_u8s8s32x_convolution_fwd_t<false, s32>;
-template struct _gemm_u8s8s32x_convolution_fwd_t<false, s8>;
-template struct _gemm_u8s8s32x_convolution_fwd_t<false, u8>;
+template struct _gemm_x8s8s32x_convolution_fwd_t<true, u8, f32>;
+template struct _gemm_x8s8s32x_convolution_fwd_t<true, u8, s32>;
+template struct _gemm_x8s8s32x_convolution_fwd_t<true, u8, s8>;
+template struct _gemm_x8s8s32x_convolution_fwd_t<true, u8, u8>;
+template struct _gemm_x8s8s32x_convolution_fwd_t<false, u8, f32>;
+template struct _gemm_x8s8s32x_convolution_fwd_t<false, u8, s32>;
+template struct _gemm_x8s8s32x_convolution_fwd_t<false, u8, s8>;
+template struct _gemm_x8s8s32x_convolution_fwd_t<false, u8, u8>;
+
+template struct _gemm_x8s8s32x_convolution_fwd_t<true, s8, f32>;
+template struct _gemm_x8s8s32x_convolution_fwd_t<true, s8, s32>;
+template struct _gemm_x8s8s32x_convolution_fwd_t<true, s8, s8>;
+template struct _gemm_x8s8s32x_convolution_fwd_t<true, s8, u8>;
+template struct _gemm_x8s8s32x_convolution_fwd_t<false, s8, f32>;
+template struct _gemm_x8s8s32x_convolution_fwd_t<false, s8, s32>;
+template struct _gemm_x8s8s32x_convolution_fwd_t<false, s8, s8>;
+template struct _gemm_x8s8s32x_convolution_fwd_t<false, s8, u8>;
 
 template struct _gemm_u8s8s32x_convolution_bwd_data_t<f32>;
 template struct _gemm_u8s8s32x_convolution_bwd_data_t<s32>;

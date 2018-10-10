@@ -103,8 +103,8 @@ typename utils::enable_if<fmt_i == any && (false
     {
         const size_t D_mask = utils::array_product(input_d.dims(),
                                 math::ilog2q(attr->output_scales_.mask_ + 1));
-        const int oc = (input_d.dims()[(fmt_i == goihw) + 0]);
-        const int g = (fmt_i == goihw) ? (input_d.dims()[0]) : 1;
+        const int oc = (input_d.dims()[fmt_o == hwigo_s8s8 + 0]);
+        const int g = (fmt_o == hwigo_s8s8) ? (input_d.dims()[0]) : 1;
 
         return output_d.format() == fmt_o
             && input_d.data_type() == f32
@@ -132,7 +132,7 @@ typename utils::enable_if<fmt_i == any && (false
         const size_t D_mask = utils::array_product(input_d.dims(),
                 math::ilog2q(pd->attr()->output_scales_.mask_ + 1));
 
-        float adj_scale = (mayiuse(avx512_core_vnni)) ? 1.0 : (1.0 / 2.0);
+        float adj_scale = (mayiuse(avx512_core_vnni)) ? 1.0f : (1.0f / 2.0f);
 
         size_t offset = G * pdims[w_groups + 0] * pdims[w_groups + 1] * H * W;
         int32_t *cp = reinterpret_cast<int32_t *>(output + offset);

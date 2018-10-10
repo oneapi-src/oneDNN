@@ -37,7 +37,7 @@
 #include "cpu/jit_avx2_convolution.hpp"
 #include "cpu/jit_sse42_convolution.hpp"
 #include "cpu/gemm_convolution.hpp"
-#include "cpu/gemm_u8s8s32x_convolution.hpp"
+#include "cpu/gemm_x8s8s32x_convolution.hpp"
 #include "cpu/ref_convolution.hpp"
 #include "cpu/ref_deconvolution.hpp"
 #include "cpu/ref_shuffle.hpp"
@@ -160,10 +160,14 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(jit_avx512_core_x8s8s32x_convolution_fwd_t<s8,s8>),
     INSTANCE(jit_avx512_common_convolution_bwd_data_t<s16, s16, s32>),
     INSTANCE(jit_avx512_common_convolution_bwd_weights_t<s16, s16, s32>),
-    INSTANCE(_gemm_u8s8s32x_convolution_fwd_t<false, s32>),
-    INSTANCE(_gemm_u8s8s32x_convolution_fwd_t<false, u8>),
-    INSTANCE(_gemm_u8s8s32x_convolution_fwd_t<false, s8>),
-    INSTANCE(_gemm_u8s8s32x_convolution_fwd_t<false, f32>),
+    INSTANCE(_gemm_x8s8s32x_convolution_fwd_t<false, u8, s32>),
+    INSTANCE(_gemm_x8s8s32x_convolution_fwd_t<false, u8, u8>),
+    INSTANCE(_gemm_x8s8s32x_convolution_fwd_t<false, u8, s8>),
+    INSTANCE(_gemm_x8s8s32x_convolution_fwd_t<false, u8, f32>),
+    INSTANCE(_gemm_x8s8s32x_convolution_fwd_t<false, s8, s32>),
+    INSTANCE(_gemm_x8s8s32x_convolution_fwd_t<false, s8, u8>),
+    INSTANCE(_gemm_x8s8s32x_convolution_fwd_t<false, s8, s8>),
+    INSTANCE(_gemm_x8s8s32x_convolution_fwd_t<false, s8, f32>),
     INSTANCE(_gemm_u8s8s32x_convolution_bwd_data_t<s32>),
     INSTANCE(_gemm_u8s8s32x_convolution_bwd_data_t<u8>),
     INSTANCE(_gemm_u8s8s32x_convolution_bwd_data_t<s8>),
@@ -301,10 +305,14 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(jit_avx512_core_x8s8s32x_convolution_relu_t<s8,s32>),
     INSTANCE(jit_avx512_core_x8s8s32x_convolution_relu_t<s8,u8>),
     INSTANCE(jit_avx512_core_x8s8s32x_convolution_relu_t<s8,s8>),
-    INSTANCE(_gemm_u8s8s32x_convolution_fwd_t<true, s32>),
-    INSTANCE(_gemm_u8s8s32x_convolution_fwd_t<true, u8>),
-    INSTANCE(_gemm_u8s8s32x_convolution_fwd_t<true, s8>),
-    INSTANCE(_gemm_u8s8s32x_convolution_fwd_t<true, f32>),
+    INSTANCE(_gemm_x8s8s32x_convolution_fwd_t<true, u8, s32>),
+    INSTANCE(_gemm_x8s8s32x_convolution_fwd_t<true, u8, u8>),
+    INSTANCE(_gemm_x8s8s32x_convolution_fwd_t<true, u8, s8>),
+    INSTANCE(_gemm_x8s8s32x_convolution_fwd_t<true, u8, f32>),
+    INSTANCE(_gemm_x8s8s32x_convolution_fwd_t<true, s8, s32>),
+    INSTANCE(_gemm_x8s8s32x_convolution_fwd_t<true, s8, u8>),
+    INSTANCE(_gemm_x8s8s32x_convolution_fwd_t<true, s8, s8>),
+    INSTANCE(_gemm_x8s8s32x_convolution_fwd_t<true, s8, f32>),
     INSTANCE(ref_convolution_relu_t<s16, s16, s32, s32>),
     INSTANCE(ref_convolution_relu_t<u8, s8, s32, s32>),
     INSTANCE(ref_convolution_relu_t<u8, s8, s8, s32>),

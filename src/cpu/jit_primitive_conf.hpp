@@ -383,6 +383,8 @@ struct jit_gemm_conv_conf_t {
     int nthr;
     ptrdiff_t im2col_sz;
     bool need_wei_reduction;
+    bool signed_input;
+    float wei_adj_scale;
 };
 
 struct jit_1x1_conv_call_s {

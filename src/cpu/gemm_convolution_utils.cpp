@@ -20,6 +20,7 @@
 #include "type_helpers.hpp"
 #include "mkldnn_thread.hpp"
 #include "utils.hpp"
+#include "cpu_isa_traits.hpp"
 
 #include "gemm_convolution_utils.hpp"
 
@@ -163,7 +164,8 @@ void im2col(jit_gemm_conv_conf_t &jcp, const float *im, float *col) {
 }
 
 /* col[oh][ow][kh][kw][ic] <-- im2col_u8(im[ih][iw][ic]) */
-void im2col_u8(jit_gemm_conv_conf_t &jcp, const uint8_t *im, uint8_t *col) {
+template <typename T>
+void im2col_u8(jit_gemm_conv_conf_t &jcp, const T *im, uint8_t *col) {
     parallel_nd(jcp.oh, jcp.ow, [&](int oh, int ow) {
             for (int kh = 0; kh < jcp.kh; ++kh) {
                 const int ih = oh * jcp.stride_h
@@ -181,13 +183,19 @@ void im2col_u8(jit_gemm_conv_conf_t &jcp, const uint8_t *im, uint8_t *col) {
                         = (ih * jcp.iw + iw) * jcp.ngroups * jcp.ic;
                     PRAGMA_OMP_SIMD()
                     for (int ic = 0; ic < jcp.ic; ++ic) {
-                        col[col_idx + ic] = im[im_idx + ic];
+                        col[col_idx + ic] = jcp.signed_input
+                        ? im[im_idx + ic] + 128
+                        : im[im_idx + ic];
                     }
                 }
             }
         }
     );
 }
+template void im2col_u8<int8_t>(
+        jit_gemm_conv_conf_t &jcp, const int8_t *im, uint8_t *col);
+template void im2col_u8<uint8_t>(
+        jit_gemm_conv_conf_t &jcp, const uint8_t *im, uint8_t *col);
 
 /* im[ih][iw][ic] <-- col2im_s32(col[oh][ow][kh][kw][ic]) */
 void col2im_s32(jit_gemm_conv_conf_t &jcp, const int32_t *col, int32_t *im) {
@@ -364,14 +372,21 @@ void init_conf(
     jcp.is = jcp.ih * jcp.iw;
     jcp.os = jcp.oh * jcp.ow;
     jcp.ks = jcp.kh * jcp.kw * jcp.kd;
+
+    jcp.signed_input = (src_d.data_type() == data_type::s8);
+    jcp.wei_adj_scale = (!jcp.signed_input || mayiuse(avx512_core_vnni))
+            ? 1.0f
+            : (1.0f / 2.0f);
     jcp.im2col_sz = !(jcp.oh == jcp.ih && jcp.ow == jcp.iw
-                            && jcp.od == jcp.id && jcp.ks == 1)
+                            && jcp.od == jcp.id && jcp.ks == 1
+                            && !jcp.signed_input)
         ? (ptrdiff_t)jcp.ic * jcp.ks * jcp.os
         : 0;
 
     bool do_outer_threading = false;
-    bool is_int8_conv = (cd.src_desc.data_type == u8
-            && cd.weights_desc.data_type == s8);
+    bool is_int8_conv
+            = (utils::one_of(cd.src_desc.data_type == u8, cd.src_desc.data_type == s8)
+                    && cd.weights_desc.data_type == s8);
     if (is_int8_conv) {
         bool is_depthwise =
                 utils::everyone_is(1, jcp.ic, jcp.oc) && jcp.ngroups != 1;
