@@ -852,7 +852,8 @@ _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu, dst_data_type>::
         _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t(const pd_t *pd,
                 const input_vector &inputs, const output_vector &outputs)
     : cpu_primitive_t(&conf_, inputs, outputs)
-    , conf_(*pd) {
+    , conf_(*pd)
+    , scratchpad_(nullptr) {
     const int nthreads = mkldnn_get_max_threads();
     kernel_ = new jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t(
             conf_.jcp_, *conf_.attr());
@@ -871,16 +872,11 @@ _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu, dst_data_type>::
             * (sizeof(src_data_t) * size_wino_src
                                     + sizeof(acc_data_t) * size_wino_dst);
 
-    workspace = malloc(workspace_size, 4096);
-    char *_t = static_cast<char *>(workspace);
+    scratchpad_ = create_scratchpad(workspace_size);
+    assert(scratchpad_); // TODO: add proper check and raise exception?
 
-    size_t shift = 0;
-    wino_src_ = (src_data_t *)(_t + shift);
-
-    shift += (conf_.jcp_.small_mb ? 1 : nthreads) * sizeof(src_data_t)
+    wino_shift_ = (conf_.jcp_.small_mb ? 1 : nthreads) * sizeof(src_data_t)
             * size_wino_src;
-    wino_dst_ = (acc_data_t *)(_t + shift);
-
     updated_output_scales_ = conf_.attr()->output_scales_;
     updated_output_scales_.scale(1.f / (adj_src_scale * adj_wei_scale));
 }
@@ -891,8 +887,7 @@ _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu,
     delete kernel_;
     delete src_trans_;
     delete dst_trans_;
-
-    free(workspace);
+    delete scratchpad_;
 }
 
 template <bool with_relu, data_type_t dst_data_type>
@@ -918,6 +913,8 @@ void _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu,
 
     wino_wei_ = wei;
     dst_bias_ = (const acc_data_t*)(wei + size_wino_wei);
+    wino_src_ = (src_data_t *)scratchpad_->get();
+    wino_dst_ = (acc_data_t *)(scratchpad_->get() + wino_shift_);
 
     parallel_nd(jcp.mb, div_up(jcp.oh, jcp.yb), div_up(jcp.ow, jcp.xb),
             [&](int mb, int tile_y_b, int tile_x_b) {
@@ -1028,6 +1025,8 @@ void _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu,
 
     wino_wei_ = wei;
     dst_bias_ = (const acc_data_t*)(wei + size_wino_wei);
+    wino_src_ = (src_data_t *)scratchpad_->get();
+    wino_dst_ = (acc_data_t *)(scratchpad_->get() + wino_shift_);
 
     for (int mb = 0; mb < jcp.mb; mb++) {
     for (int tile_y = 0; tile_y < jcp.oh; tile_y += jcp.yb) {

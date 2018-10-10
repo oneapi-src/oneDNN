@@ -23,6 +23,7 @@
 #include "cpu_convolution_pd.hpp"
 #include "cpu_engine.hpp"
 #include "mkldnn_thread.hpp"
+#include "scratchpad.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
@@ -121,6 +122,7 @@ private:
     size_t size_wino_wei;
     size_t size_wino_src;
     size_t size_wino_dst;
+    size_t wino_shift_;
 
     const wei_data_t *wino_wei_;
     const acc_data_t *dst_bias_;
@@ -128,7 +130,8 @@ private:
     src_data_t *wino_src_;
     acc_data_t *wino_dst_;
 
-    void *workspace;
+    scratchpad_t *scratchpad_;
+
     mkldnn::impl::scales_t updated_output_scales_;
 };
 
