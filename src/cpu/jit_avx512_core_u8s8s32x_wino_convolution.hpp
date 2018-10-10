@@ -119,16 +119,10 @@ private:
     jit_avx512_core_u8s8s32x_wino_conv_src_trans_t *src_trans_;
     jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t *dst_trans_;
 
-    size_t size_wino_wei;
-    size_t size_wino_src;
-    size_t size_wino_dst;
+    size_t size_wino_wei_;
+    size_t size_wino_src_;
+    size_t size_wino_dst_;
     size_t wino_shift_;
-
-    const wei_data_t *wino_wei_;
-    const acc_data_t *dst_bias_;
-
-    src_data_t *wino_src_;
-    acc_data_t *wino_dst_;
 
     scratchpad_t *scratchpad_;
 

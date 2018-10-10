@@ -863,20 +863,21 @@ _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu, dst_data_type>::
             conf_.jcp_, *conf_.attr());
 
     int wino_size_offset = (conf_.jcp_.yb / 2) * (conf_.jcp_.xb / 2);
-    size_wino_wei = conf_.jcp_.alpha * conf_.jcp_.alpha * conf_.jcp_.oc
-                        * conf_.jcp_.ic;
-    size_wino_src = (conf_.jcp_.ic * 16) * (wino_size_offset);
-    size_wino_dst = (conf_.jcp_.oc * 16) * (wino_size_offset);
+    size_wino_wei_ = conf_.jcp_.alpha * conf_.jcp_.alpha * conf_.jcp_.oc
+            * conf_.jcp_.ic;
+    size_wino_src_ = (conf_.jcp_.ic * 16) * (wino_size_offset);
+    size_wino_dst_ = (conf_.jcp_.oc * 16) * (wino_size_offset);
 
     size_t workspace_size = (conf_.jcp_.small_mb ? 1 : nthreads)
-            * (sizeof(src_data_t) * size_wino_src
-                                    + sizeof(acc_data_t) * size_wino_dst);
+            * (sizeof(src_data_t) * size_wino_src_
+                                    + sizeof(acc_data_t) * size_wino_dst_);
 
     scratchpad_ = create_scratchpad(workspace_size);
     assert(scratchpad_); // TODO: add proper check and raise exception?
 
     wino_shift_ = (conf_.jcp_.small_mb ? 1 : nthreads) * sizeof(src_data_t)
-            * size_wino_src;
+            * size_wino_src_;
+
     updated_output_scales_ = conf_.attr()->output_scales_;
     updated_output_scales_.scale(1.f / (adj_src_scale * adj_wei_scale));
 }
@@ -911,10 +912,10 @@ void _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu,
     const auto &jcp = kernel_->jcp;
     const auto &oscales = updated_output_scales_;
 
-    wino_wei_ = wei;
-    dst_bias_ = (const acc_data_t*)(wei + size_wino_wei);
-    wino_src_ = (src_data_t *)scratchpad_->get();
-    wino_dst_ = (acc_data_t *)(scratchpad_->get() + wino_shift_);
+    auto wino_wei = wei;
+    auto dst_bias = (const acc_data_t *)(wei + size_wino_wei_);
+    auto wino_src_base = (src_data_t *)scratchpad_->get();
+    auto wino_dst_base = (acc_data_t *)(scratchpad_->get() + wino_shift_);
 
     parallel_nd(jcp.mb, div_up(jcp.oh, jcp.yb), div_up(jcp.ow, jcp.xb),
             [&](int mb, int tile_y_b, int tile_x_b) {
@@ -923,8 +924,8 @@ void _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu,
         int tile_x = tile_x_b * jcp.xb;
 
         int ithr = mkldnn_get_thread_num();
-        auto wino_src = wino_src_ + size_wino_src * ithr;
-        auto wino_dst = wino_dst_ + size_wino_dst * ithr;
+        auto wino_src = wino_src_base + size_wino_src_ * ithr;
+        auto wino_dst = wino_dst_base + size_wino_dst_ * ithr;
 
         auto src_trans_p =
             jit_avx512_core_u8s8s32x_wino_conv_src_trans_t::call_params_t();
@@ -972,8 +973,8 @@ void _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu,
         for (int tile_ij = 0; tile_ij < 16; tile_ij++) {
             gemm_p.src = wino_src + jcp.inp_stride * tile_ij;
             gemm_p.dst = wino_dst + jcp.out_stride * tile_ij;
-            gemm_p.wei = wino_wei_ + jcp.wei_stride * tile_ij;
-            gemm_p.dst_b = dst_bias_ + jcp.bia_stride * tile_ij;
+            gemm_p.wei = wino_wei + jcp.wei_stride * tile_ij;
+            gemm_p.dst_b = dst_bias + jcp.bia_stride * tile_ij;
 
             kernel_->ker_(&gemm_p);
         }
@@ -1023,10 +1024,10 @@ void _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu,
     const auto &jcp = kernel_->jcp;
     const auto &oscales = updated_output_scales_;
 
-    wino_wei_ = wei;
-    dst_bias_ = (const acc_data_t*)(wei + size_wino_wei);
-    wino_src_ = (src_data_t *)scratchpad_->get();
-    wino_dst_ = (acc_data_t *)(scratchpad_->get() + wino_shift_);
+    auto wino_wei = wei;
+    auto dst_bias = (const acc_data_t *)(wei + size_wino_wei_);
+    auto wino_src = (src_data_t *)scratchpad_->get();
+    auto wino_dst = (acc_data_t *)(scratchpad_->get() + wino_shift_);
 
     for (int mb = 0; mb < jcp.mb; mb++) {
     for (int tile_y = 0; tile_y < jcp.oh; tile_y += jcp.yb) {
@@ -1062,7 +1063,7 @@ void _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu,
             auto local_s = src
                     + mb * jcp.ih * jcp.iw * jcp.ic
                     + y * jcp.iw * jcp.ic + x * jcp.ic;
-            auto local_w = wino_src_ + m * jcp.ic;
+            auto local_w = wino_src + m * jcp.ic;
 
             src_trans_p.src = local_s;
             src_trans_p.wino_src = local_w;
@@ -1077,12 +1078,12 @@ void _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu,
             auto gemm_p = jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::
                     call_params_t();
 
-            gemm_p.src = wino_src_ + jcp.inp_stride * tile_ij;
-            gemm_p.dst = wino_dst_ + jcp.out_stride * tile_ij
+            gemm_p.src = wino_src + jcp.inp_stride * tile_ij;
+            gemm_p.dst = wino_dst + jcp.out_stride * tile_ij
                     + nnb * jcp.n2_block * jcp.n_block;
-            gemm_p.wei = wino_wei_ + jcp.wei_stride * tile_ij
+            gemm_p.wei = wino_wei + jcp.wei_stride * tile_ij
                     + nnb * jcp.n2_block * jcp.n_block * jcp.K;
-            gemm_p.dst_b = dst_bias_ + jcp.bia_stride * tile_ij
+            gemm_p.dst_b = dst_bias + jcp.bia_stride * tile_ij
                     + nnb * jcp.n2_block * jcp.n_block;
 
             kernel_->ker_(&gemm_p);
@@ -1111,7 +1112,7 @@ void _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu,
             auto local_d = dst
                     + mb * jcp.oh * jcp.ow * jcp.oc
                     + y * jcp.ow * jcp.oc + x * jcp.oc;
-            auto local_w = wino_dst_ + m * jcp.oc;
+            auto local_w = wino_dst + m * jcp.oc;
 
             auto scales = oscales.scales_;
             dst_trans_p.dst = local_d;
