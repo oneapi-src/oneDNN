@@ -1080,13 +1080,13 @@ void _ref_rnn_common_t<aprop>::execute_() {
         array_set(ws_diff_states_, 0.0f, conf_.ws_diff_states_size());
         // TODO: add a variable to check if good_ld_copy is necessary
         if (copy_diff_weights_layer_) {
-            parallel_nd(conf_.ws_diff_weights_layer_size(), [&](int i) {
+            parallel_nd(conf_.ws_diff_weights_layer_size(), [&](size_t i) {
                 ws_diff_weights_layer_[i] = 0.;
             });
         } else
             ws_diff_weights_layer_ = diff_weights_layer;
         if (copy_diff_weights_iter_) {
-            parallel_nd(conf_.ws_diff_weights_iter_size(), [&](int i) {
+            parallel_nd(conf_.ws_diff_weights_iter_size(), [&](size_t i) {
                 ws_diff_weights_iter_[i] = 0.;
             });
         } else

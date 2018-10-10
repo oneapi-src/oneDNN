@@ -226,7 +226,7 @@ struct rnn_pd_t : public primitive_desc_t {
     int get_good_ld(int dim){
         // we want matrices leading dimentions to be 64-byte aligned,
         // and not divisible by 256 to avoid 4K aliasing effects
-        int ld = utils::rnd_up(dim, 64/sizeof(float));
+        int ld = utils::rnd_up(dim, (int)(64/sizeof(float)));
         return (ld % 256 == 0) ? ld + 64/sizeof(float) : ld;
     }
 
