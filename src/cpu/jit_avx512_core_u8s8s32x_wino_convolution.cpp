@@ -517,17 +517,17 @@ struct jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t: public jit_generator {
     Zmm vreg_tmp = Zmm(2);
 
     Reg64 reg_ptr_src = r15;
-    Reg64 reg_ptr_dst = r14;
-    Reg64 reg_ptr_wei = r13;
-    Reg64 reg_ptr_dst_b = r12;
 
-    Reg64 reg_aux_dst = r11;
+    Reg64 reg_aux_dst_b = r13;
+    Reg64 reg_aux_dst = r12;
+    Reg64 reg_aux_dst2 = r11;
     Reg64 reg_aux_wei = r10;
-    Reg64 reg_aux_dst_b = r9;
+    Reg64 reg_aux_wei2 = r9;
     Reg64 reg_aux_src = r8;
-    Reg64 reg_aux_wei2 = rax;
-    Reg64 reg_scratch = rdx;
+    Reg64 reg_aux_src2 = rax;
+    Reg64 reg_mb = rbx;
     Reg64 reg_nnb = abi_not_param1;
+    Reg64 reg_scratch = rdx;
     Reg64 reg_K = rsi;
 
 };
@@ -561,8 +561,9 @@ bool jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::post_ops_ok(
 
     return false;
 }
+
 void jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::generate() {
-    Label nnb_loop_label, K_loop_label[2];
+    Label nnb_loop_label, K_loop_label, mb_loop_label;
 
     auto compute = [=](Zmm vreg_acc, Zmm vreg_wei, Zmm vreg_src) {
         if (jcp.ver == ver_vnni) {
@@ -578,70 +579,75 @@ void jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::generate() {
 #   define READ_PARAM(reg, field) \
         mov(reg, ptr[abi_param1 + offsetof(call_params_t, field)])
     READ_PARAM(reg_ptr_src, src);
-    READ_PARAM(reg_ptr_dst, dst);
-    READ_PARAM(reg_ptr_wei, wei);
-    READ_PARAM(reg_ptr_dst_b, dst_b);
+    READ_PARAM(reg_aux_dst, dst);
+    READ_PARAM(reg_aux_wei, wei);
+    READ_PARAM(reg_aux_dst_b, dst_b);
 #   undef READ_PARAM
 
-    xor_(reg_scratch, reg_scratch);
-    Reg16 _t = reg_scratch.cvt16();
-    mov(_t, 0x1);
-    vpbroadcastw(vreg_one, _t);
-
-    mov(reg_aux_dst, reg_ptr_dst);
-    mov(reg_aux_wei, reg_ptr_wei);
-    mov(reg_aux_dst_b, reg_ptr_dst_b);
+    if (jcp.ver != ver_vnni) {
+        xor_(reg_scratch, reg_scratch);
+        Reg16 _t = reg_scratch.cvt16();
+        mov(_t, 0x1);
+        vpbroadcastw(vreg_one, _t);
+    }
 
     if (!jcp.small_mb) {
         mov(reg_nnb, jcp.n_chunks);
         L(nnb_loop_label);
     }
-        for (int mb = 0; mb < jcp.M / jcp.m_block; mb++)
-        {
-            for (int nb2 = 0; nb2 < jcp.n2_block; nb2++) {
-                for (int m = 0; m < jcp.m_block; m++) {
-                    int offset = jcp.typesize_acc * nb2 * jcp.n_block;
-                    vmovups(vreg_out(nb2, m),
-                        EVEX_compress_addr(reg_aux_dst_b, offset));
-                }
-            }
-            mov(reg_aux_src, reg_ptr_src);
-            mov(reg_aux_wei2, reg_aux_wei);
-            mov(reg_K, jcp.k_chunks);
-            L(K_loop_label[mb]); {
-                for (int k = 0; k < jcp.k2_block; k += 4)
-                {
-                    for (int nb2 = 0; nb2 < jcp.n2_block; nb2++) {
-                        int wei_offset = jcp.typesize_in *
-                                            ((nb2 * jcp.n_block) * jcp.K);
-                        vmovups(vreg_wei(nb2),
-                            EVEX_compress_addr(reg_aux_wei2, wei_offset));
-                    }
-                    for (int m = 0; m < jcp.m_block; m++) {
-                        int inp_offset  = jcp.typesize_in *
-                                          (m + mb * jcp.m_block) * jcp.K;
-                        vpbroadcastd(vreg_src,
-                            EVEX_compress_addr(reg_aux_src,inp_offset));
-                        for (int nb2 = 0; nb2 < jcp.n2_block; nb2++)
-                            compute(vreg_out(nb2, m), vreg_wei(nb2), vreg_src);
-                    }
-                    add(reg_aux_src, jcp.typesize_in * 4);
-                    add(reg_aux_wei2, jcp.typesize_in * 4 * jcp.n_block);
-                }
-            }
-            dec(reg_K);
-            cmp(reg_K, 0);
-            jg(K_loop_label[mb], T_NEAR);
-
+    mov(reg_aux_dst2, reg_aux_dst);
+    mov(reg_aux_src, reg_ptr_src);
+    mov(reg_mb, jcp.M / jcp.m_block);
+    L(mb_loop_label);
+    {
+        for (int nb2 = 0; nb2 < jcp.n2_block; nb2++) {
             for (int m = 0; m < jcp.m_block; m++) {
-                for (int nb2 = 0; nb2 < jcp.n2_block; nb2++) {
-                    int offset = jcp.typesize_acc *
-                        ((mb * jcp.m_block + m) * jcp.N + nb2 * jcp.n_block);
-                    vmovups(EVEX_compress_addr(reg_aux_dst,offset),
-                                vreg_out(nb2, m));
-                }
+                int offset = jcp.typesize_acc * nb2 * jcp.n_block;
+                vmovups(vreg_out(nb2, m),
+                        EVEX_compress_addr(reg_aux_dst_b, offset));
             }
         }
+        mov(reg_aux_src2, reg_aux_src);
+        mov(reg_aux_wei2, reg_aux_wei);
+        mov(reg_K, jcp.k_chunks);
+        L(K_loop_label);
+        {
+            for (int k = 0; k < jcp.k2_block; k += 4) {
+                for (int nb2 = 0; nb2 < jcp.n2_block; nb2++) {
+                    int wei_offset
+                            = jcp.typesize_in * (nb2 * jcp.n_block * jcp.K);
+                    vmovups(vreg_wei(nb2),
+                            EVEX_compress_addr(reg_aux_wei2, wei_offset));
+                }
+                for (int m = 0; m < jcp.m_block; m++) {
+                    int inp_offset = jcp.typesize_in * m * jcp.K;
+                    vpbroadcastd(vreg_src,
+                            EVEX_compress_addr(reg_aux_src2, inp_offset));
+                    for (int nb2 = 0; nb2 < jcp.n2_block; nb2++)
+                        compute(vreg_out(nb2, m), vreg_wei(nb2), vreg_src);
+                }
+                add(reg_aux_src2, jcp.typesize_in * 4);
+                add(reg_aux_wei2, jcp.typesize_in * 4 * jcp.n_block);
+            }
+        }
+        dec(reg_K);
+        cmp(reg_K, 0);
+        jg(K_loop_label, T_NEAR);
+
+        for (int m = 0; m < jcp.m_block; m++) {
+            for (int nb2 = 0; nb2 < jcp.n2_block; nb2++) {
+                int offset = jcp.typesize_acc * (m * jcp.N + nb2 * jcp.n_block);
+                vmovups(EVEX_compress_addr(reg_aux_dst2, offset),
+                        vreg_out(nb2, m));
+            }
+        }
+        add(reg_aux_src, jcp.typesize_in * jcp.m_block * jcp.K);
+        add(reg_aux_dst2, jcp.typesize_acc * jcp.m_block * jcp.N);
+    }
+    dec(reg_mb);
+    cmp(reg_mb, 0);
+    jg(mb_loop_label, T_NEAR);
+
     if (!jcp.small_mb) {
         add(reg_aux_dst, jcp.typesize_acc * jcp.n2_block * jcp.n_block);
         add(reg_aux_dst_b, jcp.typesize_acc * jcp.n2_block * jcp.n_block);
