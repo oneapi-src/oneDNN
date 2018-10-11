@@ -243,10 +243,12 @@ INSTANTIATE_TEST_CASE_P(TestSumEF, test, ::testing::Values( \
 
 using sum_test_float_omit_output = sum_test<float,float>;
 using sum_test_u8_omit_output = sum_test<uint8_t,float>;
+using sum_test_s8_omit_output = sum_test<int8_t,float>;
 using sum_test_s32_omit_output = sum_test<int32_t,float>;
 
 using sum_test_float = sum_test<float,float>;
 using sum_test_u8 = sum_test<uint8_t,float>;
+using sum_test_s8 = sum_test<int8_t,float>;
 using sum_test_s32 = sum_test<int32_t,float>;
 
 using sum_cc_f32 = sum_test<float,float>;
@@ -261,10 +263,12 @@ INSTANTIATE_TEST_CASE_P(TestSumCornerCases, sum_cc_f32, ::testing::Values(
 
 INST_TEST_CASE(sum_test_float_omit_output, 1)
 INST_TEST_CASE(sum_test_u8_omit_output, 1)
+INST_TEST_CASE(sum_test_s8_omit_output, 1)
 INST_TEST_CASE(sum_test_s32_omit_output, 1)
 
 INST_TEST_CASE(sum_test_float, 0)
 INST_TEST_CASE(sum_test_u8, 0)
+INST_TEST_CASE(sum_test_s8, 0)
 INST_TEST_CASE(sum_test_s32, 0)
 
 #undef INST_TEST_CASE
