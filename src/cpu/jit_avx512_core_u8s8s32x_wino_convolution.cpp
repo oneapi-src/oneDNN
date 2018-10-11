@@ -862,11 +862,14 @@ _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu, dst_data_type>::
     dst_trans_ = new jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t(
             conf_.jcp_, *conf_.attr());
 
-    int wino_size_offset = (conf_.jcp_.yb / 2) * (conf_.jcp_.xb / 2);
-    size_wino_wei_ = conf_.jcp_.alpha * conf_.jcp_.alpha * conf_.jcp_.oc
-            * conf_.jcp_.ic;
-    size_wino_src_ = (conf_.jcp_.ic * 16) * (wino_size_offset);
-    size_wino_dst_ = (conf_.jcp_.oc * 16) * (wino_size_offset);
+    const int tilesize = conf_.jcp_.alpha * conf_.jcp_.alpha;
+    const int numtiles = (conf_.jcp_.yb / 2) * (conf_.jcp_.xb / 2);
+    const int alltiles = tilesize * numtiles;
+    size_wino_wei_ = tilesize * conf_.jcp_.oc * conf_.jcp_.ic;
+    size_wino_src_ = sizeof(src_data_t) * alltiles * conf_.jcp_.ic;
+    size_wino_src_ = rnd_up(size_wino_src_, PAGE_2M);
+    size_wino_src_ /= sizeof(src_data_t);
+    size_wino_dst_ = alltiles * conf_.jcp_.oc;
 
     size_t workspace_size = (conf_.jcp_.small_mb ? 1 : nthreads)
             * (sizeof(src_data_t) * size_wino_src_
