@@ -514,24 +514,30 @@ public:
         vpaddd(x1, x2, op);
     }
 
-    void uni_vandps(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
-                    const Xbyak::Operand &op2 = Xbyak::Operand()) {
-        assert(x.getIdx() == op1.getIdx());
-        andps(x, op2);
+    void uni_vandps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
+                    const Xbyak::Operand &op = Xbyak::Operand()) {
+        assert(x1.getIdx() == x2.getIdx());
+        andps(x1, op);
     }
-    void uni_vandps(const Xbyak::Ymm &x, const Xbyak::Operand &op1,
-                    const Xbyak::Operand &op2 = Xbyak::Operand()) {
-        vandps(x, op1, op2);
+    void uni_vandps(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
+                    const Xbyak::Operand &op = Xbyak::Operand()) {
+        if (!mayiuse(avx512_common) || x1.getBit() < 512)
+            vandps(x1, x2, op);
+        else
+            vpandd(x1, x2, op);
     }
 
-    void uni_vorps(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
-                    const Xbyak::Operand &op2 = Xbyak::Operand()) {
-        assert(x.getIdx() == op1.getIdx());
-        orps(x, op2);
+    void uni_vorps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
+                    const Xbyak::Operand &op = Xbyak::Operand()) {
+        assert(x1.getIdx() == x2.getIdx());
+        orps(x1, op);
     }
-    void uni_vorps(const Xbyak::Ymm &x, const Xbyak::Operand &op1,
-                    const Xbyak::Operand &op2 = Xbyak::Operand()) {
-        vorps(x, op1, op2);
+    void uni_vorps(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
+                    const Xbyak::Operand &op = Xbyak::Operand()) {
+        if (!mayiuse(avx512_common) || x1.getBit() < 512)
+            vorps(x1, x2, op);
+        else
+            vpord(x1, x2, op);
     }
 
     void uni_vpslld(const Xbyak::Xmm &x, const Xbyak::Operand &op,
