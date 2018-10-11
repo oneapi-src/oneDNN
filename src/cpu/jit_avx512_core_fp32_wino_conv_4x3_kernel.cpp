@@ -730,16 +730,16 @@ void _jit_avx512_core_fp32_wino_conv_4x3_data_kernel
                     vaddps(zmm_O, zmm_O, ptr[oreg_bias]);
                 }
                 if (with_relu) {
-                    Opmask kmask = Opmask(7);
                     if (jcp.eltwise.alpha == 0) {
-                        zmm_relu_ns = zmm_zero;
+                        vmaxps(zmm_O, zmm_O, zmm_zero);
                     } else {
+                        Opmask kmask = Opmask(7);
                         mov(imm_addr64, float2int(jcp.eltwise.alpha));
                         vmovq(xmm_relu_ns, imm_addr64);
                         vbroadcastss(zmm_relu_ns, xmm_relu_ns);
+                        vcmpps(kmask, zmm_O, zmm_zero, _cmp_lt_os);
+                        vmulps(zmm_O | kmask, zmm_O, zmm_relu_ns);
                     }
-                    vcmpps(kmask, zmm_O, zmm_zero, _cmp_lt_os);
-                    vmulps(zmm_O | kmask, zmm_O, zmm_relu_ns);
                 }
             }
             if (with_sum) {
