@@ -793,12 +793,10 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
     }
     jcp.n_chunks = n_nblock / jcp.n2_block;
 
-    int k_nblock = jcp.K / jcp.k_block;
-    jcp.k2_block = 1;
-    for (int i = 16; i >= 2; i /= 2)
-        if (!(k_nblock % i)) {
-            jcp.k2_block = i; break;
-        }
+    // We need jcp.k2_block to be a multiple of jcp.k_block = jcp.ic_block = 4
+    // and jcp.K = jcp.ic to be a multiple of jcp.k2_block. Since jcp.ic is
+    // a multiple of load_block = 16, we just use that for now.
+    jcp.k2_block = load_block;
     jcp.k_chunks = jcp.K / jcp.k2_block;
 
     const auto &oscales = attr.output_scales_;
