@@ -172,198 +172,201 @@ protected:
 };
 
 using shuffle_test_float = shuffle_test<float>;
-using shuffle_test_params_float = shuffle_test_params;
+using shuffle_test_s8 = shuffle_test<int8_t>;
+using shuffle_test_u8 = shuffle_test<uint8_t>;
 
-TEST_P(shuffle_test_float, TestsShuffle)
-{
-}
+#define INST_TEST_CASE(test) \
+TEST_P(test, TestsShuffle) {} \
+INSTANTIATE_TEST_CASE_P(TestShuffle_nChw16c, \
+        test, \
+        ::testing::Values( \
+            shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nChw16c, {2, 16, 4, 4}, 2, 2 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nChw16c, {2, 64, 4, 4}, 2, 2 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nChw16c, {2, 32, 4, 4}, 2, 2 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nChw16c, {2, 16, 4, 4}, 1, 2 } \
+            )); \
+ \
+INSTANTIATE_TEST_CASE_P(TestShuffle_nChw16c_Tail, \
+        test, \
+        ::testing::Values( \
+            shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nChw16c, {2, 24, 4, 4}, 2, 2 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nChw16c, {2, 66, 4, 4}, 1, 2 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nChw16c, {2, 34, 4, 4}, 2, 2 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nChw16c, {2, 12, 10, 10}, 1, 2 } \
+            )); \
+ \
+INSTANTIATE_TEST_CASE_P(TestShuffle_NCHW, test, \
+        ::testing::Values( \
+            shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nchw, {2, 10, 4, 4}, 2, 2 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nchw, {2, 10, 4, 4}, 1, 5 } \
+            )); \
+ \
+INSTANTIATE_TEST_CASE_P(TestShuffle_NCDHW, test, \
+        ::testing::Values( \
+            shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::ncdhw, {2, 10, 2, 4, 4}, 2, 2 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::ncdhw, {2, 10, 2, 4, 4}, 1, 2 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::ncdhw, {2, 10, 2, 4, 4}, 1, 2 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::ncdhw, {2, 10, 2, 4, 4}, 1, 2 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::ncdhw, {2, 12, 1, 7, 7}, 1, 4 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::ncdhw, {2, 12, 2, 7, 7}, 1, 4 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::ncdhw, {2, 12, 3, 7, 7}, 1, 2 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::ncdhw, {2, 12, 1, 7, 7}, 1, 4 } \
+            )); \
+ \
+INSTANTIATE_TEST_CASE_P(TestShuffleNHWC, test, \
+        ::testing::Values( \
+            shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nhwc, {2, 10, 4, 4}, 3, 2 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nhwc, {2, 10, 4, 4}, 2, 2 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nhwc, {2, 10, 4, 4}, 1, 2 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nhwc, {2, 10, 4, 4}, 1, 2 } \
+            )); \
+ \
+INSTANTIATE_TEST_CASE_P(TestShuffle_nChw8c, test, \
+        ::testing::Values( \
+            shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nChw8c, {2, 16, 4, 4}, 2, 4 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nChw8c, {2, 16, 4, 4}, 2, 4 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nChw8c, {2, 16, 4, 4}, 1, 8 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nChw8c, {2, 16, 4, 4}, 1, 2 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nChw8c, {1, 8, 1, 1}, 1, 4 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nChw8c, {1, 8, 1, 1}, 1, 2 } \
+            )); \
+ \
+INSTANTIATE_TEST_CASE_P(TestShuffle_nCdhw16c, test, \
+        ::testing::Values( \
+            shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nCdhw16c, \
+            {2, 16, 2, 4, 4}, 1, 2 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nCdhw16c, \
+            {2, 16, 2, 4, 4}, 3, 4 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nCdhw16c, \
+            {2, 16, 2, 4, 4}, 1, 8 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nCdhw16c, \
+            {2, 16, 2, 4, 4}, 1, 2 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nCdhw16c, \
+            {1, 16, 2, 1, 1}, 1, 4 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nCdhw16c, \
+            {1, 16, 2, 1, 1}, 1, 2 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nCdhw16c, \
+            {1, 16, 2, 1, 1}, 1, 2 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nCdhw16c, \
+            {1, 16, 2, 1, 1}, 1, 4 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nCdhw16c, \
+            {1, 32, 1, 5, 5}, 1, 4 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nCdhw16c, \
+            {1, 32, 1, 5, 5}, 1, 8 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nCdhw16c, \
+            {1, 32, 1, 5, 5}, 1, 2 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nCdhw16c, \
+            {1, 32, 1, 15, 15}, 3, 5 } \
+            )); \
+ \
+INSTANTIATE_TEST_CASE_P(TestShuffle_OIHW, \
+        test, \
+        ::testing::Values( \
+            shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::oihw, {2, 16, 4, 4}, 2, 2 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::oihw, {2, 64, 4, 4}, 2, 2 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::oihw, {2, 32, 4, 4}, 2, 2 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::oihw, {2, 16, 4, 4}, 1, 2 } \
+            )); \
+ \
+INSTANTIATE_TEST_CASE_P(TestShuffle_NC, test, \
+        ::testing::Values( \
+            shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nc, {10, 8}, 1, 2 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nc, {10, 8}, 1, 4 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nc, {2, 32}, 0, 2 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nc, {10, 32}, 0, 5 } \
+            )); \
+ \
+INSTANTIATE_TEST_CASE_P(TestShuffle_NCW, test, \
+        ::testing::Values( \
+            shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::ncw, {10, 8, 5}, 1, 2 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::ncw, {10, 8, 5}, 1, 4 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::ncw, {2, 32, 5}, 0, 2 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::ncw, {10, 32, 5}, 0, 5 } \
+            )); \
+ \
+INSTANTIATE_TEST_CASE_P(TestShuffle_X, test, \
+        ::testing::Values( \
+            shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::x, {10}, 0, 2 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::x, {8}, 0, 4 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::x, {2}, 0, 2 } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::x, {10}, 0, 5 } \
+            )); \
+ \
+INSTANTIATE_TEST_CASE_P(TestShuffleEF_NCHW, \
+        test, \
+        ::testing::Values( \
+            shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nchw, {2, 15, 4, 4}, 1, 2, \
+            true, mkldnn_invalid_arguments } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nchw, {2, 64, 7, 7}, 2, 2, \
+            true, mkldnn_invalid_arguments  } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nchw, {2, 32, 11, 11}, 2, 2, \
+            true, mkldnn_invalid_arguments  } \
+            , shuffle_test_params{ prop_kind::forward_training, \
+            engine::kind::cpu, memory::format::nchw, {2, 16, 4, 4}, 4, 2, \
+            true, mkldnn_invalid_arguments  } \
+));
 
-INSTANTIATE_TEST_CASE_P(TestShuffle_nChw16c,
-        shuffle_test_float,
-        ::testing::Values(
-            shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nChw16c, {2, 16, 4, 4}, 2, 2 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nChw16c, {2, 64, 4, 4}, 2, 2 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nChw16c, {2, 32, 4, 4}, 2, 2 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nChw16c, {2, 16, 4, 4}, 1, 2 }
-            ));
-
-INSTANTIATE_TEST_CASE_P(TestShuffle_nChw16c_Tail,
-        shuffle_test_float,
-        ::testing::Values(
-            shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nChw16c, {2, 24, 4, 4}, 2, 2 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nChw16c, {2, 66, 4, 4}, 1, 2 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nChw16c, {2, 34, 4, 4}, 2, 2 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nChw16c, {2, 12, 10, 10}, 1, 2 }
-            ));
-
-INSTANTIATE_TEST_CASE_P(TestShuffle_NCHW, shuffle_test_float,
-        ::testing::Values(
-            shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nchw, {2, 10, 4, 4}, 2, 2 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nchw, {2, 10, 4, 4}, 1, 5 }
-            ));
-
-INSTANTIATE_TEST_CASE_P(TestShuffle_NCDHW, shuffle_test_float,
-        ::testing::Values(
-            shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::ncdhw, {2, 10, 2, 4, 4}, 2, 2 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::ncdhw, {2, 10, 2, 4, 4}, 1, 2 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::ncdhw, {2, 10, 2, 4, 4}, 1, 2 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::ncdhw, {2, 10, 2, 4, 4}, 1, 2 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::ncdhw, {2, 12, 1, 7, 7}, 1, 4 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::ncdhw, {2, 12, 2, 7, 7}, 1, 4 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::ncdhw, {2, 12, 3, 7, 7}, 1, 2 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::ncdhw, {2, 12, 1, 7, 7}, 1, 4 }
-            ));
-
-INSTANTIATE_TEST_CASE_P(TestShuffleNHWC, shuffle_test_float,
-        ::testing::Values(
-            shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nhwc, {2, 10, 4, 4}, 3, 2 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nhwc, {2, 10, 4, 4}, 2, 2 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nhwc, {2, 10, 4, 4}, 1, 2 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nhwc, {2, 10, 4, 4}, 1, 2 }
-            ));
-
-INSTANTIATE_TEST_CASE_P(TestShuffle_nChw8c, shuffle_test_float,
-        ::testing::Values(
-            shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nChw8c, {2, 16, 4, 4}, 2, 4 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nChw8c, {2, 16, 4, 4}, 2, 4 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nChw8c, {2, 16, 4, 4}, 1, 8 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nChw8c, {2, 16, 4, 4}, 1, 2 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nChw8c, {1, 8, 1, 1}, 1, 4 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nChw8c, {1, 8, 1, 1}, 1, 2 }
-            ));
-
-INSTANTIATE_TEST_CASE_P(TestShuffle_nCdhw16c, shuffle_test_float,
-        ::testing::Values(
-            shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nCdhw16c,
-            {2, 16, 2, 4, 4}, 1, 2 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nCdhw16c,
-            {2, 16, 2, 4, 4}, 3, 4 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nCdhw16c,
-            {2, 16, 2, 4, 4}, 1, 8 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nCdhw16c,
-            {2, 16, 2, 4, 4}, 1, 2 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nCdhw16c,
-            {1, 16, 2, 1, 1}, 1, 4 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nCdhw16c,
-            {1, 16, 2, 1, 1}, 1, 2 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nCdhw16c,
-            {1, 16, 2, 1, 1}, 1, 2 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nCdhw16c,
-            {1, 16, 2, 1, 1}, 1, 4 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nCdhw16c,
-            {1, 32, 1, 5, 5}, 1, 4 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nCdhw16c,
-            {1, 32, 1, 5, 5}, 1, 8 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nCdhw16c,
-            {1, 32, 1, 5, 5}, 1, 2 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nCdhw16c,
-            {1, 32, 1, 15, 15}, 3, 5 }
-            ));
-
-INSTANTIATE_TEST_CASE_P(TestShuffle_OIHW,
-        shuffle_test_float,
-        ::testing::Values(
-            shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::oihw, {2, 16, 4, 4}, 2, 2 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::oihw, {2, 64, 4, 4}, 2, 2 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::oihw, {2, 32, 4, 4}, 2, 2 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::oihw, {2, 16, 4, 4}, 1, 2 }
-            ));
-
-INSTANTIATE_TEST_CASE_P(TestShuffle_NC, shuffle_test_float,
-        ::testing::Values(
-            shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nc, {10, 8}, 1, 2 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nc, {10, 8}, 1, 4 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nc, {2, 32}, 0, 2 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nc, {10, 32}, 0, 5 }
-            ));
-
-INSTANTIATE_TEST_CASE_P(TestShuffle_NCW, shuffle_test_float,
-        ::testing::Values(
-            shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::ncw, {10, 8, 5}, 1, 2 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::ncw, {10, 8, 5}, 1, 4 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::ncw, {2, 32, 5}, 0, 2 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::ncw, {10, 32, 5}, 0, 5 }
-            ));
-
-INSTANTIATE_TEST_CASE_P(TestShuffle_X, shuffle_test_float,
-        ::testing::Values(
-            shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::x, {10}, 0, 2 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::x, {8}, 0, 4 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::x, {2}, 0, 2 }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::x, {10}, 0, 5 }
-            ));
-
-INSTANTIATE_TEST_CASE_P(TestShuffleEF_NCHW,
-        shuffle_test_float,
-        ::testing::Values(
-            shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nchw, {2, 15, 4, 4}, 1, 2,
-            true, mkldnn_invalid_arguments }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nchw, {2, 64, 7, 7}, 2, 2,
-            true, mkldnn_invalid_arguments  }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nchw, {2, 32, 11, 11}, 2, 2,
-            true, mkldnn_invalid_arguments  }
-            , shuffle_test_params_float{ prop_kind::forward_training,
-            engine::kind::cpu, memory::format::nchw, {2, 16, 4, 4}, 4, 2,
-            true, mkldnn_invalid_arguments  }
-            ));
+INST_TEST_CASE(shuffle_test_float)
+INST_TEST_CASE(shuffle_test_s8)
+INST_TEST_CASE(shuffle_test_u8)
 
 }
