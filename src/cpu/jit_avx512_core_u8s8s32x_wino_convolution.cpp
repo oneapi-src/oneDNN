@@ -43,6 +43,8 @@ namespace {
     // and transforms weights which may increase values up to 9/4x
     const float adj_src_scale = 1.f / 4.f;
     const float adj_wei_scale = 4.f / 9.f;
+    // Winograd transforms need ic and oc to be multiples of 16
+    const int load_block = 16;
 }
 
 /// SRC TRANSFORMS /////////////////////////////////////////////////////////////
@@ -120,7 +122,6 @@ struct jit_avx512_core_u8s8s32x_wino_conv_src_trans_t: public jit_generator {
 void jit_avx512_core_u8s8s32x_wino_conv_src_trans_t::generate() {
     Label ic_block_label;
 
-    const int load_block = 16;
     int out_offset = 0, inp_offset = 0;
     preamble();
 
@@ -314,8 +315,6 @@ bool jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t::maybe_relu(int position) {
 
 void jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t::generate() {
     Label oc_block_label;
-
-    const int load_block = 16;
 
     auto loop_body = [=]() {
         const auto &p = attr_.post_ops_;
@@ -705,11 +704,13 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
     if (mayiuse(avx512_core_vnni))
         jcp.ver = ver_vnni;
 
+    // block sizes needed for GEMM kernel
     jcp.ic_block = 4;
     jcp.oc_block = 16;
 
     bool ok = true
         && jcp.ngroups == 1
+        && jcp.oc % load_block == 0 && jcp.ic % load_block == 0
         && jcp.oc % jcp.oc_block == 0 && jcp.ic % jcp.ic_block == 0
         && everyone_is(3, jcp.kh, jcp.kw)
         && everyone_is(1, jcp.stride_h, jcp.stride_w)
