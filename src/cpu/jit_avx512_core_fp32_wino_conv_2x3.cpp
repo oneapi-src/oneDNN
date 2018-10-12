@@ -853,7 +853,7 @@ _jit_avx512_core_fp32_wino_conv_2x3_fwd_t<with_relu>::
         _jit_avx512_core_fp32_wino_conv_2x3_fwd_t(const pd_t *pd,
                 const input_vector &inputs, const output_vector &outputs)
     : cpu_primitive_t(&conf_, inputs, outputs)
-    , conf_(*pd) {
+    , conf_(*pd), padded_bias_(nullptr) {
     const int nthreads = mkldnn_get_max_threads();
     kernel_ = new jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t(
             conf_.jcp_, *conf_.attr());
