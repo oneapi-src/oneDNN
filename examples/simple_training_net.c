@@ -479,9 +479,6 @@ mkldnn_status_t simple_net()
     if (pool_reorder_dst)
         net_fwd[n_fwd++] = pool_reorder_dst;
 
-    mkldnn_stream_t stream_fwd;
-    CHECK(mkldnn_stream_create(&stream_fwd, mkldnn_eager));
-
     void *net_output = NULL; // output from forward stream:
 
     /*----------------------------------------------------------------------*/
@@ -779,19 +776,18 @@ mkldnn_status_t simple_net()
     if (conv_reorder_diff_weights)
         net_bwd[n_bwd++] = conv_reorder_diff_weights;
 
-    mkldnn_stream_t stream_bwd;
-    CHECK(mkldnn_stream_create(&stream_bwd, mkldnn_eager));
-
     // output from backward stream
     void *net_diff_weights = NULL;
     void *net_diff_bias = NULL;
 
-    int n_iter = 1; //number of iterations for training.
+    int n_iter = 10; //number of iterations for training.
     /* Execute the net */
-    while (n_iter) {
-        /* Forward pass */
+    for (int i = 0; i < n_iter; i++) {
+        mkldnn_stream_t stream_fwd;
+        CHECK(mkldnn_stream_create(&stream_fwd, mkldnn_eager));
         CHECK(mkldnn_stream_submit(stream_fwd, n_fwd, net_fwd, NULL));
         CHECK(mkldnn_stream_wait(stream_fwd, n_fwd, NULL));
+        CHECK(mkldnn_stream_destroy(stream_fwd));
 
         /* Update net_diff_dst */
         CHECK(mkldnn_memory_get_data_handle(pool_user_dst_memory, &net_output));
@@ -799,8 +795,11 @@ mkldnn_status_t simple_net()
         // some user defined func update_diff_dst(net_diff_dst, net_output)
 
         /* Backward pass */
+        mkldnn_stream_t stream_bwd;
+        CHECK(mkldnn_stream_create(&stream_bwd, mkldnn_eager));
         CHECK(mkldnn_stream_submit(stream_bwd, n_bwd, net_bwd, NULL));
         CHECK(mkldnn_stream_wait(stream_bwd, n_bwd, NULL));
+        CHECK(mkldnn_stream_destroy(stream_bwd));
 
         /*... update weights ... */
         CHECK(mkldnn_memory_get_data_handle(conv_user_diff_weights_memory,
@@ -811,8 +810,6 @@ mkldnn_status_t simple_net()
         // some user defined func update_weights(conv_user_weights_memory,
         // conv_bias_memory,
         //      net_diff_weights, net_diff_bias);
-
-        --n_iter;
     }
 
     /* Cleanup forward */
@@ -820,8 +817,6 @@ mkldnn_status_t simple_net()
     CHECK(mkldnn_primitive_desc_destroy(lrn_pd));
     CHECK(mkldnn_primitive_desc_destroy(relu_pd));
     CHECK(mkldnn_primitive_desc_destroy(conv_pd));
-
-    mkldnn_stream_destroy(stream_fwd);
 
     _free(net_src);
     _free(net_dst);
@@ -870,8 +865,6 @@ mkldnn_status_t simple_net()
     CHECK(mkldnn_primitive_desc_destroy(relu_bwd_pd));
     CHECK(mkldnn_primitive_desc_destroy(conv_diff_bias_pd));
     CHECK(mkldnn_primitive_desc_destroy(conv_bwd_weights_pd));
-
-    mkldnn_stream_destroy(stream_bwd);
 
     mkldnn_primitive_destroy(pool_user_diff_dst_memory);
     mkldnn_primitive_destroy(pool_diff_src_memory);
