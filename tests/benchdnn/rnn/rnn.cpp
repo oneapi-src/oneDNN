@@ -551,6 +551,10 @@ int doit(const rnn_prb_t *p, res_t *r) {
 
     delete workspace_dt;
 
+    DNN_SAFE(mkldnn_primitive_desc_destroy(rpd[0]), CRIT);
+    DNN_SAFE(mkldnn_primitive_desc_destroy(rpd[1]), CRIT);
+    DNN_SAFE(mkldnn_primitive_destroy(c), CRIT);
+
     return OK;
 }
 } // namespace rnn

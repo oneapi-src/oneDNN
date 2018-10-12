@@ -627,6 +627,9 @@ int doit(const prb_t *p, res_t *r) {
         }
     }
 
+    DNN_SAFE(mkldnn_primitive_desc_destroy(cpd), CRIT);
+    DNN_SAFE(mkldnn_primitive_destroy(c), CRIT);
+
     delete p_bia_dt;
     delete p_bia_fp;
 
