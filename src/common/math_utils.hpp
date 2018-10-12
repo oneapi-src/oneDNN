@@ -209,6 +209,15 @@ inline T logistic_bwd(T dd, T s) {
     return dd * v * (1 - v);
 }
 
+inline bool eltwise_fwd_preserves_zero(alg_kind_t alg, bool jit_impl = false) {
+    using namespace alg_kind;
+    using namespace utils;
+    const bool preserves_zero = true
+        && !one_of(alg, eltwise_linear, eltwise_soft_relu, eltwise_logistic)
+        && IMPLICATION(jit_impl, !one_of(alg, eltwise_elu, eltwise_tanh));
+    return preserves_zero;
+}
+
 }
 }
 }
