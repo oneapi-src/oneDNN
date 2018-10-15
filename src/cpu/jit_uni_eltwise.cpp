@@ -860,13 +860,13 @@ status_t jit_uni_eltwise_fwd_t<isa>::pd_t::init() {
                 prop_kind::forward_inference)
         && utils::everyone_is(data_type::f32, desc()->data_desc.data_type)
         && !has_zero_dim_memory()
-        && IMPLICATION(isa > avx2, utils::one_of(desc()->alg_kind,
-                eltwise_relu, eltwise_elu))
-        && IMPLICATION(isa == sse42 || isa == avx2, utils::one_of(
-                    desc()->alg_kind, eltwise_relu, eltwise_tanh, eltwise_elu,
-                    eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
-                    eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic))
-        && memory_desc_wrapper(src_pd()).is_dense()
+        && utils::one_of(desc()->alg_kind, eltwise_relu, eltwise_tanh,
+                eltwise_elu, eltwise_square, eltwise_abs, eltwise_sqrt,
+                eltwise_linear, eltwise_bounded_relu, eltwise_soft_relu,
+                eltwise_logistic)
+        && memory_desc_wrapper(src_pd()).is_dense(true)
+        && IMPLICATION(!memory_desc_wrapper(src_pd()).is_dense(false),
+                math::eltwise_fwd_preserves_zero(desc()->alg_kind, true))
         && attr()->has_default_values();
 
     return ok ? status::success : status::unimplemented;
@@ -896,7 +896,7 @@ void jit_uni_eltwise_fwd_t<isa>::execute_forward() {
 
     const memory_desc_wrapper data_d(conf_.src_pd());
 
-    const size_t nelems = data_d.nelems();
+    const size_t nelems = data_d.nelems(true);
 
     src += data_d.blocking_desc().offset_padding;
     dst += data_d.blocking_desc().offset_padding;
