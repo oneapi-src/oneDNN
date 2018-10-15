@@ -50,12 +50,16 @@ double get_trust_nz_level(const prb_t *p, data_kind_t kind, bool final_compare)
     if (!final_compare)
         return p->cfg[kind].f_sparsity;
 
-    auto count_relu = [&]() {
+    auto negative_to_zero = [&]() {
+        using pk = attr_t::post_ops_t::kind_t;
         const auto &po = p->attr.post_ops;
         int count = 0;
-        for (int i = 0; i < po.len; ++i)
-            count += po.entry[i].kind == attr_t::post_ops_t::kind_t::RELU;
-        return count;
+        for (int i = 0; i < po.len; ++i) {
+            auto k = po.entry[i].kind;
+            count +=
+                k == pk::RELU || k == pk::ELU || k == pk::SQRT || k == pk::BRELU;
+        }
+        return !!count;
     };
 
     double trust = 0.3; /* why? */
@@ -72,36 +76,70 @@ double get_trust_nz_level(const prb_t *p, data_kind_t kind, bool final_compare)
             trust = 0.8 * p->cfg[DST].f_sparsity; /* why? */
             break;
         case DST:
-            trust /= count_relu() == 0 ? 1 : 2;
+            trust /= negative_to_zero() == 0 ? 1 : 2;
             break;
     }
 
     return trust;
 }
 
+inline bool post_ops_require_integral_check(const prb_t *p) {
+    if (p->attr.post_ops.len == 0) return false;
+
+    using pk = attr_t::post_ops_t::kind_t;
+    const auto &ops = p->attr.post_ops;
+
+    // assumptions: at most 1 eltwise, scale = 1.
+    for (int idx = 0; idx < ops.len; ++idx) {
+        const auto &e = ops.entry[idx];
+        if (e.kind == pk::SUM || e.kind == pk::ABS) continue;
+        if (e.kind == pk::RELU && e.eltwise.alpha == 0.f) continue;
+        return true;
+    }
+
+    return false;
+}
+
 inline double get_eps(const prb_t *p, const data_kind_t kind) {
+    // Winograd specifics
     if (p->alg & WINO && p->dir & FLAG_WEI) {
         /*This is an empirical equation derived by observing growth error
           with increasing 'k' dimension in gemm of winograd*/
         return p->cfg[kind].eps *
             (MAX2(1, pow(10, 0.4 * log10(0.125 * p->mb * p->oh * p->ow))));
     }
+
+    // post-ops specifics
+    if (post_ops_require_integral_check(p))
+        return MAX2(1e-5, p->cfg[kind].eps);
+
     return p->cfg[kind].eps;
 }
 
 inline void get_result(const prb_t *p, const data_kind_t kind, res_t *r,
         const diff_norm_t diff_norm) {
-    bool wino_test = (p->alg & WINO)
-        && (diff_norm.rel_diff(norm_t::L2) <= get_eps(p, kind));
-    /* Ignoring elementwise errors for winograd,
-       since large relative error in few elements(which are anyways close to zero)
-       results in false positive failures*/
+    const float eps = get_eps(p, kind);
+
+    /* Ignoring element-wise errors for Winograd and in some cases of post-ops,
+     * since large relative error in few elements (which are anyways close
+     * to zero) results in false positive failures */
+
+    bool wino_test = (p->alg & WINO) && diff_norm.rel_diff(norm_t::L2) <= eps;
     if (wino_test) r->errors = 0;
-    r->state = r->errors ? FAILED : r->state;
+
+    bool post_ops_test = post_ops_require_integral_check(p)
+        && diff_norm.rel_diff(norm_t::L2) <= eps;
+    if (post_ops_test) r->errors = 0;
+
+    if (r->errors) r->state = FAILED;
 }
 
 inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r, bool final_compare = false) {
+    const bool dont_complain = false
+        || (p->alg & WINO)
+        || post_ops_require_integral_check(p);
+
     size_t nelems = mem_dt.nelems();
 
     const char *skind = data_kind2str(kind);
@@ -152,7 +190,7 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
         }
         if (!ok) {
             r->errors++;
-            if ((!(p->alg & WINO) && r->errors < 10) || verbose >=10) {
+            if ((!dont_complain && r->errors < 10) || verbose >=10) {
                 int mb_or_g = 0, g_or_oc = 0, c = 0, d = 0, h = 0, w = 0;
                 switch (kind) {
                 case SRC: inv_src_off_f(p, i, mb_or_g, g_or_oc, c, d, h, w); break;
@@ -188,14 +226,15 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
     }
 
     diff_norm.done();
+    get_result(p, kind, r, diff_norm);
 
     if (final_compare || r->errors) {
         const int vl = r->errors ? 0 : 2;
-        print(vl, "@@@ [%s] %sdiff: l0(``%g``) "
+        print(vl, "@@@ [%s] %sdiff: err:%d, l0(``%g``) "
                 "l1:(%g,%g,%g,``%g``) "
                 "l2:(%g,%g,%g,``%g``) "
                 "l8:(%g,%g,%g,``%g``)\n",
-                skind, final_compare ? "final: " : "",
+                skind, final_compare ? "final: " : "", (int)r->errors,
                 diff_norm.rel_diff(norm_t::L0),
                 diff_norm.a_[norm_t::L1], diff_norm.b_[norm_t::L1],
                 diff_norm.diff_[norm_t::L1], diff_norm.rel_diff(norm_t::L1),
@@ -234,8 +273,6 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
                 skind, trust_rg, trust_rg_level, trust_nz, trust_nz_level,
                 non_zero, (unsigned long)r->total);
     }
-
-    get_result(p, kind, r, diff_norm);
 
     if (final_compare && r->state == UNTESTED)
         r->state = PASSED; /* optimism */

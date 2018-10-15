@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "src/common/mkldnn_thread.hpp"
+#include "src/common/math_utils.hpp"
 
 #include "conv/conv_common.hpp"
 
@@ -85,17 +86,29 @@ void compute_ref_direct_fwd(const prb_t *p, dnn_mem_t &src_m,
     };
 
     auto maybe_post_ops = [&](float &conv_res, float dst) {
+        using namespace mkldnn::impl::math;
+
         const auto &ops = p->attr.post_ops;
         for (int idx = 0; idx < ops.len; ++idx) {
             using pk = attr_t::post_ops_t::kind_t;
             const auto &e = ops.entry[idx];
+
+            const auto &s = e.eltwise.scale;
+            const auto &a = e.eltwise.alpha;
+            const auto &b = e.eltwise.beta;
+
             switch (e.kind) {
-            case pk::SUM:
-                conv_res += e.sum.scale * dst;
-                break;
-            case pk::RELU:
-                conv_res = e.eltwise.scale * (conv_res < 0 ? 0 : conv_res);
-                break;
+            case pk::SUM: conv_res += e.sum.scale * dst; break;
+            case pk::RELU: conv_res = s*relu_fwd(conv_res, a); break;
+            case pk::TANH: conv_res = s*tanh_fwd(conv_res); break;
+            case pk::ELU: conv_res = s*elu_fwd(conv_res, a); break;
+            case pk::SQUARE: conv_res = s*square_fwd(conv_res); break;
+            case pk::ABS: conv_res = s*abs_fwd(conv_res); break;
+            case pk::SQRT: conv_res = s*sqrt_fwd(conv_res); break;
+            case pk::LINEAR: conv_res = s*linear_fwd(conv_res, a, b); break;
+            case pk::BRELU: conv_res = s*bounded_relu_fwd(conv_res, a); break;
+            case pk::SRELU: conv_res = s*soft_relu_fwd(conv_res); break;
+            case pk::LOGISTIC: conv_res = s*logistic_fwd(conv_res); break;
             default:
                 assert(!"unknown attr::post_ops::kind");
             }
