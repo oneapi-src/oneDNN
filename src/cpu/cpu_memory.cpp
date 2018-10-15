@@ -254,7 +254,7 @@ void typed_zero_pad_generic_blocked(const memory_desc_wrapper &m_d,
 }
 
 template <data_type_t dt>
-status_t cpu_memory_t::typed_zero_pad() {
+status_t cpu_memory_t::typed_zero_pad() const {
     const memory_desc_wrapper mpd(&conf_);
 
     // FIXME: guard this check for non-blocked layout
@@ -354,7 +354,7 @@ status_t cpu_memory_t::typed_zero_pad() {
     return unimplemented;
 }
 
-status_t cpu_memory_t::zero_pad() {
+status_t cpu_memory_t::zero_pad() const {
     memory_desc_wrapper md(&conf_);
     const bool skip_zeroing = false
         || data_ == nullptr

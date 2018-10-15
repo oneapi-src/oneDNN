@@ -71,13 +71,14 @@ struct cpu_memory_t: public cpu_primitive_t {
     virtual const char* const_memory(size_t output_index = 0) const
     { assert(output_index == 0); return data_; }
 
+    mkldnn::impl::status_t zero_pad() const;
+
 private:
     pd_t conf_;
     char *data_;
 
     template <mkldnn::impl::data_type_t>
-    mkldnn::impl::status_t typed_zero_pad();
-    mkldnn::impl::status_t zero_pad();
+    mkldnn::impl::status_t typed_zero_pad() const;
 };
 
 struct cpu_view_t: public cpu_primitive_t {
