@@ -27,6 +27,8 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
+struct cpu_memory_t;
+
 struct cpu_primitive_t: public primitive_t {
     cpu_primitive_t(const primitive_desc_t *pd, const input_vector &inputs,
             const output_vector &outputs)
@@ -54,6 +56,8 @@ struct cpu_primitive_t: public primitive_t {
                 this->inputs()[index].primitive);
         return p->const_memory(oi);
     }
+
+    const cpu_memory_t *output_memory_primitive(size_t index = 0) const;
 };
 
 }
