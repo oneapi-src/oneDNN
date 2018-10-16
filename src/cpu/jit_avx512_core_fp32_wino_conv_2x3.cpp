@@ -629,6 +629,12 @@ status_t jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t ::init_conf(
         jcp.ic = rnd_up(jcp.ic, simdw);
     }
 
+    if (src_d.format() != nChw16c
+            || dst_d.format() != nChw16c
+            || !implication(jcp.with_bias,
+                bias_d.format() == x))
+        return status::unimplemented;
+
     jcp.ver = ver_avx512_core;
     if (!(mayiuse(avx512_core)))
         return status::unimplemented;
