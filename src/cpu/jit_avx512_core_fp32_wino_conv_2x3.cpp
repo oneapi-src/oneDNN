@@ -614,6 +614,14 @@ status_t jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t ::init_conf(
     jcp.r = 3;
     jcp.alpha = jcp.m + jcp.r - 1;
     int simdw = 16;
+    jcp.src_fmt = src_d.format();
+    jcp.with_bias = cd.bias_desc.format != memory_format::undef;
+    jcp.with_relu = with_relu;
+    jcp.relu_negative_slope = relu_negative_slope;
+    if (!implication(with_relu, relu_negative_slope == 0.))
+        return status::unimplemented;
+    if (!post_ops_ok(jcp, attr))
+        return status::unimplemented;
 
     bool ok_to_pad_channels = jcp.ngroups == 1;
     if (ok_to_pad_channels) {
@@ -673,15 +681,6 @@ status_t jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t ::init_conf(
                 || inp_sz > L2_cap * nthr + L3_capacity))
         || (jcp.small_mb && sp_sz > 196))
         return unimplemented;
-
-    jcp.src_fmt = src_d.format();
-    jcp.with_bias = cd.bias_desc.format != memory_format::undef;
-    jcp.with_relu = with_relu;
-    jcp.relu_negative_slope = relu_negative_slope;
-    if (!implication(with_relu, relu_negative_slope == 0.))
-        return status::unimplemented;
-    if (!post_ops_ok(jcp, attr))
-        return status::unimplemented;
 
     jcp.bia_dt = jcp.with_bias ? cd.bias_desc.data_type : data_type::undef;
     jcp.dst_dt = cd.dst_desc.data_type;
