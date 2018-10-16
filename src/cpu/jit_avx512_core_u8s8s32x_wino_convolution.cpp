@@ -746,29 +746,130 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
     jcp.r = 3;
     jcp.alpha = jcp.m + jcp.r - 1;
 
-    jcp.yb = 1;
-    int opt_val = 14, cur_val = 0;
-    for (int i = 14; i >= 8; i -= 2) {
-        cur_val = ((jcp.oh / i) * i + i) - jcp.oh;
-        if (jcp.oh % i == 0) {
-            jcp.yb = i; break;
-        }  else if (cur_val < opt_val)  {
-            jcp.yb = i;
-            opt_val = cur_val;
+    int aa = jcp.alpha * jcp.alpha;
+    int nthr = mkldnn_get_max_threads();
+    int L1_cap = get_cache_size(1, true);
+    int L2_cap = get_cache_size(2, true);
+    int free_regs = 29; // skx needs 2 tmp regs + 1 bcast reg
+
+    auto get_thr_eff = [&](int small_mb, int ix, int iy, int n2_b) {
+        float thr_eff;
+        float Z = (float)jcp.ic + jcp.oc;
+        float Y = (float)jcp.ic * jcp.oc;
+        if (small_mb == 0) { // outer par
+            int nblocks = jcp.mb * div_up(jcp.oh, iy) * div_up(jcp.ow, ix);
+            thr_eff = (float)nblocks / rnd_up(nblocks, nthr);
+        } else { // inner par
+            int tranw = iy * ix / jcp.alpha;
+            int gemmw = aa * (jcp.nb_oc / n2_b);
+            int tranw_r = rnd_up(tranw, nthr);
+            int gemmw_r = rnd_up(gemmw, nthr);
+            thr_eff = (Z * tranw / tranw_r + Y * gemmw / gemmw_r) / (Z + Y);
+        }
+        return thr_eff;
+    };
+
+    auto get_mem_eff = [&](int small_mb, int ix, int iy, int n2_b) {
+        float mem_eff, req_mem;
+        int M = ix * iy / jcp.alpha;
+        if (small_mb == 0) { // outer parallelization strategy
+            // memory for wino transforms (other memory has poor reuse)
+            req_mem = (float)aa * M * (jcp.ic + jcp.typesize_acc * jcp.oc);
+            mem_eff = req_mem < L1_cap ? 1.f : req_mem < L2_cap ? 0.5f : 0.f;
+        } else { // inner parallelization strategy
+            // memory used during gemm
+            int N = jcp.oc_block * n2_b;
+            req_mem = (float)jcp.ic * (M + N) + jcp.typesize_acc * M * N;
+            mem_eff = nstl::min(1.f, L2_cap / req_mem);
+            // memory used during wino transforms
+            int M_per_thr = div_up(M, nthr);
+            req_mem = (float)aa * M_per_thr
+                    * (jcp.ic + jcp.typesize_acc * jcp.oc);
+            if (req_mem > L2_cap)
+                mem_eff = 0.1f;
+        }
+        return mem_eff;
+    };
+
+    auto get_tot_eff = [&](int small_mb, float thr_eff, float work_eff,
+            float mem_eff, float reg_eff) {
+        // these coefficients were chosen empirically for skx
+        float mem_fac = 0.1f, reg_fac = 0.2f;
+        // normalized overhead relative to memory and register components
+        float tot_eff = 1.f + mem_fac * mem_eff + reg_fac * reg_eff;
+        // thread and work components affect all others
+        tot_eff *= thr_eff * work_eff;
+        return tot_eff;
+    };
+
+    auto find_m_n2_blocks = [&](bool small_mb, int ix, int iy, float work_eff,
+            int &m_block, int &n2_block, float &tot_eff) {
+        int M = (ix * iy) / jcp.alpha;
+        int max_m_block = nstl::min(M, free_regs);
+        int max_n2_block = nstl::min(jcp.nb_oc, free_regs);
+        tot_eff = 0.f;
+        for (int im = max_m_block; im > 0; im--) {
+            if (M % im)
+                continue;
+            for (int in2 = max_n2_block; in2 > 0; in2--) {
+                int used_regs = (im + 1) * in2;
+                float mem_eff = get_mem_eff(small_mb, ix, iy, in2);
+                float reg_eff = (float)(im * in2) / (im + in2);
+                float thr_eff = get_thr_eff(small_mb, ix, iy, in2);
+                float cur_tot_eff = get_tot_eff(
+                        small_mb, thr_eff, work_eff, mem_eff, reg_eff);
+                if (jcp.nb_oc % in2 || used_regs > free_regs
+                        || cur_tot_eff <= tot_eff)
+                    continue;
+                tot_eff = cur_tot_eff;
+                m_block = im;
+                n2_block = in2;
+            }
+        }
+    };
+
+    /* Selecting xb and yb blocking */
+    int min_yb = jcp.m;
+    int min_xb = jcp.m;
+    int max_yb = nstl::max(min_yb, rnd_up(jcp.oh, 2));
+    int max_xb = nstl::max(min_xb, rnd_up(jcp.ow, 2));
+    float best_eff = 0.f;
+    for (int ix = min_xb; ix <= max_xb; ix += 2) {
+        assert(rnd_up(jcp.ow, ix) >= jcp.iw - 2);
+        for (int iy = max_yb; iy >= min_yb; iy -= 2) {
+            assert(rnd_up(jcp.oh, iy) >= jcp.ih - 2);
+
+            int m_b[2];
+            int n2_b[2];
+            bool small_mb;
+            float inner_eff, outer_eff, work_eff;
+
+            int tiled_area = rnd_up(jcp.oh, iy) * rnd_up(jcp.ow, ix);
+            work_eff = (float)jcp.oh * jcp.ow / tiled_area;
+            if (best_eff > 0.f && work_eff < 4.f / 9.f)
+                continue; // no gain from Winograd transformation
+
+            /* outer parallelization */
+            find_m_n2_blocks(0, ix, iy, work_eff, m_b[0], n2_b[0], outer_eff);
+
+            /* inner parallelization */
+            find_m_n2_blocks(1, ix, iy, work_eff, m_b[1], n2_b[1], inner_eff);
+
+            small_mb = inner_eff > outer_eff;
+            float eff = small_mb ? inner_eff : outer_eff;
+            if (eff > best_eff) {
+                best_eff = eff;
+                jcp.yb = iy;
+                jcp.xb = ix;
+                jcp.m_block = m_b[small_mb];
+                jcp.n2_block = n2_b[small_mb];
+                jcp.small_mb = small_mb;
+            }
         }
     }
 
-    const int nthreads = mkldnn_get_max_threads();
-    jcp.xb = 4;
-    int oh_blocks = (jcp.oh < jcp.yb) ? 1 : (jcp.oh / jcp.yb);
-    int ow_blocks = (jcp.ow < jcp.xb) ? 1 : (jcp.ow / jcp.xb);
-
-    const int work_amount = jcp.mb * oh_blocks * ow_blocks;
-    if (work_amount < nthreads && jcp.ow < 24) {
-        jcp.small_mb = true;
-        jcp.xb = (jcp.ow < 9) ? jcp.yb : 4;
-    } else
-        jcp.small_mb = false;
+    assert((jcp.m_block + 1) * jcp.n2_block <= free_regs);
+    assert(jcp.xb % 2 == 0 && jcp.yb % 2 == 0);
 
     jcp.inp_stride = jcp.yb * jcp.xb / 4 * jcp.ic;
     jcp.out_stride = jcp.yb * jcp.xb / 4 * jcp.oc;
@@ -779,19 +880,10 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
     jcp.N = jcp.oc;
     jcp.K = jcp.ic;
 
-    jcp.m_block = jcp.xb * jcp.yb / 8;
     jcp.n_block = jcp.oc_block;
     jcp.k_block = jcp.ic_block;
 
-    int n_nblock = jcp.N / jcp.n_block;
-    jcp.n2_block = (!(n_nblock % 4))
-                    ? 4
-                    : (!(n_nblock % 2)) ? 2 : 1;
-    const int skx_free_regs = 28;
-    if (jcp.n2_block * jcp.m_block > (skx_free_regs - jcp.n2_block)) {
-        jcp.n2_block /= 2;
-    }
-    jcp.n_chunks = n_nblock / jcp.n2_block;
+    jcp.n_chunks = (jcp.N / jcp.n_block) / jcp.n2_block;
 
     // We need jcp.k2_block to be a multiple of jcp.k_block = jcp.ic_block = 4
     // and jcp.K = jcp.ic to be a multiple of jcp.k2_block. Since jcp.ic is
