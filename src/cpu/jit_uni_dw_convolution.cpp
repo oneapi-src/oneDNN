@@ -289,7 +289,7 @@ _jit_uni_dw_convolution_bwd_weights_t<isa>::
         }
 
         /* Used when executing a parallel reduction */
-        if(do_parallel_reduction()){
+        if (do_parallel_reduction()) {
             acc_ker_ = new cpu_accumulator_1d_t<data_type::f32>();
             simple_barrier::ctx_init(&reduction_bctx_);
         }
@@ -304,33 +304,37 @@ void _jit_uni_dw_convolution_bwd_weights_t<isa>::execute_backward_weights() {
             = (data_t *)reinterpret_cast<const data_t *>(this->input_memory(1));
     const auto &jcp = kernel_->jcp;
 
-    /* JIT-code skips the unnecessary computations within the padded region. */
-    const int SKIP_TOP_PADDING = 0;
-
     const size_t wei_size = jcp.ngroups * jcp.kh * jcp.kw;
     const size_t bias_size = jcp.with_bias ? jcp.ngroups : 0;
 
-    const int oh_blk_size = jcp.oh_blk_size;
-
-    //const int simd_w = jcp.ch_block;
     const int ch_block = jcp.ch_block;
 
     auto set_kernel_params = [&](jit_dw_conv_call_s *conv_params,
-            const int batch, const int group, const int oh_block,
-            const unsigned char table_idx, const int negative_padding_offset,
-            const unsigned char exec_flag) {
+            const int batch, const int group, const int oh_start,
+            const int work_size, const unsigned char exec_flag,
+            const size_t kh_padding, const size_t filter_off) {
 
-        const int ih_block = oh_block * jcp.stride_h;
+        const int tpad_underflow_off = jcp.t_pad - filter_off;
 
-        conv_params->table_idx = table_idx;
-        conv_params->exec_flag = exec_flag;
+        conv_params->exec_flags = exec_flag;
+        conv_params->kh_count = jcp.kh - kh_padding;
+
+        const int oh_s = oh_start;
+        const int oh_e = oh_start + work_size;
+        const int ih_s = oh_s * jcp.stride_h;
+
+        conv_params->filter_pad_off
+                = filter_off * jcp.kw * ch_block * sizeof(float);
+        conv_params->oh_index = oh_s;
+        conv_params->oh_count = oh_e;
 
         size_t diff_dst_off
-                = ((batch * (jcp.ngroups / ch_block) + group) * jcp.oh + oh_block)
+                = ((batch * (jcp.ngroups / ch_block) + group) * jcp.oh
+                          + oh_start)
                 * jcp.ow;
 
         size_t src_off = ((batch * (jcp.ngroups / ch_block) + group) * jcp.ih
-                              + ih_block - negative_padding_offset)
+                                 + ih_s - tpad_underflow_off)
                 * jcp.iw;
 
         conv_params->output = &diff_dst[diff_dst_off * ch_block];
@@ -339,6 +343,7 @@ void _jit_uni_dw_convolution_bwd_weights_t<isa>::execute_backward_weights() {
 
     parallel(nthr_, [&](const int ithr, const int nthr_) {
         auto conv_params = jit_dw_conv_call_s();
+        const int h_block_size = 15;
 
         /* assign iteration space to thread */
         const int ithr_g = ithr % nthr_g_;
@@ -361,11 +366,8 @@ void _jit_uni_dw_convolution_bwd_weights_t<isa>::execute_backward_weights() {
 
         for (int g = g_start; g < g_end; ++g) {
 
-            /* This flag controls whether the kernel loads weights from memory
-             * or initializes the 'weight accummulator' registers to '0'. The
-             * latter happens at the beginning of each group/16 computation. */
-            unsigned char zero_filter_flag = ~FLAG_ZERO_FILTER;
-            unsigned char zero_bias_flag = jcp.with_bias ? ~FLAG_ZERO_BIAS : 0;
+            unsigned char zero_filter_flag = FLAG_ZERO_FILTER;
+            unsigned char zero_bias_flag = jcp.with_bias ? FLAG_ZERO_BIAS : 0;
 
             size_t diff_wei_off = g * jcp.kh * jcp.kw;
             conv_params.filter = &diff_wei[diff_wei_off * ch_block];
@@ -375,38 +377,23 @@ void _jit_uni_dw_convolution_bwd_weights_t<isa>::execute_backward_weights() {
 
             for (int mb = mb_start; mb < mb_end; ++mb) {
 
-                /* The 'table index' parameter controls the table entry for the
-                 * inner kernel execution. For more details see
-                 * jit_uni_dw_conv_kernel_f32. */
-                int table_idx = 0;
+                int oh = 0;
+                while (oh < jcp.oh) {
+                    const int h_work = nstl::min(h_block_size, jcp.oh - oh);
+                    auto kh_t_padding = nstl::max(0, jcp.t_pad - oh);
+                    auto kh_b_padding
+                            = (oh * jcp.stride_h + jcp.kh - 1 > jcp.ih) ?
+                            jcp.b_pad - (h_work - 1) :
+                            0;
 
-                /* OH_BLOCK is unrolled to separate the computations according
-                 * to numerous condition-setting 'h' parameter. */
-                int oh_blk = 0;
-
-                /* Top-padding case - this case always executes. */
-                set_kernel_params(&conv_params, mb, g, oh_blk, table_idx,
-                        SKIP_TOP_PADDING, zero_filter_flag & zero_bias_flag);
-                kernel_->jit_ker(&conv_params);
-
-                zero_bias_flag |= FLAG_ZERO_BIAS;
-                zero_filter_flag |= FLAG_ZERO_FILTER;
-                oh_blk += oh_blk_size;
-
-                /* Middle OH_BLOCK cases. */
-                for (; oh_blk < (jcp.oh - oh_blk_size); oh_blk += oh_blk_size) {
-                    table_idx = 1;
-                    set_kernel_params(&conv_params, mb, g, oh_blk, table_idx,
-                            jcp.t_pad, zero_filter_flag & zero_bias_flag);
+                    set_kernel_params(&conv_params, mb, g, oh, h_work,
+                            zero_filter_flag | zero_bias_flag,
+                            kh_t_padding + kh_b_padding, kh_t_padding);
                     kernel_->jit_ker(&conv_params);
-                }
-                table_idx++;
 
-                /* Bottom block */
-                if (oh_blk < jcp.oh) {
-                    set_kernel_params(&conv_params, mb, g, oh_blk, table_idx,
-                            jcp.t_pad, zero_filter_flag & zero_bias_flag);
-                    kernel_->jit_ker(&conv_params);
+                    zero_bias_flag &= ~FLAG_ZERO_BIAS;
+                    zero_filter_flag &= ~FLAG_ZERO_FILTER;
+                    oh += h_work;
                 }
             }
         }
@@ -465,7 +452,8 @@ void _jit_uni_dw_convolution_bwd_weights_t<isa>::execute_backward_weights() {
 
                             size_t wei_offset = (g * jcp.kh + kh) * jcp.kw + kw;
                             PRAGMA_OMP_SIMD()
-                            for (int g_block = 0; g_block < ch_block; ++g_block) {
+                            for (int g_block = 0; g_block < ch_block;
+                                    ++g_block) {
                                 diff_weights[wei_offset * ch_block + g_block]
                                         += ws_reduction_[mb_accum_offset
                                                 + wei_offset * ch_block
@@ -491,11 +479,10 @@ template _jit_uni_dw_convolution_bwd_weights_t<sse42>::
 
 template void _jit_uni_dw_convolution_bwd_weights_t<avx512_common>::
         execute_backward_weights();
-template void _jit_uni_dw_convolution_bwd_weights_t<avx2>::
-        execute_backward_weights();
-template void _jit_uni_dw_convolution_bwd_weights_t<sse42>::
-        execute_backward_weights();
-
+template void
+_jit_uni_dw_convolution_bwd_weights_t<avx2>::execute_backward_weights();
+template void
+_jit_uni_dw_convolution_bwd_weights_t<sse42>::execute_backward_weights();
 }
 }
 }

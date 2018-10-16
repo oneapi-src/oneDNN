@@ -116,7 +116,6 @@ struct jit_conv_conf_t {
     int aligned_threads;
     // large spatial
     int oh_blk_size;
-    int ow_blk_size;
     // s8s8 convolution
     bool signed_input;
     float wei_adj_scale;
@@ -297,19 +296,12 @@ struct jit_dw_conv_call_s {
     const void *output;
     const void *filter;
     const void *bias;
-    union {
-        size_t table_flags; /* This allows both bytes to be read simultaneously
-                               */
-        struct {
-            unsigned char
-                    table_idx; /* Indicates the table entry for the
-                                        JIT-generated values that control the
-                                        inner loop execution. The entry is
-                                        determined by the oh_block exectuion. */
-            unsigned char
-                    exec_flag; /* Flags passed by driver execution to inner kernel */
-        };
-    };
+    size_t kh_count;
+    size_t oh_count;
+    size_t oh_index;
+    size_t filter_pad_off;
+    unsigned char
+            exec_flags; /* Flags passed by driver execution to inner kernel */
 };
 
 struct jit_wino_transform_call_s {
