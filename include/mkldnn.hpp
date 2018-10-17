@@ -1140,6 +1140,11 @@ struct sum : public primitive {
 
             auto c_api_inputs = cpp_to_c(inputs);
 
+            error::wrap_c_api(
+                scales.size() == inputs.size() ? mkldnn_success
+                                               : mkldnn_invalid_arguments,
+                "number of scales not equal to number of inputs");
+
             error::wrap_c_api(mkldnn_sum_primitive_desc_create(
                     &result, &output.data, (int)c_api_inputs.size(),
                     &scales[0], &c_api_inputs[0]),
@@ -1152,6 +1157,11 @@ struct sum : public primitive {
             mkldnn_primitive_desc_t result;
 
             auto c_api_inputs = cpp_to_c(inputs);
+
+            error::wrap_c_api(
+                scales.size() == inputs.size() ? mkldnn_success
+                                               : mkldnn_invalid_arguments,
+                "number of scales not equal to number of inputs");
 
             error::wrap_c_api(mkldnn_sum_primitive_desc_create(
                     &result, nullptr, (int)c_api_inputs.size(), &scales[0],
