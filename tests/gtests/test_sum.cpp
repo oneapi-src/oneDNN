@@ -91,7 +91,6 @@ protected:
         sum_test_params p
             = ::testing::TestWithParam<sum_test_params>::GetParam();
 
-        ASSERT_EQ(p.srcs_format.size(), p.scale.size());
         const auto num_srcs = p.srcs_format.size();
 
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
@@ -128,8 +127,8 @@ protected:
                 ? memory::format::nchw
                 : p.dst_format);
             if (is_fmt_blocked) dst_desc.data.format = mkldnn_blocked;
-            ASSERT_NO_THROW(sum_pd.reset(
-                new sum::primitive_desc(dst_desc, p.scale, srcs_pd)));
+            sum_pd.reset(
+                new sum::primitive_desc(dst_desc, p.scale, srcs_pd));
 
             ASSERT_EQ(sum_pd->dst_primitive_desc().desc().data.format,
                     dst_desc.data.format);
@@ -231,6 +230,15 @@ INSTANTIATE_TEST_CASE_P(TestSum, test, ::testing::Values( \
     {memory::format::nChw16c, memory::format::nChw8c}, \
     memory::format::nChw16c, \
     {2, 16, 3, 3}, {2.0f, 3.0f}, omit_output} \
+)); \
+\
+INSTANTIATE_TEST_CASE_P(TestSumEF, test, ::testing::Values( \
+    sum_test_params{engine::kind::cpu, \
+    {memory::format::nchw, memory::format::nChw8c}, memory::format::nchw, \
+    {1, 8, 4 ,4}, {1.0f}, 0, true, mkldnn_invalid_arguments}, \
+    sum_test_params{engine::kind::cpu, \
+    {memory::format::nchw, memory::format::nChw8c}, memory::format::nchw, \
+    {2, 8, 4 ,4}, {0.1f}, 0, true, mkldnn_invalid_arguments} \
 ));
 
 using sum_test_float_omit_output = sum_test<float,float>;
