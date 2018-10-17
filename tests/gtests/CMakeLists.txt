@@ -67,7 +67,9 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_convolution_backward_weights_f32.cpp
                               test_convolution_backward_weights_s16s16s32.cpp
                               test_deconvolution.cpp
-                              test_gemm.cpp
+                              test_gemm_f32.cpp
+                              test_gemm_s8u8s32.cpp
+                              test_gemm_s8s8s32.cpp
                               )
 
 foreach(TEST_FILE ${PRIM_TEST_CASES_SRC})

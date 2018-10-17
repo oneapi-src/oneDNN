@@ -17,6 +17,7 @@
 #ifndef MKLDNN_TEST_COMMON_HPP
 #define MKLDNN_TEST_COMMON_HPP
 
+#include <limits>
 #include <numeric>
 #include <vector>
 #include <cmath>
@@ -59,6 +60,16 @@ template <typename data_t> inline data_t out_round(float x,
 { return (data_t)(rmode == mkldnn_round_down ? floorf(x) : nearbyintf(x)); }
 template <> inline float out_round<float>(float x, mkldnn_round_mode_t rmode)
 { (void)rmode; return x; }
+
+template <typename data_t, typename out_t>
+out_t saturate(const out_t &x) {
+    out_t v = x;
+    if (v <= std::numeric_limits<data_t>::min())
+        v = std::numeric_limits<data_t>::min();
+    if (v > std::numeric_limits<data_t>::max())
+        v = std::numeric_limits<data_t>::max();
+    return v;
+}
 
 inline int right_padding(int i, int o, int k, int p, int s, int d = 0) {
     return (o - 1) * s + (k - 1) * (d + 1) - (p + i - 1);
