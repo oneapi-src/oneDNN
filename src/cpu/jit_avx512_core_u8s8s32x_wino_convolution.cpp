@@ -1065,10 +1065,12 @@ void _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu,
         }
         /* gemms */
         for (int tile_ij = 0; tile_ij < 16; tile_ij++) {
-            gemm_p.src = wino_src + jcp.inp_stride * tile_ij;
-            gemm_p.dst = wino_dst + jcp.out_stride * tile_ij;
-            gemm_p.wei = wino_wei + jcp.wei_stride * tile_ij;
-            gemm_p.dst_b = dst_bias + jcp.bia_stride * tile_ij;
+            // start threads at different GEMMs to help bring weights into LLC
+            int offset = (tile_ij + ithr) % 16;
+            gemm_p.src = wino_src + jcp.inp_stride * offset;
+            gemm_p.dst = wino_dst + jcp.out_stride * offset;
+            gemm_p.wei = wino_wei + jcp.wei_stride * offset;
+            gemm_p.dst_b = dst_bias + jcp.bia_stride * offset;
 
             kernel_->ker_(&gemm_p);
         }
