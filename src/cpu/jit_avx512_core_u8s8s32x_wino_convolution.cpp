@@ -283,7 +283,7 @@ struct jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t: public jit_generator {
     Reg64 reg_oc_block = r8;
 
     Reg64 reg_ptr_bias = rbx;
-    Reg64 reg_ptr_scales = rcx;
+    Reg64 reg_ptr_scales = abi_not_param1;
     Reg64 reg_ptr_sum_scale = rdx;
 };
 bool jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t::maybe_relu(int position) {
@@ -527,7 +527,7 @@ struct jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t: public jit_generator {
     Reg64 reg_aux_src = r8;
     Reg64 reg_aux_wei2 = rax;
     Reg64 reg_scratch = rdx;
-    Reg64 reg_nnb = rcx;
+    Reg64 reg_nnb = abi_not_param1;
     Reg64 reg_K = rsi;
 
 };

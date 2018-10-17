@@ -652,7 +652,7 @@ private:
 
     Reg64 reg_ptr_in = rsi;
     Reg64 reg_ptr_out = rdx;
-    Reg64 reg_ptr_scale = rcx;
+    Reg64 reg_ptr_scale = abi_not_param1;
 
     Reg64 reg_off_in = r8;
     Reg64 reg_off_out = r9;

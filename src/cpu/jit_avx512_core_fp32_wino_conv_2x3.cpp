@@ -236,7 +236,7 @@ struct jit_avx512_core_fp32_wino_conv_2x3_dst_trans_t: public jit_generator {
     Reg64 reg_oc_block = r8;
 
     Reg64 reg_ptr_bias = rbx;
-    Reg64 reg_ptr_scales = rcx;
+    Reg64 reg_ptr_scales = abi_not_param1;
     Reg64 reg_ptr_sum_scale = rdx;
 };
 
