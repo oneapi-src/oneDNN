@@ -49,6 +49,12 @@ using math::saturate;
 template<impl::data_type_t type>
 using data_t = typename prec_traits<type>::type;
 
+template<impl::data_type_t type_i, impl::data_type_t type_o>
+using _qz_a1b0 = qz_a1b0<data_t<type_i>, data_t<type_o>>;
+
+template<impl::data_type_t type_i, impl::data_type_t type_o>
+using _qz = qz<data_t<type_i>, data_t<type_o>>;
+
 namespace fmt_order {
     const bool keep = true;
     const bool reverse = false;
@@ -71,7 +77,8 @@ struct reference {};
         const memory_desc_wrapper &input_d = pd->input_pd(); \
         const memory_desc_wrapper &output_d = pd->output_pd(); \
         const float alpha = pd->alpha(); MAYBE_UNUSED(alpha); \
-        const float beta = pd->beta(); MAYBE_UNUSED(beta);
+        const float beta = pd->beta(); MAYBE_UNUSED(beta); \
+        const round_mode_t rmode = pd->attr()->round_mode_; MAYBE_UNUSED(rmode);
 
 /* specific reorders: common template */
 template <SIMPLE_REORDER_TEMPL_DECL, typename spec = void>
@@ -128,7 +135,6 @@ typename utils::enable_if<fmt_i == any && (false
         const int W = dims[w_groups + 3];
 
         const float *scales = pd->attr()->output_scales_.scales_;
-        round_mode_t rmode = pd->attr()->round_mode_;
         const size_t D_mask = utils::array_product(input_d.dims(),
                 math::ilog2q(pd->attr()->output_scales_.mask_ + 1));
 
@@ -201,7 +207,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const int W = dims[w_groups + 3];
 
         const float *scales = pd->attr()->output_scales_.scales_;
-        round_mode_t rmode = pd->attr()->round_mode_;
         const size_t D_mask = utils::array_product(input_d.dims(),
                             math::ilog2q(pd->attr()->output_scales_.mask_ + 1));
 
@@ -298,15 +303,16 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             if (alpha == 1.0 && beta == 0.0) {
                 for (int ic = 0; ic < blksize; ++ic) {
                     for (int oc = 0; oc < blksize; ++oc) {
-                        o[idx_o(oc, ic)] = data_t<type_o>(i[idx_i(oc, ic)]);
+                        o[idx_o(oc, ic)] = _qz_a1b0<type_i, type_o>()(
+                                i[idx_i(oc, ic)], rmode);
                     }
                 }
             } else {
                 for (int ic = 0; ic < blksize; ++ic) {
                     for (int oc = 0; oc < blksize; ++oc) {
-                        o[idx_o(oc, ic)] = data_t<type_o>(
-                                alpha * i[idx_i(oc, ic)]
-                                + (beta ? beta * o[idx_o(oc, ic)] : 0));
+                        o[idx_o(oc, ic)] = _qz<type_i, type_o>()(
+                                i[idx_i(oc, ic)], o[idx_o(oc, ic)], alpha,
+                                beta, rmode);
                     }
                 }
             }
@@ -372,9 +378,11 @@ typename utils::enable_if<fmt_i == any && (false
                         + w * flat_d.blocking_desc().strides[0][3 + is_3d
                             - is_1d];
                     if (order_keep) {
-                        o[w * blksize + c] = data_t<type_o>(i[flat_off]);
+                        o[w * blksize + c] = _qz_a1b0<type_i, type_o>()(
+                                i[flat_off], rmode);
                     } else {
-                        o[flat_off] = data_t<type_o>(i[w * blksize + c]);
+                        o[flat_off] = _qz_a1b0<type_i, type_o>()(
+                                i[w * blksize + c], rmode);
                     }
                 }
             } else {
@@ -385,13 +393,11 @@ typename utils::enable_if<fmt_i == any && (false
                         + w * flat_d.blocking_desc().strides[0][3 + is_3d
                             - is_1d];
                     if (order_keep) {
-                        o[w * blksize + c] = data_t<type_o>(
-                            alpha * i[flat_off]
-                            + (beta ? beta * o[w * blksize + c] : 0));
+                        o[w * blksize + c] = _qz<type_i, type_o>()(i[flat_off],
+                                o[w * blksize + c], alpha, beta, rmode);
                     } else {
-                        o[flat_off] = data_t<type_o>(
-                            alpha * i[w * blksize + c]
-                            + (beta ? beta * o[flat_off] : 0));
+                        o[flat_off] = _qz<type_i, type_o>()(i[w * blksize + c],
+                                o[flat_off], alpha, beta, rmode);
                     }
                 }
             }
@@ -461,9 +467,11 @@ typename utils::enable_if<fmt_i == any
                         + oc * flat_d.blocking_desc().strides[0][w_groups + 0]
                         + ic * flat_d.blocking_desc().strides[0][w_groups + 1];
                     if (order_keep) {
-                        o[blk_off(oc, ic)] = data_t<type_o>(i[flat_off]);
+                        o[blk_off(oc, ic)] = _qz_a1b0<type_i, type_o>()(
+                                i[flat_off], rmode);
                     } else {
-                        o[flat_off] = data_t<type_o>(i[blk_off(oc, ic)]);
+                        o[flat_off] = _qz_a1b0<type_i, type_o>()(
+                                i[blk_off(oc, ic)], rmode);
                     }
                 }
             } else {
@@ -473,11 +481,11 @@ typename utils::enable_if<fmt_i == any
                         + oc * flat_d.blocking_desc().strides[0][w_groups + 0]
                         + ic * flat_d.blocking_desc().strides[0][w_groups + 1];
                     if (order_keep) {
-                        o[blk_off(oc, ic)] = data_t<type_o>(alpha * i[flat_off]
-                                + (beta ? beta * o[blk_off(oc, ic)] : 0));
+                        o[blk_off(oc, ic)] = _qz<type_i, type_o>()(i[flat_off],
+                                o[blk_off(oc, ic)], alpha, beta, rmode);
                     } else {
-                        o[flat_off] = data_t<type_o>(alpha * i[blk_off(oc, ic)]
-                                + (beta ? beta * o[flat_off] : 0));
+                        o[flat_off] = _qz<type_i, type_o>()(i[blk_off(oc, ic)],
+                                o[flat_off], alpha, beta, rmode);
                     }
                 }
             }
@@ -551,20 +559,20 @@ typename utils::enable_if<fmt_i == any && (false
                 for (int oc = 0; oc < oc_block; ++oc) {
                     const auto off = oc * strd_oc;
                     if (order_keep) {
-                        o[oc] = data_t<type_o>(i[off]);
+                        o[oc] = _qz_a1b0<type_i, type_o>()(i[off], rmode);
                     } else {
-                        o[off] = data_t<type_o>(i[oc]);
+                        o[off] = _qz_a1b0<type_i, type_o>()(i[oc], rmode);
                     }
                 }
             } else {
                 for (int oc = 0; oc < oc_block; ++oc) {
                     const auto off = oc * strd_oc;
                     if (order_keep) {
-                        o[oc] = data_t<type_o>(alpha * i[off]
-                                + (beta ? beta * o[oc] : 0));
+                        o[oc] = _qz<type_i, type_o>()(i[off], o[oc], alpha,
+                                beta, rmode);
                     } else {
-                        o[off] = data_t<type_o>(alpha * i[oc]
-                                + (beta ? beta * o[off] : 0));
+                        o[off] = _qz<type_i, type_o>()(i[oc], o[off], alpha,
+                                beta, rmode);
                     }
                 }
             }
@@ -610,7 +618,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             balance211(num_blocks, nthr, ithr, start, end);
             start = start * block_size;
             end = end * block_size;
-            round_mode_t rmode = pd->attr()->round_mode_;
 
             if (alpha == 1.0 && beta == 0.0) {
                 PRAGMA_OMP_SIMD()
@@ -708,12 +715,12 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 nd_iterator_init(start, n, N, dim1_s, nelems_no_d0);
                 while(start < end) {
                     size_t work_rem = end - start;
-                    size_t dim1_e =
-                        dim1_s + work_rem > nelems_no_d0 ? nelems_no_d0
-                        : dim1_s + work_rem;
+                    size_t dim1_e = dim1_s + work_rem > nelems_no_d0
+                        ? nelems_no_d0 : dim1_s + work_rem;
                     PRAGMA_OMP_SIMD()
-                    for (size_t e = dim1_s; e < dim1_e; ++e){
-                        output[os * n + e] = data_t<type_o>(input[is * n + e]);
+                    for (size_t e = dim1_s; e < dim1_e; ++e) {
+                        output[os * n + e] = _qz_a1b0<type_i, type_o>()(
+                                input[is * n + e], rmode);
                     }
                     nd_iterator_jump(start, end, n, N, dim1_s, nelems_no_d0);
                 }
@@ -731,9 +738,9 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                         : dim1_s + work_rem;
                     PRAGMA_OMP_SIMD()
                     for (size_t e = dim1_s; e < dim1_e; ++e){
-                        output[os * n + e] = data_t<type_o>(
-                                alpha * input[is * n + e]
-                                + beta ? beta * output[os * n + e] : 0);
+                        output[os * n + e] = _qz<type_i, type_o>()(
+                                input[is * n + e], output[os * n + e], alpha,
+                                beta, rmode);
                     }
                     nd_iterator_jump(start, end, n, N, dim1_s, nelems_no_d0);
                 }
@@ -810,19 +817,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             const float scale = scales[dm];
 
             const size_t e = (ds * D_mask + dm) * D_rest + dr;
-            float i = (float)input[input_d.off_l(e)];
+            const auto &i = input[input_d.off_l(e)];
             auto &o = output[output_d.off_l(e)];
 
-            i = scale * i + (beta ? beta * (float)o : 0);
-            if (type_o != f32) {
-                switch (pd->attr()->round_mode_) {
-                case round_mode::down: i = floorf(i); break;
-                case round_mode::nearest: i = nearbyintf(i); break;
-                }
-                o = saturate<data_t<type_o>>(i);
-            } else {
-                o = (data_t<type_o>)i;
-            }
+            o = _qz<type_i, type_o>()(i, o, scale, beta, rmode);
         });
 
         return success;
