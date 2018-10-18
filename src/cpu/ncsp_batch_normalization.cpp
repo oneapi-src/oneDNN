@@ -124,6 +124,11 @@ void ncsp_batch_normalization_fwd_t::execute_forward() {
         int SP_N_nthr = N_nthr * S_nthr;
         for (int it = 0; it < iters; ++it) {
             if (it == iters - 1 && iters > 1) {
+                // On the last iteration the access pattern to ws_reduce
+                // might change (due to re-balance on C). So sync the
+                // threads if they are not synced by the algorithm.
+                if (SP_N_nthr == 1) mkldnn_thr_barrier();
+
                 S_s = S_e = C_blk_s = C_blk_e = N_s = N_e = 0;
                 spatial_thr_allowed = bnorm_utils::thread_balance(do_blocking,
                         spatial_thr_allowed, ithr, nthr, N, last_iter_blks, SP,
@@ -282,6 +287,11 @@ void ncsp_batch_normalization_bwd_t::execute_backward() {
 
         for (int it = 0; it < iters; ++it) {
             if (it == iters - 1 && iters > 1) {
+                // On the last iteration the access pattern to ws_reduce
+                // might change (due to re-balance on C). So sync the
+                // threads if they are not synced by the algorithm.
+                if (SP_N_nthr == 1) mkldnn_thr_barrier();
+
                 C_blk_s = C_blk_e = N_s = N_e = 0;
                 spatial_thr_allowed = bnorm_utils::thread_balance(do_blocking,
                         spatial_thr_allowed, ithr, nthr, N, last_iter_blks, SP,
