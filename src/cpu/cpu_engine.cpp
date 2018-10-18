@@ -39,6 +39,7 @@
 #include "cpu/gemm_convolution.hpp"
 #include "cpu/gemm_x8s8s32x_convolution.hpp"
 #include "cpu/ref_convolution.hpp"
+#include "cpu/jit_avx512_core_u8s8s32x_deconvolution.hpp"
 #include "cpu/ref_deconvolution.hpp"
 #include "cpu/ref_shuffle.hpp"
 #include "cpu/jit_uni_eltwise.hpp"
@@ -184,6 +185,10 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(ref_convolution_bwd_data_t<u8, s8, u8, s32>),
     INSTANCE(ref_convolution_bwd_weights_t<s16, s32, s16, s32>),
     /* deconv */
+    INSTANCE(_jit_avx512_core_u8s8s32x_deconvolution_fwd_t<s32>),
+    INSTANCE(_jit_avx512_core_u8s8s32x_deconvolution_fwd_t<u8>),
+    INSTANCE(_jit_avx512_core_u8s8s32x_deconvolution_fwd_t<s8>),
+    INSTANCE(_jit_avx512_core_u8s8s32x_deconvolution_fwd_t<f32>),
     INSTANCE(ref_deconvolution_bwd_weights_t),
     INSTANCE(ref_deconvolution_bwd_data_t),
     INSTANCE(ref_deconvolution_fwd_t),

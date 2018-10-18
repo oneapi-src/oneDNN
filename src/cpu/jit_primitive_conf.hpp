@@ -274,6 +274,16 @@ struct jit_conv_call_s {
     int flags;
 };
 
+struct jit_deconv_call_s {
+    const void *src; /* hack, non-const for backward_data */
+    const void *dst; /* hack, non-const for forward */
+    const void *filt; /* hack, non-const for backward_weights */
+    const void *bias; /* hack, non-const for backward_bias */
+    const void *scales;
+    size_t kh_padding;
+    size_t oc_blocks;
+};
+
 struct jit_dw_conv_call_s {
     const void *input;
     const void *output;
