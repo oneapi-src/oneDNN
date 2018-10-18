@@ -31,21 +31,18 @@
 
 namespace conv {
 
-inline bool is_conv_3d(const prb_t *p)
-{
-    return (p->id > 1) ? 1 : 0;
+inline bool is_conv_3d(const prb_t *p) {
+    return p->id > 1;
 }
 
-inline bool is_conv_1d(const prb_t *p)
-{
-    return (!is_conv_3d(p) && p->ih == 1 && p->kh == 1
+inline bool is_conv_1d(const prb_t *p) {
+    return !is_conv_3d(p) && p->ih == 1 && p->kh == 1
                    && p->cfg[SRC].dt != mkldnn_s8 // temporary workaround until
-                   && p->cfg[SRC].dt != mkldnn_u8) // int8 jit supports 1d
-            ? 1 : 0;
+                   && p->cfg[SRC].dt != mkldnn_u8; // int8 jit supports 1d
 }
 
-double get_trust_nz_level(const prb_t *p, data_kind_t kind, bool final_compare)
-{
+double get_trust_nz_level(const prb_t *p, data_kind_t kind,
+        bool final_compare) {
     if (!final_compare)
         return p->cfg[kind].f_sparsity;
 
@@ -429,27 +426,30 @@ inline int init_pd(const prb_t *p, mkldnn_convolution_desc_t &cd,
     mkldnn_memory_desc_t src_d, wei_d, bia_d, dst_d;
 
     int ndims = is_conv_3d(p) ? 5 : is_conv_1d(p) ? 3 : 4;
-    mkldnn_dims_t src_dims = {p->mb, p->ic, p->ih, p->iw};
     mkldnn_dims_t src_1d_dims = {p->mb, p->ic, p->iw};
+    mkldnn_dims_t src_2d_dims = {p->mb, p->ic, p->ih, p->iw};
     mkldnn_dims_t src_3d_dims = {p->mb, p->ic, p->id, p->ih, p->iw};
-    mkldnn_dims_t wei_dims = {p->g, p->oc / p->g, p->ic / p->g, p->kh, p->kw};
+
     mkldnn_dims_t wei_1d_dims = {p->g, p->oc / p->g, p->ic / p->g, p->kw};
+    mkldnn_dims_t wei_2d_dims = {p->g, p->oc / p->g, p->ic / p->g, p->kh, p->kw};
     mkldnn_dims_t wei_3d_dims = {p->g, p->oc / p->g, p->ic / p->g, p->kd, p->kh, p->kw};
+
     mkldnn_dims_t bia_dims = {p->oc};
-    mkldnn_dims_t dst_dims = {p->mb, p->oc, p->oh, p->ow};
+
     mkldnn_dims_t dst_1d_dims = {p->mb, p->oc, p->ow};
+    mkldnn_dims_t dst_2d_dims = {p->mb, p->oc, p->oh, p->ow};
     mkldnn_dims_t dst_3d_dims = {p->mb, p->oc, p->od, p->oh, p->ow};
 
     DNN_SAFE(mkldnn_memory_desc_init(&src_d, ndims,
-        is_conv_3d(p) ? src_3d_dims : is_conv_1d(p) ? src_1d_dims : src_dims,
+        is_conv_3d(p) ? src_3d_dims : is_conv_1d(p) ? src_1d_dims : src_2d_dims,
         p->cfg[SRC].dt, mkldnn_any), WARN);
     DNN_SAFE(mkldnn_memory_desc_init(&wei_d, ndims + 1,
-        is_conv_3d(p) ? wei_3d_dims :  is_conv_1d(p) ? wei_1d_dims : wei_dims,
+        is_conv_3d(p) ? wei_3d_dims :  is_conv_1d(p) ? wei_1d_dims : wei_2d_dims,
         p->cfg[WEI].dt, mkldnn_any), WARN);
     DNN_SAFE(mkldnn_memory_desc_init(&bia_d, 1, bia_dims, p->cfg[BIA].dt,
         mkldnn_any), WARN);
     DNN_SAFE(mkldnn_memory_desc_init(&dst_d, ndims,
-        is_conv_3d(p) ? dst_3d_dims : is_conv_1d(p) ? dst_1d_dims : dst_dims,
+        is_conv_3d(p) ? dst_3d_dims : is_conv_1d(p) ? dst_1d_dims : dst_2d_dims,
         p->cfg[DST].dt, mkldnn_any), WARN);
     int strides_nd[] = {p->sd, p->sh, p->sw};
     int dilates_nd[] = {p->dd, p->dh, p->dw};
