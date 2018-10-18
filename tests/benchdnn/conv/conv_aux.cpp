@@ -72,7 +72,8 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
      *  - if padding is undefined => compute trivial padding
      */
 
-    d.g = 1; d.mb = 2; d.sd = d.sh = d.sw = 1; d.dd = d.dh = d.dw = 0; d.name = "\"wip\"";
+    d.g = 1; d.mb = 2; d.sd = d.sh = d.sw = 1; d.dd = d.dh = d.dw = 0;
+    d.has_groups = false, d.name = "\"wip\"";
 
     const char *s = str;
     assert(s);
@@ -81,6 +82,7 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
         if (!strncmp(p, s, strlen(p))) { \
             ok = 1; s += strlen(p); \
             char *end_s; d. c = strtol(s, &end_s, 10); s += (end_s - s); \
+            if (!strncmp(p, "g", 1)) d.has_groups = true; \
             /* printf("@@@debug: %s: %d\n", p, d. c); */ \
         } \
     } while (0)
@@ -181,7 +183,7 @@ void desc2str(const desc_t *d, char *buffer, bool canonical) {
         buffer += l; rem_len -= l; \
     } while(0)
 
-    if (canonical || d->g != 1) DPRINT("g%d", d->g);
+    if (canonical || d->has_groups) DPRINT("g%d", d->g);
     if (canonical || d->mb != 2) DPRINT("mb%d", d->mb);
 
     const bool half_form = (d->ih == d->iw && d->kh == d->kw && d->oh == d->ow

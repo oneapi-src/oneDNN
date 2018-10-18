@@ -330,7 +330,7 @@ int fill_wei(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
 
     dnn_mem_t *p_mem_00 = check_reorder
         ? new dnn_mem_t(mem_dt.md_, mkldnn_f32,
-            get_default_format(mem_dt.md_.ndims, GWEI))
+            get_default_format(mem_dt.md_.ndims, p->has_groups ? GWEI : WEI))
         : &mem_fp;
     dnn_mem_t &mem_00 = *p_mem_00;
 
@@ -443,14 +443,22 @@ inline int init_pd(const prb_t *p, mkldnn_convolution_desc_t &cd,
     DNN_SAFE(mkldnn_memory_desc_init(&src_d, ndims,
         is_conv_3d(p) ? src_3d_dims : is_conv_1d(p) ? src_1d_dims : src_2d_dims,
         p->cfg[SRC].dt, mkldnn_any), WARN);
-    DNN_SAFE(mkldnn_memory_desc_init(&wei_d, ndims + 1,
-        is_conv_3d(p) ? wei_3d_dims :  is_conv_1d(p) ? wei_1d_dims : wei_2d_dims,
+
+    DNN_SAFE(mkldnn_memory_desc_init(&wei_d, ndims + p->has_groups,
+        is_conv_3d(p)
+        ? &wei_3d_dims[!p->has_groups]
+        : is_conv_1d(p)
+        ? &wei_1d_dims[!p->has_groups]
+        : &wei_2d_dims[!p->has_groups],
         p->cfg[WEI].dt, mkldnn_any), WARN);
+
     DNN_SAFE(mkldnn_memory_desc_init(&bia_d, 1, bia_dims, p->cfg[BIA].dt,
         mkldnn_any), WARN);
+
     DNN_SAFE(mkldnn_memory_desc_init(&dst_d, ndims,
         is_conv_3d(p) ? dst_3d_dims : is_conv_1d(p) ? dst_1d_dims : dst_2d_dims,
         p->cfg[DST].dt, mkldnn_any), WARN);
+
     int strides_nd[] = {p->sd, p->sh, p->sw};
     int dilates_nd[] = {p->dd, p->dh, p->dw};
     int padding_nd[] = {p->pd, p->ph, p->pw};
@@ -595,7 +603,8 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t &bia_dt = *p_bia_dt;
 
     auto src_format = get_default_format(src_dt.md_.ndims, DATA);
-    auto wei_format = get_default_format(wei_dt.md_.ndims, GWEI);
+    auto wei_format = get_default_format(wei_dt.md_.ndims,
+        p->has_groups ? GWEI : WEI);
 
     const auto fp = mkldnn_f32;
     dnn_mem_t src_fp(src_dt_d, fp, src_format);

@@ -41,6 +41,7 @@ struct desc_t {
     int sd, sh, sw;
     int pd, ph, pw;
     int dd, dh, dw;
+    bool has_groups;
 
     const char *name;
 };

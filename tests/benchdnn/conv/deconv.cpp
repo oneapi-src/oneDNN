@@ -67,11 +67,13 @@ inline int init_pd(const prb_t *p, mkldnn_deconvolution_desc_t &cd,
     mkldnn_dims_t bia_dims = {p->oc};
     mkldnn_dims_t dst_2d_dims = {p->mb, p->oc, p->oh, p->ow};
     mkldnn_dims_t dst_3d_dims = {p->mb, p->oc, p->od, p->oh, p->ow};
-
     DNN_SAFE(mkldnn_memory_desc_init(&src_d, ndims,
         is_deconv_3d(p) ? src_3d_dims : src_2d_dims, p->cfg[SRC].dt, mkldnn_any), WARN);
-    DNN_SAFE(mkldnn_memory_desc_init(&wei_d, ndims + 1,
-        is_deconv_3d(p) ? wei_3d_dims : wei_2d_dims, p->cfg[WEI].dt, mkldnn_any), WARN);
+    DNN_SAFE(mkldnn_memory_desc_init(&wei_d, ndims + p->has_groups,
+        is_deconv_3d(p)
+        ? &wei_3d_dims[!p->has_groups]
+        : &wei_2d_dims[!p->has_groups],
+        p->cfg[WEI].dt, mkldnn_any), WARN);
     DNN_SAFE(mkldnn_memory_desc_init(&bia_d, 1, bia_dims, p->cfg[BIA].dt, mkldnn_any), WARN);
     DNN_SAFE(mkldnn_memory_desc_init(&dst_d, ndims,
         is_deconv_3d(p) ? dst_3d_dims : dst_2d_dims, p->cfg[DST].dt, mkldnn_any), WARN);
@@ -85,9 +87,9 @@ inline int init_pd(const prb_t *p, mkldnn_deconvolution_desc_t &cd,
     };
 
     int padding_r_nd[] = {
-        bph(p->id, p->od, p->kd, p->sd, p->pd, p->dd),
-        bph(p->ih, p->oh, p->kh, p->sh, p->ph, p->dh),
-        bph(p->iw, p->ow, p->kw, p->sw, p->pw, p->dw)};
+        bph(p->od, p->id, p->kd, p->sd, p->pd, p->dd),
+        bph(p->oh, p->ih, p->kh, p->sh, p->ph, p->dh),
+        bph(p->ow, p->iw, p->kw, p->sw, p->pw, p->dw)};
 
     int *strides = strides_nd + (5 - ndims);
     int *dilates = dilates_nd + (5 - ndims);
@@ -206,8 +208,9 @@ int doit(const prb_t *p, res_t *r) {
         ? new dnn_mem_t(bia_dt_d, p->cfg[BIA].dt) : new dnn_mem_t();
     dnn_mem_t &bia_dt = *p_bia_dt;
 
-    auto src_format = is_deconv_3d(p) ? mkldnn_ncdhw : mkldnn_nchw;
-    auto wei_format = is_deconv_3d(p) ? mkldnn_goidhw : mkldnn_goihw;
+    auto src_format = get_default_format(src_dt.md_.ndims, DATA);
+    auto wei_format = get_default_format(wei_dt.md_.ndims,
+        p->has_groups ? GWEI : WEI);
 
     const auto fp = mkldnn_f32;
 
