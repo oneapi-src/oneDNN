@@ -296,6 +296,8 @@ struct jit_avx2_convolution_bwd_weights_t: public cpu_primitive_t {
     }
     ~jit_avx2_convolution_bwd_weights_t() {
         delete kernel_;
+        delete reducer_weights_;
+        delete reducer_bias_;
         free(padded_bias_);
     };
 
