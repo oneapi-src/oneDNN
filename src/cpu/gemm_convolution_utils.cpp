@@ -354,7 +354,7 @@ void init_conf(
     jcp.t_pad = is_1d ? 0 : cd.padding[0][ndims - 4];
     jcp.l_pad = cd.padding[0][ndims - 3];
 
-    jcp.stride_d = is_3d ? 1 : cd.strides[0];
+    jcp.stride_d = is_3d ? cd.strides[0] : 1;
     jcp.stride_h = is_1d ? 1 : cd.strides[ndims - 4];
     jcp.stride_w = cd.strides[ndims - 3];
 
