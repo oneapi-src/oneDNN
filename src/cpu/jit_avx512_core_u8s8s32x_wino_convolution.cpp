@@ -197,8 +197,7 @@ void jit_avx512_core_u8s8s32x_wino_conv_src_trans_t::generate() {
         add(reg_aux_ptr_dst, sizeof(uint8_t) * load_block);
     }
     dec(reg_ic_block);
-    cmp(reg_ic_block, 0);
-    jg(ic_block_label, T_NEAR);
+    jnz(ic_block_label, T_NEAR);
 
     postamble();
 }
@@ -460,8 +459,7 @@ void jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t::generate() {
         add(reg_ptr_bias, sizeof(jcp.typesize_bia) * load_block);
     }
     dec(reg_oc_block);
-    cmp(reg_oc_block, 0);
-    jg(oc_block_label, T_NEAR);
+    jnz(oc_block_label, T_NEAR);
 
     sub(reg_ptr_scales, jcp.is_oc_scale *  sizeof(float) * load_block);
     sub(reg_ptr_bias, oc_blocks * sizeof(jcp.typesize_bia) * load_block);
@@ -632,8 +630,7 @@ void jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::generate() {
             }
         }
         dec(reg_K);
-        cmp(reg_K, 0);
-        jg(K_loop_label, T_NEAR);
+        jnz(K_loop_label, T_NEAR);
 
         for (int m = 0; m < jcp.m_block; m++) {
             for (int nb2 = 0; nb2 < jcp.n2_block; nb2++) {
@@ -646,8 +643,7 @@ void jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::generate() {
         add(reg_aux_dst2, jcp.typesize_acc * jcp.m_block * jcp.N);
     }
     dec(reg_mb);
-    cmp(reg_mb, 0);
-    jg(mb_loop_label, T_NEAR);
+    jnz(mb_loop_label, T_NEAR);
 
     if (!jcp.small_mb) {
         add(reg_aux_dst, jcp.typesize_acc * jcp.n2_block * jcp.n_block);
@@ -655,8 +651,7 @@ void jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::generate() {
         add(reg_aux_wei, jcp.typesize_in * jcp.n2_block * jcp.n_block * jcp.K);
 
         dec(reg_nnb);
-        cmp(reg_nnb, 0);
-        jg(nnb_loop_label, T_NEAR);
+        jnz(nnb_loop_label, T_NEAR);
     }
 
     postamble();
