@@ -70,13 +70,17 @@ if (NOT _tbb_compiler_id STREQUAL "GNU")
     unset(_tbb_gcc_ver_output)
 endif()
 
-set(_tbb_compiler_subdir gcc4.1)
-foreach (_tbb_gcc_version 4.1 4.4 4.7)
-    if (NOT _tbb_compiler_ver VERSION_LESS ${_tbb_gcc_version})
-        set(_tbb_compiler_subdir gcc${_tbb_gcc_version})
+set(_tbb_lib ${_tbb_root}/lib/${_tbb_arch_subdir} )
+file(GLOB _tbb_gcc_versions_available RELATIVE ${_tbb_lib} ${_tbb_lib}/*)
+# shall we check _tbb_gcc_versions_available is not empty?
+foreach (_tbb_gcc_version ${_tbb_gcc_versions_available})
+    string(SUBSTRING ${_tbb_gcc_version} 3 -1 _tbb_gcc_version_number)
+    if (NOT _tbb_compiler_ver VERSION_LESS _tbb_gcc_version_number)
+        set(_tbb_compiler_subdir ${_tbb_gcc_version})
     endif()
 endforeach()
 
+unset(_tbb_gcc_version_number)
 unset(_tbb_compiler_id)
 unset(_tbb_compiler_ver)
 
