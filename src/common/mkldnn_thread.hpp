@@ -56,6 +56,7 @@ inline void mkldnn_thr_barrier() {
 }
 
 #elif MKLDNN_THR == MKLDNN_THR_TBB
+#include "tbb/task_arena.h"
 #include "tbb/parallel_for.h"
 #define MKLDNN_THR_SYNC 0
 
