@@ -51,11 +51,13 @@ int fill_memory(const rnn_prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem1,
         size_t idx_end = MIN2(idx_start + chunk_size, nelems);
 
         std::minstd_rand msr;
-        std::uniform_real_distribution<float> gen(-1, 1);
+        std::normal_distribution<float> gen(.0f, .001f);
         msr.discard(idx_start);
 
-        for (size_t idx = idx_start; idx < idx_end; ++idx)
-            mem2.set_elem(idx, gen(msr));
+        for (size_t idx = idx_start; idx < idx_end; ++idx){
+            auto val = gen(msr);
+            mem2.set_elem(idx, MAX2(MIN2(val, 1.0f), -1.0f));
+        }
     });
 
     mem1.reorder(mem2);
