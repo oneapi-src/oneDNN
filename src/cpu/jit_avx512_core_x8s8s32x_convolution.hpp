@@ -98,7 +98,7 @@ struct _jit_avx512_core_x8s8s32x_convolution_fwd_t : public cpu_primitive_t {
         if (local_scales_) free(local_scales_);
     };
 
-    typedef typename prec_traits<data_type::u8>::type src_data_t;
+    typedef typename prec_traits<src_type>::type src_data_t;
     typedef typename prec_traits<data_type::s8>::type wei_data_t;
     typedef typename prec_traits<dst_type>::type dst_data_t;
 
