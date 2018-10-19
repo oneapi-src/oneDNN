@@ -14,35 +14,26 @@
 # limitations under the License.
 #===============================================================================
 
-# Manage TBB-related compiler flags
+# Utils for managing threading-related configuration
 #===============================================================================
 
-if(TBB_cmake_included)
+if(Threading_cmake_included)
     return()
 endif()
-set(TBB_cmake_included true)
+set(Threading_cmake_included true)
 
-if(NOT MKLDNN_THREADING STREQUAL "TBB")
-    return()
-endif()
-
-if (NOT TBBROOT)
-    if(DEFINED ENV{TBBROOT})
-        set (TBBROOT $ENV{TBBROOT})
-    else()
-        message("FATAL_ERROR" "TBBROOT is unset")
+# Replace existing define for threading (if any) with a new one
+macro(set_threading threading)
+    if(MKLDNN_THR_CURRENT)
+        remove_definitions(-DMKLDNN_THR=${MKLDNN_THR_CURRENT})
     endif()
-endif()
+    set(MKLDNN_THR_CURRENT MKLDNN_THR_${threading})
+    add_definitions(-DMKLDNN_THR=${MKLDNN_THR_CURRENT})
+endmacro()
 
-if(WIN32)
-    find_package(TBB REQUIRED tbb HINTS cmake/win)
-elseif(APPLE)
-    find_package(TBB REQUIRED tbb HINTS cmake/mac)
-elseif(UNIX)
-    find_package(TBB REQUIRED tbb HINTS cmake/lnx)
-endif()
+# While MKL-DNN defaults to OpenMP (if _OPENMP is defined) without CMake, here
+# we default to sequential threading and let OpenMP.cmake and TBB.cmake to
+# figure things out. This is especially important because OpenMP is used both
+# for threading and vectorization via #pragma omp simd
+set_threading("SEQ")
 
-set_threading("TBB")
-list(APPEND mkldnn_LINKER_LIBS ${TBB_IMPORTED_TARGETS})
-
-message(STATUS "Intel(R) TBB: ${TBBROOT}")

@@ -22,6 +22,7 @@ if(OpenMP_cmake_included)
 endif()
 set(OpenMP_cmake_included true)
 
+include("cmake/Threading.cmake")
 include("cmake/MKL.cmake")
 
 if (APPLE AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
@@ -101,11 +102,10 @@ endif()
 
 if (MKLDNN_THREADING MATCHES "OMP")
     if (OpenMP_CXX_FOUND)
-        add_definitions(-DMKLDNN_THR=MKLDNN_THR_OMP)
+        set_threading("OMP")
     else()
         message(${_omp_severity} "OpenMP library could not be found. "
             "Proceeding might lead to highly sub-optimal performance.")
-        add_definitions(-DMKLDNN_THR=MKLDNN_THR_SEQ)
     endif()
 
     if (MKLDNN_THREADING STREQUAL "OMP:COMP")
