@@ -283,7 +283,8 @@ Intel MKL-DNN built with Intel TBB doesn't require special handling:
 	g++ -std=c++11 -I${MKLDNNROOT}/include -L${MKLDNNROOT}/lib simple_net.cpp -lmkldnn -ltbb
 ```
 
-Please note that Intel MKL-DNN has limited optimizations done for Intel TBB
+Please note that Intel MKL-DNN requires Intel TBB 2017 or above.
+Also, Intel MKL-DNN has limited optimizations done for Intel TBB
 and has some functional limitations if built with Intel TBB.
 
 Functional limitations:
