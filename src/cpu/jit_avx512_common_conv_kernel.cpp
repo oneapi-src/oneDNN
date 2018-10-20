@@ -171,6 +171,7 @@ void jit_avx512_common_conv_fwd_kernel::store_output(int ur_w)
 void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma_1st(int ur_w,
         int pad_l, int pad_r)
 {
+    assert(jcp.dilate_d == 0 && jcp.dilate_h == 0 && jcp.dilate_w == 0);
 
     int iw = jcp.iw;
     int ih = jcp.ih;
@@ -190,7 +191,7 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma_1st(int ur_w,
     }
 
     size_t max_input_offset = (size_t)jcp.typesize_in
-        * ((size_t)(kw * (jcp.dilate_w + 1) + ur_w * stride_w - pad_l)
+        * ((size_t)(kw + ur_w * stride_w - pad_l)
                 + (size_t)ic_block * iw * ih * jcp.id);
     assert(reg_inp_prf == reg_long_offt);
     if (max_input_offset > INT_MAX) push(reg_inp_prf);
@@ -204,7 +205,7 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma_1st(int ur_w,
         mov(aux_reg_inp_d, reg_inp);
         mov(aux_reg_inp_d_prf, reg_inp_prf);
 
-        if ((jcp.kd - 1) * (jcp.dilate_d + 1) < nstl::max(jcp.f_pad, jcp.back_pad)) {
+        if ((jcp.kd - 1) < nstl::max(jcp.f_pad, jcp.back_pad)) {
             cmp(reg_ki, 0);
             je(skip_kd_loop, T_NEAR);
         }
@@ -212,7 +213,7 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma_1st(int ur_w,
     }
     mov(reg_kj, reg_kh);
     Label skip_kh_loop;
-    if ((jcp.kh - 1) * (jcp.dilate_h + 1) < nstl::max(jcp.t_pad, jcp.b_pad)) {
+    if ((jcp.kh - 1) < nstl::max(jcp.t_pad, jcp.b_pad)) {
         cmp(reg_kj, 0);
         je(skip_kh_loop, T_NEAR);
     }
@@ -242,7 +243,7 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma_1st(int ur_w,
 
             for (int j = j_start, prf_count=0; j < j_end; j++) {
                 size_t aux_input_offset = (size_t)jcp.typesize_in
-                        * ((size_t)(ki * (jcp.dilate_w + 1) + j * stride_w
+                        * ((size_t)(ki + j * stride_w
                             - pad_l) + (size_t)ic * iw * ih * jcp.id);
                 v4fmaddps(zmm_out(j, 0), zmm_ker(0),
                         EVEX_compress_addr_safe(aux_reg_inp, aux_input_offset,
@@ -270,8 +271,8 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma_1st(int ur_w,
         }
     }
     add(aux_reg_ker, jcp.typesize_in * kw * oc_block);
-    add(aux_reg_inp, jcp.typesize_in * (jcp.dilate_h + 1) * iw);
-    add(aux_reg_inp_prf, jcp.typesize_in * (jcp.dilate_h + 1) * iw);
+    add(aux_reg_inp, jcp.typesize_in * iw);
+    add(aux_reg_inp_prf, jcp.typesize_in * iw);
 
     dec(reg_kj);
     cmp(reg_kj, 0);
@@ -280,9 +281,9 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma_1st(int ur_w,
     L(skip_kh_loop);
 
     if (jcp.ndims == 5) {
-        add(aux_reg_inp_d, typesize * (jcp.dilate_d + 1) * jcp.ih * jcp.iw);
+        add(aux_reg_inp_d, typesize * jcp.ih * jcp.iw);
         add(aux_reg_ker_d, typesize * jcp.kw * jcp.kh * oc_block);
-        add(aux_reg_inp_d_prf, typesize * (jcp.dilate_d + 1) * jcp.ih * jcp.iw);
+        add(aux_reg_inp_d_prf, typesize * jcp.ih * jcp.iw);
 
         dec(reg_ki);
         cmp(reg_ki, 0);
@@ -1430,8 +1431,12 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
 
         if (jcp.is_1stconv) {
             // TODO: fix & remove constraints below
-            if (implication(everyone_is(0, jcp.l_pad, jcp.t_pad),
-                        nstl::max(jcp.kw, jcp.kh) < 7))
+            bool not_for_4fma
+                    = implication(everyone_is(0, jcp.l_pad, jcp.t_pad),
+                            nstl::max(jcp.kw, jcp.kh) < 7);
+            bool is_dilated
+                    = !everyone_is(0, jcp.dilate_d, jcp.dilate_h, jcp.dilate_w);
+            if (one_of(true, not_for_4fma, is_dilated))
                 jcp.ver = ver_fma;
             if (jcp.ver == ver_4fma) {
                 const auto w_format = with_groups
