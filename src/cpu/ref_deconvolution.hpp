@@ -140,7 +140,9 @@ struct ref_deconvolution_fwd_t: public cpu_primitive_t {
 
         pd_t(const pd_t &other)
             : cpu_deconvolution_fwd_pd_t(other)
-            , conv_pd_(other.conv_pd_->clone()) {}
+            , conv_pd_(other.conv_pd_->clone())
+            , conv_supports_bias_(other.conv_supports_bias_)
+        {}
 
         ~pd_t() { delete conv_pd_; }
 
