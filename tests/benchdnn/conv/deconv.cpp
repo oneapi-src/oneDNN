@@ -33,15 +33,14 @@ using namespace conv;
 
 namespace deconv {
 
-inline static void swap(int &a, int &b)
-{
+inline static void swap(int &a, int &b) {
     int temp = a;
     a = b;
     b = temp;
 }
-inline bool is_deconv_3d(const prb_t *p)
-{
-    return (p->id > 1 || p->od > 1) ? 1 : 0;
+
+inline bool is_deconv_3d(const prb_t *p) {
+    return p->id > 1;
 }
 
 inline int transpose_data_wei(const prb_t *p, dnn_mem_t &wei, dnn_mem_t &wei_tr) {
@@ -61,43 +60,40 @@ inline int init_pd(const prb_t *p, mkldnn_deconvolution_desc_t &cd,
     int ndims = is_deconv_3d(p) ? 5 : 4;
 
     mkldnn_memory_desc_t src_d, wei_d, bia_d, dst_d;
-    mkldnn_dims_t src_dims = {p->mb, p->ic, p->ih, p->iw};
+    mkldnn_dims_t src_2d_dims = {p->mb, p->ic, p->ih, p->iw};
     mkldnn_dims_t src_3d_dims = {p->mb, p->ic, p->id, p->ih, p->iw};
-    mkldnn_dims_t wei_dims = {p->g, p->oc / p->g, p->ic / p->g, p->kh, p->kw};
+    mkldnn_dims_t wei_2d_dims = {p->g, p->oc / p->g, p->ic / p->g, p->kh, p->kw};
     mkldnn_dims_t wei_3d_dims = {p->g, p->oc / p->g, p->ic / p->g, p->kd, p->kh, p->kw};
     mkldnn_dims_t bia_dims = {p->oc};
-    mkldnn_dims_t dst_dims = {p->mb, p->oc, p->oh, p->ow};
+    mkldnn_dims_t dst_2d_dims = {p->mb, p->oc, p->oh, p->ow};
     mkldnn_dims_t dst_3d_dims = {p->mb, p->oc, p->od, p->oh, p->ow};
 
     DNN_SAFE(mkldnn_memory_desc_init(&src_d, ndims,
-        is_deconv_3d(p) ? src_3d_dims : src_dims, p->cfg[SRC].dt, mkldnn_any), WARN);
+        is_deconv_3d(p) ? src_3d_dims : src_2d_dims, p->cfg[SRC].dt, mkldnn_any), WARN);
     DNN_SAFE(mkldnn_memory_desc_init(&wei_d, ndims + 1,
-        is_deconv_3d(p) ? wei_3d_dims : wei_dims, p->cfg[WEI].dt, mkldnn_any), WARN);
+        is_deconv_3d(p) ? wei_3d_dims : wei_2d_dims, p->cfg[WEI].dt, mkldnn_any), WARN);
     DNN_SAFE(mkldnn_memory_desc_init(&bia_d, 1, bia_dims, p->cfg[BIA].dt, mkldnn_any), WARN);
     DNN_SAFE(mkldnn_memory_desc_init(&dst_d, ndims,
-        is_deconv_3d(p) ? dst_3d_dims : dst_dims, p->cfg[DST].dt, mkldnn_any), WARN);
-    int strides_2d[] = {p->sh, p->sw};
-    int dilates_2d[] = {p->dh, p->dw};
-    int padding_2d[] = {p->ph, p->pw};
-    int strides_3d[] = {p->sd, p->sh, p->sw};
-    int dilates_3d[] = {p->dd, p->dh, p->dw};
-    int padding_3d[] = {p->pd, p->ph, p->pw};
+        is_deconv_3d(p) ? dst_3d_dims : dst_2d_dims, p->cfg[DST].dt, mkldnn_any), WARN);
+
+    int strides_nd[] = {p->sd, p->sh, p->sw};
+    int dilates_nd[] = {p->dd, p->dh, p->dw};
+    int padding_nd[] = {p->pd, p->ph, p->pw};
 
     auto bph = [&](int ih, int oh, int kh, int sh, int ph, int dh) {
         return (oh - 1) * sh - ih + ((kh - 1) * (dh + 1) + 1) - ph;
     };
-    int padding_r_3d[] = {
-        bph(p->od, p->id, p->kd, p->sd, p->pd, p->dd),
-        bph(p->oh, p->ih, p->kh, p->sh, p->ph, p->dh),
-        bph(p->ow, p->iw, p->kw, p->sw, p->pw, p->dw)};
-    int padding_r_2d[] = {
-        bph(p->oh, p->ih, p->kh, p->sh, p->ph, p->dh),
-        bph(p->ow, p->iw, p->kw, p->sw, p->pw, p->dw)};
 
-    int *strides = is_deconv_3d(p) ? strides_3d : strides_2d;
-    int *dilates = is_deconv_3d(p) ? dilates_3d : dilates_2d;
-    int *padding = is_deconv_3d(p) ? padding_3d : padding_2d;
-    int *padding_r = is_deconv_3d(p) ? padding_r_3d : padding_r_2d;
+    int padding_r_nd[] = {
+        bph(p->id, p->od, p->kd, p->sd, p->pd, p->dd),
+        bph(p->ih, p->oh, p->kh, p->sh, p->ph, p->dh),
+        bph(p->iw, p->ow, p->kw, p->sw, p->pw, p->dw)};
+
+    int *strides = strides_nd + (5 - ndims);
+    int *dilates = dilates_nd + (5 - ndims);
+    int *padding = padding_nd + (5 - ndims);
+    int *padding_r = padding_r_nd + (5 - ndims);
+
     mkldnn_alg_kind_t alg = mkldnn_deconvolution_direct;
     if (p->alg == WINO) alg = mkldnn_deconvolution_winograd;
 
