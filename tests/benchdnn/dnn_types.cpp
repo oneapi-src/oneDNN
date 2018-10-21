@@ -385,6 +385,8 @@ mkldnn_primitive_attr_t create_mkldnn_attr(const attr_t &attr, int scale_cnt,
         const_mkldnn_post_ops_t c_ops;
         DNN_SAFE_V(mkldnn_primitive_attr_get_post_ops(mkldnn_attr, &c_ops));
         SAFE_V(mkldnn_post_ops_len(c_ops) == attr.post_ops.len ? OK : FAIL);
+
+        DNN_SAFE_V(mkldnn_post_ops_destroy(ops));
     }
 
     return mkldnn_attr;
