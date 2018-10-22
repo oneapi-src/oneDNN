@@ -26,6 +26,13 @@
 #include "mkldnn_common.hpp"
 #include "mkldnn_memory.hpp"
 
+namespace deconv {
+/* some extra control parameters which shouldn't be placed in prb_t */
+extern const char *skip_impl; /* NULL or "" means do not skip anything */
+extern bool allow_unimpl; /* true means do not treat unimplemented as error */
+extern const char *perf_template; /* performance output template */
+}
+
 namespace conv {
 
 enum alg_t { DIRECT, WINO, AUTO };
