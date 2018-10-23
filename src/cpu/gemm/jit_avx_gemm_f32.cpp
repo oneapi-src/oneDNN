@@ -2440,13 +2440,19 @@ void jit_avx_gemm_f32::sgemm(const char *transa, const char *transb,
 
     nthr_mn = nthr_m * nthr_n;
 
-    unsigned int volatile *ompstatus = (unsigned int volatile *)ompstatus_;
-    if (!ompstatus) return;
+    unsigned int * ompstatus_ = nullptr;
+    unsigned int volatile *ompstatus = nullptr;
 
     float *c_buffers = NULL;
     float *ws_buffers = NULL;
 
     if (nthr_k > 1) {
+        ompstatus_ = (unsigned int *) malloc(
+                sizeof(unsigned int) * nthr * CACHE_LINE_SIZE,
+                CACHE_LINE_SIZE * sizeof(float));
+        ompstatus = (unsigned int volatile *) ompstatus_;
+        assert(ompstatus);
+
         for (int i = 0; i < nthr; i++)
             ompstatus[i * CACHE_LINE_SIZE] = 0;
 
@@ -2576,8 +2582,10 @@ void jit_avx_gemm_f32::sgemm(const char *transa, const char *transb,
         }
     });
 
-    if (nthr_k > 1)
+    if (nthr_k > 1) {
         free(c_buffers);
+        free(ompstatus_);
+    }
     free(ws_buffers);
 }
 
@@ -2603,9 +2611,6 @@ jit_avx_gemm_f32::jit_avx_gemm_f32(
         ker_b0_ = ker_bn_;
     }
     nthrs_ = mkldnn_get_max_threads();
-    ompstatus_ = (unsigned int *)malloc(
-        sizeof(unsigned int *) * nthrs_ * CACHE_LINE_SIZE, 64);
-    assert(ompstatus_);
 }
 
 jit_avx_gemm_f32::~jit_avx_gemm_f32()
@@ -2615,7 +2620,6 @@ jit_avx_gemm_f32::~jit_avx_gemm_f32()
         delete ker_b1_;
     if (beta_ != 0.0 || (beta_ == 0.0 && hasBias_))
         delete ker_b0_;
-    free(ompstatus_);
 }
 
 }
