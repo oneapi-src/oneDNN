@@ -32,12 +32,13 @@ Intel MKL-DNN is used in the following software products:
 * [DeepBench](https://github.com/baidu-research/DeepBench)
 * [PaddlePaddle\*](http://www.paddlepaddle.org)
 * [Tensorflow\*](https://www.tensorflow.org)
-* [Microsoft\* Cognitive Toolkit (CNTK)](https://www.microsoft.com/en-us/cognitive-toolkit/)
-* [Apache\* MXNet](https://mxnet.apache.org/)
-* [OpenVINO(TM) toolkit](https://software.intel.com/en-us/openvino-toolkit)
+* [Microsoft\* Cognitive Toolkit (CNTK)](https://docs.microsoft.com/en-us/cognitive-toolkit)
+* [Apache\* MXNet](https://mxnet.apache.org)
+* [OpenVINO(TM) toolkit](https://01.org/openvinotoolkit)
 * [Intel(R) Nervana(TM) Graph](https://github.com/NervanaSystems/ngraph)
 * [Menoh\*](https://github.com/pfnet-research/menoh)
 * [DeepLearning4J\*](https://deeplearning4j.org)
+* [BigDL](https://github.com/intel-analytics/BigDL)
 
 ## License
 Intel MKL-DNN is licensed under
