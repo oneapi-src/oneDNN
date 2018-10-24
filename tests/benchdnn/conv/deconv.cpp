@@ -41,7 +41,7 @@ inline static void swap(int &a, int &b)
 }
 inline bool is_deconv_3d(const prb_t *p)
 {
-    return (p->id > 1) ? 1 : 0;
+    return (p->id > 1 || p->od > 1) ? 1 : 0;
 }
 
 inline int transpose_data_wei(const prb_t *p, dnn_mem_t &wei, dnn_mem_t &wei_tr) {
