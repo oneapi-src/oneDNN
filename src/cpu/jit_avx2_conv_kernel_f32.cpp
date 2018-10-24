@@ -160,7 +160,7 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(int ur_w,
     int ic_blk = jcp.ic_block;
     int oc_blk = jcp.oc_block;
     const int inp_mult = one_of(jcp.src_fmt, ncw, nchw, ncdhw)
-        ? dilate_h : ic_blk * dilate_h;
+        ? 1 : ic_blk;
     const int inp_off = one_of(jcp.src_fmt, ncw, nchw, ncdhw)
         ? dilate_w : ic_blk * dilate_w;
 
@@ -247,11 +247,11 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(int ur_w,
             oh_step_nopad(ur_w, pad_l, pad_r, pad_tag, oc_blocks,
                     oc_blocks_tag);
             sub(aux_reg_input, sizeof(float) * kw * inp_off);
-            add(aux_reg_input, sizeof(float) * iw * inp_mult);
+            add(aux_reg_input, sizeof(float) * iw * dilate_h * inp_mult);
         } else {
             oh_step_unroll_kw(ur_w, pad_l, pad_r, oc_blocks);
             add(aux_reg_kernel, sizeof(float) * kw * oc_blk * ic_blk);
-            add(aux_reg_input, sizeof(float) * iw * inp_mult);
+            add(aux_reg_input, sizeof(float) * iw * dilate_h * inp_mult);
         }
 
         dec(kj);
