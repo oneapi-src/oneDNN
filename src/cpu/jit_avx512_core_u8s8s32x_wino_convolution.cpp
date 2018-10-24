@@ -507,7 +507,8 @@ struct jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t: public jit_generator {
         return Zmm(31 - id_reg_out);
     }
     Zmm vreg_wei(int i) {
-        assert(31 - jcp.n2_block * jcp.m_block - i > 2);
+        assert(31 - jcp.n2_block * jcp.m_block - i
+                > (jcp.ver == ver_vnni ? 0 : 2));
         return Zmm(31 - jcp.n2_block * jcp.m_block - i);
     }
 
@@ -745,7 +746,8 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
     int nthr = mkldnn_get_max_threads();
     int L1_cap = get_cache_size(1, true);
     int L2_cap = get_cache_size(2, true);
-    int free_regs = 29; // skx needs 2 tmp regs + 1 bcast reg
+    // need 1 extra reg for bcast, and 2 tmp regs for non-vnni
+    int free_regs = jcp.ver == ver_vnni ? 31 : 29;
 
     auto get_thr_eff = [&](int small_mb, int ix, int iy, int n2_b) {
         float thr_eff;
@@ -788,7 +790,7 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
 
     auto get_tot_eff = [&](int small_mb, float thr_eff, float work_eff,
             float mem_eff, float reg_eff) {
-        // these coefficients were chosen empirically for skx
+        // these coefficients are chosen empirically
         float mem_fac = 0.1f, reg_fac = 0.2f;
         // normalized overhead relative to memory and register components
         float tot_eff = 1.f + mem_fac * mem_eff + reg_fac * reg_eff;
