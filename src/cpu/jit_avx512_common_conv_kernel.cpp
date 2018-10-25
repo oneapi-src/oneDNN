@@ -3301,23 +3301,33 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma_sparse(
     if (kw * nb_ic <= regs)
         nr = kw * nb_ic;
     else {
-        for (int tmp_ur_w = regs; tmp_ur_w > 0; --tmp_ur_w)
+        for (int tmp_ur_w = regs; tmp_ur_w > 0; tmp_ur_w--)
             if (tmp_ur_w % kw == 0) {
                 nr = tmp_ur_w;
                 break;
             }
     }
 
+    int ic_buffs = nr / kw;
+    /*for (int i = ic_buffs; i > 0; i--) {
+        if (nb_ic % i == 0) {
+            ic_buffs = i;
+            break;
+        }
+    }
+
+    nr = ic_buffs * kw;*/
+
     assert(nr >= kw);
     assert(ic_block == 16); // needed for specific optimization
     assert(typesize == 4);
-    assert(abi_not_param1 == rcx);
 
-    int ic_buffs = nr / kw;
     int rem_ic_buffs = nb_ic % ic_buffs;
     int ic_iters = nb_ic / ic_buffs; 
 
     auto zmm_o = Xbyak::Zmm(31);
+
+    auto ymm_zero = Xbyak::Ymm(30);
     auto zmm_zero = Xbyak::Zmm(30);
 
     vpxord(zmm_zero, zmm_zero, zmm_zero);
@@ -3372,7 +3382,7 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma_sparse(
 
     L(kh_label); {
 
-        assert(iw > (jcp.dilate_w + 1) * kw);
+        //assert(iw > (jcp.dilate_w + 1) * kw);
 
         push(reg_src);
         push(reg_ker);
@@ -3420,17 +3430,26 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma_sparse(
 
 
             Reg64 mask_reg = reg_oi;
-            Reg32 popcnt_reg = reg_kh.cvt32();
-            Reg32 oc_itr_reg = aux_reg_ker.cvt32();
+            Reg32 oc_itr_reg = reg_kh.cvt32();
             Reg64 lzcnt_reg = reg_channel;
 
             kmovw(mask_reg.cvt32(), k7);
+            popcnt(oc_itr_reg, mask_reg.cvt32());
 
             if (oi < ow - 1) { // pipelined
                 size_t aux_dst_offset = typesize * (oi + 1) * oc_block;
                 vcmpps(k7, zmm_zero, EVEX_compress_addr_safe(reg_dst, aux_dst_offset,
                                         reg_long_offt), 4);
             }
+
+            /*if (oi < ow - 2) { // pipelined prefetch
+
+                int pref_oi = oi + 2;
+
+                size_t aux_dst_offset = typesize * pref_oi * oc_block;
+                mic_prefetcht1(EVEX_compress_addr_safe(reg_dst, aux_dst_offset,
+                                        reg_long_offt));
+            }*/
 
             for (int i = 0; i < fill; ++i) {
                 nop();
@@ -3440,25 +3459,24 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma_sparse(
                 for (int ic_buff = 0; ic_buff < cur_ic_buffs; ic_buff++) {
                     for (int ki = 0; ki < kw; ki++) {
 
-                        if ((oi - 1) * stride_w - l_pad + ki * dilate_w < 0
-                            || (oi - 1) * stride_w - l_pad + ki * dilate_w >= iw) {
-                            continue;
-                        }
+                        if ((oi - 1) * stride_w - l_pad + ki * dilate_w >= 0
+                            && (oi - 1) * stride_w - l_pad + ki * dilate_w < iw) {
 
-                        int reg_idx = get_reg_idx(oi - 1, ic_buff, ki);
+                            int reg_idx = get_reg_idx(oi - 1, ic_buff, ki);
 
-                        Zmm zmm = Xbyak::Zmm(reg_idx);
+                            Zmm zmm = Xbyak::Zmm(reg_idx);
 
-                        Label no_update_label;
+                            Label no_update_label;
 
-                        if (stride_w / dilate_w >= kw || dilate_w > stride_w || stride_w % dilate_w != 0
-                            || ki < stride_w) {
-                        
-                            size_t aux_src_offset = (size_t)typesize
-                                * (ic_buff * ic_block * ih * iw 
-                                + ((oi - 1) * stride_w - l_pad + ki * dilate_w) * ic_block);
-                            vmovups(EVEX_compress_addr_safe(reg_src, aux_src_offset,
-                                        reg_long_offt), zmm);
+                            if (stride_w / dilate_w >= kw || dilate_w > stride_w || stride_w % dilate_w != 0
+                                || ki < stride_w) {
+                            
+                                size_t aux_src_offset = (size_t)typesize
+                                    * (ic_buff * ic_block * ih * iw 
+                                    + ((oi - 1) * stride_w - l_pad + ki * dilate_w) * ic_block);
+                                vmovups(EVEX_compress_addr_safe(reg_src, aux_src_offset,
+                                            reg_long_offt), zmm);
+                            }
                         }
                     }
                 }
@@ -3467,50 +3485,49 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma_sparse(
             for (int ic_buff = 0; ic_buff < cur_ic_buffs; ic_buff++) {
                 for (int ki = 0; ki < kw; ki++) {
 
-                    if (oi * stride_w - l_pad + ki * dilate_w < 0
-                        || oi * stride_w - l_pad + ki * dilate_w >= iw) {
-                        continue;
+                    if (oi * stride_w - l_pad + ki * dilate_w >= 0
+                        && oi * stride_w - l_pad + ki * dilate_w < iw) {
+
+                        int reg_idx = get_reg_idx(oi, ic_buff, ki);
+
+                        Zmm zmm = Xbyak::Zmm(reg_idx);
+
+                        if (stride_w / dilate_w >= kw || dilate_w > stride_w || stride_w % dilate_w != 0
+                            || oi == 0 || ki >= kw - stride_w) {
+
+                            size_t aux_src_offset = (size_t)typesize
+                                * (ic_buff * ic_block * ih * iw 
+                                + (oi * stride_w - l_pad + ki * dilate_w) * ic_block);
+
+                            vmovups(zmm, EVEX_compress_addr_safe(reg_src, aux_src_offset,
+                                        reg_long_offt));
+
+                        }
                     }
 
-                    int reg_idx = get_reg_idx(oi, ic_buff, ki);
+                    /*int pref_oi = oi + 2;
 
-                    Zmm zmm = Xbyak::Zmm(reg_idx);
+                    if (pref_oi < ow && pref_oi * stride_w - l_pad + ki * dilate_w >= 0
+                        && pref_oi * stride_w - l_pad + ki * dilate_w < iw) {
 
-                    if (stride_w / dilate_w >= kw || dilate_w > stride_w || stride_w % dilate_w != 0
-                        || oi == 0 || ki >= kw - stride_w) {
+                        if (stride_w / dilate_w >= kw || dilate_w > stride_w || stride_w % dilate_w != 0
+                            || pref_oi == 0 || ki >= kw - stride_w) {
 
-                        size_t aux_src_offset = (size_t)typesize
-                            * (ic_buff * ic_block * ih * iw 
-                            + (oi * stride_w - l_pad + ki * dilate_w) * ic_block);
+                            size_t aux_src_offset = (size_t)typesize
+                                * (ic_buff * ic_block * ih * iw 
+                                + (pref_oi * stride_w - l_pad + ki * dilate_w) * ic_block);
 
-                        vmovups(zmm, EVEX_compress_addr_safe(reg_src, aux_src_offset,
-                                    reg_long_offt));
+                            mic_prefetcht0(EVEX_compress_addr_safe(reg_src, aux_src_offset,
+                                        reg_long_offt));
 
-                    }
+                        }
+                    }*/
                 }
             }
 
 
-            Label oc_loop_end_label, oc_loop_skip_label, oc_loop_start_label;
-            jecxz(oc_loop_skip_label); // convoluted, I know...
-
-            mov(oc_itr_reg, popcnt_reg);
-            if (oi < ow - 1) {
-                kmovw(popcnt_reg, k7);
-                popcnt(popcnt_reg, popcnt_reg);
-            }
-
-            jmp(oc_loop_start_label);
-            L(oc_loop_skip_label);
-
-            if (oi < ow - 1) {
-                kmovw(popcnt_reg, k7);
-                popcnt(popcnt_reg, popcnt_reg);
-            }
-
-            jmp(oc_loop_end_label, T_NEAR);
-            L(oc_loop_start_label);
-
+            Label oc_loop_end_label;
+            jz(oc_loop_end_label, T_NEAR);
 
             tzcnt(lzcnt_reg.cvt32(), mask_reg.cvt32());
             inc(lzcnt_reg.cvt32());
@@ -3583,15 +3600,21 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma_sparse(
 
             Reg64 aux_reg_src = aux_reg_ker;
             Reg64 mask_reg = reg_oi;
-            Reg32 popcnt_reg = reg_kh.cvt32();
-            Reg32 oc_itr_reg = reg_dst.cvt32();
+            Reg32 oc_itr_reg = reg_kh.cvt32();
             Reg64 lzcnt_reg = reg_channel;
 
             kmovw(mask_reg.cvt32(), k7);
+            popcnt(oc_itr_reg, mask_reg.cvt32());
 
             size_t aux_dst_offset = typesize * (idx + 1) * oc_block;
             vcmpps(k7, zmm_zero, EVEX_compress_addr_safe(aux_reg_dst, aux_dst_offset, // pipelined
                                     reg_long_offt), 4);
+
+            /*int pref_idx = idx + 2;
+
+            aux_dst_offset = typesize * pref_idx * oc_block; // may overflow but it's ok
+            mic_prefetcht1(EVEX_compress_addr_safe(aux_reg_dst, aux_dst_offset,
+                                    reg_long_offt));*/
 
             for (int i = 0; i < fill; ++i) {
                 nop();
@@ -3632,25 +3655,23 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma_sparse(
                         vmovups(zmm, EVEX_compress_addr_safe(aux_reg_src, aux_src_offset,
                                     reg_long_offt));
                     }
+
+                    /*int pref_idx = idx + 2;
+
+                    if (stride_w / dilate_w >= kw || dilate_w > stride_w
+                        || stride_w % dilate_w != 0 || ki >= kw - stride_w) {
+
+                        size_t aux_src_offset = (size_t)typesize
+                            * (ic_buff * ic_block * ih * iw 
+                            + (pref_idx * stride_w  - l_pad + ki * dilate_w) * ic_block);
+                        mic_prefetcht0(EVEX_compress_addr_safe(aux_reg_src, aux_src_offset,
+                                    reg_long_offt));
+                    }*/
                 }
             }
 
-            Label oc_loop_end_label, oc_loop_skip_label, oc_loop_start_label;
-            jecxz(oc_loop_skip_label); // convoluted, I know...
-            
-            mov(oc_itr_reg, popcnt_reg);            
-            kmovw(popcnt_reg, k7);
-            popcnt(popcnt_reg, popcnt_reg);
-
-            jmp(oc_loop_start_label);
-            L(oc_loop_skip_label);
-            
-            kmovw(popcnt_reg, k7);
-            popcnt(popcnt_reg, popcnt_reg);
-
-            jmp(oc_loop_end_label, T_NEAR);
-            L(oc_loop_start_label);
-
+            Label oc_loop_end_label;
+            jz(oc_loop_end_label, T_NEAR);
 
             tzcnt(lzcnt_reg.cvt32(), mask_reg.cvt32());
             inc(lzcnt_reg.cvt32());
@@ -3749,8 +3770,6 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma_sparse(
                     << " niter:" << niter << endl;
 
                 vcmpps(k7, zmm_zero, ptr[reg_dst], 4);
-                kmovw(reg_kh.cvt32(), k7);
-                popcnt(reg_kh.cvt32(), reg_kh.cvt32());
 
                 for (int oi = 0; oi < l_ow; oi++) {
                     comp_unrolled(oi, cur_ic_buffs);
@@ -3760,8 +3779,6 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma_sparse(
                 Reg64 aux_reg_src = aux_reg_ker;
 
                 mov(ow_itr_reg, niter);
-
-                push(reg_dst);
 
                 mov(aux_reg_dst, reg_dst);
                 mov(aux_reg_src, reg_src);
@@ -3788,7 +3805,6 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma_sparse(
 
                 }
 
-                pop(reg_dst);
 
                 for (int oi = rr_ow; oi < ow; oi++) {
                     comp_unrolled(oi, cur_ic_buffs);
@@ -3799,8 +3815,6 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma_sparse(
                 cout << "fully unrolled" << endl;
 
                 vcmpps(k7, zmm_zero, ptr[reg_dst], 4);
-                kmovw(reg_kh.cvt32(), k7);
-                popcnt(reg_kh.cvt32(), reg_kh.cvt32());
 
                 for (int oi = 0; oi < ow; oi++) {
                     comp_unrolled(oi, cur_ic_buffs);
