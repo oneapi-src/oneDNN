@@ -537,6 +537,11 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
         && jcp.kh == 1 && jcp.kw == 1;
     if (!args_ok) return status::unimplemented;
 
+    // TODO: remove this restriction
+    // optimized 1x1 bwd_w does not support avx
+    if (jcp.prop_kind == backward_weights && !mayiuse(avx2))
+        return status::unimplemented;
+
     jcp.ic_block = jcp.oc_block = simd_w;
 
     jcp.ur = mayiuse(avx2) ? 4 : 3; // AVX support
