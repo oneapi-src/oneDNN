@@ -52,9 +52,15 @@ struct jit_sse41_convolution_fwd_t : public primitive_t {
                     && !has_zero_dim_memory() && set_default_formats();
             if (!ok) return status::unimplemented;
 
-            return jit_sse41_conv_fwd_kernel_f32::init_conf(jcp_, *desc(),
+            status_t status = jit_sse41_conv_fwd_kernel_f32::init_conf(jcp_, *desc(),
                     *src_md(), *weights_md(), *dst_md(), *attr(),
                     dnnl_get_max_threads());
+            if (status != status::success) return status;
+
+            auto scratchpad = scratchpad_registry().registrar();
+            jit_sse41_conv_fwd_kernel_f32::init_scratchpad(scratchpad, jcp_);
+
+            return status;
         }
 
         jit_conv_conf_t jcp_;
