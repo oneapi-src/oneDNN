@@ -56,6 +56,9 @@ struct jit_sse41_convolution_fwd_t : public primitive_t {
                     *src_md(), *weights_md(), *dst_md(), *attr(),
                     dnnl_get_max_threads()));
 
+            auto scratchpad = scratchpad_registry().registrar();
+            jit_sse41_conv_fwd_kernel_f32::init_scratchpad(scratchpad, jcp_);
+
             return status::success;
         }
 

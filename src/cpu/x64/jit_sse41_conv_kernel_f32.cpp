@@ -34,6 +34,7 @@ namespace x64 {
 using namespace dnnl::impl::format_tag;
 using namespace dnnl::impl::prop_kind;
 using namespace dnnl::impl::utils;
+using namespace dnnl::impl::memory_tracking::names;
 
 using namespace Xbyak;
 
@@ -397,6 +398,7 @@ status_t jit_sse41_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     jcp.mb = src_d.dims()[0];
 
     jcp.oc = dst_d.dims()[1] / jcp.ngroups;
+    jcp.oc_without_padding = jcp.oc;
     jcp.ic = src_d.dims()[1] / jcp.ngroups;
 
     jcp.ih = (ndims == 3) ? 1 : src_d.dims()[2];
@@ -485,7 +487,15 @@ status_t jit_sse41_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
             && jcp.oc <= dst_d.padded_dims()[1];
     if (!args_ok) return status::unimplemented;
 
+    bool ok_to_pad_channels = true && jcp.ngroups == 1;
+
     const int simd_w = 8; // 2 SSE vectors processing at once
+    if (ok_to_pad_channels) {
+        jcp.oc = rnd_up(jcp.oc, simd_w);
+        if (mimo) {
+            jcp.ic = rnd_up(jcp.ic, simd_w);
+        }
+    }
 
     jcp.ur_h = 1; /* no code-unrolling by h so far */
     jcp.ur_w = 3;
@@ -540,6 +550,15 @@ status_t jit_sse41_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     }
 
     return status::success;
+}
+
+void jit_sse41_conv_fwd_kernel_f32::init_scratchpad(
+        memory_tracking::registrar_t &scratchpad,
+        const jit_conv_conf_t &jcp) {
+    using namespace dnnl::impl::memory_tracking::names;
+
+    if (jcp.prop_kind != backward_data && jcp.oc != jcp.oc_without_padding)
+        scratchpad.book<float>(key_conv_padded_bias, sizeof(float) * jcp.oc);
 }
 
 } // namespace x64
