@@ -955,7 +955,7 @@ _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu, dst_data_type>::
     const int alltiles = tilesize * numtiles;
     size_wino_wei_ = tilesize * conf_.jcp_.oc * conf_.jcp_.ic;
     size_wino_src_ = sizeof(src_data_t) * alltiles * conf_.jcp_.ic;
-    size_wino_src_ = rnd_up(size_wino_src_, PAGE_2M);
+    size_wino_src_ = rnd_up(size_wino_src_, PAGE_4K);
     size_wino_src_ /= sizeof(src_data_t);
     size_wino_dst_ = alltiles * conf_.jcp_.oc;
 
