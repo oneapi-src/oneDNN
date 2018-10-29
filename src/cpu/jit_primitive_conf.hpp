@@ -256,6 +256,12 @@ struct jit_conv_call_s {
     const void *scales;
     const void *acc_s32;
     const void *compensation;
+    size_t kd_offset;
+    size_t kd_offset_prf;
+    size_t d_index;
+    size_t d_index_prf;
+    size_t d_worksize;
+    size_t d_worksize_prf;
     size_t kd_padding;
     size_t kd_padding_prf;
     size_t kh_padding;

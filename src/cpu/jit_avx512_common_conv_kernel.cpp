@@ -2735,7 +2735,8 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::od_step_comeback_pointers()
 {
     Label kd_comeback_label;
 
-    mov(kj, jcp.kd); //FIX, work only if f_pad = back_pad = 0 (Anton)
+    /* 'depth' loop count bound by 'kd_work_size' */
+    mov(kj, ptr[param + GET_OFF(kd_padding)]);
     L(kd_comeback_label); {
         int inp_mult = jcp.is_1stconv ? 1 : jcp.ic_block;
         int iw = (utils::one_of(jcp.ver, ver_4fma, ver_4vnni, ver_vnni))
@@ -3083,7 +3084,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32
     if (jcp.ndims == 5) {
         mov(aux_reg_input, reg_input);
         mov(aux_reg_kernel, reg_kernel);
-        mov(ki, jcp.kd);
+        mov(ki, ptr[param + GET_OFF(kd_padding)]);
         L(kd_label);
         mov(reg_input, aux_reg_input);
         mov(reg_kernel, aux_reg_kernel);
@@ -3139,7 +3140,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32
     if (jcp.ndims == 5) {
         mov(aux_reg_input, reg_input);
         mov(aux_reg_kernel, reg_kernel);
-        mov(ki, jcp.kd);
+        mov(ki, ptr[param + GET_OFF(kd_padding)]);
         L(kd_label);
         mov(reg_input, aux_reg_input);
         mov(reg_kernel, aux_reg_kernel);
@@ -3227,7 +3228,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32
     if (jcp.ndims == 5) {
         mov(aux_reg_input, reg_input);
         mov(aux_reg_kernel, reg_kernel);
-        mov(ki, jcp.kd);
+        mov(ki, ptr[param + GET_OFF(kd_padding)]);
         L(kd_label);
         mov(reg_input, aux_reg_input);
         mov(reg_kernel, aux_reg_kernel);
@@ -3378,7 +3379,8 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::bias_kernel()
 
     L(skip_load_bias);
 
-    mov(reg_oi, ptr[param + GET_OFF(kh_padding)]);
+    mov(reg_oi, ptr[param + GET_OFF(d_worksize)]);
+    sub(reg_oi, ptr[param + GET_OFF(d_index)]);
     mov(reg_tmp, jcp.oc_block * jcp.ow * jcp.oh * jcp.typesize_out);
     imul(reg_oi, reg_tmp);
 
@@ -3398,39 +3400,42 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::bias_kernel()
 void jit_avx512_common_conv_bwd_weights_kernel_f32
     ::compute_oh_loop_common()
 {
+    int ic_block = jcp.ic_block;
+    int oc_block = jcp.oc_block;
     int back_pad = jcp.back_pad;
     int b_pad = jcp.b_pad;
     int t_pad = jcp.t_pad;
     bool is_dilated = jcp.dilate_h != 0;
     int dilate_h = jcp.dilate_h + 1;
     int stride_h = jcp.stride_h;
-    int idp = jcp.id + jcp.f_pad + back_pad;
     const int inp_mult = jcp.is_1stconv ? 1 : jcp.ic_block;
     int iw = utils::one_of(jcp.ver, ver_4fma, ver_4vnni, ver_vnni) ? jcp.tr_iw
         : jcp.iw;
+    const size_t io_overlap = jcp.od - back_pad;
     Label oh_label, oh_label_end, oh_tpad_label, oh_tpad_tail_label,
             oh_bpad_label, oh_bpad_label_end, od_label, od_label_end,
-            oh_dilate_label_shift, oh_dilate_label_noshift, oh_dilate_label_end;
+            oh_dilate_label_shift, oh_dilate_label_noshift, oh_dilate_label_end,
+            skip_neg_overlap_label, skip_fpad_label, skip_input_label;
 
     maybe_zero_kernel();
     if (jcp.ndims == 5 && jcp.with_bias) bias_kernel();
+
+    /* initially offset 'kd' by f_pad */
+    if (jcp.ndims == 5) add(reg_kernel, ptr[param + GET_OFF(kd_offset)]);
 
     int ow = (jcp.ver == ver_4vnni || jcp.ver == ver_vnni) ? jcp.tr_ow : jcp.ow;
 
     if (jcp.ndims == 5) {
         mov(reg_input_d, ptr[param + GET_OFF(src)]);
         mov(reg_output_d, ptr[param + GET_OFF(dst)]);
-
-        mov(reg_id_count, ptr[param + GET_OFF(kd_padding)]);
-        mov(reg_oi, ptr[param + GET_OFF(kh_padding)]);
+        mov(reg_d_index, ptr[param + GET_OFF(d_index)]);
         L(od_label);
 
         mov(reg_input, reg_input_d);
         mov(reg_output, reg_output_d);
         push(reg_input_d);
         push(reg_output_d);
-        push(reg_oi);
-        push(reg_id_count);
+        push(reg_d_index);
     }
 
     mov(reg_kh, jcp.kh);
@@ -3583,22 +3588,47 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32
     }
 
     if (jcp.ndims == 5) {
-        pop(reg_id_count);
-        pop(reg_oi);
+        pop(reg_d_index);
         pop(reg_output_d);
         pop(reg_input_d);
 
-        add(reg_input_d, jcp.typesize_in * jcp.stride_d * jcp.ih * iw * inp_mult);
+        mov(reg_kd_count, ptr[param + GET_OFF(kd_padding)]);
+
+        /* 'outer-depth loop' offset into next 'depth' index */
         add(reg_output_d, jcp.typesize_in * jcp.oh * ow * jcp.oc_block);
 
-        dec(reg_oi);
-        add(reg_id_count, jcp.stride_d);
+        /* only increase input address when convolution is not within the
+         * 'f_pad' region */
+        if (jcp.f_pad > 0) {
+            cmp(reg_d_index, jcp.f_pad);
+            jl(skip_input_label);
+        }
+        add(reg_input_d,
+                jcp.typesize_in * jcp.stride_d * jcp.ih * iw * inp_mult);
+        L(skip_input_label);
 
-        cmp(reg_id_count, idp - back_pad - (jcp.kd - 1) * (jcp.dilate_d + 1));
-        jge(od_label_end, T_NEAR);
+        inc(reg_d_index);
+        cmp(reg_d_index, io_overlap);
+        jl(skip_neg_overlap_label);
 
-        cmp(reg_oi, 0);
-        jg(od_label, T_NEAR);
+        /* Reduce 'kd' count as convolution steps within 'back_pad' region */
+        dec(reg_kd_count);
+        jmp(skip_fpad_label);
+
+        L(skip_neg_overlap_label);
+        cmp(reg_kd_count, jcp.kd);
+        jge(skip_fpad_label);
+
+        /* increase 'kd' count as convolution steps out of 'f_pad' region */
+        inc(reg_kd_count);
+        sub(reg_kernel,
+                jcp.typesize_out * jcp.kh * jcp.kw * ic_block * oc_block);
+
+        L(skip_fpad_label);
+        mov(ptr[param + GET_OFF(kd_padding)], reg_kd_count);
+
+        cmp(reg_d_index, ptr[param + GET_OFF(d_worksize)]);
+        jl(od_label, T_NEAR);
 
         L(od_label_end);
     }
@@ -4446,8 +4476,9 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
     jcp.back_pad = nstl::max(0, (jcp.od - 1) * jcp.stride_d
             + (jcp.kd - 1) * (jcp.dilate_d + 1) - (jcp.id + jcp.f_pad - 1));
 
-    if ( ndims == 5 )
-        if (jcp.f_pad != 0 || jcp.back_pad != 0)
+    /* XXX: currently, does not support stride_d > 1 or dilation > 0 */
+    if (ndims == 5)
+        if (jcp.stride_d > 1 || jcp.dilate_d > 0)
             return status::unimplemented;
 
     jcp.ihp = jcp.ih + jcp.t_pad + jcp.b_pad;

@@ -105,6 +105,23 @@ inline void jit_conv_3d_ker_pipeline_ow_thr(jit_conv_ker_t ker,
         ker(&p);
 }
 
+void jit_conv_3d_ker_bwd_w_pipeline(jit_conv_ker_t ker, jit_conv_call_s &p,
+        const void *src, const void *dst, const void *filt, const void *bias,
+        int channel, int d_index, int d_worksize,
+        int kd_padding /* kd_work_size */, size_t kd_offset) {
+    PIPELINE(src);
+    PIPELINE(dst);
+    PIPELINE(filt);
+    PIPELINE(bias);
+    PIPELINE(channel);
+    PIPELINE(kd_padding);
+    PIPELINE(d_worksize);
+    PIPELINE(d_index);
+    PIPELINE(kd_offset);
+
+    if (p.src)
+        ker(&p);
+}
 #define wht_blk_off(d, g, ...) \
         (conf_.with_groups() \
          ? (d).blk_off((g), __VA_ARGS__) \
@@ -1321,38 +1338,42 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
         int work_rem = img_end - img_start;
         const int od_e = od_s + work_rem > jcp.od ? jcp.od : od_s + work_rem;
         const int id_s = od_s * jcp.stride_d;
-        const int idp = jcp.id + jcp.f_pad + jcp.back_pad;
+        const int ik_overlap = nstl::max(0, id_s - jcp.f_pad);
+        const int kd_front_pad = nstl::max(0, jcp.f_pad - id_s);
+        const int kd_back_pad = nstl::max(0, id_s + 1 + jcp.back_pad - jcp.od);
+        int kd_pad_off = kd_front_pad * jcp.kh * jcp.kw * jcp.ic_block
+                * jcp.oc_block * jcp.typesize_out;
 
-        if (id_s < idp - jcp.back_pad - (jcp.kd - 1) * (jcp.dilate_d)) {
-            for (int g = ti->g_start; g < ti->g_end; ++g) {
-            for (int oc_b = ti->oc_b_start; oc_b < ti->oc_b_end; ++oc_b) {
-            for (int ic_b = ti->ic_b_start; ic_b < ti->ic_b_end; ++ic_b) {
-                const int _oc = g * jcp.nb_oc + oc_b;
-                const int _ic = g * jcp.nb_ic + ic_b;
+        for (int g = ti->g_start; g < ti->g_end; ++g) {
+        for (int oc_b = ti->oc_b_start; oc_b < ti->oc_b_end; ++oc_b) {
+        for (int ic_b = ti->ic_b_start; ic_b < ti->ic_b_end; ++ic_b) {
+            const int _oc = g * jcp.nb_oc + oc_b;
+            const int _ic = g * jcp.nb_ic + ic_b;
 
-                auto src = &ti->src[src_d.blk_off(img, _ic)
-                        + od_s * input_step];
-                auto dst = &ti->diff_dst[diff_dst_d.blk_off(img, _oc)
+            auto src = &ti->src[src_d.blk_off(img, _ic)
+                    + ik_overlap * input_step];
+            auto dst = &ti->diff_dst[diff_dst_d.blk_off(img, _oc)
                     + od_s * output_step];
 
-                jit_conv_3d_ker_pipeline(kernel_->jit_ker, p, src, dst,
+            jit_conv_3d_ker_bwd_w_pipeline(kernel_->jit_ker, p, src, dst,
                     diff_wei + wht_blk_off(diff_weights_d, g, oc_b, ic_b),
-                    diff_bia + _oc*16, (img == img_first), od_e-od_s, id_s );
-                if (ic_b == 0) p.flags = 0;
-                else p.flags = 1;
-            }
-            }
-            }
+                    diff_bia + _oc * 16, (img == img_first), od_s, od_e,
+                    jcp.kd - nstl::max(kd_front_pad, kd_back_pad), kd_pad_off);
 
-            const int _oc = ti->g_start * jcp.nb_oc + ti->oc_b_start;
-            const int _ic = ti->g_start * jcp.nb_ic + ti->ic_b_start;
-            jit_conv_3d_ker_pipeline(kernel_->jit_ker, p,
-                    &ti->src[src_d.blk_off(img + 1, _ic)],
-                    &ti->diff_dst[diff_dst_d.blk_off(img + 1, _oc)],
-                    diff_wei + wht_blk_off(diff_weights_d, ti->g_start,
-                        ti->oc_b_start, ti->ic_b_start),
-                    diff_bia, 0, 0, 0);
+            if (ic_b == 0) p.flags = 0;
+            else p.flags = 1;
         }
+        }
+        }
+
+        const int _oc = ti->g_start * jcp.nb_oc + ti->oc_b_start;
+        const int _ic = ti->g_start * jcp.nb_ic + ti->ic_b_start;
+        jit_conv_3d_ker_bwd_w_pipeline(kernel_->jit_ker, p,
+                &ti->src[src_d.blk_off(img + 1, _ic)],
+                &ti->diff_dst[diff_dst_d.blk_off(img + 1, _oc)],
+                diff_wei + wht_blk_off(diff_weights_d, ti->g_start,
+                    ti->oc_b_start, ti->ic_b_start),
+                diff_bia, 0, 0, 0, 0, 0);
         nd_iterator_jump(img_start, img_end, img, jcp.mb, od_s, jcp.od);
     }
 }

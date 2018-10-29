@@ -366,8 +366,9 @@ private:
     reg64_t reg_long_offt = r14;
 
     reg64_t ki = r11;
+    reg64_t reg_kd_count = r12;
     reg64_t reg_oi = r12;
-    reg64_t reg_id_count = r13;
+    reg64_t reg_d_index = r13;
     reg64_t reg_input_d = r15;
     reg64_t reg_output_d = rbx;
     reg64_t aux_reg_input = r12;
