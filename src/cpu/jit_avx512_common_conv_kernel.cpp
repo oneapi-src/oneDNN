@@ -1563,7 +1563,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
 
     if (jcp.ver == ver_fma && mayiuse(avx512_core)) {
         int try_nb_oc_blocking = 2;
-        unsigned int ker_inp_size = typesize * (jcp.iw / jcp.stride_w)
+        unsigned int ker_inp_size = typesize * div_up(jcp.iw, jcp.stride_w)
             * jcp.ic_block * jcp.kh * jcp.kd;
         unsigned int ker_out_size = typesize * jcp.ow * jcp.oc_block
             * try_nb_oc_blocking;
@@ -1579,8 +1579,8 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
 
         if (jcp.mb == 1) {
             jcp.kernel_kind = embd_bcast;
-            unsigned int inp_size = jcp.mb * (jcp.ih / jcp.stride_h)
-                    * (jcp.iw / jcp.stride_w) * jcp.ic;
+            unsigned int inp_size = jcp.mb * div_up(jcp.ih, jcp.stride_h)
+                    * div_up(jcp.iw, jcp.stride_w) * jcp.ic;
             unsigned int wei_size = jcp.ic * jcp.oc * jcp.kh * jcp.kw;
 
             // Estimate whether we need to limit the number of threads
