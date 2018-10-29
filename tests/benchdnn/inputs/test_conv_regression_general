@@ -65,3 +65,7 @@
 # MKLDNN-982: FPE for large right-hand-side padding
 --reset --dir=FWD_D mb2_g1ic1oc2_ih3oh10kh2sh1dh1ph4_iw5ow12kw2sw1dw1pw2
 --reset --dir=FWD_D mb2_g1ic8oc8_ih1oh16kh2ph1
+
+# MKLDNN-1074: FPE for mb1 with ih < sh or iw < sw
+--reset --dir=FWD_D mb1_g1ic128oc256_ih1oh1kh3sh2dh0ph1_iw1ow1kw3sw2dw0pw1
+
