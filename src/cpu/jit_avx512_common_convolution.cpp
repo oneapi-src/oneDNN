@@ -1314,7 +1314,8 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
     const memory_desc_wrapper diff_weights_d(conf_.diff_weights_pd(0));
 
     const auto &jcp = kernel_->jcp;
-    const int wei_size = jcp.ngroups * jcp.oc * jcp.ic * jcp.kh*jcp.kw*jcp.kd;
+    const int wei_size
+            = jcp.ngroups * jcp.oc * jcp.ic * jcp.kh * jcp.kw * jcp.kd;
 
     diff_weights_data_t *diff_wei = ti->ithr_mb == 0
         ? (diff_weights_data_t*)ti->diff_weights

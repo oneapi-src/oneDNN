@@ -3441,6 +3441,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32
     mov(reg_kh, jcp.kh);
     xor_(reg_ih_count, reg_ih_count);
     xor_(reg_oj, reg_oj);
+    /* Compute 'top' edge */
     if (t_pad > 0) {
         const int kh_range = 1 + (jcp.kh - 1) * dilate_h;
         const int overflow
@@ -3535,6 +3536,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32
     cmp(reg_oj, jcp.oh);
     jge(oh_label, T_NEAR);
 
+    /* Compute middle block(s) */
     mov(reg_kh, jcp.kh);
     L(oh_label); {
         compute_oh_step_disp();
@@ -3552,6 +3554,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32
     }
     L(oh_label_end);
 
+    /* Compute bottom edge */
     if (b_pad > 0) {
         cmp(reg_oj, jcp.oh);
         jge(oh_bpad_label_end, T_NEAR);
