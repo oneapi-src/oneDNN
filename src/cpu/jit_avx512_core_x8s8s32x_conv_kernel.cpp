@@ -790,10 +790,13 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     // factor smaller than the left padding (special requirement for SSD:fc6),
     // then search for a smaller OC blocking that satisfies both constraints.
     jcp.nb_oc_blocking = nstl::min(4, jcp.nb_oc);
-    for (; jcp.nb_oc_blocking > 1; jcp.nb_oc_blocking--)
+    for (; jcp.nb_oc_blocking > 1; jcp.nb_oc_blocking--) {
+        int ur_w = regs / (jcp.nb_oc_blocking + 1);
         if (jcp.nb_oc % jcp.nb_oc_blocking == 0
-                && jcp.l_pad <= regs / (jcp.nb_oc_blocking + 1))
+                && (jcp.l_pad <= ur_w
+                         && IMPLICATION(jcp.ow != 1, jcp.ow % ur_w != 1)))
             break;
+    }
 
     jcp.ur_w = regs / (jcp.nb_oc_blocking + 1);
     if (jcp.ow < jcp.ur_w)
