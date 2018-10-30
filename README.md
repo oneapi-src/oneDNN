@@ -98,6 +98,15 @@ The software dependencies are:
 * [Cmake](https://cmake.org/download/) 2.8.0 or later
 * [Doxygen](http://www.stack.nl/~dimitri/doxygen/download.html#srcbin) 1.8.5 or later
 * C++ compiler with C++11 standard support
+* Optional dependencies:
+  * GNU OpenMP\*, LLVM OpenMP\*, or Intel OpenMP
+  * Threading Building Blocks (TBB)
+  * Intel MKL or Intel MKL small libraries
+
+> **Note**
+> Building Intel MKL-DNN with optinal dependencies may introduce additional
+> runtime dependencies for the library. Please refer to corresponding 
+> software system requirements for details.
 
 The software was validated on RedHat\* Enterprise Linux 7 with
 * GNU\* Compiler Collection 4.8, 5.2, 6.1 and 7.2
@@ -153,14 +162,20 @@ You might need to set `MKLROOT` environment variable to the path where full
 Intel MKL is installed to help cmake locate the library.
 
 You can choose to build Intel MKL-DNN without binary dependency. The resulting
-version will be fully functional, however performance of certain convolution
-shapes and sizes and inner product relying on SGEMM function may be suboptimal.
+version will be fully functional, however performance of convolutions relying
+on GEMM-based algorithm, inner product, and mkldnn_?gemm functionality may be
+suboptimal.
 
 > **Note**
 >
 > Using Intel MKL small libraries currently work for Intel MKL-DNN built with
 > OpenMP\* only. Building with Intel TBB requires either full Intel MKL library
 > or standalone build.
+>
+> Using Intel MKL or Intel MKL small libraries will introduce additional
+> runtime dependencies. Please refer to Intel MKL 
+> [system requirements](https://software.intel.com/en-us/articles/intel-math-kernel-library-intel-mkl-2019-system-requirements)
+> for additional information.
 
 Intel MKL-DNN uses a CMake-based build system
 
