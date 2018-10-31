@@ -377,9 +377,10 @@ void init_conf(
     jcp.wei_adj_scale = (!jcp.signed_input || mayiuse(avx512_core_vnni))
             ? 1.0f
             : (1.0f / 2.0f);
-    jcp.im2col_sz = !(jcp.oh == jcp.ih && jcp.ow == jcp.iw
-                            && jcp.od == jcp.id && jcp.ks == 1
-                            && !jcp.signed_input)
+    jcp.im2col_sz = !everyone_is(true,
+            jcp.ow == jcp.iw, jcp.oh == jcp.ih, jcp.od == jcp.id,
+            jcp.stride_w == 1, jcp.stride_h == 1, jcp.stride_d == 1,
+            jcp.ks == 1, !jcp.signed_input)
         ? (ptrdiff_t)jcp.ic * jcp.ks * jcp.os
         : 0;
 
