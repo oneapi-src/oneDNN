@@ -22,6 +22,8 @@ if(utils_cmake_included)
 endif()
 set(utils_cmake_included true)
 
+include("cmake/options.cmake")
+
 # Register new executable/test
 #   name -- name of the executable
 #   srcs -- list of source, if many must be enclosed with ""
@@ -44,6 +46,20 @@ endfunction()
 macro(append var value)
     set(${var} "${${var}} ${value}")
 endmacro()
+
+# Append to a variable if building a product build (as opposed to a developer
+# build that is detected via the MKLDNN_PRODUCT_BUILD_MODE option)
+macro(append_if_product var value)
+    if(MKLDNN_PRODUCT_BUILD_MODE)
+        append(${var} "${value}")
+    endif()
+endmacro()
+
+if(MKLDNN_PRODUCT_BUILD_MODE)
+    message(STATUS "This is a product build")
+else()
+    message(WARNING "This is a developer build")
+endif()
 
 # Set variable depending on condition:
 #   var = cond ? val_if_true : val_if_false

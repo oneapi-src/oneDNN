@@ -22,6 +22,8 @@ if(platform_cmake_included)
 endif()
 set(platform_cmake_included true)
 
+include("cmake/utils.cmake")
+
 add_definitions(-DMKLDNN_DLL -DMKLDNN_DLL_EXPORTS)
 
 # UNIT8_MAX-like macros are a part of the C99 standard and not a part of the
@@ -58,7 +60,8 @@ if(MSVC)
         append(CMAKE_CCXX_FLAGS "-Wno-pass-failed")
     endif()
 elseif(UNIX OR MINGW)
-    append(CMAKE_CCXX_FLAGS "-Wall -Werror -Wno-unknown-pragmas")
+    append(CMAKE_CCXX_FLAGS "-Wall -Wno-unknown-pragmas")
+    append_if_product(CMAKE_CCXX_FLAGS "-Werror")
     append(CMAKE_CCXX_FLAGS "-fvisibility=internal")
     append(CMAKE_C_FLAGS "-std=c99")
     append(CMAKE_CXX_FLAGS "-std=c++11 -fvisibility-inlines-hidden")
