@@ -789,6 +789,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         return true
             && input_d.is_blocking_desc()
             && output_d.is_blocking_desc()
+            && !output_d.is_additional_buffer()
+            && !input_d.is_additional_buffer()
             && smask == 0;
     }
 
