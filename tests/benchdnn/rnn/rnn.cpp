@@ -287,8 +287,8 @@ int doit(const rnn_prb_t *p, res_t *r) {
     dnn_mem_t *workspace_dt = nullptr;
 
     mkldnn_rnn_desc_t rd[2];
-    mkldnn_primitive_desc_t rpd[2];
-    mkldnn_primitive_t c;
+    mkldnn_primitive_desc_t rpd[2] = {nullptr};
+    mkldnn_primitive_t c{};
     SAFE(init_pd(p, rd, rpd, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED)
         return OK;
