@@ -49,6 +49,13 @@ using namespace alg_kind;
 
 #define AOC array_offset_calculator
 
+inline float one_m_square(float x) {
+    return (1.0f - x) * (1.0f + x);
+}
+inline float x_m_square(float x) {
+    return (1.0f - x) * x;
+}
+
 template <>
 float activation<alg_kind::eltwise_relu, prop_kind::forward>(
         float dd, float s, float alpha, float cliping) {
@@ -70,7 +77,7 @@ float activation<alg_kind::eltwise_tanh, prop_kind::forward>(
 template <>
 float activation<alg_kind::eltwise_tanh, prop_kind::backward>(
         float dd, float s, float alpha, float cliping) {
-    return tanh_bwd<float>(dd, s);
+    return dd * one_m_square(s);
 }
 
 template <>
@@ -82,7 +89,7 @@ float activation<alg_kind::eltwise_logistic, prop_kind::forward>(
 template <>
 float activation<alg_kind::eltwise_logistic, prop_kind::backward>(
         float dd, float s, float alpha, float cliping) {
-    return logistic_bwd<float>(dd, s);
+    return dd * x_m_square(s);
 }
 
 //************************* Cell execution *************************//
@@ -154,8 +161,6 @@ elemwise_sig(_ref_rnn_common_t<prop_kind::backward>::lstm_elemwise) {
     AOC<float, 4> diff_states_t_lp1(
         diff_states_t_lp1_, n_states + 1, iter_stride, batch, wic);
 
-    auto one_m_square = [](float a) -> float { return 1.0f - a * a; };
-
     parallel_nd(batch, [&](int i) {
         PRAGMA_OMP_SIMD()
         for (int j = 0; j < dic; j++) {
@@ -169,12 +174,13 @@ elemwise_sig(_ref_rnn_common_t<prop_kind::backward>::lstm_elemwise) {
             float dCt = diff_states_tp1_l(1, 0, i, j)
                     + one_m_square(tanhCt) * ws_gates(i, 3 * dic + j) * dHt;
 
-            float dG1 = states_tm1_l(1, 0, i, j)
-                    * logistic_bwd(dCt, ws_gates(i, 1 * dic + j));
-            float dG0
-                    = ws_gates(i, 2 * dic + j) * logistic_bwd(dCt, ws_gates(i, 0 * dic + j));
-            float dG3 = logistic_bwd(tanhCt * dHt, ws_gates(i, 3 * dic + j));
-            float dG2 = ws_gates(i, 0 * dic + j) * tanh_bwd(dCt, ws_gates(i, 2 * dic + j));
+            float dG1 = states_tm1_l(1, 0, i, j) * dCt
+                    * x_m_square(ws_gates(i, 1 * dic + j));
+            float dG0 = ws_gates(i, 2 * dic + j) * dCt
+                    * x_m_square(ws_gates(i, 0 * dic + j));
+            float dG3 = tanhCt * dHt * x_m_square(ws_gates(i, 3 * dic + j));
+            float dG2 = ws_gates(i, 0 * dic + j) * dCt
+                    * one_m_square(ws_gates(i, 2 * dic + j));
 
             diff_states_t_l(1, 0, i, j) = dCt * ws_gates(i, 1 * dic + j);
 
@@ -389,12 +395,12 @@ elemwise_sig(_ref_rnn_common_t<prop_kind::backward>::gru_lbr_elemwise) {
             float h = states_tm1_l(i, j);
             float dHt = diff_states_tp1_l(0, 0, i, j)
                     + diff_states_t_lp1(n_states, 0, i, j);
-            float dG0 = (h - ws_gates(i, 2 * dic + j))
-                    * logistic_bwd(dHt, ws_gates(i, 0 * dic + j));
+            float dG0 = (h - ws_gates(i, 2 * dic + j)) * dHt
+                    * x_m_square(ws_gates(i, 0 * dic + j));
             float dG2 = (1.0f - ws_gates(i, 0 * dic + j)) * dHt;
-            float dG1 = ws_Wh_b(i, j)
-                    * logistic_bwd(dG2, ws_gates(i, 1 * dic + j));
-            dG2 *= tanh_bwd(1.0f, ws_gates(i, 2 * dic + j));
+            float dG1 = ws_Wh_b(i, j) * dG2
+                    * x_m_square(ws_gates(i, 1 * dic + j));
+            dG2 *= one_m_square(ws_gates(i, 2 * dic + j));
 
             diff_states_t_l(0, 0, i, j) = dHt * ws_gates(i, 0 * dic + j);
             ws_gates(i, 2 * dic + j) = dG2;
@@ -471,10 +477,10 @@ cell_execution_sig(_ref_rnn_common_t<prop_kind::backward>::cell_execution_gru) {
             float h = states_tm1_l(i, j);
             float dHt = diff_states_tp1_l(0, 0, i, j)
                     + diff_states_t_lp1(n_states, 0, i, j);
-            float dG2 = (1.0f - ws_gates(i, 0 * dic + j))
-                    * tanh_bwd(dHt, ws_gates(i, 2 * dic + j));
-            float dG0 = (h - ws_gates(i, 2 * dic + j))
-                    * logistic_bwd(dHt, ws_gates(i, 0 * dic + j));
+            float dG2 = (1.0f - ws_gates(i, 0 * dic + j)) * dHt
+                    * one_m_square(ws_gates(i, 2 * dic + j));
+            float dG0 = (h - ws_gates(i, 2 * dic + j)) * dHt
+                    * x_m_square(ws_gates(i, 0 * dic + j));
 
             diff_states_t_l(0, 0, i, j) = dHt * ws_gates(i, 0 * dic + j);
             ws_gates(i, 0 * dic + j) = dG0;
@@ -498,7 +504,7 @@ cell_execution_sig(_ref_rnn_common_t<prop_kind::backward>::cell_execution_gru) {
             float h = states_tm1_l(i, j);
             float G1 =  ws_gates(i, 1 * dic + j);
             diff_states_t_l(0, 0, i, j) += dhG1(i, j) * G1;
-            ws_gates(i, 1 * dic + j) = dhG1(i, j) * logistic_bwd(h, G1);
+            ws_gates(i, 1 * dic + j) = dhG1(i, j) * h * x_m_square(G1);
             hG1(i, j) = G1 * h;
         }
     });
