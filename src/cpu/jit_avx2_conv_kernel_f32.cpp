@@ -75,7 +75,7 @@ void jit_avx2_conv_fwd_kernel_f32::oh_step_unroll_kw(int ur_w,
                     if (mayiuse(avx2))
                         vfmadd231ps(Ymm(ur_w * ii + jj),
                                 Ymm(oc_blocks * ur_w + jj), ymm15);
-                    else { // AVX support
+                    else { // Intel(R) Advanced Vector Extensions (Intel(R) AVX) support
                         Ymm tmp = ymask;
                         vmulps(tmp, ymm15, Ymm(oc_blocks * ur_w + jj));
                         vaddps(Ymm(ur_w * ii + jj), Ymm(ur_w * ii + jj), tmp);
@@ -129,7 +129,7 @@ void jit_avx2_conv_fwd_kernel_f32::oh_step_nopad(int ur_w,
                     if (mayiuse(avx2))
                         vfmadd231ps(Ymm(ur_w * ii + jj),
                                 Ymm(oc_blocks * ur_w + jj), ymm15);
-                    else { // AVX support
+                    else { // Intel AVX support
                         Ymm tmp = ymask;
                         vmulps(tmp, ymm15, Ymm(oc_blocks * ur_w + jj));
                         vaddps(Ymm(ur_w * ii + jj), Ymm(ur_w * ii + jj), tmp);
@@ -534,7 +534,7 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
 
     jcp.nb_oc_blocking = 4; /* the optimal value for the kernel */
 
-    // AVX and AVX2 kernels need 2 and 1 temporary YMMs, respectively
+    // Intel AVX and Intel AVX2 kernels need 2 and 1 temporary YMMs, respectively
     // Thus, we can only assign 14 or 15 YMMs for data storage
     const int num_avail_regs = mayiuse(avx2) ? 15 : 14;
     if (!mayiuse(avx2)) {

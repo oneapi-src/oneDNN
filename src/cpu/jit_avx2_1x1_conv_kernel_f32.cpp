@@ -229,7 +229,7 @@ void jit_avx2_1x1_conv_kernel_f32::generate_reduce_loop(
                 for (int i = 0; i < load_loop_blk; ++i) {
                     if (mayiuse(avx2))
                         vfmadd231ps(vreg_accum(i, j), vreg_load(i), vreg_bcast);
-                    else { // AVX support
+                    else { // Intel(R) Advanced Vector Extensions (Intel(R) AVX) support
                         auto tmp = vmask;
                         vmulps(tmp, vreg_bcast, vreg_load(i));
                         vaddps(vreg_accum(i, j), vreg_accum(i, j), tmp);
@@ -525,13 +525,13 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
     if (!args_ok) return status::unimplemented;
 
     // TODO: remove this restriction
-    // optimized 1x1 bwd_w does not support avx
+    // optimized 1x1 bwd_w does not support Intel AVX
     if (jcp.prop_kind == backward_weights && !mayiuse(avx2))
         return status::unimplemented;
 
     jcp.ic_block = jcp.oc_block = simd_w;
 
-    jcp.ur = mayiuse(avx2) ? 4 : 3; // AVX support
+    jcp.ur = mayiuse(avx2) ? 4 : 3; // Intel AVX support
 
     int load_blocking{ 0 };
     int load_blocking_max{ 0 };
