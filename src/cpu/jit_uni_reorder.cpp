@@ -432,7 +432,8 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
                             scale_load_type = scale_load_type_t::load;
 
                     if (scale_load_type == scale_load_type_t::bcast) {
-                        vbroadcastss(xmm_scale, s_addr(s_off[ur]));
+                        movss(xmm_scale, s_addr(s_off[ur]));
+                        shufps(xmm_scale, xmm_scale, 0x0);
                         mulps(Xmm(ur), xmm_scale);
                         continue;
                     }
