@@ -444,7 +444,7 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
                             scale_load_type = scale_load_type_t::gather;
 
                     if (scale_load_type == scale_load_type_t::load) {
-                        vmovups(xmm_scale, s_addr(s_off[ur]));
+                        movups(xmm_scale, s_addr(s_off[ur]));
                         mulps(Xmm(ur), xmm_scale);
                         continue;
                     }
