@@ -25,6 +25,7 @@ of the following deep learning topologies and variations of these.
 | Speech Recognition (experimental)         | DeepSpeech
 | Adversarial Networks                      | DCGAN, 3DGAN
 | Reinforcement Learning                    | A3C
+| Text-to-Speech                            | WaveNet
 
 Intel MKL-DNN is used in the following software products:
 * [Caffe\* Optimized for Intel Architecture](https://github.com/intel/caffe)
@@ -66,7 +67,7 @@ without prior notification in future releases:
 * Convolutions with `s16` data type in source, weights or destination
 * Convolutions and auxiliary primitives for 3D spatial data
 * RNN, LSTM and GRU primitives
-* Intel Threading Building (Intel TBB\*) support
+* Intel Threading Building Blocks (Intel TBB\*) support
 
 ## How to Contribute
 We welcome community contributions to Intel MKL-DNN. If you have an idea how to improve the library:
@@ -85,7 +86,7 @@ request will be merged the repository.
 Intel MKL-DNN supports Intel(R) 64 architecture and compatible architectures.
 The library is optimized for the systems based on
 * Intel Atom(R) processor with Intel(R) SSE4.1 support
-* 4th, 5th, 6th and 7th generation Intel(R) Core processor
+* 4th, 5th, 6th, 7th and 8th generation Intel(R) Core processor
 * Intel(R) Xeon(R) processor E5 v3 family (formerly Haswell)
 * Intel Xeon processor E5 v4 family (formerly Broadwell)
 * Intel Xeon Platinum processor family (formerly Skylake)
@@ -109,20 +110,20 @@ The software dependencies are:
 > software system requirements for details.
 
 The software was validated on RedHat\* Enterprise Linux 7 with
-* GNU\* Compiler Collection 4.8, 5.2, 6.1 and 7.2
+* GNU\* Compiler Collection 4.8, 5.4, 6.1, 7.2 and 8.1
 * Clang\* 3.8.0
 * [Intel(R) C/C++ Compiler](https://software.intel.com/en-us/intel-parallel-studio-xe)
-  17.0 and 18.0
+  17.0, 18.0 and 19.0
 
 on Windows Server\* 2012 R2 with
 * Microsoft\* Visual C++ 14.0 (Visual Studio 2015)
 * [Intel(R) C/C++ Compiler](https://software.intel.com/en-us/intel-parallel-studio-xe)
-  17.0 and 18.0
+  17.0 and 19.0
 
 on macOS\* 10.13 (High Sierra) with
-* Apple LLVM version 9.0.0 (XCode 9.0.0)
+* Apple LLVM version 9.2 (XCode 9.2)
 * [Intel C/C++ Compiler](https://software.intel.com/en-us/intel-parallel-studio-xe)
-  18.0 (XCode 8.3.2)
+  18.0 and 19.0
 
 The implementation uses OpenMP\* 4.0 SIMD extensions. We recommend using
 Intel(R) Compiler for the best performance results.
