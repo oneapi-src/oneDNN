@@ -363,7 +363,14 @@ public:
         shufps(x, x, 0x0);
     }
     void uni_vbroadcastss(const Xbyak::Ymm &x, const Xbyak::Operand &op) {
-        vbroadcastss(x, op);
+        if (mayiuse(avx2)) {
+            vbroadcastss(x, op);
+        } else {
+            Xbyak::Xmm t(x.getIdx());
+            if (t.getIdx() != op.getIdx()) movss(t, op);
+            vinsertf128(x, x, t, 1);
+            vshufps(x, x, x, 0);
+        }
     }
 
     void uni_vpbroadcastd(const Xbyak::Xmm &x, const Xbyak::Operand &op) {
