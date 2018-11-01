@@ -363,7 +363,7 @@ public:
         shufps(x, x, 0x0);
     }
     void uni_vbroadcastss(const Xbyak::Ymm &x, const Xbyak::Operand &op) {
-        if (mayiuse(avx2)) {
+        if (op.isMEM() || mayiuse(avx2)) {
             vbroadcastss(x, op);
         } else {
             Xbyak::Xmm t(x.getIdx());
