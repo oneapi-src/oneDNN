@@ -90,6 +90,9 @@ elseif(UNIX OR MINGW)
         elseif(MKLDNN_USE_CLANG_SANITIZER STREQUAL "Address")
             append(CMAKE_CCXX_SANITIZER_FLAGS "-fsanitize=address")
             set(MKLDNN_ENABLED_CLANG_SANITIZER "${MKLDNN_USE_CLANG_SANITIZER}")
+        elseif(MKLDNN_USE_CLANG_SANITIZER STREQUAL "Thread")
+            append(CMAKE_CCXX_SANITIZER_FLAGS "-fsanitize=thread")
+            set(MKLDNN_ENABLED_CLANG_SANITIZER "${MKLDNN_USE_CLANG_SANITIZER}")
         elseif(NOT MKLDNN_USE_CLANG_SANITIZER STREQUAL "")
             message(FATAL_ERROR
                 "Unsupported Clang sanitizer '${MKLDNN_USE_CLANG_SANITIZER}'")
@@ -98,7 +101,7 @@ elseif(UNIX OR MINGW)
             message(STATUS
                 "Using Clang ${MKLDNN_ENABLED_CLANG_SANITIZER} "
                 "sanitizer (experimental!)")
-            append(CMAKE_CCXX_SANITIZER_FLAGS "-fno-omit-frame-pointer")
+            append(CMAKE_CCXX_SANITIZER_FLAGS "-g -fno-omit-frame-pointer")
         endif()
     elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
         if(NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS 5.0)
