@@ -283,17 +283,19 @@ void run_test_gemm<float, float, float>(const test_params &p) {
 
     auto status = mkldnn_sgemm(&p.transA, &p.transB, &p.M, &p.N, &p.K, &p.alpha,
         A, &p.lda, B, &p.ldb, &p.beta, C, &p.ldc);
-    if (status != mkldnn_success)
-        throw error(status, "mkldnn_sgemm returned error");
-
-    ref_gemm(&p.transA, &p.transB, p.M, p.N, p.K, p.alpha, A, p.lda, B, p.ldb,
-        p.beta, C_ref, p.ldc);
-    compare(p.M, p.N, p.ldc, C, C_ref);
+    if (status == mkldnn_success) {
+        ref_gemm(&p.transA, &p.transB, p.M, p.N, p.K, p.alpha, A, p.lda, B, p.ldb,
+            p.beta, C_ref, p.ldc);
+        compare(p.M, p.N, p.ldc, C, C_ref);
+    }
 
     test_free((char *)A);
     test_free((char *)B);
     test_free((char *)C);
     test_free((char *)C_ref);
+
+    if (status != mkldnn_success)
+        throw error(status, "mkldnn_sgemm returned error");
 }
 
 template <typename a_dt, typename b_dt, typename c_dt>
