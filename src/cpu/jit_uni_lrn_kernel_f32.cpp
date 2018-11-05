@@ -945,6 +945,33 @@ void jit_uni_lrn_fwd_kernel_f32<avx2>::nchw_body(
 }
 
 template<>
+void jit_uni_lrn_fwd_kernel_f32<avx>::nchw_tail_sse42(
+    int tail, Xbyak::Reg64 reg_dst, Xbyak::Xmm xtail_lo, Xbyak::Xmm xtail_hi)
+{}
+
+template<>
+void jit_uni_lrn_fwd_kernel_f32<sse42>::nchw_tail_sse42(
+    int tail, Xbyak::Reg64 reg_dst, Xbyak::Xmm xtail_lo, Xbyak::Xmm xtail_hi)
+{
+    Xbyak::Xmm xmm_tmp = xmm10;
+    movaps(xmm_tmp, xtail_lo);
+    size_t offset = 0;
+
+    if (tail > 4) {
+        movups(ptr[reg_dst], xtail_lo);
+        movaps(xmm_tmp, xtail_hi);
+        offset += 4 * sizeof(float);
+        tail -= 4;
+    }
+    movss(ptr[reg_dst + offset], xmm_tmp);
+    for (int i = 1; i < tail; i++)
+    {
+        psrldq(xmm_tmp, 4);
+        movss(ptr[reg_dst + offset + i * sizeof(float)], xmm_tmp);
+    }
+}
+
+template<>
 void jit_uni_lrn_fwd_kernel_f32<sse42>::nchw_body_sse42(
     int tail, int HW, prop_kind_t pk,
     Xbyak::Xmm xmask_lo, Xbyak::Xmm xmask_hi,
@@ -957,8 +984,6 @@ void jit_uni_lrn_fwd_kernel_f32<sse42>::nchw_body_sse42(
     Xbyak::Xmm xbase_hi = xmm7;
     Xbyak::Xmm xtmp_lo = xmm8;
     Xbyak::Xmm xtmp_hi = xmm9;
-    Xbyak::Xmm xtmp2_lo = xmm10;
-    Xbyak::Xmm xtmp2_hi = xmm11;
     Xbyak::Xmm xa_lo = xmm6;
     Xbyak::Xmm xa_hi = xmm7;
     Xbyak::Xmm xb_lo = xmm8;
@@ -990,20 +1015,7 @@ void jit_uni_lrn_fwd_kernel_f32<sse42>::nchw_body_sse42(
     if (pk != prop_kind::forward_inference)
     {
         if (tail != 0) {
-            movaps(xtmp_lo, xmask_lo);
-            movaps(xtmp_hi, xmask_hi);
-            movups(xtmp2_lo, ptr[scratch]);
-            movups(xtmp2_hi, ptr[scratch + 4 * sizeof(float)]);
-            andnps(xtmp_lo, xtmp2_lo);
-            andnps(xtmp_hi, xtmp2_hi);
-            movaps(xtmp2_lo, xbase_lo);
-            movaps(xtmp2_hi, xbase_hi);
-            andps(xtmp2_lo, xmask_lo);
-            andps(xtmp2_hi, xmask_hi);
-            orps(xtmp_lo, xtmp2_lo);
-            orps(xtmp_hi, xtmp2_hi);
-            movups(ptr[scratch], xtmp_lo);
-            movups(ptr[scratch + 4 * sizeof(float)], xtmp_hi);
+            nchw_tail_sse42(tail, scratch, xbase_lo, xbase_hi);
         }
         else {
             movups(ptr[scratch], xbase_lo);
@@ -1026,20 +1038,7 @@ void jit_uni_lrn_fwd_kernel_f32<sse42>::nchw_body_sse42(
     movaps(xdst_hi, xtmp_hi);
 
     if (tail != 0) {
-        movaps(xtmp_lo, xmask_lo);
-        movaps(xtmp_hi, xmask_hi);
-        movups(xtmp2_lo, ptr[dst]);
-        movups(xtmp2_hi, ptr[dst + 4 * sizeof(float)]);
-        andnps(xtmp_lo, xtmp2_lo);
-        andnps(xtmp_hi, xtmp2_hi);
-        movaps(xtmp2_lo, xdst_lo);
-        movaps(xtmp2_hi, xdst_hi);
-        andps(xtmp2_lo, xmask_lo);
-        andps(xtmp2_hi, xmask_hi);
-        orps(xtmp_lo, xtmp2_lo);
-        orps(xtmp_hi, xtmp2_hi);
-        movups(ptr[dst], xtmp_lo);
-        movups(ptr[dst + 4 * sizeof(float)], xtmp_hi);
+        nchw_tail_sse42(tail, dst, xdst_lo, xdst_hi);
     }
     else {
         movups(ptr[dst], xdst_lo);
