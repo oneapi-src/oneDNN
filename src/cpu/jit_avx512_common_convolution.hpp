@@ -323,6 +323,8 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
         delete kernel_;
         if (trans_kernel_)
             delete trans_kernel_;
+        if (trans_dst_kernel_)
+            delete trans_dst_kernel_;
         if (acc_ker_)
             delete acc_ker_;
         delete reducer_bias_;
@@ -333,6 +335,8 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
 
         free(tr_src_bctx_);
         free(tr_diff_dst_bctx_);
+
+        free(tr_diff_dst_);
     }
 
     typedef typename prec_traits<src_type>::type src_data_t;
