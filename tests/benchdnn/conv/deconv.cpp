@@ -299,6 +299,9 @@ int doit(const prb_t *p, res_t *r) {
         }
     }
 
+    DNN_SAFE_V(mkldnn_primitive_destroy(c));
+    DNN_SAFE_V(mkldnn_primitive_desc_destroy(dpd));
+
     delete p_bia_dt;
     delete p_bia_fp;
     delete p_zero_fp;
