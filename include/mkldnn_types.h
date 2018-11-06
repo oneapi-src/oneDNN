@@ -70,14 +70,16 @@ typedef enum {
 typedef enum {
     /** Undefined data type, used for empty memory descriptors. */
     mkldnn_data_type_undef = 0,
+    /** 16-bit/half-precision floating point. */
+    mkldnn_f16 = 1,
     /** 32-bit/single-precision floating point. */
-    mkldnn_f32 = 1,
+    mkldnn_f32 = 2,
     /** 32-bit signed integer. */
-    mkldnn_s32 = 2,
+    mkldnn_s32 = 3,
     /** 8-bit signed integer. */
-    mkldnn_s8 = 3,
+    mkldnn_s8 = 4,
     /** 8-bit unsigned integer. */
-    mkldnn_u8 = 4,
+    mkldnn_u8 = 5,
 } mkldnn_data_type_t;
 
 /** Memory format kind */

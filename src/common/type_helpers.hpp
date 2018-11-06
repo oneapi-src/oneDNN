@@ -61,6 +61,7 @@ namespace types {
 inline size_t data_type_size(data_type_t data_type) {
     using namespace data_type;
     switch (data_type) {
+    case f16: return sizeof(prec_traits<f16>::type);
     case f32: return sizeof(prec_traits<f32>::type);
     case s32: return sizeof(prec_traits<s32>::type);
     case s8: return sizeof(prec_traits<s8>::type);
@@ -148,6 +149,7 @@ inline data_type_t default_accum_data_type(data_type_t src_dt,
     using namespace utils;
     using namespace data_type;
 
+    if (one_of(f16, src_dt, dst_dt)) return f16;
     if (one_of(f32, src_dt, dst_dt)) return f32;
     if (one_of(s32, src_dt, dst_dt)) return s32;
 
@@ -164,6 +166,7 @@ inline data_type_t default_accum_data_type(data_type_t src_dt,
     using namespace prop_kind;
 
     /* prop_kind doesn't matter */
+    if (everyone_is(f16, src_dt, wei_dt, dst_dt)) return f16;
     if (everyone_is(f32, src_dt, wei_dt, dst_dt)) return f32;
 
     if (one_of(prop_kind, forward_training, forward_inference)) {

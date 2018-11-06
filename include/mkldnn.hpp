@@ -681,6 +681,7 @@ struct memory: public handle<mkldnn_memory_t> {
     /// description.
     enum data_type {
         data_undef = mkldnn_data_type_undef,
+        f16 = mkldnn_f16,
         f32 = mkldnn_f32,
         s32 = mkldnn_s32,
         s8 = mkldnn_s8,

@@ -81,6 +81,7 @@ typedef struct dt_conf_t {
     double eps; /* acceptable error */
 } _dt_conf_t[DAT_TOTAL];
 
+extern const _dt_conf_t conf_f16;
 extern const _dt_conf_t conf_f32;
 extern const _dt_conf_t conf_f32_full;
 extern const _dt_conf_t conf_f32_wino;

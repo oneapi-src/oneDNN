@@ -41,6 +41,9 @@
 
 #include "src/common/mkldnn_thread.hpp"
 #include "src/common/memory_desc_wrapper.hpp"
+#include "src/common/float16.hpp"
+
+using mkldnn::impl::f16_support::float16_t;
 
 #define MKLDNN_CHECK(f)               \
     do {                              \
@@ -53,6 +56,9 @@ using memory = mkldnn::memory;
 mkldnn::engine::kind get_test_engine_kind();
 
 template <typename data_t> struct data_traits { };
+template <> struct data_traits<float16_t> {
+    static const auto data_type = memory::data_type::f16;
+};
 template <> struct data_traits<float> {
     static const auto data_type = memory::data_type::f32;
 };
@@ -194,7 +200,9 @@ template <typename data_t>
 static inline data_t set_value(memory::dim index, data_t mean, data_t deviation,
         double sparsity)
 {
-    if (data_traits<data_t>::data_type == memory::data_type::f32) {
+    if (data_traits<data_t>::data_type == memory::data_type::f16) {
+        return data_t(set_value<float>(index, mean, deviation, sparsity));
+    } else if (data_traits<data_t>::data_type == memory::data_type::f32) {
         const memory::dim group_size = (memory::dim)(1. / sparsity);
         const memory::dim group = index / group_size;
         const memory::dim in_group = index % group_size;
@@ -206,9 +214,9 @@ static inline data_t set_value(memory::dim index, data_t mean, data_t deviation,
         return data_t(rand() % 21 - 10);
     } else if (data_traits<data_t>::data_type == memory::data_type::u8) {
         return data_t(rand() % 17);
-    } else {
-        return data_t(0);
     }
+    assert(!"not expected");
+    return data_t(0);
 }
 
 template <typename data_t>

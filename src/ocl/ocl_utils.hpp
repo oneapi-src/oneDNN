@@ -280,8 +280,8 @@ public:
     }
 
     template <typename T,
-            typename
-            = typename std::enable_if<std::is_arithmetic<T>::value>::type>
+            typename = typename std::enable_if<std::is_arithmetic<T>::value
+                    || std::is_same<T, float16_t>::value>::type>
     void set_value(const T &value) {
         kind_ = kind_t::scalar;
         new (&scalar_storage_) T(value);
@@ -375,8 +375,8 @@ struct ocl_kernel_t {
     }
 
     template <class T,
-            typename
-            = typename std::enable_if<std::is_arithmetic<T>::value>::type>
+            typename = typename std::enable_if<std::is_arithmetic<T>::value
+                    || std::is_same<T, float16_t>::value>::type>
     void set_arg(int index, const T &value) const {
         static_assert(sizeof(T) <= ocl_kernel_arg_t::max_size,
                 "Type size is too large");
@@ -524,6 +524,7 @@ struct ocl_jit_t {
 
     void set_data_type(data_type_t dt) {
         switch (dt) {
+        case data_type::f16: define_int("DT_F16", 1); break;
         case data_type::f32: define_int("DT_F32", 1); break;
         case data_type::s8: define_int("DT_S8", 1); break;
         default: assert(!"unknown data type"); break;

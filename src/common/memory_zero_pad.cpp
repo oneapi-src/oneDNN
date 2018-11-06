@@ -269,6 +269,7 @@ status_t memory_t::zero_pad() const {
     if (skip_zeroing) return success;
 
     switch (mdw.data_type()) {
+        case f16: return typed_zero_pad<f16>();
         case f32: return typed_zero_pad<f32>();
         case s32: return typed_zero_pad<s32>();
         case s8: return typed_zero_pad<s8>();
