@@ -1268,6 +1268,19 @@ struct primitive_desc : public handle<mkldnn_primitive_desc_t> {
 
     engine get_engine() { return engine::query(*this); }
 
+    primitive_attr get_primitive_attr() const {
+        const_mkldnn_primitive_attr_t const_cattr;
+        error::wrap_c_api(mkldnn_primitive_desc_get_attr(get(), &const_cattr),
+                "could not get attributes");
+        mkldnn_primitive_attr_t cattr;
+        error::wrap_c_api(mkldnn_primitive_attr_clone(&cattr, const_cattr),
+                "could not clone attributes");
+
+        primitive_attr attr;
+        attr.reset(cattr);
+        return attr;
+    }
+
     /// Returns implementation name
     const char *impl_info_str() const {
         const char *res;
