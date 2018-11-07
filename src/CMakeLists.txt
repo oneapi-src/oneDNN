@@ -103,13 +103,9 @@ set_property(TARGET ${TARGET_NAME} PROPERTY CXX_STANDARD_REQUIRED ON)
 set_property(TARGET ${TARGET_NAME} PROPERTY VERSION "${PROJECT_VERSION}.0")
 set_property(TARGET ${TARGET_NAME} PROPERTY SOVERSION "0")
 
-if(MINGW)
-    # We need to install *.dll into bin/ and *.a into lib/. 
-    install(TARGETS ${TARGET_NAME}
-        RUNTIME DESTINATION bin
-        ARCHIVE DESTINATION lib${LIB_SUFFIX}
-    )
-else()
-    install(TARGETS ${TARGET_NAME} DESTINATION lib${LIB_SUFFIX})
-endif()
+install(TARGETS ${TARGET_NAME}
+    RUNTIME DESTINATION bin
+    LIBRARY DESTINATION lib${LIB_SUFFIX}
+    ARCHIVE DESTINATION lib${LIB_SUFFIX}
+)
 install(FILES ${HEADERS} DESTINATION include)
