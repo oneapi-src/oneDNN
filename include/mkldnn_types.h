@@ -426,8 +426,6 @@ typedef enum {
     mkldnn_batch_normalization,
     /** An inner product primitive. */
     mkldnn_inner_product,
-    /** A convolution primitive merged with ReLU. @deprecated */
-    mkldnn_convolution_relu,
     /** A rnn primitive. */
     mkldnn_rnn,
 } mkldnn_primitive_kind_t;
@@ -874,18 +872,6 @@ typedef struct {
     mkldnn_data_type_t accum_data_type;
 } mkldnn_inner_product_desc_t;
 
-/** A descriptor of a convolution followed by relu operation. */
-typedef struct {
-    /** The kind of primitive. Used for self identifying the primitive
-     * descriptor. Must be #mkldnn_convolution_relu. */
-    mkldnn_primitive_kind_t primitive_kind;
-    /** A descriptor of a convolution operation. */
-    mkldnn_convolution_desc_t convolution_desc;
-    /** Scaling factor for negative values, stored as float-precision but
-     * interpreted in a way specific to the data type in each implementation */
-    float negative_slope;
-} mkldnn_convolution_relu_desc_t;
-
 /** Flags for RNN cell. */
 typedef enum {
     mkldnn_rnn_cell_with_relu = 0x1U,
@@ -1153,7 +1139,6 @@ typedef enum {
     mkldnn_query_lrn_d, /**< lrn descriptor */
     mkldnn_query_batch_normalization_d, /**< batch normalization descriptor */
     mkldnn_query_inner_product_d, /**< inner product descriptor */
-    mkldnn_query_convolution_relu_d, /**< @deprecated */
     mkldnn_query_rnn_d, /**< rnn descriptor */
 
     /* (memory) primitive descriptor section */

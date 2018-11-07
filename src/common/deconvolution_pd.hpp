@@ -39,7 +39,6 @@ struct deconvolution_fwd_pd_t : public primitive_desc_t {
     virtual ~deconvolution_fwd_pd_t() {}
 
     const deconvolution_desc_t *desc() const { return &desc_; }
-    inline const deconvolution_desc_t *cdesc() const { return &desc_; }
     virtual const op_desc_t *op_desc() const override {
         return reinterpret_cast<const op_desc_t *>(this->desc());
     }
@@ -138,7 +137,6 @@ struct deconvolution_bwd_data_pd_t : public primitive_desc_t {
     virtual ~deconvolution_bwd_data_pd_t() {}
 
     const deconvolution_desc_t *desc() const { return &desc_; }
-    const deconvolution_desc_t *cdesc() const { return desc(); }
     virtual const op_desc_t *op_desc() const override {
         return reinterpret_cast<const op_desc_t *>(this->desc());
     }
@@ -236,7 +234,6 @@ struct deconvolution_bwd_weights_pd_t : public primitive_desc_t {
     virtual ~deconvolution_bwd_weights_pd_t() {}
 
     const deconvolution_desc_t *desc() const { return &desc_; }
-    const deconvolution_desc_t *cdesc() const { return desc(); }
     virtual const op_desc_t *op_desc() const override {
         return reinterpret_cast<const op_desc_t *>(this->desc());
     }

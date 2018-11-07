@@ -39,8 +39,8 @@ using jit_conv_ker_t = void (*)(jit_conv_call_s *);
          ? (d).blk_off((g), __VA_ARGS__) \
          : (d).blk_off(__VA_ARGS__))
 
-template <bool with_relu, data_type_t src_type, data_type_t dst_type>
-void _jit_avx512_core_x8s8s32x_convolution_fwd_t<with_relu, src_type, dst_type>::
+template <data_type_t src_type, data_type_t dst_type>
+void jit_avx512_core_x8s8s32x_convolution_fwd_t<src_type, dst_type>::
 execute_forward()
 {
     auto src = reinterpret_cast<const src_data_t *>(this->input_memory(0));
@@ -54,7 +54,7 @@ execute_forward()
     const memory_desc_wrapper bias_d(conf_.weights_pd(1));
 
     const size_t bia_dt_size = conf_.with_bias()
-        ? types::data_type_size(conf_.cdesc()->bias_desc.data_type) : 0;
+        ? types::data_type_size(conf_.desc()->bias_desc.data_type) : 0;
 
     const auto &jcp = kernel_->jcp;
     assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
@@ -164,37 +164,21 @@ execute_forward()
     });
 }
 
-template struct _jit_avx512_core_x8s8s32x_convolution_fwd_t<false,
+template struct jit_avx512_core_x8s8s32x_convolution_fwd_t<
                                                 data_type::s8, data_type::u8>;
-template struct _jit_avx512_core_x8s8s32x_convolution_fwd_t<true,
-                                                data_type::s8, data_type::u8>;
-template struct _jit_avx512_core_x8s8s32x_convolution_fwd_t<false,
+template struct jit_avx512_core_x8s8s32x_convolution_fwd_t<
                                                 data_type::u8, data_type::u8>;
-template struct _jit_avx512_core_x8s8s32x_convolution_fwd_t<true,
-                                                data_type::u8, data_type::u8>;
-template struct _jit_avx512_core_x8s8s32x_convolution_fwd_t<false,
+template struct jit_avx512_core_x8s8s32x_convolution_fwd_t<
                                                 data_type::s8, data_type::s8>;
-template struct _jit_avx512_core_x8s8s32x_convolution_fwd_t<true,
-                                                data_type::s8, data_type::s8>;
-template struct _jit_avx512_core_x8s8s32x_convolution_fwd_t<false,
+template struct jit_avx512_core_x8s8s32x_convolution_fwd_t<
                                                 data_type::u8, data_type::s8>;
-template struct _jit_avx512_core_x8s8s32x_convolution_fwd_t<true,
-                                                data_type::u8, data_type::s8>;
-template struct _jit_avx512_core_x8s8s32x_convolution_fwd_t<false,
+template struct jit_avx512_core_x8s8s32x_convolution_fwd_t<
                                                 data_type::s8, data_type::s32>;
-template struct _jit_avx512_core_x8s8s32x_convolution_fwd_t<true,
-                                                data_type::s8, data_type::s32>;
-template struct _jit_avx512_core_x8s8s32x_convolution_fwd_t<false,
+template struct jit_avx512_core_x8s8s32x_convolution_fwd_t<
                                                 data_type::u8, data_type::s32>;
-template struct _jit_avx512_core_x8s8s32x_convolution_fwd_t<true,
-                                                data_type::u8, data_type::s32>;
-template struct _jit_avx512_core_x8s8s32x_convolution_fwd_t<false,
+template struct jit_avx512_core_x8s8s32x_convolution_fwd_t<
                                                 data_type::s8, data_type::f32>;
-template struct _jit_avx512_core_x8s8s32x_convolution_fwd_t<true,
-                                                data_type::s8, data_type::f32>;
-template struct _jit_avx512_core_x8s8s32x_convolution_fwd_t<false,
-                                                data_type::u8, data_type::f32>;
-template struct _jit_avx512_core_x8s8s32x_convolution_fwd_t<true,
+template struct jit_avx512_core_x8s8s32x_convolution_fwd_t<
                                                 data_type::u8, data_type::f32>;
 }
 }

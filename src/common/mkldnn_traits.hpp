@@ -70,7 +70,6 @@ PKIND_TRAITS_INST(pooling);
 PKIND_TRAITS_INST(lrn);
 PKIND_TRAITS_INST(batch_normalization);
 PKIND_TRAITS_INST(inner_product);
-PKIND_TRAITS_INST(convolution_relu);
 PKIND_TRAITS_INST(rnn);
 #undef PKIND_TRAITS_INST
 

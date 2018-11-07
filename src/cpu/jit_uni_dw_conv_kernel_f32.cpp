@@ -333,8 +333,8 @@ bool jit_uni_dw_conv_fwd_kernel_f32<isa>::post_ops_ok(
 
     switch (p.len_) {
     case 0: return true; // no post_ops
-    case 1: return !jcp.with_relu && (is_relu(0) || is_sum(0)); // sum OR relu
-    case 2: return !jcp.with_relu && (is_sum(0) && is_relu(1)); // sum->relu
+    case 1: return is_relu(0) || is_sum(0); // sum OR relu
+    case 2: return is_sum(0) && is_relu(1); // sum->relu
     default: return false;
     }
 
@@ -345,7 +345,7 @@ template <cpu_isa_t isa>
 status_t jit_uni_dw_conv_fwd_kernel_f32<isa>::init_conf(jit_conv_conf_t &jcp,
         const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &weights_d, const memory_desc_wrapper &dst_d,
-        const primitive_attr_t &attr, bool with_relu, float relu_negative_slope)
+        const primitive_attr_t &attr)
 {
     if (!mayiuse(isa)) return status::unimplemented;
 
@@ -384,21 +384,16 @@ status_t jit_uni_dw_conv_fwd_kernel_f32<isa>::init_conf(jit_conv_conf_t &jcp,
 
     jcp.src_fmt = src_d.format();
     jcp.with_bias = cd.bias_desc.format != memory_format::undef;
-    jcp.with_relu = with_relu;
-    jcp.relu_negative_slope = relu_negative_slope;
 
     if (!post_ops_ok(jcp, attr))
         return status::unimplemented;
 
     const auto &p = attr.post_ops_;
     jcp.with_sum = p.find(primitive_kind::sum) != -1;
-    if (!jcp.with_relu) {
-        int eltwise_ind = p.find(primitive_kind::eltwise);
-        if (eltwise_ind != -1) {
-            jcp.with_relu  = true;
-            jcp.relu_negative_slope = p.entry_[eltwise_ind].eltwise.alpha;
-        }
-    }
+    const int eltwise_ind = p.find(primitive_kind::eltwise);
+    jcp.with_relu = eltwise_ind != -1;
+    jcp.relu_negative_slope = jcp.with_relu
+                            ? p.entry_[eltwise_ind].eltwise.alpha : 0.f;
 
     bool ok_to_pad_channels = true
         && jcp.oc == jcp.ngroups

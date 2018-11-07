@@ -115,9 +115,6 @@ void compute_ref_direct_fwd(const prb_t *p, dnn_mem_t &src_m,
                 conv_res += ((float*)bia_m)[bia_off];
             }
 
-            if (p->merge == RELU && conv_res < 0)
-                conv_res = 0;
-
             maybe_scale(conv_res, g * p->oc / p->g + oc);
             maybe_post_ops(conv_res, dst);
 

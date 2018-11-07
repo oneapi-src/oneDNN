@@ -44,22 +44,6 @@ const char *alg2str(alg_t alg) {
     return "unknown algorithm";
 }
 
-merge_t str2merge(const char *str) {
-#define CASE(_mrg) if (!strcasecmp(STRINGIFY(_mrg), str)) return _mrg
-    CASE(NONE);
-    CASE(RELU);
-#undef CASE
-    assert(!"unknown merge");
-    return NONE;
-}
-
-const char *merge2str(merge_t merge) {
-    if (merge == NONE) return "none";
-    if (merge == RELU) return "relu";
-    assert(!"unknown merge");
-    return "unknown merge";
-}
-
 int str2desc(desc_t *desc, const char *str, bool is_deconv) {
     desc_t d{0};
 
@@ -278,13 +262,11 @@ void prb_t::generate_oscales() {
 
 void prb2str(const prb_t *p, char *buffer, bool canonical) {
     char desc_buf[max_desc_len], attr_buf[max_attr_len];
-    char dir_str[32] = {0}, cfg_str[32] = {0}, alg_str[32] = {0},
-         merge_str[32] = {0};
+    char dir_str[32] = {0}, cfg_str[32] = {0}, alg_str[32] = {0};
     desc2str(p, desc_buf, canonical);
     snprintf(dir_str, sizeof(dir_str), "--dir=%s ", dir2str(p->dir));
     snprintf(cfg_str, sizeof(cfg_str), "--cfg=%s ", cfg2str(p->cfg));
     snprintf(alg_str, sizeof(alg_str), "--alg=%s ", alg2str(p->alg));
-    snprintf(merge_str, sizeof(merge_str), "--merge=%s ", merge2str(p->merge));
     bool is_attr_def = p->attr.is_def();
     if (!is_attr_def) {
         int len = snprintf(attr_buf, max_attr_len, "--attr=\"");
@@ -293,11 +275,10 @@ void prb2str(const prb_t *p, char *buffer, bool canonical) {
         len = (int)strnlen(attr_buf, max_attr_len);
         snprintf(attr_buf + len, max_attr_len - len, "\" ");
     }
-    snprintf(buffer, max_prb_len, "%s%s%s%s%s%s",
+    snprintf(buffer, max_prb_len, "%s%s%s%s%s",
             p->dir == FWD_B ? "" : dir_str,
             p->cfg == conf_f32 ? "" : cfg_str,
             p->alg == DIRECT ? "" : alg_str,
-            p->merge == NONE ? "" : merge_str,
             is_attr_def ? "" : attr_buf,
             desc_buf);
 }

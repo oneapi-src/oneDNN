@@ -47,9 +47,7 @@ struct jit_avx512_common_conv_fwd_kernel : public jit_generator {
             cpu_memory_t::pd_t &dst_pd,
             cpu_memory_t::pd_t &bias_pd,
             const primitive_attr_t &attr,
-            int nthreads,
-            bool with_relu,
-            float relu_negative_slope);
+            int nthreads);
 
     jit_conv_conf_t jcp;
     const primitive_attr_t &attr_;

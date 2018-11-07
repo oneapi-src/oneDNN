@@ -127,7 +127,6 @@ public:
         lrn = mkldnn_lrn,
         batch_normalization = mkldnn_batch_normalization,
         inner_product = mkldnn_inner_product,
-        convolution_relu = mkldnn_convolution_relu,
         rnn = mkldnn_rnn,
     };
 
@@ -333,7 +332,6 @@ enum query {
     lrn_d = mkldnn_query_lrn_d,
     batch_normalization_d = mkldnn_query_batch_normalization_d,
     inner_product_d = mkldnn_query_inner_product_d,
-    convolution_relu_d = mkldnn_query_convolution_relu_d,
     rnn_d = mkldnn_query_rnn_d,
 
     input_pd = mkldnn_query_input_pd,
@@ -1647,66 +1645,6 @@ struct convolution_backward_weights : public primitive {
         error::wrap_c_api(mkldnn_primitive_create(&result,
                     aprimitive_desc.get(), inputs, outputs),
                 "could not create a convolution backward weights primitive");
-        reset(result);
-    }
-};
-
-/// A merged convolution-relu primitive for inference mode only
-///
-/// @deprecated consider using convolution_forward with post_ops
-/// (e.g. post_ops::append_eltwise(1.f, #eltwise_relu, negative_slope, 0.f)
-struct convolution_relu_forward : public primitive {
-    struct desc {
-        mkldnn_convolution_relu_desc_t data;
-
-        desc(const convolution_forward::desc conv_desc,
-                const float negative_slope) {
-            error::wrap_c_api(mkldnn_convolution_relu_desc_init(&data,
-                        &conv_desc.data, negative_slope),
-                    "could not create a convolution_relu_forward descriptor");
-        }
-    };
-
-    struct primitive_desc : public mkldnn::primitive_desc {
-        primitive_desc(const desc &desc, const engine &e)
-            : mkldnn::primitive_desc(&desc.data, nullptr, e, nullptr) {}
-
-        REG_QUERY_MPD(src, src, 0);
-        REG_QUERY_MPD(weights, weights, 0);
-        REG_QUERY_MPD(bias, weights, 1);
-        REG_QUERY_MPD(dst, dst, 0);
-    };
-
-    /// @deprecated consider using convolution_forward + post_ops
-    MKLDNN_DEPRECATED
-    convolution_relu_forward(const primitive_desc &aprimitive_desc,
-            const primitive::at &src, const primitive::at &weights,
-            const primitive::at &bias, const memory &dst) {
-        mkldnn_primitive_t result;
-        mkldnn_primitive_at_t inputs[] = { src.data, weights.data,
-                bias.data };
-        const_mkldnn_primitive_t outputs[] = { dst.get() };
-        check_num_parameters(aprimitive_desc.get(), 3, 1,
-            "convolution relu forward");
-        error::wrap_c_api(mkldnn_primitive_create(&result,
-                aprimitive_desc.get(), inputs, outputs),
-            "could not create a convolution relu forward primitive");
-        reset(result);
-    }
-
-    /// @deprecated consider using convolution_forward + post_ops
-    MKLDNN_DEPRECATED
-    convolution_relu_forward(const primitive_desc &aprimitive_desc,
-            const primitive::at &src, const primitive::at &weights,
-            const memory &dst) {
-        mkldnn_primitive_t result;
-        mkldnn_primitive_at_t inputs[] = { src.data, weights.data };
-        const_mkldnn_primitive_t outputs[] = { dst.get() };
-        check_num_parameters(aprimitive_desc.get(), 2, 1,
-            "convolution relu forward");
-        error::wrap_c_api(mkldnn_primitive_create(&result,
-                aprimitive_desc.get(), inputs, outputs),
-            "could not create a convolution relu forward primitive");
         reset(result);
     }
 };

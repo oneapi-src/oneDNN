@@ -243,7 +243,6 @@ namespace primitive_kind {
     const primitive_kind_t lrn = mkldnn_lrn;
     const primitive_kind_t batch_normalization = mkldnn_batch_normalization;
     const primitive_kind_t inner_product = mkldnn_inner_product;
-    const primitive_kind_t convolution_relu = mkldnn_convolution_relu;
     const primitive_kind_t rnn = mkldnn_rnn;
 }
 
@@ -274,7 +273,6 @@ namespace query {
     const query_t lrn_d = mkldnn_query_lrn_d;
     const query_t batch_normalization_d = mkldnn_query_batch_normalization_d;
     const query_t inner_product_d = mkldnn_query_inner_product_d;
-    const query_t convolution_relu_d = mkldnn_query_convolution_relu_d;
     const query_t rnn_d = mkldnn_query_rnn_d;
 
     const query_t some_pd = mkldnn_query_some_pd;
@@ -302,7 +300,6 @@ using softmax_desc_t = mkldnn_softmax_desc_t;
 using lrn_desc_t = mkldnn_lrn_desc_t;
 using batch_normalization_desc_t = mkldnn_batch_normalization_desc_t;
 using inner_product_desc_t = mkldnn_inner_product_desc_t;
-using convolution_relu_desc_t = mkldnn_convolution_relu_desc_t;
 
 using rnn_direction_t = mkldnn_rnn_direction_t;
 using rnn_cell_desc_t = mkldnn_rnn_cell_desc_t;
@@ -325,7 +322,6 @@ struct op_desc_t {
         lrn_desc_t lrn;
         batch_normalization_desc_t batch_normalization;
         inner_product_desc_t inner_product;
-        convolution_relu_desc_t convolution_relu;
         rnn_desc_t rnn;
     };
 
@@ -347,7 +343,6 @@ struct op_desc_t {
     DECL_CTOR_AND_CONVERTERS(lrn_desc_t, lrn);
     DECL_CTOR_AND_CONVERTERS(batch_normalization_desc_t, batch_normalization);
     DECL_CTOR_AND_CONVERTERS(inner_product_desc_t, inner_product);
-    DECL_CTOR_AND_CONVERTERS(convolution_relu_desc_t, convolution_relu);
     DECL_CTOR_AND_CONVERTERS(rnn_desc_t, rnn);
 
 #   undef DECL_CTOR_AND_CONVERTERS

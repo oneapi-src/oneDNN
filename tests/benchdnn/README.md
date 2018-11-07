@@ -47,7 +47,6 @@ where *harness-knobs* are:
  - `--cfg={f32, u8s8u8s32, ...}` configuration (see below), default `f32`
  - `--dir={FWD_D (forward data), FWD_B (forward data + bias),FWD_I (forward data inference), BWD_D (backward data), BWD_W (backward weights), BWD_WB (backward weights + bias)}` direction, default `FWD_B`
  - `--alg={DIRECT, WINO}` convolution algorithm, default DIRECT
- - `--merge={NONE, RELU}` merged primitive, default NONE (nothing merged)
  - `--attr="attr_str"` convolution attributes (see in the section below), default `""` (no attributes set)
  - `--mb=N` override minibatch that is specified in convolution description, default `0` (use mb specified in conv desc)
  - `--match=regex` check only convolutions that match with regex, default is `".*"`. Notice: Windows may only interpret string arguments surrounded by double quotation marks.
@@ -183,16 +182,16 @@ Run the set of f32 forward convolutions from inputs/conv_all file w/ bias and de
         --cfg=f32 --dir=FWD_B --batch=inputs/conv_all
 ```
 
-Run the same but with merged ReLU:
+Run the same but with post_ops ReLU:
 ```
     $ ./benchdnn --conv \
-        --cfg=f32 --dir=FWD_B --merge=RELU --batch=inputs/conv_all
+        --cfg=f32 --dir=FWD_B --attr="post_ops='relu'" --batch=inputs/conv_all
 ```
 
 Run the same as previous but also measure performance:
 ```
-    $ ./benchdnn --conv --mode=CORRnPERF \
-        --cfg=f32 --dir=FWD_B --merge=RELU --batch=inputs/conv_all
+    $ ./benchdnn --conv  --mode=CORRnPERF \
+        --cfg=f32 --dir=FWD_B --attr="post_ops='relu'" --batch=inputs/conv_all
 ```
 
 > **note**: instead of `CORRnPERF` one can use `CP`, `PC`, `cp`, or `pc`
@@ -272,7 +271,6 @@ attributes/mkldnn_post_ops_t:
 | FWD_{D,B}     | forward w/o and w/ bias
 | BWD_{D,W,WB}  | backward wrt data, weights, and weights and bias
 | DIRECT, WINO  | convolution algorithm: direct or Winograd based
-| NONE, RELU    | merged primitives: nothing or ReLU
 
 
 ## Usage (batch normalization harness)

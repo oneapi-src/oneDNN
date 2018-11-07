@@ -247,7 +247,6 @@ bool jit_avx512_core_fp32_wino_conv_2x3_dst_trans_t::maybe_relu(int position) {
     if (position == 0) {
         /* relu before sum */
         return false
-            || jcp.with_relu
             || p.contain(eltwise, 0);
     } else if (position == 1) {
         /* relu after sum */
@@ -411,7 +410,6 @@ struct jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t: public jit_generator {
             cpu_memory_t::pd_t &src_pd, cpu_memory_t::pd_t &weights_pd,
             cpu_memory_t::pd_t &dst_pd, cpu_memory_t::pd_t &bias_pd,
             const primitive_attr_t &attr,
-            bool with_relu, float relu_negative_slope,
             memory_desc_t& expect_wei_md);
 
     Zmm vreg_out(int n, int m) {
@@ -457,17 +455,10 @@ bool jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t::post_ops_ok(
 
    switch (p.len_) {
     case 0: return true;
-    case 1: return true
-                && IMPLICATION(jcp.with_relu, p.contain(sum, 0))
-                && IMPLICATION(!jcp.with_relu, is_relu(0) || p.contain(sum, 0));
-    case 2: return true
-                && IMPLICATION(jcp.with_relu, p.contain(sum, 0) && is_relu(1))
-                && IMPLICATION(!jcp.with_relu, false
-                        || (p.contain(sum, 0) && is_relu(1))
-                        || (p.contain(sum, 1) && is_relu(0)));
-    case 3: return true
-                && jcp.with_relu == false
-                && (is_relu(0) && p.contain(sum, 1) && is_relu(2));
+    case 1: return is_relu(0) || p.contain(sum, 0);
+    case 2: return (p.contain(sum, 0) && is_relu(1)) ||
+                       (p.contain(sum, 1) && is_relu(0));
+    case 3: return is_relu(0) && p.contain(sum, 1) && is_relu(2);
     default: return false;
     }
 
@@ -581,8 +572,7 @@ status_t jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t ::init_conf(
         jit_conv_conf_2x3_wino_t &jcp, const convolution_desc_t &cd,
         cpu_memory_t::pd_t &src_pd, cpu_memory_t::pd_t &wei_pd,
         cpu_memory_t::pd_t &dst_pd, cpu_memory_t::pd_t &bias_pd,
-        const primitive_attr_t &attr, bool with_relu, float relu_negative_slope,
-        memory_desc_t &expect_wei_md) {
+        const primitive_attr_t &attr, memory_desc_t &expect_wei_md) {
     const memory_desc_wrapper src_d(&src_pd);
     const memory_desc_wrapper wei_d(&wei_pd);
     const memory_desc_wrapper dst_d(&dst_pd);
@@ -616,12 +606,13 @@ status_t jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t ::init_conf(
     int simdw = 16;
     jcp.src_fmt = src_d.format();
     jcp.with_bias = cd.bias_desc.format != memory_format::undef;
-    jcp.with_relu = with_relu;
-    jcp.relu_negative_slope = relu_negative_slope;
-    if (!IMPLICATION(with_relu, relu_negative_slope == 0.))
-        return status::unimplemented;
+
     if (!post_ops_ok(jcp, attr))
         return status::unimplemented;
+
+    const auto &p = attr.post_ops_;
+    jcp.with_relu = p.find(primitive_kind::eltwise) != -1;
+    jcp.relu_negative_slope = 0.f;
 
     bool ok_to_pad_channels = jcp.ngroups == 1;
     if (ok_to_pad_channels) {
@@ -839,21 +830,20 @@ status_t jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t ::init_conf(
 }
 ////////////////////////////////////////////////////////////////////////////////
 
-template <bool with_relu>
-status_t _jit_avx512_core_fp32_wino_conv_2x3_fwd_t<with_relu>
+status_t jit_avx512_core_fp32_wino_conv_2x3_fwd_t
     ::pd_t::jit_conf(memory_desc_t& expect_wei_md) {
     return jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t::init_conf(
-            jcp_, this->cdesc_(), this->src_pd_, this->weights_pd_,
-            this->dst_pd_,this->bias_pd_, *this->attr(),
-            with_relu, this->negative_slope(), expect_wei_md);
+            jcp_, *this->desc(), this->src_pd_, this->weights_pd_,
+            this->dst_pd_,this->bias_pd_, *this->attr(), expect_wei_md);
 }
 
-template <bool with_relu>
-_jit_avx512_core_fp32_wino_conv_2x3_fwd_t<with_relu>::
-        _jit_avx512_core_fp32_wino_conv_2x3_fwd_t(const pd_t *pd,
+jit_avx512_core_fp32_wino_conv_2x3_fwd_t::
+        jit_avx512_core_fp32_wino_conv_2x3_fwd_t(const pd_t *pd,
                 const input_vector &inputs, const output_vector &outputs)
     : cpu_primitive_t(&conf_, inputs, outputs)
     , conf_(*pd), padded_bias_(nullptr) {
+    MAYBE_UNUSED(size_wino_wei);
+    MAYBE_UNUSED(dst_bias_);
     const int nthreads = mkldnn_get_max_threads();
     kernel_ = new jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t(
             conf_.jcp_, *conf_.attr());
@@ -881,9 +871,8 @@ _jit_avx512_core_fp32_wino_conv_2x3_fwd_t<with_relu>::
 
 }
 
-template <bool with_relu>
-_jit_avx512_core_fp32_wino_conv_2x3_fwd_t<with_relu>
-    ::~_jit_avx512_core_fp32_wino_conv_2x3_fwd_t() {
+jit_avx512_core_fp32_wino_conv_2x3_fwd_t
+    ::~jit_avx512_core_fp32_wino_conv_2x3_fwd_t() {
     delete kernel_;
     delete src_trans_;
     delete dst_trans_;
@@ -893,9 +882,7 @@ _jit_avx512_core_fp32_wino_conv_2x3_fwd_t<with_relu>
     free(padded_bias_);
 }
 
-template <bool with_relu>
-void _jit_avx512_core_fp32_wino_conv_2x3_fwd_t<
-        with_relu>::execute_forward() {
+void jit_avx512_core_fp32_wino_conv_2x3_fwd_t::execute_forward() {
     const auto &jcp = kernel_->jcp;
 
     if (jcp.small_mb)
@@ -904,9 +891,7 @@ void _jit_avx512_core_fp32_wino_conv_2x3_fwd_t<
         execute_forward_mbN();
 }
 
-template <bool with_relu>
-void _jit_avx512_core_fp32_wino_conv_2x3_fwd_t<with_relu>
-::execute_forward_mbN() {
+void jit_avx512_core_fp32_wino_conv_2x3_fwd_t::execute_forward_mbN() {
     auto src = reinterpret_cast<const float *>(input_memory(0));
     auto wei = reinterpret_cast<const float *>(input_memory(1));
     auto bia = reinterpret_cast<const float *>(input_memory(2));
@@ -1027,9 +1012,7 @@ void _jit_avx512_core_fp32_wino_conv_2x3_fwd_t<with_relu>
     });
 }
 
-template <bool with_relu>
-void _jit_avx512_core_fp32_wino_conv_2x3_fwd_t<with_relu>
-    ::execute_forward_small_mb() {
+void jit_avx512_core_fp32_wino_conv_2x3_fwd_t::execute_forward_small_mb() {
     auto src = reinterpret_cast<const float *>(input_memory(0));
     auto wei = reinterpret_cast<const float *>(input_memory(1));
     auto bia = reinterpret_cast<const float *>(input_memory(2));
@@ -1143,9 +1126,6 @@ void _jit_avx512_core_fp32_wino_conv_2x3_fwd_t<with_relu>
         });
     }}}
 }
-
-template struct _jit_avx512_core_fp32_wino_conv_2x3_fwd_t<true>;
-template struct _jit_avx512_core_fp32_wino_conv_2x3_fwd_t<false>;
 
 } // namespace cpu
 } // namespace impl

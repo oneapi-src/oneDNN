@@ -1370,24 +1370,12 @@ bool jit_avx512_core_fp32_wino_conv_4x3_fwd_kernel::post_ops_ok(
     auto is_sum = [&](int idx) { return p.entry_[idx].is_sum(); };
 
     switch (p.len_) {
-    case 0:
-        return true; // no post_ops
-    case 1:
-        return true // relu or sum
-                && IMPLICATION(jcp.with_relu, is_sum(0))
-                && IMPLICATION(!jcp.with_relu, is_relu(0) || is_sum(0));
-    case 2:
-        return true // sum->relu or relu->sum
-                && IMPLICATION(jcp.with_relu, is_sum(0) && is_relu(1))
-                && IMPLICATION(!jcp.with_relu, false
-                                   || (is_sum(0) && is_relu(1))
-                                   || (is_relu(0) && is_sum(1)));
-    case 3:
-        return true // relu->sum->relu
-                && jcp.with_relu == false
-                && (is_relu(0) && is_sum(1) && is_relu(2));
-    default:
-        return false;
+    case 0: return true; // no post_ops
+    case 1: return is_relu(0) || is_sum(0); // relu or sum
+    case 2: return (is_sum(0) && is_relu(1))
+                      || (is_relu(0) && is_sum(1)); // sum->relu or relu->sum
+    case 3: return is_relu(0) && is_sum(1) && is_relu(2); // relu->sum->relu
+    default: return false;
     }
 
     return false;
@@ -1396,8 +1384,7 @@ bool jit_avx512_core_fp32_wino_conv_4x3_fwd_kernel::post_ops_ok(
 status_t jit_avx512_core_fp32_wino_conv_4x3_fwd_kernel::init_conf(
         jit_conv_winograd_conf_t &jcp, const convolution_desc_t &cd,
         const cpu_memory_t::pd_t &src_pd, cpu_memory_t::pd_t &weights_pd,
-        const cpu_memory_t::pd_t &dst_pd, const primitive_attr_t &attr,
-        bool with_relu, float relu_negative_slope) {
+        const cpu_memory_t::pd_t &dst_pd, const primitive_attr_t &attr) {
 
     status_t st = init_conf_common(jcp, cd,
                         *src_pd.desc(), *weights_pd.desc(), *dst_pd.desc());
@@ -1411,20 +1398,15 @@ status_t jit_avx512_core_fp32_wino_conv_4x3_fwd_kernel::init_conf(
     jcp.ntiles = jcp.mb * jcp.itiles * jcp.jtiles;
 
     jcp.with_bias = cd.bias_desc.format != memory_format::undef;
-    jcp.with_relu = with_relu;
-    jcp.relu_negative_slope = relu_negative_slope;
 
     if (!post_ops_ok(jcp, attr))
         return status::unimplemented;
 
     const auto &p = attr.post_ops_;
-    if (!jcp.with_relu) {
-        /* PostOps ReLU before SUM is handled the same as ReLU primitive */
-        jcp.with_relu = p.find(primitive_kind::eltwise, 0, 1) != -1;
-        jcp.relu_negative_slope = 0.f;
-    }
     jcp.with_sum = p.find(primitive_kind::sum, 0) != -1;
     jcp.with_relu_postsum = p.find(primitive_kind::eltwise, 1) != -1;
+    jcp.with_relu = p.find(primitive_kind::eltwise, 0, 1) != -1;
+    jcp.relu_negative_slope = 0.f;
 
     status_t res = init_conf_kernel(jcp, jcp.oc, jcp.ntiles, jcp.ic);
 

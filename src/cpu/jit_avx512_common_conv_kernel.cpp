@@ -1269,12 +1269,8 @@ bool jit_avx512_common_conv_fwd_kernel::post_ops_ok(
 
     switch (p.len_) {
     case 0: return true; // no post_ops
-    case 1:
-        return true // sum OR relu
-                && !jcp.with_relu && (is_relu(0) || is_sum(0));
-    case 2:
-        return true // sum->relu
-                && !jcp.with_relu && (is_sum(0) && is_relu(1));
+    case 1: return is_relu(0) || is_sum(0); // sum OR relu
+    case 2: return is_sum(0) && is_relu(1); // sum->relu
     default: return false;
     }
 
@@ -1286,7 +1282,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
             const convolution_desc_t &cd, cpu_memory_t::pd_t &src_pd,
             cpu_memory_t::pd_t &weights_pd, cpu_memory_t::pd_t &dst_pd,
             cpu_memory_t::pd_t &bias_pd, const primitive_attr_t &attr,
-            int nthreads, bool with_relu, float relu_negative_slope)
+            int nthreads)
 {
     using namespace prop_kind;
 
@@ -1328,8 +1324,6 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
     jcp.stride_h = (ndims == 3) ? 1 : cd.strides[ndims-4];
     jcp.stride_w = cd.strides[ndims-3];
     jcp.src_fmt = src_d.format();
-    jcp.with_relu = with_relu;
-    jcp.relu_negative_slope = relu_negative_slope;
 
     jcp.dilate_d = (ndims == 5) ? cd.dilates[0] : 0;
     jcp.dilate_h = (ndims == 3) ? 0 : cd.dilates[ndims-4];
@@ -1365,10 +1359,14 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
 
     const auto &p = attr.post_ops_;
     jcp.with_sum = p.find(primitive_kind::sum) != -1;
-    if (!jcp.with_relu) {
-        jcp.with_relu = p.find(primitive_kind::eltwise) != -1;
-        jcp.relu_negative_slope = 0;
-    }
+    jcp.with_relu = p.find(primitive_kind::eltwise) != -1;
+    jcp.relu_negative_slope = 0.f;
+
+    if (everyone_is(1, jcp.with_relu, jcp.relu_negative_slope == 0,
+                    src_d.data_type() == data_type::s16,
+                    weights_d.data_type() == data_type::s16,
+                    dst_d.data_type() == data_type::s32))
+        return status::unimplemented;
 
     auto src_format = jcp.is_1stconv
         ? pick(ndims - 3, ncw, nchw, ncdhw)

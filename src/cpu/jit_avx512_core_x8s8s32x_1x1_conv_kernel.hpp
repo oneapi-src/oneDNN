@@ -44,21 +44,8 @@ struct jit_avx512_core_x8s8s32x_1x1_conv_kernel: public jit_generator {
                                 const memory_desc_wrapper &dst_d,
                                 const memory_desc_wrapper &bias_d,
                                 const primitive_attr_t &attr,
-                                bool with_relu, float relu_negative_slope,
                                 int nthreads, bool reduce_src);
 
-    static status_t init_conf(jit_1x1_conv_conf_t &jcp,
-                              const convolution_desc_t &cd,
-                              const memory_desc_wrapper &src_d,
-                              const memory_desc_wrapper &weights_d,
-                              const memory_desc_wrapper &dst_d,
-                              const memory_desc_wrapper &bias_d,
-                              const primitive_attr_t &attr,
-                              int nthreads, bool reduce_src)
-    {
-        return init_conf(jcp, cd, src_d, weights_d, dst_d, bias_d, attr, false,
-            0.0, nthreads, reduce_src);
-    }
     bool maybe_relu(int position);
 
     jit_1x1_conv_conf_t jcp;

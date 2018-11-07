@@ -29,17 +29,17 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-template <bool with_relu, data_type_t src_type, data_type_t dst_type>
+template <data_type_t src_type, data_type_t dst_type>
 struct _gemm_x8s8s32x_convolution_fwd_t: public cpu_primitive_t {
-    struct pd_t: public _cpu_convolution_fwd_pd_t<with_relu> {
-        pd_t(engine_t *engine, const typename pd_t::base_desc_t *adesc,
+    struct pd_t: public cpu_convolution_fwd_pd_t {
+        pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const typename pd_t::base_class *hint_fwd_pd)
-            : _cpu_convolution_fwd_pd_t<with_relu>(engine, adesc, attr,
+            : cpu_convolution_fwd_pd_t(engine, adesc, attr,
                     hint_fwd_pd), jcp_() {}
 
         DECLARE_COMMON_PD_T("gemm:blas",
-                _gemm_x8s8s32x_convolution_fwd_t<with_relu, src_type, dst_type>);
+                _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>);
 
         virtual status_t init() override {
             using namespace data_type;
@@ -52,18 +52,18 @@ struct _gemm_x8s8s32x_convolution_fwd_t: public cpu_primitive_t {
                 && false
 #endif
                 && this->set_default_params() == status::success
-                && utils::one_of(this->cdesc_().prop_kind,
+                && utils::one_of(this->desc()->prop_kind,
                         prop_kind::forward_training,
                         prop_kind::forward_inference)
-                && this->cdesc_().alg_kind == alg_kind::convolution_direct
+                && this->desc()->alg_kind == alg_kind::convolution_direct
                 && !this->has_zero_dim_memory()
-                && this->cdesc_().src_desc.data_type == src_type
-                && this->cdesc_().dst_desc.data_type == dst_type
-                && this->cdesc_().weights_desc.data_type == s8
+                && this->desc()->src_desc.data_type == src_type
+                && this->desc()->dst_desc.data_type == dst_type
+                && this->desc()->weights_desc.data_type == s8
                 && IMPLICATION(this->with_bias(), utils::one_of(
-                            this->cdesc_().bias_desc.data_type, f32, s32, s8,
+                            this->desc()->bias_desc.data_type, f32, s32, s8,
                             u8))
-                && this->cdesc_().accum_data_type == data_type::s32
+                && this->desc()->accum_data_type == data_type::s32
                 && utils::everyone_is(nhwc, this->src_pd_.desc()->format,
                         this->dst_pd_.desc()->format)
                 && this->weights_pd_.desc()->format == (this->with_groups()
@@ -80,7 +80,7 @@ struct _gemm_x8s8s32x_convolution_fwd_t: public cpu_primitive_t {
         virtual status_t set_default_params() override {
             using namespace memory_format;
             bool is_sign_input =
-                    (this->cdesc_().src_desc.data_type == data_type::s8);
+                    (this->desc()->src_desc.data_type == data_type::s8);
             if (this->src_pd_.desc()->format == any)
                 CHECK(this->src_pd_.set_format(nhwc));
             if (this->dst_pd_.desc()->format == any)
@@ -96,19 +96,16 @@ struct _gemm_x8s8s32x_convolution_fwd_t: public cpu_primitive_t {
 
         virtual bool is_gemm_conv_format() const {
             using namespace mkldnn::impl::primitive_kind;
-            bool ok = true;
             auto const &po = this->attr()->post_ops_;
+            auto is_relu = [&](int idx) { return po.entry_[idx].is_relu(); };
+
             switch (po.len_) {
-            case 0: break;
-            case 1: ok = ok
-                    && (po.entry_[0].is_relu() || po.contain(sum, 0));
-                break;
-            case 2: ok = ok
-                    && (po.contain(sum, 0) && po.entry_[1].is_relu());
-                break;
-            default: ok = false;
+            case 0: return true;
+            case 1: return is_relu(0) || po.contain(sum, 0);
+            case 2: return po.contain(sum, 0) && is_relu(1);
+            default: return false;
             }
-            return ok;
+            return false;
         }
     };
 
@@ -118,8 +115,8 @@ struct _gemm_x8s8s32x_convolution_fwd_t: public cpu_primitive_t {
         , scratchpad_(nullptr)
     {
         jit_gemm_convolution_utils::init_conf(conf_.jcp_,
-            *conf_.cdesc(), conf_.src_pd(), conf_.weights_pd(0),
-            conf_.dst_pd(), mkldnn_get_max_threads(), with_relu, conf_.negative_slope());
+            *conf_.desc(), conf_.src_pd(), conf_.weights_pd(0),
+            conf_.dst_pd(), mkldnn_get_max_threads());
 
         size_t col_size = (size_t)conf_.jcp_.im2col_sz * sizeof(src_data_t);
         size_t acc_size = (size_t)conf_.jcp_.os * conf_.jcp_.oc

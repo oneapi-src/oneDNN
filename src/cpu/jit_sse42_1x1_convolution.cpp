@@ -35,8 +35,7 @@ using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::utils;
 
-template <bool with_relu>
-void _jit_sse42_1x1_convolution_fwd_t<with_relu>::execute_forward() {
+void jit_sse42_1x1_convolution_fwd_t::execute_forward() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto weights = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto bias = reinterpret_cast<const data_t *>(this->input_memory(2));
@@ -126,9 +125,6 @@ void _jit_sse42_1x1_convolution_fwd_t<with_relu>::execute_forward() {
         }
     });
 }
-
-template void _jit_sse42_1x1_convolution_fwd_t<true>::execute_forward();
-template void _jit_sse42_1x1_convolution_fwd_t<false>::execute_forward();
 
 }
 }

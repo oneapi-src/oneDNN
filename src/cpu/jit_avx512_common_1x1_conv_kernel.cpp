@@ -625,12 +625,8 @@ bool jit_avx512_common_1x1_conv_kernel::post_ops_ok(
 
     switch (p.len_) {
     case 0: return true; // no post_ops
-    case 1:
-        return true // sum OR relu
-                && !jcp.with_relu && (is_relu(0) || is_sum(0));
-    case 2:
-        return true // sum->relu
-                && !jcp.with_relu && (is_sum(0) && is_relu(1));
+    case 1: return is_relu(0) || is_sum(0); // sum OR relu
+    case 2: return is_sum(0) && is_relu(1); // sum->relu
     default: return false;
     }
 
@@ -641,7 +637,6 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
         jit_1x1_conv_conf_t &jcp, const convolution_desc_t &cd,
         const memory_desc_wrapper &src_d, const memory_desc_wrapper &weights_d,
         const memory_desc_wrapper &dst_d, const primitive_attr_t &attr,
-        bool with_relu, float relu_negative_slope,
         int nthreads, bool reduce_src)
 {
     if (!mayiuse(avx512_common)) return status::unimplemented;
@@ -684,8 +679,6 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
     jcp.src_fmt = src_d.format();
     jcp.with_bias = one_of(jcp.prop_kind, forward_training, forward_inference)
         ? cd.bias_desc.format != memory_format::undef : false;
-    jcp.with_relu = with_relu;
-    jcp.relu_negative_slope = relu_negative_slope;
 
     jcp.os = jcp.oh * jcp.ow;
     jcp.is = jcp.ih * jcp.iw;
@@ -696,10 +689,14 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
 
     const auto &p = attr.post_ops_;
     jcp.with_sum = p.find(primitive_kind::sum) != -1;
-    if (!jcp.with_relu) {
-        jcp.with_relu = p.find(primitive_kind::eltwise) != -1;
-        jcp.relu_negative_slope = 0;
-    }
+    jcp.with_relu = p.find(primitive_kind::eltwise) != -1;
+    jcp.relu_negative_slope = 0.f;
+
+    if (everyone_is(1, jcp.with_relu,
+                    src_d.data_type() == data_type::s16,
+                    weights_d.data_type() == data_type::s16,
+                    dst_d.data_type() == data_type::s32))
+        return status::unimplemented;
 
     bool args_ok = true
         && jcp.ngroups == 1

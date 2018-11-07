@@ -55,7 +55,6 @@ double get_trust_nz_level(const prb_t *p, data_kind_t kind, bool final_compare)
         int count = 0;
         for (int i = 0; i < po.len; ++i)
             count += po.entry[i].kind == attr_t::post_ops_t::kind_t::RELU;
-        count = MAX2(count, p->merge == RELU ? 1 : 0);
         return count;
     };
 
@@ -467,15 +466,8 @@ inline int init_pd(const prb_t *p, mkldnn_convolution_desc_t &cd,
     auto mkldnn_attr = create_mkldnn_attr(p->attr, p->oc, p->scales);
 
     mkldnn_status_t init_status = mkldnn_success;
-    if (p->merge == RELU) {
-        mkldnn_convolution_relu_desc_t crd;
-        DNN_SAFE(mkldnn_convolution_relu_desc_init(&crd, &cd, 0), WARN);
-        init_status = mkldnn_primitive_desc_create_v2(&cpd, &crd, mkldnn_attr,
+    init_status = mkldnn_primitive_desc_create_v2(&cpd, &cd, mkldnn_attr,
                 engine, NULL);
-    } else {
-        init_status = mkldnn_primitive_desc_create_v2(&cpd, &cd, mkldnn_attr,
-                engine, NULL);
-    }
 
     mkldnn_primitive_attr_destroy(mkldnn_attr);
 

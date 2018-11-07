@@ -154,7 +154,7 @@ struct ref_deconvolution_fwd_t: public cpu_primitive_t {
             convolution_desc_t cd;
             status_t status;
 
-            status = conv_descr_create(this->cdesc(), &cd);
+            status = conv_descr_create(this->desc(), &cd);
             if (status != status::success) return status;
 
             mkldnn_primitive_desc_iterator it(this->engine_, (op_desc_t *)&cd,
@@ -285,7 +285,7 @@ struct ref_deconvolution_bwd_data_t: public cpu_primitive_t {
             convolution_desc_t cd;
             status_t status;
 
-            status = conv_descr_create(this->cdesc(), &cd);
+            status = conv_descr_create(this->desc(), &cd);
             if (status != status::success) return status;
 
              mkldnn_primitive_desc_iterator it(this->engine_, (op_desc_t *)&cd,
@@ -381,7 +381,7 @@ struct ref_deconvolution_bwd_weights_t: public cpu_primitive_t {
             convolution_desc_t cd;
             status_t status;
 
-            status = conv_descr_create(this->cdesc(), &cd);
+            status = conv_descr_create(this->desc(), &cd);
             if (status != status::success) return status;
 
              mkldnn_primitive_desc_iterator it(this->engine_, (op_desc_t *)&cd,

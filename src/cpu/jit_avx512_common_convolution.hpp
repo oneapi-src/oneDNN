@@ -29,57 +29,52 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-template <bool with_relu, impl::data_type_t src_type,
+template <impl::data_type_t src_type,
          impl::data_type_t wei_type = src_type,
          impl::data_type_t dst_type = src_type>
-struct _jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
-    struct pd_t : public _cpu_convolution_fwd_pd_t<with_relu> {
-        pd_t(engine_t *engine, const typename pd_t::base_desc_t *adesc,
+struct jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
+    struct pd_t : public cpu_convolution_fwd_pd_t {
+        pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const typename pd_t::base_class *hint_fwd_pd)
-            : _cpu_convolution_fwd_pd_t<with_relu>(engine, adesc, attr,
-                    hint_fwd_pd)
+            : cpu_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
             , jcp_()
         {
         }
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit:", avx512_common, ""),
-                _jit_avx512_common_convolution_fwd_t);
+                jit_avx512_common_convolution_fwd_t);
 
         virtual status_t init() override
         {
             using namespace prop_kind;
             assert(this->engine()->kind() == engine_kind::cpu);
             bool ok = true
-                    && utils::one_of(this->cdesc_().prop_kind, forward_training,
+                    && utils::one_of(this->desc()->prop_kind, forward_training,
                                forward_inference)
-                    && this->cdesc_().alg_kind == alg_kind::convolution_direct
+                    && this->desc()->alg_kind == alg_kind::convolution_direct
                     && !this->has_zero_dim_memory()
-                    && this->cdesc_().src_desc.data_type == src_type
-                    && this->cdesc_().weights_desc.data_type == wei_type
-                    && this->cdesc_().dst_desc.data_type == dst_type
+                    && this->desc()->src_desc.data_type == src_type
+                    && this->desc()->weights_desc.data_type == wei_type
+                    && this->desc()->dst_desc.data_type == dst_type
                     && IMPLICATION(this->with_bias(), dst_type
-                                       == this->cdesc_().bias_desc.data_type)
-                    && !(with_relu && this->negative_slope()!= 0.
-                                   && dst_type == data_type::s32
-                                   && src_type == data_type::s16
-                                   && wei_type == data_type::s16);
+                                       == this->desc()->bias_desc.data_type);
             if (!ok)
                 return status::unimplemented;
 
             return jit_avx512_common_conv_fwd_kernel::init_conf(
-                    jcp_, this->cdesc_(), this->src_pd_, this->weights_pd_,
+                    jcp_, *this->desc(), this->src_pd_, this->weights_pd_,
                     this->dst_pd_,this->bias_pd_, *this->attr(),
-                    mkldnn_get_max_threads(), with_relu, this->negative_slope());
+                    mkldnn_get_max_threads());
         }
 
-        inline int ndims() { return this->cdesc_().src_desc.ndims; }
+        inline int ndims() { return this->desc()->src_desc.ndims; }
 
         jit_conv_conf_t jcp_;
     };
 
-    _jit_avx512_common_convolution_fwd_t(const pd_t *pd,
+    jit_avx512_common_convolution_fwd_t(const pd_t *pd,
             const input_vector &inputs, const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
         , padded_bias_(nullptr)
@@ -95,7 +90,7 @@ struct _jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
                 padded_bias_[oc] = 0;
         }
     }
-    ~_jit_avx512_common_convolution_fwd_t() {
+    ~jit_avx512_common_convolution_fwd_t() {
         delete kernel_;
         free(padded_bias_);
     };
@@ -125,16 +120,6 @@ private:
     jit_avx512_common_conv_fwd_kernel *kernel_;
     dst_data_t *padded_bias_;
 };
-
-template <impl::data_type_t src_type, impl::data_type_t wei_type = src_type,
-         impl::data_type_t dst_type = src_type>
-using jit_avx512_common_convolution_fwd_t =
-    _jit_avx512_common_convolution_fwd_t<false, src_type, wei_type, dst_type>;
-
-template <impl::data_type_t src_type, impl::data_type_t wei_type = src_type,
-         impl::data_type_t dst_type = src_type>
-using jit_avx512_common_convolution_relu_t =
-    _jit_avx512_common_convolution_fwd_t<true, src_type, wei_type, dst_type>;
 
 template <impl::data_type_t diff_dst_type,
           impl::data_type_t wei_type = diff_dst_type,

@@ -39,8 +39,7 @@ using namespace mkldnn::impl::utils;
 
 /* convolution forward */
 
-template <bool with_relu>
-void _jit_avx2_1x1_convolution_fwd_t<with_relu>::execute_forward() {
+void jit_avx2_1x1_convolution_fwd_t::execute_forward() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto weights = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto bias = reinterpret_cast<const data_t *>(this->input_memory(2));
@@ -55,10 +54,10 @@ void _jit_avx2_1x1_convolution_fwd_t<with_relu>::execute_forward() {
     const int work_amount = jcp.mb * jcp.ngroups * jcp.nb_bcast;
     const int ndims = dst_d.ndims();
 
-    const int stride_h = (ndims == 3) ? 1 : conf_.cdesc()->strides[0];
-    const int stride_w = conf_.cdesc()->strides[ndims - 3];
-    const int pad_t = (ndims == 3) ? 0 : conf_.cdesc()->padding[0][0];
-    const int pad_l = conf_.cdesc()->padding[0][ndims - 3];
+    const int stride_h = (ndims == 3) ? 1 : conf_.desc()->strides[0];
+    const int stride_w = conf_.desc()->strides[ndims - 3];
+    const int pad_t = (ndims == 3) ? 0 : conf_.desc()->padding[0][0];
+    const int pad_l = conf_.desc()->padding[0][ndims - 3];
 
     auto step = [](int default_step, int remaining, int tail_step) {
         assert(default_step <= tail_step);
@@ -161,9 +160,6 @@ void _jit_avx2_1x1_convolution_fwd_t<with_relu>::execute_forward() {
 
     parallel(0, ker);
 }
-
-template struct _jit_avx2_1x1_convolution_fwd_t<true>;
-template struct _jit_avx2_1x1_convolution_fwd_t<false>;
 
 /* convolution backward wtr data */
 

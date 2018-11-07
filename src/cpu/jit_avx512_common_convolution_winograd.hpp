@@ -203,46 +203,44 @@ struct _jit_avx512_common_convolution_winograd_t {
         const primitive_attr_t *attr_;
 };
 
-template <bool with_relu>
-struct _jit_avx512_common_convolution_winograd_fwd_t
+struct jit_avx512_common_convolution_winograd_fwd_t
      : _jit_avx512_common_convolution_winograd_t<true>
      , public cpu_primitive_t
     {
-    struct pd_t : public _cpu_convolution_fwd_pd_t<with_relu> {
-        pd_t(engine_t *engine, const typename pd_t::base_desc_t *adesc,
+    struct pd_t : public cpu_convolution_fwd_pd_t {
+        pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const typename pd_t::base_class *hint_fwd_pd)
-            : _cpu_convolution_fwd_pd_t<with_relu>(engine, adesc, attr,
-                    hint_fwd_pd)
+            : cpu_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
             , jcp_() {}
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit_wino:", avx512_common, ""),
-                _jit_avx512_common_convolution_winograd_fwd_t<with_relu>);
+                jit_avx512_common_convolution_winograd_fwd_t);
 
         virtual status_t init() override
         {
             using namespace prop_kind;
             assert(this->engine()->kind() == engine_kind::cpu);
             bool ok = true && this->set_default_params() == status::success
-                    && utils::one_of(this->cdesc_().prop_kind, forward_training,
+                    && utils::one_of(this->desc()->prop_kind, forward_training,
                                forward_inference)
-                    && this->cdesc_().alg_kind == alg_kind::convolution_winograd
+                    && this->desc()->alg_kind == alg_kind::convolution_winograd
                     && !this->has_zero_dim_memory()
                     && utils::everyone_is(data_type::f32,
-                               this->cdesc_().src_desc.data_type,
-                               this->cdesc_().weights_desc.data_type,
-                               this->cdesc_().dst_desc.data_type)
+                               this->desc()->src_desc.data_type,
+                               this->desc()->weights_desc.data_type,
+                               this->desc()->dst_desc.data_type)
                     && IMPLICATION(this->with_bias(), data_type::f32
-                                       == this->cdesc_().bias_desc.data_type)
+                                       == this->desc()->bias_desc.data_type)
                     && mkldnn_thr_syncable();
             if (!ok)
                 return status::unimplemented;
 
             return jit_avx512_common_conv_winograd_fwd_kernel_f32::init_conf(
-                    jcp_, this->cdesc_(), *this->src_pd_.desc(),
+                    jcp_, *this->desc(), *this->src_pd_.desc(),
                     *this->weights_pd_.desc(), *this->dst_pd_.desc(),
-                    *this->attr(), with_relu, this->negative_slope());
+                    *this->attr());
         }
 
         jit_conv_winograd_conf_t jcp_;
@@ -264,13 +262,13 @@ struct _jit_avx512_common_convolution_winograd_fwd_t
         }
     };
 
-    _jit_avx512_common_convolution_winograd_fwd_t(const pd_t *pd,
+    jit_avx512_common_convolution_winograd_fwd_t(const pd_t *pd,
             const input_vector &inputs, const output_vector &outputs)
         : _jit_avx512_common_convolution_winograd_t<true>(pd->jcp_, pd->attr())
         , cpu_primitive_t(&conf_, inputs, outputs)
         , conf_(*pd) {}
 
-    ~_jit_avx512_common_convolution_winograd_fwd_t(){};
+    ~jit_avx512_common_convolution_winograd_fwd_t(){};
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
@@ -297,11 +295,6 @@ struct _jit_avx512_common_convolution_winograd_fwd_t
 private:
     pd_t conf_;
 };
-
-using jit_avx512_common_convolution_winograd_fwd_t
-        = _jit_avx512_common_convolution_winograd_fwd_t<false>;
-using jit_avx512_common_convolution_winograd_relu_t
-        = _jit_avx512_common_convolution_winograd_fwd_t<true>;
 
 struct jit_avx512_common_convolution_winograd_bwd_data_t
         : _jit_avx512_common_convolution_winograd_t<false>,

@@ -42,9 +42,7 @@ struct jit_avx2_conv_fwd_kernel_f32: public jit_generator {
             const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
             const memory_desc_wrapper &weights_d,
             const memory_desc_wrapper &dst_d,
-            const primitive_attr_t &attr,
-            bool with_relu = false,
-            float relu_negative_slope = 0.);
+            const primitive_attr_t &attr);
 
     jit_conv_conf_t jcp;
     const primitive_attr_t &attr_;

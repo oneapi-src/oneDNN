@@ -32,10 +32,6 @@ enum alg_t { DIRECT, WINO };
 alg_t str2alg(const char *str);
 const char *alg2str(alg_t alg);
 
-enum merge_t { NONE, RELU, };
-merge_t str2merge(const char *str);
-const char *merge2str(merge_t merge);
-
 struct desc_t {
     int g, mb;
     int ic, id, ih, iw;
@@ -98,8 +94,8 @@ const char *cfg2str(const dt_conf_t *cfg);
 
 struct prb_t: public desc_t {
     prb_t(const desc_t &desc, dir_t dir, const dt_conf_t *cfg, alg_t alg,
-            merge_t merge, const attr_t &attr, int mb = 0)
-        : desc_t(desc), dir(dir), cfg(cfg), alg(alg), merge(merge), attr(attr)
+            const attr_t &attr, int mb = 0)
+        : desc_t(desc), dir(dir), cfg(cfg), alg(alg), attr(attr)
         , ops(0), scales(NULL) {
         if (mb) this->mb = mb;
         count_ops();
@@ -110,7 +106,6 @@ struct prb_t: public desc_t {
     dir_t dir;
     const dt_conf_t *cfg;
     alg_t alg;
-    merge_t merge;
     attr_t attr;
 
     double ops;

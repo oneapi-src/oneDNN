@@ -28,8 +28,8 @@ using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::utils;
 
-template <cpu_isa_t isa, bool with_relu>
-void _jit_uni_dw_convolution_fwd_t<isa, with_relu>::execute_forward() {
+template <cpu_isa_t isa>
+void _jit_uni_dw_convolution_fwd_t<isa>::execute_forward() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto weights = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto bias = reinterpret_cast<const data_t *>(this->input_memory(2));
@@ -134,19 +134,9 @@ void _jit_uni_dw_convolution_fwd_t<isa, with_relu>::execute_forward() {
     });
 }
 
-template void _jit_uni_dw_convolution_fwd_t<avx512_common, false>
-    ::execute_forward();
-template void _jit_uni_dw_convolution_fwd_t<avx2, false>
-    ::execute_forward();
-template void _jit_uni_dw_convolution_fwd_t<sse42, false>
-    ::execute_forward();
-
-template void _jit_uni_dw_convolution_fwd_t<avx512_common, true>
-    ::execute_forward();
-template void _jit_uni_dw_convolution_fwd_t<avx2, true>
-    ::execute_forward();
-template void _jit_uni_dw_convolution_fwd_t<sse42, true>
-    ::execute_forward();
+template void _jit_uni_dw_convolution_fwd_t<avx512_common>::execute_forward();
+template void _jit_uni_dw_convolution_fwd_t<avx2>::execute_forward();
+template void _jit_uni_dw_convolution_fwd_t<sse42>::execute_forward();
 
 template <cpu_isa_t isa>
 void _jit_uni_dw_convolution_bwd_data_t<isa>::execute_backward_data() {

@@ -38,19 +38,6 @@ static int check_simple_enums() {
     CHECK_EQ(str2alg("wino"), alg_t::WINO);
     CHECK_EQ(str2alg("WINO"), alg_t::WINO);
 
-    /* merge */
-    CHECK_CASE_STR_EQ(merge2str(merge_t::NONE), "none");
-    CHECK_CASE_STR_NE(merge2str(merge_t::NONE), "nonex");
-
-    CHECK_CASE_STR_EQ(merge2str(merge_t::RELU), "relu");
-    CHECK_CASE_STR_NE(merge2str(merge_t::RELU), "relux");
-
-    CHECK_EQ(str2merge("none"), merge_t::NONE);
-    CHECK_EQ(str2merge("NONE"), merge_t::NONE);
-
-    CHECK_EQ(str2merge("relu"), merge_t::RELU);
-    CHECK_EQ(str2merge("RELU"), merge_t::RELU);
-
     return OK;
 }
 

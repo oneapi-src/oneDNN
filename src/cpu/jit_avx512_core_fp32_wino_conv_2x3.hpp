@@ -37,32 +37,30 @@ struct jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t;
 struct jit_avx512_core_fp32_wino_conv_2x3_src_trans_t;
 struct jit_avx512_core_fp32_wino_conv_2x3_dst_trans_t;
 
-template <bool with_relu>
-struct _jit_avx512_core_fp32_wino_conv_2x3_fwd_t : public cpu_primitive_t {
-    struct pd_t : public _cpu_convolution_fwd_pd_t<with_relu> {
-        pd_t(engine_t *engine, const typename pd_t::base_desc_t *adesc,
+struct jit_avx512_core_fp32_wino_conv_2x3_fwd_t : public cpu_primitive_t {
+    struct pd_t : public cpu_convolution_fwd_pd_t {
+        pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const typename pd_t::base_class *hint_fwd_pd)
-            :  _cpu_convolution_fwd_pd_t<with_relu>(engine, adesc, attr,
-            hint_fwd_pd)
+            : cpu_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
             , jcp_() {}
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit_fp32_wino_2x3:", avx512_core, ""),
-                _jit_avx512_core_fp32_wino_conv_2x3_fwd_t<with_relu>);
+                jit_avx512_core_fp32_wino_conv_2x3_fwd_t);
 
         virtual status_t init() override {
             using namespace prop_kind;
             using namespace memory_format;
             assert(this->engine()->kind() == engine_kind::cpu);
             bool ok = true && this->set_default_params() == status::success
-                    && utils::one_of(this->cdesc_().prop_kind, forward_inference)
-                    && this->cdesc_().alg_kind == alg_kind::convolution_winograd
-                    && this->cdesc_().src_desc.data_type == data_type::f32
-                    && this->cdesc_().dst_desc.data_type == data_type::f32
-                    && this->cdesc_().weights_desc.data_type == data_type::f32
+                    && utils::one_of(this->desc()->prop_kind, forward_inference)
+                    && this->desc()->alg_kind == alg_kind::convolution_winograd
+                    && this->desc()->src_desc.data_type == data_type::f32
+                    && this->desc()->dst_desc.data_type == data_type::f32
+                    && this->desc()->weights_desc.data_type == data_type::f32
                     && IMPLICATION(this->with_bias(),
-                               utils::one_of(this->cdesc_().bias_desc.data_type,
+                               utils::one_of(this->desc()->bias_desc.data_type,
                                        data_type::f32));
             if (!ok)
                 return status::unimplemented;
@@ -96,10 +94,10 @@ struct _jit_avx512_core_fp32_wino_conv_2x3_fwd_t : public cpu_primitive_t {
         }
     };
 
-    _jit_avx512_core_fp32_wino_conv_2x3_fwd_t(const pd_t *pd,
+    jit_avx512_core_fp32_wino_conv_2x3_fwd_t(const pd_t *pd,
             const input_vector &inputs, const output_vector &outputs);
-    
-    ~_jit_avx512_core_fp32_wino_conv_2x3_fwd_t();
+
+    ~jit_avx512_core_fp32_wino_conv_2x3_fwd_t();
 
     virtual void execute(event_t *e) {
         execute_forward();
@@ -128,11 +126,6 @@ private:
     float *padded_bias_;
 };
 
-using jit_avx512_core_fp32_wino_conv_2x3_fwd_t =
-    _jit_avx512_core_fp32_wino_conv_2x3_fwd_t<false>;
-
-using jit_avx512_core_fp32_wino_convolution_relu_t =
-    _jit_avx512_core_fp32_wino_conv_2x3_fwd_t<true>;
 }
 }
 }

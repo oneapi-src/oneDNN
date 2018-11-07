@@ -29,43 +29,41 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-template <cpu_isa_t isa, bool with_relu>
+template <cpu_isa_t isa>
 struct _jit_uni_dw_convolution_fwd_t: public cpu_primitive_t {
-    struct pd_t: public _cpu_convolution_fwd_pd_t<with_relu> {
-        pd_t(engine_t *engine, const typename pd_t::base_desc_t *adesc,
+    struct pd_t: public cpu_convolution_fwd_pd_t {
+        pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const typename pd_t::base_class *hint_fwd_pd)
-            : _cpu_convolution_fwd_pd_t<with_relu>(engine, adesc, attr,
-                hint_fwd_pd)
+            : cpu_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
             , jcp_() {}
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit_dw:", isa, ""),
-                _jit_uni_dw_convolution_fwd_t<isa, with_relu>);
+                _jit_uni_dw_convolution_fwd_t<isa>);
 
         virtual status_t init() override {
             using namespace prop_kind;
             assert(this->engine()->kind() == engine_kind::cpu);
             bool ok = true
                 && this->set_default_params() == status::success
-                && utils::one_of(this->cdesc_().prop_kind, forward_training,
+                && utils::one_of(this->desc()->prop_kind, forward_training,
                         forward_inference)
-                && this->cdesc_().alg_kind == alg_kind::convolution_direct
+                && this->desc()->alg_kind == alg_kind::convolution_direct
                 && !this->has_zero_dim_memory()
                 && utils::everyone_is(data_type::f32,
-                        this->cdesc_().src_desc.data_type,
-                        this->cdesc_().weights_desc.data_type,
-                        this->cdesc_().dst_desc.data_type)
+                        this->desc()->src_desc.data_type,
+                        this->desc()->weights_desc.data_type,
+                        this->desc()->dst_desc.data_type)
                 && IMPLICATION(this->with_bias(),
-                        data_type::f32 == this->cdesc_().bias_desc.data_type);
+                        data_type::f32 == this->desc()->bias_desc.data_type);
 
             if (!ok) return status::unimplemented;
 
             return jit_uni_dw_conv_fwd_kernel_f32<isa>::init_conf(jcp_,
-                        this->cdesc_(),
+                        *this->desc(),
                         this->src_pd_.desc(), *this->weights_pd_.desc(),
-                        *this->dst_pd_.desc(), *this->attr(),
-                        with_relu, this->negative_slope());
+                        *this->dst_pd_.desc(), *this->attr());
         }
 
         jit_conv_conf_t jcp_;
@@ -120,18 +118,9 @@ private:
 };
 
 using jit_avx512_common_dw_convolution_fwd_t =
-    _jit_uni_dw_convolution_fwd_t<avx512_common, false>;
-using jit_avx2_dw_convolution_fwd_t =
-    _jit_uni_dw_convolution_fwd_t<avx2, false>;
-using jit_sse42_dw_convolution_fwd_t =
-    _jit_uni_dw_convolution_fwd_t<sse42, false>;
-
-using jit_avx512_common_dw_convolution_relu_t =
-    _jit_uni_dw_convolution_fwd_t<avx512_common, true>;
-using jit_avx2_dw_convolution_relu_t =
-    _jit_uni_dw_convolution_fwd_t<avx2, true>;
-using jit_sse42_dw_convolution_relu_t =
-    _jit_uni_dw_convolution_fwd_t<sse42, true>;
+    _jit_uni_dw_convolution_fwd_t<avx512_common>;
+using jit_avx2_dw_convolution_fwd_t = _jit_uni_dw_convolution_fwd_t<avx2>;
+using jit_sse42_dw_convolution_fwd_t = _jit_uni_dw_convolution_fwd_t<sse42>;
 
 template <cpu_isa_t isa>
 struct _jit_uni_dw_convolution_bwd_data_t: public cpu_primitive_t {

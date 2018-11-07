@@ -28,9 +28,9 @@ namespace cpu {
 
 using math::saturate;
 
-template <bool with_relu, data_type_t src_type, data_type_t wei_type,
+template <data_type_t src_type, data_type_t wei_type,
          data_type_t dst_type, data_type_t acc_type>
-void _ref_convolution_fwd_t<with_relu, src_type, wei_type, dst_type, acc_type>
+void ref_convolution_fwd_t<src_type, wei_type, dst_type, acc_type>
         ::execute_forward() {
     auto src = reinterpret_cast<const src_data_t *>(this->input_memory(0));
     auto weights = reinterpret_cast<const wei_data_t *>(this->input_memory(1));
@@ -71,9 +71,10 @@ void _ref_convolution_fwd_t<with_relu, src_type, wei_type, dst_type, acc_type>
     const int padT = conf_.padT();
     const int padL = conf_.padL();
 
-    const float nslope = conf_.negative_slope();
+    const bool with_relu = 0; // TODO: change if support post_ops
+    const float nslope = 0.f;
 
-    const int ndims = conf_.cdesc()->src_desc.ndims;
+    const int ndims = conf_.desc()->src_desc.ndims;
 
     auto ker = [=](acc_data_t &d, int g, int mb, int oc, int od, int oh,
             int ow) {
@@ -112,7 +113,7 @@ void _ref_convolution_fwd_t<with_relu, src_type, wei_type, dst_type, acc_type>
     auto get_bias = [=, &bias](size_t off) -> acc_data_t {
 #       define CASE(dt) case dt: \
             return (acc_data_t)(*((const prec_traits<dt>::type *)bias + off))
-        switch (conf_.cdesc()->bias_desc.data_type) {
+        switch (conf_.desc()->bias_desc.data_type) {
         CASE(data_type::s8);
         CASE(data_type::u8);
         CASE(data_type::s32);
@@ -185,7 +186,7 @@ void ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
     const int padT = conf_.padT();
     const int padL = conf_.padL();
 
-    const int ndims = conf_.cdesc()->diff_src_desc.ndims;
+    const int ndims = conf_.desc()->diff_src_desc.ndims;
 
     auto ker = [=](acc_data_t &d, int g, int mb, int ic, int id, int ih,
             int iw) {
@@ -300,7 +301,7 @@ void ref_convolution_bwd_weights_t<src_type, diff_wei_type, diff_dst_type,
     const int padT = conf_.padT();
     const int padL = conf_.padL();
 
-    const int ndims = conf_.cdesc()->src_desc.ndims;
+    const int ndims = conf_.desc()->src_desc.ndims;
 
 auto ker = [=](acc_data_t &d, int g, int oc, int ic, int kd, int kh, int kw) {
         for (int mb = 0; mb < MB; ++mb)
@@ -389,19 +390,13 @@ auto ker = [=](acc_data_t &d, int g, int oc, int ic, int kd, int kh, int kw) {
 
 using namespace data_type;
 
-template struct _ref_convolution_fwd_t<false, f32>;
-template struct _ref_convolution_fwd_t<true, f32>;
-template struct _ref_convolution_fwd_t<false, s16, s16, s32, s32>;
-template struct _ref_convolution_fwd_t<true, s16, s16, s32, s32>;
+template struct ref_convolution_fwd_t<f32>;
+template struct ref_convolution_fwd_t<s16, s16, s32, s32>;
 
-template struct _ref_convolution_fwd_t<false, u8, s8, f32, s32>;
-template struct _ref_convolution_fwd_t<true, u8, s8, f32, s32>;
-template struct _ref_convolution_fwd_t<false, u8, s8, s32, s32>;
-template struct _ref_convolution_fwd_t<true, u8, s8, s32, s32>;
-template struct _ref_convolution_fwd_t<false, u8, s8, s8, s32>;
-template struct _ref_convolution_fwd_t<true, u8, s8, s8, s32>;
-template struct _ref_convolution_fwd_t<false, u8, s8, u8, s32>;
-template struct _ref_convolution_fwd_t<true, u8, s8, u8, s32>;
+template struct ref_convolution_fwd_t<u8, s8, f32, s32>;
+template struct ref_convolution_fwd_t<u8, s8, s32, s32>;
+template struct ref_convolution_fwd_t<u8, s8, s8, s32>;
+template struct ref_convolution_fwd_t<u8, s8, u8, s32>;
 
 template struct ref_convolution_bwd_data_t<f32, f32, f32, f32>;
 template struct ref_convolution_bwd_data_t<s32, s16, s16, s32>;

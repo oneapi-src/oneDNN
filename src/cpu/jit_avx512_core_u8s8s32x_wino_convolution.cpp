@@ -294,7 +294,6 @@ bool jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t::maybe_relu(int position) {
     if (position == 0) {
         /* relu before sum */
         return false
-            || jcp.with_relu
             || p.contain(eltwise, 0)
             || (jcp.dst_dt == data_type::u8 && !p.contain(sum, 0));
     } else if (position == 1) {
@@ -498,8 +497,7 @@ struct jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t: public jit_generator {
             jit_conv_conf_2x3_wino_t &jcp, const convolution_desc_t &cd,
             cpu_memory_t::pd_t &src_pd, cpu_memory_t::pd_t &weights_pd,
             cpu_memory_t::pd_t &dst_pd, cpu_memory_t::pd_t &bias_pd,
-            const primitive_attr_t &attr,
-            bool with_relu, float relu_negative_slope);
+            const primitive_attr_t &attr);
 
     Zmm vreg_out(int n, int m) {
         const int id_reg_out = n * jcp.m_block + m;
@@ -543,19 +541,12 @@ bool jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::post_ops_ok(
             && p.entry_[idx].eltwise.alpha == 0.;
     };
 
-   switch (p.len_) {
+    switch (p.len_) {
     case 0: return true;
-    case 1: return true
-                && IMPLICATION(jcp.with_relu, p.contain(sum, 0))
-                && IMPLICATION(!jcp.with_relu, is_relu(0) || p.contain(sum, 0));
-    case 2: return true
-                && IMPLICATION(jcp.with_relu, p.contain(sum, 0) && is_relu(1))
-                && IMPLICATION(!jcp.with_relu, false
-                        || (p.contain(sum, 0) && is_relu(1))
-                        || (p.contain(sum, 1) && is_relu(0)));
-    case 3: return true
-                && jcp.with_relu == false
-                && (is_relu(0) && p.contain(sum, 1) && is_relu(2));
+    case 1: return is_relu(0) || p.contain(sum, 0);
+    case 2: return (p.contain(sum, 0) && is_relu(1)) ||
+                       (p.contain(sum, 1) && is_relu(0));
+    case 3: return is_relu(0) && p.contain(sum, 1) && is_relu(2);
     default: return false;
     }
 
@@ -662,8 +653,7 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
 ::init_conf(jit_conv_conf_2x3_wino_t &jcp,
             const convolution_desc_t &cd, cpu_memory_t::pd_t &src_pd,
             cpu_memory_t::pd_t &wei_pd, cpu_memory_t::pd_t &dst_pd,
-            cpu_memory_t::pd_t &bias_pd, const primitive_attr_t &attr,
-            bool with_relu, float relu_negative_slope) {
+            cpu_memory_t::pd_t &bias_pd, const primitive_attr_t &attr) {
     const memory_desc_wrapper src_d(&src_pd);
     const memory_desc_wrapper wei_d(&wei_pd);
     const memory_desc_wrapper dst_d(&dst_pd);
@@ -718,12 +708,13 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
 
     jcp.src_fmt = src_d.format();
     jcp.with_bias = cd.bias_desc.format != memory_format::undef;
-    jcp.with_relu = with_relu;
-    jcp.relu_negative_slope = relu_negative_slope;
-    if (!IMPLICATION(with_relu, relu_negative_slope == 0.))
-        return status::unimplemented;
+
     if (!post_ops_ok(jcp, attr))
         return status::unimplemented;
+
+    const auto &p = attr.post_ops_;
+    jcp.with_relu = p.find(primitive_kind::eltwise) != -1;
+    jcp.relu_negative_slope = 0.f;
 
     jcp.bia_dt = jcp.with_bias ? cd.bias_desc.data_type : data_type::undef;
     jcp.dst_dt = cd.dst_desc.data_type;
@@ -926,18 +917,17 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
 }
 ////////////////////////////////////////////////////////////////////////////////
 
-template <bool with_relu, data_type_t dst_data_type>
-status_t _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu,
-        dst_data_type>::pd_t::jit_conf() {
+template <data_type_t dst_data_type>
+status_t jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
+        pd_t::jit_conf() {
     return jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::init_conf(
-            jcp_, this->cdesc_(), this->src_pd_, this->weights_pd_,
-            this->dst_pd_,this->bias_pd_, *this->attr(),
-            with_relu, this->negative_slope());
+            jcp_, *this->desc(), this->src_pd_, this->weights_pd_,
+            this->dst_pd_,this->bias_pd_, *this->attr());
 }
 
-template <bool with_relu, data_type_t dst_data_type>
-_jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu, dst_data_type>::
-        _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t(const pd_t *pd,
+template <data_type_t dst_data_type>
+jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
+        jit_avx512_core_u8s8s32x_wino_convolution_fwd_t(const pd_t *pd,
                 const input_vector &inputs, const output_vector &outputs)
     : cpu_primitive_t(&conf_, inputs, outputs)
     , conf_(*pd)
@@ -973,18 +963,18 @@ _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu, dst_data_type>::
     updated_output_scales_.scale(1.f / (adj_src_scale * adj_wei_scale));
 }
 
-template <bool with_relu, data_type_t dst_data_type>
-_jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu,
-        dst_data_type>::~_jit_avx512_core_u8s8s32x_wino_convolution_fwd_t() {
+template <data_type_t dst_data_type>
+jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
+        ~jit_avx512_core_u8s8s32x_wino_convolution_fwd_t() {
     delete kernel_;
     delete src_trans_;
     delete dst_trans_;
     delete scratchpad_;
 }
 
-template <bool with_relu, data_type_t dst_data_type>
-void _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu,
-        dst_data_type>::execute_forward() {
+template <data_type_t dst_data_type>
+void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
+         execute_forward() {
     const auto &jcp = kernel_->jcp;
     if (jcp.small_mb)
         execute_forward_small_mb();
@@ -992,9 +982,9 @@ void _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu,
         execute_forward_mbN();
 }
 
-template <bool with_relu, data_type_t dst_data_type>
-void _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu,
-        dst_data_type>::execute_forward_mbN() {
+template <data_type_t dst_data_type>
+void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
+        execute_forward_mbN() {
     auto src = reinterpret_cast<const src_data_t *>(input_memory(0));
     auto wei = reinterpret_cast<const wei_data_t *>(input_memory(1));
     auto bia = reinterpret_cast<const char *>(input_memory(2));
@@ -1106,9 +1096,9 @@ void _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu,
     });
 }
 
-template <bool with_relu, data_type_t dst_data_type>
-void _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu,
-        dst_data_type>::execute_forward_small_mb() {
+template <data_type_t dst_data_type>
+void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
+        execute_forward_small_mb() {
     auto src = reinterpret_cast<const src_data_t *>(input_memory(0));
     auto wei = reinterpret_cast<const wei_data_t *>(input_memory(1));
     auto bia = reinterpret_cast<const char *>(input_memory(2));
@@ -1221,22 +1211,10 @@ void _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu,
     }}}
 }
 
-template struct _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<true,
-        data_type::s8>;
-template struct _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<false,
-        data_type::s8>;
-template struct _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<true,
-        data_type::u8>;
-template struct _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<false,
-        data_type::u8>;
-template struct _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<true,
-        data_type::s32>;
-template struct _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<false,
-        data_type::s32>;
-template struct _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<true,
-        data_type::f32>;
-template struct _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<false,
-        data_type::f32>;
+template struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<data_type::s8>;
+template struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<data_type::u8>;
+template struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<data_type::s32>;
+template struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<data_type::f32>;
 
 } // namespace cpu
 } // namespace impl

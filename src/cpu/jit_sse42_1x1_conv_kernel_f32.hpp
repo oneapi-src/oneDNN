@@ -41,18 +41,7 @@ struct jit_sse42_1x1_conv_kernel_f32: public jit_generator {
             const memory_desc_wrapper &src_d,
             const memory_desc_wrapper &weights_d,
             const memory_desc_wrapper &dst_d,
-            const primitive_attr_t &attr,
-            bool with_relu, float relu_negative_slope);
-
-    static status_t init_conf(jit_1x1_conv_conf_t &jcp,
-            const convolution_desc_t &cd,
-            const memory_desc_wrapper &src_d,
-            const memory_desc_wrapper &weights_d,
-            const memory_desc_wrapper &dst_d,
-            const primitive_attr_t &attr)
-    {
-        return init_conf(jcp, cd, src_d, weights_d, dst_d, attr, false, 0.0);
-    }
+            const primitive_attr_t &attr);
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_sse42_1x1_conv_kernel_f32)
 

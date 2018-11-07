@@ -33,8 +33,8 @@ namespace cpu {
 using namespace mkldnn::impl::utils;
 using namespace mkldnn::impl::math;
 
-template <bool with_relu, data_type_t src_type, data_type_t dst_type>
-void _gemm_x8s8s32x_convolution_fwd_t<with_relu, src_type,
+template <data_type_t src_type, data_type_t dst_type>
+void _gemm_x8s8s32x_convolution_fwd_t<src_type,
         dst_type>::execute_forward() {
     auto src_base = reinterpret_cast<const src_data_t *>(this->input_memory(0));
     auto wei_base = reinterpret_cast<const wei_data_t *>(this->input_memory(1));
@@ -55,9 +55,9 @@ void _gemm_x8s8s32x_convolution_fwd_t<with_relu, src_type,
     });
 }
 
-template <bool with_relu, data_type_t src_type, data_type_t dst_type>
-void _gemm_x8s8s32x_convolution_fwd_t<with_relu, src_type,
-        dst_type>::execute_forward_thr(const int ithr, const int nthr,
+template <data_type_t src_type, data_type_t dst_type>
+void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::
+        execute_forward_thr(const int ithr, const int nthr,
         const src_data_t *src_base, const wei_data_t *wei_base,
         const char *bia_base, dst_data_t *dst_base, char *scratchpad) {
 #if USE_MKL_IGEMM
@@ -78,7 +78,7 @@ void _gemm_x8s8s32x_convolution_fwd_t<with_relu, src_type,
     auto get_bias = [=, &bia_base](size_t off) -> acc_data_t {
 #       define CASE(dt) case dt: return (acc_data_t)\
         (*((const prec_traits<dt>::type *)bia_base + off))
-        switch (conf_.cdesc()->bias_desc.data_type) {
+        switch (conf_.desc()->bias_desc.data_type) {
         CASE(data_type::s8);
         CASE(data_type::u8);
         CASE(data_type::s32);
@@ -105,7 +105,7 @@ void _gemm_x8s8s32x_convolution_fwd_t<with_relu, src_type,
     const bool do_sum = post_ops.contain(primitive_kind::sum, 0);
     const float sum_scale = do_sum ? post_ops.entry_[0].sum.scale : 0;
 
-    float nslope = jcp.with_relu ? jcp.relu_negative_slope : 0;
+    float nslope = 0;
     int entry_idx = -1;
     for (int idx = 0; idx < post_ops.len_; ++idx) {
         const auto &e = post_ops.entry_[idx];
@@ -115,7 +115,7 @@ void _gemm_x8s8s32x_convolution_fwd_t<with_relu, src_type,
             break;
         }
     }
-    const bool do_relu = jcp.with_relu || (entry_idx >= 0);
+    const bool do_relu = entry_idx >= 0;
 
     uint8_t *_col = (uint8_t *)scratchpad;
     ptrdiff_t offset = (ptrdiff_t)jcp.im2col_sz * sizeof(uint8_t) * jcp.nthr;
@@ -302,23 +302,15 @@ void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>
 
 using namespace data_type;
 
-template struct _gemm_x8s8s32x_convolution_fwd_t<true, u8, f32>;
-template struct _gemm_x8s8s32x_convolution_fwd_t<true, u8, s32>;
-template struct _gemm_x8s8s32x_convolution_fwd_t<true, u8, s8>;
-template struct _gemm_x8s8s32x_convolution_fwd_t<true, u8, u8>;
-template struct _gemm_x8s8s32x_convolution_fwd_t<false, u8, f32>;
-template struct _gemm_x8s8s32x_convolution_fwd_t<false, u8, s32>;
-template struct _gemm_x8s8s32x_convolution_fwd_t<false, u8, s8>;
-template struct _gemm_x8s8s32x_convolution_fwd_t<false, u8, u8>;
+template struct _gemm_x8s8s32x_convolution_fwd_t<u8, f32>;
+template struct _gemm_x8s8s32x_convolution_fwd_t<u8, s32>;
+template struct _gemm_x8s8s32x_convolution_fwd_t<u8, s8>;
+template struct _gemm_x8s8s32x_convolution_fwd_t<u8, u8>;
 
-template struct _gemm_x8s8s32x_convolution_fwd_t<true, s8, f32>;
-template struct _gemm_x8s8s32x_convolution_fwd_t<true, s8, s32>;
-template struct _gemm_x8s8s32x_convolution_fwd_t<true, s8, s8>;
-template struct _gemm_x8s8s32x_convolution_fwd_t<true, s8, u8>;
-template struct _gemm_x8s8s32x_convolution_fwd_t<false, s8, f32>;
-template struct _gemm_x8s8s32x_convolution_fwd_t<false, s8, s32>;
-template struct _gemm_x8s8s32x_convolution_fwd_t<false, s8, s8>;
-template struct _gemm_x8s8s32x_convolution_fwd_t<false, s8, u8>;
+template struct _gemm_x8s8s32x_convolution_fwd_t<s8, f32>;
+template struct _gemm_x8s8s32x_convolution_fwd_t<s8, s32>;
+template struct _gemm_x8s8s32x_convolution_fwd_t<s8, s8>;
+template struct _gemm_x8s8s32x_convolution_fwd_t<s8, u8>;
 
 template struct _gemm_u8s8s32x_convolution_bwd_data_t<f32>;
 template struct _gemm_u8s8s32x_convolution_bwd_data_t<s32>;

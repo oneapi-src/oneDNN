@@ -61,10 +61,10 @@ void balance2D(U nthr, U ithr, T ny, T &ny_start, T &ny_end,
 }
 /* convolution forward */
 
-template <bool with_relu, data_type_t src_type, data_type_t wei_type,
+template <data_type_t src_type, data_type_t wei_type,
         data_type_t dst_type>
-void _jit_avx512_common_1x1_convolution_fwd_t
-    <with_relu, src_type, wei_type, dst_type>::execute_forward()
+void jit_avx512_common_1x1_convolution_fwd_t
+    <src_type, wei_type, dst_type>::execute_forward()
 {
     auto src = reinterpret_cast<const src_data_t *>(this->input_memory(0));
     auto weights =
@@ -85,10 +85,10 @@ void _jit_avx512_common_1x1_convolution_fwd_t
     });
 }
 
-template <bool with_relu, data_type_t src_type, data_type_t wei_type,
+template <data_type_t src_type, data_type_t wei_type,
         data_type_t dst_type>
-void _jit_avx512_common_1x1_convolution_fwd_t
-    <with_relu, src_type, wei_type, dst_type>::execute_forward_thr(
+void jit_avx512_common_1x1_convolution_fwd_t
+    <src_type, wei_type, dst_type>::execute_forward_thr(
             const int ithr, const int nthr,
             const src_data_t *src, const wei_data_t *weights,
             const dst_data_t *bias, dst_data_t *dst)
@@ -98,10 +98,10 @@ void _jit_avx512_common_1x1_convolution_fwd_t
     const memory_desc_wrapper weights_d(conf_.weights_pd(0));
 
     const int ndims = src_d.ndims();
-    const int stride_h = (ndims == 3) ? 1 : conf_.cdesc()->strides[0];
-    const int stride_w = conf_.cdesc()->strides[ndims - 3];
-    const int pad_t = (ndims == 3) ? 0 : conf_.cdesc()->padding[0][0];
-    const int pad_l = conf_.cdesc()->padding[0][ndims - 3];
+    const int stride_h = (ndims == 3) ? 1 : conf_.desc()->strides[0];
+    const int stride_w = conf_.desc()->strides[ndims - 3];
+    const int pad_t = (ndims == 3) ? 0 : conf_.desc()->padding[0][0];
+    const int pad_l = conf_.desc()->padding[0][ndims - 3];
 
     const auto &jcp = kernel_->jcp;
     const int work_amount = jcp.mb * jcp.ngroups * jcp.nb_bcast;
@@ -271,17 +271,14 @@ void _jit_avx512_common_1x1_convolution_fwd_t
 }
 
 
-template struct _jit_avx512_common_1x1_convolution_fwd_t<true, data_type::f32>;
-template struct _jit_avx512_common_1x1_convolution_fwd_t<false, data_type::f32>;
-template struct _jit_avx512_common_1x1_convolution_fwd_t<false, data_type::s16,
-    data_type::s16, data_type::s32>;
-template struct _jit_avx512_common_1x1_convolution_fwd_t<true, data_type::s16,
+template struct jit_avx512_common_1x1_convolution_fwd_t<data_type::f32>;
+template struct jit_avx512_common_1x1_convolution_fwd_t<data_type::s16,
     data_type::s16, data_type::s32>;
 /* convolution backward wtr data */
 
 template <data_type_t diff_dst_type, data_type_t wei_type,
     data_type_t diff_src_type>
-void _jit_avx512_common_1x1_convolution_bwd_data_t
+void jit_avx512_common_1x1_convolution_bwd_data_t
     <diff_dst_type, wei_type, diff_src_type>::execute_backward_data()
 {
     auto diff_dst = reinterpret_cast<const diff_dst_data_t *>
@@ -410,8 +407,8 @@ void _jit_avx512_common_1x1_convolution_bwd_data_t
     });
 }
 
-template struct _jit_avx512_common_1x1_convolution_bwd_data_t<data_type::f32>;
-template struct _jit_avx512_common_1x1_convolution_bwd_data_t<data_type::s16,
+template struct jit_avx512_common_1x1_convolution_bwd_data_t<data_type::f32>;
+template struct jit_avx512_common_1x1_convolution_bwd_data_t<data_type::s16,
     data_type::s16, data_type::s32>;
 
 /* convolution backward wtr weights */

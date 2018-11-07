@@ -39,20 +39,18 @@ struct jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t;
 struct jit_avx512_core_u8s8s32x_wino_conv_src_trans_t;
 struct jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t;
 
-template <bool with_relu, data_type_t dst_data_type>
-struct _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t : public cpu_primitive_t {
-    struct pd_t : public _cpu_convolution_fwd_pd_t<with_relu> {
-        pd_t(engine_t *engine, const typename pd_t::base_desc_t *adesc,
+template <data_type_t dst_data_type>
+struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t : public cpu_primitive_t {
+    struct pd_t : public cpu_convolution_fwd_pd_t {
+        pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const typename pd_t::base_class *hint_fwd_pd)
-            :  _cpu_convolution_fwd_pd_t<with_relu>(engine, adesc, attr,
-            hint_fwd_pd)
+            :  cpu_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
             , jcp_()
         {}
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit_int8_wino:", avx512_core, ""),
-                _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<with_relu,
-                dst_data_type>);
+                jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>);
 
         virtual status_t init() override {
             using namespace prop_kind;
@@ -60,18 +58,18 @@ struct _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t : public cpu_primitive_t
             assert(this->engine()->kind() == engine_kind::cpu);
             bool ok = true
                 && this->set_default_params() == status::success
-                && utils::one_of(this->cdesc_().prop_kind,
+                && utils::one_of(this->desc()->prop_kind,
                                     forward_training, forward_inference)
-                && this->cdesc_().alg_kind == alg_kind::convolution_winograd
+                && this->desc()->alg_kind == alg_kind::convolution_winograd
                 && !this->has_zero_dim_memory()
-                && this->cdesc_().src_desc.data_type == data_type::u8
-                && this->cdesc_().dst_desc.data_type == dst_data_type
-                && this->cdesc_().weights_desc.data_type == data_type::s8
+                && this->desc()->src_desc.data_type == data_type::u8
+                && this->desc()->dst_desc.data_type == dst_data_type
+                && this->desc()->weights_desc.data_type == data_type::s8
                 && IMPLICATION(this->with_bias(),
-                    utils::one_of(this->cdesc_().bias_desc.data_type,
+                    utils::one_of(this->desc()->bias_desc.data_type,
                                                 data_type::f32, data_type::s32,
                                                 data_type::s8, data_type::u8))
-                && this->cdesc_().accum_data_type == data_type::s32;
+                && this->desc()->accum_data_type == data_type::s32;
 
             if (!ok) return status::unimplemented;
 
@@ -100,9 +98,9 @@ struct _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t : public cpu_primitive_t
     typedef typename prec_traits<data_type::s32>::type acc_data_t;
     typedef typename prec_traits<dst_data_type>::type dst_data_t;
 
-    _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t(const pd_t *pd,
+    jit_avx512_core_u8s8s32x_wino_convolution_fwd_t(const pd_t *pd,
             const input_vector &inputs, const output_vector &outputs);
-    ~_jit_avx512_core_u8s8s32x_wino_convolution_fwd_t();
+    ~jit_avx512_core_u8s8s32x_wino_convolution_fwd_t();
 
     virtual void execute(event_t *e) {
         execute_forward();
@@ -129,13 +127,6 @@ private:
     mkldnn::impl::scales_t updated_output_scales_;
 };
 
-template <impl::data_type_t dst_type>
-using jit_avx512_core_u8s8s32x_wino_convolution_fwd_t =
-    _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<false, dst_type>;
-
-template <impl::data_type_t dst_type>
-using jit_avx512_core_u8s8s32x_wino_convolution_relu_t =
-    _jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<true, dst_type>;
 }
 }
 }

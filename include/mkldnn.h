@@ -1490,32 +1490,6 @@ mkldnn_status_t MKLDNN_API mkldnn_inner_product_backward_weights_desc_init(
 
 /** @} */
 
-/** @addtogroup c_api_convolution_relu Convolution followed by ReLU (deprecated)
- * A merged primitive to compute a convolution followed by relu.
- * @{ */
-
-/** Initializes a merged convolution-relu descriptor @p conv_relu_desc for
- * forward propagation (supported inference mode only) using convolution
- * descriptor @p conv_desc and ReLU parameter @p negative slope.
- *
- * @deprecated use mkldnn_convolution_desc_init with
- * mkldnn_post_ops_append_eltwise to append ReLU
- *
- * Order of inputs:
- *  - src (#mkldnn_query_src_pd, 0)
- *  - weights (#mkldnn_query_weights_pd, 0)
- *  - bias (#mkldnn_query_weights_pd, 1),
- *      if convolution is created with bias
- *
- * Order of outputs:
- *  - dst (#mkldnn_query_dst_pd, 0)
- */
-mkldnn_status_t MKLDNN_API mkldnn_convolution_relu_desc_init(
-        mkldnn_convolution_relu_desc_t *conv_relu_desc,
-        const mkldnn_convolution_desc_t *conv_desc, float negative_slope);
-
-/** @} */
-
 /** @addtogroup c_api_rnn RNN
  * A primitive to compute common recurrent layer.
  * @todo add additional description for the group

@@ -43,7 +43,6 @@ bool jit_avx512_core_x8s8s32x_1x1_conv_kernel::maybe_relu(int position)
     if (position == 0) {
         /* relu before sum */
         return false
-            || jcp.with_relu
             || p.contain(eltwise, 0)
             || (jcp.dst_dt == data_type::u8 && !p.contain(sum, 0));
     } else if (position == 1) {
@@ -519,17 +518,10 @@ bool jit_avx512_core_x8s8s32x_1x1_conv_kernel::post_ops_ok(
 
     switch (p.len_) {
     case 0: return true;
-    case 1: return true
-                && IMPLICATION(jcp.with_relu, p.contain(sum, 0))
-                && IMPLICATION(!jcp.with_relu, is_relu(0) || p.contain(sum, 0));
-    case 2: return true
-                && IMPLICATION(jcp.with_relu, p.contain(sum, 0) && is_relu(1))
-                && IMPLICATION(!jcp.with_relu, false
-                        || (p.contain(sum, 0) && is_relu(1))
-                        || (p.contain(sum, 1) && is_relu(0)));
-    case 3: return true
-                && jcp.with_relu == false
-                && (is_relu(0) && p.contain(sum, 1) && is_relu(2));
+    case 1: return is_relu(0) || p.contain(sum, 0);
+    case 2: return (p.contain(sum, 0) && is_relu(1))
+                       || (p.contain(sum, 1) && is_relu(0));
+    case 3: return is_relu(0) && p.contain(sum, 1) && is_relu(2);
     default: return false;
     }
 
@@ -540,8 +532,7 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
         jit_1x1_conv_conf_t &jcp, const convolution_desc_t &cd,
         const memory_desc_wrapper &src_d, const memory_desc_wrapper &weights_d,
         const memory_desc_wrapper &dst_d, const memory_desc_wrapper &bias_d,
-        const primitive_attr_t &attr, bool with_relu, float relu_negative_slope,
-        int nthreads, bool reduce_src)
+        const primitive_attr_t &attr, int nthreads, bool reduce_src)
 {
     if (!mayiuse(avx512_core)) return status::unimplemented;
 
@@ -577,10 +568,6 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
     jcp.stride_w = cd.strides[1];
     jcp.src_fmt = src_d.format();
     jcp.with_bias = cd.bias_desc.format != memory_format::undef;
-    jcp.with_relu = with_relu;
-    jcp.relu_negative_slope = relu_negative_slope;
-    if (!IMPLICATION(with_relu, relu_negative_slope == 0.))
-        return status::unimplemented;
 
     jcp.signed_input = (src_d.data_type() == data_type::s8) ? true : false;
 
@@ -590,6 +577,9 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
 
     if (!post_ops_ok(jcp, attr))
         return status::unimplemented;
+
+    jcp.with_relu = false;
+    jcp.relu_negative_slope = 0.f;
 
     bool args_ok = true
         && jcp.ngroups == 1

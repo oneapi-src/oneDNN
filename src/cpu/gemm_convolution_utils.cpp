@@ -325,8 +325,7 @@ void col2im(
 void init_conf(
     jit_gemm_conv_conf_t &jcp, const convolution_desc_t &cd,
     const memory_desc_wrapper &src_d, const memory_desc_wrapper &weights_d,
-    const memory_desc_wrapper &dst_d, int max_threads,
-    bool with_relu, float relu_negative_slope) {
+    const memory_desc_wrapper &dst_d, int max_threads) {
 
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
     jcp.prop_kind = cd.prop_kind;
@@ -366,8 +365,9 @@ void init_conf(
     jcp.with_bias
         = cd.bias_desc.format != memory_format::undef
         || cd.diff_bias_desc.format != memory_format::undef;
-    jcp.with_relu = with_relu;
-    jcp.relu_negative_slope = relu_negative_slope;
+
+    jcp.with_relu = false;
+    jcp.relu_negative_slope = -1.0;
 
     jcp.is = jcp.ih * jcp.iw;
     jcp.os = jcp.oh * jcp.ow;

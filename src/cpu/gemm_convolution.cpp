@@ -30,8 +30,7 @@ using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::utils;
 
-template <bool with_relu>
-void _gemm_convolution_fwd_t<with_relu>::execute_forward() {
+void gemm_convolution_fwd_t::execute_forward() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto weights = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto bias = reinterpret_cast<const data_t *>(this->input_memory(2));
@@ -50,8 +49,7 @@ void _gemm_convolution_fwd_t<with_relu>::execute_forward() {
     const int LDA = jcp.im2col_sz ? m : M;
 
     const auto &post_ops = conf_.attr()->post_ops_;
-
-    float nslope = jcp.with_relu ? jcp.relu_negative_slope : 0.f;
+    float nslope = 0.f;
     int entry_idx = -1;
     for (int idx = 0; idx < post_ops.len_; ++idx) {
         const auto &e = post_ops.entry_[idx];
@@ -61,7 +59,7 @@ void _gemm_convolution_fwd_t<with_relu>::execute_forward() {
             break;
         }
     }
-    const bool do_relu = jcp.with_relu || entry_idx >= 0;
+    const bool do_relu = entry_idx >= 0;
 
     data_t *col = jcp.im2col_sz ? (data_t *)this->scratchpad_->get() : nullptr;
 
@@ -281,8 +279,6 @@ void gemm_convolution_bwd_weights_t::execute_backward_weights() {
     }
 }
 
-template struct _gemm_convolution_fwd_t<true>;
-template struct _gemm_convolution_fwd_t<false>;
 }
 }
 }

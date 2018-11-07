@@ -28,32 +28,30 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-template <bool with_relu>
-struct _gemm_convolution_fwd_t: public cpu_primitive_t {
-    struct pd_t: public _cpu_convolution_fwd_pd_t<with_relu> {
+struct gemm_convolution_fwd_t: public cpu_primitive_t {
+    struct pd_t: public cpu_convolution_fwd_pd_t {
         pd_t(engine_t *engine,
-                const typename pd_t::base_desc_t *adesc,
+                const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const typename pd_t::base_class *hint_fwd_pd)
-            : _cpu_convolution_fwd_pd_t<with_relu>(engine, adesc, attr,
-                    hint_fwd_pd)
+            : cpu_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
             , jcp_() {}
 
-        DECLARE_COMMON_PD_T(GEMM_IMPL_STR, _gemm_convolution_fwd_t<with_relu>);
+        DECLARE_COMMON_PD_T(GEMM_IMPL_STR, gemm_convolution_fwd_t);
 
         inline memory_format_t src_format()
         {
             using namespace memory_format;
-            return (utils::pick(this->cdesc_().src_desc.ndims - 3,
+            return (utils::pick(this->desc()->src_desc.ndims - 3,
                 ncw, nchw, ncdhw));
         }
         inline memory_format_t wei_format()
         {
             using namespace memory_format;
             return (this->with_groups()
-                ? utils::pick(this->cdesc_().src_desc.ndims - 3,
+                ? utils::pick(this->desc()->src_desc.ndims - 3,
                     goiw, goihw, goidhw)
-                : utils::pick(this->cdesc_().src_desc.ndims - 3,
+                : utils::pick(this->desc()->src_desc.ndims - 3,
                     oiw, oihw, oidhw));
         }
 
@@ -65,16 +63,16 @@ struct _gemm_convolution_fwd_t: public cpu_primitive_t {
 
             bool ok = true
                 && this->set_default_params() == status::success
-                && utils::one_of(this->cdesc_().prop_kind, forward_training,
+                && utils::one_of(this->desc()->prop_kind, forward_training,
                            forward_inference)
-                && this->cdesc_().alg_kind == alg_kind::convolution_direct
+                && this->desc()->alg_kind == alg_kind::convolution_direct
                 && !this->has_zero_dim_memory()
                 && utils::everyone_is(data_type::f32,
-                           this->cdesc_().src_desc.data_type,
-                           this->cdesc_().weights_desc.data_type,
-                           this->cdesc_().dst_desc.data_type)
+                           this->desc()->src_desc.data_type,
+                           this->desc()->weights_desc.data_type,
+                           this->desc()->dst_desc.data_type)
                 && IMPLICATION(this->with_bias(), data_type::f32
-                                   == this->cdesc_().bias_desc.data_type)
+                                   == this->desc()->bias_desc.data_type)
                 && this->src_pd_.desc()->format == src_format()
                 && this->dst_pd_.desc()->format == src_format()
                 && this->weights_pd_.desc()->format == wei_format()
@@ -99,27 +97,22 @@ struct _gemm_convolution_fwd_t: public cpu_primitive_t {
         }
 
         virtual bool is_gemm_conv_format() const {
-            bool ok = true;
             auto const &po = this->attr()->post_ops_;
+            auto is_relu = [&](int idx) { return po.entry_[idx].is_relu(); };
+            auto is_sum = [&](int idx) { return po.entry_[idx].is_sum(); };
+
             switch (po.len_) {
                 using namespace mkldnn::impl::primitive_kind;
-            case 0: // no post_ops
-                break;
-            case 1:
-                ok = ok && // sum OR relu
-                        (po.entry_[0].is_relu() || po.entry_[0].is_sum());
-                break;
-            case 2:
-                ok = ok && // sum->relu
-                        (po.entry_[0].is_sum() && po.entry_[1].is_relu());
-                break;
-            default: ok = false;
+            case 0: return true; // no post_ops
+            case 1: return is_relu(0) || is_sum(0); // sum OR relu
+            case 2: return is_sum(0) && is_relu(1); // sum->relu
+            default: return false;
             }
-            return ok;
+            return false;
         }
     };
 
-    _gemm_convolution_fwd_t(const pd_t *pd, const input_vector &inputs,
+    gemm_convolution_fwd_t(const pd_t *pd, const input_vector &inputs,
            const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
         , scratchpad_(nullptr)
@@ -131,16 +124,15 @@ struct _gemm_convolution_fwd_t: public cpu_primitive_t {
         beta_ = post_ops.find(primitive_kind::sum) >= 0 ? one : zero;
 
         jit_gemm_convolution_utils::init_conf(conf_.jcp_,
-            *(conf_.cdesc()), conf_.src_pd(), conf_.weights_pd(0),
-            conf_.dst_pd(), mkldnn_get_max_threads(), with_relu,
-            conf_.negative_slope());
+            *(conf_.desc()), conf_.src_pd(), conf_.weights_pd(0),
+            conf_.dst_pd(), mkldnn_get_max_threads());
 
         size_t size = (size_t)conf_.jcp_.im2col_sz * sizeof(data_t);
         jit_gemm_convolution_utils::prepare_scratchpad(this->conf_.jcp_,
                 &this->scratchpad_, size, this->conf_.jcp_.nthr);
     }
 
-    ~_gemm_convolution_fwd_t() {
+    ~gemm_convolution_fwd_t() {
         delete this->scratchpad_;
     };
 
@@ -157,11 +149,6 @@ private:
     scratchpad_t *scratchpad_;
     data_t beta_;
 };
-
-using gemm_convolution_fwd_t =
-                         _gemm_convolution_fwd_t<false>;
-using gemm_convolution_relu_t =
-                         _gemm_convolution_fwd_t<true>;
 
 struct gemm_convolution_bwd_data_t: public cpu_primitive_t {
     struct pd_t: public cpu_convolution_bwd_data_pd_t {

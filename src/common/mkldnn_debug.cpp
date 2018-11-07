@@ -202,7 +202,6 @@ const char *mkldnn_prim_kind2str(mkldnn_primitive_kind_t v) {
     if (v == mkldnn_lrn) return "lrn";
     if (v == mkldnn_batch_normalization) return "batch_normalization";
     if (v == mkldnn_inner_product) return "inner_product";
-    if (v == mkldnn_convolution_relu) return "convolution_relu";
     if (v == mkldnn_rnn) return "rnn";
     assert(!"unknown prim_kind");
     return "unknown prim_kind";

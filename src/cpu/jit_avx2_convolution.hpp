@@ -29,42 +29,39 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-template <bool with_relu>
-struct _jit_avx2_convolution_fwd_t: public cpu_primitive_t {
-    struct pd_t: public _cpu_convolution_fwd_pd_t<with_relu> {
+struct jit_avx2_convolution_fwd_t: public cpu_primitive_t {
+    struct pd_t: public cpu_convolution_fwd_pd_t {
         pd_t(engine_t *engine,
-                const typename pd_t::base_desc_t *adesc,
+                const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const typename pd_t::base_class *hint_fwd_pd)
-            : _cpu_convolution_fwd_pd_t<with_relu>(engine, adesc, attr,
-                    hint_fwd_pd)
+            : cpu_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
             , jcp_() {}
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit:", avx2, ""),
-                _jit_avx2_convolution_fwd_t<with_relu>);
+                jit_avx2_convolution_fwd_t);
 
         virtual status_t init() override {
             using namespace prop_kind;
             assert(this->engine()->kind() == engine_kind::cpu);
             bool ok = true
                 && this->set_default_params() == status::success
-                && utils::one_of(this->cdesc_().prop_kind, forward_training,
+                && utils::one_of(this->desc()->prop_kind, forward_training,
                         forward_inference)
-                && this->cdesc_().alg_kind == alg_kind::convolution_direct
+                && this->desc()->alg_kind == alg_kind::convolution_direct
                 && !this->has_zero_dim_memory()
                 && utils::everyone_is(data_type::f32,
-                        this->cdesc_().src_desc.data_type,
-                        this->cdesc_().weights_desc.data_type,
-                        this->cdesc_().dst_desc.data_type)
+                        this->desc()->src_desc.data_type,
+                        this->desc()->weights_desc.data_type,
+                        this->desc()->dst_desc.data_type)
                 && IMPLICATION(this->with_bias(),
-                        data_type::f32 == this->cdesc_().bias_desc.data_type);
+                        data_type::f32 == this->desc()->bias_desc.data_type);
             if (!ok) return status::unimplemented;
 
-            return jit_avx2_conv_fwd_kernel_f32::init_conf(jcp_, this->cdesc_(),
+            return jit_avx2_conv_fwd_kernel_f32::init_conf(jcp_, *this->desc(),
                     *this->src_pd_.desc(), *this->weights_pd_.desc(),
-                    *this->dst_pd_.desc(), *this->attr(),
-                    with_relu, this->negative_slope());
+                    *this->dst_pd_.desc(), *this->attr());
         }
 
         jit_conv_conf_t jcp_;
@@ -95,7 +92,7 @@ struct _jit_avx2_convolution_fwd_t: public cpu_primitive_t {
         }
     };
 
-    _jit_avx2_convolution_fwd_t(const pd_t *pd, const input_vector &inputs,
+    jit_avx2_convolution_fwd_t(const pd_t *pd, const input_vector &inputs,
             const output_vector &outputs)
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
           , padded_bias_(nullptr)
@@ -111,7 +108,7 @@ struct _jit_avx2_convolution_fwd_t: public cpu_primitive_t {
         }
 
     }
-    ~_jit_avx2_convolution_fwd_t() {
+    ~jit_avx2_convolution_fwd_t() {
         delete kernel_;
         free(padded_bias_);
     };
@@ -129,9 +126,6 @@ private:
     jit_avx2_conv_fwd_kernel_f32 *kernel_;
     data_t *padded_bias_;
 };
-
-using jit_avx2_convolution_fwd_t = _jit_avx2_convolution_fwd_t<false>;
-using jit_avx2_convolution_relu_t = _jit_avx2_convolution_fwd_t<true>;
 
 struct jit_avx2_convolution_bwd_data_t: public cpu_primitive_t {
     struct pd_t: public cpu_convolution_bwd_data_pd_t {

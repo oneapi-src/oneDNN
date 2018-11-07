@@ -47,8 +47,7 @@ using namespace mkldnn::impl::utils;
     ? wht_blk_off_(f, g, oc, ic, kh, kw) \
     : wht_blk_off_(f, g, oc, ic, kd, kh, kw)
 
-template <bool with_relu>
-void _jit_avx2_convolution_fwd_t<with_relu>::execute_forward() {
+void jit_avx2_convolution_fwd_t::execute_forward() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto weights = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto bias = reinterpret_cast<const data_t *>(this->input_memory(2));
@@ -159,9 +158,6 @@ void _jit_avx2_convolution_fwd_t<with_relu>::execute_forward() {
 
     parallel(0, ker);
 }
-
-template void _jit_avx2_convolution_fwd_t<true>::execute_forward();
-template void _jit_avx2_convolution_fwd_t<false>::execute_forward();
 
 void jit_avx2_convolution_bwd_data_t::execute_backward_data() {
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(0));

@@ -127,10 +127,10 @@ void jit_conv_3d_ker_bwd_w_pipeline(jit_conv_ker_t ker, jit_conv_call_s &p,
          ? (d).blk_off((g), __VA_ARGS__) \
          : (d).blk_off(__VA_ARGS__))
 
-template <bool with_relu, data_type_t src_type, data_type_t wei_type,
+template <data_type_t src_type, data_type_t wei_type,
           data_type_t dst_type>
-void _jit_avx512_common_convolution_fwd_t
-    <with_relu, src_type, wei_type, dst_type>::execute_forward_1d()
+void jit_avx512_common_convolution_fwd_t
+    <src_type, wei_type, dst_type>::execute_forward_1d()
 {
     auto src = reinterpret_cast<const src_data_t *>(this->input_memory(0));
     auto weights = reinterpret_cast<const wei_data_t *>(this->input_memory(1));
@@ -222,10 +222,10 @@ void _jit_avx512_common_convolution_fwd_t
     });
 }
 
-template <bool with_relu, data_type_t src_type, data_type_t wei_type,
+template <data_type_t src_type, data_type_t wei_type,
           data_type_t dst_type>
-void _jit_avx512_common_convolution_fwd_t
-    <with_relu, src_type, wei_type, dst_type>::execute_forward_2d()
+void jit_avx512_common_convolution_fwd_t
+    <src_type, wei_type, dst_type>::execute_forward_2d()
 {
     auto src = reinterpret_cast<const src_data_t *>(this->input_memory(0));
     auto weights = reinterpret_cast<const wei_data_t *>(this->input_memory(1));
@@ -348,10 +348,10 @@ void _jit_avx512_common_convolution_fwd_t
     });
 }
 
-template <bool with_relu, data_type_t src_type, data_type_t wei_type,
+template <data_type_t src_type, data_type_t wei_type,
           data_type_t dst_type>
-void _jit_avx512_common_convolution_fwd_t
-    <with_relu, src_type, wei_type, dst_type>::execute_forward_3d()
+void jit_avx512_common_convolution_fwd_t
+    <src_type, wei_type, dst_type>::execute_forward_3d()
 {
     auto src = reinterpret_cast<const src_data_t *>(this->input_memory(0));
     auto weights = reinterpret_cast<const wei_data_t *>(this->input_memory(1));
@@ -478,11 +478,8 @@ void _jit_avx512_common_convolution_fwd_t
     });
 }
 
-template struct _jit_avx512_common_convolution_fwd_t<false, data_type::f32>;
-template struct _jit_avx512_common_convolution_fwd_t<true, data_type::f32>;
-template struct _jit_avx512_common_convolution_fwd_t<false, data_type::s16,
-        data_type::s16, data_type::s32>;
-template struct _jit_avx512_common_convolution_fwd_t<true, data_type::s16,
+template struct jit_avx512_common_convolution_fwd_t<data_type::f32>;
+template struct jit_avx512_common_convolution_fwd_t<data_type::s16,
         data_type::s16, data_type::s32>;
 
 template <data_type_t diff_dst_type, data_type_t wei_type,

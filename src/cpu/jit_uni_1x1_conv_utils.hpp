@@ -38,7 +38,7 @@ using namespace mkldnn::impl::utils;
 template <typename conv_pd_t>
 inline void rtus_prepare(conv_pd_t *self, const convolution_desc_t *&conv_d,
         const memory_desc_t *&src_d, const memory_desc_t *dst_d) {
-    const bool is_bwd_data = self->cdesc()->prop_kind
+    const bool is_bwd_data = self->desc()->prop_kind
         == prop_kind::backward_data;
 
     const int ndims = src_d->ndims;
@@ -247,7 +247,7 @@ struct rtus_driver_t: public jit_generator {
 template <cpu_isa_t isa, typename conv_t>
 inline void init_rtus_driver(conv_t *self) {
     const auto &conf = self->conf_;
-    const auto &cd = *conf.cdesc();
+    const auto &cd = *conf.desc();
     const bool is_bwd_data = cd.prop_kind == prop_kind::backward_data;
     const int ndims = conf.ndims();
 
