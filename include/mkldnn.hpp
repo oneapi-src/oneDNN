@@ -122,7 +122,6 @@ public:
         deconvolution = mkldnn_deconvolution,
         shuffle = mkldnn_shuffle,
         eltwise = mkldnn_eltwise,
-        relu = mkldnn_relu,
         softmax = mkldnn_softmax,
         pooling = mkldnn_pooling,
         lrn = mkldnn_lrn,
@@ -330,7 +329,6 @@ enum query {
     deconvolution_d = mkldnn_query_deconvolution_d,
     shuffle_d = mkldnn_query_shuffle_d,
     eltwise_d = mkldnn_query_eltwise_d,
-    relu_d = mkldnn_query_relu_d,
     softmax_d = mkldnn_query_softmax_d,
     pooling_d = mkldnn_query_pooling_d,
     lrn_d = mkldnn_query_lrn_d,
@@ -2375,13 +2373,6 @@ struct eltwise_forward : public primitive {
                         static_cast<float>(alpha), static_cast<float>(beta)),
                     "could not create a eltwise forward descriptor");
         }
-
-        /** @deprecated: api backward compatibility for relu */
-        template <typename T>
-        MKLDNN_DEPRECATED
-        desc(prop_kind aprop_kind, const memory::desc &src_desc,
-                T negative_slope)
-        : desc(aprop_kind, eltwise_relu, src_desc, negative_slope) {}
     };
 
     struct primitive_desc : public mkldnn::primitive_desc {
@@ -2408,8 +2399,6 @@ struct eltwise_forward : public primitive {
     }
 };
 
-typedef eltwise_forward relu_forward;
-
 struct eltwise_backward : public primitive {
     struct desc {
         mkldnn_eltwise_desc_t data;
@@ -2423,13 +2412,6 @@ struct eltwise_backward : public primitive {
                         static_cast<float>(beta)),
                     "could not create a eltwise backward descriptor");
         }
-
-        /** @deprecated: api backward compatibility for relu */
-        template <typename T>
-        MKLDNN_DEPRECATED
-        desc(const memory::desc &diff_data_desc, const memory::desc &data_desc,
-            T negative_slope): desc(eltwise_relu, diff_data_desc, data_desc,
-                negative_slope) {}
     };
 
     struct primitive_desc : public mkldnn::primitive_desc {
@@ -2459,8 +2441,6 @@ struct eltwise_backward : public primitive {
         reset(result);
     }
 };
-
-typedef eltwise_backward relu_backward;
 
 /// @}
 

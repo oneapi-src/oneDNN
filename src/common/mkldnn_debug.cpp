@@ -197,7 +197,6 @@ const char *mkldnn_prim_kind2str(mkldnn_primitive_kind_t v) {
     if (v == mkldnn_convolution) return "convolution";
     if (v == mkldnn_deconvolution) return "deconvolution";
     if (v == mkldnn_eltwise) return "eltwise";
-    if (v == mkldnn_relu) return "relu";
     if (v == mkldnn_softmax) return "softmax";
     if (v == mkldnn_pooling) return "pooling";
     if (v == mkldnn_lrn) return "lrn";

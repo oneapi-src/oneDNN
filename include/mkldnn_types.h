@@ -416,8 +416,6 @@ typedef enum {
     mkldnn_deconvolution,
     /** An element-wise primitive. */
     mkldnn_eltwise,
-    /** A ReLU primitive. @deprecated */
-    mkldnn_relu = mkldnn_eltwise,
     /** A Softmax primitive. */
     mkldnn_softmax,
     /** A pooling primitive. */
@@ -751,9 +749,6 @@ typedef struct {
      * @warning: read-only value */
     float negative_slope;
 } mkldnn_eltwise_desc_t;
-
-/* @deprecated: use mkldnn_eltwise_desc_t */
-typedef mkldnn_eltwise_desc_t mkldnn_relu_desc_t;
 
 /** A descriptor of a Softmax operation. */
 typedef struct {
@@ -1166,7 +1161,6 @@ typedef enum {
     mkldnn_query_deconvolution_d, /**< deconvolution descriptor */
     mkldnn_query_shuffle_d, /**< shuffle descriptor */
     mkldnn_query_eltwise_d, /**< eltwise descriptor */
-    mkldnn_query_relu_d = mkldnn_query_eltwise_d, /**< @deprecated */
     mkldnn_query_softmax_d, /**< softmax descriptor */
     mkldnn_query_pooling_d, /**< pooling descriptor */
     mkldnn_query_lrn_d, /**< lrn descriptor */

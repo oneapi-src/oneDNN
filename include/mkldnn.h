@@ -1123,52 +1123,6 @@ mkldnn_status_t MKLDNN_API mkldnn_eltwise_backward_desc_init(
 
 /** @} */
 
-/** @addtogroup c_api_relu ReLU (deprecated, use Eltwise instead)
- * A primitive to compute a parametric rectifier linear unit (ReLU).
- *
- * \f[dst[n][c][h][w] = \max(src[n][c][h][w], 0) +
- *                      \min(src[n][c][h][w], 0) \cdot negative\_slope\f]
- * @{ */
-
-/** Initializes a @p relu_desc for forward propagation using @p prop_kind
- * (possible values are #mkldnn_forward_training or #mkldnn_forward_inference),
- * @p negative_slope and memory descriptor @p data_desc.
- *
- * @deprecated use mkldnn_eltwise_forward_desc_init() instead, with @p alpha
- * equals @p negative_slope
- *
- * Order of inputs:
- *  - src (#mkldnn_query_src_pd, 0)
- *
- * Order of outputs:
- *  - dst (#mkldnn_query_dst_pd, 0)
- */
-MKLDNN_DEPRECATED
-mkldnn_status_t MKLDNN_API mkldnn_relu_forward_desc_init(
-        mkldnn_relu_desc_t *relu_desc, mkldnn_prop_kind_t prop_kind,
-        const mkldnn_memory_desc_t *data_desc, float negative_slope);
-
-/** Initializes a @p relu_desc for backward propagation using @p negative_slope
- * and memory descriptors @p diff_data_desc and @p data_desc.
- *
- * @deprecated use mkldnn_eltwise_backward_desc_init() instead, with @p alpha
- * equals @p negative_slope
- *
- * Order of inputs:
- *  - src (#mkldnn_query_src_pd, 0)
- *  - diff_dst (#mkldnn_query_diff_dst_pd, 0)
- *
- * Order of outputs:
- *  - diff_src (#mkldnn_query_diff_src_pd, 0)
- */
-MKLDNN_DEPRECATED
-mkldnn_status_t MKLDNN_API mkldnn_relu_backward_desc_init(
-        mkldnn_relu_desc_t *relu_desc,
-        const mkldnn_memory_desc_t *diff_data_desc,
-        const mkldnn_memory_desc_t *data_desc, float negative_slope);
-
-/** @} */
-
 /** @addtogroup c_api_softmax Softmax
  * A primitive to perform softmax.
  *

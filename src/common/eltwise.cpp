@@ -82,19 +82,4 @@ status_t mkldnn_eltwise_backward_desc_init(eltwise_desc_t *eltwise_desc,
             diff_data_desc, alpha, beta);
 }
 
-status_t mkldnn_relu_forward_desc_init(eltwise_desc_t *relu_desc,
-        prop_kind_t prop_kind, const memory_desc_t *data_desc,
-        float negative_slope) {
-    return mkldnn_eltwise_forward_desc_init(relu_desc, prop_kind, eltwise_relu,
-            data_desc, negative_slope, 0.);
-}
-
-status_t mkldnn_relu_backward_desc_init(eltwise_desc_t *relu_desc,
-        const memory_desc_t *diff_data_desc, const memory_desc_t *data_desc,
-        float negative_slope) {
-    return mkldnn_eltwise_backward_desc_init(relu_desc, eltwise_relu,
-            diff_data_desc, data_desc, negative_slope, 0.);
-}
-
-
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
