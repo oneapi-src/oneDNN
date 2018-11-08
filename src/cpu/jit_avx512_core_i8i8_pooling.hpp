@@ -27,8 +27,10 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
+template <cpu_isa_t isa>
 struct jit_avx512_core_i8i8_pool_fwd_ker_t;
 
+template <cpu_isa_t isa>
 struct jit_avx512_core_i8i8_pooling_fwd_t : public cpu_primitive_t {
     struct pd_t : public cpu_pooling_fwd_pd_t {
         pd_t(engine_t *engine, const pooling_desc_t  *adesc,
@@ -38,11 +40,12 @@ struct jit_avx512_core_i8i8_pooling_fwd_t : public cpu_primitive_t {
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit:", avx512_core, ""),
-                jit_avx512_core_i8i8_pooling_fwd_t);
+                jit_avx512_core_i8i8_pooling_fwd_t<isa>);
 
         virtual status_t init() override {
             assert(this->engine()->kind() == engine_kind::cpu);
             bool ok = true
+                && mayiuse(isa)
                 && desc()->src_desc.ndims == 4
                 && set_default_params() == status::success
                 && desc()->prop_kind == prop_kind::forward_inference
@@ -86,7 +89,7 @@ private:
     void execute_forward();
     pd_t conf_;
 
-    jit_avx512_core_i8i8_pool_fwd_ker_t *ker_;
+    jit_avx512_core_i8i8_pool_fwd_ker_t<isa> *ker_;
 };
 
 }

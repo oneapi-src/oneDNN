@@ -37,6 +37,7 @@ using namespace mkldnn::impl::utils;
 using namespace mkldnn::impl::types;
 using namespace alg_kind;
 
+template <cpu_isa_t isa>
 struct jit_avx512_core_i8i8_pool_fwd_ker_t: public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_i8i8_pool_fwd_ker_t)
 
@@ -127,7 +128,8 @@ struct jit_avx512_core_i8i8_pool_fwd_ker_t: public jit_generator {
     }
 };
 
-void jit_avx512_core_i8i8_pool_fwd_ker_t::load_src(int jj, int ll, int c_tail) {
+template <cpu_isa_t isa>
+void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::load_src(int jj, int ll, int c_tail) {
     using namespace data_type;
 
     int c_block = jpp.c_block;
@@ -193,7 +195,8 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t::load_src(int jj, int ll, int c_tail) {
     }
 }
 
-void jit_avx512_core_i8i8_pool_fwd_ker_t::store_dst(int jj, int ll,
+template <cpu_isa_t isa>
+void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::store_dst(int jj, int ll,
         int c_tail) {
     using namespace data_type;
 
@@ -260,7 +263,8 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t::store_dst(int jj, int ll,
     }
 }
 
-void jit_avx512_core_i8i8_pool_fwd_ker_t::compute_max_step(int ur_c, int c_tail)
+template <cpu_isa_t isa>
+void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::compute_max_step(int ur_c, int c_tail)
 {
     Label l_kw, l_kh;
 
@@ -311,7 +315,8 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t::compute_max_step(int ur_c, int c_tail)
         store_dst(jj, 0, c_tail);
 }
 
-void jit_avx512_core_i8i8_pool_fwd_ker_t::compute_avg_step(int ur_c, int c_tail)
+template <cpu_isa_t isa>
+void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::compute_avg_step(int ur_c, int c_tail)
 {
     using namespace data_type;
 
@@ -369,7 +374,8 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t::compute_avg_step(int ur_c, int c_tail)
     }
 }
 
-void jit_avx512_core_i8i8_pool_fwd_ker_t::compute_step(int ur_c, int c_tail) {
+template <cpu_isa_t isa>
+void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::compute_step(int ur_c, int c_tail) {
     switch (jpp.alg) {
         case pooling_max:
             compute_max_step(ur_c, c_tail); break;
@@ -380,7 +386,8 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t::compute_step(int ur_c, int c_tail) {
     }
 }
 
-void jit_avx512_core_i8i8_pool_fwd_ker_t::compute_c_block(){
+template <cpu_isa_t isa>
+void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::compute_c_block(){
     Label l_main_loop;
 
     int nb_c = jpp.nb_c;
@@ -407,14 +414,16 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t::compute_c_block(){
     }
 }
 
-void jit_avx512_core_i8i8_pool_fwd_ker_t::init_mask() {
+template <cpu_isa_t isa>
+void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::init_mask() {
     for (int i = 0; i < 4; i++) {
         mov(reg_mask, jpp.tail[i]);
         kmovq(mask(i), reg_mask);
     }
 }
 
-void jit_avx512_core_i8i8_pool_fwd_ker_t::init_tmp_reg() {
+template <cpu_isa_t isa>
+void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::init_tmp_reg() {
     using namespace data_type;
 
     switch (jpp.alg) {
@@ -449,7 +458,8 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t::init_tmp_reg() {
 
 }
 
-void jit_avx512_core_i8i8_pool_fwd_ker_t::generate() {
+template <cpu_isa_t isa>
+void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::generate() {
     preamble();
 
 #   define READ_PARAM(reg, field) \
@@ -471,7 +481,8 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t::generate() {
     postamble();
 }
 
-status_t jit_avx512_core_i8i8_pool_fwd_ker_t::init_conf(jit_pool_conf_t &jpp,
+template <cpu_isa_t isa>
+status_t jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::init_conf(jit_pool_conf_t &jpp,
         const pooling_desc_t &pd, const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &dst_d) {
     if (!mayiuse(avx512_core)) {
@@ -528,21 +539,25 @@ status_t jit_avx512_core_i8i8_pool_fwd_ker_t::init_conf(jit_pool_conf_t &jpp,
     return status::success;
 }
 
-status_t jit_avx512_core_i8i8_pooling_fwd_t::pd_t::jit_conf() {
-    return jit_avx512_core_i8i8_pool_fwd_ker_t::init_conf(jpp_,
+template <cpu_isa_t isa>
+status_t jit_avx512_core_i8i8_pooling_fwd_t<isa>::pd_t::jit_conf() {
+    return jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::init_conf(jpp_,
        desc_, src_pd_.desc(), dst_pd_.desc());
 }
 
-jit_avx512_core_i8i8_pooling_fwd_t::
+template <cpu_isa_t isa>
+jit_avx512_core_i8i8_pooling_fwd_t<isa>::
 jit_avx512_core_i8i8_pooling_fwd_t(const pd_t *pd,
           const input_vector &inputs, const output_vector &outputs)
     : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd), ker_(nullptr)
-{ ker_ = new jit_avx512_core_i8i8_pool_fwd_ker_t(conf_.jpp_); }
+{ ker_ = new jit_avx512_core_i8i8_pool_fwd_ker_t<isa>(conf_.jpp_); }
 
-jit_avx512_core_i8i8_pooling_fwd_t::
+template <cpu_isa_t isa>
+jit_avx512_core_i8i8_pooling_fwd_t<isa>::
 ~jit_avx512_core_i8i8_pooling_fwd_t() { delete ker_; }
 
-void jit_avx512_core_i8i8_pooling_fwd_t::execute_forward() {
+template <cpu_isa_t isa>
+void jit_avx512_core_i8i8_pooling_fwd_t<isa>::execute_forward() {
     auto src_i8 = reinterpret_cast<const char *>(input_memory(0));
     auto dst_i8 = reinterpret_cast<char *>(memory());
 
@@ -563,7 +578,7 @@ void jit_avx512_core_i8i8_pooling_fwd_t::execute_forward() {
         const int kw_end = nstl::min(jpp.kw,
                 jpp.iw + jpp.l_pad - ow * jpp.stride_w);
 
-        auto p = jit_avx512_core_i8i8_pool_fwd_ker_t::call_params_t();
+        auto p = typename jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::call_params_t();
         p.src_i8 = &src_i8[
             src_d.blk_off(n, 0, ih, iw) * src_d.data_type_size()];
         p.dst_i8 = &dst_i8[
@@ -576,6 +591,9 @@ void jit_avx512_core_i8i8_pooling_fwd_t::execute_forward() {
         ker_->ker_(&p);
     });
 }
+
+template struct jit_avx512_core_i8i8_pool_fwd_ker_t<avx512_common>;
+template struct jit_avx512_core_i8i8_pooling_fwd_t<avx512_common>;
 
 }
 }
