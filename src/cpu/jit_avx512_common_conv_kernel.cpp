@@ -1551,9 +1551,13 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
     }
 
     if (one_of(jcp.ver, ver_4vnni, ver_4fma) && !jcp.is_1stconv) {
-        if (jcp.kw == 3 && jcp.kh == 3 && jcp.ow == 7 && jcp.oh == 7) {
-            if (jcp.nb_oc % 2 == 0)
+        if ((jcp.kw <= 5 && jcp.kh <= 5 && jcp.kw == jcp.kh && jcp.ow <= 8
+                    && jcp.oh <= 8 && jcp.ow == jcp.oh)
+                || (jcp.stride_h != 1 && jcp.ur_w < jcp.ow)) {
+            if (jcp.nb_oc % 2 == 0) {
                 jcp.nb_oc_blocking = 2;
+                jcp.ur_w = nstl::min(jcp.ow, regs / jcp.nb_oc_blocking);
+            }
         } else {
             for (int i = jcp.nb_oc; i > 0; i--)
                 if (i * jcp.ur_w <= regs && jcp.nb_oc % i == 0) {
@@ -1646,7 +1650,6 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
             && !(jcp.kw == 3 && jcp.ow == 28 && jcp.ic >= 512);
 
         if (jcp.mb == 1) {
-            jcp.kernel_kind = embd_bcast;
             unsigned int inp_size = jcp.mb * div_up(jcp.ih, jcp.stride_h)
                     * div_up(jcp.iw, jcp.stride_w) * jcp.ic;
             unsigned int wei_size = jcp.ic * jcp.oc * jcp.kh * jcp.kw;
@@ -1679,39 +1682,47 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
                     }
                 }
             }
-        } else if (jcp.kw > 3
-            || (jcp.stride_w == 1 && jcp.stride_h == 1
-                && embd_bcast_condition)
-            || ((jcp.stride_w != 1 || jcp.stride_h != 1)
-                && ((jcp.mb <= 16 && (jcp.oc <= 192 || jcp.oh <= 10)
-                     && embd_bcast_condition)))
-            ) {
+        }
+
+        if (jcp.kw > 3
+                || (jcp.stride_w == 1 && jcp.stride_h == 1
+                           && embd_bcast_condition)
+                || ((jcp.stride_w != 1 || jcp.stride_h != 1)
+                           && ((jcp.mb <= 16 && (jcp.oc <= 192 || jcp.oh <= 10)
+                                      && embd_bcast_condition)))
+                || (jcp.mb == 1
+                           && (jcp.ur_w >= jcp.ow || jcp.is_1stconv
+                                      || (jcp.ow <= 147 && jcp.oc <= 96)))) {
             jcp.kernel_kind = embd_bcast;
             jcp.ur_w = nstl::min(jcp.ow, regs);
             jcp.nb_ic_blocking = jcp.nb_oc_blocking = 1;
             if (ker_total_size < L1_cache_size && jcp.ow <= 8 && jcp.kh <= 3
-                && jcp.kw <= 3) {
-                if (jcp.nb_oc % try_nb_oc_blocking == 0 && !jcp.is_1stconv) {
-                    jcp.nb_oc_blocking = try_nb_oc_blocking;
-                    jcp.ur_w = 31 / (jcp.nb_oc_blocking + 1);
-                    if (jcp.ow < jcp.ur_w)
-                        jcp.ur_w = jcp.ow;
-                }
+                    && jcp.kw <= 3 && jcp.nb_oc % try_nb_oc_blocking == 0
+                    && IMPLICATION(jcp.is_1stconv, jcp.mb == 1)
+                    && IMPLICATION(jcp.mb == 1, jcp.ur_w < jcp.ow)) {
+                jcp.nb_oc_blocking = try_nb_oc_blocking;
+                jcp.ur_w = nstl::min(jcp.ow, 31 / (jcp.nb_oc_blocking + 1));
             }
         } else {
             jcp.kernel_kind = expl_bcast;
             jcp.nb_ic_blocking = 1;
-            jcp.nb_oc_blocking = 4;
-            if (jcp.nb_oc < jcp.nb_oc_blocking) jcp.nb_oc_blocking = jcp.nb_oc;
-            if (jcp.nb_oc % jcp.nb_oc_blocking != 0)
-                for (int i = jcp.nb_oc_blocking; i > 0; i--)
+            if (IMPLICATION(jcp.is_1stconv, jcp.mb > 1)) {
+                float best_thr_eff = 0.f;
+                int best_nb_oc_blocking = 1;
+                for (int i = nstl::min(jcp.nb_oc, 5); i > 0; i--) {
                     if (jcp.nb_oc % i == 0) {
-                        jcp.nb_oc_blocking = i;
-                        break;
+                        float thr_eff;
+                        int ur_w = nstl::min(jcp.ow, 31 / (i + 1));
+                        get_ow_block(i, ur_w, thr_eff);
+                        if (thr_eff > 1.05f * best_thr_eff) {
+                            best_nb_oc_blocking = i;
+                            best_thr_eff = thr_eff;
+                        }
                     }
-            jcp.ur_w = 31 / (jcp.nb_oc_blocking + 1);
-            if (jcp.ow < jcp.ur_w)
-                jcp.ur_w = jcp.ow;
+                }
+                jcp.nb_oc_blocking = best_nb_oc_blocking;
+                jcp.ur_w = nstl::min(jcp.ow, 31 / (jcp.nb_oc_blocking + 1));
+            }
         }
     }
 
