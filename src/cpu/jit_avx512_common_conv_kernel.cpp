@@ -63,19 +63,15 @@ inline bool is_1stconv(const jit_conv_conf_t &jcp) {
     else
         return one_of(jcp.ic, 1, 3);
 }
-inline bool is_1D_conv(const jit_conv_conf_t &jcp) {
-    return (jcp.ih == 1 && jcp.kh == 1);
-}
-inline bool is_ow_threading_available(const jit_conv_conf_t &jcp) {
-    return (is_1D_conv(jcp) && one_of(jcp.ndims, 3, 4)
-        && !(jcp.ver == ver_fma && mayiuse(avx512_mic)));
-}
+
 inline bool is_ow_threading_on(const jit_conv_conf_t &jcp) {
     return (jcp.nb_ow > 1);
 }
-inline bool is_1D_prefetching(const jit_conv_conf_t &jcp) {
-    return (jcp.ver == ver_4fma && is_1D_conv(jcp) && is_ow_threading_on(jcp));
+
+inline bool is_owb_prefetching(const jit_conv_conf_t &jcp) {
+    return (jcp.ver == ver_4fma && is_ow_threading_on(jcp));
 }
+
 }
 
 void jit_avx512_common_conv_fwd_kernel::prepare_output(int ur_w)
@@ -84,7 +80,7 @@ void jit_avx512_common_conv_fwd_kernel::prepare_output(int ur_w)
         for (int j = 0; j < ur_w; j++) {
             Zmm zmm = zmm_out(j, k);
             vpxord(zmm, zmm, zmm);
-            if (!is_1D_prefetching(jcp)) {
+            if (!is_owb_prefetching(jcp)) {
                 size_t aux_output_offset = get_output_offset(j, k);
                 mic_prefetcht1(EVEX_compress_addr_safe(reg_out_prf,
                             aux_output_offset, reg_out_long_offt));
@@ -168,7 +164,7 @@ void jit_avx512_common_conv_fwd_kernel::store_output(int ur_w)
                 ((size_t)k * jcp.od * jcp.oh * jcp.ow + j) * jcp.oc_block;
             vmovups(EVEX_compress_addr_safe(reg_out, aux_output_offset,
                         reg_out_long_offt), zmm);
-            if (!is_1D_prefetching(jcp))
+            if (!is_owb_prefetching(jcp))
                 mic_prefetcht0(EVEX_compress_addr_safe(reg_out_prf,
                             aux_output_offset, reg_out_long_offt));
         }
@@ -488,7 +484,7 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma(int ur_w,
                             EVEX_compress_addr(aux_reg_inp,
                                 aux_input_offset));
 
-                        if (!is_1D_prefetching(jcp)) {
+                        if (!is_owb_prefetching(jcp)) {
                             if ((oi % 2) && (prf_count_t1 < 4)) {
                                 mic_prefetcht1(EVEX_compress_addr(
                                     aux_reg_ker_prf, kernel_offset(kk,
@@ -506,7 +502,7 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma(int ur_w,
                                 prf_count_t0++;
                             }
                         }
-                        if (!is_1D_prefetching(jcp)) {
+                        if (!is_owb_prefetching(jcp)) {
                             if (pref_current_inp) {
                                 if (ki == 0 && ic == 0 && kk == 0)
                                     mic_prefetcht0(EVEX_compress_addr(
@@ -1519,6 +1515,14 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
     jcp.nb_oc = jcp.oc / jcp.oc_block;
     jcp.nb_ic_blocking = jcp.nb_oc_blocking = 1;
 
+    auto is_ow_threading_applicable = [=]() {
+        return (true && !jcp.is_1stconv && one_of(jcp.ndims, 3, 4)
+                && IMPLICATION(mayiuse(avx512_mic),
+                           jcp.ver == ver_4fma
+                                   && IMPLICATION(jcp.mb != 1,
+                                              jcp.ih == 1 && jcp.kh == 1)));
+    };
+
     if (jcp.ver == ver_4vnni) {
         jcp.kernel_kind = embd_bcast;
     }
@@ -1557,14 +1561,73 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
                     break;
                 }
         }
-        if (jcp.ver == ver_4fma
-            && is_1D_conv(jcp) && one_of(jcp.ndims, 3, 4)) {
-            if (jcp.nb_oc % 2 == 0) {
+        if (jcp.ver == ver_4fma && is_ow_threading_applicable()) {
+            if (jcp.nb_oc % 2 == 0 && jcp.ur_w < jcp.ow
+                    && jcp.ow != 2 * jcp.ur_w) {
                 jcp.nb_oc_blocking = 2;
                 jcp.ur_w = nstl::min(jcp.ow, regs / jcp.nb_oc_blocking);
             }
         }
     }
+
+    jcp.ow_block = jcp.ow;
+
+    auto get_thr_eff = [=](int nb_oc_blocking, int ow_block) {
+        int nb_ow = div_up(jcp.ow, ow_block);
+        int nb_oc_chunks = div_up(jcp.nb_oc, nb_oc_blocking);
+        int work_amount = jcp.mb * jcp.oh * nb_oc_chunks * nb_ow;
+        float disbalance = (float)jcp.ow / rnd_up(jcp.ow, ow_block);
+        float thr_eff = disbalance * (float)work_amount
+            / rnd_up(work_amount, nthreads);
+        return thr_eff;
+    };
+
+    auto get_ow_block = [=](int nb_oc_blocking, int ur_w, float &eff) {
+        int res_ow_block = jcp.ow;
+        eff = get_thr_eff(nb_oc_blocking, res_ow_block);
+        if (!is_ow_threading_applicable())
+            return res_ow_block;
+
+        int L2_part = (get_cache_size(2) * 7 / 8) / typesize;
+        if (jcp.ver == ver_4fma)
+            L2_part /= 2;
+        int size_src_chunk = jcp.ic_block * ur_w * jcp.kh;
+        int size_dst_chunk = jcp.oc_block * nb_oc_blocking * ur_w;
+        int size_wei_chunk = jcp.oc_block * nb_oc_blocking * jcp.ic_block
+            * jcp.kw * jcp.kh;
+        int nurw_cache = (L2_part - 2 * size_wei_chunk)
+            / (2 * size_dst_chunk + 2 * size_src_chunk);
+        // current design of generate() requires ow_block >= 2 * ur_w
+        int ow_block_cache = ur_w * nstl::max(2, nurw_cache);
+
+        int ow_block_thr = ow_block_cache;
+        eff = get_thr_eff(nb_oc_blocking, ow_block_thr);
+
+        int max_nb_ow = div_up(jcp.ow, 2 * ur_w);
+        int start_nb_ow = div_up(jcp.ow, ow_block_thr);
+        for (int nb_ow = start_nb_ow; nb_ow <= max_nb_ow; nb_ow++) {
+            int ow_block
+                = nstl::min(rnd_up(div_up(jcp.ow, nb_ow), ur_w), jcp.ow);
+            float eff_threshold = (jcp.ver == ver_4fma) ? 0.8f : 0.9f;
+            if (ow_block < nb_oc_blocking * jcp.oc_block && eff > eff_threshold)
+                break;
+            if (div_up(jcp.ow, ow_block) != nb_ow)
+                continue;
+            float thr_eff = get_thr_eff(nb_oc_blocking, ow_block);
+            float eff_step = (jcp.ver == ver_4fma) ? 1.1f : 1.f;
+            if (ow_block >= 2 * ur_w && thr_eff > eff_step * eff) {
+                ow_block_thr = ow_block;
+                eff = thr_eff;
+            }
+            eff_threshold = (jcp.ver == ver_4fma) ? 0.9f : 0.98f;
+            if (eff > eff_threshold)
+                break;
+        }
+        res_ow_block = nstl::min(jcp.ow, nstl::max(2 * ur_w, ow_block_thr));
+        eff = get_thr_eff(nb_oc_blocking, res_ow_block);
+        return res_ow_block;
+    };
+
 
     if (jcp.ver == ver_fma && mayiuse(avx512_core)) {
         int try_nb_oc_blocking = 2;
@@ -1654,21 +1717,6 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
 
     jcp.ur_w_tail = jcp.ow % jcp.ur_w;
 
-    jcp.ow_block = jcp.ow;
-    if (is_ow_threading_available(jcp)) {
-        const int L1_part = get_cache_size(1) * 5 / 8;
-        int size_src_chunk = typesize * jcp.ic_block * jcp.ur_w;
-        int size_dst_chunk = typesize
-            * jcp.oc_block * jcp.nb_oc_blocking * jcp.ur_w;
-        int size_wei_chunk = typesize
-            * jcp.oc_block * jcp.ic_block * jcp.nb_oc_blocking * jcp.kw;
-        int nurw = (L1_part - size_wei_chunk)
-            / (size_dst_chunk + size_src_chunk);
-        // current design of generate() requires ow_block >= 2 * ur_w
-        jcp.ow_block = jcp.ur_w * nstl::max(2, nurw);
-    }
-    jcp.nb_ow = div_up(jcp.ow, jcp.ow_block);
-
     args_ok = true
         && jcp.l_pad <= jcp.ur_w
         && jcp.ic <= src_d.blocking_desc().padding_dims[1]
@@ -1687,6 +1735,10 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
     pick_loop_order(jcp);
 
     jcp.nb_ic_L2 = jcp.nb_ic;
+
+    float thr_eff;
+    jcp.ow_block = get_ow_block(jcp.nb_oc_blocking, jcp.ur_w, thr_eff);
+    jcp.nb_ow = div_up(jcp.ow, jcp.ow_block);
 
     const int L2_size = get_cache_size(2, true) / sizeof(float);
     // Source and output data needs to fit in L2,
@@ -1719,7 +1771,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
                     break;
                 }
             }
-        } else {
+        } else if (jcp.ic > 64) {
             jcp.nb_ic_L2 = 2; /* according to performance data*/
         }
     }
