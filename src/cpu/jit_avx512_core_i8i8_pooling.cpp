@@ -566,9 +566,6 @@ void jit_avx512_core_i8i8_pooling_fwd_t<isa>::execute_forward() {
 
     const auto &jpp = conf_.jpp_;
 
-    auto pxx = typename jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::call_params_t();
-    UNUSED(pxx);
-
     parallel_nd(jpp.mb, jpp.oh, jpp.ow,
             [&](int n, int oh, int ow) {
         const int ih = nstl::max(oh*jpp.stride_h - jpp.t_pad, 0);
