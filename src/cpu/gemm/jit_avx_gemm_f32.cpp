@@ -2336,7 +2336,7 @@ void jit_avx_gemm_f32::sgemm_nocopy_driver(const char *transa,
     int BM = 4032;
     int BN = isTransA ? 96 : 48;
     int BK = isTransB ? 96 : 256;
-    const float *curA, *curB, *curBias = NULL;
+    const float *curA, *curB, *curBias = nullptr;
     float *curC;
 
     for (Bk = 0; Bk < k; Bk += sizeK) {
@@ -2377,15 +2377,15 @@ void jit_avx_gemm_f32::sgemm_nocopy_driver(const char *transa,
                     curB = b + Bn + (size_t)Bk * ldb;
                 }
                 curC = c + Bm + (size_t)Bn * ldc;
-                if (bias != NULL) {
+                if (bias != nullptr) {
                     if (Bk == 0) {
                         curBias = bias + Bm;
                     } else {
-                        curBias = NULL;
+                        curBias = nullptr;
                     }
                 }
                 if (Bk == 0) {
-                    if (*beta == 0.0 && bias == NULL)
+                    if (*beta == 0.0 && bias == nullptr)
                         (*ker_b0_)((long long int)sizeM, (long long int)sizeN,
                                 (long long int)sizeK, alpha, curA,
                                 (long long int)lda, curB, (long long int)ldb,
@@ -2443,8 +2443,8 @@ void jit_avx_gemm_f32::sgemm(const char *transa, const char *transb,
     unsigned char * ompstatus_ = nullptr;
     unsigned char volatile *ompstatus = nullptr;
 
-    float *c_buffers = NULL;
-    float *ws_buffers = NULL;
+    float *c_buffers = nullptr;
+    float *ws_buffers = nullptr;
 
     if (nthr_k > 1) {
         ompstatus_ = (unsigned char *) malloc(
@@ -2473,7 +2473,7 @@ void jit_avx_gemm_f32::sgemm(const char *transa, const char *transb,
         int n_from, n_to, myN;
         int k_from, k_to, myK;
         int cbase, ibase;
-        const float *myA, *myB, *myBias = NULL;
+        const float *myA, *myB, *myBias = nullptr;
         float *myC = C, myBeta;
         float *ws = ws_buffers ?
                 ws_buffers + ithr * ws_size_per_thr / sizeof(float) : 0;
@@ -2535,7 +2535,7 @@ void jit_avx_gemm_f32::sgemm(const char *transa, const char *transb,
                     myC = c_buffers + MB * NB * (cbase + ithr_k - 1);
                     myBeta = 0.0;
                     ld = MB;
-                    myBias = NULL;
+                    myBias = nullptr;
                 }
 
                 sgemm_nocopy_driver(transa, transb, myM, myN, myK, p_alpha, myA,
@@ -2582,10 +2582,8 @@ void jit_avx_gemm_f32::sgemm(const char *transa, const char *transb,
         }
     });
 
-    if (nthr_k > 1) {
-        free(c_buffers);
-        free(ompstatus_);
-    }
+    free(c_buffers);
+    free(ompstatus_);
     free(ws_buffers);
 }
 
