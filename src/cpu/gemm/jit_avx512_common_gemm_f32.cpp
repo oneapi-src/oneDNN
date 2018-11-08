@@ -22,7 +22,7 @@
 #include "gemm_utils.hpp"
 #include "jit_avx512_common_gemm_f32.hpp"
 
-#define CACHE_LINE_SIZE 16
+#define CACHE_LINE_SIZE 64
 
 namespace mkldnn {
 namespace impl {
@@ -1867,17 +1867,17 @@ void jit_avx512_common_gemm_f32::sgemm(const char *transa, const char *transb,
 
     nthr_mn = nthr_m * nthr_n;
 
-    unsigned int * ompstatus_ = nullptr;
-    unsigned int volatile *ompstatus = nullptr;
+    unsigned char * ompstatus_ = nullptr;
+    unsigned char volatile *ompstatus = nullptr;
 
     float *c_buffers = NULL;
     float *ws_buffers = NULL;
 
     if (nthr_k > 1) {
-        ompstatus_ = (unsigned int *) malloc(
-                sizeof(unsigned int) * nthr * CACHE_LINE_SIZE,
-                CACHE_LINE_SIZE * sizeof(float));
-        ompstatus = (unsigned int volatile *) ompstatus_;
+        ompstatus_ = (unsigned char *) malloc(
+                nthr * CACHE_LINE_SIZE,
+                CACHE_LINE_SIZE);
+        ompstatus = (unsigned char volatile *) ompstatus_;
         assert(ompstatus);
         for (int i = 0; i < nthr; i++)
             ompstatus[i * CACHE_LINE_SIZE] = 0;
