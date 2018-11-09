@@ -165,13 +165,13 @@ struct rnn_pd_t : public primitive_desc_t {
         if (copy_diff_weights_layer) {
             current_offset = utils::rnd_up(current_offset, page_size);
             ws_diff_weights_layer_offset = current_offset;
-            current_offset += ws_diff_weights_iter_size();
+            current_offset += ws_diff_weights_layer_size();
         }
 
         if (copy_diff_weights_iter) {
             current_offset = utils::rnd_up(current_offset, page_size);
             ws_diff_weights_iter_offset = current_offset;
-            current_offset += ws_diff_weights_layer_size();
+            current_offset += ws_diff_weights_iter_size();
         }
 
         return current_offset;
