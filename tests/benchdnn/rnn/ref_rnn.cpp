@@ -684,7 +684,7 @@ void gru_lbr_bwd(alg_t alg, activation_t f, int sic, int slc, int dic, int wc,
 
 // dc = (1 - u) * dh; dc^ = dtanhf(c) * dc;
 // du = (h - u) * dh; du^ = dlogistic(u) * du;
-// dr = (Wh + b) * dc; dr^ = dlogistic(r) * dr;
+// dr = (Wh + b) * dc^; dr^ = dlogistic(r) * dr;
     const int ohu = 0;
     const int ohr = 1;
     const int ohc = 2;
@@ -697,11 +697,12 @@ void gru_lbr_bwd(alg_t alg, activation_t f, int sic, int slc, int dic, int wc,
             float c = gates(ib, ohc, ih);
             float du = (h - c) * dh;
             float dc = (1.0f - u) * dh;
-            float dr = Wh_b(ib, ih) * dc;
 
             b_gates(ib, ohu, ih) = dlogistic(u) * du;
-            b_gates(ib, ohr, ih) = dlogistic(r) * dr;
             b_gates(ib, ohc, ih) = dtanhf(c) * dc;
+
+            float dr = Wh_b(ib, ih) * b_gates(ib, ohc, ih);
+            b_gates(ib, ohr, ih) = dlogistic(r) * dr;
 
             b_gates_r(ib, ohu, ih) = b_gates(ib, ohu, ih);
             b_gates_r(ib, ohr, ih) = b_gates(ib, ohr, ih);
