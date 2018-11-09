@@ -945,7 +945,7 @@ void jit_uni_lrn_fwd_kernel_f32<avx2>::nchw_body(
 }
 
 template<>
-void jit_uni_lrn_fwd_kernel_f32<avx>::nchw_tail_sse42(
+void jit_uni_lrn_fwd_kernel_f32<avx2>::nchw_tail_sse42(
     int tail, Xbyak::Reg64 reg_dst, Xbyak::Xmm xtail_lo, Xbyak::Xmm xtail_hi)
 {}
 
