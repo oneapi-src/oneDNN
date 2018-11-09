@@ -592,8 +592,8 @@ void jit_avx512_core_i8i8_pooling_fwd_t<isa>::execute_forward() {
     });
 }
 
-template struct jit_avx512_core_i8i8_pool_fwd_ker_t<avx512_common>;
-template struct jit_avx512_core_i8i8_pooling_fwd_t<avx512_common>;
+template struct jit_avx512_core_i8i8_pool_fwd_ker_t<avx512_core>;
+template struct jit_avx512_core_i8i8_pooling_fwd_t<avx512_core>;
 
 }
 }
