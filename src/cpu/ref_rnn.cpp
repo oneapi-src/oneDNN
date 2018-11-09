@@ -397,10 +397,10 @@ elemwise_sig(_ref_rnn_common_t<prop_kind::backward>::gru_lbr_elemwise) {
                     + diff_states_t_lp1(n_states, 0, i, j);
             float dG0 = (h - ws_gates(i, 2 * dic + j)) * dHt
                     * x_m_square(ws_gates(i, 0 * dic + j));
-            float dG2 = (1.0f - ws_gates(i, 0 * dic + j)) * dHt;
+            float dG2 = (1.0f - ws_gates(i, 0 * dic + j))
+                    * one_m_square(ws_gates(i, 2 * dic + j)) * dHt;
             float dG1 = ws_Wh_b(i, j) * dG2
                     * x_m_square(ws_gates(i, 1 * dic + j));
-            dG2 *= one_m_square(ws_gates(i, 2 * dic + j));
 
             diff_states_t_l(0, 0, i, j) = dHt * ws_gates(i, 0 * dic + j);
             ws_gates(i, 2 * dic + j) = dG2;
