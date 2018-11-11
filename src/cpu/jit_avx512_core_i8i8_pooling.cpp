@@ -49,6 +49,15 @@ struct jit_avx512_core_i8i8_pool_fwd_ker_t: public jit_generator {
         float idivider;
     };
 
+    using Vmm = typename cpu_isa_traits<isa>::Vmm;
+    constexpr Xmm xreg(int idx) {
+        int vidx = cpu_isa_traits<isa>::n_vregs - 1 - idx; // reverse ordering
+        assert(vidx >= 0);
+        return Xmm(vidx);
+    }
+    constexpr Ymm yreg(int idx) { return Ymm(xreg(idx).getIdx()); }
+    constexpr Vmm vreg(int idx) { return Vmm(xreg(idx).getIdx()); }
+
     Reg64 reg_ptr_src_i8 = r8;
     Reg64 reg_ptr_dst_i8 = r9;
 
@@ -71,21 +80,28 @@ struct jit_avx512_core_i8i8_pool_fwd_ker_t: public jit_generator {
         return Opmask(6 - idx);
     }
 
+    // XXX: ref to any of XYZ-regs via xreg/yreg/vreg functions
     Xmm xmm_tmp = Xmm(0);
-    Zmm vreg_tmp = Zmm(30);
-    Zmm vreg_zeros = Zmm(31);
+//    Xmm xmm_tmp = xreg(0);
+
+//    Zmm vreg_tmp = Zmm(30);
+    Vmm vreg_tmp = vreg(0);
+//    Zmm vreg_zeros = Zmm(31);
+    Vmm vreg_zeros = vreg(1);
+
+    enum:int {vidx_base = 1};
 
     size_t sizeof_src_dt() const { return data_type_size(jpp.src_dt); }
     size_t sizeof_dst_dt() const { return data_type_size(jpp.dst_dt); }
 
     /* max pooling */
-    Zmm vreg_src(int idx) {
-        return Zmm(idx);
-    }
+    constexpr Vmm max_pool_base_vreg(int idx) { return vreg(vidx_base + idx); }
 
-    Zmm vreg_dst(int idx) {
-        return Zmm(jpp.ur_c + idx);
-    }
+//    Zmm vreg_src(int idx) { return Zmm(idx); }
+    Vmm vreg_src(int idx) { return max_pool_base_vreg(idx); }
+
+//    Zmm vreg_dst(int idx) { return Zmm(jpp.ur_c + idx); }
+    Vmm vreg_dst(int idx) { return max_pool_base_vreg(jpp.ur_c + idx); }
 
     /* avg pooling */
     Zmm vreg_src_s32(int jj, int ll) {
@@ -290,14 +306,22 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::compute_max_step(int ur_c, int c_
                     vpblendmd(vreg_dst(jj) | k_cmp_mask, vreg_dst(jj),
                             vreg_src(jj));
                 } else {
-                    if (jpp.src_dt == data_type::s8)
-                        vpcmpb(k_cmp_mask, vreg_dst(jj), vreg_src(jj),
-                                _cmp_lt_os);
-                    else
-                        vpcmpub(k_cmp_mask, vreg_dst(jj), vreg_src(jj),
-                                _cmp_lt_os);
-                    vpblendmb(vreg_dst(jj) | k_cmp_mask, vreg_dst(jj),
-                            vreg_src(jj));
+                    if (isa == avx2) {
+                        if (jpp.src_dt == data_type::s8) {
+                            vpmaxsb(vreg_dst(jj), vreg_dst(jj), vreg_src(jj));
+                        } else
+                            vpmaxub(vreg_dst(jj), vreg_dst(jj), vreg_src(jj));
+                    } else if (isa == avx512_core) {
+                        if (jpp.src_dt == data_type::s8)
+                            vpcmpb(k_cmp_mask, vreg_dst(jj), vreg_src(jj),
+                                    _cmp_lt_os);
+                        else
+                            vpcmpub(k_cmp_mask, vreg_dst(jj), vreg_src(jj),
+                                    _cmp_lt_os);
+                        vpblendmb(vreg_dst(jj) | k_cmp_mask, vreg_dst(jj),
+                                vreg_src(jj));
+                    } else
+                        assert(false);
                 }
             }
             add(aux_reg_src_w, c * sizeof_src_dt());
@@ -416,10 +440,11 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::compute_c_block(){
 
 template <cpu_isa_t isa>
 void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::init_mask() {
-    for (int i = 0; i < 4; i++) {
-        mov(reg_mask, jpp.tail[i]);
-        kmovq(mask(i), reg_mask);
-    }
+    if (isa == avx512_core)
+        for (int i = 0; i < 4; i++) {
+            mov(reg_mask, jpp.tail[i]);
+            kmovq(mask(i), reg_mask);
+        }
 }
 
 template <cpu_isa_t isa>
@@ -485,12 +510,15 @@ template <cpu_isa_t isa>
 status_t jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::init_conf(jit_pool_conf_t &jpp,
         const pooling_desc_t &pd, const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &dst_d) {
-    if (!mayiuse(avx512_core)) {
+    if (!(mayiuse(isa) && one_of(isa,
+            avx512_core, // XXX: original
+            avx2         // XXX: support in progress!!!
+        ))) {
         return status::unimplemented;
     }
 
     jpp.mb = src_d.dims()[0];
-    jpp.c = src_d.dims()[1];
+    jpp.c = src_d.dims()[1]; // XXX: (basargin) ???under question??? do we need to round up with simd_w ???
     jpp.ih = src_d.dims()[2];
     jpp.iw = src_d.dims()[3];
     jpp.oh = dst_d.dims()[2];
@@ -509,10 +537,15 @@ status_t jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::init_conf(jit_pool_conf_t &jp
     jpp.src_dt = pd.src_desc.data_type;
     jpp.dst_dt = pd.dst_desc.data_type;
 
-    jpp.c_block = 64 / (jpp.src_dt == data_type::s32 ? 4 : 1);
+    // data_type items per one vreg on the <isa>
+    //     isa == avx2    : 32 bytes / sizeof(src data_type)
+    //     isa == avx512* : 64 bytes / sizeof(src data_type)
+    int simd_w = cpu_isa_traits<isa>::vlen / data_type_size(jpp.src_dt);
+
+    jpp.c_block = simd_w;
     jpp.c_tail = jpp.c % jpp.c_block;
     jpp.nb_c = jpp.c / jpp.c_block;
-    jpp.ur_c = 1;
+    jpp.ur_c = 1; // XXX: (basargin) ???under question??? what defines this magic const value 1 ???
     jpp.ur_c_tail = jpp.nb_c - (jpp.nb_c / jpp.ur_c)*jpp.ur_c +
             (jpp.c_tail != 0);
 
@@ -520,6 +553,10 @@ status_t jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::init_conf(jit_pool_conf_t &jp
 
     switch(jpp.alg) {
         case pooling_max:
+
+            if (tail_mask)
+                return status::unimplemented; // XXX: util implemented
+
             jpp.tail[0] = tail_mask;
             jpp.tail[1] = 0;
             jpp.tail[2] = 0;
@@ -527,6 +564,9 @@ status_t jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::init_conf(jit_pool_conf_t &jp
             break;
         case pooling_avg_include_padding:
         case pooling_avg_exclude_padding:
+
+            return status::unimplemented; // XXX: util implemented
+
             jpp.tail[0] = tail_mask & 0xffff;
             for (size_t i = 1, m = tail_mask; i < 4; i++) {
                 m = m >> 16;
@@ -594,6 +634,9 @@ void jit_avx512_core_i8i8_pooling_fwd_t<isa>::execute_forward() {
 
 template struct jit_avx512_core_i8i8_pool_fwd_ker_t<avx512_core>;
 template struct jit_avx512_core_i8i8_pooling_fwd_t<avx512_core>;
+
+template struct jit_avx512_core_i8i8_pool_fwd_ker_t<avx2>;
+template struct jit_avx512_core_i8i8_pooling_fwd_t<avx2>;
 
 }
 }
