@@ -108,6 +108,14 @@ inline int ilog2q(size_t v) {
     return p;
 }
 
+template <typename T> inline T one_m_square(T x) {
+    return (1 - x) * (1 + x);
+}
+
+template <typename T> inline T x_m_square(T x) {
+    return (1 - x) * x;
+}
+
 /* activation */
 template <typename T, typename A,
          typename U = typename utils::remove_reference<T>::type>

@@ -31,13 +31,6 @@ using namespace mkldnn::impl::utils;
 using namespace mkldnn::impl::math;
 #define AOC array_offset_calculator
 
-inline float one_m_square(float x) {
-    return (1.0f - x) * (1.0f + x);
-}
-inline float x_m_square(float x) {
-    return (1.0f - x) * x;
-}
-
 template <>
 float activation<alg_kind::eltwise_relu, prop_kind::forward>(
         float dd, float s, float alpha, float cliping) {
@@ -59,7 +52,7 @@ float activation<alg_kind::eltwise_tanh, prop_kind::forward>(
 template <>
 float activation<alg_kind::eltwise_tanh, prop_kind::backward>(
         float dd, float s, float alpha, float cliping) {
-    return dd * one_m_square(s);
+    return dd * one_m_square<float>(s);
 }
 
 template <>
@@ -71,7 +64,7 @@ float activation<alg_kind::eltwise_logistic, prop_kind::forward>(
 template <>
 float activation<alg_kind::eltwise_logistic, prop_kind::backward>(
         float dd, float s, float alpha, float cliping) {
-    return dd * x_m_square(s);
+    return dd * x_m_square<float>(s);
 }
 
 template <>

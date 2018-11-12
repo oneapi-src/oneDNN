@@ -31,13 +31,6 @@ using namespace mkldnn::impl::utils;
 using namespace mkldnn::impl::math;
 #define AOC array_offset_calculator
 
-inline float one_m_square(float x) {
-    return (1.0f - x) * (1.0f + x);
-}
-inline float x_m_square(float x) {
-    return (1.0f - x) * x;
-}
-
 template <>
 elemwise_sig(_ref_rnn_common_t<prop_kind::forward>::lstm_elemwise) {
     AOC<float, 3> ws_gates(ws_gates_, batch, conf_.GC());
