@@ -1168,38 +1168,6 @@ struct sum : public primitive {
             reset(result);
         }
 
-        /** @deprecated: api backwards compatibility for double scales type */
-        MKLDNN_DEPRECATED
-        primitive_desc(const memory::desc &output, std::vector<double> scale,
-                std::vector<memory::primitive_desc> inputs) {
-            mkldnn_primitive_desc_t result;
-
-            auto c_api_inputs = cpp_to_c(inputs);
-            auto scale_f = scale_to_float(scale);
-
-            error::wrap_c_api(mkldnn_sum_primitive_desc_create(
-                    &result, &output.data, (int)c_api_inputs.size(),
-                    &scale_f[0], &c_api_inputs[0]),
-                "could not create a sum primitive descriptor");
-            reset(result);
-        }
-
-        /** @deprecated: api backwards compatibility for double scales type */
-        MKLDNN_DEPRECATED
-        primitive_desc(std::vector<double> scale,
-                std::vector<memory::primitive_desc> inputs) {
-            mkldnn_primitive_desc_t result;
-
-            auto c_api_inputs = cpp_to_c(inputs);
-            auto scale_f = scale_to_float(scale);
-
-            error::wrap_c_api(mkldnn_sum_primitive_desc_create(
-                    &result, nullptr, (int)c_api_inputs.size(), &scale_f[0],
-                    &c_api_inputs[0]),
-                "could not create a sum primitive descriptor");
-            reset(result);
-        }
-
         memory::primitive_desc dst_primitive_desc() const {
             memory::primitive_desc adesc;
             mkldnn_primitive_desc_t cdesc;
