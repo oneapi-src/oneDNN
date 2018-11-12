@@ -510,12 +510,8 @@ template <cpu_isa_t isa>
 status_t jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::init_conf(jit_pool_conf_t &jpp,
         const pooling_desc_t &pd, const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &dst_d) {
-    if (!(mayiuse(isa) && one_of(isa,
-            avx512_core, // XXX: original
-            avx2         // XXX: support in progress!!!
-        ))) {
+    if (!mayiuse(isa))
         return status::unimplemented;
-    }
 
     jpp.mb = src_d.dims()[0];
     jpp.c = src_d.dims()[1]; // XXX: (basargin) ???under question??? do we need to round up with simd_w ???
@@ -632,11 +628,13 @@ void jit_avx512_core_i8i8_pooling_fwd_t<isa>::execute_forward() {
     });
 }
 
+// Explicit instantiation only for supported <isa> values.
+//
 template struct jit_avx512_core_i8i8_pool_fwd_ker_t<avx512_core>;
 template struct jit_avx512_core_i8i8_pooling_fwd_t<avx512_core>;
 
-template struct jit_avx512_core_i8i8_pool_fwd_ker_t<avx2>;
-template struct jit_avx512_core_i8i8_pooling_fwd_t<avx2>;
+template struct jit_avx512_core_i8i8_pool_fwd_ker_t<avx2>; // XXX: support in progress!!!
+template struct jit_avx512_core_i8i8_pooling_fwd_t<avx2>;  // XXX: support in progress!!!
 
 }
 }
