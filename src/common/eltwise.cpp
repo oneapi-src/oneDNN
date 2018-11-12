@@ -53,7 +53,6 @@ status_t eltwise_desc_init(eltwise_desc_t *eltwise_desc, prop_kind_t prop_kind,
 
     ed.alpha = alpha;
     ed.beta = beta;
-    ed.negative_slope = ed.alpha;
 
     bool consistency = true
         && IMPLICATION(ed.prop_kind == backward_data,

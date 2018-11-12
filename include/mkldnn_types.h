@@ -744,10 +744,6 @@ typedef struct {
      *  - #mkldnn_eltwise_logistic: @p alpha and @p beta ignored
      */
     float alpha, beta;
-    /** ReLU scaling factor for negative values.
-     * @deprecated: use alpha instead
-     * @warning: read-only value */
-    float negative_slope;
 } mkldnn_eltwise_desc_t;
 
 /** A descriptor of a Softmax operation. */
