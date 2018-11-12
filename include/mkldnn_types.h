@@ -519,15 +519,6 @@ typedef enum {
      *    same behavior as prop_kind == #mkldnn_backward
      */
     mkldnn_use_scaleshift = 0x2U,
-    /** Omit statistics
-     *
-     * @deprecated use #mkldnn_use_global_stats instead
-     *
-     * For time being had an affect on backward propagation only which allowed
-     * skipping some computations (the same semantics as
-     * #mkldnn_use_global_stats)
-     */
-    mkldnn_omit_stats = mkldnn_use_global_stats,
     /** Fuse with ReLU
      *
      * If specified:

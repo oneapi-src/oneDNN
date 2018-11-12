@@ -846,7 +846,7 @@ struct jit_bnorm_t: public jit_generator {
                                 else
                                     assert(false);
                             }
-                            if (!bdesc_->omit_stats()) {
+                            if (!bdesc_->use_global_stats()) {
                                 uni_vsubps(v, v, vdiff_beta);
                                 uni_vmovups(t, vmmword[reg_src + reg_soff
                                         + offt]);

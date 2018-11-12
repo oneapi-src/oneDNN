@@ -268,7 +268,7 @@ void ncsp_batch_normalization_bwd_t::execute_backward() {
     size_t C = conf_.C(), N = conf_.MB();
     const bool use_scaleshift = conf_.use_scaleshift();
     const float eps = conf_.desc()->batch_norm_epsilon;
-    const bool calculate_diff_stats = !conf_.omit_stats();
+    const bool calculate_diff_stats = !conf_.use_global_stats();
     const bool fuse_bn_relu = conf_.fuse_bn_relu();
 
     int nthr = mkldnn_get_max_threads();

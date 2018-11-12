@@ -190,7 +190,7 @@ void ref_batch_normalization_bwd_t<data_type>::execute_backward() {
 
     const float eps = conf_.desc()->batch_norm_epsilon;
     const bool use_scaleshift = conf_.use_scaleshift();
-    const bool calculate_diff_stats = !conf_.omit_stats();
+    const bool calculate_diff_stats = !conf_.use_global_stats();
     const bool fuse_bn_relu = conf_.fuse_bn_relu();
 
     const bool is_3d = data_d.ndims() == 5;

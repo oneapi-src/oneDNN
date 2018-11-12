@@ -288,7 +288,6 @@ inline mkldnn_alg_kind_t convert_to_c(algorithm aalgorithm) {
 enum batch_normalization_flag {
     use_global_stats = mkldnn_use_global_stats,
     use_scale_shift = mkldnn_use_scaleshift,
-    omit_stats = mkldnn_omit_stats,
     fuse_bn_relu = mkldnn_fuse_bn_relu
 };
 
