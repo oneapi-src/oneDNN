@@ -104,7 +104,7 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
     struct pd_t : public base_pd_t {
         pd_t(engine_t *engine, const rnn_desc_t *adesc,
                 const primitive_attr_t *attr,
-                const typename pd_t::base_class *hint_pd)
+                const typename pd_t::hint_class *hint_pd)
             : base_pd_t(engine, adesc, attr, hint_pd) {}
 
         DECLARE_COMMON_PD_T("ref:any", class_name);

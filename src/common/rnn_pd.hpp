@@ -397,7 +397,7 @@ struct rnn_fwd_pd_t : public rnn_pd_t {
 
 struct rnn_bwd_pd_t : public rnn_pd_t {
     typedef rnn_bwd_pd_t base_class;
-    typedef rnn_bwd_pd_t hint_class;
+    typedef rnn_fwd_pd_t hint_class;
 
     using rnn_pd_t::rnn_pd_t;
     virtual ~rnn_bwd_pd_t() {}
