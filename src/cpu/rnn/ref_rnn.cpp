@@ -34,7 +34,7 @@
 #include "mkldnn_thread.hpp"
 #include "mkldnn_traits.hpp"
 #include "type_helpers.hpp"
-#include "gemm/gemm.hpp"
+#include "../gemm/gemm.hpp"
 
 #include "ref_rnn.hpp"
 

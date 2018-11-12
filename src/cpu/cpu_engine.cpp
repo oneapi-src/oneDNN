@@ -24,7 +24,7 @@
 #include "cpu_concat.hpp"
 #include "cpu_sum.hpp"
 
-#include "cpu/ref_rnn.hpp"
+#include "cpu/rnn/ref_rnn.hpp"
 
 #include "cpu/jit_avx512_core_x8s8s32x_1x1_convolution.hpp"
 #include "cpu/jit_avx512_common_1x1_convolution.hpp"

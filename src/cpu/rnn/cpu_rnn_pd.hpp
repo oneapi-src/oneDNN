@@ -18,9 +18,9 @@
 #define CPU_RNN_PD_HPP
 
 #include "c_types_map.hpp"
-#include "cpu_engine.hpp"
-#include "cpu_memory.hpp"
-#include "cpu_primitive.hpp"
+#include "../cpu_engine.hpp"
+#include "../cpu_memory.hpp"
+#include "../cpu_primitive.hpp"
 #include "nstl.hpp"
 #include "rnn_pd.hpp"
 #include "type_helpers.hpp"

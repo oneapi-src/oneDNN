@@ -20,14 +20,13 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
-#include "cpu_engine.hpp"
 #include "cpu_rnn_pd.hpp"
-#include "cpu_isa_traits.hpp"
+#include "../cpu_isa_traits.hpp"
 #include "scratchpad.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-#include "gemm/os_blas.hpp"
+#include "../gemm/os_blas.hpp"
 
 namespace mkldnn {
 namespace impl {
