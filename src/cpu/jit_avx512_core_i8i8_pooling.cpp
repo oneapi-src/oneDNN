@@ -158,7 +158,10 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::load_src(int jj, int ll, int c_ta
             auto offset = jj*c_block*sizeof_src_dt();
             if (jj == ur_c - 1 && c_tail) {
                 if (jpp.src_dt == data_type::s32) {
-                    vmovups(vreg_src(jj) | mask(0), ptr[aux_reg_src_w + offset]);
+                    if (isa == avx2)
+                        vpblendd(vreg_src(jj), vreg_tmp, ptr[aux_reg_src_w + offset], static_cast<uint8_t>(jpp.tail[0]));
+                    else
+                        vmovups(vreg_src(jj) | mask(0), ptr[aux_reg_src_w + offset]);
                 } else {
                     if (isa == avx2)
                         vpblendvb(vreg_src(jj), vreg_tmp, ptr[aux_reg_src_w + offset], vreg_mask);
@@ -227,8 +230,10 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::store_dst(int jj, int ll,
             auto offset = jj*c_block*sizeof_dst_dt();
             if (jj == ur_c - 1 && c_tail) {
                 if (jpp.src_dt == data_type::s32) {
-                    vmovups(ptr[reg_ptr_dst_i8 + offset],
-                           vreg_dst(jj) | mask(0));
+                    if (isa == avx2)
+                        vpmaskmovd(ptr[reg_ptr_dst_i8 + offset], vreg_mask, vreg_dst(jj));
+                    else
+                        vmovups(ptr[reg_ptr_dst_i8 + offset], vreg_dst(jj) | mask(0));
                 } else {
                     if (isa == avx2)
                         vmovdqu(ptr[reg_ptr_dst_i8 + offset], vreg_dst(jj)); // XXX: memory corruption in case of non-zero c_tail !!!
@@ -307,9 +312,12 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::compute_max_step(int ur_c, int c_
             for (int jj = 0; jj < ur_c; jj++) {
                 load_src(jj, 0, c_tail);
                 if (jpp.src_dt == data_type::s32) {
-                    vpcmpd(k_cmp_mask, vreg_dst(jj), vreg_src(jj), _cmp_lt_os);
-                    vpblendmd(vreg_dst(jj) | k_cmp_mask, vreg_dst(jj),
-                            vreg_src(jj));
+                    if (isa == avx2) {
+                        vpmaxsd(vreg_dst(jj), vreg_dst(jj), vreg_src(jj));
+                    } else if (isa == avx512_core) {
+                        vpcmpd(k_cmp_mask, vreg_dst(jj), vreg_src(jj), _cmp_lt_os);
+                        vpblendmd(vreg_dst(jj) | k_cmp_mask, vreg_dst(jj), vreg_src(jj));
+                    }
                 } else {
                     if (isa == avx2) {
                         if (jpp.src_dt == data_type::s8) {
@@ -325,8 +333,7 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::compute_max_step(int ur_c, int c_
                                     _cmp_lt_os);
                         vpblendmb(vreg_dst(jj) | k_cmp_mask, vreg_dst(jj),
                                 vreg_src(jj));
-                    } else
-                        assert(false);
+                    }
                 }
             }
             add(aux_reg_src_w, c * sizeof_src_dt());
@@ -450,14 +457,19 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::init_mask() {
 
     case avx2: {
         if (jpp.alg == pooling_max) {
-            uint64_t bit_mask = jpp.tail[0];
             const size_t QW_PER_VREG = cpu_isa_traits<isa>::vlen / sizeof(uint64_t);
+
             uint64_t vmask[QW_PER_VREG];
+            uint64_t bit_mask = jpp.tail[0];
             for (size_t i = 0; i < QW_PER_VREG; i++){
+
                 uint64_t qw_vmask=0ULL;
-                for (size_t j = 0; j < sizeof(qw_vmask); j++) {
+                const size_t DBITS = 8*sizeof_src_dt();
+                const uint64_t VMSK = 1ULL << (DBITS-1);
+                const size_t D_PER_QW = (8*sizeof(qw_vmask))/DBITS;
+                for (size_t j = 0; j < D_PER_QW; j++) {
                     if (bit_mask & 1)
-                        qw_vmask |= 0x80ULL << j*8;
+                        qw_vmask |= VMSK << DBITS * j;
                     bit_mask >>= 1;
                 }
                 vmask[i] = qw_vmask;
@@ -591,8 +603,13 @@ status_t jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::init_conf(jit_pool_conf_t &jp
     switch(jpp.alg) {
         case pooling_max:
 
-            if (!tail_mask)
-                return status::unimplemented; // XXX: until implemented
+            if (tail_mask && jpp.src_dt != data_type::s32) // XXX: i8 with tails not implemented yet
+                return status::unimplemented;
+
+            printf("\t\t\t\t\t\t\t\t\t\t\t\t%s : pooling_max : %s tail_mask = 0x%lx\n",
+                    __FUNCTION__,
+                    jpp.src_dt == data_type::s32 ? "s32" : "i8",
+                    tail_mask );
 
             jpp.tail[0] = tail_mask;
             jpp.tail[1] = 0;
@@ -603,6 +620,11 @@ status_t jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::init_conf(jit_pool_conf_t &jp
         case pooling_avg_exclude_padding:
 
             return status::unimplemented; // XXX: until implemented
+            printf("\t\t\t\t\t\t\t\t\t\t\t\t%s : pooling_avg : %s tail_mask = 0x%lx\n",
+                    __FUNCTION__,
+                    jpp.src_dt == data_type::s32 ? "s32" : "i8",
+                    tail_mask );
+
 
             jpp.tail[0] = tail_mask & 0xffff;
             for (size_t i = 1, m = tail_mask; i < 4; i++) {
