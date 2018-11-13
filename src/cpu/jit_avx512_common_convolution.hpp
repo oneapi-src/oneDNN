@@ -82,7 +82,7 @@ struct jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
         kernel_ = new jit_avx512_common_conv_fwd_kernel(conf_.jcp_,
                     *conf_.attr());
 
-        if (conf_.want_padded_bias()) {
+        if (conf_.wants_padded_bias()) {
             const auto &j = conf_.jcp_;
             assert(j.ngroups == 1);
             padded_bias_ = (dst_data_t *)malloc(sizeof(dst_data_t) * j.oc, 64);

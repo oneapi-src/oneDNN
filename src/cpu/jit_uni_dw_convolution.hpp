@@ -91,7 +91,7 @@ struct _jit_uni_dw_convolution_fwd_t: public cpu_primitive_t {
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
         , padded_bias_(nullptr) {
         kernel_ = new jit_uni_dw_conv_fwd_kernel_f32<isa>(conf_.jcp_);
-        if (conf_.want_padded_bias()) {
+        if (conf_.wants_padded_bias()) {
             padded_bias_ = (float *)malloc(sizeof(float) * conf_.jcp_.oc, 64);
             for (int c = conf_.jcp_.oc_without_padding; c < conf_.jcp_.oc; ++c)
                 padded_bias_[c] = 0;

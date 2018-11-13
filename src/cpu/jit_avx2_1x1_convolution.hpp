@@ -108,7 +108,7 @@ struct jit_avx2_1x1_convolution_fwd_t: public cpu_primitive_t {
         kernel_ = new jit_avx2_1x1_conv_kernel_f32(conf_.jcp_, *conf_.attr());
         init_rtus_driver<avx2>(this);
 
-        if (conf_.want_padded_bias()) {
+        if (conf_.wants_padded_bias()) {
             const auto &j = conf_.jcp_;
             assert(j.ngroups == 1);
             padded_bias_ = (data_t *)malloc(sizeof(data_t) * j.oc, 64);

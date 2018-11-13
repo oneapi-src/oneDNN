@@ -458,7 +458,7 @@ struct jit_avx512_common_convolution_winograd_bwd_weights_t
         kernel_ = new jit_avx512_common_conv_winograd_bwd_weights_kernel_f32(
                 jcp);
         scratchpad_ = new winograd::winograd_scratchpad_t(jcp);
-        if (conf_.want_padded_bias())
+        if (conf_.wants_padded_bias())
             padded_bias_ = (float *)malloc(sizeof(float) * jcp.oc, 64);
     }
 

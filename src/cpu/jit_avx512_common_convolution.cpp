@@ -153,7 +153,7 @@ void jit_avx512_common_convolution_fwd_t
     else
         nthr = mkldnn_get_max_threads();
 
-    if (conf_.want_padded_bias()) {
+    if (conf_.wants_padded_bias()) {
         for (int oc = 0; oc < jcp.oc_without_padding; ++oc)
             padded_bias_[oc] = bias[oc];
         bias = padded_bias_;
@@ -248,7 +248,7 @@ void jit_avx512_common_convolution_fwd_t
     else
         nthr = mkldnn_get_max_threads();
 
-    if (conf_.want_padded_bias()) {
+    if (conf_.wants_padded_bias()) {
         for (int oc = 0; oc < jcp.oc_without_padding; ++oc)
             padded_bias_[oc] = bias[oc];
         bias = padded_bias_;
@@ -366,7 +366,7 @@ void jit_avx512_common_convolution_fwd_t
     const auto &jcp = kernel_->jcp;
     assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
 
-    if (conf_.want_padded_bias()) {
+    if (conf_.wants_padded_bias()) {
         for (int oc = 0; oc < jcp.oc_without_padding; ++oc)
             padded_bias_[oc] = bias[oc];
         bias = padded_bias_;
@@ -942,7 +942,7 @@ jit_avx512_common_convolution_bwd_weights_t(const pd_t *pd,
         reducer_bias_ = new cpu_reducer_t<diff_weights_type>(reduce_balancer_t(
                     nthr_, j.oc_block, j.ngroups * j.nb_oc, j.mb,
                     max_buffer_size));
-        if (conf_.want_padded_bias())
+        if (conf_.wants_padded_bias())
             padded_bias_ = (diff_weights_data_t *)
                 malloc(sizeof(diff_weights_data_t) * j.oc, 64);
     }
@@ -974,7 +974,7 @@ struct jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
         diff_dst = reinterpret_cast<const diff_dst_data_t *>(
             self->input_memory(1));
         diff_weights = reinterpret_cast<diff_weights_data_t *>(self->memory(0));
-        diff_bias = self->conf_.want_padded_bias()
+        diff_bias = self->conf_.wants_padded_bias()
             ? self->padded_bias_
             : reinterpret_cast<diff_weights_data_t *>(self->memory(1));
 
@@ -1586,7 +1586,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
     });
 
     /* TODO: put that into compute_diff_bias() */
-    if (conf_.want_padded_bias()) {
+    if (conf_.wants_padded_bias()) {
         auto diff_bias_in
             = reinterpret_cast<diff_weights_data_t *>(this->memory(1));
         for (int oc = 0; oc < conf_.jcp_.oc_without_padding; ++oc)

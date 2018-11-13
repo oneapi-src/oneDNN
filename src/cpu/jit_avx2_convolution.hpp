@@ -99,7 +99,7 @@ struct jit_avx2_convolution_fwd_t: public cpu_primitive_t {
     {
         kernel_ = new jit_avx2_conv_fwd_kernel_f32(conf_.jcp_, *conf_.attr());
 
-        if (conf_.want_padded_bias()) {
+        if (conf_.wants_padded_bias()) {
             const auto &j = conf_.jcp_;
             assert(j.ngroups == 1);
             padded_bias_ = (data_t *)malloc(sizeof(data_t) * j.oc, 64);
@@ -283,7 +283,7 @@ struct jit_avx2_convolution_bwd_weights_t: public cpu_primitive_t {
                     reduce_balancer_t(max_threads, j.oc_block,
                         j.ngroups * j.nb_oc, j.mb, max_buffer_size));
 
-            if (conf_.want_padded_bias())
+            if (conf_.wants_padded_bias())
                 padded_bias_ = (data_t *)
                     malloc(sizeof(data_t) * j.oc, 64);
         }

@@ -61,7 +61,7 @@ struct cpu_convolution_fwd_pd_t: public convolution_fwd_pd_t {
         return this->OC() != dst_d.blocking_desc().padding_dims[1];
     }
 
-    bool want_padded_bias() const {
+    bool wants_padded_bias() const {
         if (!this->with_bias()) return false;
         return has_padded_dst();
     }
@@ -186,7 +186,7 @@ struct cpu_convolution_bwd_weights_pd_t: public convolution_bwd_weights_pd_t {
             return  nullptr;
         }
 
-    bool want_padded_bias() const {
+    bool wants_padded_bias() const {
         if (!this->with_bias()) return false;
         memory_desc_wrapper diff_dst_d(&diff_dst_pd_);
         if (!diff_dst_d.is_blocking_desc()) return false;

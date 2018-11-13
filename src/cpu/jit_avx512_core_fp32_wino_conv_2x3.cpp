@@ -851,7 +851,7 @@ jit_avx512_core_fp32_wino_conv_2x3_fwd_t::
 
     wino_src_ = (float *)malloc(sizeof(float) * nthreads * size_wino_src, 4096);
     wino_dst_ = (float *)malloc(sizeof(float) * nthreads * size_wino_dst, 4096);
-    if (conf_.want_padded_bias()) {
+    if (conf_.wants_padded_bias()) {
         const auto &j = conf_.jcp_;
         assert(j.ngroups == 1);
         padded_bias_ = (float *)malloc(sizeof(float) * j.oc, 64);
@@ -893,7 +893,7 @@ void jit_avx512_core_fp32_wino_conv_2x3_fwd_t::execute_forward_mbN() {
 
     wino_wei_ = wei;
 
-    if (conf_.want_padded_bias()) {
+    if (conf_.wants_padded_bias()) {
         for (int oc = 0; oc < jcp.oc_without_padding; ++oc)
             padded_bias_[oc] = bia[oc];
         bia = padded_bias_;
@@ -1014,7 +1014,7 @@ void jit_avx512_core_fp32_wino_conv_2x3_fwd_t::execute_forward_small_mb() {
 
     wino_wei_ = wei;
 
-    if (conf_.want_padded_bias()) {
+    if (conf_.wants_padded_bias()) {
         for (int oc = 0; oc < jcp.oc_without_padding; ++oc)
             padded_bias_[oc] = bia[oc];
         bia = padded_bias_;

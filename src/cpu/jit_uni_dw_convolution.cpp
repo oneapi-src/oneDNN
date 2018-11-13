@@ -42,7 +42,7 @@ void _jit_uni_dw_convolution_fwd_t<isa>::execute_forward() {
 
     const auto &jcp = kernel_->jcp;
 
-    if (conf_.want_padded_bias()) {
+    if (conf_.wants_padded_bias()) {
         for (int oc = 0; oc < jcp.oc_without_padding; ++oc)
             padded_bias_[oc] = bias[oc];
         bias = padded_bias_;

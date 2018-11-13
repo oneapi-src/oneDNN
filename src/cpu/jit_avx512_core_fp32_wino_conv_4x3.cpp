@@ -333,10 +333,10 @@ void _jit_avx512_core_fp32_wino_conv_4x3_t<is_fwd>::_execute_data_W_S_G_D(
             jcp.dimN_block, jcp.dimK_nb_block,
             jcp.dimK_block, jcp.dimN_reg_block, jcp.dimK_reg_block);
 
-    const bool want_padded_bias = jcp.with_bias
+    const bool wants_padded_bias = jcp.with_bias
         && jcp.oc_without_padding != jcp.oc;
     float last_slice_bias[simd_w] = {0};
-    if (want_padded_bias) {
+    if (wants_padded_bias) {
         for (int oc = 0; oc < jcp.oc_without_padding % jcp.oc_simd_block; ++oc)
             last_slice_bias[oc] = bias(jcp.dimM / jcp.dimM_simd_block - 1, oc);
     }
@@ -391,7 +391,7 @@ void _jit_avx512_core_fp32_wino_conv_4x3_t<is_fwd>::_execute_data_W_S_G_D(
             const int M_blk =
                 M_blk1 * jcp.dimM_block  * jcp.dimM_reg_block + M_blk2;
 
-            float *bias_ptr = want_padded_bias
+            float *bias_ptr = wants_padded_bias
                 && M_blk == jcp.dimM / jcp.dimM_simd_block - 1
                 ? last_slice_bias : &bias(M_blk, 0);
             output_transform_data(img, jcp, p_ops,
@@ -456,10 +456,10 @@ void _jit_avx512_core_fp32_wino_conv_4x3_t<is_fwd>::_execute_data_W_SGD(
             jcp.dimK_nb_block, jcp.dimK_block,
             jcp.dimN_reg_block, jcp.dimK_reg_block);
 
-    const bool want_padded_bias = jcp.with_bias
+    const bool wants_padded_bias = jcp.with_bias
         && jcp.oc_without_padding != jcp.oc;
     float last_slice_bias[simd_w] = {0};
-    if (want_padded_bias) {
+    if (wants_padded_bias) {
         for (int oc = 0; oc < jcp.oc_without_padding % jcp.oc_simd_block; ++oc)
             last_slice_bias[oc] = bias(jcp.dimM / jcp.dimM_simd_block - 1, oc);
     }
@@ -518,7 +518,7 @@ void _jit_avx512_core_fp32_wino_conv_4x3_t<is_fwd>::_execute_data_W_SGD(
                 const int M_blk =
                     M_blk1 * jcp.dimM_block  * jcp.dimM_reg_block + M_blk2;
 
-                float *bias_ptr = want_padded_bias
+                float *bias_ptr = wants_padded_bias
                     && M_blk == jcp.dimM / jcp.dimM_simd_block - 1
                     ? last_slice_bias : &bias(M_blk, 0);
 

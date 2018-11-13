@@ -150,7 +150,7 @@ void jit_avx2_convolution_fwd_t::execute_forward() {
         }
     };
 
-    if (conf_.want_padded_bias()) {
+    if (conf_.wants_padded_bias()) {
         for (int oc = 0; oc < jcp.oc_without_padding; ++oc)
             padded_bias_[oc] = bias[oc];
         bias = padded_bias_;
@@ -256,7 +256,7 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights() {
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto diff_weights = reinterpret_cast<data_t *>(this->memory(0));
     auto diff_bias_in = reinterpret_cast<data_t *>(this->memory(1));
-    data_t *diff_bias = conf_.want_padded_bias() ? padded_bias_ : diff_bias_in;
+    data_t *diff_bias = conf_.wants_padded_bias() ? padded_bias_ : diff_bias_in;
 
     const memory_desc_wrapper src_d(conf_.src_pd(0));
     const memory_desc_wrapper diff_dst_d(conf_.diff_dst_pd());
@@ -380,7 +380,7 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights() {
     });
 
     /* TODO: put this in ker_bias */
-    if (conf_.want_padded_bias()) {
+    if (conf_.wants_padded_bias()) {
         assert(jcp.ngroups == 1);
         for (int oc = 0; oc < jcp.oc_without_padding; ++oc)
             diff_bias_in[oc] = diff_bias[oc];
