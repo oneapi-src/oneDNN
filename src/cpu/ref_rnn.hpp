@@ -301,13 +301,13 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
             || (conf_.is_training() && conf_.DIC() < 500))
             && !mayiuse(avx512_mic);
 
-        copy_weights_layer_ = conf_.WL_LD() != conf_.W_GLD();
-        copy_weights_iter_ = conf_.WI_LD() != conf_.W_GLD();
+        copy_weights_layer_ = (conf_.WL_LD() != conf_.WL_GLD());
+        copy_weights_iter_ = (conf_.WI_LD() != conf_.WI_GLD());
 
         copy_diff_weights_layer_ = (aprop == prop_kind::backward)
-            && (conf_.DWL_LD() != conf_.DW_GLD());
-        copy_diff_weights_iter_ =  (aprop == prop_kind::backward)
-            && (conf_.DWI_LD() != conf_.DW_GLD());
+                && (conf_.DWL_LD() != conf_.DWL_GLD());
+        copy_diff_weights_iter_ = (aprop == prop_kind::backward)
+                && (conf_.DWI_LD() != conf_.DWI_GLD());
 
         use_workspace_ = (conf_.desc()->prop_kind != prop_kind::forward_inference);
 
