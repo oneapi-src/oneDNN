@@ -282,6 +282,7 @@ const impl_list_map_t regular_impl_list_map {
         DNNL_X64_ONLY(x64::jit_uni_reorder_create,)
 
         REG_SR_BIDIR(f32, any, s32, nChw16c),
+        REG_SR_BIDIR(f32, any, s32, nChw8c),
 
         REG_SR(f32, any, s32, any, fmt_order::any, spec::reference),
 
@@ -298,6 +299,7 @@ const impl_list_map_t regular_impl_list_map {
         DNNL_X64_ONLY(x64::jit_uni_reorder_create,)
 
         REG_SR_BIDIR(f32, any, s8, nChw16c),
+        REG_SR_BIDIR(f32, any, s8, nChw8c),
         REG_SR_BIDIR(f32, any, s8, OIhw4i16o4i),
         REG_SR_BIDIR(f32, any, s8, gOIhw4i16o4i),
 
@@ -315,6 +317,8 @@ const impl_list_map_t regular_impl_list_map {
         DNNL_X64_ONLY(x64::jit_uni_reorder_create,)
 
         REG_SR_BIDIR(f32, any, u8, nChw16c),
+
+        REG_SR_BIDIR(f32, any, u8, nChw8c),
 
         REG_SR(f32, any, u8, any, fmt_order::any, spec::reference),
 
@@ -378,6 +382,11 @@ const impl_list_map_t regular_impl_list_map {
         REG_SR_BIDIR(s32, any, s8, nChw16c),
         REG_SR_BIDIR(s32, any, u8, nChw16c),
 
+        REG_SR_BIDIR(s32, any, f32, nChw8c),
+        REG_SR_BIDIR(s32, any, s32, nChw8c),
+        REG_SR_BIDIR(s32, any, s8, nChw8c),
+        REG_SR_BIDIR(s32, any, u8, nChw8c),
+
         REG_SR(s32, any, f32, any, fmt_order::any, spec::reference),
         REG_SR(s32, any, s32, any, fmt_order::any, spec::reference),
         REG_SR(s32, any, s8, any, fmt_order::any, spec::reference),
@@ -403,6 +412,11 @@ const impl_list_map_t regular_impl_list_map {
         REG_SR_BIDIR(s8, any, bf16, nChw16c),
         REG_SR_BIDIR(s8, any, s8, nChw16c),
         REG_SR_BIDIR(s8, any, u8, nChw16c),
+
+        REG_SR_BIDIR(s8, any, f32, nChw8c),
+        REG_SR_BIDIR(s8, any, s32, nChw8c),
+        REG_SR_BIDIR(s8, any, s8, nChw8c),
+        REG_SR_BIDIR(s8, any, u8, nChw8c),
 
         REG_SR_BIDIR(s8, any, f32, OIhw4i16o4i),
         REG_SR_BIDIR(s8, any, bf16, OIhw4i16o4i),
@@ -435,6 +449,11 @@ const impl_list_map_t regular_impl_list_map {
         REG_SR_BIDIR(u8, any, bf16, nChw16c),
         REG_SR_BIDIR(u8, any, s8, nChw16c),
         REG_SR_BIDIR(u8, any, u8, nChw16c),
+
+        REG_SR_BIDIR(u8, any, f32, nChw8c),
+        REG_SR_BIDIR(u8, any, s32, nChw8c),
+        REG_SR_BIDIR(u8, any, s8, nChw8c),
+        REG_SR_BIDIR(u8, any, u8, nChw8c),
 
         REG_SR(u8, any, f32, any, fmt_order::any, spec::reference),
         REG_SR(u8, any, s32, any, fmt_order::any, spec::reference),
