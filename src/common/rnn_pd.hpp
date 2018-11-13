@@ -264,8 +264,10 @@ struct rnn_pd_t : public primitive_desc_t {
 
     int DW_GLD() {
         // good leading dimension for the diff weights
-        return G_GLD();
+        return weights_copy_enabled() ? G_GLD() : G() * DIC();
     }
+
+    int weights_copy_enabled() { return (T() > 1); }
 
     int get_weights_ld(int feature_dim) {
         return is_fwd() ? G() * DIC() : feature_dim;
@@ -279,16 +281,32 @@ struct rnn_pd_t : public primitive_desc_t {
         return get_weights_ld(SLC());
     }
 
+    int WL_GLD() {
+        return weights_copy_enabled() ? get_good_ld(WL_LD()) : WL_LD();
+    }
+
     int WI_LD() {
         return get_weights_ld(SIC());
+    }
+
+    int WI_GLD() {
+        return weights_copy_enabled() ? get_good_ld(WI_LD()) : WI_LD();
     }
 
     int DWL_LD() {
         return G() * DIC();
     }
 
+    int DWL_GLD() {
+        return weights_copy_enabled() ? get_good_ld(DWL_LD()) : DWL_LD();
+    }
+
     int DWI_LD() {
         return G() * DIC();
+    }
+
+    int DWI_GLD() {
+        return weights_copy_enabled() ? get_good_ld(DWI_LD()) : DWI_LD();
     }
 
     int WL_NLD() {
