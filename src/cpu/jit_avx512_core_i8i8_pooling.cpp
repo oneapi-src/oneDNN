@@ -235,9 +235,16 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::store_dst(int jj, int ll,
                     else
                         vmovups(ptr[reg_ptr_dst_i8 + offset], vreg_dst(jj) | mask(0));
                 } else {
-                    if (isa == avx2)
-                        vmovdqu(ptr[reg_ptr_dst_i8 + offset], vreg_dst(jj)); // XXX: memory corruption in case of non-zero c_tail !!!
-                    else
+                    if (isa == avx2) {
+                        push(rdi);
+                        lea(rdi, ptr[reg_ptr_dst_i8 + offset]); // XXX: use of rdi need more magic as described in <jit_uni_pool_kernel_f32.hpp>
+                        maskmovdqu(vreg_dst(jj), vreg_mask);    // XXX: only low 128 bits
+                        // TODO: store high 128 bits here
+                        pop(rdi);
+
+                        //vmovdqu(ptr[reg_ptr_dst_i8 + offset], vreg_dst(jj)); // XXX: memory corruption in case of non-zero c_tail !!!
+
+                    } else
                         vmovdqu8(ptr[reg_ptr_dst_i8 + offset], vreg_dst(jj) | mask(0));
                 }
             } else {
@@ -603,7 +610,9 @@ status_t jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::init_conf(jit_pool_conf_t &jp
     switch(jpp.alg) {
         case pooling_max:
 
-            if (tail_mask && jpp.src_dt != data_type::s32) // XXX: i8 with tails not implemented yet
+//            if (tail_mask && jpp.src_dt != data_type::s32) // XXX: i8 with tails not implemented yet
+//                return status::unimplemented;
+            if (!(tail_mask && jpp.src_dt != data_type::s32))// XXX: TEST i8 with tails
                 return status::unimplemented;
 
             printf("\t\t\t\t\t\t\t\t\t\t\t\t%s : pooling_max : %s tail_mask = 0x%lx\n",
