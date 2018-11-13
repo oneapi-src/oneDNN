@@ -81,15 +81,17 @@ struct jit_avx512_core_i8i8_pool_fwd_ker_t: public jit_generator {
     }
 
     // XXX: ref to any of XYZ-regs via xreg/yreg/vreg functions
-    Xmm xmm_tmp = Xmm(0);
-//    Xmm xmm_tmp = xreg(0);
+//    Xmm xmm_tmp = Xmm(0);
+    Xmm xmm_tmp = xreg(0);
 
 //    Zmm vreg_tmp = Zmm(30);
     Vmm vreg_tmp = vreg(0);
 //    Zmm vreg_zeros = Zmm(31);
     Vmm vreg_zeros = vreg(1);
 
-    enum:int {vidx_base = 1};
+    Vmm vreg_mask = vreg(2); // only in case if <isa> == avx2
+
+    enum:int {vidx_base = isa == avx2 ? 3 : 2};
 
     size_t sizeof_src_dt() const { return data_type_size(jpp.src_dt); }
     size_t sizeof_dst_dt() const { return data_type_size(jpp.dst_dt); }
@@ -156,11 +158,12 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::load_src(int jj, int ll, int c_ta
             auto offset = jj*c_block*sizeof_src_dt();
             if (jj == ur_c - 1 && c_tail) {
                 if (jpp.src_dt == data_type::s32) {
-                    vmovups(vreg_src(jj) | mask(0),
-                            ptr[aux_reg_src_w + offset]);
+                    vmovups(vreg_src(jj) | mask(0), ptr[aux_reg_src_w + offset]);
                 } else {
-                    vmovdqu8(vreg_src(jj) | mask(0),
-                            ptr[aux_reg_src_w + offset]);
+                    if (isa == avx2)
+                        vpblendvb(vreg_src(jj), vreg_tmp, ptr[aux_reg_src_w + offset], vreg_mask);
+                    else
+                        vmovdqu8(vreg_src(jj) | mask(0), ptr[aux_reg_src_w + offset]);
                 }
             } else {
                 vmovups(vreg_src(jj), ptr[aux_reg_src_w + offset]);
@@ -227,8 +230,10 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::store_dst(int jj, int ll,
                     vmovups(ptr[reg_ptr_dst_i8 + offset],
                            vreg_dst(jj) | mask(0));
                 } else {
-                    vmovdqu8(ptr[reg_ptr_dst_i8 + offset],
-                            vreg_dst(jj) | mask(0));
+                    if (isa == avx2)
+                        vmovdqu(ptr[reg_ptr_dst_i8 + offset], vreg_dst(jj)); // XXX: memory corruption in case of non-zero c_tail !!!
+                    else
+                        vmovdqu8(ptr[reg_ptr_dst_i8 + offset], vreg_dst(jj) | mask(0));
                 }
             } else {
                 vmovups(ptr[reg_ptr_dst_i8 + offset], vreg_dst(jj));
@@ -440,11 +445,47 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::compute_c_block(){
 
 template <cpu_isa_t isa>
 void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::init_mask() {
-    if (isa == avx512_core)
+
+    switch (isa) {
+
+    case avx2: {
+        if (jpp.alg == pooling_max) {
+            uint64_t bit_mask = jpp.tail[0];
+            const size_t QW_PER_VREG = cpu_isa_traits<isa>::vlen / sizeof(uint64_t);
+            uint64_t vmask[QW_PER_VREG];
+            for (size_t i = 0; i < QW_PER_VREG; i++){
+                uint64_t qw_vmask=0ULL;
+                for (size_t j = 0; j < sizeof(qw_vmask); j++) {
+                    if (bit_mask & 1)
+                        qw_vmask |= 0x80ULL << j*8;
+                    bit_mask >>= 1;
+                }
+                vmask[i] = qw_vmask;
+            }
+
+            //!!! for test
+//            vmask[1] = 0xAA00AA0000aa00aaULL;
+//            vmask[2] = 0xBB00BB0000bb00bbULL;
+//            vmask[3] = 0xCC00CC0000cc00ccULL;
+            //!!!
+
+            // Put byte-mask in stack and load into vreg_mask
+            for (size_t i = 0; i < QW_PER_VREG; i++){
+                mov(reg_mask, vmask[QW_PER_VREG-i-1]);
+                push(reg_mask.cvt64());
+            }
+            vmovups(vreg_mask, ptr[rsp]);
+            add(rsp, cpu_isa_traits<isa>::vlen);
+        }
+    } break;
+
+    case avx512_core: {
         for (int i = 0; i < 4; i++) {
             mov(reg_mask, jpp.tail[i]);
             kmovq(mask(i), reg_mask);
         }
+    } break;
+    }
 }
 
 template <cpu_isa_t isa>
@@ -550,8 +591,8 @@ status_t jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::init_conf(jit_pool_conf_t &jp
     switch(jpp.alg) {
         case pooling_max:
 
-            if (tail_mask)
-                return status::unimplemented; // XXX: util implemented
+            if (!tail_mask)
+                return status::unimplemented; // XXX: until implemented
 
             jpp.tail[0] = tail_mask;
             jpp.tail[1] = 0;
@@ -561,7 +602,7 @@ status_t jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::init_conf(jit_pool_conf_t &jp
         case pooling_avg_include_padding:
         case pooling_avg_exclude_padding:
 
-            return status::unimplemented; // XXX: util implemented
+            return status::unimplemented; // XXX: until implemented
 
             jpp.tail[0] = tail_mask & 0xffff;
             for (size_t i = 1, m = tail_mask; i < 4; i++) {
