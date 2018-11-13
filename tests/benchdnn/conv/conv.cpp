@@ -471,6 +471,7 @@ inline int init_pd(const prb_t *p, mkldnn_convolution_desc_t &cd,
 
     mkldnn_alg_kind_t alg = mkldnn_convolution_direct;
     if (p->alg == WINO) alg = mkldnn_convolution_winograd;
+    if (p->alg == AUTO) alg = mkldnn_convolution_auto;
 
     switch (p->dir) {
     case FWD_D: case FWD_B: case FWD_I:
@@ -527,6 +528,13 @@ inline int init_pd(const prb_t *p, mkldnn_convolution_desc_t &cd,
                 mkldnn_primitive_desc_query_pd(cpd, query, index));
     };
 
+    if (p->alg == AUTO) {
+        mkldnn_convolution_desc_t *temp_conv_desc = {0};
+        DNN_SAFE(mkldnn_primitive_desc_query(cpd,
+                mkldnn_query_convolution_d, 0, &temp_conv_desc), CRIT);
+        cd.alg_kind = temp_conv_desc->alg_kind;
+    }
+
     if (p->dir == BWD_D)
         cd.diff_src_desc = q(mkldnn_query_diff_src_pd);
     else
@@ -552,7 +560,7 @@ inline int init_pd(const prb_t *p, mkldnn_convolution_desc_t &cd,
     return OK;
 }
 
-int doit(const prb_t *p, res_t *r) {
+int doit(const prb_t *p_orig, res_t *r) {
     res_t res_zero{};
     *r = res_zero;
 
@@ -560,7 +568,13 @@ int doit(const prb_t *p, res_t *r) {
     mkldnn_primitive_desc_t cpd;
     mkldnn_primitive_t c{};
 
-    SAFE(init_pd(p, cd, cpd, r), WARN);
+    SAFE(init_pd(p_orig, cd, cpd, r), WARN);
+
+    prb_t p_temp((desc_t)*p_orig, p_orig->dir, p_orig->cfg,
+            p_orig->alg, p_orig->attr, p_orig->mb);
+    prb_t *p = &p_temp;
+    p->alg = algkind2alg(cd.alg_kind);
+
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED)
         return OK;
 

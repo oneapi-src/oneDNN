@@ -139,11 +139,18 @@ struct convolution_fwd_pd_t: public primitive_desc_t {
 
     inline int ndims() const { return desc_.src_desc.ndims; }
 
+    virtual status_t set_alg_kind(alg_kind_t alg) {
+        if (alg == alg_kind::undef) return status::invalid_arguments;
+        desc_.alg_kind = alg;
+        return status::success;
+    }
+
     bool has_zero_dim_memory() const {
         return false
             || memory_desc_wrapper(desc_.src_desc).has_zero_dim()
             || memory_desc_wrapper(desc_.dst_desc).has_zero_dim();
     }
+
 
 protected:
     convolution_desc_t desc_;
@@ -248,6 +255,12 @@ struct convolution_bwd_data_pd_t: public primitive_desc_t {
 
     inline int ndims() const { return desc_.diff_src_desc.ndims; }
     virtual bool support_bias() const { return false; }
+
+    virtual status_t set_alg_kind(alg_kind_t alg) {
+        if (alg == alg_kind::undef) return status::invalid_arguments;
+        desc_.alg_kind = alg;
+        return status::success;
+    }
 
     bool has_zero_dim_memory() const {
         return false
@@ -362,6 +375,12 @@ struct convolution_bwd_weights_pd_t: public primitive_desc_t {
     { return desc_.diff_weights_desc.ndims == desc_.diff_dst_desc.ndims + 1; }
 
     inline int ndims() const { return desc_.src_desc.ndims; }
+
+    virtual status_t set_alg_kind(alg_kind_t alg) {
+        if (alg == alg_kind::undef) return status::invalid_arguments;
+        desc_.alg_kind = alg;
+        return status::success;
+    }
 
     bool has_zero_dim_memory() const {
         return false

@@ -133,7 +133,9 @@ struct jit_avx512_core_fp32_wino_conv_4x3_fwd_t
             bool ok = true && this->set_default_params() == status::success
                     && utils::one_of(this->desc()->prop_kind, forward_training,
                                forward_inference)
-                    && this->desc()->alg_kind == alg_kind::convolution_winograd
+                    && utils::one_of(this->desc()->alg_kind,
+                               alg_kind::convolution_auto,
+                               alg_kind::convolution_winograd)
                     && utils::everyone_is(data_type::f32,
                                this->desc()->src_desc.data_type,
                                this->desc()->weights_desc.data_type,
@@ -152,8 +154,11 @@ struct jit_avx512_core_fp32_wino_conv_4x3_fwd_t
 
             auto scratchpad = this->scratchpad_registry().registrar();
             winograd_avx512_core::init_scratchpad(scratchpad, jcp_);
+            if (status == status::success
+                    && this->desc()->alg_kind == alg_kind::convolution_auto)
+                CHECK(this->set_alg_kind(alg_kind::convolution_winograd));
 
-            return status::success;
+            return status;
         }
 
         jit_conv_winograd_conf_t jcp_;
@@ -231,7 +236,9 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_data_t
             assert(this->engine()->kind() == engine_kind::cpu);
             bool ok = true && this->set_default_params() == status::success
                     && utils::one_of(this->desc()->prop_kind, backward_data)
-                    && this->desc()->alg_kind == alg_kind::convolution_winograd
+                    && utils::one_of(this->desc()->alg_kind,
+                               alg_kind::convolution_auto,
+                               alg_kind::convolution_winograd)
                     && utils::everyone_is(data_type::f32,
                                this->desc()->diff_src_desc.data_type,
                                this->desc()->weights_desc.data_type,
@@ -249,7 +256,11 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_data_t
             auto scratchpad = this->scratchpad_registry().registrar();
             winograd_avx512_core::init_scratchpad(scratchpad, jcp_);
 
-            return status::success;
+            if (status == status::success
+                    && this->desc()->alg_kind == alg_kind::convolution_auto)
+                CHECK(this->set_alg_kind(alg_kind::convolution_winograd));
+
+            return status;
         }
 
         jit_conv_winograd_conf_t jcp_;
@@ -333,7 +344,9 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_t
             assert(this->engine()->kind() == engine_kind::cpu);
             bool ok = true && this->set_default_params() == status::success
                     && utils::one_of(this->desc()->prop_kind, backward_weights)
-                    && this->desc()->alg_kind == alg_kind::convolution_winograd
+                    && utils::one_of(this->desc()->alg_kind,
+                               alg_kind::convolution_auto,
+                               alg_kind::convolution_winograd)
                     && utils::everyone_is(data_type::f32,
                                this->desc()->src_desc.data_type,
                                this->desc()->diff_dst_desc.data_type,
@@ -352,7 +365,11 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_t
             auto scratchpad = this->scratchpad_registry().registrar();
             winograd_avx512_core::init_scratchpad(scratchpad, jcp_);
 
-            return status::success;
+            if (status == status::success
+                    && this->desc()->alg_kind == alg_kind::convolution_auto)
+                CHECK(this->set_alg_kind(alg_kind::convolution_winograd));
+
+            return status;
         }
 
         jit_conv_winograd_conf_t jcp_;

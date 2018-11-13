@@ -60,6 +60,7 @@ namespace prop_kind {
 using alg_kind_t = mkldnn_alg_kind_t;
 namespace alg_kind {
     const alg_kind_t undef = mkldnn_alg_kind_undef;
+    const alg_kind_t convolution_auto = mkldnn_convolution_auto;
     const alg_kind_t convolution_direct = mkldnn_convolution_direct;
     const alg_kind_t convolution_winograd = mkldnn_convolution_winograd;
     const alg_kind_t deconvolution_direct = mkldnn_deconvolution_direct;

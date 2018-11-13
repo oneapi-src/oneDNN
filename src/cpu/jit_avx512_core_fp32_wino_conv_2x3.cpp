@@ -564,6 +564,12 @@ void jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t::generate() {
     postamble();
 }
 
+namespace {
+bool is_winograd_faster_than_direct(const jit_conv_conf_2x3_wino_t &jcp) {
+    return jcp.mb >= 4;
+}
+}
+
 status_t jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t ::init_conf(
         jit_conv_conf_2x3_wino_t &jcp, const convolution_desc_t &cd,
         cpu_memory_t::pd_t &src_pd, cpu_memory_t::pd_t &wei_pd,
@@ -622,6 +628,10 @@ status_t jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t ::init_conf(
 
     jcp.ver = ver_avx512_core;
     if (!(mayiuse(avx512_core)))
+        return status::unimplemented;
+
+    if (!IMPLICATION(cd.alg_kind == alg_kind::convolution_auto,
+               is_winograd_faster_than_direct(jcp)))
         return status::unimplemented;
 
     if (src_d.data_type() != data_type::f32)

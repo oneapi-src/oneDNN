@@ -440,50 +440,52 @@ typedef enum {
 typedef enum {
     mkldnn_alg_kind_undef,
     /** Direct convolution */
-    mkldnn_convolution_direct = 1,
+    mkldnn_convolution_direct = 0x1,
     /** Winograd convolution */
-    mkldnn_convolution_winograd = 2,
+    mkldnn_convolution_winograd = 0x2,
+    /** Convolution algorithm(either direct or Winograd) is chosen just in time **/
+    mkldnn_convolution_auto = 0x3,
+    /** Direct deconvolution */
+    mkldnn_deconvolution_direct = 0xa,
+    /** Winograd deconvolution */
+    mkldnn_deconvolution_winograd = 0xb,
     /** Eltwise: ReLU */
-    mkldnn_eltwise_relu = 8,
+    mkldnn_eltwise_relu = 0x1f,
     /** Eltwise: hyperbolic tangent non-linearity (tanh) */
-    mkldnn_eltwise_tanh = 9,
+    mkldnn_eltwise_tanh = 0x2f,
     /** Eltwise: parametric exponential linear unit (elu) */
-    mkldnn_eltwise_elu = 10,
+    mkldnn_eltwise_elu = 0x3f,
     /** Eltwise: square */
-    mkldnn_eltwise_square = 11,
+    mkldnn_eltwise_square = 0x4f,
     /** Eltwise: abs */
-    mkldnn_eltwise_abs = 12,
+    mkldnn_eltwise_abs = 0x5f,
     /** Eltwise: square root */
-    mkldnn_eltwise_sqrt = 13,
+    mkldnn_eltwise_sqrt = 0x6f,
     /** Eltwise: linear */
-    mkldnn_eltwise_linear = 14,
+    mkldnn_eltwise_linear = 0x7f,
     /** Eltwise: bounded_relu */
-    mkldnn_eltwise_bounded_relu = 15,
+    mkldnn_eltwise_bounded_relu = 0x8f,
     /** Eltwise: soft_relu */
-    mkldnn_eltwise_soft_relu = 16,
+    mkldnn_eltwise_soft_relu = 0x9f,
     /** Eltwise: logistic */
-    mkldnn_eltwise_logistic = 17,
+    mkldnn_eltwise_logistic = 0xaf,
     /** Max pooling */
-    mkldnn_pooling_max = 34,
+    mkldnn_pooling_max = 0x1ff,
     /** Average pooling include padding */
-    mkldnn_pooling_avg_include_padding = 40,
+    mkldnn_pooling_avg_include_padding = 0x2ff,
     /** Average pooling exclude padding */
-    mkldnn_pooling_avg_exclude_padding = 41,
+    mkldnn_pooling_avg_exclude_padding = 0x3ff,
     mkldnn_pooling_avg = mkldnn_pooling_avg_exclude_padding,
     /** Local response normalization (LRN) across multiple channels */
-    mkldnn_lrn_across_channels = 65,
+    mkldnn_lrn_across_channels = 0xaff,
     /** LRN within a single channel */
-    mkldnn_lrn_within_channel = 66,
-    /** Direct deconvolution */
-    mkldnn_deconvolution_direct = 71,
-    /** Winograd deconvolution */
-    mkldnn_deconvolution_winograd = 72,
+    mkldnn_lrn_within_channel = 0xbff,
     /** RNN cell */
-    mkldnn_vanilla_rnn = 80,
+    mkldnn_vanilla_rnn = 0x1fff,
     /** LSTM cell */
-    mkldnn_vanilla_lstm = 81,
+    mkldnn_vanilla_lstm = 0x2fff,
     /** GRU cell */
-    mkldnn_vanilla_gru = 82,
+    mkldnn_vanilla_gru = 0x3fff,
     /** GRU cell with linear before reset
      *
      * Modification of original GRU cell. Differs from #mkldnn_vanilla_gru
@@ -492,7 +494,7 @@ typedef enum {
      * Primitive expects 4 biases on input:
      * \f$[b_{u}, b_{r}, b_{c_x}, b_{c_h}]\f$
      * */
-    mkldnn_gru_linear_before_reset = 83,
+    mkldnn_gru_linear_before_reset = 0x4fff,
 } mkldnn_alg_kind_t;
 
 /** Flags for batch-normalization primititve. */
@@ -1193,3 +1195,4 @@ typedef const struct mkldnn_stream *const_mkldnn_stream_t;
 
 
 #endif
+

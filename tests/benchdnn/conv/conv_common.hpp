@@ -28,9 +28,10 @@
 
 namespace conv {
 
-enum alg_t { DIRECT, WINO };
+enum alg_t { DIRECT, WINO, AUTO };
 alg_t str2alg(const char *str);
 const char *alg2str(alg_t alg);
+alg_t algkind2alg(mkldnn_alg_kind_t alg);
 
 struct desc_t {
     int g, mb;

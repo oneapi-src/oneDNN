@@ -66,6 +66,15 @@ int get_divisor_satisfying_cond(jit_conv_winograd_conf_t &jcp, int number,
     return best_divisor;
 }
 
+namespace {
+bool is_winograd_faster_than_direct(const jit_conv_winograd_conf_t &jcp) {
+    if (jcp.ver == ver_4fma)
+        return jcp.mb >= 32;
+    else
+        return jcp.mb >= 16;
+}
+}
+
 /* assumes 512 bits registers */
 /* TODO: add support for strides */
 /* TODO: handle the prefetch distance automatically */
@@ -334,10 +343,10 @@ status_t _jit_avx512_common_conv_winograd_data_kernel_f32::init_conf_common(
         const memory_desc_wrapper &dst_d)
 {
 
-    if (!mayiuse(avx512_common))
+    if (mayiuse(avx512_core))
         return status::unimplemented;
-    else if (mayiuse(avx512_core))
-        jcp.ver = ver_avx512_core;
+    else if (!mayiuse(avx512_common))
+        return status::unimplemented;
     else if (mayiuse(avx512_mic_4ops))
         jcp.ver = ver_4fma;
     else
@@ -378,6 +387,10 @@ status_t _jit_avx512_common_conv_winograd_data_kernel_f32::init_conf_common(
         jcp.oc = rnd_up(jcp.oc, simd_w);
         jcp.ic = rnd_up(jcp.ic, simd_w);
     }
+
+    if (!IMPLICATION(cd.alg_kind == alg_kind::convolution_auto,
+                is_winograd_faster_than_direct(jcp)))
+        return status::unimplemented;
 
     // Checking conditions not supported by these kernels
     if (jcp.ngroups != 1)
@@ -1002,9 +1015,6 @@ status_t jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::init_conf(
         const memory_desc_wrapper &src_d, const memory_desc_wrapper &diff_dst_d,
         const memory_desc_wrapper &diff_weights_d)
 {
-    if (!mayiuse(avx512_common))
-        return status::unimplemented;
-
     jcp.nthr = mkldnn_get_max_threads();
 
     const bool with_groups = diff_weights_d.ndims() == src_d.ndims() + 1;
@@ -1042,15 +1052,18 @@ status_t jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::init_conf(
         jcp.ic = rnd_up(jcp.ic, simd_w);
     }
 
+    if (mayiuse(avx512_core))
+        return status::unimplemented;
     if (!mayiuse(avx512_common))
         return status::unimplemented;
-    else if (mayiuse(avx512_core))
-        jcp.ver = ver_avx512_core;
     else if (mayiuse(avx512_mic_4ops))
         jcp.ver = ver_4fma;
     else
         jcp.ver = ver_fma;
 
+    if (!IMPLICATION(cd.alg_kind == alg_kind::convolution_auto,
+                is_winograd_faster_than_direct(jcp)))
+        return status::unimplemented;
     // Winograd specific initialization
     jcp.itiles = (jcp.ow + tile_size - 1) / tile_size;
     jcp.jtiles = (jcp.oh + tile_size - 1) / tile_size;

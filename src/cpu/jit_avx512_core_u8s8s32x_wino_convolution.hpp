@@ -59,7 +59,9 @@ struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t : public cpu_primitive_t 
                 && this->set_default_params() == status::success
                 && utils::one_of(this->desc()->prop_kind,
                                     forward_training, forward_inference)
-                && this->desc()->alg_kind == alg_kind::convolution_winograd
+                && utils::one_of(this->desc()->alg_kind,
+                           alg_kind::convolution_auto,
+                           alg_kind::convolution_winograd)
                 && !this->has_zero_dim_memory()
                 && this->desc()->src_desc.data_type == data_type::u8
                 && this->desc()->dst_desc.data_type == dst_data_type
@@ -77,7 +79,10 @@ struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t : public cpu_primitive_t 
 
             init_scratchpad();
 
-            return status::success;
+            if (status == status::success
+                    && this->desc()->alg_kind == alg_kind::convolution_auto)
+                this->set_alg_kind(alg_kind::convolution_winograd);
+            return status;
         }
 
         jit_conv_conf_2x3_wino_t jcp_;

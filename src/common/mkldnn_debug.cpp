@@ -211,6 +211,7 @@ const char *mkldnn_prim_kind2str(mkldnn_primitive_kind_t v) {
 
 const char *mkldnn_alg_kind2str(mkldnn_alg_kind_t v) {
     if (v == mkldnn_alg_kind_undef) return "undef";
+    if (v == mkldnn_convolution_auto) return "convolution_auto";
     if (v == mkldnn_convolution_direct) return "convolution_direct";
     if (v == mkldnn_convolution_winograd) return "convolution_winograd";
     if (v == mkldnn_eltwise_relu) return "eltwise_relu";

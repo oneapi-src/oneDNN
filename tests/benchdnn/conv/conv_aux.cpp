@@ -30,6 +30,7 @@ namespace conv {
 
 alg_t str2alg(const char *str) {
 #define CASE(_alg) if (!strcasecmp(STRINGIFY(_alg), str)) return _alg
+    CASE(AUTO);
     CASE(DIRECT);
     CASE(WINO);
 #undef CASE
@@ -38,10 +39,19 @@ alg_t str2alg(const char *str) {
 }
 
 const char *alg2str(alg_t alg) {
+    if (alg == AUTO) return "auto";
     if (alg == DIRECT) return "direct";
     if (alg == WINO) return "wino";
     assert(!"unknown algorithm");
     return "unknown algorithm";
+}
+
+alg_t algkind2alg(mkldnn_alg_kind_t alg) {
+    if (alg == mkldnn_convolution_auto) return AUTO;
+    if (alg == mkldnn_convolution_direct) return DIRECT;
+    if (alg == mkldnn_convolution_winograd) return WINO;
+    assert(!"unknown algorithm");
+    return DIRECT;
 }
 
 int str2desc(desc_t *desc, const char *str, bool is_deconv) {

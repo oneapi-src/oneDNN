@@ -55,7 +55,9 @@ struct jit_avx512_core_fp32_wino_conv_2x3_fwd_t : public cpu_primitive_t {
             assert(this->engine()->kind() == engine_kind::cpu);
             bool ok = true && this->set_default_params() == status::success
                     && utils::one_of(this->desc()->prop_kind, forward_inference)
-                    && this->desc()->alg_kind == alg_kind::convolution_winograd
+                    && utils::one_of(this->desc()->alg_kind,
+                               alg_kind::convolution_auto,
+                               alg_kind::convolution_winograd)
                     && this->desc()->src_desc.data_type == data_type::f32
                     && this->desc()->dst_desc.data_type == data_type::f32
                     && this->desc()->weights_desc.data_type == data_type::f32
@@ -76,6 +78,9 @@ struct jit_avx512_core_fp32_wino_conv_2x3_fwd_t : public cpu_primitive_t {
                 return unimplemented;
 
             init_scratchpad();
+
+            if (this->desc()->alg_kind == alg_kind::convolution_auto)
+               CHECK(this->set_alg_kind(alg_kind::convolution_winograd));
 
             return success;
         }

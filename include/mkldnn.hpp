@@ -254,6 +254,7 @@ inline mkldnn_prop_kind_t convert_to_c(prop_kind kind) {
 
 enum algorithm {
     algorithm_undef = mkldnn_alg_kind_undef,
+    convolution_auto = mkldnn_convolution_auto,
     convolution_direct = mkldnn_convolution_direct,
     convolution_winograd = mkldnn_convolution_winograd,
     deconvolution_direct = mkldnn_deconvolution_direct,

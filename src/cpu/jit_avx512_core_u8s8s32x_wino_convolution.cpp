@@ -677,6 +677,18 @@ void jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::generate() {
 
     postamble();
 }
+namespace {
+bool is_winograd_faster_than_direct(const jit_conv_conf_2x3_wino_t &jcp) {
+    if (jcp.ver == ver_vnni) {
+        return (jcp.mb <= mkldnn_get_max_threads()
+            && (jcp.mb > 4
+                && jcp.ic > 64
+                && !(jcp.oc > 128 && jcp.ih < 14)))
+            || jcp.mb > mkldnn_get_max_threads();
+    }
+    return true;
+}
+}
 
 status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
 ::init_conf(jit_conv_conf_2x3_wino_t &jcp,
@@ -720,6 +732,10 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
         return status::unimplemented;
     if (mayiuse(avx512_core_vnni))
         jcp.ver = ver_vnni;
+
+    if (!IMPLICATION(cd.alg_kind == alg_kind::convolution_auto,
+               is_winograd_faster_than_direct(jcp)))
+        return status::unimplemented;
 
     // block sizes needed for GEMM kernel
     jcp.ic_block = 4;

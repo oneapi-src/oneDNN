@@ -73,3 +73,12 @@
 
 # 3D conv
 --batch=test_conv_3d
+
+# auto algo
+--reset --cfg=f32 --alg=auto
+--dir=FWD_B --batch=conv_auto
+--dir=BWD_D --batch=conv_auto
+--dir=BWD_WB --batch=conv_auto
+--cfg=u8s8s8s32
+--dir=FWD_B --batch=conv_auto
+

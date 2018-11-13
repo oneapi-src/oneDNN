@@ -52,7 +52,9 @@ struct ref_convolution_fwd_t: public cpu_primitive_t {
                 && this->set_default_params() == status::success
                 && utils::one_of(this->desc()->prop_kind, forward_training,
                         forward_inference)
-                && this->desc()->alg_kind == alg_kind::convolution_direct
+                && utils::one_of(this->desc()->alg_kind,
+                           alg_kind::convolution_auto,
+                           alg_kind::convolution_direct)
                 && this->desc()->src_desc.data_type == src_type
                 && this->desc()->weights_desc.data_type == wei_type
                 && this->desc()->accum_data_type == acc_type
@@ -114,7 +116,9 @@ struct ref_convolution_bwd_data_t: public cpu_primitive_t {
             bool ok = true
                 && this->set_default_params() == status::success
                 && this->desc()->prop_kind == backward_data
-                && this->desc()->alg_kind == alg_kind::convolution_direct
+                && utils::one_of(this->desc()->alg_kind,
+                           alg_kind::convolution_auto,
+                           alg_kind::convolution_direct)
                 && this->desc()->diff_dst_desc.data_type == diff_dst_type
                 && this->desc()->weights_desc.data_type == wei_type
                 && this->desc()->accum_data_type == acc_type
@@ -171,7 +175,9 @@ struct ref_convolution_bwd_weights_t: public cpu_primitive_t {
             bool ok = true
                 && this->set_default_params() == status::success
                 && this->desc()->prop_kind == backward_weights
-                && this->desc()->alg_kind == alg_kind::convolution_direct
+                && utils::one_of(this->desc()->alg_kind,
+                           alg_kind::convolution_auto,
+                           alg_kind::convolution_direct)
                 && this->desc()->src_desc.data_type == src_type
                 && this->desc()->diff_weights_desc.data_type == diff_wei_type
                 && this->desc()->diff_dst_desc.data_type == diff_dst_type

@@ -51,7 +51,9 @@ struct jit_avx512_core_x8s8s32x_convolution_fwd_t : public cpu_primitive_t {
             bool ok = true
                     && utils::one_of(this->desc()->prop_kind, forward_training,
                                forward_inference)
-                    && this->desc()->alg_kind == alg_kind::convolution_direct
+                    && utils::one_of(this->desc()->alg_kind,
+                            alg_kind::convolution_auto,
+                            alg_kind::convolution_direct)
                     && !this->has_zero_dim_memory()
                     && this->desc()->src_desc.data_type == src_type
                     && this->desc()->dst_desc.data_type == dst_type
@@ -71,7 +73,10 @@ struct jit_avx512_core_x8s8s32x_convolution_fwd_t : public cpu_primitive_t {
             jit_avx512_core_x8s8s32x_fwd_kernel::init_scratchpad(scratchpad,
                     jcp_, *this->attr());
 
-            return status::success;
+            if (status == status::success
+                    && this->desc()->alg_kind == alg_kind::convolution_auto)
+                CHECK(this->set_alg_kind(alg_kind::convolution_direct));
+            return status;
         }
 
         jit_conv_conf_t jcp_;
