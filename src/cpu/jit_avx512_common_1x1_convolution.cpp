@@ -37,24 +37,30 @@ using namespace mkldnn::impl::utils;
     ? (f).blk_off(n, c, w) \
     : (f).blk_off(n, c, h, w))
 
+
 namespace {
 template <typename T, typename U>
 void balance2D(U nthr, U ithr, T ny, T &ny_start, T &ny_end,
     T nx, T &nx_start, T &nx_end, T nx_divider)
 {
-    const T grp_size = utils::div_up(nthr, nx_divider);
-    const T grp_count = utils::div_up(nthr, grp_size);
+    const int grp_count = nstl::min(nx_divider, nthr);
+    const int grp_size_big = nthr / grp_count + 1;
+    const int grp_size_small = nthr / grp_count;
+    const int n_grp_big = nthr % grp_count;
+    const int threads_in_big_groups = n_grp_big * grp_size_big;
 
-    T grp = ithr / grp_size;
-    T grp_ithr = ithr % grp_size;
-    T grp_nthr = grp_size;
-    T first_grps = nthr % grp_count;
-    if (first_grps > 0 && grp >= first_grps) {
-        ithr -= first_grps * grp_size;
-        grp_nthr--;
-        grp = ithr / grp_nthr + first_grps;
-        grp_ithr = ithr % grp_nthr;
+    const int ithr_bound_distance = ithr - threads_in_big_groups;
+    T grp, grp_ithr, grp_nthr;
+    if (ithr_bound_distance < 0) { // ithr in first groups
+        grp = ithr / grp_size_big;
+        grp_ithr = ithr % grp_size_big;
+        grp_nthr = grp_size_big;
+    } else { // ithr in last groups
+        grp = n_grp_big + ithr_bound_distance / grp_size_small;
+        grp_ithr = ithr_bound_distance % grp_size_small;
+        grp_nthr = grp_size_small;
     }
+
     balance211(nx, grp_count, grp, nx_start, nx_end);
     balance211(ny, grp_nthr, grp_ithr, ny_start, ny_end);
 }
