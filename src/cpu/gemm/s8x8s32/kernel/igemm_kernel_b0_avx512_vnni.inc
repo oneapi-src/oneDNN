@@ -9727,3 +9727,10 @@ outLocalLabel();
 #undef BO
 #undef CO1
 #undef CO2
+#undef STACKSIZE
+#undef ARG_C
+#undef ARG_LDC
+#ifdef _WIN32
+#undef ARG_A
+#undef ARG_B
+#endif
