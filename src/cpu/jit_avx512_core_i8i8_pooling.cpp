@@ -81,29 +81,25 @@ struct jit_avx512_core_i8i8_pool_fwd_ker_t: public jit_generator {
     }
 
     // XXX: ref to any of XYZ-regs via xreg/yreg/vreg functions
-//    Xmm xmm_tmp = Xmm(0);
-    Xmm xmm_tmp = xreg(0);
-
-//    Zmm vreg_tmp = Zmm(30);
-    Vmm vreg_tmp = vreg(0);
-//    Zmm vreg_zeros = Zmm(31);
+    Xmm xmm_tmp = xreg(0);     // temp to init vreg_tmp
+    Vmm vreg_tmp = vreg(0);    // max pooling : holds minimum values for data_type
     Vmm vreg_zeros = vreg(1);
 
-    Vmm vreg_mask = vreg(2); // only in case if <isa> == avx2
+    // only in case of <isa> == avx2
+    Vmm vreg_mask    = vreg(2); // full byte-mask
+    Xmm xreg_mask_lo = xreg(2); // low 128-bits part of byte-mask (alias for xmm part of vreg_mask)
+    Xmm xreg_mask_hi = xreg(3); // high 128-bits part of byte-mask (stored separately)
 
-    enum:int {vidx_base = isa == avx2 ? 3 : 2};
+    //enum:int {vidx_base = isa == avx2 ? 3 : 2};
+    enum:int {vidx_base = isa == avx2 ? 4 : 2};
 
     size_t sizeof_src_dt() const { return data_type_size(jpp.src_dt); }
     size_t sizeof_dst_dt() const { return data_type_size(jpp.dst_dt); }
 
     /* max pooling */
     constexpr Vmm max_pool_base_vreg(int idx) { return vreg(vidx_base + idx); }
-
-//    Zmm vreg_src(int idx) { return Zmm(idx); }
-    Vmm vreg_src(int idx) { return max_pool_base_vreg(idx); }
-
-//    Zmm vreg_dst(int idx) { return Zmm(jpp.ur_c + idx); }
-    Vmm vreg_dst(int idx) { return max_pool_base_vreg(jpp.ur_c + idx); }
+    Vmm vreg_src(int idx) { return max_pool_base_vreg(idx); }            // [0    .. ur_c-1]
+    Vmm vreg_dst(int idx) { return max_pool_base_vreg(jpp.ur_c + idx); } // [ur_c .. 2*ur_c-1]
 
     /* avg pooling */
     Zmm vreg_src_s32(int jj, int ll) {
@@ -238,12 +234,18 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::store_dst(int jj, int ll,
                     if (isa == avx2) {
                         push(rdi);
                         lea(rdi, ptr[reg_ptr_dst_i8 + offset]); // XXX: use of rdi need more magic as described in <jit_uni_pool_kernel_f32.hpp>
-                        maskmovdqu(vreg_dst(jj), vreg_mask);    // XXX: only low 128 bits
-                        // TODO: store high 128 bits here
-                        pop(rdi);
 
-                        //vmovdqu(ptr[reg_ptr_dst_i8 + offset], vreg_dst(jj)); // XXX: memory corruption in case of non-zero c_tail !!!
+                        // Store low half by mask (bytes 0...15)
+                        maskmovdqu(vreg_dst(jj), vreg_mask);
 
+                        // Do we need to store high half (bytes 16...31) ?
+                        if (c_tail > c_block / 2 ) {
+                            vextracti128(Xmm(vreg_dst(jj).getIdx()), vreg_dst(jj), 1);
+                            add(rdi, c_block / 2);
+                            maskmovdqu(vreg_dst(jj), xreg_mask_hi);
+                        }
+
+                        pop(rdi); // XXX: use of rdi need more magic as described in <jit_uni_pool_kernel_f32.hpp>
                     } else
                         vmovdqu8(ptr[reg_ptr_dst_i8 + offset], vreg_dst(jj) | mask(0));
                 }
@@ -461,49 +463,67 @@ template <cpu_isa_t isa>
 void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::init_mask() {
 
     switch (isa) {
+        case avx2: {
+            if (jpp.alg == pooling_max) {
+                const size_t QW_PER_VREG = cpu_isa_traits<isa>::vlen / sizeof(uint64_t);
 
-    case avx2: {
-        if (jpp.alg == pooling_max) {
-            const size_t QW_PER_VREG = cpu_isa_traits<isa>::vlen / sizeof(uint64_t);
+                uint64_t vmask[QW_PER_VREG];
+                uint64_t bit_mask = jpp.tail[0];
+                for (size_t i = 0; i < QW_PER_VREG; i++){
 
-            uint64_t vmask[QW_PER_VREG];
-            uint64_t bit_mask = jpp.tail[0];
-            for (size_t i = 0; i < QW_PER_VREG; i++){
-
-                uint64_t qw_vmask=0ULL;
-                const size_t DBITS = 8*sizeof_src_dt();
-                const uint64_t VMSK = 1ULL << (DBITS-1);
-                const size_t D_PER_QW = (8*sizeof(qw_vmask))/DBITS;
-                for (size_t j = 0; j < D_PER_QW; j++) {
-                    if (bit_mask & 1)
-                        qw_vmask |= VMSK << DBITS * j;
-                    bit_mask >>= 1;
+                    uint64_t qw_vmask=0ULL;
+                    const size_t DBITS = 8*sizeof_src_dt();
+                    const uint64_t VMSK = 1ULL << (DBITS-1);
+                    const size_t D_PER_QW = (8*sizeof(qw_vmask))/DBITS;
+                    for (size_t j = 0; j < D_PER_QW; j++) {
+                        if (bit_mask & 1)
+                            qw_vmask |= VMSK << DBITS * j;
+                        bit_mask >>= 1;
+                    }
+                    vmask[i] = qw_vmask;
                 }
-                vmask[i] = qw_vmask;
+
+                //XXX: !!! for test
+//                vmask[1] = 0xAA00AA0000aa00aaULL;
+//                vmask[2] = 0xBB00BB0000bb00bbULL;
+//                vmask[3] = 0xCC00CC0000cc00ccULL;
+                //XXX: !!!
+
+                // Put QWORDS with target mask into xmm regs
+                const int xdst_i[QW_PER_VREG] = {
+                    xreg_mask_lo.getIdx(),
+                    xreg_mask_lo.getIdx(),
+                    xreg_mask_hi.getIdx(),
+                    xreg_mask_hi.getIdx()
+                };
+                const int xsrc_i[QW_PER_VREG] = {
+                    vreg_zeros.getIdx(),   // 0-th qword insert in zeros -> {qw0,  0}
+                    xreg_mask_lo.getIdx(), // 1-st and 0-th merge        -> {qw0,qw1}
+                    vreg_zeros.getIdx(),
+                    xreg_mask_hi.getIdx()
+                };
+                const uint8 qw_dst_idx[QW_PER_VREG] = {0, 1, 0, 1}; // qword index in 128-bit xreg
+
+                for (size_t i = 0; i < QW_PER_VREG; i++) {
+                    mov(reg_mask, vmask[i]);
+                    vpinsrq(Xmm(xdst_i[i]), Xmm(xsrc_i[i]), reg_mask, qw_dst_idx[i]);
+                }
+
+                // Merge Low (xreg_mask_lo alias for vreg_mask.xreg)
+                // and High (xreg_mask_hi) into full vreg_mask
+                // vreg_mask -> {xreg_mask_hi, vreg_mask.xreg}
+                vinserti128(vreg_mask, vreg_mask, xreg_mask_hi, 1);
             }
+        } break;
 
-            //!!! for test
-//            vmask[1] = 0xAA00AA0000aa00aaULL;
-//            vmask[2] = 0xBB00BB0000bb00bbULL;
-//            vmask[3] = 0xCC00CC0000cc00ccULL;
-            //!!!
-
-            // Put byte-mask in stack and load into vreg_mask
-            for (size_t i = 0; i < QW_PER_VREG; i++){
-                mov(reg_mask, vmask[QW_PER_VREG-i-1]);
-                push(reg_mask.cvt64());
+        case avx512_core: {
+            for (int i = 0; i < 4; i++) {
+                mov(reg_mask, jpp.tail[i]);
+                kmovq(mask(i), reg_mask);
             }
-            vmovups(vreg_mask, ptr[rsp]);
-            add(rsp, cpu_isa_traits<isa>::vlen);
-        }
-    } break;
+        } break;
 
-    case avx512_core: {
-        for (int i = 0; i < 4; i++) {
-            mov(reg_mask, jpp.tail[i]);
-            kmovq(mask(i), reg_mask);
-        }
-    } break;
+        default: assert(!"unsupported isa");
     }
 }
 
@@ -556,10 +576,11 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::generate() {
 
 #   undef READ_PARAM
 
-    init_tmp_reg();
+    uni_vpxor(vreg_zeros, vreg_zeros, vreg_zeros);
+
     init_mask();
 
-    uni_vpxor(vreg_zeros, vreg_zeros, vreg_zeros);
+    init_tmp_reg();
 
     compute_c_block();
 
@@ -612,8 +633,8 @@ status_t jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::init_conf(jit_pool_conf_t &jp
 
 //            if (tail_mask && jpp.src_dt != data_type::s32) // XXX: i8 with tails not implemented yet
 //                return status::unimplemented;
-            if (!(tail_mask && jpp.src_dt != data_type::s32))// XXX: TEST i8 with tails
-                return status::unimplemented;
+//            if (!(tail_mask && jpp.src_dt != data_type::s32))// XXX: TEST i8 with tails
+//                return status::unimplemented;
 
             printf("\t\t\t\t\t\t\t\t\t\t\t\t%s : pooling_max : %s tail_mask = 0x%lx\n",
                     __FUNCTION__,
