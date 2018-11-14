@@ -58,8 +58,14 @@ struct jit_avx512_core_i8i8_pool_fwd_ker_t: public jit_generator {
     constexpr Ymm yreg(int idx) { return Ymm(xreg(idx).getIdx()); }
     constexpr Vmm vreg(int idx) { return Vmm(xreg(idx).getIdx()); }
 
+    // In case of avx2 with data type i8 we need to use
+    // maskmovdqu instruction which has its destination hardcoded in rdi.
+    // Windows ABI: abi_param1 is rcx - nothing to do else
+    // Unix ABI: abi_param1 is rdi - copy to rcx and use it as abi_param1
+    Reg64 reg_param      = rcx; // Our "unified abi_param1"
     Reg64 reg_ptr_src_i8 = r8;
     Reg64 reg_ptr_dst_i8 = r9;
+    Reg64 reg_ptr_maskmovdqu_dst = rdi; // store destination - must be rdi
 
     Reg64 ki = r10;
     Reg64 kj = r11;
@@ -80,7 +86,7 @@ struct jit_avx512_core_i8i8_pool_fwd_ker_t: public jit_generator {
         return Opmask(6 - idx);
     }
 
-    // XXX: ref to any of XYZ-regs via xreg/yreg/vreg functions
+    // ref to any of XYZ-regs via xreg/yreg/vreg functions
     Xmm xmm_tmp = xreg(0);     // temp to init vreg_tmp
     Vmm vreg_tmp = vreg(0);    // max pooling : holds minimum values for data_type
     Vmm vreg_zeros = vreg(1);
@@ -90,7 +96,6 @@ struct jit_avx512_core_i8i8_pool_fwd_ker_t: public jit_generator {
     Xmm xreg_mask_lo = xreg(2); // low 128-bits part of byte-mask (alias for xmm part of vreg_mask)
     Xmm xreg_mask_hi = xreg(3); // high 128-bits part of byte-mask (stored separately)
 
-    //enum:int {vidx_base = isa == avx2 ? 3 : 2};
     enum:int {vidx_base = isa == avx2 ? 4 : 2};
 
     size_t sizeof_src_dt() const { return data_type_size(jpp.src_dt); }
@@ -232,20 +237,16 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::store_dst(int jj, int ll,
                         vmovups(ptr[reg_ptr_dst_i8 + offset], vreg_dst(jj) | mask(0));
                 } else {
                     if (isa == avx2) {
-                        push(rdi);
-                        lea(rdi, ptr[reg_ptr_dst_i8 + offset]); // XXX: use of rdi need more magic as described in <jit_uni_pool_kernel_f32.hpp>
-
                         // Store low half by mask (bytes 0...15)
-                        maskmovdqu(vreg_dst(jj), vreg_mask);
+                        lea(reg_ptr_maskmovdqu_dst, ptr[reg_ptr_dst_i8 + offset]);
+                        maskmovdqu(vreg_dst(jj), xreg_mask_lo);
 
                         // Do we need to store high half (bytes 16...31) ?
-                        if (c_tail > c_block / 2 ) {
+                        if (c_tail > c_block / 2) {
                             vextracti128(Xmm(vreg_dst(jj).getIdx()), vreg_dst(jj), 1);
-                            add(rdi, c_block / 2);
+                            add(reg_ptr_maskmovdqu_dst, c_block / 2);
                             maskmovdqu(vreg_dst(jj), xreg_mask_hi);
                         }
-
-                        pop(rdi); // XXX: use of rdi need more magic as described in <jit_uni_pool_kernel_f32.hpp>
                     } else
                         vmovdqu8(ptr[reg_ptr_dst_i8 + offset], vreg_dst(jj) | mask(0));
                 }
@@ -483,12 +484,6 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::init_mask() {
                     vmask[i] = qw_vmask;
                 }
 
-                //XXX: !!! for test
-//                vmask[1] = 0xAA00AA0000aa00aaULL;
-//                vmask[2] = 0xBB00BB0000bb00bbULL;
-//                vmask[3] = 0xCC00CC0000cc00ccULL;
-                //XXX: !!!
-
                 // Put QWORDS with target mask into xmm regs
                 const int xdst_i[QW_PER_VREG] = {
                     xreg_mask_lo.getIdx(),
@@ -534,7 +529,7 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::init_tmp_reg() {
     switch (jpp.alg) {
         case pooling_avg_include_padding:
         case pooling_avg_exclude_padding:
-            mov(reg_tmp, ptr[abi_param1 + offsetof(call_params_t, idivider)]);
+            mov(reg_tmp, ptr[reg_param + offsetof(call_params_t, idivider)]);
             movq(xmm_tmp, reg_tmp);
             vpbroadcastd(vreg_tmp, xmm_tmp);
             break;
@@ -567,8 +562,14 @@ template <cpu_isa_t isa>
 void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::generate() {
     preamble();
 
+#if !defined(_WIN32)
+    // Always use rcx as abi_param1 -
+    // see the note about maskmovdqu near reg_param.
+    mov(rcx, rdi);
+#endif
+
 #   define READ_PARAM(reg, field) \
-        mov(reg, ptr[abi_param1 + offsetof(call_params_t, field)])
+        mov(reg, ptr[reg_param + offsetof(call_params_t, field)])
     READ_PARAM(reg_ptr_src_i8, src_i8);
     READ_PARAM(reg_ptr_dst_i8, dst_i8);
     READ_PARAM(reg_kw, kw_range);
@@ -595,7 +596,7 @@ status_t jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::init_conf(jit_pool_conf_t &jp
         return status::unimplemented;
 
     jpp.mb = src_d.dims()[0];
-    jpp.c = src_d.dims()[1]; // XXX: (basargin) ???under question??? do we need to round up with simd_w ???
+    jpp.c = src_d.dims()[1];
     jpp.ih = src_d.dims()[2];
     jpp.iw = src_d.dims()[3];
     jpp.oh = dst_d.dims()[2];
@@ -631,11 +632,7 @@ status_t jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::init_conf(jit_pool_conf_t &jp
     switch(jpp.alg) {
         case pooling_max:
 
-//            if (tail_mask && jpp.src_dt != data_type::s32) // XXX: i8 with tails not implemented yet
-//                return status::unimplemented;
-//            if (!(tail_mask && jpp.src_dt != data_type::s32))// XXX: TEST i8 with tails
-//                return status::unimplemented;
-
+            // XXX: log
             printf("\t\t\t\t\t\t\t\t\t\t\t\t%s : pooling_max : %s tail_mask = 0x%lx\n",
                     __FUNCTION__,
                     jpp.src_dt == data_type::s32 ? "s32" : "i8",
@@ -650,6 +647,8 @@ status_t jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::init_conf(jit_pool_conf_t &jp
         case pooling_avg_exclude_padding:
 
             return status::unimplemented; // XXX: until implemented
+
+            // XXX: log
             printf("\t\t\t\t\t\t\t\t\t\t\t\t%s : pooling_avg : %s tail_mask = 0x%lx\n",
                     __FUNCTION__,
                     jpp.src_dt == data_type::s32 ? "s32" : "i8",
