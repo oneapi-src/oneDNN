@@ -97,7 +97,8 @@ struct jit_avx512_core_i8i8_pool_fwd_ker_t: public jit_generator {
     // only in case of <isa> == avx2
     Vmm vreg_mask    = vreg(2); // full byte-mask
     Xmm xreg_mask_lo = xreg(2); // low 128-bits part of byte-mask (alias for xmm part of vreg_mask)
-    Xmm xreg_mask_hi = xreg(3); // high 128-bits part of byte-mask (stored separately)
+    Xmm xreg_mask_hi = xreg(3); // "max" - high 128-bits part of byte-mask (stored separately)
+    Xmm xreg_mask_q  = xreg(3); // "avg" - 1/4 part of the mask for s8/u8 operations
 
     enum:int {vidx_base = isa == avx2 ? 4 : 2};
 
@@ -290,13 +291,9 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::store_dst(int jj, int ll,
                             // Target QWORD qw = {8 x s8} has right position: {qw, xx, xx, xx}
                             vpacksswb(vreg_dst_s32(jj, ll), vreg_dst_s32(jj, ll), vreg_zeros);
 
-                            // XXX: !!!! MASK for 8 bytes
-                            mov(reg_mask, 0x8080808080808080ULL);
-                            vpinsrq(xreg_mask_lo, Xmm(vreg_zeros.getIdx()), reg_mask, 0);
-
                             // store only 8 bytes
                             lea(reg_ptr_maskmovdqu_dst, ptr[reg_ptr_dst_i8 + offset]);
-                            maskmovdqu(vreg_dst_s32(jj, ll), xreg_mask_lo);
+                            maskmovdqu(vreg_dst_s32(jj, ll), xreg_mask_q);
 
                         } else
                             vpmovdb(ptr[reg_ptr_dst_i8 + offset], vreg_dst_s32(jj, ll));
@@ -316,13 +313,9 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::store_dst(int jj, int ll,
                             // Target QWORD qw = {8 x u8} has right position: {qw, xx, xx, xx}
                             vpackuswb(vreg_dst_s32(jj, ll), vreg_dst_s32(jj, ll), vreg_zeros);
 
-                            // XXX: !!!! MASK for 8 bytes
-                            mov(reg_mask, 0x8080808080808080ULL);
-                            vpinsrq(xreg_mask_lo, Xmm(vreg_zeros.getIdx()), reg_mask, 0);
-
                             // store only 8 bytes
                             lea(reg_ptr_maskmovdqu_dst, ptr[reg_ptr_dst_i8 + offset]);
-                            maskmovdqu(vreg_dst_s32(jj, ll), xreg_mask_lo);
+                            maskmovdqu(vreg_dst_s32(jj, ll), xreg_mask_q);
 
                         } else
                             vpmovusdb(ptr[reg_ptr_dst_i8 + offset],vreg_dst_s32(jj, ll));
@@ -504,52 +497,77 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::compute_c_block(){
 
 template <cpu_isa_t isa>
 void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::init_mask() {
+    using namespace data_type;
+
+    // AVX2 mask initialization: mask stored in Ymm-regs
+    auto axv2_init_mask = [&](uint64_t bit_mask, bool init_mask_q) {
+        const size_t QW_PER_VREG = cpu_isa_traits<isa>::vlen / sizeof(uint64_t);
+
+        uint64_t vmask[QW_PER_VREG];
+        for (size_t i = 0; i < QW_PER_VREG; i++){
+
+            uint64_t qw_vmask=0ULL;
+            const size_t DBITS = 8*sizeof_src_dt();
+            const uint64_t VMSK = 1ULL << (DBITS-1);
+            const size_t D_PER_QW = (8*sizeof(qw_vmask))/DBITS;
+            for (size_t j = 0; j < D_PER_QW; j++) {
+                if (bit_mask & 1)
+                    qw_vmask |= VMSK << DBITS * j;
+                bit_mask >>= 1;
+            }
+            vmask[i] = qw_vmask;
+        }
+
+        // Put QWORDS with target mask into xmm regs
+        const int xdst_i[QW_PER_VREG] = {
+                xreg_mask_lo.getIdx(),
+                xreg_mask_lo.getIdx(),
+                xreg_mask_hi.getIdx(),
+                xreg_mask_hi.getIdx()
+        };
+        const int xsrc_i[QW_PER_VREG] = {
+                vreg_zeros.getIdx(),   // 0-th qword insert in zeros -> {qw0,  0}
+                xreg_mask_lo.getIdx(), // 1-st and 0-th merge        -> {qw0,qw1}
+                vreg_zeros.getIdx(),
+                xreg_mask_hi.getIdx()
+        };
+        const uint8 qw_dst_idx[QW_PER_VREG] = {0, 1, 0, 1}; // qword index in 128-bit xreg
+
+        for (size_t i = 0; i < QW_PER_VREG; i++) {
+            mov(reg_mask, vmask[i]);
+            vpinsrq(Xmm(xdst_i[i]), Xmm(xsrc_i[i]), reg_mask, qw_dst_idx[i]);
+        }
+
+        // Merge Low (xreg_mask_lo alias for vreg_mask.xreg)
+        // and High (xreg_mask_hi) into full vreg_mask
+        // vreg_mask -> {xreg_mask_hi, vreg_mask.xreg}
+        vinserti128(vreg_mask, vreg_mask, xreg_mask_hi, 1);
+
+        // Keep only low qword of mask in xreg_mask_q ?
+        if (init_mask_q) {
+            mov(reg_mask, vmask[0]);
+            vpinsrq(xreg_mask_q, Xmm(vreg_zeros.getIdx()), reg_mask, 0);
+        }
+    };
 
     switch (isa) {
         case avx2: {
-            if (jpp.alg == pooling_max) {
-                const size_t QW_PER_VREG = cpu_isa_traits<isa>::vlen / sizeof(uint64_t);
-
-                uint64_t vmask[QW_PER_VREG];
-                uint64_t bit_mask = jpp.tail[0];
-                for (size_t i = 0; i < QW_PER_VREG; i++){
-
-                    uint64_t qw_vmask=0ULL;
-                    const size_t DBITS = 8*sizeof_src_dt();
-                    const uint64_t VMSK = 1ULL << (DBITS-1);
-                    const size_t D_PER_QW = (8*sizeof(qw_vmask))/DBITS;
-                    for (size_t j = 0; j < D_PER_QW; j++) {
-                        if (bit_mask & 1)
-                            qw_vmask |= VMSK << DBITS * j;
-                        bit_mask >>= 1;
-                    }
-                    vmask[i] = qw_vmask;
-                }
-
-                // Put QWORDS with target mask into xmm regs
-                const int xdst_i[QW_PER_VREG] = {
-                    xreg_mask_lo.getIdx(),
-                    xreg_mask_lo.getIdx(),
-                    xreg_mask_hi.getIdx(),
-                    xreg_mask_hi.getIdx()
-                };
-                const int xsrc_i[QW_PER_VREG] = {
-                    vreg_zeros.getIdx(),   // 0-th qword insert in zeros -> {qw0,  0}
-                    xreg_mask_lo.getIdx(), // 1-st and 0-th merge        -> {qw0,qw1}
-                    vreg_zeros.getIdx(),
-                    xreg_mask_hi.getIdx()
-                };
-                const uint8 qw_dst_idx[QW_PER_VREG] = {0, 1, 0, 1}; // qword index in 128-bit xreg
-
-                for (size_t i = 0; i < QW_PER_VREG; i++) {
-                    mov(reg_mask, vmask[i]);
-                    vpinsrq(Xmm(xdst_i[i]), Xmm(xsrc_i[i]), reg_mask, qw_dst_idx[i]);
-                }
-
-                // Merge Low (xreg_mask_lo alias for vreg_mask.xreg)
-                // and High (xreg_mask_hi) into full vreg_mask
-                // vreg_mask -> {xreg_mask_hi, vreg_mask.xreg}
-                vinserti128(vreg_mask, vreg_mask, xreg_mask_hi, 1);
+            uint64_t tail_mask = (1ULL << jpp.c_tail) - 1;
+            switch (jpp.alg) {
+                case pooling_max:
+                    // For "max" we need mask only in case of non-zero tail
+                    if (tail_mask)
+                        axv2_init_mask(tail_mask, false);
+                    break;
+                case pooling_avg_include_padding:
+                case pooling_avg_exclude_padding:
+                    // For "avg" we need mask:
+                    // - in case of non-zero tail
+                    // - for s8/u8  - irrespective of the tail
+                    if (tail_mask || one_of(jpp.src_dt, s8, u8))
+                        axv2_init_mask(tail_mask ? tail_mask : -1ULL, tail_mask == 0);
+                    break;
+                default: assert(!"unsupported pooling algorithm");
             }
         } break;
 
@@ -674,7 +692,7 @@ status_t jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::init_conf(jit_pool_conf_t &jp
     switch(jpp.alg) {
         case pooling_max:
 
-            return status::unimplemented; // XXX: !!! for test AVG-only
+//            return status::unimplemented; // XXX: !!! for test AVG-only
 
             // XXX: log
             printf("\t\t\t\t\t\t\t\t\t\t\t\t%s : pooling_max : %s tail_mask = 0x%lx\n",
