@@ -1007,6 +1007,48 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(
             load_blocking = jcp.load_block;
         }
 
+        if (jcp.ver == ver_4fma && jcp.bcast_dim * jcp.mb < jcp.load_dim
+                && jcp.oh * jcp.ow > 64
+                && IMPLICATION(reduce_src, jcp.load_dim < 1024)) {
+            /* Looking for best loading dimension blocking
+            * to get the best thread and data read/write efficiency
+            * by finding the optimal 'load_chunk' value
+            * Example:
+            * for 72 threads and convolution with mb=1, ih=iw=7, oc = 512
+            * the 'best' load_chunk value should be 1
+            * TODO: remove heuristic constants in above condition
+            * TODO: check this blocking for other ISA
+            */
+            float best_eff = -1.f;
+            int best_lgc = 1;
+
+            for (int load_chunk = 1; load_chunk <= nb_load; load_chunk++) {
+                int lgc = div_up(nb_load, load_chunk);
+                if (lgc > nthreads)
+                    continue;
+                int thr_per_grp = div_up(nthreads, lgc);
+                int bcast_per_thr = div_up(jcp.mb * nb_bcast, thr_per_grp)
+                        * jcp.bcast_block;
+                int load_per_thr = load_chunk * simd_w;
+                float data_norm = (bcast_per_thr + load_per_thr) / 2.f;
+                float data_eff = (bcast_per_thr * load_per_thr)
+                        / (data_norm * data_norm);
+                float thr_eff_over_grp = (float)nstl::max(1, nthreads / lgc)
+                        / div_up(nthreads, lgc);
+                float thr_eff_in_grp = ((float)jcp.mb * nb_bcast)
+                        / rnd_up(jcp.mb * nb_bcast, thr_per_grp);
+                float thr_eff = thr_eff_over_grp * thr_eff_in_grp;
+                float load_eff = (float)nb_load / rnd_up(nb_load, lgc);
+                float overall_eff = data_eff + thr_eff + load_eff;
+                if (overall_eff > best_eff) {
+                    best_eff = overall_eff;
+                    best_lgc = lgc;
+                }
+            }
+            jcp.load_grp_count = best_lgc;
+            load_blocking
+                    = div_up(nb_load, jcp.load_grp_count) * jcp.load_block;
+        }
         bcast_blocking = div_up(jcp.mb * jcp.ngroups * nb_bcast,
                                  div_up(nthreads, jcp.load_grp_count))
                 * jcp.bcast_block;
