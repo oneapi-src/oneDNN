@@ -72,3 +72,6 @@ register_benchdnn_test(test_benchdnn_regression
     "benchdnn --conv --batch=inputs/test_conv_regression"
     "benchdnn --bnorm --batch=inputs/bnorm/test_bnorm_regressions"
     )
+register_benchdnn_test(test_benchdnn_regression_large
+    "benchdnn --bnorm --batch=inputs/bnorm/test_bnorm_regressions_large"
+    )
