@@ -58,6 +58,9 @@ struct jit_avx512_core_i8i8_pool_fwd_ker_t: public jit_generator {
     constexpr Ymm yreg(int idx) { return Ymm(xreg(idx).getIdx()); }
     constexpr Vmm vreg(int idx) { return Vmm(xreg(idx).getIdx()); }
 
+    // Rounding modes for axv2
+    enum:uint8_t { rnd_op_nearest = 0x0 };
+
     // In case of avx2 with data type i8 we need to use
     // maskmovdqu instruction which has its destination hardcoded in rdi.
     // Windows ABI: abi_param1 is rcx - nothing to do else
@@ -107,17 +110,10 @@ struct jit_avx512_core_i8i8_pool_fwd_ker_t: public jit_generator {
     Vmm vreg_dst(int idx) { return max_pool_base_vreg(jpp.ur_c + idx); } // [ur_c .. 2*ur_c-1]
 
     /* avg pooling */
-    Zmm vreg_src_s32(int jj, int ll) {
-        return Zmm(12*jj + ll);
-    }
-
-    Zmm vreg_dst_s32(int jj, int ll) {
-        return Zmm(12*jj + ll + 4);
-    }
-
-    Zmm vreg_dst_f32(int jj, int ll) {
-        return Zmm(12*jj + ll + 8);
-    }
+    enum:int {max_num_ll = 4};
+    Vmm vreg_src_s32(int jj, int ll) { return Vmm(12*jj + ll); }      // ll: 0..4 [0..3]
+    Vmm vreg_dst_s32(int jj, int ll) { return Vmm(12*jj + ll + 4); }  // ll: 0..4 [4..7]
+    Vmm vreg_dst_f32(int jj, int ll) { return Vmm(12*jj + ll + 8); }  // ll: 0..4 [8..11]
 
     void (*ker_)(const call_params_t *);
     jit_pool_conf_t jpp;
@@ -198,16 +194,13 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::load_src(int jj, int ll, int c_ta
             } else {
                 switch (jpp.src_dt) {
                     case s32:
-                        vmovups(vreg_src_s32(jj, ll),
-                                ptr[aux_reg_src_w + offset]);
+                        vmovups(vreg_src_s32(jj, ll), ptr[aux_reg_src_w + offset]);
                         break;
                     case s8:
-                        vpmovsxbd(vreg_src_s32(jj, ll),
-                                ptr[aux_reg_src_w + offset]);
+                        vpmovsxbd(vreg_src_s32(jj, ll), ptr[aux_reg_src_w + offset]);
                         break;
                     case u8:
-                        vpmovzxbd(vreg_src_s32(jj, ll),
-                                ptr[aux_reg_src_w + offset]);
+                        vpmovzxbd(vreg_src_s32(jj, ll), ptr[aux_reg_src_w + offset]);
                         break;
                     default: assert(!"unsupported src data type");
                 }
@@ -257,7 +250,7 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::store_dst(int jj, int ll,
         }
         case pooling_avg_include_padding:
         case pooling_avg_exclude_padding: {
-            auto offset = (ll*(c_block/4) + jj*c_block)*sizeof_dst_dt();
+            auto offset = (ll*(c_block/max_num_ll) + jj*c_block)*sizeof_dst_dt();
             if (jj == ur_c - 1 && c_tail) {
                 if (jpp.tail[ll]) {
                     switch (jpp.dst_dt) {
@@ -283,12 +276,56 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::store_dst(int jj, int ll,
                             vreg_dst_s32(jj, ll));
                         break;
                     case s8:
-                        vpmovdb(ptr[reg_ptr_dst_i8 + offset],
-                            vreg_dst_s32(jj, ll));
+                        if (isa == avx2) {
+
+                            // conversion: s32 -> s16 : {8 x s32}{8 x 0} -> {16 x s16}
+                            // Result QWORDs (qw0, qw1) permuted: {qw0, 0, qw1, 0}
+                            vpackssdw(vreg_dst_s32(jj, ll), vreg_dst_s32(jj, ll), vreg_zeros);
+
+                            // Permute qwords to restore original order
+                            // {qw0, 0, qw1, 0} -> {qw0, qw1, 0, 0} ->
+                            vpermq(vreg_dst_s32(jj, ll), vreg_dst_s32(jj, ll), 0x58);
+
+                            // conversion: s16 -> s8 : {16 x s16}{16 x 0} -> {32 x s8}
+                            // Target QWORD qw = {8 x s8} has right position: {qw, xx, xx, xx}
+                            vpacksswb(vreg_dst_s32(jj, ll), vreg_dst_s32(jj, ll), vreg_zeros);
+
+                            // XXX: !!!! MASK for 8 bytes
+                            mov(reg_mask, 0x8080808080808080ULL);
+                            vpinsrq(xreg_mask_lo, Xmm(vreg_zeros.getIdx()), reg_mask, 0);
+
+                            // store only 8 bytes
+                            lea(reg_ptr_maskmovdqu_dst, ptr[reg_ptr_dst_i8 + offset]);
+                            maskmovdqu(vreg_dst_s32(jj, ll), xreg_mask_lo);
+
+                        } else
+                            vpmovdb(ptr[reg_ptr_dst_i8 + offset], vreg_dst_s32(jj, ll));
                         break;
                     case u8:
-                        vpmovusdb(ptr[reg_ptr_dst_i8 + offset],
-                            vreg_dst_s32(jj, ll));
+                        if (isa == avx2) {
+
+                            // conversion: s32 -> u16 : {8 x s32}{8 x 0} -> {16 x u16}
+                            // Result QWORDs (qw0, qw1) permuted: {qw0, 0, qw1, 0}
+                            vpackusdw(vreg_dst_s32(jj, ll), vreg_dst_s32(jj, ll), vreg_zeros);
+
+                            // Permute qwords to restore original order
+                            // {qw0, 0, qw1, 0} -> {qw0, qw1, 0, 0} ->
+                            vpermq(vreg_dst_s32(jj, ll), vreg_dst_s32(jj, ll), 0x58);
+
+                            // conversion: u16 -> u8 : {16 x u16}{16 x 0} -> {32 x u8}
+                            // Target QWORD qw = {8 x u8} has right position: {qw, xx, xx, xx}
+                            vpackuswb(vreg_dst_s32(jj, ll), vreg_dst_s32(jj, ll), vreg_zeros);
+
+                            // XXX: !!!! MASK for 8 bytes
+                            mov(reg_mask, 0x8080808080808080ULL);
+                            vpinsrq(xreg_mask_lo, Xmm(vreg_zeros.getIdx()), reg_mask, 0);
+
+                            // store only 8 bytes
+                            lea(reg_ptr_maskmovdqu_dst, ptr[reg_ptr_dst_i8 + offset]);
+                            maskmovdqu(vreg_dst_s32(jj, ll), xreg_mask_lo);
+
+                        } else
+                            vpmovusdb(ptr[reg_ptr_dst_i8 + offset],vreg_dst_s32(jj, ll));
                         break;
                     default: assert(!"unsuppotred dst data_type");
                 }
@@ -374,11 +411,9 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::compute_avg_step(int ur_c, int c_
     int num_ll = jpp.src_dt == data_type::s32 ? 1 : 4;
 
     for (int jj = 0; jj < ur_c; jj++) {
-        for (int ll = 0; ll < 4; ll++) {
-            uni_vpxor(vreg_src_s32(jj, ll),
-                    vreg_src_s32(jj, ll), vreg_src_s32(jj, ll));
-            uni_vpxor(vreg_dst_s32(jj, ll),
-                    vreg_dst_s32(jj, ll), vreg_dst_s32(jj, ll));
+        for (int ll = 0; ll < max_num_ll; ll++) {
+            uni_vpxor(vreg_src_s32(jj, ll), vreg_src_s32(jj, ll), vreg_src_s32(jj, ll));
+            uni_vpxor(vreg_dst_s32(jj, ll), vreg_dst_s32(jj, ll), vreg_dst_s32(jj, ll));
         }
     }
 
@@ -394,8 +429,8 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::compute_avg_step(int ur_c, int c_
             for (int jj = 0; jj < ur_c; jj++) {
                 for (int ll = 0; ll < num_ll; ll++) {
                     load_src(jj, ll, c_tail);
-                    vpaddd(vreg_dst_s32(jj, ll),
-                            vreg_dst_s32(jj, ll), vreg_src_s32(jj, ll));
+                    vpaddd(vreg_dst_s32(jj, ll), vreg_dst_s32(jj, ll),
+                            vreg_src_s32(jj, ll));
                 }
             }
             add(aux_reg_src_w, c * sizeof_src_dt());
@@ -413,7 +448,14 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::compute_avg_step(int ur_c, int c_
         for (int ll = 0; ll < num_ll; ll++) {
             vcvtdq2ps(vreg_dst_f32(jj, ll), vreg_dst_s32(jj, ll));
             vfmadd132ps(vreg_dst_f32(jj, ll), vreg_zeros, vreg_tmp);
-            vcvtps2dq(vreg_dst_s32(jj, ll) | T_rn_sae, vreg_dst_f32(jj, ll));
+
+            if (isa == avx2) {
+                uni_vroundps(vreg_dst_f32(jj, ll), vreg_dst_f32(jj, ll), rnd_op_nearest);
+                vcvtps2dq(vreg_dst_s32(jj, ll), vreg_dst_f32(jj, ll));
+            } else if (isa >= avx512_common) {
+                // AVX512: use of EVEX-embedded static rounding override
+                vcvtps2dq(vreg_dst_s32(jj, ll) | T_rn_sae, vreg_dst_f32(jj, ll));
+            }
 
             store_dst(jj, ll, c_tail);
         }
@@ -632,6 +674,8 @@ status_t jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::init_conf(jit_pool_conf_t &jp
     switch(jpp.alg) {
         case pooling_max:
 
+            return status::unimplemented; // XXX: !!! for test AVG-only
+
             // XXX: log
             printf("\t\t\t\t\t\t\t\t\t\t\t\t%s : pooling_max : %s tail_mask = 0x%lx\n",
                     __FUNCTION__,
@@ -646,7 +690,11 @@ status_t jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::init_conf(jit_pool_conf_t &jp
         case pooling_avg_include_padding:
         case pooling_avg_exclude_padding:
 
-            return status::unimplemented; // XXX: until implemented
+            if (tail_mask)
+                return status::unimplemented; // XXX: until implemented
+//            if (jpp.src_dt != data_type::s8)
+//                return status::unimplemented; // XXX: until implemented
+
 
             // XXX: log
             printf("\t\t\t\t\t\t\t\t\t\t\t\t%s : pooling_avg : %s tail_mask = 0x%lx\n",
