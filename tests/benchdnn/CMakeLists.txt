@@ -57,7 +57,7 @@ function(register_benchdnn_test name cmd)
     )
     if(WIN32)
         set_property(TARGET ${name} PROPERTY ENVIRONMENT "PATH=${CTESTCONFIG_PATH}")
-        configure_file(${PROJECT_SOURCE_DIR}/config_template.vcxproj.user ${name}.vcxproj.user @ONLY)
+        configure_file(${CMAKE_SOURCE_DIR}/config_template.vcxproj.user ${name}.vcxproj.user @ONLY)
     endif()
 endfunction()
 
