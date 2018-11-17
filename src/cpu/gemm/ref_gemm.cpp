@@ -138,11 +138,12 @@ void gemm_ithr(const int M, const int N, const int K, const data_t alpha,
         return;
 
     if ((K <= 0) || (alpha == static_cast<data_t>(0))) {
+        ptrdiff_t MN = (ptrdiff_t)N * M;
         if (beta == static_cast<data_t>(0.)) {
-            for (int j = 0; j < N * M; j++)
+            for (ptrdiff_t j = 0; j < MN; j++)
                 C[j] = static_cast<data_t>(0.);
         } else if (beta != static_cast<data_t>(1.)) {
-            for (int j = 0; j < N * M; j++)
+            for (ptrdiff_t j = 0; j < MN; j++)
                 C[j] *= beta;
         }
         return;

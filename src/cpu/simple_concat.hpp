@@ -114,6 +114,7 @@ struct simple_concat_t: public cpu_primitive_t {
 private:
     static void format_perm(
             const int ndims, const stride_t *strides, int *perm, int *iperm) {
+        assert(ndims >= 0);
         bool swapped;
         strides_t strides_tmp;
         utils::array_copy(strides_tmp, strides, ndims);
