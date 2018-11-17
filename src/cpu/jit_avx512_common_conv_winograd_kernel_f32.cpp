@@ -91,8 +91,9 @@ struct prefetcher_t {
         int cache_latency;
         switch (cache_type_) {
         case L1: cache_latency = 14; break;
-        case L2: cache_latency = 250; break;
-        case L3: cache_latency = 250; break;
+        case L2:
+        case L3:
+        default: cache_latency = 250; break;
         }
 
         prefetch_distance_ = div_up(cache_latency, nb_cache_lines_to_prefetch_);

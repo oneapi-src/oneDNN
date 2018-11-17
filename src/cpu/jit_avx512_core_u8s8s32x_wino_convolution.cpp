@@ -237,22 +237,22 @@ struct jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t: public jit_generator {
     }
     Zmm vreg_stg(int id) { // 8
         const int id_reg_stg = jcp.alpha * jcp.alpha + id;
-        assert(id_reg_stg < jcp.alpha * jcp.alpha + 8);
+        assert(id < 8);
         return Zmm(31 - id_reg_stg);
     }
     Zmm vreg_out(int id) { // 4
         const int id_reg_out = jcp.alpha * jcp.alpha + 8 + id;
-        assert(id_reg_out < jcp.alpha * jcp.alpha + 12);
+        assert(id < 4);
         return Zmm(31 - id_reg_out);
     }
     Xmm xmm_out(int id) { // 4
         const int id_reg_out = jcp.alpha * jcp.alpha + 8 + id;
-        assert(id_reg_out < jcp.alpha * jcp.alpha + 12);
+        assert(id < 4);
         return Xmm(31 - id_reg_out);
     }
     Zmm vreg_tmp(int id) { // 2
         const int id_reg_tmp = jcp.alpha * jcp.alpha + 12 + id;
-        assert(id_reg_tmp < jcp.alpha * jcp.alpha + 14);
+        assert(id < 2);
         return Zmm(31 - id_reg_tmp);
     }
 
