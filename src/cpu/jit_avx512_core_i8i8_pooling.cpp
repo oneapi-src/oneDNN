@@ -99,6 +99,7 @@ struct jit_avx512_core_i8i8_pool_fwd_ker_t: public jit_generator {
     Xmm xreg_mask_lo = xreg(2); // low 128-bits part of byte-mask (alias for xmm part of vreg_mask)
     Xmm xreg_mask_hi = xreg(3); // "max" - high 128-bits part of byte-mask (stored separately)
     Xmm xreg_mask_q  = xreg(3); // "avg" - 1/4 part of the mask for s8/u8 operations
+    Vmm vreg_mask_q  = vreg(3); // "avg" - 1/4 part for non-zero tails
 
     enum:int {vidx_base = isa == avx2 ? 4 : 2};
 
@@ -173,21 +174,46 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::load_src(int jj, int ll, int c_ta
         }
         case pooling_avg_include_padding:
         case pooling_avg_exclude_padding: {
-            auto offset = (ll*(c_block/4) + jj*c_block)*sizeof_src_dt();
+            auto offset = (ll*(c_block/max_num_ll) + jj*c_block)*sizeof_src_dt();
             if (jj == jpp.ur_c - 1 && c_tail) {
                 if (jpp.tail[ll]) {
                     switch (jpp.src_dt) {
                         case s32:
-                            vmovups(vreg_src_s32(jj, ll) | mask(ll),
-                                    ptr[aux_reg_src_w + offset]);
+                            if (isa == avx2)
+                                vpblendd(vreg_src_s32(jj, ll), vreg_zeros, ptr[aux_reg_src_w + offset],
+                                    static_cast<uint8_t>(jpp.tail[ll]));
+                            else
+                                vmovups(vreg_src_s32(jj, ll) | mask(ll), ptr[aux_reg_src_w + offset]);
                             break;
                         case s8:
-                            vpmovsxbd(vreg_src_s32(jj, ll) | mask(ll),
-                                    ptr[aux_reg_src_w + offset]);
+                            if (isa == avx2) {
+                                // extract ll-th part of mask (ll-th QWORD)
+                                vpblendd(vreg_mask_q, vreg_zeros, vreg_mask, 0x3 << ll); // 0x3 - mask for 2 x DWORD
+
+                                // Move mask from ll-th pos to 0-th pos
+                                if (ll>0)
+                                    vpermq(vreg_mask_q, vreg_mask_q, ll);
+
+                                // Load by mask
+                                vpblendvb(vreg_src_s32(jj, ll), vreg_zeros, ptr[aux_reg_src_w + offset], vreg_mask_q);
+                                vpmovsxbd(vreg_src_s32(jj, ll), vreg_src_s32(jj, ll));
+                            } else
+                                vpmovsxbd(vreg_src_s32(jj, ll) | mask(ll), ptr[aux_reg_src_w + offset]);
                             break;
                         case u8:
-                            vpmovzxbd(vreg_src_s32(jj, ll) | mask(ll),
-                                    ptr[aux_reg_src_w + offset]);
+                            if (isa == avx2) {
+                                // extract ll-th part of mask (ll-th QWORD)
+                                vpblendd(vreg_mask_q, vreg_zeros, vreg_mask, 0x3 << ll); // 0x3 - mask for 2 x DWORD
+
+                                // Move mask from ll-th pos to 0-th pos
+                                if (ll>0)
+                                    vpermq(vreg_mask_q, vreg_mask_q, ll);
+
+                                // Load by mask
+                                vpblendvb(vreg_src_s32(jj, ll), vreg_zeros, ptr[aux_reg_src_w + offset], vreg_mask_q);
+                                vpmovzxbd(vreg_src_s32(jj, ll), vreg_src_s32(jj, ll));
+                            } else
+                                vpmovzxbd(vreg_src_s32(jj, ll) | mask(ll), ptr[aux_reg_src_w + offset]);
                             break;
                         default: assert(!"unsupported src data type");
                     }
@@ -256,16 +282,67 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::store_dst(int jj, int ll,
                 if (jpp.tail[ll]) {
                     switch (jpp.dst_dt) {
                         case s32:
-                            vmovups(ptr[reg_ptr_dst_i8 + offset],
-                                vreg_dst_s32(jj, ll) | mask(ll));
+                            if (isa == avx2) {
+                                vpmaskmovd(ptr[reg_ptr_dst_i8 + offset], vreg_mask, vreg_dst_s32(jj, ll));
+                            } else
+                                vmovups(ptr[reg_ptr_dst_i8 + offset], vreg_dst_s32(jj, ll) | mask(ll));
                             break;
                         case s8:
-                            vpmovdb(ptr[reg_ptr_dst_i8 + offset],
-                                vreg_dst_s32(jj, ll) | mask(ll));
+                            if (isa == avx2) {
+                                // conversion: s32 -> s16 : {8 x s32}{8 x 0} -> {16 x s16}
+                                // Result QWORDs (qw0, qw1) permuted: {qw0, 0, qw1, 0}
+                                vpackssdw(vreg_dst_s32(jj, ll), vreg_dst_s32(jj, ll), vreg_zeros);
+
+                                // Permute qwords to restore original order
+                                // {qw0, 0, qw1, 0} -> {qw0, qw1, 0, 0}
+                                vpermq(vreg_dst_s32(jj, ll), vreg_dst_s32(jj, ll), 0x58);
+
+                                // conversion: s16 -> s8 : {16 x s16}{16 x 0} -> {32 x s8}
+                                // Target QWORD qw = {8 x s8} has right position: {qw, xx, xx, xx}
+                                vpacksswb(vreg_dst_s32(jj, ll), vreg_dst_s32(jj, ll), vreg_zeros);
+
+
+                                // extract ll-th mask part
+                                vpblendd(vreg_mask_q, vreg_zeros, vreg_mask, 0x3 << ll); // 0x3 - mask for 2 x DWORD
+
+                                // Move mask from ll-th pos to 0-th pos
+                                if (ll>0)
+                                    vpermq(vreg_mask_q, vreg_mask_q, ll);
+
+                                // store only 8 bytes
+                                lea(reg_ptr_maskmovdqu_dst, ptr[reg_ptr_dst_i8 + offset]);
+                                maskmovdqu(vreg_dst_s32(jj, ll), xreg_mask_q);
+                            } else
+                                vpmovdb(ptr[reg_ptr_dst_i8 + offset], vreg_dst_s32(jj, ll) | mask(ll));
                             break;
                         case u8:
-                            vpmovusdb(ptr[reg_ptr_dst_i8 + offset],
-                                vreg_dst_s32(jj, ll) | mask(ll));
+                            if (isa == avx2) {
+                                // conversion: s32 -> u16 : {8 x s32}{8 x 0} -> {16 x u16}
+                                // Result QWORDs (qw0, qw1) permuted: {qw0, 0, qw1, 0}
+                                vpackusdw(vreg_dst_s32(jj, ll), vreg_dst_s32(jj, ll), vreg_zeros);
+
+                                // Permute qwords to restore original order
+                                // {qw0, 0, qw1, 0} -> {qw0, qw1, 0, 0} ->
+                                vpermq(vreg_dst_s32(jj, ll), vreg_dst_s32(jj, ll), 0x58);
+
+                                // conversion: u16 -> u8 : {16 x u16}{16 x 0} -> {32 x u8}
+                                // Target QWORD qw = {8 x u8} has right position: {qw, xx, xx, xx}
+                                vpackuswb(vreg_dst_s32(jj, ll), vreg_dst_s32(jj, ll), vreg_zeros);
+
+
+                                // extract ll-th mask part
+                                vpblendd(vreg_mask_q, vreg_zeros, vreg_mask, 0x3 << ll); // 0x3 - mask for 2 x DWORD
+
+                                // Move mask from ll-th pos to 0-th pos
+                                if (ll>0)
+                                    vpermq(vreg_mask_q, vreg_mask_q, ll);
+
+                                // store only 8 bytes
+                                lea(reg_ptr_maskmovdqu_dst, ptr[reg_ptr_dst_i8 + offset]);
+                                maskmovdqu(vreg_dst_s32(jj, ll), xreg_mask_q);
+                            } else
+                                vpmovusdb(ptr[reg_ptr_dst_i8 + offset],
+                                        vreg_dst_s32(jj, ll) | mask(ll));
                             break;
                         default: assert(!"unsupported dst data_type");
                     }
@@ -284,7 +361,7 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::store_dst(int jj, int ll,
                             vpackssdw(vreg_dst_s32(jj, ll), vreg_dst_s32(jj, ll), vreg_zeros);
 
                             // Permute qwords to restore original order
-                            // {qw0, 0, qw1, 0} -> {qw0, qw1, 0, 0} ->
+                            // {qw0, 0, qw1, 0} -> {qw0, qw1, 0, 0}
                             vpermq(vreg_dst_s32(jj, ll), vreg_dst_s32(jj, ll), 0x58);
 
                             // conversion: s16 -> s8 : {16 x s16}{16 x 0} -> {32 x s8}
@@ -543,7 +620,7 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::init_mask() {
         // vreg_mask -> {xreg_mask_hi, vreg_mask.xreg}
         vinserti128(vreg_mask, vreg_mask, xreg_mask_hi, 1);
 
-        // Keep only low qword of mask in xreg_mask_q ?
+        // Keep only low qword of mask in xreg_mask_q
         if (init_mask_q) {
             mov(reg_mask, vmask[0]);
             vpinsrq(xreg_mask_q, Xmm(vreg_zeros.getIdx()), reg_mask, 0);
@@ -562,19 +639,30 @@ void jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::init_mask() {
                 case pooling_avg_include_padding:
                 case pooling_avg_exclude_padding:
                     // For "avg" we need mask:
-                    // - in case of non-zero tail
-                    // - for s8/u8  - irrespective of the tail
+                    // - s32   - in case of the non-zero tail
+                    // - s8/u8 - irrespective of the tail
                     if (tail_mask || one_of(jpp.src_dt, s8, u8))
                         axv2_init_mask(tail_mask ? tail_mask : -1ULL, tail_mask == 0);
+                    switch (jpp.src_dt) {
+                        case s32:
+                            if (tail_mask)
+                                axv2_init_mask(tail_mask, false);
+                            break;
+                        case s8:
+                        case u8:
+                            axv2_init_mask(tail_mask ? tail_mask : -1ULL, tail_mask == 0);
+                            break;
+                        default: assert(!"unsupported src data type");
+                    }
                     break;
                 default: assert(!"unsupported pooling algorithm");
             }
         } break;
 
         case avx512_core: {
-            for (int i = 0; i < 4; i++) {
-                mov(reg_mask, jpp.tail[i]);
-                kmovq(mask(i), reg_mask);
+            for (int ll = 0; ll < max_num_ll; ll++) {
+                mov(reg_mask, jpp.tail[ll]);
+                kmovq(mask(ll), reg_mask);
             }
         } break;
 
@@ -676,20 +764,20 @@ status_t jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::init_conf(jit_pool_conf_t &jp
     jpp.dst_dt = pd.dst_desc.data_type;
 
     // data_type items per one vreg on the <isa>
-    //     isa == avx2    : 32 bytes / sizeof(src data_type)
-    //     isa == avx512* : 64 bytes / sizeof(src data_type)
+    //     isa == avx2    : 32 bytes -> 32 for s8/u8, 8 for s32
+    //     isa == avx512* : 64 bytes -> 64 for s8/u8, 16 for s32
     int simd_w = cpu_isa_traits<isa>::vlen / data_type_size(jpp.src_dt);
 
     jpp.c_block = simd_w;
     jpp.c_tail = jpp.c % jpp.c_block;
     jpp.nb_c = jpp.c / jpp.c_block;
-    jpp.ur_c = 1; // XXX: (basargin) ???under question??? what defines this magic const value 1 ???
+    jpp.ur_c = 1;
     jpp.ur_c_tail = jpp.nb_c - (jpp.nb_c / jpp.ur_c)*jpp.ur_c +
             (jpp.c_tail != 0);
 
     size_t tail_mask = (1ULL << jpp.c_tail) - 1;
 
-    switch(jpp.alg) {
+    switch (jpp.alg) {
         case pooling_max:
 
 //            return status::unimplemented; // XXX: !!! for test AVG-only
@@ -706,10 +794,10 @@ status_t jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::init_conf(jit_pool_conf_t &jp
             jpp.tail[3] = 0;
             break;
         case pooling_avg_include_padding:
-        case pooling_avg_exclude_padding:
+        case pooling_avg_exclude_padding: {
 
-            if (tail_mask)
-                return status::unimplemented; // XXX: until implemented
+//            if (!tail_mask || jpp.src_dt != data_type::u8)
+//                return status::unimplemented; // XXX: until implemented
 //            if (jpp.src_dt != data_type::s8)
 //                return status::unimplemented; // XXX: until implemented
 
@@ -720,13 +808,17 @@ status_t jit_avx512_core_i8i8_pool_fwd_ker_t<isa>::init_conf(jit_pool_conf_t &jp
                     jpp.src_dt == data_type::s32 ? "s32" : "i8",
                     tail_mask );
 
-
-            jpp.tail[0] = tail_mask & 0xffff;
-            for (size_t i = 1, m = tail_mask; i < 4; i++) {
-                m = m >> 16;
-                jpp.tail[i] = m & 0xffff;
+            // s32 defines granularity (u8/s8 processed as s32)
+            // avx2 : 8, avx512 : 16
+            const size_t msk_gran = cpu_isa_traits<isa>::vlen / data_type_size(data_type::s32);
+            const size_t msk_msk = (1ULL << msk_gran) - 1;
+            size_t m = tail_mask;
+            for (size_t ll = 0; ll < max_num_ll; ll++) {
+                jpp.tail[ll] = m & msk_msk;
+                m = m >> msk_gran;
             }
-            break;
+
+            } break;
         default: return status::unimplemented;
     }
 
@@ -791,8 +883,8 @@ void jit_avx512_core_i8i8_pooling_fwd_t<isa>::execute_forward() {
 template struct jit_avx512_core_i8i8_pool_fwd_ker_t<avx512_core>;
 template struct jit_avx512_core_i8i8_pooling_fwd_t<avx512_core>;
 
-template struct jit_avx512_core_i8i8_pool_fwd_ker_t<avx2>; // XXX: support in progress!!!
-template struct jit_avx512_core_i8i8_pooling_fwd_t<avx2>;  // XXX: support in progress!!!
+template struct jit_avx512_core_i8i8_pool_fwd_ker_t<avx2>;
+template struct jit_avx512_core_i8i8_pooling_fwd_t<avx2>;
 
 }
 }
