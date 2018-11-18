@@ -127,7 +127,8 @@ void ncsp_batch_normalization_fwd_t::execute_forward() {
                 // On the last iteration the access pattern to ws_reduce
                 // might change (due to re-balance on C). So sync the
                 // threads if they are not synced by the algorithm.
-                if (SP_N_nthr == 1) mkldnn_thr_barrier();
+                if (SP_N_nthr == 1 && mkldnn_thr_syncable())
+                    mkldnn_thr_barrier();
 
                 S_s = S_e = C_blk_s = C_blk_e = N_s = N_e = 0;
                 spatial_thr_allowed = bnorm_utils::thread_balance(do_blocking,
@@ -139,6 +140,12 @@ void ncsp_batch_normalization_fwd_t::execute_forward() {
                 SP_N_nthr = N_nthr * S_nthr;
             }
             size_t C_off = it * C_blks_per_iter;
+            // On the last iteration the access pattern to ws_reduce
+            // might change (due to re-balance on C). Since sync is not always
+            // possible (in case of TBB) use different parts of ws for each
+            // iteration if threads are not synced by the algorithm.
+            size_t ws_iter_off = (mkldnn_thr_syncable() ? 0 : 1) * C_off;
+
             if (calculate_stats) {
                 data_t *mean_blk = mean + C_off;
                 data_t *variance_blk = variance + C_off;
@@ -150,7 +157,8 @@ void ncsp_batch_normalization_fwd_t::execute_forward() {
                         for (int sp = S_s; sp < S_e; ++sp) {
                             sum += src[off + n * C * SP + sp];
                         }
-                    ws_reduce[SP_N_ithr * C_blks_per_iter + c] = sum;
+                    ws_reduce[ws_iter_off + SP_N_ithr * C_blks_per_iter + c]
+                        = sum;
                 }
 
                 if (SP_N_nthr > 1) mkldnn_thr_barrier();
@@ -158,7 +166,8 @@ void ncsp_batch_normalization_fwd_t::execute_forward() {
                 for (int c = C_blk_gl_s; c < C_blk_gl_e; c++) {
                     mean_blk[c] = 0.;
                     for (int n = 0; n < SP_N_nthr; n++)
-                        mean_blk[c] += ws_reduce[n * C_blks_per_iter + c];
+                        mean_blk[c] += ws_reduce[ws_iter_off
+                                + n * C_blks_per_iter + c];
                     mean_blk[c] /= (N * SP);
                 }
 
@@ -174,7 +183,8 @@ void ncsp_batch_normalization_fwd_t::execute_forward() {
                                     - mean[off];
                             sum += m * m;
                         }
-                    ws_reduce[SP_N_ithr * C_blks_per_iter + c] = sum;
+                    ws_reduce[ws_iter_off + SP_N_ithr * C_blks_per_iter + c]
+                        = sum;
                 }
 
                 if (SP_N_nthr > 1) mkldnn_thr_barrier();
@@ -182,7 +192,8 @@ void ncsp_batch_normalization_fwd_t::execute_forward() {
                 for (int c = C_blk_gl_s; c < C_blk_gl_e; c++) {
                     variance_blk[c] = 0.;
                     for (int n = 0; n < SP_N_nthr; n++)
-                        variance_blk[c] += ws_reduce[n * C_blks_per_iter + c];
+                        variance_blk[c] += ws_reduce[ws_iter_off
+                                + n * C_blks_per_iter + c];
                     variance_blk[c] /= (N * SP);
                 }
 
@@ -290,7 +301,8 @@ void ncsp_batch_normalization_bwd_t::execute_backward() {
                 // On the last iteration the access pattern to ws_reduce
                 // might change (due to re-balance on C). So sync the
                 // threads if they are not synced by the algorithm.
-                if (SP_N_nthr == 1) mkldnn_thr_barrier();
+                if (SP_N_nthr == 1 && mkldnn_thr_syncable())
+                    mkldnn_thr_barrier();
 
                 C_blk_s = C_blk_e = N_s = N_e = 0;
                 spatial_thr_allowed = bnorm_utils::thread_balance(do_blocking,
@@ -302,6 +314,12 @@ void ncsp_batch_normalization_bwd_t::execute_backward() {
                 SP_N_nthr = N_nthr * S_nthr;
             }
             size_t C_off = it * C_blks_per_iter;
+            // On the last iteration the access pattern to ws_reduce
+            // might change (due to re-balance on C). Since sync is not always
+            // possible (in case of TBB) use different parts of ws for each
+            // iteration if threads are not synced by the algorithm.
+            size_t ws_iter_off = (mkldnn_thr_syncable() ? 0 : 1) * 2 * C_off;
+
             data_t *diff_gamma_blk = diff_scaleshift + C_off;
             data_t *diff_beta_blk = diff_scaleshift + C + C_off;
             for (int c = C_blk_s; c < C_blk_e; c++) {
@@ -320,10 +338,10 @@ void ncsp_batch_normalization_bwd_t::execute_backward() {
                         diff_gamma += (src[d_off] - v_mean) * dd;
                         diff_beta += dd;
                     }
-                ws_reduce[SP_N_ithr * C_blks_per_iter + c] = diff_gamma;
-                ws_reduce[SP_N_nthr * C_blks_per_iter + SP_N_ithr * C_blks_per_iter
-                        + c]
-                        = diff_beta;
+                ws_reduce[ws_iter_off + SP_N_ithr * C_blks_per_iter + c]
+                    = diff_gamma;
+                ws_reduce[ws_iter_off + SP_N_nthr * C_blks_per_iter
+                        + SP_N_ithr * C_blks_per_iter + c] = diff_beta;
             }
 
             if (SP_N_nthr > 1) mkldnn_thr_barrier();
@@ -334,9 +352,11 @@ void ncsp_batch_normalization_bwd_t::execute_backward() {
                 diff_gamma_blk[c] = 0.;
                 diff_beta_blk[c] = 0.;
                 for (int n = 0; n < SP_N_nthr; n++) {
-                    diff_gamma_blk[c] += ws_reduce[n * C_blks_per_iter + c];
-                    diff_beta_blk[c] += ws_reduce[SP_N_nthr * C_blks_per_iter
+                    diff_gamma_blk[c] += ws_reduce[ws_iter_off
                             + n * C_blks_per_iter + c];
+                    diff_beta_blk[c] += ws_reduce[ws_iter_off
+                            + SP_N_nthr * C_blks_per_iter + n * C_blks_per_iter
+                            + c];
                 }
                 diff_gamma_blk[c] *= sqrt_variance;
             }
