@@ -100,7 +100,6 @@ struct jit_avx512_core_u8s8s32x_wino_conv_src_trans_t: public jit_generator {
         return Opmask(3 + id);
     }
 
-    Reg64 reg_ptr_offset = r15;
     Reg64 reg_ptr_src = r14;
     Reg64 reg_ptr_dst = r13;
 
@@ -441,8 +440,6 @@ void jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t::generate() {
     mov(reg_aux_ptr_dst, reg_ptr_dst);
 
     vpxord(vreg_zero, vreg_zero, vreg_zero);
-    for (int i = 0; i < jcp.alpha * jcp.alpha; i++)
-        vpxord(vreg_inp(i), vreg_inp(i), vreg_inp(i));
 
     for (int i = 0; i < jcp.alpha; i++)
         kmovw(x_mask(i), ptr[reg_ptr_v_x_masks + sizeof(int16_t) * i]);
@@ -459,9 +456,6 @@ void jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t::generate() {
     }
     dec(reg_oc_block);
     jnz(oc_block_label, T_NEAR);
-
-    sub(reg_ptr_scales, jcp.is_oc_scale *  sizeof(float) * load_block);
-    sub(reg_ptr_bias, oc_blocks * sizeof(jcp.typesize_bia) * load_block);
 
     postamble();
 
