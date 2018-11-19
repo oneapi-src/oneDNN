@@ -241,16 +241,6 @@ one common output scale set to 0.5 with rounding mode set to down
         --attr="irmode=down;oscale=common:.5" --batch=inputs/conv_all
 ```
 
-Almost the same as above (with minor changes), but also add post operation
-sequence **(relu, then sum with scale .3, then relu)** using
-attributes/mkldnn_post_ops_t:
-```
-    $ ./benchdnn --conv \
-        --cfg=u8s8s32s32 --dir=FWD_B \
-        --attr="oscale=common:.5;post_ops='relu;sum:.3;relu'" --batch=inputs/conv_all
-```
-
-
 ## Notations / Glossary / Abbreviations
 
 |Abbreviation   | Description

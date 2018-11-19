@@ -35,26 +35,17 @@ using namespace mkldnn::impl::utils;
 
 using namespace Xbyak;
 
-bool jit_avx512_core_x8s8s32x_1x1_conv_kernel::maybe_relu(int position)
+bool jit_avx512_core_x8s8s32x_1x1_conv_kernel::maybe_eltwise(int position)
 {
     using namespace primitive_kind;
     const auto &p = attr_.post_ops_;
 
     if (position == 0) {
-        /* relu before sum */
-        return false
-            || p.contain(eltwise, 0)
-            || (jcp.dst_dt == data_type::u8 && !p.contain(sum, 0));
+        /* eltwise before sum */
+        return p.contain(eltwise, 0);
     } else if (position == 1) {
-        /* relu after sum */
-        const int sum_idx = p.contain(sum, 0)
-            ? 0 : (p.contain(sum, 1) ? 1 : -1);
-        if (sum_idx == -1)
-            return false;
-
-        return false
-            || p.contain(eltwise, sum_idx + 1)
-            || jcp.dst_dt == data_type::u8;
+        /* eltwise after sum */
+        return p.contain(sum, 0) && p.contain(eltwise, 1);
     }
 
     return false;
@@ -241,14 +232,21 @@ void jit_avx512_core_x8s8s32x_1x1_conv_kernel::reduce_loop(int load_loop_blk,
 
                 zmm_t mask_zmm = mask_flag ? r | ktail_mask | T_z : r;
                 vmulps(mask_zmm, r, scale_ptr(i_load));
-                if (maybe_relu(0)) {
-                    vpxord(zmm_zero, zmm_zero, zmm_zero);
-                    vmaxps(r, zmm_zero, r);
-                }
-                if (p_sum_scale) { // post_op: sum
+            }
+        }
+
+        if (maybe_eltwise(0))
+            eltwise_injector_->compute_vector_range(0, ur * load_loop_blk);
+
+        if (p_sum_scale) { // post_op: sum
+            for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
+                const bool mask_flag = mask_flag_in &&
+                                           i_load == load_loop_blk - 1;
+                for (int i_ur = 0; i_ur < ur; ++i_ur) {
                     vpxord(zmm_zero, zmm_zero, zmm_zero);
                     auto zmm_prev_dst = zmm_zero;
 
+                    auto r = vreg_accum(i_load, i_ur);
                     cvt2ps(jcp.dst_dt, zmm_prev_dst, output_ptr(i_load, i_ur),
                         mask_flag);
 
@@ -257,7 +255,18 @@ void jit_avx512_core_x8s8s32x_1x1_conv_kernel::reduce_loop(int load_loop_blk,
                     else
                         vfmadd231ps(r, zmm_prev_dst, zword_b[reg_ptr_sum_scale]);
                 }
-                if (maybe_relu(1)) {
+            }
+        }
+
+        if (maybe_eltwise(1))
+            eltwise_injector_->compute_vector_range(0, ur * load_loop_blk);
+
+        for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
+            const bool mask_flag = mask_flag_in &&
+                                       i_load == load_loop_blk - 1;
+            for (int i_ur = 0; i_ur < ur; ++i_ur) {
+                auto r = vreg_accum(i_load, i_ur);
+                if (jcp.dst_dt == data_type::u8) {
                     vpxord(zmm_zero, zmm_zero, zmm_zero);
                     vmaxps(r, zmm_zero, r);
                 }
@@ -273,6 +282,7 @@ void jit_avx512_core_x8s8s32x_1x1_conv_kernel::reduce_loop(int load_loop_blk,
             for (int i_ur = 0; i_ur < ur; ++i_ur) {
                 auto r = vreg_accum(i_load, i_ur);
                 zmm_t r_zmm = mask_flag ? r | ktail_mask : r;
+
                 switch (jcp.dst_dt) {
                 case data_type::f32:
                 case data_type::s32:
@@ -502,6 +512,9 @@ void jit_avx512_core_x8s8s32x_1x1_conv_kernel::generate()
     add(rsp, stack_space_needed);
 
     postamble();
+
+    if (jcp.with_eltwise)
+        eltwise_injector_->prepare_table();
 }
 
 bool jit_avx512_core_x8s8s32x_1x1_conv_kernel::post_ops_ok(
@@ -509,19 +522,13 @@ bool jit_avx512_core_x8s8s32x_1x1_conv_kernel::post_ops_ok(
     using namespace primitive_kind;
     const auto &p = attr.post_ops_;
 
-    auto is_relu = [&](int idx) {
-        return p.entry_[idx].kind == eltwise
-            && p.entry_[idx].eltwise.scale == 1.
-            && p.entry_[idx].eltwise.alg == alg_kind::eltwise_relu
-            && p.entry_[idx].eltwise.alpha == 0.;
-    };
+    auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(); };
 
     switch (p.len_) {
     case 0: return true;
-    case 1: return is_relu(0) || p.contain(sum, 0);
-    case 2: return (p.contain(sum, 0) && is_relu(1))
-                       || (p.contain(sum, 1) && is_relu(0));
-    case 3: return is_relu(0) && p.contain(sum, 1) && is_relu(2);
+    case 1: return is_eltwise(0) || p.contain(sum, 0);
+    case 2: return (p.contain(sum, 0) && is_eltwise(1))
+                       || (p.contain(sum, 1) && is_eltwise(0));
     default: return false;
     }
 
@@ -577,6 +584,12 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
 
     if (!post_ops_ok(jcp, attr))
         return status::unimplemented;
+
+    const auto &p = attr.post_ops_;
+    const int eltwise_ind = p.find(primitive_kind::eltwise);
+    jcp.with_eltwise = eltwise_ind != -1;
+    if (jcp.with_eltwise)
+        jcp.eltwise = p.entry_[eltwise_ind].eltwise;
 
     bool args_ok = true
         && jcp.ngroups == 1

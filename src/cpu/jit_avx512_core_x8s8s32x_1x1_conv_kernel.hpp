@@ -20,6 +20,7 @@
 #include "c_types_map.hpp"
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
+#include "jit_uni_eltwise.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -28,10 +29,19 @@ namespace cpu {
 struct jit_avx512_core_x8s8s32x_1x1_conv_kernel: public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_x8s8s32x_1x1_conv_fwd_ker_t)
     jit_avx512_core_x8s8s32x_1x1_conv_kernel(jit_1x1_conv_conf_t ajcp,
-            const primitive_attr_t &attr) : jcp(ajcp), attr_(attr)
+            const primitive_attr_t &attr) : jcp(ajcp), attr_(attr),
+            eltwise_injector_(nullptr)
     {
+        if (jcp.with_eltwise)
+            eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(
+                    this, jcp.eltwise);
+
         this->generate();
         jit_ker = (void (*)(jit_1x1_conv_call_s *)) this->getCode();
+    }
+
+    ~jit_avx512_core_x8s8s32x_1x1_conv_kernel() {
+        delete eltwise_injector_;
     }
 
     static bool post_ops_ok(jit_1x1_conv_conf_t &jcp,
@@ -46,13 +56,15 @@ struct jit_avx512_core_x8s8s32x_1x1_conv_kernel: public jit_generator {
                                 const primitive_attr_t &attr,
                                 int nthreads, bool reduce_src);
 
-    bool maybe_relu(int position);
+    bool maybe_eltwise(int position);
 
     jit_1x1_conv_conf_t jcp;
     const primitive_attr_t &attr_;
     void (*jit_ker)(jit_1x1_conv_call_s *);
 
   private:
+    jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
+
     using reg64_t = const Xbyak::Reg64;
     using zmm_t = const Xbyak::Zmm;
     using mask_t = const Xbyak::Opmask;
