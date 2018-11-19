@@ -441,7 +441,7 @@ void jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t::generate() {
 
     vpxord(vreg_zero, vreg_zero, vreg_zero);
 
-    for (int i = 0; i < jcp.alpha; i++)
+    for (int i = 0; i < jcp.m; i++)
         kmovw(x_mask(i), ptr[reg_ptr_v_x_masks + sizeof(int16_t) * i]);
 
     int oc_blocks = jcp.oc / load_block;
