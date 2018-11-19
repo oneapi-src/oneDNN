@@ -185,9 +185,9 @@ void jit_avx512_core_u8s8s32x_wino_conv_src_trans_t::generate() {
             vpsubb(vreg_out(x+3*4), vreg_tmp(x+4*1), vreg_tmp(x+4*3));
         }
 
-        movd(xmm_shift, reg_shift.cvt32());
-        pxor(xmm_zero, xmm_zero);
-        pshufb(xmm_shift, xmm_zero);
+        vmovd(xmm_shift, reg_shift.cvt32());
+        vpxor(xmm_zero, xmm_zero, xmm_zero);
+        vpshufb(xmm_shift, xmm_shift, xmm_zero);
 
         for (int i = 0; i < 16; i++) {
             out_offset = sizeof(uint8_t) * (jcp.inp_stride * i);
