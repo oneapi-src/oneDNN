@@ -139,7 +139,7 @@ void jit_avx512_core_u8s8s32x_wino_conv_src_trans_t::generate() {
     mov(reg_aux_ptr_dst, reg_ptr_dst);
 
     for (int i = 0; i < jcp.alpha; i++) {
-        kmovw(x_mask(i), ptr[reg_ptr_v_x_masks + sizeof(int16_t) * i]);
+        kmovw(x_mask(i), ptr[reg_ptr_v_x_masks + sizeof(uint16_t) * i]);
     }
 
     mov(reg_scratch_src_alpha, float2int(adj_src_scale));
@@ -151,7 +151,7 @@ void jit_avx512_core_u8s8s32x_wino_conv_src_trans_t::generate() {
         vbroadcastss(zmm_src_alpha, xmm_src_alpha);
 
         for(int y = 0; y < jcp.alpha; y++) {
-            kmovw(y_mask, ptr[reg_ptr_v_y_masks + sizeof(int16_t) * y]);
+            kmovw(y_mask, ptr[reg_ptr_v_y_masks + sizeof(uint16_t) * y]);
             for(int x = 0; x < jcp.alpha; x++) {
                 Zmm zmm_i = zmm_inp(y*jcp.alpha + x);
                 Xmm vreg_i = vreg_inp(y*jcp.alpha + x);
@@ -360,7 +360,7 @@ void jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t::generate() {
             vmulps(vreg_bias, vreg_bias, zmm_bias_alpha); // *alpha
         }
         for(int y = 0; y < jcp.m; y++) {
-            kmovw(y_mask, ptr[ reg_ptr_v_y_masks + sizeof(int16_t) * y ]);
+            kmovw(y_mask, ptr[ reg_ptr_v_y_masks + sizeof(uint16_t) * y ]);
             for(int x = 0; x < jcp.m; x++) {
                 kandw(r_mask, y_mask, x_mask(x));
 
@@ -442,7 +442,7 @@ void jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t::generate() {
     vpxord(vreg_zero, vreg_zero, vreg_zero);
 
     for (int i = 0; i < jcp.m; i++)
-        kmovw(x_mask(i), ptr[reg_ptr_v_x_masks + sizeof(int16_t) * i]);
+        kmovw(x_mask(i), ptr[reg_ptr_v_x_masks + sizeof(uint16_t) * i]);
 
     int oc_blocks = jcp.oc / load_block;
     mov(reg_oc_block, oc_blocks);
@@ -1003,7 +1003,7 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
         /* transformation of input tensor to winograd domain */
         for (int y_in_block = 0; y_in_block < jcp.yb; y_in_block += 2) {
             for (int x_in_block = 0; x_in_block < jcp.xb; x_in_block += 2) {
-                unsigned short v_y_masks[4], v_x_masks[4];
+                uint16_t v_y_masks[4], v_x_masks[4];
 
                 int y = y_in_block + tile_y;
                 int x = x_in_block + tile_x;
@@ -1019,8 +1019,8 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
 
 #pragma unroll(4)
                 for (int i = 0; i < jcp.alpha; i++) {
-                    v_y_masks[i] = (i < v_ys || i >= v_ye) ? 0 : 0xffff;
-                    v_x_masks[i] = (i < v_xs || i >= v_xe) ? 0 : 0xffff;
+                    v_y_masks[i] = uint16_t(i < v_ys || i >= v_ye ? 0 : 0xffff);
+                    v_x_masks[i] = uint16_t(i < v_xs || i >= v_xe ? 0 : 0xffff);
                 }
                 auto local_s = src
                         + mb * jcp.ih * jcp.iw * jcp.ic
@@ -1050,7 +1050,7 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
         /* transformation from winograd domain to output tensor */
         for (int y_in_block = 0; y_in_block < jcp.yb; y_in_block += 2) {
             for (int x_in_block = 0; x_in_block < jcp.xb; x_in_block += 2) {
-                unsigned short v_y_masks[2], v_x_masks[2];
+                uint16_t v_y_masks[2], v_x_masks[2];
 
                 int y = y_in_block + tile_y;
                 int x = x_in_block + tile_x;
@@ -1058,8 +1058,8 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
 
 #pragma unroll(2)
                 for (int i = 0; i < jcp.m; i++) {
-                    v_x_masks[i] = (x + i < jcp.ow) ? 0xffff : 0;
-                    v_y_masks[i] = (y + i < jcp.oh) ? 0xffff : 0;
+                    v_x_masks[i] = uint16_t(x + i < jcp.ow ? 0xffff : 0);
+                    v_y_masks[i] = uint16_t(y + i < jcp.oh ? 0xffff : 0);
                 }
                 auto local_d = dst
                         + mb * jcp.oh * jcp.ow * jcp.oc
@@ -1109,7 +1109,7 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
             auto src_trans_p =
                 jit_avx512_core_u8s8s32x_wino_conv_src_trans_t::call_params_t();
 
-            unsigned short v_y_masks[4], v_x_masks[4];
+            uint16_t v_y_masks[4], v_x_masks[4];
 
             int y = y_in_block + tile_y;
             int x = x_in_block + tile_x;
@@ -1125,8 +1125,8 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
 
 #pragma unroll(4)
             for (int i = 0; i < jcp.alpha; i++) {
-                v_y_masks[i] = (i < v_ys || i >= v_ye) ? 0 : 0xffff;
-                v_x_masks[i] = (i < v_xs || i >= v_xe) ? 0 : 0xffff;
+                v_y_masks[i] = uint16_t(i < v_ys || i >= v_ye ? 0 : 0xffff);
+                v_x_masks[i] = uint16_t(i < v_xs || i >= v_xe ? 0 : 0xffff);
             }
             auto local_s = src
                     + mb * jcp.ih * jcp.iw * jcp.ic
@@ -1166,7 +1166,7 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
             auto dst_trans_p =
                 jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t::call_params_t();
 
-            unsigned short v_y_masks[2], v_x_masks[2];
+            uint16_t v_y_masks[2], v_x_masks[2];
 
             int y = y_in_block + tile_y;
             int x = x_in_block + tile_x;
@@ -1174,8 +1174,8 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
 
 #pragma unroll(2)
             for (int i = 0; i < jcp.m; i++) {
-                v_x_masks[i] = (x + i < jcp.ow) ? 0xffff : 0;
-                v_y_masks[i] = (y + i < jcp.oh) ? 0xffff : 0;
+                v_x_masks[i] = uint16_t(x + i < jcp.ow ? 0xffff : 0);
+                v_y_masks[i] = uint16_t(y + i < jcp.oh ? 0xffff : 0);
             }
             auto local_d = dst
                     + mb * jcp.oh * jcp.ow * jcp.oc
