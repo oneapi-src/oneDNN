@@ -116,6 +116,10 @@ struct jit_avx512_core_u8s8s32x_wino_conv_src_trans_t: public jit_generator {
     Reg64 reg_scratch_src_alpha = rdx;
     Xmm xmm_src_alpha = Xmm(0);
     Zmm zmm_src_alpha = Zmm(0);
+
+    Reg64 reg_shift = rax;
+    Xmm xmm_shift = Xmm(1);
+    Xmm xmm_zero = Xmm(0);
 };
 
 void jit_avx512_core_u8s8s32x_wino_conv_src_trans_t::generate() {
@@ -132,8 +136,8 @@ void jit_avx512_core_u8s8s32x_wino_conv_src_trans_t::generate() {
     READ_PARAM(reg_ptr_v_x_masks, v_x_masks);
 #   undef READ_PARAM
 
-    xor_(eax, eax);
-    mov(ax, (int8_t)-128);
+    xor_(reg_shift, reg_shift);
+    mov(reg_shift.cvt8(), (int8_t)-128);
 
     mov(reg_aux_ptr_src, reg_ptr_src);
     mov(reg_aux_ptr_dst, reg_ptr_dst);
@@ -181,9 +185,9 @@ void jit_avx512_core_u8s8s32x_wino_conv_src_trans_t::generate() {
             vpsubb(vreg_out(x+3*4), vreg_tmp(x+4*1), vreg_tmp(x+4*3));
         }
 
-        movd(Xmm(1), eax);
-        pxor(Xmm(0), Xmm(0));
-        pshufb(Xmm(1), Xmm(0));
+        movd(xmm_shift, reg_shift.cvt32());
+        pxor(xmm_zero, xmm_zero);
+        pshufb(xmm_shift, xmm_zero);
 
         for (int i = 0; i < 16; i++) {
             out_offset = sizeof(uint8_t) * (jcp.inp_stride * i);
