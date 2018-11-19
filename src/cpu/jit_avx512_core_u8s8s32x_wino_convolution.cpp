@@ -120,10 +120,44 @@ struct jit_avx512_core_u8s8s32x_wino_conv_src_trans_t: public jit_generator {
     Reg64 reg_shift = rax;
     Xmm xmm_shift = Xmm(1);
     Xmm xmm_zero = Xmm(0);
+
+    Reg64 reg_maskx = rbx;
+    Reg64 reg_masky = rsi;
+    Reg64 reg_nomask = reg_maskx;
 };
 
 void jit_avx512_core_u8s8s32x_wino_conv_src_trans_t::generate() {
     Label ic_block_label;
+    Label end_label;
+    Label mask_label;
+    Label nomask_label;
+
+    auto load_src = [=](bool mask) {
+        for (int y = 0; y < jcp.alpha; y++) {
+            if (mask)
+                kmovw(y_mask, ptr[reg_ptr_v_y_masks + sizeof(uint16_t) * y]);
+            for (int x = 0; x < jcp.alpha; x++) {
+                Zmm zmm_i = zmm_inp(y * jcp.alpha + x);
+                Xmm vreg_i = vreg_inp(y * jcp.alpha + x);
+                int inp_offset = sizeof(uint8_t)
+                        * ((-jcp.t_pad + y) * jcp.iw * jcp.ic
+                                + (-jcp.l_pad + x) * jcp.ic);
+                if (mask) {
+                    kandw(r_mask, y_mask, x_mask(x));
+                    vmovdqu8(vreg_i | r_mask | T_z,
+                            EVEX_compress_addr(reg_aux_ptr_src, inp_offset));
+                } else {
+                    vmovdqu8(vreg_i,
+                            EVEX_compress_addr(reg_aux_ptr_src, inp_offset));
+                }
+                vpmovzxbd(zmm_i, vreg_i); // to int32
+                vcvtdq2ps(zmm_i, zmm_i); // to fp32
+                vmulps(zmm_i, zmm_i, zmm_src_alpha); // *alpha
+                vcvtps2dq(zmm_i | T_rn_sae, zmm_i); // to int32
+                vpmovusdb(vreg_i, zmm_i); // to u8
+            }
+        }
+    };
 
     preamble();
 
@@ -134,6 +168,16 @@ void jit_avx512_core_u8s8s32x_wino_conv_src_trans_t::generate() {
     READ_PARAM(reg_ptr_v_y_masks, v_y_masks);
     READ_PARAM(reg_ptr_v_x_masks, v_x_masks);
 #   undef READ_PARAM
+
+    mov(reg_maskx, ptr[reg_ptr_v_x_masks]);
+    mov(reg_masky, ptr[reg_ptr_v_y_masks]);
+    test(reg_maskx, reg_maskx);
+    jz(end_label, T_NEAR); // skip kernel if x mask is all 0's
+    test(reg_masky, reg_masky);
+    jz(end_label, T_NEAR); // skip kernel if y mask is all 0's
+    and_(reg_maskx, reg_masky);
+    mov(reg_nomask, reg_maskx);
+    not_(reg_nomask); // zero if x and y masks are all 1's
 
     xor_(reg_shift, reg_shift);
     mov(reg_shift.cvt8(), (int8_t)-128);
@@ -153,24 +197,14 @@ void jit_avx512_core_u8s8s32x_wino_conv_src_trans_t::generate() {
         vmovq(xmm_src_alpha, reg_scratch_src_alpha);
         vbroadcastss(zmm_src_alpha, xmm_src_alpha);
 
-        for(int y = 0; y < jcp.alpha; y++) {
-            kmovw(y_mask, ptr[reg_ptr_v_y_masks + sizeof(uint16_t) * y]);
-            for(int x = 0; x < jcp.alpha; x++) {
-                Zmm zmm_i = zmm_inp(y*jcp.alpha + x);
-                Xmm vreg_i = vreg_inp(y*jcp.alpha + x);
-                vpxord(vreg_i, vreg_i, vreg_i);
-                kandw(r_mask, y_mask, x_mask(x));
-                int inp_offset = sizeof(uint8_t) *
-                   ((-jcp.t_pad + y) * jcp.iw * jcp.ic
-                        + (-jcp.l_pad + x) * jcp.ic);
-                vmovdqu8(vreg_i | r_mask, EVEX_compress_addr(reg_aux_ptr_src, inp_offset));
-                vpmovzxbd(zmm_i, vreg_i); // to int32
-                vcvtdq2ps(zmm_i, zmm_i); // to fp32
-                vmulps(zmm_i, zmm_i, zmm_src_alpha); // *alpha
-                vcvtps2dq(zmm_i | T_rn_sae, zmm_i); // to int32
-                vpmovusdb(vreg_i, zmm_i); // to u8
-            }
-        }
+        test(reg_nomask, reg_nomask);
+        jz(nomask_label, T_NEAR);
+        load_src(true);
+        jmp(mask_label, T_NEAR);
+        L(nomask_label);
+        load_src(false);
+        L(mask_label);
+
         for(int y = 0; y < 4; y++) {
             vpsubb(vreg_tmp(y*4+0), vreg_inp(y*4+0), vreg_inp(y*4+2));
             vpaddb(vreg_tmp(y*4+1), vreg_inp(y*4+1), vreg_inp(y*4+2));
@@ -201,6 +235,7 @@ void jit_avx512_core_u8s8s32x_wino_conv_src_trans_t::generate() {
     dec(reg_ic_block);
     jnz(ic_block_label, T_NEAR);
 
+    L(end_label);
     postamble();
 }
 
