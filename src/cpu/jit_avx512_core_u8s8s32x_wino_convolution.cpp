@@ -125,7 +125,6 @@ struct jit_avx512_core_u8s8s32x_wino_conv_src_trans_t: public jit_generator {
 void jit_avx512_core_u8s8s32x_wino_conv_src_trans_t::generate() {
     Label ic_block_label;
 
-    int out_offset = 0, inp_offset = 0;
     preamble();
 
 #   define READ_PARAM(reg, field) \
@@ -161,7 +160,7 @@ void jit_avx512_core_u8s8s32x_wino_conv_src_trans_t::generate() {
                 Xmm vreg_i = vreg_inp(y*jcp.alpha + x);
                 vpxord(vreg_i, vreg_i, vreg_i);
                 kandw(r_mask, y_mask, x_mask(x));
-                inp_offset = sizeof(uint8_t) *
+                int inp_offset = sizeof(uint8_t) *
                    ((-jcp.t_pad + y) * jcp.iw * jcp.ic
                         + (-jcp.l_pad + x) * jcp.ic);
                 vmovdqu8(vreg_i | r_mask, EVEX_compress_addr(reg_aux_ptr_src, inp_offset));
@@ -190,7 +189,7 @@ void jit_avx512_core_u8s8s32x_wino_conv_src_trans_t::generate() {
         vpshufb(xmm_shift, xmm_shift, xmm_zero);
 
         for (int i = 0; i < 16; i++) {
-            out_offset = sizeof(uint8_t) * (jcp.inp_stride * i);
+            int out_offset = sizeof(uint8_t) * (jcp.inp_stride * i);
             if (i != unsign_val_in_wino_domain)
                 vpsubb(vreg_out(i), vreg_out(i), Xmm(1));
             vmovups(EVEX_compress_addr(reg_aux_ptr_dst, out_offset), vreg_out(i));
