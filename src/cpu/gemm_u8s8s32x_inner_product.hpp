@@ -25,6 +25,7 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 #include "scratchpad.hpp"
+#include "jit_generator.hpp"
 
 #include "gemm/os_blas.hpp"
 
@@ -96,16 +97,20 @@ struct gemm_u8s8s32x_inner_product_fwd_t: public cpu_primitive_t {
 
     gemm_u8s8s32x_inner_product_fwd_t(const pd_t *pd, const input_vector &inputs,
             const output_vector &outputs)
-        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd), dst_is_acc_(false),
-        scratchpad_(nullptr)
+        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd),
+        dst_is_acc_(false), scratchpad_(nullptr), pp_kernel_(nullptr)
     {
         dst_is_acc_ = utils::one_of(dst_type, data_type::s32, data_type::f32);
         if (!dst_is_acc_) {
             size_t size = conf_.MB() * conf_.OC() * sizeof(acc_data_t);
             scratchpad_ = create_scratchpad(size);
         }
+        pp_kernel_ = new pp_kernel(conf_, dst_is_acc_);
     }
-    ~gemm_u8s8s32x_inner_product_fwd_t() { delete scratchpad_; };
+    ~gemm_u8s8s32x_inner_product_fwd_t() {
+        delete scratchpad_;
+        delete pp_kernel_;
+    };
 
     typedef typename prec_traits<dst_type>::type data_t;
 
@@ -120,10 +125,46 @@ struct gemm_u8s8s32x_inner_product_fwd_t: public cpu_primitive_t {
     }
 
 private:
+    // XXX: this is throwaway code that will become unnecessary when we have a
+    // sufficiently advanced igemm jit generator that supports quantization,
+    // relu, and whatnot
+    class pp_kernel: jit_generator {
+    public:
+        DECLARE_CPU_JIT_AUX_FUNCTIONS(
+                gemm_u8s8s32x_inner_product_fwd_t::pp_kernel);
+        pp_kernel(const pd_t &pd, bool dst_is_acc);
+
+        void operator ()(dst_data_t *dst, const acc_data_t *acc,
+                const char *bias, const float *scales, float nslope,
+                size_t start, size_t end);
+    private:
+        void generate();
+
+        struct ker_args {
+            dst_data_t *dst;
+            const acc_data_t *acc;
+            const char *bias;
+            const float *scales;
+            float nslope;
+            size_t len;
+            size_t oc_offset;
+        };
+        void (*ker_)(const ker_args *args);
+
+        size_t OC_;
+        data_type_t bias_data_type_;
+        size_t bias_data_type_size_;
+        size_t scale_idx_mult_;
+        round_mode_t rmode_;
+        bool do_bias_;
+        bool do_relu_;
+    };
+
     void execute_forward();
     pd_t conf_;
     bool dst_is_acc_;
     scratchpad_t *scratchpad_;
+    pp_kernel *pp_kernel_;
 };
 }
 }
