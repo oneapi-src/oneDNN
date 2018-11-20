@@ -69,11 +69,12 @@ float activation<alg_kind::eltwise_logistic, prop_kind::backward>(
 
 template <>
 elemwise_sig(_ref_rnn_common_t<prop_kind::forward>::rnn_elemwise) {
-    AOC<float, 3> ws_gates(ws_gates_, batch, conf_.GC());
-    AOC<const float, 2> bias(bias_, n_gates, dic);
-    AOC<float, 4> states_t_l(states_t_l_, n_states, iter_stride, batch, wic);
-    parallel_nd(batch, [&](int i) {
-        for (int j = 0; j < dic; j++) {
+    AOC<float, 2> ws_gates(ws_gates_, rnn.gates_nld, rnn.gates_ws_ld);
+    AOC<const float, 2> bias(bias_, rnn.n_gates, rnn.dic);
+    AOC<float, 4> states_t_l(
+            states_t_l_, rnn.n_states, iter_stride, rnn.mb, rnn.states_ws_ld);
+    parallel_nd(rnn.mb, [&](int i) {
+        for (int j = 0; j < rnn.dic; j++) {
             const float h
                     = activation_func(0, ws_gates(i, j) + bias(0, j), 0, 0);
             ws_gates(i, j) = states_t_l(0, 0, i, j) = h;
@@ -83,14 +84,14 @@ elemwise_sig(_ref_rnn_common_t<prop_kind::forward>::rnn_elemwise) {
 
 template <>
 elemwise_sig(_ref_rnn_common_t<prop_kind::backward>::rnn_elemwise) {
-    AOC<float, 3> ws_gates(ws_gates_, batch, conf_.GC());
-    AOC<float, 4> diff_states_tp1_l(
-            diff_states_tp1_l_, n_states + 1, iter_stride, batch, wic);
-    AOC<float, 4> diff_states_t_lp1(
-            diff_states_t_lp1_, n_states + 1, iter_stride, batch, wic);
-    parallel_nd(batch, [&](int i) {
-        for (int j = 0; j < dic; ++j) {
-            const float dH = diff_states_t_lp1(n_states, 0, i, j)
+    AOC<float, 2> ws_gates(ws_gates_, rnn.gates_nld, rnn.gates_ws_ld);
+    AOC<float, 4> diff_states_tp1_l(diff_states_tp1_l_, rnn.n_states + 1,
+            iter_stride, rnn.mb, rnn.states_ws_ld);
+    AOC<float, 4> diff_states_t_lp1(diff_states_t_lp1_, rnn.n_states + 1,
+            iter_stride, rnn.mb, rnn.states_ws_ld);
+    parallel_nd(rnn.mb, [&](int i) {
+        for (int j = 0; j < rnn.dic; ++j) {
+            const float dH = diff_states_t_lp1(rnn.n_states, 0, i, j)
                     + diff_states_tp1_l(0, 0, i, j);
             auto g = ws_gates(i, j);
             ws_gates(i, j) = activation_func(dH, g, 0, 0);
