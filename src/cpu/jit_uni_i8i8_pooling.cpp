@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "jit_uni_i8i8_pooling.hpp"
+
 #include <math.h>
 
 #include "mkldnn_types.h"
@@ -23,7 +25,6 @@
 
 #include "jit_generator.hpp"
 
-#include "jit_avx512_core_i8i8_pooling.hpp"
 
 namespace mkldnn {
 namespace impl {

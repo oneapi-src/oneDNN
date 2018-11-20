@@ -14,10 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_AVX512_CORE_I8I8_POOLING_HPP
-#define CPU_JIT_AVX512_CORE_I8I8_POOLING_HPP
+#ifndef CPU_JIT_UNI_I8I8_POOLING_HPP
+#define CPU_JIT_UNI_I8I8_POOLING_HPP
 
 #include "c_types_map.hpp"
+#include "cpu_isa_traits.hpp"
 #include "cpu_pooling_pd.hpp"
 #include "cpu_engine.hpp"
 
