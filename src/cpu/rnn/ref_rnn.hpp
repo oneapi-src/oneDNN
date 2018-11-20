@@ -61,9 +61,9 @@ namespace cpu {
             const float *b_, const int ldB, const float beta, float *c_, \
             const int ldC)
 
-#define packing_sig(f)                                           \
-    void f(rnn_utils::rnn_conf_t &rnn, int OC_size, int IC_size, \
-            float **weights_, int n_parts, int *gates_per_part,  \
+#define packing_sig(f)                                                       \
+    void f(rnn_utils::rnn_conf_t &rnn, memory_format_t fmt, int OC_size,     \
+            int IC_size, float **weights_, int n_parts, int *gates_per_part, \
             const float *w_, float *scratch_mem, bool do_copy)
 
 #define free_packed_sig(f) \

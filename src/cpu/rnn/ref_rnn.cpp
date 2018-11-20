@@ -415,8 +415,8 @@ packing_sig(_ref_rnn_common_t<aprop>::pack_weights) {
     AOC<float *, 3> weights(weights_, rnn.n_layer, rnn.n_dir, n_parts);
     int m = 0, n = 0, k = 0;
     auto transA = CblasNoTrans;
-    bool is_fwd = aprop == prop_kind::forward;
-    if (is_fwd) {
+    bool is_igo = fmt == memory_format::ldigo;
+    if (is_igo) {
         m = rnn.n_gates * OC_size;
         n = rnn.mb;
         k = IC_size;
@@ -432,8 +432,8 @@ packing_sig(_ref_rnn_common_t<aprop>::pack_weights) {
     for (int i = 0; i < rnn.n_layer; i++) {
         for (int d = 0; d < rnn.n_dir; d++) {
             for (int p = 0; p < n_parts; p++) {
-                int m_p = is_fwd ? (gates_per_part[p] * OC_size) : m;
-                int k_p = is_fwd ? k : (gates_per_part[p] * OC_size);
+                int m_p = is_igo ? (gates_per_part[p] * OC_size) : m;
+                int k_p = is_igo ? k : (gates_per_part[p] * OC_size);
                 int g = (p > 0) ? gates_per_part[p - 1] : 0;
                 weights(i, d, p) = cblas_sgemm_alloc(CblasAMatrix, m_p, n, k_p);
                 cblas_sgemm_pack(CblasColMajor, CblasAMatrix, transA, m_p, n,
@@ -462,8 +462,8 @@ packing_sig(_ref_rnn_common_t<aprop>::no_pack_weights) {
     AOC<float *, 3> weights(weights_, rnn.n_layer, rnn.n_dir, n_parts);
     int m = 0, n = 0, ldA = 0;
 
-    bool is_fwd = aprop == prop_kind::forward;
-    if (is_fwd) {
+    bool is_igo = fmt == memory_format::ldigo;
+    if (is_igo) {
         m = rnn.n_gates * OC_size;
         n = IC_size;
     } else {
@@ -477,7 +477,7 @@ packing_sig(_ref_rnn_common_t<aprop>::no_pack_weights) {
             for (int d = 0; d < rnn.n_dir; d++) {
                 weights(i, d, 0) = (float *)&(w(i, d, 0));
                 for (int p = 1; p < n_parts; p++) {
-                    size_t offset = is_fwd
+                    size_t offset = is_igo
                         ? gates_per_part[p - 1] * OC_size
                         : gates_per_part[p - 1] * OC_size * IC_size;
                     weights(i, d, p) = (float *) &w(i, d, offset);
@@ -504,7 +504,7 @@ packing_sig(_ref_rnn_common_t<aprop>::no_pack_weights) {
             copy_matrix('N', m, n, src_mat, m, dst_mat, ldA);
             weights(i, d, 0) = &tmp(i, d, 0);
             for (int p = 1; p < n_parts; p++) {
-                size_t offset = is_fwd
+                size_t offset = is_igo
                     ? gates_per_part[p - 1] * OC_size
                     : gates_per_part[p - 1] * OC_size * ldA;
                 weights(i, d, p) = &tmp(i, d, offset);
@@ -631,12 +631,13 @@ void _ref_rnn_common_t<aprop>::execute_() {
 
     /* Pack(if using packed gemm API) or copy(if input arrays have bad leading
      * dimension */
-    (this->*weights_state_pack_func)(rnn, rnn.dic, rnn.sic, ptr_wei_state_,
-            n_parts_wei_st, (is_orig_gru ? parts_wei_st_gru : &parts_wei_st),
-            w_state, ws_weights_iter_, rnn.copy_weights_iter);
-    (this->*weights_input_pack_func)(rnn, rnn.dic, rnn.slc, ptr_wei_input_,
-            n_parts_wei_i, &parts_wei_i, w_input, ws_weights_layer_,
-            rnn.copy_weights_layer);
+    (this->*weights_state_pack_func)(rnn, rnn.weights_iter_fmt, rnn.dic, rnn.sic,
+            ptr_wei_state_, n_parts_wei_st,
+            (is_orig_gru ? parts_wei_st_gru : &parts_wei_st), w_state,
+            ws_weights_iter_, rnn.copy_weights_iter);
+    (this->*weights_input_pack_func)(rnn, rnn.weights_layer_fmt, rnn.dic, rnn.slc,
+            ptr_wei_input_, n_parts_wei_i, &parts_wei_i, w_input,
+            ws_weights_layer_, rnn.copy_weights_layer);
 
     // we first need to copy the initial states and input into ws
     copy_init_layer(rnn, ws_states_, ws_diff_states_, input, diff_dst_layer);
