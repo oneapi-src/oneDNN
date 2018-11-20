@@ -79,6 +79,65 @@ void set_offsets(const rnn_conf_t &rnn, size_t &ws_gates_offset,
         size_t &workspace_size);
 
 size_t get_ws_size(const rnn_conf_t &rnn);
+
+struct ws_gates_aoc_t {
+    ws_gates_aoc_t(const rnn_conf_t &rnn, float *data)
+        : gates_(data, rnn.gates_nld, rnn.gates_ws_ld), DIC_(rnn.dic) {}
+    float &operator()(int batch, int gate, int dic) {
+        return gates_(batch, gate * DIC_ + dic);
+    }
+
+private:
+    mkldnn::impl::utils::array_offset_calculator<float, 2> gates_;
+    int DIC_;
+};
+
+struct bias_aoc_t {
+    bias_aoc_t(const rnn_conf_t &rnn, const float *data)
+        : bias_(data, rnn.n_bias, rnn.dic) {}
+    const float &operator()(int bias_n, int dic) { return bias_(bias_n, dic); }
+
+private:
+    mkldnn::impl::utils::array_offset_calculator<const float, 2> bias_;
+};
+
+struct ws_states_aoc_t {
+    ws_states_aoc_t(const rnn_conf_t &rnn, float *data)
+        : states_(data, rnn.n_states, rnn.n_iter + 1, rnn.states_nld,
+                  rnn.states_ws_ld) {}
+    float &operator()(int state_n, int batch, int dic) {
+        return states_(state_n, 0, batch, dic);
+    }
+
+private:
+    mkldnn::impl::utils::array_offset_calculator<float, 4> states_;
+};
+
+struct ws_diff_states_aoc_t {
+    ws_diff_states_aoc_t(const rnn_conf_t &rnn, float *data)
+        : diff_states_(data, rnn.n_states + 1, rnn.n_iter + 1, rnn.states_nld,
+                  rnn.states_ws_ld) {}
+    float &operator()(int state_n, int batch, int dic) {
+        return diff_states_(state_n, 0, batch, dic);
+    }
+
+private:
+    mkldnn::impl::utils::array_offset_calculator<float, 4> diff_states_;
+};
+
+struct ws_diff_w_iter_aoc_t {
+    ws_diff_w_iter_aoc_t(const rnn_conf_t &rnn, float *data)
+        : diff_weights_iter_(
+                  data, rnn.diff_weights_iter_nld, rnn.diff_weights_iter_ws_ld)
+        , DIC_(rnn.dic) {}
+    float &operator()(int sic, int gate, int dic) {
+        return diff_weights_iter_(sic, gate * DIC_ + dic);
+    }
+
+private:
+    mkldnn::impl::utils::array_offset_calculator<float, 2> diff_weights_iter_;
+    int DIC_;
+};
 }
 }
 }

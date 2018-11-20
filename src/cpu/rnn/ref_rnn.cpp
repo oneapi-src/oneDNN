@@ -133,7 +133,7 @@ grid_execution_sig(_ref_rnn_common_t<aprop>::linear_execution) {
             }
             for (int i = 0; i < rnn.n_iter; i++) {
                 int iter = (aprop == prop_kind::forward) ? i : rnn.n_iter - i - 1;
-                (this->*cell_func)(rnn, rnn.n_iter + 1,
+                (this->*cell_func)(rnn,
                         &(ws_states(lay + 1, dir, 0, iter + 1, 0)),
                         &(ws_diff_states(lay, dir, 0, iter, 0)),
                         &(weights_input(lay, dir, 0)),
@@ -616,7 +616,6 @@ void _ref_rnn_common_t<aprop>::execute_() {
     // initialize diff_states to 0
     if (aprop == prop_kind::backward) {
         array_set(ws_diff_states_, 0.0f, rnn.ws_diff_states_size);
-        // TODO: add a variable to check if good_ld_copy is necessary
         if (rnn.copy_diff_weights_layer) {
             parallel_nd(rnn.ws_diff_weights_layer_size,
                     [&](size_t i) { ws_diff_weights_layer_[i] = 0.; });
@@ -659,14 +658,16 @@ void _ref_rnn_common_t<aprop>::execute_() {
     if (aprop == prop_kind::backward){
         // TODO: write an impl of matcopy in MKL-DNN
         // TODO: support ldgoi using the trans parameters
-        AOC<float, 3> diff_weights_layer_aoc(diff_weights_layer, rnn.n_layer,
-                rnn.n_dir, rnn.diff_weights_layer_nld * rnn.diff_weights_layer_ld);
-        AOC<float, 3> diff_weights_iter_aoc(diff_weights_iter, rnn.n_layer,
-                rnn.n_dir, rnn.diff_weights_iter_nld * rnn.diff_weights_iter_ld);
-        AOC<float, 3> ws_diff_weights_layer_aoc(ws_diff_weights_layer_,
+        AOC<float, 3> diff_weights_layer_aoc_t(diff_weights_layer, rnn.n_layer,
+                rnn.n_dir,
+                rnn.diff_weights_layer_nld * rnn.diff_weights_layer_ld);
+        AOC<float, 3> diff_weights_iter_aoc_t(diff_weights_iter, rnn.n_layer,
+                rnn.n_dir,
+                rnn.diff_weights_iter_nld * rnn.diff_weights_iter_ld);
+        AOC<float, 3> ws_diff_weights_layer_aoc_t(ws_diff_weights_layer_,
                 rnn.n_layer, rnn.n_dir,
                 rnn.diff_weights_layer_nld * rnn.diff_weights_layer_ws_ld);
-        AOC<float, 3> ws_diff_weights_iter_aoc(ws_diff_weights_iter_,
+        AOC<float, 3> ws_diff_weights_iter_aoc_t(ws_diff_weights_iter_,
                 rnn.n_layer, rnn.n_dir,
                 rnn.diff_weights_iter_nld * rnn.diff_weights_iter_ws_ld);
 
@@ -681,10 +682,10 @@ void _ref_rnn_common_t<aprop>::execute_() {
                     B[i * ldB + j] += A[i * ldA + j];
         };
         mkldnn::impl::parallel_nd(rnn.n_layer, rnn.n_dir, [&](int i, int d) {
-            auto wei_lay = &(diff_weights_layer_aoc(i, d, 0));
-            auto wei_it = &(diff_weights_iter_aoc(i, d, 0));
-            auto ws_wei_lay = &(ws_diff_weights_layer_aoc(i, d, 0));
-            auto ws_wei_it = &(ws_diff_weights_iter_aoc(i, d, 0));
+            auto wei_lay = &(diff_weights_layer_aoc_t(i, d, 0));
+            auto wei_it = &(diff_weights_iter_aoc_t(i, d, 0));
+            auto ws_wei_lay = &(ws_diff_weights_layer_aoc_t(i, d, 0));
+            auto ws_wei_it = &(ws_diff_weights_iter_aoc_t(i, d, 0));
             if (rnn.copy_diff_weights_layer)
                 inplace_matadd(rnn.n_gates * rnn.dic, rnn.slc, ws_wei_lay,
                         rnn.diff_weights_layer_ws_ld, wei_lay,

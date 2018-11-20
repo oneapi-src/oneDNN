@@ -22,6 +22,7 @@
 namespace mkldnn {
 namespace impl {
 namespace cpu {
+using namespace rnn_utils;
 
 template <>
 cell_execution_sig(_ref_rnn_common_t<prop_kind::forward>::cell_execution) {
@@ -34,15 +35,16 @@ cell_execution_sig(_ref_rnn_common_t<prop_kind::forward>::cell_execution) {
             1.0, w_state_[0], rnn.weights_iter_ws_ld, states_tm1_l_,
             rnn.states_ws_ld, 1.0, ws_gates_, rnn.gates_ws_ld);
 
-    (this->*elemwise_func)(rnn, iter_stride, ws_gates_, states_t_l_,
-            states_t_lm1_, states_tm1_l_, diff_states_t_l_, diff_states_t_lp1_,
+    (this->*elemwise_func)(rnn, ws_gates_, states_t_l_, states_t_lm1_,
+            states_tm1_l_, diff_states_t_l_, diff_states_t_lp1_,
             diff_states_tp1_l_, bias_, ws_grid_, ws_cell_);
 }
 
 template <>
 cell_execution_sig(_ref_rnn_common_t<prop_kind::backward>::cell_execution) {
-    (this->*elemwise_func)(rnn, iter_stride, ws_gates_, states_t_l_,
-            states_t_lm1_, states_tm1_l_, diff_states_t_l_, diff_states_t_lp1_,
+    ws_diff_states_aoc_t diff_states_t_l(rnn, diff_states_t_l_);
+    (this->*elemwise_func)(rnn, ws_gates_, states_t_l_, states_t_lm1_,
+            states_tm1_l_, diff_states_t_l_, diff_states_t_lp1_,
             diff_states_tp1_l_, bias_, ws_grid_, ws_cell_);
 
     /// bwd by data on the cell
@@ -53,10 +55,8 @@ cell_execution_sig(_ref_rnn_common_t<prop_kind::backward>::cell_execution) {
     if (!rnn.merge_gemm_layer) {
         (this->*gemm_input_func)('N', 'N', rnn.slc, rnn.mb,
                 rnn.n_gates * rnn.dic, 1.0, w_input_[0], rnn.weights_layer_ws_ld,
-                ws_gates_, rnn.gates_ws_ld, 0.0, diff_states_t_l_
-                        + rnn.n_states * iter_stride
-                                * (rnn.mb * rnn.states_ws_ld),
-                rnn.states_ws_ld);
+                ws_gates_, rnn.gates_ws_ld, 0.0,
+                &diff_states_t_l(rnn.n_states, 0, 0), rnn.states_ws_ld);
 
         /// bwd by weights on the cell
         gemm('N', 'T', rnn.n_gates * rnn.dic, rnn.slc, rnn.mb, 1.0, ws_gates_,

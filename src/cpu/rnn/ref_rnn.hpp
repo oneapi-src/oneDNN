@@ -32,15 +32,15 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-#define elemwise_sig(f)                                                     \
-    void f(rnn_utils::rnn_conf_t &rnn, int iter_stride, float *ws_gates_,   \
-            float *states_t_l_, float *states_t_lm1_, float *states_tm1_l_, \
-            float *diff_states_t_l_, float *diff_states_t_lp1_,             \
-            float *diff_states_tp1_l_, const float *bias_, float *ws_grid_, \
+#define elemwise_sig(f)                                                      \
+    void f(rnn_utils::rnn_conf_t &rnn, float *ws_gates_, float *states_t_l_, \
+            float *states_t_lm1_, float *states_tm1_l_,                      \
+            float *diff_states_t_l_, float *diff_states_t_lp1_,              \
+            float *diff_states_tp1_l_, const float *bias_, float *ws_grid_,  \
             float *ws_cell_)
 
 #define cell_execution_sig(f)                                               \
-    void f(rnn_utils::rnn_conf_t &rnn, int iter_stride, float *states_t_l_, \
+    void f(rnn_utils::rnn_conf_t &rnn, float *states_t_l_, \
             float *diff_states_t_l_, float **w_input_, float **w_state_,    \
             const float *bias_, float *states_t_lm1_, float *states_tm1_l_, \
             float *diff_states_t_lp1_, float *diff_states_tp1_l_,           \
