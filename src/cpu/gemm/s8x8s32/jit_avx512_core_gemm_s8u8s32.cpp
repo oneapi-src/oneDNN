@@ -62,8 +62,8 @@ typedef struct {
     int (*copyA)(const dim_t *m, const dim_t *n, const int8_t  *a, const dim_t *lda, const int8_t  *alpha, int8_t  *b);
     int (*copyB)(const dim_t *m, const dim_t *n, const uint8_t *a, const dim_t *lda, const uint8_t *alpha, uint8_t *b);
 
-    int (*kernel)   (const dim_t *m, const dim_t *n, const dim_t *k, const float *alpha, const int8_t *a, const uint8_t *b, int *c, const dim_t ldc);
-    int (*kernel_b0)(const dim_t *m, const dim_t *n, const dim_t *k, const float *alpha, const int8_t *a, const uint8_t *b, int *c, const dim_t ldc);
+    int (*kernel)   (const dim_t *m, const dim_t *n, const dim_t *k, const float *alpha, const int8_t *a, const uint8_t *b, int32_t *c, const dim_t ldc);
+    int (*kernel_b0)(const dim_t *m, const dim_t *n, const dim_t *k, const float *alpha, const int8_t *a, const uint8_t *b, int32_t *c, const dim_t ldc);
 
     // Threading parameters.
     int nthrs;
