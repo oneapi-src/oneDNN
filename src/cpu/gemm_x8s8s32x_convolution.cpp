@@ -75,20 +75,6 @@ void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::
     const size_t dst_g_stride = dst_md.blk_off(0, 1) * jcp.oc;
     const size_t dst_os_stride = dst_md.blk_off(0, 0, 0, 1);
 
-    auto get_bias = [=, &bia_base](size_t off) -> acc_data_t {
-#       define CASE(dt) case dt: return (acc_data_t)\
-        (*((const prec_traits<dt>::type *)bia_base + off))
-        switch (conf_.desc()->bias_desc.data_type) {
-        CASE(data_type::s8);
-        CASE(data_type::u8);
-        CASE(data_type::s32);
-        CASE(data_type::f32);
-        default: assert(!"unimplemented");
-        }
-#       undef CASE
-        return 0;
-    };
-
     /* scale_idx_mult = 1 for per_oc scales and 0, otherwise */
     const int scale_idx_mult = conf_.attr()->output_scales_.mask_ == (1 << 1);
     const float *scales = conf_.attr()->output_scales_.scales_;
@@ -178,7 +164,8 @@ void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::
                     d /= jcp.wei_adj_scale;
 
                 if (jcp.with_bias)
-                    d += get_bias(g * jcp.oc + oc);
+                    d += get_bias(bia_base, g * jcp.oc + oc,
+                            conf_.desc()->bias_desc.data_type);
 
                 d *= scales[(g * jcp.oc + oc) * scale_idx_mult];
 
@@ -231,20 +218,6 @@ void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>
     const size_t diff_src_g_stride = diff_src_md.blk_off(0, 1) * jcp.ic;
     const size_t diff_src_os_stride = diff_src_md.blk_off(0, 0, 0, 1);
 
-    auto get_bias = [=, &bia_base](size_t off) -> acc_data_t {
-#       define CASE(dt) case dt: return (acc_data_t)\
-        (*((const prec_traits<dt>::type *)bia_base + off))
-        switch (conf_.desc()->bias_desc.data_type) {
-        CASE(data_type::s8);
-        CASE(data_type::u8);
-        CASE(data_type::s32);
-        CASE(data_type::f32);
-        default: assert(!"unimplemented");
-        }
-#       undef CASE
-        return 0;
-    };
-
     /* scale_idx_mult = 1 for per_oc scales and 0, otherwise */
     const int scale_idx_mult = conf_.attr()->output_scales_.mask_ == (1 << 1);
     const float *scales = conf_.attr()->output_scales_.scales_;
@@ -289,7 +262,8 @@ void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>
         parallel_nd(jcp.is, jcp.ic, [&](int is, int ic) {
             float d = (float)acc[is * jcp.ic + ic];
             if (jcp.with_bias)
-                d += get_bias(g * jcp.ic + ic);
+                d += get_bias(bia_base, g * jcp.ic + ic,
+                        conf_.desc()->bias_desc.data_type);
             d *= scales[(g * jcp.ic + ic) * scale_idx_mult];
             const size_t diff_src_off = is * diff_src_os_stride + ic;
             diff_src[diff_src_off] =

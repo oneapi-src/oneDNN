@@ -16,6 +16,7 @@
 
 #include "mkldnn_types.h"
 #include "mkldnn_thread.hpp"
+#include "math_utils.hpp"
 #include "simple_q10n.hpp"
 #include "gemm_u8s8s32x_inner_product.hpp"
 
@@ -58,20 +59,6 @@ void gemm_u8s8s32x_inner_product_fwd_t<dst_type>::execute_forward() {
         ? (acc_data_t *)dst
         : (acc_data_t *)this->scratchpad_->get();
 
-    auto get_bias = [=, &bias](size_t off) -> acc_data_t {
-#       define CASE(dt) case dt: return (acc_data_t)\
-        (*((const prec_traits<dt>::type *)bias + off))
-        switch (conf_.desc()->bias_desc.data_type) {
-        CASE(data_type::s8);
-        CASE(data_type::u8);
-        CASE(data_type::s32);
-        CASE(data_type::f32);
-        default: assert(!"unimplemented");
-        }
-#       undef CASE
-        return 0;
-    };
-
     cblas_gemm_s8u8s32(CblasColMajor, wei_tr ? CblasTrans : CblasNoTrans,
             CblasNoTrans, CblasFixOffset, M, N, K, 1., weights,
             wei_tr ? K : M, off_a, src, K, off_b, 0., acc, M, &off_c);
@@ -79,8 +66,7 @@ void gemm_u8s8s32x_inner_product_fwd_t<dst_type>::execute_forward() {
     parallel_nd(MB, OC, [&](int mb, int oc) {
         size_t dst_off = mb * OC + oc;
         float d = (float)acc[dst_off];
-        if (bias)
-            d += get_bias(oc);
+        d += get_bias(bias, oc, conf_.desc()->bias_desc.data_type);
         d *= scales[oc * scale_idx_mult];
         if (do_relu && d < 0)
             d *= nslope;

@@ -22,6 +22,7 @@
 
 #include "utils.hpp"
 #include "nstl.hpp"
+#include "mkldnn_traits.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -231,6 +232,25 @@ inline bool eltwise_fwd_preserves_zero(alg_kind_t alg, bool jit_impl = false) {
         && !one_of(alg, eltwise_linear, eltwise_soft_relu, eltwise_logistic)
         && IMPLICATION(jit_impl, !one_of(alg, eltwise_elu, eltwise_tanh));
     return preserves_zero;
+}
+
+inline float get_bias(const char *bias, size_t offset, data_type_t data_type)
+{
+    if (!bias)
+        return 0.0f;
+
+#define CASE(dt) \
+    case dt: return (float)((const prec_traits<dt>::type *)bias)[offset]
+
+    switch (data_type) {
+    CASE(data_type::s8);
+    CASE(data_type::u8);
+    CASE(data_type::s32);
+    CASE(data_type::f32);
+    default: assert(!"unimplemented");
+    }
+    return 0; // never happens (should probably be a NaN)
+#undef CASE
 }
 
 }

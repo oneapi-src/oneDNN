@@ -27,6 +27,7 @@ namespace impl {
 namespace cpu {
 
 using math::saturate;
+using math::get_bias;
 
 template <data_type_t src_type, data_type_t wei_type,
          data_type_t dst_type, data_type_t acc_type>
@@ -76,8 +77,9 @@ void ref_convolution_fwd_t<src_type, wei_type, dst_type, acc_type>
 
     const int ndims = conf_.desc()->src_desc.ndims;
 
-    auto ker = [=](acc_data_t &d, int g, int mb, int oc, int od, int oh,
+    auto ker = [=](int g, int mb, int oc, int od, int oh,
             int ow) {
+        acc_data_t d = 0;
         for (int ic = 0; ic < IC; ++ic)
         for (int kd = 0; kd < KD; ++kd)
         for (int kh = 0; kh < KH; ++kh)
@@ -108,29 +110,19 @@ void ref_convolution_fwd_t<src_type, wei_type, dst_type, acc_type>
            else
                assert(false);
 
-       }
-    };
-    auto get_bias = [=, &bias](size_t off) -> acc_data_t {
-#       define CASE(dt) case dt: \
-            return (acc_data_t)(*((const prec_traits<dt>::type *)bias + off))
-        switch (conf_.desc()->bias_desc.data_type) {
-        CASE(data_type::s8);
-        CASE(data_type::u8);
-        CASE(data_type::s32);
-        CASE(data_type::f32);
-        default: assert(!"unimplemented");
         }
-#       undef CASE
-        return 0;
+        return d;
     };
+
     parallel_nd(G, MB, OC, OD, OH, OW,
         [&](int g, int mb, int oc, int od, int oh, int ow) {
-        acc_data_t a = bias
-            ? get_bias(bias_d.off(g*OC + oc))
-            : (acc_data_t)0;
-        ker(a, g, mb, oc, od, oh, ow);
-        if (with_relu && a < (acc_data_t)0)
-            a = (acc_data_t)((float)a * nslope);
+        float a = bias
+            ? get_bias(bias, bias_d.off(g * OC + oc),
+                    conf_.desc()->bias_desc.data_type)
+            : 0;
+        a += ker(g, mb, oc, od, oh, ow);
+        if (with_relu && a < 0)
+            a = a * nslope;
         if (ndims == 5)
             dst[dst_d.off(mb, g*OC + oc, od, oh, ow)] = saturate<dst_data_t>(a);
         else if (ndims == 4)
@@ -188,8 +180,9 @@ void ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
 
     const int ndims = conf_.desc()->diff_src_desc.ndims;
 
-    auto ker = [=](acc_data_t &d, int g, int mb, int ic, int id, int ih,
+    auto ker = [=](int g, int mb, int ic, int id, int ih,
             int iw) {
+        acc_data_t d = 0;
         for (int oc = 0; oc < OC; ++oc)
         for (int kd = 0; kd < KD; ++kd)
         for (int kh = 0; kh < KH; ++kh)
@@ -228,20 +221,9 @@ void ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
                     assert(false);
             }
         }
+        return d;
     };
-    auto get_bias = [=, &bias](size_t off) -> acc_data_t {
-#       define CASE(dt) case dt: \
-            return (acc_data_t)(*((const prec_traits<dt>::type *)bias + off))
-        switch (conf_.desc()->bias_desc.data_type) {
-        CASE(data_type::s8);
-        CASE(data_type::u8);
-        CASE(data_type::s32);
-        CASE(data_type::f32);
-        default: assert(!"unimplemented");
-        }
-#       undef CASE
-        return 0;
-    };
+
     parallel_nd(G, MB, IC, ID, IH, IW,
         [&](int g, int mb, int ic, int id, int ih, int iw) {
         auto ds_idx = (ndims == 5)
@@ -249,10 +231,11 @@ void ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
             : (ndims == 4)
             ? diff_src_d.off(mb, g*IC + ic, ih, iw)
             : diff_src_d.off(mb, g*IC + ic, iw);
-        acc_data_t a = bias
-            ? get_bias(bias_d.off(g*IC + ic))
-            : (acc_data_t)0;
-        ker(a, g, mb, ic, id, ih, iw);
+        float a = bias
+            ? get_bias(bias, bias_d.off(g * IC + ic),
+                    conf_.desc()->bias_desc.data_type)
+            : 0;
+        a += ker(g, mb, ic, id, ih, iw);
         diff_src[ds_idx] = saturate<diff_src_data_t>(a);
     });
 }
@@ -353,6 +336,7 @@ auto ker = [=](acc_data_t &d, int g, int oc, int ic, int kd, int kh, int kw) {
 
     parallel_nd(G, OC, [&](int g, int oc) {
         if (diff_bias) {
+            // XXX: loss of precision when bias is a float...
             acc_data_t db = 0;
             ker_bias(db, g, oc);
             diff_bias[diff_bias_d.off(g*OC+oc)]
