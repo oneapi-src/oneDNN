@@ -871,15 +871,6 @@ status_t jit_uni_i8i8_pooling_fwd_ker_t<isa>::init_conf(jit_pool_conf_t &jpp,
 
     switch (jpp.alg) {
         case pooling_max:
-
-//            return status::unimplemented; // XXX: !!! for test AVG-only
-
-            // XXX: log
-            printf("\t\t\t\t\t\t\t\t\t\t\t\t%s : pooling_max : %s tail_mask = 0x%lx\n",
-                    __FUNCTION__,
-                    jpp.src_dt == data_type::s32 ? "s32" : "i8",
-                    tail_mask );
-
             jpp.tail[0] = tail_mask;
             jpp.tail[1] = 0;
             jpp.tail[2] = 0;
@@ -887,19 +878,6 @@ status_t jit_uni_i8i8_pooling_fwd_ker_t<isa>::init_conf(jit_pool_conf_t &jpp,
             break;
         case pooling_avg_include_padding:
         case pooling_avg_exclude_padding: {
-
-//            if (!tail_mask || jpp.src_dt != data_type::u8)
-//                return status::unimplemented; // XXX: until implemented
-//            if (jpp.src_dt != data_type::s8)
-//                return status::unimplemented; // XXX: until implemented
-
-
-            // XXX: log
-            printf("\t\t\t\t\t\t\t\t\t\t\t\t%s : pooling_avg : %s tail_mask = 0x%lx\n",
-                    __FUNCTION__,
-                    jpp.src_dt == data_type::s32 ? "s32" : "i8",
-                    tail_mask );
-
             // avg_proc_dt (s32) defines granularity (because u8/s8 processed as s32)
             // avx2 : 8, avx512 : 16
             const size_t msk_gran = cpu_isa_traits<isa>::vlen / data_type_size(avg_proc_dt);
