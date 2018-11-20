@@ -882,14 +882,33 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
     assert((jcp.m_block + 1) * jcp.n2_block <= free_regs);
     assert(jcp.xb % 2 == 0 && jcp.yb % 2 == 0);
 
-    jcp.inp_stride = jcp.yb * jcp.xb / 4 * jcp.ic;
-    jcp.out_stride = jcp.yb * jcp.xb / 4 * jcp.oc;
-    jcp.wei_stride = jcp.ic * jcp.oc;
-    jcp.bia_stride = jcp.oc;
+    jcp.mb_block = 1;
+    if (jcp.small_mb) {
+        // For small mb harness, set mb_block as large as possible subject to
+        // the constraint that winograd activations fit into available L3 cache
+        int L3_cap = get_cache_size(3, true);
+        int M = jcp.xb * jcp.yb / 4;
+        int wino_src_size = 16 * M * jcp.ic * jcp.typesize_in;
+        int wino_dst_size = 16 * M * jcp.oc * jcp.typesize_acc;
+        int max_mb_block = nstl::min(
+                jcp.mb, nthr * L3_cap / (wino_src_size + wino_dst_size));
+        for (int i = max_mb_block; i > 1; i--) {
+            if (jcp.mb % i == 0) {
+                jcp.mb_block = i;
+                break;
+            }
+        }
+    }
+    jcp.nb_mb = jcp.mb / jcp.mb_block;
 
-    jcp.M = jcp.xb * jcp.yb / 4;
+    jcp.M = jcp.mb_block * jcp.xb * jcp.yb / 4;
     jcp.N = jcp.oc;
     jcp.K = jcp.ic;
+
+    jcp.inp_stride = jcp.M * jcp.ic;
+    jcp.out_stride = jcp.M * jcp.oc;
+    jcp.wei_stride = jcp.ic * jcp.oc;
+    jcp.bia_stride = jcp.oc;
 
     jcp.n_block = jcp.oc_block;
     jcp.k_block = jcp.ic_block;
@@ -964,7 +983,7 @@ jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
             conf_.jcp_, *conf_.attr());
 
     const int tilesize = conf_.jcp_.alpha * conf_.jcp_.alpha;
-    const int numtiles = (conf_.jcp_.yb / 2) * (conf_.jcp_.xb / 2);
+    const int numtiles = conf_.jcp_.M;
     const int alltiles = tilesize * numtiles;
     size_wino_wei_ = tilesize * conf_.jcp_.oc * conf_.jcp_.ic;
     size_wino_src_ = sizeof(src_data_t) * alltiles * conf_.jcp_.ic;
@@ -1135,12 +1154,12 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
     auto wino_src = (src_data_t *)scratchpad_->get();
     auto wino_dst = (acc_data_t *)(scratchpad_->get() + wino_shift_);
 
-    for (int mb = 0; mb < jcp.mb; mb++) {
+    for (int mbb = 0; mbb < jcp.nb_mb; mbb++) {
     for (int tile_y = 0; tile_y < jcp.oh; tile_y += jcp.yb) {
     for (int tile_x = 0; tile_x < jcp.ow; tile_x += jcp.xb) {
         /* transformation of input tensor to winograd domain */
-        parallel_nd(div_up(jcp.yb, 2), div_up(jcp.xb, 2),
-            [&](int y_in_block_b, int x_in_block_b) {
+        parallel_nd(div_up(jcp.yb, 2), div_up(jcp.xb, 2), jcp.mb_block,
+            [&](int y_in_block_b, int x_in_block_b, int mb) {
             int y_in_block = y_in_block_b * 2;
             int x_in_block = x_in_block_b * 2;
 
@@ -1151,7 +1170,8 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
 
             int y = y_in_block + tile_y;
             int x = x_in_block + tile_x;
-            int m = (y_in_block / 2) * (jcp.xb / 2) + (x_in_block / 2);
+            int m = (mb * (jcp.yb / 2) + (y_in_block / 2)) * (jcp.xb / 2)
+                    + (x_in_block / 2);
 
             int v_ys = nstl::max(0, jcp.t_pad - y);
             int v_ye = nstl::min(
@@ -1167,7 +1187,7 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
                 v_x_masks[i] = uint16_t(i < v_xs || i >= v_xe ? 0 : 0xffff);
             }
             auto local_s = src
-                    + mb * jcp.ih * jcp.iw * jcp.ic
+                    + (mbb * jcp.mb_block + mb) * jcp.ih * jcp.iw * jcp.ic
                     + y * jcp.iw * jcp.ic + x * jcp.ic;
             auto local_w = wino_src + m * jcp.ic;
 
@@ -1196,8 +1216,8 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
         });
 
         /* transformation from winograd domain to output tensor */
-        parallel_nd(div_up(jcp.yb, 2), div_up(jcp.xb, 2),
-            [&](int y_in_block_b, int x_in_block_b) {
+        parallel_nd(div_up(jcp.yb, 2), div_up(jcp.xb, 2), jcp.mb_block,
+            [&](int y_in_block_b, int x_in_block_b, int mb) {
             int y_in_block = y_in_block_b * 2;
             int x_in_block = x_in_block_b * 2;
 
@@ -1208,7 +1228,8 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
 
             int y = y_in_block + tile_y;
             int x = x_in_block + tile_x;
-            int m = (y_in_block / 2) * (jcp.xb / 2) + (x_in_block / 2);
+            int m = (mb * (jcp.yb / 2) + (y_in_block / 2)) * (jcp.xb / 2)
+                    + (x_in_block / 2);
 
 #pragma unroll(2)
             for (int i = 0; i < jcp.m; i++) {
@@ -1216,7 +1237,7 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
                 v_y_masks[i] = uint16_t(y + i < jcp.oh ? 0xffff : 0);
             }
             auto local_d = dst
-                    + mb * jcp.oh * jcp.ow * jcp.oc
+                    + (mbb * jcp.mb_block + mb) * jcp.oh * jcp.ow * jcp.oc
                     + y * jcp.ow * jcp.oc + x * jcp.oc;
             auto local_w = wino_dst + m * jcp.oc;
 
