@@ -81,7 +81,7 @@ FILE *mkldnn_fopen(const char *filename, const char *mode) {
 #endif
 }
 
-THREAD_LOCAL unsigned int mxcsr_save;
+thread_local unsigned int mxcsr_save;
 
 void set_rnd_mode(round_mode_t rnd_mode) {
     mxcsr_save = _mm_getcsr();

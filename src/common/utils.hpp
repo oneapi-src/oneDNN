@@ -54,13 +54,6 @@ static_assert(sizeof(void*) == 8, "Intel(R) MKL-DNN supports 64 bit only");
 #define __PRETTY_FUNCTION__ __FUNCSIG__
 #endif
 
-#ifdef __APPLE__
-// older XCode doesn't support thread_local
-#define THREAD_LOCAL __thread
-#else
-#define THREAD_LOCAL thread_local
-#endif
-
 namespace utils {
 
 /* a bunch of std:: analogues to be compliant with any msvs version
