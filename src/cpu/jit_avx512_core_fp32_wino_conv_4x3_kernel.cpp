@@ -1404,7 +1404,7 @@ status_t jit_avx512_core_fp32_wino_conv_4x3_fwd_kernel::init_conf(
 
     const auto &p = attr.post_ops_;
     const int eltwise_ind = p.find(primitive_kind::eltwise, 0, 1);
-    jcp.with_eltwise = eltwise_ind != 1;
+    jcp.with_eltwise = eltwise_ind != -1;
     if (jcp.with_eltwise)
         jcp.eltwise = p.entry_[eltwise_ind].eltwise;
 
