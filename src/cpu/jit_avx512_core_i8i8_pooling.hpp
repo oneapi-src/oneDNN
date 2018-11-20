@@ -28,10 +28,10 @@ namespace impl {
 namespace cpu {
 
 template <cpu_isa_t isa>
-struct jit_avx512_core_i8i8_pool_fwd_ker_t;
+struct jit_uni_i8i8_pooling_fwd_ker_t;
 
 template <cpu_isa_t isa>
-struct jit_avx512_core_i8i8_pooling_fwd_t : public cpu_primitive_t {
+struct jit_uni_i8i8_pooling_fwd_t : public cpu_primitive_t {
     struct pd_t : public cpu_pooling_fwd_pd_t {
         pd_t(engine_t *engine, const pooling_desc_t  *adesc,
                 const primitive_attr_t *attr,
@@ -39,8 +39,8 @@ struct jit_avx512_core_i8i8_pooling_fwd_t : public cpu_primitive_t {
         : cpu_pooling_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T(
-                JIT_IMPL_NAME_HELPER("jit:", avx512_core, ""),
-                jit_avx512_core_i8i8_pooling_fwd_t<isa>);
+                JIT_IMPL_NAME_HELPER("jit:", isa, ""),
+                jit_uni_i8i8_pooling_fwd_t<isa>);
 
         virtual status_t init() override {
             assert(this->engine()->kind() == engine_kind::cpu);
@@ -76,9 +76,9 @@ struct jit_avx512_core_i8i8_pooling_fwd_t : public cpu_primitive_t {
         }
     };
 
-    jit_avx512_core_i8i8_pooling_fwd_t(const pd_t *pd,
+    jit_uni_i8i8_pooling_fwd_t(const pd_t *pd,
             const input_vector &inputs, const output_vector &outputs);
-    ~jit_avx512_core_i8i8_pooling_fwd_t();
+    ~jit_uni_i8i8_pooling_fwd_t();
 
     virtual void execute(event_t *e) {
         execute_forward();
@@ -89,7 +89,7 @@ private:
     void execute_forward();
     pd_t conf_;
 
-    jit_avx512_core_i8i8_pool_fwd_ker_t<isa> *ker_;
+    jit_uni_i8i8_pooling_fwd_ker_t<isa> *ker_;
 };
 
 }
