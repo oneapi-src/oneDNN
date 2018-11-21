@@ -1038,7 +1038,7 @@ typedef const struct mkldnn_primitive_attr *const_mkldnn_primitive_attr_t;
  *
  * Post operations might be combined together, making a chain of post
  * operations. For instance one can configure convolution followed by
- * accumulation followed by eltwise (relu). This might be especially beneficial
+ * accumulation followed by eltwise. This might be especially beneficial
  * for residual learning blocks.
  *
  * @warning
