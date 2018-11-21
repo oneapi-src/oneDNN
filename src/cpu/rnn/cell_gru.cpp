@@ -41,14 +41,15 @@ cell_execution_sig(_ref_rnn_common_t<prop_kind::forward>::cell_execution_gru) {
 
     // 1. gemm Wx[0-2],x
     if (!rnn.merge_gemm_layer) {
-        (this->*gemm_input_func)('N', 'N', rnn.n_gates * rnn.dic, rnn.mb,
-                rnn.slc, 1.0, w_input_[0], rnn.weights_layer_ws_ld, states_t_lm1_,
-                rnn.states_ws_ld, 0.0, ws_gates_, rnn.gates_ws_ld);
+        (this->*gemm_layer_func)('N', 'N', rnn.n_gates * rnn.dic, rnn.mb,
+                rnn.slc, 1.0, w_layer_[0], rnn.weights_layer_ws_ld,
+                states_t_lm1_, rnn.states_ws_ld, 0.0, ws_gates_,
+                rnn.gates_ws_ld);
     }
 
     // 2. gemm Wh[0-1],h
-    (this->*gemm_state_func)('N', 'N', (rnn.n_gates - 1) * rnn.dic, rnn.mb,
-            rnn.sic, 1.0, w_state_[0], rnn.weights_iter_ws_ld, states_tm1_l_,
+    (this->*gemm_iter_func)('N', 'N', (rnn.n_gates - 1) * rnn.dic, rnn.mb,
+            rnn.sic, 1.0, w_iter_[0], rnn.weights_iter_ws_ld, states_tm1_l_,
             rnn.states_ws_ld, 1.0, ws_gates_, rnn.gates_ws_ld);
 
     // 3. activation zt and rt + elemwise multiplication rt,ht-1
@@ -62,8 +63,8 @@ cell_execution_sig(_ref_rnn_common_t<prop_kind::forward>::cell_execution_gru) {
     });
 
     // 4. gemm Wh[2],h~t
-    (this->*gemm_state_func)('N', 'N', rnn.dic, rnn.mb, rnn.sic, 1.0,
-            w_state_[1], rnn.weights_iter_ws_ld, states_t_l_, rnn.states_ws_ld, 1.0,
+    (this->*gemm_iter_func)('N', 'N', rnn.dic, rnn.mb, rnn.sic, 1.0, w_iter_[1],
+            rnn.weights_iter_ws_ld, states_t_l_, rnn.states_ws_ld, 1.0,
             &(ws_gates(0, 2, 0)), rnn.gates_ws_ld);
 
     // 5. activation h~t + calculate ht
@@ -82,7 +83,7 @@ cell_execution_sig(_ref_rnn_common_t<prop_kind::backward>::cell_execution_gru) {
     ws_gates_aoc_t ws_gates(rnn, ws_gates_);
     ws_states_aoc_t states_t_l(rnn, states_t_l_);
     ws_states_aoc_t states_tm1_l(rnn, states_tm1_l_);
-    ws_diff_w_iter_aoc_t diff_w_state(rnn, diff_w_state_);
+    ws_diff_w_iter_aoc_t diff_w_iter(rnn, diff_w_iter_);
     ws_diff_states_aoc_t diff_states_t_l(rnn, diff_states_t_l_);
     ws_diff_states_aoc_t diff_states_tp1_l(rnn, diff_states_tp1_l_);
     ws_diff_states_aoc_t diff_states_t_lp1(rnn, diff_states_t_lp1_);
@@ -117,9 +118,9 @@ cell_execution_sig(_ref_rnn_common_t<prop_kind::backward>::cell_execution_gru) {
 
     // 2. calculate intermediate d(hG1)
     // d(hG1) = dG2 * W2h^t
-    (this->*gemm_state_func)('N', 'N', rnn.sic, rnn.mb, rnn.dic, 1.0,
-            w_state_[1], rnn.weights_iter_ws_ld, &(ws_gates(0, 2, 0)),
-            rnn.gates_ws_ld, 0.0, dhG1_, rnn.states_ws_ld);
+    (this->*gemm_iter_func)('N', 'N', rnn.sic, rnn.mb, rnn.dic, 1.0, w_iter_[1],
+            rnn.weights_iter_ws_ld, &(ws_gates(0, 2, 0)), rnn.gates_ws_ld, 0.0,
+            dhG1_, rnn.states_ws_ld);
 
     // 3. calculate dG1^ and part of dht-1
     // dG1^ = d(hG1) * h * G1 * (1 - G1)
@@ -139,28 +140,28 @@ cell_execution_sig(_ref_rnn_common_t<prop_kind::backward>::cell_execution_gru) {
     // 4. calculate diff weights
     // dWh1 += dG1 * h, dWh2 += dG2 * h, dWh3 += dG3 * (G1(*)h)
     gemm('N', 'T', (rnn.n_gates - 1) * rnn.dic, rnn.sic, rnn.mb, 1.0, ws_gates_,
-            rnn.gates_ws_ld, states_tm1_l_, rnn.states_ws_ld, 1.0,
-            diff_w_state_, rnn.diff_weights_iter_ws_ld);
+            rnn.gates_ws_ld, states_tm1_l_, rnn.states_ws_ld, 1.0, diff_w_iter_,
+            rnn.diff_weights_iter_ws_ld);
     gemm('N', 'T', rnn.dic, rnn.sic, rnn.mb, 1.0, &(ws_gates(0, 2, 0)),
             rnn.gates_ws_ld, hG1_, rnn.states_ws_ld, 1.0,
-            &(diff_w_state(0, 2, 0)), rnn.diff_weights_iter_ws_ld);
+            &(diff_w_iter(0, 2, 0)), rnn.diff_weights_iter_ws_ld);
 
     // 5. calculate diff states
     // dht-1 += dG1 * W1h + dG0 * W0h
-    (this->*gemm_state_func)('N', 'N', rnn.sic, rnn.mb,
-            (rnn.n_gates - 1) * rnn.dic, 1.0, w_state_[0], rnn.weights_iter_ws_ld,
-            ws_gates_, rnn.gates_ws_ld, 1.0, diff_states_t_l_,
-            rnn.states_ws_ld);
+    (this->*gemm_iter_func)('N', 'N', rnn.sic, rnn.mb,
+            (rnn.n_gates - 1) * rnn.dic, 1.0, w_iter_[0],
+            rnn.weights_iter_ws_ld, ws_gates_, rnn.gates_ws_ld, 1.0,
+            diff_states_t_l_, rnn.states_ws_ld);
 
     if (!rnn.merge_gemm_layer) {
         // dWx += [dG0 dG1 dG2] * [x]
         gemm('N', 'T', rnn.n_gates * rnn.dic, rnn.slc, rnn.mb, 1.0, ws_gates_,
                 rnn.gates_ws_ld, states_t_lm1_, rnn.states_ws_ld, 1.0,
-                diff_w_input_, rnn.diff_weights_layer_ws_ld);
+                diff_w_layer_, rnn.diff_weights_layer_ws_ld);
         // dx = dG2 * W2x + dG1 * W1x + dG0 * W0x
-        (this->*gemm_input_func)('N', 'N', rnn.slc, rnn.mb,
-                rnn.n_gates * rnn.dic, 1.0, w_input_[0], rnn.weights_layer_ws_ld,
-                ws_gates_, rnn.gates_ws_ld, 0.0,
+        (this->*gemm_layer_func)('N', 'N', rnn.slc, rnn.mb,
+                rnn.n_gates * rnn.dic, 1.0, w_layer_[0],
+                rnn.weights_layer_ws_ld, ws_gates_, rnn.gates_ws_ld, 0.0,
                 &(diff_states_t_l(rnn.n_states, 0, 0)), rnn.states_ws_ld);
     }
 

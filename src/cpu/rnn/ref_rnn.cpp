@@ -105,7 +105,7 @@ grid_execution_sig(_ref_rnn_common_t<aprop>::linear_execution) {
     AOC<float, 4> ws_gates(ws_gates_, rnn.n_layer, rnn.n_dir, rnn.n_iter,
             rnn.gates_nld * rnn.gates_ws_ld);
     AOC<float *, 3> weights_input(
-            weights_input_, rnn.n_layer, rnn.n_dir, n_parts_wei_i);
+            weights_layer_, rnn.n_layer, rnn.n_dir, n_parts_wei_i);
     AOC<float *, 3> weights_states(
             weights_states_, rnn.n_layer, rnn.n_dir, n_parts_wei_st);
     AOC<const float, 3> bias(
@@ -125,7 +125,7 @@ grid_execution_sig(_ref_rnn_common_t<aprop>::linear_execution) {
         for (int j = 0; j < rnn.n_layer; j++) {
             int lay = (aprop == prop_kind::forward) ? j : rnn.n_layer - j - 1;
             if ((aprop == prop_kind::forward) && rnn.merge_gemm_layer) {
-                (this->*gemm_input_func)('N', 'N', rnn.n_gates * rnn.dic,
+                (this->*gemm_layer_func)('N', 'N', rnn.n_gates * rnn.dic,
                         rnn.mb * rnn.n_iter, rnn.slc, 1.0,
                         weights_input(lay, dir, 0), rnn.weights_iter_ws_ld,
                         &(ws_states(lay, dir, 0, 1, 0)), rnn.states_ws_ld, 0.0,
@@ -151,7 +151,7 @@ grid_execution_sig(_ref_rnn_common_t<aprop>::linear_execution) {
                         ws_cell_);
             }
             if ((aprop == prop_kind::backward) && rnn.merge_gemm_layer) {
-                (this->*gemm_input_func)('N', 'N', rnn.slc, rnn.mb * rnn.n_iter,
+                (this->*gemm_layer_func)('N', 'N', rnn.slc, rnn.mb * rnn.n_iter,
                         rnn.n_gates * rnn.dic, 1.0, weights_input(lay, dir, 0),
                         rnn.weights_layer_ws_ld, &(ws_gates(lay, dir, 0, 0)),
                         rnn.gates_ws_ld, 0.0,
@@ -630,12 +630,12 @@ void _ref_rnn_common_t<aprop>::execute_() {
 
     /* Pack(if using packed gemm API) or copy(if input arrays have bad leading
      * dimension */
-    (this->*weights_state_pack_func)(rnn, rnn.weights_iter_fmt, rnn.dic, rnn.sic,
-            ptr_wei_state_, n_parts_wei_st,
+    (this->*weights_iter_pack_func)(rnn, rnn.weights_iter_fmt, rnn.dic, rnn.sic,
+            ptr_wei_iter_, n_parts_wei_st,
             (is_orig_gru ? parts_wei_st_gru : &parts_wei_st), w_state,
             ws_weights_iter_, rnn.copy_weights_iter);
-    (this->*weights_input_pack_func)(rnn, rnn.weights_layer_fmt, rnn.dic, rnn.slc,
-            ptr_wei_input_, n_parts_wei_i, &parts_wei_i, w_input,
+    (this->*weights_layer_pack_func)(rnn, rnn.weights_layer_fmt, rnn.dic,
+            rnn.slc, ptr_wei_layer_, n_parts_wei_i, &parts_wei_i, w_input,
             ws_weights_layer_, rnn.copy_weights_layer);
 
     // we first need to copy the initial states and input into ws
@@ -643,10 +643,10 @@ void _ref_rnn_common_t<aprop>::execute_() {
     copy_init_iter(rnn, ws_states_, ws_diff_states_, states, diff_dst_iter);
 
     // run the execution on the grid
-    (this->*grid_computation)(rnn, ptr_wei_input_, n_parts_wei_i,
-            ptr_wei_state_, n_parts_wei_st, (float *)bias, ws_states_,
-            ws_diff_states_, ws_gates_, ws_cell_, ws_grid_,
-            ws_diff_weights_layer_, ws_diff_weights_iter_, diff_bias);
+    (this->*grid_computation)(rnn, ptr_wei_layer_, n_parts_wei_i, ptr_wei_iter_,
+            n_parts_wei_st, (float *)bias, ws_states_, ws_diff_states_,
+            ws_gates_, ws_cell_, ws_grid_, ws_diff_weights_layer_,
+            ws_diff_weights_iter_, diff_bias);
 
     // Finally we copy the results to the result buffers
     copy_res_layer(
@@ -698,9 +698,8 @@ void _ref_rnn_common_t<aprop>::execute_() {
     }
 
     // We free the packed weights if they were packed internally
-    (this->*weights_state_free_packed_func)(
-            rnn, n_parts_wei_st, ptr_wei_state_);
-    (this->*weights_input_free_packed_func)(rnn, n_parts_wei_i, ptr_wei_input_);
+    (this->*weights_iter_free_packed_func)(rnn, n_parts_wei_st, ptr_wei_iter_);
+    (this->*weights_layer_free_packed_func)(rnn, n_parts_wei_i, ptr_wei_layer_);
 };
 
 /* Fix for MSVS warning C4661 */

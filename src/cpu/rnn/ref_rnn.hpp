@@ -40,15 +40,15 @@ namespace cpu {
             float *ws_cell_)
 
 #define cell_execution_sig(f)                                               \
-    void f(rnn_utils::rnn_conf_t &rnn, float *states_t_l_, \
-            float *diff_states_t_l_, float **w_input_, float **w_state_,    \
+    void f(rnn_utils::rnn_conf_t &rnn, float *states_t_l_,                  \
+            float *diff_states_t_l_, float **w_layer_, float **w_iter_,     \
             const float *bias_, float *states_t_lm1_, float *states_tm1_l_, \
             float *diff_states_t_lp1_, float *diff_states_tp1_l_,           \
-            float *diff_w_input_, float *diff_w_state_, float *diff_bias_,  \
+            float *diff_w_layer_, float *diff_w_iter_, float *diff_bias_,   \
             float *ws_gates_, float *ws_grid_, float *ws_cell_)
 
 #define grid_execution_sig(f)                                               \
-    void f(rnn_utils::rnn_conf_t &rnn, float **weights_input_,              \
+    void f(rnn_utils::rnn_conf_t &rnn, float **weights_layer_,              \
             int n_parts_wei_i, float **weights_states_, int n_parts_wei_st, \
             const float *bias_, float *ws_states_, float *ws_diff_states_,  \
             float *ws_gates_, float *ws_cell_, float *ws_grid_,             \
@@ -197,17 +197,17 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
                              &class_name::free_no_packed_weights;
         };
         const bool weights_pack_cond = conf_.rnn_.use_packed_gemm;
-        const bool is_weights_state_packed
+        const bool is_weights_iter_packed
                 = conf_.rnn_.weights_iter_fmt == packed_format;
-        set_pack_funcs(weights_pack_cond || is_weights_state_packed,
-                gemm_state_func, weights_pack_cond && !is_weights_state_packed,
-                weights_state_pack_func, weights_state_free_packed_func);
+        set_pack_funcs(weights_pack_cond || is_weights_iter_packed,
+                gemm_iter_func, weights_pack_cond && !is_weights_iter_packed,
+                weights_iter_pack_func, weights_iter_free_packed_func);
 
-        const bool is_weights_input_packed
+        const bool is_weights_layer_packed
                 = conf_.rnn_.weights_layer_fmt == packed_format;
-        set_pack_funcs(weights_pack_cond || is_weights_input_packed,
-                gemm_input_func, weights_pack_cond && !is_weights_input_packed,
-                weights_input_pack_func, weights_input_free_packed_func);
+        set_pack_funcs(weights_pack_cond || is_weights_layer_packed,
+                gemm_layer_func, weights_pack_cond && !is_weights_layer_packed,
+                weights_layer_pack_func, weights_layer_free_packed_func);
 
         switch (conf_.cell_kind()) {
         case alg_kind::vanilla_lstm:
@@ -253,13 +253,13 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
 
         int max_nparts = (conf_.cell_kind() == alg_kind::vanilla_gru) ? 2 : 1;
         int ptr_wei_sz = conf_.rnn_.n_layer * conf_.rnn_.n_dir * max_nparts;
-        ptr_wei_input_ = (float **)malloc(sizeof(float *) * ptr_wei_sz, 64);
-        ptr_wei_state_ = (float **)malloc(sizeof(float *) * ptr_wei_sz, 64);
+        ptr_wei_layer_ = (float **)malloc(sizeof(float *) * ptr_wei_sz, 64);
+        ptr_wei_iter_ = (float **)malloc(sizeof(float *) * ptr_wei_sz, 64);
     }
     ~_ref_rnn_common_t() {
         delete scratchpad_;
-        free(ptr_wei_input_);
-        free(ptr_wei_state_);
+        free(ptr_wei_layer_);
+        free(ptr_wei_iter_);
     }
 
     // typedef typename prec_traits::type data_t;
@@ -325,21 +325,21 @@ private:
     float *ws_diff_weights_layer_;
     float *ws_diff_weights_iter_;
 
-    float **ptr_wei_input_;
-    float **ptr_wei_state_;
+    float **ptr_wei_layer_;
+    float **ptr_wei_iter_;
 
     grid_execution_f grid_computation;
     cell_execution_f cell_func;
 
-    packing_t weights_input_pack_func;
-    packing_t weights_state_pack_func;
+    packing_t weights_layer_pack_func;
+    packing_t weights_iter_pack_func;
 
-    gemm_t gemm_input_func;
-    gemm_t gemm_state_func;
+    gemm_t gemm_layer_func;
+    gemm_t gemm_iter_func;
     elemwise_f elemwise_func;
 
-    free_packed_t weights_input_free_packed_func;
-    free_packed_t weights_state_free_packed_func;
+    free_packed_t weights_layer_free_packed_func;
+    free_packed_t weights_iter_free_packed_func;
 };
 
 using ref_rnn_fwd_t = _ref_rnn_common_t<prop_kind::forward>;
