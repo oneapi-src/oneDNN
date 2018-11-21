@@ -114,7 +114,7 @@ typename utils::enable_if<fmt_i == any && (false
         const int g = (fmt_o == hwigo_s8s8) ? (input_d.dims()[0]) : 1;
 
         return output_d.format() == fmt_o
-            && input_d.data_type() == f32
+            && (input_d.data_type() == f32 || input_d.data_type() == s8)
             && output_d.data_type() == s8
             && (D_mask == 1 || D_mask == (size_t)g * oc);
     }
@@ -179,7 +179,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         return input_d.format() == fmt_i
             && output_d.format() == fmt_o
-            && input_d.data_type() == f32
+            && (input_d.data_type() == f32 || input_d.data_type() == s8)
             && output_d.data_type() == s8
             && (D_mask == 1 || D_mask == (size_t)g * oc);
     }
