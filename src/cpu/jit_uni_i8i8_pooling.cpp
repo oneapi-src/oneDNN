@@ -51,11 +51,7 @@ struct jit_uni_i8i8_pooling_fwd_ker_t: public jit_generator {
     };
 
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
-    constexpr Xmm xreg(int idx) {
-        int vidx = cpu_isa_traits<isa>::n_vregs - 1 - idx; // reverse ordering
-        assert(vidx >= 0);
-        return Xmm(vidx);
-    }
+    constexpr Xmm xreg(int idx) { return Xmm(idx); }
     constexpr Ymm yreg(int idx) { return Ymm(xreg(idx).getIdx()); }
     constexpr Vmm vreg(int idx) { return Vmm(xreg(idx).getIdx()); }
 
@@ -497,6 +493,8 @@ template <>
 void jit_uni_i8i8_pooling_fwd_ker_t<avx512_core>::compute_max_op(const int jj)
 {
     using namespace data_type;
+
+    // Compare
     switch (jpp.src_dt) {
         case s32:
             vpcmpd(k_cmp_mask, vreg_dst(jj), vreg_src(jj), _cmp_lt_os);
@@ -509,7 +507,12 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx512_core>::compute_max_op(const int jj)
             break;
         default: assert(!"unsupported src data type");
     }
-    vpblendmd(vreg_dst(jj) | k_cmp_mask, vreg_dst(jj), vreg_src(jj));
+
+    // move max values into vreg_dst
+    if (jpp.src_dt == s32)
+        vpblendmd(vreg_dst(jj) | k_cmp_mask, vreg_dst(jj), vreg_src(jj));
+    else
+        vpblendmb(vreg_dst(jj) | k_cmp_mask, vreg_dst(jj), vreg_src(jj));
 }
 
 
