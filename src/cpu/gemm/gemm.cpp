@@ -217,7 +217,7 @@ mkldnn_status_t gemm_s8x8s32(const char *transa, const char *transb,
     bool AisN = (*transa == 'N' || *transa == 'n');
     bool BisN = (*transb == 'N' || *transb == 'n');
 
-#ifdef USE_CBLAS
+#if USE_MKL_IGEMM == 1
     if (data_traits<b_dt>::data_type == data_type::u8) {
         CBLAS_TRANSPOSE Cblas_trA = AisN ? CblasNoTrans : CblasTrans;
         CBLAS_TRANSPOSE Cblas_trB = BisN ? CblasNoTrans : CblasTrans;
