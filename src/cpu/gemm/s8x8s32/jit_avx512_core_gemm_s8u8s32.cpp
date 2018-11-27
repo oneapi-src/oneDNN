@@ -638,15 +638,64 @@ static inline void decompose_matrices(const int ithr, int *nthrs, dim_t *m,
     }
 }
 
+static inline void get_omp_thread_count(dim_t m, dim_t n, dim_t k,
+        double fp_per_cycle, int *nthrs)
+{
+    double omp_overhead_small_core = 3.0e+3;
+    double omp_intercept_big_core = 4.0e+3;
+    double omp_slope_big_core = 5.0e+2;
+
+    double gemm_cycles = 8.0 * m * n * k / fp_per_cycle;
+
+    int i = *nthrs;
+
+    // Use a different model for omp overheads if nthrs is <= 4
+    if (*nthrs <= 4 && omp_overhead_small_core > 0) {
+        double omp_cycles = omp_overhead_small_core;
+        if (gemm_cycles < omp_cycles) {
+            *nthrs = 1;
+            return;
+        } else {
+            while (i > 1) {
+                if (omp_cycles * i < gemm_cycles * (i - 1)) break;
+                --i;
+            }
+        }
+    } else {
+        if (gemm_cycles < (omp_intercept_big_core + 2 * omp_slope_big_core)) {
+            *nthrs = 1;
+            return;
+        }
+
+        // adaptive decrement to march faster·
+        while (i > 1) {
+            double omp_cycles = omp_intercept_big_core + i * omp_slope_big_core;
+            if (omp_cycles * i < gemm_cycles * (i - 1))
+                break;
+
+            if (i < 10)
+                i -= 2;
+            else if (i < 30)
+                i -= 4;
+            else
+                i -= 8;
+        }
+    }
+
+    if (i < 1)
+        i = 1;
+
+    *nthrs = i;
+}
+
 static int gemm_threading_driver(blas_t *arg)
 {
     if ((arg->m <= 0) || (arg->n <= 0))
         return mkldnn_success;
 
-    const int nthr = (mkldnn_in_parallel()) ? 1 : mkldnn_get_max_threads();
-    /*
-     * TODO Add a thread checker.
-     */
+    int nthr = (mkldnn_in_parallel()) ? 1 : mkldnn_get_max_threads();
+
+    get_omp_thread_count(arg->m, arg->n, arg->k, 64.0, &nthr);
 
     if (nthr == 1) {
         return gemm_kernel_driver(arg->m, arg->n, arg->k, arg->a, arg->b,
