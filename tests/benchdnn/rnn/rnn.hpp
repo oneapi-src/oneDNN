@@ -178,6 +178,9 @@ struct rnn_prb_t : public rnn_desc_t {
                 4 :
                 (alg == VANILLA_GRU || alg == LBR_GRU ? 3 : 1);
     }
+    int n_bias() const {
+        return alg == LBR_GRU ? n_gates() + 1 : n_gates();
+    }
 
     const dt_conf_t *cfg;
     mkldnn_prop_kind_t prop;
@@ -301,7 +304,7 @@ inline void inv_ldwOcIc_off_f(const rnn_prb_t *p, size_t off, int &l, int &d,
 
 // bias: mkldnn_ldgo
 inline size_t ldgo_off_f(const rnn_prb_t *p, int l, int d, int b, int c) {
-    return (((size_t)l * p->n_directions() + d) * p->n_gates() + b) * p->sic
+    return (((size_t)l * p->n_directions() + d) * p->n_bias() + b) * p->sic
             + c;
 }
 
@@ -309,8 +312,8 @@ inline void inv_ldgo_off_f(
         const rnn_prb_t *p, size_t off, int &l, int &d, int &b, int &c) {
     c = off % p->sic;
     off /= p->sic;
-    b = off % p->n_gates();
-    off /= p->n_gates();
+    b = off % p->n_bias();
+    off /= p->n_bias();
     d = off % p->n_directions();
     off /= p->n_directions();
     l = off % p->n_layer;

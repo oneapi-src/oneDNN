@@ -683,7 +683,7 @@ void gru_lbr_bwd(alg_t alg, activation_t f, int sic, int slc, int dic, int wc,
 
 
 // dc = (1 - u) * dh; dc^ = dtanhf(c) * dc;
-// du = (h - u) * dh; du^ = dlogistic(u) * du;
+// du = (h - c) * dh; du^ = dlogistic(u) * du;
 // dr = (Wh + b) * dc^; dr^ = dlogistic(r) * dr;
     const int ohu = 0;
     const int ohr = 1;
