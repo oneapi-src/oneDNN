@@ -50,9 +50,17 @@ static const rpd_create_f cpu_reorder_impl_list[] = {
     wino_reorder_t<f32, f32>::pd_t::create,
     wino_reorder_t<f32, s8>::pd_t::create,
 
+#if defined(__INTEL_COMPILER) || (defined(__GNUC__) && !defined(__clang__))
+    /* Direct copy for icc which is faster than jitted code;
+     * Direct copy for gcc which might or might not be faster than jitted
+     * code, but still worth it because doesn't require jitting, i.e. much
+     * faster creation time. This is tentative solution and should be removed
+     * later (when we will cache jitted code?...). */
+    REG_SR_DIRECT_COPY(f32, f32),
+#endif
+
 #ifdef __INTEL_COMPILER
     /* direct copy for icc, which is faster than jitted code */
-    REG_SR_DIRECT_COPY(f32, f32),
     REG_SR_DIRECT_COPY(f32, s32),
     REG_SR_DIRECT_COPY(f32, s8),
     REG_SR_DIRECT_COPY(f32, u8),
