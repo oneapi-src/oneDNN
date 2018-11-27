@@ -611,8 +611,8 @@ void gru_bwd(alg_t alg, activation_t f, int sic, int slc, int dic, int wc,
             b_gates(ib, ohc, ih) = dtanhf(c) * dc;
             diff_src_iter(ib, ih) = dh * u;
         }
-    gemm("C", "N", "T", batch, slc, dic, 1.0, &(b_gates(0, 2, 0)), n_gates * dic,
-            &(weights_layer(0, 2, 0)), n_gates * dic, 0.0, dhr_, wc);
+    gemm("C", "N", "T", batch, sic, dic, 1.0, &(b_gates(0, 2, 0)), n_gates * dic,
+            &(weights_iter_h(0, 2, 0)), n_gates * dic, 0.0, dhr_, wc);
 
     for (int ib = 0; ib < batch; ib++)
         for (int ih = 0; ih < dic; ih++) {
