@@ -307,15 +307,24 @@ static int gemm_kernel_driver(const dim_t m, const dim_t n, const dim_t k,
                     if (sizeUM > arg->um)
                         sizeUM = arg->um;
 
+                    /*
+                     * Use the whole A buffer only if we have multiple B blocks
+                     * for k-dimension, otherwise we are wasting cache to store
+                     * B and C blocks.
+                     */
+                    dim_t Um_forA = 0;
+                    if (sizeN < n)
+                        Um_forA = Um;
+
                     const int8_t *a_block = a + (Bm + Um) * strideAm + Bk * strideAn;
                     if (!a_block_copied) {
-                        arg->copyA(&sizeK, &sizeUM, a_block, &lda, NULL, bufferA + Um * sizeK);
-                        get_a_row_sum(arg->transa, sizeUM, sizeK, a_block, lda, bo, a_row_sum + Um);
+                        arg->copyA(&sizeK, &sizeUM, a_block, &lda, NULL, bufferA + Um_forA * sizeK);
+                        get_a_row_sum(arg->transa, sizeUM, sizeK, a_block, lda, bo, a_row_sum + Um_forA);
                     }
 
                     int32_t *c_block = c + (Bm + Um) + Bn * ldc;
                     if (bufferC) {
-                        arg->kernel_b0(&sizeUM, &sizeN, &sizeK, NULL, bufferA + Um * sizeK, bufferB, bufferC + Um, ldc_buf);
+                        arg->kernel_b0(&sizeUM, &sizeN, &sizeK, NULL, bufferA + Um_forA * sizeK, bufferB, bufferC + Um, ldc_buf);
 
                         // Finish the block adding the necessary alpha, beta
                         // and offsets.
@@ -327,12 +336,12 @@ static int gemm_kernel_driver(const dim_t m, const dim_t n, const dim_t k,
                         } else if (offsetc == 2) { // Column offset.
                             co_stride = Bm + Um;
                         }
-                        add_results(sizeUM, sizeN, sizeK, alpha, beta, bufferC + Um, ldc_buf, c_block, ldc, a_row_sum + Um, b_col_sum, ao, bo, co + co_stride, offsetc);
+                        add_results(sizeUM, sizeN, sizeK, alpha, beta, bufferC + Um, ldc_buf, c_block, ldc, a_row_sum + Um_forA, b_col_sum, ao, bo, co + co_stride, offsetc);
                     } else {
                         if (beta == 0.0f)
-                            arg->kernel_b0(&sizeUM, &sizeN, &sizeK, NULL, bufferA + Um * sizeK, bufferB, c_block, ldc);
+                            arg->kernel_b0(&sizeUM, &sizeN, &sizeK, NULL, bufferA + Um_forA * sizeK, bufferB, c_block, ldc);
                         else
-                            arg->kernel(&sizeUM, &sizeN, &sizeK, NULL, bufferA + Um * sizeK, bufferB, c_block, ldc);
+                            arg->kernel(&sizeUM, &sizeN, &sizeK, NULL, bufferA + Um_forA * sizeK, bufferB, c_block, ldc);
                     }
                 }
                 a_block_copied = 1;
