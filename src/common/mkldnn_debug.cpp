@@ -72,6 +72,7 @@ const char *mkldnn_fmt2str(mkldnn_memory_format_t v) {
     if (v == mkldnn_wio) return "wio";
     if (v == mkldnn_oihw) return "oihw";
     if (v == mkldnn_hwio) return "hwio";
+    if (v == mkldnn_iohw) return "iohw";
     if (v == mkldnn_hwio_s8s8) return "hwio_s8s8";
     if (v == mkldnn_ihwo) return "ihwo";
     if (v == mkldnn_oidhw) return "oidhw";
@@ -79,6 +80,7 @@ const char *mkldnn_fmt2str(mkldnn_memory_format_t v) {
     if (v == mkldnn_goiw) return "goiw";
     if (v == mkldnn_goihw) return "goihw";
     if (v == mkldnn_hwigo) return "hwigo";
+    if (v == mkldnn_giohw) return "giohw";
     if (v == mkldnn_hwigo_s8s8) return "hwigo_s8s8";
     if (v == mkldnn_goidhw) return "goidhw";
     if (v == mkldnn_ntc) return "ntc";

@@ -188,6 +188,9 @@ typedef enum {
     /** 4D weights tensor with physical layout @c ihwo.
      * Logical dimensions come in the order: (o, i, h, w) */
     mkldnn_ihwo,
+    /** 4D weights tensor with physical layout @c iohw.
+     * Logical dimensions come in the order: (o, i, h, w) */
+    mkldnn_iohw,
     /** 5D weights tensor with physical layout @c iodhw, used in Caffe.
      * Logical dimensions come in the order: (o, i, d, h, w) */
     mkldnn_oidhw,
@@ -205,6 +208,9 @@ typedef enum {
      * used in TensorFlow.
      * Logical dimensions come in the order: (g, o, i, h, w) */
     mkldnn_hwigo,
+    /** 5D grouped weights tensor with the physical layout @c giohw.
+     * Logical dimensions come in the order: (g, o, i, h, w) */
+    mkldnn_giohw,
     /** 6D grouped weights tensor with the physical layout @c goidhw,
      * used in Caffe.
      * Logical dimensions come in the order: (g, o, i, d, h, w) */
