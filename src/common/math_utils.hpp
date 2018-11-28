@@ -108,12 +108,14 @@ inline int ilog2q(size_t v) {
     return p;
 }
 
-template <typename T> inline T one_m_square(T x) {
-    return (1 - x) * (1 + x);
+template <typename T, typename U = typename utils::remove_reference<T>::type>
+inline U one_m_square(T x) {
+    return (U)(1 - x) * (1 + x);
 }
 
-template <typename T> inline T x_m_square(T x) {
-    return (1 - x) * x;
+template <typename T, typename U = typename utils::remove_reference<T>::type>
+inline U x_m_square(T x) {
+    return (U)(1 - x) * x;
 }
 
 /* activation */
