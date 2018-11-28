@@ -116,9 +116,19 @@ void ref_softmax_fwd_t<data_type>::_exp(int n, const data_t *a, data_t *r) {
 template <impl::data_type_t data_type>
 void ref_softmax_fwd_t<data_type>::_sum(int n, const data_t *x,
         data_t *sum_data) {
-    sum_data[0] = 0;
+#ifdef USE_MKL
+    // Here we are summing x's eg. e^z , which are positives
+    // so we can use BLAS ASUM
+    if (data_type == data_type::f32) {
+        sum_data[0] = cblas_sasum(n, x, 1);
+        return;
+    }
+#endif  
+    data_t tsum = static_cast<data_t>(0);
+    PRAGMA_OMP_SIMD(reduction(+ : tsum))
     for (int c = 0; c < n; ++c)
-        sum_data[0] += x[c];
+        tsum += x[c];
+    sum_data[0] = tsum;
 }
 
 template <impl::data_type_t data_type>
