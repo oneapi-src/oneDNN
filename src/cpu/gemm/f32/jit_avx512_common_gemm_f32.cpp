@@ -19,7 +19,7 @@
 #include "mkldnn_thread.hpp"
 #include "utils.hpp"
 
-#include "gemm_utils.hpp"
+#include "gemm_utils_f32.hpp"
 #include "jit_avx512_common_gemm_f32.hpp"
 
 #define CACHE_LINE_SIZE 64

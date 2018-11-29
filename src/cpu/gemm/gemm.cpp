@@ -17,16 +17,16 @@
 
 #include "mkldnn.h"
 
+#include "mkldnn_traits.hpp"
+#include "math_utils.hpp"
+#include "nstl.hpp"
 #include "verbose.hpp"
 
-#include "jit_avx_gemm_f32.hpp"
-#include "jit_avx512_common_gemm_f32.hpp"
-#include "gemm.hpp"
-#include "../jit_generator.hpp"
-#include "nstl.hpp"
+#include "f32/jit_avx_gemm_f32.hpp"
+#include "f32/jit_avx512_common_gemm_f32.hpp"
+
 #include "os_blas.hpp"
-#include "math_utils.hpp"
-#include "mkldnn_traits.hpp"
+#include "gemm.hpp"
 
 /* USE_MKL      USE_CBLAS       effect
  * -------      ---------       ------

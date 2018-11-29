@@ -20,7 +20,7 @@
 
 #include "../jit_generator.hpp"
 
-#include "gemm_utils.hpp"
+#include "gemm_utils_f32.hpp"
 
 namespace mkldnn {
 namespace impl {

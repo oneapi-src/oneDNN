@@ -61,8 +61,6 @@ void calc_nthr_nocopy_avx(int m, int n, int k,
 
 void partition_unit_diff(
         int ithr, int nthr, int n, int *t_offset, int *t_block);
-
-inline double saturate(double value, double min, double max);
 };
 
 }
