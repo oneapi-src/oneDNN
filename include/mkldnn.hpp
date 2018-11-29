@@ -470,6 +470,19 @@ struct primitive_attr: public handle<mkldnn_primitive_attr_t> {
         error::wrap_c_api(mkldnn_primitive_attr_set_post_ops(get(), ops.get()),
                 "could not set post operation sequence");
     }
+
+    void set_rnn_data_qparams(const float scale, const float shift)
+    {
+        error::wrap_c_api(mkldnn_primitive_attr_set_rnn_data_qparams(get(),
+                    scale, shift), "could not set rnn data int scale/shift");
+    }
+
+    void set_rnn_weights_qparams(int mask, const std::vector<float> &scales)
+    {
+        error::wrap_c_api(mkldnn_primitive_attr_set_rnn_weights_qparams(get(),
+                    (int)scales.size(), mask, &scales[0]),
+                "could not set rnn weights int scales");
+    }
 };
 
 /// @}

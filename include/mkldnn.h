@@ -345,7 +345,7 @@ mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_get_output_scales(
  * @note
  *      There is no way to check that @p count corresponds to @p mask until an
  *      actual primitive descriptor is created, so it is user's responsibility
- *      to set proper values. The following formula must be hold:
+ *      to set proper values. The following formula must be held:
  *
  *      \f[count = \prod\limits_{d \in mask} output.dims[d]\f]
  */
@@ -1515,6 +1515,84 @@ int MKLDNN_API mkldnn_rnn_cell_get_gates_count(
 /** Returns the number of states of a particular @p rnn_cell_desc. */
 int MKLDNN_API mkldnn_rnn_cell_get_states_count(
         const mkldnn_rnn_cell_desc_t *rnn_cell_desc);
+
+/** Sets quantization @p scale and @p shift for RNN data tensors.
+ *  For performance reasons, low precision configuration of RNN primitive
+ *  expects input activations to have unsigned int8 data type. Scale and shift
+ *  used to quantize floating point data to unsigned integer must be passed to
+ *  RNN primitive using attributes.
+ *  Example usage:
+ * @code
+ *      // rnn parameters
+ *      int l = 2, t = 2, mb = 32, sic = 32, slc = 32, dic = 32, dlc = 32;
+ *      // activations quantization parameters
+ *      float scale = ..., shift = ..;
+ *
+ *      mkldnn_primitive_attr_t rnn_attr;
+ *      // create default attributes
+ *      mkldnn_primitive_attr_create(&rnn_attr);
+ *
+ *      // set scale and shift for int8 quantization of activation
+ *      mkldnn_primitive_attr_set_rnn_data_qparams(rnn_attr, scale, shift);
+ *
+ *      // create & configure rnn op_desc
+ *      mkldnn_rnn_desc_t rnn_d;
+ *      mkldnn_primitive_desc_t rnn_pd;
+ *      mkldnn_primitive_desc_create_v2(&rnn_pd, &rnn_d, attr, NULL);
+ * @endcode
+ * @note
+ *      Quantization scale and shift are common for src_layer, src_iter,
+ *      dst_iter and dst_layer.
+ */
+mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_set_rnn_data_qparams(
+        mkldnn_primitive_attr_t attr, const float scale, const float shift);
+
+/** Sets quantization scales @p weights_scales for RNN weights tensors.
+ * Low precision configuration of RNN primitive expects input weights to have
+ * signed int8 data type. Scales used to quantize floating point data
+ * to signed integer must be passed to RNN primitive using attributes.
+ * The @p mask argument defines correspondence between output tensor dimensions
+ * and the @p weights_scales array. Set i-th bit of @p mask to 1 to use
+ * dedicated scaling factor for each slice of the output tensor over i-th
+ * dimension. Set @p mask to 0 to use common scaling factor for the whole output
+ * tensor. Example usage:
+ * @code
+ *      // rnn parameters
+ *      int l = 2, t = 2, mb = 32, sic = 32, slc = 32, dic = 32, dlc = 32;
+ *      // unique output scales per output channel
+ *      float weights_scales[dic * n_gates] = { ... };
+ *      // mask that specifies last two dimensions of ldigo format
+ *      int mask = 0x3;
+ *
+ *      mkldnn_primitive_attr_t attr;
+ *      // create default attributes
+ *      mkldnn_primitive_attr_create(&attr);
+ *
+ *      // set output channel-wise weights scales
+ *      mkldnn_primitive_attr_set_rnn_weights_qparams(attr, dic * n_gates, mask,
+ *              weights_scales);
+ *
+ *      // create & configure rnn op_desc
+ *      mkldnn_rnn_desc_t rnn_d;
+ *      mkldnn_primitive_desc_t rnn_pd;
+ *      mkldnn_primitive_desc_create_v2(&rnn_pd, &rnn_d, attr, NULL);
+ * @endcode
+ * @note
+ *      The dimension order is always native and does not depend on the actual
+ *      layout used. For example, 5 dimensional weights always have
+ *      (l, d, i, g, o) logical dimension ordering.
+ * @note
+ *      Quantization sales are common for weights_layer and weights_iteration
+ * @note
+ *      There is no way to check that @p count corresponds to @p mask until an
+ *      actual primitive descriptor is created, so it is user's responsibility
+ *      to set proper values. The following formula must be held:
+ *
+ *      \f[count = \prod\limits_{d \in mask} output.dims[d]\f]
+ */
+mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_set_rnn_weights_qparams (
+        mkldnn_primitive_attr_t attr, int count, int mask,
+                const float *weights_scales);
 
 /** Initializes a rnn descriptor @p rnn_desc for forward propagation
  * using @p prop_kind, @p rnn_cell_desc, @p direction, and memory descriptors.
