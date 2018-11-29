@@ -52,7 +52,7 @@
 #define KERNEL_B0_AVX512        "kernel/igemm_kernel_b0_avx512.inc"
 #define KERNEL_B0_AVX512_VNNI   "kernel/igemm_kernel_b0_avx512_vnni.inc"
 
-#include "../jit_generator.hpp"
+#include "jit_generator.hpp"
 
 namespace mkldnn {
 namespace impl {

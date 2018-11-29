@@ -18,7 +18,7 @@
 #define JIT_AVX_GEMM_F32_HPP
 
 #include "c_types_map.hpp"
-#include "../jit_generator.hpp"
+#include "jit_generator.hpp"
 
 namespace mkldnn {
 namespace impl {

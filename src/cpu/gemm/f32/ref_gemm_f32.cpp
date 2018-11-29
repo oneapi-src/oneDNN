@@ -18,7 +18,7 @@
 #include "nstl.hpp"
 #include "utils.hpp"
 
-#include "../jit_generator.hpp"
+#include "jit_generator.hpp"
 
 #include "gemm_utils_f32.hpp"
 

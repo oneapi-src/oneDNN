@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "../jit_generator.hpp"
+#include "jit_generator.hpp"
 #include "common.hpp"
 
 namespace mkldnn {

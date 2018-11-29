@@ -15,7 +15,7 @@
 *******************************************************************************/
 
 #include <stdint.h>
-#include "../../jit_generator.hpp"
+#include "jit_generator.hpp"
 #include "../gemm.hpp"
 #include "math_utils.hpp"
 #include "mkldnn_thread.hpp"
