@@ -603,7 +603,6 @@ int doit(const prb_t *p, res_t *r) {
         if (bench_mode & CORR) {
             compute_ref_fwd(p, src_fp, wei_fp, bia_fp, dst_fp);
             dnn_mem_t dst(dst_dt, fp, src_format);
-            SAFE(dst.reorder(dst_dt), WARN);
             SAFE(compare_dst(p, dst, dst_fp, r, true), WARN);
         }
     } else if (p->dir == BWD_D) {
@@ -614,7 +613,6 @@ int doit(const prb_t *p, res_t *r) {
         if (bench_mode & CORR) {
             compute_ref_bwd_d(p, src_fp, wei_fp, bia_fp, dst_fp);
             dnn_mem_t src(src_dt, fp, src_format);
-            SAFE(src.reorder(src_dt), WARN);
             SAFE(compare_src(p, src, src_fp, r, true), WARN);
         }
     } else if (p->dir & FLAG_BWD && p->dir & FLAG_WEI) {
@@ -627,11 +625,9 @@ int doit(const prb_t *p, res_t *r) {
         if (bench_mode & CORR) {
             compute_ref_bwd_w(p, src_fp, wei_fp, bia_fp, dst_fp);
             dnn_mem_t wei(wei_dt, fp, wei_format);
-            SAFE(wei.reorder(wei_dt), WARN);
             SAFE(compare_wei(p, wei, wei_fp, r, true), WARN);
             if (p->dir & FLAG_BIA) {
                 dnn_mem_t bia(bia_dt, fp, mkldnn_x);
-                SAFE(bia.reorder(bia_dt), WARN);
                 SAFE(compare_bia(p, bia, bia_fp, r, true), WARN);
             }
         }

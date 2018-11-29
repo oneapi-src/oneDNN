@@ -417,8 +417,6 @@ int doit(const rnn_prb_t *p, res_t *r) {
             dnn_mem_t dst_last_layer(*dst_last_layer_dt, fp, mkldnn_tnc);
             dnn_mem_t dst_last_iteration(
                     *dst_last_iteration_dt, fp, mkldnn_ldsnc);
-            SAFE(dst_last_layer.reorder(*dst_last_layer_dt), WARN);
-            SAFE(dst_last_iteration.reorder(*dst_last_iteration_dt), WARN);
             SAFE(compare_dst_last_layer(
                          p, dst_last_layer, *dst_last_layer_fp, r, true),
                     WARN);
@@ -457,8 +455,6 @@ int doit(const rnn_prb_t *p, res_t *r) {
             dnn_mem_t dst_last_layer(*dst_last_layer_dt, fp, mkldnn_tnc);
             dnn_mem_t dst_last_iteration(
                     *dst_last_iteration_dt, fp, mkldnn_ldsnc);
-            SAFE(dst_last_layer.reorder(*dst_last_layer_dt), WARN);
-            SAFE(dst_last_iteration.reorder(*dst_last_iteration_dt), WARN);
             SAFE(compare_dst_last_layer(
                          p, dst_last_layer, *dst_last_layer_fp, r, true),
                     WARN);
@@ -468,8 +464,6 @@ int doit(const rnn_prb_t *p, res_t *r) {
 
             dnn_mem_t diff_input(*dst_diff_input_dt, fp, mkldnn_tnc);
             dnn_mem_t diff_states(*dst_diff_states_dt, fp, mkldnn_ldsnc);
-            SAFE(diff_input.reorder(*dst_diff_input_dt), WARN);
-            SAFE(diff_states.reorder(*dst_diff_states_dt), WARN);
             SAFE(compare_input(p, diff_input, *dst_diff_input_fp, r, true),
                     WARN);
             SAFE(compare_states(p, diff_states, *dst_diff_states_fp, r, true),
@@ -479,9 +473,6 @@ int doit(const rnn_prb_t *p, res_t *r) {
                     *dst_diff_weights_input_dt, fp, mkldnn_ldigo);
             dnn_mem_t diff_weights_states(
                     *dst_diff_weights_states_dt, fp, mkldnn_ldigo);
-            SAFE(diff_weights_input.reorder(*dst_diff_weights_input_dt), WARN);
-            SAFE(diff_weights_states.reorder(*dst_diff_weights_states_dt),
-                    WARN);
             SAFE(compare_weights_input(p, diff_weights_input,
                          *dst_diff_weights_input_fp, r, true),
                     WARN);
@@ -490,7 +481,6 @@ int doit(const rnn_prb_t *p, res_t *r) {
                     WARN);
 
             dnn_mem_t diff_bias(*dst_diff_bias_dt, fp, mkldnn_ldgo);
-            SAFE(diff_bias.reorder(*dst_diff_bias_dt), WARN);
             SAFE(compare_bias(p, diff_bias, *dst_diff_bias_fp, r, true), WARN);
         }
     }

@@ -161,8 +161,7 @@ int doit(const prb_t *p, res_t *r) {
     SAFE(execute(s), WARN);
     if (bench_mode & CORR) {
         compute_shuffle(p, data_fp, d_data_fp);
-        dnn_mem_t data(d_data_dt.md_, fp, src_format);
-        SAFE(data.reorder(d_data_dt), WARN);
+        dnn_mem_t data(d_data_dt, fp, src_format);
         SAFE(compare(p, d_data_fp, data, r), WARN);
     }
 
