@@ -14,13 +14,14 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <cstdint>
 #include <mutex>
-#include <stdint.h>
+
 #include "common.hpp"
-#include "jit_avx512_core_gemm_s8u8s32.hpp"
 #include "mkldnn_types.h"
 #include "nstl.hpp"
 
+#include "jit_avx512_core_gemm_s8u8s32.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -674,8 +675,6 @@ static int gemm_threading_driver(blas_t *arg)
     return status;
 }
 
-static std::mutex jit_mutex;
-static volatile int jit_initialized = 0;
 static jit_avx512_core_u8_copy_an_kern *copy_an;
 static jit_avx512_core_u8_copy_at_kern *copy_at;
 static jit_avx512_core_u8_copy_bn_kern *copy_bn;
@@ -683,7 +682,7 @@ static jit_avx512_core_u8_copy_bt_kern *copy_bt;
 static jit_avx512_core_kernel_gemm_s8u8s32_kern *kernel;
 static jit_avx512_core_kernel_b0_gemm_s8u8s32_kern *kernel_b0;
 
-static void jit_init(cpu_isa_t arch, blas_t *arg)
+static void jit_init(blas_t *arg)
 {
     static int (*copyAn )(const dim_t *m, const dim_t *n, const int8_t *a , const dim_t *lda, const int8_t *alpha, int8_t *b);
     static int (*copyAt )(const dim_t *m, const dim_t *n, const int8_t *a , const dim_t *lda, const int8_t *alpha, int8_t *b);
@@ -692,22 +691,7 @@ static void jit_init(cpu_isa_t arch, blas_t *arg)
     static int (*kern   )(const dim_t *m, const dim_t *n, const dim_t *k, const float *alpha, const int8_t *a, const uint8_t *b, int32_t *c, const dim_t ldc);
     static int (*kern_b0)(const dim_t *m, const dim_t *n, const dim_t *k, const float *alpha, const int8_t *a, const uint8_t *b, int32_t *c, const dim_t ldc);
 
-    switch (arch) {
-        default:
-        case avx512_core:
-            arg->um = AVX512_UNROLL_M;
-            arg->un = AVX512_UNROLL_N;
-            arg->uk = AVX512_UNROLL_K;
-            arg->bm = AVX512_BM;
-            arg->bn = AVX512_BN;
-            arg->bk = AVX512_BK;
-
-            arg->bk_traditional   = AVX512_BK_TRADITIONAL;
-            arg->bn_small_k       = AVX512_BN_SMALL_K;
-            arg->blocking_small_k = AVX512_BLOCKING_SMALL_K;
-            break;
-
-        case avx512_core_vnni:
+    if (mayiuse(avx512_core_vnni)) {
             arg->um = AVX512_UNROLL_M;
             arg->un = AVX512_UNROLL_N;
             arg->uk = AVX512_UNROLL_K;
@@ -718,18 +702,27 @@ static void jit_init(cpu_isa_t arch, blas_t *arg)
             arg->bk_traditional   = AVX512_BK_TRADITIONAL;
             arg->bn_small_k       = AVX512_BN_SMALL_K;
             arg->blocking_small_k = AVX512_BLOCKING_SMALL_K;
-            break;
+    } else {
+            arg->um = AVX512_UNROLL_M;
+            arg->un = AVX512_UNROLL_N;
+            arg->uk = AVX512_UNROLL_K;
+            arg->bm = AVX512_BM;
+            arg->bn = AVX512_BN;
+            arg->bk = AVX512_BK;
+
+            arg->bk_traditional   = AVX512_BK_TRADITIONAL;
+            arg->bn_small_k       = AVX512_BN_SMALL_K;
+            arg->blocking_small_k = AVX512_BLOCKING_SMALL_K;
     }
 
-    if (jit_initialized == 0) {
-        std::lock_guard<std::mutex> lock(jit_mutex);
-
-        copy_an   = new jit_avx512_core_u8_copy_an_kern(arch);
-        copy_at   = new jit_avx512_core_u8_copy_at_kern(arch);
-        copy_bn   = new jit_avx512_core_u8_copy_bn_kern(arch);
-        copy_bt   = new jit_avx512_core_u8_copy_bt_kern(arch);
-        kernel    = new jit_avx512_core_kernel_gemm_s8u8s32_kern(arch);
-        kernel_b0 = new jit_avx512_core_kernel_b0_gemm_s8u8s32_kern(arch);
+    static std::once_flag initialized;
+    std::call_once(initialized, []{
+        copy_an   = new jit_avx512_core_u8_copy_an_kern();
+        copy_at   = new jit_avx512_core_u8_copy_at_kern();
+        copy_bn   = new jit_avx512_core_u8_copy_bn_kern();
+        copy_bt   = new jit_avx512_core_u8_copy_bt_kern();
+        kernel    = new jit_avx512_core_kernel_gemm_s8u8s32_kern();
+        kernel_b0 = new jit_avx512_core_kernel_b0_gemm_s8u8s32_kern();
 
         copyAn  = copy_an   -> getCode<int (*)(const dim_t *, const dim_t *, const int8_t  *, const dim_t *, const int8_t  *, int8_t  *)>();
         copyAt  = copy_at   -> getCode<int (*)(const dim_t *, const dim_t *, const int8_t  *, const dim_t *, const int8_t  *, int8_t  *)>();
@@ -737,9 +730,7 @@ static void jit_init(cpu_isa_t arch, blas_t *arg)
         copyBt  = copy_bt   -> getCode<int (*)(const dim_t *, const dim_t *, const uint8_t *, const dim_t *, const uint8_t *, uint8_t *)>();
         kern    = kernel    -> getCode<int (*)(const dim_t *, const dim_t *, const dim_t *, const float *, const int8_t *, const uint8_t *, int32_t *, const dim_t)>();
         kern_b0 = kernel_b0 -> getCode<int (*)(const dim_t *, const dim_t *, const dim_t *, const float *, const int8_t *, const uint8_t *, int32_t *, const dim_t)>();
-
-        jit_initialized = 1;
-    }
+    });
 
     if (arg->transa == 0) {
         arg->copyA = copyAn;
@@ -762,11 +753,8 @@ mkldnn_status_t jit_avx512_core_gemm_s8u8s32(
         const int *m, const int *n, const int *k,
         const float *alpha, const int8_t *a, const int *lda, const int8_t *oa,
         const uint8_t *b, const int *ldb, const int8_t *ob,
-        const float *beta, int32_t *c, const int *ldc, const int32_t *oc,
-        const cpu_isa_t arch)
+        const float *beta, int32_t *c, const int *ldc, const int32_t *oc)
 {
-    assert(arch == avx512_core || arch == avx512_core_vnni);
-
     char transa  = *transA;
     char transb  = *transB;
     char offsetc = *offsetC;
@@ -808,7 +796,7 @@ mkldnn_status_t jit_avx512_core_gemm_s8u8s32(
         args.offsetc = 2;
     }
 
-    jit_init(arch, &args);
+    jit_init(&args);
     int result = gemm_threading_driver(&args);
 
     return (result < 0 ) ? mkldnn_out_of_memory : mkldnn_success;

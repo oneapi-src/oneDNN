@@ -35,16 +35,12 @@
 #define AVX512_BN_SMALL_K                 24
 
 #define COPY_AN_AVX512          "kernel/igemm_copy_an_avx512.inc"
-#define COPY_AN_AVX512_VNNI     "kernel/igemm_copy_an_avx512_vnni.inc"
 
 #define COPY_AT_AVX512          "kernel/igemm_copy_at_avx512.inc"
-#define COPY_AT_AVX512_VNNI     "kernel/igemm_copy_at_avx512_vnni.inc"
 
 #define COPY_BN_AVX512          "kernel/igemm_copy_bn_avx512.inc"
-#define COPY_BN_AVX512_VNNI     "kernel/igemm_copy_bn_avx512_vnni.inc"
 
 #define COPY_BT_AVX512          "kernel/igemm_copy_bt_avx512.inc"
-#define COPY_BT_AVX512_VNNI     "kernel/igemm_copy_bt_avx512_vnni.inc"
 
 #define KERNEL_AVX512           "kernel/igemm_kernel_avx512.inc"
 #define KERNEL_AVX512_VNNI      "kernel/igemm_kernel_avx512_vnni.inc"
@@ -58,12 +54,12 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-class jit_avx512_core_u8_copy_an_kern   : public jit_generator { public: jit_avx512_core_u8_copy_an_kern  (cpu_isa_t arch); DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_u8_copy_an_kern  );};
-class jit_avx512_core_u8_copy_at_kern   : public jit_generator { public: jit_avx512_core_u8_copy_at_kern  (cpu_isa_t arch); DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_u8_copy_at_kern  );};
-class jit_avx512_core_u8_copy_bn_kern   : public jit_generator { public: jit_avx512_core_u8_copy_bn_kern  (cpu_isa_t arch); DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_u8_copy_bn_kern  );};
-class jit_avx512_core_u8_copy_bt_kern   : public jit_generator { public: jit_avx512_core_u8_copy_bt_kern  (cpu_isa_t arch); DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_u8_copy_bt_kern  );};
-class jit_avx512_core_kernel_gemm_s8u8s32_kern    : public jit_generator { public: jit_avx512_core_kernel_gemm_s8u8s32_kern   (cpu_isa_t arch); DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_kernel_gemm_s8u8s32_kern   );};
-class jit_avx512_core_kernel_b0_gemm_s8u8s32_kern : public jit_generator { public: jit_avx512_core_kernel_b0_gemm_s8u8s32_kern(cpu_isa_t arch); DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_kernel_b0_gemm_s8u8s32_kern);};
+class jit_avx512_core_u8_copy_an_kern   : public jit_generator { public: jit_avx512_core_u8_copy_an_kern  (); DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_u8_copy_an_kern  );};
+class jit_avx512_core_u8_copy_at_kern   : public jit_generator { public: jit_avx512_core_u8_copy_at_kern  (); DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_u8_copy_at_kern  );};
+class jit_avx512_core_u8_copy_bn_kern   : public jit_generator { public: jit_avx512_core_u8_copy_bn_kern  (); DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_u8_copy_bn_kern  );};
+class jit_avx512_core_u8_copy_bt_kern   : public jit_generator { public: jit_avx512_core_u8_copy_bt_kern  (); DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_u8_copy_bt_kern  );};
+class jit_avx512_core_kernel_gemm_s8u8s32_kern    : public jit_generator { public: jit_avx512_core_kernel_gemm_s8u8s32_kern   (); DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_kernel_gemm_s8u8s32_kern   );};
+class jit_avx512_core_kernel_b0_gemm_s8u8s32_kern : public jit_generator { public: jit_avx512_core_kernel_b0_gemm_s8u8s32_kern(); DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_kernel_b0_gemm_s8u8s32_kern);};
 
 }
 }

@@ -14,12 +14,14 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <stdint.h>
-#include "jit_generator.hpp"
-#include "../f32/ref_gemm_f32.hpp"
+#include <cstdint>
+
 #include "math_utils.hpp"
 #include "mkldnn_thread.hpp"
 #include "utils.hpp"
+
+#include "../f32/ref_gemm_f32.hpp"
+#include "jit_generator.hpp"
 
 namespace mkldnn {
 namespace impl {

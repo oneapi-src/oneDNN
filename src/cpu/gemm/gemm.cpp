@@ -209,8 +209,8 @@ mkldnn_status_t gemm_s8x8s32(const char *transa, const char *transb,
     if (status != mkldnn_success)
         return status;
 
-#if USE_MKL_IGEMM
     if (data_traits<b_dt>::data_type == data_type::u8) {
+#if USE_MKL_IGEMM
         bool OCisR = (*offsetc == 'R' || *offsetc == 'r');
         bool OCisC = (*offsetc == 'C' || *offsetc == 'c');
         bool AisN = (*transa == 'N' || *transa == 'n');
@@ -228,41 +228,19 @@ mkldnn_status_t gemm_s8x8s32(const char *transa, const char *transb,
                 *M, *N, *K, *alpha, A, *LDA, *ao, (uint8_t *)B, *LDB, *bo,
                 *beta, C, *LDC, co);
         return mkldnn_success;
-    } else {
-        assert(data_traits<b_dt>::data_type == data_type::s8);
-        // TODO CBLAS implementation of gemm_s8s8s32 goes here.
-        // Calling reference implementation.
-        return ref_gemm_s8x8s32(transa, transb, offsetc, M, N, K, alpha, A,
-                LDA, ao, B, LDB, bo, beta, C, LDC, co);
-    }
 #else
-    if (data_traits<b_dt>::data_type == data_type::u8) {
-        cpu_isa_t isa = isa_any;
-
-        if (mayiuse(avx512_core_vnni)) {
-            isa = avx512_core_vnni;
-        } else if (mayiuse(avx512_core)) {
-            isa = avx512_core;
-        }
-
-        switch (isa) {
-            case avx512_core:
-            case avx512_core_vnni:
-                return jit_avx512_core_gemm_s8u8s32(transa, transb, offsetc, M,
-                        N, K, alpha, A, LDA, ao, (uint8_t *)B, LDB, bo, beta,
-                        C, LDC, co, isa);
-                break;
-
-            default:
-                return ref_gemm_s8x8s32(transa, transb, offsetc, M, N, K,
-                        alpha, A, LDA, ao, B, LDB, bo, beta, C, LDC, co);
-        }
-    } else {
-        assert(data_traits<b_dt>::data_type == data_type::s8);
-        return ref_gemm_s8x8s32(transa, transb, offsetc, M, N, K, alpha, A,
-                LDA, ao, B, LDB, bo, beta, C, LDC, co);
-    }
+        if (mayiuse(avx512_core))
+            return jit_avx512_core_gemm_s8u8s32(transa, transb, offsetc, M,
+                    N, K, alpha, A, LDA, ao, (uint8_t *)B, LDB, bo, beta,
+                    C, LDC, co);
 #endif
+    }
+
+    // TODO: s8s8s32 gemm (when available) will have to use a separate code
+    // path
+    return ref_gemm_s8x8s32(
+            transa, transb, offsetc, M, N, K, alpha, A, LDA, ao, B, LDB, bo,
+            beta, C, LDC, co);
 }
 
 }

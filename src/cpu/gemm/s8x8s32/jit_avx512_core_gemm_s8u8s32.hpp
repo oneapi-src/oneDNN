@@ -17,7 +17,7 @@
 #ifndef JIT_AVX512_CORE_GEMM_S8U8S32_HPP
 #define JIT_AVX512_CORE_GEMM_S8U8S32_HPP
 
-#include <stdint.h>
+#include <cstdint>
 #include "mkldnn_types.h"
 
 namespace mkldnn {
@@ -29,8 +29,7 @@ mkldnn_status_t jit_avx512_core_gemm_s8u8s32(
         const int *m, const int *n, const int *k,
         const float *alpha, const int8_t *a, const int *lda, const int8_t *oa,
         const uint8_t *b, const int *ldb, const int8_t *ob,
-        const float *beta, int32_t *c, const int *ldc, const int32_t *oc,
-        const cpu_isa_t arch);
+        const float *beta, int32_t *c, const int *ldc, const int32_t *oc);
 
 }
 }

@@ -21,19 +21,9 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-jit_avx512_core_u8_copy_at_kern::jit_avx512_core_u8_copy_at_kern(cpu_isa_t arch): jit_generator(nullptr, GEMM_CODE_SIZE)
+jit_avx512_core_u8_copy_at_kern::jit_avx512_core_u8_copy_at_kern(): jit_generator(nullptr, GEMM_CODE_SIZE)
 {
-    switch (arch) {
-        default:
-
-        case avx512_core:
-#include   COPY_AT_AVX512
-        break;
-
-        case avx512_core_vnni:
-#include   COPY_AT_AVX512_VNNI
-        break;
-    }
+#include COPY_AT_AVX512
 }
 
 }

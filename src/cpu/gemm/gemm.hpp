@@ -17,6 +17,7 @@
 #ifndef GEMM_HPP
 #define GEMM_HPP
 
+#include "mkldnn_types.h"
 #include "os_blas.hpp"
 
 namespace mkldnn {
