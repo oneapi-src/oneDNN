@@ -29,7 +29,7 @@ namespace cpu {
 enum conv_version_t {ver_unused, ver_fma, ver_avx512_core, ver_4fma, ver_4vnni,
                      ver_vnni};
 enum conv_loop_order_t {loop_cgn, loop_gnc, loop_ngc, loop_gncw, loop_cwgn,
-                            loop_ngcw};
+                            loop_ngcw, loop_nhwcg};
 enum conv_1x1_loop_order_t {loop_rbl, loop_rlb, loop_lbr, loop_lrb, loop_blr,
                             loop_brl};
 enum conv_kernel_kind_t {embd_bcast, expl_bcast};

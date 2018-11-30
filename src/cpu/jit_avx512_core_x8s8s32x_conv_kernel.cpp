@@ -33,11 +33,14 @@ using namespace mkldnn::impl::utils;
 using namespace Xbyak;
 
 namespace {
-void pick_loop_order(jit_conv_conf_t &jcp)
+void pick_loop_order(jit_conv_conf_t &jcp, int nthr)
 {
     jcp.loop_order = loop_cwgn;
-    if (jcp.ngroups > 1)
+    if (jcp.ngroups > 1) {
         jcp.loop_order = loop_ngcw;
+        if (jcp.mb < nthr)
+            jcp.loop_order = loop_nhwcg;
+    }
 }
 }
 
@@ -844,7 +847,7 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     if (r_pad_no_tail > jcp.ur_w)
         return status::unimplemented;
 
-    pick_loop_order(jcp);
+    pick_loop_order(jcp, nthreads);
 
     jcp.nb_ic_L2 = jcp.nb_ic;
 

@@ -90,6 +90,9 @@ execute_forward()
         else if (jcp.loop_order == loop_ngcw)
             nd_iterator_init(start, n, jcp.mb, gb, nb_groups, occ, oc_chunks,
                     owb, jcp.nb_ow, oh_s, jcp.oh);
+        else if (jcp.loop_order == loop_nhwcg)
+            nd_iterator_init(start, n, jcp.mb, oh_s, jcp.oh, owb, jcp.nb_ow,
+                    occ, oc_chunks, gb, nb_groups);
         else
             assert(!"unsupported loop order");
         while (start < end) {
@@ -102,6 +105,7 @@ execute_forward()
             int work_rem = end - start;
             int ih_s = -jcp.t_pad + oh_s * jcp.stride_h;
             int oh_e = oh_s + work_rem > jcp.oh ? jcp.oh : oh_s + work_rem;
+            if (jcp.loop_order == loop_nhwcg) oh_e = oh_s + 1; // step instead
             int ow_s = owb * jcp.ow_block;
             int iw_s = ow_s * jcp.stride_w;
 
@@ -158,6 +162,11 @@ execute_forward()
             else if (jcp.loop_order == loop_ngcw)
                 nd_iterator_jump(start, end, n, jcp.mb, gb, nb_groups, occ,
                         oc_chunks, owb, jcp.nb_ow, oh_s, jcp.oh);
+            else if (jcp.loop_order == loop_nhwcg) {
+                ++start;
+                nd_iterator_step(n, jcp.mb, oh_s, jcp.oh,
+                        owb, jcp.nb_ow, occ, oc_chunks, gb, nb_groups);
+            }
             else
                 assert(!"unsupported loop order");
         }
