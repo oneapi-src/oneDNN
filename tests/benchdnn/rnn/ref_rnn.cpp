@@ -164,8 +164,8 @@ void gru_lbr_fwd(int sic, int slc, int dic, int wc, int batch, int n_gates,
 }
 
 // w = [weights_layer | weights_iter] : with order f, i , o, \bar(c)
-void lstm_fwd(int sic, int slc, int dic, int wc, int batch, int n_gates,
-        float *dst_iter_h_, float *c_dst_, float *gates_,
+void lstm_fwd(const rnn_prb_t *p, int sic, int slc, int dic, int wc, int batch,
+        int n_gates, float *dst_iter_h_, float *c_dst_, float *gates_,
         const float *weights_layer_, const float *weights_iter_h_,
         const float *bias_, const float *src_layer_, const float *src_iter_h_,
         const float *src_iter_c_) {
@@ -182,18 +182,48 @@ void lstm_fwd(int sic, int slc, int dic, int wc, int batch, int n_gates,
 
     gemm("C", "N", "N", batch, n_gates * dic, slc, 1.0, src_layer_, wc,
             weights_layer_, n_gates * dic, 0.0, gates_, n_gates * dic);
-    gemm("C", "N", "N", batch, n_gates * dic, sic,1.0, src_iter_h_, wc,
+    gemm("C", "N", "N", batch, n_gates * dic, sic, 1.0, src_iter_h_, wc,
             weights_iter_h_, n_gates * dic, 1.0, gates_, n_gates * dic);
+
+    auto maybe_deq_w = [&](float g, int oc) {
+        if (p->cfg == conf_f32)
+            return g;
+        float scale = 1.;
+        if (p->scale_policy == PER_OC)
+            scale = p->wei_oc_scales[oc];
+        else if (p->scale_policy == COMMON)
+            scale = p->wei_scale;
+        scale *= p->data_scale;
+        return g / scale;
+    };
 
     // add bias
     for (int i = 0; i < batch; i++)
         for (int j = 0; j < n_gates; j++)
             for (int k = 0; k < dic; k++) {
-                gates(i, j, k) += bias(j, k);
+                gates(i, j, k)
+                        = maybe_deq_w(gates(i, j, k), j * dic + k) + bias(j, k);
             }
 
     // run the eltwise
     lstm_activation(dic, n_gates, batch, gates_);
+
+    auto maybe_q_d = [&](float h) {
+        if (p->cfg == conf_f32)
+            return h;
+        float fp = p->data_scale * h;
+        using R = attr_t::round_mode_t;
+        switch (p->attr.irmode) {
+        case R::DOWN: fp = floorf(fp); break;
+        case R::NEAREST: fp = nearbyintf(fp); break;
+        default: assert(!"unkown round mode");
+        }
+        if (fp + p->data_shift > p->cfg[input].max)
+            fp = p->cfg[input].max - p->data_shift;
+        if (fp + p->data_shift < p->cfg[input].min)
+            fp = p->cfg[input].min - p->data_shift;
+        return fp;
+    };
 
     // compute C_t_l and H_t_l
     for (int i = 0; i < batch; i++)
@@ -201,15 +231,15 @@ void lstm_fwd(int sic, int slc, int dic, int wc, int batch, int n_gates,
             float tmp = gates(i, ohf, j) * src_iter_c(i, j)
                     + gates(i, ohi, j) * gates(i, ohc, j);
             c_dst(i, j) = tmp;
-            h_dst(i, j) = gates(i, oho, j) * tanhf(tmp);
+            h_dst(i, j) = maybe_q_d(gates(i, oho, j) * tanhf(tmp));
         }
 }
 
-void rnn_cell_fwd(alg_t alg, activation_t f, int sic, int slc, int dic, int wc,
-        int batch, int n_gates, float *dst_iter_h, float *dst_iter_c,
-        float *gates, const float *weights_layer, const float *weights_iter,
-        const float *bias, const float *src_layer, const float *src_iter_h,
-        const float *src_iter_c, float *ws_local_) {
+void rnn_cell_fwd(const rnn_prb_t *p, alg_t alg, activation_t f, int sic,
+        int slc, int dic, int wc, int batch, int n_gates, float *dst_iter_h,
+        float *dst_iter_c, float *gates, const float *weights_layer,
+        const float *weights_iter, const float *bias, const float *src_layer,
+        const float *src_iter_h, const float *src_iter_c, float *ws_local_) {
     switch (alg) {
     case VANILLA_GRU:
         gru_fwd(sic, slc, dic, wc, batch, n_gates, dst_iter_h, gates,
@@ -221,7 +251,7 @@ void rnn_cell_fwd(alg_t alg, activation_t f, int sic, int slc, int dic, int wc,
                 ws_local_);
         break;
     case VANILLA_LSTM:
-        lstm_fwd(sic, slc, dic, wc, batch, n_gates, dst_iter_h, dst_iter_c,
+        lstm_fwd(p, sic, slc, dic, wc, batch, n_gates, dst_iter_h, dst_iter_c,
                 gates, weights_layer, weights_iter, bias, src_layer, src_iter_h,
                 src_iter_c);
         break;
@@ -232,6 +262,7 @@ void rnn_cell_fwd(alg_t alg, activation_t f, int sic, int slc, int dic, int wc,
     default: break;
     }
 }
+
 void copy(int dimc, int dimr, int ld_src, int ld_dst, const float *src_,
         float *dst_, rnn_action_t action = action_copy) {
     AOC<const float> src(src_, dimc, ld_src);
@@ -245,14 +276,56 @@ void copy(int dimc, int dimr, int ld_src, int ld_dst, const float *src_,
     });
 }
 
+void shift(int dimc, int dimr, int ld_src, float *src_, float shift,
+        bool round = false, const rnn_prb_t *p = nullptr) {
+    AOC<float> src(src_, dimc, ld_src);
+    mkldnn::impl::parallel_nd(dimc, [&](int i) {
+        for (int j = 0; j < dimr; j++) {
+            float fp = src(i, j) + shift;
+            if (round) {
+                using R = attr_t::round_mode_t;
+                switch (p->attr.irmode) {
+                case R::DOWN: fp = floorf(fp); break;
+                case R::NEAREST: fp = nearbyintf(fp); break;
+                default: assert(!"unkown round mode");
+                }
+                if (fp > UINT8_MAX)
+                    fp = UINT8_MAX;
+                if (fp < 0)
+                    fp = 0;
+            }
+            src(i, j) = fp;
+        }
+    });
+}
+
+void scale(int dimc, int dimr, int ld_src, float *src_, float scale,
+        bool round = false, const rnn_prb_t *p = nullptr) {
+    AOC<float> src(src_, dimc, ld_src);
+    mkldnn::impl::parallel_nd(dimc, [&](int i) {
+        for (int j = 0; j < dimr; j++) {
+            float fp = src(i, j) * scale;
+            if (round) {
+                using R = attr_t::round_mode_t;
+                switch (p->attr.irmode) {
+                case R::DOWN: fp = floorf(fp); break;
+                case R::NEAREST: fp = nearbyintf(fp); break;
+                default: assert(!"unkown round mode");
+                }
+            }
+            src(i, j) = fp;
+        }
+    });
+}
+
 /* lstm example:
  * fwd: ws keeps {h, c} for every cell
  */
-void copy_init_fwd(alg_t alg, int sic, int slc, int dic, int dlc, int wc,
-        int batch, int n_layer, int n_iter, int n_dir, int n_states, float *ws_,
-        const float *src_layer_, const float *firstit_states_,
-        rnn_iter_direction_t iter_dir, rnn_layer_direction_t lay_dir,
-        int dir_val) {
+void copy_init_fwd(const rnn_prb_t *p, alg_t alg, int sic, int slc, int dic,
+        int dlc, int wc, int batch, int n_layer, int n_iter, int n_dir,
+        int n_states, float *ws_, const float *src_layer_,
+        const float *firstit_states_, rnn_iter_direction_t iter_dir,
+        rnn_layer_direction_t lay_dir, int dir_val) {
     AOC<float> ws(ws_, n_layer + 2, n_dir, n_iter + 2, n_states, batch * wc);
     AOC<const float> src_layer(src_layer_, n_iter, batch * slc);
     AOC<const float> firstit_states(
@@ -260,17 +333,41 @@ void copy_init_fwd(alg_t alg, int sic, int slc, int dic, int dlc, int wc,
 
     int lay_dest = (lay_dir == bottom2top) ? 0 : n_layer + 1;
     int it_dest = (iter_dir == left2right) ? 0 : n_iter + 1;
+    bool is_int8 = p->cfg[input].dt == mkldnn_u8;
 
-    for (int it = 0; it < n_iter; it++)
+    // Copy input
+    for (int it = 0; it < n_iter; it++) {
         copy(batch, slc, slc, wc, &src_layer(it, 0),
                 &ws(lay_dest, dir_val, it + 1, H, 0));
+        if (p->cfg[input].dt == mkldnn_u8)
+            // shift u8 input to s8 to avoid compensation in gemm
+            shift(batch, slc, wc, &ws(lay_dest, dir_val, it + 1, H, 0),
+                    -1. * p->data_shift);
+    }
 
+    // Copy states
     for (int lay = 0; lay < n_layer; lay++) {
         copy(batch, sic, sic, wc, &firstit_states(lay, dir_val, H, 0),
                 &ws(lay + 1, dir_val, it_dest, H, 0));
+        if (p->cfg[states].dt == mkldnn_u8)
+            shift(batch, sic, wc, &ws(lay + 1, dir_val, it_dest, H, 0),
+                    -1. * p->data_shift);
+        else if (p->cfg[states].dt == mkldnn_f32 && is_int8) {
+            // quantize to s8
+            scale(batch, sic, wc, &ws(lay + 1, dir_val, it_dest, H, 0),
+                    p->data_scale, true, p);
+        }
+
         if (alg == VANILLA_LSTM) {
             copy(batch, sic, sic, wc, &firstit_states(lay, dir_val, C, 0),
                     &ws(lay + 1, dir_val, it_dest, C, 0));
+            if (p->cfg[states].dt == mkldnn_u8) {
+                // dequantize to f32
+                shift(batch, sic, wc, &ws(lay + 1, dir_val, it_dest, C, 0),
+                        -1. * p->data_shift);
+                scale(batch, sic, wc, &ws(lay + 1, dir_val, it_dest, C, 0),
+                        1. / p->data_scale);
+            }
         }
     }
 }
@@ -308,37 +405,63 @@ void copy_init_bwd(alg_t alg, int sic, int slc, int dic, int dlc, int wc,
     }
 }
 
-void copy_res_fwd(alg_t alg, int sic, int slc, int dic, int dlc, int wc,
-        int batch, int n_layer, int n_iter, int n_dir, int n_states,
-        float *lastit_states_, float *lastlay_states_, const float *ws_,
-        rnn_iter_direction_t iter_dir, rnn_layer_direction_t lay_dir,
-        int dir_val, rnn_action_t action, bool is_concat = false) {
+void copy_res_fwd(const rnn_prb_t *p, alg_t alg, int sic, int slc, int dic,
+        int dlc, int wc, int batch, int n_layer, int n_iter, int n_dir,
+        int n_states, float *lastit_states_, float *lastlay_states_,
+        const float *ws_, rnn_iter_direction_t iter_dir,
+        rnn_layer_direction_t lay_dir, int dir_val, rnn_action_t action,
+        bool is_concat = false) {
     int lastlay_c = is_concat ? 2 * dlc : dlc;
     AOC<float> lastit_states(
             lastit_states_, n_layer, n_dir, n_states, batch, dic);
     AOC<float> lastlay_states(lastlay_states_, n_iter, batch, lastlay_c);
     AOC<const float> ws(
             ws_, n_layer + 2, n_dir, n_iter + 2, n_states, batch, wc);
+
+    // Copy states layer
     for (int it = 0; it < n_iter; it++) {
         for (int nb = 0; nb < batch; nb++) {
-            // copy H to last layer states
             auto from = &ws(n_layer, dir_val, it + 1, H, nb, 0);
             auto to = &lastlay_states(
                     it, nb, action == action_concat ? dlc : 0);
-
             copy(1, dlc, wc, lastlay_c, from, to, action);
+
+            if (p->cfg[dst_last_layer].dt == mkldnn_u8) {
+                // shift s8 internal ws to u8
+                shift(1, dlc, lastlay_c, to, p->data_shift);
+            } else {
+                // dequantize to f32
+                scale(1, dlc, lastlay_c, to, 1. / p->data_scale);
+            }
         }
     }
 
     int it_source = (iter_dir == left2right) ? n_iter : 1;
 
+    // Copy states iteration
     for (int lay = 0; lay < n_layer; lay++) {
         if (alg == VANILLA_LSTM) {
             copy(batch, dic, wc, dic, &ws(lay + 1, dir_val, it_source, C, 0, 0),
                     &lastit_states(lay, dir_val, C, 0, 0));
+            if (p->cfg[dst_last_iteration].dt == mkldnn_u8) {
+                // quantize internal f32 ws to u8
+                scale(batch, dic, dic, &lastit_states(lay, dir_val, C, 0, 0),
+                        p->data_scale);
+                shift(batch, dic, dic, &lastit_states(lay, dir_val, C, 0, 0),
+                        p->data_shift, true, p);
+            }
         }
         copy(batch, dic, wc, dic, &ws(lay + 1, dir_val, it_source, H, 0, 0),
                 &lastit_states(lay, dir_val, H, 0, 0));
+        if (p->cfg[dst_last_iteration].dt == mkldnn_u8) {
+            // shift s8 internal ws to u8
+            shift(batch, dic, dic, &lastit_states(lay, dir_val, H, 0, 0),
+                    p->data_shift);
+        } else {
+            // dequantize to f32
+            scale(batch, dic, dic, &lastit_states(lay, dir_val, H, 0, 0),
+                    1. / p->data_scale);
+        }
     }
 }
 
@@ -387,6 +510,7 @@ void rnn_linear_fwd(const rnn_prb_t *p, mkldnn_rnn_direction_t direction,
     const int dlc = p->dlc;
     const int wc = max(sic, max(slc, dic));
     bool is_lbr = p->alg == LBR_GRU;
+    bool is_concat = direction == mkldnn_bidirectional_concat;
 
     const int batch = p->mb;
     const int n_gates = p->n_gates();
@@ -412,7 +536,7 @@ void rnn_linear_fwd(const rnn_prb_t *p, mkldnn_rnn_direction_t direction,
         // we first need to copy the initial states and input into ws
         // it simplifies the logic in the following code
         print(80, "rnn_linear_fwd: call copy_init dir_val = %d\n", dir_val);
-        copy_init_fwd(alg, sic, slc, dic, dlc, wc, batch, n_layer, n_iter,
+        copy_init_fwd(p, alg, sic, slc, dic, dlc, wc, batch, n_layer, n_iter,
                 n_dir, n_states, ws_, src_layer_, src_iter_, iter_dir, lay_dir,
                 dir_val);
 
@@ -423,7 +547,7 @@ void rnn_linear_fwd(const rnn_prb_t *p, mkldnn_rnn_direction_t direction,
                 int iter = (iter_dir == left2right) ? it + 1 : n_iter - it;
                 int prev_iter = (iter_dir == left2right) ? iter - 1 : iter + 1;
                 int lay = il + 1;
-                rnn_cell_fwd(alg, f, sic, slc, dic, wc, batch, n_gates,
+                rnn_cell_fwd(p, alg, f, sic, slc, dic, wc, batch, n_gates,
                         &ws(lay, dir_val, iter, H, 0, 0),
                         &ws(lay, dir_val, iter, C, 0, 0),
                         &gates(lay - 1, dir_val, iter - 1, 0, 0, 0),
@@ -432,15 +556,14 @@ void rnn_linear_fwd(const rnn_prb_t *p, mkldnn_rnn_direction_t direction,
                         &bias(lay - 1, dir_val, 0),
                         &ws(lay - 1, dir_val, iter, H, 0, 0),
                         &ws(lay, dir_val, prev_iter, H, 0, 0),
-                        &ws(lay, dir_val, prev_iter, C, 0, 0),
-                        ws_local_);
+                        &ws(lay, dir_val, prev_iter, C, 0, 0), ws_local_);
             }
         }
 
         // Finally we copy the results to the result buffers
-        copy_res_fwd(alg, sic, slc, dic, dlc, wc, batch, n_layer, n_iter, n_dir,
-                n_states, dst_iter_, dst_layer_, ws_, iter_dir, lay_dir,
-                dir_val, action, direction == mkldnn_bidirectional_concat);
+        copy_res_fwd(p, alg, sic, slc, dic, dlc, wc, batch, n_layer, n_iter,
+                n_dir, n_states, dst_iter_, dst_layer_, ws_, iter_dir, lay_dir,
+                dir_val, action, is_concat);
     };
 
     switch (direction) {
