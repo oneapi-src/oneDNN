@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <cassert>
 #include <mutex>
 
 #include "mkldnn.h"
@@ -28,6 +29,7 @@
 
 #include "f32/jit_avx_gemm_f32.hpp"
 #include "f32/jit_avx512_common_gemm_f32.hpp"
+#include "s8x8s32/jit_avx512_core_gemm_s8u8s32.hpp"
 
 /* USE_MKL      USE_CBLAS       effect
  * -------      ---------       ------
@@ -211,12 +213,12 @@ mkldnn_status_t gemm_s8x8s32(const char *transa, const char *transb,
     if (*M == 0 || *N == 0 || *K == 0)
         return mkldnn_success;
 
+#if USE_MKL_IGEMM
     bool OCisR = (*offsetc == 'R' || *offsetc == 'r');
     bool OCisC = (*offsetc == 'C' || *offsetc == 'c');
     bool AisN = (*transa == 'N' || *transa == 'n');
     bool BisN = (*transb == 'N' || *transb == 'n');
 
-#if USE_MKL_IGEMM
     if (data_traits<b_dt>::data_type == data_type::u8) {
         CBLAS_TRANSPOSE Cblas_trA = AisN ? CblasNoTrans : CblasTrans;
         CBLAS_TRANSPOSE Cblas_trB = BisN ? CblasNoTrans : CblasTrans;
@@ -227,64 +229,44 @@ mkldnn_status_t gemm_s8x8s32(const char *transa, const char *transb,
             ? CblasColOffset
             : CblasFixOffset;
         cblas_gemm_s8u8s32(CblasColMajor, Cblas_trA, Cblas_trB, Cblas_offsetc,
-                *M, *N, *K, *alpha, A, *LDA, *ao, (b_dt*)B, *LDB, *bo,
+                *M, *N, *K, *alpha, A, *LDA, *ao, (uint8_t *)B, *LDB, *bo,
                 *beta, C, *LDC, co);
         return mkldnn_success;
+    } else {
+        assert(data_traits<b_dt>::data_type == data_type::s8);
+        // TODO CBLAS implementation of gemm_s8s8s32 goes here.
+        // Calling reference implementation.
+        return ref_gemm_s8x8s32(transa, transb, offsetc, M, N, K, alpha, A,
+                LDA, ao, B, LDB, bo, beta, C, LDC, co);
+    }
+#else
+    if (data_traits<b_dt>::data_type == data_type::u8) {
+        cpu_isa_t isa = isa_any;
+
+        if (mayiuse(avx512_core_vnni)) {
+            isa = avx512_core_vnni;
+        } else if (mayiuse(avx512_core)) {
+            isa = avx512_core;
+        }
+
+        switch (isa) {
+            case avx512_core:
+            case avx512_core_vnni:
+                return jit_avx512_core_gemm_s8u8s32(transa, transb, offsetc, M,
+                        N, K, alpha, A, LDA, ao, (uint8_t *)B, LDB, bo, beta,
+                        C, LDC, co, isa);
+                break;
+
+            default:
+                return ref_gemm_s8x8s32(transa, transb, offsetc, M, N, K,
+                        alpha, A, LDA, ao, B, LDB, bo, beta, C, LDC, co);
+        }
+    } else {
+        assert(data_traits<b_dt>::data_type == data_type::s8);
+        return ref_gemm_s8x8s32(transa, transb, offsetc, M, N, K, alpha, A,
+                LDA, ao, B, LDB, bo, beta, C, LDC, co);
     }
 #endif
-    int m = *M, n = *N, k = *K, lda = *LDA, ldb = *LDB, ldc = *LDC;
-    size_t sizeA = AisN ? lda * k : lda * m;
-    size_t sizeB = BisN ? ldb * n : ldb * k;
-    size_t sizeC = ldc * n;
-
-    double *dA = (double *)malloc(sizeA * sizeof(double), PAGE_4K);
-    double *dB = (double *)malloc(sizeB * sizeof(double), PAGE_4K);
-    double *dC = (double *)malloc(sizeC * sizeof(double), PAGE_4K);
-
-    if (utils::any_null(dA, dB, dC)) {
-        free(dA);
-        free(dB);
-        free(dC);
-        return mkldnn_out_of_memory;
-    }
-
-    auto da_setter = [=] (int i, int j, double v) { dA[j * lda + i] = v; };
-    auto db_setter = [=] (int i, int j, double v) { dB[j * ldb + i] = v; };
-
-    auto ia_accessor = [=] (int i, int j) { return A[j * lda + i]; };
-    auto ib_accessor = [=] (int i, int j) { return B[j * ldb + i]; };
-
-    const int a_rows = AisN ? m : k;
-    const int a_cols = AisN ? k : m;
-    mkldnn::impl::parallel_nd(a_cols, a_rows, [&](int j, int i) {
-        da_setter(i, j,
-            static_cast<double>(ia_accessor(i, j)) + static_cast<double>(ao[0]));
-    });
-
-    const int b_rows = BisN ? k : n;
-    const int b_cols = BisN ? n : k;
-    mkldnn::impl::parallel_nd(b_cols, b_rows, [&](int j, int i) {
-        db_setter(i, j,
-            static_cast<double>(ib_accessor(i, j)) + static_cast<double>(bo[0]));
-    });
-    double one = 1.0, zero = 0.0;
-    ref_gemm<double>(transa, transb, M, N, K, &one, dA, LDA, dB, LDB, &zero,
-        dC, LDC, nullptr);
-
-    auto i2d = [=] (int32_t v) { return static_cast<double>(v); };
-    auto f2d = [=] (float v)   { return static_cast<double>(v); };
-
-    mkldnn::impl::parallel_nd(n, m, [&] (int j, int i) {
-        double coffset = OCisR ? i2d(co[j]) : OCisC ? i2d(co[i]) : i2d(co[0]);
-        double val = ((*beta == 0.0f) ? 0.0 : f2d(*beta) * i2d(C[i + j * ldc]))
-            + f2d(*alpha) * dC[i + j * ldc] + coffset;
-        C[i + j * ldc] = math::out_round<int32_t>(math::saturate<int32_t>(val));
-    });
-
-    free(dA);
-    free(dB);
-    free(dC);
-    return mkldnn_success;
 }
 
 }
