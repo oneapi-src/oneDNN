@@ -61,13 +61,11 @@
 --skip-impl="ref:gemm"      # ! test jit version only
 --allow-unimpl=true
 --attr=post_ops='relu:0.5'
---cfg=s8s8f32s32 --batch=inputs/conv_yolov2
---cfg=u8s8f32s32 --batch=inputs/conv_yolov2
+--cfg=s8s8f32s32 --batch=conv_yolov2
+--cfg=u8s8f32s32 --batch=conv_yolov2
 --attr=post_ops='relu:0.5;sum'
---cfg=s8s8f32s32 --batch=inputs/conv_yolov2
---cfg=u8s8f32s32 --batch=inputs/conv_yolov2
+--cfg=s8s8f32s32 --batch=conv_yolov2
+--cfg=u8s8f32s32 --batch=conv_yolov2
 --attr=post_ops='sum;relu:0.5'
---cfg=s8s8f32s32 --batch=inputs/conv_yolov2
---cfg=u8s8f32s32 --batch=inputs/conv_yolov2
-
-
+--cfg=s8s8f32s32 --batch=conv_yolov2
+--cfg=u8s8f32s32 --batch=conv_yolov2
