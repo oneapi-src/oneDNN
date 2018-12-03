@@ -85,62 +85,13 @@ struct winograd_scratchpad_t {
                            * (jcp.itiles * jcp.jtiles + jcp.tile_4fma_padding)
                            * sizeof(float);
 
-            switch (jcp.sched_policy) {
-            case WSCHED_DATA_W_SGD:
-                V_sz_ = (size_t)nthreads_ * alpha * alpha
-                    * jcp.nb_tile_block_ur * jcp.tile_block_ur
-                    * jcp.ic * sizeof(float);
-                M_sz_ = (size_t)nthreads_* alpha * alpha
-                    * jcp.nb_tile_block_ur * jcp.tile_block_ur
-                    * jcp.oc * sizeof(float);
-                break;
-            case WSCHED_WEI_SDGt_W:
-                U_sz_ = (size_t)nthreads_ * U_sz_;
-                V_sz_ = (size_t)nthreads_ * alpha * alpha
-                        * (jcp.nb_tile_block_ur * jcp.tile_block_ur
-                                  + jcp.tile_4fma_padding)
-                        * jcp.ic * sizeof(float);
-                M_sz_ = (size_t)nthreads_ * alpha * alpha
-                        * (jcp.nb_tile_block_ur * jcp.tile_block_ur
-                                  + jcp.tile_4fma_padding)
-                        * jcp.oc * sizeof(float);
-                bias_sz_ = nthreads_ * jcp.oc * sizeof(float);
-                break;
-            case WSCHED_WEI_SDGtWo:
-                U_sz_ = (size_t)nthreads_ * alpha * alpha
-                    * jcp.oc_block * jcp.oc_simd_block * jcp.ic * sizeof(float);
-                M_sz_ = (size_t)nthreads_ * alpha * alpha
-                        * (jcp.nb_tile_block_ur * jcp.tile_block_ur
-                                  + jcp.tile_4fma_padding)
-                        * jcp.oc_simd_block * jcp.oc_block * sizeof(float);
-                bias_sz_ = nthreads_ * jcp.oc * sizeof(float);
-                break;
-            case WSCHED_WEI_S_D_Giot_W:
-                U_sz_ = (size_t)(nthreads_ + 1) * alpha * alpha
-                    * jcp.ic * jcp.oc * sizeof(float);
-                V_sz_ = (size_t)alpha * alpha
-                    * (jcp.itiles * jcp.jtiles + jcp.tile_4fma_padding)
-                    * jcp.ic * jcp.mb * sizeof(float);
-                M_sz_ = (size_t)alpha * alpha
-                    * (jcp.itiles * jcp.jtiles + jcp.tile_4fma_padding)
-                    * jcp.oc * jcp.mb * sizeof(float);
-                bias_sz_ = nthreads_ * jcp.oc * sizeof(float);
-                src_transpose_sz_ = jcp.ver == ver_4fma
-                    ? ((size_t)nthreads_ * alpha * alpha
-                        * jcp.tile_4fma
-                        * jcp.ic_simd_block * sizeof(float))
-                    : 0;
-                break;
-            case WSCHED_WEI_S_D_G_W:
+            if (jcp.sched_policy == WSCHED_WEI_S_D_G_W) {
                 src_transpose_sz_ = jcp.ver == ver_4fma
                                   ? ((size_t)nthreads_ * alpha * alpha
                                      * jcp.tile_4fma
                                      * jcp.ic_simd_block * sizeof(float))
                                   : 0;
                 bias_sz_ = jcp.with_bias ? nthreads_ * jcp.oc * sizeof(float) : 0;
-                break;
-            default:
-                break;
             }
         }
 
@@ -194,8 +145,6 @@ struct _jit_avx512_common_convolution_winograd_t {
 
     protected:
         void _execute_data_W_S_G_D(float *inp_ptr, float *out_ptr,
-                float *wei_ptr, float *bias_ptr = NULL);
-        void _execute_data_W_SGD(float *inp_ptr, float *out_ptr,
                 float *wei_ptr, float *bias_ptr = NULL);
         _jit_avx512_common_conv_winograd_data_kernel_f32 *kernel_;
         // Buffer required to store transforms in the frequency domain
@@ -278,17 +227,7 @@ struct jit_avx512_common_convolution_winograd_fwd_t
         float *dst = (float *)this->memory();
         float *weights = (float *)this->input_memory(1);
         float *bias = (float *)this->input_memory(2);
-
-        switch ((pd()->jcp_).sched_policy) {
-        case WSCHED_DATA_W_S_G_D:
-            this->_execute_data_W_S_G_D(src, dst, weights, bias);
-            break;
-        case WSCHED_DATA_W_SGD:
-            this->_execute_data_W_SGD(src, dst, weights, bias);
-            break;
-        default:
-            break;
-        }
+        this->_execute_data_W_S_G_D(src, dst, weights, bias);
         e->set_state(event_t::ready);
     }
 
@@ -367,18 +306,7 @@ struct jit_avx512_common_convolution_winograd_bwd_data_t
         float *weights = (float *)this->input_memory(1);
 
         if (pd()->desc()->prop_kind == prop_kind::backward_data) {
-            switch ((pd()->jcp_).sched_policy) {
-            case WSCHED_DATA_W_S_G_D:
-                this->_execute_data_W_S_G_D(diff_dst, diff_src, weights, NULL);
-                break;
-
-            case WSCHED_DATA_W_SGD:
-                this->_execute_data_W_SGD(diff_dst, diff_src, weights, NULL);
-                break;
-
-            default:
-                break;
-            }
+            this->_execute_data_W_S_G_D(diff_dst, diff_src, weights, NULL);
         } else {
             assert(!"invalid prop_kind");
         }
@@ -473,35 +401,15 @@ struct jit_avx512_common_convolution_winograd_bwd_weights_t
     virtual void execute(event_t *e)
     {
         if (pd()->desc()->prop_kind == prop_kind::backward_weights) {
-            const auto &jcp = kernel_->jcp;
-            switch (jcp.sched_policy) {
-            case WSCHED_WEI_S_D_G_W:
-                _execute_backward_weights_S_D_G_W();
-                break;
-            case WSCHED_WEI_S_D_Giot_W:
-                _execute_backward_weights_S_D_Giot_W();
-                break;
-            case WSCHED_WEI_SDGtWo:
-                _execute_backward_weights_SDGtWo();
-                break;
-            case WSCHED_WEI_SDGt_W:
-                _execute_backward_weights_SDGt_W();
-                break;
-            default:
-                assert(!"Unknown Winograd schedule policy!");
-                break;
-            }
-        }
-        else
+            _execute_backward_weights_S_D_G_W();
+        } else {
             assert(!"invalid prop_kind");
+        }
         e->set_state(event_t::ready);
     }
 
 private:
     void _execute_backward_weights_S_D_G_W();
-    void _execute_backward_weights_S_D_Giot_W();
-    void _execute_backward_weights_SDGtWo();
-    void _execute_backward_weights_SDGt_W();
     void _maybe_execute_diff_bias_copy();
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
