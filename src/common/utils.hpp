@@ -238,6 +238,24 @@ inline T pick(size_t i, const T &x0, Args &&... args) {
     return i == 0 ? x0 : pick(i - 1, utils::forward<Args>(args)...);
 }
 
+template <typename T>
+T pick_by_prop_kind(prop_kind_t prop_kind, const T &val_fwd_inference,
+        const T &val_fwd_training, const T &val_bwd_d, const T &val_bwd_w) {
+    switch (prop_kind) {
+    case prop_kind::forward_inference: return val_fwd_inference;
+    case prop_kind::forward_training: return val_fwd_training;
+    case prop_kind::backward_data: return val_bwd_d;
+    case prop_kind::backward_weights: return val_bwd_w;
+    default: assert(!"unsupported prop_kind");
+    }
+    return T();
+}
+
+template <typename T>
+T pick_by_prop_kind(prop_kind_t prop_kind,
+        const T &val_fwd, const T &val_bwd_d, const T &val_bwd_w)
+{ return pick_by_prop_kind(prop_kind, val_fwd, val_fwd, val_bwd_d, val_bwd_w); }
+
 template <typename Telem, size_t Tdims>
 struct array_offset_calculator {
     template <typename... Targs>

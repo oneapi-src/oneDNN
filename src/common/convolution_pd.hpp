@@ -35,6 +35,15 @@ status_t conv_desc_init(convolution_desc_t *conv_desc,
         const dims_t padding_l, const dims_t padding_r,
         padding_kind_t padding_kind);
 
+memory_desc_t *conv_prop_agnostic_src_d(convolution_desc_t *desc);
+memory_desc_t *conv_prop_agnostic_wei_d(convolution_desc_t *desc);
+memory_desc_t *conv_prop_agnostic_bia_d(convolution_desc_t *desc);
+memory_desc_t *conv_prop_agnostic_dst_d(convolution_desc_t *desc);
+const memory_desc_t *conv_prop_agnostic_src_d(const convolution_desc_t *desc);
+const memory_desc_t *conv_prop_agnostic_wei_d(const convolution_desc_t *desc);
+const memory_desc_t *conv_prop_agnostic_bia_d(const convolution_desc_t *desc);
+const memory_desc_t *conv_prop_agnostic_dst_d(const convolution_desc_t *desc);
+
 struct convolution_fwd_pd_t: public primitive_desc_t {
     typedef convolution_fwd_pd_t base_class;
     typedef convolution_fwd_pd_t hint_class;
