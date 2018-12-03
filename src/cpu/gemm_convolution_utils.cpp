@@ -289,9 +289,7 @@ void col2im_3d(jit_gemm_conv_conf_t &jcp, const float *col, float *im, int od) {
     });
 }
 
-void col2im(
-    jit_gemm_conv_conf_t &jcp, const float *col, float *im) {
-
+void col2im(jit_gemm_conv_conf_t &jcp, const float *col, float *im) {
     const size_t col_step = jcp.ks * jcp.os;
     const size_t im_step = jcp.ih * jcp.iw;
     const int iS = jcp.ih * jcp.iw;
@@ -322,16 +320,15 @@ void col2im(
     });
 }
 
-void init_conf(
-    jit_gemm_conv_conf_t &jcp, const convolution_desc_t &cd,
-    const memory_desc_wrapper &src_d, const memory_desc_wrapper &weights_d,
-    const memory_desc_wrapper &dst_d, int max_threads) {
-
+void init_conf(jit_gemm_conv_conf_t &jcp, const convolution_desc_t &cd,
+        const memory_desc_wrapper &src_d, const memory_desc_wrapper &weights_d,
+        const memory_desc_wrapper &dst_d, int max_threads) {
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
-    jcp.prop_kind = cd.prop_kind;
     const int ndims = src_d.ndims();
     const int is_1d = ndims == 3;
     const int is_3d = ndims == 5;
+
+    jcp.prop_kind = cd.prop_kind;
 
     jcp.ngroups = with_groups ? weights_d.dims()[0] : 1;
     jcp.mb = src_d.dims()[0];
@@ -362,40 +359,37 @@ void init_conf(
     jcp.dilate_w = cd.dilates[ndims - 3];
 
     jcp.src_fmt = src_d.format();
-    jcp.with_bias
-        = cd.bias_desc.format != memory_format::undef
+    jcp.with_bias = cd.bias_desc.format != memory_format::undef
         || cd.diff_bias_desc.format != memory_format::undef;
 
     jcp.is = jcp.ih * jcp.iw;
     jcp.os = jcp.oh * jcp.ow;
     jcp.ks = jcp.kh * jcp.kw * jcp.kd;
 
-    jcp.signed_input = (src_d.data_type() == data_type::s8);
-    jcp.wei_adj_scale = (!jcp.signed_input || mayiuse(avx512_core_vnni))
-            ? 1.0f
-            : (1.0f / 2.0f);
+    jcp.signed_input = src_d.data_type() == data_type::s8;
+    jcp.wei_adj_scale =
+        !jcp.signed_input || mayiuse(avx512_core_vnni) ? 1.f : 0.5f;
+
     jcp.im2col_sz = !everyone_is(true,
             jcp.ow == jcp.iw, jcp.oh == jcp.ih, jcp.od == jcp.id,
             jcp.stride_w == 1, jcp.stride_h == 1, jcp.stride_d == 1,
             jcp.ks == 1, !jcp.signed_input)
-        ? (ptrdiff_t)jcp.ic * jcp.ks * jcp.os
-        : 0;
+        ? (ptrdiff_t)jcp.ic * jcp.ks * jcp.os : 0;
 
     bool do_outer_threading = false;
-    bool is_int8_conv
-            = (utils::one_of(cd.src_desc.data_type == u8, cd.src_desc.data_type == s8)
-                    && cd.weights_desc.data_type == s8);
+    bool is_int8_conv = one_of(cd.src_desc.data_type, u8, s8)
+        && cd.weights_desc.data_type == s8;
+
     if (is_int8_conv) {
-        bool is_depthwise =
-                utils::everyone_is(1, jcp.ic, jcp.oc) && jcp.ngroups != 1;
-        do_outer_threading
-                = (is_depthwise || (jcp.os / max_threads < 64 && jcp.mb != 1));
+        bool is_depthwise = jcp.ic == 1 && jcp.oc == 1 && jcp.ngroups != 1;
+        do_outer_threading = is_depthwise
+            || (jcp.os / max_threads < 64 && jcp.mb != 1);
     } else {
-        if (utils::one_of(jcp.prop_kind, forward_training, forward_inference))
+        if (one_of(jcp.prop_kind, forward_training, forward_inference))
             do_outer_threading = jcp.os / max_threads < 512
-                && IMPLICATION(jcp.od == 1, (jcp.mb != 1 || jcp.ngroups > 2));
+                && IMPLICATION(jcp.od == 1, jcp.mb != 1 || jcp.ngroups > 2);
         else if (jcp.prop_kind == backward_data)
-            do_outer_threading = (jcp.mb != 1 || jcp.ngroups > 2);
+            do_outer_threading = jcp.mb != 1 || jcp.ngroups > 2;
         else //(jcp.prop_kind == backward_weights)
             do_outer_threading = jcp.os / max_threads < 256
                        && (jcp.mb != 1 || jcp.ngroups > 2);
@@ -405,13 +399,12 @@ void init_conf(
         ? (jcp.mb != 1 && jcp.nthr != 1) : false;
 }
 
-status_t prepare_scratchpad(jit_gemm_conv_conf_t &jcp,
-                scratchpad_t **scratchpad_, size_t size, const int nthr) {
+status_t prepare_scratchpad(scratchpad_t **scratchpad, size_t size, int nthr) {
     if (size > 0) {
-        *scratchpad_ = create_scratchpad(nthr * size);
-        if (*scratchpad_ == nullptr) return status::out_of_memory;
+        *scratchpad = create_scratchpad(nthr * size);
+        if (*scratchpad == nullptr) return status::out_of_memory;
     } else {
-        *scratchpad_ = nullptr;
+        *scratchpad = nullptr;
     }
     return status::success;
 }
@@ -428,8 +421,9 @@ void bwd_weights_balance(int ithr, int nthr, int ngroups, int mb, int &ithr_g,
     }
 }
 
-void bwd_weights_reduction_par(int ithr, int nthr, const jit_gemm_conv_conf_t &jcp,
-        const float *weights_reduce_ws, float *weights) {
+void bwd_weights_reduction_par(int ithr, int nthr,
+        const jit_gemm_conv_conf_t &jcp, const float *weights_reduce_ws,
+        float *weights) {
     const size_t weights_g_size = jcp.ic * jcp.oc * jcp.ks;
 
     size_t weights_start{0}, weights_end{0};

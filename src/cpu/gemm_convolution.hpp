@@ -18,11 +18,12 @@
 #define CPU_JIT_GEMM_CONVOLUTION_HPP
 
 #include "c_types_map.hpp"
+#include "scratchpad.hpp"
+
 #include "cpu_convolution_pd.hpp"
 #include "cpu_engine.hpp"
 #include "gemm_convolution_utils.hpp"
 #include "gemm/gemm.hpp"
-#include "scratchpad.hpp"
 #include "ref_eltwise.hpp"
 
 namespace mkldnn {
@@ -32,29 +33,12 @@ namespace cpu {
 struct gemm_convolution_fwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_convolution_fwd_pd_t {
         pd_t(engine_t *engine,
-                const convolution_desc_t *adesc,
-                const primitive_attr_t *attr,
+                const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const typename pd_t::base_class *hint_fwd_pd)
             : cpu_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
             , jcp_() {}
 
         DECLARE_COMMON_PD_T(GEMM_IMPL_STR, gemm_convolution_fwd_t);
-
-        inline memory_format_t src_format()
-        {
-            using namespace memory_format;
-            return (utils::pick(this->desc()->src_desc.ndims - 3,
-                ncw, nchw, ncdhw));
-        }
-        inline memory_format_t wei_format()
-        {
-            using namespace memory_format;
-            return (this->with_groups()
-                ? utils::pick(this->desc()->src_desc.ndims - 3,
-                    goiw, goihw, goidhw)
-                : utils::pick(this->desc()->src_desc.ndims - 3,
-                    oiw, oihw, oidhw));
-        }
 
         virtual status_t init() override {
             using namespace prop_kind;
@@ -84,6 +68,20 @@ struct gemm_convolution_fwd_t: public cpu_primitive_t {
         jit_gemm_conv_conf_t jcp_;
 
     protected:
+        memory_format_t src_format() const {
+            using namespace memory_format;
+            const int ndims_sp = this->desc()->src_desc.ndims - 2;
+            return (utils::pick(ndims_sp - 1, ncw, nchw, ncdhw));
+        }
+
+        memory_format_t wei_format() const {
+            using namespace memory_format;
+            const int ndims_sp = this->desc()->src_desc.ndims - 2;
+            return (this->with_groups()
+                ? utils::pick(ndims_sp - 1, goiw, goihw, goidhw)
+                : utils::pick(ndims_sp - 1, oiw, oihw, oidhw));
+        }
+
         virtual status_t set_default_params() override {
             using namespace memory_format;
             if (this->src_pd_.desc()->format == any)
@@ -129,8 +127,8 @@ struct gemm_convolution_fwd_t: public cpu_primitive_t {
             conf_.dst_pd(), mkldnn_get_max_threads());
 
         size_t size = (size_t)conf_.jcp_.im2col_sz * sizeof(data_t);
-        jit_gemm_convolution_utils::prepare_scratchpad(this->conf_.jcp_,
-                &this->scratchpad_, size, this->conf_.jcp_.nthr);
+        jit_gemm_convolution_utils::prepare_scratchpad(&this->scratchpad_,
+                size, this->conf_.jcp_.nthr);
 
         const int entry_idx = post_ops.find(primitive_kind::eltwise);
         if (entry_idx != -1) eltwise_ = new ref_eltwise_scalar_fwd_t(
@@ -140,7 +138,7 @@ struct gemm_convolution_fwd_t: public cpu_primitive_t {
     ~gemm_convolution_fwd_t() {
         delete this->scratchpad_;
         delete eltwise_;
-    };
+    }
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
@@ -161,30 +159,12 @@ private:
 struct gemm_convolution_bwd_data_t: public cpu_primitive_t {
     struct pd_t: public cpu_convolution_bwd_data_pd_t {
         pd_t(engine_t *engine,
-                const convolution_desc_t *adesc,
-                const primitive_attr_t *attr,
+                const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
             : cpu_convolution_bwd_data_pd_t(engine, adesc, attr, hint_fwd_pd)
-            , jcp_()
-        {}
+            , jcp_() {}
 
         DECLARE_COMMON_PD_T(GEMM_IMPL_STR, gemm_convolution_bwd_data_t);
-
-        inline memory_format_t src_format()
-        {
-            using namespace memory_format;
-            return (utils::pick(this->desc()->diff_src_desc.ndims - 3,
-                ncw, nchw, ncdhw));
-        }
-        inline memory_format_t wei_format()
-        {
-            using namespace memory_format;
-            return (this->with_groups()
-                ? utils::pick(this->desc()->diff_src_desc.ndims - 3,
-                    goiw, goihw, goidhw)
-                : utils::pick(this->desc()->diff_src_desc.ndims - 3,
-                    oiw, oihw, oidhw));
-        }
 
         virtual status_t init() override {
             using namespace prop_kind;
@@ -210,6 +190,20 @@ struct gemm_convolution_bwd_data_t: public cpu_primitive_t {
         jit_gemm_conv_conf_t jcp_;
 
     protected:
+        memory_format_t src_format() const {
+            using namespace memory_format;
+            const int ndims_sp = this->desc()->diff_src_desc.ndims - 2;
+            return (utils::pick(ndims_sp - 1, ncw, nchw, ncdhw));
+        }
+
+        memory_format_t wei_format() const {
+            using namespace memory_format;
+            const int ndims_sp = this->desc()->diff_src_desc.ndims - 2;
+            return (this->with_groups()
+                ? utils::pick(ndims_sp - 1, goiw, goihw, goidhw)
+                : utils::pick(ndims_sp - 1, oiw, oihw, oidhw));
+        }
+
         virtual status_t set_default_params() override {
             using namespace memory_format;
             if (this->diff_src_pd_.desc()->format == any)
@@ -234,13 +228,13 @@ struct gemm_convolution_bwd_data_t: public cpu_primitive_t {
             conf_.diff_dst_pd(), mkldnn_get_max_threads());
 
         size_t size = (size_t)conf_.jcp_.im2col_sz * sizeof(data_t);
-        jit_gemm_convolution_utils::prepare_scratchpad(this->conf_.jcp_,
-                &this->scratchpad_, size, this->conf_.jcp_.nthr);
+        jit_gemm_convolution_utils::prepare_scratchpad(&this->scratchpad_,
+                size, this->conf_.jcp_.nthr);
     }
 
     ~gemm_convolution_bwd_data_t() {
         delete this->scratchpad_;
-    };
+    }
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
@@ -268,26 +262,9 @@ struct gemm_convolution_bwd_weights_t: public cpu_primitive_t {
                 const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
             : cpu_convolution_bwd_weights_pd_t(engine, adesc, attr, hint_fwd_pd)
-            , jcp_()
-        {}
+            , jcp_() {}
 
         DECLARE_COMMON_PD_T(GEMM_IMPL_STR, gemm_convolution_bwd_weights_t);
-
-        inline memory_format_t src_format()
-        {
-            using namespace memory_format;
-            return (utils::pick(this->desc()->src_desc.ndims - 3,
-                ncw, nchw, ncdhw));
-        }
-        inline memory_format_t wei_format()
-        {
-            using namespace memory_format;
-            return (this->with_groups()
-                ? utils::pick(this->desc()->src_desc.ndims - 3,
-                    goiw, goihw, goidhw)
-                : utils::pick(this->desc()->src_desc.ndims - 3,
-                    oiw, oihw, oidhw));
-        }
 
         virtual status_t init() override {
             using namespace prop_kind;
@@ -315,6 +292,20 @@ struct gemm_convolution_bwd_weights_t: public cpu_primitive_t {
         jit_gemm_conv_conf_t jcp_;
 
     protected:
+        memory_format_t src_format() const {
+            using namespace memory_format;
+            const int ndims_sp = this->desc()->src_desc.ndims - 2;
+            return (utils::pick(ndims_sp - 1, ncw, nchw, ncdhw));
+        }
+
+        memory_format_t wei_format() const {
+            using namespace memory_format;
+            const int ndims_sp = this->desc()->src_desc.ndims - 2;
+            return (this->with_groups()
+                ? utils::pick(ndims_sp - 1, goiw, goihw, goidhw)
+                : utils::pick(ndims_sp - 1, oiw, oihw, oidhw));
+        }
+
         virtual status_t set_default_params() override {
             using namespace memory_format;
             if (this->src_pd_.desc()->format == any)
@@ -345,13 +336,13 @@ struct gemm_convolution_bwd_weights_t: public cpu_primitive_t {
         if (conf_.jcp_.need_wei_reduction)
             size += (size_t)conf_.jcp_.ngroups * weights_d.size();
 
-        jit_gemm_convolution_utils::prepare_scratchpad(this->conf_.jcp_,
-                &this->scratchpad_, size, conf_.jcp_.nthr);
+        jit_gemm_convolution_utils::prepare_scratchpad(&this->scratchpad_,
+                size, conf_.jcp_.nthr);
     }
 
     ~gemm_convolution_bwd_weights_t() {
         delete this->scratchpad_;
-     };
+     }
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 

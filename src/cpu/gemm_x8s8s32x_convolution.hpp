@@ -35,8 +35,8 @@ struct _gemm_x8s8s32x_convolution_fwd_t: public cpu_primitive_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const typename pd_t::base_class *hint_fwd_pd)
-            : cpu_convolution_fwd_pd_t(engine, adesc, attr,
-                    hint_fwd_pd), jcp_() {}
+            : cpu_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
+            , jcp_() {}
 
         DECLARE_COMMON_PD_T("gemm:blas",
                 _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>);
@@ -79,18 +79,20 @@ struct _gemm_x8s8s32x_convolution_fwd_t: public cpu_primitive_t {
     protected:
         virtual status_t set_default_params() override {
             using namespace memory_format;
-            bool is_sign_input =
-                    (this->desc()->src_desc.data_type == data_type::s8);
+            const bool is_sign_input =
+                this->desc()->src_desc.data_type == data_type::s8;
+
             if (this->src_pd_.desc()->format == any)
                 CHECK(this->src_pd_.set_format(nhwc));
             if (this->dst_pd_.desc()->format == any)
                 CHECK(this->dst_pd_.set_format(nhwc));
             if (this->weights_pd_.desc()->format == any)
                 CHECK(this->weights_pd_.set_format(this->with_groups()
-                            ? ((is_sign_input) ? hwigo_s8s8 : hwigo)
-                            : ((is_sign_input) ? hwio_s8s8 : hwio)));
+                            ? (is_sign_input ? hwigo_s8s8 : hwigo)
+                            : (is_sign_input ? hwio_s8s8 : hwio)));
             if (this->bias_pd_.desc()->format == any)
                 CHECK(this->bias_pd_.set_format(x));
+
             return status::success;
         }
 
@@ -123,13 +125,13 @@ struct _gemm_x8s8s32x_convolution_fwd_t: public cpu_primitive_t {
                             * sizeof(acc_data_t);
         size_t size = col_size + acc_size;
 
-        jit_gemm_convolution_utils::prepare_scratchpad(this->conf_.jcp_,
-                &this->scratchpad_, size, this->conf_.jcp_.nthr);
+        jit_gemm_convolution_utils::prepare_scratchpad(&this->scratchpad_,
+                size, this->conf_.jcp_.nthr);
     }
 
     ~_gemm_x8s8s32x_convolution_fwd_t() {
         delete this->scratchpad_;
-    };
+    }
 
     typedef typename prec_traits<src_type>::type src_data_t;
     typedef typename prec_traits<data_type::s8>::type wei_data_t;
@@ -156,12 +158,10 @@ template <data_type_t dst_type>
 struct _gemm_u8s8s32x_convolution_bwd_data_t: public cpu_primitive_t {
     struct pd_t: public cpu_convolution_bwd_data_pd_t{
         pd_t(engine_t *engine,
-                const convolution_desc_t *adesc,
-                const primitive_attr_t *attr,
+                const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
             : cpu_convolution_bwd_data_pd_t(engine, adesc, attr, hint_fwd_pd)
-            , jcp_()
-        {}
+            , jcp_() {}
 
         DECLARE_COMMON_PD_T("gemm:blas",
                 _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>);
@@ -203,15 +203,17 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t: public cpu_primitive_t {
     protected:
         virtual status_t set_default_params() override {
             using namespace memory_format;
+
             if (this->diff_src_pd_.desc()->format == any)
                 CHECK(this->diff_src_pd_.set_format(nhwc));
             if (this->diff_dst_pd_.desc()->format == any)
                 CHECK(this->diff_dst_pd_.set_format(nhwc));
             if (this->weights_pd_.desc()->format == any)
-                CHECK(this->weights_pd_.set_format(this->with_groups()
-                            ? hwigo : hwio));
+                CHECK(this->weights_pd_.set_format(
+                            this->with_groups() ? hwigo : hwio));
             if (bias_pd_.desc()->format == any)
                 CHECK(bias_pd_.set_format(x));
+
              return status::success;
         }
     };
@@ -230,13 +232,13 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t: public cpu_primitive_t {
                             * sizeof(acc_data_t);
         size_t size = col_size + acc_size;
 
-        jit_gemm_convolution_utils::prepare_scratchpad(this->conf_.jcp_,
-                &this->scratchpad_, size, this->conf_.jcp_.nthr);
+        jit_gemm_convolution_utils::prepare_scratchpad(&this->scratchpad_,
+                size, this->conf_.jcp_.nthr);
     }
 
     ~_gemm_u8s8s32x_convolution_bwd_data_t() {
         delete this->scratchpad_;
-    };
+    }
 
     typedef typename prec_traits<data_type::u8>::type diff_dst_data_t;
     typedef typename prec_traits<data_type::s8>::type wei_data_t;
