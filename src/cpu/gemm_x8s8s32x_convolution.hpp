@@ -18,6 +18,8 @@
 #define GEMM_X8S8S32X_CONVOLUTION_HPP
 
 #include "c_types_map.hpp"
+#include "memory_tracking.hpp"
+
 #include "cpu_convolution_pd.hpp"
 #include "cpu_engine.hpp"
 #include "jit_primitive_conf.hpp"
@@ -69,9 +71,10 @@ struct _gemm_x8s8s32x_convolution_fwd_t: public cpu_primitive_t {
                 && this->is_gemm_conv_format();
             if (!ok) return status::unimplemented;
 
-            return jit_gemm_convolution_utils::init_conf(jcp_, *this->desc(),
-                    this->src_pd(), this->weights_pd(0), this->dst_pd(),
-                    mkldnn_get_max_threads());
+            auto scratchpad = scratchpad_registry().registrar();
+            return jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
+                    *this->desc(), this->src_pd(), this->weights_pd(0),
+                    this->dst_pd(), mkldnn_get_max_threads());
         }
 
         jit_gemm_conv_conf_t jcp_;
@@ -114,21 +117,8 @@ struct _gemm_x8s8s32x_convolution_fwd_t: public cpu_primitive_t {
 
     _gemm_x8s8s32x_convolution_fwd_t(const pd_t *apd, const input_vector &inputs,
            const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs)
-        , scratchpad_(nullptr)
-    {
-        size_t col_size = (size_t)pd()->jcp_.im2col_sz * sizeof(src_data_t);
-        size_t acc_size = (size_t)pd()->jcp_.os * pd()->jcp_.oc
-                            * sizeof(acc_data_t);
-        size_t size = col_size + acc_size;
-
-        jit_gemm_convolution_utils::prepare_scratchpad(&this->scratchpad_,
-                size, this->pd()->jcp_.nthr);
-    }
-
-    ~_gemm_x8s8s32x_convolution_fwd_t() {
-        delete this->scratchpad_;
-    }
+        : cpu_primitive_t(apd, inputs, outputs, true) {}
+    ~_gemm_x8s8s32x_convolution_fwd_t() {}
 
     typedef typename prec_traits<src_type>::type src_data_t;
     typedef typename prec_traits<data_type::s8>::type wei_data_t;
@@ -141,13 +131,13 @@ struct _gemm_x8s8s32x_convolution_fwd_t: public cpu_primitive_t {
     }
 
 private:
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     void execute_forward();
     void execute_forward_thr(const int ithr, const int nthr,
             const src_data_t *src_base, const wei_data_t *wei_base,
             const char *bia_base, dst_data_t *dst_base,
-            char *scratchpad);
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
-    scratchpad_t *scratchpad_;
+            const memory_tracking::grantor_t &scratchpad);
+
     int nthr_;
 };
 
@@ -188,8 +178,9 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t: public cpu_primitive_t {
                 && attr()->post_ops_.has_default_values();
             if (!ok) return status::unimplemented;
 
-            return jit_gemm_convolution_utils::init_conf(jcp_, *this->desc(),
-                    this->diff_src_pd(), this->weights_pd(0),
+            auto scratchpad = scratchpad_registry().registrar();
+            return jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
+                    *this->desc(), this->diff_src_pd(), this->weights_pd(0),
                     this->diff_dst_pd(), mkldnn_get_max_threads());
         }
 
@@ -217,21 +208,8 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t: public cpu_primitive_t {
 
     _gemm_u8s8s32x_convolution_bwd_data_t(const pd_t *apd, const input_vector &inputs,
            const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs)
-        , scratchpad_(nullptr)
-    {
-        size_t col_size = (size_t)pd()->jcp_.im2col_sz * sizeof(acc_data_t);
-        size_t acc_size = (size_t)pd()->jcp_.is * pd()->jcp_.ic
-                            * sizeof(acc_data_t);
-        size_t size = col_size + acc_size;
-
-        jit_gemm_convolution_utils::prepare_scratchpad(&this->scratchpad_,
-                size, this->pd()->jcp_.nthr);
-    }
-
-    ~_gemm_u8s8s32x_convolution_bwd_data_t() {
-        delete this->scratchpad_;
-    }
+        : cpu_primitive_t(apd, inputs, outputs, true) {}
+    ~_gemm_u8s8s32x_convolution_bwd_data_t() {}
 
     typedef typename prec_traits<data_type::u8>::type diff_dst_data_t;
     typedef typename prec_traits<data_type::s8>::type wei_data_t;
@@ -248,9 +226,8 @@ private:
     void execute_backward_data_thr(const int ithr, const int nthr,
             const diff_dst_data_t *diff_dst_base, const wei_data_t *wei_base,
             const char *bia_base, diff_src_data_t *diff_src_base,
-            char *scratchpad);
+            const memory_tracking::grantor_t &scratchpad);
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
-    scratchpad_t *scratchpad_;
 };
 
 }

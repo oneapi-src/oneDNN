@@ -18,11 +18,12 @@
 #define CPU_JIT_GEMM_CONVOLUTION_UTILS_HPP
 
 #include "c_types_map.hpp"
+#include "memory_tracking.hpp"
+#include "mkldnn_thread.hpp"
+
 #include "cpu_convolution_pd.hpp"
 #include "cpu_engine.hpp"
 #include "jit_primitive_conf.hpp"
-#include "mkldnn_thread.hpp"
-#include "scratchpad.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -43,11 +44,10 @@ void col2im_3d(const jit_gemm_conv_conf_t &jcp, const float *col, float *im,
         int od);
 void col2im(const jit_gemm_conv_conf_t &jcp, const float *col, float *im);
 
-status_t init_conf(jit_gemm_conv_conf_t &jcp, const convolution_desc_t &cd,
+status_t init_conf(jit_gemm_conv_conf_t &jcp,
+        memory_tracking::registrar_t &scratchpad, const convolution_desc_t &cd,
         const memory_desc_wrapper &src_d, const memory_desc_wrapper &weights_d,
         const memory_desc_wrapper &dst_d, int max_threads);
-
-status_t prepare_scratchpad(scratchpad_t **scratchpad, size_t size, int nthr);
 
 void bwd_weights_balance(int ithr, int nthr, int ngroups, int mb,
         int &ithr_g, int &nthr_g, int &ithr_mb, int &nthr_mb);

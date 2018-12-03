@@ -32,34 +32,36 @@ namespace cpu {
 
 using namespace mkldnn::impl::utils;
 using namespace mkldnn::impl::math;
+using namespace mkldnn::impl::memory_tracking::names;
 
 template <data_type_t src_type, data_type_t dst_type>
-void _gemm_x8s8s32x_convolution_fwd_t<src_type,
-        dst_type>::execute_forward() {
+void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::
+execute_forward() {
     auto src_base = reinterpret_cast<const src_data_t *>(this->input_memory(0));
     auto wei_base = reinterpret_cast<const wei_data_t *>(this->input_memory(1));
     auto bia_base = reinterpret_cast<const char *>(this->input_memory(2));
     auto dst_base = reinterpret_cast<dst_data_t *>(this->memory());
 
+    auto scratchpad = this->scratchpad();
+
     const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
 
-    char *scratchpad = (char *)this->scratchpad_->get();
-    uint8_t *col = (uint8_t *)scratchpad;
+    auto col = scratchpad.template get<uint8_t>(key_conv_gemm_col);
     parallel_nd(jcp.im2col_sz * jcp.nthr, [&](ptrdiff_t i) {
         col[i] = jcp.signed_input ? (uint8_t)128 : (uint8_t)0;
     });
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
-        execute_forward_thr(ithr, nthr, src_base, wei_base, bia_base,
-                dst_base, scratchpad);
+        execute_forward_thr(ithr, nthr, src_base, wei_base, bia_base, dst_base,
+                scratchpad);
     });
 }
 
 template <data_type_t src_type, data_type_t dst_type>
 void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::
-        execute_forward_thr(const int ithr, const int nthr,
-        const src_data_t *src_base, const wei_data_t *wei_base,
-        const char *bia_base, dst_data_t *dst_base, char *scratchpad) {
+execute_forward_thr(const int ithr, const int nthr, const src_data_t *src_base,
+        const wei_data_t *wei_base, const char *bia_base, dst_data_t *dst_base,
+        const memory_tracking::grantor_t &scratchpad) {
     const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
 
     const auto src_md = memory_desc_wrapper(pd()->src_pd());
@@ -102,14 +104,12 @@ void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::
     }
     const bool do_relu = entry_idx >= 0;
 
-    uint8_t *_col = (uint8_t *)scratchpad;
-    ptrdiff_t offset = (ptrdiff_t)jcp.im2col_sz * sizeof(uint8_t) * jcp.nthr;
-    acc_data_t *_acc = (acc_data_t *)(scratchpad + offset);
+    auto col = scratchpad.get<uint8_t>(key_conv_gemm_col)
+        + (ptrdiff_t)ithr * jcp.im2col_sz;
+    auto acc = scratchpad.get<acc_data_t>(key_conv_int_dat_in_acc_dt)
+        + (ptrdiff_t)ithr * jcp.os * jcp.oc;
 
-    uint8_t *col = _col + (ptrdiff_t)ithr * jcp.im2col_sz;
-    acc_data_t *acc = _acc + (ptrdiff_t)ithr * jcp.os * jcp.oc;
-
-    offset = (ptrdiff_t)jcp.ngroups * jcp.ks * jcp.ic * jcp.oc;
+    const ptrdiff_t offset = (ptrdiff_t)jcp.ngroups * jcp.ks * jcp.ic * jcp.oc;
     const int32_t *_wei_comp = (const int32_t *)(wei_base + offset);
 
     int n{0}, g{0};
@@ -186,8 +186,9 @@ void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data() {
     auto bia_base = reinterpret_cast<const char *>(this->input_memory(2));
     auto diff_src_base = reinterpret_cast<diff_src_data_t *>(this->memory());
 
+    auto scratchpad = this->scratchpad();
+
     const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
-    char *scratchpad = (char *)this->scratchpad_->get();
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         execute_backward_data_thr(ithr, nthr, diff_dst_base, wei_base,
@@ -196,10 +197,11 @@ void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data() {
 }
 
 template <data_type_t dst_type>
-void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>
-::execute_backward_data_thr(const int ithr, const int nthr,
+void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::
+execute_backward_data_thr(const int ithr, const int nthr,
         const diff_dst_data_t *diff_dst_base, const wei_data_t *wei_base,
-        const char *bia_base, diff_src_data_t *diff_src_base, char *scratchpad)
+        const char *bia_base, diff_src_data_t *diff_src_base,
+        const memory_tracking::grantor_t &scratchpad)
 {
     const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
 
@@ -221,13 +223,10 @@ void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>
     const auto rmode = pd()->attr()->round_mode_;
     const size_t work_amount = jcp.ngroups * jcp.mb;
 
-    acc_data_t *_col = (acc_data_t *)scratchpad;
-    ptrdiff_t offset = (ptrdiff_t)jcp.im2col_sz
-                                    * sizeof(acc_data_t) * jcp.nthr;
-    acc_data_t *_acc = (acc_data_t *)(scratchpad + offset);
-
-    acc_data_t *col = _col + (ptrdiff_t)ithr * jcp.im2col_sz;
-    acc_data_t *acc = _acc + (ptrdiff_t)ithr * jcp.is * jcp.ic;
+    auto col = scratchpad.get<acc_data_t>(key_conv_gemm_col)
+        + (ptrdiff_t)ithr * jcp.im2col_sz;
+    auto acc = scratchpad.get<acc_data_t>(key_conv_int_dat_in_acc_dt)
+        + (ptrdiff_t)ithr * jcp.is * jcp.ic;
 
     int n{0}, g{0};
     size_t start = 0, end = 0;

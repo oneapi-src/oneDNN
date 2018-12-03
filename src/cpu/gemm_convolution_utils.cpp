@@ -328,7 +328,8 @@ void col2im(const jit_gemm_conv_conf_t &jcp, const float *col, float *im) {
     });
 }
 
-status_t init_conf(jit_gemm_conv_conf_t &jcp, const convolution_desc_t &cd,
+status_t init_conf(jit_gemm_conv_conf_t &jcp,
+        memory_tracking::registrar_t &scratchpad, const convolution_desc_t &cd,
         const memory_desc_wrapper &src_d, const memory_desc_wrapper &weights_d,
         const memory_desc_wrapper &dst_d, int max_threads) {
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
@@ -385,37 +386,59 @@ status_t init_conf(jit_gemm_conv_conf_t &jcp, const convolution_desc_t &cd,
         ? (ptrdiff_t)jcp.ic * jcp.ks * jcp.os : 0;
 
     bool do_outer_threading = false;
-    bool is_int8_conv = one_of(cd.src_desc.data_type, u8, s8)
-        && cd.weights_desc.data_type == s8;
+    bool is_int8_conv = one_of(
+            conv_prop_agnostic_src_d(&cd)->data_type, u8, s8)
+        && conv_prop_agnostic_wei_d(&cd)->data_type == s8;
 
+    const bool is_bwd_d = jcp.prop_kind == backward_data;
+    const bool is_bwd_w = jcp.prop_kind == backward_weights;
+    const bool is_fwd = !is_bwd_d && !is_bwd_w;
+
+    using namespace memory_tracking::names;
     if (is_int8_conv) {
         bool is_depthwise = jcp.ic == 1 && jcp.oc == 1 && jcp.ngroups != 1;
         do_outer_threading = is_depthwise
             || (jcp.os / max_threads < 64 && jcp.mb != 1);
+        jcp.nthr = do_outer_threading ? max_threads : 1;
+
+        if (is_fwd) {
+            scratchpad.book(key_conv_gemm_col,
+                    sizeof(int8_t) * jcp.nthr * jcp.im2col_sz);
+            scratchpad.book(key_conv_int_dat_in_acc_dt,
+                    sizeof(int32_t) * jcp.nthr * jcp.os * jcp.oc);
+        } else if (is_bwd_d) {
+            scratchpad.book(key_conv_gemm_col,
+                    sizeof(int32_t) * jcp.nthr * jcp.im2col_sz);
+            scratchpad.book(key_conv_int_dat_in_acc_dt,
+                    sizeof(int32_t) * jcp.nthr * jcp.is * jcp.ic);
+        } else if (is_bwd_w) {
+            assert(!"unimplemented prop_kind");
+            return status::unimplemented;
+        }
     } else {
-        if (one_of(jcp.prop_kind, forward_training, forward_inference))
+        if (is_fwd)
             do_outer_threading = jcp.os / max_threads < 512
                 && IMPLICATION(jcp.od == 1, jcp.mb != 1 || jcp.ngroups > 2);
-        else if (jcp.prop_kind == backward_data)
+        else if (is_bwd_d)
             do_outer_threading = jcp.mb != 1 || jcp.ngroups > 2;
-        else //(jcp.prop_kind == backward_weights)
+        else if (is_bwd_w)
             do_outer_threading = jcp.os / max_threads < 256
-                       && (jcp.mb != 1 || jcp.ngroups > 2);
-    }
-    jcp.nthr = do_outer_threading ? max_threads : 1;
-    jcp.need_wei_reduction = mkldnn_thr_syncable()
-        ? (jcp.mb != 1 && jcp.nthr != 1) : false;
+                && (jcp.mb != 1 || jcp.ngroups > 2);
 
-    return status::success;
-}
+        jcp.nthr = do_outer_threading ? max_threads : 1;
 
-status_t prepare_scratchpad(scratchpad_t **scratchpad, size_t size, int nthr) {
-    if (size > 0) {
-        *scratchpad = create_scratchpad(nthr * size);
-        if (*scratchpad == nullptr) return status::out_of_memory;
-    } else {
-        *scratchpad = nullptr;
+        scratchpad.book(key_conv_gemm_col,
+                sizeof(float) * jcp.nthr * jcp.im2col_sz);
+
+        if (is_bwd_w) {
+            jcp.need_wei_reduction = mkldnn_thr_syncable()
+                ? jcp.mb != 1 && jcp.nthr != 1 : false;
+
+            scratchpad.book(key_conv_wei_reduction,
+                    sizeof(float) * jcp.nthr * jcp.ngroups * weights_d.size());
+        }
     }
+
     return status::success;
 }
 

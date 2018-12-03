@@ -18,7 +18,7 @@
 #define CPU_JIT_GEMM_CONVOLUTION_HPP
 
 #include "c_types_map.hpp"
-#include "scratchpad.hpp"
+#include "memory_tracking.hpp"
 
 #include "cpu_convolution_pd.hpp"
 #include "cpu_engine.hpp"
@@ -64,8 +64,9 @@ struct gemm_convolution_fwd_t: public cpu_primitive_t {
                 && this->is_gemm_conv_format();
             if (!ok) return status::unimplemented;
 
-            return jit_gemm_convolution_utils::init_conf(jcp_, *desc(),
-                    src_pd(), weights_pd(0), dst_pd(),
+            auto scratchpad = scratchpad_registry().registrar();
+            return jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
+                    *desc(), src_pd(), weights_pd(0), dst_pd(),
                     mkldnn_get_max_threads());
         }
 
@@ -117,18 +118,11 @@ struct gemm_convolution_fwd_t: public cpu_primitive_t {
 
     gemm_convolution_fwd_t(const pd_t *apd, const input_vector &inputs,
            const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs)
-        , scratchpad_(nullptr), eltwise_(nullptr)
+        : cpu_primitive_t(apd, inputs, outputs, true), eltwise_(nullptr)
     {
-        using namespace prop_kind;
-
         const auto &post_ops = pd()->attr()->post_ops_;
         const data_t one = 1.0, zero = 0.0;
         beta_ = post_ops.find(primitive_kind::sum) >= 0 ? one : zero;
-
-        size_t size = (size_t)pd()->jcp_.im2col_sz * sizeof(data_t);
-        jit_gemm_convolution_utils::prepare_scratchpad(&this->scratchpad_,
-                size, this->pd()->jcp_.nthr);
 
         const int entry_idx = post_ops.find(primitive_kind::eltwise);
         if (entry_idx != -1) eltwise_ = new ref_eltwise_scalar_fwd_t(
@@ -136,7 +130,6 @@ struct gemm_convolution_fwd_t: public cpu_primitive_t {
     }
 
     ~gemm_convolution_fwd_t() {
-        delete this->scratchpad_;
         delete eltwise_;
     }
 
@@ -150,7 +143,7 @@ struct gemm_convolution_fwd_t: public cpu_primitive_t {
 private:
     void execute_forward();
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
-    scratchpad_t *scratchpad_;
+
     data_t beta_;
 
     ref_eltwise_scalar_fwd_t* eltwise_;
@@ -186,8 +179,9 @@ struct gemm_convolution_bwd_data_t: public cpu_primitive_t {
                 && this->weights_pd_.desc()->format == wei_format();
             if (!ok) return status::unimplemented;
 
-            return jit_gemm_convolution_utils::init_conf(jcp_, *desc(),
-                    diff_src_pd(), weights_pd(0), diff_dst_pd(),
+            auto scratchpad = scratchpad_registry().registrar();
+            return jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
+                    *desc(), diff_src_pd(), weights_pd(0), diff_dst_pd(),
                     mkldnn_get_max_threads());
         }
 
@@ -222,17 +216,8 @@ struct gemm_convolution_bwd_data_t: public cpu_primitive_t {
 
     gemm_convolution_bwd_data_t(const pd_t *apd, const input_vector &inputs,
               const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs)
-        , scratchpad_(nullptr)
-    {
-        size_t size = (size_t)pd()->jcp_.im2col_sz * sizeof(data_t);
-        jit_gemm_convolution_utils::prepare_scratchpad(&this->scratchpad_,
-                size, this->pd()->jcp_.nthr);
-    }
-
-    ~gemm_convolution_bwd_data_t() {
-        delete this->scratchpad_;
-    }
+        : cpu_primitive_t(apd, inputs, outputs, true) {}
+    ~gemm_convolution_bwd_data_t() {}
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
@@ -250,7 +235,6 @@ struct gemm_convolution_bwd_data_t: public cpu_primitive_t {
 private:
     void execute_backward_data();
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
-    scratchpad_t *scratchpad_;
 };
 
 struct gemm_convolution_bwd_weights_t: public cpu_primitive_t {
@@ -286,8 +270,9 @@ struct gemm_convolution_bwd_weights_t: public cpu_primitive_t {
             && this->diff_weights_pd_.desc()->format == wei_format();
             if (!ok) return status::unimplemented;
 
-            return jit_gemm_convolution_utils::init_conf(jcp_, *desc(),
-                    src_pd(), diff_weights_pd(0), diff_dst_pd(),
+            auto scratchpad = scratchpad_registry().registrar();
+            return jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
+                    *desc(), src_pd(), diff_weights_pd(0), diff_dst_pd(),
                     mkldnn_get_max_threads());
         }
 
@@ -324,24 +309,8 @@ struct gemm_convolution_bwd_weights_t: public cpu_primitive_t {
 
     gemm_convolution_bwd_weights_t(const pd_t *apd, const input_vector &inputs,
               const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs)
-        , scratchpad_(nullptr)
-    {
-        using namespace prop_kind;
-
-        const memory_desc_wrapper weights_d(pd()->diff_weights_pd(0));
-
-        size_t size = (size_t)pd()->jcp_.im2col_sz  * sizeof(data_t);
-        if (pd()->jcp_.need_wei_reduction)
-            size += (size_t)pd()->jcp_.ngroups * weights_d.size();
-
-        jit_gemm_convolution_utils::prepare_scratchpad(&this->scratchpad_,
-                size, pd()->jcp_.nthr);
-    }
-
-    ~gemm_convolution_bwd_weights_t() {
-        delete this->scratchpad_;
-     }
+        : cpu_primitive_t(apd, inputs, outputs, true) {}
+    ~gemm_convolution_bwd_weights_t() {}
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
@@ -359,7 +328,6 @@ struct gemm_convolution_bwd_weights_t: public cpu_primitive_t {
 private:
     void execute_backward_weights();
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
-    scratchpad_t *scratchpad_;
 };
 
 }

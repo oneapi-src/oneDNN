@@ -29,6 +29,7 @@ namespace cpu {
 
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::memory_format;
+using namespace mkldnn::impl::memory_tracking::names;
 using namespace mkldnn::impl::utils;
 
 void gemm_convolution_fwd_t::execute_forward() {
@@ -36,6 +37,8 @@ void gemm_convolution_fwd_t::execute_forward() {
     auto weights = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto bias = reinterpret_cast<const data_t *>(this->input_memory(2));
     auto dst = reinterpret_cast<data_t*>(this->memory());
+
+    auto col = scratchpad().get<data_t>(key_conv_gemm_col);
 
     const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
 
@@ -48,8 +51,6 @@ void gemm_convolution_fwd_t::execute_forward() {
     const int N = jcp.oc;
     const int m = jcp.os;
     const int LDA = jcp.im2col_sz ? m : M;
-
-    data_t *col = jcp.im2col_sz ? (data_t *)this->scratchpad_->get() : nullptr;
 
     parallel_nd(jcp.im2col_sz * jcp.nthr,
             [&](ptrdiff_t i) { col[i] = (data_t)0; });
@@ -122,6 +123,8 @@ void gemm_convolution_bwd_data_t::execute_backward_data() {
     auto weights = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto diff_src = reinterpret_cast<data_t*>(this->memory());
 
+    auto col = scratchpad().get<data_t>(key_conv_gemm_col);
+
     const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
 
     const int M = jcp.os * jcp.od;
@@ -133,7 +136,6 @@ void gemm_convolution_bwd_data_t::execute_backward_data() {
     const int K = jcp.oc;
     const int N = jcp.ic * jcp.ks;
     const int LDC = jcp.im2col_sz ? m : M;
-    data_t *col = jcp.im2col_sz ? (data_t *)this->scratchpad_->get() : nullptr;
 
     const size_t work_amount = (size_t)jcp.ngroups * jcp.mb;
 
@@ -182,7 +184,11 @@ void gemm_convolution_bwd_weights_t::execute_backward_weights() {
     auto diff_weights = reinterpret_cast<data_t*>(this->memory(0));
     auto diff_bias = reinterpret_cast<data_t *>(this->memory(1));
 
+    auto col = scratchpad().get<data_t>(key_conv_gemm_col);
+    auto wei_reduction = scratchpad().get<data_t>(key_conv_wei_reduction);
+
     const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
+
     const int K = jcp.os * jcp.od;
     const size_t src_step = jcp.ic * jcp.ih * jcp.iw * jcp.id;
     const size_t dst_step = jcp.oc * K;
@@ -192,15 +198,6 @@ void gemm_convolution_bwd_weights_t::execute_backward_weights() {
     const int N = jcp.oc;
     const int M = jcp.ic * jcp.ks;
     const int LDA = jcp.im2col_sz ? k : K;
-
-    data_t *col = nullptr, *wei_reduction = nullptr;
-    ptrdiff_t wei_offset = 0;
-    if (jcp.im2col_sz) {
-        col = (data_t *)this->scratchpad_->get();
-        wei_offset = jcp.im2col_sz * jcp.nthr;
-    }
-    if (jcp.need_wei_reduction)
-        wei_reduction = (data_t *)this->scratchpad_->get() + wei_offset;
 
     parallel_nd(jcp.im2col_sz * jcp.nthr,
             [&](ptrdiff_t i) { col[i] = (data_t)0; });
