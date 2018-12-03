@@ -39,7 +39,7 @@ void col2im_s32(jit_gemm_conv_conf_t &jcp, const int32_t *col, int32_t *im);
 void col2im_3d(jit_gemm_conv_conf_t &jcp, const float *col, float *im, int od);
 void col2im(jit_gemm_conv_conf_t &jcp, const float *col, float *im);
 
-void init_conf(jit_gemm_conv_conf_t &jcp, const convolution_desc_t &cd,
+status_t init_conf(jit_gemm_conv_conf_t &jcp, const convolution_desc_t &cd,
         const memory_desc_wrapper &src_d, const memory_desc_wrapper &weights_d,
         const memory_desc_wrapper &dst_d, int max_threads);
 

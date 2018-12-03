@@ -70,8 +70,11 @@ struct _gemm_x8s8s32x_convolution_fwd_t: public cpu_primitive_t {
                         ? ((src_type == data_type::s8) ? hwigo_s8s8 : hwigo)
                         : ((src_type == data_type::s8) ? hwio_s8s8 : hwio))
                 && this->is_gemm_conv_format();
+            if (!ok) return status::unimplemented;
 
-            return ok ? status::success : status::unimplemented;
+            return jit_gemm_convolution_utils::init_conf(jcp_, *this->desc(),
+                    this->src_pd(), this->weights_pd(0), this->dst_pd(),
+                    mkldnn_get_max_threads());
         }
 
         jit_gemm_conv_conf_t jcp_;
@@ -116,10 +119,6 @@ struct _gemm_x8s8s32x_convolution_fwd_t: public cpu_primitive_t {
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
         , scratchpad_(nullptr)
     {
-        jit_gemm_convolution_utils::init_conf(conf_.jcp_,
-            *conf_.desc(), conf_.src_pd(), conf_.weights_pd(0),
-            conf_.dst_pd(), mkldnn_get_max_threads());
-
         size_t col_size = (size_t)conf_.jcp_.im2col_sz * sizeof(src_data_t);
         size_t acc_size = (size_t)conf_.jcp_.os * conf_.jcp_.oc
                             * sizeof(acc_data_t);
@@ -192,8 +191,11 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t: public cpu_primitive_t {
                 && this->weights_pd_.desc()->format == (this->with_groups()
                         ? hwigo : hwio)
                 && attr()->post_ops_.has_default_values();
+            if (!ok) return status::unimplemented;
 
-            return ok ? status::success : status::unimplemented;
+            return jit_gemm_convolution_utils::init_conf(jcp_, *this->desc(),
+                    this->diff_src_pd(), this->weights_pd(0),
+                    this->diff_dst_pd(), mkldnn_get_max_threads());
         }
 
         virtual bool support_bias() const override { return true; }
@@ -223,10 +225,6 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t: public cpu_primitive_t {
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
         , scratchpad_(nullptr)
     {
-        jit_gemm_convolution_utils::init_conf(conf_.jcp_,
-            *conf_.desc(), conf_.diff_src_pd(), conf_.weights_pd(0),
-            conf_.diff_dst_pd(), mkldnn_get_max_threads());
-
         size_t col_size = (size_t)conf_.jcp_.im2col_sz * sizeof(acc_data_t);
         size_t acc_size = (size_t)conf_.jcp_.is * conf_.jcp_.ic
                             * sizeof(acc_data_t);

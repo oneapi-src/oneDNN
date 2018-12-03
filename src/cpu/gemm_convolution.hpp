@@ -62,7 +62,11 @@ struct gemm_convolution_fwd_t: public cpu_primitive_t {
                 && this->dst_pd_.desc()->format == src_format()
                 && this->weights_pd_.desc()->format == wei_format()
                 && this->is_gemm_conv_format();
-            return ok ? status::success : status::unimplemented;
+            if (!ok) return status::unimplemented;
+
+            return jit_gemm_convolution_utils::init_conf(jcp_, *desc(),
+                    src_pd(), weights_pd(0), dst_pd(),
+                    mkldnn_get_max_threads());
         }
 
         jit_gemm_conv_conf_t jcp_;
@@ -122,10 +126,6 @@ struct gemm_convolution_fwd_t: public cpu_primitive_t {
         const data_t one = 1.0, zero = 0.0;
         beta_ = post_ops.find(primitive_kind::sum) >= 0 ? one : zero;
 
-        jit_gemm_convolution_utils::init_conf(conf_.jcp_,
-            *(conf_.desc()), conf_.src_pd(), conf_.weights_pd(0),
-            conf_.dst_pd(), mkldnn_get_max_threads());
-
         size_t size = (size_t)conf_.jcp_.im2col_sz * sizeof(data_t);
         jit_gemm_convolution_utils::prepare_scratchpad(&this->scratchpad_,
                 size, this->conf_.jcp_.nthr);
@@ -184,7 +184,11 @@ struct gemm_convolution_bwd_data_t: public cpu_primitive_t {
                 && this->diff_src_pd_.desc()->format == src_format()
                 && this->diff_dst_pd_.desc()->format == src_format()
                 && this->weights_pd_.desc()->format == wei_format();
-            return ok ? status::success : status::unimplemented;
+            if (!ok) return status::unimplemented;
+
+            return jit_gemm_convolution_utils::init_conf(jcp_, *desc(),
+                    diff_src_pd(), weights_pd(0), diff_dst_pd(),
+                    mkldnn_get_max_threads());
         }
 
         jit_gemm_conv_conf_t jcp_;
@@ -221,12 +225,6 @@ struct gemm_convolution_bwd_data_t: public cpu_primitive_t {
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
         , scratchpad_(nullptr)
     {
-        using namespace prop_kind;
-
-        jit_gemm_convolution_utils::init_conf(conf_.jcp_,
-            *(conf_.desc()), conf_.diff_src_pd(), conf_.weights_pd(0),
-            conf_.diff_dst_pd(), mkldnn_get_max_threads());
-
         size_t size = (size_t)conf_.jcp_.im2col_sz * sizeof(data_t);
         jit_gemm_convolution_utils::prepare_scratchpad(&this->scratchpad_,
                 size, this->conf_.jcp_.nthr);
@@ -286,7 +284,11 @@ struct gemm_convolution_bwd_weights_t: public cpu_primitive_t {
             && this->src_pd_.desc()->format == src_format()
             && this->diff_dst_pd_.desc()->format == src_format()
             && this->diff_weights_pd_.desc()->format == wei_format();
-            return ok ? status::success : status::unimplemented;
+            if (!ok) return status::unimplemented;
+
+            return jit_gemm_convolution_utils::init_conf(jcp_, *desc(),
+                    src_pd(), diff_weights_pd(0), diff_dst_pd(),
+                    mkldnn_get_max_threads());
         }
 
         jit_gemm_conv_conf_t jcp_;
@@ -327,9 +329,6 @@ struct gemm_convolution_bwd_weights_t: public cpu_primitive_t {
     {
         using namespace prop_kind;
 
-        jit_gemm_convolution_utils::init_conf(conf_.jcp_,
-            *(conf_.desc()), conf_.src_pd(), conf_.diff_weights_pd(0),
-            conf_.diff_dst_pd(), mkldnn_get_max_threads());
         const memory_desc_wrapper weights_d(conf_.diff_weights_pd(0));
 
         size_t size = (size_t)conf_.jcp_.im2col_sz  * sizeof(data_t);

@@ -320,7 +320,7 @@ void col2im(jit_gemm_conv_conf_t &jcp, const float *col, float *im) {
     });
 }
 
-void init_conf(jit_gemm_conv_conf_t &jcp, const convolution_desc_t &cd,
+status_t init_conf(jit_gemm_conv_conf_t &jcp, const convolution_desc_t &cd,
         const memory_desc_wrapper &src_d, const memory_desc_wrapper &weights_d,
         const memory_desc_wrapper &dst_d, int max_threads) {
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
@@ -397,6 +397,8 @@ void init_conf(jit_gemm_conv_conf_t &jcp, const convolution_desc_t &cd,
     jcp.nthr = do_outer_threading ? max_threads : 1;
     jcp.need_wei_reduction = mkldnn_thr_syncable()
         ? (jcp.mb != 1 && jcp.nthr != 1) : false;
+
+    return status::success;
 }
 
 status_t prepare_scratchpad(scratchpad_t **scratchpad, size_t size, int nthr) {
