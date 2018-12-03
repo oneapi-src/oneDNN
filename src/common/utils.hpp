@@ -21,6 +21,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <stdint.h>
 
 #define MSAN_ENABLED 0
 #if defined(__has_feature)
@@ -173,6 +174,9 @@ template <typename T, typename U>
 inline typename remove_reference<T>::type rnd_dn(const T a, const U b) {
     return (a / b) * b;
 }
+
+template <typename T> T *align_ptr(T *ptr, uintptr_t alignment)
+{ return (T *)(((uintptr_t)ptr + alignment - 1) & ~(alignment - 1)); }
 
 template <typename T, typename U, typename V>
 inline U this_block_size(const T offset, const U max, const V block_size) {
