@@ -231,7 +231,8 @@ enum {
 	ERR_INVALID_ZERO,
 	ERR_INVALID_RIP_IN_AUTO_GROW,
 	ERR_INVALID_MIB_ADDRESS,
-	ERR_INTERNAL
+	ERR_INTERNAL,
+        ERR_x2APIC_NOT_SUPPORTED_CANT_GET_NCORES
 };
 
 class Error : public std::exception {
@@ -293,6 +294,7 @@ public:
 			"invalid rip in AutoGrow",
 			"invalid mib address",
 			"internal error",
+                        "cannot determine num of cores because x2APIC not supported"
 		};
 		assert((size_t)err_ < sizeof(errTbl) / sizeof(*errTbl));
 		return errTbl[err_];
