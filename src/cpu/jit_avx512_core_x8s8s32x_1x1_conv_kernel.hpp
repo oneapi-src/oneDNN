@@ -18,6 +18,8 @@
 #define JIT_AVX512_CORE_X8S8S32X_1X1_CONV_KERNEL_HPP
 
 #include "c_types_map.hpp"
+#include "memory_tracking.hpp"
+
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
 #include "jit_uni_eltwise.hpp"
@@ -48,13 +50,16 @@ struct jit_avx512_core_x8s8s32x_1x1_conv_kernel: public jit_generator {
                                 const primitive_attr_t &attr);
 
     static status_t init_conf(jit_1x1_conv_conf_t &jcp,
-                                const convolution_desc_t &cd,
-                                const memory_desc_wrapper &src_d,
-                                const memory_desc_wrapper &weights_d,
-                                const memory_desc_wrapper &dst_d,
-                                const memory_desc_wrapper &bias_d,
-                                const primitive_attr_t &attr,
-                                int nthreads, bool reduce_src);
+            const convolution_desc_t &cd,
+            const memory_desc_wrapper &src_d,
+            const memory_desc_wrapper &weights_d,
+            const memory_desc_wrapper &dst_d,
+            const memory_desc_wrapper &bias_d,
+            const primitive_attr_t &attr,
+            int nthreads, bool reduce_src);
+
+    static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
+            const jit_1x1_conv_conf_t &jcp, const primitive_attr_t &attr);
 
     bool maybe_eltwise(int position);
 
@@ -115,10 +120,10 @@ struct jit_avx512_core_x8s8s32x_1x1_conv_kernel: public jit_generator {
     void reduce_loop(int load_loop_blk, int ur, int substep, bool wraparound);
 
     void generate();
-    static void balance(jit_1x1_conv_conf_t &jcp, int nthreads);
     void cvt2ps(data_type_t type_in, zmm_t zmm_in, const Xbyak::Operand &op,
         bool mask_flag);
 };
+
 }
 }
 }

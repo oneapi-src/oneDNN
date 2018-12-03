@@ -18,14 +18,15 @@
 #define CPU_JIT_AVX512_CORE_X8S8S32X_1X1_CONVOLUTION_HPP
 
 #include "c_types_map.hpp"
-#include "cpu_convolution_pd.hpp"
-#include "cpu_engine.hpp"
-#include "cpu_reducer.hpp"
+#include "memory_tracking.hpp"
 #include "mkldnn_thread.hpp"
 #include "utils.hpp"
 
-#include "jit_uni_1x1_conv_utils.hpp"
+#include "cpu_convolution_pd.hpp"
+#include "cpu_engine.hpp"
+
 #include "jit_avx512_core_x8s8s32x_1x1_conv_kernel.hpp"
+#include "jit_uni_1x1_conv_utils.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -34,8 +35,7 @@ namespace cpu {
 template<impl::data_type_t src_type, impl::data_type_t dst_type>
 struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public cpu_primitive_t {
     struct pd_t: public cpu_convolution_fwd_pd_t {
-        pd_t(engine_t *engine,
-                const convolution_desc_t *adesc,
+        pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const typename pd_t::base_class *hint_fwd_pd)
             : cpu_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
@@ -63,72 +63,69 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public cpu_primitive_t {
                             this->desc()->bias_desc.data_type, data_type::f32,
                             data_type::s32, data_type::s8, data_type::u8))
                 && this->desc()->accum_data_type == data_type::s32;
-
             if (!ok) return status::unimplemented;
 
             const convolution_desc_t *conv_d = this->desc();
             const memory_desc_t *src_d = this->src_pd_.desc();
             rtus_prepare(this, conv_d, src_d, this->dst_pd_.desc());
-            return jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(jcp_,
-                    *conv_d, *src_d, *this->weights_pd_.desc(),
-                    *this->dst_pd_.desc(), *this->bias_pd_.desc(), *this->attr(),
-                    mkldnn_get_max_threads(), rtus_.reduce_src_);
+
+            status_t status =
+                jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(jcp_,
+                        *conv_d, *src_d, *this->weights_pd_.desc(),
+                        *this->dst_pd_.desc(), *this->bias_pd_.desc(),
+                        *this->attr(), mkldnn_get_max_threads(),
+                        rtus_.reduce_src_);
+            if (status != status::success) return status;
+
+            auto scratchpad = scratchpad_registry().registrar();
+            jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_scratchpad(
+                    scratchpad, jcp_, *this->attr());
+
+            rtus_prepare_space_info(this, scratchpad);
+
+            return status::success;
         }
 
         jit_1x1_conv_conf_t jcp_;
-        struct reduce_to_unit_stride_t {
-            convolution_desc_t conv_d_;
-            bool reduce_src_;
-        } rtus_;
+        reduce_to_unit_stride_t rtus_;
 
-        protected:
-            virtual status_t set_default_params() override {
-                using namespace memory_format;
-                bool is_sign_input =
-                    (this->desc()->src_desc.data_type == data_type::s8)
-                        ? true : false;
-                if (this->src_pd_.desc()->format == any)
-                    CHECK(this->src_pd_.set_format(nhwc));
-                if (this->dst_pd_.desc()->format == any)
-                    CHECK(this->dst_pd_.set_format(nhwc));
-                if (this->weights_pd_.desc()->format == any)
-                    CHECK(this->weights_pd_.set_format(this->with_groups()
-                        ? ((is_sign_input) ? gOIhw4i16o4i_s8s8 : gOIhw4i16o4i)
-                        : ((is_sign_input) ? OIhw4i16o4i_s8s8 : OIhw4i16o4i)));
-                if (this->bias_pd_.desc()->format == any)
-                    CHECK(this->bias_pd_.set_format(x));
-                return status::success;
-            }
+    protected:
+        virtual status_t set_default_params() override {
+            using namespace memory_format;
+            bool is_sign_input =
+                this->desc()->src_desc.data_type == data_type::s8;
+
+            if (this->src_pd_.desc()->format == any)
+                CHECK(this->src_pd_.set_format(nhwc));
+            if (this->dst_pd_.desc()->format == any)
+                CHECK(this->dst_pd_.set_format(nhwc));
+            if (this->weights_pd_.desc()->format == any)
+                CHECK(this->weights_pd_.set_format(this->with_groups()
+                    ? (is_sign_input ? gOIhw4i16o4i_s8s8 : gOIhw4i16o4i)
+                    : (is_sign_input ? OIhw4i16o4i_s8s8 : OIhw4i16o4i)));
+            if (this->bias_pd_.desc()->format == any)
+                CHECK(this->bias_pd_.set_format(x));
+
+            return status::success;
+        }
     };
 
     template <cpu_isa_t isa, typename conv_t>
     friend void init_rtus_driver(conv_t *self);
+
     jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t(const pd_t *apd,
-                                          const input_vector &inputs,
-                                          const output_vector &outputs)
+            const input_vector &inputs, const output_vector &outputs)
         : cpu_primitive_t(apd, inputs, outputs)
-        , kernel_(nullptr), rtus_driver_(nullptr), ws_per_thread_(0)
-        , scratch_(nullptr), local_scales_(nullptr)
+        , kernel_(nullptr), rtus_driver_(nullptr)
     {
         kernel_ = new jit_avx512_core_x8s8s32x_1x1_conv_kernel(pd()->jcp_,
                     *pd()->attr());
         init_rtus_driver<avx512_common>(this);
-        if (pd()->jcp_.signed_input && pd()->jcp_.ver != ver_vnni) {
-            size_t scales_size = ((pd()->attr()->output_scales_.count_ == 1)
-                    ? 16
-                    : pd()->attr()->output_scales_.count_);
-            local_scales_ = (float *)malloc(sizeof(float) * scales_size, 64);
-            for (size_t i = 0; i < scales_size; i++) {
-                local_scales_[i] = pd()->attr()->output_scales_.scales_[i] *
-                                        (1.f / pd()->jcp_.wei_adj_scale);
-            }
-        }
     }
+
     ~jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t() {
         delete kernel_;
         delete rtus_driver_;
-        free(scratch_);
-        if (local_scales_) free(local_scales_);
     }
 
     typedef typename prec_traits<src_type>::type src_data_t;
@@ -145,14 +142,12 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public cpu_primitive_t {
     void execute_forward();
     void execute_forward_thr(const int ithr, const int nthr,
             const src_data_t *src, const wei_data_t *weights,
-            const char *bias, dst_data_t *dst);
+            const char *bias, dst_data_t *dst,
+            const memory_tracking::grantor_t &scratchpad);
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
-    jit_avx512_core_x8s8s32x_1x1_conv_kernel *kernel_;
 
+    jit_avx512_core_x8s8s32x_1x1_conv_kernel *kernel_;
     rtus_driver_t<avx512_common> *rtus_driver_;
-    size_t ws_per_thread_;
-    src_data_t *scratch_;
-    float* local_scales_;
 };
 
 }

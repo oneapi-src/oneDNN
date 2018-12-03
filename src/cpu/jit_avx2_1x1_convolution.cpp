@@ -14,15 +14,14 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_types.h"
-
 #include "c_types_map.hpp"
-#include "jit_avx2_1x1_convolution.hpp"
-#include "utils.hpp"
 #include "mkldnn_thread.hpp"
 #include "type_helpers.hpp"
+#include "utils.hpp"
 
 #include "jit_generator.hpp"
+
+#include "jit_avx2_1x1_convolution.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -30,6 +29,7 @@ namespace cpu {
 
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::memory_format;
+using namespace mkldnn::impl::memory_tracking::names;
 using namespace mkldnn::impl::utils;
 
 #define data_blk_off(f, n, c, h, w) \
@@ -50,6 +50,7 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward() {
     const memory_desc_wrapper weights_d(pd()->weights_pd(0));
 
     const auto &jcp = kernel_->jcp;
+    auto rtus_space = scratchpad().get<data_t>(key_conv_rtus_space);
 
     const int work_amount = jcp.mb * jcp.ngroups * jcp.nb_bcast;
     const int ndims = dst_d.ndims();
@@ -130,7 +131,8 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward() {
 
                     const int _icb = g * nb_ic + icb;
                     if (pd()->rtus_.reduce_src_) {
-                        rp.ws = scratch_ + ithr * ws_per_thread_
+                        rp.ws = rtus_space
+                            + ithr * pd()->rtus_.space_per_thread_
                             + _icb * jcp.is * jcp.ic_block;
 
                         if (ocb == 0) {
@@ -153,9 +155,11 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward() {
     };
 
     if (pd()->wants_padded_bias()) {
-        for (int oc = 0; oc < jcp.oc_without_padding; ++oc)
-            padded_bias_[oc] = bias[oc];
-        bias = padded_bias_;
+        auto padded_bias = scratchpad().get<data_t>(key_conv_padded_bias);
+        utils::array_copy(padded_bias, bias, jcp.oc_without_padding);
+        utils::array_set(padded_bias + jcp.oc_without_padding, 0.f,
+                jcp.oc - jcp.oc_without_padding);
+        bias = padded_bias;
     }
 
     parallel(0, ker);
@@ -176,6 +180,7 @@ void jit_avx2_1x1_convolution_bwd_data_t::execute_backward_data() {
     const memory_desc_wrapper diff_src_d(pd()->diff_src_pd());
 
     const auto &jcp = kernel_->jcp;
+    auto rtus_space = scratchpad().get<data_t>(key_conv_rtus_space);
 
     // TODO (Roma): remove this restriction
     assert(jcp.stride_w == 1 && jcp.stride_h == 1);
@@ -238,7 +243,8 @@ void jit_avx2_1x1_convolution_bwd_data_t::execute_backward_data() {
                 const int _icb = g * nb_ic + icb;
                 rp.src = diff_src + data_blk_off(diff_src_d, n, _icb, ih, iw);
                 if (pd()->rtus_.reduce_src_) {
-                    rp.ws = scratch_ + ithr * ws_per_thread_;
+                    rp.ws = rtus_space
+                        + ithr * pd()->rtus_.space_per_thread_;
                     p.output_data = rp.ws;
                 } else
                     p.output_data = rp.src;
@@ -277,8 +283,7 @@ jit_avx2_1x1_convolution_bwd_weights_t::jit_avx2_1x1_convolution_bwd_weights_t(
         const pd_t *apd, const input_vector &inputs,
         const output_vector &outputs)
     : cpu_primitive_t(apd, inputs, outputs), kernel_(nullptr)
-    , rtus_driver_(nullptr), ws_per_thread_(0), scratch_(nullptr)
-    , padded_bias_(nullptr)
+    , rtus_driver_(nullptr)
 {
     kernel_ = new jit_avx2_1x1_conv_kernel_f32(pd()->jcp_, *pd()->attr());
 
@@ -313,9 +318,6 @@ jit_avx2_1x1_convolution_bwd_weights_t::jit_avx2_1x1_convolution_bwd_weights_t(
                     oc_block, jcp.ngroups * jcp.oc / oc_block,
                     jcp.mb, max_buffer_size));
 
-    if (pd()->wants_padded_bias())
-        padded_bias_ = (data_t *)malloc(sizeof(data_t) * jcp.oc, 64);
-
     init_rtus_driver<avx2>(this);
 }
 
@@ -324,7 +326,6 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights() {
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto diff_weights = reinterpret_cast<data_t *>(this->memory(0));
     auto diff_bias_in = reinterpret_cast<data_t *>(this->memory(1));
-    data_t *diff_bias = pd()->wants_padded_bias() ? padded_bias_ : diff_bias_in;
 
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
     const memory_desc_wrapper src_d(pd()->src_pd());
@@ -332,6 +333,10 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights() {
     const memory_desc_wrapper diff_bias_d(pd()->diff_weights_pd(1));
 
     const auto &jcp = kernel_->jcp;
+    auto rtus_space = scratchpad().get<data_t>(key_conv_rtus_space);
+
+    data_t *diff_bias = pd()->wants_padded_bias()
+        ? scratchpad().get<data_t>(key_conv_padded_bias) : diff_bias_in;
 
     const int ndims = diff_dst_d.ndims();
     // TODO (Roma): remove this restriction
@@ -402,7 +407,8 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights() {
                         const int iw = nstl::max(ow * stride_w - pad_l, 0);
                         rp.iw_start = iw;
 
-                        rp.ws = scratch_ + ithr * ws_per_thread_
+                        rp.ws = rtus_space
+                            + ithr * pd()->rtus_.space_per_thread_
                             + (ic_b * jcp.is + sp) * jcp.ic_block;
                         if (ndims == 3)
                             rp.src = src

@@ -18,6 +18,8 @@
 #define JIT_AVX2_1x1_CONV_KERNEL_F32_HPP
 
 #include "c_types_map.hpp"
+#include "memory_tracking.hpp"
+
 #include "cpu_memory.hpp"
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
@@ -55,6 +57,9 @@ struct jit_avx2_1x1_conv_kernel_f32: public jit_generator {
             const memory_desc_wrapper &weights_d,
             const memory_desc_wrapper &dst_d,
             const primitive_attr_t &attr);
+
+    static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
+            const jit_1x1_conv_conf_t &jcp);
 
     jit_1x1_conv_conf_t jcp;
     const primitive_attr_t &attr_;
