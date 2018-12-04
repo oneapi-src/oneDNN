@@ -23,6 +23,10 @@
 
 #include "jit_avx512_core_gemm_s8u8s32.hpp"
 
+#if defined(_MSC_VER)
+#include <malloc.h>
+#endif
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {
@@ -37,6 +41,13 @@ enum {
 enum {
     COPY_NONE,
     COPY_A,
+};
+
+enum {
+    NO_OFFSET,
+    FIX_OFFSET,
+    COL_OFFSET,
+    ROW_OFFSET,
 };
 
 // Alias for any dimension related variable.
@@ -70,11 +81,53 @@ typedef struct {
     dim_t um, un, uk, bm, bn, bk;
     dim_t bn_small_k, bk_traditional, blocking_small_k;
 
-    int (*copyA)(const dim_t *m, const dim_t *n, const int8_t  *a, const dim_t *lda, const int8_t  *alpha, int8_t  *b);
-    int (*copyB)(const dim_t *m, const dim_t *n, const uint8_t *a, const dim_t *lda, const uint8_t *alpha, uint8_t *b);
+    int (*copyA)(const dim_t *m, const dim_t *n, const int8_t *a,
+            const dim_t *lda, const int8_t *alpha, int8_t *b,
+            const dim_t *dummy1, const dim_t *dummy2, int32_t *row_col_sum);
 
-    int (*kernel)   (const dim_t *m, const dim_t *n, const dim_t *k, const float *alpha, const int8_t *a, const uint8_t *b, int32_t *c, const dim_t ldc);
-    int (*kernel_b0)(const dim_t *m, const dim_t *n, const dim_t *k, const float *alpha, const int8_t *a, const uint8_t *b, int32_t *c, const dim_t ldc);
+    int (*copyB)(const dim_t *m, const dim_t *n, const uint8_t *a,
+            const dim_t *lda, const uint8_t *alpha, uint8_t *b,
+            const dim_t *dummy1, const dim_t *dummy2, int32_t *row_col_sum);
+
+    int (*kernel)(const dim_t *m, const dim_t *n, const dim_t *k,
+            const float *alpha, const int8_t *a, const uint8_t *b, int32_t *c,
+            const dim_t ldc, const int32_t *col_offset,
+            const int32_t *row_offset);
+
+    int (*kernel_b)(const dim_t *m, const dim_t *n, const dim_t *k,
+            const float *alpha, const int8_t *a, const uint8_t *b, int32_t *c,
+            const dim_t ldc, const int32_t *col_offset,
+            const int32_t *row_offset);
+
+    int (*kernel_r)(const dim_t *m, const dim_t *n, const dim_t *k,
+            const float *alpha, const int8_t *a, const uint8_t *b, int32_t *c,
+            const dim_t ldc, const int32_t *col_offset,
+            const int32_t *row_offset);
+
+    int (*kernel_c)(const dim_t *m, const dim_t *n, const dim_t *k,
+            const float *alpha, const int8_t *a, const uint8_t *b, int32_t *c,
+            const dim_t ldc, const int32_t *col_offset,
+            const int32_t *row_offset);
+
+    int (*kernel_b0)(const dim_t *m, const dim_t *n, const dim_t *k,
+            const float *alpha, const int8_t *a, const uint8_t *b, int32_t *c,
+            const dim_t ldc, const int32_t *col_offset,
+            const int32_t *row_offset);
+
+    int (*kernel_b0_b)(const dim_t *m, const dim_t *n, const dim_t *k,
+            const float *alpha, const int8_t *a, const uint8_t *b, int32_t *c,
+            const dim_t ldc, const int32_t *col_offset,
+            const int32_t *row_offset);
+
+    int (*kernel_b0_r)(const dim_t *m, const dim_t *n, const dim_t *k,
+            const float *alpha, const int8_t *a, const uint8_t *b, int32_t *c,
+            const dim_t ldc, const int32_t *col_offset,
+            const int32_t *row_offset);
+
+    int (*kernel_b0_c)(const dim_t *m, const dim_t *n, const dim_t *k,
+            const float *alpha, const int8_t *a, const uint8_t *b, int32_t *c,
+            const dim_t ldc, const int32_t *col_offset,
+            const int32_t *row_offset);
 
 } blas_t;
 
@@ -98,19 +151,18 @@ static inline void add_results(const dim_t m, const dim_t n, const dim_t k,
         const float alpha, const float beta, const int32_t *c_partial_sum,
         const dim_t ldcp, int32_t *c_data, const dim_t ldc,
         const int32_t *a_row_sum, const int32_t *b_col_sum, const int8_t ao,
-        const int8_t bo, const int32_t *co, int offsetc)
+        const int8_t bo, const int32_t *co, const int offsetc)
 {
     for (dim_t j = 0; j < n; ++j) {
         for (dim_t i = 0; i < m; ++i) {
             int32_t ctemp = c_partial_sum[i + j * ldcp];
-            if (ao != 0 || bo != 0)
-                ctemp += a_row_sum[i] * bo + b_col_sum[j] * ao + ao * bo * (int32_t) k;
 
             if (alpha == 1.0f) {
                 if (beta == 0.0f) {
                     c_data[i + j * ldc] = ctemp;
                 } else {
-                    double c_float = (double) beta * (double) c_data[i + j * ldc];
+                    double c_float = (double) beta
+                        * (double) c_data[i + j * ldc];
                     c_float += (double) ctemp;
                     round_to_nearest(&c_data[i + j * ldc], c_float);
                 }
@@ -118,7 +170,8 @@ static inline void add_results(const dim_t m, const dim_t n, const dim_t k,
                 if (beta == 0.0f) {
                     c_data[i + j * ldc] = -ctemp;
                 } else {
-                    double c_float = (double) beta * (double) c_data[i + j * ldc];
+                    double c_float = (double) beta
+                        * (double) c_data[i + j * ldc];
                     c_float -= (double) ctemp;
                     round_to_nearest(&c_data[i + j * ldc], c_float);
                 }
@@ -133,46 +186,12 @@ static inline void add_results(const dim_t m, const dim_t n, const dim_t k,
                 }
             }
 
-            if (offsetc == 0) { // Fix offset.
+            if (offsetc == FIX_OFFSET) {
                 c_data[i + j * ldc] += co[0];
-            } else if (offsetc == 1) { // Row offset.
+            } else if (offsetc == ROW_OFFSET) {
                 c_data[i + j * ldc] += co[j];
-            } else if (offsetc == 2) { // Col offset.
+            } else if (offsetc == COL_OFFSET) {
                 c_data[i + j * ldc] += co[i];
-            }
-        }
-    }
-}
-
-static inline void get_a_row_sum(const int transa, const dim_t nrows,
-        const dim_t ncols, const int8_t *a, const dim_t lda, const int8_t bo,
-        int32_t *a_row_sum)
-{
-    if (bo != 0) {
-        dim_t strideAm = (transa == 0)? 1 : lda;
-        dim_t strideAn = (transa != 0)? 1 : lda;
-
-        for (dim_t i = 0; i < nrows; i++) {
-            a_row_sum[i] = 0;
-            for (dim_t j = 0; j < ncols; j++) {
-                a_row_sum[i] += a[i * strideAm + j * strideAn];
-            }
-        }
-    }
-}
-
-static inline void get_b_col_sum(const int transb, const dim_t nrows,
-        const dim_t ncols, const uint8_t *b, const dim_t ldb, const int8_t ao,
-        int32_t *b_col_sum)
-{
-    if (ao != 0) {
-        dim_t strideBm = (transb == 0)? 1 : ldb;
-        dim_t strideBn = (transb != 0)? 1 : ldb;
-
-        for (dim_t j = 0; j < ncols; j++) {
-            b_col_sum[j] = 0;
-            for (dim_t i = 0; i < nrows; i++) {
-                b_col_sum[j] += b[i * strideBm + j * strideBn];
             }
         }
     }
@@ -193,6 +212,132 @@ static inline dim_t ld_padd(const dim_t x)
 static inline dim_t pad_unroll(const dim_t m, const dim_t m_unroll)
 {
     return (m + m_unroll - 1) / m_unroll * m_unroll;
+}
+
+void igemm_inner_kernel(const dim_t m, const dim_t n, const dim_t k,
+        const int8_t *a, const uint8_t *b, float beta, int32_t *c,
+        const dim_t ldc, const int32_t *a_row_sum, const int32_t *b_col_sum,
+        const int32_t *co, const int offsetc, const blas_t *arg)
+{
+    int8_t ao = arg->ao;
+    int8_t bo = arg->bo;
+
+    // Since m and n are limited by blocking, stack overflow may not happen;
+    // it's up to 32kB
+#if !defined(_MSC_VER)
+    int32_t col_offset[m];
+    int32_t row_offset[n];
+#else
+    int32_t *col_offset = (int32_t *) _alloca(sizeof(*col_offset) * m);
+    int32_t *row_offset = (int32_t *) _alloca(sizeof(*row_offset) * n);
+#endif
+
+    int col_req = 0;
+    int row_req = 0;
+
+    if ((bo != 0) || (offsetc == COL_OFFSET))
+        col_req = 1;
+    if ((ao != 0) || (offsetc == ROW_OFFSET))
+        row_req = 1;
+
+    // It needs one of colum or row offsets, but it doesn't need both
+    if (((ao != 0) && (bo != 0)) || ((offsetc == FIX_OFFSET) && (co[0] != 0))) {
+        if ((col_req == 0) && (row_req == 0)) {
+            if (m <= n) {
+                col_req = 1;
+            } else {
+                row_req = 1;
+            }
+        }
+    }
+
+    if (col_req) {
+        for (dim_t i = 0; i < m; i++)
+            col_offset[i] = 0;
+
+        if (offsetc == COL_OFFSET) {
+            for (dim_t i = 0; i < m; i++)
+                col_offset[i] += co[i];
+        }
+
+        if (bo != 0) {
+            for (dim_t i = 0; i < m; i++)
+                col_offset[i] += bo * a_row_sum[i];
+        }
+    }
+
+    if (row_req) {
+        for (dim_t i = 0; i < n; i++)
+            row_offset[i] = 0;
+
+        if (offsetc == ROW_OFFSET) {
+            for (dim_t i = 0; i < n; i++)
+                row_offset[i] += co[i];
+        }
+
+        if (ao != 0) {
+            for (dim_t i = 0; i < n; i++)
+                row_offset[i] += ao * b_col_sum[i];
+        }
+    }
+
+    if ((offsetc == FIX_OFFSET) && (co[0] != 0)) {
+        if (col_req) {
+            for (dim_t i = 0; i < m; i++)
+                col_offset[i] += co[0];
+        } else {
+            for (dim_t i = 0; i < n; i++)
+                row_offset[i] += co[0];
+        }
+    }
+
+    if ((ao != 0) && (bo != 0)) {
+        if (col_req) {
+            for (dim_t i = 0; i < m; i++)
+                col_offset[i] += (int32_t) k * ao * bo;
+        } else {
+            for (dim_t i = 0; i < n; i++)
+                row_offset[i] += (int32_t) k * ao * bo;
+        }
+    }
+
+    if (col_req == 0) {
+        if (row_req == 0) {
+            if (beta == 0.0) {
+                arg->kernel_b0(&m, &n, &k, NULL, a, b, c, ldc, col_offset,
+                        row_offset);
+            } else {
+                arg->kernel(&m, &n, &k, NULL, a, b, c, ldc, col_offset,
+                        row_offset);
+            }
+        } else {
+            if (beta == 0.0) {
+                arg->kernel_b0_r(&m, &n, &k, NULL, a, b, c, ldc, col_offset,
+                        row_offset);
+            } else {
+                arg->kernel_r(&m, &n, &k, NULL, a, b, c, ldc, col_offset,
+                        row_offset);
+            }
+        }
+    } else {
+        if (row_req == 0) {
+            if (beta == 0.0) {
+                arg->kernel_b0_c(&m, &n, &k, NULL, a, b, c, ldc, col_offset,
+                        row_offset);
+            } else {
+                arg->kernel_c(&m, &n, &k, NULL, a, b, c, ldc, col_offset,
+                        row_offset);
+            }
+        } else {
+            if (beta == 0.0) {
+                arg->kernel_b0_b(&m, &n, &k, NULL, a, b, c, ldc, col_offset,
+                        row_offset);
+            } else {
+                arg->kernel_b(&m, &n, &k, NULL, a, b, c, ldc, col_offset,
+                        row_offset);
+            }
+        }
+    }
 }
 
 static int gemm_kernel_driver(const dim_t m, const dim_t n, const dim_t k,
@@ -256,8 +401,7 @@ static int gemm_kernel_driver(const dim_t m, const dim_t n, const dim_t k,
     }
 
     int32_t *bufferC = NULL;
-    if (arg->offsetc != 0 || ao != 0 || bo != 0 || co[0] != 0
-            || alpha != 1.0 || (beta != 1.0 && beta != 0.0)) {
+    if (alpha != 1.0f || (beta != 1 && beta != 0)) {
         bufferC = (int32_t *) malloc(ldc_buf * n_padd * sizeof(*bufferC),
                 PAGE_4K);
         if (!bufferC) {
@@ -308,7 +452,7 @@ static int gemm_kernel_driver(const dim_t m, const dim_t n, const dim_t k,
                 beta = 1.0f;
 
             // Apply C offset when to the last k-block of the partial sum.
-            int offsetc = -1;
+            int offsetc = NO_OFFSET;
             if (Bk + sizeK == k)
                 offsetc = arg->offsetc;
 
@@ -319,8 +463,8 @@ static int gemm_kernel_driver(const dim_t m, const dim_t n, const dim_t k,
                     sizeN = n_padd;
 
                 const uint8_t *b_block = b + Bk * strideBm + Bn * strideBn;
-                arg->copyB(&sizeK, &sizeN, b_block, &ldb, NULL, bufferB);
-                get_b_col_sum(arg->transb, sizeK, sizeN, b_block, ldb, ao, b_col_sum);
+                arg->copyB(&sizeK, &sizeN, b_block, &ldb, NULL, bufferB, NULL,
+                        NULL, b_col_sum);
 
                 dim_t sizeUM = 0;
                 for (dim_t Um = 0; Um < sizeM; Um += sizeUM) {
@@ -337,32 +481,40 @@ static int gemm_kernel_driver(const dim_t m, const dim_t n, const dim_t k,
                     if (sizeN < n)
                         Um_forA = Um;
 
-                    const int8_t *a_block = a + (Bm + Um) * strideAm + Bk * strideAn;
+                    const int8_t *a_block = a + (Bm + Um) * strideAm
+                        + Bk * strideAn;
                     if (!a_block_copied) {
-                        arg->copyA(&sizeK, &sizeUM, a_block, &lda, NULL, bufferA + Um_forA * sizeK);
-                        get_a_row_sum(arg->transa, sizeUM, sizeK, a_block, lda, bo, a_row_sum + Um_forA);
+                        arg->copyA(&sizeK, &sizeUM, a_block, &lda, NULL,
+                                bufferA + Um_forA * sizeK, NULL, NULL,
+                                a_row_sum + Um_forA);
                     }
 
                     int32_t *c_block = c + (Bm + Um) + Bn * ldc;
+                    dim_t co_stride = 0;
+                    if (offsetc == FIX_OFFSET) {
+                        co_stride = 0;
+                    } else if (offsetc == ROW_OFFSET) {
+                        co_stride = Bn;
+                    } else if (offsetc == COL_OFFSET) {
+                        co_stride = Bm + Um;
+                    }
                     if (bufferC) {
-                        arg->kernel_b0(&sizeUM, &sizeN, &sizeK, NULL, bufferA + Um_forA * sizeK, bufferB, bufferC + Um, ldc_buf);
+                        igemm_inner_kernel(sizeUM, sizeN, sizeK,
+                                bufferA + Um_forA * sizeK, bufferB, 0.0f,
+                                bufferC + Um, ldc_buf, a_row_sum + Um_forA,
+                                b_col_sum, NULL, NO_OFFSET, arg);
 
                         // Finish the block adding the necessary alpha, beta
                         // and offsets.
-                        dim_t co_stride = 0;
-                        if (offsetc == 0) { // Fix offset.
-                            co_stride = 0;
-                        } else if (offsetc == 1) { // Row offset.
-                            co_stride = Bn;
-                        } else if (offsetc == 2) { // Column offset.
-                            co_stride = Bm + Um;
-                        }
-                        add_results(sizeUM, sizeN, sizeK, alpha, beta, bufferC + Um, ldc_buf, c_block, ldc, a_row_sum + Um_forA, b_col_sum, ao, bo, co + co_stride, offsetc);
+                        add_results(sizeUM, sizeN, sizeK, alpha, beta,
+                                bufferC + Um, ldc_buf, c_block, ldc,
+                                a_row_sum + Um_forA, b_col_sum, ao, bo,
+                                co + co_stride, offsetc);
                     } else {
-                        if (beta == 0.0f)
-                            arg->kernel_b0(&sizeUM, &sizeN, &sizeK, NULL, bufferA + Um_forA * sizeK, bufferB, c_block, ldc);
-                        else
-                            arg->kernel(&sizeUM, &sizeN, &sizeK, NULL, bufferA + Um_forA * sizeK, bufferB, c_block, ldc);
+                        igemm_inner_kernel(sizeUM, sizeN, sizeK,
+                                bufferA + Um_forA * sizeK, bufferB, beta,
+                                c_block, ldc, a_row_sum + Um_forA, b_col_sum,
+                                co + co_stride, offsetc, arg);
                     }
                 }
                 a_block_copied = 1;
@@ -416,8 +568,7 @@ static int kernel_driver_parallel_acopiedbcopy(const dim_t m, const dim_t n,
     }
 
     int32_t *bufferC = NULL;
-    if (arg->offsetc != 0 || ao != 0 || bo != 0 || co[0] != 0
-            || alpha != 1.0 || (beta != 1.0 && beta != 0.0)) {
+    if (alpha != 1.0f || (beta != 1 && beta != 0)) {
         bufferC = (int32_t *) malloc(ldc_buf * n_padd * sizeof(*bufferC),
                 PAGE_4K);
         if (!bufferC) {
@@ -442,28 +593,29 @@ static int kernel_driver_parallel_acopiedbcopy(const dim_t m, const dim_t n,
 
         // Implement the kernel here.
         const uint8_t *b_block = b + Bn * strideBn;
-        arg->copyB(&k, &sizeN, b_block, &ldb, NULL, bufferB);
-        get_b_col_sum(arg->transb, k, sizeN, b_block, ldb, ao, b_col_sum);
+        arg->copyB(&k, &sizeN, b_block, &ldb, NULL, bufferB, NULL, NULL,
+                b_col_sum);
 
-        int32_t *c_block = c + Bn * ldc;
-        if (bufferC) {
-            arg->kernel_b0(&m, &sizeN, &k, NULL, bufferA, bufferB, bufferC, ldc_buf);
-
-            // Finish the block adding the necessary alpha, beta and offsets.
             dim_t co_stride = 0;
-            if (offsetc == 0) { // Fix offset.
+            if (offsetc == FIX_OFFSET) {
                 co_stride = 0;
-            } else if (offsetc == 1) { // Row offset.
+            } else if (offsetc == ROW_OFFSET) {
                 co_stride = Bn;
-            } else if (offsetc == 2) { // Column offset.
+            } else if (offsetc == COL_OFFSET) {
                 co_stride = 0;
             }
-            add_results(m, sizeN, k, alpha, beta, bufferC, ldc_buf, c_block, ldc, a_row_sum, b_col_sum, ao, bo, co + co_stride, offsetc);
+        int32_t *c_block = c + Bn * ldc;
+        if (bufferC) {
+            igemm_inner_kernel(m, sizeN, k, bufferA, bufferB, 0.0f, bufferC,
+                    ldc_buf, a_row_sum, b_col_sum, NULL, NO_OFFSET, arg);
+
+            // Finish the block adding the necessary alpha, beta and offsets.
+            add_results(m, sizeN, k, alpha, beta, bufferC, ldc_buf, c_block,
+                    ldc, a_row_sum, b_col_sum, ao, bo, co + co_stride,
+                    offsetc);
         } else {
-            if (beta == 0.0f)
-                arg->kernel_b0(&m, &sizeN, &k, NULL, bufferA, bufferB, c_block, ldc);
-            else
-                arg->kernel(&m, &sizeN, &k, NULL, bufferA, bufferB, c_block, ldc);
+            igemm_inner_kernel(m, sizeN, k, bufferA, bufferB, beta, c_block,
+                    ldc, a_row_sum, b_col_sum, co + co_stride, offsetc, arg);
         }
     }
 
@@ -503,12 +655,20 @@ static inline void set_thread_opts_avx512(int *p_nthrs,
         condition_1D_copya = 1;
     }
 
+    // If offset is non-zero, we need to keep 1D_copya to reduce update overhead
+    if (arg->ao != 0 || arg->bo != 0 || arg->co[0] != 0
+            || arg->offsetc != FIX_OFFSET) {
+        condition_2D_bsrc  = 0;
+        condition_1D_copya = 1;
+    }
+
     if (condition_2D_bsrc == 1) {
         int nthrs_m = 1;
         int nthrs_n = nthrs;
 
         while ((nthrs_n % 2 == 0) &&
-                (n / nthrs > N2D_MAX_AVX512 || n / nthrs_n <= N2D_MAX_AVX512 / 2) &&
+                (n / nthrs > N2D_MAX_AVX512 ||
+                 n / nthrs_n <= N2D_MAX_AVX512 / 2) &&
                 (m / nthrs_m >= 2 * M2D_MIN_AVX512) &&
                 (nthrs_m < 4)) {
             nthrs_m *= 2;
@@ -617,7 +777,8 @@ static inline void partition_2d(const int ithr, int *nthrs, const int ithr_i,
             m_band = m_bandt;
             m_disp = firstmgroup * firstmval + (ithr_i - firstmgroup) * m_bandt;
         } else {
-            m_disp = firstmgroup * firstmval + (mthr_used - 1 - firstmgroup) * m_bandt;
+            m_disp = firstmgroup * firstmval
+                + (mthr_used - 1 - firstmgroup) * m_bandt;
             m_band = nstl::max(0LL, m - m_disp);
         }
 
@@ -628,7 +789,8 @@ static inline void partition_2d(const int ithr, int *nthrs, const int ithr_i,
             n_band = n_bandt;
             n_disp = firstngroup * firstnval + (ithr_j - firstngroup) * n_bandt;
         } else {
-            n_disp = firstngroup * firstnval + (nthr_used - 1 - firstngroup) * n_bandt;
+            n_disp = firstngroup * firstnval
+                + (nthr_used - 1 - firstngroup) * n_bandt;
             n_band = nstl::max(0LL, n - n_disp);
         }
         m_disp = nstl::max(nstl::min(m_disp, m - 1), 0LL);
@@ -659,110 +821,110 @@ static inline void decompose_matrices(const int ithr, int *nthrs, dim_t *m,
     int offsetc = arg->offsetc;
 
     switch (thread_info->partition) {
-        case PARTITION_1D_ROW:
-            {
-                dim_t offset = 0;
-                dim_t block = 0;
-                partition_1d(ithr, *nthrs, arg->m, &offset, &block);
+    case PARTITION_1D_ROW:
+        {
+            dim_t offset = 0;
+            dim_t block = 0;
+            partition_1d(ithr, *nthrs, arg->m, &offset, &block);
 
-                *m = block;
-                *n = arg->n;
-                *k = arg->k;
+            *m = block;
+            *n = arg->n;
+            *k = arg->k;
 
-                // Set matrix A.
-                *a = arg->a + offset * strideAm;
+            // Set matrix A.
+            *a = arg->a + offset * strideAm;
 
-                // Set matrix B.
-                *b = arg->b;
+            // Set matrix B.
+            *b = arg->b;
 
-                // Set matrix C.
-                *c = arg->c + offset;
+            // Set matrix C.
+            *c = arg->c + offset;
 
-                // Set offset vector for C matrix
-                dim_t co_stride = 0;
-                if (offsetc == 0) { // Fix offset.
-                    co_stride = 0;
-                } else if (offsetc == 1) { // Row offset.
-                    co_stride = 0;
-                } else if (offsetc == 2) { // Column offset.
-                    co_stride = offset;
-                }
-                *co = arg->co + co_stride;
-                break;
+            // Set offset vector for C matrix
+            dim_t co_stride = 0;
+            if (offsetc == FIX_OFFSET) {
+                co_stride = 0;
+            } else if (offsetc == ROW_OFFSET) {
+                co_stride = 0;
+            } else if (offsetc == COL_OFFSET) {
+                co_stride = offset;
             }
+            *co = arg->co + co_stride;
+            break;
+        }
 
-        case PARTITION_1D_COL:
-            {
-                dim_t offset = 0;
-                dim_t block = 0;
-                partition_1d(ithr, *nthrs, arg->n, &offset, &block);
+    case PARTITION_1D_COL:
+        {
+            dim_t offset = 0;
+            dim_t block = 0;
+            partition_1d(ithr, *nthrs, arg->n, &offset, &block);
 
-                *m = arg->m;
-                *n = block;
-                *k = arg->k;
+            *m = arg->m;
+            *n = block;
+            *k = arg->k;
 
-                // Set matrix A.
-                *a = arg->a;
+            // Set matrix A.
+            *a = arg->a;
 
-                // Set matrix B.
-                *b = arg->b + offset * strideBn;
+            // Set matrix B.
+            *b = arg->b + offset * strideBn;
 
-                // Set matrix C.
-                *c = arg->c + offset * arg->ldc;
+            // Set matrix C.
+            *c = arg->c + offset * arg->ldc;
 
-                // Set offset vector for C matrix
-                dim_t co_stride = 0;
-                if (offsetc == 0) { // Fix offset.
-                    co_stride = 0;
-                } else if (offsetc == 1) { // Row offset.
-                    co_stride = offset;
-                } else if (offsetc == 2) { // Column offset.
-                    co_stride = 0;
-                }
-                *co = arg->co + co_stride;
-                break;
+            // Set offset vector for C matrix
+            dim_t co_stride = 0;
+            if (offsetc == FIX_OFFSET) {
+                co_stride = 0;
+            } else if (offsetc == ROW_OFFSET) {
+                co_stride = offset;
+            } else if (offsetc == COL_OFFSET) {
+                co_stride = 0;
             }
+            *co = arg->co + co_stride;
+            break;
+        }
 
-        case PARTITION_2D_COL_MAJOR:
-            {
-                int nthrs_m = thread_info->nthrs_m;
-                int nthrs_n = thread_info->nthrs_n;
-                int ithr_i = ithr % nthrs_m;
-                int ithr_j = ithr / nthrs_m;
+    case PARTITION_2D_COL_MAJOR:
+        {
+            int nthrs_m = thread_info->nthrs_m;
+            int nthrs_n = thread_info->nthrs_n;
+            int ithr_i = ithr % nthrs_m;
+            int ithr_j = ithr / nthrs_m;
 
-                dim_t m_disp = 0;
-                dim_t m_band = 0;
-                dim_t n_disp = 0;
-                dim_t n_band = 0;
+            dim_t m_disp = 0;
+            dim_t m_band = 0;
+            dim_t n_disp = 0;
+            dim_t n_band = 0;
 
-                partition_2d(ithr, nthrs, ithr_i, ithr_j, nthrs_m, nthrs_n,
-                        arg->m, arg->n, &m_disp, &m_band, &n_disp, &n_band);
+            partition_2d(ithr, nthrs, ithr_i, ithr_j, nthrs_m, nthrs_n,
+                    arg->m, arg->n, &m_disp, &m_band, &n_disp, &n_band);
 
-                *m = m_band;
-                *n = n_band;
-                *k = arg->k;
+            *m = m_band;
+            *n = n_band;
+            *k = arg->k;
 
-                // Set matrix A.
-                *a = arg->a + m_disp * strideAm;
+            // Set matrix A.
+            *a = arg->a + m_disp * strideAm;
 
-                // Set matrix B.
-                *b = arg->b + n_disp * strideBn;
+            // Set matrix B.
+            *b = arg->b + n_disp * strideBn;
 
-                // Set matrix C.
-                *c = arg->c + m_disp + n_disp * arg->ldc;
+            // Set matrix C.
+            *c = arg->c + m_disp + n_disp * arg->ldc;
 
-                // Set offset vector for C matrix
-                dim_t co_stride = 0;
-                if (offsetc == 0) { // Fix offset.
-                    co_stride = 0;
-                } else if (offsetc == 1) { // Row offset.
-                    co_stride = n_disp;
-                } else if (offsetc == 2) { // Column offset.
-                    co_stride = m_disp;
-                }
-                *co = arg->co + co_stride;
-                break;
+            // Set offset vector for C matrix
+            dim_t co_stride = 0;
+            if (offsetc == FIX_OFFSET) {
+                co_stride = 0;
+            } else if (offsetc == ROW_OFFSET) {
+                co_stride = n_disp;
+            } else if (offsetc == COL_OFFSET) {
+                co_stride = m_disp;
             }
+            *co = arg->co + co_stride;
+            break;
+        }
     }
 }
 
@@ -777,7 +939,6 @@ static int parallel_a_copy(const int ithr, const int nthrs, const dim_t m,
     const dim_t strideAm = (arg->transa == 0)? 1 : lda;
     const dim_t strideAn = (arg->transa != 0)? 1 : lda;
     const dim_t strideBm = (arg->transb == 0)? 1 : ldb;
-    int8_t bo = arg->bo;
 
     // Padding along M dimension.
     dim_t m_padd = val_padd(nstl::min(nstl::max(m, arg->um), arg->bm), arg->um);
@@ -831,7 +992,7 @@ static int parallel_a_copy(const int ithr, const int nthrs, const dim_t m,
             beta = *(arg->beta);
 
         // Apply C offset for the last k-block of the partial sum.
-        int offsetc = -1;
+        int offsetc = NO_OFFSET;
         if (Bk + sizeK == k)
             offsetc = arg->offsetc;
 
@@ -859,10 +1020,10 @@ static int parallel_a_copy(const int ithr, const int nthrs, const dim_t m,
                 }
 
                 if (band > 0) {
-                    const int8_t *a_block = a + (Bm + offset) * strideAm + Bk * strideAn;
+                    const int8_t *a_block = a + (Bm + offset) * strideAm
+                        + Bk * strideAn;
                     arg->copyA(&sizeK, &band, a_block, &lda, NULL,
-                            bufferA + offset * sizeK);
-                    get_a_row_sum(arg->transa, band, sizeK, a_block, lda, bo,
+                            bufferA + offset * sizeK, NULL, NULL,
                             a_row_sum + offset);
                 }
             }
@@ -871,11 +1032,11 @@ static int parallel_a_copy(const int ithr, const int nthrs, const dim_t m,
             const uint8_t *b_block = b + Bk * strideBm;
             int32_t *c_block = c + Bm;
             dim_t co_stride = 0;
-            if (offsetc == 0) { // Fix offset.
+            if (offsetc == FIX_OFFSET) {
                 co_stride = 0;
-            } else if (offsetc == 1) { // Row offset.
+            } else if (offsetc == ROW_OFFSET) {
                 co_stride = 0;
-            } else if (offsetc == 2) { // Column offset.
+            } else if (offsetc == COL_OFFSET) {
                 co_stride = Bm;
             }
 
@@ -984,7 +1145,6 @@ static int gemm_threading_driver(blas_t *arg)
         } else {
             blas_thread_t thread_info;
             set_thread_opts_avx512(&nthrs, &thread_info, arg);
-            mkldnn_thr_barrier();
 
             const int8_t *a = NULL;
             const uint8_t *b = NULL;
@@ -1032,17 +1192,92 @@ static jit_avx512_core_u8_copy_an_kern *copy_an;
 static jit_avx512_core_u8_copy_at_kern *copy_at;
 static jit_avx512_core_u8_copy_bn_kern *copy_bn;
 static jit_avx512_core_u8_copy_bt_kern *copy_bt;
-static jit_avx512_core_kernel_gemm_s8u8s32_kern *kernel;
-static jit_avx512_core_kernel_b0_gemm_s8u8s32_kern *kernel_b0;
+static jit_avx512_core_u8_copy_sum_an_kern *copy_sum_an;
+static jit_avx512_core_u8_copy_sum_at_kern *copy_sum_at;
+static jit_avx512_core_u8_copy_sum_bn_kern *copy_sum_bn;
+static jit_avx512_core_u8_copy_sum_bt_kern *copy_sum_bt;
+static jit_avx512_core_kernel_gemm_s8u8s32_kern   *kernel;
+static jit_avx512_core_kernel_b_gemm_s8u8s32_kern *kernel_b;
+static jit_avx512_core_kernel_r_gemm_s8u8s32_kern *kernel_r;
+static jit_avx512_core_kernel_c_gemm_s8u8s32_kern *kernel_c;
+static jit_avx512_core_kernel_b0_gemm_s8u8s32_kern   *kernel_b0;
+static jit_avx512_core_kernel_b0_b_gemm_s8u8s32_kern *kernel_b0_b;
+static jit_avx512_core_kernel_b0_r_gemm_s8u8s32_kern *kernel_b0_r;
+static jit_avx512_core_kernel_b0_c_gemm_s8u8s32_kern *kernel_b0_c;
 
 static void jit_init(blas_t *arg)
 {
-    static int (*copyAn )(const dim_t *m, const dim_t *n, const int8_t *a , const dim_t *lda, const int8_t *alpha, int8_t *b);
-    static int (*copyAt )(const dim_t *m, const dim_t *n, const int8_t *a , const dim_t *lda, const int8_t *alpha, int8_t *b);
-    static int (*copyBn )(const dim_t *m, const dim_t *n, const uint8_t *a, const dim_t *lda, const uint8_t *alpha, uint8_t *b);
-    static int (*copyBt )(const dim_t *m, const dim_t *n, const uint8_t *a, const dim_t *lda, const uint8_t *alpha, uint8_t *b);
-    static int (*kern   )(const dim_t *m, const dim_t *n, const dim_t *k, const float *alpha, const int8_t *a, const uint8_t *b, int32_t *c, const dim_t ldc);
-    static int (*kern_b0)(const dim_t *m, const dim_t *n, const dim_t *k, const float *alpha, const int8_t *a, const uint8_t *b, int32_t *c, const dim_t ldc);
+    static int (*copyAn)(const dim_t *m, const dim_t *n, const int8_t *a,
+            const dim_t *lda, const int8_t *alpha, int8_t *b,
+            const dim_t *dummy1, const dim_t *dummy2, int32_t *row_col_sum);
+
+    static int (*copyAt)(const dim_t *m, const dim_t *n, const int8_t  *a,
+            const dim_t *lda, const int8_t  *alpha, int8_t  *b,
+            const dim_t *dummy1, const dim_t *dummy2, int32_t *row_col_sum);
+
+    static int (*copyBn)(const dim_t *m, const dim_t *n, const uint8_t *a,
+            const dim_t *lda, const uint8_t *alpha, uint8_t *b,
+            const dim_t *dummy1, const dim_t *dummy2, int32_t *row_col_sum);
+
+    static int (*copyBt)(const dim_t *m, const dim_t *n, const uint8_t *a,
+            const dim_t *lda, const uint8_t *alpha, uint8_t *b,
+            const dim_t *dummy1, const dim_t *dummy2, int32_t *row_col_sum);
+
+    static int (*copySumAn)(const dim_t *m, const dim_t *n, const int8_t  *a,
+            const dim_t *lda, const int8_t  *alpha, int8_t  *b,
+            const dim_t *dummy1, const dim_t *dummy2, int32_t *row_col_sum);
+
+    static int (*copySumAt)(const dim_t *m, const dim_t *n, const int8_t  *a,
+            const dim_t *lda, const int8_t  *alpha, int8_t  *b,
+            const dim_t *dummy1, const dim_t *dummy2, int32_t *row_col_sum);
+
+    static int (*copySumBn)(const dim_t *m, const dim_t *n, const uint8_t *a,
+            const dim_t *lda, const uint8_t *alpha, uint8_t *b,
+            const dim_t *dummy1, const dim_t *dummy2, int32_t *row_col_sum);
+
+    static int (*copySumBt)(const dim_t *m, const dim_t *n, const uint8_t *a,
+            const dim_t *lda, const uint8_t *alpha, uint8_t *b,
+            const dim_t *dummy1, const dim_t *dummy2, int32_t *row_col_sum);
+
+    static int (*kern)(const dim_t *m, const dim_t *n, const dim_t *k,
+            const float *alpha, const int8_t *a, const uint8_t *b, int32_t *c,
+            const dim_t ldc, const int32_t *col_offset,
+            const int32_t *row_offset);
+
+    static int (*kern_b)(const dim_t *m, const dim_t *n, const dim_t *k,
+            const float *alpha, const int8_t *a, const uint8_t *b, int32_t *c,
+            const dim_t ldc, const int32_t *col_offset,
+            const int32_t *row_offset);
+
+    static int (*kern_r)(const dim_t *m, const dim_t *n, const dim_t *k,
+            const float *alpha, const int8_t *a, const uint8_t *b, int32_t *c,
+            const dim_t ldc, const int32_t *col_offset,
+            const int32_t *row_offset);
+
+    static int (*kern_c)(const dim_t *m, const dim_t *n, const dim_t *k,
+            const float *alpha, const int8_t *a, const uint8_t *b, int32_t *c,
+            const dim_t ldc, const int32_t *col_offset,
+            const int32_t *row_offset);
+
+    static int (*kern_b0)(const dim_t *m, const dim_t *n, const dim_t *k,
+            const float *alpha, const int8_t *a, const uint8_t *b, int32_t *c,
+            const dim_t ldc, const int32_t *col_offset,
+            const int32_t *row_offset);
+
+    static int (*kern_b0_b)(const dim_t *m, const dim_t *n, const dim_t *k,
+            const float *alpha, const int8_t *a, const uint8_t *b, int32_t *c,
+            const dim_t ldc, const int32_t *col_offset,
+            const int32_t *row_offset);
+
+    static int (*kern_b0_r)(const dim_t *m, const dim_t *n, const dim_t *k,
+            const float *alpha, const int8_t *a, const uint8_t *b, int32_t *c,
+            const dim_t ldc, const int32_t *col_offset,
+            const int32_t *row_offset);
+
+    static int (*kern_b0_c)(const dim_t *m, const dim_t *n, const dim_t *k,
+            const float *alpha, const int8_t *a, const uint8_t *b, int32_t *c,
+            const dim_t ldc, const int32_t *col_offset,
+            const int32_t *row_offset);
 
     if (mayiuse(avx512_core_vnni)) {
             arg->um = AVX512_UNROLL_M;
@@ -1070,35 +1305,127 @@ static void jit_init(blas_t *arg)
 
     static std::once_flag initialized;
     std::call_once(initialized, []{
-        copy_an   = new jit_avx512_core_u8_copy_an_kern();
-        copy_at   = new jit_avx512_core_u8_copy_at_kern();
-        copy_bn   = new jit_avx512_core_u8_copy_bn_kern();
-        copy_bt   = new jit_avx512_core_u8_copy_bt_kern();
-        kernel    = new jit_avx512_core_kernel_gemm_s8u8s32_kern();
-        kernel_b0 = new jit_avx512_core_kernel_b0_gemm_s8u8s32_kern();
+        copy_an = new jit_avx512_core_u8_copy_an_kern();
+        copy_at = new jit_avx512_core_u8_copy_at_kern();
+        copy_bn = new jit_avx512_core_u8_copy_bn_kern();
+        copy_bt = new jit_avx512_core_u8_copy_bt_kern();
 
-        copyAn  = copy_an   -> getCode<int (*)(const dim_t *, const dim_t *, const int8_t  *, const dim_t *, const int8_t  *, int8_t  *)>();
-        copyAt  = copy_at   -> getCode<int (*)(const dim_t *, const dim_t *, const int8_t  *, const dim_t *, const int8_t  *, int8_t  *)>();
-        copyBn  = copy_bn   -> getCode<int (*)(const dim_t *, const dim_t *, const uint8_t *, const dim_t *, const uint8_t *, uint8_t *)>();
-        copyBt  = copy_bt   -> getCode<int (*)(const dim_t *, const dim_t *, const uint8_t *, const dim_t *, const uint8_t *, uint8_t *)>();
-        kern    = kernel    -> getCode<int (*)(const dim_t *, const dim_t *, const dim_t *, const float *, const int8_t *, const uint8_t *, int32_t *, const dim_t)>();
-        kern_b0 = kernel_b0 -> getCode<int (*)(const dim_t *, const dim_t *, const dim_t *, const float *, const int8_t *, const uint8_t *, int32_t *, const dim_t)>();
+        copy_sum_an = new jit_avx512_core_u8_copy_sum_an_kern();
+        copy_sum_at = new jit_avx512_core_u8_copy_sum_at_kern();
+        copy_sum_bn = new jit_avx512_core_u8_copy_sum_bn_kern();
+        copy_sum_bt = new jit_avx512_core_u8_copy_sum_bt_kern();
+
+        kernel   = new jit_avx512_core_kernel_gemm_s8u8s32_kern();
+        kernel_b = new jit_avx512_core_kernel_b_gemm_s8u8s32_kern();
+        kernel_r = new jit_avx512_core_kernel_r_gemm_s8u8s32_kern();
+        kernel_c = new jit_avx512_core_kernel_c_gemm_s8u8s32_kern();
+
+        kernel_b0   = new jit_avx512_core_kernel_b0_gemm_s8u8s32_kern();
+        kernel_b0_b = new jit_avx512_core_kernel_b0_b_gemm_s8u8s32_kern();
+        kernel_b0_r = new jit_avx512_core_kernel_b0_r_gemm_s8u8s32_kern();
+        kernel_b0_c = new jit_avx512_core_kernel_b0_c_gemm_s8u8s32_kern();
+
+        copyAn = copy_an->getCode<int (*)(const dim_t *, const dim_t *,
+                const int8_t *, const dim_t *, const int8_t *, int8_t *,
+                const dim_t *, const dim_t *, int32_t *)>();
+
+        copyAt = copy_at->getCode<int (*)(const dim_t *, const dim_t *,
+                const int8_t *, const dim_t *, const int8_t *, int8_t *,
+                const dim_t *, const dim_t *, int32_t *)>();
+
+        copyBn = copy_bn->getCode<int (*)(const dim_t *, const dim_t *,
+                const uint8_t *, const dim_t *, const uint8_t *, uint8_t *,
+                const dim_t *, const dim_t *, int32_t *)>();
+
+        copyBt = copy_bt->getCode<int (*)(const dim_t *, const dim_t *,
+                const uint8_t *, const dim_t *, const uint8_t *, uint8_t *,
+                const dim_t *, const dim_t *, int32_t *)>();
+
+        copySumAn = copy_sum_an->getCode<int (*)(const dim_t *, const dim_t *,
+                const int8_t *, const dim_t *, const int8_t *, int8_t *,
+                const dim_t *, const dim_t *, int32_t *)>();
+
+        copySumAt = copy_sum_at->getCode<int (*)(const dim_t *, const dim_t *,
+                const int8_t *, const dim_t *, const int8_t *, int8_t *,
+                const dim_t *, const dim_t *, int32_t *)>();
+
+        copySumBn = copy_sum_bn->getCode<int (*)(const dim_t *, const dim_t *,
+                const uint8_t *, const dim_t *, const uint8_t *, uint8_t *,
+                const dim_t *, const dim_t *, int32_t *)>();
+
+        copySumBt = copy_sum_bt->getCode<int (*)(const dim_t *, const dim_t *,
+                const uint8_t *, const dim_t *, const uint8_t *, uint8_t *,
+                const dim_t *, const dim_t *, int32_t *)>();
+
+        kern = kernel->getCode<int (*)(const dim_t *, const dim_t *,
+                const dim_t *, const float *, const int8_t *, const uint8_t *,
+                int32_t *, const dim_t, const int32_t *, const int32_t *)>();
+
+        kern_b = kernel_b->getCode<int (*)(const dim_t *, const dim_t *,
+                const dim_t *, const float *, const int8_t *, const uint8_t *,
+                int32_t *, const dim_t, const int32_t *, const int32_t *)>();
+
+        kern_r = kernel_r->getCode<int (*)(const dim_t *, const dim_t *,
+                const dim_t *, const float *, const int8_t *, const uint8_t *,
+                int32_t *, const dim_t, const int32_t *, const int32_t *)>();
+
+        kern_c = kernel_c->getCode<int (*)(const dim_t *, const dim_t *,
+                const dim_t *, const float *, const int8_t *, const uint8_t *,
+                int32_t *, const dim_t, const int32_t *, const int32_t *)>();
+
+        kern_b0 = kernel_b0->getCode<int (*)(const dim_t *, const dim_t *,
+                const dim_t *, const float *, const int8_t *, const uint8_t *,
+                int32_t *, const dim_t, const int32_t *, const int32_t *)>();
+
+        kern_b0_b = kernel_b0_b->getCode<int (*)(const dim_t *, const dim_t *,
+                const dim_t *, const float *, const int8_t *, const uint8_t *,
+                int32_t *, const dim_t, const int32_t *, const int32_t *)>();
+
+        kern_b0_r = kernel_b0_r->getCode<int (*)(const dim_t *, const dim_t *,
+                const dim_t *, const float *, const int8_t *, const uint8_t *,
+                int32_t *, const dim_t, const int32_t *, const int32_t *)>();
+
+        kern_b0_c = kernel_b0_c->getCode<int (*)(const dim_t *, const dim_t *,
+                const dim_t *, const float *, const int8_t *, const uint8_t *,
+                int32_t *, const dim_t, const int32_t *, const int32_t *)>();
     });
 
-    if (arg->transa == 0) {
-        arg->copyA = copyAn;
+    if (arg->bo == 0) { // No need to compute A row sum if bo is zero
+        if (arg->transa == 0) {
+            arg->copyA = copyAn;
+        } else {
+            arg->copyA = copyAt;
+        }
     } else {
-        arg->copyA = copyAt;
+        if (arg->transa == 0) {
+            arg->copyA = copySumAn;
+        } else {
+            arg->copyA = copySumAt;
+        }
     }
 
-    if (arg->transb == 0) {
-        arg->copyB = copyBn;
+    if (arg->ao == 0) { // No need to compute B column sum if ao is zero
+        if (arg->transb == 0) {
+            arg->copyB = copyBn;
+        } else {
+            arg->copyB = copyBt;
+        }
     } else {
-        arg->copyB = copyBt;
+        if (arg->transb == 0) {
+            arg->copyB = copySumBn;
+        } else {
+            arg->copyB = copySumBt;
+        }
     }
 
-    arg->kernel    = kern;
-    arg->kernel_b0 = kern_b0;
+    arg->kernel      = kern;
+    arg->kernel_b    = kern_b;
+    arg->kernel_r    = kern_r;
+    arg->kernel_c    = kern_c;
+    arg->kernel_b0   = kern_b0;
+    arg->kernel_b0_b = kern_b0_b;
+    arg->kernel_b0_r = kern_b0_r;
+    arg->kernel_b0_c = kern_b0_c;
 }
 
 mkldnn_status_t jit_avx512_core_gemm_s8u8s32(
@@ -1142,11 +1469,11 @@ mkldnn_status_t jit_avx512_core_gemm_s8u8s32(
     args.co        = oc;
 
     if (offsetc == 'F' || offsetc == 'f') {
-        args.offsetc = 0;
+        args.offsetc = FIX_OFFSET;
     } else if (offsetc == 'R' || offsetc == 'r') {
-        args.offsetc = 1;
+        args.offsetc = ROW_OFFSET;
     } else { // offsetc == 'C' || offsetc == 'c'
-        args.offsetc = 2;
+        args.offsetc = COL_OFFSET;
     }
 
     jit_init(&args);

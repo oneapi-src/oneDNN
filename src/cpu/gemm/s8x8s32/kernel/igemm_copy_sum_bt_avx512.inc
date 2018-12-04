@@ -28,6 +28,7 @@
 #define LDA3	r11
 
 #define STACKSIZE	0
+#define ARG_BIAS	24+STACKSIZE+rsp
 
 #else
 
@@ -43,43 +44,44 @@
 #define A2	r10
 #define LDA3	r11
 
-#define STACKSIZE	64
+#define STACKSIZE	192
 #define ARG_ALPHA	40+STACKSIZE+rsp
 #define ARG_B		48+STACKSIZE+rsp
+#define ARG_BIAS	72+STACKSIZE+rsp
 
 #endif
 
 inLocalLabel();
 {
 
-Xbyak::Label l120;
-Xbyak::Label l14c;
-Xbyak::Label l168;
-Xbyak::Label l178;
-Xbyak::Label l184;
-Xbyak::Label l194;
+Xbyak::Label l15c;
+Xbyak::Label l1f4;
 Xbyak::Label l20;
-Xbyak::Label l20c;
-Xbyak::Label l250;
-Xbyak::Label l27c;
-Xbyak::Label l298;
-Xbyak::Label l2a8;
-Xbyak::Label l2b4;
+Xbyak::Label l248;
+Xbyak::Label l280;
+Xbyak::Label l2a4;
+Xbyak::Label l2b0;
 Xbyak::Label l2c8;
-Xbyak::Label l34;
-Xbyak::Label l360;
-Xbyak::Label l3b4;
+Xbyak::Label l384;
 Xbyak::Label l3e8;
-Xbyak::Label l400;
-Xbyak::Label l40e;
-Xbyak::Label l418;
-Xbyak::Label l428;
-Xbyak::Label l4a0;
-Xbyak::Label l4e8;
-Xbyak::Label l50c;
-Xbyak::Label l524;
-Xbyak::Label l534;
-Xbyak::Label lcc;
+Xbyak::Label l40;
+Xbyak::Label l424;
+Xbyak::Label l448;
+Xbyak::Label l468;
+Xbyak::Label l474;
+Xbyak::Label l48c;
+Xbyak::Label l550;
+Xbyak::Label l5bc;
+Xbyak::Label l600;
+Xbyak::Label l628;
+Xbyak::Label l646;
+Xbyak::Label l650;
+Xbyak::Label l668;
+Xbyak::Label l700;
+Xbyak::Label l760;
+Xbyak::Label l7a4;
+Xbyak::Label l7c8;
+Xbyak::Label l7e8;
 
 #ifdef _WIN32
 	sub(rsp, STACKSIZE);
@@ -87,6 +89,14 @@ Xbyak::Label lcc;
 	mov(ptr[rsp+0x8], rdi);
 	movups(ptr[rsp+0x10], xmm6);
 	movups(ptr[rsp+0x20], xmm7);
+	movups(ptr[rsp+0x30], xmm8);
+	movups(ptr[rsp+0x40], xmm9);
+	movups(ptr[rsp+0x50], xmm10);
+	movups(ptr[rsp+0x60], xmm11);
+	movups(ptr[rsp+0x70], xmm12);
+	movups(ptr[rsp+0x80], xmm13);
+	movups(ptr[rsp+0x90], xmm14);
+	movups(ptr[rsp+0xa0], xmm15);
 	mov(ALPHA, ptr[ARG_ALPHA]);
 	mov(B, ptr[ARG_B]);
 #endif
@@ -98,18 +108,20 @@ Xbyak::Label lcc;
 	sub(A, -128);
 	sub(B, -128);
 	cmp(N, 0x8);
-	jl(l178, T_NEAR);
+	jl(l2a4, T_NEAR);
 	align(4);
 
 L(l20);
 	mov(A1, A);
 	add(A, 0x8);
+	pxor(xmm8, xmm8);
+	pxor(xmm9, xmm9);
 	mov(I, M);
 	sar(I, 0x3);
-	jle(lcc, T_NEAR);
+	jle(l15c, T_NEAR);
 	align(4);
 
-L(l34);
+L(l40);
 	movq(xmm0, qword[A1-0x80]);
 	add(A1, LDA);
 	movq(xmm1, qword[A1-0x80]);
@@ -123,6 +135,20 @@ L(l34);
 	movdqa(xmm1, xmm0);
 	punpcklwd(xmm0, xmm2);
 	punpckhwd(xmm1, xmm2);
+	pmovsxbw(xmm5, xmm0);
+	movhlps(xmm6, xmm0);
+	pmovsxbw(xmm6, xmm6);
+	phaddw(xmm5, xmm6);
+	phaddw(xmm5, xmm5);
+	pmovsxwd(xmm5, xmm5);
+	paddd(xmm8, xmm5);
+	pmovsxbw(xmm5, xmm1);
+	movhlps(xmm6, xmm1);
+	pmovsxbw(xmm6, xmm6);
+	phaddw(xmm5, xmm6);
+	phaddw(xmm5, xmm5);
+	pmovsxwd(xmm5, xmm5);
+	paddd(xmm9, xmm5);
 	movdqu(xword[B-0x80], xmm0);
 	movdqu(xword[B-0x70], xmm1);
 	movq(xmm0, qword[A1-0x80]);
@@ -138,16 +164,30 @@ L(l34);
 	movdqa(xmm1, xmm0);
 	punpcklwd(xmm0, xmm2);
 	punpckhwd(xmm1, xmm2);
+	pmovsxbw(xmm5, xmm0);
+	movhlps(xmm6, xmm0);
+	pmovsxbw(xmm6, xmm6);
+	phaddw(xmm5, xmm6);
+	phaddw(xmm5, xmm5);
+	pmovsxwd(xmm5, xmm5);
+	paddd(xmm8, xmm5);
+	pmovsxbw(xmm5, xmm1);
+	movhlps(xmm6, xmm1);
+	pmovsxbw(xmm6, xmm6);
+	phaddw(xmm5, xmm6);
+	phaddw(xmm5, xmm5);
+	pmovsxwd(xmm5, xmm5);
+	paddd(xmm9, xmm5);
 	movdqu(xword[B-0x60], xmm0);
 	movdqu(xword[B-0x50], xmm1);
 	sub(B, -64);
 	dec(I);
-	jg(l34, T_NEAR);
+	jg(l40, T_NEAR);
 	align(4);
 
-L(lcc);
+L(l15c);
 	test(M, 0x4);
-	jle(l120, T_NEAR);
+	jle(l1f4, T_NEAR);
 	movq(xmm0, qword[A1-0x80]);
 	add(A1, LDA);
 	movq(xmm1, qword[A1-0x80]);
@@ -161,52 +201,85 @@ L(lcc);
 	movdqa(xmm1, xmm0);
 	punpcklwd(xmm0, xmm2);
 	punpckhwd(xmm1, xmm2);
+	pmovsxbw(xmm5, xmm0);
+	movhlps(xmm6, xmm0);
+	pmovsxbw(xmm6, xmm6);
+	phaddw(xmm5, xmm6);
+	phaddw(xmm5, xmm5);
+	pmovsxwd(xmm5, xmm5);
+	paddd(xmm8, xmm5);
+	pmovsxbw(xmm5, xmm1);
+	movhlps(xmm6, xmm1);
+	pmovsxbw(xmm6, xmm6);
+	phaddw(xmm5, xmm6);
+	phaddw(xmm5, xmm5);
+	pmovsxwd(xmm5, xmm5);
+	paddd(xmm9, xmm5);
 	movdqu(xword[B-0x80], xmm0);
 	movdqu(xword[B-0x70], xmm1);
 	sub(B, -32);
 	align(4);
 
-L(l120);
+L(l1f4);
 	test(M, 0x2);
-	jle(l14c, T_NEAR);
+	jle(l248, T_NEAR);
 	movq(xmm0, qword[A1-0x80]);
 	add(A1, LDA);
 	movq(xmm1, qword[A1-0x80]);
 	add(A1, LDA);
 	punpcklbw(xmm0, xmm1);
+	pmovsxbw(xmm5, xmm0);
+	phaddw(xmm5, xmm5);
+	pmovsxwd(xmm5, xmm5);
+	paddd(xmm8, xmm5);
+	movhlps(xmm6, xmm0);
+	pmovsxbw(xmm6, xmm6);
+	phaddw(xmm6, xmm6);
+	pmovsxwd(xmm6, xmm6);
+	paddd(xmm9, xmm6);
 	movdqu(xword[B-0x80], xmm0);
 	sub(B, -16);
 	align(4);
 
-L(l14c);
+L(l248);
 	test(M, 0x1);
-	jle(l168, T_NEAR);
+	jle(l280, T_NEAR);
 	movq(xmm0, qword[A1-0x80]);
 	add(A1, LDA);
+	pmovsxbd(xmm5, xmm0);
+	pshufd(xmm6, xmm0, 0x55);
+	pmovsxbd(xmm6, xmm6);
+	paddd(xmm8, xmm5);
+	paddd(xmm9, xmm6);
 	movq(qword[B-0x80], xmm0);
 	sub(B, -8);
 	align(4);
 
-L(l168);
+L(l280);
+	mov(A1, qword[ARG_BIAS]);
+	movdqu(xword[A1], xmm8);
+	movdqu(xword[A1+0x10], xmm9);
+	add(qword[ARG_BIAS], 0x20);
 	sub(N, 0x8);
 	cmp(N, 0x8);
 	jge(l20, T_NEAR);
 	align(4);
 
-L(l178);
+L(l2a4);
 	cmp(N, 0x4);
-	jl(l2a8, T_NEAR);
+	jl(l468, T_NEAR);
 	align(4);
 
-L(l184);
+L(l2b0);
 	mov(A1, A);
 	add(A, 0x4);
+	pxor(xmm7, xmm7);
 	mov(I, M);
 	sar(I, 0x3);
-	jle(l20c, T_NEAR);
+	jle(l384, T_NEAR);
 	align(4);
 
-L(l194);
+L(l2c8);
 	movd(xmm0, dword[A1-0x80]);
 	add(A1, LDA);
 	movd(xmm1, dword[A1-0x80]);
@@ -218,6 +291,13 @@ L(l194);
 	punpcklbw(xmm0, xmm1);
 	punpcklbw(xmm2, xmm3);
 	punpcklwd(xmm0, xmm2);
+	pmovsxbw(xmm5, xmm0);
+	movhlps(xmm6, xmm0);
+	pmovsxbw(xmm6, xmm6);
+	phaddw(xmm5, xmm6);
+	phaddw(xmm5, xmm5);
+	pmovsxwd(xmm5, xmm5);
+	paddd(xmm7, xmm5);
 	movdqu(xword[B-0x80], xmm0);
 	movd(xmm0, dword[A1-0x80]);
 	add(A1, LDA);
@@ -230,15 +310,22 @@ L(l194);
 	punpcklbw(xmm0, xmm1);
 	punpcklbw(xmm2, xmm3);
 	punpcklwd(xmm0, xmm2);
+	pmovsxbw(xmm5, xmm0);
+	movhlps(xmm6, xmm0);
+	pmovsxbw(xmm6, xmm6);
+	phaddw(xmm5, xmm6);
+	phaddw(xmm5, xmm5);
+	pmovsxwd(xmm5, xmm5);
+	paddd(xmm7, xmm5);
 	movdqu(xword[B-0x70], xmm0);
 	sub(B, -32);
 	dec(I);
-	jg(l194, T_NEAR);
+	jg(l2c8, T_NEAR);
 	align(4);
 
-L(l20c);
+L(l384);
 	test(M, 0x4);
-	jle(l250, T_NEAR);
+	jle(l3e8, T_NEAR);
 	movd(xmm0, dword[A1-0x80]);
 	add(A1, LDA);
 	movd(xmm1, dword[A1-0x80]);
@@ -250,50 +337,67 @@ L(l20c);
 	punpcklbw(xmm0, xmm1);
 	punpcklbw(xmm2, xmm3);
 	punpcklwd(xmm0, xmm2);
+	pmovsxbw(xmm5, xmm0);
+	movhlps(xmm6, xmm0);
+	pmovsxbw(xmm6, xmm6);
+	phaddw(xmm5, xmm6);
+	phaddw(xmm5, xmm5);
+	pmovsxwd(xmm5, xmm5);
+	paddd(xmm7, xmm5);
 	movdqu(xword[B-0x80], xmm0);
 	sub(B, -16);
 	align(4);
 
-L(l250);
+L(l3e8);
 	test(M, 0x2);
-	jle(l27c, T_NEAR);
+	jle(l424, T_NEAR);
 	movd(xmm0, dword[A1-0x80]);
 	add(A1, LDA);
 	movd(xmm1, dword[A1-0x80]);
 	add(A1, LDA);
 	punpcklbw(xmm0, xmm1);
+	pmovsxbw(xmm5, xmm0);
+	phaddw(xmm5, xmm5);
+	pmovsxwd(xmm5, xmm5);
+	paddd(xmm7, xmm5);
 	movq(qword[B-0x80], xmm0);
 	sub(B, -8);
 	align(4);
 
-L(l27c);
+L(l424);
 	test(M, 0x1);
-	jle(l298, T_NEAR);
+	jle(l448, T_NEAR);
 	movd(xmm0, dword[A1-0x80]);
+	pmovsxbd(xmm5, xmm0);
+	paddd(xmm7, xmm5);
 	movd(dword[B-0x80], xmm0);
 	sub(B, -4);
 	align(4);
 
-L(l298);
+L(l448);
+	mov(A1, qword[ARG_BIAS]);
+	movdqu(xword[A1], xmm7);
+	add(qword[ARG_BIAS], 0x10);
 	sub(N, 0x4);
 	cmp(N, 0x4);
-	jge(l184, T_NEAR);
+	jge(l2b0, T_NEAR);
 	align(4);
 
-L(l2a8);
+L(l468);
 	cmp(N, 0x2);
-	jl(l40e, T_NEAR);
+	jl(l646, T_NEAR);
 	align(4);
 
-L(l2b4);
+L(l474);
 	mov(A1, A);
 	add(A, 0x2);
+	pxor(xmm7, xmm7);
 	mov(LDA3, M);
 	sar(LDA3, 0x3);
-	jle(l360, T_NEAR);
+	jle(l550, T_NEAR);
 	align(4);
 
-L(l2c8);
+L(l48c);
 	mov(ax, word[A1-0x80]);
 	add(A1, LDA);
 	pinsrw(xmm0, eax, 0x0);
@@ -325,15 +429,24 @@ L(l2c8);
 	punpcklbw(xmm3, xmm4);
 	punpcklwd(xmm1, xmm3);
 	punpcklqdq(xmm0, xmm1);
+	pshufd(xmm6, xmm0, 0xd8);
+	pmovsxbw(xmm5, xmm6);
+	movhlps(xmm6, xmm6);
+	pmovsxbw(xmm6, xmm6);
+	phaddw(xmm5, xmm6);
+	phaddw(xmm5, xmm5);
+	phaddw(xmm5, xmm5);
+	pmovsxwd(xmm5, xmm5);
+	paddd(xmm7, xmm5);
 	movdqu(xword[B-0x80], xmm0);
 	sub(B, -16);
 	dec(LDA3);
-	jg(l2c8, T_NEAR);
+	jg(l48c, T_NEAR);
 	align(4);
 
-L(l360);
+L(l550);
 	test(M, 0x4);
-	jle(l3b4, T_NEAR);
+	jle(l5bc, T_NEAR);
 	mov(ax, word[A1-0x80]);
 	add(A1, LDA);
 	pinsrw(xmm0, eax, 0x0);
@@ -349,13 +462,18 @@ L(l360);
 	punpcklbw(xmm0, xmm1);
 	punpcklbw(xmm2, xmm3);
 	punpcklwd(xmm0, xmm2);
+	pmovsxbw(xmm5, xmm0);
+	phaddw(xmm5, xmm5);
+	phaddw(xmm5, xmm5);
+	pmovsxwd(xmm5, xmm5);
+	paddd(xmm7, xmm5);
 	movq(qword[B-0x80], xmm0);
 	sub(B, -8);
 	align(4);
 
-L(l3b4);
+L(l5bc);
 	test(M, 0x2);
-	jle(l3e8, T_NEAR);
+	jle(l600, T_NEAR);
 	mov(ax, word[A1-0x80]);
 	add(A1, LDA);
 	pinsrw(xmm0, eax, 0x0);
@@ -363,38 +481,49 @@ L(l3b4);
 	add(A1, LDA);
 	pinsrw(xmm1, eax, 0x0);
 	punpcklbw(xmm0, xmm1);
+	pmovsxbw(xmm5, xmm0);
+	phaddw(xmm5, xmm5);
+	pmovsxwd(xmm5, xmm5);
+	paddd(xmm7, xmm5);
 	movd(dword[B-0x80], xmm0);
 	sub(B, -4);
 	align(4);
 
-L(l3e8);
+L(l600);
 	test(M, 0x1);
-	jle(l400, T_NEAR);
+	jle(l628, T_NEAR);
 	mov(ax, word[A1-0x80]);
+	pinsrw(xmm0, eax, 0x0);
+	pmovsxbd(xmm5, xmm0);
+	paddd(xmm7, xmm5);
 	mov(word[B-0x80], ax);
 	sub(B, -2);
 	align(4);
 
-L(l400);
+L(l628);
+	mov(A1, qword[ARG_BIAS]);
+	movq(qword[A1], xmm7);
+	add(qword[ARG_BIAS], 0x8);
 	sub(N, 0x2);
 	cmp(N, 0x2);
-	jge(l2b4, T_NEAR);
+	jge(l474, T_NEAR);
 	align(4);
 
-L(l40e);
+L(l646);
 	cmp(N, 0x1);
-	jl(l534, T_NEAR);
+	jl(l7e8, T_NEAR);
 	align(4);
 
-L(l418);
+L(l650);
 	mov(A1, A);
 	add(A, 0x1);
+	pxor(xmm7, xmm7);
 	mov(LDA3, M);
 	sar(LDA3, 0x3);
-	jle(l4a0, T_NEAR);
+	jle(l700, T_NEAR);
 	align(4);
 
-L(l428);
+L(l668);
 	mov(al, byte[A1-0x80]);
 	add(A1, LDA);
 	pinsrb(xmm0, eax, 0x0);
@@ -419,15 +548,21 @@ L(l428);
 	mov(al, byte[A1-0x80]);
 	add(A1, LDA);
 	pinsrb(xmm0, eax, 0x7);
+	pmovsxbw(xmm5, xmm0);
+	phaddw(xmm5, xmm6);
+	phaddw(xmm5, xmm5);
+	phaddw(xmm5, xmm5);
+	pmovsxwd(xmm5, xmm5);
+	paddd(xmm7, xmm5);
 	movq(qword[B-0x80], xmm0);
 	sub(B, -8);
 	dec(LDA3);
-	jg(l428, T_NEAR);
+	jg(l668, T_NEAR);
 	align(4);
 
-L(l4a0);
+L(l700);
 	test(M, 0x4);
-	jle(l4e8, T_NEAR);
+	jle(l760, T_NEAR);
 	mov(al, byte[A1-0x80]);
 	add(A1, LDA);
 	pinsrb(xmm0, eax, 0x0);
@@ -440,43 +575,68 @@ L(l4a0);
 	mov(al, byte[A1-0x80]);
 	add(A1, LDA);
 	pinsrb(xmm0, eax, 0x3);
+	pmovsxbw(xmm5, xmm0);
+	phaddw(xmm5, xmm5);
+	phaddw(xmm5, xmm5);
+	pmovsxwd(xmm5, xmm5);
+	paddd(xmm7, xmm5);
 	movd(dword[B-0x80], xmm0);
 	sub(B, -4);
 	align(4);
 
-L(l4e8);
+L(l760);
 	test(M, 0x2);
-	jle(l50c, T_NEAR);
+	jle(l7a4, T_NEAR);
 	mov(al, byte[A1-0x80]);
 	add(A1, LDA);
+	pinsrb(xmm0, eax, 0x0);
 	mov(byte[B-0x80], al);
 	mov(al, byte[A1-0x80]);
 	add(A1, LDA);
+	pinsrb(xmm0, eax, 0x1);
+	pmovsxbw(xmm5, xmm0);
+	phaddw(xmm5, xmm5);
+	pmovsxwd(xmm5, xmm5);
+	paddd(xmm7, xmm5);
 	mov(byte[B-0x7f], al);
 	sub(B, -2);
 	align(4);
 
-L(l50c);
+L(l7a4);
 	test(M, 0x1);
-	jle(l524, T_NEAR);
+	jle(l7c8, T_NEAR);
 	mov(al, byte[A1-0x80]);
+	pinsrw(xmm0, eax, 0x0);
+	pmovsxbd(xmm5, xmm0);
+	paddd(xmm7, xmm5);
 	mov(byte[B-0x80], al);
 	sub(B, -1);
 	align(4);
 
-L(l524);
+L(l7c8);
+	mov(A1, qword[ARG_BIAS]);
+	movd(dword[A1], xmm7);
+	add(qword[ARG_BIAS], 0x4);
 	sub(N, 0x1);
 	cmp(N, 0x1);
-	jge(l418, T_NEAR);
+	jge(l650, T_NEAR);
 	align(4);
 
-L(l534);
+L(l7e8);
 
 #ifdef _WIN32
 	mov(rsi, ptr[rsp]);
 	mov(rdi, ptr[rsp+0x8]);
 	movups(xmm6, ptr[rsp+0x10]);
 	movups(xmm7, ptr[rsp+0x20]);
+	movups(xmm8, ptr[rsp+0x30]);
+	movups(xmm9, ptr[rsp+0x40]);
+	movups(xmm10, ptr[rsp+0x50]);
+	movups(xmm11, ptr[rsp+0x60]);
+	movups(xmm12, ptr[rsp+0x70]);
+	movups(xmm13, ptr[rsp+0x80]);
+	movups(xmm14, ptr[rsp+0x90]);
+	movups(xmm15, ptr[rsp+0xa0]);
 	add(rsp, STACKSIZE);
 #endif
 
@@ -499,3 +659,4 @@ outLocalLabel();
 #undef ARG_ALPHA
 #undef ARG_B
 #endif
+#undef ARG_BIAS
