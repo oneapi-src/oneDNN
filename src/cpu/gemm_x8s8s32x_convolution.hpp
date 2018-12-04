@@ -23,7 +23,7 @@
 #include "jit_primitive_conf.hpp"
 #include "gemm_convolution_utils.hpp"
 
-#include "gemm/os_blas.hpp"
+#include "gemm/gemm.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -38,7 +38,7 @@ struct _gemm_x8s8s32x_convolution_fwd_t: public cpu_primitive_t {
             : cpu_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
             , jcp_() {}
 
-        DECLARE_COMMON_PD_T("gemm:blas",
+        DECLARE_COMMON_PD_T(IGEMM_IMPL_STR,
                 _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>);
 
         virtual status_t init() override {
@@ -48,9 +48,6 @@ struct _gemm_x8s8s32x_convolution_fwd_t: public cpu_primitive_t {
             assert(this->engine()->kind() == engine_kind::cpu);
 
             bool ok = true
-#if !USE_MKL_IGEMM
-                && false
-#endif
                 && this->set_default_params() == status::success
                 && utils::one_of(this->desc()->prop_kind,
                         prop_kind::forward_training,
@@ -163,7 +160,7 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t: public cpu_primitive_t {
             : cpu_convolution_bwd_data_pd_t(engine, adesc, attr, hint_fwd_pd)
             , jcp_() {}
 
-        DECLARE_COMMON_PD_T("gemm:blas",
+        DECLARE_COMMON_PD_T(IGEMM_IMPL_STR,
                 _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>);
 
         virtual status_t init() override {
@@ -173,9 +170,6 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t: public cpu_primitive_t {
             assert(this->engine()->kind() == engine_kind::cpu);
 
             bool ok = true
-#if !USE_MKL_IGEMM
-                && false
-#endif
                 && this->set_default_params() == status::success
                 && this->desc()->prop_kind == prop_kind::backward_data
                 && this->desc()->alg_kind == alg_kind::convolution_direct

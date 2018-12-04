@@ -17,7 +17,7 @@
 #ifndef GEMM_HPP
 #define GEMM_HPP
 
-// #include "mkldnn_types.h"
+#include "os_blas.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -53,6 +53,12 @@ mkldnn_status_t ref_gemm_s8x8s32(const char *transa, const char *transb,
 #define GEMM_IMPL_STR "gemm:blas"
 #else
 #define GEMM_IMPL_STR "gemm:jit"
+#endif
+
+#if USE_MKL_IGEMM
+#define IGEMM_IMPL_STR "igemm:blas"
+#else
+#define IGEMM_IMPL_STR "igemm:jit"
 #endif
 
 }

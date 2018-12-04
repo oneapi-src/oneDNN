@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_types.h"
+#include "mkldnn.h"
 #include "mkldnn_thread.hpp"
 #include "math_utils.hpp"
 #include "simple_q10n.hpp"
@@ -396,7 +396,6 @@ void gemm_u8s8s32x_inner_product_fwd_t<dst_type>::pp_kernel_t::operator ()(
 
 template <data_type_t dst_type>
 void gemm_u8s8s32x_inner_product_fwd_t<dst_type>::execute_forward() {
-#if USE_MKL_IGEMM
     auto src = reinterpret_cast<const src_data_t *>(this->input_memory(0));
     auto weights = reinterpret_cast<const wei_data_t *>(this->input_memory(1));
     auto bias = reinterpret_cast<const char *>(this->input_memory(2));
@@ -424,16 +423,16 @@ void gemm_u8s8s32x_inner_product_fwd_t<dst_type>::execute_forward() {
         ? (acc_data_t *)dst
         : (acc_data_t *)this->scratchpad_->get();
 
-    cblas_gemm_s8u8s32(CblasColMajor, wei_tr ? CblasTrans : CblasNoTrans,
-            CblasNoTrans, CblasFixOffset, M, N, K, 1., weights,
-            wei_tr ? K : M, off_a, src, K, off_b, 0., acc, M, &off_c);
+    const float onef = 1.0, zerof = 0.0;
+    mkldnn_gemm_s8u8s32(wei_tr ? "T" : "N", "N", "F", &M, &N, &K, &onef,
+            weights, wei_tr ? &K : &M, &off_a, src, &K, &off_b, &zerof,
+            acc, &M, &off_c);
 
     parallel(0, [&](int ithr, int nthr) {
             size_t start, end;
             balance211((size_t)OC * MB, nthr, ithr, start, end);
             (*pp_kernel_)(dst, acc, bias, scales, nslope, start, end);
             });
-#endif
 }
 
 using namespace data_type;

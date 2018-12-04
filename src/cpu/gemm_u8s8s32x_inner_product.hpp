@@ -27,7 +27,7 @@
 #include "scratchpad.hpp"
 #include "jit_generator.hpp"
 
-#include "gemm/os_blas.hpp"
+#include "gemm/gemm.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -41,7 +41,7 @@ struct gemm_u8s8s32x_inner_product_fwd_t: public cpu_primitive_t {
                 const inner_product_fwd_pd_t *hint_fwd_pd)
             : cpu_inner_product_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T("gemm:blas", gemm_u8s8s32x_inner_product_fwd_t);
+        DECLARE_COMMON_PD_T(IGEMM_IMPL_STR, gemm_u8s8s32x_inner_product_fwd_t);
 
         virtual status_t init() override {
             using namespace utils;
@@ -50,9 +50,6 @@ struct gemm_u8s8s32x_inner_product_fwd_t: public cpu_primitive_t {
             assert(engine()->kind() == engine_kind::cpu);
 
             bool ok = true
-#if !USE_MKL_IGEMM
-                && false
-#endif
                 && this->set_default_params() == status::success
                 && one_of(desc()->prop_kind, prop_kind::forward_training,
                         prop_kind::forward_inference)

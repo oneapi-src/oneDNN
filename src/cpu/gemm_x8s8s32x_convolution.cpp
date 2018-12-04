@@ -60,7 +60,6 @@ void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::
         execute_forward_thr(const int ithr, const int nthr,
         const src_data_t *src_base, const wei_data_t *wei_base,
         const char *bia_base, dst_data_t *dst_base, char *scratchpad) {
-#if USE_MKL_IGEMM
     const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
 
     const auto src_md = memory_desc_wrapper(pd()->src_pd());
@@ -133,15 +132,15 @@ void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::
         const int M = jcp.oc;
         const int K = jcp.ks * jcp.ic;
         const int N = jcp.os;
-        const CBLAS_OFFSET offsetc
-                = jcp.signed_input ? CblasColOffset : CblasFixOffset;
+        const int LD = M * jcp.ngroups;
         const int8_t off_a = 0, off_b = 0;
         const int32_t off_c = 0;
+        const float onef = 1.0, zerof = 0.0;
 
-        cblas_gemm_s8u8s32(CblasColMajor, CblasNoTrans, CblasNoTrans, offsetc,
-                M, N, K, 1.0f, wei, M * jcp.ngroups, off_a,
-                jcp.im2col_sz ? col : (uint8_t *)src, K, off_b, 0.0f, acc, M,
-                jcp.signed_input ? wei_comp : &off_c);
+        mkldnn_gemm_s8u8s32("N", "N", jcp.signed_input ? "C" : "F",
+                &M, &N, &K, &onef, wei, &LD, &off_a,
+                jcp.im2col_sz ? col : (uint8_t *)src, &K, &off_b,
+                &zerof, acc, &M, jcp.signed_input ? wei_comp : &off_c);
 
         if (use_fast_path) {
             auto body = [&](int o) {
@@ -177,7 +176,6 @@ void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::
         }
         nd_iterator_step(n, jcp.mb, g, jcp.ngroups);
     }
-#endif
 }
 
 template <data_type_t dst_type>
@@ -203,7 +201,6 @@ void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>
         const diff_dst_data_t *diff_dst_base, const wei_data_t *wei_base,
         const char *bia_base, diff_src_data_t *diff_src_base, char *scratchpad)
 {
-#if USE_MKL_IGEMM
     const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
 
     const auto diff_dst_md = memory_desc_wrapper(pd()->diff_dst_pd());
@@ -250,11 +247,12 @@ void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>
         const int K = jcp.oc;
         const int8_t off_a = 0, off_b = 0;
         const int32_t off_c = 0;
+        const float onef = 1.0, zerof = 0.0;
+        const int LD = K * jcp.ngroups;
 
-        cblas_gemm_s8u8s32(CblasColMajor, CblasTrans, CblasNoTrans,
-                CblasFixOffset, M, N, K, 1., wei, K * jcp.ngroups, off_a,
-                diff_dst, K * jcp.ngroups, off_b, 0., jcp.im2col_sz ? col
-                : acc, M, &off_c);
+        mkldnn_gemm_s8u8s32("T", "N", "F", &M, &N, &K, &onef,
+                wei, &LD, &off_a, diff_dst, &LD, &off_b,
+                &zerof, jcp.im2col_sz ? col : acc, &M, &off_c);
 
         if (jcp.im2col_sz)
             jit_gemm_convolution_utils::col2im_s32(jcp, col, acc);
@@ -271,7 +269,6 @@ void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>
         });
         nd_iterator_step(n, jcp.mb, g, jcp.ngroups);
     }
-#endif
 }
 
 using namespace data_type;

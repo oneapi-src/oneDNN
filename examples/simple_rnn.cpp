@@ -20,8 +20,6 @@
 #include <numeric>
 #include <string>
 
-#include "mkl_cblas.h"
-
 #include "mkldnn.hpp"
 
 // MSVC doesn't support collapse clause in omp parallel
@@ -49,6 +47,9 @@ std::vector<float> alignment_model(
 std::vector<float> alignments(src_seq_length_max *batch, 1.0f);
 std::vector<float> exp_sums(batch, 1.0f);
 
+const float onef = 1.0, zerof = 0.0;
+const int onei = 1;
+
 void compute_weighted_annotations(float *weighted_annotations,
         int src_seq_length_max, int batch, int feature_size,
         float *weights_annot, float *annotations) {
@@ -56,10 +57,11 @@ void compute_weighted_annotations(float *weighted_annotations,
     // weights_annot is (2c, c)
 
     // annotation[i] = GEMM(weights_annot, enc_dst_layer[i]);
-    cblas_sgemm(CblasColMajor, CblasNoTrans, CblasNoTrans, feature_size,
-            src_seq_length_max * batch, feature_size, 1.0f, weights_annot,
-            feature_size, annotations, feature_size, 0.0f, weighted_annotations,
-            feature_size);
+    int num_weighted_annotations = src_seq_length_max * batch;
+    mkldnn_sgemm("N", "N",
+            &feature_size, &num_weighted_annotations, &feature_size,
+            &onef, annotations, &feature_size, weights_annot, &feature_size,
+            &zerof, weighted_annotations, &feature_size);
 }
 
 void compute_attention(float *context_vectors, int src_seq_length_max,
@@ -77,9 +79,10 @@ void compute_attention(float *context_vectors, int src_seq_length_max,
     // p is (n, 1)
 
     // first we precompute the weighted_dec_src_layer
-    cblas_sgemm(CblasColMajor, CblasNoTrans, CblasNoTrans, feature_size, batch,
-            feature_size, 1.0f, weights_src_layer, feature_size, dec_src_layer,
-            feature_size, 0.0f, weighted_src_layer.data(), feature_size);
+    mkldnn_sgemm("N", "N",
+            &feature_size, &batch, &feature_size, &onef,
+            dec_src_layer, &feature_size, weights_src_layer, &feature_size,
+            &zerof, weighted_src_layer.data(), &feature_size);
 
     // then we compute the alignment model
     float *alignment_model_ptr = alignment_model.data();
@@ -92,11 +95,13 @@ void compute_attention(float *context_vectors, int src_seq_length_max,
     }
 
     // gemv with alignments weights. the resulting alignments are in alignments
-    cblas_sgemm(CblasColMajor, CblasNoTrans, CblasNoTrans, 1,
-            src_seq_length_max * batch, feature_size, 1.0f, weights_alignments,
-            1, alignment_model_ptr, feature_size, 0.0f, alignments.data(), 1);
+    int num_weighted_annotations = src_seq_length_max * batch;
+    mkldnn_sgemm("N", "N",
+            &onei, &num_weighted_annotations, &feature_size, &onef,
+            alignment_model_ptr, &feature_size, weights_alignments, &onei,
+            &zerof, alignments.data(), &onei);
 
-// softmax on alignments. the resulting context weights are in alignments
+    // softmax on alignments. the resulting context weights are in alignments
 #pragma omp parallel for
     for (int i = 0; i < batch; i++)
         exp_sums[i] = 0.0f;
@@ -113,7 +118,7 @@ void compute_attention(float *context_vectors, int src_seq_length_max,
         for (int j = 0; j < batch; j++)
             alignments[i * batch + j] /= exp_sums[j];
 
-// then we compute the context vectors
+    // then we compute the context vectors
 #pragma omp parallel for collapse(2)
     for (int i = 0; i < batch; i++)
         for (int j = 0; j < feature_size; j++)
@@ -133,7 +138,7 @@ void compute_attention(float *context_vectors, int src_seq_length_max,
 
 void copy_context(float *src_iter, int n_layers, int n_states, int batch,
         int feature_size) {
-// we copy the context from the first layer to all other layers
+    // we copy the context from the first layer to all other layers
 #pragma omp parallel for collapse(3)
     for (int k = 1; k < n_layers; k++)
         for (int j = 0; j < batch; j++)
