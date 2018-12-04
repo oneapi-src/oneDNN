@@ -245,86 +245,88 @@ void copy(int dimc, int dimr, int ld_src, int ld_dst, const float *src_,
     });
 }
 
-/* FIXME: separate copy_init ???
- * fwd: ws_states = n_states
- * bwd: ws_states = n_states + 1
- *
- * lstm example:
+/* lstm example:
  * fwd: ws keeps {h, c} for every cell
- * bwd: wsb keeps {dh, dc, dx} for every cell
  */
-void copy_init(alg_t alg, int sic, int slc, int dic, int dlc, int wc, int batch,
-        int n_layer, int n_iter, int n_states, float *ws_,
+void copy_init_fwd(alg_t alg, int sic, int slc, int dic, int dlc, int wc,
+        int batch, int n_layer, int n_iter, int n_dir, int n_states, float *ws_,
         const float *src_layer_, const float *firstit_states_,
         rnn_iter_direction_t iter_dir, rnn_layer_direction_t lay_dir,
-        int dir_val, int n_dir, bool is_bwd = false, bool is_concat = false) {
-    AOC<float> ws(
-            ws_, n_layer + 2, n_dir, n_iter + 2, n_states + is_bwd, batch, wc);
-    auto c_stride = is_bwd ? (is_concat ? 2 * dlc : dlc) : slc;
-    AOC<const float> src_layer(src_layer_, n_iter, batch * c_stride);
-    AOC<const float> firstit_states(firstit_states_, n_layer, n_dir, n_states,
-            batch, is_bwd ? dic : sic);
+        int dir_val) {
+    AOC<float> ws(ws_, n_layer + 2, n_dir, n_iter + 2, n_states, batch * wc);
+    AOC<const float> src_layer(src_layer_, n_iter, batch * slc);
+    AOC<const float> firstit_states(
+            firstit_states_, n_layer, n_dir, n_states, batch * sic);
 
     int lay_dest = (lay_dir == bottom2top) ? 0 : n_layer + 1;
     int it_dest = (iter_dir == left2right) ? 0 : n_iter + 1;
 
-    if (!is_bwd) {
-        for (int it = 0; it < n_iter; it++)
-            copy(batch, slc, slc, wc, &src_layer(it, 0),
-                    &ws(lay_dest, dir_val, it + 1, H, 0, 0));
+    for (int it = 0; it < n_iter; it++)
+        copy(batch, slc, slc, wc, &src_layer(it, 0),
+                &ws(lay_dest, dir_val, it + 1, H, 0));
 
-        for (int lay = 0; lay < n_layer; lay++) {
-            copy(batch, sic, sic, wc, &firstit_states(lay, dir_val, H, 0, 0),
-                    &ws(lay + 1, dir_val, it_dest, H, 0, 0));
-            if (alg == VANILLA_LSTM) {
-                copy(batch, sic, sic, wc,
-                        &firstit_states(lay, dir_val, C, 0, 0),
-                        &ws(lay + 1, dir_val, it_dest, C, 0, 0));
-            }
-        }
-    } else {
-        for (int it = 0; it < n_iter; it++)
-            copy(batch, dic, c_stride, wc,
-                    &src_layer(it, dir_val * is_concat * dlc),
-                    &ws(lay_dest, dir_val, it + 1, n_states, 0, 0));
-
-        for (int lay = 0; lay < n_layer; lay++) {
-            copy(batch, dic, dic, wc, &firstit_states(lay, dir_val, H, 0, 0),
-                    &ws(lay + 1, dir_val, it_dest, H, 0, 0));
-            if (alg == VANILLA_LSTM) {
-                copy(batch, dic, dic, wc,
-                        &firstit_states(lay, dir_val, C, 0, 0),
-                        &ws(lay + 1, dir_val, it_dest, C, 0, 0));
-            }
+    for (int lay = 0; lay < n_layer; lay++) {
+        copy(batch, sic, sic, wc, &firstit_states(lay, dir_val, H, 0),
+                &ws(lay + 1, dir_val, it_dest, H, 0));
+        if (alg == VANILLA_LSTM) {
+            copy(batch, sic, sic, wc, &firstit_states(lay, dir_val, C, 0),
+                    &ws(lay + 1, dir_val, it_dest, C, 0));
         }
     }
 }
 
-void copy_res(alg_t alg, int sic, int slc, int dic, int dlc, int wc, int batch,
-        int n_layer, int n_iter, int n_states, float *lastit_states_,
-        float *lastlay_states_, const float *ws_,
-        mkldnn_rnn_direction_t direction, rnn_iter_direction_t iter_dir,
-        rnn_layer_direction_t lay_dir, int dir_val, int n_dir,
-        rnn_action_t action, bool is_bwd = false) {
-    int lastlay_c = is_bwd ?
-            slc :
-            (direction == mkldnn_bidirectional_concat) * dlc + dlc;
-    int lastiter_c = is_bwd ? sic : dic;
+/* lstm example:
+ * bwd: wsb keeps {dh, dc, dx} for every cell
+*/
+void copy_init_bwd(alg_t alg, int sic, int slc, int dic, int dlc, int wc,
+        int batch, int n_layer, int n_iter, int n_dir, int n_states, float *ws_,
+        const float *src_layer_, const float *firstit_states_,
+        rnn_iter_direction_t iter_dir, rnn_layer_direction_t lay_dir,
+        int dir_val, bool is_concat = false) {
+    AOC<float> ws(
+            ws_, n_layer + 2, n_dir, n_iter + 2, n_states + 1, batch * wc);
+    auto c_stride = is_concat ? 2 * dlc : dlc;
+    AOC<const float> src_layer(src_layer_, n_iter, batch * c_stride);
+    AOC<const float> firstit_states(
+            firstit_states_, n_layer, n_dir, n_states, batch * dic);
+
+    int lay_dest = (lay_dir == bottom2top) ? 0 : n_layer + 1;
+    int it_dest = (iter_dir == left2right) ? 0 : n_iter + 1;
+
+    for (int it = 0; it < n_iter; it++)
+        copy(batch, dic, c_stride, wc,
+                &src_layer(it, dir_val * is_concat * dlc),
+                &ws(lay_dest, dir_val, it + 1, n_states, 0));
+
+    for (int lay = 0; lay < n_layer; lay++) {
+        copy(batch, dic, dic, wc, &firstit_states(lay, dir_val, H, 0),
+                &ws(lay + 1, dir_val, it_dest, H, 0));
+        if (alg == VANILLA_LSTM) {
+            copy(batch, dic, dic, wc, &firstit_states(lay, dir_val, C, 0),
+                    &ws(lay + 1, dir_val, it_dest, C, 0));
+        }
+    }
+}
+
+void copy_res_fwd(alg_t alg, int sic, int slc, int dic, int dlc, int wc,
+        int batch, int n_layer, int n_iter, int n_dir, int n_states,
+        float *lastit_states_, float *lastlay_states_, const float *ws_,
+        rnn_iter_direction_t iter_dir, rnn_layer_direction_t lay_dir,
+        int dir_val, rnn_action_t action, bool is_concat = false) {
+    int lastlay_c = is_concat ? 2 * dlc : dlc;
     AOC<float> lastit_states(
-            lastit_states_, n_layer, n_dir, n_states, batch, lastiter_c);
+            lastit_states_, n_layer, n_dir, n_states, batch, dic);
     AOC<float> lastlay_states(lastlay_states_, n_iter, batch, lastlay_c);
     AOC<const float> ws(
-            ws_, n_layer + 2, n_dir, n_iter + 2, n_states + is_bwd, batch, wc);
+            ws_, n_layer + 2, n_dir, n_iter + 2, n_states, batch, wc);
     for (int it = 0; it < n_iter; it++) {
         for (int nb = 0; nb < batch; nb++) {
             // copy H to last layer states
-            int lay = is_bwd ? 1 : n_layer;
-            int state = is_bwd ? n_states : H;
-            auto from = &ws(lay, dir_val, it + 1, state, nb, 0);
+            auto from = &ws(n_layer, dir_val, it + 1, H, nb, 0);
             auto to = &lastlay_states(
-                    it, nb, (action == action_concat) && (!is_bwd) ? dlc : 0);
+                    it, nb, action == action_concat ? dlc : 0);
 
-            copy(1, is_bwd ?  slc : dlc, wc, lastlay_c, from, to, action);
+            copy(1, dlc, wc, lastlay_c, from, to, action);
         }
     }
 
@@ -332,12 +334,42 @@ void copy_res(alg_t alg, int sic, int slc, int dic, int dlc, int wc, int batch,
 
     for (int lay = 0; lay < n_layer; lay++) {
         if (alg == VANILLA_LSTM) {
-            copy(batch, lastiter_c, wc, lastiter_c,
-                    &ws(lay + 1, dir_val, it_source, C, 0, 0),
+            copy(batch, dic, wc, dic, &ws(lay + 1, dir_val, it_source, C, 0, 0),
                     &lastit_states(lay, dir_val, C, 0, 0));
         }
-        copy(batch, lastiter_c, wc, lastiter_c,
-                &ws(lay + 1, dir_val, it_source, H, 0, 0),
+        copy(batch, dic, wc, dic, &ws(lay + 1, dir_val, it_source, H, 0, 0),
+                &lastit_states(lay, dir_val, H, 0, 0));
+    }
+}
+
+void copy_res_bwd(alg_t alg, int sic, int slc, int dic, int dlc, int wc,
+        int batch, int n_layer, int n_iter, int n_dir, int n_states,
+        float *lastit_states_, float *lastlay_states_, const float *ws_,
+        rnn_iter_direction_t iter_dir, rnn_layer_direction_t lay_dir,
+        int dir_val, rnn_action_t action) {
+    AOC<float> lastit_states(
+            lastit_states_, n_layer, n_dir, n_states, batch, sic);
+    AOC<float> lastlay_states(lastlay_states_, n_iter, batch, slc);
+    AOC<const float> ws(
+            ws_, n_layer + 2, n_dir, n_iter + 2, n_states + 1, batch, wc);
+    for (int it = 0; it < n_iter; it++) {
+        for (int nb = 0; nb < batch; nb++) {
+            // copy H to last layer states
+            auto from = &ws(1, dir_val, it + 1, n_states, nb, 0);
+            auto to = &lastlay_states(it, nb, 0);
+
+            copy(1, slc, wc, slc, from, to, action);
+        }
+    }
+
+    int it_source = (iter_dir == left2right) ? n_iter : 1;
+
+    for (int lay = 0; lay < n_layer; lay++) {
+        if (alg == VANILLA_LSTM) {
+            copy(batch, sic, wc, sic, &ws(lay + 1, dir_val, it_source, C, 0, 0),
+                    &lastit_states(lay, dir_val, C, 0, 0));
+        }
+        copy(batch, sic, wc, sic, &ws(lay + 1, dir_val, it_source, H, 0, 0),
                 &lastit_states(lay, dir_val, H, 0, 0));
     }
 }
@@ -380,8 +412,9 @@ void rnn_linear_fwd(const rnn_prb_t *p, mkldnn_rnn_direction_t direction,
         // we first need to copy the initial states and input into ws
         // it simplifies the logic in the following code
         print(80, "rnn_linear_fwd: call copy_init dir_val = %d\n", dir_val);
-        copy_init(alg, sic, slc, dic, dlc, wc, batch, n_layer, n_iter, n_states, ws_,
-                src_layer_, src_iter_, iter_dir, lay_dir, dir_val, n_dir);
+        copy_init_fwd(alg, sic, slc, dic, dlc, wc, batch, n_layer, n_iter,
+                n_dir, n_states, ws_, src_layer_, src_iter_, iter_dir, lay_dir,
+                dir_val);
 
         // We run the grid of computation
         for (int il = 0; il < n_layer; il++) {
@@ -405,9 +438,9 @@ void rnn_linear_fwd(const rnn_prb_t *p, mkldnn_rnn_direction_t direction,
         }
 
         // Finally we copy the results to the result buffers
-        copy_res(alg, sic, slc, dic, dlc, wc, batch, n_layer, n_iter, n_states,
-                dst_iter_, dst_layer_, ws_, direction, iter_dir, lay_dir,
-                dir_val, n_dir, action);
+        copy_res_fwd(alg, sic, slc, dic, dlc, wc, batch, n_layer, n_iter, n_dir,
+                n_states, dst_iter_, dst_layer_, ws_, iter_dir, lay_dir,
+                dir_val, action, direction == mkldnn_bidirectional_concat);
     };
 
     switch (direction) {
@@ -841,9 +874,10 @@ void rnn_linear_bwd(const rnn_prb_t *p, mkldnn_rnn_direction_t direction,
             rnn_layer_direction_t lay_dir, int dir_val, rnn_action_t action) {
         // we first need to copy the initial states and input into ws
         // it simplifies the logic in the following code
-        copy_init(alg, sic, slc, dic, dlc, wc, batch, n_layer, n_iter, n_states,
-                wsb_, diff_dst_layer_, diff_dst_iter_, iter_dir, lay_dir,
-                dir_val, n_dir, true, direction == mkldnn_bidirectional_concat);
+        copy_init_bwd(alg, sic, slc, dic, dlc, wc, batch, n_layer, n_iter,
+                n_dir, n_states, wsb_, diff_dst_layer_, diff_dst_iter_,
+                iter_dir, lay_dir, dir_val,
+                direction == mkldnn_bidirectional_concat);
 
         // We run the grid of computation
         for (int j = n_layer - 1; j >= 0; j--) {
@@ -881,9 +915,9 @@ void rnn_linear_bwd(const rnn_prb_t *p, mkldnn_rnn_direction_t direction,
         }
 
         // Finally we copy the results to the result buffers
-        copy_res(alg, sic, slc, dic, dlc, wc, batch, n_layer, n_iter, n_states,
-                diff_src_iter_, diff_src_layer_, wsb_, direction, iter_dir,
-                lay_dir, dir_val, n_dir, action, true);
+        copy_res_bwd(alg, sic, slc, dic, dlc, wc, batch, n_layer, n_iter, n_dir,
+                n_states, diff_src_iter_, diff_src_layer_, wsb_, iter_dir,
+                lay_dir, dir_val, action);
     };
 
     switch (direction) {
