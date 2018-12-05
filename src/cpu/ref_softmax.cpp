@@ -38,7 +38,7 @@ void ref_softmax_fwd_t<data_type>::execute_forward_dense() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto dst = reinterpret_cast<data_t *>(this->memory(0));
 
-    auto ker = [&](int ou) {
+    parallel_nd(outer_size_, [&](int ou) {
         const data_t *src_data = src + ou * channels_;
         data_t *dst_data = dst + ou * channels_;
         data_t scalar = 0;
@@ -48,12 +48,7 @@ void ref_softmax_fwd_t<data_type>::execute_forward_dense() {
         _exp(channels_, dst_data, dst_data);
         _sum(channels_, dst_data, &scalar);
         _scal(channels_, data_t(1)/scalar, dst_data);
-    };
-
-    if (outer_size_ == 1)
-        ker(0);
-    else
-        parallel_nd(outer_size_, ker);
+    });
 }
 
 template <impl::data_type_t data_type>
