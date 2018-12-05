@@ -71,7 +71,7 @@ struct jit_bnorm_t: public jit_generator {
     const int vlen = isa == sse42 ? 32 : cpu_isa_traits<isa>::vlen;
 
     const batch_normalization_pd_t *bdesc_;
-    int is_spatial_thr_;
+    bool is_spatial_thr_;
 
     void (*ker)(const call_params_t *);
     void operator()(const call_params_t *p) { (*ker)(p); }
@@ -1006,10 +1006,14 @@ struct jit_bnorm_t: public jit_generator {
         }
     }
 
-    jit_bnorm_t(const batch_normalization_pd_t *bdesc, int is_spatial_thr):
-        bdesc_(bdesc), is_spatial_thr_(is_spatial_thr) {
+    jit_bnorm_t(const batch_normalization_pd_t *bdesc): bdesc_(bdesc) {
         static_assert(isa == sse42 || isa == avx2 || isa == avx512_common
                 || isa == avx512_mic, "unsupported isa");
+
+        const int simd_w = isa == sse42 ? 8 :
+            cpu_isa_traits<isa>::vlen / sizeof(data_t);
+        is_spatial_thr_ =
+            bnorm_utils::is_spatial_thr(bdesc_, simd_w, sizeof(data_t));
 
         unroll_blocks = isa == avx512_common && !is_spatial_thr_ ? 4 : 1;
         unroll_regs = isa == avx512_common && !is_spatial_thr_ ? 4 : 1;
@@ -1044,9 +1048,8 @@ struct jit_bnorm_t: public jit_generator {
 
 template <cpu_isa_t isa>
 struct uni_bnorm_driver_t: public c_compatible {
-    uni_bnorm_driver_t(const batch_normalization_pd_t *bdesc,
-        int is_spatial_thr) : bdesc_(bdesc), ker_(bdesc_,is_spatial_thr),
-        buf_(nullptr), barriers_(nullptr)
+    uni_bnorm_driver_t(const batch_normalization_pd_t *bdesc)
+        : bdesc_(bdesc), ker_(bdesc_), buf_(nullptr), barriers_(nullptr)
     {
         use_tmp_stats_ = !bdesc_->stats_is_src()
             && bdesc_->desc()->prop_kind == prop_kind::forward_inference;
@@ -1214,20 +1217,57 @@ private:
 
 }
 
+using namespace data_type;
+using namespace memory_format;
+using namespace utils;
+
+/* fwd */
+
+template <cpu_isa_t isa>
+status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init() {
+    assert(engine()->kind() == engine_kind::cpu);
+    auto desired_fmt = (ndims() == 4)
+        ? isa == avx512_common ? nChw16c : nChw8c
+        : isa == avx512_common ? nCdhw16c : nCdhw8c;
+
+    bool ok = true
+        && mayiuse(isa)
+        && is_fwd()
+        && !has_zero_dim_memory()
+        && one_of(ndims(), 4, 5)
+        && desc()->data_desc.data_type == f32
+        && IMPLICATION(use_scaleshift(),
+                desc()->data_scaleshift_desc.data_type == f32)
+        && desc()->data_desc.format == desired_fmt
+        && (attr()->has_default_values() || this->with_relu_post_op());
+    if (!ok) return status::unimplemented;
+
+    if (is_training() && fuse_bn_relu()) {
+        if (isa < avx2) return status::unimplemented;
+        bn_init_default_ws(this, this->workspace_pd_, 1);
+    }
+
+    if (memory_desc_wrapper(&data_pd_).blocking_desc().padding_dims[1]
+            != this->C() && isa < avx2)
+        return status::unimplemented;
+
+    if (stats_is_src() || is_training()) {
+        memory_desc_t stats_d;
+        dims_t stats_dims = { C() };
+        mkldnn_memory_desc_init(&stats_d, 1, stats_dims, f32, x);
+        mean_pd_ = cpu_memory_t::pd_t(engine_, &stats_d);
+        variance_pd_ = cpu_memory_t::pd_t(engine_, &stats_d);
+    }
+
+    return success;
+}
+
 template <cpu_isa_t isa>
 jit_uni_batch_normalization_fwd_t<isa>::jit_uni_batch_normalization_fwd_t(
         const pd_t *pd, const input_vector &inputs,
         const output_vector &outputs)
     : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
-{
-    int is_spatial_thr = 0;
-    const int simd_w = isa == sse42 ? 8 :
-        cpu_isa_traits<isa>::vlen / sizeof(data_t);
-
-    bnorm_utils::set_spatial_thr(&conf_,simd_w,sizeof(data_t),is_spatial_thr);
-
-    bnorm_driver_ = new uni_bnorm_driver_t<isa>(&conf_,is_spatial_thr);
-}
+{ bnorm_driver_ = new uni_bnorm_driver_t<isa>(&conf_); }
 
 template <cpu_isa_t isa>
 void jit_uni_batch_normalization_fwd_t<isa>::execute(event_t *e) {
@@ -1253,8 +1293,51 @@ void jit_uni_batch_normalization_fwd_t<isa>::execute(event_t *e) {
 }
 
 template <cpu_isa_t isa>
-jit_uni_batch_normalization_fwd_t<isa>::~jit_uni_batch_normalization_fwd_t() {
-    delete bnorm_driver_;
+jit_uni_batch_normalization_fwd_t<isa>::~jit_uni_batch_normalization_fwd_t()
+{ delete bnorm_driver_; }
+
+/* bwd */
+
+template <cpu_isa_t isa>
+status_t jit_uni_batch_normalization_bwd_t<isa>::pd_t::init() {
+    assert(engine()->kind() == engine_kind::cpu);
+    auto desired_fmt = (ndims() == 4)
+        ? one_of(isa, sse42, avx2) ? nChw8c : nChw16c
+        : one_of(isa, sse42, avx2) ? nCdhw8c : nCdhw16c;
+
+    bool ok = true
+        && mayiuse(isa)
+        && is_bwd()
+        && !has_zero_dim_memory()
+        && one_of(ndims(), 4, 5)
+        && everyone_is(f32, desc()->data_desc.data_type,
+                desc()->diff_data_desc.data_type)
+        && IMPLICATION(use_scaleshift(),
+                desc()->data_scaleshift_desc.data_type == f32)
+        && everyone_is(desired_fmt, desc()->diff_data_desc.format,
+                desc()->data_desc.format)
+        && attr()->has_default_values();
+    if (!ok) return status::unimplemented;
+
+    if (memory_desc_wrapper(&data_pd_).blocking_desc()
+            .padding_dims[1] != this->C() && isa < avx2)
+        return status::unimplemented;
+
+    if (fuse_bn_relu()) {
+        if (isa < avx2) return status::unimplemented;
+        bn_init_default_ws(this, this->workspace_pd_, 1);
+        size_t this_ws_sz = memory_desc_wrapper(this->workspace_pd()).size();
+
+        bool ws_ok = true
+            && hint_fwd_pd_->workspace_pd()
+            && memory_desc_wrapper(hint_fwd_pd_->workspace_pd()).size()
+            == this_ws_sz;
+        if (!ws_ok) return status::unimplemented;
+    }
+
+    /* TODO: extra checks required */
+
+    return success;
 }
 
 template <cpu_isa_t isa>
@@ -1262,15 +1345,7 @@ jit_uni_batch_normalization_bwd_t<isa>::jit_uni_batch_normalization_bwd_t(
         const pd_t *pd, const input_vector &inputs,
         const output_vector &outputs)
     : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
-{
-    int is_spatial_thr = 0;
-    const int simd_w = isa == sse42 ? 8 :
-        cpu_isa_traits<isa>::vlen / sizeof(data_t);
-
-    bnorm_utils::set_spatial_thr(&conf_,simd_w,sizeof(data_t),is_spatial_thr);
-
-    bnorm_driver_ = new uni_bnorm_driver_t<isa>(&conf_,is_spatial_thr);
-}
+{ bnorm_driver_ = new uni_bnorm_driver_t<isa>(&conf_); }
 
 template <cpu_isa_t isa>
 void jit_uni_batch_normalization_bwd_t<isa>::execute(event_t *e) {
@@ -1293,9 +1368,8 @@ void jit_uni_batch_normalization_bwd_t<isa>::execute(event_t *e) {
 }
 
 template <cpu_isa_t isa>
-jit_uni_batch_normalization_bwd_t<isa>::~jit_uni_batch_normalization_bwd_t() {
-    delete bnorm_driver_;
-}
+jit_uni_batch_normalization_bwd_t<isa>::~jit_uni_batch_normalization_bwd_t()
+{ delete bnorm_driver_; }
 
 /* struct instantiation */
 template struct jit_uni_batch_normalization_fwd_t<sse42>;
