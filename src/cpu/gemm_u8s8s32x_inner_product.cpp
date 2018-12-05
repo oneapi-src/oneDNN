@@ -49,7 +49,7 @@ gemm_u8s8s32x_inner_product_fwd_t<dst_type>::pp_kernel_t::pp_kernel_t(
         bias_data_type_size_ = data_type_size(bias_data_type_);
     }
 
-    if (!mayiuse(avx512_common))
+    if (!mayiuse(avx512_core))
         // use fallback code for older CPUs since they do not have optimized
         // u8s8s32 GEMM anyways. The configuration variables above are used by
         // the fallback code.
