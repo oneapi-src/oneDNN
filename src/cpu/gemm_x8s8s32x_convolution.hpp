@@ -102,7 +102,8 @@ struct _gemm_x8s8s32x_convolution_fwd_t: public cpu_primitive_t {
         virtual bool is_gemm_conv_format() const {
             using namespace mkldnn::impl::primitive_kind;
             auto const &po = this->attr()->post_ops_;
-            auto is_relu = [&](int idx) { return po.entry_[idx].is_relu(); };
+            auto is_relu = [&](int idx) {
+                return po.entry_[idx].is_relu(true, false); };
 
             switch (po.len_) {
             case 0: return true;
