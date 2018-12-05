@@ -216,5 +216,7 @@ INSTANTIATE_TEST_CASE_P(TestSoftmaxForward, softmax_forward_test_float,
             softmax_fwd_test_params_float{prop_kind::forward_scoring,
             engine::kind::cpu, memory::format::nc, {2, 1000}, 0},
             softmax_fwd_test_params_float{prop_kind::forward_scoring,
-            engine::kind::cpu, memory::format::nc, {2, 1000}, 1}));
+            engine::kind::cpu, memory::format::nc, {2, 1000}, 1},
+            softmax_fwd_test_params_float{prop_kind::forward_scoring,
+            engine::kind::cpu, memory::format::nc, {1, 256}, 1}));
 }
