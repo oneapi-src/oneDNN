@@ -17,23 +17,26 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
+#include "math_utils.hpp"
+#include "memory_tracking.hpp"
+#include "mkldnn_thread.hpp"
 #include "nstl.hpp"
 #include "type_helpers.hpp"
-#include "mkldnn_thread.hpp"
-#include "math_utils.hpp"
 #include "utils.hpp"
 
-#include "jit_generator.hpp"
 #include "cpu_barrier.hpp"
+#include "cpu_batch_normalization_utils.hpp"
+#include "jit_generator.hpp"
 
 #include "jit_uni_batch_normalization.hpp"
-#include "cpu_batch_normalization_utils.hpp"
 
 namespace mkldnn {
 namespace impl {
 namespace cpu {
 
 namespace {
+
+using namespace memory_tracking::names;
 
 using namespace Xbyak;
 namespace barrier = simple_barrier;
@@ -1049,50 +1052,50 @@ struct jit_bnorm_t: public jit_generator {
 template <cpu_isa_t isa>
 struct uni_bnorm_driver_t: public c_compatible {
     uni_bnorm_driver_t(const batch_normalization_pd_t *bdesc)
-        : bdesc_(bdesc), ker_(bdesc_), buf_(nullptr), barriers_(nullptr)
+        : bdesc_(bdesc), ker_(bdesc_)
     {
-        use_tmp_stats_ = !bdesc_->stats_is_src()
-            && bdesc_->desc()->prop_kind == prop_kind::forward_inference;
-        use_tmp_diff_scale_shift_ = false
-            || (bdesc_->is_bwd() && !bdesc_->use_scaleshift())
-            || bdesc_->desc()->prop_kind == prop_kind::backward_data;
-        int num_sbufs = 2 * use_tmp_stats_;
-        int num_pbufs = 2 * use_tmp_diff_scale_shift_;
-        int num_rbufs = bdesc_->is_fwd() ? 1 : 2;
-        int nthrs = mkldnn_get_max_threads();
-        int C_PADDED = memory_desc_wrapper(bdesc_->src_pd()).blocking_desc()
-            .padding_dims[1];
+        const int nthrs = mkldnn_get_max_threads();
+        const int C_PADDED = get_c_padded(bdesc_);
 
-        int buf_size = (num_sbufs + num_pbufs + num_rbufs * nthrs) * C_PADDED;
-        buf_ = (data_t *)malloc(buf_size * sizeof(data_t), 64);
-
-        sbuf_ = buf_;
-        pbuf_ = sbuf_ + num_sbufs * C_PADDED;
-        rbuf_ = pbuf_ + num_pbufs * C_PADDED;
-
-        int num_barriers = C_PADDED / simd_w;
-        if (mkldnn_thr_syncable()) {
-            barriers_ = (barrier::ctx_t *)malloc(
-                    num_barriers * sizeof(barrier::ctx_t), 64);
-            for (int i = 0; i < num_barriers; ++i)
-                barrier::ctx_init(&barriers_[i]);
-        }
-
-        size_t data_size = bdesc_->MB() * C_PADDED * bdesc_->H()
-                * bdesc_->W() * bdesc_->D() * sizeof(data_t);
+        size_t data_size = sizeof(data_t) * bdesc_->MB() * C_PADDED
+            * bdesc_->D() * bdesc_->H() * bdesc_->W();
         l3_size_ = get_cache_size(3, true) * nthrs / 2;
         do_blocking_ = (data_size >= l3_size_ / 2 && l3_size_ > 0);
     }
-    ~uni_bnorm_driver_t() { free(buf_); free(barriers_); }
+
+    ~uni_bnorm_driver_t() {}
+
+    static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
+            const batch_normalization_pd_t *bdesc) {
+        int nthrs = mkldnn_get_max_threads();
+        int C_PADDED = get_c_padded(bdesc);
+
+        int sbuf_sz = use_tmp_stats(bdesc) * 2 * C_PADDED;
+        int pbuf_sz = use_tmp_diff_scale_shift(bdesc) * 2 * C_PADDED;
+        int rbuf_sz = (bdesc->is_fwd() ? 1 : 2) * C_PADDED * nthrs;
+
+        scratchpad.book(key_bnorm_tmp_stats, sizeof(data_t) * sbuf_sz);
+        scratchpad.book(key_bnorm_tmp_diff_ss, sizeof(data_t) * pbuf_sz);
+        scratchpad.book(key_bnorm_reduction, sizeof(data_t) * rbuf_sz);
+
+        if (mkldnn_thr_syncable()) {
+            int n_barriers = C_PADDED / simd_w;
+            scratchpad.book(key_barrier, sizeof(barrier::ctx_t) * n_barriers);
+        }
+    }
 
     void exec(int ithr, int nthr, const data_t *src, data_t *diff_src,
             data_t *dst, const data_t *diff_dst, const data_t *scale_shift,
             data_t *diff_scale_shift, const data_t *mean, const data_t *var,
-            const uint8_t *ws) {
+            const uint8_t *ws, const memory_tracking::grantor_t &scratchpad) {
+        auto sbuf = scratchpad.get<data_t>(key_bnorm_tmp_stats);
+        auto pbuf = scratchpad.get<data_t>(key_bnorm_tmp_diff_ss);
+        auto rbuf = scratchpad.get<data_t>(key_bnorm_reduction);
+        auto barriers = scratchpad.get<barrier::ctx_t>(key_barrier);
+
         size_t N = bdesc_->MB();
         size_t C = bdesc_->C();
-        size_t C_PADDED = memory_desc_wrapper(bdesc_->src_pd()).blocking_desc()
-            .padding_dims[1];
+        size_t C_PADDED = get_c_padded(bdesc_);
         size_t D = bdesc_->D();
         size_t H = bdesc_->H();
         size_t W = bdesc_->W();
@@ -1165,12 +1168,11 @@ struct uni_bnorm_driver_t: public c_compatible {
             p.S_s = S_s * vlen;
             p.S_tail = (p.spat_size - S_e) * vlen;
             p.coff_max = C_blks_thr * simd_w;
-            p.mean = (use_tmp_stats_ ? sbuf_ : mean) + coff_base;
-            p.var = (use_tmp_stats_ ? sbuf_ + C_PADDED : var) + coff_base;
+            p.mean = (use_tmp_stats(bdesc_) ? sbuf : mean) + coff_base;
+            p.var = (use_tmp_stats(bdesc_) ? sbuf + C_PADDED : var) + coff_base;
             p.scale_shift = scale_shift + coff_base;
-            p.diff_scale_shift
-                    = (use_tmp_diff_scale_shift_ ? pbuf_ : diff_scale_shift)
-                    + coff_base;
+            p.diff_scale_shift = (use_tmp_diff_scale_shift(bdesc_)
+                    ? pbuf : diff_scale_shift) + coff_base;
 
             p.soff_max = N_thr * img_size;
             p.src = src + soff_base;
@@ -1183,10 +1185,8 @@ struct uni_bnorm_driver_t: public c_compatible {
 
             // use SP_N_nthr which is the same as p.N_nthr except maybe for
             // the last iteration.
-            p.rbuf1 = rbuf_
-                    + ((it * C_blks_per_iter) * SP_N_nthr + C_blk_s * p.N_nthr
-                              + p.N_ithr * C_blks_thr)
-                            * simd_w;
+            p.rbuf1 = rbuf + ((it * C_blks_per_iter) * SP_N_nthr
+                    + C_blk_s * p.N_nthr + p.N_ithr * C_blks_thr) * simd_w;
             // rbuf1 and rbuf2 have to be disjoint
             p.rbuf2 = p.rbuf1 + C_PADDED * nthr;
             p.is_cblk_tail =
@@ -1194,25 +1194,47 @@ struct uni_bnorm_driver_t: public c_compatible {
 
             size_t iter_bariers
                     = do_blocking_ ? it * global_barriers_per_iter : 0;
-            p.barrier = barriers_ + C_ithr + iter_bariers;
+            p.barrier = barriers + C_ithr + iter_bariers;
             if (p.soff_max != 0 && p.coff_max != 0)
                 ker_(&p);
         }
     }
 
+    void init_barriers(const memory_tracking::grantor_t &scratchpad) {
+        auto barriers = scratchpad.get<barrier::ctx_t>(key_barrier);
+        if (barriers) {
+            const int n_barriers = get_c_padded(bdesc_) / simd_w;
+            for (int i = 0; i < n_barriers; ++i)
+                barrier::ctx_init(&barriers[i]);
+        }
+    }
+
 private:
-    const int simd_w = isa == sse42 ? 8 :
-        cpu_isa_traits<isa>::vlen / sizeof(data_t);
+    enum {
+        simd_w = isa == sse42 ? 8 : cpu_isa_traits<isa>::vlen / sizeof(data_t)
+    };
+
+    static bool use_tmp_stats(const batch_normalization_pd_t *bdesc) {
+        return true
+            && !bdesc->stats_is_src()
+            && bdesc->desc()->prop_kind == prop_kind::forward_inference;
+    }
+
+    static bool use_tmp_diff_scale_shift(const batch_normalization_pd_t *bdesc)
+    {
+        return false
+            || (bdesc->is_bwd() && !bdesc->use_scaleshift())
+            || bdesc->desc()->prop_kind == prop_kind::backward_data;
+    }
+
+    static int get_c_padded(const batch_normalization_pd_t *bdesc)
+    { return bdesc->src_pd()->desc()->layout_desc.blocking.padding_dims[1]; }
 
     const batch_normalization_pd_t *bdesc_;
-    jit_bnorm_t<isa> ker_;
-    bool use_tmp_stats_, use_tmp_diff_scale_shift_;
     bool do_blocking_;
     size_t l3_size_;
 
-    data_t *buf_, *sbuf_, *rbuf_, *pbuf_;
-
-    barrier::ctx_t *barriers_;
+    jit_bnorm_t<isa> ker_;
 };
 
 }
@@ -1259,7 +1281,10 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init() {
         variance_pd_ = cpu_memory_t::pd_t(engine_, &stats_d);
     }
 
-    return success;
+    auto scratchpad = scratchpad_registry().registrar();
+    uni_bnorm_driver_t<isa>::init_scratchpad(scratchpad, this);
+
+    return status::success;
 }
 
 template <cpu_isa_t isa>
@@ -1285,9 +1310,13 @@ void jit_uni_batch_normalization_fwd_t<isa>::execute(event_t *e) {
         reinterpret_cast<const data_t *>(this->input_memory(idx_scale_shift));
     auto ws = reinterpret_cast<uint8_t *>(this->memory(pd()->ws_idx()));
 
+    auto scratchpad = this->scratchpad();
+
+    bnorm_driver_->init_barriers(scratchpad);
+
     parallel(0, [&](const int ithr, const int nthr) {
-        bnorm_driver_->exec(ithr, nthr, src,
-                nullptr, dst, nullptr, scale_shift, nullptr, mean, var, ws);
+        bnorm_driver_->exec(ithr, nthr, src, nullptr, dst, nullptr,
+                scale_shift, nullptr, mean, var, ws, scratchpad);
     });
     e->set_state(event_t::ready);
 }
@@ -1337,7 +1366,10 @@ status_t jit_uni_batch_normalization_bwd_t<isa>::pd_t::init() {
 
     /* TODO: extra checks required */
 
-    return success;
+    auto scratchpad = scratchpad_registry().registrar();
+    uni_bnorm_driver_t<isa>::init_scratchpad(scratchpad, this);
+
+    return status::success;
 }
 
 template <cpu_isa_t isa>
@@ -1359,10 +1391,13 @@ void jit_uni_batch_normalization_bwd_t<isa>::execute(event_t *e) {
     auto ws = reinterpret_cast<const uint8_t *>(
             this->input_memory(pd()->ws_idx()));
 
+    auto scratchpad = this->scratchpad();
+
+    bnorm_driver_->init_barriers(scratchpad);
+
     parallel(0, [&](const int ithr, const int nthr) {
-        bnorm_driver_->exec(ithr, nthr, src,
-                diff_src, nullptr, diff_dst, scale_shift, diff_scale_shift,
-                mean, var, ws);
+        bnorm_driver_->exec(ithr, nthr, src, diff_src, nullptr, diff_dst,
+                scale_shift, diff_scale_shift, mean, var, ws, scratchpad);
     });
     e->set_state(event_t::ready);
 }
