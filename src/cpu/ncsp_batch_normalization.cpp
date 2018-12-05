@@ -17,11 +17,13 @@
 #include <assert.h>
 #include <math.h>
 
-#include "cpu_batch_normalization_utils.hpp"
 #include "c_types_map.hpp"
-#include "jit_generator.hpp"
-#include "ncsp_batch_normalization.hpp"
 #include "type_helpers.hpp"
+
+#include "cpu_batch_normalization_utils.hpp"
+#include "jit_generator.hpp"
+
+#include "ncsp_batch_normalization.hpp"
 
 // clang 6 and 7 generate incorrect code with OMP_SIMD in some particular cases
 #if (defined __clang_major__) && (__clang_major__ >= 6)
@@ -34,34 +36,13 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-typedef float data_t;
-ncsp_batch_normalization_fwd_t::ncsp_batch_normalization_fwd_t(const pd_t *apd,
-        const input_vector &inputs, const output_vector &outputs)
-    : cpu_primitive_t(apd, inputs, outputs), stats_reduction_(nullptr),
-    tmp_mean_(nullptr), tmp_variance_(nullptr) {
-    if (!pd()->stats_is_src()) {
-        this->stats_reduction_ = (data_t *)malloc(
-                pd()->C() * mkldnn_get_max_threads() * sizeof(data_t), 64);
-        if (!pd()->is_training()) {
-            this->tmp_mean_ = (data_t *)malloc(pd()->C() * sizeof(data_t), 64);
-            this->tmp_variance_
-                    = (data_t *)malloc(pd()->C() * sizeof(data_t), 64);
-        }
-    }
-}
-ncsp_batch_normalization_fwd_t::~ncsp_batch_normalization_fwd_t() {
-    if (!pd()->stats_is_src()) {
-        free(this->stats_reduction_);
-        if (!pd()->is_training()) {
-            free(this->tmp_mean_);
-            free(this->tmp_variance_);
-        }
-    }
-}
+using namespace memory_tracking::names;
 
 void ncsp_batch_normalization_fwd_t::execute_forward() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto dst = reinterpret_cast<data_t *>(this->memory(0));
+    auto scratchpad = this->scratchpad();
+
     const bool calculate_stats = !pd()->stats_is_src();
     const bool save_stats = pd()->is_training();
     const bool is_training = pd()->is_training();
@@ -78,15 +59,15 @@ void ncsp_batch_normalization_fwd_t::execute_forward() {
             mean = reinterpret_cast<data_t *>(this->memory(1));
             variance = reinterpret_cast<data_t *>(this->memory(2));
         } else {
-            mean = this->tmp_mean_;
-            variance = this->tmp_variance_;
+            mean = scratchpad.get<data_t>(key_bnorm_tmp_mean);
+            variance = scratchpad.get<data_t>(key_bnorm_tmp_var);
         }
     }
     auto idx_scale_shift = 1 + 2 * pd()->stats_is_src();
     auto scaleshift = reinterpret_cast<const data_t *>(
             this->input_memory(idx_scale_shift));
     auto ws = reinterpret_cast<uint8_t *>(this->memory(pd()->ws_idx()));
-    data_t *ws_reduce = this->stats_reduction_;
+    auto *ws_reduce = scratchpad.get<data_t>(key_bnorm_reduction);
 
     const float eps = pd()->desc()->batch_norm_epsilon;
     const bool use_scaleshift = pd()->use_scaleshift();
@@ -232,23 +213,6 @@ void ncsp_batch_normalization_fwd_t::execute_forward() {
     });
 }
 
-ncsp_batch_normalization_bwd_t::ncsp_batch_normalization_bwd_t(const pd_t *apd,
-        const input_vector &inputs, const output_vector &outputs)
-    : cpu_primitive_t(apd, inputs, outputs)
-    , stats_reduction_(nullptr), tmp_diff_scaleshift_(nullptr) {
-    this->stats_reduction_ = (data_t *)malloc(
-            pd()->C() * 2 * mkldnn_get_max_threads() * sizeof(data_t), 64);
-    if (!(pd()->use_scaleshift()
-                && pd()->desc()->prop_kind == prop_kind::backward))
-        this->tmp_diff_scaleshift_
-                = (data_t *)malloc(pd()->C() * 2 * sizeof(data_t), 64);
-}
-
-ncsp_batch_normalization_bwd_t::~ncsp_batch_normalization_bwd_t() {
-    free(this->stats_reduction_);
-    free(this->tmp_diff_scaleshift_);
-}
-
 void ncsp_batch_normalization_bwd_t::execute_backward() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto mean = reinterpret_cast<const data_t *>(this->input_memory(1));
@@ -256,12 +220,15 @@ void ncsp_batch_normalization_bwd_t::execute_backward() {
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(3));
     auto scaleshift = reinterpret_cast<const data_t *>(this->input_memory(4));
     auto diff_src = reinterpret_cast<data_t *>(this->memory(0));
-    auto diff_scaleshift = (this->memory(1)) ?
-            reinterpret_cast<data_t *>(this->memory(1)) :
-            this->tmp_diff_scaleshift_;
+
+    auto scratchpad = this->scratchpad();
+
+    auto diff_scaleshift = this->memory(1)
+        ? reinterpret_cast<data_t *>(this->memory(1))
+        : scratchpad.get<data_t>(key_bnorm_tmp_diff_ss);
     auto ws = reinterpret_cast<const uint8_t *>(
             this->input_memory(pd()->ws_idx()));
-    data_t *ws_reduce = this->stats_reduction_;
+    auto *ws_reduce = scratchpad.get<data_t>(key_bnorm_reduction);
 
     const bool has_spatial = utils::one_of(pd()->ndims(), 4, 5);
     int SP = (has_spatial) ? pd()->H() * pd()->W() * pd()->D() : 1;

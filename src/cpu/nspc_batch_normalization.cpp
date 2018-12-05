@@ -18,9 +18,12 @@
 #include <math.h>
 
 #include "c_types_map.hpp"
-#include "jit_generator.hpp"
-#include "nspc_batch_normalization.hpp"
 #include "type_helpers.hpp"
+
+#include "cpu_batch_normalization_utils.hpp"
+#include "jit_generator.hpp"
+
+#include "nspc_batch_normalization.hpp"
 
 // clang 6 and 7 generate incorrect code with OMP_SIMD in some particular cases
 #if (defined __clang_major__) && (__clang_major__ >= 6)
@@ -33,36 +36,21 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-typedef float data_t;
-nspc_batch_normalization_fwd_t::nspc_batch_normalization_fwd_t(const pd_t *apd,
-        const input_vector &inputs, const output_vector &outputs)
-    : cpu_primitive_t(apd, inputs, outputs), stats_reduction_(nullptr),
-    tmp_mean_(nullptr), tmp_variance_(nullptr) {
-    if (!pd()->stats_is_src()) {
-        this->stats_reduction_ = (data_t *)malloc(
-                nstl::max(pd()->C(), 16) * mkldnn_get_max_threads() * sizeof(data_t), 64);
-        this->tmp_mean_ = (data_t *)malloc(mkldnn_get_max_threads() *
-                nstl::max(pd()->C(), 16) * sizeof(data_t), 64);
-        this->tmp_variance_
-                = (data_t *)malloc(mkldnn_get_max_threads() *
-                       nstl::max(pd()->C(), 16) * sizeof(data_t), 64);
-    }
-}
-nspc_batch_normalization_fwd_t::~nspc_batch_normalization_fwd_t() {
-    if (!pd()->stats_is_src()) {
-        free(this->stats_reduction_);
-        free(this->tmp_mean_);
-        free(this->tmp_variance_);
-    }
-}
+using namespace memory_tracking::names;
 
 void nspc_batch_normalization_fwd_t::execute_forward() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
+
     const bool save_stats = pd()->is_training();
     const bool is_training = pd()->is_training();
     const bool fuse_bn_relu = pd()->fuse_bn_relu();
     const bool calculate_stats = !pd()->stats_is_src();
     const bool with_relu = pd()->with_relu_post_op();
+
+    auto scratchpad = this->scratchpad();
+    auto tmp_mean = scratchpad.get<data_t>(key_bnorm_tmp_mean);
+    auto tmp_var = scratchpad.get<data_t>(key_bnorm_tmp_var);
+
     data_t *mean, *variance;
     if (!calculate_stats) {
         mean = reinterpret_cast<data_t *>(
@@ -74,8 +62,8 @@ void nspc_batch_normalization_fwd_t::execute_forward() {
             mean = reinterpret_cast<data_t *>(this->memory(1));
             variance = reinterpret_cast<data_t *>(this->memory(2));
         } else {
-            mean = this->tmp_mean_;
-            variance = this->tmp_variance_;
+            mean = tmp_mean;
+            variance = tmp_var;
         }
     }
     auto idx_scaleshift = 1 + 2 * pd()->stats_is_src();
@@ -84,7 +72,7 @@ void nspc_batch_normalization_fwd_t::execute_forward() {
 
     auto dst = reinterpret_cast<data_t *>(this->memory(0));
     auto ws = reinterpret_cast<uint8_t *>(this->memory(pd()->ws_idx()));
-    auto ws_reduce = this->stats_reduction_;
+    auto *ws_reduce = scratchpad.get<data_t>(key_bnorm_reduction);
 
     const int N = pd()->MB();
     const int C = pd()->C();
@@ -100,8 +88,8 @@ void nspc_batch_normalization_fwd_t::execute_forward() {
         int N_s = 0, N_e = 0, C_s = 0, C_e = 0;
         balance211(N, nthr, ithr, N_s, N_e);
         balance211(C, nthr, ithr, C_s, C_e);
-        data_t *mean_loc = this->tmp_mean_ + nstl::max(C, 16)*ithr;
-        data_t *variance_loc = this->tmp_variance_ + nstl::max(C,16)*ithr;
+        data_t *mean_loc = tmp_mean + nstl::max(C, 16) * ithr;
+        data_t *variance_loc = tmp_var + nstl::max(C, 16) * ithr;
 
         if (calculate_stats) {
             for (int c = 0; c < C; c++)
@@ -187,21 +175,6 @@ void nspc_batch_normalization_fwd_t::execute_forward() {
     });
 }
 
-nspc_batch_normalization_bwd_t::nspc_batch_normalization_bwd_t(const pd_t *apd,
-        const input_vector &inputs, const output_vector &outputs)
-    : cpu_primitive_t(apd, inputs, outputs) {
-    this->stats_reduction_ = (data_t *)malloc(
-            pd()->C() * 2 * mkldnn_get_max_threads() * sizeof(data_t), 64);
-    this->tmp_diff_scaleshift_
-            = (data_t *)malloc((mkldnn_get_max_threads() + 1) * pd()->C() * 2 *
-                    sizeof(data_t), 64);
-}
-nspc_batch_normalization_bwd_t::~nspc_batch_normalization_bwd_t() {
-    free(this->stats_reduction_);
-    free(this->tmp_diff_scaleshift_);
-}
-
-
 void nspc_batch_normalization_bwd_t::execute_backward() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto mean = reinterpret_cast<const data_t *>(this->input_memory(1));
@@ -211,16 +184,18 @@ void nspc_batch_normalization_bwd_t::execute_backward() {
     auto ws = reinterpret_cast<const uint8_t *>(
             this->input_memory(pd()->ws_idx()));
 
+    auto scratchpad = this->scratchpad();
+    auto tmp_diff_ss = scratchpad.get<data_t>(key_bnorm_tmp_diff_ss);
+
     auto diff_src = reinterpret_cast<data_t *>(this->memory(0));
-    auto diff_scaleshift = (this->memory(1)) ?
-            reinterpret_cast<data_t *>(this->memory(1)) :
-            this->tmp_diff_scaleshift_;
+    auto diff_scaleshift = this->memory(1)
+        ? reinterpret_cast<data_t *>(this->memory(1)) : tmp_diff_ss;
 
     const int N = pd()->MB();
     const int C = pd()->C();
     const int SP = pd()->D() * pd()->H() * pd()->W();
     data_t *diff_gamma = diff_scaleshift, *diff_beta = diff_scaleshift + C;
-    data_t *ws_reduce = this->stats_reduction_;
+    auto *ws_reduce = scratchpad.get<data_t>(key_bnorm_reduction);
 
     const float eps = pd()->desc()->batch_norm_epsilon;
     const bool use_scaleshift = pd()->use_scaleshift();
@@ -233,9 +208,8 @@ void nspc_batch_normalization_bwd_t::execute_backward() {
         balance211(N, nthr, ithr, N_s, N_e);
         balance211(C, nthr, ithr, C_s, C_e);
 
-        data_t *diff_gamma_loc = this->tmp_diff_scaleshift_ + 2*C + C*ithr;
-        data_t *diff_beta_loc = this->tmp_diff_scaleshift_ + 2*C + C*nthr
-            + C*ithr;
+        data_t *diff_gamma_loc = tmp_diff_ss + 2 * C + C * ithr;
+        data_t *diff_beta_loc = tmp_diff_ss + 2 * C + C * (nthr + ithr);
 
         for (int c = 0; c < C; c++) {
             ws_reduce[C * ithr + c] = 0.;
