@@ -30,6 +30,7 @@ namespace cpu {
 
 using namespace mkldnn::impl::prop_kind;
 using namespace mkldnn::impl::memory_format;
+using namespace mkldnn::impl::memory_tracking::names;
 using namespace mkldnn::impl::utils;
 
 using namespace Xbyak;
@@ -403,6 +404,13 @@ status_t jit_uni_dw_conv_fwd_kernel_f32<isa>::init_conf(jit_conv_conf_t &jcp,
     return status::success;
 }
 
+template <cpu_isa_t isa>
+void jit_uni_dw_conv_fwd_kernel_f32<isa>::init_scratchpad(
+        memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp) {
+    if (jcp.with_bias && jcp.oc_without_padding != jcp.oc)
+        scratchpad.book(key_conv_padded_bias, sizeof(float) * jcp.oc);
+}
+
 template struct jit_uni_dw_conv_fwd_kernel_f32<avx512_common>;
 template struct jit_uni_dw_conv_fwd_kernel_f32<avx2>;
 template struct jit_uni_dw_conv_fwd_kernel_f32<sse42>;
@@ -682,6 +690,13 @@ status_t jit_uni_dw_conv_bwd_data_kernel_f32<isa>::init_conf(
         jcp.nb_ch_blocking = jcp.nb_ch;
 
     return status::success;
+}
+
+template <cpu_isa_t isa>
+void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::init_scratchpad(
+        memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp) {
+    UNUSED(scratchpad);
+    UNUSED(jcp);
 }
 
 template struct jit_uni_dw_conv_bwd_data_kernel_f32<avx512_common>;
@@ -1156,8 +1171,7 @@ status_t jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::init_conf(
         jit_conv_conf_t &jcp, const convolution_desc_t &cd,
         const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &diff_weights_d,
-        const memory_desc_wrapper &diff_dst_d) {
-
+        const memory_desc_wrapper &diff_dst_d, int nthreads) {
     if (!mayiuse(isa))
         return status::unimplemented;
 
@@ -1229,12 +1243,54 @@ status_t jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::init_conf(
             && jcp.r_pad <= max_wpad;
     if (!boundaries_ok)
         return status::unimplemented;
+
+    balance(jcp, nthreads);
+
     return status::success;
+}
+
+template <cpu_isa_t isa>
+void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::init_scratchpad(
+        memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp) {
+    /* Notes: if splitting thread work on 'mb', then a reduction has to take
+     * place. Hence, book a per-thread, local weights-buffer for the
+     * reduction */
+    if (jcp.nthr_mb > 1) {
+        const size_t wei_size = jcp.ngroups * jcp.kh * jcp.kw;
+        scratchpad.book(key_conv_wei_reduction,
+                sizeof(float) * wei_size * (jcp.nthr_mb - 1));
+
+        if (jcp.with_bias)
+            scratchpad.book(key_conv_bia_reduction,
+                    sizeof(float) * jcp.ngroups * (jcp.nthr_mb - 1));
+    }
+}
+
+template <cpu_isa_t isa>
+void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::balance(jit_conv_conf_t &jcp,
+        int nthreads) {
+    jcp.nthr = nthreads;
+    jcp.nthr_g = jcp.nthr_mb = 1;
+
+    /* Basic-Heuristics for parallel strategy:
+     * 1) Tries to parallel on the number of Groups (g) where tasks are
+     * independent. Otherwise,
+     * 2) Tries to split the work across g and MiniBatch (mb).
+     * Parallelizing on mb requires computing a reduction for weights.
+     *
+     * NOTE: because of 'task partitioning' scheme, there will be unbalanced
+     * per-thread load when the number of threads is high (e.g. > 16).
+     */
+    jcp.nthr_g = nstl::min(jcp.nb_ch, jcp.nthr);
+    jcp.nthr_mb = nstl::min(nstl::max(1, jcp.nthr / jcp.nthr_g), jcp.mb);
+
+    jcp.nthr = jcp.nthr_g * jcp.nthr_mb;
 }
 
 template struct jit_uni_dw_conv_bwd_weights_kernel_f32<avx512_common>;
 template struct jit_uni_dw_conv_bwd_weights_kernel_f32<avx2>;
 template struct jit_uni_dw_conv_bwd_weights_kernel_f32<sse42>;
+
 }
 }
 }

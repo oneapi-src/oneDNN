@@ -18,12 +18,13 @@
 #define CPU_JIT_UNI_DW_CONVOLUTION_HPP
 
 #include "c_types_map.hpp"
-#include "cpu_convolution_pd.hpp"
-#include "cpu_engine.hpp"
-#include "jit_primitive_conf.hpp"
-#include "jit_uni_dw_conv_kernel_f32.hpp"
-#include "cpu_reducer.hpp"
+#include "memory_tracking.hpp"
+
 #include "cpu_barrier.hpp"
+#include "cpu_convolution_pd.hpp"
+#include "cpu_reducer.hpp"
+
+#include "jit_uni_dw_conv_kernel_f32.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -60,10 +61,17 @@ struct _jit_uni_dw_convolution_fwd_t: public cpu_primitive_t {
 
             if (!ok) return status::unimplemented;
 
-            return jit_uni_dw_conv_fwd_kernel_f32<isa>::init_conf(jcp_,
-                        *this->desc(),
-                        this->src_pd_.desc(), *this->weights_pd_.desc(),
-                        *this->dst_pd_.desc(), *this->attr());
+            status_t status = jit_uni_dw_conv_fwd_kernel_f32<isa>::init_conf(
+                    jcp_, *this->desc(), this->src_pd_.desc(),
+                    *this->weights_pd_.desc(), *this->dst_pd_.desc(),
+                    *this->attr());
+            if (status != status::success) return status;
+
+            auto scratchpad = scratchpad_registry().registrar();
+            jit_uni_dw_conv_fwd_kernel_f32<isa>::init_scratchpad(scratchpad,
+                    jcp_);
+
+            return status::success;
         }
 
         jit_conv_conf_t jcp_;
@@ -88,20 +96,10 @@ struct _jit_uni_dw_convolution_fwd_t: public cpu_primitive_t {
 
     _jit_uni_dw_convolution_fwd_t(const pd_t *apd, const input_vector &inputs,
             const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs)
-        , padded_bias_(nullptr) {
-        kernel_ = new jit_uni_dw_conv_fwd_kernel_f32<isa>(pd()->jcp_);
-        if (pd()->wants_padded_bias()) {
-            padded_bias_ = (float *)malloc(sizeof(float) * pd()->jcp_.oc, 64);
-            for (int c = pd()->jcp_.oc_without_padding; c < pd()->jcp_.oc; ++c)
-                padded_bias_[c] = 0;
-        }
-    }
+        : cpu_primitive_t(apd, inputs, outputs), kernel_(nullptr)
+    { kernel_ = new jit_uni_dw_conv_fwd_kernel_f32<isa>(pd()->jcp_); }
 
-    ~_jit_uni_dw_convolution_fwd_t() {
-        delete kernel_;
-        free(padded_bias_);
-    }
+    ~_jit_uni_dw_convolution_fwd_t() { delete kernel_; }
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
@@ -113,8 +111,8 @@ struct _jit_uni_dw_convolution_fwd_t: public cpu_primitive_t {
 private:
     void execute_forward();
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+
     jit_uni_dw_conv_fwd_kernel_f32<isa> *kernel_;
-    float *padded_bias_;
 };
 
 using jit_avx512_common_dw_convolution_fwd_t =
@@ -154,16 +152,23 @@ struct _jit_uni_dw_convolution_bwd_data_t: public cpu_primitive_t {
 
             if (!ok) return status::unimplemented;
 
-            return jit_uni_dw_conv_bwd_data_kernel_f32<isa>::init_conf(jcp_,
+            status_t status =
+                jit_uni_dw_conv_bwd_data_kernel_f32<isa>::init_conf(jcp_,
                         *this->desc(), *this->diff_src_pd_.desc(),
                         *this->weights_pd_.desc(), *this->diff_dst_pd_.desc());
+            if (status != status::success) return status;
+
+            auto scratchpad = scratchpad_registry().registrar();
+            jit_uni_dw_conv_bwd_data_kernel_f32<isa>::init_scratchpad(
+                    scratchpad, jcp_);
+
+            return status::success;
         }
 
         jit_conv_conf_t jcp_;
 
     protected:
         virtual status_t set_default_params() override {
-
             using namespace memory_format;
             auto desired_act_fmt = isa == avx512_common ? nChw16c : nChw8c;
             auto desired_wei_fmt = isa == avx512_common ? Goihw16g : Goihw8g;
@@ -201,6 +206,7 @@ struct _jit_uni_dw_convolution_bwd_data_t: public cpu_primitive_t {
 private:
     void execute_backward_data();
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+
     jit_uni_dw_conv_bwd_data_kernel_f32<isa> *kernel_;
 };
 
@@ -240,16 +246,27 @@ struct _jit_uni_dw_convolution_bwd_weights_t: public cpu_primitive_t {
 
             if (!ok) return status::unimplemented;
 
-            return jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::init_conf(jcp_,
+            const int max_threads = mkldnn_in_parallel()
+                ? 1 : mkldnn_get_max_threads();
+
+            status_t status =
+                jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::init_conf(jcp_,
                         *this->desc(), *this->src_pd_.desc(),
-                        *this->diff_weights_pd_.desc(), *this->diff_dst_pd_.desc());
+                        *this->diff_weights_pd_.desc(),
+                        *this->diff_dst_pd_.desc(), max_threads);
+            if (status != status::success) return status;
+
+            auto scratchpad = scratchpad_registry().registrar();
+            jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::init_scratchpad(
+                    scratchpad, jcp_);
+
+            return status::success;
         }
 
         jit_conv_conf_t jcp_;
 
     protected:
         virtual status_t set_default_params() override {
-
             using namespace memory_format;
             auto desired_act_fmt = isa == avx512_common ? nChw16c : nChw8c;
             auto desired_wei_fmt = isa == avx512_common ? Goihw16g : Goihw8g;
@@ -269,13 +286,10 @@ struct _jit_uni_dw_convolution_bwd_weights_t: public cpu_primitive_t {
 
     _jit_uni_dw_convolution_bwd_weights_t(const pd_t *apd,
             const input_vector &inputs, const output_vector &outputs);
+
     ~_jit_uni_dw_convolution_bwd_weights_t() {
         delete kernel_;
-        if (acc_ker_)
-            delete acc_ker_;
-
-        free(ws_reduction_);
-        free(bias_reduction_);
+        delete acc_ker_;
     };
 
     typedef typename prec_traits<data_type::f32>::type data_t;
@@ -287,24 +301,11 @@ struct _jit_uni_dw_convolution_bwd_weights_t: public cpu_primitive_t {
 
 private:
     void execute_backward_weights();
-
+    bool do_parallel_reduction() const { return false; }
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+
     jit_uni_dw_conv_bwd_weights_kernel_f32<isa> *kernel_;
-
-    data_t *ws_reduction_ = nullptr;
-    data_t *bias_reduction_ = nullptr;
-
-    /* Used when executing a parallel reduction */
-    cpu_accumulator_1d_t<data_type::f32> *acc_ker_ = nullptr;
-    simple_barrier::ctx_t reduction_bctx_;
-
-    /* For parallel implementation details see '.cpp' file in the
-     * backwards-by-wights section. */
-    int nthr_, nthr_g_, nthr_mb_;
-
-    inline bool do_parallel_reduction(){
-        return false;
-    }
+    cpu_accumulator_1d_t<data_type::f32> *acc_ker_;
 };
 
 using jit_avx512_common_dw_convolution_bwd_weights_t =
