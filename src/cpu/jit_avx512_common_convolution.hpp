@@ -69,8 +69,6 @@ struct jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
                     mkldnn_get_max_threads());
         }
 
-        inline int ndims() { return this->desc()->src_desc.ndims; }
-
         jit_conv_conf_t jcp_;
     };
 
@@ -159,8 +157,6 @@ struct jit_avx512_common_convolution_bwd_data_t: public cpu_primitive_t {
                     jcp_,*this->desc(), *this->diff_src_pd_.desc(),
                     *this->weights_pd_.desc(), *this->diff_dst_pd_.desc());
         }
-
-        inline int ndims() { return this->desc()->diff_src_desc.ndims; }
 
         inline memory_format_t src_format()
         {
@@ -268,8 +264,6 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
                     jcp_, *this->desc(), this->src_pd_, this->diff_weights_pd_,
                     this->diff_bias_pd_, this->diff_dst_pd_);
         }
-
-        inline int ndims() { return this->desc()->src_desc.ndims; }
 
         inline memory_format_t src_format()
         {
