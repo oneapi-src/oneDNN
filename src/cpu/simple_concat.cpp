@@ -36,7 +36,7 @@ void simple_concat_t<data_type>::execute() {
         input_ptrs_[a] = reinterpret_cast<const data_t *>(
                 this->input_memory(a)) + i_d.blk_off(0);
         output_ptrs_[a] = o_base_ptr + o_d.blk_off(0);
-        nelems_to_copy_[a] = nelems_to_concat(concat_dim, perm, iperm, i_d);
+        nelems_to_copy_[a] = pd()->nelems_to_concat(i_d);
         for (int i = 0; i < TENSOR_MAX_DIMS; i++) {
             if (i < perm[concat_dim])
                 is_[a][i] = size_t(i_d.blocking_desc().strides[0][iperm[i]]);
@@ -47,30 +47,28 @@ void simple_concat_t<data_type>::execute() {
 
     const memory_desc_wrapper o_d(pd()->src_image_pd());
     auto &blk = o_d.blocking_desc();
+
     strides_t os = { 0 };
     for (int i = 0; i < perm[concat_dim]; i++)
         os[i] = o_d.blocking_desc().strides[0][iperm[i]];
+
     dims_t phys_dims;
     for (size_t i = 0; i < sizeof(phys_dims)/sizeof(phys_dims[0]); i++)
-        phys_dims[i] = (i < (size_t)perm[concat_dim]) ?
-                o_d.dims()[iperm[i]] / blk.block_dims[iperm[i]] :
-                1;
+        phys_dims[i] = (i < (size_t)perm[concat_dim])
+            ?  o_d.dims()[iperm[i]] / blk.block_dims[iperm[i]] : 1;
 
-    switch (perm[concat_dim]) {
-    case (0): {
+    if (perm[concat_dim] == 0) {
         for (int a = 0; a < num_arrs; ++a) {
             const data_t *i = &input_ptrs_[a][0];
             data_t *o = &output_ptrs_[a][0];
             parallel_nd((ptrdiff_t)nelems_to_copy_[a],
                     [&](ptrdiff_t e) { o[e] = i[e]; });
         }
-        break;
-    }
-    default:
+    } else {
         parallel_nd(phys_dims[0], phys_dims[1], phys_dims[2], phys_dims[3],
             phys_dims[4], num_arrs,
             [&](int n0, int n1, int n2, int n3, int n4, int a) {
-            // XXX: this code may access unitialized values in is_[*][0-4] --
+            // XXX: this code may access uninitialized values in is_[*][0-4] --
             // that's why we have to set them to zero although this is
             // probably benign
             size_t in_off = is_[a][0] * n0 + is_[a][1] * n1
