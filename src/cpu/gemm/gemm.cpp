@@ -13,6 +13,7 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
+#include <atomic>
 #include <mutex>
 
 #include "mkldnn.h"
@@ -176,13 +177,13 @@ mkldnn_status_t extended_sgemm(const char *transa, const char *transb,
     }
 #endif
     //Generate jit kernel and call sgemm with bias
-    volatile static int initialized = 0;
+    static std::atomic<bool> initialized(false);
     if (!initialized) {
         static std::mutex mtx;
         std::lock_guard<std::mutex> lock(mtx);
         if (!initialized) {
             mkldnn::impl::cpu::initialize();
-            initialized = 1;
+            initialized = true;
         }
     }
     if (bias)
