@@ -17,6 +17,8 @@
 #ifndef SIMPLE_CONCAT_HPP
 #define SIMPLE_CONCAT_HPP
 
+#include "memory_tracking.hpp"
+
 #include "cpu_concat.hpp"
 
 namespace mkldnn {
@@ -73,6 +75,8 @@ struct simple_concat_t: public cpu_primitive_t {
                     && nelems_to_concat(o_d) == size_to_concat(o_d);
                 if (!ok) return unimplemented;
             }
+
+            init_scratchpad();
 
             return success;
         }
@@ -132,28 +136,22 @@ struct simple_concat_t: public cpu_primitive_t {
             }
             return max_size;
         }
+
+        void init_scratchpad() {
+            using namespace memory_tracking::names;
+            auto scratchpad = scratchpad_registry().registrar();
+            scratchpad.book(key_concat_iptrs, sizeof(data_t *) * n_inputs());
+            scratchpad.book(key_concat_optrs, sizeof(data_t *) * n_inputs());
+            scratchpad.book(key_concat_nelems, sizeof(size_t) * n_inputs());
+            scratchpad.book(key_concat_istrides,
+                    sizeof(strides_t) * n_inputs());
+        }
     };
 
     simple_concat_t(const pd_t *apd, const input_vector &inputs,
             const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs)
-    {
-        const int n = pd()->n_inputs();
-        input_ptrs_ = (decltype(input_ptrs_))malloc(
-                sizeof(*input_ptrs_) * n, 64);
-        output_ptrs_ = (decltype(output_ptrs_))malloc(
-                sizeof(*output_ptrs_) * n, 64);
-        nelems_to_copy_ = (decltype(nelems_to_copy_))malloc(
-                sizeof(*nelems_to_copy_) * n, 64);
-        is_ = (decltype(is_))malloc(sizeof(*is_) * n, 64);
-    }
-
-    ~simple_concat_t() {
-        free(input_ptrs_);
-        free(output_ptrs_);
-        free(nelems_to_copy_);
-        free(is_);
-    }
+        : cpu_primitive_t(apd, inputs, outputs) {}
+    ~simple_concat_t() {}
 
     virtual void execute(event_t *e) {
         execute();
@@ -165,11 +163,6 @@ struct simple_concat_t: public cpu_primitive_t {
 private:
     void execute();
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
-
-    const data_t **input_ptrs_ = nullptr;
-    data_t **output_ptrs_ = nullptr;
-    size_t *nelems_to_copy_ = nullptr;
-    strides_t *is_ = nullptr;
 };
 
 }
