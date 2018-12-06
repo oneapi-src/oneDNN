@@ -77,7 +77,7 @@ struct ref_concat_t: public cpu_primitive_t {
             }
             return ret;
         }
-        virtual pd_t *clone() const override { return nullptr; }
+        virtual pd_t *clone() const override { return  new pd_t(*this); }
         virtual const char *name() const override { return "ref:any"; }
 
         virtual status_t init() override {

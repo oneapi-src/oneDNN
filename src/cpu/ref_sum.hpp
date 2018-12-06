@@ -78,8 +78,8 @@ struct ref_sum_t: public cpu_primitive_t {
             }
             return ret;
         }
-        virtual pd_t *clone() const override { return nullptr; /* FIXME */ }
-       virtual const char *name() const override { return "ref:any"; }
+        virtual pd_t *clone() const override { return new pd_t(*this); }
+        virtual const char *name() const override { return "ref:any"; }
 
         virtual status_t init() override {
             bool ok = cpu_sum_pd_t::init() == success;
