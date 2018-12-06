@@ -108,9 +108,8 @@ struct jit_avx512_core_x8s8s32x_1x1_conv_kernel: public jit_generator {
     int reg_bcast_data_off = 16;
     int reg_load_data_off = 24;
     int reg_ptr_sum_scale_off = 32;
-    int reg_last_load_off = 40;
-    int reg_comp_data_off = 48;
-    int stack_space_needed = 56;
+    int reg_comp_data_off = 40;
+    int stack_space_needed = 48;
 
     void bcast_loop(int load_loop_blk);
     void reduce_loop(int load_loop_blk, int ur, int substep, bool wraparound);
