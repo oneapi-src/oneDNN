@@ -20,10 +20,11 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
-#include "cpu_softmax_pd.hpp"
-#include "cpu_engine.hpp"
+#include "memory_tracking.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
+
+#include "cpu_softmax_pd.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -49,13 +50,29 @@ struct ref_softmax_fwd_t: public cpu_primitive_t {
                 && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
+            init_scratchpad();
+
             return status::success;
+        }
+
+    private:
+        void init_scratchpad() {
+            const int inner_size = utils::array_product(
+                    desc()->data_desc.dims + desc()->softmax_axis + 1,
+                    desc()->data_desc.ndims - desc()->softmax_axis - 1);
+
+            if (inner_size > 1) {
+                auto scratchpad = scratchpad_registry().registrar();
+                scratchpad.book(memory_tracking::names::key_softmax_reduction,
+                        sizeof(data_t) * 2 * inner_size);
+            }
         }
     };
 
     ref_softmax_fwd_t(const pd_t *apd, const input_vector &inputs,
             const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs), ws_(nullptr) {
+        : cpu_primitive_t(apd, inputs, outputs)
+    {
         auto ndims = pd()->desc()->data_desc.ndims;
         auto dims = pd()->desc()->data_desc.dims;
         auto axis = pd()->desc()->softmax_axis;
@@ -63,23 +80,14 @@ struct ref_softmax_fwd_t: public cpu_primitive_t {
         outer_size_ = utils::array_product(dims, axis);
         channels_ = dims[axis];
         inner_size_ = utils::array_product(dims + axis + 1, ndims - axis - 1);
-        val_max_ = val_denom_ = 0;
-
-        if (inner_size_ > 1) {
-            ws_ = new data_t[2*inner_size_];
-            max_ = &ws_[0];
-            denom_ = &ws_[inner_size_];
-        } else {
-            max_ = &val_max_;
-            denom_ = &val_denom_;
-        }
 
         const memory_desc_wrapper data_d(pd()->src_pd());
         use_dense_ = inner_size_ == 1 && data_d.is_dense()
             && data_d.blocking_desc().block_dims[axis] == 1
             && data_d.blocking_desc().strides[0][axis] == 1;
     }
-    ~ref_softmax_fwd_t() { if (ws_) delete [] ws_; }
+    ~ref_softmax_fwd_t() {}
+
     typedef typename prec_traits<data_type>::type data_t;
 
     virtual void execute(event_t *e) {
@@ -102,8 +110,6 @@ private:
 
     bool use_dense_;
     int outer_size_, channels_, inner_size_;
-    data_t val_max_, val_denom_;
-    data_t *ws_, *max_, *denom_;
 };
 
 template <impl::data_type_t data_type>

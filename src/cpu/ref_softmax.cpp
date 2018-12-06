@@ -56,31 +56,39 @@ void ref_softmax_fwd_t<data_type>::execute_forward_generic() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto dst = reinterpret_cast<data_t *>(this->memory(0));
 
+    data_t space_max_val = 0, space_denom_val = 0;
+    data_t *space_max = &space_max_val, *space_denom = &space_denom_val;
+    if (inner_size_ > 1) {
+        using namespace memory_tracking::names;
+        space_max = scratchpad().template get<data_t>(key_softmax_reduction);
+        space_denom = space_max + inner_size_;
+    }
+
     const memory_desc_wrapper data_d(pd()->src_pd());
     const size_t dim = channels_ * inner_size_;
 
     for (int ou = 0; ou < outer_size_; ou++) {
-        utils::array_set(max_, -FLT_MAX, inner_size_);
-        utils::array_set(denom_, 0, inner_size_);
+        utils::array_set(space_max, -FLT_MAX, inner_size_);
+        utils::array_set(space_denom, 0, inner_size_);
 
         for (int c = 0; c < channels_; c++) {
             for(int in = 0; in < inner_size_; in++) {
                 size_t off = data_d.off_l(ou * dim + c * inner_size_ + in);
-                max_[in] = nstl::max(max_[in], src[off]);
+                space_max[in] = nstl::max(space_max[in], src[off]);
             }
         }
 
         for (int c = 0; c < channels_; c++) {
             for(int in = 0; in < inner_size_; in++) {
                 size_t off = data_d.off_l(ou * dim + c * inner_size_ + in);
-                denom_[in] += dst[off] = exp(src[off] - max_[in]);
+                space_denom[in] += dst[off] = exp(src[off] - space_max[in]);
             }
         }
 
         for (int c = 0; c < channels_; c++) {
             for (int in = 0; in < inner_size_; in++) {
                 size_t off = data_d.off_l(ou * dim + c * inner_size_ + in);
-                dst[off] /= denom_[in];
+                dst[off] /= space_denom[in];
             }
         }
     }
