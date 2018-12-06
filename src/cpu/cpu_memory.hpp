@@ -49,9 +49,9 @@ struct cpu_memory_t: public cpu_primitive_t {
         }
     };
 
-    cpu_memory_t(const pd_t *mpd)
+    cpu_memory_t(const pd_t *pd)
         : cpu_primitive_t(&conf_, input_vector(), output_vector(1, this))
-        , conf_(*mpd), data_(nullptr) {}
+        , conf_(*pd), data_(nullptr) {}
     virtual ~cpu_memory_t() {}
 
     virtual void execute(mkldnn::impl::event_t *e)
@@ -169,8 +169,8 @@ struct cpu_view_t: public cpu_primitive_t {
             : view_pd_t(src_pd.engine()), src_pd_(src_pd), dst_pd_(dst_pd) {}
     };
 
-    cpu_view_t(const pd_t *conf, const input_vector &inputs)
-        : cpu_primitive_t(&conf_, inputs, output_vector(1, this)), conf_(*conf)
+    cpu_view_t(const pd_t *pd, const input_vector &inputs)
+        : cpu_primitive_t(&conf_, inputs, output_vector(1, this)), conf_(*pd)
     {}
     virtual ~cpu_view_t() {}
 

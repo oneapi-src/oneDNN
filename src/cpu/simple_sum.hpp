@@ -58,9 +58,9 @@ struct simple_sum_t: public cpu_primitive_t {
         }
     };
 
-    simple_sum_t(const pd_t *conf, const input_vector &inputs,
+    simple_sum_t(const pd_t *pd, const input_vector &inputs,
             const output_vector &outputs)
-        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*conf) {}
+        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {}
 
     virtual void execute(event_t *e) {
         execute();
