@@ -28,22 +28,22 @@ using namespace math;
 using namespace memory_format;
 
 template<data_type_t dst_type>
-gemm_u8s8s32x_inner_product_fwd_t<dst_type>::pp_kernel::pp_kernel(
-        const pd_t &pd, bool dst_is_acc)
-    : ker_(nullptr), OC_(pd.OC())
+gemm_u8s8s32x_inner_product_fwd_t<dst_type>::pp_kernel_t::pp_kernel_t(
+        const pd_t *pd, bool dst_is_acc)
+    : ker_(nullptr), OC_(pd->OC())
     , bias_data_type_(data_type::undef), bias_data_type_size_(0)
     , scale_idx_mult_(0), rmode_(round_mode::nearest)
     , do_bias_(false), do_relu_(false)
 {
     using namespace types;
 
-    scale_idx_mult_ = (pd.attr()->output_scales_.mask_ == (1 << 1));
-    rmode_ = pd.attr()->round_mode_;
+    scale_idx_mult_ = (pd->attr()->output_scales_.mask_ == (1 << 1));
+    rmode_ = pd->attr()->round_mode_;
 
-    auto &post_ops = pd.attr()->post_ops_;
+    auto &post_ops = pd->attr()->post_ops_;
     do_relu_ = post_ops.len_ == 1;
-    do_bias_ = pd.with_bias();
-    bias_data_type_ = pd.desc()->bias_desc.data_type;
+    do_bias_ = pd->with_bias();
+    bias_data_type_ = pd->desc()->bias_desc.data_type;
     if (do_bias_) {
         assert(bias_data_type_ != data_type::undef);
         bias_data_type_size_ = data_type_size(bias_data_type_);
@@ -59,7 +59,7 @@ gemm_u8s8s32x_inner_product_fwd_t<dst_type>::pp_kernel::pp_kernel(
 }
 
 template<data_type_t dst_type>
-void gemm_u8s8s32x_inner_product_fwd_t<dst_type>::pp_kernel::generate()
+void gemm_u8s8s32x_inner_product_fwd_t<dst_type>::pp_kernel_t::generate()
 {
     using namespace Xbyak;
     using namespace utils;
@@ -356,7 +356,7 @@ void gemm_u8s8s32x_inner_product_fwd_t<dst_type>::pp_kernel::generate()
 }
 
 template<data_type_t dst_type>
-void gemm_u8s8s32x_inner_product_fwd_t<dst_type>::pp_kernel::operator ()(
+void gemm_u8s8s32x_inner_product_fwd_t<dst_type>::pp_kernel_t::operator ()(
         dst_data_t *dst, const acc_data_t *acc,
         const char *bias, const float *scales, float nslope,
         size_t start, size_t end)

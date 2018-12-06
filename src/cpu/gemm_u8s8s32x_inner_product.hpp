@@ -75,16 +75,14 @@ struct gemm_u8s8s32x_inner_product_fwd_t: public cpu_primitive_t {
         virtual status_t set_default_params() override {
             using namespace memory_format;
 
-            if (this->src_pd_.desc()->format == any)
-            {
+            if (this->src_pd_.desc()->format == any) {
                 if (ndims() == 4) CHECK(this->src_pd_.set_format(nhwc));
                 else if (ndims() == 5) CHECK(this->src_pd_.set_format(ndhwc));
                 else CHECK(this->src_pd_.set_format(nc));
             }
             if (this->dst_pd_.desc()->format == any)
                 CHECK(this->dst_pd_.set_format(nc));
-            if (this->weights_pd_.desc()->format == any)
-            {
+            if (this->weights_pd_.desc()->format == any) {
                 if (ndims() == 4) CHECK(this->weights_pd_.set_format(hwio));
                 else if (ndims() == 5) CHECK(this->weights_pd_.set_format(dhwio));
                 else CHECK(this->weights_pd_.set_format(io));
@@ -97,20 +95,21 @@ struct gemm_u8s8s32x_inner_product_fwd_t: public cpu_primitive_t {
 
     gemm_u8s8s32x_inner_product_fwd_t(const pd_t *pd, const input_vector &inputs,
             const output_vector &outputs)
-        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd),
-        dst_is_acc_(false), scratchpad_(nullptr), pp_kernel_(nullptr)
+        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
+        , dst_is_acc_(false), scratchpad_(nullptr), pp_kernel_(nullptr)
     {
         dst_is_acc_ = utils::one_of(dst_type, data_type::s32, data_type::f32);
         if (!dst_is_acc_) {
             size_t size = conf_.MB() * conf_.OC() * sizeof(acc_data_t);
             scratchpad_ = create_scratchpad(size);
         }
-        pp_kernel_ = new pp_kernel(conf_, dst_is_acc_);
+        pp_kernel_ = new pp_kernel_t(&conf_, dst_is_acc_);
     }
+
     ~gemm_u8s8s32x_inner_product_fwd_t() {
         delete scratchpad_;
         delete pp_kernel_;
-    };
+    }
 
     typedef typename prec_traits<dst_type>::type data_t;
 
@@ -128,13 +127,13 @@ private:
     // XXX: this is throwaway code that will become unnecessary when we have a
     // sufficiently advanced igemm jit generator that supports quantization,
     // relu, and whatnot
-    class pp_kernel: jit_generator {
+    class pp_kernel_t: jit_generator {
     public:
         DECLARE_CPU_JIT_AUX_FUNCTIONS(
                 gemm_u8s8s32x_inner_product_fwd_t::pp_kernel);
-        pp_kernel(const pd_t &pd, bool dst_is_acc);
+        pp_kernel_t(const pd_t *pd, bool dst_is_acc);
 
-        void operator ()(dst_data_t *dst, const acc_data_t *acc,
+        void operator()(dst_data_t *dst, const acc_data_t *acc,
                 const char *bias, const float *scales, float nslope,
                 size_t start, size_t end);
     private:
@@ -164,7 +163,7 @@ private:
     pd_t conf_;
     bool dst_is_acc_;
     scratchpad_t *scratchpad_;
-    pp_kernel *pp_kernel_;
+    pp_kernel_t *pp_kernel_;
 };
 }
 }
