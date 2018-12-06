@@ -878,7 +878,7 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
 
     void omp_driver_1d(int ithr, int nthr, int off, const char *in, char *out,
             const float *scale) {
-        tr::node_t *ns = conf_.prb_.nodes + off;
+        const tr::node_t *ns = conf_.prb_.nodes + off;
         for_nd(ithr, nthr, (ptrdiff_t)ns[0].n, [&](ptrdiff_t d0) {
             auto c = tr::call_param_t();
             c.in = in + d0 * ns[0].is * data_type_size(conf_.prb_.itype);
@@ -890,7 +890,7 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
 
     void omp_driver_2d(int ithr, int nthr, int off, const char *in, char *out,
             const float *scale) {
-        tr::node_t *ns = conf_.prb_.nodes + off;
+        const tr::node_t *ns = conf_.prb_.nodes + off;
         for_nd(ithr, nthr, (ptrdiff_t)ns[1].n, (ptrdiff_t)ns[0].n,
                 [&](ptrdiff_t d1, ptrdiff_t d0) {
             auto c = tr::call_param_t();
@@ -905,7 +905,7 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
 
     void omp_driver_3d(int ithr, int nthr, int off, const char *in, char *out,
             const float *scale) {
-        tr::node_t *ns = conf_.prb_.nodes + off;
+        const tr::node_t *ns = conf_.prb_.nodes + off;
         for_nd(ithr, nthr, (ptrdiff_t)ns[2].n, (ptrdiff_t)ns[1].n,
                 (ptrdiff_t)ns[0].n,
                 [&](ptrdiff_t d2, ptrdiff_t d1, ptrdiff_t d0) {
@@ -921,7 +921,7 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
 
     void omp_driver_4d(int ithr, int nthr, int off, const char *in, char *out,
             const float *scale) {
-        tr::node_t *ns = conf_.prb_.nodes + off;
+        const tr::node_t *ns = conf_.prb_.nodes + off;
         for_nd(ithr, nthr, (ptrdiff_t)ns[3].n, (ptrdiff_t)ns[2].n,
                 (ptrdiff_t)ns[1].n, (ptrdiff_t)ns[0].n,
                 [&](ptrdiff_t d3, ptrdiff_t d2, ptrdiff_t d1, ptrdiff_t d0) {
