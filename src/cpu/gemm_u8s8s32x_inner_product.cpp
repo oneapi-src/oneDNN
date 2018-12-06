@@ -14,10 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn.h"
-#include "mkldnn_thread.hpp"
 #include "math_utils.hpp"
+#include "mkldnn_thread.hpp"
 #include "simple_q10n.hpp"
+
 #include "gemm_u8s8s32x_inner_product.hpp"
 
 namespace mkldnn {
@@ -26,6 +26,7 @@ namespace cpu {
 
 using namespace math;
 using namespace memory_format;
+using namespace memory_tracking::names;
 
 template<data_type_t dst_type>
 gemm_u8s8s32x_inner_product_fwd_t<dst_type>::pp_kernel_t::pp_kernel_t(
@@ -419,9 +420,9 @@ void gemm_u8s8s32x_inner_product_fwd_t<dst_type>::execute_forward() {
     const bool do_relu = post_ops.len_ == 1;
     const float nslope = do_relu ? post_ops.entry_[0].eltwise.alpha : 0.f;
 
-    acc_data_t *acc = this->dst_is_acc_
+    acc_data_t *acc = pd()->dst_is_acc_
         ? (acc_data_t *)dst
-        : (acc_data_t *)this->scratchpad_->get();
+        : scratchpad().template get<acc_data_t>(key_iprod_int_dat_in_acc_dt);
 
     const float onef = 1.0, zerof = 0.0;
     mkldnn_gemm_s8u8s32(wei_tr ? "T" : "N", "N", "F", &M, &N, &K, &onef,

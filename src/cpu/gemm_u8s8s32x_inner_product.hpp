@@ -20,14 +20,14 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
-#include "cpu_inner_product_pd.hpp"
-#include "cpu_engine.hpp"
+#include "memory_tracking.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
-#include "scratchpad.hpp"
-#include "jit_generator.hpp"
 
 #include "gemm/gemm.hpp"
+#include "jit_generator.hpp"
+
+#include "cpu_inner_product_pd.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -65,8 +65,16 @@ struct gemm_u8s8s32x_inner_product_fwd_t: public cpu_primitive_t {
                         attr()->post_ops_.entry_[0].is_relu(true, false))
                 && dense_gemm_consitency_check(src_pd(), weights_pd(),
                         dst_pd());
-            return ok ? status::success : status::unimplemented;
+            if (!ok) return status::unimplemented;
+
+            dst_is_acc_ = one_of(dst_type, s32, f32);
+
+            init_scratchpad();
+
+            return status::success;
         }
+
+        bool dst_is_acc_;
 
     protected:
         virtual status_t set_default_params() override {
@@ -86,27 +94,26 @@ struct gemm_u8s8s32x_inner_product_fwd_t: public cpu_primitive_t {
             }
             if (this->bias_pd_.desc()->format == any)
                 CHECK(this->bias_pd_.set_format(x));
+
             return status::success;
+        }
+
+    private:
+        void init_scratchpad() {
+            if (!dst_is_acc_) {
+                auto scratchpad = scratchpad_registry().registrar();
+                scratchpad.book(
+                        memory_tracking::names::key_iprod_int_dat_in_acc_dt,
+                        sizeof(acc_data_t) * MB() * OC());
+            }
         }
     };
 
     gemm_u8s8s32x_inner_product_fwd_t(const pd_t *apd, const input_vector &inputs,
             const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs)
-        , dst_is_acc_(false), scratchpad_(nullptr), pp_kernel_(nullptr)
-    {
-        dst_is_acc_ = utils::one_of(dst_type, data_type::s32, data_type::f32);
-        if (!dst_is_acc_) {
-            size_t size = pd()->MB() * pd()->OC() * sizeof(acc_data_t);
-            scratchpad_ = create_scratchpad(size);
-        }
-        pp_kernel_ = new pp_kernel_t(apd, dst_is_acc_);
-    }
-
-    ~gemm_u8s8s32x_inner_product_fwd_t() {
-        delete scratchpad_;
-        delete pp_kernel_;
-    }
+        : cpu_primitive_t(apd, inputs, outputs, true)
+    { pp_kernel_ = new pp_kernel_t(apd, pd()->dst_is_acc_); }
+    ~gemm_u8s8s32x_inner_product_fwd_t() { delete pp_kernel_; }
 
     typedef typename prec_traits<dst_type>::type data_t;
 
@@ -158,8 +165,7 @@ private:
 
     void execute_forward();
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
-    bool dst_is_acc_;
-    scratchpad_t *scratchpad_;
+
     pp_kernel_t *pp_kernel_;
 };
 }
