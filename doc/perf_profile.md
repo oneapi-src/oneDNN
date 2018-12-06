@@ -75,14 +75,14 @@ rate is high.
 
 ---
 
-## Intel(R) VTune(TM) profiling
+## Integration with performance profilers
 
-To collect performance data of JIT-kernels set `VTUNEROOT` environment variable
-to path to VTune before building of Intel MKL-DNN. For example:
+When running under Intel VTune, Intel MKL-DNN notifies the Intel VTune runtime
+about generated code so that it is able to correctly attribute PMU events.
 
-```
-    $ mkdir -p build && cd build && cmake -DVTUNEROOT=/path/to/vtune .. && make
-```
+Setting CMake option `MKLDNN_ENABLE_JIT_PROFILING=OFF` turns off integration
+with Intel VTune completely. Adding `-DMKLDNN_ENABLE_JIT_PROFILING=0` to the
+compiler flags has the same effect.
 
 ## Dumping JIT-kernels
 

@@ -22,6 +22,7 @@ file(GLOB_RECURSE HEADERS
 file(GLOB_RECURSE SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/common/*.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/cpu/*.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/cpu/*.c
     )
 include_directories(
     ${PROJECT_BINARY_DIR}/include
@@ -51,9 +52,14 @@ if(MKLDNN_ENABLE_CONCURRENT_EXEC)
     add_definitions(-DMKLDNN_ENABLE_CONCURRENT_EXEC)
 endif()
 
-if(VTUNEROOT)
-    include_directories(${VTUNEROOT}/include)
-    add_definitions(-DJIT_PROFILING_VTUNE)
+if(NOT MKLDNN_ENABLE_JIT_PROFILING)
+    # XXX: the profiling interface will still be built and present in the
+    # library
+    message(STATUS "VTune JIT profiling disabled")
+    add_definitions(-DMKLDNN_ENABLE_JIT_PROFILING=0)
+elseif(UNIX AND NOT APPLE)
+    # Not every compiler adds -ldl automatically
+    list(APPEND EXTRA_SHARED_LIBS "${CMAKE_DL_LIBS}")
 endif()
 
 if(WIN32)

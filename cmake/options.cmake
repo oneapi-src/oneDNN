@@ -118,11 +118,12 @@ set(MKLDNN_ARCH_OPT_FLAGS "HostOpts" CACHE STRING
 # Profiling capabilities
 # ======================
 
-set(VTUNEROOT "" CACHE STRING
-    "path to Intel(R) VTune(tm) Amplifier.
-    Required to register Intel(R) MKL-DNN kernels that are generated at
-    runtime, otherwise the profile would not be able to track the kernels and
-    would report `outside any known module`.")
+option(MKLDNN_ENABLE_JIT_PROFILING
+    "Enable registration of Intel(R) MKL-DNN kernels that are generated at
+    runtime with Intel VTune Amplifier (on by default). Without the
+    registrations, Intel VTune Amplifier would report data collected inside
+    the kernels as `outside any known module`."
+    ON)
 
 # =============
 # Miscellaneous

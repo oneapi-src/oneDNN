@@ -18,14 +18,12 @@
 #define CPU_JIT_AVX2_GENERATOR_HPP
 
 #include <limits.h>
-#include "cpu_isa_traits.hpp"
 
-#include "utils.hpp"
 #include "mkldnn_thread.hpp"
+#include "utils.hpp"
 
-#ifdef JIT_PROFILING_VTUNE
-#include "jitprofiling.h"
-#endif
+#include "cpu_isa_traits.hpp"
+#include "jit_utils/jit_utils.hpp"
 
 #if defined(_WIN32) && !defined(__GNUC__)
 #   define STRUCT_ALIGN(al, ...) __declspec(align(al)) __VA_ARGS__
@@ -39,8 +37,7 @@
 
 #define DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_name) \
     const char *name() const override { return STRINGIFY(jit_name); } \
-    const char *source_file() const override { return __FILE__; \
-    }
+    const char *source_file() const override { return __FILE__; }
 
 namespace mkldnn {
 namespace impl {
@@ -745,43 +742,6 @@ public:
         mov(out, tmp);
     }
 
-    void dump_code(const Xbyak::uint8 *code) const {
-        if (code) {
-            static int counter = 0;
-#define MAX_FNAME_LEN 256
-            char fname[MAX_FNAME_LEN + 1];
-            snprintf(fname, MAX_FNAME_LEN, "mkldnn_dump_%s.%d.bin", name(),
-                    counter);
-            counter++;
-
-            FILE *fp = fopen(fname, "w+");
-            // Failure to dump code is not fatal
-            if (fp) {
-                size_t unused = fwrite(code, getSize(), 1, fp);
-                UNUSED(unused);
-                fclose(fp);
-            }
-        }
-#undef MAX_FNAME_LEN
-    }
-
-    void register_code(const Xbyak::uint8 *code) const {
-#ifdef JIT_PROFILING_VTUNE
-        if (iJIT_IsProfilingActive() == iJIT_SAMPLING_ON) {
-            auto jmethod = iJIT_Method_Load();
-            jmethod.method_id = iJIT_GetNewMethodID();
-            jmethod.method_name = (char *)name();
-            jmethod.class_file_name = NULL;
-            jmethod.source_file_name = (char *)source_file();
-            jmethod.method_load_address = (void *)code;
-            jmethod.method_size = getSize();
-
-            iJIT_NotifyEvent(iJVM_EVENT_TYPE_METHOD_LOAD_FINISHED,
-                    (void*)&jmethod);
-        }
-#endif
-    }
-
 public:
     jit_generator(
         void *code_ptr = nullptr,
@@ -794,19 +754,14 @@ public:
     virtual const char *name() const = 0;
     virtual const char *source_file() const = 0;
 
-    // XXX: use normal_case name and update all callees (?)
     const Xbyak::uint8 *getCode() {
         const Xbyak::uint8 *code = CodeGenerator::getCode();
-        register_code(code);
-
-        if (jit_dump_enabled())
-            dump_code(code);
-
+        size_t code_size = getSize();
+        jit_utils::register_jit_code(code, code_size, name(), source_file());
         return code;
     }
 
     template<typename F> const F getCode() {
-        // XXX (Roma): Xbyak code probably has a bug here
         return (const F)getCode();
     }
 };

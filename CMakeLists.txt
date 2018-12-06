@@ -79,7 +79,6 @@ include("cmake/platform.cmake")
 include("cmake/SDL.cmake")
 include("cmake/MKL.cmake")
 include("cmake/Doxygen.cmake")
-include("cmake/profiling.cmake")
 include("cmake/version.cmake")
 
 enable_testing()
