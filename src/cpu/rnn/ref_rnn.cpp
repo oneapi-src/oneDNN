@@ -34,11 +34,13 @@
 
 #include "ref_rnn.hpp"
 #include "../gemm/gemm.hpp"
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {
 
 using namespace mkldnn::impl::utils;
+using namespace mkldnn::impl::memory_tracking::names;
 using namespace rnn_utils;
 #define AOC array_offset_calculator
 
@@ -603,9 +605,18 @@ void _ref_rnn_common_t<aprop>::execute_() {
             nullptr :
             reinterpret_cast<const float *>(this->input_memory(input_idx++));
 
+    auto scratchpad = this->scratchpad();
+
+    auto ptr_wei_layer =
+        scratchpad.template get<float *>(key_rnn_ptrs_wei_layer);
+    auto ptr_wei_iter =
+        scratchpad.template get<float *>(key_rnn_ptrs_wei_iter);
+    auto ptr_bias =
+        scratchpad.template get<float *>(key_rnn_ptrs_bia);
+
     // fetchihg buffers from the workspace
     // if no workspace was provided we use the scratchpad
-    float *scratch_ptr = ((float *)scratchpad_->get());
+    float *scratch_ptr = scratchpad.template get<float>(key_rnn_space);
     float *ws_ptr = nullptr;
     if (rnn.use_workspace)
         ws_ptr = rnn.is_fwd ?
@@ -613,11 +624,11 @@ void _ref_rnn_common_t<aprop>::execute_() {
             const_cast<float *>(reinterpret_cast<const float *>(
                     this->input_memory(input_idx++)));
     float *base_ptr = rnn.use_workspace ? ws_ptr : scratch_ptr;
-    ws_gates_ = base_ptr + ws_gates_offset_;
-    ws_states_ = base_ptr + ws_states_offset_;
-    ws_diff_states_ = base_ptr + ws_diff_states_offset_;
-    ws_grid_ = base_ptr + ws_grid_comp_offset_;
-    ws_cell_ = base_ptr + ws_cell_comp_offset_;
+    float *ws_gates = base_ptr + ws_gates_offset_;
+    float *ws_states = base_ptr + ws_states_offset_;
+    float *ws_diff_states = base_ptr + ws_diff_states_offset_;
+    float *ws_grid = base_ptr + ws_grid_comp_offset_;
+    float *ws_cell = base_ptr + ws_cell_comp_offset_;
 
     auto diff_src_layer = rnn.is_fwd ?
             nullptr :
@@ -636,59 +647,59 @@ void _ref_rnn_common_t<aprop>::execute_() {
             reinterpret_cast<float *>(this->memory(output_idx++));
 
     // Fetching extra buffers from scratchpad
-    ws_weights_layer_ = scratch_ptr + ws_weights_layer_offset_;
-    ws_weights_iter_ = scratch_ptr + ws_weights_iter_offset_;
-    ws_bias_ = scratch_ptr + ws_bias_offset_;
-    ws_diff_weights_layer_ = scratch_ptr + ws_diff_weights_layer_offset_;
-    ws_diff_weights_iter_ = scratch_ptr + ws_diff_weights_iter_offset_;
+    float *ws_weights_layer = scratch_ptr + ws_weights_layer_offset_;
+    float *ws_weights_iter = scratch_ptr + ws_weights_iter_offset_;
+    float *ws_bias = scratch_ptr + ws_bias_offset_;
+    float *ws_diff_weights_layer = scratch_ptr + ws_diff_weights_layer_offset_;
+    float *ws_diff_weights_iter = scratch_ptr + ws_diff_weights_iter_offset_;
 
     // initialize diff_states to 0
     if (aprop == prop_kind::backward) {
-        array_set(ws_diff_states_, 0.0f, rnn.ws_diff_states_size);
+        array_set(ws_diff_states, 0.0f, rnn.ws_diff_states_size);
         if (rnn.copy_diff_weights_layer) {
             parallel_nd(rnn.ws_diff_weights_layer_size,
-                    [&](size_t i) { ws_diff_weights_layer_[i] = 0.; });
+                    [&](size_t i) { ws_diff_weights_layer[i] = 0.; });
         } else
-            ws_diff_weights_layer_ = diff_weights_layer;
+            ws_diff_weights_layer = diff_weights_layer;
         if (rnn.copy_diff_weights_iter) {
             parallel_nd(rnn.ws_diff_weights_iter_size,
-                    [&](size_t i) { ws_diff_weights_iter_[i] = 0.; });
+                    [&](size_t i) { ws_diff_weights_iter[i] = 0.; });
         } else
-            ws_diff_weights_iter_ = diff_weights_iter;
+            ws_diff_weights_iter = diff_weights_iter;
     }
 
     /* Pack(if using packed gemm API) or copy(if input arrays have bad leading
      * dimension */
-    (this->*bias_preparation_func)(rnn, ptr_bias_, bias, ws_bias_);
+    (this->*bias_preparation_func)(rnn, ptr_bias, bias, ws_bias);
 
     (this->*weights_iter_pack_func)(rnn, rnn.weights_iter_fmt, rnn.dic, rnn.sic,
             rnn.n_parts_weights_iter, rnn.parts_weights_iter,  rnn.part_weights_iter_pack_size,
-            ptr_wei_iter_, w_state, ws_weights_iter_,
-            ptr_bias_, bias, ws_bias_,
+            ptr_wei_iter, w_state, ws_weights_iter,
+            ptr_bias, bias, ws_bias,
             rnn.copy_weights_iter);
     (this->*weights_layer_pack_func)(rnn, rnn.weights_layer_fmt, rnn.dic, rnn.slc,
             rnn.n_parts_weights_layer, rnn.parts_weights_layer, rnn.part_weights_layer_pack_size,
-            ptr_wei_layer_, w_input, ws_weights_layer_,
-            ptr_bias_, bias, ws_bias_,
+            ptr_wei_layer, w_input, ws_weights_layer,
+            ptr_bias, bias, ws_bias,
             rnn.copy_weights_layer);
 
-    (this->*bias_finalization_func)(rnn, ptr_bias_, bias, ws_bias_);
+    (this->*bias_finalization_func)(rnn, ptr_bias, bias, ws_bias);
 
     // we first need to copy the initial states and input into ws
-    copy_init_layer(rnn, ws_states_, ws_diff_states_, input, diff_dst_layer);
-    copy_init_iter(rnn, ws_states_, ws_diff_states_, states, diff_dst_iter);
+    copy_init_layer(rnn, ws_states, ws_diff_states, input, diff_dst_layer);
+    copy_init_iter(rnn, ws_states, ws_diff_states, states, diff_dst_iter);
 
     // run the execution on the grid
-    (this->*grid_computation)(rnn, ptr_wei_layer_, ptr_wei_iter_,
-            ptr_bias_, ws_states_, ws_diff_states_,
-            ws_gates_, ws_cell_, ws_grid_, ws_diff_weights_layer_,
-            ws_diff_weights_iter_, diff_bias);
+    (this->*grid_computation)(rnn, ptr_wei_layer, ptr_wei_iter,
+            ptr_bias, ws_states, ws_diff_states,
+            ws_gates, ws_cell, ws_grid, ws_diff_weights_layer,
+            ws_diff_weights_iter, diff_bias);
 
     // Finally we copy the results to the result buffers
     copy_res_layer(
-            rnn, dst_last_layer, diff_src_layer, ws_states_, ws_diff_states_);
+            rnn, dst_last_layer, diff_src_layer, ws_states, ws_diff_states);
     copy_res_iter(
-            rnn, dst_last_iter, diff_src_iter, ws_states_, ws_diff_states_);
+            rnn, dst_last_iter, diff_src_iter, ws_states, ws_diff_states);
 
     // copy of the diff weights if bwd
     if (aprop == prop_kind::backward){
@@ -700,10 +711,10 @@ void _ref_rnn_common_t<aprop>::execute_() {
         AOC<float, 3> diff_weights_iter_aoc_t(diff_weights_iter, rnn.n_layer,
                 rnn.n_dir,
                 rnn.diff_weights_iter_nld * rnn.diff_weights_iter_ld);
-        AOC<float, 3> ws_diff_weights_layer_aoc_t(ws_diff_weights_layer_,
+        AOC<float, 3> ws_diff_weights_layer_aoc_t(ws_diff_weights_layer,
                 rnn.n_layer, rnn.n_dir,
                 rnn.diff_weights_layer_nld * rnn.diff_weights_layer_ws_ld);
-        AOC<float, 3> ws_diff_weights_iter_aoc_t(ws_diff_weights_iter_,
+        AOC<float, 3> ws_diff_weights_iter_aoc_t(ws_diff_weights_iter,
                 rnn.n_layer, rnn.n_dir,
                 rnn.diff_weights_iter_nld * rnn.diff_weights_iter_ws_ld);
 
@@ -734,8 +745,8 @@ void _ref_rnn_common_t<aprop>::execute_() {
     }
 
     // We free the packed weights if they were packed internally
-    (this->*weights_iter_free_packed_func)(rnn, rnn.n_parts_weights_iter, ptr_wei_iter_);
-    (this->*weights_layer_free_packed_func)(rnn, rnn.n_parts_weights_layer, ptr_wei_layer_);
+    (this->*weights_iter_free_packed_func)(rnn, rnn.n_parts_weights_iter, ptr_wei_iter);
+    (this->*weights_layer_free_packed_func)(rnn, rnn.n_parts_weights_layer, ptr_wei_layer);
 };
 
 /* Fix for MSVS warning C4661 */

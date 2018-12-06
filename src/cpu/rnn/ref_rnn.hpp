@@ -20,14 +20,16 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
-#include "cpu_rnn_pd.hpp"
-#include "../cpu_isa_traits.hpp"
-#include "scratchpad.hpp"
+#include "memory_tracking.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
+#include "../cpu_isa_traits.hpp"
 #include "../gemm/os_blas.hpp"
+
+#include "cpu_rnn_pd.hpp"
 #include "rnn_utils.hpp"
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {
@@ -172,23 +174,46 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
                     && ((ls_multiplier * rnn_.slc) == rnn_.dlc
                                || (rnn_.n_layer == 1))
                     && (rnn_.sic == rnn_.dic || (rnn_.n_iter == 1));
+            if (!ok) return status::unimplemented;
+
+            size_t scratchpad_sz{0}, ws_sz{0};
+            get_scratchpad_and_workspace_sizes(rnn_, scratchpad_sz, ws_sz);
 
             // initialize the workspace_pd if needed
             if (rnn_.is_training) {
-                dims_t ws_dims = { (dim_t)get_ws_size(rnn_) };
+                dims_t ws_dims = {(int)ws_sz};
                 memory_desc_t ws_d;
-                mkldnn_memory_desc_init(
-                        &ws_d, 1, ws_dims, impl::data_type::f32, memory_format::x);
+                mkldnn_memory_desc_init(&ws_d, 1, ws_dims, data_type::f32, x);
                 this->ws_pd_ = cpu_memory_t::pd_t(this->engine(), &ws_d);
             }
-            return ok ? status::success : status::unimplemented;
+
+            init_scratchpad(scratchpad_sz);
+
+            return status::success;
         }
+
         rnn_utils::rnn_conf_t rnn_;
+
+    private:
+        void init_scratchpad(size_t scratchpad_sz) {
+            using namespace memory_tracking::names;
+            auto scratchpad = this->scratchpad_registry().registrar();
+            scratchpad.book(key_rnn_space, sizeof(float) * scratchpad_sz, 4096);
+
+            int max_nparts = this->cell_kind() == alg_kind::vanilla_gru ? 2 : 1;
+            int ptr_wei_sz = rnn_.n_layer * rnn_.n_dir * max_nparts;
+            scratchpad.book(key_rnn_ptrs_wei_layer,
+                    sizeof(float *) * ptr_wei_sz);
+            scratchpad.book(key_rnn_ptrs_wei_iter,
+                    sizeof(float *) * ptr_wei_sz);
+            scratchpad.book(key_rnn_ptrs_bia,
+                    sizeof(float *) * ptr_wei_sz);
+        }
     };
 
     _ref_rnn_common_t(const pd_t *apd, const input_vector &inputs,
             const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs) {
+        : cpu_primitive_t(apd, inputs, outputs, true) {
         /// @todo set max_feature_size assuming that we limit the number of
         /// iterations and layer to one if slc != dic and sic != dic
         /// respectively
@@ -266,21 +291,9 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
                 ws_cell_comp_offset_, ws_weights_layer_offset_,
                 ws_weights_iter_offset_, ws_bias_offset_, ws_diff_weights_layer_offset_,
                 ws_diff_weights_iter_offset_, scratchpad_size, workspace_size);
-
-        scratchpad_ = create_scratchpad(scratchpad_size * sizeof(float));
-
-        int max_nparts = (pd()->cell_kind() == alg_kind::vanilla_gru) ? 2 : 1;
-        int ptr_wei_sz = pd()->rnn_.n_layer * pd()->rnn_.n_dir * max_nparts;
-        ptr_wei_layer_ = (float **)malloc(sizeof(float *) * ptr_wei_sz, 64);
-        ptr_wei_iter_ = (float **)malloc(sizeof(float *) * ptr_wei_sz, 64);
-        ptr_bias_ = (float **)malloc(sizeof(float *) * ptr_wei_sz, 64);
     }
-    ~_ref_rnn_common_t() {
-        delete scratchpad_;
-        free(ptr_wei_layer_);
-        free(ptr_wei_iter_);
-        free(ptr_bias_);
-    }
+
+    ~_ref_rnn_common_t() {}
 
     // typedef typename prec_traits::type data_t;
 
@@ -325,7 +338,6 @@ private:
             const float *ws_gates_, float *diff_bias_);
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
-    scratchpad_t *scratchpad_;
 
     size_t ws_gates_offset_;
     size_t ws_states_offset_;
@@ -337,21 +349,6 @@ private:
     size_t ws_diff_weights_iter_offset_;
     size_t ws_grid_comp_offset_;
     size_t ws_cell_comp_offset_;
-
-    float *ws_gates_;
-    float *ws_states_;
-    float *ws_diff_states_;
-    float *ws_cell_;
-    float *ws_grid_;
-    float *ws_weights_layer_;
-    float *ws_weights_iter_;
-    float *ws_bias_;
-    float *ws_diff_weights_layer_;
-    float *ws_diff_weights_iter_;
-
-    float **ptr_wei_layer_;
-    float **ptr_wei_iter_;
-    float **ptr_bias_;
 
     grid_execution_f grid_computation;
     cell_execution_f cell_func;
@@ -371,6 +368,7 @@ private:
 
 using ref_rnn_fwd_t = _ref_rnn_common_t<prop_kind::forward>;
 using ref_rnn_bwd_t = _ref_rnn_common_t<prop_kind::backward>;
+
 }
 }
 }

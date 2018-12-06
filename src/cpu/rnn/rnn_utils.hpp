@@ -86,7 +86,8 @@ void set_offsets(const rnn_conf_t &rnn, size_t &ws_gates_offset,
         size_t &ws_diff_weights_iter_offset, size_t &scratchpad_size,
         size_t &workspace_size);
 
-size_t get_ws_size(const rnn_conf_t &rnn);
+void get_scratchpad_and_workspace_sizes(const rnn_conf_t &rnn,
+        size_t &scratchpad_size, size_t &workspace_size);
 
 struct ws_gates_aoc_t {
     ws_gates_aoc_t(const rnn_conf_t &rnn, float *data)

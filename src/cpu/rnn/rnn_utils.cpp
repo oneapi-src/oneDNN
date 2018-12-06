@@ -302,17 +302,18 @@ void rnn_utils::set_offsets(const rnn_conf_t &rnn, size_t &ws_gates_offset,
     scratchpad_size = current_offset;
 }
 
-size_t rnn_utils::get_ws_size(const rnn_conf_t &rnn) {
+void rnn_utils::get_scratchpad_and_workspace_sizes(const rnn_conf_t &rnn,
+        size_t &scratchpad_size, size_t &workspace_size) {
     size_t ws_gates_offset, ws_states_offset, ws_diff_states_offset,
             ws_grid_comp_offset, ws_cell_comp_offset, ws_weights_layer_offset,
             ws_weights_iter_offset, ws_bias_offset, ws_diff_weights_layer_offset,
-            ws_diff_weights_iter_offset, scratchpad_size, workspace_size;
+            ws_diff_weights_iter_offset;
     set_offsets(rnn, ws_gates_offset, ws_states_offset, ws_diff_states_offset,
             ws_grid_comp_offset, ws_cell_comp_offset, ws_weights_layer_offset,
             ws_weights_iter_offset, ws_bias_offset, ws_diff_weights_layer_offset,
             ws_diff_weights_iter_offset, scratchpad_size, workspace_size);
-    return workspace_size;
 }
+
 }
 }
 }
