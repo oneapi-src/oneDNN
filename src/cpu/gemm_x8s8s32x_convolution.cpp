@@ -41,7 +41,7 @@ void _gemm_x8s8s32x_convolution_fwd_t<src_type,
     auto bia_base = reinterpret_cast<const char *>(this->input_memory(2));
     auto dst_base = reinterpret_cast<dst_data_t *>(this->memory());
 
-    jit_gemm_conv_conf_t &jcp = this->conf_.jcp_;
+    const jit_gemm_conv_conf_t &jcp = this->conf_.jcp_;
 
     char *scratchpad = (char *)this->scratchpad_->get();
     uint8_t *col = (uint8_t *)scratchpad;
@@ -61,7 +61,7 @@ void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::
         const src_data_t *src_base, const wei_data_t *wei_base,
         const char *bia_base, dst_data_t *dst_base, char *scratchpad) {
 #if USE_MKL_IGEMM
-    jit_gemm_conv_conf_t &jcp = this->conf_.jcp_;
+    const jit_gemm_conv_conf_t &jcp = this->conf_.jcp_;
 
     const auto src_md = memory_desc_wrapper(conf_.src_pd());
     const size_t src_mb_stride = src_md.blk_off(1);
@@ -188,7 +188,7 @@ void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data() {
     auto bia_base = reinterpret_cast<const char *>(this->input_memory(2));
     auto diff_src_base = reinterpret_cast<diff_src_data_t *>(this->memory());
 
-    jit_gemm_conv_conf_t &jcp = this->conf_.jcp_;
+    const jit_gemm_conv_conf_t &jcp = this->conf_.jcp_;
     char *scratchpad = (char *)this->scratchpad_->get();
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
@@ -204,7 +204,7 @@ void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>
         const char *bia_base, diff_src_data_t *diff_src_base, char *scratchpad)
 {
 #if USE_MKL_IGEMM
-    jit_gemm_conv_conf_t &jcp = this->conf_.jcp_;
+    const jit_gemm_conv_conf_t &jcp = this->conf_.jcp_;
 
     const auto diff_dst_md = memory_desc_wrapper(conf_.diff_dst_pd());
     const size_t diff_dst_mb_stride = diff_dst_md.blk_off(1);

@@ -36,7 +36,9 @@ using namespace data_type;
 
 namespace jit_gemm_convolution_utils {
 
-void im2col_3d(jit_gemm_conv_conf_t &jcp, const float *im, float *col, int od) {
+void im2col_3d(const jit_gemm_conv_conf_t &jcp, const float *im, float *col,
+        int od)
+{
     const size_t OHW = jcp.oh * jcp.ow;
     const size_t im_step = jcp.ih * jcp.iw * jcp.id;
     const size_t col_step = jcp.ks * OHW;
@@ -117,7 +119,7 @@ void im2col_3d(jit_gemm_conv_conf_t &jcp, const float *im, float *col, int od) {
     });
 }
 
-void im2col(jit_gemm_conv_conf_t &jcp, const float *im, float *col) {
+void im2col(const jit_gemm_conv_conf_t &jcp, const float *im, float *col) {
     if (jcp.ic == 1) {
         parallel_nd(jcp.kh, jcp.oh, [&](int kh, int oh) {
             const int ih = oh * jcp.stride_h - jcp.t_pad + kh * (1 + jcp.dilate_h);
@@ -165,7 +167,7 @@ void im2col(jit_gemm_conv_conf_t &jcp, const float *im, float *col) {
 
 /* col[oh][ow][kh][kw][ic] <-- im2col_u8(im[ih][iw][ic]) */
 template <typename T>
-void im2col_u8(jit_gemm_conv_conf_t &jcp, const T *im, uint8_t *col) {
+void im2col_u8(const jit_gemm_conv_conf_t &jcp, const T *im, uint8_t *col) {
     parallel_nd(jcp.oh, jcp.ow, [&](int oh, int ow) {
             for (int kh = 0; kh < jcp.kh; ++kh) {
                 const int ih = oh * jcp.stride_h
@@ -192,13 +194,16 @@ void im2col_u8(jit_gemm_conv_conf_t &jcp, const T *im, uint8_t *col) {
         }
     );
 }
-template void im2col_u8<int8_t>(
-        jit_gemm_conv_conf_t &jcp, const int8_t *im, uint8_t *col);
-template void im2col_u8<uint8_t>(
-        jit_gemm_conv_conf_t &jcp, const uint8_t *im, uint8_t *col);
+
+template void im2col_u8<int8_t>(const jit_gemm_conv_conf_t &jcp,
+        const int8_t *im, uint8_t *col);
+template void im2col_u8<uint8_t>(const jit_gemm_conv_conf_t &jcp,
+        const uint8_t *im, uint8_t *col);
 
 /* im[ih][iw][ic] <-- col2im_s32(col[oh][ow][kh][kw][ic]) */
-void col2im_s32(jit_gemm_conv_conf_t &jcp, const int32_t *col, int32_t *im) {
+void col2im_s32(const jit_gemm_conv_conf_t &jcp, const int32_t *col,
+        int32_t *im)
+{
     parallel(0, [&](const int ithr, const int nthr) {
         int h_nthr = nstl::min(jcp.ih, nthr);
         int w_nthr = nstl::min(jcp.iw, nthr / h_nthr);
@@ -250,7 +255,9 @@ void col2im_s32(jit_gemm_conv_conf_t &jcp, const int32_t *col, int32_t *im) {
     });
 }
 
-void col2im_3d(jit_gemm_conv_conf_t &jcp, const float *col, float *im, int od) {
+void col2im_3d(const jit_gemm_conv_conf_t &jcp, const float *col, float *im,
+        int od)
+{
     parallel_nd(jcp.ic, [&](int ic) {
         const float *col_ = col + (size_t)ic * jcp.ks * jcp.os;
         float *im_ic = im + (size_t)ic * jcp.ih * jcp.iw * jcp.id;
@@ -289,7 +296,7 @@ void col2im_3d(jit_gemm_conv_conf_t &jcp, const float *col, float *im, int od) {
     });
 }
 
-void col2im(jit_gemm_conv_conf_t &jcp, const float *col, float *im) {
+void col2im(const jit_gemm_conv_conf_t &jcp, const float *col, float *im) {
     const size_t col_step = jcp.ks * jcp.os;
     const size_t im_step = jcp.ih * jcp.iw;
     const int iS = jcp.ih * jcp.iw;

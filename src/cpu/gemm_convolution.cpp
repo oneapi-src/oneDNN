@@ -37,7 +37,7 @@ void gemm_convolution_fwd_t::execute_forward() {
     auto bias = reinterpret_cast<const data_t *>(this->input_memory(2));
     auto dst = reinterpret_cast<data_t*>(this->memory());
 
-    jit_gemm_conv_conf_t &jcp = this->conf_.jcp_;
+    const jit_gemm_conv_conf_t &jcp = this->conf_.jcp_;
 
     const int M = jcp.os * jcp.od;
     const size_t src_step = jcp.ic * jcp.ih * jcp.iw * jcp.id;
@@ -122,7 +122,7 @@ void gemm_convolution_bwd_data_t::execute_backward_data() {
     auto weights = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto diff_src = reinterpret_cast<data_t*>(this->memory());
 
-    jit_gemm_conv_conf_t &jcp = this->conf_.jcp_;
+    const jit_gemm_conv_conf_t &jcp = this->conf_.jcp_;
 
     const int M = jcp.os * jcp.od;
     const size_t src_step = jcp.ic * jcp.ih * jcp.iw * jcp.id;
@@ -182,7 +182,7 @@ void gemm_convolution_bwd_weights_t::execute_backward_weights() {
     auto diff_weights = reinterpret_cast<data_t*>(this->memory(0));
     auto diff_bias = reinterpret_cast<data_t *>(this->memory(1));
 
-    jit_gemm_conv_conf_t &jcp = this->conf_.jcp_;
+    const jit_gemm_conv_conf_t &jcp = this->conf_.jcp_;
     const int K = jcp.os * jcp.od;
     const size_t src_step = jcp.ic * jcp.ih * jcp.iw * jcp.id;
     const size_t dst_step = jcp.oc * K;

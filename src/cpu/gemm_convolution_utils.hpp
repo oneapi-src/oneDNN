@@ -30,14 +30,17 @@ namespace cpu {
 
 namespace jit_gemm_convolution_utils {
 
-void im2col_3d(jit_gemm_conv_conf_t &jcp, const float *im, float *col, int od);
-void im2col(jit_gemm_conv_conf_t &jcp, const float *im, float *col);
+void im2col_3d(const jit_gemm_conv_conf_t &jcp, const float *im, float *col,
+        int od);
+void im2col(const jit_gemm_conv_conf_t &jcp, const float *im, float *col);
 template <typename T>
-void im2col_u8(jit_gemm_conv_conf_t &jcp, const T *im, uint8_t *col);
+void im2col_u8(const jit_gemm_conv_conf_t &jcp, const T *im, uint8_t *col);
 
-void col2im_s32(jit_gemm_conv_conf_t &jcp, const int32_t *col, int32_t *im);
-void col2im_3d(jit_gemm_conv_conf_t &jcp, const float *col, float *im, int od);
-void col2im(jit_gemm_conv_conf_t &jcp, const float *col, float *im);
+void col2im_s32(const jit_gemm_conv_conf_t &jcp, const int32_t *col,
+        int32_t *im);
+void col2im_3d(const jit_gemm_conv_conf_t &jcp, const float *col, float *im,
+        int od);
+void col2im(const jit_gemm_conv_conf_t &jcp, const float *col, float *im);
 
 status_t init_conf(jit_gemm_conv_conf_t &jcp, const convolution_desc_t &cd,
         const memory_desc_wrapper &src_d, const memory_desc_wrapper &weights_d,
