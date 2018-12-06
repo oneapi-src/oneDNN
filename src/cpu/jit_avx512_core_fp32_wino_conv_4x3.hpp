@@ -238,11 +238,11 @@ struct jit_avx512_core_fp32_wino_conv_4x3_fwd_t
         }
     };
 
-    jit_avx512_core_fp32_wino_conv_4x3_fwd_t(const pd_t *pd,
+    jit_avx512_core_fp32_wino_conv_4x3_fwd_t(const pd_t *apd,
             const input_vector &inputs, const output_vector &outputs)
-        : _jit_avx512_core_fp32_wino_conv_4x3_t<true>(pd->jcp_, pd->attr())
-        , cpu_primitive_t(&conf_, inputs, outputs)
-        , conf_(*pd) {}
+        : _jit_avx512_core_fp32_wino_conv_4x3_t<true>(apd->jcp_, apd->attr())
+        , cpu_primitive_t(apd, inputs, outputs)
+         {}
 
     ~jit_avx512_core_fp32_wino_conv_4x3_fwd_t(){};
 
@@ -255,7 +255,7 @@ struct jit_avx512_core_fp32_wino_conv_4x3_fwd_t
         float *weights = (float *)this->input_memory(1);
         float *bias = (float *)this->input_memory(2);
 
-        switch ((conf_.jcp_).sched_policy) {
+        switch ((pd()->jcp_).sched_policy) {
         case WSCHED_DATA_W_S_G_D:
             this->_execute_data_W_S_G_D(src, dst, weights, bias);
             break;
@@ -269,7 +269,7 @@ struct jit_avx512_core_fp32_wino_conv_4x3_fwd_t
     }
 
 private:
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
 struct jit_avx512_core_fp32_wino_conv_4x3_bwd_data_t
@@ -325,11 +325,11 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_data_t
         }
     };
 
-    jit_avx512_core_fp32_wino_conv_4x3_bwd_data_t(const pd_t *pd,
+    jit_avx512_core_fp32_wino_conv_4x3_bwd_data_t(const pd_t *apd,
             const input_vector &inputs, const output_vector &outputs)
-        : _jit_avx512_core_fp32_wino_conv_4x3_t<false>(pd->jcp_, pd->attr())
-        , cpu_primitive_t(&conf_, inputs, outputs)
-        , conf_(*pd) {}
+        : _jit_avx512_core_fp32_wino_conv_4x3_t<false>(apd->jcp_, apd->attr())
+        , cpu_primitive_t(apd, inputs, outputs)
+         {}
 
     ~jit_avx512_core_fp32_wino_conv_4x3_bwd_data_t(){};
 
@@ -341,8 +341,8 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_data_t
         float *diff_src = (float *)this->memory();
         float *weights = (float *)this->input_memory(1);
 
-        if (conf_.desc()->prop_kind == prop_kind::backward_data) {
-            switch ((conf_.jcp_).sched_policy) {
+        if (pd()->desc()->prop_kind == prop_kind::backward_data) {
+            switch ((pd()->jcp_).sched_policy) {
             case WSCHED_DATA_W_S_G_D:
                 this->_execute_data_W_S_G_D(diff_dst, diff_src, weights, NULL);
                 break;
@@ -362,7 +362,7 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_data_t
     }
 
 private:
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
 struct jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_t
@@ -420,14 +420,13 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_t
         }
     };
 
-    jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_t(const pd_t *pd,
+    jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_t(const pd_t *apd,
             const input_vector &inputs, const output_vector &outputs)
-        : cpu_primitive_t(&conf_, inputs, outputs)
-        , conf_(*pd)
+        : cpu_primitive_t(apd, inputs, outputs)
         , kernel_(nullptr)
         , scratchpad_(nullptr)
     {
-        auto jcp = conf_.jcp_;
+        auto jcp = pd()->jcp_;
         kernel_ = new jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_kernel(
                 jcp);
         scratchpad_ = new winograd::winograd_scratchpad_avx512_core_t(jcp);
@@ -443,7 +442,7 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_t
 
     virtual void execute(event_t *e)
     {
-        if (conf_.desc()->prop_kind == prop_kind::backward_weights) {
+        if (pd()->desc()->prop_kind == prop_kind::backward_weights) {
             const auto &jcp = kernel_->jcp;
             switch (jcp.sched_policy) {
             case WSCHED_WEI_SDGtWo:
@@ -466,7 +465,7 @@ private:
     void _execute_backward_weights_SDGtWo();
     void _execute_backward_weights_S_D_Giot_W();
 
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_kernel *kernel_;
 
     // Buffer required to store transforms in the frequency domain

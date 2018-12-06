@@ -83,11 +83,11 @@ struct simple_concat_t: public cpu_primitive_t {
         dims_t iperm_;
     };
 
-    simple_concat_t(const pd_t *pd, const input_vector &inputs,
+    simple_concat_t(const pd_t *apd, const input_vector &inputs,
             const output_vector &outputs)
-        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
+        : cpu_primitive_t(apd, inputs, outputs)
     {
-        const int n = conf_.n_inputs();
+        const int n = pd()->n_inputs();
         input_ptrs_ = (decltype(input_ptrs_))malloc(
                 sizeof(*input_ptrs_) * n, 64);
         output_ptrs_ = (decltype(output_ptrs_))malloc(
@@ -167,7 +167,7 @@ private:
     }
 
     void execute();
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     const data_t **input_ptrs_ = nullptr;
     data_t **output_ptrs_ = nullptr;

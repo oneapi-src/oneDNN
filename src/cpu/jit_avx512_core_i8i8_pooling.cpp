@@ -534,10 +534,10 @@ status_t jit_avx512_core_i8i8_pooling_fwd_t::pd_t::jit_conf() {
 }
 
 jit_avx512_core_i8i8_pooling_fwd_t::
-jit_avx512_core_i8i8_pooling_fwd_t(const pd_t *pd,
+jit_avx512_core_i8i8_pooling_fwd_t(const pd_t *apd,
           const input_vector &inputs, const output_vector &outputs)
-    : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd), ker_(nullptr)
-{ ker_ = new jit_avx512_core_i8i8_pool_fwd_ker_t(conf_.jpp_); }
+    : cpu_primitive_t(apd, inputs, outputs), ker_(nullptr)
+{ ker_ = new jit_avx512_core_i8i8_pool_fwd_ker_t(pd()->jpp_); }
 
 jit_avx512_core_i8i8_pooling_fwd_t::
 ~jit_avx512_core_i8i8_pooling_fwd_t() { delete ker_; }
@@ -546,10 +546,10 @@ void jit_avx512_core_i8i8_pooling_fwd_t::execute_forward() {
     auto src_i8 = reinterpret_cast<const char *>(input_memory(0));
     auto dst_i8 = reinterpret_cast<char *>(memory());
 
-    const memory_desc_wrapper src_d(conf_.src_pd());
-    const memory_desc_wrapper dst_d(conf_.dst_pd());
+    const memory_desc_wrapper src_d(pd()->src_pd());
+    const memory_desc_wrapper dst_d(pd()->dst_pd());
 
-    const auto &jpp = conf_.jpp_;
+    const auto &jpp = pd()->jpp_;
 
     parallel_nd(jpp.mb, jpp.oh, jpp.ow,
             [&](int n, int oh, int ow) {

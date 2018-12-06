@@ -52,11 +52,11 @@ struct mkldnn_primitive: public mkldnn::impl::c_compatible {
 
     mkldnn_primitive(const mkldnn::impl::primitive_desc_t *pd,
             const input_vector &inputs, const output_vector &outputs)
-        : pd_(pd)
+        : pd_(pd->clone())
         , inputs_(inputs)
         , outputs_(outputs)
     {}
-    virtual ~mkldnn_primitive() {}
+    virtual ~mkldnn_primitive() { delete pd_; }
 
     /** returns primitive's engine */
     mkldnn::impl::engine_t *engine() const { return pd_->engine(); }

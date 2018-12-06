@@ -93,17 +93,17 @@ struct gemm_u8s8s32x_inner_product_fwd_t: public cpu_primitive_t {
         }
     };
 
-    gemm_u8s8s32x_inner_product_fwd_t(const pd_t *pd, const input_vector &inputs,
+    gemm_u8s8s32x_inner_product_fwd_t(const pd_t *apd, const input_vector &inputs,
             const output_vector &outputs)
-        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
+        : cpu_primitive_t(apd, inputs, outputs)
         , dst_is_acc_(false), scratchpad_(nullptr), pp_kernel_(nullptr)
     {
         dst_is_acc_ = utils::one_of(dst_type, data_type::s32, data_type::f32);
         if (!dst_is_acc_) {
-            size_t size = conf_.MB() * conf_.OC() * sizeof(acc_data_t);
+            size_t size = pd()->MB() * pd()->OC() * sizeof(acc_data_t);
             scratchpad_ = create_scratchpad(size);
         }
-        pp_kernel_ = new pp_kernel_t(&conf_, dst_is_acc_);
+        pp_kernel_ = new pp_kernel_t(apd, dst_is_acc_);
     }
 
     ~gemm_u8s8s32x_inner_product_fwd_t() {
@@ -160,7 +160,7 @@ private:
     };
 
     void execute_forward();
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     bool dst_is_acc_;
     scratchpad_t *scratchpad_;
     pp_kernel_t *pp_kernel_;

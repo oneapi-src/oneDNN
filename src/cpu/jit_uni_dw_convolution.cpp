@@ -35,14 +35,14 @@ void _jit_uni_dw_convolution_fwd_t<isa>::execute_forward() {
     auto bias = reinterpret_cast<const data_t *>(this->input_memory(2));
     auto dst = reinterpret_cast<data_t *>(this->memory());
 
-    const memory_desc_wrapper src_d(conf_.src_pd());
-    const memory_desc_wrapper dst_d(conf_.dst_pd());
-    const memory_desc_wrapper weights_d(conf_.weights_pd(0));
-    const memory_desc_wrapper bias_d(conf_.weights_pd(1));
+    const memory_desc_wrapper src_d(pd()->src_pd());
+    const memory_desc_wrapper dst_d(pd()->dst_pd());
+    const memory_desc_wrapper weights_d(pd()->weights_pd(0));
+    const memory_desc_wrapper bias_d(pd()->weights_pd(1));
 
     const auto &jcp = kernel_->jcp;
 
-    if (conf_.wants_padded_bias()) {
+    if (pd()->wants_padded_bias()) {
         for (int oc = 0; oc < jcp.oc_without_padding; ++oc)
             padded_bias_[oc] = bias[oc];
         bias = padded_bias_;
@@ -133,7 +133,7 @@ void _jit_uni_dw_convolution_fwd_t<isa>::execute_forward() {
         }
     });
 
-    if (conf_.wants_zero_pad_dst())
+    if (pd()->wants_zero_pad_dst())
         output_memory_primitive(0)->zero_pad();
 }
 
@@ -147,9 +147,9 @@ void _jit_uni_dw_convolution_bwd_data_t<isa>::execute_backward_data() {
     auto weights = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto diff_src = reinterpret_cast<data_t *>(this->memory());
 
-    const memory_desc_wrapper diff_dst_d(conf_.diff_dst_pd());
-    const memory_desc_wrapper diff_src_d(conf_.diff_src_pd());
-    const memory_desc_wrapper weights_d(conf_.weights_pd(0));
+    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
+    const memory_desc_wrapper diff_src_d(pd()->diff_src_pd());
+    const memory_desc_wrapper weights_d(pd()->weights_pd(0));
 
     const auto &jcp = kernel_->jcp;
 
@@ -246,11 +246,11 @@ template void _jit_uni_dw_convolution_bwd_data_t<sse42>
 
 template <cpu_isa_t isa>
 _jit_uni_dw_convolution_bwd_weights_t<isa>::
-        _jit_uni_dw_convolution_bwd_weights_t(const pd_t *pd,
+        _jit_uni_dw_convolution_bwd_weights_t(const pd_t *apd,
                 const input_vector &inputs, const output_vector &outputs)
-    : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {
+    : cpu_primitive_t(apd, inputs, outputs) {
 
-    const auto &jcp = conf_.jcp_;
+    const auto &jcp = pd()->jcp_;
 
     kernel_ = new jit_uni_dw_conv_bwd_weights_kernel_f32<isa>(jcp);
 
@@ -468,13 +468,13 @@ void _jit_uni_dw_convolution_bwd_weights_t<isa>::execute_backward_weights() {
 }
 
 template _jit_uni_dw_convolution_bwd_weights_t<avx512_common>::
-        _jit_uni_dw_convolution_bwd_weights_t(const pd_t *pd,
+        _jit_uni_dw_convolution_bwd_weights_t(const pd_t *apd,
                 const input_vector &inputs, const output_vector &outputs);
 template _jit_uni_dw_convolution_bwd_weights_t<avx2>::
-        _jit_uni_dw_convolution_bwd_weights_t(const pd_t *pd,
+        _jit_uni_dw_convolution_bwd_weights_t(const pd_t *apd,
                 const input_vector &inputs, const output_vector &outputs);
 template _jit_uni_dw_convolution_bwd_weights_t<sse42>::
-        _jit_uni_dw_convolution_bwd_weights_t(const pd_t *pd,
+        _jit_uni_dw_convolution_bwd_weights_t(const pd_t *apd,
                 const input_vector &inputs, const output_vector &outputs);
 
 template void _jit_uni_dw_convolution_bwd_weights_t<avx512_common>::

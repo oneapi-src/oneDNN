@@ -61,7 +61,7 @@ void ref_softmax_fwd_t<data_type>::execute_forward_generic() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto dst = reinterpret_cast<data_t *>(this->memory(0));
 
-    const memory_desc_wrapper data_d(conf_.src_pd());
+    const memory_desc_wrapper data_d(pd()->src_pd());
     const size_t dim = channels_ * inner_size_;
 
     for (int ou = 0; ou < outer_size_; ou++) {
@@ -180,8 +180,8 @@ void ref_softmax_bwd_t<data_type>::execute_backward_generic() {
     auto data = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto diff_src = reinterpret_cast<data_t *>(this->memory(0));
-    const memory_desc_wrapper diff_d(conf_.diff_src_pd());
-    const memory_desc_wrapper data_d(conf_.dst_pd());
+    const memory_desc_wrapper diff_d(pd()->diff_src_pd());
+    const memory_desc_wrapper data_d(pd()->dst_pd());
 
     parallel_nd(outer_size_, [&](int ou) {
         for (int in = 0; in < inner_size_; in++) {

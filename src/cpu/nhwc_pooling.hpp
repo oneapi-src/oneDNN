@@ -90,9 +90,9 @@ struct nhwc_pooling_fwd_t: public cpu_primitive_t {
         }
     };
 
-    nhwc_pooling_fwd_t(const pd_t *pd, const input_vector &inputs,
+    nhwc_pooling_fwd_t(const pd_t *apd, const input_vector &inputs,
             const output_vector &outputs)
-        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {}
+        : cpu_primitive_t(apd, inputs, outputs) {}
 
     typedef typename prec_traits<data_type>::type data_t;
 
@@ -172,7 +172,7 @@ private:
         }
     }
 
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
 template <impl::data_type_t data_type>
@@ -224,9 +224,9 @@ struct nhwc_pooling_bwd_t: public cpu_primitive_t {
         }
     };
 
-    nhwc_pooling_bwd_t(const pd_t *pd, const input_vector &inputs,
+    nhwc_pooling_bwd_t(const pd_t *apd, const input_vector &inputs,
             const output_vector &outputs)
-        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {}
+        : cpu_primitive_t(apd, inputs, outputs) {}
     typedef typename prec_traits<data_type>::type data_t;
 
     virtual void execute(event_t *e) {
@@ -236,7 +236,7 @@ struct nhwc_pooling_bwd_t: public cpu_primitive_t {
 
 private:
     void execute_backward();
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
 }// namespace cpu

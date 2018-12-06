@@ -38,28 +38,28 @@ void ref_inner_product_fwd_t<src_type, wei_type, dst_type, acc_type>
     auto bias = reinterpret_cast<const char *>(this->input_memory(2));
     auto dst = reinterpret_cast<dst_data_t *>(this->memory());
 
-    const memory_desc_wrapper src_d(conf_.src_pd());
-    const memory_desc_wrapper dst_d(conf_.dst_pd());
-    const memory_desc_wrapper weights_d(conf_.weights_pd(0));
-    const memory_desc_wrapper bias_d(conf_.weights_pd(1));
+    const memory_desc_wrapper src_d(pd()->src_pd());
+    const memory_desc_wrapper dst_d(pd()->dst_pd());
+    const memory_desc_wrapper weights_d(pd()->weights_pd(0));
+    const memory_desc_wrapper bias_d(pd()->weights_pd(1));
 
-    const int MB = conf_.MB();
-    const int OC = conf_.OC();
-    const int IC = conf_.IC();
+    const int MB = pd()->MB();
+    const int OC = pd()->OC();
+    const int IC = pd()->IC();
 
     const bool src_has_spatial = utils::one_of(src_d.ndims(), 4, 5);
 
     const bool is_3d = src_d.ndims() == 5;
 
-    const auto &post_ops = conf_.attr()->post_ops_;
+    const auto &post_ops = pd()->attr()->post_ops_;
     const bool do_relu = post_ops.len_ == 1;
     const float nslope = do_relu ? post_ops.entry_[0].eltwise.alpha : 0.f;
 
     auto ker_has_spatial = [=](int mb, int oc) {
         acc_data_t d = 0;
-        const int KD = conf_.KD();
-        const int KH = conf_.KH();
-        const int KW = conf_.KW();
+        const int KD = pd()->KD();
+        const int KH = pd()->KH();
+        const int KW = pd()->KW();
         for (int ic = 0; ic < IC; ++ic) {
             for (int kd = 0; kd < KD; ++kd) {
                 for (int kh = 0; kh < KH; ++kh) {
@@ -88,7 +88,7 @@ void ref_inner_product_fwd_t<src_type, wei_type, dst_type, acc_type>
 
     parallel_nd(MB, OC, [&](int mb, int oc) {
         float a = bias
-            ? get_bias(bias, bias_d.off(oc), conf_.desc()->bias_desc.data_type)
+            ? get_bias(bias, bias_d.off(oc), pd()->desc()->bias_desc.data_type)
             : 0;
         if (src_has_spatial)
             a += ker_has_spatial(mb, oc);
@@ -116,13 +116,13 @@ void ref_inner_product_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
     auto weights = reinterpret_cast<const wei_data_t *>(this->input_memory(1));
     auto diff_src = reinterpret_cast<diff_src_data_t*>(this->memory());
 
-    const memory_desc_wrapper diff_dst_d(conf_.diff_dst_pd());
-    const memory_desc_wrapper weights_d(conf_.weights_pd(0));
-    const memory_desc_wrapper diff_src_d(conf_.diff_src_pd());
+    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
+    const memory_desc_wrapper weights_d(pd()->weights_pd(0));
+    const memory_desc_wrapper diff_src_d(pd()->diff_src_pd());
 
-    const int MB = conf_.MB();
-    const int OC = conf_.OC();
-    const int IC = conf_.IC();
+    const int MB = pd()->MB();
+    const int OC = pd()->OC();
+    const int IC = pd()->IC();
 
     const bool diff_src_has_spatial = utils::one_of(diff_src_d.ndims(), 4, 5);
 
@@ -130,9 +130,9 @@ void ref_inner_product_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
 
     parallel_nd(MB, IC, [&](int mb, int ic) {
         if (diff_src_has_spatial) {
-            const int KD = conf_.KD();
-            const int KH = conf_.KH();
-            const int KW = conf_.KW();
+            const int KD = pd()->KD();
+            const int KH = pd()->KH();
+            const int KW = pd()->KW();
             for (int kd = 0; kd < KD; ++kd)
             for (int kh = 0; kh < KH; ++kh)
             for (int kw = 0; kw < KW; ++kw) {
@@ -171,14 +171,14 @@ void ref_inner_product_bwd_weights_t<data_type>::execute_backward_weights() {
     auto diff_weights = reinterpret_cast<data_t*>(this->memory(0));
     auto diff_bias = reinterpret_cast<data_t*>(this->memory(1));
 
-    const memory_desc_wrapper src_d(conf_.src_pd());
-    const memory_desc_wrapper diff_dst_d(conf_.diff_dst_pd());
-    const memory_desc_wrapper diff_weights_d(conf_.diff_weights_pd(0));
-    const memory_desc_wrapper diff_bias_d(conf_.diff_weights_pd(1));
+    const memory_desc_wrapper src_d(pd()->src_pd());
+    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
+    const memory_desc_wrapper diff_weights_d(pd()->diff_weights_pd(0));
+    const memory_desc_wrapper diff_bias_d(pd()->diff_weights_pd(1));
 
-    const int MB = conf_.MB();
-    const int OC = conf_.OC();
-    const int IC = conf_.IC();
+    const int MB = pd()->MB();
+    const int OC = pd()->OC();
+    const int IC = pd()->IC();
 
     const bool src_has_spatial = utils::one_of(src_d.ndims(), 4 ,5);
 
@@ -186,9 +186,9 @@ void ref_inner_product_bwd_weights_t<data_type>::execute_backward_weights() {
 
     parallel_nd(OC, IC, [&](int oc, int ic) {
         if (src_has_spatial) {
-            const int KD = conf_.KD();
-            const int KH = conf_.KH();
-            const int KW = conf_.KW();
+            const int KD = pd()->KD();
+            const int KH = pd()->KH();
+            const int KW = pd()->KW();
             for (int kd = 0; kd < KD; ++kd) {
                 for (int kh = 0; kh < KH; ++kh) {
                     for (int kw = 0; kw < KW; ++kw) {

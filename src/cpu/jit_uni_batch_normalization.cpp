@@ -1264,26 +1264,26 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init() {
 
 template <cpu_isa_t isa>
 jit_uni_batch_normalization_fwd_t<isa>::jit_uni_batch_normalization_fwd_t(
-        const pd_t *pd, const input_vector &inputs,
+        const pd_t *apd, const input_vector &inputs,
         const output_vector &outputs)
-    : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
-{ bnorm_driver_ = new uni_bnorm_driver_t<isa>(&conf_); }
+    : cpu_primitive_t(apd, inputs, outputs)
+{ bnorm_driver_ = new uni_bnorm_driver_t<isa>(apd); }
 
 template <cpu_isa_t isa>
 void jit_uni_batch_normalization_fwd_t<isa>::execute(event_t *e) {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto dst = reinterpret_cast<data_t*>(this->memory(0));
-    auto mean = reinterpret_cast<data_t*>(conf_.stats_is_src()
+    auto mean = reinterpret_cast<data_t*>(pd()->stats_is_src()
             ? const_cast<char*>(this->input_memory(1))
             : this->memory(1));
-    auto var = reinterpret_cast<data_t*>(conf_.stats_is_src()
+    auto var = reinterpret_cast<data_t*>(pd()->stats_is_src()
             ? const_cast<char*>(this->input_memory(2))
             : this->memory(2));
 
-    auto idx_scale_shift = 1 + 2*conf_.stats_is_src();
+    auto idx_scale_shift = 1 + 2*pd()->stats_is_src();
     auto scale_shift =
         reinterpret_cast<const data_t *>(this->input_memory(idx_scale_shift));
-    auto ws = reinterpret_cast<uint8_t *>(this->memory(conf_.ws_idx()));
+    auto ws = reinterpret_cast<uint8_t *>(this->memory(pd()->ws_idx()));
 
     parallel(0, [&](const int ithr, const int nthr) {
         bnorm_driver_->exec(ithr, nthr, src,
@@ -1342,10 +1342,10 @@ status_t jit_uni_batch_normalization_bwd_t<isa>::pd_t::init() {
 
 template <cpu_isa_t isa>
 jit_uni_batch_normalization_bwd_t<isa>::jit_uni_batch_normalization_bwd_t(
-        const pd_t *pd, const input_vector &inputs,
+        const pd_t *apd, const input_vector &inputs,
         const output_vector &outputs)
-    : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
-{ bnorm_driver_ = new uni_bnorm_driver_t<isa>(&conf_); }
+    : cpu_primitive_t(apd, inputs, outputs)
+{ bnorm_driver_ = new uni_bnorm_driver_t<isa>(apd); }
 
 template <cpu_isa_t isa>
 void jit_uni_batch_normalization_bwd_t<isa>::execute(event_t *e) {
@@ -1357,7 +1357,7 @@ void jit_uni_batch_normalization_bwd_t<isa>::execute(event_t *e) {
     auto diff_src = reinterpret_cast<data_t*>(this->memory(0));
     auto diff_scale_shift = reinterpret_cast<data_t *>(this->memory(1));
     auto ws = reinterpret_cast<const uint8_t *>(
-            this->input_memory(conf_.ws_idx()));
+            this->input_memory(pd()->ws_idx()));
 
     parallel(0, [&](const int ithr, const int nthr) {
         bnorm_driver_->exec(ithr, nthr, src,

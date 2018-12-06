@@ -99,17 +99,17 @@ struct jit_avx2_1x1_convolution_fwd_t: public cpu_primitive_t {
     template <cpu_isa_t isa, typename conv_t>
     friend void init_rtus_driver(conv_t *self);
 
-    jit_avx2_1x1_convolution_fwd_t(const pd_t *pd, const input_vector &inputs,
+    jit_avx2_1x1_convolution_fwd_t(const pd_t *apd, const input_vector &inputs,
             const output_vector &outputs)
-        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
+        : cpu_primitive_t(apd, inputs, outputs)
         , kernel_(nullptr), rtus_driver_(nullptr), ws_per_thread_(0)
         , scratch_(nullptr), padded_bias_(nullptr)
     {
-        kernel_ = new jit_avx2_1x1_conv_kernel_f32(conf_.jcp_, *conf_.attr());
+        kernel_ = new jit_avx2_1x1_conv_kernel_f32(pd()->jcp_, *pd()->attr());
         init_rtus_driver<avx2>(this);
 
-        if (conf_.wants_padded_bias()) {
-            const auto &j = conf_.jcp_;
+        if (pd()->wants_padded_bias()) {
+            const auto &j = pd()->jcp_;
             assert(j.ngroups == 1);
             padded_bias_ = (data_t *)malloc(sizeof(data_t) * j.oc, 64);
             for (int oc = j.oc_without_padding; oc < j.oc; ++oc)
@@ -133,7 +133,7 @@ struct jit_avx2_1x1_convolution_fwd_t: public cpu_primitive_t {
 
 private:
     void execute_forward();
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_avx2_1x1_conv_kernel_f32 *kernel_;
 
     /* reduction to unit stride */
@@ -207,13 +207,13 @@ struct jit_avx2_1x1_convolution_bwd_data_t: public cpu_primitive_t {
     template <cpu_isa_t isa, typename conv_t>
     friend void init_rtus_driver(conv_t *self);
 
-    jit_avx2_1x1_convolution_bwd_data_t(const pd_t *pd,
+    jit_avx2_1x1_convolution_bwd_data_t(const pd_t *apd,
             const input_vector &inputs, const output_vector &outputs)
-        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
+        : cpu_primitive_t(apd, inputs, outputs)
         , kernel_(nullptr), rtus_driver_(nullptr), ws_per_thread_(0)
         , scratch_(nullptr)
     {
-        kernel_ = new jit_avx2_1x1_conv_kernel_f32(conf_.jcp_, *conf_.attr());
+        kernel_ = new jit_avx2_1x1_conv_kernel_f32(pd()->jcp_, *pd()->attr());
         init_rtus_driver<avx2>(this);
     }
     ~jit_avx2_1x1_convolution_bwd_data_t() {
@@ -225,7 +225,7 @@ struct jit_avx2_1x1_convolution_bwd_data_t: public cpu_primitive_t {
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     virtual void execute(event_t *e) {
-        switch (conf_.desc()->prop_kind) {
+        switch (pd()->desc()->prop_kind) {
         case prop_kind::backward_data:
             execute_backward_data();
             break;
@@ -237,7 +237,7 @@ struct jit_avx2_1x1_convolution_bwd_data_t: public cpu_primitive_t {
 
 private:
     void execute_backward_data();
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_avx2_1x1_conv_kernel_f32 *kernel_;
 
     /* reduction to unit stride */
@@ -315,7 +315,7 @@ struct jit_avx2_1x1_convolution_bwd_weights_t: public cpu_primitive_t {
     template <cpu_isa_t isa, typename conv_t>
     friend void init_rtus_driver(conv_t *self);
 
-    jit_avx2_1x1_convolution_bwd_weights_t(const pd_t *pd,
+    jit_avx2_1x1_convolution_bwd_weights_t(const pd_t *apd,
             const input_vector &inputs, const output_vector &outputs);
     ~jit_avx2_1x1_convolution_bwd_weights_t() {
         delete kernel_;
@@ -329,7 +329,7 @@ struct jit_avx2_1x1_convolution_bwd_weights_t: public cpu_primitive_t {
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     virtual void execute(event_t *e) {
-        switch (conf_.desc()->prop_kind) {
+        switch (pd()->desc()->prop_kind) {
         case prop_kind::backward_weights:
             execute_backward_weights();
             break;
@@ -341,7 +341,7 @@ struct jit_avx2_1x1_convolution_bwd_weights_t: public cpu_primitive_t {
 
 private:
     void execute_backward_weights();
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_avx2_1x1_conv_kernel_f32 *kernel_;
     cpu_reducer_2d_t<data_type::f32> *reducer_weights_;
     cpu_reducer_t<data_type::f32> *reducer_bias_;

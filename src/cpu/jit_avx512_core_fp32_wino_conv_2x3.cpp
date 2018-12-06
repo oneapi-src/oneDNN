@@ -829,30 +829,30 @@ status_t jit_avx512_core_fp32_wino_conv_2x3_fwd_t
 }
 
 jit_avx512_core_fp32_wino_conv_2x3_fwd_t::
-        jit_avx512_core_fp32_wino_conv_2x3_fwd_t(const pd_t *pd,
+        jit_avx512_core_fp32_wino_conv_2x3_fwd_t(const pd_t *apd,
                 const input_vector &inputs, const output_vector &outputs)
-    : cpu_primitive_t(&conf_, inputs, outputs)
-    , conf_(*pd), padded_bias_(nullptr) {
+    : cpu_primitive_t(apd, inputs, outputs)
+    , padded_bias_(nullptr) {
     MAYBE_UNUSED(size_wino_wei);
     MAYBE_UNUSED(dst_bias_);
     const int nthreads = mkldnn_get_max_threads();
     kernel_ = new jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t(
-            conf_.jcp_, *conf_.attr());
+            pd()->jcp_, *pd()->attr());
     src_trans_ = new jit_avx512_core_fp32_wino_conv_2x3_src_trans_t(
-            conf_.jcp_, *conf_.attr());
+            pd()->jcp_, *pd()->attr());
     dst_trans_ = new jit_avx512_core_fp32_wino_conv_2x3_dst_trans_t(
-            conf_.jcp_, *conf_.attr());
+            pd()->jcp_, *pd()->attr());
 
     int wino_size_offset
-            = (conf_.jcp_.yb / 2) * (conf_.jcp_.xb / 2) + (conf_.jcp_.xb);
+            = (pd()->jcp_.yb / 2) * (pd()->jcp_.xb / 2) + (pd()->jcp_.xb);
 
-    size_wino_src = (conf_.jcp_.ic * 16) * (wino_size_offset);
-    size_wino_dst = (conf_.jcp_.oc * 16) * (wino_size_offset);
+    size_wino_src = (pd()->jcp_.ic * 16) * (wino_size_offset);
+    size_wino_dst = (pd()->jcp_.oc * 16) * (wino_size_offset);
 
     wino_src_ = (float *)malloc(sizeof(float) * nthreads * size_wino_src, 4096);
     wino_dst_ = (float *)malloc(sizeof(float) * nthreads * size_wino_dst, 4096);
-    if (conf_.wants_padded_bias()) {
-        const auto &j = conf_.jcp_;
+    if (pd()->wants_padded_bias()) {
+        const auto &j = pd()->jcp_;
         assert(j.ngroups == 1);
         padded_bias_ = (float *)malloc(sizeof(float) * j.oc, 64);
         for (int oc = j.oc_without_padding; oc < j.oc; ++oc)
@@ -889,11 +889,11 @@ void jit_avx512_core_fp32_wino_conv_2x3_fwd_t::execute_forward_mbN() {
     auto dst = reinterpret_cast<float *>(memory(0));
 
     const auto &jcp = kernel_->jcp;
-    const auto &oscales = conf_.attr()->output_scales_;
+    const auto &oscales = pd()->attr()->output_scales_;
 
     wino_wei_ = wei;
 
-    if (conf_.wants_padded_bias()) {
+    if (pd()->wants_padded_bias()) {
         for (int oc = 0; oc < jcp.oc_without_padding; ++oc)
             padded_bias_[oc] = bia[oc];
         bia = padded_bias_;
@@ -1010,11 +1010,11 @@ void jit_avx512_core_fp32_wino_conv_2x3_fwd_t::execute_forward_small_mb() {
     auto dst = reinterpret_cast<float *>(memory(0));
 
     const auto &jcp = kernel_->jcp;
-    const auto &oscales = conf_.attr()->output_scales_;
+    const auto &oscales = pd()->attr()->output_scales_;
 
     wino_wei_ = wei;
 
-    if (conf_.wants_padded_bias()) {
+    if (pd()->wants_padded_bias()) {
         for (int oc = 0; oc < jcp.oc_without_padding; ++oc)
             padded_bias_[oc] = bia[oc];
         bia = padded_bias_;

@@ -38,44 +38,44 @@ void ref_convolution_fwd_t<src_type, wei_type, dst_type, acc_type>
     auto bias = reinterpret_cast<const char *>(this->input_memory(2));
     auto dst = reinterpret_cast<dst_data_t *>(this->memory());
 
-    const memory_desc_wrapper src_d(conf_.src_pd());
-    const memory_desc_wrapper dst_d(conf_.dst_pd());
-    const memory_desc_wrapper weights_d(conf_.weights_pd(0));
-    const memory_desc_wrapper bias_d(conf_.weights_pd(1));
+    const memory_desc_wrapper src_d(pd()->src_pd());
+    const memory_desc_wrapper dst_d(pd()->dst_pd());
+    const memory_desc_wrapper weights_d(pd()->weights_pd(0));
+    const memory_desc_wrapper bias_d(pd()->weights_pd(1));
 
-    const bool with_groups = conf_.with_groups();
+    const bool with_groups = pd()->with_groups();
 
-    const int G = conf_.G();
-    const int MB = conf_.MB();
-    const int OD = conf_.OD();
-    const int OH = conf_.OH();
-    const int OW = conf_.OW();
-    const int ID = conf_.ID();
-    const int IH = conf_.IH();
-    const int IW = conf_.IW();
+    const int G = pd()->G();
+    const int MB = pd()->MB();
+    const int OD = pd()->OD();
+    const int OH = pd()->OH();
+    const int OW = pd()->OW();
+    const int ID = pd()->ID();
+    const int IH = pd()->IH();
+    const int IW = pd()->IW();
 
-    const int OC = conf_.OC() / G;
-    const int IC = conf_.IC() / G;
-    const int KD = conf_.KD();
-    const int KH = conf_.KH();
-    const int KW = conf_.KW();
+    const int OC = pd()->OC() / G;
+    const int IC = pd()->IC() / G;
+    const int KD = pd()->KD();
+    const int KH = pd()->KH();
+    const int KW = pd()->KW();
 
-    const int KSD = conf_.KSD();
-    const int KSH = conf_.KSH();
-    const int KSW = conf_.KSW();
+    const int KSD = pd()->KSD();
+    const int KSH = pd()->KSH();
+    const int KSW = pd()->KSW();
 
-    const int KDD = conf_.KDD();
-    const int KDH = conf_.KDH();
-    const int KDW = conf_.KDW();
+    const int KDD = pd()->KDD();
+    const int KDH = pd()->KDH();
+    const int KDW = pd()->KDW();
 
-    const int padFront = conf_.padFront();
-    const int padT = conf_.padT();
-    const int padL = conf_.padL();
+    const int padFront = pd()->padFront();
+    const int padT = pd()->padT();
+    const int padL = pd()->padL();
 
     const bool with_relu = 0; // TODO: change if support post_ops
     const float nslope = 0.f;
 
-    const int ndims = conf_.desc()->src_desc.ndims;
+    const int ndims = pd()->desc()->src_desc.ndims;
 
     auto ker = [=](int g, int mb, int oc, int od, int oh,
             int ow) {
@@ -118,7 +118,7 @@ void ref_convolution_fwd_t<src_type, wei_type, dst_type, acc_type>
         [&](int g, int mb, int oc, int od, int oh, int ow) {
         float a = bias
             ? get_bias(bias, bias_d.off(g * OC + oc),
-                    conf_.desc()->bias_desc.data_type)
+                    pd()->desc()->bias_desc.data_type)
             : 0;
         a += ker(g, mb, oc, od, oh, ow);
         if (with_relu && a < 0)
@@ -144,41 +144,41 @@ void ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
     auto bias = reinterpret_cast<const char *>(this->input_memory(2));
     auto diff_src = reinterpret_cast<diff_src_data_t*>(this->memory());
 
-    const memory_desc_wrapper diff_dst_d(conf_.diff_dst_pd());
-    const memory_desc_wrapper diff_src_d(conf_.diff_src_pd());
-    const memory_desc_wrapper weights_d(conf_.weights_pd(0));
-    const memory_desc_wrapper bias_d(conf_.weights_pd(1));
+    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
+    const memory_desc_wrapper diff_src_d(pd()->diff_src_pd());
+    const memory_desc_wrapper weights_d(pd()->weights_pd(0));
+    const memory_desc_wrapper bias_d(pd()->weights_pd(1));
 
-    const bool with_groups = conf_.with_groups();
+    const bool with_groups = pd()->with_groups();
 
-    const int G = conf_.G();
-    const int MB = conf_.MB();
-    const int OD = conf_.OD();
-    const int OH = conf_.OH();
-    const int OW = conf_.OW();
-    const int ID = conf_.ID();
-    const int IH = conf_.IH();
-    const int IW = conf_.IW();
+    const int G = pd()->G();
+    const int MB = pd()->MB();
+    const int OD = pd()->OD();
+    const int OH = pd()->OH();
+    const int OW = pd()->OW();
+    const int ID = pd()->ID();
+    const int IH = pd()->IH();
+    const int IW = pd()->IW();
 
-    const int OC = conf_.OC() / G;
-    const int IC = conf_.IC() / G;
-    const int KD = conf_.KD();
-    const int KH = conf_.KH();
-    const int KW = conf_.KW();
+    const int OC = pd()->OC() / G;
+    const int IC = pd()->IC() / G;
+    const int KD = pd()->KD();
+    const int KH = pd()->KH();
+    const int KW = pd()->KW();
 
-    const int KSD = conf_.KSD();
-    const int KSH = conf_.KSH();
-    const int KSW = conf_.KSW();
+    const int KSD = pd()->KSD();
+    const int KSH = pd()->KSH();
+    const int KSW = pd()->KSW();
 
-    const int KDD = conf_.KDD();
-    const int KDH = conf_.KDH();
-    const int KDW = conf_.KDW();
+    const int KDD = pd()->KDD();
+    const int KDH = pd()->KDH();
+    const int KDW = pd()->KDW();
 
-    const int padFront = conf_.padFront();
-    const int padT = conf_.padT();
-    const int padL = conf_.padL();
+    const int padFront = pd()->padFront();
+    const int padT = pd()->padT();
+    const int padL = pd()->padL();
 
-    const int ndims = conf_.desc()->diff_src_desc.ndims;
+    const int ndims = pd()->desc()->diff_src_desc.ndims;
 
     auto ker = [=](int g, int mb, int ic, int id, int ih,
             int iw) {
@@ -233,7 +233,7 @@ void ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
             : diff_src_d.off(mb, g*IC + ic, iw);
         float a = bias
             ? get_bias(bias, bias_d.off(g * IC + ic),
-                    conf_.desc()->bias_desc.data_type)
+                    pd()->desc()->bias_desc.data_type)
             : 0;
         a += ker(g, mb, ic, id, ih, iw);
         diff_src[ds_idx] = saturate<diff_src_data_t>(a);
@@ -250,41 +250,41 @@ void ref_convolution_bwd_weights_t<src_type, diff_wei_type, diff_dst_type,
     auto diff_weights = reinterpret_cast<diff_wei_data_t*>(this->memory(0));
     auto diff_bias = reinterpret_cast<diff_wei_data_t *>(this->memory(1));
 
-    const memory_desc_wrapper src_d(conf_.src_pd());
-    const memory_desc_wrapper diff_dst_d(conf_.diff_dst_pd());
-    const memory_desc_wrapper diff_weights_d(conf_.diff_weights_pd(0));
-    const memory_desc_wrapper diff_bias_d(conf_.diff_weights_pd(1));
+    const memory_desc_wrapper src_d(pd()->src_pd());
+    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
+    const memory_desc_wrapper diff_weights_d(pd()->diff_weights_pd(0));
+    const memory_desc_wrapper diff_bias_d(pd()->diff_weights_pd(1));
 
-    const bool with_groups = conf_.with_groups();
+    const bool with_groups = pd()->with_groups();
 
-    const int G = conf_.G();
-    const int MB = conf_.MB();
-    const int OD = conf_.OD();
-    const int OH = conf_.OH();
-    const int OW = conf_.OW();
-    const int ID = conf_.ID();
-    const int IH = conf_.IH();
-    const int IW = conf_.IW();
+    const int G = pd()->G();
+    const int MB = pd()->MB();
+    const int OD = pd()->OD();
+    const int OH = pd()->OH();
+    const int OW = pd()->OW();
+    const int ID = pd()->ID();
+    const int IH = pd()->IH();
+    const int IW = pd()->IW();
 
-    const int OC = conf_.OC() / G;
-    const int IC = conf_.IC() / G;
-    const int KD = conf_.KD();
-    const int KH = conf_.KH();
-    const int KW = conf_.KW();
+    const int OC = pd()->OC() / G;
+    const int IC = pd()->IC() / G;
+    const int KD = pd()->KD();
+    const int KH = pd()->KH();
+    const int KW = pd()->KW();
 
-    const int KSD = conf_.KSD();
-    const int KSH = conf_.KSH();
-    const int KSW = conf_.KSW();
+    const int KSD = pd()->KSD();
+    const int KSH = pd()->KSH();
+    const int KSW = pd()->KSW();
 
-    const int KDD = conf_.KDD();
-    const int KDH = conf_.KDH();
-    const int KDW = conf_.KDW();
+    const int KDD = pd()->KDD();
+    const int KDH = pd()->KDH();
+    const int KDW = pd()->KDW();
 
-    const int padFront = conf_.padFront();
-    const int padT = conf_.padT();
-    const int padL = conf_.padL();
+    const int padFront = pd()->padFront();
+    const int padT = pd()->padT();
+    const int padL = pd()->padL();
 
-    const int ndims = conf_.desc()->src_desc.ndims;
+    const int ndims = pd()->desc()->src_desc.ndims;
 
 auto ker = [=](acc_data_t &d, int g, int oc, int ic, int kd, int kh, int kw) {
         for (int mb = 0; mb < MB; ++mb)

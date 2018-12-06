@@ -173,9 +173,9 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
         rnn_utils::rnn_conf_t rnn_;
     };
 
-    _ref_rnn_common_t(const pd_t *pd, const input_vector &inputs,
+    _ref_rnn_common_t(const pd_t *apd, const input_vector &inputs,
             const output_vector &outputs)
-        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {
+        : cpu_primitive_t(apd, inputs, outputs) {
         /// @todo set max_feature_size assuming that we limit the number of
         /// iterations and layer to one if slc != dic and sic != dic
         /// respectively
@@ -198,20 +198,20 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
             f = pack_w ? &class_name::free_packed_weights :
                              &class_name::free_no_packed_weights;
         };
-        const bool weights_pack_cond = conf_.rnn_.use_packed_gemm;
+        const bool weights_pack_cond = pd()->rnn_.use_packed_gemm;
         const bool is_weights_iter_packed
-                = conf_.rnn_.weights_iter_fmt == packed_format;
+                = pd()->rnn_.weights_iter_fmt == packed_format;
         set_pack_funcs(weights_pack_cond || is_weights_iter_packed,
                 gemm_iter_func, weights_pack_cond && !is_weights_iter_packed,
                 weights_iter_pack_func, weights_iter_free_packed_func);
 
         const bool is_weights_layer_packed
-                = conf_.rnn_.weights_layer_fmt == packed_format;
+                = pd()->rnn_.weights_layer_fmt == packed_format;
         set_pack_funcs(weights_pack_cond || is_weights_layer_packed,
                 gemm_layer_func, weights_pack_cond && !is_weights_layer_packed,
                 weights_layer_pack_func, weights_layer_free_packed_func);
 
-        switch (conf_.cell_kind()) {
+        switch (pd()->cell_kind()) {
         case alg_kind::vanilla_lstm:
             cell_func = &class_name::cell_execution;
             elemwise_func = &class_name::lstm_elemwise;
@@ -219,7 +219,7 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
         case alg_kind::vanilla_rnn: // @todo switch on cell kind
             cell_func = &class_name::cell_execution;
             elemwise_func = &class_name::rnn_elemwise;
-            switch (conf_.activation_kind()) {
+            switch (pd()->activation_kind()) {
             case alg_kind::eltwise_relu:
                 activation_func = &activation<alg_kind::eltwise_relu, aprop>;
                 break;
@@ -245,7 +245,7 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
         grid_computation = &class_name::linear_execution;
 
         size_t scratchpad_size, workspace_size;
-        rnn_utils::set_offsets(conf_.rnn_, ws_gates_offset_, ws_states_offset_,
+        rnn_utils::set_offsets(pd()->rnn_, ws_gates_offset_, ws_states_offset_,
                 ws_diff_states_offset_, ws_grid_comp_offset_,
                 ws_cell_comp_offset_, ws_weights_layer_offset_,
                 ws_weights_iter_offset_, ws_diff_weights_layer_offset_,
@@ -253,8 +253,8 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
 
         scratchpad_ = create_scratchpad(scratchpad_size * sizeof(float));
 
-        int max_nparts = (conf_.cell_kind() == alg_kind::vanilla_gru) ? 2 : 1;
-        int ptr_wei_sz = conf_.rnn_.n_layer * conf_.rnn_.n_dir * max_nparts;
+        int max_nparts = (pd()->cell_kind() == alg_kind::vanilla_gru) ? 2 : 1;
+        int ptr_wei_sz = pd()->rnn_.n_layer * pd()->rnn_.n_dir * max_nparts;
         ptr_wei_layer_ = (float **)malloc(sizeof(float *) * ptr_wei_sz, 64);
         ptr_wei_iter_ = (float **)malloc(sizeof(float *) * ptr_wei_sz, 64);
     }
@@ -304,7 +304,7 @@ private:
     void gates_reduction(const rnn_utils::rnn_conf_t &rnn,
             const float *ws_gates_, float *diff_bias_);
 
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     scratchpad_t *scratchpad_;
 
     size_t ws_gates_offset_;

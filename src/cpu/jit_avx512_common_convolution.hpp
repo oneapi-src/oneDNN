@@ -72,16 +72,16 @@ struct jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
         jit_conv_conf_t jcp_;
     };
 
-    jit_avx512_common_convolution_fwd_t(const pd_t *pd,
+    jit_avx512_common_convolution_fwd_t(const pd_t *apd,
             const input_vector &inputs, const output_vector &outputs)
-        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
+        : cpu_primitive_t(apd, inputs, outputs)
         , padded_bias_(nullptr)
     {
-        kernel_ = new jit_avx512_common_conv_fwd_kernel(conf_.jcp_,
-                    *conf_.attr());
+        kernel_ = new jit_avx512_common_conv_fwd_kernel(pd()->jcp_,
+                    *pd()->attr());
 
-        if (conf_.wants_padded_bias()) {
-            const auto &j = conf_.jcp_;
+        if (pd()->wants_padded_bias()) {
+            const auto &j = pd()->jcp_;
             assert(j.ngroups == 1);
             padded_bias_ = (dst_data_t *)malloc(sizeof(dst_data_t) * j.oc, 64);
             for (int oc = j.oc_without_padding; oc < j.oc; ++oc)
@@ -99,16 +99,16 @@ struct jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
 
     virtual void execute(event_t *e)
     {
-        if (conf_.ndims() == 3)
+        if (pd()->ndims() == 3)
             execute_forward_1d();
-        else if (conf_.ndims() == 4)
+        else if (pd()->ndims() == 4)
             execute_forward_2d();
-        else if (conf_.ndims() == 5)
+        else if (pd()->ndims() == 5)
             execute_forward_3d();
         else
             assert(false);
 
-        if (conf_.wants_zero_pad_dst())
+        if (pd()->wants_zero_pad_dst())
             output_memory_primitive(0)->zero_pad();
 
         e->set_state(event_t::ready);
@@ -118,7 +118,7 @@ private:
     void execute_forward_1d();
     void execute_forward_2d();
     void execute_forward_3d();
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_avx512_common_conv_fwd_kernel *kernel_;
     dst_data_t *padded_bias_;
 };
@@ -195,11 +195,11 @@ struct jit_avx512_common_convolution_bwd_data_t: public cpu_primitive_t {
         }
     };
 
-    jit_avx512_common_convolution_bwd_data_t(const pd_t *pd,
+    jit_avx512_common_convolution_bwd_data_t(const pd_t *apd,
             const input_vector &inputs, const output_vector &outputs)
-        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
+        : cpu_primitive_t(apd, inputs, outputs)
     {
-        kernel_ = new jit_avx512_common_conv_bwd_data_kernel_f32(conf_.jcp_);
+        kernel_ = new jit_avx512_common_conv_bwd_data_kernel_f32(pd()->jcp_);
     }
     ~jit_avx512_common_convolution_bwd_data_t() { delete kernel_; };
 
@@ -208,13 +208,13 @@ struct jit_avx512_common_convolution_bwd_data_t: public cpu_primitive_t {
     typedef typename prec_traits<diff_src_type>::type diff_src_data_t;
 
     virtual void execute(event_t *e) {
-        switch (conf_.desc()->prop_kind) {
+        switch (pd()->desc()->prop_kind) {
         case prop_kind::backward_data:
-            if (conf_.ndims() == 3)
+            if (pd()->ndims() == 3)
                 execute_backward_data_1d();
-            else if (conf_.ndims() == 4)
+            else if (pd()->ndims() == 4)
                 execute_backward_data_2d();
-            else if (conf_.ndims() == 5)
+            else if (pd()->ndims() == 5)
                 execute_backward_data_3d();
             else
                 assert(false);
@@ -229,7 +229,7 @@ private:
     void execute_backward_data_1d();
     void execute_backward_data_2d();
     void execute_backward_data_3d();
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_avx512_common_conv_bwd_data_kernel_f32 *kernel_;
 };
 
@@ -299,7 +299,7 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
 
     };
 
-    jit_avx512_common_convolution_bwd_weights_t(const pd_t *pd,
+    jit_avx512_common_convolution_bwd_weights_t(const pd_t *apd,
             const input_vector &inputs, const output_vector &outputs);
     ~jit_avx512_common_convolution_bwd_weights_t() {
 
@@ -343,7 +343,7 @@ private:
     void compute_diff_bias(const thread_info_t *);
     void compute_diff_bias_3d(const thread_info_t *);
 
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     jit_avx512_common_conv_bwd_weights_kernel_f32 *kernel_;
     jit_trans_src_t *trans_kernel_;

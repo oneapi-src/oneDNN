@@ -53,12 +53,12 @@ struct ref_softmax_fwd_t: public cpu_primitive_t {
         }
     };
 
-    ref_softmax_fwd_t(const pd_t *pd, const input_vector &inputs,
+    ref_softmax_fwd_t(const pd_t *apd, const input_vector &inputs,
             const output_vector &outputs)
-        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd), ws_(nullptr) {
-        auto ndims = conf_.desc()->data_desc.ndims;
-        auto dims = conf_.desc()->data_desc.dims;
-        auto axis = conf_.desc()->softmax_axis;
+        : cpu_primitive_t(apd, inputs, outputs), ws_(nullptr) {
+        auto ndims = pd()->desc()->data_desc.ndims;
+        auto dims = pd()->desc()->data_desc.dims;
+        auto axis = pd()->desc()->softmax_axis;
 
         outer_size_ = utils::array_product(dims, axis);
         channels_ = dims[axis];
@@ -74,7 +74,7 @@ struct ref_softmax_fwd_t: public cpu_primitive_t {
             denom_ = &val_denom_;
         }
 
-        const memory_desc_wrapper data_d(conf_.src_pd());
+        const memory_desc_wrapper data_d(pd()->src_pd());
         use_dense_ = inner_size_ == 1 && data_d.is_dense()
             && data_d.blocking_desc().block_dims[axis] == 1
             && data_d.blocking_desc().strides[0][axis] == 1;
@@ -98,7 +98,7 @@ private:
     void _sum(int n, const data_t *x, data_t *sum_data);
     void _scal(int n, data_t alpha, data_t *x);
 
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     bool use_dense_;
     int outer_size_, channels_, inner_size_;
@@ -130,20 +130,20 @@ struct ref_softmax_bwd_t: public cpu_primitive_t {
         }
     };
 
-    ref_softmax_bwd_t(const pd_t *pd, const input_vector &inputs,
+    ref_softmax_bwd_t(const pd_t *apd, const input_vector &inputs,
             const output_vector &outputs)
-        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {
-        auto dims = conf_.desc()->diff_desc.dims;
-        auto axis = conf_.desc()->softmax_axis;
-        auto ndims = conf_.desc()->diff_desc.ndims;
+        : cpu_primitive_t(apd, inputs, outputs) {
+        auto dims = pd()->desc()->diff_desc.dims;
+        auto axis = pd()->desc()->softmax_axis;
+        auto ndims = pd()->desc()->diff_desc.ndims;
 
         outer_size_ = utils::array_product(dims, axis);
         channels_ = dims[axis];
         inner_size_ = utils::array_product(dims + axis + 1, ndims - axis - 1);
 
         // Diff desc as well as data desc whould be checked
-        const memory_desc_wrapper data_d(conf_.dst_pd());
-        const memory_desc_wrapper diff_d(conf_.diff_dst_pd());
+        const memory_desc_wrapper data_d(pd()->dst_pd());
+        const memory_desc_wrapper diff_d(pd()->diff_dst_pd());
         use_dense_ = true
             && inner_size_ == 1
             && diff_d == data_d
@@ -164,7 +164,7 @@ private:
     void execute_backward_dense();
     void execute_backward_generic();
 
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     bool use_dense_;
     int outer_size_, channels_, inner_size_;
     data_t val_max_, val_denom_;

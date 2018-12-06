@@ -79,7 +79,7 @@ void jit_avx512_common_1x1_convolution_fwd_t
     auto dst = reinterpret_cast<dst_data_t *>(this->memory());
 
     const auto &jcp = kernel_->jcp;
-    if (conf_.wants_padded_bias()) {
+    if (pd()->wants_padded_bias()) {
         assert(jcp.ngroups == 1);
         for (int oc = 0; oc < jcp.oc_without_padding; ++oc)
             padded_bias_[oc] = bias[oc];
@@ -90,7 +90,7 @@ void jit_avx512_common_1x1_convolution_fwd_t
         execute_forward_thr(ithr, nthr, src, weights, bias, dst);
     });
 
-    if (conf_.wants_zero_pad_dst())
+    if (pd()->wants_zero_pad_dst())
         output_memory_primitive(0)->zero_pad();
 }
 
@@ -102,15 +102,15 @@ void jit_avx512_common_1x1_convolution_fwd_t
             const src_data_t *src, const wei_data_t *weights,
             const dst_data_t *bias, dst_data_t *dst)
 {
-    const memory_desc_wrapper src_d(conf_.src_pd());
-    const memory_desc_wrapper dst_d(conf_.dst_pd());
-    const memory_desc_wrapper weights_d(conf_.weights_pd(0));
+    const memory_desc_wrapper src_d(pd()->src_pd());
+    const memory_desc_wrapper dst_d(pd()->dst_pd());
+    const memory_desc_wrapper weights_d(pd()->weights_pd(0));
 
     const int ndims = src_d.ndims();
-    const int stride_h = (ndims == 3) ? 1 : conf_.desc()->strides[0];
-    const int stride_w = conf_.desc()->strides[ndims - 3];
-    const int pad_t = (ndims == 3) ? 0 : conf_.desc()->padding[0][0];
-    const int pad_l = conf_.desc()->padding[0][ndims - 3];
+    const int stride_h = (ndims == 3) ? 1 : pd()->desc()->strides[0];
+    const int stride_w = pd()->desc()->strides[ndims - 3];
+    const int pad_t = (ndims == 3) ? 0 : pd()->desc()->padding[0][0];
+    const int pad_l = pd()->desc()->padding[0][ndims - 3];
 
     const auto &jcp = kernel_->jcp;
     const int work_amount = jcp.mb * jcp.ngroups * jcp.nb_bcast;
@@ -187,12 +187,12 @@ void jit_avx512_common_1x1_convolution_fwd_t
 
         p.output_data = &dst[dst_off];
         p.bias_data = &bias[_ocb * jcp.oc_block];
-        p.load_data = &weights[conf_.with_groups()
+        p.load_data = &weights[pd()->with_groups()
             ? weights_d.blk_off(g, ocb, icb)
             : weights_d.blk_off(ocb, icb)];
 
         const int _icb = g * nb_ic + icb;
-        if (conf_.rtus_.reduce_src_) {
+        if (pd()->rtus_.reduce_src_) {
             rp.ws = scratch_ + ithr * ws_per_thread_
                 + _icb * jcp.is * jcp.ic_block;
             if (ocb == ocb_start) {
@@ -296,9 +296,9 @@ void jit_avx512_common_1x1_convolution_bwd_data_t
         (this->input_memory(1));
     auto diff_src = reinterpret_cast<diff_src_data_t *>(this->memory());
 
-    const memory_desc_wrapper diff_dst_d(conf_.diff_dst_pd());
-    const memory_desc_wrapper weights_d(conf_.weights_pd(0));
-    const memory_desc_wrapper diff_src_d(conf_.diff_src_pd());
+    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
+    const memory_desc_wrapper weights_d(pd()->weights_pd(0));
+    const memory_desc_wrapper diff_src_d(pd()->diff_src_pd());
 
     const auto &jcp = kernel_->jcp;
     const int ndims = diff_src_d.ndims();
@@ -306,10 +306,10 @@ void jit_avx512_common_1x1_convolution_bwd_data_t
     // TODO (Roma): remove this restriction
     assert(jcp.stride_w == 1 && jcp.stride_h == 1);
 
-    const int stride_h = (ndims == 3) ? 1 : conf_.desc()->strides[0];
-    const int stride_w = conf_.desc()->strides[ndims - 3];
-    const int pad_t = (ndims == 3) ? 0 : conf_.desc()->padding[0][0];
-    const int pad_l = conf_.desc()->padding[0][ndims - 3];
+    const int stride_h = (ndims == 3) ? 1 : pd()->desc()->strides[0];
+    const int stride_w = pd()->desc()->strides[ndims - 3];
+    const int pad_t = (ndims == 3) ? 0 : pd()->desc()->padding[0][0];
+    const int pad_l = pd()->desc()->padding[0][ndims - 3];
 
     const int nb_ic = jcp.nb_load;
     const int nb_oc = jcp.nb_reduce;
@@ -378,7 +378,7 @@ void jit_avx512_common_1x1_convolution_bwd_data_t
 
                     const int _icb = g * nb_ic + icb;
                     rp.src = diff_src + data_blk_off(diff_src_d, n, _icb, ih, iw);
-                    if (conf_.rtus_.reduce_src_) {
+                    if (pd()->rtus_.reduce_src_) {
                         rp.ws = scratch_ + ithr * ws_per_thread_;
                         p.output_data = rp.ws;
                     } else
@@ -397,7 +397,7 @@ void jit_avx512_common_1x1_convolution_bwd_data_t
                         size_t diff_dst_off = data_blk_off(diff_dst_d, n, _ocb, oh, ow);
                         p.bcast_data = &diff_dst[diff_dst_off];
 
-                        p.load_data = &weights[conf_.with_groups()
+                        p.load_data = &weights[pd()->with_groups()
                             ? weights_d.blk_off(g, ocb, icb)
                             : weights_d.blk_off(ocb, icb)];
 
@@ -408,7 +408,7 @@ void jit_avx512_common_1x1_convolution_bwd_data_t
 
                         kernel_->jit_ker(&p);
                     }
-                    if (conf_.rtus_.reduce_src_)
+                    if (pd()->rtus_.reduce_src_)
                         rtus_driver_->ker_(&rp);
                 }
             }
@@ -423,20 +423,20 @@ template struct jit_avx512_common_1x1_convolution_bwd_data_t<data_type::s16,
 /* convolution backward wtr weights */
 
 #define wht_blk_off(d, g, ...) \
-        (conf_.with_groups() \
+        (pd()->with_groups() \
          ? (d).blk_off((g), __VA_ARGS__) \
          : (d).blk_off(__VA_ARGS__))
 
 jit_avx512_common_1x1_convolution_bwd_weights_t ::
-        jit_avx512_common_1x1_convolution_bwd_weights_t(const pd_t *pd,
+        jit_avx512_common_1x1_convolution_bwd_weights_t(const pd_t *apd,
                 const input_vector &inputs, const output_vector &outputs)
-    : cpu_primitive_t(&conf_, inputs, outputs)
-    , conf_(*pd), kernel_(nullptr), acc_ker_(nullptr), reducer_bias_(nullptr)
+    : cpu_primitive_t(apd, inputs, outputs)
+    , kernel_(nullptr), acc_ker_(nullptr), reducer_bias_(nullptr)
     , trans_kernel_(nullptr), rtus_driver_(nullptr), ws_per_thread_(0)
     , scratch_(nullptr), padded_bias_(nullptr), bctx_(nullptr)
     , tr_src_(nullptr), ws_reduction_(nullptr)
 {
-    kernel_ = new jit_avx512_common_1x1_conv_kernel(conf_.jcp_, *conf_.attr());
+    kernel_ = new jit_avx512_common_1x1_conv_kernel(pd()->jcp_, *pd()->attr());
 
     const auto &jcp = kernel_->jcp;
 
@@ -445,13 +445,13 @@ jit_avx512_common_1x1_convolution_bwd_weights_t ::
         (data_t *)malloc((jcp.nthr_mb - 1) * wei_size * sizeof(data_t), 64);
     acc_ker_ = new cpu_accumulator_1d_t<data_type::f32>();
 
-    if (conf_.with_bias()) {
+    if (pd()->with_bias()) {
         const size_t max_buffer_size = jcp.nthr * 3 * 5 * 5 * 16 * 16;
         reducer_bias_ = new cpu_reducer_t<data_type::f32>(
                 reduce_balancer_t(jcp.nthr, jcp.oc_block,
                         jcp.ngroups * jcp.nb_load, jcp.mb, max_buffer_size));
 
-        if (conf_.wants_padded_bias()) {
+        if (pd()->wants_padded_bias()) {
             assert(jcp.ngroups == 1);
             padded_bias_ = (data_t *)malloc(sizeof(data_t) * jcp.oc, 64);
         }
@@ -484,11 +484,11 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights()
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto diff_weights = reinterpret_cast<data_t *>(this->memory(0));
     auto diff_bias_in = reinterpret_cast<data_t *>(this->memory(1));
-    data_t *diff_bias = conf_.wants_padded_bias() ? padded_bias_ : diff_bias_in;
+    data_t *diff_bias = pd()->wants_padded_bias() ? padded_bias_ : diff_bias_in;
 
-    const memory_desc_wrapper diff_dst_d(conf_.diff_dst_pd());
-    const memory_desc_wrapper src_d(conf_.src_pd());
-    const memory_desc_wrapper diff_weights_d(conf_.diff_weights_pd(0));
+    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
+    const memory_desc_wrapper src_d(pd()->src_pd());
+    const memory_desc_wrapper diff_weights_d(pd()->diff_weights_pd(0));
 
     const auto &jcp = kernel_->jcp;
     const int ndims = src_d.ndims();
@@ -509,10 +509,10 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights()
     const int sp_nb = jcp.nb_reduce;
     const int mb_sp_work = jcp.mb * sp_nb;
 
-    const int stride_h = (ndims == 3) ? 1 : conf_.desc()->strides[0];
-    const int stride_w = conf_.desc()->strides[ndims - 3];
-    const int pad_t = (ndims == 3) ? 0 : conf_.desc()->padding[0][0];
-    const int pad_l = conf_.desc()->padding[0][ndims - 3];
+    const int stride_h = (ndims == 3) ? 1 : pd()->desc()->strides[0];
+    const int stride_w = pd()->desc()->strides[ndims - 3];
+    const int pad_t = (ndims == 3) ? 0 : pd()->desc()->padding[0][0];
+    const int pad_l = pd()->desc()->padding[0][ndims - 3];
 
     auto step = [](int default_step, int remaining, int tail_step) {
         assert(default_step <= tail_step);
@@ -692,7 +692,7 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights()
                         int sp = sp_b * jcp.reduce_block;
                         p.load_data = pdiff_dst + sp * jcp.oc_block;
 
-                        if (conf_.rtus_.reduce_src_) {
+                        if (pd()->rtus_.reduce_src_) {
                             const int oh = sp / jcp.ow;
                             const int ow = sp % jcp.ow;
 
@@ -810,12 +810,12 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights()
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         ker(ithr, jcp.nthr);
-        if (conf_.with_bias())
+        if (pd()->with_bias())
             ker_bias(ithr, jcp.nthr);
     });
 
     /* TODO: put this in ker_bias */
-    if (conf_.wants_padded_bias()) {
+    if (pd()->wants_padded_bias()) {
         assert(jcp.ngroups == 1);
         for (int oc = 0; oc < jcp.oc_without_padding; ++oc)
             diff_bias_in[oc] = diff_bias[oc];

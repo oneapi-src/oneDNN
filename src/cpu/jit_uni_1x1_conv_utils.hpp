@@ -246,7 +246,7 @@ struct rtus_driver_t: public jit_generator {
 
 template <cpu_isa_t isa, typename conv_t>
 inline void init_rtus_driver(conv_t *self) {
-    const auto &conf = self->conf_;
+    const auto &conf = *self->pd();
     const auto &cd = *conf.desc();
     const bool is_bwd_data = cd.prop_kind == prop_kind::backward_data;
     const int ndims = conf.ndims();

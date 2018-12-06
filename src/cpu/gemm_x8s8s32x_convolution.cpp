@@ -41,7 +41,7 @@ void _gemm_x8s8s32x_convolution_fwd_t<src_type,
     auto bia_base = reinterpret_cast<const char *>(this->input_memory(2));
     auto dst_base = reinterpret_cast<dst_data_t *>(this->memory());
 
-    const jit_gemm_conv_conf_t &jcp = this->conf_.jcp_;
+    const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
 
     char *scratchpad = (char *)this->scratchpad_->get();
     uint8_t *col = (uint8_t *)scratchpad;
@@ -61,25 +61,25 @@ void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::
         const src_data_t *src_base, const wei_data_t *wei_base,
         const char *bia_base, dst_data_t *dst_base, char *scratchpad) {
 #if USE_MKL_IGEMM
-    const jit_gemm_conv_conf_t &jcp = this->conf_.jcp_;
+    const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
 
-    const auto src_md = memory_desc_wrapper(conf_.src_pd());
+    const auto src_md = memory_desc_wrapper(pd()->src_pd());
     const size_t src_mb_stride = src_md.blk_off(1);
     const size_t src_g_stride = src_md.blk_off(0, 1) * jcp.ic;
 
-    const auto wei_md = memory_desc_wrapper(conf_.weights_pd(0));
-    const size_t wei_g_stride = conf_.with_groups() ? wei_md.blk_off(1) : 0;
+    const auto wei_md = memory_desc_wrapper(pd()->weights_pd(0));
+    const size_t wei_g_stride = pd()->with_groups() ? wei_md.blk_off(1) : 0;
 
-    const auto dst_md = memory_desc_wrapper(conf_.dst_pd());
+    const auto dst_md = memory_desc_wrapper(pd()->dst_pd());
     const size_t dst_mb_stride = dst_md.blk_off(1);
     const size_t dst_g_stride = dst_md.blk_off(0, 1) * jcp.oc;
     const size_t dst_os_stride = dst_md.blk_off(0, 0, 0, 1);
 
     /* scale_idx_mult = 1 for per_oc scales and 0, otherwise */
-    const int scale_idx_mult = conf_.attr()->output_scales_.mask_ == (1 << 1);
-    const float *scales = conf_.attr()->output_scales_.scales_;
+    const int scale_idx_mult = pd()->attr()->output_scales_.mask_ == (1 << 1);
+    const float *scales = pd()->attr()->output_scales_.scales_;
 
-    const auto rmode = conf_.attr()->round_mode_;
+    const auto rmode = pd()->attr()->round_mode_;
 
     const bool use_fast_path = true
         && scale_idx_mult == 0
@@ -87,7 +87,7 @@ void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::
         && !jcp.with_bias;
     const float fast_path_alpha = scales[0] / jcp.wei_adj_scale;
 
-    const auto &post_ops = conf_.attr()->post_ops_;
+    const auto &post_ops = pd()->attr()->post_ops_;
     const bool do_sum = post_ops.contain(primitive_kind::sum, 0);
     const float sum_scale = do_sum ? post_ops.entry_[0].sum.scale : 0;
 
@@ -165,7 +165,7 @@ void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::
 
                 if (jcp.with_bias)
                     d += get_bias(bia_base, g * jcp.oc + oc,
-                            conf_.desc()->bias_desc.data_type);
+                            pd()->desc()->bias_desc.data_type);
 
                 d *= scales[(g * jcp.oc + oc) * scale_idx_mult];
 
@@ -188,7 +188,7 @@ void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data() {
     auto bia_base = reinterpret_cast<const char *>(this->input_memory(2));
     auto diff_src_base = reinterpret_cast<diff_src_data_t *>(this->memory());
 
-    const jit_gemm_conv_conf_t &jcp = this->conf_.jcp_;
+    const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
     char *scratchpad = (char *)this->scratchpad_->get();
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
@@ -204,24 +204,24 @@ void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>
         const char *bia_base, diff_src_data_t *diff_src_base, char *scratchpad)
 {
 #if USE_MKL_IGEMM
-    const jit_gemm_conv_conf_t &jcp = this->conf_.jcp_;
+    const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
 
-    const auto diff_dst_md = memory_desc_wrapper(conf_.diff_dst_pd());
+    const auto diff_dst_md = memory_desc_wrapper(pd()->diff_dst_pd());
     const size_t diff_dst_mb_stride = diff_dst_md.blk_off(1);
     const size_t diff_dst_g_stride = diff_dst_md.blk_off(0, 1) * jcp.oc;
 
-    const auto wei_md = memory_desc_wrapper(conf_.weights_pd(0));
-    const size_t wei_g_stride = conf_.with_groups() ? wei_md.blk_off(1) : 0;
+    const auto wei_md = memory_desc_wrapper(pd()->weights_pd(0));
+    const size_t wei_g_stride = pd()->with_groups() ? wei_md.blk_off(1) : 0;
 
-    const auto diff_src_md = memory_desc_wrapper(conf_.diff_src_pd());
+    const auto diff_src_md = memory_desc_wrapper(pd()->diff_src_pd());
     const size_t diff_src_mb_stride = diff_src_md.blk_off(1);
     const size_t diff_src_g_stride = diff_src_md.blk_off(0, 1) * jcp.ic;
     const size_t diff_src_os_stride = diff_src_md.blk_off(0, 0, 0, 1);
 
     /* scale_idx_mult = 1 for per_oc scales and 0, otherwise */
-    const int scale_idx_mult = conf_.attr()->output_scales_.mask_ == (1 << 1);
-    const float *scales = conf_.attr()->output_scales_.scales_;
-    const auto rmode = conf_.attr()->round_mode_;
+    const int scale_idx_mult = pd()->attr()->output_scales_.mask_ == (1 << 1);
+    const float *scales = pd()->attr()->output_scales_.scales_;
+    const auto rmode = pd()->attr()->round_mode_;
     const size_t work_amount = jcp.ngroups * jcp.mb;
 
     acc_data_t *_col = (acc_data_t *)scratchpad;
@@ -263,7 +263,7 @@ void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>
             float d = (float)acc[is * jcp.ic + ic];
             if (jcp.with_bias)
                 d += get_bias(bia_base, g * jcp.ic + ic,
-                        conf_.desc()->bias_desc.data_type);
+                        pd()->desc()->bias_desc.data_type);
             d *= scales[(g * jcp.ic + ic) * scale_idx_mult];
             const size_t diff_src_off = is * diff_src_os_stride + ic;
             diff_src[diff_src_off] =

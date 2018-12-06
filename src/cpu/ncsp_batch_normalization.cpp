@@ -35,24 +35,24 @@ namespace impl {
 namespace cpu {
 
 typedef float data_t;
-ncsp_batch_normalization_fwd_t::ncsp_batch_normalization_fwd_t(const pd_t *pd,
+ncsp_batch_normalization_fwd_t::ncsp_batch_normalization_fwd_t(const pd_t *apd,
         const input_vector &inputs, const output_vector &outputs)
-    : cpu_primitive_t(&conf_, inputs, outputs), stats_reduction_(nullptr),
-    tmp_mean_(nullptr), tmp_variance_(nullptr), conf_(*pd) {
-    if (!conf_.stats_is_src()) {
+    : cpu_primitive_t(apd, inputs, outputs), stats_reduction_(nullptr),
+    tmp_mean_(nullptr), tmp_variance_(nullptr) {
+    if (!pd()->stats_is_src()) {
         this->stats_reduction_ = (data_t *)malloc(
-                conf_.C() * mkldnn_get_max_threads() * sizeof(data_t), 64);
-        if (!conf_.is_training()) {
-            this->tmp_mean_ = (data_t *)malloc(conf_.C() * sizeof(data_t), 64);
+                pd()->C() * mkldnn_get_max_threads() * sizeof(data_t), 64);
+        if (!pd()->is_training()) {
+            this->tmp_mean_ = (data_t *)malloc(pd()->C() * sizeof(data_t), 64);
             this->tmp_variance_
-                    = (data_t *)malloc(conf_.C() * sizeof(data_t), 64);
+                    = (data_t *)malloc(pd()->C() * sizeof(data_t), 64);
         }
     }
 }
 ncsp_batch_normalization_fwd_t::~ncsp_batch_normalization_fwd_t() {
-    if (!conf_.stats_is_src()) {
+    if (!pd()->stats_is_src()) {
         free(this->stats_reduction_);
-        if (!conf_.is_training()) {
+        if (!pd()->is_training()) {
             free(this->tmp_mean_);
             free(this->tmp_variance_);
         }
@@ -62,10 +62,10 @@ ncsp_batch_normalization_fwd_t::~ncsp_batch_normalization_fwd_t() {
 void ncsp_batch_normalization_fwd_t::execute_forward() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto dst = reinterpret_cast<data_t *>(this->memory(0));
-    const bool calculate_stats = !conf_.stats_is_src();
-    const bool save_stats = conf_.is_training();
-    const bool is_training = conf_.is_training();
-    const bool fuse_bn_relu = conf_.fuse_bn_relu();
+    const bool calculate_stats = !pd()->stats_is_src();
+    const bool save_stats = pd()->is_training();
+    const bool is_training = pd()->is_training();
+    const bool fuse_bn_relu = pd()->fuse_bn_relu();
 
     data_t *mean, *variance;
     if (!calculate_stats) {
@@ -82,21 +82,21 @@ void ncsp_batch_normalization_fwd_t::execute_forward() {
             variance = this->tmp_variance_;
         }
     }
-    auto idx_scale_shift = 1 + 2 * conf_.stats_is_src();
+    auto idx_scale_shift = 1 + 2 * pd()->stats_is_src();
     auto scaleshift = reinterpret_cast<const data_t *>(
             this->input_memory(idx_scale_shift));
-    auto ws = reinterpret_cast<uint8_t *>(this->memory(conf_.ws_idx()));
+    auto ws = reinterpret_cast<uint8_t *>(this->memory(pd()->ws_idx()));
     data_t *ws_reduce = this->stats_reduction_;
 
-    const float eps = conf_.desc()->batch_norm_epsilon;
-    const bool use_scaleshift = conf_.use_scaleshift();
-    const bool with_relu = conf_.with_relu_post_op();
+    const float eps = pd()->desc()->batch_norm_epsilon;
+    const bool use_scaleshift = pd()->use_scaleshift();
+    const bool with_relu = pd()->with_relu_post_op();
     auto maybe_post_op
             = [&](data_t res) { return (with_relu && res < 0) ? 0 : res; };
-    const bool has_spatial = utils::one_of(conf_.ndims(), 4, 5);
-    int SP = (has_spatial) ? conf_.H() * conf_.W() * conf_.D() : 1;
-    size_t N = conf_.MB();
-    size_t C = conf_.C();
+    const bool has_spatial = utils::one_of(pd()->ndims(), 4, 5);
+    int SP = (has_spatial) ? pd()->H() * pd()->W() * pd()->D() : 1;
+    size_t N = pd()->MB();
+    size_t C = pd()->C();
 
     int nthr = mkldnn_get_max_threads();
     size_t l3_size_ = get_cache_size(3, true) * nthr / 2;
@@ -232,16 +232,16 @@ void ncsp_batch_normalization_fwd_t::execute_forward() {
     });
 }
 
-ncsp_batch_normalization_bwd_t::ncsp_batch_normalization_bwd_t(const pd_t *pd,
+ncsp_batch_normalization_bwd_t::ncsp_batch_normalization_bwd_t(const pd_t *apd,
         const input_vector &inputs, const output_vector &outputs)
-    : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
+    : cpu_primitive_t(apd, inputs, outputs)
     , stats_reduction_(nullptr), tmp_diff_scaleshift_(nullptr) {
     this->stats_reduction_ = (data_t *)malloc(
-            conf_.C() * 2 * mkldnn_get_max_threads() * sizeof(data_t), 64);
-    if (!(conf_.use_scaleshift()
-                && conf_.desc()->prop_kind == prop_kind::backward))
+            pd()->C() * 2 * mkldnn_get_max_threads() * sizeof(data_t), 64);
+    if (!(pd()->use_scaleshift()
+                && pd()->desc()->prop_kind == prop_kind::backward))
         this->tmp_diff_scaleshift_
-                = (data_t *)malloc(conf_.C() * 2 * sizeof(data_t), 64);
+                = (data_t *)malloc(pd()->C() * 2 * sizeof(data_t), 64);
 }
 
 ncsp_batch_normalization_bwd_t::~ncsp_batch_normalization_bwd_t() {
@@ -260,16 +260,16 @@ void ncsp_batch_normalization_bwd_t::execute_backward() {
             reinterpret_cast<data_t *>(this->memory(1)) :
             this->tmp_diff_scaleshift_;
     auto ws = reinterpret_cast<const uint8_t *>(
-            this->input_memory(conf_.ws_idx()));
+            this->input_memory(pd()->ws_idx()));
     data_t *ws_reduce = this->stats_reduction_;
 
-    const bool has_spatial = utils::one_of(conf_.ndims(), 4, 5);
-    int SP = (has_spatial) ? conf_.H() * conf_.W() * conf_.D() : 1;
-    size_t C = conf_.C(), N = conf_.MB();
-    const bool use_scaleshift = conf_.use_scaleshift();
-    const float eps = conf_.desc()->batch_norm_epsilon;
-    const bool calculate_diff_stats = !conf_.use_global_stats();
-    const bool fuse_bn_relu = conf_.fuse_bn_relu();
+    const bool has_spatial = utils::one_of(pd()->ndims(), 4, 5);
+    int SP = (has_spatial) ? pd()->H() * pd()->W() * pd()->D() : 1;
+    size_t C = pd()->C(), N = pd()->MB();
+    const bool use_scaleshift = pd()->use_scaleshift();
+    const float eps = pd()->desc()->batch_norm_epsilon;
+    const bool calculate_diff_stats = !pd()->use_global_stats();
+    const bool fuse_bn_relu = pd()->fuse_bn_relu();
 
     int nthr = mkldnn_get_max_threads();
     size_t l3_size_ = get_cache_size(3, true) * nthr / 2;

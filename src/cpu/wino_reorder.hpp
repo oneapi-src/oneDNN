@@ -66,11 +66,11 @@ private:
     typedef typename prec_traits<type_o>::type out_data_t;
     const int unsign_val_in_wino_domain_ = 5;
 
-    wino_reorder_t(const pd_t *pd,
+    wino_reorder_t(const pd_t *apd,
             const input_vector &inputs, const output_vector &outputs)
-        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {
-        const memory_desc_wrapper input_d(conf_.input_pd());
-        const memory_desc_wrapper output_d(conf_.output_pd());
+        : cpu_primitive_t(apd, inputs, outputs) {
+        const memory_desc_wrapper input_d(pd()->input_pd());
+        const memory_desc_wrapper output_d(pd()->output_pd());
 
         r_ = output_d.wino_desc().r;
         w_alpha_ = output_d.wino_desc().alpha;
@@ -123,13 +123,13 @@ private:
     }
 
     void transform(const in_data_t *__restrict input) {
-        const memory_desc_wrapper input_d(conf_.input_pd()->desc());
+        const memory_desc_wrapper input_d(pd()->input_pd()->desc());
 
-        round_mode_t rmode = conf_.attr()->round_mode_;
-        const int smask = conf_.attr()->output_scales_.mask_;
+        round_mode_t rmode = pd()->attr()->round_mode_;
+        const int smask = pd()->attr()->output_scales_.mask_;
         const int ndims_mask = math::ilog2q(smask + 1);
         const size_t D_mask = utils::array_product(input_d.dims(), ndims_mask);
-        const float *__restrict scales = conf_.attr()->output_scales_.scales_;
+        const float *__restrict scales = pd()->attr()->output_scales_.scales_;
         assert(D_mask == 1 || D_mask == (size_t)oc_);
 
         /* transform weights to winograd domain */
@@ -334,7 +334,7 @@ private:
         e->set_state(event_t::ready);
     }
 
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     int r_, w_alpha_;
     int ic_, oc_, or_ic_, or_oc_, kh_, kw_;
     int oc_block_, ic_block_, oc2_block_, ic2_block_;

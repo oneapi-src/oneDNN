@@ -1357,9 +1357,9 @@ _jit_avx512_common_convolution_winograd_t<false>::_execute_data_W_SGD(
 
 void jit_avx512_common_convolution_winograd_bwd_weights_t::
 _maybe_execute_diff_bias_copy() {
-    if (conf_.wants_padded_bias()) {
+    if (pd()->wants_padded_bias()) {
         float *diff_bias = (float *)this->memory(1);
-        for (int oc = 0; oc < conf_.jcp_.oc_without_padding; ++oc)
+        for (int oc = 0; oc < pd()->jcp_.oc_without_padding; ++oc)
             diff_bias[oc] = this->padded_bias_[oc];
     }
 }
@@ -1384,7 +1384,7 @@ _execute_backward_weights_S_D_G_W()
     array_offset_calculator<float, 6> diff_weights((float *)this->memory(0),
             jcp.oc/simd_w, jcp.ic/simd_w, jcp.kh, jcp.kw, simd_w, simd_w);
     array_offset_calculator<float, 2> diff_bias(
-            conf_.wants_padded_bias() ? padded_bias_ : (float *)this->memory(1),
+            pd()->wants_padded_bias() ? padded_bias_ : (float *)this->memory(1),
             jcp.oc/simd_w, simd_w);
 
     array_offset_calculator<float, 8> U(
@@ -1854,7 +1854,7 @@ _execute_backward_weights_S_D_Giot_W()
     array_offset_calculator<float, 6> diff_weights((float *)this->memory(0),
             jcp.oc / simd_w, jcp.ic / simd_w, jcp.kh, jcp.kw, simd_w, simd_w);
     array_offset_calculator<float, 2> diff_bias(
-            conf_.wants_padded_bias() ? padded_bias_ : (float *)this->memory(1),
+            pd()->wants_padded_bias() ? padded_bias_ : (float *)this->memory(1),
             jcp.oc / simd_w, simd_w);
 
     array_offset_calculator<float, 8> U((float *)(scratchpad_->U_ptr()),
@@ -2035,7 +2035,7 @@ _execute_backward_weights_SDGtWo()
     array_offset_calculator<float, 6> diff_weights((float *)this->memory(0),
             jcp.oc / simd_w, jcp.ic / simd_w, jcp.kh, jcp.kw, simd_w, simd_w);
     array_offset_calculator<float, 3> diff_bias(
-            conf_.wants_padded_bias() ? padded_bias_ : (float *)this->memory(1),
+            pd()->wants_padded_bias() ? padded_bias_ : (float *)this->memory(1),
             jcp.nb_oc, jcp.oc_block, simd_w);
 
     array_offset_calculator<float, 8> Us((float *)(scratchpad_->U_ptr()),
@@ -2180,7 +2180,7 @@ _execute_backward_weights_SDGt_W()
     array_offset_calculator<float, 6> diff_weights((float *)this->memory(0),
             jcp.oc / simd_w, jcp.ic / simd_w, jcp.kh, jcp.kw, simd_w, simd_w);
     array_offset_calculator<float, 2> diff_bias(
-            conf_.wants_padded_bias() ? padded_bias_ : (float *)this->memory(1),
+            pd()->wants_padded_bias() ? padded_bias_ : (float *)this->memory(1),
             jcp.oc / simd_w, simd_w);
 
     array_offset_calculator<float, 8> U((float *)(scratchpad_->U_ptr()),

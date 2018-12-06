@@ -402,21 +402,21 @@ void gemm_u8s8s32x_inner_product_fwd_t<dst_type>::execute_forward() {
     auto bias = reinterpret_cast<const char *>(this->input_memory(2));
     auto dst = reinterpret_cast<dst_data_t *>(this->memory());
 
-    const int MB = conf_.MB();
-    const int OC = conf_.OC();
+    const int MB = pd()->MB();
+    const int OC = pd()->OC();
 
-    bool wei_tr = utils::one_of(conf_.weights_pd()->desc()->format,
+    bool wei_tr = utils::one_of(pd()->weights_pd()->desc()->format,
              oihw, oidhw, oi);
 
     const int M = OC;
     const int N = MB;
-    const int K = conf_.IC_total_padded();
+    const int K = pd()->IC_total_padded();
     const int8_t off_a = 0, off_b = 0;
     const int32_t off_c = 0;
 
-    const float *scales = conf_.attr()->output_scales_.scales_;
+    const float *scales = pd()->attr()->output_scales_.scales_;
 
-    const auto &post_ops = conf_.attr()->post_ops_;
+    const auto &post_ops = pd()->attr()->post_ops_;
     const bool do_relu = post_ops.len_ == 1;
     const float nslope = do_relu ? post_ops.entry_[0].eltwise.alpha : 0.f;
 

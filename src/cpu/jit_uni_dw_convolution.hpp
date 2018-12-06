@@ -86,14 +86,14 @@ struct _jit_uni_dw_convolution_fwd_t: public cpu_primitive_t {
         }
     };
 
-    _jit_uni_dw_convolution_fwd_t(const pd_t *pd, const input_vector &inputs,
+    _jit_uni_dw_convolution_fwd_t(const pd_t *apd, const input_vector &inputs,
             const output_vector &outputs)
-        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
+        : cpu_primitive_t(apd, inputs, outputs)
         , padded_bias_(nullptr) {
-        kernel_ = new jit_uni_dw_conv_fwd_kernel_f32<isa>(conf_.jcp_);
-        if (conf_.wants_padded_bias()) {
-            padded_bias_ = (float *)malloc(sizeof(float) * conf_.jcp_.oc, 64);
-            for (int c = conf_.jcp_.oc_without_padding; c < conf_.jcp_.oc; ++c)
+        kernel_ = new jit_uni_dw_conv_fwd_kernel_f32<isa>(pd()->jcp_);
+        if (pd()->wants_padded_bias()) {
+            padded_bias_ = (float *)malloc(sizeof(float) * pd()->jcp_.oc, 64);
+            for (int c = pd()->jcp_.oc_without_padding; c < pd()->jcp_.oc; ++c)
                 padded_bias_[c] = 0;
         }
     }
@@ -112,7 +112,7 @@ struct _jit_uni_dw_convolution_fwd_t: public cpu_primitive_t {
 
 private:
     void execute_forward();
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_uni_dw_conv_fwd_kernel_f32<isa> *kernel_;
     float *padded_bias_;
 };
@@ -179,16 +179,16 @@ struct _jit_uni_dw_convolution_bwd_data_t: public cpu_primitive_t {
         }
     };
 
-    _jit_uni_dw_convolution_bwd_data_t(const pd_t *pd,
+    _jit_uni_dw_convolution_bwd_data_t(const pd_t *apd,
             const input_vector &inputs, const output_vector &outputs)
-        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
-    { kernel_ = new jit_uni_dw_conv_bwd_data_kernel_f32<isa>(conf_.jcp_); }
+        : cpu_primitive_t(apd, inputs, outputs)
+    { kernel_ = new jit_uni_dw_conv_bwd_data_kernel_f32<isa>(pd()->jcp_); }
     ~_jit_uni_dw_convolution_bwd_data_t() { delete kernel_; };
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     virtual void execute(event_t *e) {
-        switch (conf_.desc()->prop_kind) {
+        switch (pd()->desc()->prop_kind) {
         case prop_kind::backward_data:
             execute_backward_data();
             break;
@@ -200,7 +200,7 @@ struct _jit_uni_dw_convolution_bwd_data_t: public cpu_primitive_t {
 
 private:
     void execute_backward_data();
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_uni_dw_conv_bwd_data_kernel_f32<isa> *kernel_;
 };
 
@@ -267,7 +267,7 @@ struct _jit_uni_dw_convolution_bwd_weights_t: public cpu_primitive_t {
         }
     };
 
-    _jit_uni_dw_convolution_bwd_weights_t(const pd_t *pd,
+    _jit_uni_dw_convolution_bwd_weights_t(const pd_t *apd,
             const input_vector &inputs, const output_vector &outputs);
     ~_jit_uni_dw_convolution_bwd_weights_t() {
         delete kernel_;
@@ -288,7 +288,7 @@ struct _jit_uni_dw_convolution_bwd_weights_t: public cpu_primitive_t {
 private:
     void execute_backward_weights();
 
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_uni_dw_conv_bwd_weights_kernel_f32<isa> *kernel_;
 
     data_t *ws_reduction_ = nullptr;

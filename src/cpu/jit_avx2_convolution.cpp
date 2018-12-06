@@ -32,18 +32,18 @@ using namespace mkldnn::impl::utils;
 
 
 #define src_blk_off(f, n, c, d, h, w) \
-    (conf_.ndims() == 3) \
+    (pd()->ndims() == 3) \
     ? (f).blk_off(n, c, w) \
-    : (conf_.ndims() == 4) \
+    : (pd()->ndims() == 4) \
     ? (f).blk_off(n, c, h, w) \
     : (f).blk_off(n, c, d, h, w)
 
 #define wht_blk_off_(f, g, ...) \
-    conf_.with_groups() ? (f).blk_off(g, __VA_ARGS__) : (f).blk_off(__VA_ARGS__)
+    pd()->with_groups() ? (f).blk_off(g, __VA_ARGS__) : (f).blk_off(__VA_ARGS__)
 #define wht_blk_off(f, g, oc, ic, kd, kh, kw) \
-    (conf_.ndims() == 3) \
+    (pd()->ndims() == 3) \
     ? wht_blk_off_(f, g, oc, ic, kw) \
-    : (conf_.ndims() == 4) \
+    : (pd()->ndims() == 4) \
     ? wht_blk_off_(f, g, oc, ic, kh, kw) \
     : wht_blk_off_(f, g, oc, ic, kd, kh, kw)
 
@@ -53,10 +53,10 @@ void jit_avx2_convolution_fwd_t::execute_forward() {
     auto bias = reinterpret_cast<const data_t *>(this->input_memory(2));
     auto dst = reinterpret_cast<data_t *>(this->memory());
 
-    const memory_desc_wrapper src_d(conf_.src_pd());
-    const memory_desc_wrapper dst_d(conf_.dst_pd());
-    const memory_desc_wrapper weights_d(conf_.weights_pd(0));
-    const memory_desc_wrapper bias_d(conf_.weights_pd(1));
+    const memory_desc_wrapper src_d(pd()->src_pd());
+    const memory_desc_wrapper dst_d(pd()->dst_pd());
+    const memory_desc_wrapper weights_d(pd()->weights_pd(0));
+    const memory_desc_wrapper bias_d(pd()->weights_pd(1));
 
     const auto &jcp = kernel_->jcp;
 
@@ -150,7 +150,7 @@ void jit_avx2_convolution_fwd_t::execute_forward() {
         }
     };
 
-    if (conf_.wants_padded_bias()) {
+    if (pd()->wants_padded_bias()) {
         for (int oc = 0; oc < jcp.oc_without_padding; ++oc)
             padded_bias_[oc] = bias[oc];
         bias = padded_bias_;
@@ -158,7 +158,7 @@ void jit_avx2_convolution_fwd_t::execute_forward() {
 
     parallel(0, ker);
 
-    if (conf_.wants_zero_pad_dst())
+    if (pd()->wants_zero_pad_dst())
         output_memory_primitive(0)->zero_pad();
 }
 
@@ -167,9 +167,9 @@ void jit_avx2_convolution_bwd_data_t::execute_backward_data() {
     auto weights = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto diff_src = reinterpret_cast<data_t *>(this->memory());
 
-    const memory_desc_wrapper diff_dst_d(conf_.diff_dst_pd());
-    const memory_desc_wrapper diff_src_d(conf_.diff_src_pd());
-    const memory_desc_wrapper weights_d(conf_.weights_pd(0));
+    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
+    const memory_desc_wrapper diff_src_d(pd()->diff_src_pd());
+    const memory_desc_wrapper weights_d(pd()->weights_pd(0));
 
     const auto &jcp = kernel_->jcp;
 
@@ -256,11 +256,11 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights() {
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto diff_weights = reinterpret_cast<data_t *>(this->memory(0));
     auto diff_bias_in = reinterpret_cast<data_t *>(this->memory(1));
-    data_t *diff_bias = conf_.wants_padded_bias() ? padded_bias_ : diff_bias_in;
+    data_t *diff_bias = pd()->wants_padded_bias() ? padded_bias_ : diff_bias_in;
 
-    const memory_desc_wrapper src_d(conf_.src_pd(0));
-    const memory_desc_wrapper diff_dst_d(conf_.diff_dst_pd());
-    const memory_desc_wrapper diff_weights_d(conf_.diff_weights_pd(0));
+    const memory_desc_wrapper src_d(pd()->src_pd(0));
+    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
+    const memory_desc_wrapper diff_weights_d(pd()->diff_weights_pd(0));
 
     const auto &jcp = kernel_->jcp;
 
@@ -375,12 +375,12 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights() {
 
     parallel(0, [&](const int ithr, const int nthr) {
         ker(ithr, nthr);
-        if (conf_.with_bias())
+        if (pd()->with_bias())
             ker_bias(ithr, nthr);
     });
 
     /* TODO: put this in ker_bias */
-    if (conf_.wants_padded_bias()) {
+    if (pd()->wants_padded_bias()) {
         assert(jcp.ngroups == 1);
         for (int oc = 0; oc < jcp.oc_without_padding; ++oc)
             diff_bias_in[oc] = diff_bias[oc];

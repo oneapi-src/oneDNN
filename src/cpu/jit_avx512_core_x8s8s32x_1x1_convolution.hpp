@@ -103,24 +103,24 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public cpu_primitive_t {
 
     template <cpu_isa_t isa, typename conv_t>
     friend void init_rtus_driver(conv_t *self);
-    jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t(const pd_t *pd,
+    jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t(const pd_t *apd,
                                           const input_vector &inputs,
                                           const output_vector &outputs)
-        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
+        : cpu_primitive_t(apd, inputs, outputs)
         , kernel_(nullptr), rtus_driver_(nullptr), ws_per_thread_(0)
         , scratch_(nullptr), local_scales_(nullptr)
     {
-        kernel_ = new jit_avx512_core_x8s8s32x_1x1_conv_kernel(conf_.jcp_,
-                    *conf_.attr());
+        kernel_ = new jit_avx512_core_x8s8s32x_1x1_conv_kernel(pd()->jcp_,
+                    *pd()->attr());
         init_rtus_driver<avx512_common>(this);
-        if (conf_.jcp_.signed_input && conf_.jcp_.ver != ver_vnni) {
-            size_t scales_size = ((conf_.attr()->output_scales_.count_ == 1)
+        if (pd()->jcp_.signed_input && pd()->jcp_.ver != ver_vnni) {
+            size_t scales_size = ((pd()->attr()->output_scales_.count_ == 1)
                     ? 16
-                    : conf_.attr()->output_scales_.count_);
+                    : pd()->attr()->output_scales_.count_);
             local_scales_ = (float *)malloc(sizeof(float) * scales_size, 64);
             for (size_t i = 0; i < scales_size; i++) {
-                local_scales_[i] = conf_.attr()->output_scales_.scales_[i] *
-                                        (1.f / conf_.jcp_.wei_adj_scale);
+                local_scales_[i] = pd()->attr()->output_scales_.scales_[i] *
+                                        (1.f / pd()->jcp_.wei_adj_scale);
             }
         }
     }
@@ -146,7 +146,7 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public cpu_primitive_t {
     void execute_forward_thr(const int ithr, const int nthr,
             const src_data_t *src, const wei_data_t *weights,
             const char *bias, dst_data_t *dst);
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_avx512_core_x8s8s32x_1x1_conv_kernel *kernel_;
 
     rtus_driver_t<avx512_common> *rtus_driver_;

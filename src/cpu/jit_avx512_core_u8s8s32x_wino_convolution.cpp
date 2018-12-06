@@ -969,39 +969,38 @@ status_t jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
 
 template <data_type_t dst_data_type>
 jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
-        jit_avx512_core_u8s8s32x_wino_convolution_fwd_t(const pd_t *pd,
+        jit_avx512_core_u8s8s32x_wino_convolution_fwd_t(const pd_t *apd,
                 const input_vector &inputs, const output_vector &outputs)
-    : cpu_primitive_t(&conf_, inputs, outputs)
-    , conf_(*pd)
+    : cpu_primitive_t(apd, inputs, outputs)
     , scratchpad_(nullptr) {
     const int nthreads = mkldnn_get_max_threads();
     kernel_ = new jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t(
-            conf_.jcp_, *conf_.attr());
+            pd()->jcp_, *pd()->attr());
     src_trans_ = new jit_avx512_core_u8s8s32x_wino_conv_src_trans_t(
-            conf_.jcp_, *conf_.attr());
+            pd()->jcp_, *pd()->attr());
     dst_trans_ = new jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t(
-            conf_.jcp_, *conf_.attr());
+            pd()->jcp_, *pd()->attr());
 
-    const int tilesize = conf_.jcp_.alpha * conf_.jcp_.alpha;
-    const int numtiles = conf_.jcp_.M;
+    const int tilesize = pd()->jcp_.alpha * pd()->jcp_.alpha;
+    const int numtiles = pd()->jcp_.M;
     const int alltiles = tilesize * numtiles;
-    size_wino_wei_ = tilesize * conf_.jcp_.oc * conf_.jcp_.ic;
-    size_wino_src_ = sizeof(src_data_t) * alltiles * conf_.jcp_.ic;
+    size_wino_wei_ = tilesize * pd()->jcp_.oc * pd()->jcp_.ic;
+    size_wino_src_ = sizeof(src_data_t) * alltiles * pd()->jcp_.ic;
     size_wino_src_ = rnd_up(size_wino_src_, PAGE_4K);
     size_wino_src_ /= sizeof(src_data_t);
-    size_wino_dst_ = alltiles * conf_.jcp_.oc;
+    size_wino_dst_ = alltiles * pd()->jcp_.oc;
 
-    size_t workspace_size = (conf_.jcp_.small_mb ? 1 : nthreads)
+    size_t workspace_size = (pd()->jcp_.small_mb ? 1 : nthreads)
             * (sizeof(src_data_t) * size_wino_src_
                                     + sizeof(acc_data_t) * size_wino_dst_);
 
     scratchpad_ = create_scratchpad(workspace_size);
     assert(scratchpad_); // TODO: add proper check and raise exception?
 
-    wino_shift_ = (conf_.jcp_.small_mb ? 1 : nthreads) * sizeof(src_data_t)
+    wino_shift_ = (pd()->jcp_.small_mb ? 1 : nthreads) * sizeof(src_data_t)
             * size_wino_src_;
 
-    updated_output_scales_ = conf_.attr()->output_scales_;
+    updated_output_scales_ = pd()->attr()->output_scales_;
     updated_output_scales_.scale(1.f / (adj_src_scale * adj_wei_scale));
 }
 

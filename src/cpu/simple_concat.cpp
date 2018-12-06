@@ -24,14 +24,14 @@ namespace cpu {
 
 template <data_type_t data_type>
 void simple_concat_t<data_type>::execute() {
-    const int num_arrs = conf_.n_inputs();
-    const int *perm = conf_.perm_, *iperm = conf_.iperm_;
-    const int concat_dim = conf_.concat_dim();
+    const int num_arrs = pd()->n_inputs();
+    const int *perm = pd()->perm_, *iperm = pd()->iperm_;
+    const int concat_dim = pd()->concat_dim();
     auto o_base_ptr = reinterpret_cast<data_t *>(this->memory());
 
     for (int a = 0; a < num_arrs; ++a) {
-        const memory_desc_wrapper i_d(conf_.src_pd(a));
-        const memory_desc_wrapper o_d(conf_.src_image_pd(a));
+        const memory_desc_wrapper i_d(pd()->src_pd(a));
+        const memory_desc_wrapper o_d(pd()->src_image_pd(a));
 
         input_ptrs_[a] = reinterpret_cast<const data_t *>(
                 this->input_memory(a)) + i_d.blk_off(0);
@@ -45,7 +45,7 @@ void simple_concat_t<data_type>::execute() {
         }
     }
 
-    const memory_desc_wrapper o_d(conf_.src_image_pd());
+    const memory_desc_wrapper o_d(pd()->src_image_pd());
     auto &blk = o_d.blocking_desc();
     strides_t os = { 0 };
     for (int i = 0; i < perm[concat_dim]; i++)

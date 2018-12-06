@@ -216,19 +216,19 @@ struct ref_deconvolution_fwd_t: public cpu_primitive_t {
         bool conv_supports_bias_;
     };
 
-    ref_deconvolution_fwd_t(const pd_t *pd, const input_vector &inputs,
+    ref_deconvolution_fwd_t(const pd_t *apd, const input_vector &inputs,
             const output_vector &outputs)
-        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd), conv_p_(nullptr) {}
+        : cpu_primitive_t(apd, inputs, outputs), conv_p_(nullptr) {}
 
     ~ref_deconvolution_fwd_t() { delete this->conv_p_; }
 
     virtual void execute(event_t *e) {
-        switch (conf_.desc()->prop_kind) {
+        switch (pd()->desc()->prop_kind) {
         case prop_kind::forward_training:
         case prop_kind::forward_inference:
             (conv_p_)->execute(e);
-            if (conf_.with_bias() && !conf_.conv_supports_bias_) {
-                switch (conf_.dst_pd()->desc()->format) {
+            if (pd()->with_bias() && !pd()->conv_supports_bias_) {
+                switch (pd()->dst_pd()->desc()->format) {
                     case memory_format::nchw :
                     case memory_format::ncdhw :
                         compute_fwd_bias_ncdhw();
@@ -257,7 +257,7 @@ private:
     void compute_fwd_bias();
     void compute_fwd_bias_ncdhw();
     template <int blksize> void compute_fwd_bias_nCdhwXc();
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     primitive_t *conv_p_;
 };
 
@@ -336,13 +336,13 @@ struct ref_deconvolution_bwd_data_t: public cpu_primitive_t {
         }
         primitive_desc_t *conv_pd_;
     };
-    ref_deconvolution_bwd_data_t(const pd_t *pd, const input_vector &inputs,
+    ref_deconvolution_bwd_data_t(const pd_t *apd, const input_vector &inputs,
             const output_vector &outputs)
-        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd), conv_p_(nullptr) {}
+        : cpu_primitive_t(apd, inputs, outputs), conv_p_(nullptr) {}
     ~ref_deconvolution_bwd_data_t() { delete this->conv_p_; }
 
     virtual void execute(event_t *e) {
-        switch (conf_.desc()->prop_kind) {
+        switch (pd()->desc()->prop_kind) {
         case prop_kind::backward_data:
             (conv_p_)->execute(e);
             break;
@@ -353,7 +353,7 @@ struct ref_deconvolution_bwd_data_t: public cpu_primitive_t {
     }
 
 private:
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     primitive_t *conv_p_;
 };
 
@@ -434,20 +434,20 @@ struct ref_deconvolution_bwd_weights_t: public cpu_primitive_t {
         primitive_desc_t *conv_pd_;
     };
 
-    ref_deconvolution_bwd_weights_t(const pd_t *pd, const input_vector &inputs,
+    ref_deconvolution_bwd_weights_t(const pd_t *apd, const input_vector &inputs,
             const output_vector &outputs)
-        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd), conv_p_(nullptr) {}
+        : cpu_primitive_t(apd, inputs, outputs), conv_p_(nullptr) {}
 
     ~ref_deconvolution_bwd_weights_t() { delete this->conv_p_; }
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     virtual void execute(event_t *e) {
-        switch (conf_.desc()->prop_kind) {
+        switch (pd()->desc()->prop_kind) {
         case prop_kind::backward_weights:
             (conv_p_)->execute(e);
-            if (conf_.with_bias()) {
-                switch (conf_.diff_dst_pd()->desc()->format) {
+            if (pd()->with_bias()) {
+                switch (pd()->diff_dst_pd()->desc()->format) {
                     case memory_format::nchw :
                     case memory_format::ncdhw :
                         compute_bwd_bias_ncdhw();
@@ -472,7 +472,7 @@ struct ref_deconvolution_bwd_weights_t: public cpu_primitive_t {
     }
 
 private:
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     primitive_t *conv_p_;
     void compute_bwd_bias();
     void compute_bwd_bias_ncdhw();

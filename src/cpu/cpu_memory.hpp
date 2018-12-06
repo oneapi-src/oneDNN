@@ -49,9 +49,9 @@ struct cpu_memory_t: public cpu_primitive_t {
         }
     };
 
-    cpu_memory_t(const pd_t *pd)
-        : cpu_primitive_t(&conf_, input_vector(), output_vector(1, this))
-        , conf_(*pd), data_(nullptr) {}
+    cpu_memory_t(const pd_t *apd)
+        : cpu_primitive_t(apd, input_vector(), output_vector(1, this))
+        , data_(nullptr) {}
     virtual ~cpu_memory_t() {}
 
     virtual void execute(mkldnn::impl::event_t *e)
@@ -74,7 +74,7 @@ struct cpu_memory_t: public cpu_primitive_t {
     mkldnn::impl::status_t zero_pad() const;
 
 private:
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     char *data_;
 
     template <mkldnn::impl::data_type_t>
@@ -169,8 +169,8 @@ struct cpu_view_t: public cpu_primitive_t {
             : view_pd_t(src_pd.engine()), src_pd_(src_pd), dst_pd_(dst_pd) {}
     };
 
-    cpu_view_t(const pd_t *pd, const input_vector &inputs)
-        : cpu_primitive_t(&conf_, inputs, output_vector(1, this)), conf_(*pd)
+    cpu_view_t(const pd_t *apd, const input_vector &inputs)
+        : cpu_primitive_t(apd, inputs, output_vector(1, this))
     {}
     virtual ~cpu_view_t() {}
 
@@ -183,7 +183,7 @@ struct cpu_view_t: public cpu_primitive_t {
     { assert(output_index == 0); return input_memory(); }
 
 private:
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
 }

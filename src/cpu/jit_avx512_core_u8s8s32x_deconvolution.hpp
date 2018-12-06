@@ -164,11 +164,11 @@ struct _jit_avx512_core_u8s8s32x_deconvolution_fwd_t : public cpu_primitive_t {
         jit_conv_conf_t jcp_;
     };
 
-    _jit_avx512_core_u8s8s32x_deconvolution_fwd_t(const pd_t *pd,
+    _jit_avx512_core_u8s8s32x_deconvolution_fwd_t(const pd_t *apd,
            const input_vector &inputs, const output_vector &outputs)
-       : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {
-           kernel_ = new jit_avx512_core_u8s8s32x_deconv_fwd_kernel(conf_.jcp_,
-                   *conf_.attr());
+       : cpu_primitive_t(apd, inputs, outputs) {
+           kernel_ = new jit_avx512_core_u8s8s32x_deconv_fwd_kernel(pd()->jcp_,
+                   *pd()->attr());
        }
 
     ~_jit_avx512_core_u8s8s32x_deconvolution_fwd_t() {
@@ -187,7 +187,7 @@ struct _jit_avx512_core_u8s8s32x_deconvolution_fwd_t : public cpu_primitive_t {
 
 private:
     void execute_forward();
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_avx512_core_u8s8s32x_deconv_fwd_kernel *kernel_;
 };
 

@@ -109,9 +109,9 @@ struct ref_sum_t: public cpu_primitive_t {
         nstl::vector<const reorder_pd_t *> reorder_pds_;
     };
 
-    ref_sum_t(const pd_t *pd, const input_vector &inputs,
+    ref_sum_t(const pd_t *apd, const input_vector &inputs,
             const output_vector &outputs, nstl::vector<primitive_t *> reorders)
-        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd),
+        : cpu_primitive_t(apd, inputs, outputs),
         reorders_(reorders) {}
 
     ~ref_sum_t() {
@@ -130,7 +130,7 @@ struct ref_sum_t: public cpu_primitive_t {
     }
 
 private:
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     nstl::vector<primitive_t *> reorders_;
 };
 

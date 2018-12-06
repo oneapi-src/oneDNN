@@ -94,7 +94,7 @@ struct jit_avx512_core_fp32_wino_conv_2x3_fwd_t : public cpu_primitive_t {
         }
     };
 
-    jit_avx512_core_fp32_wino_conv_2x3_fwd_t(const pd_t *pd,
+    jit_avx512_core_fp32_wino_conv_2x3_fwd_t(const pd_t *apd,
             const input_vector &inputs, const output_vector &outputs);
 
     ~jit_avx512_core_fp32_wino_conv_2x3_fwd_t();
@@ -108,7 +108,7 @@ private:
     void execute_forward();
     void execute_forward_small_mb();
     void execute_forward_mbN();
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t *kernel_;
     jit_avx512_core_fp32_wino_conv_2x3_src_trans_t *src_trans_;

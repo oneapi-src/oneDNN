@@ -67,7 +67,7 @@ void _ref_rnn_common_t<aprop>::gates_reduction(
 template <prop_kind_t aprop>
 gemm_sig(_ref_rnn_common_t<aprop>::gemm) {
     extended_sgemm(&transA, &transB, &m, &n, &k, &alpha, a_, &ldA, b_, &ldB,
-            &beta, c_, &ldC, nullptr, conf_.rnn_.use_jit_gemm);
+            &beta, c_, &ldC, nullptr, pd()->rnn_.use_jit_gemm);
 }
 
 template <prop_kind_t aprop>
@@ -183,7 +183,7 @@ void _ref_rnn_common_t<prop_kind::forward>::copy_init_layer(
         const float *xt_, const float *diff_dst_layer_) {
     AOC<float, 5> ws_states(ws_states_, rnn.n_dir, rnn.n_states, rnn.n_iter + 1,
             rnn.mb, rnn.states_ws_ld);
-    auto xt_d = memory_desc_wrapper(conf_.src_pd(0));
+    auto xt_d = memory_desc_wrapper(pd()->src_pd(0));
 
     parallel_nd(rnn.n_iter, [&](int it) {
         auto xxt = xt_ + xt_d.blk_off(it);
@@ -205,7 +205,7 @@ void _ref_rnn_common_t<prop_kind::backward>::copy_init_layer(
         const float *xt_, const float *diff_dst_layer_) {
     AOC<float, 6> ws_diff_states(ws_diff_states_, rnn.n_layer + 1, rnn.n_dir,
             (rnn.n_states + 1), rnn.n_iter + 1, rnn.mb, rnn.states_ws_ld);
-    auto diff_dst_layer_d = memory_desc_wrapper(conf_.diff_dst_pd(0));
+    auto diff_dst_layer_d = memory_desc_wrapper(pd()->diff_dst_pd(0));
 
     switch (rnn.exec_dir) {
     case bi_concat:
@@ -264,7 +264,7 @@ void _ref_rnn_common_t<prop_kind::forward>::copy_init_iter(
         const float *firstit_states_, const float *diff_dst_iter_) {
     AOC<float, 6> ws_states(ws_states_, rnn.n_layer + 1, rnn.n_dir,
             rnn.n_states, rnn.n_iter + 1, rnn.mb, rnn.states_ws_ld);
-    auto firstit_states_d = memory_desc_wrapper(conf_.src_pd(1));
+    auto firstit_states_d = memory_desc_wrapper(pd()->src_pd(1));
     if (firstit_states_) {
         parallel_nd(rnn.n_layer, rnn.n_dir, [&](int lay, int dir) {
             for (int state = 0; state < rnn.n_states; state++)
@@ -290,7 +290,7 @@ void _ref_rnn_common_t<prop_kind::backward>::copy_init_iter(
         const float *firstit_states_, const float *diff_dst_iter_) {
     AOC<float, 6> ws_diff_states(ws_diff_states_, rnn.n_layer + 1, rnn.n_dir,
             rnn.n_states + 1, rnn.n_iter + 1, rnn.mb, rnn.states_ws_ld);
-    auto diff_dst_iter_d = memory_desc_wrapper(conf_.diff_dst_pd(1));
+    auto diff_dst_iter_d = memory_desc_wrapper(pd()->diff_dst_pd(1));
     if (diff_dst_iter_) {
         parallel_nd(rnn.n_layer, rnn.n_dir, rnn.n_states, rnn.mb,
                 [&](int lay, int dir, int state, int b) {
@@ -315,7 +315,7 @@ template <>
 void _ref_rnn_common_t<prop_kind::forward>::copy_res_layer(
         const rnn_conf_t &rnn, float *dst_layer_, float *diff_src_layer,
         const float *ws_states_, const float *ws_diff_states_) {
-    auto dst_layer_d = memory_desc_wrapper(conf_.dst_pd(0));
+    auto dst_layer_d = memory_desc_wrapper(pd()->dst_pd(0));
     AOC<const float, 6> ws_states(ws_states_, rnn.n_layer + 1, rnn.n_dir,
             rnn.n_states, rnn.n_iter + 1, rnn.mb, rnn.states_ws_ld);
 
@@ -347,7 +347,7 @@ template <>
 void _ref_rnn_common_t<prop_kind::backward>::copy_res_layer(
         const rnn_conf_t &rnn, float *dst_layer_, float *diff_src_layer_,
         const float *ws_states_, const float *ws_diff_states_) {
-    auto diff_src_layer_d = memory_desc_wrapper(conf_.diff_src_pd(0));
+    auto diff_src_layer_d = memory_desc_wrapper(pd()->diff_src_pd(0));
     AOC<const float, 6> ws_diff_states(ws_diff_states_, rnn.n_layer + 1,
             rnn.n_dir, rnn.n_states + 1, rnn.n_iter + 1, rnn.mb,
             rnn.states_ws_ld);
@@ -372,7 +372,7 @@ template <>
 void _ref_rnn_common_t<prop_kind::forward>::copy_res_iter(
         const rnn_conf_t &rnn, float *dst_iter_, float *diff_src_iter_,
         const float *ws_states_, const float *ws_diff_states_) {
-    auto dst_iter_d = memory_desc_wrapper(conf_.dst_pd(1));
+    auto dst_iter_d = memory_desc_wrapper(pd()->dst_pd(1));
     AOC<const float, 6> ws_states(ws_states_, rnn.n_layer + 1, rnn.n_dir,
             rnn.n_states, rnn.n_iter + 1, rnn.mb, rnn.states_ws_ld);
     if (dst_iter_) {
@@ -391,7 +391,7 @@ template <>
 void _ref_rnn_common_t<prop_kind::backward>::copy_res_iter(
         const rnn_conf_t &rnn, float *dst_iter_, float *diff_src_iter_,
         const float *ws_states_, const float *ws_diff_states_) {
-    auto diff_src_iter_d = memory_desc_wrapper(conf_.diff_src_pd(1));
+    auto diff_src_iter_d = memory_desc_wrapper(pd()->diff_src_pd(1));
     AOC<const float, 6> ws_diff_states(ws_diff_states_, rnn.n_layer + 1,
             rnn.n_dir, rnn.n_states + 1, rnn.n_iter + 1, rnn.mb,
             rnn.states_ws_ld);
@@ -536,8 +536,8 @@ free_packed_sig(_ref_rnn_common_t<aprop>::free_no_packed_weights) {
 //********************* Execution function *********************//
 template <prop_kind_t aprop>
 void _ref_rnn_common_t<aprop>::execute_() {
-    rnn_conf_t &rnn = this->conf_.rnn_;
-    bool is_orig_gru = conf_.cell_kind() == alg_kind::vanilla_gru;
+    const rnn_conf_t &rnn = this->pd()->rnn_;
+    bool is_orig_gru = pd()->cell_kind() == alg_kind::vanilla_gru;
     int n_parts_wei_st = is_orig_gru ? 2 : 1, n_parts_wei_i = 1;
     int parts_wei_st = rnn.n_gates, parts_wei_i = rnn.n_gates,
         parts_wei_st_gru[2] = { 2, 1 };
@@ -546,14 +546,14 @@ void _ref_rnn_common_t<aprop>::execute_() {
     int output_idx = 0;
     auto input
             = reinterpret_cast<const float *>(this->input_memory(input_idx++));
-    auto states = conf_.with_src_iter() ?
+    auto states = pd()->with_src_iter() ?
             reinterpret_cast<const float *>(this->input_memory(input_idx++)) :
             nullptr;
     auto w_input
             = reinterpret_cast<const float *>(this->input_memory(input_idx++));
     auto w_state
             = reinterpret_cast<const float *>(this->input_memory(input_idx++));
-    auto bias = conf_.with_bias() ?
+    auto bias = pd()->with_bias() ?
             reinterpret_cast<const float *>(this->input_memory(input_idx++)) :
             nullptr;
 
@@ -561,7 +561,7 @@ void _ref_rnn_common_t<aprop>::execute_() {
             reinterpret_cast<float *>(this->memory(output_idx++)) :
             const_cast<float *>(reinterpret_cast<const float *>(
                     this->input_memory(input_idx++)));
-    auto dst_last_iter = conf_.with_dst_iter() ?
+    auto dst_last_iter = pd()->with_dst_iter() ?
             (rnn.is_fwd ? reinterpret_cast<float *>(
                                   this->memory(output_idx++)) :
                           const_cast<float *>(reinterpret_cast<const float *>(
@@ -571,7 +571,7 @@ void _ref_rnn_common_t<aprop>::execute_() {
     auto diff_dst_layer = rnn.is_fwd ?
             nullptr :
             reinterpret_cast<const float *>(this->input_memory(input_idx++));
-    auto diff_dst_iter = rnn.is_fwd || !conf_.with_dst_iter() ?
+    auto diff_dst_iter = rnn.is_fwd || !pd()->with_dst_iter() ?
             nullptr :
             reinterpret_cast<const float *>(this->input_memory(input_idx++));
 
@@ -594,7 +594,7 @@ void _ref_rnn_common_t<aprop>::execute_() {
     auto diff_src_layer = rnn.is_fwd ?
             nullptr :
             reinterpret_cast<float *>(this->memory(output_idx++));
-    auto diff_src_iter = rnn.is_fwd || !conf_.with_src_iter() ?
+    auto diff_src_iter = rnn.is_fwd || !pd()->with_src_iter() ?
             nullptr :
             reinterpret_cast<float *>(this->memory(output_idx++));
     auto diff_weights_layer = rnn.is_fwd ?
@@ -603,7 +603,7 @@ void _ref_rnn_common_t<aprop>::execute_() {
     auto diff_weights_iter = rnn.is_fwd ?
             nullptr :
             reinterpret_cast<float *>(this->memory(output_idx++));
-    auto diff_bias = rnn.is_fwd || !conf_.with_bias() ?
+    auto diff_bias = rnn.is_fwd || !pd()->with_bias() ?
             nullptr :
             reinterpret_cast<float *>(this->memory(output_idx++));
 

@@ -75,7 +75,7 @@ struct nspc_batch_normalization_fwd_t : public cpu_primitive_t {
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    nspc_batch_normalization_fwd_t(const pd_t *pd, const input_vector &inputs,
+    nspc_batch_normalization_fwd_t(const pd_t *apd, const input_vector &inputs,
             const output_vector &outputs);
     ~nspc_batch_normalization_fwd_t();
     virtual void execute(event_t *e) {
@@ -87,7 +87,7 @@ private:
     data_t *stats_reduction_;
     data_t *tmp_mean_, *tmp_variance_;
     void execute_forward();
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
 struct nspc_batch_normalization_bwd_t : public cpu_primitive_t {
@@ -137,7 +137,7 @@ struct nspc_batch_normalization_bwd_t : public cpu_primitive_t {
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    nspc_batch_normalization_bwd_t(const pd_t *pd, const input_vector &inputs,
+    nspc_batch_normalization_bwd_t(const pd_t *apd, const input_vector &inputs,
             const output_vector &outputs);
     ~nspc_batch_normalization_bwd_t();
     virtual void execute(event_t *e) {
@@ -149,7 +149,7 @@ private:
     data_t *stats_reduction_;
     data_t *tmp_diff_scaleshift_;
     void execute_backward();
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 }
 }

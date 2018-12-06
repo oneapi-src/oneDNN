@@ -114,18 +114,18 @@ struct _gemm_x8s8s32x_convolution_fwd_t: public cpu_primitive_t {
         }
     };
 
-    _gemm_x8s8s32x_convolution_fwd_t(const pd_t *pd, const input_vector &inputs,
+    _gemm_x8s8s32x_convolution_fwd_t(const pd_t *apd, const input_vector &inputs,
            const output_vector &outputs)
-        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
+        : cpu_primitive_t(apd, inputs, outputs)
         , scratchpad_(nullptr)
     {
-        size_t col_size = (size_t)conf_.jcp_.im2col_sz * sizeof(src_data_t);
-        size_t acc_size = (size_t)conf_.jcp_.os * conf_.jcp_.oc
+        size_t col_size = (size_t)pd()->jcp_.im2col_sz * sizeof(src_data_t);
+        size_t acc_size = (size_t)pd()->jcp_.os * pd()->jcp_.oc
                             * sizeof(acc_data_t);
         size_t size = col_size + acc_size;
 
         jit_gemm_convolution_utils::prepare_scratchpad(&this->scratchpad_,
-                size, this->conf_.jcp_.nthr);
+                size, this->pd()->jcp_.nthr);
     }
 
     ~_gemm_x8s8s32x_convolution_fwd_t() {
@@ -148,7 +148,7 @@ private:
             const src_data_t *src_base, const wei_data_t *wei_base,
             const char *bia_base, dst_data_t *dst_base,
             char *scratchpad);
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     scratchpad_t *scratchpad_;
     int nthr_;
 };
@@ -220,18 +220,18 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t: public cpu_primitive_t {
         }
     };
 
-    _gemm_u8s8s32x_convolution_bwd_data_t(const pd_t *pd, const input_vector &inputs,
+    _gemm_u8s8s32x_convolution_bwd_data_t(const pd_t *apd, const input_vector &inputs,
            const output_vector &outputs)
-        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
+        : cpu_primitive_t(apd, inputs, outputs)
         , scratchpad_(nullptr)
     {
-        size_t col_size = (size_t)conf_.jcp_.im2col_sz * sizeof(acc_data_t);
-        size_t acc_size = (size_t)conf_.jcp_.is * conf_.jcp_.ic
+        size_t col_size = (size_t)pd()->jcp_.im2col_sz * sizeof(acc_data_t);
+        size_t acc_size = (size_t)pd()->jcp_.is * pd()->jcp_.ic
                             * sizeof(acc_data_t);
         size_t size = col_size + acc_size;
 
         jit_gemm_convolution_utils::prepare_scratchpad(&this->scratchpad_,
-                size, this->conf_.jcp_.nthr);
+                size, this->pd()->jcp_.nthr);
     }
 
     ~_gemm_u8s8s32x_convolution_bwd_data_t() {
@@ -254,7 +254,7 @@ private:
             const diff_dst_data_t *diff_dst_base, const wei_data_t *wei_base,
             const char *bia_base, diff_src_data_t *diff_src_base,
             char *scratchpad);
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     scratchpad_t *scratchpad_;
 };
 

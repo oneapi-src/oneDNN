@@ -90,15 +90,15 @@ struct ref_eltwise_fwd_t: public cpu_primitive_t {
         bool use_dense_, use_nCspBc_padded_;
     };
 
-    ref_eltwise_fwd_t(const pd_t *pd, const input_vector &inputs,
+    ref_eltwise_fwd_t(const pd_t *apd, const input_vector &inputs,
             const output_vector &outputs)
-        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {}
+        : cpu_primitive_t(apd, inputs, outputs) {}
     typedef typename prec_traits<data_type>::type data_t;
 
     virtual void execute(event_t *e) {
-        if (conf_.use_dense_)
+        if (pd()->use_dense_)
             execute_forward_dense();
-        else if (conf_.use_nCspBc_padded_)
+        else if (pd()->use_nCspBc_padded_)
             execute_forward_nCspBc_padded();
         else
             execute_forward_generic();
@@ -109,7 +109,7 @@ private:
     void execute_forward_nCspBc_padded();
     void execute_forward_dense();
     void execute_forward_generic();
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
 template <impl::data_type_t data_type>
@@ -151,13 +151,13 @@ struct ref_eltwise_bwd_t: public cpu_primitive_t {
         bool use_dense_;
     };
 
-    ref_eltwise_bwd_t(const pd_t *pd, const input_vector &inputs,
+    ref_eltwise_bwd_t(const pd_t *apd, const input_vector &inputs,
             const output_vector &outputs)
-        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {}
+        : cpu_primitive_t(apd, inputs, outputs) {}
     typedef typename prec_traits<data_type>::type data_t;
 
     virtual void execute(event_t *e) {
-        if (conf_.use_dense_) execute_backward_dense();
+        if (pd()->use_dense_) execute_backward_dense();
         else execute_backward_generic();
         e->set_state(event_t::ready);
     }
@@ -165,7 +165,7 @@ struct ref_eltwise_bwd_t: public cpu_primitive_t {
 private:
     void execute_backward_dense();
     void execute_backward_generic();
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
 }

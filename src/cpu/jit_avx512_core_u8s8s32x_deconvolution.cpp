@@ -29,7 +29,7 @@ using namespace mkldnn::impl::utils;
 using namespace nstl;
 
 #define wht_blk_off(d, g, ...) \
-        (conf_.with_groups() \
+        (pd()->with_groups() \
          ? (d).blk_off((g), __VA_ARGS__) \
          : (d).blk_off(__VA_ARGS__))
 
@@ -492,10 +492,10 @@ execute_forward()
     auto bias = reinterpret_cast<const char *>(this->input_memory(2));
     auto dst = reinterpret_cast<dst_data_t *>(this->memory());
 
-    const memory_desc_wrapper src_d(conf_.src_pd());
-    const memory_desc_wrapper dst_d(conf_.dst_pd());
-    const memory_desc_wrapper weights_d(conf_.weights_pd(0));
-    const memory_desc_wrapper bias_d(conf_.weights_pd(1));
+    const memory_desc_wrapper src_d(pd()->src_pd());
+    const memory_desc_wrapper dst_d(pd()->dst_pd());
+    const memory_desc_wrapper weights_d(pd()->weights_pd(0));
+    const memory_desc_wrapper bias_d(pd()->weights_pd(1));
 
     auto &jcp = kernel_->jcp;
 
@@ -506,7 +506,7 @@ execute_forward()
     size_t dst_h_stride = dst_d.blk_off(0, 0, 1);
     size_t wht_kh_stride = wht_blk_off(weights_d, 0, 0, 0, 1);
 
-    const auto &oscales = conf_.attr()->output_scales_;
+    const auto &oscales = pd()->attr()->output_scales_;
 
     parallel(0,
             [&](const int ithr, const int nthr) {

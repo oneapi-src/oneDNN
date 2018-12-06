@@ -74,23 +74,23 @@ template <data_type_t src_type, data_type_t dst_type>
 void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<src_type, dst_type>
 ::execute_forward_thr(const int ithr, const int nthr, const src_data_t *src,
         const wei_data_t *weights, const char *bias, dst_data_t *dst) {
-    const memory_desc_wrapper src_d(conf_.src_pd());
-    const memory_desc_wrapper dst_d(conf_.dst_pd());
-    const memory_desc_wrapper weights_d(conf_.weights_pd(0));
+    const memory_desc_wrapper src_d(pd()->src_pd());
+    const memory_desc_wrapper dst_d(pd()->dst_pd());
+    const memory_desc_wrapper weights_d(pd()->weights_pd(0));
 
-    const size_t bia_dt_size = conf_.with_bias()
-        ? types::data_type_size(conf_.desc()->bias_desc.data_type) : 0;
+    const size_t bia_dt_size = pd()->with_bias()
+        ? types::data_type_size(pd()->desc()->bias_desc.data_type) : 0;
 
     const auto &jcp = kernel_->jcp;
 
     const int work_amount = jcp.mb * jcp.ngroups * jcp.nb_bcast;
 
-    const int stride_h = conf_.desc()->strides[0];
-    const int stride_w = conf_.desc()->strides[1];
-    const int pad_t = conf_.desc()->padding[0][0];
-    const int pad_l = conf_.desc()->padding[0][1];
+    const int stride_h = pd()->desc()->strides[0];
+    const int stride_w = pd()->desc()->strides[1];
+    const int pad_t = pd()->desc()->padding[0][0];
+    const int pad_l = pd()->desc()->padding[0][1];
 
-    const auto &oscales = conf_.attr()->output_scales_;
+    const auto &oscales = pd()->attr()->output_scales_;
 
     int offset = jcp.ngroups * (jcp.oc / jcp.oc_block) * (jcp.ic / jcp.ic_block)
         * jcp.oc_block * jcp.ic_block;
@@ -167,7 +167,7 @@ void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<src_type, dst_type>
         const size_t dst_off = dst_d.blk_off(n, _ocb * jcp.oc_block, oh, ow);
 
         p.output_data = &dst[dst_off];
-        p.load_data = &weights[conf_.with_groups()
+        p.load_data = &weights[pd()->with_groups()
             ? weights_d.blk_off(g, ocb, icb)
             : weights_d.blk_off(ocb, icb)];
         p.bias_data = &bias[_ocb * jcp.oc_block * bia_dt_size];
@@ -176,7 +176,7 @@ void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<src_type, dst_type>
         p.scales = (jcp.signed_input && jcp.ver != ver_vnni)
             ? &local_scales_[jcp.is_oc_scale * _ocb * jcp.oc_block]
             : &oscales.scales_[jcp.is_oc_scale * _ocb * jcp.oc_block];
-        if (conf_.rtus_.reduce_src_) {
+        if (pd()->rtus_.reduce_src_) {
             rp.ws = scratch_ + ithr * ws_per_thread_
                 + _icb * jcp.is * jcp.ic_block;
             if (ocb == ocb_start) {

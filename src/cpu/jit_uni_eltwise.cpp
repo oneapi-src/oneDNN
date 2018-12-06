@@ -873,10 +873,10 @@ status_t jit_uni_eltwise_fwd_t<isa>::pd_t::init() {
 }
 
 template <cpu_isa_t isa>
-jit_uni_eltwise_fwd_t<isa>::jit_uni_eltwise_fwd_t(const pd_t *pd,
+jit_uni_eltwise_fwd_t<isa>::jit_uni_eltwise_fwd_t(const pd_t *apd,
         const input_vector &inputs, const output_vector &outputs)
-    : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd), kernel_(nullptr) {
-    const auto &desc = *conf_.desc();
+    : cpu_primitive_t(apd, inputs, outputs), kernel_(nullptr) {
+    const auto &desc = *pd()->desc();
     switch (desc.alg_kind) {
     case alg_kind::eltwise_relu:
         kernel_ = new jit_uni_relu_kernel_f32<isa>(desc); break;
@@ -894,7 +894,7 @@ void jit_uni_eltwise_fwd_t<isa>::execute_forward() {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto dst = reinterpret_cast<data_t *>(this->memory(0));
 
-    const memory_desc_wrapper data_d(conf_.src_pd());
+    const memory_desc_wrapper data_d(pd()->src_pd());
 
     const size_t nelems = data_d.nelems(true);
 
@@ -938,10 +938,10 @@ status_t jit_uni_eltwise_bwd_t<isa>::pd_t::init() {
 }
 
 template <cpu_isa_t isa>
-jit_uni_eltwise_bwd_t<isa>::jit_uni_eltwise_bwd_t(const pd_t *pd,
+jit_uni_eltwise_bwd_t<isa>::jit_uni_eltwise_bwd_t(const pd_t *apd,
         const input_vector &inputs, const output_vector &outputs)
-    : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd), kernel_(nullptr) {
-    const auto &desc = *conf_.desc();
+    : cpu_primitive_t(apd, inputs, outputs), kernel_(nullptr) {
+    const auto &desc = *pd()->desc();
     switch (desc.alg_kind) {
     case alg_kind::eltwise_relu:
         kernel_ = new jit_uni_relu_kernel_f32<isa>(desc); break;
@@ -959,8 +959,8 @@ void jit_uni_eltwise_bwd_t<isa>::execute_backward() {
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto diff_src = reinterpret_cast<data_t *>(this->memory(0));
 
-    const memory_desc_wrapper data_d(conf_.src_pd());
-    const memory_desc_wrapper diff_data_d(conf_.diff_src_pd());
+    const memory_desc_wrapper data_d(pd()->src_pd());
+    const memory_desc_wrapper diff_data_d(pd()->diff_src_pd());
 
     const size_t nelems = data_d.nelems();
 

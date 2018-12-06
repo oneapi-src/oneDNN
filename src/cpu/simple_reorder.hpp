@@ -946,21 +946,21 @@ struct simple_reorder_t: public cpu_primitive_t {
         }
     };
 
-    simple_reorder_t(const pd_t *pd, const input_vector &inputs,
+    simple_reorder_t(const pd_t *apd, const input_vector &inputs,
             const output_vector &outputs)
-        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {}
+        : cpu_primitive_t(apd, inputs, outputs) {}
 
     virtual void execute(event_t *e) {
         auto input = reinterpret_cast<const data_t<type_i> *>(
                 this->input_memory(0));
         auto output = reinterpret_cast<data_t<type_o> *>(this->memory());
         simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL, spec>::execute(
-                &conf_, input, output);
+                pd(), input, output);
         e->set_state(event_t::ready);
     }
 
 private:
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
 #undef SIMPLE_REORDER_TEMPL_DECL

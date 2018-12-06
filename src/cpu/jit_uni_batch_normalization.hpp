@@ -50,14 +50,14 @@ struct jit_uni_batch_normalization_fwd_t: public cpu_primitive_t {
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    jit_uni_batch_normalization_fwd_t(const pd_t *pd,
+    jit_uni_batch_normalization_fwd_t(const pd_t *apd,
             const input_vector &inputs, const output_vector &outputs);
     ~jit_uni_batch_normalization_fwd_t();
 
     virtual void execute(event_t *e);
 
 private:
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     uni_bnorm_driver_t<isa> *bnorm_driver_;
 };
@@ -80,14 +80,14 @@ struct jit_uni_batch_normalization_bwd_t: public cpu_primitive_t {
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    jit_uni_batch_normalization_bwd_t(const pd_t *pd,
+    jit_uni_batch_normalization_bwd_t(const pd_t *apd,
             const input_vector &inputs, const output_vector &outputs);
     ~jit_uni_batch_normalization_bwd_t();
 
     virtual void execute(event_t *e);
 
 private:
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     uni_bnorm_driver_t<isa> *bnorm_driver_;
 };

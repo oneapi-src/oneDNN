@@ -39,7 +39,7 @@ struct jit_avx512_common_lrn_fwd_t: public cpu_primitive_t {
         virtual status_t init() override;
     };
 
-    jit_avx512_common_lrn_fwd_t(const pd_t *pd, const input_vector &inputs,
+    jit_avx512_common_lrn_fwd_t(const pd_t *apd, const input_vector &inputs,
             const output_vector &outputs);
     ~jit_avx512_common_lrn_fwd_t();
 
@@ -52,7 +52,7 @@ struct jit_avx512_common_lrn_fwd_t: public cpu_primitive_t {
 
 private:
     void execute_forward();
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     int use_h_parallelism;
     struct jit_avx512_common_lrn_kernel_f32;
@@ -73,7 +73,7 @@ struct jit_avx512_common_lrn_bwd_t: public cpu_primitive_t {
         virtual status_t init() override;
     };
 
-    jit_avx512_common_lrn_bwd_t(const pd_t *pd, const input_vector &inputs,
+    jit_avx512_common_lrn_bwd_t(const pd_t *apd, const input_vector &inputs,
             const output_vector &outputs);
     ~jit_avx512_common_lrn_bwd_t();
 
@@ -86,7 +86,7 @@ struct jit_avx512_common_lrn_bwd_t: public cpu_primitive_t {
 
 private:
     void execute_backward();
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     int use_h_parallelism;
     struct jit_avx512_common_lrn_kernel_f32;
