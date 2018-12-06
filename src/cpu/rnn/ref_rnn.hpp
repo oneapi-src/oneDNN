@@ -33,14 +33,15 @@ namespace impl {
 namespace cpu {
 
 #define elemwise_sig(f)                                                      \
-    void f(rnn_utils::rnn_conf_t &rnn, float *ws_gates_, float *states_t_l_, \
+    void f(const rnn_utils::rnn_conf_t &rnn,                                 \
+            float *ws_gates_, float *states_t_l_,                            \
             float *states_t_lm1_, float *states_tm1_l_,                      \
             float *diff_states_t_l_, float *diff_states_t_lp1_,              \
             float *diff_states_tp1_l_, const float *bias_, float *ws_grid_,  \
             float *ws_cell_)
 
 #define cell_execution_sig(f)                                               \
-    void f(rnn_utils::rnn_conf_t &rnn, float *states_t_l_,                  \
+    void f(const rnn_utils::rnn_conf_t &rnn, float *states_t_l_,            \
             float *diff_states_t_l_, float **w_layer_, float **w_iter_,     \
             const float *bias_, float *states_t_lm1_, float *states_tm1_l_, \
             float *diff_states_t_lp1_, float *diff_states_tp1_l_,           \
@@ -48,7 +49,7 @@ namespace cpu {
             float *ws_gates_, float *ws_grid_, float *ws_cell_)
 
 #define grid_execution_sig(f)                                               \
-    void f(rnn_utils::rnn_conf_t &rnn, float **weights_layer_,              \
+    void f(const rnn_utils::rnn_conf_t &rnn, float **weights_layer_,        \
             int n_parts_wei_i, float **weights_states_, int n_parts_wei_st, \
             const float *bias_, float *ws_states_, float *ws_diff_states_,  \
             float *ws_gates_, float *ws_cell_, float *ws_grid_,             \
@@ -62,12 +63,13 @@ namespace cpu {
             const int ldC)
 
 #define packing_sig(f)                                                       \
-    void f(rnn_utils::rnn_conf_t &rnn, memory_format_t fmt, int OC_size,     \
-            int IC_size, float **weights_, int n_parts, int *gates_per_part, \
-            const float *w_, float *scratch_mem, bool do_copy)
+    void f(const rnn_utils::rnn_conf_t &rnn, memory_format_t fmt,            \
+            int OC_size, int IC_size, float **weights_, int n_parts,         \
+            int *gates_per_part, const float *w_, float *scratch_mem,        \
+            bool do_copy)
 
 #define free_packed_sig(f) \
-    void f(rnn_utils::rnn_conf_t &rnn, int n_parts, float **weights_)
+    void f(const rnn_utils::rnn_conf_t &rnn, int n_parts, float **weights_)
 
 template <alg_kind_t alg_kind, prop_kind_t prop_kind>
 float activation(float s, float alpha, float cliping, float dd);
@@ -287,20 +289,20 @@ private:
 
     float (*activation_func)(float dd, float s, float alpha, float cliping);
 
-    void copy_init_layer(rnn_utils::rnn_conf_t &rnn, float *ws_states_,
+    void copy_init_layer(const rnn_utils::rnn_conf_t &rnn, float *ws_states_,
             float *ws_diff_states_, const float *xt_,
             const float *diff_dst_layer);
-    void copy_init_iter(rnn_utils::rnn_conf_t &rnn, float *ws_states_,
+    void copy_init_iter(const rnn_utils::rnn_conf_t &rnn, float *ws_states_,
             float *ws_diff_states_, const float *firstit_states_,
             const float *diff_dst_iter);
-    void copy_res_layer(rnn_utils::rnn_conf_t &rnn, float *dst_layer_,
+    void copy_res_layer(const rnn_utils::rnn_conf_t &rnn, float *dst_layer_,
             float *diff_src_layer, const float *ws_states_,
             const float *ws_diff_states_);
-    void copy_res_iter(rnn_utils::rnn_conf_t &rnn, float *dst_iter_,
+    void copy_res_iter(const rnn_utils::rnn_conf_t &rnn, float *dst_iter_,
             float *diff_src_iter, const float *ws_states_,
             const float *ws_diff_states_);
-    void gates_reduction(rnn_utils::rnn_conf_t &rnn, const float *ws_gates_,
-            float *diff_bias_);
+    void gates_reduction(const rnn_utils::rnn_conf_t &rnn,
+            const float *ws_gates_, float *diff_bias_);
 
     pd_t conf_;
     scratchpad_t *scratchpad_;

@@ -44,7 +44,7 @@ using namespace rnn_utils;
 
 template <prop_kind_t aprop>
 void _ref_rnn_common_t<aprop>::gates_reduction(
-        rnn_conf_t &rnn, const float *ws_gates_, float *diff_bias_) {
+        const rnn_conf_t &rnn, const float *ws_gates_, float *diff_bias_) {
     auto body = [&](int i, int k) {
         for (int j = 0; j < rnn.mb; j++)
             diff_bias_[i * rnn.dic + k]
@@ -178,9 +178,9 @@ grid_execution_sig(_ref_rnn_common_t<aprop>::linear_execution) {
 //********* GRID computations strategy: utility functions **********//
 
 template <>
-void _ref_rnn_common_t<prop_kind::forward>::copy_init_layer(rnn_conf_t &rnn,
-        float *ws_states_, float *ws_diff_states_, const float *xt_,
-        const float *diff_dst_layer_) {
+void _ref_rnn_common_t<prop_kind::forward>::copy_init_layer(
+        const rnn_conf_t &rnn, float *ws_states_, float *ws_diff_states_,
+        const float *xt_, const float *diff_dst_layer_) {
     AOC<float, 5> ws_states(ws_states_, rnn.n_dir, rnn.n_states, rnn.n_iter + 1,
             rnn.mb, rnn.states_ws_ld);
     auto xt_d = memory_desc_wrapper(conf_.src_pd(0));
@@ -200,9 +200,9 @@ void _ref_rnn_common_t<prop_kind::forward>::copy_init_layer(rnn_conf_t &rnn,
 }
 
 template <>
-void _ref_rnn_common_t<prop_kind::backward>::copy_init_layer(rnn_conf_t &rnn,
-        float *ws_states_, float *ws_diff_states_, const float *xt_,
-        const float *diff_dst_layer_) {
+void _ref_rnn_common_t<prop_kind::backward>::copy_init_layer(
+        const rnn_conf_t &rnn, float *ws_states_, float *ws_diff_states_,
+        const float *xt_, const float *diff_dst_layer_) {
     AOC<float, 6> ws_diff_states(ws_diff_states_, rnn.n_layer + 1, rnn.n_dir,
             (rnn.n_states + 1), rnn.n_iter + 1, rnn.mb, rnn.states_ws_ld);
     auto diff_dst_layer_d = memory_desc_wrapper(conf_.diff_dst_pd(0));
@@ -259,9 +259,9 @@ void _ref_rnn_common_t<prop_kind::backward>::copy_init_layer(rnn_conf_t &rnn,
 }
 
 template <>
-void _ref_rnn_common_t<prop_kind::forward>::copy_init_iter(rnn_conf_t &rnn,
-        float *ws_states_, float *ws_diff_states_, const float *firstit_states_,
-        const float *diff_dst_iter_) {
+void _ref_rnn_common_t<prop_kind::forward>::copy_init_iter(
+        const rnn_conf_t &rnn, float *ws_states_, float *ws_diff_states_,
+        const float *firstit_states_, const float *diff_dst_iter_) {
     AOC<float, 6> ws_states(ws_states_, rnn.n_layer + 1, rnn.n_dir,
             rnn.n_states, rnn.n_iter + 1, rnn.mb, rnn.states_ws_ld);
     auto firstit_states_d = memory_desc_wrapper(conf_.src_pd(1));
@@ -285,9 +285,9 @@ void _ref_rnn_common_t<prop_kind::forward>::copy_init_iter(rnn_conf_t &rnn,
 }
 
 template <>
-void _ref_rnn_common_t<prop_kind::backward>::copy_init_iter(rnn_conf_t &rnn,
-        float *ws_states_, float *ws_diff_states_, const float *firstit_states_,
-        const float *diff_dst_iter_) {
+void _ref_rnn_common_t<prop_kind::backward>::copy_init_iter(
+        const rnn_conf_t &rnn, float *ws_states_, float *ws_diff_states_,
+        const float *firstit_states_, const float *diff_dst_iter_) {
     AOC<float, 6> ws_diff_states(ws_diff_states_, rnn.n_layer + 1, rnn.n_dir,
             rnn.n_states + 1, rnn.n_iter + 1, rnn.mb, rnn.states_ws_ld);
     auto diff_dst_iter_d = memory_desc_wrapper(conf_.diff_dst_pd(1));
@@ -312,9 +312,9 @@ void _ref_rnn_common_t<prop_kind::backward>::copy_init_iter(rnn_conf_t &rnn,
 }
 
 template <>
-void _ref_rnn_common_t<prop_kind::forward>::copy_res_layer(rnn_conf_t &rnn,
-        float *dst_layer_, float *diff_src_layer, const float *ws_states_,
-        const float *ws_diff_states_) {
+void _ref_rnn_common_t<prop_kind::forward>::copy_res_layer(
+        const rnn_conf_t &rnn, float *dst_layer_, float *diff_src_layer,
+        const float *ws_states_, const float *ws_diff_states_) {
     auto dst_layer_d = memory_desc_wrapper(conf_.dst_pd(0));
     AOC<const float, 6> ws_states(ws_states_, rnn.n_layer + 1, rnn.n_dir,
             rnn.n_states, rnn.n_iter + 1, rnn.mb, rnn.states_ws_ld);
@@ -344,9 +344,9 @@ void _ref_rnn_common_t<prop_kind::forward>::copy_res_layer(rnn_conf_t &rnn,
 }
 
 template <>
-void _ref_rnn_common_t<prop_kind::backward>::copy_res_layer(rnn_conf_t &rnn,
-        float *dst_layer_, float *diff_src_layer_, const float *ws_states_,
-        const float *ws_diff_states_) {
+void _ref_rnn_common_t<prop_kind::backward>::copy_res_layer(
+        const rnn_conf_t &rnn, float *dst_layer_, float *diff_src_layer_,
+        const float *ws_states_, const float *ws_diff_states_) {
     auto diff_src_layer_d = memory_desc_wrapper(conf_.diff_src_pd(0));
     AOC<const float, 6> ws_diff_states(ws_diff_states_, rnn.n_layer + 1,
             rnn.n_dir, rnn.n_states + 1, rnn.n_iter + 1, rnn.mb,
@@ -369,9 +369,9 @@ void _ref_rnn_common_t<prop_kind::backward>::copy_res_layer(rnn_conf_t &rnn,
 }
 
 template <>
-void _ref_rnn_common_t<prop_kind::forward>::copy_res_iter(rnn_conf_t &rnn,
-        float *dst_iter_, float *diff_src_iter_, const float *ws_states_,
-        const float *ws_diff_states_) {
+void _ref_rnn_common_t<prop_kind::forward>::copy_res_iter(
+        const rnn_conf_t &rnn, float *dst_iter_, float *diff_src_iter_,
+        const float *ws_states_, const float *ws_diff_states_) {
     auto dst_iter_d = memory_desc_wrapper(conf_.dst_pd(1));
     AOC<const float, 6> ws_states(ws_states_, rnn.n_layer + 1, rnn.n_dir,
             rnn.n_states, rnn.n_iter + 1, rnn.mb, rnn.states_ws_ld);
@@ -388,9 +388,9 @@ void _ref_rnn_common_t<prop_kind::forward>::copy_res_iter(rnn_conf_t &rnn,
 }
 
 template <>
-void _ref_rnn_common_t<prop_kind::backward>::copy_res_iter(rnn_conf_t &rnn,
-        float *dst_iter_, float *diff_src_iter_, const float *ws_states_,
-        const float *ws_diff_states_) {
+void _ref_rnn_common_t<prop_kind::backward>::copy_res_iter(
+        const rnn_conf_t &rnn, float *dst_iter_, float *diff_src_iter_,
+        const float *ws_states_, const float *ws_diff_states_) {
     auto diff_src_iter_d = memory_desc_wrapper(conf_.diff_src_pd(1));
     AOC<const float, 6> ws_diff_states(ws_diff_states_, rnn.n_layer + 1,
             rnn.n_dir, rnn.n_states + 1, rnn.n_iter + 1, rnn.mb,
