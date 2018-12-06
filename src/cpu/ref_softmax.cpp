@@ -86,7 +86,6 @@ void ref_softmax_fwd_t<data_type>::execute_forward_generic() {
     }
 }
 
-
 template <impl::data_type_t data_type>
 void ref_softmax_fwd_t<data_type>::_max(int n, const data_t *x,
         data_t *max_data) {

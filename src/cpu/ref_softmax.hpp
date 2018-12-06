@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_REF_SOFTMAX_FWD_HPP
-#define CPU_REF_SOFTMAX_FWD_HPP
+#ifndef CPU_REF_SOFTMAX_HPP
+#define CPU_REF_SOFTMAX_HPP
 
 #include <assert.h>
 
@@ -152,6 +152,7 @@ struct ref_softmax_bwd_t: public cpu_primitive_t {
             && diff_d.blocking_desc().strides[0][axis] == 1;
     }
     ~ref_softmax_bwd_t() {}
+
     typedef typename prec_traits<data_type>::type data_t;
 
     virtual void execute(event_t *e) {
@@ -163,12 +164,10 @@ struct ref_softmax_bwd_t: public cpu_primitive_t {
 private:
     void execute_backward_dense();
     void execute_backward_generic();
-
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+
     bool use_dense_;
     int outer_size_, channels_, inner_size_;
-    data_t val_max_, val_denom_;
-    data_t *max_, *denom_;
 };
 
 
