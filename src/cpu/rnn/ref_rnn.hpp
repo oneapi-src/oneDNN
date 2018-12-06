@@ -50,8 +50,8 @@ namespace cpu {
 
 #define grid_execution_sig(f)                                               \
     void f(const rnn_utils::rnn_conf_t &rnn, float **weights_layer_,        \
-            int n_parts_wei_i, float **weights_states_, int n_parts_wei_st, \
-            const float *bias_, float *ws_states_, float *ws_diff_states_,  \
+            float **weights_states_,                                        \
+            float *bias_, float *ws_states_, float *ws_diff_states_,       \
             float *ws_gates_, float *ws_cell_, float *ws_grid_,             \
             float *diff_weights_layer_, float *diff_weights_iter_,          \
             float *diff_bias_)
@@ -62,10 +62,12 @@ namespace cpu {
             const float *b_, const int ldB, const float beta, float *c_, \
             const int ldC)
 
-#define packing_sig(f)                                                       \
-    void f(const rnn_utils::rnn_conf_t &rnn, memory_format_t fmt,            \
-            int OC_size, int IC_size, float **weights_, int n_parts,         \
-            int *gates_per_part, const float *w_, float *scratch_mem,        \
+#define packing_sig(f)                                                   \
+    void f(const rnn_utils::rnn_conf_t &rnn, memory_format_t fmt,        \
+            int OC_size, int IC_size,                                    \
+            const int n_parts, const int *gates_per_part,                \
+            const int *part_weights_pack_size,                           \
+            float **weights_, const float *w_, float *scratch_weights_,  \
             bool do_copy)
 
 #define free_packed_sig(f) \

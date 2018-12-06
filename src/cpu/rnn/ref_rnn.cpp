@@ -105,10 +105,10 @@ grid_execution_sig(_ref_rnn_common_t<aprop>::linear_execution) {
     AOC<float, 4> ws_gates(ws_gates_, rnn.n_layer, rnn.n_dir, rnn.n_iter,
             rnn.gates_nld * rnn.gates_ws_ld);
     AOC<float *, 3> weights_input(
-            weights_layer_, rnn.n_layer, rnn.n_dir, n_parts_wei_i);
+            weights_layer_, rnn.n_layer, rnn.n_dir, rnn.n_parts_weights_layer);
     AOC<float *, 3> weights_states(
-            weights_states_, rnn.n_layer, rnn.n_dir, n_parts_wei_st);
-    AOC<const float, 3> bias(
+            weights_states_, rnn.n_layer, rnn.n_dir, rnn.n_parts_weights_iter);
+    AOC<float, 3> bias(
             bias_, rnn.n_layer, rnn.n_dir, rnn.n_bias * rnn.dic);
     AOC<float, 3> diff_weights_layer(diff_weights_layer_, rnn.n_layer,
             rnn.n_dir,
@@ -410,9 +410,12 @@ void _ref_rnn_common_t<prop_kind::backward>::copy_res_iter(
 template <prop_kind_t aprop>
 packing_sig(_ref_rnn_common_t<aprop>::pack_weights) {
 #if (USE_MKL_PACKED_GEMM)
+    /* Original set of weights provided by the user */
     AOC<const float, 5> w(
             w_, rnn.n_layer, rnn.n_dir, IC_size, rnn.n_gates, OC_size);
+    /* Array of pointers initialized in packing */
     AOC<float *, 3> weights(weights_, rnn.n_layer, rnn.n_dir, n_parts);
+
     int m = 0, n = 0, k = 0;
     auto transA = CblasNoTrans;
     bool is_igo = fmt == memory_format::ldigo;
@@ -429,15 +432,23 @@ packing_sig(_ref_rnn_common_t<aprop>::pack_weights) {
         //TODO: do a transposition if ldigo
         transA = CblasNoTrans;
     }
+
+    int total_pack_size = 0;
+    for (int p = 0; p < n_parts; p++)
+        total_pack_size += part_weights_pack_size[p];
+
+    AOC<float, 3> scratch_weights(scratch_weights_, rnn.n_layer, rnn.n_dir, total_pack_size);
     for (int i = 0; i < rnn.n_layer; i++) {
         for (int d = 0; d < rnn.n_dir; d++) {
+            int offset_weights = 0;
             for (int p = 0; p < n_parts; p++) {
                 int m_p = is_igo ? (gates_per_part[p] * OC_size) : m;
                 int k_p = is_igo ? k : (gates_per_part[p] * OC_size);
                 int g = (p > 0) ? gates_per_part[p - 1] : 0;
-                weights(i, d, p) = cblas_sgemm_alloc(CblasAMatrix, m_p, n, k_p);
+                weights(i, d, p) = &scratch_weights(i, d, offset_weights);
                 cblas_sgemm_pack(CblasColMajor, CblasAMatrix, transA, m_p, n,
                         k_p, 1.0f, &(w(i, d, 0, g, 0)), m, weights(i, d, p));
+                offset_weights += part_weights_pack_size[p];
             }
         }
     }
@@ -450,15 +461,17 @@ packing_sig(_ref_rnn_common_t<aprop>::pack_weights) {
     UNUSED(n_parts);
     UNUSED(gates_per_part);
     UNUSED(w_);
-    UNUSED(scratch_mem);
+    UNUSED(scratch_weights_);
     UNUSED(do_copy);
 #endif
 }
 
 template <prop_kind_t aprop>
 packing_sig(_ref_rnn_common_t<aprop>::no_pack_weights) {
+    /* Original set of weights provided by the user */
     AOC<const float, 3> w(
             w_, rnn.n_layer, rnn.n_dir, IC_size * rnn.n_gates * OC_size);
+    /* Array of pointers initialized in packing */
     AOC<float *, 3> weights(weights_, rnn.n_layer, rnn.n_dir, n_parts);
     int m = 0, n = 0, ldA = 0;
 
@@ -475,12 +488,12 @@ packing_sig(_ref_rnn_common_t<aprop>::no_pack_weights) {
     if (!do_copy) {
         for (int i = 0; i < rnn.n_layer; i++)
             for (int d = 0; d < rnn.n_dir; d++) {
-                weights(i, d, 0) = (float *)&(w(i, d, 0));
-                for (int p = 1; p < n_parts; p++) {
-                    size_t offset = is_igo
-                        ? gates_per_part[p - 1] * OC_size
-                        : gates_per_part[p - 1] * OC_size * IC_size;
-                    weights(i, d, p) = (float *) &w(i, d, offset);
+                size_t offset_weights = 0;
+                for (int p = 0; p < n_parts; p++) {
+                    weights(i, d, p) = (float *) &w(i, d, offset_weights);
+                    offset_weights += is_igo
+                        ? gates_per_part[p] * OC_size
+                        : gates_per_part[p] * OC_size * IC_size;
                 }
             }
         return;
@@ -497,7 +510,7 @@ packing_sig(_ref_rnn_common_t<aprop>::no_pack_weights) {
                 dst[i * ld_dst + j] = src[i * ld_src + j];
     };
 
-    AOC<float, 3> tmp(scratch_mem, rnn.n_layer, rnn.n_dir, ldA * n);
+    AOC<float, 3> tmp(scratch_weights_, rnn.n_layer, rnn.n_dir, ldA * n);
     mkldnn::impl::parallel_nd(rnn.n_layer, rnn.n_dir, [&](int i, int d) {
             auto src_mat = &(w(i, d, 0));
             auto dst_mat = &(tmp(i, d, 0));
@@ -514,16 +527,10 @@ packing_sig(_ref_rnn_common_t<aprop>::no_pack_weights) {
 
 template <prop_kind_t aprop>
 free_packed_sig(_ref_rnn_common_t<aprop>::free_packed_weights) {
-#if (USE_MKL_PACKED_GEMM)
-    AOC<float *, 3> weights(weights_, rnn.n_layer, rnn.n_dir, n_parts);
-    for (int i = 0; i < rnn.n_layer; i++)
-        for (int j = 0; j < rnn.n_dir; j++)
-            for (int k = 0; k < n_parts; k++)
-                cblas_sgemm_free(weights(i, j, k));
-#else
     UNUSED(rnn);
     UNUSED(n_parts);
     UNUSED(weights_);
+#if !(USE_MKL_PACKED_GEMM)
     assert(!"packed gemm is disabled");
 #endif
 }
@@ -537,10 +544,6 @@ free_packed_sig(_ref_rnn_common_t<aprop>::free_no_packed_weights) {
 template <prop_kind_t aprop>
 void _ref_rnn_common_t<aprop>::execute_() {
     const rnn_conf_t &rnn = this->pd()->rnn_;
-    bool is_orig_gru = pd()->cell_kind() == alg_kind::vanilla_gru;
-    int n_parts_wei_st = is_orig_gru ? 2 : 1, n_parts_wei_i = 1;
-    int parts_wei_st = rnn.n_gates, parts_wei_i = rnn.n_gates,
-        parts_wei_st_gru[2] = { 2, 1 };
 
     int input_idx = 0;
     int output_idx = 0;
@@ -631,11 +634,12 @@ void _ref_rnn_common_t<aprop>::execute_() {
     /* Pack(if using packed gemm API) or copy(if input arrays have bad leading
      * dimension */
     (this->*weights_iter_pack_func)(rnn, rnn.weights_iter_fmt, rnn.dic, rnn.sic,
-            ptr_wei_iter_, n_parts_wei_st,
-            (is_orig_gru ? parts_wei_st_gru : &parts_wei_st), w_state,
+            rnn.n_parts_weights_iter, rnn.parts_weights_iter,  rnn.part_weights_iter_pack_size,
+            ptr_wei_iter_, w_state,
             ws_weights_iter_, rnn.copy_weights_iter);
-    (this->*weights_layer_pack_func)(rnn, rnn.weights_layer_fmt, rnn.dic,
-            rnn.slc, ptr_wei_layer_, n_parts_wei_i, &parts_wei_i, w_input,
+    (this->*weights_layer_pack_func)(rnn, rnn.weights_layer_fmt, rnn.dic, rnn.slc,
+            rnn.n_parts_weights_layer, rnn.parts_weights_layer, rnn.part_weights_layer_pack_size,
+            ptr_wei_layer_, w_input,
             ws_weights_layer_, rnn.copy_weights_layer);
 
     // we first need to copy the initial states and input into ws
@@ -643,8 +647,8 @@ void _ref_rnn_common_t<aprop>::execute_() {
     copy_init_iter(rnn, ws_states_, ws_diff_states_, states, diff_dst_iter);
 
     // run the execution on the grid
-    (this->*grid_computation)(rnn, ptr_wei_layer_, n_parts_wei_i, ptr_wei_iter_,
-            n_parts_wei_st, (float *)bias, ws_states_, ws_diff_states_,
+    (this->*grid_computation)(rnn, ptr_wei_layer_, ptr_wei_iter_,
+            (float*)bias, ws_states_, ws_diff_states_,
             ws_gates_, ws_cell_, ws_grid_, ws_diff_weights_layer_,
             ws_diff_weights_iter_, diff_bias);
 
@@ -698,8 +702,8 @@ void _ref_rnn_common_t<aprop>::execute_() {
     }
 
     // We free the packed weights if they were packed internally
-    (this->*weights_iter_free_packed_func)(rnn, n_parts_wei_st, ptr_wei_iter_);
-    (this->*weights_layer_free_packed_func)(rnn, n_parts_wei_i, ptr_wei_layer_);
+    (this->*weights_iter_free_packed_func)(rnn, rnn.n_parts_weights_iter, ptr_wei_iter_);
+    (this->*weights_layer_free_packed_func)(rnn, rnn.n_parts_weights_layer, ptr_wei_layer_);
 };
 
 /* Fix for MSVS warning C4661 */

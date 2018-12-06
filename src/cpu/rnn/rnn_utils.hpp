@@ -36,17 +36,23 @@ enum execution_direction_t {
     bi_sum,
 };
 
+const int rnn_max_n_parts = 2;
+
 struct rnn_conf_t {
     execution_direction_t exec_dir;
     int n_layer, n_iter, n_dir, n_gates, n_states, n_bias;
     int mb;
     int slc, sic, dic, dlc;
     int gates_ld, gates_nld, gates_ws_ld;
+    int n_parts_weights_layer, parts_weights_layer[rnn_max_n_parts];
+    int n_parts_weights_iter, parts_weights_iter[rnn_max_n_parts];
+    int part_weights_iter_pack_size[rnn_max_n_parts], part_weights_layer_pack_size[rnn_max_n_parts];
     int weights_layer_ld, weights_layer_nld, weights_layer_ws_ld;
     int diff_weights_layer_ld, diff_weights_layer_nld, diff_weights_layer_ws_ld;
     int weights_iter_ld, weights_iter_nld, weights_iter_ws_ld;
     int diff_weights_iter_ld, diff_weights_iter_nld, diff_weights_iter_ws_ld;
     int states_nld, states_ws_ld;
+    int weights_iter_compensation_size, weights_layer_compensation_size;
     bool is_fwd, is_training, is_lbr;
     bool use_workspace;
     size_t ws_gates_size, ws_states_size, ws_diff_states_size,
