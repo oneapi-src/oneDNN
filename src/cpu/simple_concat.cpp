@@ -25,8 +25,8 @@ namespace cpu {
 template <data_type_t data_type>
 void simple_concat_t<data_type>::execute() {
     const int num_arrs = conf_.n_inputs();
-    int *perm = conf_.perm_, *iperm = conf_.iperm_;
-    int concat_dim = conf_.concat_dim();
+    const int *perm = conf_.perm_, *iperm = conf_.iperm_;
+    const int concat_dim = conf_.concat_dim();
     auto o_base_ptr = reinterpret_cast<data_t *>(this->memory());
 
     for (int a = 0; a < num_arrs; ++a) {

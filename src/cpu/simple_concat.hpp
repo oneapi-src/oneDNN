@@ -136,8 +136,8 @@ private:
             perm[iperm[i]] = i;
     }
 
-    static size_t nelems_to_concat(const int concat_dim, int *perm, int *iperm,
-            const memory_desc_wrapper &data_d) {
+    static size_t nelems_to_concat(const int concat_dim, const int *perm,
+            const int *iperm, const memory_desc_wrapper &data_d) {
         const int ndims = data_d.ndims();
         auto &blk = data_d.blocking_desc();
         int nelems = 1;
