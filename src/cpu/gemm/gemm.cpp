@@ -176,15 +176,9 @@ mkldnn_status_t extended_sgemm(const char *transa, const char *transb,
     }
 #endif
     //Generate jit kernel and call sgemm with bias
-    volatile static int initialized = 0;
-    if (!initialized) {
-        static std::mutex mtx;
-        std::lock_guard<std::mutex> lock(mtx);
-        if (!initialized) {
-            mkldnn::impl::cpu::initialize();
-            initialized = 1;
-        }
-    }
+    static std::once_flag initialized;
+    std::call_once(initialized, [] { mkldnn::impl::cpu::initialize(); });
+
     if (bias)
         gemm_bias_impl[trA][trB]->call(
                 transa, transb, M, N, K, alpha, A, lda, B, ldb, beta, C, ldc,
