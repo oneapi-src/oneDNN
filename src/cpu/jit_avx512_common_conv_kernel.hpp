@@ -18,8 +18,9 @@
 #define JIT_AVX512_COMMON_CONV_KERNEL_F32_HPP
 
 #include "c_types_map.hpp"
-#include "cpu_memory.hpp"
+#include "memory_tracking.hpp"
 
+#include "cpu_memory.hpp"
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
 #include "jit_uni_eltwise.hpp"
@@ -58,6 +59,8 @@ struct jit_avx512_common_conv_fwd_kernel : public jit_generator {
             cpu_memory_t::pd_t &bias_pd,
             const primitive_attr_t &attr,
             int nthreads);
+    static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
+            const jit_conv_conf_t &jcp);
 
     jit_conv_conf_t jcp;
     const primitive_attr_t &attr_;
@@ -215,6 +218,8 @@ struct jit_avx512_common_conv_bwd_data_kernel_f32: public jit_generator {
             const memory_desc_wrapper &diff_src_d,
             const memory_desc_wrapper &weights_d,
             const memory_desc_wrapper &diff_dst_d);
+    static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
+            const jit_conv_conf_t &jcp);
 
     jit_conv_conf_t jcp;
     void (*jit_ker)(jit_conv_call_s *);
@@ -334,8 +339,8 @@ struct jit_avx512_common_conv_bwd_weights_kernel_f32 : public jit_generator {
             const convolution_desc_t &cd, cpu_memory_t::pd_t &src_pd,
             cpu_memory_t::pd_t &diff_weights_pd,
             cpu_memory_t::pd_t &diff_bias_pd, cpu_memory_t::pd_t &diff_dst_pd);
-    static void balance(const jit_conv_conf_t &j, int &nthr, int &nthr_mb,
-            int &nthr_g, int &nthr_oc_b, int &nthr_ic_b);
+    static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
+            const jit_conv_conf_t &jcp);
 
     jit_conv_conf_t jcp;
     void (*jit_ker)(jit_conv_call_s *);
@@ -401,6 +406,9 @@ private:
     inline void compute_loop();
 
     void generate();
+
+    static void balance(const jit_conv_conf_t &j, int &nthr, int &nthr_mb,
+            int &nthr_g, int &nthr_oc_b, int &nthr_ic_b);
 };
 
 }

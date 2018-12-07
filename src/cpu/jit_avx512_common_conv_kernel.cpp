@@ -18,6 +18,8 @@
 #include "nstl.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
+
+#include "cpu_barrier.hpp"
 #include "cpu_memory.hpp"
 
 #include "jit_avx512_common_conv_kernel.hpp"
@@ -30,6 +32,7 @@ namespace impl {
 namespace cpu {
 
 using namespace mkldnn::impl::memory_format;
+using namespace mkldnn::impl::memory_tracking::names;
 using namespace mkldnn::impl::utils;
 using namespace Xbyak;
 
@@ -1283,11 +1286,10 @@ bool jit_avx512_common_conv_fwd_kernel::post_ops_ok(
 }
 
 status_t jit_avx512_common_conv_fwd_kernel::init_conf(
-            jit_conv_conf_t &jcp,
-            const convolution_desc_t &cd, cpu_memory_t::pd_t &src_pd,
-            cpu_memory_t::pd_t &weights_pd, cpu_memory_t::pd_t &dst_pd,
-            cpu_memory_t::pd_t &bias_pd, const primitive_attr_t &attr,
-            int nthreads)
+            jit_conv_conf_t &jcp, const convolution_desc_t &cd,
+            cpu_memory_t::pd_t &src_pd, cpu_memory_t::pd_t &weights_pd,
+            cpu_memory_t::pd_t &dst_pd, cpu_memory_t::pd_t &bias_pd,
+            const primitive_attr_t &attr, int nthreads)
 {
     using namespace prop_kind;
 
@@ -1786,7 +1788,14 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
             jcp.nb_ic_L2 = 2; /* according to performance data*/
         }
     }
+
     return status::success;
+}
+
+void jit_avx512_common_conv_fwd_kernel::init_scratchpad(
+        memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp) {
+    if (jcp.with_bias && jcp.oc != jcp.oc_without_padding)
+        scratchpad.book(key_conv_padded_bias, jcp.typesize_out * jcp.oc);
 }
 
 void jit_avx512_common_conv_bwd_data_kernel_f32::prepare_output(int ur_w)
@@ -2793,8 +2802,15 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
         && jcp.oc <= diff_dst_d.blocking_desc().padding_dims[1]
         && jcp.ic <= weights_d.blocking_desc().padding_dims[with_groups + 1]
         && jcp.oc <= weights_d.blocking_desc().padding_dims[with_groups + 0];
+    if (!args_ok) return status::unimplemented;
 
-    return args_ok ? status::success : status::unimplemented;
+    return status::success;
+}
+
+void jit_avx512_common_conv_bwd_data_kernel_f32::init_scratchpad(
+        memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp) {
+    UNUSED(scratchpad);
+    UNUSED(jcp);
 }
 
 const int jit_avx512_common_conv_bwd_weights_kernel_f32::max_ur_w = 28;
@@ -4480,8 +4496,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::generate()
 status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
     jit_conv_conf_t &jcp, const convolution_desc_t &cd,
     cpu_memory_t::pd_t &src_pd, cpu_memory_t::pd_t &diff_weights_pd,
-    cpu_memory_t::pd_t &diff_bias_pd, cpu_memory_t::pd_t &diff_dst_pd)
-{
+    cpu_memory_t::pd_t &diff_bias_pd, cpu_memory_t::pd_t &diff_dst_pd) {
     if (!mayiuse(avx512_common))
         return status::unimplemented;
 
@@ -4764,6 +4779,62 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
     }
 
     return status::success;
+}
+
+void jit_avx512_common_conv_bwd_weights_kernel_f32::init_scratchpad(
+        memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp) {
+    if (utils::one_of(jcp.ver, ver_4fma, ver_4vnni, ver_vnni)) {
+        if (jcp.is_1stconv) {
+            const size_t tr_src_size =
+                jcp.nthr / jcp.nthr_oc_b * jcp.ih * jcp.stride_w * jcp.tr_ld;
+            scratchpad.book(key_conv_tr_src, jcp.typesize_in * tr_src_size);
+        } else {
+            // XXX: See the comment about tr_iw and guarding elements in
+            // jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf()
+            const size_t max_nthr = jcp.nthr_mb * jcp.ngroups * jcp.nb_ic;
+            const size_t min_tr_src_size_per_thr
+                = jcp.ih * jcp.ic_block * jcp.tr_iw;
+            const size_t tr_src_size = max_nthr * min_tr_src_size_per_thr
+                + jcp.tr_src_num_guard_elems;
+            scratchpad.book(key_conv_tr_src, jcp.typesize_in * tr_src_size);
+        }
+
+        /* prepare synchronization contexts */
+        if (jcp.nthr_oc_b > 1) {
+            const int tr_src_bctx_size = jcp.nthr / jcp.nthr_oc_b;
+            scratchpad.book(key_conv_tr_src_bctx,
+                    sizeof(simple_barrier::ctx_t) * tr_src_bctx_size);
+        }
+
+        if (utils::one_of(jcp.ver, ver_4vnni, ver_vnni)) {
+            const size_t tr_diff_dst_size = jcp.nthr_mb * jcp.ngroups
+                * jcp.nb_oc * jcp.oc_block * jcp.tr_ow * jcp.oh;
+            scratchpad.book(key_conv_tr_diff_dst,
+                    jcp.typesize_in * tr_diff_dst_size);
+
+            /* prepare synchronization contexts */
+            if (jcp.nthr_ic_b > 1) {
+                const size_t tr_diff_dst_bctx_size = jcp.nthr / jcp.nthr_ic_b;
+                scratchpad.book(key_conv_tr_diff_dst_bctx,
+                        sizeof(simple_barrier::ctx_t) * tr_diff_dst_bctx_size);
+            }
+        }
+    }
+
+    if (jcp.nthr_mb > 1) {
+        const int wei_size = jcp.ngroups * jcp.oc * jcp.ic
+            * jcp.kh * jcp.kw * jcp.kd;
+        const int bia_size = jcp.ngroups * jcp.oc;
+        const size_t wei_bia_reduction_size = wei_size + bia_size;
+
+        scratchpad.book(key_conv_wei_bia_reduction,
+                jcp.typesize_out * wei_bia_reduction_size * (jcp.nthr_mb - 1));
+        scratchpad.book(key_conv_wei_bia_reduction_bctx,
+                sizeof(simple_barrier::ctx_t));
+    }
+
+    if (jcp.with_bias && jcp.oc != jcp.oc_without_padding)
+        scratchpad.book(key_conv_padded_bias, jcp.typesize_out * jcp.oc);
 }
 
 void jit_avx512_common_conv_bwd_weights_kernel_f32::balance(
