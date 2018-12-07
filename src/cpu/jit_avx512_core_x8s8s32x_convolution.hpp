@@ -18,11 +18,11 @@
 #define CPU_JIT_AVX512_CORE_X8S8S32X_CONVOLUTION_HPP
 
 #include "c_types_map.hpp"
+#include "memory_tracking.hpp"
+#include "mkldnn_thread.hpp"
+#include "utils.hpp"
+
 #include "cpu_convolution_pd.hpp"
-#include "cpu_engine.hpp"
-#include "jit_transpose_src_utils.hpp"
-#include "cpu_reducer.hpp"
-#include "cpu_barrier.hpp"
 
 #include "jit_avx512_core_x8s8s32x_conv_kernel.hpp"
 
@@ -38,16 +38,16 @@ struct jit_avx512_core_x8s8s32x_convolution_fwd_t : public cpu_primitive_t {
                 const typename pd_t::base_class *hint_fwd_pd)
             : cpu_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
             , jcp_()
-        {
-        }
+        {}
+
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit_int8:", avx512_core, ""),
                 jit_avx512_core_x8s8s32x_convolution_fwd_t<src_type, dst_type>);
 
-        virtual status_t init() override
-        {
+        virtual status_t init() override {
             using namespace prop_kind;
             assert(this->engine()->kind() == engine_kind::cpu);
+
             bool ok = true
                     && utils::one_of(this->desc()->prop_kind, forward_training,
                                forward_inference)
@@ -59,13 +59,19 @@ struct jit_avx512_core_x8s8s32x_convolution_fwd_t : public cpu_primitive_t {
                             this->desc()->bias_desc.data_type, data_type::f32,
                             data_type::s32, data_type::s8, data_type::u8))
                     && this->desc()->accum_data_type == data_type::s32;
-            if (!ok)
-                return status::unimplemented;
+            if (!ok) return status::unimplemented;
 
-            return jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(
+            status_t status = jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(
                     jcp_, *this->desc(), this->src_pd_, this->weights_pd_,
                     this->dst_pd_,this->bias_pd_, *this->attr(),
                     mkldnn_get_max_threads());
+            if (status != status::success) return status;
+
+            auto scratchpad = scratchpad_registry().registrar();
+            jit_avx512_core_x8s8s32x_fwd_kernel::init_scratchpad(scratchpad,
+                    jcp_, *this->attr());
+
+            return status::success;
         }
 
         jit_conv_conf_t jcp_;
@@ -74,26 +80,12 @@ struct jit_avx512_core_x8s8s32x_convolution_fwd_t : public cpu_primitive_t {
     jit_avx512_core_x8s8s32x_convolution_fwd_t(const pd_t *apd,
             const input_vector &inputs, const output_vector &outputs)
         : cpu_primitive_t(apd, inputs, outputs)
-        , local_scales_(nullptr)
     {
         kernel_ = new jit_avx512_core_x8s8s32x_fwd_kernel(pd()->jcp_,
                     *pd()->attr());
-        if (pd()->jcp_.signed_input && pd()->jcp_.ver != ver_vnni) {
-            size_t scales_size = (pd()->attr()->output_scales_.count_ == 1)
-                ? 16
-                : pd()->attr()->output_scales_.count_;
-            local_scales_ = (float *)malloc(sizeof(float) * scales_size, 64);
-            for (size_t i = 0; i < scales_size; i++) {
-                local_scales_[i] = pd()->attr()->output_scales_.scales_[i] *
-                                        (1.f / pd()->jcp_.wei_adj_scale);
-            }
-        }
     }
 
-    ~jit_avx512_core_x8s8s32x_convolution_fwd_t() {
-        delete kernel_;
-        if (local_scales_) free(local_scales_);
-    };
+    ~jit_avx512_core_x8s8s32x_convolution_fwd_t() { delete kernel_; }
 
     typedef typename prec_traits<src_type>::type src_data_t;
     typedef typename prec_traits<data_type::s8>::type wei_data_t;
@@ -108,8 +100,8 @@ struct jit_avx512_core_x8s8s32x_convolution_fwd_t : public cpu_primitive_t {
 private:
     void execute_forward();
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+
     jit_avx512_core_x8s8s32x_fwd_kernel *kernel_;
-    float *local_scales_;
 };
 
 }

@@ -14,7 +14,6 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_types.h"
 #include "c_types_map.hpp"
 #include "mkldnn_thread.hpp"
 #include "type_helpers.hpp"
@@ -28,6 +27,7 @@ namespace cpu {
 
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::memory_format;
+using namespace mkldnn::impl::memory_tracking::names;
 using namespace mkldnn::impl::utils;
 
 using namespace nstl;
@@ -60,11 +60,25 @@ execute_forward()
     assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
     assert(jcp.nb_ch % jcp.nb_ch_blocking == 0);
 
+    const float *oscales = pd()->attr()->output_scales_.scales_;
+    if (jcp.signed_input && jcp.ver != ver_vnni) {
+        auto local_scales = scratchpad().template get<float>(
+                key_conv_adjusted_scales);
+        size_t count = pd()->attr()->output_scales_.count_;
+        float factor = 1.f / pd()->jcp_.wei_adj_scale;
+        if (count == 1) {
+            utils::array_set(local_scales, oscales[0] * factor, 16);
+        } else {
+            for (size_t c = 0; c < count; c++)
+                local_scales[c] = oscales[c] * factor;
+        }
+        oscales = local_scales;
+    }
+
     size_t offset = (size_t)jcp.ngroups * jcp.oc * jcp.ic * jcp.kh * jcp.kw;
     auto w = const_cast<wei_data_t *>(weights);
     int32_t* compensation = (jcp.signed_input)
                                 ? reinterpret_cast<int32_t *>(&w[offset]) : 0;
-    const auto &oscales = pd()->attr()->output_scales_;
     int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
     int nb_groups = jcp.nb_ch / jcp.nb_ch_blocking;
     int group_block = jcp.ch_block;
@@ -121,9 +135,7 @@ execute_forward()
             auto src_w = src + src_d.blk_off(n, g_ic, ih_s, iw_s);
             auto wht_w = weights + wht_blk_off(weights_d, gb, ocb, 0);
 
-            auto scales = (jcp.signed_input && jcp.ver != ver_vnni)
-                ? &local_scales_[jcp.is_oc_scale * g_oc]
-                : &oscales.scales_[jcp.is_oc_scale * g_oc];
+            auto scales = &oscales[jcp.is_oc_scale * g_oc];
 
             for (int oj = oh_s, ij = ih_s; oj < oh_e;
                 ++oj, ij += jcp.stride_h) {

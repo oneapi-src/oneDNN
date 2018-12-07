@@ -15,9 +15,11 @@
 *******************************************************************************/
 
 #include "c_types_map.hpp"
+#include "memory_tracking.hpp"
 #include "nstl.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
+
 #include "cpu_memory.hpp"
 
 #include "jit_avx512_core_x8s8s32x_conv_kernel.hpp"
@@ -29,6 +31,7 @@ namespace impl {
 namespace cpu {
 
 using namespace mkldnn::impl::memory_format;
+using namespace mkldnn::impl::memory_tracking::names;
 using namespace mkldnn::impl::utils;
 using namespace Xbyak;
 
@@ -897,6 +900,15 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     jcp.wei_adj_scale = (jcp.signed_input) ? (1.f / 2.f) : 1.f;
 
     return status::success;
+}
+
+void jit_avx512_core_x8s8s32x_fwd_kernel::init_scratchpad(
+        memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp,
+        const primitive_attr_t &attr) {
+    if (jcp.signed_input && jcp.ver != ver_vnni) {
+        size_t count = nstl::max(attr.output_scales_.count_, 16);
+        scratchpad.book(key_conv_adjusted_scales, sizeof(float) * count);
+    }
 }
 
 }

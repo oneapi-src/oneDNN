@@ -18,6 +18,8 @@
 #define CPU_JIT_AVX512_CORE_X8S8S32X_CONV_KERNEL_HPP
 
 #include "c_types_map.hpp"
+#include "memory_tracking.hpp"
+
 #include "cpu_memory.hpp"
 
 #include "jit_generator.hpp"
@@ -59,6 +61,8 @@ struct jit_avx512_core_x8s8s32x_fwd_kernel : public jit_generator {
             cpu_memory_t::pd_t &bias_pd,
             const primitive_attr_t &attr,
             int nthreads);
+    static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
+            const jit_conv_conf_t &jcp, const primitive_attr_t &attr);
 
     jit_conv_conf_t jcp;
     const primitive_attr_t &attr_;
