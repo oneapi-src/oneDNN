@@ -169,7 +169,8 @@ mkldnn_status_t extended_sgemm(const char *transa, const char *transb,
         if (bias) {
             cblas_int incx = 1, incy = 1;
             parallel_nd(*N, [&](int n) {
-                cblas_saxpy(*M, 1.0, bias, incx, C + n*(*ldc), incy);
+                ptrdiff_t offset = (ptrdiff_t)n * (*ldc);
+                cblas_saxpy(*M, 1.0, bias, incx, C + offset, incy);
             });
         }
         return mkldnn_success;
