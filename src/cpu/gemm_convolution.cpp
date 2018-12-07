@@ -281,7 +281,6 @@ void gemm_convolution_bwd_weights_t::execute_backward_weights() {
                 }
             }
             diff_bias[g*jcp.oc+oc] = db;
-            nd_iterator_step(g, jcp.ngroups, oc, jcp.oc);
         });
     }
 }
