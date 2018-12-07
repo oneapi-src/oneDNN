@@ -71,6 +71,8 @@ struct jit_conv_conf_t {
 
     post_ops_t::entry_t::eltwise_t eltwise;
 
+    int nthr, nthr_mb, nthr_g, nthr_oc_b, nthr_ic_b;
+
     int idp, ihp, iwp, ohp, owp;
     int nb_ic, ic_block;
     int nb_oc, oc_block;

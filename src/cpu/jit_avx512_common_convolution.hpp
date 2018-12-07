@@ -331,7 +331,6 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
 
 private:
     void execute_backward_weights();
-    void balance();
 
     struct thread_info_t;
     void compute_diff_weights(const thread_info_t *);

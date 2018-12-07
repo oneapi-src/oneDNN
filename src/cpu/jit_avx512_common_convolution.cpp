@@ -874,7 +874,11 @@ jit_avx512_common_convolution_bwd_weights_t(const pd_t *apd,
     const auto &j = pd()->jcp_;
     kernel_ = new jit_avx512_common_conv_bwd_weights_kernel_f32(j);
 
-    balance();
+    nthr_ = j.nthr;
+    nthr_mb_ = j.nthr_mb;
+    nthr_g_ = j.nthr_g;
+    nthr_oc_b_ = j.nthr_oc_b;
+    nthr_ic_b_ = j.nthr_ic_b;
 
     if (utils::one_of(j.ver, ver_4fma, ver_4vnni, ver_vnni)) {
         trans_kernel_ = create_trans_src(&j);
@@ -1592,135 +1596,6 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
         for (int oc = 0; oc < pd()->jcp_.oc_without_padding; ++oc)
             diff_bias_in[oc] = this->padded_bias_[oc];
     }
-}
-
-template <data_type_t src_type, data_type_t diff_dst_type,
-          data_type_t diff_weights_type>
-void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
-    diff_weights_type>::balance() {
-    const int max_threads = mkldnn_get_max_threads();
-    const auto &j = pd()->jcp_;
-
-    nthr_ = nthr_mb_ = nthr_g_ = nthr_oc_b_ = nthr_ic_b_ = 1;
-
-    if (max_threads < j.ngroups) {
-        /* simplification... fortunately it doesn't hurt much */
-        return;
-    }
-
-    if (!mkldnn_thr_syncable()
-            && utils::one_of(j.ver, ver_4fma, ver_4vnni, ver_vnni)) {
-        // should not happen -- the driver is not ready
-        // for TBB-like non-synchronous threading yet
-        return;
-    }
-
-    if (j.ver == ver_4fma && j.is_1stconv) {
-        nthr_g_ = 1;
-        nthr_oc_b_ = 1;
-        nthr_ic_b_ = nstl::min(j.nb_ic, max_threads);
-        nthr_mb_ = nstl::min(max_threads / nthr_ic_b_, j.mb);
-        nthr_ = nthr_mb_ * nthr_oc_b_ * nthr_ic_b_ * nthr_g_;
-        return;
-    }
-
-    nthr_g_ = j.ngroups;
-    const int nthr = max_threads / nthr_g_;
-
-    auto calc_mem_cost = [=](int nthr_mb, int nthr_oc_b, int nthr_ic_b) {
-        /* calculate per thread memory cost (read/write). high level optimizer
-         * tries to minimize memory consumption. few notes:
-         *  (n1) unclear why, but that essentially helps first convolution...
-         *  (n2) assuming the reduction over minibatch is always there:
-         *    - instead of 8 it should be 5 here (write ~= 2 read):
-         *      kernel: temporal workspace 1 write
-         *      reduction: 1 read from workspace and 1 write to the diff_wei
-         *    - but experiments showed 8 works better than 5 or 6... */
-
-        const int src_coef = j.ver == ver_4fma || j.ver == ver_vnni ? 4 : 1;
-        const int dst_coef = 1;
-        const int wei_coef = j.ver == ver_vnni ? 4 : 8;
-
-        return 0
-            + src_coef
-            * div_up(j.mb, nthr_mb) * div_up(j.ngroups, nthr_g_)
-            * div_up(j.nb_ic, nthr_ic_b) * j.ic_block * j.ih * j.iw * j.id
-            / j.stride_d / j.stride_h / j.stride_w /* (n1) */
-            + dst_coef
-            * div_up(j.mb, nthr_mb) * div_up(j.ngroups, nthr_g_)
-            * div_up(j.nb_oc, nthr_oc_b) * j.oc_block * j.oh * j.ow * j.od
-            + wei_coef /* (n2) */
-            * div_up(j.ngroups, nthr_g_)
-            * div_up(j.nb_oc, nthr_oc_b) * div_up(j.nb_ic, nthr_ic_b)
-            * j.kh * j.kw * j.kd * j.ic_block * j.oc_block;
-    };
-
-    int best_mem_cost = calc_mem_cost(nthr_mb_, nthr_oc_b_, nthr_ic_b_);
-
-    /* step 1: find the best thread distribution with lowest memory cost */
-    const int nthr_mb_max = nstl::min(nthr, j.mb * j.od);
-    for (int nthr_mb = 1; nthr_mb <= nthr_mb_max; ++nthr_mb) {
-        const int nthr_par = nthr / nthr_mb;
-        const int nthr_oc_b_max = nstl::min(nthr_par, j.nb_oc);
-        for (int nthr_oc_b = 1; nthr_oc_b <= nthr_oc_b_max; ++nthr_oc_b) {
-            int nthr_ic_b = nstl::min(nthr_par / nthr_oc_b, j.nb_ic);
-
-            int mem_cost = calc_mem_cost(nthr_mb, nthr_oc_b, nthr_ic_b);
-            if (mem_cost <= best_mem_cost) {
-                best_mem_cost = mem_cost;
-                nthr_mb_ = nthr_mb;
-                nthr_oc_b_ = nthr_oc_b;
-                nthr_ic_b_ = nthr_ic_b;
-            }
-        }
-
-        if (!mkldnn_thr_syncable()) { assert(nthr_mb == 1); break; }
-    }
-
-    if (j.ver != ver_vnni && !mayiuse(avx512_mic)) {
-        auto calc_comp_cost = [=](int nthr_mb, int nthr_oc_b, int nthr_ic_b) {
-            return 1
-                * div_up(j.mb, nthr_mb)
-                * div_up(j.ngroups, nthr_g_)
-                * div_up(j.nb_oc, nthr_oc_b)
-                * div_up(j.nb_ic, nthr_ic_b);
-        };
-
-        /* step 2: search for a thread distribution with lower compute cost.
-         * the constrains:
-         *  - memory cost cannot exceed 110% of the best found in the step 1
-         *  - unless compute cost is 133% lower than the current best case
-         * note: both constants were found empirically */
-        int best_comp_cost = calc_comp_cost(nthr_mb_, nthr_oc_b_, nthr_ic_b_);
-        for (int nthr_mb = 1; nthr_mb <= nthr_mb_max; ++nthr_mb) {
-            const int nthr_par = nthr / nthr_mb;
-            const int nthr_oc_b_max = nstl::min(nthr_par, j.nb_oc);
-            for (int nthr_oc_b = 1; nthr_oc_b <= nthr_oc_b_max; ++nthr_oc_b) {
-                int nthr_ic_b = nstl::min(nthr_par / nthr_oc_b, j.nb_ic);
-                int mem_cost = calc_mem_cost(nthr_mb, nthr_oc_b, nthr_ic_b);
-                int comp_cost = calc_comp_cost(nthr_mb, nthr_oc_b, nthr_ic_b);
-
-                const bool opt1 = comp_cost <= best_comp_cost
-                    && mem_cost < 1.1 * best_mem_cost;
-                const bool opt2 = 4 * comp_cost <= 3 * best_comp_cost;
-
-                if (opt1 || opt2) {
-                    best_comp_cost = comp_cost;
-                    nthr_mb_ = nthr_mb;
-                    nthr_oc_b_ = nthr_oc_b;
-                    nthr_ic_b_ = nthr_ic_b;
-                }
-            }
-
-            if (!mkldnn_thr_syncable()) { assert(nthr_mb == 1); break; }
-        }
-    }
-
-    if (nthr_mb_ > max_threads/2 && nthr_mb_ < max_threads)
-        nthr_mb_ = min(j.mb * j.od, max_threads);
-    nthr_ = nthr_mb_ * nthr_g_ * nthr_oc_b_ * nthr_ic_b_;
-    assert(nthr_ <= max_threads);
-    assert(IMPLICATION(!mkldnn_thr_syncable(), nthr_mb_ == 1));
 }
 
 template struct jit_avx512_common_convolution_bwd_weights_t<data_type::f32>;

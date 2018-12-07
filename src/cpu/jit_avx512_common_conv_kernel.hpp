@@ -334,6 +334,8 @@ struct jit_avx512_common_conv_bwd_weights_kernel_f32 : public jit_generator {
             const convolution_desc_t &cd, cpu_memory_t::pd_t &src_pd,
             cpu_memory_t::pd_t &diff_weights_pd,
             cpu_memory_t::pd_t &diff_bias_pd, cpu_memory_t::pd_t &diff_dst_pd);
+    static void balance(const jit_conv_conf_t &j, int &nthr, int &nthr_mb,
+            int &nthr_g, int &nthr_oc_b, int &nthr_ic_b);
 
     jit_conv_conf_t jcp;
     void (*jit_ker)(jit_conv_call_s *);
