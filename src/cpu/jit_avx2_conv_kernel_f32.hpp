@@ -18,6 +18,8 @@
 #define JIT_AVX2_CONV_KERNEL_F32_HPP
 
 #include "c_types_map.hpp"
+#include "memory_tracking.hpp"
+
 #include "cpu_memory.hpp"
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
@@ -53,6 +55,8 @@ struct jit_avx2_conv_fwd_kernel_f32: public jit_generator {
             const memory_desc_wrapper &weights_d,
             const memory_desc_wrapper &dst_d,
             const primitive_attr_t &attr);
+    static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
+            const jit_conv_conf_t &jcp);
 
     jit_conv_conf_t jcp;
     const primitive_attr_t &attr_;
@@ -108,6 +112,8 @@ struct jit_avx2_conv_bwd_data_kernel_f32: public jit_generator {
             const convolution_desc_t &cd, const memory_desc_wrapper &diff_src_d,
             const memory_desc_wrapper &weights_d,
             const memory_desc_wrapper &diff_dst_d);
+    static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
+            const jit_conv_conf_t &jcp);
 
     jit_conv_conf_t jcp;
     void (*jit_ker)(jit_conv_call_s *);
@@ -155,6 +161,8 @@ struct jit_avx2_conv_bwd_weights_kernel_f32: public jit_generator {
             const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
             const memory_desc_wrapper &diff_weights_d,
             const memory_desc_wrapper &diff_dst_d);
+    static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
+            const jit_conv_conf_t &jcp);
 
     jit_conv_conf_t jcp;
     void (*jit_ker)(jit_conv_call_s *);

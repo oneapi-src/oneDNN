@@ -14,13 +14,12 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_types.h"
-
 #include "c_types_map.hpp"
-#include "jit_avx2_convolution.hpp"
-#include "utils.hpp"
 #include "mkldnn_thread.hpp"
 #include "type_helpers.hpp"
+#include "utils.hpp"
+
+#include "jit_avx2_convolution.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -28,8 +27,8 @@ namespace cpu {
 
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::memory_format;
+using namespace mkldnn::impl::memory_tracking::names;
 using namespace mkldnn::impl::utils;
-
 
 #define src_blk_off(f, n, c, d, h, w) \
     (pd()->ndims() == 3) \
@@ -151,9 +150,11 @@ void jit_avx2_convolution_fwd_t::execute_forward() {
     };
 
     if (pd()->wants_padded_bias()) {
-        for (int oc = 0; oc < jcp.oc_without_padding; ++oc)
-            padded_bias_[oc] = bias[oc];
-        bias = padded_bias_;
+        auto padded_bias = scratchpad().get<data_t>(key_conv_padded_bias);
+        utils::array_copy(padded_bias, bias, jcp.oc_without_padding);
+        utils::array_set(padded_bias + jcp.oc_without_padding, 0.f,
+                jcp.oc - jcp.oc_without_padding);
+        bias = padded_bias;
     }
 
     parallel(0, ker);
@@ -256,7 +257,9 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights() {
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto diff_weights = reinterpret_cast<data_t *>(this->memory(0));
     auto diff_bias_in = reinterpret_cast<data_t *>(this->memory(1));
-    data_t *diff_bias = pd()->wants_padded_bias() ? padded_bias_ : diff_bias_in;
+
+    data_t *diff_bias = pd()->wants_padded_bias()
+        ? scratchpad().get<data_t>(key_conv_padded_bias) : diff_bias_in;
 
     const memory_desc_wrapper src_d(pd()->src_pd(0));
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
@@ -371,7 +374,6 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights() {
         }
         rb->reduce(ithr, diff_bias);
     };
-
 
     parallel(0, [&](const int ithr, const int nthr) {
         ker(ithr, nthr);

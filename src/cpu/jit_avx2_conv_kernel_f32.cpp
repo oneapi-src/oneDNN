@@ -31,6 +31,7 @@ namespace cpu {
 
 using namespace mkldnn::impl::prop_kind;
 using namespace mkldnn::impl::memory_format;
+using namespace mkldnn::impl::memory_tracking::names;
 using namespace mkldnn::impl::utils;
 
 using namespace Xbyak;
@@ -569,6 +570,12 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     return status::success;
 }
 
+void jit_avx2_conv_fwd_kernel_f32::init_scratchpad(
+        memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp) {
+    if (jcp.with_bias && jcp.oc != jcp.oc_without_padding)
+        scratchpad.book(key_conv_padded_bias, sizeof(float) * jcp.oc);
+}
+
 void jit_avx2_conv_bwd_data_kernel_f32::hsw_iter_s1(int ur_w, int l_overflow,
         int r_overflow)
 {
@@ -842,7 +849,14 @@ status_t jit_avx2_conv_bwd_data_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     if (r_overflow_no_tail > jcp.ur_w) /* maximum 1 ur_w block with
                                           r_overflow so far */
         return status::unimplemented;
+
     return status::success;
+}
+
+void jit_avx2_conv_bwd_data_kernel_f32::init_scratchpad(
+        memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp) {
+    UNUSED(scratchpad);
+    UNUSED(jcp);
 }
 
 void jit_avx2_conv_bwd_weights_kernel_f32::generate() {
@@ -947,7 +961,14 @@ status_t jit_avx2_conv_bwd_weights_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     jcp.oc_block = simd_w;
     jcp.nb_oc = jcp.oc / jcp.oc_block;
     jcp.nb_ic_blocking = jcp.nb_oc_blocking = 1;
+
     return status::success;
+}
+
+void jit_avx2_conv_bwd_weights_kernel_f32::init_scratchpad(
+        memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp) {
+    if (jcp.with_bias && jcp.oc != jcp.oc_without_padding)
+        scratchpad.book(key_conv_padded_bias, sizeof(float) * jcp.oc);
 }
 
 inline void jit_avx2_conv_bwd_weights_kernel_f32::od_step_comeback_pointers()

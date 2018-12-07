@@ -18,12 +18,14 @@
 #define CPU_JIT_AVX2_CONVOLUTION_HPP
 
 #include "c_types_map.hpp"
-#include "cpu_convolution_pd.hpp"
-#include "cpu_engine.hpp"
-#include "cpu_reducer.hpp"
-#include "jit_primitive_conf.hpp"
-#include "jit_avx2_conv_kernel_f32.hpp"
+#include "memory_tracking.hpp"
 #include "mkldnn_thread.hpp"
+#include "utils.hpp"
+
+#include "cpu_convolution_pd.hpp"
+#include "cpu_reducer.hpp"
+
+#include "jit_avx2_conv_kernel_f32.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -59,9 +61,16 @@ struct jit_avx2_convolution_fwd_t: public cpu_primitive_t {
                         data_type::f32 == this->desc()->bias_desc.data_type);
             if (!ok) return status::unimplemented;
 
-            return jit_avx2_conv_fwd_kernel_f32::init_conf(jcp_, *this->desc(),
-                    *this->src_pd_.desc(), *this->weights_pd_.desc(),
-                    *this->dst_pd_.desc(), *this->attr());
+            status_t status = jit_avx2_conv_fwd_kernel_f32::init_conf(jcp_,
+                    *this->desc(), *this->src_pd_.desc(),
+                    *this->weights_pd_.desc(), *this->dst_pd_.desc(),
+                    *this->attr());
+            if (status != status::success) return status;
+
+            auto scratchpad = scratchpad_registry().registrar();
+            jit_avx2_conv_fwd_kernel_f32::init_scratchpad(scratchpad, jcp_);
+
+            return status::success;
         }
 
         jit_conv_conf_t jcp_;
@@ -95,23 +104,8 @@ struct jit_avx2_convolution_fwd_t: public cpu_primitive_t {
     jit_avx2_convolution_fwd_t(const pd_t *apd, const input_vector &inputs,
             const output_vector &outputs)
         : cpu_primitive_t(apd, inputs, outputs)
-          , padded_bias_(nullptr)
-    {
-        kernel_ = new jit_avx2_conv_fwd_kernel_f32(pd()->jcp_, *pd()->attr());
-
-        if (pd()->wants_padded_bias()) {
-            const auto &j = pd()->jcp_;
-            assert(j.ngroups == 1);
-            padded_bias_ = (data_t *)malloc(sizeof(data_t) * j.oc, 64);
-            for (int oc = j.oc_without_padding; oc < j.oc; ++oc)
-                padded_bias_[oc] = 0;
-        }
-
-    }
-    ~jit_avx2_convolution_fwd_t() {
-        delete kernel_;
-        free(padded_bias_);
-    };
+    { kernel_ = new jit_avx2_conv_fwd_kernel_f32(pd()->jcp_, *pd()->attr()); }
+    ~jit_avx2_convolution_fwd_t() { delete kernel_; }
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
@@ -123,8 +117,8 @@ struct jit_avx2_convolution_fwd_t: public cpu_primitive_t {
 private:
     void execute_forward();
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+
     jit_avx2_conv_fwd_kernel_f32 *kernel_;
-    data_t *padded_bias_;
 };
 
 struct jit_avx2_convolution_bwd_data_t: public cpu_primitive_t {
@@ -155,9 +149,16 @@ struct jit_avx2_convolution_bwd_data_t: public cpu_primitive_t {
                         this->desc()->diff_dst_desc.data_type);
             if (!ok) return status::unimplemented;
 
-            return jit_avx2_conv_bwd_data_kernel_f32::init_conf(jcp_,
-                    *this->desc(), *this->diff_src_pd_.desc(),
+            status_t status = jit_avx2_conv_bwd_data_kernel_f32::init_conf(
+                    jcp_, *this->desc(), *this->diff_src_pd_.desc(),
                     *this->weights_pd_.desc(), *this->diff_dst_pd_.desc());
+            if (status != status::success) return status;
+
+            auto scratchpad = scratchpad_registry().registrar();
+            jit_avx2_conv_bwd_data_kernel_f32::init_scratchpad(scratchpad,
+                    jcp_);
+
+            return status::success;
         }
 
         jit_conv_conf_t jcp_;
@@ -186,7 +187,7 @@ struct jit_avx2_convolution_bwd_data_t: public cpu_primitive_t {
             const output_vector &outputs)
         : cpu_primitive_t(apd, inputs, outputs)
     { kernel_ = new jit_avx2_conv_bwd_data_kernel_f32(pd()->jcp_); }
-    ~jit_avx2_convolution_bwd_data_t() { delete kernel_; };
+    ~jit_avx2_convolution_bwd_data_t() { delete kernel_; }
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
@@ -204,6 +205,7 @@ struct jit_avx2_convolution_bwd_data_t: public cpu_primitive_t {
 private:
     void execute_backward_data();
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+
     jit_avx2_conv_bwd_data_kernel_f32 *kernel_;
 };
 
@@ -232,10 +234,17 @@ struct jit_avx2_convolution_bwd_weights_t: public cpu_primitive_t {
                         this->desc()->diff_weights_desc.data_type);
             if (!ok) return status::unimplemented;
 
-            return jit_avx2_conv_bwd_weights_kernel_f32::init_conf(jcp_,
-                    *this->desc(), *this->src_pd_.desc(),
+            status_t status = jit_avx2_conv_bwd_weights_kernel_f32::init_conf(
+                    jcp_, *this->desc(), *this->src_pd_.desc(),
                     *this->diff_weights_pd_.desc(),
                     *this->diff_dst_pd_.desc());
+            if (status != status::success) return status;
+
+            auto scratchpad = scratchpad_registry().registrar();
+            jit_avx2_conv_bwd_weights_kernel_f32::init_scratchpad(scratchpad,
+                    jcp_);
+
+            return status::success;
         }
 
         jit_conv_conf_t jcp_;
@@ -268,7 +277,6 @@ struct jit_avx2_convolution_bwd_weights_t: public cpu_primitive_t {
             const input_vector &inputs, const output_vector &outputs)
         : cpu_primitive_t(apd, inputs, outputs)
         , kernel_(nullptr), reducer_weights_(nullptr), reducer_bias_(nullptr)
-        , padded_bias_(nullptr)
     {
         kernel_ = new jit_avx2_conv_bwd_weights_kernel_f32(pd()->jcp_);
 
@@ -282,18 +290,14 @@ struct jit_avx2_convolution_bwd_weights_t: public cpu_primitive_t {
             reducer_bias_ = new cpu_reducer_t<data_type::f32>(
                     reduce_balancer_t(max_threads, j.oc_block,
                         j.ngroups * j.nb_oc, j.mb, max_buffer_size));
-
-            if (pd()->wants_padded_bias())
-                padded_bias_ = (data_t *)
-                    malloc(sizeof(data_t) * j.oc, 64);
         }
     }
+
     ~jit_avx2_convolution_bwd_weights_t() {
         delete kernel_;
         delete reducer_weights_;
         delete reducer_bias_;
-        free(padded_bias_);
-    };
+    }
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
@@ -305,9 +309,9 @@ struct jit_avx2_convolution_bwd_weights_t: public cpu_primitive_t {
 private:
     void execute_backward_weights();
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+
     jit_avx2_conv_bwd_weights_kernel_f32 *kernel_;
     cpu_reducer_t<data_type::f32> *reducer_weights_, *reducer_bias_;
-    data_t *padded_bias_;
 };
 
 }
