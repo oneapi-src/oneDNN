@@ -117,6 +117,12 @@ struct deconvolution_fwd_pd_t : public primitive_desc_t {
     }
     inline int ndims() const { return desc_.src_desc.ndims; }
 
+    bool has_zero_dim_memory() const {
+        return false
+            || memory_desc_wrapper(desc_.src_desc).has_zero_dim()
+            || memory_desc_wrapper(desc_.dst_desc).has_zero_dim();
+    }
+
 protected:
     deconvolution_desc_t desc_;
     const deconvolution_fwd_pd_t *hint_fwd_pd_;
