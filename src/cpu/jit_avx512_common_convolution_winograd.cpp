@@ -37,6 +37,8 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
+using namespace memory_tracking::names;
+
 namespace {
 
 unsigned int LLC_cache_size = get_cache_size(3, false);
@@ -898,7 +900,8 @@ void diff_weights_transform_bwd_weights(jit_conv_winograd_conf_t conv,
 
 template <bool is_fwd>
 void _jit_avx512_common_convolution_winograd_t<is_fwd>::_execute_data_W_S_G_D(
-        float *inp_ptr, float *out_ptr, float *wei_ptr, float *bias_ptr) {
+        float *inp_ptr, float *out_ptr, float *wei_ptr, float *bias_ptr,
+        const memory_tracking::grantor_t &scratchpad) {
     const auto &jcp = kernel_->jcp;
     const auto &p_ops = attr_->post_ops_;
 
@@ -943,24 +946,23 @@ void _jit_avx512_common_convolution_winograd_t<is_fwd>::_execute_data_W_S_G_D(
     array_offset_calculator<float, 2> bias(bias_ptr,
             jcp.dimM/jcp.dimM_simd_block, jcp.dimM_simd_block);
 
-    array_offset_calculator<float, 8> M(
-            (float *)((is_fwd
-                    ? (this->scratchpad_)->M_ptr()
-                    : (this->scratchpad_)->V_ptr())),
+    array_offset_calculator<float, 8> M(is_fwd
+            ? scratchpad.template get<float>(key_wino_M)
+            : scratchpad.template get<float>(key_wino_V),
             jcp.dimN_nb_block, jcp.dimM_nb_block,
             alpha, alpha,
             jcp.dimN_block, jcp.dimM_block,
             jcp.dimN_reg_block, jcp.dimM_simd_block);
-    array_offset_calculator<float, 8> U((float *)((this->scratchpad_)->U_ptr()),
+    array_offset_calculator<float, 8> U(
+            scratchpad.template get<float>(key_wino_U),
             jcp.dimM_nb_block,
             alpha, alpha,
             jcp.dimK_nb_block,
             jcp.dimM_block, jcp.dimK_block,
             jcp.dimK_reg_block, jcp.dimM_simd_block);
-    array_offset_calculator<float, 8> V(
-            (float *)((is_fwd
-                    ? (this->scratchpad_)->V_ptr()
-                    : (this->scratchpad_)->M_ptr())),
+    array_offset_calculator<float, 8> V(is_fwd
+            ? scratchpad.template get<float>(key_wino_V)
+            : scratchpad.template get<float>(key_wino_M),
             jcp.dimN_nb_block, alpha, alpha,
             jcp.dimN_block, jcp.dimK_nb_block,
             jcp.dimK_block, jcp.dimN_reg_block, jcp.dimK_reg_block);
@@ -1044,27 +1046,24 @@ PRAGMA_OMP(barrier)
     }
 }
 
-template void
-_jit_avx512_common_convolution_winograd_t<true>::_execute_data_W_S_G_D(
-        float *, float *, float *, float *);
-template void
-_jit_avx512_common_convolution_winograd_t<false>::_execute_data_W_S_G_D(
-        float *, float *, float *, float *);
+template struct _jit_avx512_common_convolution_winograd_t<true>;
+template struct _jit_avx512_common_convolution_winograd_t<false>;
 
 void jit_avx512_common_convolution_winograd_bwd_weights_t::
-_maybe_execute_diff_bias_copy() {
+_maybe_execute_diff_bias_copy(const memory_tracking::grantor_t &scratchpad) {
     if (pd()->wants_padded_bias()) {
+        auto padded_bias = scratchpad.get<float>(key_conv_padded_bias);
         float *diff_bias = (float *)this->memory(1);
         for (int oc = 0; oc < pd()->jcp_.oc_without_padding; ++oc)
-            diff_bias[oc] = this->padded_bias_[oc];
+            diff_bias[oc] = padded_bias[oc];
     }
 }
 
 void jit_avx512_common_convolution_winograd_bwd_weights_t::
-_execute_backward_weights_S_D_G_W()
+_execute_backward_weights_S_D_G_W(const memory_tracking::grantor_t &scratchpad)
 {
     const auto &jcp = kernel_->jcp;
-    const int nthreads = scratchpad_->num_threads();
+    const int nthreads = jcp.nthr;
 
     auto diff_src_transform_bwd_weights_ver = jcp.ver == ver_4fma ?
             diff_src_transform_bwd_weights<true> :
@@ -1079,25 +1078,25 @@ _execute_backward_weights_S_D_G_W()
             jcp.mb, jcp.oc/simd_w, jcp.oh, jcp.ow, simd_w);
     array_offset_calculator<float, 6> diff_weights((float *)this->memory(0),
             jcp.oc/simd_w, jcp.ic/simd_w, jcp.kh, jcp.kw, simd_w, simd_w);
-    array_offset_calculator<float, 2> diff_bias(
-            pd()->wants_padded_bias() ? padded_bias_ : (float *)this->memory(1),
-            jcp.oc/simd_w, simd_w);
+    array_offset_calculator<float, 2> diff_bias(pd()->wants_padded_bias()
+            ? scratchpad.get<float>(key_conv_padded_bias)
+            : (float *)this->memory(1), jcp.oc/simd_w, simd_w);
 
     array_offset_calculator<float, 8> U(
-            (float *)(scratchpad_->U_ptr()),
+            scratchpad.get<float>(key_wino_U),
             jcp.nb_ic, jcp.nb_oc,
             alpha, alpha,
             jcp.oc_block, jcp.ic_block,
             jcp.ic_simd_block, jcp.oc_simd_block);
 
     array_offset_calculator<float, 8> M(
-            (float *)(scratchpad_->M_ptr()),
+            scratchpad.get<float>(key_wino_M),
             jcp.nb_oc, alpha, alpha,
             jcp.tile_block, jcp.oc_block,
             jcp.nb_tile_block_ur, jcp.tile_block_ur * jcp.tile_4fma,
             jcp.oc_simd_block);
     array_offset_calculator<float, 8> V(
-            (float *)(scratchpad_->V_ptr()),
+            scratchpad.get<float>(key_wino_V),
             jcp.nb_ic, alpha, alpha,
             jcp.tile_block, jcp.ic_block,
             jcp.nb_tile_block_ur, jcp.tile_block_ur,
@@ -1106,13 +1105,13 @@ _execute_backward_weights_S_D_G_W()
     const int trans_buffer_size = alpha * alpha * jcp.tile_4fma
                                 * jcp.ic_simd_block;
     array_offset_calculator<float, 2> trans_buffer(
-            (float *)(scratchpad_->src_transpose_ptr()),
+            scratchpad.get<float>(key_conv_tr_src),
             nthreads,
             trans_buffer_size);
 
     array_offset_calculator<float, 2> diff_bias_prv(
-            (float *)(scratchpad_->bias_ptr()),
-            mkldnn_get_max_threads(),
+            scratchpad.get<float>(key_conv_bia_reduction),
+            nthreads,
             jcp.oc);
 
 PRAGMA_OMP(parallel num_threads(nthreads))
@@ -1209,7 +1208,7 @@ PRAGMA_OMP(for)
         }
     }
 
-    _maybe_execute_diff_bias_copy();
+    _maybe_execute_diff_bias_copy(scratchpad);
 }
 
 }

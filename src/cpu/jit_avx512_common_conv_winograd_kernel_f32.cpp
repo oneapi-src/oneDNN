@@ -343,6 +343,8 @@ status_t _jit_avx512_common_conv_winograd_data_kernel_f32::init_conf_common(
     else
         jcp.ver = ver_fma;
 
+    jcp.nthr = mkldnn_get_max_threads();
+
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
 
     jcp.ngroups = with_groups ? weights_d.dims()[0] : 1;
@@ -1002,6 +1004,8 @@ status_t jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::init_conf(
 {
     if (!mayiuse(avx512_common))
         return status::unimplemented;
+
+    jcp.nthr = mkldnn_get_max_threads();
 
     const bool with_groups = diff_weights_d.ndims() == src_d.ndims() + 1;
 

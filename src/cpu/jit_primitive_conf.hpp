@@ -170,6 +170,10 @@ struct jit_conv_conf_2x3_wino_t {
     int k2_block, k_chunks;
 
     int mb_block, nb_mb;
+
+    size_t size_wino_src, size_wino_wei, size_wino_dst;
+
+    int nthr;
 };
 
 /*

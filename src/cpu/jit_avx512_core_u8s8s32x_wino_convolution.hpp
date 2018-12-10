@@ -23,7 +23,6 @@
 #include "cpu_convolution_pd.hpp"
 #include "cpu_engine.hpp"
 #include "mkldnn_thread.hpp"
-#include "scratchpad.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
@@ -73,13 +72,19 @@ struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t : public cpu_primitive_t 
 
             if (!ok) return status::unimplemented;
 
-            return jit_conf();
+            status_t status = jit_conf();
+            if (status != status::success) return status;
+
+            init_scratchpad();
+
+            return status::success;
         }
 
         jit_conv_conf_2x3_wino_t jcp_;
 
     protected:
         status_t jit_conf();
+        void init_scratchpad();
 
         virtual status_t set_default_params() override {
             using namespace memory_format;
@@ -108,6 +113,7 @@ struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t : public cpu_primitive_t 
     }
 
 private:
+    const float *adjust_oscales(const memory_tracking::grantor_t &scratchpad);
     void execute_forward();
     void execute_forward_small_mb();
     void execute_forward_mbN();
@@ -116,15 +122,6 @@ private:
     jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t *kernel_;
     jit_avx512_core_u8s8s32x_wino_conv_src_trans_t *src_trans_;
     jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t *dst_trans_;
-
-    size_t size_wino_wei_;
-    size_t size_wino_src_;
-    size_t size_wino_dst_;
-    size_t wino_shift_;
-
-    scratchpad_t *scratchpad_;
-
-    mkldnn::impl::scales_t updated_output_scales_;
 };
 
 }

@@ -1095,6 +1095,9 @@ status_t _jit_avx512_core_fp32_wino_conv_4x3_data_kernel::init_conf_common(
     if (!mayiuse(avx512_core)) {
         return status::unimplemented;
     }
+
+    jcp.nthr = mkldnn_get_max_threads();
+
     jcp.ver = ver_avx512_core;
     jcp.prop_kind = cd.prop_kind;
 
@@ -2361,6 +2364,8 @@ status_t set_wsched_WEI_SDGtWo(jit_conv_winograd_conf_t &jcp) {
                                 jcp.dimM_block = M_blk;
                                 jcp.sched_policy = WSCHED_WEI_SDGtWo;
                                 set_jcp_WEI_params(jcp);
+                                jcp.nthr = nstl::min(mkldnn_get_max_threads(),
+                                        jcp.tile_block);
                                 return status::success;
                             }
                         }
@@ -2451,6 +2456,8 @@ status_t jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_kernel::init_conf(
         return status::unimplemented;
     else
         jcp.ver = ver_avx512_core;
+
+    jcp.nthr = mkldnn_get_max_threads();
 
     const bool with_groups = diff_weights_d.ndims() == src_d.ndims() + 1;
     jcp.mb = src_d.dims()[0];

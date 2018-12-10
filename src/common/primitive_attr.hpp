@@ -53,7 +53,6 @@ struct scales_t: public c_compatible {
 
     status_t set(int count, int mask, const float *scales);
     status_t set(float single_scale) { return this->set(1, 0, &single_scale); }
-    status_t scale(float factor);
 
     int count_;
     int mask_;
