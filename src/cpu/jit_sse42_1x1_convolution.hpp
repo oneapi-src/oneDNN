@@ -20,7 +20,6 @@
 #include "c_types_map.hpp"
 #include "cpu_convolution_pd.hpp"
 #include "cpu_engine.hpp"
-#include "cpu_reducer.hpp"
 #include "jit_sse42_1x1_conv_kernel_f32.hpp"
 #include "mkldnn_thread.hpp"
 #include "utils.hpp"
