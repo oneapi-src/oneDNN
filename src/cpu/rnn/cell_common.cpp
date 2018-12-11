@@ -38,7 +38,7 @@ cell_execution_sig(_ref_rnn_common_t<prop_kind::forward>::cell_execution) {
 
     (this->*elemwise_func)(rnn, ws_gates_, states_t_l_, states_t_lm1_,
             states_tm1_l_, diff_states_t_l_, diff_states_t_lp1_,
-            diff_states_tp1_l_, bias_, ws_grid_, ws_cell_);
+            diff_states_tp1_l_, bias_[0], ws_grid_, ws_cell_);
 }
 
 template <>
@@ -46,7 +46,7 @@ cell_execution_sig(_ref_rnn_common_t<prop_kind::backward>::cell_execution) {
     ws_diff_states_aoc_t diff_states_t_l(rnn, diff_states_t_l_);
     (this->*elemwise_func)(rnn, ws_gates_, states_t_l_, states_t_lm1_,
             states_tm1_l_, diff_states_t_l_, diff_states_t_lp1_,
-            diff_states_tp1_l_, bias_, ws_grid_, ws_cell_);
+            diff_states_tp1_l_, bias_[0], ws_grid_, ws_cell_);
 
     /// bwd by data on the cell
     (this->*gemm_iter_func)('N', 'N', rnn.sic, rnn.mb, rnn.n_gates * rnn.dic,

@@ -73,7 +73,7 @@ cell_execution_sig(
             rnn.states_ws_ld, 0.0, ws_cell_, rnn.gates_ws_ld);
     (this->*elemwise_func)(rnn, ws_gates_, states_t_l_, states_t_lm1_,
             states_tm1_l_, diff_states_t_l_, diff_states_t_lp1_,
-            diff_states_tp1_l_, bias_, ws_grid_, ws_cell_);
+            diff_states_tp1_l_, bias_[0], ws_grid_, ws_cell_);
 }
 
 template <>
@@ -118,7 +118,7 @@ cell_execution_sig(_ref_rnn_common_t<prop_kind::backward>::cell_execution_gru_lb
 
     (this->*elemwise_func)(rnn, ws_gates_, states_t_l_, states_t_lm1_,
             states_tm1_l_, diff_states_t_l_, diff_states_t_lp1_,
-            diff_states_tp1_l_, bias_, ws_grid_, ws_cell_);
+            diff_states_tp1_l_, bias_[0], ws_grid_, ws_cell_);
 
     if (!rnn.merge_gemm_layer) {
         //  dx = dG * Wx^t

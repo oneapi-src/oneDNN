@@ -40,12 +40,13 @@ const int rnn_max_n_parts = 2;
 
 struct rnn_conf_t {
     execution_direction_t exec_dir;
-    int n_layer, n_iter, n_dir, n_gates, n_states, n_bias;
+    int n_layer, n_iter, n_dir, n_gates, n_states;
     int mb;
     int slc, sic, dic, dlc;
     int gates_ld, gates_nld, gates_ws_ld;
     int n_parts_weights_layer, parts_weights_layer[rnn_max_n_parts];
     int n_parts_weights_iter, parts_weights_iter[rnn_max_n_parts];
+    int n_bias, n_parts_bias, parts_bias[rnn_max_n_parts];
     int part_weights_iter_pack_size[rnn_max_n_parts], part_weights_layer_pack_size[rnn_max_n_parts];
     int weights_layer_ld, weights_layer_nld, weights_layer_ws_ld;
     int diff_weights_layer_ld, diff_weights_layer_nld, diff_weights_layer_ws_ld;
@@ -80,6 +81,7 @@ void set_offsets(const rnn_conf_t &rnn, size_t &ws_gates_offset,
         size_t &ws_states_offset, size_t &ws_diff_states_offset,
         size_t &ws_grid_comp_offset, size_t &ws_cell_comp_offset,
         size_t &ws_weights_layer_offset, size_t &ws_weights_iter_offset,
+        size_t &ws_bias_offset,
         size_t &ws_diff_weights_layer_offset,
         size_t &ws_diff_weights_iter_offset, size_t &scratchpad_size,
         size_t &workspace_size);

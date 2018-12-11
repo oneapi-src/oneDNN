@@ -37,13 +37,13 @@ namespace cpu {
             float *ws_gates_, float *states_t_l_,                            \
             float *states_t_lm1_, float *states_tm1_l_,                      \
             float *diff_states_t_l_, float *diff_states_t_lp1_,              \
-            float *diff_states_tp1_l_, const float *bias_, float *ws_grid_,  \
+            float *diff_states_tp1_l_, float *bias_, float *ws_grid_,        \
             float *ws_cell_)
 
 #define cell_execution_sig(f)                                               \
     void f(const rnn_utils::rnn_conf_t &rnn, float *states_t_l_,            \
             float *diff_states_t_l_, float **w_layer_, float **w_iter_,     \
-            const float *bias_, float *states_t_lm1_, float *states_tm1_l_, \
+            float **bias_, float *states_t_lm1_, float *states_tm1_l_,      \
             float *diff_states_t_lp1_, float *diff_states_tp1_l_,           \
             float *diff_w_layer_, float *diff_w_iter_, float *diff_bias_,   \
             float *ws_gates_, float *ws_grid_, float *ws_cell_)
@@ -51,7 +51,7 @@ namespace cpu {
 #define grid_execution_sig(f)                                               \
     void f(const rnn_utils::rnn_conf_t &rnn, float **weights_layer_,        \
             float **weights_states_,                                        \
-            float *bias_, float *ws_states_, float *ws_diff_states_,       \
+            float **bias_, float *ws_states_, float *ws_diff_states_,       \
             float *ws_gates_, float *ws_cell_, float *ws_grid_,             \
             float *diff_weights_layer_, float *diff_weights_iter_,          \
             float *diff_bias_)
@@ -62,15 +62,24 @@ namespace cpu {
             const float *b_, const int ldB, const float beta, float *c_, \
             const int ldC)
 
+#define bias_prepare_sig(f)                                              \
+    void f(const rnn_utils::rnn_conf_t &rnn,                             \
+            float **bias_, const float *b_, float *scratch_bias_)
+
+#define bias_finalize_sig(f)                                             \
+    void f(const rnn_utils::rnn_conf_t &rnn,                             \
+            float **bias_, const float *b_, float *scratch_bias_)
+
 #define packing_sig(f)                                                   \
     void f(const rnn_utils::rnn_conf_t &rnn, memory_format_t fmt,        \
             int OC_size, int IC_size,                                    \
             const int n_parts, const int *gates_per_part,                \
             const int *part_weights_pack_size,                           \
             float **weights_, const float *w_, float *scratch_weights_,  \
+            float **bias_, const float *b_, float *scratch_bias_,        \
             bool do_copy)
 
-#define free_packed_sig(f) \
+#define free_packed_sig(f)                                               \
     void f(const rnn_utils::rnn_conf_t &rnn, int n_parts, float **weights_)
 
 template <alg_kind_t alg_kind, prop_kind_t prop_kind>
@@ -84,6 +93,8 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
     typedef grid_execution_sig((class_name::*grid_execution_f));
 
     typedef gemm_sig((class_name::*gemm_t));
+    typedef bias_prepare_sig((class_name::*bias_prepare_t));
+    typedef bias_finalize_sig((class_name::*bias_finalize_t));
     typedef packing_sig((class_name::*packing_t));
     typedef free_packed_sig((class_name::*free_packed_t));
 
@@ -192,6 +203,9 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
         default: assert(false);
         }
 
+        bias_preparation_func = &class_name::bias_prepare;
+        bias_finalization_func = &class_name::bias_finalize;
+
         auto set_pack_funcs = [](bool packed_gemm, gemm_t &g, bool pack_w,
                 packing_t &p, free_packed_t &f) {
             g = packed_gemm ? &class_name::packed_gemm : &class_name::gemm;
@@ -250,7 +264,7 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
         rnn_utils::set_offsets(pd()->rnn_, ws_gates_offset_, ws_states_offset_,
                 ws_diff_states_offset_, ws_grid_comp_offset_,
                 ws_cell_comp_offset_, ws_weights_layer_offset_,
-                ws_weights_iter_offset_, ws_diff_weights_layer_offset_,
+                ws_weights_iter_offset_, ws_bias_offset_, ws_diff_weights_layer_offset_,
                 ws_diff_weights_iter_offset_, scratchpad_size, workspace_size);
 
         scratchpad_ = create_scratchpad(scratchpad_size * sizeof(float));
@@ -259,11 +273,13 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
         int ptr_wei_sz = pd()->rnn_.n_layer * pd()->rnn_.n_dir * max_nparts;
         ptr_wei_layer_ = (float **)malloc(sizeof(float *) * ptr_wei_sz, 64);
         ptr_wei_iter_ = (float **)malloc(sizeof(float *) * ptr_wei_sz, 64);
+        ptr_bias_ = (float **)malloc(sizeof(float *) * ptr_wei_sz, 64);
     }
     ~_ref_rnn_common_t() {
         delete scratchpad_;
         free(ptr_wei_layer_);
         free(ptr_wei_iter_);
+        free(ptr_bias_);
     }
 
     // typedef typename prec_traits::type data_t;
@@ -284,6 +300,8 @@ private:
     elemwise_sig(gru_lbr_elemwise);
     gemm_sig(gemm);
     gemm_sig(packed_gemm);
+    bias_prepare_sig(bias_prepare);
+    bias_finalize_sig(bias_finalize);
     packing_sig(pack_weights);
     packing_sig(no_pack_weights);
     free_packed_sig(free_packed_weights);
@@ -313,6 +331,7 @@ private:
     size_t ws_states_offset_;
     size_t ws_weights_layer_offset_;
     size_t ws_weights_iter_offset_;
+    size_t ws_bias_offset_;
     size_t ws_diff_states_offset_;
     size_t ws_diff_weights_layer_offset_;
     size_t ws_diff_weights_iter_offset_;
@@ -326,15 +345,19 @@ private:
     float *ws_grid_;
     float *ws_weights_layer_;
     float *ws_weights_iter_;
+    float *ws_bias_;
     float *ws_diff_weights_layer_;
     float *ws_diff_weights_iter_;
 
     float **ptr_wei_layer_;
     float **ptr_wei_iter_;
+    float **ptr_bias_;
 
     grid_execution_f grid_computation;
     cell_execution_f cell_func;
 
+    bias_prepare_t bias_preparation_func;
+    bias_finalize_t bias_finalization_func;
     packing_t weights_layer_pack_func;
     packing_t weights_iter_pack_func;
 

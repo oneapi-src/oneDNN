@@ -108,8 +108,8 @@ grid_execution_sig(_ref_rnn_common_t<aprop>::linear_execution) {
             weights_layer_, rnn.n_layer, rnn.n_dir, rnn.n_parts_weights_layer);
     AOC<float *, 3> weights_states(
             weights_states_, rnn.n_layer, rnn.n_dir, rnn.n_parts_weights_iter);
-    AOC<float, 3> bias(
-            bias_, rnn.n_layer, rnn.n_dir, rnn.n_bias * rnn.dic);
+    AOC<float*, 3> bias(
+        bias_, rnn.n_layer, rnn.n_dir, rnn.n_parts_bias);
     AOC<float, 3> diff_weights_layer(diff_weights_layer_, rnn.n_layer,
             rnn.n_dir,
             rnn.diff_weights_layer_nld * rnn.diff_weights_layer_ws_ld);
@@ -408,6 +408,30 @@ void _ref_rnn_common_t<prop_kind::backward>::copy_res_iter(
 }
 
 template <prop_kind_t aprop>
+bias_prepare_sig(_ref_rnn_common_t<aprop>::bias_prepare) {
+    /* Original set of bias provided by the user */
+    AOC<const float, 5> b(
+            b_, rnn.n_layer, rnn.n_dir, rnn.n_bias * rnn.dic);
+    /* Array of pointers initialized in packing */
+    AOC<float *, 3> bias(bias_, rnn.n_layer, rnn.n_dir, rnn.n_parts_bias);
+    AOC<float, 3> scratch_bias(scratch_bias_, rnn.n_layer, rnn.n_dir, rnn.n_bias * rnn.dic);
+    for (int i = 0; i < rnn.n_layer; i++) {
+        for (int d = 0; d < rnn.n_dir; d++) {
+            int offset_bias = 0;
+            for (int p = 0; p < rnn.n_parts_bias; p++) {
+                bias(i, d, p) = (float *) &b(i, d, offset_bias);
+                offset_bias += rnn.parts_bias[p] * rnn.dic;
+            }
+        }
+    }
+
+}
+
+template <prop_kind_t aprop>
+bias_finalize_sig(_ref_rnn_common_t<aprop>::bias_finalize) {
+}
+
+template <prop_kind_t aprop>
 packing_sig(_ref_rnn_common_t<aprop>::pack_weights) {
 #if (USE_MKL_PACKED_GEMM)
     /* Original set of weights provided by the user */
@@ -462,6 +486,7 @@ packing_sig(_ref_rnn_common_t<aprop>::pack_weights) {
     UNUSED(gates_per_part);
     UNUSED(w_);
     UNUSED(scratch_weights_);
+    UNUSED(scratch_bias_);
     UNUSED(do_copy);
 #endif
 }
@@ -613,6 +638,7 @@ void _ref_rnn_common_t<aprop>::execute_() {
     // Fetching extra buffers from scratchpad
     ws_weights_layer_ = scratch_ptr + ws_weights_layer_offset_;
     ws_weights_iter_ = scratch_ptr + ws_weights_iter_offset_;
+    ws_bias_ = scratch_ptr + ws_bias_offset_;
     ws_diff_weights_layer_ = scratch_ptr + ws_diff_weights_layer_offset_;
     ws_diff_weights_iter_ = scratch_ptr + ws_diff_weights_iter_offset_;
 
@@ -633,14 +659,20 @@ void _ref_rnn_common_t<aprop>::execute_() {
 
     /* Pack(if using packed gemm API) or copy(if input arrays have bad leading
      * dimension */
+    (this->*bias_preparation_func)(rnn, ptr_bias_, bias, ws_bias_);
+
     (this->*weights_iter_pack_func)(rnn, rnn.weights_iter_fmt, rnn.dic, rnn.sic,
             rnn.n_parts_weights_iter, rnn.parts_weights_iter,  rnn.part_weights_iter_pack_size,
-            ptr_wei_iter_, w_state,
-            ws_weights_iter_, rnn.copy_weights_iter);
+            ptr_wei_iter_, w_state, ws_weights_iter_,
+            ptr_bias_, bias, ws_bias_,
+            rnn.copy_weights_iter);
     (this->*weights_layer_pack_func)(rnn, rnn.weights_layer_fmt, rnn.dic, rnn.slc,
             rnn.n_parts_weights_layer, rnn.parts_weights_layer, rnn.part_weights_layer_pack_size,
-            ptr_wei_layer_, w_input,
-            ws_weights_layer_, rnn.copy_weights_layer);
+            ptr_wei_layer_, w_input, ws_weights_layer_,
+            ptr_bias_, bias, ws_bias_,
+            rnn.copy_weights_layer);
+
+    (this->*bias_finalization_func)(rnn, ptr_bias_, bias, ws_bias_);
 
     // we first need to copy the initial states and input into ws
     copy_init_layer(rnn, ws_states_, ws_diff_states_, input, diff_dst_layer);
@@ -648,7 +680,7 @@ void _ref_rnn_common_t<aprop>::execute_() {
 
     // run the execution on the grid
     (this->*grid_computation)(rnn, ptr_wei_layer_, ptr_wei_iter_,
-            (float*)bias, ws_states_, ws_diff_states_,
+            ptr_bias_, ws_states_, ws_diff_states_,
             ws_gates_, ws_cell_, ws_grid_, ws_diff_weights_layer_,
             ws_diff_weights_iter_, diff_bias);
 

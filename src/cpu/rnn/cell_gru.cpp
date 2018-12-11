@@ -35,7 +35,7 @@ using namespace rnn_utils;
 template <>
 cell_execution_sig(_ref_rnn_common_t<prop_kind::forward>::cell_execution_gru) {
     ws_gates_aoc_t ws_gates(rnn, ws_gates_);
-    bias_aoc_t bias(rnn, bias_);
+    bias_aoc_t bias(rnn, bias_[0]);
     ws_states_aoc_t states_t_l(rnn, states_t_l_);
     ws_states_aoc_t states_tm1_l(rnn, states_tm1_l_);
 

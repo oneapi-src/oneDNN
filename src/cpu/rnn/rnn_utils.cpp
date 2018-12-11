@@ -102,6 +102,9 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     rnn.parts_weights_iter[0] = is_orig_gru ? 2 : rnn.n_gates;
     rnn.parts_weights_iter[1] = is_orig_gru ? 1 : 0;
 
+    rnn.n_parts_bias = 1;
+    rnn.parts_bias[0] = rnn.n_bias;
+    rnn.parts_bias[1] = 0;
     /* Decide to copy weights to workspace with padded leading dimension */
     auto decide_to_copy
             = [](bool copy_enabled, int ld, int &wld, bool &copy) {
@@ -236,7 +239,7 @@ void rnn_utils::set_offsets(const rnn_conf_t &rnn, size_t &ws_gates_offset,
         size_t &ws_states_offset, size_t &ws_diff_states_offset,
         size_t &ws_grid_comp_offset, size_t &ws_cell_comp_offset,
         size_t &ws_weights_layer_offset, size_t &ws_weights_iter_offset,
-        size_t &ws_diff_weights_layer_offset,
+        size_t &ws_bias_offset, size_t &ws_diff_weights_layer_offset,
         size_t &ws_diff_weights_iter_offset, size_t &scratchpad_size,
         size_t &workspace_size) {
 
@@ -301,11 +304,11 @@ void rnn_utils::set_offsets(const rnn_conf_t &rnn, size_t &ws_gates_offset,
 size_t rnn_utils::get_ws_size(const rnn_conf_t &rnn) {
     size_t ws_gates_offset, ws_states_offset, ws_diff_states_offset,
             ws_grid_comp_offset, ws_cell_comp_offset, ws_weights_layer_offset,
-            ws_weights_iter_offset, ws_diff_weights_layer_offset,
+            ws_weights_iter_offset, ws_bias_offset, ws_diff_weights_layer_offset,
             ws_diff_weights_iter_offset, scratchpad_size, workspace_size;
     set_offsets(rnn, ws_gates_offset, ws_states_offset, ws_diff_states_offset,
             ws_grid_comp_offset, ws_cell_comp_offset, ws_weights_layer_offset,
-            ws_weights_iter_offset, ws_diff_weights_layer_offset,
+            ws_weights_iter_offset, ws_bias_offset, ws_diff_weights_layer_offset,
             ws_diff_weights_iter_offset, scratchpad_size, workspace_size);
     return workspace_size;
 }
