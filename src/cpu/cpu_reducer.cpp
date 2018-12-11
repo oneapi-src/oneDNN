@@ -372,9 +372,8 @@ template struct cpu_reducer_t<data_type::s32>;
 template <impl::data_type_t data_type>
 cpu_reducer_2d_t<data_type>::cpu_reducer_2d_t(
         const reduce_balancer_t &balancer,
-        int job_size_x, int job_size_y, int x_block,
-        int dst_x, int dst_y, bool master_uses_dst)
-    : balancer_(balancer), master_uses_dst_(master_uses_dst)
+        int job_size_x, int job_size_y, int x_block, int dst_x, int dst_y)
+    : balancer_(balancer)
     , job_size_x_(job_size_x), job_size_y_(job_size_y), x_block_(x_block)
     , dst_x_(dst_x), dst_y_(dst_y), workspace_(nullptr), drv_(nullptr)
     , barriers_(nullptr)
@@ -385,9 +384,8 @@ cpu_reducer_2d_t<data_type>::cpu_reducer_2d_t(
                 balancer_.ngroups_ * sizeof(simple_barrier::ctx_t), 64);
         for (int i = 0; i < balancer_.ngroups_; ++i)
             simple_barrier::ctx_init(&barriers_[i]);
-        const int n_src = balancer_.nthr_per_group_ - master_uses_dst_;
-        drv_ = create_reduce_2d_drv<data_type>(n_src, ws_per_thread(),
-                job_size_x_, dst_x_, !master_uses_dst_);
+        drv_ = create_reduce_2d_drv<data_type>(balancer_.nthr_per_group_,
+                ws_per_thread(), job_size_x_, dst_x_, true);
     }
 }
 
@@ -402,28 +400,18 @@ template <impl::data_type_t data_type>
 void cpu_reducer_2d_t<data_type>::allocate_workspace() {
     if (balancer_.nthr_per_group_ == 1) return;
 
-    const size_t ws_size = balancer_.ngroups_
-        * (balancer_.nthr_per_group_ - master_uses_dst_)
+    const size_t ws_size = balancer_.ngroups_ * balancer_.nthr_per_group_
         * ws_per_thread();
     workspace_ = (data_t *)malloc(ws_size * sizeof(data_t), 64);
 }
 
 template <impl::data_type_t data_type>
 typename cpu_reducer_2d_t<data_type>::data_t *
-cpu_reducer_2d_t<data_type>::get_local_ptr(int ithr, data_t *dst) {
+cpu_reducer_2d_t<data_type>::get_local_ptr(int ithr) {
     const int id_in_grp = balancer_.id_in_group(ithr);
 
-    /* master threads from each group should write directly to the destination
-     * if they are allowed to use it */
-    if (master_uses_dst_ && id_in_grp == 0) {
-        assert(!"unsupported");
-        return dst + balancer_.ithr_job_off(ithr) * balancer_.job_size_;
-    }
-
     const int grp_id = balancer_.group_id(ithr);
-    const int offset_factor
-        = grp_id * (balancer_.nthr_per_group_ - master_uses_dst_)
-        + (id_in_grp - master_uses_dst_);
+    const int offset_factor = grp_id * balancer_.nthr_per_group_ + id_in_grp;
     return workspace_ + offset_factor * ws_per_thread();
 }
 
@@ -457,9 +445,8 @@ void cpu_reducer_2d_t<data_type>::reduce_block(const data_t* wspace_base,
     const data_t *wspace = wspace_base + job * balancer_.job_size_
                             + ny_start * job_size_x_ + nx_start;
 #ifdef SIMPLE_IMPL
-    const int idg_start = master_uses_dst_ ? 1 : 0;
-    for (int idg = idg_start; idg < balancer_.nthr_per_group_; ++idg) {
-        const data_t *w = &wspace[(idg - idg_start) * ws_per_thread()];
+    for (int idg = 0; idg < balancer_.nthr_per_group_; ++idg) {
+        const data_t *w = &wspace[idg * ws_per_thread()];
         for (int y = 0; y < ny_step; ++y)
             for (int x = 0; x < nx_step; ++x) {
                 d[y * dst_x_ + x] = (idg == 0 ? 0 : d[y * dst_x_ + x])
@@ -482,7 +469,7 @@ void cpu_reducer_2d_t<data_type>::reduce_nolock(int ithr, data_t *dst) {
     const int njobs_x = utils::div_up(dst_x_, job_size_x_);
     const int global_job_start = balancer_.ithr_job_off(ithr);
 
-    const data_t *wspace_base = get_local_ptr(ithr - id_in_grp, nullptr);
+    const data_t *wspace_base = get_local_ptr(ithr - id_in_grp);
 
     const int pr_grps = nstl::min(njobs_in_grp, balancer_.nthr_per_group_);
     const int pr_nthr_per_grp = balancer_.nthr_per_group_ / pr_grps;

@@ -306,7 +306,7 @@ jit_avx2_1x1_convolution_bwd_weights_t::jit_avx2_1x1_convolution_bwd_weights_t(
             reduce_balancer_t(max_threads, job_size, njobs_y * njobs_x,
                 jcp.mb * jcp.nb_reduce, max_buffer_size),
             job_size / nb_oc_blocking, nb_oc_blocking, ic_block,
-            nb_ic * ic_block * oc_block, nb_oc, false);
+            nb_ic * ic_block * oc_block, nb_oc);
 
     reducer_bias_ = !pd()->with_bias() ? nullptr
         : new cpu_reducer_t<data_type::f32>(reduce_balancer_t(max_threads,
@@ -457,8 +457,7 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights() {
             data_t *store_to;
             size_t store_to_ld;
 
-            if (rw->balancer_.nthr_per_group_ == 1 ||
-                    (rw->balancer_.master(ithr) && rw->master_uses_dst_)) {
+            if (rw->balancer_.nthr_per_group_ == 1) {
                 const size_t off = pd()->with_groups()
                     ? diff_weights_d.blk_off(g, oc_b, ic_b)
                     : diff_weights_d.blk_off(oc_b, ic_b);
@@ -466,7 +465,7 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights() {
                 store_to_ld = jcp.ic * jcp.oc_block;
             } else {
                 const size_t off = iwork * rw->balancer_.job_size_;
-                store_to = &rw->get_local_ptr(ithr, nullptr)[off];
+                store_to = &rw->get_local_ptr(ithr)[off];
                 store_to_ld = nb_ic_blocking * jcp.ic_block * jcp.oc_block;
             }
 

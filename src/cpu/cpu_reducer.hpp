@@ -203,8 +203,7 @@ struct cpu_reducer_2d_t {
     typedef typename prec_traits<data_type>::type data_t;
 
     cpu_reducer_2d_t(const reduce_balancer_t &balancer, int job_size_x,
-            int job_size_y, int x_block, int dst_x, int dst_y,
-            bool master_uses_dst);
+            int job_size_y, int x_block, int dst_x, int dst_y);
     ~cpu_reducer_2d_t();
 
     /** allocates internal buffer for partial computations. */
@@ -213,15 +212,8 @@ struct cpu_reducer_2d_t {
     /** deallocates internal buffer. */
     void deallocate_workspace() { if (workspace_) free(workspace_); }
 
-    /** for given thread returns the pointer where to put partial results.
-     * Depending on @p master_uses_dst_ returned pointer for master threads
-     * would be either equal to the destination memory or to the workspace (in
-     * contrast, cpu_reducer_t struct always use destination memory for master
-     * threads).
-     *
-     * @note: @p master_uses_dst_ == #false is unimplemented at the moment
-     */
-    data_t *get_local_ptr(int ithr, data_t *dst);
+    /** for given thread returns the pointer where to put partial results */
+    data_t *get_local_ptr(int ithr);
 
     /** performs the reduction with built-in synchronization. */
     void reduce(int ithr, data_t *dst) {
@@ -235,7 +227,6 @@ struct cpu_reducer_2d_t {
     }
 
     reduce_balancer_t balancer_;
-    bool master_uses_dst_;
 
 private:
     int job_size_x_, job_size_y_, x_block_, dst_x_, dst_y_;
