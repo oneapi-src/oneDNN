@@ -38,7 +38,6 @@ typedef enum {
     no_last_block = 0x1U,
     last_ic_block = 0x2U,
     last_sp_block = 0x4U,
-    last_ic
 } ker_block_t;
 
 struct jit_avx512_core_u8s8s32x_deconv_fwd_kernel : public jit_generator {
@@ -121,8 +120,8 @@ private:
 
     void prepare_output(int ur_w);
     void store_output(int ur_w, bool last_oc_block);
-    void compute_ker(int ur_w, int pad_l, int pad_r, ker_block_t last_ker_block);
-    void compute_loop(int ur_w, int pad_l, int pad_r, bool last_block);
+    void kh_loop(int ur_w, int pad_l, int pad_r, ker_block_t last_ker_block);
+    void icb_loop(int ur_w, int pad_l, int pad_r, bool last_block);
     void generate();
     void cvt2ps(data_type_t type_in, zmm_t zmm_in, const Xbyak::Operand &op,
         bool mask_flag);

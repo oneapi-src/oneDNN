@@ -219,7 +219,8 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(int ur_w,
         mov(aux_reg_ker_d, ptr[param1 + GET_OFF(filt)]);
         mov(aux_reg_inp_d, reg_input);
 
-        if ((jcp.kd - 1) * (jcp.dilate_d + 1) < jcp.f_pad) {
+        if ((jcp.dilate_d >= jcp.id)
+                || (jcp.kd - 1) * (jcp.dilate_d + 1) < jcp.f_pad) {
             cmp(reg_ki, 0);
             je(skip_kd_loop, T_NEAR);
         }
@@ -234,7 +235,8 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(int ur_w,
         mov(aux_reg_kernel, aux_reg_ker_d);
     }
 
-    if ((jcp.kh - 1) * (jcp.dilate_h + 1) < nstl::max(jcp.t_pad, jcp.b_pad)) {
+    if ((jcp.dilate_h >= jcp.ih)
+            || (jcp.kh - 1) * (jcp.dilate_h + 1) < nstl::max(jcp.t_pad, jcp.b_pad)) {
         cmp(kj, 0);
         je(skip_kh_loop, T_NEAR);
     }

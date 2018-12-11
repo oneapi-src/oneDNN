@@ -954,13 +954,15 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop(int ur_w,
 
     Label skip_compute_loop;
     if (jcp.ndims == 5) {
-        if ((jcp.kd - 1) * (jcp.dilate_d + 1) < nstl::max(jcp.f_pad, jcp.back_pad)) {
+        if ((jcp.dilate_d >= jcp.id)
+                || (jcp.kd - 1) * (jcp.dilate_d + 1) < nstl::max(jcp.f_pad, jcp.back_pad)) {
             mov(reg_kj, ptr[param1 + GET_OFF(kd_padding)]);
             cmp(reg_kj, 0);
             je(skip_compute_loop, T_NEAR);
         }
     }
-    if ((jcp.kh - 1) * (jcp.dilate_h + 1) < nstl::max(jcp.t_pad, jcp.b_pad)) {
+    if ((jcp.dilate_h >= jcp.ih)
+            || (jcp.kh - 1) * (jcp.dilate_h + 1) < nstl::max(jcp.t_pad, jcp.b_pad)) {
         mov(reg_kj, ptr[param1 + GET_OFF(kh_padding)]);
         cmp(reg_kj, 0);
         je(skip_compute_loop, T_NEAR);
@@ -984,7 +986,7 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop(int ur_w,
                 compute_loop_fma_core(ur_w, pad_l, pad_r);
     else
         assert(!"unknown convolution version");
-    
+
     L(skip_compute_loop);
     store_output(ur_w);
     if (jcp.ndims == 5) pop(reg_oi);

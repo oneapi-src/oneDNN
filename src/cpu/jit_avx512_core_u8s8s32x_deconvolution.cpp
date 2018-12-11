@@ -162,22 +162,48 @@ status_t jit_avx512_core_u8s8s32x_deconv_fwd_kernel::init_conf(jit_conv_conf_t &
 
     jcp.ur_w = regs / (jcp.nb_oc_blocking + 1);
     int l_overflow = max(0, ((jcp.kw - 1) * (jcp.dilate_w + 1) - jcp.l_pad) / jcp.stride_w);
-    int r_overflow = max(0, ((jcp.kw - 1) * (jcp.dilate_w + 1)
-                     - max(0, jcp.r_pad)) / jcp.stride_w);
-    if (jcp.ow < jcp.ur_w)
+
+    if (jcp.ow < jcp.ur_w) {
         jcp.ur_w = jcp.ow;
-    for (; jcp.ur_w > 1; jcp.ur_w--)
-        if (jcp.ur_w % jcp.stride_w == 0
-                && max(l_overflow,
-                    r_overflow - (jcp.ow % jcp.ur_w) / jcp.stride_w) * jcp.stride_w <= jcp.ur_w)
-            break;
-    jcp.ur_w_tail = jcp.ow % jcp.ur_w;
+        jcp.ur_w_tail = 0;
+    }
+    else {
+          for (; jcp.ur_w >= 1; jcp.ur_w--) {
+              /* ur_w should be multiple of stride_w in order
+                 to simplify logic for get_ow_start and get_ow_end */
+              bool is_multiple_of_stride = jcp.ur_w % jcp.stride_w == 0;
+
+              /* boundary conditions:
+                 These conditions ensure all elements close to boundary
+                 are computed in a single call of compute loop*/
+              bool left_boundary_covered = jcp.ur_w >= l_overflow * jcp.stride_w;
+              jcp.ur_w_tail = jcp.ow % jcp.ur_w;
+              int r_overflow_no_tail = max(0, ((jcp.kw - 1) * (jcp.dilate_w + 1)
+                          - max(0, jcp.r_pad) - jcp.ur_w_tail) / jcp.stride_w);
+              bool right_boundary_covered = jcp.ur_w >= r_overflow_no_tail * jcp.stride_w;
+
+              if (is_multiple_of_stride && left_boundary_covered && right_boundary_covered)
+                  break;
+              else if (jcp.ur_w == 1)
+                  /* The boundary conditions above are also important
+                     to maintain simplicity of calls to icb_loop,
+                     if those conditions are not satisfied,
+                     then special cases will need to be added
+                     to use correct l_overflow/r_overflow values
+                     when different iterations of compute loop
+                     work on the locations close to boundary.
+                     So to keep code simple, return unimplemented
+                     for extreme case when a good ur_w cannot be found.
+                   */
+                  return status::unimplemented;
+          }
+    }
 
     jcp.loop_order = jcp.ngroups > 1 ? loop_ngc : loop_cgn;
     return status::success;
 }
 
-void jit_avx512_core_u8s8s32x_deconv_fwd_kernel::compute_ker(
+void jit_avx512_core_u8s8s32x_deconv_fwd_kernel::kh_loop(
         int ur_w, int l_overflow, int r_overflow, ker_block_t last_block) {
 
     int ch_block_all = jcp.ch_block * jcp.ic_block * jcp.oc_block;
@@ -212,7 +238,9 @@ void jit_avx512_core_u8s8s32x_deconv_fwd_kernel::compute_ker(
     mov(aux_reg_src, reg_src);
     mov(aux_reg_filt, reg_filt);
     mov(reg_kj, reg_kh);
+
     Xbyak::Label kh_loop_label;
+
     L(kh_loop_label); {
        for (int ki = 0; ki < jcp.kw; ki++) {
            int jj_start = get_ow_start(ki, l_overflow);
@@ -349,7 +377,7 @@ void jit_avx512_core_u8s8s32x_deconv_fwd_kernel::store_output(int ur_w, bool las
     }
 }
 
-void jit_avx512_core_u8s8s32x_deconv_fwd_kernel::compute_loop(
+void jit_avx512_core_u8s8s32x_deconv_fwd_kernel::icb_loop(
         int ur_w, int l_overflow, int r_overflow, bool is_last_sp_block) {
 
     int shift_src_icb = jcp.typesize_in * jcp.ic_block;
@@ -357,7 +385,14 @@ void jit_avx512_core_u8s8s32x_deconv_fwd_kernel::compute_loop(
 
     prepare_output(ur_w);
 
-    Xbyak::Label icb_loop_label;
+    Xbyak::Label skip_icb_loop, icb_loop_label;
+    if (min(jcp.t_pad, jcp.b_pad) < 0
+            || (jcp.kh - 1) * (jcp.dilate_h + 1) < max(jcp.t_pad, jcp.b_pad)) {
+        mov(reg_kj, reg_kh);
+        cmp(reg_kj, 0);
+        je(skip_icb_loop, T_NEAR);
+    }
+
     mov(reg_icb, jcp.nb_ic);
     L(icb_loop_label); {
 
@@ -366,16 +401,16 @@ void jit_avx512_core_u8s8s32x_deconv_fwd_kernel::compute_loop(
             cmp(reg_icb, 1);
             jg(common_ker, T_NEAR);
 
-            compute_ker(ur_w, l_overflow, r_overflow,
+            kh_loop(ur_w, l_overflow, r_overflow,
                     is_last_sp_block ? last_sp_block : last_ic_block);
             jmp(end_ker, T_NEAR);
 
             L(common_ker);
-            compute_ker(ur_w, l_overflow, r_overflow, no_last_block);
+            kh_loop(ur_w, l_overflow, r_overflow, no_last_block);
 
             L(end_ker);
         } else {
-            compute_ker(ur_w, l_overflow, r_overflow, no_last_block);
+            kh_loop(ur_w, l_overflow, r_overflow, no_last_block);
         }
 
         add(reg_src, shift_src_icb);
@@ -386,6 +421,7 @@ void jit_avx512_core_u8s8s32x_deconv_fwd_kernel::compute_loop(
     }
     sub(reg_src, jcp.nb_ic * shift_src_icb);
     sub(reg_filt, jcp.nb_ic * shift_filt_icb);
+    L(skip_icb_loop);
 
     if (jcp.ngroups % jcp.ch_block != 0 || jcp.oc_without_padding != jcp.oc) {
         Xbyak::Label common_store, end_store;
@@ -444,17 +480,17 @@ void jit_avx512_core_u8s8s32x_deconv_fwd_kernel::generate() {
     if (r_overflow1 > 0) nur_w--;
 
     if (jcp.ur_w == jcp.ow) {
-        compute_loop(jcp.ur_w, l_overflow, r_overflow, true);
+        icb_loop(jcp.ur_w, l_overflow, r_overflow, true);
     } else if (nur_w == 0) {
-        compute_loop(jcp.ur_w, l_overflow, r_overflow1, jcp.ur_w_tail == 0);
+        icb_loop(jcp.ur_w, l_overflow, r_overflow1, jcp.ur_w_tail == 0);
         add(reg_src, src_shift);
         add(reg_dst, dst_shift);
         if (jcp.ur_w_tail != 0)
-            compute_loop(jcp.ur_w_tail, 0, r_overflow, true);
+            icb_loop(jcp.ur_w_tail, 0, r_overflow, true);
     } else {
         xor_(reg_nur_w, reg_nur_w);
         if (l_overflow > 0) {
-            compute_loop(jcp.ur_w, l_overflow, 0, false);
+            icb_loop(jcp.ur_w, l_overflow, 0, false);
             add(reg_src, src_shift);
             add(reg_dst, dst_shift);
             inc(reg_nur_w);
@@ -463,7 +499,7 @@ void jit_avx512_core_u8s8s32x_deconv_fwd_kernel::generate() {
                 || (l_overflow > 0 && nur_w > 1)) {
             Xbyak::Label ow_loop_label;
             L(ow_loop_label); {
-                compute_loop(jcp.ur_w, 0, 0, false);
+                icb_loop(jcp.ur_w, 0, 0, false);
                 add(reg_src, src_shift);
                 add(reg_dst, dst_shift);
                 inc(reg_nur_w);
@@ -472,12 +508,12 @@ void jit_avx512_core_u8s8s32x_deconv_fwd_kernel::generate() {
             }
         }
         if (r_overflow1 > 0) {
-            compute_loop(jcp.ur_w, 0, r_overflow1, jcp.ur_w_tail == 0);
+            icb_loop(jcp.ur_w, 0, r_overflow1, jcp.ur_w_tail == 0);
             add(reg_src, src_shift);
             add(reg_dst, dst_shift);
         }
         if (jcp.ur_w_tail != 0) {
-            compute_loop(jcp.ur_w_tail, 0, r_overflow, true);
+            icb_loop(jcp.ur_w_tail, 0, r_overflow, true);
         }
     }
     postamble();
@@ -558,7 +594,7 @@ execute_forward() const
                             ih_max = oj + jcp.t_pad - o_b_overflow * dilate_h;
                     } else {
                         int o_t_overflow = max(0,
-                                (jcp.kh - (oj + 1 + jcp.t_pad)) / jcp.stride_h); 
+                                (jcp.kh - (oj + 1 + jcp.t_pad)) / jcp.stride_h);
                         int o_b_overflow = max(0,
                                 ((oj + 1 + jcp.kh - 1)
                                  - (jcp.oh + jcp.b_pad)) / jcp.stride_h);
