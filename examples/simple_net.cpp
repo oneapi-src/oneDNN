@@ -721,6 +721,8 @@ void simple_net(int times = 100) {
             net.at(i).execute(s, net_args.at(i));
     }
 
+    net_args.clear();
+
     s.wait();
 }
 

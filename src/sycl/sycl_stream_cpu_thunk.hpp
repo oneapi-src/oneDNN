@@ -1,0 +1,56 @@
+/*******************************************************************************
+* Copyright 2019 Intel Corporation
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*     http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*******************************************************************************/
+
+#ifndef SYCL_STREAM_CPU_THUNK_HPP
+#define SYCL_STREAM_CPU_THUNK_HPP
+
+#include "common/c_types_map.hpp"
+#include "common/primitive_exec_types.hpp"
+
+#include <stddef.h>
+#include <stdint.h>
+#include <vector>
+
+namespace mkldnn {
+namespace impl {
+namespace sycl {
+
+class sycl_memory_storage_t;
+
+struct submit_ctx_t {
+    stream_t *stream;
+    const primitive_t *prim;
+    exec_ctx_t exec_ctx;
+    std::vector<const sycl_memory_storage_t *> sycl_mem_storages;
+};
+
+struct thunk_params_t {
+    static constexpr size_t max_size = 32;
+
+    size_t size;
+    uintptr_t native_pointers[max_size];
+    uintptr_t submit_ctx_ptr;
+};
+
+} // namespace sycl
+} // namespace impl
+} // namespace mkldnn
+
+// OpenCL for CPU cannot find mangled functions so use
+// C linkage for the thunk
+extern "C" void mkldnn_impl_sycl_cpu_thunk(const mkldnn::impl::sycl::thunk_params_t *params);
+
+#endif // SYCL_STREAM_CPU_THUNK_HPP

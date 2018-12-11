@@ -72,6 +72,28 @@ struct memory_storage_t : public c_compatible {
         return !ptr;
     }
 
+    virtual bool is_native_handle() const { return false; }
+
+    /** returns a pointer associated with the storage */
+    template <typename pointer_type,
+            typename = typename std::enable_if<
+                    std::is_pointer<pointer_type>::value>::type>
+    explicit operator pointer_type() const {
+        // TODO: implement a better check for an empty storage
+        if (!engine_) {
+            return nullptr;
+        }
+
+        assert(is_native_handle());
+
+        void *ptr;
+        status_t status = get_data_handle(&ptr);
+        assert(status == mkldnn::impl::status::success);
+        UNUSED(status);
+
+        return static_cast<pointer_type>(ptr);
+    }
+
     operator bool() const { return !is_null(); }
 
     static memory_storage_t &empty_storage();

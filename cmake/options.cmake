@@ -137,9 +137,9 @@ option(MKLDNN_ENABLE_JIT_PROFILING
 # Engine capabilities
 # ===================
 
-set(MKLDNN_CPU_BACKEND "NATIVE" CACHE INTERNAL
+set(MKLDNN_CPU_BACKEND "NATIVE" CACHE STRING
     "specifies the type of backend for CPU engines.
-    Can be NATIVE only (used for internal purposes).")
+    Can be NATIVE or SYCL (SYCL CPU backend).")
 
 set(MKLDNN_GPU_BACKEND "NONE" CACHE STRING
     "specifies the type of backend for GPU engines.

@@ -47,10 +47,7 @@ struct mkldnn_engine: public mkldnn::impl::c_compatible {
             size_t size, void *handle)
             = 0;
     mkldnn::impl::status_t create_memory_storage(
-            mkldnn::impl::memory_storage_t **storage, size_t size) {
-        return create_memory_storage(
-                storage, mkldnn::impl::memory_flags_t::alloc, size, nullptr);
-    }
+            mkldnn::impl::memory_storage_t **storage, size_t size);
 
     /** create stream */
     virtual mkldnn::impl::status_t create_stream(

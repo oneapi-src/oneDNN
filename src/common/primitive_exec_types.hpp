@@ -49,7 +49,9 @@ status_t cvt_primtive_args(const primitive_desc_t *pd, int nargs,
 
 /** Primitive execution context (helps passing stream, memories, and events. */
 struct exec_ctx_t {
+    exec_ctx_t(): stream_(nullptr) {}
     exec_ctx_t(const exec_ctx_t &) = default;
+    exec_ctx_t &operator=(const exec_ctx_t &) = default;
     exec_ctx_t(exec_ctx_t &&) = default;
 
     exec_ctx_t(stream_t *stream): stream_(stream) {}
@@ -64,9 +66,15 @@ struct exec_ctx_t {
     memory_t *output(int arg) const;
     memory_t *memory(int arg) const;
 
+    void register_memory_storage_mapping(
+            const memory_storage_t *mem_storage, void *data);
+    void *data_handle(int arg) const;
+
 private:
     stream_t *stream_;
     exec_args_t args_;
+
+    std::unordered_map<const memory_storage_t *, void *> memory_storage_mapping_;
 };
 
 }

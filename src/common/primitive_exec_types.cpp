@@ -14,7 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "engine.hpp"
 #include "memory.hpp"
+#include "memory_storage.hpp"
 #include "primitive.hpp"
 #include "primitive_exec_types.hpp"
 
@@ -78,6 +80,22 @@ memory_t *exec_ctx_t::memory(int arg) const {
     const auto ma = args_.at(arg);
     assert(!ma.is_const);
     return ma.mem;
+}
+
+void exec_ctx_t::register_memory_storage_mapping(
+        const memory_storage_t *mem_storage, void *data) {
+    assert(memory_storage_mapping_.count(mem_storage) == 0);
+    memory_storage_mapping_.insert({ mem_storage, data });
+}
+
+void *exec_ctx_t::data_handle(int arg) const {
+    if (args_.count(arg) != 1) return nullptr;
+
+    auto *mem = args_.at(arg).mem;
+    if (memory_storage_mapping_.count(mem->memory_storage()) > 0)
+        return memory_storage_mapping_.at(mem->memory_storage());
+    assert(mem->memory_storage()->engine()->backend_kind() == backend_kind::native);
+    return mem->memory_storage()->data_handle();
 }
 
 }

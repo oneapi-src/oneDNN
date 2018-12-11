@@ -220,7 +220,7 @@ struct ref_deconvolution_fwd_t: public cpu_primitive_t {
         conv_args[MKLDNN_ARG_DIFF_SRC] = args.at(MKLDNN_ARG_DST);
         if (!types::is_zero_md(pd()->scratchpad_md()))
             conv_args[MKLDNN_ARG_SCRATCHPAD] = args.at(MKLDNN_ARG_SCRATCHPAD);
-        const exec_ctx_t conv_ctx(ctx.stream(), std::move(conv_args));
+        const exec_ctx_t conv_ctx(ctx, std::move(conv_args));
 
         conv_p_->execute(conv_ctx);
 

@@ -1,0 +1,87 @@
+/*******************************************************************************
+* Copyright 2019 Intel Corporation
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*     http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*******************************************************************************/
+
+#ifndef SYCL_ENGINE_FACTORY_HPP
+#define SYCL_ENGINE_FACTORY_HPP
+
+#include <assert.h>
+#include <memory>
+
+#include "common/c_types_map.hpp"
+#include "common/engine.hpp"
+#include "common/utils.hpp"
+#include "sycl/sycl_cpu_engine.hpp"
+#include "sycl/sycl_gpu_engine.hpp"
+
+namespace mkldnn {
+namespace impl {
+namespace sycl {
+
+class sycl_engine_factory_t : public engine_factory_t
+{
+public:
+    sycl_engine_factory_t(engine_kind_t engine_kind): engine_kind_(engine_kind) {}
+
+    virtual size_t count() const override { return get_sycl_devices(engine_kind_).size(); }
+
+    virtual status_t engine_create(engine_t **engine, size_t index) const override {
+        assert(index < count());
+        auto devices = get_sycl_devices(engine_kind_);
+        auto &dev = devices[index];
+        cl::sycl::context ctx(dev.get_platform());
+        return engine_create(engine, dev, ctx);
+    }
+
+    status_t engine_create(engine_t **engine,
+            const cl::sycl::device &dev, const cl::sycl::context &ctx) const {
+        auto ocl_dev = ocl::ocl_utils::make_ocl_wrapper(dev.get());
+        auto ocl_ctx = ocl::ocl_utils::make_ocl_wrapper(ctx.get());
+        status_t status
+                = ocl::ocl_utils::check_device(engine_kind_, ocl_dev, ocl_ctx);
+        if (status != status::success) {
+            return status;
+        }
+
+        assert(utils::one_of(engine_kind_, engine_kind::cpu, engine_kind::gpu));
+
+        auto *sycl_engine = (engine_kind_ == engine_kind::cpu)
+                ? static_cast<sycl_engine_base_t *>(new sycl_cpu_engine_t(dev, ctx))
+                : static_cast<sycl_engine_base_t *>(new sycl_gpu_engine_t(dev, ctx));
+        if (!sycl_engine)
+            return status::out_of_memory;
+
+        status = sycl_engine->init();
+        if (status != status::success)
+            return status;
+
+        *engine = sycl_engine;
+        return status::success;
+    }
+
+private:
+    engine_kind_t engine_kind_;
+};
+
+inline std::unique_ptr<sycl_engine_factory_t> get_engine_factory(
+        engine_kind_t engine_kind) {
+    return std::unique_ptr<sycl_engine_factory_t>(new sycl_engine_factory_t(engine_kind));
+}
+
+} // namespace sycl
+} // namespace impl
+} // namespace mkldnn
+
+#endif

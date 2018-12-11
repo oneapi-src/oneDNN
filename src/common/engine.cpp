@@ -18,6 +18,7 @@
 
 #include "mkldnn.h"
 #include "engine.hpp"
+#include "memory.hpp"
 #include "nstl.hpp"
 
 #include "c_types_map.hpp"
@@ -27,6 +28,10 @@
 
 #if MKLDNN_WITH_OPENCL
 #include "ocl/ocl_engine.hpp"
+#endif
+
+#if MKLDNN_WITH_SYCL
+#include "sycl/sycl_engine.hpp"
 #endif
 
 namespace mkldnn {
@@ -43,11 +48,22 @@ static inline std::unique_ptr<engine_factory_t> get_engine_factory(
                 new ocl::ocl_engine_factory_t());
     }
 #endif
+#if MKLDNN_WITH_SYCL
+    if (backend_kind == backend_kind::sycl)
+        return sycl::get_engine_factory(kind);
+#endif
     return nullptr;
 }
 
 static inline backend_kind_t get_default_backend(engine_kind_t kind) {
-#if MKLDNN_WITH_OPENCL
+#if MKLDNN_CPU_BACKEND == MKLDNN_BACKEND_SYCL
+    if (kind == engine_kind::cpu)
+        return backend_kind::sycl;
+#endif
+#if MKLDNN_GPU_BACKEND == MKLDNN_BACKEND_SYCL
+    if (kind == engine_kind::gpu)
+        return backend_kind::sycl;
+#elif MKLDNN_GPU_BACKEND == MKLDNN_BACKEND_OPENCL
     if (kind == engine_kind::gpu)
         return backend_kind::ocl;
 #endif
@@ -60,6 +76,12 @@ static inline backend_kind_t get_default_backend(engine_kind_t kind) {
 using namespace mkldnn::impl;
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::utils;
+
+status_t engine_t::create_memory_storage(memory_storage_t **storage, size_t size) {
+    return create_memory_storage(
+            storage, memory_flags_t::alloc, size, nullptr);
+}
+
 
 size_t mkldnn_engine_get_count(engine_kind_t kind) {
     auto ef = get_engine_factory(kind, get_default_backend(kind));

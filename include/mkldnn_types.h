@@ -27,6 +27,8 @@ extern "C" {
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 #include <stddef.h>
 #include <stdint.h>
+
+#include "mkldnn_config.h"
 #endif
 
 /// @addtogroup c_api C API
@@ -1235,6 +1237,8 @@ typedef enum {
     mkldnn_backend_native,
     /// OpenCL backend.
     mkldnn_backend_ocl,
+    /** SYCL backend. */
+    mkldnn_backend_sycl,
 } mkldnn_backend_kind_t;
 
 /// @}

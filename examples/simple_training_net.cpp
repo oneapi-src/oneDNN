@@ -412,6 +412,9 @@ void simple_net() {
         --n_iter;
     }
 
+    net_fwd_args.clear();
+    net_bwd_args.clear();
+
     s.wait();
 }
 

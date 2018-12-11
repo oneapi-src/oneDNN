@@ -1,0 +1,39 @@
+/*******************************************************************************
+* Copyright 2019 Intel Corporation
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*     http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*******************************************************************************/
+
+#include "mkldnn.hpp"
+#include <CL/sycl.hpp>
+
+#include "sycl/capi.hpp"
+
+namespace mkldnn {
+
+stream::stream(const engine &eng, cl::sycl::queue &aqueue) {
+    mkldnn_stream_t astream;
+    error::wrap_c_api(mkldnn_stream_create_sycl(&astream, eng.get(), &aqueue),
+            "could not create a stream");
+    reset(astream);
+}
+
+cl::sycl::queue stream::get_sycl_queue() const {
+    void *queue_ptr;
+    error::wrap_c_api(mkldnn_stream_get_sycl_queue(get(), &queue_ptr),
+            "could not get a stream handle");
+    auto queue = *static_cast<cl::sycl::queue *>(queue_ptr);
+    return queue;
+}
+
+} // namespace mkldnn

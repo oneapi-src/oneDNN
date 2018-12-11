@@ -404,6 +404,7 @@ using backend_kind_t = mkldnn_backend_kind_t;
 namespace backend_kind {
     const backend_kind_t native = mkldnn_backend_native;
     const backend_kind_t ocl = mkldnn_backend_ocl;
+    const backend_kind_t sycl = mkldnn_backend_sycl;
 }
 
 using primitive_kind_t = mkldnn_primitive_kind_t;
@@ -555,6 +556,8 @@ namespace transpose {
     const transpose_t notrans = mkldnn_notrans;
     const transpose_t trans = mkldnn_trans;
 }
+
+struct memory_storage_t;
 
 /* forward declaration of the internal primitive_desc types */
 struct batch_normalization_bwd_pd_t;

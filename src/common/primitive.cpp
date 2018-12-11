@@ -20,6 +20,7 @@
 #include "engine.hpp"
 #include "primitive_desc.hpp"
 #include "primitive.hpp"
+#include "primitive_exec_types.hpp"
 #include "type_helpers.hpp"
 #include "stream.hpp"
 #include "utils.hpp"

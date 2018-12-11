@@ -31,10 +31,10 @@
     typename std::remove_cv<typename std::remove_pointer<t>::type>::type
 
 #define CTX_IN_MEM(type, arg) \
-    static_cast<const ARG_TYPE(type) *>(CTX_IN_STORAGE(arg).data_handle())
+    static_cast<const ARG_TYPE(type) *>(ctx.data_handle(arg))
 
 #define CTX_OUT_MEM(type, arg) \
-    static_cast<ARG_TYPE(type) *>(CTX_OUT_STORAGE(arg).data_handle())
+    static_cast<ARG_TYPE(type) *>(ctx.data_handle(arg))
 
 namespace mkldnn {
 namespace impl {

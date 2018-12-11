@@ -75,9 +75,6 @@
             && (MKLDNN_CPU_BACKEND != MKLDNN_BACKEND_SYCL)
 #        error "Unexpected MKLDNN_CPU_BACKEND"
 #    endif
-#    if MKLDNN_CPU_BACKEND == MKLDNN_BACKEND_SYCL
-#        error "SYCL CPU backend is not yet supported"
-#    endif
 #    if (MKLDNN_GPU_BACKEND != MKLDNN_BACKEND_NONE) \
              && (MKLDNN_GPU_BACKEND != MKLDNN_BACKEND_OPENCL) \
              && (MKLDNN_GPU_BACKEND != MKLDNN_BACKEND_SYCL)

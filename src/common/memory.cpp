@@ -22,6 +22,7 @@
 
 #include "c_types_map.hpp"
 #include "engine.hpp"
+#include "memory.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
@@ -216,6 +217,8 @@ status_t mkldnn_memory_create(memory_t **memory, const memory_desc_t *md,
     memory_desc_t z_md = types::zero_md();
     unsigned flags = (handle == MKLDNN_MEMORY_ALLOCATE)
             ? memory_flags_t::alloc
+            : (engine->backend_kind() == backend_kind::sycl)
+            ? memory_flags_t::use_host_ptr
             : memory_flags_t::use_backend_ptr;
     return safe_ptr_assign<memory_t>(
             *memory, new memory_t(engine, md ? md : &z_md, flags, handle));

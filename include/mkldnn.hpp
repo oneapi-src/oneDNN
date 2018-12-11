@@ -32,8 +32,14 @@
 
 #include "mkldnn.h"
 
+#include "mkldnn_support.hpp"
+
 #if MKLDNN_WITH_OPENCL
 #include <CL/cl.h>
+#endif
+
+#if MKLDNN_WITH_SYCL
+#include <CL/sycl.hpp>
 #endif
 
 #endif
@@ -359,11 +365,19 @@ enum class backend_kind {
     native = mkldnn_backend_native,
     /// OpenCL backend
     ocl = mkldnn_backend_ocl,
+    /// SYCL backend
+    sycl = mkldnn_backend_sycl,
 };
 
 inline mkldnn_backend_kind_t convert_to_c(backend_kind akind) {
     return static_cast<mkldnn_backend_kind_t>(akind);
 }
+
+/// Transposition settings for GEMM operation
+enum class transpose {
+    notrans = mkldnn_notrans,
+    trans = mkldnn_trans,
+};
 
 /// @}
 
@@ -601,7 +615,7 @@ template <> struct handle_traits<mkldnn_engine_t> {
 #endif
 
 /// An execution engine.
-struct engine: public handle<mkldnn_engine_t> {
+struct MKLDNN_API engine: public handle<mkldnn_engine_t> {
     friend class primitive;
     // gcc bug??? using handle::handle;
 
@@ -645,6 +659,15 @@ struct engine: public handle<mkldnn_engine_t> {
                 "could not create an engine");
         reset(aengine);
     }
+#endif
+
+#if MKLDNN_WITH_SYCL
+    /// Constructs an engine from SYCL device and context objects.
+    ///
+    /// @param akind The kind of engine to construct.
+    /// @param dev SYCL device.
+    /// @param ctx SYCL context.
+    engine(kind akind, const cl::sycl::device& dev, const cl::sycl::context& ctx);
 #endif
 
     explicit engine(const mkldnn_engine_t& aengine)
@@ -701,6 +724,14 @@ struct engine: public handle<mkldnn_engine_t> {
         return engine(engine_q);
     }
 
+#if MKLDNN_WITH_SYCL
+    /// Returns the underlying SYCL context object.
+    cl::sycl::context get_sycl_context() const;
+
+    /// Returns the underlying SYCL device object.
+    cl::sycl::device get_sycl_device() const;
+#endif
+
 private:
     static mkldnn_engine_kind_t convert_to_c(kind akind) {
         return static_cast<mkldnn_engine_kind_t>(akind);
@@ -722,7 +753,7 @@ template <> struct handle_traits<mkldnn_stream_t> {
 #endif
 
 /// An execution stream.
-struct stream: public handle<mkldnn_stream_t> {
+struct MKLDNN_API stream: public handle<mkldnn_stream_t> {
     using handle::handle;
 
     enum class flags : unsigned {
@@ -758,6 +789,16 @@ struct stream: public handle<mkldnn_stream_t> {
     }
 #endif
 
+#if MKLDNN_WITH_SYCL
+    /// Constructs a stream for the specified engine and the SYCL queue.
+    ///
+    /// @param eng Engine object to use for the stream.
+    /// @param aqueue SYCL queue to use for the stream.
+    stream(const engine &eng, cl::sycl::queue& aqueue);
+
+    /// Returns the underlying SYCL queue object.
+    cl::sycl::queue get_sycl_queue() const;
+#endif
 
     /// Waits for all primitives in the stream to finish.
     stream &wait() {
@@ -1222,6 +1263,44 @@ struct memory: public handle<mkldnn_memory_t> {
     void set_ocl_mem_object(cl_mem mem_object) {
         error::wrap_c_api(mkldnn_memory_set_ocl_mem_object(get(), mem_object),
                 "could not set OpenCL memory object");
+    }
+#endif
+
+#if MKLDNN_WITH_SYCL
+    /// Returns the underlying SYCL buffer object.
+    ///
+    /// @tparam T Type of the requested buffer.
+    /// @tparam ndims Number of dimensions of the requested buffer.
+    template <typename T, int ndims = 1>
+    cl::sycl::buffer<T, ndims> get_sycl_buffer() const {
+        static_assert(ndims == 1, "only 1D buffers supported");
+
+        void *untyped_buf_ptr;
+        error::wrap_c_api(
+                mkldnn_memory_get_data_handle(get(), &untyped_buf_ptr),
+                "could not get SYCL buffer object");
+
+        if (!untyped_buf_ptr)
+            return cl::sycl::buffer<T, ndims>(cl::sycl::range<1>(0));
+
+        auto &untyped_buf = *static_cast<impl::sycl::untyped_sycl_buffer_t *>(
+                untyped_buf_ptr);
+        return untyped_buf.reinterpret<T, ndims>();
+    }
+
+    /// Sets the underlying buffer to the given SYCL buffer.
+    ///
+    /// @tparam T Type of the buffer.
+    /// @tparam ndims Number of dimensions of the buffer.
+    /// @param buf SYCL buffer.
+    template <typename T, int ndims>
+    void set_sycl_buffer(cl::sycl::buffer<T, ndims> &buf) {
+        auto range = cl::sycl::range<1>(buf.get_size());
+        auto buf_u8 = buf.template reinterpret<uint8_t, 1>(range);
+        impl::sycl::untyped_sycl_buffer_t untyped_buf(buf_u8);
+        error::wrap_c_api(
+                mkldnn_memory_set_data_handle(get(), static_cast<void *>(&untyped_buf)),
+                "could not set SYCL buffer object");
     }
 #endif
 
@@ -3368,6 +3447,54 @@ struct shuffle_backward : public primitive {
 /// @}
 
 /// @} Primitives
+
+#if MKLDNN_WITH_SYCL
+
+/// @addtogroup cpp_api_blas BLAS functions
+/// @{
+
+///
+// SGEMM interface for SYCL (float data type).
+//
+// SGEMM performs matrix-matrix multiplication operation
+// C := alpha*op( A )*op( B ) + beta*C,
+// where  op( X ) is one of
+// op( X ) = X or op( X ) = X**T,
+// alpha and beta are scalars, and A, B and C are matrices, with op( A )
+// an m by k matrix, op( B ) a k by n matrix and C an m by n matrix.
+//
+// @p offset_a, @p offset_b and @p offset_a specify the offsets for the
+// first element for the corresponding SYCL buffers. Counted in elements.
+void MKLDNN_API gemm(cl::sycl::queue &queue, transpose transa,
+        transpose transb, memory::dim m, memory::dim n, memory::dim k,
+        float alpha, cl::sycl::buffer<float, 1> &a, memory::dim offset_a,
+        memory::dim lda, cl::sycl::buffer<float, 1> &b, memory::dim offset_b,
+        memory::dim ldb, float beta, cl::sycl::buffer<float, 1> &c,
+        memory::dim offset_c, memory::dim ldc);
+
+/// HGEMM interface for SYCL (half data type).
+///
+/// HGEMM performs matrix-matrix multiplication operation
+/// C := alpha*op( A )*op( B ) + beta*C,
+/// where  op( X ) is one of
+/// op( X ) = X or op( X ) = X**T,
+/// alpha and beta are scalars, and A, B and C are matrices, with op( A )
+/// an m by k matrix, op( B ) a k by n matrix and C an m by n matrix.
+///
+/// @p offset_a, @p offset_b and @p offset_a specify the offsets for the
+/// first element for the corresponding SYCL buffers. Counted in elements.
+///
+void MKLDNN_API gemm(cl::sycl::queue &queue, transpose transa,
+        transpose transb, memory::dim m, memory::dim n, memory::dim k,
+        float alpha, cl::sycl::buffer<cl::sycl::half, 1> &a,
+        memory::dim offset_a, memory::dim lda,
+        cl::sycl::buffer<cl::sycl::half, 1> &b, memory::dim offset_b,
+        memory::dim ldb, float beta, cl::sycl::buffer<cl::sycl::half, 1> &c,
+        memory::dim offset_c, memory::dim ldc);
+
+/// @} cpp_api_blas
+
+#endif
 
 /// @} C++ API
 

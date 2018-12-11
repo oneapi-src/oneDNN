@@ -122,6 +122,12 @@ void gemm_kernel(const dim_t m, const dim_t n, const dim_t k,
         const c_type *b_col_sum, const c_type *co, const int offsetc,
         const gemm_info_t<a_type, b_type, c_type> *arg) {
 
+#if MKLDNN_WITH_SYCL
+    std::vector<c_type> col_offset_vec(m);
+    std::vector<c_type> row_offset_vec(n);
+    c_type *col_offset = col_offset_vec.data();
+    c_type *row_offset = row_offset_vec.data();
+#else
     // Since m and n are limited by blocking, stack overflow may not happen;
     // it's up to 32kB
 #if !defined(_MSC_VER)
@@ -130,6 +136,7 @@ void gemm_kernel(const dim_t m, const dim_t n, const dim_t k,
 #else
     c_type *col_offset = (c_type *) _alloca(sizeof(*col_offset) * m);
     c_type *row_offset = (c_type *) _alloca(sizeof(*row_offset) * n);
+#endif
 #endif
 
     int col_req = 0;
