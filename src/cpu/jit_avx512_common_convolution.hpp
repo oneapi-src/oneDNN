@@ -280,23 +280,21 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
                       OIdhw16o16i);
         }
 
-
         jit_conv_conf_t jcp_;
 
-        protected:
-            virtual status_t set_default_params() override {
-                using namespace memory_format;
+    protected:
+        virtual status_t set_default_params() override {
+            using namespace memory_format;
 
-                if (this->src_pd_.desc()->format == any)
-                    CHECK(this->src_pd_.set_format(src_format()));
-                if (this->diff_weights_pd_.desc()->format == any)
-                    CHECK(this->diff_weights_pd_.set_format(wei_format()));
-                if (this->diff_dst_pd_.desc()->format == any)
-                    CHECK(this->diff_dst_pd_.set_format(src_format()));
+            if (this->src_pd_.desc()->format == any)
+                CHECK(this->src_pd_.set_format(src_format()));
+            if (this->diff_weights_pd_.desc()->format == any)
+                CHECK(this->diff_weights_pd_.set_format(wei_format()));
+            if (this->diff_dst_pd_.desc()->format == any)
+                CHECK(this->diff_dst_pd_.set_format(src_format()));
 
-                return status::success;
-            }
-
+            return status::success;
+        }
     };
 
     jit_avx512_common_convolution_bwd_weights_t(const pd_t *apd,
