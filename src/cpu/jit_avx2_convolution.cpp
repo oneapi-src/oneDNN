@@ -258,8 +258,10 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights() {
     auto diff_weights = reinterpret_cast<data_t *>(this->memory(0));
     auto diff_bias_in = reinterpret_cast<data_t *>(this->memory(1));
 
+    auto scratchpad = this->scratchpad();
+
     data_t *diff_bias = pd()->wants_padded_bias()
-        ? scratchpad().get<data_t>(key_conv_padded_bias) : diff_bias_in;
+        ? scratchpad.get<data_t>(key_conv_padded_bias) : diff_bias_in;
 
     const memory_desc_wrapper src_d(pd()->src_pd(0));
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
@@ -267,19 +269,28 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights() {
 
     const auto &jcp = kernel_->jcp;
 
-    auto ker = [&](int ithr, int nthr) {
-        auto rw = this->reducer_weights_;
-        assert(nthr == rw->balancer_.nthr_);
+    auto reducer_bia_scratchpad = memory_tracking::grantor_t(scratchpad,
+            prefix_reducer_bia);
+    auto rb = this->reducer_bias_;
+    rb->init(reducer_bia_scratchpad);
 
-        const int w_job_start = rw->balancer_.ithr_job_off(ithr);
-        const int w_njobs = rw->balancer_.ithr_njobs(ithr);
+    auto reducer_wei_scratchpad = memory_tracking::grantor_t(scratchpad,
+            prefix_reducer_wei);
+    auto rw = this->reducer_weights_;
+    rw->init(reducer_wei_scratchpad);
+
+    auto ker = [&](int ithr, int nthr) {
+        assert(nthr == rw->balancer().nthr_);
+
+        const int w_job_start = rw->balancer().ithr_job_off(ithr);
+        const int w_njobs = rw->balancer().ithr_njobs(ithr);
 
         if (w_njobs == 0) return;
 
         /* reduction dimension */
         int img_od_start{0}, img_od_end{0}, img{0}, od_s{0};
-        balance211(jcp.mb * jcp.od, rw->balancer_.nthr_per_group_,
-                rw->balancer_.id_in_group(ithr), img_od_start, img_od_end);
+        balance211(jcp.mb * jcp.od, rw->balancer().nthr_per_group_,
+                rw->balancer().id_in_group(ithr), img_od_start, img_od_end);
 
         int img_start = img_od_start, img_end = img_od_end;
         nd_iterator_init(img_start, img, jcp.mb, od_s, jcp.od);
@@ -305,9 +316,10 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights() {
 
                 /* TODO: put dw <-- 0 in kernel */
                 if (img == img_first)
-                    array_set((data_t *)&rw->get_local_ptr(ithr, diff_weights)[
-                        w_job_loc * rw->balancer_.job_size_], 0,
-                            rw->balancer_.job_size_);
+                    array_set(rw->get_local_ptr(ithr, diff_weights,
+                                reducer_wei_scratchpad) +
+                            w_job_loc * rw->balancer().job_size_, 0,
+                            rw->balancer().job_size_);
 
                 for (int od = od_s; od < od_e; ++od) {
                     const int id = od * jcp.stride_d;
@@ -317,8 +329,9 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights() {
                     par_conv.src = &src[src_blk_off(src_d, img, _ic, id, 0, 0)];
                     par_conv.dst =
                         &diff_dst[src_blk_off(diff_dst_d, img, _oc, od, 0, 0)];
-                    par_conv.filt = &rw->get_local_ptr(ithr, diff_weights)[
-                        w_job_loc * rw->balancer_.job_size_];
+                    par_conv.filt = rw->get_local_ptr(ithr, diff_weights,
+                            reducer_wei_scratchpad) +
+                        w_job_loc * rw->balancer().job_size_;
 
                     kernel_->jit_ker(&par_conv);
                 }
@@ -327,22 +340,21 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights() {
             }
             nd_iterator_jump(img_start, img_end, img, jcp.mb, od_s, jcp.od);
         }
-        rw->reduce(ithr, diff_weights);
+        rw->reduce(ithr, diff_weights, reducer_wei_scratchpad);
     };
 
     auto ker_bias = [&](int ithr, int nthr) {
-        auto rb = this->reducer_bias_;
-        assert(nthr == rb->balancer_.nthr_);
+        assert(nthr == rb->balancer().nthr_);
 
-        const int b_job_start = rb->balancer_.ithr_job_off(ithr);
-        const int b_njobs = rb->balancer_.ithr_njobs(ithr);
+        const int b_job_start = rb->balancer().ithr_job_off(ithr);
+        const int b_njobs = rb->balancer().ithr_njobs(ithr);
 
         if (b_njobs == 0) return;
 
         /* reduction dimension */
         int img_start{0}, img_end{0};
-        balance211(jcp.mb, rb->balancer_.nthr_per_group_,
-                rb->balancer_.id_in_group(ithr), img_start, img_end);
+        balance211(jcp.mb, rb->balancer().nthr_per_group_,
+                rb->balancer().id_in_group(ithr), img_start, img_end);
 
         /* jobs */
         int g_start{0}, ocb_start{0};
@@ -355,8 +367,9 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights() {
                 const size_t _oc = g * jcp.nb_oc + ocb;
 
                 const data_t *d_dst = &diff_dst[diff_dst_d.blk_off(img, _oc)];
-                data_t *d_bias = &rb->get_local_ptr(ithr, diff_bias)[
-                    b_job_loc * rb->balancer_.job_size_];
+                data_t *d_bias = rb->get_local_ptr(ithr, diff_bias,
+                        reducer_bia_scratchpad) +
+                    b_job_loc * rb->balancer().job_size_;
 
                 if (img == img_start)
                     for (int o = 0; o < 8; ++o)
@@ -372,7 +385,7 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights() {
                 nd_iterator_step(g, jcp.ngroups, ocb, jcp.nb_oc);
             }
         }
-        rb->reduce(ithr, diff_bias);
+        rb->reduce(ithr, diff_bias, reducer_bia_scratchpad);
     };
 
     parallel(0, [&](const int ithr, const int nthr) {

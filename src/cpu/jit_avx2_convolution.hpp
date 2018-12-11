@@ -240,14 +240,26 @@ struct jit_avx2_convolution_bwd_weights_t: public cpu_primitive_t {
                     *this->diff_dst_pd_.desc());
             if (status != status::success) return status;
 
+            init_balancers();
+
             auto scratchpad = scratchpad_registry().registrar();
             jit_avx2_conv_bwd_weights_kernel_f32::init_scratchpad(scratchpad,
                     jcp_);
+
+            auto reducer_bia_scratchpad = memory_tracking::registrar_t(
+                    scratchpad, memory_tracking::names::prefix_reducer_bia);
+            reducer_bia_conf_.init_scratchpad(reducer_bia_scratchpad);
+
+            auto reducer_wei_scratchpad = memory_tracking::registrar_t(
+                    scratchpad, memory_tracking::names::prefix_reducer_wei);
+            reducer_wei_conf_.init_scratchpad(reducer_wei_scratchpad);
 
             return status::success;
         }
 
         jit_conv_conf_t jcp_;
+        cpu_reducer_t<data_type::f32>::conf_t reducer_bia_conf_;
+        cpu_reducer_t<data_type::f32>::conf_t reducer_wei_conf_;
 
     protected:
         virtual status_t set_default_params() override {
@@ -271,6 +283,24 @@ struct jit_avx2_convolution_bwd_weights_t: public cpu_primitive_t {
                 CHECK(this->diff_bias_pd_.set_format(x));
             return status::success;
         }
+
+    private:
+        void init_balancers() {
+            const int max_threads = mkldnn_get_max_threads();
+            const size_t max_buffer_size = 1<<21; /* just a heuristic */
+
+            if(with_bias()) {
+                reducer_bia_conf_.init(reduce_balancer_t(max_threads,
+                            jcp_.oc_block, jcp_.ngroups * jcp_.nb_oc, jcp_.mb,
+                            max_buffer_size));
+            }
+
+            reducer_wei_conf_.init(reduce_balancer_t(max_threads,
+                        jcp_.kd * jcp_.kh * jcp_.kw
+                        * jcp_.ic_block * jcp_.oc_block,
+                        jcp_.ngroups * jcp_.nb_ic * jcp_.nb_oc,
+                        jcp_.mb * jcp_.od, max_buffer_size));
+        }
     };
 
     jit_avx2_convolution_bwd_weights_t(const pd_t *apd,
@@ -279,18 +309,10 @@ struct jit_avx2_convolution_bwd_weights_t: public cpu_primitive_t {
         , kernel_(nullptr), reducer_weights_(nullptr), reducer_bias_(nullptr)
     {
         kernel_ = new jit_avx2_conv_bwd_weights_kernel_f32(pd()->jcp_);
-
-        const int max_threads = mkldnn_get_max_threads();
-        const size_t max_buffer_size = 1<<21; /* just a heuristic */
-        const auto &j = pd()->jcp_;
-        reducer_weights_ = new cpu_reducer_t<data_type::f32>(reduce_balancer_t(
-                max_threads, j.kd * j.kh * j.kw * j.ic_block * j.oc_block,
-                j.ngroups * j.nb_ic * j.nb_oc, j.mb * j.od, max_buffer_size));
-        if (pd()->with_bias()) {
-            reducer_bias_ = new cpu_reducer_t<data_type::f32>(
-                    reduce_balancer_t(max_threads, j.oc_block,
-                        j.ngroups * j.nb_oc, j.mb, max_buffer_size));
-        }
+        reducer_bias_ =
+            new cpu_reducer_t<data_type::f32>(pd()->reducer_bia_conf_);
+        reducer_weights_ =
+            new cpu_reducer_t<data_type::f32>(pd()->reducer_wei_conf_);
     }
 
     ~jit_avx2_convolution_bwd_weights_t() {

@@ -891,12 +891,8 @@ jit_avx512_common_convolution_bwd_weights_t(const pd_t *apd,
     if (nthr_mb_ > 1)
         acc_ker_ = new cpu_accumulator_1d_t<diff_weights_type>();
 
-    if (pd()->with_bias()) {
-        const size_t max_buffer_size = nthr_ * 3 * 5 * 5 * 16 * 16;
-        reducer_bias_ = new cpu_reducer_t<diff_weights_type>(reduce_balancer_t(
-                    nthr_, j.oc_block, j.ngroups * j.nb_oc, j.mb,
-                    max_buffer_size));
-    }
+    reducer_bias_ =
+        new cpu_reducer_t<diff_weights_type>(pd()->reducer_bia_conf_);
 }
 
 template <data_type_t src_type, data_type_t diff_dst_type,
@@ -907,6 +903,8 @@ struct jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
     const diff_dst_data_t *diff_dst;
     const diff_weights_data_t *diff_weights;
     diff_weights_data_t *diff_bias;
+
+    const memory_tracking::grantor_t scratchpad;
 
     src_data_t *tr_src;
     simple_barrier::ctx_t *tr_src_bctx;
@@ -928,9 +926,7 @@ struct jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
     int ic_b_start = 0, ic_b_end = 0, ic_b_work;
 
     thread_info_t(const jit_avx512_common_convolution_bwd_weights_t *self,
-            int ithr): ithr(ithr) {
-        auto scratchpad = self->scratchpad();
-
+            int ithr): scratchpad(self->scratchpad()), ithr(ithr) {
         src = reinterpret_cast<const src_data_t *>(self->input_memory(0));
         diff_dst = reinterpret_cast<const diff_dst_data_t *>(
             self->input_memory(1));
@@ -1468,21 +1464,24 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
 
     auto rb = this->reducer_bias_;
-    assert(nthr_ == rb->balancer_.nthr_);
+    assert(nthr_ == rb->balancer().nthr_);
+
+    const auto reducer_bia_scratchpad = memory_tracking::grantor_t(
+            ti->scratchpad, prefix_reducer_bia);
 
     const auto &jcp = kernel_->jcp;
 
     if (jcp.with_bias && jcp.is_1stconv && jcp.ver == ver_4fma) return;
 
-    const int b_job_start = rb->balancer_.ithr_job_off(ti->ithr);
-    const int b_njobs = rb->balancer_.ithr_njobs(ti->ithr);
+    const int b_job_start = rb->balancer().ithr_job_off(ti->ithr);
+    const int b_njobs = rb->balancer().ithr_njobs(ti->ithr);
 
     if (b_njobs == 0) return;
 
     /* reduction dimension */
     int img_start{0}, img_end{0};
-    balance211(jcp.mb, rb->balancer_.nthr_per_group_,
-            rb->balancer_.id_in_group(ti->ithr), img_start, img_end);
+    balance211(jcp.mb, rb->balancer().nthr_per_group_,
+            rb->balancer().id_in_group(ti->ithr), img_start, img_end);
 
     /* jobs */
     int g_start{0}, ocb_start{0};
@@ -1494,9 +1493,9 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
 
             const diff_dst_data_t *d_dst
                 = &ti->diff_dst[diff_dst_d.blk_off(img, _oc)];
-            diff_weights_data_t *d_bias = &rb->get_local_ptr(ti->ithr,
-                (diff_weights_data_t *)ti->diff_bias)[
-                b_job_loc * rb->balancer_.job_size_];
+            diff_weights_data_t *d_bias = rb->get_local_ptr(ti->ithr,
+                    ti->diff_bias, reducer_bia_scratchpad)
+                + b_job_loc * rb->balancer().job_size_;
 
             if (img == img_start)
                 for (int o = 0; o < 16; ++o)
@@ -1512,7 +1511,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
         }
     }
 
-    rb->reduce(ti->ithr, ti->diff_bias);
+    rb->reduce(ti->ithr, ti->diff_bias, reducer_bia_scratchpad);
 }
 
 template <data_type_t src_type, data_type_t diff_dst_type,
@@ -1587,6 +1586,11 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
         simple_barrier::ctx_init(scratchpad.template get<simple_barrier::ctx_t>(
                     key_conv_wei_bia_reduction_bctx));
     }
+
+    const auto reducer_bia_scratchpad = memory_tracking::grantor_t(scratchpad,
+            prefix_reducer_bia);
+    auto rb = this->reducer_bias_;
+    rb->init(reducer_bia_scratchpad);
 }
 
 template <data_type_t src_type, data_type_t diff_dst_type,

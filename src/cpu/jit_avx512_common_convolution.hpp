@@ -273,9 +273,15 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
                         this->diff_bias_pd_, this->diff_dst_pd_);
             if (status != status::success) return status;
 
+            init_balancers();
+
             auto scratchpad = scratchpad_registry().registrar();
             jit_avx512_common_conv_bwd_weights_kernel_f32::init_scratchpad(
                     scratchpad, jcp_);
+
+            auto reducer_bia_scratchpad = memory_tracking::registrar_t(
+                    scratchpad, memory_tracking::names::prefix_reducer_bia);
+            reducer_bia_conf_.init_scratchpad(reducer_bia_scratchpad);
 
             return status::success;
         }
@@ -296,6 +302,7 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
         }
 
         jit_conv_conf_t jcp_;
+        typename cpu_reducer_t<diff_weights_type>::conf_t reducer_bia_conf_;
 
     protected:
         virtual status_t set_default_params() override {
@@ -309,6 +316,16 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
                 CHECK(this->diff_dst_pd_.set_format(src_format()));
 
             return status::success;
+        }
+
+    private:
+        void init_balancers() {
+            const size_t max_buffer_size = jcp_.nthr * 3 * 5 * 5 * 16 * 16;
+            if (with_bias()) {
+                reducer_bia_conf_.init(reduce_balancer_t(jcp_.nthr,
+                            jcp_.oc_block, jcp_.ngroups * jcp_.nb_oc, jcp_.mb,
+                            max_buffer_size));
+            }
         }
     };
 
