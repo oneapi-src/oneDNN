@@ -173,8 +173,9 @@ class Cpu {
 			if (cacheType == NO_CACHE) break;
 			if (cacheType == DATA_CACHE || cacheType == UNIFIED_CACHE) {
 				unsigned int nb_logical_cores = extractBit(data[0], 14, 25) + 1;
-				if (n_cores != 0) // true only if leaf 0xB is supported and valid
+				if (n_cores != 0) { // true only if leaf 0xB is supported and valid
 					nb_logical_cores = (std::min)(nb_logical_cores, n_cores);
+				}
 				assert(nb_logical_cores != 0);
 				data_cache_size[data_cache_levels] =
 					(extractBit(data[1], 22, 31) + 1)
@@ -183,7 +184,7 @@ class Cpu {
 					* (data[2] + 1);
 				if (cacheType == DATA_CACHE && smt_width == 0) smt_width = nb_logical_cores;
 				assert(smt_width != 0);
-				cores_sharing_data_cache[data_cache_levels] = nb_logical_cores / smt_width;
+				cores_sharing_data_cache[data_cache_levels] = (std::max)(nb_logical_cores / smt_width, 1u);
 				data_cache_levels++;
 			}
 		}
@@ -460,7 +461,7 @@ const int UseRCX = 1 << 6;
 const int UseRDX = 1 << 7;
 
 class Pack {
-	static const size_t maxTblNum = 10;
+	static const size_t maxTblNum = 15;
 	const Xbyak::Reg64 *tbl_[maxTblNum];
 	size_t n_;
 public:
@@ -520,7 +521,7 @@ public:
 	const Xbyak::Reg64& operator[](size_t n) const
 	{
 		if (n >= n_) {
-			fprintf(stderr, "ERR Pack bad n=%d\n", (int)n);
+			fprintf(stderr, "ERR Pack bad n=%d(%d)\n", (int)n, (int)n_);
 			throw Error(ERR_BAD_PARAMETER);
 		}
 		return *tbl_[n];
@@ -562,6 +563,7 @@ class StackFrame {
 	static const int rcxPos = 3;
 	static const int rdxPos = 2;
 #endif
+	static const int maxRegNum = 14; // maxRegNum = 16 - rsp - rax
 	Xbyak::CodeGenerator *code_;
 	int pNum_;
 	int tNum_;
@@ -571,7 +573,7 @@ class StackFrame {
 	int P_;
 	bool makeEpilog_;
 	Xbyak::Reg64 pTbl_[4];
-	Xbyak::Reg64 tTbl_[10];
+	Xbyak::Reg64 tTbl_[maxRegNum];
 	Pack p_;
 	Pack t_;
 	StackFrame(const StackFrame&);
@@ -583,7 +585,7 @@ public:
 		make stack frame
 		@param sf [in] this
 		@param pNum [in] num of function parameter(0 <= pNum <= 4)
-		@param tNum [in] num of temporary register(0 <= tNum <= 10, with UseRCX, UseRDX)
+		@param tNum [in] num of temporary register(0 <= tNum, with UseRCX, UseRDX) #{pNum + tNum [+rcx] + [rdx]} <= 14
 		@param stackSizeByte [in] local stack size
 		@param makeEpilog [in] automatically call close() if true
 
@@ -610,27 +612,17 @@ public:
 		using namespace Xbyak;
 		if (pNum < 0 || pNum > 4) throw Error(ERR_BAD_PNUM);
 		const int allRegNum = pNum + tNum_ + (useRcx_ ? 1 : 0) + (useRdx_ ? 1 : 0);
-		if (allRegNum < pNum || allRegNum > 14) throw Error(ERR_BAD_TNUM);
+		if (tNum_ < 0 || allRegNum > maxRegNum) throw Error(ERR_BAD_TNUM);
 		const Reg64& _rsp = code->rsp;
-		const AddressFrame& _ptr = code->ptr;
 		saveNum_ = (std::max)(0, allRegNum - noSaveNum);
 		const int *tbl = getOrderTbl() + noSaveNum;
-		P_ = saveNum_ + (stackSizeByte + 7) / 8;
-		if (P_ > 0 && (P_ & 1) == 0) P_++; // here (rsp % 16) == 8, then increment P_ for 16 byte alignment
+		for (int i = 0; i < saveNum_; i++) {
+			code->push(Reg64(tbl[i]));
+		}
+		P_ = (stackSizeByte + 7) / 8;
+		if (P_ > 0 && (P_ & 1) == (saveNum_ & 1)) P_++; // (rsp % 16) == 8, then increment P_ for 16 byte alignment
 		P_ *= 8;
 		if (P_ > 0) code->sub(_rsp, P_);
-#ifdef XBYAK64_WIN
-		for (int i = 0; i < (std::min)(saveNum_, 4); i++) {
-			code->mov(_ptr [_rsp + P_ + (i + 1) * 8], Reg64(tbl[i]));
-		}
-		for (int i = 4; i < saveNum_; i++) {
-			code->mov(_ptr [_rsp + P_ - 8 * (saveNum_ - i)], Reg64(tbl[i]));
-		}
-#else
-		for (int i = 0; i < saveNum_; i++) {
-			code->mov(_ptr [_rsp + P_ - 8 * (saveNum_ - i)], Reg64(tbl[i]));
-		}
-#endif
 		int pos = 0;
 		for (int i = 0; i < pNum; i++) {
 			pTbl_[i] = Xbyak::Reg64(getRegIdx(pos));
@@ -651,21 +643,11 @@ public:
 	{
 		using namespace Xbyak;
 		const Reg64& _rsp = code_->rsp;
-		const AddressFrame& _ptr = code_->ptr;
 		const int *tbl = getOrderTbl() + noSaveNum;
-#ifdef XBYAK64_WIN
-		for (int i = 0; i < (std::min)(saveNum_, 4); i++) {
-			code_->mov(Reg64(tbl[i]), _ptr [_rsp + P_ + (i + 1) * 8]);
-		}
-		for (int i = 4; i < saveNum_; i++) {
-			code_->mov(Reg64(tbl[i]), _ptr [_rsp + P_ - 8 * (saveNum_ - i)]);
-		}
-#else
-		for (int i = 0; i < saveNum_; i++) {
-			code_->mov(Reg64(tbl[i]), _ptr [_rsp + P_ - 8 * (saveNum_ - i)]);
-		}
-#endif
 		if (P_ > 0) code_->add(_rsp, P_);
+		for (int i = 0; i < saveNum_; i++) {
+			code_->pop(Reg64(tbl[saveNum_ - 1 - i]));
+		}
 
 		if (callRet) code_->ret();
 	}
@@ -676,9 +658,6 @@ public:
 			close();
 		} catch (std::exception& e) {
 			printf("ERR:StackFrame %s\n", e.what());
-			exit(1);
-		} catch (...) {
-			printf("ERR:StackFrame otherwise\n");
 			exit(1);
 		}
 	}
@@ -698,7 +677,7 @@ private:
 	}
 	int getRegIdx(int& pos) const
 	{
-		assert(pos < 14);
+		assert(pos < maxRegNum);
 		using namespace Xbyak;
 		const int *tbl = getOrderTbl();
 		int r = tbl[pos++];

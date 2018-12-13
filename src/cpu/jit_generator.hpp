@@ -297,7 +297,7 @@ public:
 
     // Disallow char-based labels completely
     void L(const char *label) = delete;
-    void L(const Xbyak::Label& label) { Xbyak::CodeGenerator::L(label); }
+    void L(Xbyak::Label& label) { Xbyak::CodeGenerator::L(label); }
 
     void uni_vpxor(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
                    const Xbyak::Operand &op) {
