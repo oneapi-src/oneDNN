@@ -131,17 +131,6 @@ inline unsigned int get_cache_size(int level, bool per_core = true){
 
 }
 
-// TODO (Roma): move all_same to a more appropriate location
-
-template <typename T, typename U, typename... Us>
-struct all_same : std::false_type {};
-
-template <typename T, typename... Us>
-struct all_same<T, T, Us...> : all_same<T, Us...> { };
-
-template <typename T>
-struct all_same<T, T> : std::true_type {};
-
 class jit_generator : public Xbyak::CodeGenerator
 {
 private:
