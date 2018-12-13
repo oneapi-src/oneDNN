@@ -68,7 +68,7 @@ struct jit_uni_eltwise_injector_f32 {
     const bool save_state_;
     const Xbyak::Reg64 p_table;
     const Xbyak::Opmask k_mask;
-    const Xbyak::Label l_table;
+    Xbyak::Label l_table;
 
 private:
     // if only the injector was inherited from jit_generator...
