@@ -586,7 +586,7 @@ void jit_avx2_conv_fwd_kernel_f32::init_scratchpad(
         scratchpad.book(key_conv_padded_bias, sizeof(float) * jcp.oc);
 }
 
-void jit_avx2_conv_bwd_data_kernel_f32::hsw_iter_s1(int ur_w, int l_overflow,
+void jit_avx2_conv_bwd_data_kernel_f32::compute_loop(int ur_w, int l_overflow,
         int r_overflow)
 {
     int kw = jcp.kw;
@@ -600,6 +600,8 @@ void jit_avx2_conv_bwd_data_kernel_f32::hsw_iter_s1(int ur_w, int l_overflow,
     int ic_block = jcp.ic_block;
     int oc_block = jcp.oc_block;
     int nb_ic_block = jcp.nb_ic_blocking;
+    int stride_w = jcp.stride_w;
+    int stride_h = jcp.stride_h;
 
     Label kd_loop, skip_kd_loop;
 
@@ -634,17 +636,19 @@ void jit_avx2_conv_bwd_data_kernel_f32::hsw_iter_s1(int ur_w, int l_overflow,
         mov(aux_reg_kernel, aux_reg_ker_d);
     }
 
-    Label kh_loop;
+    Label kh_loop, skip_kh_loop;
+    cmp(kj, 0);
+    jle(skip_kh_loop, T_NEAR);
     L(kh_loop); {
         for (int ki = 0; ki < kw; ki++) {
-            int jj_start = nstl::max(0, l_overflow - (kw - 1) + ki) ; // 0;
-            int jj_end = ur_w - nstl::max(0, r_overflow - ki); // ur_w;
+            int jj_start = get_iw_start(ki, l_overflow); // 0;
+            int jj_end = get_iw_end(ur_w, ki, r_overflow); // ur_w;
             for (int ofm2 = 0; ofm2 < jcp.oc_block; ofm2++) {
 
-                for (int jj =jj_start ; jj < jj_end; jj++) {
+                for (int jj = jj_start ; jj < jj_end; jj += stride_w) {
                     int aux_output_offset
-                        = (jj + jcp.l_pad - ki) * jcp.oc_block + ofm2;
-                    vbroadcastss(Ymm(nb_ic_block * ur_w + jj),
+                      = (jj + jcp.l_pad - ki) / stride_w * jcp.oc_block + ofm2;
+                    vbroadcastss(Ymm(nb_ic_block * ur_w + jj / stride_w),
                             ptr[aux_reg_ddst
                             + sizeof(float) * aux_output_offset]);
                 }
@@ -657,19 +661,21 @@ void jit_avx2_conv_bwd_data_kernel_f32::hsw_iter_s1(int ur_w, int l_overflow,
                     vmovups(ymm15,
                             ptr[aux_reg_kernel
                             + sizeof(float) * aux_kernel_offset]);
-                    for (int jj = jj_start; jj  < jj_end; jj++)
+                    for (int jj = jj_start; jj  < jj_end; jj += stride_w)
                         vfmadd231ps(Ymm(ur_w * ii + jj),
-                                Ymm(nb_ic_block * ur_w + jj), ymm15);
+                                Ymm(nb_ic_block * ur_w + jj / stride_w), ymm15);
                 }
             }
         }
-        add(aux_reg_kernel, sizeof(float) * kw  * oc_block * ic_block);
+        add(aux_reg_kernel, sizeof(float) * stride_h * kw  * oc_block
+                                          * ic_block);
         sub(aux_reg_ddst, sizeof(float) * ow * oc_block);
 
         dec(kj);
         cmp(kj, 0);
         jg(kh_loop, T_NEAR);
     }
+    L(skip_kh_loop);
 
     if (jcp.ndims == 5) {
         sub(aux_reg_dst_d,
@@ -702,43 +708,56 @@ void jit_avx2_conv_bwd_data_kernel_f32::generate() {
     mov(reg_kernel, ptr[this->param1 + GET_OFF(filt)]);
     mov(reg_kh, ptr[this->param1 + GET_OFF(kh_padding)]);
 
+    int ddst_shift = sizeof(float) * (jcp.ur_w / jcp.stride_w) * jcp.ic_block;
+    int dsrc_shift = sizeof(float) * jcp.ur_w * jcp.oc_block;
+
+    int l_overflow = nstl::max(0, (jcp.kw - 1 - jcp.l_pad) / jcp.stride_w);
+    int r_overflow = nstl::max(0, (jcp.kw - 1
+                    - nstl::max(0, jcp.r_pad)) / jcp.stride_w);
+    int r_overflow1 = nstl::max(0, (jcp.kw - 1
+                    - nstl::max(0, jcp.r_pad) - jcp.ur_w_tail) / jcp.stride_w);
+
     int n_oi = jcp.iw / jcp.ur_w;
-    xor_(oi_iter, oi_iter);
-
-    int l_overflow = nstl::max(0, jcp.kw - 1 - jcp.l_pad);
-    if (l_overflow > 0) {
-        hsw_iter_s1(jcp.ur_w, l_overflow, 0);
-        add(reg_dsrc, sizeof(float) * jcp.ur_w * jcp.ic_block);
-        add(reg_ddst, sizeof(float) * jcp.ur_w * jcp.oc_block);
-        inc(oi_iter);
-    }
-
-    int r_pad = jcp.iwp - jcp.iw - jcp.l_pad;
-    int r_overflow1
-        = nstl::max(0, jcp.kw - 1 - (jcp.iw - jcp.ur_w * n_oi) - r_pad);
-    int r_overflow = nstl::max(0, jcp.kw - 1 - r_pad);
     if (r_overflow1 > 0)
         n_oi--;
 
-    if ((l_overflow <= 0 && n_oi > 0) || (l_overflow >  0 && n_oi > 1)) {
-        Label ow_loop;
-        L(ow_loop); {
-            hsw_iter_s1(jcp.ur_w, 0, 0);
-            add(reg_dsrc, sizeof(float) * jcp.ur_w * jcp.ic_block);
-            add(reg_ddst, sizeof(float) * jcp.ur_w * jcp.oc_block);
+    if (jcp.ur_w == jcp.iw) {
+        compute_loop(jcp.ur_w, l_overflow, r_overflow);
+    } else if (n_oi == 0) {
+        compute_loop(jcp.ur_w, l_overflow, r_overflow1);
+        add(reg_dsrc, dsrc_shift);
+        add(reg_ddst, ddst_shift);
+        if (jcp.ur_w_tail != 0)
+            compute_loop(jcp.ur_w_tail, 0, r_overflow);
+    } else {
+        xor_(oi_iter, oi_iter);
+        if (l_overflow > 0) {
+            compute_loop(jcp.ur_w, l_overflow, 0);
+            add(reg_dsrc, dsrc_shift);
+            add(reg_ddst, ddst_shift);
             inc(oi_iter);
-            cmp(oi_iter, n_oi); jl(ow_loop, T_NEAR);
         }
-    }
 
-    if (r_overflow1 > 0 ) {
-        hsw_iter_s1(jcp.ur_w, 0, r_overflow1);
-        add(reg_dsrc, sizeof(float) * jcp.ur_w * jcp.ic_block);
-        add(reg_ddst, sizeof(float) * jcp.ur_w * jcp.oc_block);
-    }
+        if ((l_overflow <= 0 && n_oi > 0) || (l_overflow >  0 && n_oi > 1)) {
+            Label ow_loop;
+            L(ow_loop); {
+                compute_loop(jcp.ur_w, 0, 0);
+                add(reg_dsrc, dsrc_shift);
+                add(reg_ddst, ddst_shift);
+                inc(oi_iter);
+                cmp(oi_iter, n_oi); jl(ow_loop, T_NEAR);
+            }
+        }
 
-    if (jcp.ur_w_tail != 0)
-        hsw_iter_s1(jcp.ur_w_tail, 0, r_overflow);
+        if (r_overflow1 > 0 ) {
+            compute_loop(jcp.ur_w, 0, r_overflow1);
+            add(reg_dsrc, dsrc_shift);
+            add(reg_ddst, ddst_shift);
+        }
+
+        if (jcp.ur_w_tail != 0)
+            compute_loop(jcp.ur_w_tail, 0, r_overflow);
+    }
 
     this->postamble();
 }
@@ -797,6 +816,10 @@ status_t jit_avx2_conv_bwd_data_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     bool ok_to_pad_channels = true
         && jcp.ngroups == 1;
 
+    /* gemm-based convolution performs better in these cases */
+    if (jcp.ic < simd_w && jcp.kw > 3 && jcp.stride_w > 1)
+        return status::unimplemented;
+
     if (ok_to_pad_channels) {
         jcp.oc = rnd_up(jcp.oc, simd_w);
         jcp.ic = rnd_up(jcp.ic, simd_w);
@@ -822,7 +845,6 @@ status_t jit_avx2_conv_bwd_data_kernel_f32::init_conf(jit_conv_conf_t &jcp,
                 gOIdhw8o8i, OIdhw8o8i)
         && one_of(diff_dst_d.format(), nCw8c, nChw8c, nCdhw8c)
         && jcp.stride_w == jcp.stride_h
-        && jcp.stride_w == 1
         && jcp.stride_d == 1
         && jcp.dilate_d == 0
         && jcp.dilate_h == 0
@@ -833,31 +855,58 @@ status_t jit_avx2_conv_bwd_data_kernel_f32::init_conf(jit_conv_conf_t &jcp,
         && jcp.oh == (jcp.ihp - jcp.kh) / jcp.stride_h + 1
         && jcp.ow == (jcp.iwp - jcp.kw) / jcp.stride_w + 1;
     if (!args_ok) return status::unimplemented;
+    jcp.r_pad = (jcp.ow - 1) * jcp.stride_w + jcp.kw - jcp.iw - jcp.l_pad;
+    jcp.b_pad = (jcp.oh - 1) * jcp.stride_h + jcp.kh - jcp.ih - jcp.t_pad;
+    int l_overflow = nstl::max(0, (jcp.kw - 1 - jcp.l_pad) / jcp.stride_w);
 
-    jcp.ur_w = 3;
-    if (jcp.stride_w > 1 || jcp.stride_h > 1)
+    const int max_regs = 15; /* Maximun number of registers available for
+                                result accumulation and delta dst data.
+                                One additional register is reserved for weights
+                                data. */
+
+    /* Find the best blocking with maximum number of fma instructions
+       per ur_w * nb_ic_blocking compute loops. Number of required registers
+       is num_regs = ur_w * nb_ic_blocking + ur_w / stride_w <= max_regs.
+       ur_w must be divisible by stride_w */
+    if (jcp.stride_w + 1 > max_regs)  /* Minimal possible registers
+                                         distribution exceeds max_regs */
         return status::unimplemented;
 
-    for (int b = 4; b > 1; b--)
+    int best_nfmas = 0;
+    for (int b = 1; b <= 4; b++)
     {
-        if (jcp.nb_ic % b == 0)
+        if (jcp.nb_ic % b != 0)
+            continue;
+
+        for (int u = jcp.stride_w;
+             u * b + u / jcp.stride_w <= max_regs && u < jcp.iw + jcp.stride_w;
+             u += jcp.stride_w)
         {
-            jcp.nb_ic_blocking = b;
-            break;
+            int ur_w = nstl::min(u, jcp.iw);
+            /* maximum 1 step with l_overflow so far */
+            if (l_overflow * jcp.stride_w > ur_w && ur_w != jcp.iw)
+                continue;
+            int nfmas = utils::div_up(ur_w, jcp.stride_w) * b;
+            if (nfmas > best_nfmas
+               || (nfmas == best_nfmas && jcp.ur_w < ur_w)) {
+                jcp.ur_w = ur_w;
+                jcp.nb_ic_blocking = b;
+                best_nfmas = nfmas;
+            }
         }
     }
+    if (best_nfmas == 0) /* can't find appropriate blocking */
+        return status::unimplemented;
+
     jcp.ur_w_tail = jcp.iw % jcp.ur_w;
-    int l_overflow = nstl::max(0, jcp.kw - 1 - jcp.l_pad);
-    if (l_overflow > jcp.ur_w) /* maximum 1 step with l_overflow so far */
+
+    int r_overflow_no_tail = nstl::max(0, (jcp.kw - 1 - jcp.ur_w_tail
+                    - nstl::max(0, jcp.r_pad) - jcp.ur_w_tail) / jcp.stride_w);
+    /* maximum 1 ur_w block with r_overflow so far */
+    if (r_overflow_no_tail * jcp.stride_w > jcp.ur_w)
         return status::unimplemented;
-    int r_pad = jcp.iwp - jcp.iw - jcp.l_pad;
-    int r_overflow_step0 = nstl::max(0, jcp.kw - 1 - (jcp.iw - jcp.ur_w) - r_pad);
-    if (l_overflow > 0 && r_overflow_step0 > 0) /* no steps with both left and
-                                                   right overflow so far */
-        return status::unimplemented;
-    int r_overflow_no_tail = nstl::max(0,jcp.kw - 1 - jcp.ur_w_tail - r_pad);
-    if (r_overflow_no_tail > jcp.ur_w) /* maximum 1 ur_w block with
-                                          r_overflow so far */
+
+    if ((jcp.iw > jcp.ur_w) && (jcp.ur_w % jcp.stride_w != 0))
         return status::unimplemented;
 
     return status::success;

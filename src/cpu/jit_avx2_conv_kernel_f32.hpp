@@ -143,9 +143,32 @@ private:
     reg64_t ki_iter = r13;
     reg64_t reg_long_offt = r15;
 
-    inline void hsw_iter_s1(int ur_w, int l_overflow, int r_overflow);
+    inline void compute_loop(int ur_w, int l_overflow, int r_overflow);
 
     void generate();
+
+    inline int get_iw_start(int ki, int l_overflow)
+    {
+        int res = (jcp.iw - 1 + jcp.r_pad) % jcp.stride_w
+                + l_overflow * jcp.stride_w
+                - (jcp.kw - 1 - ki) * (jcp.dilate_w + 1);
+        while (res < 0)
+            res += jcp.stride_w;
+
+        return res;
+    }
+
+    inline int get_iw_end(int ur_w, int ki, int r_overflow)
+    {
+        if (utils::one_of(ur_w, jcp.iw, jcp.ur_w_tail))
+            ur_w += nstl::min(0, jcp.r_pad); // remove negative padding
+        int res = (ur_w - 1 + jcp.l_pad) % jcp.stride_w
+                + r_overflow * jcp.stride_w - ki * (jcp.dilate_w + 1);
+        while (res < 0)
+            res += jcp.stride_w;
+
+        return ur_w - res;
+    }
 };
 
 struct jit_avx2_conv_bwd_weights_kernel_f32: public jit_generator {

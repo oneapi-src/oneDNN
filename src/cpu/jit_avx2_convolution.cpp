@@ -200,12 +200,22 @@ void jit_avx2_convolution_bwd_data_t::execute_backward_data() const {
 
                 for (int ih = 0; ih < jcp.ih; ++ih) {
 
-                    const int i_t_overflow = nstl::max(0,
-                                        jcp.kh - 1 - ih - jcp.t_pad);
-                    const int b_pad = jcp.ihp - jcp.ih - jcp.t_pad;
-                    const int i_b_overflow = nstl::max(0,
-                                        jcp.kh - 1 - (jcp.ih - 1 - ih) - b_pad);
-                    const int oh = ih + jcp.t_pad - i_b_overflow;
+                    const int i_t_overflow = nstl::max(0, (jcp.kh - 1
+                                        - (int)ih - jcp.t_pad) / jcp.stride_h);
+                    const int i_b_overflow = nstl::max(0, (jcp.kh - jcp.ih
+                                        + (int)ih - jcp.b_pad) / jcp.stride_h);
+                    int overflow_kh_hi = jcp.kh - 1 - abs((jcp.ih - 1
+                                + jcp.b_pad - (int)ih) % jcp.stride_h);
+                    int overflow_kh_lo = (ih + jcp.t_pad) % jcp.stride_h;
+
+                    par_conv.kd_padding = jcp.kd - d_t_overflow - d_b_overflow;
+                    par_conv.kh_padding = (overflow_kh_hi - overflow_kh_lo)
+                              / jcp.stride_h + 1 - i_t_overflow - i_b_overflow;
+                    par_conv.kw_padding = 0;
+
+                    const int k_lo = overflow_kh_lo
+                                   + i_b_overflow * jcp.stride_h;
+                    const int oh = (ih + jcp.t_pad - k_lo) / jcp.stride_h;
 
                     par_conv.src = &diff_src[src_blk_off(diff_src_d, n,
                         /*jcp.ic == 3 ? 0 :*/
@@ -214,7 +224,7 @@ void jit_avx2_convolution_bwd_data_t::execute_backward_data() const {
                             n, g * jcp.nb_oc + oc, od, oh, 0)];
                     par_conv.filt = &weights[wht_blk_off(weights_d, g, oc,
                                 jcp.ic == 3 ? 0 : jcp.nb_ic_blocking * icbb,
-                                d_b_overflow, i_b_overflow, 0)];
+                                d_b_overflow, k_lo, 0)];
 
                     par_conv.src_prf = nullptr;
                     par_conv.dst_prf = nullptr;
@@ -237,10 +247,6 @@ void jit_avx2_convolution_bwd_data_t::execute_backward_data() const {
                             }
                         }
                     }
-
-                    par_conv.kd_padding = jcp.kd - d_t_overflow - d_b_overflow;
-                    par_conv.kh_padding = jcp.kh - i_t_overflow - i_b_overflow;
-                    par_conv.kw_padding = 0;
 
                     kernel_->jit_ker(&par_conv);
                 }
