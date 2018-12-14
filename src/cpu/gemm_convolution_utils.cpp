@@ -119,7 +119,8 @@ void im2col_3d(const jit_gemm_conv_conf_t &jcp, const float *im, float *col,
     });
 }
 
-void im2col(const jit_gemm_conv_conf_t &jcp, const float *im, float *col) {
+void im2col(const jit_gemm_conv_conf_t &jcp, const float *__restrict im,
+       float *__restrict col) {
     if (jcp.ic == 1) {
         parallel_nd(jcp.kh, jcp.oh, [&](int kh, int oh) {
             const int ih = oh * jcp.stride_h - jcp.t_pad + kh * (1 + jcp.dilate_h);
@@ -140,8 +141,8 @@ void im2col(const jit_gemm_conv_conf_t &jcp, const float *im, float *col) {
         const size_t col_step = jcp.ks * jcp.os;
 
         parallel_nd(jcp.ic, [&](int ic) {
-            const float *im_ = im + ic * im_step;
-            float *col_ = col + ic * col_step;
+            const float *__restrict im_ = im + ic * im_step;
+            float *__restrict col_ = col + ic * col_step;
 
             for (int kh = 0; kh < jcp.kh; ++kh) {
             for (int oh = 0; oh < jcp.oh; ++oh) {
