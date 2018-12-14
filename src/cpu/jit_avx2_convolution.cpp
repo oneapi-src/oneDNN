@@ -175,14 +175,22 @@ void jit_avx2_convolution_bwd_data_t::execute_backward_data() const {
     const auto &jcp = kernel_->jcp;
 
     int icb_work = jcp.nb_ic / jcp.nb_ic_blocking;
-    const size_t work_amount = jcp.mb * jcp.ngroups * icb_work;
+    int ih_block_size = jcp.ih;
+    int num_ih_blocks = utils::div_up(jcp.ih, ih_block_size);
+    size_t work_amount = jcp.mb * jcp.ngroups * icb_work * num_ih_blocks;
+    if (work_amount < (size_t)2 * mkldnn_get_max_threads()) {
+        ih_block_size = 1;
+        num_ih_blocks = utils::div_up(jcp.ih, ih_block_size);
+        work_amount *= num_ih_blocks;
+    }
 
     auto ker = [&](const int ithr, const int nthr) {
         size_t start{0}, end{0};
         balance211(work_amount, nthr, ithr, start, end);
 
-        size_t n{0}, g{0}, icbb{0};
-        nd_iterator_init(start, n, jcp.mb, g, jcp.ngroups, icbb, icb_work);
+        size_t n{0}, g{0}, icbb{0}, ihb{0};
+        nd_iterator_init(start, n, jcp.mb, g, jcp.ngroups, icbb, icb_work,
+                         ihb, num_ih_blocks);
         for (size_t iwork = start; iwork < end; ++iwork) {
             for (int oc = 0; oc < jcp.nb_oc; oc += jcp.nb_oc_blocking)
             for (int id = 0; id < jcp.id; ++id) {
@@ -196,14 +204,16 @@ void jit_avx2_convolution_bwd_data_t::execute_backward_data() const {
                         jcp.kd - 1 - (jcp.id - 1 - id) - back_pad);
                 const int od = id + jcp.f_pad - d_b_overflow;
 
-                for (int ih = 0; ih < jcp.ih; ++ih) {
+                int ih_start = ihb * ih_block_size;
+                int ih_end = nstl::min(jcp.ih, ih_start + ih_block_size);
+                for (int ih = ih_start; ih < ih_end; ++ih) {
 
                     const int i_t_overflow = nstl::max(0, (jcp.kh - 1
-                                        - (int)ih - jcp.t_pad) / jcp.stride_h);
+                                        - ih - jcp.t_pad) / jcp.stride_h);
                     const int i_b_overflow = nstl::max(0, (jcp.kh - jcp.ih
-                                        + (int)ih - jcp.b_pad) / jcp.stride_h);
+                                        + ih - jcp.b_pad) / jcp.stride_h);
                     int overflow_kh_hi = jcp.kh - 1 - abs((jcp.ih - 1
-                                + jcp.b_pad - (int)ih) % jcp.stride_h);
+                                + jcp.b_pad - ih) % jcp.stride_h);
                     int overflow_kh_lo = (ih + jcp.t_pad) % jcp.stride_h;
 
                     par_conv.kd_padding = jcp.kd - d_t_overflow - d_b_overflow;
@@ -234,7 +244,8 @@ void jit_avx2_convolution_bwd_data_t::execute_backward_data() const {
                     kernel_->jit_ker(&par_conv);
                 }
             }
-            nd_iterator_step(n, jcp.mb, g, jcp.ngroups, icbb, icb_work);
+            nd_iterator_step(n, jcp.mb, g, jcp.ngroups, icbb, icb_work, ihb,
+                             num_ih_blocks);
         }
     };
 
