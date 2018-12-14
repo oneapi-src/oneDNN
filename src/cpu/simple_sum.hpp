@@ -62,9 +62,10 @@ struct simple_sum_t: public cpu_primitive_t {
             const output_vector &outputs)
         : cpu_primitive_t(apd, inputs, outputs) {}
 
-    virtual void execute(event_t *e) const {
+    virtual status_t execute(const exec_ctx_t &ctx) const override {
         execute();
-        e->set_state(event_t::ready);
+        UNUSED(ctx);
+        return status::success;
     }
 
     enum {max_num_arrs = 16 };

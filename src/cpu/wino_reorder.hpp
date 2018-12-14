@@ -331,7 +331,7 @@ private:
         });
     }
 
-    virtual void execute(event_t *e) const {
+    virtual status_t execute(const exec_ctx_t &ctx) const override {
         auto input = reinterpret_cast<const in_data_t *>(input_memory(0));
         auto output = reinterpret_cast<out_data_t *>(memory());
 
@@ -355,7 +355,8 @@ private:
         default: assert("Unknown wino format"); break;
         }
 
-        e->set_state(event_t::ready);
+        UNUSED(ctx);
+        return status::success;
     }
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }

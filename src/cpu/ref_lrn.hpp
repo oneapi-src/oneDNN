@@ -62,7 +62,7 @@ struct ref_lrn_fwd_t: public cpu_primitive_t {
         : cpu_primitive_t(apd, inputs, outputs) {}
     typedef typename prec_traits<data_type>::type data_t;
 
-    virtual void execute(event_t *e) const {
+    virtual status_t execute(const exec_ctx_t &ctx) const override {
         using namespace memory_format;
         switch (pd()->src_pd()->desc()->format) {
         case nChw16c: execute_forward<nChw16c>(); break;
@@ -73,7 +73,8 @@ struct ref_lrn_fwd_t: public cpu_primitive_t {
         // mkldnn_any is used to call ref code for arbitrary format
         default: execute_forward<mkldnn_any>();
         }
-        e->set_state(event_t::ready);
+        UNUSED(ctx);
+        return status::success;
     }
 
 private:
@@ -111,7 +112,7 @@ struct ref_lrn_bwd_t: public cpu_primitive_t {
         : cpu_primitive_t(apd, inputs, outputs) {}
     typedef typename prec_traits<data_type>::type data_t;
 
-    virtual void execute(event_t *e) const {
+    virtual status_t execute(const exec_ctx_t &ctx) const override {
         using namespace memory_format;
         switch (pd()->src_pd()->desc()->format) {
         case nChw16c: execute_backward<nChw16c>(); break;
@@ -122,7 +123,8 @@ struct ref_lrn_bwd_t: public cpu_primitive_t {
         // mkldnn_any is used to call ref code for arbitrary format
         default: execute_backward<mkldnn_any>();
         }
-        e->set_state(event_t::ready);
+        UNUSED(ctx);
+        return status::success;
     }
 
 private:

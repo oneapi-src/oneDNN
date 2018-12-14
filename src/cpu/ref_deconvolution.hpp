@@ -189,11 +189,11 @@ struct ref_deconvolution_fwd_t: public cpu_primitive_t {
 
     ~ref_deconvolution_fwd_t() { delete this->conv_p_; }
 
-    virtual void execute(event_t *e) const {
+    virtual status_t execute(const exec_ctx_t &ctx) const override {
         switch (pd()->desc()->prop_kind) {
         case prop_kind::forward_training:
         case prop_kind::forward_inference:
-            (conv_p_)->execute(e);
+            conv_p_->execute(ctx);
             if (pd()->with_bias() && !pd()->conv_supports_bias_) {
                 switch (pd()->dst_pd()->desc()->format) {
                     case memory_format::ncw :
@@ -219,7 +219,8 @@ struct ref_deconvolution_fwd_t: public cpu_primitive_t {
         default:
             assert(!"invalid prop_kind");
         }
-        e->set_state(event_t::ready);
+        UNUSED(ctx);
+        return status::success;
     }
 
 private:
@@ -310,15 +311,16 @@ struct ref_deconvolution_bwd_data_t: public cpu_primitive_t {
         : cpu_primitive_t(apd, inputs, outputs), conv_p_(nullptr) {}
     ~ref_deconvolution_bwd_data_t() { delete this->conv_p_; }
 
-    virtual void execute(event_t *e) const {
+    virtual status_t execute(const exec_ctx_t &ctx) const override {
         switch (pd()->desc()->prop_kind) {
         case prop_kind::backward_data:
-            (conv_p_)->execute(e);
+            conv_p_->execute(ctx);
             break;
         default:
             assert(!"invalid prop_kind");
         }
-        e->set_state(event_t::ready);
+        UNUSED(ctx);
+        return status::success;
     }
 
 private:
@@ -411,10 +413,10 @@ struct ref_deconvolution_bwd_weights_t: public cpu_primitive_t {
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    virtual void execute(event_t *e) const {
+    virtual status_t execute(const exec_ctx_t &ctx) const override {
         switch (pd()->desc()->prop_kind) {
         case prop_kind::backward_weights:
-            (conv_p_)->execute(e);
+            conv_p_->execute(ctx);
             if (pd()->with_bias()) {
                 switch (pd()->diff_dst_pd()->desc()->format) {
                     case memory_format::ncw :
@@ -439,7 +441,8 @@ struct ref_deconvolution_bwd_weights_t: public cpu_primitive_t {
         default:
             assert(!"invalid prop_kind");
         }
-        e->set_state(event_t::ready);
+        UNUSED(ctx);
+        return status::success;
     }
 
 private:

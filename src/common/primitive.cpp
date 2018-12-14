@@ -17,15 +17,34 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
+#include "engine.hpp"
+#include "memory_pd.hpp"
 #include "primitive_desc.hpp"
 #include "primitive.hpp"
-#include "engine.hpp"
 #include "type_helpers.hpp"
+#include "stream.hpp"
 #include "utils.hpp"
 
 using namespace mkldnn::impl;
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::primitive_kind;
+
+namespace {
+// XXX: this is a huge hammer. This disables all and any msan checks on
+// primitives outputs.
+//
+// A proper approach would be an implementation-specific unpoisoning.
+void unpoison_outputs(const primitive_t *p) {
+    if (p->engine()->kind() != engine_kind::cpu) return;
+    for(auto o: p->outputs()) {
+        assert(o->kind() == primitive_kind::memory);
+        void *p;
+        o->get_data_handle(&p);
+        size_t s = ((memory_pd_t *)o->pd())->get_size();
+        msan_unpoison(p, s);
+    }
+}
+}
 
 status_t mkldnn_primitive_desc_destroy(primitive_desc_t *primitive_desc) {
     if (primitive_desc) delete primitive_desc;
@@ -51,6 +70,31 @@ status_t mkldnn_primitive_create(primitive_t **primitive,
     for (int i = 0; i < primitive_desc->n_outputs(); ++i)
         if (outputs[i] == nullptr) return invalid_arguments;
     return primitive_desc->create_primitive(primitive, inputs, outputs);
+}
+
+status_t mkldnn_primitive_execute(const primitive_t *primitive,
+        stream_t *stream) {
+    bool ok = true
+        && !utils::any_null(primitive, stream)
+        && primitive->engine() == stream->engine();
+    if (!ok) return invalid_arguments;
+
+    exec_ctx_t ctx(stream);
+    status_t status;
+
+    if (mkldnn_verbose()->level) {
+        double ms = get_msec();
+        status = primitive->execute(ctx);
+        ms = get_msec() - ms;
+        printf("mkldnn_verbose,exec,%s,%g\n", primitive->pd()->info(), ms);
+        fflush(0);
+    } else {
+        status = primitive->execute(ctx);
+    }
+
+    if (msan_enabled) unpoison_outputs(primitive);
+
+    return status;
 }
 
 status_t mkldnn_primitive_get_primitive_desc(const primitive_t *primitive,

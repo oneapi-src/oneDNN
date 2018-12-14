@@ -228,6 +228,10 @@ mkldnn_status_t MKLDNN_API mkldnn_primitive_create(
         const mkldnn_primitive_at_t *inputs,
         const_mkldnn_primitive_t *outputs);
 
+/** Executes a @p primitive using a @p stream. */
+mkldnn_status_t MKLDNN_API mkldnn_primitive_execute(
+        const_mkldnn_primitive_t primitive, mkldnn_stream_t stream);
+
 /** Retrieves a reference to the @p primitive_desc descriptor of given @p
  * primitive.
  *
@@ -1711,27 +1715,9 @@ mkldnn_status_t MKLDNN_API mkldnn_engine_destroy(mkldnn_engine_t engine);
 /** @addtogroup c_api_stream Execution stream operations
  * @{ */
 
-/** Creates an execution @p stream of @p stream_kind. */
+/** Creates an execution @p stream of @p stream_kind with @p engine. */
 mkldnn_status_t MKLDNN_API mkldnn_stream_create(mkldnn_stream_t *stream,
-        mkldnn_stream_kind_t stream_kind);
-
-/** Submits @p primitives to an execution @p stream. The number of primitives
- * is @p n.  All or none of the primitives can be lazy. In case of an error,
- * returns the offending @p error_primitive if it is not @c NULL. */
-mkldnn_status_t MKLDNN_API mkldnn_stream_submit(mkldnn_stream_t stream,
-        size_t n, mkldnn_primitive_t primitives[],
-        mkldnn_primitive_t *error_primitive);
-
-/** Waits for all primitives in the execution @p stream to finish. Returns
- * immediately if @p block is zero. In case of an error, returns
- * the offending @p error_primitive if it is not @c NULL. */
-mkldnn_status_t MKLDNN_API mkldnn_stream_wait(mkldnn_stream_t stream,
-        int block, mkldnn_primitive_t *error_primitive);
-
-/** Reruns all the primitives within the @p stream. In case of an error,
- * returns the offending @p error_primitive if it is not @c NULL. */
-mkldnn_status_t MKLDNN_API mkldnn_stream_rerun(mkldnn_stream_t stream,
-        mkldnn_primitive_t *error_primitive);
+        mkldnn_engine_t engine, mkldnn_stream_kind_t stream_kind);
 
 /** Destroys an execution @p stream. */
 mkldnn_status_t MKLDNN_API mkldnn_stream_destroy(mkldnn_stream_t stream);

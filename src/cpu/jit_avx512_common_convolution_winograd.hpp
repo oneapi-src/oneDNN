@@ -162,7 +162,7 @@ struct jit_avx512_common_convolution_winograd_fwd_t
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    virtual void execute(event_t *e) const
+    virtual status_t execute(const exec_ctx_t &ctx) const override
     {
         float *src = (float *)this->input_memory(0);
         float *dst = (float *)this->memory();
@@ -170,7 +170,8 @@ struct jit_avx512_common_convolution_winograd_fwd_t
         float *bias = (float *)this->input_memory(2);
         this->_execute_data_W_S_G_D(src, dst, weights, bias,
                 this->scratchpad());
-        e->set_state(event_t::ready);
+        UNUSED(ctx);
+        return status::success;
     }
 
 private:
@@ -253,7 +254,7 @@ struct jit_avx512_common_convolution_winograd_bwd_data_t
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    virtual void execute(event_t *e) const
+    virtual status_t execute(const exec_ctx_t &ctx) const override
     {
         assert(pd()->desc()->prop_kind == prop_kind::backward_data
                 && "invalid prop_kind");
@@ -263,7 +264,8 @@ struct jit_avx512_common_convolution_winograd_bwd_data_t
         float *weights = (float *)this->input_memory(1);
         this->_execute_data_W_S_G_D(diff_dst, diff_src, weights, nullptr,
                 this->scratchpad());
-        e->set_state(event_t::ready);
+        UNUSED(ctx);
+        return status::success;
     }
 
 private:
@@ -352,12 +354,13 @@ struct jit_avx512_common_convolution_winograd_bwd_weights_t
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    virtual void execute(event_t *e) const
+    virtual status_t execute(const exec_ctx_t &ctx) const override
     {
         assert(pd()->desc()->prop_kind == prop_kind::backward_weights
                 && "invalid prop_kind");
         _execute_backward_weights_S_D_G_W(scratchpad());
-        e->set_state(event_t::ready);
+        UNUSED(ctx);
+        return status::success;
     }
 
 private:

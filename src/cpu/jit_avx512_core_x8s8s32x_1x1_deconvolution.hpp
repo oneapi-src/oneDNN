@@ -141,13 +141,13 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t
         delete this->conv_p_;
     }
 
-    virtual void execute(event_t *e) const {
+    virtual status_t execute(const exec_ctx_t &ctx) const override {
         switch (pd()->desc()->prop_kind) {
         case prop_kind::forward_training:
-        case prop_kind::forward_inference: (conv_p_)->execute(e); break;
+        case prop_kind::forward_inference: (conv_p_)->execute(ctx); break;
         default: assert(!"invalid prop_kind");
         }
-        e->set_state(event_t::ready);
+        return status::success;
     }
 
 private:

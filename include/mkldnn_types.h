@@ -1252,12 +1252,8 @@ typedef enum {
 
 /** @brief Kinds of streams. */
 typedef enum {
-    /** An unspecified engine. */
-    mkldnn_any_stream,
-    /** Eager stream. */
-    mkldnn_eager,
-    /** Lazy stream. */
-    mkldnn_lazy,
+    /** A default kind of stream. */
+    mkldnn_stream_kind_default,
 } mkldnn_stream_kind_t;
 
 /** @struct mkldnn_stream

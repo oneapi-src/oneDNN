@@ -26,6 +26,25 @@
 #include "nstl.hpp"
 #include "primitive_desc.hpp"
 
+namespace mkldnn {
+namespace impl {
+
+/** Primitive execution context (helps passing stream, memories, and events. */
+struct exec_ctx_t {
+    exec_ctx_t(const exec_ctx_t &) = default;
+    exec_ctx_t(exec_ctx_t &&) = default;
+
+    exec_ctx_t(stream_t *stream): stream_(stream) {}
+
+    stream_t *stream() const { return stream_; }
+
+private:
+    stream_t *stream_;
+};
+
+}
+}
+
 /** \brief A pure virtual primitive class
  *
  * Primitive contains links to its inputs & outputs, though it does not track
@@ -69,17 +88,9 @@ struct mkldnn_primitive: public mkldnn::impl::c_compatible {
     /** returns primitive's kind */
     mkldnn::impl::primitive_kind_t kind() const { return pd_->kind(); }
 
-    /** executes primitive with resulting event @p e
-     *
-     * @p e (output)
-     *   a resulting event. It is primitive responsibility to set @p e state
-     *   after actual computations are done
-     *
-     * @remark @b Rational.
-     *   Suppose engine has a task pool and for some reasons submission failed.
-     *   In this case primitive will set @p e's state to event::error
-     */
-    virtual void execute(mkldnn::impl::event_t *e) const = 0;
+    /** executes primitive with execution context @p ctx */
+    virtual mkldnn::impl::status_t execute(const mkldnn::impl::exec_ctx_t &ctx)
+        const = 0;
 
     /** returns data handle. Applicable for memory primitives only. */
     virtual mkldnn::impl::status_t get_data_handle(void **handle) const {

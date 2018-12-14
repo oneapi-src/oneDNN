@@ -69,9 +69,10 @@ struct gemm_inner_product_fwd_t: public cpu_primitive_t {
         : cpu_primitive_t(apd, inputs, outputs) {}
     typedef typename prec_traits<data_type>::type data_t;
 
-    virtual void execute(event_t *e) const {
+    virtual status_t execute(const exec_ctx_t &ctx) const override {
         execute_forward();
-        e->set_state(event_t::ready);
+        UNUSED(ctx);
+        return status::success;
     }
 
 private:
@@ -113,9 +114,10 @@ struct gemm_inner_product_bwd_data_t: public cpu_primitive_t {
         : cpu_primitive_t(apd, inputs, outputs) {}
     typedef typename prec_traits<data_type>::type data_t;
 
-    virtual void execute(event_t *e) const {
+    virtual status_t execute(const exec_ctx_t &ctx) const override {
         execute_backward_data();
-        e->set_state(event_t::ready);
+        UNUSED(ctx);
+        return status::success;
     }
 
 private:
@@ -157,9 +159,10 @@ struct gemm_inner_product_bwd_weights_t: public cpu_primitive_t {
         : cpu_primitive_t(apd, inputs, outputs) {}
     typedef typename prec_traits<data_type>::type data_t;
 
-    virtual void execute(event_t *e) const {
+    virtual status_t execute(const exec_ctx_t &ctx) const override {
         execute_backward_weights();
-        e->set_state(event_t::ready);
+        UNUSED(ctx);
+        return status::success;
     }
 
 private:

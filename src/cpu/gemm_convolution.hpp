@@ -139,9 +139,10 @@ struct gemm_convolution_fwd_t: public cpu_primitive_t {
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    virtual void execute(event_t *e) const {
+    virtual status_t execute(const exec_ctx_t &ctx) const override {
         execute_forward();
-        e->set_state(event_t::ready);
+        UNUSED(ctx);
+        return status::success;
     }
 
 private:
@@ -228,7 +229,7 @@ struct gemm_convolution_bwd_data_t: public cpu_primitive_t {
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    virtual void execute(event_t *e) const {
+    virtual status_t execute(const exec_ctx_t &ctx) const override {
         switch (pd()->desc()->prop_kind) {
         case prop_kind::backward_data:
             execute_backward_data();
@@ -236,7 +237,8 @@ struct gemm_convolution_bwd_data_t: public cpu_primitive_t {
         default:
             assert(!"invalid prop_kind");
         }
-        e->set_state(event_t::ready);
+        UNUSED(ctx);
+        return status::success;
     }
 
 private:
@@ -324,7 +326,7 @@ struct gemm_convolution_bwd_weights_t: public cpu_primitive_t {
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    virtual void execute(event_t *e) const {
+    virtual status_t execute(const exec_ctx_t &ctx) const override {
         switch (pd()->desc()->prop_kind) {
         case prop_kind::backward_weights:
             execute_backward_weights();
@@ -332,7 +334,8 @@ struct gemm_convolution_bwd_weights_t: public cpu_primitive_t {
         default:
             assert(!"invalid prop_kind");
         }
-        e->set_state(event_t::ready);
+        UNUSED(ctx);
+        return status::success;
     }
 
 private:

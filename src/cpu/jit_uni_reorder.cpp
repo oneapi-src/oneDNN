@@ -984,13 +984,14 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
         }
     }
 
-    virtual void execute(event_t *e) const {
+    virtual status_t execute(const exec_ctx_t &ctx) const override {
         auto in = reinterpret_cast<const char *>(input_memory(0));
         auto out = reinterpret_cast<char *>(memory());
 
         omp_driver(in, out, pd()->attr()->output_scales_.scales_);
 
-        e->set_state(event_t::ready);
+        UNUSED(ctx);
+        return status::success;
     }
 
     enum { ndims_driver_max = 4 };

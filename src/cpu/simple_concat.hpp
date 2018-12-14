@@ -153,9 +153,10 @@ struct simple_concat_t: public cpu_primitive_t {
         : cpu_primitive_t(apd, inputs, outputs) {}
     ~simple_concat_t() {}
 
-    virtual void execute(event_t *e) const {
+    virtual status_t execute(const exec_ctx_t &ctx) const override {
         execute();
-        e->set_state(event_t::ready);
+        UNUSED(ctx);
+        return status::success;
     }
 
     typedef typename prec_traits<data_type>::type data_t;

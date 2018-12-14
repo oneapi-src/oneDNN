@@ -81,9 +81,10 @@ struct jit_uni_i8i8_pooling_fwd_t : public cpu_primitive_t {
             const input_vector &inputs, const output_vector &outputs);
     ~jit_uni_i8i8_pooling_fwd_t();
 
-    virtual void execute(event_t *e) const {
+    virtual status_t execute(const exec_ctx_t &ctx) const override {
         execute_forward();
-        e->set_state(event_t::ready);
+        UNUSED(ctx);
+        return status::success;
     }
 
 private:

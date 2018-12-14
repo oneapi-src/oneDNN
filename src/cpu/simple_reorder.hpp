@@ -1037,13 +1037,14 @@ struct simple_reorder_t: public cpu_primitive_t {
             const output_vector &outputs)
         : cpu_primitive_t(apd, inputs, outputs) {}
 
-    virtual void execute(event_t *e) const {
+    virtual status_t execute(const exec_ctx_t &ctx) const override {
         auto input = reinterpret_cast<const data_t<type_i> *>(
                 this->input_memory(0));
         auto output = reinterpret_cast<data_t<type_o> *>(this->memory());
         simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL, spec>::execute(
                 pd(), input, output);
-        e->set_state(event_t::ready);
+        UNUSED(ctx);
+        return status::success;
     }
 
 private:

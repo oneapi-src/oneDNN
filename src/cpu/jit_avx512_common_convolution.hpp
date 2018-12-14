@@ -101,7 +101,7 @@ struct jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
     typedef typename prec_traits<wei_type>::type wei_data_t;
     typedef typename prec_traits<dst_type>::type dst_data_t;
 
-    virtual void execute(event_t *e) const
+    virtual status_t execute(const exec_ctx_t &ctx) const override
     {
         if (pd()->ndims() == 3)
             execute_forward_1d();
@@ -115,7 +115,8 @@ struct jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
         if (pd()->wants_zero_pad_dst())
             output_memory_primitive(0)->zero_pad();
 
-        e->set_state(event_t::ready);
+        UNUSED(ctx);
+        return status::success;
     }
 
 private:
@@ -222,7 +223,7 @@ struct jit_avx512_common_convolution_bwd_data_t: public cpu_primitive_t {
     typedef typename prec_traits<wei_type>::type wei_data_t;
     typedef typename prec_traits<diff_src_type>::type diff_src_data_t;
 
-    virtual void execute(event_t *e) const {
+    virtual status_t execute(const exec_ctx_t &ctx) const override {
         switch (pd()->desc()->prop_kind) {
         case prop_kind::backward_data:
             if (pd()->ndims() == 3)
@@ -237,7 +238,8 @@ struct jit_avx512_common_convolution_bwd_data_t: public cpu_primitive_t {
         default:
             assert(!"invalid prop_kind");
         }
-        e->set_state(event_t::ready);
+        UNUSED(ctx);
+        return status::success;
     }
 
 private:
@@ -360,9 +362,10 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
     typedef typename prec_traits<diff_dst_type>::type diff_dst_data_t;
     typedef typename prec_traits<diff_weights_type>::type diff_weights_data_t;
 
-    virtual void execute(event_t *e) const {
+    virtual status_t execute(const exec_ctx_t &ctx) const override {
         execute_backward_weights();
-        e->set_state(event_t::ready);
+        UNUSED(ctx);
+        return status::success;
     }
 
 private:

@@ -96,9 +96,10 @@ struct nspc_batch_normalization_fwd_t : public cpu_primitive_t {
         : cpu_primitive_t(apd, inputs, outputs) {}
     ~nspc_batch_normalization_fwd_t() {}
 
-    virtual void execute(event_t *e) const {
+    virtual status_t execute(const exec_ctx_t &ctx) const override {
         execute_forward();
-        e->set_state(event_t::ready);
+        UNUSED(ctx);
+        return status::success;
     }
 
 private:
@@ -170,9 +171,10 @@ struct nspc_batch_normalization_bwd_t : public cpu_primitive_t {
         : cpu_primitive_t(apd, inputs, outputs) {}
     ~nspc_batch_normalization_bwd_t() {}
 
-    virtual void execute(event_t *e) const {
+    virtual status_t execute(const exec_ctx_t &ctx) const override {
         execute_backward();
-        e->set_state(event_t::ready);
+        UNUSED(ctx);
+        return status::success;
     }
 
 private:

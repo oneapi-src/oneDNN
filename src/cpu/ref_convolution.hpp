@@ -79,7 +79,7 @@ struct ref_convolution_fwd_t: public cpu_primitive_t {
     typedef typename prec_traits<dst_type>::type dst_data_t;
     typedef typename prec_traits<acc_type>::type acc_data_t;
 
-    virtual void execute(event_t *e) const {
+    virtual status_t execute(const exec_ctx_t &ctx) const override {
         switch (pd()->desc()->prop_kind) {
         case prop_kind::forward_training:
         case prop_kind::forward_inference:
@@ -88,7 +88,8 @@ struct ref_convolution_fwd_t: public cpu_primitive_t {
         default:
             assert(!"invalid prop_kind");
         }
-        e->set_state(event_t::ready);
+        UNUSED(ctx);
+        return status::success;
     }
 
 private:
@@ -139,7 +140,7 @@ struct ref_convolution_bwd_data_t: public cpu_primitive_t {
     typedef typename prec_traits<diff_dst_type>::type diff_dst_data_t;
     typedef typename prec_traits<acc_type>::type acc_data_t;
 
-    virtual void execute(event_t *e) const {
+    virtual status_t execute(const exec_ctx_t &ctx) const override {
         switch (pd()->desc()->prop_kind) {
         case prop_kind::backward_data:
             execute_backward_data();
@@ -147,7 +148,8 @@ struct ref_convolution_bwd_data_t: public cpu_primitive_t {
         default:
             assert(!"invalid prop_kind");
         }
-        e->set_state(event_t::ready);
+        UNUSED(ctx);
+        return status::success;
     }
 
 private:
@@ -199,7 +201,7 @@ struct ref_convolution_bwd_weights_t: public cpu_primitive_t {
     typedef typename prec_traits<diff_dst_type>::type diff_dst_data_t;
     typedef typename prec_traits<acc_type>::type acc_data_t;
 
-    virtual void execute(event_t *e) const {
+    virtual status_t execute(const exec_ctx_t &ctx) const override {
         switch (pd()->desc()->prop_kind) {
         case prop_kind::backward_weights:
             execute_backward_weights();
@@ -207,7 +209,8 @@ struct ref_convolution_bwd_weights_t: public cpu_primitive_t {
         default:
             assert(!"invalid prop_kind");
         }
-        e->set_state(event_t::ready);
+        UNUSED(ctx);
+        return status::success;
     }
 
 private:

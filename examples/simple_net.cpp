@@ -795,9 +795,10 @@ void simple_net(int times = 100) {
         net.push_back(reorder(fc8_dst_memory, user_dst_memory));
     }
 
-    stream(stream::kind::eager).submit(net_weights).wait();
+    stream s(cpu_engine);
     for (int j = 0; j < times; ++j) {
-        stream(stream::kind::eager).submit(net).wait();
+        for (const auto &p: net)
+            p.execute(s);
     }
 }
 
@@ -806,7 +807,7 @@ int main(int argc, char **argv) {
         auto begin = chrono::duration_cast<chrono::milliseconds>(
                              chrono::steady_clock::now().time_since_epoch())
                              .count();
-        int times = 1000;
+        int times = 100;
         simple_net(times);
         auto end = chrono::duration_cast<chrono::milliseconds>(
                            chrono::steady_clock::now().time_since_epoch())

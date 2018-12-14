@@ -253,9 +253,10 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
 
     // typedef typename prec_traits::type data_t;
 
-    virtual void execute(event_t *e) const {
+    virtual status_t execute(const exec_ctx_t &ctx) const override {
         execute_();
-        e->set_state(event_t::ready);
+        UNUSED(ctx);
+        return status::success;
     }
 
 private:

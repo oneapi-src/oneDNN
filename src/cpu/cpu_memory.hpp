@@ -54,21 +54,21 @@ struct cpu_memory_t: public cpu_primitive_t {
         , data_(nullptr) {}
     virtual ~cpu_memory_t() {}
 
-    virtual void execute(mkldnn::impl::event_t *e) const
-    { e->set_state(event_t::ready); }
+    virtual status_t execute(const exec_ctx_t &ctx) const override
+    { UNUSED(ctx); return status::success; }
 
-    virtual status_t get_data_handle(void **handle) const {
+    virtual status_t get_data_handle(void **handle) const override {
         *handle = static_cast<void *>(data_);
         return success;
     }
-    virtual mkldnn::impl::status_t set_data_handle(void *handle) {
+    virtual mkldnn::impl::status_t set_data_handle(void *handle) override {
         data_ = static_cast<char *>(handle);
         return zero_pad();
     }
 
-    virtual char *memory(size_t output_index = 0) const
+    virtual char *memory(size_t output_index = 0) const override
     { assert(output_index == 0); return data_; }
-    virtual const char* const_memory(size_t output_index = 0) const
+    virtual const char* const_memory(size_t output_index = 0) const override
     { assert(output_index == 0); return data_; }
 
     mkldnn::impl::status_t zero_pad() const;
@@ -174,12 +174,12 @@ struct cpu_view_t: public cpu_primitive_t {
     {}
     virtual ~cpu_view_t() {}
 
-    virtual void execute(mkldnn::impl::event_t *e) const
-    { e->set_state(event_t::ready); }
+    virtual status_t execute(const exec_ctx_t &ctx) const override
+    { UNUSED(ctx); return status::success; }
 
-    virtual char *memory(size_t output_index = 0) const
+    virtual char *memory(size_t output_index = 0) const override
     { assert(output_index == 0); return const_cast<char *>(input_memory()); }
-    virtual const char* const_memory(size_t output_index = 0) const
+    virtual const char* const_memory(size_t output_index = 0) const override
     { assert(output_index == 0); return input_memory(); }
 
 private:

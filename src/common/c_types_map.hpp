@@ -400,9 +400,7 @@ using primitive_at_t = mkldnn_primitive_at_t;
 
 using stream_kind_t = mkldnn_stream_kind_t;
 namespace stream_kind {
-    const stream_kind_t any_stream = mkldnn_any_stream;
-    const stream_kind_t eager = mkldnn_eager;
-    const stream_kind_t lazy = mkldnn_lazy;
+    const stream_kind_t stream_kind_default = mkldnn_stream_kind_default;
 }
 using stream_t = mkldnn_stream;
 

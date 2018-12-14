@@ -73,7 +73,7 @@ struct ref_shuffle_t : public cpu_primitive_t {
 
     typedef typename typesize_traits<data_type_size>::type data_t;
 
-    virtual void execute(event_t *e) const {
+    virtual status_t execute(const exec_ctx_t &ctx) const override {
         using namespace memory_format;
         switch (pd()->data_pd()->desc()->format) {
         case nCdhw16c: execute_<nCdhw16c>(); break;
@@ -87,7 +87,8 @@ struct ref_shuffle_t : public cpu_primitive_t {
         default:       execute_<mkldnn_any>(); break;
         }
 
-        e->set_state(event_t::ready);
+        UNUSED(ctx);
+        return status::success;
     }
 
 private:

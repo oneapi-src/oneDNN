@@ -428,9 +428,9 @@ mkldnn_status_t simple_net() {
     if (pool_reorder_dst) net[n++] = pool_reorder_dst;
 
     mkldnn_stream_t stream;
-    CHECK(mkldnn_stream_create(&stream, mkldnn_eager));
-    CHECK(mkldnn_stream_submit(stream, n, net, NULL));
-    CHECK(mkldnn_stream_wait(stream, n, NULL));
+    CHECK(mkldnn_stream_create(&stream, engine, mkldnn_stream_kind_default));
+    for (uint32_t i = 0; i < n; ++i)
+        mkldnn_primitive_execute(net[i], stream);
 
     /* clean-up */
     CHECK(mkldnn_primitive_desc_destroy(conv_pd));

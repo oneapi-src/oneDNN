@@ -116,12 +116,12 @@ struct ref_concat_t: public cpu_primitive_t {
             delete reorders_[i];
     }
 
-    virtual void execute(event_t *e) const {
+    virtual status_t execute(const exec_ctx_t &ctx) const override {
         for (size_t i = 0; i < reorders_.size(); ++i) {
-            event_t ei;
-            reorders_[i]->execute(&ei);
+            exec_ctx_t r_ctx(ctx);
+            reorders_[i]->execute(r_ctx);
         }
-        e->set_state(event_t::ready);
+        return status::success;
     }
 
 private:

@@ -71,7 +71,7 @@ private:
             const output_vector &outputs)
         : cpu_primitive_t(apd, inputs, outputs) {}
 
-    virtual void execute(event_t *e) const {
+    virtual status_t execute(const exec_ctx_t &ctx) const override {
         auto input = reinterpret_cast<const in_data_t *>(input_memory(0));
         auto output = reinterpret_cast<out_data_t *>(memory());
         const memory_desc_wrapper &input_d = pd()->input_pd();
@@ -86,7 +86,8 @@ private:
             output[output_d.off_l(i)] = qz_a1b0<float, out_data_t>()(in, rmode);
         });
 
-        e->set_state(event_t::ready);
+        UNUSED(ctx);
+        return status::success;
     }
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
@@ -170,7 +171,7 @@ private:
             const output_vector &outputs)
         : cpu_primitive_t(apd, inputs, outputs) {}
 
-    virtual void execute(event_t *e) const {
+    virtual status_t execute(const exec_ctx_t &ctx) const override {
 #if USE_MKL_PACKED_GEMM
         auto input = reinterpret_cast<const in_data_t *>(input_memory(0));
         auto output = reinterpret_cast<char *>(memory());
@@ -280,7 +281,8 @@ private:
             }
         }
 #endif
-        e->set_state(event_t::ready);
+        UNUSED(ctx);
+        return status::success;
     }
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
@@ -335,7 +337,7 @@ private:
             const output_vector &outputs)
         : cpu_primitive_t(apd, inputs, outputs) {}
 
-    virtual void execute(event_t *e) const {
+    virtual status_t execute(const exec_ctx_t &ctx) const override {
 #if USE_MKL_PACKED_GEMM
         auto input = reinterpret_cast<const float *>(input_memory(0));
         auto output = reinterpret_cast<float *>(memory());
@@ -382,8 +384,9 @@ private:
                 }
             }
         }
-        e->set_state(event_t::ready);
 #endif
+        UNUSED(ctx);
+        return status::success;
     }
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }

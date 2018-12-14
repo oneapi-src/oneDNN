@@ -52,40 +52,6 @@ struct mkldnn_engine: public mkldnn::impl::c_compatible {
     /** get kind of the current engine */
     virtual mkldnn::impl::engine_kind_t kind() const { return kind_; }
 
-    /** submits a primitive @p p for execution
-     *
-     * @param p (input)
-     *   primitive to execute
-     * @param e (output)
-     *   resulting event (to be passed to p->execute(e))
-     * @param prerequisites (input)
-     *   vector of prerequisite events that must be finished before @p p is run
-     *
-     * @return
-     *   status of the operation
-     *
-     * @remark @b Rational.
-     *   Prerequisites are separated from input-resources. Though memory is a
-     *   primitive, it becomes a singularity point in the sense of signaling
-     *   that it is ready (either it should not have corresponding event or the
-     *   event should be always returns it is ready). Let engine has pretty
-     *   simple logic wrt primitive run. Also this approach allows to reduce
-     *   the amount of prerequisites checks -- usually the \# of real
-     *   dependencies < the \# of primitive inputs).
-     *
-     * @warning
-     *   Engine does not track dependencies and their consistencies. Internal
-     *   library code may easily submit a primitive with the same resulting and
-     *   prerequisite event, obtaining dead-lock. Engine won't even try to
-     *   prevent such a situation.
-     *
-     * @note
-     *   if any of @p prerequisites is finished with @c event::error or @c
-     *   event::aborted primitive @p p would not be executed, its event's @p e
-     *   state is automatically set to @c event::aborted */
-    virtual mkldnn::impl::status_t submit(mkldnn::impl::primitive_t *p,
-            mkldnn::impl::event_t *e, event_vector &prerequisites) = 0;
-
     /* implementation section */
     virtual mkldnn::impl::status_t memory_primitive_desc_create(
             mkldnn::impl::memory_pd_t **memory_pd,

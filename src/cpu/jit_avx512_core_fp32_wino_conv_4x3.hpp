@@ -191,7 +191,7 @@ struct jit_avx512_core_fp32_wino_conv_4x3_fwd_t
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    virtual void execute(event_t *e) const
+    virtual status_t execute(const exec_ctx_t &ctx) const override
     {
         float *src = (float *)this->input_memory(0);
         float *dst = (float *)this->memory();
@@ -209,7 +209,8 @@ struct jit_avx512_core_fp32_wino_conv_4x3_fwd_t
         default:
             break;
         }
-        e->set_state(event_t::ready);
+        UNUSED(ctx);
+        return status::success;
     }
 
 private:
@@ -291,7 +292,7 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_data_t
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    virtual void execute(event_t *e) const
+    virtual status_t execute(const exec_ctx_t &ctx) const override
     {
         float *diff_dst = (float *)this->input_memory(0);
         float *diff_src = (float *)this->memory();
@@ -317,7 +318,8 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_data_t
             assert(!"invalid prop_kind");
         }
 
-        e->set_state(event_t::ready);
+        UNUSED(ctx);
+        return status::success;
     }
 
 private:
@@ -408,7 +410,7 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_t
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    virtual void execute(event_t *e) const
+    virtual status_t execute(const exec_ctx_t &ctx) const override
     {
         if (pd()->desc()->prop_kind == prop_kind::backward_weights) {
             const auto &jcp = kernel_->jcp;
@@ -426,7 +428,8 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_t
         }
         else
             assert(!"invalid prop_kind");
-        e->set_state(event_t::ready);
+        UNUSED(ctx);
+        return status::success;
     }
 
 private:

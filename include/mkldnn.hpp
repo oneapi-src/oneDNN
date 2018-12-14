@@ -149,6 +149,8 @@ public:
     /// Returns the descriptor of the underlying C API primitive.
     inline const_mkldnn_primitive_desc_t get_primitive_desc() const;
     // TODO: use the C++ API wrapper structure.
+
+    void execute(struct stream &astream) const;
 };
 
 inline mkldnn_primitive_kind_t convert_to_c(primitive::kind akind) {
@@ -3295,76 +3297,29 @@ template <> struct handle_traits<mkldnn_stream_t> {
 struct stream: public handle<mkldnn_stream_t> {
     using handle::handle;
 
-    enum kind { any = mkldnn_stream_kind_t::mkldnn_any_stream,
-        eager = mkldnn_stream_kind_t::mkldnn_eager,
-        lazy = mkldnn_stream_kind_t::mkldnn_lazy };
+    enum kind { stream_kind_default = mkldnn_stream_kind_default, };
 
     static mkldnn_stream_kind_t convert_to_c(kind akind) {
         return static_cast<mkldnn_stream_kind_t>(akind);
     }
+
     /// Constructs a stream.
-    stream(kind akind) {
+    stream(const engine &aengine, kind akind = stream_kind_default) {
         mkldnn_stream_t astream;
-        error::wrap_c_api(mkldnn_stream_create(&astream,
-                    convert_to_c(akind)),
-                "could not create a stream");
+        error::wrap_c_api(mkldnn_stream_create(&astream, aengine.get(),
+                    convert_to_c(akind)), "could not create a stream");
         reset(astream);
-    }
-
-    /// Submits a vector of primitives to a stream for computations.
-    ///
-    /// @param primitives The vector of primitives to submit.
-    /// @returns The stream.
-    stream &submit(std::vector<primitive> primitives) {
-        // TODO: find a proper way to convert vector<primitive> to
-        // vector<mkldnn_primitive_t>
-        if (primitives.size() == 0) return *this;
-        std::vector<mkldnn_primitive_t> c_api_primitives;
-        c_api_primitives.reserve(primitives.size());
-        auto convert_to_c = [](primitive p) { return p.get(); };
-        std::transform(primitives.begin(), primitives.end(),
-                std::back_inserter(c_api_primitives), convert_to_c);
-
-        mkldnn_primitive_t c_api_error_primitive;
-        error::wrap_c_api(
-                mkldnn_stream_submit(get(),
-                    c_api_primitives.size(), &c_api_primitives[0],
-                    &c_api_error_primitive),
-                "could not submit primitives to a stream",
-                &c_api_error_primitive);
-
-        return *this;
-    }
-
-    /// Waits for all computations submitted to the stream to complete.
-    ///
-    /// @param block Specifies whether the operation should wait indefinitely or
-    ///              return immediately.
-    /// @returns @c true if all computations completed.
-    /// @returns @c false if not all computations completed.
-    bool wait(bool block = true) {
-        mkldnn_primitive_t c_api_error_primitive;
-        mkldnn_status_t status = mkldnn_stream_wait(get(),
-                block, &c_api_error_primitive);
-        if (status != mkldnn_success
-                && status != mkldnn_try_again)
-            error::wrap_c_api(status, "could not wait on a stream",
-                    &c_api_error_primitive);
-        return (status == mkldnn_success);
-    }
-
-    stream &rerun() {
-        mkldnn_primitive_t c_api_error_primitive;
-        error::wrap_c_api(
-                mkldnn_stream_rerun(get(), &c_api_error_primitive),
-                "could not rerun a stream", &c_api_error_primitive);
-        return *this;
     }
 };
 
 #undef REG_QUERY_MPD
 
 /// @}
+
+inline void primitive::execute(stream &astream) const {
+    error::wrap_c_api(mkldnn_primitive_execute(get(), astream.get()),
+            "could not execute a primitive");
+}
 
 /// @} C++ API
 
