@@ -17,40 +17,19 @@
 #ifndef JIT_AVX_GEMM_F32_HPP
 #define JIT_AVX_GEMM_F32_HPP
 
-#include "c_types_map.hpp"
-#include "jit_generator.hpp"
+#include "mkldnn_types.h"
 
 namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-class jit_avx_gemm_f32 {
-public:
-    void sgemm(const char *transa, const char *transb, const int *M,
-            const int *N, const int *K, const float *alpha, const float *A,
-            const int *lda, const float *B, const int *ldb, const float *beta,
-            float *C, const int *ldc, const float *bias = NULL);
+mkldnn_status_t jit_avx_gemm_f32(
+        const char *transa, const char *transb, const int *M,
+        const int *N, const int *K, const float *alpha, const float *A,
+        const int *lda, const float *B, const int *ldb, const float *beta,
+        float *C, const int *ldc, const float *bias = nullptr);
 
-    jit_avx_gemm_f32(
-            char transa, char transb, float beta, bool hasBias = false);
-    ~jit_avx_gemm_f32();
 
-private:
-    typedef void (*ker)(long long int, long long int, long long int, float *,
-            float *, long long int, float *, long long int, float *, float *,
-            long long int, float *);
-    void sgemm_nocopy_driver(const char *transa, const char *transb, int m,
-            int n, int k, const float *alpha, const float *a, int lda,
-            const float *b, int ldb, const float *beta, float *c, int ldc,
-            const float *bias, float *ws);
-
-    char transa_, transb_;
-    float beta_;
-    bool hasBias_;
-    struct xbyak_gemm;
-    xbyak_gemm *ker_bn_, *ker_b1_, *ker_b0_;
-    int nthrs_;
-};
 }
 }
 }

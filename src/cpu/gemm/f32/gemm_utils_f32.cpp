@@ -13,7 +13,7 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-#include <math.h>
+#include <cmath>
 
 #include "mkldnn_thread.hpp"
 #include "utils.hpp"
@@ -344,8 +344,9 @@ void partition_unit_diff(
 // Sum the m*n values from p_src into p_dst, assuming the two-dimensional
 // arrays have leading dimensions ld_src and ld_dst, respectively
 template<typename data_t>
-void sum_two_matrices(
-        int m, int n, data_t *p_src, int ld_src, data_t *p_dst, int ld_dst)
+void sum_two_matrices(int m, int n,
+        data_t * __restrict p_src, int ld_src,
+        data_t * __restrict p_dst, int ld_dst)
 {
     int i, j;
     for (j = 0; j < n; j++) {
@@ -355,11 +356,15 @@ void sum_two_matrices(
     }
 }
 
-template void sum_two_matrices<float>(
-        int m, int n, float *p_src, int ld_src, float *p_dst, int ld_dst);
+template
+void sum_two_matrices<float>(int m, int n,
+        float * __restrict p_src, int ld_src,
+        float * __restrict p_dst, int ld_dst);
 
-template void sum_two_matrices<double>(
-        int m, int n, double *p_src, int ld_src, double *p_dst, int ld_dst);
+template
+void sum_two_matrices<double>(int m, int n,
+        double * __restrict p_src, int ld_src,
+        double * __restrict p_dst, int ld_dst);
 }
 }
 }

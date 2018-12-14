@@ -14,25 +14,23 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <cassert>
-#include <mutex>
-
 #include "mkldnn.h"
 
 #include "mkldnn_traits.hpp"
-#include "math_utils.hpp"
 #include "nstl.hpp"
-#include "verbose.hpp"
 
-#include "os_blas.hpp"
+#include "jit_generator.hpp"
+
 #include "gemm.hpp"
 
-#include "f32/jit_avx_gemm_f32.hpp"
 #include "f32/jit_avx512_common_gemm_f32.hpp"
+#include "f32/jit_avx_gemm_f32.hpp"
 #include "f32/ref_gemm_f32.hpp"
 
 #include "s8x8s32/jit_avx512_core_gemm_s8u8s32.hpp"
 #include "s8x8s32/ref_gemm_s8x8s32.hpp"
+
+#include "os_blas.hpp"
 
 /* USE_MKL      USE_CBLAS       effect
  * -------      ---------       ------
@@ -90,69 +88,6 @@ mkldnn_status_t check_gemm_x8x8x32_input(const char *offsetc,
         beta, with_bias);
 }
 
-struct gemm_impl_t {
-    gemm_impl_t(char transa, char transb, bool zero_beta, bool with_bias) {
-        //jit kernel has three codepaths: beta is 0, 1 or arbitrary
-        //we will generate kernel for 0 and arbitrary beta
-        float zero = 0.0f, arbitrary_float = 2.0f;
-        if (mayiuse(avx512_common)) {
-            isa_ = avx512_common;
-            ker_ = (void *)new jit_avx512_common_gemm_f32(
-                    transa, transb, zero_beta ? zero : arbitrary_float,
-                    with_bias);
-        }
-        else if (mayiuse(avx)) {
-            isa_ = avx;
-            ker_ = (void *)new jit_avx_gemm_f32(
-                    transa, transb, zero_beta ? zero : arbitrary_float,
-                    with_bias);
-        }
-    }
-
-    mkldnn_status_t call(const char *transa, const char *transb, const int *M,
-            const int *N, const int *K, const float *alpha, const float *A,
-            const int *lda, const float *B, const int *ldb, const float *beta,
-            float *C, const int *ldc, const float *bias = nullptr) {
-        switch (isa_) {
-            case avx:
-                ((jit_avx_gemm_f32*)ker_)->sgemm(transa, transb, M, N, K,
-                    alpha, A, lda, B, ldb, beta, C, ldc, bias);
-                break;
-            case avx512_common:
-                ((jit_avx512_common_gemm_f32*)ker_)->sgemm(transa, transb,
-                    M, N, K, alpha, A, lda, B, ldb, beta, C, ldc, bias);
-                break;
-            default:
-                ref_gemm(transa, transb, M, N, K, alpha, A, lda, B, ldb, beta,
-                        C, ldc, bias);
-                break;
-        }
-        return mkldnn_success;
-    }
-
-    void *ker_;
-    cpu_isa_t isa_;
-};
-
-//Gemm implementations for: zero/nonzero beta, transA, transB
-static gemm_impl_t *gemm_impl[2][2][2];
-//Gemm with bias implementations for: transA, transB
-//Gemm with bias for beta!=0. is not supported
-static gemm_impl_t *gemm_bias_impl[2][2];
-
-void initialize() {
-    for (int i = 0; i < 2; ++i) {
-        gemm_impl[i][0][0] = new gemm_impl_t('n', 'n', (bool)i, false);
-        gemm_impl[i][0][1] = new gemm_impl_t('n', 't', (bool)i, false);
-        gemm_impl[i][1][0] = new gemm_impl_t('t', 'n', (bool)i, false);
-        gemm_impl[i][1][1] = new gemm_impl_t('t', 't', (bool)i, false);
-    }
-    gemm_bias_impl[0][0] = new gemm_impl_t('n', 'n', true, true);
-    gemm_bias_impl[0][1] = new gemm_impl_t('n', 't', true, true);
-    gemm_bias_impl[1][0] = new gemm_impl_t('t', 'n', true, true);
-    gemm_bias_impl[1][1] = new gemm_impl_t('t', 't', true, true);
-}
-
 mkldnn_status_t extended_sgemm(const char *transa, const char *transb,
         const int *M, const int *N, const int *K, const float *alpha,
         const float *A, const int *lda, const float *B, const int *ldb,
@@ -163,10 +98,10 @@ mkldnn_status_t extended_sgemm(const char *transa, const char *transb,
     if (status != mkldnn_success)
         return status;
 
-    int trA = *transa == 't' || *transa == 'T';
-    int trB = *transb == 't' || *transb == 'T';
 #ifdef USE_CBLAS
     if (!force_jit_gemm) {
+        bool trA = *transa == 't' || *transa == 'T';
+        bool trB = *transb == 't' || *transb == 'T';
         CBLAS_TRANSPOSE Cblas_trA = trA ? CblasTrans : CblasNoTrans;
         CBLAS_TRANSPOSE Cblas_trB = trB ? CblasTrans : CblasNoTrans;
         cblas_sgemm(CblasColMajor, Cblas_trA, Cblas_trB,
@@ -183,19 +118,16 @@ mkldnn_status_t extended_sgemm(const char *transa, const char *transb,
         return mkldnn_success;
     }
 #endif
-    //Generate jit kernel and call sgemm with bias
-    static std::once_flag initialized;
-    std::call_once(initialized, [] { mkldnn::impl::cpu::initialize(); });
 
-    if (bias)
-        gemm_bias_impl[trA][trB]->call(
-                transa, transb, M, N, K, alpha, A, lda, B, ldb, beta, C, ldc,
-                bias);
+    if (mayiuse(avx512_common))
+        return jit_avx512_common_gemm_f32(transa, transb,
+                M, N, K, alpha, A, lda, B, ldb, beta, C, ldc, bias);
+    else if (mayiuse(avx))
+        return jit_avx_gemm_f32(transa, transb,
+                M, N, K, alpha, A, lda, B, ldb, beta, C, ldc, bias);
     else
-        gemm_impl[*beta == 0.f][trA][trB]->call(
-                transa, transb, M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
-
-    return mkldnn_success;
+        return ref_gemm<float>(transa, transb,
+                M, N, K, alpha, A, lda, B, ldb, beta, C, ldc, bias);
 }
 
 template <typename b_dt>
