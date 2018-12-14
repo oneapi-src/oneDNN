@@ -14,42 +14,26 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GEMM_HPP
-#define GEMM_HPP
+#ifndef REF_GEMM_S8X8S32_HPP
+#define REF_GEMM_S8X8S32_HPP
 
-#include "os_blas.hpp"
+#include <stdint.h>
+
+#include "mkldnn_types.h"
 
 namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-mkldnn_status_t extended_sgemm(const char *transa, const char *transb,
-        const int *M, const int *N, const int *K, const float *alpha,
-        const float *A, const int *lda, const float *B, const int *ldb,
-        const float *beta, float *C, const int *ldc,
-        const float *bias = nullptr, bool force_jit_gemm = false);
-
 template <typename b_dt>
-mkldnn_status_t gemm_s8x8s32(const char *transa, const char *transb,
+mkldnn_status_t ref_gemm_s8x8s32(const char *transa, const char *transb,
         const char *offsetc, const int *M, const int *N, const int *K,
-        const float *alpha, const int8_t *A, const int *lda, const int8_t *ao,
-        const b_dt *B, const int *ldb, const int8_t *bo, const float *beta,
-        int32_t *c, const int *ldc, const int32_t *co);
-
-#ifdef USE_CBLAS
-#define GEMM_IMPL_STR "gemm:blas"
-#else
-#define GEMM_IMPL_STR "gemm:jit"
-#endif
-
-#if USE_MKL_IGEMM
-#define IGEMM_IMPL_STR "igemm:blas"
-#else
-#define IGEMM_IMPL_STR "igemm:jit"
-#endif
+        const float *alpha, const int8_t *A, const int *LDA, const int8_t *ao,
+        const b_dt *B, const int *LDB, const int8_t *bo, const float *beta,
+        int32_t *C, const int *LDC, const int32_t *co);
 
 }
 }
 }
-
 #endif
+

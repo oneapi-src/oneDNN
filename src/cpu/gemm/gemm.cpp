@@ -29,7 +29,10 @@
 
 #include "f32/jit_avx_gemm_f32.hpp"
 #include "f32/jit_avx512_common_gemm_f32.hpp"
+#include "f32/ref_gemm_f32.hpp"
+
 #include "s8x8s32/jit_avx512_core_gemm_s8u8s32.hpp"
+#include "s8x8s32/ref_gemm_s8x8s32.hpp"
 
 /* USE_MKL      USE_CBLAS       effect
  * -------      ---------       ------

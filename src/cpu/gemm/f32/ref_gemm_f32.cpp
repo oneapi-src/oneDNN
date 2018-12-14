@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "mkldnn_types.h"
+
 #include "mkldnn_thread.hpp"
 #include "nstl.hpp"
 #include "utils.hpp"
@@ -21,6 +23,7 @@
 #include "jit_generator.hpp"
 
 #include "gemm_utils_f32.hpp"
+#include "ref_gemm_f32.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -29,13 +32,14 @@ namespace cpu {
 using namespace mkldnn::impl::utils;
 using namespace gemm_utils;
 
+namespace {
 
 template <typename data_t>
-static void copy_A(
+void copy_A(
         bool isTransA, int K, const data_t *A, const int lda, data_t *ws) {
     for (int k = 0; k < K; k++) {
         PRAGMA_OMP_SIMD()
-        for (int i = 0; i < gemm_utils::unroll_factor<data_t>::m; i++) {
+        for (int i = 0; i < unroll_factor<data_t>::m; i++) {
             ws[i] = isTransA ? A[i * lda + k] : A[i + k * lda];
         }
         ws += unroll_factor<data_t>::m;
@@ -43,7 +47,7 @@ static void copy_A(
 }
 
 template <typename data_t, bool isTransA, bool isTransB>
-static void kernel_mxn(int K, const data_t *A, const int lda,
+void kernel_mxn(int K, const data_t *A, const int lda,
         const data_t *B, const int ldb, data_t *C, const int ldc,
         const data_t alpha, const data_t beta) {
     data_t c[unroll_factor<data_t>::m * unroll_factor<data_t>::n] =
@@ -70,7 +74,7 @@ static void kernel_mxn(int K, const data_t *A, const int lda,
 }
 
 template <typename data_t, bool isTransA, bool isTransB>
-static void block_ker(const int M, const int N, const int K,
+void block_ker(const int M, const int N, const int K,
         const data_t *A, const int lda, const data_t *B, const int ldb,
         data_t *C, const int ldc, const data_t alpha, const data_t beta,
         data_t *ws, bool do_copy) {
@@ -171,8 +175,11 @@ void gemm_ithr(const int M, const int N, const int K, const data_t alpha,
     }
 }
 
+}
+
 template <typename data_t>
-void ref_gemm(const char *transa_, const char *transb_, const int *M_,
+mkldnn_status_t ref_gemm(
+        const char *transa_, const char *transb_, const int *M_,
         const int *N_, const int *K_, const data_t *alpha_, const data_t *A,
         const int *lda_, const data_t *B, const int *ldb_, const data_t *beta_,
         data_t *C, const int *ldc_, const data_t *bias) {
@@ -185,7 +192,7 @@ void ref_gemm(const char *transa_, const char *transb_, const int *M_,
     int nthr_m, nthr_n, nthr_k;
     int MB, NB, KB;
     // thread balancing over M, N, K & size of blocking dimensions
-    gemm_utils::calc_nthr_nocopy_avx(
+    calc_nthr_nocopy_avx(
             M, N, K, max_nthr, &nthr_m, &nthr_n, &nthr_k, &MB, &NB, &KB);
     assert(IMPLICATION(!mkldnn_thr_syncable(), nthr_k == 1));
 
@@ -205,7 +212,7 @@ void ref_gemm(const char *transa_, const char *transb_, const int *M_,
     const int nthr = nthr_mn * nthr_k;
     const size_t ws_elems_per_thr = K * unroll_factor<data_t>::m;
     const size_t ws_size_per_thr
-            = utils::rnd_up(ws_elems_per_thr * sizeof(data_t), PAGE_4K);
+            = rnd_up(ws_elems_per_thr * sizeof(data_t), PAGE_4K);
     if (do_copy) {
         ws_buffers = (data_t*)malloc(nthr * ws_size_per_thr, PAGE_4K);
         if (!ws_buffers)
@@ -301,14 +308,18 @@ void ref_gemm(const char *transa_, const char *transb_, const int *M_,
 
     free(ws_buffers);
     free(c_buffers);
+
+    return mkldnn_success;
 }
 
-template void ref_gemm<float>(const char *transa_, const char *transb_,
+template mkldnn_status_t ref_gemm<float>(
+        const char *transa_, const char *transb_,
         const int *M_, const int *N_, const int *K_, const float *alpha_,
         const float *A, const int *lda_, const float *B, const int *ldb_,
         const float *beta_, float *C, const int *ldc_, const float *bias);
 
-template void ref_gemm<double>(const char *transa_, const char *transb_,
+template mkldnn_status_t ref_gemm<double>(
+        const char *transa_, const char *transb_,
         const int *M_, const int *N_, const int *K_, const double *alpha_,
         const double *A, const int *lda_, const double *B, const int *ldb_,
         const double *beta_, double *C, const int *ldc_, const double *bias);

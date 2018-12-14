@@ -16,7 +16,7 @@
 
 #include <stdint.h>
 #include "jit_generator.hpp"
-#include "../gemm.hpp"
+#include "../f32/ref_gemm_f32.hpp"
 #include "math_utils.hpp"
 #include "mkldnn_thread.hpp"
 #include "utils.hpp"
