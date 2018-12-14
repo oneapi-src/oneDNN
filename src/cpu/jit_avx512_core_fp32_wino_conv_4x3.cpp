@@ -341,7 +341,7 @@ void _jit_avx512_core_fp32_wino_conv_4x3_t<is_fwd>::_execute_data_W_S_G_D(
             last_slice_bias[oc] = bias(jcp.dimM / jcp.dimM_simd_block - 1, oc);
     }
 
-#pragma omp parallel
+PRAGMA_OMP(parallel)
     {
 
         parallel_nd_in_omp(jcp.mb, jcp.dimK_nb_block, jcp.dimK_block,
@@ -368,7 +368,7 @@ void _jit_avx512_core_fp32_wino_conv_4x3_t<is_fwd>::_execute_data_W_S_G_D(
             });
         }
 
-#pragma omp barrier
+PRAGMA_OMP(barrier)
 
         parallel_nd_in_omp(jcp.dimN_nb_block, alpha, alpha, jcp.dimM_nb_block,
             [&](int N_blk1, int oj, int oi, int M_blk1) {
@@ -384,7 +384,7 @@ void _jit_avx512_core_fp32_wino_conv_4x3_t<is_fwd>::_execute_data_W_S_G_D(
                             N_blk2, K_blk1, 0, 0, 0)), K_blk1);
         });
 
-#pragma omp barrier
+PRAGMA_OMP(barrier)
 
         parallel_nd_in_omp(jcp.mb, jcp.dimM_nb_block, (jcp.dimM_block * jcp.dimM_reg_block),
                     [&](int img, int M_blk1, int M_blk2) {
@@ -480,12 +480,12 @@ void _jit_avx512_core_fp32_wino_conv_4x3_t<is_fwd>::_execute_data_W_SGD(
         });
     }
 
-#pragma omp parallel
+PRAGMA_OMP(parallel)
     {
 
     int ithr = mkldnn_get_thread_num();
 
-#pragma omp for schedule(static)
+PRAGMA_OMP(for schedule(static))
     for (int tile_block = 0; tile_block < jcp.tile_block; tile_block++) {
         for (int K_blk1 = 0; K_blk1 < jcp.dimK_nb_block; K_blk1++) {
             for (int K_blk2 = 0; K_blk2 < jcp.dimK_block; K_blk2++) {
@@ -547,7 +547,7 @@ void subarray_sum(size_t num_arrs, float *output, size_t nelems,
     const size_t blocks_number = nelems / block_size;
     const size_t tail = nelems % block_size;
 
-#pragma omp parallel
+PRAGMA_OMP(parallel)
     {
         const int ithr = mkldnn_get_thread_num();
         const int nthr = mkldnn_get_num_threads();
@@ -629,7 +629,7 @@ void array_sum(size_t num_arrs, float *output,
     const size_t blocks_number = nelems / block_size;
     const size_t tail = nelems % block_size;
 
-#pragma omp parallel
+PRAGMA_OMP(parallel)
     {
         const size_t ithr = mkldnn_get_thread_num();
         const size_t nthr = mkldnn_get_num_threads();
@@ -726,7 +726,7 @@ _execute_backward_weights_SDGtWo() {
        1.13777777777778f};
     float G_O_3x3_4x4[4] = {2.25f, 0.625f, 1.5f, 0.390625f};
 
-#pragma omp parallel num_threads(nthreads) firstprivate(trans_ker_p, I, T)
+PRAGMA_OMP(parallel num_threads(nthreads) firstprivate(trans_ker_p, I, T))
 {
     if (jcp.with_bias) {
         parallel_nd_in_omp(nthreads, jcp.oc / simd_w,
@@ -742,7 +742,7 @@ _execute_backward_weights_SDGtWo() {
     int ithr = mkldnn_get_thread_num();
     for (int ifm1 = 0; ifm1 < jcp.nb_ic; ++ifm1) {
         int first_tblk = 0;
-#pragma omp for
+PRAGMA_OMP(for)
         for (int tblk1 = 0; tblk1 < jcp.tile_block; ++tblk1) {
             int tile_index = tblk1 * jcp.nb_tile_block_ur * jcp.tile_block_ur;
             int img = tile_index / (jcp.itiles * jcp.jtiles);
@@ -894,7 +894,7 @@ _execute_backward_weights_S_D_Giot_W() {
     float I[alpha][alpha][simd_w];
     float T[alpha][alpha][simd_w];
 
-#pragma omp parallel firstprivate(first_tblk, trans_ker_p, I, T)
+PRAGMA_OMP(parallel firstprivate(first_tblk, trans_ker_p, I, T))
 {
     if (jcp.with_bias) {
         parallel_nd_in_omp(nthreads, jcp.oc, [&](int ithr, int ofm) {
@@ -943,7 +943,7 @@ _execute_backward_weights_S_D_Giot_W() {
         }
     });
 
-    #pragma omp barrier
+    PRAGMA_OMP(barrier)
 
     parallel_nd_in_omp(jcp.nb_ic, jcp.nb_oc, alpha, alpha, jcp.tile_block,
         [&](int ifm1, int ofm1, int oj, int oi, int tblk1){
@@ -993,7 +993,7 @@ _execute_backward_weights_S_D_Giot_W() {
     }
 
     trans_ker_p.G = G_O_3x3_4x4;
-#pragma omp parallel firstprivate(trans_ker_p)
+PRAGMA_OMP(parallel firstprivate(trans_ker_p))
     {
         parallel_nd_in_omp(jcp.nb_ic, jcp.nb_oc, jcp.oc_block, jcp.ic_block, jcp.oc_reg_block,
             [&](int ifm1, int ofm1, int ofm2, int ifm2, int ofm3){
