@@ -43,16 +43,14 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::status;
-
 mkldnn_status_t check_gemm_input(const char *transa, const char *transb,
         const int *M, const int *N, const int *K, const int *lda,
         const int *ldb, const int *ldc, const float *alpha, const float *beta,
         const bool with_bias) {
     if (utils::any_null(transa, transb, M, N, K, lda, ldb, ldc, alpha, beta))
-        return invalid_arguments;
+        return mkldnn_invalid_arguments;
     if (with_bias && *beta != 0)
-        return unimplemented;
+        return mkldnn_unimplemented;
     bool consistency = true
         && utils::one_of(*transa, 'T', 't', 'N', 'n')
         && utils::one_of(*transb, 'T', 't', 'N', 'n')
@@ -60,7 +58,8 @@ mkldnn_status_t check_gemm_input(const char *transa, const char *transb,
         && *N >= 0
         && *K >= 0;
 
-    if (!consistency) return invalid_arguments;
+    if (!consistency)
+        return mkldnn_invalid_arguments;
     bool isTransA = utils::one_of(*transa, 'T', 't');
     bool isTransB = utils::one_of(*transb, 'T', 't');
     int nrowA = isTransA ? *K : *M;
@@ -69,19 +68,20 @@ mkldnn_status_t check_gemm_input(const char *transa, const char *transb,
         && *lda >= nstl::max(1, nrowA)
         && *ldb >= nstl::max(1, nrowB)
         && *ldc >= nstl::max(1, *M);
-    if (!consistency) return invalid_arguments;
+    if (!consistency)
+        return mkldnn_invalid_arguments;
 
-    return success;
+    return mkldnn_success;
 }
 
 mkldnn_status_t check_gemm_x8x8x32_input(const char *offsetc,
         const char *transa, const char *transb, const int *M, const int *N,
         const int *K, const int *lda, const int *ldb, const int *ldc,
         const float *alpha, const float *beta, const bool with_bias) {
-
-    if (offsetc == nullptr) return invalid_arguments;
+    if (offsetc == nullptr)
+        return mkldnn_invalid_arguments;
     if (!utils::one_of(*offsetc, 'F', 'f', 'C', 'c', 'R', 'r'))
-        return invalid_arguments;
+        return mkldnn_invalid_arguments;
 
     return check_gemm_input(transa, transb, M, N, K, lda, ldb, ldc, alpha,
         beta, with_bias);
@@ -155,24 +155,22 @@ mkldnn_status_t extended_sgemm(const char *transa, const char *transb,
         const float *A, const int *lda, const float *B, const int *ldb,
         const float *beta, float *C, const int *ldc,
         const float *bias, const bool force_jit_gemm) {
-    //Check input
     mkldnn_status_t status = check_gemm_input(transa, transb, M, N, K,
             lda, ldb, ldc, alpha, beta, bias != nullptr);
     if (status != mkldnn_success)
         return status;
-    if (*M == 0 || *N == 0 || *K == 0)
-        return mkldnn_success;
+
     int trA = *transa == 't' || *transa == 'T';
     int trB = *transb == 't' || *transb == 'T';
 #ifdef USE_CBLAS
     if (!force_jit_gemm) {
-        //Call cblas
         CBLAS_TRANSPOSE Cblas_trA = trA ? CblasTrans : CblasNoTrans;
         CBLAS_TRANSPOSE Cblas_trB = trB ? CblasTrans : CblasNoTrans;
         cblas_sgemm(CblasColMajor, Cblas_trA, Cblas_trB,
                 *M, *N, *K, *alpha, A, *lda, B, *ldb, *beta, C, *ldc);
-        //Add bias if necessary (bias is applied to columns of C)
+
         if (bias) {
+            // Add bias if necessary (bias is applied to columns of C)
             cblas_int incx = 1, incy = 1;
             parallel_nd(*N, [&](int n) {
                 ptrdiff_t offset = (ptrdiff_t)n * (*ldc);
@@ -203,23 +201,18 @@ mkldnn_status_t gemm_s8x8s32(const char *transa, const char *transb,
         const float *alpha, const int8_t *A, const int *LDA, const int8_t *ao,
         const b_dt *B, const int *LDB, const int8_t *bo, const float *beta,
         int32_t *C, const int *LDC, const int32_t *co) {
-
     mkldnn_status_t status = check_gemm_x8x8x32_input(offsetc, transa, transb,
         M, N, K, LDA, LDB, LDC, alpha, beta, false);
-
     if (status != mkldnn_success)
         return status;
 
-    if (*M == 0 || *N == 0 || *K == 0)
-        return mkldnn_success;
-
 #if USE_MKL_IGEMM
-    bool OCisR = (*offsetc == 'R' || *offsetc == 'r');
-    bool OCisC = (*offsetc == 'C' || *offsetc == 'c');
-    bool AisN = (*transa == 'N' || *transa == 'n');
-    bool BisN = (*transb == 'N' || *transb == 'n');
-
     if (data_traits<b_dt>::data_type == data_type::u8) {
+        bool OCisR = (*offsetc == 'R' || *offsetc == 'r');
+        bool OCisC = (*offsetc == 'C' || *offsetc == 'c');
+        bool AisN = (*transa == 'N' || *transa == 'n');
+        bool BisN = (*transb == 'N' || *transb == 'n');
+
         CBLAS_TRANSPOSE Cblas_trA = AisN ? CblasNoTrans : CblasTrans;
         CBLAS_TRANSPOSE Cblas_trB = BisN ? CblasNoTrans : CblasTrans;
         CBLAS_OFFSET Cblas_offsetc =
