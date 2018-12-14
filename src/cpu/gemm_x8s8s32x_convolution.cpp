@@ -36,7 +36,7 @@ using namespace mkldnn::impl::memory_tracking::names;
 
 template <data_type_t src_type, data_type_t dst_type>
 void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::
-execute_forward() {
+execute_forward() const {
     auto src_base = reinterpret_cast<const src_data_t *>(this->input_memory(0));
     auto wei_base = reinterpret_cast<const wei_data_t *>(this->input_memory(1));
     auto bia_base = reinterpret_cast<const char *>(this->input_memory(2));
@@ -61,7 +61,7 @@ template <data_type_t src_type, data_type_t dst_type>
 void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::
 execute_forward_thr(const int ithr, const int nthr, const src_data_t *src_base,
         const wei_data_t *wei_base, const char *bia_base, dst_data_t *dst_base,
-        const memory_tracking::grantor_t &scratchpad) {
+        const memory_tracking::grantor_t &scratchpad) const {
     const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
 
     const auto src_md = memory_desc_wrapper(pd()->src_pd());
@@ -179,7 +179,8 @@ execute_forward_thr(const int ithr, const int nthr, const src_data_t *src_base,
 }
 
 template <data_type_t dst_type>
-void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data() {
+void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::
+execute_backward_data() const {
     auto diff_dst_base = reinterpret_cast<const diff_dst_data_t *>
             (this->input_memory(0));
     auto wei_base = reinterpret_cast<const wei_data_t *>(this->input_memory(1));
@@ -201,7 +202,7 @@ void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::
 execute_backward_data_thr(const int ithr, const int nthr,
         const diff_dst_data_t *diff_dst_base, const wei_data_t *wei_base,
         const char *bia_base, diff_src_data_t *diff_src_base,
-        const memory_tracking::grantor_t &scratchpad)
+        const memory_tracking::grantor_t &scratchpad) const
 {
     const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
 

@@ -120,7 +120,7 @@ struct ref_sum_t: public cpu_primitive_t {
             delete reorders_[i];
     }
 
-    virtual void execute(event_t *e) {
+    virtual void execute(event_t *e) const {
         const auto n = reorders_.size();
         for (size_t i = 0; i < n; ++i) {
             event_t ei;

@@ -75,7 +75,7 @@ struct _jit_avx512_common_convolution_winograd_t {
     protected:
         void _execute_data_W_S_G_D(float *inp_ptr, float *out_ptr,
                 float *wei_ptr, float *bias_ptr,
-                const memory_tracking::grantor_t &scratchpad);
+                const memory_tracking::grantor_t &scratchpad) const;
         _jit_avx512_common_conv_winograd_data_kernel_f32 *kernel_;
         const primitive_attr_t *attr_;
 };
@@ -155,7 +155,7 @@ struct jit_avx512_common_convolution_winograd_fwd_t
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    virtual void execute(event_t *e)
+    virtual void execute(event_t *e) const
     {
         float *src = (float *)this->input_memory(0);
         float *dst = (float *)this->memory();
@@ -239,7 +239,7 @@ struct jit_avx512_common_convolution_winograd_bwd_data_t
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    virtual void execute(event_t *e)
+    virtual void execute(event_t *e) const
     {
         assert(pd()->desc()->prop_kind == prop_kind::backward_data
                 && "invalid prop_kind");
@@ -332,7 +332,7 @@ struct jit_avx512_common_convolution_winograd_bwd_weights_t
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    virtual void execute(event_t *e)
+    virtual void execute(event_t *e) const
     {
         assert(pd()->desc()->prop_kind == prop_kind::backward_weights
                 && "invalid prop_kind");
@@ -342,9 +342,9 @@ struct jit_avx512_common_convolution_winograd_bwd_weights_t
 
 private:
     void _execute_backward_weights_S_D_G_W(
-            const memory_tracking::grantor_t &scratchpad);
+            const memory_tracking::grantor_t &scratchpad) const;
     void _maybe_execute_diff_bias_copy(
-            const memory_tracking::grantor_t &scratchpad);
+            const memory_tracking::grantor_t &scratchpad) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_avx512_common_conv_winograd_bwd_weights_kernel_f32 *kernel_;

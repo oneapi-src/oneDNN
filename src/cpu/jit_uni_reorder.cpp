@@ -871,13 +871,14 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
     }
     ~jit_uni_reorder_t() { delete kernel_; }
 
-    void omp_driver_0d(int off, const char *in, char *out, const float *scale) {
+    void omp_driver_0d(int off, const char *in, char *out,
+            const float *scale) const {
         tr::call_param_t c{in, out, scale};
         (*kernel_)(&c);
     }
 
     void omp_driver_1d(int ithr, int nthr, int off, const char *in, char *out,
-            const float *scale) {
+            const float *scale) const {
         const tr::node_t *ns = pd()->prb_.nodes + off;
         for_nd(ithr, nthr, (ptrdiff_t)ns[0].n, [&](ptrdiff_t d0) {
             auto c = tr::call_param_t();
@@ -889,7 +890,7 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
     }
 
     void omp_driver_2d(int ithr, int nthr, int off, const char *in, char *out,
-            const float *scale) {
+            const float *scale) const {
         const tr::node_t *ns = pd()->prb_.nodes + off;
         for_nd(ithr, nthr, (ptrdiff_t)ns[1].n, (ptrdiff_t)ns[0].n,
                 [&](ptrdiff_t d1, ptrdiff_t d0) {
@@ -904,7 +905,7 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
     }
 
     void omp_driver_3d(int ithr, int nthr, int off, const char *in, char *out,
-            const float *scale) {
+            const float *scale) const {
         const tr::node_t *ns = pd()->prb_.nodes + off;
         for_nd(ithr, nthr, (ptrdiff_t)ns[2].n, (ptrdiff_t)ns[1].n,
                 (ptrdiff_t)ns[0].n,
@@ -920,7 +921,7 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
     }
 
     void omp_driver_4d(int ithr, int nthr, int off, const char *in, char *out,
-            const float *scale) {
+            const float *scale) const {
         const tr::node_t *ns = pd()->prb_.nodes + off;
         for_nd(ithr, nthr, (ptrdiff_t)ns[3].n, (ptrdiff_t)ns[2].n,
                 (ptrdiff_t)ns[1].n, (ptrdiff_t)ns[0].n,
@@ -936,7 +937,7 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
         });
     }
 
-    void omp_driver(const char *in, char *out, const float *scale) {
+    void omp_driver(const char *in, char *out, const float *scale) const {
         in += pd()->prb_.ioff * data_type_size(pd()->prb_.itype);
         out += pd()->prb_.ooff * data_type_size(pd()->prb_.otype);
 
@@ -966,7 +967,7 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
         }
     }
 
-    virtual void execute(event_t *e) {
+    virtual void execute(event_t *e) const {
         auto in = reinterpret_cast<const char *>(input_memory(0));
         auto out = reinterpret_cast<char *>(memory());
 

@@ -26,7 +26,7 @@ namespace impl {
 namespace cpu {
 
 template <cpu_isa_t isa>
-void jit_uni_pooling_fwd_t<isa>::execute_forward() {
+void jit_uni_pooling_fwd_t<isa>::execute_forward() const {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto dst = reinterpret_cast<data_t*>(this->memory(0));
     auto indices = pd()->desc()->alg_kind == alg_kind::pooling_max ?
@@ -71,7 +71,7 @@ void jit_uni_pooling_fwd_t<isa>::execute_forward() {
 }
 
 template <cpu_isa_t isa>
-void jit_uni_pooling_fwd_t<isa>::execute_forward_3d() {
+void jit_uni_pooling_fwd_t<isa>::execute_forward_3d() const {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto dst = reinterpret_cast<data_t*>(this->memory(0));
     auto indices = pd()->desc()->alg_kind == alg_kind::pooling_max ?
@@ -131,7 +131,7 @@ void jit_uni_pooling_fwd_t<isa>::execute_forward_3d() {
 
 
 template <cpu_isa_t isa>
-void jit_uni_pooling_bwd_t<isa>::execute_backward() {
+void jit_uni_pooling_bwd_t<isa>::execute_backward() const {
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto diff_src = reinterpret_cast<data_t*>(this->memory(0));
     auto indices = pd()->desc()->alg_kind == alg_kind::pooling_max ?
@@ -178,7 +178,7 @@ void jit_uni_pooling_bwd_t<isa>::execute_backward() {
 }
 
 template <cpu_isa_t isa>
-void jit_uni_pooling_bwd_t<isa>::execute_backward_3d() {
+void jit_uni_pooling_bwd_t<isa>::execute_backward_3d() const {
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto diff_src = reinterpret_cast<data_t*>(this->memory(0));
     auto indices = pd()->desc()->alg_kind == alg_kind::pooling_max ?

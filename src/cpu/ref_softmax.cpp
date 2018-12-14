@@ -34,7 +34,7 @@ namespace impl {
 namespace cpu {
 
 template <impl::data_type_t data_type>
-void ref_softmax_fwd_t<data_type>::execute_forward_dense() {
+void ref_softmax_fwd_t<data_type>::execute_forward_dense() const {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto dst = reinterpret_cast<data_t *>(this->memory(0));
 
@@ -52,7 +52,7 @@ void ref_softmax_fwd_t<data_type>::execute_forward_dense() {
 }
 
 template <impl::data_type_t data_type>
-void ref_softmax_fwd_t<data_type>::execute_forward_generic() {
+void ref_softmax_fwd_t<data_type>::execute_forward_generic() const {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto dst = reinterpret_cast<data_t *>(this->memory(0));
 
@@ -96,7 +96,7 @@ void ref_softmax_fwd_t<data_type>::execute_forward_generic() {
 
 template <impl::data_type_t data_type>
 void ref_softmax_fwd_t<data_type>::_max(int n, const data_t *x,
-        data_t *max_data) {
+        data_t *max_data) const {
     max_data[0] = x[0];
     for (int c = 1; c < n; ++c)
         max_data[0] = nstl::max(max_data[0], x[c]);
@@ -104,13 +104,14 @@ void ref_softmax_fwd_t<data_type>::_max(int n, const data_t *x,
 
 template <impl::data_type_t data_type>
 void ref_softmax_fwd_t<data_type>::_sub(int n, data_t alpha, const data_t *x,
-        data_t *y) {
+        data_t *y) const {
     for (int c = 0; c < n; ++c)
         y[c] = x[c] - alpha;
 }
 
 template <impl::data_type_t data_type>
-void ref_softmax_fwd_t<data_type>::_exp(int n, const data_t *a, data_t *r) {
+void ref_softmax_fwd_t<data_type>::_exp(int n, const data_t *a,
+        data_t *r) const {
 #ifdef USE_MKL
     if (data_type == data_type::f32) {
         vsExp(n, a, r);
@@ -122,7 +123,7 @@ void ref_softmax_fwd_t<data_type>::_exp(int n, const data_t *a, data_t *r) {
 
 template <impl::data_type_t data_type>
 void ref_softmax_fwd_t<data_type>::_sum(int n, const data_t *x,
-        data_t *sum_data) {
+        data_t *sum_data) const {
 #ifdef USE_MKL
     // Here we are summing x's eg. e^z , which are positives
     // so we can use BLAS ASUM
@@ -130,7 +131,7 @@ void ref_softmax_fwd_t<data_type>::_sum(int n, const data_t *x,
         sum_data[0] = cblas_sasum(n, x, 1);
         return;
     }
-#endif  
+#endif
     data_t tsum = static_cast<data_t>(0);
     PRAGMA_OMP_SIMD(reduction(+ : tsum))
     for (int c = 0; c < n; ++c)
@@ -139,7 +140,7 @@ void ref_softmax_fwd_t<data_type>::_sum(int n, const data_t *x,
 }
 
 template <impl::data_type_t data_type>
-void ref_softmax_fwd_t<data_type>::_scal(int n, data_t alpha, data_t *x) {
+void ref_softmax_fwd_t<data_type>::_scal(int n, data_t alpha, data_t *x) const {
 #ifdef USE_MKL
     if (data_type == data_type::f32) {
         cblas_sscal(n, alpha, x, 1);
@@ -154,7 +155,7 @@ template struct ref_softmax_fwd_t<data_type::f32>;
 
 // NC/NCHW softmax for along final axe (1 for NC, 3 for NCHW)
 template <impl::data_type_t data_type>
-void ref_softmax_bwd_t<data_type>::execute_backward_dense() {
+void ref_softmax_bwd_t<data_type>::execute_backward_dense() const {
     auto data = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto diff_src = reinterpret_cast<data_t *>(this->memory(0));
@@ -177,7 +178,7 @@ void ref_softmax_bwd_t<data_type>::execute_backward_dense() {
 }
 
 template <impl::data_type_t data_type>
-void ref_softmax_bwd_t<data_type>::execute_backward_generic() {
+void ref_softmax_bwd_t<data_type>::execute_backward_generic() const {
     const size_t dim = channels_ * inner_size_;
     auto data = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));

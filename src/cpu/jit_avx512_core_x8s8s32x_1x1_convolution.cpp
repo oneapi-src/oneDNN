@@ -58,7 +58,7 @@ void balance2D(U nthr, U ithr, T ny, T &ny_start, T &ny_end,
 /* convolution forward */
 template <data_type_t src_type, data_type_t dst_type>
 void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t
-                              <src_type, dst_type>::execute_forward()
+                              <src_type, dst_type>::execute_forward() const
 {
     auto src = reinterpret_cast<const src_data_t *>(this->input_memory(0));
     auto weights =
@@ -91,7 +91,7 @@ template <data_type_t src_type, data_type_t dst_type>
 void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<src_type, dst_type>
 ::execute_forward_thr(const int ithr, const int nthr, const src_data_t *src,
         const wei_data_t *weights, const char *bias, dst_data_t *dst,
-        const memory_tracking::grantor_t &scratchpad) {
+        const memory_tracking::grantor_t &scratchpad) const {
     const memory_desc_wrapper src_d(pd()->src_pd());
     const memory_desc_wrapper dst_d(pd()->dst_pd());
     const memory_desc_wrapper weights_d(pd()->weights_pd(0));

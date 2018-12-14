@@ -542,7 +542,7 @@ jit_avx512_core_i8i8_pooling_fwd_t(const pd_t *apd,
 jit_avx512_core_i8i8_pooling_fwd_t::
 ~jit_avx512_core_i8i8_pooling_fwd_t() { delete ker_; }
 
-void jit_avx512_core_i8i8_pooling_fwd_t::execute_forward() {
+void jit_avx512_core_i8i8_pooling_fwd_t::execute_forward() const {
     auto src_i8 = reinterpret_cast<const char *>(input_memory(0));
     auto dst_i8 = reinterpret_cast<char *>(memory());
 

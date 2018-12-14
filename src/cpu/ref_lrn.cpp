@@ -47,7 +47,7 @@ static inline float fast_negative_powf(float omega, float beta) {
 
 template <impl::data_type_t data_type>
 template <mkldnn_memory_format_t fmt>
-void ref_lrn_fwd_t<data_type>::execute_forward() {
+void ref_lrn_fwd_t<data_type>::execute_forward() const {
     using namespace alg_kind;
     using namespace memory_format;
 
@@ -142,7 +142,7 @@ void ref_lrn_fwd_t<data_type>::execute_forward() {
 
 template <impl::data_type_t data_type>
 template <mkldnn_memory_format_t fmt>
-void ref_lrn_bwd_t<data_type>::execute_backward() {
+void ref_lrn_bwd_t<data_type>::execute_backward() const {
     using namespace alg_kind;
     using namespace memory_format;
 
@@ -231,16 +231,16 @@ void ref_lrn_bwd_t<data_type>::execute_backward() {
     }
 }
 
-template void ref_lrn_fwd_t<data_type::f32>::execute_forward<memory_format::nChw16c>();
-template void ref_lrn_fwd_t<data_type::f32>::execute_forward<memory_format::nChw8c>();
-template void ref_lrn_fwd_t<data_type::f32>::execute_forward<memory_format::nchw>();
-template void ref_lrn_fwd_t<data_type::f32>::execute_forward<memory_format::nhwc>();
-template void ref_lrn_fwd_t<data_type::f32>::execute_forward<memory_format::any>();
-template void ref_lrn_bwd_t<data_type::f32>::execute_backward<memory_format::nChw16c>();
-template void ref_lrn_bwd_t<data_type::f32>::execute_backward<memory_format::nChw8c>();
-template void ref_lrn_bwd_t<data_type::f32>::execute_backward<memory_format::nchw>();
-template void ref_lrn_bwd_t<data_type::f32>::execute_backward<memory_format::nhwc>();
-template void ref_lrn_bwd_t<data_type::f32>::execute_backward<memory_format::any>();
+template void ref_lrn_fwd_t<data_type::f32>::execute_forward<memory_format::nChw16c>() const;
+template void ref_lrn_fwd_t<data_type::f32>::execute_forward<memory_format::nChw8c>() const;
+template void ref_lrn_fwd_t<data_type::f32>::execute_forward<memory_format::nchw>() const;
+template void ref_lrn_fwd_t<data_type::f32>::execute_forward<memory_format::nhwc>() const;
+template void ref_lrn_fwd_t<data_type::f32>::execute_forward<memory_format::any>() const;
+template void ref_lrn_bwd_t<data_type::f32>::execute_backward<memory_format::nChw16c>() const;
+template void ref_lrn_bwd_t<data_type::f32>::execute_backward<memory_format::nChw8c>() const;
+template void ref_lrn_bwd_t<data_type::f32>::execute_backward<memory_format::nchw>() const;
+template void ref_lrn_bwd_t<data_type::f32>::execute_backward<memory_format::nhwc>() const;
+template void ref_lrn_bwd_t<data_type::f32>::execute_backward<memory_format::any>() const;
 
 }
 }

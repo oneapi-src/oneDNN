@@ -38,7 +38,7 @@ namespace cpu {
 
 using namespace memory_tracking::names;
 
-void ncsp_batch_normalization_fwd_t::execute_forward() {
+void ncsp_batch_normalization_fwd_t::execute_forward() const {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto dst = reinterpret_cast<data_t *>(this->memory(0));
     auto scratchpad = this->scratchpad();
@@ -213,7 +213,7 @@ void ncsp_batch_normalization_fwd_t::execute_forward() {
     });
 }
 
-void ncsp_batch_normalization_bwd_t::execute_backward() {
+void ncsp_batch_normalization_bwd_t::execute_backward() const {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto mean = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto variance = reinterpret_cast<const data_t *>(this->input_memory(2));

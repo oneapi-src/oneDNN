@@ -130,7 +130,7 @@ void jit_conv_3d_ker_bwd_w_pipeline(jit_conv_ker_t ker, jit_conv_call_s &p,
 
 template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type>
 void jit_avx512_common_convolution_fwd_t<src_type, wei_type, dst_type>::
-prepare_padded_bias(const dst_data_t *&bias) {
+prepare_padded_bias(const dst_data_t *&bias) const {
     if (!pd()->wants_padded_bias()) return;
 
     auto padded_bias = scratchpad().template get<dst_data_t>(
@@ -144,7 +144,7 @@ prepare_padded_bias(const dst_data_t *&bias) {
 template <data_type_t src_type, data_type_t wei_type,
           data_type_t dst_type>
 void jit_avx512_common_convolution_fwd_t
-    <src_type, wei_type, dst_type>::execute_forward_1d()
+    <src_type, wei_type, dst_type>::execute_forward_1d() const
 {
     auto src = reinterpret_cast<const src_data_t *>(this->input_memory(0));
     auto weights = reinterpret_cast<const wei_data_t *>(this->input_memory(1));
@@ -236,7 +236,7 @@ void jit_avx512_common_convolution_fwd_t
 template <data_type_t src_type, data_type_t wei_type,
           data_type_t dst_type>
 void jit_avx512_common_convolution_fwd_t
-    <src_type, wei_type, dst_type>::execute_forward_2d()
+    <src_type, wei_type, dst_type>::execute_forward_2d() const
 {
     auto src = reinterpret_cast<const src_data_t *>(this->input_memory(0));
     auto weights = reinterpret_cast<const wei_data_t *>(this->input_memory(1));
@@ -358,7 +358,7 @@ void jit_avx512_common_convolution_fwd_t
 template <data_type_t src_type, data_type_t wei_type,
           data_type_t dst_type>
 void jit_avx512_common_convolution_fwd_t
-    <src_type, wei_type, dst_type>::execute_forward_3d()
+    <src_type, wei_type, dst_type>::execute_forward_3d() const
 {
     auto src = reinterpret_cast<const src_data_t *>(this->input_memory(0));
     auto weights = reinterpret_cast<const wei_data_t *>(this->input_memory(1));
@@ -488,7 +488,7 @@ template struct jit_avx512_common_convolution_fwd_t<data_type::s16,
 template <data_type_t diff_dst_type, data_type_t wei_type,
           data_type_t diff_src_type>
 void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
-          diff_src_type>::execute_backward_data_1d() {
+          diff_src_type>::execute_backward_data_1d() const {
     auto diff_dst = reinterpret_cast<const diff_dst_data_t *>
                                                        (this->input_memory(0));
     auto weights = reinterpret_cast<const wei_data_t *>(this->input_memory(1));
@@ -566,7 +566,7 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
 template <data_type_t diff_dst_type, data_type_t wei_type,
           data_type_t diff_src_type>
 void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
-          diff_src_type>::execute_backward_data_2d() {
+          diff_src_type>::execute_backward_data_2d() const {
     auto diff_dst = reinterpret_cast<const diff_dst_data_t *>
                                                        (this->input_memory(0));
     auto weights = reinterpret_cast<const wei_data_t *>(this->input_memory(1));
@@ -690,7 +690,7 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
 template <data_type_t diff_dst_type, data_type_t wei_type,
           data_type_t diff_src_type>
 void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
-          diff_src_type>::execute_backward_data_3d() {
+          diff_src_type>::execute_backward_data_3d() const {
     auto diff_dst = reinterpret_cast<const diff_dst_data_t *>
                                                        (this->input_memory(0));
     auto weights = reinterpret_cast<const wei_data_t *>(this->input_memory(1));
@@ -984,7 +984,7 @@ struct jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
 template <data_type_t src_type, data_type_t diff_dst_type,
           data_type_t diff_weights_type>
 void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
-    diff_weights_type>::compute_diff_weights(const thread_info_t *ti) {
+    diff_weights_type>::compute_diff_weights(const thread_info_t *ti) const {
     const memory_desc_wrapper src_d(pd()->src_pd(0));
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
     const memory_desc_wrapper diff_weights_d(pd()->diff_weights_pd(0));
@@ -1277,7 +1277,8 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
 template <data_type_t src_type, data_type_t diff_dst_type,
           data_type_t diff_weights_type>
 void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
-    diff_weights_type>::compute_diff_weights_3d(const thread_info_t *ti) {
+    diff_weights_type>::compute_diff_weights_3d(const thread_info_t *ti) const
+{
     const memory_desc_wrapper src_d(pd()->src_pd(0));
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
     const memory_desc_wrapper diff_weights_d(pd()->diff_weights_pd(0));
@@ -1351,7 +1352,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
 template <data_type_t src_type, data_type_t diff_dst_type,
           data_type_t diff_weights_type>
 void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
-    diff_weights_type>::reduce_diff_weights(const thread_info_t *ti) {
+    diff_weights_type>::reduce_diff_weights(const thread_info_t *ti) const {
     const memory_desc_wrapper diff_weights_d(pd()->diff_weights_pd(0));
 
     const auto &jcp = kernel_->jcp;
@@ -1411,7 +1412,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
 template <data_type_t src_type, data_type_t diff_dst_type,
           data_type_t diff_weights_type>
 void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
-    diff_weights_type>::reduce_diff_weights_3d(const thread_info_t *ti) {
+    diff_weights_type>::reduce_diff_weights_3d(const thread_info_t *ti) const {
     const memory_desc_wrapper diff_weights_d(pd()->diff_weights_pd(0));
 
     const auto &jcp = kernel_->jcp;
@@ -1460,7 +1461,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
 template <data_type_t src_type, data_type_t diff_dst_type,
           data_type_t diff_weights_type>
 void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
-    diff_weights_type>::compute_diff_bias(const thread_info_t *ti) {
+    diff_weights_type>::compute_diff_bias(const thread_info_t *ti) const {
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
 
     auto rb = this->reducer_bias_;
@@ -1517,7 +1518,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
 template <data_type_t src_type, data_type_t diff_dst_type,
           data_type_t diff_weights_type>
 void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
-    diff_weights_type>::compute_diff_bias_3d(const thread_info_t *ti) {
+    diff_weights_type>::compute_diff_bias_3d(const thread_info_t *ti) const {
 
     const auto &jcp = kernel_->jcp;
 
@@ -1541,7 +1542,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
 template <data_type_t src_type, data_type_t diff_dst_type,
           data_type_t diff_weights_type>
 void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
-    diff_weights_type>::prepare_scratchpad_data()
+    diff_weights_type>::prepare_scratchpad_data() const
 {
     const auto &j = pd()->jcp_;
     auto scratchpad = this->scratchpad();
@@ -1596,7 +1597,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
 template <data_type_t src_type, data_type_t diff_dst_type,
           data_type_t diff_weights_type>
 void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
-    diff_weights_type>::execute_backward_weights() {
+    diff_weights_type>::execute_backward_weights() const {
     prepare_scratchpad_data();
 
     parallel(nthr_, [&](const int ithr, const int nthr) {

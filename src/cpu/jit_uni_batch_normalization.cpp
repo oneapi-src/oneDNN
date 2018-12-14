@@ -1295,7 +1295,7 @@ jit_uni_batch_normalization_fwd_t<isa>::jit_uni_batch_normalization_fwd_t(
 { bnorm_driver_ = new uni_bnorm_driver_t<isa>(pd()); }
 
 template <cpu_isa_t isa>
-void jit_uni_batch_normalization_fwd_t<isa>::execute(event_t *e) {
+void jit_uni_batch_normalization_fwd_t<isa>::execute(event_t *e) const {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto dst = reinterpret_cast<data_t*>(this->memory(0));
     auto mean = reinterpret_cast<data_t*>(pd()->stats_is_src()
@@ -1380,7 +1380,7 @@ jit_uni_batch_normalization_bwd_t<isa>::jit_uni_batch_normalization_bwd_t(
 { bnorm_driver_ = new uni_bnorm_driver_t<isa>(pd()); }
 
 template <cpu_isa_t isa>
-void jit_uni_batch_normalization_bwd_t<isa>::execute(event_t *e) {
+void jit_uni_batch_normalization_bwd_t<isa>::execute(event_t *e) const {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto mean = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto var = reinterpret_cast<const data_t *>(this->input_memory(2));

@@ -31,7 +31,7 @@ using namespace memory_format;
 
 template <int data_type_size>
 template <mkldnn_memory_format_t fmt>
-void ref_shuffle_t<data_type_size>::execute_() {
+void ref_shuffle_t<data_type_size>::execute_() const {
     using namespace prop_kind;
     using namespace utils;
 
@@ -124,25 +124,25 @@ void ref_shuffle_t<data_type_size>::execute_() {
     }
 }
 
-template void ref_shuffle_t<4>::execute_<nCdhw16c>();
-template void ref_shuffle_t<4>::execute_<nChw16c>();
-template void ref_shuffle_t<4>::execute_<nCdhw8c>();
-template void ref_shuffle_t<4>::execute_<nChw8c>();
-template void ref_shuffle_t<4>::execute_<ncdhw>();
-template void ref_shuffle_t<4>::execute_<nchw>();
-template void ref_shuffle_t<4>::execute_<ndhwc>();
-template void ref_shuffle_t<4>::execute_<nhwc>();
-template void ref_shuffle_t<4>::execute_<any>();
+template void ref_shuffle_t<4>::execute_<nCdhw16c>() const;
+template void ref_shuffle_t<4>::execute_<nChw16c>() const;
+template void ref_shuffle_t<4>::execute_<nCdhw8c>() const;
+template void ref_shuffle_t<4>::execute_<nChw8c>() const;
+template void ref_shuffle_t<4>::execute_<ncdhw>() const;
+template void ref_shuffle_t<4>::execute_<nchw>() const;
+template void ref_shuffle_t<4>::execute_<ndhwc>() const;
+template void ref_shuffle_t<4>::execute_<nhwc>() const;
+template void ref_shuffle_t<4>::execute_<any>() const;
 
-template void ref_shuffle_t<1>::execute_<nCdhw16c>();
-template void ref_shuffle_t<1>::execute_<nChw16c>();
-template void ref_shuffle_t<1>::execute_<nCdhw8c>();
-template void ref_shuffle_t<1>::execute_<nChw8c>();
-template void ref_shuffle_t<1>::execute_<ncdhw>();
-template void ref_shuffle_t<1>::execute_<nchw>();
-template void ref_shuffle_t<1>::execute_<ndhwc>();
-template void ref_shuffle_t<1>::execute_<nhwc>();
-template void ref_shuffle_t<1>::execute_<any>();
+template void ref_shuffle_t<1>::execute_<nCdhw16c>() const;
+template void ref_shuffle_t<1>::execute_<nChw16c>() const;
+template void ref_shuffle_t<1>::execute_<nCdhw8c>() const;
+template void ref_shuffle_t<1>::execute_<nChw8c>() const;
+template void ref_shuffle_t<1>::execute_<ncdhw>() const;
+template void ref_shuffle_t<1>::execute_<nchw>() const;
+template void ref_shuffle_t<1>::execute_<ndhwc>() const;
+template void ref_shuffle_t<1>::execute_<nhwc>() const;
+template void ref_shuffle_t<1>::execute_<any>() const;
 
 }
 }

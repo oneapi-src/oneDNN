@@ -22,7 +22,7 @@ namespace impl {
 namespace cpu {
 
 template <data_type_t data_type>
-void simple_sum_t<data_type>::execute() {
+void simple_sum_t<data_type>::execute() const {
     auto output = reinterpret_cast<data_t *>(this->memory());
     const int num_arrs = pd()->n_inputs();
     const memory_desc_wrapper o_d(pd()->dst_pd());

@@ -46,7 +46,7 @@ using namespace mkldnn::impl::utils;
     ? wht_blk_off_(f, g, oc, ic, kh, kw) \
     : wht_blk_off_(f, g, oc, ic, kd, kh, kw)
 
-void jit_avx2_convolution_fwd_t::execute_forward() {
+void jit_avx2_convolution_fwd_t::execute_forward() const {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto weights = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto bias = reinterpret_cast<const data_t *>(this->input_memory(2));
@@ -163,7 +163,7 @@ void jit_avx2_convolution_fwd_t::execute_forward() {
         output_memory_primitive(0)->zero_pad();
 }
 
-void jit_avx2_convolution_bwd_data_t::execute_backward_data() {
+void jit_avx2_convolution_bwd_data_t::execute_backward_data() const {
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto weights = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto diff_src = reinterpret_cast<data_t *>(this->memory());
@@ -252,7 +252,7 @@ void jit_avx2_convolution_bwd_data_t::execute_backward_data() {
     parallel(0, ker);
 }
 
-void jit_avx2_convolution_bwd_weights_t::execute_backward_weights() {
+void jit_avx2_convolution_bwd_weights_t::execute_backward_weights() const {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto diff_weights = reinterpret_cast<data_t *>(this->memory(0));

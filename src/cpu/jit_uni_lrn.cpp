@@ -74,7 +74,7 @@ jit_uni_lrn_fwd_t<isa>::~jit_uni_lrn_fwd_t()
 { delete ker_; delete ker_first_; delete ker_last_; }
 
 template <cpu_isa_t isa>
-void jit_uni_lrn_fwd_t<isa>::execute_forward() {
+void jit_uni_lrn_fwd_t<isa>::execute_forward() const {
     using namespace alg_kind;
 
     auto src = reinterpret_cast<const data_t*>(this->input_memory(0));
@@ -212,7 +212,7 @@ jit_uni_lrn_bwd_t<isa>::~jit_uni_lrn_bwd_t()
 }
 
 template <cpu_isa_t isa>
-void jit_uni_lrn_bwd_t<isa>::execute_backward() {
+void jit_uni_lrn_bwd_t<isa>::execute_backward() const {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto ws = reinterpret_cast<const data_t*>(this->input_memory(2));

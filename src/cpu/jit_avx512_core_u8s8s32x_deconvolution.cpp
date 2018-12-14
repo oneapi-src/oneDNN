@@ -485,7 +485,7 @@ void jit_avx512_core_u8s8s32x_deconv_fwd_kernel::generate() {
 
 template <data_type_t dst_type>
 void _jit_avx512_core_u8s8s32x_deconvolution_fwd_t<dst_type>::
-execute_forward()
+execute_forward() const
 {
     auto src = reinterpret_cast<const src_data_t *>(this->input_memory(0));
     auto weights = reinterpret_cast<const wei_data_t *>(this->input_memory(1));

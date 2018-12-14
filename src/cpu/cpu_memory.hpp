@@ -54,7 +54,7 @@ struct cpu_memory_t: public cpu_primitive_t {
         , data_(nullptr) {}
     virtual ~cpu_memory_t() {}
 
-    virtual void execute(mkldnn::impl::event_t *e)
+    virtual void execute(mkldnn::impl::event_t *e) const
     { e->set_state(event_t::ready); }
 
     virtual status_t get_data_handle(void **handle) const {
@@ -174,7 +174,7 @@ struct cpu_view_t: public cpu_primitive_t {
     {}
     virtual ~cpu_view_t() {}
 
-    virtual void execute(mkldnn::impl::event_t *e)
+    virtual void execute(mkldnn::impl::event_t *e) const
     { e->set_state(event_t::ready); }
 
     virtual char *memory(size_t output_index = 0) const

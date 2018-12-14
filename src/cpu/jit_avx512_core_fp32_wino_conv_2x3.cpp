@@ -851,7 +851,7 @@ jit_avx512_core_fp32_wino_conv_2x3_fwd_t
     delete dst_trans_;
 }
 
-void jit_avx512_core_fp32_wino_conv_2x3_fwd_t::execute_forward() {
+void jit_avx512_core_fp32_wino_conv_2x3_fwd_t::execute_forward() const {
     const auto &jcp = kernel_->jcp;
 
     if (jcp.small_mb)
@@ -860,7 +860,7 @@ void jit_avx512_core_fp32_wino_conv_2x3_fwd_t::execute_forward() {
         execute_forward_mbN();
 }
 
-void jit_avx512_core_fp32_wino_conv_2x3_fwd_t::execute_forward_mbN() {
+void jit_avx512_core_fp32_wino_conv_2x3_fwd_t::execute_forward_mbN() const {
     auto src = reinterpret_cast<const float *>(input_memory(0));
     auto wei = reinterpret_cast<const float *>(input_memory(1));
     auto bia = reinterpret_cast<const float *>(input_memory(2));
@@ -991,7 +991,8 @@ void jit_avx512_core_fp32_wino_conv_2x3_fwd_t::execute_forward_mbN() {
     });
 }
 
-void jit_avx512_core_fp32_wino_conv_2x3_fwd_t::execute_forward_small_mb() {
+void jit_avx512_core_fp32_wino_conv_2x3_fwd_t::execute_forward_small_mb() const
+{
     auto src = reinterpret_cast<const float *>(input_memory(0));
     auto wei = reinterpret_cast<const float *>(input_memory(1));
     auto bia = reinterpret_cast<const float *>(input_memory(2));

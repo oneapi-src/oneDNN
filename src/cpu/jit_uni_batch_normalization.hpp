@@ -54,7 +54,7 @@ struct jit_uni_batch_normalization_fwd_t: public cpu_primitive_t {
             const input_vector &inputs, const output_vector &outputs);
     ~jit_uni_batch_normalization_fwd_t();
 
-    virtual void execute(event_t *e);
+    virtual void execute(event_t *e) const;
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
@@ -84,7 +84,7 @@ struct jit_uni_batch_normalization_bwd_t: public cpu_primitive_t {
             const input_vector &inputs, const output_vector &outputs);
     ~jit_uni_batch_normalization_bwd_t();
 
-    virtual void execute(event_t *e);
+    virtual void execute(event_t *e) const;
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }

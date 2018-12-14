@@ -40,7 +40,7 @@ namespace cpu {
             float *states_t_lm1_, float *states_tm1_l_,                      \
             float *diff_states_t_l_, float *diff_states_t_lp1_,              \
             float *diff_states_tp1_l_, float *bias_, float *ws_grid_,        \
-            float *ws_cell_)
+            float *ws_cell_) const
 
 #define cell_execution_sig(f)                                               \
     void f(const rnn_utils::rnn_conf_t &rnn, float *states_t_l_,            \
@@ -48,7 +48,7 @@ namespace cpu {
             float **bias_, float *states_t_lm1_, float *states_tm1_l_,      \
             float *diff_states_t_lp1_, float *diff_states_tp1_l_,           \
             float *diff_w_layer_, float *diff_w_iter_, float *diff_bias_,   \
-            float *ws_gates_, float *ws_grid_, float *ws_cell_)
+            float *ws_gates_, float *ws_grid_, float *ws_cell_) const
 
 #define grid_execution_sig(f)                                               \
     void f(const rnn_utils::rnn_conf_t &rnn, float **weights_layer_,        \
@@ -56,21 +56,21 @@ namespace cpu {
             float **bias_, float *ws_states_, float *ws_diff_states_,       \
             float *ws_gates_, float *ws_cell_, float *ws_grid_,             \
             float *diff_weights_layer_, float *diff_weights_iter_,          \
-            float *diff_bias_)
+            float *diff_bias_) const
 
 #define gemm_sig(f)                                                      \
     void f(const char transA, const char transB, int m, int n, int k,    \
             const float alpha, const float *a_, const int ldA,           \
             const float *b_, const int ldB, const float beta, float *c_, \
-            const int ldC)
+            const int ldC) const
 
 #define bias_prepare_sig(f)                                              \
     void f(const rnn_utils::rnn_conf_t &rnn,                             \
-            float **bias_, const float *b_, float *scratch_bias_)
+            float **bias_, const float *b_, float *scratch_bias_) const
 
 #define bias_finalize_sig(f)                                             \
     void f(const rnn_utils::rnn_conf_t &rnn,                             \
-            float **bias_, const float *b_, float *scratch_bias_)
+            float **bias_, const float *b_, float *scratch_bias_) const
 
 #define packing_sig(f)                                                   \
     void f(const rnn_utils::rnn_conf_t &rnn, memory_format_t fmt,        \
@@ -79,10 +79,11 @@ namespace cpu {
             const int *part_weights_pack_size,                           \
             float **weights_, const float *w_, float *scratch_weights_,  \
             float **bias_, const float *b_, float *scratch_bias_,        \
-            bool do_copy)
+            bool do_copy) const
 
 #define free_packed_sig(f)                                               \
-    void f(const rnn_utils::rnn_conf_t &rnn, int n_parts, float **weights_)
+    void f(const rnn_utils::rnn_conf_t &rnn, int n_parts,                \
+            float **weights_) const
 
 template <alg_kind_t alg_kind, prop_kind_t prop_kind>
 float activation(float s, float alpha, float cliping, float dd);
@@ -297,13 +298,13 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
 
     // typedef typename prec_traits::type data_t;
 
-    virtual void execute(event_t *e) {
+    virtual void execute(event_t *e) const {
         execute_();
         e->set_state(event_t::ready);
     }
 
 private:
-    void execute_();
+    void execute_() const;
     grid_execution_sig(linear_execution);
     cell_execution_sig(cell_execution);
     cell_execution_sig(cell_execution_gru);
@@ -324,18 +325,18 @@ private:
 
     void copy_init_layer(const rnn_utils::rnn_conf_t &rnn, float *ws_states_,
             float *ws_diff_states_, const float *xt_,
-            const float *diff_dst_layer);
+            const float *diff_dst_layer) const;
     void copy_init_iter(const rnn_utils::rnn_conf_t &rnn, float *ws_states_,
             float *ws_diff_states_, const float *firstit_states_,
-            const float *diff_dst_iter);
+            const float *diff_dst_iter) const;
     void copy_res_layer(const rnn_utils::rnn_conf_t &rnn, float *dst_layer_,
             float *diff_src_layer, const float *ws_states_,
-            const float *ws_diff_states_);
+            const float *ws_diff_states_) const;
     void copy_res_iter(const rnn_utils::rnn_conf_t &rnn, float *dst_iter_,
             float *diff_src_iter, const float *ws_states_,
-            const float *ws_diff_states_);
+            const float *ws_diff_states_) const;
     void gates_reduction(const rnn_utils::rnn_conf_t &rnn,
-            const float *ws_gates_, float *diff_bias_);
+            const float *ws_gates_, float *diff_bias_) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 

@@ -125,18 +125,18 @@ struct _gemm_x8s8s32x_convolution_fwd_t: public cpu_primitive_t {
     typedef typename prec_traits<dst_type>::type dst_data_t;
     typedef typename prec_traits<data_type::s32>::type acc_data_t;
 
-    virtual void execute(event_t *e) {
+    virtual void execute(event_t *e) const {
         execute_forward();
         e->set_state(event_t::ready);
     }
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
-    void execute_forward();
+    void execute_forward() const;
     void execute_forward_thr(const int ithr, const int nthr,
             const src_data_t *src_base, const wei_data_t *wei_base,
             const char *bia_base, dst_data_t *dst_base,
-            const memory_tracking::grantor_t &scratchpad);
+            const memory_tracking::grantor_t &scratchpad) const;
 
     int nthr_;
 };
@@ -216,17 +216,17 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t: public cpu_primitive_t {
     typedef typename prec_traits<dst_type>::type diff_src_data_t;
     typedef typename prec_traits<data_type::s32>::type acc_data_t;
 
-    virtual void execute(event_t *e) {
+    virtual void execute(event_t *e) const {
         execute_backward_data();
         e->set_state(event_t::ready);
     }
 
 private:
-    void execute_backward_data();
+    void execute_backward_data() const;
     void execute_backward_data_thr(const int ithr, const int nthr,
             const diff_dst_data_t *diff_dst_base, const wei_data_t *wei_base,
             const char *bia_base, diff_src_data_t *diff_src_base,
-            const memory_tracking::grantor_t &scratchpad);
+            const memory_tracking::grantor_t &scratchpad) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 

@@ -1019,7 +1019,7 @@ jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
 
 template <data_type_t dst_data_type>
 const float *jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
-adjust_oscales(const memory_tracking::grantor_t &scratchpad) {
+adjust_oscales(const memory_tracking::grantor_t &scratchpad) const {
     const float *oscales = pd()->attr()->output_scales_.scales_;
     auto loc_scales = scratchpad.template get<float>(key_conv_adjusted_scales);
     size_t count = pd()->attr()->output_scales_.count_;
@@ -1033,7 +1033,7 @@ adjust_oscales(const memory_tracking::grantor_t &scratchpad) {
 
 template <data_type_t dst_data_type>
 void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
-         execute_forward() {
+execute_forward() const {
     const auto &jcp = kernel_->jcp;
     if (jcp.small_mb)
         execute_forward_small_mb();
@@ -1043,7 +1043,7 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
 
 template <data_type_t dst_data_type>
 void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
-        execute_forward_mbN() {
+execute_forward_mbN() const {
     auto src = reinterpret_cast<const src_data_t *>(input_memory(0));
     auto wei = reinterpret_cast<const wei_data_t *>(input_memory(1));
     auto bia = reinterpret_cast<const char *>(input_memory(2));
@@ -1158,7 +1158,7 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
 
 template <data_type_t dst_data_type>
 void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
-        execute_forward_small_mb() {
+execute_forward_small_mb() const {
     auto src = reinterpret_cast<const src_data_t *>(input_memory(0));
     auto wei = reinterpret_cast<const wei_data_t *>(input_memory(1));
     auto bia = reinterpret_cast<const char *>(input_memory(2));

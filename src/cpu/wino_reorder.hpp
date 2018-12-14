@@ -132,7 +132,8 @@ private:
     }
 
     void transform(out_data_t *__restrict tmp_wei,
-            const in_data_t *__restrict input, in_data_t *__restrict wspace) {
+            const in_data_t *__restrict input,
+            in_data_t *__restrict wspace) const {
         const memory_desc_wrapper input_d(pd()->input_pd()->desc());
 
         round_mode_t rmode = pd()->attr()->round_mode_;
@@ -210,7 +211,7 @@ private:
     }
 
     void reorder_to_aaOIoi(out_data_t *__restrict output,
-            const out_data_t *__restrict tmp_wei) {
+            const out_data_t *__restrict tmp_wei) const {
         int32_t *__restrict dst_bias = nullptr;
         if (type_o == s8) {
             const auto bias_shift = sizeof(out_data_t) * size_wino_wei_;
@@ -256,7 +257,7 @@ private:
     }
 
     void reorder_to_aaOio(out_data_t *__restrict output,
-            const out_data_t *__restrict tmp_wei) {
+            const out_data_t *__restrict tmp_wei) const {
         parallel_nd(w_alpha_, w_alpha_, nb_oc_,
             [&](int u_h, int u_w, int ob) {
             for (int ib = 0; ib < nb_ic_; ib++) {
@@ -276,7 +277,7 @@ private:
     }
 
     void reorder_to_aaOBiOo(out_data_t *__restrict output,
-            const out_data_t *__restrict tmp_wei) {
+            const out_data_t *__restrict tmp_wei) const {
         int oc_chunks = nb_oc_ / oc2_block_;
 
         parallel_nd(w_alpha_, w_alpha_, oc_chunks,
@@ -304,7 +305,7 @@ private:
     }
 
     void reorder_to_OBaaIBOIio(out_data_t *__restrict output,
-            const out_data_t *__restrict tmp_wei) {
+            const out_data_t *__restrict tmp_wei) const {
         int ic_chunks = nb_ic_ / ic2_block_;
         int oc_chunks = nb_oc_ / oc2_block_;
 
@@ -330,7 +331,7 @@ private:
         });
     }
 
-    virtual void execute(event_t *e) {
+    virtual void execute(event_t *e) const {
         auto input = reinterpret_cast<const in_data_t *>(input_memory(0));
         auto output = reinterpret_cast<out_data_t *>(memory());
 

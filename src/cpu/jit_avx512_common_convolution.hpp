@@ -96,7 +96,7 @@ struct jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
     typedef typename prec_traits<wei_type>::type wei_data_t;
     typedef typename prec_traits<dst_type>::type dst_data_t;
 
-    virtual void execute(event_t *e)
+    virtual void execute(event_t *e) const
     {
         if (pd()->ndims() == 3)
             execute_forward_1d();
@@ -114,10 +114,10 @@ struct jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
     }
 
 private:
-    void prepare_padded_bias(const dst_data_t *&bias);
-    void execute_forward_1d();
-    void execute_forward_2d();
-    void execute_forward_3d();
+    void prepare_padded_bias(const dst_data_t *&bias) const;
+    void execute_forward_1d() const;
+    void execute_forward_2d() const;
+    void execute_forward_3d() const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     jit_avx512_common_conv_fwd_kernel *kernel_;
@@ -213,7 +213,7 @@ struct jit_avx512_common_convolution_bwd_data_t: public cpu_primitive_t {
     typedef typename prec_traits<wei_type>::type wei_data_t;
     typedef typename prec_traits<diff_src_type>::type diff_src_data_t;
 
-    virtual void execute(event_t *e) {
+    virtual void execute(event_t *e) const {
         switch (pd()->desc()->prop_kind) {
         case prop_kind::backward_data:
             if (pd()->ndims() == 3)
@@ -232,9 +232,9 @@ struct jit_avx512_common_convolution_bwd_data_t: public cpu_primitive_t {
     }
 
 private:
-    void execute_backward_data_1d();
-    void execute_backward_data_2d();
-    void execute_backward_data_3d();
+    void execute_backward_data_1d() const;
+    void execute_backward_data_2d() const;
+    void execute_backward_data_3d() const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     jit_avx512_common_conv_bwd_data_kernel_f32 *kernel_;
@@ -346,21 +346,21 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
     typedef typename prec_traits<diff_dst_type>::type diff_dst_data_t;
     typedef typename prec_traits<diff_weights_type>::type diff_weights_data_t;
 
-    virtual void execute(event_t *e) {
+    virtual void execute(event_t *e) const {
         execute_backward_weights();
         e->set_state(event_t::ready);
     }
 
 private:
-    void execute_backward_weights();
-    void prepare_scratchpad_data();
+    void execute_backward_weights() const;
+    void prepare_scratchpad_data() const;
     struct thread_info_t;
-    void compute_diff_weights(const thread_info_t *);
-    void compute_diff_weights_3d(const thread_info_t *);
-    void reduce_diff_weights(const thread_info_t *);
-    void reduce_diff_weights_3d(const thread_info_t *);
-    void compute_diff_bias(const thread_info_t *);
-    void compute_diff_bias_3d(const thread_info_t *);
+    void compute_diff_weights(const thread_info_t *) const;
+    void compute_diff_weights_3d(const thread_info_t *) const;
+    void reduce_diff_weights(const thread_info_t *) const;
+    void reduce_diff_weights_3d(const thread_info_t *) const;
+    void compute_diff_bias(const thread_info_t *) const;
+    void compute_diff_bias_3d(const thread_info_t *) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 

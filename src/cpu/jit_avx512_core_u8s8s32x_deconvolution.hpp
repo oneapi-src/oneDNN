@@ -179,14 +179,14 @@ struct _jit_avx512_core_u8s8s32x_deconvolution_fwd_t : public cpu_primitive_t {
     typedef typename prec_traits<data_type::s8>::type wei_data_t;
     typedef typename prec_traits<dst_type>::type dst_data_t;
 
-    virtual void execute(event_t *e)
+    virtual void execute(event_t *e) const
     {
         execute_forward();
         e->set_state(event_t::ready);
     }
 
 private:
-    void execute_forward();
+    void execute_forward() const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_avx512_core_u8s8s32x_deconv_fwd_kernel *kernel_;
 };

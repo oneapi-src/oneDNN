@@ -116,7 +116,7 @@ struct ref_concat_t: public cpu_primitive_t {
             delete reorders_[i];
     }
 
-    virtual void execute(event_t *e) {
+    virtual void execute(event_t *e) const {
         for (size_t i = 0; i < reorders_.size(); ++i) {
             event_t ei;
             reorders_[i]->execute(&ei);

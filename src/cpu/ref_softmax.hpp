@@ -90,21 +90,21 @@ struct ref_softmax_fwd_t: public cpu_primitive_t {
 
     typedef typename prec_traits<data_type>::type data_t;
 
-    virtual void execute(event_t *e) {
+    virtual void execute(event_t *e) const {
         if (use_dense_) execute_forward_dense();
         else execute_forward_generic();
         e->set_state(event_t::ready);
     }
 
 private:
-    void execute_forward_dense();
-    void execute_forward_generic();
+    void execute_forward_dense() const;
+    void execute_forward_generic() const;
 
-    void _max(int n, const data_t *x, data_t *max_data);
-    void _sub(int n, data_t alpha, const data_t *x, data_t *y);
-    void _exp(int n, const data_t *a, data_t *r);
-    void _sum(int n, const data_t *x, data_t *sum_data);
-    void _scal(int n, data_t alpha, data_t *x);
+    void _max(int n, const data_t *x, data_t *max_data) const;
+    void _sub(int n, data_t alpha, const data_t *x, data_t *y) const;
+    void _exp(int n, const data_t *a, data_t *r) const;
+    void _sum(int n, const data_t *x, data_t *sum_data) const;
+    void _scal(int n, data_t alpha, data_t *x) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
@@ -161,15 +161,15 @@ struct ref_softmax_bwd_t: public cpu_primitive_t {
 
     typedef typename prec_traits<data_type>::type data_t;
 
-    virtual void execute(event_t *e) {
+    virtual void execute(event_t *e) const {
         if (use_dense_) execute_backward_dense();
         else execute_backward_generic();
         e->set_state(event_t::ready);
     }
 
 private:
-    void execute_backward_dense();
-    void execute_backward_generic();
+    void execute_backward_dense() const;
+    void execute_backward_generic() const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     bool use_dense_;

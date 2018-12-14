@@ -25,7 +25,7 @@ namespace cpu {
 using namespace memory_tracking::names;
 
 template <data_type_t data_type>
-void simple_concat_t<data_type>::execute() {
+void simple_concat_t<data_type>::execute() const {
     auto scratchpad = this->scratchpad();
     auto iptrs = scratchpad.template get<const data_t *>(key_concat_iptrs);
     auto optrs = scratchpad.template get<data_t *>(key_concat_optrs);

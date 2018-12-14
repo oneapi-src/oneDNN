@@ -222,7 +222,7 @@ struct ref_deconvolution_fwd_t: public cpu_primitive_t {
 
     ~ref_deconvolution_fwd_t() { delete this->conv_p_; }
 
-    virtual void execute(event_t *e) {
+    virtual void execute(event_t *e) const {
         switch (pd()->desc()->prop_kind) {
         case prop_kind::forward_training:
         case prop_kind::forward_inference:
@@ -254,9 +254,9 @@ struct ref_deconvolution_fwd_t: public cpu_primitive_t {
     }
 
 private:
-    void compute_fwd_bias();
-    void compute_fwd_bias_ncdhw();
-    template <int blksize> void compute_fwd_bias_nCdhwXc();
+    void compute_fwd_bias() const;
+    void compute_fwd_bias_ncdhw() const;
+    template <int blksize> void compute_fwd_bias_nCdhwXc() const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     primitive_t *conv_p_;
 };
@@ -341,7 +341,7 @@ struct ref_deconvolution_bwd_data_t: public cpu_primitive_t {
         : cpu_primitive_t(apd, inputs, outputs), conv_p_(nullptr) {}
     ~ref_deconvolution_bwd_data_t() { delete this->conv_p_; }
 
-    virtual void execute(event_t *e) {
+    virtual void execute(event_t *e) const {
         switch (pd()->desc()->prop_kind) {
         case prop_kind::backward_data:
             (conv_p_)->execute(e);
@@ -442,7 +442,7 @@ struct ref_deconvolution_bwd_weights_t: public cpu_primitive_t {
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    virtual void execute(event_t *e) {
+    virtual void execute(event_t *e) const {
         switch (pd()->desc()->prop_kind) {
         case prop_kind::backward_weights:
             (conv_p_)->execute(e);
@@ -474,9 +474,9 @@ struct ref_deconvolution_bwd_weights_t: public cpu_primitive_t {
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     primitive_t *conv_p_;
-    void compute_bwd_bias();
-    void compute_bwd_bias_ncdhw();
-    template <int blksize> void compute_bwd_bias_nCdhwXc();
+    void compute_bwd_bias() const;
+    void compute_bwd_bias_ncdhw() const;
+    template <int blksize> void compute_bwd_bias_nCdhwXc() const;
 };
 
 }

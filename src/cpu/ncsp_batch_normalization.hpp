@@ -97,13 +97,13 @@ struct ncsp_batch_normalization_fwd_t : public cpu_primitive_t {
         : cpu_primitive_t(apd, inputs, outputs) {}
     ~ncsp_batch_normalization_fwd_t() {}
 
-    virtual void execute(event_t *e) {
+    virtual void execute(event_t *e) const {
         execute_forward();
         e->set_state(event_t::ready);
     }
 
 private:
-    void execute_forward();
+    void execute_forward() const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
@@ -168,13 +168,13 @@ struct ncsp_batch_normalization_bwd_t : public cpu_primitive_t {
         : cpu_primitive_t(apd, inputs, outputs) {}
     ~ncsp_batch_normalization_bwd_t() {}
 
-    virtual void execute(event_t *e) {
+    virtual void execute(event_t *e) const {
         execute_backward();
         e->set_state(event_t::ready);
     }
 
 private:
-    void execute_backward();
+    void execute_backward() const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 

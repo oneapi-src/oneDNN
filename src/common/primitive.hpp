@@ -79,7 +79,7 @@ struct mkldnn_primitive: public mkldnn::impl::c_compatible {
      *   Suppose engine has a task pool and for some reasons submission failed.
      *   In this case primitive will set @p e's state to event::error
      */
-    virtual void execute(mkldnn::impl::event_t *e) = 0;
+    virtual void execute(mkldnn::impl::event_t *e) const = 0;
 
     /** returns data handle. Applicable for memory primitives only. */
     virtual mkldnn::impl::status_t get_data_handle(void **handle) const {

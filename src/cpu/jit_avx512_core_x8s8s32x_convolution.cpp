@@ -41,7 +41,7 @@ using jit_conv_ker_t = void (*)(jit_conv_call_s *);
 
 template <data_type_t src_type, data_type_t dst_type>
 void jit_avx512_core_x8s8s32x_convolution_fwd_t<src_type, dst_type>::
-execute_forward()
+execute_forward() const
 {
     auto src = reinterpret_cast<const src_data_t *>(this->input_memory(0));
     auto weights = reinterpret_cast<const wei_data_t *>(this->input_memory(1));

@@ -396,7 +396,7 @@ void gemm_u8s8s32x_inner_product_fwd_t<dst_type>::pp_kernel_t::operator ()(
 };
 
 template <data_type_t dst_type>
-void gemm_u8s8s32x_inner_product_fwd_t<dst_type>::execute_forward() {
+void gemm_u8s8s32x_inner_product_fwd_t<dst_type>::execute_forward() const {
     auto src = reinterpret_cast<const src_data_t *>(this->input_memory(0));
     auto weights = reinterpret_cast<const wei_data_t *>(this->input_memory(1));
     auto bias = reinterpret_cast<const char *>(this->input_memory(2));

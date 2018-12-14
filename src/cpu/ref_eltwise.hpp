@@ -95,7 +95,7 @@ struct ref_eltwise_fwd_t: public cpu_primitive_t {
         : cpu_primitive_t(apd, inputs, outputs) {}
     typedef typename prec_traits<data_type>::type data_t;
 
-    virtual void execute(event_t *e) {
+    virtual void execute(event_t *e) const {
         if (pd()->use_dense_)
             execute_forward_dense();
         else if (pd()->use_nCspBc_padded_)
@@ -106,9 +106,9 @@ struct ref_eltwise_fwd_t: public cpu_primitive_t {
     }
 
 private:
-    void execute_forward_nCspBc_padded();
-    void execute_forward_dense();
-    void execute_forward_generic();
+    void execute_forward_nCspBc_padded() const;
+    void execute_forward_dense() const;
+    void execute_forward_generic() const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
@@ -156,15 +156,15 @@ struct ref_eltwise_bwd_t: public cpu_primitive_t {
         : cpu_primitive_t(apd, inputs, outputs) {}
     typedef typename prec_traits<data_type>::type data_t;
 
-    virtual void execute(event_t *e) {
+    virtual void execute(event_t *e) const {
         if (pd()->use_dense_) execute_backward_dense();
         else execute_backward_generic();
         e->set_state(event_t::ready);
     }
 
 private:
-    void execute_backward_dense();
-    void execute_backward_generic();
+    void execute_backward_dense() const;
+    void execute_backward_generic() const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 

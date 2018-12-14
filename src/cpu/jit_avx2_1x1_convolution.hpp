@@ -122,13 +122,13 @@ struct jit_avx2_1x1_convolution_fwd_t: public cpu_primitive_t {
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    virtual void execute(event_t *e) {
+    virtual void execute(event_t *e) const {
         execute_forward();
         e->set_state(event_t::ready);
     }
 
 private:
-    void execute_forward();
+    void execute_forward() const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     jit_avx2_1x1_conv_kernel_f32 *kernel_;
@@ -220,7 +220,7 @@ struct jit_avx2_1x1_convolution_bwd_data_t: public cpu_primitive_t {
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    virtual void execute(event_t *e) {
+    virtual void execute(event_t *e) const {
         switch (pd()->desc()->prop_kind) {
         case prop_kind::backward_data:
             execute_backward_data();
@@ -232,7 +232,7 @@ struct jit_avx2_1x1_convolution_bwd_data_t: public cpu_primitive_t {
     }
 
 private:
-    void execute_backward_data();
+    void execute_backward_data() const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     jit_avx2_1x1_conv_kernel_f32 *kernel_;
@@ -367,7 +367,7 @@ struct jit_avx2_1x1_convolution_bwd_weights_t: public cpu_primitive_t {
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    virtual void execute(event_t *e) {
+    virtual void execute(event_t *e) const {
         switch (pd()->desc()->prop_kind) {
         case prop_kind::backward_weights:
             execute_backward_weights();
@@ -379,7 +379,7 @@ struct jit_avx2_1x1_convolution_bwd_weights_t: public cpu_primitive_t {
     }
 
 private:
-    void execute_backward_weights();
+    void execute_backward_weights() const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     jit_avx2_1x1_conv_kernel_f32 *kernel_;

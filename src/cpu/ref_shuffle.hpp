@@ -73,7 +73,7 @@ struct ref_shuffle_t : public cpu_primitive_t {
 
     typedef typename typesize_traits<data_type_size>::type data_t;
 
-    virtual void execute(event_t *e) {
+    virtual void execute(event_t *e) const {
         using namespace memory_format;
         switch (pd()->data_pd()->desc()->format) {
         case nCdhw16c: execute_<nCdhw16c>(); break;
@@ -91,7 +91,7 @@ struct ref_shuffle_t : public cpu_primitive_t {
     }
 
 private:
-    template<memory_format_t fmt>void execute_();
+    template<memory_format_t fmt>void execute_() const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     int *rev_transposed_;
 };

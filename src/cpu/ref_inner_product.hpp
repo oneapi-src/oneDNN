@@ -73,7 +73,7 @@ struct ref_inner_product_fwd_t: public cpu_primitive_t {
     typedef typename prec_traits<dst_type>::type dst_data_t;
     typedef typename prec_traits<acc_type>::type acc_data_t;
 
-    virtual void execute(event_t *e) {
+    virtual void execute(event_t *e) const {
         switch (pd()->desc()->prop_kind) {
         case prop_kind::forward_training:
         case prop_kind::forward_inference:
@@ -86,7 +86,7 @@ struct ref_inner_product_fwd_t: public cpu_primitive_t {
     }
 
 private:
-    void execute_forward();
+    void execute_forward() const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
@@ -128,7 +128,7 @@ struct ref_inner_product_bwd_data_t: public cpu_primitive_t {
     typedef typename prec_traits<diff_dst_type>::type diff_dst_data_t;
     typedef typename prec_traits<acc_type>::type acc_data_t;
 
-    virtual void execute(event_t *e) {
+    virtual void execute(event_t *e) const {
         switch (pd()->desc()->prop_kind) {
         case prop_kind::backward:
         case prop_kind::backward_data:
@@ -141,7 +141,7 @@ struct ref_inner_product_bwd_data_t: public cpu_primitive_t {
     }
 
 private:
-    void execute_backward_data();
+    void execute_backward_data() const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
@@ -179,7 +179,7 @@ struct ref_inner_product_bwd_weights_t: public cpu_primitive_t {
         : cpu_primitive_t(apd, inputs, outputs) {}
     typedef typename prec_traits<data_type>::type data_t;
 
-    virtual void execute(event_t *e) {
+    virtual void execute(event_t *e) const {
         switch (pd()->desc()->prop_kind) {
         case prop_kind::backward:
         case prop_kind::backward_weights:
@@ -192,7 +192,7 @@ struct ref_inner_product_bwd_weights_t: public cpu_primitive_t {
     }
 
 private:
-    void execute_backward_weights();
+    void execute_backward_weights() const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 

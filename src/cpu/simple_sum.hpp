@@ -62,7 +62,7 @@ struct simple_sum_t: public cpu_primitive_t {
             const output_vector &outputs)
         : cpu_primitive_t(apd, inputs, outputs) {}
 
-    virtual void execute(event_t *e) {
+    virtual void execute(event_t *e) const {
         execute();
         e->set_state(event_t::ready);
     }
@@ -71,7 +71,7 @@ struct simple_sum_t: public cpu_primitive_t {
     typedef typename prec_traits<data_type>::type data_t;
 
 private:
-    void execute();
+    void execute() const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 

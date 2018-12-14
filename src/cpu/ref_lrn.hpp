@@ -62,7 +62,7 @@ struct ref_lrn_fwd_t: public cpu_primitive_t {
         : cpu_primitive_t(apd, inputs, outputs) {}
     typedef typename prec_traits<data_type>::type data_t;
 
-    virtual void execute(event_t *e) {
+    virtual void execute(event_t *e) const {
         using namespace memory_format;
         switch (pd()->src_pd()->desc()->format) {
         case nChw16c: execute_forward<nChw16c>(); break;
@@ -77,7 +77,7 @@ struct ref_lrn_fwd_t: public cpu_primitive_t {
     }
 
 private:
-    template<memory_format_t fmt>void execute_forward();
+    template<memory_format_t fmt>void execute_forward() const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
@@ -111,7 +111,7 @@ struct ref_lrn_bwd_t: public cpu_primitive_t {
         : cpu_primitive_t(apd, inputs, outputs) {}
     typedef typename prec_traits<data_type>::type data_t;
 
-    virtual void execute(event_t *e) {
+    virtual void execute(event_t *e) const {
         using namespace memory_format;
         switch (pd()->src_pd()->desc()->format) {
         case nChw16c: execute_backward<nChw16c>(); break;
@@ -126,7 +126,7 @@ struct ref_lrn_bwd_t: public cpu_primitive_t {
     }
 
 private:
-    template<memory_format_t fmt>void execute_backward();
+    template<memory_format_t fmt>void execute_backward() const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 

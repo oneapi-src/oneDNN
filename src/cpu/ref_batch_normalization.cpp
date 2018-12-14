@@ -28,7 +28,7 @@ namespace impl {
 namespace cpu {
 
 template <impl::data_type_t data_type>
-void ref_batch_normalization_fwd_t<data_type>::execute_forward() {
+void ref_batch_normalization_fwd_t<data_type>::execute_forward() const {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     /* FIXME: check this */
     data_t* mean = pd()->stats_is_src() ?
@@ -146,7 +146,7 @@ void ref_batch_normalization_fwd_t<data_type>::execute_forward() {
 template struct ref_batch_normalization_fwd_t<data_type::f32>;
 
 template <impl::data_type_t data_type>
-void ref_batch_normalization_bwd_t<data_type>::execute_backward() {
+void ref_batch_normalization_bwd_t<data_type>::execute_backward() const {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto mean = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto variance = reinterpret_cast<const data_t *>(this->input_memory(2));

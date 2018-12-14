@@ -30,7 +30,7 @@ namespace impl {
 namespace cpu {
 
 template <data_type_t data_type, data_type_t acc_type>
-void ref_pooling_fwd_t<data_type, acc_type>::execute_forward() {
+void ref_pooling_fwd_t<data_type, acc_type>::execute_forward() const {
     using namespace alg_kind;
     using namespace prop_kind;
 
@@ -191,7 +191,7 @@ void ref_pooling_fwd_t<data_type, acc_type>::execute_forward() {
 }
 
 template <data_type_t data_type, data_type_t acc_type>
-void ref_pooling_bwd_t<data_type, acc_type>::execute_backward() {
+void ref_pooling_bwd_t<data_type, acc_type>::execute_backward() const {
     using namespace alg_kind;
 
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(0));

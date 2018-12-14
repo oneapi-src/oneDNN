@@ -58,7 +58,7 @@ namespace nhwc_pooling {
 
 template <impl::data_type_t data_type>
 void nhwc_pooling_fwd_t<data_type>::array_div_by_const(const int n,
-                   const data_t *src, const size_t num, data_t *dst)
+        const data_t *src, const size_t num, data_t *dst) const
 {
     for (int i = 0; i < n; ++i)
     {
@@ -69,8 +69,8 @@ void nhwc_pooling_fwd_t<data_type>::array_div_by_const(const int n,
 }
 
 template <impl::data_type_t data_type>
-void nhwc_pooling_fwd_t<data_type>::array_add(const int n,
-                                              const data_t *src, data_t *dst)
+void nhwc_pooling_fwd_t<data_type>::array_add(const int n, const data_t *src,
+        data_t *dst) const
 {
     for (int i = 0;  i < n; ++i)
     {
@@ -79,7 +79,7 @@ void nhwc_pooling_fwd_t<data_type>::array_add(const int n,
 }
 
 template <impl::data_type_t data_type>
-void nhwc_pooling_fwd_t<data_type>::execute_forward() {
+void nhwc_pooling_fwd_t<data_type>::execute_forward() const {
     using namespace alg_kind;
     using namespace prop_kind;
     using namespace nhwc_pooling;
@@ -234,7 +234,7 @@ void nhwc_pooling_fwd_t<data_type>::execute_forward() {
 }
 
 template <impl::data_type_t data_type>
-void nhwc_pooling_bwd_t<data_type>::execute_backward() {
+void nhwc_pooling_bwd_t<data_type>::execute_backward() const {
     using namespace alg_kind;
     using namespace nhwc_pooling;
 

@@ -87,25 +87,26 @@ struct _jit_avx512_core_fp32_wino_conv_4x3_t {
 
     protected:
         void weight_transform_data(const jit_conv_winograd_conf_t &jcp,
-            float *wp, float *twp);
+            float *wp, float *twp) const;
         void input_transform_data(int image,
             const jit_conv_winograd_conf_t &jcp,
-            float *inp, float *tinp);
+            float *inp, float *tinp) const;
         void input_transform_tileblock_data(int tile_block,
             const jit_conv_winograd_conf_t &jcp,
-            float *inp, float *tinp);
+            float *inp, float *tinp) const;
         void output_transform_data(int image,
             const jit_conv_winograd_conf_t &jcp,
-            const post_ops_t &p_ops, float *toutp, float *pout_b, float *bias);
+            const post_ops_t &p_ops, float *toutp, float *pout_b,
+            float *bias) const;
         void output_transform_tileblock_data(int tile_block,
             const jit_conv_winograd_conf_t &jcp, const post_ops_t &p_ops,
-            float *toutp, float *outp, float *bias);
+            float *toutp, float *outp, float *bias) const;
         void _execute_data_W_S_G_D(float *inp_ptr, float *out_ptr,
                 float *wei_ptr, float *bias_ptr,
-                const memory_tracking::grantor_t &scratchpad);
+                const memory_tracking::grantor_t &scratchpad) const;
         void _execute_data_W_SGD(float *inp_ptr, float *out_ptr,
                 float *wei_ptr, float *bias_ptr,
-                const memory_tracking::grantor_t &scratchpad);
+                const memory_tracking::grantor_t &scratchpad) const;
         _jit_avx512_core_fp32_wino_conv_4x3_data_kernel *kernel_;
         const primitive_attr_t *attr_;
 };
@@ -185,7 +186,7 @@ struct jit_avx512_core_fp32_wino_conv_4x3_fwd_t
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    virtual void execute(event_t *e)
+    virtual void execute(event_t *e) const
     {
         float *src = (float *)this->input_memory(0);
         float *dst = (float *)this->memory();
@@ -279,7 +280,7 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_data_t
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    virtual void execute(event_t *e)
+    virtual void execute(event_t *e) const
     {
         float *diff_dst = (float *)this->input_memory(0);
         float *diff_src = (float *)this->memory();
@@ -390,7 +391,7 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_t
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    virtual void execute(event_t *e)
+    virtual void execute(event_t *e) const
     {
         if (pd()->desc()->prop_kind == prop_kind::backward_weights) {
             const auto &jcp = kernel_->jcp;
@@ -413,9 +414,9 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_t
 
 private:
     void _execute_backward_weights_SDGtWo(
-            const memory_tracking::grantor_t &scratchpad);
+            const memory_tracking::grantor_t &scratchpad) const;
     void _execute_backward_weights_S_D_Giot_W(
-            const memory_tracking::grantor_t &scratchpad);
+            const memory_tracking::grantor_t &scratchpad) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_kernel *kernel_;

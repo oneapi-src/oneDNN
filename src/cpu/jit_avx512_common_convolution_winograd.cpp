@@ -901,7 +901,7 @@ void diff_weights_transform_bwd_weights(jit_conv_winograd_conf_t conv,
 template <bool is_fwd>
 void _jit_avx512_common_convolution_winograd_t<is_fwd>::_execute_data_W_S_G_D(
         float *inp_ptr, float *out_ptr, float *wei_ptr, float *bias_ptr,
-        const memory_tracking::grantor_t &scratchpad) {
+        const memory_tracking::grantor_t &scratchpad) const {
     const auto &jcp = kernel_->jcp;
     const auto &p_ops = attr_->post_ops_;
 
@@ -1050,7 +1050,8 @@ template struct _jit_avx512_common_convolution_winograd_t<true>;
 template struct _jit_avx512_common_convolution_winograd_t<false>;
 
 void jit_avx512_common_convolution_winograd_bwd_weights_t::
-_maybe_execute_diff_bias_copy(const memory_tracking::grantor_t &scratchpad) {
+_maybe_execute_diff_bias_copy(
+        const memory_tracking::grantor_t &scratchpad) const {
     if (pd()->wants_padded_bias()) {
         auto padded_bias = scratchpad.get<float>(key_conv_padded_bias);
         float *diff_bias = (float *)this->memory(1);
@@ -1060,8 +1061,8 @@ _maybe_execute_diff_bias_copy(const memory_tracking::grantor_t &scratchpad) {
 }
 
 void jit_avx512_common_convolution_winograd_bwd_weights_t::
-_execute_backward_weights_S_D_G_W(const memory_tracking::grantor_t &scratchpad)
-{
+_execute_backward_weights_S_D_G_W(
+        const memory_tracking::grantor_t &scratchpad) const {
     const auto &jcp = kernel_->jcp;
     const int nthreads = jcp.nthr;
 
