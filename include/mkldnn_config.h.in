@@ -61,6 +61,9 @@
 // OpenCL backend.
 #define MKLDNN_BACKEND_OPENCL 2
 
+// SYCL backend.
+#define MKLDNN_BACKEND_SYCL 3
+
 // MKL-DNN CPU engine backend.
 #cmakedefine MKLDNN_CPU_BACKEND MKLDNN_BACKEND_${MKLDNN_CPU_BACKEND}
 
@@ -68,11 +71,16 @@
 #cmakedefine MKLDNN_GPU_BACKEND MKLDNN_BACKEND_${MKLDNN_GPU_BACKEND}
 
 #if defined(MKLDNN_CPU_BACKEND) && defined(MKLDNN_GPU_BACKEND)
-#    if MKLDNN_CPU_BACKEND != MKLDNN_BACKEND_NATIVE
+#    if MKLDNN_CPU_BACKEND != MKLDNN_BACKEND_NATIVE \
+            && (MKLDNN_CPU_BACKEND != MKLDNN_BACKEND_SYCL)
 #        error "Unexpected MKLDNN_CPU_BACKEND"
 #    endif
+#    if MKLDNN_CPU_BACKEND == MKLDNN_BACKEND_SYCL
+#        error "SYCL CPU backend is not yet supported"
+#    endif
 #    if (MKLDNN_GPU_BACKEND != MKLDNN_BACKEND_NONE) \
-             && (MKLDNN_GPU_BACKEND != MKLDNN_BACKEND_OPENCL)
+             && (MKLDNN_GPU_BACKEND != MKLDNN_BACKEND_OPENCL) \
+             && (MKLDNN_GPU_BACKEND != MKLDNN_BACKEND_SYCL)
 #        error "Unexpected MKLDNN_GPU_BACKEND"
 #    endif
 #else
@@ -84,5 +92,27 @@
 #else
 #    define MKLDNN_WITH_OPENCL 0
 #endif
+
+#if (MKLDNN_CPU_BACKEND == MKLDNN_BACKEND_SYCL) \
+        || (MKLDNN_GPU_BACKEND == MKLDNN_BACKEND_SYCL)
+#    define MKLDNN_WITH_SYCL 1
+#else
+#    define MKLDNN_WITH_SYCL 0
+#endif
+
+// For SYCL CPU, a primitive may be created and executed in different threads
+// hence the global scratchpad does not work. This enables concurrent execution
+// when CPU backend is SYCL to avoid the issue.
+#if MKLDNN_CPU_BACKEND == MKLDNN_BACKEND_SYCL
+#    ifndef MKLDNN_ENABLE_CONCURRENT_EXEC
+#        define MKLDNN_ENABLE_CONCURRENT_EXEC
+#    endif
+#endif
+
+// When defined, Intel SYCL is used.
+#cmakedefine MKLDNN_SYCL_INTEL
+
+// When defined, ComputeCpp SYCL is used.
+#cmakedefine MKLDNN_SYCL_COMPUTECPP
 
 #endif

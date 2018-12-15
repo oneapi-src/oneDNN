@@ -149,6 +149,9 @@ set(OPENCLROOT "" CACHE STRING
     "path to Intel(R) SDK for OpenCL(TM).
     Use this option to specify custom location for OpenCL.")
 
+set(SYCLROOT "" CACHE STRING
+    "path to SYCL implementation.")
+
 # =============
 # Miscellaneous
 # =============

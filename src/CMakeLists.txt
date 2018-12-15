@@ -66,8 +66,12 @@ endif()
 add_subdirectory(common)
 add_subdirectory(cpu)
 
-if(MKLDNN_GPU_BACKEND STREQUAL "OPENCL")
+if(MKLDNN_GPU_BACKEND STREQUAL "OPENCL" OR MKLDNN_GPU_BACKEND STREQUAL "SYCL")
     add_subdirectory(ocl)
+endif()
+
+if(MKLDNN_GPU_BACKEND STREQUAL "SYCL")
+    add_subdirectory(sycl)
 endif()
 
 add_library(${LIB_NAME}
