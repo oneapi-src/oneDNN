@@ -35,7 +35,7 @@
 #include "mkldnn.hpp"
 #include "mkldnn_test_macros.hpp"
 
-#if MKLDNN_WITH_OPENCL
+#if MKLDNN_WITH_OPENCL || MKLDNN_WITH_SYCL
 #include "mkldnn_test_common_ocl.hpp"
 #endif
 

@@ -111,4 +111,9 @@ if(MKLDNN_GPU_BACKEND STREQUAL "OPENCL")
     add_subdirectory(ocl)
 endif()
 
+if(MKLDNN_CPU_BACKEND STREQUAL "SYCL" OR
+   MKLDNN_GPU_BACKEND STREQUAL "SYCL")
+    add_subdirectory(sycl)
+endif()
+
 # vim: et ts=4 sw=4

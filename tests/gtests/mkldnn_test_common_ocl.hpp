@@ -83,6 +83,8 @@ private:
     release_t *release_;
 };
 
+// Auxiliary class providing RAII support for OpenCL objects,
+// specialized for specific OpenCL types
 template <typename T>
 struct ocl_wrapper_t {};
 
@@ -109,6 +111,7 @@ struct ocl_wrapper_t<cl_kernel> : ocl_wrapper_base_t<cl_kernel> {
         : ocl_wrapper_base_t(kernel, &clReleaseKernel) {}
 };
 
+// Constructs an OpenCL wrapper object (providing RAII support)
 template <typename T>
 ocl_wrapper_t<T> make_ocl_wrapper(T t) {
     return ocl_wrapper_t<T>(t);
