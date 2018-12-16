@@ -60,7 +60,7 @@ void compute_weighted_annotations(float *weighted_annotations,
     int num_weighted_annotations = src_seq_length_max * batch;
     mkldnn_sgemm("N", "N",
             &feature_size, &num_weighted_annotations, &feature_size,
-            &onef, annotations, &feature_size, weights_annot, &feature_size,
+            &onef, weights_annot, &feature_size, annotations, &feature_size,
             &zerof, weighted_annotations, &feature_size);
 }
 
@@ -81,7 +81,7 @@ void compute_attention(float *context_vectors, int src_seq_length_max,
     // first we precompute the weighted_dec_src_layer
     mkldnn_sgemm("N", "N",
             &feature_size, &batch, &feature_size, &onef,
-            dec_src_layer, &feature_size, weights_src_layer, &feature_size,
+            weights_src_layer, &feature_size, dec_src_layer, &feature_size,
             &zerof, weighted_src_layer.data(), &feature_size);
 
     // then we compute the alignment model
@@ -98,7 +98,7 @@ void compute_attention(float *context_vectors, int src_seq_length_max,
     int num_weighted_annotations = src_seq_length_max * batch;
     mkldnn_sgemm("N", "N",
             &onei, &num_weighted_annotations, &feature_size, &onef,
-            alignment_model_ptr, &feature_size, weights_alignments, &onei,
+            weights_alignments, &onei, alignment_model_ptr, &feature_size,
             &zerof, alignments.data(), &onei);
 
     // softmax on alignments. the resulting context weights are in alignments
