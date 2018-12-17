@@ -104,26 +104,25 @@ struct jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
     virtual status_t execute(const exec_ctx_t &ctx) const override
     {
         if (pd()->ndims() == 3)
-            execute_forward_1d();
+            execute_forward_1d(ctx);
         else if (pd()->ndims() == 4)
-            execute_forward_2d();
+            execute_forward_2d(ctx);
         else if (pd()->ndims() == 5)
-            execute_forward_3d();
+            execute_forward_3d(ctx);
         else
             assert(false);
 
         if (pd()->wants_zero_pad_dst())
-            output_memory_primitive(0)->zero_pad();
+            ctx.memory(MKLDNN_ARG_DST)->zero_pad();
 
-        UNUSED(ctx);
         return status::success;
     }
 
 private:
     void prepare_padded_bias(const dst_data_t *&bias) const;
-    void execute_forward_1d() const;
-    void execute_forward_2d() const;
-    void execute_forward_3d() const;
+    void execute_forward_1d(const exec_ctx_t &ctx) const;
+    void execute_forward_2d(const exec_ctx_t &ctx) const;
+    void execute_forward_3d(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     jit_avx512_common_conv_fwd_kernel *kernel_;
@@ -227,25 +226,24 @@ struct jit_avx512_common_convolution_bwd_data_t: public cpu_primitive_t {
         switch (pd()->desc()->prop_kind) {
         case prop_kind::backward_data:
             if (pd()->ndims() == 3)
-                execute_backward_data_1d();
+                execute_backward_data_1d(ctx);
             else if (pd()->ndims() == 4)
-                execute_backward_data_2d();
+                execute_backward_data_2d(ctx);
             else if (pd()->ndims() == 5)
-                execute_backward_data_3d();
+                execute_backward_data_3d(ctx);
             else
                 assert(false);
             break;
         default:
             assert(!"invalid prop_kind");
         }
-        UNUSED(ctx);
         return status::success;
     }
 
 private:
-    void execute_backward_data_1d() const;
-    void execute_backward_data_2d() const;
-    void execute_backward_data_3d() const;
+    void execute_backward_data_1d(const exec_ctx_t &ctx) const;
+    void execute_backward_data_2d(const exec_ctx_t &ctx) const;
+    void execute_backward_data_3d(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     jit_avx512_common_conv_bwd_data_kernel_f32 *kernel_;
@@ -363,13 +361,12 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
     typedef typename prec_traits<diff_weights_type>::type diff_weights_data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        execute_backward_weights();
-        UNUSED(ctx);
+        execute_backward_weights(ctx);
         return status::success;
     }
 
 private:
-    void execute_backward_weights() const;
+    void execute_backward_weights(const exec_ctx_t &ctx) const;
     void prepare_scratchpad_data() const;
     struct thread_info_t;
     void compute_diff_weights(const thread_info_t *) const;

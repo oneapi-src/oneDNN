@@ -917,9 +917,10 @@ jit_uni_i8i8_pooling_fwd_t<isa>::
 ~jit_uni_i8i8_pooling_fwd_t() { delete ker_; }
 
 template <cpu_isa_t isa>
-void jit_uni_i8i8_pooling_fwd_t<isa>::execute_forward() const {
-    auto src_i8 = reinterpret_cast<const char *>(input_memory(0));
-    auto dst_i8 = reinterpret_cast<char *>(memory());
+void jit_uni_i8i8_pooling_fwd_t<isa>::execute_forward(
+        const exec_ctx_t &ctx) const {
+    auto src_i8 = CTX_IN_MEM(const char *, MKLDNN_ARG_SRC);
+    auto dst_i8 = CTX_OUT_MEM(char *, MKLDNN_ARG_DST);
 
     const memory_desc_wrapper src_d(pd()->src_pd());
     const memory_desc_wrapper dst_d(pd()->dst_pd());

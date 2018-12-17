@@ -434,16 +434,26 @@ int doit(const rnn_prb_t *p, res_t *r) {
                 WARN);
     }
 
+    args_t args;
+
     // Running the forward pass
     {
-        mkldnn_primitive_at_t inputs[] = { { input_dt->p_, 0 },
-            { states_dt->p_, 0 }, { weights_input_dt->p_, 0 },
-            { weights_states_dt->p_, 0 }, { bias_dt->p_, 0 } };
-        const_mkldnn_primitive_t outputs[] = { dst_last_layer_dt->p_,
-            dst_last_iteration_dt->p_, workspace_dt ? workspace_dt->p_ : 0 };
+        DNN_SAFE(mkldnn_primitive_create(&c, rpd[0]), WARN);
+        DNN_SAFE(mkldnn_primitive_desc_destroy(rpd[0]), CRIT);
+
+        args.set(MKLDNN_ARG_SRC_LAYER, input_dt->p_);
+        args.set(MKLDNN_ARG_SRC_ITER, states_dt->p_);
+        args.set(MKLDNN_ARG_WEIGHTS_LAYER, weights_input_dt->p_);
+        args.set(MKLDNN_ARG_WEIGHTS_ITER, weights_states_dt->p_);
+        args.set(MKLDNN_ARG_BIAS, bias_dt->p_);
+
+        args.set(MKLDNN_ARG_DST_LAYER, dst_last_layer_dt->p_);
+        args.set(MKLDNN_ARG_DST_ITER, dst_last_iteration_dt->p_);
+        if (workspace_dt)
+            args.set(MKLDNN_ARG_WORKSPACE, workspace_dt->p_);
+
 #ifdef CALL_MKLDNN_RNN
-        DNN_SAFE(mkldnn_primitive_create(&c, rpd[0], inputs, outputs), WARN);
-        SAFE(execute(c), WARN);
+        DNN_SAFE(mkldnn_primitive_execute(c, stream, args.size(), args), WARN);
 #endif
         if ((p->prop == mkldnn_forward) && (bench_mode & CORR)) {
             compute_ref_fwd(p, *input_fp, *states_fp, *weights_input_fp,
@@ -462,20 +472,31 @@ int doit(const rnn_prb_t *p, res_t *r) {
     }
 
     if (is_bwd) {
-        mkldnn_primitive_at_t inputs[] = {
-            { input_dt->p_, 0 }, { states_dt->p_, 0 },
-            { bwd_weights_input_dt->p_, 0 }, { bwd_weights_states_dt->p_, 0 },
-            { bias_dt->p_, 0 }, { dst_last_layer_dt->p_, 0 },
-            { dst_last_iteration_dt->p_, 0 }, { diff_last_layer_dt->p_, 0 },
-            { diff_last_iteration_dt->p_, 0 }, { workspace_dt->p_, 0 },
-        };
-        const_mkldnn_primitive_t outputs[] = { dst_diff_input_dt->p_,
-            dst_diff_states_dt->p_, dst_diff_weights_input_dt->p_,
-            dst_diff_weights_states_dt->p_, dst_diff_bias_dt->p_ };
+        args.clear();
+        DNN_SAFE(mkldnn_primitive_destroy(c), CRIT);
+
+        DNN_SAFE(mkldnn_primitive_create(&c, rpd[1]), WARN);
+        DNN_SAFE(mkldnn_primitive_desc_destroy(rpd[1]), CRIT);
+
+        args.set(MKLDNN_ARG_SRC_LAYER, input_dt->p_);
+        args.set(MKLDNN_ARG_SRC_ITER, states_dt->p_);
+        args.set(MKLDNN_ARG_WEIGHTS_LAYER, bwd_weights_input_dt->p_);
+        args.set(MKLDNN_ARG_WEIGHTS_ITER, bwd_weights_states_dt->p_);
+        args.set(MKLDNN_ARG_BIAS, bias_dt->p_);
+        args.set(MKLDNN_ARG_DST_LAYER, dst_last_layer_dt->p_);
+        args.set(MKLDNN_ARG_DST_ITER, dst_last_iteration_dt->p_);
+        args.set(MKLDNN_ARG_DIFF_DST_LAYER, diff_last_layer_dt->p_);
+        args.set(MKLDNN_ARG_DIFF_DST_ITER, diff_last_iteration_dt->p_);
+        args.set(MKLDNN_ARG_WORKSPACE, workspace_dt->p_);
+
+        args.set(MKLDNN_ARG_DIFF_SRC_LAYER, dst_diff_input_dt->p_);
+        args.set(MKLDNN_ARG_DIFF_SRC_ITER, dst_diff_states_dt->p_);
+        args.set(MKLDNN_ARG_DIFF_WEIGHTS_LAYER, dst_diff_weights_input_dt->p_);
+        args.set(MKLDNN_ARG_DIFF_WEIGHTS_ITER, dst_diff_weights_states_dt->p_);
+        args.set(MKLDNN_ARG_DIFF_BIAS, dst_diff_bias_dt->p_);
 
 #ifdef CALL_MKLDNN_RNN
-        DNN_SAFE(mkldnn_primitive_create(&c, rpd[1], inputs, outputs), WARN);
-        SAFE(execute(c), WARN);
+        DNN_SAFE(mkldnn_primitive_execute(c, stream, args.size(), args), WARN);
 #endif
 
         if (bench_mode & CORR) {
@@ -525,7 +546,7 @@ int doit(const rnn_prb_t *p, res_t *r) {
         t.reset();
         while (true) {
 #ifdef CALL_MKLDNN_RNN
-            SAFE(execute(c), WARN);
+            DNN_SAFE(mkldnn_primitive_execute(c, stream, args.size(), args), WARN);
 #endif
             t.stamp();
             const bool stop = false
@@ -578,8 +599,6 @@ int doit(const rnn_prb_t *p, res_t *r) {
 
     delete workspace_dt;
 
-    DNN_SAFE(mkldnn_primitive_desc_destroy(rpd[0]), CRIT);
-    DNN_SAFE(mkldnn_primitive_desc_destroy(rpd[1]), CRIT);
     DNN_SAFE(mkldnn_primitive_destroy(c), CRIT);
 
     return OK;

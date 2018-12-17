@@ -47,17 +47,15 @@ static inline float fast_negative_powf(float omega, float beta) {
 
 template <impl::data_type_t data_type>
 template <mkldnn_memory_format_t fmt>
-void ref_lrn_fwd_t<data_type>::execute_forward() const {
+void ref_lrn_fwd_t<data_type>::execute_forward(const exec_ctx_t &ctx) const {
     using namespace alg_kind;
     using namespace memory_format;
 
-    auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
-    auto dst = reinterpret_cast<data_t*>(this->memory(0));
-    auto ws = reinterpret_cast<data_t*>(this->memory(1));
+    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
+    auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
+    auto ws = CTX_OUT_MEM(data_t *, MKLDNN_ARG_WORKSPACE);
 
     const memory_desc_wrapper data_d(pd()->src_pd());
-    const memory_desc_wrapper ws_d(pd()->workspace_pd());
-    MAYBE_UNUSED(ws_d);
 
     const int C = pd()->C();
     const int H = pd()->H();
@@ -142,17 +140,15 @@ void ref_lrn_fwd_t<data_type>::execute_forward() const {
 
 template <impl::data_type_t data_type>
 template <mkldnn_memory_format_t fmt>
-void ref_lrn_bwd_t<data_type>::execute_backward() const {
+void ref_lrn_bwd_t<data_type>::execute_backward(const exec_ctx_t &ctx) const {
     using namespace alg_kind;
     using namespace memory_format;
 
-    auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
-    auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
-    auto diff_src = reinterpret_cast<data_t*>(this->memory(0));
+    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
+    auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
+    auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
 
     const memory_desc_wrapper data_d(pd()->src_pd());
-    const memory_desc_wrapper diff_data_d(pd()->diff_dst_pd());
-    MAYBE_UNUSED(diff_data_d);
 
     const int MB = pd()->MB();
     const int C = pd()->C();
@@ -231,16 +227,26 @@ void ref_lrn_bwd_t<data_type>::execute_backward() const {
     }
 }
 
-template void ref_lrn_fwd_t<data_type::f32>::execute_forward<memory_format::nChw16c>() const;
-template void ref_lrn_fwd_t<data_type::f32>::execute_forward<memory_format::nChw8c>() const;
-template void ref_lrn_fwd_t<data_type::f32>::execute_forward<memory_format::nchw>() const;
-template void ref_lrn_fwd_t<data_type::f32>::execute_forward<memory_format::nhwc>() const;
-template void ref_lrn_fwd_t<data_type::f32>::execute_forward<memory_format::any>() const;
-template void ref_lrn_bwd_t<data_type::f32>::execute_backward<memory_format::nChw16c>() const;
-template void ref_lrn_bwd_t<data_type::f32>::execute_backward<memory_format::nChw8c>() const;
-template void ref_lrn_bwd_t<data_type::f32>::execute_backward<memory_format::nchw>() const;
-template void ref_lrn_bwd_t<data_type::f32>::execute_backward<memory_format::nhwc>() const;
-template void ref_lrn_bwd_t<data_type::f32>::execute_backward<memory_format::any>() const;
+template void ref_lrn_fwd_t<data_type::f32>::
+execute_forward<memory_format::nChw16c>(const exec_ctx_t &ctx) const;
+template void ref_lrn_fwd_t<data_type::f32>::
+execute_forward<memory_format::nChw8c>(const exec_ctx_t &ctx) const;
+template void ref_lrn_fwd_t<data_type::f32>::
+execute_forward<memory_format::nchw>(const exec_ctx_t &ctx) const;
+template void ref_lrn_fwd_t<data_type::f32>::
+execute_forward<memory_format::nhwc>(const exec_ctx_t &ctx) const;
+template void ref_lrn_fwd_t<data_type::f32>::
+execute_forward<memory_format::any>(const exec_ctx_t &ctx) const;
+template void ref_lrn_bwd_t<data_type::f32>::
+execute_backward<memory_format::nChw16c>(const exec_ctx_t &ctx) const;
+template void ref_lrn_bwd_t<data_type::f32>::
+execute_backward<memory_format::nChw8c>(const exec_ctx_t &ctx) const;
+template void ref_lrn_bwd_t<data_type::f32>::
+execute_backward<memory_format::nchw>(const exec_ctx_t &ctx) const;
+template void ref_lrn_bwd_t<data_type::f32>::
+execute_backward<memory_format::nhwc>(const exec_ctx_t &ctx) const;
+template void ref_lrn_bwd_t<data_type::f32>::
+execute_backward<memory_format::any>(const exec_ctx_t &ctx) const;
 
 }
 }

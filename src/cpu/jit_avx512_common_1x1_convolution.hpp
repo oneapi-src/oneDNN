@@ -145,13 +145,12 @@ struct jit_avx512_common_1x1_convolution_fwd_t : public cpu_primitive_t {
     typedef typename prec_traits<dst_type>::type dst_data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        execute_forward();
-        UNUSED(ctx);
+        execute_forward(ctx);
         return status::success;
     }
 
   private:
-    void execute_forward() const;
+    void execute_forward(const exec_ctx_t &ctx) const;
     void execute_forward_thr(const int ithr, const int nthr,
             const src_data_t *src, const wei_data_t *weights,
             const dst_data_t *bias, dst_data_t *dst,
@@ -278,17 +277,16 @@ struct jit_avx512_common_1x1_convolution_bwd_data_t : public cpu_primitive_t {
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         switch (pd()->desc()->prop_kind) {
         case prop_kind::backward_data:
-            execute_backward_data();
+            execute_backward_data(ctx);
             break;
         default:
             assert(!"invalid prop_kind");
         }
-        UNUSED(ctx);
         return status::success;
     }
 
   private:
-    void execute_backward_data() const;
+    void execute_backward_data(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     jit_avx512_common_1x1_conv_kernel *kernel_;
@@ -414,17 +412,16 @@ struct jit_avx512_common_1x1_convolution_bwd_weights_t : public cpu_primitive_t
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         switch (pd()->desc()->prop_kind) {
         case prop_kind::backward_weights:
-            execute_backward_weights();
+            execute_backward_weights(ctx);
             break;
         default:
             assert(!"invalid prop_kind");
         }
-        UNUSED(ctx);
         return status::success;
     }
 
   private:
-    void execute_backward_weights() const;
+    void execute_backward_weights(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     jit_avx512_common_1x1_conv_kernel *kernel_;

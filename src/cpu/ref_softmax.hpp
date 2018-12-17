@@ -91,15 +91,16 @@ struct ref_softmax_fwd_t: public cpu_primitive_t {
     typedef typename prec_traits<data_type>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        if (use_dense_) execute_forward_dense();
-        else execute_forward_generic();
-        UNUSED(ctx);
+        if (use_dense_)
+            execute_forward_dense(ctx);
+        else
+            execute_forward_generic(ctx);
         return status::success;
     }
 
 private:
-    void execute_forward_dense() const;
-    void execute_forward_generic() const;
+    void execute_forward_dense(const exec_ctx_t &ctx) const;
+    void execute_forward_generic(const exec_ctx_t &ctx) const;
 
     void _max(int n, const data_t *x, data_t *max_data) const;
     void _sub(int n, data_t alpha, const data_t *x, data_t *y) const;
@@ -163,15 +164,16 @@ struct ref_softmax_bwd_t: public cpu_primitive_t {
     typedef typename prec_traits<data_type>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        if (use_dense_) execute_backward_dense();
-        else execute_backward_generic();
-        UNUSED(ctx);
+        if (use_dense_)
+            execute_backward_dense(ctx);
+        else
+            execute_backward_generic(ctx);
         return status::success;
     }
 
 private:
-    void execute_backward_dense() const;
-    void execute_backward_generic() const;
+    void execute_backward_dense(const exec_ctx_t &ctx) const;
+    void execute_backward_generic(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     bool use_dense_;

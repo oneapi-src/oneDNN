@@ -70,13 +70,12 @@ struct gemm_inner_product_fwd_t: public cpu_primitive_t {
     typedef typename prec_traits<data_type>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        execute_forward();
-        UNUSED(ctx);
+        execute_forward(ctx);
         return status::success;
     }
 
 private:
-    void execute_forward() const;
+    void execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
@@ -115,13 +114,12 @@ struct gemm_inner_product_bwd_data_t: public cpu_primitive_t {
     typedef typename prec_traits<data_type>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        execute_backward_data();
-        UNUSED(ctx);
+        execute_backward_data(ctx);
         return status::success;
     }
 
 private:
-    void execute_backward_data() const;
+    void execute_backward_data(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
@@ -160,13 +158,12 @@ struct gemm_inner_product_bwd_weights_t: public cpu_primitive_t {
     typedef typename prec_traits<data_type>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        execute_backward_weights();
-        UNUSED(ctx);
+        execute_backward_weights(ctx);
         return status::success;
     }
 
 private:
-    void execute_backward_weights() const;
+    void execute_backward_weights(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 

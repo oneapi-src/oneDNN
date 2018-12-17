@@ -26,11 +26,8 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-typedef float data_t;
-
-void ref_deconvolution_fwd_t::compute_fwd_bias() const {
-    auto bias = reinterpret_cast<const data_t *>(this->input_memory(2));
-    auto dst = reinterpret_cast<data_t *>(this->memory());
+void ref_deconvolution_fwd_t::compute_fwd_bias(const data_t *bias,
+        data_t *dst) const {
     const memory_desc_wrapper dst_d(pd()->dst_pd());
 
     const int G = pd()->G();
@@ -53,10 +50,8 @@ void ref_deconvolution_fwd_t::compute_fwd_bias() const {
     });
 }
 
-void ref_deconvolution_fwd_t::compute_fwd_bias_ncdhw() const {
-    auto bias = reinterpret_cast<const data_t *>(this->input_memory(2));
-    auto dst = reinterpret_cast<data_t *>(this->memory());
-
+void ref_deconvolution_fwd_t::compute_fwd_bias_ncdhw(const data_t *bias,
+        data_t *dst) const {
     const memory_desc_wrapper dst_d(pd()->dst_pd());
 
     const int MB = pd()->MB();
@@ -73,10 +68,8 @@ void ref_deconvolution_fwd_t::compute_fwd_bias_ncdhw() const {
 }
 
 template <int blksize>
-void ref_deconvolution_fwd_t::compute_fwd_bias_nCdhwXc() const {
-    auto bias = reinterpret_cast<const data_t *>(this->input_memory(2));
-    auto dst = reinterpret_cast<data_t *>(this->memory());
-
+void ref_deconvolution_fwd_t::compute_fwd_bias_nCdhwXc(const data_t *bias,
+        data_t *dst) const {
     const memory_desc_wrapper dst_d(pd()->dst_pd());
 
     const int MB = pd()->MB();
@@ -97,9 +90,8 @@ void ref_deconvolution_fwd_t::compute_fwd_bias_nCdhwXc() const {
     });
 }
 
-void ref_deconvolution_bwd_weights_t::compute_bwd_bias() const {
-    auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
-    auto diff_bias = reinterpret_cast<data_t *>(this->memory(1));
+void ref_deconvolution_bwd_weights_t::compute_bwd_bias(const data_t *diff_dst,
+        data_t *diff_bias) const {
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
 
     const int G = pd()->G();
@@ -138,10 +130,8 @@ void ref_deconvolution_bwd_weights_t::compute_bwd_bias() const {
     });
 }
 
-void ref_deconvolution_bwd_weights_t::compute_bwd_bias_ncdhw() const {
-    auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
-    auto diff_bias = reinterpret_cast<data_t *>(this->memory(1));
-
+void ref_deconvolution_bwd_weights_t::compute_bwd_bias_ncdhw(
+        const data_t *diff_dst, data_t *diff_bias) const {
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
 
     const int OC = pd()->OC();
@@ -162,10 +152,8 @@ void ref_deconvolution_bwd_weights_t::compute_bwd_bias_ncdhw() const {
 }
 
 template <int blksize>
-void ref_deconvolution_bwd_weights_t::compute_bwd_bias_nCdhwXc() const {
-    auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
-    auto diff_bias = reinterpret_cast<data_t *>(this->memory(1));
-
+void ref_deconvolution_bwd_weights_t::compute_bwd_bias_nCdhwXc(
+        const data_t *diff_dst, data_t *diff_bias) const {
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
 
     const int OC = pd()->OC();
@@ -195,10 +183,14 @@ void ref_deconvolution_bwd_weights_t::compute_bwd_bias_nCdhwXc() const {
     });
 }
 
-template void ref_deconvolution_fwd_t::compute_fwd_bias_nCdhwXc<8>() const;
-template void ref_deconvolution_fwd_t::compute_fwd_bias_nCdhwXc<16>() const;
-template void ref_deconvolution_bwd_weights_t::compute_bwd_bias_nCdhwXc<8>() const;
-template void ref_deconvolution_bwd_weights_t::compute_bwd_bias_nCdhwXc<16>() const;
+template void ref_deconvolution_fwd_t::compute_fwd_bias_nCdhwXc<8>(
+        const data_t *diff_dst, data_t *diff_bias) const;
+template void ref_deconvolution_fwd_t::compute_fwd_bias_nCdhwXc<16>(
+        const data_t *diff_dst, data_t *diff_bias) const;
+template void ref_deconvolution_bwd_weights_t::compute_bwd_bias_nCdhwXc<8>(
+        const data_t *diff_dst, data_t *diff_bias) const;
+template void ref_deconvolution_bwd_weights_t::compute_bwd_bias_nCdhwXc<16>(
+        const data_t *diff_dst, data_t *diff_bias) const;
 
 }
 }

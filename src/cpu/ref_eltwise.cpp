@@ -60,9 +60,10 @@ float ref_eltwise_scalar_fwd_t::compute_scalar(float s) {
 }
 
 template <impl::data_type_t data_type>
-void ref_eltwise_fwd_t<data_type>::execute_forward_nCspBc_padded() const {
-    auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
-    auto dst = reinterpret_cast<data_t*>(this->memory(0));
+void ref_eltwise_fwd_t<data_type>::execute_forward_nCspBc_padded(
+        const exec_ctx_t &ctx) const {
+    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
+    auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
 
     const memory_desc_wrapper data_d(pd()->src_pd());
     const blocking_desc_t &blk = data_d.blocking_desc();
@@ -104,12 +105,13 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_nCspBc_padded() const {
 }
 
 template <impl::data_type_t data_type>
-void ref_eltwise_fwd_t<data_type>::execute_forward_generic() const {
-    auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
-    auto dst = reinterpret_cast<data_t*>(this->memory(0));
-
+void ref_eltwise_fwd_t<data_type>::execute_forward_generic(
+        const exec_ctx_t &ctx) const {
     /* fast return */
     if (pd()->has_zero_dim_memory()) return;
+
+    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
+    auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
 
     const memory_desc_wrapper data_d(pd()->src_pd());
 
@@ -147,9 +149,10 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_generic() const {
 }
 
 template <impl::data_type_t data_type>
-void ref_eltwise_fwd_t<data_type>::execute_forward_dense() const {
-    auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
-    auto dst = reinterpret_cast<data_t*>(this->memory(0));
+void ref_eltwise_fwd_t<data_type>::execute_forward_dense(
+        const exec_ctx_t &ctx) const {
+    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
+    auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
 
     const memory_desc_wrapper data_d(pd()->src_pd());
 
@@ -189,13 +192,14 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_dense() const {
 }
 
 template <impl::data_type_t data_type>
-void ref_eltwise_bwd_t<data_type>::execute_backward_generic() const {
-    auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
-    auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
-    auto diff_src = reinterpret_cast<data_t*>(this->memory(0));
-
+void ref_eltwise_bwd_t<data_type>::execute_backward_generic(
+        const exec_ctx_t &ctx) const {
     /* fast return */
     if (pd()->has_zero_dim_memory()) return;
+
+    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
+    auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
+    auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
 
     const memory_desc_wrapper data_d(pd()->src_pd());
     const memory_desc_wrapper diff_data_d(pd()->diff_src_pd());
@@ -239,10 +243,11 @@ void ref_eltwise_bwd_t<data_type>::execute_backward_generic() const {
 }
 
 template <impl::data_type_t data_type>
-void ref_eltwise_bwd_t<data_type>::execute_backward_dense() const {
-    auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
-    auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
-    auto diff_src = reinterpret_cast<data_t*>(this->memory(0));
+void ref_eltwise_bwd_t<data_type>::execute_backward_dense(
+        const exec_ctx_t &ctx) const {
+    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
+    auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
+    auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
 
     const memory_desc_wrapper data_d(pd()->src_pd());
     const memory_desc_wrapper diff_data_d(pd()->diff_src_pd());

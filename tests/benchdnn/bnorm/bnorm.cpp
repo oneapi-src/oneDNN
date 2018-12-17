@@ -504,13 +504,16 @@ static int cvt_mask_to_ws(const prb_t *p, const dnn_mem_t &mask_fp,
             WARN);
 
     mkldnn_primitive_t b{};
-    mkldnn_primitive_at_t inputs[3] = {
-        {data.p_, 0}, {mean.p_, 0}, {var.p_, 0}};
-    const_mkldnn_primitive_t outputs[2] = {data.p_, ws_dt.p_};
-    DNN_SAFE(mkldnn_primitive_create(&b, bpd, inputs, outputs), WARN);
-    SAFE(execute(b), WARN);
-
+    DNN_SAFE(mkldnn_primitive_create(&b, bpd), WARN);
     DNN_SAFE(mkldnn_primitive_desc_destroy(bpd), CRIT);
+
+    args_t args;
+    args.set(MKLDNN_ARG_SRC, data.p_);
+    args.set(MKLDNN_ARG_MEAN, mean.p_);
+    args.set(MKLDNN_ARG_VARIANCE, var.p_);
+    args.set(MKLDNN_ARG_DST, data.p_);
+    args.set(MKLDNN_ARG_WORKSPACE, ws_dt.p_);
+    DNN_SAFE(mkldnn_primitive_execute(b, stream, args.size(), args), WARN);
     DNN_SAFE(mkldnn_primitive_destroy(b), CRIT);
 
     return OK;
@@ -562,41 +565,39 @@ int doit(const prb_t *p, res_t *r) {
     }
     dnn_mem_t &ws_dt = *p_ws_dt;
 
+    DNN_SAFE(mkldnn_primitive_create(&b, bpd), WARN);
+    DNN_SAFE(mkldnn_primitive_desc_destroy(bpd), CRIT);
+
+    args_t args;
+
     if (p->dir & FLAG_FWD) {
         if (prepare_fwd(p, data_fp, mean_fp, var_fp, ss_fp) != OK)
             return r->state = MISTRUSTED, OK;
 
-        mkldnn_primitive_at_t inputs[4];
-        const_mkldnn_primitive_t outputs[4];
-
-        int idx = 0;
-
         SAFE(data_dt.reorder(data_fp), WARN);
-        inputs[idx++] = {data_dt.p_, 0};
+
+        /* always in-place so far... */
+        args.set(MKLDNN_ARG_SRC, data_dt.p_);
+        args.set(MKLDNN_ARG_DST, data_dt.p_);
 
         if (p->flags & GLOB_STATS) {
+            /* prepare mean & var if they are inputs */
             SAFE(mean_dt.reorder(mean_fp), WARN);
             SAFE(var_dt.reorder(var_fp), WARN);
-            inputs[idx++] = {mean_dt.p_, 0};
-            inputs[idx++] = {var_dt.p_, 0};
         }
+        args.set(MKLDNN_ARG_MEAN, mean_dt.p_);
+        args.set(MKLDNN_ARG_VARIANCE, var_dt.p_);
+
         if (p->flags & USE_SCALESHIFT) {
             SAFE(ss_dt.reorder(ss_fp), WARN);
-            inputs[idx++] = {ss_dt.p_, 0};
-        }
-
-        idx = 0;
-        outputs[idx++] = data_dt.p_; /* always in-place so far... */
-        if (!(p->flags & GLOB_STATS)) {
-            outputs[idx++] = mean_dt.p_;
-            outputs[idx++] = var_dt.p_;
+            args.set(MKLDNN_ARG_SCALE_SHIFT, ss_dt.p_);
         }
 
         if (p->flags & FUSE_BN_RELU)
-            outputs[idx++] = ws_dt.p_;
+            args.set(MKLDNN_ARG_WORKSPACE, ws_dt.p_);
 
-        DNN_SAFE(mkldnn_primitive_create(&b, bpd, inputs, outputs), WARN);
-        SAFE(execute(b), WARN);
+        DNN_SAFE(mkldnn_primitive_execute(b, stream, args.size(), args), WARN);
+
         if (bench_mode & CORR) {
             compute_ref_fwd(p, data_fp, mean_fp, var_fp, ss_fp, data_fp);
             if (!(p->flags & GLOB_STATS) && !(p->dir & FLAG_INF)) {
@@ -613,39 +614,32 @@ int doit(const prb_t *p, res_t *r) {
                 != OK)
             return r->state = MISTRUSTED, OK;
 
-        mkldnn_primitive_at_t inputs[6];
-        const_mkldnn_primitive_t outputs[2];
-
-        int idx = 0;
-
         SAFE(data_dt.reorder(data_fp), WARN);
-        inputs[idx++] = {data_dt.p_, 0};
+        args.set(MKLDNN_ARG_SRC, data_dt.p_);
+
+        SAFE(d_data_dt.reorder(d_data_fp), WARN);
+        /* always in-place so far... */
+        args.set(MKLDNN_ARG_DIFF_DST, d_data_dt.p_);
+        args.set(MKLDNN_ARG_DIFF_SRC, d_data_dt.p_);
 
         SAFE(mean_dt.reorder(mean_fp), WARN);
         SAFE(var_dt.reorder(var_fp), WARN);
-        inputs[idx++] = {mean_dt.p_, 0};
-        inputs[idx++] = {var_dt.p_, 0};
-
-        SAFE(d_data_dt.reorder(d_data_fp), WARN);
-        inputs[idx++] = {d_data_dt.p_, 0};
+        args.set(MKLDNN_ARG_MEAN, mean_dt.p_);
+        args.set(MKLDNN_ARG_VARIANCE, var_dt.p_);
 
         if (p->flags & USE_SCALESHIFT) {
             SAFE(ss_dt.reorder(ss_fp), WARN);
-            inputs[idx++] = {ss_dt.p_, 0};
+            args.set(MKLDNN_ARG_SCALE_SHIFT, ss_dt.p_);
+            args.set(MKLDNN_ARG_DIFF_SCALE_SHIFT, d_ss_dt.p_);
         }
 
         if (p->flags & FUSE_BN_RELU) {
             SAFE(cvt_mask_to_ws(p, ws_fp, ws_dt), WARN);
-            inputs[idx++] = {ws_dt.p_, 0};
+            args.set(MKLDNN_ARG_WORKSPACE, ws_dt.p_);
         }
 
-        idx = 0;
-        outputs[idx++] = d_data_dt.p_; /* always in-place so far... */
-        if ((p->flags & USE_SCALESHIFT) && (p->dir & FLAG_WEI))
-            outputs[idx++] = d_ss_dt.p_;
+        DNN_SAFE(mkldnn_primitive_execute(b, stream, args.size(), args), WARN);
 
-        DNN_SAFE(mkldnn_primitive_create(&b, bpd, inputs, outputs), WARN);
-        SAFE(execute(b), WARN);
         if (bench_mode & CORR) {
             compute_ref_bwd(p, data_fp, mean_fp, var_fp, d_data_fp, ss_fp,
                     ws_fp, d_data_fp, d_ss_fp);
@@ -661,7 +655,7 @@ int doit(const prb_t *p, res_t *r) {
         auto &t = r->timer;
         t.reset();
         while (true) {
-            SAFE(execute(b), WARN);
+            DNN_SAFE(mkldnn_primitive_execute(b, stream, args.size(), args), WARN);
             t.stamp();
             const bool stop = false
                 || (fix_times_per_prb && t.times() >= fix_times_per_prb)
@@ -673,7 +667,6 @@ int doit(const prb_t *p, res_t *r) {
     }
 
     delete p_ws_dt;
-    DNN_SAFE(mkldnn_primitive_desc_destroy(bpd), CRIT);
     DNN_SAFE(mkldnn_primitive_destroy(b), CRIT);
 
     return OK;

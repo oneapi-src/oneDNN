@@ -44,6 +44,19 @@ struct inner_product_fwd_pd_t: public primitive_desc_t {
     { return reinterpret_cast<const op_desc_t *>(this->desc()); }
     virtual void init_info() override { init_info_iprod(this, this->info_); }
 
+    virtual arg_usage_t arg_usage(primitive_arg_index_t arg) const override {
+        if (utils::one_of(arg, MKLDNN_ARG_SRC, MKLDNN_ARG_WEIGHTS))
+            return arg_usage_t::input;
+
+        if (arg == MKLDNN_ARG_BIAS && with_bias())
+            return arg_usage_t::input;
+
+        if (arg == MKLDNN_ARG_DST)
+            return arg_usage_t::output;
+
+        return primitive_desc_t::arg_usage(arg);
+    }
+
     virtual const memory_pd_t *input_pd(int index = 0) const override {
         switch (index) {
         case 0: return src_pd();
@@ -131,6 +144,16 @@ struct inner_product_bwd_data_pd_t: public primitive_desc_t {
     { return reinterpret_cast<const op_desc_t *>(this->desc()); }
     virtual void init_info() override { init_info_iprod(this, this->info_); }
 
+    virtual arg_usage_t arg_usage(primitive_arg_index_t arg) const override {
+        if (utils::one_of(arg, MKLDNN_ARG_WEIGHTS, MKLDNN_ARG_DIFF_DST))
+            return arg_usage_t::input;
+
+        if (arg == MKLDNN_ARG_DIFF_SRC)
+            return arg_usage_t::output;
+
+        return primitive_desc_t::arg_usage(arg);
+    }
+
     virtual const memory_pd_t *input_pd(int index = 0) const override {
         switch (index) {
         case 0: return diff_dst_pd();
@@ -217,6 +240,19 @@ struct inner_product_bwd_weights_pd_t: public primitive_desc_t {
     virtual const op_desc_t *op_desc() const override
     { return reinterpret_cast<const op_desc_t *>(this->desc()); }
     virtual void init_info() override { init_info_iprod(this, this->info_); }
+
+    virtual arg_usage_t arg_usage(primitive_arg_index_t arg) const override {
+        if (utils::one_of(arg, MKLDNN_ARG_SRC, MKLDNN_ARG_DIFF_DST))
+            return arg_usage_t::input;
+
+        if (arg == MKLDNN_ARG_DIFF_WEIGHTS)
+            return arg_usage_t::output;
+
+        if (arg == MKLDNN_ARG_DIFF_BIAS && with_bias())
+            return arg_usage_t::output;
+
+        return primitive_desc_t::arg_usage(arg);
+    }
 
     virtual const memory_pd_t *input_pd(int index = 0) const override {
         switch (index) {

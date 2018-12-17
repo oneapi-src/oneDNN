@@ -25,6 +25,9 @@
 #include "primitive.hpp"
 #include "scratchpad.hpp"
 
+#define CTX_IN_MEM(type, arg) static_cast<type>(ctx.input(arg))
+#define CTX_OUT_MEM(type, arg) static_cast<type>(ctx.output(arg))
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {

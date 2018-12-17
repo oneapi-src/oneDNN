@@ -25,25 +25,7 @@
 #include "event.hpp"
 #include "nstl.hpp"
 #include "primitive_desc.hpp"
-
-namespace mkldnn {
-namespace impl {
-
-/** Primitive execution context (helps passing stream, memories, and events. */
-struct exec_ctx_t {
-    exec_ctx_t(const exec_ctx_t &) = default;
-    exec_ctx_t(exec_ctx_t &&) = default;
-
-    exec_ctx_t(stream_t *stream): stream_(stream) {}
-
-    stream_t *stream() const { return stream_; }
-
-private:
-    stream_t *stream_;
-};
-
-}
-}
+#include "primitive_exec_types.hpp"
 
 /** \brief A pure virtual primitive class
  *
@@ -104,6 +86,9 @@ struct mkldnn_primitive: public mkldnn::impl::c_compatible {
         assert(this->kind() == mkldnn::impl::primitive_kind::memory);
         return mkldnn::impl::status::invalid_arguments;
     }
+    /** zeros padding. Applicable for memory primitives only. */
+    virtual mkldnn::impl::status_t zero_pad() const
+    { return mkldnn::impl::status::invalid_arguments; }
 
 protected:
     const mkldnn::impl::primitive_desc_t *pd_;

@@ -1169,6 +1169,81 @@ typedef struct {
     size_t output_index;
 } mkldnn_primitive_at_t;
 
+/** @addtogroup c_api_types_arguments Argument indices
+ * @{ */
+
+#define MKLDNN_ARG_SRC_0                1
+#define MKLDNN_ARG_SRC                  MKLDNN_ARG_SRC_0
+#define MKLDNN_ARG_SRC_LAYER            MKLDNN_ARG_SRC_0
+#define MKLDNN_ARG_FROM                 MKLDNN_ARG_SRC_0
+
+#define MKLDNN_ARG_SRC_1                2
+#define MKLDNN_ARG_SRC_ITER             MKLDNN_ARG_SRC_1
+
+#define MKLDNN_ARG_DST_0                17
+#define MKLDNN_ARG_DST                  MKLDNN_ARG_DST_0
+#define MKLDNN_ARG_TO                   MKLDNN_ARG_DST_0
+#define MKLDNN_ARG_DST_LAYER            MKLDNN_ARG_DST_0
+
+#define MKLDNN_ARG_DST_1                18
+#define MKLDNN_ARG_DST_ITER             MKLDNN_ARG_DST_1
+
+#define MKLDNN_ARG_WEIGHTS_0            33
+#define MKLDNN_ARG_WEIGHTS              MKLDNN_ARG_WEIGHTS_0
+#define MKLDNN_ARG_SCALE_SHIFT          MKLDNN_ARG_WEIGHTS_0
+#define MKLDNN_ARG_WEIGHTS_LAYER        MKLDNN_ARG_WEIGHTS_0
+
+#define MKLDNN_ARG_WEIGHTS_1            34
+#define MKLDNN_ARG_WEIGHTS_ITER         MKLDNN_ARG_WEIGHTS_1
+
+#define MKLDNN_ARG_BIAS                 41
+
+#define MKLDNN_ARG_MEAN                 49
+#define MKLDNN_ARG_VARIANCE             50
+
+#define MKLDNN_ARG_WORKSPACE            64
+#define MKLDNN_ARG_SCRATCHPAD           80
+
+#define MKLDNN_ARG_DIFF_SRC_0           129
+#define MKLDNN_ARG_DIFF_SRC             MKLDNN_ARG_DIFF_SRC_0
+#define MKLDNN_ARG_DIFF_SRC_LAYER       MKLDNN_ARG_DIFF_SRC_0
+
+#define MKLDNN_ARG_DIFF_SRC_1           130
+#define MKLDNN_ARG_DIFF_SRC_ITER        MKLDNN_ARG_DIFF_SRC_1
+
+#define MKLDNN_ARG_DIFF_DST_0           145
+#define MKLDNN_ARG_DIFF_DST             MKLDNN_ARG_DIFF_DST_0
+#define MKLDNN_ARG_DIFF_DST_LAYER       MKLDNN_ARG_DIFF_DST_0
+
+#define MKLDNN_ARG_DIFF_DST_1           146
+#define MKLDNN_ARG_DIFF_DST_ITER        MKLDNN_ARG_DIFF_DST_1
+
+#define MKLDNN_ARG_DIFF_WEIGHTS_0       161
+#define MKLDNN_ARG_DIFF_WEIGHTS         MKLDNN_ARG_DIFF_WEIGHTS_0
+#define MKLDNN_ARG_DIFF_SCALE_SHIFT     MKLDNN_ARG_DIFF_WEIGHTS_0
+#define MKLDNN_ARG_DIFF_WEIGHTS_LAYER   MKLDNN_ARG_DIFF_WEIGHTS_0
+
+#define MKLDNN_ARG_DIFF_WEIGHTS_1       162
+#define MKLDNN_ARG_DIFF_WEIGHTS_ITER    MKLDNN_ARG_DIFF_WEIGHTS_1
+
+#define MKLDNN_ARG_DIFF_BIAS            169
+
+#define MKLDNN_ARG_MULTIPLE_SRC         1024
+#define MKLDNN_ARG_MULTIPLE_DST         2048
+
+/** @} */
+
+/** An auxiliary structure to specify primitive's inputs/outputs at execution
+ *
+ * @warning
+ *      With this API it's impossible to preserve constness of memory, so all
+ *      memories are passed w/o const qualifier. However only memories with
+ *      output semantics might be changed during the execution */
+typedef struct {
+    int arg; /**< An argument index, e.g. MKLDNN_ARG_SRC */
+    mkldnn_primitive_t memory; /**< Input/output memory */
+} mkldnn_exec_arg_t;
+
 /** @} */
 
 /** @addtogroup c_api_types_query Queries

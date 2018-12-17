@@ -112,6 +112,25 @@ struct batch_normalization_fwd_pd_t: public batch_normalization_pd_t {
     using batch_normalization_pd_t::batch_normalization_pd_t;
     virtual ~batch_normalization_fwd_pd_t() {}
 
+    virtual arg_usage_t arg_usage(primitive_arg_index_t arg) const override {
+        if (arg == MKLDNN_ARG_SRC) return arg_usage_t::input;
+        if (arg == MKLDNN_ARG_DST) return arg_usage_t::output;
+
+        if (utils::one_of(arg, MKLDNN_ARG_MEAN, MKLDNN_ARG_VARIANCE)) {
+            if (stats_is_src()) return arg_usage_t::input;
+            if (!stats_is_src() && is_training()) return arg_usage_t::output;
+            return arg_usage_t::unused;
+        }
+
+        if (arg == MKLDNN_ARG_SCALE_SHIFT && use_scaleshift())
+            return arg_usage_t::input;
+
+        if (arg == MKLDNN_ARG_WORKSPACE && is_training() && fuse_bn_relu())
+            return arg_usage_t::output;
+
+        return primitive_desc_t::arg_usage(arg);
+    }
+
     virtual const memory_pd_t *input_pd(int index = 0) const override {
         if (index == 0) return src_pd();
         if (stats_is_src()) {
@@ -159,6 +178,26 @@ struct batch_normalization_bwd_pd_t: public batch_normalization_pd_t {
 
     using batch_normalization_pd_t::batch_normalization_pd_t;
     virtual ~batch_normalization_bwd_pd_t() {}
+
+    virtual arg_usage_t arg_usage(primitive_arg_index_t arg) const override {
+        if (utils::one_of(arg, MKLDNN_ARG_SRC, MKLDNN_ARG_MEAN,
+                    MKLDNN_ARG_VARIANCE, MKLDNN_ARG_DIFF_DST))
+            return arg_usage_t::input;
+
+        if (arg == MKLDNN_ARG_SCALE_SHIFT && use_scaleshift())
+            return arg_usage_t::input;
+
+        if (arg == MKLDNN_ARG_WORKSPACE && fuse_bn_relu())
+            return arg_usage_t::input;
+
+        if (arg == MKLDNN_ARG_DIFF_SRC)
+            return arg_usage_t::output;
+
+        if (arg == MKLDNN_ARG_DIFF_SCALE_SHIFT && use_scaleshift())
+            return arg_usage_t::output;
+
+        return primitive_desc_t::arg_usage(arg);
+    }
 
     virtual const memory_pd_t *input_pd(int index = 0) const override {
         if (index == 0) return src_pd();

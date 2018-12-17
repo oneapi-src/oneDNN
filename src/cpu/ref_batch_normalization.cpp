@@ -28,28 +28,23 @@ namespace impl {
 namespace cpu {
 
 template <impl::data_type_t data_type>
-void ref_batch_normalization_fwd_t<data_type>::execute_forward() const {
-    auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
-    /* FIXME: check this */
-    data_t* mean = pd()->stats_is_src() ?
-        const_cast<data_t*>(reinterpret_cast<const data_t*>(
-               this->input_memory(1))) :
-        reinterpret_cast<data_t*>(this->memory(1));
-
-    data_t* variance = pd()->stats_is_src() ?
-        const_cast<data_t*>(reinterpret_cast<const data_t*>(
-                this->input_memory(2))) :
-        reinterpret_cast<data_t*>(this->memory(2));
-
-    auto idx_scaleshift = 1 + 2*pd()->stats_is_src();
-    auto scaleshift =
-        reinterpret_cast<const data_t *>(this->input_memory(idx_scaleshift));
-
-    auto dst = reinterpret_cast<data_t*>(this->memory(0));
-    auto ws = reinterpret_cast<uint8_t *>(this->memory(pd()->ws_idx()));
-
+void ref_batch_normalization_fwd_t<data_type>::execute_forward(
+        const exec_ctx_t &ctx) const {
     /* fast return */
     if (this->pd()->has_zero_dim_memory()) return;
+
+    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
+    auto scaleshift = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SCALE_SHIFT);
+
+    auto mean = pd()->stats_is_src()
+        ? const_cast<data_t *>(CTX_IN_MEM(const data_t *, MKLDNN_ARG_MEAN))
+        : CTX_OUT_MEM(data_t *, MKLDNN_ARG_MEAN);
+    auto variance = pd()->stats_is_src()
+        ? const_cast<data_t *>(CTX_IN_MEM(const data_t *, MKLDNN_ARG_VARIANCE))
+        : CTX_OUT_MEM(data_t *, MKLDNN_ARG_VARIANCE);
+
+    auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
+    auto ws = CTX_OUT_MEM(uint8_t *, MKLDNN_ARG_WORKSPACE);
 
     const memory_desc_wrapper data_d(pd()->src_pd());
     const memory_desc_wrapper scaleshift_d(pd()->weights_pd());
@@ -146,17 +141,17 @@ void ref_batch_normalization_fwd_t<data_type>::execute_forward() const {
 template struct ref_batch_normalization_fwd_t<data_type::f32>;
 
 template <impl::data_type_t data_type>
-void ref_batch_normalization_bwd_t<data_type>::execute_backward() const {
-    auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
-    auto mean = reinterpret_cast<const data_t *>(this->input_memory(1));
-    auto variance = reinterpret_cast<const data_t *>(this->input_memory(2));
-    auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(3));
-    auto scaleshift = reinterpret_cast<const data_t *>(this->input_memory(4));
-    auto ws = reinterpret_cast<const uint8_t *>(
-            this->input_memory(pd()->ws_idx()));
+void ref_batch_normalization_bwd_t<data_type>::execute_backward(
+        const exec_ctx_t &ctx) const {
+    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
+    auto mean = CTX_IN_MEM(const data_t *, MKLDNN_ARG_MEAN);
+    auto variance = CTX_IN_MEM(const data_t *, MKLDNN_ARG_VARIANCE);
+    auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
+    auto scaleshift = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SCALE_SHIFT);
+    auto ws = CTX_IN_MEM(const uint8_t *, MKLDNN_ARG_WORKSPACE);
 
-    auto diff_src = reinterpret_cast<data_t*>(this->memory(0));
-    auto diff_scaleshift = reinterpret_cast<data_t *>(this->memory(1));
+    auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
+    auto diff_scaleshift = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SCALE_SHIFT);
 
     const memory_desc_wrapper data_d(pd()->src_pd());
     const memory_desc_wrapper diff_data_d(pd()->diff_src_pd());

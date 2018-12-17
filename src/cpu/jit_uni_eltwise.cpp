@@ -1040,9 +1040,9 @@ jit_uni_eltwise_fwd_t<isa>::~jit_uni_eltwise_fwd_t()
 { delete kernel_; }
 
 template <cpu_isa_t isa>
-void jit_uni_eltwise_fwd_t<isa>::execute_forward() const {
-    auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
-    auto dst = reinterpret_cast<data_t *>(this->memory(0));
+void jit_uni_eltwise_fwd_t<isa>::execute_forward(const exec_ctx_t &ctx) const {
+    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
+    auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
 
     const memory_desc_wrapper data_d(pd()->src_pd());
 
@@ -1104,10 +1104,10 @@ jit_uni_eltwise_bwd_t<isa>::~jit_uni_eltwise_bwd_t()
 { delete kernel_; }
 
 template <cpu_isa_t isa>
-void jit_uni_eltwise_bwd_t<isa>::execute_backward() const {
-    auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
-    auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
-    auto diff_src = reinterpret_cast<data_t *>(this->memory(0));
+void jit_uni_eltwise_bwd_t<isa>::execute_backward(const exec_ctx_t &ctx) const {
+    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
+    auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
+    auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
 
     const memory_desc_wrapper data_d(pd()->src_pd());
     const memory_desc_wrapper diff_data_d(pd()->diff_src_pd());

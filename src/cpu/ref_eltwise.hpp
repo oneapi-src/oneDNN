@@ -97,19 +97,18 @@ struct ref_eltwise_fwd_t: public cpu_primitive_t {
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         if (pd()->use_dense_)
-            execute_forward_dense();
+            execute_forward_dense(ctx);
         else if (pd()->use_nCspBc_padded_)
-            execute_forward_nCspBc_padded();
+            execute_forward_nCspBc_padded(ctx);
         else
-            execute_forward_generic();
-        UNUSED(ctx);
+            execute_forward_generic(ctx);
         return status::success;
     }
 
 private:
-    void execute_forward_nCspBc_padded() const;
-    void execute_forward_dense() const;
-    void execute_forward_generic() const;
+    void execute_forward_nCspBc_padded(const exec_ctx_t &ctx) const;
+    void execute_forward_dense(const exec_ctx_t &ctx) const;
+    void execute_forward_generic(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
@@ -158,15 +157,16 @@ struct ref_eltwise_bwd_t: public cpu_primitive_t {
     typedef typename prec_traits<data_type>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        if (pd()->use_dense_) execute_backward_dense();
-        else execute_backward_generic();
-        UNUSED(ctx);
+        if (pd()->use_dense_)
+            execute_backward_dense(ctx);
+        else
+            execute_backward_generic(ctx);
         return status::success;
     }
 
 private:
-    void execute_backward_dense() const;
-    void execute_backward_generic() const;
+    void execute_backward_dense(const exec_ctx_t &ctx) const;
+    void execute_backward_generic(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 

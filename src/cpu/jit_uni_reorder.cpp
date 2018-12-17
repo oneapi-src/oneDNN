@@ -985,8 +985,8 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
     }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        auto in = reinterpret_cast<const char *>(input_memory(0));
-        auto out = reinterpret_cast<char *>(memory());
+        auto in = CTX_IN_MEM(const char *, MKLDNN_ARG_FROM);
+        auto out = CTX_OUT_MEM(char *, MKLDNN_ARG_TO);
 
         omp_driver(in, out, pd()->attr()->output_scales_.scales_);
 

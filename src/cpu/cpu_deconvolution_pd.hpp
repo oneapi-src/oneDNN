@@ -35,12 +35,13 @@
             const override {                                                   \
         double ms = get_msec();                                                \
         using namespace prop_kind;                                             \
-        primitive_t::input_vector ins(inputs, inputs + this->n_inputs());      \
-        primitive_t::output_vector outs(outputs, outputs + this->n_outputs()); \
+        const int c = (inputs || outputs) ? 1 : 0;                             \
+        primitive_t::input_vector ins(inputs, inputs + c * this->n_inputs());  \
+        primitive_t::output_vector outs(outputs, outputs + c * this->n_outputs()); \
         auto ret = safe_ptr_assign<primitive_t>(                               \
                 *primitive, new (__VA_ARGS__)(this, ins, outs));               \
         primitive_t *conv_primitive;                                           \
-        if (this->desc()->prop_kind == backward_weights) {                     \
+        if (c && this->desc()->prop_kind == backward_weights) {                \
             primitive_at_t conv_inputs[2];                                     \
             conv_inputs[0] = inputs[1];                                        \
             conv_inputs[1] = inputs[0];                                        \

@@ -82,6 +82,18 @@ static size_t product(int *arr, size_t size) {
     return prod;
 }
 
+typedef struct { int nargs; mkldnn_exec_arg_t *args; } args_t;
+
+static void prepare_arg_node(args_t *node, int nargs) {
+    node->args = (mkldnn_exec_arg_t *)malloc(sizeof(mkldnn_exec_arg_t) * nargs);
+    node->nargs = nargs;
+}
+static void free_arg_node(args_t *node) { free(node->args); }
+
+static void set_arg(mkldnn_exec_arg_t *arg, int arg_idx,
+        mkldnn_primitive_t memory)
+{ arg->arg = arg_idx; arg->memory = memory; }
+
 static void init_data_memory(uint32_t dim, const int *dims,
         mkldnn_memory_format_t user_fmt, mkldnn_data_type_t mkldnn_f32,
         mkldnn_engine_t engine, float *data, mkldnn_primitive_t *memory)
@@ -90,7 +102,7 @@ static void init_data_memory(uint32_t dim, const int *dims,
     mkldnn_primitive_desc_t user_pd;
     CHECK(mkldnn_memory_desc_init(&prim_md, dim, dims, mkldnn_f32, user_fmt));
     CHECK(mkldnn_memory_primitive_desc_create(&user_pd, &prim_md, engine));
-    CHECK(mkldnn_primitive_create(memory, user_pd, NULL, NULL));
+    CHECK(mkldnn_primitive_create(memory, user_pd));
 
     void *req = NULL;
     CHECK(mkldnn_memory_get_data_handle(*memory, &req));
@@ -107,35 +119,37 @@ mkldnn_status_t prepare_reorder(
         int dir_is_user_to_prim, /** in: user -> prim or prim -> user */
         mkldnn_primitive_t *prim_memory, /** out: memory primitive created */
         mkldnn_primitive_t *reorder, /** out: reorder primitive created */
-        float *buffer)
+        float *buffer,
+        uint32_t *net_index,  /** primitive index in net (inc if reorder created) */
+        mkldnn_primitive_t *net, args_t *net_args /** net params */)
 {
     const_mkldnn_primitive_desc_t user_memory_pd;
     mkldnn_primitive_get_primitive_desc(*user_memory, &user_memory_pd);
 
     if (!mkldnn_memory_primitive_desc_equal(user_memory_pd, *prim_memory_pd)) {
         /* memory_create(&p, m, NULL) means allocate memory */
-        CHECK(mkldnn_primitive_create(prim_memory, *prim_memory_pd,
-                NULL, NULL));
+        CHECK(mkldnn_primitive_create(prim_memory, *prim_memory_pd));
         mkldnn_primitive_desc_t reorder_pd;
         if (dir_is_user_to_prim) {
             /* reorder primitive descriptor doesn't need engine, because it is
              * already appeared in in- and out- memory primitive descriptors */
             CHECK(mkldnn_reorder_primitive_desc_create(&reorder_pd,
                         user_memory_pd, *prim_memory_pd));
-            mkldnn_primitive_at_t inputs = { *user_memory, 0 };
-            const_mkldnn_primitive_t outputs[] = { *prim_memory };
-            CHECK(mkldnn_primitive_create(reorder, reorder_pd, &inputs,
-                        outputs));
         } else {
             CHECK(mkldnn_reorder_primitive_desc_create(&reorder_pd,
                         *prim_memory_pd, user_memory_pd));
-            mkldnn_primitive_at_t inputs = { *prim_memory, 0 };
-            const_mkldnn_primitive_t outputs[] = { *user_memory };
-            CHECK(mkldnn_primitive_create(reorder, reorder_pd, &inputs,
-                        outputs));
         }
+        CHECK(mkldnn_primitive_create(reorder, reorder_pd));
         CHECK(mkldnn_memory_set_data_handle(*prim_memory, buffer));
         CHECK(mkldnn_primitive_desc_destroy(reorder_pd));
+
+        net[*net_index] = *reorder;
+        prepare_arg_node(&net_args[*net_index], 2);
+        set_arg(&net_args[*net_index].args[0], MKLDNN_ARG_FROM,
+                dir_is_user_to_prim ? *user_memory : *prim_memory);
+        set_arg(&net_args[*net_index].args[1], MKLDNN_ARG_TO,
+                dir_is_user_to_prim ? *prim_memory : *user_memory);
+        (*net_index)++;
     } else {
         *prim_memory = NULL;
         *reorder = NULL;
@@ -148,6 +162,11 @@ mkldnn_status_t simple_net() {
 
     mkldnn_engine_t engine;
     CHECK(mkldnn_engine_create(&engine, mkldnn_cpu, 0 /* idx */));
+
+    /* build a simple net */
+    uint32_t n = 0;
+    mkldnn_primitive_t net[10];
+    args_t net_args[10];
 
     float *net_src = (float *)aligned_malloc(
             BATCH * IC * CONV_IH * CONV_IW * sizeof(float), 64);
@@ -212,8 +231,7 @@ mkldnn_status_t simple_net() {
     /* create memory for dst data, we don't need reorder it to user data */
     const_mkldnn_primitive_desc_t dst_pd
             = mkldnn_primitive_desc_query_pd(conv_pd, mkldnn_query_dst_pd, 0);
-    CHECK(mkldnn_primitive_create(
-            &conv_internal_dst_memory, dst_pd, NULL, NULL));
+    CHECK(mkldnn_primitive_create(&conv_internal_dst_memory, dst_pd));
     size_t conv_dst_size = mkldnn_memory_primitive_desc_get_size(dst_pd);
     float *conv_dst_buffer = (float *)aligned_malloc(conv_dst_size, 64);
     CHECK(mkldnn_memory_set_data_handle(
@@ -228,7 +246,8 @@ mkldnn_status_t simple_net() {
     size_t conv_src_size = mkldnn_memory_primitive_desc_get_size(src_pd);
     float *conv_src_buffer = (float *)aligned_malloc(conv_src_size, 64);
     CHECK(prepare_reorder(&conv_user_src_memory, &src_pd, 1,
-            &conv_internal_src_memory, &conv_reorder_src, conv_src_buffer));
+            &conv_internal_src_memory, &conv_reorder_src, conv_src_buffer,
+            &n, net, net_args));
 
     const_mkldnn_primitive_desc_t weights_pd = mkldnn_primitive_desc_query_pd(
             conv_pd, mkldnn_query_weights_pd, 0);
@@ -237,24 +256,23 @@ mkldnn_status_t simple_net() {
     float *conv_weights_buffer = (float *)aligned_malloc(conv_weights_size, 64);
     CHECK(prepare_reorder(&conv_user_weights_memory, &weights_pd, 1,
             &conv_internal_weights_memory, &conv_reorder_weights,
-            conv_weights_buffer));
+            conv_weights_buffer, &n, net, net_args));
 
     mkldnn_primitive_t conv_src_memory = conv_internal_src_memory ?
         conv_internal_src_memory : conv_user_src_memory;
     mkldnn_primitive_t conv_weights_memory = conv_internal_weights_memory ?
         conv_internal_weights_memory : conv_user_weights_memory;
 
-    mkldnn_primitive_at_t conv_srcs[] = {
-        mkldnn_primitive_at(conv_src_memory, 0),
-        mkldnn_primitive_at(conv_weights_memory, 0),
-        mkldnn_primitive_at(conv_user_bias_memory, 0)
-    };
-
-    const_mkldnn_primitive_t conv_dsts[] = { conv_internal_dst_memory };
-
     /* finally create a convolution primitive */
     mkldnn_primitive_t conv;
-    CHECK(mkldnn_primitive_create(&conv, conv_pd, conv_srcs, conv_dsts));
+    CHECK(mkldnn_primitive_create(&conv, conv_pd));
+    net[n] = conv;
+    prepare_arg_node(&net_args[n], 4);
+    set_arg(&net_args[n].args[0], MKLDNN_ARG_SRC, conv_src_memory);
+    set_arg(&net_args[n].args[1], MKLDNN_ARG_WEIGHTS, conv_weights_memory);
+    set_arg(&net_args[n].args[2], MKLDNN_ARG_BIAS, conv_user_bias_memory);
+    set_arg(&net_args[n].args[3], MKLDNN_ARG_DST, conv_internal_dst_memory);
+    n++;
 
     /* AlexNet: relu
      * {BATCH, OC, CONV_OH, CONV_OW} -> {BATCH, OC, CONV_OH, CONV_OW}
@@ -279,17 +297,19 @@ mkldnn_status_t simple_net() {
     mkldnn_primitive_t relu_dst_memory;
     const_mkldnn_primitive_desc_t relu_dst_pd = mkldnn_primitive_desc_query_pd(
             relu_pd, mkldnn_query_dst_pd, 0);
-    CHECK(mkldnn_primitive_create(&relu_dst_memory, relu_dst_pd, NULL, NULL));
+    CHECK(mkldnn_primitive_create(&relu_dst_memory, relu_dst_pd));
     size_t relu_dst_size = mkldnn_memory_primitive_desc_get_size(relu_dst_pd);
     float *relu_dst_buffer = (float *)aligned_malloc(relu_dst_size, 64);
     CHECK(mkldnn_memory_set_data_handle(relu_dst_memory, relu_dst_buffer));
 
     /* finally create a relu primitive */
     mkldnn_primitive_t relu;
-    mkldnn_primitive_at_t relu_srcs = { conv_internal_dst_memory, 0 };
-    const_mkldnn_primitive_t relu_dsts[] = { relu_dst_memory };
-
-    CHECK(mkldnn_primitive_create(&relu, relu_pd, &relu_srcs, relu_dsts));
+    CHECK(mkldnn_primitive_create(&relu, relu_pd));
+    net[n] = relu;
+    prepare_arg_node(&net_args[n], 2);
+    set_arg(&net_args[n].args[0], MKLDNN_ARG_SRC, conv_internal_dst_memory);
+    set_arg(&net_args[n].args[1], MKLDNN_ARG_DST, relu_dst_memory);
+    n++;
 
     /* AlexNet: lrn
      * {BATCH, OC, CONV_OH, CONV_OW} -> {BATCH, OC, CONV_OH, CONV_OW}
@@ -319,7 +339,7 @@ mkldnn_status_t simple_net() {
     mkldnn_primitive_t lrn_dst_memory;
     const_mkldnn_primitive_desc_t lrn_dst_pd = mkldnn_primitive_desc_query_pd(
             lrn_pd, mkldnn_query_dst_pd, 0);
-    CHECK(mkldnn_primitive_create(&lrn_dst_memory, lrn_dst_pd, NULL, NULL));
+    CHECK(mkldnn_primitive_create(&lrn_dst_memory, lrn_dst_pd));
     size_t lrn_dst_size = mkldnn_memory_primitive_desc_get_size(lrn_dst_pd);
     float *lrn_dst_buffer = (float *)aligned_malloc(lrn_dst_size, 64);
     CHECK(mkldnn_memory_set_data_handle(lrn_dst_memory, lrn_dst_buffer));
@@ -327,22 +347,22 @@ mkldnn_status_t simple_net() {
     mkldnn_primitive_t lrn_scratch_memory;
     const_mkldnn_primitive_desc_t lrn_scratch_pd =
         mkldnn_primitive_desc_query_pd(lrn_pd, mkldnn_query_workspace_pd, 0);
-    CHECK(mkldnn_primitive_create(&lrn_scratch_memory,
-            lrn_scratch_pd, NULL, NULL));
+    CHECK(mkldnn_primitive_create(&lrn_scratch_memory, lrn_scratch_pd));
     size_t lrn_scratch_size =
         mkldnn_memory_primitive_desc_get_size(lrn_scratch_pd);
     float *lrn_scratch_buffer = (float*)aligned_malloc(lrn_scratch_size, 64);
     CHECK(mkldnn_memory_set_data_handle(lrn_scratch_memory,
             lrn_scratch_buffer));
 
-    mkldnn_primitive_at_t lrn_srcs = { relu_dst_memory, 0 };
-
-    const_mkldnn_primitive_t lrn_dsts[] = { lrn_dst_memory,
-            lrn_scratch_memory };
-
     /* finally create a lrn primitive */
     mkldnn_primitive_t lrn;
-    CHECK(mkldnn_primitive_create(&lrn, lrn_pd, &lrn_srcs, lrn_dsts));
+    CHECK(mkldnn_primitive_create(&lrn, lrn_pd));
+    net[n] = lrn;
+    prepare_arg_node(&net_args[n], 3);
+    set_arg(&net_args[n].args[0], MKLDNN_ARG_SRC, relu_dst_memory);
+    set_arg(&net_args[n].args[1], MKLDNN_ARG_DST, lrn_dst_memory);
+    set_arg(&net_args[n].args[2], MKLDNN_ARG_WORKSPACE, lrn_scratch_memory);
+    n++;
 
     /* AlexNet: pool
      * {BATCH, OC, CONV_OH, CONV_OW} -> {BATCH, OC, POOL_OH, POOL_OW}
@@ -383,8 +403,7 @@ mkldnn_status_t simple_net() {
     mkldnn_primitive_t pool_indices_memory;
     const_mkldnn_primitive_desc_t pool_indices_pd =
         mkldnn_primitive_desc_query_pd(pool_pd, mkldnn_query_workspace_pd, 0);
-    CHECK(mkldnn_primitive_create(&pool_indices_memory,
-            pool_indices_pd, NULL, NULL));
+    CHECK(mkldnn_primitive_create(&pool_indices_memory, pool_indices_pd));
     size_t pool_indices_size =
         mkldnn_memory_primitive_desc_get_size(pool_indices_pd);
     float *pool_indices_buffer = (float*)aligned_malloc(pool_indices_size, 64);
@@ -400,39 +419,41 @@ mkldnn_status_t simple_net() {
         mkldnn_primitive_desc_query_pd(pool_pd, mkldnn_query_dst_pd, 0);
     size_t pool_dst_size = mkldnn_memory_primitive_desc_get_size(pool_dst_pd);
     float *pool_dst_buffer = (float *)aligned_malloc(pool_dst_size, 64);
+    n += 1; /* tentative workaround: preserve space for pooling that should
+                                     happen before the reorder */
     CHECK(prepare_reorder(&pool_user_dst_memory, &pool_dst_pd, 0,
-            &pool_internal_dst_memory, &pool_reorder_dst, pool_dst_buffer));
+            &pool_internal_dst_memory, &pool_reorder_dst, pool_dst_buffer,
+            &n, net, net_args));
+    n -= pool_reorder_dst ? 2 : 1;
 
-    mkldnn_primitive_at_t pool_srcs = { lrn_dst_memory, 0 };
-
-    pool_dst_memory = pool_internal_dst_memory ? pool_internal_dst_memory
-        : pool_user_dst_memory;
-
-    const_mkldnn_primitive_t pool_dsts[] = { pool_dst_memory,
-            pool_indices_memory };
+    pool_dst_memory = pool_internal_dst_memory
+        ? pool_internal_dst_memory : pool_user_dst_memory;
 
     /* finally create a pooling primitive */
     mkldnn_primitive_t pool;
-    CHECK(mkldnn_primitive_create(&pool, pool_pd, &pool_srcs, pool_dsts));
+    CHECK(mkldnn_primitive_create(&pool, pool_pd));
+    net[n] = pool;
+    prepare_arg_node(&net_args[n], 3);
+    set_arg(&net_args[n].args[0], MKLDNN_ARG_SRC, lrn_dst_memory);
+    set_arg(&net_args[n].args[1], MKLDNN_ARG_DST, pool_dst_memory);
+    set_arg(&net_args[n].args[2], MKLDNN_ARG_WORKSPACE, pool_indices_memory);
+    n++;
 
-    /* build a simple net */
-    uint32_t n = 0;
-    mkldnn_primitive_t net[10];
+    if (pool_reorder_dst) n += 1;
 
-    if (conv_reorder_src) net[n++] = conv_reorder_src;
-    if (conv_reorder_weights) net[n++] = conv_reorder_weights;
-    net[n++] = conv;
-    net[n++] = relu;
-    net[n++] = lrn;
-    net[n++] = pool;
-    if (pool_reorder_dst) net[n++] = pool_reorder_dst;
+    /*********************/
 
     mkldnn_stream_t stream;
     CHECK(mkldnn_stream_create(&stream, engine, mkldnn_stream_kind_default));
-    for (uint32_t i = 0; i < n; ++i)
-        mkldnn_primitive_execute(net[i], stream);
+    for (uint32_t i = 0; i < n; ++i) {
+        CHECK(mkldnn_primitive_execute(net[i], stream,
+                    net_args[i].nargs, net_args[i].args));
+    }
 
     /* clean-up */
+    for (uint32_t i = 0; i < n; ++i)
+        free_arg_node(&net_args[i]);
+
     CHECK(mkldnn_primitive_desc_destroy(conv_pd));
     CHECK(mkldnn_primitive_desc_destroy(relu_pd));
     CHECK(mkldnn_primitive_desc_destroy(lrn_pd));

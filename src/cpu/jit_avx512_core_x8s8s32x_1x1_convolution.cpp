@@ -57,14 +57,13 @@ void balance2D(U nthr, U ithr, T ny, T &ny_start, T &ny_end,
 
 /* convolution forward */
 template <data_type_t src_type, data_type_t dst_type>
-void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t
-                              <src_type, dst_type>::execute_forward() const
+void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<src_type, dst_type>::
+execute_forward(const exec_ctx_t &ctx) const
 {
-    auto src = reinterpret_cast<const src_data_t *>(this->input_memory(0));
-    auto weights =
-        reinterpret_cast<const wei_data_t *>(this->input_memory(1));
-    auto bias = reinterpret_cast<const char *>(this->input_memory(2));
-    auto dst = reinterpret_cast<dst_data_t *>(this->memory());
+    auto src = CTX_IN_MEM(const src_data_t *, MKLDNN_ARG_SRC);
+    auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
+    auto bias = CTX_IN_MEM(const char *, MKLDNN_ARG_BIAS);
+    auto dst = CTX_OUT_MEM(dst_data_t *, MKLDNN_ARG_DST);
 
     auto scratchpad = this->scratchpad();
 

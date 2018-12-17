@@ -65,20 +65,20 @@ struct ref_lrn_fwd_t: public cpu_primitive_t {
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         using namespace memory_format;
         switch (pd()->src_pd()->desc()->format) {
-        case nChw16c: execute_forward<nChw16c>(); break;
-        case nChw8c: execute_forward<nChw8c>(); break;
-        case nchw: execute_forward<nchw>(); break;
-        case nhwc: execute_forward<nhwc>(); break;
+        case nChw16c: execute_forward<nChw16c>(ctx); break;
+        case nChw8c: execute_forward<nChw8c>(ctx); break;
+        case nchw: execute_forward<nchw>(ctx); break;
+        case nhwc: execute_forward<nhwc>(ctx); break;
         // XXX: fix compatibility with 0.14
         // mkldnn_any is used to call ref code for arbitrary format
-        default: execute_forward<mkldnn_any>();
+        default: execute_forward<mkldnn_any>(ctx);
         }
-        UNUSED(ctx);
         return status::success;
     }
 
 private:
-    template<memory_format_t fmt>void execute_forward() const;
+    template<memory_format_t fmt>
+    void execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
@@ -115,20 +115,20 @@ struct ref_lrn_bwd_t: public cpu_primitive_t {
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         using namespace memory_format;
         switch (pd()->src_pd()->desc()->format) {
-        case nChw16c: execute_backward<nChw16c>(); break;
-        case nChw8c: execute_backward<nChw8c>(); break;
-        case nchw: execute_backward<nchw>(); break;
-        case nhwc: execute_backward<nhwc>(); break;
+        case nChw16c: execute_backward<nChw16c>(ctx); break;
+        case nChw8c: execute_backward<nChw8c>(ctx); break;
+        case nchw: execute_backward<nchw>(ctx); break;
+        case nhwc: execute_backward<nhwc>(ctx); break;
         // XXX: fix compatibility with 0.14
         // mkldnn_any is used to call ref code for arbitrary format
-        default: execute_backward<mkldnn_any>();
+        default: execute_backward<mkldnn_any>(ctx);
         }
-        UNUSED(ctx);
         return status::success;
     }
 
 private:
-    template<memory_format_t fmt>void execute_backward() const;
+    template<memory_format_t fmt>
+    void execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 

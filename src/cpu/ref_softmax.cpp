@@ -34,9 +34,10 @@ namespace impl {
 namespace cpu {
 
 template <impl::data_type_t data_type>
-void ref_softmax_fwd_t<data_type>::execute_forward_dense() const {
-    auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
-    auto dst = reinterpret_cast<data_t *>(this->memory(0));
+void ref_softmax_fwd_t<data_type>::execute_forward_dense(
+        const exec_ctx_t &ctx) const {
+    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
+    auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
 
     parallel_nd(outer_size_, [&](int ou) {
         const data_t *src_data = src + ou * channels_;
@@ -52,9 +53,10 @@ void ref_softmax_fwd_t<data_type>::execute_forward_dense() const {
 }
 
 template <impl::data_type_t data_type>
-void ref_softmax_fwd_t<data_type>::execute_forward_generic() const {
-    auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
-    auto dst = reinterpret_cast<data_t *>(this->memory(0));
+void ref_softmax_fwd_t<data_type>::execute_forward_generic(
+        const exec_ctx_t &ctx) const {
+    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
+    auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
 
     data_t space_max_val = 0, space_denom_val = 0;
     data_t *space_max = &space_max_val, *space_denom = &space_denom_val;
@@ -200,17 +202,18 @@ template struct ref_softmax_fwd_t<data_type::f32>;
 
 // NC/NCHW softmax for along final axe (1 for NC, 3 for NCHW)
 template <impl::data_type_t data_type>
-void ref_softmax_bwd_t<data_type>::execute_backward_dense() const {
-    auto data = reinterpret_cast<const data_t *>(this->input_memory(0));
-    auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
-    auto diff_src = reinterpret_cast<data_t *>(this->memory(0));
+void ref_softmax_bwd_t<data_type>::execute_backward_dense(
+        const exec_ctx_t &ctx) const {
+    auto dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DST);
+    auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
+    auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
 
     parallel_nd(outer_size_, [&](int ou) {
         data_t sbr = 0;
         size_t off = channels_*ou;
         for (int c = 0; c < channels_; c++) {
             size_t loff = off + c;
-            data_t ldata = data[loff];
+            data_t ldata = dst[loff];
             sbr += diff_dst[loff]*ldata;
             diff_src[loff] = ldata;
         }
@@ -223,13 +226,16 @@ void ref_softmax_bwd_t<data_type>::execute_backward_dense() const {
 }
 
 template <impl::data_type_t data_type>
-void ref_softmax_bwd_t<data_type>::execute_backward_generic() const {
-    const size_t dim = channels_ * inner_size_;
-    auto data = reinterpret_cast<const data_t *>(this->input_memory(0));
-    auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
-    auto diff_src = reinterpret_cast<data_t *>(this->memory(0));
+void ref_softmax_bwd_t<data_type>::execute_backward_generic(
+        const exec_ctx_t &ctx) const {
+    auto dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DST);
+    auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
+    auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
+
     const memory_desc_wrapper diff_d(pd()->diff_src_pd());
     const memory_desc_wrapper data_d(pd()->dst_pd());
+
+    const size_t dim = channels_ * inner_size_;
 
     parallel_nd(outer_size_, [&](int ou) {
         for (int in = 0; in < inner_size_; in++) {
@@ -237,13 +243,13 @@ void ref_softmax_bwd_t<data_type>::execute_backward_generic() const {
             for (int c = 0; c < channels_; c++) {
                 size_t off_diff = diff_d.off_l(ou * dim + c * inner_size_ + in);
                 size_t off_data = diff_d.off_l(ou * dim + c * inner_size_ + in);
-                sbr += diff_dst[off_diff]*data[off_data];
+                sbr += diff_dst[off_diff] * dst[off_data];
             }
 
             for(int c=0; c < channels_ ; ++c) {
               size_t off_diff = diff_d.off_l(ou * dim + c * inner_size_ + in);
               size_t off_data = data_d.off_l(ou * dim + c * inner_size_ + in);
-              diff_src[off_diff] = data[off_data]*(diff_dst[off_diff] - sbr);
+              diff_src[off_diff] = dst[off_data] * (diff_dst[off_diff] - sbr);
             }
         }
     });

@@ -31,14 +31,16 @@ using namespace memory_format;
 
 template <int data_type_size>
 template <mkldnn_memory_format_t fmt>
-void ref_shuffle_t<data_type_size>::execute_() const {
+void ref_shuffle_t<data_type_size>::execute_(const exec_ctx_t &ctx) const {
     using namespace prop_kind;
     using namespace utils;
 
     const memory_desc_wrapper data_d(pd()->data_pd());
 
-    auto input = reinterpret_cast<const data_t*>(this->input_memory(0));
-    auto output = reinterpret_cast<data_t*>(this->memory(0));
+    auto i_arg = pd()->is_fwd() ? MKLDNN_ARG_SRC : MKLDNN_ARG_DIFF_DST;
+    auto o_arg = pd()->is_fwd() ? MKLDNN_ARG_DST : MKLDNN_ARG_DIFF_SRC;
+    auto input = CTX_IN_MEM(const data_t *, i_arg);
+    auto output = CTX_OUT_MEM(data_t *, o_arg);
 
     const int axis = pd()->axis();
     const int axis_size = pd()->axis_size();
@@ -124,25 +126,25 @@ void ref_shuffle_t<data_type_size>::execute_() const {
     }
 }
 
-template void ref_shuffle_t<4>::execute_<nCdhw16c>() const;
-template void ref_shuffle_t<4>::execute_<nChw16c>() const;
-template void ref_shuffle_t<4>::execute_<nCdhw8c>() const;
-template void ref_shuffle_t<4>::execute_<nChw8c>() const;
-template void ref_shuffle_t<4>::execute_<ncdhw>() const;
-template void ref_shuffle_t<4>::execute_<nchw>() const;
-template void ref_shuffle_t<4>::execute_<ndhwc>() const;
-template void ref_shuffle_t<4>::execute_<nhwc>() const;
-template void ref_shuffle_t<4>::execute_<any>() const;
+template void ref_shuffle_t<4>::execute_<nCdhw16c>(const exec_ctx_t &ctx) const;
+template void ref_shuffle_t<4>::execute_<nChw16c>(const exec_ctx_t &ctx) const;
+template void ref_shuffle_t<4>::execute_<nCdhw8c>(const exec_ctx_t &ctx) const;
+template void ref_shuffle_t<4>::execute_<nChw8c>(const exec_ctx_t &ctx) const;
+template void ref_shuffle_t<4>::execute_<ncdhw>(const exec_ctx_t &ctx) const;
+template void ref_shuffle_t<4>::execute_<nchw>(const exec_ctx_t &ctx) const;
+template void ref_shuffle_t<4>::execute_<ndhwc>(const exec_ctx_t &ctx) const;
+template void ref_shuffle_t<4>::execute_<nhwc>(const exec_ctx_t &ctx) const;
+template void ref_shuffle_t<4>::execute_<any>(const exec_ctx_t &ctx) const;
 
-template void ref_shuffle_t<1>::execute_<nCdhw16c>() const;
-template void ref_shuffle_t<1>::execute_<nChw16c>() const;
-template void ref_shuffle_t<1>::execute_<nCdhw8c>() const;
-template void ref_shuffle_t<1>::execute_<nChw8c>() const;
-template void ref_shuffle_t<1>::execute_<ncdhw>() const;
-template void ref_shuffle_t<1>::execute_<nchw>() const;
-template void ref_shuffle_t<1>::execute_<ndhwc>() const;
-template void ref_shuffle_t<1>::execute_<nhwc>() const;
-template void ref_shuffle_t<1>::execute_<any>() const;
+template void ref_shuffle_t<1>::execute_<nCdhw16c>(const exec_ctx_t &ctx) const;
+template void ref_shuffle_t<1>::execute_<nChw16c>(const exec_ctx_t &ctx) const;
+template void ref_shuffle_t<1>::execute_<nCdhw8c>(const exec_ctx_t &ctx) const;
+template void ref_shuffle_t<1>::execute_<nChw8c>(const exec_ctx_t &ctx) const;
+template void ref_shuffle_t<1>::execute_<ncdhw>(const exec_ctx_t &ctx) const;
+template void ref_shuffle_t<1>::execute_<nchw>(const exec_ctx_t &ctx) const;
+template void ref_shuffle_t<1>::execute_<ndhwc>(const exec_ctx_t &ctx) const;
+template void ref_shuffle_t<1>::execute_<nhwc>(const exec_ctx_t &ctx) const;
+template void ref_shuffle_t<1>::execute_<any>(const exec_ctx_t &ctx) const;
 
 }
 }

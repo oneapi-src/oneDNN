@@ -61,7 +61,7 @@ void test1() {
 
     CHECK(mkldnn_memory_desc_init(&md, 1, dims, mkldnn_f32, mkldnn_x));
     CHECK(mkldnn_memory_primitive_desc_create(&mpd, &md, engine));
-    CHECK(mkldnn_primitive_create(&m, mpd, NULL, NULL));
+    CHECK(mkldnn_primitive_create(&m, mpd));
 
     void *req = NULL;
 
@@ -114,6 +114,9 @@ void test2() {
     mkldnn_engine_t engine;
     CHECK(mkldnn_engine_create(&engine, mkldnn_cpu, 0));
 
+    mkldnn_stream_t stream;
+    CHECK(mkldnn_stream_create(&stream, engine, mkldnn_stream_kind_default));
+
     /* first describe user data and create data descriptors for future
      * convolution w/ the specified format -- we do not want to do a reorder */
     mkldnn_memory_desc_t c3_src_md, c3_weights_md, c3_bias_md, c3_dst_md, out_md;
@@ -124,7 +127,7 @@ void test2() {
     {
         CHECK(mkldnn_memory_desc_init(&c3_src_md, 4, c3_src_sizes, mkldnn_f32, mkldnn_nChw8c));
         CHECK(mkldnn_memory_primitive_desc_create(&c3_src_pd, &c3_src_md, engine));
-        CHECK(mkldnn_primitive_create(&c3_src, c3_src_pd, NULL, NULL));
+        CHECK(mkldnn_primitive_create(&c3_src, c3_src_pd));
         CHECK(mkldnn_memory_set_data_handle(c3_src, src));
     }
 
@@ -134,7 +137,7 @@ void test2() {
                     c3_weights_sizes + (groups == 1), mkldnn_f32,
                     groups == 1 ? mkldnn_OIhw8i8o : mkldnn_gOIhw8i8o));
         CHECK(mkldnn_memory_primitive_desc_create(&c3_weights_pd, &c3_weights_md, engine));
-        CHECK(mkldnn_primitive_create(&c3_weights, c3_weights_pd, NULL, NULL));
+        CHECK(mkldnn_primitive_create(&c3_weights, c3_weights_pd));
         CHECK(mkldnn_memory_set_data_handle(c3_weights, weights));
     }
 
@@ -142,7 +145,7 @@ void test2() {
     {
         CHECK(mkldnn_memory_desc_init(&c3_bias_md, 1, c3_bias_sizes, mkldnn_f32, mkldnn_x));
         CHECK(mkldnn_memory_primitive_desc_create(&c3_bias_pd, &c3_bias_md, engine));
-        CHECK(mkldnn_primitive_create(&c3_bias, c3_bias_pd, NULL, NULL));
+        CHECK(mkldnn_primitive_create(&c3_bias, c3_bias_pd));
         CHECK(mkldnn_memory_set_data_handle(c3_bias, bias));
     }
 
@@ -150,7 +153,7 @@ void test2() {
     {
         CHECK(mkldnn_memory_desc_init(&c3_dst_md, 4, c3_dst_sizes, mkldnn_f32, mkldnn_nChw8c));
         CHECK(mkldnn_memory_primitive_desc_create(&c3_dst_pd, &c3_dst_md, engine));
-        CHECK(mkldnn_primitive_create(&c3_dst, c3_dst_pd, NULL, NULL));
+        CHECK(mkldnn_primitive_create(&c3_dst, c3_dst_pd));
         CHECK(mkldnn_memory_set_data_handle(c3_dst, dst));
     }
 
@@ -158,19 +161,11 @@ void test2() {
     {
         CHECK(mkldnn_memory_desc_init(&out_md, 4, c3_dst_sizes, mkldnn_f32, mkldnn_nchw));
         CHECK(mkldnn_memory_primitive_desc_create(&out_pd, &out_md, engine));
-        CHECK(mkldnn_primitive_create(&out, out_pd, NULL, NULL));
+        CHECK(mkldnn_primitive_create(&out, out_pd));
         CHECK(mkldnn_memory_set_data_handle(out, out_mem));
     }
 
-    mkldnn_primitive_at_t c3_srcs[] = {
-        mkldnn_primitive_at(c3_src, 0),
-        mkldnn_primitive_at(c3_weights, 0),
-        mkldnn_primitive_at(c3_bias, 0)
-    };
-
-    const_mkldnn_primitive_t c3_dsts[1] = {c3_dst};
-
-    /* create a convolution */
+    /* create a convolution primitive descriptor */
     mkldnn_convolution_desc_t c3_desc;
     mkldnn_primitive_desc_t c3_pd;
     mkldnn_primitive_t c3;
@@ -180,7 +175,6 @@ void test2() {
                 &c3_src_md, &c3_weights_md, &c3_bias_md, &c3_dst_md,
                 strides, padding, NULL, mkldnn_padding_zero));
     CHECK(mkldnn_primitive_desc_create(&c3_pd, &c3_desc, engine, NULL));
-    CHECK(mkldnn_primitive_create(&c3, c3_pd, c3_srcs, c3_dsts));
 
     CHECK_TRUE(mkldnn_memory_primitive_desc_equal(
                 mkldnn_primitive_desc_query_pd(
@@ -198,35 +192,45 @@ void test2() {
     CHECK(mkldnn_primitive_desc_destroy(c3_src_pd));
     CHECK(mkldnn_primitive_desc_destroy(c3_weights_pd));
     CHECK(mkldnn_primitive_desc_destroy(c3_bias_pd));
+
+    /* create a convolution and execute it */
+    CHECK(mkldnn_primitive_create(&c3, c3_pd));
     CHECK(mkldnn_primitive_desc_destroy(c3_pd));
 
-    mkldnn_primitive_at_t r_srcs[] = {mkldnn_primitive_at(c3_dst, 0)};
-    const_mkldnn_primitive_t r_dsts[] = {out};
-    mkldnn_primitive_desc_t r_pd;
-    mkldnn_primitive_t r;
+    mkldnn_exec_arg_t c3_args[4] = {
+        {MKLDNN_ARG_SRC, c3_src},
+        {MKLDNN_ARG_WEIGHTS, c3_weights},
+        {MKLDNN_ARG_BIAS, c3_bias},
+        {MKLDNN_ARG_DST, c3_dst},
+    };
+    CHECK(mkldnn_primitive_execute(c3, stream, 4, c3_args));
+    CHECK(mkldnn_primitive_destroy(c3));
 
+    /* create a reorder primitive descriptor */
+    mkldnn_primitive_desc_t r_pd;
     CHECK(mkldnn_reorder_primitive_desc_create(&r_pd, c3_dst_pd, out_pd));
     CHECK(mkldnn_primitive_desc_destroy(c3_dst_pd));
     CHECK(mkldnn_primitive_desc_destroy(out_pd));
-    CHECK(mkldnn_primitive_create(&r, r_pd, r_srcs, r_dsts));
+
+    /* create a reorder and execute it */
+    mkldnn_primitive_t r;
+    CHECK(mkldnn_primitive_create(&r, r_pd));
     CHECK(mkldnn_primitive_desc_destroy(r_pd));
 
-    /* let us build a net */
-    mkldnn_primitive_t net[] = {c3, r};
-    mkldnn_stream_t stream;
-    CHECK(mkldnn_stream_create(&stream, mkldnn_eager));
-    CHECK(mkldnn_stream_submit(stream, 2, net, NULL));
-    CHECK(mkldnn_stream_wait(stream, 1, NULL));
+    mkldnn_exec_arg_t r_args[2] = {
+        {MKLDNN_ARG_FROM, c3_dst},
+        {MKLDNN_ARG_TO, out},
+    };
+    CHECK(mkldnn_primitive_execute(r, stream, 2, r_args));
+    CHECK(mkldnn_primitive_destroy(r));
 
     /* clean-up */
-    CHECK(mkldnn_stream_destroy(stream));
-    CHECK(mkldnn_primitive_destroy(r));
-    CHECK(mkldnn_primitive_destroy(c3));
     CHECK(mkldnn_primitive_destroy(c3_src));
     CHECK(mkldnn_primitive_destroy(c3_weights));
     CHECK(mkldnn_primitive_destroy(c3_bias));
     CHECK(mkldnn_primitive_destroy(c3_dst));
     CHECK(mkldnn_primitive_destroy(out));
+    CHECK(mkldnn_stream_destroy(stream));
     CHECK(mkldnn_engine_destroy(engine));
 
     const int N = c3_dst_sizes[0], C = c3_dst_sizes[1],
@@ -253,8 +257,7 @@ void test3() {
 
     real_t *src = (real_t*)calloc(product(l2_data_sizes, 4), sizeof(real_t));
     real_t *dst = (real_t*)calloc(product(l2_data_sizes, 4), sizeof(real_t));
-    real_t *out_mem = (real_t*)calloc(product(l2_data_sizes, 4), sizeof(real_t));
-    CHECK_TRUE(src && dst && out_mem);
+    CHECK_TRUE(src && dst);
 
     for (size_t i = 0; i < product(l2_data_sizes, 4); ++i)
         src[i] = (i % 13) + 1;
@@ -262,33 +265,22 @@ void test3() {
     mkldnn_engine_t engine;
     CHECK(mkldnn_engine_create(&engine, mkldnn_cpu, 0));
 
-    mkldnn_memory_desc_t l2_data_md, out_md;
-    mkldnn_primitive_desc_t l2_data_pd, out_pd;
-    mkldnn_primitive_t l2_src, l2_dst, out;
+    mkldnn_stream_t stream;
+    CHECK(mkldnn_stream_create(&stream, engine, mkldnn_stream_kind_default));
+
+    mkldnn_memory_desc_t l2_data_md;
+    mkldnn_primitive_desc_t l2_data_pd;
+    mkldnn_primitive_t l2_src, l2_dst;
 
     // src, dst
     {
         CHECK(mkldnn_memory_desc_init(&l2_data_md, 4, l2_data_sizes, mkldnn_f32, mkldnn_nchw));
         CHECK(mkldnn_memory_primitive_desc_create(&l2_data_pd, &l2_data_md, engine));
-        CHECK(mkldnn_primitive_create(&l2_src, l2_data_pd, NULL, NULL));
+        CHECK(mkldnn_primitive_create(&l2_src, l2_data_pd));
         CHECK(mkldnn_memory_set_data_handle(l2_src, src));
-        CHECK(mkldnn_primitive_create(&l2_dst, l2_data_pd, NULL, NULL));
-        CHECK(mkldnn_memory_set_data_handle(l2_dst, src));
+        CHECK(mkldnn_primitive_create(&l2_dst, l2_data_pd));
+        CHECK(mkldnn_memory_set_data_handle(l2_dst, dst));
     }
-
-    // out
-    {
-        CHECK(mkldnn_memory_desc_init(&out_md, 4, l2_data_sizes, mkldnn_f32, mkldnn_nchw));
-        CHECK(mkldnn_memory_primitive_desc_create(&out_pd, &out_md, engine));
-        CHECK(mkldnn_primitive_create(&out, out_pd, NULL, NULL));
-        CHECK(mkldnn_memory_set_data_handle(out, out_mem));
-    }
-
-    mkldnn_primitive_at_t l2_srcs[] = {
-        mkldnn_primitive_at(l2_src, 0),
-    };
-
-    const_mkldnn_primitive_t l2_dsts[1] = {l2_dst};
 
     /* create an lrn */
     mkldnn_lrn_desc_t l2_desc;
@@ -299,7 +291,6 @@ void test3() {
                 mkldnn_forward_inference, mkldnn_lrn_across_channels,
                 &l2_data_md, 5, 1e-4, 0.75, 1.0));
     CHECK(mkldnn_primitive_desc_create(&l2_pd, &l2_desc, engine, NULL));
-    CHECK(mkldnn_primitive_create(&l2, l2_pd, l2_srcs, l2_dsts));
 
     CHECK_TRUE(mkldnn_memory_primitive_desc_equal(
                 mkldnn_primitive_desc_query_pd(
@@ -312,33 +303,20 @@ void test3() {
     CHECK_TRUE(mkldnn_primitive_desc_query_s32(
                 l2_pd, mkldnn_query_num_of_outputs_s32, 0) == 1);
 
+    CHECK(mkldnn_primitive_create(&l2, l2_pd));
     CHECK(mkldnn_primitive_desc_destroy(l2_pd));
 
-    mkldnn_primitive_at_t r_srcs[] = {mkldnn_primitive_at(l2_dst, 0)};
-    const_mkldnn_primitive_t r_dsts[] = {out};
-    mkldnn_primitive_desc_t r_pd;
-    mkldnn_primitive_t r;
-
-    CHECK(mkldnn_reorder_primitive_desc_create(&r_pd, l2_data_pd, out_pd));
-    CHECK(mkldnn_primitive_desc_destroy(l2_data_pd));
-    CHECK(mkldnn_primitive_desc_destroy(out_pd));
-    CHECK(mkldnn_primitive_create(&r, r_pd, r_srcs, r_dsts));
-    CHECK(mkldnn_primitive_desc_destroy(r_pd));
-
-    /* let us build a net */
-    mkldnn_primitive_t net[] = {l2, r};
-    mkldnn_stream_t stream;
-    CHECK(mkldnn_stream_create(&stream, mkldnn_eager));
-    CHECK(mkldnn_stream_submit(stream, 2, net, NULL));
-    CHECK(mkldnn_stream_wait(stream, 1, NULL));
+    mkldnn_exec_arg_t l2_args[2] = {
+        {MKLDNN_ARG_SRC, l2_src},
+        {MKLDNN_ARG_DST, l2_dst},
+    };
+    CHECK(mkldnn_primitive_execute(l2, stream, 2, l2_args));
+    CHECK(mkldnn_primitive_destroy(l2));
 
     /* clean-up */
-    CHECK(mkldnn_stream_destroy(stream));
-    CHECK(mkldnn_primitive_destroy(r));
-    CHECK(mkldnn_primitive_destroy(l2));
     CHECK(mkldnn_primitive_destroy(l2_src));
     CHECK(mkldnn_primitive_destroy(l2_dst));
-    CHECK(mkldnn_primitive_destroy(out));
+    CHECK(mkldnn_stream_destroy(stream));
     CHECK(mkldnn_engine_destroy(engine));
 
     const int N = l2_data_sizes[0], C = l2_data_sizes[1],
@@ -350,15 +328,14 @@ void test3() {
     {
         size_t off = ((n*C + c)*H + h)*W + w;
         real_t e = (off % 13) + 1;
-        real_t diff = (real_t)fabs(out_mem[off] - e);
+        real_t diff = (real_t)fabs(dst[off] - e);
         if (diff/fabs(e) > 0.0125)
-            printf("exp: %g, got: %g\n", e, out_mem[off]);
+            printf("exp: %g, got: %g\n", e, dst[off]);
         CHECK_TRUE(diff/fabs(e) < 0.0125);
     }
 
     free(src);
     free(dst);
-    free(out_mem);
 }
 
 int main() {

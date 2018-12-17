@@ -20,3 +20,4 @@
 #include "mkldnn_common.hpp"
 
 mkldnn_engine_t engine;
+mkldnn_stream_t stream;

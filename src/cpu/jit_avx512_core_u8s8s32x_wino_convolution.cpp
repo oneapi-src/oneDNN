@@ -1049,22 +1049,23 @@ adjust_oscales(const memory_tracking::grantor_t &scratchpad) const {
 
 template <data_type_t dst_data_type>
 void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
-execute_forward() const {
+execute_forward(const exec_ctx_t &ctx) const {
+    auto src = CTX_IN_MEM(const src_data_t *, MKLDNN_ARG_SRC);
+    auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
+    auto bias = CTX_IN_MEM(const char *, MKLDNN_ARG_BIAS);
+    auto dst = CTX_OUT_MEM(dst_data_t *, MKLDNN_ARG_DST);
+
     const auto &jcp = kernel_->jcp;
     if (jcp.small_mb)
-        execute_forward_small_mb();
+        execute_forward_small_mb(src, weights, bias, dst);
     else
-        execute_forward_mbN();
+        execute_forward_mbN(src, weights, bias, dst);
 }
 
 template <data_type_t dst_data_type>
 void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
-execute_forward_mbN() const {
-    auto src = reinterpret_cast<const src_data_t *>(input_memory(0));
-    auto wei = reinterpret_cast<const wei_data_t *>(input_memory(1));
-    auto bia = reinterpret_cast<const char *>(input_memory(2));
-    auto dst = reinterpret_cast<dst_data_t *>(memory(0));
-
+execute_forward_mbN(const src_data_t *src, const wei_data_t *wei,
+        const char *bia, dst_data_t *dst) const {
     auto scratchpad = this->scratchpad();
 
     const auto &jcp = kernel_->jcp;
@@ -1174,12 +1175,8 @@ execute_forward_mbN() const {
 
 template <data_type_t dst_data_type>
 void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
-execute_forward_small_mb() const {
-    auto src = reinterpret_cast<const src_data_t *>(input_memory(0));
-    auto wei = reinterpret_cast<const wei_data_t *>(input_memory(1));
-    auto bia = reinterpret_cast<const char *>(input_memory(2));
-    auto dst = reinterpret_cast<dst_data_t *>(memory(0));
-
+execute_forward_small_mb(const src_data_t *src, const wei_data_t *wei,
+        const char *bia, dst_data_t *dst) const {
     auto scratchpad = this->scratchpad();
 
     const auto &jcp = kernel_->jcp;

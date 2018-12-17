@@ -101,13 +101,12 @@ struct jit_sse42_convolution_fwd_t: public cpu_primitive_t {
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        execute_forward();
-        UNUSED(ctx);
+        execute_forward(ctx);
         return status::success;
     }
 
 private:
-    void execute_forward() const;
+    void execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_sse42_conv_fwd_kernel_f32 *kernel_;
 };

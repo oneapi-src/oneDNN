@@ -74,20 +74,12 @@ struct ref_inner_product_fwd_t: public cpu_primitive_t {
     typedef typename prec_traits<acc_type>::type acc_data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        switch (pd()->desc()->prop_kind) {
-        case prop_kind::forward_training:
-        case prop_kind::forward_inference:
-            execute_forward();
-            break;
-        default:
-            assert(!"invalid prop_kind");
-        }
-        UNUSED(ctx);
+        execute_forward(ctx);
         return status::success;
     }
 
 private:
-    void execute_forward() const;
+    void execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
@@ -130,20 +122,12 @@ struct ref_inner_product_bwd_data_t: public cpu_primitive_t {
     typedef typename prec_traits<acc_type>::type acc_data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        switch (pd()->desc()->prop_kind) {
-        case prop_kind::backward:
-        case prop_kind::backward_data:
-            execute_backward_data();
-            break;
-        default:
-            assert(!"invalid prop_kind");
-        }
-        UNUSED(ctx);
+        execute_backward_data(ctx);
         return status::success;
     }
 
 private:
-    void execute_backward_data() const;
+    void execute_backward_data(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
@@ -182,20 +166,12 @@ struct ref_inner_product_bwd_weights_t: public cpu_primitive_t {
     typedef typename prec_traits<data_type>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        switch (pd()->desc()->prop_kind) {
-        case prop_kind::backward:
-        case prop_kind::backward_weights:
-            execute_backward_weights();
-            break;
-        default:
-            assert(!"invalid prop_kind");
-        }
-        UNUSED(ctx);
+        execute_backward_weights(ctx);
         return status::success;
     }
 
 private:
-    void execute_backward_weights() const;
+    void execute_backward_weights(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 

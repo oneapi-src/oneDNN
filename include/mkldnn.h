@@ -220,17 +220,16 @@ int MKLDNN_API mkldnn_primitive_desc_query_s32(
         const_mkldnn_primitive_desc_t primitive_desc, mkldnn_query_t what,
         int index);
 
-/** Creates a @p primitive using a @p primitive_desc descriptor and arrays of
- * @p inputs and @p outputs. */
+/** Creates a @p primitive using a @p primitive_desc descriptor */
 mkldnn_status_t MKLDNN_API mkldnn_primitive_create(
         mkldnn_primitive_t *primitive,
-        const_mkldnn_primitive_desc_t primitive_desc,
-        const mkldnn_primitive_at_t *inputs,
-        const_mkldnn_primitive_t *outputs);
+        const_mkldnn_primitive_desc_t primitive_desc);
 
-/** Executes a @p primitive using a @p stream. */
+/** Executes a @p primitive using a @p stream, and @p nargs arguments
+ * @p args. */
 mkldnn_status_t MKLDNN_API mkldnn_primitive_execute(
-        const_mkldnn_primitive_t primitive, mkldnn_stream_t stream);
+        const_mkldnn_primitive_t primitive, mkldnn_stream_t stream,
+        int nargs, const mkldnn_exec_arg_t *args);
 
 /** Retrieves a reference to the @p primitive_desc descriptor of given @p
  * primitive.

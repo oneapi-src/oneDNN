@@ -82,13 +82,12 @@ struct jit_uni_i8i8_pooling_fwd_t : public cpu_primitive_t {
     ~jit_uni_i8i8_pooling_fwd_t();
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        execute_forward();
-        UNUSED(ctx);
+        execute_forward(ctx);
         return status::success;
     }
 
 private:
-    void execute_forward() const;
+    void execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     jit_uni_i8i8_pooling_fwd_ker_t<isa> *ker_;

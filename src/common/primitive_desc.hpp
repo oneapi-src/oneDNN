@@ -55,6 +55,11 @@ struct mkldnn_primitive_desc: public mkldnn::impl::c_compatible {
 
     virtual const mkldnn::impl::op_desc_t *op_desc() const = 0;
 
+    enum class arg_usage_t { unused, input, output };
+    virtual arg_usage_t arg_usage(
+            mkldnn::impl::primitive_arg_index_t arg) const
+    { UNUSED(arg); return arg_usage_t::unused; }
+
 #   define DECLARE_PD_STUB(stub) \
     virtual const memory_pd_t *stub(int idx = 0) const { return nullptr; }
 
@@ -117,8 +122,9 @@ protected:
             const primitive_at_t *inputs, \
             const primitive_t **outputs) const override { \
         double ms = get_msec(); \
-        primitive_t::input_vector ins(inputs, inputs + this->n_inputs()); \
-        primitive_t::output_vector outs(outputs, outputs + this->n_outputs()); \
+        const int c = (inputs || outputs) ? 1 : 0; \
+        primitive_t::input_vector ins(inputs, inputs + c * this->n_inputs()); \
+        primitive_t::output_vector outs(outputs, outputs + c * this->n_outputs()); \
         auto ret = safe_ptr_assign<primitive_t>(*primitive, \
                 new (__VA_ARGS__)(this, ins, outs)); \
         ms = get_msec() - ms; \

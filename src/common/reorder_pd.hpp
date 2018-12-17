@@ -38,6 +38,16 @@ struct reorder_pd_t: public primitive_desc_t {
     virtual const op_desc_t *op_desc() const override { return nullptr; }
     virtual void init_info() override { init_info_mem(this, this->info_); }
 
+    virtual arg_usage_t arg_usage(primitive_arg_index_t arg) const override {
+        if (arg == MKLDNN_ARG_FROM)
+            return arg_usage_t::input;
+
+        if (arg == MKLDNN_ARG_TO)
+            return arg_usage_t::output;
+
+        return primitive_desc_t::arg_usage(arg);
+    }
+
     virtual int n_inputs() const override { return 1; }
     virtual int n_outputs() const override { return 1; }
 

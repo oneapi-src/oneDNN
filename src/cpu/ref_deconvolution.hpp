@@ -183,6 +183,8 @@ struct ref_deconvolution_fwd_t: public cpu_primitive_t {
         bool conv_supports_bias_;
     };
 
+    typedef typename prec_traits<data_type::f32>::type data_t;
+
     ref_deconvolution_fwd_t(const pd_t *apd, const input_vector &inputs,
             const output_vector &outputs)
         : cpu_primitive_t(apd, inputs, outputs), conv_p_(nullptr) {}
@@ -190,43 +192,49 @@ struct ref_deconvolution_fwd_t: public cpu_primitive_t {
     ~ref_deconvolution_fwd_t() { delete this->conv_p_; }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        switch (pd()->desc()->prop_kind) {
-        case prop_kind::forward_training:
-        case prop_kind::forward_inference:
-            conv_p_->execute(ctx);
-            if (pd()->with_bias() && !pd()->conv_supports_bias_) {
-                switch (pd()->dst_pd()->desc()->format) {
-                    case memory_format::ncw :
-                    case memory_format::nchw :
-                    case memory_format::ncdhw :
-                        compute_fwd_bias_ncdhw();
-                        break;
-                    case memory_format::nChw8c :
-                    case memory_format::nCdhw8c :
-                        compute_fwd_bias_nCdhwXc<8>();
-                        break;
-                    case memory_format::nCw16c :
-                    case memory_format::nChw16c :
-                    case memory_format::nCdhw16c :
-                        compute_fwd_bias_nCdhwXc<16>();
-                        break;
-                    default:
-                        compute_fwd_bias();
-                        break;
-                }
+        const auto &args = ctx.args();
+        exec_args_t conv_args;
+        conv_args[MKLDNN_ARG_DIFF_DST] = args.at(MKLDNN_ARG_SRC);
+        conv_args[MKLDNN_ARG_WEIGHTS] = args.at(MKLDNN_ARG_WEIGHTS);
+        if (pd()->with_bias() && pd()->conv_supports_bias_)
+            conv_args[MKLDNN_ARG_BIAS] = args.at(MKLDNN_ARG_BIAS);
+        conv_args[MKLDNN_ARG_DIFF_SRC] = args.at(MKLDNN_ARG_DST);
+        const exec_ctx_t conv_ctx(ctx.stream(), std::move(conv_args));
+
+        conv_p_->execute(conv_ctx);
+
+        if (pd()->with_bias() && !pd()->conv_supports_bias_) {
+            auto bias = CTX_IN_MEM(const data_t *, MKLDNN_ARG_BIAS);
+            auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
+
+            switch (pd()->dst_pd()->desc()->format) {
+            case memory_format::ncw :
+            case memory_format::nchw :
+            case memory_format::ncdhw :
+                compute_fwd_bias_ncdhw(bias, dst);
+                break;
+            case memory_format::nChw8c :
+            case memory_format::nCdhw8c :
+                compute_fwd_bias_nCdhwXc<8>(bias, dst);
+                break;
+            case memory_format::nCw16c :
+            case memory_format::nChw16c :
+            case memory_format::nCdhw16c :
+                compute_fwd_bias_nCdhwXc<16>(bias, dst);
+                break;
+            default:
+                compute_fwd_bias(bias, dst);
+                break;
             }
-            break;
-        default:
-            assert(!"invalid prop_kind");
         }
-        UNUSED(ctx);
         return status::success;
     }
 
 private:
-    void compute_fwd_bias() const;
-    void compute_fwd_bias_ncdhw() const;
-    template <int blksize> void compute_fwd_bias_nCdhwXc() const;
+    void compute_fwd_bias(const data_t *bias, data_t *dst) const;
+    void compute_fwd_bias_ncdhw(const data_t *bias, data_t *dst) const;
+    template <int blksize> void compute_fwd_bias_nCdhwXc(const data_t *bias,
+            data_t *dst) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     primitive_t *conv_p_;
 };
@@ -306,20 +314,23 @@ struct ref_deconvolution_bwd_data_t: public cpu_primitive_t {
         }
         primitive_desc_t *conv_pd_;
     };
+
+    typedef typename prec_traits<data_type::f32>::type data_t;
+
     ref_deconvolution_bwd_data_t(const pd_t *apd, const input_vector &inputs,
             const output_vector &outputs)
         : cpu_primitive_t(apd, inputs, outputs), conv_p_(nullptr) {}
     ~ref_deconvolution_bwd_data_t() { delete this->conv_p_; }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        switch (pd()->desc()->prop_kind) {
-        case prop_kind::backward_data:
-            conv_p_->execute(ctx);
-            break;
-        default:
-            assert(!"invalid prop_kind");
-        }
-        UNUSED(ctx);
+        const auto &args = ctx.args();
+        exec_args_t conv_args;
+        conv_args[MKLDNN_ARG_SRC] = args.at(MKLDNN_ARG_DIFF_DST);
+        conv_args[MKLDNN_ARG_WEIGHTS] = args.at(MKLDNN_ARG_WEIGHTS);
+        conv_args[MKLDNN_ARG_DST] = args.at(MKLDNN_ARG_DIFF_SRC);
+        const exec_ctx_t conv_ctx(ctx.stream(), std::move(conv_args));
+
+        conv_p_->execute(conv_ctx);
         return status::success;
     }
 
@@ -405,52 +416,60 @@ struct ref_deconvolution_bwd_weights_t: public cpu_primitive_t {
         primitive_desc_t *conv_pd_;
     };
 
+    typedef typename prec_traits<data_type::f32>::type data_t;
+
     ref_deconvolution_bwd_weights_t(const pd_t *apd, const input_vector &inputs,
             const output_vector &outputs)
         : cpu_primitive_t(apd, inputs, outputs), conv_p_(nullptr) {}
 
     ~ref_deconvolution_bwd_weights_t() { delete this->conv_p_; }
 
-    typedef typename prec_traits<data_type::f32>::type data_t;
-
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        switch (pd()->desc()->prop_kind) {
-        case prop_kind::backward_weights:
-            conv_p_->execute(ctx);
-            if (pd()->with_bias()) {
-                switch (pd()->diff_dst_pd()->desc()->format) {
-                    case memory_format::ncw :
-                    case memory_format::nchw :
-                    case memory_format::ncdhw :
-                        compute_bwd_bias_ncdhw();
-                        break;
-                    case memory_format::nChw8c :
-                        compute_bwd_bias_nCdhwXc<8>();
-                        break;
-                    case memory_format::nCw16c :
-                    case memory_format::nChw16c :
-                    case memory_format::nCdhw16c :
-                        compute_bwd_bias_nCdhwXc<16>();
-                        break;
-                    default:
-                        compute_bwd_bias();
-                        break;
-                }
+        const auto &args = ctx.args();
+        exec_args_t conv_args;
+        conv_args[MKLDNN_ARG_DIFF_DST] = args.at(MKLDNN_ARG_SRC);
+        conv_args[MKLDNN_ARG_SRC] = args.at(MKLDNN_ARG_DIFF_DST);
+        conv_args[MKLDNN_ARG_DIFF_WEIGHTS] = args.at(MKLDNN_ARG_DIFF_WEIGHTS);
+        const exec_ctx_t conv_ctx(ctx.stream(), std::move(conv_args));
+
+        status_t status = conv_p_->execute(conv_ctx);
+        if (status != status::success) return status;
+
+        if (pd()->with_bias()) {
+            auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
+            auto diff_bias = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_BIAS);
+
+            switch (pd()->diff_dst_pd()->desc()->format) {
+            case memory_format::ncw :
+            case memory_format::nchw :
+            case memory_format::ncdhw :
+                compute_bwd_bias_ncdhw(diff_dst, diff_bias);
+                break;
+            case memory_format::nChw8c :
+                compute_bwd_bias_nCdhwXc<8>(diff_dst, diff_bias);
+                break;
+            case memory_format::nCw16c :
+            case memory_format::nChw16c :
+            case memory_format::nCdhw16c :
+                compute_bwd_bias_nCdhwXc<16>(diff_dst, diff_bias);
+                break;
+            default:
+                compute_bwd_bias(diff_dst, diff_bias);
+                break;
             }
-            break;
-        default:
-            assert(!"invalid prop_kind");
         }
-        UNUSED(ctx);
         return status::success;
     }
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    void compute_bwd_bias(const data_t *diff_dst, data_t *diff_bias) const;
+    void compute_bwd_bias_ncdhw(const data_t *diff_dst,
+            data_t *diff_bias) const;
+    template <int blksize> void compute_bwd_bias_nCdhwXc(
+            const data_t *diff_dst, data_t *diff_bias) const;
+
     primitive_t *conv_p_;
-    void compute_bwd_bias() const;
-    void compute_bwd_bias_ncdhw() const;
-    template <int blksize> void compute_bwd_bias_nCdhwXc() const;
 };
 
 }

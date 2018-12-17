@@ -136,8 +136,7 @@ struct gemm_x8s8s32x_inner_product_fwd_t: public cpu_primitive_t {
     typedef typename prec_traits<data_type::s32>::type acc_data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        execute_forward();
-        UNUSED(ctx);
+        execute_forward(ctx);
         return status::success;
     }
 
@@ -177,7 +176,7 @@ private:
         bool do_relu_;
     };
 
-    void execute_forward() const;
+    void execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     pp_kernel_t *pp_kernel_;

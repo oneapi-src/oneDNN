@@ -36,11 +36,11 @@ using namespace mkldnn::impl::memory_tracking::names;
 
 template <data_type_t src_type, data_type_t dst_type>
 void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::
-execute_forward() const {
-    auto src_base = reinterpret_cast<const src_data_t *>(this->input_memory(0));
-    auto wei_base = reinterpret_cast<const wei_data_t *>(this->input_memory(1));
-    auto bia_base = reinterpret_cast<const char *>(this->input_memory(2));
-    auto dst_base = reinterpret_cast<dst_data_t *>(this->memory());
+execute_forward(const exec_ctx_t &ctx) const {
+    auto src_base = CTX_IN_MEM(const src_data_t *, MKLDNN_ARG_SRC);
+    auto wei_base = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
+    auto bia_base = CTX_IN_MEM(const char *, MKLDNN_ARG_BIAS);
+    auto dst_base = CTX_OUT_MEM(dst_data_t *, MKLDNN_ARG_DST);
 
     auto scratchpad = this->scratchpad();
 
@@ -633,12 +633,11 @@ execute_forward_thr(const int ithr, const int nthr, const src_data_t *src_base,
 
 template <data_type_t dst_type>
 void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::
-execute_backward_data() const {
-    auto diff_dst_base = reinterpret_cast<const diff_dst_data_t *>
-            (this->input_memory(0));
-    auto wei_base = reinterpret_cast<const wei_data_t *>(this->input_memory(1));
-    auto bia_base = reinterpret_cast<const char *>(this->input_memory(2));
-    auto diff_src_base = reinterpret_cast<diff_src_data_t *>(this->memory());
+execute_backward_data(const exec_ctx_t &ctx) const {
+    auto diff_dst_base = CTX_IN_MEM(const diff_dst_data_t *, MKLDNN_ARG_DIFF_DST);
+    auto wei_base = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
+    auto bia_base = CTX_IN_MEM(const char *, MKLDNN_ARG_BIAS);
+    auto diff_src_base = CTX_OUT_MEM(diff_src_data_t *, MKLDNN_ARG_DIFF_SRC);
 
     auto scratchpad = this->scratchpad();
 

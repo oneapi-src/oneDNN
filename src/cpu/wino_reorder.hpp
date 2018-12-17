@@ -332,8 +332,8 @@ private:
     }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        auto input = reinterpret_cast<const in_data_t *>(input_memory(0));
-        auto output = reinterpret_cast<out_data_t *>(memory());
+        auto input = CTX_IN_MEM(const in_data_t *, MKLDNN_ARG_FROM);
+        auto output = CTX_OUT_MEM(out_data_t *, MKLDNN_ARG_TO);
 
         auto wspace = (in_data_t *__restrict)scratchpad().template get<void>(
                 memory_tracking::names::key_reorder_wino_transform_space);
@@ -355,7 +355,6 @@ private:
         default: assert("Unknown wino format"); break;
         }
 
-        UNUSED(ctx);
         return status::success;
     }
 

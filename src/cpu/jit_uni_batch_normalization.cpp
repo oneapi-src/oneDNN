@@ -1297,19 +1297,18 @@ jit_uni_batch_normalization_fwd_t<isa>::jit_uni_batch_normalization_fwd_t(
 template <cpu_isa_t isa>
 status_t jit_uni_batch_normalization_fwd_t<isa>::execute(
         const exec_ctx_t &ctx) const {
-    auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
-    auto dst = reinterpret_cast<data_t*>(this->memory(0));
-    auto mean = reinterpret_cast<data_t*>(pd()->stats_is_src()
-            ? const_cast<char*>(this->input_memory(1))
-            : this->memory(1));
-    auto var = reinterpret_cast<data_t*>(pd()->stats_is_src()
-            ? const_cast<char*>(this->input_memory(2))
-            : this->memory(2));
+    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
+    auto scale_shift = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SCALE_SHIFT);
 
-    auto idx_scale_shift = 1 + 2*pd()->stats_is_src();
-    auto scale_shift =
-        reinterpret_cast<const data_t *>(this->input_memory(idx_scale_shift));
-    auto ws = reinterpret_cast<uint8_t *>(this->memory(pd()->ws_idx()));
+    auto mean = pd()->stats_is_src()
+        ? const_cast<data_t *>(CTX_IN_MEM(const data_t *, MKLDNN_ARG_MEAN))
+        : CTX_OUT_MEM(data_t *, MKLDNN_ARG_MEAN);
+    auto var = pd()->stats_is_src()
+        ? const_cast<data_t *>(CTX_IN_MEM(const data_t *, MKLDNN_ARG_VARIANCE))
+        : CTX_OUT_MEM(data_t *, MKLDNN_ARG_VARIANCE);
+
+    auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
+    auto ws = CTX_OUT_MEM(uint8_t *, MKLDNN_ARG_WORKSPACE);
 
     auto scratchpad = this->scratchpad();
 
@@ -1320,7 +1319,6 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::execute(
                 scale_shift, nullptr, mean, var, ws, scratchpad);
     });
 
-    UNUSED(ctx);
     return status::success;
 }
 
@@ -1385,15 +1383,15 @@ jit_uni_batch_normalization_bwd_t<isa>::jit_uni_batch_normalization_bwd_t(
 template <cpu_isa_t isa>
 status_t jit_uni_batch_normalization_bwd_t<isa>::execute(
         const exec_ctx_t &ctx) const {
-    auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
-    auto mean = reinterpret_cast<const data_t *>(this->input_memory(1));
-    auto var = reinterpret_cast<const data_t *>(this->input_memory(2));
-    auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(3));
-    auto scale_shift = reinterpret_cast<const data_t *>(this->input_memory(4));
-    auto diff_src = reinterpret_cast<data_t*>(this->memory(0));
-    auto diff_scale_shift = reinterpret_cast<data_t *>(this->memory(1));
-    auto ws = reinterpret_cast<const uint8_t *>(
-            this->input_memory(pd()->ws_idx()));
+    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
+    auto mean = CTX_IN_MEM(const data_t *, MKLDNN_ARG_MEAN);
+    auto var = CTX_IN_MEM(const data_t *, MKLDNN_ARG_VARIANCE);
+    auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
+    auto scale_shift = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SCALE_SHIFT);
+    auto ws = CTX_IN_MEM(const uint8_t *, MKLDNN_ARG_WORKSPACE);
+
+    auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
+    auto diff_scale_shift = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SCALE_SHIFT);
 
     auto scratchpad = this->scratchpad();
 
@@ -1404,7 +1402,6 @@ status_t jit_uni_batch_normalization_bwd_t<isa>::execute(
                 scale_shift, diff_scale_shift, mean, var, ws, scratchpad);
     });
 
-    UNUSED(ctx);
     return status::success;
 }
 

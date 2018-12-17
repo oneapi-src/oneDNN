@@ -101,15 +101,22 @@ struct jit_uni_pooling_fwd_t: public cpu_primitive_t {
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        if (pd()->jpp_.ndims == 5) execute_forward_3d();
-        else execute_forward();
+        auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
+        auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
+        auto ws = CTX_OUT_MEM(char *, MKLDNN_ARG_WORKSPACE);
+
+        if (pd()->jpp_.ndims == 5)
+            execute_forward_3d(src, dst, ws);
+        else
+            execute_forward(src, dst, ws);
         UNUSED(ctx);
         return status::success;
     }
 
 private:
-    void execute_forward() const;
-    void execute_forward_3d() const;
+    void execute_forward(const data_t *src, data_t *dst, char *indices) const;
+    void execute_forward_3d(const data_t *src, data_t *dst,
+            char *indices) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_uni_pool_kernel_f32<isa> *kernel_;
 };
@@ -186,15 +193,23 @@ struct jit_uni_pooling_bwd_t: public cpu_primitive_t {
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        if (pd()->jpp_.ndims == 5) execute_backward_3d();
-        else execute_backward();
+        auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
+        auto ws = CTX_IN_MEM(const char *, MKLDNN_ARG_WORKSPACE);
+        auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
+
+        if (pd()->jpp_.ndims == 5)
+            execute_backward_3d(diff_dst, ws, diff_src);
+        else
+            execute_backward(diff_dst, ws, diff_src);
         UNUSED(ctx);
         return status::success;
     }
 
 private:
-    void execute_backward() const;
-    void execute_backward_3d() const;
+    void execute_backward(const data_t *diff_dst, const char *indices,
+            data_t *diff_src) const;
+    void execute_backward_3d(const data_t *diff_dst, const char *indices,
+            data_t *diff_src) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_uni_pool_kernel_f32<isa> *kernel_;
 };

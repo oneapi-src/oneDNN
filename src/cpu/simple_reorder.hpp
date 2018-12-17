@@ -1038,12 +1038,10 @@ struct simple_reorder_t: public cpu_primitive_t {
         : cpu_primitive_t(apd, inputs, outputs) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        auto input = reinterpret_cast<const data_t<type_i> *>(
-                this->input_memory(0));
-        auto output = reinterpret_cast<data_t<type_o> *>(this->memory());
+        auto input = CTX_IN_MEM(const data_t<type_i> *, MKLDNN_ARG_FROM);
+        auto output = CTX_OUT_MEM(data_t<type_o> *, MKLDNN_ARG_TO);
         simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL, spec>::execute(
                 pd(), input, output);
-        UNUSED(ctx);
         return status::success;
     }
 

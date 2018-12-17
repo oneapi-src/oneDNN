@@ -62,17 +62,12 @@ struct simple_sum_t: public cpu_primitive_t {
             const output_vector &outputs)
         : cpu_primitive_t(apd, inputs, outputs) {}
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
-        execute();
-        UNUSED(ctx);
-        return status::success;
-    }
+    virtual status_t execute(const exec_ctx_t &ctx) const override;
 
     enum {max_num_arrs = 16 };
     typedef typename prec_traits<data_type>::type data_t;
 
 private:
-    void execute() const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 

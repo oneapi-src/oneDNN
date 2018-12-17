@@ -38,9 +38,8 @@ namespace cpu {
 
 using namespace memory_tracking::names;
 
-void nspc_batch_normalization_fwd_t::execute_forward() const {
-    auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
-
+void nspc_batch_normalization_fwd_t::execute_forward(
+        const exec_ctx_t &ctx) const {
     const bool save_stats = pd()->is_training();
     const bool is_training = pd()->is_training();
     const bool fuse_bn_relu = pd()->fuse_bn_relu();
@@ -50,29 +49,29 @@ void nspc_batch_normalization_fwd_t::execute_forward() const {
     auto scratchpad = this->scratchpad();
     auto tmp_mean = scratchpad.get<data_t>(key_bnorm_tmp_mean);
     auto tmp_var = scratchpad.get<data_t>(key_bnorm_tmp_var);
+    auto *ws_reduce = scratchpad.get<data_t>(key_bnorm_reduction);
+
+    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
+    auto scaleshift = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SCALE_SHIFT);
 
     data_t *mean, *variance;
     if (!calculate_stats) {
-        mean = reinterpret_cast<data_t *>(
-                const_cast<char *>(this->input_memory(1)));
-        variance = reinterpret_cast<data_t *>(
-                const_cast<char *>(this->input_memory(2)));
+        mean = const_cast<data_t *>(
+                CTX_IN_MEM(const data_t *, MKLDNN_ARG_MEAN));
+        variance = const_cast<data_t *>(
+                CTX_IN_MEM(const data_t *, MKLDNN_ARG_VARIANCE));
     } else {
         if (save_stats) {
-            mean = reinterpret_cast<data_t *>(this->memory(1));
-            variance = reinterpret_cast<data_t *>(this->memory(2));
+            mean = CTX_OUT_MEM(data_t *, MKLDNN_ARG_MEAN);
+            variance = CTX_OUT_MEM(data_t *, MKLDNN_ARG_VARIANCE);
         } else {
             mean = tmp_mean;
             variance = tmp_var;
         }
     }
-    auto idx_scaleshift = 1 + 2 * pd()->stats_is_src();
-    auto scaleshift = reinterpret_cast<const data_t *>(
-            this->input_memory(idx_scaleshift));
 
-    auto dst = reinterpret_cast<data_t *>(this->memory(0));
-    auto ws = reinterpret_cast<uint8_t *>(this->memory(pd()->ws_idx()));
-    auto *ws_reduce = scratchpad.get<data_t>(key_bnorm_reduction);
+    auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
+    auto ws = CTX_OUT_MEM(uint8_t *, MKLDNN_ARG_WORKSPACE);
 
     const int N = pd()->MB();
     const int C = pd()->C();
@@ -175,21 +174,23 @@ void nspc_batch_normalization_fwd_t::execute_forward() const {
     });
 }
 
-void nspc_batch_normalization_bwd_t::execute_backward() const {
-    auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
-    auto mean = reinterpret_cast<const data_t *>(this->input_memory(1));
-    auto variance = reinterpret_cast<const data_t *>(this->input_memory(2));
-    auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(3));
-    auto scaleshift = reinterpret_cast<const data_t *>(this->input_memory(4));
-    auto ws = reinterpret_cast<const uint8_t *>(
-            this->input_memory(pd()->ws_idx()));
+void nspc_batch_normalization_bwd_t::execute_backward(
+        const exec_ctx_t &ctx) const {
+    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
+    auto mean = CTX_IN_MEM(const data_t *, MKLDNN_ARG_MEAN);
+    auto variance = CTX_IN_MEM(const data_t *, MKLDNN_ARG_VARIANCE);
+    auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
+    auto scaleshift = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SCALE_SHIFT);
+    auto ws = CTX_IN_MEM(const uint8_t *, MKLDNN_ARG_WORKSPACE);
+
+    auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
+    auto diff_scaleshift = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SCALE_SHIFT);
 
     auto scratchpad = this->scratchpad();
     auto tmp_diff_ss = scratchpad.get<data_t>(key_bnorm_tmp_diff_ss);
 
-    auto diff_src = reinterpret_cast<data_t *>(this->memory(0));
-    auto diff_scaleshift = this->memory(1)
-        ? reinterpret_cast<data_t *>(this->memory(1)) : tmp_diff_ss;
+    if (diff_scaleshift == nullptr)
+        diff_scaleshift = tmp_diff_ss;
 
     const int N = pd()->MB();
     const int C = pd()->C();

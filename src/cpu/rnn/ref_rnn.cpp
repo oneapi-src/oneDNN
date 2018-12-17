@@ -635,43 +635,31 @@ rnn_weights_assign_sig(
 
 //********************* Execution function *********************//
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-void _ref_rnn_common_t<aprop, src_type, weights_type>::execute_() const {
+void _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
+        const exec_ctx_t &ctx) const {
     const rnn_conf_t &rnn = this->pd()->rnn_;
-    int input_idx = 0;
-    int output_idx = 0;
-    auto input = reinterpret_cast<const src_data_t *>(
-            this->input_memory(input_idx++));
-    auto states = pd()->with_src_iter() ? (this->input_memory(input_idx++)) :
-                                          nullptr;
+    auto input = CTX_IN_MEM(const src_data_t *, MKLDNN_ARG_SRC_LAYER);
+    auto states = CTX_IN_MEM(const char *, MKLDNN_ARG_SRC_ITER);
+    auto layer_weights_n_comp = CTX_IN_MEM(const char *, MKLDNN_ARG_WEIGHTS_LAYER);
+    auto iter_weights_n_comp = CTX_IN_MEM(const char *, MKLDNN_ARG_WEIGHTS_ITER);
+    auto bias = CTX_IN_MEM(const float *, MKLDNN_ARG_BIAS);
 
-    const char *layer_weights_n_comp = this->input_memory(input_idx++);
-    auto w_layer
-            = reinterpret_cast<const weights_data_t *>(layer_weights_n_comp);
-    auto w_layer_comp = reinterpret_cast<const float *>(layer_weights_n_comp
-            + rnn.weights_layer_comp_offset);
-    const char *iter_weights_n_comp = this->input_memory(input_idx++);
-    auto w_iter
-            = reinterpret_cast<const weights_data_t *>(iter_weights_n_comp);
-    auto w_iter_comp = reinterpret_cast<const float *>(iter_weights_n_comp
-            + rnn.weights_iter_comp_offset);
-    auto bias = pd()->with_bias() ?
-            reinterpret_cast<const float *>(this->input_memory(input_idx++)) :
-            nullptr;
+    auto dst_last_layer = rnn.is_fwd
+        ? CTX_OUT_MEM(char *, MKLDNN_ARG_DST_LAYER)
+        : const_cast<char *>(CTX_IN_MEM(const char *, MKLDNN_ARG_DST_LAYER));
+    auto dst_last_iter = rnn.is_fwd
+        ? CTX_OUT_MEM(char *, MKLDNN_ARG_DST_ITER)
+        : const_cast<char *>(CTX_IN_MEM(const char *, MKLDNN_ARG_DST_ITER));
 
-    auto dst_last_layer = rnn.is_fwd ? this->memory(output_idx++) :
-                                       this->input_memory(input_idx++);
-    auto dst_last_iter = pd()->with_dst_iter()
-            ? (rnn.is_fwd
-                ? this->memory(output_idx++)
-                : this->input_memory(input_idx++))
-            : nullptr;
+    auto diff_dst_layer = CTX_IN_MEM(const float *, MKLDNN_ARG_DIFF_DST_LAYER);
+    auto diff_dst_iter = CTX_IN_MEM(const float *, MKLDNN_ARG_DIFF_DST_ITER);
 
-    auto diff_dst_layer = rnn.is_fwd ?
-            nullptr :
-            reinterpret_cast<const float *>(this->input_memory(input_idx++));
-    auto diff_dst_iter = rnn.is_fwd || !pd()->with_dst_iter() ?
-            nullptr :
-            reinterpret_cast<const float *>(this->input_memory(input_idx++));
+    auto w_layer = reinterpret_cast<const weights_data_t *>(layer_weights_n_comp);
+    auto w_iter = reinterpret_cast<const weights_data_t *>(iter_weights_n_comp);
+    auto w_iter_comp = reinterpret_cast<const float *>(
+            iter_weights_n_comp + rnn.weights_iter_comp_offset);
+    auto w_layer_comp = reinterpret_cast<const float *>(
+            layer_weights_n_comp + rnn.weights_layer_comp_offset);
 
     auto scratchpad = this->scratchpad();
 
@@ -688,8 +676,9 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::execute_() const {
     char *ws_ptr = nullptr;
     if (rnn.use_workspace)
         ws_ptr = rnn.is_fwd
-            ? this->memory(output_idx++)
-            : const_cast<char *>(this->input_memory(input_idx++));
+            ? CTX_OUT_MEM(char *, MKLDNN_ARG_WORKSPACE)
+            : const_cast<char *>(CTX_IN_MEM(const char *, MKLDNN_ARG_WORKSPACE));
+
     char *base_ptr = rnn.use_workspace ? ws_ptr : scratch_ptr;
     acc_data_t *ws_gates = (acc_data_t *)(base_ptr + ws_gates_offset_);
     src_data_t *ws_states = (src_data_t *)(base_ptr + ws_states_offset_);
@@ -698,21 +687,12 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::execute_() const {
     float *ws_grid = (float *)(base_ptr + ws_grid_comp_offset_);
     float *ws_cell = (float *)(base_ptr + ws_cell_comp_offset_);
 
-    auto diff_src_layer = rnn.is_fwd ?
-            nullptr :
-            reinterpret_cast<float *>(this->memory(output_idx++));
-    auto diff_src_iter = rnn.is_fwd || !pd()->with_src_iter() ?
-            nullptr :
-            reinterpret_cast<float *>(this->memory(output_idx++));
-    auto diff_weights_layer = rnn.is_fwd ?
-            nullptr :
-            reinterpret_cast<float *>(this->memory(output_idx++));
-    auto diff_weights_iter = rnn.is_fwd ?
-            nullptr :
-            reinterpret_cast<float *>(this->memory(output_idx++));
-    auto diff_bias = rnn.is_fwd || !pd()->with_bias() ?
-            nullptr :
-            reinterpret_cast<float *>(this->memory(output_idx++));
+    auto diff_src_layer = CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_SRC_LAYER);
+    auto diff_src_iter = CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_SRC_ITER);
+
+    auto diff_weights_layer = CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_WEIGHTS_LAYER);
+    auto diff_weights_iter = CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_WEIGHTS_ITER);
+    auto diff_bias = CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_BIAS);
 
     // Fetching extra buffers from scratchpad
     float *ws_bias = (float *)(scratch_ptr + ws_bias_offset_);

@@ -25,7 +25,7 @@ namespace cpu {
 using namespace memory_tracking::names;
 
 template <data_type_t data_type>
-void simple_concat_t<data_type>::execute() const {
+status_t simple_concat_t<data_type>::execute(const exec_ctx_t &ctx) const {
     auto scratchpad = this->scratchpad();
     auto iptrs = scratchpad.template get<const data_t *>(key_concat_iptrs);
     auto optrs = scratchpad.template get<data_t *>(key_concat_optrs);
@@ -35,14 +35,14 @@ void simple_concat_t<data_type>::execute() const {
     const int num_arrs = pd()->n_inputs();
     const int *perm = pd()->perm_, *iperm = pd()->iperm_;
     const int concat_dim = pd()->concat_dim();
-    auto o_base_ptr = reinterpret_cast<data_t *>(this->memory());
+    auto o_base_ptr = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
 
     for (int a = 0; a < num_arrs; ++a) {
         const memory_desc_wrapper i_d(pd()->src_pd(a));
         const memory_desc_wrapper o_d(pd()->src_image_pd(a));
 
-        iptrs[a] = reinterpret_cast<const data_t *>(
-                this->input_memory(a)) + i_d.blk_off(0);
+        iptrs[a] = CTX_IN_MEM(const data_t *, MKLDNN_ARG_MULTIPLE_SRC + a)
+            + i_d.blk_off(0);
         optrs[a] = o_base_ptr + o_d.blk_off(0);
         nelems_to_copy[a] = pd()->nelems_to_concat(i_d);
         for (int i = 0; i < TENSOR_MAX_DIMS; i++) {
@@ -113,6 +113,8 @@ void simple_concat_t<data_type>::execute() const {
 #endif
         });
     }
+
+    return status::success;
 }
 
 template struct simple_concat_t<data_type::f32>;

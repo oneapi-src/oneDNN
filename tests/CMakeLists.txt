@@ -75,5 +75,5 @@ if(UNIX OR MINGW)
 # No Windows support for: test_c_symbols.c
 endif()
 
-add_subdirectory(gtests)
+# add_subdirectory(gtests)
 add_subdirectory(benchdnn)

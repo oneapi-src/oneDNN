@@ -71,7 +71,7 @@ struct cpu_memory_t: public cpu_primitive_t {
     virtual const char* const_memory(size_t output_index = 0) const override
     { assert(output_index == 0); return data_; }
 
-    mkldnn::impl::status_t zero_pad() const;
+    virtual mkldnn::impl::status_t zero_pad() const override;
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
@@ -150,7 +150,8 @@ struct cpu_view_t: public cpu_primitive_t {
                 const primitive_at_t *inputs, const primitive_t **outputs)
             const override
         {
-            primitive_t::input_vector ins(inputs, inputs + 1);
+            const int c = (inputs || outputs) ? 1 : 0;
+            primitive_t::input_vector ins(inputs, inputs + c * 1);
             UNUSED(outputs);
             return safe_ptr_assign<primitive_t>(*primitive,
                     new cpu_view_t(this, ins));

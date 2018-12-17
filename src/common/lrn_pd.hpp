@@ -42,6 +42,19 @@ struct lrn_fwd_pd_t: public primitive_desc_t {
     { return reinterpret_cast<const op_desc_t *>(this->desc()); }
     virtual void init_info() override { init_info_lrn(this, this->info_); }
 
+    virtual arg_usage_t arg_usage(primitive_arg_index_t arg) const override {
+        if (arg == MKLDNN_ARG_SRC)
+            return arg_usage_t::input;
+
+        if (arg == MKLDNN_ARG_DST)
+            return arg_usage_t::output;
+
+        if (arg == MKLDNN_ARG_WORKSPACE && (workspace_pd() != nullptr))
+            return arg_usage_t::output;
+
+        return primitive_desc_t::arg_usage(arg);
+    }
+
     virtual const memory_pd_t *input_pd(int index = 0) const override
     { return index == 0 ? src_pd() : nullptr; }
     virtual const memory_pd_t *output_pd(int index = 0) const override {
@@ -94,6 +107,19 @@ struct lrn_bwd_pd_t: public primitive_desc_t {
     virtual const op_desc_t *op_desc() const override
     { return reinterpret_cast<const op_desc_t *>(this->desc()); }
     virtual void init_info() override { init_info_lrn(this, this->info_); }
+
+    virtual arg_usage_t arg_usage(primitive_arg_index_t arg) const override {
+        if (utils::one_of(arg, MKLDNN_ARG_SRC, MKLDNN_ARG_DIFF_DST))
+            return arg_usage_t::input;
+
+        if (arg == MKLDNN_ARG_DIFF_SRC)
+            return arg_usage_t::output;
+
+        if (arg == MKLDNN_ARG_WORKSPACE && (workspace_pd() != nullptr))
+            return arg_usage_t::input;
+
+        return primitive_desc_t::arg_usage(arg);
+    }
 
     virtual const memory_pd_t *input_pd(int index = 0) const override {
         if (index == 0) return src_pd();

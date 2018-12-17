@@ -193,18 +193,21 @@ struct jit_avx512_core_fp32_wino_conv_4x3_fwd_t
 
     virtual status_t execute(const exec_ctx_t &ctx) const override
     {
-        float *src = (float *)this->input_memory(0);
-        float *dst = (float *)this->memory();
-        float *weights = (float *)this->input_memory(1);
-        float *bias = (float *)this->input_memory(2);
+        auto src = CTX_IN_MEM(const float *, MKLDNN_ARG_SRC);
+        auto weights = CTX_IN_MEM(const float *, MKLDNN_ARG_WEIGHTS);
+        auto bias = CTX_IN_MEM(const float *, MKLDNN_ARG_BIAS);
+        auto dst = CTX_OUT_MEM(float *, MKLDNN_ARG_DST);
+
         auto scratchpad = this->scratchpad();
 
         switch ((pd()->jcp_).sched_policy) {
         case WSCHED_DATA_W_S_G_D:
-            this->_execute_data_W_S_G_D(src, dst, weights, bias, scratchpad);
+            this->_execute_data_W_S_G_D((float *)src, dst, (float *)weights,
+                    (float *)bias, scratchpad);
             break;
         case WSCHED_DATA_W_SGD:
-            this->_execute_data_W_SGD(src, dst, weights, bias, scratchpad);
+            this->_execute_data_W_SGD((float *)src, dst, (float *)weights,
+                    (float *)bias, scratchpad);
             break;
         default:
             break;
@@ -294,21 +297,22 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_data_t
 
     virtual status_t execute(const exec_ctx_t &ctx) const override
     {
-        float *diff_dst = (float *)this->input_memory(0);
-        float *diff_src = (float *)this->memory();
-        float *weights = (float *)this->input_memory(1);
+        auto diff_dst = CTX_IN_MEM(const float *, MKLDNN_ARG_DIFF_DST);
+        auto weights = CTX_IN_MEM(const float *, MKLDNN_ARG_WEIGHTS);
+        auto diff_src = CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_SRC);
+
         auto scratchpad = this->scratchpad();
 
         if (pd()->desc()->prop_kind == prop_kind::backward_data) {
             switch ((pd()->jcp_).sched_policy) {
             case WSCHED_DATA_W_S_G_D:
-                this->_execute_data_W_S_G_D(diff_dst, diff_src, weights, NULL,
-                        scratchpad);
+                this->_execute_data_W_S_G_D((float *)diff_dst, diff_src,
+                        (float *)weights, NULL, scratchpad);
                 break;
 
             case WSCHED_DATA_W_SGD:
-                this->_execute_data_W_SGD(diff_dst, diff_src, weights, NULL,
-                        scratchpad);
+                this->_execute_data_W_SGD((float *)diff_dst, diff_src,
+                        (float *)weights, NULL, scratchpad);
                 break;
 
             default:
@@ -318,7 +322,6 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_data_t
             assert(!"invalid prop_kind");
         }
 
-        UNUSED(ctx);
         return status::success;
     }
 
@@ -412,30 +415,33 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_t
 
     virtual status_t execute(const exec_ctx_t &ctx) const override
     {
-        if (pd()->desc()->prop_kind == prop_kind::backward_weights) {
-            const auto &jcp = kernel_->jcp;
-            switch (jcp.sched_policy) {
-            case WSCHED_WEI_SDGtWo:
-                _execute_backward_weights_SDGtWo(scratchpad());
-                break;
-            case WSCHED_WEI_S_D_Giot_W:
-                _execute_backward_weights_S_D_Giot_W(scratchpad());
-                break;
-            default:
-                assert(jcp.sched_policy != WSCHED_INVALID);
-                break;
-            }
+        auto diff_dst = CTX_IN_MEM(const float *, MKLDNN_ARG_DIFF_DST);
+        auto src = CTX_IN_MEM(const float *, MKLDNN_ARG_SRC);
+        auto diff_weights = CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_WEIGHTS);
+        auto diff_bias = CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_BIAS);
+
+        switch (kernel_->jcp.sched_policy) {
+        case WSCHED_WEI_SDGtWo:
+            _execute_backward_weights_SDGtWo(src, diff_dst, diff_weights,
+                    diff_bias, scratchpad());
+            break;
+        case WSCHED_WEI_S_D_Giot_W:
+            _execute_backward_weights_S_D_Giot_W(src, diff_dst, diff_weights,
+                    diff_bias, scratchpad());
+            break;
+        default:
+            assert(kernel_->jcp.sched_policy != WSCHED_INVALID);
+            break;
         }
-        else
-            assert(!"invalid prop_kind");
-        UNUSED(ctx);
         return status::success;
     }
 
 private:
-    void _execute_backward_weights_SDGtWo(
+    void _execute_backward_weights_SDGtWo(const float *src,
+            const float *diff_dst, float *diff_weights, float *diff_bias,
             const memory_tracking::grantor_t &scratchpad) const;
-    void _execute_backward_weights_S_D_Giot_W(
+    void _execute_backward_weights_S_D_Giot_W(const float *src,
+            const float *diff_dst, float *diff_weights, float *diff_bias,
             const memory_tracking::grantor_t &scratchpad) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }

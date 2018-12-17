@@ -72,8 +72,8 @@ private:
         : cpu_primitive_t(apd, inputs, outputs) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        auto input = reinterpret_cast<const in_data_t *>(input_memory(0));
-        auto output = reinterpret_cast<out_data_t *>(memory());
+        auto input = CTX_IN_MEM(const in_data_t *, MKLDNN_ARG_FROM);
+        auto output = CTX_OUT_MEM(out_data_t *, MKLDNN_ARG_TO);
         const memory_desc_wrapper &input_d = pd()->input_pd();
         const memory_desc_wrapper &output_d = pd()->output_pd();
         const round_mode_t rmode = pd()->attr()->round_mode_;
@@ -86,7 +86,6 @@ private:
             output[output_d.off_l(i)] = qz_a1b0<float, out_data_t>()(in, rmode);
         });
 
-        UNUSED(ctx);
         return status::success;
     }
 
@@ -173,8 +172,8 @@ private:
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
 #if USE_MKL_PACKED_GEMM
-        auto input = reinterpret_cast<const in_data_t *>(input_memory(0));
-        auto output = reinterpret_cast<char *>(memory());
+        auto input = CTX_IN_MEM(const in_data_t *, MKLDNN_ARG_FROM);
+        auto output = CTX_OUT_MEM(char *, MKLDNN_ARG_TO);
         const memory_desc_wrapper &input_d = pd()->input_pd();
         const memory_desc_wrapper &output_d = pd()->output_pd();
         const auto &dims = input_d.dims();
@@ -281,7 +280,6 @@ private:
             }
         }
 #endif
-        UNUSED(ctx);
         return status::success;
     }
 
@@ -339,8 +337,8 @@ private:
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
 #if USE_MKL_PACKED_GEMM
-        auto input = reinterpret_cast<const float *>(input_memory(0));
-        auto output = reinterpret_cast<float *>(memory());
+        auto input = CTX_IN_MEM(const float *, MKLDNN_ARG_FROM);
+        auto output = CTX_OUT_MEM(float *, MKLDNN_ARG_TO);
         const memory_desc_wrapper &input_d = pd()->input_pd();
         const memory_desc_wrapper &output_d = pd()->output_pd();
         const auto &dims = input_d.dims();
@@ -385,7 +383,6 @@ private:
             }
         }
 #endif
-        UNUSED(ctx);
         return status::success;
     }
 

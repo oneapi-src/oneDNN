@@ -1050,19 +1050,23 @@ template struct _jit_avx512_common_convolution_winograd_t<true>;
 template struct _jit_avx512_common_convolution_winograd_t<false>;
 
 void jit_avx512_common_convolution_winograd_bwd_weights_t::
-_maybe_execute_diff_bias_copy(
+_maybe_execute_diff_bias_copy(float *diff_bias,
         const memory_tracking::grantor_t &scratchpad) const {
     if (pd()->wants_padded_bias()) {
         auto padded_bias = scratchpad.get<float>(key_conv_padded_bias);
-        float *diff_bias = (float *)this->memory(1);
         for (int oc = 0; oc < pd()->jcp_.oc_without_padding; ++oc)
             diff_bias[oc] = padded_bias[oc];
     }
 }
 
 void jit_avx512_common_convolution_winograd_bwd_weights_t::
-_execute_backward_weights_S_D_G_W(
+_execute_backward_weights_S_D_G_W(const exec_ctx_t &ctx,
         const memory_tracking::grantor_t &scratchpad) const {
+    auto ptr_diff_dst = CTX_IN_MEM(const float *, MKLDNN_ARG_DIFF_DST);
+    auto ptr_src = CTX_IN_MEM(const float *, MKLDNN_ARG_SRC);
+    auto ptr_diff_weights = CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_WEIGHTS);
+    auto ptr_diff_bias = CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_BIAS);
+
     const auto &jcp = kernel_->jcp;
     const int nthreads = jcp.nthr;
 
@@ -1073,15 +1077,15 @@ _execute_backward_weights_S_D_G_W(
                                             ? diff_dst_transform_bwd_weights<true>
                                             : diff_dst_transform_bwd_weights<false>;
 
-    array_offset_calculator<float, 5> diff_src((float *)this->input_memory(0),
+    array_offset_calculator<float, 5> src((float *)ptr_src,
             jcp.mb, jcp.ic/simd_w, jcp.ih, jcp.iw, simd_w);
-    array_offset_calculator<float, 5> diff_dst((float *)this->input_memory(1),
+    array_offset_calculator<float, 5> diff_dst((float *)ptr_diff_dst,
             jcp.mb, jcp.oc/simd_w, jcp.oh, jcp.ow, simd_w);
-    array_offset_calculator<float, 6> diff_weights((float *)this->memory(0),
+    array_offset_calculator<float, 6> diff_weights(ptr_diff_weights,
             jcp.oc/simd_w, jcp.ic/simd_w, jcp.kh, jcp.kw, simd_w, simd_w);
     array_offset_calculator<float, 2> diff_bias(pd()->wants_padded_bias()
-            ? scratchpad.get<float>(key_conv_padded_bias)
-            : (float *)this->memory(1), jcp.oc/simd_w, simd_w);
+            ? scratchpad.get<float>(key_conv_padded_bias) : ptr_diff_bias,
+            jcp.oc/simd_w, simd_w);
 
     array_offset_calculator<float, 8> U(
             scratchpad.get<float>(key_wino_U),
@@ -1138,7 +1142,7 @@ PRAGMA_OMP(for nowait)
                ? &(trans_buffer(ithread, 0))
                : NULL;
             diff_src_transform_bwd_weights_ver(img, jcp,
-               &(diff_src(img, ifm1 * jcp.ic_block + ifm2,
+               &(src(img, ifm1 * jcp.ic_block + ifm2,
                        0, 0, 0)),
                &(V(ifm1, 0, 0, 0, ifm2, 0, 0, 0)),
                transb,
@@ -1209,7 +1213,7 @@ PRAGMA_OMP(for)
         }
     }
 
-    _maybe_execute_diff_bias_copy(scratchpad);
+    _maybe_execute_diff_bias_copy(ptr_diff_bias, scratchpad);
 }
 
 }

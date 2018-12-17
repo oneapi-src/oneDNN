@@ -42,8 +42,9 @@ namespace cpu {
             const primitive_at_t *inputs, \
             const primitive_t **outputs) const override { \
         double ms = get_msec(); \
-        primitive_t::input_vector ins(inputs, inputs + n_); \
-        primitive_t::output_vector outs(outputs, outputs + 1); \
+        const int c = (inputs || outputs) ? 1 : 0; \
+        primitive_t::input_vector ins(inputs, inputs + c * n_); \
+        primitive_t::output_vector outs(outputs, outputs + c * 1); \
         auto ret = safe_ptr_assign<primitive_t>(*primitive, \
                 new (__VA_ARGS__)(this, ins, outs)); \
         ms = get_msec() - ms; \

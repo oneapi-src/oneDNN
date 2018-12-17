@@ -330,20 +330,22 @@ int check_reorder(const prb_t *p, res_t *res) {
     /* Step 6: performance measurement */
     if (bench_mode & PERF) {
         mkldnn_primitive_desc_t perf_r_pd;
-        mkldnn_primitive_t perf_r;
-
         DNN_SAFE(mkldnn_reorder_primitive_desc_create_v2(&perf_r_pd,
                 mem_dt_in_fmt_in.mpd_, mem_dt_out_fmt_out.mpd_,
                 mkldnn_attr), WARN);
-        mkldnn_primitive_at_t i = {mem_dt_in_fmt_in.p_, 0};
-        const_mkldnn_primitive_t o = mem_dt_out_fmt_out.p_;
-        DNN_SAFE(mkldnn_primitive_create(&perf_r, perf_r_pd, &i, &o), WARN);
+
+        mkldnn_primitive_t perf_r;
+        DNN_SAFE(mkldnn_primitive_create(&perf_r, perf_r_pd), WARN);
         DNN_SAFE_V(mkldnn_primitive_desc_destroy(perf_r_pd));
+
+        args_t args;
+        args.set(MKLDNN_ARG_FROM, mem_dt_in_fmt_in.p_);
+        args.set(MKLDNN_ARG_TO, mem_dt_out_fmt_out.p_);
 
         auto &t = res->timer;
         t.reset();
         while (true) {
-            SAFE(execute(perf_r), WARN);
+            DNN_SAFE(mkldnn_primitive_execute(perf_r, stream, args.size(), args), WARN);
             t.stamp();
             const bool stop = false
                 || (fix_times_per_prb && t.times() >= fix_times_per_prb)

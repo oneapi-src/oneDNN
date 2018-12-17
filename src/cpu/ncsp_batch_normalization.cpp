@@ -38,36 +38,37 @@ namespace cpu {
 
 using namespace memory_tracking::names;
 
-void ncsp_batch_normalization_fwd_t::execute_forward() const {
-    auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
-    auto dst = reinterpret_cast<data_t *>(this->memory(0));
-    auto scratchpad = this->scratchpad();
-
+void ncsp_batch_normalization_fwd_t::execute_forward(
+        const exec_ctx_t &ctx) const {
     const bool calculate_stats = !pd()->stats_is_src();
     const bool save_stats = pd()->is_training();
     const bool is_training = pd()->is_training();
     const bool fuse_bn_relu = pd()->fuse_bn_relu();
 
+    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
+    auto scaleshift = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SCALE_SHIFT);
+
+    auto scratchpad = this->scratchpad();
+    auto *ws_reduce = scratchpad.get<data_t>(key_bnorm_reduction);
+
     data_t *mean, *variance;
     if (!calculate_stats) {
-        mean = reinterpret_cast<data_t *>(
-                const_cast<char *>(this->input_memory(1)));
-        variance = reinterpret_cast<data_t *>(
-                const_cast<char *>(this->input_memory(2)));
+        mean = const_cast<data_t *>(
+                CTX_IN_MEM(const data_t *, MKLDNN_ARG_MEAN));
+        variance = const_cast<data_t *>(
+                CTX_IN_MEM(const data_t *, MKLDNN_ARG_VARIANCE));
     } else {
         if (save_stats) {
-            mean = reinterpret_cast<data_t *>(this->memory(1));
-            variance = reinterpret_cast<data_t *>(this->memory(2));
+            mean = CTX_OUT_MEM(data_t *, MKLDNN_ARG_MEAN);
+            variance = CTX_OUT_MEM(data_t *, MKLDNN_ARG_VARIANCE);
         } else {
             mean = scratchpad.get<data_t>(key_bnorm_tmp_mean);
             variance = scratchpad.get<data_t>(key_bnorm_tmp_var);
         }
     }
-    auto idx_scale_shift = 1 + 2 * pd()->stats_is_src();
-    auto scaleshift = reinterpret_cast<const data_t *>(
-            this->input_memory(idx_scale_shift));
-    auto ws = reinterpret_cast<uint8_t *>(this->memory(pd()->ws_idx()));
-    auto *ws_reduce = scratchpad.get<data_t>(key_bnorm_reduction);
+
+    auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
+    auto ws = CTX_OUT_MEM(uint8_t *, MKLDNN_ARG_WORKSPACE);
 
     const float eps = pd()->desc()->batch_norm_epsilon;
     const bool use_scaleshift = pd()->use_scaleshift();
@@ -213,22 +214,23 @@ void ncsp_batch_normalization_fwd_t::execute_forward() const {
     });
 }
 
-void ncsp_batch_normalization_bwd_t::execute_backward() const {
-    auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
-    auto mean = reinterpret_cast<const data_t *>(this->input_memory(1));
-    auto variance = reinterpret_cast<const data_t *>(this->input_memory(2));
-    auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(3));
-    auto scaleshift = reinterpret_cast<const data_t *>(this->input_memory(4));
-    auto diff_src = reinterpret_cast<data_t *>(this->memory(0));
+void ncsp_batch_normalization_bwd_t::execute_backward(
+        const exec_ctx_t &ctx) const {
+    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
+    auto mean = CTX_IN_MEM(const data_t *, MKLDNN_ARG_MEAN);
+    auto variance = CTX_IN_MEM(const data_t *, MKLDNN_ARG_VARIANCE);
+    auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
+    auto scaleshift = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SCALE_SHIFT);
+    auto ws = CTX_IN_MEM(const uint8_t *, MKLDNN_ARG_WORKSPACE);
+
+    auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
+    auto diff_scaleshift = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SCALE_SHIFT);
 
     auto scratchpad = this->scratchpad();
-
-    auto diff_scaleshift = this->memory(1)
-        ? reinterpret_cast<data_t *>(this->memory(1))
-        : scratchpad.get<data_t>(key_bnorm_tmp_diff_ss);
-    auto ws = reinterpret_cast<const uint8_t *>(
-            this->input_memory(pd()->ws_idx()));
     auto *ws_reduce = scratchpad.get<data_t>(key_bnorm_reduction);
+
+    if (diff_scaleshift == nullptr)
+        diff_scaleshift = scratchpad.get<data_t>(key_bnorm_tmp_diff_ss);
 
     const bool has_spatial = utils::one_of(pd()->ndims(), 4, 5);
     int SP = (has_spatial) ? pd()->H() * pd()->W() * pd()->D() : 1;

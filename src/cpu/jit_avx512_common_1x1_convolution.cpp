@@ -69,12 +69,11 @@ void balance2D(U nthr, U ithr, T ny, T &ny_start, T &ny_end,
 
 template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type>
 void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type, dst_type>::
-execute_forward() const {
-    auto src = reinterpret_cast<const src_data_t *>(this->input_memory(0));
-    auto weights =
-        reinterpret_cast<const wei_data_t *>(this->input_memory(1));
-    auto bias = reinterpret_cast<const dst_data_t *>(this->input_memory(2));
-    auto dst = reinterpret_cast<dst_data_t *>(this->memory());
+execute_forward(const exec_ctx_t &ctx) const {
+    auto src = CTX_IN_MEM(const src_data_t *, MKLDNN_ARG_SRC);
+    auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
+    auto bias = CTX_IN_MEM(const dst_data_t *, MKLDNN_ARG_BIAS);
+    auto dst = CTX_OUT_MEM(dst_data_t *, MKLDNN_ARG_DST);
 
     auto scratchpad = this->scratchpad();
 
@@ -93,7 +92,7 @@ execute_forward() const {
     });
 
     if (pd()->wants_zero_pad_dst())
-        output_memory_primitive(0)->zero_pad();
+        ctx.memory(MKLDNN_ARG_DST)->zero_pad();
 }
 
 template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type>
@@ -289,12 +288,10 @@ template struct jit_avx512_common_1x1_convolution_fwd_t<data_type::s16,
 template <data_type_t diff_dst_type, data_type_t wei_type,
          data_type_t diff_src_type>
 void jit_avx512_common_1x1_convolution_bwd_data_t<diff_dst_type, wei_type,
-     diff_src_type>::execute_backward_data() const {
-    auto diff_dst = reinterpret_cast<const diff_dst_data_t *>
-        (this->input_memory(0));
-    auto weights = reinterpret_cast<const wei_data_t *>
-        (this->input_memory(1));
-    auto diff_src = reinterpret_cast<diff_src_data_t *>(this->memory());
+     diff_src_type>::execute_backward_data(const exec_ctx_t &ctx) const {
+    auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, MKLDNN_ARG_DIFF_DST);
+    auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
+    auto diff_src = CTX_OUT_MEM(diff_src_data_t *, MKLDNN_ARG_DIFF_SRC);
 
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
     const memory_desc_wrapper weights_d(pd()->weights_pd(0));
@@ -455,12 +452,13 @@ jit_avx512_common_1x1_convolution_bwd_weights_t ::
     }
 }
 
-void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights() const
+void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights(
+        const exec_ctx_t &ctx) const
 {
-    auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
-    auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
-    auto diff_weights = reinterpret_cast<data_t *>(this->memory(0));
-    auto diff_bias_in = reinterpret_cast<data_t *>(this->memory(1));
+    auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
+    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
+    auto diff_weights = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_WEIGHTS);
+    auto diff_bias_in = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_BIAS);
 
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
     const memory_desc_wrapper src_d(pd()->src_pd());

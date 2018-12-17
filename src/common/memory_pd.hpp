@@ -112,6 +112,17 @@ struct concat_pd_t: public primitive_desc_t {
     virtual const op_desc_t *op_desc() const override { return nullptr; }
     virtual void init_info() override { init_info_mem(this, this->info_); }
 
+    virtual arg_usage_t arg_usage(primitive_arg_index_t arg) const override {
+        if (arg >= MKLDNN_ARG_MULTIPLE_SRC
+                && arg < MKLDNN_ARG_MULTIPLE_SRC + n_inputs())
+            return arg_usage_t::input;
+
+        if (arg == MKLDNN_ARG_DST)
+            return arg_usage_t::output;
+
+        return primitive_desc_t::arg_usage(arg);
+    }
+
     virtual const memory_pd_t *input_pd(int index = 0) const override
     { return index < n_inputs() ? src_pd(index) : nullptr; }
     virtual const memory_pd_t *output_pd(int index = 0) const override
@@ -131,6 +142,17 @@ struct sum_pd_t: public primitive_desc_t {
 
     virtual const op_desc_t *op_desc() const override { return nullptr; }
     virtual void init_info() override { init_info_mem(this, this->info_); }
+
+    virtual arg_usage_t arg_usage(primitive_arg_index_t arg) const override {
+        if (arg >= MKLDNN_ARG_MULTIPLE_SRC
+                && arg < MKLDNN_ARG_MULTIPLE_SRC + n_inputs())
+            return arg_usage_t::input;
+
+        if (arg == MKLDNN_ARG_DST)
+            return arg_usage_t::output;
+
+        return primitive_desc_t::arg_usage(arg);
+    }
 
     virtual const memory_pd_t *input_pd(int index = 0) const override
     { return index < n_inputs() ? src_pd(index) : nullptr; }

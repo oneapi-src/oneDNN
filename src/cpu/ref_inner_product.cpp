@@ -31,12 +31,12 @@ using math::get_bias;
 
 template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type,
          data_type_t acc_type>
-void ref_inner_product_fwd_t<src_type, wei_type, dst_type, acc_type>
-        ::execute_forward() const {
-    auto src = reinterpret_cast<const src_data_t *>(this->input_memory(0));
-    auto weights = reinterpret_cast<const wei_data_t *>(this->input_memory(1));
-    auto bias = reinterpret_cast<const char *>(this->input_memory(2));
-    auto dst = reinterpret_cast<dst_data_t *>(this->memory());
+void ref_inner_product_fwd_t<src_type, wei_type, dst_type, acc_type>::
+execute_forward(const exec_ctx_t &ctx) const {
+    auto src = CTX_IN_MEM(const src_data_t *, MKLDNN_ARG_SRC);
+    auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
+    auto bias = CTX_IN_MEM(const char *, MKLDNN_ARG_BIAS);
+    auto dst = CTX_OUT_MEM(dst_data_t *, MKLDNN_ARG_DST);
 
     const memory_desc_wrapper src_d(pd()->src_pd());
     const memory_desc_wrapper dst_d(pd()->dst_pd());
@@ -108,6 +108,7 @@ void ref_inner_product_fwd_t<src_type, wei_type, dst_type, acc_type>
         dst[dst_d.off(mb, oc)] = saturate<dst_data_t>(a);
     });
 }
+
 using namespace data_type;
 template struct ref_inner_product_fwd_t<f32>;
 template struct ref_inner_product_fwd_t<s16, s16, s32, s32>;
@@ -119,11 +120,10 @@ template struct ref_inner_product_fwd_t<u8, s8, u8, s32>;
 template <data_type_t diff_src_type, data_type_t wei_type,
          data_type_t diff_dst_type, data_type_t acc_type>
 void ref_inner_product_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
-     acc_type>::execute_backward_data() const {
-    auto diff_dst = reinterpret_cast<const diff_dst_data_t *>(
-            this->input_memory(0));
-    auto weights = reinterpret_cast<const wei_data_t *>(this->input_memory(1));
-    auto diff_src = reinterpret_cast<diff_src_data_t*>(this->memory());
+     acc_type>::execute_backward_data(const exec_ctx_t &ctx) const {
+    auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, MKLDNN_ARG_DIFF_DST);
+    auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
+    auto diff_src = CTX_OUT_MEM(diff_src_data_t *, MKLDNN_ARG_DIFF_SRC);
 
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
     const memory_desc_wrapper weights_d(pd()->weights_pd(0));
@@ -193,11 +193,12 @@ template struct ref_inner_product_bwd_data_t<f32, f32, f32, f32>;
 template struct ref_inner_product_bwd_data_t<s32, s16, s16, s32>;
 
 template <impl::data_type_t data_type>
-void ref_inner_product_bwd_weights_t<data_type>::execute_backward_weights() const {
-    auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
-    auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
-    auto diff_weights = reinterpret_cast<data_t*>(this->memory(0));
-    auto diff_bias = reinterpret_cast<data_t*>(this->memory(1));
+void ref_inner_product_bwd_weights_t<data_type>::execute_backward_weights(
+        const exec_ctx_t &ctx) const {
+    auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
+    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
+    auto diff_weights = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_WEIGHTS);
+    auto diff_bias = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_BIAS);
 
     const memory_desc_wrapper src_d(pd()->src_pd());
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());

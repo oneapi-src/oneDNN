@@ -65,10 +65,11 @@ struct ref_sum_t: public cpu_primitive_t {
             reorders.resize(n_);
             for (int i = 0; i < n_; ++i)
                 CHECK(reorder_pds_[i]->create_primitive(&reorders[i],
-                            &inputs[i], outputs));
+                            nullptr, nullptr));
 
-            primitive_t::input_vector ins(inputs, inputs + n_);
-            primitive_t::output_vector outs(outputs, outputs + 1);
+            const int c = (inputs || outputs) ? 1 : 0;
+            primitive_t::input_vector ins(inputs, inputs + c * n_);
+            primitive_t::output_vector outs(outputs, outputs + c * 1);
             auto ret = safe_ptr_assign<primitive_t>(*primitive,
                      new ref_sum_t(this, ins, outs, reorders));
             ms = get_msec() - ms;
@@ -121,12 +122,14 @@ struct ref_sum_t: public cpu_primitive_t {
     }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        const auto n = reorders_.size();
-        for (size_t i = 0; i < n; ++i) {
-            exec_ctx_t r_ctx(ctx);
+        const auto n = pd()->n_inputs();
+        for (int i = 0; i < n; ++i) {
+            exec_args_t r_args;
+            r_args[MKLDNN_ARG_SRC] = ctx.args().at(MKLDNN_ARG_MULTIPLE_SRC + i);
+            r_args[MKLDNN_ARG_DST] = ctx.args().at(MKLDNN_ARG_DST);
+            exec_ctx_t r_ctx(ctx.stream(), std::move(r_args));
             reorders_[i]->execute(r_ctx);
         }
-        UNUSED(ctx);
         return status::success;
     }
 

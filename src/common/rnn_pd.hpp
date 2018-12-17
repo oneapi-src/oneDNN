@@ -113,6 +113,32 @@ struct rnn_fwd_pd_t : public rnn_pd_t {
     using rnn_pd_t::rnn_pd_t;
     virtual ~rnn_fwd_pd_t() {}
 
+    virtual arg_usage_t arg_usage(primitive_arg_index_t arg) const override {
+        if (arg == MKLDNN_ARG_SRC_LAYER)
+            return arg_usage_t::input;
+
+        if (arg == MKLDNN_ARG_SRC_ITER && with_src_iter())
+            return arg_usage_t::input;
+
+        if (utils::one_of(arg, MKLDNN_ARG_WEIGHTS_LAYER,
+                    MKLDNN_ARG_WEIGHTS_ITER))
+            return arg_usage_t::input;
+
+        if (arg == MKLDNN_ARG_BIAS && with_bias())
+            return arg_usage_t::input;
+
+        if (arg == MKLDNN_ARG_DST_LAYER)
+            return arg_usage_t::output;
+
+        if (arg == MKLDNN_ARG_DST_ITER && with_dst_iter())
+            return arg_usage_t::output;
+
+        if (arg == MKLDNN_ARG_WORKSPACE && is_training())
+            return arg_usage_t::output;
+
+        return primitive_desc_t::arg_usage(arg);
+    }
+
     virtual const memory_pd_t *input_pd(int index = 0) const override {
         if (index == 0) return src_pd(0);
         if (with_src_iter() && index == 1) return src_pd(1);
@@ -150,6 +176,46 @@ struct rnn_bwd_pd_t : public rnn_pd_t {
 
     using rnn_pd_t::rnn_pd_t;
     virtual ~rnn_bwd_pd_t() {}
+
+    virtual arg_usage_t arg_usage(primitive_arg_index_t arg) const override {
+        if (utils::one_of(arg, MKLDNN_ARG_SRC_LAYER, MKLDNN_ARG_DST_LAYER,
+                    MKLDNN_ARG_DIFF_DST_LAYER))
+            return arg_usage_t::input;
+
+        if (with_src_iter()) {
+            if (arg == MKLDNN_ARG_SRC_ITER)
+                return arg_usage_t::input;
+
+            if (arg == MKLDNN_ARG_DIFF_SRC_ITER)
+                return arg_usage_t::output;
+        }
+
+        if (utils::one_of(arg, MKLDNN_ARG_WEIGHTS_LAYER,
+                    MKLDNN_ARG_WEIGHTS_ITER))
+            return arg_usage_t::input;
+
+        if (with_bias()) {
+            if (arg == MKLDNN_ARG_BIAS)
+                return arg_usage_t::input;
+
+            if (arg == MKLDNN_ARG_DIFF_BIAS)
+                return arg_usage_t::output;
+        }
+
+        if (utils::one_of(arg, MKLDNN_ARG_DST_ITER, MKLDNN_ARG_DIFF_DST_ITER)
+                && with_dst_iter())
+            return arg_usage_t::input;
+
+        if (arg == MKLDNN_ARG_WORKSPACE)
+            return arg_usage_t::input;
+
+        if (utils::one_of(arg, MKLDNN_ARG_DIFF_SRC_LAYER,
+                    MKLDNN_ARG_DIFF_WEIGHTS_LAYER,
+                    MKLDNN_ARG_DIFF_WEIGHTS_ITER))
+            return arg_usage_t::output;
+
+        return primitive_desc_t::arg_usage(arg);
+    }
 
     virtual const memory_pd_t *input_pd(int index = 0) const override {
         if (index == 0) return src_pd(0);

@@ -164,13 +164,12 @@ struct jit_avx512_common_convolution_winograd_fwd_t
 
     virtual status_t execute(const exec_ctx_t &ctx) const override
     {
-        float *src = (float *)this->input_memory(0);
-        float *dst = (float *)this->memory();
-        float *weights = (float *)this->input_memory(1);
-        float *bias = (float *)this->input_memory(2);
-        this->_execute_data_W_S_G_D(src, dst, weights, bias,
-                this->scratchpad());
-        UNUSED(ctx);
+        auto src = CTX_IN_MEM(const float *, MKLDNN_ARG_SRC);
+        auto weights = CTX_IN_MEM(const float *, MKLDNN_ARG_WEIGHTS);
+        auto bias = CTX_IN_MEM(const float *, MKLDNN_ARG_BIAS);
+        auto dst = CTX_OUT_MEM(float *, MKLDNN_ARG_DST);
+        this->_execute_data_W_S_G_D((float *)src, dst, (float *)weights,
+                (float *)bias, this->scratchpad());
         return status::success;
     }
 
@@ -259,12 +258,11 @@ struct jit_avx512_common_convolution_winograd_bwd_data_t
         assert(pd()->desc()->prop_kind == prop_kind::backward_data
                 && "invalid prop_kind");
 
-        float *diff_dst = (float *)this->input_memory(0);
-        float *diff_src = (float *)this->memory();
-        float *weights = (float *)this->input_memory(1);
-        this->_execute_data_W_S_G_D(diff_dst, diff_src, weights, nullptr,
-                this->scratchpad());
-        UNUSED(ctx);
+        auto diff_dst = CTX_IN_MEM(const float *, MKLDNN_ARG_DIFF_DST);
+        auto weights = CTX_IN_MEM(const float *, MKLDNN_ARG_WEIGHTS);
+        auto diff_src = CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_SRC);
+        this->_execute_data_W_S_G_D((float *)diff_dst, diff_src,
+                (float *)weights, nullptr, this->scratchpad());
         return status::success;
     }
 
@@ -358,15 +356,14 @@ struct jit_avx512_common_convolution_winograd_bwd_weights_t
     {
         assert(pd()->desc()->prop_kind == prop_kind::backward_weights
                 && "invalid prop_kind");
-        _execute_backward_weights_S_D_G_W(scratchpad());
-        UNUSED(ctx);
+        _execute_backward_weights_S_D_G_W(ctx, scratchpad());
         return status::success;
     }
 
 private:
-    void _execute_backward_weights_S_D_G_W(
+    void _execute_backward_weights_S_D_G_W(const exec_ctx_t &ctx,
             const memory_tracking::grantor_t &scratchpad) const;
-    void _maybe_execute_diff_bias_copy(
+    void _maybe_execute_diff_bias_copy(float *diff_bias,
             const memory_tracking::grantor_t &scratchpad) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }

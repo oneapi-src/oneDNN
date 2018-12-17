@@ -41,11 +41,11 @@ using jit_conv_ker_t = void (*)(jit_conv_call_s *);
 
 template <data_type_t src_type, data_type_t dst_type>
 void jit_avx512_core_x8s8s32x_convolution_fwd_t<src_type,
-        dst_type>::execute_forward_1d() const {
-    auto src = reinterpret_cast<const src_data_t *>(this->input_memory(0));
-    auto weights = reinterpret_cast<const wei_data_t *>(this->input_memory(1));
-    auto bias = reinterpret_cast<const char *>(this->input_memory(2));
-    auto dst = reinterpret_cast<dst_data_t *>(this->memory());
+        dst_type>::execute_forward_1d(const exec_ctx_t &ctx) const {
+    auto src = CTX_IN_MEM(const src_data_t *, MKLDNN_ARG_SRC);
+    auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
+    auto bias = CTX_IN_MEM(const char *, MKLDNN_ARG_BIAS);
+    auto dst = CTX_OUT_MEM(dst_data_t *, MKLDNN_ARG_DST);
 
     const memory_desc_wrapper src_d(pd()->src_pd());
     const memory_desc_wrapper dst_d(pd()->dst_pd());
@@ -159,11 +159,11 @@ void jit_avx512_core_x8s8s32x_convolution_fwd_t<src_type,
 
 template <data_type_t src_type, data_type_t dst_type>
 void jit_avx512_core_x8s8s32x_convolution_fwd_t<src_type,
-        dst_type>::execute_forward_2d() const {
-    auto src = reinterpret_cast<const src_data_t *>(this->input_memory(0));
-    auto weights = reinterpret_cast<const wei_data_t *>(this->input_memory(1));
-    auto bias = reinterpret_cast<const char *>(this->input_memory(2));
-    auto dst = reinterpret_cast<dst_data_t *>(this->memory());
+        dst_type>::execute_forward_2d(const exec_ctx_t &ctx) const {
+    auto src = CTX_IN_MEM(const src_data_t *, MKLDNN_ARG_SRC);
+    auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
+    auto bias = CTX_IN_MEM(const char *, MKLDNN_ARG_BIAS);
+    auto dst = CTX_OUT_MEM(dst_data_t *, MKLDNN_ARG_DST);
 
     const memory_desc_wrapper src_d(pd()->src_pd());
     const memory_desc_wrapper dst_d(pd()->dst_pd());

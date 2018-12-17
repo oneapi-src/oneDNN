@@ -254,13 +254,12 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
     // typedef typename prec_traits::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        execute_();
-        UNUSED(ctx);
+        execute_(ctx);
         return status::success;
     }
 
 private:
-    void execute_() const;
+    void execute_(const exec_ctx_t &ctx) const;
     rnn_grid_execution_sig(linear_execution);
     rnn_cell_execution_sig(cell_execution);
     rnn_cell_execution_sig(cell_execution_gru);

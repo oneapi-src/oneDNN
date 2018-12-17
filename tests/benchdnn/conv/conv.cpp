@@ -588,6 +588,9 @@ int doit(const prb_t *p, res_t *r) {
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED)
         return OK;
 
+    DNN_SAFE(mkldnn_primitive_create(&c, cpd), WARN);
+    DNN_SAFE(mkldnn_primitive_desc_destroy(cpd), CRIT);
+
     auto &src_dt_d = p->dir == BWD_D ? cd.diff_src_desc : cd.src_desc;
     auto &wei_dt_d = p->dir & FLAG_WEI ? cd.diff_weights_desc : cd.weights_desc;
     auto &bia_dt_d = p->dir & FLAG_BWD ? cd.diff_bias_desc : cd.bias_desc;
@@ -618,35 +621,43 @@ int doit(const prb_t *p, res_t *r) {
     if (p->dir & FLAG_BIA)
         SAFE(fill_bia(p, bia_dt, bia_fp, r), WARN);
 
+    args_t args;
+
     if (p->dir & FLAG_FWD) {
-        mkldnn_primitive_at_t inputs[3] = { {src_dt.p_, 0}, {wei_dt.p_, 0},
-            {p->dir & FLAG_BIA ? bia_dt.p_ : NULL, 0}
-        };
-        const_mkldnn_primitive_t outputs[] = { dst_dt.p_ };
-        DNN_SAFE(mkldnn_primitive_create(&c, cpd, inputs, outputs), WARN);
-        SAFE(execute(c), WARN);
+        args.set(MKLDNN_ARG_SRC, src_dt.p_);
+        args.set(MKLDNN_ARG_WEIGHTS, wei_dt.p_);
+        if (p->dir & FLAG_BIA)
+            args.set(MKLDNN_ARG_BIAS, bia_dt.p_);
+        args.set(MKLDNN_ARG_DST, dst_dt.p_);
+
+        DNN_SAFE(mkldnn_primitive_execute(c, stream, args.size(), args), WARN);
+
         if (bench_mode & CORR) {
             compute_ref_fwd(p, src_fp, wei_fp, bia_fp, dst_fp);
             dnn_mem_t dst(dst_dt, fp, src_format);
             SAFE(compare_dst(p, dst, dst_fp, r, true), WARN);
         }
     } else if (p->dir == BWD_D) {
-        mkldnn_primitive_at_t inputs[3] = { {dst_dt.p_, 0}, {wei_dt.p_, 0}, };
-        const_mkldnn_primitive_t outputs[] = { src_dt.p_ };
-        DNN_SAFE(mkldnn_primitive_create(&c, cpd, inputs, outputs), WARN);
-        SAFE(execute(c), WARN);
+        args.set(MKLDNN_ARG_DIFF_DST, dst_dt.p_);
+        args.set(MKLDNN_ARG_WEIGHTS, wei_dt.p_);
+        args.set(MKLDNN_ARG_DIFF_SRC, src_dt.p_);
+
+        DNN_SAFE(mkldnn_primitive_execute(c, stream, args.size(), args), WARN);
+
         if (bench_mode & CORR) {
             compute_ref_bwd_d(p, src_fp, wei_fp, bia_fp, dst_fp);
             dnn_mem_t src(src_dt, fp, src_format);
             SAFE(compare_src(p, src, src_fp, r, true), WARN);
         }
     } else if (p->dir & FLAG_BWD && p->dir & FLAG_WEI) {
-        mkldnn_primitive_at_t inputs[3] = { {src_dt.p_, 0}, {dst_dt.p_, 0}, };
-        const_mkldnn_primitive_t outputs[] = { wei_dt.p_,
-            p->dir & FLAG_BIA ? bia_dt.p_ : NULL,
-        };
-        DNN_SAFE(mkldnn_primitive_create(&c, cpd, inputs, outputs), WARN);
-        SAFE(execute(c), WARN);
+        args.set(MKLDNN_ARG_SRC, src_dt.p_);
+        args.set(MKLDNN_ARG_DIFF_DST, dst_dt.p_);
+        args.set(MKLDNN_ARG_DIFF_WEIGHTS, wei_dt.p_);
+        if (p->dir & FLAG_BIA)
+            args.set(MKLDNN_ARG_DIFF_BIAS, bia_dt.p_);
+
+        DNN_SAFE(mkldnn_primitive_execute(c, stream, args.size(), args), WARN);
+
         if (bench_mode & CORR) {
             compute_ref_bwd_w(p, src_fp, wei_fp, bia_fp, dst_fp);
             dnn_mem_t wei(wei_dt, fp, wei_format);
@@ -666,7 +677,7 @@ int doit(const prb_t *p, res_t *r) {
         auto &t = r->timer;
         t.reset();
         while (true) {
-            SAFE(execute(c), WARN);
+            DNN_SAFE(mkldnn_primitive_execute(c, stream, args.size(), args), WARN);
             t.stamp();
             const bool stop = false
                 || (fix_times_per_prb && t.times() >= fix_times_per_prb)
@@ -677,7 +688,6 @@ int doit(const prb_t *p, res_t *r) {
         }
     }
 
-    DNN_SAFE(mkldnn_primitive_desc_destroy(cpd), CRIT);
     DNN_SAFE(mkldnn_primitive_destroy(c), CRIT);
 
     delete p_bia_dt;

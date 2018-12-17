@@ -52,35 +52,25 @@ status_t mkldnn_primitive_desc_destroy(primitive_desc_t *primitive_desc) {
 }
 
 status_t mkldnn_primitive_create(primitive_t **primitive,
-        const primitive_desc_t *primitive_desc, const primitive_at_t *inputs,
-        const primitive_t **outputs) {
+        const primitive_desc_t *primitive_desc) {
     if (utils::any_null(primitive, primitive_desc))
         return invalid_arguments;
-    for (int i = 0; i < primitive_desc->n_inputs(); ++i) {
-        const auto i_p = inputs[i].primitive;
-        const auto i_oi = (int)inputs[i].output_index;
-        const bool ok = true
-            && i_p != nullptr
-            && IMPLICATION(i_p->kind() == memory, i_oi == 0)
-            && IMPLICATION(i_p->kind() != memory,
-                    i_oi < i_p->pd()->n_outputs());
-        if (!ok)
-            return invalid_arguments;
-    }
-    for (int i = 0; i < primitive_desc->n_outputs(); ++i)
-        if (outputs[i] == nullptr) return invalid_arguments;
-    return primitive_desc->create_primitive(primitive, inputs, outputs);
+    return primitive_desc->create_primitive(primitive, nullptr, nullptr);
 }
 
 status_t mkldnn_primitive_execute(const primitive_t *primitive,
-        stream_t *stream) {
+        stream_t *stream, int nargs, const mkldnn_exec_arg_t *c_args) {
     bool ok = true
         && !utils::any_null(primitive, stream)
-        && primitive->engine() == stream->engine();
+        && primitive->engine() == stream->engine()
+        && IMPLICATION(nargs > 0, c_args != nullptr);
     if (!ok) return invalid_arguments;
 
-    exec_ctx_t ctx(stream);
-    status_t status;
+    exec_args_t args;
+    status_t status = cvt_primtive_args(primitive->pd(), nargs, c_args, args);
+    if (status != status::success) return status;
+
+    exec_ctx_t ctx(stream, std::move(args));
 
     if (mkldnn_verbose()->level) {
         double ms = get_msec();

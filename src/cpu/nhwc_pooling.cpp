@@ -79,20 +79,17 @@ void nhwc_pooling_fwd_t<data_type>::array_add(const int n, const data_t *src,
 }
 
 template <impl::data_type_t data_type>
-void nhwc_pooling_fwd_t<data_type>::execute_forward() const {
+void nhwc_pooling_fwd_t<data_type>::execute_forward(
+        const exec_ctx_t &ctx) const {
     using namespace alg_kind;
     using namespace prop_kind;
     using namespace nhwc_pooling;
 
     auto alg = pd()->desc()->alg_kind;
 
-    auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
-    auto dst = reinterpret_cast<data_t *>(this->memory(0));
-    unsigned char * ws = reinterpret_cast<unsigned char *>(
-                  alg == pooling_max
-                      && pd()->desc()->prop_kind == forward_training ?
-                  this->memory(1) : nullptr
-              );
+    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
+    auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
+    auto ws = CTX_OUT_MEM(unsigned char *, MKLDNN_ARG_WORKSPACE);
 
     const memory_desc_wrapper MEM_D(dst)(pd()->dst_pd());
     const memory_desc_wrapper MEM_D(ws)(pd()->workspace_pd());
@@ -234,14 +231,14 @@ void nhwc_pooling_fwd_t<data_type>::execute_forward() const {
 }
 
 template <impl::data_type_t data_type>
-void nhwc_pooling_bwd_t<data_type>::execute_backward() const {
+void nhwc_pooling_bwd_t<data_type>::execute_backward(
+        const exec_ctx_t &ctx) const {
     using namespace alg_kind;
     using namespace nhwc_pooling;
 
-    auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(0));
-    auto ws = pd()->desc()->alg_kind != alg_kind::pooling_max ? nullptr
-        : reinterpret_cast<const unsigned char *>(this->input_memory(1));
-    auto diff_src = reinterpret_cast<data_t *>(this->memory(0));
+    auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
+    auto ws = CTX_IN_MEM(const unsigned char *, MKLDNN_ARG_WORKSPACE);
+    auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
 
     const memory_desc_wrapper MEM_D(diff_dst)(pd()->diff_dst_pd());
     const memory_desc_wrapper MEM_D(ws)(pd()->workspace_pd());

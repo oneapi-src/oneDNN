@@ -127,15 +127,24 @@ struct jit_avx512_core_fp32_wino_conv_2x3_fwd_t : public cpu_primitive_t {
     ~jit_avx512_core_fp32_wino_conv_2x3_fwd_t();
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        execute_forward();
-        UNUSED(ctx);
+        auto src = CTX_IN_MEM(const float *, MKLDNN_ARG_SRC);
+        auto wei = CTX_IN_MEM(const float *, MKLDNN_ARG_WEIGHTS);
+        auto bia = CTX_IN_MEM(const float *, MKLDNN_ARG_BIAS);
+        auto dst = CTX_OUT_MEM(float *, MKLDNN_ARG_DST);
+
+        if (pd()->jcp_.small_mb)
+            execute_forward_small_mb(src, wei, bia, dst);
+        else
+            execute_forward_mbN(src, wei, bia, dst);
+
         return status::success;
     }
 
 private:
-    void execute_forward() const;
-    void execute_forward_small_mb() const;
-    void execute_forward_mbN() const;
+    void execute_forward_small_mb(const float *src, const float *wei,
+            const float *bia, float *dst) const;
+    void execute_forward_mbN(const float *src, const float *wei,
+            const float *bia, float *dst) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t *kernel_;

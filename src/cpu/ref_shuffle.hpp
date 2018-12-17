@@ -76,23 +76,22 @@ struct ref_shuffle_t : public cpu_primitive_t {
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         using namespace memory_format;
         switch (pd()->data_pd()->desc()->format) {
-        case nCdhw16c: execute_<nCdhw16c>(); break;
-        case nChw16c:  execute_<nChw16c>(); break;
-        case nCdhw8c:  execute_<nCdhw8c>(); break;
-        case nChw8c:   execute_<nChw8c>(); break;
-        case ncdhw:    execute_<ncdhw>(); break;
-        case nchw:     execute_<nchw>(); break;
-        case ndhwc:    execute_<ndhwc>(); break;
-        case nhwc:     execute_<nhwc>(); break;
-        default:       execute_<mkldnn_any>(); break;
+        case nCdhw16c: execute_<nCdhw16c>(ctx); break;
+        case nChw16c:  execute_<nChw16c>(ctx); break;
+        case nCdhw8c:  execute_<nCdhw8c>(ctx); break;
+        case nChw8c:   execute_<nChw8c>(ctx); break;
+        case ncdhw:    execute_<ncdhw>(ctx); break;
+        case nchw:     execute_<nchw>(ctx); break;
+        case ndhwc:    execute_<ndhwc>(ctx); break;
+        case nhwc:     execute_<nhwc>(ctx); break;
+        default:       execute_<mkldnn_any>(ctx); break;
         }
-
-        UNUSED(ctx);
         return status::success;
     }
 
 private:
-    template<memory_format_t fmt>void execute_() const;
+    template<memory_format_t fmt>
+    void execute_(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     int *rev_transposed_;
 };

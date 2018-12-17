@@ -52,14 +52,18 @@ struct dnn_mem_t {
         if (this == &rhs) return OK;
 
         mkldnn_primitive_desc_t rpd;
-        mkldnn_primitive_t r;
         DNN_SAFE(mkldnn_reorder_primitive_desc_create_v2(&rpd, rhs.mpd_,
                     mpd_, attr), WARN);
-        mkldnn_primitive_at_t i = {rhs.p_, 0};
-        const_mkldnn_primitive_t o = p_;
-        DNN_SAFE(mkldnn_primitive_create(&r, rpd, &i, &o), WARN);
-        SAFE(execute(r), WARN);
+
+        mkldnn_primitive_t r;
+        DNN_SAFE(mkldnn_primitive_create(&r, rpd), WARN);
         DNN_SAFE(mkldnn_primitive_desc_destroy(rpd), CRIT);
+
+        mkldnn_exec_arg_t args[] = {
+            {MKLDNN_ARG_FROM, rhs.p_},
+            {MKLDNN_ARG_TO, p_},
+        };
+        DNN_SAFE(mkldnn_primitive_execute(r, stream, 2, args), WARN);
         DNN_SAFE(mkldnn_primitive_destroy(r), CRIT);
 
         return OK;
@@ -158,7 +162,7 @@ private:
         }
         DNN_SAFE(mkldnn_memory_primitive_desc_create(&mpd_, &md_, engine),
                 CRIT);
-        DNN_SAFE(mkldnn_primitive_create(&p_, mpd_, NULL, NULL), CRIT);
+        DNN_SAFE(mkldnn_primitive_create(&p_, mpd_), CRIT);
         is_data_owner_ = data == NULL;
         if (data == NULL) {
             const size_t alignment = 1024 * 1024 * 2;

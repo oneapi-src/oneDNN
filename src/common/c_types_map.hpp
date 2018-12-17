@@ -398,6 +398,8 @@ using post_ops_t = mkldnn_post_ops;
 using primitive_t = mkldnn_primitive;
 using primitive_at_t = mkldnn_primitive_at_t;
 
+using primitive_arg_index_t = int;
+
 using stream_kind_t = mkldnn_stream_kind_t;
 namespace stream_kind {
     const stream_kind_t stream_kind_default = mkldnn_stream_kind_default;

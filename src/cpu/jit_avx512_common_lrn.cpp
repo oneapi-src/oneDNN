@@ -382,10 +382,11 @@ jit_avx512_common_lrn_fwd_t::jit_avx512_common_lrn_fwd_t(const pd_t *apd,
 jit_avx512_common_lrn_fwd_t::~jit_avx512_common_lrn_fwd_t()
 { delete ker_; delete ker_first_; delete ker_last_; }
 
-void jit_avx512_common_lrn_fwd_t::execute_forward() const {
-    auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
-    auto dst = reinterpret_cast<data_t*>(this->memory(0));
-    auto ws = reinterpret_cast<data_t*>(this->memory(1));
+void jit_avx512_common_lrn_fwd_t::execute_forward(const exec_ctx_t &ctx) const
+{
+    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
+    auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
+    auto ws = CTX_OUT_MEM(data_t *, MKLDNN_ARG_WORKSPACE);
 
     const int N = pd()->MB();
     const int C = pd()->C();
@@ -791,11 +792,12 @@ jit_avx512_common_lrn_bwd_t::jit_avx512_common_lrn_bwd_t(const pd_t *apd,
 jit_avx512_common_lrn_bwd_t::~jit_avx512_common_lrn_bwd_t()
 { delete ker_; delete ker_first_; delete ker_last_; }
 
-void jit_avx512_common_lrn_bwd_t::execute_backward() const {
-    auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
-    auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
-    auto ws = reinterpret_cast<const data_t *>(this->input_memory(2));
-    auto diff_src = reinterpret_cast<data_t *>(this->memory(0));
+void jit_avx512_common_lrn_bwd_t::execute_backward(const exec_ctx_t &ctx) const
+{
+    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
+    auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
+    auto ws = CTX_IN_MEM(const data_t *, MKLDNN_ARG_WORKSPACE);
+    auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
 
     const int N = pd()->MB();
     const int C = pd()->C();

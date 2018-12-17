@@ -661,16 +661,18 @@ PRAGMA_OMP(parallel)
 } //bwdw namespace
 
 void jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_t::
-_execute_backward_weights_SDGtWo(
+_execute_backward_weights_SDGtWo(const float *ptr_src,
+        const float *ptr_diff_dst, float *ptr_diff_weights,
+        float *ptr_diff_bias,
         const memory_tracking::grantor_t &scratchpad) const {
     const auto &jcp = kernel_->jcp;
     const int nthreads = jcp.nthr;
 
-    array_offset_calculator<float, 5> src((float *)this->input_memory(0),
+    array_offset_calculator<float, 5> src((float *)ptr_src,
             jcp.mb, jcp.ic / simd_w, jcp.ih, jcp.iw, simd_w);
-    array_offset_calculator<float, 5> diff_dst((float *)this->input_memory(1),
+    array_offset_calculator<float, 5> diff_dst((float *)ptr_diff_dst,
             jcp.mb, jcp.oc / simd_w, jcp.oh, jcp.ow, simd_w);
-    array_offset_calculator<float, 6> diff_weights((float *)this->memory(0),
+    array_offset_calculator<float, 6> diff_weights(ptr_diff_weights,
             jcp.oc / simd_w, jcp.ic / simd_w, jcp.kh, jcp.kw, simd_w, simd_w);
 
     array_offset_calculator<float, 8> Us(scratchpad.get<float>(key_wino_U),
@@ -795,7 +797,7 @@ PRAGMA_OMP(for)
 
     // Reduce diff-weights
     {
-        float *output = (float *)(this->memory(0));
+        float *output = ptr_diff_weights;
         float *input_base = scratchpad.get<float>(key_wino_U) + U_sz;
         int nelems = jcp.oc * jcp.ic * jcp.kh * jcp.kw;
         float *input_ptrs[max_threads_number];
@@ -805,7 +807,7 @@ PRAGMA_OMP(for)
         array_sum(nthreads, output, nelems, input_ptrs, false);
 
         if (jcp.with_bias) {
-            output = (float *)(this->memory(1));
+            output = ptr_diff_bias;
             input_base = scratchpad.get<float>(key_conv_bia_reduction);
             for (int i = 0; i < nthreads; ++i) {
                 input_ptrs[i] = input_base + jcp.oc * i;
@@ -817,18 +819,20 @@ PRAGMA_OMP(for)
 }
 
 void jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_t::
-_execute_backward_weights_S_D_Giot_W(
+_execute_backward_weights_S_D_Giot_W(const float *ptr_src,
+        const float *ptr_diff_dst, float *ptr_diff_weights,
+        float *ptr_diff_bias,
         const memory_tracking::grantor_t &scratchpad) const {
     const auto &jcp = kernel_->jcp;
     const int nthreads = jcp.nthr;
 
-    array_offset_calculator<float, 5> src((float *)this->input_memory(0),
+    array_offset_calculator<float, 5> src((float *)ptr_src,
             jcp.mb, jcp.ic / simd_w, jcp.ih, jcp.iw, simd_w);
-    array_offset_calculator<float, 5> diff_dst((float *)this->input_memory(1),
+    array_offset_calculator<float, 5> diff_dst((float *)ptr_diff_dst,
             jcp.mb, jcp.oc / simd_w, jcp.oh, jcp.ow, simd_w);
-    array_offset_calculator<float, 6> diff_weights((float *)this->memory(0),
+    array_offset_calculator<float, 6> diff_weights((float *)ptr_diff_weights,
             jcp.oc / simd_w, jcp.ic / simd_w, jcp.kh, jcp.kw, simd_w, simd_w);
-    array_offset_calculator<float, 1> diff_bias((float *)this->memory(1), jcp.oc);
+    array_offset_calculator<float, 1> diff_bias((float *)ptr_diff_bias, jcp.oc);
 
     array_offset_calculator<float, 9> U(scratchpad.get<float>(key_wino_U),
             jcp.nb_ic, jcp.nb_oc,

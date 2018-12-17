@@ -134,6 +134,9 @@ int doit(const prb_t *p, res_t *r) {
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED)
         return OK;
 
+    DNN_SAFE(mkldnn_primitive_create(&s, spd), WARN);
+    DNN_SAFE(mkldnn_primitive_desc_destroy(spd), CRIT);
+
     const auto fp = p->dt;
     auto &src_dt_d = sd.data_desc;
 
@@ -148,15 +151,16 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t dst_fp(src_dt_d, fp, src_format), dst_dt(src_dt_d);
 
     SAFE(fill_memory(p, src_fp), WARN);
-
-    mkldnn_primitive_at_t inputs[1];
-    const_mkldnn_primitive_t outputs[1];
     SAFE(src_dt.reorder(src_fp), WARN);
-    inputs[0] = {src_dt.p_, 0};
-    outputs[0] = dst_dt.p_;
-    DNN_SAFE(mkldnn_primitive_create(&s, spd, inputs, outputs), WARN);
-    DNN_SAFE_V(mkldnn_primitive_desc_destroy(spd));
-    SAFE(execute(s), WARN);
+
+    const int i_arg = p->dir == FWD_D ? MKLDNN_ARG_SRC : MKLDNN_ARG_DIFF_DST;
+    const int o_arg = p->dir == FWD_D ? MKLDNN_ARG_DST : MKLDNN_ARG_DIFF_SRC;
+    args_t args;
+    args.set(i_arg, src_dt.p_);
+    args.set(o_arg, dst_dt.p_);
+
+    DNN_SAFE(mkldnn_primitive_execute(s, stream, args.size(), args), WARN);
+
     if (bench_mode & CORR) {
         compute_shuffle(p, src_fp, dst_fp);
         dnn_mem_t data(dst_dt, fp, src_format);
@@ -167,7 +171,7 @@ int doit(const prb_t *p, res_t *r) {
         auto &t = r->timer;
         t.reset();
         while (true) {
-            SAFE(execute(s), WARN);
+            DNN_SAFE(mkldnn_primitive_execute(s, stream, args.size(), args), WARN);
             t.stamp();
             const bool stop = false
                 || (fix_times_per_prb && t.times() >= fix_times_per_prb)
@@ -179,6 +183,7 @@ int doit(const prb_t *p, res_t *r) {
     }
 
     DNN_SAFE_V(mkldnn_primitive_destroy(s));
+
     return OK;
 }
 

@@ -113,17 +113,18 @@ struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t : public cpu_primitive_t 
     ~jit_avx512_core_u8s8s32x_wino_convolution_fwd_t();
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        execute_forward();
-        UNUSED(ctx);
+        execute_forward(ctx);
         return status::success;
     }
 
 private:
     const float *adjust_oscales(const memory_tracking::grantor_t &scratchpad)
         const;
-    void execute_forward() const;
-    void execute_forward_small_mb() const;
-    void execute_forward_mbN() const;
+    void execute_forward(const exec_ctx_t &ctx) const;
+    void execute_forward_small_mb(const src_data_t *src, const wei_data_t *wei,
+            const char *bia, dst_data_t *dst) const;
+    void execute_forward_mbN(const src_data_t *src, const wei_data_t *wei,
+            const char *bia, dst_data_t *dst) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t *kernel_;
