@@ -46,7 +46,7 @@ where *harness-knobs* are:
 
  - `--cfg={f32, u8s8u8s32, ...}` configuration (see below), default `f32`
  - `--dir={FWD_D (forward data), FWD_B (forward data + bias),FWD_I (forward data inference), BWD_D (backward data), BWD_W (backward weights), BWD_WB (backward weights + bias)}` direction, default `FWD_B`
- - `--alg={DIRECT, WINO}` convolution algorithm, default DIRECT
+ - `--alg={DIRECT, WINO, AUTO}` convolution algorithm, default DIRECT
  - `--attr="attr_str"` convolution attributes (see in the section below), default `""` (no attributes set)
  - `--mb=N` override minibatch that is specified in convolution description, default `0` (use mb specified in conv desc)
  - `--match=regex` check only convolutions that match with regex, default is `".*"`. Notice: Windows may only interpret string arguments surrounded by double quotation marks.
@@ -228,7 +228,8 @@ Winograd:
     $ ./benchdnn --conv \
         --alg=DIRECT --batch=convs.in \
         --allow-unimpl=true \
-        --alg=WINO   --batch=convs.in
+        --alg=WINO   --batch=convs.in \
+        --alg=AUTO   --batch=convs.in 
 ```
 
 Run a set of u8s8u8s32 forward convolutions w/o bias, skipping
@@ -261,6 +262,7 @@ one common output scale set to 0.5 with rounding mode set to down
 | FWD_{D,B}     | forward w/o and w/ bias
 | BWD_{D,W,WB}  | backward wrt data, weights, and weights and bias
 | DIRECT, WINO  | convolution algorithm: direct or Winograd based
+| AUTO          | convolution algorithm is chosen by MKL-DNN for best performance
 
 
 ## Usage (batch normalization harness)
