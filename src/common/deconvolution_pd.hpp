@@ -214,7 +214,7 @@ struct deconvolution_bwd_data_pd_t : public primitive_desc_t {
     inline bool with_groups() const {
         return desc_.weights_desc.ndims == desc_.diff_src_desc.ndims + 1;
     }
-    inline int ndims() const { return desc_.src_desc.ndims; }
+    inline int ndims() const { return desc_.diff_src_desc.ndims; }
 
 protected:
     deconvolution_desc_t desc_;
