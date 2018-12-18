@@ -81,36 +81,44 @@ private:
         last_sp_block,
     };
 
+    /* data regs */
+    reg64_t reg_ptr_scales = rax;
     reg64_t reg_inp = r8;
     reg64_t reg_ker = r9;
     reg64_t reg_out = r10;
     reg64_t aux_reg_inp = r11;
     reg64_t reg_ptr_sum_scale = r11;
     reg64_t aux_reg_ker = r12;
-    reg64_t reg_owb = r12;
-
-    reg64_t reg_scratch = r14;
-    reg64_t reg_kj = rax;
-    reg64_t reg_overflow = rax;
-    reg64_t reg_ptr_scales = rax;
+    reg64_t reg_compensation = r14;
+    /* counter regs */
+    reg64_t reg_bias_alpha = abi_not_param1;
     reg64_t reg_oi = rbx;
     reg64_t reg_bias = rdx;
-    reg64_t reg_compensation = reg_scratch;
-    reg64_t reg_kh = abi_not_param1;
-    reg64_t param = abi_param1;
-    reg64_t reg_tmp = rbp;
-    reg64_t imm_addr64 = r15;
     reg64_t reg_oc_blocks = rsi;
+    reg64_t reg_owb = aux_reg_ker;
+    reg64_t reg_scratch = reg_compensation;
+    reg64_t reg_kj = reg_ptr_scales;
+    reg64_t reg_overflow = reg_ptr_scales;
     reg64_t reg_icb = reg_bias;
-    reg64_t reg_bias_alpha = reg_kh;
 
     Xbyak::Opmask ktail_mask = Xbyak::Opmask(2);
 
-    zmm_t zmm_tmp = zmm_t(28);
-    zmm_t zmm_one = zmm_t(29);
-    zmm_t zmm_scales = zmm_t(30);
-    zmm_t zmm_shift = zmm_t(30);
+    /* used during bias section of store_output */
+    zmm_t zmm_comp = zmm_t(30); // only for signed input
+    zmm_t zmm_bias = zmm_t(31);
+    /* used during post_op sum section of store_output */
+    zmm_t zmm_prev_dst = zmm_t(31);
+    /* used during write-out section of store_output */
     zmm_t zmm_zero = zmm_t(31);
+
+    /* used in compute_ker (but set during prepare_output) */
+    zmm_t zmm_shift = zmm_t(30); // only for signed input
+    /* used in compute_ker (but only for pre-VNNI machines) */
+    zmm_t zmm_tmp = zmm_t(28);
+    zmm_t zmm_one = zmm_t(29); // set at start of kernel
+    /* used in compute_ker_dw */
+    zmm_t zmm_src = zmm_t(30);
+    /* used in compute_ker and compute_ker_dw */
     zmm_t zmm_wei = zmm_t(31);
 
     zmm_t zmm_out(int i_ur, int i_oc) {

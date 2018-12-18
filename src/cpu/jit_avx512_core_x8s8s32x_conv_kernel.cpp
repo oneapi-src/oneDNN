@@ -131,14 +131,12 @@ void jit_avx512_core_x8s8s32x_fwd_kernel::store_output(int ur_w,
     for (int k = 0; k < nb_oc_block; k++) {
         const bool mask_flag = last_oc_block_flag == 1 && k == nb_oc_block - 1;
         int scale_offset = jcp.is_oc_scale * (sizeof(float) * k * oc_block);
-        auto zmm_bias = zmm_tmp;
-        auto zmm_comp = zmm_shift;
         if (jcp.with_bias) {
             int bias_offset = jcp.typesize_bia * k * oc_block;
             auto bias_addr = EVEX_compress_addr(reg_bias, bias_offset);
 
             cvt2ps(jcp.bia_dt, zmm_bias, bias_addr, mask_flag);
-            if (jcp. signed_input && jcp.ver != ver_vnni)
+            if (jcp.signed_input && jcp.ver != ver_vnni)
                 vmulps(zmm_bias, zmm_bias, zmm_bias_alpha());
         }
         if (jcp.signed_input) {
@@ -172,8 +170,6 @@ void jit_avx512_core_x8s8s32x_fwd_kernel::store_output(int ur_w,
                                   + j * jcp.oc_without_padding * jcp.ngroups);
                 auto addr = EVEX_compress_addr(reg_out, aux_output_offset);
                 Zmm zmm = zmm_out(j, k);
-                vpxord(zmm_zero, zmm_zero, zmm_zero);
-                auto zmm_prev_dst = zmm_zero;
                 cvt2ps(jcp.dst_dt, zmm_prev_dst, addr, mask_flag);
                 if (*p_sum_scale == 1.f)
                     vaddps(zmm, zmm_prev_dst);
@@ -352,6 +348,7 @@ void jit_avx512_core_x8s8s32x_fwd_kernel::compute_ker(int ur_w,
         }
     }
 }
+
 void jit_avx512_core_x8s8s32x_fwd_kernel::kh_loop(int ur_w,
     int pad_l, int pad_r, int last_ic_block_flag)
 {
@@ -368,7 +365,7 @@ void jit_avx512_core_x8s8s32x_fwd_kernel::kh_loop(int ur_w,
     mov(aux_reg_ker, reg_ker);
 
     if (jcp.signed_input) {
-        mov(reg_overflow,  ptr[param1 + GET_OFF(t_overflow)]);
+        mov(reg_overflow, ptr[param1 + GET_OFF(t_overflow)]);
         cmp(reg_overflow, 0);
         je(no_t_overflow_label, T_NEAR);
         L(t_overflow_label); {
@@ -398,7 +395,7 @@ void jit_avx512_core_x8s8s32x_fwd_kernel::kh_loop(int ur_w,
     }
     L(skip_kh_loop);
     if (jcp.signed_input) {
-        mov(reg_overflow,  ptr[param1 + GET_OFF(b_overflow)]);
+        mov(reg_overflow, ptr[param1 + GET_OFF(b_overflow)]);
         cmp(reg_overflow, 0);
         je(no_b_overflow_label, T_NEAR);
         L(b_overflow_label); {
