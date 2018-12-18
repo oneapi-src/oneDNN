@@ -73,6 +73,7 @@ private:
     enum {
         typesize = sizeof(float),
         ker_reg_base_idx = 28,
+        ker_dw_reg_base_idx = 30,
     };
     enum {
         no_last_block,
@@ -114,12 +115,12 @@ private:
 
     zmm_t zmm_out(int i_ur, int i_oc) {
         int idx = i_ur + i_oc * jcp.ur_w;
-        assert(idx < ker_reg_base_idx);
+        assert(idx < jcp.is_depthwise ? ker_dw_reg_base_idx : ker_reg_base_idx);
         return zmm_t(idx);
     }
     xmm_t xmm_out(int i_ur, int i_oc) {
         int idx = i_ur + i_oc * jcp.ur_w;
-        assert(idx < ker_reg_base_idx);
+        assert(idx < jcp.is_depthwise ? ker_dw_reg_base_idx : ker_reg_base_idx);
         return xmm_t(idx);
     }
     zmm_t zmm_inp(int i_ic, int nb_x_blocking) {
@@ -147,6 +148,7 @@ private:
     bool maybe_eltwise(int position);
     void prepare_output(int ur_w);
     void store_output(int ur_w, int last_oc_block_flag);
+    void compute_ker_dw(int ur_w, int pad_l, int pad_r);
     void compute_ker(int ur_w, int pad_l, int pad_r, int last_ic_block_flag,
                                                         bool h_padded = false);
     void compute_eltwise(int ur_w);

@@ -58,6 +58,7 @@ execute_forward()
 
     const auto &jcp = kernel_->jcp;
     assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
+    assert(jcp.nb_ch % jcp.nb_ch_blocking == 0);
 
     size_t offset = (size_t)jcp.ngroups * jcp.oc * jcp.ic * jcp.kh * jcp.kw;
     auto w = const_cast<wei_data_t *>(weights);
@@ -65,7 +66,7 @@ execute_forward()
                                 ? reinterpret_cast<int32_t *>(&w[offset]) : 0;
     const auto &oscales = pd()->attr()->output_scales_;
     int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
-    int nb_groups = jcp.nb_ch;
+    int nb_groups = jcp.nb_ch / jcp.nb_ch_blocking;
     int group_block = jcp.ch_block;
     int work_amount = jcp.mb * nb_groups * oc_chunks * jcp.oh * jcp.nb_ow;
 
@@ -80,23 +81,24 @@ execute_forward()
         size_t dst_h_stride = dst_d.blk_off(0, 0, 1);
         size_t wht_h_stride = wht_blk_off(weights_d, 0, 0, 0, 1);
 
-        int n{ 0 }, gb{ 0 }, occ{ 0 }, oh_s{ 0 }, owb{ 0 };
+        int n{ 0 }, gg{ 0 }, occ{ 0 }, oh_s{ 0 }, owb{ 0 };
         if (jcp.loop_order == loop_cwgn)
-            nd_iterator_init(start, occ, oc_chunks, owb, jcp.nb_ow, gb,
+            nd_iterator_init(start, occ, oc_chunks, owb, jcp.nb_ow, gg,
                     nb_groups, n, jcp.mb, oh_s, jcp.oh);
         else if (jcp.loop_order == loop_gncw)
-            nd_iterator_init(start, gb, nb_groups, n, jcp.mb, occ, oc_chunks,
+            nd_iterator_init(start, gg, nb_groups, n, jcp.mb, occ, oc_chunks,
                     owb, jcp.nb_ow, oh_s, jcp.oh);
         else if (jcp.loop_order == loop_ngcw)
-            nd_iterator_init(start, n, jcp.mb, gb, nb_groups, occ, oc_chunks,
+            nd_iterator_init(start, n, jcp.mb, gg, nb_groups, occ, oc_chunks,
                     owb, jcp.nb_ow, oh_s, jcp.oh);
         else if (jcp.loop_order == loop_nhwcg)
             nd_iterator_init(start, n, jcp.mb, oh_s, jcp.oh, owb, jcp.nb_ow,
-                    occ, oc_chunks, gb, nb_groups);
+                    occ, oc_chunks, gg, nb_groups);
         else
             assert(!"unsupported loop order");
         while (start < end) {
             int ocb = occ * jcp.nb_oc_blocking;
+            int gb = gg * jcp.nb_ch_blocking;
             int g = gb * group_block;
             int g_oc = (g * jcp.nb_oc + ocb) * jcp.oc_block;
 
@@ -154,18 +156,18 @@ execute_forward()
                 dst_w += dst_h_stride;
             }
             if (jcp.loop_order == loop_cwgn)
-                nd_iterator_jump(start, end, occ, oc_chunks, owb, jcp.nb_ow, gb,
+                nd_iterator_jump(start, end, occ, oc_chunks, owb, jcp.nb_ow, gg,
                         nb_groups, n, jcp.mb, oh_s, jcp.oh);
             else if (jcp.loop_order == loop_gncw)
-                nd_iterator_jump(start, end, gb, nb_groups, n, jcp.mb, occ,
+                nd_iterator_jump(start, end, gg, nb_groups, n, jcp.mb, occ,
                         oc_chunks, owb, jcp.nb_ow, oh_s, jcp.oh);
             else if (jcp.loop_order == loop_ngcw)
-                nd_iterator_jump(start, end, n, jcp.mb, gb, nb_groups, occ,
+                nd_iterator_jump(start, end, n, jcp.mb, gg, nb_groups, occ,
                         oc_chunks, owb, jcp.nb_ow, oh_s, jcp.oh);
             else if (jcp.loop_order == loop_nhwcg) {
                 ++start;
-                nd_iterator_step(n, jcp.mb, oh_s, jcp.oh,
-                        owb, jcp.nb_ow, occ, oc_chunks, gb, nb_groups);
+                nd_iterator_step(n, jcp.mb, oh_s, jcp.oh, owb, jcp.nb_ow, occ,
+                        oc_chunks, gg, nb_groups);
             }
             else
                 assert(!"unsupported loop order");
