@@ -86,7 +86,9 @@ void compute_attention(float *context_vectors, int src_seq_length_max,
 
     // then we compute the alignment model
     float *alignment_model_ptr = alignment_model.data();
+#ifdef _OPENMP
 #pragma omp parallel for collapse(2)
+#endif
     for (int i = 0; i < src_seq_length_max; i++) {
         for (int j = 0; j < batch * feature_size; j++)
             alignment_model_ptr[i * batch * feature_size + j] = tanhf(
@@ -102,10 +104,14 @@ void compute_attention(float *context_vectors, int src_seq_length_max,
             &zerof, alignments.data(), &onei);
 
     // softmax on alignments. the resulting context weights are in alignments
+#ifdef _OPENMP
 #pragma omp parallel for
+#endif
     for (int i = 0; i < batch; i++)
         exp_sums[i] = 0.0f;
+#ifdef _OPENMP
 #pragma omp parallel for collapse(2)
+#endif
     for (int i = 0; i < src_seq_length_max; i++) {
         for (int j = 0; j < batch; j++) {
             alignments[i * batch + j] = expf(alignments[i * batch + j]);
@@ -113,20 +119,26 @@ void compute_attention(float *context_vectors, int src_seq_length_max,
         }
     }
 
+#ifdef _OPENMP
 #pragma omp parallel for collapse(2)
+#endif
     for (int i = 0; i < src_seq_length_max; i++)
         for (int j = 0; j < batch; j++)
             alignments[i * batch + j] /= exp_sums[j];
 
     // then we compute the context vectors
+#ifdef _OPENMP
 #pragma omp parallel for collapse(2)
+#endif
     for (int i = 0; i < batch; i++)
         for (int j = 0; j < feature_size; j++)
             context_vectors[i * (feature_size + feature_size) + feature_size
                     + j]
                     = 0.0f;
 
+#ifdef _OPENMP
 #pragma omp parallel for collapse(3)
+#endif
     for (int i = 0; i < batch; i++)
         for (int k = 0; k < src_seq_length_max; k++)
             for (int j = 0; j < feature_size; j++)
@@ -139,7 +151,9 @@ void compute_attention(float *context_vectors, int src_seq_length_max,
 void copy_context(float *src_iter, int n_layers, int n_states, int batch,
         int feature_size) {
     // we copy the context from the first layer to all other layers
+#ifdef _OPENMP
 #pragma omp parallel for collapse(3)
+#endif
     for (int k = 1; k < n_layers; k++)
         for (int j = 0; j < batch; j++)
             for (int i = 0; i < feature_size; i++)
