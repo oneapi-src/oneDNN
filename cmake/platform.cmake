@@ -52,6 +52,8 @@ if(MSVC)
         set(DEF_ARCH_OPT_FLAGS "-QxHOST")
         # disable: loop was not vectorized with "simd"
         append(CMAKE_CCXX_NOWARN_FLAGS "-Qdiag-disable:15552")
+        # disable: unknown pragma
+        append(CMAKE_CCXX_NOWARN_FLAGS "-Qdiag-disable:3180")
     endif()
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         # Clang cannot vectorize some loops with #pragma omp simd and gets
