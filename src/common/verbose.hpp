@@ -300,15 +300,22 @@ template <typename pd_t> static void init_info_softmax(pd_t *s, char *buffer) {
 template <typename pd_t> static void init_info_rnn(pd_t *s, char *buffer) {
     DECL_DAT_AUX_PRB_STRS();
 
-    alg_kind_t alg_kind = s->desc()->cell_desc.cell_kind;
+    auto fmt_src = (s->desc()->prop_kind == prop_kind::backward_data
+            ? s->diff_src_pd() : s->src_pd())->desc()->format;
+    auto fmt_wei = (s->desc()->prop_kind == prop_kind::backward_weights
+            ? s->diff_weights_pd(0) : s->weights_pd(0))->desc()->format;
+
+    alg_kind_t alg_kind = s->cell_kind();
+    rnn_direction_t rnn_dir = s->direction();
     snprintf(aux_str, MKLDNN_VERBOSE_AUX_LEN,
-            "alg:%s", mkldnn_alg_kind2str(alg_kind));
+            "alg:%s_%s", mkldnn_alg_kind2str(alg_kind), mkldnn_rnn_direction2str(rnn_dir));
+    snprintf(dat_str, MKLDNN_VERBOSE_DAT_LEN, "fdata:%s fwei:%s",
+            mkldnn_fmt2str(fmt_src), mkldnn_fmt2str(fmt_wei));
 
     snprintf(prb_str, MKLDNN_VERBOSE_PRB_LEN,
-            "l%dd%dmb%dt%d_ic%dsc%doc%d_wi%dws%d",
-             s->L(), s->D(), s->MB(), s->T(),
-             s->SLC(), s->DIC(), s->DIC(),
-             s->SLC(), s->SIC());
+            "l%dt%dmb%dsic%dslc%ddic%ddlc%d",
+             s->L(), s->T(), s->MB(),
+             s->SIC(), s->SLC(), s->DIC(), s->DLC());
 
     verbose_templ(buffer, s->kind(), s->name(), s->desc()->prop_kind, dat_str,
             aux_str, prb_str);

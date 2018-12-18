@@ -72,16 +72,14 @@ const char *mkldnn_fmt2str(mkldnn_memory_format_t v) {
     if (v == mkldnn_wio) return "wio";
     if (v == mkldnn_oihw) return "oihw";
     if (v == mkldnn_hwio) return "hwio";
-    if (v == mkldnn_iohw) return "iohw";
-    if (v == mkldnn_hwio_s8s8) return "hwio_s8s8";
     if (v == mkldnn_ihwo) return "ihwo";
+    if (v == mkldnn_iohw) return "iohw";
     if (v == mkldnn_oidhw) return "oidhw";
     if (v == mkldnn_dhwio) return "dhwio";
     if (v == mkldnn_goiw) return "goiw";
     if (v == mkldnn_goihw) return "goihw";
     if (v == mkldnn_hwigo) return "hwigo";
     if (v == mkldnn_giohw) return "giohw";
-    if (v == mkldnn_hwigo_s8s8) return "hwigo_s8s8";
     if (v == mkldnn_goidhw) return "goidhw";
     if (v == mkldnn_ntc) return "ntc";
     if (v == mkldnn_tnc) return "tnc";
@@ -105,6 +103,7 @@ const char *mkldnn_fmt2str(mkldnn_memory_format_t v) {
     if (v == mkldnn_OIw8i16o2i) return "OIw8i16o2i";
     if (v == mkldnn_OIw8o16i2o) return "OIw8o16i2o";
     if (v == mkldnn_IOw16o16i) return "IOw16o16i";
+    if (v == mkldnn_hwio_s8s8) return "hwio_s8s8";
     if (v == mkldnn_oIhw8i) return "oIhw8i";
     if (v == mkldnn_oIhw16i) return "oIhw16i";
     if (v == mkldnn_OIhw8i8o) return "OIhw8i8o";
@@ -141,6 +140,7 @@ const char *mkldnn_fmt2str(mkldnn_memory_format_t v) {
     if (v == mkldnn_gOIw8i16o2i) return "gOIw8i16o2i";
     if (v == mkldnn_gOIw8o16i2o) return "gOIw8o16i2o";
     if (v == mkldnn_gIOw16o16i) return "gIOw16o16i";
+    if (v == mkldnn_hwigo_s8s8) return "hwigo_s8s8";
     if (v == mkldnn_gOIhw8i8o) return "gOIhw8i8o";
     if (v == mkldnn_gOIhw16i16o) return "gOIhw16i16o";
     if (v == mkldnn_gOIhw4i16o4i) return "gOIhw4i16o4i";
@@ -237,6 +237,16 @@ const char *mkldnn_alg_kind2str(mkldnn_alg_kind_t v) {
     if (v == mkldnn_gru_linear_before_reset) return "gru_linear_before_reset";
     assert(!"unknown alg_kind");
     return "unknown alg_kind";
+}
+
+const char *mkldnn_rnn_direction2str(mkldnn_rnn_direction_t v) {
+    if (v == mkldnn_unidirectional_left2right) return "unidirectional_left2right";
+    if (v == mkldnn_unidirectional_right2left) return "unidirectional_right2left";
+    if (v == mkldnn_bidirectional_concat) return "bidirectional_concat";
+    if (v == mkldnn_bidirectional_sum) return "bidirectional_sum";
+    if (v == mkldnn_unidirectional) return "unidirectional";
+    assert(!"unknown rnn_direction");
+    return "unknown rnn_direction";
 }
 
 
