@@ -136,10 +136,11 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
             alg_kind::gru_linear_before_reset);
     rnn.merge_gemm_iter = !(rnn.is_fwd || is_gru);
     bool is_inference = !rnn.is_training;
-    rnn.use_jit_gemm = (is_inference || (rnn.is_training && rnn.dic < 500))
-            && !mayiuse(avx512_mic);
+    rnn.use_jit_gemm = !mayiuse(avx512_mic)
+            && ((is_inference && (rnn.n_layer > 1 || rnn.mb < 100))
+                || (rnn.is_training && rnn.dic < 500));
 #ifdef USE_MKL_PACKED_GEMM
-    rnn.use_packed_gemm = (rnn.n_iter > 1) && (rnn.mb == 32) && (rnn.sic == 512)
+    rnn.use_packed_gemm = weights_copy_enabled && (rnn.mb == 32) && (rnn.sic == 512)
             && (rnn.slc == 512) && (rnn.dic == 512);
 #else
     rnn.use_packed_gemm = false;
