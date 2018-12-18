@@ -35,6 +35,7 @@ mkldnn_prop_kind_t prop = mkldnn_forward;
 alg_t alg = VANILLA_RNN;
 mkldnn_rnn_direction_t direction = mkldnn_unidirectional_left2right;
 activation_t activation = RELU;
+const char *perf_template = "perf,%n,%D,,,%-t,,%0t,";
 
 void reset_parameters() {
     prop = mkldnn_forward;
@@ -63,6 +64,8 @@ int bench(int argc, char **argv, bool main_bench) {
             activation = str2activation(argv[arg] + 13);
         else if (!strncmp("--reset", argv[arg], 7))
             reset_parameters();
+        else if (!strncmp("--perf-template=", argv[arg], 16))
+            perf_template = argv[arg] + 16;
         else {
             rnn_desc_t d;
             if (str2desc(&d, argv[arg]) == FAIL) {

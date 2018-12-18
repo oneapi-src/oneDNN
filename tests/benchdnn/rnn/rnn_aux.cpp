@@ -99,6 +99,25 @@ mkldnn_alg_kind_t activation2kind(activation_t act) {
     return alg_kind;
 }
 
+mkldnn_prop_kind_t str2prop(const char *str) {
+    if (!strcasecmp("FWD_D", str))
+        return mkldnn_forward;
+    if (!strcasecmp("BWD_D", str))
+        return mkldnn_backward;
+    assert(!"unknown propagation");
+    return mkldnn_forward;
+}
+
+const char *prop2str(mkldnn_prop_kind_t prop) {
+    if (prop == mkldnn_forward)
+        return "FWD_D";
+    if (prop == mkldnn_backward)
+        return "BWD_D";
+    assert(!"unknown propagation");
+    return "unknown propagation";
+
+}
+
 mkldnn_rnn_direction_t str2direction(const char *str) {
     if (!strcasecmp("left2right", str))
         return mkldnn_unidirectional_left2right;
@@ -185,7 +204,7 @@ int str2desc(rnn_desc_t *desc, const char *str) {
 void prb2str(const rnn_prb_t *p, const res_t *res, char *buffer) {
     int rem_len = max_prb_len;
 
-    DPRINT("%s,%s,%s,", alg2str(p->alg), activation2str(p->activation),
+    DPRINT("%s_%s_%s_", alg2str(p->alg), activation2str(p->activation),
             direction2str(p->direction));
     DPRINT("l%d", p->n_layer);
     DPRINT("t%d", p->n_iter);

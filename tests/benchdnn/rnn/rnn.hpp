@@ -29,6 +29,8 @@
 
 namespace rnn {
 
+extern const char *perf_template;
+
 enum alg_t { VANILLA_RNN, VANILLA_LSTM, VANILLA_GRU, LBR_GRU };
 alg_t str2alg(const char *str);
 const char *alg2str(alg_t alg);
@@ -38,6 +40,9 @@ enum activation_t { RELU, LOGISTIC, TANH };
 activation_t str2activation(const char *str);
 const char *activation2str(activation_t alg);
 mkldnn_alg_kind_t activation2kind(activation_t alg);
+
+mkldnn_prop_kind_t str2prop(const char *str);
+const char *prop2str(mkldnn_prop_kind_t prop);
 
 mkldnn_rnn_direction_t str2direction(const char *str);
 const char *direction2str(mkldnn_rnn_direction_t direction);
