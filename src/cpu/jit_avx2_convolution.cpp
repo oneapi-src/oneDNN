@@ -95,7 +95,7 @@ void jit_avx2_convolution_fwd_t::execute_forward() const {
                         + (jcp.kd-1) * (jcp.dilate_d+1) - jcp.f_pad+1) - jcp.id;
 
                     const size_t _oc = g * jcp.nb_oc + ocb;
-                    const size_t _ic = g * jcp.nb_ic + icb;
+                    const size_t _ic = g * jcp.nb_ic * jcp.nonblk_group_off + icb;
 
                     const int ih = nstl::max(ij - jcp.t_pad
                         + div_up(i_t_overflow,

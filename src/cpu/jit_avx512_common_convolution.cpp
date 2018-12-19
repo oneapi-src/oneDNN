@@ -198,7 +198,7 @@ void jit_avx512_common_convolution_fwd_t
                 int ocb = occ * jcp.nb_oc_blocking;
                 int g_ocb = g * jcp.nb_oc + ocb;
                 int g_oc = g_ocb * jcp.oc_block;
-                int g_icb = g * jcp.nb_ic;
+                int g_icb = g * jcp.nb_ic * jcp.nonblk_group_off;
 
                 int ow_s =  owb * jcp.ow_block;
                 int iw_s =  ow_s * jcp.stride_w;
@@ -290,7 +290,7 @@ void jit_avx512_common_convolution_fwd_t
                 int ocb = occ * jcp.nb_oc_blocking;
                 int g_ocb = g * jcp.nb_oc + ocb;
                 int g_oc = g_ocb * jcp.oc_block;
-                int g_icb = g * jcp.nb_ic;
+                int g_icb = g * jcp.nb_ic * jcp.nonblk_group_off;
 
                 int work_rem = end - start;
 
@@ -411,7 +411,7 @@ void jit_avx512_common_convolution_fwd_t
                 int ocb = occ * jcp.nb_oc_blocking;
                 int g_ocb = g * jcp.nb_oc + ocb;
                 int g_oc = g_ocb * jcp.oc_block;
-                int g_icb = g * jcp.nb_ic;
+                int g_icb = g * jcp.nb_ic * jcp.nonblk_group_off;
 
                 int work_rem = end - start;
                 int ih_s = -jcp.t_pad + oh_s * jcp.stride_h;

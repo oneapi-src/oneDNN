@@ -85,6 +85,7 @@ struct jit_conv_conf_t {
     int ur_h, ur_w;
     int ur_w_tail;
     bool is_1stconv;
+    int nonblk_group_off;
     /* fma avx512_core */
     conv_kernel_kind_t kernel_kind;
     /* 4fma */
