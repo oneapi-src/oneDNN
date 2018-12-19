@@ -302,6 +302,7 @@ private:
 
 void *malloc(size_t size, int alignment);
 void free(void *p);
+int32_t mkldnn_fetch_and_add(int32_t *dst, int32_t val);
 
 struct c_compatible {
     enum { default_alignment = 64 };
