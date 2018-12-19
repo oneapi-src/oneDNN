@@ -28,6 +28,7 @@
 #include "f32/ref_gemm_f32.hpp"
 
 #include "s8x8s32/jit_avx512_core_gemm_s8u8s32.hpp"
+#include "s8x8s32/jit_avx512_core_gemm_s8s8s32.hpp"
 #include "s8x8s32/ref_gemm_s8x8s32.hpp"
 
 #include "os_blas.hpp"
@@ -141,13 +142,16 @@ mkldnn_status_t gemm_s8x8s32(const char *transa, const char *transb,
     if (status != mkldnn_success)
         return status;
 
-    if (data_traits<b_dt>::data_type == data_type::u8) {
+    if (*M == 0 || *N == 0 || *K == 0)
+        return mkldnn_success;
+
 #if USE_MKL_IGEMM
         bool OCisR = (*offsetc == 'R' || *offsetc == 'r');
         bool OCisC = (*offsetc == 'C' || *offsetc == 'c');
         bool AisN = (*transa == 'N' || *transa == 'n');
         bool BisN = (*transb == 'N' || *transb == 'n');
 
+    if (data_traits<b_dt>::data_type == data_type::u8) {
         CBLAS_TRANSPOSE Cblas_trA = AisN ? CblasNoTrans : CblasTrans;
         CBLAS_TRANSPOSE Cblas_trB = BisN ? CblasNoTrans : CblasTrans;
         CBLAS_OFFSET Cblas_offsetc =
@@ -160,19 +164,53 @@ mkldnn_status_t gemm_s8x8s32(const char *transa, const char *transb,
                 *M, *N, *K, *alpha, A, *LDA, *ao, (uint8_t *)B, *LDB, *bo,
                 *beta, C, *LDC, co);
         return mkldnn_success;
+    } else {
+        assert(data_traits<b_dt>::data_type == data_type::s8);
+        // TODO CBLAS implementation of gemm_s8s8s32 goes here.
+        // mkldnn_gemm_s8s8s32 doesn't support non-zero ao and bo
+        if ((mayiuse(avx512_core) || mayiuse(avx512_core_vnni))
+                && *ao == 0 && *bo == 0) {
+            return jit_avx512_core_gemm_s8s8s32(transa, transb, offsetc, M,
+                    N, K, alpha, A, LDA, ao, (int8_t *)B, LDB, bo, beta,
+                    C, LDC, co);
+        } else {
+            return ref_gemm_s8x8s32(transa, transb, offsetc, M, N, K,
+                    alpha, A, LDA, ao, B, LDB, bo, beta, C, LDC, co);
+        }
+    }
 #else
-        if (mayiuse(avx512_core))
+    cpu_isa_t isa = isa_any;
+    if (mayiuse(avx512_core_vnni)) {
+        isa = avx512_core_vnni;
+    } else if (mayiuse(avx512_core)) {
+        isa = avx512_core;
+    }
+
+    if (data_traits<b_dt>::data_type == data_type::u8) {
+        switch (isa) {
+        case avx512_core:
+        case avx512_core_vnni:
             return jit_avx512_core_gemm_s8u8s32(transa, transb, offsetc, M,
                     N, K, alpha, A, LDA, ao, (uint8_t *)B, LDB, bo, beta,
                     C, LDC, co);
-#endif
+        default:
+            return ref_gemm_s8x8s32(transa, transb, offsetc, M, N, K,
+                    alpha, A, LDA, ao, B, LDB, bo, beta, C, LDC, co);
+        }
+    } else {
+        assert(data_traits<b_dt>::data_type == data_type::s8);
+        // mkldnn_gemm_s8s8s32 doesn't support non-zero ao and bo
+        if ((mayiuse(avx512_core) || mayiuse(avx512_core_vnni))
+                && *ao == 0 && *bo == 0) {
+            return jit_avx512_core_gemm_s8s8s32(transa, transb, offsetc, M,
+                    N, K, alpha, A, LDA, ao, (int8_t *)B, LDB, bo, beta,
+                    C, LDC, co);
+        } else {
+            return ref_gemm_s8x8s32(transa, transb, offsetc, M, N, K,
+                    alpha, A, LDA, ao, B, LDB, bo, beta, C, LDC, co);
+        }
     }
-
-    // TODO: s8s8s32 gemm (when available) will have to use a separate code
-    // path
-    return ref_gemm_s8x8s32(
-            transa, transb, offsetc, M, N, K, alpha, A, LDA, ao, B, LDB, bo,
-            beta, C, LDC, co);
+#endif
 }
 
 }
@@ -209,4 +247,3 @@ mkldnn_status_t mkldnn_gemm_s8s8s32(const char *transa, const char *transb,
         transa, transb, offsetc, M, N, K, alpha, A, lda, ao, B, ldb, bo,
         beta, C, ldc, co);
 }
-
