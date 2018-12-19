@@ -185,9 +185,7 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma_1st(int ur_w,
     int ic_block = jcp.ic_block;
     int oc_block = jcp.oc_block;
 
-    Label kh_label, kd_label, skip_kd_loop;
-
-    prepare_output(ur_w);
+    Label kh_label, kd_label;
 
     if (one_of(jcp.ndims, 3, 4)) {
         mov(aux_reg_inp, reg_inp);
@@ -210,18 +208,9 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma_1st(int ur_w,
         mov(aux_reg_inp_d, reg_inp);
         mov(aux_reg_inp_d_prf, reg_inp_prf);
 
-        if ((jcp.kd - 1) < nstl::max(jcp.f_pad, jcp.back_pad)) {
-            cmp(reg_ki, 0);
-            je(skip_kd_loop, T_NEAR);
-        }
         L(kd_label);
     }
     mov(reg_kj, reg_kh);
-    Label skip_kh_loop;
-    if ((jcp.kh - 1) < nstl::max(jcp.t_pad, jcp.b_pad)) {
-        cmp(reg_kj, 0);
-        je(skip_kh_loop, T_NEAR);
-    }
     if (jcp.ndims == 5) {
         mov(aux_reg_inp, aux_reg_inp_d);
         mov(aux_reg_ker, aux_reg_ker_d);
@@ -283,8 +272,6 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma_1st(int ur_w,
     cmp(reg_kj, 0);
     jg(kh_label, T_NEAR);
 
-    L(skip_kh_loop);
-
     if (jcp.ndims == 5) {
         add(aux_reg_inp_d, typesize * jcp.ih * jcp.iw);
         add(aux_reg_ker_d, typesize * jcp.kw * jcp.kh * oc_block);
@@ -293,13 +280,11 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma_1st(int ur_w,
         dec(reg_ki);
         cmp(reg_ki, 0);
         jg(kd_label, T_NEAR);
-        L(skip_kd_loop);
 
         pop(reg_out);
         pop(reg_out_prf);
     }
 
-    store_output(ur_w);
     if (max_input_offset > INT_MAX) pop(reg_inp_prf);
 }
 
@@ -309,7 +294,7 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma(int ur_w,
     int stride_w = jcp.stride_w;
     int ic_block = jcp.ic_block;
     int oc_block = jcp.oc_block;
-    Label kh_label, last_iter_label, loop_end_label, kd_label, skip_kd_loop;
+    Label kh_label, last_iter_label, loop_end_label, kd_label;
     int ker_load_number = 4;
     int shift_kernel_ptr = typesize * jcp.kw * jcp.oc_block * jcp.ic_block;
     int shift_input_ptr = typesize * (jcp.dilate_h + 1) * jcp.iw * jcp.ic_block;
@@ -348,8 +333,6 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma(int ur_w,
         }
     };
 
-    prepare_output(ur_w);
-
     if (one_of(jcp.ndims, 3, 4)) {
         mov(aux_reg_inp, reg_inp);
         mov(aux_reg_ker, reg_ker);
@@ -367,19 +350,9 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma(int ur_w,
         mov(aux_reg_inp_d_prf, reg_inp_prf);
         mov(aux_reg_ker_d_prf, reg_ker_prf);
 
-        if ((jcp.kd - 1) * (jcp.dilate_d + 1) < nstl::max(jcp.f_pad, jcp.back_pad)) {
-            cmp(reg_ki, 0);
-            je(skip_kd_loop, T_NEAR);
-        }
-        L(kd_label);
         mov(reg_kj, ptr[param1 + GET_OFF(kh_padding)]);
     } else {
         mov(reg_kj, reg_kh);
-    }
-    Label skip_kh_loop;
-    if ((jcp.kh - 1) * (jcp.dilate_h + 1) < nstl::max(jcp.t_pad, jcp.b_pad)) {
-        cmp(reg_kj, 0);
-        je(skip_kh_loop, T_NEAR);
     }
     if (jcp.ndims == 5) {
         mov(aux_reg_inp, aux_reg_inp_d);
@@ -544,8 +517,6 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma(int ur_w,
     cmp(reg_kj, 0);
     jg(kh_label, T_NEAR);
 
-    L(skip_kh_loop);
-
     if (jcp.ndims == 5) {
         add(aux_reg_inp_d,
                 typesize * (jcp.dilate_d + 1) * jcp.ih * jcp.iw * jcp.ic_block);
@@ -559,13 +530,10 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma(int ur_w,
         dec(reg_ki);
         cmp(reg_ki, 0);
         jg(kd_label, T_NEAR);
-        L(skip_kd_loop);
 
         pop(reg_out);
         pop(reg_out_prf);
     }
-
-    store_output(ur_w);
 }
 
 void jit_avx512_common_conv_fwd_kernel::compute_loop_fma(int ur_w,
@@ -581,7 +549,7 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_fma(int ur_w,
     int ic_block = jcp.ic_block;
     int oc_block = jcp.oc_block;
     int nb_oc_block = jcp.nb_oc_blocking;
-    Label kh_label, kd_label, skip_kd_loop;
+    Label kh_label, kd_label;
 
     int ker_pipeline_depth = 4;
     assert(ker_reg_base_idx + ker_pipeline_depth <= 32);
@@ -602,8 +570,6 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_fma(int ur_w,
             = (prf_ker || prf_inp) ? nstl::max(1, num_fmas / num_prfs) : 1;
     int prf_inst_trigger = (num_fmas % prf_inst_spacing) / 2;
     int inp_mul = !jcp.is_1stconv ? ic_block : 1;
-
-    prepare_output(ur_w);
 
     if (one_of(jcp.ndims, 3, 4)) {
         mov(aux_reg_inp, reg_inp);
@@ -627,19 +593,10 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_fma(int ur_w,
         mov(aux_reg_inp_d_prf, reg_inp_prf);
         mov(aux_reg_ker_d_prf, reg_ker_prf);
 
-        if ((jcp.kd - 1) * (jcp.dilate_d + 1) < nstl::max(jcp.f_pad, jcp.back_pad)) {
-            cmp(reg_ki, 0);
-            je(skip_kd_loop, T_NEAR);
-        }
         L(kd_label);
         mov(reg_kj, ptr[param1 + GET_OFF(kh_padding)]);
     } else {
         mov(reg_kj, reg_kh);
-    }
-    Label skip_kh_loop;
-    if ((jcp.kh - 1) * (jcp.dilate_h + 1) < nstl::max(jcp.t_pad, jcp.b_pad)) {
-        cmp(reg_kj, 0);
-        je(skip_kh_loop, T_NEAR);
     }
 
     if (jcp.ndims == 5) {
@@ -736,7 +693,6 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_fma(int ur_w,
         jg(kh_label, T_NEAR);
     }
 
-    L(skip_kh_loop);
 
     if (jcp.ndims == 5) {
         add(aux_reg_inp_d,
@@ -751,13 +707,11 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_fma(int ur_w,
         dec(reg_ki);
         cmp(reg_ki, 0);
         jg(kd_label, T_NEAR);
-        L(skip_kd_loop);
 
         pop(reg_out);
         pop(reg_out_prf);
     }
     if (max_input_offset > INT_MAX) pop(reg_inp_prf);
-    store_output(ur_w);
 }
 
 void jit_avx512_common_conv_fwd_kernel::compute_loop_fma_core(int ur_w,
@@ -768,7 +722,7 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_fma_core(int ur_w,
     int ic_block = jcp.ic_block;
     int oc_block = jcp.oc_block;
     int nb_oc_block = jcp.nb_oc_blocking;
-    Label kh_label, skip_kh_loop, kd_label, skip_kd_loop;
+    Label kh_label, kd_label;
     int shift_kernel_ptr = jcp.typesize_in * jcp.kw * jcp.oc_block
         * jcp.ic_block;
     int inp_mul = !jcp.is_1stconv ? ic_block : 1;
@@ -783,8 +737,6 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_fma_core(int ur_w,
                 * (!jcp.is_1stconv ? 1 : (size_t)jcp.iw * jcp.ih * jcp.id));
     };
 
-    prepare_output(ur_w);
-
     if (one_of(jcp.ndims, 3, 4)) {
         mov(aux_reg_inp, reg_inp);
         mov(aux_reg_ker, reg_ker);
@@ -797,18 +749,10 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_fma_core(int ur_w,
         mov(aux_reg_ker_d, ptr[param1 + GET_OFF(filt)]);
         mov(aux_reg_inp_d, reg_inp);
 
-        if ((jcp.kd - 1) * (jcp.dilate_d + 1) < nstl::max(jcp.f_pad, jcp.back_pad)) {
-            cmp(reg_ki, 0);
-            je(skip_kd_loop, T_NEAR);
-        }
         L(kd_label);
         mov(reg_kj, ptr[param1 + GET_OFF(kh_padding)]);
     } else {
         mov(reg_kj, reg_kh);
-    }
-    if ((jcp.kh - 1) * (jcp.dilate_h + 1) < nstl::max(jcp.t_pad, jcp.b_pad)) {
-        cmp(reg_kj, 0);
-        je(skip_kh_loop, T_NEAR);
     }
 
     if (jcp.ndims == 5) {
@@ -856,7 +800,6 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_fma_core(int ur_w,
         cmp(reg_kj, 0);
         jg(kh_label, T_NEAR);
     }
-    L(skip_kh_loop);
 
     if (jcp.ndims == 5) {
         add(aux_reg_inp_d,
@@ -867,12 +810,9 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_fma_core(int ur_w,
         dec(reg_ki);
         cmp(reg_ki, 0);
         jg(kd_label, T_NEAR);
-        L(skip_kd_loop);
 
         pop(reg_out);
     }
-
-    store_output(ur_w);
 }
 
 void jit_avx512_common_conv_fwd_kernel::compute_loop_vnni(
@@ -892,7 +832,6 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_vnni(
     assert(reg_inp_prf == reg_long_offt);
     if (max_input_offset > INT_MAX) push(reg_inp_prf);
 
-    prepare_output(ur_w);
 
     if (one_of(jcp.ndims, 3, 4)) {
         mov(aux_reg_inp, reg_inp);
@@ -900,8 +839,6 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_vnni(
         mov(aux_reg_ker_prf, reg_ker_prf);
         mov(aux_reg_inp_prf, reg_inp_prf);
     }
-
-    Label skip_kh_loop, skip_kd_loop;
 
     if (jcp.ndims == 5) {
         push(reg_out_prf);
@@ -913,18 +850,10 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_vnni(
         mov(aux_reg_inp_d_prf, reg_inp_prf);
         mov(aux_reg_ker_d_prf, reg_ker_prf);
 
-        if ((jcp.kd - 1) * (jcp.dilate_d + 1) < nstl::max(jcp.f_pad, jcp.back_pad)) {
-            cmp(reg_ki, 0);
-            je(skip_kd_loop, T_NEAR);
-        }
         L(kd_label);
         mov(reg_kj, ptr[param1 + GET_OFF(kh_padding)]);
     } else {
         mov(reg_kj, reg_kh);
-    }
-    if ((jcp.kh - 1) * (jcp.dilate_h + 1) < nstl::max(jcp.t_pad, jcp.b_pad)) {
-        cmp(reg_kj, 0);
-        je(skip_kh_loop, T_NEAR);
     }
     if (jcp.ndims == 5) {
         mov(aux_reg_inp, aux_reg_inp_d);
@@ -998,8 +927,6 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_vnni(
         jg(kh_label, T_NEAR);
     }
 
-    L(skip_kh_loop);
-
     if (jcp.ndims == 5) {
         add(aux_reg_inp_d, jcp.typesize_in * jcp.ih * jcp.iw * jcp.ic_block);
         add(aux_reg_ker_d, jcp.typesize_in * jcp.kw * jcp.kh * jcp.oc_block
@@ -1011,19 +938,34 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_vnni(
         dec(reg_ki);
         cmp(reg_ki, 0);
         jg(kd_label, T_NEAR);
-        L(skip_kd_loop);
 
         pop(reg_out);
         pop(reg_out_prf);
     }
     if (max_input_offset > INT_MAX) pop(reg_inp_prf);
-    store_output(ur_w);
 }
 
 void jit_avx512_common_conv_fwd_kernel::compute_loop(int ur_w,
         int pad_l, int pad_r)
 {
     if (jcp.ndims == 5) push(reg_oi);
+
+    prepare_output(ur_w);
+
+    Label skip_compute_loop;
+    if (jcp.ndims == 5) {
+        if ((jcp.kd - 1) * (jcp.dilate_d + 1) < nstl::max(jcp.f_pad, jcp.back_pad)) {
+            mov(reg_kj, ptr[param1 + GET_OFF(kd_padding)]);
+            cmp(reg_kj, 0);
+            je(skip_compute_loop, T_NEAR);
+        }
+    }
+    if ((jcp.kh - 1) * (jcp.dilate_h + 1) < nstl::max(jcp.t_pad, jcp.b_pad)) {
+        mov(reg_kj, ptr[param1 + GET_OFF(kh_padding)]);
+        cmp(reg_kj, 0);
+        je(skip_compute_loop, T_NEAR);
+    }
+
     if (jcp.ver == ver_4vnni || jcp.ver == ver_vnni)
         compute_loop_vnni(ur_w, pad_l, pad_r);
     else if (jcp.ver == ver_4fma)
@@ -1042,6 +984,9 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop(int ur_w,
                 compute_loop_fma_core(ur_w, pad_l, pad_r);
     else
         assert(!"unknown convolution version");
+    
+    L(skip_compute_loop);
+    store_output(ur_w);
     if (jcp.ndims == 5) pop(reg_oi);
 }
 
@@ -1858,7 +1803,7 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_4fma(
     int kw = jcp.kw;
     int ic_block = jcp.ic_block;
     int oc_block = jcp.oc_block;
-    Label kh_label, last_iter_label, loop_end_label, kd_label, skip_kd_loop;
+    Label kh_label, last_iter_label, loop_end_label, kd_label;
     int ker_load_number = 4;
     int shift_ker_ptr = typesize * kw * oc_block * ic_block;
     int shift_dst_ptr = typesize * ow * oc_block;
@@ -1888,8 +1833,6 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_4fma(
             ii_dpref_t0++;
         }
     };
-
-    prepare_output(ur_w);
 
     if (one_of(jcp.ndims, 3, 4)) {
         mov(aux_reg_dst, reg_dst);
@@ -2036,13 +1979,10 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_4fma(
         dec(reg_ki);
         cmp(reg_ki, 0);
         jg(kd_label, T_NEAR);
-        L(skip_kd_loop);
 
         pop(reg_src);
         pop(reg_src_prf);
     }
-
-    store_output(ur_w);
 }
 
 void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_vnni(
@@ -2062,8 +2002,6 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_vnni(
         int oc_offset = oc * jcp.oc_block;
         return jcp.typesize_in * (blk_offset + oc_offset);
     };
-
-    prepare_output(ur_w);
 
     mov(aux_reg_dst, reg_dst);
     mov(aux_reg_ker, reg_ker);
@@ -2140,15 +2078,12 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_vnni(
         cmp(reg_kj, 0);
         jg(kh_label, T_NEAR);
     }
-
-    store_output(ur_w);
 }
 
 void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma(
         int ur_w, int l_overflow, int r_overflow)
 {
-    Label kh_label, kd_label, skip_kd_loop;
-    Label store_output_label;
+    Label kh_label, kd_label;
     int kw = jcp.kw;
     int ow = jcp.ow;
 
@@ -2171,8 +2106,6 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma(
     int prf_inst_spacing = nstl::max(1, num_fmas / num_prfs);
     int prf_inst_trigger = (num_fmas % prf_inst_spacing) / 2;
 
-    prepare_output(ur_w);
-
     if (one_of(jcp.ndims, 3, 4)) {
         mov(aux_reg_dst, reg_dst);
         mov(aux_reg_ker, reg_ker);
@@ -2186,9 +2119,6 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma(
         push(reg_src);
 
         mov(reg_ki, ptr[param + GET_OFF(kd_padding)]);
-        cmp(reg_ki, 0);
-        je(store_output_label, T_NEAR);
-
         mov(aux_reg_dst_d, reg_dst);
         mov(aux_reg_ker_d, ptr[param + GET_OFF(filt)]);
         mov(aux_reg_dst_d_prf, reg_dst_prf);
@@ -2199,8 +2129,6 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma(
     } else {
         mov(reg_kj, reg_kh);
     }
-    cmp(reg_kj, 0);
-    je(store_output_label, T_NEAR);
 
     if (jcp.ndims == 5) {
         mov(aux_reg_dst, aux_reg_dst_d);
@@ -2300,16 +2228,12 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma(
         dec(reg_ki);
         cmp(reg_ki, 0);
         jg(kd_label, T_NEAR);
-        L(skip_kd_loop);
     }
 
-    L(store_output_label); {
-        if (jcp.ndims == 5)
-        {
-            pop(reg_src);
-            pop(reg_src_prf);
-        }
-        store_output(ur_w);
+    if (jcp.ndims == 5)
+    {
+        pop(reg_src);
+        pop(reg_src_prf);
     }
 }
 
@@ -2323,7 +2247,7 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma_core(
     int ic_block = jcp.ic_block;
     int oc_block = jcp.oc_block;
     int nb_ic_block = jcp.nb_ic_blocking;
-    Label kh_label, skip_kh_loop, kd_label, skip_kd_loop;
+    Label kh_label, kd_label;
 
     int shift_ker_ptr = typesize * kw * oc_block * ic_block;
     int shift_dst_ptr = typesize * (jcp.dilate_h + 1) * ow * oc_block;
@@ -2338,8 +2262,6 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma_core(
         int oc_offset = oc * jcp.oc_block;
         return typesize * (blk_offset + oc_offset);
     };
-
-    prepare_output(ur_w);
 
     if (one_of(jcp.ndims, 3, 4)) {
         mov(aux_reg_dst, reg_dst);
@@ -2359,8 +2281,6 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma_core(
     } else {
         mov(reg_kj, reg_kh);
     }
-    cmp(reg_kj, 0);
-    je(skip_kh_loop, T_NEAR);
 
     if (jcp.ndims == 5) {
         mov(aux_reg_dst, aux_reg_dst_d);
@@ -2402,7 +2322,6 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma_core(
         cmp(reg_kj, 0);
         jg(kh_label, T_NEAR);
     }
-    L(skip_kh_loop);
 
     if (jcp.ndims == 5) {
         sub(aux_reg_dst_d,
@@ -2412,19 +2331,29 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma_core(
         dec(reg_ki);
         cmp(reg_ki, 0);
         jg(kd_label, T_NEAR);
-        L(skip_kd_loop);
 
         pop(reg_src);
         pop(reg_src_prf);
     }
-
-    store_output(ur_w);
 }
 
 inline void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop(
         int ur_w, int l_overflow, int r_overflow)
 {
     if (jcp.ndims == 5) push(reg_oi);
+
+    prepare_output(ur_w);
+
+    Label skip_compute_loop;
+    if (jcp.ndims == 5) {
+        mov(reg_kj, ptr[param + GET_OFF(kd_padding)]);
+        cmp(reg_kj, 0);
+        je(skip_compute_loop, T_NEAR);
+    }
+    mov(reg_kj, ptr[param + GET_OFF(kh_padding)]);
+    cmp(reg_kj, 0);
+    je(skip_compute_loop, T_NEAR);
+
     if (jcp.ver == ver_4vnni || jcp.ver == ver_vnni)
         compute_loop_vnni(ur_w, l_overflow, r_overflow);
     else if (jcp.ver == ver_4fma)
@@ -2439,6 +2368,9 @@ inline void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop(
               compute_loop_fma_core(ur_w, l_overflow, r_overflow);
     else
         assert("!unknown convolution version");
+
+    L(skip_compute_loop);
+    store_output(ur_w);
     if (jcp.ndims == 5) pop(reg_oi);
 }
 
