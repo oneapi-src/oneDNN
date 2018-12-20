@@ -168,38 +168,123 @@ void im2col(const jit_gemm_conv_conf_t &jcp, const float *__restrict im,
 
 /* col[oh][ow][kh][kw][ic] <-- im2col_u8(im[ih][iw][ic]) */
 template <typename T>
-void im2col_u8(const jit_gemm_conv_conf_t &jcp, const T *im, uint8_t *col) {
-    parallel_nd(jcp.oh, jcp.ow, [&](int oh, int ow) {
-            for (int kh = 0; kh < jcp.kh; ++kh) {
-                const int ih = oh * jcp.stride_h
-                    - jcp.t_pad + kh * (1 + jcp.dilate_h);
-                if (ih < 0 || ih >= jcp.ih) continue;
+void im2col_u8(const jit_gemm_conv_conf_t &jcp, const T *__restrict im,
+        uint8_t *__restrict col) {
+    uint8_t shift = jcp.signed_input ? 128 : 0;
+    const int dh = 1 + jcp.dilate_h;
+    const int dw = 1 + jcp.dilate_w;
+    const int sh = jcp.stride_h;
+    const int sw = jcp.stride_w;
+    if (sh == 1 && sw == 1 && jcp.oh > 2 * mkldnn_get_max_threads()) {
+        const int ihp = jcp.ih + jcp.t_pad;
+        const int iwp = jcp.iw + jcp.l_pad;
+        const int col_kw_step = jcp.ic;
+        const int col_kh_step = jcp.kw * col_kw_step;
+        const int col_ow_step = jcp.kh * col_kh_step;
+        const int col_oh_step = jcp.ow * col_ow_step;
+        const int im_iw_step = jcp.ngroups * jcp.ic;
+        const int im_ih_step = jcp.iw * im_iw_step;
+
+        const int nb_ic = jcp.ic / 4;
+        const int ic_blocked = nb_ic * 4;
+
+        parallel_nd(jcp.oh, [&](int oh) {
+            const int kh_start = nstl::max(div_up(jcp.t_pad - oh, dh), 0);
+            const int kh_end = nstl::min(div_up(ihp - oh, dh), jcp.kh);
+            const int ih_start = oh - jcp.t_pad + kh_start * dh;
+            const int col_oh_idx = oh * col_oh_step;
+
+            for (int kh = kh_start, ih = ih_start; kh < kh_end; ++kh, ih += dh)
+            {
+                const int col_kh_idx = col_oh_idx + kh * col_kh_step;
+                const int im_kh_idx = ih * im_ih_step;
 
                 for (int kw = 0; kw < jcp.kw; ++kw) {
-                    const int iw = ow * jcp.stride_w
-                        - jcp.l_pad + kw * (1 + jcp.dilate_w);
-                    if (iw < 0 || iw >= jcp.iw) continue;
+                    const int ow_start = nstl::max(jcp.l_pad - kw * dw, 0);
+                    const int ow_end = nstl::min(iwp - kw * dw, jcp.ow);
+                    const int iw_start = ow_start - jcp.l_pad + kw * dw;
+                    const int col_kw_idx = col_kh_idx + kw * col_kw_step;
 
-                    const size_t col_idx = (((oh * jcp.ow + ow) * jcp.kh + kh)
-                            * jcp.kw + kw) * jcp.ic;
-                    const size_t im_idx
-                        = (ih * jcp.iw + iw) * jcp.ngroups * jcp.ic;
-                    PRAGMA_OMP_SIMD()
-                    for (int ic = 0; ic < jcp.ic; ++ic) {
-                        col[col_idx + ic] = jcp.signed_input
-                        ? im[im_idx + ic] + 128
-                        : im[im_idx + ic];
+                    const int col_idx_start
+                            = col_kw_idx + ow_start * col_ow_step;
+                    const int im_idx_start = im_kh_idx + iw_start * im_iw_step;
+                    const int col_idx_end = col_kw_idx + ow_end * col_ow_step;
+
+                    // loop by iw and ow
+                    if (nb_ic > 0) {
+                        for (int col_idx = col_idx_start, im_idx = im_idx_start;
+                                col_idx < col_idx_end;
+                                col_idx += col_ow_step, im_idx += im_iw_step) {
+                            for (int icb = 0; icb < 4 * nb_ic; icb += 4) {
+                                PRAGMA_OMP_SIMD()
+                                for (int ic = 0; ic < 4; ++ic) {
+                                    col[col_idx + icb + ic]
+                                            = im[im_idx + icb + ic] + shift;
+                                }
+                            }
+                        }
+                    }
+                    if (ic_blocked != jcp.ic) {
+                        for (int col_idx = col_idx_start, im_idx = im_idx_start;
+                                col_idx < col_idx_end;
+                                col_idx += col_ow_step, im_idx += im_iw_step) {
+                            PRAGMA_OMP_SIMD()
+                            for (int ic = ic_blocked; ic < jcp.ic; ++ic) {
+                                col[col_idx + ic] = im[im_idx + ic] + shift;
+                            }
+                        }
                     }
                 }
             }
-        }
-    );
+        });
+    }
+    else {
+        const size_t col_kh_step = jcp.kw * jcp.ic;
+        const size_t col_ow_step = jcp.kh * col_kh_step;
+        const size_t col_oh_step = jcp.ow * col_ow_step;
+        const size_t im_ih_step = jcp.iw * jcp.ngroups * jcp.ic;
+        const size_t im_iw_step = jcp.ngroups * jcp.ic;
+        const int ih_pad = jcp.ih + jcp.t_pad;
+        const int iw_pad = jcp.iw + jcp.l_pad;
+        parallel_nd(jcp.oh, jcp.ow, [&](int oh, int ow) {
+            const int ihs = oh * sh;
+            const int ihsp = jcp.t_pad - ihs;
+            const int kh_start = nstl::max(div_up(ihsp, dh), 0);
+            const int kh_end = nstl::min(div_up(ih_pad - ihs, dh), jcp.kh);
+            const int ih_start = kh_start * dh - ihsp;
+            const int iws = ow * sw;
+            const int iwsp = jcp.l_pad - iws;
+            const int kw_start = nstl::max(div_up(iwsp, dw), 0);
+            const int kw_end = nstl::min(div_up(iw_pad - iws, dw), jcp.kh);
+            const int iw_start = kw_start * dw - iwsp;
+
+            uint8_t *__restrict col_base
+                    = col + oh * col_oh_step + ow * col_ow_step;
+            for (int kh = kh_start, ih = ih_start; kh < kh_end;
+                    ++kh, ih += dh) {
+                uint8_t *__restrict col_ = col_base + kh * col_kh_step;
+                const T *__restrict im_ = im + ih * im_ih_step;
+
+                for (int kw = kw_start, iw = iw_start; kw < kw_end;
+                    ++kw, iw += dw) {
+
+                    const size_t col_idx = kw * jcp.ic;
+                    const size_t im_idx = iw * im_iw_step;
+                    PRAGMA_OMP_SIMD()
+                        for (int ic = 0; ic < jcp.ic; ++ic) {
+                            col_[col_idx + ic] = im_[im_idx + ic] + shift;
+                        }
+                }
+            }
+        });
+    }
+
 }
 
 template void im2col_u8<int8_t>(const jit_gemm_conv_conf_t &jcp,
-        const int8_t *im, uint8_t *col);
+        const int8_t *__restrict im, uint8_t *__restrict col);
 template void im2col_u8<uint8_t>(const jit_gemm_conv_conf_t &jcp,
-        const uint8_t *im, uint8_t *col);
+        const uint8_t *__restrict im, uint8_t *__restrict col);
 
 /* im[ih][iw][ic] <-- col2im_s32(col[oh][ow][kh][kw][ic]) */
 void col2im_s32(const jit_gemm_conv_conf_t &jcp, const int32_t *__restrict col,

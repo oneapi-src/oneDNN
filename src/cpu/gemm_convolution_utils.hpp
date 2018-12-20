@@ -36,7 +36,8 @@ void im2col_3d(const jit_gemm_conv_conf_t &jcp, const float *im, float *col,
 void im2col(const jit_gemm_conv_conf_t &jcp, const float *__restrict im,
        float *__restrict col);
 template <typename T>
-void im2col_u8(const jit_gemm_conv_conf_t &jcp, const T *im, uint8_t *col);
+void im2col_u8(const jit_gemm_conv_conf_t &jcp, const T *__restrict im,
+        uint8_t *__restrict col);
 
 void col2im_s32(const jit_gemm_conv_conf_t &jcp, const int32_t *__restrict col,
         int32_t *__restrict im);
