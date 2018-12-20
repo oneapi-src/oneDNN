@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GEMM_U8S8S32X_INNER_PRODUCT_HPP
-#define GEMM_U8S8S32X_INNER_PRODUCT_HPP
+#ifndef GEMM_X8S8S32X_INNER_PRODUCT_HPP
+#define GEMM_X8S8S32X_INNER_PRODUCT_HPP
 
 #include <assert.h>
 
@@ -33,15 +33,18 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-template <impl::data_type_t dst_type>
-struct gemm_u8s8s32x_inner_product_fwd_t: public cpu_primitive_t {
+template <impl::data_type_t src_type, impl::data_type_t dst_type>
+struct gemm_x8s8s32x_inner_product_fwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_inner_product_fwd_pd_t {
         pd_t(engine_t *engine, const inner_product_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const inner_product_fwd_pd_t *hint_fwd_pd)
             : cpu_inner_product_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T(IGEMM_IMPL_STR, gemm_u8s8s32x_inner_product_fwd_t);
+        DECLARE_COMMON_PD_T(src_type == data_type::u8
+                ? IGEMM_S8U8S32_IMPL_STR
+                : IGEMM_S8S8S32_IMPL_STR,
+                gemm_x8s8s32x_inner_product_fwd_t);
 
         virtual status_t init() override {
             using namespace utils;
@@ -54,7 +57,7 @@ struct gemm_u8s8s32x_inner_product_fwd_t: public cpu_primitive_t {
                 && one_of(desc()->prop_kind, prop_kind::forward_training,
                         prop_kind::forward_inference)
                 && !has_zero_dim_memory()
-                && this->desc()->src_desc.data_type == u8
+                && this->desc()->src_desc.data_type == src_type
                 && this->desc()->dst_desc.data_type == dst_type
                 && this->desc()->weights_desc.data_type == s8
                 && IMPLICATION(this->with_bias(), utils::one_of(
@@ -109,15 +112,15 @@ struct gemm_u8s8s32x_inner_product_fwd_t: public cpu_primitive_t {
         }
     };
 
-    gemm_u8s8s32x_inner_product_fwd_t(const pd_t *apd, const input_vector &inputs,
+    gemm_x8s8s32x_inner_product_fwd_t(const pd_t *apd, const input_vector &inputs,
             const output_vector &outputs)
         : cpu_primitive_t(apd, inputs, outputs, true)
     { pp_kernel_ = new pp_kernel_t(apd, pd()->dst_is_acc_); }
-    ~gemm_u8s8s32x_inner_product_fwd_t() { delete pp_kernel_; }
+    ~gemm_x8s8s32x_inner_product_fwd_t() { delete pp_kernel_; }
 
     typedef typename prec_traits<dst_type>::type data_t;
 
-    typedef typename prec_traits<data_type::u8>::type src_data_t;
+    typedef typename prec_traits<src_type>::type src_data_t;
     typedef typename prec_traits<data_type::s8>::type wei_data_t;
     typedef typename prec_traits<dst_type>::type dst_data_t;
     typedef typename prec_traits<data_type::s32>::type acc_data_t;
@@ -134,7 +137,7 @@ private:
     class pp_kernel_t: jit_generator {
     public:
         DECLARE_CPU_JIT_AUX_FUNCTIONS(
-                gemm_u8s8s32x_inner_product_fwd_t::pp_kernel);
+                gemm_x8s8s32x_inner_product_fwd_t::pp_kernel);
         pp_kernel_t(const pd_t *pd, bool dst_is_acc);
 
         void operator()(dst_data_t *dst, const acc_data_t *acc,

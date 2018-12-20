@@ -17,8 +17,7 @@
 #include "math_utils.hpp"
 #include "mkldnn_thread.hpp"
 #include "simple_q10n.hpp"
-
-#include "gemm_u8s8s32x_inner_product.hpp"
+#include "gemm_x8s8s32x_inner_product.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -28,8 +27,8 @@ using namespace math;
 using namespace memory_format;
 using namespace memory_tracking::names;
 
-template<data_type_t dst_type>
-gemm_u8s8s32x_inner_product_fwd_t<dst_type>::pp_kernel_t::pp_kernel_t(
+template<data_type_t src_type, data_type_t dst_type>
+gemm_x8s8s32x_inner_product_fwd_t<src_type, dst_type>::pp_kernel_t::pp_kernel_t(
         const pd_t *pd, bool dst_is_acc)
     : ker_(nullptr), OC_(pd->OC())
     , bias_data_type_(data_type::undef), bias_data_type_size_(0)
@@ -52,15 +51,15 @@ gemm_u8s8s32x_inner_product_fwd_t<dst_type>::pp_kernel_t::pp_kernel_t(
 
     if (!mayiuse(avx512_core))
         // use fallback code for older CPUs since they do not have optimized
-        // u8s8s32 GEMM anyways. The configuration variables above are used by
+        // x8s8s32 GEMM anyways. The configuration variables above are used by
         // the fallback code.
         return;
     else
         generate();
 }
 
-template<data_type_t dst_type>
-void gemm_u8s8s32x_inner_product_fwd_t<dst_type>::pp_kernel_t::generate()
+template<data_type_t src_type, data_type_t dst_type>
+void gemm_x8s8s32x_inner_product_fwd_t<src_type, dst_type>::pp_kernel_t::generate()
 {
     using namespace Xbyak;
     using namespace utils;
@@ -356,8 +355,8 @@ void gemm_u8s8s32x_inner_product_fwd_t<dst_type>::pp_kernel_t::generate()
     ker_ = getCode<decltype(ker_)>();
 }
 
-template<data_type_t dst_type>
-void gemm_u8s8s32x_inner_product_fwd_t<dst_type>::pp_kernel_t::operator ()(
+template<data_type_t src_type, data_type_t dst_type>
+void gemm_x8s8s32x_inner_product_fwd_t<src_type, dst_type>::pp_kernel_t::operator ()(
         dst_data_t *dst, const acc_data_t *acc,
         const char *bias, const float *scales, float nslope,
         size_t start, size_t end)
@@ -395,8 +394,9 @@ void gemm_u8s8s32x_inner_product_fwd_t<dst_type>::pp_kernel_t::operator ()(
     }
 };
 
-template <data_type_t dst_type>
-void gemm_u8s8s32x_inner_product_fwd_t<dst_type>::execute_forward() const {
+template <data_type_t src_type, data_type_t dst_type>
+void gemm_x8s8s32x_inner_product_fwd_t<src_type, dst_type
+        >::execute_forward() const {
     auto src = reinterpret_cast<const src_data_t *>(this->input_memory(0));
     auto weights = reinterpret_cast<const wei_data_t *>(this->input_memory(1));
     auto bias = reinterpret_cast<const char *>(this->input_memory(2));
@@ -425,9 +425,18 @@ void gemm_u8s8s32x_inner_product_fwd_t<dst_type>::execute_forward() const {
         : scratchpad().template get<acc_data_t>(key_iprod_int_dat_in_acc_dt);
 
     const float onef = 1.0, zerof = 0.0;
-    mkldnn_gemm_s8u8s32(wei_tr ? "T" : "N", "N", "F", &M, &N, &K, &onef,
-            weights, wei_tr ? &K : &M, &off_a, src, &K, &off_b, &zerof,
-            acc, &M, &off_c);
+
+    if (src_type == data_type::u8) {
+        mkldnn_gemm_s8u8s32(wei_tr ? "T" : "N", "N", "F", &M, &N, &K, &onef,
+                weights, wei_tr ? &K : &M, &off_a, (uint8_t *)src, &K, &off_b, &zerof,
+                acc, &M, &off_c);
+    } else if (src_type == data_type::s8) {
+        mkldnn_gemm_s8s8s32(wei_tr ? "T" : "N", "N", "F", &M, &N, &K, &onef,
+                weights, wei_tr ? &K : &M, &off_a, (int8_t *)src, &K, &off_b, &zerof,
+                acc, &M, &off_c);
+    } else {
+        assert(!"incorrect src type");
+    }
 
     parallel(0, [&](int ithr, int nthr) {
             size_t start, end;
@@ -438,10 +447,14 @@ void gemm_u8s8s32x_inner_product_fwd_t<dst_type>::execute_forward() const {
 
 using namespace data_type;
 
-template struct gemm_u8s8s32x_inner_product_fwd_t<f32>;
-template struct gemm_u8s8s32x_inner_product_fwd_t<s32>;
-template struct gemm_u8s8s32x_inner_product_fwd_t<s8>;
-template struct gemm_u8s8s32x_inner_product_fwd_t<u8>;
+template struct gemm_x8s8s32x_inner_product_fwd_t<u8, f32>;
+template struct gemm_x8s8s32x_inner_product_fwd_t<u8, s32>;
+template struct gemm_x8s8s32x_inner_product_fwd_t<u8, s8>;
+template struct gemm_x8s8s32x_inner_product_fwd_t<u8, u8>;
+template struct gemm_x8s8s32x_inner_product_fwd_t<s8, f32>;
+template struct gemm_x8s8s32x_inner_product_fwd_t<s8, s32>;
+template struct gemm_x8s8s32x_inner_product_fwd_t<s8, s8>;
+template struct gemm_x8s8s32x_inner_product_fwd_t<s8, u8>;
 }
 }
 }
