@@ -164,7 +164,6 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
             * rnn.gates_ws_ld;
 
     /* Set the sizes in case we pack the weights */
-    /* Set the sizes in case we pack the weights layer */
     size_t weights_layer_gld_size = (size_t)rnn.n_layer * rnn.n_dir
         * rnn.weights_layer_nld * rnn.weights_layer_ws_ld;
     size_t weights_layer_pack_size = 0;
@@ -223,7 +222,8 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
             = rnn.is_fwd ? (size_t)0 : (size_t)rnn.n_layer * rnn.n_dir
                     * rnn.diff_weights_layer_nld * rnn.diff_weights_layer_ws_ld;
     rnn.ws_diff_weights_iter_size = rnn.is_fwd ? (size_t)0 : (size_t)rnn.n_layer
-                    * rnn.n_dir * rnn.diff_weights_iter_nld * rnn.diff_weights_iter_ws_ld;
+                    * rnn.n_dir * rnn.diff_weights_iter_nld
+                    * rnn.diff_weights_iter_ws_ld;
     rnn.ws_per_cell = (size_t)rnn.is_lbr * rnn.mb * rnn.dic;
     rnn.ws_cell_comp_size
             = (size_t)rnn.is_lbr * rnn.gates_nld * rnn.gates_ws_ld;

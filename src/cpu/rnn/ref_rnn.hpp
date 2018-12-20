@@ -79,10 +79,6 @@ namespace cpu {
             const float *w_, float *scratch_weights_, float **bias_,           \
             const float *b_, float *scratch_bias_, bool do_copy) const
 
-#define free_packed_sig(f)                                               \
-    void f(const rnn_utils::rnn_conf_t &rnn, int n_parts,                \
-            float **weights_) const
-
 template <alg_kind_t alg_kind, prop_kind_t prop_kind>
 float activation(float s, float alpha, float cliping, float dd);
 
@@ -97,7 +93,6 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
     typedef bias_prepare_sig((class_name::*bias_prepare_t));
     typedef bias_finalize_sig((class_name::*bias_finalize_t));
     typedef packing_sig((class_name::*packing_t));
-    typedef free_packed_sig((class_name::*free_packed_t));
 
     using base_pd_t =
             typename utils::conditional<false || aprop == prop_kind::forward,
@@ -183,20 +178,18 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
         bias_preparation_func = &class_name::bias_prepare;
         bias_finalization_func = &class_name::bias_finalize;
 
-        auto set_pack_funcs = [](bool packed_gemm, gemm_t &g, bool pack_w,
-                packing_t &p, free_packed_t &f) {
+        auto set_pack_funcs = [](
+                bool packed_gemm, gemm_t &g, bool pack_w, packing_t &p) {
             g = packed_gemm ? &class_name::packed_gemm : &class_name::gemm;
             p = pack_w ? &class_name::pack_weights :
                              &class_name::no_pack_weights;
-            f = pack_w ? &class_name::free_packed_weights :
-                             &class_name::free_no_packed_weights;
         };
         const bool weights_pack_cond = pd()->rnn_.use_packed_gemm;
         set_pack_funcs(weights_pack_cond, gemm_iter_func, weights_pack_cond,
-                weights_iter_pack_func, weights_iter_free_packed_func);
+                weights_iter_pack_func);
 
         set_pack_funcs(weights_pack_cond, gemm_layer_func, weights_pack_cond,
-                weights_layer_pack_func, weights_layer_free_packed_func);
+                weights_layer_pack_func);
 
         switch (pd()->cell_kind()) {
         case alg_kind::vanilla_lstm:
@@ -263,8 +256,6 @@ private:
     bias_finalize_sig(bias_finalize);
     packing_sig(pack_weights);
     packing_sig(no_pack_weights);
-    free_packed_sig(free_packed_weights);
-    free_packed_sig(free_no_packed_weights);
 
     float (*activation_func)(float dd, float s, float alpha, float cliping);
 
@@ -308,8 +299,6 @@ private:
     gemm_t gemm_iter_func;
     elemwise_f elemwise_func;
 
-    free_packed_t weights_layer_free_packed_func;
-    free_packed_t weights_iter_free_packed_func;
 };
 
 using ref_rnn_fwd_t = _ref_rnn_common_t<prop_kind::forward>;

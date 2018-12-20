@@ -416,7 +416,8 @@ bias_prepare_sig(_ref_rnn_common_t<aprop>::bias_prepare) {
             b_, rnn.n_layer, rnn.n_dir, rnn.n_bias * rnn.dic);
     /* Array of pointers initialized in packing */
     AOC<float *, 3> bias(bias_, rnn.n_layer, rnn.n_dir, rnn.n_parts_bias);
-    AOC<float, 3> scratch_bias(scratch_bias_, rnn.n_layer, rnn.n_dir, rnn.n_bias * rnn.dic);
+    AOC<float, 3> scratch_bias(
+            scratch_bias_, rnn.n_layer, rnn.n_dir, rnn.n_bias * rnn.dic);
     for (int i = 0; i < rnn.n_layer; i++) {
         for (int d = 0; d < rnn.n_dir; d++) {
             int offset_bias = 0;
@@ -546,32 +547,17 @@ packing_sig(_ref_rnn_common_t<aprop>::no_pack_weights) {
 
     AOC<float, 3> tmp(scratch_weights_, rnn.n_layer, rnn.n_dir, ldA * n);
     parallel_nd(rnn.n_layer, rnn.n_dir, [&](int i, int d) {
-            auto src_mat = &(w(i, d, 0));
-            auto dst_mat = &(tmp(i, d, 0));
-            copy_matrix('N', m, n, src_mat, m, dst_mat, ldA);
-            weights(i, d, 0) = &tmp(i, d, 0);
-            for (int p = 1; p < n_parts; p++) {
-                size_t offset = is_igo
+        auto src_mat = &(w(i, d, 0));
+        auto dst_mat = &(tmp(i, d, 0));
+        copy_matrix('N', m, n, src_mat, m, dst_mat, ldA);
+        weights(i, d, 0) = &tmp(i, d, 0);
+        for (int p = 1; p < n_parts; p++) {
+            size_t offset = is_igo
                     ? gates_per_part[p - 1] * OC_size
                     : gates_per_part[p - 1] * OC_size * ldA;
-                weights(i, d, p) = &tmp(i, d, offset);
-            }
-        });
-}
-
-template <prop_kind_t aprop>
-free_packed_sig(_ref_rnn_common_t<aprop>::free_packed_weights) {
-    UNUSED(rnn);
-    UNUSED(n_parts);
-    UNUSED(weights_);
-#if !(USE_MKL_PACKED_GEMM)
-    assert(!"packed gemm is disabled");
-#endif
-}
-
-template <prop_kind_t aprop>
-free_packed_sig(_ref_rnn_common_t<aprop>::free_no_packed_weights) {
-    // IN this case, only scratchpad is used, so no free necessary
+            weights(i, d, p) = &tmp(i, d, offset);
+        }
+    });
 }
 
 //********************* Execution function *********************//
@@ -680,15 +666,13 @@ void _ref_rnn_common_t<aprop>::execute_() const {
     (this->*bias_preparation_func)(rnn, ptr_bias, bias, ws_bias);
 
     (this->*weights_iter_pack_func)(rnn, rnn.weights_iter_fmt, rnn.dic, rnn.sic,
-            rnn.n_parts_weights_iter, rnn.parts_weights_iter,  rnn.part_weights_iter_pack_size,
-            ptr_wei_iter, w_state, ws_weights_iter,
-            ptr_bias, bias, ws_bias,
-            rnn.copy_weights_iter);
-    (this->*weights_layer_pack_func)(rnn, rnn.weights_layer_fmt, rnn.dic, rnn.slc,
-            rnn.n_parts_weights_layer, rnn.parts_weights_layer, rnn.part_weights_layer_pack_size,
-            ptr_wei_layer, w_input, ws_weights_layer,
-            ptr_bias, bias, ws_bias,
-            rnn.copy_weights_layer);
+            rnn.n_parts_weights_iter, rnn.parts_weights_iter,
+            rnn.part_weights_iter_pack_size, ptr_wei_iter, w_state,
+            ws_weights_iter, ptr_bias, bias, ws_bias, rnn.copy_weights_iter);
+    (this->*weights_layer_pack_func)(rnn, rnn.weights_layer_fmt, rnn.dic,
+            rnn.slc, rnn.n_parts_weights_layer, rnn.parts_weights_layer,
+            rnn.part_weights_layer_pack_size, ptr_wei_layer, w_input,
+            ws_weights_layer, ptr_bias, bias, ws_bias, rnn.copy_weights_layer);
 
     (this->*bias_finalization_func)(rnn, ptr_bias, bias, ws_bias);
 
@@ -750,10 +734,6 @@ void _ref_rnn_common_t<aprop>::execute_() const {
                         rnn.diff_weights_iter_ld);
         });
     }
-
-    // We free the packed weights if they were packed internally
-    (this->*weights_iter_free_packed_func)(rnn, rnn.n_parts_weights_iter, ptr_wei_iter);
-    (this->*weights_layer_free_packed_func)(rnn, rnn.n_parts_weights_layer, ptr_wei_layer);
 };
 
 /* Fix for MSVS warning C4661 */
