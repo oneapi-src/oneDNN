@@ -44,9 +44,11 @@ mkldnn_status_t gemm_s8x8s32(const char *transa, const char *transb,
 #endif
 
 #if USE_MKL_IGEMM
-#define IGEMM_IMPL_STR "igemm:blas"
+#define IGEMM_S8U8S32_IMPL_STR "igemm_s8u8s32:blas"
+#define IGEMM_S8S8S32_IMPL_STR "igemm_s8s8s32:blas"
 #else
-#define IGEMM_IMPL_STR "igemm:jit"
+#define IGEMM_S8U8S32_IMPL_STR "igemm_s8u8s32:jit"
+#define IGEMM_S8S8S32_IMPL_STR "igemm_s8s8s32:jit"
 #endif
 
 }
