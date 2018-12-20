@@ -123,12 +123,14 @@ private:
 
     zmm_t zmm_out(int i_ur, int i_oc) {
         int idx = i_ur + i_oc * jcp.ur_w;
-        assert(idx < jcp.is_depthwise ? ker_dw_reg_base_idx : ker_reg_base_idx);
+        assert(idx < (jcp.is_depthwise
+                    ? ker_dw_reg_base_idx : ker_reg_base_idx));
         return zmm_t(idx);
     }
     xmm_t xmm_out(int i_ur, int i_oc) {
         int idx = i_ur + i_oc * jcp.ur_w;
-        assert(idx < jcp.is_depthwise ? ker_dw_reg_base_idx : ker_reg_base_idx);
+        assert(idx < (jcp.is_depthwise
+                    ? ker_dw_reg_base_idx : ker_reg_base_idx));
         return xmm_t(idx);
     }
     zmm_t zmm_inp(int i_ic, int nb_x_blocking) {
