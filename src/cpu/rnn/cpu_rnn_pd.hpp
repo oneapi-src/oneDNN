@@ -104,6 +104,43 @@ protected:
 
         return status::success;
     }
+
+    status_t check_layout_consistency() {
+        using namespace memory_format;
+        using namespace utils;
+        using namespace data_type;
+        bool ok = true;
+        ok = ok && src_layer_pd_.desc()->format == tnc
+                && dst_layer_pd_.desc()->format == tnc;
+        ok = ok && IMPLICATION(!src_iter_pd_.is_zero(),
+                           src_iter_pd_.desc()->format == ldsnc)
+                && IMPLICATION(!dst_iter_pd_.is_zero(),
+                           dst_iter_pd_.desc()->format == ldsnc);
+
+        ok = ok && one_of(weights_layer_pd_.desc()->format, ldigo, rnn_packed)
+                && one_of(weights_iter_pd_.desc()->format, ldigo, rnn_packed);
+        ok = ok && IMPLICATION(weights_iter_pd_.desc()->format == rnn_packed,
+                           weights_iter_pd_.desc()
+                                           ->layout_desc.rnn_packed_desc.format
+                                   == mkldnn_ldigo_p);
+        ok = ok && IMPLICATION(weights_layer_pd_.desc()->format == rnn_packed,
+                           weights_layer_pd_.desc()
+                                           ->layout_desc.rnn_packed_desc.format
+                                   == mkldnn_ldigo_p);
+
+        ok = ok && IMPLICATION(!bias_pd_.is_zero(),
+                           bias_pd_.desc()->format == ldgo);
+
+        /* Int8 is supported only for packed weights */
+        data_type_t weights_iter_dt = weights_iter_pd_.desc()->data_type;
+        data_type_t weights_layer_dt = weights_layer_pd_.desc()->data_type;
+        ok = ok && IMPLICATION(weights_iter_dt == s8,
+                           weights_iter_pd_.desc()->format == rnn_packed);
+        ok = ok && IMPLICATION(weights_layer_dt == s8,
+                           weights_layer_pd_.desc()->format == rnn_packed);
+
+        return ok ? status::success : status::unimplemented;
+    }
 };
 
 struct cpu_rnn_bwd_pd_t : public rnn_bwd_pd_t {
@@ -233,6 +270,45 @@ protected:
             CHECK(diff_dst_iter_pd_.set_format(ldsnc));
 
         return status::success;
+    }
+
+    status_t check_layout_consistency() {
+        using namespace memory_format;
+        using namespace utils;
+        bool ok = true;
+        ok = ok && src_layer_pd_.desc()->format == tnc
+                && dst_layer_pd_.desc()->format == tnc;
+        ok = ok && IMPLICATION(!src_iter_pd_.is_zero(),
+                           src_iter_pd_.desc()->format == ldsnc)
+                && IMPLICATION(!dst_iter_pd_.is_zero(),
+                           dst_iter_pd_.desc()->format == ldsnc);
+
+        ok = ok && one_of(weights_layer_pd_.desc()->format, ldgoi, rnn_packed)
+                && one_of(weights_iter_pd_.desc()->format, ldgoi, rnn_packed);
+        ok = ok && IMPLICATION(weights_iter_pd_.desc()->format == rnn_packed,
+                           weights_iter_pd_.desc()
+                                           ->layout_desc.rnn_packed_desc.format
+                                   == mkldnn_ldgoi_p);
+        ok = ok && IMPLICATION(weights_layer_pd_.desc()->format == rnn_packed,
+                           weights_layer_pd_.desc()
+                                           ->layout_desc.rnn_packed_desc.format
+                                   == mkldnn_ldgoi_p);
+
+        ok = ok && IMPLICATION(!bias_pd_.is_zero(),
+                           bias_pd_.desc()->format == ldgo);
+
+        ok = ok && diff_src_layer_pd_.desc()->format == tnc
+                && diff_dst_layer_pd_.desc()->format == tnc;
+        ok = ok && IMPLICATION(!diff_states_pd_.is_zero(),
+                           diff_states_pd_.desc()->format == ldsnc)
+                && IMPLICATION(!diff_dst_iter_pd_.is_zero(),
+                           diff_dst_iter_pd_.desc()->format == ldsnc);
+        ok = ok && diff_weights_layer_pd_.desc()->format == ldigo
+                && diff_weights_iter_pd_.desc()->format == ldigo;
+        ok = ok && IMPLICATION(!diff_bias_pd_.is_zero(),
+                           diff_bias_pd_.desc()->format == ldgo);
+
+        return ok ? status::success : status::unimplemented;
     }
 };
 }

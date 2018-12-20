@@ -19,6 +19,7 @@
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
+#include "cpu/gemm/os_blas.hpp"
 
 using namespace mkldnn::impl;
 using namespace mkldnn::impl::status;
@@ -100,6 +101,57 @@ int mkldnn_rnn_cell_get_states_count(const rnn_cell_desc_t *rnn_cell_desc) {
     return 0;
 }
 
+status_t check_data_type_consistency_fwd(const rnn_cell_desc_t *rnn_cell_desc,
+        prop_kind_t prop_kind, const memory_desc_t *src_layer_desc,
+        const memory_desc_t *src_iter_desc,
+        const memory_desc_t *weights_layer_desc,
+        const memory_desc_t *weights_iter_desc, const memory_desc_t *bias_desc,
+        const memory_desc_t *dst_layer_desc,
+        const memory_desc_t *dst_iter_desc) {
+    using namespace data_type;
+    data_type_t src_layer_dt = src_layer_desc->data_type;
+    data_type_t dst_layer_dt = dst_layer_desc->data_type;
+    data_type_t weights_iter_dt = weights_iter_desc->data_type;
+    data_type_t weights_layer_dt = weights_layer_desc->data_type;
+
+    bool is_f32 = everyone_is(f32, src_layer_dt, dst_layer_dt, weights_iter_dt,
+                          weights_layer_dt)
+            && IMPLICATION(!is_zero_md(src_iter_desc),
+                          src_iter_desc->data_type == f32)
+            && IMPLICATION(!is_zero_md(dst_iter_desc),
+                          dst_iter_desc->data_type == f32)
+            && IMPLICATION(!is_zero_md(bias_desc), bias_desc->data_type == f32);
+
+#if USE_MKL_PACKED_GEMM
+    bool is_u8u8u8 = src_layer_dt == u8
+            && IMPLICATION(!is_zero_md(src_iter_desc),
+                             src_iter_desc->data_type == u8)
+            && IMPLICATION(!is_zero_md(dst_iter_desc),
+                             dst_iter_desc->data_type == u8)
+            && one_of(dst_layer_dt, u8, f32)
+            && everyone_is(s8, weights_iter_dt, weights_layer_dt)
+            && IMPLICATION(!is_zero_md(bias_desc), bias_desc->data_type == f32);
+
+    bool is_f32u8f32 = src_layer_dt == u8
+            && IMPLICATION(!is_zero_md(src_iter_desc),
+                               src_iter_desc->data_type == f32)
+            && IMPLICATION(!is_zero_md(dst_iter_desc),
+                               dst_iter_desc->data_type == f32)
+            && one_of(dst_layer_dt, u8, f32)
+            && everyone_is(s8, weights_iter_dt, weights_layer_dt)
+            && IMPLICATION(!is_zero_md(bias_desc), bias_desc->data_type == f32);
+
+    bool is_inference = prop_kind == prop_kind::forward_inference;
+    bool is_lstm = rnn_cell_desc->cell_kind == mkldnn_vanilla_lstm;
+
+    return (is_f32 || ((is_u8u8u8 || is_f32u8f32) && is_lstm && is_inference))
+            ? success
+            : unimplemented;
+#else
+    return is_f32 ? success : unimplemented;
+#endif
+}
+
 status_t check_dim_consistency(const rnn_cell_desc_t *rnn_cell_desc,
         rnn_direction_t direction, int L, int D, int T, int N, int S, int G,
         int SLC, int SIC, int DLC, int DIC, const memory_desc_t *src_layer_desc,
@@ -165,7 +217,7 @@ status_t check_dim_consistency(const rnn_cell_desc_t *rnn_cell_desc,
         && IMPLICATION(!is_zero_md(src_iter_desc), S == src_iter_desc->dims[2])
         && IMPLICATION(!is_zero_md(dst_iter_desc), S == dst_iter_desc->dims[2]);
     if (!args_ok) return invalid_arguments;
-    
+
     // * on slc
     args_ok = true
         && SLC == weights_layer_desc->dims[2]
@@ -232,12 +284,15 @@ status_t MKLDNN_API mkldnn_rnn_forward_desc_init(mkldnn_rnn_desc_t *rnn_desc,
     int DLC = dst_layer_desc->dims[2];
     int DIC = weights_layer_desc->dims[4];
 
-    status_t st = check_dim_consistency(rnn_cell_desc, direction, L, D, T, N, S,
+    CHECK(check_dim_consistency(rnn_cell_desc, direction, L, D, T, N, S,
             G, SLC, SIC, DLC, DIC, src_layer_desc, src_iter_desc,
             weights_layer_desc, weights_iter_desc, bias_desc, dst_layer_desc,
-            dst_iter_desc);
-    if (st != success) return st;
-    
+            dst_iter_desc));
+
+    CHECK(check_data_type_consistency_fwd(rnn_cell_desc, prop_kind,
+            src_layer_desc, src_iter_desc, weights_layer_desc,
+            weights_iter_desc, bias_desc, dst_layer_desc, dst_iter_desc));
+
     // Create the descriptor
     mkldnn_rnn_desc_t rd = zero_rnn_desc();
 

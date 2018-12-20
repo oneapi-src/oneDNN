@@ -130,36 +130,9 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
                                        forward_inference))
                     && IMPLICATION(aprop == backward,
                                one_of(this->desc()->prop_kind, backward))
-                    && this->set_default_params() == status::success;
-            if (!ok)
-                return status::unimplemented;
-
-            /// @todo check data layouts for all input tensors
-            ok = ok && this->src_layer_pd_.desc()->format == tnc
-                    && this->dst_layer_pd_.desc()->format == tnc;
-            ok = ok && this->with_bias();
-            if (!ok)
-                return status::unimplemented;
-
-            switch (aprop) {
-            case (prop_kind::forward):
-                ok = ok && utils::one_of(this->desc()->prop_kind,
-                                   forward_training, forward_inference);
-                ok = ok && utils::one_of(this->weights_layer_pd_.desc()->format,
-                                   ldigo)
-                        && utils::one_of(this->weights_iter_pd_.desc()->format,
-                                   ldigo);
-                break;
-            case (prop_kind::backward):
-                ok = ok && utils::one_of(this->desc()->prop_kind, backward);
-                ok = ok && utils::one_of(this->weights_layer_pd_.desc()->format,
-                                   ldgoi)
-                        && utils::one_of(this->weights_iter_pd_.desc()->format,
-                                   ldgoi);
-                break;
-            default: ok = false;
-            }
-
+                    && this->set_default_params() == status::success
+                    && this->check_layout_consistency() == status::success
+                    && this->with_bias();
             if (!ok)
                 return status::unimplemented;
 
