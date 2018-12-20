@@ -44,11 +44,11 @@ void im2col_3d(const jit_gemm_conv_conf_t &jcp, const float *im, float *col,
     const size_t col_step = jcp.ks * OHW;
 
     parallel_nd(jcp.ic, [&](int ic) {
-        const float *im_loc = im + ic * im_step;
-        float *col_loc = col + ic * col_step;
+        const float *__restrict im_loc = im + ic * im_step;
+        float *__restrict col_loc = col + ic * col_step;
         int id = od * jcp.stride_d - jcp.f_pad;
         for (int kd = 0; kd < jcp.kd; ++kd) {
-            float *col_ = col_loc + kd * jcp.kh * jcp.kw * OHW;
+            float *__restrict col_ = col_loc + kd * jcp.kh * jcp.kw * OHW;
             if (id < 0 || id >= jcp.id) {
                 int ih_ = -jcp.t_pad;
                 for (int kh = 0; kh < jcp.kh; ++kh) {
@@ -81,7 +81,7 @@ void im2col_3d(const jit_gemm_conv_conf_t &jcp, const float *im, float *col,
                     col_ += jcp.kw * OHW;
                 }
             } else {
-                const float *im_ = im_loc + id * jcp.ih * jcp.iw;
+                const float *__restrict im_ = im_loc + id * jcp.ih * jcp.iw;
                 int ih_ = -jcp.t_pad;
                 for (int kh = 0; kh < jcp.kh; ++kh) {
                     int ih = ih_;
@@ -119,6 +119,7 @@ void im2col_3d(const jit_gemm_conv_conf_t &jcp, const float *im, float *col,
     });
 }
 
+/* col[ic][kh][kw][oh][ow] <-- im2col(im[ic][ih][iw]) */
 void im2col(const jit_gemm_conv_conf_t &jcp, const float *__restrict im,
        float *__restrict col) {
     if (jcp.ic == 1) {
@@ -202,8 +203,8 @@ template void im2col_u8<uint8_t>(const jit_gemm_conv_conf_t &jcp,
         const uint8_t *im, uint8_t *col);
 
 /* im[ih][iw][ic] <-- col2im_s32(col[oh][ow][kh][kw][ic]) */
-void col2im_s32(const jit_gemm_conv_conf_t &jcp, const int32_t *col,
-        int32_t *im)
+void col2im_s32(const jit_gemm_conv_conf_t &jcp, const int32_t *__restrict col,
+        int32_t *__restrict im)
 {
     parallel(0, [&](const int ithr, const int nthr) {
         int h_nthr = nstl::min(jcp.ih, nthr);
@@ -260,8 +261,8 @@ void col2im_3d(const jit_gemm_conv_conf_t &jcp, const float *col, float *im,
         int od)
 {
     parallel_nd(jcp.ic, [&](int ic) {
-        const float *col_ = col + (size_t)ic * jcp.ks * jcp.os;
-        float *im_ic = im + (size_t)ic * jcp.ih * jcp.iw * jcp.id;
+        const float *__restrict col_ = col + (size_t)ic * jcp.ks * jcp.os;
+        float *__restrict im_ic = im + (size_t)ic * jcp.ih * jcp.iw * jcp.id;
 
         int id = od * jcp.stride_d - jcp.f_pad;
         for (int kd = 0; kd < jcp.kd; ++kd) {
@@ -271,7 +272,7 @@ void col2im_3d(const jit_gemm_conv_conf_t &jcp, const float *col, float *im,
                 continue;
             }
 
-            float *im_ = im_ic + id * jcp.ih * jcp.iw;
+            float *__restrict im_ = im_ic + id * jcp.ih * jcp.iw;
 
             for (int oh = 0; oh < jcp.oh; ++oh) {
             for (int kh = 0; kh < jcp.kh; ++kh) {
@@ -303,8 +304,8 @@ void col2im(const jit_gemm_conv_conf_t &jcp, const float *col, float *im) {
     const int iS = jcp.ih * jcp.iw;
 
     parallel_nd(jcp.ic, [&](int ic) {
-        float *im_ = im + ic * im_step;
-        const float *col_ = col + ic * col_step;
+        float *__restrict im_ = im + ic * im_step;
+        const float *__restrict col_ = col + ic * col_step;
         PRAGMA_OMP_SIMD()
         for (int is = 0; is < iS; ++is) im_[is] = 0.;
 
