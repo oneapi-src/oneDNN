@@ -141,28 +141,27 @@ void im2col(const jit_gemm_conv_conf_t &jcp, const float *__restrict im,
         const size_t im_step = jcp.ih * jcp.iw;
         const size_t col_step = jcp.ks * jcp.os;
 
-        parallel_nd(jcp.ic, [&](int ic) {
+        parallel_nd(jcp.ic, jcp.kh, jcp.kw, jcp.oh,
+            [&](int ic, int kh, int kw, int oh) {
             const float *__restrict im_ = im + ic * im_step;
-            float *__restrict col_ = col + ic * col_step;
+            float *__restrict col_ = col + ic * col_step
+                + ((kh * jcp.kw + kw) * jcp.oh + oh) * jcp.ow;
 
-            for (int kh = 0; kh < jcp.kh; ++kh) {
-            for (int oh = 0; oh < jcp.oh; ++oh) {
-                const int ih = oh * jcp.stride_h
-                               - jcp.t_pad + kh * (1 + jcp.dilate_h);
-                if (ih < 0 || ih >= jcp.ih) continue;
+            const int ih = oh * jcp.stride_h - jcp.t_pad
+                + kh * (1 + jcp.dilate_h);
+            if (ih < 0 || ih >= jcp.ih)
+                return;
 
-                for (int kw = 0; kw < jcp.kw; ++kw) {
-                for (int ow = 0; ow < jcp.ow; ++ow) {
-                    const int iw = ow * jcp.stride_w
-                                   - jcp.l_pad + kw * (1 + jcp.dilate_w);
-                    if (iw < 0 || iw >= jcp.iw) continue;
+            for (int ow = 0; ow < jcp.ow; ++ow) {
+                const int iw = ow * jcp.stride_w - jcp.l_pad
+                    + kw * (1 + jcp.dilate_w);
+                if (iw < 0 || iw >= jcp.iw)
+                    continue;
 
-                    const size_t col_idx = ((kh * jcp.kw + kw) * jcp.oh+oh)
-                                           * jcp.ow + ow;
-                    const size_t im_idx = ih*jcp.iw + iw;
-                    col_[col_idx] = im_[im_idx];
-                }}
-            }}
+                const size_t col_idx = ow;
+                const size_t im_idx = ih * jcp.iw + iw;
+                col_[col_idx] = im_[im_idx];
+            }
         });
     }
 }
