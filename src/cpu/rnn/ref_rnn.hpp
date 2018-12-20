@@ -72,14 +72,12 @@ namespace cpu {
     void f(const rnn_utils::rnn_conf_t &rnn,                             \
             float **bias_, const float *b_, float *scratch_bias_) const
 
-#define packing_sig(f)                                                   \
-    void f(const rnn_utils::rnn_conf_t &rnn, memory_format_t fmt,        \
-            int OC_size, int IC_size,                                    \
-            const int n_parts, const int *gates_per_part,                \
-            const int *part_weights_pack_size,                           \
-            float **weights_, const float *w_, float *scratch_weights_,  \
-            float **bias_, const float *b_, float *scratch_bias_,        \
-            bool do_copy) const
+#define packing_sig(f)                                                         \
+    void f(const rnn_utils::rnn_conf_t &rnn, memory_format_t fmt, int OC_size, \
+            int IC_size, const int n_parts, const int *gates_per_part,         \
+            const size_t *part_weights_pack_size, float **weights_,            \
+            const float *w_, float *scratch_weights_, float **bias_,           \
+            const float *b_, float *scratch_bias_, bool do_copy) const
 
 #define free_packed_sig(f)                                               \
     void f(const rnn_utils::rnn_conf_t &rnn, int n_parts,                \

@@ -45,7 +45,7 @@ struct rnn_conf_t {
     int n_parts_weights_layer, parts_weights_layer[MKLDNN_RNN_MAX_N_PARTS];
     int n_parts_weights_iter, parts_weights_iter[MKLDNN_RNN_MAX_N_PARTS];
     int n_bias, n_parts_bias, parts_bias[MKLDNN_RNN_MAX_N_PARTS];
-    int part_weights_iter_pack_size[MKLDNN_RNN_MAX_N_PARTS],
+    size_t part_weights_iter_pack_size[MKLDNN_RNN_MAX_N_PARTS],
             part_weights_layer_pack_size[MKLDNN_RNN_MAX_N_PARTS];
     int weights_layer_ld, weights_layer_nld, weights_layer_ws_ld;
     int diff_weights_layer_ld, diff_weights_layer_nld, diff_weights_layer_ws_ld;

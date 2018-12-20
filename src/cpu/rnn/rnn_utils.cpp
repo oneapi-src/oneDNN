@@ -170,21 +170,22 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     size_t weights_layer_pack_size = 0;
     {
     bool is_igo = rnn.weights_layer_fmt == ldigo;
-    for(int p=0; p < rnn.n_parts_weights_layer; p++) {
+    for (int p = 0; p < rnn.n_parts_weights_layer; p++) {
         int m_p = is_igo ? (rnn.parts_weights_layer[p] * rnn.dic) : rnn.slc;
         int k_p = is_igo ? rnn.slc : (rnn.parts_weights_layer[p] * rnn.dic);
         int n_p = rnn.mb;
 
 #if USE_MKL_PACKED_GEMM
-        rnn.part_weights_layer_pack_size[p] = (size_t) rnn.n_layer * rnn.n_dir *
-            cblas_sgemm_pack_get_size(CblasAMatrix, m_p, n_p, k_p);
+        rnn.part_weights_layer_pack_size[p]
+                = cblas_sgemm_pack_get_size(CblasAMatrix, m_p, n_p, k_p);
 #else
         UNUSED(m_p);
         UNUSED(k_p);
         UNUSED(n_p);
         rnn.part_weights_layer_pack_size[p] = 0;
 #endif
-        weights_layer_pack_size += rnn.part_weights_layer_pack_size[p];
+        weights_layer_pack_size += (size_t)rnn.n_layer * rnn.n_dir
+                * rnn.part_weights_layer_pack_size[p];
     }
     }
     rnn.ws_weights_layer_size = rnn.use_packed_gemm && rnn.copy_weights_layer
@@ -193,24 +194,25 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     size_t weights_iter_gld_size = (size_t)rnn.n_iter * rnn.n_dir
         * rnn.weights_iter_nld * rnn.weights_iter_ws_ld;
 
-    int weights_iter_pack_size = 0;
+    size_t weights_iter_pack_size = 0;
     {
     bool is_igo = rnn.weights_iter_fmt == ldigo;
-    for(int p=0; p < rnn.n_parts_weights_iter; p++) {
+    for (int p = 0; p < rnn.n_parts_weights_iter; p++) {
         int m_p = is_igo ? (rnn.parts_weights_iter[p] * rnn.dic) : rnn.sic;
         int k_p = is_igo ? rnn.sic : (rnn.parts_weights_iter[p] * rnn.dic);
         int n_p = rnn.mb;
 
 #if USE_MKL_PACKED_GEMM
-        rnn.part_weights_iter_pack_size[p] = (size_t) rnn.n_iter * rnn.n_dir *
-            cblas_sgemm_pack_get_size(CblasAMatrix, m_p, n_p, k_p);
+        rnn.part_weights_iter_pack_size[p]
+                = cblas_sgemm_pack_get_size(CblasAMatrix, m_p, n_p, k_p);
 #else
         UNUSED(m_p);
         UNUSED(k_p);
         UNUSED(n_p);
         rnn.part_weights_iter_pack_size[p] = 0;
 #endif
-        weights_iter_pack_size += rnn.part_weights_iter_pack_size[p];
+        weights_iter_pack_size += (size_t)rnn.n_layer * rnn.n_dir
+                * rnn.part_weights_iter_pack_size[p];
     }
     }
     rnn.ws_weights_iter_size = rnn.use_packed_gemm && rnn.copy_weights_iter

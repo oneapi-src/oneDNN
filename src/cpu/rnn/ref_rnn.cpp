@@ -437,8 +437,8 @@ template <prop_kind_t aprop>
 packing_sig(_ref_rnn_common_t<aprop>::pack_weights) {
 #if (USE_MKL_PACKED_GEMM)
     /* Original set of weights provided by the user */
-    AOC<const float, 5> w(
-            w_, rnn.n_layer, rnn.n_dir, IC_size, rnn.n_gates, OC_size);
+    AOC<const float, 3> w(
+            w_, rnn.n_layer, rnn.n_dir, IC_size * rnn.n_gates * OC_size);
     /* Array of pointers initialized in packing */
     AOC<float *, 3> weights(weights_, rnn.n_layer, rnn.n_dir, n_parts);
 
@@ -461,20 +461,26 @@ packing_sig(_ref_rnn_common_t<aprop>::pack_weights) {
 
     int total_pack_size = 0;
     for (int p = 0; p < n_parts; p++)
-        total_pack_size += part_weights_pack_size[p];
+        total_pack_size += part_weights_pack_size[p] / sizeof(float);
 
-    AOC<float, 3> scratch_weights(scratch_weights_, rnn.n_layer, rnn.n_dir, total_pack_size);
+    AOC<float, 3> scratch_weights(
+            scratch_weights_, rnn.n_layer, rnn.n_dir, total_pack_size);
     for (int i = 0; i < rnn.n_layer; i++) {
         for (int d = 0; d < rnn.n_dir; d++) {
-            int offset_weights = 0;
+            int offset_weights = 0, offset_packed_weights = 0;
             for (int p = 0; p < n_parts; p++) {
                 int m_p = is_igo ? (gates_per_part[p] * OC_size) : m;
                 int k_p = is_igo ? k : (gates_per_part[p] * OC_size);
-                int g = (p > 0) ? gates_per_part[p - 1] : 0;
-                weights(i, d, p) = &scratch_weights(i, d, offset_weights);
+                weights(i, d, p)
+                        = &scratch_weights(i, d, offset_packed_weights);
                 cblas_sgemm_pack(CblasColMajor, CblasAMatrix, transA, m_p, n,
-                        k_p, 1.0f, &(w(i, d, 0, g, 0)), m, weights(i, d, p));
-                offset_weights += part_weights_pack_size[p];
+                        k_p, 1.0f, &(w(i, d, offset_weights)), m,
+                        weights(i, d, p));
+                offset_weights += is_igo ?
+                        gates_per_part[p] * OC_size :
+                        gates_per_part[p] * OC_size * IC_size;
+                offset_packed_weights
+                        += part_weights_pack_size[p] / sizeof(float);
             }
         }
     }
