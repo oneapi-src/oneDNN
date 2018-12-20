@@ -134,6 +134,12 @@ INST_TEST_CASE(SimpleSmall_Blocked16,
 );
 
 INST_TEST_CASE(SimpleSmall_Regression,
+    /* grouped small input-channel avx512 */
+    PARAMS(nchw, gOhwi16o, FMT_BIAS, FMT_DATA_BLOCKED16,
+        2, 2, 16, 8, 8, 32, 8, 8, 3, 3, 1, 1, 1, 1),
+    /* grouped small input-channel avx2 */
+    PARAMS(nchw, gOhwi8o, FMT_BIAS, nChw8c,
+        2, 2, 4, 2, 2, 16, 8, 8, 3, 3, 1, 1, 1, 1),
     PARAMS(FMT_DATA_BLOCKED16, FMT_WEIGHTS_BLOCKED16, FMT_BIAS, FMT_DATA_BLOCKED16,
         2, 1, 32, 16, 16, 32, 16, 16, 3, 3, 0, 0, 1, 1),
     PARAMS(FMT_DATA_BLOCKED16, FMT_WEIGHTS_BLOCKED16, FMT_BIAS, FMT_DATA_BLOCKED16,
