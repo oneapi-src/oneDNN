@@ -22,6 +22,7 @@
 #include "nstl.hpp"
 
 #include "jit_avx512_core_gemm_s8u8s32.hpp"
+#include "jit_avx512_core_gemm_s8u8s32_kern.hpp"
 
 #if defined(_MSC_VER)
 #include <malloc.h>
@@ -1196,14 +1197,14 @@ static jit_avx512_core_u8_copy_sum_an_kern *copy_sum_an;
 static jit_avx512_core_u8_copy_sum_at_kern *copy_sum_at;
 static jit_avx512_core_u8_copy_sum_bn_kern *copy_sum_bn;
 static jit_avx512_core_u8_copy_sum_bt_kern *copy_sum_bt;
-static jit_avx512_core_kernel_gemm_s8u8s32_kern   *kernel;
-static jit_avx512_core_kernel_b_gemm_s8u8s32_kern *kernel_b;
-static jit_avx512_core_kernel_r_gemm_s8u8s32_kern *kernel_r;
-static jit_avx512_core_kernel_c_gemm_s8u8s32_kern *kernel_c;
-static jit_avx512_core_kernel_b0_gemm_s8u8s32_kern   *kernel_b0;
-static jit_avx512_core_kernel_b0_b_gemm_s8u8s32_kern *kernel_b0_b;
-static jit_avx512_core_kernel_b0_r_gemm_s8u8s32_kern *kernel_b0_r;
-static jit_avx512_core_kernel_b0_c_gemm_s8u8s32_kern *kernel_b0_c;
+static jit_avx512_core_gemm_s8u8s32_kern *kernel;
+static jit_avx512_core_gemm_s8u8s32_kern *kernel_b;
+static jit_avx512_core_gemm_s8u8s32_kern *kernel_r;
+static jit_avx512_core_gemm_s8u8s32_kern *kernel_c;
+static jit_avx512_core_gemm_s8u8s32_kern *kernel_b0;
+static jit_avx512_core_gemm_s8u8s32_kern *kernel_b0_b;
+static jit_avx512_core_gemm_s8u8s32_kern *kernel_b0_r;
+static jit_avx512_core_gemm_s8u8s32_kern *kernel_b0_c;
 
 static void jit_init(blas_t *arg)
 {
@@ -1315,15 +1316,14 @@ static void jit_init(blas_t *arg)
         copy_sum_bn = new jit_avx512_core_u8_copy_sum_bn_kern();
         copy_sum_bt = new jit_avx512_core_u8_copy_sum_bt_kern();
 
-        kernel   = new jit_avx512_core_kernel_gemm_s8u8s32_kern();
-        kernel_b = new jit_avx512_core_kernel_b_gemm_s8u8s32_kern();
-        kernel_r = new jit_avx512_core_kernel_r_gemm_s8u8s32_kern();
-        kernel_c = new jit_avx512_core_kernel_c_gemm_s8u8s32_kern();
-
-        kernel_b0   = new jit_avx512_core_kernel_b0_gemm_s8u8s32_kern();
-        kernel_b0_b = new jit_avx512_core_kernel_b0_b_gemm_s8u8s32_kern();
-        kernel_b0_r = new jit_avx512_core_kernel_b0_r_gemm_s8u8s32_kern();
-        kernel_b0_c = new jit_avx512_core_kernel_b0_c_gemm_s8u8s32_kern();
+        kernel      = new jit_avx512_core_gemm_s8u8s32_kern(false, false, false);
+        kernel_b    = new jit_avx512_core_gemm_s8u8s32_kern(false, true,  true);
+        kernel_r    = new jit_avx512_core_gemm_s8u8s32_kern(false, false, true);
+        kernel_c    = new jit_avx512_core_gemm_s8u8s32_kern(false, true,  false);
+        kernel_b0   = new jit_avx512_core_gemm_s8u8s32_kern(true,  false, false);
+        kernel_b0_b = new jit_avx512_core_gemm_s8u8s32_kern(true,  true,  true);
+        kernel_b0_r = new jit_avx512_core_gemm_s8u8s32_kern(true,  false, true);
+        kernel_b0_c = new jit_avx512_core_gemm_s8u8s32_kern(true,  true,  false);
 
         copyAn = copy_an->getCode<int (*)(const dim_t *, const dim_t *,
                 const int8_t *, const dim_t *, const int8_t *, int8_t *,
