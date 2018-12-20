@@ -23,6 +23,7 @@
 #include "cpu_convolution_pd.hpp"
 #include "cpu_engine.hpp"
 #include "jit_primitive_conf.hpp"
+#include "jit_generator.hpp"
 #include "gemm_convolution_utils.hpp"
 
 #include "gemm/gemm.hpp"
@@ -117,8 +118,12 @@ struct _gemm_x8s8s32x_convolution_fwd_t: public cpu_primitive_t {
 
     _gemm_x8s8s32x_convolution_fwd_t(const pd_t *apd, const input_vector &inputs,
            const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs, true) {}
-    ~_gemm_x8s8s32x_convolution_fwd_t() {}
+        : cpu_primitive_t(apd, inputs, outputs, true) {
+        pp_ker_ = new pp_ker_t(apd);
+    }
+    ~_gemm_x8s8s32x_convolution_fwd_t() {
+        delete pp_ker_;
+    }
 
     typedef typename prec_traits<src_type>::type src_data_t;
     typedef typename prec_traits<data_type::s8>::type wei_data_t;
@@ -133,12 +138,59 @@ struct _gemm_x8s8s32x_convolution_fwd_t: public cpu_primitive_t {
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     void execute_forward() const;
+    // XXX: this is throwaway code that will become unnecessary when we have a
+    // sufficiently advanced igemm jit generator that supports quantization,
+    // relu, and whatnot
+    class pp_ker_t : jit_generator {
+    public:
+        DECLARE_CPU_JIT_AUX_FUNCTIONS(
+        _gemm_x8s8s32x_convolution_fwd_t::pp_kernel);
+        pp_ker_t(const pd_t *pd);
+
+        void operator()(dst_data_t *dst, const acc_data_t *acc,
+            const char *bias, const float *scales,
+            float nslope, float sum_scale, float signed_scale,
+            int g, size_t start, size_t end);
+    private:
+        void generate();
+
+        struct ker_args {
+            dst_data_t *dst;
+            const acc_data_t *acc;
+            const char *bias;
+            const float *scales;
+            float nslope;
+            float sum_scale;
+            float signed_scale;
+            size_t len;
+            size_t oc_offset;
+        };
+        void(*ker_)(const ker_args *args);
+
+        const jit_gemm_conv_conf_t &jcp_;
+        size_t OC_;
+        size_t OS_;
+        data_type_t bias_data_type_;
+        size_t bias_data_type_size_;
+        size_t scale_idx_mult_;
+        round_mode_t rmode_;
+        bool do_bias_;
+        bool do_relu_;
+        bool do_sum_;
+        bool do_signed_scaling_;
+        size_t dst_os_stride_;
+        size_t vlen_;
+    };
+
+
     void execute_forward_thr(const int ithr, const int nthr,
             const src_data_t *src_base, const wei_data_t *wei_base,
             const char *bia_base, dst_data_t *dst_base,
             const memory_tracking::grantor_t &scratchpad) const;
 
     int nthr_;
+    pp_ker_t *pp_ker_;
+
 };
 
 template <data_type_t dst_type>
