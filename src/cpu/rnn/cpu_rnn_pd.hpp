@@ -87,10 +87,6 @@ protected:
         using namespace memory_format;
         if (src_layer_pd_.desc()->format == any)
             CHECK(src_layer_pd_.set_format(tnc));
-        if (weights_layer_pd_.desc()->format == any)
-            CHECK(weights_layer_pd_.set_format(ldigo));
-        if (weights_iter_pd_.desc()->format == any)
-            CHECK(weights_iter_pd_.set_format(ldigo));
         if (dst_layer_pd_.desc()->format == any)
             CHECK(dst_layer_pd_.set_format(tnc));
 
@@ -240,12 +236,8 @@ protected:
             CHECK(src_layer_pd_.set_format(tnc));
         if (diff_src_layer_pd_.desc()->format == any)
             CHECK(diff_src_layer_pd_.set_format(tnc));
-        if (weights_layer_pd_.desc()->format == any)
-            CHECK(weights_layer_pd_.set_format(ldgoi));
         if (diff_weights_layer_pd_.desc()->format == any)
             CHECK(diff_weights_layer_pd_.set_format(ldigo));
-        if (weights_iter_pd_.desc()->format == any)
-            CHECK(weights_iter_pd_.set_format(ldgoi));
         if (diff_weights_iter_pd_.desc()->format == any)
             CHECK(diff_weights_iter_pd_.set_format(ldigo));
         if (dst_layer_pd_.desc()->format == any)

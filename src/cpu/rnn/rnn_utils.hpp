@@ -47,6 +47,13 @@ struct rnn_conf_t {
     int n_bias, n_parts_bias, parts_bias[MKLDNN_RNN_MAX_N_PARTS];
     size_t part_weights_iter_pack_size[MKLDNN_RNN_MAX_N_PARTS],
             part_weights_layer_pack_size[MKLDNN_RNN_MAX_N_PARTS];
+    bool weights_layer_is_packed, weights_iter_is_packed;
+    bool pack_weights_layer, pack_weights_iter;
+    size_t weights_layer_comp_offset, weights_layer_pack_size,
+        weights_iter_comp_offset, weights_iter_pack_size;
+
+    bool copy_weights_layer, copy_weights_iter, copy_diff_weights_layer,
+            copy_diff_weights_iter;
     int weights_layer_ld, weights_layer_nld, weights_layer_ws_ld;
     int diff_weights_layer_ld, diff_weights_layer_nld, diff_weights_layer_ws_ld;
     int weights_iter_ld, weights_iter_nld, weights_iter_ws_ld;
@@ -59,9 +66,8 @@ struct rnn_conf_t {
             ws_weights_layer_size, ws_weights_iter_size,
             ws_diff_weights_layer_size, ws_diff_weights_iter_size,
             ws_cell_comp_size, ws_grid_comp_size, ws_per_cell;
-    bool copy_weights_layer, copy_weights_iter, copy_diff_weights_layer,
-            copy_diff_weights_iter;
-    bool merge_gemm_iter, merge_gemm_layer, use_jit_gemm, use_packed_gemm;
+    bool merge_gemm_iter, merge_gemm_layer, use_jit_gemm, use_layer_packed_gemm,
+        use_iter_packed_gemm;
     memory_format_t weights_layer_fmt, weights_iter_fmt, diff_weights_layer_fmt,
             diff_weights_iter_fmt;
 };
@@ -70,11 +76,16 @@ int get_good_ld(int dim);
 
 void init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &src_layer_d,
+        const memory_desc_wrapper &src_iter_d,
+        const memory_desc_wrapper &weights_layer_d,
+        const memory_desc_wrapper &weights_iter_d,
+        const memory_desc_wrapper &dst_layer_d);
+
+void set_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &weights_layer_d,
         const memory_desc_wrapper &weights_iter_d,
         const memory_desc_wrapper &diff_weights_layer_d,
-        const memory_desc_wrapper &diff_weights_iter_d,
-        const memory_desc_wrapper &dst_layer_d);
+        const memory_desc_wrapper &diff_weights_iter_d);
 
 void set_offsets(const rnn_conf_t &rnn, size_t &ws_gates_offset,
         size_t &ws_states_offset, size_t &ws_diff_states_offset,
@@ -87,6 +98,8 @@ void set_offsets(const rnn_conf_t &rnn, size_t &ws_gates_offset,
 
 void get_scratchpad_and_workspace_sizes(const rnn_conf_t &rnn,
         size_t &scratchpad_size, size_t &workspace_size);
+status_t set_expected_desc(
+        rnn_conf_t &rnn, memory_desc_t &weights_md, bool is_iter);
 
 struct ws_gates_aoc_t {
     ws_gates_aoc_t(const rnn_conf_t &rnn, float *data)

@@ -124,14 +124,37 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
                     && IMPLICATION(aprop == backward,
                                one_of(this->desc()->prop_kind, backward))
                     && this->set_default_params() == status::success
-                    && this->check_layout_consistency() == status::success
                     && this->with_bias();
             if (!ok)
                 return status::unimplemented;
 
-            init_conf(rnn_, *this->desc(), this->src_pd(0), this->weights_pd(0),
+            init_conf(rnn_, *this->desc(), this->src_pd(0), this->src_pd(1),
+                    this->weights_pd(0), this->weights_pd(1), this->dst_pd(0));
+
+            // Set weights descriptors to desired format
+            memory_desc_t weights_layer_md = *(this->weights_layer_pd_.desc());
+            CHECK(set_expected_desc(rnn_, weights_layer_md, false));
+            cpu_memory_t::pd_t new_weights_layer_pd(
+                    this->engine_, &weights_layer_md);
+            if (this->weights_layer_pd_.desc()->format == any) {
+                this->weights_layer_pd_ = new_weights_layer_pd;
+            } else if (!this->weights_layer_pd_.is_equal(&new_weights_layer_pd))
+                 return status::unimplemented;
+
+            memory_desc_t weights_iter_md = *(this->weights_iter_pd_.desc());
+            CHECK(set_expected_desc(rnn_, weights_iter_md, true));
+            cpu_memory_t::pd_t new_weights_iter_pd(
+                    this->engine_, &weights_iter_md);
+            if (this->weights_iter_pd_.desc()->format == any) {
+                this->weights_iter_pd_ = new_weights_iter_pd;
+            } else if (!this->weights_iter_pd_.is_equal(&new_weights_iter_pd))
+                return status::unimplemented;
+
+            CHECK(this->check_layout_consistency());
+
+            set_conf(rnn_, *this->desc(), this->weights_pd(0),
                     this->weights_pd(1), this->diff_weights_pd(0),
-                    this->diff_weights_pd(1), this->dst_pd(0));
+                    this->diff_weights_pd(1));
 
             size_t scratchpad_sz{0}, ws_sz{0};
             get_scratchpad_and_workspace_sizes(rnn_, scratchpad_sz, ws_sz);
@@ -178,18 +201,25 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
         bias_preparation_func = &class_name::bias_prepare;
         bias_finalization_func = &class_name::bias_finalize;
 
-        auto set_pack_funcs = [](
-                bool packed_gemm, gemm_t &g, bool pack_w, packing_t &p) {
+        auto set_pack_funcs = [](bool packed_gemm, gemm_t &g, bool pack_w,
+                bool copy_w, bool already_packed, packing_t &p) {
             g = packed_gemm ? &class_name::packed_gemm : &class_name::gemm;
-            p = pack_w ? &class_name::pack_weights :
-                             &class_name::no_pack_weights;
+            if (pack_w)
+                p = &class_name::pack_weights;
+            else if (copy_w)
+                p = &class_name::copy_weights;
+            else
+                p = already_packed
+                    ? &class_name::assign_packed_weights
+                    : &class_name::assign_weights;
         };
-        const bool weights_pack_cond = pd()->rnn_.use_packed_gemm;
-        set_pack_funcs(weights_pack_cond, gemm_iter_func, weights_pack_cond,
-                weights_iter_pack_func);
+        set_pack_funcs(pd()->rnn_.use_iter_packed_gemm, gemm_iter_func,
+                pd()->rnn_.pack_weights_iter, pd()->rnn_.copy_weights_iter,
+                pd()->rnn_.weights_iter_is_packed, weights_iter_pack_func);
 
-        set_pack_funcs(weights_pack_cond, gemm_layer_func, weights_pack_cond,
-                weights_layer_pack_func);
+        set_pack_funcs(pd()->rnn_.use_layer_packed_gemm, gemm_layer_func,
+                pd()->rnn_.pack_weights_layer, pd()->rnn_.copy_weights_layer,
+                pd()->rnn_.weights_layer_is_packed, weights_layer_pack_func);
 
         switch (pd()->cell_kind()) {
         case alg_kind::vanilla_lstm:
@@ -255,7 +285,9 @@ private:
     bias_prepare_sig(bias_prepare);
     bias_finalize_sig(bias_finalize);
     packing_sig(pack_weights);
-    packing_sig(no_pack_weights);
+    packing_sig(assign_weights);
+    packing_sig(copy_weights);
+    packing_sig(assign_packed_weights);
 
     float (*activation_func)(float dd, float s, float alpha, float cliping);
 

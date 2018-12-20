@@ -501,7 +501,45 @@ packing_sig(_ref_rnn_common_t<aprop>::pack_weights) {
 }
 
 template <prop_kind_t aprop>
-packing_sig(_ref_rnn_common_t<aprop>::no_pack_weights) {
+packing_sig(_ref_rnn_common_t<aprop>::assign_packed_weights) {
+    AOC<float *, 3> weights(weights_, rnn.n_layer, rnn.n_dir, n_parts);
+
+    size_t offset_packed = 0;
+    for (int l = 0; l < rnn.n_layer; l++)
+        for (int d = 0; d < rnn.n_dir; d++) {
+            for (int p = 0; p < n_parts; p++) {
+                weights(l, d, p) = (float *)&w_[offset_packed];
+                offset_packed += part_weights_pack_size[p] / sizeof(float);
+            }
+        }
+    return;
+}
+
+template <prop_kind_t aprop>
+packing_sig(_ref_rnn_common_t<aprop>::assign_weights) {
+    /* Original set of weights provided by the user */
+    AOC<const float, 3> w(
+            w_, rnn.n_layer, rnn.n_dir, IC_size * rnn.n_gates * OC_size);
+    /* Array of pointers initialized in packing */
+    AOC<float *, 3> weights(weights_, rnn.n_layer, rnn.n_dir, n_parts);
+
+    if (!do_copy) {
+        for (int i = 0; i < rnn.n_layer; i++)
+            for (int d = 0; d < rnn.n_dir; d++) {
+                size_t offset_weights = 0;
+                for (int p = 0; p < n_parts; p++) {
+                    weights(i, d, p) = (float *)&w(i, d, offset_weights);
+                    offset_weights += fmt == memory_format::ldigo ?
+                            gates_per_part[p] * OC_size :
+                            gates_per_part[p] * OC_size * IC_size;
+                }
+            }
+        return;
+    }
+}
+
+template <prop_kind_t aprop>
+packing_sig(_ref_rnn_common_t<aprop>::copy_weights) {
     /* Original set of weights provided by the user */
     AOC<const float, 3> w(
             w_, rnn.n_layer, rnn.n_dir, IC_size * rnn.n_gates * OC_size);
@@ -518,20 +556,6 @@ packing_sig(_ref_rnn_common_t<aprop>::no_pack_weights) {
         n = rnn.n_gates * OC_size;
     }
     ldA = get_good_ld(m);
-
-    if (!do_copy) {
-        for (int i = 0; i < rnn.n_layer; i++)
-            for (int d = 0; d < rnn.n_dir; d++) {
-                size_t offset_weights = 0;
-                for (int p = 0; p < n_parts; p++) {
-                    weights(i, d, p) = (float *) &w(i, d, offset_weights);
-                    offset_weights += is_igo
-                        ? gates_per_part[p] * OC_size
-                        : gates_per_part[p] * OC_size * IC_size;
-                }
-            }
-        return;
-    }
 
     /* We always assume
        - column major
