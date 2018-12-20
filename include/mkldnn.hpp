@@ -1197,14 +1197,6 @@ struct sum : public primitive {
                 "could not create a sum primitive");
         reset(result);
     }
-
-private:
-    static std::vector<float> scale_to_float(const std::vector<double> &vd) {
-        std::vector<float> vf(vd.size());
-        std::transform(vd.begin(), vd.end(), vf.begin(),
-                [=](double x){return (float)x;});
-        return vf;
-    }
 };
 
 /// @}
