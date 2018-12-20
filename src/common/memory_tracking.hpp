@@ -171,6 +171,7 @@ enum {
     key_reducer_space_bctx,
     key_reorder_wino_plain,
     key_reorder_wino_transform_space,
+    key_reorder_rnn_weights_space,
     key_rnn_space,
     key_rnn_ptrs_bia,
     key_rnn_ptrs_wei_layer,

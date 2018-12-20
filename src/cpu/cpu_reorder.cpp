@@ -23,6 +23,7 @@
 #include "cpu/jit_uni_reorder.hpp"
 #include "cpu/simple_reorder.hpp"
 #include "cpu/wino_reorder.hpp"
+#include "cpu/rnn/rnn_reorders.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -49,6 +50,11 @@ static const rpd_create_f cpu_reorder_impl_list[] = {
     /* winograd */
     wino_reorder_t<f32, f32>::pd_t::create,
     wino_reorder_t<f32, s8>::pd_t::create,
+
+    /* rnn reorders */
+    rnn_data_reorder_t<f32, u8>::pd_t::create,
+    rnn_weights_reorder_t<f32, f32>::pd_t::create,
+    rnn_weights_reorder_t<f32, s8>::pd_t::create,
 
 #if defined(__INTEL_COMPILER) || (defined(__GNUC__) && !defined(__clang__))
     /* Direct copy for icc which is faster than jitted code;
