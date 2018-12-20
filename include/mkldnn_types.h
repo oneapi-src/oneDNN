@@ -360,9 +360,7 @@ typedef enum {
 
     mkldnn_wino_fmt /** Weights format used in 8bit Winograd convolution */,
 
-    /* RNN packed weights */
-    mkldnn_ldigo_p /** RNN packed weights (unused) */,
-    mkldnn_ldgoi_p /** RNN packed weights (unused) */,
+    mkldnn_rnn_packed /** Packed weights format used in RNN */,
 
     /** Just a sentinel, not real memory format. Must be changed after new
      * format is added. */
@@ -600,6 +598,27 @@ typedef struct {
     size_t size;
 } mkldnn_wino_desc_t;
 
+typedef enum {
+    mkldnn_packed_format_undef = 0,
+    mkldnn_ldigo_p,
+    mkldnn_ldgoi_p
+} mkldnn_rnn_packed_memory_format_t;
+
+/* Maximum number of parts of RNN weights tensor that require separate
+ * computation. */
+#define MKLDNN_RNN_MAX_N_PARTS 4
+
+/** Description of tensor of packed weights for rnn. */
+typedef struct {
+    mkldnn_rnn_packed_memory_format_t format;
+    int n_parts;
+    int n;
+    int parts[MKLDNN_RNN_MAX_N_PARTS];
+    size_t part_pack_size[MKLDNN_RNN_MAX_N_PARTS];
+    size_t offset_compensation;
+    size_t size;
+} mkldnn_rnn_packed_desc_t;
+
 /** @addtogroup c_api_types_op_descs Operation descriptors
  *  @{*/
 
@@ -644,6 +663,8 @@ typedef struct {
         mkldnn_blocking_desc_t blocking;
         /** Tensor of weights for integer 8bit winograd convolution. */
         mkldnn_wino_desc_t wino_desc;
+        /** Tensor of packed weights for RNN. */
+        mkldnn_rnn_packed_desc_t rnn_packed_desc;
         /* ... other descriptions possible */
     } layout_desc;
 } mkldnn_memory_desc_t;

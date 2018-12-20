@@ -167,8 +167,7 @@ const char *mkldnn_fmt2str(mkldnn_memory_format_t v) {
     if (v == mkldnn_gOidhw16o) return "gOidhw16o";
     if (v == mkldnn_gOdhwi16o) return "gOdhwi16o";
     if (v == mkldnn_wino_fmt) return "wino_fmt";
-    if (v == mkldnn_ldigo_p) return "ldigo_p";
-    if (v == mkldnn_ldgoi_p) return "ldgoi_p";
+    if (v == mkldnn_rnn_packed) return "rnn_packed";
     if (v == mkldnn_format_last) return "format_last";
     assert(!"unknown fmt");
     return "unknown fmt";

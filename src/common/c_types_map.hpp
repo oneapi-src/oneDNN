@@ -103,6 +103,13 @@ namespace round_mode {
     const round_mode_t down = mkldnn_round_down;
 }
 
+using rnn_packed_format_t = mkldnn_rnn_packed_memory_format_t;
+namespace rnn_packed_format {
+    const rnn_packed_format_t undef = mkldnn_packed_format_undef;
+    const rnn_packed_format_t ldigo_p = mkldnn_ldigo_p;
+    const rnn_packed_format_t ldgoi_p = mkldnn_ldgoi_p;
+}
+
 using memory_format_t = mkldnn_memory_format_t;
 namespace memory_format {
     const memory_format_t undef = mkldnn_format_undef;
@@ -211,11 +218,10 @@ namespace memory_format {
     const memory_format_t tnc = mkldnn_tnc;
     const memory_format_t ldsnc = mkldnn_ldsnc;
     const memory_format_t ldigo = mkldnn_ldigo;
-    const memory_format_t ldigo_p = mkldnn_ldigo_p;
     const memory_format_t ldgoi = mkldnn_ldgoi;
-    const memory_format_t ldgoi_p = mkldnn_ldgoi_p;
     const memory_format_t ldgo = mkldnn_ldgo;
     const memory_format_t wino_fmt = mkldnn_wino_fmt;
+    const memory_format_t rnn_packed = mkldnn_rnn_packed;
 }
 
 using padding_kind_t = mkldnn_padding_kind_t;
@@ -293,6 +299,7 @@ namespace query {
 }
 
 using blocking_desc_t = mkldnn_blocking_desc_t;
+using rnn_packed_data_t = mkldnn_rnn_packed_desc_t;
 using wino_data_t = mkldnn_wino_desc_t;
 using memory_desc_t = mkldnn_memory_desc_t;
 using convolution_desc_t = mkldnn_convolution_desc_t;

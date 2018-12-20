@@ -146,16 +146,16 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
                 ok = ok && utils::one_of(this->desc()->prop_kind,
                                    forward_training, forward_inference);
                 ok = ok && utils::one_of(this->weights_layer_pd_.desc()->format,
-                                   ldigo, ldigo_p)
+                                   ldigo)
                         && utils::one_of(this->weights_iter_pd_.desc()->format,
-                                   ldigo, ldigo_p);
+                                   ldigo);
                 break;
             case (prop_kind::backward):
                 ok = ok && utils::one_of(this->desc()->prop_kind, backward);
                 ok = ok && utils::one_of(this->weights_layer_pd_.desc()->format,
-                                   ldgoi, ldgoi_p)
+                                   ldgoi)
                         && utils::one_of(this->weights_iter_pd_.desc()->format,
-                                   ldgoi, ldgoi_p);
+                                   ldgoi);
                 break;
             default: ok = false;
             }
@@ -209,16 +209,6 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
         /// iterations and layer to one if slc != dic and sic != dic
         /// respectively
 
-        memory_format_t packed_format;
-        switch (aprop) {
-        case prop_kind::forward_inference:
-        case prop_kind::forward_training:
-            packed_format = memory_format::ldigo_p;
-            break;
-        case prop_kind::backward: packed_format = memory_format::ldgoi_p; break;
-        default: assert(false);
-        }
-
         bias_preparation_func = &class_name::bias_prepare;
         bias_finalization_func = &class_name::bias_finalize;
 
@@ -231,16 +221,10 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
                              &class_name::free_no_packed_weights;
         };
         const bool weights_pack_cond = pd()->rnn_.use_packed_gemm;
-        const bool is_weights_iter_packed
-                = pd()->rnn_.weights_iter_fmt == packed_format;
-        set_pack_funcs(weights_pack_cond || is_weights_iter_packed,
-                gemm_iter_func, weights_pack_cond && !is_weights_iter_packed,
+        set_pack_funcs(weights_pack_cond, gemm_iter_func, weights_pack_cond,
                 weights_iter_pack_func, weights_iter_free_packed_func);
 
-        const bool is_weights_layer_packed
-                = pd()->rnn_.weights_layer_fmt == packed_format;
-        set_pack_funcs(weights_pack_cond || is_weights_layer_packed,
-                gemm_layer_func, weights_pack_cond && !is_weights_layer_packed,
+        set_pack_funcs(weights_pack_cond, gemm_layer_func, weights_pack_cond,
                 weights_layer_pack_func, weights_layer_free_packed_func);
 
         switch (pd()->cell_kind()) {

@@ -79,16 +79,16 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     };
     rnn.weights_layer_fmt = weights_layer_d.format();
     rnn.weights_iter_fmt = weights_iter_d.format();
-    set_weights_dims(one_of(rnn.weights_layer_fmt, ldigo, ldigo_p), rnn.slc,
+    set_weights_dims(rnn.weights_layer_fmt == ldigo, rnn.slc,
             rnn.weights_layer_ld, rnn.weights_layer_nld);
-    set_weights_dims(one_of(rnn.weights_iter_fmt, ldigo, ldigo_p), rnn.sic,
+    set_weights_dims(rnn.weights_iter_fmt == ldigo, rnn.sic,
             rnn.weights_iter_ld, rnn.weights_iter_nld);
     if (!rnn.is_fwd) {
         rnn.diff_weights_layer_fmt = diff_weights_layer_d.format();
         rnn.diff_weights_iter_fmt = diff_weights_iter_d.format();
-        set_weights_dims(one_of(rnn.diff_weights_layer_fmt, ldigo, ldigo_p), rnn.slc,
+        set_weights_dims(rnn.diff_weights_layer_fmt == ldigo, rnn.slc,
                 rnn.diff_weights_layer_ld, rnn.diff_weights_layer_nld);
-        set_weights_dims(one_of(rnn.diff_weights_iter_fmt, ldigo, ldigo_p), rnn.sic,
+        set_weights_dims(rnn.diff_weights_iter_fmt == ldigo, rnn.sic,
                 rnn.diff_weights_iter_ld, rnn.diff_weights_iter_nld);
     }
 
@@ -169,7 +169,7 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
         * rnn.weights_layer_nld * rnn.weights_layer_ws_ld;
     size_t weights_layer_pack_size = 0;
     {
-    bool is_igo = one_of(rnn.weights_layer_fmt, ldigo, ldigo_p);
+    bool is_igo = rnn.weights_layer_fmt == ldigo;
     for(int p=0; p < rnn.n_parts_weights_layer; p++) {
         int m_p = is_igo ? (rnn.parts_weights_layer[p] * rnn.dic) : rnn.slc;
         int k_p = is_igo ? rnn.slc : (rnn.parts_weights_layer[p] * rnn.dic);
@@ -195,7 +195,7 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
 
     int weights_iter_pack_size = 0;
     {
-    bool is_igo = one_of(rnn.weights_iter_fmt, ldigo, ldigo_p);
+    bool is_igo = rnn.weights_iter_fmt == ldigo;
     for(int p=0; p < rnn.n_parts_weights_iter; p++) {
         int m_p = is_igo ? (rnn.parts_weights_iter[p] * rnn.dic) : rnn.sic;
         int k_p = is_igo ? rnn.sic : (rnn.parts_weights_iter[p] * rnn.dic);

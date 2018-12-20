@@ -231,6 +231,22 @@ inline bool wino_desc_is_equal(const wino_data_t &lhs,
         && lhs.r == rhs.r;
 }
 
+inline bool rnn_packed_desc_is_equal(
+        const rnn_packed_data_t &lhs, const rnn_packed_data_t &rhs) {
+    bool ok = lhs.format == rhs.format && lhs.n_parts == rhs.n_parts
+            && lhs.offset_compensation == rhs.offset_compensation
+            && lhs.size == rhs.size
+            && lhs.n == rhs.n;
+    if (!ok)
+        return false;
+
+    for (int i = 0; i < rhs.n_parts; i++)
+        ok = ok && lhs.parts[i] == rhs.parts[i];
+    for (int i = 0; i < rhs.n_parts; i++)
+        ok = ok && lhs.part_pack_size[i] == rhs.part_pack_size[i];
+    return ok;
+}
+
 inline bool operator==(const memory_desc_t &lhs, const memory_desc_t &rhs) {
     assert(lhs.primitive_kind == mkldnn::impl::primitive_kind::memory);
     assert(rhs.primitive_kind == mkldnn::impl::primitive_kind::memory);
@@ -246,6 +262,9 @@ inline bool operator==(const memory_desc_t &lhs, const memory_desc_t &rhs) {
     else if (lhs.format == memory_format::wino_fmt)
         return wino_desc_is_equal(lhs.layout_desc.wino_desc,
             rhs.layout_desc.wino_desc);
+    else if (lhs.format == memory_format::rnn_packed)
+        return rnn_packed_desc_is_equal(lhs.layout_desc.rnn_packed_desc,
+                rhs.layout_desc.rnn_packed_desc);
     return true;
 }
 

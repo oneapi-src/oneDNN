@@ -713,10 +713,9 @@ struct memory: public primitive  {
         tnc = mkldnn_tnc,
         ldsnc = mkldnn_ldsnc,
         ldigo = mkldnn_ldigo,
-        ldigo_p = mkldnn_ldigo_p,
         ldgoi = mkldnn_ldgoi,
-        ldgoi_p = mkldnn_ldgoi_p,
         ldgo = mkldnn_ldgo,
+        rnn_packed = mkldnn_rnn_packed,
         wino_fmt = mkldnn_wino_fmt,
         format_last = mkldnn_format_last,
     };
