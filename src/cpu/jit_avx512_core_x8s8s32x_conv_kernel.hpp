@@ -106,8 +106,10 @@ private:
     reg64_t reg_icb = reg_bias;
 
     Xbyak::Opmask ktail_mask = Xbyak::Opmask(2);
+    Xbyak::Opmask kblend_mask = Xbyak::Opmask(3);
 
     /* used during bias section of store_output */
+    zmm_t zmm_permute = zmm_t(29); // only for fast path
     zmm_t zmm_comp = zmm_t(30); // only for signed input
     zmm_t zmm_bias = zmm_t(31);
     /* used during post_op sum section of store_output */
@@ -121,6 +123,7 @@ private:
     zmm_t zmm_tmp = zmm_t(28);
     zmm_t zmm_one = zmm_t(29); // set at start of kernel
     /* used in compute_ker_dw */
+    zmm_t zmm_zero_blend = zmm_t(28); // only for fast path
     zmm_t zmm_src = zmm_t(30);
     /* used in compute_ker and compute_ker_dw */
     zmm_t zmm_wei = zmm_t(31);

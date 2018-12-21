@@ -78,6 +78,8 @@ void jit_avx512_core_x8s8s32x_fwd_kernel::prepare_output(int ur_w)
         mov(_t8, (int8_t)-128);
         vpbroadcastb(zmm_shift, _t8);
     }
+    if (jcp.is_fast_depthwise)
+        vpxord(zmm_zero_blend, zmm_zero_blend, zmm_zero_blend);
 }
 
 void jit_avx512_core_x8s8s32x_fwd_kernel::cvt2ps(data_type_t type_in,
@@ -150,6 +152,8 @@ void jit_avx512_core_x8s8s32x_fwd_kernel::store_output(int ur_w,
         }
         for (int j = 0; j < ur_w; j++) {
             Zmm zmm = zmm_out(j, k);
+            if (jcp.is_fast_depthwise)
+                vpermd(zmm, zmm_permute, zmm);
             vcvtdq2ps(zmm, zmm);
             if (jcp.signed_input)
                 vaddps(zmm, zmm, zmm_comp);
@@ -249,12 +253,23 @@ void jit_avx512_core_x8s8s32x_fwd_kernel::compute_ker_dw(
         int jj_end = get_ow_end(ur_w, ki, pad_r);
         for (int ii = 0; ii < jcp.nb_ch_blocking; ii++) {
             int aux_kernel_offset = kernel_offset(ii, ki);
-            vpmovsxbd(zmm_wei,
-                    EVEX_compress_addr(aux_reg_ker, aux_kernel_offset));
+            if (jcp.is_fast_depthwise) {
+                vbroadcasti32x4(zmm_wei,
+                        EVEX_compress_addr(aux_reg_ker, aux_kernel_offset));
+                vpblendmb(zmm_wei | kblend_mask, zmm_zero_blend, zmm_wei);
+            } else {
+                vpmovsxbd(zmm_wei,
+                        EVEX_compress_addr(aux_reg_ker, aux_kernel_offset));
+            }
             for (int jj = jj_start; jj < jj_end; jj++) {
                 int aux_input_offset = input_offset(jj, ii, ki);
-                vpmovzxbd(zmm_src,
-                        EVEX_compress_addr(aux_reg_inp, aux_input_offset));
+                if (jcp.is_fast_depthwise) {
+                    vbroadcasti32x4(zmm_src,
+                            EVEX_compress_addr(aux_reg_inp, aux_input_offset));
+                } else {
+                    vpmovzxbd(zmm_src,
+                            EVEX_compress_addr(aux_reg_inp, aux_input_offset));
+                }
                 compute(zmm_out(jj, ii), zmm_wei, zmm_src);
             }
         }
@@ -476,6 +491,7 @@ void jit_avx512_core_x8s8s32x_fwd_kernel::icb_loop(
 
 void jit_avx512_core_x8s8s32x_fwd_kernel::generate()
 {
+    Label permute_index_table;
     int inp_shift_pad = jcp.typesize_in * (jcp.ur_w * jcp.stride_w - jcp.l_pad)
         * jcp.ic_without_padding * jcp.ngroups;
     int inp_shift_pad_second_block = -1 * jcp.typesize_in * jcp.l_pad
@@ -505,6 +521,14 @@ void jit_avx512_core_x8s8s32x_fwd_kernel::generate()
         Reg32 regw_tmp = reg_oi.cvt32();
         mov(regw_tmp, mask);
         kmovw(ktail_mask, regw_tmp);
+    }
+    if (jcp.is_fast_depthwise) {
+        // prepare mask register for blending weights
+        mov(reg_scratch, 0x8888444422221111);
+        kmovq(kblend_mask, reg_scratch);
+        // load permute indices from data section
+        mov(reg_scratch, permute_index_table);
+        vmovdqu32(zmm_permute, ptr[reg_scratch]);
     }
 
     int r_pad = nstl::max(0, (jcp.ow - 1) * jcp.stride_w
@@ -679,6 +703,15 @@ void jit_avx512_core_x8s8s32x_fwd_kernel::generate()
 
     if (jcp.with_eltwise)
         eltwise_injector_->prepare_table();
+
+    if (jcp.is_fast_depthwise) {
+        align(64);
+        L(permute_index_table);
+        const uint32_t _idx[]
+                = { 0, 4, 8, 12, 1, 5, 9, 13, 2, 6, 10, 14, 3, 7, 11, 15 };
+        for (size_t i = 0; i < sizeof(_idx) / sizeof(_idx[0]); ++i)
+            dd(_idx[i]);
+    }
 }
 
 bool jit_avx512_core_x8s8s32x_fwd_kernel::post_ops_ok(
@@ -784,11 +817,10 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     if (jcp.with_eltwise)
         jcp.eltwise = p.entry_[eltwise_ind].eltwise;
 
-    jcp.ver = ver_avx512_core;
-    if (mayiuse(avx512_core_vnni))
-        jcp.ver = ver_vnni;
-
-    const int regs = jcp.is_depthwise ? 30 : jcp.ver == ver_vnni ? 31 : 28;
+    jcp.ver = mayiuse(avx512_core_vnni) ? ver_vnni : ver_avx512_core;
+    jcp.is_fast_depthwise = true && jcp.is_depthwise && jcp.ver == ver_vnni
+            && jcp.ngroups % jcp.ch_block == 0; // no byte masking in fast path
+    const int regs = jcp.ver == ver_vnni && !jcp.is_fast_depthwise ? 31 : 28;
 
     const auto w_format = with_groups
         ? (jcp.is_depthwise ? Goihw16g

@@ -115,7 +115,7 @@ struct jit_conv_conf_t {
     int is_oc_scale;
     // dw conv
     int nb_ch, ch_block, nb_ch_blocking;
-    bool is_depthwise;
+    bool is_depthwise, is_fast_depthwise;
     int aligned_threads;
     // large spatial
     int oh_blk_size;
