@@ -225,7 +225,7 @@ void jit_avx512_core_x8s8s32x_fwd_kernel::store_output(int ur_w,
 }
 
 void jit_avx512_core_x8s8s32x_fwd_kernel::compute_ker_dw(
-        int ur_w, int pad_l, int pad_r, int last_ic_block_flag) {
+        int ur_w, int pad_l, int pad_r, ic_block_t last_ic_block_flag) {
     auto input_offset = [=](int oi, int ii, int ki) {
         return jcp.typesize_in
                 * ((ki * (jcp.dilate_w + 1) + oi * jcp.stride_w - pad_l)
@@ -278,9 +278,8 @@ void jit_avx512_core_x8s8s32x_fwd_kernel::compute_ker_dw(
     }
 }
 
-void jit_avx512_core_x8s8s32x_fwd_kernel::compute_ker(int ur_w,
-    int pad_l, int pad_r, int last_ic_block_flag, bool h_padded)
-{
+void jit_avx512_core_x8s8s32x_fwd_kernel::compute_ker(int ur_w, int pad_l,
+        int pad_r, ic_block_t last_ic_block_flag, bool h_padded) {
     if (jcp.is_depthwise)
         return compute_ker_dw(ur_w, pad_l, pad_r, last_ic_block_flag);
 
@@ -369,9 +368,8 @@ void jit_avx512_core_x8s8s32x_fwd_kernel::compute_ker(int ur_w,
     }
 }
 
-void jit_avx512_core_x8s8s32x_fwd_kernel::kh_loop(int ur_w,
-    int pad_l, int pad_r, int last_ic_block_flag)
-{
+void jit_avx512_core_x8s8s32x_fwd_kernel::kh_loop(
+        int ur_w, int pad_l, int pad_r, ic_block_t last_ic_block_flag) {
     Label kh_label, skip_kh_loop;
     Label t_overflow_label, no_t_overflow_label,
           b_overflow_label, no_b_overflow_label;

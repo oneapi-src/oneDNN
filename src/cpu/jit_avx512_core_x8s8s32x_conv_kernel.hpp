@@ -79,11 +79,11 @@ private:
         ker_reg_base_idx = 28,
         ker_dw_reg_base_idx = 30,
     };
-    enum {
+    typedef enum {
         no_last_block,
         last_ic_block,
         last_sp_block,
-    };
+    } ic_block_t;
 
     /* data regs */
     reg64_t reg_ptr_scales = rax;
@@ -165,11 +165,12 @@ private:
     bool maybe_eltwise(int position);
     void prepare_output(int ur_w);
     void store_output(int ur_w, int last_oc_block_flag);
-    void compute_ker_dw(int ur_w, int pad_l, int pad_r, int last_ic_block_flag);
-    void compute_ker(int ur_w, int pad_l, int pad_r, int last_ic_block_flag,
-                                                        bool h_padded = false);
+    void compute_ker_dw(
+            int ur_w, int pad_l, int pad_r, ic_block_t last_ic_block_flag);
+    void compute_ker(int ur_w, int pad_l, int pad_r,
+            ic_block_t last_ic_block_flag, bool h_padded = false);
     void compute_eltwise(int ur_w);
-    void kh_loop(int ur_w, int pad_l, int pad_r, int last_ic_block_flag);
+    void kh_loop(int ur_w, int pad_l, int pad_r, ic_block_t last_ic_block_flag);
     void icb_loop(
             int ur_w, int pad_l, int pad_r, bool is_last_spatial_block);
     void generate();
