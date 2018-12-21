@@ -154,22 +154,6 @@ private:
     primitive_t *conv_p_;
 };
 
-template struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t<data_type::u8,
-        data_type::u8>;
-template struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t<data_type::s8,
-        data_type::u8>;
-template struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t<data_type::u8,
-        data_type::s8>;
-template struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t<data_type::s8,
-        data_type::s8>;
-template struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t<data_type::u8,
-        data_type::s32>;
-template struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t<data_type::s8,
-        data_type::s32>;
-template struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t<data_type::u8,
-        data_type::f32>;
-template struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t<data_type::s8,
-        data_type::f32>;
 }
 }
 }
