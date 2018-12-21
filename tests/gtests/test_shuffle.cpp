@@ -89,6 +89,7 @@ private:
     shuffle_test_params p;
     memory::dims padR;
     std::shared_ptr<engine> eng;
+    std::shared_ptr<stream> strm;
     memory::data_type data_type;
 
 protected:
@@ -103,6 +104,7 @@ protected:
 
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         eng.reset(new engine(p.engine_kind, 0));
+        strm.reset(new stream(*eng));
         data_type = data_traits<data_t>::data_type;
 
         src_desc.reset(new memory::desc(p.dims, data_type, p.data_format));
@@ -131,12 +133,9 @@ protected:
         check_zero_tail<data_t>(1, src->get());
         check_zero_tail<data_t>(1, dst->get());
 
-        // Execute
-        std::vector<primitive> pipeline;
-        auto st = stream(stream::kind::lazy);
-        auto s = shuffle_forward(*shuffle_fwd_prim_desc, src->get(), dst->get());
-        pipeline.push_back(s);
-        st.submit(pipeline).wait();
+        shuffle_forward(*shuffle_fwd_prim_desc).execute(*strm, {
+                {MKLDNN_ARG_SRC, src->get()},
+                {MKLDNN_ARG_DST, dst->get()}});
 
         check_shuffle<data_t>(p, src->get(), dst->get(), p.group_size);
     }
@@ -158,12 +157,9 @@ protected:
         check_zero_tail<data_t>(1, diff_src->get());
 
         // Execute
-        std::vector<primitive> pipeline;
-        auto st = stream(stream::kind::lazy);
-        auto s = shuffle_backward(shuffle_prim_desc, diff_dst->get(),
-            diff_src->get());
-        pipeline.push_back(s);
-        st.submit(pipeline).wait();
+        shuffle_backward(shuffle_prim_desc).execute(*strm, {
+                {MKLDNN_ARG_DIFF_DST, diff_dst->get()},
+                {MKLDNN_ARG_DIFF_SRC, diff_src->get()}});
 
         const int axis_size = diff_dst_desc->data.dims[p.axis];
         check_shuffle<data_t>(p, diff_dst->get(), diff_src->get(),

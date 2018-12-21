@@ -167,6 +167,7 @@ protected:
         ASSERT_TRUE(p.aprop_kind == prop_kind::forward_training
                 || p.aprop_kind == prop_kind::forward_scoring);
         auto eng = engine(p.engine_kind, 0);
+        auto strm = stream(eng);
         memory::data_type data_type = data_traits<data_t>::data_type;
 
         test_pool_desc_t pd = p.test_pd;
@@ -222,14 +223,10 @@ protected:
             : memory::primitive_desc( {{}, data_type, p.dst_format}, eng);
         p_workspace.reset(new memory(p_workspace_desc));
 
-        auto pool = with_workspace
-            ? pooling_forward(pool_prim_desc, p_src, p_dst, *p_workspace)
-            : pooling_forward(pool_prim_desc, p_src, p_dst);
-
-        std::vector<primitive> pipeline;
-        pipeline.push_back(pool);
-
-        stream(stream::kind::lazy).submit(pipeline).wait();
+        pooling_forward(pool_prim_desc).execute(strm, {
+                {MKLDNN_ARG_SRC, p_src},
+                {MKLDNN_ARG_DST, p_dst},
+                {MKLDNN_ARG_WORKSPACE, *p_workspace}});
 
         check_pool_fwd<data_t>(p, p_src, p_dst, *p_workspace);
         check_zero_tail<data_t>(0, p_dst);

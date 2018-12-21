@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <assert.h>
+
 #include <cstring>
 #include <iostream>
 #include <math.h>
@@ -191,7 +193,7 @@ void copy_context(float *src_iter, int n_layers, int n_states, int batch,
 
 void simple_net() {
     auto cpu_engine = engine(engine::cpu, 0);
-    auto null_memory_ = null_memory(cpu_engine);
+    stream s(cpu_engine);
 
     /*
       GNMT low precicion example.
@@ -207,9 +209,9 @@ void simple_net() {
         for the context vectors in MKL-DNN yet
      */
 
-    std::vector<primitive> weights_reorders;
-    std::vector<primitive> encoder_net;
-    std::vector<primitive> decoder_net;
+    std::vector<primitive> encoder_net, decoder_net;
+    std::vector<std::unordered_map<int, memory>> encoder_net_args,
+        decoder_net_args;
 
     std::vector<float> net_src(batch * src_seq_length_max * feature_size, 0.1f);
     std::vector<float> net_dst(batch * tgt_seq_length_max * feature_size, 0.1f);
@@ -332,33 +334,37 @@ void simple_net() {
     auto enc_bidir_src_layer_reorder_pd = reorder::primitive_desc(
             user_enc_bidir_src_layer_memory.get_primitive_desc(),
             enc_bidir_src_layer_memory.get_primitive_desc(), attr);
-    encoder_net.push_back(reorder(enc_bidir_src_layer_reorder_pd,
-            user_enc_bidir_src_layer_memory, enc_bidir_src_layer_memory));
+    encoder_net.push_back(reorder(enc_bidir_src_layer_reorder_pd));
+    encoder_net_args.push_back({
+            {MKLDNN_ARG_FROM, user_enc_bidir_src_layer_memory},
+            {MKLDNN_ARG_TO, enc_bidir_src_layer_memory}});
 
     auto enc_bidir_wei_layer_memory
             = memory(enc_bidir_prim_desc.weights_layer_primitive_desc());
     auto enc_bidir_wei_layer_reorder_pd = reorder::primitive_desc(
             user_enc_bidir_wei_layer_memory.get_primitive_desc(),
             enc_bidir_wei_layer_memory.get_primitive_desc(), attr);
-    weights_reorders.push_back(reorder(enc_bidir_wei_layer_reorder_pd,
-            user_enc_bidir_wei_layer_memory, enc_bidir_wei_layer_memory));
+    reorder(enc_bidir_wei_layer_reorder_pd).execute(s,
+            user_enc_bidir_wei_layer_memory, enc_bidir_wei_layer_memory);
 
     auto enc_bidir_wei_iter_memory
             = memory(enc_bidir_prim_desc.weights_iter_primitive_desc());
     auto enc_bidir_wei_iter_reorder_pd = reorder::primitive_desc(
             user_enc_bidir_wei_iter_memory.get_primitive_desc(),
             enc_bidir_wei_iter_memory.get_primitive_desc(), attr);
-    weights_reorders.push_back(reorder(enc_bidir_wei_iter_reorder_pd,
-            user_enc_bidir_wei_iter_memory, enc_bidir_wei_iter_memory));
+    reorder(enc_bidir_wei_iter_reorder_pd).execute(s,
+            user_enc_bidir_wei_iter_memory, enc_bidir_wei_iter_memory);
 
     auto enc_bidir_dst_layer_memory
             = memory(enc_bidir_prim_desc.dst_layer_primitive_desc());
 
-    encoder_net.push_back(
-            rnn_forward(enc_bidir_prim_desc, enc_bidir_src_layer_memory,
-                    null_memory_, enc_bidir_wei_layer_memory,
-                    enc_bidir_wei_iter_memory, user_enc_bidir_bias_memory,
-                    enc_bidir_dst_layer_memory, null_memory_, null_memory_));
+    encoder_net.push_back(rnn_forward(enc_bidir_prim_desc));
+    encoder_net_args.push_back({
+            {MKLDNN_ARG_SRC_LAYER, enc_bidir_src_layer_memory},
+            {MKLDNN_ARG_WEIGHTS_LAYER, enc_bidir_wei_layer_memory},
+            {MKLDNN_ARG_WEIGHTS_ITER, enc_bidir_wei_iter_memory},
+            {MKLDNN_ARG_BIAS, user_enc_bidir_bias_memory},
+            {MKLDNN_ARG_DST_LAYER, enc_bidir_dst_layer_memory}});
 
     /* GNMT encoder: unidirectional layers */
     // First unidirectinal layer scales 2 * feature_size output of bidirectional
@@ -423,26 +429,27 @@ void simple_net() {
     auto enc_uni_first_wei_layer_reorder_pd = reorder::primitive_desc(
             user_enc_uni_first_wei_layer_memory.get_primitive_desc(),
             enc_uni_first_wei_layer_memory.get_primitive_desc(), attr);
-    weights_reorders.push_back(reorder(enc_uni_first_wei_layer_reorder_pd,
-            user_enc_uni_first_wei_layer_memory,
-            enc_uni_first_wei_layer_memory));
+    reorder(enc_uni_first_wei_layer_reorder_pd).execute(s,
+            user_enc_uni_first_wei_layer_memory, enc_uni_first_wei_layer_memory);
 
     auto enc_uni_first_wei_iter_memory
             = memory(enc_uni_first_prim_desc.weights_iter_primitive_desc());
     auto enc_uni_first_wei_iter_reorder_pd = reorder::primitive_desc(
             user_enc_uni_first_wei_iter_memory.get_primitive_desc(),
             enc_uni_first_wei_iter_memory.get_primitive_desc(), attr);
-    weights_reorders.push_back(reorder(enc_uni_first_wei_iter_reorder_pd,
-            user_enc_uni_first_wei_iter_memory, enc_uni_first_wei_iter_memory));
+    reorder(enc_uni_first_wei_iter_reorder_pd).execute(s,
+            user_enc_uni_first_wei_iter_memory, enc_uni_first_wei_iter_memory);
 
     auto enc_uni_first_dst_layer_memory
             = memory(enc_uni_first_prim_desc.dst_layer_primitive_desc());
 
-    encoder_net.push_back(rnn_forward(enc_uni_first_prim_desc,
-            enc_bidir_dst_layer_memory, null_memory_,
-            enc_uni_first_wei_layer_memory, enc_uni_first_wei_iter_memory,
-            user_enc_uni_first_bias_memory, enc_uni_first_dst_layer_memory,
-            null_memory_, null_memory_));
+    encoder_net.push_back(rnn_forward(enc_uni_first_prim_desc));
+    encoder_net_args.push_back({
+            {MKLDNN_ARG_SRC_LAYER, enc_bidir_dst_layer_memory},
+            {MKLDNN_ARG_WEIGHTS_LAYER, enc_uni_first_wei_layer_memory},
+            {MKLDNN_ARG_WEIGHTS_ITER, enc_uni_first_wei_iter_memory},
+            {MKLDNN_ARG_BIAS, user_enc_uni_first_bias_memory},
+            {MKLDNN_ARG_DST_LAYER, enc_uni_first_dst_layer_memory}});
 
     /* Remainging unidirectional layers */
     std::vector<float> user_enc_uni_wei_layer((enc_unidir_n_layers - 1) * 1
@@ -501,25 +508,27 @@ void simple_net() {
     auto enc_uni_wei_layer_reorder_pd = reorder::primitive_desc(
             user_enc_uni_wei_layer_memory.get_primitive_desc(),
             enc_uni_wei_layer_memory.get_primitive_desc(), attr);
-    weights_reorders.push_back(reorder(enc_uni_wei_layer_reorder_pd,
-            user_enc_uni_wei_layer_memory, enc_uni_wei_layer_memory));
+    reorder(enc_uni_wei_layer_reorder_pd).execute(s,
+            user_enc_uni_wei_layer_memory, enc_uni_wei_layer_memory);
 
     auto enc_uni_wei_iter_memory
             = memory(enc_uni_prim_desc.weights_iter_primitive_desc());
     auto enc_uni_wei_iter_reorder_pd = reorder::primitive_desc(
             user_enc_uni_wei_iter_memory.get_primitive_desc(),
             enc_uni_wei_iter_memory.get_primitive_desc(), attr);
-    weights_reorders.push_back(reorder(enc_uni_wei_iter_reorder_pd,
-            user_enc_uni_wei_iter_memory, enc_uni_wei_iter_memory));
+    reorder(enc_uni_wei_iter_reorder_pd).execute(s,
+            user_enc_uni_wei_iter_memory, enc_uni_wei_iter_memory);
 
     auto enc_dst_layer_memory
             = memory(enc_uni_prim_desc.dst_layer_primitive_desc());
 
-    encoder_net.push_back(
-            rnn_forward(enc_uni_prim_desc, enc_uni_first_dst_layer_memory,
-                    null_memory_, enc_uni_wei_layer_memory,
-                    enc_uni_wei_iter_memory, user_enc_uni_bias_memory,
-                    enc_dst_layer_memory, null_memory_, null_memory_));
+    encoder_net.push_back(rnn_forward(enc_uni_prim_desc));
+    encoder_net_args.push_back({
+            {MKLDNN_ARG_SRC_LAYER, enc_uni_first_dst_layer_memory},
+            {MKLDNN_ARG_WEIGHTS_LAYER, enc_uni_wei_layer_memory},
+            {MKLDNN_ARG_WEIGHTS_ITER, enc_uni_wei_iter_memory},
+            {MKLDNN_ARG_BIAS, user_enc_uni_bias_memory},
+            {MKLDNN_ARG_DST_LAYER, enc_dst_layer_memory}});
 
     /* Decoder with attention mechanism */
     std::vector<float> user_dec_wei_layer(
@@ -616,21 +625,26 @@ void simple_net() {
     auto dec_wei_layer_reorder_pd = reorder::primitive_desc(
             user_dec_wei_layer_memory.get_primitive_desc(),
             dec_wei_layer_memory.get_primitive_desc(), attr);
-    weights_reorders.push_back(reorder(dec_wei_layer_reorder_pd,
-            user_dec_wei_layer_memory, dec_wei_layer_memory));
+    reorder(dec_wei_layer_reorder_pd).execute(s,
+            user_dec_wei_layer_memory, dec_wei_layer_memory);
 
     auto dec_wei_iter_memory
             = memory(dec_ctx_prim_desc.weights_iter_primitive_desc());
     auto dec_wei_iter_reorder_pd = reorder::primitive_desc(
             user_dec_wei_iter_memory.get_primitive_desc(),
             dec_wei_iter_memory.get_primitive_desc(), attr);
-    weights_reorders.push_back(reorder(dec_wei_iter_reorder_pd,
-            user_dec_wei_iter_memory, dec_wei_iter_memory));
+    reorder(dec_wei_iter_reorder_pd).execute(s,
+            user_dec_wei_iter_memory, dec_wei_iter_memory);
 
-    decoder_net.push_back(rnn_forward(dec_ctx_prim_desc, dec_src_layer_memory,
-            dec_dst_iter_memory, dec_wei_layer_memory, dec_wei_iter_memory,
-            user_dec_bias_memory, dec_dst_layer_memory, dec_dst_iter_memory,
-            null_memory_));
+    decoder_net.push_back(rnn_forward(dec_ctx_prim_desc));
+    decoder_net_args.push_back({
+            {MKLDNN_ARG_SRC_LAYER, dec_src_layer_memory},
+            {MKLDNN_ARG_SRC_ITER, dec_dst_iter_memory},
+            {MKLDNN_ARG_WEIGHTS_LAYER, dec_wei_layer_memory},
+            {MKLDNN_ARG_WEIGHTS_ITER, dec_wei_iter_memory},
+            {MKLDNN_ARG_BIAS, user_dec_bias_memory},
+            {MKLDNN_ARG_DST_LAYER, dec_dst_layer_memory},
+            {MKLDNN_ARG_DST_ITER, dec_dst_iter_memory}});
 
     /* Allocating temporary buffers for attention mechanism */
     std::vector<float> weighted_annotations(
@@ -641,11 +655,11 @@ void simple_net() {
        Execution
      */
     auto execute = [&]() {
-        // reorder weights to MKLDNN internal representation
-        stream(stream::kind::eager).submit(weights_reorders).wait();
-
         // run encoder (1 stream)
-        stream(stream::kind::eager).submit(encoder_net).wait();
+        assert(encoder_net.size() == encoder_net_args.size()
+                && "something is missing");
+        for (size_t p = 0; p < encoder_net.size(); ++p)
+            encoder_net.at(p).execute(s, encoder_net_args.at(p));
 
         // compute the weighted annotations once before the decoder
         compute_weighted_annotations(weighted_annotations.data(),
@@ -682,7 +696,10 @@ void simple_net() {
                     batch, feature_size);
 
             // run the decoder iteration
-            stream(stream::kind::eager).submit(decoder_net).wait();
+            assert(decoder_net.size() == decoder_net_args.size()
+                    && "something is missing");
+            for (size_t p = 0; p < decoder_net.size(); ++p)
+                decoder_net.at(p).execute(s, decoder_net_args.at(p));
 
             // Move the handle on the src/dst layer to the next iteration
             auto dst_layer_handle

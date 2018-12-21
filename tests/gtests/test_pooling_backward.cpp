@@ -230,6 +230,7 @@ private:
     memory::dims padR_3d;
     memory::dims padR_2d;
     std::shared_ptr<engine> eng;
+    std::shared_ptr<stream> strm;
     memory::data_type data_type;
 
 protected:
@@ -244,6 +245,7 @@ protected:
 
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         eng.reset(new engine(p.engine_kind, 0));
+        strm.reset(new stream(*eng));
         data_type = data_traits<data_t>::data_type;
         ASSERT_EQ(data_type, mkldnn::memory::data_type::f32);
 
@@ -316,14 +318,11 @@ protected:
         check_zero_tail<data_t>(1, *src);
         check_zero_tail<data_t>(1, *dst);
 
-        auto pool = with_workspace
-            ? pooling_forward(*pool_prim_desc, *src, *dst, *workspace)
-            : pooling_forward(*pool_prim_desc, *src, *dst);
+        pooling_forward(*pool_prim_desc).execute(*strm, {
+                {MKLDNN_ARG_SRC, *src},
+                {MKLDNN_ARG_DST, *dst},
+                {MKLDNN_ARG_WORKSPACE, *workspace}});
 
-        std::vector<primitive> pipeline;
-        pipeline.push_back(pool);
-
-        stream(stream::kind::lazy).submit(pipeline).wait();
         check_zero_tail<data_t>(0, *dst);
         check_pool_fwd<data_t>(p, *src, *dst);
     }
@@ -346,8 +345,6 @@ protected:
         auto pool_bwd_prim_desc = pooling_backward::primitive_desc(
                 pool_bwd_desc, *eng, *pool_prim_desc);
 
-        bool with_workspace = p.aalgorithm == pooling_max;
-
         diff_src.reset(new memory({*src_desc, *eng}));
         diff_dst.reset(new memory({*dst_desc, *eng}));
 
@@ -359,14 +356,12 @@ protected:
                 (data_t *)diff_src->get_data_handle());
         check_zero_tail<data_t>(1, *diff_dst);
         check_zero_tail<data_t>(1, *diff_src);
-        auto pool_bwd = with_workspace
-            ? pooling_backward(pool_bwd_prim_desc, *diff_dst, *workspace,
-                    *diff_src)
-            : pooling_backward(pool_bwd_prim_desc, *diff_dst, *diff_src);
 
-        std::vector<primitive> pipeline2 = {pool_bwd};
+        pooling_backward(pool_bwd_prim_desc).execute(*strm, {
+                {MKLDNN_ARG_DIFF_DST, *diff_dst},
+                {MKLDNN_ARG_DIFF_SRC, *diff_src},
+                {MKLDNN_ARG_WORKSPACE, *workspace}});
 
-        stream(stream::kind::lazy).submit(pipeline2).wait();
         check_zero_tail<data_t>(0, *diff_src);
         check_pool_bwd<data_t>(p, *diff_src, *diff_dst, *workspace);
     }

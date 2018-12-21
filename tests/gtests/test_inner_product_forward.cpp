@@ -101,6 +101,7 @@ protected:
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         ASSERT_EQ(p.aprop_kind, prop_kind::forward);
         auto eng = engine(p.engine_kind, 0);
+        auto strm = stream(eng);
         memory::data_type data_type = data_traits<data_t>::data_type;
         ASSERT_EQ(data_type, mkldnn::memory::data_type::f32);
 
@@ -156,16 +157,11 @@ protected:
         check_zero_tail<data_t>(1, *ip_src);
         check_zero_tail<data_t>(1, *ip_weights);
 
-        auto ip = with_bias
-            ? inner_product_forward(ip_primitive_desc, *ip_src,
-                    *ip_weights, *ip_bias, *ip_dst)
-            : inner_product_forward(ip_primitive_desc, *ip_src,
-                    *ip_weights, *ip_dst);
-
-        std::vector<primitive> pipeline;
-        pipeline.push_back(ip);
-
-        stream(stream::kind::lazy).submit(pipeline).wait();
+        inner_product_forward(ip_primitive_desc).execute(strm, {
+                {MKLDNN_ARG_SRC, *ip_src},
+                {MKLDNN_ARG_WEIGHTS, *ip_weights},
+                {MKLDNN_ARG_BIAS, *ip_bias},
+                {MKLDNN_ARG_DST, *ip_dst}});
 
         compute_ref_inner_product_fwd<data_t>(ipd, *ip_src, *ip_weights,
                 *ip_bias, *dst_ref);

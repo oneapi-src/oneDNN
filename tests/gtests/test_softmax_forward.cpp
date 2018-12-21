@@ -158,6 +158,7 @@ protected:
                     || p.aprop_kind == prop_kind::forward_scoring
                     || p.aprop_kind == prop_kind::forward_inference);
         auto eng = engine(p.engine_kind, 0);
+        auto strm = stream(eng);
 
         memory::data_type prec = data_traits<data_t>::data_type;
 
@@ -171,13 +172,13 @@ protected:
                     p.axis);
         auto softmax_prim_desc
             = softmax_forward::primitive_desc(softmax_desc, eng);
-        auto softmax = softmax_forward(softmax_prim_desc, src, dst);
+        auto softmax = softmax_forward(softmax_prim_desc);
 
         auto test_with_given_fill = [&](data_t mean, data_t var) {
             fill_data<data_t>(mem_prim_desc.get_size() / sizeof(data_t),
                     (data_t *)src.get_data_handle(), mean, var);
 
-            stream(stream::kind::lazy).submit({softmax}).wait();
+            softmax.execute(strm, {{MKLDNN_ARG_SRC, src}, {MKLDNN_ARG_DST, dst}});
             check_softmax_fwd<data_t>(p.aprop_kind, src, dst, p.axis);
         };
 

@@ -95,6 +95,7 @@ protected:
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         ASSERT_EQ(p.aalgorithm, convolution_direct);
         auto eng =  engine(p.engine_kind, 0);
+        auto strm = stream(eng, stream::stream_kind_default);
         auto data_type_diff_src = data_traits<data_t_diff_src>::data_type;
         auto data_type_diff_dst = data_traits<data_t_diff_dst>::data_type;
         auto data_type_wei = data_traits<data_t_wei>::data_type;
@@ -152,13 +153,11 @@ protected:
         auto conv_bwd_data_primitive_desc
             = convolution_backward_data::primitive_desc(
                     conv_bwd_data_desc, eng, conv_primitive_desc);
-        auto conv_bwd_data = convolution_backward_data(
-                conv_bwd_data_primitive_desc,
-                c_diff_dst.get(), c_weights.get(), c_diff_src.get());
 
-        std::vector<primitive> pipeline;
-        pipeline.push_back(conv_bwd_data);
-        stream(stream::kind::lazy).submit(pipeline).wait();
+        convolution_backward_data(conv_bwd_data_primitive_desc).execute(strm, {
+                {MKLDNN_ARG_DIFF_DST, c_diff_dst.get()},
+                {MKLDNN_ARG_WEIGHTS, c_weights.get()},
+                {MKLDNN_ARG_DIFF_SRC, c_diff_src.get()}});
 
         auto ref_memory = memory(memory::primitive_desc(c_src_desc, eng));
         compute_ref_conv_bwd_data

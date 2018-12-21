@@ -20,6 +20,7 @@
 #include <limits>
 #include <numeric>
 #include <vector>
+#include <unordered_map>
 #include <cmath>
 #include <stdint.h>
 

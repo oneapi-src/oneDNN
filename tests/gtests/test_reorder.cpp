@@ -72,6 +72,7 @@ protected:
 
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         auto eng = engine(p.engine_kind, 0);
+        auto strm = stream(eng);
 
         const size_t nelems = std::accumulate(p.dims.begin(), p.dims.end(),
                 size_t(1), std::multiplies<size_t>());
@@ -93,8 +94,7 @@ protected:
         auto src = memory(mpd_i, src_data);
         auto dst = memory(mpd_o, dst_data);
 
-        auto r = reorder(src, dst);
-        stream(stream::kind::lazy).submit({r}).wait();
+        reorder(src, dst).execute(strm, src, dst);
 
         check_reorder(mpd_i.desc(), mpd_o.desc(), src_data, dst_data);
         check_zero_tail<data_o_t>(0, dst);

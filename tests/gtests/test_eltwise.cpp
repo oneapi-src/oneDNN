@@ -244,6 +244,7 @@ private:
     std::shared_ptr<eltwise_forward::primitive_desc> eltwise_prim_desc;
     eltwise_test_params<data_t> p;
     std::shared_ptr<engine> eng;
+    std::shared_ptr<stream> strm;
     memory::data_type data_type;
 
 protected:
@@ -258,6 +259,7 @@ protected:
 
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         eng.reset(new engine(p.engine_kind, 0));
+        strm.reset(new stream(*eng));
 
         data_type = data_traits<data_t>::data_type;
         ASSERT_EQ(data_type, mkldnn::memory::data_type::f32);
@@ -286,17 +288,15 @@ protected:
                 p.alg_kind, *data_desc, p.alpha, p.beta);
         eltwise_prim_desc.reset(
                 new eltwise_forward::primitive_desc(eltwise_desc, *eng));
-        auto eltwise = eltwise_forward(*eltwise_prim_desc, *src, *dst);
 
-        std::vector<primitive> pipeline;
-        pipeline.push_back(eltwise);
-        auto s = stream(stream::kind::lazy);
-        s.submit(pipeline).wait();
+        eltwise_forward(*eltwise_prim_desc).execute(*strm, {
+                {MKLDNN_ARG_SRC, *src},
+                {MKLDNN_ARG_DST, *dst}});
+
         check_zero_tail<data_t>(0, *dst);
         check_eltwise_fwd(p, *data_desc, *src, *ref_dst);
         check_zero_tail<data_t>(1, *ref_dst);
         compare_eltwise_fwd(p, *data_desc, *dst, *ref_dst);
-
     }
 
     void Backward() {
@@ -315,13 +315,11 @@ protected:
                 *diff_data_desc, *data_desc, p.alpha, p.beta);
         auto eltwise_bwd_prim_desc = eltwise_backward::primitive_desc(
                 eltwise_bwd_desc, *eng, *eltwise_prim_desc);
-        auto eltwise_bwd = eltwise_backward(eltwise_bwd_prim_desc, *src,
-                *diff_dst, *diff_src);
 
-        std::vector<primitive> pipeline;
-        pipeline.push_back(eltwise_bwd);
-        auto s = stream(stream::kind::lazy);
-        s.submit(pipeline).wait();
+        eltwise_backward(eltwise_bwd_prim_desc).execute(*strm, {
+                {MKLDNN_ARG_SRC, *src},
+                {MKLDNN_ARG_DIFF_DST, *diff_dst},
+                {MKLDNN_ARG_DIFF_SRC, *diff_src}});
 
         check_zero_tail<data_t>(0, *diff_src);
         check_eltwise_bwd(p, *data_desc, *src, *diff_dst, *diff_src);

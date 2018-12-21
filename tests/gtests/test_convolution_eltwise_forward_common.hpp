@@ -104,6 +104,7 @@ protected:
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         ASSERT_EQ(p.aalgorithm, convolution_direct);
         auto eng = engine(p.engine_kind, 0);
+        auto strm = stream(eng, stream::stream_kind_default);
         float eltwise_alpha = p.eltwise_alpha;
         float eltwise_beta = p.eltwise_beta;
 
@@ -181,15 +182,11 @@ protected:
             auto conv_primitive_desc =
                 convolution_forward::primitive_desc(conv_desc, attr, eng);
 
-            auto conv = with_bias
-                ? convolution_forward(conv_primitive_desc,
-                        c_src, c_weights, c_bias, c_dst)
-                : convolution_forward(conv_primitive_desc,
-                        c_src, c_weights, c_dst);
-            std::vector<primitive> pipeline;
-            pipeline.push_back(conv);
-
-            stream(stream::kind::lazy).submit(pipeline).wait();
+            convolution_forward(conv_primitive_desc).execute(strm, {
+                    {MKLDNN_ARG_SRC, c_src},
+                    {MKLDNN_ARG_WEIGHTS, c_weights},
+                    {MKLDNN_ARG_BIAS, c_bias},
+                    {MKLDNN_ARG_DST, c_dst}});
         };
 
         if (catch_expected_failures(test, p.expect_to_fail, p.expected_status))

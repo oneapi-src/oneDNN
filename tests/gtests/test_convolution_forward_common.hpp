@@ -123,6 +123,7 @@ protected:
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         ASSERT_EQ(p.aalgorithm, algorithm::convolution_direct);
         auto eng = engine(p.engine_kind, 0);
+        auto strm = stream(eng, stream::stream_kind_default);
 
         memory::data_type data_type_src = data_traits<data_t_src>::data_type;
         memory::data_type data_type_dst = data_traits<data_t_dst>::data_type;
@@ -189,16 +190,11 @@ protected:
         auto conv_primitive_desc = convolution_forward::primitive_desc(
                 conv_desc, attr.mkl_attr, eng);
 
-        auto conv = with_bias ?
-            convolution_forward(conv_primitive_desc, c_src.get(),
-                    c_weights.get(), c_bias.get(), c_dst.get()) :
-            convolution_forward(conv_primitive_desc, c_src.get(),
-                    c_weights.get(), c_dst.get());
-
-        std::vector<primitive> pipeline;
-        pipeline.push_back(conv);
-        auto s = stream(stream::kind::lazy);
-        s.submit(pipeline).wait();
+        convolution_forward(conv_primitive_desc).execute(strm, {
+                {MKLDNN_ARG_SRC, c_src.get()},
+                {MKLDNN_ARG_WEIGHTS, c_weights.get()},
+                {MKLDNN_ARG_BIAS, c_bias.get()},
+                {MKLDNN_ARG_DST, c_dst.get()}});
 
         auto ref_memory = memory(memory::primitive_desc(c_dst_desc, eng),
                 &ref_dst_data[0]);

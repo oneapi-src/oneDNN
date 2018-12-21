@@ -95,6 +95,8 @@ protected:
 
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         auto eng = engine(p.engine_kind, 0);
+        auto strm = stream(eng);
+
         memory::data_type data_type = data_traits<data_t>::data_type;
 
         std::vector<memory::primitive_desc> srcs_pd;
@@ -145,15 +147,13 @@ protected:
             [&](ptrdiff_t i) { dst_data[i] = -32; }
         );
 
-        std::vector<primitive::at> inputs;
-        for (size_t i = 0; i < num_srcs; i++) {
-            inputs.push_back(srcs[i]);
+        sum c(*sum_pd);
+        std::unordered_map<int, memory> args = {
+            {MKLDNN_ARG_DST, *dst}};
+        for (int i = 0; i < (int)num_srcs; i++) {
+            args.insert({MKLDNN_ARG_MULTIPLE_SRC + i, srcs[i]});
         }
-        auto c = sum(*sum_pd, inputs, *dst);
-        std::vector<primitive> pipeline;
-        pipeline.push_back(c);
-        auto s = stream(stream::kind::eager);
-        s.submit(pipeline).wait();
+        c.execute(strm, args);
 
         check_data(srcs, p.scale, *dst);
     }

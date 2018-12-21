@@ -23,9 +23,7 @@ using namespace mkldnn;
 
 void simple_net_int8() {
     auto cpu_engine = engine(engine::cpu, 0);
-
-    /* Create a vector to store the topology primitives */
-    std::vector<primitive> net;
+    stream s(cpu_engine);
 
     const int batch = 8;
 
@@ -129,38 +127,50 @@ void simple_net_int8() {
     /* Next: create memory primitives for the convolution's input data
      * and use reorder to quantize the values into int8 */
     auto conv_src_memory = memory(conv_prim_desc.src_primitive_desc());
-    primitive_attr src_attr;
-    src_attr.set_int_output_round_mode(round_mode::round_nearest);
-    src_attr.set_output_scales(src_mask, src_scales);
-    auto src_reorder_pd
+    {
+        primitive_attr src_attr;
+        src_attr.set_int_output_round_mode(round_mode::round_nearest);
+        src_attr.set_output_scales(src_mask, src_scales);
+        auto src_reorder_pd
             = reorder::primitive_desc(user_src_memory.get_primitive_desc(),
                     conv_src_memory.get_primitive_desc(), src_attr);
-    net.push_back(reorder(src_reorder_pd, user_src_memory, conv_src_memory));
+        auto src_reorder = reorder(src_reorder_pd);
+        src_reorder.execute(s, user_src_memory, conv_src_memory);
+    }
 
     auto conv_weights_memory = memory(conv_prim_desc.weights_primitive_desc());
-    primitive_attr weight_attr;
-    weight_attr.set_int_output_round_mode(round_mode::round_nearest);
-    weight_attr.set_output_scales(weight_mask, weight_scales);
-    auto weight_reorder_pd
+    {
+        primitive_attr weight_attr;
+        weight_attr.set_int_output_round_mode(round_mode::round_nearest);
+        weight_attr.set_output_scales(weight_mask, weight_scales);
+        auto weight_reorder_pd
             = reorder::primitive_desc(user_weights_memory.get_primitive_desc(),
                     conv_weights_memory.get_primitive_desc(), weight_attr);
-    net.push_back(reorder(
-            weight_reorder_pd, user_weights_memory, conv_weights_memory));
+        auto weight_reorder = reorder(weight_reorder_pd);
+        weight_reorder.execute(s, user_weights_memory, conv_weights_memory);
+    }
 
     auto conv_bias_memory = memory(conv_prim_desc.bias_primitive_desc());
-    primitive_attr bias_attr;
-    bias_attr.set_int_output_round_mode(round_mode::round_nearest);
-    bias_attr.set_output_scales(bias_mask, bias_scales);
-    auto bias_reorder_pd
+    {
+        primitive_attr bias_attr;
+        bias_attr.set_int_output_round_mode(round_mode::round_nearest);
+        bias_attr.set_output_scales(bias_mask, bias_scales);
+        auto bias_reorder_pd
             = reorder::primitive_desc(user_bias_memory.get_primitive_desc(),
                     conv_bias_memory.get_primitive_desc(), bias_attr);
-    net.push_back(reorder(bias_reorder_pd, user_bias_memory, conv_bias_memory));
+        auto bias_reorder = reorder(bias_reorder_pd);
+        bias_reorder.execute(s, user_bias_memory, conv_bias_memory);
+    }
 
     auto conv_dst_memory = memory(conv_prim_desc.dst_primitive_desc());
 
-    /* create convolution primitive and add it to net */
-    net.push_back(convolution_forward(conv_prim_desc, conv_src_memory,
-            conv_weights_memory, conv_bias_memory, conv_dst_memory));
+    /* create convolution primitive */
+    auto conv = convolution_forward(conv_prim_desc);
+    conv.execute(s, {
+            {MKLDNN_ARG_SRC, conv_src_memory},
+            {MKLDNN_ARG_WEIGHTS, conv_weights_memory},
+            {MKLDNN_ARG_BIAS, conv_bias_memory},
+            {MKLDNN_ARG_DST, conv_dst_memory}});
 
     /* Convert data back into fp32 and compare values with u8.
      * Note: data is unsigned since there are no negative values
@@ -172,22 +182,16 @@ void simple_net_int8() {
                     cpu_engine },
             user_dst.data());
 
-    primitive_attr dst_attr;
-    dst_attr.set_int_output_round_mode(round_mode::round_nearest);
-    dst_attr.set_output_scales(dst_mask, dst_scales);
-    auto dst_reorder_pd
+    {
+        primitive_attr dst_attr;
+        dst_attr.set_int_output_round_mode(round_mode::round_nearest);
+        dst_attr.set_output_scales(dst_mask, dst_scales);
+        auto dst_reorder_pd
             = reorder::primitive_desc(conv_dst_memory.get_primitive_desc(),
                     user_dst_memory.get_primitive_desc(), dst_attr);
-
-    /* Convert the destination memory from convolution into user
-     * data format if necessary */
-    if (conv_dst_memory != user_dst_memory) {
-        net.push_back(
-                reorder(dst_reorder_pd, conv_dst_memory, user_dst_memory));
+        auto dst_reorder = reorder(dst_reorder_pd);
+        dst_reorder.execute(s, conv_dst_memory, user_dst_memory);
     }
-
-    stream(stream::kind::eager).submit(net).wait();
-
 }
 
 int main(int argc, char **argv) {

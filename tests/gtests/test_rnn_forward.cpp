@@ -72,6 +72,7 @@ protected:
         auto p = ::testing::TestWithParam<test_rnn_params_t>::GetParam();
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         auto eng = engine(p.engine_kind, 0);
+        auto strm = stream(eng);
         //@todo check algorithm is one of the supported by RNN
         //ASSERT_EQ(p.aalgorithm, algorithm::vanilla_lstm);
 
@@ -178,7 +179,7 @@ protected:
                     std::multiplies<float>());
             for(size_t i = 0; i < n_elems; i++)
                 a_ptr[map_index(desc, i, false)] = i;
-            stream(stream::kind::eager).submit({reorder(a, b)}).wait();
+            reorder(a, b).execute(strm, a, b);
         };
 
         init_tensor(weights_layer_ref, weights_layer_tgt);
@@ -188,10 +189,14 @@ protected:
         init_tensor(src_iter_ref, src_iter_tgt);
 
         // run the non packed version
-        auto prim_ref = rnn_forward(ref_prim_desc, src_layer_ref, src_iter_ref,
-                weights_layer_ref, weights_iter_ref, bias_ref,
-                dst_layer_ref, dst_iter_ref, null_memory(eng));
-        stream(stream::kind::eager).submit({prim_ref}).wait();
+        rnn_forward(ref_prim_desc).execute(strm, {
+                {MKLDNN_ARG_SRC_LAYER, src_layer_ref},
+                {MKLDNN_ARG_SRC_ITER, src_iter_ref},
+                {MKLDNN_ARG_WEIGHTS_LAYER, weights_layer_ref},
+                {MKLDNN_ARG_WEIGHTS_ITER, weights_iter_ref},
+                {MKLDNN_ARG_BIAS, bias_ref},
+                {MKLDNN_ARG_DST_LAYER, dst_layer_ref},
+                {MKLDNN_ARG_DST_ITER, dst_iter_ref}});
 
         // run the packed version
         rnn_forward::desc tgt_desc(prop_kind::forward_inference, cell,
@@ -199,10 +204,14 @@ protected:
                 weights_layer_md_tgt, weights_iter_md_tgt, bias_md_tgt,
                 dst_layer_md_tgt, dst_iter_md_tgt);
         auto tgt_prim_desc = rnn_forward::primitive_desc(tgt_desc, eng);
-        auto prim_tgt = rnn_forward(tgt_prim_desc, src_layer_tgt, src_iter_tgt,
-                weights_layer_tgt, weights_iter_tgt, bias_tgt,
-                dst_layer_tgt, dst_iter_tgt, null_memory(eng));
-        stream(stream::kind::eager).submit({prim_tgt}).wait();
+        rnn_forward(tgt_prim_desc).execute(strm, {
+                {MKLDNN_ARG_SRC_LAYER, src_layer_tgt},
+                {MKLDNN_ARG_SRC_ITER, src_iter_tgt},
+                {MKLDNN_ARG_WEIGHTS_LAYER, weights_layer_tgt},
+                {MKLDNN_ARG_WEIGHTS_ITER, weights_iter_tgt},
+                {MKLDNN_ARG_BIAS, bias_tgt},
+                {MKLDNN_ARG_DST_LAYER, dst_layer_tgt},
+                {MKLDNN_ARG_DST_ITER, dst_iter_tgt}});
 
         // compare dst_layer and dst_iter
         compare_data<data_t>(dst_layer_ref, dst_layer_tgt, 1e-5);

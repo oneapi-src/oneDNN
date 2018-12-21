@@ -116,6 +116,7 @@ protected:
 
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         auto eng = engine(p.engine_kind, 0);
+        auto strm = stream(eng);
         memory::data_type data_type = data_traits<data_t>::data_type;
 
         std::vector<memory::primitive_desc> srcs_pd;
@@ -138,21 +139,18 @@ protected:
             (data_t *)dst.get_data_handle());
         check_zero_tail<data_t>(1, dst);
 
-        std::vector<primitive::at> inputs;
-        for (size_t i = 0; i < p.srcs_cds.size(); i++) {
-            inputs.push_back(srcs[i]);
-        }
-        auto c = concat(concat_pd, inputs, dst);
-
         ASSERT_EQ(concat_pd.dst_primitive_desc().desc().data.format,
                 dst_desc.data.format);
         ASSERT_EQ(concat_pd.dst_primitive_desc().desc().data.ndims,
                 dst_desc.data.ndims);
 
-        std::vector<primitive> pipeline;
-        pipeline.push_back(c);
-        auto s = stream(stream::kind::eager);
-        s.submit(pipeline).wait();
+        concat c(concat_pd);
+        std::unordered_map<int, memory> args = {
+            {MKLDNN_ARG_DST, dst}};
+        for (int i = 0; i < (int)srcs.size(); i++) {
+            args.insert({MKLDNN_ARG_MULTIPLE_SRC + i, srcs[i]});
+        }
+        c.execute(strm, args);
 
         check_data(srcs, dst, static_cast<int>(p.concat_dimension));
         check_zero_tail<data_t>(0, dst);

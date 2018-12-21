@@ -257,6 +257,7 @@ private:
         bnrm_bwd_prim_desc;
     test_bnrm_params_t p;
     std::shared_ptr<engine> eng;
+    std::shared_ptr<stream> strm;
     memory::data_type data_type;
 
 protected:
@@ -271,6 +272,8 @@ protected:
 
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         eng.reset(new engine(p.engine_kind, 0));
+        strm.reset(new stream(*eng));
+
         memory::data_type data_type = data_traits<data_t>::data_type;
         ASSERT_EQ(data_type, mkldnn::memory::data_type::f32);
 
@@ -321,7 +324,6 @@ protected:
         Backward(use_scale_shift, backward_data);
         Backward(use_scale_shift | use_global_stats, backward);
         Backward(use_scale_shift | use_global_stats, backward_data);
-
     }
 
     void Forward(unsigned flags, prop_kind pk) {
@@ -352,11 +354,7 @@ protected:
         check_zero_tail<data_t>(1, src->get());
         check_zero_tail<data_t>(1, dst->get());
 
-        auto bn = createBnrmFwd(isTraining, useGlobalStats, useScaleShift);
-
-        std::vector<primitive> pipeline;
-        pipeline.push_back(bn);
-        stream(stream::kind::lazy).submit(pipeline).wait();
+        execBnrmFwd(isTraining, useGlobalStats, useScaleShift);
 
         check_zero_tail<data_t>(0, dst->get());
 
@@ -390,11 +388,7 @@ protected:
         check_zero_tail<data_t>(1, diff_src->get());
         check_zero_tail<data_t>(1, diff_dst->get());
 
-        auto bnrm_bwd = createBnrmBwd(useScaleShift, pk);
-
-        std::vector<primitive> pipeline;
-        pipeline.push_back(bnrm_bwd);
-        stream(stream::kind::lazy).submit(pipeline).wait();
+        execBnrmBwd(useScaleShift, pk);
 
         check_bnrm_bwd<data_t>(p,
                 src->get(), diff_dst->get(), *mean, *variance, *weights,
@@ -407,48 +401,39 @@ protected:
                 reinterpret_cast<data_t *>(m.get_data_handle()));
     }
 
-    primitive createBnrmFwd(bool isTraining, bool useGlobalStats,
-            bool useScaleShift)
-    {
-        if (!isTraining && !useGlobalStats) {
-            return useScaleShift
-                ? batch_normalization_forward(*bnrm_prim_desc,
-                    src->get(), *weights, dst->get())
-                : batch_normalization_forward(*bnrm_prim_desc, src->get(),
-                        dst->get());
-        } else {
-            if (useGlobalStats) {
-                return useScaleShift
-                    ? batch_normalization_forward(*bnrm_prim_desc,
-                        src->get(), (const primitive::at)*mean,
-                        (const primitive::at)*variance, *weights, dst->get())
-                    : batch_normalization_forward(*bnrm_prim_desc,
-                        src->get(), (const primitive::at)*mean,
-                        (const primitive::at)*variance, dst->get());
-            } else {
-                return useScaleShift
-                    ? batch_normalization_forward(*bnrm_prim_desc,
-                        src->get(), *weights, dst->get(), *mean, *variance)
-                    : batch_normalization_forward(*bnrm_prim_desc,
-                        src->get(), dst->get(), *mean, *variance);
-            }
+    void execBnrmFwd(bool isTraining, bool useGlobalStats, bool useScaleShift) {
+        std::unordered_map<int, memory> args = {
+            {MKLDNN_ARG_SRC, src->get()},
+            {MKLDNN_ARG_DST, dst->get()},
+        };
+
+        if (useScaleShift)
+            args.insert({MKLDNN_ARG_SCALE_SHIFT, *weights});
+
+        if (isTraining || useGlobalStats) {
+            args.insert({MKLDNN_ARG_MEAN, *mean});
+            args.insert({MKLDNN_ARG_VARIANCE, *variance});
         }
+
+        batch_normalization_forward(*bnrm_prim_desc).execute(*strm, args);
     }
 
-    primitive createBnrmBwd(bool useScaleShift, prop_kind pk)
-    {
+    void execBnrmBwd(bool useScaleShift, prop_kind pk) {
+        std::unordered_map<int, memory> args = {
+            {MKLDNN_ARG_SRC, src->get()},
+            {MKLDNN_ARG_DIFF_DST, diff_dst->get()},
+            {MKLDNN_ARG_MEAN, *mean},
+            {MKLDNN_ARG_VARIANCE, *variance},
+            {MKLDNN_ARG_DIFF_SRC, diff_src->get()},
+        };
+
         if (useScaleShift) {
-            return pk == prop_kind::backward_data
-                ? batch_normalization_backward(*bnrm_bwd_prim_desc,
-                    src->get(), *mean, *variance, diff_dst->get(), *weights,
-                    diff_src->get())
-                : batch_normalization_backward(*bnrm_bwd_prim_desc,
-                    src->get(), *mean, *variance, diff_dst->get(), *weights,
-                    diff_src->get(), *diff_weights);
-        } else {
-            return batch_normalization_backward(*bnrm_bwd_prim_desc, src->get(),
-                    *mean, *variance, diff_dst->get(), diff_src->get());
+            args.insert({MKLDNN_ARG_SCALE_SHIFT, *weights});
+            if (pk == prop_kind::backward)
+                args.insert({MKLDNN_ARG_DIFF_SCALE_SHIFT, *diff_weights});
         }
+
+        batch_normalization_backward(*bnrm_bwd_prim_desc).execute(*strm, args);
     }
 };
 

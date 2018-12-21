@@ -14,10 +14,14 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <assert.h>
+
 #include <chrono>
 #include <iostream>
 #include <numeric>
 #include <string>
+#include <vector>
+#include <unordered_map>
 
 #include "mkldnn.hpp"
 
@@ -26,13 +30,13 @@ using namespace mkldnn;
 using namespace std;
 
 void simple_net(int times = 100) {
+    engine cpu_engine(engine::cpu, 0);
+    stream s(cpu_engine);
 
-    auto cpu_engine = engine(engine::cpu, 0);
-
-    /* Create a vector primitive to hold the network. For efficienty purpose,
+    /* Create a vector primitive to hold the network. For efficiency purpose,
      * weights are stored in a separate net to perform reordering only once. */
     std::vector<primitive> net;
-    std::vector<primitive> net_weights;
+    std::vector<std::unordered_map<int, memory>> net_args;
 
     const int batch = 1;
 
@@ -69,7 +73,7 @@ void simple_net(int times = 100) {
                                memory::format::oihw },
                              cpu_engine },
                     conv1_weights.data());
-    auto user_bias_memory = memory(
+    auto conv1_user_bias_memory = memory(
             { { { conv1_bias_tz }, memory::data_type::f32, memory::format::x },
                     cpu_engine },
             conv1_bias.data());
@@ -100,6 +104,9 @@ void simple_net(int times = 100) {
             != user_src_memory.get_primitive_desc()) {
         conv1_src_memory = memory(conv1_prim_desc.src_primitive_desc());
         net.push_back(reorder(user_src_memory, conv1_src_memory));
+        net_args.push_back({
+                {MKLDNN_ARG_FROM, user_src_memory},
+                {MKLDNN_ARG_TO, conv1_src_memory}});
     }
 
     auto conv1_weights_memory = user_weights_memory;
@@ -107,16 +114,19 @@ void simple_net(int times = 100) {
             != user_weights_memory.get_primitive_desc()) {
         conv1_weights_memory
                 = memory(conv1_prim_desc.weights_primitive_desc());
-        net_weights.push_back(
-                reorder(user_weights_memory, conv1_weights_memory));
+        reorder(user_weights_memory, conv1_weights_memory)
+            .execute(s, user_weights_memory, conv1_weights_memory);
     }
 
     auto conv1_dst_memory = memory(conv1_prim_desc.dst_primitive_desc());
 
     /* create convolution primitive and add it to net */
-    net.push_back(convolution_forward(conv1_prim_desc, conv1_src_memory,
-            conv1_weights_memory, user_bias_memory,
-            conv1_dst_memory));
+    net.push_back(convolution_forward(conv1_prim_desc));
+    net_args.push_back({
+            {MKLDNN_ARG_SRC, conv1_src_memory},
+            {MKLDNN_ARG_WEIGHTS, conv1_weights_memory},
+            {MKLDNN_ARG_BIAS, conv1_user_bias_memory},
+            {MKLDNN_ARG_DST, conv1_dst_memory}});
 
     /* AlexNet: relu1
      * {batch, 96, 55, 55} -> {batch, 96, 55, 55}
@@ -130,8 +140,10 @@ void simple_net(int times = 100) {
     auto relu1_prim_desc
             = eltwise_forward::primitive_desc(relu1_desc, cpu_engine);
 
-    net.push_back(eltwise_forward(
-            relu1_prim_desc, conv1_dst_memory, conv1_dst_memory));
+    net.push_back(eltwise_forward(relu1_prim_desc));
+    net_args.push_back({
+            {MKLDNN_ARG_SRC, conv1_dst_memory},
+            {MKLDNN_ARG_DST, conv1_dst_memory}});
 
     /* AlexNet: lrn1
      * {batch, 96, 55, 55} -> {batch, 96, 55, 55}
@@ -153,8 +165,10 @@ void simple_net(int times = 100) {
             = lrn_forward::primitive_desc(lrn1_desc, cpu_engine);
     auto lrn1_dst_memory = memory(lrn1_prim_desc.dst_primitive_desc());
 
-    net.push_back(
-            lrn_forward(lrn1_prim_desc, conv1_dst_memory, lrn1_dst_memory));
+    net.push_back(lrn_forward(lrn1_prim_desc));
+    net_args.push_back({
+            {MKLDNN_ARG_SRC, conv1_dst_memory},
+            {MKLDNN_ARG_DST, lrn1_dst_memory}});
 
     /* AlexNet: pool1
      * {batch, 96, 55, 55} -> {batch, 96, 27, 27}
@@ -179,8 +193,10 @@ void simple_net(int times = 100) {
     auto pool1_dst_memory = memory(pool1_pd.dst_primitive_desc());
 
     /* create pooling primitive an add it to net */
-    net.push_back(
-            pooling_forward(pool1_pd, lrn1_dst_memory, pool1_dst_memory));
+    net.push_back(pooling_forward(pool1_pd));
+    net_args.push_back({
+            {MKLDNN_ARG_SRC, lrn1_dst_memory},
+            {MKLDNN_ARG_DST, pool1_dst_memory}});
 
     /* AlexNet: conv2
     * {batch, 96, 27, 27} (x) {2, 128, 48, 5, 5} -> {batch, 256, 27, 27}
@@ -235,6 +251,9 @@ void simple_net(int times = 100) {
             != conv2_src_memory.get_primitive_desc()) {
         conv2_src_memory = memory(conv2_prim_desc.src_primitive_desc());
         net.push_back(reorder(pool1_dst_memory, conv2_src_memory));
+        net_args.push_back({
+                {MKLDNN_ARG_FROM, pool1_dst_memory},
+                {MKLDNN_ARG_TO, conv2_src_memory}});
     }
 
     auto conv2_weights_memory = conv2_user_weights_memory;
@@ -242,16 +261,19 @@ void simple_net(int times = 100) {
             != conv2_user_weights_memory.get_primitive_desc()) {
         conv2_weights_memory
                 = memory(conv2_prim_desc.weights_primitive_desc());
-        net_weights.push_back(
-                reorder(conv2_user_weights_memory, conv2_weights_memory));
+        reorder(conv2_user_weights_memory, conv2_weights_memory)
+            .execute(s, conv2_user_weights_memory, conv2_weights_memory);
     }
 
     auto conv2_dst_memory = memory(conv2_prim_desc.dst_primitive_desc());
 
     /* create convolution primitive and add it to net */
-    net.push_back(convolution_forward(conv2_prim_desc, conv2_src_memory,
-            conv2_weights_memory, conv2_user_bias_memory,
-            conv2_dst_memory));
+    net.push_back(convolution_forward(conv2_prim_desc));
+    net_args.push_back({
+            {MKLDNN_ARG_SRC, conv2_src_memory},
+            {MKLDNN_ARG_WEIGHTS, conv2_weights_memory},
+            {MKLDNN_ARG_BIAS, conv2_user_bias_memory},
+            {MKLDNN_ARG_DST, conv2_dst_memory}});
 
     /* AlexNet: relu2
     * {batch, 256, 27, 27} -> {batch, 256, 27, 27}
@@ -265,8 +287,10 @@ void simple_net(int times = 100) {
     auto relu2_prim_desc
             = eltwise_forward::primitive_desc(relu2_desc, cpu_engine);
 
-    net.push_back(eltwise_forward(
-            relu2_prim_desc, conv2_dst_memory, conv2_dst_memory));
+    net.push_back(eltwise_forward(relu2_prim_desc));
+    net_args.push_back({
+            {MKLDNN_ARG_SRC, conv2_dst_memory},
+            {MKLDNN_ARG_DST, conv2_dst_memory}});
 
     /* AlexNet: lrn2
      * {batch, 256, 27, 27} -> {batch, 256, 27, 27}
@@ -288,8 +312,10 @@ void simple_net(int times = 100) {
             = lrn_forward::primitive_desc(lrn2_desc, cpu_engine);
     auto lrn2_dst_memory = memory(lrn2_prim_desc.dst_primitive_desc());
 
-    net.push_back(
-            lrn_forward(lrn2_prim_desc, conv2_dst_memory, lrn2_dst_memory));
+    net.push_back(lrn_forward(lrn2_prim_desc));
+    net_args.push_back({
+            {MKLDNN_ARG_SRC, conv2_dst_memory},
+            {MKLDNN_ARG_DST, lrn2_dst_memory}});
 
     /* AlexNet: pool2
     * {batch, 256, 27, 27} -> {batch, 256, 13, 13}
@@ -315,8 +341,10 @@ void simple_net(int times = 100) {
     auto pool2_dst_memory = memory(pool2_pd.dst_primitive_desc());
 
     /* create pooling primitive an add it to net */
-    net.push_back(
-            pooling_forward(pool2_pd, lrn2_dst_memory, pool2_dst_memory));
+    net.push_back(pooling_forward(pool2_pd));
+    net_args.push_back({
+            {MKLDNN_ARG_SRC, lrn2_dst_memory},
+            {MKLDNN_ARG_DST, pool2_dst_memory}});
 
     // -------
     /* AlexNet: conv3
@@ -372,6 +400,9 @@ void simple_net(int times = 100) {
             != conv3_src_memory.get_primitive_desc()) {
         conv3_src_memory = memory(conv3_prim_desc.src_primitive_desc());
         net.push_back(reorder(pool2_dst_memory, conv3_src_memory));
+        net_args.push_back({
+                {MKLDNN_ARG_FROM, pool2_dst_memory},
+                {MKLDNN_ARG_TO, conv3_src_memory}});
     }
 
     auto conv3_weights_memory = conv3_user_weights_memory;
@@ -379,16 +410,19 @@ void simple_net(int times = 100) {
             != conv3_user_weights_memory.get_primitive_desc()) {
         conv3_weights_memory
                 = memory(conv3_prim_desc.weights_primitive_desc());
-        net_weights.push_back(
-                reorder(conv3_user_weights_memory, conv3_weights_memory));
+        reorder(conv3_user_weights_memory, conv3_weights_memory)
+            .execute(s, conv3_user_weights_memory, conv3_weights_memory);
     }
 
     auto conv3_dst_memory = memory(conv3_prim_desc.dst_primitive_desc());
 
     /* create convolution primitive and add it to net */
-    net.push_back(convolution_forward(conv3_prim_desc, conv3_src_memory,
-            conv3_weights_memory, conv3_user_bias_memory,
-            conv3_dst_memory));
+    net.push_back(convolution_forward(conv3_prim_desc));
+    net_args.push_back({
+            {MKLDNN_ARG_SRC, conv3_src_memory},
+            {MKLDNN_ARG_WEIGHTS, conv3_weights_memory},
+            {MKLDNN_ARG_BIAS, conv3_user_bias_memory},
+            {MKLDNN_ARG_DST, conv3_dst_memory}});
 
     /* AlexNet: relu3
     * {batch, 384, 13, 13} -> {batch, 384, 13, 13}
@@ -402,8 +436,10 @@ void simple_net(int times = 100) {
     auto relu3_prim_desc
             = eltwise_forward::primitive_desc(relu3_desc, cpu_engine);
 
-    net.push_back(eltwise_forward(
-            relu3_prim_desc, conv3_dst_memory, conv3_dst_memory));
+    net.push_back(eltwise_forward(relu3_prim_desc));
+    net_args.push_back({
+            {MKLDNN_ARG_SRC, conv3_dst_memory},
+            {MKLDNN_ARG_DST, conv3_dst_memory}});
 
     /* AlexNet: conv4
     * {batch, 384, 13, 13} (x)  {2, 192, 192, 3, 3}; -> {batch, 384, 13,
@@ -459,6 +495,9 @@ void simple_net(int times = 100) {
             != conv4_src_memory.get_primitive_desc()) {
         conv4_src_memory = memory(conv4_prim_desc.src_primitive_desc());
         net.push_back(reorder(conv3_dst_memory, conv4_src_memory));
+        net_args.push_back({
+                {MKLDNN_ARG_FROM, conv3_dst_memory},
+                {MKLDNN_ARG_TO, conv4_src_memory}});
     }
 
     auto conv4_weights_memory = conv4_user_weights_memory;
@@ -466,16 +505,19 @@ void simple_net(int times = 100) {
             != conv4_user_weights_memory.get_primitive_desc()) {
         conv4_weights_memory
                 = memory(conv4_prim_desc.weights_primitive_desc());
-        net_weights.push_back(
-                reorder(conv4_user_weights_memory, conv4_weights_memory));
+        reorder(conv4_user_weights_memory, conv4_weights_memory)
+            .execute(s, conv4_user_weights_memory, conv4_weights_memory);
     }
 
     auto conv4_dst_memory = memory(conv4_prim_desc.dst_primitive_desc());
 
     /* create convolution primitive and add it to net */
-    net.push_back(convolution_forward(conv4_prim_desc, conv4_src_memory,
-            conv4_weights_memory, conv4_user_bias_memory,
-            conv4_dst_memory));
+    net.push_back(convolution_forward(conv4_prim_desc));
+    net_args.push_back({
+            {MKLDNN_ARG_SRC, conv4_src_memory},
+            {MKLDNN_ARG_WEIGHTS, conv4_weights_memory},
+            {MKLDNN_ARG_BIAS, conv4_user_bias_memory},
+            {MKLDNN_ARG_DST, conv4_dst_memory}});
 
     /* AlexNet: relu4
     * {batch, 384, 13, 13} -> {batch, 384, 13, 13}
@@ -489,8 +531,10 @@ void simple_net(int times = 100) {
     auto relu4_prim_desc
             = eltwise_forward::primitive_desc(relu4_desc, cpu_engine);
 
-    net.push_back(eltwise_forward(
-            relu4_prim_desc, conv4_dst_memory, conv4_dst_memory));
+    net.push_back(eltwise_forward(relu4_prim_desc));
+    net_args.push_back({
+            {MKLDNN_ARG_SRC, conv4_dst_memory},
+            {MKLDNN_ARG_DST, conv4_dst_memory}});
 
     /* AlexNet: conv5
     * {batch, 384, 13, 13} (x)  {2, 128, 192, 3, 3}; -> {batch, 256, 13,
@@ -544,6 +588,9 @@ void simple_net(int times = 100) {
             != conv5_src_memory.get_primitive_desc()) {
         conv5_src_memory = memory(conv5_prim_desc.src_primitive_desc());
         net.push_back(reorder(conv4_dst_memory, conv5_src_memory));
+        net_args.push_back({
+                {MKLDNN_ARG_FROM, conv4_dst_memory},
+                {MKLDNN_ARG_TO, conv5_src_memory}});
     }
 
     auto conv5_weights_memory = conv5_user_weights_memory;
@@ -551,16 +598,19 @@ void simple_net(int times = 100) {
             != conv5_user_weights_memory.get_primitive_desc()) {
         conv5_weights_memory
                 = memory(conv5_prim_desc.weights_primitive_desc());
-        net_weights.push_back(
-                reorder(conv5_user_weights_memory, conv5_weights_memory));
+        reorder(conv5_user_weights_memory, conv5_weights_memory)
+            .execute(s, conv5_user_weights_memory, conv5_weights_memory);
     }
 
     auto conv5_dst_memory = memory(conv5_prim_desc.dst_primitive_desc());
 
     /* create convolution primitive and add it to net */
-    net.push_back(convolution_forward(conv5_prim_desc, conv5_src_memory,
-            conv5_weights_memory, conv5_user_bias_memory,
-            conv5_dst_memory));
+    net.push_back(convolution_forward(conv5_prim_desc));
+    net_args.push_back({
+            {MKLDNN_ARG_SRC, conv5_src_memory},
+            {MKLDNN_ARG_WEIGHTS, conv5_weights_memory},
+            {MKLDNN_ARG_BIAS, conv5_user_bias_memory},
+            {MKLDNN_ARG_DST, conv5_dst_memory}});
 
     /* AlexNet: relu5
     * {batch, 256, 13, 13} -> {batch, 256, 13, 13}
@@ -574,8 +624,10 @@ void simple_net(int times = 100) {
     auto relu5_prim_desc
             = eltwise_forward::primitive_desc(relu5_desc, cpu_engine);
 
-    net.push_back(eltwise_forward(
-            relu5_prim_desc, conv5_dst_memory, conv5_dst_memory));
+    net.push_back(eltwise_forward(relu5_prim_desc));
+    net_args.push_back({
+            {MKLDNN_ARG_SRC, conv5_dst_memory},
+            {MKLDNN_ARG_DST, conv5_dst_memory}});
 
     /* AlexNet: pool5
     * {batch, 256, 13, 13} -> {batch, 256, 6, 6}
@@ -604,8 +656,10 @@ void simple_net(int times = 100) {
     auto pool5_dst_memory = memory(pool5_pd.dst_primitive_desc());
 
     /* create pooling primitive an add it to net */
-    net.push_back(
-            pooling_forward(pool5_pd, conv5_dst_memory, pool5_dst_memory));
+    net.push_back(pooling_forward(pool5_pd));
+    net_args.push_back({
+            {MKLDNN_ARG_SRC, conv5_dst_memory},
+            {MKLDNN_ARG_DST, pool5_dst_memory}});
 
     /**
      * fc6 inner product {batch, 256, 6, 6} (x) {4096, 256, 6, 6}-> {batch,
@@ -657,21 +711,28 @@ void simple_net(int times = 100) {
             != fc6_src_memory.get_primitive_desc()) {
         fc6_src_memory = memory(fc6_prim_desc.src_primitive_desc());
         net.push_back(reorder(pool5_dst_memory, fc6_src_memory));
+        net_args.push_back({
+                {MKLDNN_ARG_FROM, pool5_dst_memory},
+                {MKLDNN_ARG_TO, fc6_src_memory}});
     }
 
     auto fc6_weights_memory = fc6_user_weights_memory;
     if (memory::primitive_desc(fc6_prim_desc.weights_primitive_desc())
             != fc6_user_weights_memory.get_primitive_desc()) {
         fc6_weights_memory = memory(fc6_prim_desc.weights_primitive_desc());
-        net_weights.push_back(
-                reorder(fc6_user_weights_memory, fc6_weights_memory));
+        reorder(fc6_user_weights_memory, fc6_weights_memory)
+            .execute(s, fc6_user_weights_memory, fc6_weights_memory);
     }
 
     auto fc6_dst_memory = memory(fc6_prim_desc.dst_primitive_desc());
 
     /* create convolution primitive and add it to net */
-    net.push_back(inner_product_forward(fc6_prim_desc, fc6_src_memory,
-            fc6_weights_memory, fc6_user_bias_memory, fc6_dst_memory));
+    net.push_back(inner_product_forward(fc6_prim_desc));
+    net_args.push_back({
+            {MKLDNN_ARG_SRC, fc6_src_memory},
+            {MKLDNN_ARG_WEIGHTS, fc6_weights_memory},
+            {MKLDNN_ARG_BIAS, fc6_user_bias_memory},
+            {MKLDNN_ARG_DST, fc6_dst_memory}});
 
     /**
      * fc7 inner product {batch, 4096} (x) {4096, 4096}-> {batch, 4096}
@@ -719,14 +780,19 @@ void simple_net(int times = 100) {
     if (memory::primitive_desc(fc7_prim_desc.weights_primitive_desc())
             != fc7_user_weights_memory.get_primitive_desc()) {
         fc7_weights_memory = memory(fc7_prim_desc.weights_primitive_desc());
-        net.push_back(reorder(fc7_user_weights_memory, fc7_weights_memory));
+        reorder(fc7_user_weights_memory, fc7_weights_memory)
+            .execute(s, fc7_user_weights_memory, fc7_weights_memory);
     }
 
     auto fc7_dst_memory = memory(fc7_prim_desc.dst_primitive_desc());
 
     /* create convolution primitive and add it to net */
-    net.push_back(inner_product_forward(fc7_prim_desc, fc6_dst_memory,
-            fc7_weights_memory, fc7_user_bias_memory, fc7_dst_memory));
+    net.push_back(inner_product_forward(fc7_prim_desc));
+    net_args.push_back({
+            {MKLDNN_ARG_SRC, fc6_dst_memory},
+            {MKLDNN_ARG_WEIGHTS, fc7_weights_memory},
+            {MKLDNN_ARG_BIAS, fc7_user_bias_memory},
+            {MKLDNN_ARG_DST, fc7_dst_memory}});
 
     /**
     * fc8 inner product {batch, 4096} (x) {1000, 4096}-> {batch, 1000}
@@ -779,26 +845,33 @@ void simple_net(int times = 100) {
     if (memory::primitive_desc(fc8_prim_desc.weights_primitive_desc())
             != fc8_user_weights_memory.get_primitive_desc()) {
         fc8_weights_memory = memory(fc8_prim_desc.weights_primitive_desc());
-        net_weights.push_back(
-                reorder(fc8_user_weights_memory, fc8_weights_memory));
+        reorder(fc8_user_weights_memory, fc8_weights_memory)
+            .execute(s, fc8_user_weights_memory, fc8_weights_memory);
     }
 
     auto fc8_dst_memory = memory(fc8_prim_desc.dst_primitive_desc());
 
     /* create convolution primitive and add it to net */
-    net.push_back(inner_product_forward(fc8_prim_desc, fc7_dst_memory,
-            fc8_weights_memory, fc8_user_bias_memory, fc8_dst_memory));
+    net.push_back(inner_product_forward(fc8_prim_desc));
+    net_args.push_back({
+            {MKLDNN_ARG_SRC, fc7_dst_memory},
+            {MKLDNN_ARG_WEIGHTS, fc8_weights_memory},
+            {MKLDNN_ARG_BIAS, fc8_user_bias_memory},
+            {MKLDNN_ARG_DST, fc8_dst_memory}});
 
     /* create reorder between internal and user data if it is needed and
      *  add it to net after pooling */
     if (fc8_dst_memory != user_dst_memory) {
         net.push_back(reorder(fc8_dst_memory, user_dst_memory));
+        net_args.push_back({
+                {MKLDNN_ARG_FROM, fc8_dst_memory},
+                {MKLDNN_ARG_TO, user_dst_memory}});
     }
 
-    stream s(cpu_engine);
     for (int j = 0; j < times; ++j) {
-        for (const auto &p: net)
-            p.execute(s);
+        assert(net.size() == net_args.size() && "something is missing");
+        for (size_t i = 0; i < net.size(); ++i)
+            net.at(i).execute(s, net_args.at(i));
     }
 }
 

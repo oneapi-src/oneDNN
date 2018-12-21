@@ -119,6 +119,7 @@ private:
    std::shared_ptr<memory::desc> con_weights_desc;
 
    std::shared_ptr<engine> eng;
+   std::shared_ptr<stream> strm;
    bool with_bias;
    std::vector<int> padR;
 protected:
@@ -133,6 +134,7 @@ protected:
 
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         eng.reset(new engine(p.engine_kind, 0));
+        strm.reset(new stream(*eng));
 
         ASSERT_EQ(p.aalgorithm, algorithm::deconvolution_direct);
         memory::data_type data_type = data_traits<data_t>::data_type;
@@ -218,11 +220,11 @@ protected:
         auto deconv_primitive_desc = deconvolution_forward::primitive_desc(
                 deconv_desc, *eng);
 
-        auto deconv = with_bias ?
-            deconvolution_forward(deconv_primitive_desc, src->get(),
-                    weights->get(), bias->get(), dst->get()) :
-            deconvolution_forward(deconv_primitive_desc, src->get(),
-                    weights->get(), dst->get());
+        deconvolution_forward(deconv_primitive_desc).execute(*strm, {
+                {MKLDNN_ARG_SRC, src->get()},
+                {MKLDNN_ARG_WEIGHTS, weights->get()},
+                {MKLDNN_ARG_BIAS, bias->get()},
+                {MKLDNN_ARG_DST, dst->get()}});
 
         auto conv_desc = convolution_forward::desc(
                 prop_kind::forward_training, algorithm::convolution_direct,
@@ -243,14 +245,10 @@ protected:
             = convolution_backward_data::primitive_desc(
                     conv_bwd_data_desc, *eng, conv_primitive_desc);
 
-        auto conv_bwd_data = convolution_backward_data(
-                conv_bwd_data_primitive_desc,
-                conv_dst->get(), weights_tr, conv_src.get());
-
-        std::vector<primitive> pipeline;
-        pipeline.push_back(deconv);
-        pipeline.push_back(conv_bwd_data);
-        stream(stream::kind::lazy).submit(pipeline).wait();
+        convolution_backward_data(conv_bwd_data_primitive_desc).execute(*strm, {
+                {MKLDNN_ARG_DIFF_DST, conv_dst->get()},
+                {MKLDNN_ARG_WEIGHTS, weights_tr},
+                {MKLDNN_ARG_DIFF_SRC, conv_src.get()}});
 
         if(with_bias) compute_bias_fwd<data_t>(dd, conv_src.get(), bias->get());
         compare_data<data_t>(conv_src.get(), dst->get());
@@ -288,9 +286,11 @@ protected:
             = deconvolution_backward_data::primitive_desc(
                     deconv_bwd_data_desc, *eng, deconv_primitive_desc);
 
-        auto deconv_bwd_data = deconvolution_backward_data(
-                deconv_bwd_data_primitive_desc, dst->get(), weights->get(),
-                src->get());
+        deconvolution_backward_data(deconv_bwd_data_primitive_desc).execute(
+                *strm, {
+                {MKLDNN_ARG_DIFF_DST, dst->get()},
+                {MKLDNN_ARG_WEIGHTS, weights->get()},
+                {MKLDNN_ARG_DIFF_SRC, src->get()}});
 
         auto conv_desc = convolution_forward::desc(
                 prop_kind::forward_training, algorithm::convolution_direct,
@@ -301,13 +301,10 @@ protected:
         auto conv_primitive_desc = convolution_forward::primitive_desc(
                 conv_desc, *eng);
 
-        auto conv = convolution_forward(conv_primitive_desc, conv_src->get(),
-                weights_tr, conv_dst.get());
-
-        std::vector<primitive> pipeline;
-        pipeline.push_back(deconv_bwd_data);
-        pipeline.push_back(conv);
-        stream(stream::kind::lazy).submit(pipeline).wait();
+        convolution_forward(conv_primitive_desc).execute(*strm, {
+                {MKLDNN_ARG_SRC, conv_src->get()},
+                {MKLDNN_ARG_WEIGHTS, weights_tr},
+                {MKLDNN_ARG_DST, conv_dst.get()}});
 
         compare_data<data_t>(conv_dst.get(), src->get());
     }
@@ -342,9 +339,12 @@ protected:
             = deconvolution_backward_weights::primitive_desc(
                     deconv_bwd_weights_desc, *eng, deconv_primitive_desc);
 
-        auto deconv_bwd_weights = deconvolution_backward_weights(
-                deconv_bwd_weights_primitive_desc, src->get(), dst->get(),
-                weights->get(), bias->get());
+        deconvolution_backward_weights(deconv_bwd_weights_primitive_desc)
+            .execute(*strm, {
+                    {MKLDNN_ARG_DIFF_DST, dst->get()},
+                    {MKLDNN_ARG_SRC, src->get()},
+                    {MKLDNN_ARG_DIFF_WEIGHTS, weights->get()},
+                    {MKLDNN_ARG_DIFF_BIAS, bias->get()}});
 
         auto conv_desc = convolution_forward::desc(
                 prop_kind::forward_training, algorithm::convolution_direct,
@@ -364,14 +364,11 @@ protected:
             convolution_backward_weights::primitive_desc(
                     conv_bwd_weights_desc, *eng, conv_primitive_desc);
 
-        auto conv_bwd_weights =
-            convolution_backward_weights(conv_bwd_weights_primitive_desc,
-                    conv_src->get(), conv_dst->get(), conv_weights);
-
-        std::vector<primitive> pipeline;
-        pipeline.push_back(conv_bwd_weights);
-        pipeline.push_back(deconv_bwd_weights);
-        stream(stream::kind::lazy).submit(pipeline).wait();
+        convolution_backward_weights(conv_bwd_weights_primitive_desc).execute(
+                *strm, {
+                {MKLDNN_ARG_DIFF_DST, conv_dst->get()},
+                {MKLDNN_ARG_SRC, conv_src->get()},
+                {MKLDNN_ARG_DIFF_WEIGHTS, conv_weights}});
 
         auto weights_tr = memory({*con_weights_desc, *eng});
         transpose_wei<data_t>(dd, weights->get(), weights_tr);

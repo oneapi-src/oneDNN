@@ -98,6 +98,7 @@ protected:
     void Test() {
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         auto eng = engine(p.engine_kind, 0);
+        auto strm = stream(eng);
 
         memory::data_type prec = data_traits<data_t>::data_type;
 
@@ -129,11 +130,11 @@ protected:
         auto softmax_fwd_pdesc = softmax_forward::primitive_desc(softmax_fwd_desc,
                 eng);
 
-        auto softmax = softmax_forward(softmax_fwd_pdesc, src, dst);
+        auto softmax = softmax_forward(softmax_fwd_pdesc);
 
         auto softmax_prim_desc
             = softmax_backward::primitive_desc(softmax_desc, eng, softmax_fwd_pdesc);
-        auto softmax_bwd = softmax_backward(softmax_prim_desc, dst, diff_dst, diff_src);
+        auto softmax_bwd = softmax_backward(softmax_prim_desc);
 
         auto test_with_given_fill = [&](data_t mean, data_t var) {
             // Fill the softmax forward input
@@ -145,7 +146,12 @@ protected:
             fill_data<data_t>(diff_mem_prim_desc.get_size(),
                     (data_t *)diff_dst.get_data_handle(), data_t(0), data_t(1));
 
-            stream(stream::kind::lazy).submit({softmax, softmax_bwd}).wait();
+            softmax.execute(strm, {{MKLDNN_ARG_SRC, src}, {MKLDNN_ARG_DST, dst}});
+            softmax_bwd.execute(strm, {
+                    {MKLDNN_ARG_DST, dst},
+                    {MKLDNN_ARG_DIFF_DST, diff_dst},
+                    {MKLDNN_ARG_DIFF_SRC, diff_src}});
+
             check_softmax_bwd<data_t>(dst, diff_dst, diff_src, p.axis);
         };
 

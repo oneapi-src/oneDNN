@@ -116,6 +116,7 @@ protected:
         ASSERT_TRUE(p.aprop_kind == prop_kind::forward_training
                 || p.aprop_kind == prop_kind::forward_scoring);
         auto eng = engine(p.engine_kind, 0);
+        auto strm = stream(eng);
         memory::data_type data_type = data_traits<data_t>::data_type;
         ASSERT_EQ(data_type, mkldnn::memory::data_type::f32);
 
@@ -142,22 +143,21 @@ protected:
                 l_src_desc, ld.local_size, ld.alpha, ld.beta, ld.k);
         auto lrn_prim_desc = lrn_forward::primitive_desc(lrn_desc, eng);
 
+        std::shared_ptr<memory> workspace;
+
         // Execute
-        std::vector<primitive> pipeline;
-        auto s = stream(stream::kind::lazy);
+        auto l = lrn_forward(lrn_prim_desc);
+        std::unordered_map<int, memory> args = {
+            {MKLDNN_ARG_SRC, l_src.get()},
+            {MKLDNN_ARG_DST, l_dst.get()}
+        };
         if (with_workspace) {
-            auto workspace_primitive_desc =
-                lrn_prim_desc.workspace_primitive_desc();
-            auto workspace_memory = memory(workspace_primitive_desc);
-            auto l = lrn_forward(lrn_prim_desc, l_src.get(),
-                    workspace_memory, l_dst.get());
-            pipeline.push_back(l);
-            s.submit(pipeline).wait();
-        } else {
-            auto l = lrn_forward(lrn_prim_desc, l_src.get(), l_dst.get());
-            pipeline.push_back(l);
-            s.submit(pipeline).wait();
+            auto workspace_pd = lrn_prim_desc.workspace_primitive_desc();
+            workspace.reset(new memory(workspace_pd));
+            args.insert({MKLDNN_ARG_WORKSPACE, *workspace});
         }
+        l.execute(strm, args);
+
         check_zero_tail<data_t>(0, l_dst.get());
 
         check_lrn_fwd<data_t>(ld, l_src_desc, l_dst_desc, l_src.get(),

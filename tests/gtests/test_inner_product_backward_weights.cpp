@@ -131,6 +131,7 @@ protected:
 
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         auto eng = engine(p.engine_kind, 0);
+        auto strm = stream(eng);
         memory::data_type data_type = data_traits<data_t>::data_type;
         ASSERT_EQ(data_type, mkldnn::memory::data_type::f32);
 
@@ -197,13 +198,11 @@ protected:
         check_zero_tail<data_t>(1, *ip_src);
         check_zero_tail<data_t>(1, *ip_diff_dst);
 
-        auto ip = inner_product_backward_weights(ip_primitive_desc,
-                *ip_src, *ip_diff_dst, *ip_diff_weights, *ip_diff_bias);
-
-        std::vector<primitive> pipeline;
-        pipeline.push_back(ip);
-
-        stream(stream::kind::lazy).submit(pipeline).wait();
+        inner_product_backward_weights(ip_primitive_desc).execute(strm, {
+                {MKLDNN_ARG_DIFF_DST, *ip_diff_dst},
+                {MKLDNN_ARG_SRC, *ip_src},
+                {MKLDNN_ARG_DIFF_WEIGHTS, *ip_diff_weights},
+                {MKLDNN_ARG_DIFF_BIAS, *ip_diff_bias}});
 
         compute_ref_inner_product_bwd_weights<data_t>(p.ndims, ipd, *ip_src,
                 *ip_diff_dst, *diff_weights_ref);

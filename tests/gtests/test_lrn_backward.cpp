@@ -203,6 +203,7 @@ private:
     lrn_test_params p;
     memory::dims padR;
     std::shared_ptr<engine> eng;
+    std::shared_ptr<stream> strm;
     memory::data_type data_type;
     bool is_training;
 
@@ -218,6 +219,7 @@ protected:
 
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         eng.reset(new engine(p.engine_kind, 0));
+        strm.reset(new stream(*eng));
         data_type = data_traits<data_t>::data_type;
         ASSERT_EQ(data_type, mkldnn::memory::data_type::f32);
 
@@ -256,22 +258,17 @@ protected:
         check_zero_tail<data_t>(1, dst->get());
 
         // Execute
-        std::vector<primitive> pipeline;
-        auto s = stream(stream::kind::lazy);
+        auto l = lrn_forward(*lrn_fwd_prim_desc);
+        std::unordered_map<int, memory> args = {
+            {MKLDNN_ARG_SRC, src->get()},
+            {MKLDNN_ARG_DST, dst->get()}
+        };
         if (is_training) {
-            auto workspace_primitive_desc =
-                lrn_fwd_prim_desc->workspace_primitive_desc();
-            workspace.reset(new memory(workspace_primitive_desc));
-            auto l = lrn_forward(*lrn_fwd_prim_desc, src->get(), *workspace,
-                    dst->get());
-            pipeline.push_back(l);
-            s.submit(pipeline).wait();
-        } else {
-            auto l = lrn_forward(*lrn_fwd_prim_desc, src->get(),
-                    dst->get());
-            pipeline.push_back(l);
-            s.submit(pipeline).wait();
+            auto workspace_pd = lrn_fwd_prim_desc->workspace_primitive_desc();
+            workspace.reset(new memory(workspace_pd));
+            args.insert({MKLDNN_ARG_WORKSPACE, *workspace});
         }
+        l.execute(*strm, args);
 
         check_zero_tail<data_t>(0, dst->get());
 
@@ -304,12 +301,11 @@ protected:
         check_zero_tail<data_t>(1, diff_src->get());
 
         // Execute
-        std::vector<primitive> pipeline;
-        auto s = stream(stream::kind::lazy);
-        auto l = lrn_backward(lrn_prim_desc, src->get(), diff_dst->get(),
-                *workspace, diff_src->get());
-        pipeline.push_back(l);
-        s.submit(pipeline).wait();
+        lrn_backward(lrn_prim_desc).execute(*strm, {
+                {MKLDNN_ARG_SRC, src->get()},
+                {MKLDNN_ARG_DIFF_DST, diff_dst->get()},
+                {MKLDNN_ARG_WORKSPACE, *workspace},
+                {MKLDNN_ARG_DIFF_SRC, diff_src->get()}});
 
         check_zero_tail<data_t>(0, diff_src->get());
 
