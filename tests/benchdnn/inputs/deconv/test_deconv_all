@@ -25,7 +25,7 @@
 --cfg=s8s8s8s32 --batch=deconv_2d
 --cfg=s8s8s32s32 --batch=deconv_2d
 
-#1x1 int8
+# 1x1 int8
 --reset --mb=2 --dir=FWD_B --skip-impl="ref:gemm"
 --attr=irmode=down;oscale=per_oc:2.25;post_ops='sum:1.5;relu' --batch=test_deconv_1x1
 --attr=irmode=nearest;oscale=common:2.25;post_ops='sum:1.5' --batch=test_deconv_1x1
