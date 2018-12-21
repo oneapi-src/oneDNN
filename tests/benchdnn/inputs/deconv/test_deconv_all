@@ -1,14 +1,15 @@
 # f32
---reset --cfg=f32
---mb=2
+--reset --skip-impl=ref
+--mb=2 --cfg=f32
+
 --dir=FWD_B --batch=deconv_all
 --dir=BWD_D --batch=deconv_all
 --dir=BWD_W --batch=deconv_all
 --dir=BWD_WB --batch=deconv_all
 
 # int8
---skip-impl=ref
---reset --allow-unimpl=true --dir=FWD_B --mb=2
+--reset --skip-impl=ref --allow-unimpl=true
+--mb=2 --dir=FWD_B
 
 --attr=irmode=down;oscale=per_oc:2.25;
 --cfg=u8s8u8s32 --batch=deconv_2d
