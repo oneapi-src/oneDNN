@@ -386,9 +386,8 @@ status_t init_conf(jit_gemm_conv_conf_t &jcp,
         ? (ptrdiff_t)jcp.ic * jcp.ks * jcp.os : 0;
 
     bool do_outer_threading = false;
-    bool is_int8_conv = one_of(
-            conv_prop_agnostic_src_d(&cd)->data_type, u8, s8)
-        && conv_prop_agnostic_wei_d(&cd)->data_type == s8;
+    bool is_int8_conv = utils::one_of(src_d.data_type(), s32, s8, u8)
+        && weights_d.data_type() == s8;
 
     const bool is_bwd_d = jcp.prop_kind == backward_data;
     const bool is_bwd_w = jcp.prop_kind == backward_weights;
