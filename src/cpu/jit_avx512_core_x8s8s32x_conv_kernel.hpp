@@ -165,7 +165,7 @@ private:
     bool maybe_eltwise(int position);
     void prepare_output(int ur_w);
     void store_output(int ur_w, int last_oc_block_flag);
-    void compute_ker_dw(int ur_w, int pad_l, int pad_r);
+    void compute_ker_dw(int ur_w, int pad_l, int pad_r, int last_ic_block_flag);
     void compute_ker(int ur_w, int pad_l, int pad_r, int last_ic_block_flag,
                                                         bool h_padded = false);
     void compute_eltwise(int ur_w);

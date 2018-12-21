@@ -225,7 +225,7 @@ void jit_avx512_core_x8s8s32x_fwd_kernel::store_output(int ur_w,
 }
 
 void jit_avx512_core_x8s8s32x_fwd_kernel::compute_ker_dw(
-        int ur_w, int pad_l, int pad_r) {
+        int ur_w, int pad_l, int pad_r, int last_ic_block_flag) {
     auto input_offset = [=](int oi, int ii, int ki) {
         return jcp.typesize_in
                 * ((ki * (jcp.dilate_w + 1) + oi * jcp.stride_w - pad_l)
@@ -253,6 +253,8 @@ void jit_avx512_core_x8s8s32x_fwd_kernel::compute_ker_dw(
         int jj_end = get_ow_end(ur_w, ki, pad_r);
         for (int ii = 0; ii < jcp.nb_ch_blocking; ii++) {
             int aux_kernel_offset = kernel_offset(ii, ki);
+            const bool mask_flag = last_ic_block_flag != no_last_block && ii == jcp.nb_ch_blocking - 1;
+            zmm_t r_zmm_src = mask_flag ? zmm_src | ktail_mask : zmm_src;
             if (jcp.is_fast_depthwise) {
                 vbroadcasti32x4(zmm_wei,
                         EVEX_compress_addr(aux_reg_ker, aux_kernel_offset));
@@ -267,7 +269,7 @@ void jit_avx512_core_x8s8s32x_fwd_kernel::compute_ker_dw(
                     vbroadcasti32x4(zmm_src,
                             EVEX_compress_addr(aux_reg_inp, aux_input_offset));
                 } else {
-                    vpmovzxbd(zmm_src,
+                    vpmovzxbd(r_zmm_src,
                             EVEX_compress_addr(aux_reg_inp, aux_input_offset));
                 }
                 compute(zmm_out(jj, ii), zmm_wei, zmm_src);
@@ -280,7 +282,7 @@ void jit_avx512_core_x8s8s32x_fwd_kernel::compute_ker(int ur_w,
     int pad_l, int pad_r, int last_ic_block_flag, bool h_padded)
 {
     if (jcp.is_depthwise)
-        return compute_ker_dw(ur_w, pad_l, pad_r);
+        return compute_ker_dw(ur_w, pad_l, pad_r, last_ic_block_flag);
 
     int kw = jcp.kw;
     int stride_w = jcp.stride_w;
@@ -437,7 +439,7 @@ void jit_avx512_core_x8s8s32x_fwd_kernel::icb_loop(
     Label icb_label;
     mov(reg_icb, jcp.nb_ic);
     L(icb_label);
-    if (jcp.ic_without_padding != jcp.ic) {
+    if (jcp.ngroups % jcp.ch_block != 0 || jcp.ic_without_padding != jcp.ic) {
         Label common_ker, end_ker;
 
         cmp(reg_icb, 1); // The last IC block
