@@ -28,7 +28,7 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-#define DECLARE_DECONVOLUTION_PD_t(impl_name, ...)                             \
+#define DECLARE_DECONVOLUTION_PD_t(...)                                        \
     virtual pd_t *clone() const override { return new pd_t(*this); }           \
     virtual status_t create_primitive(primitive_t **primitive,                 \
             const primitive_at_t *inputs, const primitive_t **outputs)         \
@@ -56,10 +56,9 @@
         }                                                                      \
         return ret;                                                            \
     }                                                                          \
-    virtual const char *name() const override { return impl_name; }
+    virtual const char *name() const override { return conv_pd_->name(); }
 
-#define DECLARE_DECONVOLUTION_PD_T(impl_name, ...) \
-    DECLARE_DECONVOLUTION_PD_t(impl_name, __VA_ARGS__)
+#define DECLARE_DECONVOLUTION_PD_T(...) DECLARE_DECONVOLUTION_PD_t(__VA_ARGS__)
 
 namespace mkldnn {
 namespace impl {

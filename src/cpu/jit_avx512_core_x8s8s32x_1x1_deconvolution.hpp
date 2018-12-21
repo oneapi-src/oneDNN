@@ -53,7 +53,6 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t
         ~pd_t() { delete conv_pd_; }
 
         DECLARE_DECONVOLUTION_PD_T(
-                JIT_IMPL_NAME_HELPER("jit_deconv_int8_1x1:", avx512_core, ""),
                 jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t<src_type,
                         dst_type>);
 

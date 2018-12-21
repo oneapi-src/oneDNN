@@ -113,7 +113,7 @@ struct ref_deconvolution_fwd_t: public cpu_primitive_t {
 
         ~pd_t() { delete conv_pd_; }
 
-        DECLARE_DECONVOLUTION_PD_T("ref:any", ref_deconvolution_fwd_t);
+        DECLARE_DECONVOLUTION_PD_T(ref_deconvolution_fwd_t);
 
         status_t init_convolution(){
             using namespace memory_format;
@@ -244,7 +244,7 @@ struct ref_deconvolution_bwd_data_t: public cpu_primitive_t {
 
         ~pd_t() { delete conv_pd_; }
 
-        DECLARE_DECONVOLUTION_PD_T("ref:any", ref_deconvolution_bwd_data_t);
+        DECLARE_DECONVOLUTION_PD_T(ref_deconvolution_bwd_data_t);
 
         status_t init_convolution(){
             using namespace memory_format;
@@ -340,7 +340,7 @@ struct ref_deconvolution_bwd_weights_t: public cpu_primitive_t {
 
         ~pd_t() { delete conv_pd_; }
 
-        DECLARE_DECONVOLUTION_PD_T("ref:any", ref_deconvolution_bwd_weights_t);
+        DECLARE_DECONVOLUTION_PD_T(ref_deconvolution_bwd_weights_t);
 
         status_t init_convolution(){
             using namespace memory_format;
