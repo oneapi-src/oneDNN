@@ -86,32 +86,35 @@ void gemm_convolution_fwd_t::execute_forward() const {
             if (eltwise_) {
                 // fast branch for ReLU case
                 if (eltwise_->alg_ == alg_kind::eltwise_relu) {
-                    for (int oc = 0; oc < jcp.oc; ++oc) {
+                    parallel_nd(jcp.oc, [&](const int oc) {
                         data_t b = jcp.with_bias ? bias[g * jcp.oc + oc] : 0;
+                        data_t *d_ = d + oc * M;
+                        PRAGMA_OMP_SIMD()
                         for (int oS = 0; oS < m; ++oS) {
-                            d[oS] += b;
-                            if (d[oS] < 0) d[oS] *= eltwise_->alpha_;
+                            d_[oS] += b;
+                            if (d_[oS] < 0) d_[oS] *= eltwise_->alpha_;
                         }
-                        d += M;
-                    }
+                    });
                 } else {
-                    for (int oc = 0; oc < jcp.oc; ++oc) {
+                    parallel_nd(jcp.oc, [&](const int oc) {
                         data_t b = jcp.with_bias ? bias[g * jcp.oc + oc] : 0;
+                        data_t *d_ = d + oc * M;
+                        PRAGMA_OMP_SIMD()
                         for (int oS = 0; oS < m; ++oS) {
-                            d[oS] += b;
-                            d[oS] = eltwise_->compute_scalar(d[oS]);
+                            d_[oS] += b;
+                            d_[oS] = eltwise_->compute_scalar(d_[oS]);
                         }
-                        d += M;
-                    }
+                    });
                 }
             } else if (jcp.with_bias) {
-                for (int oc = 0; oc < jcp.oc; ++oc) {
+                parallel_nd(jcp.oc, [&](const int oc) {
                     data_t b = bias[g * jcp.oc + oc];
+                    data_t *d_ = d + oc * M;
+                    PRAGMA_OMP_SIMD()
                     for (int oS = 0; oS < m; ++oS) {
-                        d[oS] += b;
+                        d_[oS] += b;
                     }
-                    d += M;
-                }
+                });
             }
             nd_iterator_step(g, jcp.ngroups, n, jcp.mb, od, jcp.od);
         }
