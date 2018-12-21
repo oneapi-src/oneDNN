@@ -604,21 +604,29 @@ void jit_avx2_conv_bwd_data_kernel_f32::compute_loop(int ur_w, int l_overflow,
     int stride_h = jcp.stride_h;
 
     Label kd_loop, skip_kd_loop;
+    Label oc_loop, skip_oc_loop;
 
     for (int ii = 0; ii < nb_ic_block; ii++)
         for (int jj = 0; jj < ur_w; jj++) {
-            size_t offt = sizeof(float) * ((size_t)ii * id * ih * iw + jj)
-                * ic_block;
-            vmovups(Ymm(ur_w * ii + jj),
-                    make_safe_addr(reg_dsrc, offt, reg_long_offt));
+            uni_vpxor(Ymm(ur_w * ii + jj), Ymm(ur_w * ii + jj),
+                      Ymm(ur_w * ii + jj));
         }
 
     if (one_of(jcp.ndims, 3, 4)) {
-        mov(aux_reg_ddst, reg_ddst);
-        mov(aux_reg_kernel, reg_kernel);
+        cmp(reg_channel_work, 0);
+        jle(skip_oc_loop, T_NEAR);
+        xor_(reg_channel, reg_channel);
+
+        mov(aux_reg_ddst_oc_loop, reg_ddst);
+        mov(aux_reg_kernel_oc_loop, reg_kernel);
+
+        L(oc_loop);
+        mov(aux_reg_ddst, aux_reg_ddst_oc_loop);
+        mov(aux_reg_kernel, aux_reg_kernel_oc_loop);
     }
 
     if (jcp.ndims == 5) {
+        assert(jcp.nb_oc_blocking == 1);
         push(oi_iter);
 
         mov(reg_ki, ptr[this->param1 + GET_OFF(kd_padding)]);
@@ -691,6 +699,39 @@ void jit_avx2_conv_bwd_data_kernel_f32::compute_loop(int ur_w, int l_overflow,
         pop(oi_iter);
     }
 
+    if (one_of(jcp.ndims, 3, 4)) {
+        int ddst_oc_shift = sizeof(float) * jcp.od * jcp.oh * jcp.ow
+                          * jcp.oc_block;
+        int kernel_oc_shift = sizeof(float) * jcp.kd * jcp.kh * jcp.kw
+                          * jcp.ic * jcp.oc_block;
+
+        add(aux_reg_ddst_oc_loop, ddst_oc_shift);
+        add(aux_reg_kernel_oc_loop, kernel_oc_shift);
+
+        inc(reg_channel);
+        cmp(reg_channel, reg_channel_work);
+        jl(oc_loop, T_NEAR);
+
+        L(skip_oc_loop);
+        mov(reg_channel, ptr[param1 + GET_OFF(channel)]);
+    }
+
+    Label no_update_label;
+    cmp(reg_channel, 0);
+    je(no_update_label, T_NEAR);
+    for (int ii = 0; ii < nb_ic_block; ii++) {
+        for (int jj = 0; jj < ur_w; jj++) {
+            size_t offt =
+                sizeof(float) * ((size_t)ii * id * ih * iw + jj) * ic_block;
+            vmovups(Ymm(15),
+                    make_safe_addr(reg_dsrc, offt, reg_long_offt));
+            vaddps(Ymm(ur_w * ii + jj), Ymm(ur_w * ii + jj),
+                    Ymm(15));
+
+        }
+    }
+    L(no_update_label);
+
     for (int ii = 0; ii < nb_ic_block; ii++)
         for (int jj = 0; jj < ur_w; jj++) {
             size_t offt =
@@ -707,6 +748,8 @@ void jit_avx2_conv_bwd_data_kernel_f32::generate() {
     mov(reg_ddst, ptr[this->param1 + GET_OFF(dst)]);
     mov(reg_kernel, ptr[this->param1 + GET_OFF(filt)]);
     mov(reg_kh, ptr[this->param1 + GET_OFF(kh_padding)]);
+    mov(reg_channel, ptr[param1 + GET_OFF(channel)]);
+    mov(reg_channel_work, ptr[param1 + GET_OFF(ch_blocks)]);
 
     int ddst_shift = sizeof(float) * (jcp.ur_w / jcp.stride_w) * jcp.ic_block;
     int dsrc_shift = sizeof(float) * jcp.ur_w * jcp.oc_block;
@@ -836,6 +879,9 @@ status_t jit_avx2_conv_bwd_data_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     jcp.nb_ic_blocking = 1;
     jcp.nb_oc_blocking = 1;
     jcp.ur_w = 1;
+
+    if(one_of(ndims, 3, 4) && jcp.ow < 40)
+        jcp.nb_oc_blocking = jcp.ow < 15 ? 4 : 2;
 
     jcp.src_fmt = diff_src_d.format();
 

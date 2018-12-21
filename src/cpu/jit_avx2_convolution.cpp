@@ -184,7 +184,7 @@ void jit_avx2_convolution_bwd_data_t::execute_backward_data() const {
         size_t n{0}, g{0}, icbb{0};
         nd_iterator_init(start, n, jcp.mb, g, jcp.ngroups, icbb, icb_work);
         for (size_t iwork = start; iwork < end; ++iwork) {
-            for (int oc = 0; oc < jcp.nb_oc; ++oc)
+            for (int oc = 0; oc < jcp.nb_oc; oc += jcp.nb_oc_blocking)
             for (int id = 0; id < jcp.id; ++id) {
                 auto par_conv = jit_conv_call_s();
 
@@ -195,8 +195,6 @@ void jit_avx2_convolution_bwd_data_t::execute_backward_data() const {
                 const int d_b_overflow = nstl::max(0,
                         jcp.kd - 1 - (jcp.id - 1 - id) - back_pad);
                 const int od = id + jcp.f_pad - d_b_overflow;
-
-                const int simd_w = 8;
 
                 for (int ih = 0; ih < jcp.ih; ++ih) {
 
@@ -229,24 +227,9 @@ void jit_avx2_convolution_bwd_data_t::execute_backward_data() const {
                     par_conv.src_prf = nullptr;
                     par_conv.dst_prf = nullptr;
                     par_conv.filt_prf = nullptr;
-                    // TODO: move initialization into the kernel
-                    if (oc == 0)
-                    {
-                        for (int iw = 0; iw < jcp.iw; iw++)
-                        {
-                            for (int b = 0; b < jcp.nb_ic_blocking; b++)
-                            {
-                                int current_ic =
-                                    (jcp.ic == 3 ? 0 : g * jcp.nb_ic)
-                                    + jcp.nb_ic_blocking * icbb + b;
-                                int current_idx =
-                                    src_blk_off(diff_src_d, n, current_ic,
-                                            id, ih, iw);
-                                for (int v = 0; v < simd_w; v++)
-                                    diff_src[current_idx + v] = 0.0;
-                            }
-                        }
-                    }
+                    par_conv.channel = oc;
+                    par_conv.ch_blocks = nstl::min(jcp.nb_oc - oc,
+                                       jcp.nb_oc_blocking);
 
                     kernel_->jit_ker(&par_conv);
                 }

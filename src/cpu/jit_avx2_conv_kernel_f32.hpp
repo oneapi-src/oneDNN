@@ -121,26 +121,24 @@ struct jit_avx2_conv_bwd_data_kernel_f32: public jit_generator {
 private:
     using reg64_t = const Xbyak::Reg64;
 
-    reg64_t reg_input      = rax;
     reg64_t reg_ddst       = rax;
-    reg64_t aux_reg_input  = r8;
     reg64_t aux_reg_ddst   = r8;
-    reg64_t aux1_reg_input = r9;
     reg64_t reg_kernel     = rdx;
     reg64_t aux_reg_kernel = r10;
-    reg64_t reg_output     = rsi;
     reg64_t reg_dsrc       = rsi;
-    reg64_t aux_reg_output = rbx;
-    reg64_t aux_reg_dsrc = rbx;
+    reg64_t aux_reg_ddst_oc_loop  = rbx; // used in ndims < 5 case only
+    reg64_t aux_reg_kernel_oc_loop = abi_not_param1; /* used in ndims < 5
+                                                        case only */
 
-    reg64_t aux_reg_dst_d = r12;
-    reg64_t aux_reg_ker_d = r14;
+    reg64_t aux_reg_dst_d = r12; // used in ndims == 5 case only
+    reg64_t aux_reg_ker_d = r14; // used in ndims == 5 case only
 
-    reg64_t reg_ki  = abi_not_param1;
+    reg64_t reg_ki  = abi_not_param1; // used in ndims == 5 case only
     reg64_t kj      = r11;
     reg64_t oi_iter = r12;
     reg64_t reg_kh  = r14;
-    reg64_t ki_iter = r13;
+    reg64_t reg_channel = r13;  // used in ndims < 5 case only
+    reg64_t reg_channel_work = r9;  // used in ndims < 5 case only
     reg64_t reg_long_offt = r15;
 
     inline void compute_loop(int ur_w, int l_overflow, int r_overflow);
