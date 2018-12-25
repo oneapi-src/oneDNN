@@ -35,9 +35,10 @@ namespace cpu {
 struct cpu_memory_t;
 
 struct cpu_primitive_t: public primitive_t {
-    cpu_primitive_t(const primitive_desc_t *pd, const input_vector &inputs,
-            const output_vector &outputs, bool use_global_scratchpad = false)
-        : primitive_t(pd, inputs, outputs), scratchpad_buffer_(nullptr)
+    cpu_primitive_t(const primitive_desc_t *pd,
+            bool use_global_scratchpad = false)
+        : primitive_t(pd)
+        , scratchpad_buffer_(nullptr)
         , global_scratchpad_(nullptr)
     {
         size_t scratchpad_size = this->pd()->scratchpad_registry().size();
@@ -51,29 +52,6 @@ struct cpu_primitive_t: public primitive_t {
         delete global_scratchpad_;
         free(scratchpad_buffer_);
     }
-
-    virtual char *memory(size_t output_index = 0) const {
-        if (output_index >= this->outputs().size()) return nullptr;
-        auto p = static_cast<const cpu_primitive_t *>(
-                this->outputs()[output_index]);
-        return p->memory();
-    }
-    virtual const char *const_memory(size_t output_index = 0) const {
-        if (output_index >= this->outputs().size()) return nullptr;
-        auto p = static_cast<const cpu_primitive_t *>(
-                this->outputs()[output_index]);
-        return p->const_memory();
-    }
-
-    const char *input_memory(size_t index = 0) const {
-        if (index >= this->inputs().size()) return nullptr;
-        const size_t oi = this->inputs()[index].output_index;
-        auto p = static_cast<const cpu_primitive_t *>(
-                this->inputs()[index].primitive);
-        return p->const_memory(oi);
-    }
-
-    const cpu_memory_t *output_memory_primitive(size_t index = 0) const;
 
 protected:
     memory_tracking::grantor_t scratchpad() const {

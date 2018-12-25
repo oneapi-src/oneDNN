@@ -77,9 +77,7 @@ struct mkldnn_primitive_desc: public mkldnn::impl::c_compatible {
             void *result) const;
 
     virtual mkldnn::impl::status_t create_primitive(
-            mkldnn::impl::primitive_t **primitive,
-            const mkldnn::impl::primitive_at_t *inputs,
-            const mkldnn::impl::primitive_t **outputs) const = 0;
+            mkldnn::impl::primitive_t **primitive) const = 0;
 
     virtual const char *name() const { return "mkldnn_primitive_desc"; }
 
@@ -118,15 +116,9 @@ protected:
 
 #define DECLARE_COMMON_PD_t(impl_name, ...) \
     virtual pd_t *clone() const override { return new pd_t(*this); } \
-    virtual status_t create_primitive(primitive_t **primitive, \
-            const primitive_at_t *inputs, \
-            const primitive_t **outputs) const override { \
+    virtual status_t create_primitive(primitive_t **p) const override { \
         double ms = get_msec(); \
-        const int c = (inputs || outputs) ? 1 : 0; \
-        primitive_t::input_vector ins(inputs, inputs + c * this->n_inputs()); \
-        primitive_t::output_vector outs(outputs, outputs + c * this->n_outputs()); \
-        auto ret = safe_ptr_assign<primitive_t>(*primitive, \
-                new (__VA_ARGS__)(this, ins, outs)); \
+        auto ret = safe_ptr_assign<primitive_t>(*p, new (__VA_ARGS__)(this)); \
         ms = get_msec() - ms; \
         if (mkldnn_verbose()->level >= 2) { \
             printf("mkldnn_verbose,create,%s,%g\n", this->info(), ms); \

@@ -120,9 +120,9 @@ struct gemm_convolution_fwd_t: public cpu_primitive_t {
         }
     };
 
-    gemm_convolution_fwd_t(const pd_t *apd, const input_vector &inputs,
-           const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs, true), eltwise_(nullptr)
+    gemm_convolution_fwd_t(const pd_t *apd)
+        : cpu_primitive_t(apd, true)
+        , eltwise_(nullptr)
     {
         const auto &post_ops = pd()->attr()->post_ops_;
         const data_t one = 1.0, zero = 0.0;
@@ -221,9 +221,8 @@ struct gemm_convolution_bwd_data_t: public cpu_primitive_t {
         }
     };
 
-    gemm_convolution_bwd_data_t(const pd_t *apd, const input_vector &inputs,
-              const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs, true) {}
+    gemm_convolution_bwd_data_t(const pd_t *apd)
+        : cpu_primitive_t(apd, true) {}
     ~gemm_convolution_bwd_data_t() {}
 
     typedef typename prec_traits<data_type::f32>::type data_t;
@@ -317,9 +316,8 @@ struct gemm_convolution_bwd_weights_t: public cpu_primitive_t {
         }
     };
 
-    gemm_convolution_bwd_weights_t(const pd_t *apd, const input_vector &inputs,
-              const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs, true) {}
+    gemm_convolution_bwd_weights_t(const pd_t *apd)
+        : cpu_primitive_t(apd, true) {}
     ~gemm_convolution_bwd_weights_t() {}
 
     typedef typename prec_traits<data_type::f32>::type data_t;

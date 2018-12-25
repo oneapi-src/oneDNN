@@ -148,9 +148,7 @@ struct simple_concat_t: public cpu_primitive_t {
         }
     };
 
-    simple_concat_t(const pd_t *apd, const input_vector &inputs,
-            const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs) {}
+    simple_concat_t(const pd_t *apd): cpu_primitive_t(apd) {}
     ~simple_concat_t() {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override;

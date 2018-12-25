@@ -92,9 +92,7 @@ struct jit_sse42_convolution_fwd_t: public cpu_primitive_t {
         }
     };
 
-    jit_sse42_convolution_fwd_t(const pd_t *apd, const input_vector &inputs,
-            const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs)
+    jit_sse42_convolution_fwd_t(const pd_t *apd): cpu_primitive_t(apd)
     { kernel_ = new jit_sse42_conv_fwd_kernel_f32(pd()->jcp_, *pd()->attr()); }
     ~jit_sse42_convolution_fwd_t() { delete kernel_; };
 

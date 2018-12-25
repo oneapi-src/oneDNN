@@ -69,9 +69,7 @@ struct ref_softmax_fwd_t: public cpu_primitive_t {
         }
     };
 
-    ref_softmax_fwd_t(const pd_t *apd, const input_vector &inputs,
-            const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs)
+    ref_softmax_fwd_t(const pd_t *apd): cpu_primitive_t(apd)
     {
         auto ndims = pd()->desc()->data_desc.ndims;
         auto dims = pd()->desc()->data_desc.dims;
@@ -138,9 +136,7 @@ struct ref_softmax_bwd_t: public cpu_primitive_t {
         }
     };
 
-    ref_softmax_bwd_t(const pd_t *apd, const input_vector &inputs,
-            const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs) {
+    ref_softmax_bwd_t(const pd_t *apd): cpu_primitive_t(apd) {
         auto dims = pd()->desc()->diff_desc.dims;
         auto axis = pd()->desc()->softmax_axis;
         auto ndims = pd()->desc()->diff_desc.ndims;

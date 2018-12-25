@@ -349,9 +349,8 @@ status_t jit_avx512_common_lrn_fwd_t::pd_t::init() {
     return args_ok_across ? success : unimplemented;
 }
 
-jit_avx512_common_lrn_fwd_t::jit_avx512_common_lrn_fwd_t(const pd_t *apd,
-        const input_vector &inputs, const output_vector &outputs)
-    : cpu_primitive_t(apd, inputs, outputs)
+jit_avx512_common_lrn_fwd_t::jit_avx512_common_lrn_fwd_t(const pd_t *apd)
+    : cpu_primitive_t(apd)
     , use_h_parallelism(0), ker_(nullptr), ker_first_(nullptr)
     , ker_last_(nullptr) {
     using namespace alg_kind;
@@ -762,9 +761,8 @@ status_t jit_avx512_common_lrn_bwd_t::pd_t::init() {
     return args_ok_across ? success : unimplemented;
 }
 
-jit_avx512_common_lrn_bwd_t::jit_avx512_common_lrn_bwd_t(const pd_t *apd,
-        const input_vector &inputs, const output_vector &outputs)
-    : cpu_primitive_t(apd, inputs, outputs)
+jit_avx512_common_lrn_bwd_t::jit_avx512_common_lrn_bwd_t(const pd_t *apd)
+    : cpu_primitive_t(apd)
     , use_h_parallelism(0),  ker_(nullptr), ker_first_(nullptr)
     , ker_last_(nullptr) {
     const int C = pd()->C();

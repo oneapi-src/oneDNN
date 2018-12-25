@@ -92,9 +92,7 @@ struct ncsp_batch_normalization_fwd_t : public cpu_primitive_t {
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    ncsp_batch_normalization_fwd_t(const pd_t *apd, const input_vector &inputs,
-            const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs) {}
+    ncsp_batch_normalization_fwd_t(const pd_t *apd): cpu_primitive_t(apd) {}
     ~ncsp_batch_normalization_fwd_t() {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
@@ -163,9 +161,7 @@ struct ncsp_batch_normalization_bwd_t : public cpu_primitive_t {
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    ncsp_batch_normalization_bwd_t(const pd_t *apd, const input_vector &inputs,
-            const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs) {}
+    ncsp_batch_normalization_bwd_t(const pd_t *apd): cpu_primitive_t(apd) {}
     ~ncsp_batch_normalization_bwd_t() {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {

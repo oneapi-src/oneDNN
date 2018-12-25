@@ -30,25 +30,14 @@
 
 #define DECLARE_DECONVOLUTION_PD_t(...)                                        \
     virtual pd_t *clone() const override { return new pd_t(*this); }           \
-    virtual status_t create_primitive(primitive_t **primitive,                 \
-            const primitive_at_t *inputs, const primitive_t **outputs)         \
+    virtual status_t create_primitive(primitive_t **primitive)                 \
             const override {                                                   \
         double ms = get_msec();                                                \
         using namespace prop_kind;                                             \
-        const int c = (inputs || outputs) ? 1 : 0;                             \
-        primitive_t::input_vector ins(inputs, inputs + c * this->n_inputs());  \
-        primitive_t::output_vector outs(outputs, outputs + c * this->n_outputs()); \
         auto ret = safe_ptr_assign<primitive_t>(                               \
-                *primitive, new (__VA_ARGS__)(this, ins, outs));               \
+                *primitive, new (__VA_ARGS__)(this));                          \
         primitive_t *conv_primitive;                                           \
-        if (c && this->desc()->prop_kind == backward_weights) {                \
-            primitive_at_t conv_inputs[2];                                     \
-            conv_inputs[0] = inputs[1];                                        \
-            conv_inputs[1] = inputs[0];                                        \
-            conv_pd_->create_primitive(                                        \
-                    (&conv_primitive), conv_inputs, outputs);                  \
-        } else                                                                 \
-            conv_pd_->create_primitive((&conv_primitive), inputs, outputs);    \
+        conv_pd_->create_primitive(&conv_primitive);                           \
         ((__VA_ARGS__ *)(*primitive))->conv_p_ = conv_primitive;               \
         ms = get_msec() - ms;                                                  \
         if (mkldnn_verbose()->level >= 2) {                                    \

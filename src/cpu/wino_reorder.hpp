@@ -83,9 +83,7 @@ private:
     typedef typename prec_traits<type_o>::type out_data_t;
     const int unsign_val_in_wino_domain_ = 5;
 
-    wino_reorder_t(const pd_t *apd, const input_vector &inputs,
-            const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs)
+    wino_reorder_t(const pd_t *apd): cpu_primitive_t(apd)
     {
         const memory_desc_wrapper input_d(pd()->input_pd());
         const memory_desc_wrapper output_d(pd()->output_pd());

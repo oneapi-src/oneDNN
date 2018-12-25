@@ -50,8 +50,7 @@ struct jit_uni_batch_normalization_fwd_t: public cpu_primitive_t {
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    jit_uni_batch_normalization_fwd_t(const pd_t *apd,
-            const input_vector &inputs, const output_vector &outputs);
+    jit_uni_batch_normalization_fwd_t(const pd_t *apd);
     ~jit_uni_batch_normalization_fwd_t();
 
     virtual status_t execute(const exec_ctx_t &ctx) const override;
@@ -80,8 +79,7 @@ struct jit_uni_batch_normalization_bwd_t: public cpu_primitive_t {
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    jit_uni_batch_normalization_bwd_t(const pd_t *apd,
-            const input_vector &inputs, const output_vector &outputs);
+    jit_uni_batch_normalization_bwd_t(const pd_t *apd);
     ~jit_uni_batch_normalization_bwd_t();
 
     virtual status_t execute(const exec_ctx_t &ctx) const override;

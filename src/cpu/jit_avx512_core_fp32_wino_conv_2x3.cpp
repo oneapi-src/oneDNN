@@ -1,4 +1,3 @@
-
 /*******************************************************************************
  * Copyright 2018 Intel Corporation
  *
@@ -842,9 +841,8 @@ status_t jit_avx512_core_fp32_wino_conv_2x3_fwd_t
 }
 
 jit_avx512_core_fp32_wino_conv_2x3_fwd_t::
-        jit_avx512_core_fp32_wino_conv_2x3_fwd_t(const pd_t *apd,
-                const input_vector &inputs, const output_vector &outputs)
-    : cpu_primitive_t(apd, inputs, outputs)
+        jit_avx512_core_fp32_wino_conv_2x3_fwd_t(const pd_t *apd)
+    : cpu_primitive_t(apd)
 {
     kernel_ = new jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t(
             pd()->jcp_, *pd()->attr());

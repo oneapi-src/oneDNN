@@ -55,22 +55,17 @@ struct ref_concat_t: public cpu_primitive_t {
             if (_pd->init() != success) { delete _pd; return unimplemented; }
             return safe_ptr_assign<concat_pd_t>(*concat_pd, _pd);
         }
-        virtual status_t create_primitive(primitive_t **primitive,
-                const primitive_at_t *inputs,
-                const primitive_t **outputs) const override {
+        virtual status_t create_primitive(
+                primitive_t **primitive) const override {
             double ms = get_msec();
             auto n = n_inputs();
             nstl::vector<primitive_t *> reorders;
             reorders.resize(n);
             for (int i = 0; i < n; ++i) {
-                CHECK(reorder_pds_[i]->create_primitive(&reorders[i],
-                            nullptr, nullptr));
+                CHECK(reorder_pds_[i]->create_primitive(&reorders[i]));
             }
-            const int c = (inputs || outputs) ? 1 : 0;
-            primitive_t::input_vector ins(inputs, inputs + c * n_);
-            primitive_t::output_vector outs(outputs, outputs + c * 1);
             auto ret = safe_ptr_assign<primitive_t>(*primitive,
-                    new ref_concat_t(this, ins, outs, reorders));
+                    new ref_concat_t(this, reorders));
             ms = get_msec() - ms;
             if (mkldnn_verbose()->level >= 2) {
                 printf("mkldnn_verbose,create,%s,%g\n", this->info(), ms);
@@ -106,10 +101,8 @@ struct ref_concat_t: public cpu_primitive_t {
         nstl::vector<const reorder_pd_t *> reorder_pds_;
     };
 
-    ref_concat_t(const pd_t *apd, const input_vector &inputs,
-            const output_vector &outputs, nstl::vector<primitive_t *> reorders)
-        : cpu_primitive_t(apd, inputs, outputs),
-        reorders_(reorders) {}
+    ref_concat_t(const pd_t *apd, nstl::vector<primitive_t *> reorders)
+        : cpu_primitive_t(apd), reorders_(reorders) {}
 
     ~ref_concat_t() {
         const auto n = reorders_.size();

@@ -38,15 +38,9 @@ namespace cpu {
         if (_pd->init() != success) { delete _pd; return unimplemented; } \
         return safe_ptr_assign<sum_pd_t>(*sum_pd, _pd); \
     } \
-    virtual status_t create_primitive(primitive_t **primitive, \
-            const primitive_at_t *inputs, \
-            const primitive_t **outputs) const override { \
+    virtual status_t create_primitive(primitive_t **p) const override { \
         double ms = get_msec(); \
-        const int c = (inputs || outputs) ? 1 : 0; \
-        primitive_t::input_vector ins(inputs, inputs + c * n_); \
-        primitive_t::output_vector outs(outputs, outputs + c * 1); \
-        auto ret = safe_ptr_assign<primitive_t>(*primitive, \
-                new (__VA_ARGS__)(this, ins, outs)); \
+        auto ret = safe_ptr_assign<primitive_t>(*p, new (__VA_ARGS__)(this)); \
         ms = get_msec() - ms; \
         if (mkldnn_verbose()->level >= 2) { \
             printf("mkldnn_verbose,create,%s,%g\n", this->info(), ms); \

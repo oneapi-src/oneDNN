@@ -53,9 +53,7 @@ struct ref_shuffle_t : public cpu_primitive_t {
         }
     };
 
-    ref_shuffle_t(const pd_t *apd, const input_vector &inputs,
-            const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs)
+    ref_shuffle_t(const pd_t *apd): cpu_primitive_t(apd)
     {
         const int axis_size = pd()->axis_size();
         const int group_size = pd()->group_size();

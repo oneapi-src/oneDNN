@@ -429,9 +429,8 @@ template struct jit_avx512_common_1x1_convolution_bwd_data_t<data_type::s16,
          : (d).blk_off(__VA_ARGS__))
 
 jit_avx512_common_1x1_convolution_bwd_weights_t ::
-        jit_avx512_common_1x1_convolution_bwd_weights_t(const pd_t *apd,
-                const input_vector &inputs, const output_vector &outputs)
-    : cpu_primitive_t(apd, inputs, outputs)
+        jit_avx512_common_1x1_convolution_bwd_weights_t(const pd_t *apd)
+    : cpu_primitive_t(apd)
     , kernel_(nullptr), acc_ker_(nullptr), reducer_bias_(nullptr)
     , trans_kernel_(nullptr), rtus_driver_(nullptr)
 {

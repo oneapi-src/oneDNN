@@ -133,9 +133,8 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t
         bool conv_supports_bias_;
     };
 
-    jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t(const pd_t *apd,
-            const input_vector &inputs, const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs), conv_p_(nullptr) {}
+    jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t(const pd_t *apd)
+        : cpu_primitive_t(apd), conv_p_(nullptr) {}
 
     ~jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t() {
         delete this->conv_p_;

@@ -25,10 +25,8 @@ namespace impl {
 namespace cpu {
 
 template <cpu_isa_t isa>
-jit_uni_lrn_fwd_t<isa>::jit_uni_lrn_fwd_t(
-    const pd_t *apd,
-    const input_vector &inputs, const output_vector &outputs)
-    : cpu_primitive_t(apd, inputs, outputs), ker_(nullptr)
+jit_uni_lrn_fwd_t<isa>::jit_uni_lrn_fwd_t(const pd_t *apd)
+    : cpu_primitive_t(apd), ker_(nullptr)
     , ker_first_(nullptr), ker_last_(nullptr)
 {
     using namespace alg_kind;
@@ -177,9 +175,8 @@ status_t jit_uni_lrn_fwd_t<isa>::pd_t::init() {
 }
 
 template <cpu_isa_t isa>
-jit_uni_lrn_bwd_t<isa>::jit_uni_lrn_bwd_t(const pd_t *apd,
-    const input_vector &inputs, const output_vector &outputs)
-    : cpu_primitive_t(apd, inputs, outputs)
+jit_uni_lrn_bwd_t<isa>::jit_uni_lrn_bwd_t(const pd_t *apd)
+    : cpu_primitive_t(apd)
     , ker_(nullptr), ker_first_(nullptr), ker_last_(nullptr)
 {
     using namespace alg_kind;

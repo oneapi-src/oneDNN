@@ -67,9 +67,7 @@ private:
     typedef typename prec_traits<type_i>::type in_data_t;
     typedef typename prec_traits<type_o>::type out_data_t;
 
-    rnn_data_reorder_t(const pd_t *apd, const input_vector &inputs,
-            const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs) {}
+    rnn_data_reorder_t(const pd_t *apd): cpu_primitive_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         auto input = CTX_IN_MEM(const in_data_t *, MKLDNN_ARG_FROM);
@@ -166,9 +164,7 @@ private:
     typedef typename prec_traits<type_i>::type in_data_t;
     typedef typename prec_traits<type_o>::type out_data_t;
 
-    rnn_weights_reorder_t(const pd_t *apd, const input_vector &inputs,
-            const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs) {}
+    rnn_weights_reorder_t(const pd_t *apd): cpu_primitive_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
 #if USE_MKL_PACKED_GEMM
@@ -331,9 +327,7 @@ struct rnn_weights_reorder_t<data_type::f32, data_type::f32>
     };
 
 private:
-    rnn_weights_reorder_t(const pd_t *apd, const input_vector &inputs,
-            const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs) {}
+    rnn_weights_reorder_t(const pd_t *apd): cpu_primitive_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
 #if USE_MKL_PACKED_GEMM

@@ -880,9 +880,7 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
         tr::kernel_t::desc_t ker_desc_;
     };
 
-    jit_uni_reorder_t(const pd_t *apd, const input_vector &inputs,
-            const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs) {
+    jit_uni_reorder_t(const pd_t *apd): cpu_primitive_t(apd) {
         kernel_ = tr::kernel_t::create(pd()->ker_desc_);
         assert(kernel_);
     }

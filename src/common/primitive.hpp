@@ -46,26 +46,13 @@
  *   bottom for backward pass. Please consider restriction [1] in Level 0.
  */
 struct mkldnn_primitive: public mkldnn::impl::c_compatible {
-    typedef mkldnn::impl::nstl::vector<mkldnn::impl::primitive_at_t>
-        input_vector;
-    typedef mkldnn::impl::nstl::vector<const mkldnn::impl::primitive_t *>
-        output_vector;
-
-    mkldnn_primitive(const mkldnn::impl::primitive_desc_t *pd,
-            const input_vector &inputs, const output_vector &outputs)
-        : pd_(pd->clone())
-        , inputs_(inputs)
-        , outputs_(outputs)
-    {}
+    mkldnn_primitive(const mkldnn::impl::primitive_desc_t *pd)
+        : pd_(pd->clone()) {}
     virtual ~mkldnn_primitive() { delete pd_; }
 
     /** returns primitive's engine */
     mkldnn::impl::engine_t *engine() const { return pd_->engine(); }
     /** returns primitive's inputs */
-    const input_vector &inputs() const { return inputs_; }
-    /** returns primitive's outputs */
-    const output_vector &outputs() const { return outputs_; }
-    /** returns primitive's primitive desc */
     const mkldnn::impl::primitive_desc_t *pd() const { return pd_; }
     /** returns primitive's kind */
     mkldnn::impl::primitive_kind_t kind() const { return pd_->kind(); }
@@ -92,8 +79,6 @@ struct mkldnn_primitive: public mkldnn::impl::c_compatible {
 
 protected:
     const mkldnn::impl::primitive_desc_t *pd_;
-    input_vector inputs_;
-    output_vector outputs_;
 
 private:
     mkldnn_primitive() = delete;

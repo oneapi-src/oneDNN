@@ -34,13 +34,13 @@ namespace {
 // primitives outputs.
 //
 // A proper approach would be an implementation-specific unpoisoning.
-void unpoison_outputs(const primitive_t *p) {
-    if (p->engine()->kind() != engine_kind::cpu) return;
-    for(auto o: p->outputs()) {
-        assert(o->kind() == primitive_kind::memory);
+void unpoison_outputs(const exec_args_t &args) {
+    for(const auto &arg: args) {
+        if (arg.second.is_const) continue;
+        auto *mem = arg.second.mem;
         void *p;
-        o->get_data_handle(&p);
-        size_t s = ((memory_pd_t *)o->pd())->get_size();
+        mem->get_data_handle(&p);
+        size_t s = ((memory_pd_t *)mem->pd())->get_size();
         msan_unpoison(p, s);
     }
 }
@@ -55,7 +55,7 @@ status_t mkldnn_primitive_create(primitive_t **primitive,
         const primitive_desc_t *primitive_desc) {
     if (utils::any_null(primitive, primitive_desc))
         return invalid_arguments;
-    return primitive_desc->create_primitive(primitive, nullptr, nullptr);
+    return primitive_desc->create_primitive(primitive);
 }
 
 status_t mkldnn_primitive_execute(const primitive_t *primitive,
@@ -82,7 +82,7 @@ status_t mkldnn_primitive_execute(const primitive_t *primitive,
         status = primitive->execute(ctx);
     }
 
-    if (msan_enabled) unpoison_outputs(primitive);
+    if (msan_enabled) unpoison_outputs(ctx.args());
 
     return status;
 }
@@ -95,34 +95,10 @@ status_t mkldnn_primitive_get_primitive_desc(const primitive_t *primitive,
             primitive->pd());
 }
 
-status_t mkldnn_primitive_get_input_at(const primitive_t *primitive,
-        size_t index, primitive_at_t *input) {
-    if (utils::any_null(primitive, input)
-            || index >= primitive->inputs().size())
-        return invalid_arguments;
-    *input = primitive->inputs()[index];
-    return success;
-}
-
-status_t mkldnn_primitive_get_output(const primitive_t *primitive,
-        size_t index, const primitive_t **output) {
-    if (utils::any_null(primitive, output)
-            || index >= primitive->outputs().size())
-        return invalid_arguments;
-    *output = primitive->outputs()[index];
-    return success;
-}
-
 status_t mkldnn_primitive_destroy(primitive_t *primitive) {
     if (primitive != nullptr)
         delete primitive;
     return success;
-}
-
-primitive_at_t mkldnn_primitive_at(const primitive_t *primitive,
-        size_t output_index) {
-    primitive_at_t result = {primitive, output_index};
-    return result;
 }
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

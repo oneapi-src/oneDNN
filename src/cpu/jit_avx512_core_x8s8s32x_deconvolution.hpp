@@ -208,12 +208,11 @@ struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t : public cpu_primitive_t {
         jit_conv_conf_t jcp_;
     };
 
-    _jit_avx512_core_x8s8s32x_deconvolution_fwd_t(const pd_t *apd,
-           const input_vector &inputs, const output_vector &outputs)
-       : cpu_primitive_t(apd, inputs, outputs) {
-           kernel_ = new jit_avx512_core_x8s8s32x_deconv_fwd_kernel(pd()->jcp_,
-                   *pd()->attr());
-       }
+    _jit_avx512_core_x8s8s32x_deconvolution_fwd_t(const pd_t *apd)
+        : cpu_primitive_t(apd) {
+        kernel_ = new jit_avx512_core_x8s8s32x_deconv_fwd_kernel(pd()->jcp_,
+                *pd()->attr());
+    }
 
     ~_jit_avx512_core_x8s8s32x_deconvolution_fwd_t() {
         delete kernel_;

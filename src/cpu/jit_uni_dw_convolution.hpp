@@ -98,9 +98,7 @@ struct _jit_uni_dw_convolution_fwd_t: public cpu_primitive_t {
         }
     };
 
-    _jit_uni_dw_convolution_fwd_t(const pd_t *apd, const input_vector &inputs,
-            const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs), kernel_(nullptr)
+    _jit_uni_dw_convolution_fwd_t(const pd_t *apd): cpu_primitive_t(apd)
     { kernel_ = new jit_uni_dw_conv_fwd_kernel_f32<isa>(pd()->jcp_); }
 
     ~_jit_uni_dw_convolution_fwd_t() { delete kernel_; }
@@ -192,9 +190,7 @@ struct _jit_uni_dw_convolution_bwd_data_t: public cpu_primitive_t {
         }
     };
 
-    _jit_uni_dw_convolution_bwd_data_t(const pd_t *apd,
-            const input_vector &inputs, const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs)
+    _jit_uni_dw_convolution_bwd_data_t(const pd_t *apd): cpu_primitive_t(apd)
     { kernel_ = new jit_uni_dw_conv_bwd_data_kernel_f32<isa>(pd()->jcp_); }
     ~_jit_uni_dw_convolution_bwd_data_t() { delete kernel_; };
 
@@ -296,8 +292,7 @@ struct _jit_uni_dw_convolution_bwd_weights_t: public cpu_primitive_t {
         }
     };
 
-    _jit_uni_dw_convolution_bwd_weights_t(const pd_t *apd,
-            const input_vector &inputs, const output_vector &outputs);
+    _jit_uni_dw_convolution_bwd_weights_t(const pd_t *apd);
 
     ~_jit_uni_dw_convolution_bwd_weights_t() {
         delete kernel_;

@@ -88,9 +88,8 @@ struct jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
         jit_conv_conf_t jcp_;
     };
 
-    jit_avx512_common_convolution_fwd_t(const pd_t *apd,
-            const input_vector &inputs, const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs)
+    jit_avx512_common_convolution_fwd_t(const pd_t *apd)
+        : cpu_primitive_t(apd)
     {
         kernel_ = new jit_avx512_common_conv_fwd_kernel(pd()->jcp_,
                     *pd()->attr());
@@ -212,9 +211,8 @@ struct jit_avx512_common_convolution_bwd_data_t: public cpu_primitive_t {
         }
     };
 
-    jit_avx512_common_convolution_bwd_data_t(const pd_t *apd,
-            const input_vector &inputs, const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs)
+    jit_avx512_common_convolution_bwd_data_t(const pd_t *apd)
+        : cpu_primitive_t(apd)
     { kernel_ = new jit_avx512_common_conv_bwd_data_kernel_f32(pd()->jcp_); }
     ~jit_avx512_common_convolution_bwd_data_t() { delete kernel_; };
 
@@ -343,8 +341,7 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
         }
     };
 
-    jit_avx512_common_convolution_bwd_weights_t(const pd_t *apd,
-            const input_vector &inputs, const output_vector &outputs);
+    jit_avx512_common_convolution_bwd_weights_t(const pd_t *apd);
     ~jit_avx512_common_convolution_bwd_weights_t() {
         delete kernel_;
         if (trans_kernel_)

@@ -93,10 +93,9 @@ struct jit_sse42_1x1_convolution_fwd_t: public cpu_primitive_t {
         }
     };
 
-    jit_sse42_1x1_convolution_fwd_t(const pd_t *apd,
-            const input_vector &inputs, const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs)
-    { kernel_ = new jit_sse42_1x1_conv_kernel_f32(pd()->jcp_, *pd()->attr()); }
+    jit_sse42_1x1_convolution_fwd_t(const pd_t *apd): cpu_primitive_t(apd) {
+        kernel_ = new jit_sse42_1x1_conv_kernel_f32(pd()->jcp_, *pd()->attr());
+    }
     ~jit_sse42_1x1_convolution_fwd_t() { delete kernel_; };
 
     typedef typename prec_traits<data_type::f32>::type data_t;

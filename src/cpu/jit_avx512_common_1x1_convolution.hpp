@@ -125,9 +125,8 @@ struct jit_avx512_common_1x1_convolution_fwd_t : public cpu_primitive_t {
     template <cpu_isa_t isa, typename conv_t>
     friend void init_rtus_driver(conv_t *self);
 
-    jit_avx512_common_1x1_convolution_fwd_t(const pd_t *apd,
-            const input_vector &inputs, const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs)
+    jit_avx512_common_1x1_convolution_fwd_t(const pd_t *apd)
+        : cpu_primitive_t(apd)
         , kernel_(nullptr), rtus_driver_(nullptr)
     {
         kernel_ =
@@ -255,9 +254,8 @@ struct jit_avx512_common_1x1_convolution_bwd_data_t : public cpu_primitive_t {
     template <cpu_isa_t isa, typename conv_t>
     friend void init_rtus_driver(conv_t *self);
 
-    jit_avx512_common_1x1_convolution_bwd_data_t(const pd_t *apd,
-            const input_vector &inputs, const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs)
+    jit_avx512_common_1x1_convolution_bwd_data_t(const pd_t *apd)
+        : cpu_primitive_t(apd)
         , kernel_(nullptr), rtus_driver_(nullptr)
     {
         kernel_ = new jit_avx512_common_1x1_conv_kernel(pd()->jcp_,
@@ -396,8 +394,7 @@ struct jit_avx512_common_1x1_convolution_bwd_weights_t : public cpu_primitive_t
     template <cpu_isa_t isa, typename conv_t>
     friend void init_rtus_driver(conv_t *self);
 
-    jit_avx512_common_1x1_convolution_bwd_weights_t(const pd_t *apd,
-            const input_vector &inputs, const output_vector &outputs);
+    jit_avx512_common_1x1_convolution_bwd_weights_t(const pd_t *apd);
 
     ~jit_avx512_common_1x1_convolution_bwd_weights_t() {
         delete kernel_;

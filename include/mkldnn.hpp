@@ -110,7 +110,6 @@ struct primitive_desc;
 class primitive: public handle<mkldnn_primitive_t> {
     friend struct error;
     friend struct stream;
-    friend class primitive_at;
     using handle::handle;
 public:
     /// A proxy to C primitive kind enum
@@ -132,22 +131,6 @@ public:
         batch_normalization = mkldnn_batch_normalization,
         inner_product = mkldnn_inner_product,
         rnn = mkldnn_rnn,
-    };
-
-    /// A wrapper structure to specify a particular output of a primitive.
-    struct at {
-        /// The underlying C API structure.
-        mkldnn_primitive_at_t data;
-        /// Constructs a wrapper specifying @p aprimitive output with index @p
-        /// at.
-        ///
-        /// @param aprimitive The target primitive.
-        /// @param at The output index.
-
-        at(const primitive &aprimitive, size_t at = 0)
-            : data(mkldnn_primitive_at(aprimitive.get(), at)) {}
-        /// Returns the specified output.
-        inline operator primitive() const;
     };
 
     primitive(const_mkldnn_primitive_desc_t c_pd);
@@ -207,15 +190,6 @@ struct error: public std::exception {
         }
     }
 };
-
-inline primitive::at::operator primitive() const {
-    const_mkldnn_primitive_t output;
-    error::wrap_c_api(
-            mkldnn_primitive_get_output(data.primitive,
-                data.output_index, &output),
-            "could not get an output primitive");
-    return primitive(const_cast<mkldnn_primitive_t>(output), true);
-}
 
 const_mkldnn_primitive_desc_t primitive::get_primitive_desc() const {
     const_mkldnn_primitive_desc_t pd;

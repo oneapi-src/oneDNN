@@ -108,8 +108,7 @@ struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t : public cpu_primitive_t 
     typedef typename prec_traits<data_type::s32>::type acc_data_t;
     typedef typename prec_traits<dst_data_type>::type dst_data_t;
 
-    jit_avx512_core_u8s8s32x_wino_convolution_fwd_t(const pd_t *apd,
-            const input_vector &inputs, const output_vector &outputs);
+    jit_avx512_core_u8s8s32x_wino_convolution_fwd_t(const pd_t *apd);
     ~jit_avx512_core_u8s8s32x_wino_convolution_fwd_t();
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {

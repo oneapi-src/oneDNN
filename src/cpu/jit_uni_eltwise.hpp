@@ -143,8 +143,7 @@ struct jit_uni_eltwise_fwd_t : public cpu_primitive_t {
         virtual status_t init() override;
     };
 
-    jit_uni_eltwise_fwd_t(const pd_t *apd, const input_vector &inputs,
-                       const output_vector &outputs);
+    jit_uni_eltwise_fwd_t(const pd_t *apd);
     ~jit_uni_eltwise_fwd_t();
 
     typedef typename prec_traits<data_type::f32>::type data_t;
@@ -176,8 +175,7 @@ struct jit_uni_eltwise_bwd_t : public cpu_primitive_t {
         virtual status_t init() override;
     };
 
-    jit_uni_eltwise_bwd_t(const pd_t *apd, const input_vector &inputs,
-                       const output_vector &outputs);
+    jit_uni_eltwise_bwd_t(const pd_t *apd);
     ~jit_uni_eltwise_bwd_t();
 
     typedef typename prec_traits<data_type::f32>::type data_t;

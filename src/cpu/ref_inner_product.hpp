@@ -64,9 +64,7 @@ struct ref_inner_product_fwd_t: public cpu_primitive_t {
         }
     };
 
-    ref_inner_product_fwd_t(const pd_t *apd, const input_vector &inputs,
-            const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs) {}
+    ref_inner_product_fwd_t(const pd_t *apd): cpu_primitive_t(apd) {}
 
     typedef typename prec_traits<src_type>::type src_data_t;
     typedef typename prec_traits<wei_type>::type wei_data_t;
@@ -112,9 +110,7 @@ struct ref_inner_product_bwd_data_t: public cpu_primitive_t {
         }
     };
 
-    ref_inner_product_bwd_data_t(const pd_t *apd, const input_vector &inputs,
-            const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs) {}
+    ref_inner_product_bwd_data_t(const pd_t *apd): cpu_primitive_t(apd) {}
 
     typedef typename prec_traits<diff_src_type>::type diff_src_data_t;
     typedef typename prec_traits<wei_type>::type wei_data_t;
@@ -160,9 +156,7 @@ struct ref_inner_product_bwd_weights_t: public cpu_primitive_t {
         }
     };
 
-    ref_inner_product_bwd_weights_t(const pd_t *apd, const input_vector &inputs,
-            const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs) {}
+    ref_inner_product_bwd_weights_t(const pd_t *apd): cpu_primitive_t(apd) {}
     typedef typename prec_traits<data_type>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {

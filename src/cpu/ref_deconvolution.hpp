@@ -185,9 +185,8 @@ struct ref_deconvolution_fwd_t: public cpu_primitive_t {
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    ref_deconvolution_fwd_t(const pd_t *apd, const input_vector &inputs,
-            const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs), conv_p_(nullptr) {}
+    ref_deconvolution_fwd_t(const pd_t *apd)
+        : cpu_primitive_t(apd), conv_p_(nullptr) {}
 
     ~ref_deconvolution_fwd_t() { delete this->conv_p_; }
 
@@ -317,9 +316,8 @@ struct ref_deconvolution_bwd_data_t: public cpu_primitive_t {
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    ref_deconvolution_bwd_data_t(const pd_t *apd, const input_vector &inputs,
-            const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs), conv_p_(nullptr) {}
+    ref_deconvolution_bwd_data_t(const pd_t *apd)
+        : cpu_primitive_t(apd), conv_p_(nullptr) {}
     ~ref_deconvolution_bwd_data_t() { delete this->conv_p_; }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
@@ -418,9 +416,8 @@ struct ref_deconvolution_bwd_weights_t: public cpu_primitive_t {
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    ref_deconvolution_bwd_weights_t(const pd_t *apd, const input_vector &inputs,
-            const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs), conv_p_(nullptr) {}
+    ref_deconvolution_bwd_weights_t(const pd_t *apd)
+        : cpu_primitive_t(apd), conv_p_(nullptr) {}
 
     ~ref_deconvolution_bwd_weights_t() { delete this->conv_p_; }
 

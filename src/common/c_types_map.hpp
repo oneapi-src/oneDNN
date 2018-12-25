@@ -396,7 +396,6 @@ using primitive_desc_t = mkldnn_primitive_desc;
 using primitive_attr_t = mkldnn_primitive_attr;
 using post_ops_t = mkldnn_post_ops;
 using primitive_t = mkldnn_primitive;
-using primitive_at_t = mkldnn_primitive_at_t;
 
 using primitive_arg_index_t = int;
 

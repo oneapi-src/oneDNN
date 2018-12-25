@@ -39,8 +39,7 @@ struct jit_avx512_common_lrn_fwd_t: public cpu_primitive_t {
         virtual status_t init() override;
     };
 
-    jit_avx512_common_lrn_fwd_t(const pd_t *apd, const input_vector &inputs,
-            const output_vector &outputs);
+    jit_avx512_common_lrn_fwd_t(const pd_t *apd);
     ~jit_avx512_common_lrn_fwd_t();
 
     typedef typename prec_traits<data_type::f32>::type data_t;
@@ -73,8 +72,7 @@ struct jit_avx512_common_lrn_bwd_t: public cpu_primitive_t {
         virtual status_t init() override;
     };
 
-    jit_avx512_common_lrn_bwd_t(const pd_t *apd, const input_vector &inputs,
-            const output_vector &outputs);
+    jit_avx512_common_lrn_bwd_t(const pd_t *apd);
     ~jit_avx512_common_lrn_bwd_t();
 
     typedef typename prec_traits<data_type::f32>::type data_t;

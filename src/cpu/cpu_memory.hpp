@@ -39,18 +39,18 @@ struct cpu_memory_t: public cpu_primitive_t {
         pd_t(engine_t *engine, const memory_desc_t *adesc)
             : memory_pd_t(engine, adesc) {}
         virtual ~pd_t() {}
-        virtual pd_t *clone() const { return new pd_t(engine(), desc()); }
-        virtual status_t create_primitive(primitive_t **primitive,
-                const primitive_at_t *inputs, const primitive_t **outputs) const
-        {
-            UNUSED(inputs); UNUSED(outputs);
+        virtual pd_t *clone() const override {
+            return new pd_t(engine(), desc());
+        }
+        virtual status_t create_primitive(
+                primitive_t **primitive) const override {
             return safe_ptr_assign<primitive_t>(*primitive,
                     new cpu_memory_t(this));
         }
     };
 
     cpu_memory_t(const pd_t *apd)
-        : cpu_primitive_t(apd, input_vector(), output_vector(1, this))
+        : cpu_primitive_t(apd)
         , data_(nullptr) {}
     virtual ~cpu_memory_t() {}
 
@@ -65,11 +65,6 @@ struct cpu_memory_t: public cpu_primitive_t {
         data_ = static_cast<char *>(handle);
         return zero_pad();
     }
-
-    virtual char *memory(size_t output_index = 0) const override
-    { assert(output_index == 0); return data_; }
-    virtual const char* const_memory(size_t output_index = 0) const override
-    { assert(output_index == 0); return data_; }
 
     virtual mkldnn::impl::status_t zero_pad() const override;
 
@@ -146,15 +141,10 @@ struct cpu_view_t: public cpu_primitive_t {
         }
 
         virtual pd_t *clone() const override { return new pd_t(*this); }
-        virtual status_t create_primitive(primitive_t **primitive,
-                const primitive_at_t *inputs, const primitive_t **outputs)
-            const override
-        {
-            const int c = (inputs || outputs) ? 1 : 0;
-            primitive_t::input_vector ins(inputs, inputs + c * 1);
-            UNUSED(outputs);
+        virtual status_t create_primitive(
+                primitive_t **primitive) const override {
             return safe_ptr_assign<primitive_t>(*primitive,
-                    new cpu_view_t(this, ins));
+                    new cpu_view_t(this));
         }
 
         virtual const cpu_memory_t::pd_t *src_pd(int index = 0) const override
@@ -170,18 +160,11 @@ struct cpu_view_t: public cpu_primitive_t {
             : view_pd_t(src_pd.engine()), src_pd_(src_pd), dst_pd_(dst_pd) {}
     };
 
-    cpu_view_t(const pd_t *apd, const input_vector &inputs)
-        : cpu_primitive_t(apd, inputs, output_vector(1, this))
-    {}
+    cpu_view_t(const pd_t *apd): cpu_primitive_t(apd) {}
     virtual ~cpu_view_t() {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override
     { UNUSED(ctx); return status::success; }
-
-    virtual char *memory(size_t output_index = 0) const override
-    { assert(output_index == 0); return const_cast<char *>(input_memory()); }
-    virtual const char* const_memory(size_t output_index = 0) const override
-    { assert(output_index == 0); return input_memory(); }
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }

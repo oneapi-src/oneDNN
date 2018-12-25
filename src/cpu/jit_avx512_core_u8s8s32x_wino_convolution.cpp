@@ -1013,9 +1013,8 @@ init_scratchpad() {
 
 template <data_type_t dst_data_type>
 jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
-        jit_avx512_core_u8s8s32x_wino_convolution_fwd_t(const pd_t *apd,
-                const input_vector &inputs, const output_vector &outputs)
-    : cpu_primitive_t(apd, inputs, outputs, true)
+        jit_avx512_core_u8s8s32x_wino_convolution_fwd_t(const pd_t *apd)
+    : cpu_primitive_t(apd, true)
 {
     kernel_ = new jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t(
             pd()->jcp_, *pd()->attr());

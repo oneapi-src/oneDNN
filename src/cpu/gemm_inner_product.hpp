@@ -64,9 +64,7 @@ struct gemm_inner_product_fwd_t: public cpu_primitive_t {
         }
     };
 
-    gemm_inner_product_fwd_t(const pd_t *apd, const input_vector &inputs,
-            const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs) {}
+    gemm_inner_product_fwd_t(const pd_t *apd): cpu_primitive_t(apd) {}
     typedef typename prec_traits<data_type>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
@@ -108,9 +106,7 @@ struct gemm_inner_product_bwd_data_t: public cpu_primitive_t {
         }
     };
 
-    gemm_inner_product_bwd_data_t(const pd_t *apd, const input_vector &inputs,
-            const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs) {}
+    gemm_inner_product_bwd_data_t(const pd_t *apd): cpu_primitive_t(apd) {}
     typedef typename prec_traits<data_type>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
@@ -152,9 +148,7 @@ struct gemm_inner_product_bwd_weights_t: public cpu_primitive_t {
         }
     };
 
-    gemm_inner_product_bwd_weights_t(const pd_t *apd, const input_vector &inputs,
-            const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs) {}
+    gemm_inner_product_bwd_weights_t(const pd_t *apd): cpu_primitive_t(apd) {}
     typedef typename prec_traits<data_type>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {

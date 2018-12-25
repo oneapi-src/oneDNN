@@ -907,9 +907,8 @@ status_t jit_uni_i8i8_pooling_fwd_t<isa>::pd_t::jit_conf() {
 
 template <cpu_isa_t isa>
 jit_uni_i8i8_pooling_fwd_t<isa>::
-jit_uni_i8i8_pooling_fwd_t(const pd_t *apd,
-          const input_vector &inputs, const output_vector &outputs)
-    : cpu_primitive_t(apd, inputs, outputs), ker_(nullptr)
+jit_uni_i8i8_pooling_fwd_t(const pd_t *apd)
+    : cpu_primitive_t(apd), ker_(nullptr)
 { ker_ = new jit_uni_i8i8_pooling_fwd_ker_t<isa>(pd()->jpp_); }
 
 template <cpu_isa_t isa>

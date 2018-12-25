@@ -58,9 +58,7 @@ struct simple_sum_t: public cpu_primitive_t {
         }
     };
 
-    simple_sum_t(const pd_t *apd, const input_vector &inputs,
-            const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs) {}
+    simple_sum_t(const pd_t *apd): cpu_primitive_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override;
 

@@ -90,9 +90,7 @@ struct nhwc_pooling_fwd_t: public cpu_primitive_t {
         }
     };
 
-    nhwc_pooling_fwd_t(const pd_t *apd, const input_vector &inputs,
-            const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs) {}
+    nhwc_pooling_fwd_t(const pd_t *apd): cpu_primitive_t(apd) {}
 
     typedef typename prec_traits<data_type>::type data_t;
 
@@ -224,9 +222,7 @@ struct nhwc_pooling_bwd_t: public cpu_primitive_t {
         }
     };
 
-    nhwc_pooling_bwd_t(const pd_t *apd, const input_vector &inputs,
-            const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs) {}
+    nhwc_pooling_bwd_t(const pd_t *apd): cpu_primitive_t(apd) {}
     typedef typename prec_traits<data_type>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {

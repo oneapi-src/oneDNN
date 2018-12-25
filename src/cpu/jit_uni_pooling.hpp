@@ -91,9 +91,7 @@ struct jit_uni_pooling_fwd_t: public cpu_primitive_t {
         }
     };
 
-    jit_uni_pooling_fwd_t(const pd_t *apd, const input_vector &inputs,
-            const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs)
+    jit_uni_pooling_fwd_t(const pd_t *apd): cpu_primitive_t(apd)
     { kernel_ = new jit_uni_pool_kernel_f32<isa>(pd()->jpp_); }
 
     ~jit_uni_pooling_fwd_t() { delete kernel_; }
@@ -183,9 +181,7 @@ struct jit_uni_pooling_bwd_t: public cpu_primitive_t {
         }
     };
 
-    jit_uni_pooling_bwd_t(const pd_t *apd, const input_vector &inputs,
-            const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs)
+    jit_uni_pooling_bwd_t(const pd_t *apd): cpu_primitive_t(apd)
     { kernel_ = new jit_uni_pool_kernel_f32<isa>(pd()->jpp_); }
 
     ~jit_uni_pooling_bwd_t() { delete kernel_; }

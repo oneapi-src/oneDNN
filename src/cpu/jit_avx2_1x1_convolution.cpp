@@ -282,9 +282,9 @@ void jit_avx2_1x1_convolution_bwd_data_t::execute_backward_data(
 /* convolution backward wtr weights */
 
 jit_avx2_1x1_convolution_bwd_weights_t::jit_avx2_1x1_convolution_bwd_weights_t(
-        const pd_t *apd, const input_vector &inputs,
-        const output_vector &outputs)
-    : cpu_primitive_t(apd, inputs, outputs), kernel_(nullptr)
+        const pd_t *apd)
+    : cpu_primitive_t(apd)
+    , kernel_(nullptr)
     , rtus_driver_(nullptr)
 {
     kernel_ = new jit_avx2_1x1_conv_kernel_f32(pd()->jcp_, *pd()->attr());

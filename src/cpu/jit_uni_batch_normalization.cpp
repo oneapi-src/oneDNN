@@ -1289,9 +1289,7 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init() {
 
 template <cpu_isa_t isa>
 jit_uni_batch_normalization_fwd_t<isa>::jit_uni_batch_normalization_fwd_t(
-        const pd_t *apd, const input_vector &inputs,
-        const output_vector &outputs)
-    : cpu_primitive_t(apd, inputs, outputs)
+        const pd_t *apd): cpu_primitive_t(apd)
 { bnorm_driver_ = new uni_bnorm_driver_t<isa>(pd()); }
 
 template <cpu_isa_t isa>
@@ -1375,9 +1373,7 @@ status_t jit_uni_batch_normalization_bwd_t<isa>::pd_t::init() {
 
 template <cpu_isa_t isa>
 jit_uni_batch_normalization_bwd_t<isa>::jit_uni_batch_normalization_bwd_t(
-        const pd_t *apd, const input_vector &inputs,
-        const output_vector &outputs)
-    : cpu_primitive_t(apd, inputs, outputs)
+        const pd_t *apd): cpu_primitive_t(apd)
 { bnorm_driver_ = new uni_bnorm_driver_t<isa>(pd()); }
 
 template <cpu_isa_t isa>

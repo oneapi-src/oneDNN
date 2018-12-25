@@ -241,27 +241,9 @@ mkldnn_status_t MKLDNN_API mkldnn_primitive_get_primitive_desc(
         const_mkldnn_primitive_t primitive,
         const_mkldnn_primitive_desc_t *primitive_desc);
 
-/** For a @p primitive, returns @p input at the @p index position. */
-mkldnn_status_t MKLDNN_API mkldnn_primitive_get_input_at(
-        const_mkldnn_primitive_t primitive, size_t index,
-        mkldnn_primitive_at_t *input);
-
-/** For a @p primitive, returns @p output at the @p index position. */
-mkldnn_status_t MKLDNN_API mkldnn_primitive_get_output(
-        const_mkldnn_primitive_t primitive, size_t index,
-        const_mkldnn_primitive_t *output);
-
 /** Deletes a @p primitive. */
 mkldnn_status_t MKLDNN_API mkldnn_primitive_destroy(
         mkldnn_primitive_t primitive);
-
-/** Creates an #mkldnn_primitive_at_t structure from a @p primitive and @p
- * output_index. This function only fills in the data structure
- * and does not check whether arguments are correct. The actual error checking
- * is done when the resulting #mkldnn_primitive_at structure is passed to a
- * primitive creation function. */
-mkldnn_primitive_at_t MKLDNN_API mkldnn_primitive_at(
-        const_mkldnn_primitive_t primitive, size_t output_index);
 
 /** @} */
 

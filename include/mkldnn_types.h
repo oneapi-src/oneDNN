@@ -1161,14 +1161,6 @@ typedef struct mkldnn_primitive *mkldnn_primitive_t;
 /** A constant primitive handle. */
 typedef const struct mkldnn_primitive *const_mkldnn_primitive_t;
 
-/** A wrapper structure to specify a particular output of a primitive. */
-typedef struct {
-    /** Primitive to specify the output for. */
-    const_mkldnn_primitive_t primitive;
-    /** Desired output index. */
-    size_t output_index;
-} mkldnn_primitive_at_t;
-
 /** @addtogroup c_api_types_arguments Argument indices
  * @{ */
 

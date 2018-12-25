@@ -249,9 +249,8 @@ template struct _jit_uni_dw_convolution_bwd_data_t<sse42>;
 
 template <cpu_isa_t isa>
 _jit_uni_dw_convolution_bwd_weights_t<isa>::
-_jit_uni_dw_convolution_bwd_weights_t(const pd_t *apd,
-        const input_vector &inputs, const output_vector &outputs)
-    : cpu_primitive_t(apd, inputs, outputs)
+_jit_uni_dw_convolution_bwd_weights_t(const pd_t *apd)
+    : cpu_primitive_t(apd)
     , kernel_(nullptr), acc_ker_(nullptr)
 {
     kernel_ = new jit_uni_dw_conv_bwd_weights_kernel_f32<isa>(pd()->jcp_);

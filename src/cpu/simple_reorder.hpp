@@ -1033,9 +1033,7 @@ struct simple_reorder_t: public cpu_primitive_t {
         }
     };
 
-    simple_reorder_t(const pd_t *apd, const input_vector &inputs,
-            const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs) {}
+    simple_reorder_t(const pd_t *apd): cpu_primitive_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         auto input = CTX_IN_MEM(const data_t<type_i> *, MKLDNN_ARG_FROM);
