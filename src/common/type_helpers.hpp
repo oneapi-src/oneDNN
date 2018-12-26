@@ -280,8 +280,8 @@ inline bool rnn_packed_desc_is_equal(
 }
 
 inline bool operator==(const memory_desc_t &lhs, const memory_desc_t &rhs) {
-    assert(lhs.primitive_kind == mkldnn::impl::primitive_kind::memory);
-    assert(rhs.primitive_kind == mkldnn::impl::primitive_kind::memory);
+    assert(lhs.primitive_kind == mkldnn::impl::primitive_kind::memory_primitive_kind);
+    assert(rhs.primitive_kind == mkldnn::impl::primitive_kind::memory_primitive_kind);
     bool base_equal = true
         && lhs.ndims == rhs.ndims
         && mkldnn::impl::utils::array_cmp(lhs.dims, rhs.dims, lhs.ndims)
@@ -306,7 +306,7 @@ inline bool operator!=(const memory_desc_t &lhs, const memory_desc_t &rhs) {
 
 inline memory_desc_t zero_md() {
     auto zero = memory_desc_t();
-    zero.primitive_kind = primitive_kind::memory;
+    zero.primitive_kind = primitive_kind::memory_primitive_kind;
     return zero;
 }
 

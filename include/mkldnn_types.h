@@ -463,7 +463,7 @@ typedef enum {
     /** Undefined primitive (XXX: why do we have it?). */
     mkldnn_undefined_primitive,
     /** A memory primitive. */
-    mkldnn_memory,
+    mkldnn_memory_primitive_kind,
     /** A view primitive. */
     mkldnn_view,
     /** A reorder primitive.*/
@@ -690,8 +690,8 @@ typedef const void *const_mkldnn_op_desc_t;
  * format. Additionally, contains format-specific descriptions of the data
  * layout. */
 typedef struct {
-    /** The kind of primitive. Used for self-identifying the primitive
-     * descriptor. Must be #mkldnn_memory. */
+    /** The kind of primitive. Used for self identifying the primitive
+     * descriptor. Must be #mkldnn_memory_primitive_kind. */
     mkldnn_primitive_kind_t primitive_kind;
     /** Number of dimensions */
     int ndims;

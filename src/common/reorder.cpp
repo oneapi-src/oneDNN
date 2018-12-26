@@ -35,7 +35,7 @@ status_t mkldnn_reorder_primitive_desc_create_v2(
         const primitive_attr_t *attr) {
     bool args_ok = true
         && !any_null(reorder_primitive_desc, input, output)
-        && everyone_is(primitive_kind::memory, input->kind(), output->kind());
+        && everyone_is(primitive_kind::memory_primitive_kind, input->kind(), output->kind());
     if (!args_ok) return invalid_arguments;
 
     auto i_ek = input->engine()->kind();

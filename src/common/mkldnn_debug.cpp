@@ -220,7 +220,7 @@ const char *mkldnn_prop_kind2str(mkldnn_prop_kind_t v) {
 
 const char *mkldnn_prim_kind2str(mkldnn_primitive_kind_t v) {
     if (v == mkldnn_undefined_primitive) return "undef";
-    if (v == mkldnn_memory) return "memory";
+    if (v == mkldnn_memory_primitive_kind) return "memory_primitive_kind";
     if (v == mkldnn_view) return "view";
     if (v == mkldnn_reorder) return "reorder";
     if (v == mkldnn_shuffle) return "shuffle";

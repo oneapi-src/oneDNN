@@ -115,7 +115,7 @@ public:
     /// A proxy to C primitive kind enum
     enum class kind {
         undefined_primitive = mkldnn_undefined_primitive,
-        memory = mkldnn_memory,
+        memory_primitive_kind = mkldnn_memory_primitive_kind,
         view = mkldnn_view,
         reorder = mkldnn_reorder,
         concat = mkldnn_concat,
@@ -904,7 +904,7 @@ struct memory: public primitive  {
 
 inline memory::desc zero_md() {
     auto zero = mkldnn_memory_desc_t();
-    zero.primitive_kind = mkldnn_memory;
+    zero.primitive_kind = mkldnn_memory_primitive_kind;
     return memory::desc(zero);
 }
 

@@ -64,13 +64,13 @@ struct mkldnn_primitive: public mkldnn::impl::c_compatible {
     /** returns data handle. Applicable for memory primitives only. */
     virtual mkldnn::impl::status_t get_data_handle(void **handle) const {
         UNUSED(handle);
-        assert(this->kind() == mkldnn::impl::primitive_kind::memory);
+        assert(this->kind() == mkldnn::impl::primitive_kind::memory_primitive_kind);
         return mkldnn::impl::status::invalid_arguments;
     }
     /** sets data handle. Applicable for memory primitives only. */
     virtual mkldnn::impl::status_t set_data_handle(void *handle) {
         UNUSED(handle);
-        assert(this->kind() == mkldnn::impl::primitive_kind::memory);
+        assert(this->kind() == mkldnn::impl::primitive_kind::memory_primitive_kind);
         return mkldnn::impl::status::invalid_arguments;
     }
     /** zeros padding. Applicable for memory primitives only. */

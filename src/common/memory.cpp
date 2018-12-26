@@ -72,7 +72,7 @@ status_t mkldnn_memory_desc_init(memory_desc_t *memory_desc, int ndims,
     memory_desc_t md;
     md.ndims = ndims;
     array_copy(md.dims, dims, ndims);
-    md.primitive_kind = primitive_kind::memory;
+    md.primitive_kind = primitive_kind::memory_primitive_kind;
     md.data_type = data_type;
     md.format = format;
 
@@ -111,7 +111,7 @@ status_t mkldnn_view_primitive_desc_create(primitive_desc_t **view_pd,
         (const memory_pd_t*)memory_pd;
 
     bool args_ok = !any_null(view_pd, memory_pd, dims, offsets)
-        && memory_pd->kind() == primitive_kind::memory
+        && memory_pd->kind() == primitive_kind::memory_primitive_kind
         && memory_desc_sanity_check(mpd->desc());
     if (!args_ok) return invalid_arguments;
 
@@ -129,8 +129,8 @@ int mkldnn_memory_primitive_desc_equal(const primitive_desc_t *lhs,
         const primitive_desc_t *rhs) {
     bool args_ok = !any_null(lhs, rhs)
         && lhs->engine() == rhs->engine()
-        && one_of(lhs->kind(), primitive_kind::memory, primitive_kind::view)
-        && one_of(rhs->kind(), primitive_kind::memory, primitive_kind::view);
+        && one_of(lhs->kind(), primitive_kind::memory_primitive_kind, primitive_kind::view)
+        && one_of(rhs->kind(), primitive_kind::memory_primitive_kind, primitive_kind::view);
     if (!args_ok) return 0;
     auto l = (const memory_pd_t *)lhs;
     auto r = (const memory_pd_t *)rhs;
@@ -141,7 +141,7 @@ int mkldnn_memory_primitive_desc_equal(const primitive_desc_t *lhs,
 size_t mkldnn_memory_primitive_desc_get_size(const primitive_desc_t *memory_pd)
 {
     bool args_ok = !any_null(memory_pd)
-        && memory_pd->kind() == primitive_kind::memory;
+        && memory_pd->kind() == primitive_kind::memory_primitive_kind;
     if (!args_ok) return 0;
     /* FIXME: view? */
     return ((memory_pd_t*)memory_pd)->get_size();
@@ -155,13 +155,13 @@ status_t mkldnn_memory_get_data_handle(const primitive_t *memory,
         *handle = nullptr;
         return success;
     }
-    if (memory->kind() != primitive_kind::memory)
+    if (memory->kind() != primitive_kind::memory_primitive_kind)
         return invalid_arguments;
     return memory->get_data_handle(handle);
 }
 
 status_t mkldnn_memory_set_data_handle(primitive_t *memory, void *handle) {
-    if (any_null(memory) || memory->kind() != primitive_kind::memory)
+    if (any_null(memory) || memory->kind() != primitive_kind::memory_primitive_kind)
         return invalid_arguments;
     return memory->set_data_handle(handle);
 }
@@ -173,7 +173,7 @@ status_t mkldnn_concat_primitive_desc_create_v2(primitive_desc_t **concat_pd,
     if (!args_ok) return invalid_arguments;
     for (int i = 0; i < n; ++i) {
         if (input_pds[i] == nullptr ||
-                input_pds[i]->kind() != primitive_kind::memory)
+                input_pds[i]->kind() != primitive_kind::memory_primitive_kind)
             return invalid_arguments;
     }
 
@@ -240,7 +240,7 @@ status_t mkldnn_sum_primitive_desc_create_v2(primitive_desc_t **sum_pd,
     if (!args_ok) return invalid_arguments;
     for (int i = 0; i < n; ++i) {
         if (input_pds[i] == nullptr ||
-                input_pds[i]->kind() != primitive_kind::memory)
+                input_pds[i]->kind() != primitive_kind::memory_primitive_kind)
             return invalid_arguments;
     }
 

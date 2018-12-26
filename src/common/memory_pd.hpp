@@ -31,10 +31,10 @@ namespace impl {
 
 struct memory_pd_t: public primitive_desc_t {
     memory_pd_t(engine_t *engine)
-        : primitive_desc_t(engine, primitive_kind::memory)
+        : primitive_desc_t(engine, primitive_kind::memory_primitive_kind)
         , desc_(types::zero_md()) {}
     memory_pd_t(engine_t *engine, const memory_desc_t *adesc)
-        : primitive_desc_t(engine, primitive_kind::memory)
+        : primitive_desc_t(engine, primitive_kind::memory_primitive_kind)
         , desc_(*adesc)
     { assert(desc_.primitive_kind == kind()); }
     virtual ~memory_pd_t() {}
