@@ -339,8 +339,8 @@ int check_reorder(const prb_t *p, res_t *res) {
         DNN_SAFE_V(mkldnn_primitive_desc_destroy(perf_r_pd));
 
         args_t args;
-        args.set(MKLDNN_ARG_FROM, mem_dt_in_fmt_in.p_);
-        args.set(MKLDNN_ARG_TO, mem_dt_out_fmt_out.p_);
+        args.set(MKLDNN_ARG_FROM, mem_dt_in_fmt_in.m_);
+        args.set(MKLDNN_ARG_TO, mem_dt_out_fmt_out.m_);
 
         auto &t = res->timer;
         t.reset();

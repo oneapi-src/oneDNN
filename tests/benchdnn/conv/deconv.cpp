@@ -251,11 +251,11 @@ int doit(const prb_t *p, res_t *r) {
     args_t args;
 
     if (p->dir & FLAG_FWD) {
-        args.set(MKLDNN_ARG_SRC, src_dt.p_);
-        args.set(MKLDNN_ARG_WEIGHTS, wei_dt.p_);
+        args.set(MKLDNN_ARG_SRC, src_dt.m_);
+        args.set(MKLDNN_ARG_WEIGHTS, wei_dt.m_);
         if (p->dir & FLAG_BIA)
-            args.set(MKLDNN_ARG_BIAS, bia_dt.p_);
-        args.set(MKLDNN_ARG_DST, dst_dt.p_);
+            args.set(MKLDNN_ARG_BIAS, bia_dt.m_);
+        args.set(MKLDNN_ARG_DST, dst_dt.m_);
 
         DNN_SAFE(mkldnn_primitive_execute(c, stream, args.size(), args), WARN);
 
@@ -265,9 +265,9 @@ int doit(const prb_t *p, res_t *r) {
             SAFE(compare_dst(p, dst, dst_fp, r, true), WARN);
         }
     } else if (p->dir == BWD_D) {
-        args.set(MKLDNN_ARG_DIFF_DST, dst_dt.p_);
-        args.set(MKLDNN_ARG_WEIGHTS, wei_dt.p_);
-        args.set(MKLDNN_ARG_DIFF_SRC, src_dt.p_);
+        args.set(MKLDNN_ARG_DIFF_DST, dst_dt.m_);
+        args.set(MKLDNN_ARG_WEIGHTS, wei_dt.m_);
+        args.set(MKLDNN_ARG_DIFF_SRC, src_dt.m_);
 
         DNN_SAFE(mkldnn_primitive_execute(c, stream, args.size(), args), WARN);
 
@@ -277,11 +277,11 @@ int doit(const prb_t *p, res_t *r) {
             SAFE(compare_src(p, src, src_fp, r, true), WARN);
         }
     } else if (p->dir & FLAG_BWD && p->dir & FLAG_WEI) {
-        args.set(MKLDNN_ARG_SRC, src_dt.p_);
-        args.set(MKLDNN_ARG_DIFF_DST, dst_dt.p_);
-        args.set(MKLDNN_ARG_DIFF_WEIGHTS, wei_dt.p_);
+        args.set(MKLDNN_ARG_SRC, src_dt.m_);
+        args.set(MKLDNN_ARG_DIFF_DST, dst_dt.m_);
+        args.set(MKLDNN_ARG_DIFF_WEIGHTS, wei_dt.m_);
         if (p->dir & FLAG_BIA)
-            args.set(MKLDNN_ARG_DIFF_BIAS, bia_dt.p_);
+            args.set(MKLDNN_ARG_DIFF_BIAS, bia_dt.m_);
 
         DNN_SAFE(mkldnn_primitive_execute(c, stream, args.size(), args), WARN);
 

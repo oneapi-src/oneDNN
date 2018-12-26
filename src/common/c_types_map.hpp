@@ -395,6 +395,7 @@ using primitive_desc_iterator_t = mkldnn_primitive_desc_iterator;
 using primitive_desc_t = mkldnn_primitive_desc;
 using primitive_attr_t = mkldnn_primitive_attr;
 using post_ops_t = mkldnn_post_ops;
+using memory_t = mkldnn_memory;
 using primitive_t = mkldnn_primitive;
 
 using primitive_arg_index_t = int;

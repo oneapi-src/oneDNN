@@ -156,8 +156,8 @@ int doit(const prb_t *p, res_t *r) {
     const int i_arg = p->dir == FWD_D ? MKLDNN_ARG_SRC : MKLDNN_ARG_DIFF_DST;
     const int o_arg = p->dir == FWD_D ? MKLDNN_ARG_DST : MKLDNN_ARG_DIFF_SRC;
     args_t args;
-    args.set(i_arg, src_dt.p_);
-    args.set(o_arg, dst_dt.p_);
+    args.set(i_arg, src_dt.m_);
+    args.set(o_arg, dst_dt.m_);
 
     DNN_SAFE(mkldnn_primitive_execute(s, stream, args.size(), args), WARN);
 

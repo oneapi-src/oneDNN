@@ -22,13 +22,14 @@
 #include "mkldnn_types.h"
 
 #include "c_types_map.hpp"
+#include "memory.hpp"
 #include "primitive_desc.hpp"
 
 namespace mkldnn {
 namespace impl {
 
 struct memory_arg_t {
-    primitive_t *mem;
+    memory_t *mem;
     bool is_const;
 };
 
@@ -54,7 +55,7 @@ struct exec_ctx_t {
     const void *input(primitive_arg_index_t arg) const;
     void *output(primitive_arg_index_t arg) const;
 
-    const primitive_t *memory(primitive_arg_index_t arg) const;
+    const memory_t *memory(primitive_arg_index_t arg) const;
 
 private:
     stream_t *stream_;

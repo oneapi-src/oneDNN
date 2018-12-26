@@ -563,15 +563,36 @@ int MKLDNN_API mkldnn_memory_primitive_desc_equal(
 size_t MKLDNN_API mkldnn_memory_primitive_desc_get_size(
         const_mkldnn_primitive_desc_t memory_primitive_desc);
 
+/** Creates a memory for given @p memory_primitive_desc and sets handle to
+ * @p native_handle.
+ * The @p native_handle can:
+ * - point to the user allocated memory, i.e. valid handle. In this case the
+ *   library doesn't own allocated memory.
+ * - be MKLDNN_NATIVE_HANDLE_ALLOCATE to ask the library to allocate and
+ *   attach memory. In this case the library owns allocated memory.
+ * - be MKLDNN_NATIVE_HANDLE_NONE to create mkldnn_memory w/o attached memory.
+ */
+mkldnn_status_t MKLDNN_API mkldnn_memory_create(mkldnn_memory_t *memory,
+        const_mkldnn_primitive_desc_t memory_primitive_desc,
+        void *native_handle);
+
+/** Returns @p memory_primitive_desc for given @p memory */
+mkldnn_status_t MKLDNN_API mkldnn_memory_get_primitive_desc(
+        const_mkldnn_memory_t memory,
+        const_mkldnn_primitive_desc_t *memory_primitive_desc);
+
 /** For a @p memory primitive, returns the data @p handle. For the CPU engine,
  * the data handle is a pointer to the actual data. */
 /* XXX: view? */
 mkldnn_status_t MKLDNN_API mkldnn_memory_get_data_handle(
-        const_mkldnn_primitive_t memory, void **handle);
+        const_mkldnn_memory_t memory, void **handle);
 
 /** For a @p memory primitive, sets the data @p handle. */
 mkldnn_status_t MKLDNN_API mkldnn_memory_set_data_handle(
-        mkldnn_primitive_t memory, void *handle);
+        mkldnn_memory_t memory, void *handle);
+
+/** Deletes a @p memory. */
+mkldnn_status_t MKLDNN_API mkldnn_memory_destroy(mkldnn_memory_t memory);
 
 /** @} */
 

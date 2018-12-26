@@ -79,6 +79,11 @@ struct mkldnn_primitive_desc: public mkldnn::impl::c_compatible {
     virtual mkldnn::impl::status_t create_primitive(
             mkldnn::impl::primitive_t **primitive) const = 0;
 
+    /* tentative solution */
+    virtual mkldnn::impl::status_t create_memory(
+            mkldnn::impl::memory_t **memory) const
+    { return mkldnn::impl::status::unimplemented; }
+
     virtual const char *name() const { return "mkldnn_primitive_desc"; }
 
     /* static magic */

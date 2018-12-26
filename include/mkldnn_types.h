@@ -1150,6 +1150,21 @@ typedef const struct mkldnn_post_ops *const_mkldnn_post_ops_t;
 
 /** @} */
 
+/** @addtogroup c_api_type_memory Memory
+ * @{ */
+
+/** @struct mkldnn_memory
+ * An opaque structure to describe a memory. */
+struct mkldnn_memory;
+
+/** A memory handle. */
+typedef struct mkldnn_memory *mkldnn_memory_t;
+
+/** A constant memory handle. */
+typedef const struct mkldnn_memory *const_mkldnn_memory_t;
+
+/** @} */
+
 /** @addtogroup c_api_types_primitive Primitive
  * @{ */
 
@@ -1233,7 +1248,7 @@ typedef const struct mkldnn_primitive *const_mkldnn_primitive_t;
  *      output semantics might be changed during the execution */
 typedef struct {
     int arg; /**< An argument index, e.g. MKLDNN_ARG_SRC */
-    mkldnn_primitive_t memory; /**< Input/output memory */
+    mkldnn_memory_t memory; /**< Input/output memory */
 } mkldnn_exec_arg_t;
 
 /** @} */

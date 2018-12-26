@@ -22,6 +22,7 @@
 #include "c_types_map.hpp"
 #include "cpu_primitive.hpp"
 #include "event.hpp"
+#include "memory.hpp"
 #include "memory_pd.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
@@ -33,7 +34,7 @@ namespace cpu {
 using namespace mkldnn::impl;
 using namespace mkldnn::impl::status;
 
-struct cpu_memory_t: public cpu_primitive_t {
+struct cpu_memory_t: public memory_t {
     struct pd_t: public memory_pd_t {
         pd_t(engine_t *engine): memory_pd_t(engine) {}
         pd_t(engine_t *engine, const memory_desc_t *adesc)
@@ -44,23 +45,24 @@ struct cpu_memory_t: public cpu_primitive_t {
         }
         virtual status_t create_primitive(
                 primitive_t **primitive) const override {
-            return safe_ptr_assign<primitive_t>(*primitive,
-                    new cpu_memory_t(this));
+            UNUSED(primitive);
+            return mkldnn::impl::status::unimplemented;
+        }
+        virtual status_t create_memory(memory_t **memory) const override {
+            return safe_ptr_assign<memory_t>(*memory, new cpu_memory_t(this));
         }
     };
 
     cpu_memory_t(const pd_t *apd)
-        : cpu_primitive_t(apd)
+        : memory_t(apd)
         , data_(nullptr) {}
     virtual ~cpu_memory_t() {}
-
-    virtual status_t execute(const exec_ctx_t &ctx) const override
-    { UNUSED(ctx); return status::success; }
 
     virtual status_t get_data_handle(void **handle) const override {
         *handle = static_cast<void *>(data_);
         return success;
     }
+
     virtual mkldnn::impl::status_t set_data_handle(void *handle) override {
         data_ = static_cast<char *>(handle);
         return zero_pad();
@@ -69,7 +71,7 @@ struct cpu_memory_t: public cpu_primitive_t {
     virtual mkldnn::impl::status_t zero_pad() const override;
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)memory_t::pd(); }
     char *data_;
 
     template <mkldnn::impl::data_type_t>

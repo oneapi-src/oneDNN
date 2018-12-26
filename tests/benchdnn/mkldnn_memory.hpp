@@ -60,8 +60,8 @@ struct dnn_mem_t {
         DNN_SAFE(mkldnn_primitive_desc_destroy(rpd), CRIT);
 
         mkldnn_exec_arg_t args[] = {
-            {MKLDNN_ARG_FROM, rhs.p_},
-            {MKLDNN_ARG_TO, p_},
+            {MKLDNN_ARG_FROM, rhs.m_},
+            {MKLDNN_ARG_TO, m_},
         };
         DNN_SAFE(mkldnn_primitive_execute(r, stream, 2, args), WARN);
         DNN_SAFE(mkldnn_primitive_destroy(r), CRIT);
@@ -146,7 +146,7 @@ struct dnn_mem_t {
 
     mkldnn_memory_desc_t md_;
     mkldnn_primitive_desc_t mpd_;
-    mkldnn_primitive_t p_;
+    mkldnn_memory_t m_;
     void *data_;
     bool is_data_owner_, active_;
 
@@ -162,7 +162,7 @@ private:
         }
         DNN_SAFE(mkldnn_memory_primitive_desc_create(&mpd_, &md_, engine),
                 CRIT);
-        DNN_SAFE(mkldnn_primitive_create(&p_, mpd_), CRIT);
+        DNN_SAFE(mkldnn_memory_create(&m_, mpd_, NULL), CRIT);
         is_data_owner_ = data == NULL;
         if (data == NULL) {
             const size_t alignment = 1024 * 1024 * 2;
@@ -173,7 +173,7 @@ private:
         } else {
             data_ = data;
         }
-        DNN_SAFE(mkldnn_memory_set_data_handle(p_, data_), CRIT);
+        DNN_SAFE(mkldnn_memory_set_data_handle(m_, data_), CRIT);
 
         return OK;
     }
@@ -193,7 +193,7 @@ private:
     int cleanup() {
         if (!active_) return OK;
         DNN_SAFE(mkldnn_primitive_desc_destroy(mpd_), CRIT);
-        DNN_SAFE(mkldnn_primitive_destroy(p_), CRIT);
+        DNN_SAFE(mkldnn_memory_destroy(m_), CRIT);
         if (is_data_owner_) zfree(data_);
         return OK;
     }

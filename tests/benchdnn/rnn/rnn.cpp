@@ -441,16 +441,16 @@ int doit(const rnn_prb_t *p, res_t *r) {
         DNN_SAFE(mkldnn_primitive_create(&c, rpd[0]), WARN);
         DNN_SAFE(mkldnn_primitive_desc_destroy(rpd[0]), CRIT);
 
-        args.set(MKLDNN_ARG_SRC_LAYER, input_dt->p_);
-        args.set(MKLDNN_ARG_SRC_ITER, states_dt->p_);
-        args.set(MKLDNN_ARG_WEIGHTS_LAYER, weights_input_dt->p_);
-        args.set(MKLDNN_ARG_WEIGHTS_ITER, weights_states_dt->p_);
-        args.set(MKLDNN_ARG_BIAS, bias_dt->p_);
+        args.set(MKLDNN_ARG_SRC_LAYER, input_dt->m_);
+        args.set(MKLDNN_ARG_SRC_ITER, states_dt->m_);
+        args.set(MKLDNN_ARG_WEIGHTS_LAYER, weights_input_dt->m_);
+        args.set(MKLDNN_ARG_WEIGHTS_ITER, weights_states_dt->m_);
+        args.set(MKLDNN_ARG_BIAS, bias_dt->m_);
 
-        args.set(MKLDNN_ARG_DST_LAYER, dst_last_layer_dt->p_);
-        args.set(MKLDNN_ARG_DST_ITER, dst_last_iteration_dt->p_);
+        args.set(MKLDNN_ARG_DST_LAYER, dst_last_layer_dt->m_);
+        args.set(MKLDNN_ARG_DST_ITER, dst_last_iteration_dt->m_);
         if (workspace_dt)
-            args.set(MKLDNN_ARG_WORKSPACE, workspace_dt->p_);
+            args.set(MKLDNN_ARG_WORKSPACE, workspace_dt->m_);
 
 #ifdef CALL_MKLDNN_RNN
         DNN_SAFE(mkldnn_primitive_execute(c, stream, args.size(), args), WARN);
@@ -478,22 +478,22 @@ int doit(const rnn_prb_t *p, res_t *r) {
         DNN_SAFE(mkldnn_primitive_create(&c, rpd[1]), WARN);
         DNN_SAFE(mkldnn_primitive_desc_destroy(rpd[1]), CRIT);
 
-        args.set(MKLDNN_ARG_SRC_LAYER, input_dt->p_);
-        args.set(MKLDNN_ARG_SRC_ITER, states_dt->p_);
-        args.set(MKLDNN_ARG_WEIGHTS_LAYER, bwd_weights_input_dt->p_);
-        args.set(MKLDNN_ARG_WEIGHTS_ITER, bwd_weights_states_dt->p_);
-        args.set(MKLDNN_ARG_BIAS, bias_dt->p_);
-        args.set(MKLDNN_ARG_DST_LAYER, dst_last_layer_dt->p_);
-        args.set(MKLDNN_ARG_DST_ITER, dst_last_iteration_dt->p_);
-        args.set(MKLDNN_ARG_DIFF_DST_LAYER, diff_last_layer_dt->p_);
-        args.set(MKLDNN_ARG_DIFF_DST_ITER, diff_last_iteration_dt->p_);
-        args.set(MKLDNN_ARG_WORKSPACE, workspace_dt->p_);
+        args.set(MKLDNN_ARG_SRC_LAYER, input_dt->m_);
+        args.set(MKLDNN_ARG_SRC_ITER, states_dt->m_);
+        args.set(MKLDNN_ARG_WEIGHTS_LAYER, bwd_weights_input_dt->m_);
+        args.set(MKLDNN_ARG_WEIGHTS_ITER, bwd_weights_states_dt->m_);
+        args.set(MKLDNN_ARG_BIAS, bias_dt->m_);
+        args.set(MKLDNN_ARG_DST_LAYER, dst_last_layer_dt->m_);
+        args.set(MKLDNN_ARG_DST_ITER, dst_last_iteration_dt->m_);
+        args.set(MKLDNN_ARG_DIFF_DST_LAYER, diff_last_layer_dt->m_);
+        args.set(MKLDNN_ARG_DIFF_DST_ITER, diff_last_iteration_dt->m_);
+        args.set(MKLDNN_ARG_WORKSPACE, workspace_dt->m_);
 
-        args.set(MKLDNN_ARG_DIFF_SRC_LAYER, dst_diff_input_dt->p_);
-        args.set(MKLDNN_ARG_DIFF_SRC_ITER, dst_diff_states_dt->p_);
-        args.set(MKLDNN_ARG_DIFF_WEIGHTS_LAYER, dst_diff_weights_input_dt->p_);
-        args.set(MKLDNN_ARG_DIFF_WEIGHTS_ITER, dst_diff_weights_states_dt->p_);
-        args.set(MKLDNN_ARG_DIFF_BIAS, dst_diff_bias_dt->p_);
+        args.set(MKLDNN_ARG_DIFF_SRC_LAYER, dst_diff_input_dt->m_);
+        args.set(MKLDNN_ARG_DIFF_SRC_ITER, dst_diff_states_dt->m_);
+        args.set(MKLDNN_ARG_DIFF_WEIGHTS_LAYER, dst_diff_weights_input_dt->m_);
+        args.set(MKLDNN_ARG_DIFF_WEIGHTS_ITER, dst_diff_weights_states_dt->m_);
+        args.set(MKLDNN_ARG_DIFF_BIAS, dst_diff_bias_dt->m_);
 
 #ifdef CALL_MKLDNN_RNN
         DNN_SAFE(mkldnn_primitive_execute(c, stream, args.size(), args), WARN);

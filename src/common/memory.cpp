@@ -147,7 +147,20 @@ size_t mkldnn_memory_primitive_desc_get_size(const primitive_desc_t *memory_pd)
     return ((memory_pd_t*)memory_pd)->get_size();
 }
 
-status_t mkldnn_memory_get_data_handle(const primitive_t *memory,
+status_t mkldnn_memory_create(memory_t **memory,
+        const primitive_desc_t *memory_pd, void *handle) {
+    if (any_null(memory, memory_pd)) return invalid_arguments;
+    return memory_pd->create_memory(memory);
+}
+
+status_t mkldnn_memory_get_primitive_desc(const memory_t *memory,
+        const primitive_desc_t **memory_pd) {
+    if (any_null(memory, memory_pd)) return invalid_arguments;
+    *memory_pd = memory->pd();
+    return success;
+}
+
+status_t mkldnn_memory_get_data_handle(const memory_t *memory,
         void **handle) {
     if (any_null(handle))
         return invalid_arguments;
@@ -155,15 +168,17 @@ status_t mkldnn_memory_get_data_handle(const primitive_t *memory,
         *handle = nullptr;
         return success;
     }
-    if (memory->kind() != primitive_kind::memory_primitive_kind)
-        return invalid_arguments;
     return memory->get_data_handle(handle);
 }
 
-status_t mkldnn_memory_set_data_handle(primitive_t *memory, void *handle) {
-    if (any_null(memory) || memory->kind() != primitive_kind::memory_primitive_kind)
-        return invalid_arguments;
+status_t mkldnn_memory_set_data_handle(memory_t *memory, void *handle) {
+    if (any_null(memory)) return invalid_arguments;
     return memory->set_data_handle(handle);
+}
+
+status_t mkldnn_memory_destroy(memory_t *memory) {
+    delete memory;
+    return success;
 }
 
 status_t mkldnn_concat_primitive_desc_create_v2(primitive_desc_t **concat_pd,

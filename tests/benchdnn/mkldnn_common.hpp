@@ -97,7 +97,7 @@ inline const char *query_impl_info(const_mkldnn_primitive_desc_t pd) {
 }
 
 struct args_t {
-    args_t &set(int arg, mkldnn_primitive_t memory) {
+    args_t &set(int arg, mkldnn_memory_t memory) {
         mkldnn_exec_arg_t a = {arg, memory};
         args_.push_back(a);
         return *this;

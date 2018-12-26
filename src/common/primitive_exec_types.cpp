@@ -14,8 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "primitive_exec_types.hpp"
+#include "memory.hpp"
 #include "primitive.hpp"
+#include "primitive_exec_types.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -75,7 +76,7 @@ void *exec_ctx_t::output(primitive_arg_index_t arg) const {
     return ptr;
 }
 
-const primitive_t *exec_ctx_t::memory(primitive_arg_index_t arg) const {
+const memory_t *exec_ctx_t::memory(primitive_arg_index_t arg) const {
     assert(args_.count(arg) == 1);
     const auto ma = args_.at(arg);
     assert(!ma.is_const);

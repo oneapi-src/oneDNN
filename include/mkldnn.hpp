@@ -90,6 +90,10 @@ public:
 };
 
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
+template <> struct handle_traits<mkldnn_memory_t> {
+    static constexpr auto destructor = &mkldnn_memory_destroy;
+};
+
 template <> struct handle_traits<mkldnn_primitive_desc_t> {
     static constexpr auto destructor = &mkldnn_primitive_desc_destroy;
 };
@@ -592,7 +596,7 @@ struct stream: public handle<mkldnn_stream_t> {
 /// @{
 
 /// Memory primitive that describes the data.
-struct memory: public primitive  {
+struct memory: public handle<mkldnn_memory_t> {
     private:
     std::shared_ptr<char> _handle;
 
@@ -601,8 +605,7 @@ struct memory: public primitive  {
 
     template <typename T> static void validate_dims(std::vector<T> v) {
         if (v.size() > TENSOR_MAX_DIMS)
-            throw error(mkldnn_invalid_arguments,
-                    "invalid dimensions");
+            throw error(mkldnn_invalid_arguments, "invalid dimensions");
     }
 
     /// Data type specification. See #mkldnn_data_type_t for a detailed
@@ -834,14 +837,22 @@ struct memory: public primitive  {
         engine get_engine() { return engine::query(*this); }
     };
 
-    /// Constructs a memory primitive from a generic primitive.
-    ///
-    /// @param aprimitive The primitive to treat as memory.
-    memory(const primitive &aprimitive): primitive(aprimitive) {}
-    /// Constructs a memory primitive.
+    /// Constructs a memory
     ///
     /// @param adesc Memory primitive descriptor.
-    memory(const primitive_desc &mpd): primitive(mpd.get()) {
+    /// @param ahandle Native handle
+    memory(const primitive_desc &mpd, void *ahandle) {
+        mkldnn_memory_t result;
+        error::wrap_c_api(mkldnn_memory_create(&result, mpd.get(), nullptr),
+                "could not create a memory");
+        reset(result);
+        if (ahandle) set_data_handle(ahandle);
+    }
+
+    /// Constructs a memory
+    ///
+    /// @param adesc Memory primitive descriptor.
+    memory(const primitive_desc &mpd): memory(mpd, NULL) {
         auto _malloc = [](size_t size, int alignment) {
             void *ptr;
 #ifdef _WIN32
@@ -863,17 +874,12 @@ struct memory: public primitive  {
         set_data_handle(_handle.get());
     }
 
-    memory(const primitive_desc &mpd, void *ahandle): primitive(mpd.get()) {
-        set_data_handle(ahandle);
-    }
-
     /// Returns the descriptor of the memory primitive.
     primitive_desc get_primitive_desc() const {
         primitive_desc adesc;
         const_mkldnn_primitive_desc_t cdesc;
-        error::wrap_c_api(mkldnn_primitive_get_primitive_desc(get(),
-                    &cdesc),
-                "could not get primitive descriptor from a memory primitive");
+        error::wrap_c_api(mkldnn_memory_get_primitive_desc(get(), &cdesc),
+                "could not get primitive descriptor from a memory");
         /* FIXME: no const_cast should be here */
         adesc.reset(const_cast<mkldnn_primitive_desc_t>(cdesc), true);
         return adesc;
@@ -932,12 +938,11 @@ inline void check_num_parameters(const const_mkldnn_primitive_desc_t
     }
 }
 
-
-inline bool is_null_memory(const const_mkldnn_primitive_t &aprimitive) {
+inline bool is_null_memory(const const_mkldnn_memory_t &amemory) {
     const_mkldnn_primitive_desc_t aprimitive_pd;
-    mkldnn_primitive_get_primitive_desc(aprimitive, &aprimitive_pd);
-    const mkldnn_memory_desc_t *aprimitive_md = mkldnn_primitive_desc_query_memory_d(
-        aprimitive_pd);
+    mkldnn_memory_get_primitive_desc(amemory, &aprimitive_pd);
+    const mkldnn_memory_desc_t *aprimitive_md
+        = mkldnn_primitive_desc_query_memory_d(aprimitive_pd);
 
     return ((aprimitive_md != nullptr) && (aprimitive_md->ndims == 0));
 }
