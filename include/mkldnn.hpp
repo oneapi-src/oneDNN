@@ -120,7 +120,6 @@ public:
     enum class kind {
         undefined_primitive = mkldnn_undefined_primitive,
         memory_primitive_kind = mkldnn_memory_primitive_kind,
-        view = mkldnn_view,
         reorder = mkldnn_reorder,
         concat = mkldnn_concat,
         concat_inplace = mkldnn_concat_inplace,
@@ -795,6 +794,18 @@ struct memory: public handle<mkldnn_memory_t> {
         ///
         /// @param adata A C API #mkldnn_memory_desc_t structure.
         desc(const mkldnn_memory_desc_t &adata): data(adata) {}
+
+        /// Constructs a sub-memory descriptor
+        //
+        /// @param adims Sizes of a sub-memory
+        /// @param offsets Offsets of a sub-memory
+        desc submemory_desc(const dims adims, const dims offsets) {
+            mkldnn_memory_desc_t sub_md;
+            error::wrap_c_api(mkldnn_memory_desc_init_submemory(&sub_md,
+                        &data, &adims[0], &offsets[0]),
+                    "could not initialize a sub-memory");
+            return desc(sub_md);
+        }
     };
 
     /// A memory primitive descriptor.
@@ -1014,49 +1025,6 @@ struct reorder : public primitive {
     void execute(stream astream, memory &input, memory &output) {
         primitive::execute(astream, {{MKLDNN_ARG_FROM, input}, {MKLDNN_ARG_TO, output}});
     }
-};
-
-/// @}
-
-/// @addtogroup cpp_api_view View
-/// A primitive to view on a memory.
-///
-/// @sa mkldnn_view_primitive_desc_create in @ref c_api
-/// @{
-
-struct view : public primitive {
-    struct primitive_desc : public handle<mkldnn_primitive_desc_t> {
-        primitive_desc(const memory::primitive_desc &input, memory::dims dims,
-                memory::dims offsets) {
-            mkldnn_primitive_desc_t result;
-
-            error::wrap_c_api(mkldnn_view_primitive_desc_create(
-                    &result, input.get(), &dims[0], &offsets[0]),
-                "could not create a view primitive descriptor");
-            reset(result);
-        }
-
-        memory::primitive_desc dst_primitive_desc() const {
-            memory::primitive_desc adesc;
-            mkldnn_primitive_desc_t cdesc;
-            const_mkldnn_primitive_desc_t const_cdesc =
-                mkldnn_primitive_desc_query_pd(get(),
-                               mkldnn::convert_to_c(dst_pd), 0);
-            error::wrap_c_api(mkldnn_primitive_desc_clone(&cdesc,
-                        const_cdesc),
-                    "could not clone a dst primitive descriptor");
-            adesc.reset(cdesc);
-            return adesc;
-        }
-
-        engine get_engine() { return engine::query(*this); }
-    };
-
-    view(const primitive_desc &pd): primitive(pd.get()) {}
-
-    view(memory input, memory::dims dims, memory::dims offsets)
-        : primitive(primitive_desc(
-                    input.get_primitive_desc(), dims, offsets).get()) {}
 };
 
 /// @}

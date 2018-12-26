@@ -270,7 +270,6 @@ using primitive_kind_t = mkldnn_primitive_kind_t;
 namespace primitive_kind {
     const primitive_kind_t undefined = mkldnn_undefined_primitive;
     const primitive_kind_t memory_primitive_kind = mkldnn_memory_primitive_kind;
-    const primitive_kind_t view = mkldnn_view;
     const primitive_kind_t reorder = mkldnn_reorder;
     const primitive_kind_t concat = mkldnn_concat;
     const primitive_kind_t concat_inplace = mkldnn_concat_inplace;
@@ -408,7 +407,6 @@ using stream_t = mkldnn_stream;
 
 /* forward declaration of internal primitive_desc types */
 struct memory_pd_t;
-struct view_pd_t;
 struct concat_pd_t;
 struct sum_pd_t;
 struct reorder_pd_t;

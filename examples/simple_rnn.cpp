@@ -488,7 +488,7 @@ void simple_net() {
     // dec_dst_iter.
     // To resolve this we will create one memory that holds the
     // context vector as well as the both the hidden and cell states.
-    // For the dst_iter, we will use a view on this memory.
+    // The dst_iter will be a sub-memory of this memory.
     // Note that the cell state will be padded by
     // feature_size values. However, we do not compute or
     // access those.
@@ -530,9 +530,8 @@ void simple_net() {
     // As mentioned above, we create a view without context out of the
     // memory with context.
     auto dec_dst_iter_memory = mkldnn::memory({ dec_dst_iter_md, cpu_engine });
-    auto dec_dst_iter_noctx_md = mkldnn::view::primitive_desc(
-            dec_dst_iter_memory.get_primitive_desc(), dec_dst_iter_noctx_dims,
-            { 0, 0, 0, 0, 0 }).dst_primitive_desc().desc();
+    auto dec_dst_iter_noctx_md = dec_dst_iter_md.submemory_desc(
+            dec_dst_iter_noctx_dims, { 0, 0, 0, 0, 0 });
 
     /// @todo add suport for residual connections
     /// should it be a set residual in op_desc or a field to set manually?

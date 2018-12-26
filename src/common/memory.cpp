@@ -94,6 +94,56 @@ status_t mkldnn_memory_desc_init(memory_desc_t *memory_desc, int ndims,
     return status;
 }
 
+status_t mkldnn_memory_desc_init_submemory(memory_desc_t *md,
+        const memory_desc_t *parent_md, const dims_t dims,
+        const dims_t offsets) {
+    if (any_null(md, parent_md) || !memory_desc_sanity_check(parent_md))
+        return invalid_arguments;
+
+    const memory_desc_t &src_d = *parent_md;
+    const auto &src_d_blk = src_d.layout_desc.blocking;
+    const int ndims = src_d.ndims;
+
+    for (int d = 0; d < ndims; ++d) {
+        if (dims[d] < 0 || offsets[d] < 0
+                || (offsets[d] + dims[d] > src_d.dims[d]))
+            return invalid_arguments;
+    }
+
+    if (one_of(src_d.format, memory_format::undef, blocked, wino_fmt))
+        return unimplemented;
+
+    memory_desc_t dst_d = *parent_md;
+    auto &dst_d_blk = dst_d.layout_desc.blocking;
+
+    /* TODO: put this into memory_desc_wrapper */
+    for (int d = 0; d < ndims; ++d) {
+        /* very limited functionality for now */
+        const bool ok = true
+            && offsets[d] % src_d_blk.block_dims[d] == 0 /* [r1] */
+            && src_d_blk.offset_padding_to_data[d] == 0
+            && (false
+                    || dims[d] % src_d_blk.block_dims[d] == 0
+                    || dims[d] < src_d_blk.block_dims[d]);
+        if (!ok)
+            return unimplemented;
+
+        const bool is_right_border = offsets[d] + dims[d] == src_d.dims[d];
+
+        dst_d.dims[d] = dims[d];
+        dst_d_blk.padding_dims[d] = is_right_border
+            ? src_d_blk.padding_dims[d] - offsets[d] : dst_d.dims[d];
+        dst_d_blk.offset_padding_to_data[d] =
+            src_d_blk.offset_padding_to_data[d];
+        dst_d_blk.offset_padding += /* [r1] */
+            offsets[d] / src_d_blk.block_dims[d] * dst_d_blk.strides[0][d];
+    }
+
+    *md = dst_d;
+
+    return success;
+}
+
 status_t mkldnn_memory_primitive_desc_create(primitive_desc_t **memory_pd,
         const memory_desc_t *memory_desc, engine_t *engine) {
     bool args_ok = !any_null(memory_pd, memory_desc, engine)
@@ -104,37 +154,16 @@ status_t mkldnn_memory_primitive_desc_create(primitive_desc_t **memory_pd,
             (memory_pd_t**)memory_pd, memory_desc);
 }
 
-status_t mkldnn_view_primitive_desc_create(primitive_desc_t **view_pd,
-        const primitive_desc_t *memory_pd, const dims_t dims,
-        const dims_t offsets) {
-    const memory_pd_t *mpd =
-        (const memory_pd_t*)memory_pd;
-
-    bool args_ok = !any_null(view_pd, memory_pd, dims, offsets)
-        && memory_pd->kind() == primitive_kind::memory_primitive_kind
-        && memory_desc_sanity_check(mpd->desc());
-    if (!args_ok) return invalid_arguments;
-
-    memory_desc_wrapper md(*mpd->desc());
-    for (int d = 0; d < md.ndims(); ++d) {
-        if (dims[d] < 0 || offsets[d] < 0
-                || (offsets[d] + dims[d] > md.dims()[d]))
-            return invalid_arguments;
-    }
-    return memory_pd->engine()->view_primitive_desc_create(
-            (view_pd_t**)view_pd, mpd, dims, offsets);
-}
-
 int mkldnn_memory_primitive_desc_equal(const primitive_desc_t *lhs,
         const primitive_desc_t *rhs) {
     bool args_ok = !any_null(lhs, rhs)
         && lhs->engine() == rhs->engine()
-        && one_of(lhs->kind(), primitive_kind::memory_primitive_kind, primitive_kind::view)
-        && one_of(rhs->kind(), primitive_kind::memory_primitive_kind, primitive_kind::view);
+        && one_of(lhs->kind(), primitive_kind::memory_primitive_kind)
+        && one_of(rhs->kind(), primitive_kind::memory_primitive_kind);
     if (!args_ok) return 0;
     auto l = (const memory_pd_t *)lhs;
     auto r = (const memory_pd_t *)rhs;
-    /* FIXME: view! */
+
     return l->is_equal(r);
 }
 
@@ -143,7 +172,6 @@ size_t mkldnn_memory_primitive_desc_get_size(const primitive_desc_t *memory_pd)
     bool args_ok = !any_null(memory_pd)
         && memory_pd->kind() == primitive_kind::memory_primitive_kind;
     if (!args_ok) return 0;
-    /* FIXME: view? */
     return ((memory_pd_t*)memory_pd)->get_size();
 }
 

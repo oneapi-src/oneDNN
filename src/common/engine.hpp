@@ -58,13 +58,6 @@ struct mkldnn_engine: public mkldnn::impl::c_compatible {
             const mkldnn::impl::memory_desc_t *memory_d)
     { return mkldnn::impl::status::unimplemented; }
 
-    virtual mkldnn::impl::status_t view_primitive_desc_create(
-            mkldnn::impl::view_pd_t **view_pd,
-            const mkldnn::impl::memory_pd_t *memory_pd,
-            const mkldnn::impl::dims_t dims,
-            const mkldnn::impl::dims_t offsets)
-    { return mkldnn::impl::status::unimplemented; }
-
     typedef mkldnn::impl::status_t (*concat_primitive_desc_create_f)(
             mkldnn::impl::concat_pd_t **concat_pd,
             const mkldnn::impl::memory_desc_t *output_d, int n, int concat_dim,

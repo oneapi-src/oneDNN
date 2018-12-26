@@ -464,8 +464,6 @@ typedef enum {
     mkldnn_undefined_primitive,
     /** A memory primitive. */
     mkldnn_memory_primitive_kind,
-    /** A view primitive. */
-    mkldnn_view,
     /** A reorder primitive.*/
     mkldnn_reorder,
     /** A shuffle primitive.*/
@@ -1302,7 +1300,7 @@ typedef enum {
     /* memory and op descriptor section */
     mkldnn_query_some_d = 64, /**< stub */
     mkldnn_query_op_d, /**< op descriptor */
-    mkldnn_query_memory_d, /**< memory descriptor for memory and view */
+    mkldnn_query_memory_d, /**< memory descriptor for memory */
     mkldnn_query_convolution_d, /**< convolution descriptor */
     mkldnn_query_deconvolution_d, /**< deconvolution descriptor */
     mkldnn_query_shuffle_d, /**< shuffle descriptor */

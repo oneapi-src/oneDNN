@@ -87,21 +87,6 @@ protected:
     memory_desc_t desc_;
 };
 
-struct view_pd_t: public primitive_desc_t {
-    view_pd_t(engine_t *engine): primitive_desc_t(engine, primitive_kind::view)
-    {}
-    virtual ~view_pd_t() {}
-
-    virtual const op_desc_t *op_desc() const override { return nullptr; }
-
-    virtual const memory_pd_t *input_pd(int index = 0) const override
-    { return index == 0 ? src_pd() : nullptr; }
-    virtual const memory_pd_t *output_pd(int index = 0) const override
-    { return index == 0 ? dst_pd() : nullptr; }
-    virtual int n_inputs() const override { return 1; }
-    virtual int n_outputs() const override { return 0; }
-};
-
 struct concat_pd_t: public primitive_desc_t {
     concat_pd_t(engine_t *engine, int n, int concat_dim,
             const primitive_attr_t *attr)

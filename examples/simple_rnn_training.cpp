@@ -38,7 +38,7 @@ const int T1 =      1 + rand() % 31;
 // as padded chunks in larger memory:
 //      e.g. (N0 + N1) * T0
 // We don't need to compact the data before processing,
-// we can address the chunks via view primitive and
+// we can address the chunks via sub-memory and
 // process the data via two RNN primitives:
 //     of time lengths T1 and T0 - T1.
 // The leftmost primitive will process N0 + N1 subsequences of length T1
@@ -128,8 +128,8 @@ void simple_net() {
     // leftmost primitive passes its states to the next RNN iteration
     // so it needs dst_iter parameter.
     //
-    // rightmost primitive will consume these as src_iter and will access
-    // the memory via a view because it will have different batch dimension.
+    // rightmost primitive will consume these as src_iter and will access the
+    // memory via a sub-memory because it will have different batch dimension.
     // We have arranged our primitives so that
     // leftmost_batch >= rightmost_batch, and so the rightmost data will fit
     // into the memory allocated for the leftmost.
@@ -192,20 +192,16 @@ void simple_net() {
         = mkldnn::memory({ formatted_md(net_src_dims, memory::format::tnc),
                            cpu_engine }, net_src.data());
     // src_layer memory of the leftmost and rightmost RNN primitives
-    // are accessed through the respective views in larger memory.
+    // are accessed through the respective sub-memories in larger memory.
     // View primitives compute the strides to accomodate for padding.
     auto user_leftmost_src_layer_md
-        = mkldnn::view::primitive_desc(
-            net_src_memory.get_primitive_desc(),
+        = net_src_memory.get_primitive_desc().desc().submemory_desc(
             leftmost_src_layer_dims,
-            { 0, 0, 0 } /* t, n, c offsets */
-        ).dst_primitive_desc().desc();
+            { 0, 0, 0 } /* t, n, c offsets */);
     auto user_rightmost_src_layer_md
-        = mkldnn::view::primitive_desc(
-            net_src_memory.get_primitive_desc(),
+        = net_src_memory.get_primitive_desc().desc().submemory_desc(
             rightmost_src_layer_dims,
-            { leftmost_seq_length, 0, 0 } /* t, n, c offsets */
-        ).dst_primitive_desc().desc();
+            { leftmost_seq_length, 0, 0 } /* t, n, c offsets */);
     auto leftmost_src_layer_memory = net_src_memory;
     auto rightmost_src_layer_memory = net_src_memory;
 
@@ -282,13 +278,11 @@ void simple_net() {
     auto leftmost_dst_iter_memory
         = mkldnn::memory(leftmost_prim_desc.dst_iter_primitive_desc());
 
-    // rightmost src_iter will view into dst_iter of leftmost
+    // rightmost src_iter will be a sub-memory of dst_iter of leftmost
     auto rightmost_src_iter_md
-        = mkldnn::view::primitive_desc(
-            leftmost_dst_iter_memory.get_primitive_desc(),
+        = leftmost_dst_iter_memory.get_primitive_desc().desc().submemory_desc(
             rightmost_src_iter_dims,
-            { 0, 0, 0, 0, 0 } /* l, d, s, n, c offsets */
-        ).dst_primitive_desc().desc();
+            { 0, 0, 0, 0, 0 } /* l, d, s, n, c offsets */);
 
     auto rightmost_src_iter_memory = leftmost_dst_iter_memory;
 
@@ -442,17 +436,13 @@ void simple_net() {
 
     // diff_src follows the same layout we have for net_src
     auto user_leftmost_diff_src_layer_md
-        = mkldnn::view::primitive_desc(
-            net_diff_src_memory.get_primitive_desc(),
+        = net_diff_src_memory.get_primitive_desc().desc().submemory_desc(
             leftmost_src_layer_dims,
-            { 0, 0, 0 } /* t, n, c offsets */
-        ).dst_primitive_desc().desc();
+            { 0, 0, 0 } /* t, n, c offsets */);
     auto user_rightmost_diff_src_layer_md
-        = mkldnn::view::primitive_desc(
-            net_diff_src_memory.get_primitive_desc(),
+        = net_diff_src_memory.get_primitive_desc().desc().submemory_desc(
             rightmost_src_layer_dims,
-            { leftmost_seq_length, 0, 0 } /* t, n, c offsets */
-        ).dst_primitive_desc().desc();
+            { leftmost_seq_length, 0, 0 } /* t, n, c offsets */);
 
     auto leftmost_diff_src_layer_memory = net_diff_src_memory;
     auto rightmost_diff_src_layer_memory = net_diff_src_memory;
@@ -489,20 +479,16 @@ void simple_net() {
         = mkldnn::memory({ formatted_md(net_diff_dst_dims, memory::format::tnc),
                            cpu_engine }, net_diff_dst.data());
     // diff_dst_layer memory of the leftmost and rightmost RNN primitives
-    // are accessed through the respective views in larger memory.
+    // are accessed through the respective sub-memory in larger memory.
     // View primitives compute the strides to accomodate for padding.
     auto user_leftmost_diff_dst_layer_md
-        = mkldnn::view::primitive_desc(
-            net_diff_dst_memory.get_primitive_desc(),
+        = net_diff_dst_memory.get_primitive_desc().desc().submemory_desc(
             leftmost_dst_layer_dims,
-            { 0, 0, 0 } /* t, n, c offsets */
-        ).dst_primitive_desc().desc();
+            { 0, 0, 0 } /* t, n, c offsets */);
     auto user_rightmost_diff_dst_layer_md
-        = mkldnn::view::primitive_desc(
-            net_diff_dst_memory.get_primitive_desc(),
+        = net_diff_dst_memory.get_primitive_desc().desc().submemory_desc(
             rightmost_dst_layer_dims,
-            { leftmost_seq_length, 0, 0 } /* t, n, c offsets */
-        ).dst_primitive_desc().desc();
+            { leftmost_seq_length, 0, 0 } /* t, n, c offsets */);
     auto leftmost_diff_dst_layer_memory = net_diff_dst_memory;
     auto rightmost_diff_dst_layer_memory = net_diff_dst_memory;
 
@@ -532,17 +518,15 @@ void simple_net() {
             leftmost_layer_bwd_desc, cpu_engine, leftmost_prim_desc);
 
     // As the batch dimensions are different between leftmost and rightmost
-    // we need to do the views. rightmost needs less memory, so it will view
-    // the memory of leftmost.
+    // we need to use a sub-memory. rightmost needs less memory, so it will
+    // be a sub-memory of leftmost.
     auto leftmost_diff_dst_iter_memory
         = mkldnn::memory(leftmost_bwd_prim_desc.diff_dst_iter_primitive_desc());
 
     auto rightmost_diff_src_iter_md
-        = mkldnn::view::primitive_desc(
-            leftmost_diff_dst_iter_memory.get_primitive_desc(),
+        = leftmost_diff_dst_iter_memory.get_primitive_desc().desc().submemory_desc(
             rightmost_src_iter_dims,
-            { 0, 0, 0, 0, 0 } /* l, d, s, n, c offsets */
-        ).dst_primitive_desc().desc();
+            { 0, 0, 0, 0, 0 } /* l, d, s, n, c offsets */);
 
     auto rightmost_diff_src_iter_memory = leftmost_diff_dst_iter_memory;
 

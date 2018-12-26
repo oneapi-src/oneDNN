@@ -107,10 +107,12 @@ protected:
             dims[concat_dim_] = dim;
             offsets[concat_dim_] = current_concat_dim_offset;
 
-            cpu_view_t::pd_t v_pd(src_pds_[i].engine());
-            status_t status = v_pd.init(&dst_pd_, dims, offsets);
+            memory_desc_t src_img_d;
+            status_t status = mkldnn_memory_desc_init_submemory(&src_img_d,
+                    dst_pd_.desc(), dims, offsets);
             if (status != success) return status;
-            src_image_pds_.push_back(*v_pd.dst_pd());
+            src_image_pds_.push_back(
+                    cpu_memory_pd_t(src_pds_[i].engine(), &src_img_d));
             current_concat_dim_offset += dim;
         }
 
@@ -137,7 +139,7 @@ protected:
             return dst_pd_.set_format(fallback_dst_fmt);
         }
 
-        /* check if we can create view for the dst with the desired format */
+        /* check if we can create submemory for the dst with desired format */
         bool desired_format_ok = true;
         int current_concat_dim_offset = 0;
         for (int i = 0; i < n_; ++i) {
@@ -147,8 +149,10 @@ protected:
             dims[concat_dim_] = dim;
             offsets[concat_dim_] = current_concat_dim_offset;
 
-            cpu_view_t::pd_t v_pd(src_pds_[i].engine());
-            if (v_pd.init(&dst_pd_, dims, offsets) != success) {
+            memory_desc_t src_img_d;
+            status_t status = mkldnn_memory_desc_init_submemory(&src_img_d,
+                    dst_pd_.desc(), dims, offsets);
+            if (status != success) {
                 desired_format_ok = false;
                 break;
             }

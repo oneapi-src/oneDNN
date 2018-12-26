@@ -530,6 +530,15 @@ mkldnn_status_t MKLDNN_API mkldnn_memory_desc_init(
         mkldnn_memory_desc_t *memory_desc, int ndims, const mkldnn_dims_t dims,
         mkldnn_data_type_t data_type, mkldnn_memory_format_t format);
 
+/** Initializes a @p memory_desc for a given @p parent_memory_desc, with
+ * @p dims sizes and @p offsets. May fail if layout used does not allow
+ * obtain desired submemory. In this case consider using `extract` or `insert`
+ * primitive */
+mkldnn_status_t MKLDNN_API mkldnn_memory_desc_init_submemory(
+        mkldnn_memory_desc_t *memory_desc,
+        const mkldnn_memory_desc_t *parent_memory_desc,
+        const mkldnn_dims_t dims, const mkldnn_dims_t offsets);
+
 /** Creates a @p memory_primitive_desc memory primitive descriptor using @p
  * memory_desc and @p engine. @p memory_desc cannot be uncertain; that is, it
  * cannot be initialized with #mkldnn_any. */
@@ -537,29 +546,18 @@ mkldnn_status_t MKLDNN_API mkldnn_memory_primitive_desc_create(
         mkldnn_primitive_desc_t *memory_primitive_desc,
         const mkldnn_memory_desc_t *memory_desc, mkldnn_engine_t engine);
 
-/** Creates a @p view_primitive_desc for a given @p memory_primitive_desc, with
- * @p dims sizes and @p offsets offsets. May fail if the format used does not
- * allow obtaining the desired view. In this case, consider using the extract
- * primitive. */
-mkldnn_status_t MKLDNN_API mkldnn_view_primitive_desc_create(
-        mkldnn_primitive_desc_t *view_primitive_desc,
-        const_mkldnn_primitive_desc_t memory_primitive_desc,
-        const mkldnn_dims_t dims, const mkldnn_dims_t offsets);
-
 /** Compares two descriptors of memory primitives.
  * @return 1 if the descriptors are the same.
  * @return 0 if the descriptors are different.
  *
  * Use this function to identify whether a reorder is required for the memory
- * primitives. @p lhs and @p rhs must be either memory or view primitive
- * descriptors. */
+ * primitives. @p lhs and @p rhs must be memory primitive descriptors. */
 int MKLDNN_API mkldnn_memory_primitive_desc_equal(
         const_mkldnn_primitive_desc_t lhs,
         const_mkldnn_primitive_desc_t rhs);
 
 /** Returns the size (in bytes) that is required for given @p
  * memory_primitive_desc */
-/* XXX: view? */
 size_t MKLDNN_API mkldnn_memory_primitive_desc_get_size(
         const_mkldnn_primitive_desc_t memory_primitive_desc);
 
@@ -583,7 +581,6 @@ mkldnn_status_t MKLDNN_API mkldnn_memory_get_primitive_desc(
 
 /** For a @p memory primitive, returns the data @p handle. For the CPU engine,
  * the data handle is a pointer to the actual data. */
-/* XXX: view? */
 mkldnn_status_t MKLDNN_API mkldnn_memory_get_data_handle(
         const_mkldnn_memory_t memory, void **handle);
 
@@ -652,8 +649,8 @@ mkldnn_status_t MKLDNN_API mkldnn_concat_primitive_desc_create(
 /** Creates in-place @p concat_primitive_desc for given @p n and @p inputs
  * memory primitive descriptors along @p concat_dimension. All inputs must have
  * the same memory format. Output memory format would be the same. Likewise, the
- * view_primitive_desc_create call may fail if the memory format of the inputs
- * does not allow in-place concatenation for the given sizes.
+ * mkldnn_memory_desc_init_submemory call may fail if the memory format of the
+ * inputs does not allow in-place concatenation for the given sizes.
  *
  * @note This primitive is more like a synchronization stub for concatenation,
  * because concat_inplace performs no operation during execution.
@@ -666,8 +663,8 @@ mkldnn_status_t MKLDNN_API mkldnn_concat_inplace_by_input_primitive_desc_create(
 /** Creates in-place @p concat_primitive_desc for given @p output memory
  * descriptor and @n inputs with @p sizes sizes along @p concat_dimension.
  * Unlike out-of-place concatenation, @p output must be fully defined here.
- * Likewise, the view_primitive_desc_create call may fail if the given memory
- * format does not allow inplace concatenation for the given sizes.
+ * Likewise, the mkldnn_memory_desc_init_submemory call may fail if the given
+ * memory format does not allow inplace concatenation for the given sizes.
  *
  * @note This primitive is more like a synchronization stub for concatenation,
  * because concat_inplace performs no operation during execution. */

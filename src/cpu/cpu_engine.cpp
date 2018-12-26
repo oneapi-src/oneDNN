@@ -77,18 +77,6 @@ status_t cpu_engine_t::memory_primitive_desc_create(memory_pd_t **pd,
             new cpu_memory_t::pd_t(this, desc));
 }
 
-status_t cpu_engine_t::view_primitive_desc_create(view_pd_t **view_pd,
-            const memory_pd_t *memory_pd, const dims_t dims,
-            const dims_t offsets) {
-    assert(memory_pd->engine() == this);
-    cpu_view_t::pd_t *cpu_vpd = nullptr;
-    status_t status = cpu_view_t::pd_t::create(&cpu_vpd,
-            (const cpu_memory_t::pd_t *)memory_pd, dims, offsets);
-    if (status != success) return status;
-    *view_pd = cpu_vpd;
-    return success;
-}
-
 using pd_create_f = mkldnn::impl::engine_t::primitive_desc_create_f;
 
 namespace {

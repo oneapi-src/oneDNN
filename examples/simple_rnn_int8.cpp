@@ -604,11 +604,8 @@ void simple_net() {
     /* As mentioned above, we create a view without context out of the
      memory with context. */
     auto dec_dst_iter_memory = memory({ dec_dst_iter_md, cpu_engine });
-    auto dec_dst_iter_noctx_md
-            = view::primitive_desc(dec_dst_iter_memory.get_primitive_desc(),
-                      dec_dst_iter_noctx_dims, { 0, 0, 0, 0, 0 })
-                      .dst_primitive_desc()
-                      .desc();
+    auto dec_dst_iter_noctx_md = dec_dst_iter_md.submemory_desc(
+                      dec_dst_iter_noctx_dims, { 0, 0, 0, 0, 0 });
 
     rnn_cell::desc dec_cell(algorithm::vanilla_lstm);
     rnn_forward::desc dec_ctx_desc(prop_kind::forward_inference, dec_cell,
