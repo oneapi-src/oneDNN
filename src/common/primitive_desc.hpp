@@ -27,7 +27,7 @@
 #include "verbose.hpp"
 
 struct mkldnn_primitive_desc: public mkldnn::impl::c_compatible {
-    using memory_pd_t = mkldnn::impl::memory_pd_t;
+    using md_t = mkldnn::impl::memory_desc_t;
 
     mkldnn_primitive_desc(mkldnn::impl::engine_t *engine,
             const mkldnn::impl::primitive_attr_t *attr,
@@ -53,22 +53,23 @@ struct mkldnn_primitive_desc: public mkldnn::impl::c_compatible {
     const mkldnn::impl::memory_tracking::registry_t &scratchpad_registry() const
     { return scratchpad_registry_; }
 
-    virtual const mkldnn::impl::op_desc_t *op_desc() const = 0;
+    virtual const mkldnn::impl::op_desc_t *op_desc() const { return nullptr; }
 
     enum class arg_usage_t { unused, input, output };
     virtual arg_usage_t arg_usage(
             mkldnn::impl::primitive_arg_index_t arg) const
     { UNUSED(arg); return arg_usage_t::unused; }
 
-#   define DECLARE_PD_STUB(stub) \
-    virtual const memory_pd_t *stub(int idx = 0) const { return nullptr; }
+#   define DECLARE_MD_STUB(stub) \
+    virtual const mkldnn::impl::memory_desc_t *stub(int idx = 0) const \
+    { return nullptr; }
 
-    DECLARE_PD_STUB(input_pd); DECLARE_PD_STUB(output_pd);
-    DECLARE_PD_STUB(src_pd); DECLARE_PD_STUB(diff_src_pd);
-    DECLARE_PD_STUB(dst_pd); DECLARE_PD_STUB(diff_dst_pd);
-    DECLARE_PD_STUB(weights_pd); DECLARE_PD_STUB(diff_weights_pd);
-    DECLARE_PD_STUB(workspace_pd);
-#   undef DECLARE_PD_STUB
+    DECLARE_MD_STUB(input_md); DECLARE_MD_STUB(output_md);
+    DECLARE_MD_STUB(src_md); DECLARE_MD_STUB(diff_src_md);
+    DECLARE_MD_STUB(dst_md); DECLARE_MD_STUB(diff_dst_md);
+    DECLARE_MD_STUB(weights_md); DECLARE_MD_STUB(diff_weights_md);
+    DECLARE_MD_STUB(workspace_md);
+#   undef DECLARE_MD_STUB
 
     virtual int n_inputs() const { return 0; }
     virtual int n_outputs() const { return 0; }
@@ -78,11 +79,6 @@ struct mkldnn_primitive_desc: public mkldnn::impl::c_compatible {
 
     virtual mkldnn::impl::status_t create_primitive(
             mkldnn::impl::primitive_t **primitive) const = 0;
-
-    /* tentative solution */
-    virtual mkldnn::impl::status_t create_memory(
-            mkldnn::impl::memory_t **memory) const
-    { return mkldnn::impl::status::unimplemented; }
 
     virtual const char *name() const { return "mkldnn_primitive_desc"; }
 
@@ -117,6 +113,17 @@ protected:
     char info_[MKLDNN_VERBOSE_BUF_LEN];
 
     mkldnn::impl::memory_tracking::registry_t scratchpad_registry_;
+
+protected:
+    /** compares ws between fwd_pd and this (make sense to use for bwd_pd)
+     * Expectation: this already set workspace, and this workspace should
+     *              exactly match the one from fwd_pd */
+    bool compare_ws(const mkldnn_primitive_desc *fwd_pd) const {
+        using namespace mkldnn::impl;
+        if (!workspace_md()) return true; // the impl lives fine w/o workspace
+        return fwd_pd && fwd_pd->workspace_md()
+            && *fwd_pd->workspace_md() == *workspace_md();
+    }
 };
 
 #define DECLARE_COMMON_PD_t(impl_name, ...) \

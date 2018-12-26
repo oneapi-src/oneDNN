@@ -21,7 +21,6 @@
 
 #include "c_types_map.hpp"
 #include "primitive_desc.hpp"
-#include "memory_pd.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -32,19 +31,29 @@ struct shuffle_pd_t: public primitive_desc_t {
     typedef shuffle_pd_t base_class;
     typedef shuffle_pd_t hint_class;
 
-    shuffle_pd_t(mkldnn::impl::engine_t *engine,
+    shuffle_pd_t(engine_t *engine,
             const shuffle_desc_t *adesc,
             const primitive_attr_t *attr,
             const shuffle_pd_t *hint_fwd_pd)
-        : primitive_desc_t(engine, attr, primitive_kind::shuffle)
+        : primitive_desc_t(engine, attr, base_pkind)
         , desc_(*adesc)
-        , hint_fwd_pd_(hint_fwd_pd) {}
-    virtual ~shuffle_pd_t() {}
+        , hint_fwd_pd_(hint_fwd_pd)
+        , data_md_(desc_.data_desc)
+    {}
 
     const shuffle_desc_t *desc() const { return &desc_; }
     virtual const op_desc_t *op_desc() const override
     { return reinterpret_cast<const op_desc_t *>(this->desc()); }
     virtual void init_info() override { init_info_shuffle(this, this->info_); }
+
+    virtual status_t query(query_t what, int idx, void *result) const override {
+        switch (what) {
+        case query::shuffle_d:
+            *(const shuffle_desc_t**)result = desc(); break;
+        default: return primitive_desc_t::query(what, idx, result);
+        }
+        return status::success;
+    }
 
     virtual arg_usage_t arg_usage(primitive_arg_index_t arg) const override {
         if (is_fwd()) {
@@ -64,44 +73,44 @@ struct shuffle_pd_t: public primitive_desc_t {
         return primitive_desc_t::arg_usage(arg);
     }
 
-    virtual const memory_pd_t *input_pd(int index = 0) const override
-    { return index == 0 ? (is_fwd() ? src_pd() : diff_dst_pd()) : nullptr; }
-    virtual const memory_pd_t *output_pd(int index = 0) const override
-    { return index == 0 ? (is_fwd() ? dst_pd() : diff_src_pd()) : nullptr; }
+    virtual const memory_desc_t *src_md(int index = 0) const override
+    { return index == 0 && is_fwd() ? &data_md_ : nullptr; }
+    virtual const memory_desc_t *dst_md(int index = 0) const override
+    { return index == 0 && is_fwd() ? &data_md_ : nullptr; }
+
+    virtual const memory_desc_t *diff_src_md(int index = 0) const override
+    { return index == 0 && !is_fwd() ? &data_md_ : nullptr; }
+    virtual const memory_desc_t *diff_dst_md(int index = 0) const override
+    { return index == 0 && !is_fwd() ? &data_md_ : nullptr; }
 
     virtual int n_inputs() const override { return 1; }
     virtual int n_outputs() const override { return 1; }
 
-    virtual status_t query(query_t what, int idx, void *result) const override
-    {
-        switch (what) {
-        case query::shuffle_d:
-            *(const shuffle_desc_t**)result = desc(); break;
-        default: return primitive_desc_t::query(what, idx, result);
-        }
-        return status::success;
-    }
-
     /* shuffle aux functions */
-    inline bool is_fwd() const {
+
+    int MB() const { return data_md()->dims[0]; }
+    int C() const { return ndims() >= 2 ? data_md()->dims[1] : 1; }
+    int D() const { return ndims() >= 5 ? data_md()->dims[ndims() - 3] : 1; }
+    int H() const { return ndims() >= 4 ? data_md()->dims[ndims() - 2] : 1; }
+    int W() const { return ndims() >= 3 ? data_md()->dims[ndims() - 1] : 1; }
+
+    int ndims() const { return data_md()->ndims; }
+
+    int axis() const { return desc_.axis; }
+    int group_size() const { return desc_.group_size; }
+    int axis_size() const { return data_md()->dims[axis()]; }
+
+    bool is_fwd() const {
         return utils::one_of(desc_.prop_kind, prop_kind::forward_training,
                 prop_kind::forward_inference);
     }
-    inline int ndims() const { return desc_.data_desc.ndims; }
-    inline int MB() const { return desc_.data_desc.dims[0]; }
-    inline int C() const { return ndims() >= 2 ? desc_.data_desc.dims[1] : 1; }
-    inline int D() const { return ndims() == 5 ? desc_.data_desc.dims[2] : 1; }
-    inline int H() const { return ndims() >= 4 ?
-                                  desc_.data_desc.dims[ndims() - 2] : 1; }
-    inline int W() const { return ndims() >= 3 ?
-                                  desc_.data_desc.dims[ndims() - 1] : 1; }
-    inline int axis() const { return desc_.axis; }
-    inline int axis_size() const { return desc_.data_desc.dims[axis()]; }
-    inline int group_size() const { return desc_.group_size; }
+
+    const memory_desc_t *data_md() const { return &data_md_; }
 
 protected:
     shuffle_desc_t desc_;
     const shuffle_pd_t *hint_fwd_pd_;
+    memory_desc_t data_md_;
 };
 
 }

@@ -21,27 +21,121 @@
 
 #include "c_types_map.hpp"
 #include "primitive_desc.hpp"
-#include "memory_pd.hpp"
+#include "type_helpers.hpp"
 
 namespace mkldnn {
 namespace impl {
 
-struct pooling_fwd_pd_t: public primitive_desc_t {
-    typedef pooling_fwd_pd_t base_class;
-    typedef pooling_fwd_pd_t hint_class;
+struct pooling_fwd_pd_t;
+
+struct pooling_pd_t: public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::pooling;
 
-    pooling_fwd_pd_t(mkldnn::impl::engine_t *engine,
-            const pooling_desc_t *adesc, const primitive_attr_t *attr,
+    pooling_pd_t(engine_t *engine,
+            const pooling_desc_t *adesc,
+            const primitive_attr_t *attr,
             const pooling_fwd_pd_t *hint_fwd_pd)
-        : primitive_desc_t(engine, attr, primitive_kind::pooling)
-        , desc_(*adesc), hint_fwd_pd_(hint_fwd_pd) {}
-    virtual ~pooling_fwd_pd_t() {}
+        : primitive_desc_t(engine, attr, base_pkind)
+        , desc_(*adesc)
+        , hint_fwd_pd_(hint_fwd_pd)
+        , ws_md_()
+    {}
 
     const pooling_desc_t *desc() const { return &desc_; }
     virtual const op_desc_t *op_desc() const override
     { return reinterpret_cast<const op_desc_t *>(this->desc()); }
     virtual void init_info() override { init_info_pool(this, this->info_); }
+
+    virtual status_t query(query_t what, int idx, void *result) const override {
+        switch (what) {
+        case query::pooling_d:
+            *(const pooling_desc_t**)result = desc(); break;
+        default: return primitive_desc_t::query(what, idx, result);
+        }
+        return status::success;
+    }
+
+    /* common pooling aux functions */
+
+    int MB() const { return src_desc().dims[0]; }
+    int C() const { return src_desc().dims[1]; }
+
+    int ID() const { return ndims() >= 5 ? src_desc().dims[ndims() - 3] : 1; }
+    int IH() const { return ndims() >= 4 ? src_desc().dims[ndims() - 2] : 1; }
+    int IW() const { return src_desc().dims[ndims() - 1]; }
+
+    int OD() const { return ndims() >= 5 ? dst_desc().dims[ndims() - 3] : 1; }
+    int OH() const { return ndims() >= 4 ? dst_desc().dims[ndims() - 2] : 1; }
+    int OW() const { return dst_desc().dims[ndims() - 1]; }
+
+    int KD() const { return ndims() >= 5 ? desc_.kernel[ndims() - 5] : 1; }
+    int KH() const { return ndims() >= 4 ? desc_.kernel[ndims() - 4] : 1; }
+    int KW() const { return desc_.kernel[ndims() - 3]; }
+
+    int KSD() const { return ndims() >= 5 ? desc_.strides[ndims() - 5] : 1; }
+    int KSH() const { return ndims() >= 4 ? desc_.strides[ndims() - 4] : 1; }
+    int KSW() const { return desc_.strides[ndims() - 3]; }
+
+    int padFront() const
+    { return ndims() >= 5 ? desc_.padding[0][ndims() - 5] : 0; }
+    int padBack() const
+    { return ndims() >= 5 ? desc_.padding[1][ndims() - 5] : 0; }
+    int padT() const
+    { return ndims() >= 4 ? desc_.padding[0][ndims() - 4] : 0; }
+    int padB() const
+    { return ndims() >= 4 ? desc_.padding[1][ndims() - 4] : 0; }
+    int padL() const { return desc_.padding[0][ndims() - 3]; }
+    int padR() const { return desc_.padding[1][ndims() - 3]; }
+
+    int ndims() const { return src_desc().ndims; }
+    bool is_3d() const { return ndims() == 5; }
+
+    bool has_zero_dim_memory() const
+    { return memory_desc_wrapper(src_desc()).has_zero_dim(); }
+
+    bool is_fwd() const {
+        return utils::one_of(desc_.prop_kind, prop_kind::forward_training,
+                prop_kind::forward_inference);
+    }
+
+protected:
+    pooling_desc_t desc_;
+    const pooling_fwd_pd_t *hint_fwd_pd_;
+
+    memory_desc_t ws_md_;
+
+    void init_default_ws() {
+        ws_md_ = is_fwd() ? *dst_md() : *diff_dst_md();
+        ws_md_.data_type = indices_data_type();
+    }
+
+    data_type_t indices_data_type() const {
+        /* the simplest way to express 256... */
+        const int u8_max = nstl::numeric_limits<
+            typename prec_traits<data_type::u8>::type>::max();
+        return utils::array_product(desc()->kernel, ndims()) <= u8_max
+            ? data_type::u8 : data_type::s32;
+    }
+
+private:
+    const memory_desc_t &src_desc() const
+    { return is_fwd() ? desc_.src_desc : desc_.diff_src_desc; }
+    const memory_desc_t &dst_desc() const
+    { return is_fwd() ? desc_.dst_desc : desc_.diff_dst_desc; }
+};
+
+struct pooling_fwd_pd_t: public pooling_pd_t {
+    typedef pooling_fwd_pd_t base_class;
+    typedef pooling_fwd_pd_t hint_class;
+
+    pooling_fwd_pd_t(engine_t *engine,
+            const pooling_desc_t *adesc,
+            const primitive_attr_t *attr,
+            const pooling_fwd_pd_t *hint_fwd_pd)
+        : pooling_pd_t(engine, adesc, attr, hint_fwd_pd)
+        , src_md_(desc_.src_desc)
+        , dst_md_(desc_.dst_desc)
+    {}
 
     virtual arg_usage_t arg_usage(primitive_arg_index_t arg) const override {
         if (arg == MKLDNN_ARG_SRC)
@@ -50,97 +144,46 @@ struct pooling_fwd_pd_t: public primitive_desc_t {
         if (arg == MKLDNN_ARG_DST)
             return arg_usage_t::output;
 
-        if (arg == MKLDNN_ARG_WORKSPACE && (workspace_pd() != nullptr))
+        if (arg == MKLDNN_ARG_WORKSPACE && (workspace_md() != nullptr))
             return arg_usage_t::output;
 
         return primitive_desc_t::arg_usage(arg);
     }
 
-    virtual const memory_pd_t *input_pd(int index = 0) const override
-    { return index == 0 ? src_pd() : nullptr; }
-    virtual const memory_pd_t *output_pd(int index = 0) const override {
-        if (index == 0) return dst_pd();
-        if (index == 1) return workspace_pd();
-        return nullptr;
-    }
+    virtual const memory_desc_t *src_md(int index = 0) const override
+    { return index == 0 ? &src_md_ : nullptr; }
+    virtual const memory_desc_t *dst_md(int index = 0) const override
+    { return index == 0 ? &dst_md_ : nullptr; }
+    virtual const memory_desc_t *workspace_md(int index = 0) const override
+    { return index == 0 && !types::is_zero_md(&ws_md_) ? &ws_md_ : nullptr; }
 
     virtual int n_inputs() const override { return 1; }
     virtual int n_outputs() const override
-    { return 1 + (workspace_pd() != nullptr); }
-
-    virtual status_t query(query_t what, int idx, void *result) const override
-    {
-        switch (what) {
-        case query::pooling_d:
-            *(const pooling_desc_t**)result = desc(); break;
-        default: return primitive_desc_t::query(what, idx, result);
-        }
-        return status::success;
-    }
-
-    /* common pooling aux functions */
-    inline bool is_3d() const { return desc_.src_desc.ndims == 5; }
-
-    inline int MB() const { return desc_.src_desc.dims[0]; }
-    inline int C() const { return desc_.src_desc.dims[1]; }
-    inline int ID() const { return is_3d() ? desc_.src_desc.dims[2] : 1; }
-    inline int IH() const { return is_3d()
-        ? desc_.src_desc.dims[3] : desc_.src_desc.dims[2]; }
-    inline int IW() const { return is_3d()
-        ? desc_.src_desc.dims[4] : desc_.src_desc.dims[3]; }
-    inline int OD() const { return is_3d()
-        ? desc_.dst_desc.dims[2] : 1; }
-    inline int OH() const { return is_3d()
-        ? desc_.dst_desc.dims[3] : desc_.dst_desc.dims[2]; }
-    inline int OW() const { return is_3d()
-        ? desc_.dst_desc.dims[4] : desc_.dst_desc.dims[3]; }
-    inline int KD() const { return is_3d() ? desc_.kernel[0] : 1; }
-    inline int KH() const
-    { return is_3d() ? desc_.kernel[1] : desc_.kernel[0]; }
-    inline int KW() const
-    { return is_3d() ? desc_.kernel[2] : desc_.kernel[1]; }
-
-    inline int KSD() const { return is_3d() ? desc_.strides[0] : 1; }
-    inline int KSH() const
-    { return is_3d() ? desc_.strides[1] : desc_.strides[0]; }
-    inline int KSW() const
-    { return is_3d() ? desc_.strides[2] : desc_.strides[1]; }
-
-    inline int padFront() const { return is_3d() ? desc_.padding[0][0] : 0; }
-    inline int padBack() const { return is_3d() ? desc_.padding[1][0] : 0; }
-    inline int padT() const { return is_3d()
-        ? desc_.padding[0][1] : desc_.padding[0][0]; }
-    inline int padB() const { return is_3d()
-        ? desc_.padding[1][1] : desc_.padding[1][0]; }
-    inline int padL() const { return is_3d()
-        ? desc_.padding[0][2] : desc_.padding[0][1]; }
-    inline int padR() const { return is_3d()
-        ? desc_.padding[1][2] : desc_.padding[1][1]; }
-
-    bool has_zero_dim_memory() const
-    { return memory_desc_wrapper(desc_.src_desc).has_zero_dim(); }
+    { return 1 + (workspace_md() != nullptr); }
 
 protected:
-    pooling_desc_t desc_;
-    const pooling_fwd_pd_t *hint_fwd_pd_;
+    memory_desc_t src_md_;
+    memory_desc_t dst_md_;
+
+    virtual status_t set_default_params() {
+        if (dst_md()->format == memory_format::any)
+            CHECK(types::set_default_format(dst_md_, src_md()->format));
+        return status::success;
+    }
 };
 
-struct pooling_bwd_pd_t: public primitive_desc_t {
+struct pooling_bwd_pd_t: public pooling_pd_t {
     typedef pooling_bwd_pd_t base_class;
     typedef pooling_fwd_pd_t hint_class;
-    static constexpr auto base_pkind = primitive_kind::pooling;
 
-    pooling_bwd_pd_t(mkldnn::impl::engine_t *engine,
-            const pooling_desc_t *adesc, const primitive_attr_t *attr,
+    pooling_bwd_pd_t(engine_t *engine,
+            const pooling_desc_t *adesc,
+            const primitive_attr_t *attr,
             const pooling_fwd_pd_t *hint_fwd_pd)
-        : primitive_desc_t(engine, attr, primitive_kind::pooling)
-        , desc_(*adesc), hint_fwd_pd_(hint_fwd_pd) {}
-    virtual ~pooling_bwd_pd_t() {}
-
-    const pooling_desc_t *desc() const { return &desc_; }
-    virtual const op_desc_t *op_desc() const override
-    { return reinterpret_cast<const op_desc_t *>(this->desc()); }
-    virtual void init_info() override { init_info_pool(this, this->info_); }
+        : pooling_pd_t(engine, adesc, attr, hint_fwd_pd)
+        , diff_src_md_(desc_.diff_src_desc)
+        , diff_dst_md_(desc_.diff_dst_desc)
+    {}
 
     virtual arg_usage_t arg_usage(primitive_arg_index_t arg) const override {
         if (arg == MKLDNN_ARG_DIFF_DST)
@@ -149,80 +192,33 @@ struct pooling_bwd_pd_t: public primitive_desc_t {
         if (arg == MKLDNN_ARG_DIFF_SRC)
             return arg_usage_t::output;
 
-        if (arg == MKLDNN_ARG_WORKSPACE && (workspace_pd() != nullptr))
+        if (arg == MKLDNN_ARG_WORKSPACE && (workspace_md() != nullptr))
             return arg_usage_t::input;
 
         return primitive_desc_t::arg_usage(arg);
     }
 
-    virtual const memory_pd_t *input_pd(int index = 0) const override  {
-        if (index == 0) return diff_dst_pd();
-        if (index == 1) return workspace_pd();
-        return nullptr;
-    }
-    virtual const memory_pd_t *output_pd(int index = 0) const override
-    { return index == 0 ? diff_src_pd() : nullptr; }
+    virtual const memory_desc_t *diff_src_md(int index = 0) const override
+    { return index == 0 ? &diff_src_md_ : nullptr; }
+    virtual const memory_desc_t *diff_dst_md(int index = 0) const override
+    { return index == 0 ? &diff_dst_md_ : nullptr; }
+    virtual const memory_desc_t *workspace_md(int index = 0) const override
+    { return index == 0 && !types::is_zero_md(&ws_md_) ? &ws_md_ : nullptr; }
 
     virtual int n_inputs() const override
-    { return 1 + (workspace_pd() != nullptr); }
+    { return 1 + (workspace_md() != nullptr); }
     virtual int n_outputs() const override { return 1; }
 
-    virtual status_t query(query_t what, int idx, void *result) const override
-    {
-        switch (what) {
-        case query::pooling_d:
-            *(const pooling_desc_t**)result = desc(); break;
-        default: return primitive_desc_t::query(what, idx, result);
-        }
+protected:
+    memory_desc_t diff_src_md_;
+    memory_desc_t diff_dst_md_;
+
+    virtual status_t set_default_params() {
+        if (diff_src_md()->format == memory_format::any)
+            CHECK(types::set_default_format(diff_src_md_,
+                        diff_dst_md()->format));
         return status::success;
     }
-
-    /* common pooling aux functions */
-
-    inline bool is_3d() const { return desc_.diff_src_desc.ndims == 5; }
-
-    inline int MB() const { return desc_.diff_src_desc.dims[0]; }
-    inline int C() const { return desc_.diff_src_desc.dims[1]; }
-    inline int ID() const { return is_3d() ? desc_.diff_src_desc.dims[2] : 1; }
-    inline int IH() const { return is_3d()
-        ? desc_.diff_src_desc.dims[3] : desc_.diff_src_desc.dims[2]; }
-    inline int IW() const { return is_3d()
-        ? desc_.diff_src_desc.dims[4] : desc_.diff_src_desc.dims[3]; }
-    inline int OD() const { return is_3d()
-        ? desc_.diff_dst_desc.dims[2] : 1; }
-    inline int OH() const { return is_3d()
-        ? desc_.diff_dst_desc.dims[3] : desc_.diff_dst_desc.dims[2]; }
-    inline int OW() const { return is_3d()
-        ? desc_.diff_dst_desc.dims[4] : desc_.diff_dst_desc.dims[3]; }
-    inline int KD() const { return is_3d() ? desc_.kernel[0] : 1; }
-    inline int KH() const
-    { return is_3d() ? desc_.kernel[1] : desc_.kernel[0]; }
-    inline int KW() const
-    { return is_3d() ? desc_.kernel[2] : desc_.kernel[1]; }
-
-    inline int KSD() const { return is_3d() ? desc_.strides[0] : 1; }
-    inline int KSH() const
-    { return is_3d() ? desc_.strides[1] : desc_.strides[0]; }
-    inline int KSW() const
-    { return is_3d() ? desc_.strides[2] : desc_.strides[1]; }
-
-    inline int padFront() const { return is_3d() ? desc_.padding[0][0] : 0; }
-    inline int padBack() const { return is_3d() ? desc_.padding[1][0] : 0; }
-    inline int padT() const { return is_3d()
-        ? desc_.padding[0][1] : desc_.padding[0][0]; }
-    inline int padB() const { return is_3d()
-        ? desc_.padding[1][1] : desc_.padding[1][0]; }
-    inline int padL() const { return is_3d()
-        ? desc_.padding[0][2] : desc_.padding[0][1]; }
-    inline int padR() const { return is_3d()
-        ? desc_.padding[1][2] : desc_.padding[1][1]; }
-
-    bool has_zero_dim_memory() const
-    { return memory_desc_wrapper(desc_.diff_src_desc).has_zero_dim(); }
-
-protected:
-    pooling_desc_t desc_;
-    const pooling_fwd_pd_t *hint_fwd_pd_;
 };
 
 }
@@ -231,4 +227,3 @@ protected:
 #endif
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
-

@@ -19,13 +19,13 @@
 #include "nstl.hpp"
 
 #include "c_types_map.hpp"
-#include "../cpu/cpu_engine.hpp"
+// #include "../cpu/cpu_engine.hpp"
 
 namespace mkldnn {
 namespace impl {
 
 engine_factory_t *engine_factories[] = {
-    &cpu::engine_factory,
+//    &cpu::engine_factory,
     nullptr,
 };
 
@@ -38,30 +38,6 @@ static inline engine_factory_t *get_engine_factory(engine_kind_t kind) {
 
 }
 }
-
-using cpd_create_f = mkldnn::impl::engine_t::concat_primitive_desc_create_f;
-using rpd_create_f = mkldnn::impl::engine_t::reorder_primitive_desc_create_f;
-using spd_create_f = mkldnn::impl::engine_t::sum_primitive_desc_create_f;
-using pd_create_f = mkldnn::impl::engine_t::primitive_desc_create_f;
-
-namespace {
-static const cpd_create_f concat_empty_impl_list[] = { nullptr };
-static const rpd_create_f reorder_empty_impl_list[] = { nullptr };
-static const spd_create_f sum_empty_impl_list[] = { nullptr };
-static const pd_create_f empty_impl_list[] = { nullptr };
-}
-
-const cpd_create_f* mkldnn::impl::engine_t::get_concat_implementation_list()
-    const
-{ return concat_empty_impl_list; }
-const rpd_create_f* mkldnn::impl::engine_t::get_reorder_implementation_list()
-    const
-{ return reorder_empty_impl_list; }
-const spd_create_f* mkldnn::impl::engine_t::get_sum_implementation_list()
-    const
-{ return sum_empty_impl_list; }
-const pd_create_f* mkldnn::impl::engine_t::get_implementation_list() const
-{ return empty_impl_list; }
 
 using namespace mkldnn::impl;
 using namespace mkldnn::impl::status;

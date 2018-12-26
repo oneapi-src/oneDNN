@@ -55,11 +55,6 @@ template <> struct typesize_traits<4> { typedef float type; };
 template <> struct typesize_traits<2> { typedef int16_t type; };
 template <> struct typesize_traits<1> { typedef uint8_t type; };
 
-template <> struct pkind_traits<primitive_kind::memory_primitive_kind> {
-    typedef memory_desc_t desc_type;
-    static constexpr query_t query_d = query::memory_d;
-};
-
 #define PKIND_TRAITS_INST(op) \
 template <> struct pkind_traits<primitive_kind::op> { \
     typedef CONCAT2(op, _desc_t) desc_type; \

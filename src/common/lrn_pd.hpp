@@ -21,26 +21,79 @@
 
 #include "c_types_map.hpp"
 #include "primitive_desc.hpp"
-#include "memory_pd.hpp"
 
 namespace mkldnn {
 namespace impl {
 
-struct lrn_fwd_pd_t: public primitive_desc_t {
-    typedef lrn_fwd_pd_t base_class;
-    typedef lrn_fwd_pd_t hint_class;
+struct lrn_fwd_pd_t;
+
+struct lrn_pd_t: public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::lrn;
 
-    lrn_fwd_pd_t(mkldnn::impl::engine_t *engine, const lrn_desc_t *adesc,
-            const primitive_attr_t *attr, const lrn_fwd_pd_t *hint_fwd_pd)
-        : primitive_desc_t(engine, attr, primitive_kind::lrn)
-        , desc_(*adesc), hint_fwd_pd_(hint_fwd_pd) {}
-    virtual ~lrn_fwd_pd_t() {}
+    lrn_pd_t(engine_t *engine,
+            const lrn_desc_t *adesc,
+            const primitive_attr_t *attr,
+            const lrn_fwd_pd_t *hint_fwd_pd)
+        : primitive_desc_t(engine, attr, base_pkind)
+        , desc_(*adesc)
+        , hint_fwd_pd_(hint_fwd_pd)
+        , data_md_(desc_.data_desc)
+        , ws_md_()
+    {}
 
     const lrn_desc_t *desc() const { return &desc_; }
     virtual const op_desc_t *op_desc() const override
     { return reinterpret_cast<const op_desc_t *>(this->desc()); }
     virtual void init_info() override { init_info_lrn(this, this->info_); }
+
+    virtual status_t query(query_t what, int idx, void *result) const override {
+        switch (what) {
+        case query::lrn_d:
+            *(const lrn_desc_t**)result = desc(); break;
+        default: return primitive_desc_t::query(what, idx, result);
+        }
+        return status::success;
+    }
+
+    /* common lrn aux functions */
+
+    int MB() const { return data_desc().dims[0]; }
+    int C() const { return data_desc().dims[1]; }
+    int D() const { return ndims() >= 5 ? data_desc().dims[ndims() - 3] : 1; }
+    int H() const { return ndims() >= 4 ? data_desc().dims[ndims() - 2] : 1; }
+    int W() const { return ndims() >= 3 ? data_desc().dims[ndims() - 1] : 1; }
+
+    int ndims() const { return data_desc().ndims; }
+
+    bool has_zero_dim_memory() const
+    { return memory_desc_wrapper(desc_.data_desc).has_zero_dim(); }
+
+    bool is_fwd() const {
+        return utils::one_of(desc_.prop_kind, prop_kind::forward_training,
+                prop_kind::forward_inference);
+    }
+
+protected:
+    lrn_desc_t desc_;
+    const lrn_fwd_pd_t *hint_fwd_pd_;
+
+    memory_desc_t data_md_;
+    memory_desc_t ws_md_;
+
+private:
+    const memory_desc_t &data_desc() const { return desc_.data_desc; }
+};
+
+struct lrn_fwd_pd_t: public lrn_pd_t {
+    typedef lrn_fwd_pd_t base_class;
+    typedef lrn_fwd_pd_t hint_class;
+
+    lrn_fwd_pd_t(engine_t *engine,
+            const lrn_desc_t *adesc,
+            const primitive_attr_t *attr,
+            const lrn_fwd_pd_t *hint_fwd_pd)
+        : lrn_pd_t(engine, adesc, attr, hint_fwd_pd)
+    {}
 
     virtual arg_usage_t arg_usage(primitive_arg_index_t arg) const override {
         if (arg == MKLDNN_ARG_SRC)
@@ -49,64 +102,35 @@ struct lrn_fwd_pd_t: public primitive_desc_t {
         if (arg == MKLDNN_ARG_DST)
             return arg_usage_t::output;
 
-        if (arg == MKLDNN_ARG_WORKSPACE && (workspace_pd() != nullptr))
+        if (arg == MKLDNN_ARG_WORKSPACE && (workspace_md() != nullptr))
             return arg_usage_t::output;
 
         return primitive_desc_t::arg_usage(arg);
     }
 
-    virtual const memory_pd_t *input_pd(int index = 0) const override
-    { return index == 0 ? src_pd() : nullptr; }
-    virtual const memory_pd_t *output_pd(int index = 0) const override {
-        if (index == 0) return dst_pd();
-        if (index == 1) return workspace_pd();
-        return nullptr;
-    }
+    virtual const memory_desc_t *src_md(int index = 0) const override
+    { return index == 0 ? &data_md_ : nullptr; }
+    virtual const memory_desc_t *dst_md(int index = 0) const override
+    { return index == 0 ? &data_md_ : nullptr; }
+    virtual const memory_desc_t *workspace_md(int index = 0) const override
+    { return index == 0 && !types::is_zero_md(&ws_md_) ? &ws_md_ : nullptr; }
 
     virtual int n_inputs() const override { return 1; }
     virtual int n_outputs() const override
-    { return 1 + (workspace_pd() != nullptr); }
-
-    virtual status_t query(query_t what, int idx, void *result) const override
-    {
-        switch (what) {
-        case query::lrn_d:
-            *(const lrn_desc_t**)result = desc(); break;
-        default: return primitive_desc_t::query(what, idx, result);
-        }
-        return status::success;
-    }
-
-    /* common lrn aux functions */
-
-    inline int MB() const { return desc_.data_desc.dims[0]; }
-    inline int C() const { return desc_.data_desc.dims[1]; }
-    inline int H() const { return desc_.data_desc.dims[2]; }
-    inline int W() const { return desc_.data_desc.dims[3]; }
-
-    bool has_zero_dim_memory() const
-    { return memory_desc_wrapper(desc_.data_desc).has_zero_dim(); }
-
-protected:
-    lrn_desc_t desc_;
-    const lrn_fwd_pd_t *hint_fwd_pd_;
+    { return 1 + (workspace_md() != nullptr); }
 };
 
-struct lrn_bwd_pd_t: public primitive_desc_t {
+struct lrn_bwd_pd_t: public lrn_pd_t {
     typedef lrn_bwd_pd_t base_class;
     typedef lrn_fwd_pd_t hint_class;
-    static constexpr auto base_pkind = primitive_kind::lrn;
 
-    lrn_bwd_pd_t(mkldnn::impl::engine_t *engine, const lrn_desc_t *adesc,
-            const primitive_attr_t *attr, const lrn_fwd_pd_t *hint_fwd_pd)
-        : primitive_desc_t(engine, attr, primitive_kind::lrn)
-        , desc_(*adesc), hint_fwd_pd_(hint_fwd_pd) {}
-    virtual ~lrn_bwd_pd_t() {}
-
-    const lrn_desc_t *desc() const { return &desc_; }
-    virtual const op_desc_t *op_desc() const override
-    { return reinterpret_cast<const op_desc_t *>(this->desc()); }
-    virtual void init_info() override { init_info_lrn(this, this->info_); }
+    lrn_bwd_pd_t(engine_t *engine,
+            const lrn_desc_t *adesc,
+            const primitive_attr_t *attr,
+            const lrn_fwd_pd_t *hint_fwd_pd)
+        : lrn_pd_t(engine, adesc, attr, hint_fwd_pd)
+        , diff_data_md_(desc_.diff_data_desc)
+    {}
 
     virtual arg_usage_t arg_usage(primitive_arg_index_t arg) const override {
         if (utils::one_of(arg, MKLDNN_ARG_SRC, MKLDNN_ARG_DIFF_DST))
@@ -115,49 +139,27 @@ struct lrn_bwd_pd_t: public primitive_desc_t {
         if (arg == MKLDNN_ARG_DIFF_SRC)
             return arg_usage_t::output;
 
-        if (arg == MKLDNN_ARG_WORKSPACE && (workspace_pd() != nullptr))
+        if (arg == MKLDNN_ARG_WORKSPACE && (workspace_md() != nullptr))
             return arg_usage_t::input;
 
         return primitive_desc_t::arg_usage(arg);
     }
 
-    virtual const memory_pd_t *input_pd(int index = 0) const override {
-        if (index == 0) return src_pd();
-        if (index == 1) return diff_dst_pd();
-        if (index == 2) return workspace_pd();
-        return nullptr;
-    }
-    virtual const memory_pd_t *output_pd(int index = 0) const override
-    { return index == 0 ? diff_src_pd() : nullptr; }
+    virtual const memory_desc_t *src_md(int index = 0) const override
+    { return index == 0 ? &data_md_ : nullptr; }
+    virtual const memory_desc_t *diff_dst_md(int index = 0) const override
+    { return index == 0 ? &diff_data_md_ : nullptr; }
+    virtual const memory_desc_t *diff_src_md(int index = 0) const override
+    { return index == 0 ? &diff_data_md_ : nullptr; }
+    virtual const memory_desc_t *workspace_md(int index = 0) const override
+    { return index == 0 && !types::is_zero_md(&ws_md_) ? &ws_md_ : nullptr; }
 
     virtual int n_inputs() const override
-    { return 2 + (workspace_pd() != nullptr); }
-    virtual int n_outputs() const override
-    { return 1; }
-
-    virtual status_t query(query_t what, int idx, void *result) const override
-    {
-        switch (what) {
-        case query::lrn_d:
-            *(const lrn_desc_t**)result = desc(); break;
-        default: return primitive_desc_t::query(what, idx, result);
-        }
-        return status::success;
-    }
-
-    /* common lrn aux functions */
-
-    inline int MB() const { return desc_.data_desc.dims[0]; }
-    inline int C() const { return desc_.data_desc.dims[1]; }
-    inline int H() const { return desc_.data_desc.dims[2]; }
-    inline int W() const { return desc_.data_desc.dims[3]; }
-
-    bool has_zero_dim_memory() const
-    { return memory_desc_wrapper(desc_.data_desc).has_zero_dim(); }
+    { return 2 + (workspace_md() != nullptr); }
+    virtual int n_outputs() const override { return 1; }
 
 protected:
-    lrn_desc_t desc_;
-    const lrn_fwd_pd_t *hint_fwd_pd_;
+    memory_desc_t diff_data_md_;
 };
 
 }

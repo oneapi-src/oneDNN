@@ -60,22 +60,6 @@ struct mkldnn_primitive: public mkldnn::impl::c_compatible {
     virtual mkldnn::impl::status_t execute(const mkldnn::impl::exec_ctx_t &ctx)
         const = 0;
 
-    /** returns data handle. Applicable for memory primitives only. */
-    virtual mkldnn::impl::status_t get_data_handle(void **handle) const {
-        UNUSED(handle);
-        assert(this->kind() == mkldnn::impl::primitive_kind::memory_primitive_kind);
-        return mkldnn::impl::status::invalid_arguments;
-    }
-    /** sets data handle. Applicable for memory primitives only. */
-    virtual mkldnn::impl::status_t set_data_handle(void *handle) {
-        UNUSED(handle);
-        assert(this->kind() == mkldnn::impl::primitive_kind::memory_primitive_kind);
-        return mkldnn::impl::status::invalid_arguments;
-    }
-    /** zeros padding. Applicable for memory primitives only. */
-    virtual mkldnn::impl::status_t zero_pad() const
-    { return mkldnn::impl::status::invalid_arguments; }
-
 protected:
     const mkldnn::impl::primitive_desc_t *pd_;
 

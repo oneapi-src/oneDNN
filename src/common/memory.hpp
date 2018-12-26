@@ -22,18 +22,18 @@
 #include "mkldnn.h"
 
 #include "c_types_map.hpp"
-#include "memory_pd.hpp"
 #include "nstl.hpp"
 
 struct mkldnn_memory: public mkldnn::impl::c_compatible {
-    mkldnn_memory(const mkldnn::impl::primitive_desc_t *pd)
-        : pd_(pd->clone()) {}
-    virtual ~mkldnn_memory() { delete pd_; }
+    mkldnn_memory(mkldnn::impl::engine_t *engine,
+            const mkldnn::impl::memory_desc_t *md)
+        : engine_(engine), md_(*md) {}
+    virtual ~mkldnn_memory() {}
 
     /** returns memory's engine */
-    mkldnn::impl::engine_t *engine() const { return pd_->engine(); }
-    /** returns memory's inputs */
-    const mkldnn::impl::primitive_desc_t *pd() const { return pd_; }
+    mkldnn::impl::engine_t *engine() const { return engine_; }
+    /** returns memory's description */
+    const mkldnn::impl::memory_desc_t *md() const { return &md_; }
 
     /** returns data handle */
     virtual mkldnn::impl::status_t get_data_handle(void **handle) const = 0;
@@ -46,7 +46,8 @@ struct mkldnn_memory: public mkldnn::impl::c_compatible {
     { return mkldnn::impl::status::success; }
 
 protected:
-    const mkldnn::impl::primitive_desc_t *pd_;
+    mkldnn::impl::engine_t *engine_;
+    const mkldnn::impl::memory_desc_t md_;
 
 private:
     mkldnn_memory() = delete;

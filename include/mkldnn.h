@@ -162,30 +162,12 @@ mkldnn_status_t MKLDNN_API mkldnn_primitive_desc_query(
 
 /** Queries primitive descriptor for memory descriptor
  *
- * @returns NULL in case of any error (in particular if the queried entity is
- * not of type mkldnn_memory_desc_t).
+ * @returns NULL in case of any error.
  *
  * This is just a specialized version of mkldnn_primitive_desc_query
  * used for convenience.
  */
-const mkldnn_memory_desc_t MKLDNN_API *mkldnn_primitive_desc_query_memory_d(
-        const_mkldnn_primitive_desc_t primitive_desc);
-
-/** Queries primitive descriptor for primitive descriptor
- *
- * @returns NULL in case of any error (in particular if the queried entity is
- * not of type const_mkldnn_primitive_desc_t).
- *
- * This is just a specialized version of mkldnn_primitive_desc_query
- * used for convenience.
- *
- * Example: Query an operation primitive descriptor for a workspace
- *         (@p what equals #mkldnn_query_workspace_pd). Returned
- *         NULL indicates that the primitive does not require a workspace.
- *         Otherwise, a user should prepare the workspace and pass it
- *         to the corresponding primitive.
- */
-const_mkldnn_primitive_desc_t MKLDNN_API mkldnn_primitive_desc_query_pd(
+const mkldnn_memory_desc_t MKLDNN_API *mkldnn_primitive_desc_query_md(
         const_mkldnn_primitive_desc_t primitive_desc, mkldnn_query_t what,
         int index);
 
@@ -521,30 +503,22 @@ mkldnn_status_t MKLDNN_API mkldnn_memory_desc_init_submemory(
         const mkldnn_memory_desc_t *parent_memory_desc,
         const mkldnn_dims_t dims, const mkldnn_dims_t offsets);
 
-/** Creates a @p memory_primitive_desc memory primitive descriptor using @p
- * memory_desc and @p engine. @p memory_desc cannot be uncertain; that is, it
- * cannot be initialized with #mkldnn_any. */
-mkldnn_status_t MKLDNN_API mkldnn_memory_primitive_desc_create(
-        mkldnn_primitive_desc_t *memory_primitive_desc,
-        const mkldnn_memory_desc_t *memory_desc, mkldnn_engine_t engine);
-
-/** Compares two descriptors of memory primitives.
+/** Compares two memory descriptors.
  * @return 1 if the descriptors are the same.
  * @return 0 if the descriptors are different.
  *
- * Use this function to identify whether a reorder is required for the memory
- * primitives. @p lhs and @p rhs must be memory primitive descriptors. */
-int MKLDNN_API mkldnn_memory_primitive_desc_equal(
-        const_mkldnn_primitive_desc_t lhs,
-        const_mkldnn_primitive_desc_t rhs);
+ * Use this function to identify whether a reorder is required between the
+ * two memories */
+int MKLDNN_API mkldnn_memory_desc_equal(
+        const mkldnn_memory_desc_t *lhs,
+        const mkldnn_memory_desc_t *rhs);
 
-/** Returns the size (in bytes) that is required for given @p
- * memory_primitive_desc */
-size_t MKLDNN_API mkldnn_memory_primitive_desc_get_size(
-        const_mkldnn_primitive_desc_t memory_primitive_desc);
+/** Returns the size (in bytes) that is required for given @p memory_desc */
+size_t MKLDNN_API mkldnn_memory_desc_get_size(
+        const mkldnn_memory_desc_t *memory_desc);
 
-/** Creates a memory for given @p memory_primitive_desc and sets handle to
- * @p native_handle.
+/** Creates a memory for given @p memory_desc and @p engine. Also sets handle
+ * to @p native_handle.
  * The @p native_handle can:
  * - point to the user allocated memory, i.e. valid handle. In this case the
  *   library doesn't own allocated memory.
@@ -553,13 +527,17 @@ size_t MKLDNN_API mkldnn_memory_primitive_desc_get_size(
  * - be MKLDNN_NATIVE_HANDLE_NONE to create mkldnn_memory w/o attached memory.
  */
 mkldnn_status_t MKLDNN_API mkldnn_memory_create(mkldnn_memory_t *memory,
-        const_mkldnn_primitive_desc_t memory_primitive_desc,
+        const mkldnn_memory_desc_t *memory_desc, mkldnn_engine_t engine,
         void *native_handle);
 
-/** Returns @p memory_primitive_desc for given @p memory */
-mkldnn_status_t MKLDNN_API mkldnn_memory_get_primitive_desc(
+/** Returns a @p memory_desc associated with @p memory */
+mkldnn_status_t MKLDNN_API mkldnn_memory_get_memory_desc(
         const_mkldnn_memory_t memory,
-        const_mkldnn_primitive_desc_t *memory_primitive_desc);
+        const mkldnn_memory_desc_t **memory_desc);
+
+/** Returns an @p engine associated with @p memory */
+mkldnn_status_t MKLDNN_API mkldnn_memory_get_engine(
+        const_mkldnn_memory_t memory, mkldnn_engine_t *engine);
 
 /** For a @p memory primitive, returns the data @p handle. For the CPU engine,
  * the data handle is a pointer to the actual data. */
@@ -590,8 +568,8 @@ mkldnn_status_t MKLDNN_API mkldnn_memory_destroy(mkldnn_memory_t memory);
  */
 mkldnn_status_t MKLDNN_API mkldnn_reorder_primitive_desc_create(
         mkldnn_primitive_desc_t *reorder_primitive_desc,
-        const_mkldnn_primitive_desc_t input,
-        const_mkldnn_primitive_desc_t output,
+        mkldnn_engine_t input_engine, const mkldnn_memory_desc_t *input_md,
+        mkldnn_engine_t output_engine, const mkldnn_memory_desc_t *output_md,
         const_mkldnn_primitive_attr_t attr);
 
 /** @} */
@@ -617,9 +595,11 @@ mkldnn_status_t MKLDNN_API mkldnn_reorder_primitive_desc_create(
  */
 mkldnn_status_t MKLDNN_API mkldnn_concat_primitive_desc_create(
         mkldnn_primitive_desc_t *concat_primitive_desc,
-        const mkldnn_memory_desc_t *output_desc, int n, int concat_dimension,
-        const_mkldnn_primitive_desc_t *input_pds,
-        const_mkldnn_primitive_attr_t attr);
+        const mkldnn_memory_desc_t *output_desc,
+        int n, int concat_dimension,
+        const mkldnn_memory_desc_t *input_descs,
+        const_mkldnn_primitive_attr_t attr,
+        mkldnn_engine_t engine);
 
 /** @} */
 
@@ -644,9 +624,11 @@ mkldnn_status_t MKLDNN_API mkldnn_concat_primitive_desc_create(
  */
 mkldnn_status_t MKLDNN_API mkldnn_sum_primitive_desc_create(
         mkldnn_primitive_desc_t *sum_primitive_desc,
-        const mkldnn_memory_desc_t *output_desc, int n, const float *scales,
-        const_mkldnn_primitive_desc_t *input_pds,
-        const_mkldnn_primitive_attr_t attr);
+        const mkldnn_memory_desc_t *output_desc,
+        int n, const float *scales,
+        const mkldnn_memory_desc_t *input_descs,
+        const_mkldnn_primitive_attr_t attr,
+        mkldnn_engine_t engine);
 
 /** @} */
 

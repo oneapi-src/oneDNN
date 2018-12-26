@@ -19,49 +19,44 @@
 
 #include "c_types_map.hpp"
 #include "engine.hpp"
-#include "memory_pd.hpp"
-#include "primitive_desc.hpp"
-#include "reorder_pd.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
+
+#include "reorder_pd.hpp"
 
 using namespace mkldnn::impl;
 using namespace mkldnn::impl::utils;
 using namespace mkldnn::impl::status;
 
 status_t mkldnn_reorder_primitive_desc_create(
-        primitive_desc_t **reorder_primitive_desc,
-        const primitive_desc_t *input, const primitive_desc_t *output,
+        primitive_desc_t **reorder_pd,
+        engine_t *src_engine, const memory_desc_t *src_md,
+        engine_t *dst_engine, const memory_desc_t *dst_md,
         const primitive_attr_t *attr) {
-    bool args_ok = true
-        && !any_null(reorder_primitive_desc, input, output)
-        && everyone_is(primitive_kind::memory_primitive_kind, input->kind(), output->kind());
-    if (!args_ok) return invalid_arguments;
-
-    auto i_ek = input->engine()->kind();
-    auto o_ek = output->engine()->kind();
-    if (!IMPLICATION(i_ek != o_ek, one_of(engine_kind::cpu, i_ek, o_ek)))
+    if (any_null(reorder_pd, src_engine, src_md, dst_engine, dst_md))
         return invalid_arguments;
 
-    auto r_pd = reinterpret_cast<reorder_pd_t **>(
-            reorder_primitive_desc);
-    auto i_mpd = reinterpret_cast<const memory_pd_t*>(input);
-    auto o_mpd = reinterpret_cast<const memory_pd_t*>(output);
-
-    auto i_mdw = memory_desc_wrapper(i_mpd);
-    auto o_mdw = memory_desc_wrapper(o_mpd);
-
-    if (!i_mdw.consistent_with(o_mdw))
+    auto s_ek = src_engine->kind();
+    auto d_ek = dst_engine->kind();
+    if (!IMPLICATION(s_ek != d_ek, one_of(engine_kind::cpu, s_ek, d_ek)))
         return invalid_arguments;
 
-    auto e = (i_ek != engine_kind::cpu) ? input->engine() : output->engine();
+    auto r_pd = reinterpret_cast<reorder_pd_t **>(reorder_pd);
+    auto s_mdw = memory_desc_wrapper(*src_md);
+    auto d_mdw = memory_desc_wrapper(*dst_md);
+
+    if (!s_mdw.consistent_with(d_mdw))
+        return invalid_arguments;
+
+    auto e = (s_ek != engine_kind::cpu) ? src_engine : dst_engine;
 
     const primitive_attr_t dummy_attr;
     if (attr == NULL)
         attr = &dummy_attr;
 
     for (auto r = e->get_reorder_implementation_list(); *r; ++r) {
-        if ((*r)(r_pd, i_mpd, o_mpd, attr) == success) {
+        if ((*r)(r_pd, e, attr, src_engine, src_md, dst_engine, dst_md)
+                == success) {
             (*r_pd)->init_info();
             return success;
         }

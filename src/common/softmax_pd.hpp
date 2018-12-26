@@ -14,34 +14,81 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef SOFTMAX_FWD_PD_HPP
-#define SOFTMAX_FWD_PD_HPP
+#ifndef SOFTMAX_PD_HPP
+#define SOFTMAX_PD_HPP
 
 #include "mkldnn.h"
 
 #include "c_types_map.hpp"
 #include "primitive_desc.hpp"
-#include "memory_pd.hpp"
 
 namespace mkldnn {
 namespace impl {
 
-struct softmax_fwd_pd_t: public primitive_desc_t {
-    typedef softmax_fwd_pd_t base_class;
-    typedef softmax_fwd_pd_t hint_class;
+struct softmax_fwd_pd_t;
+
+struct softmax_pd_t: public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::softmax;
 
-    softmax_fwd_pd_t(mkldnn::impl::engine_t *engine,
-            const softmax_desc_t *adesc, const primitive_attr_t *attr,
+    softmax_pd_t(engine_t *engine,
+            const softmax_desc_t *adesc,
+            const primitive_attr_t *attr,
             const softmax_fwd_pd_t *hint_fwd_pd)
-        : primitive_desc_t(engine, attr, primitive_kind::softmax)
-        , desc_(*adesc), hint_fwd_pd_(hint_fwd_pd) {}
-    virtual ~softmax_fwd_pd_t() {}
+        : primitive_desc_t(engine, attr, base_pkind)
+        , desc_(*adesc)
+        , hint_fwd_pd_(hint_fwd_pd)
+        , data_md_(desc_.data_desc)
+    {}
 
     const softmax_desc_t *desc() const { return &desc_; }
     virtual const op_desc_t *op_desc() const override
     { return reinterpret_cast<const op_desc_t *>(this->desc()); }
     virtual void init_info() override { init_info_softmax(this, this->info_); }
+
+    virtual status_t query(query_t what, int idx, void *result) const override {
+        switch (what) {
+        case query::softmax_d:
+            *(const softmax_desc_t**)result = desc(); break;
+        default: return primitive_desc_t::query(what, idx, result);
+        }
+        return status::success;
+    }
+
+    /* common softmax aux functions */
+
+    int MB() const { return data_desc().dims[0]; }
+    int C() const { return data_desc().dims[1]; }
+    int D() const { return ndims() >= 5 ? data_desc().dims[ndims() - 3] : 1; }
+    int H() const { return ndims() >= 4 ? data_desc().dims[ndims() - 2] : 1; }
+    int W() const { return ndims() >= 3 ? data_desc().dims[ndims() - 1] : 1; }
+
+    int ndims() const { return data_desc().ndims; }
+
+    bool is_fwd() const {
+        return utils::one_of(desc_.prop_kind, prop_kind::forward_training,
+                prop_kind::forward_inference);
+    }
+
+protected:
+    softmax_desc_t desc_;
+    const softmax_fwd_pd_t *hint_fwd_pd_;
+
+    memory_desc_t data_md_;
+
+private:
+    const memory_desc_t &data_desc() const { return desc_.data_desc; }
+};
+
+struct softmax_fwd_pd_t: public softmax_pd_t {
+    typedef softmax_fwd_pd_t base_class;
+    typedef softmax_fwd_pd_t hint_class;
+
+    softmax_fwd_pd_t(engine_t *engine,
+            const softmax_desc_t *adesc,
+            const primitive_attr_t *attr,
+            const softmax_fwd_pd_t *hint_fwd_pd)
+        : softmax_pd_t(engine, adesc, attr, hint_fwd_pd)
+    {}
 
     virtual arg_usage_t arg_usage(primitive_arg_index_t arg) const override {
         if (arg == MKLDNN_ARG_SRC)
@@ -50,62 +97,33 @@ struct softmax_fwd_pd_t: public primitive_desc_t {
         if (arg == MKLDNN_ARG_DST)
             return arg_usage_t::output;
 
-        if (arg == MKLDNN_ARG_WORKSPACE && (workspace_pd() != nullptr))
+        if (arg == MKLDNN_ARG_WORKSPACE && (workspace_md() != nullptr))
             return arg_usage_t::output;
 
         return primitive_desc_t::arg_usage(arg);
     }
 
-    virtual const memory_pd_t *input_pd(int index = 0) const override
-    { return index == 0 ? src_pd() : nullptr; }
-    virtual const memory_pd_t *output_pd(int index = 0) const override {
-        if (index == 0) return dst_pd();
-        if (index == 1) return workspace_pd();
-        return nullptr;
-    }
+    virtual const memory_desc_t *src_md(int index = 0) const override
+    { return index == 0 ? &data_md_ : nullptr; }
+    virtual const memory_desc_t *dst_md(int index = 0) const override
+    { return index == 0 ? &data_md_ : nullptr; }
 
     virtual int n_inputs() const override { return 1; }
     virtual int n_outputs() const override
-    { return 1 + (workspace_pd() != nullptr); }
-
-    virtual status_t query(query_t what, int idx, void *result) const override
-    {
-        switch (what) {
-        case query::softmax_d:
-            *(const softmax_desc_t**)result = desc(); break;
-        default: return primitive_desc_t::query(what, idx, result);
-        }
-        return status::success;
-    }
-
-    /* common softmax aux functions */
-
-    inline int MB() const { return desc_.data_desc.dims[0]; }
-    inline int C() const { return desc_.data_desc.dims[1]; }
-    inline int H() const { return desc_.data_desc.dims[2]; }
-    inline int W() const { return desc_.data_desc.dims[3]; }
-
-protected:
-    softmax_desc_t desc_;
-    const softmax_fwd_pd_t *hint_fwd_pd_;
+    { return 1 + (workspace_md() != nullptr); }
 };
 
-struct softmax_bwd_pd_t: public primitive_desc_t {
+struct softmax_bwd_pd_t: public softmax_pd_t {
     typedef softmax_bwd_pd_t base_class;
     typedef softmax_fwd_pd_t hint_class;
-    static constexpr auto base_pkind = primitive_kind::softmax;
 
-    softmax_bwd_pd_t(mkldnn::impl::engine_t *engine,
-            const softmax_desc_t *adesc, const primitive_attr_t *attr,
-            const softmax_fwd_pd_t *hint_fwd_pd)    // FWD?
-        : primitive_desc_t(engine, attr, primitive_kind::softmax)
-        , desc_(*adesc), hint_fwd_pd_(hint_fwd_pd) {}
-    virtual ~softmax_bwd_pd_t() {}
-
-    const softmax_desc_t *desc() const { return &desc_; }
-    virtual const op_desc_t *op_desc() const override
-    { return reinterpret_cast<const op_desc_t *>(this->desc()); }
-    virtual void init_info() override { init_info_softmax(this, this->info_); }
+    softmax_bwd_pd_t(engine_t *engine,
+            const softmax_desc_t *adesc,
+            const primitive_attr_t *attr,
+            const softmax_fwd_pd_t *hint_fwd_pd)
+        : softmax_pd_t(engine, adesc, attr, hint_fwd_pd)
+        , diff_data_md_(desc_.diff_desc)
+    {}
 
     virtual arg_usage_t arg_usage(primitive_arg_index_t arg) const override {
         if (utils::one_of(arg, MKLDNN_ARG_DST, MKLDNN_ARG_DIFF_DST))
@@ -114,46 +132,26 @@ struct softmax_bwd_pd_t: public primitive_desc_t {
         if (arg == MKLDNN_ARG_DIFF_SRC)
             return arg_usage_t::output;
 
-        if (arg == MKLDNN_ARG_WORKSPACE && (workspace_pd() != nullptr))
+        if (arg == MKLDNN_ARG_WORKSPACE && (workspace_md() != nullptr))
             return arg_usage_t::input;
 
         return primitive_desc_t::arg_usage(arg);
     }
 
-    virtual const memory_pd_t *input_pd(int index = 0) const override {
-        if (index == 0) return dst_pd();
-        if (index == 1) return diff_dst_pd();
-        return nullptr;
-    }
-    virtual const memory_pd_t *output_pd(int index = 0) const override
-    { return index == 0 ? diff_src_pd() : nullptr; }
+    virtual const memory_desc_t *dst_md(int index = 0) const override
+    { return index == 0 ? &data_md_ : nullptr; }
+    virtual const memory_desc_t *diff_dst_md(int index = 0) const override
+    { return index == 0 ? &diff_data_md_ : nullptr; }
+    virtual const memory_desc_t *diff_src_md(int index = 0) const override
+    { return index == 0 ? &diff_data_md_ : nullptr; }
 
     virtual int n_inputs() const override
-    { return 2 + (workspace_pd() != nullptr); }
+    { return 2 + (workspace_md() != nullptr); }
     virtual int n_outputs() const override { return 1; }
 
-    virtual status_t query(query_t what, int idx, void *result) const override
-    {
-        switch (what) {
-        case query::softmax_d:
-            *(const softmax_desc_t**)result = desc(); break;
-        default: return primitive_desc_t::query(what, idx, result);
-        }
-        return status::success;
-    }
-
-    /* common softmax aux functions */
-
-    inline int MB() const { return desc_.data_desc.dims[0]; }
-    inline int C() const { return desc_.data_desc.dims[1]; }
-    inline int H() const { return desc_.data_desc.dims[2]; }
-    inline int W() const { return desc_.data_desc.dims[3]; }
-
 protected:
-    softmax_desc_t desc_;
-    const softmax_fwd_pd_t *hint_fwd_pd_;
+    memory_desc_t diff_data_md_;
 };
-
 
 }
 }

@@ -54,6 +54,8 @@ ISSPEC(int8_t, int16_t);
 ISSPEC(uint8_t, int16_t);
 #undef ISSPEC
 
+inline bool operator==(const memory_desc_t &lhs, const memory_desc_t &rhs);
+
 namespace types {
 
 inline size_t data_type_size(data_type_t data_type) {
@@ -279,34 +281,8 @@ inline bool rnn_packed_desc_is_equal(
     return ok;
 }
 
-inline bool operator==(const memory_desc_t &lhs, const memory_desc_t &rhs) {
-    assert(lhs.primitive_kind == mkldnn::impl::primitive_kind::memory_primitive_kind);
-    assert(rhs.primitive_kind == mkldnn::impl::primitive_kind::memory_primitive_kind);
-    bool base_equal = true
-        && lhs.ndims == rhs.ndims
-        && mkldnn::impl::utils::array_cmp(lhs.dims, rhs.dims, lhs.ndims)
-        && lhs.data_type == rhs.data_type
-        && lhs.format == rhs.format; /* FIXME: normalize format? */
-    if (!base_equal) return false;
-    if (lhs.format == memory_format::blocked)
-        return blocking_desc_is_equal(lhs.layout_desc.blocking,
-                rhs.layout_desc.blocking, lhs.ndims);
-    else if (lhs.format == memory_format::wino_fmt)
-        return wino_desc_is_equal(lhs.layout_desc.wino_desc,
-            rhs.layout_desc.wino_desc);
-    else if (lhs.format == memory_format::rnn_packed)
-        return rnn_packed_desc_is_equal(lhs.layout_desc.rnn_packed_desc,
-                rhs.layout_desc.rnn_packed_desc);
-    return true;
-}
-
-inline bool operator!=(const memory_desc_t &lhs, const memory_desc_t &rhs) {
-    return !operator==(lhs, rhs);
-}
-
 inline memory_desc_t zero_md() {
     auto zero = memory_desc_t();
-    zero.primitive_kind = primitive_kind::memory_primitive_kind;
     return zero;
 }
 
@@ -364,6 +340,32 @@ inline data_type_t default_accum_data_type(data_type_t src_dt,
 }
 
 }
+
+inline bool operator==(const memory_desc_t &lhs, const memory_desc_t &rhs) {
+    bool base_equal = true
+        && lhs.ndims == rhs.ndims
+        && mkldnn::impl::utils::array_cmp(lhs.dims, rhs.dims, lhs.ndims)
+        && lhs.data_type == rhs.data_type
+        && lhs.format == rhs.format; /* FIXME: normalize format? */
+    if (!base_equal) return false;
+    if (lhs.format == memory_format::blocked)
+        return types::blocking_desc_is_equal(lhs.layout_desc.blocking,
+                rhs.layout_desc.blocking, lhs.ndims);
+    else if (lhs.format == memory_format::wino_fmt)
+        return types::wino_desc_is_equal(lhs.layout_desc.wino_desc,
+            rhs.layout_desc.wino_desc);
+    else if (lhs.format == memory_format::rnn_packed)
+        return types::rnn_packed_desc_is_equal(lhs.layout_desc.rnn_packed_desc,
+                rhs.layout_desc.rnn_packed_desc);
+    return true;
+}
+
+inline bool operator!=(const memory_desc_t &lhs, const memory_desc_t &rhs) {
+    return !operator==(lhs, rhs);
+}
+
+
+
 }
 }
 

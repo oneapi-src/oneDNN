@@ -302,7 +302,6 @@ namespace query {
 
     const query_t some_d = mkldnn_query_some_d;
     const query_t op_d = mkldnn_query_op_d;
-    const query_t memory_d = mkldnn_query_memory_d;
     const query_t convolution_d = mkldnn_query_convolution_d;
     const query_t deconvolution_d = mkldnn_query_deconvolution_d;
     const query_t shuffle_d = mkldnn_query_shuffle_d;
@@ -314,17 +313,15 @@ namespace query {
     const query_t inner_product_d = mkldnn_query_inner_product_d;
     const query_t rnn_d = mkldnn_query_rnn_d;
 
-    const query_t some_pd = mkldnn_query_some_pd;
-    const query_t input_pd = mkldnn_query_input_pd;
-    const query_t output_pd = mkldnn_query_output_pd;
-    const query_t src_pd = mkldnn_query_src_pd;
-    const query_t diff_src_pd = mkldnn_query_diff_src_pd;
-    const query_t weights_pd = mkldnn_query_weights_pd;
-    const query_t diff_weights_pd = mkldnn_query_diff_weights_pd;
-    const query_t dst_pd = mkldnn_query_dst_pd;
-    const query_t diff_dst_pd = mkldnn_query_diff_dst_pd;
+    const query_t some_md = mkldnn_query_some_md;
+    const query_t src_md = mkldnn_query_src_md;
+    const query_t diff_src_md = mkldnn_query_diff_src_md;
+    const query_t weights_md = mkldnn_query_weights_md;
+    const query_t diff_weights_md = mkldnn_query_diff_weights_md;
+    const query_t dst_md = mkldnn_query_dst_md;
+    const query_t diff_dst_md = mkldnn_query_diff_dst_md;
 
-    const query_t workspace_pd = mkldnn_query_workspace_pd;
+    const query_t workspace_md = mkldnn_query_workspace_md;
 }
 
 using blocking_desc_t = mkldnn_blocking_desc_t;
@@ -352,7 +349,6 @@ using const_c_op_desc_t = const_mkldnn_op_desc_t;
 struct op_desc_t {
     union {
         primitive_kind_t kind;
-        memory_desc_t memory;
         convolution_desc_t convolution;
         deconvolution_desc_t deconvolution;
         shuffle_desc_t shuffle;
@@ -374,7 +370,6 @@ struct op_desc_t {
     static const op_desc_t *convert_from_c(const c_type *_) \
     { return reinterpret_cast<const op_desc_t*>(_); }
 
-    DECL_CTOR_AND_CONVERTERS(memory_desc_t, memory);
     DECL_CTOR_AND_CONVERTERS(convolution_desc_t, convolution);
     DECL_CTOR_AND_CONVERTERS(shuffle_desc_t, shuffle);
     DECL_CTOR_AND_CONVERTERS(pooling_desc_t, pooling);
@@ -405,7 +400,6 @@ namespace stream_kind {
 using stream_t = mkldnn_stream;
 
 /* forward declaration of internal primitive_desc types */
-struct memory_pd_t;
 struct concat_pd_t;
 struct sum_pd_t;
 struct reorder_pd_t;

@@ -19,15 +19,14 @@
 #include "c_types_map.hpp"
 #include "nstl.hpp"
 #include "primitive_desc.hpp"
-#include "memory_pd.hpp"
 
 using namespace mkldnn::impl;
 using namespace mkldnn::impl::status;
 
 status_t primitive_desc_t::query(query_t what, int idx, void *result) const {
-    auto safe_ret_pd = [&](const memory_pd_t *_) {
+    auto safe_ret_md = [&](const memory_desc_t *_) {
         if (_ == nullptr) return not_required;
-        *(const primitive_desc_t **)result = _;
+        *(const memory_desc_t **)result = _;
         return success;
     };
 
@@ -43,17 +42,15 @@ status_t primitive_desc_t::query(query_t what, int idx, void *result) const {
             *(const_c_op_desc_t *)result
                 = static_cast<const_c_op_desc_t>(op_desc()); break;
 
-        case query::input_pd: return safe_ret_pd(input_pd(idx));
-        case query::output_pd: return safe_ret_pd(output_pd(idx));
-        case query::src_pd: return safe_ret_pd(src_pd(idx));
-        case query::diff_src_pd: return safe_ret_pd(diff_src_pd(idx));
-        case query::dst_pd: return safe_ret_pd(dst_pd(idx));
-        case query::diff_dst_pd: return safe_ret_pd(diff_dst_pd(idx));
-        case query::weights_pd: return safe_ret_pd(weights_pd(idx));
-        case query::diff_weights_pd: return safe_ret_pd(diff_weights_pd(idx));
-        case query::workspace_pd:
+        case query::src_md: return safe_ret_md(src_md(idx));
+        case query::diff_src_md: return safe_ret_md(diff_src_md(idx));
+        case query::dst_md: return safe_ret_md(dst_md(idx));
+        case query::diff_dst_md: return safe_ret_md(diff_dst_md(idx));
+        case query::weights_md: return safe_ret_md(weights_md(idx));
+        case query::diff_weights_md: return safe_ret_md(diff_weights_md(idx));
+        case query::workspace_md:
             if (idx != 0) return status::invalid_arguments;
-            return safe_ret_pd(workspace_pd(idx));
+            return safe_ret_md(workspace_md(idx));
 
         case query::num_of_inputs_s32: *(int*)result = n_inputs(); break;
         case query::num_of_outputs_s32: *(int*)result = n_outputs(); break;

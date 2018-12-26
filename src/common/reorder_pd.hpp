@@ -18,11 +18,8 @@
 #define REORDER_PD_HPP
 
 #include <assert.h>
-#include "mkldnn.h"
 
 #include "c_types_map.hpp"
-#include "memory_pd.hpp"
-#include "nstl.hpp"
 #include "primitive_attr.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
@@ -31,9 +28,16 @@ namespace mkldnn {
 namespace impl {
 
 struct reorder_pd_t: public primitive_desc_t {
-    reorder_pd_t(engine_t *engine, const primitive_attr_t *attr)
-        : primitive_desc_t(engine, attr, primitive_kind::reorder) {}
-    virtual ~reorder_pd_t() {}
+    reorder_pd_t(engine_t *engine, const primitive_attr_t *attr,
+            engine_t *src_engine, const memory_desc_t *src_md,
+            engine_t *dst_engine, const memory_desc_t *dst_md)
+        : primitive_desc_t(engine, attr, primitive_kind::reorder)
+        , src_engine_(src_engine)
+        , dst_engine_(dst_engine)
+        , scratchpad_engine_(nullptr)
+        , src_md_(*src_md)
+        , dst_md_(*dst_md)
+    {}
 
     virtual const op_desc_t *op_desc() const override { return nullptr; }
     virtual void init_info() override { init_info_mem(this, this->info_); }
@@ -48,18 +52,27 @@ struct reorder_pd_t: public primitive_desc_t {
         return primitive_desc_t::arg_usage(arg);
     }
 
+    virtual const memory_desc_t *src_md(int index = 0) const override
+    { return index == 0 ? &src_md_ : nullptr; }
+    virtual const memory_desc_t *dst_md(int index = 0) const override
+    { return index == 0 ? &dst_md_ : nullptr; }
+
     virtual int n_inputs() const override { return 1; }
     virtual int n_outputs() const override { return 1; }
 
     float alpha() const { return attr()->output_scales_.scales_[0]; }
     float beta() const {
-        int sum_idx = attr()->post_ops_.find(primitive_kind::sum);
-        if (sum_idx == -1) {
-            return 0.0;
-        } else {
-            return attr()->post_ops_.entry_[sum_idx].sum.scale;
-        }
+        const int sum_idx = attr()->post_ops_.find(primitive_kind::sum);
+        return sum_idx == -1 ? 0 : attr()->post_ops_.entry_[sum_idx].sum.scale;
     }
+
+protected:
+    engine_t *src_engine_;
+    engine_t *dst_engine_;
+    engine_t *scratchpad_engine_;
+
+    memory_desc_t src_md_;
+    memory_desc_t dst_md_;
 };
 
 }

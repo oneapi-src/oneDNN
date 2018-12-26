@@ -19,15 +19,11 @@
 
 #include "c_types_map.hpp"
 #include "memory_desc_wrapper.hpp"
-#include "memory_pd.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
 namespace mkldnn {
 namespace impl {
-
-memory_desc_wrapper::memory_desc_wrapper(const memory_pd_t *m_pd)
-    : _md(m_pd == nullptr ? nullptr : m_pd->desc()) {}
 
 namespace {
 using namespace mkldnn::impl::utils;

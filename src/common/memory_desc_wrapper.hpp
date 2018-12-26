@@ -29,7 +29,7 @@ namespace mkldnn {
 namespace impl {
 
 /** thin wrapper class over \struct memory_desc_t which allows easy
- * manipulatings with underlying C structure, which is taken by refernce */
+ * manipulations with underlying C structure, which is taken by reference */
 struct memory_desc_wrapper: public c_compatible {
     const memory_desc_t *_md;
 
@@ -37,9 +37,8 @@ struct memory_desc_wrapper: public c_compatible {
      * descriptor \param md */
     memory_desc_wrapper(const memory_desc_t &md) : _md(&md) {}
     memory_desc_wrapper(const memory_desc_t *md) : _md(md) {}
-    memory_desc_wrapper(const memory_pd_t *m_pd);
 
-    /* implementing attrubutes */
+    /* implementing attributes */
     inline int ndims() const { return _md->ndims; }
     const dims_t &dims() const { return _md->dims; }
     data_type_t data_type() const { return _md->data_type; }
@@ -209,7 +208,7 @@ struct memory_desc_wrapper: public c_compatible {
      * strides, and blocked structure. depending on with_data_type flag
      * data_type is taken or not taken into account. dim_start allows to chech
      * similarity for the logical part of data [dim_start .. ndims()].
-     * CAUTION: format any and undef are not similiar to whatever, hence the
+     * CAUTION: format any and undef are not similar to whatever, hence the
      * following statement might be true: lhs == rhs && !lhs.similar_to(rhs) */
     /* TODO: revise */
     inline bool similar_to(const memory_desc_wrapper &rhs,
@@ -314,7 +313,7 @@ struct memory_desc_wrapper: public c_compatible {
     }
 
     /** returns physical offset by logical one. logical offset is represented by
-     * a tuple of indeces (\param xn, ..., \param x1, \param x0) */
+     * a tuple of indices (\param xn, ..., \param x1, \param x0) */
     template<typename... Args> inline size_t off(Args... args) const {
         assert(sizeof...(args) == ndims());
         dims_t pos = { args... };
@@ -322,7 +321,7 @@ struct memory_desc_wrapper: public c_compatible {
     }
 
     /** returns physical offset by logical one. logical offset is represented by
-     * a tuple of indeces (\param xn, ..., \param x1, \param x0) in already
+     * a tuple of indices (\param xn, ..., \param x1, \param x0) in already
      * padded area */
     template<typename... Args> inline size_t off_padding(Args... args) const {
         assert(sizeof...(args) == ndims());
@@ -331,7 +330,7 @@ struct memory_desc_wrapper: public c_compatible {
     }
 
     /** returns physical offset by logical one. Logical offset is represented by
-     * a tuple of block indeces (\param bn, ..., \param b1, \param b0). It is a
+     * a tuple of block indices (\param bn, ..., \param b1, \param b0). It is a
      * user responsibility to adjust the result to get offset within blocks */
     template<typename ...Args> inline size_t blk_off(Args... args) const {
         return _blk_off<sizeof...(args), Args...>(args...);

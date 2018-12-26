@@ -18,7 +18,6 @@
 
 #include "c_types_map.hpp"
 #include "engine.hpp"
-#include "memory_pd.hpp"
 #include "primitive_desc.hpp"
 #include "primitive.hpp"
 #include "type_helpers.hpp"
@@ -40,7 +39,7 @@ void unpoison_outputs(const exec_args_t &args) {
         auto *mem = arg.second.mem;
         void *p;
         mem->get_data_handle(&p);
-        size_t s = ((memory_pd_t *)mem->pd())->get_size();
+        size_t s = memory_desc_wrapper(*mem->md()).size();
         msan_unpoison(p, s);
     }
 }

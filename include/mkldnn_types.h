@@ -594,7 +594,7 @@ typedef enum {
 
 /** @} */
 
-/** @addtogroup c_api_types_memory Auxiliary types for memory description
+/** @addtogroup c_api_types_memory Memory
  *  @{ */
 
 /** Maximum number of dimensions a tensor can have. Only restricts the amount
@@ -673,22 +673,11 @@ typedef struct {
     size_t size;
 } mkldnn_rnn_packed_desc_t;
 
-/** @addtogroup c_api_types_op_descs Operation descriptors
- *  @{*/
-
-/** A pointer to any of the operation descriptors. */
-typedef void *mkldnn_op_desc_t;
-/** A pointer to any of the operation descriptors (constant variant). */
-typedef const void *const_mkldnn_op_desc_t;
-
 /** Memory descriptor. The description is based on a number of dimensions,
  * dimensions themselves, plus information about elements type and memory
  * format. Additionally, contains format-specific descriptions of the data
  * layout. */
 typedef struct {
-    /** The kind of primitive. Used for self identifying the primitive
-     * descriptor. Must be #mkldnn_memory_primitive_kind. */
-    mkldnn_primitive_kind_t primitive_kind;
     /** Number of dimensions */
     int ndims;
     /** Dimensions in the following order:
@@ -723,7 +712,25 @@ typedef struct {
     } layout_desc;
 } mkldnn_memory_desc_t;
 
+/** @struct mkldnn_memory
+ * An opaque structure to describe a memory. */
+struct mkldnn_memory;
+
+/** A memory handle. */
+typedef struct mkldnn_memory *mkldnn_memory_t;
+
+/** A constant memory handle. */
+typedef const struct mkldnn_memory *const_mkldnn_memory_t;
+
 /** @} */
+
+/** @addtogroup c_api_types_op_descs Operation descriptors
+ *  @{*/
+
+/** A pointer to any of the operation descriptors. */
+typedef void *mkldnn_op_desc_t;
+/** A pointer to any of the operation descriptors (constant variant). */
+typedef const void *const_mkldnn_op_desc_t;
 
 /** A descriptor of a convolution operation. */
 typedef struct {
@@ -1146,21 +1153,6 @@ typedef const struct mkldnn_post_ops *const_mkldnn_post_ops_t;
 
 /** @} */
 
-/** @addtogroup c_api_type_memory Memory
- * @{ */
-
-/** @struct mkldnn_memory
- * An opaque structure to describe a memory. */
-struct mkldnn_memory;
-
-/** A memory handle. */
-typedef struct mkldnn_memory *mkldnn_memory_t;
-
-/** A constant memory handle. */
-typedef const struct mkldnn_memory *const_mkldnn_memory_t;
-
-/** @} */
-
 /** @addtogroup c_api_types_primitive Primitive
  * @{ */
 
@@ -1298,7 +1290,6 @@ typedef enum {
     /* memory and op descriptor section */
     mkldnn_query_some_d = 64, /**< stub */
     mkldnn_query_op_d, /**< op descriptor */
-    mkldnn_query_memory_d, /**< memory descriptor for memory */
     mkldnn_query_convolution_d, /**< convolution descriptor */
     mkldnn_query_deconvolution_d, /**< deconvolution descriptor */
     mkldnn_query_shuffle_d, /**< shuffle descriptor */
@@ -1310,17 +1301,15 @@ typedef enum {
     mkldnn_query_inner_product_d, /**< inner product descriptor */
     mkldnn_query_rnn_d, /**< rnn descriptor */
 
-    /* (memory) primitive descriptor section */
-    mkldnn_query_some_pd = 128, /**< stub */
-    mkldnn_query_input_pd, /**< input memory primitive desc */
-    mkldnn_query_output_pd, /**< output memory primitive desc */
-    mkldnn_query_src_pd, /**< source memory primitive desc */
-    mkldnn_query_diff_src_pd, /**< source gradient memory primitive desc */
-    mkldnn_query_weights_pd, /**< weights memory primitive descriptor desc */
-    mkldnn_query_diff_weights_pd, /**< weights grad. memory primitive desc */
-    mkldnn_query_dst_pd, /**< destination memory primitive desc */
-    mkldnn_query_diff_dst_pd, /**< destination grad. memory primitive desc */
-    mkldnn_query_workspace_pd, /**< workspace memory primitive desc */
+    /* memory descriptor section */
+    mkldnn_query_some_md = 128, /**< stub */
+    mkldnn_query_src_md, /**< source memory desc */
+    mkldnn_query_diff_src_md, /**< source gradient memory desc */
+    mkldnn_query_weights_md, /**< weights memory descriptor desc */
+    mkldnn_query_diff_weights_md, /**< weights grad. memory desc */
+    mkldnn_query_dst_md, /**< destination memory desc */
+    mkldnn_query_diff_dst_md, /**< destination grad. memory desc */
+    mkldnn_query_workspace_md, /**< workspace memory desc */
 } mkldnn_query_t;
 
 /** @} */

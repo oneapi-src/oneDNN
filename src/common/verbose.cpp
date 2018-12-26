@@ -23,7 +23,7 @@
 #include "mkldnn_version.h"
 #include "c_types_map.hpp"
 #include "verbose.hpp"
-#include "cpu_isa_traits.hpp"
+#include "cpu/cpu_isa_traits.hpp"
 
 /* MKL-DNN CPU ISA info */
 #define ISA_ANY "No instruction set specific optimizations"
