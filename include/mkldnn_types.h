@@ -470,8 +470,6 @@ typedef enum {
     mkldnn_shuffle,
     /** A (out-of-place) concat primitive. */
     mkldnn_concat,
-    /** A (in-place) concat primitive. */
-    mkldnn_concat_inplace,
     /** A sum primitive. */
     mkldnn_sum,
     /** A convolution primitive. */

@@ -21,7 +21,6 @@
 
 #include "c_types_map.hpp"
 #include "cpu_primitive.hpp"
-#include "event.hpp"
 #include "memory.hpp"
 #include "memory_pd.hpp"
 #include "type_helpers.hpp"

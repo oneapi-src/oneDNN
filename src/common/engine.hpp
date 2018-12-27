@@ -20,34 +20,20 @@
 #include "mkldnn.h"
 
 #include "c_types_map.hpp"
-#include "event.hpp"
 #include "primitive.hpp"
 #include "utils.hpp"
 
 /** \brief An abstraction of an execution unit with shared resources
  *
  * Responsibilities:
- *   - Run a set of primitives according to an execution order (a partially
- *      ordered set represented by events)
+ *   - Provide engine specific memory allocation
  *   - Provide engine specific primitive_desc_t creators
- *
- * Implementation specifics:
- *   - Engine doesn't own any of primitives or events -- it is up to caller to
- *      guarantee all the pointers are valid until execution is finished
  */
 struct mkldnn_engine: public mkldnn::impl::c_compatible {
     mkldnn_engine(mkldnn::impl::engine_kind_t kind)
         : kind_(kind)
     {}
     virtual ~mkldnn_engine() {}
-
-    typedef mkldnn::impl::nstl::vector<mkldnn::impl::event_t *>
-        event_vector;
-
-#if 0
-    /** reduce ref counting for current engine */
-    virtual void dec_ref_count() = 0;
-#endif
 
     /** get kind of the current engine */
     virtual mkldnn::impl::engine_kind_t kind() const { return kind_; }

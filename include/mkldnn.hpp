@@ -122,7 +122,6 @@ public:
         memory_primitive_kind = mkldnn_memory_primitive_kind,
         reorder = mkldnn_reorder,
         concat = mkldnn_concat,
-        concat_inplace = mkldnn_concat_inplace,
         sum = mkldnn_sum,
         convolution = mkldnn_convolution,
         deconvolution = mkldnn_deconvolution,

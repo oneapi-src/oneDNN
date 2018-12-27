@@ -272,7 +272,6 @@ namespace primitive_kind {
     const primitive_kind_t memory_primitive_kind = mkldnn_memory_primitive_kind;
     const primitive_kind_t reorder = mkldnn_reorder;
     const primitive_kind_t concat = mkldnn_concat;
-    const primitive_kind_t concat_inplace = mkldnn_concat_inplace;
     const primitive_kind_t sum = mkldnn_sum;
     const primitive_kind_t convolution = mkldnn_convolution;
     const primitive_kind_t deconvolution = mkldnn_deconvolution;

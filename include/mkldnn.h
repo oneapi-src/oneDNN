@@ -620,35 +620,6 @@ mkldnn_status_t MKLDNN_API mkldnn_concat_primitive_desc_create(
         const mkldnn_memory_desc_t *output_desc, int n, int concat_dimension,
         const_mkldnn_primitive_desc_t *input_pds);
 
-#if 0
-/** Creates in-place @p concat_primitive_desc for given @p n and @p inputs
- * memory primitive descriptors along @p concat_dimension. All inputs must have
- * the same memory format. Output memory format would be the same. Likewise, the
- * mkldnn_memory_desc_init_submemory call may fail if the memory format of the
- * inputs does not allow in-place concatenation for the given sizes.
- *
- * @note This primitive is more like a synchronization stub for concatenation,
- * because concat_inplace performs no operation during execution.
- *
- * @note Because no operation occurs, the user must ensure the input. */
-mkldnn_status_t MKLDNN_API mkldnn_concat_inplace_by_input_primitive_desc_create(
-        mkldnn_primitive_desc_t *concat_primitive_desc,
-        int n, int concat_dimension, const_mkldnn_primitive_desc_t *inputs);
-
-/** Creates in-place @p concat_primitive_desc for given @p output memory
- * descriptor and @n inputs with @p sizes sizes along @p concat_dimension.
- * Unlike out-of-place concatenation, @p output must be fully defined here.
- * Likewise, the mkldnn_memory_desc_init_submemory call may fail if the given
- * memory format does not allow inplace concatenation for the given sizes.
- *
- * @note This primitive is more like a synchronization stub for concatenation,
- * because concat_inplace performs no operation during execution. */
-mkldnn_status_t MKLDNN_API mkldnn_concat_inplace_by_output_primitive_desc_create(
-        mkldnn_primitive_desc_t *concat_primitive_desc,
-        const mkldnn_primitive_desc_t output, int n, int concat_dimension,
-        int *sizes);
-#endif
-
 /** @} */
 
 /** @addtogroup c_api_sum Sum

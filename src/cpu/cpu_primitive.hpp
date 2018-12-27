@@ -20,7 +20,6 @@
 #include "mkldnn.h"
 
 #include "c_types_map.hpp"
-#include "event.hpp"
 #include "memory_tracking.hpp"
 #include "primitive.hpp"
 #include "scratchpad.hpp"

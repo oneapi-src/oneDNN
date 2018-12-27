@@ -22,7 +22,6 @@
 #include "mkldnn.h"
 
 #include "c_types_map.hpp"
-#include "event.hpp"
 #include "nstl.hpp"
 #include "primitive_desc.hpp"
 #include "primitive_exec_types.hpp"
