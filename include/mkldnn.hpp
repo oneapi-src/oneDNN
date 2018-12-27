@@ -998,7 +998,7 @@ struct reorder : public primitive {
                        const memory::primitive_desc &output) {
             mkldnn_primitive_desc_t result;
             error::wrap_c_api(mkldnn_reorder_primitive_desc_create(
-                        &result, input.get(), output.get()),
+                        &result, input.get(), output.get(), nullptr),
                     "could not create a reorder primitive descriptor");
             reset(result);
         }
@@ -1007,7 +1007,7 @@ struct reorder : public primitive {
                 const memory::primitive_desc &output,
                 const primitive_attr &aattr) {
             mkldnn_primitive_desc_t result;
-            error::wrap_c_api(mkldnn_reorder_primitive_desc_create_v2(
+            error::wrap_c_api(mkldnn_reorder_primitive_desc_create(
                         &result, input.get(), output.get(), aattr.get()),
                     "could not create a reorder primitive descriptor");
             reset(result);
@@ -1182,7 +1182,7 @@ struct primitive_desc : public handle<mkldnn_primitive_desc_t> {
     primitive_desc(const_mkldnn_op_desc_t desc, const primitive_attr *attr,
             const engine &e, const_mkldnn_primitive_desc_t hint_fwd_pd) {
         mkldnn_primitive_desc_iterator_t iterator = nullptr;
-        mkldnn_status_t status = mkldnn_primitive_desc_iterator_create_v2(
+        mkldnn_status_t status = mkldnn_primitive_desc_iterator_create(
                 &iterator, desc, attr ? attr->get() : nullptr, e.get(),
                 hint_fwd_pd);
         error::wrap_c_api(status,

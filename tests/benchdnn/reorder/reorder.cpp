@@ -302,7 +302,7 @@ int check_reorder(const prb_t *p, res_t *res) {
     auto mkldnn_attr = create_mkldnn_attr(p->attr, count, mask, scales);
 
     mkldnn_primitive_desc_t check_rpd;
-    mkldnn_status_t init_status = mkldnn_reorder_primitive_desc_create_v2(
+    mkldnn_status_t init_status = mkldnn_reorder_primitive_desc_create(
             &check_rpd, mem_dt_in_fmt_in.mpd_, mem_dt_out_fmt_out.mpd_,
             mkldnn_attr);
     if (init_status == mkldnn_unimplemented) {
@@ -330,7 +330,7 @@ int check_reorder(const prb_t *p, res_t *res) {
     /* Step 6: performance measurement */
     if (bench_mode & PERF) {
         mkldnn_primitive_desc_t perf_r_pd;
-        DNN_SAFE(mkldnn_reorder_primitive_desc_create_v2(&perf_r_pd,
+        DNN_SAFE(mkldnn_reorder_primitive_desc_create(&perf_r_pd,
                 mem_dt_in_fmt_in.mpd_, mem_dt_out_fmt_out.mpd_,
                 mkldnn_attr), WARN);
 

@@ -104,10 +104,11 @@ static int init_pd(const prb_t *p, mkldnn_shuffle_desc_t &sd,
         mkldnn_shuffle_desc_t sd_fwd;
         DNN_SAFE(mkldnn_shuffle_forward_desc_init(&sd_fwd,
                     mkldnn_forward_training, &data_d, p->a, p->g), WARN);
-        DNN_SAFE(mkldnn_primitive_desc_create(&hint_fwd_pd, &sd_fwd, engine,
-                    NULL), WARN);
+        DNN_SAFE(mkldnn_primitive_desc_create(&hint_fwd_pd, &sd_fwd, NULL,
+                    engine, NULL), WARN);
     }
-    init_status = mkldnn_primitive_desc_create(&spd, &sd, engine, hint_fwd_pd);
+    init_status = mkldnn_primitive_desc_create(&spd, &sd, NULL, engine,
+            hint_fwd_pd);
     mkldnn_primitive_desc_destroy(hint_fwd_pd);
 
     if (init_status == mkldnn_unimplemented)

@@ -29,7 +29,7 @@ using namespace mkldnn::impl;
 using namespace mkldnn::impl::utils;
 using namespace mkldnn::impl::status;
 
-status_t mkldnn_reorder_primitive_desc_create_v2(
+status_t mkldnn_reorder_primitive_desc_create(
         primitive_desc_t **reorder_primitive_desc,
         const primitive_desc_t *input, const primitive_desc_t *output,
         const primitive_attr_t *attr) {
@@ -67,13 +67,6 @@ status_t mkldnn_reorder_primitive_desc_create_v2(
         }
     }
     return unimplemented;
-}
-
-status_t mkldnn_reorder_primitive_desc_create(
-        primitive_desc_t **reorder_primitive_desc,
-        const primitive_desc_t *input, const primitive_desc_t *output) {
-    return mkldnn_reorder_primitive_desc_create_v2(reorder_primitive_desc,
-            input, output, nullptr);
 }
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

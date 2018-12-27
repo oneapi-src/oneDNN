@@ -27,7 +27,7 @@
 using namespace mkldnn::impl;
 using namespace mkldnn::impl::status;
 
-status_t mkldnn_primitive_desc_iterator_create_v2(
+status_t mkldnn_primitive_desc_iterator_create(
         primitive_desc_iterator_t **iterator, const_c_op_desc_t c_op_desc,
         const primitive_attr_t *attr, engine_t *engine,
         const primitive_desc_t *hint_fwd_pd) {
@@ -44,14 +44,6 @@ status_t mkldnn_primitive_desc_iterator_create_v2(
 
     *iterator = it;
     return success;
-}
-
-status_t mkldnn_primitive_desc_iterator_create(
-        primitive_desc_iterator_t **iterator,
-        const_c_op_desc_t c_op_desc, engine_t *engine,
-        const primitive_desc_t *hint_fwd_pd) {
-    return mkldnn_primitive_desc_iterator_create_v2(iterator, c_op_desc,
-            nullptr, engine, hint_fwd_pd);
 }
 
 status_t mkldnn_primitive_desc_iterator_next(
@@ -82,7 +74,7 @@ status_t mkldnn_primitive_desc_iterator_destroy(
     return success;
 }
 
-status_t mkldnn_primitive_desc_create_v2(primitive_desc_t **primitive_desc,
+status_t mkldnn_primitive_desc_create(primitive_desc_t **primitive_desc,
         const_c_op_desc_t c_op_desc, const primitive_attr_t *attr,
         engine_t *engine, const primitive_desc_t *hint_fwd_pd) {
     const op_desc_t *op_desc = (const op_desc_t *)c_op_desc;
@@ -92,13 +84,6 @@ status_t mkldnn_primitive_desc_create_v2(primitive_desc_t **primitive_desc,
     if (it == it.end()) return unimplemented;
 
     return safe_ptr_assign<primitive_desc_t>(*primitive_desc, *it);
-}
-
-status_t mkldnn_primitive_desc_create(primitive_desc_t **primitive_desc,
-        const_c_op_desc_t c_op_desc, engine_t *engine,
-        const primitive_desc_t *hint_fwd_pd) {
-    return mkldnn_primitive_desc_create_v2(primitive_desc, c_op_desc, nullptr,
-            engine, hint_fwd_pd);
 }
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

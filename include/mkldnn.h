@@ -68,21 +68,12 @@ extern "C" {
 /** @addtogroup c_api_primitive_common Common primitive operations
  * @{ */
 
-/** Creates a primitive descriptor @p iterator for given @p op_desc, @p engine,
- * and optionally a hint primitive descriptor from forward propagation
- * (required for backward propagation). Pass @c NULL for forward propagation.
- */
-mkldnn_status_t MKLDNN_API mkldnn_primitive_desc_iterator_create(
-        mkldnn_primitive_desc_iterator_t *iterator,
-        const_mkldnn_op_desc_t op_desc, mkldnn_engine_t engine,
-        const_mkldnn_primitive_desc_t hint_forward_primitive_desc);
-
 /** Creates a primitive descriptor @p iterator for given @p op_desc, @p attr,
  * @p engine, and optionally a hint primitive descriptor from forward
  * propagation (required for backward propagation). Pass @c NULL for forward
  * propagation.
  */
-mkldnn_status_t MKLDNN_API mkldnn_primitive_desc_iterator_create_v2(
+mkldnn_status_t MKLDNN_API mkldnn_primitive_desc_iterator_create(
         mkldnn_primitive_desc_iterator_t *iterator,
         const_mkldnn_op_desc_t op_desc, const_mkldnn_primitive_attr_t attr,
         mkldnn_engine_t engine,
@@ -105,20 +96,11 @@ mkldnn_primitive_desc_t MKLDNN_API mkldnn_primitive_desc_iterator_fetch(
 mkldnn_status_t MKLDNN_API mkldnn_primitive_desc_iterator_destroy(
         mkldnn_primitive_desc_iterator_t iterator);
 
-/** Creates a @p primitive_desc using @p op_desc, @p engine, and optionally a
- * hint primitive descriptor from forward propagation. The call is equivalent
- * to creating a primitive descriptor iterator, immediately fetching a
- * primitive descriptor, and then destroying the iterator. */
-mkldnn_status_t MKLDNN_API mkldnn_primitive_desc_create(
-        mkldnn_primitive_desc_t *primitive_desc,
-        const_mkldnn_op_desc_t op_desc, mkldnn_engine_t engine,
-        const_mkldnn_primitive_desc_t hint_forward_primitive_desc);
-
 /** Creates a @p primitive_desc using @p op_desc, @p attr, @p engine, and
  * optionally a hint primitive descriptor from forward propagation. The call is
  * equivalent to creating a primitive descriptor iterator, immediately fetching
  * a primitive descriptor, and then destroying the iterator. */
-mkldnn_status_t MKLDNN_API mkldnn_primitive_desc_create_v2(
+mkldnn_status_t MKLDNN_API mkldnn_primitive_desc_create(
         mkldnn_primitive_desc_t *primitive_desc,
         const_mkldnn_op_desc_t op_desc, const_mkldnn_primitive_attr_t attr,
         mkldnn_engine_t engine,
@@ -327,7 +309,7 @@ mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_get_output_scales(
  *      mkldnn_primitive_attr_set_output_scales(attr, oc, 1 << oc_dim, scales);
  *
  *      mkldnn_primitive_desc_t cpd;
- *      mkldnn_primitive_desc_create_v2(&cpd, &cd, attr, NULL);
+ *      mkldnn_primitive_desc_create(&cpd, &cd, attr, NULL);
  * @endcode
  *
  * @note
@@ -597,13 +579,6 @@ mkldnn_status_t MKLDNN_API mkldnn_memory_destroy(mkldnn_memory_t memory);
  * A primitive to copy data between memory formats.
  * @{ */
 
-/** Initializes a @p reorder_primitive_desc using descriptors of @p input and
- * @p output memory primitives. */
-mkldnn_status_t MKLDNN_API mkldnn_reorder_primitive_desc_create(
-        mkldnn_primitive_desc_t *reorder_primitive_desc,
-        const_mkldnn_primitive_desc_t input,
-        const_mkldnn_primitive_desc_t output);
-
 /** Initializes a @p reorder_primitive_desc using an @p attr attribute and
  * descriptors of @p input and @p output memory primitives.
  *
@@ -613,7 +588,7 @@ mkldnn_status_t MKLDNN_API mkldnn_reorder_primitive_desc_create(
  * Outputs:
  *  - output (#mkldnn_query_output_pd, 0)
  */
-mkldnn_status_t MKLDNN_API mkldnn_reorder_primitive_desc_create_v2(
+mkldnn_status_t MKLDNN_API mkldnn_reorder_primitive_desc_create(
         mkldnn_primitive_desc_t *reorder_primitive_desc,
         const_mkldnn_primitive_desc_t input,
         const_mkldnn_primitive_desc_t output,

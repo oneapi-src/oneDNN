@@ -48,8 +48,8 @@ TEST_F(pd_iter_test, TestReLUImpls) {
     mkldnn_primitive_desc_iterator_t it;
     mkldnn_status_t rc;
 
-    EXPECT_EQ(rc = mkldnn_primitive_desc_iterator_create(&it, &ed, engine,
-                nullptr), ok); /* there should be at least one impl */
+    EXPECT_EQ(rc = mkldnn_primitive_desc_iterator_create(&it, &ed, nullptr,
+                engine, nullptr), ok); /* there should be at least one impl */
 
     mkldnn_primitive_desc_t pd;
     EXPECT_NE(pd = mkldnn_primitive_desc_iterator_fetch(it), nullptr);

@@ -174,7 +174,7 @@ void test2() {
                 mkldnn_forward_training, mkldnn_convolution_direct,
                 &c3_src_md, &c3_weights_md, &c3_bias_md, &c3_dst_md,
                 strides, padding, NULL, mkldnn_padding_zero));
-    CHECK(mkldnn_primitive_desc_create(&c3_pd, &c3_desc, engine, NULL));
+    CHECK(mkldnn_primitive_desc_create(&c3_pd, &c3_desc, NULL, engine, NULL));
 
     CHECK_TRUE(mkldnn_memory_primitive_desc_equal(
                 mkldnn_primitive_desc_query_pd(
@@ -208,7 +208,7 @@ void test2() {
 
     /* create a reorder primitive descriptor */
     mkldnn_primitive_desc_t r_pd;
-    CHECK(mkldnn_reorder_primitive_desc_create(&r_pd, c3_dst_pd, out_pd));
+    CHECK(mkldnn_reorder_primitive_desc_create(&r_pd, c3_dst_pd, out_pd, NULL));
     CHECK(mkldnn_primitive_desc_destroy(c3_dst_pd));
     CHECK(mkldnn_primitive_desc_destroy(out_pd));
 
@@ -290,7 +290,7 @@ void test3() {
     CHECK(mkldnn_lrn_forward_desc_init(&l2_desc,
                 mkldnn_forward_inference, mkldnn_lrn_across_channels,
                 &l2_data_md, 5, 1e-4, 0.75, 1.0));
-    CHECK(mkldnn_primitive_desc_create(&l2_pd, &l2_desc, engine, NULL));
+    CHECK(mkldnn_primitive_desc_create(&l2_pd, &l2_desc, NULL, engine, NULL));
 
     CHECK_TRUE(mkldnn_memory_primitive_desc_equal(
                 mkldnn_primitive_desc_query_pd(

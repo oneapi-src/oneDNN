@@ -133,10 +133,10 @@ mkldnn_status_t prepare_reorder(
             /* reorder primitive descriptor doesn't need engine, because it is
              * already appeared in in- and out- memory primitive descriptors */
             CHECK(mkldnn_reorder_primitive_desc_create(&reorder_pd,
-                        user_memory_pd, *prim_memory_pd));
+                        user_memory_pd, *prim_memory_pd, NULL));
         } else {
             CHECK(mkldnn_reorder_primitive_desc_create(&reorder_pd,
-                        *prim_memory_pd, user_memory_pd));
+                        *prim_memory_pd, user_memory_pd, NULL));
         }
         CHECK(mkldnn_primitive_create(reorder, reorder_pd));
         CHECK(mkldnn_memory_set_data_handle(*prim_memory, buffer));
@@ -221,7 +221,7 @@ mkldnn_status_t simple_net() {
             conv_padding, mkldnn_padding_zero));
 
     mkldnn_primitive_desc_t conv_pd;
-    CHECK(mkldnn_primitive_desc_create(&conv_pd, &conv_any_desc,
+    CHECK(mkldnn_primitive_desc_create(&conv_pd, &conv_any_desc, NULL,
             engine, NULL));
 
     mkldnn_memory_t conv_internal_src_memory, conv_internal_weights_memory,
@@ -291,7 +291,7 @@ mkldnn_status_t simple_net() {
                 mkldnn_eltwise_relu, relu_src_md, negative_slope, 0));
 
     mkldnn_primitive_desc_t relu_pd;
-    CHECK(mkldnn_primitive_desc_create(&relu_pd, &relu_desc, engine, NULL));
+    CHECK(mkldnn_primitive_desc_create(&relu_pd, &relu_desc, NULL, engine, NULL));
 
     mkldnn_memory_t relu_dst_memory;
     const_mkldnn_primitive_desc_t relu_dst_pd = mkldnn_primitive_desc_query_pd(
@@ -333,7 +333,7 @@ mkldnn_status_t simple_net() {
             alpha, beta, k));
 
     mkldnn_primitive_desc_t lrn_pd;
-    CHECK(mkldnn_primitive_desc_create(&lrn_pd, &lrn_desc, engine, NULL));
+    CHECK(mkldnn_primitive_desc_create(&lrn_pd, &lrn_desc, NULL, engine, NULL));
 
     mkldnn_memory_t lrn_dst_memory;
     const_mkldnn_primitive_desc_t lrn_dst_pd = mkldnn_primitive_desc_query_pd(
@@ -396,7 +396,7 @@ mkldnn_status_t simple_net() {
             pool_kernel, pool_padding, pool_padding, mkldnn_padding_zero));
 
     mkldnn_primitive_desc_t pool_pd;
-    CHECK(mkldnn_primitive_desc_create(&pool_pd, &pool_desc, engine, NULL));
+    CHECK(mkldnn_primitive_desc_create(&pool_pd, &pool_desc, NULL, engine, NULL));
 
     /* create memory for workspace */
     mkldnn_memory_t pool_indices_memory;

@@ -444,10 +444,10 @@ static int init_pd(const prb_t *p, mkldnn_batch_normalization_desc_t &bd,
         mkldnn_batch_normalization_desc_t bd_fwd;
         DNN_SAFE(mkldnn_batch_normalization_forward_desc_init(&bd_fwd,
                     mkldnn_forward_training, &data_d, p->eps, flags), WARN);
-        DNN_SAFE(mkldnn_primitive_desc_create_v2(&hint_fwd_pd, &bd_fwd, NULL,
+        DNN_SAFE(mkldnn_primitive_desc_create(&hint_fwd_pd, &bd_fwd, NULL,
                     engine, NULL), WARN);
     }
-    mkldnn_status_t init_status = mkldnn_primitive_desc_create_v2(&bpd, &bd,
+    mkldnn_status_t init_status = mkldnn_primitive_desc_create(&bpd, &bd,
             mkldnn_attr, engine, hint_fwd_pd);
 
     mkldnn_primitive_desc_destroy(hint_fwd_pd);
@@ -500,7 +500,7 @@ static int cvt_mask_to_ws(const prb_t *p, const dnn_mem_t &mask_fp,
                 mkldnn_forward_training, &data.md_, 0, flags), WARN);
 
     mkldnn_primitive_desc_t bpd;
-    DNN_SAFE(mkldnn_primitive_desc_create_v2(&bpd, &bd, NULL, engine, NULL),
+    DNN_SAFE(mkldnn_primitive_desc_create(&bpd, &bd, NULL, engine, NULL),
             WARN);
 
     mkldnn_primitive_t b{};

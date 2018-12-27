@@ -161,10 +161,10 @@ prepare_reorder(mkldnn_memory_t *user_memory,               /** in */
             /* reorder primitive descriptor doesn't need engine, because it is
              * already appeared in in- and out- memory primitive descriptors */
             CHECK(mkldnn_reorder_primitive_desc_create(
-                    &reorder_pd, user_memory_pd, *prim_memory_pd));
+                    &reorder_pd, user_memory_pd, *prim_memory_pd, NULL));
         } else {
             CHECK(mkldnn_reorder_primitive_desc_create(
-                    &reorder_pd, *prim_memory_pd, user_memory_pd));
+                    &reorder_pd, *prim_memory_pd, user_memory_pd, NULL));
         }
         CHECK(mkldnn_primitive_create(reorder, reorder_pd));
         CHECK(mkldnn_primitive_desc_destroy(reorder_pd));
@@ -258,7 +258,7 @@ mkldnn_status_t simple_net()
             conv_strides, conv_padding, conv_padding, mkldnn_padding_zero));
 
     mkldnn_primitive_desc_t conv_pd;
-    CHECK(mkldnn_primitive_desc_create(&conv_pd, &conv_any_desc, engine, NULL));
+    CHECK(mkldnn_primitive_desc_create(&conv_pd, &conv_any_desc, NULL, engine, NULL));
 
     mkldnn_memory_t conv_internal_src_memory, conv_internal_weights_memory,
             conv_internal_dst_memory;
@@ -328,7 +328,7 @@ mkldnn_status_t simple_net()
                 mkldnn_eltwise_relu, relu_src_md, negative_slope, 0));
 
     mkldnn_primitive_desc_t relu_pd;
-    CHECK(mkldnn_primitive_desc_create(&relu_pd, &relu_desc, engine, NULL));
+    CHECK(mkldnn_primitive_desc_create(&relu_pd, &relu_desc, NULL, engine, NULL));
 
     /* create relu dst memory primitive */
     mkldnn_memory_t relu_dst_memory;
@@ -372,7 +372,7 @@ mkldnn_status_t simple_net()
                                        local_size, alpha, beta, k));
 
     mkldnn_primitive_desc_t lrn_pd;
-    CHECK(mkldnn_primitive_desc_create(&lrn_pd, &lrn_desc, engine, NULL));
+    CHECK(mkldnn_primitive_desc_create(&lrn_pd, &lrn_desc, NULL, engine, NULL));
 
     /* create primitives for lrn dst and workspace memory */
     mkldnn_memory_t lrn_dst_memory, lrn_workspace_memory;
@@ -440,7 +440,7 @@ mkldnn_status_t simple_net()
             mkldnn_padding_zero));
 
     mkldnn_primitive_desc_t pool_pd;
-    CHECK(mkldnn_primitive_desc_create(&pool_pd, &pool_desc, engine, NULL));
+    CHECK(mkldnn_primitive_desc_create(&pool_pd, &pool_desc, NULL, engine, NULL));
 
     /* create memory for workspace */
     mkldnn_memory_t pool_workspace_memory;
@@ -518,7 +518,7 @@ mkldnn_status_t simple_net()
 
     /* backward primitive descriptor needs to hint forward descriptor*/
     mkldnn_primitive_desc_t pool_bwd_pd;
-    CHECK(mkldnn_primitive_desc_create(&pool_bwd_pd, &pool_bwd_desc, engine,
+    CHECK(mkldnn_primitive_desc_create(&pool_bwd_pd, &pool_bwd_desc, NULL, engine,
                                        pool_pd));
 
     /* create reorder primitive between user diff dst and pool diff dst
@@ -575,7 +575,7 @@ mkldnn_status_t simple_net()
             lrn_diff_dst_md, local_size, alpha, beta, k));
 
     mkldnn_primitive_desc_t lrn_bwd_pd;
-    CHECK(mkldnn_primitive_desc_create(&lrn_bwd_pd, &lrn_bwd_desc, engine,
+    CHECK(mkldnn_primitive_desc_create(&lrn_bwd_pd, &lrn_bwd_desc, NULL, engine,
                                        lrn_pd));
 
     /* create memory primitives for lrn diff src */
@@ -612,7 +612,7 @@ mkldnn_status_t simple_net()
                 negative_slope, 0));
 
     mkldnn_primitive_desc_t relu_bwd_pd;
-    CHECK(mkldnn_primitive_desc_create(&relu_bwd_pd, &relu_bwd_desc, engine,
+    CHECK(mkldnn_primitive_desc_create(&relu_bwd_pd, &relu_bwd_desc, NULL, engine,
                                        relu_pd));
 
     /* create memory primitives for relu diff src */
@@ -674,7 +674,7 @@ mkldnn_status_t simple_net()
 
     mkldnn_primitive_desc_t conv_bwd_weights_pd;
     CHECK(mkldnn_primitive_desc_create(
-            &conv_bwd_weights_pd, &conv_bwd_weights_desc, engine, conv_pd));
+            &conv_bwd_weights_pd, &conv_bwd_weights_desc, NULL, engine, conv_pd));
 
     /* for best performance convolution backward might chose
      * different memory format for src and diff_dst

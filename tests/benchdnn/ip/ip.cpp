@@ -84,7 +84,7 @@ inline int init_pd(const prb_t *p, mkldnn_inner_product_desc_t &ipd,
     auto mkldnn_attr = create_mkldnn_attr(p->attr, p->oc, p->scales);
 
     mkldnn_status_t init_status = mkldnn_success;
-    init_status = mkldnn_primitive_desc_create_v2(&ippd, &ipd, mkldnn_attr,
+    init_status = mkldnn_primitive_desc_create(&ippd, &ipd, mkldnn_attr,
             engine, NULL);
 
     mkldnn_primitive_attr_destroy(mkldnn_attr);

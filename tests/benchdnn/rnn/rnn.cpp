@@ -230,7 +230,7 @@ inline int init_pd(const rnn_prb_t *p, mkldnn_rnn_desc_t rd[2],
     auto mkldnn_attr = create_mkldnn_rnn_attr(p);
     mkldnn_status_t init_status = mkldnn_success;
     for (int i = 0; i < 1 + (int)is_bwd; i++) {
-        init_status = mkldnn_primitive_desc_create_v2(
+        init_status = mkldnn_primitive_desc_create(
                 &(rpd[i]), &(rd[i]), mkldnn_attr, engine, NULL);
         if (init_status == mkldnn_unimplemented)
             return r->state = UNIMPLEMENTED, OK;
