@@ -349,7 +349,7 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_4fma(int ur_w,
         mov(aux_reg_inp_d, reg_inp);
         mov(aux_reg_inp_d_prf, reg_inp_prf);
         mov(aux_reg_ker_d_prf, reg_ker_prf);
-
+        L(kd_label);
         mov(reg_kj, ptr[param1 + GET_OFF(kh_padding)]);
     } else {
         mov(reg_kj, reg_kh);
