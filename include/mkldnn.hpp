@@ -1034,7 +1034,7 @@ struct concat : public primitive {
 
             error::wrap_c_api(mkldnn_concat_primitive_desc_create(
                     &result, &output.data, (int)c_api_inputs.size(),
-                    concat_dimension, &c_api_inputs[0]),
+                    concat_dimension, &c_api_inputs[0], nullptr),
                 "could not create a concat primitive descriptor");
             reset(result);
         }
@@ -1047,7 +1047,7 @@ struct concat : public primitive {
 
             error::wrap_c_api(mkldnn_concat_primitive_desc_create(
                     &result, nullptr, (int)c_api_inputs.size(),
-                    concat_dimension, &c_api_inputs[0]),
+                    concat_dimension, &c_api_inputs[0], nullptr),
                 "could not create a concat primitive descriptor");
             reset(result);
         }
@@ -1101,7 +1101,7 @@ struct sum : public primitive {
             mkldnn_primitive_desc_t result;
             error::wrap_c_api(mkldnn_sum_primitive_desc_create(
                     &result, &output.data, (int)c_api_inputs.size(),
-                    &scales[0], &c_api_inputs[0]),
+                    &scales[0], &c_api_inputs[0], nullptr),
                 "could not create a sum primitive descriptor");
             reset(result);
         }
@@ -1116,7 +1116,7 @@ struct sum : public primitive {
             mkldnn_primitive_desc_t result;
             error::wrap_c_api(mkldnn_sum_primitive_desc_create(&result,
                         nullptr, (int)c_api_inputs.size(), &scales[0],
-                        &c_api_inputs[0]),
+                        &c_api_inputs[0], nullptr),
                     "could not create a sum primitive descriptor");
             reset(result);
         }

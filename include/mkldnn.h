@@ -618,7 +618,8 @@ mkldnn_status_t MKLDNN_API mkldnn_reorder_primitive_desc_create(
 mkldnn_status_t MKLDNN_API mkldnn_concat_primitive_desc_create(
         mkldnn_primitive_desc_t *concat_primitive_desc,
         const mkldnn_memory_desc_t *output_desc, int n, int concat_dimension,
-        const_mkldnn_primitive_desc_t *input_pds);
+        const_mkldnn_primitive_desc_t *input_pds,
+        const_mkldnn_primitive_attr_t attr);
 
 /** @} */
 
@@ -644,7 +645,8 @@ mkldnn_status_t MKLDNN_API mkldnn_concat_primitive_desc_create(
 mkldnn_status_t MKLDNN_API mkldnn_sum_primitive_desc_create(
         mkldnn_primitive_desc_t *sum_primitive_desc,
         const mkldnn_memory_desc_t *output_desc, int n, const float *scales,
-        const_mkldnn_primitive_desc_t *input_pds);
+        const_mkldnn_primitive_desc_t *input_pds,
+        const_mkldnn_primitive_attr_t attr);
 
 /** @} */
 

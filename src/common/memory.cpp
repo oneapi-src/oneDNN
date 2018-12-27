@@ -209,7 +209,7 @@ status_t mkldnn_memory_destroy(memory_t *memory) {
     return success;
 }
 
-status_t mkldnn_concat_primitive_desc_create_v2(primitive_desc_t **concat_pd,
+status_t mkldnn_concat_primitive_desc_create(primitive_desc_t **concat_pd,
         const memory_desc_t *output_d, int n, int concat_dim,
         const primitive_desc_t **input_pds, const primitive_attr_t *attr) {
     bool args_ok = !any_null(concat_pd, input_pds) && n > 0;
@@ -269,14 +269,7 @@ status_t mkldnn_concat_primitive_desc_create_v2(primitive_desc_t **concat_pd,
     return unimplemented;
 }
 
-status_t mkldnn_concat_primitive_desc_create(primitive_desc_t **concat_pd,
-        const memory_desc_t *output_d, int n, int concat_dim,
-        const primitive_desc_t **input_pds) {
-    return mkldnn_concat_primitive_desc_create_v2(concat_pd, output_d, n,
-            concat_dim, input_pds, nullptr);
-}
-
-status_t mkldnn_sum_primitive_desc_create_v2(primitive_desc_t **sum_pd,
+status_t mkldnn_sum_primitive_desc_create(primitive_desc_t **sum_pd,
         const memory_desc_t *output_d, int n, const float *scales,
         const primitive_desc_t **input_pds, const primitive_attr_t *attr) {
     bool args_ok = !any_null(sum_pd, input_pds, scales) && n > 0;
@@ -329,13 +322,6 @@ status_t mkldnn_sum_primitive_desc_create_v2(primitive_desc_t **sum_pd,
         }
     }
     return unimplemented;
-}
-
-status_t mkldnn_sum_primitive_desc_create(primitive_desc_t **sum_pd,
-        const memory_desc_t *output_d, int n, const float *scales,
-        const primitive_desc_t **input_pds) {
-    return mkldnn_sum_primitive_desc_create_v2(sum_pd, output_d, n, scales,
-            input_pds, nullptr);
 }
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
