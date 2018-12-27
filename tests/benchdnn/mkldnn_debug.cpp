@@ -139,6 +139,7 @@ mkldnn_memory_format_t str2fmt(const char *str) {
     CASE(gOhwi16o);
     CASE(Goihw8g);
     CASE(Goihw16g);
+    CASE(Goihw16g_s8s8);
     CASE(oIhw8i);
     CASE(oIhw16i);
     CASE(ncdhw);

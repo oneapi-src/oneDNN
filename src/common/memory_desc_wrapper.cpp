@@ -1047,6 +1047,7 @@ status_t memory_desc_wrapper::compute_blocking(memory_desc_t &memory_desc)
     case gOhwi16o: return fill_gOhwi16o(memory_desc);
     case Goihw8g: return fill_Goihw8g(memory_desc);
     case Goihw16g: return fill_Goihw16g(memory_desc);
+    case Goihw16g_s8s8: return fill_Goihw16g(memory_desc);
     case ncdhw: return fill_ncdhw(memory_desc);
     case ndhwc: return fill_ndhwc(memory_desc);
     case oidhw: return fill_oidhw(memory_desc);

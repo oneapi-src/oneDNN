@@ -342,6 +342,10 @@ typedef enum {
     mkldnn_gOhwi16o /** blocked weights format */,
     mkldnn_Goihw8g /** blocked weights format */,
     mkldnn_Goihw16g /** blocked weights format */,
+    /** blocked weights format with additional buffer
+     * with size equal to the number of groups and containing the values:
+     * O[i:0,G] = -128 * SUM(h:0,H;w:0,W)(weights(i,i,h,w))*/
+    mkldnn_Goihw16g_s8s8,
     mkldnn_gOhIw16o4i /** blocked weights format */,
 
     /* weights w/ groups, 6D */

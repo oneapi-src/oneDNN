@@ -686,6 +686,7 @@ struct memory: public primitive  {
         gOhwi16o = mkldnn_gOhwi16o,
         Goihw8g = mkldnn_Goihw8g,
         Goihw16g = mkldnn_Goihw16g,
+        Goihw16g_s8s8 = mkldnn_Goihw16g_s8s8,
         gOIhw8o8i = mkldnn_gOIhw8o8i,
         gOIhw16o16i = mkldnn_gOIhw16o16i,
         gIOhw16o16i = mkldnn_gIOhw16o16i,

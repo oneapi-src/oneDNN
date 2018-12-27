@@ -156,6 +156,7 @@ const char *mkldnn_fmt2str(mkldnn_memory_format_t v) {
     if (v == mkldnn_gOhwi16o) return "gOhwi16o";
     if (v == mkldnn_Goihw8g) return "Goihw8g";
     if (v == mkldnn_Goihw16g) return "Goihw16g";
+    if (v == mkldnn_Goihw16g_s8s8) return "Goihw16g_s8s8";
     if (v == mkldnn_gOhIw16o4i) return "gOhIw16o4i";
     if (v == mkldnn_gOIdhw8i8o) return "gOIdhw8i8o";
     if (v == mkldnn_gOIdhw8o8i) return "gOIdhw8o8i";

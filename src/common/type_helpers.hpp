@@ -180,6 +180,7 @@ inline memory_format_t format_normalize(const memory_format_t fmt) {
             gOhwi16o,
             Goihw8g,
             Goihw16g,
+            Goihw16g_s8s8,
             goidhw,
             gOIdhw8i8o,
             gOIdhw8o8i,

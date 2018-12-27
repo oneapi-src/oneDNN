@@ -109,7 +109,6 @@ private:
     Xbyak::Opmask kblend_mask = Xbyak::Opmask(3);
 
     /* used during bias section of store_output */
-    zmm_t zmm_permute = zmm_t(29); // only for fast path
     zmm_t zmm_comp = zmm_t(30); // only for signed input
     zmm_t zmm_bias = zmm_t(31);
     /* used during post_op sum section of store_output */
@@ -118,15 +117,15 @@ private:
     zmm_t zmm_zero = zmm_t(31);
 
     /* used in compute_ker (but set during prepare_output) */
-    zmm_t zmm_shift = zmm_t(30); // only for signed input
+    zmm_t zmm_shift = zmm_comp; // only for signed input
     /* used in compute_ker (but only for pre-VNNI machines) */
-    zmm_t zmm_tmp = zmm_t(28);
-    zmm_t zmm_one = zmm_t(29); // set at start of kernel
-    /* used in compute_ker_dw */
-    zmm_t zmm_zero_blend = zmm_t(28); // only for fast path
-    zmm_t zmm_src = zmm_t(30);
-    /* used in compute_ker and compute_ker_dw */
-    zmm_t zmm_wei = zmm_t(31);
+    zmm_t zmm_tmp = zmm_t(28); // not used for depthwise
+    zmm_t zmm_one = zmm_t(29); // set at start of kernel, not used for depthwise.
+
+    /* registers use only for depthwise */
+    zmm_t zmm_wei = zmm_bias;
+    Xbyak::Zmm zmm_src;
+    Xbyak::Zmm zmm_permute, zmm_zero_blend; // used only for fast depthwise
 
     zmm_t zmm_out(int i_ur, int i_oc) {
         int idx = i_ur + i_oc * jcp.ur_w;
@@ -146,10 +145,12 @@ private:
         return zmm_t(idx);
     }
     zmm_t zmm_bias_alpha() {
-        return zmm_t(jcp.nb_oc_blocking * jcp.ur_w);
+        int nb_c_block = jcp.is_depthwise ? jcp.nb_ch_blocking : jcp.nb_oc_blocking;
+        return zmm_t(nb_c_block * jcp.ur_w);
     }
     xmm_t xmm_bias_alpha() {
-        return xmm_t(jcp.nb_oc_blocking * jcp.ur_w);
+        int nb_c_block = jcp.is_depthwise ? jcp.nb_ch_blocking : jcp.nb_oc_blocking;
+        return xmm_t(nb_c_block * jcp.ur_w);
     }
     int get_ow_start(int ki, int pad_l) {
         return nstl::max(0,
@@ -166,7 +167,7 @@ private:
     void prepare_output(int ur_w);
     void store_output(int ur_w, bool last_oc_block_flag);
     void compute_ker_dw(
-            int ur_w, int pad_l, int pad_r, ic_block_t last_ic_block_flag);
+            int ur_w, int pad_l, int pad_r, ic_block_t last_ic_block_flag, bool h_padded);
     void compute_ker(int ur_w, int pad_l, int pad_r,
             ic_block_t last_ic_block_flag, bool h_padded = false);
     void compute_eltwise(int ur_w);
