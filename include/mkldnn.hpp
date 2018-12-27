@@ -166,7 +166,7 @@ struct error: public std::exception {
     /// @param aerror_primitive (optional) A C handle of the primitive that
     ///                         caused the error.
 
-    error(mkldnn_status_t astatus, std::string amessage,
+    error(mkldnn_status_t astatus, const std::string &amessage,
             mkldnn_primitive_t aerror_primitive = 0)
         : status(astatus)
         , message(amessage)
@@ -602,7 +602,7 @@ struct memory: public handle<mkldnn_memory_t> {
     public:
     typedef std::vector<std::remove_extent<mkldnn_dims_t>::type> dims;
 
-    template <typename T> static void validate_dims(std::vector<T> v) {
+    template <typename T> static void validate_dims(const std::vector<T> &v) {
         if (v.size() > TENSOR_MAX_DIMS)
             throw error(mkldnn_invalid_arguments, "invalid dimensions");
     }
@@ -930,25 +930,6 @@ inline memory null_memory(engine eng) {
     return memory({zero, eng}, nullptr);
 }
 
-inline void check_num_parameters(const const_mkldnn_primitive_desc_t
-    &aprimitive_desc, int n_inputs, int n_outputs,
-    const std::string &prim_name) {
-    const int n_inputs_expected = mkldnn_primitive_desc_query_s32(
-            aprimitive_desc, mkldnn_query_num_of_inputs_s32, 0);
-    const int n_outputs_expected = mkldnn_primitive_desc_query_s32(
-            aprimitive_desc, mkldnn_query_num_of_outputs_s32, 0);
-    if (n_outputs_expected > n_outputs ) {
-        std::string message = "could not create " + prim_name +
-            " primitive, not enought output parameters";
-        throw error(mkldnn_invalid_arguments, message, nullptr);
-    }
-    if (n_inputs_expected > n_inputs ) {
-        std::string message = "could not create " + prim_name +
-            " primitive, not enought input parameters";
-        throw error(mkldnn_invalid_arguments, message, nullptr);
-    }
-}
-
 inline bool is_null_memory(const const_mkldnn_memory_t &amemory) {
     const_mkldnn_primitive_desc_t aprimitive_pd;
     mkldnn_memory_get_primitive_desc(amemory, &aprimitive_pd);
@@ -1038,17 +1019,16 @@ struct reorder : public primitive {
 struct concat : public primitive {
     struct primitive_desc : public handle<mkldnn_primitive_desc_t> {
         std::vector<const_mkldnn_primitive_desc_t> cpp_to_c(
-                std::vector<memory::primitive_desc> inputs) {
+                const std::vector<memory::primitive_desc> &inputs) {
             std::vector<const_mkldnn_primitive_desc_t> c_api_inputs;
             c_api_inputs.reserve(inputs.size());
-            auto convert_to_c = [](memory::primitive_desc d) { return d.get(); };
-            std::transform(inputs.begin(), inputs.end(),
-                    std::back_inserter(c_api_inputs), convert_to_c);
+            for (const auto &i : inputs)
+                c_api_inputs.push_back(i.get());
             return c_api_inputs;
         }
 
         primitive_desc(const memory::desc &output, int concat_dimension,
-                std::vector<memory::primitive_desc> inputs) {
+                const std::vector<memory::primitive_desc> &inputs) {
             mkldnn_primitive_desc_t result;
 
             auto c_api_inputs = cpp_to_c(inputs);
@@ -1061,7 +1041,7 @@ struct concat : public primitive {
         }
 
         primitive_desc(int concat_dimension,
-                std::vector<memory::primitive_desc> inputs) {
+                const std::vector<memory::primitive_desc> &inputs) {
             mkldnn_primitive_desc_t result;
 
             auto c_api_inputs = cpp_to_c(inputs);
@@ -1102,27 +1082,24 @@ struct concat : public primitive {
 struct sum : public primitive {
     struct primitive_desc : public handle<mkldnn_primitive_desc_t> {
         std::vector<const_mkldnn_primitive_desc_t> cpp_to_c(
-                std::vector<memory::primitive_desc> inputs) {
+                const std::vector<memory::primitive_desc> &inputs) {
             std::vector<const_mkldnn_primitive_desc_t> c_api_inputs;
             c_api_inputs.reserve(inputs.size());
-            auto convert_to_c = [](memory::primitive_desc d) { return d.get();};
-            std::transform(inputs.begin(), inputs.end(),
-                    std::back_inserter(c_api_inputs), convert_to_c);
+            for (const auto &i : inputs)
+                c_api_inputs.push_back(i.get());
             return c_api_inputs;
         }
 
         primitive_desc(const memory::desc &output,
                 const std::vector<float> &scales,
-                std::vector<memory::primitive_desc> inputs) {
-            mkldnn_primitive_desc_t result;
+                const std::vector<memory::primitive_desc> &inputs) {
+            error::wrap_c_api(scales.size() == inputs.size()
+                    ? mkldnn_success : mkldnn_invalid_arguments,
+                "number of scales not equal to number of inputs");
 
             auto c_api_inputs = cpp_to_c(inputs);
 
-            error::wrap_c_api(
-                scales.size() == inputs.size() ? mkldnn_success
-                                               : mkldnn_invalid_arguments,
-                "number of scales not equal to number of inputs");
-
+            mkldnn_primitive_desc_t result;
             error::wrap_c_api(mkldnn_sum_primitive_desc_create(
                     &result, &output.data, (int)c_api_inputs.size(),
                     &scales[0], &c_api_inputs[0]),
@@ -1131,20 +1108,17 @@ struct sum : public primitive {
         }
 
         primitive_desc(const std::vector<float> &scales,
-                std::vector<memory::primitive_desc> inputs) {
-            mkldnn_primitive_desc_t result;
-
-            auto c_api_inputs = cpp_to_c(inputs);
-
-            error::wrap_c_api(
-                scales.size() == inputs.size() ? mkldnn_success
-                                               : mkldnn_invalid_arguments,
+                const std::vector<memory::primitive_desc> &inputs) {
+            error::wrap_c_api(scales.size() == inputs.size()
+                    ? mkldnn_success : mkldnn_invalid_arguments,
                 "number of scales not equal to number of inputs");
 
-            error::wrap_c_api(mkldnn_sum_primitive_desc_create(
-                    &result, nullptr, (int)c_api_inputs.size(), &scales[0],
-                    &c_api_inputs[0]),
-                "could not create a sum primitive descriptor");
+            auto c_api_inputs = cpp_to_c(inputs);
+            mkldnn_primitive_desc_t result;
+            error::wrap_c_api(mkldnn_sum_primitive_desc_create(&result,
+                        nullptr, (int)c_api_inputs.size(), &scales[0],
+                        &c_api_inputs[0]),
+                    "could not create a sum primitive descriptor");
             reset(result);
         }
 
@@ -1154,8 +1128,7 @@ struct sum : public primitive {
             const_mkldnn_primitive_desc_t const_cdesc =
                 mkldnn_primitive_desc_query_pd(get(),
                                mkldnn::convert_to_c(dst_pd), 0);
-            error::wrap_c_api(mkldnn_primitive_desc_clone(&cdesc,
-                    const_cdesc),
+            error::wrap_c_api(mkldnn_primitive_desc_clone(&cdesc, const_cdesc),
                     "could not clone a dst primitive descriptor");
             adesc.reset(cdesc);
             return adesc;
