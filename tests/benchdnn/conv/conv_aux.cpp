@@ -46,7 +46,7 @@ const char *alg2str(alg_t alg) {
     return "unknown algorithm";
 }
 
-alg_t algkind2alg(mkldnn_alg_kind_t alg) {
+alg_t alg_kind2alg(mkldnn_alg_kind_t alg) {
     if (alg == mkldnn_convolution_auto) return AUTO;
     if (alg == mkldnn_convolution_direct) return DIRECT;
     if (alg == mkldnn_convolution_winograd) return WINO;

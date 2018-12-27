@@ -25,7 +25,6 @@
 
 #include "mkldnn_common.hpp"
 #include "mkldnn_memory.hpp"
-
 #include "norm.hpp"
 
 #include "conv/conv_common.hpp"
@@ -560,7 +559,7 @@ inline int init_pd(const prb_t *p, mkldnn_convolution_desc_t &cd,
     return OK;
 }
 
-int doit(const prb_t *p_orig, res_t *r) {
+int doit(const prb_t *p, res_t *r) {
     res_t res_zero{};
     *r = res_zero;
 
@@ -568,12 +567,17 @@ int doit(const prb_t *p_orig, res_t *r) {
     mkldnn_primitive_desc_t cpd;
     mkldnn_primitive_t c{};
 
-    SAFE(init_pd(p_orig, cd, cpd, r), WARN);
+    SAFE(init_pd(p, cd, cpd, r), WARN);
 
-    prb_t p_temp((desc_t)*p_orig, p_orig->dir, p_orig->cfg,
-            p_orig->alg, p_orig->attr, p_orig->mb);
-    prb_t *p = &p_temp;
-    p->alg = algkind2alg(cd.alg_kind);
+    prb_t *p_temp = nullptr;
+    if (p->alg == AUTO || p->alg == WINO) {
+        p_temp = new prb_t((desc_t)*p, p->dir, p->cfg,
+                    p->alg, p->attr, p->mb);
+        if (p->alg == AUTO) p_temp->alg = alg_kind2alg(cd.alg_kind);
+        p_temp->cfg = auto_cfg(p_temp->alg, p->cfg);
+        p = p_temp;
+    }
+
 
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED)
         return OK;
@@ -671,6 +675,7 @@ int doit(const prb_t *p_orig, res_t *r) {
 
     delete p_bia_dt;
     delete p_bia_fp;
+    delete p_temp;
 
     return OK;
 }

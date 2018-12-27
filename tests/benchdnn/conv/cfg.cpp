@@ -239,4 +239,17 @@ const char *cfg2str(const dt_conf_t *cfg) {
     return NULL;
 }
 
+const dt_conf_t *auto_cfg(const alg_t alg, const dt_conf_t *cfg) {
+    const char *cfg_s = cfg2str(cfg);
+#define CASE(_cfg_) \
+    if (alg == WINO && !strcmp(cfg_s, STRINGIFY(_cfg_))) return CONCAT2(conf_, CONCAT2(_cfg_, _wino))
+    CASE(f32);
+    CASE(u8s8f32s32);
+    CASE(u8s8s32s32);
+    CASE(u8s8s8s32);
+    CASE(u8s8u8s32);
+#undef CASE
+    return cfg;
+}
+
 }
