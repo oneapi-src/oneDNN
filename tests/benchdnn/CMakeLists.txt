@@ -55,10 +55,7 @@ function(register_benchdnn_test name cmd)
         DEPENDS benchdnn
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     )
-    if(WIN32)
-        set_property(TARGET ${name} PROPERTY ENVIRONMENT "PATH=${CTESTCONFIG_PATH}")
-        configure_file(${PROJECT_SOURCE_DIR}/config_template.vcxproj.user ${name}.vcxproj.user @ONLY)
-    endif()
+    maybe_configure_windows_test(${name} TARGET)
 endfunction()
 
 register_benchdnn_test(test_conv "benchdnn -v1 --conv --batch=inputs/test_conv_all")

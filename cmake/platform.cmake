@@ -130,11 +130,6 @@ elseif(UNIX OR MINGW)
     endif()
 endif()
 
-if(WIN32)
-    string(REPLACE ";" "\;" ENV_PATH "$ENV{PATH}")
-    set(CTESTCONFIG_PATH "${CTESTCONFIG_PATH}\;${MKLDLLPATH}\;${ENV_PATH}")
-endif()
-
 if(UNIX OR MINGW)
     if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
         # Link Intel libraries statically (except for iomp5)
