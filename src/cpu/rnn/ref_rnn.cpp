@@ -181,23 +181,24 @@ grid_execution_sig(_ref_rnn_common_t<aprop>::linear_execution) {
 
 template <>
 void _ref_rnn_common_t<prop_kind::forward>::copy_init_layer(
-        const rnn_conf_t &rnn, float *ws_states_, float *ws_diff_states_,
-        const float *xt_, const float *diff_dst_layer_) const {
+        const rnn_conf_t &rnn, float * __restrict ws_states_,
+        float * __restrict ws_diff_states_, const float * __restrict xt_,
+        const float  * __restrict diff_dst_layer_) const {
+
     AOC<float, 5> ws_states(ws_states_, rnn.n_dir, rnn.n_states, rnn.n_iter + 1,
             rnn.mb, rnn.states_ws_ld);
     auto xt_d = memory_desc_wrapper(pd()->src_pd(0));
 
-    parallel_nd(rnn.n_iter, [&](int it) {
-        auto xxt = xt_ + xt_d.blk_off(it);
+    parallel_nd(rnn.n_iter, rnn.mb, [&](int it, int b) {
+        auto xxt = xt_ + xt_d.blk_off(it, b);
+        float * ws_l2r_ptr = &(ws_states(0, 0, it + 1, b, 0));
+        float * ws_r2l_ptr = &(ws_states(rnn.n_dir - 1, 0, rnn.n_iter - it, b, 0));
         if (rnn.exec_dir != r2l)
-            for (int b = 0; b < rnn.mb; b++)
-                for (int c = 0; c < rnn.slc; c++)
-                    ws_states(0, 0, it + 1, b, c) = *(xxt + b * rnn.slc + c);
+            for (int c = 0; c < rnn.slc; c++)
+                ws_l2r_ptr[c] = xxt[c];
         if (rnn.exec_dir != l2r)
-            for (int b = 0; b < rnn.mb; b++)
-                for (int c = 0; c < rnn.slc; c++)
-                    ws_states(rnn.n_dir - 1, 0, rnn.n_iter - it, b, c)
-                            = *(xxt + b * rnn.slc + c);
+            for (int c = 0; c < rnn.slc; c++)
+                ws_r2l_ptr[c] = xxt[c];
     });
 }
 
@@ -262,26 +263,25 @@ void _ref_rnn_common_t<prop_kind::backward>::copy_init_layer(
 
 template <>
 void _ref_rnn_common_t<prop_kind::forward>::copy_init_iter(
-        const rnn_conf_t &rnn, float *ws_states_, float *ws_diff_states_,
-        const float *firstit_states_, const float *diff_dst_iter_) const {
+        const rnn_conf_t &rnn, float * __restrict ws_states_,
+        float * __restrict ws_diff_states_,
+        const float * __restrict firstit_states_,
+        const float * __restrict diff_dst_iter_) const {
     AOC<float, 6> ws_states(ws_states_, rnn.n_layer + 1, rnn.n_dir,
             rnn.n_states, rnn.n_iter + 1, rnn.mb, rnn.states_ws_ld);
     auto firstit_states_d = memory_desc_wrapper(pd()->src_pd(1));
     if (firstit_states_) {
-        parallel_nd(rnn.n_layer, rnn.n_dir, [&](int lay, int dir) {
-            for (int state = 0; state < rnn.n_states; state++)
-                for (int b = 0; b < rnn.mb; ++b) {
+        parallel_nd(rnn.n_layer, rnn.n_dir, rnn.n_states, rnn.mb,
+                    [&](int lay, int dir, int state, int b) {
                     array_copy(&(ws_states(lay + 1, dir, state, 0, b, 0)),
                         firstit_states_ + firstit_states_d.blk_off(
                         lay, dir, state, b), rnn.sic);
-                }
         });
     } else {
-        parallel_nd(rnn.n_layer, rnn.n_dir, [&](int lay, int dir) {
-            for (int state = 0; state < rnn.n_states; state++)
-                for (int i = 0; i < rnn.mb; i++)
+        parallel_nd(rnn.n_layer, rnn.n_dir, rnn.n_states, rnn.mb,
+                    [&](int lay, int dir, int state, int b) {
                     for (int j = 0; j < rnn.sic; j++)
-                        ws_states(lay + 1, dir, state, 0, i, j) = 0.0f;
+                        ws_states(lay + 1, dir, state, 0, b, j) = 0.0f;
         });
     }
 }
@@ -532,13 +532,14 @@ packing_sig(_ref_rnn_common_t<aprop>::no_pack_weights) {
     */
     auto copy_matrix = [](char trans, int nrows, int ncols, const float *src,
             const int ld_src, float *dst, const int ld_dst) {
-        for (int i = 0; i < ncols; i++)
-            for (int j = 0; j < nrows; j++)
-                dst[i * ld_dst + j] = src[i * ld_src + j];
+        parallel_nd(ncols, [&](int i) {
+                for (int j = 0; j < nrows; j++)
+                    dst[i * ld_dst + j] = src[i * ld_src + j];
+            });
     };
 
     AOC<float, 3> tmp(scratch_weights_, rnn.n_layer, rnn.n_dir, ldA * n);
-    mkldnn::impl::parallel_nd(rnn.n_layer, rnn.n_dir, [&](int i, int d) {
+    parallel_nd(rnn.n_layer, rnn.n_dir, [&](int i, int d) {
             auto src_mat = &(w(i, d, 0));
             auto dst_mat = &(tmp(i, d, 0));
             copy_matrix('N', m, n, src_mat, m, dst_mat, ldA);
@@ -728,7 +729,7 @@ void _ref_rnn_common_t<aprop>::execute_() const {
                 for(int j = 0; j < nrows; j++)
                     B[i * ldB + j] += A[i * ldA + j];
         };
-        mkldnn::impl::parallel_nd(rnn.n_layer, rnn.n_dir, [&](int i, int d) {
+        parallel_nd(rnn.n_layer, rnn.n_dir, [&](int i, int d) {
             auto wei_lay = &(diff_weights_layer_aoc_t(i, d, 0));
             auto wei_it = &(diff_weights_iter_aoc_t(i, d, 0));
             auto ws_wei_lay = &(ws_diff_weights_layer_aoc_t(i, d, 0));
