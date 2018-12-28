@@ -504,7 +504,8 @@ status_t init_conf(jit_gemm_conv_conf_t &jcp,
             do_outer_threading = jcp.os / max_threads < 512
                 && IMPLICATION(jcp.od == 1, jcp.mb != 1 || jcp.ngroups > 2);
         else if (is_bwd_d)
-            do_outer_threading = jcp.mb != 1 || jcp.ngroups > 2;
+            do_outer_threading = (jcp.os / max_threads < 512 || jcp.ks < 64)
+                && (jcp.mb != 1 || jcp.ngroups > 2);
         else if (is_bwd_w)
             do_outer_threading = jcp.os / max_threads < 256
                 && (jcp.mb != 1 || jcp.ngroups > 2);
