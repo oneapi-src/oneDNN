@@ -43,6 +43,17 @@ enum {
 typedef long long int dim_t;
 
 typedef struct {
+    int8_t *a_buf;
+    int32_t *a_row_sum;
+} blas_buffers_t;
+
+typedef struct {
+    int nthrs_m, nthrs_n;
+    int partition;
+    int copy_type;
+} blas_thread_t;
+
+typedef struct {
     // Interface arguments.
     int transa, transb, offsetc;
     dim_t m, n, k;
@@ -65,13 +76,8 @@ typedef struct {
     int (*kernel)   (const dim_t *m, const dim_t *n, const dim_t *k, const float *alpha, const int8_t *a, const uint8_t *b, int32_t *c, const dim_t ldc);
     int (*kernel_b0)(const dim_t *m, const dim_t *n, const dim_t *k, const float *alpha, const int8_t *a, const uint8_t *b, int32_t *c, const dim_t ldc);
 
-    // Threading parameters.
-    int nthrs;
-    int nthrs_m, nthrs_n;
-    int thread_partition;
-    int thread_copy;
-
 } blas_t;
+
 
 static inline void round_to_nearest(int32_t *rounded_val, double fp_val) {
     if (fp_val >= 0.) {
@@ -182,6 +188,11 @@ static inline dim_t ld_padd(const dim_t x)
 {
     return ((x + ((2048 / sizeof(int32_t)) - 1)) / (2048 / sizeof(int32_t)))
         * (2048 / sizeof(int32_t)) +  (64 / sizeof(int32_t));
+}
+
+static inline dim_t pad_unroll(const dim_t m, const dim_t m_unroll)
+{
+    return (m + m_unroll - 1) / m_unroll * m_unroll;
 }
 
 static int gemm_kernel_driver(const dim_t m, const dim_t n, const dim_t k,
@@ -369,15 +380,115 @@ static int gemm_kernel_driver(const dim_t m, const dim_t n, const dim_t k,
     return 0;
 }
 
+static int kernel_driver_parallel_acopiedbcopy(const dim_t m, const dim_t n,
+        const dim_t k, const int8_t *bufferA, const uint8_t *b,
+        const float beta, int32_t *c, const int offsetc, const int32_t *co,
+        const int32_t *a_row_sum, const blas_t *arg)
+{
+    dim_t   ldb   = arg->ldb;
+    dim_t   ldc   = arg->ldc;
+    int8_t  ao    = arg->ao;
+    int8_t  bo    = arg->bo;
+    float   alpha = *arg->alpha;
+
+    if (m <= 0 || n <= 0) {
+        return 0;
+    }
+
+    // Padding along N dimension.
+    dim_t n_padd = 0;
+    if (k < arg->blocking_small_k) {
+        n_padd = val_padd(nstl::min(nstl::max(n, arg->un), arg->bn_small_k),
+                arg->un);
+    } else {
+        n_padd = val_padd(nstl::min(nstl::max(n, arg->un), arg->bn), arg->un);
+    }
+
+    // Padding for temporary buffer for C
+    dim_t ldc_buf = ld_padd(m);
+
+    dim_t strideBn = (arg->transb != 0)? 1 : ldb;
+
+    uint8_t *bufferB = (uint8_t *) malloc(k * n_padd * sizeof(*bufferB),
+            PAGE_4K);
+    if (!bufferB) {
+        return -1;
+    }
+
+    int32_t *bufferC = NULL;
+    if (arg->offsetc != 0 || ao != 0 || bo != 0 || co[0] != 0
+            || alpha != 1.0 || (beta != 1.0 && beta != 0.0)) {
+        bufferC = (int32_t *) malloc(ldc_buf * n_padd * sizeof(*bufferC),
+                PAGE_4K);
+        if (!bufferC) {
+            free(bufferB);
+            return -1;
+        }
+    }
+
+    int32_t *b_col_sum = (int32_t *) malloc(n_padd * sizeof(*b_col_sum),
+            PAGE_4K);
+    if (!b_col_sum) {
+        free(bufferB);
+        free(bufferC);
+        return -1;
+    }
+
+    dim_t sizeN = 0;
+    for (dim_t Bn = 0; Bn < n; Bn += sizeN) {
+        sizeN = n - Bn;
+        if (sizeN > n_padd)
+            sizeN = n_padd;
+
+        // Implement the kernel here.
+        const uint8_t *b_block = b + Bn * strideBn;
+        arg->copyB(&k, &sizeN, b_block, &ldb, NULL, bufferB);
+        get_b_col_sum(arg->transb, k, sizeN, b_block, ldb, ao, b_col_sum);
+
+        int32_t *c_block = c + Bn * ldc;
+        if (bufferC) {
+            arg->kernel_b0(&m, &sizeN, &k, NULL, bufferA, bufferB, bufferC, ldc_buf);
+
+            // Finish the block adding the necessary alpha, beta and offsets.
+            dim_t co_stride = 0;
+            if (offsetc == 0) { // Fix offset.
+                co_stride = 0;
+            } else if (offsetc == 1) { // Row offset.
+                co_stride = Bn;
+            } else if (offsetc == 2) { // Column offset.
+                co_stride = 0;
+            }
+            add_results(m, sizeN, k, alpha, beta, bufferC, ldc_buf, c_block, ldc, a_row_sum, b_col_sum, ao, bo, co + co_stride, offsetc);
+        } else {
+            if (beta == 0.0f)
+                arg->kernel_b0(&m, &sizeN, &k, NULL, bufferA, bufferB, c_block, ldc);
+            else
+                arg->kernel(&m, &sizeN, &k, NULL, bufferA, bufferB, c_block, ldc);
+        }
+    }
+
+    free(bufferB);
+    free(bufferC);
+    free(b_col_sum);
+
+    return 0;
+
+}
+
 #define N2D_MAX_AVX512 384
 #define M2D_MIN_AVX512 384
 #define VECLEN         16
 #define NCONS          1
-static inline void set_thread_opts_avx512(int *p_nthrs, blas_t *arg)
+static inline void set_thread_opts_avx512(int *p_nthrs,
+        blas_thread_t *thread_info, const blas_t *arg)
 {
     int nthrs = *p_nthrs;
     dim_t m = arg->m;
     dim_t n = arg->n;
+
+    thread_info->nthrs_m = 0;
+    thread_info->nthrs_n = 0;
+    thread_info->copy_type = COPY_NONE; // By default don't do parallel copy.
 
     int condition_2D_bsrc = -1;
     if ((256 * m > nthrs * n) && (nthrs * m < 256 * n)) {
@@ -386,7 +497,11 @@ static inline void set_thread_opts_avx512(int *p_nthrs, blas_t *arg)
         condition_2D_bsrc = 0;
     }
 
-    arg->thread_copy = COPY_NONE; // By default don't do parallel copy.
+    int condition_1D_copya = 0;
+    if ((m >= 1000) && (n >= nthrs * N2D_MAX_AVX512 / 4)) {
+        condition_2D_bsrc  = 0;
+        condition_1D_copya = 1;
+    }
 
     if (condition_2D_bsrc == 1) {
         int nthrs_m = 1;
@@ -400,17 +515,22 @@ static inline void set_thread_opts_avx512(int *p_nthrs, blas_t *arg)
             nthrs_n /= 2;
         }
 
-        arg->nthrs_m = nthrs_m;
-        arg->nthrs_n = nthrs_n;
-        arg->thread_partition = PARTITION_2D;
+        thread_info->nthrs_m = nthrs_m;
+        thread_info->nthrs_n = nthrs_n;
+        thread_info->partition = PARTITION_2D;
 
         // Reset the total number of threads that will be used.
         *p_nthrs = nthrs_m * nthrs_n;
+
+    } else if (condition_1D_copya && mkldnn_thr_syncable()) {
+        // Use parallel copy A algorithm
+        thread_info->copy_type = COPY_A;
+        thread_info->partition = PARTITION_1D_COL;
     } else {
         if ((m > n) && (m / nthrs >= VECLEN || n < NCONS * nthrs)) {
-            arg->thread_partition = PARTITION_1D_ROW;
+            thread_info->partition = PARTITION_1D_ROW;
         } else {
-            arg->thread_partition = PARTITION_1D_COL;
+            thread_info->partition = PARTITION_1D_COL;
         }
     }
 }
@@ -532,13 +652,13 @@ static inline void partition_2d(const int ithr, int *nthrs, const int ithr_i,
 
 static inline void decompose_matrices(const int ithr, int *nthrs, dim_t *m,
         dim_t *n, dim_t *k, const int8_t **a, const uint8_t **b, int32_t **c,
-        const int32_t **co, const blas_t *arg)
+        const int32_t **co, const blas_thread_t *thread_info, const blas_t *arg)
 {
     dim_t strideAm = (arg->transa == 0)? 1 : arg->lda;
     dim_t strideBn = (arg->transb != 0)? 1 : arg->ldb;
     int offsetc = arg->offsetc;
 
-    switch (arg->thread_partition) {
+    switch (thread_info->partition) {
         case PARTITION_1D_ROW:
             {
                 dim_t offset = 0;
@@ -605,8 +725,8 @@ static inline void decompose_matrices(const int ithr, int *nthrs, dim_t *m,
 
         case PARTITION_2D_COL_MAJOR:
             {
-                int nthrs_m = arg->nthrs_m;
-                int nthrs_n = arg->nthrs_n;
+                int nthrs_m = thread_info->nthrs_m;
+                int nthrs_n = thread_info->nthrs_n;
                 int ithr_i = ithr % nthrs_m;
                 int ithr_j = ithr / nthrs_m;
 
@@ -645,6 +765,137 @@ static inline void decompose_matrices(const int ithr, int *nthrs, dim_t *m,
             }
     }
 }
+
+#define MULTIPLIER 10
+static int parallel_a_copy(const int ithr, const int nthrs, const dim_t m,
+        const dim_t n, const dim_t k, const int8_t *a, const uint8_t *b,
+        int32_t *c, const int32_t *co, const blas_t *arg,
+        blas_buffers_t *shared_buffers)
+{
+    const dim_t lda = arg->lda;
+    const dim_t ldb = arg->ldb;
+    const dim_t strideAm = (arg->transa == 0)? 1 : lda;
+    const dim_t strideAn = (arg->transa != 0)? 1 : lda;
+    const dim_t strideBm = (arg->transb == 0)? 1 : ldb;
+    int8_t bo = arg->bo;
+
+    // Padding along M dimension.
+    dim_t m_padd = val_padd(nstl::min(nstl::max(m, arg->um), arg->bm), arg->um);
+
+    // Padding along K dimension.
+    dim_t k_padd = 0;
+    if (k <= arg->bk_traditional) {
+        k_padd = val_padd(k, arg->uk);
+        k_padd = nstl::max(128LL, k_padd);
+    } else if (k < 2 * arg->bk) {
+        k_padd = val_padd(k / 2, arg->uk);
+    } else {
+        k_padd = arg->bk;
+    }
+
+    m_padd *= nthrs > MULTIPLIER ? MULTIPLIER : nthrs;
+    if (m_padd > m) {
+        m_padd = pad_unroll(m, arg->um);
+    }
+
+    // Allocate buffers for A and it's row sum in master thread.
+    if (ithr == 0) { // If thread master
+        shared_buffers->a_buf = (int8_t *)
+            malloc(m_padd * k_padd * sizeof(*a), PAGE_2M);
+
+        shared_buffers->a_row_sum = (int32_t *)
+            malloc(m_padd * sizeof(*c), PAGE_4K);
+    }
+    mkldnn_thr_barrier();
+
+    int8_t *bufferA = shared_buffers->a_buf;
+    int32_t *a_row_sum = shared_buffers->a_row_sum;
+
+    if (!bufferA || !a_row_sum) {
+        free(bufferA);
+        free(a_row_sum);
+        return -1;
+    }
+
+    int result = 0; // Return status
+
+    dim_t sizeK = 0;
+    for (dim_t Bk = 0; Bk < k; Bk += sizeK) {
+        sizeK = k - Bk;
+        if (sizeK > k_padd)
+            sizeK = k_padd;
+
+        // Scale C blocks by beta only for the first term of partial sum.
+        float beta = 1.0f;
+        if (Bk == 0)
+            beta = *(arg->beta);
+
+        // Apply C offset for the last k-block of the partial sum.
+        int offsetc = -1;
+        if (Bk + sizeK == k)
+            offsetc = arg->offsetc;
+
+        dim_t sizeM = 0;
+        for (dim_t Bm = 0; Bm < m; Bm += sizeM) {
+            sizeM = m - Bm;
+            if (sizeM > m_padd)
+                sizeM = m_padd;
+
+            if (ithr < nthrs) {
+                dim_t band = (sizeM + nthrs - 1) / nthrs;
+                band = pad_unroll(band, arg->um);
+
+                dim_t offset = band * ithr;
+
+                // If offset is too large don't use that thread for copying.
+                if (offset >= sizeM) {
+                    offset = 0;
+                    band = 0;
+                }
+
+                // Handle the tail of the copy.
+                if (offset + band > sizeM) {
+                    band = sizeM - offset;
+                }
+
+                if (band > 0) {
+                    const int8_t *a_block = a + (Bm + offset) * strideAm + Bk * strideAn;
+                    arg->copyA(&sizeK, &band, a_block, &lda, NULL,
+                            bufferA + offset * sizeK);
+                    get_a_row_sum(arg->transa, band, sizeK, a_block, lda, bo,
+                            a_row_sum + offset);
+                }
+            }
+            mkldnn_thr_barrier(); // Wait for finishing parallel copy.
+
+            const uint8_t *b_block = b + Bk * strideBm;
+            int32_t *c_block = c + Bm;
+            dim_t co_stride = 0;
+            if (offsetc == 0) { // Fix offset.
+                co_stride = 0;
+            } else if (offsetc == 1) { // Row offset.
+                co_stride = 0;
+            } else if (offsetc == 2) { // Column offset.
+                co_stride = Bm;
+            }
+
+            result = kernel_driver_parallel_acopiedbcopy(sizeM, n, sizeK,
+                    bufferA, b_block, beta, c_block, offsetc, co + co_stride,
+                    a_row_sum, arg);
+
+            mkldnn_thr_barrier(); // Wait for kernel computations to finish.
+        }
+    }
+
+    // Free memory allocated in master thread
+    if (ithr == 0) {
+        free(bufferA);
+        free(a_row_sum);
+    }
+
+    return result;
+}
+#undef MULTIPLIER
 
 static inline void get_omp_thread_count(dim_t m, dim_t n, dim_t k,
         double fp_per_cycle, int *nthrs)
@@ -696,13 +947,13 @@ static inline void get_omp_thread_count(dim_t m, dim_t n, dim_t k,
     *nthrs = i;
 }
 
+#define CACHE_LINE_SIZE 64
 static int gemm_threading_driver(blas_t *arg)
 {
     if ((arg->m <= 0) || (arg->n <= 0))
         return mkldnn_success;
 
     int nthr = (mkldnn_in_parallel()) ? 1 : mkldnn_get_max_threads();
-
     get_omp_thread_count(arg->m, arg->n, arg->k, 64.0, &nthr);
 
     if (nthr == 1) {
@@ -710,14 +961,30 @@ static int gemm_threading_driver(blas_t *arg)
                 arg->c, arg->co, arg);
     }
 
-    int status = 0;
+    int *results = (int *) malloc(sizeof(*results) * nthr * CACHE_LINE_SIZE,
+            PAGE_4K);
+
+    if (!results) {
+        return -1;
+    }
+
+    for (int i = 0; i < nthr; i++) {
+        results[i * CACHE_LINE_SIZE] = 0; // Initialize to success
+    }
+
+    blas_buffers_t shared_buffers;
+    shared_buffers.a_buf = NULL;
+    shared_buffers.a_row_sum = NULL;
+
     parallel(nthr, [&](const int ithr, const int nthr) {
         int nthrs = nthr;
         if (nthrs == 1) {
-            status = gemm_kernel_driver(arg->m, arg->n, arg->k, arg->a, arg->b,
-                arg->c, arg->co, arg);
+            results[0] = gemm_kernel_driver(arg->m, arg->n, arg->k, arg->a,
+                arg->b, arg->c, arg->co, arg);
         } else {
-            set_thread_opts_avx512(&nthrs, arg);
+            blas_thread_t thread_info;
+            set_thread_opts_avx512(&nthrs, &thread_info, arg);
+            mkldnn_thr_barrier();
 
             const int8_t *a = NULL;
             const uint8_t *b = NULL;
@@ -726,20 +993,40 @@ static int gemm_threading_driver(blas_t *arg)
             dim_t m = -1;
             dim_t n = -1;
             dim_t k = -1;
-            decompose_matrices(ithr, &nthrs, &m, &n, &k, &a, &b, &c, &co, arg);
+            decompose_matrices(ithr, &nthrs, &m, &n, &k, &a, &b, &c, &co,
+                &thread_info, arg);
 
             if (ithr < nthrs) {
-                int result = gemm_kernel_driver(m, n, k, a, b, c, co, arg);
+                switch (thread_info.copy_type) {
+                case COPY_A:
+                    results[ithr * CACHE_LINE_SIZE] =
+                        parallel_a_copy(ithr, nthrs, m, n, k, a, b, c, co, arg,
+                                &shared_buffers);
+                    break;
 
-                if (result < 0) {
-                    status = result;
+                default:
+                case COPY_NONE:
+                    results[ithr * CACHE_LINE_SIZE] =
+                        gemm_kernel_driver(m, n, k, a, b, c, co, arg);
+                    break;
                 }
             }
         }
     });
 
-    return status;
+    int result = 0;  // Initialize to success
+    for (int i = 0; i < nthr; i++) {
+        if (results[i] != 0) {
+            result = results[i * CACHE_LINE_SIZE];
+            break;
+        }
+    }
+
+    free(results);
+
+    return result;
 }
+#undef CACHE_LINE_SIZE
 
 static jit_avx512_core_u8_copy_an_kern *copy_an;
 static jit_avx512_core_u8_copy_at_kern *copy_at;
