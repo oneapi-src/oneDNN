@@ -46,6 +46,7 @@ namespace cpu {
 #define UNROLL_N 8
 
 namespace avx512_common_gemm_f32 {
+using namespace gemm_utils;
 
 struct xbyak_gemm : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_gemm_f32_xbyak_gemm)
@@ -1705,15 +1706,15 @@ struct xbyak_gemm : public jit_generator {
         ker_ = this->getCode<ker_t>();
     }
 
-    typedef void (*ker_t)(long long int m, long long int n, long long int k,
-            const float *alpha, const float *a, long long int lda,
-            const float *b, long long int ldb, const float *beta, float *c,
-            long long int ldc, const float *bias, float *ws);
+    typedef void (*ker_t)(dim_t m, dim_t n, dim_t k, 
+            const float *alpha, const float *a, dim_t lda,
+            const float *b, dim_t ldb, const float *beta, float *c,
+            dim_t ldc, const float *bias, float *ws);
 
-    void operator()(long long int m, long long int n, long long int k,
-            const float *alpha, const float *a, long long int lda,
-            const float *b, long long int ldb, const float *beta, float *c,
-            long long int ldc, const float *bias, float *ws) const
+    void operator()(dim_t m, dim_t n, dim_t k,
+            const float *alpha, const float *a, dim_t lda,
+            const float *b, dim_t ldb, const float *beta, float *c,
+            dim_t ldc, const float *bias, float *ws) const
     {
         ker_(m, n, k, alpha, a, lda, b, ldb, beta, c, ldc, bias, ws);
     }
@@ -1749,8 +1750,8 @@ const xbyak_gemm *get_xbyak_gemm(
 
 void sgemm_nocopy_driver(const char *transa,
         const char *transb, int m, int n, int k, const float *alpha,
-        const float *a, int lda, const float *b, int ldb, const float *beta,
-        float *c, int ldc, const float *bias, float *ws)
+        const float *a, dim_t lda, const float *b, dim_t ldb, const float *beta,
+        float *c, dim_t ldc, const float *bias, float *ws)
 {
     bool isTransA = (*transa == 'T' || *transa == 't');
     bool isTransB = (*transb == 'T' || *transb == 't');
@@ -1827,14 +1828,14 @@ void sgemm_nocopy_driver(const char *transa,
                 }
 
                 if (!isTransA) {
-                    curA = a + Bm + (size_t)Bk * lda;
+                    curA = a + Bm + Bk * lda;
                 } else {
-                    curA = a + Bk + (size_t)Bm * lda;
+                    curA = a + Bk + Bm * lda;
                 }
                 if (!isTransB) {
-                    curB = b + Bk + (size_t)Bn * ldb;
+                    curB = b + Bk + Bn * ldb;
                 } else {
-                    curB = b + Bn + (size_t)Bk * ldb;
+                    curB = b + Bn + Bk * ldb;
                 }
                 curC = c + Bm + (size_t)Bn * ldc;
                 if (bias != nullptr) {
@@ -1846,20 +1847,17 @@ void sgemm_nocopy_driver(const char *transa,
                 }
                 if (Bk == 0) {
                     if (*beta == 0.0 && bias == nullptr)
-                        (*ker_b0)((long long int)sizeM, (long long int)sizeN,
-                                (long long int)sizeK, alpha, curA,
-                                (long long int)lda, curB, (long long int)ldb,
-                                beta, curC, (long long int)ldc, curBias, ws);
+                        (*ker_b0)((dim_t)sizeM, (dim_t)sizeN, (dim_t)sizeK,
+                                alpha, curA, lda, curB, ldb, beta, curC, ldc,
+                                curBias, ws);
                     else
-                        (*ker_bn)((long long int)sizeM, (long long int)sizeN,
-                                (long long int)sizeK, alpha, curA,
-                                (long long int)lda, curB, (long long int)ldb,
-                                beta, curC, (long long int)ldc, curBias, ws);
+                        (*ker_bn)((dim_t)sizeM, (dim_t)sizeN, (dim_t)sizeK,
+                                alpha, curA, lda, curB, ldb, beta, curC, ldc,
+                                curBias, ws);
                 } else {
-                    (*ker_b1)((long long int)sizeM, (long long int)sizeN,
-                            (long long int)sizeK, alpha, curA,
-                            (long long int)lda, curB, (long long int)ldb, beta,
-                            curC, (long long int)ldc, curBias, ws);
+                    (*ker_b1)((dim_t)sizeM, (dim_t)sizeN, (dim_t)sizeK,
+                            alpha, curA, lda, curB, ldb, beta, curC, ldc,
+                            curBias, ws);
                 }
             }
         }
@@ -1887,9 +1885,9 @@ mkldnn_status_t jit_avx512_common_gemm_f32(
     int m = *p_m;
     int n = *p_n;
     int k = *p_k;
-    int lda = *p_lda;
-    int ldb = *p_ldb;
-    int ldc = *p_ldc;
+    dim_t lda = *p_lda;
+    dim_t ldb = *p_ldb;
+    dim_t ldc = *p_ldc;
     float beta = *p_beta;
     int MB, NB, KB;
 
@@ -1926,7 +1924,7 @@ mkldnn_status_t jit_avx512_common_gemm_f32(
                 * sizeof(float), PAGE_4K);
     }
 
-    const size_t ws_elems_per_thr = k * 48 + 64;
+    const size_t ws_elems_per_thr = (size_t)k * 48 + 64;
     const size_t ws_size_per_thr
             = rnd_up(ws_elems_per_thr * sizeof(float), PAGE_4K);
     if (k > STACK_K_CAPACITY) {
@@ -1943,7 +1941,7 @@ mkldnn_status_t jit_avx512_common_gemm_f32(
         float *myC = C, myBeta;
         float *ws = ws_buffers ?
                 ws_buffers + ithr * ws_size_per_thr / sizeof(float) : 0;
-        int ld = ldc;
+        dim_t ld = ldc;
 
         if (ithr < nthr_m * nthr_n * nthr_k) {
 
@@ -1998,7 +1996,7 @@ mkldnn_status_t jit_avx512_common_gemm_f32(
                     if (bias)
                         myBias = &(bias[m_from]);
                 } else {
-                    myC = c_buffers + MB * NB * (cbase + ithr_k - 1);
+                    myC = c_buffers + (dim_t)MB * NB * (cbase + ithr_k - 1);
                     myBeta = 0.0;
                     ld = MB;
                     myBias = nullptr;
@@ -2020,8 +2018,8 @@ mkldnn_status_t jit_avx512_common_gemm_f32(
 
                 if (ithr_k > 0) {
 
-                    myC = c_buffers + MB * NB * (cbase + ithr_k - 1);
-                    myC = myC + n1 * MB;
+                    myC = c_buffers + (dim_t)MB * NB * (cbase + ithr_k - 1)
+                        + (dim_t)n1 * MB;
                     /* need to wait until main thread finishes */
                     while (ompstatus[ibase * CACHE_LINE_SIZE] != 1) {
                     };
@@ -2034,8 +2032,8 @@ mkldnn_status_t jit_avx512_common_gemm_f32(
                 for (int ik = 1; ik < nthr_k; ++ik) {
                     if (ik != ithr_k) {
 
-                        myC = c_buffers + MB * NB * (cbase + ik - 1);
-                        myC = myC + n1 * MB;
+                        myC = c_buffers + (dim_t)MB * NB * (cbase + ik - 1)
+                            + (dim_t)n1 * MB;
 
                         while (ompstatus[(ibase + ik) * CACHE_LINE_SIZE] != 1) {
                         };
