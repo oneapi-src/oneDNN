@@ -279,8 +279,7 @@ inline void init_rtus_driver(conv_t *self) {
     const int stride_w = cd.strides[ndims - 3];
 
     const bool is_bwd_data = cd.prop_kind == prop_kind::backward_data;
-    const auto &src_d = is_bwd_data ? *conf.diff_src_pd()->desc()
-                                    : *conf.src_pd()->desc();
+    const auto &src_d = is_bwd_data ? *conf.diff_src_md() : *conf.src_md();
     assert((isa == avx2 && utils::one_of(src_d.format, memory_format::nCw8c,
         memory_format::nChw8c)) || (isa == avx512_common && utils::one_of(
             src_d.format, memory_format::nCw16c, memory_format::nChw16c)));

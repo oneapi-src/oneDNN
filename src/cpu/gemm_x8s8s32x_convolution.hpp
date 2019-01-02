@@ -21,7 +21,8 @@
 #include "memory_tracking.hpp"
 
 #include "cpu_convolution_pd.hpp"
-#include "cpu_engine.hpp"
+#include "cpu_primitive.hpp"
+
 #include "jit_primitive_conf.hpp"
 #include "jit_generator.hpp"
 #include "gemm_convolution_utils.hpp"
@@ -44,17 +45,13 @@ struct _gemm_x8s8s32x_convolution_fwd_t: public cpu_primitive_t {
         DECLARE_COMMON_PD_T(IGEMM_S8U8S32_IMPL_STR,
                 _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>);
 
-        virtual status_t init() override {
+        status_t init() {
             using namespace data_type;
             using namespace memory_format;
 
-            assert(this->engine()->kind() == engine_kind::cpu);
-
             bool ok = true
                 && this->set_default_params() == status::success
-                && utils::one_of(this->desc()->prop_kind,
-                        prop_kind::forward_training,
-                        prop_kind::forward_inference)
+                && is_fwd()
                 && utils::one_of(this->desc()->alg_kind,
                         alg_kind::convolution_auto,
                         alg_kind::convolution_direct)
@@ -66,9 +63,9 @@ struct _gemm_x8s8s32x_convolution_fwd_t: public cpu_primitive_t {
                             this->desc()->bias_desc.data_type, f32, s32, s8,
                             u8))
                 && this->desc()->accum_data_type == data_type::s32
-                && utils::everyone_is(nhwc, this->src_pd_.desc()->format,
-                        this->dst_pd_.desc()->format)
-                && this->weights_pd_.desc()->format == (this->with_groups()
+                && utils::everyone_is(nhwc, this->src_md_.format,
+                        this->dst_md_.format)
+                && this->weights_md_.format == (this->with_groups()
                         ? ((src_type == data_type::s8) ? hwigo_s8s8 : hwigo)
                         : ((src_type == data_type::s8) ? hwio_s8s8 : hwio))
                 && this->is_gemm_conv_format();
@@ -76,34 +73,34 @@ struct _gemm_x8s8s32x_convolution_fwd_t: public cpu_primitive_t {
 
             auto scratchpad = scratchpad_registry().registrar();
             return jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
-                    *this->desc(), this->src_pd(), this->weights_pd(0),
-                    this->dst_pd(), mkldnn_get_max_threads());
+                    *this->desc(), this->src_md(), this->weights_md(0),
+                    this->dst_md(), mkldnn_get_max_threads());
         }
 
         jit_gemm_conv_conf_t jcp_;
 
     protected:
-        virtual status_t set_default_params() override {
+        status_t set_default_params() {
             using namespace memory_format;
             const bool is_sign_input =
-                this->desc()->src_desc.data_type == data_type::s8;
+                desc()->src_desc.data_type == data_type::s8;
 
-            if (this->src_pd_.desc()->format == any)
-                CHECK(this->src_pd_.set_format(nhwc));
-            if (this->dst_pd_.desc()->format == any)
-                CHECK(this->dst_pd_.set_format(nhwc));
-            if (this->weights_pd_.desc()->format == any)
-                CHECK(this->weights_pd_.set_format(this->with_groups()
+            if (src_md_.format == any)
+                CHECK(types::set_default_format(src_md_, nhwc));
+            if (dst_md_.format == any)
+                CHECK(types::set_default_format(dst_md_, nhwc));
+            if (weights_md_.format == any)
+                CHECK(types::set_default_format(weights_md_, with_groups()
                             ? (is_sign_input ? hwigo_s8s8 : hwigo)
                             : (is_sign_input ? hwio_s8s8 : hwio)));
-            if (this->bias_pd_.desc()->format == any)
-                CHECK(this->bias_pd_.set_format(x));
-            if (this->desc()->alg_kind == alg_kind::convolution_auto)
-                CHECK(this->set_alg_kind(alg_kind::convolution_direct));
+            if (bias_md_.format == any)
+                CHECK(types::set_default_format(bias_md_, x));
+            if (desc()->alg_kind == alg_kind::convolution_auto)
+                CHECK(set_alg_kind(alg_kind::convolution_direct));
             return status::success;
         }
 
-        virtual bool is_gemm_conv_format() const {
+        bool is_gemm_conv_format() {
             using namespace mkldnn::impl::primitive_kind;
             auto const &po = this->attr()->post_ops_;
             auto is_relu = [&](int idx) {
@@ -205,7 +202,7 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t: public cpu_primitive_t {
         DECLARE_COMMON_PD_T(IGEMM_S8U8S32_IMPL_STR,
                 _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>);
 
-        virtual status_t init() override {
+        status_t init() {
             using namespace data_type;
             using namespace memory_format;
 
@@ -214,8 +211,9 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t: public cpu_primitive_t {
             bool ok = true
                 && this->set_default_params() == status::success
                 && this->desc()->prop_kind == prop_kind::backward_data
-                && utils::one_of(this->desc()->alg_kind, alg_kind::convolution_auto,
-                           alg_kind::convolution_direct)
+                && utils::one_of(this->desc()->alg_kind,
+                        alg_kind::convolution_auto,
+                        alg_kind::convolution_direct)
                 && !this->has_zero_dim_memory()
                 && this->desc()->diff_src_desc.data_type == dst_type
                 && this->desc()->diff_dst_desc.data_type == u8
@@ -224,17 +222,17 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t: public cpu_primitive_t {
                             this->desc()->bias_desc.data_type, f32, s32, s8,
                             u8))
                 && this->desc()->accum_data_type == data_type::s32
-                && utils::everyone_is(nhwc, this->diff_src_pd_.desc()->format,
-                        this->diff_dst_pd_.desc()->format)
-                && this->weights_pd_.desc()->format == (this->with_groups()
+                && utils::everyone_is(nhwc, this->diff_src_md_.format,
+                        this->diff_dst_md_.format)
+                && this->weights_md_.format == (this->with_groups()
                         ? hwigo : hwio)
                 && attr()->post_ops_.has_default_values();
             if (!ok) return status::unimplemented;
 
             auto scratchpad = scratchpad_registry().registrar();
             return jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
-                    *this->desc(), this->diff_src_pd(), this->weights_pd(0),
-                    this->diff_dst_pd(), mkldnn_get_max_threads());
+                    *this->desc(), this->diff_src_md(), this->weights_md(0),
+                    this->diff_dst_md(), mkldnn_get_max_threads());
         }
 
         virtual bool support_bias() const override { return true; }
@@ -242,27 +240,26 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t: public cpu_primitive_t {
         jit_gemm_conv_conf_t jcp_;
 
     protected:
-        virtual status_t set_default_params() override {
+        status_t set_default_params() {
             using namespace memory_format;
 
-            if (this->diff_src_pd_.desc()->format == any)
-                CHECK(this->diff_src_pd_.set_format(nhwc));
-            if (this->diff_dst_pd_.desc()->format == any)
-                CHECK(this->diff_dst_pd_.set_format(nhwc));
-            if (this->weights_pd_.desc()->format == any)
-                CHECK(this->weights_pd_.set_format(
-                            this->with_groups() ? hwigo : hwio));
-            if (bias_pd_.desc()->format == any)
-                CHECK(bias_pd_.set_format(x));
-            if (this->desc()->alg_kind == alg_kind::convolution_auto)
-                CHECK(this->set_alg_kind(alg_kind::convolution_direct));
+            if (diff_src_md_.format == any)
+                CHECK(types::set_default_format(diff_src_md_, nhwc));
+            if (diff_dst_md_.format == any)
+                CHECK(types::set_default_format(diff_dst_md_, nhwc));
+            if (weights_md_.format == any)
+                CHECK(types::set_default_format(weights_md_,
+                            with_groups() ? hwigo : hwio));
+            if (bias_md_.format == any)
+                CHECK(types::set_default_format(bias_md_, x));
+            if (desc()->alg_kind == alg_kind::convolution_auto)
+                CHECK(set_alg_kind(alg_kind::convolution_direct));
              return status::success;
         }
     };
 
     _gemm_u8s8s32x_convolution_bwd_data_t(const pd_t *apd)
         : cpu_primitive_t(apd, true) {}
-    ~_gemm_u8s8s32x_convolution_bwd_data_t() {}
 
     typedef typename prec_traits<data_type::u8>::type diff_dst_data_t;
     typedef typename prec_traits<data_type::s8>::type wei_data_t;

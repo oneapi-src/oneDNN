@@ -23,8 +23,6 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-#include "cpu_primitive.hpp"
-#include "cpu_reorder_pd.hpp"
 #include "jit_uni_reorder.hpp"
 
 using namespace mkldnn::impl::types;

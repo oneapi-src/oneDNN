@@ -19,8 +19,8 @@
 #include <math.h>
 
 #include "c_types_map.hpp"
-#include "type_helpers.hpp"
 #include "mkldnn_thread.hpp"
+#include "type_helpers.hpp"
 
 #include "ref_softmax.hpp"
 #include "gemm/os_blas.hpp"
@@ -66,7 +66,7 @@ void ref_softmax_fwd_t<data_type>::execute_forward_generic(
         space_denom = space_max + inner_size_;
     }
 
-    const memory_desc_wrapper data_d(pd()->src_pd());
+    const memory_desc_wrapper data_d(pd()->src_md());
     const size_t dim = channels_ * inner_size_;
 
     for (int ou = 0; ou < outer_size_; ou++) {
@@ -232,8 +232,8 @@ void ref_softmax_bwd_t<data_type>::execute_backward_generic(
     auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
     auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
 
-    const memory_desc_wrapper diff_d(pd()->diff_src_pd());
-    const memory_desc_wrapper data_d(pd()->dst_pd());
+    const memory_desc_wrapper diff_d(pd()->diff_src_md());
+    const memory_desc_wrapper data_d(pd()->dst_md());
 
     const size_t dim = channels_ * inner_size_;
 

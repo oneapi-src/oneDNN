@@ -38,8 +38,8 @@ status_t simple_concat_t<data_type>::execute(const exec_ctx_t &ctx) const {
     auto o_base_ptr = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
 
     for (int a = 0; a < num_arrs; ++a) {
-        const memory_desc_wrapper i_d(pd()->src_pd(a));
-        const memory_desc_wrapper o_d(pd()->src_image_pd(a));
+        const memory_desc_wrapper i_d(pd()->src_md(a));
+        const memory_desc_wrapper o_d(pd()->src_image_md(a));
 
         iptrs[a] = CTX_IN_MEM(const data_t *, MKLDNN_ARG_MULTIPLE_SRC + a)
             + i_d.blk_off(0);
@@ -53,7 +53,7 @@ status_t simple_concat_t<data_type>::execute(const exec_ctx_t &ctx) const {
         }
     }
 
-    const memory_desc_wrapper o_d(pd()->src_image_pd());
+    const memory_desc_wrapper o_d(pd()->src_image_md(0));
     auto &blk = o_d.blocking_desc();
 
     strides_t os = { 0 };

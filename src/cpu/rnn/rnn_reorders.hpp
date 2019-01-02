@@ -33,21 +33,17 @@ namespace cpu {
 template <data_type_t type_i, data_type_t type_o>
 struct rnn_data_reorder_t : public cpu_primitive_t {
     struct pd_t : public cpu_reorder_pd_t {
-        pd_t(const cpu_memory_pd_t *input_pd, const cpu_memory_pd_t *output_pd,
-                const primitive_attr_t *attr)
-            : cpu_reorder_pd_t(input_pd, output_pd, attr) {}
+        using cpu_reorder_pd_t::cpu_reorder_pd_t;
 
         DECLARE_COMMON_PD_T("rnn_data_reorder", rnn_data_reorder_t);
 
         static status_t create(reorder_pd_t **reorder_pd,
-                const memory_pd_t *input_pd, const memory_pd_t *output_pd,
-                const primitive_attr_t *attr) {
+                engine_t *engine, const primitive_attr_t *attr,
+                engine_t *src_engine, const memory_desc_t *src_md,
+                engine_t *dst_engine, const memory_desc_t *dst_md) {
             using namespace memory_format;
-            using namespace data_type;
-            assert(input_pd->engine()->kind() == engine_kind::cpu);
-            assert(output_pd->engine()->kind() == engine_kind::cpu);
 
-            const memory_desc_wrapper id(input_pd), od(output_pd);
+            const memory_desc_wrapper id(src_md), od(dst_md);
             bool args_ok = true
                     && id.data_type() == type_i
                     && od.data_type() == type_o
@@ -55,8 +51,8 @@ struct rnn_data_reorder_t : public cpu_primitive_t {
                     && od.format() == id.format();
             if (!args_ok) return status::invalid_arguments;
 
-            auto _pd = new pd_t((const cpu_memory_pd_t *)input_pd,
-                    (const cpu_memory_pd_t *)output_pd, attr);
+            auto _pd = new pd_t(engine, attr, src_engine, src_md, dst_engine,
+                    dst_md);
             if (_pd == nullptr) return out_of_memory;
             if (_pd->init() != success) { delete _pd; return unimplemented; }
             return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
@@ -72,8 +68,8 @@ private:
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         auto input = CTX_IN_MEM(const in_data_t *, MKLDNN_ARG_FROM);
         auto output = CTX_OUT_MEM(out_data_t *, MKLDNN_ARG_TO);
-        const memory_desc_wrapper &input_d = pd()->input_pd();
-        const memory_desc_wrapper &output_d = pd()->output_pd();
+        const memory_desc_wrapper &input_d = pd()->src_md();
+        const memory_desc_wrapper &output_d = pd()->dst_md();
         const round_mode_t rmode = pd()->attr()->round_mode_;
         const size_t nelems = input_d.nelems();
         const float scale = pd()->attr()->rnn_data_qparams_.scale_;
@@ -93,31 +89,26 @@ private:
 template <data_type_t type_i, data_type_t type_o>
 struct rnn_weights_reorder_t : public cpu_primitive_t {
     struct pd_t : public cpu_reorder_pd_t {
-        pd_t(const cpu_memory_pd_t *input_pd, const cpu_memory_pd_t *output_pd,
-                const primitive_attr_t *attr)
-            : cpu_reorder_pd_t(input_pd, output_pd, attr) {}
+        using cpu_reorder_pd_t::cpu_reorder_pd_t;
 
         DECLARE_COMMON_PD_T("rnn_weights_reorder", rnn_weights_reorder_t);
 
         static status_t create(reorder_pd_t **reorder_pd,
-                const memory_pd_t *input_pd, const memory_pd_t *output_pd,
-                const primitive_attr_t *attr) {
+                engine_t *engine, const primitive_attr_t *attr,
+                engine_t *src_engine, const memory_desc_t *src_md,
+                engine_t *dst_engine, const memory_desc_t *dst_md) {
 #if !USE_MKL_PACKED_GEMM
             return status::unimplemented;
 #endif
             using namespace memory_format;
-            assert(input_pd->engine()->kind() == engine_kind::cpu);
-            assert(output_pd->engine()->kind() == engine_kind::cpu);
-            const memory_desc_wrapper output_d(output_pd);
 
-            const memory_desc_wrapper id(input_pd), od(output_pd);
+            const memory_desc_wrapper id(src_md), od(dst_md);
             bool args_ok = true
                     && id.data_type() == type_i
                     && od.data_type() == type_o
                     && utils::one_of(id.format(), ldigo, ldgoi)
                     && od.format() == rnn_packed
-                    && od.rnn_packed_desc().format
-                            == mkldnn_ldigo_p
+                    && od.rnn_packed_desc().format == mkldnn_ldigo_p
                     && od.rnn_packed_desc().n_parts == 1
                     && attr != nullptr;
             if (!args_ok) return status::invalid_arguments;
@@ -125,14 +116,14 @@ struct rnn_weights_reorder_t : public cpu_primitive_t {
             const int mask = attr->rnn_weights_qparams_.mask_;
             if (!utils::one_of(mask, 0, 3)) return status::unimplemented;
 
-            auto _pd = new pd_t((const cpu_memory_pd_t *)input_pd,
-                    (const cpu_memory_pd_t *)output_pd, attr);
+            auto _pd = new pd_t(engine, attr, src_engine, src_md, dst_engine,
+                    dst_md);
             if (_pd == nullptr) return out_of_memory;
             if (_pd->init() != success) { delete _pd; return unimplemented; }
             return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
         }
 
-        virtual status_t init() override {
+        status_t init() {
             status_t status = cpu_reorder_pd_t::init();
             if (status != status::success) return status;
 
@@ -143,7 +134,7 @@ struct rnn_weights_reorder_t : public cpu_primitive_t {
 
     private:
         void init_scratchpad() {
-            const memory_desc_wrapper id(input_pd());
+            const memory_desc_wrapper id(src_md());
             const size_t nelems = id.nelems();
             const auto &dims = id.dims();
 
@@ -170,8 +161,8 @@ private:
 #if USE_MKL_PACKED_GEMM
         auto input = CTX_IN_MEM(const in_data_t *, MKLDNN_ARG_FROM);
         auto output = CTX_OUT_MEM(char *, MKLDNN_ARG_TO);
-        const memory_desc_wrapper &input_d = pd()->input_pd();
-        const memory_desc_wrapper &output_d = pd()->output_pd();
+        const memory_desc_wrapper &input_d = pd()->src_md();
+        const memory_desc_wrapper &output_d = pd()->dst_md();
         const auto &dims = input_d.dims();
 
         const int L = dims[0];
@@ -286,28 +277,23 @@ template <>
 struct rnn_weights_reorder_t<data_type::f32, data_type::f32>
         : public cpu_primitive_t {
     struct pd_t : public cpu_reorder_pd_t {
-        pd_t(const cpu_memory_pd_t *input_pd, const cpu_memory_pd_t *output_pd,
-                const primitive_attr_t *attr)
-            : cpu_reorder_pd_t(input_pd, output_pd, attr) {}
+        using cpu_reorder_pd_t::cpu_reorder_pd_t;
 
         DECLARE_COMMON_PD_T("rnn_weights_reorder", rnn_weights_reorder_t);
 
         static status_t create(reorder_pd_t **reorder_pd,
-                const memory_pd_t *input_pd, const memory_pd_t *output_pd,
-                const primitive_attr_t *attr) {
+                engine_t *engine, const primitive_attr_t *attr,
+                engine_t *src_engine, const memory_desc_t *src_md,
+                engine_t *dst_engine, const memory_desc_t *dst_md) {
 #if !USE_MKL_PACKED_GEMM
             return status::unimplemented;
 #endif
             using namespace memory_format;
-            using namespace data_type;
-            assert(input_pd->engine()->kind() == engine_kind::cpu);
-            assert(output_pd->engine()->kind() == engine_kind::cpu);
-            const memory_desc_wrapper output_d(output_pd);
 
-            const memory_desc_wrapper id(input_pd), od(output_pd);
+            const memory_desc_wrapper id(src_md), od(dst_md);
             bool args_ok = true
-                    && id.data_type() == f32
-                    && od.data_type() == f32
+                    && id.data_type() == data_type::f32
+                    && od.data_type() == data_type::f32
                     && utils::one_of(id.format(), ldigo, ldgoi)
                     && od.format() == rnn_packed
                     && utils::one_of(od.rnn_packed_desc().format,
@@ -318,8 +304,8 @@ struct rnn_weights_reorder_t<data_type::f32, data_type::f32>
             const int mask = attr->rnn_weights_qparams_.mask_;
             if (!utils::one_of(mask, 0, 3)) return status::unimplemented;
 
-            auto _pd = new pd_t((const cpu_memory_pd_t *)input_pd,
-                    (const cpu_memory_pd_t *)output_pd, attr);
+            auto _pd = new pd_t(engine, attr, src_engine, src_md, dst_engine,
+                    dst_md);
             if (_pd == nullptr) return out_of_memory;
             if (_pd->init() != success) { delete _pd; return unimplemented; }
             return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
@@ -333,8 +319,8 @@ private:
 #if USE_MKL_PACKED_GEMM
         auto input = CTX_IN_MEM(const float *, MKLDNN_ARG_FROM);
         auto output = CTX_OUT_MEM(float *, MKLDNN_ARG_TO);
-        const memory_desc_wrapper &input_d = pd()->input_pd();
-        const memory_desc_wrapper &output_d = pd()->output_pd();
+        const memory_desc_wrapper &input_d = pd()->src_md();
+        const memory_desc_wrapper &output_d = pd()->dst_md();
         const auto &dims = input_d.dims();
         const rnn_packed_data_t &rnn_pdata = output_d.rnn_packed_desc();
         const int L = dims[0];

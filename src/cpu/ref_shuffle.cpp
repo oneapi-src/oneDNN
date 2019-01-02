@@ -35,7 +35,7 @@ void ref_shuffle_t<data_type_size>::execute_(const exec_ctx_t &ctx) const {
     using namespace prop_kind;
     using namespace utils;
 
-    const memory_desc_wrapper data_d(pd()->data_pd());
+    const memory_desc_wrapper data_d(pd()->data_md());
 
     auto i_arg = pd()->is_fwd() ? MKLDNN_ARG_SRC : MKLDNN_ARG_DIFF_DST;
     auto o_arg = pd()->is_fwd() ? MKLDNN_ARG_DST : MKLDNN_ARG_DIFF_SRC;

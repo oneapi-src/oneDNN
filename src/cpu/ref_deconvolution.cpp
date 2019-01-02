@@ -28,7 +28,7 @@ namespace cpu {
 
 void ref_deconvolution_fwd_t::compute_fwd_bias(const data_t *bias,
         data_t *dst) const {
-    const memory_desc_wrapper dst_d(pd()->dst_pd());
+    const memory_desc_wrapper dst_d(pd()->dst_md());
 
     const int G = pd()->G();
     const int MB = pd()->MB();
@@ -52,7 +52,7 @@ void ref_deconvolution_fwd_t::compute_fwd_bias(const data_t *bias,
 
 void ref_deconvolution_fwd_t::compute_fwd_bias_ncdhw(const data_t *bias,
         data_t *dst) const {
-    const memory_desc_wrapper dst_d(pd()->dst_pd());
+    const memory_desc_wrapper dst_d(pd()->dst_md());
 
     const int MB = pd()->MB();
     const int OC = pd()->OC();
@@ -70,7 +70,7 @@ void ref_deconvolution_fwd_t::compute_fwd_bias_ncdhw(const data_t *bias,
 template <int blksize>
 void ref_deconvolution_fwd_t::compute_fwd_bias_nCdhwXc(const data_t *bias,
         data_t *dst) const {
-    const memory_desc_wrapper dst_d(pd()->dst_pd());
+    const memory_desc_wrapper dst_d(pd()->dst_md());
 
     const int MB = pd()->MB();
     const int OC = pd()->OC();
@@ -92,7 +92,7 @@ void ref_deconvolution_fwd_t::compute_fwd_bias_nCdhwXc(const data_t *bias,
 
 void ref_deconvolution_bwd_weights_t::compute_bwd_bias(const data_t *diff_dst,
         data_t *diff_bias) const {
-    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
+    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
 
     const int G = pd()->G();
     const int MB = pd()->MB();
@@ -132,7 +132,7 @@ void ref_deconvolution_bwd_weights_t::compute_bwd_bias(const data_t *diff_dst,
 
 void ref_deconvolution_bwd_weights_t::compute_bwd_bias_ncdhw(
         const data_t *diff_dst, data_t *diff_bias) const {
-    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
+    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
 
     const int OC = pd()->OC();
     const int MB = pd()->MB();
@@ -154,7 +154,7 @@ void ref_deconvolution_bwd_weights_t::compute_bwd_bias_ncdhw(
 template <int blksize>
 void ref_deconvolution_bwd_weights_t::compute_bwd_bias_nCdhwXc(
         const data_t *diff_dst, data_t *diff_bias) const {
-    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
+    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
 
     const int OC = pd()->OC();
     const int MB = pd()->MB();

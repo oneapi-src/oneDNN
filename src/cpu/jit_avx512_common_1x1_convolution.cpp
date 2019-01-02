@@ -100,9 +100,9 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type, dst_type>::
 execute_forward_thr(const int ithr, const int nthr, const src_data_t *src,
         const wei_data_t *weights, const dst_data_t *bias, dst_data_t *dst,
         const memory_tracking::grantor_t &scratchpad) const {
-    const memory_desc_wrapper src_d(pd()->src_pd());
-    const memory_desc_wrapper dst_d(pd()->dst_pd());
-    const memory_desc_wrapper weights_d(pd()->weights_pd(0));
+    const memory_desc_wrapper src_d(pd()->src_md());
+    const memory_desc_wrapper dst_d(pd()->dst_md());
+    const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
     const auto &jcp = kernel_->jcp;
     auto rtus_space = scratchpad.get<src_data_t>(key_conv_rtus_space);
@@ -293,9 +293,9 @@ void jit_avx512_common_1x1_convolution_bwd_data_t<diff_dst_type, wei_type,
     auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
     auto diff_src = CTX_OUT_MEM(diff_src_data_t *, MKLDNN_ARG_DIFF_SRC);
 
-    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
-    const memory_desc_wrapper weights_d(pd()->weights_pd(0));
-    const memory_desc_wrapper diff_src_d(pd()->diff_src_pd());
+    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
+    const memory_desc_wrapper weights_d(pd()->weights_md(0));
+    const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
 
     const auto &jcp = kernel_->jcp;
     auto rtus_space = scratchpad().template get<diff_src_data_t>(
@@ -459,9 +459,9 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights(
     auto diff_weights = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_WEIGHTS);
     auto diff_bias_in = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_BIAS);
 
-    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
-    const memory_desc_wrapper src_d(pd()->src_pd());
-    const memory_desc_wrapper diff_weights_d(pd()->diff_weights_pd(0));
+    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
+    const memory_desc_wrapper src_d(pd()->src_md());
+    const memory_desc_wrapper diff_weights_d(pd()->diff_weights_md(0));
 
     const auto &jcp = kernel_->jcp;
 

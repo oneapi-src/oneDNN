@@ -18,9 +18,10 @@
 #define CPU_JIT_AVX512_COMMON_LRN_HPP
 
 #include "c_types_map.hpp"
+
+#include "cpu_isa_traits.hpp"
 #include "cpu_lrn_pd.hpp"
-#include "cpu_engine.hpp"
-#include "jit_generator.hpp"
+#include "cpu_primitive.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -28,15 +29,13 @@ namespace cpu {
 
 struct jit_avx512_common_lrn_fwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_lrn_fwd_pd_t {
-        pd_t(engine_t *engine, const lrn_desc_t *adesc,
-                const primitive_attr_t *attr, const lrn_fwd_pd_t *hint_fwd_pd)
-            : cpu_lrn_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+        using cpu_lrn_fwd_pd_t::cpu_lrn_fwd_pd_t;
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit:", avx512_common, ""),
                 jit_avx512_common_lrn_fwd_t);
 
-        virtual status_t init() override;
+        status_t init();
     };
 
     jit_avx512_common_lrn_fwd_t(const pd_t *apd);
@@ -56,20 +55,17 @@ private:
     int use_h_parallelism;
     struct jit_avx512_common_lrn_kernel_f32;
     jit_avx512_common_lrn_kernel_f32 *ker_, *ker_first_, *ker_last_;
-
 };
 
 struct jit_avx512_common_lrn_bwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_lrn_bwd_pd_t {
-        pd_t(engine_t *engine, const lrn_desc_t *adesc,
-                const primitive_attr_t *attr, const lrn_fwd_pd_t *hint_fwd_pd)
-            : cpu_lrn_bwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+        using cpu_lrn_bwd_pd_t::cpu_lrn_bwd_pd_t;
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit:", avx512_common, ""),
                 jit_avx512_common_lrn_bwd_t);
 
-        virtual status_t init() override;
+        status_t init();
     };
 
     jit_avx512_common_lrn_bwd_t(const pd_t *apd);
@@ -89,7 +85,6 @@ private:
     int use_h_parallelism;
     struct jit_avx512_common_lrn_kernel_f32;
     jit_avx512_common_lrn_kernel_f32 *ker_, *ker_first_, *ker_last_;
-
 };
 
 }

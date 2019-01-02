@@ -18,7 +18,6 @@
 #define JIT_AVX512_CORE_FP32_WINO_CONV_4x3_KERNEL_HPP
 
 #include "c_types_map.hpp"
-#include "cpu_memory.hpp"
 
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
@@ -159,8 +158,8 @@ struct jit_avx512_core_fp32_wino_conv_4x3_fwd_kernel
     static bool post_ops_ok(jit_conv_conf_t &jcp, const primitive_attr_t &attr);
 
     static status_t init_conf(jit_conv_winograd_conf_t &jcp,
-            const convolution_desc_t &cd, const cpu_memory_t::pd_t &src_pd,
-            cpu_memory_t::pd_t &weights_pd, const cpu_memory_t::pd_t &dst_pd,
+            const convolution_desc_t &cd, const memory_desc_t &src_md,
+            memory_desc_t &weights_md, const memory_desc_t &dst_md,
             const primitive_attr_t &attr);
 };
 

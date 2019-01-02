@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018 Intel Corporation
+* Copyright 2016-2018 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,27 +14,20 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_DECONVOLUTION_PD_HPP
-#define CPU_DECONVOLUTION_PD_HPP
+#ifndef CPU_SUM_PD_HPP
+#define CPU_SUM_PD_HPP
 
-#include <assert.h>
-
-#include "deconvolution_pd.hpp"
+#include "c_types_map.hpp"
+#include "sum_pd.hpp"
+#include "type_helpers.hpp"
+#include "utils.hpp"
 
 namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-struct cpu_deconvolution_fwd_pd_t: public deconvolution_fwd_pd_t {
-    using deconvolution_fwd_pd_t::deconvolution_fwd_pd_t;
-};
-
-struct cpu_deconvolution_bwd_data_pd_t: public deconvolution_bwd_data_pd_t {
-    using deconvolution_bwd_data_pd_t::deconvolution_bwd_data_pd_t;
-};
-
-struct cpu_deconvolution_bwd_weights_pd_t: public deconvolution_bwd_weights_pd_t {
-    using deconvolution_bwd_weights_pd_t::deconvolution_bwd_weights_pd_t;
+struct cpu_sum_pd_t: public sum_pd_t {
+    using sum_pd_t::sum_pd_t;
 };
 
 }

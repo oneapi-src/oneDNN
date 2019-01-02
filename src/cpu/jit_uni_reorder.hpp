@@ -116,8 +116,9 @@ protected:
 
 /* for cpu reorder list */
 status_t jit_uni_reorder_create(reorder_pd_t **reorder_pd,
-        const memory_pd_t *input_pd, const memory_pd_t *output_pd,
-        const primitive_attr_t *attr);
+        engine_t *engine, const primitive_attr_t *attr,
+        engine_t *src_engine, const memory_desc_t *src_md,
+        engine_t *dst_engine, const memory_desc_t *dst_md);
 
 }
 }

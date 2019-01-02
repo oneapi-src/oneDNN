@@ -16,13 +16,10 @@
 
 #include <assert.h>
 
-#include "cpu_engine.hpp"
-#include "cpu_memory.hpp"
 #include "type_helpers.hpp"
 #include "verbose.hpp"
 
-#include "cpu_concat.hpp"
-#include "cpu_sum.hpp"
+#include "cpu_engine.hpp"
 
 #include "cpu/rnn/ref_rnn.hpp"
 
@@ -68,14 +65,6 @@
 namespace mkldnn {
 namespace impl {
 namespace cpu {
-
-using namespace mkldnn::impl::status;
-
-status_t cpu_engine_t::memory_primitive_desc_create(memory_pd_t **pd,
-        const memory_desc_t *desc) {
-    return safe_ptr_assign<memory_pd_t>(*pd,
-            new cpu_memory_t::pd_t(this, desc));
-}
 
 using pd_create_f = mkldnn::impl::engine_t::primitive_desc_create_f;
 

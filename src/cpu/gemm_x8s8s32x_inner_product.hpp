@@ -28,6 +28,7 @@
 #include "jit_generator.hpp"
 
 #include "cpu_inner_product_pd.hpp"
+#include "cpu_primitive.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -36,41 +37,33 @@ namespace cpu {
 template <impl::data_type_t src_type, impl::data_type_t dst_type>
 struct gemm_x8s8s32x_inner_product_fwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_inner_product_fwd_pd_t {
-        pd_t(engine_t *engine, const inner_product_desc_t *adesc,
-                const primitive_attr_t *attr,
-                const inner_product_fwd_pd_t *hint_fwd_pd)
-            : cpu_inner_product_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+        using cpu_inner_product_fwd_pd_t::cpu_inner_product_fwd_pd_t;
 
         DECLARE_COMMON_PD_T(src_type == data_type::u8
                 ? IGEMM_S8U8S32_IMPL_STR
                 : IGEMM_S8S8S32_IMPL_STR,
                 gemm_x8s8s32x_inner_product_fwd_t);
 
-        virtual status_t init() override {
-            using namespace utils;
+        status_t init() {
             using namespace data_type;
 
-            assert(engine()->kind() == engine_kind::cpu);
-
             bool ok = true
-                && this->set_default_params() == status::success
-                && one_of(desc()->prop_kind, prop_kind::forward_training,
-                        prop_kind::forward_inference)
+                && set_default_params() == status::success
+                && is_fwd()
                 && !has_zero_dim_memory()
-                && this->desc()->src_desc.data_type == src_type
-                && this->desc()->dst_desc.data_type == dst_type
-                && this->desc()->weights_desc.data_type == s8
-                && IMPLICATION(this->with_bias(), utils::one_of(
-                            this->desc()->bias_desc.data_type, f32, s32, s8,
-                            u8))
+                && src_md()->data_type == src_type
+                && dst_md()->data_type == dst_type
+                && weights_md()->data_type == s8
+                && IMPLICATION(with_bias(), utils::one_of(
+                            weights_md(1)->data_type, f32, s32, s8, u8))
                 && attr()->post_ops_.len_ <= 1
                 && IMPLICATION(attr()->post_ops_.len_,
                         attr()->post_ops_.entry_[0].is_relu(true, false))
-                && dense_gemm_consitency_check(src_pd(), weights_pd(),
-                        dst_pd());
+                && dense_gemm_consitency_check(src_md(), weights_md(),
+                        dst_md());
             if (!ok) return status::unimplemented;
 
-            dst_is_acc_ = one_of(dst_type, s32, f32);
+            dst_is_acc_ = utils::one_of(dst_type, s32, f32);
 
             init_scratchpad();
 
@@ -80,35 +73,19 @@ struct gemm_x8s8s32x_inner_product_fwd_t: public cpu_primitive_t {
         bool dst_is_acc_;
 
     protected:
-        virtual status_t set_default_params() override {
+        status_t set_default_params() {
             using namespace memory_format;
-
-            if (this->src_pd_.desc()->format == any) {
-                switch (ndims()) {
-                case 0: // XXX: temp fix
-                case 2: CHECK(this->src_pd_.set_format(nc)); break;
-                case 3: CHECK(this->src_pd_.set_format(nwc)); break;
-                case 4: CHECK(this->src_pd_.set_format(nhwc)); break;
-                case 5: CHECK(this->src_pd_.set_format(ndhwc)); break;
-                default: assert(!"unsupported ndims format");
-                }
+            if (src_md_.format == any) {
+                CHECK(types::set_default_format(src_md_,
+                            utils::pick(ndims() - 2, nc, nwc, nhwc, ndhwc)));
             }
-            if (this->dst_pd_.desc()->format == any)
-                CHECK(this->dst_pd_.set_format(nc));
-            if (this->weights_pd_.desc()->format == any) {
-                switch (ndims()) {
-                case 0: // XXX: temp fix
-                case 2: CHECK(this->weights_pd_.set_format(io)); break;
-                case 3: CHECK(this->weights_pd_.set_format(wio)); break;
-                case 4: CHECK(this->weights_pd_.set_format(hwio)); break;
-                case 5: CHECK(this->weights_pd_.set_format(dhwio)); break;
-                default: assert(!"unsupported ndims format");
-                }
+            if (dst_md_.format == any)
+                CHECK(types::set_default_format(dst_md_, nc));
+            if (weights_md_.format == any) {
+                CHECK(types::set_default_format(weights_md_,
+                            utils::pick(ndims() - 2, io, wio, hwio, dhwio)));
             }
-            if (this->bias_pd_.desc()->format == any)
-                CHECK(this->bias_pd_.set_format(x));
-
-            return status::success;
+            return inner_product_fwd_pd_t::set_default_params();
         }
 
     private:
@@ -180,6 +157,7 @@ private:
 
     pp_kernel_t *pp_kernel_;
 };
+
 }
 }
 }

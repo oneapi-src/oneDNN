@@ -38,10 +38,10 @@ execute_forward(const exec_ctx_t &ctx) const {
     auto bias = CTX_IN_MEM(const char *, MKLDNN_ARG_BIAS);
     auto dst = CTX_OUT_MEM(dst_data_t *, MKLDNN_ARG_DST);
 
-    const memory_desc_wrapper src_d(pd()->src_pd());
-    const memory_desc_wrapper dst_d(pd()->dst_pd());
-    const memory_desc_wrapper weights_d(pd()->weights_pd(0));
-    const memory_desc_wrapper bias_d(pd()->weights_pd(1));
+    const memory_desc_wrapper src_d(pd()->src_md());
+    const memory_desc_wrapper dst_d(pd()->dst_md());
+    const memory_desc_wrapper weights_d(pd()->weights_md(0));
+    const memory_desc_wrapper bias_d(pd()->weights_md(1));
 
     const int MB = pd()->MB();
     const int OC = pd()->OC();
@@ -125,9 +125,9 @@ void ref_inner_product_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
     auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
     auto diff_src = CTX_OUT_MEM(diff_src_data_t *, MKLDNN_ARG_DIFF_SRC);
 
-    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
-    const memory_desc_wrapper weights_d(pd()->weights_pd(0));
-    const memory_desc_wrapper diff_src_d(pd()->diff_src_pd());
+    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
+    const memory_desc_wrapper weights_d(pd()->weights_md(0));
+    const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
 
     const int MB = pd()->MB();
     const int OC = pd()->OC();
@@ -200,10 +200,10 @@ void ref_inner_product_bwd_weights_t<data_type>::execute_backward_weights(
     auto diff_weights = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_WEIGHTS);
     auto diff_bias = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_BIAS);
 
-    const memory_desc_wrapper src_d(pd()->src_pd());
-    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
-    const memory_desc_wrapper diff_weights_d(pd()->diff_weights_pd(0));
-    const memory_desc_wrapper diff_bias_d(pd()->diff_weights_pd(1));
+    const memory_desc_wrapper src_d(pd()->src_md());
+    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
+    const memory_desc_wrapper diff_weights_d(pd()->diff_weights_md(0));
+    const memory_desc_wrapper diff_bias_d(pd()->diff_weights_md(1));
 
     const int MB = pd()->MB();
     const int OC = pd()->OC();

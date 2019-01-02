@@ -38,7 +38,7 @@ void nchw_pooling_fwd_t<data_type>::execute_forward(
     auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
     auto ws = CTX_OUT_MEM(unsigned char *, MKLDNN_ARG_WORKSPACE);
 
-    const memory_desc_wrapper ws_d(pd()->workspace_pd());
+    const memory_desc_wrapper ws_d(pd()->workspace_md());
     const data_type_t ws_dt = ws ? ws_d.data_type() : data_type::undef;
 
     const int MB = pd()->MB();
@@ -178,7 +178,7 @@ void nchw_pooling_bwd_t<data_type>::execute_backward(
     auto ws = CTX_IN_MEM(const unsigned char *, MKLDNN_ARG_WORKSPACE);
     auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
 
-    const memory_desc_wrapper ws_d(pd()->workspace_pd());
+    const memory_desc_wrapper ws_d(pd()->workspace_md());
 
     const int MB = pd()->MB();
     const int C = pd()->C();

@@ -53,9 +53,8 @@ void ref_lrn_fwd_t<data_type>::execute_forward(const exec_ctx_t &ctx) const {
 
     auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
     auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
-    auto ws = CTX_OUT_MEM(data_t *, MKLDNN_ARG_WORKSPACE);
 
-    const memory_desc_wrapper data_d(pd()->src_pd());
+    const memory_desc_wrapper data_d(pd()->src_md());
 
     const int C = pd()->C();
     const int H = pd()->H();
@@ -107,8 +106,6 @@ void ref_lrn_fwd_t<data_type>::execute_forward(const exec_ctx_t &ctx) const {
         const int summands = across_channels ? size : size * size;
         sum = k + alpha * sum / summands;
         size_t off = data_off(mb, oc, oh, ow);
-        if (ws)
-            ws[off] = static_cast<data_t>(sum);
         d[0] = static_cast<data_t>(src[off] * fast_negative_powf(sum, beta));
     };
 
@@ -148,7 +145,7 @@ void ref_lrn_bwd_t<data_type>::execute_backward(const exec_ctx_t &ctx) const {
     auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
     auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
 
-    const memory_desc_wrapper data_d(pd()->src_pd());
+    const memory_desc_wrapper data_d(pd()->src_md());
 
     const int MB = pd()->MB();
     const int C = pd()->C();

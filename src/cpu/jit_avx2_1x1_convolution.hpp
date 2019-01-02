@@ -23,7 +23,7 @@
 #include "utils.hpp"
 
 #include "cpu_convolution_pd.hpp"
-#include "cpu_engine.hpp"
+#include "cpu_primitive.hpp"
 #include "cpu_reducer.hpp"
 
 #include "jit_avx2_1x1_conv_kernel_f32.hpp"
@@ -47,13 +47,10 @@ struct jit_avx2_1x1_convolution_fwd_t: public cpu_primitive_t {
                 JIT_IMPL_NAME_HELPER("jit_1x1:", avx2, ""),
                 jit_avx2_1x1_convolution_fwd_t);
 
-        virtual status_t init() override {
-            using namespace prop_kind;
-            assert(this->engine()->kind() == engine_kind::cpu);
+        status_t init() {
             bool ok = true
                 && this->set_default_params() == status::success
-                && utils::one_of(this->desc()->prop_kind, forward_training,
-                        forward_inference)
+                && is_fwd()
                 && utils::one_of(this->desc()->alg_kind,
                         alg_kind::convolution_auto,
                         alg_kind::convolution_direct)
@@ -67,12 +64,11 @@ struct jit_avx2_1x1_convolution_fwd_t: public cpu_primitive_t {
             if (!ok) return status::unimplemented;
 
             const convolution_desc_t *conv_d = this->desc();
-            const memory_desc_t *src_d = this->src_pd_.desc();
-            rtus_prepare(this, conv_d, src_d, this->dst_pd_.desc());
+            const memory_desc_t *src_d = src_md();
+            rtus_prepare(this, conv_d, src_d, dst_md());
 
             status_t status = jit_avx2_1x1_conv_kernel_f32::init_conf(jcp_,
-                    *conv_d, *src_d, *this->weights_pd_.desc(),
-                    *this->dst_pd_.desc(), *this->attr());
+                    *conv_d, *src_d, *weights_md(), *dst_md(), *this->attr());
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -87,22 +83,22 @@ struct jit_avx2_1x1_convolution_fwd_t: public cpu_primitive_t {
         reduce_to_unit_stride_t rtus_;
 
     protected:
-        virtual status_t set_default_params() override {
+        status_t set_default_params() {
             using namespace memory_format;
-            if (this->src_pd_.desc()->format == any)
-                CHECK(this->src_pd_.set_format(utils::pick(this->ndims() - 3,
+            if (src_md_.format == any)
+                CHECK(types::set_default_format(src_md_, utils::pick(ndims() - 3,
                     nCw8c, nChw8c)));
-            if (this->dst_pd_.desc()->format == any)
-                CHECK(this->dst_pd_.set_format(utils::pick(this->ndims() - 3,
+            if (dst_md_.format == any)
+                CHECK(types::set_default_format(dst_md_, utils::pick(ndims() - 3,
                     nCw8c, nChw8c)));
-            if (this->weights_pd_.desc()->format == any)
-                CHECK(this->weights_pd_.set_format(this->with_groups()
-                    ? utils::pick(this->ndims() - 3, gOIw8i8o, gOIhw8i8o)
-                    : utils::pick(this->ndims() - 3, OIw8i8o, OIhw8i8o)));
-            if (this->bias_pd_.desc()->format == any)
-                CHECK(this->bias_pd_.set_format(x));
-            if (this->desc()->alg_kind == alg_kind::convolution_auto)
-                CHECK(this->set_alg_kind(alg_kind::convolution_direct));
+            if (weights_md_.format == any)
+                CHECK(types::set_default_format(weights_md_, with_groups()
+                    ? utils::pick(ndims() - 3, gOIw8i8o, gOIhw8i8o)
+                    : utils::pick(ndims() - 3, OIw8i8o, OIhw8i8o)));
+            if (bias_md_.format == any)
+                CHECK(types::set_default_format(bias_md_, x));
+            if (desc()->alg_kind == alg_kind::convolution_auto)
+                CHECK(set_alg_kind(alg_kind::convolution_direct));
             return status::success;
         }
     };
@@ -151,12 +147,10 @@ struct jit_avx2_1x1_convolution_bwd_data_t: public cpu_primitive_t {
                 JIT_IMPL_NAME_HELPER("jit_1x1:", avx2, ""),
                 jit_avx2_1x1_convolution_bwd_data_t);
 
-        virtual status_t init() override {
-            using namespace prop_kind;
-            assert(this->engine()->kind() == engine_kind::cpu);
+        status_t init() {
             bool ok = true
                 && this->set_default_params() == status::success
-                && this->desc()->prop_kind == backward_data
+                && this->desc()->prop_kind == prop_kind::backward_data
                 && utils::one_of(this->desc()->alg_kind, alg_kind::convolution_auto,
                            alg_kind::convolution_direct)
                 && !this->has_zero_dim_memory()
@@ -167,12 +161,12 @@ struct jit_avx2_1x1_convolution_bwd_data_t: public cpu_primitive_t {
             if (!ok) return status::unimplemented;
 
             const convolution_desc_t *conv_d = this->desc();
-            const memory_desc_t *diff_src_d = this->diff_src_pd_.desc();
-            rtus_prepare(this, conv_d, diff_src_d, this->diff_dst_pd_.desc());
+            const memory_desc_t *diff_src_d = diff_src_md();
+            rtus_prepare(this, conv_d, diff_src_d, diff_dst_md());
 
             status_t status = jit_avx2_1x1_conv_kernel_f32::init_conf(jcp_,
-                    *conv_d, *diff_src_d, *this->weights_pd_.desc(),
-                    *this->diff_dst_pd_.desc(), *this->attr());
+                    *conv_d, *diff_src_d, *weights_md(), *diff_dst_md(),
+                    *this->attr());
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -188,21 +182,20 @@ struct jit_avx2_1x1_convolution_bwd_data_t: public cpu_primitive_t {
         reduce_to_unit_stride_t rtus_;
 
     protected:
-        virtual status_t set_default_params() override {
+        status_t set_default_params() {
             using namespace memory_format;
-
-            if (this->diff_src_pd_.desc()->format == any)
-                CHECK(this->diff_src_pd_.set_format(utils::pick(
-                    this->ndims() - 3, nCw8c, nChw8c)));
-            if (this->diff_dst_pd_.desc()->format == any)
-                CHECK(this->diff_dst_pd_.set_format(utils::pick(
-                    this->ndims() - 3, nCw8c, nChw8c)));
-            if (this->weights_pd_.desc()->format == any)
-                CHECK(this->weights_pd_.set_format(this->with_groups()
-                    ? utils::pick(this->ndims() - 3, gOIw8o8i, gOIhw8o8i)
-                    : utils::pick(this->ndims() - 3, OIw8o8i, OIhw8o8i)));
-            if (this->desc()->alg_kind == alg_kind::convolution_auto)
-                CHECK(this->set_alg_kind(alg_kind::convolution_direct));
+            if (diff_src_md_.format == any)
+                CHECK(types::set_default_format(diff_src_md_, utils::pick(
+                    ndims() - 3, nCw8c, nChw8c)));
+            if (diff_dst_md_.format == any)
+                CHECK(types::set_default_format(diff_dst_md_, utils::pick(
+                    ndims() - 3, nCw8c, nChw8c)));
+            if (weights_md_.format == any)
+                CHECK(types::set_default_format(weights_md_, with_groups()
+                    ? utils::pick(ndims() - 3, gOIw8o8i, gOIhw8o8i)
+                    : utils::pick(ndims() - 3, OIw8o8i, OIhw8o8i)));
+            if (desc()->alg_kind == alg_kind::convolution_auto)
+                CHECK(set_alg_kind(alg_kind::convolution_direct));
             return status::success;
         }
     };
@@ -227,13 +220,7 @@ struct jit_avx2_1x1_convolution_bwd_data_t: public cpu_primitive_t {
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        switch (pd()->desc()->prop_kind) {
-        case prop_kind::backward_data:
-            execute_backward_data(ctx);
-            break;
-        default:
-            assert(!"invalid prop_kind");
-        }
+        execute_backward_data(ctx);
         return status::success;
     }
 
@@ -257,12 +244,10 @@ struct jit_avx2_1x1_convolution_bwd_weights_t: public cpu_primitive_t {
                 JIT_IMPL_NAME_HELPER("jit_1x1:", avx2, ""),
                 jit_avx2_1x1_convolution_bwd_weights_t);
 
-        virtual status_t init() override {
-            using namespace prop_kind;
-            assert(this->engine()->kind() == engine_kind::cpu);
+        status_t init() {
             bool ok = true
                 && this->set_default_params() == status::success
-                && this->desc()->prop_kind == backward_weights
+                && this->desc()->prop_kind == prop_kind::backward_weights
                 && utils::one_of(this->desc()->alg_kind, alg_kind::convolution_auto,
                            alg_kind::convolution_direct)
                 && !this->has_zero_dim_memory()
@@ -275,12 +260,12 @@ struct jit_avx2_1x1_convolution_bwd_weights_t: public cpu_primitive_t {
             if (!ok) return status::unimplemented;
 
             const convolution_desc_t *conv_d = this->desc();
-            const memory_desc_t *src_d = this->src_pd_.desc();
-            rtus_prepare(this, conv_d, src_d, this->diff_dst_pd_.desc());
+            const memory_desc_t *src_d = src_md();
+            rtus_prepare(this, conv_d, src_d, diff_dst_md());
 
             status_t status = jit_avx2_1x1_conv_kernel_f32::init_conf(jcp_,
-                    *conv_d, *src_d, *this->diff_weights_pd_.desc(),
-                    *this->diff_dst_pd_.desc(), *this->attr());
+                    *conv_d, *src_d, *diff_weights_md(), *diff_dst_md(),
+                    *this->attr());
             if (status != status::success) return status;
 
             init_balancers();
@@ -307,23 +292,22 @@ struct jit_avx2_1x1_convolution_bwd_weights_t: public cpu_primitive_t {
         reduce_to_unit_stride_t rtus_;
 
     protected:
-        virtual status_t set_default_params() override {
+        status_t set_default_params() {
             using namespace memory_format;
-
-            if (this->src_pd_.desc()->format == any)
-                CHECK(this->src_pd_.set_format(utils::pick(this->ndims() - 3,
-                    nCw8c, nChw8c)));
-            if (this->diff_dst_pd_.desc()->format == any)
-                CHECK(this->diff_dst_pd_.set_format(utils::pick(
-                    this->ndims() - 3, nCw8c, nChw8c)));
-            if (this->diff_weights_pd_.desc()->format == any)
-                CHECK(this->diff_weights_pd_.set_format(this->with_groups()
-                    ? utils::pick(this->ndims() - 3, gOIw8i8o, gOIhw8i8o)
-                    : utils::pick(this->ndims() - 3, OIw8i8o, OIhw8i8o)));
-            if (this->diff_bias_pd_.desc()->format == any)
-                CHECK(this->diff_bias_pd_.set_format(x));
-            if (this->desc()->alg_kind == alg_kind::convolution_auto)
-                CHECK(this->set_alg_kind(alg_kind::convolution_direct));
+            if (src_md_.format == any)
+                CHECK(types::set_default_format(src_md_,
+                            utils::pick(ndims() - 3, nCw8c, nChw8c)));
+            if (diff_dst_md_.format == any)
+                CHECK(types::set_default_format(diff_dst_md_,
+                            utils::pick(ndims() - 3, nCw8c, nChw8c)));
+            if (diff_weights_md_.format == any)
+                CHECK(types::set_default_format(diff_weights_md_, with_groups()
+                    ? utils::pick(ndims() - 3, gOIw8i8o, gOIhw8i8o)
+                    : utils::pick(ndims() - 3, OIw8i8o, OIhw8i8o)));
+            if (diff_bias_md_.format == any)
+                CHECK(types::set_default_format(diff_bias_md_, x));
+            if (desc()->alg_kind == alg_kind::convolution_auto)
+                CHECK(set_alg_kind(alg_kind::convolution_direct));
             return status::success;
         }
 
@@ -376,13 +360,7 @@ struct jit_avx2_1x1_convolution_bwd_weights_t: public cpu_primitive_t {
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        switch (pd()->desc()->prop_kind) {
-        case prop_kind::backward_weights:
-            execute_backward_weights(ctx);
-            break;
-        default:
-            assert(!"invalid prop_kind");
-        }
+        execute_backward_weights(ctx);
         return status::success;
     }
 

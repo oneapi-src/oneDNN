@@ -19,7 +19,8 @@
 
 #include "memory_tracking.hpp"
 
-#include "cpu_concat.hpp"
+#include "cpu_concat_pd.hpp"
+#include "cpu_primitive.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -27,33 +28,29 @@ namespace cpu {
 
 template <data_type_t data_type>
 struct simple_concat_t: public cpu_primitive_t {
-    using cpu_memory_pd_t = cpu_memory_t::pd_t;
-
     struct pd_t: public cpu_concat_pd_t {
-        pd_t(const memory_desc_t *output_d, int n, int concat_dim,
-                const cpu_memory_pd_t **input_pds,
-                const primitive_attr_t *attr)
-            : cpu_concat_pd_t(output_d, n, concat_dim, input_pds, attr) {}
+        using cpu_concat_pd_t::cpu_concat_pd_t;
 
-        pd_t(const pd_t &rhs) : cpu_concat_pd_t(rhs) {
-            for (size_t i = 0; i < sizeof(perm_)/sizeof(perm_[0]); i++) {
+        pd_t(const pd_t &rhs): cpu_concat_pd_t(rhs)
+        {
+            for (size_t i = 0; i < sizeof(perm_) / sizeof(perm_[0]); i++) {
                 perm_[i] = rhs.perm_[i];
                 iperm_[i] = rhs.iperm_[i];
             }
         }
 
-        DECLARE_CPU_CONCAT_PD_T("simple:any", simple_concat_t);
+        DECLARE_CONCAT_PD_T("simple:any", simple_concat_t);
 
-        virtual status_t init() override {
-            const memory_desc_wrapper dst_d(&dst_pd_);
+        status_t init() {
+            const memory_desc_wrapper dst_d(dst_md());
             bool ok = true
-                && cpu_concat_pd_t::init() == success
+                && cpu_concat_pd_t::init() == status::success
                 && dst_d.ndims() <= 6;
-            if (!ok) return unimplemented;
+            if (!ok) return status::unimplemented;
 
-            for (size_t i = 0; i < src_pds_.size(); ++i) {
-                const memory_desc_wrapper i_d(&src_pds_[i]);
-                const memory_desc_wrapper o_d(&src_image_pds_[i]);
+            for (size_t i = 0; i < src_mds_.size(); ++i) {
+                const memory_desc_wrapper i_d(&src_mds_[i]);
+                const memory_desc_wrapper o_d(&src_image_mds_[i]);
                 ok = ok
                     && utils::everyone_is(data_type, i_d.data_type(),
                             o_d.data_type())
@@ -61,24 +58,24 @@ struct simple_concat_t: public cpu_primitive_t {
                     && !utils::one_of(i_d.format(), memory_format::blocked,
                             memory_format::wino_fmt)
                     && !i_d.is_additional_buffer();
-                if (!ok) return unimplemented;
+                if (!ok) return status::unimplemented;
             }
 
             format_perm();
 
             // density check
-            for (size_t i = 0; i < src_pds_.size(); ++i) {
-                const memory_desc_wrapper i_d(&src_pds_[i]);
-                const memory_desc_wrapper o_d(&src_image_pds_[i]);
+            for (size_t i = 0; i < src_mds_.size(); ++i) {
+                const memory_desc_wrapper i_d(&src_mds_[i]);
+                const memory_desc_wrapper o_d(&src_image_mds_[i]);
                 ok = ok
                     && nelems_to_concat(i_d) == size_to_concat(i_d)
                     && nelems_to_concat(o_d) == size_to_concat(o_d);
-                if (!ok) return unimplemented;
+                if (!ok) return status::unimplemented;
             }
 
             init_scratchpad();
 
-            return success;
+            return status::success;
         }
 
         dims_t perm_;
@@ -99,7 +96,7 @@ struct simple_concat_t: public cpu_primitive_t {
 
     private:
         void format_perm() {
-            const memory_desc_wrapper dst_d(&dst_pd_);
+            const memory_desc_wrapper dst_d(dst_md());
             const int ndims = dst_d.ndims();
 
             strides_t strides;
@@ -149,7 +146,6 @@ struct simple_concat_t: public cpu_primitive_t {
     };
 
     simple_concat_t(const pd_t *apd): cpu_primitive_t(apd) {}
-    ~simple_concat_t() {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override;
 

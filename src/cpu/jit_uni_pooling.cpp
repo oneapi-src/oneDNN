@@ -17,9 +17,10 @@
 #include "mkldnn_types.h"
 
 #include "c_types_map.hpp"
-#include "jit_uni_pooling.hpp"
 #include "type_helpers.hpp"
 #include "nstl.hpp"
+
+#include "jit_uni_pooling.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -28,9 +29,9 @@ namespace cpu {
 template <cpu_isa_t isa>
 void jit_uni_pooling_fwd_t<isa>::execute_forward(const data_t *src,
         data_t *dst, char *indices) const {
-    const memory_desc_wrapper src_d(pd()->src_pd());
-    const memory_desc_wrapper dst_d(pd()->dst_pd());
-    const memory_desc_wrapper indices_d(pd()->workspace_pd());
+    const memory_desc_wrapper src_d(pd()->src_md());
+    const memory_desc_wrapper dst_d(pd()->dst_md());
+    const memory_desc_wrapper indices_d(pd()->workspace_md());
     const size_t ind_dt_size = indices
         ? types::data_type_size(indices_d.data_type()) : 0;
 
@@ -69,9 +70,9 @@ void jit_uni_pooling_fwd_t<isa>::execute_forward(const data_t *src,
 template <cpu_isa_t isa>
 void jit_uni_pooling_fwd_t<isa>::execute_forward_3d(const data_t *src,
         data_t *dst, char *indices) const {
-    const memory_desc_wrapper src_d(pd()->src_pd());
-    const memory_desc_wrapper dst_d(pd()->dst_pd());
-    const memory_desc_wrapper indices_d(pd()->workspace_pd());
+    const memory_desc_wrapper src_d(pd()->src_md());
+    const memory_desc_wrapper dst_d(pd()->dst_md());
+    const memory_desc_wrapper indices_d(pd()->workspace_md());
     const size_t ind_dt_size = indices
         ? types::data_type_size(indices_d.data_type()) : 0;
 
@@ -124,9 +125,9 @@ void jit_uni_pooling_fwd_t<isa>::execute_forward_3d(const data_t *src,
 template <cpu_isa_t isa>
 void jit_uni_pooling_bwd_t<isa>::execute_backward(const data_t *diff_dst,
         const char *indices, data_t *diff_src) const {
-    const memory_desc_wrapper diff_src_d(pd()->diff_src_pd());
-    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
-    const memory_desc_wrapper indices_d(pd()->workspace_pd());
+    const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
+    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
+    const memory_desc_wrapper indices_d(pd()->workspace_md());
     const size_t ind_dt_size = indices
         ? types::data_type_size(indices_d.data_type()) : 0;
 
@@ -167,9 +168,9 @@ void jit_uni_pooling_bwd_t<isa>::execute_backward(const data_t *diff_dst,
 template <cpu_isa_t isa>
 void jit_uni_pooling_bwd_t<isa>::execute_backward_3d(const data_t *diff_dst,
         const char *indices, data_t *diff_src) const {
-    const memory_desc_wrapper diff_src_d(pd()->diff_src_pd());
-    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
-    const memory_desc_wrapper indices_d(pd()->workspace_pd());
+    const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
+    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
+    const memory_desc_wrapper indices_d(pd()->workspace_md());
     const size_t ind_dt_size = indices
         ? types::data_type_size(indices_d.data_type()) : 0;
 

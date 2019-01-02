@@ -353,9 +353,9 @@ status_t rnn_utils::set_good_strides(memory_desc_t &weights_md) {
         strides[1] = dims[3] * strides[3];
         strides[0] = dims[1] * strides[1];
     } else
-        return unimplemented;
+        return status::unimplemented;
 
-    return success;
+    return status::success;
 }
 
 status_t rnn_utils::set_expected_desc(rnn_conf_t &rnn,
@@ -392,7 +392,7 @@ status_t rnn_utils::set_expected_desc(rnn_conf_t &rnn,
         // Adjust strides for good leading dimension in GEMM
         CHECK(set_good_strides(weights_md));
     }
-    return success;
+    return status::success;
 }
 
 }

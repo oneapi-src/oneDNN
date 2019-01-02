@@ -14,16 +14,13 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_SOFTMAX_FWD_PD_HPP
-#define CPU_SOFTMAX_FWD_PD_HPP
+#ifndef CPU_SOFTMAX_PD_HPP
+#define CPU_SOFTMAX_PD_HPP
 
 #include <assert.h>
 
 #include "c_types_map.hpp"
 #include "softmax_pd.hpp"
-#include "cpu_engine.hpp"
-#include "cpu_memory.hpp"
-#include "cpu_primitive.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
@@ -32,48 +29,13 @@ namespace impl {
 namespace cpu {
 
 struct cpu_softmax_fwd_pd_t: public softmax_fwd_pd_t {
-    using cpu_memory_pd_t = cpu_memory_t::pd_t;
-
-    cpu_softmax_fwd_pd_t(engine_t *engine, const softmax_desc_t *adesc,
-            const primitive_attr_t *attr, const softmax_fwd_pd_t *hint_fwd_pd)
-        : softmax_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
-        , data_pd_(engine_, &desc_.data_desc) {}
-    virtual ~cpu_softmax_fwd_pd_t() {}
-
-    virtual const cpu_memory_pd_t *src_pd(int index = 0) const override
-    { return index == 0 ? &data_pd_ : nullptr; }
-    virtual const cpu_memory_pd_t *dst_pd(int index = 0) const override
-    { return index == 0 ? &data_pd_ : nullptr; }
-
-protected:
-    cpu_memory_pd_t data_pd_;
-
-    virtual status_t init() = 0;
+    using softmax_fwd_pd_t::softmax_fwd_pd_t;
 };
 
 struct cpu_softmax_bwd_pd_t: public softmax_bwd_pd_t {
-    using cpu_memory_pd_t = cpu_memory_t::pd_t;
-
-    cpu_softmax_bwd_pd_t(engine_t *engine, const softmax_desc_t *adesc,
-            const primitive_attr_t *attr, const softmax_fwd_pd_t *hint_fwd_pd)
-        : softmax_bwd_pd_t(engine, adesc, attr, hint_fwd_pd)
-        , data_pd_(engine_, &desc_.data_desc)
-        , diff_src_pd_(engine_, &desc_.diff_desc), diff_dst_pd_(engine_, &desc_.diff_desc) {}
-    virtual ~cpu_softmax_bwd_pd_t() {}
-
-    virtual const cpu_memory_pd_t *dst_pd(int index = 0) const override
-    { return index == 0 ? &data_pd_ : nullptr; }
-    virtual const cpu_memory_pd_t *diff_src_pd(int index = 0) const override
-    { return index == 0 ? &diff_src_pd_ : nullptr; }
-    virtual const cpu_memory_pd_t *diff_dst_pd(int index = 0) const override
-    { return index == 0 ? &diff_dst_pd_ : nullptr; }
-
-protected:
-    cpu_memory_pd_t data_pd_;
-    cpu_memory_pd_t diff_src_pd_;
-    cpu_memory_pd_t diff_dst_pd_;
-    virtual status_t init() = 0;
+    using softmax_bwd_pd_t::softmax_bwd_pd_t;
 };
+
 }
 }
 }

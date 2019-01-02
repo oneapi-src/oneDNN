@@ -21,9 +21,6 @@
 
 #include "c_types_map.hpp"
 #include "shuffle_pd.hpp"
-#include "cpu_engine.hpp"
-#include "cpu_memory.hpp"
-#include "cpu_primitive.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
@@ -32,28 +29,7 @@ namespace impl {
 namespace cpu {
 
 struct cpu_shuffle_pd_t: public shuffle_pd_t {
-    using cpu_memory_pd_t = cpu_memory_t::pd_t;
-
-    cpu_shuffle_pd_t(engine_t *engine, const shuffle_desc_t *adesc,
-            const primitive_attr_t *attr, const shuffle_pd_t *hint_fwd_pd)
-        : shuffle_pd_t(engine, adesc, attr, hint_fwd_pd)
-        , data_pd_(engine_, &desc_.data_desc) {}
-    virtual ~cpu_shuffle_pd_t() {}
-
-    virtual const cpu_memory_pd_t *src_pd(int index = 0) const override
-    { return index == 0 && is_fwd() ? &data_pd_ : nullptr; }
-    virtual const cpu_memory_pd_t *dst_pd(int index = 0) const override
-    { return index == 0 && is_fwd() ? &data_pd_ : nullptr; }
-    virtual const cpu_memory_pd_t *diff_dst_pd(int index = 0) const override
-    { return index == 0 && !is_fwd() ? &data_pd_ : nullptr; }
-    virtual const cpu_memory_pd_t *diff_src_pd(int index = 0) const override
-    { return index == 0 && !is_fwd() ? &data_pd_ : nullptr; }
-    const cpu_memory_pd_t *data_pd(int index = 0) const
-    { return index == 0 ? &data_pd_ : nullptr; }
-
-protected:
-    cpu_memory_pd_t data_pd_;
-    virtual status_t init() = 0;
+    using shuffle_pd_t::shuffle_pd_t;
 };
 
 }

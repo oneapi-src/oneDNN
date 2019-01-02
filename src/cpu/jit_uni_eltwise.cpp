@@ -14,12 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <mkldnn_types.h>
-#include "mkldnn_types.h"
+#include "c_types_map.hpp"
 #include "mkldnn_thread.hpp"
 #include "nstl.hpp"
 #include "utils.hpp"
-#include "jit_generator.hpp"
 
 #include "jit_uni_eltwise.hpp"
 
@@ -1004,18 +1002,17 @@ template <cpu_isa_t isa>
 status_t jit_uni_eltwise_fwd_t<isa>::pd_t::init() {
     using namespace alg_kind;
 
-    assert(engine()->kind() == engine_kind::cpu);
-    bool ok = true && mayiuse(isa)
-        && utils::one_of(desc()->prop_kind, prop_kind::forward_training,
-                prop_kind::forward_inference)
+    bool ok = true
+        && mayiuse(isa)
+        && is_fwd()
         && utils::everyone_is(data_type::f32, desc()->data_desc.data_type)
         && !has_zero_dim_memory()
         && utils::one_of(desc()->alg_kind, eltwise_relu, eltwise_tanh,
                 eltwise_elu, eltwise_square, eltwise_abs, eltwise_sqrt,
                 eltwise_linear, eltwise_bounded_relu, eltwise_soft_relu,
                 eltwise_logistic)
-        && memory_desc_wrapper(src_pd()).is_dense(true)
-        && IMPLICATION(!memory_desc_wrapper(src_pd()).is_dense(false),
+        && memory_desc_wrapper(src_md()).is_dense(true)
+        && IMPLICATION(!memory_desc_wrapper(src_md()).is_dense(false),
                 math::eltwise_fwd_preserves_zero(desc()->alg_kind, true))
         && attr()->has_default_values();
 
@@ -1043,7 +1040,7 @@ void jit_uni_eltwise_fwd_t<isa>::execute_forward(const exec_ctx_t &ctx) const {
     auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
     auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
 
-    const memory_desc_wrapper data_d(pd()->src_pd());
+    const memory_desc_wrapper data_d(pd()->src_md());
 
     const size_t nelems = data_d.nelems(true);
 
@@ -1071,16 +1068,14 @@ void jit_uni_eltwise_fwd_t<isa>::execute_forward(const exec_ctx_t &ctx) const {
 
 template <cpu_isa_t isa>
 status_t jit_uni_eltwise_bwd_t<isa>::pd_t::init() {
-    assert(engine()->kind() == engine_kind::cpu);
-
     bool ok = true
-        && desc()->prop_kind == prop_kind::backward_data
+        && !is_fwd()
         && utils::one_of(desc()->alg_kind, alg_kind::eltwise_relu)
-        && src_pd()->desc()->data_type == data_type::f32
+        && src_md()->data_type == data_type::f32
         && !has_zero_dim_memory()
         && mayiuse(isa)
-        && memory_desc_wrapper(src_pd()).is_dense()
-        && memory_desc_wrapper(diff_dst_pd()) == memory_desc_wrapper(src_pd())
+        && memory_desc_wrapper(src_md()).is_dense()
+        && memory_desc_wrapper(diff_dst_md()) == memory_desc_wrapper(src_md())
         && attr()->has_default_values();
 
     return ok ? status::success : status::unimplemented;
@@ -1107,8 +1102,8 @@ void jit_uni_eltwise_bwd_t<isa>::execute_backward(const exec_ctx_t &ctx) const {
     auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
     auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
 
-    const memory_desc_wrapper data_d(pd()->src_pd());
-    const memory_desc_wrapper diff_data_d(pd()->diff_src_pd());
+    const memory_desc_wrapper data_d(pd()->src_md());
+    const memory_desc_wrapper diff_data_d(pd()->diff_src_md());
 
     const size_t nelems = data_d.nelems();
 

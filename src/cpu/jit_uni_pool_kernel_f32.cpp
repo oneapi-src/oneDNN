@@ -33,10 +33,15 @@ using namespace alg_kind;
 
 template <cpu_isa_t isa>
 status_t jit_uni_pool_kernel_f32<isa>::init_conf(jit_pool_conf_t &jpp,
-            const pooling_desc_t &pd, const memory_desc_wrapper &src_d,
-            const memory_desc_wrapper &dst_d) {
+        const pooling_pd_t *ppd) {
+    const auto &pd = *ppd->desc();
+    const memory_desc_wrapper src_d(
+            ppd->is_fwd() ? ppd->src_md() : ppd->diff_src_md());
+    const memory_desc_wrapper dst_d(
+            ppd->is_fwd() ? ppd->dst_md() : ppd->diff_dst_md());
 
     bool args_ok = true
+        && mayiuse(isa)
         && utils::one_of(pd.alg_kind, pooling_max,
                 pooling_avg_include_padding,
                 pooling_avg_exclude_padding);
@@ -74,7 +79,8 @@ status_t jit_uni_pool_kernel_f32<isa>::init_conf(jit_pool_conf_t &jpp,
 
     jpp.is_training = pd.prop_kind == prop_kind::forward_training;
     jpp.is_backward = pd.prop_kind == prop_kind::backward_data;
-    jpp.ind_dt = pooling_index_data_type(&pd);
+    jpp.ind_dt = ppd->workspace_md()
+        ? ppd->workspace_md()->data_type : data_type::undef;
 
     jpp.simple_alg = jpp.is_training
         || IMPLICATION(jpp.is_backward, jpp.kd <= jpp.stride_d);

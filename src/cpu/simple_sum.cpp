@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "mkldnn_thread.hpp"
+
 #include "simple_sum.hpp"
 
 namespace mkldnn {
@@ -25,7 +26,7 @@ template <data_type_t data_type>
 status_t simple_sum_t<data_type>::execute(const exec_ctx_t &ctx) const {
     auto output = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
 
-    const memory_desc_wrapper o_d(pd()->dst_pd());
+    const memory_desc_wrapper o_d(pd()->dst_md());
     output += o_d.blk_off(0);
 
     const int num_arrs = pd()->n_inputs();
@@ -33,7 +34,7 @@ status_t simple_sum_t<data_type>::execute(const exec_ctx_t &ctx) const {
     const size_t nelems = o_d.nelems();
 
     for (int a = 0; a < num_arrs; ++a) {
-        const memory_desc_wrapper i_d(pd()->src_pd(a));
+        const memory_desc_wrapper i_d(pd()->src_md(a));
         input_ptrs[a] = CTX_IN_MEM(const data_t *, MKLDNN_ARG_MULTIPLE_SRC + a)
             + i_d.blk_off(0);
     }
@@ -42,7 +43,7 @@ status_t simple_sum_t<data_type>::execute(const exec_ctx_t &ctx) const {
     const size_t blocks_number = nelems / block_size;
     const size_t tail = nelems % block_size;
 
-    const auto &scales = pd()->scales_;
+    const auto scales = pd()->scales();
     parallel(0, [&](const int ithr, const int nthr) {
         size_t start{0}, end{0};
         balance211(blocks_number, nthr, ithr, start, end);

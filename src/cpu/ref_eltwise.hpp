@@ -20,10 +20,11 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
-#include "cpu_eltwise_pd.hpp"
-#include "cpu_engine.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
+
+#include "cpu_eltwise_pd.hpp"
+#include "cpu_primitive.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -46,20 +47,15 @@ public:
 template <impl::data_type_t data_type>
 struct ref_eltwise_fwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_eltwise_fwd_pd_t {
-        pd_t(engine_t *engine, const eltwise_desc_t *adesc,
-                const primitive_attr_t *attr,
-                const eltwise_fwd_pd_t *hint_fwd_pd)
-            : cpu_eltwise_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+        using cpu_eltwise_fwd_pd_t::cpu_eltwise_fwd_pd_t;
 
         DECLARE_COMMON_PD_T("ref:any", ref_eltwise_fwd_t);
 
-        virtual status_t init() override {
-            using namespace prop_kind;
+        status_t init() {
             using namespace memory_format;
             using namespace utils;
-            assert(engine()->kind() == engine_kind::cpu);
 
-            auto src_d = memory_desc_wrapper(src_pd());
+            auto src_d = memory_desc_wrapper(src_md());
 
             use_dense_ = false
                 || src_d.is_dense()
@@ -77,8 +73,7 @@ struct ref_eltwise_fwd_t: public cpu_primitive_t {
             const bool use_generic = !use_dense_ && !use_nCspBc_padded_;
 
             bool ok = true
-                && one_of(desc()->prop_kind, forward_training,
-                        forward_inference)
+                && is_fwd()
                 && everyone_is(data_type, desc()->data_desc.data_type)
                 && IMPLICATION(use_generic, one_of(src_d.ndims(), 4, 5))
                 && attr()->has_default_values();
@@ -113,25 +108,23 @@ private:
 template <impl::data_type_t data_type>
 struct ref_eltwise_bwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_eltwise_bwd_pd_t {
-        pd_t(engine_t *engine, const eltwise_desc_t *adesc,
-                const primitive_attr_t *attr,
-                const eltwise_fwd_pd_t *hint_fwd_pd)
-            : cpu_eltwise_bwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+        using cpu_eltwise_bwd_pd_t::cpu_eltwise_bwd_pd_t;
 
         DECLARE_COMMON_PD_T("ref:any", ref_eltwise_bwd_t);
 
-        virtual status_t init() override {
-            using namespace prop_kind;
+        status_t init() {
             using namespace utils;
-            assert(engine()->kind() == engine_kind::cpu);
-            bool ok = true && desc()->prop_kind == backward_data
-                    && everyone_is(data_type, desc()->data_desc.data_type,
-                            desc()->diff_data_desc.data_type)
-                    && attr()->has_default_values();
+
+            bool ok = true
+                && !is_fwd()
+                && everyone_is(data_type,
+                        desc()->data_desc.data_type,
+                        desc()->diff_data_desc.data_type)
+                && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
-            auto diff_dst_d = memory_desc_wrapper(diff_dst_pd());
-            const bool same_fmt_ = diff_dst_d == memory_desc_wrapper(src_pd());
+            auto diff_dst_d = memory_desc_wrapper(diff_dst_md());
+            const bool same_fmt_ = diff_dst_d == memory_desc_wrapper(src_md());
 
             use_dense_ = true
                 && same_fmt_

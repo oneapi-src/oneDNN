@@ -46,8 +46,8 @@ void ref_batch_normalization_fwd_t<data_type>::execute_forward(
     auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
     auto ws = CTX_OUT_MEM(uint8_t *, MKLDNN_ARG_WORKSPACE);
 
-    const memory_desc_wrapper data_d(pd()->src_pd());
-    const memory_desc_wrapper scaleshift_d(pd()->weights_pd());
+    const memory_desc_wrapper data_d(pd()->src_md());
+    const memory_desc_wrapper scaleshift_d(pd()->weights_md());
 
     const int N = pd()->MB();
     const int C = pd()->C();
@@ -153,12 +153,10 @@ void ref_batch_normalization_bwd_t<data_type>::execute_backward(
     auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
     auto diff_scaleshift = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SCALE_SHIFT);
 
-    const memory_desc_wrapper data_d(pd()->src_pd());
-    const memory_desc_wrapper diff_data_d(pd()->diff_src_pd());
-    const memory_desc_wrapper scaleshift_d(pd()->weights_pd());
-    const memory_desc_wrapper diff_scaleshift_d(pd()->diff_weights_pd());
-    const memory_desc_wrapper mean_d(pd()->mean_pd());
-    const memory_desc_wrapper variance_d(pd()->variance_pd());
+    const memory_desc_wrapper data_d(pd()->src_md());
+    const memory_desc_wrapper diff_data_d(pd()->diff_src_md());
+    const memory_desc_wrapper scaleshift_d(pd()->weights_md());
+    const memory_desc_wrapper diff_scaleshift_d(pd()->diff_weights_md());
 
     const int C = pd()->C();
 
@@ -201,8 +199,8 @@ void ref_batch_normalization_bwd_t<data_type>::execute_backward(
     };
 
     parallel_nd(C, [&](int c) {
-        data_t v_mean = mean[mean_d.off(c)];
-        data_t v_variance = variance[variance_d.off(c)];
+        data_t v_mean = mean[c];
+        data_t v_variance = variance[c];
         data_t sqrt_variance = static_cast<data_t>(1.0f / sqrtf(v_variance + eps));
         data_t gamma = use_scaleshift ? scaleshift[scaleshift_d.off(0, c)] : 1;
         data_t diff_gamma = data_t(0);

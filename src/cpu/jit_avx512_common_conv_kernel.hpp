@@ -20,7 +20,6 @@
 #include "c_types_map.hpp"
 #include "memory_tracking.hpp"
 
-#include "cpu_memory.hpp"
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
 #include "jit_uni_eltwise.hpp"
@@ -222,10 +221,10 @@ struct jit_avx512_common_conv_fwd_kernel {
         const primitive_attr_t &attr);
     static status_t init_conf(jit_conv_conf_t &jcp,
         const convolution_desc_t &cd,
-        cpu_memory_t::pd_t &src_pd,
-        cpu_memory_t::pd_t &weights_pd,
-        cpu_memory_t::pd_t &dst_pd,
-        cpu_memory_t::pd_t &bias_pd,
+        memory_desc_t &src_pd,
+        memory_desc_t &weights_pd,
+        memory_desc_t &dst_pd,
+        memory_desc_t &bias_pd,
         const primitive_attr_t &attr,
         int nthreads);
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
@@ -369,9 +368,11 @@ struct jit_avx512_common_conv_bwd_weights_kernel_f32 : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_conv_bwd_weights_kernel_f32)
 
     static status_t init_conf(jit_conv_conf_t &jcp,
-            const convolution_desc_t &cd, cpu_memory_t::pd_t &src_pd,
-            cpu_memory_t::pd_t &diff_weights_pd,
-            cpu_memory_t::pd_t &diff_bias_pd, cpu_memory_t::pd_t &diff_dst_pd);
+            const convolution_desc_t &cd,
+            memory_desc_t &src_md,
+            memory_desc_t &diff_weights_md,
+            memory_desc_t &diff_bias_md,
+            memory_desc_t &diff_dst_md);
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const jit_conv_conf_t &jcp);
 

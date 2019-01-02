@@ -25,6 +25,7 @@
 #include "utils.hpp"
 
 #include "cpu_softmax_pd.hpp"
+#include "cpu_primitive.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -33,20 +34,14 @@ namespace cpu {
 template <impl::data_type_t data_type>
 struct ref_softmax_fwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_softmax_fwd_pd_t {
-        pd_t(engine_t *engine, const softmax_desc_t *adesc,
-                const primitive_attr_t *attr,
-                const softmax_fwd_pd_t *hint_fwd_pd)
-            : cpu_softmax_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+        using cpu_softmax_fwd_pd_t::cpu_softmax_fwd_pd_t;
 
         DECLARE_COMMON_PD_T("ref:any", ref_softmax_fwd_t);
 
-        virtual status_t init() override {
-            using namespace prop_kind;
-            assert(engine()->kind() == engine_kind::cpu);
+        status_t init() {
             bool ok = true
-                && utils::one_of(desc()->prop_kind, forward_inference,
-                        forward_training)
-                && data_pd_.desc()->data_type == data_type
+                && is_fwd()
+                && src_md()->data_type == data_type
                 && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
@@ -79,12 +74,11 @@ struct ref_softmax_fwd_t: public cpu_primitive_t {
         channels_ = dims[axis];
         inner_size_ = utils::array_product(dims + axis + 1, ndims - axis - 1);
 
-        const memory_desc_wrapper data_d(pd()->src_pd());
+        const memory_desc_wrapper data_d(pd()->src_md());
         use_dense_ = inner_size_ == 1 && data_d.is_dense()
             && data_d.blocking_desc().block_dims[axis] == 1
             && data_d.blocking_desc().strides[0][axis] == 1;
     }
-    ~ref_softmax_fwd_t() {}
 
     typedef typename prec_traits<data_type>::type data_t;
 
@@ -115,20 +109,16 @@ private:
 template <impl::data_type_t data_type>
 struct ref_softmax_bwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_softmax_bwd_pd_t {
-        pd_t(engine_t *engine, const softmax_desc_t *adesc,
-                const primitive_attr_t *attr,
-                const softmax_fwd_pd_t *hint_fwd_pd)
-            : cpu_softmax_bwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+        using cpu_softmax_bwd_pd_t::cpu_softmax_bwd_pd_t;
 
         DECLARE_COMMON_PD_T("ref:any", ref_softmax_bwd_t);
 
-        virtual status_t init() override {
-            using namespace prop_kind;
-            assert(engine()->kind() == engine_kind::cpu);
+        status_t init() {
             bool ok = true
-                && utils::one_of(desc()->prop_kind, backward_data)
-                && diff_src_pd_.desc()->data_type == data_type
-                && diff_dst_pd_.desc()->data_type == data_type
+                && !is_fwd()
+                && utils::everyone_is(data_type,
+                        dst_md()->data_type,
+                        diff_src_md()->data_type)
                 && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
@@ -145,9 +135,8 @@ struct ref_softmax_bwd_t: public cpu_primitive_t {
         channels_ = dims[axis];
         inner_size_ = utils::array_product(dims + axis + 1, ndims - axis - 1);
 
-        // Diff desc as well as data desc whould be checked
-        const memory_desc_wrapper data_d(pd()->dst_pd());
-        const memory_desc_wrapper diff_d(pd()->diff_dst_pd());
+        const memory_desc_wrapper data_d(pd()->dst_md());
+        const memory_desc_wrapper diff_d(pd()->diff_dst_md());
         use_dense_ = true
             && inner_size_ == 1
             && diff_d == data_d
@@ -155,7 +144,6 @@ struct ref_softmax_bwd_t: public cpu_primitive_t {
             && diff_d.blocking_desc().block_dims[axis] == 1
             && diff_d.blocking_desc().strides[0][axis] == 1;
     }
-    ~ref_softmax_bwd_t() {}
 
     typedef typename prec_traits<data_type>::type data_t;
 

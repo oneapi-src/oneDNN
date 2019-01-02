@@ -36,13 +36,13 @@ using namespace nstl;
 
 status_t jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(
         jit_conv_conf_t &jcp, const deconvolution_desc_t &cd,
-        cpu_memory_t::pd_t &src_pd, cpu_memory_t::pd_t &weights_pd,
-        cpu_memory_t::pd_t &dst_pd, const bool with_bias,
-        cpu_memory_t::pd_t &bias_pd, const primitive_attr_t &attr) {
-    const memory_desc_wrapper src_d(&src_pd);
-    const memory_desc_wrapper dst_d(&dst_pd);
-    const memory_desc_wrapper weights_d(&weights_pd);
-    const memory_desc_wrapper bias_d(&bias_pd);
+        memory_desc_t &src_md, memory_desc_t &weights_md,
+        memory_desc_t &dst_md, const bool with_bias,
+        memory_desc_t &bias_md, const primitive_attr_t &attr) {
+    const memory_desc_wrapper src_d(&src_md);
+    const memory_desc_wrapper dst_d(&dst_md);
+    const memory_desc_wrapper weights_d(&weights_md);
+    const memory_desc_wrapper bias_d(&bias_md);
 
     if (!(mayiuse(avx512_core)
                 && one_of(src_d.data_type(), data_type::u8, data_type::s8)
@@ -72,8 +72,6 @@ status_t jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(
     if (jcp.is_depthwise && jcp.signed_input)
         return status::unimplemented;
 
-    auto dst_format = pick(ndims - 3, nwc, nhwc);
-    auto src_format = pick(ndims - 3, nwc, nhwc);
 #define pick_signed(fmt) (jcp.signed_input ? fmt##_s8s8 : fmt)
     const auto w_format = is_1d ?
             (jcp.is_depthwise ? Goiw16g :
@@ -84,23 +82,25 @@ status_t jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(
                                                pick_signed(OIhw4i16o4i)));
 #undef pick_signed
 
+    auto dat_format = pick(ndims - 3, nwc, nhwc);
     if (dst_d.format() == any)
-        CHECK(dst_pd.set_format(dst_format));
-    if (dst_d.format() != dst_format)
+        CHECK(types::set_default_format(dst_md, dat_format));
+    if (dst_d.format() != dat_format)
         return status::unimplemented;
     if (src_d.format() == any)
-        CHECK(src_pd.set_format(src_format));
-    if (src_d.format() != src_format)
+        CHECK(types::set_default_format(src_md, dat_format));
+    if (src_d.format() != dat_format)
         return status::unimplemented;
+
     if (weights_d.format() == any)
-        CHECK(weights_pd.set_format(w_format));
+        CHECK(types::set_default_format(weights_md, w_format));
     if (weights_d.format() != w_format)
         return status::unimplemented;
 
     jcp.with_bias = with_bias;
     if (jcp.with_bias) {
         if (bias_d.format() == any)
-            CHECK(bias_pd.set_format(x));
+            CHECK(types::set_default_format(bias_md, x));
         if (bias_d.format() != x)
             return status::unimplemented;
     }
@@ -788,10 +788,10 @@ void _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type,
     auto bias = CTX_IN_MEM(const char *, MKLDNN_ARG_BIAS);
     auto dst = CTX_OUT_MEM(dst_data_t *, MKLDNN_ARG_DST);
 
-    const memory_desc_wrapper src_d(pd()->src_pd());
-    const memory_desc_wrapper dst_d(pd()->dst_pd());
-    const memory_desc_wrapper weights_d(pd()->weights_pd(0));
-    const memory_desc_wrapper bias_d(pd()->weights_pd(1));
+    const memory_desc_wrapper src_d(pd()->src_md());
+    const memory_desc_wrapper dst_d(pd()->dst_md());
+    const memory_desc_wrapper weights_d(pd()->weights_md(0));
+    const memory_desc_wrapper bias_d(pd()->weights_md(1));
 
     auto &jcp = kernel_->jcp;
 
@@ -871,10 +871,10 @@ void _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type,
     auto bias = CTX_IN_MEM(const char *, MKLDNN_ARG_BIAS);
     auto dst = CTX_OUT_MEM(dst_data_t *, MKLDNN_ARG_DST);
 
-    const memory_desc_wrapper src_d(pd()->src_pd());
-    const memory_desc_wrapper dst_d(pd()->dst_pd());
-    const memory_desc_wrapper weights_d(pd()->weights_pd(0));
-    const memory_desc_wrapper bias_d(pd()->weights_pd(1));
+    const memory_desc_wrapper src_d(pd()->src_md());
+    const memory_desc_wrapper dst_d(pd()->dst_md());
+    const memory_desc_wrapper weights_d(pd()->weights_md(0));
+    const memory_desc_wrapper bias_d(pd()->weights_md(1));
 
     auto &jcp = kernel_->jcp;
 

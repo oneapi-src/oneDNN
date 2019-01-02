@@ -14,8 +14,6 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_types.h"
-
 #include "c_types_map.hpp"
 #include "utils.hpp"
 #include "type_helpers.hpp"
@@ -73,7 +71,7 @@ _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::pp_ker_t::pp_ker_t(
 {
     using namespace types;
 
-    const auto dst_md = memory_desc_wrapper(pd->dst_pd());
+    const auto dst_md = memory_desc_wrapper(pd->dst_md());
     dst_os_stride_ = dst_md.blk_off(0, 0, 0, 1);
 
     scale_idx_mult_ = (pd->attr()->output_scales_.mask_ == (1 << 1));
@@ -540,14 +538,14 @@ execute_forward_thr(const int ithr, const int nthr, const src_data_t *src_base,
         const memory_tracking::grantor_t &scratchpad) const {
     const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
 
-    const auto src_md = memory_desc_wrapper(pd()->src_pd());
+    const auto src_md = memory_desc_wrapper(pd()->src_md());
     const size_t src_mb_stride = src_md.blk_off(1);
     const size_t src_g_stride = src_md.blk_off(0, 1) * jcp.ic;
 
-    const auto wei_md = memory_desc_wrapper(pd()->weights_pd(0));
+    const auto wei_md = memory_desc_wrapper(pd()->weights_md(0));
     const size_t wei_g_stride = pd()->with_groups() ? wei_md.blk_off(1) : 0;
 
-    const auto dst_md = memory_desc_wrapper(pd()->dst_pd());
+    const auto dst_md = memory_desc_wrapper(pd()->dst_md());
     const size_t dst_mb_stride = dst_md.blk_off(1);
     const size_t dst_g_stride = dst_md.blk_off(0, 1) * jcp.oc;
 
@@ -658,14 +656,14 @@ execute_backward_data_thr(const int ithr, const int nthr,
 {
     const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
 
-    const auto diff_dst_md = memory_desc_wrapper(pd()->diff_dst_pd());
+    const auto diff_dst_md = memory_desc_wrapper(pd()->diff_dst_md());
     const size_t diff_dst_mb_stride = diff_dst_md.blk_off(1);
     const size_t diff_dst_g_stride = diff_dst_md.blk_off(0, 1) * jcp.oc;
 
-    const auto wei_md = memory_desc_wrapper(pd()->weights_pd(0));
+    const auto wei_md = memory_desc_wrapper(pd()->weights_md(0));
     const size_t wei_g_stride = pd()->with_groups() ? wei_md.blk_off(1) : 0;
 
-    const auto diff_src_md = memory_desc_wrapper(pd()->diff_src_pd());
+    const auto diff_src_md = memory_desc_wrapper(pd()->diff_src_md());
     const size_t diff_src_mb_stride = diff_src_md.blk_off(1);
     const size_t diff_src_g_stride = diff_src_md.blk_off(0, 1) * jcp.ic;
     const size_t diff_src_os_stride = diff_src_md.blk_off(0, 0, 0, 1);

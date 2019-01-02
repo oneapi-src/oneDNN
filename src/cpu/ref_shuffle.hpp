@@ -20,10 +20,11 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
-#include "cpu_shuffle_pd.hpp"
-#include "cpu_engine.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
+
+#include "cpu_shuffle_pd.hpp"
+#include "cpu_primitive.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -34,27 +35,21 @@ struct ref_shuffle_t : public cpu_primitive_t {
     using shuffle_class = ref_shuffle_t<data_type_size>;
 
     struct pd_t: public cpu_shuffle_pd_t {
-        pd_t(engine_t *engine, const shuffle_desc_t *adesc,
-                const primitive_attr_t *attr,
-                const shuffle_pd_t *hint_fwd_pd)
-            : cpu_shuffle_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+        using cpu_shuffle_pd_t::cpu_shuffle_pd_t;
 
-        DECLARE_COMMON_PD_T("ref:any",shuffle_class);
+        DECLARE_COMMON_PD_T("ref:any", shuffle_class);
 
-        virtual status_t init() override {
-            assert(this->engine()->kind() == engine_kind::cpu);
-
+        status_t init() {
             bool ok = true
                  && data_type_size ==
-                     types::data_type_size(this->desc()->data_desc.data_type);
+                     types::data_type_size(this->data_md()->data_type);
             if (!ok)
                 return status::unimplemented;
             return status::success;
         }
     };
 
-    ref_shuffle_t(const pd_t *apd): cpu_primitive_t(apd)
-    {
+    ref_shuffle_t(const pd_t *apd): cpu_primitive_t(apd) {
         const int axis_size = pd()->axis_size();
         const int group_size = pd()->group_size();
         const int transpose_row = pd()->is_fwd() ? group_size
@@ -73,7 +68,7 @@ struct ref_shuffle_t : public cpu_primitive_t {
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         using namespace memory_format;
-        switch (pd()->data_pd()->desc()->format) {
+        switch (pd()->data_md()->format) {
         case nCdhw16c: execute_<nCdhw16c>(ctx); break;
         case nChw16c:  execute_<nChw16c>(ctx); break;
         case nCdhw8c:  execute_<nCdhw8c>(ctx); break;

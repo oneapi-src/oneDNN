@@ -18,8 +18,6 @@
 
 #include "c_types_map.hpp"
 #include "memory_tracking.hpp"
-#include "cpu_convolution_pd.hpp"
-#include "cpu_engine.hpp"
 #include "mkldnn_thread.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
@@ -529,8 +527,8 @@ struct jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t: public jit_generator {
 
     static status_t init_conf(
             jit_conv_conf_2x3_wino_t &jcp, const convolution_desc_t &cd,
-            cpu_memory_t::pd_t &src_pd, cpu_memory_t::pd_t &weights_pd,
-            cpu_memory_t::pd_t &dst_pd, cpu_memory_t::pd_t &bias_pd,
+            memory_desc_t &src_md, memory_desc_t &weights_md,
+            memory_desc_t &dst_md, memory_desc_t &bias_md,
             const primitive_attr_t &attr);
 
     Zmm vreg_out(int n, int m) {
@@ -692,13 +690,13 @@ bool is_winograd_faster_than_direct(const jit_conv_conf_2x3_wino_t &jcp) {
 
 status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
 ::init_conf(jit_conv_conf_2x3_wino_t &jcp,
-            const convolution_desc_t &cd, cpu_memory_t::pd_t &src_pd,
-            cpu_memory_t::pd_t &wei_pd, cpu_memory_t::pd_t &dst_pd,
-            cpu_memory_t::pd_t &bias_pd, const primitive_attr_t &attr) {
-    const memory_desc_wrapper src_d(&src_pd);
-    const memory_desc_wrapper wei_d(&wei_pd);
-    const memory_desc_wrapper dst_d(&dst_pd);
-    const memory_desc_wrapper bias_d(&bias_pd);
+            const convolution_desc_t &cd, memory_desc_t &src_md,
+            memory_desc_t &wei_md, memory_desc_t &dst_md,
+            memory_desc_t &bias_md, const primitive_attr_t &attr) {
+    const memory_desc_wrapper src_d(&src_md);
+    const memory_desc_wrapper wei_d(&wei_md);
+    const memory_desc_wrapper dst_d(&dst_md);
+    const memory_desc_wrapper bias_d(&bias_md);
 
     const bool with_groups = wei_d.ndims() == src_d.ndims() + 1;
 
@@ -946,7 +944,7 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
 
     /* re-create weights primitive descriptor
                                     and set weights wino_blocking */
-    memory_desc_t expect_wei_md = *(wei_pd.desc());
+    memory_desc_t expect_wei_md = wei_md;
 
     expect_wei_md.format = mkldnn_wino_fmt;
     expect_wei_md.data_type = data_type::s8;
@@ -968,10 +966,9 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
                                 jcp.alpha * jcp.alpha * jcp.oc;
     wd.size = max_size;
 
-    cpu_memory_t::pd_t new_weights_pd(wei_pd.engine(), &expect_wei_md);
-    if (wei_pd.desc()->format == any)
-        wei_pd = new_weights_pd;
-    if (!wei_pd.is_equal(&new_weights_pd))
+    if (wei_md.format == any)
+        wei_md = expect_wei_md;
+    if (wei_md != expect_wei_md)
         return status::unimplemented;
 
     const int tilesize = jcp.alpha * jcp.alpha;
@@ -992,8 +989,8 @@ template <data_type_t dst_data_type>
 status_t jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
         pd_t::jit_conf() {
     return jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::init_conf(
-            jcp_, *this->desc(), this->src_pd_, this->weights_pd_,
-            this->dst_pd_,this->bias_pd_, *this->attr());
+            jcp_, *this->desc(), this->src_md_, this->weights_md_,
+            this->dst_md_,this->bias_md_, *this->attr());
 }
 
 template <data_type_t dst_data_type>

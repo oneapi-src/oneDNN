@@ -20,11 +20,11 @@
 #include "c_types_map.hpp"
 #include "memory_tracking.hpp"
 
-#include "cpu_convolution_pd.hpp"
-#include "cpu_engine.hpp"
 #include "gemm_convolution_utils.hpp"
 #include "gemm/gemm.hpp"
 #include "ref_eltwise.hpp"
+
+#include "cpu_convolution_pd.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -40,16 +40,12 @@ struct gemm_convolution_fwd_t: public cpu_primitive_t {
 
         DECLARE_COMMON_PD_T(GEMM_IMPL_STR, gemm_convolution_fwd_t);
 
-        virtual status_t init() override {
-            using namespace prop_kind;
+        status_t init() {
             using namespace memory_format;
-
-            assert(this->engine()->kind() == engine_kind::cpu);
 
             bool ok = true
                 && this->set_default_params() == status::success
-                && utils::one_of(this->desc()->prop_kind, forward_training,
-                           forward_inference)
+                && is_fwd()
                 && utils::one_of(this->desc()->alg_kind,
                         alg_kind::convolution_auto,
                         alg_kind::convolution_direct)
@@ -60,15 +56,15 @@ struct gemm_convolution_fwd_t: public cpu_primitive_t {
                            this->desc()->dst_desc.data_type)
                 && IMPLICATION(this->with_bias(), data_type::f32
                                    == this->desc()->bias_desc.data_type)
-                && this->src_pd_.desc()->format == src_format()
-                && this->dst_pd_.desc()->format == src_format()
-                && this->weights_pd_.desc()->format == wei_format()
+                && this->src_md_.format == src_format()
+                && this->dst_md_.format == src_format()
+                && this->weights_md_.format == wei_format()
                 && this->is_gemm_conv_format();
             if (!ok) return status::unimplemented;
 
             auto scratchpad = scratchpad_registry().registrar();
             return jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
-                    *desc(), src_pd(), weights_pd(0), dst_pd(),
+                    *desc(), src_md(), weights_md(0), dst_md(),
                     mkldnn_get_max_threads());
         }
 
@@ -78,33 +74,33 @@ struct gemm_convolution_fwd_t: public cpu_primitive_t {
         memory_format_t src_format() const {
             using namespace memory_format;
             const int ndims_sp = this->desc()->src_desc.ndims - 2;
-            return (utils::pick(ndims_sp - 1, ncw, nchw, ncdhw));
+            return utils::pick(ndims_sp - 1, ncw, nchw, ncdhw);
         }
 
         memory_format_t wei_format() const {
             using namespace memory_format;
             const int ndims_sp = this->desc()->src_desc.ndims - 2;
-            return (this->with_groups()
+            return this->with_groups()
                 ? utils::pick(ndims_sp - 1, goiw, goihw, goidhw)
-                : utils::pick(ndims_sp - 1, oiw, oihw, oidhw));
+                : utils::pick(ndims_sp - 1, oiw, oihw, oidhw);
         }
 
-        virtual status_t set_default_params() override {
+        status_t set_default_params() {
             using namespace memory_format;
-            if (this->src_pd_.desc()->format == any)
-                CHECK(this->src_pd_.set_format(src_format()));
-            if (this->dst_pd_.desc()->format == any)
-                CHECK(this->dst_pd_.set_format(src_format()));
-            if (this->weights_pd_.desc()->format == any)
-                CHECK(this->weights_pd_.set_format(wei_format()));
-            if (this->bias_pd_.desc()->format == any)
-                CHECK(this->bias_pd_.set_format(x));
-            if (this->desc()->alg_kind == alg_kind::convolution_auto)
-                CHECK(this->set_alg_kind(alg_kind::convolution_direct));
+            if (src_md_.format == any)
+                CHECK(types::set_default_format(src_md_, src_format()));
+            if (dst_md_.format == any)
+                CHECK(types::set_default_format(dst_md_, src_format()));
+            if (weights_md_.format == any)
+                CHECK(types::set_default_format(weights_md_, wei_format()));
+            if (bias_md_.format == any)
+                CHECK(types::set_default_format(bias_md_, x));
+            if (desc()->alg_kind == alg_kind::convolution_auto)
+                CHECK(set_alg_kind(alg_kind::convolution_direct));
             return status::success;
         }
 
-        virtual bool is_gemm_conv_format() const {
+        bool is_gemm_conv_format() const {
             auto const &po = this->attr()->post_ops_;
             auto is_eltwise = [&](int idx)
             { return po.entry_[idx].is_eltwise(); };
@@ -133,9 +129,7 @@ struct gemm_convolution_fwd_t: public cpu_primitive_t {
                 post_ops.entry_[entry_idx].eltwise);
     }
 
-    ~gemm_convolution_fwd_t() {
-        delete eltwise_;
-    }
+    ~gemm_convolution_fwd_t() { delete eltwise_; }
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
@@ -163,30 +157,28 @@ struct gemm_convolution_bwd_data_t: public cpu_primitive_t {
 
         DECLARE_COMMON_PD_T(GEMM_IMPL_STR, gemm_convolution_bwd_data_t);
 
-        virtual status_t init() override {
-            using namespace prop_kind;
+        status_t init() {
             using namespace memory_format;
-
-            assert(this->engine()->kind() == engine_kind::cpu);
 
             bool ok = true
                 && this->set_default_params() == status::success
-                && this->desc()->prop_kind == backward_data
-                && utils::one_of(this->desc()->alg_kind, alg_kind::convolution_auto,
-                           alg_kind::convolution_direct)
+                && this->desc()->prop_kind == prop_kind::backward_data
+                && utils::one_of(this->desc()->alg_kind,
+                        alg_kind::convolution_auto,
+                        alg_kind::convolution_direct)
                 && !this->has_zero_dim_memory()
                 && utils::everyone_is(data_type::f32,
                         this->desc()->diff_src_desc.data_type,
                         this->desc()->weights_desc.data_type,
                         this->desc()->diff_dst_desc.data_type)
-                && this->diff_src_pd_.desc()->format == src_format()
-                && this->diff_dst_pd_.desc()->format == src_format()
-                && this->weights_pd_.desc()->format == wei_format();
+                && this->diff_src_md_.format == src_format()
+                && this->diff_dst_md_.format == src_format()
+                && this->weights_md_.format == wei_format();
             if (!ok) return status::unimplemented;
 
             auto scratchpad = scratchpad_registry().registrar();
             return jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
-                    *desc(), diff_src_pd(), weights_pd(0), diff_dst_pd(),
+                    *desc(), diff_src_md(), weights_md(0), diff_dst_md(),
                     mkldnn_get_max_threads());
         }
 
@@ -207,23 +199,22 @@ struct gemm_convolution_bwd_data_t: public cpu_primitive_t {
                 : utils::pick(ndims_sp - 1, oiw, oihw, oidhw));
         }
 
-        virtual status_t set_default_params() override {
+        status_t set_default_params() {
             using namespace memory_format;
-            if (this->diff_src_pd_.desc()->format == any)
-                CHECK(this->diff_src_pd_.set_format(src_format()));
-            if (this->diff_dst_pd_.desc()->format == any)
-                CHECK(this->diff_dst_pd_.set_format(src_format()));
-            if (this->weights_pd_.desc()->format == any)
-                CHECK(this->weights_pd_.set_format(wei_format()));
-            if (this->desc()->alg_kind == alg_kind::convolution_auto)
-                CHECK(this->set_alg_kind(alg_kind::convolution_direct));
+            if (diff_src_md_.format == any)
+                CHECK(types::set_default_format(diff_src_md_, src_format()));
+            if (diff_dst_md_.format == any)
+                CHECK(types::set_default_format(diff_dst_md_, src_format()));
+            if (weights_md_.format == any)
+                CHECK(types::set_default_format(weights_md_, wei_format()));
+            if (desc()->alg_kind == alg_kind::convolution_auto)
+                CHECK(set_alg_kind(alg_kind::convolution_direct));
             return status::success;
         }
     };
 
     gemm_convolution_bwd_data_t(const pd_t *apd)
         : cpu_primitive_t(apd, true) {}
-    ~gemm_convolution_bwd_data_t() {}
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
@@ -254,7 +245,7 @@ struct gemm_convolution_bwd_weights_t: public cpu_primitive_t {
 
         DECLARE_COMMON_PD_T(GEMM_IMPL_STR, gemm_convolution_bwd_weights_t);
 
-        virtual status_t init() override {
+        status_t init() {
             using namespace prop_kind;
             using namespace memory_format;
 
@@ -272,14 +263,14 @@ struct gemm_convolution_bwd_weights_t: public cpu_primitive_t {
                     this->desc()->diff_dst_desc.data_type)
             && IMPLICATION(this->with_bias(),
                     data_type::f32 == this->desc()->diff_bias_desc.data_type)
-            && this->src_pd_.desc()->format == src_format()
-            && this->diff_dst_pd_.desc()->format == src_format()
-            && this->diff_weights_pd_.desc()->format == wei_format();
+            && this->src_md_.format == src_format()
+            && this->diff_dst_md_.format == src_format()
+            && this->diff_weights_md_.format == wei_format();
             if (!ok) return status::unimplemented;
 
             auto scratchpad = scratchpad_registry().registrar();
             return jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
-                    *desc(), src_pd(), diff_weights_pd(0), diff_dst_pd(),
+                    *desc(), src_md(), diff_weights_md(0), diff_dst_md(),
                     mkldnn_get_max_threads());
         }
 
@@ -300,36 +291,29 @@ struct gemm_convolution_bwd_weights_t: public cpu_primitive_t {
                 : utils::pick(ndims_sp - 1, oiw, oihw, oidhw));
         }
 
-        virtual status_t set_default_params() override {
+        status_t set_default_params() {
             using namespace memory_format;
-            if (this->src_pd_.desc()->format == any)
-                CHECK(this->src_pd_.set_format(src_format()));
-            if (this->diff_dst_pd_.desc()->format == any)
-                CHECK(this->diff_dst_pd_.set_format(src_format()));
-            if (this->diff_weights_pd_.desc()->format == any)
-                CHECK(this->diff_weights_pd_.set_format(wei_format()));
-            if (this->diff_bias_pd_.desc()->format == any)
-                CHECK(this->diff_bias_pd_.set_format(x));
-            if (this->desc()->alg_kind == alg_kind::convolution_auto)
-                CHECK(this->set_alg_kind(alg_kind::convolution_direct));
+            if (src_md_.format == any)
+                CHECK(types::set_default_format(src_md_, src_format()));
+            if (diff_dst_md_.format == any)
+                CHECK(types::set_default_format(diff_dst_md_, src_format()));
+            if (diff_weights_md_.format == any)
+                CHECK(types::set_default_format(diff_weights_md_, wei_format()));
+            if (diff_bias_md_.format == any)
+                CHECK(types::set_default_format(diff_bias_md_, x));
+            if (desc()->alg_kind == alg_kind::convolution_auto)
+                CHECK(set_alg_kind(alg_kind::convolution_direct));
             return status::success;
         }
     };
 
     gemm_convolution_bwd_weights_t(const pd_t *apd)
         : cpu_primitive_t(apd, true) {}
-    ~gemm_convolution_bwd_weights_t() {}
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        switch (pd()->desc()->prop_kind) {
-        case prop_kind::backward_weights:
-            execute_backward_weights(ctx);
-            break;
-        default:
-            assert(!"invalid prop_kind");
-        }
+        execute_backward_weights(ctx);
         return status::success;
     }
 

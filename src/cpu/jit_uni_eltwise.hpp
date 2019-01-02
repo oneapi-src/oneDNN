@@ -20,10 +20,12 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
-#include "cpu_eltwise_pd.hpp"
-#include "cpu_engine.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
+
+#include "cpu_eltwise_pd.hpp"
+#include "cpu_primitive.hpp"
+
 #include "jit_generator.hpp"
 
 namespace mkldnn {
@@ -131,16 +133,13 @@ struct jit_uni_eltwise_kernel_f32;
 template <cpu_isa_t isa>
 struct jit_uni_eltwise_fwd_t : public cpu_primitive_t {
     struct pd_t : public cpu_eltwise_fwd_pd_t {
-        pd_t(engine_t *engine, const eltwise_desc_t *adesc,
-                const primitive_attr_t *attr,
-                const eltwise_fwd_pd_t *hint_fwd_pd)
-            : cpu_eltwise_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+        using cpu_eltwise_fwd_pd_t::cpu_eltwise_fwd_pd_t;
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit:", isa, ""),
                 jit_uni_eltwise_fwd_t<isa>);
 
-        virtual status_t init() override;
+        status_t init();
     };
 
     jit_uni_eltwise_fwd_t(const pd_t *apd);
@@ -148,8 +147,7 @@ struct jit_uni_eltwise_fwd_t : public cpu_primitive_t {
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override
-    {
+    virtual status_t execute(const exec_ctx_t &ctx) const override {
         execute_forward(ctx);
         return status::success;
     }
@@ -163,16 +161,13 @@ private:
 template <cpu_isa_t isa>
 struct jit_uni_eltwise_bwd_t : public cpu_primitive_t {
     struct pd_t : public cpu_eltwise_bwd_pd_t {
-        pd_t(engine_t *engine, const eltwise_desc_t *adesc,
-                const primitive_attr_t *attr,
-                const eltwise_fwd_pd_t *hint_fwd_pd)
-            : cpu_eltwise_bwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+        using cpu_eltwise_bwd_pd_t::cpu_eltwise_bwd_pd_t;
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit:", isa, ""),
                 jit_uni_eltwise_bwd_t<isa>);
 
-        virtual status_t init() override;
+        status_t init();
     };
 
     jit_uni_eltwise_bwd_t(const pd_t *apd);
@@ -180,8 +175,7 @@ struct jit_uni_eltwise_bwd_t : public cpu_primitive_t {
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override
-    {
+    virtual status_t execute(const exec_ctx_t &ctx) const override {
         execute_backward(ctx);
         return status::success;
     }

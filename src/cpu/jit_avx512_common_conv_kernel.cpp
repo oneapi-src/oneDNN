@@ -20,7 +20,6 @@
 #include "utils.hpp"
 
 #include "cpu_barrier.hpp"
-#include "cpu_memory.hpp"
 
 #include "jit_avx512_common_conv_kernel.hpp"
 
@@ -1265,8 +1264,8 @@ bool jit_avx512_common_conv_fwd_kernel::post_ops_ok(
 
 status_t jit_avx512_common_conv_fwd_kernel::init_conf(
             jit_conv_conf_t &jcp, const convolution_desc_t &cd,
-            cpu_memory_t::pd_t &src_pd, cpu_memory_t::pd_t &weights_pd,
-            cpu_memory_t::pd_t &dst_pd, cpu_memory_t::pd_t &bias_pd,
+            memory_desc_t &src_md, memory_desc_t &weights_md,
+            memory_desc_t &dst_md, memory_desc_t &bias_md,
             const primitive_attr_t &attr, int nthreads)
 {
     using namespace prop_kind;
@@ -1274,10 +1273,10 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
     if (!mayiuse(avx512_common))
         return status::unimplemented;
 
-    const memory_desc_wrapper src_d(&src_pd);
-    const memory_desc_wrapper weights_d(&weights_pd);
-    const memory_desc_wrapper dst_d(&dst_pd);
-    const memory_desc_wrapper bias_d(&bias_pd);
+    const memory_desc_wrapper src_d(&src_md);
+    const memory_desc_wrapper weights_d(&weights_md);
+    const memory_desc_wrapper dst_d(&dst_md);
+    const memory_desc_wrapper bias_d(&bias_md);
 
     const int regs = 28;
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
@@ -1378,19 +1377,19 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
             : pick(ndims - 3, OIw16i16o, OIhw16i16o, OIdhw16i16o));
 
     if (src_d.format() == any)
-        CHECK(src_pd.set_format(src_format));
+        CHECK(types::set_default_format(src_md, src_format));
     if (src_d.format() != src_format)
         return status::unimplemented;
 
     if (dst_d.format() == any)
-        CHECK(dst_pd.set_format(dst_format));
+        CHECK(types::set_default_format(dst_md, dst_format));
     if (dst_d.format() != dst_format)
         return status::unimplemented;
 
     jcp.with_bias = cd.bias_desc.format != memory_format::undef;
     if (jcp.with_bias) {
         if (bias_d.format() == any)
-            CHECK(bias_pd.set_format(x));
+            CHECK(types::set_default_format(bias_md, x));
         if (bias_d.format() != x)
             return status::unimplemented;
     }
@@ -1415,7 +1414,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
             ? pick(ndims - 3, gOIw8i16o2i, gOIhw8i16o2i, gOIdhw8i16o2i)
             : pick(ndims - 3, OIw8i16o2i, OIhw8i16o2i, OIdhw8i16o2i);
         if (weights_d.format() == any)
-            CHECK(weights_pd.set_format(w_format));
+            CHECK(types::set_default_format(weights_md, w_format));
         if (weights_d.format() != w_format)
             return status::unimplemented;
     } else if (mayiuse(avx512_common) &&
@@ -1446,7 +1445,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
                         ? pick(ndims - 3, Oiw4o, Oihw4o, Oidhw4o)
                         : pick(ndims - 3, Oiw16o, Oihw16o, Oidhw16o));
                 if (weights_d.format() == any)
-                    CHECK(weights_pd.set_format(w_format));
+                    CHECK(types::set_default_format(weights_md, w_format));
                 if (weights_d.format() != w_format)
                     return status::unimplemented;
             } else {
@@ -1458,13 +1457,13 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
                         ? pick(ndims - 3, Owi4o, Ohwi4o, Odhwi4o)
                         : pick(ndims - 3, Owi16o, Ohwi16o, Odhwi16o));
                 if (weights_d.format() == any)
-                    CHECK(weights_pd.set_format(w_format));
+                    CHECK(types::set_default_format(weights_md, w_format));
                 if (weights_d.format() != w_format)
                     return status::unimplemented;
             }
         } else {
             if (weights_d.format() == any)
-                CHECK(weights_pd.set_format(wei_format));
+                CHECK(types::set_default_format(weights_md, wei_format));
             if (weights_d.format() != wei_format)
                 return status::unimplemented;
         }
@@ -4495,15 +4494,15 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::generate()
 
 status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
     jit_conv_conf_t &jcp, const convolution_desc_t &cd,
-    cpu_memory_t::pd_t &src_pd, cpu_memory_t::pd_t &diff_weights_pd,
-    cpu_memory_t::pd_t &diff_bias_pd, cpu_memory_t::pd_t &diff_dst_pd) {
+    memory_desc_t &src_md, memory_desc_t &diff_weights_md,
+    memory_desc_t &diff_bias_md, memory_desc_t &diff_dst_md) {
     if (!mayiuse(avx512_common))
         return status::unimplemented;
 
-    const memory_desc_wrapper src_d(&src_pd);
-    const memory_desc_wrapper diff_weights_d(&diff_weights_pd);
-    const memory_desc_wrapper diff_bias_d(&diff_bias_pd);
-    const memory_desc_wrapper diff_dst_d(&diff_dst_pd);
+    const memory_desc_wrapper src_d(&src_md);
+    const memory_desc_wrapper diff_weights_d(&diff_weights_md);
+    const memory_desc_wrapper diff_bias_d(&diff_bias_md);
+    const memory_desc_wrapper diff_dst_d(&diff_dst_md);
 
     const bool with_groups = diff_weights_d.ndims() == src_d.ndims() + 1;
     int ndims = src_d.ndims();
@@ -4596,7 +4595,7 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
     jcp.with_bias = cd.diff_bias_desc.format != memory_format::undef;
     if (jcp.with_bias) {
         if (diff_bias_d.format() == any)
-            CHECK(diff_bias_pd.set_format(x));
+            CHECK(types::set_default_format(diff_bias_md, x));
         if (diff_bias_d.format() != x)
             return status::unimplemented;
     }
@@ -4604,7 +4603,7 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
     jcp.nb_oc = jcp.oc / jcp.oc_block;
 
     if (diff_dst_d.format() == any)
-        CHECK(diff_dst_pd.set_format(src_format));
+        CHECK(types::set_default_format(diff_dst_md, src_format));
     if (diff_dst_d.format() != src_format)
         return status::unimplemented;
 
@@ -4630,7 +4629,7 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
     if (jcp.is_1stconv) {
         const auto want_src_format = pick(ndims - 3, ncw, nchw, ncdhw);
         if (src_d.format() == any)
-            CHECK(src_pd.set_format(want_src_format));
+            CHECK(types::set_default_format(src_md, want_src_format));
 
         const bool src_ok = true
             && utils::everyone_is(data_type::f32,
@@ -4670,7 +4669,7 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
             jcp.tr_ld = tr_ld;
             jcp.ic_block = 1;
             if (diff_weights_d.format() == any)
-                CHECK(diff_weights_pd.set_format(want_4fma_wfmt));
+                CHECK(types::set_default_format(diff_weights_md, want_4fma_wfmt));
         } else {
             jcp.ver = ver_fma;
             jcp.ic_block = jcp.ic;
@@ -4679,7 +4678,7 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
                 ? pick(ndims - 3, gOwi16o, gOhwi16o, gOdhwi16o)
                 : pick(ndims - 3, Owi16o, Ohwi16o, Odhwi16o);
             if (diff_weights_d.format() == any)
-                CHECK(diff_weights_pd.set_format(want_wfmt));
+                CHECK(types::set_default_format(diff_weights_md, want_wfmt));
             if (diff_weights_d.format() != want_wfmt)
                 return status::unimplemented;
         }
@@ -4688,9 +4687,9 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
         jcp.src_fmt = src_d.format();
     } else {
         if (src_d.format() == any)
-            CHECK(src_pd.set_format(src_format));
+            CHECK(types::set_default_format(src_md, src_format));
         if (diff_weights_d.format() == any)
-            CHECK(diff_weights_pd.set_format(wei_format));
+            CHECK(types::set_default_format(diff_weights_md, wei_format));
 
         const bool ok = true
             && src_d.format() == src_format

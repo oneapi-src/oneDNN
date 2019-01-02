@@ -14,16 +14,17 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_REF_LRN_FWD_HPP
-#define CPU_REF_LRN_FWD_HPP
+#ifndef CPU_REF_LRN_HPP
+#define CPU_REF_LRN_HPP
 
 #include <assert.h>
 
 #include "c_types_map.hpp"
-#include "cpu_lrn_pd.hpp"
-#include "cpu_engine.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
+
+#include "cpu_lrn_pd.hpp"
+#include "cpu_primitive.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -32,26 +33,16 @@ namespace cpu {
 template <impl::data_type_t data_type>
 struct ref_lrn_fwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_lrn_fwd_pd_t {
-        pd_t(engine_t *engine, const lrn_desc_t *adesc,
-                const primitive_attr_t *attr, const lrn_fwd_pd_t *hint_fwd_pd)
-            : cpu_lrn_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+        using cpu_lrn_fwd_pd_t::cpu_lrn_fwd_pd_t;
 
         DECLARE_COMMON_PD_T("ref:any", ref_lrn_fwd_t);
 
-        virtual status_t init() override {
-            using namespace prop_kind;
-            using namespace alg_kind;
-            assert(engine()->kind() == engine_kind::cpu);
+        status_t init() {
             bool ok = true
-                && utils::one_of(desc()->prop_kind, forward_training,
-                        forward_inference)
-                && utils::one_of(desc()->alg_kind, lrn_across_channels,
-                        lrn_within_channel)
-                && utils::everyone_is(data_type, desc()->data_desc.data_type)
+                && is_fwd()
+                && src_md()->data_type == data_type
                 && attr()->has_default_values();
             if (!ok) return status::unimplemented;
-
-            if (desc_.prop_kind == forward_training) { ws_pd_ = data_pd_; }
 
             return status::success;
         }
@@ -62,7 +53,7 @@ struct ref_lrn_fwd_t: public cpu_primitive_t {
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         using namespace memory_format;
-        switch (pd()->src_pd()->desc()->format) {
+        switch (pd()->src_md()->format) {
         case nChw16c: execute_forward<nChw16c>(ctx); break;
         case nChw8c: execute_forward<nChw8c>(ctx); break;
         case nchw: execute_forward<nchw>(ctx); break;
@@ -83,21 +74,20 @@ private:
 template <impl::data_type_t data_type>
 struct ref_lrn_bwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_lrn_bwd_pd_t {
-        pd_t(engine_t *engine, const lrn_desc_t *adesc,
-                const primitive_attr_t *attr, const lrn_fwd_pd_t *hint_fwd_pd)
-            : cpu_lrn_bwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+        using cpu_lrn_bwd_pd_t::cpu_lrn_bwd_pd_t;
 
         DECLARE_COMMON_PD_T("ref:any", ref_lrn_bwd_t);
 
-        virtual status_t init() override {
-            using namespace prop_kind;
+        status_t init() {
             using namespace alg_kind;
-            assert(engine()->kind() == engine_kind::cpu);
+
             bool ok = true
-                && utils::one_of(desc()->prop_kind, backward_data)
+                && !is_fwd()
                 && utils::one_of(desc()->alg_kind, lrn_across_channels
                         /*, lrn_within_channel */) // not supported yet
-                && utils::everyone_is(data_type, desc()->data_desc.data_type)
+                && utils::everyone_is(data_type,
+                        src_md()->data_type,
+                        diff_src_md()->data_type)
                 && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
@@ -110,7 +100,7 @@ struct ref_lrn_bwd_t: public cpu_primitive_t {
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         using namespace memory_format;
-        switch (pd()->src_pd()->desc()->format) {
+        switch (pd()->src_md()->format) {
         case nChw16c: execute_backward<nChw16c>(ctx); break;
         case nChw8c: execute_backward<nChw8c>(ctx); break;
         case nchw: execute_backward<nchw>(ctx); break;

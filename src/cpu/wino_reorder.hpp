@@ -24,19 +24,15 @@ namespace cpu {
 template <data_type_t type_i, data_type_t type_o>
 struct wino_reorder_t : public cpu_primitive_t {
     struct pd_t : public cpu_reorder_pd_t {
-        pd_t(const cpu_memory_pd_t *input_pd, const cpu_memory_pd_t *output_pd,
-                const primitive_attr_t *attr)
-            : cpu_reorder_pd_t(input_pd, output_pd, attr) {}
+        using cpu_reorder_pd_t::cpu_reorder_pd_t;
 
         DECLARE_COMMON_PD_T("wino_reorder", wino_reorder_t);
 
         static status_t create(reorder_pd_t **reorder_pd,
-                const memory_pd_t *input_pd, const memory_pd_t *output_pd,
-                const primitive_attr_t *attr) {
-            assert(input_pd->engine()->kind() == engine_kind::cpu);
-            assert(output_pd->engine()->kind() == engine_kind::cpu);
-
-            const memory_desc_wrapper id(input_pd), od(output_pd);
+                engine_t *engine, const primitive_attr_t *attr,
+                engine_t *src_engine, const memory_desc_t *src_md,
+                engine_t *dst_engine, const memory_desc_t *dst_md) {
+            const memory_desc_wrapper id(src_md), od(dst_md);
             bool args_ok = true
                 && id.data_type() == type_i
                 && od.data_type() == type_o
@@ -47,14 +43,17 @@ struct wino_reorder_t : public cpu_primitive_t {
                         mkldnn_wino_wei_aaOBiOo, mkldnn_wino_wei_OBaaIBOIio);
             if (!args_ok) return status::invalid_arguments;
 
-            auto _pd = new pd_t((const cpu_memory_pd_t *)input_pd,
-                    (const cpu_memory_pd_t *)output_pd, attr);
-            if (_pd == nullptr) return out_of_memory;
-            if (_pd->init() != success) { delete _pd; return unimplemented; }
+            auto _pd = new pd_t(engine, attr, src_engine, src_md, dst_engine,
+                    dst_md);
+            if (_pd == nullptr) return status::out_of_memory;
+            if (_pd->init() != status::success) {
+                delete _pd;
+                return status::unimplemented;
+            }
             return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
         }
 
-        virtual status_t init() override {
+        status_t init() {
             status_t status = cpu_reorder_pd_t::init();
             if (status != status::success) return status;
 
@@ -65,7 +64,7 @@ struct wino_reorder_t : public cpu_primitive_t {
 
     private:
         void init_scratchpad() {
-            auto &o = memory_desc_wrapper(output_pd()).wino_desc();
+            auto &o = memory_desc_wrapper(dst_md()).wino_desc();
             size_t transform_space_size = (size_t)o.r * o.alpha * o.oc_block;
             size_t plain_size = (size_t)o.alpha * o.alpha * o.oc * o.ic;
 
@@ -83,19 +82,18 @@ private:
     typedef typename prec_traits<type_o>::type out_data_t;
     const int unsign_val_in_wino_domain_ = 5;
 
-    wino_reorder_t(const pd_t *apd): cpu_primitive_t(apd)
-    {
-        const memory_desc_wrapper input_d(pd()->input_pd());
-        const memory_desc_wrapper output_d(pd()->output_pd());
+    wino_reorder_t(const pd_t *apd): cpu_primitive_t(apd) {
+        const memory_desc_wrapper src_d(pd()->src_md());
+        const memory_desc_wrapper dst_d(pd()->dst_md());
 
-        r_ = output_d.wino_desc().r;
-        w_alpha_ = output_d.wino_desc().alpha;
-        wino_format_ = output_d.wino_desc().wino_format;
+        r_ = dst_d.wino_desc().r;
+        w_alpha_ = dst_d.wino_desc().alpha;
+        wino_format_ = dst_d.wino_desc().wino_format;
 
-        const auto &in_dims = input_d.dims();
+        const auto &in_dims = src_d.dims();
         int groups;
         int groups_offset;
-        if (input_d.format() == goihw) {
+        if (src_d.format() == goihw) {
             groups = in_dims[0];
             groups_offset = 1;
         } else {
@@ -110,20 +108,20 @@ private:
         kh_ = in_dims[2 + groups_offset];
         kw_ = in_dims[3 + groups_offset];
 
-        oc_ = output_d.wino_desc().oc;
-        ic_ = output_d.wino_desc().ic;
-        oc_block_ = output_d.wino_desc().oc_block;
-        ic_block_ = output_d.wino_desc().ic_block;
+        oc_ = dst_d.wino_desc().oc;
+        ic_ = dst_d.wino_desc().ic;
+        oc_block_ = dst_d.wino_desc().oc_block;
+        ic_block_ = dst_d.wino_desc().ic_block;
         assert(oc_ % oc_block_ == 0 && ic_ % ic_block_ == 0);
         nb_oc_ = oc_ / oc_block_;
         nb_ic_ = ic_ / ic_block_;
         ic2_block_ = 1;
         if (wino_format_ == mkldnn_wino_wei_OBaaIBOIio)
-            ic2_block_ = output_d.wino_desc().ic2_block;
-        oc2_block_ = output_d.wino_desc().oc2_block;
+            ic2_block_ = dst_d.wino_desc().ic2_block;
+        oc2_block_ = dst_d.wino_desc().oc2_block;
         assert(nb_ic_ % ic2_block_ == 0 && nb_oc_ % oc2_block_ == 0);
 
-        adj_scale_ = output_d.wino_desc().adj_scale;
+        adj_scale_ = dst_d.wino_desc().adj_scale;
 
         size_wino_wei_ = w_alpha_ * w_alpha_ * oc_ * ic_;
         size_wspace_ = r_ * w_alpha_ * oc_block_;
@@ -132,12 +130,12 @@ private:
     void transform(out_data_t *__restrict tmp_wei,
             const in_data_t *__restrict input,
             in_data_t *__restrict wspace) const {
-        const memory_desc_wrapper input_d(pd()->input_pd()->desc());
+        const memory_desc_wrapper src_d(pd()->src_md());
 
         round_mode_t rmode = pd()->attr()->round_mode_;
         const int smask = pd()->attr()->output_scales_.mask_;
         const int ndims_mask = math::ilog2q(smask + 1);
-        const size_t D_mask = utils::array_product(input_d.dims(), ndims_mask);
+        const size_t D_mask = utils::array_product(src_d.dims(), ndims_mask);
         const float *__restrict scales = pd()->attr()->output_scales_.scales_;
         assert(D_mask == 1 || D_mask == (size_t)oc_);
 

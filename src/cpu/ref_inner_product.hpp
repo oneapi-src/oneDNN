@@ -20,10 +20,11 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
-#include "cpu_inner_product_pd.hpp"
-#include "cpu_engine.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
+
+#include "cpu_inner_product_pd.hpp"
+#include "cpu_primitive.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -34,28 +35,22 @@ template <impl::data_type_t src_type, impl::data_type_t wei_type = src_type,
          impl::data_type_t acc_type = dst_type>
 struct ref_inner_product_fwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_inner_product_fwd_pd_t {
-        pd_t(engine_t *engine, const inner_product_desc_t *adesc,
-                const primitive_attr_t *attr,
-                const inner_product_fwd_pd_t *hint_fwd_pd)
-            : cpu_inner_product_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+        using cpu_inner_product_fwd_pd_t::cpu_inner_product_fwd_pd_t;
 
         DECLARE_COMMON_PD_T("ref:any", ref_inner_product_fwd_t);
 
-        virtual status_t init() override {
-            using namespace prop_kind;
+        status_t init() {
             using namespace data_type;
-            assert(engine()->kind() == engine_kind::cpu);
+
             bool ok = true
-                && this->set_default_params() == status::success
-                && utils::one_of(desc()->prop_kind, forward_training,
-                        forward_inference)
-                && desc()->src_desc.data_type == src_type
-                && desc()->weights_desc.data_type == wei_type
+                && set_default_params() == status::success
+                && is_fwd()
+                && src_md()->data_type == src_type
+                && weights_md()->data_type == wei_type
                 && desc()->accum_data_type == acc_type
-                && desc()->dst_desc.data_type == dst_type
-                && IMPLICATION(with_bias(),
-                            utils::one_of(desc()->bias_desc.data_type,
-                                f32, s32, s8, u8))
+                && dst_md()->data_type == dst_type
+                && IMPLICATION(with_bias(), utils::one_of(
+                            weights_md(1)->data_type, f32, s32, s8, u8))
                 && attr()->output_scales_.has_default_values()
                 && attr()->post_ops_.len_ <= 1
                 && IMPLICATION(attr()->post_ops_.len_ == 1,
@@ -86,25 +81,18 @@ template <impl::data_type_t diff_src_type, impl::data_type_t wei_type,
          impl::data_type_t acc_type = diff_src_type>
 struct ref_inner_product_bwd_data_t: public cpu_primitive_t {
     struct pd_t: public cpu_inner_product_bwd_data_pd_t {
-        pd_t(engine_t *engine, const inner_product_desc_t *adesc,
-                const primitive_attr_t *attr,
-                const inner_product_fwd_pd_t *hint_fwd_pd)
-            : cpu_inner_product_bwd_data_pd_t(engine, adesc, attr, hint_fwd_pd)
-        {}
+        using cpu_inner_product_bwd_data_pd_t::cpu_inner_product_bwd_data_pd_t;
 
         DECLARE_COMMON_PD_T("ref:any", ref_inner_product_bwd_data_t);
 
-        virtual status_t init() override {
-            using namespace prop_kind;
-            assert(engine()->kind() == engine_kind::cpu);
+        status_t init() {
             bool ok = true
-                && this->set_default_params() == status::success
-                && utils::one_of(this->desc()->prop_kind, backward,
-                        backward_data)
-                && desc()->diff_src_desc.data_type == diff_src_type
-                && desc()->weights_desc.data_type == wei_type
+                && set_default_params() == status::success
+                && desc()->prop_kind == prop_kind::backward_data
+                && diff_src_md()->data_type == diff_src_type
+                && weights_md()->data_type == wei_type
                 && desc()->accum_data_type == acc_type
-                && desc()->diff_dst_desc.data_type == diff_dst_type
+                && diff_dst_md()->data_type == diff_dst_type
                 && attr()->has_default_values();
             return ok ? status::success : status::unimplemented;
         }
@@ -130,27 +118,20 @@ private:
 template <impl::data_type_t data_type>
 struct ref_inner_product_bwd_weights_t: public cpu_primitive_t {
     struct pd_t: public cpu_inner_product_bwd_weights_pd_t {
-        pd_t(engine_t *engine, const inner_product_desc_t *adesc,
-                const primitive_attr_t *attr,
-                const inner_product_fwd_pd_t *hint_fwd_pd)
-            : cpu_inner_product_bwd_weights_pd_t(engine, adesc, attr,
-                    hint_fwd_pd) {}
+        using cpu_inner_product_bwd_weights_pd_t::cpu_inner_product_bwd_weights_pd_t;
 
         DECLARE_COMMON_PD_T("ref:any", ref_inner_product_bwd_weights_t);
 
-        virtual status_t init() override {
-            using namespace prop_kind;
-            assert(engine()->kind() == engine_kind::cpu);
+        status_t init() {
             bool ok = true
-                && this->set_default_params() == status::success
-                && utils::one_of(this->desc()->prop_kind, backward,
-                        backward_weights)
+                && set_default_params() == status::success
+                && desc()->prop_kind == prop_kind::backward_weights
                 && utils::everyone_is(data_type,
-                        this->desc()->src_desc.data_type,
-                        this->desc()->diff_dst_desc.data_type,
-                        this->desc()->diff_weights_desc.data_type)
+                        src_md()->data_type,
+                        diff_dst_md()->data_type,
+                        diff_weights_md()->data_type)
                 && IMPLICATION(this->with_bias(),
-                        data_type == this->desc()->diff_bias_desc.data_type)
+                        data_type == diff_weights_md(1)->data_type)
                 && attr()->has_default_values();
             return ok ? status::success : status::unimplemented;
         }

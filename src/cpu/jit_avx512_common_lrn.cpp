@@ -14,14 +14,14 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_types.h"
-
 #include "c_types_map.hpp"
-#include "jit_avx512_common_lrn.hpp"
-#include "jit_generator.hpp"
 #include "mkldnn_thread.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
+
+#include "jit_avx512_common_lrn.hpp"
+
+#include "jit_generator.hpp"
 
 #define FWD_RBC 4
 #define BWD_RBC 3
@@ -318,26 +318,20 @@ status_t jit_avx512_common_lrn_fwd_t::pd_t::init() {
     using namespace prop_kind;
     using namespace alg_kind;
 
-    assert(engine()->kind() == engine_kind::cpu);
-
-    if (!mayiuse(avx512_common)) return unimplemented;
-
-    const memory_desc_wrapper data_d(data_pd_.desc());
+    const memory_desc_wrapper data_d(src_md());
     bool ok = true
-        && one_of(desc()->prop_kind, forward_training, forward_inference)
+        && mayiuse(avx512_common)
+        && is_fwd()
         && !has_zero_dim_memory()
-        && everyone_is(data_type::f32, desc()->data_desc.data_type)
+        && everyone_is(data_type::f32, data_d.data_type())
         && data_d.ndims() == 4
         && data_d.dims()[1] % vsize == 0
         && attr()->has_default_values();
     if (!ok) return unimplemented;
 
     if (desc()->prop_kind == forward_training) {
-        memory_desc_t ws_d;
         dims_t ws_dims = { MB(), C(), H(), 2*W() };
-        mkldnn_memory_desc_init(&ws_d, 4, ws_dims, data_type::f32,
-            memory_format::nChw16c);
-        ws_pd_ = cpu_memory_t::pd_t(engine_, &ws_d);
+        mkldnn_memory_desc_init(&ws_md_, 4, ws_dims, data_type::f32, nChw16c);
     }
 
     bool args_ok_across = true
@@ -722,35 +716,23 @@ struct jit_avx512_common_lrn_bwd_t::jit_avx512_common_lrn_kernel_f32:
 };
 
 status_t jit_avx512_common_lrn_bwd_t::pd_t::init() {
-    using namespace prop_kind;
     using namespace alg_kind;
 
-    assert(engine()->kind() == engine_kind::cpu);
-
-    if (!mayiuse(avx512_common)) return unimplemented;
-
-    const memory_desc_wrapper data_d(data_pd_.desc());
+    const memory_desc_wrapper data_d(src_md());
     bool ok = true
-        && utils::one_of(desc()->prop_kind, backward, backward_data)
-        && utils::everyone_is(data_type::f32, desc()->data_desc.data_type)
+        && mayiuse(avx512_common)
+        && !is_fwd()
+        && utils::everyone_is(data_type::f32, data_d.data_type())
         && !has_zero_dim_memory()
         && data_d.ndims() == 4
         && data_d.dims()[1] % vsize == 0
         && attr()->has_default_values();
     if (!ok) return unimplemented;
 
-    memory_desc_t ws_d;
     dims_t ws_dims = { MB(), C(), H(), 2*W() };
-    mkldnn_memory_desc_init(&ws_d, 4, ws_dims, data_type::f32,
-        memory_format::nChw16c);
-    ws_pd_ = cpu_memory_t::pd_t(engine_, &ws_d);
+    mkldnn_memory_desc_init(&ws_md_, 4, ws_dims, data_type::f32, nChw16c);
 
-    auto fwd_ws_d_ = hint_fwd_pd_->workspace_pd()->desc();
-    bool ws_ok = true
-        && fwd_ws_d_->ndims == ws_pd_.desc()->ndims
-        && fwd_ws_d_->format == ws_pd_.desc()->format
-        && fwd_ws_d_->data_type == ws_pd_.desc()->data_type;
-    if (!ws_ok) return unimplemented;
+    if (!compare_ws(hint_fwd_pd_)) return unimplemented;
 
     bool args_ok_across = true
         && desc()->alg_kind == lrn_across_channels

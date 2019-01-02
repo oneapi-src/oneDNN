@@ -20,14 +20,14 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
-#include "cpu_convolution_pd.hpp"
-#include "cpu_engine.hpp"
 #include "mkldnn_thread.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-#include "jit_primitive_conf.hpp"
+#include "cpu_convolution_pd.hpp"
+#include "cpu_primitive.hpp"
 
+#include "jit_primitive_conf.hpp"
 #include "jit_generator.hpp"
 
 namespace mkldnn {
@@ -51,14 +51,11 @@ struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t : public cpu_primitive_t 
                 JIT_IMPL_NAME_HELPER("jit_int8_wino:", avx512_core, ""),
                 jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>);
 
-        virtual status_t init() override {
-            using namespace prop_kind;
+        status_t init() {
             using namespace memory_format;
-            assert(this->engine()->kind() == engine_kind::cpu);
             bool ok = true
                 && this->set_default_params() == status::success
-                && utils::one_of(this->desc()->prop_kind,
-                                    forward_training, forward_inference)
+                && this->is_fwd()
                 && utils::one_of(this->desc()->alg_kind,
                            alg_kind::convolution_auto,
                            alg_kind::convolution_winograd)
@@ -91,14 +88,14 @@ struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t : public cpu_primitive_t 
         status_t jit_conf();
         void init_scratchpad();
 
-        virtual status_t set_default_params() override {
+        status_t set_default_params() {
             using namespace memory_format;
-            if (this->src_pd_.desc()->format == any)
-                CHECK(this->src_pd_.set_format(nhwc));
-            if (this->dst_pd_.desc()->format == any)
-                CHECK(this->dst_pd_.set_format(nhwc));
-            if (this->bias_pd_.desc()->format == any)
-                CHECK(this->bias_pd_.set_format(x));
+            if (src_md_.format == any)
+                CHECK(types::set_default_format(src_md_, nhwc));
+            if (dst_md_.format == any)
+                CHECK(types::set_default_format(dst_md_, nhwc));
+            if (bias_md_.format == any)
+                CHECK(types::set_default_format(bias_md_, x));
             return status::success;
         }
     };

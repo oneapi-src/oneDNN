@@ -157,7 +157,7 @@ struct jit_bnorm_t: public jit_generator {
     };
 
     bool is_c_padded() const {
-        const memory_desc_wrapper data_d(bdesc_->src_pd());
+        const memory_desc_wrapper data_d(bdesc_->src_md());
         return bdesc_->C() != data_d.blocking_desc().padding_dims[1];
     }
 
@@ -1228,7 +1228,7 @@ private:
     }
 
     static int get_c_padded(const batch_normalization_pd_t *bdesc)
-    { return bdesc->src_pd()->desc()->layout_desc.blocking.padding_dims[1]; }
+    { return bdesc->src_md()->layout_desc.blocking.padding_dims[1]; }
 
     const batch_normalization_pd_t *bdesc_;
     bool do_blocking_;
@@ -1247,7 +1247,6 @@ using namespace utils;
 
 template <cpu_isa_t isa>
 status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init() {
-    assert(engine()->kind() == engine_kind::cpu);
     auto desired_fmt = (ndims() == 4)
         ? isa == avx512_common ? nChw16c : nChw8c
         : isa == avx512_common ? nCdhw16c : nCdhw8c;
@@ -1257,29 +1256,20 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init() {
         && is_fwd()
         && !has_zero_dim_memory()
         && one_of(ndims(), 4, 5)
-        && desc()->data_desc.data_type == f32
-        && IMPLICATION(use_scaleshift(),
-                desc()->data_scaleshift_desc.data_type == f32)
-        && desc()->data_desc.format == desired_fmt
+        && src_md()->data_type == f32
+        && IMPLICATION(use_scaleshift(), weights_md()->data_type == f32)
+        && src_md()->format == desired_fmt
         && (attr()->has_default_values() || this->with_relu_post_op());
     if (!ok) return status::unimplemented;
 
     if (is_training() && fuse_bn_relu()) {
         if (isa < avx2) return status::unimplemented;
-        bn_init_default_ws(this, this->workspace_pd_, 1);
+        init_default_ws(1);
     }
 
-    if (memory_desc_wrapper(&data_pd_).blocking_desc().padding_dims[1]
-            != this->C() && isa < avx2)
+    if (memory_desc_wrapper(src_md()).blocking_desc().padding_dims[1] != C()
+            && isa < avx2)
         return status::unimplemented;
-
-    if (stats_is_src() || is_training()) {
-        memory_desc_t stats_d;
-        dims_t stats_dims = { C() };
-        mkldnn_memory_desc_init(&stats_d, 1, stats_dims, f32, x);
-        mean_pd_ = cpu_memory_t::pd_t(engine_, &stats_d);
-        variance_pd_ = cpu_memory_t::pd_t(engine_, &stats_d);
-    }
 
     auto scratchpad = scratchpad_registry().registrar();
     uni_bnorm_driver_t<isa>::init_scratchpad(scratchpad, this);
@@ -1328,7 +1318,6 @@ jit_uni_batch_normalization_fwd_t<isa>::~jit_uni_batch_normalization_fwd_t()
 
 template <cpu_isa_t isa>
 status_t jit_uni_batch_normalization_bwd_t<isa>::pd_t::init() {
-    assert(engine()->kind() == engine_kind::cpu);
     auto desired_fmt = (ndims() == 4)
         ? one_of(isa, sse42, avx2) ? nChw8c : nChw16c
         : one_of(isa, sse42, avx2) ? nCdhw8c : nCdhw16c;
@@ -1338,29 +1327,24 @@ status_t jit_uni_batch_normalization_bwd_t<isa>::pd_t::init() {
         && is_bwd()
         && !has_zero_dim_memory()
         && one_of(ndims(), 4, 5)
-        && everyone_is(f32, desc()->data_desc.data_type,
-                desc()->diff_data_desc.data_type)
+        && everyone_is(f32, src_md()->data_type, diff_src_md()->data_type)
         && IMPLICATION(use_scaleshift(),
-                desc()->data_scaleshift_desc.data_type == f32)
-        && everyone_is(desired_fmt, desc()->diff_data_desc.format,
-                desc()->data_desc.format)
+                utils::everyone_is(f32,
+                    weights_md()->data_type,
+                    diff_weights_md()->data_type))
+        && everyone_is(desired_fmt, src_md()->format, diff_src_md()->format)
         && attr()->has_default_values();
     if (!ok) return status::unimplemented;
 
-    if (memory_desc_wrapper(&data_pd_).blocking_desc()
-            .padding_dims[1] != this->C() && isa < avx2)
+    if (memory_desc_wrapper(src_md()).blocking_desc().padding_dims[1] != C()
+            && isa < avx2)
         return status::unimplemented;
 
     if (fuse_bn_relu()) {
         if (isa < avx2) return status::unimplemented;
-        bn_init_default_ws(this, this->workspace_pd_, 1);
-        size_t this_ws_sz = memory_desc_wrapper(this->workspace_pd()).size();
-
-        bool ws_ok = true
-            && hint_fwd_pd_->workspace_pd()
-            && memory_desc_wrapper(hint_fwd_pd_->workspace_pd()).size()
-            == this_ws_sz;
-        if (!ws_ok) return status::unimplemented;
+        init_default_ws(1);
+        if (!compare_ws(hint_fwd_pd_))
+            return status::unimplemented;
     }
 
     /* TODO: extra checks required */

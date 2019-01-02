@@ -18,10 +18,11 @@
 #define CPU_JIT_UNI_I8I8_POOLING_HPP
 
 #include "c_types_map.hpp"
-#include "cpu_isa_traits.hpp"
-#include "cpu_pooling_pd.hpp"
-#include "cpu_engine.hpp"
 
+#include "cpu_pooling_pd.hpp"
+#include "cpu_primitive.hpp"
+
+#include "cpu_isa_traits.hpp"
 #include "jit_primitive_conf.hpp"
 
 namespace mkldnn {
@@ -34,30 +35,26 @@ struct jit_uni_i8i8_pooling_fwd_ker_t;
 template <cpu_isa_t isa>
 struct jit_uni_i8i8_pooling_fwd_t : public cpu_primitive_t {
     struct pd_t : public cpu_pooling_fwd_pd_t {
-        pd_t(engine_t *engine, const pooling_desc_t  *adesc,
-                const primitive_attr_t *attr,
-                const pooling_fwd_pd_t  *hint_fwd_pd)
-        : cpu_pooling_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+        using cpu_pooling_fwd_pd_t::cpu_pooling_fwd_pd_t;
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit:", isa, ""),
                 jit_uni_i8i8_pooling_fwd_t<isa>);
 
-        virtual status_t init() override {
-            assert(this->engine()->kind() == engine_kind::cpu);
+        status_t init() {
             bool ok = true
                 && mayiuse(isa)
-                && desc()->src_desc.ndims == 4
+                && ndims() == 4
                 && set_default_params() == status::success
                 && desc()->prop_kind == prop_kind::forward_inference
                 && utils::one_of(desc()->alg_kind, alg_kind::pooling_max,
                         alg_kind::pooling_avg_include_padding,
                         alg_kind::pooling_avg_exclude_padding)
-                && utils::one_of(src_pd()->desc()->data_type, data_type::s32,
+                && utils::one_of(src_md()->data_type, data_type::s32,
                         data_type::s8, data_type::u8)
-                && src_pd()->desc()->data_type == dst_pd()->desc()->data_type
+                && src_md()->data_type == dst_md()->data_type
                 && utils::everyone_is(memory_format::nhwc,
-                        src_pd()->desc()->format, dst_pd()->desc()->format)
+                        src_md()->format, dst_md()->format)
                 && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
@@ -68,13 +65,6 @@ struct jit_uni_i8i8_pooling_fwd_t : public cpu_primitive_t {
 
     protected:
         status_t jit_conf();
-
-        virtual status_t set_default_params() override {
-            using namespace memory_format;
-            if (dst_pd_.desc()->format == any)
-                CHECK(dst_pd_.set_format(nhwc));
-            return status::success;
-        }
     };
 
     jit_uni_i8i8_pooling_fwd_t(const pd_t *apd);

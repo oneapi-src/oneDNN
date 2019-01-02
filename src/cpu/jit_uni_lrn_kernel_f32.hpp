@@ -18,8 +18,9 @@
 #define CPU_JIT_UNI_LRN_KERNEL_F32_HPP
 
 #include "c_types_map.hpp"
-#include "jit_generator.hpp"
 #include "type_helpers.hpp"
+
+#include "jit_generator.hpp"
 
 namespace mkldnn {
 namespace impl {

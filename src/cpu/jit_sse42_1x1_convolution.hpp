@@ -18,11 +18,12 @@
 #define CPU_JIT_SSE42_1x1_CONVOLUTION_HPP
 
 #include "c_types_map.hpp"
-#include "cpu_convolution_pd.hpp"
-#include "cpu_engine.hpp"
-#include "jit_sse42_1x1_conv_kernel_f32.hpp"
 #include "mkldnn_thread.hpp"
 #include "utils.hpp"
+
+#include "cpu_convolution_pd.hpp"
+#include "cpu_primitive.hpp"
+#include "jit_sse42_1x1_conv_kernel_f32.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -43,13 +44,10 @@ struct jit_sse42_1x1_convolution_fwd_t: public cpu_primitive_t {
                 JIT_IMPL_NAME_HELPER("jit_1x1:", sse42, ""),
                 jit_sse42_1x1_convolution_fwd_t);
 
-        virtual status_t init() override {
-            using namespace prop_kind;
-            assert(this->engine()->kind() == engine_kind::cpu);
+        status_t init() {
             bool ok = true
                 && this->set_default_params() == status::success
-                && utils::one_of(this->desc()->prop_kind, forward_training,
-                        forward_inference)
+                && is_fwd()
                 && utils::one_of(this->desc()->alg_kind,
                            alg_kind::convolution_auto,
                            alg_kind::convolution_direct)
@@ -63,9 +61,8 @@ struct jit_sse42_1x1_convolution_fwd_t: public cpu_primitive_t {
             if (!ok) return status::unimplemented;
 
             status_t result = jit_sse42_1x1_conv_kernel_f32::init_conf(jcp_,
-                    *this->desc(),
-                    *this->src_pd_.desc(), *this->weights_pd_.desc(),
-                    *this->dst_pd_.desc(), *this->attr());
+                    *this->desc(), *src_md(), *weights_md(), *dst_md(),
+                    *this->attr());
 
             return result;
         }
@@ -73,22 +70,22 @@ struct jit_sse42_1x1_convolution_fwd_t: public cpu_primitive_t {
         jit_1x1_conv_conf_t jcp_;
 
     protected:
-        virtual status_t set_default_params() override {
+        status_t set_default_params() {
             using namespace memory_format;
-            if (this->src_pd_.desc()->format == any)
-                CHECK(this->src_pd_.set_format(utils::pick(this->ndims() - 3,
-                    nCw8c, nChw8c)));
-            if (this->dst_pd_.desc()->format == any)
-                CHECK(this->dst_pd_.set_format(utils::pick(this->ndims() - 3,
-                    nCw8c, nChw8c)));
-            if (this->weights_pd_.desc()->format == any)
-                CHECK(this->weights_pd_.set_format(this->with_groups()
-                    ? utils::pick(this->ndims() - 3, gOIw8i8o, gOIhw8i8o)
-                    : utils::pick(this->ndims() - 3, OIw8i8o, OIhw8i8o)));
-            if (this->bias_pd_.desc()->format == any)
-                CHECK(this->bias_pd_.set_format(x));
-            if (this->desc()->alg_kind == alg_kind::convolution_auto)
-                CHECK(this->set_alg_kind(alg_kind::convolution_direct));
+            if (src_md_.format == any)
+                CHECK(types::set_default_format(src_md_,
+                            utils::pick(ndims() - 3, nCw8c, nChw8c)));
+            if (dst_md_.format == any)
+                CHECK(types::set_default_format(dst_md_,
+                            utils::pick(ndims() - 3, nCw8c, nChw8c)));
+            if (weights_md_.format == any)
+                CHECK(types::set_default_format(weights_md_, with_groups()
+                    ? utils::pick(ndims() - 3, gOIw8i8o, gOIhw8i8o)
+                    : utils::pick(ndims() - 3, OIw8i8o, OIhw8i8o)));
+            if (bias_md_.format == any)
+                CHECK(types::set_default_format(bias_md_, x));
+            if (desc()->alg_kind == alg_kind::convolution_auto)
+                CHECK(set_alg_kind(alg_kind::convolution_direct));
             return status::success;
         }
     };

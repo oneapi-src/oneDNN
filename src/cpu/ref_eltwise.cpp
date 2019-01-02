@@ -65,7 +65,7 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_nCspBc_padded(
     auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
     auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
 
-    const memory_desc_wrapper data_d(pd()->src_pd());
+    const memory_desc_wrapper data_d(pd()->src_md());
     const blocking_desc_t &blk = data_d.blocking_desc();
     const int block = blk.block_dims[1];
 
@@ -113,7 +113,7 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_generic(
     auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
     auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
 
-    const memory_desc_wrapper data_d(pd()->src_pd());
+    const memory_desc_wrapper data_d(pd()->src_md());
 
     const int MB = pd()->MB();
     const int C = pd()->C();
@@ -154,7 +154,7 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_dense(
     auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
     auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
 
-    const memory_desc_wrapper data_d(pd()->src_pd());
+    const memory_desc_wrapper data_d(pd()->src_md());
 
     const ptrdiff_t nelems = static_cast<ptrdiff_t>(data_d.nelems(true));
     const auto alg_kind = pd()->desc()->alg_kind;
@@ -201,8 +201,8 @@ void ref_eltwise_bwd_t<data_type>::execute_backward_generic(
     auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
     auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
 
-    const memory_desc_wrapper data_d(pd()->src_pd());
-    const memory_desc_wrapper diff_data_d(pd()->diff_src_pd());
+    const memory_desc_wrapper data_d(pd()->src_md());
+    const memory_desc_wrapper diff_data_d(pd()->diff_src_md());
 
     const int MB = pd()->MB();
     const int C = pd()->C();
@@ -249,8 +249,8 @@ void ref_eltwise_bwd_t<data_type>::execute_backward_dense(
     auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
     auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
 
-    const memory_desc_wrapper data_d(pd()->src_pd());
-    const memory_desc_wrapper diff_data_d(pd()->diff_src_pd());
+    const memory_desc_wrapper data_d(pd()->src_md());
+    const memory_desc_wrapper diff_data_d(pd()->diff_src_md());
 
     const ptrdiff_t nelems = static_cast<ptrdiff_t>(data_d.nelems(true));
     const auto alg_kind = pd()->desc()->alg_kind;

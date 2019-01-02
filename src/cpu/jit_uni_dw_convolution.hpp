@@ -22,6 +22,7 @@
 
 #include "cpu_barrier.hpp"
 #include "cpu_convolution_pd.hpp"
+#include "cpu_primitive.hpp"
 #include "cpu_reducer.hpp"
 
 #include "jit_uni_dw_conv_kernel_f32.hpp"
@@ -43,13 +44,10 @@ struct _jit_uni_dw_convolution_fwd_t: public cpu_primitive_t {
                 JIT_IMPL_NAME_HELPER("jit_dw:", isa, ""),
                 _jit_uni_dw_convolution_fwd_t<isa>);
 
-        virtual status_t init() override {
-            using namespace prop_kind;
-            assert(this->engine()->kind() == engine_kind::cpu);
+        status_t init() {
             bool ok = true
                 && this->set_default_params() == status::success
-                && utils::one_of(this->desc()->prop_kind, forward_training,
-                        forward_inference)
+                && is_fwd()
                 && utils::one_of(this->desc()->alg_kind,
                            alg_kind::convolution_auto,
                            alg_kind::convolution_direct)
@@ -64,8 +62,7 @@ struct _jit_uni_dw_convolution_fwd_t: public cpu_primitive_t {
             if (!ok) return status::unimplemented;
 
             status_t status = jit_uni_dw_conv_fwd_kernel_f32<isa>::init_conf(
-                    jcp_, *this->desc(), this->src_pd_.desc(),
-                    *this->weights_pd_.desc(), *this->dst_pd_.desc(),
+                    jcp_, *this->desc(), src_md(), *weights_md(), *dst_md(),
                     *this->attr());
             if (status != status::success) return status;
 
@@ -79,21 +76,21 @@ struct _jit_uni_dw_convolution_fwd_t: public cpu_primitive_t {
         jit_conv_conf_t jcp_;
 
     protected:
-        virtual status_t set_default_params() override {
+        status_t set_default_params() {
             using namespace memory_format;
             auto desired_act_fmt = isa == avx512_common ? nChw16c : nChw8c;
             auto desired_wei_fmt = isa == avx512_common ? Goihw16g : Goihw8g;
 
-            if (this->src_pd_.desc()->format == any)
-                CHECK(this->src_pd_.set_format(desired_act_fmt));
-            if (this->dst_pd_.desc()->format == any)
-                CHECK(this->dst_pd_.set_format(desired_act_fmt));
-            if (this->weights_pd_.desc()->format == any)
-                CHECK(this->weights_pd_.set_format(desired_wei_fmt));
-            if (this->bias_pd_.desc()->format == any)
-                CHECK(this->bias_pd_.set_format(x));
-            if (this->desc()->alg_kind == alg_kind::convolution_auto)
-                CHECK(this->set_alg_kind(alg_kind::convolution_direct));
+            if (src_md_.format == any)
+                CHECK(types::set_default_format(src_md_, desired_act_fmt));
+            if (dst_md_.format == any)
+                CHECK(types::set_default_format(dst_md_, desired_act_fmt));
+            if (weights_md_.format == any)
+                CHECK(types::set_default_format(weights_md_, desired_wei_fmt));
+            if (bias_md_.format == any)
+                CHECK(types::set_default_format(bias_md_, x));
+            if (desc()->alg_kind == alg_kind::convolution_auto)
+                CHECK(set_alg_kind(alg_kind::convolution_direct));
             return status::success;
         }
     };
@@ -137,14 +134,10 @@ struct _jit_uni_dw_convolution_bwd_data_t: public cpu_primitive_t {
                 JIT_IMPL_NAME_HELPER("jit_dw:", isa, ""),
                 _jit_uni_dw_convolution_bwd_data_t);
 
-        virtual status_t init() override {
-            using namespace prop_kind;
-
-            assert(this->engine()->kind() == engine_kind::cpu);
+        status_t init() {
             bool ok = true
                 && this->set_default_params() == status::success
-                && utils::one_of(this->desc()->prop_kind, backward,
-                        backward_data)
+                && this->desc()->prop_kind == prop_kind::backward_data
                 && utils::one_of(this->desc()->alg_kind,
                            alg_kind::convolution_auto,
                            alg_kind::convolution_direct)
@@ -158,8 +151,8 @@ struct _jit_uni_dw_convolution_bwd_data_t: public cpu_primitive_t {
 
             status_t status =
                 jit_uni_dw_conv_bwd_data_kernel_f32<isa>::init_conf(jcp_,
-                        *this->desc(), *this->diff_src_pd_.desc(),
-                        *this->weights_pd_.desc(), *this->diff_dst_pd_.desc());
+                        *this->desc(), *diff_src_md(),
+                        *weights_md(), *diff_dst_md());
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -172,19 +165,19 @@ struct _jit_uni_dw_convolution_bwd_data_t: public cpu_primitive_t {
         jit_conv_conf_t jcp_;
 
     protected:
-        virtual status_t set_default_params() override {
+        status_t set_default_params() {
             using namespace memory_format;
             auto desired_act_fmt = isa == avx512_common ? nChw16c : nChw8c;
             auto desired_wei_fmt = isa == avx512_common ? Goihw16g : Goihw8g;
 
-            if (this->diff_src_pd_.desc()->format == any)
-                CHECK(this->diff_src_pd_.set_format(desired_act_fmt));
-            if (this->diff_dst_pd_.desc()->format == any)
-                CHECK(this->diff_dst_pd_.set_format(desired_act_fmt));
-            if (this->weights_pd_.desc()->format == any)
-                CHECK(this->weights_pd_.set_format(desired_wei_fmt));
-            if (this->desc()->alg_kind == alg_kind::convolution_auto)
-                CHECK(this->set_alg_kind(alg_kind::convolution_direct));
+            if (diff_src_md_.format == any)
+                CHECK(types::set_default_format(diff_src_md_, desired_act_fmt));
+            if (diff_dst_md_.format == any)
+                CHECK(types::set_default_format(diff_dst_md_, desired_act_fmt));
+            if (weights_md_.format == any)
+                CHECK(types::set_default_format(weights_md_, desired_wei_fmt));
+            if (desc()->alg_kind == alg_kind::convolution_auto)
+                CHECK(set_alg_kind(alg_kind::convolution_direct));
 
             return status::success;
         }
@@ -197,13 +190,7 @@ struct _jit_uni_dw_convolution_bwd_data_t: public cpu_primitive_t {
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        switch (pd()->desc()->prop_kind) {
-        case prop_kind::backward_data:
-            execute_backward_data(ctx);
-            break;
-        default:
-            assert(!"invalid prop_kind");
-        }
+        execute_backward_data(ctx);
         return status::success;
     }
 
@@ -235,10 +222,7 @@ struct _jit_uni_dw_convolution_bwd_weights_t: public cpu_primitive_t {
                 JIT_IMPL_NAME_HELPER("jit_dw:", isa, ""),
                 _jit_uni_dw_convolution_bwd_weights_t<isa>);
 
-        virtual status_t init() override {
-            using namespace prop_kind;
-
-            assert(this->engine()->kind() == engine_kind::cpu);
+        status_t init() {
             bool ok = true
                 && this->set_default_params() == status::success
                 && this->desc()->prop_kind == prop_kind::backward_weights
@@ -257,9 +241,9 @@ struct _jit_uni_dw_convolution_bwd_weights_t: public cpu_primitive_t {
 
             status_t status =
                 jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::init_conf(jcp_,
-                        *this->desc(), *this->src_pd_.desc(),
-                        *this->diff_weights_pd_.desc(),
-                        *this->diff_dst_pd_.desc(), max_threads);
+                        *this->desc(), *src_md(),
+                        *diff_weights_md(),
+                        *diff_dst_md(), max_threads);
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -272,21 +256,21 @@ struct _jit_uni_dw_convolution_bwd_weights_t: public cpu_primitive_t {
         jit_conv_conf_t jcp_;
 
     protected:
-        virtual status_t set_default_params() override {
+        status_t set_default_params() {
             using namespace memory_format;
             auto desired_act_fmt = isa == avx512_common ? nChw16c : nChw8c;
             auto desired_wei_fmt = isa == avx512_common ? Goihw16g : Goihw8g;
 
-            if (this->src_pd_.desc()->format == any)
-                CHECK(this->src_pd_.set_format(desired_act_fmt));
-            if (this->diff_dst_pd_.desc()->format == any)
-                CHECK(this->diff_dst_pd_.set_format(desired_act_fmt));
-            if (this->diff_weights_pd_.desc()->format == any)
-                CHECK(this->diff_weights_pd_.set_format(desired_wei_fmt));
-            if (this->diff_bias_pd_.desc()->format == any)
-                CHECK(this->diff_bias_pd_.set_format(x));
-            if (this->desc()->alg_kind == alg_kind::convolution_auto)
-                CHECK(this->set_alg_kind(alg_kind::convolution_direct));
+            if (src_md_.format == any)
+                CHECK(types::set_default_format(src_md_, desired_act_fmt));
+            if (diff_dst_md_.format == any)
+                CHECK(types::set_default_format(diff_dst_md_, desired_act_fmt));
+            if (diff_weights_md_.format == any)
+                CHECK(types::set_default_format(diff_weights_md_, desired_wei_fmt));
+            if (diff_bias_md_.format == any)
+                CHECK(types::set_default_format(diff_bias_md_, x));
+            if (desc()->alg_kind == alg_kind::convolution_auto)
+                CHECK(set_alg_kind(alg_kind::convolution_direct));
 
             return status::success;
         }

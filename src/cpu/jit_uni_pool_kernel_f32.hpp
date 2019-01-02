@@ -15,15 +15,16 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_UNI_POOL_KERNEL_F32_HPP
-#define CPU_JIT_UNI_POOL_KERNEL_F32_HPP
+#ifndef JIT_UNI_POOL_KERNEL_F32_HPP
+#define JIT_UNI_POOL_KERNEL_F32_HPP
 
 #include <cfloat>
 
 #include "c_types_map.hpp"
-#include "jit_generator.hpp"
+#include "pooling_pd.hpp"
 #include "type_helpers.hpp"
 
+#include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
 
 namespace mkldnn {
@@ -45,9 +46,7 @@ struct jit_uni_pool_kernel_f32: public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_pool_kernel_f32)
 
     void operator()(jit_pool_call_s *arg) { jit_ker(arg); }
-    static status_t init_conf(jit_pool_conf_t &jbp,
-            const pooling_desc_t &pd, const memory_desc_wrapper &src_d,
-            const memory_desc_wrapper &dst_d);
+    static status_t init_conf(jit_pool_conf_t &jbp, const pooling_pd_t *ppd);
 
 private:
     using Vmm = typename utils::conditional3<isa == sse42, Xmm, isa == avx,

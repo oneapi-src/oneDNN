@@ -23,7 +23,7 @@
 #include "utils.hpp"
 
 #include "cpu_convolution_pd.hpp"
-#include "cpu_engine.hpp"
+#include "cpu_primitive.hpp"
 
 #include "jit_avx512_core_x8s8s32x_1x1_conv_kernel.hpp"
 #include "jit_uni_1x1_conv_utils.hpp"
@@ -46,14 +46,11 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public cpu_primitive_t {
                 jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<
                 src_type, dst_type>);
 
-        virtual status_t init() override {
-            using namespace prop_kind;
+        status_t init() {
             using namespace utils;
-            assert(this->engine()->kind() == engine_kind::cpu);
             bool ok = true
                 && this->set_default_params() == status::success
-                && utils::one_of(this->desc()->prop_kind, forward_training,
-                        forward_inference)
+                && this->is_fwd()
                 && utils::one_of(this->desc()->alg_kind,
                         alg_kind::convolution_auto,
                         alg_kind::convolution_direct)
@@ -68,13 +65,13 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public cpu_primitive_t {
             if (!ok) return status::unimplemented;
 
             const convolution_desc_t *conv_d = this->desc();
-            const memory_desc_t *src_d = this->src_pd_.desc();
-            rtus_prepare(this, conv_d, src_d, this->dst_pd_.desc());
+            const memory_desc_t *src_d = src_md();
+            rtus_prepare(this, conv_d, src_d, dst_md());
 
             status_t status =
                 jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(jcp_,
-                        *conv_d, *src_d, *this->weights_pd_.desc(),
-                        *this->dst_pd_.desc(), *this->bias_pd_.desc(),
+                        *conv_d, *src_d, *weights_md(),
+                        *dst_md(), *weights_md(1),
                         *this->attr(), mkldnn_get_max_threads(),
                         rtus_.reduce_src_);
             if (status != status::success) return status;
@@ -92,23 +89,23 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public cpu_primitive_t {
         reduce_to_unit_stride_t rtus_;
 
     protected:
-        virtual status_t set_default_params() override {
+        status_t set_default_params() {
             using namespace memory_format;
             bool is_sign_input =
-                this->desc()->src_desc.data_type == data_type::s8;
+                desc()->src_desc.data_type == data_type::s8;
 
-            if (this->src_pd_.desc()->format == any)
-                CHECK(this->src_pd_.set_format(nhwc));
-            if (this->dst_pd_.desc()->format == any)
-                CHECK(this->dst_pd_.set_format(nhwc));
-            if (this->weights_pd_.desc()->format == any)
-                CHECK(this->weights_pd_.set_format(this->with_groups()
+            if (src_md_.format == any)
+                CHECK(types::set_default_format(src_md_, nhwc));
+            if (dst_md_.format == any)
+                CHECK(types::set_default_format(dst_md_, nhwc));
+            if (weights_md_.format == any)
+                CHECK(types::set_default_format(weights_md_, with_groups()
                     ? (is_sign_input ? gOIhw4i16o4i_s8s8 : gOIhw4i16o4i)
                     : (is_sign_input ? OIhw4i16o4i_s8s8 : OIhw4i16o4i)));
-            if (this->bias_pd_.desc()->format == any)
-                CHECK(this->bias_pd_.set_format(x));
-            if (this->desc()->alg_kind == alg_kind::convolution_auto)
-                CHECK(this->set_alg_kind(alg_kind::convolution_direct));
+            if (bias_md_.format == any)
+                CHECK(types::set_default_format(bias_md_, x));
+            if (desc()->alg_kind == alg_kind::convolution_auto)
+                CHECK(set_alg_kind(alg_kind::convolution_direct));
 
             return status::success;
         }

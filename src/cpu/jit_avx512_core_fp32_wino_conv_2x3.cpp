@@ -17,8 +17,6 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
-#include "cpu_convolution_pd.hpp"
-#include "cpu_engine.hpp"
 #include "mkldnn_thread.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
@@ -407,8 +405,8 @@ struct jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t: public jit_generator {
 
     static status_t init_conf(
             jit_conv_conf_2x3_wino_t &jcp, const convolution_desc_t &cd,
-            cpu_memory_t::pd_t &src_pd, cpu_memory_t::pd_t &weights_pd,
-            cpu_memory_t::pd_t &dst_pd, cpu_memory_t::pd_t &bias_pd,
+            memory_desc_t &src_md, memory_desc_t &weights_md,
+            memory_desc_t &dst_md, memory_desc_t &bias_md,
             const primitive_attr_t &attr,
             memory_desc_t& expect_wei_md);
 
@@ -571,13 +569,13 @@ bool is_winograd_faster_than_direct(const jit_conv_conf_2x3_wino_t &jcp) {
 
 status_t jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t ::init_conf(
         jit_conv_conf_2x3_wino_t &jcp, const convolution_desc_t &cd,
-        cpu_memory_t::pd_t &src_pd, cpu_memory_t::pd_t &wei_pd,
-        cpu_memory_t::pd_t &dst_pd, cpu_memory_t::pd_t &bias_pd,
+        memory_desc_t &src_md, memory_desc_t &wei_md,
+        memory_desc_t &dst_md, memory_desc_t &bias_md,
         const primitive_attr_t &attr, memory_desc_t &expect_wei_md) {
-    const memory_desc_wrapper src_d(&src_pd);
-    const memory_desc_wrapper wei_d(&wei_pd);
-    const memory_desc_wrapper dst_d(&dst_pd);
-    const memory_desc_wrapper bias_d(&bias_pd);
+    const memory_desc_wrapper src_d(&src_md);
+    const memory_desc_wrapper wei_d(&wei_md);
+    const memory_desc_wrapper dst_d(&dst_md);
+    const memory_desc_wrapper bias_d(&bias_md);
 
     const bool with_groups = wei_d.ndims() == src_d.ndims() + 1;
 
@@ -679,7 +677,7 @@ status_t jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t ::init_conf(
             && (wei_sz >= 0.9f * L2_cap
                 || inp_sz > L2_cap * jcp.nthr + L3_capacity))
         || (jcp.small_mb && sp_sz > 196))
-        return unimplemented;
+        return status::unimplemented;
 
     jcp.bia_dt = jcp.with_bias ? cd.bias_desc.data_type : data_type::undef;
     jcp.dst_dt = cd.dst_desc.data_type;
@@ -836,8 +834,8 @@ status_t jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t ::init_conf(
 status_t jit_avx512_core_fp32_wino_conv_2x3_fwd_t
     ::pd_t::jit_conf(memory_desc_t& expect_wei_md) {
     return jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t::init_conf(
-            jcp_, *this->desc(), this->src_pd_, this->weights_pd_,
-            this->dst_pd_,this->bias_pd_, *this->attr(), expect_wei_md);
+            jcp_, *this->desc(), this->src_md_, this->weights_md_,
+            this->dst_md_,this->bias_md_, *this->attr(), expect_wei_md);
 }
 
 jit_avx512_core_fp32_wino_conv_2x3_fwd_t::

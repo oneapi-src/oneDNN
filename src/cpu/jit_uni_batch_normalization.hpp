@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_UNI_BATCH_NORMALIZATION_HPP
-#define CPU_JIT_UNI_BATCH_NORMALIZATION_HPP
+#ifndef JIT_UNI_BATCH_NORMALIZATION_HPP
+#define JIT_UNI_BATCH_NORMALIZATION_HPP
 
 #include <assert.h>
 
@@ -24,7 +24,8 @@
 #include "utils.hpp"
 
 #include "cpu_batch_normalization_pd.hpp"
-#include "jit_generator.hpp"
+#include "cpu_isa_traits.hpp"
+#include "cpu_primitive.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -38,14 +39,14 @@ struct jit_uni_batch_normalization_fwd_t: public cpu_primitive_t {
         pd_t(engine_t *engine, const batch_normalization_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const batch_normalization_fwd_pd_t *hint_fwd_pd)
-            : cpu_batch_normalization_fwd_pd_t(engine, adesc, attr,
-                    hint_fwd_pd) {}
+            : cpu_batch_normalization_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
+        {}
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit:", isa, ""),
                 jit_uni_batch_normalization_fwd_t<isa>);
 
-        virtual status_t init() override;
+        status_t init();
     };
 
     typedef typename prec_traits<data_type::f32>::type data_t;
@@ -67,14 +68,14 @@ struct jit_uni_batch_normalization_bwd_t: public cpu_primitive_t {
         pd_t(engine_t *engine, const batch_normalization_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const batch_normalization_fwd_pd_t *hint_fwd_pd)
-            : cpu_batch_normalization_bwd_pd_t(engine, adesc, attr,
-                    hint_fwd_pd) {}
+            : cpu_batch_normalization_bwd_pd_t(engine, adesc, attr, hint_fwd_pd)
+        {}
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit:", isa, ""),
                 jit_uni_batch_normalization_bwd_t<isa>);
 
-        virtual status_t init() override;
+        status_t init();
     };
 
     typedef typename prec_traits<data_type::f32>::type data_t;

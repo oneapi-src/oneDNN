@@ -74,8 +74,8 @@ struct reference {};
     type_i, fmt_i, type_o, fmt_o, order_keep
 
 #define DECLARE_COMMON_PARAMS() \
-        const memory_desc_wrapper &input_d = pd->input_pd(); \
-        const memory_desc_wrapper &output_d = pd->output_pd(); \
+        const memory_desc_wrapper &input_d = pd->src_md(); \
+        const memory_desc_wrapper &output_d = pd->dst_md(); \
         const float alpha = pd->alpha(); MAYBE_UNUSED(alpha); \
         const float beta = pd->beta(); MAYBE_UNUSED(beta); \
         const round_mode_t rmode = pd->attr()->round_mode_; MAYBE_UNUSED(rmode);
@@ -1006,29 +1006,29 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 template <SIMPLE_REORDER_TEMPL_DECL, typename spec = void>
 struct simple_reorder_t: public cpu_primitive_t {
     struct pd_t: public cpu_reorder_pd_t {
-        pd_t(const cpu_memory_pd_t *input_pd, const cpu_memory_pd_t *output_pd,
-                const primitive_attr_t *attr)
-            : cpu_reorder_pd_t(input_pd, output_pd, attr) {}
+        using cpu_reorder_pd_t::cpu_reorder_pd_t;
 
         DECLARE_COMMON_PD_T("simple:any", simple_reorder_t);
 
         static status_t create(reorder_pd_t **reorder_pd,
-                const memory_pd_t *input_pd, const memory_pd_t *output_pd,
-                const primitive_attr_t *attr) {
-            assert(input_pd->engine()->kind() == engine_kind::cpu);
-            assert(output_pd->engine()->kind() == engine_kind::cpu);
+                engine_t *engine, const primitive_attr_t *attr,
+                engine_t *src_engine, const memory_desc_t *src_md,
+                engine_t *dst_engine, const memory_desc_t *dst_md) {
             bool args_ok = true
-                && input_pd->desc()->data_type == type_i
-                && output_pd->desc()->data_type == type_o
+                && src_md->data_type == type_i
+                && dst_md->data_type == type_o
                 && simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL, spec>::
-                is_applicable(input_pd->desc(), output_pd->desc(), attr);
+                is_applicable(src_md, dst_md, attr);
             if (!args_ok)
-                return invalid_arguments;
+                return status::invalid_arguments;
 
-            auto _pd = new pd_t((const cpu_memory_pd_t *)input_pd,
-                    (const cpu_memory_pd_t *)output_pd, attr);
-            if (_pd == nullptr) return out_of_memory;
-            if (_pd->init() != success) { delete _pd; return unimplemented; }
+            auto _pd = new pd_t(engine, attr, src_engine, src_md, dst_engine,
+                    dst_md);
+            if (_pd == nullptr) return status::out_of_memory;
+            if (_pd->init() != status::success) {
+                delete _pd;
+                return status::unimplemented;
+            }
             return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
         }
     };

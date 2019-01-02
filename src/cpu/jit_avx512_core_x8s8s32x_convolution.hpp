@@ -23,6 +23,7 @@
 #include "utils.hpp"
 
 #include "cpu_convolution_pd.hpp"
+#include "cpu_primitive.hpp"
 
 #include "jit_avx512_core_x8s8s32x_conv_kernel.hpp"
 
@@ -44,28 +45,24 @@ struct jit_avx512_core_x8s8s32x_convolution_fwd_t : public cpu_primitive_t {
                 JIT_IMPL_NAME_HELPER("jit_int8:", avx512_core, ""),
                 jit_avx512_core_x8s8s32x_convolution_fwd_t<src_type, dst_type>);
 
-        virtual status_t init() override {
-            using namespace prop_kind;
-            assert(this->engine()->kind() == engine_kind::cpu);
-
+        status_t init() {
             bool ok = true
-                    && utils::one_of(this->desc()->prop_kind, forward_training,
-                               forward_inference)
-                    && utils::one_of(this->desc()->alg_kind,
-                            alg_kind::convolution_auto,
-                            alg_kind::convolution_direct)
-                    && !this->has_zero_dim_memory()
-                    && this->desc()->src_desc.data_type == src_type
-                    && this->desc()->dst_desc.data_type == dst_type
-                    && IMPLICATION(this->with_bias(), utils::one_of(
+                && is_fwd()
+                && utils::one_of(this->desc()->alg_kind,
+                        alg_kind::convolution_auto,
+                        alg_kind::convolution_direct)
+                && !this->has_zero_dim_memory()
+                && this->desc()->src_desc.data_type == src_type
+                && this->desc()->dst_desc.data_type == dst_type
+                && IMPLICATION(this->with_bias(), utils::one_of(
                             this->desc()->bias_desc.data_type, data_type::f32,
                             data_type::s32, data_type::s8, data_type::u8))
-                    && this->desc()->accum_data_type == data_type::s32;
+                && this->desc()->accum_data_type == data_type::s32;
             if (!ok) return status::unimplemented;
 
             status_t status = jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(
-                    jcp_, *this->desc(), this->src_pd_, this->weights_pd_,
-                    this->dst_pd_,this->bias_pd_, *this->attr(),
+                    jcp_, *this->desc(), this->src_md_, this->weights_md_,
+                    this->dst_md_,this->bias_md_, *this->attr(),
                     mkldnn_get_max_threads());
             if (status != status::success) return status;
 

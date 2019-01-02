@@ -19,7 +19,7 @@
 
 
 #include "c_types_map.hpp"
-#include "cpu_engine.hpp"
+#include "cpu_primitive.hpp"
 #include "cpu_memory.hpp"
 #include "mkldnn_thread.hpp"
 #include "type_helpers.hpp"
@@ -63,11 +63,11 @@ struct jit_avx512_core_x8s8s32x_deconv_fwd_kernel : public jit_generator {
 
     static status_t init_conf(jit_conv_conf_t &jcp,
             const deconvolution_desc_t &cd,
-            cpu_memory_t::pd_t &src_pd,
-            cpu_memory_t::pd_t &weights_pd,
-            cpu_memory_t::pd_t &dst_pd,
+            memory_desc_t &src_md,
+            memory_desc_t &weights_md,
+            memory_desc_t &dst_md,
             const bool with_bias,
-            cpu_memory_t::pd_t &bias_pd,
+            memory_desc_t &bias_md,
             const primitive_attr_t &attr);
 
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
@@ -167,21 +167,15 @@ private:
 template <impl::data_type_t src_type, impl::data_type_t dst_type>
 struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t : public cpu_primitive_t {
     struct pd_t : public cpu_deconvolution_fwd_pd_t {
-        pd_t(engine_t *engine,
-                const deconvolution_desc_t *adesc,
-                const primitive_attr_t *attr,
-                const deconvolution_fwd_pd_t *hint_fwd_pd)
-            : cpu_deconvolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+        using cpu_deconvolution_fwd_pd_t::cpu_deconvolution_fwd_pd_t;
 
-        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_deconvolution:", avx512_core, ""),
+        DECLARE_COMMON_PD_T(
+                JIT_IMPL_NAME_HELPER("jit_deconvolution:", avx512_core, ""),
                 _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type, dst_type>);
 
-        virtual status_t init() override {
-            assert(this->engine()->kind() == engine_kind::cpu);
-
+        status_t init() {
             bool ok = true
-                && utils::one_of(this->desc()->prop_kind, prop_kind::forward_training,
-                            prop_kind::forward_inference)
+                && this->is_fwd()
                 && this->desc()->alg_kind & alg_kind::deconvolution_direct
                 && this->desc()->src_desc.data_type == src_type
                 && this->desc()->dst_desc.data_type == dst_type
@@ -192,9 +186,8 @@ struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t : public cpu_primitive_t {
             if (!ok) return status::unimplemented;
 
             status_t status = jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(
-                    jcp_, *this->desc(), this->src_pd_,
-                    this->weights_pd_, this->dst_pd_,
-                    this->with_bias(), this->bias_pd_,
+                    jcp_, *this->desc(), this->src_md_, this->weights_md_,
+                    this->dst_md_, this->with_bias(), this->bias_md_,
                     *this->attr());
 
             if (status != status::success) return status;
@@ -222,8 +215,7 @@ struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t : public cpu_primitive_t {
     typedef typename prec_traits<data_type::s8>::type wei_data_t;
     typedef typename prec_traits<dst_type>::type dst_data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override
-    {
+    virtual status_t execute(const exec_ctx_t &ctx) const override {
         if(pd()->ndims() == 3)
             execute_forward_1d(ctx);
         else
@@ -237,7 +229,6 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_avx512_core_x8s8s32x_deconv_fwd_kernel *kernel_;
 };
-
 
 }
 }

@@ -405,8 +405,8 @@ void gemm_x8s8s32x_inner_product_fwd_t<src_type, dst_type>::execute_forward(
     const int MB = pd()->MB();
     const int OC = pd()->OC();
 
-    bool wei_tr = utils::one_of(pd()->weights_pd()->desc()->format,
-             oiw, oihw, oidhw, oi);
+    bool wei_tr = utils::one_of(pd()->weights_md()->format,
+            oiw, oihw, oidhw, oi);
 
     const int M = OC;
     const int N = MB;
@@ -440,10 +440,10 @@ void gemm_x8s8s32x_inner_product_fwd_t<src_type, dst_type>::execute_forward(
 
     const bool force_sequential = MB * OC < 2000;
     parallel(force_sequential ? 1 : 0, [&](int ithr, int nthr) {
-            size_t start, end;
-            balance211((size_t)OC * MB, nthr, ithr, start, end);
-            (*pp_kernel_)(dst, acc, bias, scales, nslope, start, end);
-            });
+        size_t start, end;
+        balance211((size_t)OC * MB, nthr, ithr, start, end);
+        (*pp_kernel_)(dst, acc, bias, scales, nslope, start, end);
+    });
 }
 
 using namespace data_type;
@@ -456,6 +456,7 @@ template struct gemm_x8s8s32x_inner_product_fwd_t<s8, f32>;
 template struct gemm_x8s8s32x_inner_product_fwd_t<s8, s32>;
 template struct gemm_x8s8s32x_inner_product_fwd_t<s8, s8>;
 template struct gemm_x8s8s32x_inner_product_fwd_t<s8, u8>;
+
 }
 }
 }

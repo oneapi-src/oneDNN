@@ -152,9 +152,9 @@ execute_forward_1d(const exec_ctx_t &ctx) const {
 
     prepare_padded_bias(bias);
 
-    const memory_desc_wrapper src_d(pd()->src_pd());
-    const memory_desc_wrapper dst_d(pd()->dst_pd());
-    const memory_desc_wrapper weights_d(pd()->weights_pd(0));
+    const memory_desc_wrapper src_d(pd()->src_md());
+    const memory_desc_wrapper dst_d(pd()->dst_md());
+    const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
     const auto &jcp = pd()->jcp_;
     assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
@@ -243,9 +243,9 @@ execute_forward_2d(const exec_ctx_t &ctx) const {
 
     prepare_padded_bias(bias);
 
-    const memory_desc_wrapper src_d(pd()->src_pd());
-    const memory_desc_wrapper dst_d(pd()->dst_pd());
-    const memory_desc_wrapper weights_d(pd()->weights_pd(0));
+    const memory_desc_wrapper src_d(pd()->src_md());
+    const memory_desc_wrapper dst_d(pd()->dst_md());
+    const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
     const auto &jcp = pd()->jcp_;
     assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
@@ -364,10 +364,10 @@ execute_forward_3d(const exec_ctx_t &ctx) const {
 
     prepare_padded_bias(bias);
 
-    const memory_desc_wrapper src_d(pd()->src_pd());
-    const memory_desc_wrapper dst_d(pd()->dst_pd());
-    const memory_desc_wrapper weights_d(pd()->weights_pd(0));
-    const memory_desc_wrapper bias_d(pd()->weights_pd(1));
+    const memory_desc_wrapper src_d(pd()->src_md());
+    const memory_desc_wrapper dst_d(pd()->dst_md());
+    const memory_desc_wrapper weights_d(pd()->weights_md(0));
+    const memory_desc_wrapper bias_d(pd()->weights_md(1));
 
     const auto &jcp = pd()->jcp_;
     assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
@@ -491,9 +491,9 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
     auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
     auto diff_src = CTX_OUT_MEM(diff_src_data_t *, MKLDNN_ARG_DIFF_SRC);
 
-    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
-    const memory_desc_wrapper diff_src_d(pd()->diff_src_pd());
-    const memory_desc_wrapper weights_d(pd()->weights_pd(0));
+    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
+    const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
+    const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
     const auto &jcp = kernel_->jcp;
 
@@ -569,9 +569,9 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
     auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
     auto diff_src = CTX_OUT_MEM(diff_src_data_t *, MKLDNN_ARG_DIFF_SRC);
 
-    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
-    const memory_desc_wrapper diff_src_d(pd()->diff_src_pd());
-    const memory_desc_wrapper weights_d(pd()->weights_pd(0));
+    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
+    const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
+    const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
     const auto &jcp = kernel_->jcp;
 
@@ -693,9 +693,9 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
     auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
     auto diff_src = CTX_OUT_MEM(diff_src_data_t *, MKLDNN_ARG_DIFF_SRC);
 
-    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
-    const memory_desc_wrapper diff_src_d(pd()->diff_src_pd());
-    const memory_desc_wrapper weights_d(pd()->weights_pd(0));
+    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
+    const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
+    const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
     const auto &jcp = kernel_->jcp;
 
@@ -982,9 +982,9 @@ template <data_type_t src_type, data_type_t diff_dst_type,
           data_type_t diff_weights_type>
 void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
     diff_weights_type>::compute_diff_weights(const thread_info_t *ti) const {
-    const memory_desc_wrapper src_d(pd()->src_pd(0));
-    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
-    const memory_desc_wrapper diff_weights_d(pd()->diff_weights_pd(0));
+    const memory_desc_wrapper src_d(pd()->src_md());
+    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
+    const memory_desc_wrapper diff_weights_d(pd()->diff_weights_md(0));
 
     const auto &jcp = kernel_->jcp;
     const int wei_size = jcp.ngroups * jcp.oc * jcp.ic * jcp.kh*jcp.kw*jcp.kd;
@@ -1276,9 +1276,9 @@ template <data_type_t src_type, data_type_t diff_dst_type,
 void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
     diff_weights_type>::compute_diff_weights_3d(const thread_info_t *ti) const
 {
-    const memory_desc_wrapper src_d(pd()->src_pd(0));
-    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
-    const memory_desc_wrapper diff_weights_d(pd()->diff_weights_pd(0));
+    const memory_desc_wrapper src_d(pd()->src_md());
+    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
+    const memory_desc_wrapper diff_weights_d(pd()->diff_weights_md(0));
 
     const auto &jcp = kernel_->jcp;
     const int wei_size
@@ -1350,7 +1350,7 @@ template <data_type_t src_type, data_type_t diff_dst_type,
           data_type_t diff_weights_type>
 void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
     diff_weights_type>::reduce_diff_weights(const thread_info_t *ti) const {
-    const memory_desc_wrapper diff_weights_d(pd()->diff_weights_pd(0));
+    const memory_desc_wrapper diff_weights_d(pd()->diff_weights_md(0));
 
     const auto &jcp = kernel_->jcp;
     const int wei_size = jcp.ngroups * jcp.oc * jcp.ic * jcp.kh * jcp.kw;
@@ -1410,7 +1410,7 @@ template <data_type_t src_type, data_type_t diff_dst_type,
           data_type_t diff_weights_type>
 void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
     diff_weights_type>::reduce_diff_weights_3d(const thread_info_t *ti) const {
-    const memory_desc_wrapper diff_weights_d(pd()->diff_weights_pd(0));
+    const memory_desc_wrapper diff_weights_d(pd()->diff_weights_md(0));
 
     const auto &jcp = kernel_->jcp;
     const int wei_size = jcp.ngroups * jcp.oc * jcp.ic * jcp.kh * jcp.kw
@@ -1459,7 +1459,7 @@ template <data_type_t src_type, data_type_t diff_dst_type,
           data_type_t diff_weights_type>
 void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
     diff_weights_type>::compute_diff_bias(const thread_info_t *ti) const {
-    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
+    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
 
     auto rb = this->reducer_bias_;
     assert(nthr_ == rb->balancer().nthr_);

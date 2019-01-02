@@ -20,8 +20,6 @@
 #include "c_types_map.hpp"
 #include "memory_tracking.hpp"
 
-#include "cpu_memory.hpp"
-
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
 #include "jit_uni_eltwise.hpp"
@@ -213,10 +211,10 @@ struct jit_avx512_core_x8s8s32x_fwd_kernel {
 
     static status_t init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd,
-            cpu_memory_t::pd_t &src_pd,
-            cpu_memory_t::pd_t &weights_pd,
-            cpu_memory_t::pd_t &dst_pd,
-            cpu_memory_t::pd_t &bias_pd,
+            memory_desc_t &src_pd,
+            memory_desc_t &weights_pd,
+            memory_desc_t &dst_pd,
+            memory_desc_t &bias_pd,
             const primitive_attr_t &attr,
             int nthreads);
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,

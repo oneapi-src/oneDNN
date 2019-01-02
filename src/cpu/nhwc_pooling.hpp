@@ -20,11 +20,12 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
-#include "cpu_engine.hpp"
-#include "cpu_pooling_pd.hpp"
 #include "mkldnn_thread.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
+
+#include "cpu_pooling_pd.hpp"
+#include "cpu_primitive.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -39,52 +40,31 @@ size_t strided_offset(const int _n, const size_t _sn, const int _d,
 template <impl::data_type_t data_type>
 struct nhwc_pooling_fwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_pooling_fwd_pd_t {
-        pd_t(engine_t *engine, const pooling_desc_t *adesc,
-                const primitive_attr_t *attr,
-                const pooling_fwd_pd_t *hint_fwd_pd)
-            : cpu_pooling_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+        using cpu_pooling_fwd_pd_t::cpu_pooling_fwd_pd_t;
 
         DECLARE_COMMON_PD_T("nhwc_pooling:any", nhwc_pooling_fwd_t);
 
-        virtual status_t init() override {
-            using namespace prop_kind;
+        status_t init() {
             using namespace alg_kind;
             using namespace memory_format;
-            assert(engine()->kind() == engine_kind::cpu);
-            auto src_format = src_pd()->desc()->format;
+
             bool ok = true
                 && set_default_params() == status::success
-                && utils::one_of(desc()->prop_kind, forward_training,
-                        forward_inference)
+                && is_fwd()
                 && utils::one_of(desc()->alg_kind, pooling_max,
                         pooling_avg_include_padding,
                         pooling_avg_exclude_padding)
                 && utils::everyone_is(data_type,
-                        src_pd()->desc()->data_type,
-                        dst_pd()->desc()->data_type)
-                && utils::one_of(src_format, nhwc, ndhwc)
-                && (src_format == dst_pd()->desc()->format)
+                        src_md()->data_type,
+                        dst_md()->data_type)
+                && utils::one_of(src_md()->format, nhwc, ndhwc)
+                && src_md()->format == dst_md()->format
                 && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
-            bool is_training = desc_.prop_kind == forward_training;
-            if (desc()->alg_kind == pooling_max && is_training) {
-                // Allocate dense workspace buffer based on logical dimensions
-                // of the output dst
-                memory_desc_t indices_desc;
-                if (is_3d()) {
-                    dims_t ws_dims = { MB(), C(), OD(), OH(), OW() };
-                    mkldnn_memory_desc_init(&indices_desc, 5, ws_dims,
-                            pooling_index_data_type(desc()),
-                            memory_format::ndhwc);
-                } else {
-                    dims_t ws_dims = { MB(), C(), OH(), OW() };
-                    mkldnn_memory_desc_init(&indices_desc, 4, ws_dims,
-                            pooling_index_data_type(desc()),
-                            memory_format::nhwc);
-                }
-                ws_pd_ = cpu_memory_t::pd_t(engine_, &indices_desc);
-            }
+            bool is_training = desc_.prop_kind == prop_kind::forward_training;
+            if (desc()->alg_kind == pooling_max && is_training)
+                init_default_ws();
 
             return status::success;
         }
@@ -176,46 +156,32 @@ private:
 template <impl::data_type_t data_type>
 struct nhwc_pooling_bwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_pooling_bwd_pd_t {
-        pd_t(engine_t *engine, const pooling_desc_t *adesc,
-                const primitive_attr_t *attr,
-                const pooling_fwd_pd_t *hint_fwd_pd)
-            : cpu_pooling_bwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+        using cpu_pooling_bwd_pd_t::cpu_pooling_bwd_pd_t;
 
         DECLARE_COMMON_PD_T("nhwc:any", nhwc_pooling_bwd_t);
 
-        virtual status_t init() override {
-            using namespace prop_kind;
+        status_t init() {
             using namespace alg_kind;
             using namespace memory_format;
-            assert(engine()->kind() == engine_kind::cpu);
-            auto diff_dst_format = diff_dst_pd()->desc()->format;
+
             bool ok = true
                 && set_default_params() == status::success
-                && utils::one_of(desc()->prop_kind, backward_data)
+                && !is_fwd()
                 && utils::one_of(desc()->alg_kind, pooling_max,
                         pooling_avg_include_padding,
                         pooling_avg_exclude_padding)
                 && utils::everyone_is(data_type,
-                        diff_dst_pd()->desc()->data_type,
-                        diff_src_pd()->desc()->data_type)
-                && utils::one_of(diff_dst_format, nhwc, ndhwc)
-                && (diff_dst_format == diff_src_pd()->desc()->format)
+                        diff_dst_md()->data_type,
+                        diff_src_md()->data_type)
+                && utils::one_of(diff_dst_md()->format, nhwc, ndhwc)
+                && diff_dst_md()->format == diff_src_md()->format
                 && attr()->has_default_values();
-            if (!ok)
-                return status::unimplemented;
+            if (!ok) return status::unimplemented;
 
             if (desc()->alg_kind == pooling_max) {
-                bool ws_ok = true
-                    && hint_fwd_pd_
-                    && hint_fwd_pd_->workspace_pd()
-                    && utils::one_of(
-                            hint_fwd_pd_->workspace_pd()->desc()->format,
-                            nhwc, ndhwc)
-                    && hint_fwd_pd_->workspace_pd()->engine()->kind()
-                            == engine_kind::cpu;
-                if (!ws_ok) return status::unimplemented;
-
-                ws_pd_ = *(cpu_memory_t::pd_t *)hint_fwd_pd_->workspace_pd();
+                init_default_ws();
+                if (!compare_ws(hint_fwd_pd_))
+                    return status::unimplemented;
             }
 
             return status::success;

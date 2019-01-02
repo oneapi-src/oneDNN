@@ -42,8 +42,7 @@ void gemm_inner_product_fwd_t<data_type>::execute_forward(
     const int OC = pd()->OC();
     const int IC = pd()->IC_total_padded();
 
-    bool wei_tr = !utils::one_of(pd()->weights_pd()->desc()->format,
-             hwio, dhwio, io);
+    bool wei_tr = !utils::one_of(pd()->weights_md()->format, hwio, dhwio, io);
 
     const auto &post_ops = pd()->attr()->post_ops_;
     const bool do_relu = post_ops.len_ == 1;
@@ -73,8 +72,7 @@ void gemm_inner_product_bwd_data_t<data_type>::execute_backward_data(
     const int OC = pd()->OC();
     const int IC = pd()->IC_total_padded();
 
-    bool wei_tr = utils::one_of(pd()->weights_pd()->desc()->format,
-             hwio, dhwio, io);
+    bool wei_tr = utils::one_of(pd()->weights_md()->format, hwio, dhwio, io);
 
     float alpha = 1.0, beta = 0.0;
     extended_sgemm(wei_tr ? "T" : "N", "N", &IC, &MB, &OC, &alpha, weights,
@@ -89,8 +87,8 @@ void gemm_inner_product_bwd_weights_t<data_type>::execute_backward_weights(
     auto diff_weights = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_WEIGHTS);
     auto diff_bias = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_BIAS);
 
-    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
-    const memory_desc_wrapper diff_bias_d(pd()->diff_weights_pd(1));
+    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
+    const memory_desc_wrapper diff_bias_d(pd()->diff_weights_md(1));
 
     diff_dst += diff_dst_d.blocking_desc().offset_padding;
 
@@ -98,8 +96,8 @@ void gemm_inner_product_bwd_weights_t<data_type>::execute_backward_weights(
     const int OC = pd()->OC();
     const int IC = pd()->IC_total_padded();
 
-    bool wei_tr = utils::one_of(pd()->diff_weights_pd()->desc()->format,
-             hwio, dhwio, io);
+    bool wei_tr = utils::one_of(pd()->diff_weights_md()->format,
+            hwio, dhwio, io);
 
     float alpha = 1.0, beta = 0.0;
     if (wei_tr)

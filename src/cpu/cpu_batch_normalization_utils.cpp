@@ -97,7 +97,7 @@ bool is_spatial_thr(const batch_normalization_pd_t *bdesc, int simd_w,
 
     int nthr = mkldnn_get_max_threads();
     int SP = bdesc->W() * bdesc->D() * bdesc->H();
-    int C_PADDED = memory_desc_wrapper(bdesc->src_pd())
+    int C_PADDED = memory_desc_wrapper(bdesc->src_md())
         .blocking_desc().padding_dims[1];
     assert(C_PADDED % simd_w == 0);
 

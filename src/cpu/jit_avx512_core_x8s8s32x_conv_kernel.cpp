@@ -827,17 +827,17 @@ bool jit_avx512_core_x8s8s32x_fwd_kernel::post_ops_ok(
 }
 
 status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
-            const convolution_desc_t &cd, cpu_memory_t::pd_t &src_pd,
-            cpu_memory_t::pd_t &weights_pd, cpu_memory_t::pd_t &dst_pd,
-            cpu_memory_t::pd_t &bias_pd, const primitive_attr_t &attr,
+            const convolution_desc_t &cd, memory_desc_t &src_md,
+            memory_desc_t &weights_md, memory_desc_t &dst_md,
+            memory_desc_t &bias_md, const primitive_attr_t &attr,
             int nthreads)
 {
     using namespace prop_kind;
 
-    const memory_desc_wrapper src_d(&src_pd);
-    const memory_desc_wrapper weights_d(&weights_pd);
-    const memory_desc_wrapper dst_d(&dst_pd);
-    const memory_desc_wrapper bias_d(&bias_pd);
+    const memory_desc_wrapper src_d(&src_md);
+    const memory_desc_wrapper weights_d(&weights_md);
+    const memory_desc_wrapper dst_d(&dst_md);
+    const memory_desc_wrapper bias_d(&bias_md);
 
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
     int ndims = src_d.ndims();
@@ -929,8 +929,6 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         jcp.max_regs_ur = jcp.ver == ver_vnni ? 31 : 28;
     }
 
-    auto src_format = pick(ndims - 3, nwc, nhwc);
-    auto dst_format = pick(ndims - 3, nwc, nhwc);
 #define pick_signed(fmt) (jcp.signed_input ? fmt##_s8s8 : fmt)
     memory_format_t w_format;
     if (jcp.ic_block == 16 || jcp.ch_block == 16) {
@@ -950,20 +948,23 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
 #undef pick_signed
 
     if (weights_d.format() == any)
-        CHECK(weights_pd.set_format(w_format));
+        CHECK(types::set_default_format(weights_md, w_format));
     if (weights_d.format() != w_format)
         return status::unimplemented;
+
+    auto dat_format = pick(ndims - 3, nwc, nhwc);
     if (dst_d.format() == any)
-        CHECK(dst_pd.set_format(dst_format));
-    if (dst_d.format() != dst_format)
+        CHECK(types::set_default_format(dst_md, dat_format));
+    if (dst_d.format() != dat_format)
         return status::unimplemented;
     if (src_d.format() == any)
-        CHECK(src_pd.set_format(src_format));
-    if (src_d.format() != src_format)
+        CHECK(types::set_default_format(src_md, dat_format));
+    if (src_d.format() != dat_format)
         return status::unimplemented;
+
     if (jcp.with_bias) {
         if (bias_d.format() == any)
-            CHECK(bias_pd.set_format(x));
+            CHECK(types::set_default_format(bias_md, x));
         if (bias_d.format() != x)
             return status::unimplemented;
     }

@@ -18,13 +18,10 @@
 
 #include <math.h>
 
-#include "mkldnn_types.h"
-
 #include "mkldnn_thread.hpp"
 #include "utils.hpp"
 
 #include "jit_generator.hpp"
-
 
 namespace mkldnn {
 namespace impl {
@@ -145,9 +142,7 @@ struct jit_uni_i8i8_pooling_fwd_ker_t: public jit_generator {
     void compute_c_block();
     void generate();
 
-    static status_t init_conf(jit_pool_conf_t &jpp,
-        const pooling_desc_t &pd, const memory_desc_wrapper &src_d,
-        const memory_desc_wrapper &dst_d);
+    static status_t init_conf(jit_pool_conf_t &jpp, const pooling_pd_t *ppd);
 
     jit_uni_i8i8_pooling_fwd_ker_t(const jit_pool_conf_t &jpp_)
            : jpp(jpp_) {
@@ -834,10 +829,13 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::generate() {
 
 template <cpu_isa_t isa>
 status_t jit_uni_i8i8_pooling_fwd_ker_t<isa>::init_conf(jit_pool_conf_t &jpp,
-        const pooling_desc_t &pd, const memory_desc_wrapper &src_d,
-        const memory_desc_wrapper &dst_d) {
+        const pooling_pd_t *ppd) {
     if (!mayiuse(isa))
         return status::unimplemented;
+
+    const auto &pd = *ppd->desc();
+    const memory_desc_wrapper src_d(ppd->src_md());
+    const memory_desc_wrapper dst_d(ppd->dst_md());
 
     jpp.mb = src_d.dims()[0];
     jpp.c = src_d.dims()[1];
@@ -901,8 +899,7 @@ status_t jit_uni_i8i8_pooling_fwd_ker_t<isa>::init_conf(jit_pool_conf_t &jpp,
 
 template <cpu_isa_t isa>
 status_t jit_uni_i8i8_pooling_fwd_t<isa>::pd_t::jit_conf() {
-    return jit_uni_i8i8_pooling_fwd_ker_t<isa>::init_conf(jpp_,
-       desc_, src_pd_.desc(), dst_pd_.desc());
+    return jit_uni_i8i8_pooling_fwd_ker_t<isa>::init_conf(jpp_, this);
 }
 
 template <cpu_isa_t isa>
@@ -921,8 +918,8 @@ void jit_uni_i8i8_pooling_fwd_t<isa>::execute_forward(
     auto src_i8 = CTX_IN_MEM(const char *, MKLDNN_ARG_SRC);
     auto dst_i8 = CTX_OUT_MEM(char *, MKLDNN_ARG_DST);
 
-    const memory_desc_wrapper src_d(pd()->src_pd());
-    const memory_desc_wrapper dst_d(pd()->dst_pd());
+    const memory_desc_wrapper src_d(pd()->src_md());
+    const memory_desc_wrapper dst_d(pd()->dst_md());
 
     const auto &jpp = pd()->jpp_;
 

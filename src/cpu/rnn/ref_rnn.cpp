@@ -235,7 +235,7 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_init_layer(
 
     AOC<src_data_t, 4> ws_states(
             ws_states_, rnn.n_dir, rnn.n_iter + 1, rnn.mb, rnn.states_ws_ld);
-    auto xt_d = memory_desc_wrapper(pd()->src_pd(0));
+    auto xt_d = memory_desc_wrapper(pd()->src_md(0));
 
     parallel_nd(rnn.n_iter, rnn.mb, [&](int it, int b) {
         auto xxt = xt_ + xt_d.blk_off(it, b);
@@ -256,7 +256,7 @@ void ref_rnn_bwd_f32_t::copy_init_layer(const rnn_conf_t &rnn,
         const float *diff_dst_layer_) const {
     AOC<float, 6> ws_diff_states(ws_diff_states_, rnn.n_layer + 1, rnn.n_dir,
             (rnn.n_states + 1), rnn.n_iter + 1, rnn.mb, rnn.states_ws_ld);
-    auto diff_dst_layer_d = memory_desc_wrapper(pd()->diff_dst_pd(0));
+    auto diff_dst_layer_d = memory_desc_wrapper(pd()->diff_dst_md(0));
 
     switch (rnn.exec_dir) {
     case bi_concat:
@@ -329,9 +329,9 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_init_iter(
     float data_scale = pd()->attr()->rnn_data_qparams_.scale_;
     round_mode_t rmode = pd()->attr()->round_mode_;
 
-    const bool quantize
-            = pd()->desc()->src_iter_desc.data_type == data_type::f32
-            && rnn.dt_conf != all_f32;
+    const bool quantize = pd()->with_src_iter()
+        && pd()->src_md(1)->data_type == data_type::f32
+        && rnn.dt_conf != all_f32;
     auto maybe_q = [&](input_data_t f) {
         if (quantize) {
             float qf = f * data_scale + data_shift;
@@ -340,15 +340,15 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_init_iter(
             return (src_data_t)f;
     };
 
-    const bool dequantize
-            = pd()->desc()->src_iter_desc.data_type == data_type::u8;
+    const bool dequantize = pd()->with_src_iter()
+        && pd()->src_md(1)->data_type == data_type::u8;
     auto maybe_deq = [&](input_data_t s) {
         if (dequantize)
             return (((float)s - data_shift) / data_scale);
         else
             return (float)s;
     };
-    auto firstit_states_d = memory_desc_wrapper(pd()->src_pd(1));
+    auto firstit_states_d = memory_desc_wrapper(pd()->src_md(1));
     if (firstit_states_) {
         parallel_nd(
                 rnn.n_layer, rnn.n_dir, rnn.mb, [&](int lay, int dir, int b) {
@@ -381,7 +381,7 @@ void ref_rnn_bwd_f32_t::copy_init_iter(const rnn_conf_t &rnn,
         const float *diff_dst_iter_) const {
     AOC<float, 6> ws_diff_states(ws_diff_states_, rnn.n_layer + 1, rnn.n_dir,
             rnn.n_states + 1, rnn.n_iter + 1, rnn.mb, rnn.states_ws_ld);
-    auto diff_dst_iter_d = memory_desc_wrapper(pd()->diff_dst_pd(1));
+    auto diff_dst_iter_d = memory_desc_wrapper(pd()->diff_dst_md(1));
     if (diff_dst_iter_) {
         parallel_nd(rnn.n_layer, rnn.n_dir, rnn.n_states, rnn.mb,
                 [&](int lay, int dir, int state, int b) {
@@ -408,14 +408,13 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_res_layer(
         const rnn_conf_t &rnn, dst_data_t *dst_layer_, float *diff_src_layer,
         const src_data_t *ws_states_, const float *ws_diff_states_) const {
 
-    auto dst_layer_d = memory_desc_wrapper(pd()->dst_pd(0));
+    auto dst_layer_d = memory_desc_wrapper(pd()->dst_md(0));
     AOC<const src_data_t, 5> ws_states(ws_states_, rnn.n_layer + 1, rnn.n_dir,
             rnn.n_iter + 1, rnn.mb, rnn.states_ws_ld);
     float shift = (pd()->attr()->rnn_data_qparams_.shift_);
     float scale = (pd()->attr()->rnn_data_qparams_.scale_);
 
-    const bool dequantize
-            = pd()->desc()->dst_layer_desc.data_type == data_type::f32
+    const bool dequantize = pd()->dst_md(0)->data_type == data_type::f32
             && rnn.dt_conf != all_f32;
     auto maybe_deq = [&](src_data_t s) {
         if (dequantize)
@@ -454,7 +453,7 @@ template <typename dst_data_t>
 void ref_rnn_bwd_f32_t::copy_res_layer(
         const rnn_conf_t &rnn, dst_data_t *dst_layer_, float *diff_src_layer_,
         const src_data_t *ws_states_, const float *ws_diff_states_) const {
-    auto diff_src_layer_d = memory_desc_wrapper(pd()->diff_src_pd(0));
+    auto diff_src_layer_d = memory_desc_wrapper(pd()->diff_src_md(0));
     AOC<const float, 6> ws_diff_states(ws_diff_states_, rnn.n_layer + 1,
             rnn.n_dir, rnn.n_states + 1, rnn.n_iter + 1, rnn.mb,
             rnn.states_ws_ld);
@@ -481,7 +480,7 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_res_iter(
         const rnn_conf_t &rnn, output_data_t *dst_iter_, float *diff_src_iter_,
         const src_data_t *ws_states_, float *ws_c_states_,
         const float *ws_diff_states_) const {
-    auto dst_iter_d = memory_desc_wrapper(pd()->dst_pd(1));
+    auto dst_iter_d = memory_desc_wrapper(pd()->dst_md(1));
     AOC<const src_data_t, 5> ws_states(ws_states_, rnn.n_layer + 1, rnn.n_dir,
             rnn.n_iter + 1, rnn.mb, rnn.states_ws_ld);
     AOC<const float, 5> ws_c_states(ws_c_states_, rnn.n_layer + 1, rnn.n_dir,
@@ -490,8 +489,9 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_res_iter(
     float data_scale = pd()->attr()->rnn_data_qparams_.scale_;
     round_mode_t rmode = pd()->attr()->round_mode_;
 
-    const bool quantize = pd()->desc()->dst_iter_desc.data_type == data_type::u8
-            && rnn.dt_conf != all_f32;
+    const bool quantize = pd()->with_dst_iter()
+        && pd()->dst_md(1)->data_type == data_type::u8
+        && rnn.dt_conf != all_f32;
     auto maybe_q = [&](float f) {
         if (quantize) {
             float qf = f * data_scale + data_shift;
@@ -500,9 +500,9 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_res_iter(
             return (output_data_t)f;
     };
 
-    const bool dequantize
-            = pd()->desc()->dst_iter_desc.data_type == data_type::f32
-            && rnn.dt_conf != all_f32;
+    const bool dequantize = pd()->with_dst_iter()
+        && pd()->dst_md(1)->data_type == data_type::f32
+        && rnn.dt_conf != all_f32;
     auto maybe_deq = [&](src_data_t s) {
         if (dequantize)
             return (output_data_t)(((float)s - data_shift) / data_scale);
@@ -532,7 +532,7 @@ void ref_rnn_bwd_f32_t::copy_res_iter(
         const rnn_conf_t &rnn, output_data_t *dst_iter_, float *diff_src_iter_,
         const src_data_t *ws_states_, float *ws_c_states_,
         const float *ws_diff_states_) const {
-    auto diff_src_iter_d = memory_desc_wrapper(pd()->diff_src_pd(1));
+    auto diff_src_iter_d = memory_desc_wrapper(pd()->diff_src_md(1));
     AOC<const float, 6> ws_diff_states(ws_diff_states_, rnn.n_layer + 1,
             rnn.n_dir, rnn.n_states + 1, rnn.n_iter + 1, rnn.mb,
             rnn.states_ws_ld);

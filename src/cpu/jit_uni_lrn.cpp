@@ -15,14 +15,19 @@
 *******************************************************************************/
 
 #include "c_types_map.hpp"
-#include "jit_generator.hpp"
-#include "jit_uni_lrn.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
+
+#include "jit_uni_lrn_kernel_f32.hpp"
+#include "jit_uni_lrn.hpp"
 
 namespace mkldnn {
 namespace impl {
 namespace cpu {
+
+using namespace mkldnn::impl::memory_format;
+using namespace mkldnn::impl::status;
+using namespace mkldnn::impl::utils;
 
 template <cpu_isa_t isa>
 jit_uni_lrn_fwd_t<isa>::jit_uni_lrn_fwd_t(const pd_t *apd)
@@ -40,7 +45,7 @@ jit_uni_lrn_fwd_t<isa>::jit_uni_lrn_fwd_t(const pd_t *apd)
 
     auto pk = pd()->desc()->prop_kind;
     auto ak = pd()->desc()->alg_kind;
-    auto dfmt = pd()->src_pd()->desc()->format;
+    auto dfmt = pd()->src_md()->format;
 
     if (dfmt == nChw8c && ls == 5 && ak == lrn_across_channels) {
         ker_ = new jit_uni_lrn_fwd_kernel_f32<isa>(
@@ -85,7 +90,7 @@ void jit_uni_lrn_fwd_t<isa>::execute_forward(const exec_ctx_t &ctx) const {
     const int ls = pd()->desc()->local_size;
 
     auto ak = pd()->desc()->alg_kind;
-    auto dfmt = pd()->src_pd()->desc()->format;
+    auto dfmt = pd()->src_md()->format;
 
     if (dfmt == nChw8c && ls == 5 && ak == lrn_across_channels) {
         parallel_nd(N, C / VECTOR_LENGTH, [&](int n, int c8) {
@@ -139,14 +144,11 @@ status_t jit_uni_lrn_fwd_t<isa>::pd_t::init() {
     using namespace prop_kind;
     using namespace alg_kind;
 
-    assert(engine()->kind() == engine_kind::cpu);
-
-    if (!mayiuse(isa)) return unimplemented;
-
-    const memory_desc_wrapper data_d(data_pd_.desc());
+    const memory_desc_wrapper data_d(src_md());
     bool ok = true
-        && one_of(desc()->prop_kind, forward_training, forward_inference)
-        && everyone_is(data_type::f32, desc()->data_desc.data_type)
+        && mayiuse(isa)
+        && is_fwd()
+        && everyone_is(data_type::f32, data_d.data_type())
         && !has_zero_dim_memory()
         && data_d.ndims() == 4
         && data_d.dims()[1] % VECTOR_LENGTH == 0
@@ -155,7 +157,7 @@ status_t jit_uni_lrn_fwd_t<isa>::pd_t::init() {
         && attr()->has_default_values();
     if (!ok) return unimplemented;
 
-    if (desc_.prop_kind == forward_training) { ws_pd_ = data_pd_; }
+    if (desc_.prop_kind == forward_training) ws_md_ = *src_md();
 
     bool args_ok_across = true
         && desc()->alg_kind == lrn_across_channels
@@ -265,14 +267,11 @@ status_t jit_uni_lrn_bwd_t<isa>::pd_t::init() {
     using namespace prop_kind;
     using namespace alg_kind;
 
-    assert(engine()->kind() == engine_kind::cpu);
-
-    if (!mayiuse(isa)) return unimplemented;
-
-    const memory_desc_wrapper data_d(data_pd_.desc());
+    const memory_desc_wrapper data_d(src_md());
     bool ok = true
-        && utils::one_of(desc()->prop_kind, backward, backward_data)
-        && utils::everyone_is(data_type::f32, desc()->data_desc.data_type)
+        && mayiuse(isa)
+        && !is_fwd()
+        && utils::everyone_is(data_type::f32, data_d.data_type())
         && !has_zero_dim_memory()
         && data_d.ndims() == 4
         && data_d.dims()[1] % VECTOR_LENGTH == 0
@@ -280,14 +279,8 @@ status_t jit_uni_lrn_bwd_t<isa>::pd_t::init() {
         && attr()->has_default_values();
     if (!ok) return unimplemented;
 
-    ws_pd_ = data_pd_;
-
-    auto fwd_ws_d_ = hint_fwd_pd_->workspace_pd()->desc();
-    bool ws_ok = true
-        && fwd_ws_d_->ndims == data_d.ndims()
-        && fwd_ws_d_->format == data_d.format()
-        && fwd_ws_d_->data_type == data_d.data_type();
-    if (!ws_ok) return unimplemented;
+    ws_md_ = *src_md();
+    if (!compare_ws(hint_fwd_pd_)) return unimplemented;
 
     bool args_ok_across = true
         && desc()->alg_kind == lrn_across_channels

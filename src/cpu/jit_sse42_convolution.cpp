@@ -49,10 +49,10 @@ void jit_sse42_convolution_fwd_t::execute_forward(
     auto bias = CTX_IN_MEM(const data_t *, MKLDNN_ARG_BIAS);
     auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
 
-    const memory_desc_wrapper src_d(pd()->src_pd());
-    const memory_desc_wrapper dst_d(pd()->dst_pd());
-    const memory_desc_wrapper weights_d(pd()->weights_pd(0));
-    const memory_desc_wrapper bias_d(pd()->weights_pd(1));
+    const memory_desc_wrapper src_d(pd()->src_md());
+    const memory_desc_wrapper dst_d(pd()->dst_md());
+    const memory_desc_wrapper weights_d(pd()->weights_md(0));
+    const memory_desc_wrapper bias_d(pd()->weights_md(1));
 
     const auto &jcp = kernel_->jcp;
 

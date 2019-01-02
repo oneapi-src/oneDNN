@@ -91,9 +91,9 @@ void nhwc_pooling_fwd_t<data_type>::execute_forward(
     auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
     auto ws = CTX_OUT_MEM(unsigned char *, MKLDNN_ARG_WORKSPACE);
 
-    const memory_desc_wrapper MEM_D(dst)(pd()->dst_pd());
-    const memory_desc_wrapper MEM_D(ws)(pd()->workspace_pd());
-    const memory_desc_wrapper MEM_D(src)(pd()->src_pd());
+    const memory_desc_wrapper MEM_D(src)(pd()->src_md());
+    const memory_desc_wrapper MEM_D(dst)(pd()->dst_md());
+    const memory_desc_wrapper MEM_D(ws)(pd()->workspace_md());
 
     const int ID = pd()->ID();
     const int IH = pd()->IH();
@@ -240,9 +240,9 @@ void nhwc_pooling_bwd_t<data_type>::execute_backward(
     auto ws = CTX_IN_MEM(const unsigned char *, MKLDNN_ARG_WORKSPACE);
     auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
 
-    const memory_desc_wrapper MEM_D(diff_dst)(pd()->diff_dst_pd());
-    const memory_desc_wrapper MEM_D(ws)(pd()->workspace_pd());
-    const memory_desc_wrapper MEM_D(diff_src)(pd()->diff_src_pd());
+    const memory_desc_wrapper MEM_D(diff_src)(pd()->diff_src_md());
+    const memory_desc_wrapper MEM_D(diff_dst)(pd()->diff_dst_md());
+    const memory_desc_wrapper MEM_D(ws)(pd()->workspace_md());
 
     const int ID = pd()->ID();
     const int IH = pd()->IH();

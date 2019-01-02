@@ -91,9 +91,9 @@ void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<src_type, dst_type>
 ::execute_forward_thr(const int ithr, const int nthr, const src_data_t *src,
         const wei_data_t *weights, const char *bias, dst_data_t *dst,
         const memory_tracking::grantor_t &scratchpad) const {
-    const memory_desc_wrapper src_d(pd()->src_pd());
-    const memory_desc_wrapper dst_d(pd()->dst_pd());
-    const memory_desc_wrapper weights_d(pd()->weights_pd(0));
+    const memory_desc_wrapper src_d(pd()->src_md());
+    const memory_desc_wrapper dst_d(pd()->dst_md());
+    const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
     const size_t bia_dt_size = pd()->with_bias()
         ? types::data_type_size(pd()->desc()->bias_desc.data_type) : 0;

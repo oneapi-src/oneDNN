@@ -16,7 +16,6 @@
 
 #include <assert.h>
 
-#include "memory_pd.hpp"
 #include "mkldnn_traits.hpp"
 #include "mkldnn_thread.hpp"
 #include "type_helpers.hpp"
@@ -34,6 +33,12 @@ using namespace mkldnn::impl;
 using namespace mkldnn::impl::data_type;
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::memory_format;
+
+status_t cpu_engine_t::memory_create(memory_t **memory,
+        const memory_desc_t *md, void *handle) {
+    return safe_ptr_assign<memory_t>(*memory,
+            new cpu_memory_t(this, md, handle));
+}
 
 using dk = data_kind_t;
 using bf = block_format_t;
@@ -256,18 +261,18 @@ void typed_zero_pad_generic_blocked(const memory_desc_wrapper &m_d,
 
 template <data_type_t dt>
 status_t cpu_memory_t::typed_zero_pad() const {
-    const memory_desc_wrapper mpd(pd());
+    const memory_desc_wrapper mdw(md());
 
     // FIXME: guard this check for non-blocked layout
-    if (mpd.nelems(false) == mpd.nelems(true))
+    if (mdw.nelems(false) == mdw.nelems(true))
         return success;
 
     auto *data = (typename prec_traits<dt>::type *)data_;
-    const auto fmt = mpd.format();
+    const auto fmt = mdw.format();
 
     /* data */
 #   define MAYBE_DATA(f) if (fmt == f) \
-    { typed_zero_pad_data<dt, f>(mpd, data); return success; }
+    { typed_zero_pad_data<dt, f>(mdw, data); return success; }
     MAYBE_DATA(nCw4c);
     MAYBE_DATA(nCw8c);
     MAYBE_DATA(nCw16c);
@@ -280,7 +285,7 @@ status_t cpu_memory_t::typed_zero_pad() const {
 
     /* weights */
 #   define MAYBE_WEIGHTS(f) if (fmt == f) \
-    { typed_zero_pad_weights<dt, f>(mpd, data); return success; }
+    { typed_zero_pad_weights<dt, f>(mdw, data); return success; }
     MAYBE_WEIGHTS(OIdhw4i4o);
     MAYBE_WEIGHTS(OIdhw8i8o);
     MAYBE_WEIGHTS(OIdhw8o8i);
@@ -374,7 +379,7 @@ status_t cpu_memory_t::typed_zero_pad() const {
 
     // the last line of defence
     if (types::format_normalize(fmt) == blocked) {
-        typed_zero_pad_generic_blocked<dt>(mpd, data);
+        typed_zero_pad_generic_blocked<dt>(mdw, data);
         return success;
     }
 
@@ -382,14 +387,14 @@ status_t cpu_memory_t::typed_zero_pad() const {
 }
 
 status_t cpu_memory_t::zero_pad() const {
-    memory_desc_wrapper md(pd());
+    memory_desc_wrapper mdw(md());
     const bool skip_zeroing = false
         || data_ == nullptr
-        || md.is_zero()
-        || !md.is_blocking_desc();
+        || mdw.is_zero()
+        || !mdw.is_blocking_desc();
     if (skip_zeroing) return success;
 
-    switch (md.data_type()) {
+    switch (mdw.data_type()) {
         case f32: return typed_zero_pad<f32>();
         case s32: return typed_zero_pad<s32>();
         case s16: return typed_zero_pad<s16>();

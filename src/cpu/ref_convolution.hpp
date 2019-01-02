@@ -20,10 +20,11 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
-#include "cpu_convolution_pd.hpp"
-#include "cpu_engine.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
+
+#include "cpu_convolution_pd.hpp"
+#include "cpu_primitive.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -35,23 +36,16 @@ template <impl::data_type_t src_type,
          impl::data_type_t acc_type = dst_type>
 struct ref_convolution_fwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_convolution_fwd_pd_t {
-        pd_t(engine_t *engine,
-                const convolution_desc_t *adesc,
-                const primitive_attr_t *attr,
-                const typename pd_t::base_class *hint_fwd_pd)
-            : cpu_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
-        {}
+        using cpu_convolution_fwd_pd_t::cpu_convolution_fwd_pd_t;
 
         DECLARE_COMMON_PD_T("ref:any", ref_convolution_fwd_t);
 
-        virtual status_t init() override {
-            using namespace prop_kind;
+        status_t init() {
             using namespace data_type;
-            assert(this->engine()->kind() == engine_kind::cpu);
+
             bool ok = true
                 && this->set_default_params() == status::success
-                && utils::one_of(this->desc()->prop_kind, forward_training,
-                        forward_inference)
+                && is_fwd()
                 && utils::one_of(this->desc()->alg_kind,
                            alg_kind::convolution_auto,
                            alg_kind::convolution_direct)
@@ -78,14 +72,7 @@ struct ref_convolution_fwd_t: public cpu_primitive_t {
     typedef typename prec_traits<acc_type>::type acc_data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        switch (pd()->desc()->prop_kind) {
-        case prop_kind::forward_training:
-        case prop_kind::forward_inference:
-            execute_forward(ctx);
-            break;
-        default:
-            assert(!"invalid prop_kind");
-        }
+        execute_forward(ctx);
         return status::success;
     }
 
@@ -99,21 +86,14 @@ template <impl::data_type_t diff_src_type, impl::data_type_t wei_type,
          impl::data_type_t acc_type = diff_src_type>
 struct ref_convolution_bwd_data_t: public cpu_primitive_t {
     struct pd_t: public cpu_convolution_bwd_data_pd_t {
-        pd_t(engine_t *engine,
-                const convolution_desc_t *adesc,
-                const primitive_attr_t *attr,
-                const convolution_fwd_pd_t *hint_fwd_pd)
-            : cpu_convolution_bwd_data_pd_t(engine, adesc, attr, hint_fwd_pd)
-        {}
+        using cpu_convolution_bwd_data_pd_t::cpu_convolution_bwd_data_pd_t;
 
         DECLARE_COMMON_PD_T("ref:any", ref_convolution_bwd_data_t);
 
-        virtual status_t init() override {
-            using namespace prop_kind;
-            assert(this->engine()->kind() == engine_kind::cpu);
+        status_t init() {
             bool ok = true
                 && this->set_default_params() == status::success
-                && this->desc()->prop_kind == backward_data
+                && this->desc()->prop_kind == prop_kind::backward_data
                 && utils::one_of(this->desc()->alg_kind,
                            alg_kind::convolution_auto,
                            alg_kind::convolution_direct)
@@ -136,13 +116,7 @@ struct ref_convolution_bwd_data_t: public cpu_primitive_t {
     typedef typename prec_traits<acc_type>::type acc_data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        switch (pd()->desc()->prop_kind) {
-        case prop_kind::backward_data:
-            execute_backward_data(ctx);
-            break;
-        default:
-            assert(!"invalid prop_kind");
-        }
+        execute_backward_data(ctx);
         return status::success;
     }
 
@@ -156,21 +130,14 @@ template <impl::data_type_t src_type, impl::data_type_t diff_wei_type,
          impl::data_type_t acc_type = diff_wei_type>
 struct ref_convolution_bwd_weights_t: public cpu_primitive_t {
     struct pd_t: public cpu_convolution_bwd_weights_pd_t {
-        pd_t(engine_t *engine,
-                const convolution_desc_t *adesc,
-                const primitive_attr_t *attr,
-                const convolution_fwd_pd_t *hint_fwd_pd)
-            : cpu_convolution_bwd_weights_pd_t(engine, adesc, attr, hint_fwd_pd)
-        {}
+        using cpu_convolution_bwd_weights_pd_t::cpu_convolution_bwd_weights_pd_t;
 
         DECLARE_COMMON_PD_T("ref:any", ref_convolution_bwd_weights_t);
 
-        virtual status_t init() override {
-            using namespace prop_kind;
-            assert(this->engine()->kind() == engine_kind::cpu);
+        status_t init() {
             bool ok = true
                 && this->set_default_params() == status::success
-                && this->desc()->prop_kind == backward_weights
+                && this->desc()->prop_kind == prop_kind::backward_weights
                 && utils::one_of(this->desc()->alg_kind,
                            alg_kind::convolution_auto,
                            alg_kind::convolution_direct)
@@ -194,13 +161,7 @@ struct ref_convolution_bwd_weights_t: public cpu_primitive_t {
     typedef typename prec_traits<acc_type>::type acc_data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        switch (pd()->desc()->prop_kind) {
-        case prop_kind::backward_weights:
-            execute_backward_weights(ctx);
-            break;
-        default:
-            assert(!"invalid prop_kind");
-        }
+        execute_backward_weights(ctx);
         return status::success;
     }
 

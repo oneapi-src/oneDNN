@@ -20,11 +20,13 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
-#include "cpu_inner_product_pd.hpp"
-#include "cpu_engine.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
+
 #include "gemm/gemm.hpp"
+
+#include "cpu_inner_product_pd.hpp"
+#include "cpu_primitive.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -33,33 +35,28 @@ namespace cpu {
 template <impl::data_type_t data_type>
 struct gemm_inner_product_fwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_inner_product_fwd_pd_t {
-        pd_t(engine_t *engine, const inner_product_desc_t *adesc,
-                const primitive_attr_t *attr,
-                const inner_product_fwd_pd_t *hint_fwd_pd)
-            : cpu_inner_product_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+        using cpu_inner_product_fwd_pd_t::cpu_inner_product_fwd_pd_t;
 
         DECLARE_COMMON_PD_T(GEMM_IMPL_STR, gemm_inner_product_fwd_t);
 
-        virtual status_t init() override {
+        status_t init() {
             using namespace utils;
-            assert(engine()->kind() == engine_kind::cpu);
 
             bool ok = true
-                && this->set_default_params() == status::success
-                && one_of(desc()->prop_kind, prop_kind::forward_training,
-                        prop_kind::forward_inference)
+                && set_default_params() == status::success
+                && is_fwd()
                 && !has_zero_dim_memory()
-                && everyone_is(data_type, desc()->src_desc.data_type,
-                        desc()->weights_desc.data_type,
-                        desc()->dst_desc.data_type)
-                && IMPLICATION(this->with_bias(),
-                        data_type == desc()->bias_desc.data_type)
+                && everyone_is(data_type,
+                        src_md()->data_type,
+                        weights_md()->data_type,
+                        dst_md()->data_type,
+                        with_bias() ? weights_md(1)->data_type : data_type)
                 && attr()->output_scales_.has_default_values()
                 && attr()->post_ops_.len_ <= 1
                 && IMPLICATION(attr()->post_ops_.len_ == 1,
                         attr()->post_ops_.entry_[0].is_relu(true, false))
-                && dense_gemm_consitency_check(src_pd(), weights_pd(),
-                        dst_pd());
+                && dense_gemm_consitency_check(src_md(), weights_md(),
+                        dst_md());
             return ok ? status::success : status::unimplemented;
         }
     };
@@ -80,28 +77,22 @@ private:
 template <impl::data_type_t data_type>
 struct gemm_inner_product_bwd_data_t: public cpu_primitive_t {
     struct pd_t: public cpu_inner_product_bwd_data_pd_t {
-        pd_t(engine_t *engine, const inner_product_desc_t *adesc,
-                const primitive_attr_t *attr,
-                const inner_product_fwd_pd_t *hint_fwd_pd)
-            : cpu_inner_product_bwd_data_pd_t(engine, adesc, attr,
-                    hint_fwd_pd) {}
+        using cpu_inner_product_bwd_data_pd_t::cpu_inner_product_bwd_data_pd_t;
 
         DECLARE_COMMON_PD_T(GEMM_IMPL_STR, gemm_inner_product_bwd_data_t);
 
-        virtual status_t init() override {
-            using namespace utils;
-            assert(engine()->kind() == engine_kind::cpu);
-
+        status_t init() {
             bool ok = true
-                && this->set_default_params() == status::success
+                && set_default_params() == status::success
                 && desc()->prop_kind == prop_kind::backward_data
                 && !has_zero_dim_memory()
-                && everyone_is(data_type, desc()->diff_src_desc.data_type,
-                        desc()->weights_desc.data_type,
-                        desc()->diff_dst_desc.data_type)
+                && utils::everyone_is(data_type,
+                        diff_src_md()->data_type,
+                        weights_md()->data_type,
+                        diff_dst_md()->data_type)
                 && attr()->has_default_values()
-                && dense_gemm_consitency_check(diff_src_pd(), weights_pd(),
-                        diff_dst_pd());
+                && dense_gemm_consitency_check(diff_src_md(), weights_md(),
+                        diff_dst_md());
             return ok ? status::success : status::unimplemented;
         }
     };
@@ -122,27 +113,23 @@ private:
 template <impl::data_type_t data_type>
 struct gemm_inner_product_bwd_weights_t: public cpu_primitive_t {
     struct pd_t: public cpu_inner_product_bwd_weights_pd_t {
-        pd_t(engine_t *engine, const inner_product_desc_t *adesc,
-                const primitive_attr_t *attr,
-                const inner_product_fwd_pd_t *hint_fwd_pd)
-            : cpu_inner_product_bwd_weights_pd_t(engine, adesc, attr,
-                    hint_fwd_pd) {}
+        using cpu_inner_product_bwd_weights_pd_t::cpu_inner_product_bwd_weights_pd_t;
 
         DECLARE_COMMON_PD_T(GEMM_IMPL_STR, gemm_inner_product_bwd_weights_t);
 
-        virtual status_t init() override {
-            using namespace utils;
-            assert(engine()->kind() == engine_kind::cpu);
+        status_t init() {
             bool ok = true
                 && this->set_default_params() == status::success
                 && desc()->prop_kind == prop_kind::backward_weights
                 && !has_zero_dim_memory()
-                && everyone_is(data_type, desc()->src_desc.data_type,
-                        desc()->diff_weights_desc.data_type,
-                        desc()->diff_dst_desc.data_type)
+                && utils::everyone_is(data_type,
+                        src_md()->data_type,
+                        diff_weights_md()->data_type,
+                        diff_dst_md()->data_type,
+                        with_bias() ? diff_weights_md(1)->data_type : data_type)
                 && attr()->has_default_values()
-                && dense_gemm_consitency_check(src_pd(), diff_weights_pd(),
-                        diff_dst_pd());
+                && dense_gemm_consitency_check(src_md(), diff_weights_md(),
+                        diff_dst_md());
 
             return ok ? status::success : status::unimplemented;
         }

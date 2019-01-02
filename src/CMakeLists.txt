@@ -20,17 +20,17 @@ file(GLOB_RECURSE HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/*.hpp
     )
 file(GLOB_RECURSE SOURCES
-    ${CMAKE_CURRENT_SOURCE_DIR}/common/*.c
     ${CMAKE_CURRENT_SOURCE_DIR}/common/*.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/common/*.h
     ${CMAKE_CURRENT_SOURCE_DIR}/common/*.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/cpu/*.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/cpu/*.hpp
     )
 include_directories(
     ${PROJECT_BINARY_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/common
-    #    ${CMAKE_CURRENT_SOURCE_DIR}/cpu
-    #    ${CMAKE_CURRENT_SOURCE_DIR}/cpu/xbyak
+    ${CMAKE_CURRENT_SOURCE_DIR}/cpu
+    ${CMAKE_CURRENT_SOURCE_DIR}/cpu/xbyak
     )
 
 # propagate SRC specific flags

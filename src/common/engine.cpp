@@ -19,13 +19,13 @@
 #include "nstl.hpp"
 
 #include "c_types_map.hpp"
-// #include "../cpu/cpu_engine.hpp"
+#include "../cpu/cpu_engine.hpp"
 
 namespace mkldnn {
 namespace impl {
 
 engine_factory_t *engine_factories[] = {
-//    &cpu::engine_factory,
+    &cpu::engine_factory,
     nullptr,
 };
 

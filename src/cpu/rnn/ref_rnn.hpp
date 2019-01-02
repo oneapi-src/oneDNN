@@ -28,6 +28,7 @@
 #include "../gemm/os_blas.hpp"
 
 #include "cpu_rnn_pd.hpp"
+#include "../cpu_primitive.hpp"
 #include "rnn_utils.hpp"
 #include "jit_uni_rnn_postgemm.hpp"
 
@@ -62,10 +63,7 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
                     cpu_rnn_fwd_pd_t, cpu_rnn_bwd_pd_t>::type;
 
     struct pd_t : public base_pd_t {
-        pd_t(engine_t *engine, const rnn_desc_t *adesc,
-                const primitive_attr_t *attr,
-                const typename pd_t::hint_class *hint_pd)
-            : base_pd_t(engine, adesc, attr, hint_pd) {}
+        using base_pd_t::base_pd_t;
 
         DECLARE_COMMON_PD_T("ref:any", class_name);
 
@@ -74,7 +72,6 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
             using namespace utils;
             using namespace memory_format;
             using namespace rnn_utils;
-            assert(this->engine()->kind() == engine_kind::cpu);
             const alg_kind_t cell_kind = this->desc()->cell_desc.cell_kind;
 
             data_type_t src_layer_dt = this->desc()->src_layer_desc.data_type;
@@ -100,50 +97,44 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
             if (!ok)
                 return status::unimplemented;
 
-            init_conf(rnn_, *this->desc(), this->src_pd(0), this->src_pd(1),
-                    this->weights_pd(0), this->weights_pd(1), this->dst_pd(0));
+            init_conf(rnn_, *this->desc(), this->src_md(0), this->src_md(1),
+                    this->weights_md(0), this->weights_md(1), this->dst_md(0));
 
             if (rnn_.dt_conf == all_f32)
                 ok = ok && this->attr()->has_default_values();
 
             // Set weights descriptors to desired format
-            memory_desc_t weights_layer_md = *(this->weights_layer_pd_.desc());
-            CHECK(set_expected_desc(rnn_, weights_layer_md, false));
-            cpu_memory_t::pd_t new_weights_layer_pd(
-                    this->engine_, &weights_layer_md);
-            if (this->weights_layer_pd_.desc()->format == any) {
-                this->weights_layer_pd_ = new_weights_layer_pd;
-            } else if (this->weights_layer_pd_.desc()->format == rnn_packed) {
-                if (!this->weights_layer_pd_.is_equal(&new_weights_layer_pd))
+            memory_desc_t new_weights_layer_md = *this->weights_md(0);
+            CHECK(set_expected_desc(rnn_, new_weights_layer_md, false));
+            if (this->weights_layer_md_.format == any) {
+                this->weights_layer_md_ = new_weights_layer_md;
+            } else if (this->weights_layer_md_.format == rnn_packed) {
+                if (this->weights_layer_md_ != new_weights_layer_md)
                     return status::unimplemented;
             }
 
-            memory_desc_t weights_iter_md = *(this->weights_iter_pd_.desc());
-            CHECK(set_expected_desc(rnn_, weights_iter_md, true));
-            cpu_memory_t::pd_t new_weights_iter_pd(
-                    this->engine_, &weights_iter_md);
-            if (this->weights_iter_pd_.desc()->format == any) {
-                this->weights_iter_pd_ = new_weights_iter_pd;
-            } else if (this->weights_iter_pd_.desc()->format == rnn_packed) {
-                if (!this->weights_iter_pd_.is_equal(&new_weights_iter_pd))
+            memory_desc_t new_weights_iter_md = *this->weights_md(1);
+            CHECK(set_expected_desc(rnn_, new_weights_iter_md, true));
+            if (this->weights_iter_md_.format == any) {
+                this->weights_iter_md_ = new_weights_iter_md;
+            } else if (this->weights_iter_md_.format == rnn_packed) {
+                if (this->weights_iter_md_ != new_weights_iter_md)
                     return status::unimplemented;
             }
 
             CHECK(this->check_layout_consistency());
 
-            set_conf(rnn_, *this->desc(), this->weights_pd(0),
-                    this->weights_pd(1), this->diff_weights_pd(0),
-                    this->diff_weights_pd(1));
+            set_conf(rnn_, *this->desc(), this->weights_md(0),
+                    this->weights_md(1), this->diff_weights_md(0),
+                    this->diff_weights_md(1));
 
             size_t scratchpad_sz{0}, ws_sz{0};
             get_scratchpad_and_workspace_sizes(rnn_, scratchpad_sz, ws_sz);
 
-            // initialize the workspace_pd if needed
+            // initialize the workspace if needed
             if (rnn_.is_training) {
                 dims_t ws_dims = {(int)ws_sz};
-                memory_desc_t ws_d;
-                mkldnn_memory_desc_init(&ws_d, 1, ws_dims, data_type::u8, x);
-                this->ws_pd_ = cpu_memory_t::pd_t(this->engine(), &ws_d);
+                mkldnn_memory_desc_init(&this->ws_md_, 1, ws_dims, data_type::u8, x);
             }
 
             init_scratchpad(scratchpad_sz);

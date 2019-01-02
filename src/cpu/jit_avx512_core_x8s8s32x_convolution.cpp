@@ -47,10 +47,10 @@ void jit_avx512_core_x8s8s32x_convolution_fwd_t<src_type,
     auto bias = CTX_IN_MEM(const char *, MKLDNN_ARG_BIAS);
     auto dst = CTX_OUT_MEM(dst_data_t *, MKLDNN_ARG_DST);
 
-    const memory_desc_wrapper src_d(pd()->src_pd());
-    const memory_desc_wrapper dst_d(pd()->dst_pd());
-    const memory_desc_wrapper weights_d(pd()->weights_pd(0));
-    const memory_desc_wrapper bias_d(pd()->weights_pd(1));
+    const memory_desc_wrapper src_d(pd()->src_md());
+    const memory_desc_wrapper dst_d(pd()->dst_md());
+    const memory_desc_wrapper weights_d(pd()->weights_md(0));
+    const memory_desc_wrapper bias_d(pd()->weights_md(1));
 
     const size_t bia_dt_size = pd()->with_bias()
         ? types::data_type_size(pd()->desc()->bias_desc.data_type) : 0;
@@ -165,10 +165,10 @@ void jit_avx512_core_x8s8s32x_convolution_fwd_t<src_type,
     auto bias = CTX_IN_MEM(const char *, MKLDNN_ARG_BIAS);
     auto dst = CTX_OUT_MEM(dst_data_t *, MKLDNN_ARG_DST);
 
-    const memory_desc_wrapper src_d(pd()->src_pd());
-    const memory_desc_wrapper dst_d(pd()->dst_pd());
-    const memory_desc_wrapper weights_d(pd()->weights_pd(0));
-    const memory_desc_wrapper bias_d(pd()->weights_pd(1));
+    const memory_desc_wrapper src_d(pd()->src_md());
+    const memory_desc_wrapper dst_d(pd()->dst_md());
+    const memory_desc_wrapper weights_d(pd()->weights_md(0));
+    const memory_desc_wrapper bias_d(pd()->weights_md(1));
 
     const size_t bia_dt_size = pd()->with_bias()
         ? types::data_type_size(pd()->desc()->bias_desc.data_type) : 0;

@@ -19,7 +19,6 @@
 #include "nstl.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
-#include "cpu_memory.hpp"
 
 #include <math.h>
 
@@ -1425,11 +1424,10 @@ bool jit_avx512_core_fp32_wino_conv_4x3_fwd_kernel::post_ops_ok(
 
 status_t jit_avx512_core_fp32_wino_conv_4x3_fwd_kernel::init_conf(
         jit_conv_winograd_conf_t &jcp, const convolution_desc_t &cd,
-        const cpu_memory_t::pd_t &src_pd, cpu_memory_t::pd_t &weights_pd,
-        const cpu_memory_t::pd_t &dst_pd, const primitive_attr_t &attr) {
+        const memory_desc_t &src_md, memory_desc_t &weights_md,
+        const memory_desc_t &dst_md, const primitive_attr_t &attr) {
 
-    status_t st = init_conf_common(jcp, cd,
-                        *src_pd.desc(), *weights_pd.desc(), *dst_pd.desc());
+    status_t st = init_conf_common(jcp, cd, src_md, weights_md, dst_md);
 
     if (st != status::success)
         return st;
@@ -1470,7 +1468,7 @@ status_t jit_avx512_core_fp32_wino_conv_4x3_fwd_kernel::init_conf(
     /* re-create weights primitive descriptor
     and set weights wino_blocking */
     if (cd.prop_kind == mkldnn_forward_inference) {
-        memory_desc_t expect_wei_md = *weights_pd.desc();
+        memory_desc_t expect_wei_md = weights_md;
 
         expect_wei_md.format = mkldnn_wino_fmt;
         expect_wei_md.data_type = data_type::f32;
@@ -1489,11 +1487,9 @@ status_t jit_avx512_core_fp32_wino_conv_4x3_fwd_kernel::init_conf(
         wd.size = max_size;
         wd.adj_scale = 1.f;
 
-        cpu_memory_t::pd_t new_weights_pd(
-            weights_pd.engine(), &expect_wei_md);
-        if (weights_pd.desc()->format == memory_format::any)
-            weights_pd = new_weights_pd;
-        if (!weights_pd.is_equal(&new_weights_pd))
+        if (weights_md.format == memory_format::any)
+            weights_md = expect_wei_md;
+        if (weights_md != expect_wei_md)
             return status::unimplemented;
     }
 
