@@ -175,7 +175,6 @@ static inline void get_b_col_sum(const int transb, const dim_t nrows,
 // TODO Find a better place for those macros.
 #define VAL_PADD(y, x, x1)    y = ((x) % (x1)) ? (((x) / (x1)) + 1) * (x1) : (x)
 #define LD_PADD(y,x)  (y) = ((((x) + ((2048 / sizeof(int8_t)) - 1)) / (2048 / sizeof(int8_t))) * (2048 / sizeof(int8_t)) +  (512 / sizeof(int8_t)));
-
 static int gemm_kernel_driver(const dim_t m, const dim_t n, const dim_t k,
         const int8_t *a, const uint8_t *b, int32_t *c, const int32_t *co,
         const blas_t *arg)
@@ -187,6 +186,10 @@ static int gemm_kernel_driver(const dim_t m, const dim_t n, const dim_t k,
     int8_t  bo    = arg->bo;
     float   alpha = *arg->alpha;
     float   beta  = *arg->beta;
+
+    if (m <= 0 || n <= 0) {
+        return 0;
+    }
 
     // Padding along K dimension.
     dim_t k_padd = 0;
