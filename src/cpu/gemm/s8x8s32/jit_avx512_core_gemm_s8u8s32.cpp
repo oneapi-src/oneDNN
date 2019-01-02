@@ -172,9 +172,18 @@ static inline void get_b_col_sum(const int transb, const dim_t nrows,
     }
 }
 
-// TODO Find a better place for those macros.
-#define VAL_PADD(y, x, x1)    y = ((x) % (x1)) ? (((x) / (x1)) + 1) * (x1) : (x)
-#define LD_PADD(y,x)  (y) = ((((x) + ((2048 / sizeof(int8_t)) - 1)) / (2048 / sizeof(int8_t))) * (2048 / sizeof(int8_t)) +  (512 / sizeof(int8_t)));
+// TODO Find a better place for those functions.
+static inline dim_t val_padd(const dim_t x, const dim_t x1)
+{
+    return (x % x1) ? ((x / x1) + 1) * x1 : x;
+}
+
+static inline dim_t ld_padd(const dim_t x)
+{
+    return ((x + ((2048 / sizeof(int32_t)) - 1)) / (2048 / sizeof(int32_t)))
+        * (2048 / sizeof(int32_t)) +  (64 / sizeof(int32_t));
+}
+
 static int gemm_kernel_driver(const dim_t m, const dim_t n, const dim_t k,
         const int8_t *a, const uint8_t *b, int32_t *c, const int32_t *co,
         const blas_t *arg)
@@ -194,30 +203,28 @@ static int gemm_kernel_driver(const dim_t m, const dim_t n, const dim_t k,
     // Padding along K dimension.
     dim_t k_padd = 0;
     if (k <= arg->bk_traditional) {
-        VAL_PADD(k_padd, k, arg->uk);
+        k_padd = val_padd(k, arg->uk);
         k_padd = nstl::max(128LL, k_padd);
     } else if (k < 2 * arg->bk) {
-        k_padd = k / 2;
-        VAL_PADD(k_padd, k_padd, arg->uk);
+        k_padd = val_padd(k / 2, arg->uk);
     } else {
         k_padd = arg->bk;
     }
 
     // Padding along M dimension.
-    dim_t m_padd = 0;
-    VAL_PADD(m_padd, nstl::min(nstl::max(m, arg->um), arg->bm), arg->um);
+    dim_t m_padd = val_padd(nstl::min(nstl::max(m, arg->um), arg->bm), arg->um);
 
     // Padding along N dimension.
     dim_t n_padd = 0;
     if (k < arg->blocking_small_k) {
-        VAL_PADD(n_padd, nstl::min(nstl::max(n, arg->un), arg->bn_small_k), arg->un);
+        n_padd = val_padd(nstl::min(nstl::max(n, arg->un), arg->bn_small_k),
+                arg->un);
     } else {
-        VAL_PADD(n_padd, nstl::min(nstl::max(n, arg->un), arg->bn), arg->un);
+        n_padd = val_padd(nstl::min(nstl::max(n, arg->un), arg->bn), arg->un);
     }
 
     // Padding for temporary buffer for C
-    dim_t ldc_buf = m_padd;
-    LD_PADD(ldc_buf, m_padd);
+    dim_t ldc_buf = ld_padd(m_padd);
 
     dim_t strideAm = (arg->transa == 0)? 1 : lda;
     dim_t strideAn = (arg->transa != 0)? 1 : lda;
@@ -361,8 +368,6 @@ static int gemm_kernel_driver(const dim_t m, const dim_t n, const dim_t k,
 
     return 0;
 }
-#undef VAL_PADD
-#undef LD_PADD
 
 #define N2D_MAX_AVX512 384
 #define M2D_MIN_AVX512 384
