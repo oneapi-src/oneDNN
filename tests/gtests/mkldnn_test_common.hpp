@@ -498,7 +498,7 @@ struct test_convolution_eltwise_params_t {
 };
 
 template<typename F> bool catch_expected_failures(const F &f,
-        bool expect_to_fail, mkldnn_status_t expected_status)
+        bool expect_to_fail, mkldnn_status_t expected_status, bool ignore_unimplemented = true)
 {
     try {
         f();
@@ -507,7 +507,7 @@ template<typename F> bool catch_expected_failures(const F &f,
         // not match.
         if (!(expect_to_fail) || e.status != (expected_status)) {
             // Ignore unimplemented
-            if (e.status == mkldnn_unimplemented)
+            if ( ignore_unimplemented && (e.status == mkldnn_unimplemented))
                 return true;
             else
                 throw e;

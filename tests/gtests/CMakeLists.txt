@@ -68,6 +68,7 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_gemm_f32.cpp
                               test_gemm_s8u8s32.cpp
                               test_gemm_s8s8s32.cpp
+                              test_rnn_forward.cpp
                               )
 
 foreach(TEST_FILE ${PRIM_TEST_CASES_SRC})
