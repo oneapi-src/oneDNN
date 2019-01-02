@@ -134,10 +134,6 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
             if (!ok)
                 return status::unimplemented;
 
-            ok = ok && utils::one_of(cell_kind, alg_kind::vanilla_rnn,
-                               alg_kind::vanilla_lstm, alg_kind::vanilla_gru,
-                               alg_kind::gru_linear_before_reset);
-
             /// @todo check data layouts for all input tensors
             ok = ok && this->desc()->src_layer_desc.format == tnc
                     && this->desc()->dst_layer_desc.format == tnc;
