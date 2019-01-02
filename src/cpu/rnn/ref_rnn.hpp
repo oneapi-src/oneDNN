@@ -167,15 +167,6 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
                     this->weights_pd(1), this->diff_weights_pd(0),
                     this->diff_weights_pd(1), this->dst_pd(0));
 
-            // Check dimensions consistency
-            int ls_multiplier = (rnn_.exec_dir == bi_concat) ? 2 : 1;
-
-            ok = ok && (ls_multiplier * rnn_.dic == rnn_.dlc)
-                    && ((ls_multiplier * rnn_.slc) == rnn_.dlc
-                               || (rnn_.n_layer == 1))
-                    && (rnn_.sic == rnn_.dic || (rnn_.n_iter == 1));
-            if (!ok) return status::unimplemented;
-
             size_t scratchpad_sz{0}, ws_sz{0};
             get_scratchpad_and_workspace_sizes(rnn_, scratchpad_sz, ws_sz);
 
