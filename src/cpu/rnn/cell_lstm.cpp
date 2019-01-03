@@ -21,6 +21,7 @@
 #include "math_utils.hpp"
 #include "mkldnn_thread.hpp"
 
+#include "../simple_q10n.hpp"
 #include "ref_rnn.hpp"
 
 namespace mkldnn {
@@ -32,11 +33,12 @@ using namespace mkldnn::impl::math;
 using namespace rnn_utils;
 
 template <>
-elemwise_sig(_ref_rnn_common_t<prop_kind::forward>::lstm_elemwise) {
+elemwise_sig(ref_rnn_fwd_f32_t::lstm_elemwise) {
     ws_gates_aoc_t ws_gates(rnn, ws_gates_);
     bias_aoc_t bias(rnn, bias_);
     ws_states_aoc_t states_t_l(rnn, states_t_l_);
-    ws_states_aoc_t states_tm1_l(rnn, states_tm1_l_);
+    ws_states_aoc_t c_states_t_l(rnn, c_states_t_l_);
+    ws_states_aoc_t c_states_tm1_l(rnn, c_states_tm1_l_);
 
     parallel_nd(rnn.mb, [&](int i) {
         PRAGMA_OMP_SIMD()
@@ -46,20 +48,63 @@ elemwise_sig(_ref_rnn_common_t<prop_kind::forward>::lstm_elemwise) {
             ws_gates(i, 2, j) = tanh_fwd(ws_gates(i, 2, j) + bias(2, j));
             ws_gates(i, 3, j) = logistic_fwd(ws_gates(i, 3, j) + bias(3, j));
 
-            float tmp = ws_gates(i, 1, j) * states_tm1_l(1, i, j)
+            float tmp = ws_gates(i, 1, j) * c_states_tm1_l(i, j)
                     + ws_gates(i, 0, j) * ws_gates(i, 2, j);
-            states_t_l(0, i, j) = ws_gates(i, 3, j) * tanh_fwd(tmp);
-            states_t_l(1, i, j) = tmp;
+            states_t_l(i, j) = ws_gates(i, 3, j) * tanh_fwd(tmp);
+            c_states_t_l(i, j) = tmp;
         }
     });
 }
 
 template <>
-elemwise_sig(_ref_rnn_common_t<prop_kind::backward>::lstm_elemwise) {
+elemwise_sig(ref_rnn_fwd_u8s8_t::lstm_elemwise) {
+    ws_gates_aoc_s32_t ws_gates_s32(rnn, ws_gates_);
+    bias_aoc_t bias(rnn, bias_);
+    ws_states_aoc_u8_t states_t_l(rnn, states_t_l_);
+    ws_states_aoc_t c_states_t_l(rnn, c_states_t_l_);
+    ws_states_aoc_t c_states_tm1_l(rnn, c_states_tm1_l_);
+
+    float *weights_scales = pd()->attr()->rnn_weights_qparams_.scales_;
+    float data_shift = pd()->attr()->rnn_data_qparams_.shift_;
+    float data_scale = pd()->attr()->rnn_data_qparams_.scale_;
+    round_mode_t rmode = pd()->attr()->round_mode_;
+
+    auto q_d = [&](float f) {
+        float qf = f * data_scale + data_shift;
+        return qz_a1b0<float, src_data_t>()(qf, rmode);
+    };
+
+    auto deq_w = [&](acc_data_t s, int gate, int j) {
+        return pd()->attr()->rnn_weights_qparams_.mask_ == 0 ?
+                saturate<float>(s) * (1.f / (weights_scales[0] * data_scale)) :
+                saturate<float>(s) * (1.f / (weights_scales[gate * rnn.dic + j]
+                                                   * data_scale));
+    };
+
+    parallel_nd(rnn.mb, [&](int i) {
+        PRAGMA_OMP_SIMD()
+        for (int j = 0; j < rnn.dic; j++) {
+            float G0 = logistic_fwd<float>(
+                    deq_w(ws_gates_s32(i, 0, j), 0, j) + bias(0, j));
+            float G1 = logistic_fwd<float>(
+                    deq_w(ws_gates_s32(i, 1, j), 1, j) + bias(1, j));
+            float G2 = tanh_fwd<float>(
+                    deq_w(ws_gates_s32(i, 2, j), 2, j) + bias(2, j));
+            float G3 = logistic_fwd<float>(
+                    deq_w(ws_gates_s32(i, 3, j), 3, j) + bias(3, j));
+            float tmp = G1 * c_states_tm1_l(i, j) + G0 * G2;
+            states_t_l(i, j) = q_d(G3 * tanh_fwd(tmp));
+            c_states_t_l(i, j) = tmp;
+        }
+    });
+}
+
+template <>
+elemwise_sig(ref_rnn_bwd_f32_t::lstm_elemwise) {
     ws_gates_aoc_t ws_gates(rnn, ws_gates_);
     bias_aoc_t bias(rnn, bias_);
-    ws_states_aoc_t states_t_l(rnn, states_t_l_);
-    ws_states_aoc_t states_tm1_l(rnn, states_tm1_l_);
+    ws_states_aoc_t c_states_t_l(rnn, c_states_t_l_);
+    ws_states_aoc_t c_states_tm1_l(rnn, c_states_tm1_l_);
     ws_diff_states_aoc_t diff_states_t_l(rnn, diff_states_t_l_);
     ws_diff_states_aoc_t diff_states_tp1_l(rnn, diff_states_tp1_l_);
     ws_diff_states_aoc_t diff_states_t_lp1(rnn, diff_states_t_lp1_);
@@ -67,7 +112,7 @@ elemwise_sig(_ref_rnn_common_t<prop_kind::backward>::lstm_elemwise) {
     parallel_nd(rnn.mb, [&](int i) {
         PRAGMA_OMP_SIMD()
         for (int j = 0; j < rnn.dic; j++) {
-            float Ct = states_t_l(1, i, j);
+            float Ct = c_states_t_l(i, j);
             /// @todo save it in the workspace in fwd pass or recompute it to
             /// save bw
             float tanhCt = tanh_fwd(Ct);
@@ -77,7 +122,7 @@ elemwise_sig(_ref_rnn_common_t<prop_kind::backward>::lstm_elemwise) {
             float dCt = diff_states_tp1_l(1, i, j)
                     + one_m_square(tanhCt) * ws_gates(i, 3, j) * dHt;
 
-            float dG1 = states_tm1_l(1, i, j) * dCt
+            float dG1 = c_states_tm1_l(i, j) * dCt
                     * x_m_square(ws_gates(i, 1, j));
             float dG0 = ws_gates(i, 2, j) * dCt * x_m_square(ws_gates(i, 0, j));
             float dG3 = tanhCt * dHt * x_m_square(ws_gates(i, 3, j));

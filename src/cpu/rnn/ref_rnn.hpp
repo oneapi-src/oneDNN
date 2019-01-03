@@ -34,57 +34,67 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-#define elemwise_sig(f)                                                      \
-    void f(const rnn_utils::rnn_conf_t &rnn,                                 \
-            float *ws_gates_, float *states_t_l_,                            \
-            float *states_t_lm1_, float *states_tm1_l_,                      \
-            float *diff_states_t_l_, float *diff_states_t_lp1_,              \
-            float *diff_states_tp1_l_, float *bias_, float *ws_grid_,        \
+#define elemwise_sig(f)                                               \
+    void f(const rnn_utils::rnn_conf_t &rnn, acc_data_t *ws_gates_,   \
+            src_data_t *states_t_l_, float *c_states_t_l_,            \
+            src_data_t *states_tm1_l_, float *c_states_tm1_l_,        \
+            float *diff_states_t_l_, float *diff_states_t_lp1_,       \
+            float *diff_states_tp1_l_, float *bias_, float *ws_grid_, \
             float *ws_cell_) const
 
-#define cell_execution_sig(f)                                               \
-    void f(const rnn_utils::rnn_conf_t &rnn, float *states_t_l_,            \
-            float *diff_states_t_l_, float **w_layer_, float **w_iter_,     \
-            float **bias_, float *states_t_lm1_, float *states_tm1_l_,      \
-            float *diff_states_t_lp1_, float *diff_states_tp1_l_,           \
-            float *diff_w_layer_, float *diff_w_iter_, float *diff_bias_,   \
-            float *ws_gates_, float *ws_grid_, float *ws_cell_) const
+#define cell_execution_sig(f)                                             \
+    void f(const rnn_utils::rnn_conf_t &rnn, src_data_t *states_t_l_,     \
+            float *c_states_t_l_, float *diff_states_t_l_,                \
+            weights_data_t **w_layer_, weights_data_t **w_iter_,          \
+            float **bias_, src_data_t *states_t_lm1_,                     \
+            src_data_t *states_tm1_l_, float *c_states_tm1_l_,            \
+            float *diff_states_t_lp1_, float *diff_states_tp1_l_,         \
+            float *diff_w_layer_, float *diff_w_iter_, float *diff_bias_, \
+            acc_data_t *ws_gates_, float *ws_grid_, float *ws_cell_) const
 
-#define grid_execution_sig(f)                                               \
-    void f(const rnn_utils::rnn_conf_t &rnn, float **weights_layer_,        \
-            float **weights_states_,                                        \
-            float **bias_, float *ws_states_, float *ws_diff_states_,       \
-            float *ws_gates_, float *ws_cell_, float *ws_grid_,             \
-            float *diff_weights_layer_, float *diff_weights_iter_,          \
-            float *diff_bias_) const
+#define grid_execution_sig(f)                                                 \
+    void f(const rnn_utils::rnn_conf_t &rnn, weights_data_t **weights_layer_, \
+            weights_data_t **weights_states_, float **bias_,                  \
+            src_data_t *ws_states_, float *ws_c_states_,                      \
+            float *ws_diff_states_, acc_data_t *ws_gates_, float *ws_cell_,   \
+            float *ws_grid_, float *diff_weights_layer_,                      \
+            float *diff_weights_iter_, float *diff_bias_) const
 
-#define gemm_sig(f)                                                      \
-    void f(const char transA, const char transB, int m, int n, int k,    \
-            const float alpha, const float *a_, const int ldA,           \
-            const float *b_, const int ldB, const float beta, float *c_, \
-            const int ldC) const
+#define gemm_sig(f)                                                     \
+    void f(const char transA, const char transB, int m, int n, int k,   \
+            const float alpha, const weights_data_t *a_, const int ldA, \
+            const src_data_t *b_, const int ldB, const float beta,      \
+            acc_data_t *c_, const int ldC) const
 
-#define bias_prepare_sig(f)                                              \
-    void f(const rnn_utils::rnn_conf_t &rnn,                             \
-            float **bias_, const float *b_, float *scratch_bias_) const
+#define bias_prepare_sig(f)                                                  \
+    void f(const rnn_utils::rnn_conf_t &rnn, float **bias_, const float *b_, \
+            float *scratch_bias_) const
 
-#define bias_finalize_sig(f)                                             \
-    void f(const rnn_utils::rnn_conf_t &rnn,                             \
-            float **bias_, const float *b_, float *scratch_bias_) const
+#define bias_finalize_sig(f)                                       \
+    void f(const rnn_utils::rnn_conf_t &rnn, float *scratch_bias_, \
+            const float *w_iter_comp, const float *w_layer_comp) const
 
 #define packing_sig(f)                                                         \
     void f(const rnn_utils::rnn_conf_t &rnn, memory_format_t fmt, int OC_size, \
             int IC_size, const int n_parts, const int *gates_per_part,         \
-            const size_t *part_weights_pack_size, float **weights_,            \
-            const float *w_, float *scratch_weights_, float **bias_,           \
-            const float *b_, float *scratch_bias_, bool do_copy) const
+            const size_t *part_weights_pack_size, weights_data_t **weights_,   \
+            const weights_data_t *w_, weights_data_t *scratch_weights_,        \
+            float **bias_, const float *b_, float *scratch_bias_,              \
+            bool do_copy) const
 
 template <alg_kind_t alg_kind, prop_kind_t prop_kind>
 float activation(float s, float alpha, float cliping, float dd);
 
-template <prop_kind_t aprop>
+template <prop_kind_t aprop, impl::data_type_t src_type,
+        impl::data_type_t weights_type>
 struct _ref_rnn_common_t : public cpu_primitive_t {
-    using class_name = _ref_rnn_common_t<aprop>;
+    typedef typename prec_traits<src_type>::type src_data_t;
+    typedef typename prec_traits<weights_type>::type weights_data_t;
+    typedef typename utils::conditional<src_type == data_type::u8, int32_t,
+            float>::type acc_data_t;
+
+    using class_name = _ref_rnn_common_t<aprop, src_type, weights_type>;
+
     typedef elemwise_sig((class_name::*elemwise_f));
     typedef cell_execution_sig((class_name::*cell_execution_f));
     typedef grid_execution_sig((class_name::*grid_execution_f));
@@ -114,15 +124,24 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
             assert(this->engine()->kind() == engine_kind::cpu);
             const alg_kind_t cell_kind = this->desc()->cell_desc.cell_kind;
 
+            data_type_t src_layer_dt = this->desc()->src_layer_desc.data_type;
+            data_type_t weights_iter_dt
+                    = this->desc()->weights_iter_desc.data_type;
+            data_type_t weights_layer_dt
+                    = this->desc()->weights_layer_desc.data_type;
+
             bool ok = true
                     && one_of(cell_kind, alg_kind::vanilla_rnn,
                                alg_kind::vanilla_lstm, alg_kind::vanilla_gru,
                                alg_kind::gru_linear_before_reset)
                     && IMPLICATION(aprop == prop_kind::forward,
                                one_of(this->desc()->prop_kind, forward_training,
-                                       forward_inference))
+                                           forward_inference))
                     && IMPLICATION(aprop == backward,
                                one_of(this->desc()->prop_kind, backward))
+                    && src_layer_dt == src_type
+                    && everyone_is(
+                               weights_type, weights_iter_dt, weights_layer_dt)
                     && this->set_default_params() == status::success
                     && this->with_bias();
             if (!ok)
@@ -130,6 +149,9 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
 
             init_conf(rnn_, *this->desc(), this->src_pd(0), this->src_pd(1),
                     this->weights_pd(0), this->weights_pd(1), this->dst_pd(0));
+
+            if (rnn_.dt_conf == all_f32)
+                ok = ok && this->attr()->has_default_values();
 
             // Set weights descriptors to desired format
             memory_desc_t weights_layer_md = *(this->weights_layer_pd_.desc());
@@ -163,7 +185,7 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
             if (rnn_.is_training) {
                 dims_t ws_dims = {(int)ws_sz};
                 memory_desc_t ws_d;
-                mkldnn_memory_desc_init(&ws_d, 1, ws_dims, data_type::f32, x);
+                mkldnn_memory_desc_init(&ws_d, 1, ws_dims, data_type::u8, x);
                 this->ws_pd_ = cpu_memory_t::pd_t(this->engine(), &ws_d);
             }
 
@@ -256,9 +278,10 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
 
         size_t scratchpad_size, workspace_size;
         rnn_utils::set_offsets(pd()->rnn_, ws_gates_offset_, ws_states_offset_,
-                ws_diff_states_offset_, ws_grid_comp_offset_,
-                ws_cell_comp_offset_, ws_weights_layer_offset_,
-                ws_weights_iter_offset_, ws_bias_offset_, ws_diff_weights_layer_offset_,
+                ws_c_states_offset_, ws_diff_states_offset_,
+                ws_grid_comp_offset_, ws_cell_comp_offset_,
+                ws_weights_layer_offset_, ws_weights_iter_offset_,
+                ws_bias_offset_, ws_diff_weights_layer_offset_,
                 ws_diff_weights_iter_offset_, scratchpad_size, workspace_size);
     }
 
@@ -291,25 +314,35 @@ private:
 
     float (*activation_func)(float dd, float s, float alpha, float cliping);
 
-    void copy_init_layer(const rnn_utils::rnn_conf_t &rnn, float *ws_states_,
-            float *ws_diff_states_, const float *xt_,
-            const float *diff_dst_layer) const;
-    void copy_init_iter(const rnn_utils::rnn_conf_t &rnn, float *ws_states_,
-            float *ws_diff_states_, const float *firstit_states_,
+    void copy_init_layer(const rnn_utils::rnn_conf_t &rnn,
+            src_data_t *ws_states_, float *ws_diff_states_,
+            const src_data_t *xt_, const float *diff_dst_layer) const;
+
+    template <typename input_data_t>
+    void copy_init_iter(const rnn_utils::rnn_conf_t &rnn,
+            src_data_t *ws_states_, float *ws_c_states, float *ws_diff_states_,
+            const input_data_t *firstit_states_,
             const float *diff_dst_iter) const;
-    void copy_res_layer(const rnn_utils::rnn_conf_t &rnn, float *dst_layer_,
-            float *diff_src_layer, const float *ws_states_,
+
+    template <typename dst_data_t>
+    void copy_res_layer(const rnn_utils::rnn_conf_t &rnn,
+            dst_data_t *dst_layer_, float *diff_src_layer,
+            const src_data_t *ws_states_, const float *ws_diff_states_) const;
+
+    template <typename output_data_t>
+    void copy_res_iter(const rnn_utils::rnn_conf_t &rnn,
+            output_data_t *dst_iter_, float *diff_src_iter,
+            const src_data_t *ws_states_, float *ws_c_states,
             const float *ws_diff_states_) const;
-    void copy_res_iter(const rnn_utils::rnn_conf_t &rnn, float *dst_iter_,
-            float *diff_src_iter, const float *ws_states_,
-            const float *ws_diff_states_) const;
+
     void gates_reduction(const rnn_utils::rnn_conf_t &rnn,
-            const float *ws_gates_, float *diff_bias_) const;
+            const acc_data_t *ws_gates_, float *diff_bias_) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     size_t ws_gates_offset_;
     size_t ws_states_offset_;
+    size_t ws_c_states_offset_;
     size_t ws_weights_layer_offset_;
     size_t ws_weights_iter_offset_;
     size_t ws_bias_offset_;
@@ -333,9 +366,9 @@ private:
 
 };
 
-using ref_rnn_fwd_t = _ref_rnn_common_t<prop_kind::forward>;
-using ref_rnn_bwd_t = _ref_rnn_common_t<prop_kind::backward>;
-
+using ref_rnn_fwd_f32_t = _ref_rnn_common_t<prop_kind::forward, data_type::f32, data_type::f32>;
+using ref_rnn_bwd_f32_t = _ref_rnn_common_t<prop_kind::backward, data_type::f32, data_type::f32>;
+using ref_rnn_fwd_u8s8_t = _ref_rnn_common_t<prop_kind::forward, data_type::u8, data_type::s8>;
 }
 }
 }

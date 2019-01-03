@@ -33,7 +33,7 @@ using namespace rnn_utils;
 
 #define AOC array_offset_calculator
 template <>
-cell_execution_sig(_ref_rnn_common_t<prop_kind::forward>::cell_execution_gru) {
+cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru) {
     ws_gates_aoc_t ws_gates(rnn, ws_gates_);
     bias_aoc_t bias(rnn, bias_[0]);
     ws_states_aoc_t states_t_l(rnn, states_t_l_);
@@ -58,7 +58,7 @@ cell_execution_sig(_ref_rnn_common_t<prop_kind::forward>::cell_execution_gru) {
         for (int j = 0; j < rnn.dic; j++) {
             ws_gates(i, 0, j) = logistic_fwd(ws_gates(i, 0, j) + bias(0, j));
             ws_gates(i, 1, j) = logistic_fwd(ws_gates(i, 1, j) + bias(1, j));
-            states_t_l(0, i, j) = states_tm1_l(0, i, j) * ws_gates(i, 1, j);
+            states_t_l(i, j) = states_tm1_l(i, j) * ws_gates(i, 1, j);
         }
     });
 
@@ -72,14 +72,19 @@ cell_execution_sig(_ref_rnn_common_t<prop_kind::forward>::cell_execution_gru) {
         PRAGMA_OMP_SIMD()
         for (int j = 0; j < rnn.dic; j++) {
             ws_gates(i, 2, j) = tanh_fwd(ws_gates(i, 2, j) + bias(2, j));
-            states_t_l(0, i, j) = states_tm1_l(0, i, j) * ws_gates(i, 0, j)
+            states_t_l(i, j) = states_tm1_l(i, j) * ws_gates(i, 0, j)
                     + (1.0f - ws_gates(i, 0, j)) * ws_gates(i, 2, j);
         }
     });
 }
 
 template <>
-cell_execution_sig(_ref_rnn_common_t<prop_kind::backward>::cell_execution_gru) {
+cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_gru) {
+    assert(!"GRU int8 is not supported");
+}
+
+template <>
+cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru) {
     ws_gates_aoc_t ws_gates(rnn, ws_gates_);
     ws_states_aoc_t states_t_l(rnn, states_t_l_);
     ws_states_aoc_t states_tm1_l(rnn, states_tm1_l_);
@@ -102,7 +107,7 @@ cell_execution_sig(_ref_rnn_common_t<prop_kind::backward>::cell_execution_gru) {
     parallel_nd(rnn.mb, [&](int i) {
         PRAGMA_OMP_SIMD()
         for (int j = 0; j < rnn.dic; j++) {
-            float h = states_tm1_l(0, i, j);
+            float h = states_tm1_l(i, j);
             float dHt = diff_states_tp1_l(0, i, j)
                     + diff_states_t_lp1(rnn.n_states, i, j);
             float dG2 = (1.0f - ws_gates(i, 0, j)) * dHt
@@ -129,7 +134,7 @@ cell_execution_sig(_ref_rnn_common_t<prop_kind::backward>::cell_execution_gru) {
     parallel_nd(rnn.mb, [&](int i) {
         PRAGMA_OMP_SIMD()
         for (int j = 0; j < rnn.dic; j++) {
-            float h = states_tm1_l(0, i, j);
+            float h = states_tm1_l(i, j);
             float G1 = ws_gates(i, 1, j);
             diff_states_t_l(0, i, j) += dhG1(i, j) * G1;
             ws_gates(i, 1, j) = dhG1(i, j) * h * x_m_square(G1);

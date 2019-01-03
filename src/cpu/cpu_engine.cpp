@@ -97,8 +97,9 @@ using namespace mkldnn::impl::data_type;
 #define INSTANCE(...) &primitive_desc_t::create<__VA_ARGS__::pd_t>
 static const pd_create_f cpu_impl_list[] = {
     /* RNN */
-    INSTANCE(ref_rnn_fwd_t),
-    INSTANCE(ref_rnn_bwd_t),
+    INSTANCE(ref_rnn_fwd_f32_t),
+    INSTANCE(ref_rnn_fwd_u8s8_t),
+    INSTANCE(ref_rnn_bwd_f32_t),
     /* conv */
     INSTANCE(jit_avx512_common_dw_convolution_fwd_t),
     INSTANCE(jit_avx512_common_dw_convolution_bwd_data_t),
