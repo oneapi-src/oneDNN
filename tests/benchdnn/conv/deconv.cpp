@@ -180,7 +180,7 @@ int doit(const prb_t *p, res_t *r) {
     *r = res_zero;
     bool with_groups = 1;
 
-    prb_t p_tr((desc_t)*p, p->dir, p->cfg, p->alg, p->attr, p->mb);
+    prb_t p_tr((desc_t)*p, p->dir, p->cfg, p->alg, p->attr, p->mb, true);
     swap(p_tr.ic,  p_tr.oc);
     swap(p_tr.ih,  p_tr.oh);
     swap(p_tr.id,  p_tr.od);

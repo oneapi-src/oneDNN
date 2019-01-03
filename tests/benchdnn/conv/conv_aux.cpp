@@ -226,19 +226,25 @@ void desc2str(const desc_t *d, char *buffer, bool canonical) {
 void prb_t::count_ops() {
     if (ops > 0) return;
 
+    int od_t = is_deconv ? this->id : this->od;
+    int oh_t = is_deconv ? this->ih : this->oh;
+    int ow_t = is_deconv ? this->iw : this->ow;
+    int id_t = is_deconv ? this->od : this->id;
+    int ih_t = is_deconv ? this->oh : this->ih;
+    int iw_t = is_deconv ? this->ow : this->iw;
     double sp_ops = 0;
-    for (int od = 0; od < this->od; ++od) {
-    for (int oh = 0; oh < this->oh; ++oh) {
-    for (int ow = 0; ow < this->ow; ++ow) {
+    for (int od = 0; od < od_t; ++od) {
+    for (int oh = 0; oh < oh_t; ++oh) {
+    for (int ow = 0; ow < ow_t; ++ow) {
         for (int kd = 0; kd < this->kd; ++kd) {
             const int id = od * this->sd - this->pd + kd * (this->dd + 1);
-            if (id < 0 || id >= this->id) continue;
+            if (id < 0 || id >= id_t) continue;
             for (int kh = 0; kh < this->kh; ++kh) {
                 const int ih = oh * this->sh - this->ph + kh * (this->dh + 1);
-                if (ih < 0 || ih >= this->ih) continue;
+                if (ih < 0 || ih >= ih_t) continue;
                 for (int kw = 0; kw < this->kw; ++kw) {
                     const int iw = ow * this->sw - this->pw + kw * (this->dw + 1);
-                    if (iw < 0 || iw >= this->iw) continue;
+                    if (iw < 0 || iw >= iw_t) continue;
                     sp_ops += 1;
                 }
             }

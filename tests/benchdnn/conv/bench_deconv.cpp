@@ -53,7 +53,7 @@ void reset_parameters() {
 }
 
 void check_correctness(const desc_t *c) {
-    const prb_t p(*c, dir, cfg, alg, attr, mb);
+    const prb_t p(*c, dir, cfg, alg, attr, mb, true);
     char pstr[max_prb_len];
     prb2str(&p, pstr);
 
