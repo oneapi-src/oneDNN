@@ -502,10 +502,12 @@ void jit_avx512_core_x8s8s32x_fwd_kernel::generate()
                         (jcp.ur_w * jcp.oc_without_padding * jcp.ngroups);
     preamble();
 
-    xor_(reg_scratch, reg_scratch);
-    Reg16 _t16 = reg_scratch.cvt16();
-    mov(_t16, 0x1);
-    vpbroadcastw(zmm_one, _t16);
+    if (!jcp.is_depthwise && jcp.ver != ver_vnni) {
+        xor_(reg_scratch, reg_scratch);
+        Reg16 _t16 = reg_scratch.cvt16();
+        mov(_t16, 0x1);
+        vpbroadcastw(zmm_one, _t16);
+    }
 
     mov(reg_inp, ptr[param1 + GET_OFF(src)]);
     mov(reg_out, ptr[param1 + GET_OFF(dst)]);
