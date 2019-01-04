@@ -125,23 +125,43 @@ template <typename pd_t> static void init_info_conv(pd_t *s, char *buffer) {
             "alg:%s", mkldnn_alg_kind2str(s->desc()->alg_kind));
 
     if (s->ndims() == 5) {
-        snprintf(prb_str, MKLDNN_VERBOSE_PRB_LEN,
-            "mb%d_g%dic%doc%d"
-            "_id%dod%dkd%dsd%ddd%dpd%d"
-            "_ih%doh%dkh%dsh%ddh%dph%d"
-            "_iw%dow%dkw%dsw%ddw%dpw%d",
-            s->MB(), s->G(), s->IC(), s->OC(),
-            s->ID(), s->OD(), s->KD(), s->KSD(), s->KDD(), s->padFront(),
-            s->IH(), s->OH(), s->KH(), s->KSH(), s->KDH(), s->padT(),
-            s->IW(), s->OW(), s->KW(), s->KSW(), s->KDW(), s->padL());
+        if (s->with_groups())
+            snprintf(prb_str, MKLDNN_VERBOSE_PRB_LEN,
+                "mb%d_g%dic%doc%d"
+                "_id%dod%dkd%dsd%ddd%dpd%d"
+                "_ih%doh%dkh%dsh%ddh%dph%d"
+                "_iw%dow%dkw%dsw%ddw%dpw%d",
+                s->MB(), s->G(), s->IC(), s->OC(),
+                s->ID(), s->OD(), s->KD(), s->KSD(), s->KDD(), s->padFront(),
+                s->IH(), s->OH(), s->KH(), s->KSH(), s->KDH(), s->padT(),
+                s->IW(), s->OW(), s->KW(), s->KSW(), s->KDW(), s->padL());
+        else
+            snprintf(prb_str, MKLDNN_VERBOSE_PRB_LEN,
+                "mb%d_ic%doc%d"
+                "_id%dod%dkd%dsd%ddd%dpd%d"
+                "_ih%doh%dkh%dsh%ddh%dph%d"
+                "_iw%dow%dkw%dsw%ddw%dpw%d",
+                s->MB(), s->IC(), s->OC(),
+                s->ID(), s->OD(), s->KD(), s->KSD(), s->KDD(), s->padFront(),
+                s->IH(), s->OH(), s->KH(), s->KSH(), s->KDH(), s->padT(),
+                s->IW(), s->OW(), s->KW(), s->KSW(), s->KDW(), s->padL());
     } else {
-        snprintf(prb_str, MKLDNN_VERBOSE_PRB_LEN,
-            "mb%d_g%dic%doc%d"
-            "_ih%doh%dkh%dsh%ddh%dph%d"
-            "_iw%dow%dkw%dsw%ddw%dpw%d",
-            s->MB(), s->G(), s->IC(), s->OC(),
-            s->IH(), s->OH(), s->KH(), s->KSH(), s->KDH(), s->padT(),
-            s->IW(), s->OW(), s->KW(), s->KSW(), s->KDW(), s->padL());
+        if (s->with_groups())
+            snprintf(prb_str, MKLDNN_VERBOSE_PRB_LEN,
+                "mb%d_g%dic%doc%d"
+                "_ih%doh%dkh%dsh%ddh%dph%d"
+                "_iw%dow%dkw%dsw%ddw%dpw%d",
+                s->MB(), s->G(), s->IC(), s->OC(),
+                s->IH(), s->OH(), s->KH(), s->KSH(), s->KDH(), s->padT(),
+                s->IW(), s->OW(), s->KW(), s->KSW(), s->KDW(), s->padL());
+        else
+            snprintf(prb_str, MKLDNN_VERBOSE_PRB_LEN,
+                "mb%d_ic%doc%d"
+                "_ih%doh%dkh%dsh%ddh%dph%d"
+                "_iw%dow%dkw%dsw%ddw%dpw%d",
+                s->MB(), s->IC(), s->OC(),
+                s->IH(), s->OH(), s->KH(), s->KSH(), s->KDH(), s->padT(),
+                s->IW(), s->OW(), s->KW(), s->KSW(), s->KDW(), s->padL());
     }
 
     verbose_templ(buffer, s->kind(), s->name(), s->desc()->prop_kind, dat_str,
