@@ -117,10 +117,10 @@ struct prb_t: public desc_t {
     const dt_conf_t *cfg;
     alg_t alg;
     attr_t attr;
-    bool is_deconv;
 
     double ops;
     float *scales;
+    bool is_deconv;
 
     void count_ops();
     void generate_oscales();
