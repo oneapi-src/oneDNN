@@ -37,8 +37,6 @@ jit_avx512_core_u8_copy_bt_kern::jit_avx512_core_u8_copy_bt_kern(): jit_generato
 #define A2	r8
 #define LDA3	r11
 
-#define STACKSIZE	0
-
 #else
 
 #define M	rcx
@@ -53,9 +51,8 @@ jit_avx512_core_u8_copy_bt_kern::jit_avx512_core_u8_copy_bt_kern(): jit_generato
 #define A2	r10
 #define LDA3	r11
 
-#define STACKSIZE	64
-#define ARG_ALPHA	40+STACKSIZE+rsp
-#define ARG_B		48+STACKSIZE+rsp
+#define ARG_ALPHA	40+stacksize+rsp
+#define ARG_B		48+stacksize+rsp
 
 #endif
 
@@ -91,12 +88,9 @@ Xbyak::Label l524;
 Xbyak::Label l534;
 Xbyak::Label lcc;
 
+	preamble();
 #ifdef _WIN32
-	sub(rsp, STACKSIZE);
-	mov(ptr[rsp], rsi);
-	mov(ptr[rsp+0x8], rdi);
-	movups(ptr[rsp+0x10], xmm6);
-	movups(ptr[rsp+0x20], xmm7);
+	auto stacksize = get_size_of_abi_save_regs();
 	mov(ALPHA, ptr[ARG_ALPHA]);
 	mov(B, ptr[ARG_B]);
 #endif
@@ -482,15 +476,7 @@ L(l524);
 
 L(l534);
 
-#ifdef _WIN32
-	mov(rsi, ptr[rsp]);
-	mov(rdi, ptr[rsp+0x8]);
-	movups(xmm6, ptr[rsp+0x10]);
-	movups(xmm7, ptr[rsp+0x20]);
-	add(rsp, STACKSIZE);
-#endif
-
-	ret();
+	postamble();
 }
 outLocalLabel();
 
@@ -504,7 +490,6 @@ outLocalLabel();
 #undef A1
 #undef A2
 #undef LDA3
-#undef STACKSIZE
 #ifdef _WIN32
 #undef ARG_ALPHA
 #undef ARG_B

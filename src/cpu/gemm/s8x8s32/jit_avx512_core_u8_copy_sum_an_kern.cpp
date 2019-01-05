@@ -37,8 +37,7 @@ jit_avx512_core_u8_copy_sum_an_kern::jit_avx512_core_u8_copy_sum_an_kern(): jit_
 #define A2	r8
 #define LDA3	r11
 
-#define STACKSIZE	0
-#define ARG_BIAS	24+STACKSIZE+rsp
+#define ARG_BIAS	24+stacksize+rsp
 
 #else
 
@@ -54,10 +53,9 @@ jit_avx512_core_u8_copy_sum_an_kern::jit_avx512_core_u8_copy_sum_an_kern(): jit_
 #define A2	r10
 #define LDA3	r11
 
-#define STACKSIZE	192
-#define ARG_ALPHA	40+STACKSIZE+rsp
-#define ARG_B		48+STACKSIZE+rsp
-#define ARG_BIAS	72+STACKSIZE+rsp
+#define ARG_ALPHA	40+stacksize+rsp
+#define ARG_B		48+stacksize+rsp
+#define ARG_BIAS	72+stacksize+rsp
 
 #endif
 
@@ -111,20 +109,9 @@ Xbyak::Label lf3c;
 Xbyak::Label lf48;
 Xbyak::Label lf60;
 
+	preamble();
+	auto stacksize = get_size_of_abi_save_regs();
 #ifdef _WIN32
-	sub(rsp, STACKSIZE);
-	mov(ptr[rsp], rsi);
-	mov(ptr[rsp+0x8], rdi);
-	movups(ptr[rsp+0x10], xmm6);
-	movups(ptr[rsp+0x20], xmm7);
-	movups(ptr[rsp+0x30], xmm8);
-	movups(ptr[rsp+0x40], xmm9);
-	movups(ptr[rsp+0x50], xmm10);
-	movups(ptr[rsp+0x60], xmm11);
-	movups(ptr[rsp+0x70], xmm12);
-	movups(ptr[rsp+0x80], xmm13);
-	movups(ptr[rsp+0x90], xmm14);
-	movups(ptr[rsp+0xa0], xmm15);
 	mov(ALPHA, ptr[ARG_ALPHA]);
 	mov(B, ptr[ARG_B]);
 #endif
@@ -1270,23 +1257,7 @@ L(l129c);
 
 L(l12bc);
 
-#ifdef _WIN32
-	mov(rsi, ptr[rsp]);
-	mov(rdi, ptr[rsp+0x8]);
-	movups(xmm6, ptr[rsp+0x10]);
-	movups(xmm7, ptr[rsp+0x20]);
-	movups(xmm8, ptr[rsp+0x30]);
-	movups(xmm9, ptr[rsp+0x40]);
-	movups(xmm10, ptr[rsp+0x50]);
-	movups(xmm11, ptr[rsp+0x60]);
-	movups(xmm12, ptr[rsp+0x70]);
-	movups(xmm13, ptr[rsp+0x80]);
-	movups(xmm14, ptr[rsp+0x90]);
-	movups(xmm15, ptr[rsp+0xa0]);
-	add(rsp, STACKSIZE);
-#endif
-
-	ret();
+	postamble();
 }
 outLocalLabel();
 
@@ -1300,7 +1271,6 @@ outLocalLabel();
 #undef A1
 #undef A2
 #undef LDA3
-#undef STACKSIZE
 #ifdef _WIN32
 #undef ARG_ALPHA
 #undef ARG_B
