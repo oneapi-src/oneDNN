@@ -20,6 +20,7 @@
 #include "common.hpp"
 #include "mkldnn_types.h"
 #include "nstl.hpp"
+#include "utils.hpp"
 
 #include "jit_avx512_core_gemm_s8u8s32.hpp"
 #include "jit_avx512_core_gemm_s8u8s32_kern.hpp"
@@ -33,11 +34,6 @@
 namespace mkldnn {
 namespace impl {
 namespace cpu {
-
-typedef struct {
-    int8_t *a_buf;
-    int32_t *a_row_sum;
-} blas_buffers_t;
 
 typedef struct {
     int nthrs_m, nthrs_n;
@@ -111,20 +107,10 @@ static inline void add_results(const dim_t m, const dim_t n, const dim_t k,
 }
 
 // TODO Find a better place for those functions.
-static inline dim_t val_padd(const dim_t x, const dim_t x1)
-{
-    return (x % x1) ? ((x / x1) + 1) * x1 : x;
-}
-
 static inline dim_t ld_padd(const dim_t x)
 {
     return ((x + ((2048 / sizeof(int32_t)) - 1)) / (2048 / sizeof(int32_t)))
         * (2048 / sizeof(int32_t)) +  (64 / sizeof(int32_t));
-}
-
-static inline dim_t pad_unroll(const dim_t m, const dim_t m_unroll)
-{
-    return (m + m_unroll - 1) / m_unroll * m_unroll;
 }
 
 void igemm_inner_kernel(const dim_t m, const dim_t n, const dim_t k,
@@ -254,6 +240,11 @@ void igemm_inner_kernel(const dim_t m, const dim_t n, const dim_t k,
     }
 }
 
+static inline void *align(void *ptr, size_t alignment)
+{
+    return (void *) utils::rnd_up((uintptr_t) ptr, alignment);
+}
+
 static int gemm_kernel_driver(const dim_t m, const dim_t n, const dim_t k,
         const int8_t *a, const uint8_t *b, int32_t *c, const int32_t *co,
         const blas_t *arg)
@@ -273,24 +264,26 @@ static int gemm_kernel_driver(const dim_t m, const dim_t n, const dim_t k,
     // Padding along K dimension.
     dim_t k_padd = 0;
     if (k <= arg->bk_traditional) {
-        k_padd = val_padd(k, arg->uk);
+        k_padd = utils::rnd_up(k, arg->uk);
         k_padd = nstl::max(128LL, k_padd);
     } else if (k < 2 * arg->bk) {
-        k_padd = val_padd(k / 2, arg->uk);
+        k_padd = utils::rnd_up(k / 2, arg->uk);
     } else {
         k_padd = arg->bk;
     }
 
     // Padding along M dimension.
-    dim_t m_padd = val_padd(nstl::min(nstl::max(m, arg->um), arg->bm), arg->um);
+    dim_t m_padd = utils::rnd_up(nstl::min(nstl::max(m, arg->um), arg->bm),
+            arg->um);
 
     // Padding along N dimension.
     dim_t n_padd = 0;
     if (k < arg->blocking_small_k) {
-        n_padd = val_padd(nstl::min(nstl::max(n, arg->un), arg->bn_small_k),
-                arg->un);
+        n_padd = utils::rnd_up(nstl::min(nstl::max(n, arg->un),
+                    arg->bn_small_k), arg->un);
     } else {
-        n_padd = val_padd(nstl::min(nstl::max(n, arg->un), arg->bn), arg->un);
+        n_padd = utils::rnd_up(nstl::min(nstl::max(n, arg->un), arg->bn),
+                arg->un);
     }
 
     // Padding for temporary buffer for C
@@ -301,47 +294,37 @@ static int gemm_kernel_driver(const dim_t m, const dim_t n, const dim_t k,
     dim_t strideBm = (arg->transb == 0)? 1 : ldb;
     dim_t strideBn = (arg->transb != 0)? 1 : ldb;
 
-    int8_t *bufferA = (int8_t *) malloc(m_padd * k_padd * sizeof(*bufferA),
-            PAGE_2M);
-    if (!bufferA) {
+    size_t a_buf_nelems = m_padd * k_padd;
+    size_t b_buf_nelems = k_padd * n_padd;
+    size_t a_row_sum_nelems = m_padd;
+    size_t b_col_sum_nelems = n_padd;
+
+    size_t mem_size = a_buf_nelems * sizeof(*a) + PAGE_4K
+        + b_buf_nelems * sizeof(*b) + PAGE_4K
+        + a_row_sum_nelems * sizeof(*c) + PAGE_4K
+        + b_col_sum_nelems * sizeof(*c) + PAGE_4K;
+
+    bool need_c_buffer = alpha != 1.0f || (beta != 1 && beta != 0);
+    if (need_c_buffer) {
+        size_t c_buf_nelems = ldc_buf * n_padd;
+        mem_size += c_buf_nelems * sizeof(*c) + PAGE_4K;
+    }
+
+    char *mem = (char *) malloc(mem_size, 128);
+
+    if (!mem) {
         return -1;
     }
 
-    uint8_t *bufferB = (uint8_t *) malloc(k_padd * n_padd * sizeof(*bufferB),
+    int8_t *bufferA = (int8_t *) align(mem, PAGE_4K);
+    uint8_t *bufferB = (uint8_t *) align(bufferA + a_buf_nelems, PAGE_4K);
+    int32_t *a_row_sum = (int32_t *) align(bufferB + b_buf_nelems, PAGE_4K);
+    int32_t *b_col_sum = (int32_t *) align(a_row_sum + a_row_sum_nelems,
             PAGE_4K);
-    if (!bufferB) {
-        free(bufferA);
-        return -1;
-    }
 
     int32_t *bufferC = NULL;
-    if (alpha != 1.0f || (beta != 1 && beta != 0)) {
-        bufferC = (int32_t *) malloc(ldc_buf * n_padd * sizeof(*bufferC),
-                PAGE_4K);
-        if (!bufferC) {
-            free(bufferA);
-            free(bufferB);
-            return -1;
-        }
-    }
-
-    int32_t *a_row_sum = (int32_t *) malloc(m_padd * sizeof(*a_row_sum),
-            PAGE_4K);
-    if (!a_row_sum) {
-        free(bufferA);
-        free(bufferB);
-        free(bufferC);
-        return -1;
-    }
-
-    int32_t *b_col_sum = (int32_t *) malloc(n_padd * sizeof(*b_col_sum),
-            PAGE_4K);
-    if (!b_col_sum) {
-        free(bufferA);
-        free(bufferB);
-        free(bufferC);
-        free(a_row_sum);
-        return -1;
+    if (need_c_buffer) {
+        bufferC = (int32_t *) align(b_col_sum + b_col_sum_nelems, PAGE_4K);
     }
 
     float beta_saved = beta;
@@ -412,7 +395,7 @@ static int gemm_kernel_driver(const dim_t m, const dim_t n, const dim_t k,
                     } else if (offsetc == COL_OFFSET) {
                         co_stride = Bm + Um;
                     }
-                    if (bufferC) {
+                    if (need_c_buffer) {
                         igemm_inner_kernel(sizeUM, sizeN, sizeK,
                                 bufferA + Um_forA * sizeK, bufferB, 0.0f,
                                 bufferC + Um, ldc_buf, a_row_sum + Um_forA,
@@ -437,11 +420,7 @@ static int gemm_kernel_driver(const dim_t m, const dim_t n, const dim_t k,
         }
     }
 
-    free(bufferA);
-    free(bufferB);
-    free(bufferC);
-    free(a_row_sum);
-    free(b_col_sum);
+    free(mem);
 
     return 0;
 }
@@ -464,10 +443,11 @@ static int kernel_driver_parallel_acopiedbcopy(const dim_t m, const dim_t n,
     // Padding along N dimension.
     dim_t n_padd = 0;
     if (k < arg->blocking_small_k) {
-        n_padd = val_padd(nstl::min(nstl::max(n, arg->un), arg->bn_small_k),
-                arg->un);
+        n_padd = utils::rnd_up(nstl::min(nstl::max(n, arg->un),
+                    arg->bn_small_k), arg->un);
     } else {
-        n_padd = val_padd(nstl::min(nstl::max(n, arg->un), arg->bn), arg->un);
+        n_padd = utils::rnd_up(nstl::min(nstl::max(n, arg->un), arg->bn),
+                arg->un);
     }
 
     // Padding for temporary buffer for C
@@ -475,28 +455,30 @@ static int kernel_driver_parallel_acopiedbcopy(const dim_t m, const dim_t n,
 
     dim_t strideBn = (arg->transb != 0)? 1 : ldb;
 
-    uint8_t *bufferB = (uint8_t *) malloc(k * n_padd * sizeof(*bufferB),
-            PAGE_4K);
-    if (!bufferB) {
+    size_t b_buf_nelems = k * n_padd;
+    size_t b_col_sum_nelems = n_padd;
+
+    size_t mem_size = b_buf_nelems * sizeof(*b) + PAGE_4K
+        + b_col_sum_nelems * sizeof(*c) + PAGE_4K;
+
+    bool need_c_buffer = alpha != 1.0f || (beta != 1 && beta != 0);
+    if (need_c_buffer) {
+        size_t c_buf_nelems = ldc_buf * n_padd;
+        mem_size += c_buf_nelems * sizeof(*c) + PAGE_4K;
+    }
+
+    char *mem = (char *) malloc(mem_size, 128);
+
+    if (!mem) {
         return -1;
     }
+
+    uint8_t *bufferB = (uint8_t *) align(mem, PAGE_4K);
+    int32_t *b_col_sum = (int32_t *) align(bufferB + b_buf_nelems, PAGE_4K);
 
     int32_t *bufferC = NULL;
-    if (alpha != 1.0f || (beta != 1 && beta != 0)) {
-        bufferC = (int32_t *) malloc(ldc_buf * n_padd * sizeof(*bufferC),
-                PAGE_4K);
-        if (!bufferC) {
-            free(bufferB);
-            return -1;
-        }
-    }
-
-    int32_t *b_col_sum = (int32_t *) malloc(n_padd * sizeof(*b_col_sum),
-            PAGE_4K);
-    if (!b_col_sum) {
-        free(bufferB);
-        free(bufferC);
-        return -1;
+    if (need_c_buffer) {
+        bufferC = (int32_t *) align(b_col_sum + b_col_sum_nelems, PAGE_4K);
     }
 
     dim_t sizeN = 0;
@@ -519,7 +501,7 @@ static int kernel_driver_parallel_acopiedbcopy(const dim_t m, const dim_t n,
                 co_stride = 0;
             }
         int32_t *c_block = c + Bn * ldc;
-        if (bufferC) {
+        if (need_c_buffer) {
             igemm_inner_kernel(m, sizeN, k, bufferA, bufferB, 0.0f, bufferC,
                     ldc_buf, a_row_sum, b_col_sum, NULL, NO_OFFSET, arg);
 
@@ -533,9 +515,7 @@ static int kernel_driver_parallel_acopiedbcopy(const dim_t m, const dim_t n,
         }
     }
 
-    free(bufferB);
-    free(bufferC);
-    free(b_col_sum);
+    free(mem);
 
     return 0;
 
@@ -846,7 +826,7 @@ static inline void decompose_matrices(const int ithr, int *nthrs, dim_t *m,
 static int parallel_a_copy(const int ithr, const int nthrs, const dim_t m,
         const dim_t n, const dim_t k, const int8_t *a, const uint8_t *b,
         int32_t *c, const int32_t *co, const blas_t *arg,
-        blas_buffers_t *shared_buffers)
+        char **p_shared_mem)
 {
     const dim_t lda = arg->lda;
     const dim_t ldb = arg->ldb;
@@ -855,40 +835,44 @@ static int parallel_a_copy(const int ithr, const int nthrs, const dim_t m,
     const dim_t strideBm = (arg->transb == 0)? 1 : ldb;
 
     // Padding along M dimension.
-    dim_t m_padd = val_padd(nstl::min(nstl::max(m, arg->um), arg->bm), arg->um);
+    dim_t m_padd = utils::rnd_up(nstl::min(nstl::max(m, arg->um), arg->bm),
+            arg->um);
 
     // Padding along K dimension.
     dim_t k_padd = 0;
     if (k <= arg->bk_traditional) {
-        k_padd = val_padd(k, arg->uk);
+        k_padd = utils::rnd_up(k, arg->uk);
         k_padd = nstl::max(128LL, k_padd);
     } else if (k < 2 * arg->bk) {
-        k_padd = val_padd(k / 2, arg->uk);
+        k_padd = utils::rnd_up(k / 2, arg->uk);
     } else {
         k_padd = arg->bk;
     }
 
     m_padd *= nthrs > MULTIPLIER ? MULTIPLIER : nthrs;
     if (m_padd > m) {
-        m_padd = pad_unroll(m, arg->um);
+        m_padd = utils::rnd_up(m, arg->um);
     }
 
-    // Allocate buffers for A and it's row sum in master thread.
-    if (ithr == 0) { // If thread master
-        shared_buffers->a_buf = (int8_t *)
-            malloc(m_padd * k_padd * sizeof(*a), PAGE_2M);
+    size_t a_buf_nelems = m_padd * k_padd;
 
-        shared_buffers->a_row_sum = (int32_t *)
-            malloc(m_padd * sizeof(*c), PAGE_4K);
+    // Allocate shared memory for A and its row sum buffers in master thread.
+    if (ithr == 0) { // If thread master
+        size_t a_row_sum_nelems = m_padd;
+
+        size_t mem_size = (a_buf_nelems * sizeof(*a) + PAGE_4K)
+            + a_row_sum_nelems * sizeof(*c) + PAGE_4K;
+
+        *p_shared_mem = (char *) malloc(mem_size, 128);
+
     }
     mkldnn_thr_barrier();
 
-    int8_t *bufferA = shared_buffers->a_buf;
-    int32_t *a_row_sum = shared_buffers->a_row_sum;
+    char *mem = *p_shared_mem;
+    int8_t *bufferA = (int8_t *) align(mem, PAGE_4K);
+    int32_t *a_row_sum = (int32_t *) align(bufferA + a_buf_nelems, PAGE_4K);
 
-    if (!bufferA || !a_row_sum) {
-        free(bufferA);
-        free(a_row_sum);
+    if (!mem) {
         return -1;
     }
 
@@ -918,7 +902,7 @@ static int parallel_a_copy(const int ithr, const int nthrs, const dim_t m,
 
             if (ithr < nthrs) {
                 dim_t band = (sizeM + nthrs - 1) / nthrs;
-                band = pad_unroll(band, arg->um);
+                band = utils::rnd_up(band, arg->um);
 
                 dim_t offset = band * ithr;
 
@@ -964,8 +948,7 @@ static int parallel_a_copy(const int ithr, const int nthrs, const dim_t m,
 
     // Free memory allocated in master thread
     if (ithr == 0) {
-        free(bufferA);
-        free(a_row_sum);
+        free(mem);
     }
 
     return result;
@@ -1051,9 +1034,7 @@ static int gemm_threading_driver(blas_t *arg)
         results[i * CACHE_LINE_SIZE] = 0; // Initialize to success
     }
 
-    blas_buffers_t shared_buffers;
-    shared_buffers.a_buf = NULL;
-    shared_buffers.a_row_sum = NULL;
+    char *shared_mem = NULL;
 
     parallel(nthr, [&](const int ithr, const int nthr) {
         int nthrs = nthr;
@@ -1079,7 +1060,7 @@ static int gemm_threading_driver(blas_t *arg)
                 case COPY_A:
                     results[ithr * CACHE_LINE_SIZE] =
                         parallel_a_copy(ithr, nthrs, m, n, k, a, b, c, co, arg,
-                                &shared_buffers);
+                                &shared_mem);
                     break;
 
                 default:
@@ -1420,7 +1401,7 @@ mkldnn_status_t jit_avx512_core_gemm_s8u8s32(
     jit_init(&args);
     int result = gemm_threading_driver(&args);
 
-    return (result < 0 ) ? mkldnn_out_of_memory : mkldnn_success;
+    return (result < 0) ? mkldnn_out_of_memory : mkldnn_success;
 }
 
 }
