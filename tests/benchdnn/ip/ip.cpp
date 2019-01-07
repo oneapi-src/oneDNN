@@ -94,32 +94,30 @@ inline int init_pd(const prb_t *p, mkldnn_inner_product_desc_t &ipd,
     else
         SAFE(init_status, WARN);
 
-    auto q = [=](mkldnn_query_t query, int index = 0) {
-        return *mkldnn_primitive_desc_query_memory_d(
-                mkldnn_primitive_desc_query_pd(ippd, query, index));
-    };
+    auto q = [=](mkldnn_query_t query, int index = 0)
+    { return *mkldnn_primitive_desc_query_md(ippd, query, index); };
 
     if (p->dir == BWD_D)
-        ipd.diff_src_desc = q(mkldnn_query_diff_src_pd);
+        ipd.diff_src_desc = q(mkldnn_query_diff_src_md);
     else
-        ipd.src_desc = q(mkldnn_query_src_pd);
+        ipd.src_desc = q(mkldnn_query_src_md);
 
     if (p->dir & FLAG_WEI)
-        ipd.diff_weights_desc = q(mkldnn_query_diff_weights_pd);
+        ipd.diff_weights_desc = q(mkldnn_query_diff_weights_md);
     else
-        ipd.weights_desc = q(mkldnn_query_weights_pd);
+        ipd.weights_desc = q(mkldnn_query_weights_md);
 
     if (p->dir & FLAG_BIA) {
         if (p->dir & FLAG_BWD)
-            ipd.diff_bias_desc = q(mkldnn_query_diff_weights_pd, 1);
+            ipd.diff_bias_desc = q(mkldnn_query_diff_weights_md, 1);
         else
-            ipd.bias_desc = q(mkldnn_query_weights_pd, 1);
+            ipd.bias_desc = q(mkldnn_query_weights_md, 1);
     }
 
     if (p->dir & FLAG_BWD)
-        ipd.diff_dst_desc = q(mkldnn_query_diff_dst_pd);
+        ipd.diff_dst_desc = q(mkldnn_query_diff_dst_md);
     else
-        ipd.dst_desc = q(mkldnn_query_dst_pd);
+        ipd.dst_desc = q(mkldnn_query_dst_md);
 
     return OK;
 }

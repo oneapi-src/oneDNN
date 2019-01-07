@@ -269,15 +269,15 @@ void simple_net() {
             memory::data_type::f32, memory::format::ldgo);
 
     auto user_enc_bidir_src_layer_memory = memory(
-            { user_enc_bidir_src_layer_md, cpu_engine }, net_src.data());
-    auto user_enc_bidir_wei_layer_memory
-            = memory({ user_enc_bidir_wei_layer_md, cpu_engine },
-                    user_enc_bidir_wei_layer.data());
-    auto user_enc_bidir_wei_iter_memory
-            = memory({ user_enc_bidir_wei_iter_md, cpu_engine },
-                    user_enc_bidir_wei_iter.data());
+            user_enc_bidir_src_layer_md, cpu_engine, net_src.data());
+    auto user_enc_bidir_wei_layer_memory = memory(
+            user_enc_bidir_wei_layer_md, cpu_engine,
+            user_enc_bidir_wei_layer.data());
+    auto user_enc_bidir_wei_iter_memory = memory(
+            user_enc_bidir_wei_iter_md, cpu_engine,
+            user_enc_bidir_wei_iter.data());
     auto user_enc_bidir_bias_memory = memory(
-            { user_enc_bidir_bias_md, cpu_engine }, user_enc_bidir_bias.data());
+            user_enc_bidir_bias_md, cpu_engine, user_enc_bidir_bias.data());
 
     /* Create memory descriptors for RNN data w/o specified layout */
     auto enc_bidir_src_layer_md = memory::desc({ enc_bidir_src_layer_tz },
@@ -299,8 +299,8 @@ void simple_net() {
     try {
         rnn_forward::desc bi_layer_desc(prop_kind::forward_inference, bi_cell,
                 rnn_direction::bidirectional_concat, enc_bidir_src_layer_md,
-                zero_md(), enc_bidir_wei_layer_md, enc_bidir_wei_iter_md,
-                user_enc_bidir_bias_md, enc_bidir_dst_layer_md, zero_md());
+                memory::desc(), enc_bidir_wei_layer_md, enc_bidir_wei_iter_md,
+                user_enc_bidir_bias_md, enc_bidir_dst_layer_md, memory::desc());
     } catch (error &e) {
         if (e.status == mkldnn_unimplemented) {
             std::cerr
@@ -313,8 +313,8 @@ void simple_net() {
 
     rnn_forward::desc bi_layer_desc(prop_kind::forward_inference, bi_cell,
             rnn_direction::bidirectional_concat, enc_bidir_src_layer_md,
-            zero_md(), enc_bidir_wei_layer_md, enc_bidir_wei_iter_md,
-            user_enc_bidir_bias_md, enc_bidir_dst_layer_md, zero_md());
+            memory::desc(), enc_bidir_wei_layer_md, enc_bidir_wei_iter_md,
+            user_enc_bidir_bias_md, enc_bidir_dst_layer_md, memory::desc());
 
     /* Define RNN attributes that store quantization parameters */
     primitive_attr attr;
@@ -330,33 +330,30 @@ void simple_net() {
      * NOTE: same attributes are used when creating RNN primitive and reorders
      */
     auto enc_bidir_src_layer_memory
-            = memory(enc_bidir_prim_desc.src_layer_primitive_desc());
+            = memory(enc_bidir_prim_desc.src_layer_desc(), cpu_engine);
     auto enc_bidir_src_layer_reorder_pd = reorder::primitive_desc(
-            user_enc_bidir_src_layer_memory.get_primitive_desc(),
-            enc_bidir_src_layer_memory.get_primitive_desc(), attr);
+            user_enc_bidir_src_layer_memory, enc_bidir_src_layer_memory, attr);
     encoder_net.push_back(reorder(enc_bidir_src_layer_reorder_pd));
     encoder_net_args.push_back({
             {MKLDNN_ARG_FROM, user_enc_bidir_src_layer_memory},
             {MKLDNN_ARG_TO, enc_bidir_src_layer_memory}});
 
     auto enc_bidir_wei_layer_memory
-            = memory(enc_bidir_prim_desc.weights_layer_primitive_desc());
+            = memory(enc_bidir_prim_desc.weights_layer_desc(), cpu_engine);
     auto enc_bidir_wei_layer_reorder_pd = reorder::primitive_desc(
-            user_enc_bidir_wei_layer_memory.get_primitive_desc(),
-            enc_bidir_wei_layer_memory.get_primitive_desc(), attr);
+            user_enc_bidir_wei_layer_memory, enc_bidir_wei_layer_memory, attr);
     reorder(enc_bidir_wei_layer_reorder_pd).execute(s,
             user_enc_bidir_wei_layer_memory, enc_bidir_wei_layer_memory);
 
     auto enc_bidir_wei_iter_memory
-            = memory(enc_bidir_prim_desc.weights_iter_primitive_desc());
+            = memory(enc_bidir_prim_desc.weights_iter_desc(), cpu_engine);
     auto enc_bidir_wei_iter_reorder_pd = reorder::primitive_desc(
-            user_enc_bidir_wei_iter_memory.get_primitive_desc(),
-            enc_bidir_wei_iter_memory.get_primitive_desc(), attr);
+            user_enc_bidir_wei_iter_memory, enc_bidir_wei_iter_memory, attr);
     reorder(enc_bidir_wei_iter_reorder_pd).execute(s,
             user_enc_bidir_wei_iter_memory, enc_bidir_wei_iter_memory);
 
     auto enc_bidir_dst_layer_memory
-            = memory(enc_bidir_prim_desc.dst_layer_primitive_desc());
+            = memory(enc_bidir_prim_desc.dst_layer_desc(), cpu_engine);
 
     encoder_net.push_back(rnn_forward(enc_bidir_prim_desc));
     encoder_net_args.push_back({
@@ -394,15 +391,15 @@ void simple_net() {
     auto user_enc_uni_first_bias_md
             = memory::desc({ user_enc_uni_first_bias_dims },
                     memory::data_type::f32, memory::format::ldgo);
-    auto user_enc_uni_first_wei_layer_memory
-            = memory({ user_enc_uni_first_wei_layer_md, cpu_engine },
-                    user_enc_uni_first_wei_layer.data());
-    auto user_enc_uni_first_wei_iter_memory
-            = memory({ user_enc_uni_first_wei_iter_md, cpu_engine },
-                    user_enc_uni_first_wei_iter.data());
-    auto user_enc_uni_first_bias_memory
-            = memory({ user_enc_uni_first_bias_md, cpu_engine },
-                    user_enc_uni_first_bias.data());
+    auto user_enc_uni_first_wei_layer_memory = memory(
+            user_enc_uni_first_wei_layer_md, cpu_engine,
+            user_enc_uni_first_wei_layer.data());
+    auto user_enc_uni_first_wei_iter_memory = memory(
+            user_enc_uni_first_wei_iter_md, cpu_engine,
+            user_enc_uni_first_wei_iter.data());
+    auto user_enc_uni_first_bias_memory = memory(
+            user_enc_uni_first_bias_md, cpu_engine,
+            user_enc_uni_first_bias.data());
 
     auto enc_uni_first_wei_layer_md
             = memory::desc({ user_enc_uni_first_wei_layer_dims },
@@ -417,31 +414,29 @@ void simple_net() {
     rnn_cell::desc enc_uni_first_cell(algorithm::vanilla_lstm);
     rnn_forward::desc enc_uni_first_layer_desc(prop_kind::forward_inference,
             enc_uni_first_cell, rnn_direction::unidirectional_left2right,
-            enc_bidir_dst_layer_md, zero_md(), enc_uni_first_wei_layer_md,
+            enc_bidir_dst_layer_md, memory::desc(), enc_uni_first_wei_layer_md,
             enc_uni_first_wei_iter_md, user_enc_uni_first_bias_md,
-            enc_uni_first_dst_layer_md, zero_md());
+            enc_uni_first_dst_layer_md, memory::desc());
 
     auto enc_uni_first_prim_desc = rnn_forward::primitive_desc(
             enc_uni_first_layer_desc, attr, cpu_engine);
 
     auto enc_uni_first_wei_layer_memory
-            = memory(enc_uni_first_prim_desc.weights_layer_primitive_desc());
+            = memory(enc_uni_first_prim_desc.weights_layer_desc(), cpu_engine);
     auto enc_uni_first_wei_layer_reorder_pd = reorder::primitive_desc(
-            user_enc_uni_first_wei_layer_memory.get_primitive_desc(),
-            enc_uni_first_wei_layer_memory.get_primitive_desc(), attr);
+            user_enc_uni_first_wei_layer_memory, enc_uni_first_wei_layer_memory, attr);
     reorder(enc_uni_first_wei_layer_reorder_pd).execute(s,
             user_enc_uni_first_wei_layer_memory, enc_uni_first_wei_layer_memory);
 
     auto enc_uni_first_wei_iter_memory
-            = memory(enc_uni_first_prim_desc.weights_iter_primitive_desc());
+            = memory(enc_uni_first_prim_desc.weights_iter_desc(), cpu_engine);
     auto enc_uni_first_wei_iter_reorder_pd = reorder::primitive_desc(
-            user_enc_uni_first_wei_iter_memory.get_primitive_desc(),
-            enc_uni_first_wei_iter_memory.get_primitive_desc(), attr);
+            user_enc_uni_first_wei_iter_memory, enc_uni_first_wei_iter_memory, attr);
     reorder(enc_uni_first_wei_iter_reorder_pd).execute(s,
             user_enc_uni_first_wei_iter_memory, enc_uni_first_wei_iter_memory);
 
     auto enc_uni_first_dst_layer_memory
-            = memory(enc_uni_first_prim_desc.dst_layer_primitive_desc());
+            = memory(enc_uni_first_prim_desc.dst_layer_desc(), cpu_engine);
 
     encoder_net.push_back(rnn_forward(enc_uni_first_prim_desc));
     encoder_net_args.push_back({
@@ -478,14 +473,13 @@ void simple_net() {
     auto user_enc_uni_bias_md = memory::desc({ user_enc_uni_bias_dims },
             memory::data_type::f32, memory::format::ldgo);
 
-    auto user_enc_uni_wei_layer_memory
-            = memory({ user_enc_uni_wei_layer_md, cpu_engine },
-                    user_enc_uni_wei_layer.data());
-    auto user_enc_uni_wei_iter_memory
-            = memory({ user_enc_uni_wei_iter_md, cpu_engine },
-                    user_enc_uni_wei_iter.data());
+    auto user_enc_uni_wei_layer_memory = memory(
+            user_enc_uni_wei_layer_md, cpu_engine,
+            user_enc_uni_wei_layer.data());
+    auto user_enc_uni_wei_iter_memory = memory(
+            user_enc_uni_wei_iter_md, cpu_engine, user_enc_uni_wei_iter.data());
     auto user_enc_uni_bias_memory = memory(
-            { user_enc_uni_bias_md, cpu_engine }, user_enc_uni_bias.data());
+            user_enc_uni_bias_md, cpu_engine, user_enc_uni_bias.data());
 
     auto enc_uni_wei_layer_md = memory::desc({ user_enc_uni_wei_layer_dims },
             memory::data_type::s8, memory::format::any);
@@ -497,30 +491,28 @@ void simple_net() {
     rnn_cell::desc enc_uni_cell(algorithm::vanilla_lstm);
     rnn_forward::desc enc_uni_layer_desc(prop_kind::forward_inference,
             enc_uni_cell, rnn_direction::unidirectional_left2right,
-            enc_uni_first_dst_layer_md, zero_md(), enc_uni_wei_layer_md,
+            enc_uni_first_dst_layer_md, memory::desc(), enc_uni_wei_layer_md,
             enc_uni_wei_iter_md, user_enc_uni_bias_md, enc_dst_layer_md,
-            zero_md());
+            memory::desc());
     auto enc_uni_prim_desc
             = rnn_forward::primitive_desc(enc_uni_layer_desc, attr, cpu_engine);
 
     auto enc_uni_wei_layer_memory
-            = memory(enc_uni_prim_desc.weights_layer_primitive_desc());
+            = memory(enc_uni_prim_desc.weights_layer_desc(), cpu_engine);
     auto enc_uni_wei_layer_reorder_pd = reorder::primitive_desc(
-            user_enc_uni_wei_layer_memory.get_primitive_desc(),
-            enc_uni_wei_layer_memory.get_primitive_desc(), attr);
+            user_enc_uni_wei_layer_memory, enc_uni_wei_layer_memory, attr);
     reorder(enc_uni_wei_layer_reorder_pd).execute(s,
             user_enc_uni_wei_layer_memory, enc_uni_wei_layer_memory);
 
     auto enc_uni_wei_iter_memory
-            = memory(enc_uni_prim_desc.weights_iter_primitive_desc());
+            = memory(enc_uni_prim_desc.weights_iter_desc(), cpu_engine);
     auto enc_uni_wei_iter_reorder_pd = reorder::primitive_desc(
-            user_enc_uni_wei_iter_memory.get_primitive_desc(),
-            enc_uni_wei_iter_memory.get_primitive_desc(), attr);
+            user_enc_uni_wei_iter_memory, enc_uni_wei_iter_memory, attr);
     reorder(enc_uni_wei_iter_reorder_pd).execute(s,
             user_enc_uni_wei_iter_memory, enc_uni_wei_iter_memory);
 
     auto enc_dst_layer_memory
-            = memory(enc_uni_prim_desc.dst_layer_primitive_desc());
+            = memory(enc_uni_prim_desc.dst_layer_desc(), cpu_engine);
 
     encoder_net.push_back(rnn_forward(enc_uni_prim_desc));
     encoder_net_args.push_back({
@@ -586,14 +578,14 @@ void simple_net() {
             memory::data_type::f32, memory::format::ldsnc);
 
     auto user_dec_wei_layer_memory = memory(
-            { user_dec_wei_layer_md, cpu_engine }, user_dec_wei_layer.data());
+            user_dec_wei_layer_md, cpu_engine, user_dec_wei_layer.data());
     auto user_dec_wei_iter_memory = memory(
-            { user_dec_wei_iter_md, cpu_engine }, user_dec_wei_iter.data());
-    auto user_dec_bias_memory
-            = memory({ user_dec_bias_md, cpu_engine }, user_dec_bias.data());
-    auto dec_src_layer_memory = memory({ dec_src_layer_md, cpu_engine });
-    auto dec_dst_layer_memory
-            = memory({ dec_dst_layer_md, cpu_engine }, dec_dst.data());
+            user_dec_wei_iter_md, cpu_engine, user_dec_wei_iter.data());
+    auto user_dec_bias_memory = memory(
+            user_dec_bias_md, cpu_engine, user_dec_bias.data());
+    auto dec_src_layer_memory = memory(dec_src_layer_md, cpu_engine);
+    auto dec_dst_layer_memory = memory(
+            dec_dst_layer_md, cpu_engine, dec_dst.data());
 
     /* Create memory descriptors for RNN data w/o specified layout */
     auto dec_wei_layer_md = memory::desc({ user_dec_wei_layer_dims },
@@ -603,7 +595,7 @@ void simple_net() {
 
     /* As mentioned above, we create a view without context out of the
      memory with context. */
-    auto dec_dst_iter_memory = memory({ dec_dst_iter_md, cpu_engine });
+    auto dec_dst_iter_memory = memory(dec_dst_iter_md, cpu_engine);
     auto dec_dst_iter_noctx_md = dec_dst_iter_md.submemory_desc(
                       dec_dst_iter_noctx_dims, { 0, 0, 0, 0, 0 });
 
@@ -618,18 +610,16 @@ void simple_net() {
     /* Create memory primitives for input data and use reorders to quantize
      * values to int8 */
     auto dec_wei_layer_memory
-            = memory(dec_ctx_prim_desc.weights_layer_primitive_desc());
+            = memory(dec_ctx_prim_desc.weights_layer_desc(), cpu_engine);
     auto dec_wei_layer_reorder_pd = reorder::primitive_desc(
-            user_dec_wei_layer_memory.get_primitive_desc(),
-            dec_wei_layer_memory.get_primitive_desc(), attr);
+            user_dec_wei_layer_memory, dec_wei_layer_memory, attr);
     reorder(dec_wei_layer_reorder_pd).execute(s,
             user_dec_wei_layer_memory, dec_wei_layer_memory);
 
     auto dec_wei_iter_memory
-            = memory(dec_ctx_prim_desc.weights_iter_primitive_desc());
+            = memory(dec_ctx_prim_desc.weights_iter_desc(), cpu_engine);
     auto dec_wei_iter_reorder_pd = reorder::primitive_desc(
-            user_dec_wei_iter_memory.get_primitive_desc(),
-            dec_wei_iter_memory.get_primitive_desc(), attr);
+            user_dec_wei_iter_memory, dec_wei_iter_memory, attr);
     reorder(dec_wei_iter_reorder_pd).execute(s,
             user_dec_wei_iter_memory, dec_wei_iter_memory);
 
@@ -670,7 +660,7 @@ void simple_net() {
         // We initialise src_layer to the embedding of </s>, which
         // are assumed to be 0 here
         memset(dec_src_layer_memory.get_data_handle(), 0,
-                dec_src_layer_memory.get_primitive_desc().get_size());
+                dec_src_layer_memory.get_desc().get_size());
         // From now on, src points to the output of the last iteration
 
         for (int i = 0; i < tgt_seq_length_max; i++) {

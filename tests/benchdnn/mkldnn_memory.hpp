@@ -52,8 +52,8 @@ struct dnn_mem_t {
         if (this == &rhs) return OK;
 
         mkldnn_primitive_desc_t rpd;
-        DNN_SAFE(mkldnn_reorder_primitive_desc_create(&rpd, rhs.mpd_,
-                    mpd_, attr), WARN);
+        DNN_SAFE(mkldnn_reorder_primitive_desc_create(&rpd,
+                    engine, &rhs.md_, engine, &md_, attr), WARN);
 
         mkldnn_primitive_t r;
         DNN_SAFE(mkldnn_primitive_create(&r, rpd), WARN);
@@ -79,7 +79,7 @@ struct dnn_mem_t {
     int H() { return md_.dims[with_G() + 2]; } // works for both IH and KH
     int W() { return md_.dims[with_G() + 3]; } // works for both IW and KW
 
-    size_t size() const { return mkldnn_memory_primitive_desc_get_size(mpd_); }
+    size_t size() const { return mkldnn_memory_desc_get_size(&md_); }
 
     size_t nelems(bool with_padding_dims = false) const {
         auto dims = with_padding_dims
@@ -145,7 +145,6 @@ struct dnn_mem_t {
     /* fields */
 
     mkldnn_memory_desc_t md_;
-    mkldnn_primitive_desc_t mpd_;
     mkldnn_memory_t m_;
     void *data_;
     bool is_data_owner_, active_;
@@ -160,13 +159,11 @@ private:
             DNN_SAFE(mkldnn_memory_desc_init(&md_, md.ndims, md.dims, dt, fmt),
                     CRIT);
         }
-        DNN_SAFE(mkldnn_memory_primitive_desc_create(&mpd_, &md_, engine),
-                CRIT);
-        DNN_SAFE(mkldnn_memory_create(&m_, mpd_, NULL), CRIT);
+        DNN_SAFE(mkldnn_memory_create(&m_, &md_, engine, NULL), CRIT);
         is_data_owner_ = data == NULL;
         if (data == NULL) {
             const size_t alignment = 1024 * 1024 * 2;
-            size_t sz = mkldnn_memory_primitive_desc_get_size(mpd_);
+            size_t sz = mkldnn_memory_desc_get_size(&md_);
             data_ = zmalloc(sz, alignment);
             DNN_SAFE(data_ == NULL ? mkldnn_out_of_memory : mkldnn_success,
                     WARN);
@@ -192,7 +189,6 @@ private:
 
     int cleanup() {
         if (!active_) return OK;
-        DNN_SAFE(mkldnn_primitive_desc_destroy(mpd_), CRIT);
         DNN_SAFE(mkldnn_memory_destroy(m_), CRIT);
         if (is_data_owner_) zfree(data_);
         return OK;

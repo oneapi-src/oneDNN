@@ -37,7 +37,7 @@ class concat_test: public ::testing::TestWithParam<concat_test_params> {
     void check_data(const std::vector<memory> &srcs, const memory &dst,
             int concat_dim) {
         const data_t *dst_data = (const data_t *)dst.get_data_handle();
-        const auto &dst_d = dst.get_primitive_desc().desc();
+        const auto &dst_d = dst.get_desc();
         const auto dst_dims = dst_d.data.dims;
         const int* dst_pdims = dst_d.data.layout_desc.blocking.padding_dims;
 
@@ -46,7 +46,7 @@ class concat_test: public ::testing::TestWithParam<concat_test_params> {
 
         for (size_t num = 0; num < srcs.size(); num++) {
             const data_t *src_data = (const data_t *)srcs[num].get_data_handle();
-            const auto &src_d = srcs[num].get_primitive_desc().desc();
+            const auto &src_d = srcs[num].get_desc();
             const int* src_dims = src_d.data.dims;
             const int* src_pdims = src_d.data.layout_desc.blocking.padding_dims;
 
@@ -119,30 +119,27 @@ protected:
         auto strm = stream(eng);
         memory::data_type data_type = data_traits<data_t>::data_type;
 
-        std::vector<memory::primitive_desc> srcs_pd;
+        std::vector<memory::desc> srcs_md;
         std::vector<memory> srcs;
         for (size_t i = 0; i < p.srcs_cds.size(); i++) {
-            auto desc = memory::desc(p.srcs_cds[i], data_type, p.srcs_format[i]);
-            auto mpd = memory::primitive_desc(desc, eng);
-            auto src_memory = memory(mpd);
-            const size_t sz = src_memory.get_primitive_desc().get_size() / sizeof(data_t);
+            auto md = memory::desc(p.srcs_cds[i], data_type, p.srcs_format[i]);
+            auto src_memory = memory(md, eng);
+            const size_t sz = src_memory.get_desc().get_size() / sizeof(data_t);
             fill_data<data_t>(sz, (data_t *)src_memory.get_data_handle());
             check_zero_tail<data_t>(1, src_memory);
-            srcs_pd.push_back(mpd);
+            srcs_md.push_back(md);
             srcs.push_back(src_memory);
         }
 
         auto dst_desc = memory::desc(p.dst_cds, data_type, p.dst_format);
-        auto concat_pd = concat::primitive_desc(dst_desc, static_cast<int>(p.concat_dimension), srcs_pd);
-        auto dst = memory(concat_pd.dst_primitive_desc());
-        fill_data<data_t>(dst.get_primitive_desc().get_size() / sizeof(data_t),
+        auto concat_pd = concat::primitive_desc(dst_desc, static_cast<int>(p.concat_dimension), srcs_md, eng);
+        auto dst = memory(concat_pd.dst_desc(), eng);
+        fill_data<data_t>(dst.get_desc().get_size() / sizeof(data_t),
             (data_t *)dst.get_data_handle());
         check_zero_tail<data_t>(1, dst);
 
-        ASSERT_EQ(concat_pd.dst_primitive_desc().desc().data.format,
-                dst_desc.data.format);
-        ASSERT_EQ(concat_pd.dst_primitive_desc().desc().data.ndims,
-                dst_desc.data.ndims);
+        ASSERT_EQ(concat_pd.dst_desc().data.format, dst_desc.data.format);
+        ASSERT_EQ(concat_pd.dst_desc().data.ndims, dst_desc.data.ndims);
 
         concat c(concat_pd);
         std::unordered_map<int, memory> args = {

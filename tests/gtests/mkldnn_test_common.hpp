@@ -178,7 +178,7 @@ void check_zero_tail(int set_zero_flag, mkldnn::memory &src) {
 
     data_t *src_data = (data_t *)src.get_data_handle();
 
-    const mkldnn::memory::desc src_d = src.get_primitive_desc().desc();
+    const mkldnn::memory::desc src_d = src.get_desc();
     const int ndims = src_d.data.ndims;
     const int *dims = src_d.data.dims;
     const int *pdims = src_d.data.layout_desc.blocking.padding_dims;
@@ -352,8 +352,8 @@ static void compare_data(mkldnn::memory& ref, mkldnn::memory& dst,
             data_traits<data_t>::data_type == data_type::s32);
 
     /* Note: size_t incompatible with MSVC++ */
-    auto ref_desc = ref.get_primitive_desc().desc();
-    auto dst_desc = dst.get_primitive_desc().desc();
+    auto ref_desc = ref.get_desc();
+    auto dst_desc = dst.get_desc();
 
     ASSERT_TRUE(ref_desc.data.ndims == dst_desc.data.ndims);
 
@@ -552,18 +552,17 @@ void test_free(char *ptr) {
 class test_memory {
 public:
     test_memory(const mkldnn::memory::desc &d, const mkldnn::engine &e) {
-        auto pd = mkldnn::memory::primitive_desc(d, e);
-        pd_size_ = pd.get_size();
-        data_.reset(test_malloc(pd_size_), test_free);
-        mem_.reset(new mkldnn::memory(pd, data_.get()));
+        size_ = d.get_size();
+        data_.reset(test_malloc(size_), test_free);
+        mem_.reset(new mkldnn::memory(d, e, data_.get()));
     }
-    size_t get_size() const { return pd_size_; }
+    size_t get_size() const { return size_; }
     mkldnn::memory &get() { return *mem_; }
 
 private:
     std::shared_ptr<mkldnn::memory> mem_;
     std::shared_ptr<char> data_;
-    size_t pd_size_;
+    size_t size_;
 };
 
 #endif

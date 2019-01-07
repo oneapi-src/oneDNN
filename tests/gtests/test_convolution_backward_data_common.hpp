@@ -33,9 +33,9 @@ void compute_ref_conv_bwd_data(const test_convolution_sizes_t &c,
     data_t_wei *weights_data = (data_t_wei *)weights.get_data_handle();
     data_t_diff_src *diff_src_data = (data_t_diff_src *)diff_src.get_data_handle();
 
-    const memory::desc diff_src_d = diff_src.get_primitive_desc().desc();
-    const memory::desc weights_d = weights.get_primitive_desc().desc();
-    const memory::desc diff_dst_d = diff_dst.get_primitive_desc().desc();
+    const memory::desc diff_src_d = diff_src.get_desc();
+    const memory::desc weights_d = weights.get_desc();
+    const memory::desc diff_dst_d = diff_dst.get_desc();
 
     size_t padded_ic = diff_src_d.data.layout_desc.blocking.padding_dims[1];
     size_t padded_oc = diff_dst_d.data.layout_desc.blocking.padding_dims[1];
@@ -159,7 +159,7 @@ protected:
                 {MKLDNN_ARG_WEIGHTS, c_weights.get()},
                 {MKLDNN_ARG_DIFF_SRC, c_diff_src.get()}});
 
-        auto ref_memory = memory(memory::primitive_desc(c_src_desc, eng));
+        auto ref_memory = memory(c_src_desc, eng);
         compute_ref_conv_bwd_data
             <data_t_diff_dst, data_t_wei, data_t_acc, data_t_diff_src>(
                     cd, ref_memory, c_weights.get(), c_diff_dst.get());

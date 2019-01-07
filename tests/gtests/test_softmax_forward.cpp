@@ -26,7 +26,7 @@ void check_softmax_fwd(prop_kind aprop_kind, memory &src, memory &dst, int axis)
 {
     data_t *dst_ptr = (data_t *)dst.get_data_handle();
 
-    const memory::desc dst_pd = dst.get_primitive_desc().desc();
+    const memory::desc dst_pd = dst.get_desc();
 
     ASSERT_EQ(dst_pd.data.data_type,
             memory::data_type::f32); // TODO: type assert
@@ -163,10 +163,9 @@ protected:
         memory::data_type prec = data_traits<data_t>::data_type;
 
         auto mem_desc = memory::desc(p.dims, prec, p.memory_format);
-        auto mem_prim_desc = memory::primitive_desc(mem_desc, eng);
 
-        auto src = memory(mem_prim_desc);
-        auto dst = memory(mem_prim_desc);
+        auto src = memory(mem_desc, eng);
+        auto dst = memory(mem_desc, eng);
 
         auto softmax_desc = softmax_forward::desc(p.aprop_kind, mem_desc,
                     p.axis);
@@ -175,7 +174,7 @@ protected:
         auto softmax = softmax_forward(softmax_prim_desc);
 
         auto test_with_given_fill = [&](data_t mean, data_t var) {
-            fill_data<data_t>(mem_prim_desc.get_size() / sizeof(data_t),
+            fill_data<data_t>(mem_desc.get_size() / sizeof(data_t),
                     (data_t *)src.get_data_handle(), mean, var);
 
             softmax.execute(strm, {{MKLDNN_ARG_SRC, src}, {MKLDNN_ARG_DST, dst}});

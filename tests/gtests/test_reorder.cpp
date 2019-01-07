@@ -79,24 +79,22 @@ protected:
 
         memory::data_type prec_i = data_traits<data_i_t>::data_type;
         memory::data_type prec_o = data_traits<data_o_t>::data_type;
-        auto mpd_i = memory::primitive_desc({p.dims, prec_i, p.fmt_i},
-                eng);
-        auto mpd_o = memory::primitive_desc({p.dims, prec_o, p.fmt_o},
-                eng);
+        auto md_i = memory::desc(p.dims, prec_i, p.fmt_i);
+        auto md_o = memory::desc(p.dims, prec_o, p.fmt_o);
 
-        auto src_data = new data_i_t[mpd_i.get_size()];
-        auto dst_data = new data_o_t[mpd_o.get_size()];
+        auto src_data = new data_i_t[md_i.get_size()];
+        auto dst_data = new data_o_t[md_o.get_size()];
 
         /* initialize input data */
         for (size_t i = 0; i < nelems; ++i)
-            src_data[map_index(mpd_i.desc(), i, false)] = data_i_t(i);
+            src_data[map_index(md_i, i, false)] = data_i_t(i);
 
-        auto src = memory(mpd_i, src_data);
-        auto dst = memory(mpd_o, dst_data);
+        auto src = memory(md_i, eng, src_data);
+        auto dst = memory(md_o, eng, dst_data);
 
         reorder(src, dst).execute(strm, src, dst);
 
-        check_reorder(mpd_i.desc(), mpd_o.desc(), src_data, dst_data);
+        check_reorder(md_i, md_o, src_data, dst_data);
         check_zero_tail<data_o_t>(0, dst);
 
         delete[] src_data;

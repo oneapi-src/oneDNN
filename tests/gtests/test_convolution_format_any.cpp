@@ -109,20 +109,12 @@ protected:
 
         auto conv_prim_desc = convolution_forward::primitive_desc(conv_desc, eng);
 
-        ASSERT_TRUE(
-                FmtIsExp(conv_prim_desc.src_primitive_desc().desc().data.format,
-                        p.src_fmt.exp));
-        ASSERT_TRUE(FmtIsExp(
-                conv_prim_desc.weights_primitive_desc().desc().data.format,
-                p.weights_fmt.exp));
+        ASSERT_TRUE(FmtIsExp(conv_prim_desc.src_desc().data.format, p.src_fmt.exp));
+        ASSERT_TRUE(FmtIsExp(conv_prim_desc.weights_desc().data.format, p.weights_fmt.exp));
         if (with_bias) {
-            ASSERT_TRUE(FmtIsExp(
-                    conv_prim_desc.bias_primitive_desc().desc().data.format,
-                    p.bias_fmt.exp));
+            ASSERT_TRUE(FmtIsExp(conv_prim_desc.bias_desc().data.format, p.bias_fmt.exp));
         }
-        ASSERT_TRUE(
-                FmtIsExp(conv_prim_desc.dst_primitive_desc().desc().data.format,
-                        p.dst_fmt.exp));
+        ASSERT_TRUE(FmtIsExp(conv_prim_desc.dst_desc().data.format, p.dst_fmt.exp));
     }
 };
 

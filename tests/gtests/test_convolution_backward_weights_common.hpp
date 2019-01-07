@@ -33,8 +33,8 @@ void compute_ref_conv_bwd_bias(const test_convolution_sizes_t &c,
     data_t_diff_dst *diff_dst_data
         = (data_t_diff_dst *)diff_dst.get_data_handle();
 
-    const memory::desc bias_d = diff_bias.get_primitive_desc().desc();
-    const memory::desc dst_d = diff_dst.get_primitive_desc().desc();
+    const memory::desc bias_d = diff_bias.get_desc();
+    const memory::desc dst_d = diff_dst.get_desc();
 
     size_t padded_oc = dst_d.data.layout_desc.blocking.padding_dims[1];
 
@@ -66,9 +66,9 @@ void compute_ref_conv_bwd_weights(const test_convolution_sizes_t &c,
     data_t_diff_dst *diff_dst_data
         = (data_t_diff_dst *)diff_dst.get_data_handle();
 
-    const memory::desc src_d = src.get_primitive_desc().desc();
-    const memory::desc weights_d = diff_weights.get_primitive_desc().desc();
-    const memory::desc dst_d = diff_dst.get_primitive_desc().desc();
+    const memory::desc src_d = src.get_desc();
+    const memory::desc weights_d = diff_weights.get_desc();
+    const memory::desc dst_d = diff_dst.get_desc();
 
     size_t padded_ic = src_d.data.layout_desc.blocking.padding_dims[1];
     size_t padded_oc = dst_d.data.layout_desc.blocking.padding_dims[1];
@@ -204,8 +204,8 @@ protected:
                 {MKLDNN_ARG_DIFF_WEIGHTS, c_diff_weights.get()},
                 {MKLDNN_ARG_DIFF_BIAS, c_diff_bias.get()}});
 
-        auto ref_diff_weights = memory({c_diff_weights_desc, eng});
-        auto ref_diff_bias = memory({c_diff_bias_desc, eng});
+        auto ref_diff_weights = memory(c_diff_weights_desc, eng);
+        auto ref_diff_bias = memory(c_diff_bias_desc, eng);
 
         compute_ref_conv_bwd_weights<data_t_src, data_t_diff_dst,
             data_t_diff_weights>(cd, c_src.get(), c_diff_dst.get(),

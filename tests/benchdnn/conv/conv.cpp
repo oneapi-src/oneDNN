@@ -528,10 +528,8 @@ inline int init_pd(const prb_t *p, mkldnn_convolution_desc_t &cd,
         print(5, "mkldnn implementation: %s\n", impl_str);
     }
 
-    auto q = [=](mkldnn_query_t query, int index = 0) {
-        return *mkldnn_primitive_desc_query_memory_d(
-                mkldnn_primitive_desc_query_pd(cpd, query, index));
-    };
+    auto q = [=](mkldnn_query_t query, int index = 0)
+    { return *mkldnn_primitive_desc_query_md(cpd, query, index); };
 
     if (p->alg == AUTO) {
         mkldnn_convolution_desc_t *temp_conv_desc = {0};
@@ -541,26 +539,26 @@ inline int init_pd(const prb_t *p, mkldnn_convolution_desc_t &cd,
     }
 
     if (p->dir == BWD_D)
-        cd.diff_src_desc = q(mkldnn_query_diff_src_pd);
+        cd.diff_src_desc = q(mkldnn_query_diff_src_md);
     else
-        cd.src_desc = q(mkldnn_query_src_pd);
+        cd.src_desc = q(mkldnn_query_src_md);
 
     if (p->dir & FLAG_WEI)
-        cd.diff_weights_desc = q(mkldnn_query_diff_weights_pd);
+        cd.diff_weights_desc = q(mkldnn_query_diff_weights_md);
     else
-        cd.weights_desc = q(mkldnn_query_weights_pd);
+        cd.weights_desc = q(mkldnn_query_weights_md);
 
     if (p->dir & FLAG_BIA) {
         if (p->dir & FLAG_BWD)
-            cd.diff_bias_desc = q(mkldnn_query_diff_weights_pd, 1);
+            cd.diff_bias_desc = q(mkldnn_query_diff_weights_md, 1);
         else
-            cd.bias_desc = q(mkldnn_query_weights_pd, 1);
+            cd.bias_desc = q(mkldnn_query_weights_md, 1);
     }
 
     if (p->dir & FLAG_BWD)
-        cd.diff_dst_desc = q(mkldnn_query_diff_dst_pd);
+        cd.diff_dst_desc = q(mkldnn_query_diff_dst_md);
     else
-        cd.dst_desc = q(mkldnn_query_dst_pd);
+        cd.dst_desc = q(mkldnn_query_dst_md);
 
     return OK;
 }

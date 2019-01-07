@@ -37,9 +37,9 @@ void compute_ref_inner_product_bwd_data(int ndims,
     data_t *weights_data = (data_t *)weights.get_data_handle();
     data_t *diff_src_data = (data_t *)diff_src.get_data_handle();
 
-    const memory::desc diff_dst_d = diff_dst.get_primitive_desc().desc();
-    const memory::desc weights_d = weights.get_primitive_desc().desc();
-    const memory::desc diff_src_d = diff_src.get_primitive_desc().desc();
+    const memory::desc diff_dst_d = diff_dst.get_desc();
+    const memory::desc weights_d = weights.get_desc();
+    const memory::desc diff_src_d = diff_src.get_desc();
 
     bool has_spatial = ipd.kh > 1 || ipd.kw > 1;
     if (ndims == 5) has_spatial = has_spatial || ipd.kd > 1;
@@ -141,20 +141,16 @@ protected:
         auto ip_primitive_desc = inner_product_backward_data::primitive_desc(
                 ip_desc, eng, ip_fwd_pdesc);
 
-        ip_diff_src.reset(
-                new memory(ip_primitive_desc.diff_src_primitive_desc()));
-        ip_weights.reset(
-                new memory(ip_primitive_desc.weights_primitive_desc()));
-        ip_diff_dst.reset(
-                new memory(ip_primitive_desc.diff_dst_primitive_desc()));
-        diff_src_ref.reset(
-                new memory(ip_primitive_desc.diff_src_primitive_desc()));
+        ip_diff_src.reset(new memory(ip_primitive_desc.diff_src_desc(), eng));
+        ip_weights.reset(new memory(ip_primitive_desc.weights_desc(), eng));
+        ip_diff_dst.reset(new memory(ip_primitive_desc.diff_dst_desc(), eng));
+        diff_src_ref.reset(new memory(ip_primitive_desc.diff_src_desc(), eng));
 
         fill_data<data_t>(
-                ip_diff_dst->get_primitive_desc().get_size() / sizeof(data_t),
+                ip_diff_dst->get_desc().get_size() / sizeof(data_t),
                 (data_t *)ip_diff_dst->get_data_handle());
         fill_data<data_t>(
-                ip_weights->get_primitive_desc().get_size() / sizeof(data_t),
+                ip_weights->get_desc().get_size() / sizeof(data_t),
                 (data_t *)ip_weights->get_data_handle());
 
         check_zero_tail<data_t>(1,*ip_diff_dst);

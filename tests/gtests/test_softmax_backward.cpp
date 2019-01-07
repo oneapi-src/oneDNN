@@ -29,8 +29,8 @@ void check_softmax_bwd(memory& dst, memory& diff_dst, memory &diff_src, int axis
     data_t *diff_dst_ptr = (data_t *)diff_dst.get_data_handle();
     data_t *diff_src_ptr = (data_t *)diff_src.get_data_handle();
 
-    const memory::desc dst_pd = dst.get_primitive_desc().desc();
-    const memory::desc diff_dst_pd = diff_dst.get_primitive_desc().desc();
+    const memory::desc dst_pd = dst.get_desc();
+    const memory::desc diff_dst_pd = diff_dst.get_desc();
 
     ASSERT_EQ(diff_dst_pd.data.data_type,
             memory::data_type::f32); // TODO: type assert
@@ -103,21 +103,19 @@ protected:
         memory::data_type prec = data_traits<data_t>::data_type;
 
         auto data_mem_desc = memory::desc(p.dims, prec, p.data_memory_format);
-        auto data_mem_prim_desc = memory::primitive_desc(data_mem_desc, eng);
         auto diff_mem_desc = memory::desc(p.dims, prec, p.data_memory_format);
-        auto diff_mem_prim_desc = memory::primitive_desc(diff_mem_desc, eng);
 
-        std::unique_ptr<data_t[]> src_data(new data_t[data_mem_prim_desc.get_size()]);
-        std::unique_ptr<data_t[]> dst_data(new data_t[data_mem_prim_desc.get_size()]);
+        std::unique_ptr<data_t[]> src_data(new data_t[data_mem_desc.get_size()]);
+        std::unique_ptr<data_t[]> dst_data(new data_t[data_mem_desc.get_size()]);
 
-        std::unique_ptr<data_t[]> src_diff(new data_t[diff_mem_prim_desc.get_size()]);
-        std::unique_ptr<data_t[]> dst_diff(new data_t[diff_mem_prim_desc.get_size()]);
+        std::unique_ptr<data_t[]> src_diff(new data_t[diff_mem_desc.get_size()]);
+        std::unique_ptr<data_t[]> dst_diff(new data_t[diff_mem_desc.get_size()]);
 
-        auto src = memory(data_mem_prim_desc, src_data.get());
-        auto dst = memory(data_mem_prim_desc, dst_data.get());
+        auto src = memory(data_mem_desc, eng, src_data.get());
+        auto dst = memory(data_mem_desc, eng, dst_data.get());
 
-        auto diff_src = memory(diff_mem_prim_desc, src_diff.get());
-        auto diff_dst = memory(diff_mem_prim_desc, dst_diff.get());
+        auto diff_src = memory(diff_mem_desc, eng, src_diff.get());
+        auto diff_dst = memory(diff_mem_desc, eng, dst_diff.get());
 
         // Create softmax backward descriptor
         // before forward so its exceptions can be tested
@@ -138,12 +136,12 @@ protected:
 
         auto test_with_given_fill = [&](data_t mean, data_t var) {
             // Fill the softmax forward input
-            fill_data<data_t>(data_mem_prim_desc.get_size(),
+            fill_data<data_t>(data_mem_desc.get_size(),
                     (data_t *)src.get_data_handle(), mean, var);
 
             // Fill the softmax backward diffs
             // eg. data diff that comes from upper primitive/layer
-            fill_data<data_t>(diff_mem_prim_desc.get_size(),
+            fill_data<data_t>(diff_mem_desc.get_size(),
                     (data_t *)diff_dst.get_data_handle(), data_t(0), data_t(1));
 
             softmax.execute(strm, {{MKLDNN_ARG_SRC, src}, {MKLDNN_ARG_DST, dst}});

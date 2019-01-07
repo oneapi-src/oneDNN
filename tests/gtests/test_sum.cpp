@@ -40,7 +40,7 @@ class sum_test: public ::testing::TestWithParam<sum_test_params> {
                     const memory &dst)
     {
         const data_t *dst_data = (const data_t *)dst.get_data_handle();
-        const auto &dst_d = dst.get_primitive_desc().desc();
+        const auto &dst_d = dst.get_desc();
         const auto dst_dims = dst_d.data.dims;
 
         mkldnn::impl::parallel_nd(dst_dims[0], dst_dims[1], dst_dims[2], dst_dims[3],
@@ -49,7 +49,7 @@ class sum_test: public ::testing::TestWithParam<sum_test_params> {
             for (size_t num = 0; num < srcs.size(); num++) {
                 const data_t *src_data =
                     (const data_t *)srcs[num].get_data_handle();
-                const auto &src_d = srcs[num].get_primitive_desc().desc();
+                const auto &src_d = srcs[num].get_desc();
                 const auto src_dims = src_d.data.dims;
 
                 auto src_idx = w
@@ -99,7 +99,7 @@ protected:
 
         memory::data_type data_type = data_traits<data_t>::data_type;
 
-        std::vector<memory::primitive_desc> srcs_pd;
+        std::vector<memory::desc> srcs_md;
         std::vector<memory> srcs;
 
         for (size_t i = 0; i < num_srcs; i++) {
@@ -108,12 +108,11 @@ protected:
                 ? memory::format::nchw
                 : p.srcs_format[i]);
             if (is_fmt_blocked) desc.data.format = mkldnn_blocked;
-            auto mpd = memory::primitive_desc(desc, eng);
-            auto src_memory = memory(mpd);
+            auto src_memory = memory(desc, eng);
             const size_t sz =
-                src_memory.get_primitive_desc().get_size() / sizeof(data_t);
+                src_memory.get_desc().get_size() / sizeof(data_t);
             fill_data<data_t>(sz, (data_t *)src_memory.get_data_handle());
-            srcs_pd.push_back(mpd);
+            srcs_md.push_back(desc);
             srcs.push_back(src_memory);
         }
 
@@ -122,7 +121,7 @@ protected:
 
         if (p.is_output_omitted) {
             ASSERT_NO_THROW(sum_pd.reset(
-                new sum::primitive_desc(p.scale, srcs_pd)));
+                new sum::primitive_desc(p.scale, srcs_md, eng)));
         } else {
             bool is_fmt_blocked = p.dst_format == memory::format::blocked;
             auto dst_desc = memory::desc(p.dims, data_type, is_fmt_blocked
@@ -130,18 +129,16 @@ protected:
                 : p.dst_format);
             if (is_fmt_blocked) dst_desc.data.format = mkldnn_blocked;
             sum_pd.reset(
-                new sum::primitive_desc(dst_desc, p.scale, srcs_pd));
+                new sum::primitive_desc(dst_desc, p.scale, srcs_md, eng));
 
-            ASSERT_EQ(sum_pd->dst_primitive_desc().desc().data.format,
-                    dst_desc.data.format);
-            ASSERT_EQ(sum_pd->dst_primitive_desc().desc().data.ndims,
-                    dst_desc.data.ndims);
+            ASSERT_EQ(sum_pd->dst_desc().data.format, dst_desc.data.format);
+            ASSERT_EQ(sum_pd->dst_desc().data.ndims, dst_desc.data.ndims);
         }
-        ASSERT_NO_THROW(dst.reset(new memory(sum_pd->dst_primitive_desc())));
+        ASSERT_NO_THROW(dst.reset(new memory(sum_pd->dst_desc(), eng)));
 
         data_t *dst_data = (data_t *)dst->get_data_handle();
         const size_t sz =
-            dst->get_primitive_desc().get_size() / sizeof(data_t);
+            dst->get_desc().get_size() / sizeof(data_t);
         // overwriting dst to prevent false positives for test cases.
         mkldnn::impl::parallel_nd((ptrdiff_t)sz,
             [&](ptrdiff_t i) { dst_data[i] = -32; }

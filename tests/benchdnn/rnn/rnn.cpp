@@ -239,28 +239,26 @@ inline int init_pd(const rnn_prb_t *p, mkldnn_rnn_desc_t rd[2],
     }
     mkldnn_primitive_attr_destroy(mkldnn_attr);
 
-    auto q = [=](mkldnn_query_t query, int rpd_idx, int index = 0) {
-        return *mkldnn_primitive_desc_query_memory_d(
-                mkldnn_primitive_desc_query_pd(rpd[rpd_idx], query, index));
-    };
+    auto q = [=](mkldnn_query_t query, int rpd_idx, int index = 0)
+    { return *mkldnn_primitive_desc_query_md(rpd[rpd_idx], query, index); };
 
     for (int i = 0; i < 1 + (int)is_bwd; i++) {
-        rd[i].src_layer_desc = q(mkldnn_query_src_pd, i);
-        rd[i].src_iter_desc = q(mkldnn_query_src_pd, i, 1);
-        rd[i].weights_layer_desc = q(mkldnn_query_weights_pd, i);
-        rd[i].weights_iter_desc = q(mkldnn_query_weights_pd, i, 1);
-        rd[i].bias_desc = q(mkldnn_query_weights_pd, i, 2);
-        rd[i].dst_layer_desc = q(mkldnn_query_dst_pd, i);
-        rd[i].dst_iter_desc = q(mkldnn_query_dst_pd, i, 1);
+        rd[i].src_layer_desc = q(mkldnn_query_src_md, i);
+        rd[i].src_iter_desc = q(mkldnn_query_src_md, i, 1);
+        rd[i].weights_layer_desc = q(mkldnn_query_weights_md, i);
+        rd[i].weights_iter_desc = q(mkldnn_query_weights_md, i, 1);
+        rd[i].bias_desc = q(mkldnn_query_weights_md, i, 2);
+        rd[i].dst_layer_desc = q(mkldnn_query_dst_md, i);
+        rd[i].dst_iter_desc = q(mkldnn_query_dst_md, i, 1);
     }
     if (is_bwd) {
-        rd[1].diff_src_layer_desc = q(mkldnn_query_diff_src_pd, 1);
-        rd[1].diff_src_iter_desc = q(mkldnn_query_diff_src_pd, 1, 1);
-        rd[1].diff_weights_layer_desc = q(mkldnn_query_diff_weights_pd, 1);
-        rd[1].diff_weights_iter_desc = q(mkldnn_query_diff_weights_pd, 1, 1);
-        rd[1].diff_bias_desc = q(mkldnn_query_diff_weights_pd, 1, 2);
-        rd[1].diff_dst_layer_desc = q(mkldnn_query_diff_dst_pd, 1);
-        rd[1].diff_dst_iter_desc = q(mkldnn_query_diff_dst_pd, 1, 1);
+        rd[1].diff_src_layer_desc = q(mkldnn_query_diff_src_md, 1);
+        rd[1].diff_src_iter_desc = q(mkldnn_query_diff_src_md, 1, 1);
+        rd[1].diff_weights_layer_desc = q(mkldnn_query_diff_weights_md, 1);
+        rd[1].diff_weights_iter_desc = q(mkldnn_query_diff_weights_md, 1, 1);
+        rd[1].diff_bias_desc = q(mkldnn_query_diff_weights_md, 1, 2);
+        rd[1].diff_dst_layer_desc = q(mkldnn_query_diff_dst_md, 1);
+        rd[1].diff_dst_iter_desc = q(mkldnn_query_diff_dst_md, 1, 1);
     }
 
     return OK;
@@ -388,11 +386,10 @@ int doit(const rnn_prb_t *p, res_t *r) {
         diff_last_iteration_fp
                 = new dnn_mem_t(diff_dst_iter_dt_d, fp, mkldnn_ldsnc);
 
-        const auto ws_pd = mkldnn_primitive_desc_query_pd(
-                rpd[0], mkldnn_query_workspace_pd, 0);
-        SAFE(ws_pd != NULL ? OK : FAIL, WARN);
-        workspace_dt
-                = new dnn_mem_t(*mkldnn_primitive_desc_query_memory_d(ws_pd));
+        const auto ws_md = mkldnn_primitive_desc_query_md(
+                rpd[0], mkldnn_query_workspace_md, 0);
+        SAFE(ws_md != NULL ? OK : FAIL, WARN);
+        workspace_dt = new dnn_mem_t(*ws_md);
     }
 
     SAFE(fill_memory(p, input, *input_dt, *input_fp), WARN);

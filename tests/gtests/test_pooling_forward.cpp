@@ -52,15 +52,15 @@ void check_pool_fwd(const pool_test_params &p, const memory &src,
     auto ws_data = [=](size_t idx) -> int {
         auto w = (unsigned char *)ws.get_data_handle();
         if (w == nullptr) return -1;
-        if (ws.get_primitive_desc().desc().data.data_type == mkldnn_u8)
+        if (ws.get_desc().data.data_type == mkldnn_u8)
             return (int)w[idx];
         else
             return ((int *)w)[idx];
     };
 
-    const memory::desc src_d = src.get_primitive_desc().desc();
-    const memory::desc dst_d = dst.get_primitive_desc().desc();
-    const memory::desc ws_d  = ws.get_primitive_desc().desc();
+    const memory::desc src_d = src.get_desc();
+    const memory::desc dst_d = dst.get_desc();
+    const memory::desc ws_d  = ws.get_desc();
 
     auto pd = p.test_pd;
     size_t padded_c = src_d.data.layout_desc.blocking.padding_dims[1];
@@ -180,12 +180,12 @@ protected:
             p.dst_format)
             : create_md({ pd.mb, pd.c, pd.oh, pd.ow }, data_type, p.dst_format);
 
-        auto p_src = memory({p_src_desc, eng});
-        auto p_dst = memory({p_dst_desc, eng});
+        auto p_src = memory(p_src_desc, eng);
+        auto p_dst = memory(p_dst_desc, eng);
 
-        fill_data<data_t>(p_src.get_primitive_desc().get_size()/ sizeof(data_t),
+        fill_data<data_t>(p_src.get_desc().get_size()/ sizeof(data_t),
                 (data_t *)p_src.get_data_handle(), 1., true);
-        fill_data<data_t>(p_dst.get_primitive_desc().get_size()/ sizeof(data_t),
+        fill_data<data_t>(p_dst.get_desc().get_size()/ sizeof(data_t),
                 (data_t *)p_dst.get_data_handle(), 1., true);
         check_zero_tail<data_t>(1, p_src);
         check_zero_tail<data_t>(1, p_dst);
@@ -215,13 +215,8 @@ protected:
         auto pool_prim_desc
             = pooling_forward::primitive_desc(pool_desc, eng);
 
-        bool with_workspace = true
-            && p.aprop_kind == prop_kind::forward_training
-            && p.aalgorithm == pooling_max;
-        auto p_workspace_desc = with_workspace
-            ? pool_prim_desc.workspace_primitive_desc()
-            : memory::primitive_desc( {{}, data_type, p.dst_format}, eng);
-        p_workspace.reset(new memory(p_workspace_desc));
+        auto workspace_desc = pool_prim_desc.workspace_desc();
+        p_workspace.reset(new memory(workspace_desc, eng));
 
         pooling_forward(pool_prim_desc).execute(strm, {
                 {MKLDNN_ARG_SRC, p_src},

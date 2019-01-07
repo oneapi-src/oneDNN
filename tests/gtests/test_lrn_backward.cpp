@@ -57,10 +57,10 @@ void check_lrn_fwd(const lrn_test_params &p, const memory &src, const memory &ds
     const int CSIZE = p.test_ld.kind == ACROSS ? size : 1;
     const int HWSIZE = size + 1 - CSIZE;
     const int summands = p.test_ld.kind == ACROSS ? size : size*size;
-    const int padded_c = src.get_primitive_desc().desc().data.layout_desc.blocking.padding_dims[1];
+    const int padded_c = src.get_desc().data.layout_desc.blocking.padding_dims[1];
 
-    const memory::desc src_d = src.get_primitive_desc().desc();
-    const memory::desc dst_d = dst.get_primitive_desc().desc();
+    const memory::desc src_d = src.get_desc();
+    const memory::desc dst_d = dst.get_desc();
 
     auto off = [=](int n, int c, int h, int w)
     {
@@ -115,13 +115,13 @@ void check_lrn_bwd(const lrn_test_params &p, const memory &src,
     const int H = p.test_ld.h;
     const int W = p.test_ld.w;
     const int local_size = p.test_ld.local_size;
-    size_t padded_c = src.get_primitive_desc().desc().data.layout_desc.blocking.padding_dims[1];
+    size_t padded_c = src.get_desc().data.layout_desc.blocking.padding_dims[1];
 
     data_t *ref_diff_src_ptr = new data_t[MB*(padded_c)*H*W];
 
-    const memory::desc src_d = src.get_primitive_desc().desc();
-    const memory::desc diff_dst_d = diff_dst.get_primitive_desc().desc();
-    const memory::desc diff_src_d = diff_src.get_primitive_desc().desc();
+    const memory::desc src_d = src.get_desc();
+    const memory::desc diff_dst_d = diff_dst.get_desc();
+    const memory::desc diff_src_d = diff_src.get_desc();
 
     auto off = [=](int n, int c, int h, int w)
     {
@@ -264,8 +264,8 @@ protected:
             {MKLDNN_ARG_DST, dst->get()}
         };
         if (is_training) {
-            auto workspace_pd = lrn_fwd_prim_desc->workspace_primitive_desc();
-            workspace.reset(new memory(workspace_pd));
+            auto workspace_md = lrn_fwd_prim_desc->workspace_desc();
+            workspace.reset(new memory(workspace_md, *eng));
             args.insert({MKLDNN_ARG_WORKSPACE, *workspace});
         }
         l.execute(*strm, args);

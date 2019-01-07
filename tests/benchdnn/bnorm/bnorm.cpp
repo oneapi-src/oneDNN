@@ -556,10 +556,10 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t ws_fp(data_fp.md_);
     dnn_mem_t *p_ws_dt = NULL;
     if ((p->flags & FUSE_BN_RELU) && !(p->dir & FLAG_INF)) {
-        const auto ws_pd = mkldnn_primitive_desc_query_pd(bpd,
-                mkldnn_query_workspace_pd, 0);
-        SAFE(ws_pd != NULL ? OK : FAIL, WARN);
-        p_ws_dt = new dnn_mem_t(*mkldnn_primitive_desc_query_memory_d(ws_pd));
+        const auto ws_md = mkldnn_primitive_desc_query_md(bpd,
+                mkldnn_query_workspace_md, 0);
+        SAFE(ws_md != NULL ? OK : FAIL, WARN);
+        p_ws_dt = new dnn_mem_t(*ws_md);
     } else {
         p_ws_dt = new dnn_mem_t();
     }

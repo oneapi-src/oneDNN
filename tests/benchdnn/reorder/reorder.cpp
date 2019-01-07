@@ -303,8 +303,8 @@ int check_reorder(const prb_t *p, res_t *res) {
 
     mkldnn_primitive_desc_t check_rpd;
     mkldnn_status_t init_status = mkldnn_reorder_primitive_desc_create(
-            &check_rpd, mem_dt_in_fmt_in.mpd_, mem_dt_out_fmt_out.mpd_,
-            mkldnn_attr);
+            &check_rpd, engine, &mem_dt_in_fmt_in.md_, engine,
+            &mem_dt_out_fmt_out.md_, mkldnn_attr);
     if (init_status == mkldnn_unimplemented) {
         res->state = UNIMPLEMENTED;
         goto cleanup;
@@ -314,7 +314,7 @@ int check_reorder(const prb_t *p, res_t *res) {
 
     SAFE(mem_dt_out_fmt_out.reorder(mem_dt_in_fmt_in, mkldnn_attr), WARN);
 
-    /* Step 5: check corrrectness */
+    /* Step 5: check correctness */
     if (bench_mode & CORR) {
         /* Step 5a: reorder output from mkldnn to ref format using mkldnn */
         SAFE(mem_dt_out_fmt_ref.reorder(mem_dt_out_fmt_out), WARN);
@@ -330,9 +330,9 @@ int check_reorder(const prb_t *p, res_t *res) {
     /* Step 6: performance measurement */
     if (bench_mode & PERF) {
         mkldnn_primitive_desc_t perf_r_pd;
-        DNN_SAFE(mkldnn_reorder_primitive_desc_create(&perf_r_pd,
-                mem_dt_in_fmt_in.mpd_, mem_dt_out_fmt_out.mpd_,
-                mkldnn_attr), WARN);
+        DNN_SAFE(mkldnn_reorder_primitive_desc_create(&perf_r_pd, engine,
+                    &mem_dt_in_fmt_in.md_, engine, &mem_dt_out_fmt_out.md_,
+                    mkldnn_attr), WARN);
 
         mkldnn_primitive_t perf_r;
         DNN_SAFE(mkldnn_primitive_create(&perf_r, perf_r_pd), WARN);

@@ -33,17 +33,17 @@ void compute_ref_inner_product_fwd(test_inner_product_descr_t ipd, memory &src,
         memory &weights, memory &bias, memory &dst)
 {
     const bool w_bias
-        = (bias.get_primitive_desc().desc().data.format
+        = (bias.get_desc().data.format
             != memory::format::format_undef);
     data_t *src_data = (data_t *)src.get_data_handle();
     data_t *weights_data = (data_t *)weights.get_data_handle();
     data_t *bias_data = w_bias ? (data_t *)bias.get_data_handle() : nullptr;
     data_t *dst_data = (data_t *)dst.get_data_handle();
 
-    const memory::desc src_d = src.get_primitive_desc().desc();
-    const memory::desc weights_d = weights.get_primitive_desc().desc();
-    const memory::desc bias_d = bias.get_primitive_desc().desc();
-    const memory::desc dst_d = dst.get_primitive_desc().desc();
+    const memory::desc src_d = src.get_desc();
+    const memory::desc weights_d = weights.get_desc();
+    const memory::desc bias_d = bias.get_desc();
+    const memory::desc dst_d = dst.get_desc();
 
     const int padded_ic = src_d.data.layout_desc.blocking.padding_dims[1];
 
@@ -134,24 +134,21 @@ protected:
         auto ip_primitive_desc = inner_product_forward::primitive_desc(
                 ip_desc, eng);
 
-        ip_src.reset(new memory(ip_primitive_desc.src_primitive_desc()));
-        ip_weights.reset(
-                new memory(ip_primitive_desc.weights_primitive_desc()));
-        ip_bias.reset(with_bias
-                ? new memory(ip_primitive_desc.bias_primitive_desc())
-                : new memory(memory::primitive_desc(ip_bias_desc, eng)));
-        ip_dst.reset(new memory(ip_primitive_desc.dst_primitive_desc()));
-        dst_ref.reset(new memory(ip_primitive_desc.dst_primitive_desc()));
+        ip_src.reset(new memory(ip_primitive_desc.src_desc(), eng));
+        ip_weights.reset(new memory(ip_primitive_desc.weights_desc(), eng));
+        ip_bias.reset(new memory(ip_primitive_desc.bias_desc(), eng));
+        ip_dst.reset(new memory(ip_primitive_desc.dst_desc(), eng));
+        dst_ref.reset(new memory(ip_primitive_desc.dst_desc(), eng));
 
         fill_data<data_t>(
-                ip_src->get_primitive_desc().get_size() / sizeof(data_t),
+                ip_src->get_desc().get_size() / sizeof(data_t),
                 (data_t *)ip_src->get_data_handle());
         fill_data<data_t>(
-                ip_weights->get_primitive_desc().get_size() / sizeof(data_t),
+                ip_weights->get_desc().get_size() / sizeof(data_t),
                 (data_t *)ip_weights->get_data_handle());
         if (with_bias) {
             fill_data<data_t>(
-                    ip_bias->get_primitive_desc().get_size() / sizeof(data_t),
+                    ip_bias->get_desc().get_size() / sizeof(data_t),
                     (data_t *)ip_bias->get_data_handle());
         }
         check_zero_tail<data_t>(1, *ip_src);

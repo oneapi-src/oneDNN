@@ -62,13 +62,12 @@ void check_bnrm_fwd(const test_bnrm_params_t &p,
            (const data_t *)variance.get_data_handle() : nullptr;
     const data_t *dst_data = (data_t *)dst.get_data_handle();
 
-    const memory::desc src_d = src.get_primitive_desc().desc();
-    const memory::desc dst_d = dst.get_primitive_desc().desc();
+    const memory::desc src_d = src.get_desc();
+    const memory::desc dst_d = dst.get_desc();
 
     data_t eps = static_cast<data_t>(1.e-4 * bp.mb * bp.d * bp.h * bp.w);
 
-    size_t padded_c = src.get_primitive_desc().desc().data.layout_desc
-        .blocking.padding_dims[1];
+    size_t padded_c = src_d.data.layout_desc.blocking.padding_dims[1];
 
     mkldnn::impl::parallel_nd(bp.c, [&](int c) {
         data_t ref_mean = calculate_stats ? data_t(0) : mean_data[c];
@@ -110,7 +109,7 @@ void check_bnrm_fwd(const test_bnrm_params_t &p,
         data_t ref_rsqrt_variance = data_t(1) / (ref_sqrt_variance);
 
         if (use_weights) {
-            memory::desc weights_d = weights.get_primitive_desc().desc();
+            memory::desc weights_d = weights.get_desc();
             for (int n = 0; n < bp.mb; n++)
             for (int d = 0; d < bp.d; d++)
             for (int h = 0; h < bp.h; h++)
@@ -163,11 +162,11 @@ void check_bnrm_bwd(const test_bnrm_params_t &p,
     const data_t *diff_weights_data = (pk == prop_kind::backward) ?
             (data_t *)diff_weights.get_data_handle() : nullptr;
 
-    const memory::desc src_d = src.get_primitive_desc().desc();
-    const memory::desc diff_dst_d = diff_dst.get_primitive_desc().desc();
-    const memory::desc weights_d = weights.get_primitive_desc().desc();
-    const memory::desc diff_src_d = diff_src.get_primitive_desc().desc();
-    const memory::desc diff_weights_d = diff_weights.get_primitive_desc().desc();
+    const memory::desc src_d = src.get_desc();
+    const memory::desc diff_dst_d = diff_dst.get_desc();
+    const memory::desc weights_d = weights.get_desc();
+    const memory::desc diff_src_d = diff_src.get_desc();
+    const memory::desc diff_weights_d = diff_weights.get_desc();
 
     if (bp.mb * bp.c * bp.d * bp.h * bp.w == 0) {
         if (pk == backward) {
@@ -183,7 +182,7 @@ void check_bnrm_bwd(const test_bnrm_params_t &p,
 
     const data_t eps = static_cast<data_t>(1.e-4 * bp.mb * bp.d * bp.h * bp.w);
 
-    size_t padded_c = src.get_primitive_desc().desc().data.layout_desc.blocking.padding_dims[1];
+    size_t padded_c = src_d.data.layout_desc.blocking.padding_dims[1];
     mkldnn::impl::parallel_nd(bp.c, [&](int c) {
         data_t ref_diff_gamma = data_t(0);
         data_t ref_diff_beta = data_t(0);
@@ -337,11 +336,10 @@ protected:
         bnrm_prim_desc.reset(new batch_normalization_forward::primitive_desc(
                     bnrm_desc, *eng));
 
-        weights.reset(new memory(bnrm_prim_desc->weights_primitive_desc()));
+        weights.reset(new memory(bnrm_prim_desc->weights_desc(), *eng));
         if (isTraining || useGlobalStats) {
-            mean.reset(new memory(bnrm_prim_desc->mean_primitive_desc()));
-            variance.reset(
-                    new memory(bnrm_prim_desc->variance_primitive_desc()));
+            mean.reset(new memory(bnrm_prim_desc->mean_desc(), *eng));
+            variance.reset(new memory(bnrm_prim_desc->variance_desc(), *eng));
         }
 
         fill(src->get());
@@ -374,11 +372,11 @@ protected:
                 bnrm_bwd_desc, *eng, *bnrm_prim_desc));
 
         if (useScaleShift) weights.reset(new memory(
-                    bnrm_bwd_prim_desc->weights_primitive_desc()));
-        diff_weights.reset(new memory(bnrm_bwd_prim_desc->diff_weights_primitive_desc()));
-        mean.reset(new memory(bnrm_bwd_prim_desc->mean_primitive_desc()));
+                    bnrm_bwd_prim_desc->weights_desc(), *eng));
+        diff_weights.reset(new memory(bnrm_bwd_prim_desc->diff_weights_desc(), *eng));
+        mean.reset(new memory(bnrm_bwd_prim_desc->mean_desc(), *eng));
         variance.reset(new memory(
-                    bnrm_bwd_prim_desc->variance_primitive_desc()));
+                    bnrm_bwd_prim_desc->variance_desc(), *eng));
 
         if (useScaleShift) fill(*weights);
         fill(diff_src->get());
@@ -397,7 +395,7 @@ protected:
     }
 
     void fill(memory &m, data_t mean = 1.) {
-        fill_data<data_t>(m.get_primitive_desc().get_size() / sizeof(data_t),
+        fill_data<data_t>(m.get_desc().get_size() / sizeof(data_t),
                 reinterpret_cast<data_t *>(m.get_data_handle()));
     }
 

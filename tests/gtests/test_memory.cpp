@@ -33,8 +33,8 @@ protected:
 
 TEST_F(memory_test, DataZeroDim) {
     auto e = engine(engine::kind::cpu, 0);
-    mkldnn::memory mem0({{{2, 0, 3, 4}, memory::data_type::f32,
-            memory::format::nChw16c}, e});
+    mkldnn::memory mem0({{2, 0, 3, 4}, memory::data_type::f32,
+            memory::format::nChw16c}, e);
 }
 
 TEST_F(memory_test, DataPaddingTest) {
@@ -43,17 +43,17 @@ TEST_F(memory_test, DataPaddingTest) {
     const int N = 2, C = 28, C_16 = 32, H = 3, W = 4;
     const size_t phys_sz = (size_t)N * C_16 * H * W;
 
-    mkldnn::memory mem0({{{N, C, H, W}, memory::data_type::f32,
-            memory::format::nChw16c}, e});
+    mkldnn::memory mem0({{N, C, H, W}, memory::data_type::f32,
+            memory::format::nChw16c}, e);
     data_t *mem0_ptr = (data_t *)mem0.get_data_handle();
     fill_data<data_t>(N*C_16*H*W, mem0_ptr);
 
     std::vector<data_t> mem1_vec(phys_sz);
     mem1_vec.assign(mem0_ptr,
-            mem0_ptr + mem0.get_primitive_desc().get_size() / sizeof(data_t));
+            mem0_ptr + mem0.get_desc().get_size() / sizeof(data_t));
 
-    mkldnn::memory mem1({{{N, C, H, W}, memory::data_type::f32,
-            memory::format::nChw16c}, e}, &mem1_vec[0]);
+    mkldnn::memory mem1({{N, C, H, W}, memory::data_type::f32,
+            memory::format::nChw16c}, e, &mem1_vec[0]);
 
     check_zero_tail<data_t>(0, mem1);
     check_zero_tail<data_t>(1, mem0);
@@ -68,26 +68,26 @@ TEST_F(memory_test, WeightPaddingTest) {
     const int O = 13, O_16 = 16, I = 28, I_16 = 32, H = 2, W = 3;
     const size_t phys_sz = (size_t)O_16 * I_16 * H * W;
 
-    mkldnn::memory mem0({{{O, I, H, W}, memory::data_type::f32,
-            memory::format::OIhw16i16o}, e});
+    mkldnn::memory mem0({{O, I, H, W}, memory::data_type::f32,
+            memory::format::OIhw16i16o}, e);
     data_t *mem0_ptr = (data_t *)mem0.get_data_handle();
     fill_data<data_t>(O_16*I_16*H*W, mem0_ptr);
 
     /* mem1 is OIhw16i16o with fmt = OIhw16i16o */
     std::vector<data_t> mem1_vec(phys_sz);
     mem1_vec.assign(mem0_ptr,
-            mem0_ptr + mem0.get_primitive_desc().get_size() / sizeof(data_t));
-    mkldnn::memory mem1({{{O, I, H, W}, memory::data_type::f32,
-            memory::format::OIhw16i16o}, e}, &mem1_vec[0]);
+            mem0_ptr + mem0.get_desc().get_size() / sizeof(data_t));
+    mkldnn::memory mem1({{O, I, H, W}, memory::data_type::f32,
+            memory::format::OIhw16i16o}, e, &mem1_vec[0]);
     check_zero_tail<data_t>(0, mem1);
 
     /* mem2 is OIhw16i16o with fmt = blocked */
     std::vector<data_t> mem2_vec(phys_sz);
     mem2_vec.assign(mem0_ptr,
-            mem0_ptr + mem0.get_primitive_desc().get_size() / sizeof(data_t));
-    mkldnn::memory::desc mem2_d = mem1.get_primitive_desc().desc();
+            mem0_ptr + mem0.get_desc().get_size() / sizeof(data_t));
+    mkldnn::memory::desc mem2_d = mem1.get_desc();
     mem2_d.data.format = mkldnn_blocked;
-    mkldnn::memory mem2({mem2_d, e}, &mem2_vec[0]);
+    mkldnn::memory mem2(mem2_d, e, &mem2_vec[0]);
     check_zero_tail<data_t>(0, mem2);
 
     check_zero_tail<data_t>(1, mem0);

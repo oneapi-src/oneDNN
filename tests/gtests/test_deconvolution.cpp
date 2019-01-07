@@ -36,8 +36,8 @@ void compute_bias_fwd(const test_convolution_sizes_t &c,
     data_t *bias_data = (data_t *)bias.get_data_handle();
     data_t *dst_data = (data_t *)dst.get_data_handle();
 
-    const memory::desc bias_d = bias.get_primitive_desc().desc();
-    const memory::desc dst_d = dst.get_primitive_desc().desc();
+    const memory::desc bias_d = bias.get_desc();
+    const memory::desc dst_d = dst.get_desc();
 
     mkldnn::impl::parallel_nd(c.mb, c.ng, c.oc / c.ng, c.oh, c.ow,
         [&](int n, int g, int oc, int oh, int ow) {
@@ -56,8 +56,8 @@ void compute_bias_bwd(const test_convolution_sizes_t &c,
     data_t *bias_data = (data_t *)bias.get_data_handle();
     data_t *dst_data = (data_t *)dst.get_data_handle();
 
-    const memory::desc bias_d = bias.get_primitive_desc().desc();
-    const memory::desc dst_d = dst.get_primitive_desc().desc();
+    const memory::desc bias_d = bias.get_desc();
+    const memory::desc dst_d = dst.get_desc();
 
     mkldnn::impl::parallel_nd(c.ng, c.oc / c.ng, [&](int g, int oc) {
         int bidx = g * c.oc / c.ng + oc;
@@ -81,9 +81,9 @@ void transpose_wei(const test_convolution_sizes_t &c,
     mkldnn::memory& weights, mkldnn::memory& weights_tr) {
 
     data_t *weights_data = (data_t *)weights.get_data_handle();
-    const memory::desc weights_d = weights.get_primitive_desc().desc();
+    const memory::desc weights_d = weights.get_desc();
     data_t *weights_tr_data = (data_t *)weights_tr.get_data_handle();
-    const memory::desc weights_tr_d = weights_tr.get_primitive_desc().desc();
+    const memory::desc weights_tr_d = weights_tr.get_desc();
 
     mkldnn::impl::parallel_nd(c.ng, c.oc / c.ng, c.ic / c.ng, c.kh, c.kw,
         [&](int g, int oc, int ic, int kh, int kw) {
@@ -204,7 +204,7 @@ protected:
                     (data_t *)bias->get().get_data_handle());
         }
 
-        auto weights_tr = memory({*con_weights_desc, *eng});
+        auto weights_tr = memory(*con_weights_desc, *eng);
         transpose_wei<data_t>(dd, weights->get(), weights_tr);
         auto deconv_desc = with_bias ?
             deconvolution_forward::desc(aprop_kind,
@@ -266,7 +266,7 @@ protected:
         fill_data<data_t>(dst->get_size() / sizeof(data_t),
                 (data_t *)dst->get().get_data_handle());
 
-        auto weights_tr = memory({*con_weights_desc, *eng});
+        auto weights_tr = memory(*con_weights_desc, *eng);
         transpose_wei<data_t>(dd, weights->get(), weights_tr);
 
         auto deconv_desc = deconvolution_forward::desc(prop_kind::forward_training,
@@ -313,7 +313,7 @@ protected:
         auto p = ::testing::TestWithParam<deconvolution_test_params>::GetParam();
         auto conv_src = dst;
         auto conv_dst = src;
-        auto conv_weights = memory({*con_weights_desc, *eng});
+        auto conv_weights = memory(*con_weights_desc, *eng);
         test_convolution_sizes_t dd = p.sizes;
 
         fill_data<data_t>(src->get_size() / sizeof(data_t),
@@ -370,13 +370,13 @@ protected:
                 {MKLDNN_ARG_SRC, conv_src->get()},
                 {MKLDNN_ARG_DIFF_WEIGHTS, conv_weights}});
 
-        auto weights_tr = memory({*con_weights_desc, *eng});
+        auto weights_tr = memory(*con_weights_desc, *eng);
         transpose_wei<data_t>(dd, weights->get(), weights_tr);
 
         compare_data<data_t>(weights_tr, conv_weights);
 
         if (with_bias) {
-            auto ref_bias = memory({*dec_bias_desc, *eng});
+            auto ref_bias = memory(*dec_bias_desc, *eng);
             compute_bias_bwd<data_t>(dd, dst->get(), ref_bias);
             compare_data<data_t>(ref_bias, bias->get());
         }

@@ -36,9 +36,9 @@ void compute_ref_conv_eltwise_fwd(const test_convolution_sizes_t &c,
             = (data_t_dst *)(w_bias ? bias.get_data_handle() : nullptr);
     data_t_dst *dst_data = (data_t_dst *)dst.get_data_handle();
 
-    const memory::desc src_d = src.get_primitive_desc().desc();
-    const memory::desc weights_d = weights.get_primitive_desc().desc();
-    const memory::desc dst_d = dst.get_primitive_desc().desc();
+    const memory::desc src_d = src.get_desc();
+    const memory::desc weights_d = weights.get_desc();
+    const memory::desc dst_d = dst.get_desc();
 
     size_t padded_ic = src_d.data.layout_desc.blocking.padding_dims[1];
     size_t padded_oc = dst_d.data.layout_desc.blocking.padding_dims[1];
@@ -124,19 +124,19 @@ protected:
         auto c_dst_desc = create_md({ cd.mb, cd.oc, cd.oh, cd.ow },
                 data_type_dst, p.formats.dst_format);
 
-        auto c_src = memory({c_src_desc, eng});
-        auto c_weights = memory({c_weights_desc, eng});
-        auto c_dst = memory({c_dst_desc, eng});
+        auto c_src = memory(c_src_desc, eng);
+        auto c_weights = memory(c_weights_desc, eng);
+        auto c_dst = memory(c_dst_desc, eng);
 
-        auto dst_ref = memory({c_dst_desc, eng});
+        auto dst_ref = memory(c_dst_desc, eng);
 
-        fill_data<data_t_src>(c_src.get_primitive_desc().get_size()
+        fill_data<data_t_src>(c_src.get_desc().get_size()
                 / sizeof(data_t_src), (data_t_src *)c_src.get_data_handle(),
                 data_t_src(0), data_t_src(1));
         check_zero_tail<data_t_src>(1, c_src);
 
         fill_data<data_t_wei>(
-                c_weights.get_primitive_desc().get_size()
+                c_weights.get_desc().get_size()
                 / sizeof(data_t_wei),(data_t_wei *)c_weights.get_data_handle(),
                 data_t_wei(0), data_t_wei(1));
         check_zero_tail<data_t_wei>(1, c_weights);
@@ -145,10 +145,10 @@ protected:
         auto c_bias_desc = with_bias ?
                 create_md({ cd.oc }, data_type_dst, p.formats.bias_format) :
                 create_md({}, data_type_dst, p.formats.bias_format);
-        auto c_bias = memory({c_bias_desc, eng});
+        auto c_bias = memory(c_bias_desc, eng);
         if (with_bias) {
             fill_data<data_t_dst>(
-                    c_bias.get_primitive_desc().get_size() / sizeof(data_t_dst),
+                    c_bias.get_desc().get_size() / sizeof(data_t_dst),
                     (data_t_dst *)c_bias.get_data_handle(), 1., true);
         }
 

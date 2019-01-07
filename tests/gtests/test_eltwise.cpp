@@ -197,8 +197,8 @@ void check_eltwise_bwd(const eltwise_test_params<data_t> &p,
     data_t *diff_dst_data = (data_t *)diff_dst.get_data_handle();
     data_t *diff_src_data = (data_t *)diff_src.get_data_handle();
 
-    const memory::desc data_d = src.get_primitive_desc().desc();
-    const memory::desc diff_data_d = diff_src.get_primitive_desc().desc();
+    const memory::desc data_d = src.get_desc();
+    const memory::desc diff_data_d = diff_src.get_desc();
 
     ASSERT_EQ(md.data.data_type, memory::data_type::f32); // TODO: type assert
 
@@ -273,9 +273,9 @@ protected:
             p.data_format));
         diff_data_desc.reset(new memory::desc(p.dims, data_type,
             p.diff_format));
-        src.reset(new memory({*data_desc, *eng}));
-        dst.reset(new memory({*data_desc, *eng}));
-        ref_dst.reset(new memory({*data_desc, *eng}));
+        src.reset(new memory(*data_desc, *eng));
+        dst.reset(new memory(*data_desc, *eng));
+        ref_dst.reset(new memory(*data_desc, *eng));
 
         data_t data_median = data_t(0);
         data_t data_deviation
@@ -300,8 +300,8 @@ protected:
     }
 
     void Backward() {
-        diff_src.reset(new memory({*diff_data_desc, *eng}));
-        diff_dst.reset(new memory({*diff_data_desc, *eng}));
+        diff_src.reset(new memory(*diff_data_desc, *eng));
+        diff_dst.reset(new memory(*diff_data_desc, *eng));
 
         data_t data_median = data_t(0);
         data_t data_deviation

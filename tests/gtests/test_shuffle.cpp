@@ -41,8 +41,8 @@ void check_shuffle(const shuffle_test_params &p, const memory &input,
     data_t *in_ptr = (data_t *)input.get_data_handle();
     data_t *out_ptr = (data_t *)output.get_data_handle();
 
-    const memory::desc in_d = input.get_primitive_desc().desc();
-    const memory::desc out_d = output.get_primitive_desc().desc();
+    const memory::desc in_d = input.get_desc();
+    const memory::desc out_d = output.get_desc();
 
     auto dims = in_d.data.dims;
     auto ndims = in_d.data.ndims;

@@ -47,8 +47,8 @@ void check_pool_fwd(const pool_bwd_test_params &p, const memory &src,
     data_t *src_data = (data_t *)src.get_data_handle();
     data_t *dst_data = (data_t *)dst.get_data_handle();
 
-    const memory::desc src_d = src.get_primitive_desc().desc();
-    const memory::desc dst_d = dst.get_primitive_desc().desc();
+    const memory::desc src_d = src.get_desc();
+    const memory::desc dst_d = dst.get_desc();
 
     auto pd = p.test_pd;
 
@@ -126,15 +126,15 @@ void check_pool_bwd(const pool_bwd_test_params &p, const memory &diff_src,
     auto ws_data = [=](size_t idx) -> int {
         auto w = (unsigned char *)ws.get_data_handle();
         if (w == nullptr) return -1;
-        if (ws.get_primitive_desc().desc().data.data_type == mkldnn_u8)
+        if (ws.get_desc().data.data_type == mkldnn_u8)
             return (int)w[idx];
         else
             return ((int *)w)[idx];
     };
 
-    const memory::desc diff_src_d = diff_src.get_primitive_desc().desc();
-    const memory::desc diff_dst_d = diff_dst.get_primitive_desc().desc();
-    const memory::desc ws_d = ws.get_primitive_desc().desc();
+    const memory::desc diff_src_d = diff_src.get_desc();
+    const memory::desc diff_dst_d = diff_dst.get_desc();
+    const memory::desc ws_d = ws.get_desc();
 
     auto pd = p.test_pd;
     std::vector<data_t>
@@ -300,20 +300,17 @@ protected:
         pool_prim_desc.reset(
                 new pooling_forward::primitive_desc(pool_desc, *eng));
 
-        bool with_workspace = p.aalgorithm == pooling_max;
-        auto p_workspace_desc = with_workspace
-            ? pool_prim_desc->workspace_primitive_desc()
-            : memory::primitive_desc( {{}, data_type, p.diff_dst_format}, *eng);
+        auto p_workspace_desc = pool_prim_desc->workspace_desc();
 
         src.reset(new memory({*src_desc, *eng}));
-        workspace.reset(new  memory(p_workspace_desc));
+        workspace.reset(new memory(p_workspace_desc, *eng));
         dst.reset(new memory({*dst_desc, *eng}));
 
         fill_data<data_t>(
-                src->get_primitive_desc().get_size() / sizeof(data_t),
+                src->get_desc().get_size() / sizeof(data_t),
                 (data_t *)src->get_data_handle());
         fill_data<data_t>(
-                dst->get_primitive_desc().get_size() / sizeof(data_t),
+                dst->get_desc().get_size() / sizeof(data_t),
                 (data_t *)dst->get_data_handle());
         check_zero_tail<data_t>(1, *src);
         check_zero_tail<data_t>(1, *dst);
@@ -349,10 +346,10 @@ protected:
         diff_dst.reset(new memory({*dst_desc, *eng}));
 
         fill_data<data_t>(
-                diff_dst->get_primitive_desc().get_size()/ sizeof(data_t),
+                diff_dst->get_desc().get_size()/ sizeof(data_t),
                 (data_t *)diff_dst->get_data_handle());
         fill_data<data_t>(
-                diff_src->get_primitive_desc().get_size()/ sizeof(data_t),
+                diff_src->get_desc().get_size()/ sizeof(data_t),
                 (data_t *)diff_src->get_data_handle());
         check_zero_tail<data_t>(1, *diff_dst);
         check_zero_tail<data_t>(1, *diff_src);

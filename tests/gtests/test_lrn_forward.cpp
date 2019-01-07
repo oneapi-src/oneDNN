@@ -48,7 +48,7 @@ void check_lrn_fwd(const test_lrn_desc_t &ld,
     const int CSIZE = ld.kind == ACROSS ? size : 1;
     const int HWSIZE = size + 1 - CSIZE;
     const int summands = ld.kind == ACROSS ? size : size*size;
-    const int padded_c = src.get_primitive_desc().desc().data.layout_desc.blocking.padding_dims[1];
+    const int padded_c = src.get_desc().data.layout_desc.blocking.padding_dims[1];
 
     auto off = [=](int n, int c, int h, int w)
     {
@@ -152,8 +152,8 @@ protected:
             {MKLDNN_ARG_DST, l_dst.get()}
         };
         if (with_workspace) {
-            auto workspace_pd = lrn_prim_desc.workspace_primitive_desc();
-            workspace.reset(new memory(workspace_pd));
+            auto workspace_md = lrn_prim_desc.workspace_desc();
+            workspace.reset(new memory(workspace_md, eng));
             args.insert({MKLDNN_ARG_WORKSPACE, *workspace});
         }
         l.execute(strm, args);
