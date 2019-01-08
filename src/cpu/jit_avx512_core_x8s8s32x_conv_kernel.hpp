@@ -71,9 +71,6 @@ struct jit_avx512_core_x8s8s32x_fwd_kernel : public jit_generator {
 private:
     jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
 
-    using reg64_t = const Xbyak::Reg64;
-    using zmm_t = const Xbyak::Zmm;
-    using xmm_t = const Xbyak::Xmm;
     enum {
         typesize = sizeof(float),
         ker_reg_base_idx = 28,
@@ -86,71 +83,72 @@ private:
     } ic_block_t;
 
     /* data regs */
-    reg64_t reg_ptr_scales = rax;
-    reg64_t reg_inp = r8;
-    reg64_t reg_ker = r9;
-    reg64_t reg_out = r10;
-    reg64_t aux_reg_inp = r11;
-    reg64_t reg_ptr_sum_scale = r11;
-    reg64_t aux_reg_ker = r12;
-    reg64_t reg_compensation = r14;
+    const Xbyak::Reg64 reg_ptr_scales = rax;
+    const Xbyak::Reg64 reg_inp = r8;
+    const Xbyak::Reg64 reg_ker = r9;
+    const Xbyak::Reg64 reg_out = r10;
+    const Xbyak::Reg64 aux_reg_inp = r11;
+    const Xbyak::Reg64 reg_ptr_sum_scale = r11;
+    const Xbyak::Reg64 aux_reg_ker = r12;
+    const Xbyak::Reg64 reg_compensation = r14;
     /* counter regs */
-    reg64_t reg_bias_alpha = abi_not_param1;
-    reg64_t reg_oi = rbx;
-    reg64_t reg_bias = rdx;
-    reg64_t reg_oc_blocks = rsi;
-    reg64_t reg_owb = aux_reg_ker;
-    reg64_t reg_scratch = reg_compensation;
-    reg64_t reg_kj = reg_ptr_scales;
-    reg64_t reg_overflow = reg_ptr_scales;
-    reg64_t reg_icb = reg_bias;
+    const Xbyak::Reg64 reg_bias_alpha = abi_not_param1;
+    const Xbyak::Reg64 reg_oi = rbx;
+    const Xbyak::Reg64 reg_bias = rdx;
+    const Xbyak::Reg64 reg_oc_blocks = rsi;
+    const Xbyak::Reg64 reg_owb = aux_reg_ker;
+    const Xbyak::Reg64 reg_scratch = reg_compensation;
+    const Xbyak::Reg64 reg_kj = reg_ptr_scales;
+    const Xbyak::Reg64 reg_overflow = reg_ptr_scales;
+    const Xbyak::Reg64 reg_icb = reg_bias;
 
-    Xbyak::Opmask ktail_mask = Xbyak::Opmask(2);
-    Xbyak::Opmask kblend_mask = Xbyak::Opmask(3);
+    const Xbyak::Opmask ktail_mask = Xbyak::Opmask(2);
+    const Xbyak::Opmask kblend_mask = Xbyak::Opmask(3);
 
     /* used during bias section of store_output */
-    zmm_t zmm_comp = zmm_t(30); // only for signed input
-    zmm_t zmm_bias = zmm_t(31);
+    const Xbyak::Zmm zmm_comp = Xbyak::Zmm(30); // only for signed input
+    const Xbyak::Zmm zmm_bias = Xbyak::Zmm(31);
     /* used during post_op sum section of store_output */
-    zmm_t zmm_prev_dst = zmm_t(31);
+    const Xbyak::Zmm zmm_prev_dst = Xbyak::Zmm(31);
     /* used during write-out section of store_output */
-    zmm_t zmm_zero = zmm_t(31);
+    const Xbyak::Zmm zmm_zero = Xbyak::Zmm(31);
 
     /* used in compute_ker (but set during prepare_output) */
-    zmm_t zmm_shift = zmm_comp; // only for signed input
+    const Xbyak::Zmm zmm_shift = zmm_comp; // only for signed input
     /* used in compute_ker (but only for pre-VNNI machines) */
-    zmm_t zmm_tmp = zmm_t(28); // not used for depthwise
-    zmm_t zmm_one = zmm_t(29); // set at start of kernel, not used for depthwise.
+    const Xbyak::Zmm zmm_tmp = Xbyak::Zmm(28); // not used for depthwise
+    const Xbyak::Zmm zmm_one = Xbyak::Zmm(29); // set at start of kernel, not used for depthwise.
 
     /* registers use only for depthwise */
-    zmm_t zmm_wei = zmm_bias;
+    const Xbyak::Zmm zmm_wei = zmm_bias;
     Xbyak::Zmm zmm_src;
-    Xbyak::Zmm zmm_permute, zmm_zero_blend; // used only for fast depthwise
+    Xbyak::Zmm zmm_permute;
+    Xbyak::Zmm zmm_zero_blend; // used only for fast depthwise
 
-    zmm_t zmm_out(int i_ur, int i_oc) {
+    Xbyak::Zmm zmm_out(int i_ur, int i_oc) {
         int idx = i_ur + i_oc * jcp.ur_w;
         assert(idx < (jcp.is_depthwise
                     ? ker_dw_reg_base_idx : ker_reg_base_idx));
-        return zmm_t(idx);
+        return Xbyak::Zmm(idx);
     }
-    xmm_t xmm_out(int i_ur, int i_oc) {
+    Xbyak::Xmm xmm_out(int i_ur, int i_oc) {
         int idx = i_ur + i_oc * jcp.ur_w;
         assert(idx < (jcp.is_depthwise
                     ? ker_dw_reg_base_idx : ker_reg_base_idx));
-        return xmm_t(idx);
+        return Xbyak::Xmm(idx);
     }
-    zmm_t zmm_inp(int i_ic, int nb_x_blocking) {
+    Xbyak::Zmm zmm_inp(int i_ic, int nb_x_blocking) {
         int idx = i_ic + nb_x_blocking * jcp.ur_w;
         assert(idx < 31);
-        return zmm_t(idx);
+        return Xbyak::Zmm(idx);
     }
-    zmm_t zmm_bias_alpha() {
+    Xbyak::Zmm zmm_bias_alpha() {
         int nb_c_block = jcp.is_depthwise ? jcp.nb_ch_blocking : jcp.nb_oc_blocking;
-        return zmm_t(nb_c_block * jcp.ur_w);
+        return Xbyak::Zmm(nb_c_block * jcp.ur_w);
     }
-    xmm_t xmm_bias_alpha() {
+    Xbyak::Xmm xmm_bias_alpha() {
         int nb_c_block = jcp.is_depthwise ? jcp.nb_ch_blocking : jcp.nb_oc_blocking;
-        return xmm_t(nb_c_block * jcp.ur_w);
+        return Xbyak::Xmm(nb_c_block * jcp.ur_w);
     }
     int get_ow_start(int ki, int pad_l) {
         return nstl::max(0,
@@ -175,7 +173,7 @@ private:
     void icb_loop(
             int ur_w, int pad_l, int pad_r, bool is_last_spatial_block);
     void generate();
-    void cvt2ps(data_type_t type_in, zmm_t zmm_in, const Xbyak::Operand &op,
+    void cvt2ps(data_type_t type_in, Xbyak::Zmm zmm_in, const Xbyak::Operand &op,
         bool mask_flag);
 };
 

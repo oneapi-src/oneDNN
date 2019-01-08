@@ -80,7 +80,7 @@ void jit_avx512_core_x8s8s32x_fwd_kernel::prepare_output(int ur_w)
             vpbroadcastd(zmm_shift, _t32);
         } else {
             Reg8 _t8 = reg_scratch.cvt8();
-            mov(_t8, (int8_t)-128);
+            mov(_t8, (int8_t)128);
             vpbroadcastb(zmm_shift, _t8);
         }
     }
@@ -90,8 +90,8 @@ void jit_avx512_core_x8s8s32x_fwd_kernel::prepare_output(int ur_w)
 }
 
 void jit_avx512_core_x8s8s32x_fwd_kernel::cvt2ps(data_type_t type_in,
-        zmm_t zmm_in, const Xbyak::Operand &op, bool mask_flag) {
-    zmm_t zmm = mask_flag ? zmm_in | ktail_mask | T_z : zmm_in;
+        const Xbyak::Zmm zmm_in, const Xbyak::Operand &op, bool mask_flag) {
+    const Xbyak::Zmm zmm = mask_flag ? zmm_in | ktail_mask | T_z : zmm_in;
     switch (type_in) {
     case data_type::f32:
     case data_type::s32: vmovups(zmm, op); break;
@@ -166,7 +166,7 @@ void jit_avx512_core_x8s8s32x_fwd_kernel::store_output(
             if (jcp.with_bias)
                 vaddps(zmm, zmm, zmm_bias);
 
-            zmm_t mask_zmm = mask_flag ? zmm | ktail_mask | T_z : zmm;
+            const Xbyak::Zmm mask_zmm = mask_flag ? zmm | ktail_mask | T_z : zmm;
             vmulps(mask_zmm, zmm,
                     EVEX_compress_addr(reg_ptr_scales, scale_offset));
         }
@@ -217,7 +217,7 @@ void jit_avx512_core_x8s8s32x_fwd_kernel::store_output(
             auto addr = EVEX_compress_addr(reg_out, aux_output_offset);
 
             Zmm zmm = zmm_out(j, k);
-            zmm_t r_zmm = mask_flag ? zmm | ktail_mask : zmm;
+            const Xbyak::Zmm r_zmm = mask_flag ? zmm | ktail_mask : zmm;
 
             switch (jcp.dst_dt) {
             case data_type::f32:
@@ -279,7 +279,7 @@ void jit_avx512_core_x8s8s32x_fwd_kernel::compute_ker_dw(
                 }
             } else {
                 const bool mask_flag = last_ic_block_flag != no_last_block && ii == jcp.nb_ch_blocking - 1;
-                zmm_t r_zmm_src = mask_flag ? zmm_src | ktail_mask : zmm_src;
+                const Xbyak::Zmm r_zmm_src = mask_flag ? zmm_src | ktail_mask : zmm_src;
                 int jj_start = get_ow_start(ki, pad_l);
                 int jj_end = get_ow_end(ur_w, ki, pad_r);
                 int start_ = jcp.signed_input ? 0 : jj_start;
@@ -357,7 +357,7 @@ void jit_avx512_core_x8s8s32x_fwd_kernel::compute_ker(int ur_w, int pad_l,
             if (h_padded == true) {
                 Zmm inp = zmm_inp(0,nb_oc_block);
                 vpxord(inp, inp, inp);
-                vpsubb(inp, inp, zmm_shift);
+                vpaddb(inp, inp, zmm_shift);
             } else {
                 for (int jj = _start; jj < _end; jj++) {
                     int aux_input_offset = input_offset(jj, ic, ki);
@@ -375,13 +375,13 @@ void jit_avx512_core_x8s8s32x_fwd_kernel::compute_ker(int ur_w, int pad_l,
                                                  aux_reg_inp, aux_input_offset));
                         }
                         if (jcp.signed_input)
-                            vpsubb(zmm_inp(jj, nb_oc_block),
+                            vpaddb(zmm_inp(jj, nb_oc_block),
                                    zmm_inp(jj, nb_oc_block), zmm_shift);
                     } else {
                         if (jcp.signed_input) {
                             Zmm inp = zmm_inp(jj, nb_oc_block);
                             vpxord(inp, inp, inp);
-                            vpsubb(inp, inp, zmm_shift);
+                            vpaddb(inp, inp, zmm_shift);
                         }
                     }
                 }
