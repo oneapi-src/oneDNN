@@ -116,7 +116,7 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
             && simple_impl_desc_init(p, nullptr)
             && mayiuse(sse42)
             && IMPLICATION(!utils::everyone_is(f32, p.itype, p.otype),
-                    mayiuse(avx512_core));
+                    mayiuse(avx));
         if (!ok) return false;
 
         const ptrdiff_t max_stride = (1LL<<31) - 1;
@@ -306,14 +306,26 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
                 break;
             case s8:
                 if (idt == f32) vcvtps2dq(xmm, xmm);
-                if (idt == f32 || idt == s32) vpmovsdb(xmm, xmm);
+                if (idt == f32 || idt == s32) {
+                    if (mayiuse(avx512_core)) {
+                        vpmovsdb(xmm, xmm);
+                    } else {
+                        vpackssdw(xmm, xmm, xmm_zero);
+                        vpacksswb(xmm, xmm, xmm_zero);
+                    }
+                }
                 if (idt == u8) vpminub(xmm, xmm, xmm_4x127b);
                 break;
             case u8:
                 if (idt == f32) vcvtps2dq(xmm, xmm);
                 if (idt == f32 || idt == s32) {
-                    vpmaxsd(xmm, xmm, xmm_zero);
-                    vpmovusdb(xmm, xmm);
+                    if (mayiuse(avx512_core)) {
+                        vpmaxsd(xmm, xmm, xmm_zero);
+                        vpmovusdb(xmm, xmm);
+                    } else {
+                        vpackssdw(xmm, xmm, xmm_zero);
+                        vpackuswb(xmm, xmm, xmm_zero);
+                    }
                 }
                 if (idt == s8) vpmaxsb(xmm, xmm, xmm_zero);
                 break;
@@ -631,7 +643,7 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
         mov(reg_ptr_out, PARAM(out));
 #       undef PARAM
 
-        if (mayiuse(avx512_core)) {
+        if (mayiuse(avx)) {
             vxorps(xmm_zero, xmm_zero, xmm_zero);
 
             if (prb_.itype == data_type::u8 && prb_.otype == data_type::s8) {
