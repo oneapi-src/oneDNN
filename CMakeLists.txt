@@ -40,7 +40,7 @@ endif()
 
 set(PROJECT_NAME "Intel(R) MKL-DNN")
 set(PROJECT_FULL_NAME "Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN)")
-set(PROJECT_VERSION "0.17")
+set(PROJECT_VERSION "0.17.2")
 
 set(LIB_NAME mkldnn)
 
@@ -73,6 +73,30 @@ include("cmake/SDL.cmake")
 include("cmake/MKL.cmake")
 include("cmake/Doxygen.cmake")
 include("cmake/profiling.cmake")
+
+string(REPLACE "." ";" VERSION_LIST ${PROJECT_VERSION})
+list(GET VERSION_LIST 0 MKLDNN_VERSION_MAJOR)
+list(GET VERSION_LIST 1 MKLDNN_VERSION_MINOR)
+list(GET VERSION_LIST 2 MKLDNN_VERSION_PATCH)
+
+find_package(Git)
+if (GIT_FOUND)
+    execute_process(COMMAND ${GIT_EXECUTABLE} log -1 --format=%H
+        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+        RESULT_VARIABLE RESULT
+        OUTPUT_VARIABLE MKLDNN_VERSION_HASH
+        OUTPUT_STRIP_TRAILING_WHITESPACE)
+endif()
+
+if(NOT GIT_FOUND OR RESULT)
+    set(MKLDNN_VERSION_HASH "Unknown")
+endif()
+
+configure_file(
+    "${PROJECT_SOURCE_DIR}/cmake/mkldnn_version.h.in"
+    "${PROJECT_BINARY_DIR}/mkldnn_version.h"
+)
+include_directories("${PROJECT_BINARY_DIR}")
 
 enable_testing()
 

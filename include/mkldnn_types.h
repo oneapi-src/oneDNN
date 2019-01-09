@@ -35,6 +35,14 @@ extern "C" {
  *  @addtogroup c_api_types_generic Generic
  *  @{ */
 
+/** Intel(R) MKL-DNN Version type */
+typedef struct {
+    int    major;
+    int    minor;
+    int    patch;
+    const char *hash;
+} mkldnn_version_t;
+
 /** Status values returned by Intel(R) MKL-DNN functions. */
 typedef enum {
     /** The operation was successful */

@@ -31,6 +31,7 @@ struct verbose_t {
 
 const verbose_t *mkldnn_verbose();
 double get_msec();
+const char *get_isa_info();
 
 #if !defined(DISABLE_VERBOSE)
 #include <stdio.h>

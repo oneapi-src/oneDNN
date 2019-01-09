@@ -1760,6 +1760,14 @@ mkldnn_status_t MKLDNN_API mkldnn_set_verbose(int level);
  *     This setting overrides the MKLDNN_JIT_DUMP environment variable. */
 mkldnn_status_t MKLDNN_API mkldnn_set_jit_dump(int dump);
 
+/** Gets library version information.
+ * Version information includes:
+ *  - major -- major version number
+ *  - minor -- minor version number
+ *  - patch -- patch release number
+ *  - hash -- git commit hash */
+const mkldnn_version_t MKLDNN_API *mkldnn_version();
+
 /** @} */
 
 /** @addtogroup c_api_blas BLAS functions
