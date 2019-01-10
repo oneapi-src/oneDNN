@@ -225,7 +225,14 @@ float logistic(float x) {
     return 1.0f / (1.0f + expf(-x));
 }
 float dlogistic(float x) {
-    return x * (1 - x);
+    float tmp = logistic(x);
+    return tmp * (1 - tmp);
+}
+float dtanhf(float x) {
+    return (1 - tanhf(x)) * (1 + tanhf(x));
+}
+float x_m_square(float x) {
+    return x - x * x;
 }
 float relu(float x) {
     return x > 0 ? x : 0;
@@ -233,8 +240,8 @@ float relu(float x) {
 float drelu(float x) {
     return float(x > 0);
 }
-float dtanhf(float x) {
-    return (1 - x) * (1 + x);
+float one_m_square(float x) {
+    return 1 - x * x;
 }
 
 int compare_dat(const rnn_prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,

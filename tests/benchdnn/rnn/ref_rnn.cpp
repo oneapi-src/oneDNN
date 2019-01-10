@@ -52,8 +52,8 @@ float activation(activation_t f, float x, bool is_fwd = true) {
     float result = 0;
     switch (f) {
     case RELU: result = is_fwd ? relu(x) : drelu(x); break;
-    case LOGISTIC: result = is_fwd ? logistic(x) : dlogistic(x); break;
-    case TANH: result = is_fwd ? tanhf(x) : dtanhf(x); break;
+    case LOGISTIC: result = is_fwd ? logistic(x) : x_m_square(x); break;
+    case TANH: result = is_fwd ? tanhf(x) : one_m_square(x); break;
     default: assert(!"unknown activation");
     }
     return result;
@@ -533,7 +533,7 @@ void lstm_bwd(alg_t alg, int sic, int slc, int dic, int wc, int batch,
             float dh = diff_dst_layer(ib, ih) + diff_dst_iter_h(ib, ih);
             float c = dst_iter_c(ib, ih);
             float dho = tanhf(c) * dh;
-            b_gates(ib, oho, ih) = dlogistic(ho) * dho;
+            b_gates(ib, oho, ih) = x_m_square(ho) * dho;
 
             float dc_next = diff_dst_iter_c(ib, ih);
             float dc = ho * dh * dtanhf(c) + dc_next;
@@ -541,13 +541,13 @@ void lstm_bwd(alg_t alg, int sic, int slc, int dic, int wc, int batch,
 
             float c_old = src_iter_c(ib, ih);
             float dhf = c_old * dc;
-            b_gates(ib, ohf, ih) = dlogistic(hf) * dhf;
+            b_gates(ib, ohf, ih) = x_m_square(hf) * dhf;
 
             float dhi = hc * dc;
-            b_gates(ib, ohi, ih) = dlogistic(hi) * dhi;
+            b_gates(ib, ohi, ih) = x_m_square(hi) * dhi;
 
             float dhc = hi * dc;
-            b_gates(ib, ohc, ih) = dtanhf(hc) * dhc;
+            b_gates(ib, ohc, ih) = one_m_square(hc) * dhc;
         }
 
     gemm("C", "T", "N", sic, n_gates * dic, batch, 1.0, src_iter_h_, wc, b_gates_,
@@ -592,10 +592,10 @@ void gru_bwd(alg_t alg, activation_t f, int sic, int slc, int dic, int wc,
     AOC<float> dhr(dhr_, batch, wc);
     AOC<float> hr(hr_, batch, wc);
 
-// dc = (1 - u) * dh; dc^ = dtanhf(c) * dc;
-// du = (h - u) * dh; du^ = dlogistic(u) * du;
+// dc = (1 - u) * dh; dc^ = one_m_square(c) * dc;
+// du = (h - u) * dh; du^ = x_m_square(u) * du;
 // dhr = Wc dc^;
-// dr = h * dhr; dr^ = dlogistic(r) * dr;
+// dr = h * dhr; dr^ = x_m_square(r) * dr;
     const int ohu = 0;
     const int ohr = 1;
     const int ohc = 2;
@@ -607,8 +607,8 @@ void gru_bwd(alg_t alg, activation_t f, int sic, int slc, int dic, int wc,
             float dh = diff_dst_layer(ib, ih) + diff_dst_iter_h(ib, ih);
             float du = (h - c) * dh;
             float dc = (1.0f - u) * dh;
-            b_gates(ib, ohu, ih) = dlogistic(u) * du;
-            b_gates(ib, ohc, ih) = dtanhf(c) * dc;
+            b_gates(ib, ohu, ih) = x_m_square(u) * du;
+            b_gates(ib, ohc, ih) = one_m_square(c) * dc;
             diff_src_iter(ib, ih) = dh * u;
         }
     gemm("C", "N", "T", batch, sic, dic, 1.0, &(b_gates(0, 2, 0)), n_gates * dic,
@@ -621,7 +621,7 @@ void gru_bwd(alg_t alg, activation_t f, int sic, int slc, int dic, int wc,
             float dr = h * dhr(ib, ih);
             hr(ib, ih) = h * r;
             diff_src_iter(ib, ih) += dhr(ib, ih) * r;
-            b_gates(ib, ohr, ih) = dlogistic(r) * dr;
+            b_gates(ib, ohr, ih) = x_m_square(r) * dr;
         }
 
 // dWx += xdu^ | xdr^ | xdc^
@@ -682,9 +682,9 @@ void gru_lbr_bwd(alg_t alg, activation_t f, int sic, int slc, int dic, int wc,
             &weights_iter_h(0, 2, 0), n_gates * dic, 1.0, Wh_b_, dic);
 
 
-// dc = (1 - u) * dh; dc^ = dtanhf(c) * dc;
-// du = (h - c) * dh; du^ = dlogistic(u) * du;
-// dr = (Wh + b) * dc^; dr^ = dlogistic(r) * dr;
+// dc = (1 - u) * dh; dc^ = one_m_square(c) * dc;
+// du = (h - c) * dh; du^ = x_m_square(u) * du;
+// dr = (Wh + b) * dc^; dr^ = x_m_square(r) * dr;
     const int ohu = 0;
     const int ohr = 1;
     const int ohc = 2;
@@ -698,11 +698,11 @@ void gru_lbr_bwd(alg_t alg, activation_t f, int sic, int slc, int dic, int wc,
             float du = (h - c) * dh;
             float dc = (1.0f - u) * dh;
 
-            b_gates(ib, ohu, ih) = dlogistic(u) * du;
-            b_gates(ib, ohc, ih) = dtanhf(c) * dc;
+            b_gates(ib, ohu, ih) = x_m_square(u) * du;
+            b_gates(ib, ohc, ih) = one_m_square(c) * dc;
 
             float dr = Wh_b(ib, ih) * b_gates(ib, ohc, ih);
-            b_gates(ib, ohr, ih) = dlogistic(r) * dr;
+            b_gates(ib, ohr, ih) = x_m_square(r) * dr;
 
             b_gates_r(ib, ohu, ih) = b_gates(ib, ohu, ih);
             b_gates_r(ib, ohr, ih) = b_gates(ib, ohr, ih);
