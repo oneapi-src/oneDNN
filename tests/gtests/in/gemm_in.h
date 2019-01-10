@@ -250,6 +250,48 @@ INST_TEST_CASE(TestGEMM_fractional_scales_row_offset,
     test_params{'n', 'n', 2, 2, 10000, 1.66f, 2.33f, 2, 10000, 2, row_no_offsets, false}
 );
 
+
+INST_TEST_CASE(TestGEMV,
+    test_params{'n', 'n', 2000, 1, 1000, 1.0f, 0.0f, 2000, 1000, 2000, fix_no_offsets, false},
+    test_params{'n', 'n', 1, 3000, 2000, 1.0f, 0.0f, 1, 2000, 1, fix_no_offsets, false},
+    test_params{'t', 'n', 2000, 1, 1000, 1.0f, 0.0f, 2000, 1000, 2000, fix_no_offsets, false},
+    test_params{'t', 'n', 1, 3000, 2000, 1.0f, 0.0f, 2000, 2000, 1, fix_no_offsets, false},
+    test_params{'n', 't', 2000, 1, 1000, 1.0f, 0.0f, 2000, 1, 2000, fix_no_offsets, false},
+    test_params{'n', 't', 1, 3000, 2000, 1.0f, 0.0f, 1, 3000, 1, fix_no_offsets, false},
+    test_params{'t', 't', 2000, 1, 1000, 1.0f, 0.0f, 1000, 1, 2000, fix_no_offsets, false},
+    test_params{'t', 't', 1, 3000, 2000, 1.0f, 0.0f, 2000, 3000, 1, fix_no_offsets, false},
+
+    test_params{'n', 'n', 2000, 1, 1000, 1.0f, 1.0f, 2000, 1000, 2000, fix_no_offsets, false},
+    test_params{'n', 'n', 1, 3000, 2000, 1.0f, 1.0f, 1, 2000, 1, fix_no_offsets, false},
+    test_params{'t', 'n', 2000, 1, 1000, 1.0f, 1.0f, 2000, 1000, 2000, fix_no_offsets, false},
+    test_params{'t', 'n', 1, 3000, 2000, 1.0f, 1.0f, 2000, 2000, 1, fix_no_offsets, false},
+    test_params{'n', 't', 2000, 1, 1000, 1.0f, 1.0f, 2000, 1, 2000, fix_no_offsets, false},
+    test_params{'n', 't', 1, 3000, 2000, 1.0f, 1.0f, 1, 3000, 1, fix_no_offsets, false},
+    test_params{'t', 't', 2000, 1, 1000, 1.0f, 1.0f, 1000, 1, 2000, fix_no_offsets, false},
+    test_params{'t', 't', 1, 3000, 2000, 1.0f, 1.0f, 2000, 3000, 1, fix_no_offsets, false}
+);
+
+INST_TEST_CASE(TestGEMV_kblocking,
+    test_params{'t', 'n', 20, 1, 7000, 1.0f, 0.0f, 7000, 7000, 7000, fix_no_offsets, false},
+    test_params{'t', 't', 50, 1, 7000, 1.0f, 0.0f, 7000, 7000, 7000, fix_no_offsets, false},
+    test_params{'t', 'n', 400, 1, 7000, 1.0f, 0.0f, 7000, 7000, 7000, fix_no_offsets, false},
+    test_params{'t', 't', 500, 1, 7000, 1.0f, 0.0f, 7000, 1, 7000, fix_no_offsets, false},
+    test_params{'t', 'n', 20, 1, 7000, 1.0f, 1.0f, 7000, 7000, 7000, fix_no_offsets, false},
+    test_params{'t', 't', 50, 1, 7000, 1.0f, 1.0f, 7000, 1, 7000, fix_no_offsets, false},
+    test_params{'t', 'n', 500, 1, 7000, 1.0f, 1.0f, 7000, 7000, 7000, fix_no_offsets, false},
+    test_params{'t', 't', 500, 1, 7000, 1.0f, 1.0f, 7000, 7000, 7000, fix_no_offsets, false},
+
+    test_params{'n', 'n', 1, 40, 7000, 1.0f, 0.0f, 1, 7000, 7000, fix_no_offsets, false},
+    test_params{'t', 'n', 1, 10, 7000, 1.0f, 0.0f, 7000, 7000, 1, fix_no_offsets, false},
+    test_params{'n', 'n', 1, 400, 7000, 1.0f, 0.0f, 7000, 7000, 7000, fix_no_offsets, false},
+    test_params{'t', 'n', 1, 100, 7000, 1.0f, 0.0f, 7000, 7000, 7000, fix_no_offsets, false},
+    test_params{'n', 'n', 1, 40, 7000, 1.0f, 1.0f, 7000, 7000, 7000, fix_no_offsets, false},
+    test_params{'t', 'n', 1, 10, 7000, 1.0f, 1.0f, 7000, 7000, 7000, fix_no_offsets, false},
+    test_params{'n', 'n', 1, 400, 7000, 1.0f, 1.0f, 1, 7000, 7000, fix_no_offsets, false},
+    test_params{'t', 'n', 1, 550, 7000, 1.0f, 1.0f, 7000, 7000, 1, fix_no_offsets, false}
+);
+
+
 INST_TEST_CASE(TestGEMM_heavy,
     test_params{'n', 'n', 3000, 3000, 3000, 1.0, 0.0, 3000, 3000, 3000, fix_use_oc, false},
     test_params{'t', 'n', 3000, 3000, 3000, 1.0, 0.0, 3000, 3000, 3000, fix_use_oc, false},
@@ -261,4 +303,5 @@ INST_TEST_CASE(TestGEMM_heavy,
     test_params{'n', 't', 3000, 3000, 3000, 1.19f, 2.99f, 3000, 3000, 3000, fix_use_oc, false},
     test_params{'t', 't', 3000, 3000, 3000, 1.99f, 2.19f, 3000, 3000, 3000, fix_use_oc, false}
 );
+
 #endif

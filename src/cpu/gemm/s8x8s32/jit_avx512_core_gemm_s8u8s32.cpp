@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018 Intel Corporation
+* Copyright 2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,6 +23,8 @@
 
 #include "jit_avx512_core_gemm_s8u8s32.hpp"
 #include "jit_avx512_core_gemm_s8u8s32_kern.hpp"
+#include "jit_avx512_core_kernel_gemv_s8u8s32_kern.hpp"
+#include "gemv.hpp"
 
 #if defined(_MSC_VER)
 #include <malloc.h>
@@ -31,28 +33,6 @@
 namespace mkldnn {
 namespace impl {
 namespace cpu {
-
-enum {
-    PARTITION_1D_ROW,
-    PARTITION_1D_COL,
-    PARTITION_2D_COL_MAJOR,
-    PARTITION_2D = PARTITION_2D_COL_MAJOR,
-};
-
-enum {
-    COPY_NONE,
-    COPY_A,
-};
-
-enum {
-    NO_OFFSET,
-    FIX_OFFSET,
-    COL_OFFSET,
-    ROW_OFFSET,
-};
-
-// Alias for any dimension related variable.
-typedef long long int dim_t;
 
 typedef struct {
     int8_t *a_buf;
@@ -64,74 +44,6 @@ typedef struct {
     int partition;
     int copy_type;
 } blas_thread_t;
-
-typedef struct {
-    // Interface arguments.
-    int transa, transb, offsetc;
-    dim_t m, n, k;
-    dim_t lda, ldb, ldc;
-    const int8_t *a;
-    const uint8_t *b;
-    int32_t *c;
-    const float *alpha, *beta;
-
-    int8_t ao, bo;
-    const int32_t *co;
-
-    // Kernel parameters.
-    dim_t um, un, uk, bm, bn, bk;
-    dim_t bn_small_k, bk_traditional, blocking_small_k;
-
-    int (*copyA)(const dim_t *m, const dim_t *n, const int8_t *a,
-            const dim_t *lda, const int8_t *alpha, int8_t *b,
-            const dim_t *dummy1, const dim_t *dummy2, int32_t *row_col_sum);
-
-    int (*copyB)(const dim_t *m, const dim_t *n, const uint8_t *a,
-            const dim_t *lda, const uint8_t *alpha, uint8_t *b,
-            const dim_t *dummy1, const dim_t *dummy2, int32_t *row_col_sum);
-
-    int (*kernel)(const dim_t *m, const dim_t *n, const dim_t *k,
-            const float *alpha, const int8_t *a, const uint8_t *b, int32_t *c,
-            const dim_t ldc, const int32_t *col_offset,
-            const int32_t *row_offset);
-
-    int (*kernel_b)(const dim_t *m, const dim_t *n, const dim_t *k,
-            const float *alpha, const int8_t *a, const uint8_t *b, int32_t *c,
-            const dim_t ldc, const int32_t *col_offset,
-            const int32_t *row_offset);
-
-    int (*kernel_r)(const dim_t *m, const dim_t *n, const dim_t *k,
-            const float *alpha, const int8_t *a, const uint8_t *b, int32_t *c,
-            const dim_t ldc, const int32_t *col_offset,
-            const int32_t *row_offset);
-
-    int (*kernel_c)(const dim_t *m, const dim_t *n, const dim_t *k,
-            const float *alpha, const int8_t *a, const uint8_t *b, int32_t *c,
-            const dim_t ldc, const int32_t *col_offset,
-            const int32_t *row_offset);
-
-    int (*kernel_b0)(const dim_t *m, const dim_t *n, const dim_t *k,
-            const float *alpha, const int8_t *a, const uint8_t *b, int32_t *c,
-            const dim_t ldc, const int32_t *col_offset,
-            const int32_t *row_offset);
-
-    int (*kernel_b0_b)(const dim_t *m, const dim_t *n, const dim_t *k,
-            const float *alpha, const int8_t *a, const uint8_t *b, int32_t *c,
-            const dim_t ldc, const int32_t *col_offset,
-            const int32_t *row_offset);
-
-    int (*kernel_b0_r)(const dim_t *m, const dim_t *n, const dim_t *k,
-            const float *alpha, const int8_t *a, const uint8_t *b, int32_t *c,
-            const dim_t ldc, const int32_t *col_offset,
-            const int32_t *row_offset);
-
-    int (*kernel_b0_c)(const dim_t *m, const dim_t *n, const dim_t *k,
-            const float *alpha, const int8_t *a, const uint8_t *b, int32_t *c,
-            const dim_t ldc, const int32_t *col_offset,
-            const int32_t *row_offset);
-
-} blas_t;
-
 
 static inline void round_to_nearest(int32_t *rounded_val, double fp_val) {
     if (fp_val >= 0.) {
@@ -1116,6 +1028,10 @@ static int gemm_threading_driver(blas_t *arg)
     if ((arg->m <= 0) || (arg->n <= 0))
         return mkldnn_success;
 
+    if (gemm_s8u8s32_jump_to_gemv_s8u8s32(arg)) {
+        return mkldnn_success;
+    }
+
     int nthr = (mkldnn_in_parallel()) ? 1 : mkldnn_get_max_threads();
     get_omp_thread_count(arg->m, arg->n, arg->k, 64.0, &nthr);
 
@@ -1206,6 +1122,8 @@ static jit_avx512_core_gemm_s8u8s32_kern *kernel_b0;
 static jit_avx512_core_gemm_s8u8s32_kern *kernel_b0_b;
 static jit_avx512_core_gemm_s8u8s32_kern *kernel_b0_r;
 static jit_avx512_core_gemm_s8u8s32_kern *kernel_b0_c;
+static jit_avx512_core_gemv_s8u8s32_kern *gemv_s8u8s32_kernel;
+static jit_avx512_core_gemv_s8u8s32_kern *gemv_u8s8s32_kernel;
 
 static void jit_init(blas_t *arg)
 {
@@ -1281,6 +1199,14 @@ static void jit_init(blas_t *arg)
             const dim_t ldc, const int32_t *col_offset,
             const int32_t *row_offset);
 
+    static void (*gemv_s8u8s32_kern)(const dim_t, const dim_t, const float,
+                                     const int8_t*, const dim_t, const uint8_t*,
+                                     const float, int32_t*);
+
+    static void (*gemv_u8s8s32_kern)(const dim_t, const dim_t, const float,
+                                     const uint8_t*, const dim_t, const int8_t*,
+                                     const float, int32_t*);
+
     if (mayiuse(avx512_core_vnni)) {
             arg->um = AVX512_UNROLL_M;
             arg->un = AVX512_UNROLL_N;
@@ -1307,6 +1233,7 @@ static void jit_init(blas_t *arg)
 
     static std::once_flag initialized;
     std::call_once(initialized, []{
+
         copy_an = new jit_avx512_core_u8_copy_an_kern();
         copy_at = new jit_avx512_core_u8_copy_at_kern();
         copy_bn = new jit_avx512_core_u8_copy_bn_kern();
@@ -1325,6 +1252,10 @@ static void jit_init(blas_t *arg)
         kernel_b0_b = new jit_avx512_core_gemm_s8u8s32_kern(true,  true,  true);
         kernel_b0_r = new jit_avx512_core_gemm_s8u8s32_kern(true,  false, true);
         kernel_b0_c = new jit_avx512_core_gemm_s8u8s32_kern(true,  true,  false);
+
+        gemv_s8u8s32_kernel = new jit_avx512_core_gemv_s8u8s32_kern();
+        gemv_u8s8s32_kernel = new jit_avx512_core_gemv_s8u8s32_kern();
+
 
         copyAn = copy_an->getCode<int (*)(const dim_t *, const dim_t *,
                 const int8_t *, const dim_t *, const int8_t *, int8_t *,
@@ -1389,6 +1320,13 @@ static void jit_init(blas_t *arg)
         kern_b0_c = kernel_b0_c->getCode<int (*)(const dim_t *, const dim_t *,
                 const dim_t *, const float *, const int8_t *, const uint8_t *,
                 int32_t *, const dim_t, const int32_t *, const int32_t *)>();
+
+        gemv_s8u8s32_kern =
+            gemv_s8u8s32_kernel -> generate<jit_avx512_core_gemv_s8u8s32_kern::gemv_s8u8s32_kernel_t>
+            (mayiuse(avx512_core_vnni));
+        gemv_u8s8s32_kern =
+            gemv_u8s8s32_kernel -> generate<jit_avx512_core_gemv_s8u8s32_kern::gemv_u8s8s32_kernel_t>
+            (mayiuse(avx512_core_vnni));
     });
 
     if (arg->bo == 0) { // No need to compute A row sum if bo is zero
@@ -1427,6 +1365,8 @@ static void jit_init(blas_t *arg)
     arg->kernel_b0_b = kern_b0_b;
     arg->kernel_b0_r = kern_b0_r;
     arg->kernel_b0_c = kern_b0_c;
+    arg -> gemv_s8u8s32_kernel = gemv_s8u8s32_kern;
+    arg -> gemv_u8s8s32_kernel = gemv_u8s8s32_kern;
 }
 
 mkldnn_status_t jit_avx512_core_gemm_s8u8s32(
