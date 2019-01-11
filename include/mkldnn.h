@@ -1742,13 +1742,23 @@ mkldnn_status_t MKLDNN_API mkldnn_stream_destroy(mkldnn_stream_t stream);
 
 /** Sets verbosity level (print information to stdout).
  * Possible levels are:
- *  - 0 -- no verbose output
+ *  - 0 -- no verbose output (default)
  *  - 1 -- primitive information at execution
  *  - 2 -- primitive information at creation and execution
  *
  * @note
- *     Dumping information might affect performance. */
-mkldnn_status_t MKLDNN_API mkldnn_verbose_set(int level);
+ *     Dumping information might affect performance.
+ *     This setting overrides the MKLDNN_VERBOSE environment variable. */
+mkldnn_status_t MKLDNN_API mkldnn_set_verbose(int level);
+
+/** Sets jit dump control.
+ * dump equals:
+ *  - zero -- turn jit dump off (default)
+ *  - non-zero -- turn jit dump on
+ *
+ * @note
+ *     This setting overrides the MKLDNN_JIT_DUMP environment variable. */
+mkldnn_status_t MKLDNN_API mkldnn_set_jit_dump(int dump);
 
 /** @} */
 

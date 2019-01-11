@@ -21,6 +21,7 @@
 #endif
 #include "xmmintrin.h"
 
+#include "mkldnn.h"
 #include "utils.hpp"
 
 namespace mkldnn {
@@ -58,9 +59,9 @@ int mkldnn_getenv(char *value, const char *name, int length) {
 }
 
 static bool dump_jit_code;
+static bool initialized;
 
 bool mkldnn_jit_dump() {
-    static bool initialized = false;
     if (!initialized) {
         const int len = 2;
         char env_dump[len] = {0};
@@ -129,4 +130,12 @@ int32_t mkldnn_fetch_and_add(int32_t *dst, int32_t val) {
 }
 
 }
+}
+
+mkldnn_status_t mkldnn_set_jit_dump(int dump) {
+    using namespace mkldnn::impl::status;
+    if (dump < 0) return invalid_arguments;
+    mkldnn::impl::dump_jit_code = dump;
+    mkldnn::impl::initialized = true;
+    return success;
 }

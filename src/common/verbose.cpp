@@ -29,17 +29,19 @@ namespace mkldnn {
 namespace impl {
 
 static verbose_t verbose;
+static bool initialized;
 
 const verbose_t *mkldnn_verbose() {
 #if !defined(DISABLE_VERBOSE)
-    static int initialized = 0;
     if (!initialized) {
         const int len = 2;
         char val[len] = {0};
         if (mkldnn_getenv(val, "MKLDNN_VERBOSE", len) == 1)
             verbose.level = atoi(val);
-        initialized = 1;
+        initialized = true;
     }
+#else
+    verbose.level = 0;
 #endif
     return &verbose;
 }
@@ -62,9 +64,10 @@ double get_msec() {
 }
 }
 
-mkldnn_status_t mkldnn_verbose_set(int level) {
+mkldnn_status_t mkldnn_set_verbose(int level) {
     using namespace mkldnn::impl::status;
     if (level < 0 || level > 2) return invalid_arguments;
     mkldnn::impl::verbose.level = level;
+    mkldnn::impl::initialized = true;
     return success;
 }
