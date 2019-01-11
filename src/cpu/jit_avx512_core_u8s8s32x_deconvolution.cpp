@@ -588,7 +588,7 @@ execute_forward() const
                                         - oj - jcp.t_pad), dilate_h);
                             int o_b_overflow
                                 = div_up(max(0, (jcp.kh - 1) * dilate_h + 1
-                                        - jcp.ih + oj - jcp.b_pad), dilate_h);
+                                        - jcp.oh + oj - jcp.b_pad), dilate_h);
                             kh_len = jcp.kh - o_t_overflow - o_b_overflow;
                             kh_lo = o_b_overflow;
                             ih_max = oj + jcp.t_pad - o_b_overflow * dilate_h;
