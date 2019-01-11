@@ -123,8 +123,9 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t
                     conv_1x1_pd_->dst_pd()->desc()->format));
             CHECK(this->weights_pd_.set_format(
                     conv_1x1_pd_->weights_pd()->desc()->format));
-            CHECK(this->bias_pd_.set_format(
-                    conv_1x1_pd_->weights_pd(1)->desc()->format));
+            if (this->with_bias())
+                CHECK(this->bias_pd_.set_format(
+                        conv_1x1_pd_->weights_pd(1)->desc()->format));
             return status::success;
         }
 
