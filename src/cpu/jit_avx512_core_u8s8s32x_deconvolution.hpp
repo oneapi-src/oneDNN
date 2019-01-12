@@ -110,7 +110,7 @@ private:
 
     int get_ow_end(int ur_w, int ki, int r_overflow) {
         if (utils::one_of(ur_w, jcp.ow, jcp.ur_w_tail))
-                ur_w += nstl::min(0, jcp.r_pad);
+                ur_w += nstl::min(0, jcp.r_pad); // remove negative padding
         int res = (ur_w - 1 + jcp.l_pad) % jcp.stride_w
             + r_overflow * jcp.stride_w - ki * (jcp.dilate_w + 1);
         while (res < 0)

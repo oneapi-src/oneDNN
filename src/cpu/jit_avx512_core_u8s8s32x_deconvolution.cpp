@@ -25,13 +25,13 @@ namespace cpu {
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::utils;
+using namespace Xbyak;
 
 using namespace nstl;
 
-#define wht_blk_off(d, g, ...) \
-        (pd()->with_groups() \
-         ? (d).blk_off((g), __VA_ARGS__) \
-         : (d).blk_off(__VA_ARGS__))
+#define wht_blk_off(d, g, ...)                             \
+    (pd()->with_groups() ? (d).blk_off((g), __VA_ARGS__) : \
+                           (d).blk_off(__VA_ARGS__))
 
 status_t jit_avx512_core_u8s8s32x_deconv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         const deconvolution_desc_t &cd, cpu_memory_t::pd_t &src_pd,
@@ -59,8 +59,9 @@ status_t jit_avx512_core_u8s8s32x_deconv_fwd_kernel::init_conf(jit_conv_conf_t &
     jcp.ic = src_d.dims()[1] / jcp.ngroups;
     jcp.oc_without_padding = dst_d.dims()[1] / jcp.ngroups;
     jcp.ic_without_padding = src_d.dims()[1] / jcp.ngroups;
-    jcp.is_depthwise = true && with_groups && utils::everyone_is(1,
-            jcp.ic_without_padding, jcp.oc_without_padding);
+    jcp.is_depthwise = true && with_groups
+            && utils::everyone_is(1, jcp.ic_without_padding,
+                               jcp.oc_without_padding);
 
     const auto w_format = with_groups
         ? (jcp.is_depthwise ? Goihw16g : gOIhw4i16o4i)
@@ -101,7 +102,7 @@ status_t jit_avx512_core_u8s8s32x_deconv_fwd_kernel::init_conf(jit_conv_conf_t &
     jcp.stride_h = cd.strides[0];
     jcp.stride_w = cd.strides[1];
     jcp.src_fmt = src_d.format();
-    jcp.with_eltwise = false; /* TODO: support post-ops */
+    jcp.with_eltwise = false;
 
     if (jcp.is_depthwise) {
         jcp.ch_block = 16;
@@ -125,9 +126,9 @@ status_t jit_avx512_core_u8s8s32x_deconv_fwd_kernel::init_conf(jit_conv_conf_t &
 
     if (!IMPLICATION(jcp.dilate_h, jcp.stride_h == 1)
             || !IMPLICATION(jcp.dilate_w, jcp.stride_w == 1))
-            return status::unimplemented;
+        return status::unimplemented;
 
-    /*bottom and right :padding*/
+    /* padding: bottom and right */
     jcp.b_pad = (jcp.ih - 1) * jcp.stride_h + (jcp.kh - 1) * (jcp.dilate_h + 1)
             - (jcp.oh + jcp.t_pad - 1);
     jcp.r_pad = (jcp.iw - 1) * jcp.stride_w + (jcp.kw - 1) * (jcp.dilate_w + 1)
@@ -144,7 +145,8 @@ status_t jit_avx512_core_u8s8s32x_deconv_fwd_kernel::init_conf(jit_conv_conf_t &
 
     jcp.dst_dt = dst_d.data_type();
     jcp.bia_dt = jcp.with_bias ? bias_d.data_type() : data_type::undef;
-    jcp.typesize_bia = jcp.with_bias ? types::data_type_size(bias_d.data_type()) : 0;
+    jcp.typesize_bia
+            = jcp.with_bias ? types::data_type_size(bias_d.data_type()) : 0;
     jcp.typesize_in = types::data_type_size(src_d.data_type());
     jcp.typesize_out = types::data_type_size(dst_d.data_type());
 
@@ -152,7 +154,7 @@ status_t jit_avx512_core_u8s8s32x_deconv_fwd_kernel::init_conf(jit_conv_conf_t &
     jcp.nb_oc = jcp.oc / jcp.oc_block;
     jcp.nb_ic = jcp.ic / jcp.ic_block;
 
-    /*kernel blocking params*/
+    /* kernel blocking params */
     const int regs = jcp.ver == ver_vnni ? 31 : 29;
     jcp.nb_oc_blocking = nstl::min(4, jcp.nb_oc);
     for (; jcp.nb_oc_blocking > 1; jcp.nb_oc_blocking--)
@@ -161,42 +163,46 @@ status_t jit_avx512_core_u8s8s32x_deconv_fwd_kernel::init_conf(jit_conv_conf_t &
             break;
 
     jcp.ur_w = regs / (jcp.nb_oc_blocking + 1);
-    int l_overflow = max(0, ((jcp.kw - 1) * (jcp.dilate_w + 1) - jcp.l_pad) / jcp.stride_w);
+    int l_overflow = max(
+            0, ((jcp.kw - 1) * (jcp.dilate_w + 1) - jcp.l_pad) / jcp.stride_w);
 
     if (jcp.ow < jcp.ur_w) {
         jcp.ur_w = jcp.ow;
         jcp.ur_w_tail = 0;
-    }
-    else {
-          for (; jcp.ur_w >= 1; jcp.ur_w--) {
-              /* ur_w should be multiple of stride_w in order
-                 to simplify logic for get_ow_start and get_ow_end */
-              bool is_multiple_of_stride = jcp.ur_w % jcp.stride_w == 0;
+    } else {
+        for (; jcp.ur_w >= 1; jcp.ur_w--) {
+            /* ur_w should be multiple of stride_w in order
+               to simplify logic for get_ow_start and get_ow_end */
+            bool is_multiple_of_stride = jcp.ur_w % jcp.stride_w == 0;
 
-              /* boundary conditions:
-                 These conditions ensure all elements close to boundary
-                 are computed in a single call of compute loop*/
-              bool left_boundary_covered = jcp.ur_w >= l_overflow * jcp.stride_w;
-              jcp.ur_w_tail = jcp.ow % jcp.ur_w;
-              int r_overflow_no_tail = max(0, ((jcp.kw - 1) * (jcp.dilate_w + 1)
-                          - max(0, jcp.r_pad) - jcp.ur_w_tail) / jcp.stride_w);
-              bool right_boundary_covered = jcp.ur_w >= r_overflow_no_tail * jcp.stride_w;
+            /* boundary conditions:
+               These conditions ensure all elements close to boundary
+               are computed in a single call of compute loop*/
+            bool left_boundary_covered = jcp.ur_w >= l_overflow * jcp.stride_w;
+            jcp.ur_w_tail = jcp.ow % jcp.ur_w;
+            int r_overflow_no_tail
+                    = max(0, ((jcp.kw - 1) * (jcp.dilate_w + 1)
+                                     - max(0, jcp.r_pad) - jcp.ur_w_tail)
+                                    / jcp.stride_w);
+            bool right_boundary_covered
+                    = jcp.ur_w >= r_overflow_no_tail * jcp.stride_w;
 
-              if (is_multiple_of_stride && left_boundary_covered && right_boundary_covered)
-                  break;
-              else if (jcp.ur_w == 1)
-                  /* The boundary conditions above are also important
-                     to maintain simplicity of calls to icb_loop,
-                     if those conditions are not satisfied,
-                     then special cases will need to be added
-                     to use correct l_overflow/r_overflow values
-                     when different iterations of compute loop
-                     work on the locations close to boundary.
-                     So to keep code simple, return unimplemented
-                     for extreme case when a good ur_w cannot be found.
-                   */
-                  return status::unimplemented;
-          }
+            if (is_multiple_of_stride && left_boundary_covered
+                    && right_boundary_covered)
+                break;
+            else if (jcp.ur_w == 1)
+                /* The boundary conditions above are also important
+                   to maintain simplicity of calls to icb_loop,
+                   if those conditions are not satisfied,
+                   then special cases will need to be added
+                   to use correct l_overflow/r_overflow values
+                   when different iterations of compute loop
+                   work on the locations close to boundary.
+                   So to keep code simple, return unimplemented
+                   for extreme case when a good ur_w cannot be found.
+                 */
+                return status::unimplemented;
+        }
     }
 
     jcp.loop_order = jcp.ngroups > 1 ? loop_ngc : loop_cgn;
@@ -216,10 +222,11 @@ void jit_avx512_core_u8s8s32x_deconv_fwd_kernel::kh_loop(
            (((oj + jcp.l_pad - ki * (jcp.dilate_w + 1)) / jcp.stride_w) * jcp.ngroups * jcp.ic_without_padding + icb * 4);
     };
 
-    auto kernel_offset = [=] (int ocb, int icb, int ki) {
-        return jcp.typesize_in *
-            (ocb * jcp.nb_ic * jcp.kh * jcp.kw * ch_block_all + icb * jcp.oc_block * jcp.ic_block/4
-             + ki * ch_block_all);
+    auto kernel_offset = [=](int ocb, int icb, int ki) {
+        return jcp.typesize_in
+                * (ocb * jcp.nb_ic * jcp.kh * jcp.kw * ch_block_all
+                          + icb * jcp.oc_block * jcp.ic_block / 4
+                          + ki * ch_block_all);
     };
 
     auto compute = [=](zmm_t vreg_acc, zmm_t vreg_wei, zmm_t vreg_src) {
@@ -339,10 +346,9 @@ void jit_avx512_core_u8s8s32x_deconv_fwd_kernel::store_output(int ur_w, bool las
         for (int ur = 0; ur < ur_w; ur++) {
             zmm_t zmm = zmm_out(ur, ocb);
             vcvtdq2ps(zmm, zmm);
-            if (jcp.with_bias) vaddps(zmm, zmm, zmm_bias);
-            zmm_t mask_zmm = mask_flag
-                           ? zmm | ktail_mask | T_z
-                           : zmm;
+            if (jcp.with_bias)
+                vaddps(zmm, zmm, zmm_bias);
+            zmm_t mask_zmm = mask_flag ? zmm | ktail_mask | T_z : zmm;
             vmulps(mask_zmm, zmm,
                     EVEX_compress_addr(reg_ptr_scales, scale_offset));
 
@@ -359,13 +365,12 @@ void jit_avx512_core_u8s8s32x_deconv_fwd_kernel::store_output(int ur_w, bool las
         }
         for (int ur = 0; ur < ur_w; ur++) {
             int aux_dst_off = jcp.typesize_out
-                * (ur * jcp.ngroups * jcp.oc_without_padding + ocb * jcp.oc_block);
+                    * (ur * jcp.ngroups * jcp.oc_without_padding
+                                      + ocb * jcp.oc_block);
             auto addr = EVEX_compress_addr(reg_dst, aux_dst_off);
 
             zmm_t zmm = zmm_out(ur, ocb);
-            zmm_t r_zmm = mask_flag
-                        ? zmm | ktail_mask
-                        : zmm;
+            zmm_t r_zmm = mask_flag ? zmm | ktail_mask : zmm;
             switch (jcp.dst_dt) {
             case data_type::f32:
             case data_type::s32: vmovups(addr, r_zmm); break;
@@ -385,7 +390,7 @@ void jit_avx512_core_u8s8s32x_deconv_fwd_kernel::icb_loop(
 
     prepare_output(ur_w);
 
-    Xbyak::Label skip_icb_loop, icb_loop_label;
+    Label skip_icb_loop, icb_loop_label;
     if (min(jcp.t_pad, jcp.b_pad) < 0
             || (jcp.kh - 1) * (jcp.dilate_h + 1) < max(jcp.t_pad, jcp.b_pad)) {
         mov(reg_kj, reg_kh);
@@ -397,7 +402,7 @@ void jit_avx512_core_u8s8s32x_deconv_fwd_kernel::icb_loop(
     L(icb_loop_label); {
 
         if (jcp.ic_without_padding != jcp.ic) {
-            Xbyak::Label common_ker, end_ker;
+            Label common_ker, end_ker;
             cmp(reg_icb, 1);
             jg(common_ker, T_NEAR);
 
@@ -419,12 +424,14 @@ void jit_avx512_core_u8s8s32x_deconv_fwd_kernel::icb_loop(
         cmp(reg_icb, 0);
         jg(icb_loop_label, T_NEAR);
     }
+
+    /* come-back pointers */
     sub(reg_src, jcp.nb_ic * shift_src_icb);
     sub(reg_filt, jcp.nb_ic * shift_filt_icb);
     L(skip_icb_loop);
 
     if (jcp.ngroups % jcp.ch_block != 0 || jcp.oc_without_padding != jcp.oc) {
-        Xbyak::Label common_store, end_store;
+        Label common_store, end_store;
         mov(reg_oc_blocks, ptr[param1 + GET_OFF(oc_blocks)]);
         if (jcp.is_depthwise)
             cmp(reg_oc_blocks, jcp.nb_ch - 1);
@@ -448,16 +455,16 @@ void jit_avx512_core_u8s8s32x_deconv_fwd_kernel::icb_loop(
 void jit_avx512_core_u8s8s32x_deconv_fwd_kernel::generate() {
     preamble();
 
-    Xbyak::Reg16 _t = reg_scratch.cvt16();
+    Reg16 _t = reg_scratch.cvt16();
     mov(_t, 0x1);
     vpbroadcastw(zmm_one, _t);
 
     if (jcp.ngroups % jcp.ch_block != 0 || jcp.oc_without_padding != jcp.oc) {
-        int tail_size = jcp.is_depthwise
-            ? jcp.ngroups % jcp.ch_block
-            : jcp.oc_without_padding % jcp.oc_block;
+        int tail_size = jcp.is_depthwise ?
+                jcp.ngroups % jcp.ch_block :
+                jcp.oc_without_padding % jcp.oc_block;
         int mask = (1 << tail_size) - 1;
-        Xbyak::Reg32 regw_tmp = reg_nur_w.cvt32();
+        Reg32 regw_tmp = reg_nur_w.cvt32();
         mov(regw_tmp, mask);
         kmovw(ktail_mask, regw_tmp);
     }
@@ -467,17 +474,24 @@ void jit_avx512_core_u8s8s32x_deconv_fwd_kernel::generate() {
     mov(reg_dst, ptr[param1 + GET_OFF(dst)]);
     mov(reg_kh, ptr[param1 + GET_OFF(kh_padding)]);
 
-    int dst_shift = jcp.typesize_out * jcp.ur_w * jcp.ngroups * jcp.oc_without_padding;
-    int src_shift = jcp.typesize_in * (jcp.ur_w / jcp.stride_w) * jcp.ngroups * jcp.ic_without_padding;
+    int dst_shift = jcp.typesize_out * jcp.ur_w * jcp.ngroups
+            * jcp.oc_without_padding;
+    int src_shift = jcp.typesize_in * (jcp.ur_w / jcp.stride_w) * jcp.ngroups
+            * jcp.ic_without_padding;
 
-    int l_overflow = max(0, ((jcp.kw - 1) * (jcp.dilate_w + 1) - jcp.l_pad) / jcp.stride_w);
-    int r_overflow = max(0, ((jcp.kw - 1) * (jcp.dilate_w + 1)
-                     - max(0, jcp.r_pad)) / jcp.stride_w);
+    int l_overflow = max(
+            0, ((jcp.kw - 1) * (jcp.dilate_w + 1) - jcp.l_pad) / jcp.stride_w);
+    int r_overflow
+            = max(0, ((jcp.kw - 1) * (jcp.dilate_w + 1) - max(0, jcp.r_pad))
+                            / jcp.stride_w);
 
-    int r_overflow1 = nstl::max(0, ((jcp.kw -1) * (jcp.dilate_w + 1)
-                - nstl::max(0, jcp.r_pad) - jcp.ur_w_tail) / jcp.stride_w);
+    int r_overflow1
+            = nstl::max(0, ((jcp.kw - 1) * (jcp.dilate_w + 1)
+                                   - nstl::max(0, jcp.r_pad) - jcp.ur_w_tail)
+                            / jcp.stride_w);
     int nur_w = jcp.ow / jcp.ur_w;
-    if (r_overflow1 > 0) nur_w--;
+    if (r_overflow1 > 0)
+        nur_w--;
 
     if (jcp.ur_w == jcp.ow) {
         icb_loop(jcp.ur_w, l_overflow, r_overflow, true);
@@ -495,10 +509,10 @@ void jit_avx512_core_u8s8s32x_deconv_fwd_kernel::generate() {
             add(reg_dst, dst_shift);
             inc(reg_nur_w);
         }
-        if ((l_overflow <= 0 && nur_w > 0)
-                || (l_overflow > 0 && nur_w > 1)) {
-            Xbyak::Label ow_loop_label;
-            L(ow_loop_label); {
+        if ((l_overflow <= 0 && nur_w > 0) || (l_overflow > 0 && nur_w > 1)) {
+            Label ow_loop_label;
+            L(ow_loop_label);
+            {
                 icb_loop(jcp.ur_w, 0, 0, false);
                 add(reg_src, src_shift);
                 add(reg_dst, dst_shift);
@@ -581,6 +595,7 @@ execute_forward() const
                 for (int oj = oh_s; oj < oh_e; oj++) {
                     int ih_max, kh_lo, kh_len;
                     if (jcp.dilate_h != 0 && jcp.stride_h == 1) {
+                            /* dilation */
                             int dilate_h = jcp.dilate_h + 1;
                             // Note: use div_up to account for "holes" in filter
                             int o_t_overflow
