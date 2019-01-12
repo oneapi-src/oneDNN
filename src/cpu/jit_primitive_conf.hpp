@@ -297,6 +297,9 @@ struct jit_deconv_call_s {
     const void *filt; /* hack, non-const for backward_weights */
     const void *bias; /* hack, non-const for backward_bias */
     const void *scales;
+    const void *compensation;
+    size_t t_overflow;
+    size_t b_overflow;
     size_t kh_padding;
     size_t oc_blocks;
 };

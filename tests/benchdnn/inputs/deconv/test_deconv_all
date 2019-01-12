@@ -13,6 +13,7 @@
 
 --attr=irmode=down;oscale=per_oc:2.25;
 --cfg=u8s8u8s32 --batch=deconv_2d --batch=deconv_dilated
+--cfg=s8s8u8s32 --batch=deconv_2d --batch=deconv_dilated
 
 --attr=irmode=nearest;oscale=common:2.25;
 --cfg=u8s8s8s32 --batch=deconv_2d

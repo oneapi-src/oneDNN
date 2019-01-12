@@ -39,7 +39,7 @@
 #include "cpu/gemm_convolution.hpp"
 #include "cpu/gemm_x8s8s32x_convolution.hpp"
 #include "cpu/ref_convolution.hpp"
-#include "cpu/jit_avx512_core_u8s8s32x_deconvolution.hpp"
+#include "cpu/jit_avx512_core_x8s8s32x_deconvolution.hpp"
 #include "cpu/jit_avx512_core_x8s8s32x_1x1_deconvolution.hpp"
 #include "cpu/ref_deconvolution.hpp"
 #include "cpu/ref_shuffle.hpp"
@@ -195,10 +195,14 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t<s8,s32>),
     INSTANCE(jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t<s8,u8>),
     INSTANCE(jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t<s8,s8>),
-    INSTANCE(_jit_avx512_core_u8s8s32x_deconvolution_fwd_t<s32>),
-    INSTANCE(_jit_avx512_core_u8s8s32x_deconvolution_fwd_t<u8>),
-    INSTANCE(_jit_avx512_core_u8s8s32x_deconvolution_fwd_t<s8>),
-    INSTANCE(_jit_avx512_core_u8s8s32x_deconvolution_fwd_t<f32>),
+    INSTANCE(_jit_avx512_core_x8s8s32x_deconvolution_fwd_t<u8,s32>),
+    INSTANCE(_jit_avx512_core_x8s8s32x_deconvolution_fwd_t<u8,u8>),
+    INSTANCE(_jit_avx512_core_x8s8s32x_deconvolution_fwd_t<u8,s8>),
+    INSTANCE(_jit_avx512_core_x8s8s32x_deconvolution_fwd_t<u8,f32>),
+    INSTANCE(_jit_avx512_core_x8s8s32x_deconvolution_fwd_t<s8,s32>),
+    INSTANCE(_jit_avx512_core_x8s8s32x_deconvolution_fwd_t<s8,u8>),
+    INSTANCE(_jit_avx512_core_x8s8s32x_deconvolution_fwd_t<s8,s8>),
+    INSTANCE(_jit_avx512_core_x8s8s32x_deconvolution_fwd_t<s8,f32>),
     INSTANCE(ref_deconvolution_bwd_weights_t),
     INSTANCE(ref_deconvolution_bwd_data_t),
     INSTANCE(ref_deconvolution_fwd_t),
