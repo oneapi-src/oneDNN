@@ -134,6 +134,7 @@ void jit_avx512_core_x8s8s32x_fwd_kernel::store_output(
         mov(reg_ptr_sum_scale, (size_t)p_sum_scale);
 
     if (jcp.signed_input && jcp.ver != ver_vnni) {
+        /* put 'wei_adj_scale = 0.5' for bias calculation */
         mov(reg_bias_alpha, float2int(jcp.wei_adj_scale));
         vmovq(xmm_bias_alpha(), reg_bias_alpha);
         vbroadcastss(zmm_bias_alpha(), xmm_bias_alpha());
@@ -148,6 +149,7 @@ void jit_avx512_core_x8s8s32x_fwd_kernel::store_output(
 
             cvt2ps(jcp.bia_dt, zmm_bias, bias_addr, mask_flag);
             if (jcp.signed_input && jcp.ver != ver_vnni)
+                /* bias *= 0.5 */
                 vmulps(zmm_bias, zmm_bias, zmm_bias_alpha());
         }
         if (jcp.signed_input) {
@@ -156,6 +158,7 @@ void jit_avx512_core_x8s8s32x_fwd_kernel::store_output(
 
             cvt2ps(data_type::s32, zmm_comp, comp_addr, mask_flag);
         }
+        /* add to zmm_accum: compensation, bias and permute */
         for (int j = 0; j < ur_w; j++) {
             Zmm zmm = zmm_out(j, k);
             if (jcp.is_fast_depthwise)
@@ -172,6 +175,7 @@ void jit_avx512_core_x8s8s32x_fwd_kernel::store_output(
         }
     }
 
+    /* Do post-ops */
     if (maybe_eltwise(0)) compute_eltwise(ur_w);
     if (p_sum_scale) { // post_op: sum
         for (int k = 0; k < nb_oc_block; k++) {
@@ -193,6 +197,7 @@ void jit_avx512_core_x8s8s32x_fwd_kernel::store_output(
     }
     if (maybe_eltwise(1)) compute_eltwise(ur_w);
 
+    /* write out register to output_addr */
     for (int k = 0; k < nb_oc_block; k++) {
         const bool mask_flag = last_oc_block_flag && k == nb_oc_block - 1;
         for (int j = 0; j < ur_w; j++) {
@@ -355,6 +360,7 @@ void jit_avx512_core_x8s8s32x_fwd_kernel::compute_ker(int ur_w, int pad_l,
             : ic_block / 4;
         for (int ic = 0; ic < icb; ic++) {
             if (h_padded == true) {
+                /* fill padded area with shifted values */
                 Zmm inp = zmm_inp(0,nb_oc_block);
                 vpxord(inp, inp, inp);
                 vpaddb(inp, inp, zmm_shift);
@@ -378,6 +384,7 @@ void jit_avx512_core_x8s8s32x_fwd_kernel::compute_ker(int ur_w, int pad_l,
                             vpaddb(zmm_inp(jj, nb_oc_block),
                                    zmm_inp(jj, nb_oc_block), zmm_shift);
                     } else {
+                        /* fill padded area with shifted values */
                         if (jcp.signed_input) {
                             Zmm inp = zmm_inp(jj, nb_oc_block);
                             vpxord(inp, inp, inp);
