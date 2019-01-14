@@ -474,15 +474,40 @@ status_t init_conf(jit_gemm_conv_conf_t &jcp,
     bool is_int8_conv = utils::one_of(src_d.data_type(), s32, s8, u8)
         && weights_d.data_type() == s8;
 
+    const int vlen = mayiuse(avx512_common)
+        ? cpu_isa_traits<avx512_common>::vlen
+        : mayiuse(avx)
+            ? cpu_isa_traits<avx>::vlen
+            : mayiuse(sse42) ? cpu_isa_traits<sse42>::vlen : 4;
+    const int simd_w = vlen / (is_int8_conv ? 1 : 4);
+
     const bool is_bwd_d = jcp.prop_kind == backward_data;
     const bool is_bwd_w = jcp.prop_kind == backward_weights;
     const bool is_fwd = !is_bwd_d && !is_bwd_w;
 
     using namespace memory_tracking::names;
+    //  For threading selection we do:
+    //  1. Rough estimation of efficiency for inner and outer threading.
+    //  2. Gemm size estimation in assumption that it does not work
+    //  so effectively for small sizes.
+    //  64K - this is heuristic gemm size per thread threshold.
+    const int gemm_threshold = 64 * 1024;
     if (is_int8_conv) {
         bool is_depthwise = jcp.ic == 1 && jcp.oc == 1 && jcp.ngroups != 1;
-        do_outer_threading = is_depthwise
-            || (jcp.os / max_threads < 64 && jcp.mb != 1);
+
+        const int bs = is_fwd ? jcp.os : jcp.is;
+        const int ls = is_fwd ? jcp.oc : jcp.ic;
+        const size_t outer_work_amount = jcp.ngroups * jcp.mb;
+        const float outer_thr_eff = (float)outer_work_amount
+                / rnd_up(outer_work_amount, max_threads);
+        const size_t inner_work_amount
+                = div_up(bs, simd_w) * div_up(ls, simd_w);
+        const float inner_thr_eff = (float)inner_work_amount
+                / rnd_up(inner_work_amount, max_threads);
+        do_outer_threading = (is_depthwise
+                || (bs  / max_threads < 64 && jcp.mb != 1))
+            && (outer_thr_eff / inner_thr_eff >= 1.f
+                   || (bs * jcp.ic * jcp.oc) / max_threads < gemm_threshold);
         jcp.nthr = do_outer_threading ? max_threads : 1;
 
         if (is_fwd) {
@@ -500,13 +525,31 @@ status_t init_conf(jit_gemm_conv_conf_t &jcp,
             return status::unimplemented;
         }
     } else {
-        if (is_fwd)
+        if (is_fwd) {
+            const size_t outer_work_amount = jcp.ngroups * jcp.mb * jcp.od;
+            const float outer_thr_eff = (float)outer_work_amount
+                    / rnd_up(outer_work_amount, max_threads);
+            const size_t inner_work_amount
+                    = div_up(jcp.os, simd_w) * div_up(jcp.oc, simd_w);
+            const float inner_thr_eff = (float)inner_work_amount
+                    / rnd_up(inner_work_amount, max_threads);
             do_outer_threading = jcp.os / max_threads < 512
-                && IMPLICATION(jcp.od == 1, jcp.mb != 1 || jcp.ngroups > 2);
-        else if (is_bwd_d)
+                && IMPLICATION(jcp.od == 1, jcp.mb != 1 || jcp.ngroups > 2)
+                && (outer_thr_eff / inner_thr_eff >= 1.f
+                  || (jcp.os * jcp.ic * jcp.oc) / max_threads < gemm_threshold);
+        } else if (is_bwd_d) {
+            const size_t outer_work_amount = jcp.ngroups * jcp.mb;
+            const float outer_thr_eff = (float)outer_work_amount
+                / rnd_up(outer_work_amount, max_threads);
+            const size_t inner_work_amount
+                = div_up(jcp.is, simd_w) * div_up(jcp.ic, simd_w);
+            const float inner_thr_eff = (float)inner_work_amount
+                / rnd_up(inner_work_amount, max_threads);
             do_outer_threading = (jcp.os / max_threads < 512 || jcp.ks < 64)
-                && (jcp.mb != 1 || jcp.ngroups > 2);
-        else if (is_bwd_w)
+                && (jcp.mb != 1 || jcp.ngroups > 2)
+                && (outer_thr_eff / inner_thr_eff >= 1.f
+                  || (jcp.is * jcp.ic * jcp.oc) / max_threads < gemm_threshold);
+        } else if (is_bwd_w)
             do_outer_threading = jcp.os / max_threads < 256
                 && (jcp.mb != 1 || jcp.ngroups > 2);
 
