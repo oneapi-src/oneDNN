@@ -421,8 +421,7 @@ void simple_net() {
             = { dec_n_layers, 1, lstm_n_gates, feature_size };
 
     memory::dims dec_src_layer_dims = { 1, batch, feature_size };
-    memory::dims dec_dst_layer_dims
-            = { tgt_seq_length_max, batch, feature_size };
+    memory::dims dec_dst_layer_dims = { 1, batch, feature_size };
 
     // We will use the same memory for dec_src_iter and dec_dst_iter
     // However, dec_src_iter has a context vector but not
@@ -495,11 +494,6 @@ void simple_net() {
        Execution
      */
     auto execute = [&]() {
-        // We save the original handle on dst_layer as we will modify it at each
-        // iteration
-        void *dst_layer_original_handle
-                = user_dec_dst_layer_memory.get_data_handle();
-
         // run encoder (1 stream)
         stream(stream::kind::eager).submit(encoder_net).wait();
 
@@ -509,43 +503,40 @@ void simple_net() {
                 user_weights_annotation.data(),
                 (float *)enc_dst_layer_memory.get_data_handle());
 
-        // We initialise dst_layer[0] to the embedding of </s>, which are
-        // assumed to
-        // be 0 here
-        memset(dst_layer_original_handle, 0,
-                batch * feature_size * sizeof(float));
+        // We initialise src_layer to the embedding of </s>, which
+        // are assumed to be 0 here
+        memset(dec_src_layer_memory.get_data_handle(), 0,
+               dec_src_layer_memory.get_primitive_desc().get_size());
+        // From now on, src points to the output of the last iteration
 
         for (int i = 0; i < tgt_seq_length_max; i++) {
-            float *dst_layer_handle
-                    = (float *)user_dec_dst_layer_memory.get_data_handle();
-            float *dst_iter_handle
-                    = (float *)dec_dst_iter_memory.get_data_handle();
+            float *src_att_layer_handle
+                    = (float *) dec_src_layer_memory.get_data_handle();
+            float *src_att_iter_handle
+                    = (float *) dec_dst_iter_memory.get_data_handle();
 
             // Compute attention context vector into the first layer src_iter
-            compute_attention(dst_iter_handle, src_seq_length_max, batch,
+            compute_attention(src_att_iter_handle, src_seq_length_max, batch,
                     feature_size, user_weights_attention_src_layer.data(),
-                    dst_layer_handle,
+                    src_att_layer_handle,
                     (float *)enc_bidir_dst_layer_memory.get_data_handle(),
                     weighted_annotations.data(),
                     user_weights_alignments.data());
 
             // copy the context vectors to all layers of src_iter
-            copy_context(dst_iter_handle, dec_n_layers, lstm_n_states, batch,
+            copy_context(src_att_iter_handle, dec_n_layers, lstm_n_states, batch,
                     feature_size);
-
-            // We set src_layer to be the previously
-            dec_src_layer_memory.set_data_handle(dst_layer_handle);
 
             // run the decoder iteration
             stream(stream::kind::eager).submit(decoder_net).wait();
 
-            // Move the handle on the dst layer to the next iteration
+            // Move the handle on the src/dst layer to the next iteration
+            auto dst_layer_handle = (float *) user_dec_dst_layer_memory.get_data_handle();
+            dec_src_layer_memory.set_data_handle(dst_layer_handle);
             user_dec_dst_layer_memory.set_data_handle(
                     dst_layer_handle + batch * feature_size);
         }
-        // we restore the handle to the begining of the buffer
-        user_dec_dst_layer_memory.set_data_handle(dst_layer_original_handle);
-        /// @todo run the softmax after each iteration or not?
+
     };
 
     execute();
