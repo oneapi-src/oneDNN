@@ -19,15 +19,19 @@
 #include "mkldnn_traits.hpp"
 #include "nstl.hpp"
 
+#ifdef MKLDNN_JIT
 #include "jit_generator.hpp"
+#else
+#include "mkldnn_thread.hpp"
+#endif
 
 #include "gemm.hpp"
 
-#include "f32/jit_avx512_common_gemm_f32.hpp"
-#include "f32/jit_avx_gemm_f32.hpp"
+#include "f32/jit/jit_avx512_common_gemm_f32.hpp"
+#include "f32/jit/jit_avx_gemm_f32.hpp"
 #include "f32/ref_gemm_f32.hpp"
 
-#include "s8x8s32/jit_avx512_core_gemm_s8u8s32.hpp"
+#include "s8x8s32/jit/jit_avx512_core_gemm_s8u8s32.hpp"
 #include "s8x8s32/ref_gemm_s8x8s32.hpp"
 
 #include "os_blas.hpp"
@@ -118,7 +122,7 @@ mkldnn_status_t extended_sgemm(const char *transa, const char *transb,
         return mkldnn_success;
     }
 #endif
-
+#ifdef MKLDNN_JIT
     if (mayiuse(avx512_common))
         return jit_avx512_common_gemm_f32(transa, transb,
                 M, N, K, alpha, A, lda, B, ldb, beta, C, ldc, bias);
@@ -128,6 +132,10 @@ mkldnn_status_t extended_sgemm(const char *transa, const char *transb,
     else
         return ref_gemm<float>(transa, transb,
                 M, N, K, alpha, A, lda, B, ldb, beta, C, ldc, bias);
+#else
+    return ref_gemm<float>(transa, transb,
+            M, N, K, alpha, A, lda, B, ldb, beta, C, ldc, bias);
+#endif
 }
 
 template <typename b_dt>
@@ -160,7 +168,7 @@ mkldnn_status_t gemm_s8x8s32(const char *transa, const char *transb,
                 *M, *N, *K, *alpha, A, *LDA, *ao, (uint8_t *)B, *LDB, *bo,
                 *beta, C, *LDC, co);
         return mkldnn_success;
-#else
+#elif defined(MKLDNN_JIT)
         if (mayiuse(avx512_core))
             return jit_avx512_core_gemm_s8u8s32(transa, transb, offsetc, M,
                     N, K, alpha, A, LDA, ao, (uint8_t *)B, LDB, bo, beta,

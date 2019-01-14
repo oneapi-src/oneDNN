@@ -20,7 +20,9 @@
 #include "type_helpers.hpp"
 #include "mkldnn_thread.hpp"
 #include "utils.hpp"
+#ifdef MKLDNN_JIT
 #include "cpu_isa_traits.hpp"
+#endif
 
 #include "gemm_convolution_utils.hpp"
 
@@ -461,8 +463,12 @@ status_t init_conf(jit_gemm_conv_conf_t &jcp,
     jcp.ks = jcp.kh * jcp.kw * jcp.kd;
 
     jcp.signed_input = src_d.data_type() == data_type::s8;
+#ifdef MKLDNN_JIT
     jcp.wei_adj_scale =
         !jcp.signed_input || mayiuse(avx512_core_vnni) ? 1.f : 0.5f;
+#else
+    jcp.wei_adj_scale = !jcp.signed_input || 0.5f;
+#endif
 
     jcp.im2col_sz = !everyone_is(true,
             jcp.ow == jcp.iw, jcp.oh == jcp.ih, jcp.od == jcp.id,

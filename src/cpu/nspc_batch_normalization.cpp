@@ -21,7 +21,11 @@
 #include "type_helpers.hpp"
 
 #include "cpu_batch_normalization_utils.hpp"
+#ifdef MKLDNN_JIT
 #include "jit_generator.hpp"
+#else
+#include "mkldnn_thread.hpp"
+#endif
 
 #include "nspc_batch_normalization.hpp"
 

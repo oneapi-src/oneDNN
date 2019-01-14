@@ -30,8 +30,24 @@ include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/common
     ${CMAKE_CURRENT_SOURCE_DIR}/cpu
-    ${CMAKE_CURRENT_SOURCE_DIR}/cpu/xbyak
     )
+
+if(MKLDNN_JIT)
+    add_definitions(-DMKLDNN_JIT)
+    include_directories(
+    ${CMAKE_CURRENT_SOURCE_DIR}/cpu/jit
+    ${CMAKE_CURRENT_SOURCE_DIR}/cpu/jit/xbyak
+    ${CMAKE_CURRENT_SOURCE_DIR}/cpu/gemm/jit
+    ${CMAKE_CURRENT_SOURCE_DIR}/cpu/gemm/s8x8s32
+    ${CMAKE_CURRENT_SOURCE_DIR}/cpu/gemm/f32
+    )
+else()
+    foreach(ITEM ${SOURCES})
+        if ("${ITEM}" MATCHES "(.*)/jit/(.*)")
+            list(REMOVE_ITEM SOURCES ${ITEM})
+        endif()
+    endforeach()
+endif()
 
 # propagate SRC specific flags
 append(CMAKE_C_FLAGS "${CMAKE_SRC_CCXX_FLAGS}")
@@ -92,12 +108,12 @@ endif()
 # to make build time reasonable, don't use optimizations for s8u8s32 Xbyak
 # kernels
 file(GLOB FILES_WITHNO_OPT
-    ${CMAKE_CURRENT_SOURCE_DIR}/cpu/gemm/s8x8s32/jit_avx512_core_kernel_b0_gemm_s8u8s32_kern.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/cpu/gemm/s8x8s32/jit_avx512_core_kernel_gemm_s8u8s32_kern.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/cpu/gemm/s8x8s32/jit_avx512_core_u8_copy_an_kern.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/cpu/gemm/s8x8s32/jit_avx512_core_u8_copy_at_kern.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/cpu/gemm/s8x8s32/jit_avx512_core_u8_copy_bn_kern.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/cpu/gemm/s8x8s32/jit_avx512_core_u8_copy_bt_kern.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/cpu/gemm/s8x8s32/jit/jit_avx512_core_kernel_b0_gemm_s8u8s32_kern.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/cpu/gemm/s8x8s32/jit/jit_avx512_core_kernel_gemm_s8u8s32_kern.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/cpu/gemm/s8x8s32/jit/jit_avx512_core_u8_copy_an_kern.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/cpu/gemm/s8x8s32/jit/jit_avx512_core_u8_copy_at_kern.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/cpu/gemm/s8x8s32/jit/jit_avx512_core_u8_copy_bn_kern.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/cpu/gemm/s8x8s32/jit/jit_avx512_core_u8_copy_bt_kern.cpp)
 if(WIN32 AND NOT MINGW)
     set_source_files_properties(${FILES_WITHNO_OPT}
         PROPERTIES COMPILE_FLAGS "/Od")
