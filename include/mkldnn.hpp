@@ -146,7 +146,7 @@ public:
         inline operator primitive() const;
     };
 
-    /// Returns the descriptor of the underlying C API primitive
+    /// Returns the descriptor of the underlying C API primitive.
     inline const_mkldnn_primitive_desc_t get_primitive_desc() const;
     // TODO: use the C++ API wrapper structure.
 };
@@ -488,7 +488,7 @@ struct primitive_attr: public handle<mkldnn_primitive_attr_t> {
 /// @}
 
 /// @addtogroup cpp_api_engine Engine
-/// Engine operations
+/// Engine operations.
 ///
 /// @sa @ref c_api_engine in @ref c_api
 /// @{
@@ -504,7 +504,7 @@ struct engine: public handle<mkldnn_engine_t> {
     friend class primitive;
     // gcc bug??? using handle::handle;
 
-    /// Kinds of engines
+    /// Kinds of engines.
     enum kind {
         /// An unspecified engine
         any = mkldnn_any_engine,
@@ -572,7 +572,7 @@ private:
 /// @addtogroup cpp_api_memory Memory
 /// A primitive to describe and store data.
 ///
-/// For more information please refer to @ref c_api_memory in @ref c_api
+/// For more information, refer to @ref c_api_memory in @ref c_api.
 /// @{
 
 /// Memory primitive that describes the data.
@@ -1050,7 +1050,7 @@ struct view : public primitive {
 /// @}
 
 /// @addtogroup cpp_api_concat Concat
-/// A primitive to concatenate data by arbitrary dimension
+/// A primitive to concatenate data by arbitrary dimension.
 ///
 /// @sa @ref c_api_concat in @ref c_api
 /// @{
@@ -1127,7 +1127,7 @@ struct concat : public primitive {
 /// @}
 
 /// @addtogroup cpp_api_sum Sum
-/// A primitive to sum data
+/// A primitive to sum data.
 ///
 /// @sa @ref c_api_sum in @ref c_api
 /// @{
@@ -1223,7 +1223,7 @@ struct sum : public primitive {
 /// @addtogroup cpp_api_primitive_descriptors Primitive descriptors
 /// @{
 
-/// A base class for all primitive descriptors
+/// A base class for all primitive descriptors.
 struct primitive_desc : public handle<mkldnn_primitive_desc_t> {
     primitive_desc(const_mkldnn_op_desc_t desc, const primitive_attr *attr,
             const engine &e, const_mkldnn_primitive_desc_t hint_fwd_pd) {
@@ -1261,7 +1261,7 @@ struct primitive_desc : public handle<mkldnn_primitive_desc_t> {
         return res;
     }
 
-    /// Advances the next implementation for the given op descriptor
+    /// Advances the next implementation for the given op descriptor.
     ///
     /// Returns:
     /// - @c true on success
@@ -1277,7 +1277,7 @@ struct primitive_desc : public handle<mkldnn_primitive_desc_t> {
         return true;
     }
 
-    /// Queries and returns requested memory primitive descriptor
+    /// Queries and returns requested memory primitive descriptor.
     memory::primitive_desc query_mpd(query what, int idx = 0) const {
         std::vector<query> valid_w{input_pd, output_pd, src_pd, diff_src_pd,
             weights_pd, diff_weights_pd, dst_pd, diff_dst_pd, workspace_pd};
@@ -2268,7 +2268,7 @@ struct pooling_backward : public primitive {
 /// @}
 
 /// @addtogroup cpp_api_eltwise Eltwise
-/// A primitive to compute element wise operations like parametric rectifier
+/// A primitive to compute element-wise operations like parametric rectifier
 /// linear unit (ReLU).
 ///
 /// @sa @ref c_api_eltwise in @ref c_api
@@ -2519,12 +2519,12 @@ struct batch_normalization_forward : public primitive {
         reset(result);
     }
 
-    /// @warning batch_normalization_forward has 2 constructors with very
+    /// @warning batch_normalization_forward has two constructors with very
     ///          similar signatures:
     ///           - (pd, src, weights, dst, mean, variance) // 2 in, 3 out
     ///           - (pd, src, dst, mean, variance, workspace) // 1 in, 4 out
-    ///          The only way to distinguish between those is to explicitly
-    ///          cast all input parameters to their type, i.e. to
+    ///          The only way to distinguish between them is to explicitly
+    ///          cast all input parameters to their type; that is, to
     ///          const primitive:at &.
     batch_normalization_forward(const primitive_desc &aprimitive_desc,
             const primitive::at &src, const primitive::at &weights,
@@ -2572,17 +2572,16 @@ struct batch_normalization_forward : public primitive {
         reset(result);
     }
 
-    /// @warning batch_normalization_forward has 2 constructors with very
+    /// @warning batch_normalization_forward has two constructors with very
     ///          similar signatures:
     ///           - (pd, src, weights, dst, mean, variance) // 2 in, 3 out
     ///           - (pd, src, dst, mean, variance, workspace) // 1 in, 4 out
-    ///          The only way to distinguish between those is to explicitly
-    ///          cast all input parameters to their type, i.e. to
+    ///          The only way to distinguish between them is to explicitly
+    ///          cast all input parameters to their type; that is, to
     ///          const primitive:at &.
-    /// @note to make users' experience a little bit better this constructor
-    ///       checks if whether parameters match corresponding primitive
-    ///       descriptor, and if they are not -- call the other (proper)
-    ///       constructor. Yeah, this is still very ugly...
+    /// @note To make users' experience a little better, this constructor
+    ///       checks whether parameters match the corresponding primitive
+    ///       descriptor, and if not, calls the other (proper) constructor.
     batch_normalization_forward(const primitive_desc &aprimitive_desc,
             const primitive::at &src, const memory &dst, const memory &mean,
             const memory &variance, const memory &workspace) {
@@ -3251,7 +3250,7 @@ struct shuffle_backward : public primitive {
 /// @} Primitives
 
 /// @addtogroup cpp_api_stream Stream
-/// Execution stream operations
+/// Execution stream operations.
 ///
 /// @sa @ref c_api_stream in @ref c_api
 /// @{
@@ -3308,8 +3307,8 @@ struct stream: public handle<mkldnn_stream_t> {
 
     /// Waits for all computations submitted to the stream to complete.
     ///
-    /// @param block Specifies whether the operation should wait indefinitely or return
-    ///              immediately.
+    /// @param block Specifies whether the operation should wait indefinitely or
+    ///              return immediately.
     /// @returns @c true if all computations completed.
     /// @returns @c false if not all computations completed.
     bool wait(bool block = true) {
